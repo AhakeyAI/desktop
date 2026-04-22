@@ -1,0 +1,62 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python / cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+ENV/
+
+# Node
+node_modules/
+
+# Build / release outputs
+build/
+dist/
+out/
+release/
+publish/
+bin/
+obj/
+_internal/
+*.exe
+*.msi
+*.dmg
+*.app
+*.zip
+*.dll
+*.pdb
+
+# Logs / local runtime data
+*.log
+logs/
+
+# Local config / secrets / signing
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.snk
+**/config_client.json
+**/settings.json.bak.*
+**/hooks.json.bak.*
+
+# Local backups / temp
+*.bak
+*.tmp
+
+# Local model / runtime payloads
+models/
+internal/

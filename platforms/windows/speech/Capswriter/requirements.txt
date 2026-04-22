@@ -1,0 +1,6 @@
+# 从源码运行 / 供键盘配置工具用当前 Python 拉起 start_client.py、start_server.py 时安装
+# pip install -r requirements.txt
+
+typer>=0.9.0
+websockets>=12.0
+colorama>=0.4.6

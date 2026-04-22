@@ -1,29 +1,8 @@
-[English](#english) | [简体中文](#简体中文)
+# Roadmap
 
----
+## Next
 
-# English
-
-## Roadmap
-
-Short-term priorities for AhaKey Desktop:
-
-1. import the current baseline client code
-2. document supported workflows
-3. align desktop behavior with the public protocol docs
-4. clarify platform support status
-5. prepare for community contributions
-
----
-
-# 简体中文
-
-## 路线图
-
-AhaKey Desktop 的短期优先事项：
-
-1. 导入当前基础客户端代码
-2. 整理支持的工作流说明
-3. 让桌面端行为和公开协议文档对齐
-4. 明确各平台支持状态
-5. 为社区贡献做好准备
+- 补充 macOS 代码导入方案
+- 整理 Windows 历史打包脚本，区分“留档”与“正式构建入口”
+- 明确共享代码是否需要从现有项目中抽出
+- 建立统一的发布与版本记录流程

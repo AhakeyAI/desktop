@@ -1,31 +1,19 @@
-[English](#english) | [简体中文](#简体中文)
+# Architecture
 
----
+## Windows 组件关系
 
-# English
+- `desktop-main`
+  - 用户侧主桌面程序
+  - 负责设备配置、账号订阅交互、调用本地语音服务
+- `ble-bridge`
+  - 负责 BLE 与 TCP 之间的桥接
+  - 供主客户端通过 TCP 与设备交互
+- `hook-installer`
+  - 负责 Claude / Cursor hooks 的安装、分发与状态桥接脚本
+- `speech`
+  - 负责本地语音输入、转写与相关客户端 / 服务端逻辑
 
-## Architecture
+## 当前边界
 
-This document will describe the high-level structure of AhaKey Desktop, including:
-
-- BLE communication layer
-- protocol integration layer
-- device state handling
-- key configuration flow
-- UI layer
-- platform-specific adaptation points
-
----
-
-# 简体中文
-
-## 架构说明
-
-这份文档将用于描述 AhaKey Desktop 的高层结构，包括：
-
-- BLE 通信层
-- 协议集成层
-- 设备状态处理
-- 按键配置流程
-- UI 层
-- 平台相关适配点
+- `wxcloudrun-flask-main/` 为云端后端，不在本仓库中。
+- `shared/` 暂未抽出独立共享源码，第一轮只保留占位说明。

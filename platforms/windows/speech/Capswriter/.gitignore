@@ -1,0 +1,8 @@
+logs/
+models/Fun-ASR-Nano/Fun-ASR-Nano-GGUF
+internal/
+dist/
+build/
+__pycache__/
+util/llm/__pycache__/
+util/__pycache__/
