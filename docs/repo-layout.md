@@ -4,13 +4,15 @@
 
 - 顶层 `docs/` 只放仓库级共享文档。
 - 代码按平台拆分，而不是按工具拆顶层。
-- 当前只导入 Windows。
+- 当前统一承载 Windows + macOS desktop baseline。
 - 安装包不进仓库，发布走 GitHub Releases。
 
 ## 当前目录说明
 
 - `docs/`
   - 仓库级说明、安装、发布与布局文档
+- `platforms/macos/`
+  - macOS 平台说明与客户端源码
 - `platforms/windows/`
   - Windows 相关代码与说明
 - `assets/`
@@ -19,6 +21,14 @@
   - 预留给仓库级共享脚本
 - `releases/`
   - 预留给发布说明，不保存二进制
+
+## macOS 子目录说明
+
+- `README.md`
+  - macOS 平台级说明
+- `client/`
+  - macOS 客户端源码主目录
+  - 包含 Swift 源码、资源文件、工程入口和平台脚本
 
 ## Windows 子目录说明
 

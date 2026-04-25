@@ -32,16 +32,20 @@ This directory is intended to contain:
 - macOS-specific platform logic
 - build instructions
 - platform documentation
+- the imported client baseline under `platforms/macos/client/`
 
 ### Current status
 
-macOS source import is in progress.
+macOS client source code has been imported into `platforms/macos/client/`.
+
+The macOS baseline is still in an early post-migration state. Source, project files, required resources, and selected scripts are preserved as imported. Build/release normalization and later cleanup work are still pending.
 
 ### Notes
 
 - Release binaries such as `.dmg` files are not stored in source directories
 - Packaged macOS builds should be distributed through GitHub Releases
 - Historical macOS repositories may be retained temporarily during migration
+- macOS source is kept separate from Windows code and is not mixed into `platforms/windows/`
 
 ---
 
@@ -75,13 +79,17 @@ macOS 客户端并不是 Windows 客户端的一个小变体。
 - macOS 平台相关逻辑
 - 构建说明
 - 平台文档
+- 已迁入的 `platforms/macos/client/` 客户端基线源码
 
 ### 当前状态
 
-macOS 源码迁移进行中。
+macOS 客户端源码已迁入 `platforms/macos/client/`。
+
+当前状态仍属于迁移后的早期整理阶段。本轮以保留源码、工程文件、必要资源和选定脚本为主，后续再单独处理构建标准化、清理项和发布流程收敛。
 
 ### 说明
 
 - `.dmg` 等发布二进制不会存放在源码目录中
 - macOS 安装包应通过 GitHub Releases 分发
 - 迁移过程中，历史 macOS 仓库可能会暂时保留
+- macOS 源码不会混入 `platforms/windows/`
