@@ -4,7 +4,7 @@
 
 ## 获取安装包
 
-- Windows 安装包未来通过 GitHub Releases 分发。
+- Windows 与 macOS 安装包统一通过 GitHub Releases 分发。
 - 仓库内不提交 `exe`、`msi`、`dmg` 等发布二进制。
 
 ## 当前源码构建入口
@@ -46,13 +46,33 @@
 - 可判断的打包入口：
   - `build.spec`
 
+### macOS client
+
+- 目录：`platforms/macos/client/`
+- 当前可判断的环境要求：
+  - macOS 15.0+
+  - Xcode 15+ 或等效 Swift toolchain
+  - Swift 5.9+
+  - Apple Silicon（arm64）
+- 当前可判断的开发 / 构建入口：
+  - `swift build -c release --arch arm64 --product AhaKeyConfig`
+  - `bash scripts/build.sh`
+  - `make build`
+- 当前可判断的打包入口：
+  - `bash scripts/package_dmg.sh`
+  - `bash scripts/release_dmg.sh`
+- 说明：
+  - `.dmg` 等产物不进入仓库
+  - macOS 源码虽已迁入 baseline，但整体构建和发布流程仍处于整理阶段
+
 ## 当前未随仓库导入的内容
 
 - `Capswriter` 的预编译 DLL
 - 安装器装配目录
 - 发布后的 `exe` / `msi`
 - 云端后端服务
-- macOS 源码
+- 发布后的 `.app` / `.dmg`
+- 本地签名证书、私钥、描述文件和其他敏感材料
 
 ## 历史打包脚本说明
 

@@ -35,6 +35,16 @@ _internal/
 *.dll
 *.pdb
 
+# macOS / Xcode / SwiftPM
+DerivedData/
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.dSYM/
+
 # Logs / local runtime data
 *.log
 logs/
@@ -49,6 +59,8 @@ logs/
 *.crt
 *.cer
 *.snk
+*.mobileprovision
+*.provisionprofile
 **/config_client.json
 **/settings.json.bak.*
 **/hooks.json.bak.*
