@@ -1,0 +1,16 @@
+click==8.0.3
+Flask==2.0.2
+Flask-SQLAlchemy==2.5.1
+# greenlet 1.x has no cp312 wheels on Windows; use 3.x (binary wheels).
+greenlet>=3.0.3,<4
+itsdangerous==2.0.1
+Jinja2==3.0.3
+MarkupSafe==2.0.1
+PyMySQL==1.0.2
+cryptography>=41.0.0
+SQLAlchemy==1.4.29
+Werkzeug==2.0.2
+PyJWT==2.8.0
+bcrypt==4.1.2
+requests==2.31.0
+python-dotenv==1.0.1
