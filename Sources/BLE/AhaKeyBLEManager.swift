@@ -954,6 +954,11 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             firmwareMainVersion = status.firmwareMain
             firmwareSubVersion = status.firmwareSub
             workMode = status.workMode
+            NotificationCenter.default.post(
+                name: .ahaKeyKeyboardWorkModeChanged,
+                object: nil,
+                userInfo: ["workMode": status.workMode]
+            )
             lightMode = status.lightMode
             switchState = status.switchState
             appendLog("  状态: 电量=\(status.battery) 固件=\(status.firmwareMain).\(status.firmwareSub) 模式=\(status.workMode) 灯=\(status.lightMode) 开关=\(status.switchState)")
@@ -1009,6 +1014,11 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
         appendLog("═══ 探测完毕，等待回调 ═══")
     }
+}
+
+extension Notification.Name {
+    /// `userInfo["workMode"]` 为 `Int`，与键盘物理档位一致。
+    static let ahaKeyKeyboardWorkModeChanged = Notification.Name("lab.jawa.ahakeyconfig.keyboardWorkModeChanged")
 }
 
 // MARK: - Data Extension

@@ -55,6 +55,11 @@ struct AhaKeyStudioView: View {
             applyCursorRejectMacroSelfHealIfNeeded()
             voiceRelay.updateRoutes(from: studioDraft)
             SwitchStateNotifier.shared.bind(to: bleManager)
+            NotificationCenter.default.post(
+                name: .ahaKeyKeyboardWorkModeChanged,
+                object: nil,
+                userInfo: ["workMode": bleManager.workMode]
+            )
         }
         .onChange(of: studioDraft) { _, newValue in
             AhaKeyStudioStore.save(newValue)
@@ -372,6 +377,29 @@ struct AhaKeyStudioView: View {
                         }
                     }
                     .padding(.top, 4)
+                }
+
+                if let preset = key.voicePreset, preset == .typeless || preset == .wechat {
+                    GroupBox("Typeless / 微信") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("「开始录音」只用于「macOS 原生语音」。当前预设由硬件语音键或下方按钮触发：会向系统注入 Fn 按住/松开，供输入法「按住说话」使用。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("排查请看 voice-relay.log（ matched · function relay · post fn ）。路径：~/Library/Application Support/AhaKeyConfig/diagnostics/")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            Button("模拟按一次语音键（切换 Fn 按住）") {
+                                voiceRelay.simulateInspectorVoiceKeyTap(for: selectedMode)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            if let hint = voiceRelay.lastInspectorSimulateHint {
+                                Text(hint)
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                 }
 
                 if (key.voicePreset ?? .custom) == .macOSNative {

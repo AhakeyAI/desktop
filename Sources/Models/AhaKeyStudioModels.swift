@@ -345,7 +345,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .macOSNative:
             "AhaKey Studio 会在后台直接调用苹果原生语音转写。按一次开始，再按一次结束，并把识别文字写回当前光标。Mode 0 出厂固件的 F18 也能直接接管。"
         case .typeless:
-            "AhaKey Studio 会在后台把语音键的按下/松开转换成 Fn/Globe，供 Typeless 接管。"
+            "预设对应快捷键：Typeless 内仍选 Fn/Globe。本 Studio 默认用 F19 作为语音触发键（与 macOS 原生 F18 错开）；按下后向系统注入「按住 Fn」供随声写使用。Mode 0 出厂语音键 F18 仍会额外注册兼容。请授予输入监控与辅助功能。"
         case .wechat:
             "AhaKey Studio 会在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
         case .claudeCode:
@@ -371,8 +371,8 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .macOSNative:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .typeless:
-            // 与 macOS 原生 / 微信等一致用 F18，便于 CGEvent 与出厂语音键位对齐
-            ShortcutBinding(keyCode: HIDUsage.f18)
+            // 与 macOS 原生默认 F18 错开；固件可把 Typeless 档语音键设为 F19，Mode 0 另有 F18 出厂兼容路由
+            ShortcutBinding(keyCode: HIDUsage.f19)
         case .wechat:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .claudeCode:
