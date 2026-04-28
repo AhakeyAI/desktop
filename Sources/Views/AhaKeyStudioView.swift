@@ -365,6 +365,9 @@ struct AhaKeyStudioView: View {
                         HStack(spacing: 10) {
                             Button("再次申请权限") {
                                 voiceRelay.refreshPermissions(requestIfNeeded: true)
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                                    openCombinedVoicePrivacySettingsURL()
+                                }
                             }
                             .buttonStyle(.borderedProminent)
 
@@ -1818,13 +1821,13 @@ private struct VoicePermissionOnboardingSheet: View {
                 permissionRow(title: "语音转写", granted: nativeSpeech.speechRecognitionGranted, detail: "允许 AhaKey Studio 使用苹果原生语音识别。")
             }
 
-            Text("操作建议：先点“现在申请权限”，按系统弹窗完成授权；如果你已经在系统设置里改好了，再回到这里点“我已完成，重新检查”。")
+            Text("操作建议：先点「现在申请权限」——macOS 上输入监控/辅助功能常常不再弹系统对话框，约半秒后会自动打开「隐私与安全性」，请在列表中勾选 AhaKey Studio；麦克风和语音在之前就拒绝过的话也不会再弹窗，需在设置里手动打开。若你已在系统设置里改好，可点「我已完成，重新检查」。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text("若系统里已勾选允许，本应用仍显示未开启：请完全退出 AhaKey Studio 并再启动一次。输入监控、辅助功能等常按进程生效，只点「重新检查」或从后台切回，有时读到的仍是旧状态，重启后即可与系统设置一致。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("外发 / DMG：确保「隐私与安全性」里勾选的是当前这份 AhaKey（路径或隔离属性不同会当成另一个 App）。")
+            Text("外发 / DMG / Xcode：默认正式包在系统「隐私与安全性」里显示为「AhaKey Studio」；用 Xcode 以 Debug 运行本工程时显示为「AhaKey Studio（调试）」，请按名称分别授权。路径或签名不同也会被系统当成另一款 App。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -1837,8 +1840,10 @@ private struct VoicePermissionOnboardingSheet: View {
 
             HStack(spacing: 12) {
                 Button("现在申请权限") {
-                    voiceRelay.refreshPermissions(requestIfNeeded: true)
-                    nativeSpeech.refreshPermissions(requestIfNeeded: true)
+                    requestPermissionsThenOpenPrivacySettingsIfNeeded(
+                        voiceRelay: voiceRelay,
+                        nativeSpeech: nativeSpeech
+                    )
                 }
                 .buttonStyle(.borderedProminent)
 
@@ -2426,17 +2431,67 @@ private func openNativeSpeechPrivacySettingsURL() {
     }
 }
 
-/// 退出后由 `open -n` 再拉起同一份 .app。逻辑内联在本文件，避免单独 Swift 文件未加入 Xcode target 时报找不到符号。
+/// 输入监控 / 辅助功能 / 麦克风和语音转写：系统在「已拒绝」或部分版本下不会再弹权限窗。主动申请后打开「隐私与安全性」相关页，保证有可操作反馈。
+@MainActor
+private func openCombinedVoicePrivacySettingsURL() {
+    // 勿用未文档化的 `x-apple.systemsettings` + `.extension` 等组合；在部分系统上会被当成「文稿」，
+    // 连续弹出「在 App Store 搜索… / 选取应用程序」而非进入设置。
+    let candidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy",
+    ]
+    for candidate in candidates {
+        guard let url = URL(string: candidate) else { continue }
+        if NSWorkspace.shared.open(url) {
+            return
+        }
+    }
+    let appPaths = [
+        "/System/Applications/System Settings.app",
+        "/System/Library/CoreServices/Applications/System Settings.app",
+        "/System/Applications/System Preferences.app",
+    ]
+    for path in appPaths where FileManager.default.fileExists(atPath: path) {
+        if NSWorkspace.shared.open(URL(fileURLWithPath: path)) {
+            return
+        }
+    }
+}
+
+/// 先走系统 API 申请；随后在桌面端打开「隐私与安全性」相关页。输入监控 / 辅助功能在多数 macOS 版本上**不会**像 iOS 那样弹窗，麦克风和语音在「已选择过」后也不再弹窗，因此必须配合系统设置界面。
+@MainActor
+private func requestPermissionsThenOpenPrivacySettingsIfNeeded(
+    voiceRelay: VoiceRelayService,
+    nativeSpeech: NativeSpeechTranscriptionService,
+    delay: TimeInterval = 0.45
+) {
+    voiceRelay.refreshPermissions(requestIfNeeded: true)
+    nativeSpeech.refreshPermissions(requestIfNeeded: true)
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+        openCombinedVoicePrivacySettingsURL()
+    }
+}
+
+/// 退出后由 `open -n` 再拉起同一份 .app。须在子进程成功执行 `open` 之后再 `terminate`，否则主进程先退出会导致排队的 `open` 来不及运行。
 private func relaunchApplicationForPermissionRefresh() {
     let bundlePath = Bundle.main.bundlePath
     DispatchQueue.global(qos: .userInitiated).async {
-        Thread.sleep(forTimeInterval: 0.35)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         process.arguments = ["-n", bundlePath]
-        try? process.run()
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            // 仍尝试退出，避免卡死；用户可手动再开。
+        }
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
     }
-    NSApp.terminate(nil)
 }
 
 /// 在系统「隐私与安全性」中改完权限后，用确认框引导用户：退出后由 `open -n` 自动拉起同一份 .app。

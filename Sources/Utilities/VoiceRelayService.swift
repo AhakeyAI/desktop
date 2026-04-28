@@ -108,27 +108,51 @@ final class VoiceRelayService: ObservableObject {
         }
     }
 
-    /// - Parameter deferredTCCRequery: 用户点「重新检查」时置 true。部分 macOS 版本在刚改完系统设置、仍停留本 App 时，TCC 的 PreFlight 会短暂返回旧值；延后一拍再读更可靠，并先显示「正在检查」避免误认无响应。
+    /// - Parameter deferredTCCRequery: 用户点「重新检查」时置 true。仅 Preflight 在刚改完系统设置、仍停留本 App 时可能仍读到旧值；改为稍后使用 Request API 再读一次，并略延长等待。
     func refreshPermissions(requestIfNeeded: Bool = false, deferredTCCRequery: Bool = false) {
         if requestIfNeeded {
-            performPermissionRead(requestIfNeeded: true)
+            if Thread.isMainThread {
+                performPermissionRead(requestIfNeeded: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.performPermissionRead(requestIfNeeded: true)
+                }
+            }
             return
         }
         if deferredTCCRequery {
             DispatchQueue.main.async {
                 self.lastPermissionCheckSummary = "正在检查系统权限…"
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                self?.performPermissionRead(requestIfNeeded: false)
+            let firstDelay: TimeInterval = 0.45
+            let followUpDelay: TimeInterval = 0.85
+            DispatchQueue.main.asyncAfter(deadline: .now() + firstDelay) { [weak self] in
+                guard let self else { return }
+                self.performPermissionRead(requestIfNeeded: false, preferRequestAPI: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + followUpDelay) { [weak self] in
+                    guard let self else { return }
+                    if !self.inputMonitoringGranted || !self.accessibilityGranted {
+                        self.performPermissionRead(requestIfNeeded: false, preferRequestAPI: true)
+                        self.appendDiagnostic("permissions follow-up recheck (after system settings)")
+                    }
+                }
             }
             return
         }
         performPermissionRead(requestIfNeeded: false)
     }
 
-    private func performPermissionRead(requestIfNeeded: Bool) {
-        let inputMonitoring = requestIfNeeded ? CGRequestListenEventAccess() : CGPreflightListenEventAccess()
-        let postEventAccess = requestIfNeeded ? CGRequestPostEventAccess() : CGPreflightPostEventAccess()
+    private func performPermissionRead(requestIfNeeded: Bool, preferRequestAPI: Bool = false) {
+        let inputMonitoring: Bool
+        let postEventAccess: Bool
+        if requestIfNeeded || preferRequestAPI {
+            // Request 会走当前 TCC 判决；用户刚从「隐私与安全性」返回时，Preflight 有时仍短暂为 false。
+            inputMonitoring = CGRequestListenEventAccess()
+            postEventAccess = CGRequestPostEventAccess()
+        } else {
+            inputMonitoring = CGPreflightListenEventAccess()
+            postEventAccess = CGPreflightPostEventAccess()
+        }
 
         let accessibility: Bool
         if requestIfNeeded {

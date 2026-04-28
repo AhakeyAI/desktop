@@ -47,8 +47,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         if deferredTCCRequery {
             lastPermissionCheckSummary = "正在检查麦克风与语音转写权限…"
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(200))
+                try? await Task.sleep(for: .milliseconds(450))
                 self.performPermissionRead(requestIfNeeded: false)
+                if !self.microphoneGranted || !self.speechRecognitionGranted {
+                    try? await Task.sleep(for: .milliseconds(800))
+                    self.performPermissionRead(requestIfNeeded: false)
+                }
             }
             return
         }
