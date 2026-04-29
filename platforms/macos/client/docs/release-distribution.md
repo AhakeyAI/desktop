@@ -18,7 +18,7 @@
 ## 2. 当前仓库已支持的脚本
 
 - 构建 `.app`：[scripts/build.sh](../scripts/build.sh)
-- **构建可分发 `.dmg`（含公证）**：[scripts/pack-release.sh](../scripts/pack-release.sh) — 对内测试与对外发版可用同一套产物；内部调用 [scripts/package_dmg.sh](../scripts/package_dmg.sh)
+- **构建可分发 `.dmg`（含公证）**：[scripts/release_dmg.sh](../scripts/release_dmg.sh) — 对内测试与对外发版可用同一套产物；内部调用 [scripts/package_dmg.sh](../scripts/package_dmg.sh)
 
 ## 3. 你需要先准备的东西
 
@@ -64,7 +64,7 @@ xcrun notarytool store-credentials "AhaKeyNotary" \
 
 ```bash
 cd /path/to/ahakeyconfig
-zsh scripts/pack-release.sh
+zsh scripts/release_dmg.sh
 ```
 
 默认使用：
@@ -77,7 +77,7 @@ zsh scripts/pack-release.sh
 ```bash
 SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAMID>)" \
 NOTARY_PROFILE="AhaKeyNotary" \
-zsh scripts/pack-release.sh
+zsh scripts/release_dmg.sh
 ```
 
 ## 5. 脚本会做什么
@@ -115,7 +115,7 @@ hdiutil verify "dist/<本次的>.dmg"
 
 ## 7. 当前状态说明
 
-若本机已具备 `Developer ID Application` 与 `notarytool` profile，执行 `pack-release.sh` 即可得到与终端用户一致的安装包；**测试场景也推荐直接安装该 DMG**，以便验证 Gatekeeper、公证与真实分发路径。
+若本机已具备 `Developer ID Application` 与 `notarytool` profile，执行 `release_dmg.sh` 即可得到与终端用户一致的安装包；**测试场景也推荐直接安装该 DMG**，以便验证 Gatekeeper、公证与真实分发路径。
 
 若仅有开发证书、不想走公证，可只做应用调试：
 
