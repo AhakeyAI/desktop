@@ -1,0 +1,18 @@
+AhaKey Studio Quick Start
+=========================
+
+1. Drag "AhaKey Studio.app" into the Applications folder.
+2. Open the app and allow Bluetooth access when macOS asks.
+3. Turn on your AhaKey keyboard and keep it nearby.
+4. In the app, click "连接设备" and wait for the keyboard to connect.
+5. Keep Mode 0 selected for your first test.
+6. Click the key, light bar, screen, or toggle you want to inspect.
+7. Make a small change and click "同步到键盘".
+
+Notes
+-----
+
+- Mode 0 is the official vibecoding preset.
+- Mode 1 and Mode 2 are user-custom modes.
+- OLED currently supports animated content preview first.
+- If you enable AI status lighting later, the app may install a lightweight background helper.

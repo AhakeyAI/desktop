@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AhaKey UX Review Prototype</title>
+  <style>
+    :root {
+      --bg: #f4f1eb;
+      --panel: rgba(255, 255, 255, 0.72);
+      --panel-strong: rgba(255, 255, 255, 0.9);
+      --line: rgba(35, 35, 35, 0.08);
+      --text: #181615;
+      --muted: #6e655d;
+      --accent: #1488cc;
+      --accent-soft: rgba(20, 136, 204, 0.14);
+      --brand-red: #f02029;
+      --working-blue: #2050ff;
+      --success: #1f9d55;
+      --warning: #ff8c42;
+      --shadow: 0 20px 50px rgba(76, 60, 43, 0.14);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.95), transparent 28%),
+        radial-gradient(circle at 100% 20%, rgba(255, 237, 214, 0.8), transparent 26%),
+        linear-gradient(180deg, #faf7f3 0%, #f2ede6 100%);
+      overflow: hidden;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-rows: 78px 1fr 38px;
+      height: 100vh;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    .toolbar,
+    .statusbar,
+    .workspace,
+    .panel {
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      box-shadow: var(--shadow);
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 16px;
+      align-items: center;
+      padding: 14px 18px;
+      border-radius: var(--radius-xl);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background:
+        linear-gradient(145deg, rgba(16, 118, 164, 0.16), rgba(32, 80, 255, 0.16)),
+        linear-gradient(145deg, #ffffff, rgba(255, 255, 255, 0.76));
+      display: grid;
+      place-items: center;
+      color: #106ca3;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.1;
+    }
+
+    .brand-copy span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .toolbar-center {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 6px rgba(31, 157, 85, 0.12);
+    }
+
+    .segmented {
+      display: inline-flex;
+      padding: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid var(--line);
+      gap: 4px;
+    }
+
+    .segmented button,
+    .state-pill,
+    .voice-pill,
+    .toolbar-action {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .segmented button {
+      padding: 8px 14px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .segmented button.active {
+      color: #0d2031;
+      background: linear-gradient(145deg, rgba(20, 136, 204, 0.18), rgba(255, 255, 255, 0.96));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toolbar-action {
+      padding: 11px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .toolbar-action.primary {
+      background: linear-gradient(145deg, #0d8ecf, #1369a8);
+      color: white;
+      box-shadow: 0 14px 28px rgba(19, 105, 168, 0.22);
+    }
+
+    .workspace {
+      border-radius: 34px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: minmax(860px, 1fr) 390px;
+      gap: 16px;
+      overflow: hidden;
+    }
+
+    .canvas-card,
+    .inspector {
+      background: var(--panel-strong);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      border-radius: 26px;
+      overflow: hidden;
+    }
+
+    .canvas-card {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+    }
+
+    .canvas-header,
+    .inspector-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid rgba(26, 22, 18, 0.06);
+    }
+
+    .canvas-title strong,
+    .inspector-title strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.2;
+    }
+
+    .canvas-title span,
+    .inspector-title span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .canvas-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .meta-badge {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(20, 136, 204, 0.1);
+      color: #0e6998;
+      font-size: 12px;
+    }
+
+    .canvas-stage {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      align-items: center;
+      padding: 28px 24px 18px;
+      background:
+        linear-gradient(180deg, rgba(244, 240, 233, 0.82), rgba(250, 247, 242, 0.96)),
+        repeating-linear-gradient(
+          90deg,
+          rgba(52, 44, 35, 0.025) 0,
+          rgba(52, 44, 35, 0.025) 1px,
+          transparent 1px,
+          transparent 36px
+        );
+    }
+
+    .keyboard-scene {
+      position: relative;
+      width: min(100%, 920px);
+      margin: 0 auto;
+      aspect-ratio: 109 / 54;
+    }
+
+    .board {
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.85), rgba(223, 227, 232, 0.62)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(206, 215, 224, 0.2));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -2px 10px rgba(130, 145, 160, 0.22),
+        0 30px 50px rgba(76, 60, 43, 0.15);
+      border: 1px solid rgba(186, 195, 205, 0.7);
+    }
+
+    .board::before {
+      content: "";
+      position: absolute;
+      inset: 1.7% 1.6%;
+      border-radius: 21px;
+      border: 1px solid rgba(135, 148, 163, 0.38);
+    }
+
+    .board::after {
+      content: "";
+      position: absolute;
+      left: 2.4%;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3.6%;
+      height: 27%;
+      border-radius: 14px;
+      border: 1px solid rgba(120, 134, 150, 0.45);
+      background: rgba(255, 255, 255, 0.28);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+    }
+
+    .screw {
+      position: absolute;
+      width: 5%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 1px solid rgba(130, 145, 160, 0.42);
+      box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.5);
+      background: radial-gradient(circle at 45% 45%, rgba(255, 255, 255, 0.86), rgba(180, 190, 201, 0.48));
+    }
+
+    .screw.tl { left: 1.7%; top: 2.7%; }
+    .screw.tr { right: 1.7%; top: 2.7%; }
+    .screw.bl { left: 1.7%; bottom: 2.7%; }
+    .screw.br { right: 1.7%; bottom: 2.7%; }
+
+    .hotspot {
+      position: absolute;
+      border: 0;
+      cursor: pointer;
+      background: transparent;
+      color: inherit;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+    }
+
+    .hotspot:hover {
+      transform: translateY(-1px);
+    }
+
+    .hotspot::after {
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border-radius: 20px;
+      border: 1px dashed transparent;
+      pointer-events: none;
+      transition: 180ms ease;
+    }
+
+    .hotspot.selected::after {
+      border-color: rgba(20, 136, 204, 0.45);
+      box-shadow: 0 0 0 8px rgba(20, 136, 204, 0.08);
+    }
+
+    .dirty-flag {
+      position: absolute;
+      right: -4px;
+      top: -4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--warning);
+      box-shadow: 0 0 0 5px rgba(255, 140, 66, 0.16);
+    }
+
+    .light-bar {
+      left: 12.4%;
+      top: 15%;
+      width: 54.8%;
+      height: 8.1%;
+      border-radius: 999px;
+      border: 1px solid rgba(136, 151, 166, 0.45);
+      background: rgba(244, 244, 246, 0.5);
+      overflow: hidden;
+    }
+
+    .light-strip {
+      position: absolute;
+      inset: 20% 2.5%;
+      border-radius: 999px;
+      background: #111;
+    }
+
+    .light-strip[data-light="preToolUse"] {
+      background:
+        linear-gradient(90deg, rgba(32, 80, 255, 0.04), rgba(32, 80, 255, 0.6), rgba(32, 80, 255, 0.04));
+      background-size: 180px 100%;
+      animation: slide 2.2s ease-in-out infinite alternate;
+    }
+
+    .light-strip[data-light="stop"],
+    .light-strip[data-light="taskCompleted"] {
+      background: linear-gradient(90deg, rgba(240, 32, 41, 0.08), rgba(240, 32, 41, 0.9), rgba(240, 32, 41, 0.08));
+    }
+
+    .light-strip[data-light="permissionRequest"] {
+      background:
+        radial-gradient(circle at 50% 50%, rgba(240, 32, 41, 0.95), rgba(240, 32, 41, 0.08) 70%);
+      animation: breathe 1.6s ease-in-out infinite;
+    }
+
+    .light-strip[data-light="postToolUse"],
+    .light-strip[data-light="userPromptSubmit"] {
+      background:
+        linear-gradient(90deg, rgba(240, 32, 41, 0.05), rgba(240, 32, 41, 0.85), rgba(240, 32, 41, 0.05));
+      background-size: 180px 100%;
+      animation: slide 1.8s ease-in-out infinite alternate;
+    }
+
+    .light-strip[data-light="sessionEnd"] {
+      background: rgba(15, 15, 18, 0.9);
+    }
+
+    .light-strip[data-light="notification"],
+    .light-strip[data-light="sessionStart"] {
+      background:
+        linear-gradient(90deg, rgba(240, 32, 41, 0.08), rgba(240, 32, 41, 0.65), rgba(240, 32, 41, 0.08));
+    }
+
+    .oled {
+      left: 71.5%;
+      top: 12.2%;
+      width: 23.8%;
+      height: 20.8%;
+      border-radius: 6px;
+      border: 1px solid rgba(58, 63, 70, 0.35);
+      background:
+        radial-gradient(circle at 25% 25%, rgba(38, 212, 255, 0.24), transparent 35%),
+        radial-gradient(circle at 72% 72%, rgba(255, 69, 105, 0.26), transparent 33%),
+        linear-gradient(145deg, #060708, #191b1d);
+      overflow: hidden;
+    }
+
+    .oled-screen {
+      position: absolute;
+      inset: 8%;
+      border-radius: 4px;
+      background:
+        linear-gradient(135deg, rgba(0, 255, 189, 0.12), transparent 42%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.4));
+      display: grid;
+      place-items: center;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 10px;
+      text-align: center;
+      padding: 6px;
+      letter-spacing: 0.03em;
+    }
+
+    .oled-screen small {
+      display: inline-flex;
+      margin-top: 6px;
+      padding: 4px 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 9px;
+    }
+
+    .key {
+      width: 16.2%;
+      height: 31.6%;
+      border-radius: 16px;
+      border: 1px solid rgba(120, 130, 144, 0.45);
+      background:
+        linear-gradient(145deg, rgba(182, 188, 195, 0.8), rgba(242, 243, 244, 0.8));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -7px 12px rgba(116, 124, 135, 0.18);
+      display: grid;
+      place-items: center;
+      padding: 10px;
+    }
+
+    .keycap {
+      width: 81%;
+      height: 81%;
+      border-radius: 14px;
+      border: 1px solid rgba(143, 151, 160, 0.48);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(239, 239, 239, 0.94));
+      display: grid;
+      place-items: center;
+      box-shadow:
+        inset 0 2px 0 rgba(255, 255, 255, 0.95),
+        0 8px 14px rgba(94, 103, 112, 0.12);
+      font-size: 46px;
+      line-height: 1;
+    }
+
+    .key.voice { left: 9.4%; top: 49.1%; }
+    .key.confirm { left: 26.2%; top: 49.1%; }
+    .key.reject { left: 43%; top: 49.1%; }
+    .key.enter { left: 59.8%; top: 49.1%; }
+
+    .key-label {
+      position: absolute;
+      left: 50%;
+      bottom: -28px;
+      transform: translateX(-50%);
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid rgba(33, 25, 19, 0.07);
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .switch {
+      left: 86.9%;
+      top: 61.6%;
+      width: 7.2%;
+      height: 18.2%;
+      border-radius: 14px;
+      border: 1px solid rgba(122, 130, 140, 0.48);
+      background:
+        linear-gradient(145deg, rgba(238, 239, 241, 0.88), rgba(211, 215, 220, 0.66));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .switch-core {
+      width: 48%;
+      height: 68%;
+      border-radius: 999px;
+      background:
+        linear-gradient(180deg, rgba(194, 198, 202, 0.96), rgba(120, 124, 129, 0.88));
+      position: relative;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+
+    .switch-core::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 6%;
+      width: 14px;
+      height: 18px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(124, 128, 132, 0.96));
+      box-shadow: 0 3px 10px rgba(53, 53, 53, 0.18);
+    }
+
+    .switch[data-switch="manual"] .switch-core::before {
+      top: 58%;
+    }
+
+    .summary-band {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 16px 20px 20px;
+      border-top: 1px solid rgba(26, 22, 18, 0.06);
+    }
+
+    .summary-card {
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(248, 247, 243, 0.9);
+      border: 1px solid rgba(33, 25, 19, 0.07);
+      min-height: 88px;
+    }
+
+    .summary-card strong {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .summary-card span {
+      display: block;
+      font-size: 17px;
+      line-height: 1.25;
+    }
+
+    .inspector {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+    }
+
+    .inspector-scroll {
+      overflow: auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .panel {
+      border-radius: 20px;
+      padding: 15px 16px;
+      background: rgba(250, 248, 244, 0.82);
+      border: 1px solid rgba(30, 24, 19, 0.06);
+    }
+
+    .panel strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .panel p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .panel-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .option-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 11px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(30, 24, 19, 0.07);
+      background: rgba(255, 255, 255, 0.7);
+      font-size: 13px;
+    }
+
+    .option-row small,
+    .panel-note,
+    .dev-badge {
+      color: var(--muted);
+    }
+
+    .state-row,
+    .voice-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .state-pill,
+    .voice-pill {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(30, 24, 19, 0.08);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .state-pill.active,
+    .voice-pill.active {
+      color: #09263a;
+      background: rgba(20, 136, 204, 0.14);
+      border-color: rgba(20, 136, 204, 0.22);
+    }
+
+    .state-pill.pending,
+    .voice-pill.pending {
+      opacity: 0.58;
+      cursor: default;
+    }
+
+    .hero-note {
+      padding: 14px;
+      border-radius: 16px;
+      background:
+        linear-gradient(145deg, rgba(11, 104, 155, 0.08), rgba(255, 255, 255, 0.78));
+      border: 1px solid rgba(20, 136, 204, 0.12);
+      color: #19455f;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .dev-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(255, 140, 66, 0.12);
+      color: #9a5b21;
+      font-size: 11px;
+    }
+
+    .statusbar {
+      border-radius: 18px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .statusbar strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    @keyframes slide {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 0.48; transform: scaleX(0.96); }
+      50% { opacity: 1; transform: scaleX(1); }
+    }
+
+    @media (max-width: 980px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="toolbar">
+      <div class="brand">
+        <div class="brand-mark">AK</div>
+        <div class="brand-copy">
+          <strong>AhaKey Studio</strong>
+          <span>Native review prototype</span>
+        </div>
+      </div>
+
+      <div class="toolbar-center">
+        <div class="chip">
+          <span class="dot"></span>
+          已连接 AhaKey-X1
+        </div>
+        <div class="chip">电量 84%</div>
+        <div class="segmented" id="modeSwitch">
+          <button class="active" data-mode="mode0">Mode 0</button>
+          <button data-mode="mode1">Mode 1</button>
+          <button data-mode="mode2">Mode 2</button>
+        </div>
+      </div>
+
+      <div class="toolbar-actions">
+        <button class="toolbar-action">撤销</button>
+        <button class="toolbar-action">更多</button>
+      </div>
+
+      <div class="toolbar-actions">
+        <button class="toolbar-action primary">同步到键盘</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="canvas-card">
+        <div class="canvas-header">
+          <div class="canvas-title">
+            <strong>1:1 数字孪生画布</strong>
+            <span>点击硬件部位，右侧 Inspector 即时切换</span>
+          </div>
+
+          <div class="canvas-meta">
+            <span class="meta-badge" id="selectedBadge">当前选中：Key 1 · 语音键</span>
+            <span class="meta-badge" id="modeBadge">Mode 0 · 官方默认编程模式</span>
+          </div>
+        </div>
+
+        <div class="canvas-stage">
+          <div class="keyboard-scene">
+            <div class="board"></div>
+            <div class="screw tl"></div>
+            <div class="screw tr"></div>
+            <div class="screw bl"></div>
+            <div class="screw br"></div>
+
+            <button class="hotspot light-bar" data-part="lightBar">
+              <div class="light-strip" id="lightStrip" data-light="preToolUse"></div>
+              <span class="dirty-flag"></span>
+            </button>
+
+            <button class="hotspot oled" data-part="oledDisplay">
+              <div class="oled-screen">
+                当前模式：动图
+                <small>文字 / Token / 模型：开发中</small>
+              </div>
+            </button>
+
+            <button class="hotspot key voice selected" data-part="key1">
+              <div class="keycap">🎙</div>
+              <div class="key-label">macOS 语音</div>
+              <span class="dirty-flag"></span>
+            </button>
+
+            <button class="hotspot key confirm" data-part="key2">
+              <div class="keycap">✓</div>
+              <div class="key-label">批准</div>
+            </button>
+
+            <button class="hotspot key reject" data-part="key3">
+              <div class="keycap">✕</div>
+              <div class="key-label">拒绝</div>
+            </button>
+
+            <button class="hotspot key enter" data-part="key4">
+              <div class="keycap">↩</div>
+              <div class="key-label">回车</div>
+            </button>
+
+            <button class="hotspot switch" id="switchControl" data-part="toggleSwitch" data-switch="auto">
+              <div class="switch-core"></div>
+            </button>
+          </div>
+        </div>
+
+        <div class="summary-band">
+          <div class="summary-card">
+            <strong>Mode 摘要</strong>
+            <span id="summaryMode">Mode 0 是官方默认 vibecoding 模式</span>
+          </div>
+          <div class="summary-card">
+            <strong>OLED</strong>
+            <span>当前版本仅支持动图，信息型显示开发中</span>
+          </div>
+          <div class="summary-card">
+            <strong>灯条</strong>
+            <span id="summaryLight">AI 运行中时显示来回流水灯</span>
+          </div>
+          <div class="summary-card">
+            <strong>拨杆</strong>
+            <span id="summarySwitch">当前为自动批准</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="inspector">
+        <div class="inspector-header">
+          <div class="inspector-title">
+            <strong id="inspectorTitle">Key 1 · 语音键</strong>
+            <span id="inspectorSubtitle">Mode 0 · 用户看到的是软件选择，不是快捷键编码</span>
+          </div>
+          <span class="dev-badge" id="inspectorBadge">待同步</span>
+        </div>
+
+        <div class="inspector-scroll" id="inspectorScroll"></div>
+      </aside>
+    </main>
+
+    <footer class="statusbar">
+      <span><strong>状态</strong> 有 3 项改动未同步</span>
+      <span>最近同步：今天 21:40</span>
+      <span>审批重点：看结构是否直观，不看最终像素</span>
+    </footer>
+  </div>
+
+  <script>
+    const modeCopy = {
+      mode0: {
+        name: "Mode 0",
+        description: "官方默认编程模式",
+        summary: "Mode 0 是官方默认 vibecoding 模式",
+      },
+      mode1: {
+        name: "Mode 1",
+        description: "用户自定义模式",
+        summary: "Mode 1 预留给用户自由定义",
+      },
+      mode2: {
+        name: "Mode 2",
+        description: "用户自定义模式",
+        summary: "Mode 2 预留给用户自由定义",
+      },
+    };
+
+    const partContent = {
+      key1: {
+        title: "Key 1 · 语音键",
+        subtitle: "主路径用“软件选择”表达，不直接暴露原始快捷键。",
+        badge: "待同步",
+        render(state) {
+          return `
+            <div class="hero-note">
+              Mode 0 中默认绑定 <strong>macOS 原生语音转文本</strong>。用户可以切到 Typeless 或微信语音，但心智始终是“选择语音软件”，不是“设置组合键”。
+            </div>
+
+            <section class="panel">
+              <strong>语音方案</strong>
+              <div class="voice-row" id="voiceProviders">
+                ${renderVoicePills(state.voiceProvider)}
+              </div>
+            </section>
+
+            <section class="panel panel-grid">
+              <strong>当前绑定摘要</strong>
+              <div class="option-row">
+                <span>当前软件</span>
+                <small>${state.voiceProviderLabel}</small>
+              </div>
+              <div class="option-row">
+                <span>解析后的快捷键</span>
+                <small>${state.resolvedShortcut}</small>
+              </div>
+              <div class="option-row">
+                <span>OLED 文案</span>
+                <small>${state.key1Label}</small>
+              </div>
+            </section>
+
+            <section class="panel">
+              <strong>说明</strong>
+              <p>本次交付只要求稳定支持 <strong>macOS 原生语音转文本</strong>、<strong>Typeless / Fn</strong>、<strong>微信语音</strong>。Claude Code、Codex、豆包输入法在主界面上可以展示为“即将支持”。</p>
+            </section>
+          `;
+        }
+      },
+      key2: {
+        title: "Key 2 · 确认键",
+        subtitle: "官方预设是批准动作，也允许切成快捷键、宏或主机动作。",
+        badge: "已就绪",
+        render() {
+          return `
+            <section class="panel panel-grid">
+              <strong>当前动作</strong>
+              <div class="option-row"><span>官方预设</span><small>批准</small></div>
+              <div class="option-row"><span>动作类型</span><small>标准快捷键</small></div>
+              <div class="option-row"><span>OLED 文案</span><small>Approve</small></div>
+            </section>
+            <section class="panel">
+              <strong>高级配置</strong>
+              <p>审批通过后，这里会扩展为快捷键录制、宏步骤编辑和主机动作映射。</p>
+            </section>
+          `;
+        }
+      },
+      key3: {
+        title: "Key 3 · 取消键",
+        subtitle: "默认对应拒绝动作，是 Mode 0 的核心安全键。",
+        badge: "已就绪",
+        render() {
+          return `
+            <section class="panel panel-grid">
+              <strong>当前动作</strong>
+              <div class="option-row"><span>官方预设</span><small>拒绝</small></div>
+              <div class="option-row"><span>动作类型</span><small>标准快捷键</small></div>
+              <div class="option-row"><span>OLED 文案</span><small>Reject</small></div>
+            </section>
+            <section class="panel">
+              <strong>说明</strong>
+              <p>这颗键在画布上必须始终足够醒目，因为用户会把它当作“反悔”和“终止”的物理保障。</p>
+            </section>
+          `;
+        }
+      },
+      key4: {
+        title: "Key 4 · 回车键",
+        subtitle: "默认承担确认 / 发送类动作，后续也可演化为自定义键。",
+        badge: "已就绪",
+        render() {
+          return `
+            <section class="panel panel-grid">
+              <strong>当前动作</strong>
+              <div class="option-row"><span>官方预设</span><small>回车</small></div>
+              <div class="option-row"><span>动作类型</span><small>标准快捷键</small></div>
+              <div class="option-row"><span>OLED 文案</span><small>Enter</small></div>
+            </section>
+            <section class="panel">
+              <strong>说明</strong>
+              <p>首版先把默认回车路径跑通，避免同时引入过多“高自由度自定义”造成配置焦虑。</p>
+            </section>
+          `;
+        }
+      },
+      oledDisplay: {
+        title: "OLED 屏幕",
+        subtitle: "首版主路径只做动图能力，信息型显示统一标记为开发中。",
+        badge: "开发中",
+        render() {
+          return `
+            <section class="panel panel-grid">
+              <strong>当前显示策略</strong>
+              <div class="option-row"><span>显示类型</span><small>动图</small></div>
+              <div class="option-row"><span>分辨率</span><small>160 × 80</small></div>
+              <div class="option-row"><span>帧率</span><small>12 FPS</small></div>
+            </section>
+
+            <section class="panel">
+              <strong>已开放</strong>
+              <p>GIF 上传、帧预览、帧率调整、同步到设备。</p>
+            </section>
+
+            <section class="panel panel-grid">
+              <strong>开发中</strong>
+              <div class="option-row"><span>文字显示</span><small>开发中</small></div>
+              <div class="option-row"><span>Token 用量</span><small>开发中</small></div>
+              <div class="option-row"><span>模型环境</span><small>开发中</small></div>
+            </section>
+          `;
+        }
+      },
+      lightBar: {
+        title: "灯条状态",
+        subtitle: "这里既是状态矩阵面板，也是灯效预览器。",
+        badge: "可预览",
+        render(state) {
+          return `
+            <section class="panel">
+              <strong>当前审批模式</strong>
+              <div class="voice-row">
+                <button class="voice-pill ${state.switchMode === "auto" ? "active" : ""}" data-switch-choice="auto">自动批准</button>
+                <button class="voice-pill ${state.switchMode === "manual" ? "active" : ""}" data-switch-choice="manual">手动批准</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <strong>AI 状态预览</strong>
+              <div class="state-row">
+                ${renderStatePills(state.lightState)}
+              </div>
+            </section>
+
+            <section class="panel panel-grid">
+              <strong>当前预览结果</strong>
+              <div class="option-row"><span>预览状态</span><small>${state.lightStateLabel}</small></div>
+              <div class="option-row"><span>手动批准</span><small>${state.manualMapping}</small></div>
+              <div class="option-row"><span>自动批准</span><small>${state.autoMapping}</small></div>
+            </section>
+
+            <section class="panel">
+              <strong>说明</strong>
+              <p>旧固件里有两个状态没有专属灯效。Native 首版建议在这里直接补齐，避免用户看到“有 hook 事件但灯条没变化”的割裂感。</p>
+            </section>
+          `;
+        }
+      },
+      toggleSwitch: {
+        title: "拨杆",
+        subtitle: "拨杆语义已经产品化为“自动批准 / 手动批准”。",
+        badge: "硬件联动",
+        render(state) {
+          return `
+            <section class="panel">
+              <strong>当前拨杆位置</strong>
+              <div class="voice-row">
+                <button class="voice-pill ${state.switchMode === "auto" ? "active" : ""}" data-switch-choice="auto">往上 · 自动批准</button>
+                <button class="voice-pill ${state.switchMode === "manual" ? "active" : ""}" data-switch-choice="manual">往下 · 手动批准</button>
+              </div>
+            </section>
+
+            <section class="panel panel-grid">
+              <strong>行为说明</strong>
+              <div class="option-row"><span>当前语义</span><small>${state.switchMode === "auto" ? "自动批准" : "手动批准"}</small></div>
+              <div class="option-row"><span>对灯条的影响</span><small>${state.switchMode === "auto" ? "覆盖部分状态为彩虹系动画" : "保持红 / 蓝系状态表达"}</small></div>
+            </section>
+
+            <section class="panel">
+              <strong>说明</strong>
+              <p>用户不应该在这里看到固件层的 <code>SwitchState == 0/1</code>。产品层只保留“往上 / 往下”与“自动批准 / 手动批准”两层理解。</p>
+            </section>
+          `;
+        }
+      }
+    };
+
+    const state = {
+      mode: "mode0",
+      selectedPart: "key1",
+      voiceProvider: "apple",
+      voiceProviderLabel: "macOS 原生语音转文本",
+      resolvedShortcut: "系统听写快捷键",
+      key1Label: "Voice",
+      lightState: "preToolUse",
+      lightStateLabel: "PreToolUse · AI 运行中",
+      switchMode: "auto",
+      manualMapping: "单点来回流水 · 蓝色",
+      autoMapping: "彩虹波浪",
+    };
+
+    const voicePresets = {
+      apple: { label: "macOS 原生语音转文本", shortcut: "系统听写快捷键" },
+      typeless: { label: "Typeless / Fn", shortcut: "Fn 语音快捷键" },
+      wechat: { label: "微信语音", shortcut: "微信语音快捷键" },
+    };
+
+    const lightMapping = {
+      notification: {
+        label: "Notification · 通知",
+        manual: "中间渐亮 · 品牌红",
+        auto: "中间渐亮 · 品牌红",
+      },
+      permissionRequest: {
+        label: "PermissionRequest · 等待授权",
+        manual: "整条呼吸 · 品牌红",
+        auto: "彩虹波浪",
+      },
+      postToolUse: {
+        label: "PostToolUse · 工具完成",
+        manual: "单点来回流水 · 品牌红",
+        auto: "彩虹单点流水",
+      },
+      preToolUse: {
+        label: "PreToolUse · AI 运行中",
+        manual: "单点来回流水 · 运行蓝",
+        auto: "彩虹波浪",
+      },
+      sessionStart: {
+        label: "SessionStart · 会话开始",
+        manual: "中间渐亮 · 品牌红",
+        auto: "中间渐亮 · 品牌红",
+      },
+      stop: {
+        label: "Stop · 停止",
+        manual: "中间渐亮 · 品牌红",
+        auto: "中间渐亮 · 品牌红",
+      },
+      taskCompleted: {
+        label: "TaskCompleted · 任务完成",
+        manual: "中间渐亮 · 品牌红",
+        auto: "中间渐亮 · 品牌红",
+      },
+      sessionEnd: {
+        label: "SessionEnd · 会话结束",
+        manual: "熄灭",
+        auto: "熄灭",
+      },
+      userPromptSubmit: {
+        label: "UserPromptSubmit · 用户提交",
+        manual: "单点来回流水 · 品牌红",
+        auto: "彩虹单点流水",
+      }
+    };
+
+    function renderVoicePills(active) {
+      return `
+        <button class="voice-pill ${active === "apple" ? "active" : ""}" data-provider="apple">macOS</button>
+        <button class="voice-pill ${active === "typeless" ? "active" : ""}" data-provider="typeless">Typeless</button>
+        <button class="voice-pill ${active === "wechat" ? "active" : ""}" data-provider="wechat">微信语音</button>
+        <button class="voice-pill pending">Claude Code · 开发中</button>
+        <button class="voice-pill pending">Codex · 开发中</button>
+        <button class="voice-pill pending">豆包输入法 · 开发中</button>
+      `;
+    }
+
+    function renderStatePills(active) {
+      const items = [
+        ["notification", "通知"],
+        ["permissionRequest", "等待授权"],
+        ["postToolUse", "工具完成"],
+        ["preToolUse", "AI 运行中"],
+        ["sessionStart", "会话开始"],
+        ["stop", "停止"],
+        ["taskCompleted", "任务完成"],
+        ["sessionEnd", "会话结束"],
+      ];
+
+      return items.map(([key, label]) => {
+        return `<button class="state-pill ${active === key ? "active" : ""}" data-light-state="${key}">${label}</button>`;
+      }).join("");
+    }
+
+    function updateLightSummary() {
+      const mapping = lightMapping[state.lightState];
+      state.lightStateLabel = mapping.label;
+      state.manualMapping = mapping.manual;
+      state.autoMapping = mapping.auto;
+      document.getElementById("lightStrip").dataset.light = state.lightState;
+      document.getElementById("summaryLight").textContent = state.switchMode === "auto"
+        ? `自动批准下显示 ${mapping.auto}`
+        : `${mapping.manual}`;
+    }
+
+    function updateModeCopy() {
+      const mode = modeCopy[state.mode];
+      document.getElementById("modeBadge").textContent = `${mode.name} · ${mode.description}`;
+      document.getElementById("summaryMode").textContent = mode.summary;
+    }
+
+    function updateSwitchSummary() {
+      const label = state.switchMode === "auto" ? "当前为自动批准" : "当前为手动批准";
+      document.getElementById("summarySwitch").textContent = label;
+      document.getElementById("switchControl").dataset.switch = state.switchMode;
+    }
+
+    function renderInspector() {
+      const part = partContent[state.selectedPart];
+      document.getElementById("inspectorTitle").textContent = part.title;
+      document.getElementById("inspectorSubtitle").textContent = `${modeCopy[state.mode].name} · ${part.subtitle}`;
+      document.getElementById("inspectorBadge").textContent = part.badge;
+      document.getElementById("selectedBadge").textContent = `当前选中：${part.title}`;
+      document.getElementById("inspectorScroll").innerHTML = part.render(state);
+      bindDynamicControls();
+    }
+
+    function bindDynamicControls() {
+      document.querySelectorAll("[data-provider]").forEach((button) => {
+        button.onclick = () => {
+          const key = button.dataset.provider;
+          state.voiceProvider = key;
+          state.voiceProviderLabel = voicePresets[key].label;
+          state.resolvedShortcut = voicePresets[key].shortcut;
+          renderInspector();
+        };
+      });
+
+      document.querySelectorAll("[data-light-state]").forEach((button) => {
+        button.onclick = () => {
+          state.lightState = button.dataset.lightState;
+          updateLightSummary();
+          renderInspector();
+        };
+      });
+
+      document.querySelectorAll("[data-switch-choice]").forEach((button) => {
+        button.onclick = () => {
+          state.switchMode = button.dataset.switchChoice;
+          updateSwitchSummary();
+          updateLightSummary();
+          renderInspector();
+        };
+      });
+    }
+
+    document.querySelectorAll(".hotspot").forEach((node) => {
+      node.addEventListener("click", () => {
+        document.querySelectorAll(".hotspot").forEach((item) => item.classList.remove("selected"));
+        node.classList.add("selected");
+        state.selectedPart = node.dataset.part;
+        renderInspector();
+      });
+    });
+
+    document.querySelectorAll("#modeSwitch button").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("#modeSwitch button").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        state.mode = button.dataset.mode;
+        updateModeCopy();
+        renderInspector();
+      });
+    });
+
+    updateModeCopy();
+    updateLightSummary();
+    updateSwitchSummary();
+    renderInspector();
+  </script>
+</body>
+</html>

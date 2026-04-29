@@ -21,6 +21,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private var recognitionTask: SFSpeechRecognitionTask?
     private var finalizeWorkItem: DispatchWorkItem?
     private var currentTranscript = ""
+    /// 防止 `isFinal`、1s 超时、`error` 回调各触发一次，导致同一段被 ⌘V 多遍
+    private var hasCommittedThisRecording = false
     private var didRequestPermissionsThisLaunch = false
 
     private let syntheticEventUserData: Int64 = 0x4148414B
@@ -45,8 +47,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         if deferredTCCRequery {
             lastPermissionCheckSummary = "正在检查麦克风与语音转写权限…"
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(200))
+                try? await Task.sleep(for: .milliseconds(450))
                 self.performPermissionRead(requestIfNeeded: false)
+                if !self.microphoneGranted || !self.speechRecognitionGranted {
+                    try? await Task.sleep(for: .milliseconds(800))
+                    self.performPermissionRead(requestIfNeeded: false)
+                }
             }
             return
         }
@@ -143,6 +149,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         currentTranscript = ""
         transcriptPreview = ""
         lastCommittedText = ""
+        hasCommittedThisRecording = false
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -183,8 +190,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    /// 同一句：系统多以「整句前缀变长」返回，取 `newT` 即可。中间停顿后偶发只返回**新段**（无前缀关系），
-    /// 若再整段赋值会顶掉前句，故在无前缀关系时**拼接**两段。
+    /// 流式 + 同一段录音里停顿后续说：多数帧里 `formattedString` 是「从本段开录至今的整段」；  
+    /// 若用英文空格去拼两段中文，或把「同一句的改判」与「下一段整句」都旧+新硬接，就会叠出很多遍。  
+    /// 结束提交：另见 `hasCommittedThisRecording`。
     private func applyStreamingTranscriptionPartial(_ newRaw: String) {
         let newT = newRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         if newT.isEmpty { return }
@@ -194,6 +202,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             currentTranscript = newT
             return
         }
+        if newT == oldT { return }
         if newT.hasPrefix(oldT) {
             currentTranscript = newT
             return
@@ -201,21 +210,64 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         if oldT.hasPrefix(newT) {
             return
         }
-        currentTranscript = Self.joinDisjointTranscriptionSegments(prior: oldT, next: newT)
-    }
-
-    private static func joinDisjointTranscriptionSegments(prior: String, next: String) -> String {
-        if prior.isEmpty { return next }
-        if next.isEmpty { return prior }
-        if let last = prior.last {
-            if last == "。" || last == "！" || last == "？" {
-                return prior + next
-            }
-            if last == "." || last == "!" || last == "?" {
-                return prior + " " + next
+        if newT.contains(oldT), newT.count > oldT.count {
+            currentTranscript = newT
+            return
+        }
+        if oldT.contains(newT) {
+            return
+        }
+        if let merged = Self.mergeByTailHeadOverlap(prior: oldT, next: newT) {
+            currentTranscript = merged
+            return
+        }
+        if Self.commonPrefixLength(oldT, newT) >= 3 {
+            currentTranscript = newT
+            return
+        }
+        if newT.count <= 6, let a = oldT.last, let b = newT.first, Self.isCJK(a), Self.isCJK(b) {
+            currentTranscript = oldT + newT
+            return
+        }
+        if let last = oldT.last, last == "。" || last == "！" || last == "？" {
+            if let b = newT.first, Self.isCJK(b) {
+                currentTranscript = oldT + newT
+                return
             }
         }
-        return prior + " " + next
+        // 不盲拼长串；以本次整段假设为准
+        currentTranscript = newT
+    }
+
+    private static func commonPrefixLength(_ a: String, _ b: String) -> Int {
+        var n = 0
+        for (x, y) in zip(a, b) {
+            if x == y { n += 1 } else { break }
+        }
+        return n
+    }
+
+    private static func mergeByTailHeadOverlap(prior: String, next: String) -> String? {
+        if prior.isEmpty { return next }
+        if next.isEmpty { return prior }
+        let maxK = min(prior.count, next.count)
+        guard maxK > 0 else { return nil }
+        for k in stride(from: maxK, through: 1, by: -1) {
+            if String(prior.suffix(k)) == String(next.prefix(k)) {
+                return prior + next.dropFirst(k)
+            }
+        }
+        return nil
+    }
+
+    private static func isCJK(_ ch: Character) -> Bool {
+        for s in ch.unicodeScalars {
+            let v = s.value
+            if (0x4E00 ... 0x9FFF).contains(v) { return true }
+            if (0x3400 ... 0x4DBF).contains(v) { return true }
+            if (0x3000 ... 0x303F).contains(v) { return true }
+        }
+        return false
     }
 
     private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
@@ -249,6 +301,11 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         finalizeWorkItem?.cancel()
         finalizeWorkItem = nil
 
+        if hasCommittedThisRecording {
+            appendDiagnostic("skip duplicate finalize reason=\(reason)")
+            return
+        }
+
         let text = currentTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         cancelRecognitionPipeline()
 
@@ -259,6 +316,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         if injectText(text) {
+            hasCommittedThisRecording = true
             lastCommittedText = text
             statusMessage = "已写入：\(text)"
             appendDiagnostic("finalize success reason=\(reason) text=\(text)")

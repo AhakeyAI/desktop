@@ -107,6 +107,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// 写入队列：避免连发导致设备过载
     private var writeQueue: [(Data, String)] = []
     private var isWriting = false
+    /// 与 `writeQueue` 前缀顺序对应的各批 `writeCommandsSequentially` 剩余条数与完成回调。
+    private struct WriteCommandBatch {
+        var commandsRemaining: Int
+        var completion: (() -> Void)?
+    }
+
+    private var writeBatches: [WriteCommandBatch] = []
     private var protocolResponseWaiters: [UInt8: CheckedContinuation<CommandResponse, Error>] = [:]
     private var dataWriteResultContinuation: CheckedContinuation<Void, Error>?
 
@@ -116,7 +123,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         super.init()
         // 与 AgentManager 启动顺序无关：若上次退出前选择「Agent 占蓝牙」，
         // 在蓝牙栈 poweredOn 回调里会立刻重连，必须在 init 就挡住。
-        if UserDefaults.standard.string(forKey: "lab.jawa.ahakeyconfig.bluetoothConnectionOwner") == BluetoothConnectionOwner.agentDaemon.rawValue {
+        let storedOwner = UserDefaults.standard.string(forKey: "lab.jawa.ahakeyconfig.bluetoothConnectionOwner")
+        if storedOwner == nil || storedOwner == BluetoothConnectionOwner.agentDaemon.rawValue {
             suppressAutomaticConnection = true
         }
         central = CBCentralManager(delegate: nil, queue: nil)
@@ -289,8 +297,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         _ = commandChar
     }
 
-    /// 批量写入命令（每条间隔 50ms，避免设备过载）
-    func writeCommandsSequentially(_ commands: [(data: Data, label: String)]) {
+    /// 批量写入命令（每条间隔 50ms，避免设备过载）。**该批**全部写入后会在主线程执行 `completion`（若入队 0 条则立即执行）。
+    func writeCommandsSequentially(
+        _ commands: [(data: Data, label: String)],
+        completion: (() -> Void)? = nil
+    ) {
+        if commands.isEmpty {
+            completion?()
+            return
+        }
+        writeBatches.append(WriteCommandBatch(commandsRemaining: commands.count, completion: completion))
         writeQueue.append(contentsOf: commands.map { ($0.data, $0.label) })
         drainWriteQueue()
     }
@@ -299,6 +315,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard !isWriting, !writeQueue.isEmpty else { return }
         isWriting = true
         let (data, label) = writeQueue.removeFirst()
+        if !writeBatches.isEmpty {
+            writeBatches[0].commandsRemaining -= 1
+            if writeBatches[0].commandsRemaining == 0 {
+                let c = writeBatches.removeFirst().completion
+                c?()
+            }
+        }
         appendLog(label)
         writeCommand(data)
         Task { @MainActor in
@@ -379,6 +402,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     func clearLog() {
         commLog.removeAll()
+    }
+
+    /// 与内部 `appendLog` 相同（含 `~/Library/.../AhaKeyConfig/diagnostics/ble-comm.log` 与系统日志），供 Studio 等写入调试说明。
+    func appendCommLogLine(_ message: String, isError: Bool = false) {
+        appendLog(message, isError: isError)
     }
 
     // MARK: - Logging
@@ -753,6 +781,14 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
+            let dropped = self.writeQueue.count
+            let openBatches = self.writeBatches.count
+            if dropped > 0 || openBatches > 0 {
+                self.appendLog(
+                    "BLE 已断开，丢弃未发出命令 \(dropped) 条（未闭合批 \(openBatches) 个）。\(error.map { "原因：\($0.localizedDescription)" } ?? "")",
+                    isError: true
+                )
+            }
             self.isConnected = false
             self.bleConnectionStatus = "已断开"
             self.dataChar = nil
@@ -766,6 +802,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.peripheral = nil
             self.writeQueue.removeAll()
             self.isWriting = false
+            self.writeBatches.removeAll()
             self.didQueryAfterConnect = false
             self.stopRSSIPolling()
             self.stopStatusPolling()
@@ -917,6 +954,11 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             firmwareMainVersion = status.firmwareMain
             firmwareSubVersion = status.firmwareSub
             workMode = status.workMode
+            NotificationCenter.default.post(
+                name: .ahaKeyKeyboardWorkModeChanged,
+                object: nil,
+                userInfo: ["workMode": status.workMode]
+            )
             lightMode = status.lightMode
             switchState = status.switchState
             appendLog("  状态: 电量=\(status.battery) 固件=\(status.firmwareMain).\(status.firmwareSub) 模式=\(status.workMode) 灯=\(status.lightMode) 开关=\(status.switchState)")
@@ -972,6 +1014,11 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
         appendLog("═══ 探测完毕，等待回调 ═══")
     }
+}
+
+extension Notification.Name {
+    /// `userInfo["workMode"]` 为 `Int`，与键盘物理档位一致。
+    static let ahaKeyKeyboardWorkModeChanged = Notification.Name("lab.jawa.ahakeyconfig.keyboardWorkModeChanged")
 }
 
 // MARK: - Data Extension

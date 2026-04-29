@@ -51,9 +51,12 @@ final class VoiceRelayService: ObservableObject {
     @Published private(set) var activeRouteSummary = "未配置语音软件。"
     @Published var showsPermissionOnboarding = false
     @Published private(set) var lastPermissionCheckSummary = "尚未检查权限。"
+    @Published private(set) var lastInspectorSimulateHint: String?
 
     private let routeQueue = DispatchQueue(label: "lab.jawa.ahakeyconfig.voiceRelay.routes")
     private var routes: [VoiceRoute] = []
+    /// 与键盘物理档位一致，用于多个 Mode 共用同一触发键（如 F18 / F19）时选对路由。
+    private var keyboardWorkMode: AhaKeyModeSlot = .mode0
 
     /// 我们用 CGEventTap（不是 NSEvent.addGlobalMonitor），因为只有 CGEventTap 能真正
     /// "吞掉"键盘事件，防止硬件语音键漏到前台 App（比如 Claude Code CLI / iTerm 等终端
@@ -64,18 +67,35 @@ final class VoiceRelayService: ObservableObject {
 
     private var shadowSuppressUntil: TimeInterval = 0
 
-    /// 当 route.action 是 .functionRelay 时用来模拟"长按 Fn"的状态。
-    /// 键盘硬件语音键是 tap（按下立即松开），但微信/Typeless 的"按住说话"要求 Fn 一直按住。
-    /// 所以 app 侧做 toggle：第 1 次 tap 注入 Fn keyDown 并记下 holdingRoute；
-    /// 第 2 次 tap 注入 Fn keyUp 并清空。硬件本身的 keyUp 完全忽略。
+    /// 当 route.action 是 .functionRelay 时用来模拟「按住 Fn/Globe」；触发键可为 F18/F19 等，与物理键 keyDown/keyUp 跟手。
     private var holdingRoute: VoiceRoute?
+    /// 硬件语音键常为极短脉冲（down/up 间隔几毫秒）；若立刻跟手 Fn up，Typeless/微信往往来不及进入「按住说话」。满足最短「物理按下时长」后再 Fn up（长按则仍立即跟手）。
+    private var functionRelayKeyDownUptime: TimeInterval?
+    private var pendingFnReleaseWorkItem: DispatchWorkItem?
+    /// 当前是否已向系统发出尚未配对的 Fn keyDown（用于短脉冲 cancel 延后 release 后避免重复 keyDown）。
+    private var syntheticFnRelayHeld: Bool = false
 
     private let syntheticEventUserData: Int64 = 0x4148414B
     private let fnKeyCode: CGKeyCode = 63
     private let emojiShadowKeyCode: CGKeyCode = 179
     private let shadowSuppressSeconds: TimeInterval = 0.06
+    /// 物理按下若短于此值，则 Fn keyUp 延后到整段不少于该时长（IME 启动「按住说话」往往需要更长的合成 Fn）。
+    private let minFunctionRelayPhysicalHoldSeconds: TimeInterval = 0.45
 
-    private init() { }
+    private init() {
+        NotificationCenter.default.addObserver(
+            forName: .ahaKeyKeyboardWorkModeChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self, let raw = note.userInfo?["workMode"] as? Int else { return }
+            let slot = AhaKeyModeSlot(rawValue: raw) ?? .mode0
+            self.routeQueue.async {
+                self.keyboardWorkMode = slot
+            }
+            self.appendDiagnostic("keyboard work mode (hardware) → \(slot.rawValue) (\(slot.name))")
+        }
+    }
 
     // MARK: - Public
 
@@ -88,27 +108,51 @@ final class VoiceRelayService: ObservableObject {
         }
     }
 
-    /// - Parameter deferredTCCRequery: 用户点「重新检查」时置 true。部分 macOS 版本在刚改完系统设置、仍停留本 App 时，TCC 的 PreFlight 会短暂返回旧值；延后一拍再读更可靠，并先显示「正在检查」避免误认无响应。
+    /// - Parameter deferredTCCRequery: 用户点「重新检查」时置 true。仅 Preflight 在刚改完系统设置、仍停留本 App 时可能仍读到旧值；改为稍后使用 Request API 再读一次，并略延长等待。
     func refreshPermissions(requestIfNeeded: Bool = false, deferredTCCRequery: Bool = false) {
         if requestIfNeeded {
-            performPermissionRead(requestIfNeeded: true)
+            if Thread.isMainThread {
+                performPermissionRead(requestIfNeeded: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.performPermissionRead(requestIfNeeded: true)
+                }
+            }
             return
         }
         if deferredTCCRequery {
             DispatchQueue.main.async {
                 self.lastPermissionCheckSummary = "正在检查系统权限…"
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                self?.performPermissionRead(requestIfNeeded: false)
+            let firstDelay: TimeInterval = 0.45
+            let followUpDelay: TimeInterval = 0.85
+            DispatchQueue.main.asyncAfter(deadline: .now() + firstDelay) { [weak self] in
+                guard let self else { return }
+                self.performPermissionRead(requestIfNeeded: false, preferRequestAPI: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + followUpDelay) { [weak self] in
+                    guard let self else { return }
+                    if !self.inputMonitoringGranted || !self.accessibilityGranted {
+                        self.performPermissionRead(requestIfNeeded: false, preferRequestAPI: true)
+                        self.appendDiagnostic("permissions follow-up recheck (after system settings)")
+                    }
+                }
             }
             return
         }
         performPermissionRead(requestIfNeeded: false)
     }
 
-    private func performPermissionRead(requestIfNeeded: Bool) {
-        let inputMonitoring = requestIfNeeded ? CGRequestListenEventAccess() : CGPreflightListenEventAccess()
-        let postEventAccess = requestIfNeeded ? CGRequestPostEventAccess() : CGPreflightPostEventAccess()
+    private func performPermissionRead(requestIfNeeded: Bool, preferRequestAPI: Bool = false) {
+        let inputMonitoring: Bool
+        let postEventAccess: Bool
+        if requestIfNeeded || preferRequestAPI {
+            // Request 会走当前 TCC 判决；用户刚从「隐私与安全性」返回时，Preflight 有时仍短暂为 false。
+            inputMonitoring = CGRequestListenEventAccess()
+            postEventAccess = CGRequestPostEventAccess()
+        } else {
+            inputMonitoring = CGPreflightListenEventAccess()
+            postEventAccess = CGPreflightPostEventAccess()
+        }
 
         let accessibility: Bool
         if requestIfNeeded {
@@ -147,6 +191,37 @@ final class VoiceRelayService: ObservableObject {
 
     func dismissPermissionOnboarding() {
         showsPermissionOnboarding = false
+    }
+
+    /// Inspector 调试：模拟当前模式下按一次实体语音键（Typeless/微信 = 切换 Fn 按住；macOS 原生 = 切换系统转写）。
+    func simulateInspectorVoiceKeyTap(for mode: AhaKeyModeSlot) {
+        let route: VoiceRoute? = routeQueue.sync {
+            routes.first { $0.mode == mode }
+        }
+        guard let route else {
+            appendDiagnostic("inspector simulate: no route for mode=\(mode.rawValue)")
+            Task { @MainActor in
+                lastInspectorSimulateHint = "当前模式没有语音路由：请先在「语音软件」里选 Typeless / 微信 / macOS 原生（不要选「自定义」）。"
+            }
+            return
+        }
+        switch route.action {
+        case .macOSDictation:
+            Task { @MainActor in
+                NativeSpeechTranscriptionService.shared.toggleRecordingFromVoiceKey()
+                lastInspectorSimulateHint = "已切换「苹果原生转写」录制状态（与界面「开始录音」相同）。"
+            }
+        case .functionRelay:
+            toggleFunctionRelayHold(for: route)
+            Task { @MainActor in
+                if route.action.title == "微信语音" {
+                    lastInspectorSimulateHint = "已切换 Fn 按住状态；请在聚焦 App 里试用微信语音。再点一次为松开。"
+                } else {
+                    lastInspectorSimulateHint = "已切换 Fn 按住状态；Typeless 请在 App 内把随声写设为 Fn/Globe（本 Studio 默认监听 F19，出厂语音键 F18 仍兼容）。再点一次为松开。"
+                }
+            }
+        }
+        appendDiagnostic("inspector simulate mode=\(mode.rawValue) action=\(route.action.title)")
     }
 
     func updateRoutes(from draft: AhaKeyStudioDraft) {
@@ -255,7 +330,7 @@ final class VoiceRelayService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        // 2. 自己合成出来的事件（比如 functionRelay 注入的 Fn）必须放行，不然会死循环。
+        // 2. 自己合成出来的事件（functionRelay 注入的 Fn）必须放行，不然会死循环。
         if event.getIntegerValueField(.eventSourceUserData) == syntheticEventUserData {
             return Unmanaged.passUnretained(event)
         }
@@ -298,19 +373,76 @@ final class VoiceRelayService: ObservableObject {
             return nil
 
         case .functionRelay:
-            // 硬件语音键是一次 tap（会同时发 keyDown/keyUp），但微信等 App 需要"按住"。
-            // 所以这里只在 keyDown 触发 toggle，keyUp 忽略。
-            if type == .keyDown, !isAutoRepeat {
-                toggleFunctionRelayHold(for: route)
+            // 与微信 / Typeless「按住说话」一致：跟手硬件 keyDown；keyUp 若过短则略延长 Fn 按住，避免脉冲键无反应。
+            if isAutoRepeat {
+                return nil
+            }
+            if type == .keyDown {
+                routeQueue.sync {
+                    cancelPendingFnReleaseLocked()
+                    if holdingRoute != nil { return }
+                    holdingRoute = route
+                    functionRelayKeyDownUptime = ProcessInfo.processInfo.systemUptime
+                    if !syntheticFnRelayHeld {
+                        postFunctionKey(isKeyDown: true)
+                        syntheticFnRelayHeld = true
+                        appendDiagnostic("function relay keyDown → hold (\(route.action.title))")
+                    } else {
+                        appendDiagnostic("function relay keyDown → hold (already Fn down, \(route.action.title))")
+                    }
+                }
+            } else if type == .keyUp {
+                let releasePlan: (title: String, delay: TimeInterval, elapsed: TimeInterval)? = routeQueue.sync {
+                    cancelPendingFnReleaseLocked()
+                    guard holdingRoute == route else { return nil }
+                    holdingRoute = nil
+                    let downUptime = functionRelayKeyDownUptime ?? ProcessInfo.processInfo.systemUptime
+                    functionRelayKeyDownUptime = nil
+                    let elapsed = ProcessInfo.processInfo.systemUptime - downUptime
+                    let delay = max(0, minFunctionRelayPhysicalHoldSeconds - elapsed)
+                    return (route.action.title, delay, elapsed)
+                }
+                guard let releasePlan else { return nil }
+                if releasePlan.delay < 0.001 {
+                    routeQueue.sync { syntheticFnRelayHeld = false }
+                    postFunctionKey(isKeyDown: false)
+                    appendDiagnostic("function relay keyUp → release (\(releasePlan.title))")
+                } else {
+                    appendDiagnostic(
+                        "function relay keyUp → schedule Fn release in \(String(format: "%.3f", releasePlan.delay))s (\(releasePlan.title), physical_down=\(String(format: "%.3f", releasePlan.elapsed))s)"
+                    )
+                    let title = releasePlan.title
+                    let work = DispatchWorkItem { [weak self] in
+                        guard let self else { return }
+                        self.postFunctionKey(isKeyDown: false)
+                        // 已在 routeQueue 上执行，禁止再 routeQueue.sync，否则同队列嵌套会死锁并在调试下 EXC_BREAKPOINT。
+                        self.syntheticFnRelayHeld = false
+                        self.pendingFnReleaseWorkItem = nil
+                        self.appendDiagnostic("function relay delayed Fn release (\(title))")
+                    }
+                    routeQueue.sync {
+                        pendingFnReleaseWorkItem = work
+                    }
+                    routeQueue.asyncAfter(deadline: .now() + releasePlan.delay, execute: work)
+                }
             }
             return nil
         }
     }
 
+    private func cancelPendingFnReleaseLocked() {
+        pendingFnReleaseWorkItem?.cancel()
+        pendingFnReleaseWorkItem = nil
+    }
+
     private func toggleFunctionRelayHold(for route: VoiceRoute) {
+        routeQueue.sync {
+            cancelPendingFnReleaseLocked()
+        }
         let shouldRelease: Bool = routeQueue.sync {
-            if holdingRoute != nil {
+            if holdingRoute != nil || syntheticFnRelayHeld {
                 holdingRoute = nil
+                functionRelayKeyDownUptime = nil
                 return true
             } else {
                 holdingRoute = route
@@ -319,37 +451,39 @@ final class VoiceRelayService: ObservableObject {
         }
         if shouldRelease {
             postFunctionKey(isKeyDown: false)
+            routeQueue.sync { syntheticFnRelayHeld = false }
             appendDiagnostic("function relay toggle → release (\(route.action.title))")
         } else {
             postFunctionKey(isKeyDown: true)
+            routeQueue.sync { syntheticFnRelayHeld = true }
             appendDiagnostic("function relay toggle → hold (\(route.action.title))")
-        }
-        // Fn 无论按下还是松开，都可能触发系统 Emoji 面板影子键，统一抑制一下。
-        routeQueue.async {
-            self.shadowSuppressUntil = Date().timeIntervalSinceReferenceDate + self.shadowSuppressSeconds
         }
     }
 
-    /// 在服务停止监听、路由变化或权限失效时，保证不会把 Fn "按住"状态悬挂在系统键盘里。
+    /// 在服务停止监听、路由变化或权限失效时，保证不会把 Fn「按住」悬挂在系统键盘里。
     private func releaseFunctionRelayHoldIfNeeded() {
-        let releasing: Bool = routeQueue.sync {
-            if holdingRoute != nil {
-                holdingRoute = nil
-                return true
-            }
-            return false
+        let needsFnUp: Bool = routeQueue.sync {
+            cancelPendingFnReleaseLocked()
+            holdingRoute = nil
+            functionRelayKeyDownUptime = nil
+            let wasHeld = syntheticFnRelayHeld
+            syntheticFnRelayHeld = false
+            return wasHeld
         }
-        if releasing {
+        if needsFnUp {
             postFunctionKey(isKeyDown: false)
             appendDiagnostic("function relay force release")
         }
     }
 
     private func matchingRoute(forKeyCode keyCode: CGKeyCode, flags: Set<ShortcutModifier>) -> VoiceRoute? {
-        return routeQueue.sync {
-            routes.first { route in
-                route.binding.keyCode == keyCode && route.binding.modifiers == flags
+        routeQueue.sync {
+            let candidates = routes.filter { $0.binding.keyCode == keyCode && $0.binding.modifiers == flags }
+            if candidates.isEmpty { return nil }
+            if let hit = candidates.first(where: { $0.mode == keyboardWorkMode }) {
+                return hit
             }
+            return candidates.first
         }
     }
 
@@ -358,14 +492,32 @@ final class VoiceRelayService: ObservableObject {
     private func postFunctionKey(isKeyDown: Bool) {
         appendDiagnostic("post fn keyDown=\(isKeyDown)")
         let flags: CGEventFlags = isKeyDown ? .maskSecondaryFn : []
-        postKeyboardEvent(keyCode: fnKeyCode, keyDown: isKeyDown, flags: flags)
+        postFnRelayKeyboardEvents(keyCode: fnKeyCode, keyDown: isKeyDown, flags: flags)
+        routeQueue.async {
+            self.shadowSuppressUntil = Date().timeIntervalSinceReferenceDate + self.shadowSuppressSeconds
+        }
     }
 
-    private func postKeyboardEvent(keyCode: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
-        guard let event = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: keyDown) else { return }
-        event.flags = flags
-        event.setIntegerValueField(.eventSourceUserData, value: syntheticEventUserData)
-        event.post(tap: .cghidEventTap)
+    /// Typeless 等 IME 有时只从 session 或 HID 一侧吃全 Fn；分两路投递（各用独立 CGEvent），提高「长按 Fn」被识别的概率。
+    private func postFnRelayKeyboardEvents(keyCode: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
+        if let event = CGEvent(
+            keyboardEventSource: CGEventSource(stateID: .combinedSessionState),
+            virtualKey: keyCode,
+            keyDown: keyDown
+        ) {
+            event.flags = flags
+            event.setIntegerValueField(.eventSourceUserData, value: syntheticEventUserData)
+            event.post(tap: .cgSessionEventTap)
+        }
+        if let event = CGEvent(
+            keyboardEventSource: CGEventSource(stateID: .hidSystemState),
+            virtualKey: keyCode,
+            keyDown: keyDown
+        ) {
+            event.flags = flags
+            event.setIntegerValueField(.eventSourceUserData, value: syntheticEventUserData)
+            event.post(tap: .cghidEventTap)
+        }
     }
 
     // MARK: - Helpers
@@ -391,7 +543,7 @@ final class VoiceRelayService: ObservableObject {
 
     private static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {
         var orderedRoutes: [VoiceRoute] = []
-        var seenBindings = Set<VoiceTriggerBinding>()
+        let factoryF18 = VoiceTriggerBinding(keyCode: 79, modifiers: [])
 
         for mode in AhaKeyModeSlot.allCases {
             let voiceKey = draft.draft(for: mode).key(for: .voice)
@@ -402,29 +554,24 @@ final class VoiceRelayService: ObservableObject {
                   let binding = macBinding(for: voiceKey.shortcut)
             else { continue }
 
-            if seenBindings.insert(binding).inserted {
+            orderedRoutes.append(
+                VoiceRoute(
+                    binding: binding,
+                    action: action,
+                    mode: mode,
+                    usesFactoryFallback: false
+                )
+            )
+
+            if mode == .mode0, binding != factoryF18 {
                 orderedRoutes.append(
                     VoiceRoute(
-                        binding: binding,
+                        binding: factoryF18,
                         action: action,
-                        mode: mode,
-                        usesFactoryFallback: false
+                        mode: .mode0,
+                        usesFactoryFallback: true
                     )
                 )
-            }
-
-            if mode == .mode0 {
-                let fallback = VoiceTriggerBinding(keyCode: 79, modifiers: [])
-                if seenBindings.insert(fallback).inserted {
-                    orderedRoutes.append(
-                        VoiceRoute(
-                            binding: fallback,
-                            action: action,
-                            mode: mode,
-                            usesFactoryFallback: true
-                        )
-                    )
-                }
             }
         }
 

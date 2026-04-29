@@ -1,0 +1,7 @@
+#!/bin/zsh
+
+# 修复 hooks.json 配置
+echo '{"version": 1, "hooks": {"preToolUse": {"command": "/Users/cjn/Desktop/keyboard1/ahakeyconfig/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent", "args": ["hook", "preToolUse"], "enableOnStartup": true}, "beforeShellExecution": {"command": "/Users/cjn/Desktop/keyboard1/ahakeyconfig/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent", "args": ["hook", "beforeShellExecution"], "enableOnStartup": true}, "beforeMCPExecution": {"command": "/Users/cjn/Desktop/keyboard1/ahakeyconfig/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent", "args": ["hook", "beforeMCPExecution"], "enableOnStartup": true}, "postToolUse": {"command": "/Users/cjn/Desktop/keyboard1/ahakeyconfig/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent", "args": ["hook", "postToolUse"], "enableOnStartup": true}, "sessionStart": {"command": "/Users/cjn/Desktop/keyboard1/ahakeyconfig/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent", "args": ["hook", "sessionStart"], "enableOnStartup": true}, "sessionEnd": {"command": "/Users/cjn/Desktop/keyboard1/ahakeyconfig/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent", "args": ["hook", "sessionEnd"], "enableOnStartup": true}, "stop": {"command": "/Users/cjn/Desktop/keyboard1/ahakeyconfig/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent", "args": ["hook", "stop"], "enableOnStartup": true}}}' > ~/.cursor/hooks.json
+
+echo "已修复 hooks.json 配置"
+cat ~/.cursor/hooks.json
