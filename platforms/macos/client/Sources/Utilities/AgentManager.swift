@@ -45,7 +45,7 @@ final class AgentManager: ObservableObject {
     @Published private(set) var cursorHooksInstalled = false
 
     /// 用户选择的蓝牙占用方（存 UserDefaults，启动时应用一次）
-    @Published var bluetoothConnectionOwner: BluetoothConnectionOwner = .ahaKeyStudio
+    @Published var bluetoothConnectionOwner: BluetoothConnectionOwner = .agentDaemon
 
     /// 安装 / 启停 Agent、写 Hooks 等操作的结果说明；关闭弹窗后由 UI 置 `nil`。
     @Published var agentUserAlert: String?
@@ -97,11 +97,21 @@ final class AgentManager: ObservableObject {
         return home.appendingPathComponent(".cursor/hooks.json").path
     }
 
+    /// `~/.cursor/cli-config.json`：Cursor **CLI** 的 `permissions`（`Shell(...)` 等）与 `approvalMode`。
+    private var cursorCliConfigPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cursor/cli-config.json").path
+    }
+
+    /// `~/.cursor/permissions.json`：IDE 内 **Agent 终端 TUI** 的 `terminalAllowlist`（与 cli-config 独立，见官方文档）。
+    private var cursorPermissionsJsonPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cursor/permissions.json").path
+    }
+
     init() {
-        if let raw = UserDefaults.standard.string(forKey: Self.bluetoothOwnerKey),
-           let o = BluetoothConnectionOwner(rawValue: raw) {
-            bluetoothConnectionOwner = o
-        }
+        bluetoothConnectionOwner = .agentDaemon
+        UserDefaults.standard.set(BluetoothConnectionOwner.agentDaemon.rawValue, forKey: Self.bluetoothOwnerKey)
         refresh()
     }
 
@@ -197,7 +207,11 @@ final class AgentManager: ObservableObject {
             bleManager.setSuppressedForAgentOwningKeyboard(true)
             bleManager.disconnect()
             guard isInstalled else {
-                log.info("未安装 LaunchAgent，无法将蓝牙交给 Agent，回退为 App 连接")
+                log.info("未安装 LaunchAgent，无法将蓝牙交给 Agent，临时允许 App 连接")
+                bleManager.setSuppressedForAgentOwningKeyboard(false)
+                if !isLaunch {
+                    agentUserAlert = "尚未安装 Agent，无法切回「键盘控制中」。请在「更多 → 设备信息 · Agent」里先安装并启用 Agent。"
+                }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(500))
                     if !bleManager.isConnected, !bleManager.isScanning {
@@ -439,6 +453,167 @@ final class AgentManager: ObservableObject {
         (try? String(contentsOfFile: logFilePath, encoding: .utf8)) ?? "(无日志)"
     }
 
+    // MARK: - Cursor 用户级文件（可展示、可合并，非 Hook 子进程管理）
+
+    /// 与「安装 Cursor Hooks」写入路径一致，便于在 UI 中展示或对照。
+    var userCursorHooksJsonFilePath: String { cursorHooksPath }
+
+    /// Cursor CLI / Agent 的全局 `permissions` 等（控制 Shell 等是否仍弹层确认，与 `hooks.json` 独立）。
+    var userCursorCliConfigFilePath: String { cursorCliConfigPath }
+
+    /// 将 `~/.cursor/hooks.json` 以可读（pretty）形式读出；不存在时返回说明。
+    func readUserCursorHooksJsonForDisplay() -> String {
+        let path = cursorHooksPath
+        guard FileManager.default.fileExists(atPath: path) else {
+            return "（文件不存在：\(path)）\n\n可先点「安装 Cursor Hooks」生成或合并；若只使用**项目内** `.cursor/hooks.json`，本路径仍可能为空。"
+        }
+        return Self.prettyJsonString(atPath: path) ?? "（存在但无法解析为 JSON：\(path)）"
+    }
+
+    /// 将 `~/.cursor/cli-config.json` 以可读（pretty）形式读出；不存在时提示。
+    func readUserCursorCliConfigForDisplay() -> String {
+        let path = cursorCliConfigPath
+        guard FileManager.default.fileExists(atPath: path) else {
+            return "（文件不存在：\(path)）\n\n可点诊断面板中「合并 Shell 白名单 + approvalMode=auto」从空白创建；或自行在文档中按 `permissions` 配置。"
+        }
+        return Self.prettyJsonString(atPath: path) ?? "（存在但无法解析为 JSON：\(path)）"
+    }
+
+    /// 备份当前 `cli-config` 后，合并 `permissions.allow`（不删你已有项），并设置 `approvalMode` 为 `auto`。
+    /// 用于减轻「hook 已 allow 但 Cursor 仍要求再点一次」中 **Cursor 自己那一层** 的拦阻。
+    /// - Returns: 给用户看的结果说明。
+    func mergeUserCursorCliConfigForShellAutoApprove() -> String {
+        let path = cursorCliConfigPath
+        let cursorDir = (path as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(atPath: cursorDir, withIntermediateDirectories: true)
+        } catch {
+            return "无法创建目录 \(cursorDir)：\(error.localizedDescription)"
+        }
+        if FileManager.default.fileExists(atPath: path) {
+            let bak = path + ".ahakey.bak"
+            do {
+                if FileManager.default.fileExists(atPath: bak) {
+                    try FileManager.default.removeItem(atPath: bak)
+                }
+                try FileManager.default.copyItem(atPath: path, toPath: bak)
+            } catch {
+                return "已存在 \(path) 但无法复制备份到 \(bak)：\(error.localizedDescription)"
+            }
+        }
+        var root = loadCursorCliConfig() ?? [:]
+        if root["version"] == nil { root["version"] = 1 }
+
+        var perms = root["permissions"] as? [String: Any] ?? [:]
+        var allow = Self.stringArrayValue(perms["allow"])
+        let additions: [String] = [
+            "Shell(*)", "Shell(cd)", "Shell(swift)", "Shell(xcodebuild)", "Shell(git)", "Shell(python3)", "Shell(npm)", "Shell(cargo)", "Shell(curl)", "Shell(ls)",
+        ]
+        var merged = 0
+        for a in additions {
+            if !allow.contains(a) {
+                allow.append(a)
+                merged += 1
+            }
+        }
+        perms["allow"] = allow
+        if perms["deny"] == nil { perms["deny"] = [String]() }
+        root["permissions"] = perms
+        root["approvalMode"] = "auto"
+
+        guard saveCursorCliConfig(root) else {
+            return "合并后的 JSON 无法写回：\(path)"
+        }
+        log.info("cli-config: merged Shell allow + approvalMode=auto at \(path)")
+        return "已写回：\(path)\n（此前若存在同路径文件，已备份为 \(path).ahakey.bak）\n\n本次在 permissions.allow 中新增合并 \(merged) 条常见 Shell(...) 规则（已有规则保留）；approvalMode 已设为 auto。\n\n若某版本仍弹窗，请把仍被拦的命令首词对照文档自行追加白名单：\nhttps://cursor.com/docs/cli/reference/permissions\n或检查工作区 .cursor/cli.json 是否另有限制。"
+    }
+
+    /// 合并 `~/.cursor/permissions.json` 的 `terminalAllowlist`（**IDE「Not in allowlist」** 与 cli-config 无关）。
+    func mergeUserCursorPermissionsJsonForAgentTUI() -> String {
+        let path = cursorPermissionsJsonPath
+        let cursorDir = (path as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(atPath: cursorDir, withIntermediateDirectories: true)
+        } catch {
+            return "无法创建目录 \(cursorDir)：\(error.localizedDescription)"
+        }
+        if FileManager.default.fileExists(atPath: path) {
+            let bak = path + ".ahakey.bak"
+            do {
+                if FileManager.default.fileExists(atPath: bak) { try FileManager.default.removeItem(atPath: bak) }
+                try FileManager.default.copyItem(atPath: path, toPath: bak)
+            } catch {
+                return "已存在 permissions.json 但无法备份到 \(bak)：\(error.localizedDescription)"
+            }
+        }
+        var root = loadCursorPermissionsJson() ?? [:]
+        var list = Self.stringArrayValue(root["terminalAllowlist"])
+        let additions = [
+            "cd", "swift", "swift build", "xcodebuild", "git", "npm", "yarn", "pnpm", "bun", "deno", "node",
+            "make", "cargo", "go", "python3", "python", "bash", "zsh", "sh", "curl", "ls",
+        ]
+        var n = 0
+        for a in additions where !list.contains(a) {
+            list.append(a)
+            n += 1
+        }
+        root["terminalAllowlist"] = list
+        guard saveCursorPermissionsJson(root) else {
+            return "无法写回：\(path)"
+        }
+        log.info("permissions.json: merged terminalAllowlist at \(path)")
+        return "已写回：\(path)（备份为 \(path).ahakey.bak）\n\n本次在 terminalAllowlist 中新增合并 \(n) 条前缀；用于 Agent 内「Not in allowlist」层，与 cli-config 的 Shell(...) 是两套。文档：\nhttps://cursor.com/docs/reference/permissions"
+    }
+
+    private func loadCursorPermissionsJson() -> [String: Any]? {
+        guard let data = FileManager.default.contents(atPath: cursorPermissionsJsonPath),
+              let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return j
+    }
+
+    private func saveCursorPermissionsJson(_ root: [String: Any]) -> Bool {
+        guard let data = try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys]) else { return false }
+        do {
+            try data.write(to: URL(fileURLWithPath: cursorPermissionsJsonPath), options: .atomic)
+            return true
+        } catch {
+            log.error("saveCursorPermissionsJson: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private static func prettyJsonString(atPath path: String) -> String? {
+        guard let data = FileManager.default.contents(atPath: path),
+              let obj = try? JSONSerialization.jsonObject(with: data) else { return nil }
+        guard let out = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]) else { return nil }
+        return String(data: out, encoding: .utf8)
+    }
+
+    private static func stringArrayValue(_ v: Any?) -> [String] {
+        if let a = v as? [String] { return a }
+        if let a = v as? [Any] { return a.compactMap { $0 as? String } }
+        return []
+    }
+
+    private func loadCursorCliConfig() -> [String: Any]? {
+        guard let data = FileManager.default.contents(atPath: cursorCliConfigPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json
+    }
+
+    private func saveCursorCliConfig(_ root: [String: Any]) -> Bool {
+        guard let data = try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys]) else { return false }
+        do {
+            try data.write(to: URL(fileURLWithPath: cursorCliConfigPath), options: .atomic)
+            return true
+        } catch {
+            log.error("saveCursorCliConfig: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// 只读；由 `ahakeyconfig-agent` 在 `PermissionRequest` 与 Cursor 批准类 hook 中写入。
     func readPermissionRequestLog() -> String {
         (try? String(contentsOfFile: permissionRequestLogPath, encoding: .utf8))
@@ -560,12 +735,15 @@ final class AgentManager: ObservableObject {
     /// Cursor 支持的 hook 事件（小驼峰，与 `HookClient` 一致）。
     /// 批准链集中在 `preToolUse`（在任意工具前调用，可 stdout `permission`）；若你在 `hooks.json` 里自行添加
     /// `beforeShellExecution` / `beforeMCPExecution` 并指向本 agent，其事件名在 `HookClient` 中同样支持拨杆。
+    /// 安装时写入这些事件；**卸载**时会遍历 `hooks` 的**所有键**（含旧版/合并进的 `beforeReadFile`、`beforeSubmitPrompt` 等），避免只卸一半导致「没反应」。
     private let cursorHookEvents: [String] = [
         "sessionStart",
         "sessionEnd",
         "preToolUse",
         "beforeShellExecution",
         "beforeMCPExecution",
+        "beforeReadFile",
+        "beforeSubmitPrompt",
         "postToolUse",
         "stop",
     ]
@@ -596,7 +774,9 @@ final class AgentManager: ObservableObject {
 
     /// 单独移除 Cursor hooks
     func removeCursorHooksOnly() {
-        removeCursorHooks()
+        isAgentOperationInProgress = true
+        defer { isAgentOperationInProgress = false }
+        agentUserAlert = performRemoveCursorHooksUserMessage()
         refresh()
     }
 
@@ -617,8 +797,11 @@ final class AgentManager: ObservableObject {
         for event in cursorHookEvents {
             let cmd = "\(binQuoted) hook \(event)"
             // Cursor：`{ "hooks": { "<event>": [{ "command": "...", "timeout": N }] } }`
-            // `preToolUse` 需读拨杆，放宽秒数；其余仍 10s。
-            let t: Int = ["preToolUse", "beforeShellExecution", "beforeMCPExecution"].contains(event) ? 20 : 10
+            // 读拨杆/写状态略慢，长超时与 `HookClient` 一致
+            let t: Int
+            if event == "beforeSubmitPrompt" { t = 30 }
+            else if ["preToolUse", "beforeShellExecution", "beforeMCPExecution", "beforeReadFile", "sessionStart"].contains(event) { t = 20 }
+            else { t = 10 }
             var entries = hooks[event] as? [[String: Any]] ?? []
             entries.removeAll { isAhakeyHookCommand(($0["command"] as? String) ?? "") }
             entries.append(["command": cmd, "timeout": t])
@@ -636,13 +819,31 @@ final class AgentManager: ObservableObject {
         return "Cursor Hooks：无法写入 \(cursorHooksPath)。请检查权限或磁盘空间。"
     }
 
+    /// 供「卸载主流程」等内部调用，无 UI 提示。
     private func removeCursorHooks() {
-        guard var settings = loadCursorSettings() else { return }
-        guard var hooks = settings["hooks"] as? [String: Any] else { return }
+        _ = performRemoveCursorHooksUserMessage(writeAndLog: true, preferCompactMessage: true)
+    }
 
-        for event in cursorHookEvents {
+    /// 从 `~/.cursor/hooks.json` 的 **全部** 事件里删掉指向 ahakey 的条目，并写回文件。
+    /// - Returns: 给用户看的说明（弹窗用）；`writeAndLog==false` 时仍返回文案但不写盘（当前未用）。
+    private func performRemoveCursorHooksUserMessage(writeAndLog: Bool = true, preferCompactMessage: Bool = false) -> String {
+        let path = cursorHooksPath
+        guard FileManager.default.fileExists(atPath: path) else {
+            return "未找到用户级 \(path)。\n\n若你只在**项目**里合并过 `.cursor/hooks.json`，需在该项目根目录中手动编辑或删除 AhaKey 相关条目，用户级里本来就没有可卸内容。"
+        }
+        guard var settings = loadCursorSettings() else {
+            return "无法解析 \(path)（非合法 JSON 或已损坏）。请用编辑器打开修正后再试，或从备份恢复。"
+        }
+        guard var hooks = settings["hooks"] as? [String: Any], !hooks.isEmpty else {
+            return "hooks.json 中无「hooks」或为空，没有可移除的 AhaKey 项。"
+        }
+
+        var removedCount = 0
+        for event in Array(hooks.keys).sorted() {
             guard var entries = hooks[event] as? [[String: Any]] else { continue }
+            let before = entries.count
             entries.removeAll { isAhakeyHookCommand(($0["command"] as? String) ?? "") }
+            removedCount += before - entries.count
             if entries.isEmpty {
                 hooks.removeValue(forKey: event)
             } else {
@@ -650,16 +851,26 @@ final class AgentManager: ObservableObject {
             }
         }
 
+        if removedCount == 0 {
+            return "在 \(path) 中**未发现**包含 `ahakeyconfig-agent` 或 `ahakey-state` 的 `command`。\n\n若 Hook 在**项目级** `.cursor/hooks.json`，请在该仓库内手动删除；本按钮只改用户级 `~/.cursor/hooks.json`。"
+        }
+
         if hooks.isEmpty {
             settings.removeValue(forKey: "hooks")
         } else {
             settings["hooks"] = hooks
         }
-        if !saveCursorSettings(settings) {
-            log.error("removeCursorHooks: 无法写回 hooks.json")
-        } else {
-            log.info("Cursor hooks 中 ahakey 条目已移除")
+
+        if writeAndLog {
+            if !saveCursorSettings(settings) {
+                log.error("removeCursorHooks: 无法写回 hooks.json")
+                return "已删除内存中的 AhaKey 条目，但**无法写回** \(path)。请检查对「用户目录下 .cursor」的写权限，或关闭占用该文件的其他应用后重试。"
+            }
+            log.info("Cursor hooks: removed \(removedCount) ahakey command(s)")
         }
+
+        if preferCompactMessage { return "" }
+        return "已从用户级 Cursor Hooks 中移除 AhaKey 相关条目（共 \(removedCount) 条子命令）。\n\n文件：\(path)\n\n若某仓库仍有**项目级** `.cursor/hooks.json` 且其中含有本工具，其优先级可能更高，需在该项目内同步删除或合并。"
     }
 
     private func loadCursorSettings() -> [String: Any]? {

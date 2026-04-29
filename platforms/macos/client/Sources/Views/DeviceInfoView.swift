@@ -7,6 +7,7 @@ struct DeviceInfoView: View {
     @State private var editableName = ""
     @State private var showAgentLog = false
     @State private var agentLogPanel = 0
+    @State private var logPanelContentTick = 0
     @State private var showAgentRequiredForAgentBLE = false
 
     var body: some View {
@@ -118,8 +119,8 @@ struct DeviceInfoView: View {
                 Text("拨杆档位")
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("拨杆是物理档位。0=自动批准、非0=在 Claude 里交回终端手动确认；二者都只有在已安装 Agent、已配置 Hooks，且「蓝牙连接」由 ahakeyconfig-agent 持有时才会按拨杆生效。")
-                    Text("Cursor 没有与 Claude 相同的 PermissionRequest 钩子，拨杆无法在 Cursor 里自动批准工具；Cursor Hooks 主要用于 LED/状态。")
+                    Text("拨杆是物理档位。0=自动批准、非0=在 Claude 里交回 `ask`；Cursor 的 preToolUse/beforeShell 等由 Hook 回 `allow`/`ask`，二者都需 Agent + Hooks 且蓝牙由 agent 持有时才按拨杆。")
+                    Text("若 Cursor 仍弹出「运行 Shell」：与 Aha hook 是两套。打开本页「查看日志」→ 选「cli-config」可查看/一键合并白名单与 approvalMode。")
                 }
             }
 
@@ -228,30 +229,42 @@ struct DeviceInfoView: View {
                         Text("诊断日志")
                             .font(.headline)
                         Spacer()
-                        Button("刷新") { agentManager.refresh() }
                         Button("关闭") { showAgentLog = false }
                     }
-                    Picker("", selection: $agentLogPanel) {
+                    Picker("内容", selection: $agentLogPanel) {
                         Text("ahakeyconfig-agent 主日志").tag(0)
-                        Text("工具批准诊断（Claude+Cursor）").tag(1)
+                        Text("工具批准（permission-request.log）").tag(1)
+                        Text("~/.cursor/hooks.json").tag(2)
+                        Text("~/.cursor/cli-config.json").tag(3)
                     }
                     .labelsHidden()
-                    .pickerStyle(.segmented)
-                    ScrollView {
-                        Group {
-                            if agentLogPanel == 0 {
-                                Text(agentManager.readLog())
-                            } else {
-                                Text(agentManager.readPermissionRequestLog())
-                            }
+                    .pickerStyle(.menu)
+                    HStack {
+                        Button("刷新本页") {
+                            logPanelContentTick += 1
+                            agentManager.refresh()
                         }
-                        .font(.system(.caption2, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if agentLogPanel == 3 {
+                            Button("合并 CLI + IDE 终端白名单") {
+                                let a = agentManager.mergeUserCursorCliConfigForShellAutoApprove()
+                                let b = agentManager.mergeUserCursorPermissionsJsonForAgentTUI()
+                                agentManager.agentUserAlert = a + "\n\n——\n\n" + b
+                            }
+                            .help("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Agent TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。")
+                        }
+                        Spacer()
+                    }
+                    .font(.caption)
+                    ScrollView {
+                        logPanelContent
+                            .id(logPanelContentTick)
+                            .font(.system(.caption2, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding()
-                .frame(width: 520, height: 340)
+                .frame(width: 540, height: 380)
             }
 
             // MARK: - LED 测试
@@ -515,6 +528,22 @@ struct DeviceInfoView: View {
         case 1: return "常亮"
         case 2: return "呼吸"
         default: return "\(mode)"
+        }
+    }
+
+    @ViewBuilder
+    private var logPanelContent: some View {
+        switch agentLogPanel {
+        case 0:
+            Text(agentManager.readLog())
+        case 1:
+            Text(agentManager.readPermissionRequestLog())
+        case 2:
+            Text(agentManager.readUserCursorHooksJsonForDisplay())
+        case 3:
+            Text(agentManager.readUserCursorCliConfigForDisplay())
+        default:
+            Text("")
         }
     }
 

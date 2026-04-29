@@ -9,6 +9,7 @@ import Foundation
 /// - Claude Code `PermissionRequest`：见 Apple hook 输出示例（`hookSpecificOutput`…）。
 /// - Cursor `preToolUse` / `beforeShellExecution` / `beforeMCPExecution`：stdout 为
 ///   `{ "permission": "allow" | "deny" | "ask", ... }`（见 Cursor Hooks 文档）。
+///   拨杆为 0 时还会同步 `~/.cursor/cli-config.json`（CLI 权限）与 `~/.cursor/permissions.json` 的 `terminalAllowlist`（IDE TUI 白名单，二者分离；非 0 时恢复快照）。
 enum HookClient {
     /// 与 LED / 协议 `sendState` 对应；批准类查询统一用 `permissionLedValue`。
     private static let permissionLedValue: UInt8 = 1
@@ -46,6 +47,15 @@ enum HookClient {
     private static let stateRequestTimeout: Double = 2.0
     /// 读拨杆 + BLE 可能略慢，批准路径单独放宽。
     private static let permissionRequestTimeout: Double = 5.0
+
+    /// 诊断日志 `ts`：本地时区，`HH` 为 24 小时制（`en_US_POSIX` 避免随地区变成 12 小时制）。
+    private static let diagnosticTimestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return f
+    }()
 
     /// 返回进程退出码。Hook 子进程以 0 表示成功；Cursor 上 exit 2 等同 deny（我们优先 stdout JSON）。
     static func run(event: String) -> Int32 {
@@ -110,7 +120,8 @@ enum HookClient {
             ide: "claude", hookEvent: "PermissionRequest",
             toolContext: ctx,
             reply: reply, switchState: switchState, isAuto: isAuto,
-            claudeBehavior: behavior, cursorPermission: nil
+            claudeBehavior: behavior, cursorPermission: nil,
+            cursorDebug: nil
         )
     }
 
@@ -131,7 +142,14 @@ enum HookClient {
                 ide: "Cursor", hookName: hookEvent,
                 reply: reply, switchState: switchState
             )
-            perm = "deny"
+            perm = "ask"
+        }
+
+        // 仅当能读到有效拨杆时：① cli-config（CLI 权限）② permissions.json 的 terminalAllowlist（IDE TUI「Not in allowlist」层，与 cli-config 不共用）。
+        if let s = switchState {
+            let auto = s == 0
+            CursorCliLeverSync.apply(switchStateAuto: auto)
+            CursorPermissionsJsonLeverSync.apply(switchStateAuto: auto)
         }
 
         let out: [String: Any] = [
@@ -143,11 +161,16 @@ enum HookClient {
             print(str)
         }
 
+        let cursorDebug = buildCursorHookDebug(
+            stdinData: stdinData,
+            commandPreview: ctx["commandPreview"] as? String
+        )
         appendDiagnostic(
             ide: "cursor", hookEvent: hookEvent,
             toolContext: ctx,
             reply: reply, switchState: switchState, isAuto: isAuto,
-            claudeBehavior: nil, cursorPermission: perm
+            claudeBehavior: nil, cursorPermission: perm,
+            cursorDebug: cursorDebug
         )
     }
 
@@ -190,6 +213,86 @@ enum HookClient {
         return out
     }
 
+    // MARK: Cursor 诊断块（permission-request.log → `cursorDebug`）
+
+    private static let cursorStdinLogKeys: [String] = [
+        "cursorVersion", "cursor_version", "appVersion", "app_version", "version",
+        "workspacePath", "workspace_path", "workspaceFolders", "workspace_folders", "workspaceRoot",
+        "cwd", "root", "shell", "shell_type", "sessionId", "conversation_id",
+    ]
+
+    private static func buildCursorHookDebug(stdinData: Data, commandPreview: String?) -> [String: Any] {
+        var out: [String: Any] = [
+            "userCliConfig": CursorCliLeverSync.diagnosticSnapshotForLog(),
+            "userPermissionsJson": CursorPermissionsJsonLeverSync.diagnosticSnapshotForLog(),
+            "note": "IDE「Not in allowlist」用 ~/.cursor/permissions.json 的 terminalAllowlist，与 userCliConfig（cli-config=CLI）分离；见 cursor.com/docs/reference/permissions",
+            "stdinFields": cursorStdinDebugFields(stdinData),
+            "processEnvCursorVscode": cursorRelatedEnvForLog(),
+        ]
+        if let cd = inferredCdPathFromShellCommand(commandPreview) {
+            out["inferredCdPath"] = cd
+            let proj = (cd as NSString).appendingPathComponent(".cursor/cli.json")
+            out["projectCliJsonPath"] = proj
+            out["projectCliJsonExists"] = FileManager.default.fileExists(atPath: proj)
+        }
+        return out
+    }
+
+    private static func cursorStdinDebugFields(_ data: Data) -> [String: Any] {
+        guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return ["parse": "empty_or_invalid_json"]
+        }
+        var o: [String: Any] = [:]
+        for k in cursorStdinLogKeys {
+            guard let v = obj[k] else { continue }
+            o[k] = stringifyDebugValue(v, maxLen: 220)
+        }
+        if o.isEmpty { o["note"] = "no_whitelisted_keys_in_stdin" }
+        return o
+    }
+
+    private static func stringifyDebugValue(_ v: Any, maxLen: Int) -> String {
+        if let s = v as? String { return String(s.prefix(maxLen)) }
+        if let n = v as? NSNumber { return n.stringValue }
+        if let a = v as? [String] {
+            return String(a.prefix(12).joined(separator: ", ").prefix(maxLen))
+        }
+        return String(String(describing: v).prefix(maxLen))
+    }
+
+    private static func cursorRelatedEnvForLog() -> [String: Any] {
+        var o: [String: Any] = [:]
+        for (k, v) in ProcessInfo.processInfo.environment.sorted(by: { $0.key < $1.key }) {
+            let ku = k.uppercased()
+            guard ku.contains("CURSOR") || ku.hasPrefix("VSCODE_") || ku == "TERM" else { continue }
+            o[k] = String(v.prefix(200))
+            if o.count >= 32 { break }
+        }
+        return o
+    }
+
+    /// 从 `cd /a/b && ...` 取首段目录，用于判断项目下 `.cursor/cli.json` 是否存在。
+    private static func inferredCdPathFromShellCommand(_ command: String?) -> String? {
+        guard let raw = command?.trimmingCharacters(in: .whitespacesAndNewlines),
+              raw.hasPrefix("cd ") else { return nil }
+        var rest = String(raw.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+        if let r = rest.range(of: " && ") { rest = String(rest[..<r.lowerBound]) }
+        if let r = rest.firstIndex(of: ";") { rest = String(rest[..<r]) }
+        if let r = rest.firstIndex(of: "|") { rest = String(rest[..<r]) }
+        rest = rest.trimmingCharacters(in: .whitespaces)
+        if rest.hasPrefix("\"") {
+            let drop = rest.dropFirst()
+            if let end = drop.firstIndex(of: "\"") {
+                return String(drop[..<end])
+            }
+        }
+        // 非引号：取到空白或行尾
+        if let sp = rest.firstIndex(where: { $0.isWhitespace }) {
+            return String(rest[..<sp])
+        }
+        return rest.isEmpty ? nil : rest
+    }
+
     private static func appendDiagnostic(
         ide: String,
         hookEvent: String,
@@ -198,7 +301,8 @@ enum HookClient {
         switchState: Int?,
         isAuto: Bool,
         claudeBehavior: String?,
-        cursorPermission: String?
+        cursorPermission: String?,
+        cursorDebug: [String: Any]? = nil
     ) {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AhaKeyConfig/diagnostics", isDirectory: true)
@@ -217,7 +321,7 @@ enum HookClient {
             diagnostic = "ask"
         }
         var lineObj: [String: Any] = [
-            "ts": ISO8601DateFormatter().string(from: Date()),
+            "ts": diagnosticTimestampFormatter.string(from: Date()),
             "ide": ide,
             "hookEvent": hookEvent,
             "switchState": switchState.map { $0 } ?? NSNull(),
@@ -228,6 +332,7 @@ enum HookClient {
         ]
         if let b = claudeBehavior { lineObj["claudeBehavior"] = b }
         if let p = cursorPermission { lineObj["cursorPermission"] = p }
+        if let c = cursorDebug { lineObj["cursorDebug"] = c }
 
         guard let data = try? JSONSerialization.data(withJSONObject: lineObj, options: []),
               var line = String(data: data, encoding: .utf8) else { return }
