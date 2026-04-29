@@ -1,5 +1,7 @@
 # Windows
 
+安装与发布入口说明见：`docs/installation.md`。
+
 ## 这个目录是什么
 
 Windows 平台源码的汇总入口。
@@ -23,6 +25,13 @@ Windows 平台源码的汇总入口。
 ## 如何构建
 
 按子目录分别构建，不存在一个已经确认可直接复用的统一总构建入口。
+
+### 模块 README 入口
+
+- `desktop-main/README.md`
+- `ble-bridge/README.md`
+- `hook-installer/README.md`
+- `speech/README.md`
 
 ## GitHub Releases 对应发布物
 

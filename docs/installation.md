@@ -11,6 +11,7 @@
 
 ### Windows desktop-main
 
+- Windows 安装包通过 GitHub Releases 分发；从源码运行或查看模块入口请先看：`platforms/windows/README.md`
 - 目录：`platforms/windows/desktop-main/vibe_code_config_tool/`
 - 可判断的开发启动方式：
   - `pip install -r requirements.txt`
