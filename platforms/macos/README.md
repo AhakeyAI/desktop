@@ -47,6 +47,11 @@ The macOS baseline is still in an early post-migration state. Source, project fi
 - Historical macOS repositories may be retained temporarily during migration
 - macOS source is kept separate from Windows code and is not mixed into `platforms/windows/`
 
+### Installation docs
+
+- Repository-level installation overview: `docs/installation.md`
+- macOS client build/package details: `platforms/macos/client/README.md`
+
 ---
 
 # 简体中文
@@ -93,3 +98,8 @@ macOS 客户端源码已迁入 `platforms/macos/client/`。
 - macOS 安装包应通过 GitHub Releases 分发
 - 迁移过程中，历史 macOS 仓库可能会暂时保留
 - macOS 源码不会混入 `platforms/windows/`
+
+### 安装文档入口
+
+- 仓库级安装总览：`docs/installation.md`
+- macOS 客户端构建与打包细节：`platforms/macos/client/README.md`

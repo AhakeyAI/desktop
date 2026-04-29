@@ -49,6 +49,7 @@
 ### macOS client
 
 - 目录：`platforms/macos/client/`
+- 详细安装/构建说明：参见 `platforms/macos/README.md` 与 `platforms/macos/client/README.md`
 - 当前可判断的环境要求：
   - macOS 15.0+
   - Xcode 15+ 或等效 Swift toolchain
