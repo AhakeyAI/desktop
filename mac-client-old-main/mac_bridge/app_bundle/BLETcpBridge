@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BRIDGE_HOME="$APP_ROOT/Resources/bridge"
+RUNNER="$BRIDGE_HOME/run_bridge.command"
+LOG_DIR="$HOME/Library/Application Support/VibeKeyboard/BLETcpBridge"
+LOG_FILE="$LOG_DIR/bridge_console.log"
+
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+export BLE_TCP_BRIDGE_HOME="$BRIDGE_HOME"
+cd "$BRIDGE_HOME"
+
+if [ "${BLE_TCP_BRIDGE_NO_TERMINAL:-0}" = "1" ]; then
+  exec "$BRIDGE_HOME/BleTcpBridge" "$@" >>"$LOG_FILE" 2>&1
+fi
+
+if [ -t 1 ]; then
+  exec "$BRIDGE_HOME/BleTcpBridge" "$@" 2>&1 | tee -a "$LOG_FILE"
+fi
+
+open -a Terminal "$RUNNER"

@@ -1,0 +1,13 @@
+numpy>=1.21.0
+sounddevice>=0.4.6
+websockets>=12.0
+typer>=0.12.0
+colorama>=0.4.6
+rich>=13.7.0
+requests>=2.28.0
+sherpa-onnx>=1.10.0
+pypinyin>=0.52.0
+watchdog>=4.0.0
+pyobjc-framework-Quartz>=10.2
+pyobjc-framework-Cocoa>=10.2
+pyobjc-framework-AVFoundation>=10.2
