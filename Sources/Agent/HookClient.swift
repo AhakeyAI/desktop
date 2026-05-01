@@ -1,6 +1,6 @@
 import Foundation
 
-/// Claude Code / Cursor hook 客户端
+/// Claude Code / Cursor / Codex hook 客户端
 ///
 /// 作为 `ahakeyconfig-agent hook <EventName>` 子命令运行，被 IDE exec。
 /// 通过 Unix socket 把事件通知到常驻 agent daemon，并在 **工具批准** 类场景下
@@ -10,6 +10,8 @@ import Foundation
 /// - Cursor `preToolUse` / `beforeShellExecution` / `beforeMCPExecution`：stdout 为
 ///   `{ "permission": "allow" | "deny" | "ask", ... }`（见 Cursor Hooks 文档）。
 ///   拨杆为 0 时还会同步 `~/.cursor/cli-config.json`（CLI 权限）与 `~/.cursor/permissions.json` 的 `terminalAllowlist`（IDE TUI 白名单，二者分离；非 0 时恢复快照）。
+/// - Codex `PermissionRequest`：Codex 0.125 inline TOML hooks 需要 stdout JSON；自动档输出
+///   `behavior=allow`，手动档只回 hookEventName，让 Codex 继续走自己的确认链（Codex 不支持 Claude 的 `ask`）。
 enum HookClient {
     /// 与 LED / 协议 `sendState` 对应；批准类查询统一用 `permissionLedValue`。
     private static let permissionLedValue: UInt8 = 1
@@ -21,6 +23,10 @@ enum HookClient {
         case claudePermissionRequest
         /// Cursor：从 stdin 读 JSON，stdout 回 `permission` 字段 + 拨杆。
         case cursorToolPermission
+        /// Codex：发状态并输出空 JSON，保持 command hook 输出合法。
+        case codexState(UInt8)
+        /// Codex：`PermissionRequest` → 自动档 allow；手动档交回 Codex。
+        case codexPermissionRequest
     }
 
     private static let eventMap: [String: EventMode] = [
@@ -41,6 +47,13 @@ enum HookClient {
         "preToolUse": .cursorToolPermission,
         "beforeShellExecution": .cursorToolPermission,
         "beforeMCPExecution": .cursorToolPermission,
+
+        "CodexSessionStart": .codexState(4),
+        "CodexPostToolUse": .codexState(2),
+        "CodexPreToolUse": .codexState(3),
+        "CodexUserPromptSubmit": .codexState(7),
+        "CodexStop": .codexState(5),
+        "CodexPermissionRequest": .codexPermissionRequest,
     ]
 
     private static let socketPath = "/tmp/ahakey.sock"
@@ -74,6 +87,10 @@ enum HookClient {
             handleClaudePermissionRequest()
         case .cursorToolPermission:
             handleCursorToolPermission(hookEvent: event)
+        case .codexState(let v):
+            handleCodexState(stateValue: v)
+        case .codexPermissionRequest:
+            handleCodexPermissionRequest()
         }
         return 0
     }
@@ -83,6 +100,11 @@ enum HookClient {
     private static func handleFireAndForgetState(stateValue: UInt8) {
         let request: [String: Any] = ["cmd": "state", "value": Int(stateValue)]
         _ = sendJsonRequest(request, timeout: stateRequestTimeout)
+    }
+
+    private static func handleCodexState(stateValue: UInt8) {
+        handleFireAndForgetState(stateValue: stateValue)
+        print("{}")
     }
 
     // MARK: Claude PermissionRequest
@@ -171,6 +193,46 @@ enum HookClient {
             reply: reply, switchState: switchState, isAuto: isAuto,
             claudeBehavior: nil, cursorPermission: perm,
             cursorDebug: cursorDebug
+        )
+    }
+
+    // MARK: Codex PermissionRequest
+
+    private static func handleCodexPermissionRequest() {
+        let stdinData = readAllStdinSilently()
+        let ctx = parseStdinContext(stdinData, label: "Codex")
+        let request: [String: Any] = ["cmd": "permission", "value": Int(permissionLedValue)]
+        let reply = sendJsonRequest(request, timeout: permissionRequestTimeout)
+        let switchState = intValue(reply?["switchState"])
+        let isAuto = switchState == 0
+
+        if !isAuto {
+            emitPermissionStderr(
+                ide: "Codex", hookName: "PermissionRequest",
+                reply: reply, switchState: switchState
+            )
+        }
+
+        var hookOut: [String: Any] = [
+            "hookEventName": "PermissionRequest",
+        ]
+        if isAuto {
+            hookOut["decision"] = ["behavior": "allow"]
+        }
+        let out: [String: Any] = [
+            "hookSpecificOutput": hookOut,
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
+           let str = String(data: data, encoding: .utf8) {
+            print(str)
+        }
+
+        appendDiagnostic(
+            ide: "codex", hookEvent: "PermissionRequest",
+            toolContext: ctx,
+            reply: reply, switchState: switchState, isAuto: isAuto,
+            claudeBehavior: nil, cursorPermission: nil,
+            cursorDebug: nil
         )
     }
 

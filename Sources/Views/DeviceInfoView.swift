@@ -57,7 +57,7 @@ struct DeviceInfoView: View {
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
                                          ? "改键、OLED、同步、本机灯效测试"
-                                         : "Claude/Cursor Hook、灯条状态、拨杆查询")
+                                         : "Claude/Cursor/Codex Hook、灯条状态、拨杆查询")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.leading)
@@ -119,7 +119,7 @@ struct DeviceInfoView: View {
                 Text("拨杆档位")
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("拨杆是物理档位。0=自动批准、非0=在 Claude 里交回 `ask`；Cursor 的 preToolUse/beforeShell 等由 Hook 回 `allow`/`ask`，二者都需 Agent + Hooks 且蓝牙由 agent 持有时才按拨杆。")
+                    Text("拨杆是物理档位。0=自动批准、非0=交回 IDE 自己确认；Claude 用 PermissionRequest，Cursor 用 preToolUse/beforeShell 等，Codex 用 inline TOML Hooks。都需 Agent + Hooks 且蓝牙由 agent 持有。")
                     Text("若 Cursor 仍弹出「运行 Shell」：与 Aha hook 是两套。打开本页「查看日志」→ 选「cli-config」可查看/一键合并白名单与 approvalMode。")
                 }
             }
@@ -132,13 +132,14 @@ struct DeviceInfoView: View {
                             Circle()
                                 .fill(agentManager.isRunning ? Color.green : Color.gray.opacity(0.4))
                                 .frame(width: 8, height: 8)
-                            Text("LED 跟随 Claude 状态")
+                            Text("LED 跟随 IDE 状态")
                             Text(agentBluetoothShortLabel())
                                 .foregroundStyle(.secondary)
                         }
                         HStack(spacing: 10) {
                             hookBadge("Claude", installed: agentManager.claudeHooksInstalled)
                             hookBadge("Cursor", installed: agentManager.cursorHooksInstalled)
+                            hookBadge("Codex", installed: agentManager.codexHooksInstalled)
                         }
                         .font(.caption)
                     }
@@ -207,6 +208,15 @@ struct DeviceInfoView: View {
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
+                        if agentManager.codexHooksInstalled {
+                            Button("移除 Codex Hooks") { agentManager.removeCodexHooksOnly() }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        } else {
+                            Button("安装 Codex Hooks") { agentManager.installCodexHooksOnly() }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        }
                     }
                 }
             } header: {
@@ -220,7 +230,7 @@ struct DeviceInfoView: View {
                         Text("已安装 LaunchAgent 且当前由本 App 占蓝牙，因此 Agent 未加载：请先在上文将「蓝牙连接」选为「ahakeyconfig-agent」再观察运行状态，或点「安装并启用」时阅读弹窗说明。")
                             .foregroundStyle(.secondary)
                     }
-                    Text("1) 键盘 LED 可随 IDE 状态变。2) 工具「自动批准」：Claude 走 PermissionRequest；Cursor 走 preToolUse（stdout 返回 permission，可在 hooks.json 自配 `beforeShellExecution` / `beforeMCPExecution` 亦支持同一二进制）。3) 诊断见 AhaKeyConfig/diagnostics/permission-request.log（ide、hookEvent、diagnostic）。")
+                    Text("1) 键盘 LED 可随 IDE 状态变。2) 工具「自动批准」：Claude 走 PermissionRequest；Cursor 走 preToolUse；Codex 走 `~/.codex/config.toml` 的 inline `[[hooks.*]]`。3) 诊断见 AhaKeyConfig/diagnostics/permission-request.log（ide、hookEvent、diagnostic）。")
                 }
             }
             .sheet(isPresented: $showAgentLog) {
@@ -236,6 +246,7 @@ struct DeviceInfoView: View {
                         Text("工具批准（permission-request.log）").tag(1)
                         Text("~/.cursor/hooks.json").tag(2)
                         Text("~/.cursor/cli-config.json").tag(3)
+                        Text("~/.codex/config.toml").tag(4)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
@@ -483,13 +494,13 @@ struct DeviceInfoView: View {
         let pieces: [String]
         if state == 0 {
             pieces = [
-                "自动批准：Claude 为 PermissionRequest；Cursor 为 preToolUse 等（stdout permission）。需 Agent、Hooks、蓝牙交给 Agent。",
+                "自动批准：Claude/Codex 为 PermissionRequest；Cursor 为 preToolUse 等。需 Agent、Hooks、蓝牙交给 Agent。",
                 agentBluetoothStatusTextForDescription(agentRunning: agentRunning, agentInstalled: agentInstalled),
                 hooksReady ? "Hooks 已配置" : "Hooks 未配置",
             ]
         } else {
             pieces = [
-                "手动：Claude/Cursor 批准链会交回确认（Cursor 无「PermissionRequest」事件名，但 preToolUse 等可返回 ask）。",
+                "手动：Claude/Cursor/Codex 批准链会交回 IDE 自己确认。",
             ]
         }
         return pieces.joined(separator: " · ")
@@ -542,6 +553,8 @@ struct DeviceInfoView: View {
             Text(agentManager.readUserCursorHooksJsonForDisplay())
         case 3:
             Text(agentManager.readUserCursorCliConfigForDisplay())
+        case 4:
+            Text(agentManager.readUserCodexConfigForDisplay())
         default:
             Text("")
         }

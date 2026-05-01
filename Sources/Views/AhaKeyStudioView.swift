@@ -1007,7 +1007,7 @@ struct AhaKeyStudioView: View {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.callout.weight(.semibold))
-                        Text("Claude：PermissionRequest 时返回 allow。Cursor：preToolUse（以及你自建的 beforeShell beforeMCP 钩子）stdout 会返回 permission=allow。若 agent 未连键盘或本 App 占着 BLE，会退成交回确认。须 Agent 在跑、Hook 已装。涉及 shell/删文件等高危时建议用手动档。需要逐条确认时请把拨杆切到“手动批准”。")
+                        Text("Claude：PermissionRequest 时返回 allow。Cursor：preToolUse（以及你自建的 beforeShell beforeMCP 钩子）stdout 会返回 permission=allow。Codex：PermissionRequest 自动档返回 allow，手动档交回 Codex 确认。若 agent 未连键盘或本 App 占着 BLE，会退成交回确认。须 Agent 在跑、Hook 已装。涉及 shell/删文件等高危时建议用手动档。需要逐条确认时请把拨杆切到“手动批准”。")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -1016,8 +1016,8 @@ struct AhaKeyStudioView: View {
 
             GroupBox("如何理解这个部件") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("自动批准：Claude 用 PermissionRequest；Cursor 用 preToolUse 等并返回 JSON permission。均需 Agent + Hooks，且设备蓝牙由 Agent 连接。")
-                    Text("手动批准：会交回用户/终端确认。若 Cursor 仍弹窗，请看 diagnostics 里 ide=cursor 与 diagnostic 字段。")
+                    Text("自动批准：Claude/Codex 用 PermissionRequest；Cursor 用 preToolUse 等并返回 JSON permission。均需 Agent + Hooks，且设备蓝牙由 Agent 连接。")
+                    Text("手动批准：会交回用户/终端确认。若 Cursor 或 Codex 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。")
                     Text("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。")
                 }
                 .font(.callout)
@@ -1036,7 +1036,7 @@ struct AhaKeyStudioView: View {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
                     Text(agentReady
-                         ? "Agent 与 Hook 已就位时，拨杆会参与 Claude 的 PermissionRequest 与 Cursor 的 preToolUse 等批准链。"
+                         ? "Agent 与 Hook 已就位时，拨杆会参与 Claude/Codex 的 PermissionRequest 与 Cursor 的 preToolUse 等批准链。"
                          : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。")
                         .font(.callout)
                 }
@@ -1045,7 +1045,7 @@ struct AhaKeyStudioView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         agentChecklistRow(label: "LaunchAgent 已安装", ok: agentManager.isInstalled)
                         agentChecklistRow(label: "Agent 已连接蓝牙", ok: agentManager.isRunning)
-                        agentChecklistRow(label: "Claude / Cursor Hook 已配置", ok: agentManager.hooksInstalled)
+                        agentChecklistRow(label: "Claude / Cursor / Codex Hook 已配置", ok: agentManager.hooksInstalled)
                     }
                     .padding(.leading, 4)
 

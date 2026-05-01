@@ -24,7 +24,7 @@ enum BluetoothConnectionOwner: String, CaseIterable, Identifiable {
     var shortDetail: String {
         switch self {
         case .ahaKeyStudio: return "本 App 连接蓝牙，用于配置与同步。Agent 的 LaunchJob 在持有方为 App 时不会加载，避免抢连接。"
-        case .agentDaemon: return "仅 Agent 连接蓝牙。Claude/Cursor Hook 才能驱动灯条与拨杆查询；本 App 里无法对键盘发 BLE 命令。"
+        case .agentDaemon: return "仅 Agent 连接蓝牙。Claude/Cursor/Codex Hook 才能驱动灯条与拨杆查询；本 App 里无法对键盘发 BLE 命令。"
         }
     }
 }
@@ -40,9 +40,10 @@ final class AgentManager: ObservableObject {
     @Published private(set) var isInstalled = false
     @Published private(set) var isRunning = false
     @Published private(set) var isAgentBLEConnected = false   // agent 的 BLE 是否真正连上键盘
-    @Published private(set) var hooksInstalled = false        // Claude OR Cursor hooks 是否装了任何一个
+    @Published private(set) var hooksInstalled = false        // Claude / Cursor / Codex hooks 是否装了任何一个
     @Published private(set) var claudeHooksInstalled = false
     @Published private(set) var cursorHooksInstalled = false
+    @Published private(set) var codexHooksInstalled = false
 
     /// 用户选择的蓝牙占用方（存 UserDefaults，启动时应用一次）
     @Published var bluetoothConnectionOwner: BluetoothConnectionOwner = .agentDaemon
@@ -97,6 +98,29 @@ final class AgentManager: ObservableObject {
         return home.appendingPathComponent(".cursor/hooks.json").path
     }
 
+    private var codexConfigPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex/config.toml").path
+    }
+
+    private var codexAppCliPath: String {
+        "/Applications/Codex.app/Contents/Resources/codex"
+    }
+
+    private var localBinDirectoryPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/bin", isDirectory: true).path
+    }
+
+    private var localCodexCliPath: String {
+        (localBinDirectoryPath as NSString).appendingPathComponent("codex")
+    }
+
+    private var zshrcPath: String {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".zshrc").path
+    }
+
     /// `~/.cursor/cli-config.json`：Cursor **CLI** 的 `permissions`（`Shell(...)` 等）与 `approvalMode`。
     private var cursorCliConfigPath: String {
         FileManager.default.homeDirectoryForCurrentUser
@@ -122,7 +146,8 @@ final class AgentManager: ObservableObject {
         isRunning = checkRunning()
         claudeHooksInstalled = detectClaudeHooksInstalled()
         cursorHooksInstalled = detectCursorHooksInstalled()
-        hooksInstalled = claudeHooksInstalled || cursorHooksInstalled
+        codexHooksInstalled = detectCodexHooksInstalled()
+        hooksInstalled = claudeHooksInstalled || cursorHooksInstalled || codexHooksInstalled
         if isRunning {
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 guard let self else { return }
@@ -281,6 +306,15 @@ final class AgentManager: ObservableObject {
         return false
     }
 
+    private func detectCodexHooksInstalled() -> Bool {
+        guard let text = try? String(contentsOfFile: codexConfigPath, encoding: .utf8) else {
+            return false
+        }
+        return text.contains(codexHookBlockStart)
+            && text.contains(codexHookBlockEnd)
+            && isAhakeyHookCommand(text)
+    }
+
     private func isAhakeyHookCommand(_ command: String) -> Bool {
         command.contains("ahakeyconfig-agent") || command.contains("ahakey-state")
     }
@@ -351,9 +385,10 @@ final class AgentManager: ObservableObject {
             }
         }
 
-        // 3. 安装 Claude / Cursor hooks（直接指向 agent 二进制 hook 子命令）
+        // 3. 安装 Claude / Cursor / Codex hooks（直接指向 agent 二进制 hook 子命令）
         let claudeLine = installClaudeHooks()
         let cursorLine = installCursorHooks()
+        let codexLine = installCodexHooks()
 
         refresh()
 
@@ -363,6 +398,7 @@ final class AgentManager: ObservableObject {
         }
         if !claudeLine.isEmpty { lines.append(claudeLine) }
         if !cursorLine.isEmpty { lines.append(cursorLine) }
+        if !codexLine.isEmpty { lines.append(codexLine) }
         let tail = lines.joined(separator: "\n\n")
         if let err = agentUserAlert {
             agentUserAlert = err + (tail.isEmpty ? "" : "\n\n——\n\n" + tail)
@@ -379,9 +415,10 @@ final class AgentManager: ObservableObject {
         // 2. 清理老版本 shell hook 脚本（如果存在）
         try? FileManager.default.removeItem(atPath: legacyHookScriptPath)
 
-        // 3. 移除 Claude / Cursor hooks 中的 ahakey 条目（同时覆盖老 shell 脚本与新二进制命令）
+        // 3. 移除 Claude / Cursor / Codex hooks 中的 ahakey 条目（同时覆盖老 shell 脚本与新二进制命令）
         removeClaudeHooks()
         removeCursorHooks()
+        removeCodexHooks()
 
         // 4. 清理 socket
         if FileManager.default.fileExists(atPath: socketPath) {
@@ -458,6 +495,9 @@ final class AgentManager: ObservableObject {
     /// 与「安装 Cursor Hooks」写入路径一致，便于在 UI 中展示或对照。
     var userCursorHooksJsonFilePath: String { cursorHooksPath }
 
+    /// Codex 0.125 使用 `~/.codex/config.toml` 的 inline `[[hooks.Event]]`。
+    var userCodexConfigFilePath: String { codexConfigPath }
+
     /// Cursor CLI / Agent 的全局 `permissions` 等（控制 Shell 等是否仍弹层确认，与 `hooks.json` 独立）。
     var userCursorCliConfigFilePath: String { cursorCliConfigPath }
 
@@ -477,6 +517,15 @@ final class AgentManager: ObservableObject {
             return "（文件不存在：\(path)）\n\n可点诊断面板中「合并 Shell 白名单 + approvalMode=auto」从空白创建；或自行在文档中按 `permissions` 配置。"
         }
         return Self.prettyJsonString(atPath: path) ?? "（存在但无法解析为 JSON：\(path)）"
+    }
+
+    /// 将 `~/.codex/config.toml` 原样读出；Codex hooks 是 TOML，不是 JSON。
+    func readUserCodexConfigForDisplay() -> String {
+        let path = codexConfigPath
+        guard FileManager.default.fileExists(atPath: path) else {
+            return "（文件不存在：\(path)）\n\n可先点「安装 Codex Hooks」创建并合并 `[features].codex_hooks` 与 AhaKey hook block。"
+        }
+        return (try? String(contentsOfFile: path, encoding: .utf8)) ?? "（存在但无法读取：\(path)）"
     }
 
     /// 备份当前 `cli-config` 后，合并 `permissions.allow`（不删你已有项），并设置 `approvalMode` 为 `auto`。
@@ -748,6 +797,17 @@ final class AgentManager: ObservableObject {
         "stop",
     ]
 
+    private let codexHookBlockStart = "# BEGIN AhaKey Codex Hooks"
+    private let codexHookBlockEnd = "# END AhaKey Codex Hooks"
+    private let codexHookEvents: [(event: String, agentEvent: String, timeout: Int)] = [
+        ("SessionStart", "CodexSessionStart", 10),
+        ("PostToolUse", "CodexPostToolUse", 10),
+        ("PreToolUse", "CodexPreToolUse", 20),
+        ("PermissionRequest", "CodexPermissionRequest", 20),
+        ("UserPromptSubmit", "CodexUserPromptSubmit", 10),
+        ("Stop", "CodexStop", 10),
+    ]
+
     /// 单独安装 Claude hooks
     func installClaudeHooksOnly() {
         isAgentOperationInProgress = true
@@ -772,11 +832,28 @@ final class AgentManager: ObservableObject {
         refresh()
     }
 
+    /// 单独安装 Codex hooks（Codex 0.125 为 inline TOML）。
+    func installCodexHooksOnly() {
+        isAgentOperationInProgress = true
+        defer { isAgentOperationInProgress = false }
+        let s = installCodexHooks()
+        agentUserAlert = s.isEmpty ? "Codex Hooks 已写入 ~/.codex/config.toml。\n\n安装完成。请重启 Codex 终端或客户端后再使用。" : s
+        refresh()
+    }
+
     /// 单独移除 Cursor hooks
     func removeCursorHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         agentUserAlert = performRemoveCursorHooksUserMessage()
+        refresh()
+    }
+
+    /// 单独移除 Codex hooks。
+    func removeCodexHooksOnly() {
+        isAgentOperationInProgress = true
+        defer { isAgentOperationInProgress = false }
+        agentUserAlert = removeCodexHooks()
         refresh()
     }
 
@@ -817,6 +894,190 @@ final class AgentManager: ObservableObject {
             return ""
         }
         return "Cursor Hooks：无法写入 \(cursorHooksPath)。请检查权限或磁盘空间。"
+    }
+
+    private func installCodexHooks() -> String {
+        let codexDir = (codexConfigPath as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
+        } catch {
+            return "Codex Hooks：无法创建目录 \(codexDir)：\(error.localizedDescription)"
+        }
+
+        var config = (try? String(contentsOfFile: codexConfigPath, encoding: .utf8)) ?? ""
+        config = removeCodexHookBlock(from: config)
+        config = ensureCodexHooksFeatureEnabled(in: config)
+        config = config.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !config.isEmpty { config += "\n\n" }
+        config += buildCodexHookBlock()
+        config += "\n"
+
+        do {
+            try config.write(toFile: codexConfigPath, atomically: true, encoding: .utf8)
+            log.info("Codex hooks 已写入 ~/.codex/config.toml")
+            let cliRepair = repairCodexCliPathIfNeeded()
+            return cliRepair.isEmpty
+                ? ""
+                : "Codex Hooks 已写入 ~/.codex/config.toml。\n\n\(cliRepair)\n\n安装完成。请重启 Codex 终端或客户端后再使用。"
+        } catch {
+            log.error("installCodexHooks: \(error.localizedDescription)")
+            return "Codex Hooks：无法写入 \(codexConfigPath)：\(error.localizedDescription)"
+        }
+    }
+
+    private func repairCodexCliPathIfNeeded() -> String {
+        if isExecutableOnPath("codex") {
+            return ""
+        }
+        guard FileManager.default.isExecutableFile(atPath: codexAppCliPath) else {
+            return "未在 PATH 中找到 `codex` 命令，也未找到 Codex App 自带 CLI：\(codexAppCliPath)。Hook 配置已安装；若需在终端使用 Codex，请先安装或更新 Codex 客户端。"
+        }
+
+        do {
+            try FileManager.default.createDirectory(atPath: localBinDirectoryPath, withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: localCodexCliPath) {
+                try FileManager.default.removeItem(atPath: localCodexCliPath)
+            }
+            try FileManager.default.createSymbolicLink(atPath: localCodexCliPath, withDestinationPath: codexAppCliPath)
+        } catch {
+            return "检测到终端中 `codex` 不可用，但无法创建 \(localCodexCliPath)：\(error.localizedDescription)。Hook 配置已安装。"
+        }
+
+        let zshLine = #"export PATH="$HOME/.local/bin:$PATH""#
+        do {
+            var zshrc = (try? String(contentsOfFile: zshrcPath, encoding: .utf8)) ?? ""
+            if !zshrc.contains("HOME/.local/bin") && !zshrc.contains("$HOME/.local/bin") {
+                if FileManager.default.fileExists(atPath: zshrcPath) {
+                    let bak = zshrcPath + ".ahakey.bak"
+                    if FileManager.default.fileExists(atPath: bak) {
+                        try FileManager.default.removeItem(atPath: bak)
+                    }
+                    try FileManager.default.copyItem(atPath: zshrcPath, toPath: bak)
+                }
+                zshrc = zshrc.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !zshrc.isEmpty { zshrc += "\n" }
+                zshrc += zshLine + "\n"
+                try zshrc.write(toFile: zshrcPath, atomically: true, encoding: .utf8)
+                return "已检测到 Codex App 自带 CLI，并修复终端命令：\n\(localCodexCliPath) → \(codexAppCliPath)\n\n已将 `~/.local/bin` 加入 ~/.zshrc（若原文件存在，已备份为 ~/.zshrc.ahakey.bak）。"
+            }
+        } catch {
+            return "已创建 \(localCodexCliPath)，但无法更新 ~/.zshrc：\(error.localizedDescription)。请手动把 `~/.local/bin` 加入 PATH。"
+        }
+
+        return "已检测到 Codex App 自带 CLI，并创建终端命令：\n\(localCodexCliPath) → \(codexAppCliPath)"
+    }
+
+    private func isExecutableOnPath(_ command: String) -> Bool {
+        let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        for dir in path.split(separator: ":") {
+            let candidate = (String(dir) as NSString).appendingPathComponent(command)
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return true
+            }
+        }
+        return false
+    }
+
+    @discardableResult
+    private func removeCodexHooks() -> String {
+        let path = codexConfigPath
+        guard FileManager.default.fileExists(atPath: path) else {
+            return "未找到 \(path)，无需移除 Codex Hooks。"
+        }
+        guard let config = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return "无法读取 \(path)，请检查权限。"
+        }
+        let next = removeCodexHookBlock(from: config)
+        guard next != config else {
+            return "在 \(path) 中未发现 AhaKey Codex hook 标记块。"
+        }
+        do {
+            try next.write(toFile: path, atomically: true, encoding: .utf8)
+            log.info("Codex hooks 中 AhaKey 标记块已移除")
+            return "已从 \(path) 移除 AhaKey Codex Hooks。"
+        } catch {
+            return "已生成移除后的内容，但无法写回 \(path)：\(error.localizedDescription)"
+        }
+    }
+
+    private func buildCodexHookBlock() -> String {
+        let binQuoted = shellQuote(agentBinaryPath)
+        var lines: [String] = [
+            codexHookBlockStart,
+            "# Managed by AhaKey Studio. Codex 0.125 uses inline TOML hooks; each command hook needs type = \"command\".",
+        ]
+        for item in codexHookEvents {
+            lines.append("")
+            lines.append("[[hooks.\(item.event)]]")
+            lines.append("matcher = \"\"")
+            lines.append("")
+            lines.append("[[hooks.\(item.event).hooks]]")
+            lines.append("type = \"command\"")
+            lines.append("command = \"\(escapeTomlBasicString("/bin/zsh -lc \(shellQuote("\(binQuoted) hook \(item.agentEvent)"))"))\"")
+            lines.append("timeout = \(item.timeout)")
+        }
+        lines.append("")
+        lines.append(codexHookBlockEnd)
+        return lines.joined(separator: "\n")
+    }
+
+    private func removeCodexHookBlock(from config: String) -> String {
+        var lines = config.components(separatedBy: .newlines)
+        while let start = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == codexHookBlockStart }),
+              let end = lines[start...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == codexHookBlockEnd }) {
+            lines.removeSubrange(start...end)
+        }
+        return lines.joined(separator: "\n")
+            .replacingOccurrences(of: "\n\n\n", with: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
+    }
+
+    private func ensureCodexHooksFeatureEnabled(in config: String) -> String {
+        var lines = config.components(separatedBy: .newlines)
+        var featuresStart: Int?
+        for (idx, line) in lines.enumerated() {
+            if line.trimmingCharacters(in: .whitespaces) == "[features]" {
+                featuresStart = idx
+                break
+            }
+        }
+
+        guard let start = featuresStart else {
+            var next = config.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !next.isEmpty { next += "\n\n" }
+            next += "[features]\ncodex_hooks = true\n"
+            return next
+        }
+
+        var sectionEnd = lines.count
+        if start + 1 < lines.count {
+            for idx in (start + 1)..<lines.count {
+                let trimmed = lines[idx].trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                    sectionEnd = idx
+                    break
+                }
+            }
+        }
+
+        let keyPattern = #"^\s*codex_hooks\s*="#
+        let regex = try? NSRegularExpression(pattern: keyPattern)
+        for idx in (start + 1)..<sectionEnd {
+            let line = lines[idx]
+            let range = NSRange(line.startIndex..<line.endIndex, in: line)
+            if regex?.firstMatch(in: line, range: range) != nil {
+                lines[idx] = "codex_hooks = true"
+                return lines.joined(separator: "\n")
+            }
+        }
+
+        lines.insert("codex_hooks = true", at: start + 1)
+        return lines.joined(separator: "\n")
+    }
+
+    private func escapeTomlBasicString(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
     /// 供「卸载主流程」等内部调用，无 UI 提示。
