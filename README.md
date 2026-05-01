@@ -39,6 +39,7 @@ At this stage, the focus is preserving source/project/build assets; no broad ref
 
 - `docs/repo-layout.md`
 - `docs/installation.md`
+- `docs/debug-ble-bridge-hook.md`
 - `docs/architecture.md`
 - `docs/releases.md`
 - `platforms/windows/README.md`
