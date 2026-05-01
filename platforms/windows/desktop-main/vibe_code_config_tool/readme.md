@@ -1,5 +1,12 @@
 # vibe_code_config_tool
 
+## 相关文档
+
+- 打包与 PyInstaller 说明请见 `BUILD.md`
+- `dist/` 目录中的产物属于本地构建输出或发布产物，不应直接提交到仓库
+- 若需要面对最终用户分发安装包，请优先走仓库约定的 GitHub Releases 流程
+
+
 ## 模块简介
 
 `vibe_code_config_tool` 是用户侧主桌面程序，负责连接键盘设备、编辑按键和动画配置、查看设备信息、处理用户账号与订阅操作，并可一键启动本地语音服务 `Capswriter`。
