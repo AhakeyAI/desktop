@@ -1,4 +1,6 @@
 import AppKit
+import CoreImage
+import Darwin
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -6,6 +8,8 @@ struct AhaKeyStudioView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
     @StateObject private var voiceRelay = VoiceRelayService.shared
     @StateObject private var nativeSpeech = NativeSpeechTranscriptionService.shared
+    @StateObject private var ahaType = AhaTypeTextOptimizer.shared
+    @StateObject private var cloudAccount = CloudAccountManager.shared
     @StateObject private var agentManager = AgentManager.shared
 
     @State private var studioDraft: AhaKeyStudioDraft
@@ -16,8 +20,12 @@ struct AhaKeyStudioView: View {
     @State private var lastSyncDate: Date?
     @State private var syncStatusMessage = "修改会先保存在本地，连接设备后再同步。"
     @State private var isSyncing = false
+    // AhaKeyStudio 交还蓝牙给 Agent 的过渡期：保持"已连接"显示，直到 Agent 接管或超时。
+    @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
     @State private var showsDeviceInfo = false
+    @State private var showsCloudAccount = false
+    @State private var showsAhaTypeLoginRequiredToast = false
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
@@ -61,13 +69,13 @@ struct AhaKeyStudioView: View {
                 userInfo: ["workMode": bleManager.workMode]
             )
         }
-        .onChange(of: studioDraft) { _, newValue in
+        .onChange(of: studioDraft) { newValue in
             AhaKeyStudioStore.save(newValue)
             voiceRelay.updateRoutes(from: newValue)
         }
         // 键盘物理档位变化（BLE 查询/通知上报）→ 自动切到对应 Mode 标签，
         // 这样 OLED 预览、快捷键草稿、发出去的 updateState 三者一致。
-        .onChange(of: bleManager.workMode) { _, newValue in
+        .onChange(of: bleManager.workMode) { newValue in
             if let slot = AhaKeyModeSlot(rawValue: newValue), slot != selectedMode {
                 selectedMode = slot
             }
@@ -82,6 +90,14 @@ struct AhaKeyStudioView: View {
         } message: {
             Text(agentManager.agentUserAlert ?? "")
         }
+        .alert("AhaType 未注册登录", isPresented: $showsAhaTypeLoginRequiredToast) {
+            Button("知道了", role: .cancel) {}
+            Button("注册登录") {
+                showsCloudAccount = true
+            }
+        } message: {
+            Text("请先注册登录 AhaType 后再开启云端整理。")
+        }
         .sheet(isPresented: $showsOLEDPlaybackPreview) {
             OLEDMotionPreviewSheet(
                 modeTitle: selectedMode.title,
@@ -95,18 +111,12 @@ struct AhaKeyStudioView: View {
             )
         }
         .sheet(isPresented: $showsDeviceInfo) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("设备信息 · Agent")
-                        .font(.headline)
-                    Spacer()
-                    Button("关闭") { showsDeviceInfo = false }
-                }
-                .padding(16)
-                Divider()
-                DeviceInfoView(bleManager: bleManager)
-            }
-            .frame(width: 720, height: 720)
+            DeviceInfoSheetContainer(bleManager: bleManager)
+                .frame(width: 720, height: 720)
+        }
+        .sheet(isPresented: $showsCloudAccount) {
+            CloudAccountView()
+                .frame(width: 520, height: 620)
         }
     }
 
@@ -119,13 +129,13 @@ struct AhaKeyStudioView: View {
 
             HStack(spacing: 10) {
                 infoPill(
-                    title: bleManager.isConnected ? "已连接" : (bleManager.isScanning ? "扫描中" : "未连接"),
+                    title: isEffectivelyConnected ? "已连接" : (bleManager.isScanning ? "扫描中" : "未连接"),
                     subtitle: bleManager.deviceName ?? "等待设备",
-                    accent: bleManager.isConnected ? .green : .orange
+                    accent: isEffectivelyConnected ? .green : .orange
                 )
                 infoPill(
                     title: "电量",
-                    subtitle: bleManager.isConnected ? "\(bleManager.batteryLevel)%" : "—",
+                    subtitle: isEffectivelyConnected ? "\(bleManager.batteryLevel)%" : "—",
                     accent: .blue
                 )
                 infoPill(
@@ -133,7 +143,6 @@ struct AhaKeyStudioView: View {
                     subtitle: currentSwitchTitle,
                     accent: currentSwitchTitle == "自动批准" ? .mint : .indigo
                 )
-                configurationModeStatus
             }
 
             Spacer(minLength: 0)
@@ -144,6 +153,19 @@ struct AhaKeyStudioView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(bleManager.isScanning)
+            }
+
+            ahaTypeModeStatus
+
+            configurationModeStatus
+
+            if shouldShowTopBarInstallStartButton {
+                Button("安装启动") {
+                    installStartAgentFromTopBar()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(agentManager.isAgentOperationInProgress)
+                .help("安装/修复 Agent 与 Hook，并启动 Agent 控制键盘。")
             }
 
             Button(configurationModeButtonTitle) {
@@ -167,6 +189,13 @@ struct AhaKeyStudioView: View {
                 Divider()
                 Button("设备信息 · Agent…") {
                     showsDeviceInfo = true
+                }
+                Divider()
+                Button("云端账号 · AhaType…") {
+                    showsCloudAccount = true
+                }
+                Button("刷新 AhaType 状态") {
+                    ahaType.refreshFromDisk()
                 }
                 Divider()
                 Button("隐藏到后台") {
@@ -206,6 +235,43 @@ struct AhaKeyStudioView: View {
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
         .help("日常使用由 Agent 控制键盘；需要改键、OLED 或同步时，进入编辑配置后由 AhaKey Studio 临时接管蓝牙。")
+    }
+
+    private var ahaTypeModeStatus: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(ahaType.isEnabled ? Color.green : Color.gray.opacity(0.55))
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(ahaType.isEnabled ? "AhaType 开启" : "AhaType 关闭")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(ahaType.isEnabled ? "云端整理已启用" : "语音结果直接粘贴")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Toggle("", isOn: Binding(
+                get: { ahaType.isEnabled },
+                set: { enabled in
+                    if enabled, !cloudAccount.isLoggedIn {
+                        showsAhaTypeLoginRequiredToast = true
+                    } else {
+                        ahaType.setEnabled(enabled)
+                    }
+                }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .help("开启后，macOS 原生语音转写会先经过 AhaType 云端整理，再粘贴到当前光标。")
     }
 
     private var canvasPane: some View {
@@ -440,11 +506,40 @@ struct AhaKeyStudioView: View {
                                     .foregroundStyle(.secondary)
                             }
 
+                            Divider()
+
+                            Toggle(isOn: Binding(
+                                get: { ahaType.isEnabled },
+                                set: { ahaType.setEnabled($0) }
+                            )) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("AhaType 云端整理")
+                                        .font(.caption.weight(.semibold))
+                                    Text("开启后，识别结果会先经云端大模型整理，再粘贴到当前光标。")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.switch)
+
+                            Text(ahaType.statusMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Text(ahaType.lastQuotaSummary)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+
                             HStack(spacing: 10) {
                                 Button(nativeSpeech.isRecording ? "结束并写入" : "开始录音") {
                                     nativeSpeech.toggleRecordingFromVoiceKey()
                                 }
                                 .buttonStyle(.borderedProminent)
+
+                                Button("刷新 AhaType") {
+                                    ahaType.refreshFromDisk()
+                                }
+                                .buttonStyle(.bordered)
 
                                 Button("重新检查权限") {
                                     nativeSpeech.refreshPermissions(deferredTCCRequery: true)
@@ -1164,6 +1259,15 @@ struct AhaKeyStudioView: View {
         agentManager.bluetoothConnectionOwner == .ahaKeyStudio
     }
 
+    // AhaKeyStudio 直连、Agent 已连上键盘、或正在交还蓝牙的过渡期，任一满足即视为设备已连接。
+    private var isEffectivelyConnected: Bool {
+        bleManager.isConnected || agentManager.isAgentBLEConnected || isTransitioningToKeyboardControl
+    }
+
+    private var shouldShowTopBarInstallStartButton: Bool {
+        !agentManager.isInstalled || !agentManager.hooksInstalled
+    }
+
     private var configurationModeDetail: String {
         if isEditingConfiguration {
             if bleManager.isConnected {
@@ -1171,8 +1275,22 @@ struct AhaKeyStudioView: View {
             }
             return bleManager.isScanning ? "AhaKey Studio 正在连接键盘" : "AhaKey Studio 等待连接键盘"
         }
-        if agentManager.isRunning && agentManager.isAgentBLEConnected {
-            return "Agent 正在控制键盘"
+        // 蓝牙交给 Agent：若顶栏仍显示「安装启动」，说明 Hook/Agent 未齐备，勿与左侧「已连接」拼成「已可控制」。
+        if !isEditingConfiguration && shouldShowTopBarInstallStartButton && isEffectivelyConnected {
+            if agentManager.isRunning && agentManager.isAgentBLEConnected {
+                return "Agent 正在控制键盘"
+            }
+            return "安装启动后才能控制键盘"
+        }
+        // 蓝牙交给 Agent 时：与左侧 infoPill「已连接」口径一致（isEffectivelyConnected），避免出现「已连接」+「等待键盘」的互斥文案。
+        if isEffectivelyConnected {
+            if agentManager.isRunning && agentManager.isAgentBLEConnected {
+                return "Agent 正在控制键盘"
+            }
+            if agentManager.isRunning {
+                return "键盘已连接；正在同步 Agent 连接状态"
+            }
+            return "键盘已连接"
         }
         if agentManager.isRunning {
             return "Agent 运行中，等待键盘连接"
@@ -1447,7 +1565,19 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    private func installStartAgentFromTopBar() {
+        if agentManager.bluetoothConnectionOwner != .agentDaemon {
+            agentManager.setBluetoothConnectionOwner(.agentDaemon, bleManager: bleManager)
+        }
+        if !agentManager.isInstalled || !agentManager.hooksInstalled {
+            agentManager.install()
+        } else {
+            agentManager.start()
+        }
+    }
+
     private func enterEditingConfiguration() {
+        isTransitioningToKeyboardControl = false
         agentManager.setBluetoothConnectionOwner(.ahaKeyStudio, bleManager: bleManager)
         syncStatusMessage = "已进入编辑配置，AhaKey Studio 将临时接管蓝牙。"
     }
@@ -1458,18 +1588,60 @@ struct AhaKeyStudioView: View {
             return
         }
 
-        guard bleManager.isConnected else {
-            syncStatusMessage = "键盘尚未连接，无法同步未保存改动。请等待连接成功后再返回控制。"
+        if bleManager.isConnected {
+            syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
+        } else {
+            syncStatusMessage = "设备连接中，连接成功后将自动同步并返回控制模式…"
             bleManager.userInitiatedConnect()
-            return
+            waitForConnectionThenSync()
         }
+    }
 
-        syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
+    // 轮询等待 BLE 连接（最多 10 秒），连接后自动同步并返回键盘控制。
+    private func waitForConnectionThenSync() {
+        Task { @MainActor in
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if bleManager.isConnected {
+                    syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
+                    return
+                }
+            }
+            syncStatusMessage = "连接超时，请确认键盘已开启并靠近设备，再次点击「保存配置」重试。"
+        }
     }
 
     private func returnToKeyboardControl() {
+        isTransitioningToKeyboardControl = true
         agentManager.setBluetoothConnectionOwner(.agentDaemon, bleManager: bleManager)
-        syncStatusMessage = "已返回键盘控制，Agent 将接管蓝牙。"
+        syncStatusMessage = "正在恢复键盘控制，Agent 正在连接键盘…"
+        monitorAgentReconnect()
+    }
+
+    // 返回键盘控制后每 2s 轮询一次 Agent BLE 状态（等待异步 socket 查询完成后再读值），
+    // 最多等待 20s；超时后尝试重启 Agent。过渡期结束时清除 isTransitioningToKeyboardControl。
+    private func monitorAgentReconnect() {
+        Task { @MainActor in
+            for i in 0..<10 {
+                // 第一次等短些，让 Agent 有时间启动
+                let waitMs: UInt64 = i == 0 ? 1_500_000_000 : 2_000_000_000
+                try? await Task.sleep(nanoseconds: waitMs)
+                agentManager.refresh()
+                // 等待 refresh() 内部的异步 socket 查询写回主线程（最多 2.5s timeout）
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                if agentManager.isAgentBLEConnected {
+                    syncStatusMessage = "已返回键盘控制，Agent 将接管蓝牙。"
+                    isTransitioningToKeyboardControl = false
+                    return
+                }
+                // 约 10s 后 Agent 仍未连上，尝试重启
+                if i == 2, !agentManager.isAgentBLEConnected {
+                    agentManager.start()
+                }
+            }
+            syncStatusMessage = "已返回键盘控制，Agent 将接管蓝牙。"
+            isTransitioningToKeyboardControl = false
+        }
     }
 
     private func syncAllModesToDevice(returnToKeyboardControlWhenDone: Bool = false) {
@@ -1489,7 +1661,7 @@ struct AhaKeyStudioView: View {
         bleManager.writeCommandsSequentially(commands) {
             Task { @MainActor in
                 // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
                 self.lastSyncedDraft = self.studioDraft
                 self.lastSyncDate = Date()
                 self.isSyncing = false
@@ -1515,7 +1687,7 @@ struct AhaKeyStudioView: View {
         syncStatusMessage = "正在写入 \(selectedMode.title)…"
         bleManager.writeCommandsSequentially(commands) {
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
+                try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
                 self.lastSyncDate = Date()
                 self.isSyncing = false
                 self.syncStatusMessage = "已重新发送 \(self.selectedMode.title) 当前模式。"
@@ -1889,10 +2061,10 @@ private struct VoicePermissionOnboardingSheet: View {
         }
         .padding(24)
         .frame(width: 560)
-        .onChange(of: voiceRelay.inputMonitoringGranted) { _, _ in
+        .onChange(of: voiceRelay.inputMonitoringGranted) { _ in
             closeIfReady()
         }
-        .onChange(of: voiceRelay.accessibilityGranted) { _, _ in
+        .onChange(of: voiceRelay.accessibilityGranted) { _ in
             closeIfReady()
         }
         .alert(fixAlertTitle, isPresented: $showFixAlert) {
@@ -2135,7 +2307,7 @@ private struct AhaKeyKeyboardCanvasView: View {
                 Spacer()
             }
 
-            ForEach([CGPoint(x: 8, y: 8), CGPoint(x: 101, y: 8), CGPoint(x: 8, y: 46), CGPoint(x: 101, y: 46)], id: \.self) { point in
+            ForEach(Array([CGPoint(x: 8, y: 8), CGPoint(x: 101, y: 8), CGPoint(x: 8, y: 46), CGPoint(x: 101, y: 46)].enumerated()), id: \.offset) { _, point in
                 Circle()
                     .stroke(Color.black.opacity(0.14), lineWidth: 1.2)
                     .background(Circle().fill(Color.white.opacity(0.4)))
@@ -2475,23 +2647,40 @@ private func requestPermissionsThenOpenPrivacySettingsIfNeeded(
     }
 }
 
-/// 退出后由 `open -n` 再拉起同一份 .app。须在子进程成功执行 `open` 之后再 `terminate`，否则主进程先退出会导致排队的 `open` 来不及运行。
+/// 先启动一个延迟重开助手，再退出当前进程。不要在旧进程仍存活时 `open -n`：
+/// AppDelegate 有单实例保护，新实例会发现旧实例还在并立即退出，造成“新程序闪退、旧程序不关”。
 private func relaunchApplicationForPermissionRefresh() {
-    let bundlePath = Bundle.main.bundlePath
-    DispatchQueue.global(qos: .userInitiated).async {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-n", bundlePath]
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            // 仍尝试退出，避免卡死；用户可手动再开。
-        }
-        DispatchQueue.main.async {
-            NSApp.terminate(nil)
+    let bundlePath = Bundle.main.bundleURL.path
+    let script = "sleep 0.8; /usr/bin/open \(shellQuoted(bundlePath))"
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/sh")
+    process.arguments = ["-c", script]
+    do {
+        try process.run()
+    } catch {
+        // 即使自动重开助手启动失败，也要让当前进程正常退出；用户可手动再打开。
+    }
+
+    NSApp.windows.forEach { $0.close() }
+    NSApp.terminate(nil)
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        if NSApp.isRunning {
+            exit(0)
         }
     }
+}
+
+private func shellQuoted(_ value: String) -> String {
+    "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+}
+
+@MainActor
+private func activateAhaKeyWindowForTextInput() {
+    NSApp.activate(ignoringOtherApps: true)
+    NSApp.keyWindow?.makeKeyAndOrderFront(nil)
+    NSApp.mainWindow?.makeKeyAndOrderFront(nil)
 }
 
 /// 在系统「隐私与安全性」中改完权限后，用确认框引导用户：退出后由 `open -n` 自动拉起同一份 .app。
@@ -2509,6 +2698,357 @@ private struct RestartToApplyPermissionsButton: View {
             } message: {
                 Text("将先退出本应用，再自动重新打开。重新打开后「重新检查权限」会读取最新系统状态。")
             }
+    }
+}
+
+private struct DeviceInfoSheetContainer: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var bleManager: AhaKeyBLEManager
+
+    var body: some View {
+        VStack(spacing: 0) {
+            deviceInfoTitleChrome
+            sheetScrollView
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            activateAhaKeyWindowForTextInput()
+        }
+    }
+
+    @ViewBuilder
+    private var sheetScrollView: some View {
+        if #available(macOS 13.0, *) {
+            ScrollView {
+                sheetFormContent
+            }
+            .scrollIndicators(.visible)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                sheetFormContent
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var sheetFormContent: some View {
+        DeviceInfoView(bleManager: bleManager)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 18)
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var deviceInfoTitleChrome: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("设备信息 · Agent")
+                    .font(.headline)
+                Spacer(minLength: 0)
+                Button {
+                    dismiss()
+                } label: {
+                    Label("关闭", systemImage: "xmark.circle.fill")
+                }
+                .labelStyle(.titleAndIcon)
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.escape, modifiers: [])
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            Divider()
+        }
+        .layoutPriority(1)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(minHeight: 48)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+private struct CloudAccountView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var account = CloudAccountManager.shared
+    @StateObject private var optimizer = AhaTypeTextOptimizer.shared
+    @FocusState private var focusedLoginField: LoginField?
+
+    private enum LoginField {
+        case phone
+        case password
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("云端账号 · AhaType")
+                    .font(.headline)
+                Spacer()
+                Button("关闭") { dismiss() }
+            }
+            .padding(16)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if account.isLoggedIn {
+                        profileSection
+                    } else {
+                        loginSection
+                    }
+
+                    Divider()
+
+                    ahaTypeSection
+                }
+                .padding(18)
+            }
+        }
+        .alert("云端账号", isPresented: Binding(
+            get: { account.alertMessage != nil },
+            set: { if !$0 { account.alertMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { account.alertMessage = nil }
+        } message: {
+            Text(account.alertMessage ?? "")
+        }
+        .onAppear {
+            activateAhaKeyWindowForTextInput()
+            optimizer.refreshFromDisk()
+            if account.isLoggedIn {
+                account.refreshProfile()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    activateAhaKeyWindowForTextInput()
+                    focusedLoginField = .phone
+                }
+            }
+        }
+    }
+
+    private var loginSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("登录后可使用 AhaType 云端大模型整理。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            TextField("手机号", text: $account.phone)
+                .textFieldStyle(.roundedBorder)
+                .focused($focusedLoginField, equals: .phone)
+                .onTapGesture {
+                    activateAhaKeyWindowForTextInput()
+                    focusedLoginField = .phone
+                }
+                .onSubmit { focusedLoginField = .password }
+
+            SecureField("密码", text: $account.password)
+                .textFieldStyle(.roundedBorder)
+                .focused($focusedLoginField, equals: .password)
+                .onTapGesture {
+                    activateAhaKeyWindowForTextInput()
+                    focusedLoginField = .password
+                }
+                .onSubmit { account.login() }
+
+            Toggle("记住密码", isOn: $account.rememberPassword)
+
+            HStack(spacing: 10) {
+                Button("登录") { account.login() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(account.isBusy)
+                Button("注册") { account.register() }
+                    .buttonStyle(.bordered)
+                    .disabled(account.isBusy)
+            }
+
+            Text(account.statusMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var profileSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(account.profileSummary)
+                .font(.callout)
+                .textSelection(.enabled)
+
+            VStack(alignment: .leading, spacing: 8) {
+                quotaRow(title: "每日", value: account.quotaText("daily"))
+                quotaRow(title: "每周", value: account.quotaText("weekly"))
+                quotaRow(title: "每月", value: account.quotaText("monthly"))
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+
+            HStack(spacing: 10) {
+                Button("刷新") { account.refreshProfile() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(account.isBusy)
+                Button("切换账号") {
+                    account.prepareForRelogin()
+                    focusedLoginField = .phone
+                }
+                .buttonStyle(.bordered)
+                .disabled(account.isBusy)
+                Button("退出登录") { account.logout() }
+                    .buttonStyle(.bordered)
+                    .disabled(account.isBusy)
+            }
+
+            rechargeSection
+
+            HStack(spacing: 10) {
+                TextField("免费券兑换码", text: $account.couponCode)
+                    .textFieldStyle(.roundedBorder)
+                Button("兑换") { account.redeemCoupon() }
+                    .buttonStyle(.bordered)
+                    .disabled(account.isBusy)
+            }
+
+            Text(account.statusMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var rechargeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("充值订阅")
+                .font(.callout.weight(.semibold))
+
+            HStack(spacing: 8) {
+                ForEach(CloudRechargePlan.allCases) { plan in
+                    Button {
+                        account.createWechatOrder(plan: plan)
+                    } label: {
+                        VStack(spacing: 3) {
+                            Text(plan.title)
+                                .font(.caption.weight(.semibold))
+                            Text(account.priceText(for: plan))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(plan.subtitle)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(account.isBusy)
+                }
+            }
+
+            if let order = account.paymentOrder {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top, spacing: 12) {
+                        if let image = makeQRCodeImage(from: order.paymentURL) {
+                            Image(nsImage: image)
+                                .interpolation(.none)
+                                .resizable()
+                                .frame(width: 132, height: 132)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("\(order.plan.title) · \(order.amountText)")
+                                .font(.caption.weight(.semibold))
+                            Text("微信扫码完成支付，支付成功后会自动刷新额度。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("订单：\(order.outTradeNo)")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .textSelection(.enabled)
+                            Text("状态：\(order.status)")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Button("复制支付链接") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(order.paymentURL, forType: .string)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("刷新到账") {
+                            account.refreshProfile()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(account.isBusy)
+
+                        Button("关闭订单") {
+                            account.clearPaymentOrder()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+            }
+        }
+    }
+
+    private var ahaTypeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: Binding(
+                get: { optimizer.isEnabled },
+                set: { optimizer.setEnabled($0) }
+            )) {
+                Text("启用 AhaType 云端整理")
+                    .font(.callout.weight(.semibold))
+            }
+            .toggleStyle(.switch)
+
+            Text("开启后，macOS 原生语音转写完成后会先请求云端整理，再粘贴整理后的文本。未登录、过期或网络失败时会自动回退原始转写。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(optimizer.statusMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(optimizer.lastQuotaSummary)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func quotaRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.caption.weight(.semibold))
+            Spacer()
+            Text(value)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func makeQRCodeImage(from text: String) -> NSImage? {
+        guard let data = text.data(using: .utf8),
+              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let output = filter.outputImage else { return nil }
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        let representation = NSCIImageRep(ciImage: scaled)
+        let image = NSImage(size: representation.size)
+        image.addRepresentation(representation)
+        return image
     }
 }
 
@@ -2565,7 +3105,14 @@ private struct OLEDMotionPreviewSheet: View {
                     DraggableAnimatedGIFPreview(path: assetPath)
                         .padding(12)
                 } else {
-                    ContentUnavailableView("还没有选择动图", systemImage: "film.stack")
+                    VStack(spacing: 10) {
+                        Image(systemName: "film.stack")
+                            .font(.system(size: 34, weight: .regular))
+                            .foregroundStyle(.secondary)
+                        Text("还没有选择动图")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    }
                         .frame(minWidth: 480, minHeight: 240)
                 }
             }
@@ -2610,7 +3157,7 @@ private struct DraggableAnimatedGIFPreview: View {
                 .onAppear {
                     reloadImageSizeAndResetOffset()
                 }
-                .onChange(of: path) { _, _ in
+                .onChange(of: path) { _ in
                     reloadImageSizeAndResetOffset()
                 }
         }

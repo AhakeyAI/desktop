@@ -194,7 +194,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         )
 
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(10))
+            try? await Task.sleep(nanoseconds: UInt64(Double(10) * 1_000_000_000))
             if self.isScanning {
                 self.central.stopScan()
                 self.isScanning = false
@@ -325,7 +325,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         appendLog(label)
         writeCommand(data)
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
+            try? await Task.sleep(nanoseconds: UInt64(50) * 1_000_000)
             self.isWriting = false
             self.drainWriteQueue()
         }
@@ -395,7 +395,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(cmd)
         // 修改后保存并刷新
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
+            try? await Task.sleep(nanoseconds: UInt64(100) * 1_000_000)
             self.saveConfig()
         }
     }
@@ -513,7 +513,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 }
             }
             group.addTask {
-                try await Task.sleep(for: .seconds(timeoutSeconds))
+                try await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
                 throw OLEDUploadError.timeout(command: expectedCommand)
             }
 
@@ -549,14 +549,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                                 let end = min(offset + maxPacketLength, data.count)
                                 let packet = Data(data[offset ..< end])
                                 peripheral.writeValue(packet, for: characteristic, type: type)
-                                try? await Task.sleep(for: .milliseconds(12))
+                                try? await Task.sleep(nanoseconds: UInt64(12) * 1_000_000)
                             }
                         }
                     }
                 }
             }
             group.addTask {
-                try await Task.sleep(for: .seconds(timeoutSeconds))
+                try await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
                 throw OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult)
             }
 
@@ -771,7 +771,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.startAutoReconnectPolling()
             // 3 秒后重试
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(nanoseconds: UInt64(Double(3) * 1_000_000_000))
                 if !self.isConnected {
                     self.connectAutomatically()
                 }
@@ -811,7 +811,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
             // 2 秒后自动重连
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(nanoseconds: UInt64(Double(2) * 1_000_000_000))
                 if !self.isConnected {
                     self.appendLog("尝试自动重连…")
                     self.connectAutomatically()

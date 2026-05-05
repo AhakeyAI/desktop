@@ -90,7 +90,7 @@ struct KeyMappingView: View {
                     }
                 }
 
-                LabeledContent("描述") {
+                CompatLabeledContent("描述") {
                     TextField("显示在键盘 OLED 上", text: $keys[selectedKey].description)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
@@ -147,7 +147,7 @@ struct KeyMappingView: View {
                 }
             }
         }
-        .formStyle(.grouped)
+
     }
 
     // MARK: - Actions
@@ -186,7 +186,7 @@ struct KeyMappingView: View {
         KeyConfigStore.save(keys)
         showWriteSuccess = true
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(nanoseconds: UInt64(Double(3) * 1_000_000_000))
             showWriteSuccess = false
         }
     }
