@@ -30,6 +30,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private init() { }
 
     func start() {
+        AhaTypeTextOptimizer.shared.refreshFromDisk()
         if !didRequestPermissionsThisLaunch {
             didRequestPermissionsThisLaunch = true
             refreshPermissions(requestIfNeeded: true)
@@ -47,10 +48,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         if deferredTCCRequery {
             lastPermissionCheckSummary = "正在检查麦克风与语音转写权限…"
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(450))
+                try? await Task.sleep(nanoseconds: UInt64(450) * 1_000_000)
                 self.performPermissionRead(requestIfNeeded: false)
                 if !self.microphoneGranted || !self.speechRecognitionGranted {
-                    try? await Task.sleep(for: .milliseconds(800))
+                    try? await Task.sleep(nanoseconds: UInt64(800) * 1_000_000)
                     self.performPermissionRead(requestIfNeeded: false)
                 }
             }
@@ -111,6 +112,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         guard isRecording else { return }
         isRecording = false
         statusMessage = "正在结束录音并整理文字…"
+        VoiceStatusHUDController.shared.show(.recognizing)
         appendDiagnostic("stop recording requested")
 
         finalizeWorkItem?.cancel()
@@ -180,6 +182,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         recognitionRequest = request
         isRecording = true
         statusMessage = "苹果原生转写录音中… 再按一次语音键结束。"
+        VoiceStatusHUDController.shared.show(.recording)
         appendDiagnostic("start recording locale=\(recognizer.locale.identifier)")
 
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
@@ -293,6 +296,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             } else {
                 cancelRecognitionPipeline()
                 statusMessage = "苹果原生转写失败：\(error.localizedDescription)"
+                VoiceStatusHUDController.shared.show(
+                    VoiceStatusHUDState(kind: .warning, title: "识别失败", subtitle: "请重试或检查语音权限"),
+                    autoHideAfter: 2.0
+                )
             }
         }
     }
@@ -311,18 +318,28 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         guard !text.isEmpty else {
             statusMessage = "未识别到有效语音内容。"
+            VoiceStatusHUDController.shared.show(.empty, autoHideAfter: 1.8)
             appendDiagnostic("finalize empty reason=\(reason)")
             return
         }
 
-        if injectText(text) {
-            hasCommittedThisRecording = true
-            lastCommittedText = text
-            statusMessage = "已写入：\(text)"
-            appendDiagnostic("finalize success reason=\(reason) text=\(text)")
-        } else {
-            statusMessage = "识别完成，但写入当前光标失败。"
-            appendDiagnostic("finalize inject failed reason=\(reason) text=\(text)")
+        hasCommittedThisRecording = true
+        statusMessage = AhaTypeTextOptimizer.shared.isEnabled ? "AhaType 整理中…" : "准备粘贴…"
+        VoiceStatusHUDController.shared.show(AhaTypeTextOptimizer.shared.isEnabled ? .ahaType : .pasting)
+        appendDiagnostic("finalize begin reason=\(reason) rawText=\(text)")
+
+        Task { @MainActor in
+            let output = await AhaTypeTextOptimizer.shared.processIfEnabled(text)
+            if self.injectText(output) {
+                self.lastCommittedText = output
+                self.statusMessage = output == text ? "已写入：\(output)" : "AhaType 已整理并写入：\(output)"
+                VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
+                self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
+            } else {
+                self.statusMessage = "识别完成，但写入当前光标失败。"
+                VoiceStatusHUDController.shared.show(.failed, autoHideAfter: 2.0)
+                self.appendDiagnostic("finalize inject failed reason=\(reason) text=\(output)")
+            }
         }
     }
 

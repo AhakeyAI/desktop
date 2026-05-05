@@ -73,7 +73,7 @@ struct DeviceInfoView: View {
                             .disabled(disableAgent)
                         }
                     }
-                    LabeledContent("当前") {
+                    CompatLabeledContent("当前") {
                         HStack(spacing: 6) {
                             Text(bleManager.isConnected ? "本 App 已连接蓝牙" : "本 App 未连接")
                             Text("·")
@@ -303,7 +303,7 @@ struct DeviceInfoView: View {
 
             // MARK: - BLE 连接状态
             Section {
-                LabeledContent("连接") {
+                CompatLabeledContent("连接") {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(bleManager.isConnected ? Color.green : Color.orange)
@@ -311,7 +311,7 @@ struct DeviceInfoView: View {
                         Text(bleManager.bleConnectionStatus)
                     }
                 }
-                LabeledContent("设备名") {
+                CompatLabeledContent("设备名") {
                     if isEditingName {
                         HStack(spacing: 4) {
                             TextField("最长 15 字节", text: $editableName)
@@ -342,14 +342,13 @@ struct DeviceInfoView: View {
                         }
                     }
                 }
-                LabeledContent("UUID") {
+                CompatLabeledContent("UUID") {
                     Text(bleManager.bleDeviceUUID)
-                        .monospaced()
-                        .font(.caption)
+                        .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                 }
                 HStack {
-                    LabeledContent("特征") {
+                    CompatLabeledContent("特征") {
                         HStack(spacing: 8) {
                             charBadge("DATA", ready: bleManager.dataCharReady)
                             charBadge("CMD", ready: bleManager.commandCharReady)
@@ -421,7 +420,7 @@ struct DeviceInfoView: View {
                         .frame(height: 150)
                         .background(Color.primary.opacity(0.03))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .onChange(of: bleManager.commLog.count) { _, _ in
+                        .onChange(of: bleManager.commLog.count) { _ in
                             if let last = bleManager.commLog.last {
                                 proxy.scrollTo(last.id, anchor: .bottom)
                             }
@@ -449,7 +448,7 @@ struct DeviceInfoView: View {
                 Text("通信日志")
             }
         }
-        .formStyle(.grouped)
+
     }
 
     // MARK: - Components

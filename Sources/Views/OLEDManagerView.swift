@@ -85,7 +85,7 @@ struct OLEDManagerView: View {
                 }
             }
         }
-        .formStyle(.grouped)
+
     }
 
     private func selectImage() {

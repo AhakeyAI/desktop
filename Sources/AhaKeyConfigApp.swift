@@ -7,22 +7,23 @@ struct AhaKeyConfigApp: App {
     @StateObject private var bleManager = AhaKeyBLEManager()
 
     var body: some Scene {
-        Window("AhaKey Studio", id: "main") {
+        WindowGroup("AhaKey Studio") {
             ContentView(bleManager: bleManager)
                 .frame(minWidth: 1280, minHeight: 820)
         }
         .windowStyle(.titleBar)
-        .windowResizability(.contentMinSize)
 
-        MenuBarExtra("AhaKey", systemImage: "keyboard") {
-            Button("打开主窗口") {
-                appDelegate.reopenMainWindow()
-            }
+        if #available(macOS 13.0, *) {
+            MenuBarExtra("AhaKey", systemImage: "keyboard") {
+                Button("打开主窗口") {
+                    appDelegate.reopenMainWindow()
+                }
 
-            Divider()
+                Divider()
 
-            Button("退出 AhaKey Studio") {
-                NSApp.terminate(nil)
+                Button("退出 AhaKey Studio") {
+                    NSApp.terminate(nil)
+                }
             }
         }
     }

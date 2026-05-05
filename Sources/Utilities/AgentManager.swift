@@ -224,7 +224,7 @@ final class AgentManager: ObservableObject {
             bleManager.setSuppressedForAgentOwningKeyboard(false)
             unloadAgentLaunchJobRemovingSocket()
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(isLaunch ? 700 : 600))
+                try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 700 : 600) * 1_000_000)
                 guard !bleManager.isConnected, !bleManager.isScanning else { return }
                 bleManager.connectAutomatically()
             }
@@ -238,7 +238,7 @@ final class AgentManager: ObservableObject {
                     agentUserAlert = "尚未安装 Agent，无法切回「键盘控制中」。请在「更多 → 设备信息 · Agent」里先安装并启用 Agent。"
                 }
                 Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(500))
+                    try? await Task.sleep(nanoseconds: UInt64(500) * 1_000_000)
                     if !bleManager.isConnected, !bleManager.isScanning {
                         bleManager.connectAutomatically()
                     }
@@ -246,7 +246,7 @@ final class AgentManager: ObservableObject {
                 return
             }
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(isLaunch ? 500 : 550))
+                try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 500 : 550) * 1_000_000)
                 _ = runLaunchctlQuiet(["load", plistPath])
                 _ = runLaunchctlQuiet(["start", label])
                 self.refresh()
