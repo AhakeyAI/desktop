@@ -96,6 +96,12 @@
   --keycap-edge: oklch(0.42 0.01 190);
 }
 
+@keyframes proto-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -952,6 +958,10 @@ a {
   background: color-mix(in oklab, var(--primary), transparent 95%);
 }
 
+.connection-card.active > svg:last-child {
+  animation: proto-spin 1.4s linear infinite;
+}
+
 .connection-card.muted {
   color: var(--text-2);
 }
@@ -1026,6 +1036,10 @@ a {
 
 .scan-status.muted {
   color: var(--text-muted);
+}
+
+.scan-status svg {
+  opacity: 0.82;
 }
 
 .found-device-row {
@@ -2230,11 +2244,16 @@ a {
 
   .device-hero,
   .device-hero.featured {
-    min-height: 430px;
+    min-height: 404px;
   }
 
   .device-list-panel {
-    padding-top: 0;
+    padding-top: 6px;
+  }
+
+  .device-list-entry {
+    min-height: 66px;
+    padding-block: 12px;
   }
 
   .studio-shell.layout-mobileOverlay,
