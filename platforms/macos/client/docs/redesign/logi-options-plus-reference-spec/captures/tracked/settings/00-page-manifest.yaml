@@ -1,0 +1,23 @@
+page_id: settings
+source_app: Logi Options+
+source_version: 2.3.879545
+capture_date: 2026-05-03
+owner: ethan
+capture_policy:
+  tracked_assets_only: true
+  raw_local_ignored_by_git: true
+components:
+  - component_id: nav
+    source_screen: settings
+    states_expected: [default, hover, selected, disabled]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-settings-nav
+    notes_file: nav/nav-notes.md
+  - component_id: form-group
+    source_screen: settings
+    states_expected: [default, focused, disabled, error]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-settings-form-group
+    notes_file: form-group/form-group-notes.md

@@ -1,0 +1,16 @@
+page_id: agent
+source_app: Logi Options+
+source_version: 2.3.879545
+capture_date: 2026-05-03
+owner: ethan
+capture_policy:
+  tracked_assets_only: true
+  raw_local_ignored_by_git: true
+components:
+  - component_id: status-card
+    source_screen: agent
+    states_expected: [default, active, disabled, success, error]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-agent-status-card
+    notes_file: status-card/status-card-notes.md
