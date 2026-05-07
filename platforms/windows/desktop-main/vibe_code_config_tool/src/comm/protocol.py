@@ -133,13 +133,19 @@ def parse_device_frame(raw: bytes):
 
 def parse_status_response(data: bytes) -> dict:
     """解析 BLE 状态响应 (PKT_STATUS_RESP)"""
-    if not data:
+    if not data or len(data) < 2:
         return {}
     offset = 0
     connected = data[offset]; offset += 1
     name_len = data[offset]; offset += 1
+    if offset + name_len > len(data):
+        return {}
     name = data[offset:offset + name_len].decode("utf-8", errors="replace"); offset += name_len
+    if offset >= len(data):
+        return {}
     mac_len = data[offset]; offset += 1
+    if offset + mac_len > len(data):
+        return {}
     mac = data[offset:offset + mac_len].decode("utf-8", errors="replace"); offset += mac_len
     is_target = data[offset] if offset < len(data) else 0
     return {
