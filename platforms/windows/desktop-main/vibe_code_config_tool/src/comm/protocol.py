@@ -168,7 +168,7 @@ def parse_pic_state_response(data: bytes) -> dict:
     """
     if len(data) < 9:
         return {}
-    mode, start_index, pic_length, frame_interval, all_mode_max_pic = struct.unpack("<BHHHH", data)
+    mode, start_index, pic_length, frame_interval, all_mode_max_pic = struct.unpack("<BHHHH", data[:9])
     return {
         "mode": mode,
         "start_index": start_index,
