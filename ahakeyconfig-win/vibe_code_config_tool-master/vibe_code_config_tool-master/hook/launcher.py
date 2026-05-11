@@ -6,7 +6,18 @@ import sys
 import traceback
 
 try:
+    from hook_diag import diag_line
+
+    diag_line(
+        "launcher",
+        f"start frozen={getattr(sys, 'frozen', False)!r} argv={sys.argv!r} executable={getattr(sys, 'executable', '')!r}",
+    )
+except Exception:
+    pass
+
+try:
     import hook_install
+
     hook_install.main()
 except Exception:
     traceback.print_exc()

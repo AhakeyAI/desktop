@@ -1,20 +1,24 @@
 """
-Claude / Cursor Hook 安装 & 分发工具（单入口）
+Claude / Cursor / Codex Hook 安装 & 分发工具（单入口）
 
-- 无参数运行: 打开 Tkinter UI，可安装/卸载 Claude 或 Cursor 的 hooks
-- 传入事件名运行: 分发到对应 hook 模块执行（支持 Claude 的 PascalCase 与 Cursor 的小驼峰）
+- 无参数运行: 打开 Tkinter UI，可安装/卸载 Claude、Cursor、Codex 的 hooks
+- 传入事件名运行: 分发到对应 hook 模块执行（Claude PascalCase、Cursor 小驼峰、Codex Codex* 前缀）
 
 用法:
     python hook_install.py                      # 打开 UI 界面
     python hook_install.py --install-cursor     # 仅安装 Cursor hooks
     python hook_install.py --uninstall-cursor   # 仅卸载 Cursor hooks
-    python hook_install.py SessionStart        # Claude 事件名 -> SessionStart.run()
-    python hook_install.py sessionStart         # Cursor 事件名 -> SessionStart.run()
+    python hook_install.py --install-codex      # 仅安装 Codex（~/.codex/hooks.json + config.toml [features]）
+    python hook_install.py --uninstall-codex    # 移除 AhaKey 写入的 hooks.json（若由本工具管理）与 config 内联块
+    python hook_install.py SessionStart         # Claude 事件名
+    python hook_install.py sessionStart         # Cursor 事件名
+    python hook_install.py CodexSessionStart    # Codex 事件（由 config.toml 调用）
 """
 
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +38,8 @@ import Notification
 import TaskCompleted
 import Stop
 import UserPromptSubmit
+import codex_hooks
+import hook_diag
 
 # 事件名 -> 模块映射（用于分发，Claude 使用 PascalCase）
 DISPATCH = {
@@ -56,6 +62,31 @@ CURSOR_DISPATCH = {
     "postToolUse": PostToolUse,
     "stop": Stop,
 }
+
+# Codex：config.toml 中可注册为 hooks.json 或旧版内联 [[hooks.*]]；command 传入 Codex* 子命令以免与 Claude stdout 语义混用。
+CODEX_DISPATCH = {
+    "CodexSessionStart": codex_hooks.run_codex_session_start,
+    "CodexPostToolUse": codex_hooks.run_codex_post_tool_use,
+    "CodexPreToolUse": codex_hooks.run_codex_pre_tool_use,
+    "CodexPermissionRequest": codex_hooks.run_codex_permission_request,
+    "CodexUserPromptSubmit": codex_hooks.run_codex_user_prompt_submit,
+    "CodexStop": codex_hooks.run_codex_stop,
+}
+
+CODEX_HOOK_BLOCK_START = "# BEGIN AhaKey Codex Hooks"
+CODEX_HOOK_BLOCK_END = "# END AhaKey Codex Hooks"
+# 新安装：hooks 写在 ~/.codex/hooks.json；存在此文件表示由本工具独占写入过 hooks.json（卸载时可安全删除）。
+CODEX_HOOKS_SIDECAR_NAME = ".ahakey_codex_hooks_v1"
+
+# Codex 官方事件名（TOML 键） -> hook_install 子命令名 -> timeout 秒（与 Cursor/Claude 量级对齐）
+CODEX_HOOK_EVENTS = [
+    ("SessionStart", "CodexSessionStart", 10),
+    ("PostToolUse", "CodexPostToolUse", 10),
+    ("PreToolUse", "CodexPreToolUse", 20),
+    ("PermissionRequest", "CodexPermissionRequest", 20),
+    ("UserPromptSubmit", "CodexUserPromptSubmit", 10),
+    ("Stop", "CodexStop", 10),
+]
 
 # Hook 事件定义: (事件名, 超时时间)
 HOOK_EVENTS = [
@@ -97,6 +128,24 @@ def get_self_path() -> str:
         return sys.executable
     else:
         return os.path.abspath(__file__)
+
+
+def get_hook_executable_for_installed_config() -> str:
+    """
+    写入 Claude/Cursor/Codex 配置时使用的 Hook 可执行路径。
+    打包后与「Hook-install.exe」（pack_hook_win 生成的稳定副本）同目录时，
+    优先写该固定名，避免下次打包改时间戳导致 config 仍指向旧 exe。
+    """
+    if not is_frozen():
+        return os.path.abspath(__file__)
+    p = Path(sys.executable).resolve()
+    stable = p.parent / "Hook-install.exe"
+    try:
+        if stable.is_file():
+            return str(stable.resolve())
+    except OSError:
+        pass
+    return str(p)
 
 
 def get_claude_global_settings_path() -> Path:
@@ -141,13 +190,22 @@ def build_hook_command(event_name: str) -> str:
     - 可执行程序: "E:/path/hook_install.exe SessionStart"
     - Python 脚本: "C:/Python39/python.exe" "E:/path/hook_install.py SessionStart"
     """
-    self_path = get_self_path().replace("\\", "/")
+    exe = get_hook_executable_for_installed_config().replace("\\", "/")
 
     if is_frozen():
-        return f'"{self_path}" {event_name}'
+        return f'"{exe}" {event_name}'
     else:
         python_exe = detect_python_executable().replace("\\", "/")
+        self_path = exe.replace("\\", "/")
         return f'"{python_exe}" "{self_path}" {event_name}'
+
+
+def build_codex_hook_command(event_name: str) -> str:
+    """Build a Windows-stable command string for Codex lifecycle hooks."""
+    cmd = build_hook_command(event_name)
+    if platform.system() != "Windows":
+        return cmd
+    return f'cmd /d /s /c "{cmd}"'
 
 
 def build_hooks_config() -> dict:
@@ -263,11 +321,11 @@ def build_cursor_hook_command(cursor_event_name: str) -> str:
     构建 Cursor 单条 hook 的 command（无外层引号，避免 Windows PowerShell 解析错误）。
     格式: python_exe self_path cursor_event_name
     """
-    self_path = get_self_path().replace("\\", "/")
+    exe = get_hook_executable_for_installed_config().replace("\\", "/")
     if is_frozen():
-        return f"{self_path} {cursor_event_name}"
+        return f"{exe} {cursor_event_name}"
     python_exe = detect_python_executable().replace("\\", "/")
-    return f"{python_exe} {self_path} {cursor_event_name}"
+    return f"{python_exe} {exe} {cursor_event_name}"
 
 
 def build_cursor_hooks_config() -> dict:
@@ -326,6 +384,248 @@ def uninstall_cursor_hooks() -> str:
 
 
 # ============================================================
+# Codex：~/.codex/hooks.json（官方格式）+ config.toml [features]；内联 [[hooks.*]] 由安装器自动移除。
+# ============================================================
+def get_codex_config_path() -> Path:
+    return Path.home() / ".codex" / "config.toml"
+
+
+def get_codex_hooks_json_path() -> Path:
+    return Path.home() / ".codex" / "hooks.json"
+
+
+def get_codex_hooks_sidecar_path() -> Path:
+    return Path.home() / ".codex" / CODEX_HOOKS_SIDECAR_NAME
+
+
+def _remove_codex_hook_block_from_text(config: str) -> str:
+    lines = config.splitlines()
+    changed = True
+    while changed:
+        changed = False
+        try:
+            start = next(
+                i
+                for i, line in enumerate(lines)
+                if line.strip() == CODEX_HOOK_BLOCK_START
+            )
+        except StopIteration:
+            break
+        try:
+            end = next(
+                i for i in range(start, len(lines)) if lines[i].strip() == CODEX_HOOK_BLOCK_END
+            )
+        except StopIteration:
+            break
+        del lines[start : end + 1]
+        changed = True
+
+    text = "\n".join(lines)
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
+    text = text.strip()
+    return text + "\n" if text else ""
+
+
+def _ensure_codex_hooks_feature_enabled(config: str) -> str:
+    """确保 [features] 下启用 `hooks = true`；移除已弃用的 `codex_hooks`（Codex 0.130+ 会告警）。"""
+    lines = config.splitlines()
+    features_start = None
+    for idx, line in enumerate(lines):
+        if line.strip() == "[features]":
+            features_start = idx
+            break
+
+    hooks_key = re.compile(r"^\s*hooks\s*=")
+    codex_hooks_key = re.compile(r"^\s*codex_hooks\s*=")
+
+    if features_start is None:
+        base = config.strip()
+        if base:
+            base += "\n\n"
+        return base + "[features]\nhooks = true\n"
+
+    section_end = len(lines)
+    for idx in range(features_start + 1, len(lines)):
+        t = lines[idx].strip()
+        if t.startswith("[") and t.endswith("]"):
+            section_end = idx
+            break
+
+    new_middle: list[str] = []
+    hooks_set = False
+    for idx in range(features_start + 1, section_end):
+        line = lines[idx]
+        if codex_hooks_key.search(line):
+            continue
+        if hooks_key.search(line):
+            if not hooks_set:
+                new_middle.append("hooks = true")
+                hooks_set = True
+            continue
+        new_middle.append(line)
+    if not hooks_set:
+        new_middle.insert(0, "hooks = true")
+
+    return "\n".join(lines[: features_start + 1] + new_middle + lines[section_end:])
+
+
+def codex_ahakey_block_installed() -> bool:
+    path = get_codex_config_path()
+    if not path.is_file():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return CODEX_HOOK_BLOCK_START in text and CODEX_HOOK_BLOCK_END in text
+
+
+def codex_ahakey_hooks_json_managed() -> bool:
+    """由本工具写入的 hooks.json 会在 .codex 下留 sidecar，卸载时据此删除 hooks.json。"""
+    return get_codex_hooks_sidecar_path().is_file()
+
+
+def build_codex_hooks_json() -> dict:
+    """生成 ~/.codex/hooks.json 内容（与 OpenAI Codex 文档结构一致）。"""
+    hooks: dict = {}
+    for event, agent_event, timeout in CODEX_HOOK_EVENTS:
+        cmd = build_codex_hook_command(agent_event)
+        inner = {"type": "command", "command": cmd, "timeout": timeout}
+        if event == "SessionStart":
+            hooks[event] = [{"matcher": "startup|resume|clear", "hooks": [inner]}]
+        elif event in ("UserPromptSubmit", "Stop"):
+            hooks[event] = [{"hooks": [inner]}]
+        else:
+            hooks[event] = [{"matcher": "*", "hooks": [inner]}]
+    return {"hooks": hooks}
+
+
+def install_codex_hooks() -> str:
+    codex_dir = get_codex_config_path().parent
+    try:
+        codex_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return f"Codex Hooks：无法创建目录 {codex_dir}：{e}"
+
+    hooks_json_path = get_codex_hooks_json_path()
+    if hooks_json_path.is_file():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_h = hooks_json_path.with_name(f"hooks.json.bak.{timestamp}")
+        try:
+            shutil.copy2(hooks_json_path, backup_h)
+        except OSError as e:
+            return f"Codex Hooks：无法备份 {hooks_json_path}：{e}"
+
+    payload = build_codex_hooks_json()
+    try:
+        hooks_json_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as e:
+        return f"Codex Hooks：无法写入 {hooks_json_path}：{e}"
+
+    try:
+        get_codex_hooks_sidecar_path().write_text(
+            datetime.now().isoformat(timespec="seconds") + "\n", encoding="utf-8"
+        )
+    except OSError as e:
+        return f"Codex Hooks：无法写入管理标记文件：{e}"
+
+    cfg_path = get_codex_config_path()
+    prev = ""
+    if cfg_path.is_file():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = cfg_path.with_name(f"config.toml.bak.{timestamp}")
+        try:
+            shutil.copy2(cfg_path, backup_path)
+        except OSError as e:
+            return f"Codex Hooks：无法备份配置文件：{e}"
+        try:
+            prev = cfg_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            return f"Codex Hooks：无法读取配置文件：{e}"
+
+    stripped = _remove_codex_hook_block_from_text(prev)
+    config = _ensure_codex_hooks_feature_enabled(stripped).rstrip()
+    note = (
+        "\n\n# AhaKey：生命周期 hooks 由 hook_install 写入 ~/.codex/hooks.json；"
+        "请勿与内联 [[hooks.*]] 混用。\n"
+    )
+    if "AhaKey：生命周期 hooks" not in config:
+        config = config + note
+    config = config.rstrip() + "\n"
+    try:
+        cfg_path.write_text(config, encoding="utf-8")
+    except OSError as e:
+        return f"Codex Hooks：无法写入 {cfg_path}：{e}"
+
+    mode = "可执行程序" if is_frozen() else "Python 脚本"
+    lines = [
+        f"Codex 安装成功! ({mode}模式)",
+        f"已写入 {hooks_json_path}",
+        f"已更新 {cfg_path}（[features].hooks = true；已去掉弃用的 codex_hooks；已移除内联 AhaKey 块）。",
+        "首次安装后请在 Codex 内执行 /hooks，对列出的 hook 执行审核通过，否则不会运行。",
+        "请重启 Codex CLI / 客户端后再试。",
+        "",
+        "写入的 command 在同目录存在 Hook-install.exe 时会优先使用该稳定路径（请用 pack_hook_win 生成该文件）。",
+        "调试（每次 Codex / 手动调用 Codex 子命令时会追加）："
+        + "；".join(str(p) for p in hook_diag.log_paths()),
+        '（调试：AHAKEY_HOOK_DEBUG=0 全关；省略或 1 只写上述日志；2 或 stderr 再额外打 stderr）。',
+        "",
+        "说明：提问时的灯效依赖 Codex 调用 UserPromptSubmit hook。"
+        "部分桌面客户端或旧版本可能不触发 hooks（可与终端 CLI 对比排查）。",
+        "另需 BLE-TCP 桥接正常运行（hook 目录下 config_client.json 默认 127.0.0.1:9000），",
+        "且键盘已由桥识别为目标设备，否则 send_new_state 无法亮灯。",
+        "",
+        "示例 command:",
+        "  " + build_hook_command("CodexSessionStart"),
+    ]
+    return "\n".join(lines)
+
+
+def uninstall_codex_hooks() -> str:
+    msgs: list[str] = []
+
+    sidecar = get_codex_hooks_sidecar_path()
+    hooks_json_path = get_codex_hooks_json_path()
+    if sidecar.is_file():
+        try:
+            sidecar.unlink()
+        except OSError as e:
+            return f"无法删除管理标记 {sidecar}：{e}"
+        if hooks_json_path.is_file():
+            try:
+                hooks_json_path.unlink()
+            except OSError as e:
+                return f"无法删除 {hooks_json_path}：{e}"
+            msgs.append(f"已删除 {hooks_json_path}（由 AhaKey 安装器写入）。")
+        else:
+            msgs.append("已清除管理标记（hooks.json 已不存在）。")
+
+    path = get_codex_config_path()
+    if path.is_file() and codex_ahakey_block_installed():
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            return f"无法读取 {path}：{e}"
+        nxt = _remove_codex_hook_block_from_text(text)
+        try:
+            path.write_text(nxt, encoding="utf-8")
+        except OSError as e:
+            return f"无法写回 {path}：{e}"
+        msgs.append(f"已从 {path} 移除内联 AhaKey Codex 块（旧版安装方式）。")
+
+    if not msgs:
+        return (
+            "未发现 AhaKey Codex 安装痕迹（无内联标记块且无 hooks.json 管理标记）。"
+            f"如需手动清理可检查 {hooks_json_path}。"
+        )
+    return "\n".join(msgs)
+
+
+# ============================================================
 # Tkinter UI 界面
 # ============================================================
 def show_ui():
@@ -334,8 +634,8 @@ def show_ui():
     from tkinter import scrolledtext
 
     root = tk.Tk()
-    root.title("Claude / Cursor Hook 管理工具")
-    root.geometry("520x480")
+    root.title("Claude / Cursor / Codex Hook 管理工具")
+    root.geometry("520x560")
     root.resizable(False, False)
 
     # --- 状态信息 ---
@@ -350,6 +650,7 @@ def show_ui():
 
     claude_status_var = tk.StringVar()
     cursor_status_var = tk.StringVar()
+    codex_status_var = tk.StringVar()
 
     def refresh_status():
         sp = get_claude_global_settings_path()
@@ -368,9 +669,19 @@ def show_ui():
             c_has = False
         cursor_status_var.set("Cursor Hook 状态: " + ("已安装" if c_has else "未安装"))
 
+        codex_status_var.set(
+            "Codex Hook 状态: "
+            + (
+                "已安装 (hooks.json)"
+                if codex_ahakey_hooks_json_managed()
+                else ("已安装 (config 内联块)" if codex_ahakey_block_installed() else "未安装")
+            )
+        )
+
     refresh_status()
     tk.Label(info_frame, textvariable=claude_status_var, anchor="w").pack(fill=tk.X)
     tk.Label(info_frame, textvariable=cursor_status_var, anchor="w").pack(fill=tk.X)
+    tk.Label(info_frame, textvariable=codex_status_var, anchor="w").pack(fill=tk.X)
 
     # --- 按钮: Claude ---
     btn_frame = tk.Frame(root)
@@ -381,6 +692,11 @@ def show_ui():
     btn_frame_cursor = tk.Frame(root)
     btn_frame_cursor.pack(fill=tk.X, padx=10, pady=(0, 5))
     tk.Label(btn_frame_cursor, text="Cursor:", anchor="w").pack(side=tk.LEFT, padx=(0, 8))
+
+    # --- 按钮: Codex ---
+    btn_frame_codex = tk.Frame(root)
+    btn_frame_codex.pack(fill=tk.X, padx=10, pady=(0, 5))
+    tk.Label(btn_frame_codex, text="Codex:", anchor="w").pack(side=tk.LEFT, padx=(0, 8))
 
     # --- 输出区域 ---
     output_frame = tk.LabelFrame(root, text="输出", padx=5, pady=5)
@@ -506,6 +822,28 @@ def show_ui():
     tk.Button(btn_frame_cursor, text="卸载 Hooks", command=on_uninstall_cursor,
               width=14, height=2, bg="#FF9800", fg="white").pack(side=tk.LEFT)
 
+    # --- Codex 按钮回调 ---
+    def on_install_codex():
+        try:
+            result = install_codex_hooks()
+            append_output(result)
+        except Exception as e:
+            append_output(f"Codex 安装失败: {e}")
+        refresh_status()
+
+    def on_uninstall_codex():
+        try:
+            result = uninstall_codex_hooks()
+            append_output(result)
+        except Exception as e:
+            append_output(f"Codex 卸载失败: {e}")
+        refresh_status()
+
+    tk.Button(btn_frame_codex, text="安装 Hooks", command=on_install_codex,
+              width=14, height=2, bg="#673AB7", fg="white").pack(side=tk.LEFT, padx=(0, 10))
+    tk.Button(btn_frame_codex, text="卸载 Hooks", command=on_uninstall_codex,
+              width=14, height=2, bg="#E91E63", fg="white").pack(side=tk.LEFT)
+
     root.mainloop()
 
 
@@ -522,12 +860,22 @@ def main():
         print(install_cursor_hooks())
     elif args[0] == "--uninstall-cursor":
         print(uninstall_cursor_hooks())
+    elif args[0] == "--install-codex":
+        print(install_codex_hooks())
+    elif args[0] == "--uninstall-codex":
+        print(uninstall_codex_hooks())
     elif args[0] in DISPATCH:
         # Claude 事件名（PascalCase）-> 分发执行
         dispatch_hook(args[0])
     elif args[0] in CURSOR_DISPATCH:
         # Cursor 事件名（小驼峰）-> 分发执行
         CURSOR_DISPATCH[args[0]].run()
+    elif args[0] in CODEX_DISPATCH:
+        hook_diag.diag_line(
+            "hook_install",
+            f"CodexDispatch {args[0]!r} frozen={getattr(sys, 'frozen', False)!r} argv={sys.argv!r}",
+        )
+        CODEX_DISPATCH[args[0]]()
     elif args[0] == "--help" or args[0] == "-h":
         print(__doc__)
     else:

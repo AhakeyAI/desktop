@@ -8,6 +8,7 @@ a = Analysis(
     datas=[],
     hiddenimports=[
         'hook_install',
+        'hook_diag',
         'SessionStart',
         'SessionEnd',
         'PreToolUse',
@@ -17,6 +18,7 @@ a = Analysis(
         'TaskCompleted',
         'Stop',
         'UserPromptSubmit',
+        'codex_hooks',
         'ble_command_send',
         'UdpLog',
     ],
