@@ -66,10 +66,12 @@ except:
 try:
     pillow_datas = collect_data_files('PIL', include_py_files=False)
     datas += pillow_datas
-    pillow_binaries = collect_all('PIL')
-    binaries += pillow_binaries[1]
-except:
-    pass
+    pillow_d, pillow_b, pillow_h = collect_all('PIL')
+    datas += pillow_d
+    binaries += pillow_b
+    hiddenimports += pillow_h
+except Exception as e:
+    print('[WARN] collect_all(PIL): {}'.format(e))
 
 # 全量收集 websockets / typer / click（打包环境必须已 pip install，否则此处会打印 WARN）
 for _hook_pkg in ('websockets', 'typer', 'click', 'pynput', 'keyboard'):
@@ -108,8 +110,23 @@ hiddenimports += [
     'sherpa_onnx',
     'PIL',           # Pillow 用于托盘图标
     'PIL.Image',
+    'PIL._imaging',   # PIL 底层 C 扩展模块
+    'PIL._imagingft',
+    'PIL._imagingmath',
+    'PIL._imagingmorph',
     'pystray',       # 托盘图标库
     'text_optimizer',
+    'gguf',          # GGUF 模型文件处理
+    'tkhtmlview',    # HTML 视图组件
+    # util 模块及其子模块
+    'util',
+    'util.client',
+    'util.client.shortcut',
+    'util.client.output',
+    'util.server',
+    'util.hotword',
+    'util.llm',
+    'util.fun_asr_gguf',
 ]
 
 a_1 = Analysis(

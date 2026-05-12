@@ -3,12 +3,12 @@ import os
 import ctypes
 import codecs
 import numpy as np
-import gguf
 from typing import List, Union
 from pathlib import Path
 from os.path import relpath
 from typing import Union
-from . import logger
+from util.fun_asr_gguf import logger
+import util.fun_asr_gguf.gguf as gguf
 
 # =========================================================================
 # Configuration

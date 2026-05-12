@@ -8,6 +8,7 @@
 import pickle
 from pathlib import Path
 from datetime import datetime
+import os
 
 from util.server.server_cosmic import console
 from . import logger
@@ -26,7 +27,7 @@ def save_error_audio(samples, task_id: str, samplerate: int) -> None:
         samplerate: 采样率
     """
     try:
-        log_dir = Path("logs")
+        log_dir = Path(os.environ.get("CAPSWRITER_LOG_DIR") or os.environ.get("VIBE_LOG_DIR") or "logs")
         log_dir.mkdir(exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

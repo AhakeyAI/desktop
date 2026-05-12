@@ -35,6 +35,18 @@ def _is_virtual_input_device(name: str) -> bool:
     return any(pattern in normalized for pattern in VIRTUAL_INPUT_PATTERNS)
 
 
+def _console_safe_text(text: str) -> str:
+    """Make text printable on legacy GBK Windows consoles."""
+    if sys.platform != "win32":
+        return text
+    encoding = getattr(sys.stdout, "encoding", None) or "gbk"
+    try:
+        text.encode(encoding)
+        return text
+    except UnicodeEncodeError:
+        return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+
+
 class AudioStreamManager:
     SAMPLE_RATE = 48000
     BLOCK_DURATION = 0.05
@@ -83,18 +95,16 @@ class AudioStreamManager:
                     return (
                         candidate_index,
                         candidate,
-                        f"根据环境变量 {INPUT_DEVICE_HINT_ENV} 使用输入设备 {candidate_name}",
+                        f"Using input device from {INPUT_DEVICE_HINT_ENV}: {candidate_name}",
                     )
 
         selected_index = self._default_input_device_index()
-        selected_device = None
-
         if selected_index is not None:
             selected_device = sd.query_devices(selected_index)
         else:
             selected_device = sd.query_devices(kind="input")
 
-        selected_name = str(selected_device.get("name", "未知设备"))
+        selected_name = str(selected_device.get("name", "Unknown input device"))
         fallback_reason = None
 
         if _is_virtual_input_device(selected_name):
@@ -107,7 +117,7 @@ class AudioStreamManager:
                 selected_index = candidate_index
                 selected_device = candidate
                 fallback_reason = (
-                    f"默认输入设备 {selected_name} 看起来是虚拟设备，自动切换到 {candidate_name}"
+                    f'Default input device "{selected_name}" looks virtual; switched to "{candidate_name}".'
                 )
                 break
 
@@ -142,38 +152,38 @@ class AudioStreamManager:
             return
 
         if self._running and not lifecycle.is_shutting_down:
-            logger.info("音频流意外结束，正在尝试重启...")
+            logger.info("Audio stream stopped unexpectedly; trying to reopen.")
             self.reopen()
         else:
-            logger.debug("音频流已正常结束")
+            logger.debug("Audio stream closed normally.")
 
     def open(self) -> Optional[sd.InputStream]:
         try:
             device_index, device, fallback_reason = self._resolve_input_device()
             self._channels = max(1, min(2, int(device.get("max_input_channels", 1) or 1)))
-            device_name = str(device.get("name", "未知设备"))
+            device_name = str(device.get("name", "Unknown input device"))
 
             if fallback_reason:
                 logger.warning(fallback_reason)
-                console.print(f"[yellow]{fallback_reason}[/yellow]", end="\n\n")
+                console.print(f"[yellow]{_console_safe_text(fallback_reason)}[/yellow]", end="\n\n")
 
             console.print(
-                f"使用音频输入设备：[italic]{device_name}[/italic]，声道数：{self._channels}",
+                f"Input device: [italic]{_console_safe_text(device_name)}[/italic], channels: {self._channels}",
                 end="\n\n",
             )
-            logger.info(f"找到音频输入设备: {device_name}, 声道数: {self._channels}")
-        except UnicodeDecodeError:
+            logger.info("Found audio input device: %s, channels=%s", device_name, self._channels)
+        except (UnicodeDecodeError, UnicodeEncodeError):
             console.print(
-                "由于编码问题，暂时无法获取麦克风设备名",
+                "Unable to render the microphone device name because of console encoding.",
                 end="\n\n",
                 style="bright_red",
             )
-            logger.warning("无法获取音频输入设备名（编码问题）")
+            logger.warning("Unable to render audio input device name because of encoding issues.")
             return None
         except sd.PortAudioError:
-            console.print("没有找到麦克风设备", end="\n\n", style="bright_red")
-            logger.error("未找到麦克风设备")
-            input("按回车键退出")
+            console.print("No microphone device was found.", end="\n\n", style="bright_red")
+            logger.error("No microphone device found")
+            input("Press Enter to exit.")
             sys.exit(1)
 
         try:
@@ -191,13 +201,13 @@ class AudioStreamManager:
             self.state.stream = stream
             self._running = True
             logger.debug(
-                "音频流已启动: 采样率=%s, blocksize=%s",
+                "Audio stream started: samplerate=%s, blocksize=%s",
                 self.SAMPLE_RATE,
                 int(self.BLOCK_DURATION * self.SAMPLE_RATE),
             )
             return stream
         except Exception as exc:
-            logger.error(f"创建音频流失败: {exc}", exc_info=True)
+            logger.error("Failed to create audio stream: %s", exc, exc_info=True)
             return None
 
     def close(self) -> None:
@@ -205,14 +215,14 @@ class AudioStreamManager:
         if self.state.stream is not None:
             try:
                 self.state.stream.close()
-                logger.debug("音频流已关闭")
+                logger.debug("Audio stream closed.")
             except Exception as exc:
-                logger.debug(f"关闭音频流时发生错误: {exc}")
+                logger.debug("Error while closing audio stream: %s", exc)
             finally:
                 self.state.stream = None
 
     def reopen(self) -> Optional[sd.InputStream]:
-        logger.info("正在重启音频流...")
+        logger.info("Reopening audio stream...")
         self.close()
 
         try:
@@ -221,7 +231,7 @@ class AudioStreamManager:
             sd._lib = sd._ffi.dlopen(sd._libname)
             sd._initialize()
         except Exception as exc:
-            logger.warning(f"重载 PortAudio 时发生警告: {exc}")
+            logger.warning("Reloading PortAudio raised a warning: %s", exc)
 
         time.sleep(0.1)
         return self.open()

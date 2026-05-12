@@ -35,6 +35,10 @@ from .nano_dataclass import (
     Statistics,
 )
 
+# 导出 gguf 子模块供内部使用
+from . import gguf
+from . import llama
+
 __all__ = [
     # 日志配置
     'logger',
@@ -54,4 +58,8 @@ __all__ = [
     'Timings',
     'ASREngineConfig',
     'Statistics',
+    
+    # 子模块
+    'gguf',
+    'llama',
 ]

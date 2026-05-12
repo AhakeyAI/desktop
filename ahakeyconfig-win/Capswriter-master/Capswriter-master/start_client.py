@@ -6,6 +6,12 @@
 """
 
 import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+FUN_ASR_DIR = BASE_DIR / "util" / "fun_asr_gguf"
+if FUN_ASR_DIR.is_dir():
+    sys.path.insert(0, str(FUN_ASR_DIR))
 
 import typer
 from core_client import init_file, init_mic

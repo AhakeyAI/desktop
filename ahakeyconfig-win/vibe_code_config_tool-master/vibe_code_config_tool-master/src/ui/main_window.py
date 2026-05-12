@@ -5,6 +5,7 @@ import subprocess
 import sys
 import socket
 import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 import os
@@ -59,6 +60,7 @@ _VOICE_READY_HOST = "127.0.0.1"
 _VOICE_READY_PORT = 6016
 _AUDIO_CUE_CONFIG_PATH = Path(tempfile.gettempdir()) / "capswriter_config.json"
 _BLE_DRIVER_EXE_NAME = "BLE_tcp_driver.exe"
+_VOICE_LOG_ENV = "CAPSWRITER_LOG_DIR"
 
 
 def _ui_settings() -> QSettings:
@@ -184,6 +186,9 @@ class MainWindow(QMainWindow):
         self._ble_driver_process: Optional[subprocess.Popen] = None
         self._voice_processes: List[subprocess.Popen] = []
         self._voice_process_map: Dict[str, subprocess.Popen] = {}
+        # Keep stdio log file handles alive while voice child processes run.
+        # (If we close early, Windows may truncate/lose output.)
+        self._voice_stdio_files: List[object] = []
         self._voice_hud = VoiceHud() if self._voice_hud_enabled() else None
         self._voice_ready_poll_timer = QTimer(self)
         self._voice_ready_poll_timer.setInterval(800)
@@ -587,7 +592,14 @@ class MainWindow(QMainWindow):
             if exe.is_file():
                 return [str(exe)]
             if py.is_file():
-                return [sys.executable, str(py)]
+                if not getattr(sys, "frozen", False):
+                    return [sys.executable, str(py)]
+                py_launcher = shutil.which("py")
+                if py_launcher:
+                    return [py_launcher, "-3", str(py)]
+                python_exe = shutil.which("python")
+                if python_exe:
+                    return [python_exe, str(py)]
             return None
 
         if linux_bin.is_file():
@@ -660,6 +672,34 @@ class MainWindow(QMainWindow):
             child_env["VIBE_API_BASE"] = api_base
         child_env["CAPSWRITER_SHARED_CONFIG"] = str(_AUDIO_CUE_CONFIG_PATH)
 
+        # Write voice logs into the app installation directory so testers/users can
+        # easily collect logs without hunting through user profiles.
+        try:
+            if getattr(sys, "frozen", False):
+                app_dir = Path(sys.executable).resolve().parent
+            else:
+                app_dir = Path.cwd()
+            voice_log_dir = app_dir / "logs" / "voice"
+            voice_log_dir.mkdir(parents=True, exist_ok=True)
+            child_env[_VOICE_LOG_ENV] = str(voice_log_dir)
+        except Exception:
+            # Best-effort only; don't block voice startup.
+            pass
+
+        # Redirect stdout/stderr to a file under the same directory so early
+        # startup failures (e.g. import errors before logger init) are visible.
+        stdio_fh = None
+        try:
+            if "voice_log_dir" in locals():
+                from datetime import datetime
+
+                ts = datetime.now().strftime("%Y%m%d")
+                stdio_path = voice_log_dir / f"{script_base}_stdio_{ts}.log"
+                stdio_fh = open(stdio_path, "a", encoding="utf-8", errors="ignore")
+                self._voice_stdio_files.append(stdio_fh)
+        except Exception:
+            stdio_fh = None
+
         creationflags = 0
         startupinfo = None
         if sys.platform == "win32":
@@ -673,6 +713,8 @@ class MainWindow(QMainWindow):
                 cmd,
                 cwd=str(tool_dir),
                 env=child_env,
+                stdout=stdio_fh or subprocess.DEVNULL,
+                stderr=stdio_fh or subprocess.DEVNULL,
                 preexec_fn=os.setpgrp if sys.platform != "win32" else None,
                 creationflags=creationflags,
                 startupinfo=startupinfo,
@@ -753,6 +795,12 @@ class MainWindow(QMainWindow):
 
         self._voice_processes.clear()
         self._voice_process_map.clear()
+        for fh in getattr(self, "_voice_stdio_files", []):
+            try:
+                fh.close()
+            except Exception:
+                pass
+        self._voice_stdio_files = []
         self.connection_bar.set_voice_running(False)
         self._set_voice_status("stopped", "语音未启动")
         self.device_page.log("语音服务已尝试关闭", "info")

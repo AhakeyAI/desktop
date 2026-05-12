@@ -79,6 +79,15 @@ async def message_handler(websocket, message: dict, cache: AudioCache) -> None:
         data = b64decode(message['data'])
         cache.chunks += data
         cache.byte_count += len(data)
+        logger.info(
+            "VOICE_TRACE server_recv task=%s final=%s data_bytes=%s cache_bytes=%s cache_duration=%.2fs total_duration=%.2fs",
+            task_id,
+            is_final,
+            len(data),
+            len(cache.chunks),
+            cache.duration,
+            cache.total_duration,
+        )
 
         if not is_final:
             # 打印状态消息
@@ -110,6 +119,13 @@ async def message_handler(websocket, message: dict, cache: AudioCache) -> None:
                 )
                 cache.offset += seg_duration
                 queue_in.put(task)
+                logger.info(
+                    "VOICE_TRACE server_queue_segment task=%s final=False segment_bytes=%s offset=%.2fs remaining_bytes=%s",
+                    task_id,
+                    len(segment_data),
+                    cache.offset,
+                    len(cache.chunks),
+                )
                 logger.debug(
                     f"提交音频片段，任务ID: {task_id}, "
                     f"偏移: {cache.offset}s, 缓冲区: {len(cache.chunks)} bytes"
@@ -137,6 +153,13 @@ async def message_handler(websocket, message: dict, cache: AudioCache) -> None:
                 context=context
             )
             queue_in.put(task)
+            logger.info(
+                "VOICE_TRACE server_queue_segment task=%s final=True segment_bytes=%s offset=%.2fs total_duration=%.2fs",
+                task_id,
+                len(task.data),
+                cache.offset,
+                cache.total_duration,
+            )
             logger.debug(f"提交最终片段，任务ID: {task_id}, 数据大小: {len(cache.chunks)} bytes")
 
             # 重置缓冲区

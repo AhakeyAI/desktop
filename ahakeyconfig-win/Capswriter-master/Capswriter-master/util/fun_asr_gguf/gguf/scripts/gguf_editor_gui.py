@@ -27,7 +27,8 @@ if "NO_LOCAL_GGUF" not in os.environ and (Path(__file__).parent.parent.parent.pa
 
 import gguf
 from gguf import GGUFReader, GGUFWriter, GGUFValueType, ReaderField
-from gguf.constants import TokenType, RopeScalingType, PoolingType, GGMLQuantizationType
+# Vendored gguf package; keep imports relative for packaged builds.
+from ..constants import TokenType, RopeScalingType, PoolingType, GGMLQuantizationType
 
 logger = logging.getLogger("gguf-editor-gui")
 

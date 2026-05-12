@@ -114,6 +114,15 @@ def recognize(recognizer, punc_model, task: Task) -> Result:
         result.duration += duration - task.overlap
         if task.is_final:
             result.duration += task.overlap
+        logger.info(
+            "VOICE_TRACE recognize_begin task=%s final=%s bytes=%s samples=%s duration=%.2fs offset=%.2fs",
+            task.task_id,
+            task.is_final,
+            len(task.data),
+            len(samples),
+            duration,
+            task.offset,
+        )
 
         logger.debug(
             f"识别片段: task={task.task_id[:8]}, duration={duration:.2f}s, "
@@ -131,6 +140,14 @@ def recognize(recognizer, punc_model, task: Task) -> Result:
             recognizer.decode_stream(stream, context=task.context)
         except TypeError:
             recognizer.decode_stream(stream)
+        logger.info(
+            "VOICE_TRACE recognize_decoded task=%s final=%s decode_time=%.3fs text_len=%s text_head=%r",
+            task.task_id,
+            task.is_final,
+            time.time() - t1,
+            len(stream.result.text or ""),
+            (stream.result.text or "")[:80],
+        )
 
         # 更新时间戳
         result.time_start = task.time_start
@@ -172,6 +189,13 @@ def recognize(recognizer, punc_model, task: Task) -> Result:
             return result
 
         # 8. 格式优化
+        logger.info(
+            "VOICE_TRACE recognize_final_before_format task=%s accumulated_duration=%.2fs text_len=%s tokens=%s",
+            task.task_id,
+            result.duration,
+            len(result.text or ""),
+            len(result.tokens),
+        )
         result.text = format_text(result.text, punc_model)
         result.text_accu = format_text(result.text_accu, punc_model)
         
@@ -191,6 +215,15 @@ def recognize(recognizer, punc_model, task: Task) -> Result:
         
         process_time = result.time_complete - task.time_submit
         rtf_value = process_time / result.duration if result.duration > 0 else 0
+        logger.info(
+            "VOICE_TRACE recognize_final_done task=%s duration=%.2fs process_time=%.3fs rtf=%.3f text_len=%s text_head=%r",
+            task.task_id,
+            result.duration,
+            process_time,
+            rtf_value,
+            len(result.text or ""),
+            (result.text or "")[:80],
+        )
         logger.info(
             f"识别完成: task={task.task_id[:8]}, "
             f"duration={result.duration:.2f}(s), "

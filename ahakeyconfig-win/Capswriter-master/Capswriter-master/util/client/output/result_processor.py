@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import TYPE_CHECKING, Optional
 
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
@@ -231,6 +232,14 @@ class ResultProcessor:
         text = message['text']
         original_text = text  # 保存原始识别结果
         delay = message['time_complete'] - message['time_submit']
+        logger.info(
+            "VOICE_TRACE client_result_recv task=%s final=%s text_len=%s delay=%.3fs text_head=%r",
+            message.get('task_id'),
+            message.get('is_final'),
+            len(text or ""),
+            delay,
+            (text or "")[:80],
+        )
 
         if message['is_final']:
             logger.info(f"收到最终识别结果: {text}, 时延: {delay:.2f}s")
@@ -265,7 +274,15 @@ class ResultProcessor:
         text = self._hotword_manager.get_rule_corrector().substitute(text)
 
         # 4. text_optimizer：有 token 且开启 Typeless 则走云托管，否则原样输出
+        t_optimize = time.time()
         text = await self._optimize_text_pipeline(text)
+        logger.info(
+            "VOICE_TRACE client_optimize_done task=%s elapsed=%.3fs text_len=%s text_head=%r",
+            message.get('task_id'),
+            time.time() - t_optimize,
+            len(text or ""),
+            (text or "")[:80],
+        )
 
         # 保存最近一次识别结果
         self.state.last_recognition_text = text
@@ -318,15 +335,31 @@ class ResultProcessor:
         # LLM 处理和输出
         llm_result = None
         if Config.llm_enabled:
+            t_llm = time.time()
+            logger.info("VOICE_TRACE client_llm_begin task=%s", message.get('task_id'))
             from util.llm.llm_process_text import llm_process_text
             llm_result = await llm_process_text(
                 text,
                 paste=paste,
                 matched_hotwords=potential_hotwords,
             )
+            logger.info(
+                "VOICE_TRACE client_llm_done task=%s elapsed=%.3fs processed=%s result_len=%s",
+                message.get('task_id'),
+                time.time() - t_llm,
+                getattr(llm_result, "processed", None),
+                len((getattr(llm_result, "result", "") or "")) if llm_result else 0,
+            )
         else:
+            t_output = time.time()
+            logger.info("VOICE_TRACE client_output_begin task=%s paste=%s", message.get('task_id'), paste)
             await self._text_output.output(text, paste=paste)
             get_state().set_output_text(text)
+            logger.info(
+                "VOICE_TRACE client_output_done task=%s elapsed=%.3fs",
+                message.get('task_id'),
+                time.time() - t_output,
+            )
 
         # 保存录音与写入 md 文件
         file_audio = None

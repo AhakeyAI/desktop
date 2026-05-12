@@ -119,7 +119,7 @@ def main():
                 
                 
                 # 保存现场
-                log_dir = Path("logs")
+                log_dir = Path(os.environ.get("CAPSWRITER_LOG_DIR") or os.environ.get("VIBE_LOG_DIR") or "logs")
                 log_dir.mkdir(exist_ok=True)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = log_dir / f"diag_error_audio_{timestamp}_{start//sample_rate}s.pkl"

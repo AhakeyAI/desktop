@@ -51,6 +51,8 @@ class AudioRecorder:
         self._start_time: float = 0.0
         self._duration: float = 0.0
         self._cache: list = []
+        self._sent_audio_chunks: int = 0
+        self._sent_audio_bytes: int = 0
     
     async def _send_message(self, message: dict) -> None:
         """发送消息到服务端"""
@@ -64,6 +66,16 @@ class AudioRecorder:
             return
         
         try:
+            payload_len = len(message.get('data') or '')
+            logger.info(
+                "VOICE_TRACE client_send task=%s final=%s payload_b64=%s duration=%.2fs chunks=%s bytes=%s",
+                message.get('task_id'),
+                message.get('is_final'),
+                payload_len,
+                self._duration,
+                self._sent_audio_chunks,
+                self._sent_audio_bytes,
+            )
             if hasattr(websocket, 'closed') and websocket.closed:
                 if message['is_final']:
                     self.state.pop_audio_file(message['task_id'])
@@ -72,6 +84,12 @@ class AudioRecorder:
                 return
             
             await websocket.send(json.dumps(message))
+            logger.info(
+                "VOICE_TRACE client_send_ok task=%s final=%s payload_b64=%s",
+                message.get('task_id'),
+                message.get('is_final'),
+                payload_len,
+            )
             
         except websockets.ConnectionClosedError:
             if message['is_final']:
@@ -101,6 +119,8 @@ class AudioRecorder:
             self._start_time = 0.0
             self._duration = 0.0
             self._cache = []
+            self._sent_audio_chunks = 0
+            self._sent_audio_bytes = 0
             
             # 音频文件管理
             file_path = None
@@ -113,6 +133,7 @@ class AudioRecorder:
                 
                 if task['type'] == 'begin':
                     self._start_time = task['time']
+                    logger.info("VOICE_TRACE record_begin task=%s time=%.3f", self.task_id, self._start_time)
                     logger.debug(f"录音开始，时间戳: {self._start_time}")
                     
                 elif task['type'] == 'data':
@@ -139,6 +160,9 @@ class AudioRecorder:
                     
                     # 保存音频至本地文件
                     self._duration += len(data) / 48000
+                    audio_bytes = np.mean(data[::3], axis=1).tobytes()
+                    self._sent_audio_chunks += 1
+                    self._sent_audio_bytes += len(audio_bytes)
                     if Config.save_audio and self._file_manager:
                         self._file_manager.write(data)
                     
@@ -151,11 +175,18 @@ class AudioRecorder:
                         'time_start': self._start_time,
                         'time_frame': task['time'],
                         'source': 'mic',
-                        'data': base64.b64encode(
-                            np.mean(data[::3], axis=1).tobytes()
-                        ).decode('utf-8'),
+                        'data': base64.b64encode(audio_bytes).decode('utf-8'),
                         'context': Config.context,
                     }
+                    logger.info(
+                        "VOICE_TRACE record_chunk task=%s chunk=%s frames=%s raw_bytes=%s duration=%.2fs cache_after=%s",
+                        self.task_id,
+                        self._sent_audio_chunks,
+                        len(data),
+                        len(audio_bytes),
+                        self._duration,
+                        len(self._cache),
+                    )
                     asyncio.create_task(self._send_message(message))
                     
                 elif task['type'] == 'finish':
@@ -165,6 +196,9 @@ class AudioRecorder:
                         self._cache.clear()
                         
                         self._duration += len(data) / 48000
+                        audio_bytes = np.mean(data[::3], axis=1).tobytes()
+                        self._sent_audio_chunks += 1
+                        self._sent_audio_bytes += len(audio_bytes)
                         if Config.save_audio and self._file_manager:
                             self._file_manager.write(data)
 
@@ -176,11 +210,17 @@ class AudioRecorder:
                             'time_start': self._start_time,
                             'time_frame': task['time'],
                             'source': 'mic',
-                            'data': base64.b64encode(
-                                np.mean(data[::3], axis=1).tobytes()
-                            ).decode('utf-8'),
+                            'data': base64.b64encode(audio_bytes).decode('utf-8'),
                             'context': Config.context,
                         }
+                        logger.info(
+                            "VOICE_TRACE record_finish_flush task=%s chunk=%s frames=%s raw_bytes=%s duration=%.2fs",
+                            self.task_id,
+                            self._sent_audio_chunks,
+                            len(data),
+                            len(audio_bytes),
+                            self._duration,
+                        )
                         asyncio.create_task(self._send_message(message))
 
                     # 完成写入本地文件
@@ -193,6 +233,14 @@ class AudioRecorder:
                     logger.info(f"录音任务完成，任务ID: {self.task_id}, 时长: {self._duration:.2f}s")
                     
                     # 告诉服务端音频片段结束了
+                    logger.info(
+                        "VOICE_TRACE record_finish task=%s duration=%.2fs chunks=%s bytes=%s cache_empty=%s",
+                        self.task_id,
+                        self._duration,
+                        self._sent_audio_chunks,
+                        self._sent_audio_bytes,
+                        not self._cache,
+                    )
                     message = {
                         'task_id': self.task_id,
                         'seg_duration': 15,

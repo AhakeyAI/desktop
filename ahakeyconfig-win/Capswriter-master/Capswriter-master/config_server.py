@@ -106,3 +106,6 @@ class FunASRNanoGGUFArgs:
     similar_threshold = 0.6
     max_hotwords = 20
     verbose = False
+
+
+

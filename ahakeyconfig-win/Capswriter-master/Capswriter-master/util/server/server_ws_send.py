@@ -29,6 +29,9 @@ async def ws_send():
                 return
 
             # 构建消息
+            if isinstance(result, bool):
+                logger.debug("Skip recognizer ready signal: %s", result)
+                continue
             message = {
                 'task_id': result.task_id,
                 'duration': result.duration,

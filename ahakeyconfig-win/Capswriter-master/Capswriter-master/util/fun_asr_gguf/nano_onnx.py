@@ -4,6 +4,40 @@ import os
 import numpy as np
 from . import logger
 
+def _make_lfr_features(audio, dtype=np.float16):
+    import torch
+    import torchaudio.compliance.kaldi as kaldi
+
+    wav = torch.from_numpy(audio.astype(np.float32)).unsqueeze(0)
+    if wav.abs().max() <= 1.0:
+        wav = wav * 32768.0
+
+    feats = kaldi.fbank(
+        wav,
+        num_mel_bins=80,
+        frame_length=25,
+        frame_shift=10,
+        dither=0.0,
+        energy_floor=0.0,
+        sample_frequency=16000,
+    ).numpy()
+
+    lfr_m = 7
+    lfr_n = 6
+    t = feats.shape[0]
+    lfr_len = int(np.ceil(t / lfr_n))
+    padded_len = (lfr_len - 1) * lfr_n + lfr_m
+    if padded_len > t:
+        pad = np.repeat(feats[-1:, :], padded_len - t, axis=0)
+        feats = np.concatenate([feats, pad], axis=0)
+
+    lfr = np.stack(
+        [feats[i * lfr_n : i * lfr_n + lfr_m].reshape(-1) for i in range(lfr_len)],
+        axis=0,
+    )
+    mask = np.ones((1, lfr_len), dtype=dtype)
+    return lfr[np.newaxis, :, :].astype(dtype), mask, lfr_len
+
 """
 ONNX 推理底层工具 - DirectML (DML) 性能优化指南
 
@@ -52,17 +86,19 @@ def load_onnx_models(encoder_path, ctc_path, padding_secs=30, dml_enable=True):
         SR = 16000
         warmup_samples = int(SR * padding_secs)  # Ensure int
         
-        # Encoder Warmup
+        in_names = [x.name for x in encoder_sess.get_inputs()]
         audio_type = encoder_sess.get_inputs()[0].type
         dtype = np.float16 if 'float16' in audio_type else np.float32
-        dummy_audio = np.zeros((1, 1, warmup_samples), dtype=dtype)
-        dummy_ilens = np.array([warmup_samples], dtype=np.int64)
-        
-        # New model has ['audio', 'ilens']
-        in_names = [x.name for x in encoder_sess.get_inputs()]
-        if 'ilens' in in_names:
+        if 'lfr_feat' in in_names and 'mask' in in_names:
+            dummy_wave = np.zeros(warmup_samples, dtype=np.float32)
+            dummy_lfr, dummy_mask, _ = _make_lfr_features(dummy_wave, dtype=dtype)
+            encoder_sess.run(None, {'lfr_feat': dummy_lfr, 'mask': dummy_mask})
+        elif 'ilens' in in_names:
+            dummy_audio = np.zeros((1, 1, warmup_samples), dtype=dtype)
+            dummy_ilens = np.array([warmup_samples], dtype=np.int64)
             encoder_sess.run(None, {in_names[0]: dummy_audio, in_names[1]: dummy_ilens})
         else:
+            dummy_audio = np.zeros((1, 1, warmup_samples), dtype=dtype)
             encoder_sess.run(None, {in_names[0]: dummy_audio})
             
         # CTC Warmup
@@ -104,7 +140,17 @@ def encode_audio(audio, encoder_sess, padding_secs=30):
     ilens_input = np.array([actual_samples], dtype=np.int64)
     
     out_names = [x.name for x in encoder_sess.get_outputs()]
-    
+
+    if 'lfr_feat' in in_names and 'mask' in in_names:
+        lfr_input, mask_input, lfr_len = _make_lfr_features(audio, dtype=dtype)
+        input_feed = {
+            'lfr_feat': onnxruntime.OrtValue.ortvalue_from_numpy(lfr_input, 'cpu', 0),
+            'mask': onnxruntime.OrtValue.ortvalue_from_numpy(mask_input, 'cpu', 0),
+        }
+        outputs = encoder_sess.run_with_ort_values(out_names, input_feed)
+        enc_output = outputs[0].numpy()[:, :lfr_len, :]
+        audio_embd = outputs[1].numpy().squeeze(0)[:lfr_len, :].astype(np.float32)
+        return audio_embd, enc_output    
     # 构造输入 Feed
     if 'ilens' in in_names:
         input_feed = {
