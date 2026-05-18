@@ -6,7 +6,7 @@ private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "AgentMan
 // MARK: - 蓝牙占用方（AhaKey Studio 与 Agent 是两套独立进程，同一时刻只应有一个 GATT 连接键盘）
 
 /// 由谁持有与键盘的 BLE 连接。
-/// - `ahaKeyStudio`：主 App 连接，用于改键、OLED、本机 LED 测试等。
+/// - `ahaKeyStudio`：主 App 连接，用于改键、LCD、本机 LED 测试等。
 /// - `agentDaemon`：仅运行 `ahakeyconfig-agent`（Hook → Unix socket → 写 0x90 状态、读拨杆），由 LaunchAgent 拉起。
 enum BluetoothConnectionOwner: String, CaseIterable, Identifiable {
     case ahaKeyStudio
@@ -730,10 +730,12 @@ final class AgentManager: ObservableObject {
         "PreToolUse",
         "PostToolUse",
         "Stop",
+        "SubagentStop",  // Claude Code 拆分后：手动终止任务时触发此事件
         "SessionStart",
         "SessionEnd",
         "UserPromptSubmit",
         "TaskCompleted",
+        "PreCompact",
     ]
 
     /// Shell 安全地引用一个路径（单引号包裹 + 转义内部单引号）

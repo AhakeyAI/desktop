@@ -59,7 +59,7 @@ enum AhaKeyCommand {
     /// - Parameters:
     ///   - mode: 工作模式 0-2
     ///   - keyIndex: 0=Key1, 1=Key2, 2=Key3, 3=Key4
-    ///   - text: 显示在 OLED 上的按键描述（最多 20 字节 ASCII）
+    ///   - text: 显示在 LCD 上的按键描述（最多 20 字节 ASCII）
     static func setKeyDescription(mode: UInt8 = 0, keyIndex: UInt8, text: String) -> Data {
         let textBytes = Array(text.sanitizedASCII(maxLength: 20).utf8)
         let payload: [UInt8] = [subDescription, mode, keyIndex] + textBytes
@@ -102,7 +102,7 @@ enum AhaKeyCommand {
         return Data(header + [cmdPrepareWrite] + payload + trailer)
     }
 
-    /// 更新 OLED 动画参数 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
+    /// 更新 LCD 动画参数 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
     static func updatePicture(mode: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
         let payload: [UInt8] = [
             mode,
@@ -324,7 +324,7 @@ enum HIDUsage {
 }
 
 extension String {
-    /// 设备 OLED 描述只稳定支持 ASCII；非 ASCII 字符会在设备端变成乱码。
+    /// 设备 LCD 描述只稳定支持 ASCII；非 ASCII 字符会在设备端变成乱码。
     func sanitizedASCII(maxLength: Int) -> String {
         var result = String()
         result.reserveCapacity(min(maxLength, count))

@@ -18,9 +18,12 @@ enum HookClient {
         "PreToolUse": .sharedState(3),
         "SessionStart": .sharedState(4),
         "Stop": .sharedState(5),
+        // SubagentStop：Claude Code 将原 Stop 拆分后，手动终止任务时触发此事件而非 Stop
+        "SubagentStop": .sharedState(5),
         "TaskCompleted": .sharedState(6),
         "UserPromptSubmit": .sharedState(7),
         "SessionEnd": .sharedState(8),
+        "PreCompact": .sharedState(0),
 
         "sessionStart": .sharedState(4),
         "sessionEnd": .sharedState(8),

@@ -10,139 +10,114 @@ guard arguments.count >= 2 else {
 let outputDirectory = URL(fileURLWithPath: arguments[1], isDirectory: true)
 let sourceImageURL = arguments.count >= 3 ? URL(fileURLWithPath: arguments[2]) : nil
 let fileManager = FileManager.default
-
 try? fileManager.removeItem(at: outputDirectory)
 try fileManager.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
 let sizes: [(Int, String)] = [
-    (16, "icon_16x16.png"),
-    (32, "icon_16x16@2x.png"),
-    (32, "icon_32x32.png"),
-    (64, "icon_32x32@2x.png"),
-    (128, "icon_128x128.png"),
-    (256, "icon_128x128@2x.png"),
-    (256, "icon_256x256.png"),
-    (512, "icon_256x256@2x.png"),
-    (512, "icon_512x512.png"),
-    (1024, "icon_512x512@2x.png")
+    (16,   "icon_16x16.png"),
+    (32,   "icon_16x16@2x.png"),
+    (32,   "icon_32x32.png"),
+    (64,   "icon_32x32@2x.png"),
+    (128,  "icon_128x128.png"),
+    (256,  "icon_128x128@2x.png"),
+    (256,  "icon_256x256.png"),
+    (512,  "icon_256x256@2x.png"),
+    (512,  "icon_512x512.png"),
+    (1024, "icon_512x512@2x.png"),
 ]
 
 let sourceImage = sourceImageURL.flatMap { NSImage(contentsOf: $0) }
 
 for (size, filename) in sizes {
-    let image: NSImage
-    if let sourceImage {
-        image = renderSourceIcon(sourceImage, size: CGFloat(size))
-    } else {
-        image = makeDockIcon(size: CGFloat(size))
-    }
+    let image = sourceImage.map { renderSourceIcon($0, size: CGFloat(size)) } ?? makeIcon(size: CGFloat(size))
     let destination = outputDirectory.appendingPathComponent(filename)
     try pngData(from: image).write(to: destination)
 }
+
+// MARK: - Icon rendering
 
 func renderSourceIcon(_ source: NSImage, size: CGFloat) -> NSImage {
     let image = NSImage(size: NSSize(width: size, height: size))
     image.lockFocus()
     NSGraphicsContext.current?.imageInterpolation = .high
 
-    let rect = NSRect(origin: .zero, size: image.size)
-    source.draw(in: rect, from: .zero, operation: .copy, fraction: 1.0)
+    source.draw(
+        in: NSRect(x: 0, y: 0, width: size, height: size),
+        from: NSRect(origin: .zero, size: source.size),
+        operation: .sourceOver,
+        fraction: 1.0
+    )
 
     image.unlockFocus()
     return image
 }
 
-func makeDockIcon(size: CGFloat) -> NSImage {
+func makeIcon(size: CGFloat) -> NSImage {
     let image = NSImage(size: NSSize(width: size, height: size))
     image.lockFocus()
-
     NSGraphicsContext.current?.imageInterpolation = .high
-    let rect = NSRect(origin: .zero, size: image.size)
-    let r = size * 0.22
 
-    // 渐变背景——和 EchoWrite 风格相近的冷色调
-    let bg = NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r)
-    NSGradient(
-        colors: [
-            NSColor(calibratedRed: 0.88, green: 0.93, blue: 0.96, alpha: 1),
-            NSColor(calibratedRed: 0.78, green: 0.86, blue: 0.92, alpha: 1)
-        ]
-    )?.draw(in: bg, angle: 90)
+    let s = size
 
-    // 柔和光晕
-    drawBlurBlob(
-        color: NSColor(calibratedRed: 0.40, green: 0.65, blue: 0.95, alpha: 0.25),
-        rect: NSRect(x: size * 0.30, y: size * 0.35, width: size * 0.40, height: size * 0.35),
-        blur: size * 0.10
-    )
+    // ── Background: white ──────────────────────────────────────────────────
+    NSColor.white.setFill()
+    NSBezierPath.fill(NSRect(x: 0, y: 0, width: s, height: s))
 
-    // 中央：简约键盘轮廓（圆角矩形 + 4 个小方块）
-    let kbW = size * 0.56
-    let kbH = size * 0.30
-    let kbX = (size - kbW) / 2
-    let kbY = size * 0.38
+    // ── "A" letter: bold geometric dark charcoal ───────────────────────────
+    // Use heaviest system font weight to match the bold geometric "A" in reference
+    let aColor = NSColor(calibratedRed: 0.09, green: 0.09, blue: 0.11, alpha: 1.0)
+    let aFont  = NSFont.systemFont(ofSize: s * 0.86, weight: .black)
+    let aAttribs: [NSAttributedString.Key: Any] = [
+        .font: aFont,
+        .foregroundColor: aColor,
+    ]
+    let aStr  = NSAttributedString(string: "A", attributes: aAttribs)
+    let aSize = aStr.size()
+    // Center horizontally; nudge slightly below vertical center for optical balance
+    let aX = (s - aSize.width) / 2
+    let aY = (s - aSize.height) / 2 - s * 0.02
+    aStr.draw(at: NSPoint(x: aX, y: aY))
 
-    let kbRect = NSRect(x: kbX, y: kbY, width: kbW, height: kbH)
-    let kb = NSBezierPath(roundedRect: kbRect, xRadius: size * 0.04, yRadius: size * 0.04)
-    NSColor.white.withAlphaComponent(0.75).setFill()
-    kb.fill()
-    NSColor.white.withAlphaComponent(0.50).setStroke()
-    kb.lineWidth = max(1, size * 0.005)
-    kb.stroke()
+    // ── Lightning bolt: electric blue diagonal slash ────────────────────────
+    // Bolt runs from upper-right → lower-left, cutting through the "A".
+    // All coordinates in 0…1000 space; scaled to actual icon size via `pt()`.
+    let boltBlue = NSColor(calibratedRed: 0.08, green: 0.38, blue: 0.96, alpha: 1.0)
+    let sc = s / 1000.0
+    func pt(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x * sc, y: y * sc) }
 
-    // 4 个按键
-    let keyInset = size * 0.03
-    let keyGap = size * 0.02
-    let innerW = kbW - keyInset * 2
-    let keyW = (innerW - keyGap * 3) / 4
-    let keyH = kbH - keyInset * 2
-    for i in 0..<4 {
-        let x = kbX + keyInset + CGFloat(i) * (keyW + keyGap)
-        let y = kbY + keyInset
-        let keyRect = NSRect(x: x, y: y, width: keyW, height: keyH)
-        let key = NSBezierPath(roundedRect: keyRect, xRadius: size * 0.015, yRadius: size * 0.015)
+    // Classic zigzag lightning bolt outline (8 vertices, clockwise):
+    //   Upper section  → step right (jog) → Lower section → tip → back up
+    //
+    //   P1 ── P2                (top edge)
+    //   |       \
+    //   P8       P3 ── P4       (step: lower section is offset right ~90 units)
+    //   |               \
+    //   P7 ── P6          P5    (tip)
 
-        // 第一个键（麦克风）用强调色
-        if i == 0 {
-            NSColor(calibratedRed: 0.30, green: 0.55, blue: 0.90, alpha: 0.85).setFill()
-        } else {
-            NSColor(calibratedWhite: 0.92, alpha: 0.90).setFill()
-        }
-        key.fill()
-    }
+    let bolt = NSBezierPath()
+    bolt.move(to:  pt(502, 880))   // P1  top-left
+    bolt.line(to:  pt(662, 880))   // P2  top-right
+    bolt.line(to:  pt(492, 474))   // P3  mid-right (upper section right edge at step)
+    bolt.line(to:  pt(580, 474))   // P4  step-right (lower section right edge start)
+    bolt.line(to:  pt(406, 78))    // P5  bottom tip right
+    bolt.line(to:  pt(328, 78))    // P6  bottom tip left
+    bolt.line(to:  pt(393, 454))   // P7  mid-left  (lower section left edge at step)
+    bolt.line(to:  pt(305, 454))   // P8  step-left (upper section left edge)
+    bolt.close()                   // back to P1
 
-    // 麦克风键上画一个小圆点
-    let dotSize = size * 0.03
-    let firstKeyX = kbX + keyInset
-    let firstKeyY = kbY + keyInset
-    let dotRect = NSRect(
-        x: firstKeyX + (keyW - dotSize) / 2,
-        y: firstKeyY + (keyH - dotSize) / 2,
-        width: dotSize,
-        height: dotSize
-    )
-    NSColor.white.withAlphaComponent(0.95).setFill()
-    NSBezierPath(ovalIn: dotRect).fill()
+    boltBlue.setFill()
+    bolt.fill()
 
     image.unlockFocus()
     return image
 }
 
-func drawBlurBlob(color: NSColor, rect: NSRect, blur: CGFloat) {
-    let shadow = NSShadow()
-    shadow.shadowBlurRadius = blur
-    shadow.shadowColor = color
-    shadow.shadowOffset = .zero
-    shadow.set()
-    let blob = NSBezierPath(ovalIn: rect)
-    color.setFill()
-    blob.fill()
-}
+// MARK: - PNG helper
 
 func pngData(from image: NSImage) throws -> Data {
-    guard let tiffData = image.tiffRepresentation,
-          let bitmap = NSBitmapImageRep(data: tiffData),
-          let png = bitmap.representation(using: .png, properties: [:]) else {
+    guard let tiff   = image.tiffRepresentation,
+          let bitmap = NSBitmapImageRep(data: tiff),
+          let png    = bitmap.representation(using: .png, properties: [:]) else {
         throw NSError(domain: "IconGeneration", code: 1)
     }
     return png

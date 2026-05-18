@@ -91,7 +91,7 @@ struct KeyMappingView: View {
                 }
 
                 CompatLabeledContent("描述") {
-                    TextField("显示在键盘 OLED 上", text: $keys[selectedKey].description)
+                    TextField("显示在键盘 LCD 上", text: $keys[selectedKey].description)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
                 }

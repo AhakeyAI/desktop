@@ -10,12 +10,36 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     @Published private(set) var microphoneGranted = false
     @Published private(set) var speechRecognitionGranted = false
+    @Published private(set) var siriEnabled = false
+    @Published private(set) var dictationEnabled = false
     @Published private(set) var isRecording = false
     @Published private(set) var statusMessage = "等待苹果原生转写就绪。"
     @Published private(set) var transcriptPreview = ""
     @Published private(set) var lastCommittedText = ""
-    @Published private(set) var lastPermissionCheckSummary = "尚未检查麦克风与语音转写权限。"
+    @Published private(set) var lastPermissionCheckSummary = "尚未检查麦克风、语音转写与 Siri 权限。"
 
+    // MARK: 录音触发方式配置
+    /// 短按（切换式）：录音结束后是否调用 AhaType 整理
+    @Published var shortPressAhaTypeEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.shortPressAhaType") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(shortPressAhaTypeEnabled, forKey: "nativeSpeech.shortPressAhaType") }
+    }
+    /// 长按模式（按住录音，松手发送）是否启用
+    @Published var longPressEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.longPressEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(longPressEnabled, forKey: "nativeSpeech.longPressEnabled") }
+    }
+    /// 长按模式结束后是否调用 AhaType（默认关闭：快速直发）
+    @Published var longPressAhaTypeEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.longPressAhaType") as? Bool ?? false {
+        didSet { UserDefaults.standard.set(longPressAhaTypeEnabled, forKey: "nativeSpeech.longPressAhaType") }
+    }
+    /// 长按判定阈值（毫秒）
+    @Published var longPressThresholdMs: Int = UserDefaults.standard.object(forKey: "nativeSpeech.longPressThresholdMs") as? Int ?? 500 {
+        didSet { UserDefaults.standard.set(longPressThresholdMs, forKey: "nativeSpeech.longPressThresholdMs") }
+    }
+
+    /// 当前是否处于长按录音模式（按住中，松手会直接发送）
+    @Published private(set) var isLongPressRecording = false
+
+    private var longPressTimerWork: DispatchWorkItem?
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -66,6 +90,17 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         let currentSpeechStatus = SFSpeechRecognizer.authorizationStatus()
         let currentSpeechGranted = currentSpeechStatus == .authorized
+        let currentSiriEnabled = Self.readBooleanPreference(
+            domain: "com.apple.assistant.support",
+            key: "Assistant Enabled"
+        ) ?? false
+        let currentDictationEnabled = Self.readBooleanPreference(
+            domain: "com.apple.assistant.support",
+            key: "Dictation Enabled"
+        ) ?? Self.readBooleanPreference(
+            domain: "com.apple.HIToolbox",
+            key: "AppleDictationAutoEnable"
+        ) ?? false
 
         if requestIfNeeded {
             if micStatus == .notDetermined {
@@ -88,37 +123,129 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         let timeLabel = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         microphoneGranted = currentMicGranted
         speechRecognitionGranted = currentSpeechGranted
+        siriEnabled = currentSiriEnabled
+        dictationEnabled = currentDictationEnabled
         lastPermissionCheckSummary =
-            "麦克风 \(currentMicGranted ? "已开启" : "未开启") · 语音转写 \(currentSpeechGranted ? "已开启" : "未开启") · 检查于 \(timeLabel)"
+            "麦克风 \(currentMicGranted ? "已开启" : "未开启") · 语音转写 \(currentSpeechGranted ? "已开启" : "未开启") · Siri \(currentSiriEnabled ? "已开启" : "未开启") · 听写 \(currentDictationEnabled ? "已开启" : "未开启") · 检查于 \(timeLabel)"
 
-        if !currentMicGranted || !currentSpeechGranted {
-            statusMessage = "还缺苹果原生语音权限，请先打开麦克风和语音转写权限。"
+        if !currentMicGranted || !currentSpeechGranted || !currentSiriEnabled || !currentDictationEnabled {
+            statusMessage = "还缺苹果原生语音权限，请先打开麦克风、语音转写、Siri 与听写。"
         } else if !isRecording {
             statusMessage = "苹果原生转写已就绪，按一次语音键开始，再按一次结束。"
         }
 
-        appendDiagnostic("permissions mic=\(currentMicGranted) speech=\(currentSpeechGranted)")
+        appendDiagnostic("permissions mic=\(currentMicGranted) speech=\(currentSpeechGranted) siri=\(currentSiriEnabled) dictation=\(currentDictationEnabled)")
+    }
+
+    // MARK: - 语音键事件入口（VoiceRelayService 调用）
+
+    /// keyDown 时调用：若长按模式启用，开启长按计时器；否则立即开始录音或等 keyUp 切换。
+    func handleVoiceKeyDown() {
+        if longPressEnabled, !isRecording {
+            // 启动长按计时：阈值内松开 → 短按；超时后仍按着 → 进入长按录音
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.longPressTimerWork = nil
+                if !self.isRecording {
+                    self.isLongPressRecording = true
+                    self.startRecording()
+                    self.appendDiagnostic("long press threshold reached → start long press recording")
+                }
+            }
+            longPressTimerWork = work
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + Double(longPressThresholdMs) / 1000,
+                execute: work
+            )
+        } else if !longPressEnabled {
+            // 无长按：keyDown 直接切换（兼容旧行为）
+            toggleRecordingFromVoiceKey()
+        }
+        // 若 longPressEnabled 且已在录音中，keyDown 不做任何事，等 keyUp 判断
+    }
+
+    /// keyUp 时调用：若长按模式活跃 → 结束并直接发送；否则短按切换。
+    func handleVoiceKeyUp() {
+        if isLongPressRecording {
+            // 长按录音结束：停止并按长按配置决定是否用 AhaType
+            isLongPressRecording = false
+            longPressTimerWork?.cancel()
+            longPressTimerWork = nil
+            appendDiagnostic("long press key up → stop + \(longPressAhaTypeEnabled ? "ahatype" : "direct")")
+            stopRecording(bypassAhaType: !longPressAhaTypeEnabled)
+            return
+        }
+
+        if let work = longPressTimerWork {
+            // 计时器还没触发 → 短按，取消计时并切换录音
+            work.cancel()
+            longPressTimerWork = nil
+            appendDiagnostic("short press (keyUp before threshold) → toggle")
+            if isRecording {
+                stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
+            } else {
+                startRecording()
+            }
+        } else if longPressEnabled, isRecording {
+            // 长按模式开启时，短按第一次已进入切换式录音；第二次短按没有 timer，
+            // 仍应按短按配置结束录音，保持“按一次开始，再按一次结束”的体验。
+            appendDiagnostic("short press while recording → stop")
+            stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
+        } else if !longPressEnabled {
+            // 无长按模式：keyDown 已处理，keyUp 不重复
+        }
     }
 
     func toggleRecordingFromVoiceKey() {
         if isRecording {
-            stopRecording()
+            stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
         } else {
             startRecording()
         }
     }
 
     func stopRecording() {
+        stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
+    }
+
+    func requestMicrophonePermission() {
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        if status == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                Task { @MainActor in
+                    self.refreshPermissions()
+                }
+            }
+        } else {
+            refreshPermissions()
+        }
+    }
+
+    func requestSpeechRecognitionPermission() {
+        let status = SFSpeechRecognizer.authorizationStatus()
+        if status == .notDetermined {
+            SFSpeechRecognizer.requestAuthorization { _ in
+                Task { @MainActor in
+                    self.refreshPermissions()
+                }
+            }
+        } else {
+            refreshPermissions()
+        }
+    }
+
+    func stopRecording(bypassAhaType: Bool) {
         guard isRecording else { return }
         isRecording = false
         statusMessage = "正在结束录音并整理文字…"
         VoiceStatusHUDController.shared.show(.recognizing)
-        appendDiagnostic("stop recording requested")
+        pendingFinalizeBypassAhaType = bypassAhaType
+        appendDiagnostic("stop recording requested bypassAhaType=\(bypassAhaType)")
 
         finalizeWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             Task { @MainActor in
-                self?.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize")
+                self?.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize", bypassAhaType: bypassAhaType)
             }
         }
         finalizeWorkItem = workItem
@@ -130,13 +257,20 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     private func startRecording() {
-        guard microphoneGranted, speechRecognitionGranted else {
+        guard microphoneGranted, speechRecognitionGranted, siriEnabled, dictationEnabled else {
             let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
             let speechStatus = SFSpeechRecognizer.authorizationStatus()
             refreshPermissions(requestIfNeeded: true)
-            statusMessage = missingPermissionMessage(micStatus: micStatus, speechStatus: speechStatus)
-            appendDiagnostic("blocked start recording micStatus=\(micStatus.rawValue) speechStatus=\(speechStatus.rawValue)")
-            VoiceRelayService.shared.showsPermissionOnboarding = true
+            statusMessage = missingPermissionMessage(
+                micStatus: micStatus,
+                speechStatus: speechStatus,
+                siriEnabled: siriEnabled,
+                dictationEnabled: dictationEnabled
+            )
+            appendDiagnostic("blocked start recording micStatus=\(micStatus.rawValue) speechStatus=\(speechStatus.rawValue) siri=\(siriEnabled) dictation=\(dictationEnabled)")
+            if !VoiceRelayService.shared.isPermissionOnboardingSuppressed {
+                VoiceRelayService.shared.showsPermissionOnboarding = true
+            }
             NSApp.activate(ignoringOtherApps: true)
             return
         }
@@ -273,6 +407,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         return false
     }
 
+    private var pendingFinalizeBypassAhaType = false
+
     private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
         if let result {
             let newText = result.bestTranscription.formattedString
@@ -284,7 +420,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             }
             appendDiagnostic("partial result=\(newText) isFinal=\(result.isFinal)")
             if result.isFinal {
-                finalizeCurrentTranscriptIfNeeded(reason: "final_result")
+                finalizeCurrentTranscriptIfNeeded(reason: "final_result", bypassAhaType: pendingFinalizeBypassAhaType)
                 return
             }
         }
@@ -292,7 +428,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         if let error {
             appendDiagnostic("recognition error: \(error.localizedDescription)")
             if !currentTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                finalizeCurrentTranscriptIfNeeded(reason: "error_with_text")
+                finalizeCurrentTranscriptIfNeeded(reason: "error_with_text", bypassAhaType: pendingFinalizeBypassAhaType)
             } else {
                 cancelRecognitionPipeline()
                 statusMessage = "苹果原生转写失败：\(error.localizedDescription)"
@@ -304,7 +440,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    private func finalizeCurrentTranscriptIfNeeded(reason: String) {
+    private func finalizeCurrentTranscriptIfNeeded(reason: String, bypassAhaType: Bool = false) {
         finalizeWorkItem?.cancel()
         finalizeWorkItem = nil
 
@@ -324,12 +460,18 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         hasCommittedThisRecording = true
-        statusMessage = AhaTypeTextOptimizer.shared.isEnabled ? "AhaType 整理中…" : "准备粘贴…"
-        VoiceStatusHUDController.shared.show(AhaTypeTextOptimizer.shared.isEnabled ? .ahaType : .pasting)
-        appendDiagnostic("finalize begin reason=\(reason) rawText=\(text)")
+        let willUseAhaType = !bypassAhaType && AhaTypeTextOptimizer.shared.isEnabled
+        statusMessage = willUseAhaType ? "AhaType 整理中…" : "准备粘贴…"
+        VoiceStatusHUDController.shared.show(willUseAhaType ? .ahaType : .pasting)
+        appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
 
         Task { @MainActor in
-            let output = await AhaTypeTextOptimizer.shared.processIfEnabled(text)
+            let output: String
+            if willUseAhaType {
+                output = await AhaTypeTextOptimizer.shared.processIfEnabled(text)
+            } else {
+                output = text
+            }
             if self.injectText(output) {
                 self.lastCommittedText = output
                 self.statusMessage = output == text ? "已写入：\(output)" : "AhaType 已整理并写入：\(output)"
@@ -373,15 +515,37 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private func missingPermissionMessage(
         micStatus: AVAuthorizationStatus,
-        speechStatus: SFSpeechRecognizerAuthorizationStatus
+        speechStatus: SFSpeechRecognizerAuthorizationStatus,
+        siriEnabled: Bool,
+        dictationEnabled: Bool
     ) -> String {
-        if micStatus != .authorized && speechStatus != .authorized {
-            return "还缺麦克风和语音转写权限。请先在系统设置里放开这两项，再按一次语音键。"
-        }
+        var missing: [String] = []
         if micStatus != .authorized {
-            return "还缺麦克风权限。请先在系统设置里给 AhaKey Studio 打开麦克风，再按一次语音键。"
+            missing.append("麦克风")
         }
-        return "还缺语音转写权限。请先在系统设置里给 AhaKey Studio 打开语音转写，再按一次语音键。"
+        if speechStatus != .authorized {
+            missing.append("语音转写")
+        }
+        if !siriEnabled {
+            missing.append("Siri")
+        }
+        if !dictationEnabled {
+            missing.append("听写")
+        }
+        return "还缺\(missing.joined(separator: "、"))权限。请先在系统设置里打开后，再按一次语音键。"
+    }
+
+    private static func readBooleanPreference(domain: String, key: String) -> Bool? {
+        guard let value = CFPreferencesCopyAppValue(key as CFString, domain as CFString) else {
+            return nil
+        }
+        if CFGetTypeID(value) == CFBooleanGetTypeID() {
+            return CFBooleanGetValue((value as! CFBoolean))
+        }
+        if let number = value as? NSNumber {
+            return number.boolValue
+        }
+        return nil
     }
 
     private func injectText(_ text: String) -> Bool {

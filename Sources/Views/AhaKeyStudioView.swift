@@ -26,6 +26,7 @@ struct AhaKeyStudioView: View {
     @State private var showsDeviceInfo = false
     @State private var showsCloudAccount = false
     @State private var showsAhaTypeLoginRequiredToast = false
+    @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
@@ -54,12 +55,13 @@ struct AhaKeyStudioView: View {
             Divider()
             statusBar
         }
-        .frame(minWidth: 1280, minHeight: 820)
+        .frame(minWidth: 1180, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             agentManager.applyStoredBluetoothPreferenceOnLaunch(bleManager: bleManager)
             voiceRelay.start()
             nativeSpeech.start()
+            bleManager.refreshBluetoothAuthorization()
             applyCursorRejectMacroSelfHealIfNeeded()
             voiceRelay.updateRoutes(from: studioDraft)
             SwitchStateNotifier.shared.bind(to: bleManager)
@@ -68,17 +70,42 @@ struct AhaKeyStudioView: View {
                 object: nil,
                 userInfo: ["workMode": bleManager.workMode]
             )
+            scheduleStartupPermissionOnboarding()
         }
         .onChange(of: studioDraft) { newValue in
             AhaKeyStudioStore.save(newValue)
             voiceRelay.updateRoutes(from: newValue)
         }
         // 键盘物理档位变化（BLE 查询/通知上报）→ 自动切到对应 Mode 标签，
-        // 这样 OLED 预览、快捷键草稿、发出去的 updateState 三者一致。
+        // 这样 LCD 预览、快捷键草稿、发出去的 updateState 三者一致。
         .onChange(of: bleManager.workMode) { newValue in
             if let slot = AhaKeyModeSlot(rawValue: newValue), slot != selectedMode {
                 selectedMode = slot
             }
+        }
+        .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
+            refreshStartupPermissionOnboarding()
+        }
+        .onChange(of: bleManager.bluetoothPoweredOn) { _ in
+            refreshStartupPermissionOnboarding()
+        }
+        .onChange(of: voiceRelay.inputMonitoringGranted) { _ in
+            refreshStartupPermissionOnboarding()
+        }
+        .onChange(of: voiceRelay.accessibilityGranted) { _ in
+            refreshStartupPermissionOnboarding()
+        }
+        .onChange(of: nativeSpeech.microphoneGranted) { _ in
+            refreshStartupPermissionOnboarding()
+        }
+        .onChange(of: nativeSpeech.speechRecognitionGranted) { _ in
+            refreshStartupPermissionOnboarding()
+        }
+        .onChange(of: nativeSpeech.siriEnabled) { _ in
+            refreshStartupPermissionOnboarding()
+        }
+        .onChange(of: nativeSpeech.dictationEnabled) { _ in
+            refreshStartupPermissionOnboarding()
         }
         .alert("Agent", isPresented: Binding(
             get: { agentManager.agentUserAlert != nil },
@@ -104,12 +131,6 @@ struct AhaKeyStudioView: View {
                 assetPath: currentModeDraft.oled.localAssetPath
             )
         }
-        .sheet(isPresented: $voiceRelay.showsPermissionOnboarding) {
-            VoicePermissionOnboardingSheet(
-                voiceRelay: voiceRelay,
-                nativeSpeech: nativeSpeech
-            )
-        }
         .sheet(isPresented: $showsDeviceInfo) {
             DeviceInfoSheetContainer(bleManager: bleManager)
                 .frame(width: 720, height: 720)
@@ -121,13 +142,14 @@ struct AhaKeyStudioView: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("AhaKey Studio")
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
             }
+            .layoutPriority(1)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 infoPill(
                     title: isEffectivelyConnected ? "已连接" : (bleManager.isScanning ? "扫描中" : "未连接"),
                     subtitle: bleManager.deviceName ?? "等待设备",
@@ -144,6 +166,7 @@ struct AhaKeyStudioView: View {
                     accent: currentSwitchTitle == "自动批准" ? .mint : .indigo
                 )
             }
+            .layoutPriority(2)
 
             Spacer(minLength: 0)
 
@@ -183,7 +206,7 @@ struct AhaKeyStudioView: View {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
-                Button("清空 OLED 预览") {
+                Button("清空 LCD 预览") {
                     clearCurrentOLED()
                 }
                 Divider()
@@ -205,8 +228,12 @@ struct AhaKeyStudioView: View {
                     NSApp.terminate(nil)
                 }
             } label: {
-                Label("更多", systemImage: "ellipsis.circle")
+                Image(systemName: "ellipsis.circle")
+                    .imageScale(.large)
             }
+            .menuStyle(.borderlessButton)
+            .frame(width: 32, height: 28)
+            .help("更多")
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
@@ -226,19 +253,21 @@ struct AhaKeyStudioView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
-        .padding(.horizontal, 12)
+        .frame(width: 138, alignment: .leading)
+        .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
-        .help("日常使用由 Agent 控制键盘；需要改键、OLED 或同步时，进入编辑配置后由 AhaKey Studio 临时接管蓝牙。")
+        .help("日常使用由 Agent 控制键盘；需要改键、LCD 或同步时，进入编辑配置后由 AhaKey Studio 临时接管蓝牙。")
     }
 
     private var ahaTypeModeStatus: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             Circle()
                 .fill(ahaType.isEnabled ? Color.green : Color.gray.opacity(0.55))
                 .frame(width: 8, height: 8)
@@ -250,6 +279,7 @@ struct AhaKeyStudioView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
             Toggle("", isOn: Binding(
                 get: { ahaType.isEnabled },
@@ -265,7 +295,8 @@ struct AhaKeyStudioView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
         }
-        .padding(.horizontal, 12)
+        .frame(width: 150, alignment: .leading)
+        .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10)
@@ -304,7 +335,7 @@ struct AhaKeyStudioView: View {
                 )
                 manualCallout(
                     title: "模式切换",
-                    detail: "短按设备按键切换模式，OLED 会先显示描述约 1 秒，再回到该模式动图"
+                    detail: "短按设备按键切换模式，LCD 会先显示描述约 1 秒，再回到该模式动图"
                 )
             }
         }
@@ -430,10 +461,11 @@ struct AhaKeyStudioView: View {
 
                         HStack(spacing: 10) {
                             Button("再次申请权限") {
-                                voiceRelay.refreshPermissions(requestIfNeeded: true)
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                                    openCombinedVoicePrivacySettingsURL()
-                                }
+                                requestPermissionsThenOpenPrivacySettingsIfNeeded(
+                                    bleManager: bleManager,
+                                    voiceRelay: voiceRelay,
+                                    nativeSpeech: nativeSpeech
+                                )
                             }
                             .buttonStyle(.borderedProminent)
 
@@ -448,10 +480,10 @@ struct AhaKeyStudioView: View {
                     .padding(.top, 4)
                 }
 
-                if let preset = key.voicePreset, preset == .typeless || preset == .wechat {
-                    GroupBox("Typeless / 微信") {
+                if let preset = key.voicePreset, preset == .typeless || preset == .wechat || preset == .doubao {
+                    GroupBox("Fn 语音输入法") {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("「开始录音」只用于「macOS 原生语音」。当前预设由硬件语音键或下方按钮触发：会向系统注入 Fn 按住/松开，供输入法「按住说话」使用。")
+                            Text("「开始录音」只用于「macOS 原生语音」。Typeless / 微信会注入 Fn 按住/松开；豆包会切到豆包输入源并放行真实 F18 给豆包自己的长按语音快捷键。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Text("排查请看 voice-relay.log（ matched · function relay · post fn ）。路径：~/Library/Application Support/AhaKeyConfig/diagnostics/")
@@ -486,6 +518,8 @@ struct AhaKeyStudioView: View {
                             HStack(spacing: 10) {
                                 permissionBadge(title: "麦克风", granted: nativeSpeech.microphoneGranted)
                                 permissionBadge(title: "语音转写", granted: nativeSpeech.speechRecognitionGranted)
+                                permissionBadge(title: "Siri", granted: nativeSpeech.siriEnabled)
+                                permissionBadge(title: "听写", granted: nativeSpeech.dictationEnabled)
                             }
 
                             Text(nativeSpeech.statusMessage)
@@ -548,7 +582,7 @@ struct AhaKeyStudioView: View {
 
                                 RestartToApplyPermissionsButton()
 
-                                if !nativeSpeech.microphoneGranted || !nativeSpeech.speechRecognitionGranted {
+                                if !nativeSpeechPermissionsReady {
                                     Button("打开系统设置") {
                                         openNativeSpeechPrivacySettings()
                                     }
@@ -563,7 +597,7 @@ struct AhaKeyStudioView: View {
                 GroupBox("当前出厂固件直接体验") {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("1. 保持 AhaKey Studio 在后台运行。")
-                        Text("2. 在系统设置里为 AhaKey Studio 打开“输入监控”“辅助功能”“麦克风”“语音转写”。若已打开仍显示未授权，先完全退出本应用再开一次。")
+                        Text("2. 在系统设置里为 AhaKey Studio 打开“输入监控”“辅助功能”“麦克风”“语音转写”，并开启 Siri 与听写。若已打开仍显示未授权，先完全退出本应用再开一次。")
                         Text("3. 确认设备当前在 Mode 0。")
                         Text("4. 不用同步设备，直接按实体语音键即可开始苹果原生转写；再按一次会结束并把文字写回当前光标。")
                     }
@@ -575,7 +609,7 @@ struct AhaKeyStudioView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(key.role.manualText)
                         .font(.callout)
-                    Text("当前会把快捷键和按键描述一起写入键盘。切换模式时，设备会先显示描述，再回到该模式的 OLED 动图。")
+                    Text("当前会把快捷键和按键描述一起写入键盘。切换模式时，设备会先显示描述，再回到该模式的 LCD 动图。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -624,19 +658,23 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
+            if key.role == .voice, (key.voicePreset ?? .custom) == .macOSNative {
+                recordingTriggerGroupBox
+            }
+
             GroupBox("按键描述") {
                 VStack(alignment: .leading, spacing: 8) {
                     TextField("例如 Record / Accept / Reject / Enter", text: selectedKeyDescriptionBinding)
                         .textFieldStyle(.roundedBorder)
                     if currentSelectedKey.description.containsNonASCII {
-                        Text("设备 OLED 只稳定支持 ASCII。中文、emoji 和全角字符会在写入时被自动过滤，避免乱码。")
+                        Text("设备 LCD 只稳定支持 ASCII。中文、emoji 和全角字符会在写入时被自动过滤，避免乱码。")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
                     Text("设备实际写入：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("同步到键盘后，短按实体键切换模式时，OLED 会先短暂显示这里的描述，然后回到该模式的动图。")
+                    Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if selectedMode == .mode0 {
@@ -860,9 +898,94 @@ struct AhaKeyStudioView: View {
         )
     }
 
+    // MARK: - 录音触发方式配置面板
+
+    @ViewBuilder
+    private var recordingTriggerGroupBox: some View {
+        GroupBox("录音触发方式") {
+            VStack(alignment: .leading, spacing: 14) {
+
+                // ── 短按 ─────────────────────────────────────────────────────
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("短按（按一下开始，再按一下结束）", systemImage: "hand.tap.fill")
+                        .font(.callout.weight(.semibold))
+                    Text("录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
+                        HStack(spacing: 6) {
+                            Text("使用 AhaType 整理")
+                                .font(.callout)
+                            if !ahaType.isEnabled {
+                                Text("（AhaType 总开关已关闭）")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .disabled(!ahaType.isEnabled)
+                }
+
+                Divider()
+
+                // ── 长按 ─────────────────────────────────────────────────────
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label("长按（按住录音，松手即发送）", systemImage: "hand.draw.fill")
+                            .font(.callout.weight(.semibold))
+                        Spacer()
+                        Toggle("", isOn: $nativeSpeech.longPressEnabled)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+
+                    Text("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if nativeSpeech.longPressEnabled {
+                        Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
+                            HStack(spacing: 6) {
+                                Text("使用 AhaType 整理")
+                                    .font(.callout)
+                                if !ahaType.isEnabled {
+                                    Text("（AhaType 总开关已关闭）")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .disabled(!ahaType.isEnabled)
+
+                        HStack(spacing: 10) {
+                            Text("触发阈值")
+                                .font(.callout)
+                            Slider(
+                                value: Binding(
+                                    get: { Double(nativeSpeech.longPressThresholdMs) },
+                                    set: { nativeSpeech.longPressThresholdMs = Int($0) }
+                                ),
+                                in: 200...1000,
+                                step: 50
+                            )
+                            Text("\(nativeSpeech.longPressThresholdMs) ms")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 58, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
     private var oledInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("当前模式的 OLED 动图") {
+            GroupBox("当前模式的 LCD 动图") {
                 VStack(alignment: .leading, spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
@@ -945,7 +1068,7 @@ struct AhaKeyStudioView: View {
 
             GroupBox("显示逻辑") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("切换到当前模式时，OLED 会先显示该模式的按键描述，约 1 秒后回到该模式动图。")
+                    Text("切换到当前模式时，LCD 会先显示该模式的按键描述，约 1 秒后回到该模式动图。")
                     Text("后续会继续增加文字状态、token 用量、模型环境等信息显示能力。")
                 }
                 .font(.callout)
@@ -1213,6 +1336,18 @@ struct AhaKeyStudioView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            Button("新手引导") {
+                voiceRelay.showsPermissionOnboarding = false
+                unifiedOnboardingCompleted = false
+            }
+            .buttonStyle(.borderless)
+            .help("重新打开 AhaKey Studio 新手引导")
+
+            Button("帮助中心") {
+                openHelpCenter()
+            }
+            .buttonStyle(.borderless)
+            .help("打开本地帮助说明")
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
@@ -1324,7 +1459,7 @@ struct AhaKeyStudioView: View {
             }
             return "没有未同步改动，直接把蓝牙交还给 Agent。"
         }
-        return "临时由 AhaKey Studio 接管蓝牙，用于改键、OLED、同步和本机灯效测试。"
+        return "临时由 AhaKey Studio 接管蓝牙，用于改键、LCD、同步和本机灯效测试。"
     }
 
     private var voicePresetDetail: String {
@@ -1559,7 +1694,7 @@ struct AhaKeyStudioView: View {
                 mode.oled.localAssetPath = url.path
                 mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧 GIF 预览；切换模式时会先显示描述，再回到当前模式动图。"
             }
-            syncStatusMessage = "已更新 \(selectedMode.title) 的 OLED 预览，连接后可直接上传到设备。"
+            syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览，连接后可直接上传到设备。"
         }
     }
 
@@ -1790,7 +1925,7 @@ struct AhaKeyStudioView: View {
 
     private func uploadCurrentOLEDToDevice() {
         guard bleManager.isConnected else {
-            syncStatusMessage = "设备未连接，先连上键盘再上传 OLED 动图。"
+            syncStatusMessage = "设备未连接，先连上键盘再上传 LCD 动图。"
             return
         }
         guard let assetPath = currentModeDraft.oled.localAssetPath else {
@@ -1805,7 +1940,7 @@ struct AhaKeyStudioView: View {
         updateMode(targetMode) { mode in
             mode.oled.statusLine = "正在上传动图到 \(targetMode.title)…"
         }
-        syncStatusMessage = "开始上传 \(targetMode.title) 的 OLED 动图。"
+        syncStatusMessage = "开始上传 \(targetMode.title) 的 LCD 动图。"
 
         Task { @MainActor in
             do {
@@ -1820,12 +1955,12 @@ struct AhaKeyStudioView: View {
                 updateMode(targetMode) { mode in
                     mode.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
                 }
-                syncStatusMessage = "\(targetMode.title) OLED 动图已上传完成。"
+                syncStatusMessage = "\(targetMode.title) LCD 动图已上传完成。"
             } catch {
                 updateMode(targetMode) { mode in
                     mode.oled.statusLine = "上传失败：\(error.localizedDescription)"
                 }
-                syncStatusMessage = "\(targetMode.title) OLED 上传失败：\(error.localizedDescription)"
+                syncStatusMessage = "\(targetMode.title) LCD 上传失败：\(error.localizedDescription)"
             }
         }
     }
@@ -1934,8 +2069,11 @@ struct AhaKeyStudioView: View {
                     .frame(width: 8, height: 8)
                 Text(subtitle)
                     .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
+        .frame(width: 86, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
@@ -1970,9 +2108,55 @@ struct AhaKeyStudioView: View {
     private func openNativeSpeechPrivacySettings() {
         openNativeSpeechPrivacySettingsURL()
     }
+
+    private func openHelpCenter() {
+        let bundledURL = Bundle.main.url(
+            forResource: "AhaKeyStudioHelp",
+            withExtension: "html",
+            subdirectory: "Help"
+        )
+        let sourceURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Resources/Help/AhaKeyStudioHelp.html")
+        let helpURL = bundledURL ?? sourceURL
+        if FileManager.default.fileExists(atPath: helpURL.path) {
+            NSWorkspace.shared.open(helpURL)
+        } else {
+            syncStatusMessage = "未找到本地帮助文件：Resources/Help/AhaKeyStudioHelp.html"
+        }
+    }
+
+    private var nativeSpeechPermissionsReady: Bool {
+        nativeSpeech.microphoneGranted &&
+            nativeSpeech.speechRecognitionGranted &&
+            nativeSpeech.siriEnabled &&
+            nativeSpeech.dictationEnabled
+    }
+
+    private var startupPermissionsReady: Bool {
+        bleManager.bluetoothPermissionGranted &&
+            bleManager.bluetoothPoweredOn &&
+            voiceRelay.inputMonitoringGranted &&
+            voiceRelay.accessibilityGranted &&
+            nativeSpeech.microphoneGranted &&
+            nativeSpeech.speechRecognitionGranted &&
+            nativeSpeech.siriEnabled &&
+            nativeSpeech.dictationEnabled
+    }
+
+    private func scheduleStartupPermissionOnboarding() {
+        voiceRelay.showsPermissionOnboarding = false
+        bleManager.refreshBluetoothAuthorization()
+        voiceRelay.refreshPermissions(deferredTCCRequery: true)
+        nativeSpeech.refreshPermissions(deferredTCCRequery: true)
+    }
+
+    private func refreshStartupPermissionOnboarding() {
+        voiceRelay.showsPermissionOnboarding = false
+    }
 }
 
 private struct VoicePermissionOnboardingSheet: View {
+    @ObservedObject var bleManager: AhaKeyBLEManager
     @ObservedObject var voiceRelay: VoiceRelayService
     @ObservedObject var nativeSpeech: NativeSpeechTranscriptionService
     @Environment(\.dismiss) private var dismiss
@@ -1985,23 +2169,34 @@ private struct VoicePermissionOnboardingSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("开启语音快捷键权限")
+            Text("新手权限引导")
                 .font(.system(size: 24, weight: .semibold))
 
-            Text("为了让 AhaKey 的语音键在后台直接接管语音，第一次使用时需要给 AhaKey Studio 打开系统权限。macOS 原生语音还会额外用到苹果自己的麦克风和语音转写能力。")
+            Text("AhaKey Studio 首次使用需要完成几项系统授权：连接键盘需要蓝牙，后台接管语音键需要输入监控与辅助功能，macOS 原生语音需要麦克风、语音转写、Siri 与听写。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 10) {
+                permissionRow(title: "蓝牙", granted: bleManager.bluetoothPermissionGranted && bleManager.bluetoothPoweredOn, detail: bleManager.bluetoothPermissionGranted ? "打开系统蓝牙，用于发现、连接和同步 AhaKey 键盘。" : "在“隐私与安全性 > 蓝牙”中允许 AhaKey Studio 使用蓝牙。")
                 permissionRow(title: "输入监控", granted: voiceRelay.inputMonitoringGranted, detail: "允许 AhaKey Studio 在后台监听实体语音键。")
                 permissionRow(title: "辅助功能", granted: voiceRelay.accessibilityGranted, detail: "允许 AhaKey Studio 把语音键转换成苹果原生转写或 Fn/Globe。")
                 permissionRow(title: "麦克风", granted: nativeSpeech.microphoneGranted, detail: "允许 AhaKey Studio 使用苹果原生语音采集。")
                 permissionRow(title: "语音转写", granted: nativeSpeech.speechRecognitionGranted, detail: "允许 AhaKey Studio 使用苹果原生语音识别。")
+                permissionRow(title: "Siri", granted: nativeSpeech.siriEnabled, detail: "在“系统设置 > Siri 与聚焦”里开启 Siri，供 macOS 原生语音能力使用。")
+                permissionRow(title: "听写", granted: nativeSpeech.dictationEnabled, detail: "在“系统设置 > 键盘 > 听写”里开启听写，保证系统语音组件完整可用。")
             }
 
-            Text("操作建议：先点「现在申请权限」——macOS 上输入监控/辅助功能常常不再弹系统对话框，约半秒后会自动打开「隐私与安全性」，请在列表中勾选 AhaKey Studio；麦克风和语音在之前就拒绝过的话也不会再弹窗，需在设置里手动打开。若你已在系统设置里改好，可点「我已完成，重新检查」。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("授权步骤")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text("1. 点「现在申请权限」，按系统弹窗允许蓝牙、麦克风和语音转写。")
+                Text("2. 自动打开系统设置后，按上方橙色项目依次为 AhaKey Studio 打开蓝牙、输入监控、辅助功能。")
+                Text("3. 若使用默认 macOS 原生语音，在「Siri 与聚焦」开启 Siri，在「键盘 > 听写」开启听写。")
+                Text("4. 回到这里点「我已完成，重新检查」；若输入监控或辅助功能刚开启，建议点「退出并重新打开」。")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
             Text("若系统里已勾选允许，本应用仍显示未开启：请完全退出 AhaKey Studio 并再启动一次。输入监控、辅助功能等常按进程生效，只点「重新检查」或从后台切回，有时读到的仍是旧状态，重启后即可与系统设置一致。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -2010,6 +2205,7 @@ private struct VoicePermissionOnboardingSheet: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 4) {
+                Text("蓝牙 \(bleManager.bluetoothPermissionGranted ? (bleManager.bluetoothPoweredOn ? "已开启" : "已授权但蓝牙关闭") : "未授权")")
                 Text(voiceRelay.lastPermissionCheckSummary)
                 Text(nativeSpeech.lastPermissionCheckSummary)
             }
@@ -2019,6 +2215,7 @@ private struct VoicePermissionOnboardingSheet: View {
             HStack(spacing: 12) {
                 Button("现在申请权限") {
                     requestPermissionsThenOpenPrivacySettingsIfNeeded(
+                        bleManager: bleManager,
                         voiceRelay: voiceRelay,
                         nativeSpeech: nativeSpeech
                     )
@@ -2026,6 +2223,7 @@ private struct VoicePermissionOnboardingSheet: View {
                 .buttonStyle(.borderedProminent)
 
                 Button("我已完成，重新检查") {
+                    bleManager.refreshBluetoothAuthorization()
                     voiceRelay.refreshPermissions(deferredTCCRequery: true)
                     nativeSpeech.refreshPermissions(deferredTCCRequery: true)
                 }
@@ -2033,9 +2231,9 @@ private struct VoicePermissionOnboardingSheet: View {
 
                 RestartToApplyPermissionsButton(title: "退出并重新打开")
 
-                if !nativeSpeech.microphoneGranted || !nativeSpeech.speechRecognitionGranted {
+                if !allPermissionsReady {
                     Button("打开系统设置") {
-                        openNativeSpeechPrivacySettingsURL()
+                        openCombinedVoicePrivacySettingsURL()
                     }
                     .buttonStyle(.bordered)
                 }
@@ -2059,10 +2257,14 @@ private struct VoicePermissionOnboardingSheet: View {
                 .buttonStyle(.borderless)
             }
 
-            if voiceRelay.inputMonitoringGranted && voiceRelay.accessibilityGranted {
-                Text("基础权限已经齐了。关闭这个弹窗后，AhaKey Studio 会继续在后台监听语音键；如果你使用 macOS 原生语音，麦克风和语音转写也建议一起打开。")
+            if allPermissionsReady {
+                Text("新手权限已经齐了。关闭这个弹窗后，AhaKey Studio 可以连接键盘、后台监听语音键，macOS 原生语音也可以正常使用。")
                     .font(.caption)
                     .foregroundStyle(.green)
+            } else {
+                Text("仍有权限未开启。请按上方状态逐项处理，全部变为绿色后再关闭弹窗。")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
         }
         .padding(24)
@@ -2071,6 +2273,12 @@ private struct VoicePermissionOnboardingSheet: View {
             closeIfReady()
         }
         .onChange(of: voiceRelay.accessibilityGranted) { _ in
+            closeIfReady()
+        }
+        .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
+            closeIfReady()
+        }
+        .onChange(of: bleManager.bluetoothPoweredOn) { _ in
             closeIfReady()
         }
         .alert(fixAlertTitle, isPresented: $showFixAlert) {
@@ -2097,9 +2305,20 @@ private struct VoicePermissionOnboardingSheet: View {
     }
 
     private func closeIfReady() {
-        guard voiceRelay.inputMonitoringGranted && voiceRelay.accessibilityGranted else { return }
+        guard allPermissionsReady else { return }
         voiceRelay.dismissPermissionOnboarding()
         dismiss()
+    }
+
+    private var allPermissionsReady: Bool {
+        bleManager.bluetoothPermissionGranted &&
+            bleManager.bluetoothPoweredOn &&
+            voiceRelay.inputMonitoringGranted &&
+            voiceRelay.accessibilityGranted &&
+            nativeSpeech.microphoneGranted &&
+            nativeSpeech.speechRecognitionGranted &&
+            nativeSpeech.siriEnabled &&
+            nativeSpeech.dictationEnabled
     }
 
     private func permissionRow(title: String, granted: Bool, detail: String) -> some View {
@@ -2135,6 +2354,7 @@ private struct VoicePresetPicker: View {
     let selectedPreset: VoicePreset
     let onSelect: (VoicePreset) -> Void
 
+    private let visiblePresets = VoicePreset.allCases.filter { $0 != .codex }
     private let columns = [
         GridItem(.flexible(), spacing: 10),
         GridItem(.flexible(), spacing: 10),
@@ -2142,7 +2362,7 @@ private struct VoicePresetPicker: View {
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(VoicePreset.allCases) { preset in
+            ForEach(visiblePresets) { preset in
                 Button {
                     if preset.availableInV1 {
                         onSelect(preset)
@@ -2597,16 +2817,15 @@ private struct AhaKeyKeyboardCanvasView: View {
 
 private func openNativeSpeechPrivacySettingsURL() {
     let candidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth",
         "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
         "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition",
+        "x-apple.systempreferences:com.apple.Siri-Settings.extension",
+        "x-apple.systempreferences:com.apple.Keyboard-Settings.extension",
         "x-apple.systempreferences:com.apple.preference.security?Privacy"
     ]
 
-    for candidate in candidates {
-        if let url = URL(string: candidate), NSWorkspace.shared.open(url) {
-            break
-        }
-    }
+    openFirstAvailableSystemSettingsURL(candidates)
 }
 
 /// 输入监控 / 辅助功能 / 麦克风和语音转写：系统在「已拒绝」或部分版本下不会再弹权限窗。主动申请后打开「隐私与安全性」相关页，保证有可操作反馈。
@@ -2615,18 +2834,16 @@ private func openCombinedVoicePrivacySettingsURL() {
     // 勿用未文档化的 `x-apple.systemsettings` + `.extension` 等组合；在部分系统上会被当成「文稿」，
     // 连续弹出「在 App Store 搜索… / 选取应用程序」而非进入设置。
     let candidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth",
         "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
         "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
         "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
         "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition",
+        "x-apple.systempreferences:com.apple.Siri-Settings.extension",
+        "x-apple.systempreferences:com.apple.Keyboard-Settings.extension",
         "x-apple.systempreferences:com.apple.preference.security?Privacy",
     ]
-    for candidate in candidates {
-        guard let url = URL(string: candidate) else { continue }
-        if NSWorkspace.shared.open(url) {
-            return
-        }
-    }
+    if openFirstAvailableSystemSettingsURL(candidates) { return }
     let appPaths = [
         "/System/Applications/System Settings.app",
         "/System/Library/CoreServices/Applications/System Settings.app",
@@ -2639,17 +2856,61 @@ private func openCombinedVoicePrivacySettingsURL() {
     }
 }
 
+@discardableResult
+private func openFirstAvailableSystemSettingsURL(_ candidates: [String]) -> Bool {
+    for candidate in candidates {
+        guard let url = URL(string: candidate) else { continue }
+        if NSWorkspace.shared.open(url) {
+            return true
+        }
+    }
+    return false
+}
+
+@MainActor
+private func openFirstMissingVoicePermissionSettings(
+    bleManager: AhaKeyBLEManager,
+    voiceRelay: VoiceRelayService,
+    nativeSpeech: NativeSpeechTranscriptionService
+) {
+    if !bleManager.bluetoothPermissionGranted || !bleManager.bluetoothPoweredOn {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth"]) { return }
+    }
+    if !voiceRelay.inputMonitoringGranted {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"]) { return }
+    }
+    if !voiceRelay.accessibilityGranted {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]) { return }
+    }
+    if !nativeSpeech.microphoneGranted {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"]) { return }
+    }
+    if !nativeSpeech.speechRecognitionGranted {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"]) { return }
+    }
+    if !nativeSpeech.siriEnabled {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.Siri-Settings.extension"]) { return }
+    }
+    if !nativeSpeech.dictationEnabled {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.Keyboard-Settings.extension"]) { return }
+    }
+    openCombinedVoicePrivacySettingsURL()
+}
+
 /// 先走系统 API 申请；随后在桌面端打开「隐私与安全性」相关页。输入监控 / 辅助功能在多数 macOS 版本上**不会**像 iOS 那样弹窗，麦克风和语音在「已选择过」后也不再弹窗，因此必须配合系统设置界面。
 @MainActor
 private func requestPermissionsThenOpenPrivacySettingsIfNeeded(
+    bleManager: AhaKeyBLEManager,
     voiceRelay: VoiceRelayService,
     nativeSpeech: NativeSpeechTranscriptionService,
     delay: TimeInterval = 0.45
 ) {
+    bleManager.refreshBluetoothAuthorization()
     voiceRelay.refreshPermissions(requestIfNeeded: true)
     nativeSpeech.refreshPermissions(requestIfNeeded: true)
     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-        openCombinedVoicePrivacySettingsURL()
+        bleManager.refreshBluetoothAuthorization()
+        openFirstMissingVoicePermissionSettings(bleManager: bleManager, voiceRelay: voiceRelay, nativeSpeech: nativeSpeech)
     }
 }
 

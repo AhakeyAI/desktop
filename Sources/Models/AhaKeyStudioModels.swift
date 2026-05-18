@@ -65,7 +65,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .lightBar:
             "灯条"
         case .oledDisplay:
-            "OLED 屏幕"
+            "LCD 屏幕"
         case .key1:
             "Key 1"
         case .key2:
@@ -355,7 +355,9 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
             "使用 macOS 原生语音识别，把识别结果以 ⌘V 粘贴到 Claude Code 当前光标位置。按一次开始、再按一次结束。"
         case .kimiCode:
             "使用 macOS 原生语音识别，把识别结果以 ⌘V 粘贴到 Kimi Code CLI 终端当前光标位置。按一次开始、再按一次结束。"
-        case .codex, .doubao:
+        case .doubao:
+            "豆包输入法 Mac 版需要直接接收真实语音键事件。AhaKey Studio 会切到豆包输入源，并把 F18 配置为豆包长按语音快捷键；按住语音键说话，松开后由豆包提交文字。"
+        case .codex:
             "规划中，保留入口。"
         case .custom:
             "直接自己指定底层快捷键。"
@@ -364,7 +366,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var availableInV1: Bool {
         switch self {
-        case .codex, .doubao:
+        case .codex:
             false
         default:
             true
@@ -1053,7 +1055,7 @@ enum AhaKeyStudioStore {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
             }
 
-            // OLED 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
+            // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
             // 刷成当前构建下内置 GIF 的绝对路径；用户自选的外部路径原样保留。
             if let bundled = DefaultOLEDAssets.bundledAssetPath(for: mode) {
                 if modeDraft.oled.localAssetPath == nil

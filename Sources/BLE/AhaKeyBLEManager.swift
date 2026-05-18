@@ -54,6 +54,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var switchState: Int = 0
     @Published private(set) var bleConnectionStatus: String = "未连接"
     @Published private(set) var bleDeviceUUID: String = "—"
+    @Published private(set) var bluetoothPermissionGranted = true
+    @Published private(set) var bluetoothPoweredOn = false
     @Published private(set) var oledUploadProgress: OLEDUploadProgress?
     @Published private(set) var isUploadingOLED = false
 
@@ -129,10 +131,49 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         central = CBCentralManager(delegate: nil, queue: nil)
         central.delegate = self
+        refreshBluetoothAuthorization()
         startAutoReconnectPolling()
     }
 
     // MARK: - Public API
+
+    func refreshBluetoothAuthorization() {
+        bluetoothPermissionGranted = Self.currentBluetoothAuthorizationGranted()
+        bluetoothPoweredOn = central?.state == .poweredOn
+        if !bluetoothPermissionGranted {
+            bleConnectionStatus = "蓝牙权限未开启"
+        } else if central?.state == .poweredOff {
+            bleConnectionStatus = "蓝牙关闭"
+        }
+    }
+
+    var bluetoothAuthorizationCanPrompt: Bool {
+        CBCentralManager.authorization == .notDetermined
+    }
+
+    var bluetoothAuthorizationDeniedOrRestricted: Bool {
+        switch CBCentralManager.authorization {
+        case .restricted, .denied:
+            return true
+        case .allowedAlways, .notDetermined:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
+    private static func currentBluetoothAuthorizationGranted() -> Bool {
+        switch CBCentralManager.authorization {
+        case .allowedAlways:
+            return true
+        case .notDetermined:
+            return true
+        case .restricted, .denied:
+            return false
+        @unknown default:
+            return true
+        }
+    }
 
     /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
     func userInitiatedConnect() {
@@ -242,7 +283,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             completedFrames: 0,
             totalFrames: frames.count
         )
-        appendLog("开始上传 OLED 数据: \(frames.count) 帧, FPS=\(fps), mode=\(mode), startIndex=\(startIndex), frameSlotSize=\(AhaKeyCommand.oledFrameSlotSize)")
+        appendLog("开始上传 LCD 数据: \(frames.count) 帧, FPS=\(fps), mode=\(mode), startIndex=\(startIndex), frameSlotSize=\(AhaKeyCommand.oledFrameSlotSize)")
 
         defer {
             isUploadingOLED = false
@@ -293,7 +334,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         )
         appendLog("→ updatePicture mode=\(mode) startIndex=\(startIndex) frameCount=\(frames.count) delayMs=\(delay) hex=\(updateCommand.hexString)")
         _ = try await sendCommandAwaitingResponse(updateCommand, expectedCommand: AhaKeyCommand.cmdUpdatePic)
-        appendLog("OLED 上传完成: \(frames.count) 帧, start=\(startIndex)")
+        appendLog("LCD 上传完成: \(frames.count) 帧, start=\(startIndex)")
         _ = commandChar
     }
 
@@ -355,7 +396,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(cmd)
     }
 
-    /// 设置按键描述（显示在 OLED 上）
+    /// 设置按键描述（显示在 LCD 上）
     func setKeyDescription(mode: UInt8 = 0, keyIndex: UInt8, text: String) {
         let cmd = AhaKeyCommand.setKeyDescription(mode: mode, keyIndex: keyIndex, text: text)
         appendLog("写入 Mode\(mode) Key\(keyIndex + 1) 描述: \(text)")
@@ -479,7 +520,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 guard self.isConnected else { return }
-                // 正在上传 OLED 时避免占用命令通道
+                // 正在上传 LCD 时避免占用命令通道
                 guard !self.isUploadingOLED else { return }
                 // 有 protocol 响应在等（如 readPictureState / saveConfig）时也跳过
                 guard self.protocolResponseWaiters.isEmpty else { return }
@@ -712,12 +753,19 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         Task { @MainActor in
             switch central.state {
             case .poweredOn:
+                self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已开启")
                 self.connectAutomatically()
             case .poweredOff:
+                self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
                 self.bleConnectionStatus = "蓝牙关闭"
+            case .unauthorized:
+                self.refreshBluetoothAuthorization()
+                self.appendLog("蓝牙权限未开启", isError: true)
+                self.bleConnectionStatus = "蓝牙权限未开启"
             default:
+                self.refreshBluetoothAuthorization()
                 break
             }
         }

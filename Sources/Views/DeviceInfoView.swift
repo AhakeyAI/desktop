@@ -56,7 +56,7 @@ struct DeviceInfoView: View {
                                     Text(owner.title)
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
-                                         ? "改键、OLED、同步、本机灯效测试"
+                                         ? "改键、LCD、同步、本机灯效测试"
                                          : "Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)

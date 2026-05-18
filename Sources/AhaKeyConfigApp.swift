@@ -9,7 +9,7 @@ struct AhaKeyConfigApp: App {
     var body: some Scene {
         WindowGroup("AhaKey Studio") {
             ContentView(bleManager: bleManager)
-                .frame(minWidth: 1280, minHeight: 820)
+                .frame(minWidth: 1180, minHeight: 680)
         }
         .windowStyle(.titleBar)
 

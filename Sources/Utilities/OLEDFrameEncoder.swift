@@ -15,7 +15,7 @@ enum OLEDFrameEncodingError: LocalizedError {
         case .noFrames:
             return "没有可编码的图片帧。"
         case .cannotCreateContext:
-            return "无法创建 OLED 编码上下文。"
+            return "无法创建 LCD 编码上下文。"
         case .sourceFileTooLarge(let fileSize, let maxBytes):
             let f = ByteCountFormatter()
             f.allowedUnits = [.useMB, .useKB, .useBytes]

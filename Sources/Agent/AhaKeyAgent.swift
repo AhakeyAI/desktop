@@ -45,6 +45,23 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var pendingStateReset: DispatchWorkItem?
 
+    // MARK: 看门狗（Claude Code 手动停止任务时 Stop hook 不触发，超时后自动归位）
+    /// 最近一次 hook 发来状态命令的时间（nil = 尚未收到）
+    private var lastHookStateAt: Date?
+    /// 最近一次我们主动发给键盘的 LED 状态
+    private var lastSentState: UInt8 = 0
+    private var watchdogTimer: DispatchSourceTimer?
+
+    /// 各活跃态超时时长（秒）：
+    ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
+    ///   其余工具执行态 → 60s（工具可能运行较久，避免误触发）
+    private func watchdogTimeout(for state: UInt8) -> Double {
+        switch state {
+        case 1, 7: return 30   // PermissionRequest / UserPromptSubmit：短超时
+        default:   return 60   // PreToolUse / PostToolUse / SessionStart / TaskCompleted
+        }
+    }
+
     var onLog: ((String) -> Void)?
 
     init(socketPath: String = "/tmp/ahakey.sock") {
@@ -66,6 +83,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let wt: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(data, for: commandChar, type: wt)
+        lastSentState = state
         emit("→ LED 状态 \(state): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
     }
 
@@ -104,6 +122,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     func startSocketListener() {
+        startWatchdog()
         // 清理旧 socket
         unlink(socketPath)
 
@@ -136,6 +155,30 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 self?.handleClient(clientFd)
             }
         }
+    }
+
+    // MARK: - 看门狗
+
+    private func startWatchdog() {
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 30, repeating: 10)
+        timer.setEventHandler { [weak self] in
+            self?.checkWatchdog()
+        }
+        timer.resume()
+        watchdogTimer = timer
+    }
+
+    private func checkWatchdog() {
+        guard let lastAt = lastHookStateAt else { return }
+        let activeStates: [UInt8] = [1, 2, 3, 4, 6, 7]
+        guard activeStates.contains(lastSentState) else { return }
+        let elapsed = Date().timeIntervalSince(lastAt)
+        let threshold = watchdogTimeout(for: lastSentState)
+        guard elapsed >= threshold else { return }
+        emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），自动发 Stop(5)")
+        sendState(5)
+        lastHookStateAt = nil  // 重置，避免重复触发
     }
 
     // MARK: - Socket handling
@@ -175,6 +218,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         switch cmd {
         case "state":
             if let v = obj["value"] as? Int {
+                lastHookStateAt = Date()
                 sendState(UInt8(clamping: v))
             }
             Self.replyAndClose(clientFd, ["ok": true])
@@ -194,6 +238,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case "permission":
             // 发 PermissionRequest 对应的 state（默认 1），同时主动查询拨杆
             let stateValue = obj["value"] as? Int ?? 1
+            lastHookStateAt = Date()
             sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
                 let body = Self.statusReply(status, cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode)

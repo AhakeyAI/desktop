@@ -10,9 +10,9 @@
 
 - BLE 自动扫描/连接/重连 AhaKey-X1 设备
 - 设备状态查询（电量、固件版本、工作模式、灯光、拨杆）
-- 4 键 × 3 模式的键位映射（快捷键 + OLED 描述文字）
+- 4 键 × 3 模式的键位映射（快捷键 + LCD 描述文字）
 - IDE 状态同步 → LED 变色（Claude Code hooks 集成）
-- OLED 图片/GIF 管理界面（协议已实现，上传功能 TODO）
+- LCD 图片/GIF 管理界面（协议已实现，上传功能 TODO）
 - 后台守护进程维持 BLE 连接（LaunchAgent）
 
 ### 协议实现完整度
@@ -21,7 +21,7 @@ BLE 协议已从原厂工具反编译完整还原，包括：
 - 帧格式（AA BB ... CC DD）
 - 全部 DeviceCmd（0x00-0x90）
 - 按键配置（快捷键/宏/描述 三种子类型）
-- 大数据写入流程（OLED 图片）
+- 大数据写入流程（ LCD 图片）
 - IDE 状态同步（0x90）
 
 详见 `docs/ble-protocol.md`。
@@ -102,7 +102,7 @@ ahakeyconfig/
 │   │   ├── ContentView.swift              # Tab 容器
 │   │   ├── DeviceInfoView.swift           # 设备信息 + LED 测试 + BLE 日志
 │   │   ├── KeyMappingView.swift           # 键位映射配置 + 预设方案
-│   │   └── OLEDManagerView.swift          # OLED 图片/GIF 管理
+│   │   └──  LCDManagerView.swift          # LCD 图片/GIF 管理
 │   ├── Utilities/
 │   │   └── AgentManager.swift             # LaunchAgent 守护进程管理 + Claude hooks 安装
 │   └── Agent/
@@ -138,7 +138,7 @@ ahakeyconfig/
 
 ### 双进程架构
 
-1. **AhaKeyConfig**（主进程）：SwiftUI GUI，键位配置、设备管理、OLED 管理
+1. **AhaKeyConfig**（主进程）：SwiftUI GUI，键位配置、设备管理、LCD 管理
 2. **ahakeyconfig-agent**（守护进程）：无 UI，LaunchAgent 管理，维持 BLE 连接 + 接收 Unix socket 命令
 
 守护进程的存在是为了在 GUI 关闭后仍能接收 Claude Code hooks 的 LED 状态推送。
@@ -153,7 +153,7 @@ Claude Code hook → ahakey-state.sh → Unix socket → ahakeyconfig-agent → 
 
 ## 已知限制 / TODO
 
-1. **OLED 图片上传**：协议已文档化（见 `ble-protocol.md` 第 8 节），UI 已有，但分包上传逻辑未实现
+1. ** LCD 图片上传**：协议已文档化（见 `ble-protocol.md` 第 8 节），UI 已有，但分包上传逻辑未实现
 2. **宏录入 UI**：协议支持宏（sub_type 0x74），但 UI 只做了快捷键映射
 3. **多模式切换**：代码支持 3 种工作模式（mode 0/1/2），但 UI 目前只操作 mode 0
 4. **拨杆联动**：原厂的拨杆→自动授权功能未移植（需要在 PermissionRequest hook 中查询 SwitchState）
