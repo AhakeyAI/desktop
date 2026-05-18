@@ -486,6 +486,13 @@ final class AgentManager: ObservableObject {
             .path
     }
 
+    /// Codex 所有 AhaKey hook 触发记录：状态 hook 与 PermissionRequest 都会追加 JSON 行。
+    var codexHookLogPath: String {
+        URL(fileURLWithPath: logFilePath).deletingLastPathComponent()
+            .appendingPathComponent("codex-hook.log")
+            .path
+    }
+
     func readLog() -> String {
         (try? String(contentsOfFile: logFilePath, encoding: .utf8)) ?? "(无日志)"
     }
@@ -667,6 +674,12 @@ final class AgentManager: ObservableObject {
     func readPermissionRequestLog() -> String {
         (try? String(contentsOfFile: permissionRequestLogPath, encoding: .utf8))
             ?? "尚无记录。在 Claude 中触发 PermissionRequest，或在 Cursor 中让 Agent 调工具/Shell/MCP 后，会在此追加带 `ide` / `hookEvent` 的 JSON 行。若始终为空，请确认已安装 Agent、Hooks、蓝牙由 Agent 占用，且 `~/Library/.../AhaKeyConfig/diagnostics/` 可写。"
+    }
+
+    /// 只读；由 `ahakeyconfig-agent hook Codex*` 子进程写入，用于判断 Codex 客户端/终端是否真的触发了 hook。
+    func readCodexHookLog() -> String {
+        (try? String(contentsOfFile: codexHookLogPath, encoding: .utf8))
+            ?? "尚无记录。触发 Codex 后应在此追加 JSON 行。若终端 Codex 有记录、Codex 客户端没有记录，说明客户端未加载当前 `~/.codex/config.toml` hook，通常需要重启 Codex 客户端/新开终端后再测。"
     }
 
     // MARK: - Claude hooks 追加

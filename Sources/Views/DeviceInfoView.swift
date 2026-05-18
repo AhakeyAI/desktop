@@ -230,7 +230,7 @@ struct DeviceInfoView: View {
                         Text("已安装 LaunchAgent 且当前由本 App 占蓝牙，因此 Agent 未加载：请先在上文将「蓝牙连接」选为「ahakeyconfig-agent」再观察运行状态，或点「安装并启用」时阅读弹窗说明。")
                             .foregroundStyle(.secondary)
                     }
-                    Text("1) 键盘 LED 可随 IDE 状态变。2) 工具「自动批准」：Claude 走 PermissionRequest；Cursor 走 preToolUse；Codex 走 `~/.codex/config.toml` 的 inline `[[hooks.*]]`。3) 诊断见 AhaKeyConfig/diagnostics/permission-request.log（ide、hookEvent、diagnostic）。")
+                    Text("1) 键盘 LED 可随 IDE 状态变。2) 工具「自动批准」：Claude 走 PermissionRequest；Cursor 走 preToolUse；Codex 走 `~/.codex/config.toml` 的 inline `[[hooks.*]]`。3) 诊断见 AhaKeyConfig/diagnostics/permission-request.log 与 codex-hook.log。")
                 }
             }
             .sheet(isPresented: $showAgentLog) {
@@ -247,6 +247,7 @@ struct DeviceInfoView: View {
                         Text("~/.cursor/hooks.json").tag(2)
                         Text("~/.cursor/cli-config.json").tag(3)
                         Text("~/.codex/config.toml").tag(4)
+                        Text("Codex Hook（codex-hook.log）").tag(5)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
@@ -554,6 +555,8 @@ struct DeviceInfoView: View {
             Text(agentManager.readUserCursorCliConfigForDisplay())
         case 4:
             Text(agentManager.readUserCodexConfigForDisplay())
+        case 5:
+            Text(agentManager.readCodexHookLog())
         default:
             Text("")
         }

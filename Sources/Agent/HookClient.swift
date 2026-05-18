@@ -103,7 +103,19 @@ enum HookClient {
     }
 
     private static func handleCodexState(stateValue: UInt8) {
-        handleFireAndForgetState(stateValue: stateValue)
+        let stdinData = readAllStdinSilently()
+        let ctx = parseStdinContext(stdinData, label: "Codex")
+        let request: [String: Any] = ["cmd": "state", "value": Int(stateValue)]
+        let reply = sendJsonRequest(request, timeout: stateRequestTimeout)
+        appendCodexHookLog(
+            hookEvent: ctx["hook_event_name"] as? String,
+            agentEvent: codexAgentEventName(forStateValue: stateValue),
+            stateValue: stateValue,
+            toolContext: ctx,
+            reply: reply,
+            switchState: intValue(reply?["switchState"]),
+            decision: nil
+        )
         print("{}")
     }
 
@@ -219,6 +231,15 @@ enum HookClient {
         if isAuto {
             hookOut["decision"] = ["behavior": "allow"]
         }
+        appendCodexHookLog(
+            hookEvent: "PermissionRequest",
+            agentEvent: "CodexPermissionRequest",
+            stateValue: permissionLedValue,
+            toolContext: ctx,
+            reply: reply,
+            switchState: switchState,
+            decision: isAuto ? "allow" : "pass_through"
+        )
         let out: [String: Any] = [
             "hookSpecificOutput": hookOut,
         ]
@@ -251,6 +272,48 @@ enum HookClient {
             let msg = "[ahakey-hook] \(ide) \(hookName): 拨杆 switchState=\(s)（非 0），不自动批准。\n"
             FileHandle.standardError.write(Data(msg.utf8))
         }
+    }
+
+    private static func codexAgentEventName(forStateValue stateValue: UInt8) -> String {
+        switch stateValue {
+        case 2: return "CodexPostToolUse"
+        case 3: return "CodexPreToolUse"
+        case 4: return "CodexSessionStart"
+        case 5: return "CodexStop"
+        case 7: return "CodexUserPromptSubmit"
+        default: return "CodexState\(stateValue)"
+        }
+    }
+
+    private static func appendCodexHookLog(
+        hookEvent: String?,
+        agentEvent: String,
+        stateValue: UInt8,
+        toolContext: [String: Any],
+        reply: [String: Any]?,
+        switchState: Int?,
+        decision: String?
+    ) {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig/diagnostics", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        let fileURL = dir.appendingPathComponent("codex-hook.log")
+
+        var lineObj: [String: Any] = [
+            "ts": diagnosticTimestampFormatter.string(from: Date()),
+            "agentEvent": agentEvent,
+            "hookEvent": hookEvent ?? NSNull(),
+            "stateValue": Int(stateValue),
+            "agentReply": reply == nil ? false : true,
+            "switchState": switchState.map { $0 } ?? NSNull(),
+            "tool": toolContext,
+        ]
+        if let decision { lineObj["decision"] = decision }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: lineObj, options: []),
+              var line = String(data: data, encoding: .utf8) else { return }
+        line += "\n"
+        appendLine(line, to: fileURL)
     }
 
     /// 从各 IDE 经 stdin 传入的 JSON 里取可安全写入日志的短文本（不记录大段 tool_input 以免泄密）。
@@ -399,12 +462,16 @@ enum HookClient {
         guard let data = try? JSONSerialization.data(withJSONObject: lineObj, options: []),
               var line = String(data: data, encoding: .utf8) else { return }
         line += "\n"
+        appendLine(line, to: URL(fileURLWithPath: path))
+    }
+
+    private static func appendLine(_ line: String, to fileURL: URL) {
         guard let out = line.data(using: .utf8) else { return }
-        if !FileManager.default.fileExists(atPath: path) {
-            try? out.write(to: URL(fileURLWithPath: path), options: .atomic)
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            try? out.write(to: fileURL, options: .atomic)
             return
         }
-        if let h = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) {
+        if let h = try? FileHandle(forWritingTo: fileURL) {
             defer { try? h.close() }
             h.seekToEndOfFile()
             h.write(out)
