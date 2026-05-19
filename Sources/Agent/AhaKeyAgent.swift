@@ -42,6 +42,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
+    /// 工具完成 / 用户提交等短暂态的自动回落。
+    private var pendingStateReset: DispatchWorkItem?
 
     var onLog: ((String) -> Void)?
 
@@ -54,6 +56,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - Public
 
     func sendState(_ state: UInt8) {
+        pendingStateReset?.cancel()
+        pendingStateReset = nil
         guard let commandChar, let peripheral else {
             emit("LED 状态 \(state): 未连接")
             return
@@ -175,6 +179,18 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             Self.replyAndClose(clientFd, ["ok": true])
 
+        case "state_with_reset":
+            let stateValue = obj["value"] as? Int ?? 0
+            let resetValue = obj["resetValue"] as? Int ?? 4
+            let delayMs = max(0, obj["delayMs"] as? Int ?? 1200)
+            sendState(UInt8(clamping: stateValue))
+            scheduleStateReset(
+                to: UInt8(clamping: resetValue),
+                afterMs: delayMs,
+                reason: "temporary state \(stateValue) -> reset \(resetValue)"
+            )
+            Self.replyAndClose(clientFd, ["ok": true])
+
         case "permission":
             // 发 PermissionRequest 对应的 state（默认 1），同时主动查询拨杆
             let stateValue = obj["value"] as? Int ?? 1
@@ -202,6 +218,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
             }
 
+        case "approval_status":
+            // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
+            querySwitchState(timeout: 1.5) { status in
+                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode))
+            }
+
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
         }
@@ -217,6 +239,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             "switchState": cachedSwitch.map { Int($0) } ?? NSNull(),
             "lightMode": cachedLight.map { Int($0) } ?? NSNull(),
         ]
+    }
+
+    private func scheduleStateReset(to state: UInt8, afterMs: Int, reason: String) {
+        pendingStateReset?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.sendState(state)
+            self.emit("自动回落灯态：\(reason)")
+        }
+        pendingStateReset = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(afterMs), execute: work)
     }
 
     private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {

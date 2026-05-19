@@ -617,14 +617,14 @@ final class SwitchStateNotifier: ObservableObject {
         if switchedToAuto {
             postNotification(
                 title: "拨杆 → 自动批准",
-                body: "Claude / Cursor 的工具调用将无条件放行（含 shell、删文件等高危操作）。需要确认时请把拨杆切回手动档。",
+                body: "Kimi：若已安装 AhaKey Kimi Hooks，自动档会直接接管当前会话批准；若刚装完或刚升级 kimi-cli，请先重开一次 kimi。Claude/Cursor/Codex 仍走各自钩子。",
                 identifier: "lab.jawa.ahakey.switch.auto",
                 isCritical: true
             )
         } else if switchedToManual {
             postNotification(
                 title: "拨杆 → 手动批准",
-                body: "Claude / Cursor 将按默认弹窗逐条确认权限。",
+                body: "Claude / Cursor / Codex：按各自确认链。Kimi：若已安装 AhaKey Kimi Hooks，手动档会直接把当前会话拉回手动批准。",
                 identifier: "lab.jawa.ahakey.switch.manual",
                 isCritical: false
             )

@@ -315,6 +315,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
     case typeless
     case wechat
     case claudeCode
+    case kimiCode
     case codex
     case doubao
     case custom
@@ -331,6 +332,8 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
             "微信语音"
         case .claudeCode:
             "Claude Code"
+        case .kimiCode:
+            "Kimi Code CLI"
         case .codex:
             "Codex"
         case .doubao:
@@ -350,6 +353,8 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
             "AhaKey Studio 会在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
         case .claudeCode:
             "使用 macOS 原生语音识别，把识别结果以 ⌘V 粘贴到 Claude Code 当前光标位置。按一次开始、再按一次结束。"
+        case .kimiCode:
+            "使用 macOS 原生语音识别，把识别结果以 ⌘V 粘贴到 Kimi Code CLI 终端当前光标位置。按一次开始、再按一次结束。"
         case .codex, .doubao:
             "规划中，保留入口。"
         case .custom:
@@ -376,6 +381,8 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .wechat:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .claudeCode:
+            ShortcutBinding(keyCode: HIDUsage.f18)
+        case .kimiCode:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .codex:
             ShortcutBinding(keyCode: HIDUsage.f18)

@@ -5,7 +5,7 @@ import Foundation
 // 两种运行模式（由首个参数决定）：
 //   1. Daemon（无参数 / 只传 --socket）：常驻 LaunchAgent，维持 BLE 连接 + 监听 Unix socket
 //        ahakeyconfig-agent [--socket /tmp/ahakey.sock]
-//   2. Hook 子命令（首个参数为 hook）：Claude Code 会直接 exec 本进程
+//   2. Hook 子命令（首个参数为 hook）：Claude Code / Cursor / Codex / Kimi Code CLI 会 exec 本进程
 //        ahakeyconfig-agent hook <EventName>
 //      内部通过 Unix socket 联系常驻 daemon，并按需向 stdout 输出 Claude 决策 JSON。
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Claude Code / Cursor / Codex hook 客户端
+/// Claude Code / Cursor / Codex / Kimi Code CLI hook 客户端
 ///
 /// 作为 `ahakeyconfig-agent hook <EventName>` 子命令运行，被 IDE exec。
 /// 通过 Unix socket 把事件通知到常驻 agent daemon，并在 **工具批准** 类场景下
@@ -12,6 +12,7 @@ import Foundation
 ///   拨杆为 0 时还会同步 `~/.cursor/cli-config.json`（CLI 权限）与 `~/.cursor/permissions.json` 的 `terminalAllowlist`（IDE TUI 白名单，二者分离；非 0 时恢复快照）。
 /// - Codex `PermissionRequest`：Codex 0.125 inline TOML hooks 需要 stdout JSON；自动档输出
 ///   `behavior=allow`，手动档只回 hookEventName，让 Codex 继续走自己的确认链（Codex 不支持 Claude 的 `ask`）。
+/// - Kimi Code CLI：**`hooks/runner.py` 只对 `permissionDecision == "deny"` 拦工具**。交互跳过 Shell 批准靠 **`default_yolo`/`/yolo`**。**拨杆→`default_yolo` 磁盘同步**在可读拨杆时于 `PreToolUse` 内完成；已在跑的 kimi 会话请执行 **`/reload`**（会再次 `load_config()`），**不比退出 kimi 更重**——无法从子进程改写父进程内存中的 `approval.set_yolo`。
 enum HookClient {
     /// 与 LED / 协议 `sendState` 对应；批准类查询统一用 `permissionLedValue`。
     private static let permissionLedValue: UInt8 = 1
@@ -27,6 +28,8 @@ enum HookClient {
         case codexState(UInt8)
         /// Codex：`PermissionRequest` → 自动档 allow；手动档交回 Codex。
         case codexPermissionRequest
+        /// Kimi：`PreToolUse` → （1）可读拨杆则同步 **`default_yolo`** 磁盘项；（2）上游仅 **`deny`** 有特殊语义——自动/手动 stdout 仍为空。
+        case kimiPreToolPermission
     }
 
     private static let eventMap: [String: EventMode] = [
@@ -54,6 +57,14 @@ enum HookClient {
         "CodexUserPromptSubmit": .codexState(7),
         "CodexStop": .codexState(5),
         "CodexPermissionRequest": .codexPermissionRequest,
+
+        "KimiNotification": .fireAndForgetState(0),
+        "KimiSessionStart": .fireAndForgetState(4),
+        "KimiSessionEnd": .fireAndForgetState(8),
+        "KimiPreToolUse": .kimiPreToolPermission,
+        "KimiPostToolUse": .fireAndForgetState(2),
+        "KimiUserPromptSubmit": .fireAndForgetState(7),
+        "KimiStop": .fireAndForgetState(5),
     ]
 
     private static let socketPath = "/tmp/ahakey.sock"
@@ -91,6 +102,8 @@ enum HookClient {
             handleCodexState(stateValue: v)
         case .codexPermissionRequest:
             handleCodexPermissionRequest()
+        case .kimiPreToolPermission:
+            handleKimiPreToolPermission()
         }
         return 0
     }
@@ -105,7 +118,15 @@ enum HookClient {
     private static func handleCodexState(stateValue: UInt8) {
         let stdinData = readAllStdinSilently()
         let ctx = parseStdinContext(stdinData, label: "Codex")
-        let request: [String: Any] = ["cmd": "state", "value": Int(stateValue)]
+        let request: [String: Any]
+        switch stateValue {
+        case 2:
+            request = ["cmd": "state_with_reset", "value": Int(stateValue), "resetValue": 4, "delayMs": 900]
+        case 7:
+            request = ["cmd": "state_with_reset", "value": Int(stateValue), "resetValue": 4, "delayMs": 1200]
+        default:
+            request = ["cmd": "state", "value": Int(stateValue)]
+        }
         let reply = sendJsonRequest(request, timeout: stateRequestTimeout)
         appendCodexHookLog(
             hookEvent: ctx["hook_event_name"] as? String,
@@ -155,7 +176,8 @@ enum HookClient {
             toolContext: ctx,
             reply: reply, switchState: switchState, isAuto: isAuto,
             claudeBehavior: behavior, cursorPermission: nil,
-            cursorDebug: nil
+            cursorDebug: nil,
+            kimiPreToolDecision: nil
         )
     }
 
@@ -204,7 +226,8 @@ enum HookClient {
             toolContext: ctx,
             reply: reply, switchState: switchState, isAuto: isAuto,
             claudeBehavior: nil, cursorPermission: perm,
-            cursorDebug: cursorDebug
+            cursorDebug: cursorDebug,
+            kimiPreToolDecision: nil
         )
     }
 
@@ -253,8 +276,114 @@ enum HookClient {
             toolContext: ctx,
             reply: reply, switchState: switchState, isAuto: isAuto,
             claudeBehavior: nil, cursorPermission: nil,
-            cursorDebug: nil
+            cursorDebug: nil,
+            kimiPreToolDecision: nil
         )
+    }
+
+    // MARK: Kimi PreToolUse
+
+    private static func handleKimiPreToolPermission() {
+        let stdinData = readAllStdinSilently()
+        let ctx = parseStdinContext(stdinData, label: "Kimi")
+        KimiHookDebugLog.append(event: "kimi_PreToolUse_start", details: [
+            "stdinBytes": stdinData.count,
+            "toolPreview": ctx,
+            "hintLogFile": KimiHookDebugLog.logPath,
+        ])
+        KimiHookDebugLog.stderrLine("PreToolUse hook start bytes=\(stdinData.count); full log=\(KimiHookDebugLog.logPath)")
+
+        let request: [String: Any] = ["cmd": "permission", "value": Int(permissionLedValue)]
+        let reply = sendJsonRequest(request, timeout: permissionRequestTimeout)
+        let switchState = intValue(reply?["switchState"])
+        let isAuto = switchState == 0
+
+        KimiHookDebugLog.append(event: "kimi_PreToolUse_agent_reply", details: [
+            "agentReplyNil": reply == nil,
+            "switchState": switchState.map { $0 } ?? NSNull(),
+            "computedIsAuto": isAuto,
+            "replyPreview": kimiReplyPreview(reply),
+        ])
+        KimiHookDebugLog.stderrLine("agent socket reply: switchState=\(switchState.map { String($0) } ?? "nil") isAuto=\(isAuto)")
+
+        // kimi_cli/hooks/runner.py：仅当 permissionDecision=="deny" 时 block；否则仍可能走 Shell 交互审批（与 default_yolo / /yolo 关联）。
+        let stdoutPayload: String
+        let kimiPreToolDecision: String
+        if isAuto {
+            // 空 stdout：与「不写 deny JSON」等价，且不把冗余 JSON 注入 kimi 钩子上下文。
+            stdoutPayload = ""
+            kimiPreToolDecision = "auto_no_stdout_no_veto"
+        } else {
+            stdoutPayload = ""
+            kimiPreToolDecision = "manual_lever_no_stdout"
+            emitPermissionStderr(
+                ide: "Kimi", hookName: "PreToolUse",
+                reply: reply, switchState: switchState
+            )
+        }
+
+        let kimiProbeInitial = KimiConfigDiagnostic.snapshotForLog()
+        KimiHookDebugLog.append(event: "kimi_PreToolUse_probe_before_lever_sync", details: [
+            "kimiLeverDebug_preview": kimiProbeInitial,
+            "switchStateNil": switchState == nil,
+            "kimiRunnerNote": "upstream_kimi_hooks_runner_only_handles_permissionDecision_deny",
+        ])
+        var leverSnapshotForLog = kimiProbeInitial
+        if switchState == nil {
+            KimiHookDebugLog.stderrLine("no switchState from agent → skipped default_yolo sync; kimiPreTool=\(kimiPreToolDecision); check BLE/agent")
+        } else {
+            KimiConfigLeverSync.apply(switchStateAuto: isAuto)
+            leverSnapshotForLog = KimiConfigLeverSync.diagnosticSnapshotForLog()
+            KimiHookDebugLog.append(event: "kimi_PreToolUse_after_default_yolo_disk_sync", details: leverSnapshotForLog)
+            KimiHookDebugLog.stderrLine(
+                "default_yolo synced on disk (\(isAuto ? "true" : "false")); if kimi is already running: enter /reload in that session — no quit needed."
+            )
+            let yoloSnippet: String
+            if let v = leverSnapshotForLog["default_yolo_valueSnippet"], !(v is NSNull) {
+                yoloSnippet = String(describing: v)
+            } else {
+                yoloSnippet = "(unset/absent)"
+            }
+            KimiHookDebugLog.stderrLine("on-disk default_yolo now reads \(yoloSnippet); /reload picks it up.")
+        }
+        // 不向 stdout 打换行：`print()` 也会产生一行，易被 kimi 当作「钩子有输出」。
+        if !stdoutPayload.isEmpty {
+            FileHandle.standardOutput.write(Data(stdoutPayload.utf8))
+        }
+        KimiHookDebugLog.append(event: "kimi_PreToolUse_stdout", details: [
+            "kimiDecision": kimiPreToolDecision,
+            "stdoutChars": stdoutPayload.count,
+            "hint": "kimi-cli 读 default_yolo 在 KimiCLI.create/load_config；已开着的会话请输入 /reload 即可（不必退出 kimi）。PreToolUse 仍仅 deny 会拦工具；default_yolo 管交互批准层。",
+        ])
+        KimiHookDebugLog.stderrLine("stdout chars=\(stdoutPayload.count) decision=\(kimiPreToolDecision)")
+
+        appendDiagnostic(
+            ide: "kimi", hookEvent: "PreToolUse",
+            toolContext: ctx,
+            reply: reply, switchState: switchState, isAuto: isAuto,
+            claudeBehavior: nil, cursorPermission: nil,
+            cursorDebug: nil,
+            kimiPreToolDecision: kimiPreToolDecision,
+            kimiLeverDebug: KimiConfigLeverSync.diagnosticSnapshotForLog()
+        )
+    }
+
+    /// 仅摘要 agent 回包字段，不把整包写进磁盘以免过大。
+    private static func kimiReplyPreview(_ reply: [String: Any]?) -> [String: Any] {
+        guard let reply else {
+            return ["nil": true]
+        }
+        var o: [String: Any] = [:]
+        if let sv = reply["switchState"] {
+            o["switchState"] = String(String(describing: sv).prefix(48))
+        }
+        if let ok = reply["ok"] {
+            o["ok"] = ok
+        }
+        if let err = reply["error"] as? String {
+            o["error"] = String(err.prefix(160))
+        }
+        return o
     }
 
     private static func emitPermissionStderr(
@@ -334,6 +463,15 @@ enum HookClient {
         }
         if out["tool_name"] == nil, let t = obj["name"] as? String {
             out["name"] = t
+        }
+        if let he = obj["hook_event_name"] as? String {
+            out["hook_event_name"] = he
+        }
+        if let sid = obj["session_id"] as? String {
+            out["session_id_short"] = String(sid.prefix(16))
+        }
+        if let cw = obj["cwd"] as? String {
+            out["cwdPreview"] = String(cw.prefix(120))
         }
         return out
     }
@@ -427,7 +565,9 @@ enum HookClient {
         isAuto: Bool,
         claudeBehavior: String?,
         cursorPermission: String?,
-        cursorDebug: [String: Any]? = nil
+        cursorDebug: [String: Any]? = nil,
+        kimiPreToolDecision: String? = nil,
+        kimiLeverDebug: [String: Any]? = nil
     ) {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AhaKeyConfig/diagnostics", isDirectory: true)
@@ -458,6 +598,8 @@ enum HookClient {
         if let b = claudeBehavior { lineObj["claudeBehavior"] = b }
         if let p = cursorPermission { lineObj["cursorPermission"] = p }
         if let c = cursorDebug { lineObj["cursorDebug"] = c }
+        if let k = kimiPreToolDecision { lineObj["kimiPreToolDecision"] = k }
+        if let kd = kimiLeverDebug { lineObj["kimiLeverDebug"] = kd }
 
         guard let data = try? JSONSerialization.data(withJSONObject: lineObj, options: []),
               var line = String(data: data, encoding: .utf8) else { return }

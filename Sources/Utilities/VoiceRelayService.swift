@@ -590,6 +590,8 @@ final class VoiceRelayService: ObservableObject {
             // Claude Code preset 复用 macOS 原生 ASR：录音 → 识别 → ⌘V 粘到当前光标。
             // 这样按键会被我们的 monitor 吃掉，不会漏到 Claude CLI 终端里变成 CSI 乱码。
             .macOSDictation
+        case .kimiCode:
+            .macOSDictation
         case .codex, .doubao, .custom:
             nil
         }
