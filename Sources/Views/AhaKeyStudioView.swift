@@ -962,7 +962,7 @@ struct AhaKeyStudioView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("出厂灯条映射（只读）")
                     .font(.subheadline.weight(.semibold))
-                Text("灯条由键盘固件根据 Hook 上报的 IDE 状态点亮，本软件不能改写。下表为各业务场景对应的典型 Hook 状态与出厂灯效说明；画布与「预览到设备」均按此表展示。")
+                Text("灯条由键盘固件根据 Hook 上报的 IDE 状态点亮，本软件不能改写。下表展示的是各业务场景通常对应的 Hook 状态与出厂灯效。下方画布按业务场景显示；「预览到设备」则会按当前拨杆下可达的固件状态发送试灯。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1025,6 +1025,9 @@ struct AhaKeyStudioView: View {
                     Text("当前画布预览：\(currentLightEffect.title)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    Text("当前业务状态对应 Hook：\(lightBarPreview.ideState.label)")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                     Text(currentLightPreviewHint)
                         .font(.caption)
                         .foregroundStyle(currentDevicePreviewIDEState == nil ? .orange : .secondary)
@@ -1252,7 +1255,10 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentLightPreviewHint: String {
-        currentLightEffect.previewHint(forSwitchState: bleManager.switchState)
+        if let previewState = currentDevicePreviewIDEState {
+            return "当前拨杆下，预览到设备会发送 \(previewState.label)，以逼近画布中的 \(currentLightEffect.title) 效果。"
+        }
+        return currentLightEffect.previewHint(forSwitchState: bleManager.switchState)
     }
 
     private var isEditingConfiguration: Bool {
