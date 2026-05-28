@@ -23,10 +23,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     @Published var shortPressAhaTypeEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.shortPressAhaType") as? Bool ?? true {
         didSet { UserDefaults.standard.set(shortPressAhaTypeEnabled, forKey: "nativeSpeech.shortPressAhaType") }
     }
-    /// 长按模式（按住录音，松手发送）是否启用
-    @Published var longPressEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.longPressEnabled") as? Bool ?? true {
-        didSet { UserDefaults.standard.set(longPressEnabled, forKey: "nativeSpeech.longPressEnabled") }
-    }
+    /// 长按模式（按住录音，松手发送）始终开启，不再由用户关闭
+    @Published var longPressEnabled: Bool = true
     /// 长按模式结束后是否调用 AhaType（默认关闭：快速直发）
     @Published var longPressAhaTypeEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.longPressAhaType") as? Bool ?? false {
         didSet { UserDefaults.standard.set(longPressAhaTypeEnabled, forKey: "nativeSpeech.longPressAhaType") }

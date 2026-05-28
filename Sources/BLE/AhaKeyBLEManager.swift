@@ -58,6 +58,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var bluetoothPoweredOn = false
     @Published private(set) var oledUploadProgress: OLEDUploadProgress?
     @Published private(set) var isUploadingOLED = false
+    /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），用于画布 LED 颜色实时还原
+    @Published private(set) var liveIDEStateValue: Int? = nil
+    /// Agent 端 BLE 通知缓存的 lightMode/switchState/workMode（agent 占用蓝牙时主 App 自己 BLE 未连，靠这些读到键盘实时状态）
+    @Published private(set) var agentLightMode: Int? = nil
+    @Published private(set) var agentSwitchState: Int? = nil
+    @Published private(set) var agentWorkMode: Int? = nil
+    /// 各 mode flash 里的真实图片元信息 (frameCount, frameIntervalMs)。
+    /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
+    /// 键盘显示固件出厂动图（与 bundle/DefaultOLED 同源）。
+    @Published private(set) var keyboardPictureStates: [Int: (frameCount: Int, frameIntervalMs: Int)] = [:]
 
     /// 通信日志（最近 200 条）
     @Published private(set) var commLog: [BLELogEntry] = []
@@ -100,6 +110,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var rssiTimer: Timer?
     private var autoReconnectTimer: Timer?
     private var statusPollTimer: Timer?
+    private var ideStatePollTimer: Timer?
     /// 记住上次连接的 UUID，用于快速重连
     private var lastPeripheralUUID: UUID?
     /// 为 true 时，本 App 不扫描、不连接、不响应掉线/轮询重连（物理键盘由 `ahakeyconfig-agent` 占用时由 AgentManager 置位）
@@ -133,6 +144,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         central.delegate = self
         refreshBluetoothAuthorization()
         startAutoReconnectPolling()
+        startIDEStatePolling()
     }
 
     // MARK: - Public API
@@ -429,6 +441,15 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(cmd)
     }
 
+    /// 虚拟拨杆 → BLE 0x91：通过 BLE 改键盘 sw_state（需要固件 patch）
+    /// value: 0=auto/up, 1=manual/down, 2=mid
+    func setSwitchStateViaBLE(_ value: UInt8) {
+        guard commandChar != nil else { return }
+        let cmd = AhaKeyCommand.setSwitchState(value)
+        writeCommand(cmd)
+        appendLog("→ 虚拟拨杆 sw_state=\(value)")
+    }
+
     /// 修改设备蓝牙名称
     func changeDeviceName(_ name: String) {
         let cmd = AhaKeyCommand.changeName(name)
@@ -534,12 +555,95 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         statusPollTimer = nil
     }
 
+    private func startIDEStatePolling() {
+        ideStatePollTimer?.invalidate()
+        ideStatePollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.pollIDEStateFile()
+            }
+        }
+    }
+
+    /// 主动触发一次共享文件读取（用户点击虚拟拨杆后立即调用，避免等下一次定时 poll）
+    func refreshAgentStateFromFileNow() {
+        pollIDEStateFile()
+    }
+
+    /// 点击虚拟拨杆瞬间的乐观更新值。在文件 poll 把 agentSwitchState 刷新到目标值前先顶住，
+    /// 之后 polling 把真实值刷过来时再清掉，保证按一下立刻看到拨杆切档。
+    @Published private(set) var optimisticSwitchOverride: Int? = nil
+
+    func applyOptimisticSwitchOverride(_ value: UInt8) {
+        optimisticSwitchOverride = Int(value)
+    }
+
+    private func clearOptimisticSwitchOverrideIfMatched() {
+        guard let opt = optimisticSwitchOverride else { return }
+        if agentSwitchState == opt || (isConnected && switchState == opt) {
+            optimisticSwitchOverride = nil
+        }
+    }
+
+    private func pollIDEStateFile() {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig/current-ide-state.json")
+        guard let data = try? Data(contentsOf: url),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            if liveIDEStateValue != nil { liveIDEStateValue = nil }
+            if agentLightMode != nil { agentLightMode = nil }
+            if agentSwitchState != nil { agentSwitchState = nil }
+            if agentWorkMode != nil { agentWorkMode = nil }
+            return
+        }
+        let now = Date().timeIntervalSince1970
+        // stateValue 是瞬时态（hook 触发），30s 过期；超时则置空，固件 LED 也会回到无 state 默认
+        if let v = obj["stateValue"] as? Int,
+           let stateTs = (obj["stateTs"] as? Double) ?? (obj["ts"] as? Double),
+           now - stateTs <= 30 {
+            if liveIDEStateValue != v { liveIDEStateValue = v }
+        } else {
+            if liveIDEStateValue != nil { liveIDEStateValue = nil }
+        }
+        // lightMode/switchState/workMode 来自 BLE 通知，2 分钟没新数据视为 agent 已断连
+        if let topTs = obj["ts"] as? Double, now - topTs <= 120 {
+            let lm = obj["lightMode"] as? Int
+            let sw = obj["switchState"] as? Int
+            let wm = obj["workMode"] as? Int
+            if agentLightMode != lm { agentLightMode = lm }
+            if agentSwitchState != sw { agentSwitchState = sw }
+            if agentWorkMode != wm { agentWorkMode = wm }
+        } else {
+            if agentLightMode != nil { agentLightMode = nil }
+            if agentSwitchState != nil { agentSwitchState = nil }
+            if agentWorkMode != nil { agentWorkMode = nil }
+        }
+        clearOptimisticSwitchOverrideIfMatched()
+    }
+
     /// 所有 AhaKey 主服务特征就绪后触发（仅一次）
     private func onAllCharacteristicsReady() {
         guard !didQueryAfterConnect else { return }
         didQueryAfterConnect = true
         appendLog("所有特征就绪，查询设备状态")
         queryDeviceStatus()
+        queryAllPictureStates()
+    }
+
+    /// 顺序查询每个 mode 的 0x83 图片元信息，结果累积到 keyboardPictureStates
+    private func queryAllPictureStates() {
+        Task { [weak self] in
+            guard let self else { return }
+            for slot in 0..<3 {
+                do {
+                    let state = try await self.readPictureState(mode: UInt8(slot))
+                    self.keyboardPictureStates[slot] = (state.picLength, state.frameInterval)
+                    self.appendLog("  mode\(slot) flash: 帧数=\(state.picLength) 间隔=\(state.frameInterval)ms")
+                } catch {
+                    self.appendLog("  mode\(slot) 图片状态查询失败: \(error)", isError: true)
+                }
+            }
+        }
     }
 
     private func sendCommandAwaitingResponse(_ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0) async throws -> CommandResponse {

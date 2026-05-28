@@ -189,6 +189,14 @@ void command_process(uint8_t *d, uint32_t len)
         update_claude_ws2812();
         return;
     }
+    if (d[0] == 0x91) { // sw_state override (virtual switch via BLE)
+        // d[1]: 0 = auto(up), 1 = manual(down), 2 = mid
+        // 用于物理拨杆损坏时通过客户端虚拟拨杆改变档位；调用已有的 sw_state_change(),
+        // 它会更新 running_data.sw_state、回吐 status 包并触发 update_claude_ws2812(),
+        // 因此灯效会按新档位重新计算（Mode 0 下 auto 切换彩虹覆盖）。
+        sw_state_change(d[1]);
+        return;
+    }
     command_return(d[0], 0);
 }
 void command_return(uint8_t id, uint8_t code)

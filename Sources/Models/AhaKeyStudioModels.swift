@@ -101,7 +101,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     var systemImage: String {
         switch self {
         case .lightBar:
-            "lightspectrum.horizontal"
+            // lightspectrum.horizontal requires macOS 13; fall back to light.max on macOS 12
+            if #available(macOS 13, *) { "lightspectrum.horizontal" } else { "light.max" }
         case .oledDisplay:
             "rectangle.inset.filled"
         case .key1:
@@ -131,6 +132,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             nil
         }
     }
+
+    var isKey: Bool { keyRole != nil }
 }
 
 enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
@@ -322,18 +325,25 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    /// claudeCode / kimiCode 与 macOSNative 底层路由完全相同，合并展示为同一选项。
+    /// 保留枚举 case 是为了向下兼容已存储的配置数据；迁移在 AhaKeyStudioStore 完成。
+    var isMacOSNativeFamily: Bool {
+        self == .macOSNative || self == .claudeCode || self == .kimiCode
+    }
+
+    /// Picker 中实际展示的选项（隐藏已合并的旧 case 和未实现的 codex）
+    static var visibleCases: [VoicePreset] {
+        allCases.filter { !($0 == .claudeCode || $0 == .kimiCode || $0 == .codex) }
+    }
+
     var title: String {
         switch self {
-        case .macOSNative:
-            "macOS 原生语音"
+        case .macOSNative, .claudeCode, .kimiCode:
+            "macOS 原生转写"
         case .typeless:
             "Typeless / Fn"
         case .wechat:
             "微信语音"
-        case .claudeCode:
-            "Claude Code"
-        case .kimiCode:
-            "Kimi Code CLI"
         case .codex:
             "Codex"
         case .doubao:
@@ -345,16 +355,12 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var detail: String {
         switch self {
-        case .macOSNative:
-            "AhaKey Studio 会在后台直接调用苹果原生语音转写。按一次开始，再按一次结束，并把识别文字写回当前光标。Mode 0 出厂固件的 F18 也能直接接管。"
+        case .macOSNative, .claudeCode, .kimiCode:
+            "调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。"
         case .typeless:
             "预设对应快捷键：Typeless 内仍选 Fn/Globe。本 Studio 默认用 F19 作为语音触发键（与 macOS 原生 F18 错开）；按下后向系统注入「按住 Fn」供随声写使用。Mode 0 出厂语音键 F18 仍会额外注册兼容。请授予输入监控与辅助功能。"
         case .wechat:
             "AhaKey Studio 会在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
-        case .claudeCode:
-            "使用 macOS 原生语音识别，把识别结果以 ⌘V 粘贴到 Claude Code 当前光标位置。按一次开始、再按一次结束。"
-        case .kimiCode:
-            "使用 macOS 原生语音识别，把识别结果以 ⌘V 粘贴到 Kimi Code CLI 终端当前光标位置。按一次开始、再按一次结束。"
         case .doubao:
             "豆包输入法 Mac 版需要直接接收真实语音键事件。AhaKey Studio 会切到豆包输入源，并把 F18 配置为豆包长按语音快捷键；按住语音键说话，松开后由豆包提交文字。"
         case .codex:
@@ -988,6 +994,17 @@ enum AhaKeyStudioStore {
             mode0.updateKey(key)
         }
         next.updateMode(mode0)
+
+        // claudeCode / kimiCode 已合并到 macOSNative，迁移所有 mode 里的旧 preset。
+        for modeSlot in AhaKeyModeSlot.allCases {
+            var modeDraft = next.draft(for: modeSlot)
+            var voiceKey = modeDraft.key(for: .voice)
+            if voiceKey.voicePreset == .claudeCode || voiceKey.voicePreset == .kimiCode {
+                voiceKey.voicePreset = .macOSNative
+                modeDraft.updateKey(voiceKey)
+                next.updateMode(modeDraft)
+            }
+        }
 
         // 旧 Mode 0 = Cursor / 旧 Mode 1 = Claude 的用户，自动对调成新默认布局。
         // 仅当两个 mode 的 approve/reject 都完全等于旧默认时触发，保护手动改过的配置。

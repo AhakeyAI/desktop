@@ -29,6 +29,7 @@ enum AhaKeyCommand {
     static let cmdUpdatePic: UInt8 = 0x82
     static let cmdReadPicState: UInt8 = 0x83
     static let cmdUpdateState: UInt8 = 0x90  // IDE 状态 → LED 变色
+    static let cmdSetSwState: UInt8 = 0x91   // 虚拟拨杆：0=auto/up, 1=manual/down, 2=mid（需固件 patch 支持）
 
     // 按键子类型 (KeySubType)
     static let subShortcut: UInt8 = 0x73
@@ -120,6 +121,13 @@ enum AhaKeyCommand {
     /// 驱动键盘 LED 变色，反映 Claude/Cursor 当前状态
     static func updateState(_ state: IDEState) -> Data {
         Data(header + [cmdUpdateState, state.rawValue] + trailer)
+    }
+
+    /// 虚拟拨杆 → AA BB 91 [sw_state] CC DD
+    /// 需要键盘固件已升级到含 0x91 处理分支的版本（command_solve.c 的 patch）。
+    /// 老版本固件收到会触发 command_return(0x91, 0) 并忽略。
+    static func setSwitchState(_ value: UInt8) -> Data {
+        Data(header + [cmdSetSwState, value] + trailer)
     }
 }
 

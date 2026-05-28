@@ -135,6 +135,7 @@ void usb_desc_set(void);
 void init_desp(void);
 
 void update_claude_ws2812(void);
+void sw_state_change(uint8_t new);
 
 void sub_main(void);
 void sub_main_1(void);

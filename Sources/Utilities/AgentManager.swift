@@ -171,6 +171,44 @@ final class AgentManager: ObservableObject {
         }
     }
 
+    /// 通知 agent 设置/清除虚拟拨杆覆盖。fire-and-forget；agent 会:
+    /// 1) 落进 UserDefaults 持久化
+    /// 2) 写入共享文件让主 App 立即看到
+    /// 3) 如果固件已 patch 0x91，agent 会同步给键盘真改 sw_state
+    /// value=nil 表示清除覆盖（回到读真实 GPIO 值）。
+    func sendSwitchOverride(_ value: UInt8?) {
+        DispatchQueue.global(qos: .userInitiated).async { [socketPath] in
+            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+            guard fd >= 0 else { return }
+            defer { close(fd) }
+            var tv = timeval(tv_sec: 2, tv_usec: 0)
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+            var addr = sockaddr_un()
+            addr.sun_family = sa_family_t(AF_UNIX)
+            socketPath.withCString { src in
+                withUnsafeMutablePointer(to: &addr.sun_path) { dst in
+                    _ = strcpy(UnsafeMutableRawPointer(dst).assumingMemoryBound(to: CChar.self), src)
+                }
+            }
+            let ok = withUnsafePointer(to: &addr) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            guard ok == 0 else { return }
+            let valuePart: String = value.map { "\($0)" } ?? "null"
+            let payload = "{\"cmd\":\"set_switch_override\",\"value\":\(valuePart)}\n"
+            guard let data = payload.data(using: .utf8) else { return }
+            _ = data.withUnsafeBytes { ptr -> Int in
+                guard let base = ptr.baseAddress else { return -1 }
+                return write(fd, base, ptr.count)
+            }
+            var buf = [UInt8](repeating: 0, count: 256)
+            _ = read(fd, &buf, buf.count) // 等回包再关 fd，避免 agent 还没处理就被 reset
+        }
+    }
+
     /// 向 agent socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
     /// 同步执行，需在后台线程调用。
     private func querySocketBLEConnected() -> Bool {

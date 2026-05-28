@@ -17,7 +17,7 @@ APP_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 AGENT_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/ahakeyconfig-agent"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 ENTITLEMENTS="$APP_ROOT/.build/AhaKeyConfig.entitlements"
-ICON_SOURCE="${ICON_SOURCE:-$APP_ROOT/Resources/AppIcon/AhaKeyStudioIcon.png}"
+ICON_SOURCE="${ICON_SOURCE:-$APP_ROOT/ahakeyicon.png}"
 INSTALL_TO_APPLICATIONS="${INSTALL_TO_APPLICATIONS:-0}"
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
 LAUNCH_AFTER_INSTALL="${LAUNCH_AFTER_INSTALL:-0}"
@@ -80,6 +80,10 @@ cp "$ICNS_PATH" "$APP_BUNDLE/Contents/Resources/AhaKeyConfig.icns"
 if [[ -d "$APP_ROOT/Resources/Help" ]]; then
   mkdir -p "$APP_BUNDLE/Contents/Resources/Help"
   ditto "$APP_ROOT/Resources/Help" "$APP_BUNDLE/Contents/Resources/Help"
+fi
+if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
+  mkdir -p "$APP_BUNDLE/Contents/Resources/DefaultOLED"
+  ditto "$APP_ROOT/Resources/DefaultOLED" "$APP_BUNDLE/Contents/Resources/DefaultOLED"
 fi
 
 BUILD_NUMBER="$(git -C "$APP_ROOT/../.." rev-list --count HEAD 2>/dev/null || echo 1)"

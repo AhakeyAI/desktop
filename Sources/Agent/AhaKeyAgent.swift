@@ -39,6 +39,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private(set) var cachedSwitchState: UInt8?
     /// 最新 lightMode
     private(set) var cachedLightMode: UInt8?
+    /// 用户在画布点击虚拟拨杆设置的覆盖值；非 nil 时优先于 cachedSwitchState 用于 hook auto-approve 判断。
+    /// 持久化到 UserDefaults 以便 agent 重启后保留。物理拨杆损坏的用户靠这个让 hook 自动批准生效。
+    private(set) var userSwitchOverride: UInt8?
+
+    private static let switchOverrideDefaultsKey = "lab.jawa.ahakeyconfig.agent.userSwitchOverride"
 
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
@@ -66,8 +71,46 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     init(socketPath: String = "/tmp/ahakey.sock") {
         self.socketPath = socketPath
+        if let raw = UserDefaults.standard.object(forKey: Self.switchOverrideDefaultsKey) as? Int {
+            userSwitchOverride = UInt8(clamping: raw)
+        }
         super.init()
         central = CBCentralManager(delegate: self, queue: nil)
+        // 启动时如果有持久化的 override，立刻把它落进共享文件，让主 App UI 一上来就能看到
+        Self.writeLiveState(switchState: userSwitchOverride)
+    }
+
+    /// 实际给 hook 用的拨杆值：用户覆盖优先，没有就回落到 BLE 缓存
+    var effectiveSwitchState: UInt8? {
+        userSwitchOverride ?? cachedSwitchState
+    }
+
+    func setSwitchOverride(_ value: UInt8?) {
+        userSwitchOverride = value
+        if let v = value {
+            UserDefaults.standard.set(Int(v), forKey: Self.switchOverrideDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
+        }
+        // 1) 如果固件支持 0x91（已 patch），同步给键盘真正改 sw_state → LED 也跟着变
+        if let v = value {
+            sendSwitchState(v)
+        }
+        // 2) 把覆盖值写进共享文件，主 App 立刻看到画布拨杆位置更新
+        Self.writeLiveState(switchState: effectiveSwitchState)
+        emit("拨杆覆盖 = \(value.map { String($0) } ?? "清除")（effective=\(effectiveSwitchState.map { String($0) } ?? "未知")）")
+    }
+
+    private func sendSwitchState(_ value: UInt8) {
+        guard let commandChar, let peripheral else {
+            emit("设置拨杆 \(value): 未连接，仅记录到覆盖值")
+            return
+        }
+        let data = Data(header + [0x91, value] + trailer)
+        let wt: CBCharacteristicWriteType =
+            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(data, for: commandChar, type: wt)
+        emit("→ 拨杆 0x91 \(value): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
     }
 
     // MARK: - Public
@@ -85,6 +128,44 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         peripheral.writeValue(data, for: commandChar, type: wt)
         lastSentState = state
         emit("→ LED 状态 \(state): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        Self.writeLiveState(stateValue: state)
+    }
+
+    /// 把 agent 当前对键盘的认知（最近一次 hook 发送的 stateValue + BLE 上报的 lightMode/switchState/workMode）
+    /// merge-write 到共享文件，供主 App 在 agent 拥有 BLE 时读取实时状态。
+    /// 任意调用方只传自己负责更新的字段；未传的字段保留文件中的旧值。
+    static func writeLiveState(stateValue: UInt8? = nil,
+                               lightMode: UInt8? = nil,
+                               switchState: UInt8? = nil,
+                               workMode: UInt8? = nil) {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("current-ide-state.json")
+        var obj: [String: Any] = [:]
+        if let existing = try? Data(contentsOf: url),
+           let parsed = (try? JSONSerialization.jsonObject(with: existing)) as? [String: Any] {
+            obj = parsed
+        }
+        let now = Date().timeIntervalSince1970
+        if let s = stateValue {
+            obj["stateValue"] = Int(s)
+            obj["stateTs"] = now
+        }
+        if let lm = lightMode {
+            obj["lightMode"] = Int(lm)
+            obj["lightModeTs"] = now
+        }
+        if let sw = switchState {
+            obj["switchState"] = Int(sw)
+        }
+        if let wm = workMode {
+            obj["workMode"] = Int(wm)
+        }
+        obj["ts"] = now
+        if let data = try? JSONSerialization.data(withJSONObject: obj) {
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     /// 主动查询一次设备状态，等待下一个 notify 回包 (timeout 秒内)。
@@ -241,7 +322,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             lastHookStateAt = Date()
             sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
-                let body = Self.statusReply(status, cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode)
+                let body = Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
                     self.emit("（拨杆非 0：PermissionRequest 将交回终端手动确认）")
@@ -252,22 +333,37 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
 
         case "status":
-            if cachedSwitchState != nil {
+            if effectiveSwitchState != nil {
                 Self.replyAndClose(clientFd, [
-                    "switchState": cachedSwitchState.map { Int($0) } ?? NSNull(),
+                    "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
                     "lightMode": cachedLightMode.map { Int($0) } ?? NSNull(),
                 ])
             } else {
                 querySwitchState(timeout: 1.5) { status in
-                    Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode))
+                    Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
                 }
             }
 
         case "approval_status":
             // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
             querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode))
+                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
             }
+
+        case "set_switch_override":
+            // 主 App 画布虚拟拨杆点击 → 设置 / 清除覆盖
+            // value=null / 缺省 → 清除（恢复用真实 BLE 上报）
+            // value=0/1/2 → 设置覆盖值；如果固件支持 0x91 还会同步给键盘
+            if obj["value"] is NSNull || obj["value"] == nil {
+                setSwitchOverride(nil)
+            } else if let v = obj["value"] as? Int {
+                setSwitchOverride(UInt8(clamping: v))
+            }
+            Self.replyAndClose(clientFd, [
+                "ok": true,
+                "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
+                "override": userSwitchOverride.map { Int($0) } ?? NSNull(),
+            ])
 
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
@@ -425,6 +521,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         cachedSwitchState = UInt8(clamping: status.switchState)
         cachedLightMode = UInt8(clamping: status.lightMode)
         emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+        // 写共享文件时优先使用用户覆盖值，否则用键盘真实上报。这样主 App 画布上的拨杆位置始终与
+        // hook 实际使用的批准逻辑一致（避免画布显示一档、hook 按另一档运行的割裂）。
+        Self.writeLiveState(
+            lightMode: UInt8(clamping: status.lightMode),
+            switchState: effectiveSwitchState,
+            workMode: UInt8(clamping: max(0, status.workMode))
+        )
 
         guard !statusWaiters.isEmpty else { return }
         let waiters = statusWaiters
