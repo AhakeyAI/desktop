@@ -466,15 +466,20 @@ struct AhaKeyStudioView: View {
                             )
                     )
 
-                    Button {
-                        enterEditingConfiguration()
-                        withAnimation(.easeInOut(duration: 0.2)) { isEditingInspector = true }
-                    } label: {
-                        Text("修改")
-                            .frame(maxWidth: .infinity)
+                    // macOS HIG：主操作按钮跟随内容尺寸，右下角对齐，标准 control size
+                    HStack {
+                        Spacer()
+                        Button {
+                            enterEditingConfiguration()
+                            withAnimation(.easeInOut(duration: 0.2)) { isEditingInspector = true }
+                        } label: {
+                            Label("修改", systemImage: "pencil")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                        .keyboardShortcut("e", modifiers: .command)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .padding(.top, 6)
                 }
             }
             .padding(24)
@@ -2876,11 +2881,14 @@ private struct AhaKeyKeyboardCanvasView: View {
                 Spacer()
             }
 
-            ForEach(Array([CGPoint(x: 8, y: 8), CGPoint(x: 101, y: 8), CGPoint(x: 8, y: 46), CGPoint(x: 101, y: 46)].enumerated()), id: \.offset) { _, point in
+            // 螺丝挪到真正的"边角内侧" + 缩小直径 4.8 → 3.6：
+            // 旧位置 (8,8)/(8,46) 会被按键灰底矩形和灯条/Key1 边线擦边或交叠。
+            // 新位置每颗距离灯条/按键灰底/Key 边都留出 ≥ 3 个基线单位。
+            ForEach(Array([CGPoint(x: 5.5, y: 5.5), CGPoint(x: 103.5, y: 5.5), CGPoint(x: 5.5, y: 48.5), CGPoint(x: 103.5, y: 48.5)].enumerated()), id: \.offset) { _, point in
                 Circle()
                     .stroke(Color.black.opacity(0.14), lineWidth: 1.2)
                     .background(Circle().fill(Color.white.opacity(0.4)))
-                    .frame(width: scaled(4.8, in: width), height: scaled(4.8, in: width))
+                    .frame(width: scaled(3.6, in: width), height: scaled(3.6, in: width))
                     .position(position(point.x, point.y, width: width, height: height))
             }
 
@@ -2889,10 +2897,11 @@ private struct AhaKeyKeyboardCanvasView: View {
                 .frame(width: scaled(4.2, in: width), height: scaled(12, in: width))
                 .position(position(3.8, 28, width: width, height: height))
 
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.04))
-                .frame(width: scaled(70, in: width), height: scaled(24, in: width))
-                .position(position(43.8, 37.3, width: width, height: height))
+            // 按键灰底：略收一点尺寸，使它显著低于灯条选中态阴影的影响范围（≥ 5 个基线单位）
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.035))
+                .frame(width: scaled(67, in: width), height: scaled(21, in: width))
+                .position(position(43.8, 38.5, width: width, height: height))
 
             ledBarButton(width: width, height: height)
             oledButton(width: width, height: height)
@@ -2961,7 +2970,8 @@ private struct AhaKeyKeyboardCanvasView: View {
 
     private func ledBarButton(width: CGFloat, height: CGFloat) -> some View {
         let part = AhaKeyStudioPart.lightBar
-        let rect = frame(12.3, 5.0, 55.6, 9.8, width: width, height: height)
+        // 略向上、宽度往里收：让选中态阴影（radius 10pt）跟键盘内描边、按键灰底、OLED 都有 ≥ 5 个基线单位的余量
+        let rect = frame(13.0, 4.5, 53.5, 8.6, width: width, height: height)
         let modeData = modeDraft.mode.rawValue
         let effect: LightEffectStyle
         let baseColor: Color
@@ -3880,10 +3890,15 @@ private struct HotspotChrome: ViewModifier {
     let dirtyParts: Set<AhaKeyStudioPart>
 
     func body(content: Content) -> some View {
+        let isSelected = selectedPart == part
         content
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(selectedPart == part ? Color.accentColor : Color.black.opacity(0.05), lineWidth: selectedPart == part ? 2 : 1)
+                    // 非选中时几乎隐形，避免每个 hotspot 都画一圈灰线和邻近元件视觉打架
+                    .strokeBorder(
+                        isSelected ? Color.accentColor : Color.black.opacity(0.015),
+                        lineWidth: isSelected ? 2 : 1
+                    )
             )
             .overlay(alignment: .topTrailing) {
                 if dirtyParts.contains(part) {
@@ -3893,7 +3908,8 @@ private struct HotspotChrome: ViewModifier {
                         .padding(8)
                 }
             }
-            .shadow(color: selectedPart == part ? Color.accentColor.opacity(0.18) : .clear, radius: 10)
+            // 选中态阴影从 10 收到 6，减少向邻近元件溢出的发光半径
+            .shadow(color: isSelected ? Color.accentColor.opacity(0.18) : .clear, radius: 6)
     }
 }
 
