@@ -13,9 +13,9 @@ enum DefaultOLEDAssets {
         case .mode0:
             return "claude_0"
         case .mode1:
-            return "cursor_0"
+            return "cursor"
         case .mode2:
-            return nil
+            return "codex"
         }
     }
 

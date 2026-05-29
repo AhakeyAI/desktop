@@ -33,7 +33,7 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode1:
             "Cursor · Composer Accept/Reject"
         case .mode2:
-            "Codex · CLI ↵ / Esc"
+            "Codex · ↵ / Esc"
         }
     }
 
@@ -42,9 +42,19 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode0:
             "针对 Claude Code 终端权限菜单：Key2 直接输入 Y（同意），Key3 直接输入 N（拒绝）。"
         case .mode1:
-            "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。若需与「⌘↵ 接受 / ⌘⌫ 拒绝」等组合键一致，请在编辑器里为对应键加修饰，并在 Cursor 设置 → Keyboard Shortcuts 中绑成相同组合。"
+            "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。"
         case .mode2:
-            "针对 OpenAI Codex CLI：Key2 发送 ↵ 确认审批，Key3 发送 Esc 取消。"
+            "针对 Codex 终端审批：Key2 发送 ↵ 确认，Key3 发送 Esc 取消。"
+        }
+    }
+
+    /// 鼠标 hover 问号 icon 时弹出的详细补充。无补充返回 nil → 不显示问号。
+    var guidanceHoverDetail: String? {
+        switch self {
+        case .mode1:
+            return "若需与「⌘↵ 接受 / ⌘⌫ 拒绝」等组合键一致，请在编辑器里为对应键加修饰，并在 Cursor 设置 → Keyboard Shortcuts 中绑成相同组合。"
+        case .mode0, .mode2:
+            return nil
         }
     }
 }
@@ -796,7 +806,7 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         case .mode1:
             statusLine = "Cursor · ↵ 接受改动 / ⌫ 拒绝改动。"
         case .mode2:
-            statusLine = "Codex · CLI 审批 ↵ / Esc。"
+            statusLine = "Codex · 审批 ↵ / Esc。"
         }
         return AhaKeyOLEDDraft(
             localAssetPath: DefaultOLEDAssets.bundledAssetPath(for: mode),
@@ -1057,7 +1067,7 @@ enum AhaKeyStudioStore {
             "当前模式还未上传动图，后续可替换成你的自定义 GIF。",
             "Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。",
             "Claude Code · 终端权限菜单 Y/N。",
-            "Codex · CLI 审批 ↵ / Esc。",
+            "Codex · 审批 ↵ / Esc。",
         ]
         let legacyApproveBinding = ShortcutBinding(keyCode: HIDUsage.enter)
         let legacyRejectBinding = ShortcutBinding(keyCode: HIDUsage.escape)

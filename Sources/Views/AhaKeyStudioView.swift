@@ -31,6 +31,11 @@ struct AhaKeyStudioView: View {
     @State private var showsDiagnostics = false
     @State private var showsKeyHelp = false
     @State private var selectedTriggerTab: Int = 0
+    /// 每次主 App 自占 BLE 连接成功只跑一次默认 OLED 自动同步。
+    /// .onChange(of: isConnected) 在断开时重置；下次重连时再触发一次。
+    @State private var oledAutoSyncDoneForConnection: Bool = false
+    @State private var showsHelpCenter = false
+    @State private var showsGuidanceDetail = false
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
@@ -86,6 +91,16 @@ struct AhaKeyStudioView: View {
             if let slot = AhaKeyModeSlot(rawValue: newValue), slot != selectedMode {
                 selectedMode = slot
             }
+        }
+        .onChange(of: bleManager.isConnected) { connected in
+            if !connected { oledAutoSyncDoneForConnection = false }
+        }
+        .onChange(of: bleManager.keyboardPictureStates) { _ in
+            guard !oledAutoSyncDoneForConnection else { return }
+            // 三个 mode 都查回来才动手
+            guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
+            oledAutoSyncDoneForConnection = true
+            Task { await autoSyncDefaultOLEDsIfNeeded() }
         }
         .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
             refreshStartupPermissionOnboarding()
@@ -212,10 +227,6 @@ struct AhaKeyStudioView: View {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
-                Button("清空 LCD 预览") {
-                    clearCurrentOLED()
-                }
-                Divider()
                 Button("设备信息 · Agent…") {
                     showsDeviceInfo = true
                 }
@@ -367,9 +378,30 @@ struct AhaKeyStudioView: View {
                 Spacer(minLength: 0)
             }
 
-            Text(selectedMode.guidance)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(selectedMode.guidance)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if let detail = selectedMode.guidanceHoverDetail {
+                    Button {
+                        showsGuidanceDetail.toggle()
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .foregroundStyle(.secondary)
+                            .imageScale(.small)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(detail)
+                    .onHover { showsGuidanceDetail = $0 }
+                    .popover(isPresented: $showsGuidanceDetail, arrowEdge: .top) {
+                        Text(detail)
+                            .font(.callout)
+                            .padding(14)
+                            .frame(width: 320)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
     }
 
@@ -1543,10 +1575,17 @@ struct AhaKeyStudioView: View {
             .help("重新打开 AhaKey Studio 新手引导")
 
             Button("帮助中心") {
-                openHelpCenter()
+                showsHelpCenter = true
             }
             .buttonStyle(.borderless)
-            .help("打开本地帮助说明")
+            .help("打开内嵌的帮助中心")
+            .sheet(isPresented: $showsHelpCenter) {
+                HelpCenterSheet(
+                    studioDraft: studioDraft,
+                    selectedMode: selectedMode,
+                    bleManager: bleManager
+                )
+            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
@@ -2226,6 +2265,46 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    /// 首次连接键盘后自动把 bundle 默认 GIF 推到没有上传过的 mode slot。
+    /// 触发时机：bleManager.keyboardPictureStates 三个 mode 都查回来之后
+    /// （由 .onChange(of: bleManager.keyboardPictureStates) 调度）。
+    /// 守卫：
+    /// - 只上传 picLength==0（slot 完全空）的 mode；非 0 视为用户已自定义或固件出厂图
+    /// - 只在 draft 的 localAssetPath 仍指向 bundle 默认（用户没手动换过）时上传
+    /// - 每次连接只跑一次（oledAutoSyncDoneForConnection 标志位由 .onChange(isConnected) 重置）
+    private func autoSyncDefaultOLEDsIfNeeded() async {
+        guard bleManager.isConnected else { return }
+        // 三个 mode 全部 0x83 查询回来才动手，避免半截判断把已上传 slot 当成空
+        guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
+
+        for mode in AhaKeyModeSlot.allCases {
+            guard let state = bleManager.keyboardPictureStates[mode.rawValue] else { continue }
+            guard state.frameCount == 0 else { continue }
+            guard let bundledPath = DefaultOLEDAssets.bundledAssetPath(for: mode) else { continue }
+            let draft = studioDraft.draft(for: mode)
+            guard let drafPath = draft.oled.localAssetPath,
+                  DefaultOLEDAssets.isBundledPath(drafPath) else { continue }
+
+            let assetURL = URL(fileURLWithPath: bundledPath)
+            do {
+                try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
+                let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+                let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+                try await bleManager.uploadOLEDFrames(
+                    frames,
+                    fps: draft.oled.framesPerSecond,
+                    mode: UInt8(mode.rawValue),
+                    startIndex: UInt16(startIndex)
+                )
+                updateMode(mode) { m in
+                    m.oled.statusLine = "已自动同步默认动图（\(frames.count) 帧）。"
+                }
+            } catch {
+                syncStatusMessage = "\(mode.title) 默认动图自动同步失败: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private func resolveOLEDUploadStartIndex(for targetMode: AhaKeyModeSlot, frameCount: Int) async throws -> Int {
         var states: [AhaKeyPictureState] = []
         for mode in AhaKeyModeSlot.allCases {
@@ -2368,22 +2447,6 @@ struct AhaKeyStudioView: View {
 
     private func openNativeSpeechPrivacySettings() {
         openNativeSpeechPrivacySettingsURL()
-    }
-
-    private func openHelpCenter() {
-        let bundledURL = Bundle.main.url(
-            forResource: "AhaKeyStudioHelp",
-            withExtension: "html",
-            subdirectory: "Help"
-        )
-        let sourceURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Resources/Help/AhaKeyStudioHelp.html")
-        let helpURL = bundledURL ?? sourceURL
-        if FileManager.default.fileExists(atPath: helpURL.path) {
-            NSWorkspace.shared.open(helpURL)
-        } else {
-            syncStatusMessage = "未找到本地帮助文件：Resources/Help/AhaKeyStudioHelp.html"
-        }
     }
 
     private var nativeSpeechPermissionsReady: Bool {
@@ -2992,54 +3055,79 @@ private struct AhaKeyKeyboardCanvasView: View {
         }
     }
 
-    @ViewBuilder
+    /// 真实 OLED 是 160×80（2:1）。在 slot 中央用一个 2:1 的"屏幕区"渲染内容，
+    /// 周围留键盘黑壳作为外框；图片 / 占位都在屏幕区内 .fit，不会撑出范围、不会被裁切。
+    private func screenInnerSize(for rect: CGRect) -> CGSize {
+        let screenAspect: CGFloat = 2.0
+        if rect.width / rect.height >= screenAspect {
+            let h = rect.height * 0.86
+            return CGSize(width: h * screenAspect, height: h)
+        } else {
+            let w = rect.width * 0.86
+            return CGSize(width: w, height: w / screenAspect)
+        }
+    }
+
     private func oledInnerContent(rect: CGRect) -> some View {
+        let size = screenInnerSize(for: rect)
+        return ZStack {
+            Color.clear
+            screenBody(screenWidth: size.width, screenHeight: size.height)
+                .frame(width: size.width, height: size.height)
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func screenBody(screenWidth: CGFloat, screenHeight: CGFloat) -> some View {
         if let gifPath = modeDraft.oled.localAssetPath {
             // .id(gifPath) 强制 SwiftUI 在路径切换时销毁并重建视图，
             // 否则旧路径的 @State frames/currentFrame/timer 会与新路径错位，
             // 导致 Mode 切换瞬间画布渲染上一档 GIF 的某一帧（claude / cursor 互窜）。
             AnimatedGIFView(path: gifPath, fps: modeDraft.oled.framesPerSecond)
                 .id(gifPath)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         } else {
             ZStack {
                 LinearGradient(
-                    colors: [Color.black.opacity(0.2), Color.white.opacity(0.05)],
+                    colors: [Color.black.opacity(0.6), Color.black.opacity(0.85)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .center, spacing: 4) {
+                VStack(alignment: .center, spacing: 2) {
                     if modeDraft.mode == .mode0 {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 4) {
                             Image(systemName: "cloud.fill")
-                                .font(.system(size: rect.height * 0.24, weight: .semibold))
+                                .font(.system(size: screenHeight * 0.24, weight: .semibold))
                                 .foregroundStyle(Color.orange.opacity(0.92))
                             Text("Mode 0")
-                                .font(.system(size: rect.height * 0.18, weight: .semibold))
+                                .font(.system(size: screenHeight * 0.20, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.85))
                         }
                         Text("默认动图")
-                            .font(.system(size: rect.height * 0.18))
+                            .font(.system(size: screenHeight * 0.18))
                             .foregroundStyle(.white.opacity(0.55))
                     } else {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 4) {
                             Image(systemName: {
                                 if #available(macOS 13, *) { "sparkles.rectangle.stack" } else { "rectangle.stack" }
                             }())
-                                .font(.system(size: rect.height * 0.22, weight: .semibold))
+                                .font(.system(size: screenHeight * 0.22, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.78))
                             Text("未上传")
-                                .font(.system(size: rect.height * 0.18, weight: .semibold))
+                                .font(.system(size: screenHeight * 0.20, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.85))
                         }
                         Text("等待自定义")
-                            .font(.system(size: rect.height * 0.18))
+                            .font(.system(size: screenHeight * 0.18))
                             .foregroundStyle(.white.opacity(0.55))
                     }
                 }
-                .padding(rect.width * 0.08)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding(screenWidth * 0.04)
                 .multilineTextAlignment(.center)
             }
         }
@@ -3248,11 +3336,13 @@ private struct AnimatedGIFView: View {
             if !frames.isEmpty, currentFrame >= 0, currentFrame < frames.count {
                 Image(nsImage: frames[currentFrame])
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: .fit)
             } else {
                 Color.black
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
         .onAppear { loadFrames() }
         .onDisappear {
             gifTimer?.invalidate()
@@ -3933,5 +4023,693 @@ private struct AnimatedGIFPreview: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSImageView, context: Context) {
         nsView.image = NSImage(contentsOfFile: path)
+    }
+}
+
+// MARK: - 帮助中心（内嵌弹窗）
+
+private enum HelpTopic: String, CaseIterable, Identifiable {
+    case overview = "总览"
+    case modes = "三个 Mode"
+    case canvas = "画布与按键"
+    case toggleSwitch = "虚拟拨杆"
+    case oled = "OLED 屏幕"
+    case lightBar = "灯条颜色"
+    case voice = "语音输入"
+    case diagnostics = "权限诊断"
+    case faq = "常见问题"
+
+    var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .overview: return "sparkles"
+        case .modes: return "square.grid.3x1.below.line.grid.1x2"
+        case .canvas: return "keyboard"
+        case .toggleSwitch: return "switch.2"
+        case .oled: return "play.tv"
+        case .lightBar: return "rainbow"
+        case .voice: return "mic.circle"
+        case .diagnostics: return "stethoscope"
+        case .faq: return "questionmark.bubble"
+        }
+    }
+}
+
+private struct HelpCenterSheet: View {
+    let studioDraft: AhaKeyStudioDraft
+    let selectedMode: AhaKeyModeSlot
+    @ObservedObject var bleManager: AhaKeyBLEManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var topic: HelpTopic = .overview
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "book.closed.fill")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                Text("AhaKey Studio 帮助中心")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Button("完成") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(.thinMaterial)
+
+            Divider()
+
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: 188)
+                    .background(Color(nsColor: .controlBackgroundColor))
+
+                Divider()
+
+                ScrollView {
+                    contentForTopic
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .id(topic)
+            }
+        }
+        .frame(width: 880, height: 620)
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(HelpTopic.allCases) { t in
+                Button {
+                    topic = t
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: t.iconName)
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 18)
+                        Text(t.rawValue)
+                            .font(.callout)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(t == topic ? Color.accentColor.opacity(0.16) : Color.clear)
+                    )
+                    .foregroundStyle(t == topic ? Color.accentColor : Color.primary)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+    }
+
+    @ViewBuilder
+    private var contentForTopic: some View {
+        switch topic {
+        case .overview:      OverviewTopicView()
+        case .modes:         ModesTopicView(selectedMode: selectedMode)
+        case .canvas:        CanvasTopicView()
+        case .toggleSwitch:  ToggleSwitchTopicView(bleManager: bleManager)
+        case .oled:          OLEDTopicView(studioDraft: studioDraft, bleManager: bleManager)
+        case .lightBar:      LightBarTopicView()
+        case .voice:         VoiceTopicView()
+        case .diagnostics:   DiagnosticsTopicView()
+        case .faq:           FAQTopicView()
+        }
+    }
+}
+
+// MARK: 帮助中心 - 通用排版
+
+private struct HelpTitle: View {
+    let icon: String
+    let title: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+                Text(title).font(.title2.weight(.semibold))
+            }
+            if let subtitle {
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.bottom, 12)
+    }
+}
+
+private struct HelpSection: View {
+    let title: String
+    let text: String
+
+    init(title: String, body text: String) {
+        self.title = title
+        self.text = text
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.headline)
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.bottom, 14)
+    }
+}
+
+private struct HelpNote: View {
+    let icon: String
+    let tint: Color
+    let text: String
+
+    init(_ icon: String, tint: Color = .orange, body text: String) {
+        self.icon = icon
+        self.tint = tint
+        self.text = text
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(tint)
+                .padding(.top, 2)
+            Text(text)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(0.25), lineWidth: 1)
+                )
+        )
+        .padding(.vertical, 6)
+    }
+}
+
+private struct HelpSwatch: View {
+    let color: Color
+    let label: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color)
+                .frame(width: 22, height: 22)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.black.opacity(0.12), lineWidth: 0.5)
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.callout.weight(.medium))
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+// MARK: 帮助中心 - 各章节
+
+private struct OverviewTopicView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "sparkles",
+                title: "总览",
+                subtitle: "AhaKey Studio 是 AhaKey 小键盘的 macOS 配置中心"
+            )
+
+            HelpSection(
+                title: "三件套是怎么协同的",
+                body: """
+                • 主 App（你正在用的）— 看配置、改键位、上传 OLED、查诊断
+                • Agent 守护进程 — 后台常驻；监听 IDE 的 Hook（Claude / Cursor / Codex / Kimi），并在 BLE 上向键盘转发当前 AI 状态
+                • 键盘固件 — 收到 BLE 状态后驱动灯条颜色、OLED 显示、按键映射
+                """
+            )
+
+            HelpSection(
+                title: "BLE 占用是一道单行道",
+                body: """
+                同一时刻只有一个进程能持有键盘的 BLE 连接：
+                • 默认 Agent 占用 → Hook 状态实时上键盘、自动批准链可用
+                • 你在画布点「修改」时 → 主 App 临时接管，能上传 OLED、改键位、读图片元信息
+                • 点「返回并保存」或「取消编辑」 → 主 App 释放，Agent 自动接回
+                """
+            )
+
+            HelpNote("info.circle.fill", tint: .blue, body: "首次连接，可以先打开「权限诊断」过一遍权限项；任何 Hook 不生效的问题大多在权限里。")
+        }
+    }
+}
+
+private struct ModesTopicView: View {
+    let selectedMode: AhaKeyModeSlot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "square.grid.3x1.below.line.grid.1x2",
+                title: "三个 Mode",
+                subtitle: "硬件物理键码 + 软件配置同步切换"
+            )
+
+            ForEach(AhaKeyModeSlot.allCases) { mode in
+                modeCard(mode)
+            }
+
+            HelpNote("hand.tap.fill", tint: .accentColor, body: "切换方式：键盘上的 Mode 拨杆，或主 App 顶部 Picker，或点画布上的 Mode 按钮。三处任一改动会同步另外两个。")
+        }
+    }
+
+    @ViewBuilder
+    private func modeCard(_ mode: AhaKeyModeSlot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(mode.title)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(modeChipColor(mode), in: Capsule())
+                Text(mode.name).font(.headline)
+                if mode == selectedMode {
+                    Text("当前").font(.caption2)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.18), in: Capsule())
+                }
+                Spacer(minLength: 0)
+            }
+            Text(mode.subtitle).font(.callout).foregroundStyle(.secondary)
+            Text(mode.guidance).font(.callout).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.black.opacity(0.08), lineWidth: 1)
+        )
+        .padding(.bottom, 6)
+    }
+
+    private func modeChipColor(_ mode: AhaKeyModeSlot) -> Color {
+        switch mode {
+        case .mode0: return Color.orange
+        case .mode1: return Color.purple
+        case .mode2: return Color.green
+        }
+    }
+}
+
+private struct CanvasTopicView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "keyboard",
+                title: "画布与按键",
+                subtitle: "中间那个像键盘的图就是你的小键盘 1:1 镜像，所有元件可点"
+            )
+
+            HelpSection(title: "六大热区", body: "灯条、OLED 屏幕、Key1（语音）、Key2、Key3、Key4、拨杆。点哪个就在右侧 Inspector 看到那个元件的配置。")
+
+            VStack(alignment: .leading, spacing: 10) {
+                hotspotRow("rainbow", "灯条", "点亮键盘顶端 8 颗 WS2812 LED；颜色和效果跟随 IDE Hook 状态。")
+                hotspotRow("play.tv", "OLED 屏幕", "0.96\" IPS 显示；可上传 GIF 动图（160×80, RGB565）。")
+                hotspotRow("mic", "Key 1 / 语音键", "默认 F18，触发苹果原生转写、AhaType、微信按住说话等预设。")
+                hotspotRow("checkmark.circle", "Key 2 / 通过键", "依 Mode 默认：Y / ↵ / ↵。可改成宏序列。")
+                hotspotRow("xmark.circle", "Key 3 / 拒绝键", "依 Mode 默认：N / ⌫ / Esc。可改成宏序列。")
+                hotspotRow("paperplane", "Key 4 / 提交键", "默认 ↵，可改任意短按 / 长按。")
+                hotspotRow("switch.2", "拨杆", "auto 批准 vs manual 批准；详见「虚拟拨杆」章节。")
+            }
+
+            HelpNote("hand.point.up.left", tint: .accentColor, body: """
+                点完元件 → Inspector 显示「修改」按钮。点「修改」会接管 BLE 进入编辑态；改完点「返回并保存」立即写入键盘，或点「取消编辑」放弃。
+                """)
+        }
+    }
+
+    private func hotspotRow(_ icon: String, _ title: String, _ desc: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .frame(width: 22)
+                .foregroundStyle(.tint)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.callout.weight(.medium))
+                Text(desc).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct ToggleSwitchTopicView: View {
+    @ObservedObject var bleManager: AhaKeyBLEManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "switch.2",
+                title: "虚拟拨杆",
+                subtitle: "物理拨杆坏了？或想软件控制？看这里"
+            )
+
+            HelpSection(title: "两档分别管什么", body: """
+                • 自动批准（switchState=0）：Hook 拦截每次工具调用 / 命令请求时直接放行
+                • 手动批准（switchState=1）：Hook 把决定交回终端，由你手动按 Key2/Key3 通过或拒绝
+                """)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("点画布拨杆触发三件事（不是所有都生效）：").font(.subheadline.weight(.medium))
+                triggerRow(
+                    num: "1",
+                    title: "乐观更新画布",
+                    desc: "立即翻转画布拨杆位置 + 顶部状态栏；视觉零延迟",
+                    works: true
+                )
+                triggerRow(
+                    num: "2",
+                    title: "通知 Agent 设置 userSwitchOverride",
+                    desc: "Hook 的 auto-approve 立即切换到你选的档位。持久化到 UserDefaults，agent 重启仍生效",
+                    works: true
+                )
+                triggerRow(
+                    num: "3",
+                    title: "BLE 0x91 set_sw_state",
+                    desc: "试图修改键盘真实 sw_state → 灯效颜色逻辑跟着切。**需固件升级支持 0x91**",
+                    works: false,
+                    requiresPatch: true
+                )
+            }
+
+            HelpNote("exclamationmark.triangle.fill", tint: .orange, body: """
+                如果你**没刷新版固件**：点画布拨杆，Hook 行为会按虚拟值跑（这就够大多数 case），但键盘灯条颜色仍由坏掉的物理 GPIO 决定。要让灯效也跟着切，得给固件 command_solve.c 加 0x91 分支再 USB-ISP 烧一次（详见仓库 README 的固件章节）。
+                """)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("现状一览").font(.subheadline.weight(.medium))
+                stateRow("当前生效值", "\(bleManager.agentSwitchState ?? bleManager.switchState)")
+                stateRow("Agent 端覆盖", bleManager.agentSwitchState != nil ? "\(bleManager.agentSwitchState!)（覆盖中）" : "未设置（用键盘真实值）")
+                stateRow("乐观显示中", bleManager.optimisticSwitchOverride != nil ? "是（等待对齐）" : "否")
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
+        }
+    }
+
+    private func triggerRow(num: String, title: String, desc: String, works: Bool, requiresPatch: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(num)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(works ? Color.green : Color.orange))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(title).font(.callout.weight(.medium))
+                    if requiresPatch {
+                        Text("需固件支持").font(.caption2)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(Color.orange.opacity(0.18), in: Capsule())
+                    }
+                }
+                Text(desc).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func stateRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.callout).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).font(.callout.monospaced())
+        }
+    }
+}
+
+private struct OLEDTopicView: View {
+    let studioDraft: AhaKeyStudioDraft
+    @ObservedObject var bleManager: AhaKeyBLEManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "play.tv",
+                title: "OLED 屏幕",
+                subtitle: "0.96\" IPS · 160×80 · RGB565 · 内置 16 Mbit Flash 存帧"
+            )
+
+            HelpSection(title: "默认动图（连接即自动同步）", body: """
+                Mode 0 → claude_0.gif（出厂内置）
+                Mode 1 → cursor.gif
+                Mode 2 → codex.gif
+
+                首次连接键盘且发现某个 Mode 的 flash slot 为空时，主 App 会自动把对应 bundle GIF 推到键盘上。
+                """)
+
+            HelpSection(title: "替换成自己的 GIF", body: """
+                1. 画布点 OLED 屏幕 → Inspector 显示「修改」
+                2. 点「修改」进入编辑态（接管 BLE）
+                3. 在「上传到 ModeX」一栏选你的 .gif（推荐 ≤200 帧、≤2MB）
+                4. 上传完点「返回并保存」
+                """)
+
+            HelpSection(title: "OLED 角标的含义", body: """
+                • 绿色「✓ 已上传 N 帧」：键盘 flash 真有 N 帧（你或自动同步推的）
+                • 灰色「未上传」：键盘 flash 空，正显示固件默认或留空
+                • 没有徽章：还没自占 BLE 查到（点过一次「修改」就有了）
+                """)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("现在键盘 flash 各 Mode 状态").font(.subheadline.weight(.medium))
+                ForEach(AhaKeyModeSlot.allCases) { mode in
+                    HStack {
+                        Text(mode.title + " · " + mode.name).font(.callout)
+                        Spacer()
+                        if let s = bleManager.keyboardPictureStates[mode.rawValue] {
+                            if s.frameCount > 0 {
+                                Label("\(s.frameCount) 帧", systemImage: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                    .font(.callout)
+                            } else {
+                                Label("空", systemImage: "tray").foregroundStyle(.secondary).font(.callout)
+                            }
+                        } else {
+                            Text("尚未查询").font(.callout).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
+
+            HelpNote("info.circle.fill", tint: .blue, body: "切换 Mode 时 OLED 会先闪一下当前按键 description 文本（机械感效果），约 1 秒后回到该 Mode 的动图。")
+        }
+    }
+}
+
+private struct LightBarTopicView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "rainbow",
+                title: "灯条颜色",
+                subtitle: "8 颗 WS2812B，颜色由固件 update_claude_ws2812() 决定，1:1 还原在画布上"
+            )
+
+            HelpSection(title: "颜色对照表", body: "下面是 Mode 0（Claude）下，固件按 IDE state 的实际行为：")
+
+            VStack(alignment: .leading, spacing: 8) {
+                HelpSwatch(
+                    color: Color(red: 240/255, green: 32/255, blue: 41/255),
+                    label: "0xF02029 (红)",
+                    detail: "SessionStart / Stop / PostToolUse / PermissionRequest / UserPromptSubmit"
+                )
+                HelpSwatch(
+                    color: Color(red: 32/255, green: 80/255, blue: 255/255),
+                    label: "0x2050FF (蓝)",
+                    detail: "PreToolUse — 工具开始执行（manual 档专属）"
+                )
+                HelpSwatch(
+                    color: Color.gray.opacity(0.3),
+                    label: "OFF (熄灭)",
+                    detail: "SessionEnd — Claude 会话结束"
+                )
+            }
+
+            HelpSection(title: "Auto 档的彩虹覆盖", body: """
+                当拨杆 = auto (switchState=0) 时，固件把部分 state 强制改成彩虹效果：
+                • PreToolUse / PermissionRequest → 整条彩虹波浪
+                • PostToolUse / UserPromptSubmit → 单点彩虹流水
+                这就是你看到「Cursor 一跑灯条变彩虹」的原因——是 auto 档的视觉提示，不是 Cursor 专属。
+                """)
+
+            HelpNote("exclamationmark.triangle.fill", tint: .orange, body: "Mode 1 / Mode 2 时，固件的 update_claude_ws2812() 直接 return，**灯条不再随 IDE state 变**，会停在上一次设定的颜色上。这是固件设计，不是 bug。")
+        }
+    }
+}
+
+private struct VoiceTopicView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "mic.circle",
+                title: "语音输入",
+                subtitle: "Key 1 默认绑定 F18，按一次开始、按一次结束"
+            )
+
+            HelpSection(title: "几种预设的差别", body: """
+                • macOS 原生转写：在地化语言识别，识别完 ⌘V 写回光标。适合任何输入框
+                • Typeless：调起 Typeless App
+                • 微信按住说话：按住语音键发语音，松开停
+                • 豆包输入法：按住调起豆包长按语音
+                • AhaType：先识别再优化提示词（需登录）
+                """)
+
+            HelpSection(title: "短按 vs 长按", body: """
+                • 短按（Toggle）：第一次按开始，第二次按结束 — 适合长段话
+                • 长按（Hold-to-speak）：按住时录音，松开停 — 适合微信、豆包等需要"按住"的输入法
+
+                两种模式在 Key 1 Inspector 的「触发方式」Tab 里切换。
+                """)
+
+            HelpNote("hand.raised.fill", tint: .red, body: "麦克风 + 输入监控 + 辅助功能三个权限都得给。打开「权限诊断」可以一键跳到系统设置对应页。")
+        }
+    }
+}
+
+private struct DiagnosticsTopicView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "stethoscope",
+                title: "权限诊断",
+                subtitle: "点底栏的「权限诊断」按钮打开（不是这里的页面）"
+            )
+
+            HelpSection(title: "权限清单", body: """
+                • 蓝牙：连接键盘必须
+                • 麦克风：苹果原生转写、AhaType、按住说话所有语音功能都需要
+                • 输入监控：捕获语音键的按下/松开事件
+                • 辅助功能：模拟键盘按键（用于 ⌘V 写回文本、注入 F18 等）
+                • 语音识别：苹果原生转写
+                • Siri 与听写（macOS 13+）：原生转写依赖项
+                """)
+
+            HelpSection(title: "Agent 健康检查", body: """
+                打开「权限诊断」可以看到 Agent 自检结果：
+                • LaunchAgent 已注册：login item 装好
+                • 进程在跑：launchd 拉起了 ahakeyconfig-agent
+                • Hook 已配置：Claude/Cursor/Codex/Kimi 的 .json / settings 都加好了 ahakey-hook 引用
+                """)
+
+            HelpSection(title: "转写测试在哪", body: "权限诊断弹窗里。可以不连键盘就验证 macOS 原生转写是否能识别。如果转写失败，多半是麦克风权限或没装语言模型（系统设置 → Siri 与听写 → 听写语言）。")
+        }
+    }
+}
+
+private struct FAQTopicView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HelpTitle(
+                icon: "questionmark.bubble",
+                title: "常见问题",
+                subtitle: "如果下面没你的问题，可以提 issue 到 GitHub 仓库"
+            )
+
+            faq(
+                q: "Hook 拦不住，AI 还是会停下来问我",
+                a: """
+                按这顺序排查：
+                1. Agent 在跑吗？打开「权限诊断」看
+                2. Agent 是否占着蓝牙？画布顶部应显示已连接，且不在编辑态
+                3. 拨杆在 auto 档？看顶部状态栏；不是的话点画布拨杆切到 auto
+                4. IDE 的 Hook 文件配了吗？「权限诊断」会列出 Claude/Cursor/Codex/Kimi 各自的 Hook 安装状态
+                5. 装完后是否重启过 IDE？尤其 Kimi 安装/升级后必须完全关闭再重开
+                """
+            )
+
+            faq(
+                q: "画布上灯条不变色",
+                a: """
+                • 检查右上角是否「已连接」
+                • 切到正在用的 Mode（auto 档下只有 Mode 0 灯效活跃）
+                • 触发一次工具调用让 Hook 真的发 0x90 给键盘
+                • 如果是手动批准档 + Mode 0：preToolUse 是蓝、其他状态是红
+                """
+            )
+
+            faq(
+                q: "OLED 自动同步没触发",
+                a: """
+                自动同步只在主 App 自占 BLE 时才查图片元信息。流程：
+                1. 至少点一次「修改」让主 App 接管 BLE
+                2. 三个 Mode 的 0x83 查询完成后才会触发
+                3. 只对 flash 为空（picLength=0）的 Mode 生效
+                4. 如果你曾经手动改过 Inspector 里的「上传 GIF」路径，自动同步会跳过那个 Mode（不覆盖你的选择）
+                """
+            )
+
+            faq(
+                q: "拨杆我点了，但键盘灯效没切",
+                a: """
+                灯效颜色是由键盘固件根据 sw_state GPIO 直接决定的。要让灯效跟着虚拟拨杆走，必须刷新版固件（含 0x91 set_sw_state 命令）。Hook 的批准行为不需要刷固件，软件覆盖即可生效。
+                """
+            )
+
+            faq(
+                q: "OTA 升级有吗？",
+                a: """
+                规划中，下一版本会做。当前所有固件升级都需要 USB-ISP（拆机短 BOOT + wchisp）。详细方案在仓库 docs 里。
+                """
+            )
+        }
+    }
+
+    private func faq(q: String, a: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "questionmark.circle.fill")
+                    .foregroundStyle(.tint)
+                    .padding(.top, 1)
+                Text(q).font(.callout.weight(.medium))
+            }
+            Text(a)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .padding(.leading, 26)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider().padding(.leading, 26).padding(.top, 4)
+        }
+        .padding(.vertical, 8)
     }
 }

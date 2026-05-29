@@ -7,6 +7,12 @@ import UserNotifications
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "BLE")
 
+/// 0x83 查询回来的某个 mode 的图片元信息（用 Equatable struct 方便 SwiftUI .onChange 监听）
+struct KeyboardPictureState: Equatable {
+    let frameCount: Int
+    let frameIntervalMs: Int
+}
+
 /// 通信日志条目
 struct BLELogEntry: Identifiable {
     let id = UUID()
@@ -64,10 +70,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var agentLightMode: Int? = nil
     @Published private(set) var agentSwitchState: Int? = nil
     @Published private(set) var agentWorkMode: Int? = nil
-    /// 各 mode flash 里的真实图片元信息 (frameCount, frameIntervalMs)。
+    /// 各 mode flash 里的真实图片元信息。
     /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
     /// 键盘显示固件出厂动图（与 bundle/DefaultOLED 同源）。
-    @Published private(set) var keyboardPictureStates: [Int: (frameCount: Int, frameIntervalMs: Int)] = [:]
+    @Published private(set) var keyboardPictureStates: [Int: KeyboardPictureState] = [:]
 
     /// 通信日志（最近 200 条）
     @Published private(set) var commLog: [BLELogEntry] = []
@@ -637,7 +643,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             for slot in 0..<3 {
                 do {
                     let state = try await self.readPictureState(mode: UInt8(slot))
-                    self.keyboardPictureStates[slot] = (state.picLength, state.frameInterval)
+                    self.keyboardPictureStates[slot] = KeyboardPictureState(
+                        frameCount: state.picLength,
+                        frameIntervalMs: state.frameInterval
+                    )
                     self.appendLog("  mode\(slot) flash: 帧数=\(state.picLength) 间隔=\(state.frameInterval)ms")
                 } catch {
                     self.appendLog("  mode\(slot) 图片状态查询失败: \(error)", isError: true)
@@ -956,6 +965,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.isWriting = false
             self.writeBatches.removeAll()
             self.didQueryAfterConnect = false
+            self.keyboardPictureStates.removeAll()
             self.stopRSSIPolling()
             self.stopStatusPolling()
             self.startAutoReconnectPolling()
