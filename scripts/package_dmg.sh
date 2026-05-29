@@ -53,46 +53,91 @@ if [[ -d "$DMG_MOUNTPOINT" ]]; then
   hdiutil detach "$DMG_MOUNTPOINT" -force >/dev/null 2>&1 || true
 fi
 
-echo "💽 Creating writable DMG..."
+echo "💽 Creating writable HFS+ DMG..."
+# 关键修复：macOS 13+ 上 APFS DMG 的 Finder 元数据持久化不可靠，
+# 强制 HFS+ 才能让背景图 / 图标位置真正写进 .DS_Store 并随分发的只读 DMG 一起带走。
 hdiutil create \
   -volname "$DMG_VOLUME_NAME" \
   -srcfolder "$DMG_STAGING_DIR" \
   -ov \
+  -fs HFS+ \
   -format UDRW \
   "$RW_DMG_PATH"
 
-echo "🪟 Applying simple drag-to-install layout..."
-hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify -noautoopen
+echo "🪟 Applying drag-to-install layout..."
+# 关键：不要 -noautoopen，否则 Finder 不会把这个卷加进 visible volume list，
+# 后面 AppleScript 用 `tell disk "..."` 直接失败 -1728 (object not found)
+hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
 
-if ! osascript <<APPLESCRIPT
+# 隐藏 .background，不让用户在 Finder 看到目录
+chflags hidden "$DMG_MOUNTPOINT/.background" 2>/dev/null || true
+
+# 给 Finder 一点时间把卷加进它的内部 list
+sleep 3
+
+set +e
+osascript 2>&1 <<APPLESCRIPT
 tell application "Finder"
+  activate
+  delay 1
   tell disk "$DMG_VOLUME_NAME"
     open
-    delay 1
-    tell container window
-      set current view to icon view
-      set toolbar visible to false
-      set statusbar visible to false
-      set bounds to {160, 100, 1020, 580}
-    end tell
-    set theIconViewOptions to the icon view options of container window
-    set arrangement of theIconViewOptions to not arranged
-    set icon size of theIconViewOptions to 100
-    set text size of theIconViewOptions to 13
-    set background picture of theIconViewOptions to (POSIX file "$DMG_MOUNTPOINT/.background/InstallerBackground.png" as alias)
-    set position of item "$APP_BUNDLE_NAME.app" of container window to {120, 170}
-    set position of item "Applications" of container window to {640, 170}
+    delay 3
+    try
+      set current view of container window to icon view
+    end try
+    try
+      set toolbar visible of container window to false
+    end try
+    try
+      set statusbar visible of container window to false
+    end try
+    try
+      set the bounds of container window to {200, 160, 1060, 640}
+    end try
+    try
+      set theViewOptions to the icon view options of container window
+      set arrangement of theViewOptions to not arranged
+      set icon size of theViewOptions to 128
+      set text size of theViewOptions to 13
+    end try
+    try
+      set background picture of theViewOptions to file ".background:InstallerBackground.png"
+    on error errMsg
+      log "background-picture error: " & errMsg
+    end try
+    try
+      set position of item "$APP_BUNDLE_NAME.app" of container window to {200, 240}
+    end try
+    try
+      set position of item "Applications" of container window to {660, 240}
+    end try
     update without registering applications
     delay 2
+    close
+    delay 1
+    open
+    delay 1
+    update without registering applications
+    delay 1
     close
   end tell
 end tell
 APPLESCRIPT
-then
-  echo "⚠️ Finder layout failed; continuing with default DMG layout."
+ASCRIPT_RC=$?
+set -e
+echo "(osascript exit=$ASCRIPT_RC)"
+
+# 把元数据强制刷盘，再校验 .DS_Store 是否真写进去
+sync; sync; sync
+sleep 3
+if [[ -f "$DMG_MOUNTPOINT/.DS_Store" ]]; then
+  echo "✅ .DS_Store written ($(stat -f%z "$DMG_MOUNTPOINT/.DS_Store") bytes) — installer layout will persist."
+else
+  echo "⚠️ .DS_Store missing — Finder customization didn't persist. 检查 System Settings > Privacy > Automation 给 Terminal 授予 Finder 权限。"
 fi
 
-hdiutil detach "$DMG_MOUNTPOINT"
+hdiutil detach "$DMG_MOUNTPOINT" -force
 
 echo "🗜️ Converting DMG..."
 hdiutil convert "$RW_DMG_PATH" -ov -format UDZO -o "$DMG_PATH"
