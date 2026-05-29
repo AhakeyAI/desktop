@@ -11,7 +11,7 @@ from .keymap import KeyboardConfig
 class ConfigManager:
     """配置文件的保存和加载"""
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     def save(self, config: KeyboardConfig, path: str):
         """保存配置到 JSON 文件"""
