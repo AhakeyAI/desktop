@@ -2034,7 +2034,7 @@ struct AhaKeyStudioView: View {
             return
         }
 
-        if bleManager.isConnected {
+        if bleManager.isConnected && bleManager.commandCharReady {
             syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
         } else {
             syncStatusMessage = "设备连接中，连接成功后将自动同步并返回控制模式…"
@@ -2043,17 +2043,19 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    // 轮询等待 BLE 连接（最多 10 秒），连接后自动同步并返回键盘控制。
+    // 轮询等待 BLE 连接且命令通道就绪（最多 10 秒），连接后自动同步并返回键盘控制。
+    // 超时后仍退出编辑模式（草稿已本地保存），避免 UI 永远卡在「编辑配置中」且 BLE 无法交还 Agent。
     private func waitForConnectionThenSync() {
         Task { @MainActor in
             for _ in 0..<20 {
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                if bleManager.isConnected {
+                if bleManager.isConnected && bleManager.commandCharReady {
                     syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
                     return
                 }
             }
-            syncStatusMessage = "连接超时，请确认键盘已开启并靠近设备，再次点击「保存配置」重试。"
+            syncStatusMessage = "键盘连接超时，草稿已保存在本地。下次进入「编辑配置」时将重新同步到设备。"
+            returnToKeyboardControl()
         }
     }
 
@@ -2091,8 +2093,8 @@ struct AhaKeyStudioView: View {
     }
 
     private func syncAllModesToDevice(returnToKeyboardControlWhenDone: Bool = false) {
-        guard bleManager.isConnected else {
-            syncStatusMessage = "设备未连接，当前只保存本地草稿。"
+        guard bleManager.isConnected && bleManager.commandCharReady else {
+            syncStatusMessage = "设备未连接或命令通道未就绪，当前只保存本地草稿。"
             return
         }
 
@@ -2120,8 +2122,8 @@ struct AhaKeyStudioView: View {
     }
 
     private func resendCurrentModeToDevice() {
-        guard bleManager.isConnected else {
-            syncStatusMessage = "设备未连接，当前只保存本地草稿。"
+        guard bleManager.isConnected && bleManager.commandCharReady else {
+            syncStatusMessage = "设备未连接或命令通道未就绪，当前只保存本地草稿。"
             return
         }
 

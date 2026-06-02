@@ -17,7 +17,9 @@ DMG_BASENAME="${DMG_BASENAME:-AhaKey-Studio-macOS-prod-$(date +%Y%m%d%H%M%S)}"
 DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME.dmg"
 DMG_STAGING_DIR="$OUTPUT_DIR/.dmg-staging"
 RW_DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME-rw.dmg"
-DMG_MOUNTPOINT="/Volumes/$DMG_VOLUME_NAME"
+# macOS 26 在 /Volumes/ 下对已注册 bundle 名额外执行写入限制（EPERM），
+# 改挂到 /tmp 下绕过；卷标（-volname）不变，用户看到的 Finder 窗口标题不受影响。
+DMG_MOUNTPOINT="/tmp/ahakey-dmg-mount"
 APP_BUNDLE_PATH="$OUTPUT_DIR/$APP_BUNDLE_NAME.app"
 BACKGROUND_DIR="$DMG_STAGING_DIR/.background"
 BACKGROUND_IMAGE="$BACKGROUND_DIR/InstallerBackground.png"
@@ -54,23 +56,40 @@ if [[ -d "$DMG_MOUNTPOINT" ]]; then
 fi
 
 echo "💽 Creating writable HFS+ DMG..."
-# 关键修复：macOS 13+ 上 APFS DMG 的 Finder 元数据持久化不可靠，
-# 强制 HFS+ 才能让背景图 / 图标位置真正写进 .DS_Store 并随分发的只读 DMG 一起带走。
+# macOS 13+ 上 APFS DMG 的 Finder 元数据持久化不可靠，强制 HFS+。
+# macOS 26 在 /Volumes/ 下挂载时对已注册 bundle 名执行额外写入限制（EPERM），
+# 两阶段挂载：① 挂到 /tmp 完成文件拷贝 → ② 重挂到 /Volumes 做 Finder 布局。
+APP_SIZE_MB=$(du -sm "$APP_BUNDLE_PATH" | awk '{print $1}')
+DMG_SIZE_MB=$(( APP_SIZE_MB + 32 ))
+
+rm -f "$RW_DMG_PATH"
 hdiutil create \
   -volname "$DMG_VOLUME_NAME" \
-  -srcfolder "$DMG_STAGING_DIR" \
+  -size "${DMG_SIZE_MB}m" \
   -ov \
   -fs HFS+ \
-  -format UDRW \
   "$RW_DMG_PATH"
 
-echo "🪟 Applying drag-to-install layout..."
-# 关键：不要 -noautoopen，否则 Finder 不会把这个卷加进 visible volume list，
-# 后面 AppleScript 用 `tell disk "..."` 直接失败 -1728 (object not found)
-hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
+# ── 阶段一：挂载到 /tmp，拷贝文件（/tmp 下不触发 EPERM）──────────────────
+TMP_MOUNTPOINT="/tmp/ahakey-dmg-mount"
+if [[ -d "$TMP_MOUNTPOINT" ]]; then
+  hdiutil detach "$TMP_MOUNTPOINT" -force >/dev/null 2>&1 || true
+fi
+hdiutil attach "$RW_DMG_PATH" -mountpoint "$TMP_MOUNTPOINT" -readwrite -noverify -noautoopen
 
-# 隐藏 .background，不让用户在 Finder 看到目录
-chflags hidden "$DMG_MOUNTPOINT/.background" 2>/dev/null || true
+ditto "$APP_BUNDLE_PATH" "$TMP_MOUNTPOINT/$APP_BUNDLE_NAME.app"
+ln -sf /Applications "$TMP_MOUNTPOINT/Applications"
+mkdir -p "$TMP_MOUNTPOINT/.background"
+cp "$BACKGROUND_IMAGE" "$TMP_MOUNTPOINT/.background/InstallerBackground.png"
+chflags hidden "$TMP_MOUNTPOINT/.background" 2>/dev/null || true
+
+sync; sync; sync
+hdiutil detach "$TMP_MOUNTPOINT" -force
+
+# ── 阶段二：重新挂载到 /Volumes，让 Finder 看到，再做布局 ─────────────────
+echo "🪟 Applying drag-to-install layout..."
+# 不能带 -noautoopen，否则 Finder 不把此卷加进可见列表，AppleScript tell disk 会失败 -1728
+hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
 
 # 给 Finder 一点时间把卷加进它的内部 list
 sleep 3

@@ -145,8 +145,13 @@ final class AgentManager: ObservableObject {
     }
 
     init() {
-        bluetoothConnectionOwner = .agentDaemon
-        UserDefaults.standard.set(BluetoothConnectionOwner.agentDaemon.rawValue, forKey: Self.bluetoothOwnerKey)
+        if let raw = UserDefaults.standard.string(forKey: Self.bluetoothOwnerKey),
+           let stored = BluetoothConnectionOwner(rawValue: raw) {
+            bluetoothConnectionOwner = stored
+        } else {
+            bluetoothConnectionOwner = .agentDaemon
+            UserDefaults.standard.set(BluetoothConnectionOwner.agentDaemon.rawValue, forKey: Self.bluetoothOwnerKey)
+        }
         refresh()
     }
 
@@ -161,10 +166,10 @@ final class AgentManager: ObservableObject {
         kimiHooksInstalled = detectKimiHooksInstalled()
         hooksInstalled = claudeHooksInstalled || cursorHooksInstalled || codexHooksInstalled || kimiHooksInstalled
         if isRunning {
-            DispatchQueue.global(qos: .utility).async { [weak self] in
-                guard let self else { return }
-                let bleConnected = self.querySocketBLEConnected()
-                DispatchQueue.main.async { self.isAgentBLEConnected = bleConnected }
+            let socketPath = socketPath
+            DispatchQueue.global(qos: .utility).async { [weak self, socketPath] in
+                let bleConnected = Self.querySocketBLEConnected(socketPath: socketPath)
+                DispatchQueue.main.async { self?.isAgentBLEConnected = bleConnected }
             }
         } else {
             isAgentBLEConnected = false
@@ -210,8 +215,8 @@ final class AgentManager: ObservableObject {
     }
 
     /// 向 agent socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
-    /// 同步执行，需在后台线程调用。
-    private func querySocketBLEConnected() -> Bool {
+    /// 同步执行，需在后台线程调用。nonisolated static 以便从非 actor 上下文安全调用。
+    nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
         defer { close(fd) }
@@ -389,18 +394,8 @@ final class AgentManager: ObservableObject {
 
     // MARK: - 安装/卸载 LaunchAgent
 
-    func install() {
-        agentUserAlert = nil
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-
-        guard isAgentBinaryPresentInBundle else {
-            agentUserAlert = "应用包内没有可执行的 ahakeyconfig-agent（路径：…/Contents/MacOS/ahakeyconfig-agent）。请确认发版脚本已把该二进制一并打进 .app；仅有主程序时无法安装守护进程。"
-            return
-        }
-
-        // 1. 创建 LaunchAgent plist
-        let plist = """
+    private func launchAgentPlist() -> String {
+        """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -424,16 +419,49 @@ final class AgentManager: ObservableObject {
         </dict>
         </plist>
         """
+    }
 
+    @discardableResult
+    private func writeLaunchAgentPlist() -> Bool {
         do {
             try ensureLaunchAgentsDirectory()
-            try plist.write(toFile: plistPath, atomically: true, encoding: .utf8)
-            log.info("LaunchAgent 已安装: \(self.plistPath)")
+            try launchAgentPlist().write(toFile: plistPath, atomically: true, encoding: .utf8)
+            log.info("LaunchAgent plist 已写入: \(self.plistPath)")
+            return true
         } catch {
-            log.error("LaunchAgent 安装失败: \(error)")
+            log.error("LaunchAgent plist 写入失败: \(error)")
             agentUserAlert = "无法写入 LaunchAgent 配置文件：\(error.localizedDescription)\n\n将写入：\(plistPath)\n已尝试创建目录：\(launchAgentsDirectoryURL.path)\n若仍失败，请检查对「~/Library」是否有写权限，或本机管理策略是否禁止用户 LaunchAgents。"
+            return false
+        }
+    }
+
+    /// 读取已安装 plist 中的 ProgramArguments[0]，即 agent binary 路径。
+    private func installedAgentBinaryPath() -> String? {
+        guard let plist = NSDictionary(contentsOfFile: plistPath),
+              let args = plist["ProgramArguments"] as? [String],
+              let first = args.first else { return nil }
+        return first
+    }
+
+    /// 已安装 plist 的 binary 路径与当前 App 内 binary 路径不一致时需要重写。
+    private func launchAgentNeedsRewrite() -> Bool {
+        installedAgentBinaryPath() != agentBinaryPath
+    }
+
+    func install() {
+        agentUserAlert = nil
+        isAgentOperationInProgress = true
+        defer { isAgentOperationInProgress = false }
+
+        guard isAgentBinaryPresentInBundle else {
+            agentUserAlert = "应用包内没有可执行的 ahakeyconfig-agent（路径：…/Contents/MacOS/ahakeyconfig-agent）。请确认发版脚本已把该二进制一并打进 .app；仅有主程序时无法安装守护进程。"
             return
         }
+
+        // 1. 先 unload 旧 job（清理 socket），再写入 plist，确保新 binary 路径生效。
+        // 若旧 job 不存在，unload 安静失败无副作用。
+        unloadAgentLaunchJobRemovingSocket()
+        guard writeLaunchAgentPlist() else { return }
 
         // 2. 仅当用户希望 Agent 持有蓝牙时才 load（否则只写入 plist，避免装完立刻抢 GATT）
         var loadFailed = false
@@ -505,6 +533,14 @@ final class AgentManager: ObservableObject {
             return
         }
         isAgentOperationInProgress = true
+        // plist 里的 binary 路径若与当前 App 不一致（重装 App 后常见），先卸载旧 job 并重写 plist
+        if launchAgentNeedsRewrite() {
+            unloadAgentLaunchJobRemovingSocket()
+            guard writeLaunchAgentPlist() else {
+                isAgentOperationInProgress = false
+                return
+            }
+        }
         let loadRes = runLaunchctlDetailed(["load", plistPath])
         let startRes = runLaunchctlDetailed(["start", label])
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self] in
