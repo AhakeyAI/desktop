@@ -1,0 +1,12 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile*
+container.config.json
+LICENSE
+README.md
+*.md
+.env
+.env.*
+**/__pycache__
+**/*.pyc
