@@ -54,20 +54,30 @@ if [[ -d "$DMG_MOUNTPOINT" ]]; then
 fi
 
 echo "💽 Creating writable HFS+ DMG..."
-# 关键修复：macOS 13+ 上 APFS DMG 的 Finder 元数据持久化不可靠，
-# 强制 HFS+ 才能让背景图 / 图标位置真正写进 .DS_Store 并随分发的只读 DMG 一起带走。
+# macOS 13+ 上 APFS DMG 的 Finder 元数据持久化不可靠，强制 HFS+。
+# macOS 26 起 hdiutil create -srcfolder 无法处理含签名 .app 的目录（EPERM），
+# 改为：先建空 DMG → 挂载 → ditto 拷入文件，再走 AppleScript 布局。
+APP_SIZE_MB=$(du -sm "$APP_BUNDLE_PATH" | awk '{print $1}')
+DMG_SIZE_MB=$(( APP_SIZE_MB + 32 ))
+
+rm -f "$RW_DMG_PATH"
 hdiutil create \
   -volname "$DMG_VOLUME_NAME" \
-  -srcfolder "$DMG_STAGING_DIR" \
+  -size "${DMG_SIZE_MB}m" \
   -ov \
   -fs HFS+ \
-  -format UDRW \
   "$RW_DMG_PATH"
 
 echo "🪟 Applying drag-to-install layout..."
 # 关键：不要 -noautoopen，否则 Finder 不会把这个卷加进 visible volume list，
 # 后面 AppleScript 用 `tell disk "..."` 直接失败 -1728 (object not found)
 hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
+
+# 把文件拷进挂载好的卷（避免 -srcfolder 的 EPERM 限制）
+ditto "$APP_BUNDLE_PATH" "$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
+ln -sf /Applications "$DMG_MOUNTPOINT/Applications"
+mkdir -p "$DMG_MOUNTPOINT/.background"
+cp "$BACKGROUND_IMAGE" "$DMG_MOUNTPOINT/.background/InstallerBackground.png"
 
 # 隐藏 .background，不让用户在 Finder 看到目录
 chflags hidden "$DMG_MOUNTPOINT/.background" 2>/dev/null || true
