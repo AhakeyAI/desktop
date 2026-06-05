@@ -3001,8 +3001,13 @@ private struct AhaKeyKeyboardCanvasView: View {
                     .foregroundStyle(Color.black.opacity(0.72))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                    let colors = ledColors(effect: effect, time: context.date.timeIntervalSince1970, count: 10, baseColor: baseColor)
+                TimelineView(
+                    effect.isAnimated
+                        ? .animation(minimumInterval: 1.0 / effect.preferredFPS)
+                        : .animation(minimumInterval: 60)
+                ) { context in
+                    let t = effect.isAnimated ? context.date.timeIntervalSince1970 : 0
+                    let colors = ledColors(effect: effect, time: t, count: 10, baseColor: baseColor)
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(Color.black.opacity(0.12))
