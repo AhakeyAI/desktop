@@ -41,6 +41,20 @@ if [[ ! -d "$APP_BUNDLE_PATH" ]]; then
   exit 1
 fi
 
+# ── 公证 App Bundle（必须在打入 DMG 之前）──────────────────────────────────
+# 用户从 DMG 拖到 /Applications 后，Gatekeeper 只检查 app 本身的 staple ticket。
+# 若 ticket 只在 DMG 上，离线或网络受限时 Gatekeeper 会报"无法打开"。
+if [[ -n "$NOTARY_PROFILE" ]]; then
+  APP_ZIP_PATH="$OUTPUT_DIR/${DMG_BASENAME}-app.zip"
+  rm -f "$APP_ZIP_PATH"
+  echo "🧾 Notarizing App Bundle..."
+  ditto -c -k --keepParent "$APP_BUNDLE_PATH" "$APP_ZIP_PATH"
+  xcrun notarytool submit "$APP_ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun stapler staple "$APP_BUNDLE_PATH"
+  rm -f "$APP_ZIP_PATH"
+  echo "✅ App Bundle notarized & stapled."
+fi
+
 rm -rf "$DMG_STAGING_DIR"
 mkdir -p "$DMG_STAGING_DIR"
 
