@@ -37,12 +37,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 单实例：检查是否已有实例在运行
         let bundleID = Bundle.main.bundleIdentifier ?? "lab.jawa.ahakeyconfig"
+        let currentBundlePath = Bundle.main.bundlePath
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         if running.count > 1 {
-            if let existing = running.first(where: { $0 != NSRunningApplication.current }) {
-                existing.activate()
+            let otherInstances = running.filter { $0 != NSRunningApplication.current }
+            let sameBundleInstance = otherInstances.first { app in
+                app.bundleURL?.path == currentBundlePath
             }
-            NSApp.terminate(nil)
+
+            if let existing = sameBundleInstance {
+                existing.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                NSApp.terminate(nil)
+                return
+            }
+
+            for stale in otherInstances {
+                stale.terminate()
+            }
         }
 
         VoiceRelayService.shared.start()
@@ -63,7 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func reopenMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        if let mainWindow = NSApp.windows.first {
+        if let mainWindow = NSApp.windows.first(where: { $0.canBecomeMain && !$0.isMiniaturized }) {
+            mainWindow.makeKeyAndOrderFront(nil)
+        } else if let mainWindow = NSApp.windows.first(where: { $0.canBecomeMain }) {
+            mainWindow.deminiaturize(nil)
             mainWindow.makeKeyAndOrderFront(nil)
         }
     }

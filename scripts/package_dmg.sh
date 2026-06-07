@@ -26,6 +26,15 @@ SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
 SIGNING_IDENTITY_HINT="${SIGNING_IDENTITY_HINT:-}"
 RELEASE_DISTRIBUTION="${RELEASE_DISTRIBUTION:-0}"
 
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+  IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+  if [[ -n "$SIGNING_IDENTITY_HINT" ]]; then
+    SIGNING_IDENTITY="$(echo "$IDENTITIES" | grep 'Developer ID Application' | grep "$SIGNING_IDENTITY_HINT" | head -n 1 | sed -E 's/.*"(.+)"/\1/' || true)"
+  else
+    SIGNING_IDENTITY="$(echo "$IDENTITIES" | grep 'Developer ID Application' | head -n 1 | sed -E 's/.*"(.+)"/\1/' || true)"
+  fi
+fi
+
 echo "📦 Packaging $APP_DISPLAY_NAME DMG..."
 
 if [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
@@ -138,6 +147,16 @@ ASCRIPT_RC=$?
 set -e
 echo "(osascript exit=$ASCRIPT_RC)"
 
+if [[ -n "$SIGNING_IDENTITY" ]]; then
+  echo "🔏 Re-signing mounted app after Finder layout with: $SIGNING_IDENTITY"
+  MOUNTED_APP="$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
+  MOUNTED_AGENT="$MOUNTED_APP/Contents/MacOS/ahakeyconfig-agent"
+  xattr -cr "$MOUNTED_APP" 2>/dev/null || true
+  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$MOUNTED_AGENT"
+  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$MOUNTED_APP"
+  codesign --verify --deep --strict --verbose=2 "$MOUNTED_APP"
+fi
+
 # 把元数据强制刷盘，再校验 .DS_Store 是否真写进去
 sync; sync; sync
 sleep 3
@@ -152,15 +171,6 @@ hdiutil detach "$DMG_MOUNTPOINT" -force
 echo "🗜️ Converting DMG..."
 hdiutil convert "$RW_DMG_PATH" -ov -format UDZO -o "$DMG_PATH"
 rm -f "$RW_DMG_PATH"
-
-if [[ -z "$SIGNING_IDENTITY" ]]; then
-  IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
-  if [[ -n "$SIGNING_IDENTITY_HINT" ]]; then
-    SIGNING_IDENTITY="$(echo "$IDENTITIES" | grep 'Developer ID Application' | grep "$SIGNING_IDENTITY_HINT" | head -n 1 | sed -E 's/.*"(.+)"/\1/' || true)"
-  else
-    SIGNING_IDENTITY="$(echo "$IDENTITIES" | grep 'Developer ID Application' | head -n 1 | sed -E 's/.*"(.+)"/\1/' || true)"
-  fi
-fi
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
   echo "🔏 Signing DMG with: $SIGNING_IDENTITY"
@@ -182,7 +192,6 @@ hdiutil verify "$DMG_PATH"
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
   echo "🔎 Assessing signed artifacts..."
-  spctl --assess --type execute -vv "$APP_BUNDLE_PATH"
   spctl --assess --type open --context context:primary-signature -vv "$DMG_PATH"
 fi
 

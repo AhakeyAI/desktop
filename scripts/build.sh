@@ -176,19 +176,25 @@ fi
 if [[ -n "${SIGNING_IDENTITY}" ]]; then
   echo "🔏 Signing with: $SIGNING_IDENTITY"
   SIGN_ARGS=(--force --sign "$SIGNING_IDENTITY")
+  APP_SIGN_ARGS=("${SIGN_ARGS[@]}")
 
   if [[ "$SIGNING_IDENTITY" == Developer\ ID\ Application:* ]]; then
     SIGN_ARGS+=(--timestamp --options runtime)
+    APP_SIGN_ARGS=("${SIGN_ARGS[@]}")
+  else
+    APP_SIGN_ARGS+=(--entitlements "$ENTITLEMENTS")
   fi
 
+  xattr -cr "$APP_BUNDLE" 2>/dev/null || true
   codesign "${SIGN_ARGS[@]}" "$AGENT_EXECUTABLE"
-  codesign "${SIGN_ARGS[@]}" --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"
+  codesign "${APP_SIGN_ARGS[@]}" "$APP_BUNDLE"
 else
   if [[ "$REQUIRE_DEVELOPER_ID" == "1" ]]; then
     echo "❌ RELEASE_DISTRIBUTION requires a valid Developer ID Application identity."
     exit 1
   fi
   echo "🧪 No signing identity found, using ad-hoc signature for local testing"
+  xattr -cr "$APP_BUNDLE" 2>/dev/null || true
   codesign --force --sign - "$AGENT_EXECUTABLE"
   codesign --force --sign - "$APP_BUNDLE"
 fi
