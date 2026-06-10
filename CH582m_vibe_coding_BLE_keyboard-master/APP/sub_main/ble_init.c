@@ -24,7 +24,7 @@ uint32_t Fram_Write_Flash(uint32_t addr, uint32_t num, uint32_t *pBuf)
 }
 
 uint8_t ble_name[][21] = {
-    {'v', 'i', 'b', 'e', 0x20, 'c', 'o', 'd', 'e', 0x20, ',', ',', ',', ','}, // vibe code
+    {'A', 'h', 'a', 'K', 'e', 'y', 0x20, ',', ',', ',', ','}, // AhaKey
 };
 
 #define APPEARANCE GAP_APPEARE_HID_DIGITIZER_TYABLET
@@ -86,8 +86,9 @@ void            PSK_WCHBLE_Init(void)
         uint8_t localMacAddr[6];
         char    txt[5];
         GetMACAddress(localMacAddr);
-        sprintf(txt, "%02X%02X", localMacAddr[1], localMacAddr[0]);
-        memcpy((ble_name[0]) + 10, txt, 4);
+        localMacAddr[3] += running_data.mac_offset;
+        sprintf(txt, "%02X%02X", localMacAddr[3], localMacAddr[2]);
+        memcpy((ble_name[0]) + 7, txt, 4);
     }
     if (data_in_fram.GAP_APPEARE) {
         exter_advertData[5] = LO_UINT16(data_in_fram.GAP_APPEARE);

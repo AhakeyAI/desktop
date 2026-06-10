@@ -10,6 +10,8 @@
  * microcontroller manufactured by Nanjing Qinheng Microelectronics.
  *******************************************************************************/
 #include "CH58x_common.h"
+#include "command_solve.h"
+#include "main.h"
 
 #define DevEP0SIZE              0x40
 
@@ -19,32 +21,24 @@
 #define USB_INTERFACE_MAX_INDEX 1
 #define USBD_MAX_POWER          (300 / 2) /* 100 mA */
 #define CUSTOM_HID_FS_BINTERVAL 0x1U
+#define USB_CONFIG_CHANNEL_CMD  0xA1
+#define USB_CONFIG_CHANNEL_DATA 0xA2
 // clang-format off
 
-// const uint8_t MouseRepDesc[] = {0x05, 0x01, 0x09, 0x02, 0xA1, 0x01, 0x09, 0x01, 0xA1, 0x00, 0x05, 0x09, 0x19,
-//                                 0x01, 0x29, 0x03, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x03, 0x81, 0x02,
-//                                 0x75, 0x05, 0x95, 0x01, 0x81, 0x01, 0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x09,
-//                                 0x38, 0x15, 0x81, 0x25, 0x7f, 0x75, 0x08, 0x95, 0x03, 0x81, 0x06, 0xC0, 0xC0};
 const uint8_t MouseRepDesc[] = {
-    0x05, 1,  // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x00, // Usage (Undefined)
-    0xA1, 0x00, // Collection (Physical)
-    // 0x85, 10,   // Report ID (8)
-    0x05, 0x01, //   Usage Page (Generic Desktop Ctrls)
-    0x09, 0x30, //   Usage (X)
-    0x15, 0x00, //   Logical Minimum (0)
-    0x25, 0xFF, //   Logical Maximum (-1)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 64,   //   Report Count (64)
-    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x01, //   Usage Page (Generic Desktop Ctrls)
-    0x09, 0x31, //   Usage (Y)
-    0x15, 0x00, //   Logical Minimum (0)
-    0x25, 0xFF, //   Logical Maximum (-1)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 64,   //   Report Count (64)
-    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0xC0,       // End Collection
+    0x06, 0x00, 0xFF, // Usage Page (Vendor Defined)
+    0x09, 0x01,       // Usage (Vendor Usage 1)
+    0xA1, 0x01,       // Collection (Application)
+    0x15, 0x00,       // Logical Minimum (0)
+    0x26, 0xFF, 0x00, // Logical Maximum (255)
+    0x75, 0x08,       // Report Size (8)
+    0x95, 64,         // Report Count (64)
+    0x09, 0x01,       // Usage (Vendor Usage 1)
+    0x81, 0x02,       // Input (Data,Var,Abs)
+    0x95, 64,         // Report Count (64)
+    0x09, 0x02,       // Usage (Vendor Usage 2)
+    0x91, 0x02,       // Output (Data,Var,Abs)
+    0xC0,             // End Collection
 };
 
 // 设备描述符
@@ -54,18 +48,19 @@ const uint8_t MyDevDescr[]
 // 配置描述符
 
 static uint8_t MyCfgDescr[] = {
-    0x09, 0x02,           0x3b, 0x00, 0x02,       0x01, 0x00,
+    0x09, 0x02,           0x42, 0x00, 0x02,       0x01, 0x00,
     0xA0, USBD_MAX_POWER,                                                        // 配置描述符
     0x09, 0x04,           0x00, 0x00, 0x01,       0x03, 0x01,
     0x01, 0x00,                                                                  // 接口描述符,键盘
     0x09, 0x21,           0x11, 0x01, 0x00,       0x01, 0x22,
     0x3e, 0x00,                                                                  // HID类描述符
     0x07, 0x05,           0x81, 0x03, DevEP0SIZE, 0x00, CUSTOM_HID_FS_BINTERVAL, // 端点描述符
-    0x09, 0x04,           0x01, 0x00, 0x01,       0x03, 0x01,
-    0x02, 0x00,                                                                  // 接口描述符,鼠标
+    0x09, 0x04,           0x01, 0x00, 0x02,       0x03, 0x00,
+    0x00, 0x00,                                                                  // 接口描述符,鼠标
     0x09, 0x21,           0x10, 0x01, 0x00,       0x01, 0x22,
     sizeof(MouseRepDesc),   0x00,                                                // HID类描述符
-    0x07, 0x05,           0x82, 0x03, 0x04,       0x00, CUSTOM_HID_FS_BINTERVAL  // 端点描述符
+    0x07, 0x05,           0x82, 0x03, DevEP0SIZE, 0x00, CUSTOM_HID_FS_BINTERVAL, // 端点描述符
+    0x07, 0x05,           0x02, 0x03, DevEP0SIZE, 0x00, CUSTOM_HID_FS_BINTERVAL  // USB config OUT endpoint
 };
 // clang-format on
 
@@ -109,6 +104,7 @@ uint8_t        Report_Value[USB_INTERFACE_MAX_INDEX + 1] = {0x00};
 uint8_t        Idle_Value[USB_INTERFACE_MAX_INDEX + 1]   = {0x00};
 uint8_t        USB_SleepStatus                           = 0x00; /* USB睡眠状态 */
 
+static uint8_t USB_DebugState                            = 0;
 /*鼠标键盘数据*/
 // uint8_t HIDMouse[4] = {0x0, 0x0, 0x0, 0x0};
 // uint8_t HIDKey[8] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
@@ -131,8 +127,8 @@ void USB_DevTransProcess(void)
     uint8_t intflag, errflag = 0;
 
     intflag = R8_USB_INT_FG;
-    if (0x6C == intflag)
-        usb_disconnect();
+    if (intflag && USB_DebugState < 1)
+        USB_DebugState = 1;
 
     if (intflag & RB_UIF_TRANSFER) {
         if ((R8_USB_INT_ST & MASK_UIS_TOKEN) != MASK_UIS_TOKEN) // 非空闲
@@ -234,7 +230,9 @@ void USB_DevTransProcess(void)
             R8_USB_INT_FG = RB_UIF_TRANSFER;
         }
         if (R8_USB_INT_ST & RB_UIS_SETUP_ACT) // Setup包处理
-        {
+        {            if (USB_DebugState < 3)
+                USB_DebugState = 3;
+
             R8_UEP0_CTRL = RB_UEP_R_TOG | RB_UEP_T_TOG | UEP_R_RES_ACK | UEP_T_RES_NAK;
             SetupReqLen  = pSetupReqPak->wLength;
             SetupReqCode = pSetupReqPak->bRequest;
@@ -377,6 +375,8 @@ void USB_DevTransProcess(void)
 
                 case USB_SET_CONFIGURATION:
                     DevConfig = (pSetupReqPak->wValue) & 0xff;
+                    if (DevConfig)
+                        USB_DebugState = 4;
                     break;
 
                 case USB_CLEAR_FEATURE: {
@@ -538,6 +538,9 @@ void USB_DevTransProcess(void)
             R8_USB_INT_FG = RB_UIF_TRANSFER;
         }
     } else if (intflag & RB_UIF_BUS_RST) {
+        if (USB_DebugState < 2)
+            USB_DebugState = 2;
+        DevConfig     = 0;
         R8_USB_DEV_AD = 0;
         R8_UEP0_CTRL  = UEP_R_RES_ACK | UEP_T_RES_NAK;
         R8_UEP1_CTRL  = UEP_R_RES_ACK | UEP_T_RES_NAK;
@@ -649,13 +652,8 @@ void DevEP1_OUT_Deal(uint8_t l)
  * @return  none
  */
 void DevEP2_OUT_Deal(uint8_t l)
-{ /* 用户可自定义 */
-    uint8_t i;
-
-    for (i = 0; i < l; i++) {
-        pEP2_IN_DataBuf[i] = ~pEP2_OUT_DataBuf[i];
-    }
-    DevEP2_IN_Deal(l);
+{
+    usb_data_received(pEP2_OUT_DataBuf, l);
 }
 
 /*********************************************************************
@@ -706,10 +704,32 @@ void USB_IRQHandler(void) /* USB中断服务程序,使用寄存器组1 */
     USB_DevTransProcess();
 }
 
+uint8_t usb_is_ready(void)
+{
+    return DevConfig != 0 && (USB_SleepStatus & 0x01) == 0;
+}
+
+uint8_t usb_debug_state(void)
+{
+    if (usb_is_ready())
+        return 4;
+    return USB_DebugState;
+}
+
 void usb_EP2_send_report(uint8_t *report, uint8_t report_len)
 {
     memcpy(pEP2_IN_DataBuf, report, report_len);
     DevEP2_IN_Deal(report_len);
+}
+
+void usb_EP2_send_packet(uint8_t *data, uint8_t len)
+{
+    uint8_t report[DevEP0SIZE];
+    memset(report, 0, sizeof(report));
+    if (len > sizeof(report))
+        len = sizeof(report);
+    memcpy(report, data, len);
+    usb_EP2_send_report(report, sizeof(report));
 }
 void usb_EP1_send_report(uint8_t *report, uint8_t report_len)
 {
@@ -732,6 +752,7 @@ void usb_set_name(uint8_t *desc, uint8_t length)
 }
 void usb_hid_kbd_init(void)
 {
+    USB_DebugState = 1;
     pEP0_RAM_Addr = EP0_Databuf;
     pEP1_RAM_Addr = EP1_Databuf;
     pEP2_RAM_Addr = EP2_Databuf;
@@ -747,16 +768,40 @@ void usb_hid_kbd_init(void)
 #pragma region
 #pragma endregion
 
-#include "main.h"
 void usb_data_received(uint8_t *data, uint8_t len)
 {
-    hid_rx_iqr(data);
     running_data.usb_is_connected = 1;
     srand(SysTick->CNT);
-    PRINT("%d\n", SysTick->CNT);
+
+    if (len == 0)
+        return;
+
+    if (data[0] == USB_CONFIG_CHANNEL_CMD || data[0] == USB_CONFIG_CHANNEL_DATA) {
+        if (len > 2 && data[1] > 0) {
+            uint8_t payload_len = data[1];
+            if (payload_len > len - 2)
+                payload_len = len - 2;
+            if (data[0] == USB_CONFIG_CHANNEL_CMD)
+                receive_usb_bytes(data + 2, payload_len);
+            else
+                receive_usb_data(data + 2, payload_len);
+        }
+        return;
+    }
+
+    if (data[0] == 0xaa) {
+        receive_usb_bytes(data, len);
+        return;
+    }
+
+    hid_rx_iqr(data);
 }
 void usb_disconnect(void)
 {
-    running_data.usb_is_connected  = 0;
-    running_data.power_off_timeout = 2 * 60;
+    DevConfig = 0;
+    Ready = 0;
+    USB_SleepStatus = 0;
+    USB_DebugState = 0;
+    running_data.usb_is_connected = 0;
+    running_data.usb_hid_started = 0;
 }

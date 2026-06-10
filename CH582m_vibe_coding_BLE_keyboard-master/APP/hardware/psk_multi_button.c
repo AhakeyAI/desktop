@@ -16,6 +16,24 @@ uint8_t key_scan_code = 0;
 
 uint8_t key_read(para i);
 
+#define POWER_KEY_BT_RESET_TICKS (6000 / TICKS_INTERVAL)
+
+static void show_charge_status_icon(uint16_t x, uint16_t y, uint8_t charging)
+{
+    IPS_Fill(x, y, x + 15, y + 13, CYAN);
+    if (!charging)
+        return;
+
+    IPS_DrawLine(x, y + 3, x + 10, y + 3, GREEN);
+    IPS_DrawLine(x, y + 11, x + 10, y + 11, GREEN);
+    IPS_DrawLine(x, y + 3, x, y + 11, GREEN);
+    IPS_DrawLine(x + 10, y + 3, x + 10, y + 11, GREEN);
+    IPS_Fill(x + 11, y + 6, x + 13, y + 8, GREEN);
+    IPS_DrawLine(x + 6, y + 4, x + 3, y + 8, YELLOW);
+    IPS_DrawLine(x + 3, y + 8, x + 6, y + 8, YELLOW);
+    IPS_DrawLine(x + 6, y + 8, x + 4, y + 12, YELLOW);
+}
+
 uint8_t num_of_keys(void)
 {
     uint8_t sum = 0;
@@ -28,33 +46,38 @@ uint8_t num_of_keys(void)
 
 void set_mode(uint8_t mode)
 {
-    __LimitValue(mode, 0, 3);
+    __LimitValue(mode, 0, USER_MODE_COUNT - 1);
     // mode default 2812 mode
     // mode 0 is override in key_power_callback, call func void update_claude_ws2812(void)
-    const enum ws2812_mode_e m[4] = {WS2812_OFF, WS2812_RAINBOW_MOVE, WS2812_RAINBOW_WAVE_SLOW, WS2812_OFF};
+    const enum ws2812_mode_e m[USER_MODE_COUNT] = {WS2812_OFF, WS2812_OFF, WS2812_OFF, WS2812_OFF};
     running_data.ws2812_mode      = m[mode];
     running_data.mode_data        = mode;
+    running_data.pic_writing      = 0;
+    running_data.pic_index        = 0;
     LCD_CS_RESET;
     IPS_Clear(CYAN);
     char txt[15];
-    sprintf(txt,
-            "%1d.%02dV %d%% %c",
-            running_data.v_bat / 100,
-            running_data.v_bat % 100,
-            running_data.power_persent,
-            IS_CHAEGING ? 'C' : ' ');
-    BACK_COLOR = IS_CHAEGING ? GREEN : CYAN;
-    IPS_ShowString(8, 0, txt, MAGENTA);
+    sprintf(txt, "%1d.%02dV %d%%", running_data.v_bat / 100, running_data.v_bat % 100, running_data.power_persent);
     BACK_COLOR = CYAN;
-    sprintf(txt, "%s", running_data.bt_connect_stat == 2 ? "OK" : "ing");
+    IPS_ShowString(8, 0, txt, MAGENTA);
+    show_charge_status_icon(88, 1, IS_CHAEGING);
+    BACK_COLOR = CYAN;
+    if (usb_is_ready()) {
+        sprintf(txt, "HID");
+    } else {
+        sprintf(txt, "%s", running_data.hid_input_ready ? "OK" : "ing");
+    }
     IPS_ShowString(152 - 8 * strlen(txt), 0, txt, MAGENTA);
     for (int i = 0; i < LED_NUM; i++) {
         ws2812_list[i].hex = 0;
     }
-    ws2812_list[mode * 2].hex     = 0xFF2464ff;
-    ws2812_list[mode * 2 + 1].hex = 0xFF2464ff;
-    if (mode < 3)
-        for (int i = 0; i < 4; i++) {
+    uint8_t led_index = mode * 2;
+    if (led_index + 1 < LED_NUM) {
+        ws2812_list[led_index].hex     = 0x80102080;
+        ws2812_list[led_index + 1].hex = 0x80102080;
+    }
+    if (mode < USER_MODE_COUNT)
+        for (int i = 0; i < USER_KEY_COUNT; i++) {
             if (key_bund.user_key_desc[mode][i][0])
                 IPS_ShowString_len(8, 16 + i * 16, key_bund.user_key_desc[mode][i], RED, 20);
             else
@@ -103,13 +126,13 @@ void prase_user_key(uint8_t *data, uint8_t len, uint8_t if_press)
 }
 void user_defined_mode(uint8_t key_index, uint8_t if_press, uint8_t mode)
 {
-    __LimitValue(mode, 0, 2);
-    __LimitValue(key_index, 0, 3);
+    __LimitValue(mode, 0, USER_MODE_COUNT - 1);
+    __LimitValue(key_index, 0, USER_KEY_COUNT - 1);
     prase_user_key(key_bund.user_key_bind[mode][key_index], sizeof(key_bund.user_key_bind[mode][key_index]), if_press);
 }
 /**
  *
- * @brief : 按键回调函数, index 按键下标
+ * @brief : key callback, index is key number
  * @note  :
  * @param {void} *button
  */
@@ -123,38 +146,51 @@ void key44callback(void *button)
     // PRINT("%d , %d\n", index, btn_event_val);
     // if (running_data.mode_data == 3 && btn_event_val == PRESS_DOWN)
     //     running_data.ws2812_mode = index;
+    if (btn_event_val == PRESS_DOWN) {
+        refresh_power_off_timeout();
+    }
     if (running_data.edit_flag == 1) {
         running_data.have_edit = 1;
         if (btn_event_val == PRESS_DOWN) {
-            set_mode(index);
-            running_data.mode_data = index;
+            if (index < USER_MODE_COUNT)
+                set_mode(index);
         }
     } else if (running_data.edit_flag == 0) {
-        if (running_data.mode_data < 3)
+        if (running_data.mode_data < USER_MODE_COUNT)
             user_defined_mode(index, !btn_event_val, running_data.mode_data);
-        else {
-        }
     }
     return;
 }
 void key_power_callback(void *button)
 {
-    uint32_t   index;
-    PressEvent btn_event_val;
-    btn_event_val = get_button_event((struct Button *) button);
-    index         = ((struct Button *) button)->func_para;
+    struct Button *btn = (struct Button *) button;
+    PressEvent     btn_event_val;
+    static uint8_t power_key_long_press;
+    static uint8_t power_key_bt_reset_done;
+    btn_event_val = get_button_event(btn);
     switch (btn_event_val) {
     case PRESS_DOWN: {
+        power_key_long_press    = 0;
+        power_key_bt_reset_done = 0;
+        refresh_power_off_timeout();
         break;
     }
     case PRESS_UP: {
+        tmos_stop_task(mTaskID, MCT_BT_RESET_HOLD_CHECK);
+        if (power_key_long_press && !power_key_bt_reset_done) {
+            if (!running_data.bt_reset_pairing_mode && running_data.power_off_prompt_mode)
+                tmos_set_event(mTaskID, MCT_POWER_OFF_buzz);
+        }
+        running_data.power_off_prompt_mode = 0;
+        power_key_long_press    = 0;
+        power_key_bt_reset_done = 0;
         break;
     }
     case SINGLE_CLICK: {
         if (1) {
             running_data.edit_flag = 1;
             running_data.mode_data += 1;
-            running_data.mode_data %= 4;
+            running_data.mode_data %= USER_MODE_COUNT;
             running_data.have_edit               = 1;
             running_data.ws2812_mode_ignore_flag = 1;
             for (int i = 0; i < LED_NUM; i++) {
@@ -167,9 +203,22 @@ void key_power_callback(void *button)
         break;
     }
     case LONG_PRESS_START: {
-        // if (running_data.have_edit == 0) {
+        power_key_long_press = 1;
         tmos_set_event(mTaskID, MCT_START_POWER_OFF);
-        // }
+        tmos_start_task(mTaskID, MCT_BT_RESET_HOLD_CHECK, MS1_TO_SYSTEM_TIME(5000));
+        break;
+    }
+    case LONG_PRESS_HOLD: {
+        if (!power_key_bt_reset_done && btn->ticks >= POWER_KEY_BT_RESET_TICKS) {
+            power_key_bt_reset_done = 1;
+            running_data.power_off_prompt_mode  = 0;
+            running_data.bt_reset_pairing_mode  = 1;
+            running_data.ws2812_mode_ignore_flag = 0;
+            for (int i = 0; i < LED_NUM; i++) {
+                ws2812_list[i].hex = 0x80102080;
+            }
+            tmos_set_event(mTaskID, MCT_BT_RESET);
+        }
         break;
     }
     }
@@ -187,6 +236,7 @@ void my_button_init(void)
             button_attach(keys__uz + i, PRESS_DOWN, key_power_callback);
             button_attach(keys__uz + i, PRESS_UP, key_power_callback);
             button_attach(keys__uz + i, LONG_PRESS_START, key_power_callback);
+            button_attach(keys__uz + i, LONG_PRESS_HOLD, key_power_callback);
             button_attach(keys__uz + i, SINGLE_CLICK, key_power_callback);
         }
         button_start(keys__uz + i);

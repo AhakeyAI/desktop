@@ -314,6 +314,7 @@ static void hidEmuStateCB(gapRole_States_t newState, gapRoleEvent_t *pEvent)
         if (pEvent->gap.opcode == GAP_MAKE_DISCOVERABLE_DONE_EVENT) {
             PRINT("Advertising..\n");
             running_data.bt_connect_stat = 1;
+            running_data.hid_input_ready = 0;
         }
         break;
 
@@ -337,10 +338,11 @@ static void hidEmuStateCB(gapRole_States_t newState, gapRoleEvent_t *pEvent)
             tmos_start_task(hidEmuTaskId, START_PARAM_UPDATE_EVT, START_PARAM_UPDATE_EVT_DELAY);
             PRINT("Connected..\n");
             running_data.bt_connect_stat = 2;
+            running_data.hid_input_ready = 0;
+            tmos_start_task(mTaskID, MCT_test_event, MS1_TO_SYSTEM_TIME(800));
             srand(SysTick->CNT);
             PRINT("%d\n", SysTick->CNT);
             start_music(0);
-            running_data.power_off_timeout = 60 * 60;
         }
         break;
 
@@ -358,8 +360,8 @@ static void hidEmuStateCB(gapRole_States_t newState, gapRoleEvent_t *pEvent)
 
             PRINT("Disconnected.. Reason:%x\n", pEvent->linkTerminate.reason);
             running_data.bt_connect_stat = 0;
+            running_data.hid_input_ready = 0;
             start_music(1);
-            running_data.power_off_timeout = 5 * 60;
         } else if (pEvent->gap.opcode == GAP_LINK_ESTABLISHED_EVENT) {
             PRINT("Advertising timeout..\n");
         }
@@ -445,7 +447,12 @@ static uint8_t hidEmuRptCB(uint8_t id, uint8_t type, uint16_t uuid, uint8_t oper
     }
     // notifications enabled
     else if (oper == HID_DEV_OPER_ENABLE) {
+        if (type == HID_REPORT_TYPE_INPUT && id == HID_RPT_ID_KEY_IN)
+            running_data.hid_input_ready = 1;
         tmos_start_task(hidEmuTaskId, START_REPORT_EVT, 500);
+    } else if (oper == HID_DEV_OPER_DISABLE) {
+        if (type == HID_REPORT_TYPE_INPUT && id == HID_RPT_ID_KEY_IN)
+            running_data.hid_input_ready = 0;
     }
     return status;
 }

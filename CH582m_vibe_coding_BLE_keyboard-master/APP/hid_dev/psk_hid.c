@@ -469,21 +469,10 @@ void MY_USB_HID_SEND_REPORT(uint8_t *report, uint16_t len)
             len--;
         }
     }
-    // if (running_data.bt_connect_stat == 2)
-    {
-        // if (running_data.usb_is_connected == 0) {
-        if (1) {
-            if (running_data.bt_connect_stat == 2) {
-                HidDev_Report(HID_RPT_ID_KEY_IN, HID_REPORT_TYPE_INPUT, len, report);
-            } else {
-            }
-        } else {
-            // PRINT("21\n");
-            // if (*report == 0x01)
-            // u2dev_update_report(report + 1, len - 1);
-            // PRINT("USB\n");
-            // usb_EP1_send_report(report, len);
-        }
+    if (usb_is_ready()) {
+        usb_EP1_send_report(report, len);
+    } else if (running_data.bt_connect_stat == 2) {
+        HidDev_Report(HID_RPT_ID_KEY_IN, HID_REPORT_TYPE_INPUT, len, report);
     }
 #ifdef USING_CUSTOM_HID
     // USBD_CUSTOM_HID_SendReport_FS((uint8_t *)report, (uint16_t)len);

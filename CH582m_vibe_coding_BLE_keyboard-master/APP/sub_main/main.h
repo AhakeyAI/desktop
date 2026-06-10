@@ -11,18 +11,17 @@ enum my_event_name_e {
     MCT_key_scan             = (1 << 2),
     MCT_START_POWER_OFF      = (1 << 3),
     MCT_adc_measure          = (1 << 4),
-    MCT_light_reset          = (1 << 5),
+    MCT_BT_RESET             = (1 << 5),
     MCT_music_ticks          = (1 << 6),
     MCT_POWER_OFF_TIME_CHECK = (1 << 7),
-    MCT_POWER_OFF_LOOP       = (1 << 8),
+    MCT_BT_RESET_HOLD_CHECK  = (1 << 8),
     MCT_POWER_OFF_buzz       = (1 << 9),
     MCT_WS2812_MODE          = (1 << 10),
     MCT_COMMAND_TODO         = (1 << 11),
     MCT_DATA_TODO            = (1 << 12),
     MCT_PIC_DISPLAY          = (1 << 13),
     MCT_MODE_END             = (1 << 14),
-
-    MCT_NO_USE = (1 << 15),
+    MCT_USB_HID_INIT         = (1 << 15),
 };
 
 #include "CONFIG.h"
@@ -37,11 +36,20 @@ enum my_event_name_e {
 #include "psk_ws2812.h"
 #include "usb1_hid.h"
 #define POWER_ON GPIOA_SetBits(GPIO_Pin_12)
+#define USER_MODE_COUNT 4
+#define USER_KEY_COUNT  4
+#define USER_KEY_BIND_LEN 100
+#define USER_KEY_DESC_LEN 20
+#define AUTO_POWER_OFF_TIMEOUT_SECONDS (60 * 60)
+#define BLE_IDENTITY_COUNT 5
+#define KEY_BUND_EEPROM_ADDR (EEPROM_BLOCK_SIZE * 4 + 1024)
+#define KEY_BUND_EEPROM_MAX_SIZE (EEPROM_MAX_SIZE - KEY_BUND_EEPROM_ADDR)
 #define POWER_OFF                     \
     {                                 \
         save_all_data_to_fram();      \
         GPIOA_ResetBits(GPIO_Pin_12); \
         while (1) {                   \
+            GPIOA_ResetBits(GPIO_Pin_9); \
         }                             \
     }
 
@@ -63,6 +71,7 @@ enum claude_state_e {
     CL_TaskCompleted,
     CL_UserPromptSubmit,
     CL_SessionEnd,
+    CL_STATE_COUNT,
 };
 typedef struct
 {
@@ -74,8 +83,13 @@ typedef struct
     int     v_bat;
     uint8_t power_persent;
     uint8_t bt_connect_stat; // 0 no 1 connecting 2 ed
+    uint8_t hid_input_ready;  // 1 when the HID input report notification is enabled
 
     uint8_t            usb_is_connected; // 0 ble, 1 usb
+    uint8_t            usb_hid_started;
+    uint8_t            power_off_prompt_mode;
+    uint8_t            bt_reset_pairing_mode;
+    uint8_t            power_shutdown_mode;
     enum ws2812_mode_e ws2812_mode;
     uint8_t            ws2812_mode_ignore_flag;
     uint32_t           ws2812_single_color;
@@ -109,15 +123,18 @@ extern data_in_fram_s data_in_fram;
 
 typedef struct
 {
-    uint8_t  user_key_bind[3][4][100];
-    uint8_t  user_key_desc[3][4][20];
-    uint16_t pic[3][3];
+    uint8_t  user_key_bind[USER_MODE_COUNT][USER_KEY_COUNT][USER_KEY_BIND_LEN];
+    uint8_t  user_key_desc[USER_MODE_COUNT][USER_KEY_COUNT][USER_KEY_DESC_LEN];
+    uint16_t pic[USER_MODE_COUNT][3];
+    uint8_t  ai_light_mode[USER_MODE_COUNT][CL_STATE_COUNT];
+    uint8_t  ws2812_brightness;
 } key_bund_s;
 extern key_bund_s key_bund;
 #define key_bund_s_len sizeof(key_bund_s)
 
 void start_music(int x);
 void power_deep_sleep(void);
+void refresh_power_off_timeout(void);
 
 #define IS_CHAEGING !GPIOA_ReadPortPin(GPIO_Pin_13)
 
@@ -135,7 +152,6 @@ void usb_desc_set(void);
 void init_desp(void);
 
 void update_claude_ws2812(void);
-void sw_state_change(uint8_t new);
 
 void sub_main(void);
 void sub_main_1(void);

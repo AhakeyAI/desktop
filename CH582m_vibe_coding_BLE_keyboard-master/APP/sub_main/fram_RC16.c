@@ -23,6 +23,10 @@ void save_all_data_to_fram(void)
 }
 void save_key_bound_data(void)
 {
-    EEPROM_ERASE(EEPROM_BLOCK_SIZE * 4 + 1024, sizeof(key_bund));
-    EEPROM_WRITE(EEPROM_BLOCK_SIZE * 4 + 1024, &key_bund, sizeof(key_bund));
+    if (sizeof(key_bund) > KEY_BUND_EEPROM_MAX_SIZE) {
+        PRINT("key_bund too large: %d > %d\n", sizeof(key_bund), KEY_BUND_EEPROM_MAX_SIZE);
+        return;
+    }
+    EEPROM_ERASE(KEY_BUND_EEPROM_ADDR, sizeof(key_bund));
+    EEPROM_WRITE(KEY_BUND_EEPROM_ADDR, &key_bund, sizeof(key_bund));
 }

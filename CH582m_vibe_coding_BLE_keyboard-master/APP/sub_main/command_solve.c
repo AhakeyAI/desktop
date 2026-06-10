@@ -1,27 +1,41 @@
 #include "command_solve.h"
 #include "lwrb.h"
 #include "main.h"
+#include "usb1_hid.h"
 #include "w25qxx.h"
+#define COMMAND_TRANSPORT_BLE 0
+#define COMMAND_TRANSPORT_USB 1
+
 uint8_t  tmp_command[256];
 uint16_t rx_count = 0;
 uint8_t *command_data;
 uint16_t command_len;
 uint8_t  command_in_process;
+uint8_t  command_transport;
+uint8_t  data_transport;
 uint8_t  ble_data_rec_buf[400];
 lwrb_t   ble_data_lwrb;
 
 void receive_data(uint8_t *d, uint32_t len)
 {
+    data_transport = COMMAND_TRANSPORT_BLE;
     if (len != lwrb_write(&ble_data_lwrb, d, len)) {
         PRINT("loss_data\n");
     }
     tmos_set_event(mTaskID, MCT_DATA_TODO);
 }
 
+void receive_usb_data(uint8_t *d, uint32_t len)
+{
+    receive_data(d, len);
+    data_transport = COMMAND_TRANSPORT_USB;
+}
+
 void receive_bytes(uint8_t *d, uint32_t len)
 {
     if (command_in_process)
         return;
+    command_transport = COMMAND_TRANSPORT_BLE;
     uint16_t i = 0;
     if (tmp_command[0] == 0xaa && tmp_command[1] == 0xbb) {
         memcpy(tmp_command + rx_count, d, min(sizeof(tmp_command) - rx_count, len));
@@ -61,6 +75,13 @@ void receive_bytes(uint8_t *d, uint32_t len)
         }
     }
 }
+
+void receive_usb_bytes(uint8_t *d, uint32_t len)
+{
+    receive_bytes(d, len);
+    if (command_in_process)
+        command_transport = COMMAND_TRANSPORT_USB;
+}
 void command_process(uint8_t *d, uint32_t len)
 {
     // ps("rec:");
@@ -95,7 +116,7 @@ void command_process(uint8_t *d, uint32_t len)
     if (d[0] == 0x73) {                   // 0x73 type mode key_index ...
         if (d[1] == 0x73 || d[1] == 0x74) // combime_key
         {
-            if (d[2] < 3 && d[3] < 4) {
+            if (d[2] < USER_MODE_COUNT && d[3] < USER_KEY_COUNT) {
                 memset(key_bund.user_key_bind[d[2]][d[3]], 0, sizeof(key_bund.user_key_bind[0][0]));
                 memcpy(key_bund.user_key_bind[d[2]][d[3]] + 2,
                        d + 4,
@@ -109,7 +130,7 @@ void command_process(uint8_t *d, uint32_t len)
             }
         }
         if (d[1] == 0x75) {
-            if (d[2] < 3 && d[3] < 4) {
+            if (d[2] < USER_MODE_COUNT && d[3] < USER_KEY_COUNT) {
                 memset(key_bund.user_key_desc[d[2]][d[3]], 0x20, sizeof(key_bund.user_key_desc[0][0]));
                 memcpy(key_bund.user_key_desc[d[2]][d[3]], d + 4, min(len - 4, sizeof(key_bund.user_key_desc[0][0])));
                 running_data.have_update_custom_data = 1;
@@ -124,6 +145,12 @@ void command_process(uint8_t *d, uint32_t len)
             address |= d[5] << 8;
             address |= d[6] << 16;
             address |= d[7] << 24;
+            uint32_t flash_size = nor_flash_get_size();
+            if (size == 0 || flash_size == 0 || address >= flash_size || size > flash_size - address) {
+                PRINT("pic write overflow: size %d, address %p, flash %d\n", size, address, flash_size);
+                command_return(0x80, 1);
+                return;
+            }
             uint16_t sector = address / 4096;
             PRINT("size %d, address %p, se %d\n", size, address, sector);
             W25QXX_Erase_Sector(sector);
@@ -141,7 +168,7 @@ void command_process(uint8_t *d, uint32_t len)
         }
     }
     if (d[0] == 0x82 && len == 8) { // pic information update
-        if (d[1] <= 2) {
+        if (d[1] < USER_MODE_COUNT) {
             uint16_t t;
             t = d[2];
             t |= d[3] << 8;
@@ -159,11 +186,14 @@ void command_process(uint8_t *d, uint32_t len)
                   key_bund.pic[d[1]][0],
                   key_bund.pic[d[1]][1],
                   key_bund.pic[d[1]][2]);
+            running_data.pic_writing = 0;
+            running_data.pic_index   = 0;
             running_data.have_update_custom_data = 1;
+            tmos_set_event(mTaskID, MCT_PIC_DISPLAY);
         }
     }
     if (d[0] == 0x83) { // pic information query
-        if (d[1] <= 2) {
+        if (d[1] < USER_MODE_COUNT) {
             uint8_t ret[20];
             uint8_t ret_len = 0;
             ret[ret_len++]  = 0xaa;
@@ -178,23 +208,69 @@ void command_process(uint8_t *d, uint32_t len)
             ret_len += sizeof(max_pic_size);
             ret[ret_len++] = 0xcc;
             ret[ret_len++] = 0xdd;
-            peripheralChar4Notify(ret, ret_len);
+            command_return_frame(ret, ret_len);
         }
         return;
     }
-
-    if (d[0] == 0x90) { // claude state update
-        running_data.claude_state = d[1];
-        PRINT("CLAUDE STATE %d\n", d[1]);
-        update_claude_ws2812();
+    if (d[0] == 0x84) { // AI state light config: mode + CL_STATE_COUNT light mode bytes
+        if (len == 2 + CL_STATE_COUNT && d[1] < USER_MODE_COUNT) {
+            for (uint8_t state = 0; state < CL_STATE_COUNT; state++) {
+                uint8_t light_mode = d[2 + state];
+                if (light_mode > WS2812_APPROVAL_WAIT)
+                    light_mode = WS2812_OFF;
+                key_bund.ai_light_mode[d[1]][state] = light_mode;
+            }
+            running_data.have_update_custom_data = 1;
+            if (running_data.mode_data == d[1])
+                update_claude_ws2812();
+            command_return(d[0], 0);
+        } else {
+            command_return(d[0], 1);
+        }
         return;
     }
-    if (d[0] == 0x91) { // sw_state override (virtual switch via BLE)
-        // d[1]: 0 = auto(up), 1 = manual(down), 2 = mid
-        // 用于物理拨杆损坏时通过客户端虚拟拨杆改变档位；调用已有的 sw_state_change(),
-        // 它会更新 running_data.sw_state、回吐 status 包并触发 update_claude_ws2812(),
-        // 因此灯效会按新档位重新计算（Mode 0 下 auto 切换彩虹覆盖）。
-        sw_state_change(d[1]);
+    if (d[0] == 0x85) { // WS2812 brightness config: brightness 1..100
+        if (len == 2 && d[1] >= 1 && d[1] <= 100) {
+            key_bund.ws2812_brightness = d[1];
+            ws2812_state.global_light  = key_bund.ws2812_brightness;
+            running_data.have_update_custom_data = 1;
+            command_return(d[0], 0);
+        } else {
+            command_return(d[0], 1);
+        }
+        return;
+    }
+    if (d[0] == 0x90) { // claude state update
+        if (len == 2 && d[1] < CL_STATE_COUNT) {
+            running_data.claude_state = d[1];
+            PRINT("CLAUDE STATE %d\n", d[1]);
+            update_claude_ws2812();
+            command_return(d[0], 0);
+        } else {
+            command_return(d[0], 1);
+        }
+        return;
+    }
+    if (d[0] == 0x91) { // direct WS2812 light effect from upper software
+        if (len == 2 && d[1] <= WS2812_APPROVAL_WAIT) {
+            running_data.ws2812_mode_ignore_flag = 0;
+            running_data.ws2812_single_color     = 0x102080;
+            running_data.ws2812_mode             = (enum ws2812_mode_e) d[1];
+            command_return(d[0], 0);
+        } else {
+            command_return(d[0], 1);
+        }
+        return;
+    }
+    if (d[0] == 0x92) { // set keyboard work mode from upper software
+        if (len == 2 && d[1] < USER_MODE_COUNT) {
+            running_data.edit_flag = 1;
+            set_mode(d[1]);
+            tmos_start_task(mTaskID, MCT_MODE_END, MS1_TO_SYSTEM_TIME(1000));
+            command_return(d[0], 0);
+        } else {
+            command_return(d[0], 1);
+        }
         return;
     }
     command_return(d[0], 0);
@@ -209,7 +285,7 @@ void command_return(uint8_t id, uint8_t code)
     ret[ret_len++]  = code;
     ret[ret_len++]  = 0xcc;
     ret[ret_len++]  = 0xdd;
-    peripheralChar4Notify(ret, ret_len);
+    command_return_frame(ret, ret_len);
 }
 void command_return_state(void)
 {
@@ -225,10 +301,22 @@ void command_return_state(void)
     ret[ret_len++]  = running_data.mode_data;     // data[4] = info.WorkMode;
     ret[ret_len++]  = running_data.ws2812_mode;   // data[5] = info.LightMode;
     ret[ret_len++]  = running_data.sw_state;      // data[6] = info.SwitchState;
-    ret[ret_len++]  = 0;                          // data[7] = info.Reserve;
+    ret[ret_len++]  = key_bund.ws2812_brightness; // data[7] = info.LightBrightness;
     ret[ret_len++]  = 0xcc;
     ret[ret_len++]  = 0xdd;
-    peripheralChar4Notify(ret, ret_len);
+    command_return_frame(ret, ret_len);
+}
+
+void command_return_frame(uint8_t *d, uint8_t len)
+{
+    uint8_t id = len >= 3 ? d[2] : 0;
+    if (((command_in_process && command_transport == COMMAND_TRANSPORT_USB) ||
+         (!command_in_process && id == 0x81 && data_transport == COMMAND_TRANSPORT_USB)) &&
+        usb_is_ready()) {
+        usb_EP2_send_packet(d, len);
+    } else {
+        peripheralChar4Notify(d, len);
+    }
 }
 
 void command_process_ok(void)

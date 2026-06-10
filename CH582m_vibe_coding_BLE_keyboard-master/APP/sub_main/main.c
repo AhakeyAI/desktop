@@ -10,24 +10,198 @@ data_in_fram_s data_in_fram = {0};
 running_data_s running_data;
 
 tmosEvents    MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events);
-const uint8_t defult_key_0_0[] = {0x73, 1, 0x6d};
-const uint8_t defult_key_0_1[] = {0x73, 1, HID_KEYBOARD_RETURN};
-const uint8_t defult_key_0_2[] = {0x74,
-                                  12,
-                                  DOWN_KEY,
-                                  HID_KEYBOARD_DOWN_ARROW,
-                                  UP_KEY,
-                                  HID_KEYBOARD_DOWN_ARROW,
-                                  DOWN_KEY,
-                                  HID_KEYBOARD_DOWN_ARROW,
-                                  UP_KEY,
-                                  HID_KEYBOARD_DOWN_ARROW,
-                                  DOWN_KEY,
-                                  HID_KEYBOARD_RETURN,
-                                  UP_KEY,
-                                  HID_KEYBOARD_RETURN};
-const char   *defult_name[]    = {"Record", "Accept", "Reject", "Enter"};
+const uint8_t defult_key_f18[]       = {0x73, 1, 0x6d};
+const uint8_t defult_key_enter[]     = {0x73, 1, HID_KEYBOARD_RETURN};
+const uint8_t defult_key_backspace[] = {0x73, 1, HID_KEYBOARD_DELETE};
+const uint8_t defult_key_escape[]    = {0x73, 1, HID_KEYBOARD_ESCAPE};
+const uint8_t defult_key_claude_no[] = {0x74,
+                                        12,
+                                        DOWN_KEY,
+                                        HID_KEYBOARD_DOWN_ARROW,
+                                        UP_KEY,
+                                        HID_KEYBOARD_DOWN_ARROW,
+                                        DOWN_KEY,
+                                        HID_KEYBOARD_DOWN_ARROW,
+                                        UP_KEY,
+                                        HID_KEYBOARD_DOWN_ARROW,
+                                        DOWN_KEY,
+                                        HID_KEYBOARD_RETURN,
+                                        UP_KEY,
+                                        HID_KEYBOARD_RETURN};
+const char *defult_name[USER_MODE_COUNT][USER_KEY_COUNT] = {
+    {"Record", "Yes", "No", "Backspace"},
+    {"Record", "Accept", "Reject", "Backspace"},
+    {"Record", "Accept", "Reject", "Backspace"},
+    {"N/A", "N/A", "N/A", "N/A"},
+};
 key_bund_s    key_bund;
+
+#define WS2812_DEFAULT_BRIGHTNESS 35
+#define WS2812_LEGACY_DEFAULT_BRIGHTNESS 20
+#define WS2812_MAX_BRIGHTNESS     100
+
+void set_mode(uint8_t mode);
+
+static const uint8_t default_ai_light_mode[CL_STATE_COUNT] = {
+    WS2812_WARNING_BLINK, // Notification
+    WS2812_BREATHING,     // PermissionRequest
+    WS2812_SINGLE_MOVE,   // PostToolUse
+    WS2812_SINGLE_MOVE,   // PreToolUse
+    WS2812_SINGLE_MOVE,   // SessionStart
+    WS2812_MIDDLE_LIGHT,  // Stop
+    WS2812_MIDDLE_LIGHT,  // TaskCompleted
+    WS2812_TYPING_RIPPLE, // UserPromptSubmit
+    WS2812_OFF,           // SessionEnd
+};
+
+static const uint8_t legacy_ai_light_mode[CL_STATE_COUNT] = {
+    WS2812_WARNING_BLINK,
+    WS2812_APPROVAL_WAIT,
+    WS2812_COMET,
+    WS2812_BLUE_THINKING,
+    WS2812_PULSE_CENTER,
+    WS2812_SCAN_BAR,
+    WS2812_SUCCESS_SWEEP,
+    WS2812_TYPING_RIPPLE,
+    WS2812_OFF,
+};
+
+static void init_default_ai_light_modes(void)
+{
+    for (uint8_t mode = 0; mode < USER_MODE_COUNT; mode++)
+        memcpy(key_bund.ai_light_mode[mode], default_ai_light_mode, sizeof(default_ai_light_mode));
+}
+
+static uint8_t ai_light_mode_matches(const uint8_t *table, const uint8_t *preset)
+{
+    return memcmp(table, preset, CL_STATE_COUNT) == 0;
+}
+
+static uint8_t keyboard_hid_ready(void)
+{
+    return running_data.hid_input_ready || usb_is_ready();
+}
+
+static void sanitize_key_bund_data(void)
+{
+    for (uint8_t mode = 0; mode < USER_MODE_COUNT; mode++) {
+        for (uint8_t key = 0; key < USER_KEY_COUNT; key++) {
+            if (key_bund.user_key_bind[mode][key][0] == 0xFF)
+                memset(key_bund.user_key_bind[mode][key], 0, sizeof(key_bund.user_key_bind[mode][key]));
+            if (key_bund.user_key_desc[mode][key][0] == 0xFF)
+                memset(key_bund.user_key_desc[mode][key], 0, sizeof(key_bund.user_key_desc[mode][key]));
+        }
+        for (uint8_t i = 0; i < 3; i++) {
+            if (key_bund.pic[mode][i] == 0xFFFF)
+                key_bund.pic[mode][i] = 0;
+        }
+        uint8_t invalid_count = 0;
+        uint8_t off_count     = 0;
+        for (uint8_t state = 0; state < CL_STATE_COUNT; state++) {
+            if (key_bund.ai_light_mode[mode][state] == 0xFF || key_bund.ai_light_mode[mode][state] > WS2812_APPROVAL_WAIT)
+                invalid_count++;
+            if (key_bund.ai_light_mode[mode][state] == WS2812_OFF)
+                off_count++;
+        }
+        if (invalid_count == CL_STATE_COUNT || off_count == CL_STATE_COUNT ||
+            ai_light_mode_matches(key_bund.ai_light_mode[mode], legacy_ai_light_mode)) {
+            memcpy(key_bund.ai_light_mode[mode], default_ai_light_mode, sizeof(default_ai_light_mode));
+        } else {
+            for (uint8_t state = 0; state < CL_STATE_COUNT; state++) {
+                if (key_bund.ai_light_mode[mode][state] == 0xFF || key_bund.ai_light_mode[mode][state] > WS2812_APPROVAL_WAIT)
+                    key_bund.ai_light_mode[mode][state] = default_ai_light_mode[state];
+            }
+        }
+    }
+    if (key_bund.ws2812_brightness == 0 || key_bund.ws2812_brightness == 0xFF ||
+        key_bund.ws2812_brightness == WS2812_LEGACY_DEFAULT_BRIGHTNESS || key_bund.ws2812_brightness > WS2812_MAX_BRIGHTNESS)
+        key_bund.ws2812_brightness = WS2812_DEFAULT_BRIGHTNESS;
+}
+
+static void copy_default_key(uint8_t mode, uint8_t key, const uint8_t *data, uint8_t len)
+{
+    memcpy(key_bund.user_key_bind[mode][key], data, len);
+    memcpy(key_bund.user_key_desc[mode][key], defult_name[mode][key], strlen(defult_name[mode][key]));
+}
+
+static void init_default_key_bund(void)
+{
+    memset(&key_bund, 0, sizeof(key_bund));
+    key_bund.ws2812_brightness = WS2812_DEFAULT_BRIGHTNESS;
+    init_default_ai_light_modes();
+
+    copy_default_key(0, 0, defult_key_f18, sizeof(defult_key_f18));
+    copy_default_key(0, 1, defult_key_enter, sizeof(defult_key_enter));
+    copy_default_key(0, 2, defult_key_claude_no, sizeof(defult_key_claude_no));
+    copy_default_key(0, 3, defult_key_backspace, sizeof(defult_key_backspace));
+    copy_default_key(1, 0, defult_key_f18, sizeof(defult_key_f18));
+    copy_default_key(1, 1, defult_key_enter, sizeof(defult_key_enter));
+    copy_default_key(1, 2, defult_key_backspace, sizeof(defult_key_backspace));
+    copy_default_key(1, 3, defult_key_backspace, sizeof(defult_key_backspace));
+
+    copy_default_key(2, 0, defult_key_f18, sizeof(defult_key_f18));
+    copy_default_key(2, 1, defult_key_enter, sizeof(defult_key_enter));
+    copy_default_key(2, 2, defult_key_escape, sizeof(defult_key_escape));
+    copy_default_key(2, 3, defult_key_backspace, sizeof(defult_key_backspace));
+}
+
+static void reset_ble_identity(void)
+{
+    PRINT("BLE reset: erase bonds and enter pairing blink\n");
+    tmos_stop_task(mTaskID, MCT_BT_RESET_HOLD_CHECK);
+    tmos_stop_task(mTaskID, MCT_POWER_OFF_buzz);
+    running_data.power_off_prompt_mode  = 0;
+    running_data.bt_reset_pairing_mode  = 1;
+    running_data.bt_connect_stat        = 0;
+    running_data.hid_input_ready        = 0;
+    running_data.ws2812_mode_ignore_flag = 0;
+    running_data.ws2812_mode             = WS2812_OFF;
+    running_data.ws2812_single_color     = 0x102080;
+    running_data.mac_offset              = (running_data.mac_offset + 1) % BLE_IDENTITY_COUNT;
+    memset(data_in_fram.device_name, 0, sizeof(data_in_fram.device_name));
+    set_mode(0);
+    running_data.bt_reset_pairing_mode = 1;
+    for (int i = 0; i < LED_NUM; i++) {
+        ws2812_list[i].hex = 0x80102080;
+        update_bit(i);
+    }
+    HidDev_SetParameter(HIDDEV_ERASE_ALLBONDS, 0, NULL);
+    save_all_data_to_fram();
+    DelayMs(800);
+    power_reset(0);
+}
+
+static void prepare_power_shutdown(void)
+{
+    running_data.power_shutdown_mode     = 1;
+    running_data.power_off_prompt_mode   = 0;
+    running_data.bt_reset_pairing_mode   = 0;
+    running_data.ws2812_mode_ignore_flag = 1;
+    running_data.ws2812_mode             = WS2812_OFF;
+    running_data.charge_flag             = 0;
+    buzzerStop();
+    tmos_stop_task(mTaskID, MCT_PIC_DISPLAY);
+    tmos_stop_task(mTaskID, MCT_WS2812_MODE);
+    tmos_stop_task(mTaskID, MCT_POWER_OFF_TIME_CHECK);
+    tmos_stop_task(mTaskID, MCT_music_ticks);
+    ws2812_state.global_light = 1;
+    for (int pass = 0; pass < 3; pass++) {
+        for (int i = 0; i < LED_NUM; i++) {
+            ws2812_list[i].hex = 0;
+            update_bit(i);
+        }
+        update_once();
+        DelayMs(3);
+    }
+    update_once();
+    DelayMs(3);
+    change_2812_state(1);
+    led_set_bk(0);
+    LCD_CS_RESET;
+    IPS_Clear(BLACK);
+    LCD_CS_SET;
+}
+
 
 void sub_main_1(void)
 {
@@ -48,19 +222,16 @@ void sub_main_1(void)
     fram_init();
     fram_read(0, &data_in_fram, sizeof(data_in_fram));
     running_data.mac_offset = data_in_fram._mac_offset;
+    if (running_data.mac_offset >= BLE_IDENTITY_COUNT)
+        running_data.mac_offset = 0;
     running_data.mode_data  = data_in_fram._mode_data;
     uint32_t tmp            = 0;
-    EEPROM_READ(EEPROM_BLOCK_SIZE * 4 + 1024, &tmp, sizeof(tmp));
+    EEPROM_READ(KEY_BUND_EEPROM_ADDR, &tmp, sizeof(tmp));
     if (tmp == 0xFFFFFFFF) {
-        memset(&key_bund, 0, sizeof(key_bund));
-        memcpy(key_bund.user_key_bind[0][0], defult_key_0_0, sizeof(defult_key_0_0));
-        memcpy(key_bund.user_key_bind[0][1], defult_key_0_1, sizeof(defult_key_0_1));
-        memcpy(key_bund.user_key_bind[0][2], defult_key_0_2, sizeof(defult_key_0_2));
-        memcpy(key_bund.user_key_bind[0][3], defult_key_0_1, sizeof(defult_key_0_1));
-        for (int i = 0; i < 4; i++)
-            memcpy(key_bund.user_key_desc[0][i], defult_name[i], strlen(defult_name[i]));
+        init_default_key_bund();
     } else {
-        EEPROM_READ(EEPROM_BLOCK_SIZE * 4 + 1024, &key_bund, sizeof(key_bund));
+        EEPROM_READ(KEY_BUND_EEPROM_ADDR, &key_bund, sizeof(key_bund));
+        sanitize_key_bund_data();
     }
     //  ! devices_init
     //  --------------------------------------------------------------------
@@ -70,9 +241,11 @@ void sub_main_1(void)
     // custom_init();
     void init_desp(void);
     init_desp();
-    usb_set_name(usb_name, sizeof(usb_name));
-    usb_set_desc(keyboard_state.report_pointer, keyboard_state.desp_lenth);
-    usb_hid_kbd_init();
+    // USB HID is experimental on this hardware revision. Keep it disabled by
+    // default so the keyboard can boot normally when USB D+/D- is not usable.
+    // usb_set_name(usb_name, sizeof(usb_name));
+    // usb_set_desc(keyboard_state.report_pointer, keyboard_state.desp_lenth);
+    // usb_hid_kbd_init();
 
     // ! charging_detect
     // --------------------------------------------------------------------
@@ -86,7 +259,9 @@ void sub_main_1(void)
     GPIOA_SetBits(GPIO_Pin_14);
     GPIOA_ModeCfg(GPIO_Pin_14, GPIO_ModeIN_PD);
 #define HAVE_VUSB !!GPIOA_ReadPortPin(GPIO_Pin_14)
-    running_data.power_off_timeout = 60 * 60;
+    running_data.usb_is_connected = HAVE_VUSB;
+    running_data.usb_hid_started  = 0;
+    refresh_power_off_timeout();
     // ! BACK_LIGHT
     // --------------------------------------------------------------------
     GPIOPinRemap(DISABLE, RB_PIN_TMR0);
@@ -104,6 +279,7 @@ void sub_main_1(void)
 }
 void sw_state_change(uint8_t new)
 {
+    refresh_power_off_timeout();
     running_data.sw_state = new;
     command_return_state();
     // 0 up, 1 down 2 mid
@@ -122,6 +298,10 @@ void read_sw_state(void)
         last_state = ret;
         sw_state_change(ret);
     }
+}
+void refresh_power_off_timeout(void)
+{
+    running_data.power_off_timeout = AUTO_POWER_OFF_TIMEOUT_SECONDS;
 }
 void sub_main(void)
 {
@@ -192,6 +372,8 @@ void sub_main(void)
     LCD_CS_RESET;
     IPS_Init();
     IPS_Clear(CYAN);
+    if (running_data.mode_data >= USER_MODE_COUNT)
+        running_data.mode_data = 0;
     set_mode(running_data.mode_data);
     LCD_CS_SET;
     // ! GD25Q256 2 --------------------------------------------------------------------
@@ -208,7 +390,7 @@ void sub_main(void)
         PRINT("max_pic_size %d\n", nor_flash_get_size() / 7 / 4096);
     }
     uint32_t tmp = 0;
-    EEPROM_READ(EEPROM_BLOCK_SIZE * 4 + 1024, &tmp, sizeof(tmp));
+    EEPROM_READ(KEY_BUND_EEPROM_ADDR, &tmp, sizeof(tmp));
     if (tmp == 0xFFFFFFFF) {
         for (int i = 0; i < ARRAY_SIZE(pic_dp); i++) {
             for (int j = i * 7; j < i * 7 + 7; j++) {
@@ -227,14 +409,20 @@ void sub_main(void)
                 remain -= len;
             }
         }
-        key_bund.pic[0][0] = 0;
-        key_bund.pic[0][1] = ARRAY_SIZE(pic_dp);
+        key_bund.pic[0][0] = PIC_MODE0_START;
+        key_bund.pic[0][1] = PIC_MODE0_COUNT;
         key_bund.pic[0][2] = 100;
+        key_bund.pic[1][0] = PIC_MODE1_START;
+        key_bund.pic[1][1] = PIC_MODE1_COUNT;
+        key_bund.pic[1][2] = 100;
+        key_bund.pic[2][0] = PIC_MODE2_START;
+        key_bund.pic[2][1] = PIC_MODE2_COUNT;
+        key_bund.pic[2][2] = 100;
         save_key_bound_data();
     }
     tmos_start_task(mTaskID, MCT_PIC_DISPLAY, MS1_TO_SYSTEM_TIME(100));
     running_data.ws2812_mode             = WS2812_OFF;
-    running_data.ws2812_single_color     = 0x020a0ff;
+    running_data.ws2812_single_color     = 0x0102080;
     running_data.have_update_custom_data = 0;
     running_data.claude_state            = CL_SessionEnd; // defaule CL_SessionEnd
 }
@@ -251,8 +439,14 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
         return events ^ SYS_EVENT_MSG;
     }
     if (events & MCT_test_event) {
-        static int index_t_ = 0;
-        tmos_start_task(mTaskID, MCT_test_event, MS1_TO_SYSTEM_TIME(10));
+        if (running_data.bt_connect_stat == 2 && !running_data.hid_input_ready) {
+            uint8_t empty_key_report[HID_KEYBOARD_IN_RPT_LEN] = {0};
+            if (HidDev_Report(0, HID_REPORT_TYPE_INPUT, sizeof(empty_key_report), empty_key_report) == SUCCESS) {
+                running_data.hid_input_ready = 1;
+            } else {
+                tmos_start_task(mTaskID, MCT_test_event, MS1_TO_SYSTEM_TIME(500));
+            }
+        }
         return events ^ MCT_test_event;
     }
     if (events & MCT_light_control) {
@@ -285,19 +479,13 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
         ps("%% %d\n", running_data.power_persent);
         // if (tx_tmp <= (int)(__Map(3.4f, 0, 3.07f, 0, 3033)))
         //     running_data.low_power_flag = 1;
-        if (running_data.v_bat > 450)
-            ws2812_state.global_light = 90;
-        else
-            ws2812_state.global_light = 70;
+        ws2812_state.global_light = key_bund.ws2812_brightness;
         if (running_data.v_bat < 350 && running_data.v_bat > 325) {
             start_music(2);
         }
         if (running_data.v_bat < 325 && running_data.v_bat > 50) {
             ps("low_power\n");
             // POWER_OFF;
-        }
-        if (running_data.v_bat > 440) {
-            running_data.power_off_timeout += 60;
         }
         ps("vbat = ");
         ps("%1d.%02dV", running_data.v_bat / 100, running_data.v_bat % 100);
@@ -312,27 +500,73 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
     if (events & MCT_POWER_OFF_TIME_CHECK) {
         tmos_start_task(mTaskID, MCT_POWER_OFF_TIME_CHECK, MS1_TO_SYSTEM_TIME(1000));
         ps("pfc %2d:%02ds\n", running_data.power_off_timeout / 60, running_data.power_off_timeout % 60);
+        static uint8_t last_usb_ready = 0;
+        static uint8_t last_usb_debug = 0xff;
+        static uint8_t last_charge    = 0xff;
+        uint8_t        usb_now        = HAVE_VUSB;
+        if (!usb_now && running_data.usb_hid_started) {
+            usb_disconnect();
+        }
+        if (usb_now && !running_data.usb_hid_started) {
+            running_data.usb_hid_started = 1;
+            usb_set_name(usb_name, sizeof(usb_name));
+            usb_set_desc(keyboard_state.report_pointer, keyboard_state.desp_lenth);
+            usb_hid_kbd_init();
+        }
+        uint8_t        usb_ready_now  = usb_is_ready();
+        uint8_t        usb_debug_now  = usb_debug_state();
+        uint8_t        charge_now     = IS_CHAEGING;
+        if (last_charge == 0xff)
+            last_charge = charge_now;
+        if (running_data.usb_is_connected != usb_now || last_usb_ready != usb_ready_now || last_usb_debug != usb_debug_now ||
+            last_charge != charge_now) {
+            char usb_txt[4];
+            running_data.usb_is_connected = usb_now;
+            last_usb_ready                 = usb_ready_now;
+            last_usb_debug                 = usb_debug_now;
+            last_charge                    = charge_now;
+            running_data.charge_flag       = 0;
+            set_mode(running_data.mode_data);
+            LCD_CS_RESET;
+            if (usb_is_ready()) {
+                sprintf(usb_txt, "HID");
+            } else {
+                sprintf(usb_txt, "%s", running_data.hid_input_ready ? "OK" : "ing");
+            }
+            BACK_COLOR = CYAN;
+            IPS_ShowString(128, 0, "   ", MAGENTA);
+            IPS_ShowString(152 - 8 * strlen(usb_txt), 0, usb_txt, MAGENTA);
+        }
         if (running_data.usb_is_connected == 0) {
             if (running_data.power_off_timeout) {
                 running_data.power_off_timeout--;
             } else {
-                tmos_set_event(mTaskID, MCT_START_POWER_OFF);
+                tmos_set_event(mTaskID, MCT_POWER_OFF_buzz);
             }
         }
         return events ^ MCT_POWER_OFF_TIME_CHECK;
     }
+    if (events & MCT_BT_RESET_HOLD_CHECK) {
+        if (key_read(4))
+            tmos_set_event(mTaskID, MCT_BT_RESET);
+        return events ^ MCT_BT_RESET_HOLD_CHECK;
+    }
+    if (events & MCT_BT_RESET) {
+        reset_ble_identity();
+        return events & ~(MCT_BT_RESET | MCT_START_POWER_OFF | MCT_POWER_OFF_buzz);
+    }
     if (events & MCT_START_POWER_OFF) {
         start_music(3);
+        running_data.power_off_prompt_mode = 1;
         running_data.ws2812_mode = 0xff;
         for (int i = 0; i < LED_NUM; i++) {
-            ws2812_list[i].hex = 0xffff0000;
+            ws2812_list[i].hex = 0xA0800000;
         }
-        tmos_start_task(mTaskID, MCT_POWER_OFF_buzz, MS1_TO_SYSTEM_TIME(500));
         tmos_stop_task(mTaskID, MCT_POWER_OFF_TIME_CHECK);
         return events ^ MCT_START_POWER_OFF;
     }
     if (events & MCT_POWER_OFF_buzz) {
-        buzzerStop();
+        prepare_power_shutdown();
         POWER_OFF;
         return events ^ MCT_POWER_OFF_buzz;
     }
@@ -340,6 +574,7 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
         tmos_start_task(mTaskID, MCT_WS2812_MODE, MS1_TO_SYSTEM_TIME(50));
         static uint8_t last_bt_stat = 1;
         static int8_t  prograss     = 0;
+        static uint8_t bt_pair_tick = 0;
         if (last_bt_stat != running_data.bt_connect_stat && running_data.bt_connect_stat != 0) {
             last_bt_stat = running_data.bt_connect_stat;
             if (last_bt_stat == 2)
@@ -347,7 +582,23 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
             else if (last_bt_stat == 1)
                 prograss = 19;
         }
-        if (prograss <= 0 || prograss >= 20) {
+        if (keyboard_hid_ready()) {
+            running_data.bt_reset_pairing_mode = 0;
+        }
+        if (running_data.power_off_prompt_mode && !running_data.bt_reset_pairing_mode) {
+            for (int i = 0; i < LED_NUM; i++) {
+                ws2812_list[i].hex = 0xA0800000;
+            }
+        } else if (!keyboard_hid_ready()) {
+            uint8_t on = (bt_pair_tick % 16) < 8;
+            for (int i = 0; i < LED_NUM; i++) {
+                if (on)
+                    ws2812_list[i].hex = 0x80102080;
+                else
+                    ws2812_list[i].hex = 0x40000008;
+            }
+            bt_pair_tick++;
+        } else if (prograss <= 0 || prograss >= 20) {
             if (running_data.ws2812_mode_ignore_flag == 0) {
                 ws2812_display(running_data.ws2812_mode, running_data.ws2812_single_color);
             }
@@ -360,7 +611,7 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
                 if (i > prograss / 2)
                     ws2812_list[i].hex = 0;
                 else
-                    ws2812_list[i].hex = 0xf030e6; // #f030e6
+                    ws2812_list[i].hex = 0x50102050;
             }
         }
         for (int i = 0; i < LED_NUM; i++)
@@ -378,11 +629,15 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
     if (events & MCT_DATA_TODO) {
         if (running_data.data_address < running_data.data_end_address) {
             if (0 < lwrb_get_full(&ble_data_lwrb)) {
-                uint8_t *d   = lwrb_get_linear_block_read_address(&ble_data_lwrb);
-                uint16_t len = lwrb_get_linear_block_read_length(&ble_data_lwrb);
-                W25QXX_Write_NoCheck(d, running_data.data_address, len);
-                lwrb_skip(&ble_data_lwrb, len);
-                running_data.data_address += len;
+                uint8_t *d         = lwrb_get_linear_block_read_address(&ble_data_lwrb);
+                uint16_t read_len = lwrb_get_linear_block_read_length(&ble_data_lwrb);
+                uint32_t remain   = running_data.data_end_address - running_data.data_address;
+                uint16_t write_len = read_len > remain ? remain : read_len;
+                if (write_len > 0) {
+                    W25QXX_Write_NoCheck(d, running_data.data_address, write_len);
+                    running_data.data_address += write_len;
+                }
+                lwrb_skip(&ble_data_lwrb, read_len);
                 if (0 < lwrb_get_full(&ble_data_lwrb)) {
                     tmos_set_event(mTaskID, MCT_DATA_TODO);
                 }
@@ -398,11 +653,13 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
         return events ^ MCT_DATA_TODO;
     }
     if (events & MCT_PIC_DISPLAY) {
+        if (running_data.power_shutdown_mode) {
+            return events ^ MCT_PIC_DISPLAY;
+        }
         if (running_data.charge_flag) {
             running_data.charge_flag = 0;
             LCD_CS_RESET;
-            IPS_Clear(BLACK);
-            IPS_show_single_color_pic(gImage_cgr, 36, 11, 88, 58, GREEN, BLACK);
+            set_mode(running_data.mode_data);
             LCD_CS_SET;
             tmos_start_task(mTaskID, MCT_PIC_DISPLAY, MS1_TO_SYSTEM_TIME(1000));
             return events ^ MCT_PIC_DISPLAY;
@@ -410,7 +667,7 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
         if (running_data.pic_writing) {
             return events ^ MCT_PIC_DISPLAY;
         }
-        if (!running_data.edit_flag && running_data.mode_data < 3 && key_bund.pic[running_data.mode_data][1] > 0) {
+        if (!running_data.edit_flag && running_data.mode_data < USER_MODE_COUNT && key_bund.pic[running_data.mode_data][1] > 0) {
             if (running_data.pic_index >= key_bund.pic[running_data.mode_data][1])
                 running_data.pic_index = 0;
             __attribute__((aligned(4))) uint8_t tmp_d[3658];
@@ -446,9 +703,7 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
         running_data.edit_flag               = 0;
         running_data.ws2812_mode_ignore_flag = 0;
         tmos_set_event(mTaskID, MCT_PIC_DISPLAY);
-        if (running_data.mode_data == 0) {
-            update_claude_ws2812();
-        }
+        update_claude_ws2812();
         return events ^ MCT_MODE_END;
     }
 
@@ -457,52 +712,24 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
 
 void update_claude_ws2812(void)
 {
-    if (running_data.mode_data != 0)
+    if (running_data.mode_data >= USER_MODE_COUNT || running_data.claude_state >= CL_STATE_COUNT)
         return;
-    switch (running_data.claude_state) {
-    case CL_SessionStart: {
-        running_data.ws2812_mode         = WS2812_MIDDLE_LIGHT;
-        running_data.ws2812_single_color = 0xf02029;
-    } break;
-    case CL_PostToolUse:
-    case CL_UserPromptSubmit: {
-        running_data.ws2812_mode         = WS2812_SINGLE_MOVE;
-        running_data.ws2812_single_color = 0xf02029;
-    } break;
-    case CL_PermissionRequest: {
-        running_data.ws2812_mode         = WS2812_BREATHING;
-        running_data.ws2812_single_color = 0xf02029;
-    } break;
-    case CL_PreToolUse: {
-        running_data.ws2812_mode         = WS2812_SINGLE_MOVE;
-        running_data.ws2812_single_color = 0x2050FF;
-    } break;
-    case CL_Stop: {
-        running_data.ws2812_mode         = WS2812_MIDDLE_LIGHT;
-        running_data.ws2812_single_color = 0xf02029;
-    } break;
-    case CL_SessionEnd: {
-        running_data.ws2812_mode = WS2812_OFF;
-    } break;
-    }
-    if (running_data.sw_state == 0) { // auto mode cover
-        switch (running_data.claude_state) {
-        case CL_PostToolUse:
-        case CL_UserPromptSubmit: {
-            running_data.ws2812_mode = WS2812_RAINBOW_MOVE;
-        } break;
-        case CL_PermissionRequest:
-        case CL_PreToolUse: {
-            running_data.ws2812_mode = WS2812_RAINBOW_WAVE;
-        } break;
-        }
-    }
+
+    running_data.ws2812_mode_ignore_flag = 0;
+    running_data.ws2812_single_color     = 0x102080;
+
+    uint8_t mode = key_bund.ai_light_mode[running_data.mode_data][running_data.claude_state];
+    if (mode > WS2812_APPROVAL_WAIT)
+        mode = default_ai_light_mode[running_data.claude_state];
+    running_data.ws2812_mode = (enum ws2812_mode_e) mode;
 }
 __INTERRUPT
 __HIGH_CODE
 void GPIOA_IRQHandler(void)
 {
     GPIOA_ClearITFlagBit(GPIO_Pin_13);
+    if (running_data.power_shutdown_mode)
+        return;
     PRINT("cgr\n");
     running_data.charge_flag = 1;
     tmos_start_task(mTaskID, MCT_PIC_DISPLAY, MS1_TO_SYSTEM_TIME(0));
