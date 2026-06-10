@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import AVFoundation
 import Speech
+import UserNotifications
 
 @main
 struct AhaKeyConfigApp: App {
@@ -31,7 +32,7 @@ struct AhaKeyConfigApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
@@ -62,49 +63,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         PermissionSignatureChecker.checkAndResetOnSignatureChange { success in
             DispatchQueue.main.async {
                 if success {
-                    // 权限已重置，下次点击申请会弹出原生授权弹窗
                     let alert = NSAlert()
                     alert.messageText = "检测到应用签名变化"
                     alert.informativeText = "麦克风权限已自动重置，下次点击「申请」按钮时会弹出系统授权对话框。"
                     alert.addButton(withTitle: "确定")
                     alert.runModal()
                 }
-                
-                // 延迟触发兜底请求：先麦克风，用户响应后再请求语音识别
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    let micUndetermined: Bool
-                    if #available(macOS 14.0, *) {
-                        micUndetermined = AVAudioApplication.shared.recordPermission == .undetermined
-                    } else {
-                        micUndetermined = AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined
-                    }
-                    if micUndetermined {
-                        if #available(macOS 14.0, *) {
-                            AVAudioApplication.requestRecordPermission { _ in
-                                Task { @MainActor in
-                                    if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
-                                        SFSpeechRecognizer.requestAuthorization { _ in }
-                                    }
-                                }
-                            }
-                        } else {
-                            AVCaptureDevice.requestAccess(for: .audio) { _ in
-                                Task { @MainActor in
-                                    if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
-                                        SFSpeechRecognizer.requestAuthorization { _ in }
-                                    }
-                                }
-                            }
-                        }
-                    } else if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
-                        SFSpeechRecognizer.requestAuthorization { _ in }
-                    }
-                }
             }
         }
 
+        UNUserNotificationCenter.current().delegate = self
+
         VoiceRelayService.shared.start()
         NativeSpeechTranscriptionService.shared.start()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

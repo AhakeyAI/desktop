@@ -67,7 +67,7 @@ final class VoiceRelayService: ObservableObject {
     /// 会把 F17/F18 翻译成 xterm CSI 转义序列，用户看起来就是"乱码")。
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var didRequestPermissionsThisLaunch = false
+
     private var suppressPermissionOnboardingUntil: Date?
 
     private var shadowSuppressUntil: TimeInterval = 0
@@ -105,12 +105,7 @@ final class VoiceRelayService: ObservableObject {
     // MARK: - Public
 
     func start() {
-        if !didRequestPermissionsThisLaunch {
-            didRequestPermissionsThisLaunch = true
-            refreshPermissions(requestIfNeeded: true)
-        } else {
-            refreshPermissions()
-        }
+        refreshPermissions(requestIfNeeded: false)
     }
 
     /// - Parameter deferredTCCRequery: 用户点「重新检查」时置 true。仅 Preflight 在刚改完系统设置、仍停留本 App 时可能仍读到旧值；改为稍后使用 Request API 再读一次，并略延长等待。

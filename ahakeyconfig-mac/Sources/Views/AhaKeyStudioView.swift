@@ -16,7 +16,8 @@ struct AhaKeyStudioView: View {
     @State private var lastSyncedDraft: AhaKeyStudioDraft
     @State private var selectedMode: AhaKeyModeSlot
     @State private var selectedPart: AhaKeyStudioPart
-    @State private var lightBarPreview: LightBarPreviewState
+    @State private var lightBarPreview: IDEState
+    @State private var modeCustomNames: [Int: String] = [:]
     @State private var lastSyncDate: Date?
     @State private var syncStatusMessage = "修改会先保存在本地，连接设备后再同步。"
     @State private var isSyncing = false
@@ -36,6 +37,11 @@ struct AhaKeyStudioView: View {
     @State private var oledAutoSyncDoneForConnection: Bool = false
     @State private var showsHelpCenter = false
     @State private var showsGuidanceDetail = false
+    @State private var editingModeSlot: AhaKeyModeSlot?
+    @State private var editingModeName: String = ""
+    @FocusState private var modeNameFieldFocused: Bool
+    @State private var showsWriteResultAlert = false
+    @State private var writeResultAlertMessage = ""
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
@@ -49,7 +55,8 @@ struct AhaKeyStudioView: View {
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
-        _lightBarPreview = State(initialValue: .aiRunning)
+        _lightBarPreview = State(initialValue: .preToolUse)
+        _modeCustomNames = State(initialValue: AhaKeyModeNameStore.load())
     }
 
     var body: some View {
@@ -360,20 +367,73 @@ struct AhaKeyStudioView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    @ViewBuilder
+    private func modeTabItem(_ mode: AhaKeyModeSlot) -> some View {
+        let isSelected = selectedMode == mode
+        let isEditing = editingModeSlot == mode
+
+        if isEditing {
+            TextField("", text: $editingModeName, onCommit: { commitModeNameEdit() })
+                .textFieldStyle(.plain)
+                .font(.callout.weight(.medium))
+                .multilineTextAlignment(.center)
+                .focused($modeNameFieldFocused)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 4)
+                .background(Color.accentColor.opacity(0.15))
+                .onExitCommand { commitModeNameEdit() }
+                .onAppear { modeNameFieldFocused = true }
+                .onChange(of: modeNameFieldFocused) { focused in
+                    if !focused { commitModeNameEdit() }
+                }
+        } else {
+            Text(modeCustomNames[mode.rawValue] ?? mode.defaultName)
+                .font(.callout.weight(isSelected ? .semibold : .regular))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 4)
+                .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    editingModeName = modeCustomNames[mode.rawValue] ?? mode.defaultName
+                    editingModeSlot = mode
+                    selectedMode = mode
+                }
+                .onTapGesture(count: 1) {
+                    selectedMode = mode
+                }
+        }
+    }
+
+    private func commitModeNameEdit() {
+        guard let slot = editingModeSlot else { return }
+        let capped = String(editingModeName.prefix(30))
+        if capped.isEmpty || capped == slot.defaultName {
+            modeCustomNames.removeValue(forKey: slot.rawValue)
+        } else {
+            modeCustomNames[slot.rawValue] = capped
+        }
+        AhaKeyModeNameStore.save(modeCustomNames)
+        editingModeSlot = nil
+    }
+
     private var modeEditorHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 16) {
                 Text("Keyboard Mode")
                     .font(.system(size: 17, weight: .semibold))
 
-                Picker("模式", selection: $selectedMode) {
+                HStack(spacing: 0) {
                     ForEach(AhaKeyModeSlot.allCases) { mode in
-                        Text(mode.name).tag(mode)
+                        modeTabItem(mode)
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 320)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                .frame(width: 480)
 
                 Spacer(minLength: 0)
             }
@@ -406,89 +466,98 @@ struct AhaKeyStudioView: View {
     }
 
     private var inspectorPane: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if isEditingInspector {
-                    // ── Level 2: 全量编辑 ──────────────────────────────────
-                    HStack(spacing: 8) {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isEditingInspector = false
-                                returnToKeyboardControl()
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if isEditingInspector {
+                        Label(selectedPart.title, systemImage: selectedPart.systemImage)
+                            .font(.system(size: 18, weight: .semibold))
+
+                        Group {
+                            switch selectedPart {
+                            case .key1, .key2, .key3, .key4: keyInspector
+                            case .oledDisplay: oledInspector
+                            case .lightBar: lightBarInspector
+                            case .toggleSwitch: switchInspector
                             }
-                        } label: {
-                            Label("取消编辑", systemImage: "xmark")
-                                .font(.callout.weight(.medium))
                         }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
-                        Spacer()
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isEditingInspector = false
-                                finishEditingConfiguration()
+
+                    } else {
+                        inspectorHeader
+
+                        VStack(alignment: .leading, spacing: 0) {
+                            partSummaryContent
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.black.opacity(0.07), lineWidth: 1)
+                                )
+                        )
+
+                        HStack {
+                            Spacer()
+                            Button {
+                                enterEditingConfiguration()
+                                withAnimation(.easeInOut(duration: 0.2)) { isEditingInspector = true }
+                            } label: {
+                                Label("修改", systemImage: "pencil")
                             }
-                        } label: {
-                            Label(isSyncing ? "同步中…" : "返回并保存", systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "checkmark")
-                                .font(.callout.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                            .keyboardShortcut("e", modifiers: .command)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isSyncing)
+                        .padding(.top, 6)
                     }
-
-                    Label(selectedPart.title, systemImage: selectedPart.systemImage)
-                        .font(.system(size: 18, weight: .semibold))
-
-                    Group {
-                        switch selectedPart {
-                        case .key1, .key2, .key3, .key4: keyInspector
-                        case .oledDisplay: oledInspector
-                        case .lightBar: lightBarInspector
-                        case .toggleSwitch: switchInspector
-                        }
-                    }
-
-                } else {
-                    // ── Level 1: 摘要卡片 ──────────────────────────────────
-                    inspectorHeader
-
-                    VStack(alignment: .leading, spacing: 0) {
-                        partSummaryContent
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.black.opacity(0.07), lineWidth: 1)
-                            )
-                    )
-
-                    // macOS HIG：主操作按钮跟随内容尺寸，右下角对齐，标准 control size
-                    HStack {
-                        Spacer()
-                        Button {
-                            enterEditingConfiguration()
-                            withAnimation(.easeInOut(duration: 0.2)) { isEditingInspector = true }
-                        } label: {
-                            Label("修改", systemImage: "pencil")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.regular)
-                        .keyboardShortcut("e", modifiers: .command)
-                    }
-                    .padding(.top, 6)
                 }
+                .padding(24)
             }
-            .padding(24)
+
+            if isEditingInspector {
+                Divider()
+                HStack(spacing: 12) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isEditingInspector = false
+                            returnToKeyboardControl()
+                        }
+                    } label: {
+                        Label("返回", systemImage: "chevron.left")
+                            .font(.callout.weight(.medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+
+                    Spacer()
+
+                    Button {
+                        writeToKeyboard()
+                    } label: {
+                        Label(isSyncing ? "写入中…" : "写入键盘", systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
+                            .font(.callout.weight(.semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    .disabled(isSyncing || !bleManager.isConnected)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+            }
         }
         .frame(width: 390)
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
         .onChange(of: selectedPart) { _ in
             withAnimation(.easeInOut(duration: 0.18)) { isEditingInspector = false }
+        }
+        .alert("写入结果", isPresented: $showsWriteResultAlert) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(writeResultAlertMessage)
         }
     }
 
@@ -520,7 +589,7 @@ struct AhaKeyStudioView: View {
                             Divider()
                             Text("1. 点击虚拟键盘对应按键选中它。")
                             Text("2. 语音键先选预设；其他键按需选单键或宏。")
-                            Text("3. 配置完成后点「返回并保存」同步到键盘。")
+                            Text("3. 配置完成后点「写入键盘」同步到键盘。")
                             Text("4. 切模式时 LCD 先显示描述，再回到该模式动图。")
                         }
                         .font(.callout)
@@ -783,9 +852,11 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var lightBarSummary: some View {
-        ForEach(LightBarPreviewState.allCases) { state in
-            summaryRow(state.title, value: AhaKeyLightBarDraft.hardwareEffect(for: state).title)
+        let lb = currentModeDraft.lightBar
+        ForEach(IDEState.allCases) { state in
+            summaryRow(state.shortLabel, value: lb.effect(for: state).title)
         }
+        summaryRow("亮度", value: "\(lb.brightness)%")
     }
 
     @ViewBuilder
@@ -1302,56 +1373,35 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    @ViewBuilder
-    private var lightBarReadOnlyInfo: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "info.circle.fill")
-                .foregroundStyle(.blue)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("出厂灯条映射（只读）")
-                    .font(.subheadline.weight(.semibold))
-                Text("灯条由键盘固件根据 Hook 上报的 IDE 状态点亮，本软件不能改写。下表展示的是各业务场景通常对应的 Hook 状态与出厂灯效。下方画布按业务场景显示；「预览到设备」则会按当前拨杆下可达的固件状态发送试灯。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.blue.opacity(0.08))
-        )
-    }
-
     private var lightBarInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            lightBarReadOnlyInfo
-
-            GroupBox("业务状态 → Hook 状态 → 出厂灯效") {
-                VStack(alignment: .leading, spacing: 12) {
-                    let cases = Array(LightBarPreviewState.allCases)
-                    ForEach(Array(cases.enumerated()), id: \.offset) { index, state in
-                        let hw = AhaKeyLightBarDraft.hardwareEffect(for: state)
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(state.title)
-                                    .font(.callout.weight(.semibold))
-                                Spacer(minLength: 8)
-                                Text(hw.title)
-                                    .font(.callout)
-                                    .foregroundStyle(.primary)
-                                    .multilineTextAlignment(.trailing)
+            GroupBox("状态灯效映射") {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(IDEState.allCases) { state in
+                        HStack {
+                            Text(state.shortLabel)
+                                .font(.callout.weight(.medium))
+                                .frame(width: 80, alignment: .leading)
+                            Picker("", selection: lightEffectBinding(for: state)) {
+                                ForEach(LightEffectStyle.allCases) { effect in
+                                    Text(effect.title).tag(effect)
+                                }
                             }
-                            Text("Hook 上报：\(state.ideState.label)")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            Text(hw.detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
                         }
-                        if index < cases.count - 1 {
-                            Divider()
-                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+
+            GroupBox("亮度") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Slider(value: brightnessBinding, in: 1...100, step: 1)
+                        Text("\(currentModeDraft.lightBar.brightness)%")
+                            .font(.callout.monospacedDigit())
+                            .frame(width: 44, alignment: .trailing)
                     }
                 }
                 .padding(.top, 4)
@@ -1360,52 +1410,41 @@ struct AhaKeyStudioView: View {
             GroupBox("状态预览") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(lightBarPreview.title)
+                        Text(lightBarPreview.shortLabel)
                             .font(.system(.title3, design: .rounded).weight(.semibold))
                         Spacer()
                         Button("预览到设备") {
                             previewCurrentLightEffectOnDevice()
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!bleManager.isConnected || currentDevicePreviewIDEState == nil)
+                        .disabled(!bleManager.isConnected)
                     }
 
-                    Text("当前画布预览：\(currentLightEffect.title)")
+                    Text("画布预览：\(currentModeDraft.lightBar.effect(for: lightBarPreview).title)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                    Text("当前业务状态对应 Hook：\(lightBarPreview.ideState.label)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Text(currentLightPreviewHint)
-                        .font(.caption)
-                        .foregroundStyle(currentDevicePreviewIDEState == nil ? .orange : .secondary)
-                    if bleManager.isConnected && bleManager.workMode != 0 {
-                        Text("ℹ️ 出厂固件只在物理 Mode 0（1、2 灯）下完整映射了 state → 灯效；当前键盘在 Mode \(bleManager.workMode)，点预览多半看不到效果，把拨杆切到 Mode 0 再试。")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 10)], spacing: 10) {
-                        ForEach(LightBarPreviewState.allCases) { state in
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
+                        ForEach(IDEState.allCases) { state in
                             Button {
                                 lightBarPreview = state
                             } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(state.title)
-                                        .font(.callout.weight(.semibold))
-                                    Text(AhaKeyLightBarDraft.hardwareEffect(for: state).title)
-                                        .font(.caption)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(state.shortLabel)
+                                        .font(.caption.weight(.semibold))
+                                    Text(currentModeDraft.lightBar.effect(for: state).title)
+                                        .font(.caption2)
                                         .foregroundStyle(.secondary)
-                                        .lineLimit(2)
+                                        .lineLimit(1)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(12)
+                                .padding(10)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: 10)
                                         .fill(state == lightBarPreview ? Color.accentColor.opacity(0.14) : Color(nsColor: .controlBackgroundColor))
                                 )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: 10)
                                         .stroke(state == lightBarPreview ? Color.accentColor : Color.black.opacity(0.08), lineWidth: 1)
                                 )
                             }
@@ -1416,12 +1455,18 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("说明") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("若需让某套灯效出现，请用下方「预览到设备」向固件发送一次对应可达的 IDE 状态试灯；或在 Agent 连上键盘后，通过实际触发 Hook 观察。")
+            HStack(spacing: 12) {
+                Button("同步灯效到设备") {
+                    syncLightBarToDevice()
                 }
-                .font(.callout)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.borderedProminent)
+                .disabled(!bleManager.isConnected || isSyncing)
+
+                if partIsDirty(.lightBar) {
+                    Text("灯效已修改，需同步")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
         }
     }
@@ -1687,18 +1732,7 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentLightEffect: LightEffectStyle {
-        AhaKeyLightBarDraft.hardwareEffect(for: lightBarPreview)
-    }
-
-    private var currentDevicePreviewIDEState: IDEState? {
-        currentLightEffect.previewIDEState(forSwitchState: bleManager.switchState)
-    }
-
-    private var currentLightPreviewHint: String {
-        if let previewState = currentDevicePreviewIDEState {
-            return "当前拨杆下，预览到设备会发送 \(previewState.label)，以逼近画布中的 \(currentLightEffect.title) 效果。"
-        }
-        return currentLightEffect.previewHint(forSwitchState: bleManager.switchState)
+        currentModeDraft.lightBar.effect(for: lightBarPreview)
     }
 
     private var isEditingConfiguration: Bool {
@@ -1840,6 +1874,9 @@ struct AhaKeyStudioView: View {
             if current.oled != baseline.oled {
                 count += 1
             }
+            if current.lightBar != baseline.lightBar {
+                count += 1
+            }
         }
     }
 
@@ -1970,7 +2007,9 @@ struct AhaKeyStudioView: View {
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
             return current.oled != baseline.oled
-        case .lightBar, .toggleSwitch:
+        case .lightBar:
+            return current.lightBar != baseline.lightBar
+        case .toggleSwitch:
             return false
         }
     }
@@ -2040,6 +2079,32 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = "设备连接中，连接成功后将自动同步并返回控制模式…"
             bleManager.userInitiatedConnect()
             waitForConnectionThenSync()
+        }
+    }
+
+    private func writeToKeyboard() {
+        guard bleManager.isConnected && bleManager.commandCharReady else {
+            writeResultAlertMessage = "设备未连接，请先连接键盘后重试。"
+            showsWriteResultAlert = true
+            return
+        }
+
+        applyCursorRejectMacroSelfHealIfNeeded()
+        var commands = commandsForModes(AhaKeyModeSlot.allCases)
+        commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
+
+        isSyncing = true
+        syncStatusMessage = "正在写入设备…"
+        bleManager.writeCommandsSequentially(commands) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
+                self.lastSyncedDraft = self.studioDraft
+                self.lastSyncDate = Date()
+                self.isSyncing = false
+                self.syncStatusMessage = "已全部写入设备并保存。"
+                self.writeResultAlertMessage = "配置已成功写入键盘。"
+                self.showsWriteResultAlert = true
+            }
         }
     }
 
@@ -2226,6 +2291,18 @@ struct AhaKeyStudioView: View {
             }
         }
 
+        for mode in modes {
+            let lb = studioDraft.draft(for: mode).lightBar
+            let effects = IDEState.allCases.map { lb.effect(for: $0).firmwareIndex }
+            commands.append((
+                AhaKeyCommand.setLightMapping(mode: UInt8(mode.rawValue), stateEffects: effects),
+                "灯效映射 \(mode.title)"
+            ))
+        }
+
+        let brightness = UInt8(studioDraft.draft(for: modes[0]).lightBar.brightness)
+        commands.append((AhaKeyCommand.setBrightness(brightness), "亮度 \(brightness)%"))
+
         return commands
     }
 
@@ -2392,16 +2469,65 @@ struct AhaKeyStudioView: View {
     }
 
     private func previewCurrentLightEffectOnDevice() {
-        guard let ideState = currentDevicePreviewIDEState else {
-            syncStatusMessage = currentLightPreviewHint
-            return
+        bleManager.updateIDEState(lightBarPreview)
+        syncStatusMessage = "已发送 \(lightBarPreview.shortLabel) 到设备预览。"
+    }
+
+    private func syncLightBarToDevice() {
+        guard bleManager.isConnected else { return }
+        var commands: [(data: Data, label: String)] = []
+        for mode in AhaKeyModeSlot.allCases {
+            let lb = studioDraft.draft(for: mode).lightBar
+            let effects = IDEState.allCases.map { lb.effect(for: $0).firmwareIndex }
+            commands.append((
+                AhaKeyCommand.setLightMapping(mode: UInt8(mode.rawValue), stateEffects: effects),
+                "灯效映射 Mode \(mode.rawValue)"
+            ))
         }
-        bleManager.updateIDEState(ideState)
-        if bleManager.workMode == 0 {
-            syncStatusMessage = "已把 \(currentLightEffect.title) 的可达预览发送到设备（Mode 0）。"
-        } else {
-            syncStatusMessage = "已发送 \(ideState.label) 到设备。注意：键盘当前在 Mode \(bleManager.workMode)，出厂固件可能没有在此档位映射此 state，把拨杆切到 Mode 0 可看到完整效果。"
+        let brightness = UInt8(currentModeDraft.lightBar.brightness)
+        commands.append((AhaKeyCommand.setBrightness(brightness), "亮度 \(brightness)%"))
+        commands.append((AhaKeyCommand.saveConfig(), "保存配置"))
+
+        isSyncing = true
+        syncStatusMessage = "正在同步灯效..."
+        bleManager.writeCommandsSequentially(commands) {
+            Task { @MainActor in
+                isSyncing = false
+                lastSyncedDraft = studioDraft
+                AhaKeyStudioStore.save(studioDraft)
+                syncStatusMessage = "灯效已同步到设备。"
+            }
         }
+    }
+
+    private func lightEffectBinding(for state: IDEState) -> Binding<LightEffectStyle> {
+        Binding(
+            get: { currentModeDraft.lightBar.effect(for: state) },
+            set: { newEffect in
+                var draft = studioDraft
+                var mode = draft.draft(for: selectedMode)
+                if let idx = mode.lightBar.stateMappings.firstIndex(where: { $0.state == state }) {
+                    mode.lightBar.stateMappings[idx].effect = newEffect
+                }
+                draft.updateMode(mode)
+                studioDraft = draft
+                AhaKeyStudioStore.save(studioDraft)
+            }
+        )
+    }
+
+    private var brightnessBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentModeDraft.lightBar.brightness) },
+            set: { newValue in
+                var draft = studioDraft
+                var mode = draft.draft(for: selectedMode)
+                mode.lightBar.brightness = Int(newValue)
+                draft.updateMode(mode)
+                studioDraft = draft
+                AhaKeyStudioStore.save(studioDraft)
+            }
+        )
     }
 
     private func infoPill(title: String, subtitle: String, accent: Color) -> some View {
@@ -2754,23 +2880,28 @@ private struct ShortcutBindingEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                ForEach(ShortcutModifier.allCases) { modifier in
-                    Toggle(isOn: modifierBinding(modifier)) {
-                        Text(modifier.symbol)
-                            .font(.system(.headline, design: .rounded))
+            VStack(alignment: .leading, spacing: 6) {
+                Text("修饰键")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    ForEach(ShortcutModifier.allCases) { modifier in
+                        Toggle(isOn: modifierBinding(modifier)) {
+                            Text(modifier.symbol)
+                                .font(.system(.headline, design: .rounded))
+                        }
+                        .toggleStyle(.button)
+                        .help(modifier.title)
                     }
-                    .toggleStyle(.button)
-                    .help(modifier.title)
-                }
-                if !shortcut.modifiers.isEmpty {
-                    Button("清除修饰键") {
-                        var next = shortcut
-                        next.modifiers = []
-                        shortcut = next
+                    if !shortcut.modifiers.isEmpty {
+                        Button("清除修饰键") {
+                            var next = shortcut
+                            next.modifiers = []
+                            shortcut = next
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
             }
 
@@ -2825,7 +2956,7 @@ private struct CanvasKeyButtonStyle: ButtonStyle {
 private struct AhaKeyKeyboardCanvasView: View {
     let modeDraft: AhaKeyModeDraft
     let selectedPart: AhaKeyStudioPart
-    let lightBarPreview: LightBarPreviewState
+    let lightBarPreview: IDEState
     let switchTitle: String
     let dirtyParts: Set<AhaKeyStudioPart>
     let onSelect: (AhaKeyStudioPart) -> Void
@@ -2931,41 +3062,12 @@ private struct AhaKeyKeyboardCanvasView: View {
     private static let firmwareRed = Color(red: 240 / 255, green: 32 / 255, blue: 41 / 255)
     private static let firmwareBlue = Color(red: 32 / 255, green: 80 / 255, blue: 255 / 255)
 
-    /// 1:1 还原固件 update_claude_ws2812() 的灯效/颜色决策（CH582m main.c:458-500）。
-    /// 仅 mode_data==0 时固件会按 claude_state 切灯效；其他 mode 固件提前 return，
-    /// 灯条停在上一次设定的状态，所以我们这里返回 OFF 作为"没有运行时灯效"的真实表达。
     private func firmwareLEDState(ideState: IDEState?, modeData: Int, switchState: Int) -> (LightEffectStyle, Color) {
-        guard modeData == 0, let s = ideState else {
+        guard let s = ideState else {
             return (.off, Self.firmwareRed)
         }
-        var effect: LightEffectStyle
-        var color: Color = Self.firmwareRed
-        switch s {
-        case .sessionStart, .stop:
-            effect = .middleLight
-        case .postToolUse, .userPromptSubmit:
-            effect = .singleMove
-        case .permissionRequest:
-            effect = .breathing
-        case .preToolUse:
-            effect = .singleMove
-            color = Self.firmwareBlue
-        case .sessionEnd:
-            effect = .off
-        case .notification, .taskCompleted:
-            // 固件 switch 未处理这两个 state，灯条保持上一次状态（这里以 OFF 表示无新效果）
-            return (.off, Self.firmwareRed)
-        }
-        if switchState == 0 { // auto: 固件覆盖部分 state 为彩虹效果
-            switch s {
-            case .postToolUse, .userPromptSubmit:
-                effect = .rainbowMove
-            case .permissionRequest, .preToolUse:
-                effect = .rainbowWave
-            default:
-                break
-            }
-        }
+        let effect = modeDraft.lightBar.effect(for: s)
+        let color: Color = s == .preToolUse && switchState != 0 ? Self.firmwareBlue : Self.firmwareRed
         return (effect, color)
     }
 
@@ -2988,7 +3090,7 @@ private struct AhaKeyKeyboardCanvasView: View {
             }
         } else {
             // 离线/查看非物理档位：按固件逻辑模拟 update_claude_ws2812()
-            let previewIDE = lightBarPreview.ideState
+            let previewIDE = lightBarPreview
             (effect, baseColor) = firmwareLEDState(ideState: previewIDE, modeData: modeData, switchState: switchState)
         }
         return Button {
@@ -3325,6 +3427,84 @@ private struct AhaKeyKeyboardCanvasView: View {
             return (0..<count).map { i in
                 let hue = (Double(i) / Double(count) + time * 0.14).truncatingRemainder(dividingBy: 1.0)
                 return Color(hue: hue, saturation: 1.0, brightness: 0.9)
+            }
+        case .typingRipple:
+            let center = Double(count - 1) / 2.0
+            let phase = time.truncatingRemainder(dividingBy: 1.6) / 1.6
+            let rippleRadius = phase * center * 1.8
+            return (0..<count).map { i in
+                let dist = abs(Double(i) - center)
+                let wave = max(0, 1.0 - abs(dist - rippleRadius) * 0.8)
+                return baseColor.opacity(0.1 + wave * 0.85)
+            }
+        case .comet:
+            let period = 1.8
+            let t = time.truncatingRemainder(dividingBy: period) / period
+            let pos = t * Double(count + 3) - 1.5
+            return (0..<count).map { i in
+                let dist = Double(i) - pos
+                let tail = dist >= 0 ? 0.0 : max(0, 1.0 + dist * 0.25)
+                let head = dist >= 0 && dist < 1.5 ? max(0, 1.0 - dist * 0.65) : 0.0
+                return baseColor.opacity(0.08 + max(tail, head) * 0.88)
+            }
+        case .scanBar:
+            let period = 2.0
+            let t = time.truncatingRemainder(dividingBy: period) / period
+            let pos = t < 0.5 ? t * 2.0 * Double(count - 1) : (1.0 - (t - 0.5) * 2.0) * Double(count - 1)
+            return (0..<count).map { i in
+                let dist = abs(Double(i) - pos)
+                let brightness = dist < 1.5 ? 1.0 - dist * 0.3 : 0.0
+                return baseColor.opacity(0.08 + max(0, brightness) * 0.88)
+            }
+        case .pulseCenter:
+            let center = Double(count - 1) / 2.0
+            let pulse = (sin(time * Double.pi * 2.5) + 1.0) / 2.0
+            return (0..<count).map { i in
+                let dist = abs(Double(i) - center) / center
+                let intensity = pulse * max(0, 1.0 - dist * 0.8)
+                return baseColor.opacity(0.08 + intensity * 0.88)
+            }
+        case .warningBlink:
+            let blink = sin(time * Double.pi * 4.0) > 0 ? 0.9 : 0.1
+            let orange = Color(red: 1.0, green: 0.6, blue: 0.0)
+            return Array(repeating: orange.opacity(blink), count: count)
+        case .successSweep:
+            let green = Color(red: 0.1, green: 0.85, blue: 0.3)
+            let progress = time.truncatingRemainder(dividingBy: 2.0) / 2.0
+            let fillPos = progress * Double(count + 2) - 1
+            return (0..<count).map { i in
+                let lit = Double(i) <= fillPos ? 1.0 : 0.0
+                return green.opacity(0.08 + lit * 0.88)
+            }
+        case .blueThinking:
+            let blue = Color(red: 0.2, green: 0.5, blue: 1.0)
+            return (0..<count).map { i in
+                let wave = (sin(time * Double.pi * 0.8 + Double(i) * 0.6) + 1.0) / 2.0
+                return blue.opacity(0.15 + wave * 0.75)
+            }
+        case .lowBattery:
+            let red = Color(red: 1.0, green: 0.15, blue: 0.1)
+            let pulse = (sin(time * Double.pi * 0.5) + 1.0) / 2.0
+            return Array(repeating: red.opacity(0.1 + pulse * 0.6), count: count)
+        case .chargingFlow:
+            let green = Color(red: 0.1, green: 0.85, blue: 0.3)
+            let period = 3.0
+            let progress = time.truncatingRemainder(dividingBy: period) / period
+            let fillPos = progress * Double(count)
+            return (0..<count).map { i in
+                let lit = Double(i) < fillPos ? 0.85 : 0.08
+                return green.opacity(lit)
+            }
+        case .approvalWait:
+            let amber = Color(red: 1.0, green: 0.75, blue: 0.2)
+            let center = Double(count - 1) / 2.0
+            let breath = (sin(time * Double.pi * 1.2) + 1.0) / 2.0
+            let centerBlink = sin(time * Double.pi * 3.0) > 0 ? 1.0 : 0.4
+            return (0..<count).map { i in
+                let dist = abs(Double(i) - center) / center
+                let isCenter = dist < 0.2
+                let intensity = isCenter ? centerBlink : breath * (1.0 - dist * 0.5)
+                return amber.opacity(0.1 + intensity * 0.8)
             }
         }
     }
@@ -4292,7 +4472,7 @@ private struct OverviewTopicView: View {
                 同一时刻只有一个进程能持有键盘的 BLE 连接：
                 • 默认 Agent 占用 → Hook 状态实时上键盘、自动批准链可用
                 • 你在画布点「修改」时 → 主 App 临时接管，能上传 OLED、改键位、读图片元信息
-                • 点「返回并保存」或「取消编辑」 → 主 App 释放，Agent 自动接回
+                • 点「返回」 → 主 App 释放，Agent 自动接回
                 """
             )
 
@@ -4359,6 +4539,7 @@ private struct ModesTopicView: View {
         case .mode0: return Color.orange
         case .mode1: return Color.purple
         case .mode2: return Color.green
+        case .mode3: return Color.blue
         }
     }
 }
@@ -4385,7 +4566,7 @@ private struct CanvasTopicView: View {
             }
 
             HelpNote("hand.point.up.left", tint: .accentColor, body: """
-                点完元件 → Inspector 显示「修改」按钮。点「修改」会接管 BLE 进入编辑态；改完点「返回并保存」立即写入键盘，或点「取消编辑」放弃。
+                点完元件 → Inspector 显示「修改」按钮。点「修改」会接管 BLE 进入编辑态；改完点「写入键盘」写入配置，点「返回」退出编辑。
                 """)
         }
     }
@@ -4517,7 +4698,7 @@ private struct OLEDTopicView: View {
                 1. 画布点 OLED 屏幕 → Inspector 显示「修改」
                 2. 点「修改」进入编辑态（接管 BLE）
                 3. 在「上传到 ModeX」一栏选你的 .gif（推荐 ≤200 帧、≤2MB）
-                4. 上传完点「返回并保存」
+                4. 上传完点「写入键盘」
                 """)
 
             HelpSection(title: "OLED 角标的含义", body: """

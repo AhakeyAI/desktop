@@ -30,6 +30,9 @@ enum AhaKeyCommand {
     static let cmdReadPicState: UInt8 = 0x83
     static let cmdUpdateState: UInt8 = 0x90  // IDE 状态 → LED 变色
     static let cmdSetSwState: UInt8 = 0x91   // 虚拟拨杆：0=auto/up, 1=manual/down, 2=mid（需固件 patch 支持）
+    static let cmdSetLightMapping: UInt8 = 0x84  // per-mode per-state LED 映射
+    static let cmdSetBrightness: UInt8 = 0x85    // 全局 WS2812 亮度 1-100
+    static let cmdSetWorkMode: UInt8 = 0x92      // 远程切换工作模式 0-3
 
     // 按键子类型 (KeySubType)
     static let subShortcut: UInt8 = 0x73
@@ -48,7 +51,7 @@ enum AhaKeyCommand {
 
     /// 键码写入 → AA BB 73 73 [mode] [key_index] [hid_codes...] CC DD
     /// - Parameters:
-    ///   - mode: 工作模式 0-2
+    ///   - mode: 工作模式 0-3
     ///   - keyIndex: 0=Key1, 1=Key2, 2=Key3, 3=Key4
     ///   - hidCodes: HID Usage ID 数组（修饰键在前，普通键在后，最多 98 字节）
     static func setKeyMapping(mode: UInt8 = 0, keyIndex: UInt8, hidCodes: [UInt8]) -> Data {
@@ -58,7 +61,7 @@ enum AhaKeyCommand {
 
     /// 描述写入 → AA BB 73 75 [mode] [key_index] [utf8...] CC DD
     /// - Parameters:
-    ///   - mode: 工作模式 0-2
+    ///   - mode: 工作模式 0-3
     ///   - keyIndex: 0=Key1, 1=Key2, 2=Key3, 3=Key4
     ///   - text: 显示在 LCD 上的按键描述（最多 20 字节 ASCII）
     static func setKeyDescription(mode: UInt8 = 0, keyIndex: UInt8, text: String) -> Data {
@@ -129,11 +132,29 @@ enum AhaKeyCommand {
     static func setSwitchState(_ value: UInt8) -> Data {
         Data(header + [cmdSetSwState, value] + trailer)
     }
+
+    /// per-mode per-state LED 灯效映射 → AA BB 84 [mode] [state0_light]...[state8_light] CC DD
+    static func setLightMapping(mode: UInt8, stateEffects: [UInt8]) -> Data {
+        var effects = Array(stateEffects.prefix(9))
+        while effects.count < 9 { effects.append(0) }
+        return Data(header + [cmdSetLightMapping, mode] + effects + trailer)
+    }
+
+    /// 全局 WS2812 亮度 → AA BB 85 [brightness] CC DD
+    static func setBrightness(_ value: UInt8) -> Data {
+        let clamped = max(1, min(100, value))
+        return Data(header + [cmdSetBrightness, clamped] + trailer)
+    }
+
+    /// 切换工作模式 → AA BB 92 [mode] CC DD
+    static func setWorkMode(_ mode: UInt8) -> Data {
+        Data(header + [cmdSetWorkMode, min(3, mode)] + trailer)
+    }
 }
 
 /// IDE 状态枚举（原厂 ClaudeState）
 /// 发送到键盘后驱动 LED 颜色变化
-enum IDEState: UInt8, CaseIterable {
+enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
     case notification = 0        // 通知
     case permissionRequest = 1   // 等待授权
     case postToolUse = 2         // 工具执行完毕
@@ -157,6 +178,22 @@ enum IDEState: UInt8, CaseIterable {
         case .sessionEnd: return "8 会话结束"
         }
     }
+
+    var id: UInt8 { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .notification: return "通知"
+        case .permissionRequest: return "等待授权"
+        case .postToolUse: return "工具完毕"
+        case .preToolUse: return "工具执行"
+        case .sessionStart: return "会话开始"
+        case .stop: return "停止"
+        case .taskCompleted: return "任务完成"
+        case .userPromptSubmit: return "用户提交"
+        case .sessionEnd: return "会话结束"
+        }
+    }
 }
 
 /// 设备状态响应解析结果
@@ -168,6 +205,7 @@ struct AhaKeyDeviceStatus {
     let workMode: Int
     let lightMode: Int
     let switchState: Int
+    let brightness: Int
 }
 
 struct AhaKeyPictureState {
@@ -204,6 +242,7 @@ enum AhaKeyResponseParser {
         guard payload.count >= 8, payload[payload.startIndex] == 0x00 else { return nil }
 
         let base = payload.startIndex + 1 // skip cmd echo
+        let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 50
         return AhaKeyDeviceStatus(
             battery: Int(payload[base]),
             signal: Int(Int8(bitPattern: payload[base + 1])),
@@ -211,7 +250,8 @@ enum AhaKeyResponseParser {
             firmwareSub: Int(payload[base + 3]),
             workMode: Int(payload[base + 4]),
             lightMode: Int(payload[base + 5]),
-            switchState: Int(payload[base + 6])
+            switchState: Int(payload[base + 6]),
+            brightness: brightness
         )
     }
 

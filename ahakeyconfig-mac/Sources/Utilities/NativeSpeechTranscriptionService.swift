@@ -45,7 +45,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private var currentTranscript = ""
     /// 防止 `isFinal`、1s 超时、`error` 回调各触发一次，导致同一段被 ⌘V 多遍
     private var hasCommittedThisRecording = false
-    private var didRequestPermissionsThisLaunch = false
+
 
     private let syntheticEventUserData: Int64 = 0x4148414B
 
@@ -53,12 +53,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     func start() {
         AhaTypeTextOptimizer.shared.refreshFromDisk()
-        if !didRequestPermissionsThisLaunch {
-            didRequestPermissionsThisLaunch = true
-            refreshPermissions(requestIfNeeded: true)
-        } else {
-            refreshPermissions()
-        }
+        refreshPermissions(requestIfNeeded: false)
     }
 
     /// - Parameter deferredTCCRequery: 与 `VoiceRelayService` 一致：用户点「重新检查」时延后一拍再读，避免 TCC 状态未刷新时界面像「没反应」。

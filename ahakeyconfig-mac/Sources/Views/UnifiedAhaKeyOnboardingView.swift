@@ -68,6 +68,8 @@ struct UnifiedAhaKeyOnboardingView: View {
 
     @State private var step: AhaKeyOnboardingStep = .welcome
     @State private var didRunTryExperience = false
+    @State private var tryInputFieldText = ""
+    @FocusState private var tryInputFieldFocused: Bool
 
     var body: some View {
         GeometryReader { geometry in
@@ -182,10 +184,10 @@ struct UnifiedAhaKeyOnboardingView: View {
             switch step {
             case .welcome:
                 welcomePanel
-            case .systemPermissions:
-                systemPermissionsPanel
-            case .voicePermissions:
-                voicePermissionsPanel
+            case .dialogPermissions:
+                dialogPermissionsPanel
+            case .settingsPermissions:
+                settingsPermissionsPanel
             case .tryInput:
                 tryInputPanel
             }
@@ -209,17 +211,17 @@ struct UnifiedAhaKeyOnboardingView: View {
 
             VStack(spacing: 14) {
                 onboardingCard(systemImage: "keyboard", title: "连接与控制", detail: "开启蓝牙后，AhaKey Studio 会接管出厂语音键并同步当前 Mode。")
-                onboardingCard(systemImage: "lock.shield", title: "分步授权", detail: "先设置蓝牙、输入监控和辅助功能，再设置麦克风、语音转写、Siri 与听写。")
+                onboardingCard(systemImage: "lock.shield", title: "分步授权", detail: "先完成蓝牙、麦克风、语音转写等弹窗授权，再前往系统设置开启输入监控、辅助功能等。")
                 onboardingCard(systemImage: "mic", title: "体验输入", detail: "最后可以直接口述一句话，确认识别和写入链路都已准备好。")
             }
         }
     }
 
-    private var systemPermissionsPanel: some View {
+    private var dialogPermissionsPanel: some View {
         VStack(alignment: .leading, spacing: 24) {
             sectionHeader(
-                title: "第一步：系统控制授权",
-                detail: "这些权限用于连接键盘，以及让语音键在后台稳定地触发 AhaKey Studio。"
+                title: "第一步：弹窗确认授权",
+                detail: "以下权限点击「申请」后会弹出系统对话框，直接点允许即可。"
             )
 
             VStack(spacing: 12) {
@@ -230,40 +232,6 @@ struct UnifiedAhaKeyOnboardingView: View {
                     actionTitle: permissionState.bluetoothReady ? nil : "申请",
                     action: { actions.requestPermission(.bluetooth) }
                 )
-                PermissionStatusRow(
-                    title: "输入监控",
-                    detail: "允许 AhaKey Studio 在后台监听实体语音键。",
-                    granted: permissionState.inputMonitoringGranted,
-                    actionTitle: permissionState.inputMonitoringGranted ? nil : "申请",
-                    action: { actions.requestPermission(.inputMonitoring) }
-                )
-                PermissionStatusRow(
-                    title: "辅助功能",
-                    detail: "允许 AhaKey Studio 把语音键转换成 macOS 原生转写或 Fn/Globe。",
-                    granted: permissionState.accessibilityGranted,
-                    actionTitle: permissionState.accessibilityGranted ? nil : "申请",
-                    action: { actions.requestPermission(.accessibility) }
-                )
-            }
-
-            HStack(spacing: 10) {
-                Button("重新检查") {
-                    actions.recheckPermissions()
-                }
-                .buttonStyle(OnboardingSecondaryButtonStyle())
-            }
-
-        }
-    }
-
-    private var voicePermissionsPanel: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            sectionHeader(
-                title: "第二步：macOS 原生语音授权",
-                detail: "默认使用 macOS 原生语音时，需要麦克风、语音转写、Siri 与听写都可用。"
-            )
-
-            VStack(spacing: 12) {
                 PermissionStatusRow(
                     title: "麦克风",
                     detail: "允许 AhaKey Studio 使用苹果原生语音采集。",
@@ -277,6 +245,40 @@ struct UnifiedAhaKeyOnboardingView: View {
                     granted: permissionState.speechRecognitionGranted,
                     actionTitle: permissionState.speechRecognitionGranted ? nil : "申请",
                     action: { actions.requestPermission(.speechRecognition) }
+                )
+            }
+
+            HStack(spacing: 10) {
+                Button("重新检查") {
+                    actions.recheckPermissions()
+                }
+                .buttonStyle(OnboardingSecondaryButtonStyle())
+            }
+
+        }
+    }
+
+    private var settingsPermissionsPanel: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            sectionHeader(
+                title: "第二步：系统设置授权",
+                detail: "以下权限需要前往系统设置手动开启，点击「打开设置」后在系统设置中操作。"
+            )
+
+            VStack(spacing: 12) {
+                PermissionStatusRow(
+                    title: "输入监控",
+                    detail: "允许 AhaKey Studio 在后台监听实体语音键。",
+                    granted: permissionState.inputMonitoringGranted,
+                    actionTitle: permissionState.inputMonitoringGranted ? nil : "打开设置",
+                    action: { actions.requestPermission(.inputMonitoring) }
+                )
+                PermissionStatusRow(
+                    title: "辅助功能",
+                    detail: "允许 AhaKey Studio 把语音键转换成 macOS 原生转写或 Fn/Globe。",
+                    granted: permissionState.accessibilityGranted,
+                    actionTitle: permissionState.accessibilityGranted ? nil : "打开设置",
+                    action: { actions.requestPermission(.accessibility) }
                 )
                 PermissionStatusRow(
                     title: "Siri",
@@ -320,12 +322,23 @@ struct UnifiedAhaKeyOnboardingView: View {
                         .font(.system(size: 15, weight: .semibold))
                 }
 
-                Text(tryPreviewText)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
-                    .padding(18)
-                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                ZStack(alignment: .topLeading) {
+                    if tryInputFieldText.isEmpty {
+                        Text("请将光标放这里，开始说话即可")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 8)
+                    }
+                    TextEditor(text: $tryInputFieldText)
+                        .font(.system(size: 18, weight: .medium))
+                        .focused($tryInputFieldFocused)
+                        .modifier(HideScrollContentBackgroundModifier())
+                }
+                .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+                .padding(14)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .onAppear { tryInputFieldFocused = true }
 
                 Text(permissionState.speechStatusMessage)
                     .font(.system(size: 13))
@@ -364,21 +377,21 @@ struct UnifiedAhaKeyOnboardingView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 PermissionGroupSection(
-                    groupLabel: "系统授权",
-                    isHighlighted: step == .systemPermissions,
+                    groupLabel: "弹窗授权",
+                    isHighlighted: step == .dialogPermissions,
                     items: [
                         ("蓝牙", permissionState.bluetoothReady),
-                        ("输入监控", permissionState.inputMonitoringGranted),
-                        ("辅助功能", permissionState.accessibilityGranted),
+                        ("麦克风", permissionState.microphoneGranted),
+                        ("语音转写", permissionState.speechRecognitionGranted),
                     ]
                 )
 
                 PermissionGroupSection(
-                    groupLabel: "语音授权",
-                    isHighlighted: step == .voicePermissions || step == .tryInput,
+                    groupLabel: "系统设置授权",
+                    isHighlighted: step == .settingsPermissions || step == .tryInput,
                     items: [
-                        ("麦克风", permissionState.microphoneGranted),
-                        ("语音转写", permissionState.speechRecognitionGranted),
+                        ("输入监控", permissionState.inputMonitoringGranted),
+                        ("辅助功能", permissionState.accessibilityGranted),
                         ("Siri", permissionState.siriEnabled),
                         ("听写", permissionState.dictationEnabled),
                     ]
@@ -618,8 +631,8 @@ private struct PermissionStatusRow: View {
 
 private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
-    case systemPermissions
-    case voicePermissions
+    case dialogPermissions
+    case settingsPermissions
     case tryInput
 
     var id: Int { rawValue }
@@ -627,8 +640,8 @@ private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .welcome: return "欢迎"
-        case .systemPermissions: return "系统授权"
-        case .voicePermissions: return "语音授权"
+        case .dialogPermissions: return "弹窗授权"
+        case .settingsPermissions: return "系统设置"
         case .tryInput: return "开始体验"
         }
     }
@@ -640,8 +653,8 @@ private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
     var guideTitle: String {
         switch self {
         case .welcome: return "设置路线"
-        case .systemPermissions: return "先让键盘和后台控制可用"
-        case .voicePermissions: return "再打开 macOS 原生语音"
+        case .dialogPermissions: return "先完成弹窗确认的权限"
+        case .settingsPermissions: return "再到系统设置中开启"
         case .tryInput: return "最后试一次真实输入"
         }
     }
@@ -649,11 +662,11 @@ private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
     var guideDetail: String {
         switch self {
         case .welcome:
-            return "引导会按实际功能分为系统授权、语音授权和体验输入，完成后进入主工作台。"
-        case .systemPermissions:
-            return "蓝牙负责设备连接；输入监控和辅助功能负责后台接管语音键。"
-        case .voicePermissions:
-            return "麦克风和语音转写负责识别；Siri 与听写是 macOS 原生语音链路的系统开关。"
+            return "引导分两步授权：先完成系统弹窗确认的权限，再前往系统设置开启其余权限，最后体验输入。"
+        case .dialogPermissions:
+            return "蓝牙、麦克风和语音转写可以直接弹窗确认，点击「申请」后在弹窗中允许即可。"
+        case .settingsPermissions:
+            return "输入监控、辅助功能、Siri 与听写需要前往系统设置手动开启。"
         case .tryInput:
             return "这里使用软件内同一套语音链路测试，不再只是展示授权状态。"
         }
@@ -693,5 +706,15 @@ private struct OnboardingTextButtonStyle: ButtonStyle {
             .padding(.horizontal, 16)
             .frame(height: 34)
             .contentShape(Rectangle())
+    }
+}
+
+private struct HideScrollContentBackgroundModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 13.0, *) {
+            content.scrollContentBackground(.hidden)
+        } else {
+            content
+        }
     }
 }

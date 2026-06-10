@@ -134,6 +134,7 @@ private func requestSingleOnboardingPermission(
 
     switch kind {
     case .bluetooth:
+        bleManager.ensureCentralManager()
         bleManager.refreshBluetoothAuthorization()
         bleManager.userInitiatedConnect()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {

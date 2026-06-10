@@ -16,6 +16,8 @@ enum DefaultOLEDAssets {
             return "cursor"
         case .mode2:
             return "codex"
+        case .mode3:
+            return nil
         }
     }
 
