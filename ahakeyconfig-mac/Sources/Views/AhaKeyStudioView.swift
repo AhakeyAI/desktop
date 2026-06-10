@@ -397,11 +397,13 @@ struct AhaKeyStudioView: View {
                 .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) {
+                    commitModeNameEdit()
                     editingModeName = modeCustomNames[mode.rawValue] ?? mode.defaultName
                     editingModeSlot = mode
                     selectedMode = mode
                 }
                 .onTapGesture(count: 1) {
+                    commitModeNameEdit()
                     selectedMode = mode
                 }
         }
@@ -552,7 +554,13 @@ struct AhaKeyStudioView: View {
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
         .onChange(of: selectedPart) { _ in
+            commitModeNameEdit()
             withAnimation(.easeInOut(duration: 0.18)) { isEditingInspector = false }
+        }
+        .onChange(of: selectedMode) { _ in
+            if editingModeSlot != nil && editingModeSlot != selectedMode {
+                commitModeNameEdit()
+            }
         }
         .alert("写入结果", isPresented: $showsWriteResultAlert) {
             Button("好", role: .cancel) {}
