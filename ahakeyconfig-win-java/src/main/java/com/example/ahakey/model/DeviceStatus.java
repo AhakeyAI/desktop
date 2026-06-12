@@ -61,6 +61,8 @@ public class DeviceStatus {
     
     // Convenience methods
     public boolean isAutoApproval() {
+        // 仅当 switchState == 0 时为自动批准模式
+        // 未连接时 switchState 为 -1，此时不自动批准（与 macOS 版本一致）
         return switchState.get() == 0;
     }
     

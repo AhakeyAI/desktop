@@ -920,7 +920,17 @@ public class TopBar extends VBox {
                 "    }\n" +
                 "    exit 0\n" +
                 "}\n" +
-                "# Claude / Kimi / Cursor: pass through server response\n" +
+                "# Claude PermissionRequest: output hookSpecificOutput in Claude format\n" +
+                "if ($EventName -eq 'PermissionRequest') {\n" +
+                "    $isAuto = $response -match '\"autoApproved\"\\s*:\\s*true'\n" +
+                "    if ($isAuto) {\n" +
+                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
+                "    } else {\n" +
+                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
+                "    }\n" +
+                "    exit 0\n" +
+                "}\n" +
+                "# Kimi / Cursor: pass through server response\n" +
                 "if ($response) { [Console]::WriteLine($response) } else { [Console]::WriteLine('{\"ok\":true}') }\n" +
                 "exit 0\n";
             java.nio.file.Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));

@@ -155,14 +155,24 @@ public class AhaKeyProtocol {
     }
     
     public static DeviceStatus parseDeviceStatus(byte[] data) {
-        if (data.length < 12) return null;
+        if (data.length < 6) return null;
         if (data[0] != (byte) 0xAA || data[1] != (byte) 0xBB) return null;
         if (data[data.length - 2] != (byte) 0xCC || data[data.length - 1] != (byte) 0xDD) return null;
         
-        int payloadStart = 2;
-        if (data[payloadStart] != CMD_QUERY_STATUS) return null;
+        byte cmd = data[2];
         
-        int base = payloadStart + 1;
+        // 忽略状态更新通知帧（6字节的0x90命令）
+        // 这些帧中的状态值不是实际的拨杆位置，而是命令执行结果/响应
+        // 如果处理这些帧，会覆盖正确的拨杆状态
+        if (data.length == 6 && cmd == CMD_UPDATE_STATE) {
+            return null;  // 忽略这个帧，不更新状态
+        }
+        
+        // 处理完整的状态查询响应（12字节）
+        if (data.length < 12) return null;
+        if (cmd != CMD_QUERY_STATUS) return null;
+        
+        int base = 3;  // payloadStart + 1
         DeviceStatus status = new DeviceStatus();
         status.setBatteryLevel(data[base] & 0xFF);
         status.setSignal(data[base + 1]);

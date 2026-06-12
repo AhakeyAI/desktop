@@ -177,9 +177,11 @@ public class HookDispatchServer {
                 if (isAutoApproval) {
                     logger.info("自动批准模式: 跳过 PermissionRequest 事件");
                     writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":true}");
-                    return;
+                } else {
+                    logger.info("手动批准模式: 返回拒绝决策");
+                    writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":false}");
                 }
-                logger.debug("手动批准模式: 正常处理 PermissionRequest 事件");
+                return;
             }
 
             // Kimi PreToolUse：刷新设备状态后直接返回 Kimi 决策格式，PS1 hook 原样透传
