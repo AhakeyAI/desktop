@@ -92,25 +92,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         } else {
             UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         }
-        // 1) 如果固件支持 0x91（已 patch），同步给键盘真正改 sw_state → LED 也跟着变
+        // 最新固件中 0x91 已用于灯效预览；拨杆只保留 hook 软件覆盖，不再向键盘发送旧 0x91。
         if let v = value {
-            sendSwitchState(v)
+            emit("拨杆 \(v) 仅记录为软件覆盖；不发送旧 0x91。")
         }
-        // 2) 把覆盖值写进共享文件，主 App 立刻看到画布拨杆位置更新
+        // 把覆盖值写进共享文件，主 App 立刻看到画布拨杆位置更新
         Self.writeLiveState(switchState: effectiveSwitchState)
         emit("拨杆覆盖 = \(value.map { String($0) } ?? "清除")（effective=\(effectiveSwitchState.map { String($0) } ?? "未知")）")
-    }
-
-    private func sendSwitchState(_ value: UInt8) {
-        guard let commandChar, let peripheral else {
-            emit("设置拨杆 \(value): 未连接，仅记录到覆盖值")
-            return
-        }
-        let data = Data(header + [0x91, value] + trailer)
-        let wt: CBCharacteristicWriteType =
-            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(data, for: commandChar, type: wt)
-        emit("→ 拨杆 0x91 \(value): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
     }
 
     // MARK: - Public
@@ -355,7 +343,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case "set_switch_override":
             // 主 App 画布虚拟拨杆点击 → 设置 / 清除覆盖
             // value=null / 缺省 → 清除（恢复用真实 BLE 上报）
-            // value=0/1/2 → 设置覆盖值；如果固件支持 0x91 还会同步给键盘
+            // value=0/1/2 → 设置覆盖值；不再发送旧 0x91
             if obj["value"] is NSNull || obj["value"] == nil {
                 setSwitchOverride(nil)
             } else if let v = obj["value"] as? Int {

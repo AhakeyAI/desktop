@@ -671,7 +671,7 @@ final class VoiceRelayService: ObservableObject {
             return
         }
 
-        statusMessage = "后台监听已启动。Mode 0 出厂 F18 也会被接管到你选中的语音软件。"
+        statusMessage = "后台监听已启动。Mode 1 出厂 F18 也会被接管到你选中的语音软件。"
     }
 
     private static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {

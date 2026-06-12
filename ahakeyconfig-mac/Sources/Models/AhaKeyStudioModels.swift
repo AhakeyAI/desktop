@@ -9,19 +9,19 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
     var id: Int { rawValue }
 
     var title: String {
-        "Mode \(rawValue)"
+        "Mode \(rawValue + 1)"
     }
 
     var shortTitle: String {
-        "M\(rawValue)"
+        "M\(rawValue + 1)"
     }
 
     var defaultName: String {
         switch self {
-        case .mode0: "Claude Code"
+        case .mode0: "Claude"
         case .mode1: "Cursor"
         case .mode2: "Codex"
-        case .mode3: "Custom"
+        case .mode3: "N/A"
         }
     }
 
@@ -38,7 +38,7 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode2:
             "Codex · ↵ / Esc"
         case .mode3:
-            "自定义模式"
+            "N/A · 预留模式"
         }
     }
 
@@ -125,7 +125,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .key3:
             "取消键"
         case .key4:
-            "回车键"
+            "删除键"
         case .toggleSwitch:
             "批准方式"
         }
@@ -145,7 +145,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .key3:
             "xmark"
         case .key4:
-            "return.left"
+            "delete.left"
         case .toggleSwitch:
             "switch.2"
         }
@@ -199,7 +199,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "取消键"
         case .submit:
-            "回车键"
+            "删除键"
         }
     }
 
@@ -212,7 +212,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "xmark"
         case .submit:
-            "return.left"
+            "delete.left"
         }
     }
 
@@ -225,7 +225,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "Reject"
         case .submit:
-            "Enter"
+            "Backspace"
         }
     }
 
@@ -238,7 +238,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "适合拒绝、取消、停止这类相反动作。"
         case .submit:
-            "适合回车、发送、提交这类收尾动作。"
+            "出厂默认 Backspace，适合删除、撤销输入或清理当前内容。"
         }
     }
 }
@@ -391,7 +391,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .macOSNative, .claudeCode, .kimiCode:
             "调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。"
         case .typeless:
-            "预设对应快捷键：Typeless 内仍选 Fn/Globe。本 Studio 默认用 F19 作为语音触发键（与 macOS 原生 F18 错开）；按下后向系统注入「按住 Fn」供随声写使用。Mode 0 出厂语音键 F18 仍会额外注册兼容。请授予输入监控与辅助功能。"
+            "预设对应快捷键：Typeless 内仍选 Fn/Globe。本 Studio 默认用 F19 作为语音触发键（与 macOS 原生 F18 错开）；按下后向系统注入「按住 Fn」供随声写使用。Mode 1 出厂语音键 F18 仍会额外注册兼容。请授予输入监控与辅助功能。"
         case .wechat:
             "AhaKey Studio 会在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
         case .doubao:
@@ -624,7 +624,7 @@ struct AhaKeyLightBarDraft: Codable, Equatable {
         case stateMappings, brightness
     }
 
-    init(stateMappings: [AhaKeyLightStateDraft], brightness: Int = 50) {
+    init(stateMappings: [AhaKeyLightStateDraft], brightness: Int = 35) {
         self.stateMappings = stateMappings
         self.brightness = brightness
     }
@@ -632,7 +632,7 @@ struct AhaKeyLightBarDraft: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let rawMappings = try container.decode([AhaKeyLightStateDraft].self, forKey: .stateMappings)
-        let rawBrightness = try container.decodeIfPresent(Int.self, forKey: .brightness) ?? 50
+        let rawBrightness = try container.decodeIfPresent(Int.self, forKey: .brightness) ?? 35
         brightness = max(1, min(100, rawBrightness))
 
         if rawMappings.count >= IDEState.allCases.count {
@@ -663,7 +663,7 @@ struct AhaKeyLightBarDraft: Codable, Equatable {
 
     static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyLightBarDraft {
         _ = mode
-        return AhaKeyLightBarDraft(stateMappings: defaultMappings, brightness: 50)
+        return AhaKeyLightBarDraft(stateMappings: defaultMappings, brightness: 35)
     }
 }
 
@@ -871,7 +871,8 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         localAssetPath = try container.decodeIfPresent(String.self, forKey: .localAssetPath)
         statusLine = try container.decode(String.self, forKey: .statusLine)
-        framesPerSecond = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
+        let storedFPS = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
+        framesPerSecond = min(30, max(1, storedFPS))
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1021,7 +1022,7 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
                 ),
                 AhaKeyKeyDraft(
                     role: .submit,
-                    shortcut: ShortcutBinding(keyCode: HIDUsage.enter),
+                    shortcut: ShortcutBinding(keyCode: HIDUsage.backspace),
                     description: AhaKeyKeyRole.submit.defaultDescription,
                     voicePreset: nil
                 ),
@@ -1154,7 +1155,7 @@ enum AhaKeyStudioStore {
 
         let legacyOLEDStatusLines: Set<String> = [
             "当前仅支持动图",
-            "切换模式时会先显示按键描述，再回到 Mode 0 默认动图。",
+            "切换模式时会先显示按键描述，再回到 Mode 1 默认动图。",
             "当前模式还未上传动图，后续可替换成你的自定义 GIF。",
             "Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。",
             "Claude Code · 终端权限菜单 Y/N。",
@@ -1193,6 +1194,21 @@ enum AhaKeyStudioStore {
             {
                 voiceKey.shortcut = ShortcutBinding(keyCode: HIDUsage.f18)
                 modeDraft.updateKey(voiceKey)
+            }
+
+            var submitKey = modeDraft.key(for: .submit)
+            if submitKey.macro.isEmpty,
+               submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.enter),
+               (submitKey.description == "Enter" || submitKey.description == "回车" || submitKey.description.isEmpty)
+            {
+                let targetSubmit = target.key(for: .submit)
+                submitKey.shortcut = targetSubmit.shortcut
+                submitKey.description = targetSubmit.description
+                modeDraft.updateKey(submitKey)
+            }
+
+            if modeDraft.lightBar.brightness == 50 {
+                modeDraft.lightBar.brightness = 35
             }
 
             // 旧版「全模式通用」模板曾用 主键↵/Esc + Accept/Reject 文案。Codex/其它 mode 的升级仍需要；

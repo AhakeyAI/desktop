@@ -36,11 +36,11 @@ struct KeyMappingView: View {
         KeyConfig(hidCode: HIDUsage.capsLock, description: "录音"),
         KeyConfig(hidCode: HIDUsage.enter, description: "Enter"),
         KeyConfig(hidCode: HIDUsage.escape, description: "取消"),
-        KeyConfig(hidCode: HIDUsage.enter, description: "Enter"),
+        KeyConfig(hidCode: HIDUsage.backspace, description: "Backspace"),
     ]
     @State private var showWriteSuccess = false
 
-    private let keyLabels = ["Key 1\n🎤", "Key 2\n✓", "Key 3\n✗", "Key 4\n↵"]
+    private let keyLabels = ["Key 1\n🎤", "Key 2\n✓", "Key 3\n✗", "Key 4\n⌫"]
 
     var body: some View {
         Form {

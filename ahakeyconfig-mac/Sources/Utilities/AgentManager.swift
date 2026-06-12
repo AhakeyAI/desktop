@@ -179,7 +179,7 @@ final class AgentManager: ObservableObject {
     /// 通知 agent 设置/清除虚拟拨杆覆盖。fire-and-forget；agent 会:
     /// 1) 落进 UserDefaults 持久化
     /// 2) 写入共享文件让主 App 立即看到
-    /// 3) 如果固件已 patch 0x91，agent 会同步给键盘真改 sw_state
+    /// 3) 不再发送旧 0x91；最新固件 0x91 用于灯效预览
     /// value=nil 表示清除覆盖（回到读真实 GPIO 值）。
     func sendSwitchOverride(_ value: UInt8?) {
         DispatchQueue.global(qos: .userInitiated).async { [socketPath] in

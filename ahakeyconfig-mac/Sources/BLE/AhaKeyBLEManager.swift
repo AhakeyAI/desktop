@@ -58,7 +58,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var workMode: Int = 0
     @Published private(set) var lightMode: Int = 0
     @Published private(set) var switchState: Int = 0
-    @Published private(set) var brightness: Int = 50
+    @Published private(set) var brightness: Int = 35
     @Published private(set) var bleConnectionStatus: String = "未连接"
     @Published private(set) var bleDeviceUUID: String = "—"
     @Published private(set) var bluetoothPermissionGranted = true
@@ -456,13 +456,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(cmd)
     }
 
-    /// 虚拟拨杆 → BLE 0x91：通过 BLE 改键盘 sw_state（需要固件 patch）
+    /// 最新固件中 0x91 已改为灯效预览；虚拟拨杆只保留软件覆盖，不再向键盘发送旧 0x91。
     /// value: 0=auto/up, 1=manual/down, 2=mid
     func setSwitchStateViaBLE(_ value: UInt8) {
-        guard commandChar != nil else { return }
-        let cmd = AhaKeyCommand.setSwitchState(value)
-        writeCommand(cmd)
-        appendLog("→ 虚拟拨杆 sw_state=\(value)")
+        appendLog("虚拟拨杆 sw_state=\(value) 仅作为软件覆盖；最新固件 0x91 用于灯效预览。")
     }
 
     func setLightMapping(mode: UInt8, stateEffects: [UInt8]) {
@@ -475,6 +472,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.setBrightness(value))
         appendLog("→ 亮度 \(value)")
+    }
+
+    func previewLightEffect(_ effect: UInt8) {
+        guard commandChar != nil else { return }
+        writeCommand(AhaKeyCommand.previewLightEffect(effect))
+        appendLog("→ 预览灯效 \(effect)")
     }
 
     func setWorkMode(_ mode: UInt8) {

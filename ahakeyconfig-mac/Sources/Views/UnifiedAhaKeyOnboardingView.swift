@@ -4,6 +4,7 @@ enum UnifiedOnboardingStorage {
     static let completedKey = "AhaKey.UnifiedOnboarding.v2.completed"
     static let micGrantedKey = "AhaKey.UnifiedOnboarding.v2.micPreGranted"
     static let pasteGrantedKey = "AhaKey.UnifiedOnboarding.v2.pastePreGranted"
+    static let currentStepKey = "AhaKey.UnifiedOnboarding.v2.currentStep"
 }
 
 struct AhaKeyOnboardingPermissionState: Equatable {
@@ -66,7 +67,7 @@ struct UnifiedAhaKeyOnboardingView: View {
     var actions: AhaKeyOnboardingActions
     var onCompleted: (_ micGranted: Bool, _ pasteGranted: Bool) -> Void
 
-    @State private var step: AhaKeyOnboardingStep = .welcome
+    @State private var step: AhaKeyOnboardingStep = .restoredProgress
     @State private var didRunTryExperience = false
     @State private var tryInputFieldText = ""
     @FocusState private var tryInputFieldFocused: Bool
@@ -113,6 +114,15 @@ struct UnifiedAhaKeyOnboardingView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .textBackgroundColor))
         }
+        .onAppear {
+            resumeProgressIfReady()
+        }
+        .onChange(of: step) { newValue in
+            UserDefaults.standard.set(newValue.rawValue, forKey: UnifiedOnboardingStorage.currentStepKey)
+        }
+        .onChange(of: permissionState) { _ in
+            resumeProgressIfReady()
+        }
         .onChange(of: permissionState.transcriptPreview) { newValue in
             if !newValue.isEmpty {
                 didRunTryExperience = true
@@ -150,7 +160,7 @@ struct UnifiedAhaKeyOnboardingView: View {
                 HStack(spacing: 12) {
                     Button {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            step = item
+                            moveToStep(item)
                         }
                     } label: {
                         Text(item.title)
@@ -211,7 +221,7 @@ struct UnifiedAhaKeyOnboardingView: View {
 
             VStack(spacing: 14) {
                 onboardingCard(systemImage: "keyboard", title: "连接与控制", detail: "开启蓝牙后，AhaKey Studio 会接管出厂语音键并同步当前 Mode。")
-                onboardingCard(systemImage: "lock.shield", title: "分步授权", detail: "先完成蓝牙、麦克风、语音转写等弹窗授权，再前往系统设置开启输入监控、辅助功能等。")
+                onboardingCard(systemImage: "lock.shield", title: "分步授权", detail: "先完成蓝牙、麦克风、语音转写等弹窗授权，再依次开启 Siri、听写、辅助功能，最后处理输入监控并重启。")
                 onboardingCard(systemImage: "mic", title: "体验输入", detail: "最后可以直接口述一句话，确认识别和写入链路都已准备好。")
             }
         }
@@ -267,20 +277,6 @@ struct UnifiedAhaKeyOnboardingView: View {
 
             VStack(spacing: 12) {
                 PermissionStatusRow(
-                    title: "输入监控",
-                    detail: "允许 AhaKey Studio 在后台监听实体语音键。",
-                    granted: permissionState.inputMonitoringGranted,
-                    actionTitle: permissionState.inputMonitoringGranted ? nil : "打开设置",
-                    action: { actions.requestPermission(.inputMonitoring) }
-                )
-                PermissionStatusRow(
-                    title: "辅助功能",
-                    detail: "允许 AhaKey Studio 把语音键转换成 macOS 原生转写或 Fn/Globe。",
-                    granted: permissionState.accessibilityGranted,
-                    actionTitle: permissionState.accessibilityGranted ? nil : "打开设置",
-                    action: { actions.requestPermission(.accessibility) }
-                )
-                PermissionStatusRow(
                     title: "Siri",
                     detail: "在系统设置 > Siri 与聚焦里开启 Siri。",
                     granted: permissionState.siriEnabled,
@@ -293,6 +289,23 @@ struct UnifiedAhaKeyOnboardingView: View {
                     granted: permissionState.dictationEnabled,
                     actionTitle: permissionState.dictationEnabled ? nil : "打开设置",
                     action: { actions.requestPermission(.dictation) }
+                )
+                PermissionStatusRow(
+                    title: "辅助功能",
+                    detail: "允许 AhaKey Studio 把语音键转换成 macOS 原生转写或 Fn/Globe。",
+                    granted: permissionState.accessibilityGranted,
+                    actionTitle: permissionState.accessibilityGranted ? nil : "打开设置",
+                    action: { actions.requestPermission(.accessibility) }
+                )
+                PermissionStatusRow(
+                    title: "输入监控",
+                    detail: "允许 AhaKey Studio 在后台监听实体语音键；设置完成后通常需要退出并重新打开。",
+                    granted: permissionState.inputMonitoringGranted,
+                    actionTitle: permissionState.inputMonitoringGranted ? nil : "打开设置",
+                    action: {
+                        UserDefaults.standard.set(AhaKeyOnboardingStep.tryInput.rawValue, forKey: UnifiedOnboardingStorage.currentStepKey)
+                        actions.requestPermission(.inputMonitoring)
+                    }
                 )
             }
 
@@ -310,7 +323,7 @@ struct UnifiedAhaKeyOnboardingView: View {
         VStack(alignment: .leading, spacing: 24) {
             sectionHeader(
                 title: "第三步：体验输入",
-                detail: "按下方按钮或键盘上的语音键，说一句话，再结束录音，确认文字可以写入当前光标。"
+                detail: "请蓝牙连接小键盘后，将光标放在这里，按下麦克风键开始说话。"
             )
 
             VStack(alignment: .leading, spacing: 14) {
@@ -324,7 +337,7 @@ struct UnifiedAhaKeyOnboardingView: View {
 
                 ZStack(alignment: .topLeading) {
                     if tryInputFieldText.isEmpty {
-                        Text("请将光标放这里，开始说话即可")
+                        Text("请蓝牙连接小键盘后，将光标放在这里，按下麦克风键开始说话")
                             .font(.system(size: 16))
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 4)
@@ -390,10 +403,10 @@ struct UnifiedAhaKeyOnboardingView: View {
                     groupLabel: "系统设置授权",
                     isHighlighted: step == .settingsPermissions || step == .tryInput,
                     items: [
-                        ("输入监控", permissionState.inputMonitoringGranted),
-                        ("辅助功能", permissionState.accessibilityGranted),
                         ("Siri", permissionState.siriEnabled),
                         ("听写", permissionState.dictationEnabled),
+                        ("辅助功能", permissionState.accessibilityGranted),
+                        ("输入监控", permissionState.inputMonitoringGranted),
                     ]
                 )
             }
@@ -424,7 +437,7 @@ struct UnifiedAhaKeyOnboardingView: View {
             if step != .welcome {
                 Button("上一步") {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        step = step.previous
+                        moveToStep(step.previous)
                     }
                 }
                 .buttonStyle(OnboardingTextButtonStyle())
@@ -464,6 +477,13 @@ struct UnifiedAhaKeyOnboardingView: View {
             return "已授权，但系统蓝牙当前关闭，请在控制中心或系统设置中打开。"
         }
         return "蓝牙可用，可以扫描并连接键盘。"
+    }
+
+    private var manualSettingsPermissionsGranted: Bool {
+        permissionState.siriEnabled &&
+            permissionState.dictationEnabled &&
+            permissionState.accessibilityGranted &&
+            permissionState.inputMonitoringGranted
     }
 
     private var tryPreviewText: String {
@@ -509,17 +529,28 @@ struct UnifiedAhaKeyOnboardingView: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private func moveToStep(_ next: AhaKeyOnboardingStep) {
+        step = next
+        UserDefaults.standard.set(next.rawValue, forKey: UnifiedOnboardingStorage.currentStepKey)
+    }
+
+    private func resumeProgressIfReady() {
+        guard step == .settingsPermissions, manualSettingsPermissionsGranted else { return }
+        moveToStep(.tryInput)
+    }
+
     private func goForward() {
         if step == .tryInput {
             finish()
             return
         }
-        step = AhaKeyOnboardingStep(rawValue: min(AhaKeyOnboardingStep.tryInput.rawValue, step.rawValue + 1)) ?? .tryInput
+        moveToStep(AhaKeyOnboardingStep(rawValue: min(AhaKeyOnboardingStep.tryInput.rawValue, step.rawValue + 1)) ?? .tryInput)
     }
 
     private func finish() {
         UserDefaults.standard.set(permissionState.microphoneGranted, forKey: UnifiedOnboardingStorage.micGrantedKey)
         UserDefaults.standard.set(permissionState.backgroundPermissionsGranted, forKey: UnifiedOnboardingStorage.pasteGrantedKey)
+        UserDefaults.standard.removeObject(forKey: UnifiedOnboardingStorage.currentStepKey)
         onCompleted(permissionState.microphoneGranted, permissionState.backgroundPermissionsGranted)
     }
 }
@@ -630,6 +661,11 @@ private struct PermissionStatusRow: View {
 // MARK: - Onboarding Steps
 
 private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
+    static var restoredProgress: AhaKeyOnboardingStep {
+        let rawValue = UserDefaults.standard.integer(forKey: UnifiedOnboardingStorage.currentStepKey)
+        return AhaKeyOnboardingStep(rawValue: rawValue) ?? .welcome
+    }
+
     case welcome
     case dialogPermissions
     case settingsPermissions
@@ -666,7 +702,7 @@ private enum AhaKeyOnboardingStep: Int, CaseIterable, Identifiable {
         case .dialogPermissions:
             return "蓝牙、麦克风和语音转写可以直接弹窗确认，点击「申请」后在弹窗中允许即可。"
         case .settingsPermissions:
-            return "输入监控、辅助功能、Siri 与听写需要前往系统设置手动开启。"
+            return "请依次开启 Siri、听写、辅助功能，最后开启输入监控。输入监控设置后通常需要退出并重新打开，本引导会记住进度。"
         case .tryInput:
             return "这里使用软件内同一套语音链路测试，不再只是展示授权状态。"
         }
