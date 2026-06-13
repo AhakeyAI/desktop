@@ -543,6 +543,18 @@ struct AhaKeyStudioView: View {
 
                     Spacer()
 
+                    if selectedPart == .lightBar {
+                        Button {
+                            previewLightEffect(for: lightBarPreview)
+                        } label: {
+                            Label("预览到键盘", systemImage: "play.fill")
+                                .font(.callout.weight(.medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady)
+                    }
+
                     Button {
                         writeToKeyboard()
                     } label: {
@@ -3243,20 +3255,9 @@ private struct AhaKeyKeyboardCanvasView: View {
 
     @ViewBuilder
     private func keyIcon(for role: AhaKeyKeyRole, size: CGFloat) -> some View {
-        if role == .submit,
-           let url = Bundle.main.url(forResource: "backspace", withExtension: "png", subdirectory: "Images"),
-           let image = NSImage(contentsOf: url)
-        {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(width: size * 1.25, height: size * 1.25)
-                .opacity(0.92)
-        } else {
-            Image(systemName: role.systemImage)
-                .font(.system(size: size, weight: .regular))
-                .foregroundStyle(Color.black.opacity(0.88))
-        }
+        Image(systemName: role.systemImage)
+            .font(.system(size: size, weight: .regular))
+            .foregroundStyle(Color.black.opacity(0.88))
     }
 
     private func modeSwitchKey(width: CGFloat, height: CGFloat) -> some View {

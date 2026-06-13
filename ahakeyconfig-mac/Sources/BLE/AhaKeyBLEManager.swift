@@ -758,7 +758,8 @@ final class SwitchStateNotifier: ObservableObject {
     static let shared = SwitchStateNotifier()
 
     private weak var bleManager: AhaKeyBLEManager?
-    private var cancellable: AnyCancellable?
+    private var switchStateCancellable: AnyCancellable?
+    private var agentSwitchStateCancellable: AnyCancellable?
     private var lastObservedState: Int?
     private var lastNotificationAt: Date?
     private var hasInitialState = false
@@ -767,12 +768,19 @@ final class SwitchStateNotifier: ObservableObject {
     private init() {}
 
     func bind(to manager: AhaKeyBLEManager) {
-        if bleManager === manager, cancellable != nil { return }
+        if bleManager === manager, switchStateCancellable != nil, agentSwitchStateCancellable != nil { return }
 
         bleManager = manager
         lastObservedState = nil
         hasInitialState = false
-        cancellable = manager.$switchState
+        switchStateCancellable = manager.$switchState
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newState in
+                self?.handleStateChange(newState)
+            }
+        agentSwitchStateCancellable = manager.$agentSwitchState
+            .compactMap { $0 }
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] newState in
@@ -826,7 +834,7 @@ final class SwitchStateNotifier: ObservableObject {
                                                 content: content,
                                                 trigger: nil)
             center.add(request) { error in
-                if error != nil, isCritical {
+                if error != nil {
                     Task { @MainActor in
                         self?.fallbackAlert(title: title, body: body)
                     }
@@ -842,7 +850,7 @@ final class SwitchStateNotifier: ObservableObject {
         center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
             if granted {
                 deliver()
-            } else if isCritical {
+            } else {
                 Task { @MainActor in
                     self.fallbackAlert(title: title, body: body)
                 }

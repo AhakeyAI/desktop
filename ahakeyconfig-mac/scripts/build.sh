@@ -85,10 +85,6 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   mkdir -p "$APP_BUNDLE/Contents/Resources/DefaultOLED"
   ditto "$APP_ROOT/Resources/DefaultOLED" "$APP_BUNDLE/Contents/Resources/DefaultOLED"
 fi
-if [[ -d "$APP_ROOT/Resources/Images" ]]; then
-  mkdir -p "$APP_BUNDLE/Contents/Resources/Images"
-  ditto "$APP_ROOT/Resources/Images" "$APP_BUNDLE/Contents/Resources/Images"
-fi
 
 BUILD_NUMBER="$(git -C "$APP_ROOT/../.." rev-list --count HEAD 2>/dev/null || echo 1)"
 

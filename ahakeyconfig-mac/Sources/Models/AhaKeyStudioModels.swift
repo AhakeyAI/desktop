@@ -507,12 +507,12 @@ enum LightEffectStyle: String, CaseIterable, Codable, Identifiable {
     var firmwareIndex: UInt8 {
         switch self {
         case .off: 0
-        case .middleLight: 1
-        case .singleMove: 2
-        case .breathing: 3
-        case .rainbowMove: 4
-        case .rainbowWave: 5
-        case .rainbowWaveSlow: 6
+        case .singleMove: 1
+        case .rainbowMove: 2
+        case .rainbowWave: 3
+        case .rainbowWaveSlow: 4
+        case .breathing: 5
+        case .middleLight: 6
         case .typingRipple: 7
         case .comet: 8
         case .scanBar: 9
