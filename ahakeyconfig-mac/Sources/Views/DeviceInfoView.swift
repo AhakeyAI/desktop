@@ -56,7 +56,7 @@ struct DeviceInfoView: View {
                                     Text(owner.title)
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
-                                         ? "改键、LCD、同步、本机灯效测试"
+                                         ? "改键、LCD、同步、本机灯效测试（macOS 暂不支持 USB 有线配置）"
                                          : "Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
@@ -510,9 +510,10 @@ struct DeviceInfoView: View {
 
     private func workModeName(_ mode: Int) -> String {
         switch mode {
-        case 0: return "Mode 0"
-        case 1: return "Mode 1"
-        case 2: return "Mode 2"
+        case 0: return "Mode 1 / Claude"
+        case 1: return "Mode 2 / Cursor"
+        case 2: return "Mode 3 / Codex"
+        case 3: return "Mode 4 / N/A"
         default: return "Mode \(mode)"
         }
     }

@@ -58,7 +58,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var workMode: Int = 0
     @Published private(set) var lightMode: Int = 0
     @Published private(set) var switchState: Int = 0
-    @Published private(set) var brightness: Int = 50
+    @Published private(set) var brightness: Int = 35
     @Published private(set) var bleConnectionStatus: String = "未连接"
     @Published private(set) var bleDeviceUUID: String = "—"
     @Published private(set) var bluetoothPermissionGranted = true
@@ -456,13 +456,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(cmd)
     }
 
-    /// 虚拟拨杆 → BLE 0x91：通过 BLE 改键盘 sw_state（需要固件 patch）
+    /// 最新固件中 0x91 已改为灯效预览；虚拟拨杆只保留软件覆盖，不再向键盘发送旧 0x91。
     /// value: 0=auto/up, 1=manual/down, 2=mid
     func setSwitchStateViaBLE(_ value: UInt8) {
-        guard commandChar != nil else { return }
-        let cmd = AhaKeyCommand.setSwitchState(value)
-        writeCommand(cmd)
-        appendLog("→ 虚拟拨杆 sw_state=\(value)")
+        appendLog("虚拟拨杆 sw_state=\(value) 仅作为软件覆盖；最新固件 0x91 用于灯效预览。")
     }
 
     func setLightMapping(mode: UInt8, stateEffects: [UInt8]) {
@@ -475,6 +472,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.setBrightness(value))
         appendLog("→ 亮度 \(value)")
+    }
+
+    func previewLightEffect(_ effect: UInt8) {
+        guard commandChar != nil else { return }
+        writeCommand(AhaKeyCommand.previewLightEffect(effect))
+        appendLog("→ 预览灯效 \(effect)")
     }
 
     func setWorkMode(_ mode: UInt8) {
@@ -755,7 +758,8 @@ final class SwitchStateNotifier: ObservableObject {
     static let shared = SwitchStateNotifier()
 
     private weak var bleManager: AhaKeyBLEManager?
-    private var cancellable: AnyCancellable?
+    private var switchStateCancellable: AnyCancellable?
+    private var agentSwitchStateCancellable: AnyCancellable?
     private var lastObservedState: Int?
     private var lastNotificationAt: Date?
     private var hasInitialState = false
@@ -764,12 +768,19 @@ final class SwitchStateNotifier: ObservableObject {
     private init() {}
 
     func bind(to manager: AhaKeyBLEManager) {
-        if bleManager === manager, cancellable != nil { return }
+        if bleManager === manager, switchStateCancellable != nil, agentSwitchStateCancellable != nil { return }
 
         bleManager = manager
         lastObservedState = nil
         hasInitialState = false
-        cancellable = manager.$switchState
+        switchStateCancellable = manager.$switchState
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newState in
+                self?.handleStateChange(newState)
+            }
+        agentSwitchStateCancellable = manager.$agentSwitchState
+            .compactMap { $0 }
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] newState in
@@ -823,7 +834,7 @@ final class SwitchStateNotifier: ObservableObject {
                                                 content: content,
                                                 trigger: nil)
             center.add(request) { error in
-                if error != nil, isCritical {
+                if error != nil {
                     Task { @MainActor in
                         self?.fallbackAlert(title: title, body: body)
                     }
@@ -839,7 +850,7 @@ final class SwitchStateNotifier: ObservableObject {
         center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
             if granted {
                 deliver()
-            } else if isCritical {
+            } else {
                 Task { @MainActor in
                     self.fallbackAlert(title: title, body: body)
                 }

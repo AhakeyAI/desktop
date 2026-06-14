@@ -32,7 +32,7 @@ struct AhaKeyStudioView: View {
     @State private var showsDiagnostics = false
     @State private var showsKeyHelp = false
     @State private var selectedTriggerTab: Int = 0
-    /// 每次主 App 自占 BLE 连接成功只跑一次默认 OLED 自动同步。
+    /// 每次主 App 自占 BLE 连接成功只跑一次默认 LCD 自动同步。
     /// .onChange(of: isConnected) 在断开时重置；下次重连时再触发一次。
     @State private var oledAutoSyncDoneForConnection: Bool = false
     @State private var showsHelpCenter = false
@@ -99,12 +99,19 @@ struct AhaKeyStudioView: View {
                 selectedMode = slot
             }
         }
+        .onChange(of: selectedMode) { newValue in
+            guard bleManager.isConnected,
+                  bleManager.commandCharReady,
+                  bleManager.workMode != newValue.rawValue else { return }
+            bleManager.setWorkMode(UInt8(newValue.rawValue))
+            syncStatusMessage = "已通知键盘切换到 \(newValue.title)。"
+        }
         .onChange(of: bleManager.isConnected) { connected in
             if !connected { oledAutoSyncDoneForConnection = false }
         }
         .onChange(of: bleManager.keyboardPictureStates) { _ in
             guard !oledAutoSyncDoneForConnection else { return }
-            // 三个 mode 都查回来才动手
+            // 四个 mode 都查回来才动手
             guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
             oledAutoSyncDoneForConnection = true
             Task { await autoSyncDefaultOLEDsIfNeeded() }
@@ -536,6 +543,18 @@ struct AhaKeyStudioView: View {
 
                     Spacer()
 
+                    if selectedPart == .lightBar {
+                        Button {
+                            previewLightEffect(for: lightBarPreview)
+                        } label: {
+                            Label("预览到键盘", systemImage: "play.fill")
+                                .font(.callout.weight(.medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady)
+                    }
+
                     Button {
                         writeToKeyboard()
                     } label: {
@@ -884,7 +903,7 @@ struct AhaKeyStudioView: View {
         return VStack(alignment: .leading, spacing: 16) {
             GroupBox("按键描述") {
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("例如 Record / Accept / Reject / Enter", text: selectedKeyDescriptionBinding)
+                    TextField("例如 Record / Accept / Reject / Backspace", text: selectedKeyDescriptionBinding)
                         .textFieldStyle(.roundedBorder)
                     if currentSelectedKey.description.containsNonASCII {
                         Text("设备 LCD 只稳定支持 ASCII。中文、emoji 和全角字符会在写入时被自动过滤，避免乱码。")
@@ -898,7 +917,7 @@ struct AhaKeyStudioView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if selectedMode == .mode0 {
-                        Text("Mode 0 默认文案：Record / Accept / Reject / Enter")
+                        Text("Mode 1 默认文案：Record / Accept / Reject / Backspace")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -914,7 +933,7 @@ struct AhaKeyStudioView: View {
                             onSelect: applyVoicePreset
                         )
                         if (key.voicePreset ?? .custom).isMacOSNativeFamily {
-                            Text("只要 AhaKey Studio 在后台运行，Mode 0 出厂语音键发出的 F18 就会被直接接管到苹果原生转写。现在不再依赖系统听写快捷键。")
+                            Text("只要 AhaKey Studio 在后台运行，Mode 1 出厂语音键发出的 F18 就会被直接接管到苹果原生转写。现在不再依赖系统听写快捷键。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -1317,7 +1336,7 @@ struct AhaKeyStudioView: View {
                     }
 
                     HStack(spacing: 10) {
-                        Button("选择动图") {
+                        Button("选择 GIF 或图片") {
                             selectOLEDGIF()
                         }
                         .buttonStyle(.bordered)
@@ -1327,12 +1346,6 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.bordered)
                         .disabled(currentModeDraft.oled.localAssetPath == nil)
-
-                        Button(bleManager.isUploadingOLED ? "上传中…" : "上传到 \(selectedMode.title)") {
-                            uploadCurrentOLEDToDevice()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!bleManager.isConnected || bleManager.isUploadingOLED || currentModeDraft.oled.localAssetPath == nil)
 
                         Button("清空") {
                             clearCurrentOLED()
@@ -1346,20 +1359,11 @@ struct AhaKeyStudioView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Stepper(value: oledFramesPerSecondBinding, in: 5 ... 20) {
+                    Stepper(value: oledFramesPerSecondBinding, in: 1 ... 30) {
                         Text("播放速度 \(currentModeDraft.oled.framesPerSecond) FPS")
                     }
 
-                    if let progress = bleManager.oledUploadProgress, bleManager.isUploadingOLED {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ProgressView(value: progress.fractionCompleted)
-                            Text("已写入 \(progress.completedFrames)/\(progress.totalFrames) 帧，分块 \(progress.completedChunks)/\(progress.totalChunks)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Text("硬性限制：GIF 源文件 ≤ 2 MB。建议 5–20 FPS、最多 74 帧；将自动缩放到 160×80（RGB565）。")
+                    Text("硬性限制：源文件 ≤ 2 MB，FPS 1–30，单模式最多 70 帧；Mode 1/2/3/4 固定写入 slot 10/80/150/220。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -1385,7 +1389,7 @@ struct AhaKeyStudioView: View {
         VStack(alignment: .leading, spacing: 16) {
             GroupBox("状态灯效映射") {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(IDEState.allCases) { state in
+                    ForEach(IDEState.workflowOrder) { state in
                         HStack {
                             Text(state.shortLabel)
                                 .font(.callout.weight(.medium))
@@ -1417,25 +1421,21 @@ struct AhaKeyStudioView: View {
 
             GroupBox("状态预览") {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text(lightBarPreview.shortLabel)
-                            .font(.system(.title3, design: .rounded).weight(.semibold))
-                        Spacer()
-                        Button("预览到设备") {
-                            previewCurrentLightEffectOnDevice()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!bleManager.isConnected)
-                    }
+                    Text(lightBarPreview.shortLabel)
+                        .font(.system(.title3, design: .rounded).weight(.semibold))
 
                     Text("画布预览：\(currentModeDraft.lightBar.effect(for: lightBarPreview).title)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    Text("点击状态会在虚拟键盘预览，并通过 0x91 临时预览到设备；保存请使用底部通用按钮。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-                        ForEach(IDEState.allCases) { state in
+                        ForEach(IDEState.workflowOrder) { state in
                             Button {
                                 lightBarPreview = state
+                                previewLightEffect(for: state)
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(state.shortLabel)
@@ -1461,20 +1461,6 @@ struct AhaKeyStudioView: View {
                     }
                 }
                 .padding(.top, 4)
-            }
-
-            HStack(spacing: 12) {
-                Button("同步灯效到设备") {
-                    syncLightBarToDevice()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!bleManager.isConnected || isSyncing)
-
-                if partIsDirty(.lightBar) {
-                    Text("灯效已修改，需同步")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
             }
         }
     }
@@ -1705,20 +1691,17 @@ struct AhaKeyStudioView: View {
     }
 
     /// 用户点击虚拟拨杆：在当前 effective switchState 基础上 0↔1 翻转，
-    /// 同时走两条路保证最大兼容性：
-    /// - 主 App 已自占 BLE → 直发 0x91（需 patch 固件支持，老固件会被忽略）
-    /// - 否则委托 agent socket 设置 override（hook 批准逻辑立刻生效；agent 占 BLE 时
-    ///   也会替我们发 0x91 给键盘）。
+    /// 只设置软件覆盖；最新固件中 0x91 是灯效预览，不再用于 sw_state。
     private func toggleVirtualSwitch() {
         let current = liveKeyboardSwitchState
         let next: UInt8 = current == 0 ? 1 : 0
         // 1) 立刻设乐观值 → 画布按钮即时翻转
         bleManager.applyOptimisticSwitchOverride(next)
-        // 2) 主 App 自占 BLE 时直接发 0x91（需固件已 patch 0x91）
+        // 2) 保留调用入口，但 BLEManager 不会再发送旧 0x91，只写诊断日志
         if bleManager.isConnected {
             bleManager.setSwitchStateViaBLE(next)
         }
-        // 3) 让 agent 设置软覆盖 + 替我们走 BLE
+        // 3) 让 agent 设置软覆盖
         AgentManager.shared.sendSwitchOverride(next)
         // 4) 短延迟后强制重读共享文件，确认真实值已对齐（agent 写文件通常 < 100ms）
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak bleManager] in
@@ -1862,7 +1845,7 @@ struct AhaKeyStudioView: View {
             get: { currentModeDraft.oled.framesPerSecond },
             set: { newValue in
                 updateCurrentMode { mode in
-                    mode.oled.framesPerSecond = min(20, max(5, newValue))
+                    mode.oled.framesPerSecond = min(30, max(1, newValue))
                 }
             }
         )
@@ -2028,13 +2011,14 @@ struct AhaKeyStudioView: View {
 
     private func selectOLEDGIF() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "gif")!]
+        panel.allowedContentTypes = [.gif, .png, .jpeg, .tiff]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 try OLEDFrameEncoder.validateGIFSourceFileSize(at: url)
+                try OLEDFrameEncoder.validateFrameCount(at: url)
             } catch {
-                let msg = (error as? LocalizedError)?.errorDescription ?? "GIF 文件过大。"
+                let msg = (error as? LocalizedError)?.errorDescription ?? "图片文件不符合上传限制。"
                 syncStatusMessage = msg
                 updateCurrentMode { mode in
                     mode.oled.statusLine = msg
@@ -2044,9 +2028,9 @@ struct AhaKeyStudioView: View {
             let frameCount = OLEDFrameEncoder.frameCount(at: url)
             updateCurrentMode { mode in
                 mode.oled.localAssetPath = url.path
-                mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧 GIF 预览；切换模式时会先显示描述，再回到当前模式动图。"
+                mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧图片预览；写入时将上传到 \(selectedMode.title) 固定分区。"
             }
-            syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览，连接后可直接上传到设备。"
+            syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览；写入设备请使用底部通用按钮。"
         }
     }
 
@@ -2091,29 +2075,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func writeToKeyboard() {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            writeResultAlertMessage = "设备未连接，请先连接键盘后重试。"
-            showsWriteResultAlert = true
-            return
-        }
-
-        applyCursorRejectMacroSelfHealIfNeeded()
-        var commands = commandsForModes(AhaKeyModeSlot.allCases)
-        commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
-
-        isSyncing = true
-        syncStatusMessage = "正在写入设备…"
-        bleManager.writeCommandsSequentially(commands) {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
-                self.lastSyncedDraft = self.studioDraft
-                self.lastSyncDate = Date()
-                self.isSyncing = false
-                self.syncStatusMessage = "已全部写入设备并保存。"
-                self.writeResultAlertMessage = "配置已成功写入键盘。"
-                self.showsWriteResultAlert = true
-            }
-        }
+        performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
     }
 
     // 轮询等待 BLE 连接且命令通道就绪（最多 10 秒），连接后自动同步并返回键盘控制。
@@ -2165,32 +2127,101 @@ struct AhaKeyStudioView: View {
     }
 
     private func syncAllModesToDevice(returnToKeyboardControlWhenDone: Bool = false) {
+        performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: returnToKeyboardControlWhenDone, showResultAlert: false)
+    }
+
+    private func performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: Bool, showResultAlert: Bool) {
         guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = "设备未连接或命令通道未就绪，当前只保存本地草稿。"
+            let message = showResultAlert ? "设备未连接，请先连接键盘后重试。" : "设备未连接或命令通道未就绪，当前只保存本地草稿。"
+            syncStatusMessage = message
+            if showResultAlert {
+                writeResultAlertMessage = message
+                showsWriteResultAlert = true
+            }
             return
         }
 
         applyCursorRejectMacroSelfHealIfNeeded()
-        var commands = commandsForModes(AhaKeyModeSlot.allCases)
-        commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
-
-        let total = commands.count
         isSyncing = true
-        syncStatusMessage = "正在写入设备（约 \(total) 条，全部发完后再保存/交还 Agent）…"
+        syncStatusMessage = "正在准备写入设备…"
         let returnAgent = returnToKeyboardControlWhenDone
-        bleManager.writeCommandsSequentially(commands) {
-            Task { @MainActor in
-                // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
-                try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
-                self.lastSyncedDraft = self.studioDraft
-                self.lastSyncDate = Date()
+
+        Task { @MainActor in
+            do {
+                let uploadedOLEDCount = try await uploadChangedOLEDsToDevice()
+                var commands = commandsForModes(AhaKeyModeSlot.allCases)
+                commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
+
+                let total = commands.count
+                if uploadedOLEDCount > 0 {
+                    self.syncStatusMessage = "已上传 \(uploadedOLEDCount) 个 LCD 动图，正在写入灯效与键位配置（约 \(total) 条）…"
+                } else {
+                    self.syncStatusMessage = "正在写入灯效与键位配置（约 \(total) 条）…"
+                }
+                self.bleManager.writeCommandsSequentially(commands) {
+                    Task { @MainActor in
+                        // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
+                        try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
+                        self.lastSyncedDraft = self.studioDraft
+                        self.lastSyncDate = Date()
+                        self.isSyncing = false
+                        self.syncStatusMessage = "已全部写入设备并保存。"
+                        if showResultAlert {
+                            self.writeResultAlertMessage = "配置已成功写入键盘。"
+                            self.showsWriteResultAlert = true
+                        }
+                        if returnAgent {
+                            self.returnToKeyboardControl()
+                        }
+                    }
+                }
+            } catch {
+                let message = "写入键盘失败：\(error.localizedDescription)"
                 self.isSyncing = false
-                self.syncStatusMessage = "已全部写入设备并保存。"
-                if returnAgent {
-                    self.returnToKeyboardControl()
+                self.syncStatusMessage = message
+                if showResultAlert {
+                    self.writeResultAlertMessage = message
+                    self.showsWriteResultAlert = true
                 }
             }
         }
+    }
+
+    private func uploadChangedOLEDsToDevice() async throws -> Int {
+        var uploadCount = 0
+
+        for mode in AhaKeyModeSlot.allCases {
+            let draft = studioDraft.draft(for: mode)
+            guard let assetPath = draft.oled.localAssetPath else { continue }
+
+            let baseline = lastSyncedDraft.draft(for: mode).oled
+            let deviceFrameCount = bleManager.keyboardPictureStates[mode.rawValue]?.frameCount ?? 0
+            guard draft.oled != baseline || deviceFrameCount == 0 else { continue }
+
+            let assetURL = URL(fileURLWithPath: assetPath)
+            try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
+            let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+
+            updateMode(mode) { modeDraft in
+                modeDraft.oled.statusLine = "正在上传动图到 \(mode.title)…"
+            }
+            syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
+
+            let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+            try await bleManager.uploadOLEDFrames(
+                frames,
+                fps: draft.oled.framesPerSecond,
+                mode: UInt8(mode.rawValue),
+                startIndex: UInt16(startIndex)
+            )
+
+            updateMode(mode) { modeDraft in
+                modeDraft.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
+            }
+            uploadCount += 1
+        }
+
+        return uploadCount
     }
 
     private func resendCurrentModeToDevice() {
@@ -2314,50 +2345,8 @@ struct AhaKeyStudioView: View {
         return commands
     }
 
-    private func uploadCurrentOLEDToDevice() {
-        guard bleManager.isConnected else {
-            syncStatusMessage = "设备未连接，先连上键盘再上传 LCD 动图。"
-            return
-        }
-        guard let assetPath = currentModeDraft.oled.localAssetPath else {
-            syncStatusMessage = "先为 \(selectedMode.title) 选择一个 GIF，再上传到设备。"
-            return
-        }
-
-        let targetMode = selectedMode
-        let targetFPS = currentModeDraft.oled.framesPerSecond
-        let assetURL = URL(fileURLWithPath: assetPath)
-
-        updateMode(targetMode) { mode in
-            mode.oled.statusLine = "正在上传动图到 \(targetMode.title)…"
-        }
-        syncStatusMessage = "开始上传 \(targetMode.title) 的 LCD 动图。"
-
-        Task { @MainActor in
-            do {
-                let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
-                let startIndex = try await resolveOLEDUploadStartIndex(for: targetMode, frameCount: frames.count)
-                try await bleManager.uploadOLEDFrames(
-                    frames,
-                    fps: targetFPS,
-                    mode: UInt8(targetMode.rawValue),
-                    startIndex: UInt16(startIndex)
-                )
-                updateMode(targetMode) { mode in
-                    mode.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
-                }
-                syncStatusMessage = "\(targetMode.title) LCD 动图已上传完成。"
-            } catch {
-                updateMode(targetMode) { mode in
-                    mode.oled.statusLine = "上传失败：\(error.localizedDescription)"
-                }
-                syncStatusMessage = "\(targetMode.title) LCD 上传失败：\(error.localizedDescription)"
-            }
-        }
-    }
-
     /// 首次连接键盘后自动把 bundle 默认 GIF 推到没有上传过的 mode slot。
-    /// 触发时机：bleManager.keyboardPictureStates 三个 mode 都查回来之后
+    /// 触发时机：bleManager.keyboardPictureStates 四个 mode 都查回来之后
     /// （由 .onChange(of: bleManager.keyboardPictureStates) 调度）。
     /// 守卫：
     /// - 只上传 picLength==0（slot 完全空）的 mode；非 0 视为用户已自定义或固件出厂图
@@ -2365,7 +2354,7 @@ struct AhaKeyStudioView: View {
     /// - 每次连接只跑一次（oledAutoSyncDoneForConnection 标志位由 .onChange(isConnected) 重置）
     private func autoSyncDefaultOLEDsIfNeeded() async {
         guard bleManager.isConnected else { return }
-        // 三个 mode 全部 0x83 查询回来才动手，避免半截判断把已上传 slot 当成空
+        // 四个 mode 全部 0x83 查询回来才动手，避免半截判断把已上传 slot 当成空
         guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
 
         for mode in AhaKeyModeSlot.allCases {
@@ -2397,43 +2386,12 @@ struct AhaKeyStudioView: View {
     }
 
     private func resolveOLEDUploadStartIndex(for targetMode: AhaKeyModeSlot, frameCount: Int) async throws -> Int {
-        var states: [AhaKeyPictureState] = []
-        for mode in AhaKeyModeSlot.allCases {
-            states.append(try await bleManager.readPictureState(mode: UInt8(mode.rawValue)))
+        guard frameCount <= AhaKeyCommand.oledMaxFramesPerMode else {
+            throw OLEDUploadError.tooManyFrames(max: AhaKeyCommand.oledMaxFramesPerMode)
         }
 
-        let maxCapacity = states.first?.allModeMaxPic ?? AhaKeyCommand.oledMaxFrames
-        guard frameCount <= maxCapacity else {
-            throw OLEDUploadError.noAvailablePictureSlot(needed: frameCount, max: maxCapacity)
-        }
-
-        let currentState = states.first(where: { $0.mode == targetMode.rawValue })
-        let occupiedRegions = states
-            .filter { $0.mode != targetMode.rawValue && $0.picLength > 0 }
-            .map { (start: $0.startIndex, end: $0.startIndex + $0.picLength) }
-            .sorted { $0.start < $1.start }
-
-        if let currentState,
-           currentState.picLength > 0,
-           canPlacePictureRange(
-               start: currentState.startIndex,
-               count: frameCount,
-               occupiedRegions: occupiedRegions,
-               maxCapacity: maxCapacity
-           )
-        {
-            return currentState.startIndex
-        }
-
-        if let freeStart = findFreePictureSpace(
-            occupiedRegions: occupiedRegions,
-            neededCount: frameCount,
-            maxCapacity: maxCapacity
-        ) {
-            return freeStart
-        }
-
-        throw OLEDUploadError.noAvailablePictureSlot(needed: frameCount, max: maxCapacity)
+        _ = try? await bleManager.readPictureState(mode: UInt8(targetMode.rawValue))
+        return Int(AhaKeyCommand.oledStartIndex(forMode: UInt8(targetMode.rawValue)))
     }
 
     private func canPlacePictureRange(
@@ -2476,38 +2434,6 @@ struct AhaKeyStudioView: View {
         return nil
     }
 
-    private func previewCurrentLightEffectOnDevice() {
-        bleManager.updateIDEState(lightBarPreview)
-        syncStatusMessage = "已发送 \(lightBarPreview.shortLabel) 到设备预览。"
-    }
-
-    private func syncLightBarToDevice() {
-        guard bleManager.isConnected else { return }
-        var commands: [(data: Data, label: String)] = []
-        for mode in AhaKeyModeSlot.allCases {
-            let lb = studioDraft.draft(for: mode).lightBar
-            let effects = IDEState.allCases.map { lb.effect(for: $0).firmwareIndex }
-            commands.append((
-                AhaKeyCommand.setLightMapping(mode: UInt8(mode.rawValue), stateEffects: effects),
-                "灯效映射 Mode \(mode.rawValue)"
-            ))
-        }
-        let brightness = UInt8(currentModeDraft.lightBar.brightness)
-        commands.append((AhaKeyCommand.setBrightness(brightness), "亮度 \(brightness)%"))
-        commands.append((AhaKeyCommand.saveConfig(), "保存配置"))
-
-        isSyncing = true
-        syncStatusMessage = "正在同步灯效..."
-        bleManager.writeCommandsSequentially(commands) {
-            Task { @MainActor in
-                isSyncing = false
-                lastSyncedDraft = studioDraft
-                AhaKeyStudioStore.save(studioDraft)
-                syncStatusMessage = "灯效已同步到设备。"
-            }
-        }
-    }
-
     private func lightEffectBinding(for state: IDEState) -> Binding<LightEffectStyle> {
         Binding(
             get: { currentModeDraft.lightBar.effect(for: state) },
@@ -2520,6 +2446,8 @@ struct AhaKeyStudioView: View {
                 draft.updateMode(mode)
                 studioDraft = draft
                 AhaKeyStudioStore.save(studioDraft)
+                lightBarPreview = state
+                previewLightEffect(newEffect)
             }
         )
     }
@@ -2534,8 +2462,31 @@ struct AhaKeyStudioView: View {
                 draft.updateMode(mode)
                 studioDraft = draft
                 AhaKeyStudioStore.save(studioDraft)
+                previewBrightness(Int(newValue))
             }
         )
+    }
+
+    private func previewLightEffect(for state: IDEState) {
+        previewLightEffect(currentModeDraft.lightBar.effect(for: state))
+    }
+
+    private func previewLightEffect(_ effect: LightEffectStyle) {
+        guard bleManager.isConnected && bleManager.commandCharReady else {
+            syncStatusMessage = "已更新虚拟灯效预览；连接键盘后可预览到设备。"
+            return
+        }
+        bleManager.previewLightEffect(effect.firmwareIndex)
+        syncStatusMessage = "正在预览灯效：\(effect.title)。"
+    }
+
+    private func previewBrightness(_ value: Int) {
+        guard bleManager.isConnected && bleManager.commandCharReady else {
+            syncStatusMessage = "已更新亮度为 \(value)%；连接键盘后可预览到设备。"
+            return
+        }
+        bleManager.setBrightness(UInt8(max(1, min(100, value))))
+        syncStatusMessage = "正在预览灯光强度：\(value)% 。"
     }
 
     private func infoPill(title: String, subtitle: String, accent: Color) -> some View {
@@ -2642,12 +2593,12 @@ private struct VoicePermissionOnboardingSheet: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 permissionRow(title: "蓝牙", granted: bleManager.bluetoothPermissionGranted && bleManager.bluetoothPoweredOn, detail: bleManager.bluetoothPermissionGranted ? "打开系统蓝牙，用于发现、连接和同步 AhaKey 键盘。" : "在「隐私与安全性 > 蓝牙」中允许 AhaKey Studio 使用蓝牙。")
-                permissionRow(title: "输入监控", granted: voiceRelay.inputMonitoringGranted, detail: "允许 AhaKey Studio 在后台监听实体语音键。")
-                permissionRow(title: "辅助功能", granted: voiceRelay.accessibilityGranted, detail: "允许 AhaKey Studio 把语音键转换成苹果原生转写或 Fn/Globe。")
                 permissionRow(title: "麦克风", granted: nativeSpeech.microphoneGranted, detail: "允许 AhaKey Studio 使用苹果原生语音采集。")
                 permissionRow(title: "语音转写", granted: nativeSpeech.speechRecognitionGranted, detail: "允许 AhaKey Studio 使用苹果原生语音识别。")
                 permissionRow(title: "Siri", granted: nativeSpeech.siriEnabled, detail: "在「系统设置 > Siri 与聚焦」里开启 Siri，供 macOS 原生语音能力使用。")
                 permissionRow(title: "听写", granted: nativeSpeech.dictationEnabled, detail: "在「系统设置 > 键盘 > 听写」里开启听写，保证系统语音组件完整可用。")
+                permissionRow(title: "辅助功能", granted: voiceRelay.accessibilityGranted, detail: "允许 AhaKey Studio 把语音键转换成苹果原生转写或 Fn/Globe。")
+                permissionRow(title: "输入监控", granted: voiceRelay.inputMonitoringGranted, detail: "允许 AhaKey Studio 在后台监听实体语音键；设置完成后通常需要退出并重新打开。")
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -2655,9 +2606,9 @@ private struct VoicePermissionOnboardingSheet: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text("1. 点「现在申请权限」，按系统弹窗允许蓝牙、麦克风和语音转写。")
-                Text("2. 自动打开系统设置后，按上方橙色项目依次为 AhaKey Studio 打开蓝牙、输入监控、辅助功能。")
-                Text("3. 若使用默认 macOS 原生语音，在「Siri 与聚焦」开启 Siri，在「键盘 > 听写」开启听写。")
-                Text("4. 回到这里点「我已完成，重新检查」；若输入监控或辅助功能刚开启，建议点「退出并重新打开」。")
+                Text("2. 自动打开系统设置后，依次开启 Siri、听写、辅助功能。")
+                Text("3. 最后开启输入监控；系统提示重启时退出并重新打开。")
+                Text("4. 回到这里点「我已完成，重新检查」继续体验输入。")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -3081,7 +3032,7 @@ private struct AhaKeyKeyboardCanvasView: View {
 
     private func ledBarButton(width: CGFloat, height: CGFloat) -> some View {
         let part = AhaKeyStudioPart.lightBar
-        // 略向上、宽度往里收：让选中态阴影（radius 10pt）跟键盘内描边、按键灰底、OLED 都有 ≥ 5 个基线单位的余量
+        // 略向上、宽度往里收：让选中态阴影（radius 10pt）跟键盘内描边、按键灰底、LCD 都有 ≥ 5 个基线单位的余量
         let rect = frame(13.0, 4.5, 53.5, 8.6, width: width, height: height)
         let modeData = modeDraft.mode.rawValue
         let effect: LightEffectStyle
@@ -3176,7 +3127,7 @@ private struct AhaKeyKeyboardCanvasView: View {
         }
     }
 
-    /// 真实 OLED 是 160×80（2:1）。在 slot 中央用一个 2:1 的"屏幕区"渲染内容，
+    /// 真实 LCD 是 160×80（2:1）。在 slot 中央用一个 2:1 的"屏幕区"渲染内容，
     /// 周围留键盘黑壳作为外框；图片 / 占位都在屏幕区内 .fit，不会撑出范围、不会被裁切。
     private func screenInnerSize(for rect: CGRect) -> CGSize {
         let screenAspect: CGFloat = 2.0
@@ -3225,7 +3176,7 @@ private struct AhaKeyKeyboardCanvasView: View {
                             Image(systemName: "cloud.fill")
                                 .font(.system(size: screenHeight * 0.24, weight: .semibold))
                                 .foregroundStyle(Color.orange.opacity(0.92))
-                            Text("Mode 0")
+                            Text(modeDraft.mode.title)
                                 .font(.system(size: screenHeight * 0.20, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.85))
                         }
@@ -3285,9 +3236,7 @@ private struct AhaKeyKeyboardCanvasView: View {
                         )
                         .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
 
-                    Image(systemName: role.systemImage)
-                        .font(.system(size: rect.height * 0.24, weight: .regular))
-                        .foregroundStyle(Color.black.opacity(0.88))
+                    keyIcon(for: role, size: rect.height * 0.28)
                 }
                 .frame(width: rect.width * 0.8, height: rect.height * 0.76)
 
@@ -3302,6 +3251,13 @@ private struct AhaKeyKeyboardCanvasView: View {
         }
         .buttonStyle(CanvasKeyButtonStyle())
         .position(x: rect.midX, y: rect.midY)
+    }
+
+    @ViewBuilder
+    private func keyIcon(for role: AhaKeyKeyRole, size: CGFloat) -> some View {
+        Image(systemName: role.systemImage)
+            .font(.system(size: size, weight: .regular))
+            .foregroundStyle(Color.black.opacity(0.88))
     }
 
     private func modeSwitchKey(width: CGFloat, height: CGFloat) -> some View {
@@ -3343,8 +3299,7 @@ private struct AhaKeyKeyboardCanvasView: View {
         return Button {
             onSelect(part)
             // 物理拨杆损坏的用户靠这个：点击即翻转 auto/manual。
-            // - 已 patch 固件：agent 通过 0x91 BLE 命令真改键盘 sw_state，灯效也会跟着变
-            // - 老固件：只在 agent 软覆盖层生效（hook 自动批准走新值），键盘灯效不会变
+            // 最新固件 0x91 用于灯效预览，因此这里只改 hook 软件覆盖。
             onSwitchToggle?()
         } label: {
             VStack(spacing: 6) {
@@ -3630,12 +3585,6 @@ private func openFirstMissingVoicePermissionSettings(
     if !bleManager.bluetoothPermissionGranted || !bleManager.bluetoothPoweredOn {
         if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth"]) { return }
     }
-    if !voiceRelay.inputMonitoringGranted {
-        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"]) { return }
-    }
-    if !voiceRelay.accessibilityGranted {
-        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]) { return }
-    }
     if !nativeSpeech.microphoneGranted {
         if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"]) { return }
     }
@@ -3647,6 +3596,12 @@ private func openFirstMissingVoicePermissionSettings(
     }
     if !nativeSpeech.dictationEnabled {
         if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.Keyboard-Settings.extension"]) { return }
+    }
+    if !voiceRelay.accessibilityGranted {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]) { return }
+    }
+    if !voiceRelay.inputMonitoringGranted {
+        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"]) { return }
     }
     openCombinedVoicePrivacySettingsURL()
 }
@@ -4235,10 +4190,10 @@ private struct AnimatedGIFPreview: NSViewRepresentable {
 
 private enum HelpTopic: String, CaseIterable, Identifiable {
     case overview = "总览"
-    case modes = "三个 Mode"
+    case modes = "四个 Mode"
     case canvas = "画布与按键"
     case toggleSwitch = "虚拟拨杆"
-    case oled = "OLED 屏幕"
+    case oled = "LCD 屏幕"
     case lightBar = "灯条颜色"
     case voice = "语音输入"
     case diagnostics = "权限诊断"
@@ -4468,9 +4423,9 @@ private struct OverviewTopicView: View {
             HelpSection(
                 title: "三件套是怎么协同的",
                 body: """
-                • 主 App（你正在用的）— 看配置、改键位、上传 OLED、查诊断
+                • 主 App（你正在用的）— 看配置、改键位、上传 LCD 动图、查诊断
                 • Agent 守护进程 — 后台常驻；监听 IDE 的 Hook（Claude / Cursor / Codex / Kimi），并在 BLE 上向键盘转发当前 AI 状态
-                • 键盘固件 — 收到 BLE 状态后驱动灯条颜色、OLED 显示、按键映射
+                • 键盘固件 — 收到 BLE 状态后驱动灯条颜色、LCD 显示、按键映射
                 """
             )
 
@@ -4479,7 +4434,7 @@ private struct OverviewTopicView: View {
                 body: """
                 同一时刻只有一个进程能持有键盘的 BLE 连接：
                 • 默认 Agent 占用 → Hook 状态实时上键盘、自动批准链可用
-                • 你在画布点「修改」时 → 主 App 临时接管，能上传 OLED、改键位、读图片元信息
+                • 你在画布点「修改」时 → 主 App 临时接管，能上传 LCD 动图、改键位、读图片元信息
                 • 点「返回」 → 主 App 释放，Agent 自动接回
                 """
             )
@@ -4496,7 +4451,7 @@ private struct ModesTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "square.grid.3x1.below.line.grid.1x2",
-                title: "三个 Mode",
+                title: "四个 Mode",
                 subtitle: "硬件物理键码 + 软件配置同步切换"
             )
 
@@ -4561,15 +4516,15 @@ private struct CanvasTopicView: View {
                 subtitle: "中间那个像键盘的图就是你的小键盘 1:1 镜像，所有元件可点"
             )
 
-            HelpSection(title: "六大热区", body: "灯条、OLED 屏幕、Key1（语音）、Key2、Key3、Key4、拨杆。点哪个就在右侧 Inspector 看到那个元件的配置。")
+            HelpSection(title: "六大热区", body: "灯条、LCD 屏幕、Key1（语音）、Key2、Key3、Key4、拨杆。点哪个就在右侧 Inspector 看到那个元件的配置。")
 
             VStack(alignment: .leading, spacing: 10) {
                 hotspotRow("rainbow", "灯条", "点亮键盘顶端 8 颗 WS2812 LED；颜色和效果跟随 IDE Hook 状态。")
-                hotspotRow("play.tv", "OLED 屏幕", "0.96\" IPS 显示；可上传 GIF 动图（160×80, RGB565）。")
+                hotspotRow("play.tv", "LCD 屏幕", "0.96\" IPS 显示；可上传 GIF 动图（160×80, RGB565）。")
                 hotspotRow("mic", "Key 1 / 语音键", "默认 F18，触发苹果原生转写、AhaType、微信按住说话等预设。")
                 hotspotRow("checkmark.circle", "Key 2 / 通过键", "依 Mode 默认：Y / ↵ / ↵。可改成宏序列。")
                 hotspotRow("xmark.circle", "Key 3 / 拒绝键", "依 Mode 默认：N / ⌫ / Esc。可改成宏序列。")
-                hotspotRow("paperplane", "Key 4 / 提交键", "默认 ↵，可改任意短按 / 长按。")
+                hotspotRow("delete.left", "Key 4 / 删除键", "默认 Backspace，可改任意短按 / 长按。")
                 hotspotRow("switch.2", "拨杆", "auto 批准 vs manual 批准；详见「虚拟拨杆」章节。")
             }
 
@@ -4628,16 +4583,14 @@ private struct ToggleSwitchTopicView: View {
                 )
                 triggerRow(
                     num: "3",
-                    title: "BLE 0x91 set_sw_state",
-                    desc: "试图修改键盘真实 sw_state → 灯效颜色逻辑跟着切。**需固件升级支持 0x91**",
+                    title: "软件覆盖拨杆",
+                    desc: "最新固件 0x91 已用于灯效预览；虚拟拨杆只影响 Hook auto-approve，不再写键盘 sw_state。",
                     works: false,
-                    requiresPatch: true
+                    requiresPatch: false
                 )
             }
 
-            HelpNote("exclamationmark.triangle.fill", tint: .orange, body: """
-                如果你**没刷新版固件**：点画布拨杆，Hook 行为会按虚拟值跑（这就够大多数 case），但键盘灯条颜色仍由坏掉的物理 GPIO 决定。要让灯效也跟着切，得给固件 command_solve.c 加 0x91 分支再 USB-ISP 烧一次（详见仓库 README 的固件章节）。
-                """)
+            HelpNote("exclamationmark.triangle.fill", tint: .orange, body: "虚拟拨杆不再占用 0x91，避免与最新固件的灯效预览命令冲突。")
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("现状一览").font(.subheadline.weight(.medium))
@@ -4690,26 +4643,27 @@ private struct OLEDTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "play.tv",
-                title: "OLED 屏幕",
+                title: "LCD 屏幕",
                 subtitle: "0.96\" IPS · 160×80 · RGB565 · 内置 16 Mbit Flash 存帧"
             )
 
             HelpSection(title: "默认动图（连接即自动同步）", body: """
-                Mode 0 → claude_0.gif（出厂内置）
-                Mode 1 → cursor.gif
-                Mode 2 → codex.gif
+                Mode 1 → claude_0.gif（出厂内置）
+                Mode 2 → cursor.gif
+                Mode 3 → codex.gif
+                Mode 4 → 预留/自定义
 
                 首次连接键盘且发现某个 Mode 的 flash slot 为空时，主 App 会自动把对应 bundle GIF 推到键盘上。
                 """)
 
             HelpSection(title: "替换成自己的 GIF", body: """
-                1. 画布点 OLED 屏幕 → Inspector 显示「修改」
+                1. 画布点 LCD 屏幕 → Inspector 显示「修改」
                 2. 点「修改」进入编辑态（接管 BLE）
-                3. 在「上传到 ModeX」一栏选你的 .gif（推荐 ≤200 帧、≤2MB）
-                4. 上传完点「写入键盘」
+                3. 选择你的 .gif（推荐 ≤200 帧、≤2MB），可先在虚拟屏幕里预览
+                4. 确认后点底部「写入键盘」统一写入设备
                 """)
 
-            HelpSection(title: "OLED 角标的含义", body: """
+            HelpSection(title: "LCD 角标的含义", body: """
                 • 绿色「✓ 已上传 N 帧」：键盘 flash 真有 N 帧（你或自动同步推的）
                 • 灰色「未上传」：键盘 flash 空，正显示固件默认或留空
                 • 没有徽章：还没自占 BLE 查到（点过一次「修改」就有了）
@@ -4738,7 +4692,7 @@ private struct OLEDTopicView: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
 
-            HelpNote("info.circle.fill", tint: .blue, body: "切换 Mode 时 OLED 会先闪一下当前按键 description 文本（机械感效果），约 1 秒后回到该 Mode 的动图。")
+            HelpNote("info.circle.fill", tint: .blue, body: "切换 Mode 时 LCD 会先闪一下当前按键 description 文本（机械感效果），约 1 秒后回到该 Mode 的动图。")
         }
     }
 }
@@ -4752,7 +4706,7 @@ private struct LightBarTopicView: View {
                 subtitle: "8 颗 WS2812B，颜色由固件 update_claude_ws2812() 决定，1:1 还原在画布上"
             )
 
-            HelpSection(title: "颜色对照表", body: "下面是 Mode 0（Claude）下，固件按 IDE state 的实际行为：")
+            HelpSection(title: "颜色对照表", body: "下面是 Mode 1（Claude）下，固件按 IDE state 的实际行为：")
 
             VStack(alignment: .leading, spacing: 8) {
                 HelpSwatch(
@@ -4868,18 +4822,18 @@ private struct FAQTopicView: View {
                 q: "画布上灯条不变色",
                 a: """
                 • 检查右上角是否「已连接」
-                • 切到正在用的 Mode（auto 档下只有 Mode 0 灯效活跃）
+                • 切到正在用的 Mode
                 • 触发一次工具调用让 Hook 真的发 0x90 给键盘
-                • 如果是手动批准档 + Mode 0：preToolUse 是蓝、其他状态是红
+                • 如果是手动批准档 + Mode 1：preToolUse 是蓝、其他状态是红
                 """
             )
 
             faq(
-                q: "OLED 自动同步没触发",
+                q: "LCD 自动同步没触发",
                 a: """
                 自动同步只在主 App 自占 BLE 时才查图片元信息。流程：
                 1. 至少点一次「修改」让主 App 接管 BLE
-                2. 三个 Mode 的 0x83 查询完成后才会触发
+                2. 四个 Mode 的 0x83 查询完成后才会触发
                 3. 只对 flash 为空（picLength=0）的 Mode 生效
                 4. 如果你曾经手动改过 Inspector 里的「上传 GIF」路径，自动同步会跳过那个 Mode（不覆盖你的选择）
                 """
@@ -4888,7 +4842,7 @@ private struct FAQTopicView: View {
             faq(
                 q: "拨杆我点了，但键盘灯效没切",
                 a: """
-                灯效颜色是由键盘固件根据 sw_state GPIO 直接决定的。要让灯效跟着虚拟拨杆走，必须刷新版固件（含 0x91 set_sw_state 命令）。Hook 的批准行为不需要刷固件，软件覆盖即可生效。
+                最新固件中 0x91 已用于灯效预览。虚拟拨杆只作为 Hook 软件覆盖，不再写入键盘 sw_state。
                 """
             )
 

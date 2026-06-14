@@ -10,7 +10,10 @@ enum AhaKeyCommand {
     static let oledWidth = 160
     static let oledHeight = 80
     static let oledFrameSlotSize = 28_672
-    static let oledMaxFrames = 74
+    static let oledFactoryReservedSlots = 10
+    static let oledModeCount = 4
+    static let oledMaxFramesPerMode = 70
+    static let oledMaxFrames = oledMaxFramesPerMode
     /// 用户选择的 GIF 源文件大小上限（避免过大文件拖慢解码与 BLE 上传）。
     static let oledMaxSourceFileBytes = 2 * 1024 * 1024 // 2 MB
     /// 固件端要求每个 prepareWrite 的 address 必须 4096 字节对齐（flash 扇区大小）。
@@ -29,10 +32,14 @@ enum AhaKeyCommand {
     static let cmdUpdatePic: UInt8 = 0x82
     static let cmdReadPicState: UInt8 = 0x83
     static let cmdUpdateState: UInt8 = 0x90  // IDE 状态 → LED 变色
-    static let cmdSetSwState: UInt8 = 0x91   // 虚拟拨杆：0=auto/up, 1=manual/down, 2=mid（需固件 patch 支持）
+    static let cmdPreviewLightEffect: UInt8 = 0x91 // 直接预览灯效，不保存配置
     static let cmdSetLightMapping: UInt8 = 0x84  // per-mode per-state LED 映射
     static let cmdSetBrightness: UInt8 = 0x85    // 全局 WS2812 亮度 1-100
     static let cmdSetWorkMode: UInt8 = 0x92      // 远程切换工作模式 0-3
+
+    static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
+        UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
+    }
 
     // 按键子类型 (KeySubType)
     static let subShortcut: UInt8 = 0x73
@@ -126,13 +133,6 @@ enum AhaKeyCommand {
         Data(header + [cmdUpdateState, state.rawValue] + trailer)
     }
 
-    /// 虚拟拨杆 → AA BB 91 [sw_state] CC DD
-    /// 需要键盘固件已升级到含 0x91 处理分支的版本（command_solve.c 的 patch）。
-    /// 老版本固件收到会触发 command_return(0x91, 0) 并忽略。
-    static func setSwitchState(_ value: UInt8) -> Data {
-        Data(header + [cmdSetSwState, value] + trailer)
-    }
-
     /// per-mode per-state LED 灯效映射 → AA BB 84 [mode] [state0_light]...[state8_light] CC DD
     static func setLightMapping(mode: UInt8, stateEffects: [UInt8]) -> Data {
         var effects = Array(stateEffects.prefix(9))
@@ -144,6 +144,11 @@ enum AhaKeyCommand {
     static func setBrightness(_ value: UInt8) -> Data {
         let clamped = max(1, min(100, value))
         return Data(header + [cmdSetBrightness, clamped] + trailer)
+    }
+
+    /// 直接预览某个灯效 → AA BB 91 [effect] CC DD
+    static func previewLightEffect(_ effect: UInt8) -> Data {
+        Data(header + [cmdPreviewLightEffect, effect] + trailer)
     }
 
     /// 切换工作模式 → AA BB 92 [mode] CC DD
@@ -180,6 +185,18 @@ enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
     }
 
     var id: UInt8 { rawValue }
+
+    static let workflowOrder: [IDEState] = [
+        .sessionStart,
+        .userPromptSubmit,
+        .preToolUse,
+        .permissionRequest,
+        .postToolUse,
+        .notification,
+        .taskCompleted,
+        .stop,
+        .sessionEnd,
+    ]
 
     var shortLabel: String {
         switch self {
@@ -242,7 +259,7 @@ enum AhaKeyResponseParser {
         guard payload.count >= 8, payload[payload.startIndex] == 0x00 else { return nil }
 
         let base = payload.startIndex + 1 // skip cmd echo
-        let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 50
+        let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 35
         return AhaKeyDeviceStatus(
             battery: Int(payload[base]),
             signal: Int(Int8(bitPattern: payload[base + 1])),
