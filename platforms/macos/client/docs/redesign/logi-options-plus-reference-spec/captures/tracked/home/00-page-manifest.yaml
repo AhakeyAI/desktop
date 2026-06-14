@@ -1,0 +1,33 @@
+page_id: home
+source_app: Logi Options+
+source_version: 2.3.879545
+capture_date: 2026-05-03
+owner: ethan
+capture_policy:
+  tracked_assets_only: true
+  raw_local_ignored_by_git: true
+components:
+  - component_id: hero
+    source_screen: home-overview
+    states_expected: [default, hover, selected, disabled]
+    states_captured: [default]
+    tracked_files:
+      - hero/hero-default.png
+      - hero/hero-annotated.png
+      - hero/hero-states-contact-sheet.png
+    raw_local_prefix: 2026-05-03-home-hero
+    notes_file: hero/hero-notes.md
+  - component_id: topbar
+    source_screen: home-overview
+    states_expected: [default, hover, pressed]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-home-topbar
+    notes_file: topbar/topbar-notes.md
+  - component_id: quick-actions
+    source_screen: home-overview
+    states_expected: [default, hover, pressed, active, disabled]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-home-quick-actions
+    notes_file: quick-actions/quick-actions-notes.md

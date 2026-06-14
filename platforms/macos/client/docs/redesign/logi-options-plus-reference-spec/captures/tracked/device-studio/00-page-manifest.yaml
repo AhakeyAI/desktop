@@ -1,0 +1,51 @@
+page_id: device-studio
+source_app: Logi Options+
+source_version: 2.3.879545
+capture_date: 2026-05-03
+owner: ethan
+capture_policy:
+  tracked_assets_only: true
+  raw_local_ignored_by_git: true
+components:
+  - component_id: platform-switcher
+    source_screen: device-detail
+    states_expected: [default, hover, pressed, selected, disabled]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-platform-switcher
+    notes_file: platform-switcher/platform-switcher-notes.md
+  - component_id: sidebar
+    source_screen: device-detail
+    states_expected: [default, hover, selected, disabled]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-sidebar
+    notes_file: sidebar/sidebar-notes.md
+  - component_id: canvas-hotspot
+    source_screen: device-detail
+    states_expected: [default, hover, selected, focused, disabled]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-canvas-hotspot
+    notes_file: canvas-hotspot/canvas-hotspot-notes.md
+  - component_id: inspector
+    source_screen: device-detail
+    states_expected: [default, active, selected, disabled, error]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-inspector
+    notes_file: inspector/inspector-notes.md
+  - component_id: sync-banner
+    source_screen: device-detail
+    states_expected: [default, dirty, syncing, success, error]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-sync-banner
+    notes_file: sync-banner/sync-banner-notes.md
+  - component_id: status-pills
+    source_screen: device-detail
+    states_expected: [default, active, selected, disabled, syncing, success, error]
+    states_captured: []
+    tracked_files: []
+    raw_local_prefix: 2026-05-03-status-pills
+    notes_file: status-pills/status-pills-notes.md

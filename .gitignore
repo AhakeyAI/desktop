@@ -72,3 +72,6 @@ logs/
 # Local model / runtime payloads
 internal/
 .gstack/
+
+# Internal capture working set (do not commit raw screenshot batches)
+platforms/macos/client/docs/redesign/logi-options-plus-reference-spec/captures/raw-local/
