@@ -186,7 +186,8 @@ struct AhaKeyStudioView: View {
                 infoPill(
                     title: isEffectivelyConnected ? "已连接" : (bleManager.isScanning ? "扫描中" : "未连接"),
                     subtitle: bleManager.deviceName ?? "等待设备",
-                    accent: isEffectivelyConnected ? .green : .orange
+                    accent: isEffectivelyConnected ? .green : .orange,
+                    width: 118
                 )
                 infoPill(
                     title: "电量",
@@ -231,7 +232,7 @@ struct AhaKeyStudioView: View {
                     .imageScale(.medium)
             }
             .buttonStyle(.bordered)
-            .help("清空剪贴板 / 刷新剪贴板")
+            .help("清空剪贴板")
 
             Menu {
                 Button("恢复当前模式默认值") {
@@ -349,11 +350,6 @@ struct AhaKeyStudioView: View {
                     dirtyParts: dirtyPartsForCurrentMode(),
                     onSelect: { selectedPart = $0 },
                     onModeSwitch: { cycleModeForward() },
-                    onKeySimulate: { role in
-                        if role == .voice {
-                            nativeSpeech.toggleRecordingFromVoiceKey()
-                        }
-                    },
                     onSwitchToggle: { toggleVirtualSwitch() },
                     liveLightMode: liveCanvasLightMode,
                     liveIDEStateValue: liveCanvasIDEStateValue,
@@ -582,7 +578,12 @@ struct AhaKeyStudioView: View {
             }
         }
         .alert("写入结果", isPresented: $showsWriteResultAlert) {
-            Button("好", role: .cancel) {}
+            Button("继续编辑") {}
+            Button("完成编辑") {
+                if writeResultAlertMessage.contains("成功") {
+                    completeEditingAfterSuccessfulWrite()
+                }
+            }
         } message: {
             Text(writeResultAlertMessage)
         }
@@ -749,10 +750,10 @@ struct AhaKeyStudioView: View {
                 }
 
                 let voiceKey = currentModeDraft.key(for: .voice)
-                if let preset = voiceKey.voicePreset, preset == .typeless || preset == .wechat || preset == .doubao {
+                if let preset = voiceKey.voicePreset, preset == .typeless {
                     GroupBox("Fn 语音输入法") {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Typeless / 微信会注入 Fn 按住/松开；豆包会切到豆包输入源并放行真实 F18。")
+                            Text("Typeless / 微信语音 / 豆包输入法使用 F19 触发，并注入 Fn 按住/松开。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Text("排查请看 voice-relay.log（matched · function relay · post fn）。路径：~/Library/Application Support/AhaKeyConfig/diagnostics/")
@@ -2078,6 +2079,14 @@ struct AhaKeyStudioView: View {
         performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
     }
 
+    private func completeEditingAfterSuccessfulWrite() {
+        commitModeNameEdit()
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isEditingInspector = false
+        }
+        returnToKeyboardControl()
+    }
+
     // 轮询等待 BLE 连接且命令通道就绪（最多 10 秒），连接后自动同步并返回键盘控制。
     private func waitForConnectionThenSync() {
         Task { @MainActor in
@@ -2489,7 +2498,7 @@ struct AhaKeyStudioView: View {
         syncStatusMessage = "正在预览灯光强度：\(value)% 。"
     }
 
-    private func infoPill(title: String, subtitle: String, accent: Color) -> some View {
+    private func infoPill(title: String, subtitle: String, accent: Color, width: CGFloat = 86) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.caption)
@@ -2504,7 +2513,7 @@ struct AhaKeyStudioView: View {
                     .truncationMode(.tail)
             }
         }
-        .frame(width: 86, alignment: .leading)
+        .frame(width: width, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
@@ -2920,7 +2929,6 @@ private struct AhaKeyKeyboardCanvasView: View {
     let dirtyParts: Set<AhaKeyStudioPart>
     let onSelect: (AhaKeyStudioPart) -> Void
     let onModeSwitch: () -> Void
-    var onKeySimulate: ((AhaKeyKeyRole) -> Void)? = nil
     var onSwitchToggle: (() -> Void)? = nil
     var liveLightMode: Int? = nil
     var liveIDEStateValue: Int? = nil
@@ -3222,7 +3230,6 @@ private struct AhaKeyKeyboardCanvasView: View {
         let rect = frame(specs.x, specs.y, specs.w, specs.h, width: width, height: height)
         return Button {
             onSelect(part)
-            onKeySimulate?(role)
         } label: {
             VStack(spacing: rect.height * 0.07) {
                 ZStack {
@@ -4521,7 +4528,7 @@ private struct CanvasTopicView: View {
             VStack(alignment: .leading, spacing: 10) {
                 hotspotRow("rainbow", "灯条", "点亮键盘顶端 8 颗 WS2812 LED；颜色和效果跟随 IDE Hook 状态。")
                 hotspotRow("play.tv", "LCD 屏幕", "0.96\" IPS 显示；可上传 GIF 动图（160×80, RGB565）。")
-                hotspotRow("mic", "Key 1 / 语音键", "默认 F18，触发苹果原生转写、AhaType、微信按住说话等预设。")
+                hotspotRow("mic", "Key 1 / 语音键", "macOS 原生语音默认 F18；Typeless / 微信的 Fn 触发使用 F19。")
                 hotspotRow("checkmark.circle", "Key 2 / 通过键", "依 Mode 默认：Y / ↵ / ↵。可改成宏序列。")
                 hotspotRow("xmark.circle", "Key 3 / 拒绝键", "依 Mode 默认：N / ⌫ / Esc。可改成宏序列。")
                 hotspotRow("delete.left", "Key 4 / 删除键", "默认 Backspace，可改任意短按 / 长按。")
@@ -4744,14 +4751,13 @@ private struct VoiceTopicView: View {
             HelpTitle(
                 icon: "mic.circle",
                 title: "语音输入",
-                subtitle: "Key 1 默认绑定 F18，按一次开始、按一次结束"
+                subtitle: "macOS 原生语音走 F18；Fn / Globe 触发走 F19"
             )
 
             HelpSection(title: "几种预设的差别", body: """
                 • macOS 原生转写：在地化语言识别，识别完 ⌘V 写回光标。适合任何输入框
-                • Typeless：调起 Typeless App
-                • 微信按住说话：按住语音键发语音，松开停
-                • 豆包输入法：按住调起豆包长按语音
+                • Fn/Globe：用于 Typeless、微信语音、豆包输入法，在对应软件内把快捷键设为 Fn/Globe
+                • 自定义快捷键：只写入键盘，不接管为固定语音预设
                 • AhaType：先识别再优化提示词（需登录）
                 """)
 
@@ -4780,7 +4786,7 @@ private struct DiagnosticsTopicView: View {
                 • 蓝牙：连接键盘必须
                 • 麦克风：苹果原生转写、AhaType、按住说话所有语音功能都需要
                 • 输入监控：捕获语音键的按下/松开事件
-                • 辅助功能：模拟键盘按键（用于 ⌘V 写回文本、注入 F18 等）
+                • 辅助功能：模拟键盘按键（用于 ⌘V 写回文本、注入 Fn/Globe 等）
                 • 语音识别：苹果原生转写
                 • Siri 与听写（macOS 13+）：原生转写依赖项
                 """)

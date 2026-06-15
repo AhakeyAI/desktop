@@ -36,13 +36,18 @@ private enum VoiceRouteAction: Hashable {
             "豆包输入法"
         }
     }
+
+    var isFunctionRelay: Bool {
+        if case .functionRelay = self { return true }
+        return false
+    }
 }
 
 private struct VoiceRoute: Hashable {
     let binding: VoiceTriggerBinding
     let action: VoiceRouteAction
     let mode: AhaKeyModeSlot
-    let usesFactoryFallback: Bool
+    let compatibilityLabel: String?
 }
 
 final class VoiceRelayService: ObservableObject {
@@ -217,7 +222,7 @@ final class VoiceRelayService: ObservableObject {
         return false
     }
 
-    /// Inspector 调试：模拟当前模式下按一次实体语音键（Typeless/微信 = 切换 Fn 按住；macOS 原生 = 切换系统转写）。
+    /// Inspector 调试：模拟当前模式下按一次实体语音键（Fn/Globe = 切换 Fn 按住；macOS 原生 = 切换系统转写）。
     func simulateInspectorVoiceKeyTap(for mode: AhaKeyModeSlot) {
         let route: VoiceRoute? = routeQueue.sync {
             routes.first { $0.mode == mode }
@@ -225,7 +230,7 @@ final class VoiceRelayService: ObservableObject {
         guard let route else {
             appendDiagnostic("inspector simulate: no route for mode=\(mode.rawValue)")
             Task { @MainActor in
-                lastInspectorSimulateHint = "当前模式没有语音路由：请先在「语音软件」里选 Typeless / 微信 / 豆包 / macOS 原生（不要选「自定义」）。"
+                lastInspectorSimulateHint = "当前模式没有语音路由：Fn 请选 Fn/Globe，或把「自定义快捷键」设为 F19。"
             }
             return
         }
@@ -238,11 +243,7 @@ final class VoiceRelayService: ObservableObject {
         case .functionRelay:
             toggleFunctionRelayHold(for: route)
             Task { @MainActor in
-                if route.action.title == "微信语音" {
-                    lastInspectorSimulateHint = "已切换 Fn 按住状态；请在聚焦 App 里试用微信语音。再点一次为松开。"
-                } else {
-                    lastInspectorSimulateHint = "已切换 Fn 按住状态；Typeless 请在 App 内把随声写设为 Fn/Globe（本 Studio 默认监听 F19，出厂语音键 F18 仍兼容）。再点一次为松开。"
-                }
+                lastInspectorSimulateHint = "已切换 Fn 按住状态；请在 Typeless/微信语音/豆包输入法内把快捷键设为 Fn/Globe（本 Studio 监听 F19，旧版 F18 兼容）。再点一次为松开。"
             }
         case .doubaoPassThrough:
             configureDoubaoVoiceShortcutIfNeeded()
@@ -270,7 +271,7 @@ final class VoiceRelayService: ObservableObject {
             let summary = builtRoutes.isEmpty
                 ? "未配置语音软件。"
                 : builtRoutes.map { route in
-                    let fallback = route.usesFactoryFallback ? " · 出厂 F18 兼容" : ""
+                    let fallback = route.compatibilityLabel.map { " · \($0)" } ?? ""
                     return "\(route.mode.title) \(route.action.title) ← \(route.binding.displayLabel)\(fallback)"
                 }.joined(separator: " / ")
 
@@ -671,19 +672,19 @@ final class VoiceRelayService: ObservableObject {
             return
         }
 
-        statusMessage = "后台监听已启动。Mode 1 出厂 F18 也会被接管到你选中的语音软件。"
+        statusMessage = "后台监听已启动。Fn/Globe 语音走 F19；macOS 原生与旧版 F18 会继续兼容。"
     }
 
     private static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {
         var orderedRoutes: [VoiceRoute] = []
         let factoryF18 = VoiceTriggerBinding(keyCode: 79, modifiers: [])
+        let fnF19 = VoiceTriggerBinding(keyCode: 80, modifiers: [])
 
         for mode in AhaKeyModeSlot.allCases {
             let voiceKey = draft.draft(for: mode).key(for: .voice)
             guard let preset = voiceKey.voicePreset,
                   preset.availableInV1,
-                  preset != .custom,
-                  let action = action(for: preset),
+                  let action = action(for: preset, shortcut: voiceKey.shortcut),
                   let binding = macBinding(for: voiceKey.shortcut)
             else { continue }
 
@@ -692,9 +693,20 @@ final class VoiceRelayService: ObservableObject {
                     binding: binding,
                     action: action,
                     mode: mode,
-                    usesFactoryFallback: false
+                    compatibilityLabel: nil
                 )
             )
+
+            if action.isFunctionRelay, binding != fnF19 {
+                orderedRoutes.append(
+                    VoiceRoute(
+                        binding: fnF19,
+                        action: action,
+                        mode: mode,
+                        compatibilityLabel: "Fn F19 兼容"
+                    )
+                )
+            }
 
             if mode == .mode0, binding != factoryF18 {
                 orderedRoutes.append(
@@ -702,7 +714,7 @@ final class VoiceRelayService: ObservableObject {
                         binding: factoryF18,
                         action: action,
                         mode: .mode0,
-                        usesFactoryFallback: true
+                        compatibilityLabel: "旧版 F18 兼容"
                     )
                 )
             }
@@ -711,14 +723,14 @@ final class VoiceRelayService: ObservableObject {
         return orderedRoutes
     }
 
-    private static func action(for preset: VoicePreset) -> VoiceRouteAction? {
+    private static func action(for preset: VoicePreset, shortcut: ShortcutBinding) -> VoiceRouteAction? {
         switch preset {
         case .macOSNative:
             .macOSDictation
         case .typeless:
-            .functionRelay(appName: "Typeless / Fn")
+            .functionRelay(appName: "Fn/Globe")
         case .wechat:
-            .functionRelay(appName: "微信语音")
+            .functionRelay(appName: "Fn/Globe")
         case .claudeCode:
             // Claude Code preset 复用 macOS 原生 ASR：录音 → 识别 → ⌘V 粘到当前光标。
             // 这样按键会被我们的 monitor 吃掉，不会漏到 Claude CLI 终端里变成 CSI 乱码。
@@ -726,8 +738,12 @@ final class VoiceRelayService: ObservableObject {
         case .kimiCode:
             .macOSDictation
         case .doubao:
-            .doubaoPassThrough
-        case .codex, .custom:
+            .functionRelay(appName: "Fn/Globe")
+        case .custom:
+            shortcut.keyCode == HIDUsage.f19 && shortcut.modifiers.isEmpty
+                ? .functionRelay(appName: "Fn / Globe")
+                : nil
+        case .codex:
             nil
         }
     }

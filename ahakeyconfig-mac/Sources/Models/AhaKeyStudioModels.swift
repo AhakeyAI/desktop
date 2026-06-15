@@ -21,7 +21,7 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode0: "Claude"
         case .mode1: "Cursor"
         case .mode2: "Codex"
-        case .mode3: "N/A"
+        case .mode3: "custom"
         }
     }
 
@@ -38,7 +38,7 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode2:
             "Codex · ↵ / Esc"
         case .mode3:
-            "N/A · 预留模式"
+            "custom · 自定义模式"
         }
     }
 
@@ -364,9 +364,9 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         self == .macOSNative || self == .claudeCode || self == .kimiCode
     }
 
-    /// Picker 中实际展示的选项（隐藏已合并的旧 case 和未实现的 codex）
+    /// Picker 中实际展示的选项（微信/豆包并入 Fn/Globe；旧 case 保留用于迁移）
     static var visibleCases: [VoicePreset] {
-        allCases.filter { !($0 == .claudeCode || $0 == .kimiCode || $0 == .codex) }
+        [.macOSNative, .typeless, .custom]
     }
 
     var title: String {
@@ -374,7 +374,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .macOSNative, .claudeCode, .kimiCode:
             "macOS 原生转写"
         case .typeless:
-            "Typeless / Fn"
+            "Fn/Globe"
         case .wechat:
             "微信语音"
         case .codex:
@@ -391,9 +391,9 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .macOSNative, .claudeCode, .kimiCode:
             "调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。"
         case .typeless:
-            "预设对应快捷键：Typeless 内仍选 Fn/Globe。本 Studio 默认用 F19 作为语音触发键（与 macOS 原生 F18 错开）；按下后向系统注入「按住 Fn」供随声写使用。Mode 1 出厂语音键 F18 仍会额外注册兼容。请授予输入监控与辅助功能。"
+            "预设对应快捷键：Typeless/微信语音/豆包输入法内仍选 Fn/Globe。本 Studio 使用 F19 作为 Fn 触发键；按下后向系统注入「按住 Fn」。旧版 F18 仍会兼容监听。请授予输入监控与辅助功能。"
         case .wechat:
-            "AhaKey Studio 会在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
+            "AhaKey Studio 使用 F19 作为 Fn 触发键，并在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
         case .doubao:
             "豆包输入法 Mac 版需要直接接收真实语音键事件。AhaKey Studio 会切到豆包输入源，并把 F18 配置为豆包长按语音快捷键；按住语音键说话，松开后由豆包提交文字。"
         case .codex:
@@ -420,7 +420,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
             // 与 macOS 原生默认 F18 错开；固件可把 Typeless 档语音键设为 F19，Mode 0 另有 F18 出厂兼容路由
             ShortcutBinding(keyCode: HIDUsage.f19)
         case .wechat:
-            ShortcutBinding(keyCode: HIDUsage.f18)
+            ShortcutBinding(keyCode: HIDUsage.f19)
         case .claudeCode:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .kimiCode:
@@ -1188,11 +1188,23 @@ enum AhaKeyStudioStore {
             }
 
             var voiceKey = modeDraft.key(for: .voice)
+            if voiceKey.voicePreset == .wechat || voiceKey.voicePreset == .doubao {
+                voiceKey.voicePreset = .typeless
+                modeDraft.updateKey(voiceKey)
+            }
+            voiceKey = modeDraft.key(for: .voice)
             if voiceKey.voicePreset == .macOSNative,
                voiceKey.shortcut.keyCode == HIDUsage.f17,
                voiceKey.shortcut.modifiers.isEmpty
             {
                 voiceKey.shortcut = ShortcutBinding(keyCode: HIDUsage.f18)
+                modeDraft.updateKey(voiceKey)
+            }
+            if (voiceKey.voicePreset == .typeless || voiceKey.voicePreset == .wechat),
+               voiceKey.shortcut.keyCode == HIDUsage.f18,
+               voiceKey.shortcut.modifiers.isEmpty
+            {
+                voiceKey.shortcut = ShortcutBinding(keyCode: HIDUsage.f19)
                 modeDraft.updateKey(voiceKey)
             }
 
@@ -1204,6 +1216,15 @@ enum AhaKeyStudioStore {
                 let targetSubmit = target.key(for: .submit)
                 submitKey.shortcut = targetSubmit.shortcut
                 submitKey.description = targetSubmit.description
+                modeDraft.updateKey(submitKey)
+            }
+
+            submitKey = modeDraft.key(for: .submit)
+            if submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.backspace),
+               submitKey.macro.isEmpty,
+               ["", "backspace", "Back space", "Back Space", "删除", "删除键"].contains(submitKey.description)
+            {
+                submitKey.description = AhaKeyKeyRole.submit.defaultDescription
                 modeDraft.updateKey(submitKey)
             }
 

@@ -513,7 +513,7 @@ struct DeviceInfoView: View {
         case 0: return "Mode 1 / Claude"
         case 1: return "Mode 2 / Cursor"
         case 2: return "Mode 3 / Codex"
-        case 3: return "Mode 4 / N/A"
+        case 3: return "Mode 4 / custom"
         default: return "Mode \(mode)"
         }
     }
