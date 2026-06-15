@@ -2846,7 +2846,6 @@ private struct VoicePresetPicker: View {
 
 private struct ShortcutBindingEditor: View {
     @Binding var shortcut: ShortcutBinding
-    @State private var activePrimaryInputMode: PrimaryKeyInputMode = .keyCapture
     @State private var isRecordingPrimaryKey = false
 
     var body: some View {
@@ -2881,22 +2880,9 @@ private struct ShortcutBindingEditor: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                PrimaryKeyDropdownField(
+                PrimaryKeyInputField(
                     shortcut: $shortcut,
-                    isActive: activePrimaryInputMode == .dropdown,
-                    onActivate: {
-                        activePrimaryInputMode = .dropdown
-                        isRecordingPrimaryKey = false
-                    }
-                )
-
-                KeyCaptureField(
-                    shortcut: $shortcut,
-                    isRecording: $isRecordingPrimaryKey,
-                    isActive: activePrimaryInputMode == .keyCapture,
-                    onActivate: {
-                        activePrimaryInputMode = .keyCapture
-                    }
+                    isRecording: $isRecordingPrimaryKey
                 )
             }
 
@@ -2922,22 +2908,12 @@ private struct ShortcutBindingEditor: View {
 
 }
 
-private enum PrimaryKeyInputMode {
-    case keyCapture
-    case dropdown
-}
-
-private struct KeyCaptureField: View {
+private struct PrimaryKeyInputField: View {
     @Binding var shortcut: ShortcutBinding
     @Binding var isRecording: Bool
-    let isActive: Bool
-    let onActivate: () -> Void
 
     private var displayText: String {
-        if isRecording {
-            return "直接按下键盘快捷键即可"
-        }
-        return shortcut.keyCode == 0 ? "直接按下键盘快捷键即可" : shortcut.displayLabel
+        shortcut.keyCode == 0 ? "直接按下键盘快捷键即可" : HIDUsage.name(for: shortcut.keyCode)
     }
 
     var body: some View {
@@ -2946,96 +2922,58 @@ private struct KeyCaptureField: View {
                 .fill(Color(nsColor: .textBackgroundColor))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isActive ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isActive ? 1.5 : 1)
+                        .stroke(isRecording ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isRecording ? 1.5 : 1)
                 )
 
             KeyCaptureOverlay(
                 shortcut: $shortcut,
                 isRecording: $isRecording,
-                onActivate: onActivate
+                onActivate: {
+                    isRecording = true
+                }
             )
+            .padding(.trailing, 38)
 
             HStack(spacing: 8) {
                 Image(systemName: isRecording ? "keyboard.badge.ellipsis" : "keyboard")
-                    .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isRecording ? Color.accentColor : Color.secondary)
                 Text(displayText)
                     .font(.callout)
                     .foregroundStyle(shortcut.keyCode == 0 && !isRecording ? Color.secondary : Color.primary)
                     .lineLimit(1)
                 Spacer()
-                if shortcut.keyCode != 0 {
-                    Button {
+
+                Menu {
+                    Button("直接按下键盘快捷键即可") {
                         shortcut = ShortcutBinding()
                         isRecording = false
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .imageScale(.small)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("清除主键")
+                    Divider()
+                    ForEach(HIDUsage.allOptions, id: \.code) { option in
+                        Button(option.name) {
+                            var next = shortcut
+                            next.keyCode = option.code
+                            shortcut = next
+                            isRecording = false
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("展开下拉列表")
             }
             .padding(.horizontal, 10)
         }
         .frame(height: 36)
         .contentShape(Rectangle())
-        .help("点击后按下电脑键盘上的按键。")
-    }
-}
-
-private struct PrimaryKeyDropdownField: View {
-    @Binding var shortcut: ShortcutBinding
-    let isActive: Bool
-    let onActivate: () -> Void
-
-    private var displayText: String {
-        shortcut.keyCode == 0 ? "下拉模式选择快捷键主键" : shortcut.displayLabel
-    }
-
-    var body: some View {
-        Menu {
-            Button("下拉模式选择快捷键主键") {
-                var next = shortcut
-                next.keyCode = 0
-                shortcut = next
-            }
-            Divider()
-            ForEach(HIDUsage.allOptions, id: \.code) { option in
-                Button(option.name) {
-                    var next = shortcut
-                    next.keyCode = option.code
-                    shortcut = next
-                }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "list.bullet.rectangle")
-                    .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
-                Text(displayText)
-                    .font(.callout)
-                    .foregroundStyle(shortcut.keyCode == 0 ? Color.secondary : Color.primary)
-                    .lineLimit(1)
-                Spacer()
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 36)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .textBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isActive ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isActive ? 1.5 : 1)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .simultaneousGesture(TapGesture().onEnded(onActivate))
-        .help("点击后从列表中选择快捷键主键。")
+        .help("直接按键设置主键，点击箭头展开下拉列表。")
     }
 }
 
