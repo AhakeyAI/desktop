@@ -2846,6 +2846,7 @@ private struct VoicePresetPicker: View {
 
 private struct ShortcutBindingEditor: View {
     @Binding var shortcut: ShortcutBinding
+    @State private var activePrimaryInputMode: PrimaryKeyInputMode = .keyCapture
     @State private var isRecordingPrimaryKey = false
 
     var body: some View {
@@ -2875,20 +2876,24 @@ private struct ShortcutBindingEditor: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("主键")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                KeyCaptureField(shortcut: $shortcut, isRecording: $isRecordingPrimaryKey)
-
-                Picker("主键", selection: primaryKeyBinding) {
-                    Text("按下主键盘按键或下拉选择").tag(UInt8(0))
-                    ForEach(HIDUsage.allOptions, id: \.code) { option in
-                        Text(option.name).tag(option.code)
+            VStack(alignment: .leading, spacing: 8) {
+                KeyCaptureField(
+                    shortcut: $shortcut,
+                    isRecording: $isRecordingPrimaryKey,
+                    isActive: activePrimaryInputMode == .keyCapture,
+                    onActivate: {
+                        activePrimaryInputMode = .keyCapture
                     }
-                }
-                .pickerStyle(.menu)
+                )
+
+                PrimaryKeyDropdownField(
+                    shortcut: $shortcut,
+                    isActive: activePrimaryInputMode == .dropdown,
+                    onActivate: {
+                        activePrimaryInputMode = .dropdown
+                        isRecordingPrimaryKey = false
+                    }
+                )
             }
 
             if !shortcut.modifiers.isEmpty {
@@ -2911,27 +2916,24 @@ private struct ShortcutBindingEditor: View {
         )
     }
 
-    private var primaryKeyBinding: Binding<UInt8> {
-        Binding(
-            get: { shortcut.keyCode },
-            set: { newCode in
-                var next = shortcut
-                next.keyCode = newCode
-                shortcut = next
-            }
-        )
-    }
+}
+
+private enum PrimaryKeyInputMode {
+    case keyCapture
+    case dropdown
 }
 
 private struct KeyCaptureField: View {
     @Binding var shortcut: ShortcutBinding
     @Binding var isRecording: Bool
+    let isActive: Bool
+    let onActivate: () -> Void
 
     private var displayText: String {
         if isRecording {
             return "请按下主键盘按键..."
         }
-        return shortcut.keyCode == 0 ? "按下主键盘按键或下拉选择" : shortcut.displayLabel
+        return shortcut.keyCode == 0 ? "按键模式输入快捷键主键" : shortcut.displayLabel
     }
 
     var body: some View {
@@ -2940,14 +2942,18 @@ private struct KeyCaptureField: View {
                 .fill(Color(nsColor: .textBackgroundColor))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isRecording ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isRecording ? 1.5 : 1)
+                        .stroke(isActive ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isActive ? 1.5 : 1)
                 )
 
-            KeyCaptureOverlay(shortcut: $shortcut, isRecording: $isRecording)
+            KeyCaptureOverlay(
+                shortcut: $shortcut,
+                isRecording: $isRecording,
+                onActivate: onActivate
+            )
 
             HStack(spacing: 8) {
                 Image(systemName: isRecording ? "keyboard.badge.ellipsis" : "keyboard")
-                    .foregroundStyle(isRecording ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
                 Text(displayText)
                     .font(.callout)
                     .foregroundStyle(shortcut.keyCode == 0 && !isRecording ? Color.secondary : Color.primary)
@@ -2970,13 +2976,69 @@ private struct KeyCaptureField: View {
         }
         .frame(height: 36)
         .contentShape(Rectangle())
-        .help("点击后按下电脑键盘上的按键；也可以继续使用下方下拉选择。")
+        .help("点击后按下电脑键盘上的按键。")
+    }
+}
+
+private struct PrimaryKeyDropdownField: View {
+    @Binding var shortcut: ShortcutBinding
+    let isActive: Bool
+    let onActivate: () -> Void
+
+    private var displayText: String {
+        shortcut.keyCode == 0 ? "下拉模式选择快捷键主键" : shortcut.displayLabel
+    }
+
+    var body: some View {
+        Menu {
+            Button("下拉模式选择快捷键主键") {
+                var next = shortcut
+                next.keyCode = 0
+                shortcut = next
+            }
+            Divider()
+            ForEach(HIDUsage.allOptions, id: \.code) { option in
+                Button(option.name) {
+                    var next = shortcut
+                    next.keyCode = option.code
+                    shortcut = next
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "list.bullet.rectangle")
+                    .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                Text(displayText)
+                    .font(.callout)
+                    .foregroundStyle(shortcut.keyCode == 0 ? Color.secondary : Color.primary)
+                    .lineLimit(1)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 36)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .textBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isActive ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isActive ? 1.5 : 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded(onActivate))
+        .help("点击后从列表中选择快捷键主键。")
     }
 }
 
 private struct KeyCaptureOverlay: NSViewRepresentable {
     @Binding var shortcut: ShortcutBinding
     @Binding var isRecording: Bool
+    let onActivate: () -> Void
 
     func makeNSView(context: Context) -> KeyCaptureNSView {
         let view = KeyCaptureNSView()
@@ -2995,6 +3057,7 @@ private struct KeyCaptureOverlay: NSViewRepresentable {
 
     private func configure(_ view: KeyCaptureNSView) {
         view.onBeginRecording = {
+            onActivate()
             isRecording = true
         }
         view.onCapture = { event in
@@ -3009,11 +3072,22 @@ private struct KeyCaptureOverlay: NSViewRepresentable {
             )
             isRecording = false
         }
+        view.onCaptureModifier = { keyCode in
+            guard let hidCode = HIDUsage.hidCode(forMacKeyCode: keyCode) else {
+                NSSound.beep()
+                isRecording = false
+                return
+            }
+            shortcut = ShortcutBinding(modifiers: [], keyCode: hidCode)
+            isRecording = false
+        }
     }
 
     final class KeyCaptureNSView: NSView {
         var onBeginRecording: (() -> Void)?
         var onCapture: ((NSEvent) -> Void)?
+        var onCaptureModifier: ((UInt16) -> Void)?
+        private var pendingModifierCapture: DispatchWorkItem?
 
         override var acceptsFirstResponder: Bool { true }
 
@@ -3023,7 +3097,31 @@ private struct KeyCaptureOverlay: NSViewRepresentable {
         }
 
         override func keyDown(with event: NSEvent) {
+            pendingModifierCapture?.cancel()
+            pendingModifierCapture = nil
             onCapture?(event)
+        }
+
+        override func flagsChanged(with event: NSEvent) {
+            onBeginRecording?()
+            pendingModifierCapture?.cancel()
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard flags.contains(.control)
+                || flags.contains(.option)
+                || flags.contains(.shift)
+                || flags.contains(.command)
+                || flags.contains(.capsLock)
+                || flags.contains(.function)
+            else {
+                return
+            }
+
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.onCaptureModifier?(event.keyCode)
+                self?.pendingModifierCapture = nil
+            }
+            pendingModifierCapture = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
         }
     }
 }

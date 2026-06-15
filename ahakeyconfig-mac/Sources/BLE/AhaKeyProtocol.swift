@@ -485,7 +485,16 @@ enum HIDUsage {
         case 50: return grave
         case 51: return backspace
         case 53: return escape
+        case 54: return rightGUI
+        case 55: return leftGUI
+        case 56: return leftShift
         case 57: return capsLock
+        case 58: return leftAlt
+        case 59: return leftControl
+        case 60: return rightShift
+        case 61: return rightAlt
+        case 62: return rightControl
+        case 63: return f19 // Fn/Globe reports as a function modifier on many Mac keyboards.
         case 64: return f17
         case 65: return keypadPeriod
         case 67: return keypadAsterisk
