@@ -340,6 +340,38 @@ enum HIDUsage {
     static let space: UInt8 = 0x2C
     static let capsLock: UInt8 = 0x39
     static let deleteForward: UInt8 = 0x4C
+    static let insert: UInt8 = 0x49
+    static let home: UInt8 = 0x4A
+    static let pageUp: UInt8 = 0x4B
+    static let end: UInt8 = 0x4D
+    static let pageDown: UInt8 = 0x4E
+    static let minus: UInt8 = 0x2D
+    static let equal: UInt8 = 0x2E
+    static let leftBracket: UInt8 = 0x2F
+    static let rightBracket: UInt8 = 0x30
+    static let backslash: UInt8 = 0x31
+    static let semicolon: UInt8 = 0x33
+    static let quote: UInt8 = 0x34
+    static let grave: UInt8 = 0x35
+    static let comma: UInt8 = 0x36
+    static let period: UInt8 = 0x37
+    static let slash: UInt8 = 0x38
+    static let keypadSlash: UInt8 = 0x54
+    static let keypadAsterisk: UInt8 = 0x55
+    static let keypadMinus: UInt8 = 0x56
+    static let keypadPlus: UInt8 = 0x57
+    static let keypadEnter: UInt8 = 0x58
+    static let keypad1: UInt8 = 0x59
+    static let keypad2: UInt8 = 0x5A
+    static let keypad3: UInt8 = 0x5B
+    static let keypad4: UInt8 = 0x5C
+    static let keypad5: UInt8 = 0x5D
+    static let keypad6: UInt8 = 0x5E
+    static let keypad7: UInt8 = 0x5F
+    static let keypad8: UInt8 = 0x60
+    static let keypad9: UInt8 = 0x61
+    static let keypad0: UInt8 = 0x62
+    static let keypadPeriod: UInt8 = 0x63
 
     // 方向键
     static let rightArrow: UInt8 = 0x4F
@@ -358,7 +390,11 @@ enum HIDUsage {
         // 基础键
         ("Enter", enter), ("Escape", escape), ("Backspace", backspace),
         ("Tab", tab), ("Space", space), ("CapsLock", capsLock),
-        ("Delete", deleteForward),
+        ("Delete", deleteForward), ("Insert", insert), ("Home", home),
+        ("End", end), ("Page Up", pageUp), ("Page Down", pageDown),
+        ("-", minus), ("=", equal), ("[", leftBracket), ("]", rightBracket),
+        ("\\", backslash), (";", semicolon), ("'", quote), ("`", grave),
+        (",", comma), (".", period), ("/", slash),
         // 方向键
         ("→", rightArrow), ("←", leftArrow), ("↓", downArrow), ("↑", upArrow),
         // 字母键
@@ -378,6 +414,14 @@ enum HIDUsage {
         ("Left Alt", leftAlt), ("Left Cmd", leftGUI),
         ("Right Ctrl", rightControl), ("Right Shift", rightShift),
         ("Right Alt", rightAlt), ("Right Cmd", rightGUI),
+        // 小键盘
+        ("Keypad /", keypadSlash), ("Keypad *", keypadAsterisk),
+        ("Keypad -", keypadMinus), ("Keypad +", keypadPlus),
+        ("Keypad Enter", keypadEnter), ("Keypad 0", keypad0),
+        ("Keypad 1", keypad1), ("Keypad 2", keypad2), ("Keypad 3", keypad3),
+        ("Keypad 4", keypad4), ("Keypad 5", keypad5), ("Keypad 6", keypad6),
+        ("Keypad 7", keypad7), ("Keypad 8", keypad8), ("Keypad 9", keypad9),
+        ("Keypad .", keypadPeriod),
     ]
 
     static let primaryOptions = allOptions
@@ -385,6 +429,111 @@ enum HIDUsage {
     /// 根据键码查找名称
     static func name(for code: UInt8) -> String {
         allOptions.first { $0.code == code }?.name ?? String(format: "0x%02X", code)
+    }
+
+    static func hidCode(forMacKeyCode keyCode: UInt16) -> UInt8? {
+        switch keyCode {
+        case 0: return 0x04 // A
+        case 1: return 0x16 // S
+        case 2: return 0x07 // D
+        case 3: return 0x09 // F
+        case 4: return 0x0B // H
+        case 5: return 0x0A // G
+        case 6: return 0x1D // Z
+        case 7: return 0x1B // X
+        case 8: return 0x06 // C
+        case 9: return 0x19 // V
+        case 11: return 0x05 // B
+        case 12: return 0x14 // Q
+        case 13: return 0x1A // W
+        case 14: return 0x08 // E
+        case 15: return 0x15 // R
+        case 16: return 0x1C // Y
+        case 17: return 0x17 // T
+        case 18: return 0x1E // 1
+        case 19: return 0x1F // 2
+        case 20: return 0x20 // 3
+        case 21: return 0x21 // 4
+        case 22: return 0x23 // 6
+        case 23: return 0x22 // 5
+        case 24: return equal
+        case 25: return 0x26 // 9
+        case 26: return 0x24 // 7
+        case 27: return minus
+        case 28: return 0x25 // 8
+        case 29: return 0x27 // 0
+        case 30: return rightBracket
+        case 31: return 0x12 // O
+        case 32: return 0x18 // U
+        case 33: return leftBracket
+        case 34: return 0x0C // I
+        case 35: return 0x13 // P
+        case 36: return enter
+        case 37: return 0x0F // L
+        case 38: return 0x0D // J
+        case 39: return quote
+        case 40: return 0x0E // K
+        case 41: return semicolon
+        case 42: return backslash
+        case 43: return comma
+        case 44: return slash
+        case 45: return 0x11 // N
+        case 46: return 0x10 // M
+        case 47: return period
+        case 48: return tab
+        case 49: return space
+        case 50: return grave
+        case 51: return backspace
+        case 53: return escape
+        case 57: return capsLock
+        case 64: return f17
+        case 65: return keypadPeriod
+        case 67: return keypadAsterisk
+        case 69: return keypadPlus
+        case 71: return 0x53 // Keypad Clear / Num Lock
+        case 75: return keypadSlash
+        case 76: return keypadEnter
+        case 78: return keypadMinus
+        case 79: return f18
+        case 80: return f19
+        case 82: return keypad0
+        case 83: return keypad1
+        case 84: return keypad2
+        case 85: return keypad3
+        case 86: return keypad4
+        case 87: return keypad5
+        case 88: return keypad6
+        case 89: return keypad7
+        case 90: return f20
+        case 91: return keypad8
+        case 92: return keypad9
+        case 96: return f5
+        case 97: return f6
+        case 98: return f7
+        case 99: return f3
+        case 100: return f8
+        case 101: return f9
+        case 103: return f11
+        case 105: return f13
+        case 106: return f16
+        case 107: return f14
+        case 109: return f10
+        case 111: return f12
+        case 113: return f15
+        case 115: return home
+        case 116: return pageUp
+        case 117: return deleteForward
+        case 118: return f4
+        case 119: return end
+        case 120: return f2
+        case 121: return pageDown
+        case 122: return f1
+        case 123: return leftArrow
+        case 124: return rightArrow
+        case 125: return downArrow
+        case 126: return upArrow
+        default: return nil
+        }
     }
 }
 

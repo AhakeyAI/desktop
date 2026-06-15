@@ -578,12 +578,13 @@ struct AhaKeyStudioView: View {
             }
         }
         .alert("写入结果", isPresented: $showsWriteResultAlert) {
-            Button("继续编辑") {}
+            Button("继续编辑", role: .cancel) {}
             Button("完成编辑") {
                 if writeResultAlertMessage.contains("成功") {
                     completeEditingAfterSuccessfulWrite()
                 }
             }
+            .keyboardShortcut(.defaultAction)
         } message: {
             Text(writeResultAlertMessage)
         }
@@ -2845,6 +2846,7 @@ private struct VoicePresetPicker: View {
 
 private struct ShortcutBindingEditor: View {
     @Binding var shortcut: ShortcutBinding
+    @State private var isRecordingPrimaryKey = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2873,13 +2875,21 @@ private struct ShortcutBindingEditor: View {
                 }
             }
 
-            Picker("主键", selection: primaryKeyBinding) {
-                Text("未设置").tag(UInt8(0))
-                ForEach(HIDUsage.allOptions, id: \.code) { option in
-                    Text(option.name).tag(option.code)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("主键")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                KeyCaptureField(shortcut: $shortcut, isRecording: $isRecordingPrimaryKey)
+
+                Picker("主键", selection: primaryKeyBinding) {
+                    Text("按下主键盘按键或下拉选择").tag(UInt8(0))
+                    ForEach(HIDUsage.allOptions, id: \.code) { option in
+                        Text(option.name).tag(option.code)
+                    }
                 }
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.menu)
 
             if !shortcut.modifiers.isEmpty {
                 Text("当前为组合键（\(shortcut.displayLabel)）。若你只想发单键 Enter，勿打开 ⌘/⌃ 等，或点「清除修饰键」后再选 Enter。")
@@ -2911,6 +2921,120 @@ private struct ShortcutBindingEditor: View {
             }
         )
     }
+}
+
+private struct KeyCaptureField: View {
+    @Binding var shortcut: ShortcutBinding
+    @Binding var isRecording: Bool
+
+    private var displayText: String {
+        if isRecording {
+            return "请按下主键盘按键..."
+        }
+        return shortcut.keyCode == 0 ? "按下主键盘按键或下拉选择" : shortcut.displayLabel
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isRecording ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isRecording ? 1.5 : 1)
+                )
+
+            KeyCaptureOverlay(shortcut: $shortcut, isRecording: $isRecording)
+
+            HStack(spacing: 8) {
+                Image(systemName: isRecording ? "keyboard.badge.ellipsis" : "keyboard")
+                    .foregroundStyle(isRecording ? Color.accentColor : Color.secondary)
+                Text(displayText)
+                    .font(.callout)
+                    .foregroundStyle(shortcut.keyCode == 0 && !isRecording ? Color.secondary : Color.primary)
+                    .lineLimit(1)
+                Spacer()
+                if shortcut.keyCode != 0 {
+                    Button {
+                        shortcut = ShortcutBinding()
+                        isRecording = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .imageScale(.small)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("清除主键")
+                }
+            }
+            .padding(.horizontal, 10)
+        }
+        .frame(height: 36)
+        .contentShape(Rectangle())
+        .help("点击后按下电脑键盘上的按键；也可以继续使用下方下拉选择。")
+    }
+}
+
+private struct KeyCaptureOverlay: NSViewRepresentable {
+    @Binding var shortcut: ShortcutBinding
+    @Binding var isRecording: Bool
+
+    func makeNSView(context: Context) -> KeyCaptureNSView {
+        let view = KeyCaptureNSView()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: KeyCaptureNSView, context: Context) {
+        configure(nsView)
+        if isRecording {
+            DispatchQueue.main.async {
+                nsView.window?.makeFirstResponder(nsView)
+            }
+        }
+    }
+
+    private func configure(_ view: KeyCaptureNSView) {
+        view.onBeginRecording = {
+            isRecording = true
+        }
+        view.onCapture = { event in
+            guard let hidCode = HIDUsage.hidCode(forMacKeyCode: event.keyCode) else {
+                NSSound.beep()
+                isRecording = false
+                return
+            }
+            shortcut = ShortcutBinding(
+                modifiers: shortcutModifiers(from: event.modifierFlags),
+                keyCode: hidCode
+            )
+            isRecording = false
+        }
+    }
+
+    final class KeyCaptureNSView: NSView {
+        var onBeginRecording: (() -> Void)?
+        var onCapture: ((NSEvent) -> Void)?
+
+        override var acceptsFirstResponder: Bool { true }
+
+        override func mouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self)
+            onBeginRecording?()
+        }
+
+        override func keyDown(with event: NSEvent) {
+            onCapture?(event)
+        }
+    }
+}
+
+private func shortcutModifiers(from flags: NSEvent.ModifierFlags) -> [ShortcutModifier] {
+    var modifiers: [ShortcutModifier] = []
+    if flags.contains(.control) { modifiers.append(.control) }
+    if flags.contains(.option) { modifiers.append(.option) }
+    if flags.contains(.shift) { modifiers.append(.shift) }
+    if flags.contains(.command) { modifiers.append(.command) }
+    return modifiers
 }
 
 private struct CanvasKeyButtonStyle: ButtonStyle {
