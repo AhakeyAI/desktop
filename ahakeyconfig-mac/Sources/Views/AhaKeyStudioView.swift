@@ -2877,14 +2877,9 @@ private struct ShortcutBindingEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                KeyCaptureField(
-                    shortcut: $shortcut,
-                    isRecording: $isRecordingPrimaryKey,
-                    isActive: activePrimaryInputMode == .keyCapture,
-                    onActivate: {
-                        activePrimaryInputMode = .keyCapture
-                    }
-                )
+                Text("主键")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 PrimaryKeyDropdownField(
                     shortcut: $shortcut,
@@ -2892,6 +2887,15 @@ private struct ShortcutBindingEditor: View {
                     onActivate: {
                         activePrimaryInputMode = .dropdown
                         isRecordingPrimaryKey = false
+                    }
+                )
+
+                KeyCaptureField(
+                    shortcut: $shortcut,
+                    isRecording: $isRecordingPrimaryKey,
+                    isActive: activePrimaryInputMode == .keyCapture,
+                    onActivate: {
+                        activePrimaryInputMode = .keyCapture
                     }
                 )
             }
@@ -2931,9 +2935,9 @@ private struct KeyCaptureField: View {
 
     private var displayText: String {
         if isRecording {
-            return "请按下主键盘按键..."
+            return "直接按下键盘快捷键即可"
         }
-        return shortcut.keyCode == 0 ? "按键模式输入快捷键主键" : shortcut.displayLabel
+        return shortcut.keyCode == 0 ? "直接按下键盘快捷键即可" : shortcut.displayLabel
     }
 
     var body: some View {
