@@ -57,7 +57,7 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = "请输入账号密码重新登录。"
     }
 
-    func refreshProfile() {
+    func refreshProfile(showAlertOnFailure: Bool = true) {
         guard !accessToken.isEmpty else {
             logout()
             return
@@ -67,7 +67,7 @@ final class CloudAccountManager: ObservableObject {
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/users/me", method: "GET", body: nil, authorized: true)
+                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true)
                 let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
                 await MainActor.run {
                     self.applyProfile(data)
@@ -75,9 +75,13 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    self.alertMessage = error.localizedDescription
-                    self.statusMessage = "刷新失败。"
-                    if (error as? CloudAccountError)?.statusCode == 401 {
+                    if showAlertOnFailure {
+                        self.alertMessage = error.localizedDescription
+                        self.statusMessage = "刷新失败。"
+                    } else {
+                        self.statusMessage = "已登录，用户信息稍后可刷新。"
+                    }
+                    if showAlertOnFailure, (error as? CloudAccountError)?.statusCode == 401 {
                         self.logout()
                     }
                 }
@@ -130,12 +134,12 @@ final class CloudAccountManager: ObservableObject {
                     authorized: true
                 )
                 let data = try payloadData(from: object, fallbackError: "创建支付订单失败")
-                let codeURL = stringValue(data["code_url"])
-                let h5URL = stringValue(data["h5_url"])
-                let outTradeNo = stringValue(data["out_trade_no"])
+                let codeURL = firstString(in: data, keys: ["code_url", "codeUrl"])
+                let h5URL = firstString(in: data, keys: ["h5_url", "h5Url", "mweb_url", "mwebUrl"])
+                let outTradeNo = firstString(in: data, keys: ["out_trade_no", "outTradeNo"])
                 guard !outTradeNo.isEmpty else { throw CloudAccountError("云端未返回订单号，无法查询支付状态。") }
                 guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError("云端未返回可支付链接。") }
-                let amountFen = intValue(data["amount_fen"])
+                let amountFen = firstInt(in: data, keys: ["amount_fen", "amountFen"])
                 await MainActor.run {
                     self.paymentOrder = CloudPaymentOrder(
                         plan: plan,
@@ -198,7 +202,7 @@ final class CloudAccountManager: ObservableObject {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if self.paymentOrder?.outTradeNo != outTradeNo { return }
                 do {
-                    let path = "api/v1/payment/wechat/order-status?out_trade_no=\(outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo)"
+                    let path = "api/v1/payment/wechat/order-status?outTradeNo=\(outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo)"
                     let object = try await request(path: path, method: "GET", body: nil, authorized: true)
                     let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
                     let status = stringValue(data["status"]).lowercased()
@@ -249,14 +253,14 @@ final class CloudAccountManager: ObservableObject {
             do {
                 let object = try await request(path: path, method: "POST", body: ["phone": p, "password": password], authorized: false)
                 let data = try payloadData(from: object, fallbackError: fallbackError)
-                let token = stringValue(data["access_token"])
+                let token = firstString(in: data, keys: ["access_token", "token"])
                 guard !token.isEmpty else { throw CloudAccountError("云端未返回 access_token。") }
                 await MainActor.run {
-                    self.saveLogin(token: token)
+                    self.saveLogin(token: token, authData: data)
                     self.statusMessage = successMessage
                 }
                 await MainActor.run {
-                    self.refreshProfile()
+                    self.refreshProfile(showAlertOnFailure: false)
                 }
             } catch {
                 await MainActor.run {
@@ -267,7 +271,7 @@ final class CloudAccountManager: ObservableObject {
         }
     }
 
-    private func saveLogin(token: String) {
+    private func saveLogin(token: String, authData: [String: Any] = [:]) {
         let defaults = UserDefaults.standard
         defaults.set(token, forKey: tokenKey)
         defaults.set(rememberPassword, forKey: rememberKey)
@@ -278,14 +282,79 @@ final class CloudAccountManager: ObservableObject {
             defaults.removeObject(forKey: passwordKey)
         }
         AhaTypeTextOptimizer.shared.patchCloudToken(token)
+        seedLocalProfile(token: token, authData: authData)
         isLoggedIn = true
     }
 
     private func applyProfile(_ profile: [String: Any]) {
-        self.profile = profile
+        let normalized = normalizedProfile(profile)
+        self.profile = normalized
         isLoggedIn = true
         AhaTypeTextOptimizer.shared.patchCloudToken(accessToken)
+        AhaTypeTextOptimizer.shared.setUserProfile(normalized)
+    }
+
+    private func seedLocalProfile(token: String, authData: [String: Any]) {
+        var profile = normalizedProfile(authData)
+        let phoneValue = firstString(in: authData, keys: ["phone", "mobile", "username"])
+        profile["phone"] = phoneValue.isEmpty ? phone.trimmingCharacters(in: .whitespacesAndNewlines) : phoneValue
+        let userID = firstString(in: authData, keys: ["id", "user_id", "userId"])
+        if !userID.isEmpty {
+            profile["user_id"] = userID
+            profile["id"] = userID
+        }
+        if let validUntil = jwtExpirationString(token) {
+            profile["token_valid_until"] = validUntil
+        }
+        profile["limit_daily"] = firstInt(in: authData, keys: ["limit_daily", "limitDaily"])
+        profile["limit_weekly"] = firstInt(in: authData, keys: ["limit_weekly", "limitWeekly"])
+        profile["limit_monthly"] = firstInt(in: authData, keys: ["limit_monthly", "limitMonthly"])
+        profile["used_daily"] = firstInt(in: authData, keys: ["used_daily", "usedDaily"])
+        profile["used_weekly"] = firstInt(in: authData, keys: ["used_weekly", "usedWeekly"])
+        profile["used_monthly"] = firstInt(in: authData, keys: ["used_monthly", "usedMonthly"])
+        self.profile = profile
         AhaTypeTextOptimizer.shared.setUserProfile(profile)
+    }
+
+    private func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
+        var profile = raw
+        let aliases: [(String, String)] = [
+            ("id", "userId"),
+            ("user_id", "userId"),
+            ("token_valid_until", "tokenValidUntil"),
+            ("limit_daily", "limitDaily"),
+            ("limit_weekly", "limitWeekly"),
+            ("limit_monthly", "limitMonthly"),
+            ("used_daily", "usedDaily"),
+            ("used_weekly", "usedWeekly"),
+            ("used_monthly", "usedMonthly"),
+        ]
+        for (snake, camel) in aliases where profile[snake] == nil {
+            if let value = raw[camel] {
+                profile[snake] = value
+            }
+        }
+        if stringValue(profile["token_valid_until"]).isEmpty, let validUntil = jwtExpirationString(accessToken) {
+            profile["token_valid_until"] = validUntil
+        }
+        if var policy = profile["policy"] as? [String: Any] {
+            let policyAliases: [(String, String)] = [
+                ("recharge_prices_fen", "rechargePricesFen"),
+                ("default_limit_daily", "defaultLimitDaily"),
+                ("default_limit_weekly", "defaultLimitWeekly"),
+                ("default_limit_monthly", "defaultLimitMonthly"),
+                ("enable_daily", "enableDaily"),
+                ("enable_weekly", "enableWeekly"),
+                ("enable_monthly", "enableMonthly"),
+            ]
+            for (snake, camel) in policyAliases where policy[snake] == nil {
+                if let value = policy[camel] {
+                    policy[snake] = value
+                }
+            }
+            profile["policy"] = policy
+        }
+        return profile
     }
 
     private func request(path: String, method: String, body: [String: Any]?, authorized: Bool) async throws -> [String: Any] {
@@ -313,14 +382,15 @@ final class CloudAccountManager: ObservableObject {
             throw CloudAccountError("服务器返回非 JSON。", statusCode: statusCode)
         }
         if statusCode != 200 {
-            throw CloudAccountError(stringValue(object["errorMsg"]).isEmpty ? "请求失败（HTTP \(statusCode)）。" : stringValue(object["errorMsg"]), statusCode: statusCode)
+            throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
         }
         return object
     }
 
     private func payloadData(from object: [String: Any], fallbackError: String) throws -> [String: Any] {
-        guard intValue(object["code"]) == 0 else {
-            let msg = stringValue(object["errorMsg"])
+        let code = intValue(object["code"])
+        guard code == 0 || code == 200 else {
+            let msg = responseMessage(object)
             throw CloudAccountError(msg.isEmpty ? fallbackError : msg)
         }
         return object["data"] as? [String: Any] ?? [:]
@@ -353,6 +423,50 @@ final class CloudAccountManager: ObservableObject {
         case let number as NSNumber: return number.stringValue
         default: return ""
         }
+    }
+
+    private func firstString(in object: [String: Any], keys: [String]) -> String {
+        for key in keys {
+            let value = stringValue(object[key]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { return value }
+        }
+        return ""
+    }
+
+    private func firstInt(in object: [String: Any], keys: [String]) -> Int {
+        for key in keys {
+            let value = intValue(object[key])
+            if value != 0 { return value }
+        }
+        return 0
+    }
+
+    private func responseMessage(_ object: [String: Any]) -> String {
+        firstString(in: object, keys: ["errorMsg", "msg", "message", "error"])
+    }
+
+    private func jwtExpirationString(_ token: String) -> String? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+        guard let data = Data(base64Encoded: payload),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let exp = Double(intValue(object["exp"]))
+        guard exp > 0 else { return nil }
+        let date = Date(timeIntervalSince1970: exp)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter.string(from: date)
     }
 
     private func intValue(_ value: Any?) -> Int {
