@@ -8,7 +8,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
     @Published private(set) var statusMessage = "AhaType 未启用。"
     @Published private(set) var lastQuotaSummary = "尚未读取 AhaType 配置。"
 
-    private let fallbackAPIBase = "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com"
+    private let fallbackAPIBase = "https://956798.xyz/prod-api"
 
     private init() {
         refreshFromDisk()

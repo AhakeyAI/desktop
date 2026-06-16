@@ -31,7 +31,7 @@ Windows 当前版本基线：
 
 - 应用版本：`1.3.0`
 - 当前欢迎引导版本号：`{APP_VERSION}-guide-8`
-- 当前默认云端基座：`https://typeless-220629-6-1398334410.sh.run.tcloudbase.com`
+- 当前默认云端基座：`https://956798.xyz/prod-api`
 
 对应代码位置：
 
@@ -772,12 +772,13 @@ macOS 不一定存在完全同名的 BLE bridge 程序，因此这里不要求�
 Windows 当前默认云端基座为：
 
 ```text
-https://typeless-220629-6-1398334410.sh.run.tcloudbase.com
+https://956798.xyz/prod-api
 ```
 
 旧地址：
 
 ```text
+https://typeless-220629-6-1398334410.sh.run.tcloudbase.com
 https://vibe-220629-6-1398334410.sh.run.tcloudbase.com
 ```
 

@@ -12,8 +12,9 @@ _APP = "VibeCodeConfigTool"
 # 发布时在源码中填入正式云托管根地址（不含末尾斜杠，须含 https://）。界面不向用户展示 API 地址。
 # 注意：若用户曾运行过本工具，QSettings 里已写入 cloud/api_base，会一直优先于本常量——
 # 仅改此处不会生效，需清除已存地址（见 clear_stored_api_base）或手动删注册表该项。
-DEFAULT_API_BASE = "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com"
+DEFAULT_API_BASE = "https://956798.xyz/prod-api"
 LEGACY_API_BASES = {
+    "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com",
     "https://vibe-220629-6-1398334410.sh.run.tcloudbase.com",
 }
 

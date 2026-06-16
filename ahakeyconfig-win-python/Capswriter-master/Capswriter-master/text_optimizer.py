@@ -31,7 +31,7 @@ except Exception:
 
 # 与 vibe_code_config_tool.src.core.cloud_settings.DEFAULT_API_BASE 保持一致；可用环境变量覆盖
 _FALLBACK_TYPELESS_API_BASE = (
-    "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com"
+    "https://956798.xyz/prod-api"
 )
 
 

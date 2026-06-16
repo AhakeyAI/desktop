@@ -15,7 +15,7 @@ final class CloudAccountManager: ObservableObject {
     @Published private(set) var statusMessage = "尚未登录。"
     @Published var alertMessage: String?
 
-    private let fallbackAPIBase = "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com"
+    private let fallbackAPIBase = "https://956798.xyz/prod-api"
     private let tokenKey = "lab.jawa.ahakeyconfig.cloud.accessToken"
     private let rememberKey = "lab.jawa.ahakeyconfig.cloud.remember"
     private let phoneKey = "lab.jawa.ahakeyconfig.cloud.phone"

@@ -266,7 +266,7 @@
 
 当前默认值：
 
-- `DEFAULT_API_BASE = "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com"`
+- `DEFAULT_API_BASE = "https://956798.xyz/prod-api"`
 
 说明：
 
@@ -282,7 +282,7 @@
 
 当前内置默认值：
 
-- `_FALLBACK_TYPELESS_API_BASE = "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com"`
+- `_FALLBACK_TYPELESS_API_BASE = "https://956798.xyz/prod-api"`
 
 说明：
 
@@ -897,4 +897,3 @@ Set-Location 'C:\Users\20825\Desktop\windows软件打包'
 - 语音：永远使用 `Capswriter-master\Capswriter-master`
 - 云端：永远使用 `wxcloudrun-flask-main\wxcloudrun-flask-main`
 - 安装器装配：永远使用 `all_in_one`
-
