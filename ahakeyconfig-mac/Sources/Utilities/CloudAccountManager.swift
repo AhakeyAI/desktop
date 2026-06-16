@@ -35,11 +35,11 @@ final class CloudAccountManager: ObservableObject {
     }
 
     func login() {
-        authenticate(path: "api/v1/auth/login", successMessage: "登录成功。")
+        authenticate(path: "api/v1/auth/login", successMessage: "登录成功。", fallbackError: "登录失败。")
     }
 
     func register() {
-        authenticate(path: "api/v1/auth/register", successMessage: "注册成功。")
+        authenticate(path: "api/v1/auth/register", successMessage: "注册成功。", fallbackError: "注册失败。")
     }
 
     func logout() {
@@ -236,7 +236,7 @@ final class CloudAccountManager: ObservableObject {
         }
     }
 
-    private func authenticate(path: String, successMessage: String) {
+    private func authenticate(path: String, successMessage: String, fallbackError: String) {
         let p = phone.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !p.isEmpty, !password.isEmpty else {
             alertMessage = "请输入手机号和密码。"
@@ -248,7 +248,7 @@ final class CloudAccountManager: ObservableObject {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: path, method: "POST", body: ["phone": p, "password": password], authorized: false)
-                let data = try payloadData(from: object, fallbackError: successMessage)
+                let data = try payloadData(from: object, fallbackError: fallbackError)
                 let token = stringValue(data["access_token"])
                 guard !token.isEmpty else { throw CloudAccountError("云端未返回 access_token。") }
                 await MainActor.run {
