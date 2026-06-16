@@ -48,22 +48,23 @@
 
 ### macOS client
 
-- 目录：`platforms/macos/client/`
+- 目录：`ahakeyconfig-mac/`
 - 当前可判断的环境要求：
   - macOS 15.0+
   - Xcode 15+ 或等效 Swift toolchain
   - Swift 5.9+
   - Apple Silicon（arm64）
-- 当前可判断的开发 / 构建入口：
-  - `swift build -c release --arch arm64 --product AhaKeyConfig`
-  - `bash scripts/build.sh`
-  - `make build`
-- 当前可判断的打包入口：
-  - `bash scripts/package_dmg.sh`
-  - `bash scripts/release_dmg.sh`
+- 当前开发 / 构建入口：
+  - 从仓库根目录：`swift build -c release --arch arm64 --product AhaKeyConfig`
+  - 或进入 macOS 工程目录：`cd ahakeyconfig-mac && swift build -c release --arch arm64 --product AhaKeyConfig`
+  - 完整 `.app` bundle：`cd ahakeyconfig-mac && zsh scripts/build.sh`
+- 当前正式打包入口：
+  - `cd ahakeyconfig-mac && zsh scripts/package_dmg.sh`
+  - `cd ahakeyconfig-mac && zsh scripts/pack-release.sh`
 - 说明：
   - `.dmg` 等产物不进入仓库
-  - macOS 源码虽已迁入 baseline，但整体构建和发布流程仍处于整理阶段
+  - `AhaKeyKeyboardCanvasView` 等模拟键盘/建模 UI 位于 `ahakeyconfig-mac/Sources/Views/AhaKeyStudioView.swift`
+  - 根目录 `Package.swift` 已指向同一套 macOS 源码，避免从仓库根目录构建时遗漏 Studio UI
 
 ## 当前未随仓库导入的内容
 

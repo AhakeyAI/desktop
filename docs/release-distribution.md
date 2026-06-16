@@ -17,8 +17,8 @@
 
 ## 2. 当前仓库已支持的脚本
 
-- 构建 `.app`：[scripts/build.sh](../scripts/build.sh)
-- **构建可分发 `.dmg`（含公证）**：[scripts/pack-release.sh](../scripts/pack-release.sh) — 对内测试与对外发版可用同一套产物；内部调用 [scripts/package_dmg.sh](../scripts/package_dmg.sh)
+- 构建 `.app`：[ahakeyconfig-mac/scripts/build.sh](../ahakeyconfig-mac/scripts/build.sh)
+- **构建可分发 `.dmg`（含公证）**：[ahakeyconfig-mac/scripts/pack-release.sh](../ahakeyconfig-mac/scripts/pack-release.sh) — 对内测试与对外发版可用同一套产物；内部调用 [ahakeyconfig-mac/scripts/package_dmg.sh](../ahakeyconfig-mac/scripts/package_dmg.sh)
 
 ## 3. 你需要先准备的东西
 
@@ -63,7 +63,7 @@ xcrun notarytool store-credentials "AhaKeyNotary" \
 当证书和 `notarytool` profile 都准备好后，执行：
 
 ```bash
-cd /path/to/ahakeyconfig
+cd /path/to/desktop/ahakeyconfig-mac
 zsh scripts/pack-release.sh
 ```
 
@@ -75,6 +75,7 @@ zsh scripts/pack-release.sh
 如果你要手动指定：
 
 ```bash
+cd /path/to/desktop/ahakeyconfig-mac
 SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAMID>)" \
 NOTARY_PROFILE="AhaKeyNotary" \
 zsh scripts/pack-release.sh
