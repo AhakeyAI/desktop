@@ -166,6 +166,29 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = "已关闭支付订单。"
     }
 
+    func refreshCurrentPaymentOrder() {
+        guard let order = paymentOrder else {
+            refreshProfile()
+            return
+        }
+        isBusy = true
+        statusMessage = "正在查询订单状态…"
+        Task {
+            defer { Task { @MainActor in self.isBusy = false } }
+            do {
+                let status = try await fetchPaymentStatus(outTradeNo: order.outTradeNo)
+                await MainActor.run {
+                    _ = self.applyPaymentStatus(status, outTradeNo: order.outTradeNo, notifyPending: true)
+                }
+            } catch {
+                await MainActor.run {
+                    self.alertMessage = error.localizedDescription
+                    self.statusMessage = "订单状态查询失败。"
+                }
+            }
+        }
+    }
+
     var profileSummary: String {
         guard let profile else { return isLoggedIn ? "已登录，点击刷新获取用户信息。" : "登录后可启用 AhaType 云端整理。" }
         let phone = stringValue(profile["phone"])
@@ -202,29 +225,11 @@ final class CloudAccountManager: ObservableObject {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if self.paymentOrder?.outTradeNo != outTradeNo { return }
                 do {
-                    let path = "api/v1/payment/wechat/order-status?outTradeNo=\(outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo)"
-                    let object = try await request(path: path, method: "GET", body: nil, authorized: true)
-                    let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
-                    let status = stringValue(data["status"]).lowercased()
-                    await MainActor.run {
-                        if var order = self.paymentOrder, order.outTradeNo == outTradeNo {
-                            order.status = status.isEmpty ? order.status : status
-                            self.paymentOrder = order
-                        }
+                    let status = try await fetchPaymentStatus(outTradeNo: outTradeNo)
+                    let finished = await MainActor.run {
+                        self.applyPaymentStatus(status, outTradeNo: outTradeNo, notifyPending: false)
                     }
-                    if status == "paid" {
-                        await MainActor.run {
-                            self.statusMessage = "充值成功，正在刷新额度。"
-                            self.paymentOrder = nil
-                            self.refreshProfile()
-                        }
-                        return
-                    }
-                    if status == "failed" {
-                        await MainActor.run {
-                            self.statusMessage = "订单支付失败。"
-                            self.alertMessage = "订单已标记为失败，请重新发起充值。"
-                        }
+                    if finished {
                         return
                     }
                 } catch {
@@ -238,6 +243,39 @@ final class CloudAccountManager: ObservableObject {
                 }
             }
         }
+    }
+
+    private func fetchPaymentStatus(outTradeNo: String) async throws -> String {
+        let encoded = outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo
+        let path = "api/v1/payment/wechat/order-status?outTradeNo=\(encoded)"
+        let object = try await request(path: path, method: "GET", body: nil, authorized: true)
+        let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
+        return normalizedPaymentStatus(from: data)
+    }
+
+    @discardableResult
+    private func applyPaymentStatus(_ status: String, outTradeNo: String, notifyPending: Bool) -> Bool {
+        let normalized = status.isEmpty ? "pending" : status
+        if var order = paymentOrder, order.outTradeNo == outTradeNo {
+            order.status = normalized
+            paymentOrder = order
+        }
+        if isPaidPaymentStatus(normalized) {
+            statusMessage = "充值成功，正在刷新额度。"
+            paymentOrder = nil
+            refreshProfile()
+            return true
+        }
+        if isFailedPaymentStatus(normalized) {
+            statusMessage = "订单支付失败。"
+            alertMessage = "订单已标记为失败，请重新发起充值。"
+            return true
+        }
+        statusMessage = "订单尚未到账，请稍后再刷新。"
+        if notifyPending {
+            alertMessage = "当前订单仍未到账，请确认微信支付已完成后再刷新。"
+        }
+        return false
     }
 
     private func authenticate(path: String, successMessage: String, fallbackError: String) {
@@ -439,6 +477,46 @@ final class CloudAccountManager: ObservableObject {
             if value != 0 { return value }
         }
         return 0
+    }
+
+    private func normalizedPaymentStatus(from data: [String: Any]) -> String {
+        firstString(in: data, keys: ["status", "tradeState", "trade_state", "payStatus", "pay_status", "orderStatus", "order_status"])
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+    }
+
+    private func isPaidPaymentStatus(_ status: String) -> Bool {
+        let normalized = status.lowercased().replacingOccurrences(of: "-", with: "_")
+        return [
+            "paid",
+            "success",
+            "succeeded",
+            "complete",
+            "completed",
+            "pay_success",
+            "trade_success",
+            "wechat_success",
+            "finished",
+            "done",
+            "1",
+        ].contains(normalized)
+    }
+
+    private func isFailedPaymentStatus(_ status: String) -> Bool {
+        let normalized = status.lowercased().replacingOccurrences(of: "-", with: "_")
+        return [
+            "failed",
+            "failure",
+            "fail",
+            "closed",
+            "cancelled",
+            "canceled",
+            "expired",
+            "timeout",
+            "trade_closed",
+            "pay_error",
+            "2",
+        ].contains(normalized)
     }
 
     private func responseMessage(_ object: [String: Any]) -> String {

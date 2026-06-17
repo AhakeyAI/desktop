@@ -76,6 +76,42 @@ class _RechargeOrderSignals(QObject):
     finished = Signal(object, str)  # cancel_event, status
 
 
+def _normalize_payment_status(status: str) -> str:
+    return str(status or "").strip().lower().replace("-", "_")
+
+
+def _is_paid_payment_status(status: str) -> bool:
+    return _normalize_payment_status(status) in {
+        "paid",
+        "success",
+        "succeeded",
+        "complete",
+        "completed",
+        "pay_success",
+        "trade_success",
+        "wechat_success",
+        "finished",
+        "done",
+        "1",
+    }
+
+
+def _is_failed_payment_status(status: str) -> bool:
+    return _normalize_payment_status(status) in {
+        "failed",
+        "failure",
+        "fail",
+        "closed",
+        "cancelled",
+        "canceled",
+        "expired",
+        "timeout",
+        "trade_closed",
+        "pay_error",
+        "2",
+    }
+
+
 class _RechargeOrderRunnable(QRunnable):
     def __init__(
         self,
@@ -103,8 +139,16 @@ class _RechargeOrderRunnable(QRunnable):
             while not self._cancel_event.is_set():
                 try:
                     data = api.payment_wechat_order_status(self._out_trade_no)
-                    status = (data.get("status") or "").strip().lower()
-                    if status in {"paid", "failed"}:
+                    status = _normalize_payment_status(
+                        data.get("status")
+                        or data.get("tradeState")
+                        or data.get("trade_state")
+                        or data.get("payStatus")
+                        or data.get("pay_status")
+                        or data.get("orderStatus")
+                        or data.get("order_status")
+                    )
+                    if _is_paid_payment_status(status) or _is_failed_payment_status(status):
                         self._signals.finished.emit(self._cancel_event, status)
                         return
                 except Exception:
@@ -426,9 +470,9 @@ class UserPage(QWidget):
         if dlg is not None:
             # 先关闭二维码对话框，避免多模态弹窗遮挡影响体验。
             dlg.accept()
-        if status == "paid":
+        if _is_paid_payment_status(status):
             QMessageBox.information(self, "充值成功", "已成功充值。")
-        elif status == "failed":
+        elif _is_failed_payment_status(status):
             QMessageBox.warning(self, "充值失败", "订单已标记为失败。")
         elif status == "timeout":
             QMessageBox.warning(self, "充值超时", "等待支付超时，请检查微信支付状态后再试。")
@@ -647,4 +691,3 @@ class UserPage(QWidget):
                 int(m.get("used_monthly") or 0),
                 int(m.get("limit_monthly") or 0),
             )
-
