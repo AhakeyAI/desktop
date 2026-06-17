@@ -480,13 +480,13 @@ class UserPage(QWidget):
             if not plan:
                 return
             data = api.payment_wechat_native(plan=plan)
-            code_url = data.get("code_url") or data.get("mweb_url")
-            h5 = data.get("h5_url")
+            code_url = data.get("code_url") or data.get("codeUrl") or data.get("mweb_url") or data.get("mwebUrl")
+            h5 = data.get("h5_url") or data.get("h5Url")
             if code_url:
                 if self._recharge_dialog is not None:
                     QMessageBox.information(self, "提示", "已有充值对话框正在等待支付。")
                     return
-                out_trade_no = (data.get("out_trade_no") or "").strip()
+                out_trade_no = (data.get("out_trade_no") or data.get("outTradeNo") or "").strip()
                 if not out_trade_no:
                     QMessageBox.warning(
                         self,
@@ -647,5 +647,4 @@ class UserPage(QWidget):
                 int(m.get("used_monthly") or 0),
                 int(m.get("limit_monthly") or 0),
             )
-
 

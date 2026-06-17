@@ -104,20 +104,27 @@ def patch_cloud_token(access_token: str) -> None:
 
 def set_user_profile(me: Dict[str, Any]) -> None:
     """同步 /users/me 到本地 typeless_config.json。"""
+    def pick(*keys: str) -> Any:
+        for key in keys:
+            value = me.get(key)
+            if value is not None:
+                return value
+        return None
+
     data = load()
     data["user"] = {
         "phone": me.get("phone"),
-        "user_id": me.get("id") or me.get("user_id"),
+        "user_id": pick("id", "user_id", "userId"),
     }
-    data["token_valid_until"] = me.get("token_valid_until")
+    data["token_valid_until"] = pick("token_valid_until", "tokenValidUntil")
     # 把 used/limit 也写入本地，后续 Capswriter 每次使用后可更新这些字段，
     # UI 便能在不频繁请求云端 /users/me 的情况下自动刷新展示。
-    data["limit_daily"] = int(me.get("limit_daily") or 0)
-    data["limit_weekly"] = int(me.get("limit_weekly") or 0)
-    data["limit_monthly"] = int(me.get("limit_monthly") or 0)
-    data["used_daily"] = int(me.get("used_daily") or 0)
-    data["used_weekly"] = int(me.get("used_weekly") or 0)
-    data["used_monthly"] = int(me.get("used_monthly") or 0)
+    data["limit_daily"] = int(pick("limit_daily", "limitDaily") or 0)
+    data["limit_weekly"] = int(pick("limit_weekly", "limitWeekly") or 0)
+    data["limit_monthly"] = int(pick("limit_monthly", "limitMonthly") or 0)
+    data["used_daily"] = int(pick("used_daily", "usedDaily") or 0)
+    data["used_weekly"] = int(pick("used_weekly", "usedWeekly") or 0)
+    data["used_monthly"] = int(pick("used_monthly", "usedMonthly") or 0)
     save(data)
 
 

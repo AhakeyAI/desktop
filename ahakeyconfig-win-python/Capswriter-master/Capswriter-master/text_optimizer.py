@@ -207,11 +207,16 @@ def apply_if_enabled(text: str) -> str:
         return text
 
     biz_code = data.get("code")
-    if biz_code != 0:
+    if str(biz_code) not in {"0", "200"}:
+        message = ""
+        for key in ("errorMsg", "msg", "message", "error"):
+            if data.get(key):
+                message = str(data.get(key))
+                break
         _logger.info(
-            "Typeless 业务错误：code=%s errorMsg=%r",
+            "Typeless 业务错误：code=%s message=%r",
             biz_code,
-            data.get("errorMsg"),
+            message,
         )
         return text
 
@@ -255,7 +260,7 @@ def apply_if_enabled(text: str) -> str:
             pass
         return result
 
-    _logger.info("Typeless code=0 但 data.text/result 为空")
+    _logger.info("Typeless code=%s 但 data.text/result 为空", biz_code)
     return text
 
 

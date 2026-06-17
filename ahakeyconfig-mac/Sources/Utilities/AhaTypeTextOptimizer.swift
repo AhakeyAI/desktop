@@ -110,8 +110,9 @@ final class AhaTypeTextOptimizer: ObservableObject {
                 statusMessage = "AhaType 返回非 JSON，已写入原始转写。"
                 return text
             }
-            guard intValue(object["code"]) == 0 else {
-                let message = stringValue(object["errorMsg"])
+            let code = intValue(object["code"])
+            guard code == 0 || code == 200 else {
+                let message = responseMessage(object)
                 statusMessage = message.isEmpty ? "AhaType 处理失败，已写入原始转写。" : "AhaType 处理失败：\(message)"
                 return text
             }
@@ -307,6 +308,14 @@ final class AhaTypeTextOptimizer: ObservableObject {
         default:
             return ""
         }
+    }
+
+    private func responseMessage(_ object: [String: Any]) -> String {
+        for key in ["errorMsg", "msg", "message", "error"] {
+            let value = stringValue(object[key]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { return value }
+        }
+        return ""
     }
 
     private func intValue(_ value: Any?) -> Int {

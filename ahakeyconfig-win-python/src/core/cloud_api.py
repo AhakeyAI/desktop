@@ -14,6 +14,52 @@ class CloudApiError(Exception):
         self.status_code = status_code
 
 
+def _is_success_code(code: Any) -> bool:
+    return str(code) in {"0", "200"}
+
+
+def _response_message(data: Any, fallback: str) -> str:
+    if isinstance(data, dict):
+        for key in ("errorMsg", "msg", "message", "error"):
+            value = data.get(key)
+            if value:
+                return str(value)
+    return fallback
+
+
+def _normalize_profile(data: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(data or {})
+    for snake, camel in (
+        ("id", "userId"),
+        ("user_id", "userId"),
+        ("token_valid_until", "tokenValidUntil"),
+        ("limit_daily", "limitDaily"),
+        ("limit_weekly", "limitWeekly"),
+        ("limit_monthly", "limitMonthly"),
+        ("used_daily", "usedDaily"),
+        ("used_weekly", "usedWeekly"),
+        ("used_monthly", "usedMonthly"),
+    ):
+        if snake not in out and camel in out:
+            out[snake] = out.get(camel)
+    policy = out.get("policy")
+    if isinstance(policy, dict):
+        policy = dict(policy)
+        for snake, camel in (
+            ("recharge_prices_fen", "rechargePricesFen"),
+            ("default_limit_daily", "defaultLimitDaily"),
+            ("default_limit_weekly", "defaultLimitWeekly"),
+            ("default_limit_monthly", "defaultLimitMonthly"),
+            ("enable_daily", "enableDaily"),
+            ("enable_weekly", "enableWeekly"),
+            ("enable_monthly", "enableMonthly"),
+        ):
+            if snake not in policy and camel in policy:
+                policy[snake] = policy.get(camel)
+        out["policy"] = policy
+    return out
+
+
 class CloudApi:
     def __init__(self, base_url: str, access_token: Optional[str] = None):
         self.base_url = base_url.rstrip("/")
@@ -39,9 +85,10 @@ class CloudApi:
             data = r.json()
         except Exception:
             raise CloudApiError("服务器返回非 JSON", r.status_code)
-        if data.get("code") != 0:
-            raise CloudApiError(data.get("errorMsg") or "登录失败", r.status_code)
-        return data["data"]["access_token"]
+        if not _is_success_code(data.get("code")):
+            raise CloudApiError(_response_message(data, "登录失败"), r.status_code)
+        inner = data.get("data") or {}
+        return inner.get("access_token") or inner.get("token") or ""
 
     def register(self, phone: str, password: str) -> str:
         r = requests.post(
@@ -54,13 +101,14 @@ class CloudApi:
             data = r.json()
         except Exception:
             raise CloudApiError("服务器返回非 JSON", r.status_code)
-        if data.get("code") != 0:
-            raise CloudApiError(data.get("errorMsg") or "注册失败", r.status_code)
-        return data["data"]["access_token"]
+        if not _is_success_code(data.get("code")):
+            raise CloudApiError(_response_message(data, "注册失败"), r.status_code)
+        inner = data.get("data") or {}
+        return inner.get("access_token") or inner.get("token") or ""
 
     def users_me(self) -> Dict[str, Any]:
         r = requests.get(
-            self._url("api/v1/users/me"),
+            self._url("api/v1/auth/users/me"),
             headers=self._json_headers(),
             timeout=API_TIMEOUT,
         )
@@ -70,12 +118,12 @@ class CloudApi:
             raise CloudApiError("服务器返回非 JSON", r.status_code)
         if r.status_code != 200:
             raise CloudApiError(
-                (data.get("errorMsg") if isinstance(data, dict) else None) or "请求失败",
+                _response_message(data, "请求失败"),
                 r.status_code,
             )
-        if data.get("code") != 0:
-            raise CloudApiError(data.get("errorMsg") or "获取用户信息失败", r.status_code)
-        return data["data"]
+        if not _is_success_code(data.get("code")):
+            raise CloudApiError(_response_message(data, "获取用户信息失败"), r.status_code)
+        return _normalize_profile(data.get("data") or {})
 
     def coupon_redeem(self, code: str) -> Dict[str, Any]:
         r = requests.post(
@@ -90,11 +138,11 @@ class CloudApi:
             raise CloudApiError("服务器返回非 JSON", r.status_code)
         if r.status_code != 200:
             raise CloudApiError(
-                (data.get("errorMsg") if isinstance(data, dict) else None) or "兑换失败",
+                _response_message(data, "兑换失败"),
                 r.status_code,
             )
-        if data.get("code") != 0:
-            raise CloudApiError(data.get("errorMsg") or "兑换失败", r.status_code)
+        if not _is_success_code(data.get("code")):
+            raise CloudApiError(_response_message(data, "兑换失败"), r.status_code)
         return data.get("data") or {}
 
     def payment_wechat_native(self, plan: Optional[str] = None) -> Dict[str, Any]:
@@ -115,8 +163,8 @@ class CloudApi:
             data = r.json()
         except Exception:
             raise CloudApiError("服务器返回非 JSON", r.status_code)
-        if data.get("code") != 0:
-            raise CloudApiError(data.get("errorMsg") or "创建支付订单失败", r.status_code)
+        if not _is_success_code(data.get("code")):
+            raise CloudApiError(_response_message(data, "创建支付订单失败"), r.status_code)
         return data.get("data") or {}
 
     def config_tool_check_release(self, current_version: str) -> Dict[str, Any]:
@@ -137,17 +185,17 @@ class CloudApi:
             raise CloudApiError("服务器返回非 JSON", r.status_code)
         if r.status_code != 200:
             raise CloudApiError(
-                (data.get("errorMsg") if isinstance(data, dict) else None) or "检查更新失败",
+                _response_message(data, "检查更新失败"),
                 r.status_code,
             )
-        if data.get("code") != 0:
-            raise CloudApiError(data.get("errorMsg") or "检查更新失败", r.status_code)
+        if not _is_success_code(data.get("code")):
+            raise CloudApiError(_response_message(data, "检查更新失败"), r.status_code)
         return data.get("data") or {}
 
     def payment_wechat_order_status(self, out_trade_no: str) -> Dict[str, Any]:
         r = requests.get(
             self._url("api/v1/payment/wechat/order-status"),
-            params={"out_trade_no": out_trade_no},
+            params={"outTradeNo": out_trade_no},
             headers=self._json_headers(),
             timeout=API_TIMEOUT,
         )
@@ -157,9 +205,9 @@ class CloudApi:
             raise CloudApiError("服务器返回非 JSON", r.status_code)
         if r.status_code != 200:
             raise CloudApiError(
-                (data.get("errorMsg") if isinstance(data, dict) else None) or "查询失败",
+                _response_message(data, "查询失败"),
                 r.status_code,
             )
-        if data.get("code") != 0:
-            raise CloudApiError(data.get("errorMsg") or "查询失败", r.status_code)
+        if not _is_success_code(data.get("code")):
+            raise CloudApiError(_response_message(data, "查询失败"), r.status_code)
         return data.get("data") or {}
