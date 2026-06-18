@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# 同一分支后推的提交取消正在跑的旧 run,省 runner 时间。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript-sdk:
+    name: TypeScript SDK · test + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/typescript
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: sdks/typescript/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck (SDK + examples)
+        run: npm run typecheck
+
+      - name: Test (build + node --test)
+        run: npm test
+
+  macos-app:
+    name: macOS · build + package
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: platforms/macos
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # package_app.sh 用 git rev-list --count 算 build 号
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Compile-check all targets (debug)
+        run: swift build
+
+      - name: Package "AhaKey Studio.app" (release, ad-hoc signed)
+        run: |
+          chmod +x scripts/package_app.sh
+          scripts/package_app.sh
+
+      - name: Zip app bundle
+        working-directory: platforms/macos/dist
+        run: ditto -c -k --sequesterRsrc --keepParent "AhaKey Studio.app" "AhaKey-Studio-macOS.zip"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhaKey-Studio-macOS
+          path: platforms/macos/dist/AhaKey-Studio-macOS.zip
+          if-no-files-found: error
