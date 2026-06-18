@@ -64,6 +64,7 @@ logs/
 **/config_client.json
 **/settings.json.bak.*
 **/hooks.json.bak.*
+scripts/build.local.env
 
 # Local backups / temp
 *.bak
@@ -72,3 +73,11 @@ logs/
 # Local model / runtime payloads
 internal/
 .gstack/
+
+# Java / Maven build output
+target/
+*.class
+
+# Firmware object files
+*.o
+obj_final/
