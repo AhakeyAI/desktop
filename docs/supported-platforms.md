@@ -2,16 +2,20 @@
 
 ## 当前仓库状态
 
-- Windows：已导入源码
-- macOS：已导入源码，位于 `platforms/macos/client/`
+仓库以多平台 monorepo 组织,每个客户端独立目录:
+
+- **macOS** — `ahakeyconfig-mac/`(Swift · SwiftUI),主力开发,由仓库根 `Package.swift` 构建。
+- **Windows** — `ahakeyconfig-win-java/`(Java · JavaFX · Maven)与 `ahakeyconfig-win-python/`(Python · PyInstaller,Capswriter 基线)两套客户端。
+- **Linux** — `ahakeyconfig-ubuntu-java/`(Java · JavaFX · Maven),Ubuntu 桌面客户端。
+- **键盘固件** — `CH582m_vibe_coding_BLE_keyboard-master/`(C,CH582M MCU)。
+- **BLE ↔ TCP 桥接** — `BLE_tcp_bridge/`(C#),供非原生客户端通过本地 TCP 与设备交互。
 
 ## 当前非目标
 
-- Linux
 - 云端后端部署仓库
-- 安装包二进制归档
+- 安装包二进制归档(统一走 GitHub Releases)
 
 ## 平台说明
 
-- Windows 与 macOS 代码按平台拆分管理，不混放。
-- macOS 当前处于迁移后的早期整理阶段，应以源码基线和目录稳定为准，不应视为发布流程已完全定型。
+- 各平台代码按客户端独立目录管理,不混放;运行时、UI 模型与系统能力差异较大。
+- macOS 为主力实现:原生 BLE 栈 + 常驻 `ahakeyconfig-agent`,并提供拨杆审批 AI hook。详见仓库根 `README.md` 与 `docs/architecture.md`。

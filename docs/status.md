@@ -2,19 +2,19 @@
 
 ## 当前状态
 
-- 已按平台策略建立统一 desktop baseline 目录结构。
-- Windows 源码已保留在 `platforms/windows/`。
-- macOS 客户端源码已迁入 `platforms/macos/client/`。
-- 当前仓库现在同时承载 Windows + macOS 两个平台的桌面端源码入口。
+- 仓库已收敛为多平台 monorepo,各客户端独立目录(`ahakeyconfig-*`)。
+- **macOS**(`ahakeyconfig-mac/`)为主力开发方向:BLE、voice agent、拨杆审批 AI hook、工作台 UI。
+- **Windows** 提供 Java(`ahakeyconfig-win-java/`)与 Python(`ahakeyconfig-win-python/`,Capswriter 基线)两套客户端。
+- **Linux** 客户端(`ahakeyconfig-ubuntu-java/`)已加入。
+- 键盘固件(`CH582m_vibe_coding_BLE_keyboard-master/`)与 BLE ↔ TCP 桥接(`BLE_tcp_bridge/`)源码随仓库提供。
 
 ## 当前未导入
 
-- `wxcloudrun-flask-main/` 云端后端
-- 安装包和打包目录
-- 预编译 DLL、私钥、本地配置
+- 云端后端服务
+- 安装包与打包产物(`.app` / `.dmg` / `.exe` / `.msi`)
+- 预编译二进制、私钥、本地配置
 
-## macOS 当前备注
+## 备注
 
-- 本轮只做结构迁移、必要忽略和文档更新，不改业务逻辑。
-- macOS 仍处于迁移后的早期整理阶段。
-- 后续仍需单独处理 bundle id 清理、构建收敛和发布规范化。
+- 构建产物不入库(含 `.class` / `.o`),安装包统一走 GitHub Releases。
+- 各平台保持独立目录,不共享工程结构。

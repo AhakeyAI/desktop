@@ -3,44 +3,37 @@
 ## 顶层原则
 
 - 顶层 `docs/` 只放仓库级共享文档。
-- 代码按平台拆分，而不是按工具拆顶层。
-- 当前统一承载 Windows + macOS desktop baseline。
-- 安装包不进仓库，发布走 GitHub Releases。
+- 代码按平台 / 组件拆分独立目录,不按工具混放。
+- 安装包不进仓库,发布走 GitHub Releases;构建产物(`.app` / `.dmg` / `.exe` / `.class` / `.o`)不入库。
 
-## 当前目录说明
+## 顶层目录
 
-- `docs/`
-  - 仓库级说明、安装、发布与布局文档
-- `platforms/macos/`
-  - macOS 平台说明与客户端源码
-- `platforms/windows/`
-  - Windows 相关代码与说明
-- `assets/`
-  - 预留给仓库级共享资源
-- `scripts/`
-  - 预留给仓库级共享脚本
-- `releases/`
-  - 预留给发布说明，不保存二进制
+- `ahakeyconfig-mac/` — macOS 客户端(Swift · SwiftUI),由根 `Package.swift` 构建
+- `ahakeyconfig-win-java/` — Windows 客户端(Java · JavaFX · Maven)
+- `ahakeyconfig-win-python/` — Windows 客户端(Python · PyInstaller,Capswriter 基线)
+- `ahakeyconfig-ubuntu-java/` — Linux 客户端(Java · JavaFX · Maven)
+- `CH582m_vibe_coding_BLE_keyboard-master/` — 键盘固件(C,CH582M)
+- `BLE_tcp_bridge/` — BLE ↔ TCP 桥接(C#)
+- `Package.swift` — macOS targets 的根 SwiftPM 清单
+- `docs/` — 仓库级文档(架构、BLE 协议、安装、发布)
+- `assets/` — 共享品牌 / 构建资源
 
-## macOS 子目录说明
+## macOS 子目录(`ahakeyconfig-mac/`)
 
-- `README.md`
-  - macOS 平台级说明
-- `client/`
-  - macOS 客户端源码主目录
-  - 包含 Swift 源码、资源文件、工程入口和平台脚本
+- `Package.swift` — 平台工程清单(也被根清单引用)
+- `Sources/` — Swift 源码(客户端 + `Agent/` 后台守护进程)
+- `Resources/` — 运行所需资源
+- `scripts/` — 构建 / 签名 / DMG 打包脚本
 
-## Windows 子目录说明
+## Java 客户端子目录(`ahakeyconfig-win-java/`、`ahakeyconfig-ubuntu-java/`)
 
-- `desktop-main/`
-  - Windows 主桌面客户端源码
-- `ble-bridge/`
-  - BLE 与 TCP 之间的桥接程序源码
-- `hook-installer/`
-  - Claude / Cursor hook 安装与分发相关源码
-- `speech/`
-  - Windows 本地语音输入 / 转写相关源码
-- `shared/`
-  - 预留给 Windows 共享代码，当前仅 README 占位
-- `scripts/`
-  - Windows 专属构建 / 打包脚本，当前保留历史 Inno Setup 脚本
+- `pom.xml` — Maven 工程
+- `src/main/java/com/example/ahakey/` — Java 源码(入口 `Main` / `App`)
+- `src/main/resources/` — JavaFX 资源(`.fxml` 等)
+
+## Python 客户端(`ahakeyconfig-win-python/`)
+
+- `main.py` — 入口
+- `requirements.txt` — 依赖
+- `*.spec` — PyInstaller 打包配置
+- `hook/` — IDE hook 安装相关
