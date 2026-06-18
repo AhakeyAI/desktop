@@ -23,7 +23,7 @@
     "demo:agent": "swift run --package-path ../../platforms/macos ahakeyconfig-agent",
     "demo:cli": "npm run build && AHAKEY_PLUGINS_DIR=\"$PWD/examples\" swift run --package-path ../../platforms/macos Plugin",
     "test": "npm run build && node --test test/*.test.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p examples/hello-plugin/tsconfig.json --noEmit && tsc -p examples/lever-counter/tsconfig.json --noEmit"
+    "typecheck": "npm run build:sdk && tsc -p examples/hello-plugin/tsconfig.json --noEmit && tsc -p examples/lever-counter/tsconfig.json --noEmit"
   },
   "engines": {
     "node": ">=18"
