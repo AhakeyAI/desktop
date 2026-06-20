@@ -150,7 +150,7 @@ desktop/
 ├── ahakeyconfig-win-java/    # Windows 客户端 — Java
 ├── ahakeyconfig-win-python/  # Windows 客户端 — Python / PySide6（旧版基线）
 ├── ahakeyconfig-ubuntu-java/ # Linux 客户端 — Java
-├── CH582m_..._keyboard-master/  # 键盘固件 — C（CH582M）
+├── CH582m_vibe_coding_BLE_keyboard-master/  # 键盘固件 — C（CH582M）
 ├── BLE_tcp_bridge/           # BLE ↔ TCP 桥接 — C#
 ├── Package.swift             # macOS targets 的根 SwiftPM 清单
 ├── docs/                     # 仓库级文档（架构、BLE 协议、发布）
