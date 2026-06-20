@@ -16,5 +16,5 @@
 
 ## 备注
 
-- 构建产物不入库(含 `.class` / `.o`),安装包统一走 GitHub Releases。
+- 构建产物不应入库(含 `.class` / `.o`，以及 `*/target/` 等构建目录),安装包统一走 GitHub Releases。
 - 各平台保持独立目录,不共享工程结构。
