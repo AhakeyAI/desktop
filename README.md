@@ -81,7 +81,7 @@ desktop/
 ├── ahakeyconfig-win-java/    # Windows client — Java
 ├── ahakeyconfig-win-python/  # Windows client — Python / PySide6 (legacy baseline)
 ├── ahakeyconfig-ubuntu-java/ # Linux client — Java
-├── CH582m_..._keyboard-master/  # Keyboard firmware — C (CH582M)
+├── CH582m_vibe_coding_BLE_keyboard-master/  # Keyboard firmware — C (CH582M)
 ├── BLE_tcp_bridge/           # BLE ↔ TCP bridge — C#
 ├── Package.swift             # Root SwiftPM manifest for the macOS targets
 ├── docs/                     # Repo-level docs (architecture, BLE protocol, releases)
