@@ -90,7 +90,7 @@ desktop/
 
 ### Repository scope
 
-Source, project files, required assets, and docs only. **Build artifacts are not committed** — no `.app` / `.dmg` / `.exe` / `.class` / `.o`. Installers are distributed exclusively through [GitHub Releases](https://github.com/AhakeyAI/desktop/releases).
+Source, project files, required assets, and docs only. **Build artifacts should not be committed** — avoid checking in `.app` / `.dmg` / `.exe` / `.class` / `.o` (and build dirs like `*/target/`). Installers are distributed exclusively through [GitHub Releases](https://github.com/AhakeyAI/desktop/releases).
 
 ### Start here
 
