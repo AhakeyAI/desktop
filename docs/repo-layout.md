@@ -4,7 +4,7 @@
 
 - 顶层 `docs/` 只放仓库级共享文档。
 - 代码按平台 / 组件拆分独立目录,不按工具混放。
-- 安装包不进仓库,发布走 GitHub Releases;构建产物(`.app` / `.dmg` / `.exe` / `.class` / `.o`)不入库。
+- 安装包不进仓库,发布走 GitHub Releases;构建产物(`.app` / `.dmg` / `.exe` / `.class` / `.o`，以及 `*/target/` 等构建目录)不应入库。
 
 ## 顶层目录
 
