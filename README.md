@@ -159,7 +159,7 @@ desktop/
 
 ### 仓库范围
 
-只保留源码、工程文件、必要资源与文档。**构建产物不入库** —— 不收 `.app` / `.dmg` / `.exe` / `.class` / `.o`,安装包统一走 [GitHub Releases](https://github.com/AhakeyAI/desktop/releases)。
+只保留源码、工程文件、必要资源与文档。**构建产物不应入库** —— 不应提交 `.app` / `.dmg` / `.exe` / `.class` / `.o`（以及 `*/target/` 等构建目录），安装包统一走 [GitHub Releases](https://github.com/AhakeyAI/desktop/releases)。
 
 ### 新同学先读
 
