@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+# 创建配置目录
+mkdir -p /etc/ahakey/ble-bridge
+
+# 设置启动脚本权限
+chmod +x /usr/bin/ahakey-ble-bridge
+
+echo "AhaKey BLE Bridge installed successfully"

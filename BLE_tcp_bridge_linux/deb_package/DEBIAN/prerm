@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+# 清理配置文件（保留用户数据）
+# rm -rf /etc/ahakey/ble-bridge
+
+echo "AhaKey BLE Bridge removed"
