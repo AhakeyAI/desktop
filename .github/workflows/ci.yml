@@ -40,7 +40,7 @@ jobs:
     runs-on: macos-15
     defaults:
       run:
-        working-directory: platforms/macos
+        working-directory: ahakeyconfig-mac
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,12 +58,12 @@ jobs:
           scripts/package_app.sh
 
       - name: Zip app bundle
-        working-directory: platforms/macos/dist
+        working-directory: ahakeyconfig-mac/dist
         run: ditto -c -k --sequesterRsrc --keepParent "AhaKey Studio.app" "AhaKey-Studio-macOS.zip"
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v4
         with:
           name: AhaKey-Studio-macOS
-          path: platforms/macos/dist/AhaKey-Studio-macOS.zip
+          path: ahakeyconfig-mac/dist/AhaKey-Studio-macOS.zip
           if-no-files-found: error

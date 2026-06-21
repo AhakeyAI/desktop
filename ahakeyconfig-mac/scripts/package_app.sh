@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # 把 AhaKeyConfig 组装成 ad-hoc 签名的 "AhaKey Studio.app"。
-# 本地与 CI 共用;产物落在 platforms/macos/dist/。
+# 本地与 CI 共用;产物落在 ahakeyconfig-mac/dist/。
 #
 #   APP_VERSION=1.2.3 APP_BUILD=42 scripts/package_app.sh
 #
 # 版本号可用环境变量覆盖,缺省时 version=0.0.0、build=git 提交数。
 set -euo pipefail
 
-cd "$(dirname "$0")/.."          # -> platforms/macos
+cd "$(dirname "$0")/.."          # -> ahakeyconfig-mac
 
 CONFIG="release"
 APP_NAME="AhaKey Studio"
