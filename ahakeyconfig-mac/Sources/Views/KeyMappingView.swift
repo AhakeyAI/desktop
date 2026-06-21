@@ -36,11 +36,11 @@ struct KeyMappingView: View {
         KeyConfig(hidCode: HIDUsage.capsLock, description: "录音"),
         KeyConfig(hidCode: HIDUsage.enter, description: "Enter"),
         KeyConfig(hidCode: HIDUsage.escape, description: "取消"),
-        KeyConfig(hidCode: HIDUsage.enter, description: "Enter"),
+        KeyConfig(hidCode: HIDUsage.backspace, description: "Backspace"),
     ]
     @State private var showWriteSuccess = false
 
-    private let keyLabels = ["Key 1\n🎤", "Key 2\n✓", "Key 3\n✗", "Key 4\n↵"]
+    private let keyLabels = ["Key 1\n🎤", "Key 2\n✓", "Key 3\n✗", "Key 4\n⌫"]
 
     var body: some View {
         Form {
@@ -91,7 +91,7 @@ struct KeyMappingView: View {
                 }
 
                 CompatLabeledContent("描述") {
-                    TextField("显示在键盘 OLED 上", text: $keys[selectedKey].description)
+                    TextField("显示在键盘 LCD 上", text: $keys[selectedKey].description)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
                 }

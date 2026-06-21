@@ -38,7 +38,7 @@ struct DeviceInfoView: View {
             // MARK: - 蓝牙连接（App 与 Agent 二选一）
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("主程序与 `ahakeyconfig-agent` 是两个独立进程；CoreBluetooth 同时只能有一个连接键盘。请在此显式切换由谁占用蓝牙。")
+                    Text("同一时间只能由本 App 或 Agent 其中之一连接键盘，请在此切换。")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 10) {
@@ -56,8 +56,8 @@ struct DeviceInfoView: View {
                                     Text(owner.title)
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
-                                         ? "改键、OLED、同步、本机灯效测试"
-                                         : "Claude/Cursor/Codex Hook、灯条状态、拨杆查询")
+                                         ? "改键、LCD、同步、本机灯效测试（macOS 暂不支持 USB 有线配置）"
+                                         : "Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.leading)
@@ -85,8 +85,6 @@ struct DeviceInfoView: View {
                 }
             } header: {
                 Text("蓝牙连接")
-            } footer: {
-                Text("「Agent 已连接蓝牙」表示守护进程正在运行且已与键盘建立 BLE 连接（通过查询 socket switchState 确认）。「BLE 未连接」表示进程在跑但键盘尚未连上。选「AhaKey Studio」会改为由本 App 连接；选「Agent」会断开本 App 并启动守护进程。")
             }
             .alert("需要先安装 Agent", isPresented: $showAgentRequiredForAgentBLE) {
                 Button("好", role: .cancel) {}
@@ -107,21 +105,8 @@ struct DeviceInfoView: View {
                         Text(switchStateLabel(bleManager.switchState))
                     }
                 }
-                Text(switchStateDescription(
-                    bleManager.switchState,
-                    agentRunning: agentManager.isRunning,
-                    agentInstalled: agentManager.isInstalled,
-                    hooksReady: agentManager.hooksInstalled
-                ))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             } header: {
                 Text("拨杆档位")
-            } footer: {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("拨杆是物理档位。0=自动批准、非0=交回 IDE 自己确认；Claude 用 PermissionRequest，Cursor 用 preToolUse/beforeShell 等，Codex 用 inline TOML Hooks。都需 Agent + Hooks 且蓝牙由 agent 持有。")
-                    Text("若 Cursor 仍弹出「运行 Shell」：与 Aha hook 是两套。打开本页「查看日志」→ 选「cli-config」可查看/一键合并白名单与 approvalMode。")
-                }
             }
 
             // MARK: - LED 状态同步
@@ -140,6 +125,7 @@ struct DeviceInfoView: View {
                             hookBadge("Claude", installed: agentManager.claudeHooksInstalled)
                             hookBadge("Cursor", installed: agentManager.cursorHooksInstalled)
                             hookBadge("Codex", installed: agentManager.codexHooksInstalled)
+                            hookBadge("Kimi", installed: agentManager.kimiHooksInstalled)
                         }
                         .font(.caption)
                     }
@@ -217,20 +203,26 @@ struct DeviceInfoView: View {
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
+                        if agentManager.kimiHooksInstalled {
+                            Button("移除 Kimi Hooks") { agentManager.removeKimiHooksOnly() }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        } else {
+                            Button("安装 Kimi Hooks") { agentManager.installKimiHooksOnly() }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        }
                     }
                 }
             } header: {
                 Text("LED 状态同步 · Hook 联动")
             } footer: {
-                VStack(alignment: .leading, spacing: 6) {
-                    if !agentManager.isAgentBinaryPresentInBundle {
-                        Text("发版包内未包含 ahakeyconfig-agent 可执行文件时，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。")
-                            .foregroundStyle(.orange)
-                    } else if agentManager.isInstalled, agentManager.bluetoothConnectionOwner == .ahaKeyStudio, !agentManager.isRunning {
-                        Text("已安装 LaunchAgent 且当前由本 App 占蓝牙，因此 Agent 未加载：请先在上文将「蓝牙连接」选为「ahakeyconfig-agent」再观察运行状态，或点「安装并启用」时阅读弹窗说明。")
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("1) 键盘 LED 可随 IDE 状态变。2) 工具「自动批准」：Claude 走 PermissionRequest；Cursor 走 preToolUse；Codex 走 `~/.codex/config.toml` 的 inline `[[hooks.*]]`。3) 诊断见 AhaKeyConfig/diagnostics/permission-request.log 与 codex-hook.log。")
+                if !agentManager.isAgentBinaryPresentInBundle {
+                    Text("发版包内未包含 ahakeyconfig-agent，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。")
+                        .foregroundStyle(.orange)
+                } else if agentManager.isInstalled, agentManager.bluetoothConnectionOwner == .ahaKeyStudio, !agentManager.isRunning {
+                    Text("已由本 App 占用蓝牙：要让 Agent 接管，请将「蓝牙连接」选为 ahakeyconfig-agent。")
+                        .foregroundStyle(.secondary)
                 }
             }
             .sheet(isPresented: $showAgentLog) {
@@ -248,6 +240,7 @@ struct DeviceInfoView: View {
                         Text("~/.cursor/cli-config.json").tag(3)
                         Text("~/.codex/config.toml").tag(4)
                         Text("Codex Hook（codex-hook.log）").tag(5)
+                        Text("~/.kimi/config.toml").tag(6)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
@@ -449,6 +442,17 @@ struct DeviceInfoView: View {
                 Text("通信日志")
             }
         }
+        // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
+        .alert("Agent", isPresented: Binding(
+            get: { agentManager.agentUserAlert != nil },
+            set: { if !$0 { agentManager.agentUserAlert = nil } }
+        )) {
+            Button("好", role: .cancel) {
+                agentManager.agentUserAlert = nil
+            }
+        } message: {
+            Text(agentManager.agentUserAlert ?? "")
+        }
 
     }
 
@@ -490,31 +494,11 @@ struct DeviceInfoView: View {
         state == 0 ? "自动批准" : "手动批准"
     }
 
-    private func switchStateDescription(_ state: Int, agentRunning: Bool, agentInstalled: Bool, hooksReady: Bool) -> String {
-        let pieces: [String]
-        if state == 0 {
-            pieces = [
-                "自动批准：Claude/Codex 为 PermissionRequest；Cursor 为 preToolUse 等。需 Agent、Hooks、蓝牙交给 Agent。",
-                agentBluetoothStatusTextForDescription(agentRunning: agentRunning, agentInstalled: agentInstalled),
-                hooksReady ? "Hooks 已配置" : "Hooks 未配置",
-            ]
-        } else {
-            pieces = [
-                "手动：Claude/Cursor/Codex 批准链会交回 IDE 自己确认。",
-            ]
-        }
-        return pieces.joined(separator: " · ")
-    }
-
     private func agentBluetoothStatusText() -> String {
         if agentManager.isRunning && agentManager.isAgentBLEConnected { return "Agent 已连接蓝牙" }
         if agentManager.isRunning { return "Agent 运行中（BLE 未连接）" }
         if agentManager.isInstalled { return "Agent 未运行" }
         return "Agent 未安装"
-    }
-
-    private func agentBluetoothStatusTextForDescription(agentRunning: Bool, agentInstalled: Bool) -> String {
-        agentBluetoothStatusText()
     }
 
     private func agentBluetoothShortLabel() -> String {
@@ -526,9 +510,10 @@ struct DeviceInfoView: View {
 
     private func workModeName(_ mode: Int) -> String {
         switch mode {
-        case 0: return "Mode 0"
-        case 1: return "Mode 1"
-        case 2: return "Mode 2"
+        case 0: return "Mode 1 / Claude"
+        case 1: return "Mode 2 / Cursor"
+        case 2: return "Mode 3 / Codex"
+        case 3: return "Mode 4 / custom"
         default: return "Mode \(mode)"
         }
     }
@@ -557,6 +542,8 @@ struct DeviceInfoView: View {
             Text(agentManager.readUserCodexConfigForDisplay())
         case 5:
             Text(agentManager.readCodexHookLog())
+        case 6:
+            Text(agentManager.readUserKimiConfigForDisplay())
         default:
             Text("")
         }

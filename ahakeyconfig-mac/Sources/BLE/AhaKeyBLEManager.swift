@@ -7,6 +7,12 @@ import UserNotifications
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "BLE")
 
+/// 0x83 查询回来的某个 mode 的图片元信息（用 Equatable struct 方便 SwiftUI .onChange 监听）
+struct KeyboardPictureState: Equatable {
+    let frameCount: Int
+    let frameIntervalMs: Int
+}
+
 /// 通信日志条目
 struct BLELogEntry: Identifiable {
     let id = UUID()
@@ -52,10 +58,23 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var workMode: Int = 0
     @Published private(set) var lightMode: Int = 0
     @Published private(set) var switchState: Int = 0
+    @Published private(set) var brightness: Int = 35
     @Published private(set) var bleConnectionStatus: String = "未连接"
     @Published private(set) var bleDeviceUUID: String = "—"
+    @Published private(set) var bluetoothPermissionGranted = true
+    @Published private(set) var bluetoothPoweredOn = false
     @Published private(set) var oledUploadProgress: OLEDUploadProgress?
     @Published private(set) var isUploadingOLED = false
+    /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），用于画布 LED 颜色实时还原
+    @Published private(set) var liveIDEStateValue: Int? = nil
+    /// Agent 端 BLE 通知缓存的 lightMode/switchState/workMode（agent 占用蓝牙时主 App 自己 BLE 未连，靠这些读到键盘实时状态）
+    @Published private(set) var agentLightMode: Int? = nil
+    @Published private(set) var agentSwitchState: Int? = nil
+    @Published private(set) var agentWorkMode: Int? = nil
+    /// 各 mode flash 里的真实图片元信息。
+    /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
+    /// 键盘显示固件出厂动图（与 bundle/DefaultOLED 同源）。
+    @Published private(set) var keyboardPictureStates: [Int: KeyboardPictureState] = [:]
 
     /// 通信日志（最近 200 条）
     @Published private(set) var commLog: [BLELogEntry] = []
@@ -84,11 +103,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     static let firmwareRevisionCharUUID = CBUUID(string: "2A26")
     static let modelNumberCharUUID = CBUUID(string: "2A24")
 
-    nonisolated static let deviceNamePrefix = "vibe code"
+    nonisolated static let deviceNamePrefix = "AhaKey"
 
     // MARK: - Private
 
-    private var central: CBCentralManager!
+    private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
     private var dataChar: CBCharacteristic?
     private var commandChar: CBCharacteristic?
@@ -98,6 +117,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var rssiTimer: Timer?
     private var autoReconnectTimer: Timer?
     private var statusPollTimer: Timer?
+    private var ideStatePollTimer: Timer?
     /// 记住上次连接的 UUID，用于快速重连
     private var lastPeripheralUUID: UUID?
     /// 为 true 时，本 App 不扫描、不连接、不响应掉线/轮询重连（物理键盘由 `ahakeyconfig-agent` 占用时由 AgentManager 置位）
@@ -121,21 +141,69 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        // 与 AgentManager 启动顺序无关：若上次退出前选择「Agent 占蓝牙」，
-        // 在蓝牙栈 poweredOn 回调里会立刻重连，必须在 init 就挡住。
         let storedOwner = UserDefaults.standard.string(forKey: "lab.jawa.ahakeyconfig.bluetoothConnectionOwner")
         if storedOwner == nil || storedOwner == BluetoothConnectionOwner.agentDaemon.rawValue {
             suppressAutomaticConnection = true
         }
-        central = CBCentralManager(delegate: nil, queue: nil)
-        central.delegate = self
+        // 只有蓝牙权限已授予时才创建 CBCentralManager（创建即触发系统弹窗）。
+        // 权限未决时延迟到用户点「申请」后调用 ensureCentralManager()。
+        if CBCentralManager.authorization == .allowedAlways {
+            central = CBCentralManager(delegate: self, queue: nil)
+        }
+        refreshBluetoothAuthorization()
         startAutoReconnectPolling()
+        startIDEStatePolling()
+    }
+
+    /// 确保 CBCentralManager 已创建。用户显式申请蓝牙权限时调用。
+    func ensureCentralManager() {
+        guard central == nil else { return }
+        central = CBCentralManager(delegate: self, queue: nil)
     }
 
     // MARK: - Public API
 
+    func refreshBluetoothAuthorization() {
+        bluetoothPermissionGranted = Self.currentBluetoothAuthorizationGranted()
+        bluetoothPoweredOn = central?.state == .poweredOn
+        if !bluetoothPermissionGranted {
+            bleConnectionStatus = "蓝牙权限未开启"
+        } else if central?.state == .poweredOff {
+            bleConnectionStatus = "蓝牙关闭"
+        }
+    }
+
+    var bluetoothAuthorizationCanPrompt: Bool {
+        CBCentralManager.authorization == .notDetermined
+    }
+
+    var bluetoothAuthorizationDeniedOrRestricted: Bool {
+        switch CBCentralManager.authorization {
+        case .restricted, .denied:
+            return true
+        case .allowedAlways, .notDetermined:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
+    private static func currentBluetoothAuthorizationGranted() -> Bool {
+        switch CBCentralManager.authorization {
+        case .allowedAlways:
+            return true
+        case .notDetermined:
+            return true
+        case .restricted, .denied:
+            return false
+        @unknown default:
+            return true
+        }
+    }
+
     /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
     func userInitiatedConnect() {
+        ensureCentralManager()
         suppressAutomaticConnection = false
         connectAutomatically()
     }
@@ -147,31 +215,31 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     func connectAutomatically() {
         guard !suppressAutomaticConnection else { return }
-        guard central.state == .poweredOn else {
+        guard central?.state == .poweredOn else {
             pendingConnect = true
             return
         }
 
         // 1. 用已知 UUID 直连（最快）
         if let uuid = lastPeripheralUUID {
-            let known = central.retrievePeripherals(withIdentifiers: [uuid])
+            let known = central?.retrievePeripherals(withIdentifiers: [uuid]) ?? []
             if let p = known.first {
                 appendLog("用已知 UUID 直连: \(p.name ?? uuid.uuidString)")
                 self.peripheral = p
                 p.delegate = self
-                central.connect(p, options: nil)
+                central?.connect(p, options: nil)
                 bleConnectionStatus = "连接中…"
                 return
             }
         }
 
         // 2. 查找系统已连接设备
-        let connected = central.retrieveConnectedPeripherals(withServices: [Self.serviceUUID])
-        if let existing = connected.first(where: { ($0.name ?? "").lowercased().hasPrefix(Self.deviceNamePrefix) }) {
+        let connected = central?.retrieveConnectedPeripherals(withServices: [Self.serviceUUID]) ?? []
+        if let existing = connected.first(where: { ($0.name ?? "").lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) }) {
             appendLog("发现系统已连接设备: \(existing.name ?? "?")")
             self.peripheral = existing
             existing.delegate = self
-            central.connect(existing, options: nil)
+            central?.connect(existing, options: nil)
             bleConnectionStatus = "连接中…"
             return
         }
@@ -181,14 +249,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func startScan() {
-        guard central.state == .poweredOn else {
+        guard central?.state == .poweredOn else {
             pendingConnect = true
             return
         }
         isScanning = true
         bleConnectionStatus = "扫描中…"
         appendLog("开始扫描 AhaKey 设备…")
-        central.scanForPeripherals(
+        central?.scanForPeripherals(
             withServices: [Self.serviceUUID],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
@@ -196,7 +264,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(Double(10) * 1_000_000_000))
             if self.isScanning {
-                self.central.stopScan()
+                self.central?.stopScan()
                 self.isScanning = false
                 self.bleConnectionStatus = "等待设备"
                 self.appendLog("扫描超时，继续后台轮询设备")
@@ -206,7 +274,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     func disconnect() {
         guard let peripheral else { return }
-        central.cancelPeripheralConnection(peripheral)
+        central?.cancelPeripheralConnection(peripheral)
         appendLog("用户主动断开")
     }
 
@@ -242,7 +310,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             completedFrames: 0,
             totalFrames: frames.count
         )
-        appendLog("开始上传 OLED 数据: \(frames.count) 帧, FPS=\(fps), mode=\(mode), startIndex=\(startIndex), frameSlotSize=\(AhaKeyCommand.oledFrameSlotSize)")
+        appendLog("开始上传 LCD 数据: \(frames.count) 帧, FPS=\(fps), mode=\(mode), startIndex=\(startIndex), frameSlotSize=\(AhaKeyCommand.oledFrameSlotSize)")
 
         defer {
             isUploadingOLED = false
@@ -293,7 +361,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         )
         appendLog("→ updatePicture mode=\(mode) startIndex=\(startIndex) frameCount=\(frames.count) delayMs=\(delay) hex=\(updateCommand.hexString)")
         _ = try await sendCommandAwaitingResponse(updateCommand, expectedCommand: AhaKeyCommand.cmdUpdatePic)
-        appendLog("OLED 上传完成: \(frames.count) 帧, start=\(startIndex)")
+        appendLog("LCD 上传完成: \(frames.count) 帧, start=\(startIndex)")
         _ = commandChar
     }
 
@@ -355,7 +423,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(cmd)
     }
 
-    /// 设置按键描述（显示在 OLED 上）
+    /// 设置按键描述（显示在 LCD 上）
     func setKeyDescription(mode: UInt8 = 0, keyIndex: UInt8, text: String) {
         let cmd = AhaKeyCommand.setKeyDescription(mode: mode, keyIndex: keyIndex, text: text)
         appendLog("写入 Mode\(mode) Key\(keyIndex + 1) 描述: \(text)")
@@ -386,6 +454,36 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard commandChar != nil else { return }
         let cmd = AhaKeyCommand.updateState(state)
         writeCommand(cmd)
+    }
+
+    /// 最新固件中 0x91 已改为灯效预览；虚拟拨杆只保留软件覆盖，不再向键盘发送旧 0x91。
+    /// value: 0=auto/up, 1=manual/down, 2=mid
+    func setSwitchStateViaBLE(_ value: UInt8) {
+        appendLog("虚拟拨杆 sw_state=\(value) 仅作为软件覆盖；最新固件 0x91 用于灯效预览。")
+    }
+
+    func setLightMapping(mode: UInt8, stateEffects: [UInt8]) {
+        guard commandChar != nil else { return }
+        writeCommand(AhaKeyCommand.setLightMapping(mode: mode, stateEffects: stateEffects))
+        appendLog("→ 灯效映射 mode=\(mode) effects=\(stateEffects)")
+    }
+
+    func setBrightness(_ value: UInt8) {
+        guard commandChar != nil else { return }
+        writeCommand(AhaKeyCommand.setBrightness(value))
+        appendLog("→ 亮度 \(value)")
+    }
+
+    func previewLightEffect(_ effect: UInt8) {
+        guard commandChar != nil else { return }
+        writeCommand(AhaKeyCommand.previewLightEffect(effect))
+        appendLog("→ 预览灯效 \(effect)")
+    }
+
+    func setWorkMode(_ mode: UInt8) {
+        guard commandChar != nil else { return }
+        writeCommand(AhaKeyCommand.setWorkMode(mode))
+        appendLog("→ 工作模式 \(mode)")
     }
 
     /// 修改设备蓝牙名称
@@ -457,7 +555,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         autoReconnectTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                guard self.central.state == .poweredOn else { return }
+                guard self.central?.state == .poweredOn else { return }
                 guard !self.isConnected, !self.isScanning else { return }
                 guard self.bleConnectionStatus != "连接中…" else { return }
                 self.appendLog("后台轮询中，尝试寻找设备…")
@@ -479,7 +577,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 guard self.isConnected else { return }
-                // 正在上传 OLED 时避免占用命令通道
+                // 正在上传 LCD 时避免占用命令通道
                 guard !self.isUploadingOLED else { return }
                 // 有 protocol 响应在等（如 readPictureState / saveConfig）时也跳过
                 guard self.protocolResponseWaiters.isEmpty else { return }
@@ -493,12 +591,98 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         statusPollTimer = nil
     }
 
+    private func startIDEStatePolling() {
+        ideStatePollTimer?.invalidate()
+        ideStatePollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.pollIDEStateFile()
+            }
+        }
+    }
+
+    /// 主动触发一次共享文件读取（用户点击虚拟拨杆后立即调用，避免等下一次定时 poll）
+    func refreshAgentStateFromFileNow() {
+        pollIDEStateFile()
+    }
+
+    /// 点击虚拟拨杆瞬间的乐观更新值。在文件 poll 把 agentSwitchState 刷新到目标值前先顶住，
+    /// 之后 polling 把真实值刷过来时再清掉，保证按一下立刻看到拨杆切档。
+    @Published private(set) var optimisticSwitchOverride: Int? = nil
+
+    func applyOptimisticSwitchOverride(_ value: UInt8) {
+        optimisticSwitchOverride = Int(value)
+    }
+
+    private func clearOptimisticSwitchOverrideIfMatched() {
+        guard let opt = optimisticSwitchOverride else { return }
+        if agentSwitchState == opt || (isConnected && switchState == opt) {
+            optimisticSwitchOverride = nil
+        }
+    }
+
+    private func pollIDEStateFile() {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig/current-ide-state.json")
+        guard let data = try? Data(contentsOf: url),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            if liveIDEStateValue != nil { liveIDEStateValue = nil }
+            if agentLightMode != nil { agentLightMode = nil }
+            if agentSwitchState != nil { agentSwitchState = nil }
+            if agentWorkMode != nil { agentWorkMode = nil }
+            return
+        }
+        let now = Date().timeIntervalSince1970
+        // stateValue 是瞬时态（hook 触发），30s 过期；超时则置空，固件 LED 也会回到无 state 默认
+        if let v = obj["stateValue"] as? Int,
+           let stateTs = (obj["stateTs"] as? Double) ?? (obj["ts"] as? Double),
+           now - stateTs <= 30 {
+            if liveIDEStateValue != v { liveIDEStateValue = v }
+        } else {
+            if liveIDEStateValue != nil { liveIDEStateValue = nil }
+        }
+        // lightMode/switchState/workMode 来自 BLE 通知，2 分钟没新数据视为 agent 已断连
+        if let topTs = obj["ts"] as? Double, now - topTs <= 120 {
+            let lm = obj["lightMode"] as? Int
+            let sw = obj["switchState"] as? Int
+            let wm = obj["workMode"] as? Int
+            if agentLightMode != lm { agentLightMode = lm }
+            if agentSwitchState != sw { agentSwitchState = sw }
+            if agentWorkMode != wm { agentWorkMode = wm }
+        } else {
+            if agentLightMode != nil { agentLightMode = nil }
+            if agentSwitchState != nil { agentSwitchState = nil }
+            if agentWorkMode != nil { agentWorkMode = nil }
+        }
+        clearOptimisticSwitchOverrideIfMatched()
+    }
+
     /// 所有 AhaKey 主服务特征就绪后触发（仅一次）
     private func onAllCharacteristicsReady() {
         guard !didQueryAfterConnect else { return }
         didQueryAfterConnect = true
         appendLog("所有特征就绪，查询设备状态")
         queryDeviceStatus()
+        queryAllPictureStates()
+    }
+
+    /// 顺序查询每个 mode 的 0x83 图片元信息，结果累积到 keyboardPictureStates
+    private func queryAllPictureStates() {
+        Task { [weak self] in
+            guard let self else { return }
+            for slot in 0..<4 {
+                do {
+                    let state = try await self.readPictureState(mode: UInt8(slot))
+                    self.keyboardPictureStates[slot] = KeyboardPictureState(
+                        frameCount: state.picLength,
+                        frameIntervalMs: state.frameInterval
+                    )
+                    self.appendLog("  mode\(slot) flash: 帧数=\(state.picLength) 间隔=\(state.frameInterval)ms")
+                } catch {
+                    self.appendLog("  mode\(slot) 图片状态查询失败: \(error)", isError: true)
+                }
+            }
+        }
     }
 
     private func sendCommandAwaitingResponse(_ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0) async throws -> CommandResponse {
@@ -574,7 +758,8 @@ final class SwitchStateNotifier: ObservableObject {
     static let shared = SwitchStateNotifier()
 
     private weak var bleManager: AhaKeyBLEManager?
-    private var cancellable: AnyCancellable?
+    private var switchStateCancellable: AnyCancellable?
+    private var agentSwitchStateCancellable: AnyCancellable?
     private var lastObservedState: Int?
     private var lastNotificationAt: Date?
     private var hasInitialState = false
@@ -583,12 +768,19 @@ final class SwitchStateNotifier: ObservableObject {
     private init() {}
 
     func bind(to manager: AhaKeyBLEManager) {
-        if bleManager === manager, cancellable != nil { return }
+        if bleManager === manager, switchStateCancellable != nil, agentSwitchStateCancellable != nil { return }
 
         bleManager = manager
         lastObservedState = nil
         hasInitialState = false
-        cancellable = manager.$switchState
+        switchStateCancellable = manager.$switchState
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] newState in
+                self?.handleStateChange(newState)
+            }
+        agentSwitchStateCancellable = manager.$agentSwitchState
+            .compactMap { $0 }
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] newState in
@@ -617,14 +809,14 @@ final class SwitchStateNotifier: ObservableObject {
         if switchedToAuto {
             postNotification(
                 title: "拨杆 → 自动批准",
-                body: "Claude / Cursor 的工具调用将无条件放行（含 shell、删文件等高危操作）。需要确认时请把拨杆切回手动档。",
+                body: "Kimi：若已安装 AhaKey Kimi Hooks，自动档会直接接管当前会话批准；若刚装完或刚升级 kimi-cli，请先重开一次 kimi。Claude/Cursor/Codex 仍走各自钩子。",
                 identifier: "lab.jawa.ahakey.switch.auto",
                 isCritical: true
             )
         } else if switchedToManual {
             postNotification(
                 title: "拨杆 → 手动批准",
-                body: "Claude / Cursor 将按默认弹窗逐条确认权限。",
+                body: "Claude / Cursor / Codex：按各自确认链。Kimi：若已安装 AhaKey Kimi Hooks，手动档会直接把当前会话拉回手动批准。",
                 identifier: "lab.jawa.ahakey.switch.manual",
                 isCritical: false
             )
@@ -642,7 +834,7 @@ final class SwitchStateNotifier: ObservableObject {
                                                 content: content,
                                                 trigger: nil)
             center.add(request) { error in
-                if error != nil, isCritical {
+                if error != nil {
                     Task { @MainActor in
                         self?.fallbackAlert(title: title, body: body)
                     }
@@ -658,7 +850,7 @@ final class SwitchStateNotifier: ObservableObject {
         center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
             if granted {
                 deliver()
-            } else if isCritical {
+            } else {
                 Task { @MainActor in
                     self.fallbackAlert(title: title, body: body)
                 }
@@ -712,12 +904,19 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         Task { @MainActor in
             switch central.state {
             case .poweredOn:
+                self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已开启")
                 self.connectAutomatically()
             case .poweredOff:
+                self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
                 self.bleConnectionStatus = "蓝牙关闭"
+            case .unauthorized:
+                self.refreshBluetoothAuthorization()
+                self.appendLog("蓝牙权限未开启", isError: true)
+                self.bleConnectionStatus = "蓝牙权限未开启"
             default:
+                self.refreshBluetoothAuthorization()
                 break
             }
         }
@@ -730,15 +929,15 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         let name = peripheral.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
-        guard name.lowercased().hasPrefix(Self.deviceNamePrefix) else { return }
+        guard name.lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) else { return }
 
         Task { @MainActor in
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
-            self.central.stopScan()
+            self.central?.stopScan()
             self.isScanning = false
             self.peripheral = peripheral
             peripheral.delegate = self
-            self.central.connect(peripheral, options: nil)
+            self.central?.connect(peripheral, options: nil)
             self.bleConnectionStatus = "连接中…"
         }
     }
@@ -804,6 +1003,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.isWriting = false
             self.writeBatches.removeAll()
             self.didQueryAfterConnect = false
+            self.keyboardPictureStates.removeAll()
             self.stopRSSIPolling()
             self.stopStatusPolling()
             self.startAutoReconnectPolling()
@@ -961,7 +1161,8 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             )
             lightMode = status.lightMode
             switchState = status.switchState
-            appendLog("  状态: 电量=\(status.battery) 固件=\(status.firmwareMain).\(status.firmwareSub) 模式=\(status.workMode) 灯=\(status.lightMode) 开关=\(status.switchState)")
+            brightness = status.brightness
+            appendLog("  状态: 电量=\(status.battery) 固件=\(status.firmwareMain).\(status.firmwareSub) 模式=\(status.workMode) 灯=\(status.lightMode) 开关=\(status.switchState) 亮度=\(status.brightness)")
         } else if AhaKeyResponseParser.isProtocolFrame(data) {
             if let response = AhaKeyResponseParser.parseCommandResponse(data) {
                 protocolResponseWaiters.removeValue(forKey: response.cmd)?.resume(returning: (response.status, response.payload))

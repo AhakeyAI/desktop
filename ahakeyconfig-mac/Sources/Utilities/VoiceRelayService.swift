@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon
 import Combine
 import CoreGraphics
 import Foundation
@@ -23,6 +24,7 @@ private struct VoiceTriggerBinding: Hashable {
 private enum VoiceRouteAction: Hashable {
     case macOSDictation
     case functionRelay(appName: String)
+    case doubaoPassThrough
 
     var title: String {
         switch self {
@@ -30,7 +32,14 @@ private enum VoiceRouteAction: Hashable {
             "macOS 原生语音"
         case let .functionRelay(appName):
             appName
+        case .doubaoPassThrough:
+            "豆包输入法"
         }
+    }
+
+    var isFunctionRelay: Bool {
+        if case .functionRelay = self { return true }
+        return false
     }
 }
 
@@ -38,7 +47,7 @@ private struct VoiceRoute: Hashable {
     let binding: VoiceTriggerBinding
     let action: VoiceRouteAction
     let mode: AhaKeyModeSlot
-    let usesFactoryFallback: Bool
+    let compatibilityLabel: String?
 }
 
 final class VoiceRelayService: ObservableObject {
@@ -63,7 +72,8 @@ final class VoiceRelayService: ObservableObject {
     /// 会把 F17/F18 翻译成 xterm CSI 转义序列，用户看起来就是"乱码")。
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var didRequestPermissionsThisLaunch = false
+
+    private var suppressPermissionOnboardingUntil: Date?
 
     private var shadowSuppressUntil: TimeInterval = 0
 
@@ -100,12 +110,7 @@ final class VoiceRelayService: ObservableObject {
     // MARK: - Public
 
     func start() {
-        if !didRequestPermissionsThisLaunch {
-            didRequestPermissionsThisLaunch = true
-            refreshPermissions(requestIfNeeded: true)
-        } else {
-            refreshPermissions()
-        }
+        refreshPermissions(requestIfNeeded: false)
     }
 
     /// - Parameter deferredTCCRequery: 用户点「重新检查」时置 true。仅 Preflight 在刚改完系统设置、仍停留本 App 时可能仍读到旧值；改为稍后使用 Request API 再读一次，并略延长等待。
@@ -170,7 +175,7 @@ final class VoiceRelayService: ObservableObject {
             self.inputMonitoringGranted = inputMonitoring
             self.accessibilityGranted = accessibility && postEventAccess
             self.lastPermissionCheckSummary = lastCheckSummary
-            self.showsPermissionOnboarding = !(inputMonitoring && accessibility && postEventAccess)
+            self.showsPermissionOnboarding = !(inputMonitoring && accessibility && postEventAccess) && !self.isPermissionOnboardingSuppressed
             self.refreshStatusMessage()
         }
 
@@ -193,7 +198,31 @@ final class VoiceRelayService: ObservableObject {
         showsPermissionOnboarding = false
     }
 
-    /// Inspector 调试：模拟当前模式下按一次实体语音键（Typeless/微信 = 切换 Fn 按住；macOS 原生 = 切换系统转写）。
+    func requestInputMonitoringPermission() {
+        _ = CGRequestListenEventAccess()
+        performPermissionRead(requestIfNeeded: false, preferRequestAPI: true)
+    }
+
+    func requestAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        performPermissionRead(requestIfNeeded: false, preferRequestAPI: true)
+    }
+
+    func suppressPermissionOnboarding(for seconds: TimeInterval = 4.0) {
+        suppressPermissionOnboardingUntil = Date().addingTimeInterval(seconds)
+        showsPermissionOnboarding = false
+    }
+
+    var isPermissionOnboardingSuppressed: Bool {
+        if let until = suppressPermissionOnboardingUntil, until > Date() {
+            return true
+        }
+        suppressPermissionOnboardingUntil = nil
+        return false
+    }
+
+    /// Inspector 调试：模拟当前模式下按一次实体语音键（Fn/Globe = 切换 Fn 按住；macOS 原生 = 切换系统转写）。
     func simulateInspectorVoiceKeyTap(for mode: AhaKeyModeSlot) {
         let route: VoiceRoute? = routeQueue.sync {
             routes.first { $0.mode == mode }
@@ -201,7 +230,7 @@ final class VoiceRelayService: ObservableObject {
         guard let route else {
             appendDiagnostic("inspector simulate: no route for mode=\(mode.rawValue)")
             Task { @MainActor in
-                lastInspectorSimulateHint = "当前模式没有语音路由：请先在「语音软件」里选 Typeless / 微信 / macOS 原生（不要选「自定义」）。"
+                lastInspectorSimulateHint = "当前模式没有语音路由：Fn 请选 Fn/Globe，或把「自定义快捷键」设为 F19。"
             }
             return
         }
@@ -214,11 +243,13 @@ final class VoiceRelayService: ObservableObject {
         case .functionRelay:
             toggleFunctionRelayHold(for: route)
             Task { @MainActor in
-                if route.action.title == "微信语音" {
-                    lastInspectorSimulateHint = "已切换 Fn 按住状态；请在聚焦 App 里试用微信语音。再点一次为松开。"
-                } else {
-                    lastInspectorSimulateHint = "已切换 Fn 按住状态；Typeless 请在 App 内把随声写设为 Fn/Globe（本 Studio 默认监听 F19，出厂语音键 F18 仍兼容）。再点一次为松开。"
-                }
+                lastInspectorSimulateHint = "已切换 Fn 按住状态；请在 Typeless/微信语音/豆包输入法内把快捷键设为 Fn/Globe（本 Studio 监听 F19，旧版 F18 兼容）。再点一次为松开。"
+            }
+        case .doubaoPassThrough:
+            configureDoubaoVoiceShortcutIfNeeded()
+            ensureInputSource(id: Self.doubaoInputSourceID, label: route.action.title)
+            Task { @MainActor in
+                lastInspectorSimulateHint = "豆包需要真实 F18 长按事件；已切到豆包输入源并配置长按 F18，请用实体语音键测试。"
             }
         }
         appendDiagnostic("inspector simulate mode=\(mode.rawValue) action=\(route.action.title)")
@@ -226,6 +257,7 @@ final class VoiceRelayService: ObservableObject {
 
     func updateRoutes(from draft: AhaKeyStudioDraft) {
         let builtRoutes = Self.buildRoutes(from: draft)
+        let needsDoubaoPreparation = builtRoutes.contains { $0.action == .doubaoPassThrough }
 
         // 只有路由集合真的变化时才释放"按住"状态，避免 SwiftUI 频繁重建/无关 onChange
         // 间接把 functionRelay 的 hold 状态冲掉（典型表现：微信按住说话过几秒自动结束）。
@@ -239,13 +271,21 @@ final class VoiceRelayService: ObservableObject {
             let summary = builtRoutes.isEmpty
                 ? "未配置语音软件。"
                 : builtRoutes.map { route in
-                    let fallback = route.usesFactoryFallback ? " · 出厂 F18 兼容" : ""
+                    let fallback = route.compatibilityLabel.map { " · \($0)" } ?? ""
                     return "\(route.mode.title) \(route.action.title) ← \(route.binding.displayLabel)\(fallback)"
                 }.joined(separator: " / ")
 
             DispatchQueue.main.async {
                 self.activeRouteSummary = summary
                 self.refreshStatusMessage()
+            }
+        }
+
+        if needsDoubaoPreparation {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.configureDoubaoVoiceShortcutIfNeeded()
+                self.ensureInputSource(id: Self.doubaoInputSourceID, label: "豆包输入法")
             }
         }
     }
@@ -363,14 +403,29 @@ final class VoiceRelayService: ObservableObject {
 
         switch route.action {
         case .macOSDictation:
-            if type == .keyDown, !isAutoRepeat {
+            if isAutoRepeat { return nil }
+            if type == .keyDown {
                 Task { @MainActor in
-                    NativeSpeechTranscriptionService.shared.toggleRecordingFromVoiceKey()
+                    NativeSpeechTranscriptionService.shared.handleVoiceKeyDown()
+                }
+            } else if type == .keyUp {
+                Task { @MainActor in
+                    NativeSpeechTranscriptionService.shared.handleVoiceKeyUp()
                 }
             }
             // keyDown/keyUp 都吞掉，避免硬件发出的 F17/F18 漏到前台 App（比如 Claude CLI
             // 所在的终端会把它翻译成 \e[...~ 字样）。
             return nil
+
+        case .doubaoPassThrough:
+            if type == .keyDown, !isAutoRepeat {
+                configureDoubaoVoiceShortcutIfNeeded()
+                ensureInputSource(id: Self.doubaoInputSourceID, label: route.action.title)
+                appendDiagnostic("doubao pass-through keyDown → let physical event reach IME")
+            } else if type == .keyUp {
+                appendDiagnostic("doubao pass-through keyUp → let physical event reach IME")
+            }
+            return Unmanaged.passUnretained(event)
 
         case .functionRelay:
             // 与微信 / Typeless「按住说话」一致：跟手硬件 keyDown；keyUp 若过短则略延长 Fn 按住，避免脉冲键无反应。
@@ -520,6 +575,85 @@ final class VoiceRelayService: ObservableObject {
         }
     }
 
+    private func ensureInputSource(id inputSourceID: String, label: String) {
+        guard currentInputSourceID() != inputSourceID else { return }
+        if selectInputSource(id: inputSourceID) {
+            appendDiagnostic("input source selected id=\(inputSourceID) for \(label)")
+        } else {
+            appendDiagnostic("input source select failed id=\(inputSourceID) for \(label)")
+        }
+    }
+
+    private func currentInputSourceID() -> String? {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
+            return nil
+        }
+        return inputSourceID(from: source)
+    }
+
+    private func selectInputSource(id targetID: String) -> Bool {
+        let sources = TISCreateInputSourceList(nil, true).takeRetainedValue() as NSArray
+        for item in sources {
+            let source = item as! TISInputSource
+            guard inputSourceID(from: source) == targetID else { continue }
+            return TISSelectInputSource(source) == noErr
+        }
+        return false
+    }
+
+    private func inputSourceID(from source: TISInputSource) -> String? {
+        guard let raw = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else {
+            return nil
+        }
+        return Unmanaged<CFString>.fromOpaque(raw).takeUnretainedValue() as String
+    }
+
+    private func configureDoubaoVoiceShortcutIfNeeded() {
+        let defaults = UserDefaults.standard
+        var global = defaults.persistentDomain(forName: UserDefaults.globalDomain) ?? [:]
+        var changed = false
+
+        func set(_ key: String, _ value: Any) {
+            if !NSDictionary(dictionary: global).isEqual(to: [key: value]) && "\(global[key] ?? "")" != "\(value)" {
+                global[key] = value
+                changed = true
+            }
+        }
+
+        set("isStartASRShortcutEnable", true)
+        set("isGloableASRShortcutEnable", true)
+        set("asrShortcutKeyCode", Int(Self.fnTriggerMacKeyCode))
+        set("asrShortcutModifierFlags", 0)
+        set("asrShortcutKeyDisplay", "F18")
+        set("asrLongPressShortcutKeyCode", Int(Self.fnTriggerMacKeyCode))
+        set("asrLongPressShortcutModifierFlags", 0)
+        set("asrLongPressShortcutKeyDisplay", "F18")
+
+        if changed {
+            defaults.setPersistentDomain(global, forName: UserDefaults.globalDomain)
+            defaults.synchronize()
+            DistributedNotificationCenter.default().postNotificationName(
+                Notification.Name("DoubaoImeSettings.asrLongPressShortcutKeyNotification"),
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
+            DistributedNotificationCenter.default().postNotificationName(
+                Notification.Name("DoubaoImeSettings.enableStartASRShortcutNotification"),
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
+            DistributedNotificationCenter.default().postNotificationName(
+                Notification.Name("DoubaoImeSettings.enableGloableASRShortcutNotification"),
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
+            appendDiagnostic("doubao shortcut configured: longPress F18")
+        }
+    }
+
     // MARK: - Helpers
 
     private func refreshStatusMessage() {
@@ -538,19 +672,19 @@ final class VoiceRelayService: ObservableObject {
             return
         }
 
-        statusMessage = "后台监听已启动。Mode 0 出厂 F18 也会被接管到你选中的语音软件。"
+        statusMessage = "后台监听已启动。Fn/Globe 语音走 F19；macOS 原生与旧版 F18 会继续兼容。"
     }
 
     private static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {
         var orderedRoutes: [VoiceRoute] = []
         let factoryF18 = VoiceTriggerBinding(keyCode: 79, modifiers: [])
+        let fnF19 = VoiceTriggerBinding(keyCode: 80, modifiers: [])
 
         for mode in AhaKeyModeSlot.allCases {
             let voiceKey = draft.draft(for: mode).key(for: .voice)
             guard let preset = voiceKey.voicePreset,
                   preset.availableInV1,
-                  preset != .custom,
-                  let action = action(for: preset),
+                  let action = action(for: preset, shortcut: voiceKey.shortcut),
                   let binding = macBinding(for: voiceKey.shortcut)
             else { continue }
 
@@ -559,9 +693,20 @@ final class VoiceRelayService: ObservableObject {
                     binding: binding,
                     action: action,
                     mode: mode,
-                    usesFactoryFallback: false
+                    compatibilityLabel: nil
                 )
             )
+
+            if action.isFunctionRelay, binding != fnF19 {
+                orderedRoutes.append(
+                    VoiceRoute(
+                        binding: fnF19,
+                        action: action,
+                        mode: mode,
+                        compatibilityLabel: "Fn F19 兼容"
+                    )
+                )
+            }
 
             if mode == .mode0, binding != factoryF18 {
                 orderedRoutes.append(
@@ -569,7 +714,7 @@ final class VoiceRelayService: ObservableObject {
                         binding: factoryF18,
                         action: action,
                         mode: .mode0,
-                        usesFactoryFallback: true
+                        compatibilityLabel: "旧版 F18 兼容"
                     )
                 )
             }
@@ -578,22 +723,33 @@ final class VoiceRelayService: ObservableObject {
         return orderedRoutes
     }
 
-    private static func action(for preset: VoicePreset) -> VoiceRouteAction? {
+    private static func action(for preset: VoicePreset, shortcut: ShortcutBinding) -> VoiceRouteAction? {
         switch preset {
         case .macOSNative:
             .macOSDictation
         case .typeless:
-            .functionRelay(appName: "Typeless / Fn")
+            .functionRelay(appName: "Fn/Globe")
         case .wechat:
-            .functionRelay(appName: "微信语音")
+            .functionRelay(appName: "Fn/Globe")
         case .claudeCode:
             // Claude Code preset 复用 macOS 原生 ASR：录音 → 识别 → ⌘V 粘到当前光标。
             // 这样按键会被我们的 monitor 吃掉，不会漏到 Claude CLI 终端里变成 CSI 乱码。
             .macOSDictation
-        case .codex, .doubao, .custom:
+        case .kimiCode:
+            .macOSDictation
+        case .doubao:
+            .functionRelay(appName: "Fn/Globe")
+        case .custom:
+            shortcut.keyCode == HIDUsage.f19 && shortcut.modifiers.isEmpty
+                ? .functionRelay(appName: "Fn / Globe")
+                : nil
+        case .codex:
             nil
         }
     }
+
+    private static let doubaoInputSourceID = "com.bytedance.inputmethod.doubaoime.pinyin"
+    private static let fnTriggerMacKeyCode: CGKeyCode = 79
 
     private func appendDiagnostic(_ message: String) {
         let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)\n"

@@ -15,7 +15,7 @@ final class CloudAccountManager: ObservableObject {
     @Published private(set) var statusMessage = "尚未登录。"
     @Published var alertMessage: String?
 
-    private let fallbackAPIBase = "https://typeless-220629-6-1398334410.sh.run.tcloudbase.com"
+    private let fallbackAPIBase = "https://956798.xyz/prod-api"
     private let tokenKey = "lab.jawa.ahakeyconfig.cloud.accessToken"
     private let rememberKey = "lab.jawa.ahakeyconfig.cloud.remember"
     private let phoneKey = "lab.jawa.ahakeyconfig.cloud.phone"
@@ -35,11 +35,11 @@ final class CloudAccountManager: ObservableObject {
     }
 
     func login() {
-        authenticate(path: "api/v1/auth/login", successMessage: "登录成功。")
+        authenticate(path: "api/v1/auth/login", successMessage: "登录成功。", fallbackError: "登录失败。")
     }
 
     func register() {
-        authenticate(path: "api/v1/auth/register", successMessage: "注册成功。")
+        authenticate(path: "api/v1/auth/register", successMessage: "注册成功。", fallbackError: "注册失败。")
     }
 
     func logout() {
@@ -57,7 +57,7 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = "请输入账号密码重新登录。"
     }
 
-    func refreshProfile() {
+    func refreshProfile(showAlertOnFailure: Bool = true) {
         guard !accessToken.isEmpty else {
             logout()
             return
@@ -67,7 +67,7 @@ final class CloudAccountManager: ObservableObject {
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/users/me", method: "GET", body: nil, authorized: true)
+                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true)
                 let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
                 await MainActor.run {
                     self.applyProfile(data)
@@ -75,9 +75,13 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    self.alertMessage = error.localizedDescription
-                    self.statusMessage = "刷新失败。"
-                    if (error as? CloudAccountError)?.statusCode == 401 {
+                    if showAlertOnFailure {
+                        self.alertMessage = error.localizedDescription
+                        self.statusMessage = "刷新失败。"
+                    } else {
+                        self.statusMessage = "已登录，用户信息稍后可刷新。"
+                    }
+                    if showAlertOnFailure, (error as? CloudAccountError)?.statusCode == 401 {
                         self.logout()
                     }
                 }
@@ -130,12 +134,12 @@ final class CloudAccountManager: ObservableObject {
                     authorized: true
                 )
                 let data = try payloadData(from: object, fallbackError: "创建支付订单失败")
-                let codeURL = stringValue(data["code_url"])
-                let h5URL = stringValue(data["h5_url"])
-                let outTradeNo = stringValue(data["out_trade_no"])
+                let codeURL = firstString(in: data, keys: ["code_url", "codeUrl"])
+                let h5URL = firstString(in: data, keys: ["h5_url", "h5Url", "mweb_url", "mwebUrl"])
+                let outTradeNo = firstString(in: data, keys: ["out_trade_no", "outTradeNo"])
                 guard !outTradeNo.isEmpty else { throw CloudAccountError("云端未返回订单号，无法查询支付状态。") }
                 guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError("云端未返回可支付链接。") }
-                let amountFen = intValue(data["amount_fen"])
+                let amountFen = firstInt(in: data, keys: ["amount_fen", "amountFen"])
                 await MainActor.run {
                     self.paymentOrder = CloudPaymentOrder(
                         plan: plan,
@@ -160,6 +164,29 @@ final class CloudAccountManager: ObservableObject {
     func clearPaymentOrder() {
         paymentOrder = nil
         statusMessage = "已关闭支付订单。"
+    }
+
+    func refreshCurrentPaymentOrder() {
+        guard let order = paymentOrder else {
+            refreshProfile()
+            return
+        }
+        isBusy = true
+        statusMessage = "正在查询订单状态…"
+        Task {
+            defer { Task { @MainActor in self.isBusy = false } }
+            do {
+                let status = try await fetchPaymentStatus(outTradeNo: order.outTradeNo)
+                await MainActor.run {
+                    _ = self.applyPaymentStatus(status, outTradeNo: order.outTradeNo, notifyPending: true)
+                }
+            } catch {
+                await MainActor.run {
+                    self.alertMessage = error.localizedDescription
+                    self.statusMessage = "订单状态查询失败。"
+                }
+            }
+        }
     }
 
     var profileSummary: String {
@@ -198,29 +225,11 @@ final class CloudAccountManager: ObservableObject {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if self.paymentOrder?.outTradeNo != outTradeNo { return }
                 do {
-                    let path = "api/v1/payment/wechat/order-status?out_trade_no=\(outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo)"
-                    let object = try await request(path: path, method: "GET", body: nil, authorized: true)
-                    let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
-                    let status = stringValue(data["status"]).lowercased()
-                    await MainActor.run {
-                        if var order = self.paymentOrder, order.outTradeNo == outTradeNo {
-                            order.status = status.isEmpty ? order.status : status
-                            self.paymentOrder = order
-                        }
+                    let status = try await fetchPaymentStatus(outTradeNo: outTradeNo)
+                    let finished = await MainActor.run {
+                        self.applyPaymentStatus(status, outTradeNo: outTradeNo, notifyPending: false)
                     }
-                    if status == "paid" {
-                        await MainActor.run {
-                            self.statusMessage = "充值成功，正在刷新额度。"
-                            self.paymentOrder = nil
-                            self.refreshProfile()
-                        }
-                        return
-                    }
-                    if status == "failed" {
-                        await MainActor.run {
-                            self.statusMessage = "订单支付失败。"
-                            self.alertMessage = "订单已标记为失败，请重新发起充值。"
-                        }
+                    if finished {
                         return
                     }
                 } catch {
@@ -236,7 +245,40 @@ final class CloudAccountManager: ObservableObject {
         }
     }
 
-    private func authenticate(path: String, successMessage: String) {
+    private func fetchPaymentStatus(outTradeNo: String) async throws -> String {
+        let encoded = outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo
+        let path = "api/v1/payment/wechat/order-status?outTradeNo=\(encoded)"
+        let object = try await request(path: path, method: "GET", body: nil, authorized: true)
+        let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
+        return normalizedPaymentStatus(from: data)
+    }
+
+    @discardableResult
+    private func applyPaymentStatus(_ status: String, outTradeNo: String, notifyPending: Bool) -> Bool {
+        let normalized = status.isEmpty ? "pending" : status
+        if var order = paymentOrder, order.outTradeNo == outTradeNo {
+            order.status = normalized
+            paymentOrder = order
+        }
+        if isPaidPaymentStatus(normalized) {
+            statusMessage = "充值成功，正在刷新额度。"
+            paymentOrder = nil
+            refreshProfile()
+            return true
+        }
+        if isFailedPaymentStatus(normalized) {
+            statusMessage = "订单支付失败。"
+            alertMessage = "订单已标记为失败，请重新发起充值。"
+            return true
+        }
+        statusMessage = "订单尚未到账，请稍后再刷新。"
+        if notifyPending {
+            alertMessage = "当前订单仍未到账，请确认微信支付已完成后再刷新。"
+        }
+        return false
+    }
+
+    private func authenticate(path: String, successMessage: String, fallbackError: String) {
         let p = phone.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !p.isEmpty, !password.isEmpty else {
             alertMessage = "请输入手机号和密码。"
@@ -248,15 +290,15 @@ final class CloudAccountManager: ObservableObject {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: path, method: "POST", body: ["phone": p, "password": password], authorized: false)
-                let data = try payloadData(from: object, fallbackError: successMessage)
-                let token = stringValue(data["access_token"])
+                let data = try payloadData(from: object, fallbackError: fallbackError)
+                let token = firstString(in: data, keys: ["access_token", "token"])
                 guard !token.isEmpty else { throw CloudAccountError("云端未返回 access_token。") }
                 await MainActor.run {
-                    self.saveLogin(token: token)
+                    self.saveLogin(token: token, authData: data)
                     self.statusMessage = successMessage
                 }
                 await MainActor.run {
-                    self.refreshProfile()
+                    self.refreshProfile(showAlertOnFailure: false)
                 }
             } catch {
                 await MainActor.run {
@@ -267,7 +309,7 @@ final class CloudAccountManager: ObservableObject {
         }
     }
 
-    private func saveLogin(token: String) {
+    private func saveLogin(token: String, authData: [String: Any] = [:]) {
         let defaults = UserDefaults.standard
         defaults.set(token, forKey: tokenKey)
         defaults.set(rememberPassword, forKey: rememberKey)
@@ -278,14 +320,79 @@ final class CloudAccountManager: ObservableObject {
             defaults.removeObject(forKey: passwordKey)
         }
         AhaTypeTextOptimizer.shared.patchCloudToken(token)
+        seedLocalProfile(token: token, authData: authData)
         isLoggedIn = true
     }
 
     private func applyProfile(_ profile: [String: Any]) {
-        self.profile = profile
+        let normalized = normalizedProfile(profile)
+        self.profile = normalized
         isLoggedIn = true
         AhaTypeTextOptimizer.shared.patchCloudToken(accessToken)
+        AhaTypeTextOptimizer.shared.setUserProfile(normalized)
+    }
+
+    private func seedLocalProfile(token: String, authData: [String: Any]) {
+        var profile = normalizedProfile(authData)
+        let phoneValue = firstString(in: authData, keys: ["phone", "mobile", "username"])
+        profile["phone"] = phoneValue.isEmpty ? phone.trimmingCharacters(in: .whitespacesAndNewlines) : phoneValue
+        let userID = firstString(in: authData, keys: ["id", "user_id", "userId"])
+        if !userID.isEmpty {
+            profile["user_id"] = userID
+            profile["id"] = userID
+        }
+        if let validUntil = jwtExpirationString(token) {
+            profile["token_valid_until"] = validUntil
+        }
+        profile["limit_daily"] = firstInt(in: authData, keys: ["limit_daily", "limitDaily"])
+        profile["limit_weekly"] = firstInt(in: authData, keys: ["limit_weekly", "limitWeekly"])
+        profile["limit_monthly"] = firstInt(in: authData, keys: ["limit_monthly", "limitMonthly"])
+        profile["used_daily"] = firstInt(in: authData, keys: ["used_daily", "usedDaily"])
+        profile["used_weekly"] = firstInt(in: authData, keys: ["used_weekly", "usedWeekly"])
+        profile["used_monthly"] = firstInt(in: authData, keys: ["used_monthly", "usedMonthly"])
+        self.profile = profile
         AhaTypeTextOptimizer.shared.setUserProfile(profile)
+    }
+
+    private func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
+        var profile = raw
+        let aliases: [(String, String)] = [
+            ("id", "userId"),
+            ("user_id", "userId"),
+            ("token_valid_until", "tokenValidUntil"),
+            ("limit_daily", "limitDaily"),
+            ("limit_weekly", "limitWeekly"),
+            ("limit_monthly", "limitMonthly"),
+            ("used_daily", "usedDaily"),
+            ("used_weekly", "usedWeekly"),
+            ("used_monthly", "usedMonthly"),
+        ]
+        for (snake, camel) in aliases where profile[snake] == nil {
+            if let value = raw[camel] {
+                profile[snake] = value
+            }
+        }
+        if stringValue(profile["token_valid_until"]).isEmpty, let validUntil = jwtExpirationString(accessToken) {
+            profile["token_valid_until"] = validUntil
+        }
+        if var policy = profile["policy"] as? [String: Any] {
+            let policyAliases: [(String, String)] = [
+                ("recharge_prices_fen", "rechargePricesFen"),
+                ("default_limit_daily", "defaultLimitDaily"),
+                ("default_limit_weekly", "defaultLimitWeekly"),
+                ("default_limit_monthly", "defaultLimitMonthly"),
+                ("enable_daily", "enableDaily"),
+                ("enable_weekly", "enableWeekly"),
+                ("enable_monthly", "enableMonthly"),
+            ]
+            for (snake, camel) in policyAliases where policy[snake] == nil {
+                if let value = policy[camel] {
+                    policy[snake] = value
+                }
+            }
+            profile["policy"] = policy
+        }
+        return profile
     }
 
     private func request(path: String, method: String, body: [String: Any]?, authorized: Bool) async throws -> [String: Any] {
@@ -313,14 +420,15 @@ final class CloudAccountManager: ObservableObject {
             throw CloudAccountError("服务器返回非 JSON。", statusCode: statusCode)
         }
         if statusCode != 200 {
-            throw CloudAccountError(stringValue(object["errorMsg"]).isEmpty ? "请求失败（HTTP \(statusCode)）。" : stringValue(object["errorMsg"]), statusCode: statusCode)
+            throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
         }
         return object
     }
 
     private func payloadData(from object: [String: Any], fallbackError: String) throws -> [String: Any] {
-        guard intValue(object["code"]) == 0 else {
-            let msg = stringValue(object["errorMsg"])
+        let code = intValue(object["code"])
+        guard code == 0 || code == 200 else {
+            let msg = responseMessage(object)
             throw CloudAccountError(msg.isEmpty ? fallbackError : msg)
         }
         return object["data"] as? [String: Any] ?? [:]
@@ -353,6 +461,90 @@ final class CloudAccountManager: ObservableObject {
         case let number as NSNumber: return number.stringValue
         default: return ""
         }
+    }
+
+    private func firstString(in object: [String: Any], keys: [String]) -> String {
+        for key in keys {
+            let value = stringValue(object[key]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { return value }
+        }
+        return ""
+    }
+
+    private func firstInt(in object: [String: Any], keys: [String]) -> Int {
+        for key in keys {
+            let value = intValue(object[key])
+            if value != 0 { return value }
+        }
+        return 0
+    }
+
+    private func normalizedPaymentStatus(from data: [String: Any]) -> String {
+        firstString(in: data, keys: ["status", "tradeState", "trade_state", "payStatus", "pay_status", "orderStatus", "order_status"])
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+    }
+
+    private func isPaidPaymentStatus(_ status: String) -> Bool {
+        let normalized = status.lowercased().replacingOccurrences(of: "-", with: "_")
+        return [
+            "paid",
+            "success",
+            "succeeded",
+            "complete",
+            "completed",
+            "pay_success",
+            "trade_success",
+            "wechat_success",
+            "finished",
+            "done",
+            "1",
+        ].contains(normalized)
+    }
+
+    private func isFailedPaymentStatus(_ status: String) -> Bool {
+        let normalized = status.lowercased().replacingOccurrences(of: "-", with: "_")
+        return [
+            "failed",
+            "failure",
+            "fail",
+            "closed",
+            "cancelled",
+            "canceled",
+            "expired",
+            "timeout",
+            "trade_closed",
+            "pay_error",
+            "2",
+        ].contains(normalized)
+    }
+
+    private func responseMessage(_ object: [String: Any]) -> String {
+        firstString(in: object, keys: ["errorMsg", "msg", "message", "error"])
+    }
+
+    private func jwtExpirationString(_ token: String) -> String? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+        guard let data = Data(base64Encoded: payload),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let exp = Double(intValue(object["exp"]))
+        guard exp > 0 else { return nil }
+        let date = Date(timeIntervalSince1970: exp)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter.string(from: date)
     }
 
     private func intValue(_ value: Any?) -> Int {

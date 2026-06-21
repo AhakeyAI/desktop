@@ -10,7 +10,10 @@ enum AhaKeyCommand {
     static let oledWidth = 160
     static let oledHeight = 80
     static let oledFrameSlotSize = 28_672
-    static let oledMaxFrames = 74
+    static let oledFactoryReservedSlots = 10
+    static let oledModeCount = 4
+    static let oledMaxFramesPerMode = 70
+    static let oledMaxFrames = oledMaxFramesPerMode
     /// 用户选择的 GIF 源文件大小上限（避免过大文件拖慢解码与 BLE 上传）。
     static let oledMaxSourceFileBytes = 2 * 1024 * 1024 // 2 MB
     /// 固件端要求每个 prepareWrite 的 address 必须 4096 字节对齐（flash 扇区大小）。
@@ -29,6 +32,14 @@ enum AhaKeyCommand {
     static let cmdUpdatePic: UInt8 = 0x82
     static let cmdReadPicState: UInt8 = 0x83
     static let cmdUpdateState: UInt8 = 0x90  // IDE 状态 → LED 变色
+    static let cmdPreviewLightEffect: UInt8 = 0x91 // 直接预览灯效，不保存配置
+    static let cmdSetLightMapping: UInt8 = 0x84  // per-mode per-state LED 映射
+    static let cmdSetBrightness: UInt8 = 0x85    // 全局 WS2812 亮度 1-100
+    static let cmdSetWorkMode: UInt8 = 0x92      // 远程切换工作模式 0-3
+
+    static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
+        UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
+    }
 
     // 按键子类型 (KeySubType)
     static let subShortcut: UInt8 = 0x73
@@ -47,7 +58,7 @@ enum AhaKeyCommand {
 
     /// 键码写入 → AA BB 73 73 [mode] [key_index] [hid_codes...] CC DD
     /// - Parameters:
-    ///   - mode: 工作模式 0-2
+    ///   - mode: 工作模式 0-3
     ///   - keyIndex: 0=Key1, 1=Key2, 2=Key3, 3=Key4
     ///   - hidCodes: HID Usage ID 数组（修饰键在前，普通键在后，最多 98 字节）
     static func setKeyMapping(mode: UInt8 = 0, keyIndex: UInt8, hidCodes: [UInt8]) -> Data {
@@ -57,9 +68,9 @@ enum AhaKeyCommand {
 
     /// 描述写入 → AA BB 73 75 [mode] [key_index] [utf8...] CC DD
     /// - Parameters:
-    ///   - mode: 工作模式 0-2
+    ///   - mode: 工作模式 0-3
     ///   - keyIndex: 0=Key1, 1=Key2, 2=Key3, 3=Key4
-    ///   - text: 显示在 OLED 上的按键描述（最多 20 字节 ASCII）
+    ///   - text: 显示在 LCD 上的按键描述（最多 20 字节 ASCII）
     static func setKeyDescription(mode: UInt8 = 0, keyIndex: UInt8, text: String) -> Data {
         let textBytes = Array(text.sanitizedASCII(maxLength: 20).utf8)
         let payload: [UInt8] = [subDescription, mode, keyIndex] + textBytes
@@ -102,7 +113,7 @@ enum AhaKeyCommand {
         return Data(header + [cmdPrepareWrite] + payload + trailer)
     }
 
-    /// 更新 OLED 动画参数 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
+    /// 更新 LCD 动画参数 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
     static func updatePicture(mode: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
         let payload: [UInt8] = [
             mode,
@@ -121,11 +132,34 @@ enum AhaKeyCommand {
     static func updateState(_ state: IDEState) -> Data {
         Data(header + [cmdUpdateState, state.rawValue] + trailer)
     }
+
+    /// per-mode per-state LED 灯效映射 → AA BB 84 [mode] [state0_light]...[state8_light] CC DD
+    static func setLightMapping(mode: UInt8, stateEffects: [UInt8]) -> Data {
+        var effects = Array(stateEffects.prefix(9))
+        while effects.count < 9 { effects.append(0) }
+        return Data(header + [cmdSetLightMapping, mode] + effects + trailer)
+    }
+
+    /// 全局 WS2812 亮度 → AA BB 85 [brightness] CC DD
+    static func setBrightness(_ value: UInt8) -> Data {
+        let clamped = max(1, min(100, value))
+        return Data(header + [cmdSetBrightness, clamped] + trailer)
+    }
+
+    /// 直接预览某个灯效 → AA BB 91 [effect] CC DD
+    static func previewLightEffect(_ effect: UInt8) -> Data {
+        Data(header + [cmdPreviewLightEffect, effect] + trailer)
+    }
+
+    /// 切换工作模式 → AA BB 92 [mode] CC DD
+    static func setWorkMode(_ mode: UInt8) -> Data {
+        Data(header + [cmdSetWorkMode, min(3, mode)] + trailer)
+    }
 }
 
 /// IDE 状态枚举（原厂 ClaudeState）
 /// 发送到键盘后驱动 LED 颜色变化
-enum IDEState: UInt8, CaseIterable {
+enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
     case notification = 0        // 通知
     case permissionRequest = 1   // 等待授权
     case postToolUse = 2         // 工具执行完毕
@@ -149,6 +183,34 @@ enum IDEState: UInt8, CaseIterable {
         case .sessionEnd: return "8 会话结束"
         }
     }
+
+    var id: UInt8 { rawValue }
+
+    static let workflowOrder: [IDEState] = [
+        .sessionStart,
+        .userPromptSubmit,
+        .preToolUse,
+        .permissionRequest,
+        .postToolUse,
+        .notification,
+        .taskCompleted,
+        .stop,
+        .sessionEnd,
+    ]
+
+    var shortLabel: String {
+        switch self {
+        case .notification: return "通知"
+        case .permissionRequest: return "等待授权"
+        case .postToolUse: return "工具完毕"
+        case .preToolUse: return "工具执行"
+        case .sessionStart: return "会话开始"
+        case .stop: return "停止"
+        case .taskCompleted: return "任务完成"
+        case .userPromptSubmit: return "用户提交"
+        case .sessionEnd: return "会话结束"
+        }
+    }
 }
 
 /// 设备状态响应解析结果
@@ -160,6 +222,7 @@ struct AhaKeyDeviceStatus {
     let workMode: Int
     let lightMode: Int
     let switchState: Int
+    let brightness: Int
 }
 
 struct AhaKeyPictureState {
@@ -196,6 +259,7 @@ enum AhaKeyResponseParser {
         guard payload.count >= 8, payload[payload.startIndex] == 0x00 else { return nil }
 
         let base = payload.startIndex + 1 // skip cmd echo
+        let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 35
         return AhaKeyDeviceStatus(
             battery: Int(payload[base]),
             signal: Int(Int8(bitPattern: payload[base + 1])),
@@ -203,7 +267,8 @@ enum AhaKeyResponseParser {
             firmwareSub: Int(payload[base + 3]),
             workMode: Int(payload[base + 4]),
             lightMode: Int(payload[base + 5]),
-            switchState: Int(payload[base + 6])
+            switchState: Int(payload[base + 6]),
+            brightness: brightness
         )
     }
 
@@ -275,6 +340,38 @@ enum HIDUsage {
     static let space: UInt8 = 0x2C
     static let capsLock: UInt8 = 0x39
     static let deleteForward: UInt8 = 0x4C
+    static let insert: UInt8 = 0x49
+    static let home: UInt8 = 0x4A
+    static let pageUp: UInt8 = 0x4B
+    static let end: UInt8 = 0x4D
+    static let pageDown: UInt8 = 0x4E
+    static let minus: UInt8 = 0x2D
+    static let equal: UInt8 = 0x2E
+    static let leftBracket: UInt8 = 0x2F
+    static let rightBracket: UInt8 = 0x30
+    static let backslash: UInt8 = 0x31
+    static let semicolon: UInt8 = 0x33
+    static let quote: UInt8 = 0x34
+    static let grave: UInt8 = 0x35
+    static let comma: UInt8 = 0x36
+    static let period: UInt8 = 0x37
+    static let slash: UInt8 = 0x38
+    static let keypadSlash: UInt8 = 0x54
+    static let keypadAsterisk: UInt8 = 0x55
+    static let keypadMinus: UInt8 = 0x56
+    static let keypadPlus: UInt8 = 0x57
+    static let keypadEnter: UInt8 = 0x58
+    static let keypad1: UInt8 = 0x59
+    static let keypad2: UInt8 = 0x5A
+    static let keypad3: UInt8 = 0x5B
+    static let keypad4: UInt8 = 0x5C
+    static let keypad5: UInt8 = 0x5D
+    static let keypad6: UInt8 = 0x5E
+    static let keypad7: UInt8 = 0x5F
+    static let keypad8: UInt8 = 0x60
+    static let keypad9: UInt8 = 0x61
+    static let keypad0: UInt8 = 0x62
+    static let keypadPeriod: UInt8 = 0x63
 
     // 方向键
     static let rightArrow: UInt8 = 0x4F
@@ -293,7 +390,11 @@ enum HIDUsage {
         // 基础键
         ("Enter", enter), ("Escape", escape), ("Backspace", backspace),
         ("Tab", tab), ("Space", space), ("CapsLock", capsLock),
-        ("Delete", deleteForward),
+        ("Delete", deleteForward), ("Insert", insert), ("Home", home),
+        ("End", end), ("Page Up", pageUp), ("Page Down", pageDown),
+        ("-", minus), ("=", equal), ("[", leftBracket), ("]", rightBracket),
+        ("\\", backslash), (";", semicolon), ("'", quote), ("`", grave),
+        (",", comma), (".", period), ("/", slash),
         // 方向键
         ("→", rightArrow), ("←", leftArrow), ("↓", downArrow), ("↑", upArrow),
         // 字母键
@@ -313,6 +414,14 @@ enum HIDUsage {
         ("Left Alt", leftAlt), ("Left Cmd", leftGUI),
         ("Right Ctrl", rightControl), ("Right Shift", rightShift),
         ("Right Alt", rightAlt), ("Right Cmd", rightGUI),
+        // 小键盘
+        ("Keypad /", keypadSlash), ("Keypad *", keypadAsterisk),
+        ("Keypad -", keypadMinus), ("Keypad +", keypadPlus),
+        ("Keypad Enter", keypadEnter), ("Keypad 0", keypad0),
+        ("Keypad 1", keypad1), ("Keypad 2", keypad2), ("Keypad 3", keypad3),
+        ("Keypad 4", keypad4), ("Keypad 5", keypad5), ("Keypad 6", keypad6),
+        ("Keypad 7", keypad7), ("Keypad 8", keypad8), ("Keypad 9", keypad9),
+        ("Keypad .", keypadPeriod),
     ]
 
     static let primaryOptions = allOptions
@@ -321,10 +430,124 @@ enum HIDUsage {
     static func name(for code: UInt8) -> String {
         allOptions.first { $0.code == code }?.name ?? String(format: "0x%02X", code)
     }
+
+    static func hidCode(forMacKeyCode keyCode: UInt16) -> UInt8? {
+        switch keyCode {
+        case 0: return 0x04 // A
+        case 1: return 0x16 // S
+        case 2: return 0x07 // D
+        case 3: return 0x09 // F
+        case 4: return 0x0B // H
+        case 5: return 0x0A // G
+        case 6: return 0x1D // Z
+        case 7: return 0x1B // X
+        case 8: return 0x06 // C
+        case 9: return 0x19 // V
+        case 11: return 0x05 // B
+        case 12: return 0x14 // Q
+        case 13: return 0x1A // W
+        case 14: return 0x08 // E
+        case 15: return 0x15 // R
+        case 16: return 0x1C // Y
+        case 17: return 0x17 // T
+        case 18: return 0x1E // 1
+        case 19: return 0x1F // 2
+        case 20: return 0x20 // 3
+        case 21: return 0x21 // 4
+        case 22: return 0x23 // 6
+        case 23: return 0x22 // 5
+        case 24: return equal
+        case 25: return 0x26 // 9
+        case 26: return 0x24 // 7
+        case 27: return minus
+        case 28: return 0x25 // 8
+        case 29: return 0x27 // 0
+        case 30: return rightBracket
+        case 31: return 0x12 // O
+        case 32: return 0x18 // U
+        case 33: return leftBracket
+        case 34: return 0x0C // I
+        case 35: return 0x13 // P
+        case 36: return enter
+        case 37: return 0x0F // L
+        case 38: return 0x0D // J
+        case 39: return quote
+        case 40: return 0x0E // K
+        case 41: return semicolon
+        case 42: return backslash
+        case 43: return comma
+        case 44: return slash
+        case 45: return 0x11 // N
+        case 46: return 0x10 // M
+        case 47: return period
+        case 48: return tab
+        case 49: return space
+        case 50: return grave
+        case 51: return backspace
+        case 53: return escape
+        case 54: return rightGUI
+        case 55: return leftGUI
+        case 56: return leftShift
+        case 57: return capsLock
+        case 58: return leftAlt
+        case 59: return leftControl
+        case 60: return rightShift
+        case 61: return rightAlt
+        case 62: return rightControl
+        case 63: return f19 // Fn/Globe reports as a function modifier on many Mac keyboards.
+        case 64: return f17
+        case 65: return keypadPeriod
+        case 67: return keypadAsterisk
+        case 69: return keypadPlus
+        case 71: return 0x53 // Keypad Clear / Num Lock
+        case 75: return keypadSlash
+        case 76: return keypadEnter
+        case 78: return keypadMinus
+        case 79: return f18
+        case 80: return f19
+        case 82: return keypad0
+        case 83: return keypad1
+        case 84: return keypad2
+        case 85: return keypad3
+        case 86: return keypad4
+        case 87: return keypad5
+        case 88: return keypad6
+        case 89: return keypad7
+        case 90: return f20
+        case 91: return keypad8
+        case 92: return keypad9
+        case 96: return f5
+        case 97: return f6
+        case 98: return f7
+        case 99: return f3
+        case 100: return f8
+        case 101: return f9
+        case 103: return f11
+        case 105: return f13
+        case 106: return f16
+        case 107: return f14
+        case 109: return f10
+        case 111: return f12
+        case 113: return f15
+        case 115: return home
+        case 116: return pageUp
+        case 117: return deleteForward
+        case 118: return f4
+        case 119: return end
+        case 120: return f2
+        case 121: return pageDown
+        case 122: return f1
+        case 123: return leftArrow
+        case 124: return rightArrow
+        case 125: return downArrow
+        case 126: return upArrow
+        default: return nil
+        }
+    }
 }
 
 extension String {
-    /// 设备 OLED 描述只稳定支持 ASCII；非 ASCII 字符会在设备端变成乱码。
+    /// 设备 LCD 描述只稳定支持 ASCII；非 ASCII 字符会在设备端变成乱码。
     func sanitizedASCII(maxLength: Int) -> String {
         var result = String()
         result.reserveCapacity(min(maxLength, count))

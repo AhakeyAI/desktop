@@ -7,6 +7,7 @@ enum OLEDFrameEncodingError: LocalizedError {
     case noFrames
     case cannotCreateContext
     case sourceFileTooLarge(fileSize: Int, maxBytes: Int)
+    case tooManyFrames(count: Int, max: Int)
 
     var errorDescription: String? {
         switch self {
@@ -15,14 +16,16 @@ enum OLEDFrameEncodingError: LocalizedError {
         case .noFrames:
             return "没有可编码的图片帧。"
         case .cannotCreateContext:
-            return "无法创建 OLED 编码上下文。"
+            return "无法创建 LCD 编码上下文。"
         case .sourceFileTooLarge(let fileSize, let maxBytes):
             let f = ByteCountFormatter()
             f.allowedUnits = [.useMB, .useKB, .useBytes]
             f.countStyle = .file
             let a = f.string(fromByteCount: Int64(fileSize))
             let b = f.string(fromByteCount: Int64(maxBytes))
-            return "GIF 源文件约 \(a)，超过单文件上限 \(b)。请压缩分辨率、减少帧数或缩短动图后再试。"
+            return "图片源文件约 \(a)，超过单文件上限 \(b)。请压缩分辨率、减少帧数或缩短动图后再试。"
+        case .tooManyFrames(let count, let max):
+            return "当前动图共有 \(count) 帧，超过单模式上限 \(max) 帧。请减少帧数或缩短动图后再试。"
         }
     }
 }
@@ -30,7 +33,7 @@ enum OLEDFrameEncodingError: LocalizedError {
 enum OLEDFrameEncoder {
     static func frameCount(at url: URL) -> Int {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return 0 }
-        return min(CGImageSourceGetCount(source), AhaKeyCommand.oledMaxFrames)
+        return CGImageSourceGetCount(source)
     }
 
     /// 源 GIF 文件字节数；无法读取时返回 `nil`。
@@ -53,15 +56,31 @@ enum OLEDFrameEncoder {
         }
     }
 
+    static func validateFrameCount(at url: URL) throws {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            throw OLEDFrameEncodingError.cannotCreateImageSource
+        }
+        let count = CGImageSourceGetCount(source)
+        guard count > 0 else {
+            throw OLEDFrameEncodingError.noFrames
+        }
+        guard count <= AhaKeyCommand.oledMaxFramesPerMode else {
+            throw OLEDFrameEncodingError.tooManyFrames(count: count, max: AhaKeyCommand.oledMaxFramesPerMode)
+        }
+    }
+
     static func frames(fromGIFAt url: URL) throws -> [Data] {
         try validateGIFSourceFileSize(at: url)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw OLEDFrameEncodingError.cannotCreateImageSource
         }
 
-        let count = min(CGImageSourceGetCount(source), AhaKeyCommand.oledMaxFrames)
+        let count = CGImageSourceGetCount(source)
         guard count > 0 else {
             throw OLEDFrameEncodingError.noFrames
+        }
+        guard count <= AhaKeyCommand.oledMaxFramesPerMode else {
+            throw OLEDFrameEncodingError.tooManyFrames(count: count, max: AhaKeyCommand.oledMaxFramesPerMode)
         }
 
         var frames: [Data] = []

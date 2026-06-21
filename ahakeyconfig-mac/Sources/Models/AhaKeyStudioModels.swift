@@ -4,26 +4,29 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
     case mode0 = 0
     case mode1 = 1
     case mode2 = 2
+    case mode3 = 3
 
     var id: Int { rawValue }
 
     var title: String {
-        "Mode \(rawValue)"
+        "Mode \(rawValue + 1)"
     }
 
     var shortTitle: String {
-        "M\(rawValue)"
+        "M\(rawValue + 1)"
+    }
+
+    var defaultName: String {
+        switch self {
+        case .mode0: "Claude"
+        case .mode1: "Cursor"
+        case .mode2: "Codex"
+        case .mode3: "custom"
+        }
     }
 
     var name: String {
-        switch self {
-        case .mode0:
-            "Claude Code"
-        case .mode1:
-            "Cursor"
-        case .mode2:
-            "Codex"
-        }
+        AhaKeyModeNameStore.load()[rawValue] ?? defaultName
     }
 
     var subtitle: String {
@@ -33,7 +36,9 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode1:
             "Cursor · Composer Accept/Reject"
         case .mode2:
-            "Codex · CLI ↵ / Esc"
+            "Codex · ↵ / Esc"
+        case .mode3:
+            "custom · 自定义模式"
         }
     }
 
@@ -42,10 +47,38 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode0:
             "针对 Claude Code 终端权限菜单：Key2 直接输入 Y（同意），Key3 直接输入 N（拒绝）。"
         case .mode1:
-            "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。若需与「⌘↵ 接受 / ⌘⌫ 拒绝」等组合键一致，请在编辑器里为对应键加修饰，并在 Cursor 设置 → Keyboard Shortcuts 中绑成相同组合。"
+            "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。"
         case .mode2:
-            "针对 OpenAI Codex CLI：Key2 发送 ↵ 确认审批，Key3 发送 Esc 取消。"
+            "针对 Codex 终端审批：Key2 发送 ↵ 确认，Key3 发送 Esc 取消。"
+        case .mode3:
+            "自定义模式：可自由配置所有按键和灯效。"
         }
+    }
+
+    var guidanceHoverDetail: String? {
+        switch self {
+        case .mode1:
+            return "若需与「⌘↵ 接受 / ⌘⌫ 拒绝」等组合键一致，请在编辑器里为对应键加修饰，并在 Cursor 设置 → Keyboard Shortcuts 中绑成相同组合。"
+        case .mode0, .mode2, .mode3:
+            return nil
+        }
+    }
+}
+
+enum AhaKeyModeNameStore {
+    private static let key = "ahakey.mode.customNames.v1"
+
+    static func load() -> [Int: String] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let dict = try? JSONDecoder().decode([Int: String].self, from: data) else {
+            return [:]
+        }
+        return dict
+    }
+
+    static func save(_ names: [Int: String]) {
+        guard let data = try? JSONEncoder().encode(names) else { return }
+        UserDefaults.standard.set(data, forKey: key)
     }
 }
 
@@ -65,7 +98,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .lightBar:
             "灯条"
         case .oledDisplay:
-            "OLED 屏幕"
+            "LCD 屏幕"
         case .key1:
             "Key 1"
         case .key2:
@@ -92,7 +125,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .key3:
             "取消键"
         case .key4:
-            "回车键"
+            "删除键"
         case .toggleSwitch:
             "批准方式"
         }
@@ -101,7 +134,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     var systemImage: String {
         switch self {
         case .lightBar:
-            "lightspectrum.horizontal"
+            // lightspectrum.horizontal requires macOS 13; fall back to light.max on macOS 12
+            if #available(macOS 13, *) { "lightspectrum.horizontal" } else { "light.max" }
         case .oledDisplay:
             "rectangle.inset.filled"
         case .key1:
@@ -111,7 +145,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .key3:
             "xmark"
         case .key4:
-            "return.left"
+            "delete.left"
         case .toggleSwitch:
             "switch.2"
         }
@@ -131,6 +165,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             nil
         }
     }
+
+    var isKey: Bool { keyRole != nil }
 }
 
 enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
@@ -163,7 +199,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "取消键"
         case .submit:
-            "回车键"
+            "删除键"
         }
     }
 
@@ -176,7 +212,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "xmark"
         case .submit:
-            "return.left"
+            "delete.left"
         }
     }
 
@@ -189,7 +225,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "Reject"
         case .submit:
-            "Enter"
+            "Backspace"
         }
     }
 
@@ -202,7 +238,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "适合拒绝、取消、停止这类相反动作。"
         case .submit:
-            "适合回车、发送、提交这类收尾动作。"
+            "出厂默认 Backspace，适合删除、撤销输入或清理当前内容。"
         }
     }
 }
@@ -315,22 +351,32 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
     case typeless
     case wechat
     case claudeCode
+    case kimiCode
     case codex
     case doubao
     case custom
 
     var id: String { rawValue }
 
+    /// claudeCode / kimiCode 与 macOSNative 底层路由完全相同，合并展示为同一选项。
+    /// 保留枚举 case 是为了向下兼容已存储的配置数据；迁移在 AhaKeyStudioStore 完成。
+    var isMacOSNativeFamily: Bool {
+        self == .macOSNative || self == .claudeCode || self == .kimiCode
+    }
+
+    /// Picker 中实际展示的选项（微信/豆包并入 Fn/Globe；旧 case 保留用于迁移）
+    static var visibleCases: [VoicePreset] {
+        [.macOSNative, .typeless, .custom]
+    }
+
     var title: String {
         switch self {
-        case .macOSNative:
-            "macOS 原生语音"
+        case .macOSNative, .claudeCode, .kimiCode:
+            "macOS 原生转写"
         case .typeless:
-            "Typeless / Fn"
+            "Fn/Globe"
         case .wechat:
             "微信语音"
-        case .claudeCode:
-            "Claude Code"
         case .codex:
             "Codex"
         case .doubao:
@@ -342,15 +388,15 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var detail: String {
         switch self {
-        case .macOSNative:
-            "AhaKey Studio 会在后台直接调用苹果原生语音转写。按一次开始，再按一次结束，并把识别文字写回当前光标。Mode 0 出厂固件的 F18 也能直接接管。"
+        case .macOSNative, .claudeCode, .kimiCode:
+            "调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。"
         case .typeless:
-            "预设对应快捷键：Typeless 内仍选 Fn/Globe。本 Studio 默认用 F19 作为语音触发键（与 macOS 原生 F18 错开）；按下后向系统注入「按住 Fn」供随声写使用。Mode 0 出厂语音键 F18 仍会额外注册兼容。请授予输入监控与辅助功能。"
+            "预设对应快捷键：Typeless/微信语音/豆包输入法内仍选 Fn/Globe。本 Studio 使用 F19 作为 Fn 触发键；按下后向系统注入「按住 Fn」。旧版 F18 仍会兼容监听。请授予输入监控与辅助功能。"
         case .wechat:
-            "AhaKey Studio 会在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
-        case .claudeCode:
-            "使用 macOS 原生语音识别，把识别结果以 ⌘V 粘贴到 Claude Code 当前光标位置。按一次开始、再按一次结束。"
-        case .codex, .doubao:
+            "AhaKey Studio 使用 F19 作为 Fn 触发键，并在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
+        case .doubao:
+            "豆包输入法 Mac 版需要直接接收真实语音键事件。AhaKey Studio 会切到豆包输入源，并把 F18 配置为豆包长按语音快捷键；按住语音键说话，松开后由豆包提交文字。"
+        case .codex:
             "规划中，保留入口。"
         case .custom:
             "直接自己指定底层快捷键。"
@@ -359,7 +405,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var availableInV1: Bool {
         switch self {
-        case .codex, .doubao:
+        case .codex:
             false
         default:
             true
@@ -374,8 +420,10 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
             // 与 macOS 原生默认 F18 错开；固件可把 Typeless 档语音键设为 F19，Mode 0 另有 F18 出厂兼容路由
             ShortcutBinding(keyCode: HIDUsage.f19)
         case .wechat:
-            ShortcutBinding(keyCode: HIDUsage.f18)
+            ShortcutBinding(keyCode: HIDUsage.f19)
         case .claudeCode:
+            ShortcutBinding(keyCode: HIDUsage.f18)
+        case .kimiCode:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .codex:
             ShortcutBinding(keyCode: HIDUsage.f18)
@@ -436,126 +484,186 @@ enum LightBarPreviewState: String, CaseIterable, Codable, Identifiable {
 }
 
 enum LightEffectStyle: String, CaseIterable, Codable, Identifiable {
+    case off
     case middleLight
     case singleMove
     case breathing
     case rainbowMove
     case rainbowWave
     case rainbowWaveSlow
-    case off
+    case typingRipple
+    case comet
+    case scanBar
+    case pulseCenter
+    case warningBlink
+    case successSweep
+    case blueThinking
+    case lowBattery
+    case chargingFlow
+    case approvalWait
 
     var id: String { rawValue }
 
+    var firmwareIndex: UInt8 {
+        switch self {
+        case .off: 0
+        case .singleMove: 1
+        case .rainbowMove: 2
+        case .rainbowWave: 3
+        case .rainbowWaveSlow: 4
+        case .breathing: 5
+        case .middleLight: 6
+        case .typingRipple: 7
+        case .comet: 8
+        case .scanBar: 9
+        case .pulseCenter: 10
+        case .warningBlink: 11
+        case .successSweep: 12
+        case .blueThinking: 13
+        case .lowBattery: 14
+        case .chargingFlow: 15
+        case .approvalWait: 16
+        }
+    }
+
+    init?(firmwareIndex: UInt8) {
+        guard let match = Self.allCases.first(where: { $0.firmwareIndex == firmwareIndex }) else {
+            return nil
+        }
+        self = match
+    }
+
     var title: String {
         switch self {
-        case .middleLight:
-            "中间停住"
-        case .singleMove:
-            "来回流水"
-        case .breathing:
-            "整条呼吸"
-        case .rainbowMove:
-            "彩虹流水"
-        case .rainbowWave:
-            "彩虹波浪"
-        case .rainbowWaveSlow:
-            "彩虹慢波浪"
-        case .off:
-            "熄灭"
+        case .off: "熄灭"
+        case .middleLight: "中间停住"
+        case .singleMove: "来回流水"
+        case .breathing: "整条呼吸"
+        case .rainbowMove: "彩虹流水"
+        case .rainbowWave: "彩虹波浪"
+        case .rainbowWaveSlow: "彩虹慢波浪"
+        case .typingRipple: "打字涟漪"
+        case .comet: "彗星拖尾"
+        case .scanBar: "扫描条"
+        case .pulseCenter: "中心脉冲"
+        case .warningBlink: "警告闪烁"
+        case .successSweep: "成功扫过"
+        case .blueThinking: "蓝色思考"
+        case .lowBattery: "低电量"
+        case .chargingFlow: "充电流动"
+        case .approvalWait: "等待审批"
         }
     }
 
     var detail: String {
         switch self {
-        case .middleLight:
-            "中间最亮，两侧渐弱，适合停住提示。"
-        case .singleMove:
-            "单点来回移动，适合运行中。"
-        case .breathing:
-            "整条均匀起伏，适合等待确认。"
-        case .rainbowMove:
-            "彩色单点流水，更活跃。"
-        case .rainbowWave:
-            "整条彩色流动，更显眼。"
-        case .rainbowWaveSlow:
-            "比普通彩虹波浪更慢，适合做氛围效果。"
-        case .off:
-            "不点亮灯条。"
+        case .off: "不点亮灯条。"
+        case .middleLight: "中间最亮，两侧渐弱，适合停住提示。"
+        case .singleMove: "单点来回移动，适合运行中。"
+        case .breathing: "整条均匀起伏，适合等待确认。"
+        case .rainbowMove: "彩色单点流水，更活跃。"
+        case .rainbowWave: "整条彩色流动，更显眼。"
+        case .rainbowWaveSlow: "比普通彩虹波浪更慢，适合做氛围效果。"
+        case .typingRipple: "从中心向两侧扩散的涟漪效果。"
+        case .comet: "带拖尾的单向扫过，像彗星。"
+        case .scanBar: "3 灯一组左右扫描。"
+        case .pulseCenter: "中心快速脉冲扩散。"
+        case .warningBlink: "橙色快速闪烁，适合警告。"
+        case .successSweep: "绿色从左到右逐渐点亮。"
+        case .blueThinking: "蓝色呼吸波浪，适合思考中。"
+        case .lowBattery: "红色慢闪，表示低电量。"
+        case .chargingFlow: "绿色填充流动，表示充电中。"
+        case .approvalWait: "琥珀色呼吸 + 中心闪烁，等待用户操作。"
         }
-    }
-
-    func previewIDEState(forSwitchState switchState: Int) -> IDEState? {
-        if switchState == 0 {
-            switch self {
-            case .middleLight:
-                return .sessionStart
-            case .rainbowMove:
-                return .postToolUse
-            case .rainbowWave:
-                return .preToolUse
-            case .off:
-                return .sessionEnd
-            case .singleMove, .breathing, .rainbowWaveSlow:
-                return nil
-            }
-        }
-
-        switch self {
-        case .middleLight:
-            return .stop
-        case .singleMove:
-            return .preToolUse
-        case .breathing:
-            return .permissionRequest
-        case .off:
-            return .sessionEnd
-        case .rainbowMove, .rainbowWave, .rainbowWaveSlow:
-            return nil
-        }
-    }
-
-    func previewHint(forSwitchState switchState: Int) -> String {
-        if let ideState = previewIDEState(forSwitchState: switchState) {
-            return "预览到设备时会按当前固件映射发送 \(ideState.label)。"
-        }
-
-        if switchState == 0 {
-            return "当前拨杆在“自动批准”，设备固件只能直接预览彩虹流水、彩虹波浪、中间停住和熄灭。"
-        }
-
-        return "当前拨杆在“手动批准”，设备固件只能直接预览来回流水、整条呼吸、中间停住和熄灭。"
     }
 }
 
 struct AhaKeyLightStateDraft: Codable, Equatable, Identifiable {
-    var state: LightBarPreviewState
+    var state: IDEState
     var effect: LightEffectStyle
 
-    var id: LightBarPreviewState { state }
+    var id: UInt8 { state.rawValue }
+
+    private enum CodingKeys: String, CodingKey {
+        case state, effect
+    }
+
+    init(state: IDEState, effect: LightEffectStyle) {
+        self.state = state
+        self.effect = effect
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        effect = try container.decode(LightEffectStyle.self, forKey: .effect)
+        if let ideState = try? container.decode(IDEState.self, forKey: .state) {
+            state = ideState
+        } else if let legacy = try? container.decode(LightBarPreviewState.self, forKey: .state) {
+            state = legacy.ideState
+        } else {
+            state = .notification
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(state, forKey: .state)
+        try container.encode(effect, forKey: .effect)
+    }
 }
 
 struct AhaKeyLightBarDraft: Codable, Equatable {
     var stateMappings: [AhaKeyLightStateDraft]
+    var brightness: Int
 
-    func effect(for state: LightBarPreviewState) -> LightEffectStyle {
+    func effect(for state: IDEState) -> LightEffectStyle {
         stateMappings.first(where: { $0.state == state })?.effect ?? .singleMove
     }
 
-    /// 固件 state → 灯效只有一张全局表，三 mode 共用同一套默认值。
-    /// 参数 `mode` 保留是为了避免调用点改动，内容实际与 mode 无关。
-    static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyLightBarDraft {
-        _ = mode
-        return AhaKeyLightBarDraft(stateMappings: [
-            AhaKeyLightStateDraft(state: .aiRunning, effect: .singleMove),
-            AhaKeyLightStateDraft(state: .waitingApproval, effect: .breathing),
-            AhaKeyLightStateDraft(state: .stopped, effect: .middleLight),
-            AhaKeyLightStateDraft(state: .taskCompleted, effect: .middleLight),
-        ])
+    private enum CodingKeys: String, CodingKey {
+        case stateMappings, brightness
     }
 
-    /// 与出厂 `default` 表一致，供 Studio 只读展示与画布（用户不可在软件中改映射）。
-    static func hardwareEffect(for state: LightBarPreviewState) -> LightEffectStyle {
-        AhaKeyLightBarDraft.default(for: .mode0).effect(for: state)
+    init(stateMappings: [AhaKeyLightStateDraft], brightness: Int = 35) {
+        self.stateMappings = stateMappings
+        self.brightness = brightness
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawMappings = try container.decode([AhaKeyLightStateDraft].self, forKey: .stateMappings)
+        let rawBrightness = try container.decodeIfPresent(Int.self, forKey: .brightness) ?? 35
+        brightness = max(1, min(100, rawBrightness))
+
+        if rawMappings.count >= IDEState.allCases.count {
+            stateMappings = rawMappings
+        } else {
+            let defaults = AhaKeyLightBarDraft.defaultMappings
+            var merged = rawMappings
+            for defaultMapping in defaults {
+                if !merged.contains(where: { $0.state == defaultMapping.state }) {
+                    merged.append(defaultMapping)
+                }
+            }
+            stateMappings = merged.sorted { $0.state.rawValue < $1.state.rawValue }
+        }
+    }
+
+    static let defaultMappings: [AhaKeyLightStateDraft] = [
+        AhaKeyLightStateDraft(state: .notification, effect: .pulseCenter),
+        AhaKeyLightStateDraft(state: .permissionRequest, effect: .approvalWait),
+        AhaKeyLightStateDraft(state: .postToolUse, effect: .successSweep),
+        AhaKeyLightStateDraft(state: .preToolUse, effect: .singleMove),
+        AhaKeyLightStateDraft(state: .sessionStart, effect: .rainbowWave),
+        AhaKeyLightStateDraft(state: .stop, effect: .middleLight),
+        AhaKeyLightStateDraft(state: .taskCompleted, effect: .successSweep),
+        AhaKeyLightStateDraft(state: .userPromptSubmit, effect: .breathing),
+        AhaKeyLightStateDraft(state: .sessionEnd, effect: .off),
+    ]
+
+    static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyLightBarDraft {
+        _ = mode
+        return AhaKeyLightBarDraft(stateMappings: defaultMappings, brightness: 35)
     }
 }
 
@@ -763,7 +871,8 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         localAssetPath = try container.decodeIfPresent(String.self, forKey: .localAssetPath)
         statusLine = try container.decode(String.self, forKey: .statusLine)
-        framesPerSecond = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
+        let storedFPS = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
+        framesPerSecond = min(30, max(1, storedFPS))
     }
 
     func encode(to encoder: Encoder) throws {
@@ -781,7 +890,9 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         case .mode1:
             statusLine = "Cursor · ↵ 接受改动 / ⌫ 拒绝改动。"
         case .mode2:
-            statusLine = "Codex · CLI 审批 ↵ / Esc。"
+            statusLine = "Codex · 审批 ↵ / Esc。"
+        case .mode3:
+            statusLine = "自定义模式。"
         }
         return AhaKeyOLEDDraft(
             localAssetPath: DefaultOLEDAssets.bundledAssetPath(for: mode),
@@ -880,6 +991,11 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
             rejectShortcut = ShortcutBinding(keyCode: HIDUsage.escape)
             approveDescription = "Accept"
             rejectDescription = "Reject"
+        case .mode3:
+            approveShortcut = ShortcutBinding(keyCode: HIDUsage.enter)
+            rejectShortcut = ShortcutBinding(keyCode: HIDUsage.escape)
+            approveDescription = "Accept"
+            rejectDescription = "Reject"
         }
 
         return AhaKeyModeDraft(
@@ -906,7 +1022,7 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
                 ),
                 AhaKeyKeyDraft(
                     role: .submit,
-                    shortcut: ShortcutBinding(keyCode: HIDUsage.enter),
+                    shortcut: ShortcutBinding(keyCode: HIDUsage.backspace),
                     description: AhaKeyKeyRole.submit.defaultDescription,
                     voicePreset: nil
                 ),
@@ -940,11 +1056,12 @@ enum AhaKeyStudioStore {
 
     static func load() -> AhaKeyStudioDraft? {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let draft = try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data) else {
+              var draft = try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data) else {
             return nil
         }
-        guard draft.modes.count == AhaKeyModeSlot.allCases.count else {
-            return nil
+        let existingSlots = Set(draft.modes.map(\.mode))
+        for slot in AhaKeyModeSlot.allCases where !existingSlots.contains(slot) {
+            draft.modes.append(AhaKeyModeDraft.default(for: slot))
         }
         return migratedDraft(from: draft)
     }
@@ -979,6 +1096,17 @@ enum AhaKeyStudioStore {
             mode0.updateKey(key)
         }
         next.updateMode(mode0)
+
+        // claudeCode / kimiCode 已合并到 macOSNative，迁移所有 mode 里的旧 preset。
+        for modeSlot in AhaKeyModeSlot.allCases {
+            var modeDraft = next.draft(for: modeSlot)
+            var voiceKey = modeDraft.key(for: .voice)
+            if voiceKey.voicePreset == .claudeCode || voiceKey.voicePreset == .kimiCode {
+                voiceKey.voicePreset = .macOSNative
+                modeDraft.updateKey(voiceKey)
+                next.updateMode(modeDraft)
+            }
+        }
 
         // 旧 Mode 0 = Cursor / 旧 Mode 1 = Claude 的用户，自动对调成新默认布局。
         // 仅当两个 mode 的 approve/reject 都完全等于旧默认时触发，保护手动改过的配置。
@@ -1027,11 +1155,11 @@ enum AhaKeyStudioStore {
 
         let legacyOLEDStatusLines: Set<String> = [
             "当前仅支持动图",
-            "切换模式时会先显示按键描述，再回到 Mode 0 默认动图。",
+            "切换模式时会先显示按键描述，再回到 Mode 1 默认动图。",
             "当前模式还未上传动图，后续可替换成你的自定义 GIF。",
             "Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。",
             "Claude Code · 终端权限菜单 Y/N。",
-            "Codex · CLI 审批 ↵ / Esc。",
+            "Codex · 审批 ↵ / Esc。",
         ]
         let legacyApproveBinding = ShortcutBinding(keyCode: HIDUsage.enter)
         let legacyRejectBinding = ShortcutBinding(keyCode: HIDUsage.escape)
@@ -1046,7 +1174,7 @@ enum AhaKeyStudioStore {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
             }
 
-            // OLED 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
+            // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
             // 刷成当前构建下内置 GIF 的绝对路径；用户自选的外部路径原样保留。
             if let bundled = DefaultOLEDAssets.bundledAssetPath(for: mode) {
                 if modeDraft.oled.localAssetPath == nil
@@ -1060,12 +1188,48 @@ enum AhaKeyStudioStore {
             }
 
             var voiceKey = modeDraft.key(for: .voice)
+            if voiceKey.voicePreset == .wechat || voiceKey.voicePreset == .doubao {
+                voiceKey.voicePreset = .typeless
+                modeDraft.updateKey(voiceKey)
+            }
+            voiceKey = modeDraft.key(for: .voice)
             if voiceKey.voicePreset == .macOSNative,
                voiceKey.shortcut.keyCode == HIDUsage.f17,
                voiceKey.shortcut.modifiers.isEmpty
             {
                 voiceKey.shortcut = ShortcutBinding(keyCode: HIDUsage.f18)
                 modeDraft.updateKey(voiceKey)
+            }
+            if (voiceKey.voicePreset == .typeless || voiceKey.voicePreset == .wechat),
+               voiceKey.shortcut.keyCode == HIDUsage.f18,
+               voiceKey.shortcut.modifiers.isEmpty
+            {
+                voiceKey.shortcut = ShortcutBinding(keyCode: HIDUsage.f19)
+                modeDraft.updateKey(voiceKey)
+            }
+
+            var submitKey = modeDraft.key(for: .submit)
+            if submitKey.macro.isEmpty,
+               submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.enter),
+               (submitKey.description == "Enter" || submitKey.description == "回车" || submitKey.description.isEmpty)
+            {
+                let targetSubmit = target.key(for: .submit)
+                submitKey.shortcut = targetSubmit.shortcut
+                submitKey.description = targetSubmit.description
+                modeDraft.updateKey(submitKey)
+            }
+
+            submitKey = modeDraft.key(for: .submit)
+            if submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.backspace),
+               submitKey.macro.isEmpty,
+               ["", "backspace", "Back space", "Back Space", "删除", "删除键"].contains(submitKey.description)
+            {
+                submitKey.description = AhaKeyKeyRole.submit.defaultDescription
+                modeDraft.updateKey(submitKey)
+            }
+
+            if modeDraft.lightBar.brightness == 50 {
+                modeDraft.lightBar.brightness = 35
             }
 
             // 旧版「全模式通用」模板曾用 主键↵/Esc + Accept/Reject 文案。Codex/其它 mode 的升级仍需要；
@@ -1169,16 +1333,6 @@ enum AhaKeyStudioStore {
             }
 
             next.updateMode(modeDraft)
-        }
-
-        // 灯条为出厂固件内建映射，已不在 App 中自定义；三 mode 均固定为同一张出厂表。
-        let factoryLightBar = AhaKeyLightBarDraft.default(for: .mode0)
-        for mode in AhaKeyModeSlot.allCases {
-            var modeDraft = next.draft(for: mode)
-            if modeDraft.lightBar != factoryLightBar {
-                modeDraft.lightBar = factoryLightBar
-                next.updateMode(modeDraft)
-            }
         }
 
         return next

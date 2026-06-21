@@ -1,6 +1,6 @@
 import Foundation
 
-/// 访问 app bundle 内置的默认 OLED 素材。
+/// 访问 app bundle 内置的默认 LCD 素材。
 /// 资源由 scripts/build-debug.sh 从项目根的 Resources/DefaultOLED/ 拷贝到
 /// AhaKey Studio.app/Contents/Resources/DefaultOLED/。
 enum DefaultOLEDAssets {
@@ -13,8 +13,10 @@ enum DefaultOLEDAssets {
         case .mode0:
             return "claude_0"
         case .mode1:
-            return "cursor_0"
+            return "cursor"
         case .mode2:
+            return "codex"
+        case .mode3:
             return nil
         }
     }

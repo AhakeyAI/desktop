@@ -1,5 +1,8 @@
 import AppKit
 import SwiftUI
+import AVFoundation
+import Speech
+import UserNotifications
 
 @main
 struct AhaKeyConfigApp: App {
@@ -9,7 +12,7 @@ struct AhaKeyConfigApp: App {
     var body: some Scene {
         WindowGroup("AhaKey Studio") {
             ContentView(bleManager: bleManager)
-                .frame(minWidth: 1280, minHeight: 820)
+                .frame(minWidth: 1180, minHeight: 680)
         }
         .windowStyle(.titleBar)
 
@@ -29,7 +32,7 @@ struct AhaKeyConfigApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
@@ -37,16 +40,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 单实例：检查是否已有实例在运行
         let bundleID = Bundle.main.bundleIdentifier ?? "lab.jawa.ahakeyconfig"
+        let currentBundlePath = Bundle.main.bundlePath
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         if running.count > 1 {
-            if let existing = running.first(where: { $0 != NSRunningApplication.current }) {
-                existing.activate()
+            let otherInstances = running.filter { $0 != NSRunningApplication.current }
+            let sameBundleInstance = otherInstances.first { app in
+                app.bundleURL?.path == currentBundlePath
             }
-            NSApp.terminate(nil)
+
+            if let existing = sameBundleInstance {
+                existing.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                NSApp.terminate(nil)
+                return
+            }
+
+            for stale in otherInstances {
+                stale.terminate()
+            }
         }
+
+        // 检查签名是否变化，如果变化则自动重置麦克风权限
+        PermissionSignatureChecker.checkAndResetOnSignatureChange { success in
+            DispatchQueue.main.async {
+                if success {
+                    let alert = NSAlert()
+                    alert.messageText = "检测到应用签名变化"
+                    alert.informativeText = "麦克风权限已自动重置，下次点击「申请」按钮时会弹出系统授权对话框。"
+                    alert.addButton(withTitle: "确定")
+                    alert.runModal()
+                }
+            }
+        }
+
+        UNUserNotificationCenter.current().delegate = self
 
         VoiceRelayService.shared.start()
         NativeSpeechTranscriptionService.shared.start()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -63,7 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func reopenMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        if let mainWindow = NSApp.windows.first {
+        if let mainWindow = NSApp.windows.first(where: { $0.canBecomeMain && !$0.isMiniaturized }) {
+            mainWindow.makeKeyAndOrderFront(nil)
+        } else if let mainWindow = NSApp.windows.first(where: { $0.canBecomeMain }) {
+            mainWindow.deminiaturize(nil)
             mainWindow.makeKeyAndOrderFront(nil)
         }
     }
