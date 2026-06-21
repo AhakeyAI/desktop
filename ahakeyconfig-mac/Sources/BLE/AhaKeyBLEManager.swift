@@ -109,7 +109,15 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     // 用它来把「已连接但已停止广播 0x7340」的设备从系统侧捞回来（见 connectAutomatically，Issue #34）。
     static let hidServiceUUID = CBUUID(string: "1812")
 
-    nonisolated static let deviceNamePrefix = "AhaKey"
+    /// 设备广播名前缀白名单。除官方 "AhaKey" 外，也认 vibe coding 固件的 "vibe code" 名
+    /// （CH582m_vibe_coding_BLE_keyboard 固件默认广播名形如 "vibe code XXXX"）。
+    nonisolated static let deviceNamePrefixes = ["AhaKey", "vibe code"]
+
+    /// 设备名是否匹配任一已知前缀（大小写无关）。
+    nonisolated static func matchesDeviceName(_ name: String?) -> Bool {
+        guard let lower = name?.lowercased() else { return false }
+        return deviceNamePrefixes.contains { lower.hasPrefix($0.lowercased()) }
+    }
 
     // MARK: - Private
 
@@ -282,7 +290,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             Self.hidServiceUUID,
         ]
         let connected = central?.retrieveConnectedPeripherals(withServices: lookupServices) ?? []
-        return connected.first { ($0.name ?? "").lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) }
+        return connected.first { Self.matchesDeviceName($0.name) }
     }
 
     /// 该设备是否已在系统层暴露过 0x7340 配置 service：用于区分「完整可连」与「仅 HID / 语音链路」。
@@ -1028,7 +1036,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         let name = peripheral.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
-        guard name.lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) else { return }
+        guard Self.matchesDeviceName(name) else { return }
 
         Task { @MainActor in
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
