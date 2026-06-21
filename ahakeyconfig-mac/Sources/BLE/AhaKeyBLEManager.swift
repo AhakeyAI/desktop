@@ -63,6 +63,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var bleDeviceUUID: String = "—"
     @Published private(set) var bluetoothPermissionGranted = true
     @Published private(set) var bluetoothPoweredOn = false
+    /// 细分的「卡在哪条链路」诊断，把笼统的「等待设备」拆成可操作提示（Issue #34）。
+    @Published private(set) var linkDiagnostic: LinkDiagnostic = .idle
     @Published private(set) var oledUploadProgress: OLEDUploadProgress?
     @Published private(set) var isUploadingOLED = false
     /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），用于画布 LED 颜色实时还原
@@ -102,6 +104,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     static let deviceInfoServiceUUID = CBUUID(string: "180A")
     static let firmwareRevisionCharUUID = CBUUID(string: "2A26")
     static let modelNumberCharUUID = CBUUID(string: "2A24")
+
+    // 标准 HID Service —— 设备被系统蓝牙 / 语音链路连上后常只暴露 HID / DeviceInfo，
+    // 用它来把「已连接但已停止广播 0x7340」的设备从系统侧捞回来（见 connectAutomatically，Issue #34）。
+    static let hidServiceUUID = CBUUID(string: "1812")
 
     nonisolated static let deviceNamePrefix = "AhaKey"
 
@@ -214,9 +220,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func connectAutomatically() {
-        guard !suppressAutomaticConnection else { return }
+        guard !suppressAutomaticConnection else {
+            // 蓝牙交由 ahakeyconfig-agent 占用，本 App 不直连——这是预期行为，明确标记以免被当成故障。
+            linkDiagnostic = .ownedByAgent
+            return
+        }
         guard central?.state == .poweredOn else {
             pendingConnect = true
+            switch central?.state {
+            case .poweredOff: linkDiagnostic = .bluetoothOff
+            case .unauthorized: linkDiagnostic = .bluetoothUnauthorized
+            default: break
+            }
             return
         }
 
@@ -229,14 +244,24 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 p.delegate = self
                 central?.connect(p, options: nil)
                 bleConnectionStatus = "连接中…"
+                linkDiagnostic = .connecting
                 return
             }
         }
 
-        // 2. 查找系统已连接设备
-        let connected = central?.retrieveConnectedPeripherals(withServices: [Self.serviceUUID]) ?? []
-        if let existing = connected.first(where: { ($0.name ?? "").lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) }) {
-            appendLog("发现系统已连接设备: \(existing.name ?? "?")")
+        // 2. 查找系统已连接设备。
+        //    根因兜底（Issue #34）：设备一旦被系统蓝牙 / 语音(HID) 链路连上，通常会停止广播，
+        //    基于广播的 scanForPeripherals(withServices:[0x7340]) 永远扫不到它；且若此前无人发现过
+        //    0x7340，retrieveConnectedPeripherals(withServices:[0x7340]) 也为空。所以这里用更宽的标准
+        //    service 集合把设备捞回来，再主动 connect → didConnect 里 discoverServices 补发现 0x7340。
+        if let existing = systemConnectedAhaKeyPeripheral() {
+            if isConfigServiceVisible(existing) {
+                appendLog("发现系统已连接设备: \(existing.name ?? "?")")
+                linkDiagnostic = .connecting
+            } else {
+                appendLog("设备已被系统/语音链路连接但未广播配置服务，主动接管 0x7340: \(existing.name ?? "?")")
+                linkDiagnostic = .systemConnectedNoConfigLink
+            }
             self.peripheral = existing
             existing.delegate = self
             central?.connect(existing, options: nil)
@@ -248,6 +273,24 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         startScan()
     }
 
+    /// 用更宽的标准 service 集合在「系统已连接」外设里查找 AhaKey 设备——即使它已停止广播 0x7340。
+    private func systemConnectedAhaKeyPeripheral() -> CBPeripheral? {
+        let lookupServices = [
+            Self.serviceUUID,
+            Self.deviceInfoServiceUUID,
+            Self.batteryServiceUUID,
+            Self.hidServiceUUID,
+        ]
+        let connected = central?.retrieveConnectedPeripherals(withServices: lookupServices) ?? []
+        return connected.first { ($0.name ?? "").lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) }
+    }
+
+    /// 该设备是否已在系统层暴露过 0x7340 配置 service：用于区分「完整可连」与「仅 HID / 语音链路」。
+    private func isConfigServiceVisible(_ peripheral: CBPeripheral) -> Bool {
+        (central?.retrieveConnectedPeripherals(withServices: [Self.serviceUUID]) ?? [])
+            .contains { $0.identifier == peripheral.identifier }
+    }
+
     func startScan() {
         guard central?.state == .poweredOn else {
             pendingConnect = true
@@ -255,6 +298,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         isScanning = true
         bleConnectionStatus = "扫描中…"
+        linkDiagnostic = .scanning
         appendLog("开始扫描 AhaKey 设备…")
         central?.scanForPeripherals(
             withServices: [Self.serviceUUID],
@@ -267,7 +311,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 self.central?.stopScan()
                 self.isScanning = false
                 self.bleConnectionStatus = "等待设备"
-                self.appendLog("扫描超时，继续后台轮询设备")
+                // 扫描超时后再用宽 service 探一次，区分「设备已连但未广播配置链路」与「彻底没发现设备」（Issue #34）。
+                if self.systemConnectedAhaKeyPeripheral() != nil {
+                    self.linkDiagnostic = .systemConnectedNoConfigLink
+                    self.appendLog("扫描超时：检测到设备已被系统/语音链路连接，但配置链路 0x7340 未建立")
+                } else {
+                    self.linkDiagnostic = .noDeviceFound
+                    self.appendLog("扫描超时，继续后台轮询设备")
+                }
             }
         }
     }
@@ -868,6 +919,52 @@ final class SwitchStateNotifier: ObservableObject {
     }
 }
 
+/// 设备「卡在哪条链路」的细分诊断（Issue #34）：把笼统的「等待设备」拆成可操作的提示，
+/// 让用户能区分「蓝牙已连但配置链路未连」与「设备完全没连接」。
+enum LinkDiagnostic: Equatable {
+    case idle                          // 初始 / 空闲
+    case scanning                      // 扫描中
+    case connecting                    // 连接中
+    case connected                     // 配置链路 (0x7340) 已连
+    case bluetoothOff                  // 系统蓝牙未开启
+    case bluetoothUnauthorized         // 未授权蓝牙权限
+    case ownedByAgent                  // BLE 交由 ahakeyconfig-agent 占用（本 App 不直连，属预期）
+    case systemConnectedNoConfigLink   // 设备已被系统 / 语音(HID) 链路连接，但 0x7340 配置链路未建立
+    case noDeviceFound                 // 未发现设备（未开机 / 不在范围 / 未配对）
+
+    /// 顶栏 pill 用的极简副标题。
+    var shortMessage: String {
+        switch self {
+        case .idle, .scanning: return "扫描中…"
+        case .connecting: return "连接中…"
+        case .connected: return "已连接"
+        case .bluetoothOff: return "蓝牙未开启"
+        case .bluetoothUnauthorized: return "无蓝牙权限"
+        case .ownedByAgent: return "Agent 占用中"
+        case .systemConnectedNoConfigLink: return "配置链路未连"
+        case .noDeviceFound: return "未发现设备"
+        }
+    }
+
+    /// 详细可操作说明，供设备信息 / tooltip 展示。
+    var detail: String {
+        switch self {
+        case .idle: return "正在初始化蓝牙…"
+        case .scanning: return "正在扫描 AhaKey 设备…"
+        case .connecting: return "正在连接设备…"
+        case .connected: return "AhaKey 配置链路 (0x7340) 已连接。"
+        case .bluetoothOff: return "系统蓝牙未开启。请在「控制中心 / 系统设置 > 蓝牙」打开蓝牙。"
+        case .bluetoothUnauthorized: return "未授权蓝牙权限。请在「系统设置 > 隐私与安全性 > 蓝牙」中允许 AhaKey Studio。"
+        case .ownedByAgent: return "蓝牙当前交由 ahakeyconfig-agent 占用，本 App 不直接连接（这是预期行为）。配置链路状态请参考 Agent；如需本 App 直连，请在设备信息里把「蓝牙连接」切回本 App。"
+        case .systemConnectedNoConfigLink: return "设备已通过系统蓝牙（HID / 语音链路）连接，但 AhaKey 配置服务 0x7340 尚未建立。本 App 正在尝试主动接管该链路；若长时间无效，请在「系统设置 > 蓝牙」忽略此设备后重新配对。"
+        case .noDeviceFound: return "未发现 AhaKey 设备。请确认设备已开机、处于蓝牙范围内并已与本机配对。"
+        }
+    }
+
+    /// 是否为「配置链路完整可用」。
+    var isHealthy: Bool { self == .connected }
+}
+
 enum OLEDUploadError: LocalizedError {
     case channelNotReady
     case noFrames
@@ -911,10 +1008,12 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
                 self.bleConnectionStatus = "蓝牙关闭"
+                self.linkDiagnostic = .bluetoothOff
             case .unauthorized:
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙权限未开启", isError: true)
                 self.bleConnectionStatus = "蓝牙权限未开启"
+                self.linkDiagnostic = .bluetoothUnauthorized
             default:
                 self.refreshBluetoothAuthorization()
                 break
@@ -949,6 +1048,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.bleDeviceUUID = peripheral.identifier.uuidString
             self.lastPeripheralUUID = peripheral.identifier
             self.bleConnectionStatus = "已连接"
+            self.linkDiagnostic = .connected
             self.appendLog("已连接: \(peripheral.name ?? "?") UUID=\(peripheral.identifier.uuidString)")
             self.autoReconnectTimer?.invalidate()
             self.autoReconnectTimer = nil
