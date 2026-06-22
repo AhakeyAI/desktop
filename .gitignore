@@ -73,3 +73,11 @@ scripts/build.local.env
 # Local model / runtime payloads
 internal/
 .gstack/
+
+# Java / Maven build output
+target/
+*.class
+
+# Firmware object files
+*.o
+obj_final/

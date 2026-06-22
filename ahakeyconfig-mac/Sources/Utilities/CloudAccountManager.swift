@@ -57,7 +57,9 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = "请输入账号密码重新登录。"
     }
 
-    func refreshProfile(showAlertOnFailure: Bool = true) {
+    func refreshProfile(showAlertOnFailure: Bool = true,
+                        forceRefresh: Bool = true,
+                        successMessage: String = "用户信息已刷新。") {
         guard !accessToken.isEmpty else {
             logout()
             return
@@ -67,11 +69,17 @@ final class CloudAccountManager: ObservableObject {
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true)
+                let object = try await request(
+                    path: cacheBustedPath("api/v1/auth/users/me", enabled: forceRefresh),
+                    method: "GET",
+                    body: nil,
+                    authorized: true,
+                    bypassCache: forceRefresh
+                )
                 let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
                 await MainActor.run {
                     self.applyProfile(data)
-                    self.statusMessage = "用户信息已刷新。"
+                    self.statusMessage = successMessage
                 }
             } catch {
                 await MainActor.run {
@@ -166,6 +174,29 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = "已关闭支付订单。"
     }
 
+    func refreshCurrentPaymentOrder() {
+        guard let order = paymentOrder else {
+            refreshProfile()
+            return
+        }
+        isBusy = true
+        statusMessage = "正在查询订单状态…"
+        Task {
+            defer { Task { @MainActor in self.isBusy = false } }
+            do {
+                let status = try await fetchPaymentStatus(outTradeNo: order.outTradeNo)
+                await MainActor.run {
+                    _ = self.applyPaymentStatus(status, outTradeNo: order.outTradeNo, notifyPending: true)
+                }
+            } catch {
+                await MainActor.run {
+                    self.alertMessage = error.localizedDescription
+                    self.statusMessage = "订单状态查询失败。"
+                }
+            }
+        }
+    }
+
     var profileSummary: String {
         guard let profile else { return isLoggedIn ? "已登录，点击刷新获取用户信息。" : "登录后可启用 AhaType 云端整理。" }
         let phone = stringValue(profile["phone"])
@@ -202,29 +233,11 @@ final class CloudAccountManager: ObservableObject {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if self.paymentOrder?.outTradeNo != outTradeNo { return }
                 do {
-                    let path = "api/v1/payment/wechat/order-status?outTradeNo=\(outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo)"
-                    let object = try await request(path: path, method: "GET", body: nil, authorized: true)
-                    let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
-                    let status = stringValue(data["status"]).lowercased()
-                    await MainActor.run {
-                        if var order = self.paymentOrder, order.outTradeNo == outTradeNo {
-                            order.status = status.isEmpty ? order.status : status
-                            self.paymentOrder = order
-                        }
+                    let status = try await fetchPaymentStatus(outTradeNo: outTradeNo)
+                    let finished = await MainActor.run {
+                        self.applyPaymentStatus(status, outTradeNo: outTradeNo, notifyPending: false)
                     }
-                    if status == "paid" {
-                        await MainActor.run {
-                            self.statusMessage = "充值成功，正在刷新额度。"
-                            self.paymentOrder = nil
-                            self.refreshProfile()
-                        }
-                        return
-                    }
-                    if status == "failed" {
-                        await MainActor.run {
-                            self.statusMessage = "订单支付失败。"
-                            self.alertMessage = "订单已标记为失败，请重新发起充值。"
-                        }
+                    if finished {
                         return
                     }
                 } catch {
@@ -238,6 +251,48 @@ final class CloudAccountManager: ObservableObject {
                 }
             }
         }
+    }
+
+    private func fetchPaymentStatus(outTradeNo: String) async throws -> String {
+        let encoded = outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo
+        let path = cacheBustedPath("api/v1/payment/wechat/order-status?outTradeNo=\(encoded)", enabled: true)
+        let object = try await request(
+            path: path,
+            method: "GET",
+            body: nil,
+            authorized: true,
+            bypassCache: true
+        )
+        let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
+        return normalizedPaymentStatus(from: data)
+    }
+
+    @discardableResult
+    private func applyPaymentStatus(_ status: String, outTradeNo: String, notifyPending: Bool) -> Bool {
+        let normalized = status.isEmpty ? "pending" : status
+        if var order = paymentOrder, order.outTradeNo == outTradeNo {
+            order.status = normalized
+            paymentOrder = order
+        }
+        if isPaidPaymentStatus(normalized) {
+            statusMessage = "充值成功，正在刷新额度。"
+            paymentOrder = nil
+            refreshProfile(
+                forceRefresh: true,
+                successMessage: "充值到账已刷新。"
+            )
+            return true
+        }
+        if isFailedPaymentStatus(normalized) {
+            statusMessage = "订单支付失败。"
+            alertMessage = "订单已标记为失败，请重新发起充值。"
+            return true
+        }
+        statusMessage = "订单尚未到账，请稍后再刷新。"
+        if notifyPending {
+            alertMessage = "当前订单仍未到账，请确认微信支付已完成后再刷新。"
+        }
+        return false
     }
 
     private func authenticate(path: String, successMessage: String, fallbackError: String) {
@@ -357,13 +412,22 @@ final class CloudAccountManager: ObservableObject {
         return profile
     }
 
-    private func request(path: String, method: String, body: [String: Any]?, authorized: Bool) async throws -> [String: Any] {
+    private func request(path: String,
+                         method: String,
+                         body: [String: Any]?,
+                         authorized: Bool,
+                         bypassCache: Bool = false) async throws -> [String: Any] {
         guard let url = URL(string: "\(apiBase)/\(path)") else {
             throw CloudAccountError("云端地址无效。")
         }
         var request = URLRequest(url: url, timeoutInterval: 90)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if bypassCache {
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue("no-cache, no-store, max-age=0", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        }
         if authorized {
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         }
@@ -385,6 +449,12 @@ final class CloudAccountManager: ObservableObject {
             throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
         }
         return object
+    }
+
+    private func cacheBustedPath(_ path: String, enabled: Bool) -> String {
+        guard enabled else { return path }
+        let separator = path.contains("?") ? "&" : "?"
+        return "\(path)\(separator)_refresh=\(UUID().uuidString)"
     }
 
     private func payloadData(from object: [String: Any], fallbackError: String) throws -> [String: Any] {
@@ -439,6 +509,46 @@ final class CloudAccountManager: ObservableObject {
             if value != 0 { return value }
         }
         return 0
+    }
+
+    private func normalizedPaymentStatus(from data: [String: Any]) -> String {
+        firstString(in: data, keys: ["status", "tradeState", "trade_state", "payStatus", "pay_status", "orderStatus", "order_status"])
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+    }
+
+    private func isPaidPaymentStatus(_ status: String) -> Bool {
+        let normalized = status.lowercased().replacingOccurrences(of: "-", with: "_")
+        return [
+            "paid",
+            "success",
+            "succeeded",
+            "complete",
+            "completed",
+            "pay_success",
+            "trade_success",
+            "wechat_success",
+            "finished",
+            "done",
+            "1",
+        ].contains(normalized)
+    }
+
+    private func isFailedPaymentStatus(_ status: String) -> Bool {
+        let normalized = status.lowercased().replacingOccurrences(of: "-", with: "_")
+        return [
+            "failed",
+            "failure",
+            "fail",
+            "closed",
+            "cancelled",
+            "canceled",
+            "expired",
+            "timeout",
+            "trade_closed",
+            "pay_error",
+            "2",
+        ].contains(normalized)
     }
 
     private func responseMessage(_ object: [String: Any]) -> String {

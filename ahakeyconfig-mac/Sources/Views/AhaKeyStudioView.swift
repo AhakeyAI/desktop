@@ -4129,7 +4129,7 @@ private struct CloudAccountView: View {
                         .buttonStyle(.bordered)
 
                         Button("刷新到账") {
-                            account.refreshProfile()
+                            account.refreshCurrentPaymentOrder()
                         }
                         .buttonStyle(.bordered)
                         .disabled(account.isBusy)
