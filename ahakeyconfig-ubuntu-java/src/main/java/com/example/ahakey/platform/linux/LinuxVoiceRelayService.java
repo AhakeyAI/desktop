@@ -277,8 +277,66 @@ public final class LinuxVoiceRelayService implements VoiceRelayService {
 
     @Override
     public void simulateKeyByHid(int hidCode) {
-        // Linux 版本不支持直接模拟按键
-        lastSimulateHint.set("Linux 版本不支持 HID 按键模拟");
+        int baseCode = hidCode & 0xFF;
+        int modifiers = hidCode & 0xFF00;
+        String keyName = hidCodeToXdotoolKey(baseCode);
+        if (keyName == null) {
+            lastSimulateHint.set("未知 HID 码: 0x" + Integer.toHexString(baseCode));
+            return;
+        }
+        StringBuilder combo = new StringBuilder();
+        if ((modifiers & 0x200) != 0 || (modifiers & 0x2000) != 0) combo.append("ctrl+");
+        if ((modifiers & 0x100) != 0 || (modifiers & 0x1000) != 0) combo.append("shift+");
+        if ((modifiers & 0x400) != 0 || (modifiers & 0x4000) != 0) combo.append("alt+");
+        if ((modifiers & 0x800) != 0 || (modifiers & 0x8000) != 0) combo.append("super+");
+        combo.append(keyName);
+        try {
+            Process p = new ProcessBuilder("xdotool", "key", combo.toString()).start();
+            int exit = p.waitFor();
+            if (exit == 0) {
+                lastSimulateHint.set("已模拟: " + combo);
+            } else {
+                lastSimulateHint.set("xdotool 失败 (exit=" + exit + ")");
+            }
+        } catch (Exception e) {
+            lastSimulateHint.set("xdotool 执行失败: " + e.getMessage());
+        }
+    }
+
+    private static String hidCodeToXdotoolKey(int hid) {
+        if (hid >= 0x04 && hid <= 0x1D) return String.valueOf((char) ('a' + hid - 0x04));
+        if (hid >= 0x1E && hid <= 0x26) return String.valueOf((char) ('1' + hid - 0x1E));
+        return switch (hid) {
+            case 0x27 -> "0";
+            case 0x28 -> "Return";
+            case 0x29 -> "Escape";
+            case 0x2A -> "BackSpace";
+            case 0x2B -> "Tab";
+            case 0x2C -> "space";
+            case 0x2D -> "minus";
+            case 0x2E -> "equal";
+            case 0x2F -> "bracketleft";
+            case 0x30 -> "bracketright";
+            case 0x31 -> "backslash";
+            case 0x33 -> "semicolon";
+            case 0x34 -> "apostrophe";
+            case 0x35 -> "grave";
+            case 0x36 -> "comma";
+            case 0x37 -> "period";
+            case 0x38 -> "slash";
+            case 0x39 -> "Caps_Lock";
+            case 0x3A -> "F1";  case 0x3B -> "F2";  case 0x3C -> "F3";  case 0x3D -> "F4";
+            case 0x3E -> "F5";  case 0x3F -> "F6";  case 0x40 -> "F7";  case 0x41 -> "F8";
+            case 0x42 -> "F9";  case 0x43 -> "F10"; case 0x44 -> "F11"; case 0x45 -> "F12";
+            case 0x46 -> "Print"; case 0x47 -> "Scroll_Lock"; case 0x48 -> "Pause";
+            case 0x49 -> "Insert"; case 0x4A -> "Home"; case 0x4B -> "Prior";
+            case 0x4C -> "Delete"; case 0x4D -> "End"; case 0x4E -> "Next";
+            case 0x4F -> "Right"; case 0x50 -> "Left"; case 0x51 -> "Down"; case 0x52 -> "Up";
+            case 0x68 -> "F13"; case 0x69 -> "F14"; case 0x6A -> "F15"; case 0x6B -> "F16";
+            case 0x6C -> "F17"; case 0x6D -> "F18"; case 0x6E -> "F19"; case 0x6F -> "F20";
+            case 0x70 -> "F21"; case 0x71 -> "F22"; case 0x72 -> "F23"; case 0x73 -> "F24";
+            default -> null;
+        };
     }
     
     /**

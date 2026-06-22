@@ -65,6 +65,13 @@
             <artifactId>onnxruntime</artifactId>
             <version>1.16.3</version>
         </dependency>
+
+        <!-- JNA for native USB HID access on Linux -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>5.14.0</version>
+        </dependency>
     </dependencies>
 
     <build>
