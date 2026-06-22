@@ -86,7 +86,10 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   ditto "$APP_ROOT/Resources/DefaultOLED" "$APP_BUNDLE/Contents/Resources/DefaultOLED"
 fi
 
-BUILD_NUMBER="$(git -C "$APP_ROOT/../.." rev-list --count HEAD 2>/dev/null || echo 1)"
+BUILD_NUMBER="$(git -C "$APP_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+# 版本号：缺省 0.1.0（本地开发），release.yml 打 tag(vX.Y.Z) 时经 APP_VERSION 注入真实版本，
+# 否则所有 Release 都会是同一个写死的版本号，用户无法区分是否已更新。
+APP_VERSION_STRING="${APP_VERSION:-0.1.0}"
 
 cat > "$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -110,7 +113,7 @@ cat > "$INFO_PLIST" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>${APP_VERSION_STRING}</string>
   <key>CFBundleVersion</key>
   <string>${BUILD_NUMBER}</string>
   <key>LSMinimumSystemVersion</key>
