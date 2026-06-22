@@ -4,6 +4,8 @@ import com.example.ahakey.app.StudioController;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.service.AgentManager;
+import com.example.ahakey.service.HookDispatchServer;
+import com.example.ahakey.service.HookInstaller;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.util.Icons;
 import javafx.application.Platform;
@@ -37,9 +39,6 @@ import java.io.File;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.animation.AnimationTimer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
 public class TopBar extends VBox {
     private final StudioController controller;
@@ -48,6 +47,7 @@ public class TopBar extends VBox {
     private final AgentManager agentManager;
     private VoiceInputManager voiceInputManager;
     private TextArea logArea;
+    private final HookInstaller hookInstaller;
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -64,6 +64,7 @@ public class TopBar extends VBox {
         this.deviceStatus = deviceStatus;
         this.studioState = studioState;
         this.agentManager = agentManager;
+        this.hookInstaller = new HookInstaller(HookDispatchServer.DEFAULT_PORT, this::addLog);
         setSpacing(0);
         setPadding(new Insets(0));
         getStyleClass().add("top-bar");
@@ -227,8 +228,10 @@ public class TopBar extends VBox {
         MenuItem clearOled = new MenuItem("清空 OLED 预览");
         clearOled.setOnAction(event -> studioState.clearOledPreview());
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
-        MenuItem deviceInfo = new MenuItem("设备信息 · Hooks…");
+        MenuItem deviceInfo = new MenuItem("设备信息 · Hooks安装");
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
+        MenuItem versionInfo = new MenuItem("查看版本号");
+        versionInfo.setOnAction(event -> showVersionDialog());
         MenuItem cloudAccount = new MenuItem("云端账号 · AhaType…");
         SeparatorMenuItem divider2 = new SeparatorMenuItem();
         MenuItem refresh = new MenuItem("刷新 AhaType 状态");
@@ -242,6 +245,7 @@ public class TopBar extends VBox {
                 clearOled,
                 divider1,
                 deviceInfo,
+                versionInfo,
                 cloudAccount,
                 divider2,
                 refresh
@@ -253,7 +257,8 @@ public class TopBar extends VBox {
                 reconnect,
                 clearOled,
                 divider1,
-                deviceInfo
+                deviceInfo,
+                versionInfo
             );
         }
 
@@ -693,7 +698,7 @@ public class TopBar extends VBox {
         
         for (int i = 0; i < hookNames.length; i++) {
             String name = hookNames[i];
-            Path path = getHookConfigPath(name);
+            Path path = hookInstaller.getHookConfigPath(name);
             File file = path.toFile();
             
             // 使用完整的检查逻辑
@@ -717,12 +722,12 @@ public class TopBar extends VBox {
                         addLog("[检测] 包含 sessionStart: " + fileContent.contains("sessionStart"));
                     } else if ("Codex".equals(name)) {
                         String home = System.getProperty("user.home");
-                        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
+                        Path sidecar = Paths.get(home, ".codex", HookInstaller.CODEX_SIDECAR_NAME);
                         addLog("[检测] sidecar 存在: " + sidecar.toFile().exists());
                         addLog("[检测] hooks.json 内容长度: " + fileContent.length());
                     } else if ("Kimi".equals(name)) {
-                        addLog("[检测] 包含 BEGIN 标记: " + fileContent.contains(KIMI_HOOK_BLOCK_START));
-                        addLog("[检测] 包含 END 标记: " + fileContent.contains(KIMI_HOOK_BLOCK_END));
+                        addLog("[检测] 包含 BEGIN 标记: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_START));
+                        addLog("[检测] 包含 END 标记: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_END));
                     }
                 } catch (Exception e) {
                     addLog("[检测] 读取文件失败: " + e.getMessage());
@@ -829,468 +834,19 @@ public class TopBar extends VBox {
         return card;
     }
 
-    // ==================== Hook 管理（与 Python 版完全对齐） ====================
-
-    private static final ObjectMapper HOOK_MAPPER = new ObjectMapper();
-    private static final int HOOK_DISPATCH_PORT = 8765;
-    private static final String CODEX_SIDECAR_NAME = ".ahakey_codex_hooks_v1";
-    private static final String CODEX_HOOK_BLOCK_START = "# BEGIN AhaKey Codex Hooks";
-    private static final String CODEX_HOOK_BLOCK_END = "# END AhaKey Codex Hooks";
-    private static final String KIMI_HOOK_BLOCK_START = "# BEGIN AhaKey Kimi Hooks";
-    private static final String KIMI_HOOK_BLOCK_END = "# END AhaKey Kimi Hooks";
-
-    // Claude: 9 个事件（与 Python HOOK_EVENTS 完全一致）
-    private static final String[][] CLAUDE_EVENTS = {
-        {"SessionStart", "10"}, {"SessionEnd", "10"}, {"PreToolUse", "10"},
-        {"PostToolUse", "10"}, {"PermissionRequest", "60"}, {"Notification", "10"},
-        {"TaskCompleted", "10"}, {"Stop", "10"}, {"UserPromptSubmit", "10"}
-    };
-    // Cursor: 5 个事件（与 Python CURSOR_HOOK_EVENTS 完全一致）
-    private static final String[][] CURSOR_EVENTS = {
-        {"sessionStart", "10"}, {"sessionEnd", "10"}, {"preToolUse", "10"},
-        {"postToolUse", "10"}, {"stop", "10"}
-    };
-    // Codex: 6 个事件（与 Python CODEX_HOOK_EVENTS 完全一致）
-    private static final String[][] CODEX_EVENTS = {
-        {"SessionStart", "CodexSessionStart", "10"}, {"PostToolUse", "CodexPostToolUse", "10"},
-        {"PreToolUse", "CodexPreToolUse", "20"}, {"PermissionRequest", "CodexPermissionRequest", "20"},
-        {"UserPromptSubmit", "CodexUserPromptSubmit", "10"}, {"Stop", "CodexStop", "10"}
-    };
-    // Kimi: 7 个事件（与 Python kimi_hooks.KIMI_HOOK_ENTRIES 完全一致）
-    private static final String[][] KIMI_EVENTS = {
-        {"Notification", "KimiNotification", "10"}, {"SessionStart", "KimiSessionStart", "10"},
-        {"SessionEnd", "KimiSessionEnd", "10"}, {"PreToolUse", "KimiPreToolUse", "20"},
-        {"PostToolUse", "KimiPostToolUse", "10"}, {"UserPromptSubmit", "KimiUserPromptSubmit", "10"},
-        {"Stop", "KimiStop", "10"}
-    };
-
-    private static final String HOOK_SCRIPT_NAME = "ahakey-hook.ps1";
-
-    private Path getHookScriptPath() {
-        String home = System.getProperty("user.home");
-        return Paths.get(home, ".ahakey", "hooks", HOOK_SCRIPT_NAME);
-    }
-
-    private String buildHookCommand(String agentEvent) {
-        Path scriptPath = getHookScriptPath();
-        String ps = scriptPath.toString().replace("\\", "/");
-        return "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"" + ps + "\" " + agentEvent;
-    }
-
-    /**
-     * 生成 hook 分发 PowerShell 脚本（~/.ahakey/hooks/ahakey-hook.ps1）。
-     * 该脚本接收事件名参数，通过 TCP 发送到 Java HookDispatchServer，后者映射为 BLE 状态码。
-     */
-    private void generateHookScript() {
-        Path scriptPath = getHookScriptPath();
-        try {
-            java.nio.file.Files.createDirectories(scriptPath.getParent());
-            String content =
-                "# AhaKey Hook Dispatcher - Auto-generated, do not edit\n" +
-                "# Receives hook event name as argument, dispatches to AhaKey Studio via TCP.\n" +
-                "# Compatible with Claude Code, Codex, Kimi, and Cursor hooks.\n" +
-                "param([Parameter(Position=0)][string]$EventName)\n" +
-                "try {\n" +
-                "    if ([Console]::IsInputRedirected) { $null = [Console]::In.ReadToEnd() }\n" +
-                "} catch { }\n" +
-                "try {\n" +
-                "    $tcp = New-Object System.Net.Sockets.TcpClient\n" +
-                "    $tcp.Connect('127.0.0.1', " + HOOK_DISPATCH_PORT + ")\n" +
-                "    $writer = New-Object System.IO.StreamWriter($tcp.GetStream())\n" +
-                "    $writer.WriteLine($EventName)\n" +
-                "    $writer.Flush()\n" +
-                "    $reader = New-Object System.IO.StreamReader($tcp.GetStream())\n" +
-                "    $response = $reader.ReadLine()\n" +
-                "    $tcp.Close()\n" +
-                "} catch {\n" +
-                "    $response = $null\n" +
-                "}\n" +
-                "# Codex lifecycle hooks must output exactly {} (Codex validates JSON schema)\n" +
-                "if ($EventName -match '^Codex' -and $EventName -ne 'CodexPermissionRequest') {\n" +
-                "    [Console]::WriteLine('{}')\n" +
-                "    exit 0\n" +
-                "}\n" +
-                "# Codex PermissionRequest: output hookSpecificOutput in Codex format\n" +
-                "if ($EventName -eq 'CodexPermissionRequest') {\n" +
-                "    $isAuto = $response -match '\"autoApproved\"\\s*:\\s*true'\n" +
-                "    if ($isAuto) {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
-                "    } else {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\"}}')\n" +
-                "    }\n" +
-                "    exit 0\n" +
-                "}\n" +
-                "# Claude PermissionRequest: output hookSpecificOutput in Claude format\n" +
-                "if ($EventName -eq 'PermissionRequest') {\n" +
-                "    $isAuto = $response -match '\"autoApproved\"\\s*:\\s*true'\n" +
-                "    if ($isAuto) {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
-                "    } else {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
-                "    }\n" +
-                "    exit 0\n" +
-                "}\n" +
-                "# Kimi / Cursor: pass through server response\n" +
-                "if ($response) { [Console]::WriteLine($response) } else { [Console]::WriteLine('{\"ok\":true}') }\n" +
-                "exit 0\n";
-            java.nio.file.Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            addLog("[安装] 生成分发脚本: " + scriptPath);
-        } catch (Exception e) {
-            addLog("[警告] 生成分发脚本失败: " + e.getMessage());
-        }
-    }
-
-    private String tomlEscape(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private Path getHookConfigPath(String hookName) {
-        String home = System.getProperty("user.home");
-        switch (hookName) {
-            case "Claude": return Paths.get(home, ".claude", "settings.json");
-            case "Cursor": return Paths.get(home, ".cursor", "hooks.json");
-            case "Codex": return Paths.get(home, ".codex", "hooks.json");
-            case "Kimi": return Paths.get(home, ".kimi", "config.toml");
-            default: return Paths.get(home, "." + hookName.toLowerCase(), "config.json");
-        }
-    }
+    // ==================== Hook 管理（委托给 HookInstaller） ====================
 
     private boolean isHookInstalled(String hookName) {
-        switch (hookName) {
-            case "Claude": return checkClaudeHookInstalled(getHookConfigPath("Claude"));
-            case "Cursor": return checkCursorHookInstalled(getHookConfigPath("Cursor"));
-            case "Codex": return checkCodexHookInstalled();
-            case "Kimi": return checkKimiHookInstalled(getHookConfigPath("Kimi"));
-            default: return false;
-        }
-    }
-
-    private boolean checkClaudeHookInstalled(Path path) {
-        if (!path.toFile().exists()) return false;
-        try {
-            String c = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            return c.contains("\"hooks\"") && c.contains("SessionStart");
-        } catch (Exception e) { addLog("[错误] 读取 Claude 配置: " + e.getMessage()); return false; }
-    }
-
-    private boolean checkCursorHookInstalled(Path path) {
-        if (!path.toFile().exists()) return false;
-        try {
-            String c = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            return c.contains("\"hooks\"") && c.contains("sessionStart");
-        } catch (Exception e) { addLog("[错误] 读取 Cursor 配置: " + e.getMessage()); return false; }
-    }
-
-    private boolean checkCodexHookInstalled() {
-        String home = System.getProperty("user.home");
-        return Paths.get(home, ".codex", CODEX_SIDECAR_NAME).toFile().exists();
-    }
-
-    private boolean checkKimiHookInstalled(Path path) {
-        if (!path.toFile().exists()) return false;
-        try {
-            String c = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            return c.contains(KIMI_HOOK_BLOCK_START) && c.contains(KIMI_HOOK_BLOCK_END);
-        } catch (Exception e) { addLog("[错误] 读取 Kimi 配置: " + e.getMessage()); return false; }
+        return hookInstaller.isInstalled(hookName);
     }
 
     private void installHook(String hookName) {
-        addLog("[安装] 开始安装 " + hookName + " Hook...");
-        // 先生成分发脚本（所有平台共用）
-        generateHookScript();
-        switch (hookName) {
-            case "Claude": installClaudeHooks(); break;
-            case "Cursor": installCursorHooks(); break;
-            case "Codex": installCodexHooks(); break;
-            case "Kimi": installKimiHooks(); break;
-            default: addLog("[错误] 未知 Hook 类型: " + hookName);
-        }
+        hookInstaller.install(hookName);
     }
 
     private void uninstallHook(String hookName) {
         addLog("[卸载] 开始卸载 " + hookName + " Hook...");
-        switch (hookName) {
-            case "Claude": uninstallClaudeHooks(); break;
-            case "Cursor": uninstallCursorHooks(); break;
-            case "Codex": uninstallCodexHooks(); break;
-            case "Kimi": uninstallKimiHooks(); break;
-            default: addLog("[错误] 未知 Hook 类型: " + hookName);
-        }
-    }
-
-    // ---- Claude: ~/.claude/settings.json（9 个事件） ----
-    private void installClaudeHooks() {
-        Path path = getHookConfigPath("Claude");
-        try {
-            java.nio.file.Files.createDirectories(path.getParent());
-            backupFile(path);
-            ObjectNode settings = loadJsonSettings(path);
-            ObjectNode hooks = HOOK_MAPPER.createObjectNode();
-            for (String[] ev : CLAUDE_EVENTS) {
-                ObjectNode cmd = HOOK_MAPPER.createObjectNode();
-                cmd.put("type", "command");
-                cmd.put("command", buildHookCommand(ev[0]));
-                cmd.put("timeout", Integer.parseInt(ev[1]));
-                ArrayNode inner = HOOK_MAPPER.createArrayNode();
-                inner.add(cmd);
-                ObjectNode wrapper = HOOK_MAPPER.createObjectNode();
-                wrapper.put("matcher", "");
-                wrapper.set("hooks", inner);
-                ArrayNode outer = HOOK_MAPPER.createArrayNode();
-                outer.add(wrapper);
-                hooks.set(ev[0], outer);
-            }
-            settings.set("hooks", hooks);
-            HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-            addLog("[成功] 已注册 " + CLAUDE_EVENTS.length + " 个 Claude hook 事件");
-            addLog("[成功] 配置文件: " + path);
-        } catch (Exception e) { addLog("[错误] Claude 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallClaudeHooks() {
-        Path path = getHookConfigPath("Claude");
-        try {
-            if (!path.toFile().exists()) { addLog("[信息] 配置文件不存在"); return; }
-            ObjectNode settings = loadJsonSettings(path);
-            if (settings.has("hooks")) {
-                settings.remove("hooks");
-                HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-                addLog("[成功] 已从 Claude 配置中移除 hooks");
-            } else { addLog("[信息] 配置中不存在 hooks"); }
-        } catch (Exception e) { addLog("[错误] Claude 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- Cursor: ~/.cursor/hooks.json（5 个事件） ----
-    private void installCursorHooks() {
-        Path path = getHookConfigPath("Cursor");
-        try {
-            java.nio.file.Files.createDirectories(path.getParent());
-            backupFile(path);
-            ObjectNode settings = loadJsonSettings(path);
-            ObjectNode existingHooks = settings.has("hooks") ? (ObjectNode) settings.get("hooks") : HOOK_MAPPER.createObjectNode();
-            for (String[] ev : CURSOR_EVENTS) {
-                ObjectNode entry = HOOK_MAPPER.createObjectNode();
-                entry.put("command", buildHookCommand(ev[0]));
-                entry.put("timeout", Integer.parseInt(ev[1]));
-                ArrayNode arr = HOOK_MAPPER.createArrayNode();
-                arr.add(entry);
-                existingHooks.set(ev[0], arr);
-            }
-            settings.set("hooks", existingHooks);
-            settings.put("version", 1);
-            HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-            addLog("[成功] 已注册 " + CURSOR_EVENTS.length + " 个 Cursor hook 事件");
-            addLog("[成功] 配置文件: " + path);
-        } catch (Exception e) { addLog("[错误] Cursor 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallCursorHooks() {
-        Path path = getHookConfigPath("Cursor");
-        try {
-            if (!path.toFile().exists()) { addLog("[信息] 配置文件不存在"); return; }
-            ObjectNode settings = loadJsonSettings(path);
-            if (settings.has("hooks")) {
-                settings.remove("hooks");
-                HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-                addLog("[成功] 已从 Cursor 配置中移除 hooks");
-            } else { addLog("[信息] 配置中不存在 hooks"); }
-        } catch (Exception e) { addLog("[错误] Cursor 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- Codex: ~/.codex/hooks.json + config.toml + sidecar（6 个事件） ----
-    private void installCodexHooks() {
-        String home = System.getProperty("user.home");
-        Path hooksJson = Paths.get(home, ".codex", "hooks.json");
-        Path configToml = Paths.get(home, ".codex", "config.toml");
-        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
-        try {
-            java.nio.file.Files.createDirectories(hooksJson.getParent());
-            backupFile(hooksJson);
-            // 构建 hooks.json（与 Python build_codex_hooks_json 完全一致）
-            ObjectNode hooks = HOOK_MAPPER.createObjectNode();
-            for (String[] ev : CODEX_EVENTS) {
-                ObjectNode cmd = HOOK_MAPPER.createObjectNode();
-                cmd.put("type", "command");
-                cmd.put("command", buildHookCommand(ev[1]));
-                cmd.put("timeout", Integer.parseInt(ev[2]));
-                ArrayNode innerArr = HOOK_MAPPER.createArrayNode();
-                innerArr.add(cmd);
-                ObjectNode entry = HOOK_MAPPER.createObjectNode();
-                if ("SessionStart".equals(ev[0])) {
-                    entry.put("matcher", "startup|resume|clear");
-                } else if ("UserPromptSubmit".equals(ev[0]) || "Stop".equals(ev[0])) {
-                    // no matcher
-                } else {
-                    entry.put("matcher", "*");
-                }
-                entry.set("hooks", innerArr);
-                ArrayNode outerArr = HOOK_MAPPER.createArrayNode();
-                outerArr.add(entry);
-                hooks.set(ev[0], outerArr);
-            }
-            ObjectNode root = HOOK_MAPPER.createObjectNode();
-            root.set("hooks", hooks);
-            HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(hooksJson.toFile(), root);
-            addLog("[成功] 已写入 " + hooksJson);
-            // 写入 sidecar 管理标记
-            java.nio.file.Files.write(sidecar, java.time.LocalDateTime.now().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            // 更新 config.toml：确保 [features] hooks = true
-            backupFile(configToml);
-            String toml = configToml.toFile().exists()
-                ? new String(java.nio.file.Files.readAllBytes(configToml), java.nio.charset.StandardCharsets.UTF_8)
-                : "";
-            toml = removeCodexHookBlock(toml);
-            toml = ensureCodexHooksFeature(toml);
-            if (!toml.contains("AhaKey：生命周期 hooks")) {
-                toml = toml.trim() + "\n\n# AhaKey：生命周期 hooks 由 hook_install 写入 ~/.codex/hooks.json\n";
-            }
-            java.nio.file.Files.write(configToml, toml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            addLog("[成功] 已更新 " + configToml + "（[features].hooks = true）");
-            addLog("[成功] 已注册 " + CODEX_EVENTS.length + " 个 Codex hook 事件");
-        } catch (Exception e) { addLog("[错误] Codex 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallCodexHooks() {
-        String home = System.getProperty("user.home");
-        Path hooksJson = Paths.get(home, ".codex", "hooks.json");
-        Path configToml = Paths.get(home, ".codex", "config.toml");
-        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
-        try {
-            if (sidecar.toFile().exists()) {
-                java.nio.file.Files.delete(sidecar);
-                if (hooksJson.toFile().exists()) {
-                    java.nio.file.Files.delete(hooksJson);
-                    addLog("[成功] 已删除 " + hooksJson + "（由 AhaKey 安装器写入）");
-                }
-            }
-            if (configToml.toFile().exists()) {
-                String toml = new String(java.nio.file.Files.readAllBytes(configToml), java.nio.charset.StandardCharsets.UTF_8);
-                if (toml.contains(CODEX_HOOK_BLOCK_START)) {
-                    toml = removeCodexHookBlock(toml);
-                    java.nio.file.Files.write(configToml, toml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                    addLog("[成功] 已从 config.toml 移除内联 AhaKey Codex 块");
-                }
-            }
-            addLog("[成功] Codex Hook 卸载完成");
-        } catch (Exception e) { addLog("[错误] Codex 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- Kimi: ~/.kimi/config.toml（7 个事件，TOML [[hooks]] 块） ----
-    private void installKimiHooks() {
-        Path path = getHookConfigPath("Kimi");
-        try {
-            java.nio.file.Files.createDirectories(path.getParent());
-            backupFile(path);
-            String existing = path.toFile().exists()
-                ? new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8)
-                : "";
-            String cleaned = removeKimiHookBlock(existing).trim();
-            String hookBlock = buildKimiHookBlock();
-            String result = (cleaned.isEmpty() ? "" : cleaned + "\n\n") + hookBlock + "\n";
-            java.nio.file.Files.write(path, result.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            addLog("[成功] 已注册 " + KIMI_EVENTS.length + " 个 Kimi hook 事件");
-            addLog("[成功] 配置文件: " + path);
-        } catch (Exception e) { addLog("[错误] Kimi 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallKimiHooks() {
-        Path path = getHookConfigPath("Kimi");
-        try {
-            if (!path.toFile().exists()) { addLog("[信息] 配置文件不存在"); return; }
-            String content = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            String cleaned = removeKimiHookBlock(content);
-            if (!cleaned.equals(content)) {
-                java.nio.file.Files.write(path, cleaned.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                addLog("[成功] Hook 块已从配置文件中删除");
-            } else { addLog("[警告] 未找到 AhaKey Hook 块"); }
-        } catch (Exception e) { addLog("[错误] Kimi 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- 配置构建辅助方法 ----
-    private String buildKimiHookBlock() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(KIMI_HOOK_BLOCK_START).append("\n");
-        sb.append("# Managed by AhaKey. Kimi CLI hooks run this installer with Kimi* event names.\n");
-        sb.append("# Re-run Install Kimi Hooks after upgrading kimi-cli so the dial-control patch is restored.\n");
-        for (String[] ev : KIMI_EVENTS) {
-            sb.append("\n[[hooks]]\n");
-            sb.append("event = \"").append(ev[0]).append("\"\n");
-            sb.append("matcher = \"\"\n");
-            sb.append("command = \"").append(tomlEscape(buildHookCommand(ev[1]))).append("\"\n");
-            sb.append("timeout = ").append(ev[2]).append("\n");
-        }
-        sb.append("\n").append(KIMI_HOOK_BLOCK_END).append("\n");
-        return sb.toString();
-    }
-
-    private String removeKimiHookBlock(String content) {
-        return removeBlock(content, KIMI_HOOK_BLOCK_START, KIMI_HOOK_BLOCK_END);
-    }
-
-    private String removeCodexHookBlock(String content) {
-        return removeBlock(content, CODEX_HOOK_BLOCK_START, CODEX_HOOK_BLOCK_END);
-    }
-
-    private String removeBlock(String content, String startMarker, String endMarker) {
-        String result = content;
-        while (true) {
-            int start = result.indexOf(startMarker);
-            if (start == -1) break;
-            int end = result.indexOf(endMarker, start);
-            if (end == -1) break;
-            String before = result.substring(0, start);
-            String after = result.substring(end + endMarker.length());
-            result = before + after;
-        }
-        while (result.contains("\n\n\n")) result = result.replace("\n\n\n", "\n\n");
-        return result.trim().isEmpty() ? "" : result.trim() + "\n";
-    }
-
-    private String ensureCodexHooksFeature(String config) {
-        String[] lines = config.split("\n");
-        int featuresStart = -1;
-        for (int i = 0; i < lines.length; i++) {
-            if (lines[i].trim().equals("[features]")) { featuresStart = i; break; }
-        }
-        if (featuresStart == -1) {
-            String base = config.trim();
-            return (base.isEmpty() ? "" : base + "\n\n") + "[features]\nhooks = true\n";
-        }
-        int sectionEnd = lines.length;
-        for (int i = featuresStart + 1; i < lines.length; i++) {
-            String t = lines[i].trim();
-            if (t.startsWith("[") && t.endsWith("]")) { sectionEnd = i; break; }
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i <= featuresStart; i++) sb.append(lines[i]).append("\n");
-        sb.append("hooks = true\n");
-        for (int i = featuresStart + 1; i < sectionEnd; i++) {
-            String t = lines[i].trim();
-            if (t.startsWith("hooks") && t.contains("=")) continue;
-            if (t.startsWith("codex_hooks")) continue;
-            sb.append(lines[i]).append("\n");
-        }
-        for (int i = sectionEnd; i < lines.length; i++) sb.append(lines[i]).append("\n");
-        return sb.toString();
-    }
-
-    private ObjectNode loadJsonSettings(Path path) {
-        try {
-            if (path.toFile().exists()) {
-                return (ObjectNode) HOOK_MAPPER.readTree(path.toFile());
-            }
-        } catch (Exception e) { addLog("[警告] 解析配置失败，将使用空配置: " + e.getMessage()); }
-        return HOOK_MAPPER.createObjectNode();
-    }
-
-    private void backupFile(Path path) {
-        if (!path.toFile().exists()) return;
-        try {
-            String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            Path backup = path.resolveSibling(path.getFileName().toString() + ".bak." + ts);
-            java.nio.file.Files.copy(path, backup);
-            addLog("[备份] " + backup.getFileName());
-        } catch (Exception e) { addLog("[警告] 备份失败: " + e.getMessage()); }
+        hookInstaller.uninstall(hookName);
     }
 
     private void addLog(String message) {
@@ -1299,6 +855,25 @@ public class TopBar extends VBox {
             logArea.appendText("[" + timestamp + "] " + message + "\n");
             logArea.setScrollTop(Double.MAX_VALUE);
         }
+    }
+    
+    private void showVersionDialog() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("版本信息");
+        alert.setHeaderText(null);
+        
+        String version = getVersion();
+        alert.setContentText("版本号: " + version);
+        
+        alert.showAndWait();
+    }
+    
+    private String getVersion() {
+        String version = System.getProperty("app.version");
+        if (version == null || version.isEmpty()) {
+            version = "unknown";
+        }
+        return version;
     }
     
     /**

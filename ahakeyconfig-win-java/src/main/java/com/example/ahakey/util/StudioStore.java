@@ -40,30 +40,42 @@ public final class StudioStore {
             return StudioState.PersistedDraft.defaults();
         }
         try {
-            StudioState.PersistedDraft draft = MAPPER.readValue(file, StudioState.PersistedDraft.class);
-            if (draft.modes == null) {
-                draft.modes = new StudioState.PersistedDraft.ModeDraft[0];
-            }
-            if (draft.modes.length != ModeSlot.values().length) {
-                StudioState.PersistedDraft defaults = StudioState.PersistedDraft.defaults();
-                int copyLength = Math.min(draft.modes.length, defaults.modes.length);
-                for (int i = 0; i < copyLength; i++) {
-                    if (draft.modes[i] != null) {
-                        defaults.modes[i] = draft.modes[i];
+            StudioState.PersistedDraft savedDraft = MAPPER.readValue(file, StudioState.PersistedDraft.class);
+            // 始终使用新的默认配置作为基础（确保按键配置与固件对齐）
+            StudioState.PersistedDraft defaults = StudioState.PersistedDraft.defaults();
+            
+            // 合并用户自定义的非按键内容（如 OLED 图片等）
+            if (savedDraft.modes != null) {
+                for (int i = 0; i < Math.min(savedDraft.modes.length, defaults.modes.length); i++) {
+                    if (savedDraft.modes[i] != null) {
+                        StudioState.PersistedDraft.ModeDraft savedMode = savedDraft.modes[i];
+                        StudioState.PersistedDraft.ModeDraft defaultMode = defaults.modes[i];
+                        // 保留用户自定义的 OLED 设置
+                        if (savedMode.oledGifPath != null && !savedMode.oledGifPath.isEmpty()) {
+                            defaultMode.oledGifPath = savedMode.oledGifPath;
+                        }
+                        if (savedMode.oledFps > 0) {
+                            defaultMode.oledFps = savedMode.oledFps;
+                        }
+                        if (savedMode.oledFrameCount > 0) {
+                            defaultMode.oledFrameCount = savedMode.oledFrameCount;
+                        }
+                        if (savedMode.voicePresetId != null) {
+                            defaultMode.voicePresetId = savedMode.voicePresetId;
+                        }
+                        if (savedMode.aiLightEffectIds != null) {
+                            defaultMode.aiLightEffectIds = savedMode.aiLightEffectIds;
+                        }
                     }
                 }
-                defaults.revision = draft.revision;
-                defaults.lightBarPreviewId = draft.lightBarPreviewId;
-                defaults.lightBrightness = draft.lightBrightness;
-                return defaults;
             }
-            StudioState.PersistedDraft defaults = StudioState.PersistedDraft.defaults();
-            for (int i = 0; i < draft.modes.length; i++) {
-                if (draft.modes[i] == null) {
-                    draft.modes[i] = defaults.modes[i];
-                }
-            }
-            return draft;
+            
+            // 保留全局设置
+            defaults.revision = savedDraft.revision;
+            defaults.lightBarPreviewId = savedDraft.lightBarPreviewId;
+            defaults.lightBrightness = savedDraft.lightBrightness;
+            
+            return defaults;
         } catch (IOException e) {
             return StudioState.PersistedDraft.defaults();
         }

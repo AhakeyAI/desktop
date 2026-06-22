@@ -11,7 +11,7 @@ $ProjectName = "AhaKeyStudio"
 $Version = "1.0.0"
 $MainClass = "com.example.ahakey.App"
 $TargetDir = Join-Path $PSScriptRoot "target"
-$InstallerDir = "$TargetDir\installer"
+$InstallerDir = Join-Path $PSScriptRoot "installer"  # 移到项目根目录，避免被 Maven clean 清理
 $TempDir = "$TargetDir\jpackage-input"
 $RuntimeDir = "$TargetDir\runtime"
 $ResourceDir = "$TargetDir\jpackage-resources"
@@ -164,6 +164,9 @@ Write-Status "Custom runtime created successfully" Green
 # Create EXE installer using jpackage
 Write-Status "Creating EXE installer (requires NSIS)..." Cyan
 
+# Generate timestamp for version (format: yyyyMMddHHmmss)
+$timestamp = Get-Date -Format "yyyyMMddHHmmss"
+
 $jpackageArgs = @(
     "--type", "exe",
     "--name", $ProjectName,
@@ -185,6 +188,7 @@ $jpackageArgs = @(
     "--java-options", "--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.fxml/com.sun.javafx.fxml=ALL-UNNAMED",
+    "--java-options", "-Dapp.version=$timestamp",
     "--verbose"
 )
 
@@ -200,7 +204,6 @@ Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $RuntimeDir -Recurse -Force -ErrorAction SilentlyContinue
 
 # Rename output to timestamp-based filename
-$timestamp = Get-Date -Format "yyyyMMddHHmmss"
 $originalExe = "$InstallerDir\$ProjectName-$Version.exe"
 $renamedExe  = "$InstallerDir\$ProjectName-$timestamp.exe"
 if (Test-Path $originalExe) {

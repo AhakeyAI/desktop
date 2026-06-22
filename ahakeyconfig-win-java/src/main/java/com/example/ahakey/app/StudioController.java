@@ -98,6 +98,7 @@ public class StudioController {
 
         // 启动 Hook 分发服务器（接收 Codex/Claude/Cursor/Kimi hook 事件 → BLE 状态码）
         hookDispatchServer = new HookDispatchServer(bleManager);
+        hookDispatchServer.setApprovalCallback(this::showApprovalDialog);
         hookDispatchServer.start();
 
         // KimiAhaKeyBridge 在设备连接后按连接类型决定是否启动（见 onConnected）
@@ -390,6 +391,27 @@ public class StudioController {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    /**
+     * 显示手动批准确认对话框
+     * @param platform 平台名称（如 Cursor、Kimi 等）
+     * @param eventName 事件名称
+     * @return true 表示用户确认，false 表示用户拒绝
+     */
+    private boolean showApprovalDialog(String platform, String eventName) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        alert.setTitle("AhaKey - 操作确认");
+        alert.setHeaderText(null);
+        alert.setContentText(String.format("%s 正在请求执行操作（%s）\n\n当前处于手动模式，请确认是否允许此操作？", 
+            platform, eventName));
+        
+        javafx.scene.control.ButtonType okButton = new javafx.scene.control.ButtonType("允许");
+        javafx.scene.control.ButtonType cancelButton = new javafx.scene.control.ButtonType("拒绝");
+        alert.getButtonTypes().setAll(okButton, cancelButton);
+        
+        java.util.Optional<javafx.scene.control.ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == okButton;
     }
 
     private int validateLocalOledAsset(Path path, boolean isStaticImage) throws Exception {
