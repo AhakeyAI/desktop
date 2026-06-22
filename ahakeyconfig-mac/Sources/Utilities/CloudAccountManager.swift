@@ -57,7 +57,9 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = "请输入账号密码重新登录。"
     }
 
-    func refreshProfile(showAlertOnFailure: Bool = true) {
+    func refreshProfile(showAlertOnFailure: Bool = true,
+                        forceRefresh: Bool = true,
+                        successMessage: String = "用户信息已刷新。") {
         guard !accessToken.isEmpty else {
             logout()
             return
@@ -67,11 +69,17 @@ final class CloudAccountManager: ObservableObject {
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true)
+                let object = try await request(
+                    path: cacheBustedPath("api/v1/auth/users/me", enabled: forceRefresh),
+                    method: "GET",
+                    body: nil,
+                    authorized: true,
+                    bypassCache: forceRefresh
+                )
                 let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
                 await MainActor.run {
                     self.applyProfile(data)
-                    self.statusMessage = "用户信息已刷新。"
+                    self.statusMessage = successMessage
                 }
             } catch {
                 await MainActor.run {
@@ -247,8 +255,14 @@ final class CloudAccountManager: ObservableObject {
 
     private func fetchPaymentStatus(outTradeNo: String) async throws -> String {
         let encoded = outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo
-        let path = "api/v1/payment/wechat/order-status?outTradeNo=\(encoded)"
-        let object = try await request(path: path, method: "GET", body: nil, authorized: true)
+        let path = cacheBustedPath("api/v1/payment/wechat/order-status?outTradeNo=\(encoded)", enabled: true)
+        let object = try await request(
+            path: path,
+            method: "GET",
+            body: nil,
+            authorized: true,
+            bypassCache: true
+        )
         let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
         return normalizedPaymentStatus(from: data)
     }
@@ -263,7 +277,10 @@ final class CloudAccountManager: ObservableObject {
         if isPaidPaymentStatus(normalized) {
             statusMessage = "充值成功，正在刷新额度。"
             paymentOrder = nil
-            refreshProfile()
+            refreshProfile(
+                forceRefresh: true,
+                successMessage: "充值到账已刷新。"
+            )
             return true
         }
         if isFailedPaymentStatus(normalized) {
@@ -395,13 +412,22 @@ final class CloudAccountManager: ObservableObject {
         return profile
     }
 
-    private func request(path: String, method: String, body: [String: Any]?, authorized: Bool) async throws -> [String: Any] {
+    private func request(path: String,
+                         method: String,
+                         body: [String: Any]?,
+                         authorized: Bool,
+                         bypassCache: Bool = false) async throws -> [String: Any] {
         guard let url = URL(string: "\(apiBase)/\(path)") else {
             throw CloudAccountError("云端地址无效。")
         }
         var request = URLRequest(url: url, timeoutInterval: 90)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if bypassCache {
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue("no-cache, no-store, max-age=0", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        }
         if authorized {
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         }
@@ -423,6 +449,12 @@ final class CloudAccountManager: ObservableObject {
             throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
         }
         return object
+    }
+
+    private func cacheBustedPath(_ path: String, enabled: Bool) -> String {
+        guard enabled else { return path }
+        let separator = path.contains("?") ? "&" : "?"
+        return "\(path)\(separator)_refresh=\(UUID().uuidString)"
     }
 
     private func payloadData(from object: [String: Any], fallbackError: String) throws -> [String: Any] {
