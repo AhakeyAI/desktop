@@ -755,8 +755,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     }
                 }
             }
-            group.addTask {
+            group.addTask { [weak self] in
                 try await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
+                // 超时必须主动 resume 仍挂着的 continuation 并移除它：CheckedContinuation 不响应任务取消，
+                // 否则 withThrowingTaskGroup 会一直等这个永不结束的子任务而 hang，导致本函数永不返回 →
+                // defer 不清理 → protocolResponseWaiters 残留 → 状态轮询被 guard 永久挡死（设备某档/某模式
+                // 不回应即复现：界面不再随键盘变化刷新，必须重连）。removeValue 原子取出，与响应处理互斥，不会重复 resume。
+                await MainActor.run { [weak self] in
+                    self?.protocolResponseWaiters.removeValue(forKey: expectedCommand)?
+                        .resume(throwing: OLEDUploadError.timeout(command: expectedCommand))
+                }
                 throw OLEDUploadError.timeout(command: expectedCommand)
             }
 
