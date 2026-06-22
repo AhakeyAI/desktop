@@ -1,0 +1,38 @@
+{
+  "name": "@ahakey/plugin-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for AhaKey desktop plugins",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p examples/hello-plugin/tsconfig.json && tsc -p examples/lever-counter/tsconfig.json",
+    "build:sdk": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist examples/hello-plugin/dist examples/lever-counter/dist",
+    "demo": "npm run build && AHAKEY_PLUGINS_DIR=\"$PWD/examples\" swift run --package-path ../../ahakeyconfig-mac PluginShowcase",
+    "demo:agent": "swift run --package-path ../../ahakeyconfig-mac ahakeyconfig-agent",
+    "demo:cli": "npm run build && AHAKEY_PLUGINS_DIR=\"$PWD/examples\" swift run --package-path ../../ahakeyconfig-mac Plugin",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "typecheck": "npm run build:sdk && tsc -p examples/hello-plugin/tsconfig.json --noEmit && tsc -p examples/lever-counter/tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "typescript": "^6.0.3"
+  }
+}

@@ -29,7 +29,9 @@ agent.onLog = { msg in
     let ts = ISO8601DateFormatter().string(from: Date())
     print("[\(ts)] \(msg)")
 }
-agent.startSocketListener()
+guard agent.startSocketListener() else {
+    exit(EXIT_FAILURE)
+}
 
 // 保持运行
 RunLoop.main.run()

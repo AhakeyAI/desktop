@@ -16,15 +16,18 @@ jobs:
         with:
           fetch-depth: 0   # git rev-list --count 需要完整历史
 
+      - name: Resolve version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Build & Package DMG (ad-hoc signed)
-        working-directory: platforms/macos/client
+        working-directory: ahakeyconfig-mac
+        env:
+          DMG_BASENAME: AhaKey-Studio-macOS                  # 固定产物名,与下方上传路径一致(否则默认带时间戳后缀)
+          APP_VERSION: ${{ steps.version.outputs.version }}   # tag vX.Y.Z → 写进 app 的 CFBundleShortVersionString
         run: |
           chmod +x scripts/build.sh scripts/package_dmg.sh
           scripts/package_dmg.sh
-
-      - name: Get version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -34,4 +37,4 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           generate_release_notes: true
           files: |
-            platforms/macos/client/dist/AhaKey-Studio-macOS.dmg
+            ahakeyconfig-mac/dist/AhaKey-Studio-macOS.dmg

@@ -1,0 +1,14 @@
+{
+  "id": "dev.ahakey.example.typescript",
+  "name": "AhaKey TypeScript Showcase",
+  "version": "0.1.0",
+  "entrypoint": {
+    "command": "node",
+    "args": ["${pluginDir}/dist/main.js"]
+  },
+  "permissions": [
+    "host/getInfo",
+    "host/log",
+    "host/getSwitchState"
+  ]
+}

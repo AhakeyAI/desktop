@@ -73,9 +73,20 @@ final class AgentManager: ObservableObject {
     }
 
     private var agentBinaryPath: String {
-        // agent 安装到 app bundle 内部（发版须将 ahakeyconfig-agent 与主程序一并复制到 Contents/MacOS/）
-        let appPath = Bundle.main.bundlePath
-        return "\(appPath)/Contents/MacOS/ahakeyconfig-agent"
+        // 发版优先使用 app bundle 内部的 agent。`swift run AhaKeyConfig` 是裸可执行文件，
+        // 开发时回退到同一 SwiftPM build 目录里的 sibling agent，便于从源码安装 LaunchAgent。
+        let bundled = "\(Bundle.main.bundlePath)/Contents/MacOS/ahakeyconfig-agent"
+        if FileManager.default.isExecutableFile(atPath: bundled) {
+            return bundled
+        }
+        if Bundle.main.bundleURL.pathExtension != "app",
+           let executableDirectory = Bundle.main.executableURL?.deletingLastPathComponent() {
+            let development = executableDirectory.appendingPathComponent("ahakeyconfig-agent").path
+            if FileManager.default.isExecutableFile(atPath: development) {
+                return development
+            }
+        }
+        return bundled
     }
 
     /// 供界面判断：包内是否带有 agent 可执行文件（发版缺拷贝时 LaunchAgent 无法真正运行）。

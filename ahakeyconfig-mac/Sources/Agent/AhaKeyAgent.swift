@@ -190,13 +190,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         )
     }
 
-    func startSocketListener() {
+    @discardableResult
+    func startSocketListener() -> Bool {
+        if Self.hasLiveSocket(at: socketPath) {
+            emit("已有 Agent 在监听 Unix socket: \(socketPath)")
+            return false
+        }
+
         startWatchdog()
-        // 清理旧 socket
+        // 清理没有监听进程的残留 socket
         unlink(socketPath)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { emit("socket() 失败"); return }
+        guard fd >= 0 else { emit("socket() 失败"); return false }
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -212,7 +218,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return }
+        guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return false }
 
         listen(fd, 5)
         emit("监听 Unix socket: \(socketPath)")
@@ -224,6 +230,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 self?.handleClient(clientFd)
             }
         }
+        return true
     }
 
     // MARK: - 看门狗
@@ -251,6 +258,27 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     // MARK: - Socket handling
+
+    private static func hasLiveSocket(at path: String) -> Bool {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        path.withCString { ptr in
+            withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
+                let buf = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
+                strcpy(buf, ptr)
+            }
+        }
+
+        return withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
+            }
+        }
+    }
 
     /// 单个客户端的处理：读一包请求，按 JSON 或旧版纯数字分发。
     ///
