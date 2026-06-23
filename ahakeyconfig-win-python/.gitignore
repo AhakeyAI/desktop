@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.log
+
+build/
+dist/
+hook/build/
+
+hook/dist/Hook-win-*.exe
+hook/dist/launcher.exe
+
+.idea/

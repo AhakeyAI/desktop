@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33530.505
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BLE_tcp_driver", "BLE_tcp_driver.csproj", "{66C28FC3-98AB-4D4F-8321-EF466EC4AFCD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{66C28FC3-98AB-4D4F-8321-EF466EC4AFCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66C28FC3-98AB-4D4F-8321-EF466EC4AFCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66C28FC3-98AB-4D4F-8321-EF466EC4AFCD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66C28FC3-98AB-4D4F-8321-EF466EC4AFCD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9DAD1E4B-C3FA-427A-B232-9C76B52C9537}
+	EndGlobalSection
+EndGlobal
