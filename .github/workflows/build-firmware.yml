@@ -15,10 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install RISC-V toolchain
+      - name: Install RISC-V toolchain (xpack, includes newlib-nano)
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          curl -fsSL "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v14.2.0-3/xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz" \
+            | tar -xz -C /opt
+          echo "/opt/xpack-riscv-none-elf-gcc-14.2.0-3/bin" >> "$GITHUB_PATH"
 
       - name: Clone WCH CH582 SDK (openwch/ch582)
         run: |
@@ -39,15 +40,16 @@ jobs:
           echo "Using HAL: $HAL_PATH"
           echo "HAL_PATH=$HAL_PATH" >> "$GITHUB_ENV"
           echo "SDK_SRC=$SDK_EXAM/SRC" >> "$GITHUB_ENV"
+          echo "LIB_DIR=$SDK_EXAM/BLE/LIB" >> "$GITHUB_ENV"
 
       - name: Build firmware
         working-directory: CH582m_vibe_coding_BLE_keyboard-master
         run: |
           make \
-            PREFIX=riscv64-unknown-elf- \
+            PREFIX=riscv-none-elf- \
             SDK_SRC="$SDK_SRC" \
             HAL_DIR="$HAL_PATH" \
-            LIB_DIR="$SDK_SRC/LIB"
+            LIB_DIR="$LIB_DIR"
 
       - name: Upload hex artifact
         uses: actions/upload-artifact@v4
