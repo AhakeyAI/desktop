@@ -1,0 +1,57 @@
+name: Build CH582 Firmware
+
+on:
+  push:
+    branches: [main, main-anpx, ui-iteration]
+    paths:
+      - 'CH582m_vibe_coding_BLE_keyboard-master/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install RISC-V toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+
+      - name: Clone WCH CH582 SDK (openwch/ch582)
+        run: |
+          git clone --depth=1 https://github.com/openwch/ch582.git /tmp/ch582sdk
+
+      - name: Set up SDK directory layout
+        run: |
+          SDK_EXAM=/tmp/ch582sdk/EVT/EXAM
+
+          # SRC components — used by Makefile via SDK_SRC
+          # (no path magic needed; we pass the path explicitly to make)
+
+          # HAL — find the HID_Keyboard HAL first, fall back to any BLE HAL
+          HAL_PATH=$(find "$SDK_EXAM/BLE" -type d -name "HAL" | grep -i "hid_keyboard" | head -1)
+          if [ -z "$HAL_PATH" ]; then
+            HAL_PATH=$(find "$SDK_EXAM/BLE" -type d -name "HAL" | head -1)
+          fi
+          echo "Using HAL: $HAL_PATH"
+          echo "HAL_PATH=$HAL_PATH" >> "$GITHUB_ENV"
+          echo "SDK_SRC=$SDK_EXAM/SRC" >> "$GITHUB_ENV"
+
+      - name: Build firmware
+        working-directory: CH582m_vibe_coding_BLE_keyboard-master
+        run: |
+          make \
+            PREFIX=riscv64-unknown-elf- \
+            SDK_SRC="$SDK_SRC" \
+            HAL_DIR="$HAL_PATH" \
+            LIB_DIR="$SDK_SRC/LIB"
+
+      - name: Upload hex artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.ref_name }}-${{ github.sha }}
+          path: CH582m_vibe_coding_BLE_keyboard-master/obj/HID_Keyboard_582m_vibe_coding.hex
+          if-no-files-found: error

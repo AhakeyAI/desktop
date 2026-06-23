@@ -159,6 +159,15 @@ void command_process(uint8_t *d, uint32_t len)
                   key_bund.pic[d[1]][0],
                   key_bund.pic[d[1]][1],
                   key_bund.pic[d[1]][2]);
+            // Old clients keep using 0x82. Mirror that animation into the
+            // default state of both sets so upgraded firmware stays compatible.
+            if (key_bund.task_pic_schema == TASK_PIC_SCHEMA) {
+                for (uint8_t set = 0; set < TASK_PIC_SET_COUNT; set++) {
+                    memcpy(key_bund.task_pic[d[1]][set][CL_SessionEnd],
+                           key_bund.pic[d[1]],
+                           sizeof(key_bund.pic[0]));
+                }
+            }
             running_data.have_update_custom_data = 1;
         }
     }
@@ -183,10 +192,78 @@ void command_process(uint8_t *d, uint32_t len)
         return;
     }
 
+    if (d[0] == 0x84 && len == 10) { // task picture metadata update
+        if (d[1] < TASK_PIC_MODE_COUNT && d[2] < TASK_PIC_SET_COUNT && d[3] < TASK_PIC_STATE_COUNT) {
+            uint16_t *slot = task_picture_slot(d[1], d[2], d[3]);
+            slot[0] = d[4] | (d[5] << 8);
+            slot[1] = d[6] | (d[7] << 8);
+            slot[2] = d[8] | (d[9] << 8);
+            running_data.have_update_custom_data = 1;
+            if (running_data.mode_data == d[1]) {
+                running_data.pic_index = 0;
+                tmos_set_event(mTaskID, MCT_PIC_DISPLAY);
+            }
+            PRINT("update task pic:mode%d,set%d,state%d,start%d,len%d,time%dms\n",
+                  d[1], d[2], d[3], slot[0], slot[1], slot[2]);
+        }
+    }
+    if (d[0] == 0x85 && len == 4) { // task picture metadata query
+        if (d[1] < TASK_PIC_MODE_COUNT && d[2] < TASK_PIC_SET_COUNT && d[3] < TASK_PIC_STATE_COUNT) {
+            uint8_t ret[24];
+            uint8_t ret_len = 0;
+            uint16_t *slot = task_picture_slot(d[1], d[2], d[3]);
+            uint16_t max_pic_size = nor_flash_get_size() / 7 / 4096;
+            ret[ret_len++] = 0xaa;
+            ret[ret_len++] = 0xbb;
+            ret[ret_len++] = 0x85;
+            ret[ret_len++] = 0;
+            ret[ret_len++] = d[1];
+            ret[ret_len++] = d[2];
+            ret[ret_len++] = d[3];
+            memcpy(ret + ret_len, slot, sizeof(key_bund.pic[0]));
+            ret_len += sizeof(key_bund.pic[0]);
+            memcpy(ret + ret_len, &max_pic_size, sizeof(max_pic_size));
+            ret_len += sizeof(max_pic_size);
+            ret[ret_len++] = key_bund.active_pic_set[d[1]];
+            ret[ret_len++] = 0xcc;
+            ret[ret_len++] = 0xdd;
+            peripheralChar4Notify(ret, ret_len);
+        }
+        return;
+    }
+    if (d[0] == 0x86 && len >= 3) { // set/query active task picture set
+        if (d[1] < TASK_PIC_MODE_COUNT) {
+            uint8_t ret[10];
+            uint8_t ret_len = 0;
+            if (d[2] < TASK_PIC_SET_COUNT) {
+                key_bund.active_pic_set[d[1]] = d[2];
+                if (running_data.mode_data == d[1]) {
+                    running_data.pic_index = 0;
+                    tmos_set_event(mTaskID, MCT_PIC_DISPLAY);
+                }
+                save_key_bound_data();
+            }
+            ret[ret_len++] = 0xaa;
+            ret[ret_len++] = 0xbb;
+            ret[ret_len++] = 0x86;
+            ret[ret_len++] = 0;
+            ret[ret_len++] = d[1];
+            ret[ret_len++] = key_bund.active_pic_set[d[1]];
+            ret[ret_len++] = 0xcc;
+            ret[ret_len++] = 0xdd;
+            peripheralChar4Notify(ret, ret_len);
+        }
+        return;
+    }
+
     if (d[0] == 0x90) { // claude state update
-        running_data.claude_state = d[1];
-        PRINT("CLAUDE STATE %d\n", d[1]);
-        update_claude_ws2812();
+        if (len >= 2 && d[1] < TASK_PIC_STATE_COUNT) {
+            running_data.claude_state = d[1];
+            running_data.pic_index = 0;
+            tmos_set_event(mTaskID, MCT_PIC_DISPLAY);
+            PRINT("CLAUDE STATE %d\n", d[1]);
+            update_claude_ws2812();
+        }
         return;
     }
     if (d[0] == 0x91) { // sw_state override (virtual switch via BLE)
@@ -225,7 +302,9 @@ void command_return_state(void)
     ret[ret_len++]  = running_data.mode_data;     // data[4] = info.WorkMode;
     ret[ret_len++]  = running_data.ws2812_mode;   // data[5] = info.LightMode;
     ret[ret_len++]  = running_data.sw_state;      // data[6] = info.SwitchState;
-    ret[ret_len++]  = 0;                          // data[7] = info.Reserve;
+    ret[ret_len++]  = running_data.mode_data < TASK_PIC_MODE_COUNT
+                          ? key_bund.active_pic_set[running_data.mode_data]
+                          : 0;                    // data[7] = active GIF set;
     ret[ret_len++]  = 0xcc;
     ret[ret_len++]  = 0xdd;
     peripheralChar4Notify(ret, ret_len);

@@ -23,6 +23,8 @@ struct AhaKeyStudioView: View {
     // AhaKeyStudio 交还蓝牙给 Agent 的过渡期：保持"已连接"显示，直到 Agent 接管或超时。
     @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
+    @State private var selectedOLEDGIFSet = 0
+    @State private var selectedOLEDTaskState: AhaKeyTaskDisplayState = .sessionEnd
     @State private var showsDeviceInfo = false
     @State private var showsCloudAccount = false
     @State private var showsAhaTypeLoginRequiredToast = false
@@ -50,6 +52,11 @@ struct AhaKeyStudioView: View {
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
         _lightBarPreview = State(initialValue: .aiRunning)
+    }
+
+    private struct TaskGIFChange {
+        let slot: KeyboardTaskPictureSlot
+        let asset: AhaKeyTaskGIFAssetDraft
     }
 
     var body: some View {
@@ -147,7 +154,7 @@ struct AhaKeyStudioView: View {
         .sheet(isPresented: $showsOLEDPlaybackPreview) {
             OLEDMotionPreviewSheet(
                 modeTitle: selectedMode.title,
-                assetPath: currentModeDraft.oled.localAssetPath
+                assetPath: currentOLEDTaskAsset.localAssetPath
             )
         }
         .sheet(isPresented: $showsDeviceInfo) {
@@ -329,6 +336,8 @@ struct AhaKeyStudioView: View {
             VStack(alignment: .leading, spacing: 8) {
                 AhaKeyKeyboardCanvasView(
                     modeDraft: currentModeDraft,
+                    oledAssetPath: currentOLEDTaskAsset.localAssetPath,
+                    oledFramesPerSecond: currentOLEDTaskAsset.framesPerSecond,
                     selectedPart: selectedPart,
                     lightBarPreview: lightBarPreview,
                     switchTitle: currentSwitchTitle,
@@ -1210,10 +1219,50 @@ struct AhaKeyStudioView: View {
 
     private var oledInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("当前模式的 LCD 动图") {
-                VStack(alignment: .leading, spacing: 14) {
+            GroupBox("任务状态动图") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("套图", selection: $selectedOLEDGIFSet) {
+                        Text("套图 A").tag(0)
+                        Text("套图 B").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                        spacing: 8
+                    ) {
+                        ForEach(AhaKeyTaskDisplayState.allCases) { state in
+                            let isSelected = state == selectedOLEDTaskState
+                            let asset = currentModeDraft.oled.taskAsset(set: selectedOLEDGIFSet, state: state)
+                            Button {
+                                selectedOLEDTaskState = state
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(state.title)
+                                        .font(.caption.weight(.semibold))
+                                        .lineLimit(1)
+                                    Text(asset.localAssetPath == nil ? "未配置" : "已选 GIF")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+                                .padding(.horizontal, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .fill(isSelected ? Color.accentColor.opacity(0.14) : Color(nsColor: .controlBackgroundColor))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .stroke(isSelected ? Color.accentColor : Color.black.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
                     ZStack {
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 8)
                             .fill(Color.black.opacity(0.9))
                             .frame(height: 140)
 
@@ -1222,67 +1271,47 @@ struct AhaKeyStudioView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(height: 112)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
                         } else {
-                            VStack(spacing: 10) {
-                                Image(systemName: "photo.artframe")
-                                    .font(.system(size: 28))
-                                    .foregroundStyle(.white.opacity(0.8))
-                                Text("当前仅支持动图")
-                                    .foregroundStyle(.white.opacity(0.85))
-                                Text("文字、token、模型状态显示开发中")
+                            VStack(spacing: 6) {
+                                Image(systemName: "play.tv")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(.white.opacity(0.75))
+                                Text("未配置 GIF")
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.55))
+                                    .foregroundStyle(.white.opacity(0.7))
                             }
                         }
                     }
 
-                    HStack(spacing: 10) {
-                        Button("选择动图") {
+                    HStack(spacing: 8) {
+                        Button("选择 GIF") {
                             selectOLEDGIF()
                         }
                         .buttonStyle(.bordered)
 
-                        Button("预览动图") {
+                        Button("预览") {
                             showsOLEDPlaybackPreview = true
                         }
                         .buttonStyle(.bordered)
-                        .disabled(currentModeDraft.oled.localAssetPath == nil)
-
-                        Button(bleManager.isUploadingOLED ? "上传中…" : "上传到 \(selectedMode.title)") {
-                            uploadCurrentOLEDToDevice()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!bleManager.isConnected || bleManager.isUploadingOLED || currentModeDraft.oled.localAssetPath == nil)
+                        .disabled(currentOLEDTaskAsset.localAssetPath == nil)
 
                         Button("清空") {
                             clearCurrentOLED()
                         }
                         .buttonStyle(.bordered)
 
-                        Spacer()
+                        Spacer(minLength: 0)
 
-                        Text("当前目标：\(selectedMode.title)")
+                        Text("\(selectedOLEDTaskState.title)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
 
                     Stepper(value: oledFramesPerSecondBinding, in: 5 ... 20) {
-                        Text("播放速度 \(currentModeDraft.oled.framesPerSecond) FPS")
+                        Text("播放速度 \(currentOLEDTaskAsset.framesPerSecond) FPS")
                     }
-
-                    if let progress = bleManager.oledUploadProgress, bleManager.isUploadingOLED {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ProgressView(value: progress.fractionCompleted)
-                            Text("已写入 \(progress.completedFrames)/\(progress.totalFrames) 帧，分块 \(progress.completedChunks)/\(progress.totalChunks)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Text("硬性限制：GIF 源文件 ≤ 2 MB。建议 5–20 FPS、最多 74 帧；将自动缩放到 160×80（RGB565）。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
 
                     Text(currentModeDraft.oled.statusLine)
                         .font(.caption)
@@ -1291,13 +1320,38 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("显示逻辑") {
+            GroupBox("套图切换") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("切换到当前模式时，LCD 会先显示该模式的按键描述，约 1 秒后回到该模式动图。")
-                    Text("后续会继续增加文字状态、token 用量、模型环境等信息显示能力。")
+                    let deviceSet = bleManager.activeTaskPictureSets[selectedMode.rawValue]
+                    HStack {
+                        Text(deviceSet == nil ? "设备套图未读取" : "设备当前：套图 \((deviceSet ?? 0) + 1)")
+                            .font(.callout.weight(.medium))
+                        Spacer()
+                        Button {
+                            Task {
+                                do {
+                                    let next = ((deviceSet ?? 0) + 1) % 2
+                                    _ = try await bleManager.setActiveTaskPictureSet(
+                                        mode: UInt8(selectedMode.rawValue),
+                                        set: UInt8(next)
+                                    )
+                                    syncStatusMessage = "已切换 \(selectedMode.title) 到套图 \(next + 1)。"
+                                } catch {
+                                    syncStatusMessage = "切换设备套图失败：\(error.localizedDescription)"
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                        .help("切换设备当前 GIF 套图")
+                        .disabled(!bleManager.isConnected || isSyncing)
+                    }
+                    Text("电源键双击同样切换当前 Mode 的套图，并在断电后保留。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .font(.callout)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
             }
         }
     }
@@ -1310,7 +1364,7 @@ struct AhaKeyStudioView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("出厂灯条映射（只读）")
                     .font(.subheadline.weight(.semibold))
-                Text("灯条由键盘固件根据 Hook 上报的 IDE 状态点亮，本软件不能改写。下表展示的是各业务场景通常对应的 Hook 状态与出厂灯效。下方画布按业务场景显示；「预览到设备」则会按当前拨杆下可达的固件状态发送试灯。")
+                Text("灯条由键盘固件根据 Hook 上报的 IDE 状态点亮，本软件不能改写。下表展示的是各业务场景通常对应的 Hook 状态与出厂灯效。下方画布只预览到虚拟键盘；写入设备统一使用底部操作。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1362,12 +1416,6 @@ struct AhaKeyStudioView: View {
                     HStack {
                         Text(lightBarPreview.title)
                             .font(.system(.title3, design: .rounded).weight(.semibold))
-                        Spacer()
-                        Button("预览到设备") {
-                            previewCurrentLightEffectOnDevice()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!bleManager.isConnected || currentDevicePreviewIDEState == nil)
                     }
 
                     Text("当前画布预览：\(currentLightEffect.title)")
@@ -1376,14 +1424,9 @@ struct AhaKeyStudioView: View {
                     Text("当前业务状态对应 Hook：\(lightBarPreview.ideState.label)")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
-                    Text(currentLightPreviewHint)
+                    Text("预览仅更新左侧虚拟键盘画布；需要写入设备时请使用底部通用写入按钮。")
                         .font(.caption)
-                        .foregroundStyle(currentDevicePreviewIDEState == nil ? .orange : .secondary)
-                    if bleManager.isConnected && bleManager.workMode != 0 {
-                        Text("ℹ️ 出厂固件只在物理 Mode 0（1、2 灯）下完整映射了 state → 灯效；当前键盘在 Mode \(bleManager.workMode)，点预览多半看不到效果，把拨杆切到 Mode 0 再试。")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
+                        .foregroundStyle(.secondary)
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 10)], spacing: 10) {
                         ForEach(LightBarPreviewState.allCases) { state in
@@ -1418,7 +1461,7 @@ struct AhaKeyStudioView: View {
 
             GroupBox("说明") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("若需让某套灯效出现，请用下方「预览到设备」向固件发送一次对应可达的 IDE 状态试灯；或在 Agent 连上键盘后，通过实际触发 Hook 观察。")
+                    Text("这里的灯效预览只作用于虚拟键盘。写入设备后，实际灯效由 Hook 状态和键盘固件映射共同决定。")
                 }
                 .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1676,29 +1719,22 @@ struct AhaKeyStudioView: View {
             : "虚拟拨杆 → 手动批准（hook 交回终端确认）"
     }
 
+    private var currentOLEDTaskAsset: AhaKeyTaskGIFAssetDraft {
+        currentModeDraft.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
+    }
+
     private var currentOLEDPreviewImage: NSImage? {
-        guard let path = currentModeDraft.oled.localAssetPath else { return nil }
+        guard let path = currentOLEDTaskAsset.localAssetPath else { return nil }
         return NSImage(contentsOfFile: path)
     }
 
     private var currentOLEDAssetURL: URL? {
-        guard let path = currentModeDraft.oled.localAssetPath else { return nil }
+        guard let path = currentOLEDTaskAsset.localAssetPath else { return nil }
         return URL(fileURLWithPath: path)
     }
 
     private var currentLightEffect: LightEffectStyle {
         AhaKeyLightBarDraft.hardwareEffect(for: lightBarPreview)
-    }
-
-    private var currentDevicePreviewIDEState: IDEState? {
-        currentLightEffect.previewIDEState(forSwitchState: bleManager.switchState)
-    }
-
-    private var currentLightPreviewHint: String {
-        if let previewState = currentDevicePreviewIDEState {
-            return "当前拨杆下，预览到设备会发送 \(previewState.label)，以逼近画布中的 \(currentLightEffect.title) 效果。"
-        }
-        return currentLightEffect.previewHint(forSwitchState: bleManager.switchState)
     }
 
     private var isEditingConfiguration: Bool {
@@ -1817,10 +1853,12 @@ struct AhaKeyStudioView: View {
 
     private var oledFramesPerSecondBinding: Binding<Int> {
         Binding(
-            get: { currentModeDraft.oled.framesPerSecond },
+            get: { currentOLEDTaskAsset.framesPerSecond },
             set: { newValue in
                 updateCurrentMode { mode in
-                    mode.oled.framesPerSecond = min(20, max(5, newValue))
+                    var asset = mode.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
+                    asset.framesPerSecond = min(20, max(5, newValue))
+                    mode.oled.updateTaskAsset(set: selectedOLEDGIFSet, asset: asset)
                 }
             }
         )
@@ -1853,8 +1891,10 @@ struct AhaKeyStudioView: View {
 
     private func clearCurrentOLED() {
         updateCurrentMode { mode in
-            mode.oled.localAssetPath = nil
-            mode.oled.statusLine = AhaKeyOLEDDraft.default(for: selectedMode).statusLine
+            var asset = mode.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
+            asset.localAssetPath = nil
+            mode.oled.updateTaskAsset(set: selectedOLEDGIFSet, asset: asset)
+            mode.oled.statusLine = "已清空套图 \(selectedOLEDGIFSet + 1) · \(selectedOLEDTaskState.title)，写入设备后生效。"
         }
     }
 
@@ -1996,10 +2036,12 @@ struct AhaKeyStudioView: View {
             }
             let frameCount = OLEDFrameEncoder.frameCount(at: url)
             updateCurrentMode { mode in
-                mode.oled.localAssetPath = url.path
-                mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧 GIF 预览；切换模式时会先显示描述，再回到当前模式动图。"
+                var asset = mode.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
+                asset.localAssetPath = url.path
+                mode.oled.updateTaskAsset(set: selectedOLEDGIFSet, asset: asset)
+                mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧 GIF：套图 \(selectedOLEDGIFSet + 1) · \(selectedOLEDTaskState.title)。"
             }
-            syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览，连接后可直接上传到设备。"
+            syncStatusMessage = "已更新 \(selectedMode.title) 套图 \(selectedOLEDGIFSet + 1) 的 \(selectedOLEDTaskState.title) 预览；写入设备请使用底部通用按钮。"
         }
     }
 
@@ -2092,54 +2134,248 @@ struct AhaKeyStudioView: View {
     }
 
     private func syncAllModesToDevice(returnToKeyboardControlWhenDone: Bool = false) {
+        syncModesToDevice(
+            AhaKeyModeSlot.allCases,
+            returnToKeyboardControlWhenDone: returnToKeyboardControlWhenDone
+        )
+    }
+
+    private func resendCurrentModeToDevice() {
+        syncModesToDevice([selectedMode])
+    }
+
+    private func syncModesToDevice(
+        _ modes: [AhaKeyModeSlot],
+        returnToKeyboardControlWhenDone: Bool = false
+    ) {
         guard bleManager.isConnected && bleManager.commandCharReady else {
             syncStatusMessage = "设备未连接或命令通道未就绪，当前只保存本地草稿。"
             return
         }
 
         applyCursorRejectMacroSelfHealIfNeeded()
-        var commands = commandsForModes(AhaKeyModeSlot.allCases)
-        commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
-
-        let total = commands.count
-        isSyncing = true
-        syncStatusMessage = "正在写入设备（约 \(total) 条，全部发完后再保存/交还 Agent）…"
+        let legacyGIFBootstrapModes = modes.filter {
+            studioDraft.draft(for: $0).oled.taskGIFSchemaVersion < 1
+        }
+        let taskChanges = taskGIFChanges(for: modes)
+        var commands = commandsForModes(modes)
+        commands.append((data: AhaKeyCommand.saveConfig(), label: "保存设备配置"))
         let returnAgent = returnToKeyboardControlWhenDone
-        bleManager.writeCommandsSequentially(commands) {
-            Task { @MainActor in
-                // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
-                try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
-                self.lastSyncedDraft = self.studioDraft
-                self.lastSyncDate = Date()
-                self.isSyncing = false
-                self.syncStatusMessage = "已全部写入设备并保存。"
+
+        isSyncing = true
+        let gifWorkCount = taskChanges.count + legacyGIFBootstrapModes.count
+        syncStatusMessage = gifWorkCount == 0
+            ? "正在写入设备（\(commands.count) 条配置）…"
+            : "正在写入设备（\(gifWorkCount) 个任务动图 + \(commands.count) 条配置）…"
+
+        Task {
+            do {
+                try await bootstrapLegacyGIFsIfNeeded(for: legacyGIFBootstrapModes)
+                try await syncTaskGIFChanges(taskChanges)
+                bleManager.writeCommandsSequentially(commands) {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
+                        self.markModesSynced(modes)
+                        self.lastSyncDate = Date()
+                        self.isSyncing = false
+                        self.syncStatusMessage = "已写入设备并保存。"
+                        if returnAgent {
+                            self.returnToKeyboardControl()
+                        }
+                    }
+                }
+            } catch {
+                isSyncing = false
+                syncStatusMessage = "任务动图写入失败：\(error.localizedDescription)"
                 if returnAgent {
-                    self.returnToKeyboardControl()
+                    returnToKeyboardControl()
                 }
             }
         }
     }
 
-    private func resendCurrentModeToDevice() {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = "设备未连接或命令通道未就绪，当前只保存本地草稿。"
-            return
+    private func markModesSynced(_ modes: [AhaKeyModeSlot]) {
+        var current = studioDraft
+        var baseline = lastSyncedDraft
+        for mode in modes {
+            var modeDraft = current.draft(for: mode)
+            modeDraft.oled.taskGIFSchemaVersion = 1
+            current.updateMode(modeDraft)
+            baseline.updateMode(modeDraft)
         }
+        studioDraft = current
+        lastSyncedDraft = baseline
+    }
 
-        applyCursorRejectMacroSelfHealIfNeeded()
-        var commands = commandsForModes([selectedMode])
-        commands.append((data: AhaKeyCommand.saveConfig(), label: "保存 \(selectedMode.title) 当前配置"))
+    private func bootstrapLegacyGIFsIfNeeded(for modes: [AhaKeyModeSlot]) async throws {
+        for mode in modes {
+            let oled = studioDraft.draft(for: mode).oled
+            guard let assetPath = oled.localAssetPath else { continue }
 
-        isSyncing = true
-        syncStatusMessage = "正在写入 \(selectedMode.title)…"
-        bleManager.writeCommandsSequentially(commands) {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
-                self.lastSyncDate = Date()
-                self.isSyncing = false
-                self.syncStatusMessage = "已重新发送 \(self.selectedMode.title) 当前模式。"
+            let assetURL = URL(fileURLWithPath: assetPath)
+            try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
+            let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+            let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+            try await bleManager.uploadOLEDFrames(
+                frames,
+                fps: oled.framesPerSecond,
+                mode: UInt8(mode.rawValue),
+                startIndex: UInt16(startIndex)
+            )
+        }
+    }
+
+    private func taskGIFChanges(for modes: [AhaKeyModeSlot]) -> [TaskGIFChange] {
+        var changes: [TaskGIFChange] = []
+        for mode in modes {
+            let currentOLED = studioDraft.draft(for: mode).oled
+            let baselineOLED = lastSyncedDraft.draft(for: mode).oled
+            for set in 0 ..< 2 {
+                for state in AhaKeyTaskDisplayState.allCases {
+                    let current = currentOLED.taskAsset(set: set, state: state)
+                    let baseline = baselineOLED.taskAsset(set: set, state: state)
+                    if current != baseline {
+                        changes.append(TaskGIFChange(
+                            slot: KeyboardTaskPictureSlot(
+                                mode: mode.rawValue,
+                                set: set,
+                                state: state.rawValue
+                            ),
+                            asset: current
+                        ))
+                    }
+                }
             }
         }
+        return changes
+    }
+
+    private func syncTaskGIFChanges(_ changes: [TaskGIFChange]) async throws {
+        guard !changes.isEmpty else { return }
+
+        var deviceStates = try await bleManager.readAllTaskPictureStates()
+        for change in changes {
+            let mode = UInt8(change.slot.mode)
+            let set = UInt8(change.slot.set)
+            let state = UInt8(change.slot.state)
+
+            guard let path = change.asset.localAssetPath else {
+                try await bleManager.clearTaskPicture(mode: mode, set: set, state: state)
+                if let index = deviceStates.firstIndex(where: {
+                    $0.mode == change.slot.mode && $0.set == change.slot.set && $0.state == change.slot.state
+                }) {
+                    let existing = deviceStates[index]
+                    deviceStates[index] = AhaKeyTaskPictureState(
+                        mode: existing.mode,
+                        set: existing.set,
+                        state: existing.state,
+                        startIndex: 0,
+                        picLength: 0,
+                        frameInterval: 0,
+                        allModeMaxPic: existing.allModeMaxPic,
+                        activeSet: existing.activeSet
+                    )
+                }
+                continue
+            }
+
+            let assetURL = URL(fileURLWithPath: path)
+            try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
+            let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+            let startIndex = try resolveTaskOLEDUploadStartIndex(
+                for: change.slot,
+                frameCount: frames.count,
+                states: deviceStates
+            )
+            try await bleManager.uploadTaskOLEDFrames(
+                frames,
+                fps: change.asset.framesPerSecond,
+                mode: mode,
+                set: set,
+                state: state,
+                startIndex: UInt16(startIndex)
+            )
+
+            let interval = max(1, 1000 / max(1, change.asset.framesPerSecond))
+            let newState = AhaKeyTaskPictureState(
+                mode: change.slot.mode,
+                set: change.slot.set,
+                state: change.slot.state,
+                startIndex: startIndex,
+                picLength: frames.count,
+                frameInterval: interval,
+                allModeMaxPic: deviceStates.first?.allModeMaxPic ?? AhaKeyCommand.oledMaxFrames,
+                activeSet: bleManager.activeTaskPictureSets[change.slot.mode] ?? 0
+            )
+            if let index = deviceStates.firstIndex(where: {
+                $0.mode == change.slot.mode && $0.set == change.slot.set && $0.state == change.slot.state
+            }) {
+                deviceStates[index] = newState
+            } else {
+                deviceStates.append(newState)
+            }
+        }
+    }
+
+    private func resolveTaskOLEDUploadStartIndex(
+        for target: KeyboardTaskPictureSlot,
+        frameCount: Int,
+        states: [AhaKeyTaskPictureState]
+    ) throws -> Int {
+        let maxCapacity = states.first?.allModeMaxPic ?? AhaKeyCommand.oledMaxFrames
+        guard frameCount <= maxCapacity else {
+            throw OLEDUploadError.noAvailablePictureSlot(needed: frameCount, max: maxCapacity)
+        }
+
+        let targetState = states.first {
+            $0.mode == target.mode && $0.set == target.set && $0.state == target.state
+        }
+        let occupiedRegions = mergedPictureRegions(
+            states
+                .filter {
+                    !($0.mode == target.mode && $0.set == target.set && $0.state == target.state)
+                        && $0.picLength > 0
+                }
+                .map { (start: $0.startIndex, end: $0.startIndex + $0.picLength) }
+        )
+
+        if let targetState,
+           targetState.picLength > 0,
+           canPlacePictureRange(
+               start: targetState.startIndex,
+               count: frameCount,
+               occupiedRegions: occupiedRegions,
+               maxCapacity: maxCapacity
+           )
+        {
+            return targetState.startIndex
+        }
+
+        if let freeStart = findFreePictureSpace(
+            occupiedRegions: occupiedRegions,
+            neededCount: frameCount,
+            maxCapacity: maxCapacity
+        ) {
+            return freeStart
+        }
+
+        throw OLEDUploadError.noAvailablePictureSlot(needed: frameCount, max: maxCapacity)
+    }
+
+    private func mergedPictureRegions(
+        _ regions: [(start: Int, end: Int)]
+    ) -> [(start: Int, end: Int)] {
+        let sorted = regions.sorted { $0.start < $1.start }
+        var merged: [(start: Int, end: Int)] = []
+        for region in sorted {
+            guard region.end > region.start else { continue }
+            if let last = merged.last, region.start <= last.end {
+                merged[merged.count - 1] = (start: last.start, end: max(last.end, region.end))
+            } else {
+                merged.append(region)
+            }
+        }
+        return merged
     }
 
     /// Cursor 档「取消键」若仍为默认 ⌫ 却残留宏，同步会走 0x74 而非单键。清掉误残留宏并与迁移逻辑一致。
@@ -2227,48 +2463,6 @@ struct AhaKeyStudioView: View {
         }
 
         return commands
-    }
-
-    private func uploadCurrentOLEDToDevice() {
-        guard bleManager.isConnected else {
-            syncStatusMessage = "设备未连接，先连上键盘再上传 LCD 动图。"
-            return
-        }
-        guard let assetPath = currentModeDraft.oled.localAssetPath else {
-            syncStatusMessage = "先为 \(selectedMode.title) 选择一个 GIF，再上传到设备。"
-            return
-        }
-
-        let targetMode = selectedMode
-        let targetFPS = currentModeDraft.oled.framesPerSecond
-        let assetURL = URL(fileURLWithPath: assetPath)
-
-        updateMode(targetMode) { mode in
-            mode.oled.statusLine = "正在上传动图到 \(targetMode.title)…"
-        }
-        syncStatusMessage = "开始上传 \(targetMode.title) 的 LCD 动图。"
-
-        Task { @MainActor in
-            do {
-                let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
-                let startIndex = try await resolveOLEDUploadStartIndex(for: targetMode, frameCount: frames.count)
-                try await bleManager.uploadOLEDFrames(
-                    frames,
-                    fps: targetFPS,
-                    mode: UInt8(targetMode.rawValue),
-                    startIndex: UInt16(startIndex)
-                )
-                updateMode(targetMode) { mode in
-                    mode.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
-                }
-                syncStatusMessage = "\(targetMode.title) LCD 动图已上传完成。"
-            } catch {
-                updateMode(targetMode) { mode in
-                    mode.oled.statusLine = "上传失败：\(error.localizedDescription)"
-                }
-                syncStatusMessage = "\(targetMode.title) LCD 上传失败：\(error.localizedDescription)"
-            }
-        }
     }
 
     /// 首次连接键盘后自动把 bundle 默认 GIF 推到没有上传过的 mode slot。
@@ -2389,19 +2583,6 @@ struct AhaKeyStudioView: View {
         }
 
         return nil
-    }
-
-    private func previewCurrentLightEffectOnDevice() {
-        guard let ideState = currentDevicePreviewIDEState else {
-            syncStatusMessage = currentLightPreviewHint
-            return
-        }
-        bleManager.updateIDEState(ideState)
-        if bleManager.workMode == 0 {
-            syncStatusMessage = "已把 \(currentLightEffect.title) 的可达预览发送到设备（Mode 0）。"
-        } else {
-            syncStatusMessage = "已发送 \(ideState.label) 到设备。注意：键盘当前在 Mode \(bleManager.workMode)，出厂固件可能没有在此档位映射此 state，把拨杆切到 Mode 0 可看到完整效果。"
-        }
     }
 
     private func infoPill(title: String, subtitle: String, accent: Color) -> some View {
@@ -2824,6 +3005,8 @@ private struct CanvasKeyButtonStyle: ButtonStyle {
 
 private struct AhaKeyKeyboardCanvasView: View {
     let modeDraft: AhaKeyModeDraft
+    var oledAssetPath: String? = nil
+    var oledFramesPerSecond: Int? = nil
     let selectedPart: AhaKeyStudioPart
     let lightBarPreview: LightBarPreviewState
     let switchTitle: String
@@ -3096,11 +3279,11 @@ private struct AhaKeyKeyboardCanvasView: View {
 
     @ViewBuilder
     private func screenBody(screenWidth: CGFloat, screenHeight: CGFloat) -> some View {
-        if let gifPath = modeDraft.oled.localAssetPath {
+        if let gifPath = oledAssetPath ?? modeDraft.oled.localAssetPath {
             // .id(gifPath) 强制 SwiftUI 在路径切换时销毁并重建视图，
             // 否则旧路径的 @State frames/currentFrame/timer 会与新路径错位，
             // 导致 Mode 切换瞬间画布渲染上一档 GIF 的某一帧（claude / cursor 互窜）。
-            AnimatedGIFView(path: gifPath, fps: modeDraft.oled.framesPerSecond)
+            AnimatedGIFView(path: gifPath, fps: oledFramesPerSecond ?? modeDraft.oled.framesPerSecond)
                 .id(gifPath)
         } else {
             ZStack {
@@ -4516,8 +4699,8 @@ private struct OLEDTopicView: View {
             HelpSection(title: "替换成自己的 GIF", body: """
                 1. 画布点 OLED 屏幕 → Inspector 显示「修改」
                 2. 点「修改」进入编辑态（接管 BLE）
-                3. 在「上传到 ModeX」一栏选你的 .gif（推荐 ≤200 帧、≤2MB）
-                4. 上传完点「返回并保存」
+                3. 选择你的 .gif（推荐 ≤200 帧、≤2MB），可先在虚拟屏幕里预览
+                4. 确认后点「返回并保存」统一写入设备
                 """)
 
             HelpSection(title: "OLED 角标的含义", body: """

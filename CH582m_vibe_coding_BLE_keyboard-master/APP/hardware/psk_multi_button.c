@@ -34,6 +34,7 @@ void set_mode(uint8_t mode)
     const enum ws2812_mode_e m[4] = {WS2812_OFF, WS2812_RAINBOW_MOVE, WS2812_RAINBOW_WAVE_SLOW, WS2812_OFF};
     running_data.ws2812_mode      = m[mode];
     running_data.mode_data        = mode;
+    running_data.pic_index        = 0;
     LCD_CS_RESET;
     IPS_Clear(CYAN);
     char txt[15];
@@ -109,7 +110,7 @@ void user_defined_mode(uint8_t key_index, uint8_t if_press, uint8_t mode)
 }
 /**
  *
- * @brief : °´¼ü»Øµ÷º¯Êý, index °´¼üÏÂ±ê
+ * @brief : ï¿½ï¿½ï¿½ï¿½ï¿½Øµï¿½ï¿½ï¿½ï¿½ï¿½, index ï¿½ï¿½ï¿½ï¿½ï¿½Â±ï¿½
  * @note  :
  * @param {void} *button
  */
@@ -166,6 +167,13 @@ void key_power_callback(void *button)
         }
         break;
     }
+    case DOUBLE_CLICK: {
+        // Double-click is emitted instead of SINGLE_CLICK by multi_button.c.
+        // Keep single-click as Mode selection and use double-click for GIF set A/B.
+        if (running_data.edit_flag == 0 && running_data.mode_data < TASK_PIC_MODE_COUNT)
+            task_picture_toggle_active_set();
+        break;
+    }
     case LONG_PRESS_START: {
         // if (running_data.have_edit == 0) {
         tmos_set_event(mTaskID, MCT_START_POWER_OFF);
@@ -188,6 +196,7 @@ void my_button_init(void)
             button_attach(keys__uz + i, PRESS_UP, key_power_callback);
             button_attach(keys__uz + i, LONG_PRESS_START, key_power_callback);
             button_attach(keys__uz + i, SINGLE_CLICK, key_power_callback);
+            button_attach(keys__uz + i, DOUBLE_CLICK, key_power_callback);
         }
         button_start(keys__uz + i);
     }

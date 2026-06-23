@@ -767,28 +767,141 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
     }
 }
 
+enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
+    case notification = 0
+    case permissionRequest = 1
+    case postToolUse = 2
+    case preToolUse = 3
+    case sessionStart = 4
+    case stop = 5
+    case taskCompleted = 6
+    case userPromptSubmit = 7
+    case sessionEnd = 8
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .notification: return "通知"
+        case .permissionRequest: return "等待授权"
+        case .postToolUse: return "工具完成"
+        case .preToolUse: return "工具执行"
+        case .sessionStart: return "会话开始"
+        case .stop: return "停止"
+        case .taskCompleted: return "任务完成"
+        case .userPromptSubmit: return "用户提交"
+        case .sessionEnd: return "会话结束 / 默认"
+        }
+    }
+
+    var ideState: IDEState {
+        IDEState(rawValue: UInt8(rawValue)) ?? .sessionEnd
+    }
+}
+
+struct AhaKeyTaskGIFAssetDraft: Codable, Equatable, Identifiable {
+    var state: AhaKeyTaskDisplayState
+    var localAssetPath: String?
+    var framesPerSecond: Int
+
+    var id: Int { state.rawValue }
+
+    init(state: AhaKeyTaskDisplayState, localAssetPath: String? = nil, framesPerSecond: Int = 12) {
+        self.state = state
+        self.localAssetPath = localAssetPath
+        self.framesPerSecond = min(20, max(5, framesPerSecond))
+    }
+}
+
+struct AhaKeyTaskGIFSetDraft: Codable, Equatable {
+    var assets: [AhaKeyTaskGIFAssetDraft]
+
+    init(assets: [AhaKeyTaskGIFAssetDraft]) {
+        self.assets = Self.normalizedAssets(assets)
+    }
+
+    static func defaultSet(assetPath: String?, framesPerSecond: Int) -> AhaKeyTaskGIFSetDraft {
+        AhaKeyTaskGIFSetDraft(assets: AhaKeyTaskDisplayState.allCases.map { state in
+            AhaKeyTaskGIFAssetDraft(
+                state: state,
+                localAssetPath: state == .sessionEnd ? assetPath : nil,
+                framesPerSecond: framesPerSecond
+            )
+        })
+    }
+
+    func asset(for state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        assets.first { $0.state == state }
+            ?? AhaKeyTaskGIFAssetDraft(state: state)
+    }
+
+    mutating func updateAsset(_ asset: AhaKeyTaskGIFAssetDraft) {
+        if let index = assets.firstIndex(where: { $0.state == asset.state }) {
+            assets[index] = asset
+        } else {
+            assets.append(asset)
+        }
+        assets = Self.normalizedAssets(assets)
+    }
+
+    private static func normalizedAssets(_ candidates: [AhaKeyTaskGIFAssetDraft]) -> [AhaKeyTaskGIFAssetDraft] {
+        AhaKeyTaskDisplayState.allCases.map { state in
+            candidates.first { $0.state == state } ?? AhaKeyTaskGIFAssetDraft(state: state)
+        }
+    }
+}
+
 struct AhaKeyOLEDDraft: Codable, Equatable {
     var localAssetPath: String?
     var statusLine: String
     var framesPerSecond: Int
+    var taskGIFSets: [AhaKeyTaskGIFSetDraft]
+    var activeGIFSet: Int
+    /// 0=旧版每 Mode 单 GIF 草稿，1=已写入任务 GIF 固件结构。
+    var taskGIFSchemaVersion: Int
 
     private enum CodingKeys: String, CodingKey {
         case localAssetPath
         case statusLine
         case framesPerSecond
+        case taskGIFSets
+        case activeGIFSet
+        case taskGIFSchemaVersion
     }
 
-    init(localAssetPath: String?, statusLine: String, framesPerSecond: Int = 12) {
+    init(
+        localAssetPath: String?,
+        statusLine: String,
+        framesPerSecond: Int = 12,
+        taskGIFSets: [AhaKeyTaskGIFSetDraft]? = nil,
+        activeGIFSet: Int = 0,
+        taskGIFSchemaVersion: Int = 1
+    ) {
         self.localAssetPath = localAssetPath
         self.statusLine = statusLine
-        self.framesPerSecond = framesPerSecond
+        self.framesPerSecond = min(20, max(5, framesPerSecond))
+        self.taskGIFSets = Self.normalizedSets(
+            taskGIFSets ?? [],
+            legacyAssetPath: localAssetPath,
+            legacyFramesPerSecond: framesPerSecond
+        )
+        self.activeGIFSet = min(1, max(0, activeGIFSet))
+        self.taskGIFSchemaVersion = max(0, taskGIFSchemaVersion)
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         localAssetPath = try container.decodeIfPresent(String.self, forKey: .localAssetPath)
         statusLine = try container.decode(String.self, forKey: .statusLine)
-        framesPerSecond = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
+        framesPerSecond = min(20, max(5, try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12))
+        let decodedSets = try container.decodeIfPresent([AhaKeyTaskGIFSetDraft].self, forKey: .taskGIFSets) ?? []
+        taskGIFSets = Self.normalizedSets(
+            decodedSets,
+            legacyAssetPath: localAssetPath,
+            legacyFramesPerSecond: framesPerSecond
+        )
+        activeGIFSet = min(1, max(0, try container.decodeIfPresent(Int.self, forKey: .activeGIFSet) ?? 0))
+        taskGIFSchemaVersion = max(0, try container.decodeIfPresent(Int.self, forKey: .taskGIFSchemaVersion) ?? 0)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -796,9 +909,51 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         try container.encodeIfPresent(localAssetPath, forKey: .localAssetPath)
         try container.encode(statusLine, forKey: .statusLine)
         try container.encode(framesPerSecond, forKey: .framesPerSecond)
+        try container.encode(taskGIFSets, forKey: .taskGIFSets)
+        try container.encode(activeGIFSet, forKey: .activeGIFSet)
+        try container.encode(taskGIFSchemaVersion, forKey: .taskGIFSchemaVersion)
     }
 
-    static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyOLEDDraft {
+    func taskAsset(set: Int, state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        let normalizedSet = min(1, max(0, set))
+        guard taskGIFSets.indices.contains(normalizedSet) else {
+            return AhaKeyTaskGIFAssetDraft(state: state)
+        }
+        return taskGIFSets[normalizedSet].asset(for: state)
+    }
+
+    mutating func updateTaskAsset(set: Int, asset: AhaKeyTaskGIFAssetDraft) {
+        ensureTaskGIFSets()
+        let normalizedSet = min(1, max(0, set))
+        taskGIFSets[normalizedSet].updateAsset(asset)
+        if normalizedSet == 0, asset.state == .sessionEnd {
+            localAssetPath = asset.localAssetPath
+            framesPerSecond = asset.framesPerSecond
+        }
+    }
+
+    mutating func ensureTaskGIFSets() {
+        taskGIFSets = Self.normalizedSets(
+            taskGIFSets,
+            legacyAssetPath: localAssetPath,
+            legacyFramesPerSecond: framesPerSecond
+        )
+        activeGIFSet = min(1, max(0, activeGIFSet))
+    }
+
+    private static func normalizedSets(
+        _ candidates: [AhaKeyTaskGIFSetDraft],
+        legacyAssetPath: String?,
+        legacyFramesPerSecond: Int
+    ) -> [AhaKeyTaskGIFSetDraft] {
+        var result = Array(candidates.prefix(2))
+        while result.count < 2 {
+            result.append(.defaultSet(assetPath: legacyAssetPath, framesPerSecond: legacyFramesPerSecond))
+        }
+        return result
+    }
+
+    static func defaultDraft(for mode: AhaKeyModeSlot) -> AhaKeyOLEDDraft {
         let statusLine: String
         switch mode {
         case .mode0:
@@ -842,7 +997,7 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         mode = try container.decode(AhaKeyModeSlot.self, forKey: .mode)
         keys = try container.decode([AhaKeyKeyDraft].self, forKey: .keys)
-        oled = try container.decodeIfPresent(AhaKeyOLEDDraft.self, forKey: .oled) ?? .default(for: mode)
+        oled = try container.decodeIfPresent(AhaKeyOLEDDraft.self, forKey: .oled) ?? AhaKeyOLEDDraft.defaultDraft(for: mode)
         lightBar = try container.decodeIfPresent(AhaKeyLightBarDraft.self, forKey: .lightBar) ?? .default(for: mode)
     }
 
@@ -936,7 +1091,7 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
                     voicePreset: nil
                 ),
             ],
-            oled: .default(for: mode),
+            oled: AhaKeyOLEDDraft.defaultDraft(for: mode),
             lightBar: .default(for: mode)
         )
     }
@@ -1079,7 +1234,7 @@ enum AhaKeyStudioStore {
             let target = AhaKeyModeDraft.default(for: mode)
 
             if legacyOLEDStatusLines.contains(modeDraft.oled.statusLine) {
-                modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
+                modeDraft.oled.statusLine = AhaKeyOLEDDraft.defaultDraft(for: mode).statusLine
             }
 
             // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，

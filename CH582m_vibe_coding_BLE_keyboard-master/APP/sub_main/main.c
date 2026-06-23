@@ -29,6 +29,74 @@ const uint8_t defult_key_0_2[] = {0x74,
 const char   *defult_name[]    = {"Record", "Accept", "Reject", "Enter"};
 key_bund_s    key_bund;
 
+uint16_t *task_picture_slot(uint8_t mode, uint8_t set, uint8_t state)
+{
+    if (mode >= TASK_PIC_MODE_COUNT || set >= TASK_PIC_SET_COUNT || state >= TASK_PIC_STATE_COUNT)
+        return 0;
+    return key_bund.task_pic[mode][set][state];
+}
+
+uint16_t *task_picture_for_display(uint8_t mode, uint8_t state)
+{
+    uint8_t set;
+    uint16_t *slot;
+
+    if (mode >= TASK_PIC_MODE_COUNT)
+        return 0;
+
+    set = key_bund.active_pic_set[mode];
+    if (set >= TASK_PIC_SET_COUNT)
+        set = 0;
+
+    slot = task_picture_slot(mode, set, state);
+    if (slot && slot[1] > 0)
+        return slot;
+
+    slot = task_picture_slot(mode, set, CL_SessionEnd);
+    if (slot && slot[1] > 0)
+        return slot;
+
+    slot = task_picture_slot(mode, 0, state);
+    if (slot && slot[1] > 0)
+        return slot;
+
+    return key_bund.pic[mode];
+}
+
+void task_picture_migrate_from_legacy(void)
+{
+    uint8_t mode;
+    uint8_t set;
+
+    if (key_bund.task_pic_schema == TASK_PIC_SCHEMA)
+        return;
+
+    memset(key_bund.task_pic, 0, sizeof(key_bund.task_pic));
+    for (mode = 0; mode < TASK_PIC_MODE_COUNT; mode++) {
+        key_bund.active_pic_set[mode] = 0;
+        for (set = 0; set < TASK_PIC_SET_COUNT; set++) {
+            memcpy(key_bund.task_pic[mode][set][CL_SessionEnd],
+                   key_bund.pic[mode],
+                   sizeof(key_bund.pic[mode]));
+        }
+    }
+    key_bund.task_pic_schema = TASK_PIC_SCHEMA;
+    key_bund.task_pic_reserved = 0;
+    save_key_bound_data();
+}
+
+void task_picture_toggle_active_set(void)
+{
+    uint8_t mode = running_data.mode_data;
+    if (mode >= TASK_PIC_MODE_COUNT)
+        return;
+
+    key_bund.active_pic_set[mode] = (key_bund.active_pic_set[mode] + 1) % TASK_PIC_SET_COUNT;
+    running_data.pic_index = 0;
+    save_key_bound_data();
+    tmos_set_event(mTaskID, MCT_PIC_DISPLAY);
+}
+
 void sub_main_1(void)
 {
     //  ! read last shutdown data
@@ -232,6 +300,7 @@ void sub_main(void)
         key_bund.pic[0][2] = 100;
         save_key_bound_data();
     }
+    task_picture_migrate_from_legacy();
     tmos_start_task(mTaskID, MCT_PIC_DISPLAY, MS1_TO_SYSTEM_TIME(100));
     running_data.ws2812_mode             = WS2812_OFF;
     running_data.ws2812_single_color     = 0x020a0ff;
@@ -410,33 +479,32 @@ tmosEvents MCT_ProcessEvent(tmosTaskID task_id, tmosEvents events)
         if (running_data.pic_writing) {
             return events ^ MCT_PIC_DISPLAY;
         }
-        if (!running_data.edit_flag && running_data.mode_data < 3 && key_bund.pic[running_data.mode_data][1] > 0) {
-            if (running_data.pic_index >= key_bund.pic[running_data.mode_data][1])
-                running_data.pic_index = 0;
-            __attribute__((aligned(4))) uint8_t tmp_d[3658];
+        if (!running_data.edit_flag && running_data.mode_data < TASK_PIC_MODE_COUNT) {
+            uint16_t *picture = task_picture_for_display(running_data.mode_data, running_data.claude_state);
+            if (picture && picture[1] > 0) {
+                if (running_data.pic_index >= picture[1])
+                    running_data.pic_index = 0;
+                __attribute__((aligned(4))) uint8_t tmp_d[3658];
 
-            uint16_t remain  = 160 * 80 * 2;
-            uint32_t address = (key_bund.pic[running_data.mode_data][0] + running_data.pic_index) * 4096 * 7;
-            LCD_CS_RESET;
-            IPS_Addr_Set(0, 0, IPS_W - 1, IPS_H - 1);
-            LCD_CS_SET;
-            while (remain > 0) {
-                uint16_t this_len = remain > 3658 ? 3658 : remain;
-                W25QXX_Read_start(address);
-                SPI0_MasterDMARecv(tmp_d, this_len);
-                W25QXX_Read_end();
+                uint16_t remain  = 160 * 80 * 2;
+                uint32_t address = (picture[0] + running_data.pic_index) * 4096 * 7;
                 LCD_CS_RESET;
-                SPI0_MasterDMATrans(tmp_d, this_len);
+                IPS_Addr_Set(0, 0, IPS_W - 1, IPS_H - 1);
                 LCD_CS_SET;
-                remain -= this_len;
-                address += this_len;
-            }
-            running_data.pic_index++;
-            if (key_bund.pic[running_data.mode_data][1] > 1) {
-                if (key_bund.pic[running_data.mode_data][2] > 0) {
-                    tmos_start_task(mTaskID,
-                                    MCT_PIC_DISPLAY,
-                                    MS1_TO_SYSTEM_TIME(key_bund.pic[running_data.mode_data][2]));
+                while (remain > 0) {
+                    uint16_t this_len = remain > 3658 ? 3658 : remain;
+                    W25QXX_Read_start(address);
+                    SPI0_MasterDMARecv(tmp_d, this_len);
+                    W25QXX_Read_end();
+                    LCD_CS_RESET;
+                    SPI0_MasterDMATrans(tmp_d, this_len);
+                    LCD_CS_SET;
+                    remain -= this_len;
+                    address += this_len;
+                }
+                running_data.pic_index++;
+                if (picture[1] > 1 && picture[2] > 0) {
+                    tmos_start_task(mTaskID, MCT_PIC_DISPLAY, MS1_TO_SYSTEM_TIME(picture[2]));
                 }
             }
         }

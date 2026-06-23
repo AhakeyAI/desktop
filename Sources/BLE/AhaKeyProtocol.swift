@@ -28,6 +28,9 @@ enum AhaKeyCommand {
     static let cmdWriteResult: UInt8 = 0x81
     static let cmdUpdatePic: UInt8 = 0x82
     static let cmdReadPicState: UInt8 = 0x83
+    static let cmdUpdateTaskPic: UInt8 = 0x84
+    static let cmdReadTaskPicState: UInt8 = 0x85
+    static let cmdSetActiveTaskPicSet: UInt8 = 0x86
     static let cmdUpdateState: UInt8 = 0x90  // IDE 状态 → LED 变色
     static let cmdSetSwState: UInt8 = 0x91   // 虚拟拨杆：0=auto/up, 1=manual/down, 2=mid（需固件 patch 支持）
 
@@ -117,8 +120,41 @@ enum AhaKeyCommand {
         return Data(header + [cmdUpdatePic] + payload + trailer)
     }
 
+    /// 写入任务状态动画 → AA BB 84 [mode] [set] [state] [start:2 LE] [count:2 LE] [delay:2 LE] CC DD
+    static func updateTaskPicture(
+        mode: UInt8,
+        set: UInt8,
+        state: UInt8,
+        startIndex: UInt16,
+        frameCount: UInt16,
+        timeDelayMs: UInt16
+    ) -> Data {
+        let payload: [UInt8] = [
+            mode,
+            set,
+            state,
+            UInt8(startIndex & 0xFF),
+            UInt8((startIndex >> 8) & 0xFF),
+            UInt8(frameCount & 0xFF),
+            UInt8((frameCount >> 8) & 0xFF),
+            UInt8(timeDelayMs & 0xFF),
+            UInt8((timeDelayMs >> 8) & 0xFF),
+        ]
+        return Data(header + [cmdUpdateTaskPic] + payload + trailer)
+    }
+
+    /// 读取任务状态动画 → AA BB 85 [mode] [set] [state] CC DD
+    static func readTaskPictureState(mode: UInt8, set: UInt8, state: UInt8) -> Data {
+        Data(header + [cmdReadTaskPicState, mode, set, state] + trailer)
+    }
+
+    /// 设置或查询当前套图。set=0xFF 时只查询，不改变键盘状态。
+    static func setActiveTaskPictureSet(mode: UInt8, set: UInt8 = 0xFF) -> Data {
+        Data(header + [cmdSetActiveTaskPicSet, mode, set] + trailer)
+    }
+
     /// IDE 状态同步 → AA BB 90 [state] CC DD
-    /// 驱动键盘 LED 变色，反映 Claude/Cursor 当前状态
+    /// 驱动键盘 LED 变色，并让新版固件立即切换对应 LCD 动图。
     static func updateState(_ state: IDEState) -> Data {
         Data(header + [cmdUpdateState, state.rawValue] + trailer)
     }
@@ -168,6 +204,7 @@ struct AhaKeyDeviceStatus {
     let workMode: Int
     let lightMode: Int
     let switchState: Int
+    let activePictureSet: Int
 }
 
 struct AhaKeyPictureState {
@@ -176,6 +213,17 @@ struct AhaKeyPictureState {
     let picLength: Int
     let frameInterval: Int
     let allModeMaxPic: Int
+}
+
+struct AhaKeyTaskPictureState: Hashable {
+    let mode: Int
+    let set: Int
+    let state: Int
+    let startIndex: Int
+    let picLength: Int
+    let frameInterval: Int
+    let allModeMaxPic: Int
+    let activeSet: Int
 }
 
 /// AhaKey 协议响应解析器
@@ -201,7 +249,7 @@ enum AhaKeyResponseParser {
 
         let payload = data[2 ..< data.count - 2]
         // payload[0] = command echo (0x00), skip it
-        guard payload.count >= 8, payload[payload.startIndex] == 0x00 else { return nil }
+        guard payload.count >= 9, payload[payload.startIndex] == 0x00 else { return nil }
 
         let base = payload.startIndex + 1 // skip cmd echo
         return AhaKeyDeviceStatus(
@@ -211,7 +259,8 @@ enum AhaKeyResponseParser {
             firmwareSub: Int(payload[base + 3]),
             workMode: Int(payload[base + 4]),
             lightMode: Int(payload[base + 5]),
-            switchState: Int(payload[base + 6])
+            switchState: Int(payload[base + 6]),
+            activePictureSet: Int(payload[base + 7])
         )
     }
 
@@ -230,6 +279,30 @@ enum AhaKeyResponseParser {
             picLength: picLength,
             frameInterval: frameInterval,
             allModeMaxPic: allModeMaxPic
+        )
+    }
+
+    static func parseTaskPictureStateResponse(_ payload: Data) -> AhaKeyTaskPictureState? {
+        guard payload.count >= 12 else { return nil }
+
+        let mode = Int(payload[0])
+        let set = Int(payload[1])
+        let state = Int(payload[2])
+        let startIndex = Int(UInt16(payload[3]) | (UInt16(payload[4]) << 8))
+        let picLength = Int(UInt16(payload[5]) | (UInt16(payload[6]) << 8))
+        let frameInterval = Int(UInt16(payload[7]) | (UInt16(payload[8]) << 8))
+        let allModeMaxPic = Int(UInt16(payload[9]) | (UInt16(payload[10]) << 8))
+        let activeSet = Int(payload[11])
+
+        return AhaKeyTaskPictureState(
+            mode: mode,
+            set: set,
+            state: state,
+            startIndex: startIndex,
+            picLength: picLength,
+            frameInterval: frameInterval,
+            allModeMaxPic: allModeMaxPic,
+            activeSet: activeSet
         )
     }
 

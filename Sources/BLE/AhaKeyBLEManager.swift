@@ -13,6 +13,12 @@ struct KeyboardPictureState: Equatable {
     let frameIntervalMs: Int
 }
 
+struct KeyboardTaskPictureSlot: Hashable {
+    let mode: Int
+    let set: Int
+    let state: Int
+}
+
 /// 通信日志条目
 struct BLELogEntry: Identifiable {
     let id = UUID()
@@ -74,6 +80,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
     /// 键盘显示固件出厂动图（与 bundle/DefaultOLED 同源）。
     @Published private(set) var keyboardPictureStates: [Int: KeyboardPictureState] = [:]
+    /// 新固件的 [Mode, 套图, IDE 状态] 图片槽元数据。
+    @Published private(set) var keyboardTaskPictureStates: [KeyboardTaskPictureSlot: AhaKeyTaskPictureState] = [:]
+    /// 每个 Mode 当前由固件选择的 GIF 套图。
+    @Published private(set) var activeTaskPictureSets: [Int: Int] = [:]
 
     /// 通信日志（最近 200 条）
     @Published private(set) var commLog: [BLELogEntry] = []
@@ -356,6 +366,97 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         _ = commandChar
     }
 
+    /// 按原有 0x80 + DATA 链路写帧，再以 0x84 提交给特定的套图/任务状态。
+    func uploadTaskOLEDFrames(
+        _ frames: [Data],
+        fps: Int,
+        mode: UInt8,
+        set: UInt8,
+        state: UInt8,
+        startIndex: UInt16
+    ) async throws {
+        guard let peripheral, let dataChar else {
+            throw OLEDUploadError.channelNotReady
+        }
+        guard !frames.isEmpty else {
+            throw OLEDUploadError.noFrames
+        }
+        guard frames.count <= AhaKeyCommand.oledMaxFrames else {
+            throw OLEDUploadError.tooManyFrames(max: AhaKeyCommand.oledMaxFrames)
+        }
+
+        isUploadingOLED = true
+        oledUploadProgress = OLEDUploadProgress(
+            completedChunks: 0,
+            totalChunks: frames.reduce(0) { result, frame in
+                result + max(1, Int(ceil(Double(frame.count) / Double(AhaKeyCommand.oledChunkSize))))
+            },
+            completedFrames: 0,
+            totalFrames: frames.count
+        )
+        defer {
+            isUploadingOLED = false
+            oledUploadProgress = nil
+        }
+
+        let writeType: CBCharacteristicWriteType =
+            dataChar.properties.contains(.write) ? .withResponse : .withoutResponse
+        var completedChunks = 0
+        appendLog("开始上传任务 LCD: mode=\(mode) set=\(set) state=\(state) frames=\(frames.count) start=\(startIndex)")
+
+        for (frameIndex, frame) in frames.enumerated() {
+            let frameAddress = UInt32(Int(startIndex) + frameIndex) * UInt32(AhaKeyCommand.oledFrameSlotSize)
+            let chunks = stride(from: 0, to: frame.count, by: AhaKeyCommand.oledChunkSize).map { offset in
+                let end = min(offset + AhaKeyCommand.oledChunkSize, frame.count)
+                return (offset: offset, data: Data(frame[offset ..< end]))
+            }
+
+            for chunk in chunks {
+                let address = frameAddress + UInt32(chunk.offset)
+                let prepare = AhaKeyCommand.prepareWrite(chunkLength: chunk.data.count, address: address)
+                _ = try await sendCommandAwaitingResponse(prepare, expectedCommand: AhaKeyCommand.cmdPrepareWrite)
+                try await writeDataChunk(chunk.data, to: peripheral, characteristic: dataChar, type: writeType)
+                completedChunks += 1
+                oledUploadProgress = OLEDUploadProgress(
+                    completedChunks: completedChunks,
+                    totalChunks: oledUploadProgress?.totalChunks ?? completedChunks,
+                    completedFrames: frameIndex,
+                    totalFrames: frames.count
+                )
+            }
+
+            oledUploadProgress = OLEDUploadProgress(
+                completedChunks: completedChunks,
+                totalChunks: oledUploadProgress?.totalChunks ?? completedChunks,
+                completedFrames: frameIndex + 1,
+                totalFrames: frames.count
+            )
+        }
+
+        let delay = UInt16(max(1, 1000 / max(1, fps)))
+        let update = AhaKeyCommand.updateTaskPicture(
+            mode: mode,
+            set: set,
+            state: state,
+            startIndex: startIndex,
+            frameCount: UInt16(frames.count),
+            timeDelayMs: delay
+        )
+        _ = try await sendCommandAwaitingResponse(update, expectedCommand: AhaKeyCommand.cmdUpdateTaskPic)
+        let slot = KeyboardTaskPictureSlot(mode: Int(mode), set: Int(set), state: Int(state))
+        keyboardTaskPictureStates[slot] = AhaKeyTaskPictureState(
+            mode: Int(mode),
+            set: Int(set),
+            state: Int(state),
+            startIndex: Int(startIndex),
+            picLength: frames.count,
+            frameInterval: Int(delay),
+            allModeMaxPic: AhaKeyCommand.oledMaxFrames,
+            activeSet: activeTaskPictureSets[Int(mode)] ?? 0
+        )
+        appendLog("任务 LCD 上传完成: mode=\(mode) set=\(set) state=\(state) frames=\(frames.count)")
+    }
+
     /// 批量写入命令（每条间隔 50ms，避免设备过载）。**该批**全部写入后会在主线程执行 `completion`（若入队 0 条则立即执行）。
     func writeCommandsSequentially(
         _ commands: [(data: Data, label: String)],
@@ -438,6 +539,80 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         appendLog("  图片状态 mode=\(state.mode) start=\(state.startIndex) length=\(state.picLength) interval=\(state.frameInterval) max=\(state.allModeMaxPic)")
         return state
+    }
+
+    func clearTaskPicture(mode: UInt8, set: UInt8, state: UInt8) async throws {
+        let update = AhaKeyCommand.updateTaskPicture(
+            mode: mode,
+            set: set,
+            state: state,
+            startIndex: 0,
+            frameCount: 0,
+            timeDelayMs: 0
+        )
+        _ = try await sendCommandAwaitingResponse(update, expectedCommand: AhaKeyCommand.cmdUpdateTaskPic)
+        let slot = KeyboardTaskPictureSlot(mode: Int(mode), set: Int(set), state: Int(state))
+        let current = keyboardTaskPictureStates[slot]
+        keyboardTaskPictureStates[slot] = AhaKeyTaskPictureState(
+            mode: Int(mode),
+            set: Int(set),
+            state: Int(state),
+            startIndex: 0,
+            picLength: 0,
+            frameInterval: 0,
+            allModeMaxPic: current?.allModeMaxPic ?? AhaKeyCommand.oledMaxFrames,
+            activeSet: activeTaskPictureSets[Int(mode)] ?? 0
+        )
+    }
+
+    func readTaskPictureState(mode: UInt8, set: UInt8, state: UInt8) async throws -> AhaKeyTaskPictureState {
+        let response = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.readTaskPictureState(mode: mode, set: set, state: state),
+            expectedCommand: AhaKeyCommand.cmdReadTaskPicState
+        )
+        guard let picture = AhaKeyResponseParser.parseTaskPictureStateResponse(response.payload) else {
+            throw OLEDUploadError.invalidTaskPictureStatePayload
+        }
+        let slot = KeyboardTaskPictureSlot(mode: picture.mode, set: picture.set, state: picture.state)
+        keyboardTaskPictureStates[slot] = picture
+        activeTaskPictureSets[picture.mode] = picture.activeSet
+        return picture
+    }
+
+    func readAllTaskPictureStates() async throws -> [AhaKeyTaskPictureState] {
+        var result: [AhaKeyTaskPictureState] = []
+        for mode in 0 ..< 3 {
+            for set in 0 ..< 2 {
+                for state in IDEState.allCases {
+                    result.append(try await readTaskPictureState(
+                        mode: UInt8(mode),
+                        set: UInt8(set),
+                        state: state.rawValue
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    func setActiveTaskPictureSet(mode: UInt8, set: UInt8) async throws -> Int {
+        let response = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.setActiveTaskPictureSet(mode: mode, set: set),
+            expectedCommand: AhaKeyCommand.cmdSetActiveTaskPicSet
+        )
+        guard response.payload.count >= 2, Int(response.payload[0]) == Int(mode) else {
+            throw OLEDUploadError.invalidTaskPictureStatePayload
+        }
+        let activeSet = Int(response.payload[1])
+        activeTaskPictureSets[Int(mode)] = activeSet
+        return activeSet
+    }
+
+    func saveConfigAwaitingResponse() async throws {
+        _ = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.saveConfig(),
+            expectedCommand: AhaKeyCommand.cmdSaveConfig
+        )
     }
 
     /// 同步 IDE 状态到键盘 LED
@@ -838,6 +1013,7 @@ enum OLEDUploadError: LocalizedError {
     case timeout(command: UInt8)
     case deviceRejected(command: UInt8, status: UInt8)
     case invalidPictureStatePayload
+    case invalidTaskPictureStatePayload
 
     var errorDescription: String? {
         switch self {
@@ -855,6 +1031,8 @@ enum OLEDUploadError: LocalizedError {
             return String(format: "设备拒绝了命令 0x%02X，状态码 0x%02X", command, status)
         case .invalidPictureStatePayload:
             return "设备返回的动画槽位信息无法解析。"
+        case .invalidTaskPictureStatePayload:
+            return "设备返回的任务动画槽位信息无法解析；请确认键盘已烧录任务 GIF 固件。"
         }
     }
 }
@@ -966,6 +1144,8 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.writeBatches.removeAll()
             self.didQueryAfterConnect = false
             self.keyboardPictureStates.removeAll()
+            self.keyboardTaskPictureStates.removeAll()
+            self.activeTaskPictureSets.removeAll()
             self.stopRSSIPolling()
             self.stopStatusPolling()
             self.startAutoReconnectPolling()
@@ -1123,7 +1303,8 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             )
             lightMode = status.lightMode
             switchState = status.switchState
-            appendLog("  状态: 电量=\(status.battery) 固件=\(status.firmwareMain).\(status.firmwareSub) 模式=\(status.workMode) 灯=\(status.lightMode) 开关=\(status.switchState)")
+            activeTaskPictureSets[status.workMode] = status.activePictureSet
+            appendLog("  状态: 电量=\(status.battery) 固件=\(status.firmwareMain).\(status.firmwareSub) 模式=\(status.workMode) 灯=\(status.lightMode) 开关=\(status.switchState) GIF套图=\(status.activePictureSet)")
         } else if AhaKeyResponseParser.isProtocolFrame(data) {
             if let response = AhaKeyResponseParser.parseCommandResponse(data) {
                 protocolResponseWaiters.removeValue(forKey: response.cmd)?.resume(returning: (response.status, response.payload))

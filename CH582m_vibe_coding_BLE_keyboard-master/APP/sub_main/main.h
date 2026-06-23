@@ -107,11 +107,22 @@ typedef struct
 extern data_in_fram_s data_in_fram;
 #define len_data_in_fram sizeof(data_in_fram_s)
 
+#define TASK_PIC_MODE_COUNT 3
+#define TASK_PIC_SET_COUNT 2
+#define TASK_PIC_STATE_COUNT 9
+#define TASK_PIC_SCHEMA 0xA6C3
+
 typedef struct
 {
     uint8_t  user_key_bind[3][4][100];
     uint8_t  user_key_desc[3][4][20];
+    // Legacy per-Mode animation metadata. Kept for old clients and migration.
     uint16_t pic[3][3];
+    // [mode][set][IDE state] = start frame, frame count, interval in milliseconds.
+    uint16_t task_pic[TASK_PIC_MODE_COUNT][TASK_PIC_SET_COUNT][TASK_PIC_STATE_COUNT][3];
+    uint16_t task_pic_schema;
+    uint8_t  active_pic_set[TASK_PIC_MODE_COUNT];
+    uint8_t  task_pic_reserved;
 } key_bund_s;
 extern key_bund_s key_bund;
 #define key_bund_s_len sizeof(key_bund_s)
@@ -136,6 +147,10 @@ void init_desp(void);
 
 void update_claude_ws2812(void);
 void sw_state_change(uint8_t new);
+void task_picture_migrate_from_legacy(void);
+uint16_t *task_picture_slot(uint8_t mode, uint8_t set, uint8_t state);
+uint16_t *task_picture_for_display(uint8_t mode, uint8_t state);
+void task_picture_toggle_active_set(void);
 
 void sub_main(void);
 void sub_main_1(void);
