@@ -30,7 +30,7 @@
 #define RST_RESET      GPIOB_ResetBits(GPIO_Pin_9)
 #define RST_SET        GPIOB_SetBits(GPIO_Pin_9)
 
-#define USE_HORIZONTAL 3 // ÉèÖÃºáÆÁ»òÕßÊúÆÁÏÔÊ¾ 0»ò1ÎªÊúÆÁ 2»ò3ÎªºáÆÁ
+#define USE_HORIZONTAL 3 // ï¿½ï¿½ï¿½Ãºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ 0ï¿½ï¿½1Îªï¿½ï¿½ï¿½ï¿½ 2ï¿½ï¿½3Îªï¿½ï¿½ï¿½ï¿½
 
 #if USE_HORIZONTAL == 0 || USE_HORIZONTAL == 1
 #define IPS_W 80
@@ -42,7 +42,7 @@
 #endif
 
 extern uint16_t BACK_COLOR;
-// »­±ÊÑÕÉ«
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«
 #define WHITE      0xFFFF
 #define BLACK      0x0000
 #define BLUE       0x001F
@@ -54,21 +54,21 @@ extern uint16_t BACK_COLOR;
 #define GREEN      0x07E0
 #define CYAN       0x7FFF
 #define YELLOW     0xFFE0
-#define BROWN      0XBC40 // ×ØÉ«
-#define BRRED      0XFC07 // ×ØºìÉ«
-#define GRAY       0X8430 // »ÒÉ«
-// GUIÑÕÉ«
+#define BROWN      0XBC40 // ï¿½ï¿½É«
+#define BRRED      0XFC07 // ï¿½Øºï¿½É«
+#define GRAY       0X8430 // ï¿½ï¿½É«
+// GUIï¿½ï¿½É«
 
-#define DARKBLUE   0X01CF // ÉîÀ¶É«
-#define LIGHTBLUE  0X7D7C // Ç³À¶É«
-#define GRAYBLUE   0X5458 // »ÒÀ¶É«
-// ÒÔÉÏÈýÉ«ÎªPANELµÄÑÕÉ«
+#define DARKBLUE   0X01CF // ï¿½ï¿½ï¿½ï¿½É«
+#define LIGHTBLUE  0X7D7C // Ç³ï¿½ï¿½É«
+#define GRAYBLUE   0X5458 // ï¿½ï¿½ï¿½ï¿½É«
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«ÎªPANELï¿½ï¿½ï¿½ï¿½É«
 
-#define LIGHTGREEN 0X841F // Ç³ÂÌÉ«
-#define LGRAY      0XC618 // Ç³»ÒÉ«(PANNEL),´°Ìå±³¾°É«
+#define LIGHTGREEN 0X841F // Ç³ï¿½ï¿½É«
+#define LGRAY      0XC618 // Ç³ï¿½ï¿½É«(PANNEL),ï¿½ï¿½ï¿½å±³ï¿½ï¿½É«
 
-#define LGRAYBLUE  0XA651 // Ç³»ÒÀ¶É«(ÖÐ¼ä²ãÑÕÉ«)
-#define LBBLUE     0X2B12 // Ç³×ØÀ¶É«(Ñ¡ÔñÌõÄ¿µÄ·´É«)
+#define LGRAYBLUE  0XA651 // Ç³ï¿½ï¿½ï¿½ï¿½É«(ï¿½Ð¼ï¿½ï¿½ï¿½ï¿½É«)
+#define LBBLUE     0X2B12 // Ç³ï¿½ï¿½ï¿½ï¿½É«(Ñ¡ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½Ä·ï¿½É«)
 
 void IPS_Init(void);
 void IPS_Clear(uint16_t color);
@@ -77,6 +77,7 @@ void IPS_Fill(uint16_t xsta, uint16_t ysta, uint16_t xend, uint16_t yend, uint16
 void IPS_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void IPS_ShowChar(uint16_t x, uint16_t y, uint8_t num, uint8_t mode, uint16_t color);
 void IPS_ShowString(uint16_t x, uint16_t y, const uint8_t *p, uint16_t color);
+void IPS_ShowString_len(uint16_t x, uint16_t y, const uint8_t *p, uint16_t color, uint16_t len);
 // void IPS_ShowPicture(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
 void IPS_Addr_Set(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
 void IPS_Write_Datauint8_t(uint8_t data);

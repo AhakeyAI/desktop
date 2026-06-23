@@ -2,7 +2,7 @@
  ******************************** File Name          : main.c Author : WCH
  * Version            : V1.0
  * Date               : 2020/08/06
- * Description        : À¶ÑÀ¼üÅÌÓ¦ÓÃÖ÷º¯Êý¼°ÈÎÎñÏµÍ³³õÊ¼»¯
+ * Description        : ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÏµÍ³ï¿½ï¿½Ê¼ï¿½ï¿½
  *********************************************************************************
  * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
  * Attention: This software (modified or not) and binary are used for
@@ -10,11 +10,13 @@
  *******************************************************************************/
 
 /******************************************************************************/
-/* Í·ÎÄ¼þ°üº¬ */
+/* Í·ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ */
 #include "CONFIG.h"
 #include "HAL.h"
 #include "hiddev.h"
 #include "hidkbd.h"
+#include "main.h"
+#include "ble_init.h"
 
 /*********************************************************************
  * GLOBAL TYPEDEFS
@@ -28,7 +30,7 @@ const uint8_t MacAddr[6] = {0x84, 0xC2, 0xE4, 0x03, 0x02, 0x02};
 /*********************************************************************
  * @fn      Main_Circulation
  *
- * @brief   Ö÷Ñ­»·
+ * @brief   ï¿½ï¿½Ñ­ï¿½ï¿½
  *
  * @return  none
  */
@@ -43,7 +45,7 @@ __attribute__((noinline)) void Main_Circulation()
 /*********************************************************************
  * @fn      main
  *
- * @brief   Ö÷º¯Êý
+ * @brief   ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  *
  * @return  none
  */
@@ -65,7 +67,7 @@ int main(void)
     // GPIOA_ModeCfg(bTXD3, GPIO_ModeOut_PP_5mA);
     //    UART3_DefInit();
     UART3_BaudRateCfg(460800);
-    R8_UART3_FCR = (2 << 6) | RB_FCR_TX_FIFO_CLR | RB_FCR_RX_FIFO_CLR | RB_FCR_FIFO_EN; // FIFO´ò¿ª£¬´¥·¢µã4×Ö½Ú
+    R8_UART3_FCR = (2 << 6) | RB_FCR_TX_FIFO_CLR | RB_FCR_RX_FIFO_CLR | RB_FCR_FIFO_EN; // FIFOï¿½ò¿ª£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½4ï¿½Ö½ï¿½
     R8_UART3_LCR = RB_LCR_WORD_SZ;
     R8_UART3_IER = RB_IER_TXD_EN;
     R8_UART3_DIV = 1;

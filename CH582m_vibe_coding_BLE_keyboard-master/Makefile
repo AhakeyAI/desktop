@@ -20,13 +20,16 @@ AS      = $(PREFIX)gcc
 OBJCOPY = $(PREFIX)objcopy
 SIZE    = $(PREFIX)size
 
-ARCH = -march=rv32imac -mabi=ilp32
+ARCH = -march=rv32imac_zicsr_zifencei -mabi=ilp32
 
 CFLAGS  = $(ARCH)
 CFLAGS += -Os -fmessage-length=0 -fsigned-char
 CFLAGS += -ffunction-sections -fdata-sections -fno-common
 CFLAGS += -std=gnu99
 CFLAGS += -DDEBUG=3 -DBLE_BUFF_MAX_LEN=251
+# GCC 14 promotes several warnings to errors that GCC 8 (original MRS toolchain) accepted silently
+CFLAGS += -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration \
+          -Wno-error=implicit-int -Wno-error=int-conversion
 
 INCLUDES  = -I$(SDK_SRC)/Startup
 INCLUDES += -IProfile/include
@@ -46,8 +49,10 @@ LDFLAGS += --specs=nano.specs --specs=nosys.specs
 LDFLAGS += -Xlinker --gc-sections
 LDFLAGS += -Xlinker --print-memory-usage
 LDFLAGS += -T$(SDK_SRC)/Ld/Link.ld
-LDFLAGS += -L$(LIB_DIR) -lISP583 -lCH58xBLE
-LDFLAGS += -L$(SDK_SRC)/StdPeriphDriver
+# Libraries placed AFTER objects in the link command (see rule below)
+# libISP583.a lives in StdPeriphDriver; LIBCH58xBLE.a uses uppercase prefix → use full filename
+LDLIBS   = -L$(SDK_SRC)/StdPeriphDriver -lISP583
+LDLIBS  += -L$(LIB_DIR) -l:LIBCH58xBLE.a
 
 # --- Sources ---
 
@@ -59,11 +64,15 @@ _HAL_ALL = $(wildcard $(HAL_DIR)/*.c)
 SRCS_HAL = $(filter-out $(HAL_DIR)/KEY.c $(HAL_DIR)/LED.c,$(_HAL_ALL))
 
 # StdPeriphDriver: exclude CH57x-only peripherals
+# CH57x variants excluded; also skip USB host/dev which conflict with BLE builds
 _PERIPH_EXCLUDE = CH57x_pwm.c CH57x_adc.c CH57x_usbdev.c CH57x_usbhostClass.c \
                   CH57x_usbhostBase.c CH57x_spi0.c CH57x_timer0.c CH57x_timer1.c \
-                  CH57x_timer2.c CH57x_timer3.c CH57x_uart0.c CH57x_uart2.c CH57x_uart3.c
-_PERIPH_ALL  = $(wildcard $(SDK_SRC)/StdPeriphDriver/src/*.c)
-SRCS_PERIPH  = $(filter-out $(addprefix $(SDK_SRC)/StdPeriphDriver/src/,$(_PERIPH_EXCLUDE)),$(_PERIPH_ALL))
+                  CH57x_timer2.c CH57x_timer3.c CH57x_uart0.c CH57x_uart2.c CH57x_uart3.c \
+                  CH58x_usb2dev.c CH58x_usb2hostBase.c CH58x_usb2hostClass.c \
+                  CH58x_usbhostBase.c CH58x_usbhostClass.c \
+                  CH58x_pwm.c CH58x_i2c.c
+_PERIPH_ALL  = $(wildcard $(SDK_SRC)/StdPeriphDriver/*.c)
+SRCS_PERIPH  = $(filter-out $(addprefix $(SDK_SRC)/StdPeriphDriver/,$(_PERIPH_EXCLUDE)),$(_PERIPH_ALL))
 
 SRCS_ASM = $(SDK_SRC)/Startup/startup_CH583.S
 
@@ -81,7 +90,7 @@ OBJS += $(patsubst %.S,$(OUT_DIR)/%.o,$(notdir $(filter %.S,$(ALL_SRCS))))
 all: $(OUT_DIR)/$(PROJ_NAME).hex
 
 $(OUT_DIR)/$(PROJ_NAME).elf: $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 	$(SIZE) $@
 
 $(OUT_DIR)/$(PROJ_NAME).hex: $(OUT_DIR)/$(PROJ_NAME).elf
