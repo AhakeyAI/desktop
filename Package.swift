@@ -4,18 +4,40 @@ import PackageDescription
 let package = Package(
     name: "AhaKeyConfig",
     platforms: [
-        .macOS("12.0")
+        .macOS(.v13)
     ],
     products: [
         .executable(name: "AhaKeyConfig", targets: ["AhaKeyConfig"]),
         .executable(name: "ahakeyconfig-agent", targets: ["AhaKeyConfigAgent"]),
+        .executable(name: "PluginShowcase", targets: ["PluginShowcase"]),
+        .library(name: "AhaKeyPluginKit", targets: ["AhaKeyPluginKit"]),
     ],
-    
+    dependencies: [
+        .package(path: "vibebar"),
+    ],
     targets: [
+        .target(
+            name: "AhaKeyPluginKit",
+            path: "ahakeyconfig-mac/Sources/AhaKeyPluginKit"
+        ),
+        .executableTarget(
+            name: "Plugin",
+            dependencies: ["AhaKeyPluginKit"],
+            path: "ahakeyconfig-mac/Sources/AhaKeyPlugin"
+        ),
+        .executableTarget(
+            name: "PluginShowcase",
+            dependencies: ["AhaKeyPluginKit"],
+            path: "ahakeyconfig-mac/Sources/AhaKeyPluginShowcase"
+        ),
         .executableTarget(
             name: "AhaKeyConfig",
+            dependencies: [
+                "AhaKeyPluginKit",
+                .product(name: "VibeBar", package: "VibeBar"),
+            ],
             path: "ahakeyconfig-mac/Sources",
-            exclude: ["Agent"],
+            exclude: ["Agent", "AhaKeyPlugin", "AhaKeyPluginKit", "AhaKeyPluginShowcase"],
             // 与 scripts/build.sh 中 Info.plist 一致。嵌入 __info_plist 段后 TCC 可识别。
             // Debug 使用单独 plist：系统在「隐私与安全性」列表中显示为「AhaKey Studio（调试）」，与正式包区分。
             linkerSettings: [

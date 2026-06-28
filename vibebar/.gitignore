@@ -1,0 +1,14 @@
+# SwiftPM
+.build/
+.swiftpm/configuration/registries.json
+.swiftpm/configuration/checksum-store/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+.swiftpm/xcode/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+
+# Xcode (if opened as xcodeproj from SPM)
+DerivedData/

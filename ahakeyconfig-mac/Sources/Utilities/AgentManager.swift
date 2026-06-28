@@ -316,6 +316,27 @@ final class AgentManager: ObservableObject {
                 _ = runLaunchctlQuiet(["load", plistPath])
                 _ = runLaunchctlQuiet(["start", label])
                 self.refresh()
+
+                // plist 存在 ≠ agent 真能跑：路径失效 / 崩溃时 launchctl start 不会报错，但 socket
+                // 永远不出现，键盘会卡在「Agent 占用中」无人连接。等 socket 出现，超时仍无则回退
+                // App 直连，保证键盘可用（修：残留/失效 LaunchAgent plist 导致开机卡住）。
+                var agentUp = false
+                let socketPath = self.socketPath
+                for _ in 0..<10 {   // 最多约 2.5s
+                    try? await Task.sleep(nanoseconds: 250 * 1_000_000)
+                    if Self.agentSocketAlive(socketPath: socketPath) { agentUp = true; break }
+                }
+                if !agentUp {
+                    log.info("Agent 已安装但未能启动（socket 未出现），临时回退由 App 直连键盘")
+                    bleManager.setSuppressedForAgentOwningKeyboard(false)
+                    if !isLaunch {
+                        self.agentUserAlert = "Agent 已安装但未能启动，已临时由 App 直接连接键盘。请在「更多 → 设备信息 · Agent」里检查或重新安装 Agent。"
+                    }
+                    if !bleManager.isConnected, !bleManager.isScanning {
+                        bleManager.connectAutomatically()
+                    }
+                    self.refresh()
+                }
             }
         }
         if !isLaunch {
@@ -395,6 +416,30 @@ final class AgentManager: ObservableObject {
 
     private func isAhakeyHookCommand(_ command: String) -> Bool {
         command.contains("ahakeyconfig-agent") || command.contains("ahakey-state")
+    }
+
+    /// 真去 connect 一下 agent socket，区分「活着的 agent」和「残留死 socket」。
+    /// `checkRunning()` 只看 socket 文件是否存在，会被进程已死但 socket 残留的情况误判。
+    nonisolated static func agentSocketAlive(socketPath: String) -> Bool {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var tv = timeval(tv_sec: 1, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        socketPath.withCString { src in
+            withUnsafeMutablePointer(to: &addr.sun_path) { dst in
+                _ = strcpy(UnsafeMutableRawPointer(dst).assumingMemoryBound(to: CChar.self), src)
+            }
+        }
+        let ok = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        return ok == 0
     }
 
     private func checkRunning() -> Bool {

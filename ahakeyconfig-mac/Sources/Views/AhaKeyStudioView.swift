@@ -185,10 +185,12 @@ struct AhaKeyStudioView: View {
             HStack(spacing: 8) {
                 infoPill(
                     title: isEffectivelyConnected ? "已连接" : (bleManager.isScanning ? "扫描中" : "未连接"),
-                    subtitle: bleManager.deviceName ?? "等待设备",
+                    // 未连接时不再笼统显示「等待设备」，而是给出细分链路诊断（Issue #34）。
+                    subtitle: isEffectivelyConnected ? (bleManager.deviceName ?? "已连接") : bleManager.linkDiagnostic.shortMessage,
                     accent: isEffectivelyConnected ? .green : .orange,
                     width: 118
                 )
+                .help(isEffectivelyConnected ? "" : bleManager.linkDiagnostic.detail)
                 infoPill(
                     title: "电量",
                     subtitle: isEffectivelyConnected ? "\(bleManager.batteryLevel)%" : "—",
