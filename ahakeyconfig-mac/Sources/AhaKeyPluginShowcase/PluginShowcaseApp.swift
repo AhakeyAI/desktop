@@ -119,6 +119,61 @@ final class PluginShowcaseModel: ObservableObject {
         }
     }
 
+    func installKeySilkBaiduHotkey() async {
+        guard let plugin = pluginSupporting("keysilk/installCompanionProfile") else {
+            appendActivity("No loaded plugin exposes keysilk/installCompanionProfile")
+            return
+        }
+
+        let profile: JSONValue = .object([
+            "version": .int(1),
+            "adapter": .string("keysilk_v1"),
+            "layout": .string("keysilk_3key_1knob"),
+            "actions": .array([
+                .object([
+                    "type": .string("hotkey_open_url"),
+                    "adapter": .string("keysilk_v1"),
+                    "layout": .string("keysilk_3key_1knob"),
+                    "scope": .string("extended"),
+                    "action": .string("key1.press"),
+                    "url": .string("https://www.baidu.com/"),
+                    "binding": .string("CtrlAltShiftB"),
+                    "hotkey": .string("Ctrl+Alt+Shift+B"),
+                ]),
+            ]),
+        ])
+
+        do {
+            let result = try await plugin.host.client.call(
+                "keysilk/installCompanionProfile",
+                params: .object(["profile": profile]),
+                timeout: 4
+            )
+            appendActivity("keysilk/installCompanionProfile -> \(compactJSON(result))")
+            statusJSON = prettyJSON(result)
+        } catch {
+            appendActivity("keysilk/installCompanionProfile failed: \(error)")
+        }
+    }
+
+    func uninstallKeySilkCompanionProfile() async {
+        guard let plugin = pluginSupporting("keysilk/uninstallCompanionProfile") else {
+            appendActivity("No loaded plugin exposes keysilk/uninstallCompanionProfile")
+            return
+        }
+
+        do {
+            let result = try await plugin.host.client.call(
+                "keysilk/uninstallCompanionProfile",
+                timeout: 4
+            )
+            appendActivity("keysilk/uninstallCompanionProfile -> \(compactJSON(result))")
+            statusJSON = prettyJSON(result)
+        } catch {
+            appendActivity("keysilk/uninstallCompanionProfile failed: \(error)")
+        }
+    }
+
     private func pluginSupporting(_ method: String) -> PluginManager.LoadedPlugin? {
         loadedPlugins.first { $0.initialize?.methods?.contains(method) == true }
     }
@@ -223,6 +278,12 @@ struct PluginShowcaseView: View {
                     }
                     Button("Call demo/greet") {
                         Task { await model.greet() }
+                    }
+                    Button("Install KeySilk Baidu Hotkey") {
+                        Task { await model.installKeySilkBaiduHotkey() }
+                    }
+                    Button("Uninstall KeySilk Hotkeys") {
+                        Task { await model.uninstallKeySilkCompanionProfile() }
                     }
                 }
                 Text(model.statusJSON)

@@ -1,0 +1,101 @@
+{
+  "source": "analysis\\factory_scene2_knob_press_a.bin",
+  "samples": [
+    {
+      "adapter": "keysilk_v1",
+      "layout": "keysilk_3key_1knob",
+      "action": "extended.key1.press",
+      "offset": 304,
+      "length": 24,
+      "binding": {
+        "label": "字母A",
+        "typeByte": 1,
+        "code": [
+          10,
+          0
+        ],
+        "rawTail": [
+          1,
+          10,
+          0,
+          4
+        ]
+      },
+      "recordHex": "ff ff 57 5b cd 6b 41 00 00 00 00 00 00 00 00 00 00 00 00 00 01 0a 00 04",
+      "declaredLength": 400,
+      "rawLength": 420
+    },
+    {
+      "adapter": "keysilk_v1",
+      "layout": "keysilk_3key_1knob",
+      "action": "extended.key2.press",
+      "offset": 328,
+      "length": 24,
+      "binding": {
+        "label": "字母B",
+        "typeByte": 1,
+        "code": [
+          11,
+          0
+        ],
+        "rawTail": [
+          1,
+          11,
+          0,
+          5
+        ]
+      },
+      "recordHex": "ff ff 57 5b cd 6b 42 00 00 00 00 00 00 00 00 00 00 00 00 00 01 0b 00 05",
+      "declaredLength": 400,
+      "rawLength": 420
+    },
+    {
+      "adapter": "keysilk_v1",
+      "layout": "keysilk_3key_1knob",
+      "action": "extended.key3.press",
+      "offset": 352,
+      "length": 24,
+      "binding": {
+        "label": "字母A",
+        "typeByte": 1,
+        "code": [
+          10,
+          0
+        ],
+        "rawTail": [
+          1,
+          10,
+          0,
+          4
+        ]
+      },
+      "recordHex": "ff ff 57 5b cd 6b 41 00 00 00 00 00 00 00 00 00 00 00 00 00 01 0a 00 04",
+      "declaredLength": 400,
+      "rawLength": 420
+    },
+    {
+      "adapter": "keysilk_v1",
+      "layout": "keysilk_3key_1knob",
+      "action": "extended.knob1.press",
+      "offset": 376,
+      "length": 24,
+      "binding": {
+        "label": "字母A",
+        "typeByte": 1,
+        "code": [
+          10,
+          0
+        ],
+        "rawTail": [
+          1,
+          10,
+          0,
+          4
+        ]
+      },
+      "recordHex": "ff ff 57 5b cd 6b 41 00 00 00 00 00 00 00 00 00 00 00 00 00 01 0a 00 04",
+      "declaredLength": 400,
+      "rawLength": 420
+    }
+  ]
+}

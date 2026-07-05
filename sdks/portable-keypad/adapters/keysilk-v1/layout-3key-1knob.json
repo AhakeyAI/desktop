@@ -1,0 +1,38 @@
+﻿{
+  "brand": "KeySilk / COIDEA",
+  "model": "3键 + 1旋钮",
+  "adapter": "keysilk_v1",
+  "layout": "keysilk_3key_1knob",
+  "components": [
+    {
+      "id": "knob1",
+      "type": "encoder",
+      "label": "旋钮",
+      "actions": [
+        { "id": "knob1.rotate_left", "label": "左旋" },
+        { "id": "knob1.press", "label": "旋钮按下" },
+        { "id": "knob1.rotate_right", "label": "右旋" },
+        { "id": "knob1.press_rotate_left", "label": "按住左旋" },
+        { "id": "knob1.press_rotate_right", "label": "按住右旋" }
+      ]
+    },
+    {
+      "id": "key1",
+      "type": "button",
+      "label": "按键 1",
+      "actions": [{ "id": "key1.press", "label": "按键 1" }]
+    },
+    {
+      "id": "key2",
+      "type": "button",
+      "label": "按键 2",
+      "actions": [{ "id": "key2.press", "label": "按键 2" }]
+    },
+    {
+      "id": "key3",
+      "type": "button",
+      "label": "按键 3",
+      "actions": [{ "id": "key3.press", "label": "按键 3" }]
+    }
+  ]
+}

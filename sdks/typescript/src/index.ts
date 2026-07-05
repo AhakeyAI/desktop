@@ -57,6 +57,16 @@ export interface SwitchStateResult {
   agentReachable: boolean;
 }
 
+export interface HostBooleanResult {
+  opened?: boolean;
+  pasted?: boolean;
+  unregistered?: boolean;
+}
+
+export interface RegisterGlobalHotkeyResult {
+  token: string;
+}
+
 export type HostLogLevel = "debug" | "info" | "warn" | "error" | (string & {});
 
 export type RpcMethod<TParams = unknown, TResult = unknown> = (
@@ -417,6 +427,26 @@ export class AhaKeyHost {
 
   getSwitchState(): Promise<SwitchStateResult> {
     return this.call<SwitchStateResult>("host/getSwitchState");
+  }
+
+  openUrl(url: string): Promise<HostBooleanResult> {
+    return this.call<HostBooleanResult>("host/openUrl", { url });
+  }
+
+  openPath(path: string): Promise<HostBooleanResult> {
+    return this.call<HostBooleanResult>("host/openPath", { path });
+  }
+
+  pasteText(text: string): Promise<HostBooleanResult> {
+    return this.call<HostBooleanResult>("host/pasteText", { text });
+  }
+
+  registerGlobalHotkey(hotkey: string, callbackMethod: string): Promise<RegisterGlobalHotkeyResult> {
+    return this.call<RegisterGlobalHotkeyResult>("host/registerGlobalHotkey", { hotkey, callbackMethod });
+  }
+
+  unregisterGlobalHotkey(token: string): Promise<HostBooleanResult> {
+    return this.call<HostBooleanResult>("host/unregisterGlobalHotkey", { token });
   }
 }
 

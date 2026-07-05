@@ -1,0 +1,19 @@
+{
+  "id": "dev.ahakey.keysilk-keypad",
+  "name": "KeySilk Portable Keypad",
+  "version": "0.1.0",
+  "entrypoint": {
+    "command": "node",
+    "args": ["${pluginDir}/dist/main.js"]
+  },
+  "permissions": [
+    "host/getInfo",
+    "host/log",
+    "host/getSwitchState",
+    "host/openUrl",
+    "host/openPath",
+    "host/pasteText",
+    "host/registerGlobalHotkey",
+    "host/unregisterGlobalHotkey"
+  ]
+}

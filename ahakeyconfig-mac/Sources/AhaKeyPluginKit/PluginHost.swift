@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 // 在 PluginClient 之上包一层「宿主能力」：注册一组 `host/*` JSON-RPC method，
@@ -33,6 +34,11 @@ public final class PluginHost: @unchecked Sendable {
         "host/getInfo",
         "host/log",
         "host/getSwitchState",
+        "host/openUrl",
+        "host/openPath",
+        "host/pasteText",
+        "host/registerGlobalHotkey",
+        "host/unregisterGlobalHotkey",
     ]
 
     /// 注册默认 `host/*` 方法集。请在 `client.start()` 之前调用。
@@ -55,6 +61,53 @@ public final class PluginHost: @unchecked Sendable {
                 "agentReachable": .bool(state != nil),
             ])
         }
+
+        await register("host/openUrl") { params in
+            let url = try HostActionParams.requiredString(params, key: "url", method: "host/openUrl")
+            guard let parsed = URL(string: url), ["http", "https"].contains(parsed.scheme?.lowercased() ?? "") else {
+                throw JSONRPCError(code: JSONRPCError.invalidParams, message: "host/openUrl expects an http(s) URL")
+            }
+            let opened = await MainActor.run {
+                NSWorkspace.shared.open(parsed)
+            }
+            return .object(["opened": .bool(opened)])
+        }
+
+        await register("host/openPath") { params in
+            let path = try HostActionParams.requiredString(params, key: "path", method: "host/openPath")
+            let opened = await MainActor.run {
+                NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            }
+            return .object(["opened": .bool(opened)])
+        }
+
+        await register("host/pasteText") { params in
+            let text = try HostActionParams.requiredString(params, key: "text", method: "host/pasteText")
+            await MainActor.run {
+                HostTextInjector.paste(text)
+            }
+            return .object(["pasted": .bool(true)])
+        }
+
+        await register("host/registerGlobalHotkey") { [weak self] params in
+            guard let self else {
+                throw JSONRPCError(code: JSONRPCError.internalError, message: "PluginHost is unavailable")
+            }
+            let hotkey = try HostActionParams.requiredString(params, key: "hotkey", method: "host/registerGlobalHotkey")
+            let callbackMethod = try HostActionParams.requiredString(params, key: "callbackMethod", method: "host/registerGlobalHotkey")
+            let token = HostHotkeyRegistry.shared.register(
+                hotkey: hotkey,
+                callbackMethod: callbackMethod,
+                client: self.client
+            )
+            return .object(["token": .string(token)])
+        }
+
+        await register("host/unregisterGlobalHotkey") { params in
+            let token = try HostActionParams.requiredString(params, key: "token", method: "host/unregisterGlobalHotkey")
+            HostHotkeyRegistry.shared.unregister(token: token)
+            return .object(["unregistered": .bool(true)])
+        }
     }
 
     /// 包一层权限检查后注册。不在 `permissions` 里的 method 会被 -32601 直接拒掉。
@@ -73,6 +126,184 @@ public final class PluginHost: @unchecked Sendable {
             }
             return try await handler(params)
         }
+    }
+}
+
+// MARK: - host action params
+
+enum HostActionParams {
+    static func requiredString(_ params: JSONValue?, key: String, method: String) throws -> String {
+        guard case .object(let object)? = params,
+              case .string(let value)? = object[key],
+              !value.isEmpty else {
+            throw JSONRPCError(
+                code: JSONRPCError.invalidParams,
+                message: "\(method) expects string parameter '\(key)'",
+                data: nil
+            )
+        }
+        return value
+    }
+}
+
+// MARK: - host/pasteText
+
+enum HostTextInjector {
+    static func paste(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        let source = CGEventSource(stateID: .combinedSessionState)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) else {
+            return
+        }
+        down.flags = .maskCommand
+        up.flags = .maskCommand
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+    }
+}
+
+// MARK: - host/registerGlobalHotkey
+
+final class HostHotkeyRegistry: @unchecked Sendable {
+    static let shared = HostHotkeyRegistry()
+
+    private struct Registration {
+        let token: String
+        let hotkey: ParsedHotkey
+        let callbackMethod: String
+        let client: PluginClient
+    }
+
+    private let lock = NSLock()
+    private var registrations: [String: Registration] = [:]
+    private var localMonitor: Any?
+    private var globalMonitor: Any?
+
+    private init() {}
+
+    func register(hotkey: String, callbackMethod: String, client: PluginClient) -> String {
+        let parsed = ParsedHotkey.parse(hotkey)
+        let token = UUID().uuidString
+        let registration = Registration(
+            token: token,
+            hotkey: parsed,
+            callbackMethod: callbackMethod,
+            client: client
+        )
+        lock.lock()
+        registrations[token] = registration
+        let shouldInstall = localMonitor == nil && globalMonitor == nil
+        lock.unlock()
+
+        if shouldInstall {
+            installMonitors()
+        }
+        return token
+    }
+
+    func unregister(token: String) {
+        lock.lock()
+        registrations.removeValue(forKey: token)
+        let shouldRemove = registrations.isEmpty
+        lock.unlock()
+
+        if shouldRemove {
+            removeMonitors()
+        }
+    }
+
+    private func installMonitors() {
+        DispatchQueue.main.async {
+            if self.localMonitor == nil {
+                self.localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    self?.handle(event: event)
+                    return event
+                }
+            }
+            if self.globalMonitor == nil {
+                self.globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    self?.handle(event: event)
+                }
+            }
+        }
+    }
+
+    private func removeMonitors() {
+        DispatchQueue.main.async {
+            if let localMonitor = self.localMonitor {
+                NSEvent.removeMonitor(localMonitor)
+                self.localMonitor = nil
+            }
+            if let globalMonitor = self.globalMonitor {
+                NSEvent.removeMonitor(globalMonitor)
+                self.globalMonitor = nil
+            }
+        }
+    }
+
+    private func handle(event: NSEvent) {
+        lock.lock()
+        let matches = registrations.values.filter { $0.hotkey.matches(event: event) }
+        lock.unlock()
+
+        for registration in matches {
+            let params: JSONValue = .object([
+                "token": .string(registration.token),
+                "hotkey": .string(registration.hotkey.display),
+            ])
+            Task {
+                _ = try? await registration.client.call(registration.callbackMethod, params: params)
+            }
+        }
+    }
+}
+
+struct ParsedHotkey {
+    let display: String
+    let keyCode: UInt16
+    let modifiers: NSEvent.ModifierFlags
+
+    static func parse(_ hotkey: String) -> ParsedHotkey {
+        let parts = hotkey
+            .split(separator: "+")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        var modifiers: NSEvent.ModifierFlags = []
+        var key: String?
+        for part in parts {
+            switch part {
+            case "cmd", "command", "meta": modifiers.insert(.command)
+            case "ctrl", "control": modifiers.insert(.control)
+            case "alt", "option": modifiers.insert(.option)
+            case "shift": modifiers.insert(.shift)
+            default: key = part
+            }
+        }
+        guard let key, let keyCode = Self.keyCode(for: key) else {
+            return ParsedHotkey(display: hotkey, keyCode: 11, modifiers: [.control, .option, .shift])
+        }
+        return ParsedHotkey(display: hotkey, keyCode: keyCode, modifiers: modifiers)
+    }
+
+    func matches(event: NSEvent) -> Bool {
+        let relevant: NSEvent.ModifierFlags = [.command, .control, .option, .shift]
+        return event.keyCode == keyCode
+            && event.modifierFlags.intersection(relevant) == modifiers.intersection(relevant)
+    }
+
+    private static func keyCode(for key: String) -> UInt16? {
+        [
+            "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
+            "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15,
+            "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22,
+            "5": 23, "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29,
+            "]": 30, "o": 31, "u": 32, "[": 33, "i": 34, "p": 35, "l": 37,
+            "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42, ",": 43, "/": 44,
+            "n": 45, "m": 46, ".": 47, "`": 50,
+        ][key]
     }
 }
 

@@ -1,0 +1,29 @@
+{
+  "source": "analysis\\factory_scene2_key2_b_after_download.bin",
+  "samples": [
+    {
+      "adapter": "keysilk_v1",
+      "layout": "keysilk_3key_1knob",
+      "action": "extended.key2.press",
+      "offset": 304,
+      "length": 24,
+      "binding": {
+        "label": "字母B",
+        "typeByte": 1,
+        "code": [
+          11,
+          0
+        ],
+        "rawTail": [
+          1,
+          11,
+          0,
+          5
+        ]
+      },
+      "recordHex": "ff ff 57 5b cd 6b 42 00 00 00 00 00 00 00 00 00 00 00 00 00 01 0b 00 05",
+      "declaredLength": 328,
+      "rawLength": 360
+    }
+  ]
+}

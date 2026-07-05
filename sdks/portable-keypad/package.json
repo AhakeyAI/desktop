@@ -1,0 +1,25 @@
+{
+  "name": "@ahakey/portable-keypad-sdk",
+  "version": "0.1.0",
+  "description": "Portable keypad configuration SDK for AhaKey plugins, with KeySilk v1 adapter support.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "type": "commonjs",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "companion-runtime.js",
+    "README.md",
+    "core/**/*.js",
+    "adapters/**/*.js",
+    "adapters/**/*.json"
+  ],
+  "keywords": [
+    "keypad",
+    "keyboard",
+    "hid",
+    "keysilk",
+    "coidea"
+  ],
+  "license": "UNLICENSED"
+}
