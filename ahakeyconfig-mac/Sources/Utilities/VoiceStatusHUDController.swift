@@ -9,9 +9,15 @@ final class VoiceStatusHUDController {
     private var hostingView: NSHostingView<VoiceStatusHUDView>?
     private var hideWorkItem: DispatchWorkItem?
 
+    /// 浮动语音输入 HUD 接管录音交互时，跳过录音/识别状态条，避免双 HUD。
+    var suppressRecordingStates = false
+
     private init() {}
 
     func show(_ state: VoiceStatusHUDState, autoHideAfter delay: TimeInterval? = nil) {
+        if suppressRecordingStates && (state == .recording || state == .recognizing) {
+            return
+        }
         hideWorkItem?.cancel()
         let view = VoiceStatusHUDView(state: state)
         if let hostingView {

@@ -43,11 +43,18 @@ fi
 
 echo "🐞 Debug building $APP_DISPLAY_NAME..."
 cd "$APP_ROOT"
-swift build -c debug --arch arm64 --product AhaKeyConfig
-swift build -c debug --arch arm64 --product ahakeyconfig-agent
 
-BUILD_OUTPUT=".build/arm64-apple-macosx/debug/$EXECUTABLE_NAME"
-AGENT_OUTPUT=".build/arm64-apple-macosx/debug/ahakeyconfig-agent"
+BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
+if [[ "$BUILD_ARCH" != "arm64" && "$BUILD_ARCH" != "x86_64" ]]; then
+  echo "Unsupported BUILD_ARCH: $BUILD_ARCH"
+  exit 1
+fi
+
+swift build -c debug --arch "$BUILD_ARCH" --product AhaKeyConfig
+swift build -c debug --arch "$BUILD_ARCH" --product ahakeyconfig-agent
+
+BUILD_OUTPUT=".build/$BUILD_ARCH-apple-macosx/debug/$EXECUTABLE_NAME"
+AGENT_OUTPUT=".build/$BUILD_ARCH-apple-macosx/debug/ahakeyconfig-agent"
 if [[ ! -f "$BUILD_OUTPUT" ]]; then
   echo "Build output not found at $BUILD_OUTPUT"
   exit 1
@@ -120,7 +127,7 @@ if [[ "$NEED_PLIST" == "1" ]]; then
   <key>CFBundleVersion</key>
   <string>${BUILD_NUMBER}</string>
   <key>LSMinimumSystemVersion</key>
-  <string>15.0</string>
+  <string>14.0</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
   <string>AhaKey 配置需要蓝牙连接你的 AhaKey 键盘。</string>
   <key>NSMicrophoneUsageDescription</key>

@@ -5,6 +5,15 @@ enum UnifiedOnboardingStorage {
     static let micGrantedKey = "AhaKey.UnifiedOnboarding.v2.micPreGranted"
     static let pasteGrantedKey = "AhaKey.UnifiedOnboarding.v2.pastePreGranted"
     static let currentStepKey = "AhaKey.UnifiedOnboarding.v2.currentStep"
+
+    /// 从偏好设置等入口重新打开新手引导（回到欢迎页），并重置功能级气泡 tip。
+    @MainActor
+    static func resetForReplay() {
+        UserDefaults.standard.set(false, forKey: completedKey)
+        UserDefaults.standard.removeObject(forKey: currentStepKey)
+        FeatureCoachTipStore.resetAllSeen()
+        FeatureCoachTipController.shared.clearPresented()
+    }
 }
 
 struct AhaKeyOnboardingPermissionState: Equatable {

@@ -1,8 +1,10 @@
 import AppKit
 import SwiftUI
+import VibeBar
 
 struct ContentView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var islandState: VibeBarState
     @StateObject private var voiceRelay = VoiceRelayService.shared
     @StateObject private var nativeSpeech = NativeSpeechTranscriptionService.shared
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
@@ -20,6 +22,7 @@ struct ContentView: View {
                 ) { _, _ in
                     unifiedOnboardingCompleted = true
                     voiceRelay.suppressPermissionOnboarding(for: 60)
+                    FeatureCoachTipController.shared.refreshInterested()
                 }
                 .transition(.opacity)
                 .zIndex(20)
@@ -39,8 +42,15 @@ struct ContentView: View {
             if allGranted {
                 unifiedOnboardingCompleted = true
                 voiceRelay.showsPermissionOnboarding = false
+                FeatureCoachTipController.shared.refreshInterested()
             } else if shouldShowUnifiedOnboarding {
                 voiceRelay.suppressPermissionOnboarding(for: 60)
+            }
+        }
+        .onChange(of: unifiedOnboardingCompleted) { completed in
+            if completed {
+                // 全屏引导结束（含重放后再次完成）：主壳早已挂载，需主动唤醒气泡 tip。
+                FeatureCoachTipController.shared.refreshInterested()
             }
         }
     }
@@ -48,10 +58,10 @@ struct ContentView: View {
     @ViewBuilder
     private var mainWorkspace: some View {
         if #available(macOS 14.0, *) {
-            AhaKeyStudioView(bleManager: bleManager)
+            AhaKeySettingsRootView(bleManager: bleManager, islandState: islandState)
                 .focusEffectDisabled()
         } else {
-            AhaKeyStudioView(bleManager: bleManager)
+            AhaKeySettingsRootView(bleManager: bleManager, islandState: islandState)
         }
     }
 

@@ -551,6 +551,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             statusMessage = "未识别到有效语音内容。"
             VoiceStatusHUDController.shared.show(.empty, autoHideAfter: 1.8)
             appendDiagnostic("finalize empty reason=\(reason)")
+            VoiceInputStore.shared.appendDictation(text: "转录已被取消。", status: .cancelled)
             return
         }
 
@@ -561,21 +562,24 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
 
         Task { @MainActor in
-            let output: String
+            var output: String
             if willUseAhaType {
                 output = await AhaTypeTextOptimizer.shared.processIfEnabled(text)
             } else {
                 output = text
             }
+            output = VoiceInputStore.shared.applyDictionary(to: output)
             if self.injectText(output) {
                 self.lastCommittedText = output
                 self.statusMessage = output == text ? "已写入：\(output)" : "AhaType 已整理并写入：\(output)"
                 VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
                 self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
+                VoiceInputStore.shared.appendDictation(text: output, status: .ok)
             } else {
                 self.statusMessage = "识别完成，但写入当前光标失败。"
                 VoiceStatusHUDController.shared.show(.failed, autoHideAfter: 2.0)
                 self.appendDiagnostic("finalize inject failed reason=\(reason) text=\(output)")
+                VoiceInputStore.shared.appendDictation(text: output, status: .failed)
             }
         }
     }

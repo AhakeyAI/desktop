@@ -199,6 +199,53 @@ final class CloudAccountManager: ObservableObject {
         ].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
+    /// 用户中心 Hero / 账户卡副文案。
+    var validUntilDisplay: String {
+        guard let profile else { return isLoggedIn ? "账户正常" : "" }
+        let validUntil = stringValue(profile["token_valid_until"])
+        return validUntil.isEmpty ? "有效期：无" : "有效期至 \(validUntil)"
+    }
+
+    var phoneDisplay: String {
+        if let profile {
+            let phone = stringValue(profile["phone"])
+            if !phone.isEmpty { return phone }
+        }
+        let masked = maskedPhoneDisplay
+        return masked.isEmpty ? phone : masked
+    }
+
+    /// 侧栏用户卡主标题。
+    var sidebarTitle: String {
+        if !isLoggedIn { return "AhaKey 用户" }
+        let masked = maskedPhoneDisplay
+        return masked.isEmpty ? "已登录" : masked
+    }
+
+    /// 侧栏用户卡副标题。
+    var sidebarSubtitle: String {
+        isLoggedIn ? "账户管理" : "点击登录"
+    }
+
+    /// 头像首字母。
+    var avatarInitial: String {
+        let digits = phone.filter(\.isNumber)
+        if let last = digits.last { return String(last) }
+        return "A"
+    }
+
+    var maskedPhoneDisplay: String {
+        let raw: String = {
+            if let profile, let p = profile["phone"] as? String, !p.isEmpty { return p }
+            return phone
+        }()
+        let digits = raw.filter(\.isNumber)
+        guard digits.count >= 7 else { return raw.isEmpty ? "" : raw }
+        let prefix = digits.prefix(3)
+        let suffix = digits.suffix(4)
+        return "\(prefix)****\(suffix)"
+    }
+
     func quotaText(_ period: String) -> String {
         guard let profile else { return "暂无" }
         let used = intValue(profile["used_\(period)"])

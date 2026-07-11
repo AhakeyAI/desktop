@@ -77,6 +77,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
     /// 键盘显示固件出厂动图（与 bundle/DefaultOLED 同源）。
     @Published private(set) var keyboardPictureStates: [Int: KeyboardPictureState] = [:]
+    @Published var magneticModuleState: MagneticModuleState = MagneticModuleStateStore.load()
+    @Published var oceanLightConfig: OceanLightConfig = OceanLightConfigStore.load()
 
     /// 通信日志（最近 200 条）
     @Published private(set) var commLog: [BLELogEntry] = []
@@ -519,6 +521,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// value: 0=auto/up, 1=manual/down, 2=mid
     func setSwitchStateViaBLE(_ value: UInt8) {
         appendLog("虚拟拨杆 sw_state=\(value) 仅作为软件覆盖；最新固件 0x91 用于灯效预览。")
+    }
+
+    /// Gen2 电子海洋灯效配置（占位；固件 0x97/0x98 联调后接入真实写入）。
+    func applyOceanLightConfig(_ config: OceanLightConfig) {
+        oceanLightConfig = config
+        OceanLightConfigStore.save(config)
+        guard commandChar != nil else {
+            appendLog("→ 海洋灯效（占位）preset=\(config.selectedPresetId) brightness=\(Int(config.brightness * 100))%")
+            return
+        }
+        writeCommand(AhaKeyCommandV2.setOceanLightPreset(config))
+        if !config.marqueeText.isEmpty {
+            writeCommand(AhaKeyCommandV2.setMarqueeText(config.marqueeText))
+        }
+        appendLog("→ 海洋灯效 preset=\(config.selectedPresetId)（占位协议）")
     }
 
     func setLightMapping(mode: UInt8, stateEffects: [UInt8]) {

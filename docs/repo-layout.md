@@ -16,6 +16,7 @@
 - `BLE_tcp_bridge/` — BLE ↔ TCP 桥接(C#)
 - `Package.swift` — macOS targets 的根 SwiftPM 清单
 - `docs/` — 仓库级文档(架构、BLE 协议、安装、发布)
+- `docs/versioning.md` — 界面开发版本管理（小白版：看哪个分支、怎么打版本）
 - `assets/` — 共享品牌 / 构建资源
 
 ## macOS 子目录(`ahakeyconfig-mac/`)

@@ -90,6 +90,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     case key3
     case key4
     case toggleSwitch
+    case magneticPort
 
     var id: String { rawValue }
 
@@ -109,6 +110,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             "Key 4"
         case .toggleSwitch:
             "拨杆"
+        case .magneticPort:
+            "磁吸底座"
         }
     }
 
@@ -128,6 +131,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             "删除键"
         case .toggleSwitch:
             "批准方式"
+        case .magneticPort:
+            "磁吸扩展模块"
         }
     }
 
@@ -139,7 +144,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .oledDisplay:
             "rectangle.inset.filled"
         case .key1:
-            "microphone"
+            "mic"
         case .key2:
             "checkmark"
         case .key3:
@@ -148,8 +153,12 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             "delete.left"
         case .toggleSwitch:
             "switch.2"
+        case .magneticPort:
+            "plus.rectangle.on.rectangle"
         }
     }
+
+    var isGen2Only: Bool { self == .magneticPort }
 
     var keyRole: AhaKeyKeyRole? {
         switch self {
@@ -167,6 +176,30 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     }
 
     var isKey: Bool { keyRole != nil }
+
+    /// 当前代际在画布 / 右侧 Tab 中可见的部件（与热区一致）。
+    static func visibleParts(for generation: DeviceGeneration) -> [AhaKeyStudioPart] {
+        switch generation {
+        case .gen2:
+            return [.lightBar, .oledDisplay, .key1, .key2, .key3, .key4, .magneticPort]
+        case .x1:
+            return [.lightBar, .oledDisplay, .key1, .key2, .key3, .key4, .toggleSwitch]
+        }
+    }
+
+    /// Tab 上更短的标签（窄 Inspector 用）。
+    var tabTitle: String {
+        switch self {
+        case .oledDisplay: "LCD"
+        case .magneticPort: "磁吸"
+        case .key1: "K1"
+        case .key2: "K2"
+        case .key3: "K3"
+        case .key4: "K4"
+        case .lightBar: "灯条"
+        case .toggleSwitch: "拨杆"
+        }
+    }
 }
 
 enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
@@ -206,7 +239,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
     var systemImage: String {
         switch self {
         case .voice:
-            "microphone"
+            "mic"
         case .approve:
             "checkmark"
         case .reject:
@@ -686,6 +719,17 @@ enum MacroAction: UInt8, Codable, CaseIterable, Identifiable {
         case .upKey: return "松开"
         case .delay: return "延时"
         case .upAllKeys: return "全部松开"
+        }
+    }
+
+    /// 窄 Inspector 宏行用的短标签。
+    var shortTitle: String {
+        switch self {
+        case .noOp: return "空"
+        case .downKey: return "按下"
+        case .upKey: return "松开"
+        case .delay: return "延时"
+        case .upAllKeys: return "全松"
         }
     }
 
