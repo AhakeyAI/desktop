@@ -12,7 +12,6 @@
 - `ahakeyconfig-win-java/` — Windows 客户端(Java · JavaFX · Maven)
 - `ahakeyconfig-win-python/` — Windows 客户端(Python · PyInstaller,Capswriter 基线)
 - `ahakeyconfig-ubuntu-java/` — Linux 客户端(Java · JavaFX · Maven)
-- `CH582m_vibe_coding_BLE_keyboard-master/` — 键盘固件(C,CH582M)
 - `BLE_tcp_bridge/` — BLE ↔ TCP 桥接(C#)
 - `Package.swift` — macOS targets 的根 SwiftPM 清单
 - `docs/` — 仓库级文档(架构、BLE 协议、安装、发布)

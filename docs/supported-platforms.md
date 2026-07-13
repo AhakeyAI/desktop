@@ -7,7 +7,6 @@
 - **macOS** — `ahakeyconfig-mac/`(Swift · SwiftUI),主力开发,由仓库根 `Package.swift` 构建。
 - **Windows** — `ahakeyconfig-win-java/`(Java · JavaFX · Maven)与 `ahakeyconfig-win-python/`(Python · PyInstaller,Capswriter 基线)两套客户端。
 - **Linux** — `ahakeyconfig-ubuntu-java/`(Java · JavaFX · Maven),Ubuntu 桌面客户端。
-- **键盘固件** — `CH582m_vibe_coding_BLE_keyboard-master/`(C,CH582M MCU)。
 - **BLE ↔ TCP 桥接** — `BLE_tcp_bridge/`(C#),供非原生客户端通过本地 TCP 与设备交互。
 
 ## 当前非目标
