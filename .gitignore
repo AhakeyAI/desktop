@@ -78,11 +78,6 @@ internal/
 target/
 *.class
 
-# Firmware object files
-*.o
-obj_final/
-
-
 # Swift build artifacts
 .build/
 .swiftpm/
