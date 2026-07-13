@@ -6,7 +6,7 @@
 - **macOS**(`ahakeyconfig-mac/`)为主力开发方向:BLE、voice agent、拨杆审批 AI hook、工作台 UI。
 - **Windows** 提供 Java(`ahakeyconfig-win-java/`)与 Python(`ahakeyconfig-win-python/`,Capswriter 基线)两套客户端。
 - **Linux** 客户端(`ahakeyconfig-ubuntu-java/`)已加入。
-- 键盘固件(`CH582m_vibe_coding_BLE_keyboard-master/`)与 BLE ↔ TCP 桥接(`BLE_tcp_bridge/`)源码随仓库提供。
+- BLE ↔ TCP 桥接(`BLE_tcp_bridge/`)源码随仓库提供；键盘固件源码不再放在 desktop 主仓库。
 
 ## 当前未导入
 

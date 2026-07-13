@@ -34,7 +34,7 @@
 
 ## 🇬🇧 English
 
-`AhakeyAI/desktop` is the official source monorepo for the **AhaKey-X1 (Vibecoding Keyboard)** desktop suite — the companion software, keyboard firmware, and tooling that turn the physical keyboard into a control surface for AI-assisted coding.
+`AhakeyAI/desktop` is the official source monorepo for the **AhaKey-X1 (Vibecoding Keyboard)** desktop suite — the companion software and tooling that turn the physical keyboard into a control surface for AI-assisted coding.
 
 ### What it does
 
@@ -50,7 +50,6 @@
 | **Windows app** | `ahakeyconfig-win-java/` | Java · JavaFX (Maven) | Windows desktop client |
 | **Windows app (legacy)** | `ahakeyconfig-win-python/` | Python · PyInstaller | Imported baseline (Capswriter-derived) |
 | **Linux app** | `ahakeyconfig-ubuntu-java/` | Java · JavaFX (Maven) | Ubuntu desktop client |
-| **Keyboard firmware** | `CH582m_vibe_coding_BLE_keyboard-master/` | C (CH582M MCU) | BLE keyboard firmware source |
 | **BLE ↔ TCP bridge** | `BLE_tcp_bridge/` | C# | Bridges BLE to a local TCP socket for non-native clients |
 
 The macOS client is the lead implementation: a native SwiftUI + CoreBluetooth stack (no Python / .NET / TCP bridge in the loop), shipping a signed `.app` plus a background `ahakeyconfig-agent` LaunchAgent that keeps answering IDE hooks and pushing LED state after the GUI closes.
@@ -81,7 +80,6 @@ desktop/
 ├── ahakeyconfig-win-java/    # Windows client — Java
 ├── ahakeyconfig-win-python/  # Windows client — Python / PySide6 (legacy baseline)
 ├── ahakeyconfig-ubuntu-java/ # Linux client — Java
-├── CH582m_vibe_coding_BLE_keyboard-master/  # Keyboard firmware — C (CH582M)
 ├── BLE_tcp_bridge/           # BLE ↔ TCP bridge — C#
 ├── Package.swift             # Root SwiftPM manifest for the macOS targets
 ├── docs/                     # Repo-level docs (architecture, BLE protocol, releases)
@@ -103,7 +101,7 @@ Source, project files, required assets, and docs only. **Build artifacts should 
 
 ## 🇨🇳 简体中文
 
-`AhakeyAI/desktop` 是 **AhaKey-X1（Vibecoding Keyboard）** 桌面套件的官方源码 monorepo —— 把这把物理键盘变成「AI 辅助编程控制台」的配套软件、键盘固件与工具链。
+`AhakeyAI/desktop` 是 **AhaKey-X1（Vibecoding Keyboard）** 桌面套件的官方源码 monorepo —— 把这把物理键盘变成「AI 辅助编程控制台」的配套软件与工具链。
 
 ### 它能做什么
 
@@ -119,7 +117,6 @@ Source, project files, required assets, and docs only. **Build artifacts should 
 | **Windows 应用** | `ahakeyconfig-win-java/` | Java · JavaFX（Maven） | Windows 桌面客户端 |
 | **Windows 应用（旧版）** | `ahakeyconfig-win-python/` | Python · PyInstaller | 迁入基线（源自 Capswriter） |
 | **Linux 应用** | `ahakeyconfig-ubuntu-java/` | Java · JavaFX（Maven） | Ubuntu 桌面客户端 |
-| **键盘固件** | `CH582m_vibe_coding_BLE_keyboard-master/` | C（CH582M 单片机） | BLE 键盘固件源码 |
 | **BLE ↔ TCP 桥接** | `BLE_tcp_bridge/` | C# | 把 BLE 桥接到本地 TCP,供非原生客户端使用 |
 
 macOS 客户端是主力实现:原生 SwiftUI + CoreBluetooth 链路(中间没有 Python / .NET / TCP 桥接),交付一个签名 `.app` 加一个后台 `ahakeyconfig-agent` LaunchAgent —— GUI 关掉后仍持续回应 IDE hook、推送 LED 状态。
@@ -150,7 +147,6 @@ desktop/
 ├── ahakeyconfig-win-java/    # Windows 客户端 — Java
 ├── ahakeyconfig-win-python/  # Windows 客户端 — Python / PySide6（旧版基线）
 ├── ahakeyconfig-ubuntu-java/ # Linux 客户端 — Java
-├── CH582m_vibe_coding_BLE_keyboard-master/  # 键盘固件 — C（CH582M）
 ├── BLE_tcp_bridge/           # BLE ↔ TCP 桥接 — C#
 ├── Package.swift             # macOS targets 的根 SwiftPM 清单
 ├── docs/                     # 仓库级文档（架构、BLE 协议、发布）
