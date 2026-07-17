@@ -14,6 +14,8 @@ enum AhaKeyCommand {
     static let oledModeCount = 4
     static let oledMaxFramesPerMode = 70
     static let oledMaxFrames = oledMaxFramesPerMode
+    /// 任务状态资源单张上限（超出时均匀抽帧）。
+    static let taskOLEDMaxFrames = 30
     /// 用户选择的 GIF 源文件大小上限（避免过大文件拖慢解码与 BLE 上传）。
     static let oledMaxSourceFileBytes = 2 * 1024 * 1024 // 2 MB
     /// 固件端要求每个 prepareWrite 的 address 必须 4096 字节对齐（flash 扇区大小）。
@@ -32,10 +34,21 @@ enum AhaKeyCommand {
     static let cmdUpdatePic: UInt8 = 0x82
     static let cmdReadPicState: UInt8 = 0x83
     static let cmdUpdateState: UInt8 = 0x90  // IDE 状态 → LED 变色
-    static let cmdPreviewLightEffect: UInt8 = 0x91 // 直接预览灯效，不保存配置
-    static let cmdSetLightMapping: UInt8 = 0x84  // per-mode per-state LED 映射
-    static let cmdSetBrightness: UInt8 = 0x85    // 全局 WS2812 亮度 1-100
-    static let cmdSetWorkMode: UInt8 = 0x92      // 远程切换工作模式 0-3
+
+    // 以下命令码与 CH582 最新固件对齐（APP/sub_main/command_solve.c）
+    static let cmdSetLightMapping: UInt8 = 0x84   // per-mode per-state LED 映射
+    static let cmdSetBrightness: UInt8 = 0x85     // 全局 WS2812 亮度 1-100
+    static let cmdPreviewLightEffect: UInt8 = 0x91 // 直接预览某个灯效，不保存配置
+    static let cmdSetWorkMode: UInt8 = 0x92       // 远程切换工作模式 0-3
+
+    // AI OLED 任务状态资源：Working=1, Waiting=2, Done=3。
+    static let cmdUpdateTaskPic: UInt8 = 0x93
+    static let cmdReadTaskPicState: UInt8 = 0x94
+    static let cmdUpdateTaskPicSet: UInt8 = 0x95
+    static let cmdReadTaskPicSet: UInt8 = 0x96
+    static let cmdSetActiveTaskPicSet: UInt8 = 0x97
+    /// 结束任务图数据写入，但不替换普通每模式动画绑定。
+    static let cmdFinishTaskPicWrite: UInt8 = 0x98
 
     static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
         UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
@@ -127,16 +140,55 @@ enum AhaKeyCommand {
         return Data(header + [cmdUpdatePic] + payload + trailer)
     }
 
+    /// AI OLED 元数据：mode, state, flash 帧范围与帧间隔。
+    static func updateTaskPicture(mode: UInt8, state: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
+        let payload: [UInt8] = [
+            mode, state,
+            UInt8(startIndex & 0xFF), UInt8((startIndex >> 8) & 0xFF),
+            UInt8(frameCount & 0xFF), UInt8((frameCount >> 8) & 0xFF),
+            UInt8(timeDelayMs & 0xFF), UInt8((timeDelayMs >> 8) & 0xFF),
+        ]
+        return Data(header + [cmdUpdateTaskPic] + payload + trailer)
+    }
+
+    static func readTaskPictureState(mode: UInt8, state: UInt8) -> Data {
+        Data(header + [cmdReadTaskPicState, mode, state] + trailer)
+    }
+
+    static func updateTaskPictureSet(mode: UInt8, set: UInt8, state: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
+        let payload: [UInt8] = [
+            mode, set, state,
+            UInt8(startIndex & 0xFF), UInt8((startIndex >> 8) & 0xFF),
+            UInt8(frameCount & 0xFF), UInt8((frameCount >> 8) & 0xFF),
+            UInt8(timeDelayMs & 0xFF), UInt8((timeDelayMs >> 8) & 0xFF),
+        ]
+        return Data(header + [cmdUpdateTaskPicSet] + payload + trailer)
+    }
+
+    static func readTaskPictureSet(mode: UInt8, set: UInt8, state: UInt8) -> Data {
+        Data(header + [cmdReadTaskPicSet, mode, set, state] + trailer)
+    }
+
+    static func setActiveTaskPictureSet(mode: UInt8, set: UInt8) -> Data {
+        Data(header + [cmdSetActiveTaskPicSet, mode, set] + trailer)
+    }
+
+    static func finishTaskPictureWrite() -> Data {
+        Data(header + [cmdFinishTaskPicWrite] + trailer)
+    }
+
     /// IDE 状态同步 → AA BB 90 [state] CC DD
     /// 驱动键盘 LED 变色，反映 Claude/Cursor 当前状态
     static func updateState(_ state: IDEState) -> Data {
         Data(header + [cmdUpdateState, state.rawValue] + trailer)
     }
 
-    /// per-mode per-state LED 灯效映射 → AA BB 84 [mode] [state0_light]...[state8_light] CC DD
+    /// per-mode per-state LED 灯效映射 → AA BB 84 [mode] [state0_light]...[stateN_light] CC DD
+    /// 长度必须等于 2 + CL_STATE_COUNT（与固件 `command_solve.c` 一致）
     static func setLightMapping(mode: UInt8, stateEffects: [UInt8]) -> Data {
-        var effects = Array(stateEffects.prefix(9))
-        while effects.count < 9 { effects.append(0) }
+        let stateCount = IDEState.allCases.count
+        var effects = Array(stateEffects.prefix(stateCount))
+        while effects.count < stateCount { effects.append(LightEffectStyle.off.firmwareIndex) }
         return Data(header + [cmdSetLightMapping, mode] + effects + trailer)
     }
 
@@ -172,15 +224,15 @@ enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
 
     var label: String {
         switch self {
-        case .notification: return "0 通知"
-        case .permissionRequest: return "1 等待授权"
-        case .postToolUse: return "2 工具完毕"
-        case .preToolUse: return "3 工具执行"
-        case .sessionStart: return "4 会话开始"
-        case .stop: return "5 停止"
-        case .taskCompleted: return "6 任务完成"
-        case .userPromptSubmit: return "7 用户提交"
-        case .sessionEnd: return "8 会话结束"
+        case .notification: return NSLocalizedString("0 通知", comment: "")
+        case .permissionRequest: return NSLocalizedString("1 等待授权", comment: "")
+        case .postToolUse: return NSLocalizedString("2 工具完毕", comment: "")
+        case .preToolUse: return NSLocalizedString("3 工具执行", comment: "")
+        case .sessionStart: return NSLocalizedString("4 会话开始", comment: "")
+        case .stop: return NSLocalizedString("5 停止", comment: "")
+        case .taskCompleted: return NSLocalizedString("6 任务完成", comment: "")
+        case .userPromptSubmit: return NSLocalizedString("7 用户提交", comment: "")
+        case .sessionEnd: return NSLocalizedString("8 会话结束", comment: "")
         }
     }
 
@@ -200,15 +252,15 @@ enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
 
     var shortLabel: String {
         switch self {
-        case .notification: return "通知"
-        case .permissionRequest: return "等待授权"
-        case .postToolUse: return "工具完毕"
-        case .preToolUse: return "工具执行"
-        case .sessionStart: return "会话开始"
-        case .stop: return "停止"
-        case .taskCompleted: return "任务完成"
-        case .userPromptSubmit: return "用户提交"
-        case .sessionEnd: return "会话结束"
+        case .notification: return NSLocalizedString("通知", comment: "")
+        case .permissionRequest: return NSLocalizedString("等待授权", comment: "")
+        case .postToolUse: return NSLocalizedString("工具完毕", comment: "")
+        case .preToolUse: return NSLocalizedString("工具执行", comment: "")
+        case .sessionStart: return NSLocalizedString("会话开始", comment: "")
+        case .stop: return NSLocalizedString("停止", comment: "")
+        case .taskCompleted: return NSLocalizedString("任务完成", comment: "")
+        case .userPromptSubmit: return NSLocalizedString("用户提交", comment: "")
+        case .sessionEnd: return NSLocalizedString("会话结束", comment: "")
         }
     }
 }
@@ -223,6 +275,7 @@ struct AhaKeyDeviceStatus {
     let lightMode: Int
     let switchState: Int
     let brightness: Int
+    let activePictureSet: Int
 }
 
 struct AhaKeyPictureState {
@@ -231,6 +284,17 @@ struct AhaKeyPictureState {
     let picLength: Int
     let frameInterval: Int
     let allModeMaxPic: Int
+}
+
+struct AhaKeyTaskPictureState: Hashable {
+    let mode: Int
+    let set: Int
+    let state: Int
+    let startIndex: Int
+    let picLength: Int
+    let frameInterval: Int
+    let allModeMaxPic: Int
+    let activeSet: Int
 }
 
 /// AhaKey 协议响应解析器
@@ -260,6 +324,7 @@ enum AhaKeyResponseParser {
 
         let base = payload.startIndex + 1 // skip cmd echo
         let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 35
+        let activePictureSet = payload.count >= 10 ? Int(payload[base + 8]) : 0
         return AhaKeyDeviceStatus(
             battery: Int(payload[base]),
             signal: Int(Int8(bitPattern: payload[base + 1])),
@@ -268,7 +333,8 @@ enum AhaKeyResponseParser {
             workMode: Int(payload[base + 4]),
             lightMode: Int(payload[base + 5]),
             switchState: Int(payload[base + 6]),
-            brightness: brightness
+            brightness: brightness,
+            activePictureSet: activePictureSet
         )
     }
 
@@ -287,6 +353,28 @@ enum AhaKeyResponseParser {
             picLength: picLength,
             frameInterval: frameInterval,
             allModeMaxPic: allModeMaxPic
+        )
+    }
+
+    static func parseTaskPictureStateResponse(_ payload: Data) -> AhaKeyTaskPictureState? {
+        guard payload.count >= 10 else { return nil }
+        return AhaKeyTaskPictureState(
+            mode: Int(payload[0]), set: 0, state: Int(payload[1]),
+            startIndex: Int(UInt16(payload[2]) | (UInt16(payload[3]) << 8)),
+            picLength: Int(UInt16(payload[4]) | (UInt16(payload[5]) << 8)),
+            frameInterval: Int(UInt16(payload[6]) | (UInt16(payload[7]) << 8)),
+            allModeMaxPic: Int(UInt16(payload[8]) | (UInt16(payload[9]) << 8)), activeSet: 0
+        )
+    }
+
+    static func parseTaskPictureSetResponse(_ payload: Data) -> AhaKeyTaskPictureState? {
+        guard payload.count >= 12 else { return nil }
+        return AhaKeyTaskPictureState(
+            mode: Int(payload[0]), set: Int(payload[1]), state: Int(payload[2]),
+            startIndex: Int(UInt16(payload[3]) | (UInt16(payload[4]) << 8)),
+            picLength: Int(UInt16(payload[5]) | (UInt16(payload[6]) << 8)),
+            frameInterval: Int(UInt16(payload[7]) | (UInt16(payload[8]) << 8)),
+            allModeMaxPic: Int(UInt16(payload[9]) | (UInt16(payload[10]) << 8)), activeSet: Int(payload[11])
         )
     }
 

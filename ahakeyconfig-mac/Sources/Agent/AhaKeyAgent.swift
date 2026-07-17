@@ -1,6 +1,8 @@
+import Combine
 import CoreBluetooth
 import Foundation
 import os.log
+import AhaKeyConfigShared
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig.agent", category: "BLE")
 
@@ -59,6 +61,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lastSentState: UInt8 = 0
     private var watchdogTimer: DispatchSourceTimer?
 
+    // MARK: 合盖运行
+    private let powerProtection = PowerProtectionManager()
+    private let processDetector = ProcessDetector(pollInterval: 5.0)
+    /// 当前是否有 hook 发来的活跃状态（与 processDetector 独立）
+    private var hookActivityActive = false
+
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
     ///   其余工具执行态 → 60s（工具可能运行较久，避免误触发）
@@ -71,13 +79,60 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     var onLog: ((String) -> Void)?
 
-    init(socketPath: String = "/tmp/ahakey.sock") {
+    init(socketPath: String = AhaKeyPaths.agentSocketPath) {
         self.socketPath = socketPath
         // 旧版会持久化虚拟拨杆覆盖，导致真实硬件档位永远无法回写。迁移时清除它。
         UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         super.init()
         central = CBCentralManager(delegate: self, queue: nil)
         Self.clearLiveSwitchState()
+        setupPowerProtection()
+    }
+
+    func shutdown() {
+        processDetector.stop()
+        _ = powerProtection.deactivateAll()
+    }
+
+    private func setupPowerProtection() {
+        // 启动时自清，防止上次崩溃遗留断言或虚拟显示器。
+        _ = powerProtection.deactivateAll()
+
+        // 进程兜底检测：只要目标 IDE/CLI 在跑，就保持防护。
+        processDetector.$isAnyTargetRunning
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] running in
+                self?.updatePowerProtectionFromProcessDetector(running: running)
+            }
+            .store(in: &cancellables)
+        processDetector.start()
+    }
+
+    private var cancellables = Set<AnyCancellable>()
+
+    private func updatePowerProtectionFromProcessDetector(running: Bool) {
+        if running {
+            powerProtection.begin(.aiCodingIdleProcess)
+            powerProtection.begin(.aiCodingLidCloseProcess)
+        } else {
+            powerProtection.end(.aiCodingIdleProcess)
+            powerProtection.end(.aiCodingLidCloseProcess)
+        }
+    }
+
+    private func updatePowerProtectionFromHook(state: UInt8) {
+        let activeStates: [UInt8] = [1, 2, 3, 4, 6, 7]
+        let wasActive = hookActivityActive
+        hookActivityActive = activeStates.contains(state)
+
+        if hookActivityActive {
+            powerProtection.begin(.aiCodingIdleHook)
+            powerProtection.begin(.aiCodingLidCloseHook)
+        } else if wasActive {
+            powerProtection.end(.aiCodingIdleHook)
+            powerProtection.end(.aiCodingLidCloseHook)
+        }
     }
 
     /// 虚拟拨杆只在等待真实回包的短暂窗口内生效；随后一律使用键盘 GPIO 状态。
@@ -99,6 +154,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - Public
 
     func sendState(_ state: UInt8) {
+        updatePowerProtectionFromHook(state: state)
         pendingStateReset?.cancel()
         pendingStateReset = nil
         guard let commandChar, let peripheral else {
@@ -191,7 +247,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 超时时用缓存兜底；仍然没有则返回 nil。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
-        guard let commandChar, let peripheral else {
+        guard peripheral != nil else {
             completion(nil)
             return
         }
@@ -220,11 +276,21 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     func startSocketListener() {
         startWatchdog()
+        processDetector.checkNow()
+
+        // 确保 socket 所在目录仅当前用户可访问
+        do {
+            try AhaKeyPaths.ensureApplicationSupportDirectory()
+        } catch {
+            emit("创建 socket 目录失败: \(error.localizedDescription)")
+            return
+        }
+
         // 清理旧 socket
         unlink(socketPath)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { emit("socket() 失败"); return }
+        guard fd >= 0 else { emit(NSLocalizedString("socket() 失败", comment: "")); return }
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -237,10 +303,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         let bindResult = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+                Darwin.bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
         guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return }
+
+        // 限制 socket 文件仅当前用户可读写
+        chmod(socketPath, 0o600)
 
         listen(fd, 5)
         emit("监听 Unix socket: \(socketPath)")
@@ -274,6 +343,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let threshold = watchdogTimeout(for: lastSentState)
         guard elapsed >= threshold else { return }
         emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），自动发 Stop(5)")
+        hookActivityActive = false
+        powerProtection.end(.aiCodingIdleHook)
+        powerProtection.end(.aiCodingLidCloseHook)
         sendState(5)
         lastHookStateAt = nil  // 重置，避免重复触发
     }
@@ -286,6 +358,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// - JSON 一行：`{"cmd":"state","value":3}` / `{"cmd":"permission","value":1}` / `{"cmd":"status"}`
     /// - 纯数字（兼容旧 `ahakey-state.sh`）：`3` → sendState(3)，不回包
     private func handleClient(_ clientFd: Int32) {
+        // 校验对端 UID，拒绝其他用户连接
+        var peerUid: uid_t = 0
+        var peerGid: gid_t = 0
+        if getpeereid(clientFd, &peerUid, &peerGid) != 0 || peerUid != getuid() {
+            emit("拒绝非当前用户的 socket 连接 (uid=\(peerUid))")
+            close(clientFd)
+            return
+        }
+
         var buf = [UInt8](repeating: 0, count: 1024)
         let n = read(clientFd, &buf, buf.count)
         guard n > 0 else { close(clientFd); return }
@@ -341,9 +422,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 let body = Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
-                    self.emit("（拨杆非 0：PermissionRequest 将交回终端手动确认）")
+                    self.emit(NSLocalizedString("（拨杆非 0：PermissionRequest 将交回终端手动确认）", comment: ""))
                 } else if body["switchState"] is NSNull {
-                    self.emit("（switchState 缺省：批准链可能仍交回手动；请把「蓝牙」交给 Agent 并连上键盘。）")
+                    self.emit(NSLocalizedString("（switchState 缺省：批准链可能仍交回手动；请把「蓝牙」交给 Agent 并连上键盘。）", comment: ""))
                 }
                 Self.replyAndClose(clientFd, body)
             }
@@ -443,7 +524,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
 
         // 3. 扫描
-        emit("开始扫描…")
+        emit(NSLocalizedString("开始扫描…", comment: ""))
         central.scanForPeripherals(withServices: [serviceUUID], options: nil)
     }
 
@@ -456,7 +537,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
-            emit("蓝牙就绪")
+            emit(NSLocalizedString("蓝牙就绪", comment: ""))
             connectAutomatically()
         }
     }
@@ -491,7 +572,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             statusWaiters.removeAll()
             for w in waiters { w(nil) }
         }
-        emit("已断开，2s 后重连")
+        emit(NSLocalizedString("已断开，2s 后重连", comment: ""))
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.connectAutomatically()
         }
@@ -508,11 +589,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         for char in service.characteristics ?? [] {
             if char.uuid == commandCharUUID {
                 commandChar = char
-                emit("命令通道就绪")
+                emit(NSLocalizedString("命令通道就绪", comment: ""))
             } else if char.uuid == notifyCharUUID {
                 notifyChar = char
                 peripheral.setNotifyValue(true, for: char)
-                emit("通知通道已订阅")
+                emit(NSLocalizedString("通知通道已订阅", comment: ""))
             }
         }
         // 两个特征都就绪后发一次初始状态查询
@@ -528,11 +609,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard let status = Self.parseDeviceStatus(data) else { return }
 
         let hardwareSwitchState = UInt8(clamping: status.switchState)
+        let previousSwitchState = cachedSwitchState
         cachedSwitchState = hardwareSwitchState
         cachedLightMode = UInt8(clamping: status.lightMode)
         if userSwitchOverride != nil {
             userSwitchOverride = nil
             emit("← 收到真实拨杆状态 \(hardwareSwitchState)，已清除虚拟拨杆覆盖")
+        }
+        if previousSwitchState != hardwareSwitchState {
+            KimiTUIAdapter.applyModeIfNeeded(for: Int(hardwareSwitchState))
         }
         emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
         // 一律写入键盘真实 GPIO 状态，避免旧虚拟模拟把 UI / hook 锁在错误档位。

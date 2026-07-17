@@ -15,30 +15,30 @@ struct DeviceInfoView: View {
             // MARK: - 设备信息
             Section {
                 HStack(spacing: 0) {
-                    infoCell("电量", value: "\(bleManager.batteryLevel)%")
+                    infoCell(NSLocalizedString("电量", comment: ""), value: String(format: NSLocalizedString("%d%%", comment: ""), bleManager.batteryLevel))
                     Divider()
-                    infoCell("固件", value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
+                    infoCell(NSLocalizedString("固件", comment: ""), value: String(format: NSLocalizedString("v%d.%d", comment: ""), bleManager.firmwareMainVersion, bleManager.firmwareSubVersion))
                     Divider()
-                    infoCell("设备名", value: bleManager.deviceName ?? "—")
+                    infoCell(NSLocalizedString("设备名", comment: ""), value: bleManager.deviceName ?? "—")
                 }
                 .frame(height: 50)
 
                 HStack(spacing: 0) {
-                    infoCell("工作模式", value: workModeName(bleManager.workMode))
+                    infoCell(NSLocalizedString("工作模式", comment: ""), value: workModeName(bleManager.workMode))
                     Divider()
-                    infoCell("灯光", value: lightModeName(bleManager.lightMode))
+                    infoCell(NSLocalizedString("灯光", comment: ""), value: lightModeName(bleManager.lightMode))
                     Divider()
-                    infoCell("信号", value: "\(bleManager.signalStrength) dBm")
+                    infoCell(NSLocalizedString("信号", comment: ""), value: String(format: NSLocalizedString("%d dBm", comment: ""), bleManager.signalStrength))
                 }
                 .frame(height: 50)
             } header: {
-                Text("设备信息")
+                Text(NSLocalizedString("设备信息", comment: ""))
             }
 
             // MARK: - 蓝牙连接（App 与 Agent 二选一）
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("同一时间只能由本 App 或 Agent 其中之一连接键盘，请在此切换。")
+                    Text(NSLocalizedString("同一时间只能由本 App 或 Agent 其中之一连接键盘，请在此切换。", comment: ""))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 10) {
@@ -56,8 +56,8 @@ struct DeviceInfoView: View {
                                     Text(owner.title)
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
-                                         ? "改键、LCD、同步、本机灯效测试（macOS 暂不支持 USB 有线配置）"
-                                         : "Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询")
+                                         ? NSLocalizedString("改键、LCD、同步、本机灯效测试（macOS 暂不支持 USB 有线配置）", comment: "")
+                                         : NSLocalizedString("Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询", comment: ""))
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.leading)
@@ -73,9 +73,9 @@ struct DeviceInfoView: View {
                             .disabled(disableAgent)
                         }
                     }
-                    CompatLabeledContent("当前") {
+                    CompatLabeledContent(NSLocalizedString("当前", comment: "")) {
                         HStack(spacing: 6) {
-                            Text(bleManager.isConnected ? "本 App 已连接蓝牙" : "本 App 未连接")
+                            Text(bleManager.isConnected ? NSLocalizedString("本 App 已连接蓝牙", comment: "") : NSLocalizedString("本 App 未连接", comment: ""))
                             Text("·")
                                 .foregroundStyle(.tertiary)
                             Text(agentBluetoothStatusText())
@@ -84,18 +84,18 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text("蓝牙连接")
+                Text(NSLocalizedString("蓝牙连接", comment: ""))
             }
-            .alert("需要先安装 Agent", isPresented: $showAgentRequiredForAgentBLE) {
-                Button("好", role: .cancel) {}
+            .alert(NSLocalizedString("需要先安装 Agent", comment: ""), isPresented: $showAgentRequiredForAgentBLE) {
+                Button(NSLocalizedString("好", comment: ""), role: .cancel) {}
             } message: {
-                Text("将蓝牙交给 `ahakeyconfig-agent` 前，请先在下方完成「安装并启用」，生成 LaunchAgent。")
+                Text(NSLocalizedString("将蓝牙交给 `ahakeyconfig-agent` 前，请先在下方完成「安装并启用」，生成 LaunchAgent。", comment: ""))
             }
 
             // MARK: - 拨杆状态
             Section {
                 HStack {
-                    Text("拨杆档位")
+                    Text(NSLocalizedString("拨杆档位", comment: ""))
                     Spacer()
                     HStack(spacing: 6) {
                         Circle()
@@ -106,7 +106,21 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text("拨杆档位")
+                Text(NSLocalizedString("拨杆档位", comment: ""))
+            }
+
+            // MARK: - 实时控制当前前台 Kimi（实验）
+            Section {
+                Toggle(isOn: $agentManager.kimiTUIAdapterEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(NSLocalizedString("实时控制当前前台 Kimi", comment: ""))
+                        Text(NSLocalizedString("拨杆切换时，自动向前台 Terminal.app / iTerm2 的 Kimi tab 发送 /yolo on/off。默认关闭。", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text(NSLocalizedString("实验功能", comment: ""))
             }
 
             // MARK: - LED 状态同步
@@ -117,7 +131,7 @@ struct DeviceInfoView: View {
                             Circle()
                                 .fill(agentManager.isRunning ? Color.green : Color.gray.opacity(0.4))
                                 .frame(width: 8, height: 8)
-                            Text("LED 跟随 IDE 状态")
+                            Text(NSLocalizedString("LED 跟随 IDE 状态", comment: ""))
                             Text(agentBluetoothShortLabel())
                                 .foregroundStyle(.secondary)
                         }
@@ -131,7 +145,7 @@ struct DeviceInfoView: View {
                     }
                     Spacer()
                     if agentManager.isInstalled {
-                        Button(agentManager.isRunning ? "停止" : "启动") {
+                        Button(agentManager.isRunning ? NSLocalizedString("停止", comment: "") : NSLocalizedString("启动", comment: "")) {
                             if agentManager.isRunning {
                                 agentManager.stop()
                             } else {
@@ -142,10 +156,10 @@ struct DeviceInfoView: View {
                         .controlSize(.small)
                         .disabled(agentManager.bluetoothConnectionOwner == .ahaKeyStudio)
                         .help(agentManager.bluetoothConnectionOwner == .ahaKeyStudio
-                              ? "当前由本 App 占用蓝牙，Agent 应处于未加载。请先在「蓝牙连接」中选中 Agent 后再启停守护进程。"
-                              : "从 launchd 加载并启动/卸载停止 Agent 进程。")
+                              ? NSLocalizedString("当前由本 App 占用蓝牙，Agent 应处于未加载。请先在「蓝牙连接」中选中 Agent 后再启停守护进程。", comment: "")
+                              : NSLocalizedString("从 launchd 加载并启动/卸载停止 Agent 进程。", comment: ""))
 
-                        Button("卸载", role: .destructive) {
+                        Button(NSLocalizedString("卸载", comment: ""), role: .destructive) {
                             agentManager.uninstall(bleManager: bleManager)
                         }
                         .buttonStyle(.bordered)
@@ -156,7 +170,7 @@ struct DeviceInfoView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             }
-                            Button("安装并启用") {
+                            Button(NSLocalizedString("安装并启用", comment: "")) {
                                 agentManager.install()
                             }
                             .buttonStyle(.borderedProminent)
@@ -168,7 +182,7 @@ struct DeviceInfoView: View {
 
                 if agentManager.isInstalled {
                     HStack(spacing: 10) {
-                        Button("查看日志") {
+                        Button(NSLocalizedString("查看日志", comment: "")) {
                             showAgentLog.toggle()
                         }
                         .buttonStyle(.borderless)
@@ -177,65 +191,65 @@ struct DeviceInfoView: View {
                         Spacer()
 
                         if agentManager.claudeHooksInstalled {
-                            Button("移除 Claude Hooks") { agentManager.removeClaudeHooksOnly() }
+                            Button(NSLocalizedString("移除 Claude Hooks", comment: "")) { agentManager.removeClaudeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Claude Hooks") { agentManager.installClaudeHooksOnly() }
+                            Button(NSLocalizedString("安装 Claude Hooks", comment: "")) { agentManager.installClaudeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                         if agentManager.cursorHooksInstalled {
-                            Button("移除 Cursor Hooks") { agentManager.removeCursorHooksOnly() }
+                            Button(NSLocalizedString("移除 Cursor Hooks", comment: "")) { agentManager.removeCursorHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Cursor Hooks") { agentManager.installCursorHooksOnly() }
+                            Button(NSLocalizedString("安装 Cursor Hooks", comment: "")) { agentManager.installCursorHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                         if agentManager.codexHooksInstalled {
-                            Button("移除 Codex Hooks") { agentManager.removeCodexHooksOnly() }
+                            Button(NSLocalizedString("移除 Codex Hooks", comment: "")) { agentManager.removeCodexHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Codex Hooks") { agentManager.installCodexHooksOnly() }
+                            Button(NSLocalizedString("安装 Codex Hooks", comment: "")) { agentManager.installCodexHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                         if agentManager.kimiHooksInstalled {
-                            Button("移除 Kimi Hooks") { agentManager.removeKimiHooksOnly() }
+                            Button(NSLocalizedString("移除 Kimi Hooks", comment: "")) { agentManager.removeKimiHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 Kimi Hooks") { agentManager.installKimiHooksOnly() }
+                            Button(NSLocalizedString("安装 Kimi Hooks", comment: "")) { agentManager.installKimiHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
                     }
                 }
             } header: {
-                Text("LED 状态同步 · Hook 联动")
+                Text(NSLocalizedString("LED 状态同步 · Hook 联动", comment: ""))
             } footer: {
                 if !agentManager.isAgentBinaryPresentInBundle {
-                    Text("发版包内未包含 ahakeyconfig-agent，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。")
+                    Text(NSLocalizedString("发版包内未包含 ahakeyconfig-agent，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。", comment: ""))
                         .foregroundStyle(.orange)
                 } else if agentManager.isInstalled, agentManager.bluetoothConnectionOwner == .ahaKeyStudio, !agentManager.isRunning {
-                    Text("已由本 App 占用蓝牙：要让 Agent 接管，请将「蓝牙连接」选为 ahakeyconfig-agent。")
+                    Text(NSLocalizedString("已由本 App 占用蓝牙：要让 Agent 接管，请将「蓝牙连接」选为 ahakeyconfig-agent。", comment: ""))
                         .foregroundStyle(.secondary)
                 }
             }
             .sheet(isPresented: $showAgentLog) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("诊断日志")
+                        Text(NSLocalizedString("诊断日志", comment: ""))
                             .font(.headline)
                         Spacer()
-                        Button("关闭") { showAgentLog = false }
+                        Button(NSLocalizedString("关闭", comment: "")) { showAgentLog = false }
                     }
-                    Picker("内容", selection: $agentLogPanel) {
-                        Text("ahakeyconfig-agent 主日志").tag(0)
-                        Text("工具批准（permission-request.log）").tag(1)
+                    Picker(NSLocalizedString("内容", comment: ""), selection: $agentLogPanel) {
+                        Text(NSLocalizedString("ahakeyconfig-agent 主日志", comment: "")).tag(0)
+                        Text(NSLocalizedString("工具批准（permission-request.log）", comment: "")).tag(1)
                         Text("~/.cursor/hooks.json").tag(2)
                         Text("~/.cursor/cli-config.json").tag(3)
                         Text("~/.codex/config.toml").tag(4)
@@ -245,17 +259,17 @@ struct DeviceInfoView: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     HStack {
-                        Button("刷新本页") {
+                        Button(NSLocalizedString("刷新本页", comment: "")) {
                             logPanelContentTick += 1
                             agentManager.refresh()
                         }
                         if agentLogPanel == 3 {
-                            Button("合并 CLI + IDE 终端白名单") {
+                            Button(NSLocalizedString("合并 CLI + IDE 终端白名单", comment: "")) {
                                 let a = agentManager.mergeUserCursorCliConfigForShellAutoApprove()
                                 let b = agentManager.mergeUserCursorPermissionsJsonForAgentTUI()
                                 agentManager.agentUserAlert = a + "\n\n——\n\n" + b
                             }
-                            .help("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Agent TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。")
+                            .help(NSLocalizedString("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Agent TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。", comment: ""))
                         }
                         Spacer()
                     }
@@ -289,15 +303,15 @@ struct DeviceInfoView: View {
                         }
                     }
                 } header: {
-                    Text("LED 测试")
+                    Text(NSLocalizedString("LED 测试", comment: ""))
                 } footer: {
-                    Text("点击按钮发送对应状态到键盘，观察 LED 变化。")
+                    Text(NSLocalizedString("点击按钮发送对应状态到键盘，观察 LED 变化。", comment: ""))
                 }
             }
 
             // MARK: - BLE 连接状态
             Section {
-                CompatLabeledContent("连接") {
+                CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(bleManager.isConnected ? Color.green : Color.orange)
@@ -305,17 +319,17 @@ struct DeviceInfoView: View {
                         Text(bleManager.bleConnectionStatus)
                     }
                 }
-                CompatLabeledContent("设备名") {
+                CompatLabeledContent(NSLocalizedString("设备名", comment: "")) {
                     if isEditingName {
                         HStack(spacing: 4) {
-                            TextField("最长 15 字节", text: $editableName)
+                            TextField(NSLocalizedString("最长 15 字节", comment: ""), text: $editableName)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 160)
                                 .onSubmit { submitNameChange() }
-                            Button("保存") { submitNameChange() }
+                            Button(NSLocalizedString("保存", comment: "")) { submitNameChange() }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
-                            Button("取消") { isEditingName = false }
+                            Button(NSLocalizedString("取消", comment: "")) { isEditingName = false }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
                         }
@@ -342,7 +356,7 @@ struct DeviceInfoView: View {
                         .textSelection(.enabled)
                 }
                 HStack {
-                    CompatLabeledContent("特征") {
+                    CompatLabeledContent(NSLocalizedString("特征", comment: "")) {
                         HStack(spacing: 8) {
                             charBadge("DATA", ready: bleManager.dataCharReady)
                             charBadge("CMD", ready: bleManager.commandCharReady)
@@ -351,37 +365,37 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text("BLE 连接状态")
+                Text(NSLocalizedString("BLE 连接状态", comment: ""))
             }
 
             // MARK: - 操作
             Section {
                 HStack {
                     if !bleManager.isConnected {
-                        Button(bleManager.isScanning ? "扫描中…" : "连接设备") {
+                        Button(bleManager.isScanning ? NSLocalizedString("扫描中…", comment: "") : NSLocalizedString("连接设备", comment: "")) {
                             bleManager.userInitiatedConnect()
                         }
                         .buttonStyle(.bordered)
                         .disabled(bleManager.isScanning || agentManager.bluetoothConnectionOwner == .agentDaemon)
                         .help(agentManager.bluetoothConnectionOwner == .agentDaemon
-                              ? "当前选择由 ahakeyconfig-agent 占用蓝牙。请先在上方「蓝牙连接」切到 AhaKey Studio，或点击顶栏「设备信息 · Agent」切换。"
-                              : "本 App 主动连接键盘。")
+                              ? NSLocalizedString("当前选择由 ahakeyconfig-agent 占用蓝牙。请先在上方「蓝牙连接」切到 AhaKey Studio，或点击顶栏「设备信息 · Agent」切换。", comment: "")
+                              : NSLocalizedString("本 App 主动连接键盘。", comment: ""))
                     } else {
-                        Button("查询状态") {
+                        Button(NSLocalizedString("查询状态", comment: "")) {
                             bleManager.queryDeviceStatus()
                         }
                         .buttonStyle(.bordered)
-                        .help("发送 AA BB 00 CC DD 查询设备状态")
+                        .help(NSLocalizedString("发送 AA BB 00 CC DD 查询设备状态", comment: ""))
 
-                        Button("探测协议") {
+                        Button(NSLocalizedString("探测协议", comment: "")) {
                             bleManager.sendProbeCommands()
                         }
                         .buttonStyle(.bordered)
-                        .help("向设备发送探测命令，观察通信日志中的回调")
+                        .help(NSLocalizedString("向设备发送探测命令，观察通信日志中的回调", comment: ""))
 
                         Spacer()
 
-                        Button("断开", role: .destructive) {
+                        Button(NSLocalizedString("断开", comment: ""), role: .destructive) {
                             bleManager.disconnect()
                         }
                         .buttonStyle(.bordered)
@@ -423,14 +437,14 @@ struct DeviceInfoView: View {
 
                     HStack {
                         Spacer()
-                        Button("复制全部") {
+                        Button(NSLocalizedString("复制全部", comment: "")) {
                             let text = bleManager.commLog.map { "[\($0.formattedTime)] \($0.message)" }.joined(separator: "\n")
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(text, forType: .string)
                         }
                         .buttonStyle(.borderless)
                         .font(.caption)
-                        Button("清空") {
+                        Button(NSLocalizedString("清空", comment: "")) {
                             bleManager.clearLog()
                         }
                         .buttonStyle(.borderless)
@@ -439,7 +453,7 @@ struct DeviceInfoView: View {
                     .padding(.top, 4)
                 }
             } header: {
-                Text("通信日志")
+                Text(NSLocalizedString("通信日志", comment: ""))
             }
         }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
@@ -447,7 +461,7 @@ struct DeviceInfoView: View {
             get: { agentManager.agentUserAlert != nil },
             set: { if !$0 { agentManager.agentUserAlert = nil } }
         )) {
-            Button("好", role: .cancel) {
+            Button(NSLocalizedString("好", comment: ""), role: .cancel) {
                 agentManager.agentUserAlert = nil
             }
         } message: {
@@ -491,21 +505,21 @@ struct DeviceInfoView: View {
     }
 
     private func switchStateLabel(_ state: Int) -> String {
-        state == 0 ? "自动批准" : "手动批准"
+        state == 0 ? NSLocalizedString("自动批准", comment: "") : NSLocalizedString("手动批准", comment: "")
     }
 
     private func agentBluetoothStatusText() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "Agent 已连接蓝牙" }
-        if agentManager.isRunning { return "Agent 运行中（BLE 未连接）" }
-        if agentManager.isInstalled { return "Agent 未运行" }
-        return "Agent 未安装"
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return NSLocalizedString("Agent 已连接蓝牙", comment: "") }
+        if agentManager.isRunning { return NSLocalizedString("Agent 运行中（BLE 未连接）", comment: "") }
+        if agentManager.isInstalled { return NSLocalizedString("Agent 未运行", comment: "") }
+        return NSLocalizedString("Agent 未安装", comment: "")
     }
 
     private func agentBluetoothShortLabel() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "已连蓝牙" }
-        if agentManager.isRunning { return "BLE 未连接" }
-        if agentManager.isInstalled { return "未运行" }
-        return "未装 Agent"
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
+        if agentManager.isRunning { return NSLocalizedString("BLE 未连接", comment: "") }
+        if agentManager.isInstalled { return NSLocalizedString("未运行", comment: "") }
+        return NSLocalizedString("未装 Agent", comment: "")
     }
 
     private func workModeName(_ mode: Int) -> String {
@@ -520,9 +534,9 @@ struct DeviceInfoView: View {
 
     private func lightModeName(_ mode: Int) -> String {
         switch mode {
-        case 0: return "关闭"
-        case 1: return "常亮"
-        case 2: return "呼吸"
+        case 0: return "Off"
+        case 1: return "Solid"
+        case 2: return "Breathing"
         default: return "\(mode)"
         }
     }

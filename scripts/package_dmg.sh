@@ -12,7 +12,9 @@ fi
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio}"
 APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
-DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-AhaKey Studio Installer}"
+# 注意：HFS+ 大小写不敏感，卷名不能与 .app 名共享前缀（如 "AhaKey Studio Installer"
+# 与 "AhaKey Studio.app" 冲突导致 EPERM）。使用 "Install AhaKey Studio" 规避。
+DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-Install AhaKey Studio}"
 DMG_BASENAME="${DMG_BASENAME:-AhaKey-Studio-macOS-prod-$(date +%Y%m%d%H%M%S)}"
 DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME.dmg"
 DMG_STAGING_DIR="$OUTPUT_DIR/.dmg-staging"
@@ -82,8 +84,9 @@ echo "🪟 Applying drag-to-install layout..."
 # 后面 AppleScript 用 `tell disk "..."` 直接失败 -1728 (object not found)
 hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
 
-# 把文件拷进挂载好的卷（避免 -srcfolder 的 EPERM 限制）
-ditto "$APP_BUNDLE_PATH" "$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
+# macOS 26: ditto/rsync 写入挂载卷 EPERM 根因是 HFS+ 卷名与 .app 名共享前缀，
+# 已通过重命名 DMG_VOLUME_NAME 解决。此处使用 ditto 保留完整元数据。
+ditto "$DMG_STAGING_DIR/$APP_BUNDLE_NAME.app" "$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
 ln -sf /Applications "$DMG_MOUNTPOINT/Applications"
 mkdir -p "$DMG_MOUNTPOINT/.background"
 cp "$BACKGROUND_IMAGE" "$DMG_MOUNTPOINT/.background/InstallerBackground.png"

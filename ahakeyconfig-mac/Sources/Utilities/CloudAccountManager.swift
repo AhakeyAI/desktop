@@ -1,4 +1,5 @@
 import Foundation
+import AhaKeyConfigShared
 
 @MainActor
 final class CloudAccountManager: ObservableObject {
@@ -12,60 +13,82 @@ final class CloudAccountManager: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var profile: [String: Any]?
     @Published private(set) var paymentOrder: CloudPaymentOrder?
-    @Published private(set) var statusMessage = "尚未登录。"
+    @Published private(set) var statusMessage = NSLocalizedString("尚未登录。", comment: "")
     @Published var alertMessage: String?
 
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
-    private let tokenKey = "lab.jawa.ahakeyconfig.cloud.accessToken"
     private let rememberKey = "lab.jawa.ahakeyconfig.cloud.remember"
     private let phoneKey = "lab.jawa.ahakeyconfig.cloud.phone"
-    private let passwordKey = "lab.jawa.ahakeyconfig.cloud.password"
+
+    // 历史遗留：这些 Key 的值已迁移到钥匙串，保留 Key 仅用于一次性迁移。
+    private let legacyTokenKey = "lab.jawa.ahakeyconfig.cloud.accessToken"
+    private let legacyPasswordKey = "lab.jawa.ahakeyconfig.cloud.password"
+
+    private let keychainService = "lab.jawa.ahakeyconfig.cloud"
+    private enum KeychainAccount {
+        static let accessToken = "accessToken"
+        static let password = "password"
+    }
 
     private init() {
         let defaults = UserDefaults.standard
         rememberPassword = defaults.bool(forKey: rememberKey)
         phone = defaults.string(forKey: phoneKey) ?? ""
-        if rememberPassword {
-            password = defaults.string(forKey: passwordKey) ?? ""
+        if rememberPassword,
+           let savedPassword = AhaKeyKeychain.load(service: keychainService, account: KeychainAccount.password) {
+            password = savedPassword
         }
+
+        // 一次性迁移：旧版本 UserDefaults 中的 token / 密码迁移到钥匙串后清除旧值。
+        if let legacyToken = defaults.string(forKey: legacyTokenKey), !legacyToken.isEmpty {
+            try? AhaKeyKeychain.save(service: keychainService, account: KeychainAccount.accessToken, value: legacyToken)
+            defaults.removeObject(forKey: legacyTokenKey)
+        }
+        if rememberPassword,
+           let legacyPassword = defaults.string(forKey: legacyPasswordKey), !legacyPassword.isEmpty {
+            try? AhaKeyKeychain.save(service: keychainService, account: KeychainAccount.password, value: legacyPassword)
+            defaults.removeObject(forKey: legacyPasswordKey)
+        }
+
         isLoggedIn = !accessToken.isEmpty
         if isLoggedIn {
-            statusMessage = "已登录，等待刷新用户信息。"
+            statusMessage = NSLocalizedString("已登录，等待刷新用户信息。", comment: "")
         }
     }
 
     func login() {
-        authenticate(path: "api/v1/auth/login", successMessage: "登录成功。", fallbackError: "登录失败。")
+        authenticate(path: "api/v1/auth/login", successMessage: NSLocalizedString("登录成功。", comment: ""), fallbackError: NSLocalizedString("登录失败。", comment: ""))
     }
 
     func register() {
-        authenticate(path: "api/v1/auth/register", successMessage: "注册成功。", fallbackError: "注册失败。")
+        authenticate(path: "api/v1/auth/register", successMessage: NSLocalizedString("注册成功。", comment: ""), fallbackError: NSLocalizedString("注册失败。", comment: ""))
     }
 
     func logout() {
-        UserDefaults.standard.removeObject(forKey: tokenKey)
+        AhaKeyKeychain.delete(service: keychainService, account: KeychainAccount.accessToken)
+        AhaKeyKeychain.delete(service: keychainService, account: KeychainAccount.password)
         AhaTypeTextOptimizer.shared.clearSessionKeepToggle()
         profile = nil
         isLoggedIn = false
-        statusMessage = "已退出登录。"
+        statusMessage = NSLocalizedString("已退出登录。", comment: "")
     }
 
     func prepareForRelogin() {
-        UserDefaults.standard.removeObject(forKey: tokenKey)
+        AhaKeyKeychain.delete(service: keychainService, account: KeychainAccount.accessToken)
         profile = nil
         isLoggedIn = false
-        statusMessage = "请输入账号密码重新登录。"
+        statusMessage = NSLocalizedString("请输入账号密码重新登录。", comment: "")
     }
 
     func refreshProfile(showAlertOnFailure: Bool = true,
                         forceRefresh: Bool = true,
-                        successMessage: String = "用户信息已刷新。") {
+                        successMessage: String = NSLocalizedString("用户信息已刷新。", comment: "")) {
         guard !accessToken.isEmpty else {
             logout()
             return
         }
         isBusy = true
-        statusMessage = "正在刷新用户信息…"
+        statusMessage = NSLocalizedString("正在刷新用户信息…", comment: "")
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -76,7 +99,7 @@ final class CloudAccountManager: ObservableObject {
                     authorized: true,
                     bypassCache: forceRefresh
                 )
-                let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
+                let data = try payloadData(from: object, fallbackError: NSLocalizedString("获取用户信息失败", comment: ""))
                 await MainActor.run {
                     self.applyProfile(data)
                     self.statusMessage = successMessage
@@ -85,9 +108,9 @@ final class CloudAccountManager: ObservableObject {
                 await MainActor.run {
                     if showAlertOnFailure {
                         self.alertMessage = error.localizedDescription
-                        self.statusMessage = "刷新失败。"
+                        self.statusMessage = NSLocalizedString("刷新失败。", comment: "")
                     } else {
-                        self.statusMessage = "已登录，用户信息稍后可刷新。"
+                        self.statusMessage = NSLocalizedString("已登录，用户信息稍后可刷新。", comment: "")
                     }
                     if showAlertOnFailure, (error as? CloudAccountError)?.statusCode == 401 {
                         self.logout()
@@ -100,26 +123,26 @@ final class CloudAccountManager: ObservableObject {
     func redeemCoupon() {
         let code = couponCode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !code.isEmpty else {
-            alertMessage = "请输入兑换码。"
+            alertMessage = NSLocalizedString("请输入兑换码。", comment: "")
             return
         }
         isBusy = true
-        statusMessage = "正在兑换免费券…"
+        statusMessage = NSLocalizedString("正在兑换免费券…", comment: "")
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: "api/v1/coupon/redeem", method: "POST", body: ["code": code], authorized: true)
-                let data = try payloadData(from: object, fallbackError: "兑换失败")
+                let data = try payloadData(from: object, fallbackError: NSLocalizedString("兑换失败", comment: ""))
                 await MainActor.run {
                     self.couponCode = ""
                     self.applyProfile(data)
-                    self.statusMessage = "兑换成功。"
-                    self.alertMessage = "免费券已生效。"
+                    self.statusMessage = NSLocalizedString("兑换成功。", comment: "")
+                    self.alertMessage = NSLocalizedString("免费券已生效。", comment: "")
                 }
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "兑换失败。"
+                    self.statusMessage = NSLocalizedString("兑换失败。", comment: "")
                 }
             }
         }
@@ -127,11 +150,11 @@ final class CloudAccountManager: ObservableObject {
 
     func createWechatOrder(plan: CloudRechargePlan) {
         guard isLoggedIn else {
-            alertMessage = "请先登录后再充值。"
+            alertMessage = NSLocalizedString("请先登录后再充值。", comment: "")
             return
         }
         isBusy = true
-        statusMessage = "正在创建微信支付订单…"
+        statusMessage = NSLocalizedString("正在创建微信支付订单…", comment: "")
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -141,12 +164,12 @@ final class CloudAccountManager: ObservableObject {
                     body: ["plan": plan.rawValue, "description": plan.orderDescription],
                     authorized: true
                 )
-                let data = try payloadData(from: object, fallbackError: "创建支付订单失败")
+                let data = try payloadData(from: object, fallbackError: NSLocalizedString("创建支付订单失败", comment: ""))
                 let codeURL = firstString(in: data, keys: ["code_url", "codeUrl"])
                 let h5URL = firstString(in: data, keys: ["h5_url", "h5Url", "mweb_url", "mwebUrl"])
                 let outTradeNo = firstString(in: data, keys: ["out_trade_no", "outTradeNo"])
-                guard !outTradeNo.isEmpty else { throw CloudAccountError("云端未返回订单号，无法查询支付状态。") }
-                guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError("云端未返回可支付链接。") }
+                guard !outTradeNo.isEmpty else { throw CloudAccountError(NSLocalizedString("云端未返回订单号，无法查询支付状态。", comment: "")) }
+                guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError(NSLocalizedString("云端未返回可支付链接。", comment: "")) }
                 let amountFen = firstInt(in: data, keys: ["amount_fen", "amountFen"])
                 await MainActor.run {
                     self.paymentOrder = CloudPaymentOrder(
@@ -157,13 +180,13 @@ final class CloudAccountManager: ObservableObject {
                         h5URL: h5URL,
                         status: "pending"
                     )
-                    self.statusMessage = "订单已创建，请使用微信扫码支付。"
+                    self.statusMessage = NSLocalizedString("订单已创建，请使用微信扫码支付。", comment: "")
                     self.pollPaymentStatus(outTradeNo: outTradeNo)
                 }
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "创建支付订单失败。"
+                    self.statusMessage = NSLocalizedString("创建支付订单失败。", comment: "")
                 }
             }
         }
@@ -171,7 +194,7 @@ final class CloudAccountManager: ObservableObject {
 
     func clearPaymentOrder() {
         paymentOrder = nil
-        statusMessage = "已关闭支付订单。"
+        statusMessage = NSLocalizedString("已关闭支付订单。", comment: "")
     }
 
     func refreshCurrentPaymentOrder() {
@@ -180,39 +203,39 @@ final class CloudAccountManager: ObservableObject {
             return
         }
         isBusy = true
-        statusMessage = "正在查询订单状态…"
+        statusMessage = NSLocalizedString("正在查询订单状态…", comment: "")
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let status = try await fetchPaymentStatus(outTradeNo: order.outTradeNo)
+                let data = try await fetchPaymentStatus(outTradeNo: order.outTradeNo)
                 await MainActor.run {
-                    _ = self.applyPaymentStatus(status, outTradeNo: order.outTradeNo, notifyPending: true)
+                    _ = self.applyPaymentStatus(data, outTradeNo: order.outTradeNo, notifyPending: true)
                 }
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "订单状态查询失败。"
+                    self.statusMessage = NSLocalizedString("订单状态查询失败。", comment: "")
                 }
             }
         }
     }
 
     var profileSummary: String {
-        guard let profile else { return isLoggedIn ? "已登录，点击刷新获取用户信息。" : "登录后可启用 AhaType 云端整理。" }
+        guard let profile else { return isLoggedIn ? NSLocalizedString("已登录，点击刷新获取用户信息。", comment: "") : NSLocalizedString("登录后可启用 AhaType 云端整理。", comment: "") }
         let phone = stringValue(profile["phone"])
         let validUntil = stringValue(profile["token_valid_until"])
         return [
-            phone.isEmpty ? "" : "手机号：\(phone)",
-            validUntil.isEmpty ? "有效期：无" : "有效期：\(validUntil)",
+            phone.isEmpty ? "" : String(format: NSLocalizedString("手机号：%@", comment: ""), phone),
+            validUntil.isEmpty ? NSLocalizedString("有效期：无", comment: "") : String(format: NSLocalizedString("有效期：%@", comment: ""), validUntil),
         ].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     func quotaText(_ period: String) -> String {
-        guard let profile else { return "暂无" }
+        guard let profile else { return NSLocalizedString("暂无", comment: "") }
         let used = intValue(profile["used_\(period)"])
         let limit = intValue(profile["limit_\(period)"])
         if limit <= 0 {
-            return used > 0 ? "已用 \(used) · 无上限" : "暂无"
+            return used > 0 ? String(format: NSLocalizedString("已用 %d · 无上限", comment: ""), used) : NSLocalizedString("暂无", comment: "")
         }
         return "\(used) / \(limit)"
     }
@@ -233,9 +256,9 @@ final class CloudAccountManager: ObservableObject {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if self.paymentOrder?.outTradeNo != outTradeNo { return }
                 do {
-                    let status = try await fetchPaymentStatus(outTradeNo: outTradeNo)
+                    let data = try await fetchPaymentStatus(outTradeNo: outTradeNo)
                     let finished = await MainActor.run {
-                        self.applyPaymentStatus(status, outTradeNo: outTradeNo, notifyPending: false)
+                        self.applyPaymentStatus(data, outTradeNo: outTradeNo, notifyPending: false)
                     }
                     if finished {
                         return
@@ -247,13 +270,13 @@ final class CloudAccountManager: ObservableObject {
             }
             await MainActor.run {
                 if self.paymentOrder?.outTradeNo == outTradeNo {
-                    self.statusMessage = "等待支付超时，可稍后刷新用户信息确认到账。"
+                    self.statusMessage = NSLocalizedString("等待支付超时，可稍后刷新用户信息确认到账。", comment: "")
                 }
             }
         }
     }
 
-    private func fetchPaymentStatus(outTradeNo: String) async throws -> String {
+    private func fetchPaymentStatus(outTradeNo: String) async throws -> [String: Any] {
         let encoded = outTradeNo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? outTradeNo
         let path = cacheBustedPath("api/v1/payment/wechat/order-status?outTradeNo=\(encoded)", enabled: true)
         let object = try await request(
@@ -263,34 +286,41 @@ final class CloudAccountManager: ObservableObject {
             authorized: true,
             bypassCache: true
         )
-        let data = try payloadData(from: object, fallbackError: "查询订单状态失败")
-        return normalizedPaymentStatus(from: data)
+        let data = try payloadData(from: object, fallbackError: NSLocalizedString("查询订单状态失败", comment: ""))
+        return data
     }
 
     @discardableResult
-    private func applyPaymentStatus(_ status: String, outTradeNo: String, notifyPending: Bool) -> Bool {
+    private func applyPaymentStatus(_ data: [String: Any], outTradeNo: String, notifyPending: Bool) -> Bool {
+        let status = normalizedPaymentStatus(from: data)
         let normalized = status.isEmpty ? "pending" : status
         if var order = paymentOrder, order.outTradeNo == outTradeNo {
             order.status = normalized
             paymentOrder = order
         }
         if isPaidPaymentStatus(normalized) {
-            statusMessage = "充值成功，正在刷新额度。"
+            statusMessage = NSLocalizedString("充值成功，正在刷新额度。", comment: "")
             paymentOrder = nil
-            refreshProfile(
-                forceRefresh: true,
-                successMessage: "充值到账已刷新。"
-            )
+            // 服务端在订单 paid 时已返回最新 profile，直接用；否则回退到独立刷新。
+            if let profileFromServer = data["profile"] as? [String: Any] {
+                applyProfile(profileFromServer)
+                statusMessage = NSLocalizedString("充值到账已刷新。", comment: "")
+            } else {
+                refreshProfile(
+                    forceRefresh: true,
+                    successMessage: NSLocalizedString("充值到账已刷新。", comment: "")
+                )
+            }
             return true
         }
         if isFailedPaymentStatus(normalized) {
-            statusMessage = "订单支付失败。"
-            alertMessage = "订单已标记为失败，请重新发起充值。"
+            statusMessage = NSLocalizedString("订单支付失败。", comment: "")
+            alertMessage = NSLocalizedString("订单已标记为失败，请重新发起充值。", comment: "")
             return true
         }
-        statusMessage = "订单尚未到账，请稍后再刷新。"
+        statusMessage = NSLocalizedString("订单尚未到账，请稍后再刷新。", comment: "")
         if notifyPending {
-            alertMessage = "当前订单仍未到账，请确认微信支付已完成后再刷新。"
+            alertMessage = NSLocalizedString("当前订单仍未到账，请确认微信支付已完成后再刷新。", comment: "")
         }
         return false
     }
@@ -298,18 +328,18 @@ final class CloudAccountManager: ObservableObject {
     private func authenticate(path: String, successMessage: String, fallbackError: String) {
         let p = phone.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !p.isEmpty, !password.isEmpty else {
-            alertMessage = "请输入手机号和密码。"
+            alertMessage = NSLocalizedString("请输入手机号和密码。", comment: "")
             return
         }
         isBusy = true
-        statusMessage = "正在请求云端账号…"
+        statusMessage = NSLocalizedString("正在请求云端账号…", comment: "")
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: path, method: "POST", body: ["phone": p, "password": password], authorized: false)
                 let data = try payloadData(from: object, fallbackError: fallbackError)
                 let token = firstString(in: data, keys: ["access_token", "token"])
-                guard !token.isEmpty else { throw CloudAccountError("云端未返回 access_token。") }
+                guard !token.isEmpty else { throw CloudAccountError(NSLocalizedString("云端未返回 access_token。", comment: "")) }
                 await MainActor.run {
                     self.saveLogin(token: token, authData: data)
                     self.statusMessage = successMessage
@@ -320,7 +350,7 @@ final class CloudAccountManager: ObservableObject {
             } catch {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
-                    self.statusMessage = "账号请求失败。"
+                    self.statusMessage = NSLocalizedString("账号请求失败。", comment: "")
                 }
             }
         }
@@ -328,14 +358,17 @@ final class CloudAccountManager: ObservableObject {
 
     private func saveLogin(token: String, authData: [String: Any] = [:]) {
         let defaults = UserDefaults.standard
-        defaults.set(token, forKey: tokenKey)
+        try? AhaKeyKeychain.save(service: keychainService, account: KeychainAccount.accessToken, value: token)
         defaults.set(rememberPassword, forKey: rememberKey)
         defaults.set(phone.trimmingCharacters(in: .whitespacesAndNewlines), forKey: phoneKey)
         if rememberPassword {
-            defaults.set(password, forKey: passwordKey)
+            try? AhaKeyKeychain.save(service: keychainService, account: KeychainAccount.password, value: password)
         } else {
-            defaults.removeObject(forKey: passwordKey)
+            AhaKeyKeychain.delete(service: keychainService, account: KeychainAccount.password)
         }
+        // 清除可能残留的 UserDefaults 敏感值。
+        defaults.removeObject(forKey: legacyTokenKey)
+        defaults.removeObject(forKey: legacyPasswordKey)
         AhaTypeTextOptimizer.shared.patchCloudToken(token)
         seedLocalProfile(token: token, authData: authData)
         isLoggedIn = true
@@ -418,7 +451,7 @@ final class CloudAccountManager: ObservableObject {
                          authorized: Bool,
                          bypassCache: Bool = false) async throws -> [String: Any] {
         guard let url = URL(string: "\(apiBase)/\(path)") else {
-            throw CloudAccountError("云端地址无效。")
+            throw CloudAccountError(NSLocalizedString("云端地址无效。", comment: ""))
         }
         var request = URLRequest(url: url, timeoutInterval: 90)
         request.httpMethod = method
@@ -443,10 +476,10 @@ final class CloudAccountManager: ObservableObject {
         }
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw CloudAccountError("服务器返回非 JSON。", statusCode: statusCode)
+            throw CloudAccountError(NSLocalizedString("服务器返回非 JSON。", comment: ""), statusCode: statusCode)
         }
         if statusCode != 200 {
-            throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
+            throw CloudAccountError(responseMessage(object).isEmpty ? String(format: NSLocalizedString("请求失败（HTTP %d）。", comment: ""), statusCode) : responseMessage(object), statusCode: statusCode)
         }
         return object
     }
@@ -467,7 +500,7 @@ final class CloudAccountManager: ObservableObject {
     }
 
     private var accessToken: String {
-        UserDefaults.standard.string(forKey: tokenKey) ?? ""
+        AhaKeyKeychain.load(service: keychainService, account: KeychainAccount.accessToken) ?? ""
     }
 
     private var apiBase: String {
@@ -589,20 +622,20 @@ final class CloudAccountManager: ObservableObject {
     }
 
     private func formatFen(_ fen: Int) -> String {
-        String(format: "%.2f 元", Double(max(0, fen)) / 100.0)
+        String(format: NSLocalizedString("%.2f 元", comment: ""), Double(max(0, fen)) / 100.0)
     }
 
     private func networkMessage(for error: Error) -> String {
         guard let urlError = error as? URLError else {
-            return "云端连接失败：\(error.localizedDescription)"
+            return String(format: NSLocalizedString("云端连接失败：%@", comment: ""), error.localizedDescription)
         }
         switch urlError.code {
         case .secureConnectionFailed, .serverCertificateHasBadDate, .serverCertificateUntrusted, .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid, .clientCertificateRejected, .clientCertificateRequired:
-            return "云端连接失败：TLS/SSL 校验未通过，请检查系统时间、网络代理/证书，或确认云端 HTTPS 证书配置正常。"
+            return NSLocalizedString("云端连接失败：TLS/SSL 校验未通过，请检查系统时间、网络代理/证书，或确认云端 HTTPS 证书配置正常。", comment: "")
         case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet, .networkConnectionLost, .timedOut:
-            return "云端连接失败：当前网络无法访问 AhaType 服务，请检查网络后重试。"
+            return NSLocalizedString("云端连接失败：当前网络无法访问 AhaType 服务，请检查网络后重试。", comment: "")
         default:
-            return "云端连接失败：\(urlError.localizedDescription)"
+            return String(format: NSLocalizedString("云端连接失败：%@", comment: ""), urlError.localizedDescription)
         }
     }
 }
@@ -628,25 +661,25 @@ enum CloudRechargePlan: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .monthly: return "按月订阅"
-        case .quarterly: return "按季订阅"
-        case .yearly: return "按年订阅"
+        case .monthly: return NSLocalizedString("按月订阅", comment: "")
+        case .quarterly: return NSLocalizedString("按季订阅", comment: "")
+        case .yearly: return NSLocalizedString("按年订阅", comment: "")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .monthly: return "30 天"
-        case .quarterly: return "90 天"
-        case .yearly: return "365 天"
+        case .monthly: return NSLocalizedString("30 天", comment: "")
+        case .quarterly: return NSLocalizedString("90 天", comment: "")
+        case .yearly: return NSLocalizedString("365 天", comment: "")
         }
     }
 
     var orderDescription: String {
         switch self {
-        case .monthly: return "包月充值"
-        case .quarterly: return "包季充值"
-        case .yearly: return "包年充值"
+        case .monthly: return NSLocalizedString("包月充值", comment: "")
+        case .quarterly: return NSLocalizedString("包季充值", comment: "")
+        case .yearly: return NSLocalizedString("包年充值", comment: "")
         }
     }
 
@@ -672,6 +705,6 @@ struct CloudPaymentOrder: Equatable {
     }
 
     var amountText: String {
-        String(format: "%.2f 元", Double(max(0, amountFen)) / 100.0)
+        String(format: NSLocalizedString("%.2f 元", comment: ""), Double(max(0, amountFen)) / 100.0)
     }
 }

@@ -69,6 +69,15 @@ else
 fi
 iconutil -c icns "$ICONSET_DIR" -o "$ICNS_PATH"
 
+echo "🌐 Generating localization strings..."
+python3 "$APP_ROOT/scripts/generate_localizations.py"
+
+for LPROJ in "$APP_ROOT"/Resources/*.lproj; do
+  if [[ -d "$LPROJ" ]]; then
+    ditto "$LPROJ" "$APP_BUNDLE/Contents/Resources/$(basename "$LPROJ")"
+  fi
+done
+
 if [[ ${#BUILD_OUTPUTS[@]} -gt 1 ]]; then
   lipo -create "${BUILD_OUTPUTS[@]}" -output "$APP_EXECUTABLE"
   lipo -create "${AGENT_OUTPUTS[@]}" -output "$AGENT_EXECUTABLE"
@@ -94,7 +103,12 @@ cat > "$INFO_PLIST" <<PLIST
 <plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key>
-  <string>en</string>
+  <string>zh-Hans</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>zh-Hans</string>
+    <string>en</string>
+  </array>
   <key>CFBundleDisplayName</key>
   <string>${APP_DISPLAY_NAME}</string>
   <key>CFBundleExecutable</key>
