@@ -10,6 +10,10 @@ struct AhaKeyConfigApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var bleManager = AhaKeyBLEManager()
 
+    init() {
+        AppLanguageInitializer.applySystemLanguageIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup("AhaKey Studio") {
             ContentView(bleManager: bleManager)
