@@ -8,7 +8,7 @@
 #   PreToolUse=3    SessionStart=4       Stop=5
 #   TaskCompleted=6 UserPromptSubmit=7   SessionEnd=8
 
-SOCKET="/tmp/ahakey.sock"
+SOCKET="${HOME}/Library/Application Support/AhaKeyConfig/ahakey.sock"
 STATE="${1:-0}"
 
 [ -S "$SOCKET" ] && echo "$STATE" | nc -U "$SOCKET" -w 1 2>/dev/null || true

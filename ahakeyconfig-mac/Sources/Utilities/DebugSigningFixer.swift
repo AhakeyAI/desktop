@@ -35,7 +35,7 @@ enum DebugSigningFixer {
         guard FileManager.default.isExecutableFile(atPath: script.path) else {
             completion(Result(
                 success: false,
-                output: "找不到可执行脚本：\(script.path)\n\n此功能仅在从源码运行的开发构建中可用。"
+                output: String(format: NSLocalizedString("找不到可执行脚本：%@\n\n此功能仅在从源码运行的开发构建中可用。", comment: ""), script.path)
             ))
             return
         }
@@ -59,15 +59,15 @@ enum DebugSigningFixer {
                     completion(Result(
                         success: ok,
                         output: ok
-                            ? output + "\n请立即退出 AhaKey Studio 并重新启动，按系统提示重新勾选权限即可。"
-                            : "脚本执行失败 (exit=\(process.terminationStatus))\n\n\(output)"
+                            ? output + NSLocalizedString("\n请立即退出 AhaKey Studio 并重新启动，按系统提示重新勾选权限即可。", comment: "")
+                            : String(format: NSLocalizedString("脚本执行失败 (exit=%d)\n\n%@", comment: ""), process.terminationStatus, output)
                     ))
                 }
             } catch {
                 DispatchQueue.main.async {
                     completion(Result(
                         success: false,
-                        output: "无法启动修复脚本: \(error.localizedDescription)"
+                        output: String(format: NSLocalizedString("无法启动修复脚本: %@", comment: ""), error.localizedDescription)
                     ))
                 }
             }

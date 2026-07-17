@@ -29,11 +29,11 @@ private enum VoiceRouteAction: Hashable {
     var title: String {
         switch self {
         case .macOSDictation:
-            "macOS 原生语音"
+            NSLocalizedString("macOS 原生语音", comment: "")
         case let .functionRelay(appName):
             appName
         case .doubaoPassThrough:
-            "豆包输入法"
+            NSLocalizedString("豆包输入法", comment: "")
         }
     }
 
@@ -56,10 +56,10 @@ final class VoiceRelayService: ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var inputMonitoringGranted = false
     @Published private(set) var accessibilityGranted = false
-    @Published private(set) var statusMessage = "等待语音路由初始化。"
-    @Published private(set) var activeRouteSummary = "未配置语音软件。"
+    @Published private(set) var statusMessage = NSLocalizedString("等待语音路由初始化。", comment: "")
+    @Published private(set) var activeRouteSummary = NSLocalizedString("未配置语音软件。", comment: "")
     @Published var showsPermissionOnboarding = false
-    @Published private(set) var lastPermissionCheckSummary = "尚未检查权限。"
+    @Published private(set) var lastPermissionCheckSummary = NSLocalizedString("尚未检查权限。", comment: "")
     @Published private(set) var lastInspectorSimulateHint: String?
 
     private let routeQueue = DispatchQueue(label: "lab.jawa.ahakeyconfig.voiceRelay.routes")
@@ -127,7 +127,7 @@ final class VoiceRelayService: ObservableObject {
         }
         if deferredTCCRequery {
             DispatchQueue.main.async {
-                self.lastPermissionCheckSummary = "正在检查系统权限…"
+                self.lastPermissionCheckSummary = NSLocalizedString("正在检查系统权限…", comment: "")
             }
             let firstDelay: TimeInterval = 0.45
             let followUpDelay: TimeInterval = 0.85
@@ -168,8 +168,10 @@ final class VoiceRelayService: ObservableObject {
         }
 
         let timeLabel = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+        let inputMonitoringStatus = inputMonitoring ? NSLocalizedString("已开启", comment: "") : NSLocalizedString("未开启", comment: "")
+        let accessibilityStatus = (accessibility && postEventAccess) ? NSLocalizedString("已开启", comment: "") : NSLocalizedString("未开启", comment: "")
         let lastCheckSummary =
-            "输入监控 \(inputMonitoring ? "已开启" : "未开启") · 辅助功能 \((accessibility && postEventAccess) ? "已开启" : "未开启") · 检查于 \(timeLabel)"
+            String(format: NSLocalizedString("输入监控 %@ · 辅助功能 %@ · 检查于 %@", comment: ""), inputMonitoringStatus, accessibilityStatus, timeLabel)
 
         DispatchQueue.main.async {
             self.inputMonitoringGranted = inputMonitoring
@@ -230,7 +232,7 @@ final class VoiceRelayService: ObservableObject {
         guard let route else {
             appendDiagnostic("inspector simulate: no route for mode=\(mode.rawValue)")
             Task { @MainActor in
-                lastInspectorSimulateHint = "当前模式没有语音路由：Fn 请选 Fn/Globe，或把「自定义快捷键」设为 F19。"
+                lastInspectorSimulateHint = NSLocalizedString("当前模式没有语音路由：Fn 请选 Fn/Globe，或把「自定义快捷键」设为 F19。", comment: "")
             }
             return
         }
@@ -238,18 +240,18 @@ final class VoiceRelayService: ObservableObject {
         case .macOSDictation:
             Task { @MainActor in
                 NativeSpeechTranscriptionService.shared.toggleRecordingFromVoiceKey()
-                lastInspectorSimulateHint = "已切换「苹果原生转写」录制状态（与界面「开始录音」相同）。"
+                lastInspectorSimulateHint = NSLocalizedString("已切换「苹果原生转写」录制状态（与界面「开始录音」相同）。", comment: "")
             }
         case .functionRelay:
             toggleFunctionRelayHold(for: route)
             Task { @MainActor in
-                lastInspectorSimulateHint = "已切换 Fn 按住状态；请在 Typeless/微信语音/豆包输入法内把快捷键设为 Fn/Globe（本 Studio 监听 F19，旧版 F18 兼容）。再点一次为松开。"
+                lastInspectorSimulateHint = NSLocalizedString("已切换 Fn 按住状态；请在 Typeless/微信语音/豆包输入法内把快捷键设为 Fn/Globe（本 Studio 监听 F19，旧版 F18 兼容）。再点一次为松开。", comment: "")
             }
         case .doubaoPassThrough:
             configureDoubaoVoiceShortcutIfNeeded()
             ensureInputSource(id: Self.doubaoInputSourceID, label: route.action.title)
             Task { @MainActor in
-                lastInspectorSimulateHint = "豆包需要真实 F18 长按事件；已切到豆包输入源并配置长按 F18，请用实体语音键测试。"
+                lastInspectorSimulateHint = NSLocalizedString("豆包需要真实 F18 长按事件；已切到豆包输入源并配置长按 F18，请用实体语音键测试。", comment: "")
             }
         }
         appendDiagnostic("inspector simulate mode=\(mode.rawValue) action=\(route.action.title)")
@@ -269,7 +271,7 @@ final class VoiceRelayService: ObservableObject {
         routeQueue.async {
             self.routes = builtRoutes
             let summary = builtRoutes.isEmpty
-                ? "未配置语音软件。"
+                ? NSLocalizedString("未配置语音软件。", comment: "")
                 : builtRoutes.map { route in
                     let fallback = route.compatibilityLabel.map { " · \($0)" } ?? ""
                     return "\(route.mode.title) \(route.action.title) ← \(route.binding.displayLabel)\(fallback)"
@@ -285,7 +287,7 @@ final class VoiceRelayService: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.configureDoubaoVoiceShortcutIfNeeded()
-                self.ensureInputSource(id: Self.doubaoInputSourceID, label: "豆包输入法")
+                self.ensureInputSource(id: Self.doubaoInputSourceID, label: NSLocalizedString("豆包输入法", comment: ""))
             }
         }
     }
@@ -325,7 +327,7 @@ final class VoiceRelayService: ObservableObject {
             callback: callback,
             userInfo: refcon
         ) else {
-            appendDiagnostic("event tap create failed (缺辅助功能或输入监控权限?)")
+            appendDiagnostic(NSLocalizedString("event tap create failed (缺辅助功能或输入监控权限?)", comment: ""))
             isListening = false
             refreshStatusMessage()
             return
@@ -658,21 +660,21 @@ final class VoiceRelayService: ObservableObject {
 
     private func refreshStatusMessage() {
         if !inputMonitoringGranted || !accessibilityGranted {
-            statusMessage = "还缺系统权限：请为 AhaKey Studio 打开“输入监控”和“辅助功能”，授权后回到软件点“重新检查权限”。"
+            statusMessage = NSLocalizedString("还缺系统权限：请为 AhaKey Studio 打开“输入监控”和“辅助功能”，授权后回到软件点“重新检查权限”。", comment: "")
             return
         }
 
         guard isListening else {
-            statusMessage = "语音键后台监听准备中。关闭窗口后，AhaKey Studio 也会继续驻留后台。"
+            statusMessage = NSLocalizedString("语音键后台监听准备中。关闭窗口后，AhaKey Studio 也会继续驻留后台。", comment: "")
             return
         }
 
-        if activeRouteSummary == "未配置语音软件。" {
-            statusMessage = "后台监听已启动，但当前没有可接管的语音软件。"
+        if activeRouteSummary == NSLocalizedString("未配置语音软件。", comment: "") {
+            statusMessage = NSLocalizedString("后台监听已启动，但当前没有可接管的语音软件。", comment: "")
             return
         }
 
-        statusMessage = "后台监听已启动。Fn/Globe 语音走 F19；macOS 原生与旧版 F18 会继续兼容。"
+        statusMessage = NSLocalizedString("后台监听已启动。Fn/Globe 语音走 F19；macOS 原生与旧版 F18 会继续兼容。", comment: "")
     }
 
     private static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {
@@ -703,7 +705,7 @@ final class VoiceRelayService: ObservableObject {
                         binding: fnF19,
                         action: action,
                         mode: mode,
-                        compatibilityLabel: "Fn F19 兼容"
+                        compatibilityLabel: NSLocalizedString("Fn F19 兼容", comment: "")
                     )
                 )
             }
@@ -714,7 +716,7 @@ final class VoiceRelayService: ObservableObject {
                         binding: factoryF18,
                         action: action,
                         mode: .mode0,
-                        compatibilityLabel: "旧版 F18 兼容"
+                        compatibilityLabel: NSLocalizedString("旧版 F18 兼容", comment: "")
                     )
                 )
             }
