@@ -9,6 +9,7 @@ EXECUTABLE_NAME="AhaKeyConfig"
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio}"
 APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio}"
 APP_IDENTIFIER="lab.jawa.ahakeyconfig"
+APP_VERSION="${APP_VERSION:-0.1.0}"
 MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-12.0}"
 BUILD_ARCHS="${BUILD_ARCHS:-arm64 x86_64}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
@@ -96,7 +97,7 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
 fi
 
 REPO_ROOT="$(git -C "$APP_ROOT" rev-parse --show-toplevel 2>/dev/null || echo "$APP_ROOT")"
-BUILD_NUMBER="$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+BUILD_NUMBER="${BUILD_NUMBER:-$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)}"
 GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 
 cat > "$INFO_PLIST" <<PLIST
@@ -126,7 +127,7 @@ cat > "$INFO_PLIST" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>${APP_VERSION}</string>
   <key>CFBundleVersion</key>
   <string>${BUILD_NUMBER}</string>
   <key>AhaKeyGitCommit</key>

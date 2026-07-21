@@ -11,7 +11,7 @@
 #   zsh scripts/pack-release.sh
 #   zsh /path/to/ahakeyconfig/scripts/pack-release.sh
 #
-# 可选环境变量：NOTARY_PROFILE、SIGNING_IDENTITY、SIGNING_IDENTITY_HINT、OUTPUT_DIR、DMG_BASENAME
+# 可选环境变量：APP_VERSION、BUILD_NUMBER、NOTARY_PROFILE、SIGNING_IDENTITY、SIGNING_IDENTITY_HINT、OUTPUT_DIR、DMG_BASENAME
 
 set -euo pipefail
 
