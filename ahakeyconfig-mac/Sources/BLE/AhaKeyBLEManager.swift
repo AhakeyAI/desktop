@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import CoreBluetooth
+import Darwin
 import Foundation
 import os.log
 import UserNotifications
@@ -128,7 +129,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var rssiTimer: Timer?
     private var autoReconnectTimer: Timer?
     private var statusPollTimer: Timer?
-    private var ideStatePollTimer: Timer?
+    private var ideStateDirectoryMonitor: DispatchSourceFileSystemObject?
+    private var ideStateExpiryTimer: Timer?
+    private var ideStateFallbackTimer: Timer?
+    private var ideStateRefreshTask: Task<Void, Never>?
+    private let ideStateMonitorQueue = DispatchQueue(
+        label: "lab.jawa.ahakeyconfig.ide-state-monitor",
+        qos: .utility
+    )
     /// 记住上次连接的 UUID，用于快速重连
     private var lastPeripheralUUID: UUID?
     /// 为 true 时，本 App 不扫描、不连接、不响应掉线/轮询重连（物理键盘由 `ahakeyconfig-agent` 占用时由 AgentManager 置位）
@@ -163,7 +171,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         refreshBluetoothAuthorization()
         startAutoReconnectPolling()
-        startIDEStatePolling()
+        startIDEStateMonitoring()
     }
 
     /// 确保 CBCentralManager 已创建。用户显式申请蓝牙权限时调用。
@@ -738,12 +746,92 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         statusPollTimer = nil
     }
 
-    private func startIDEStatePolling() {
-        ideStatePollTimer?.invalidate()
-        ideStatePollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+    private var ideStateDirectoryURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
+    }
+
+    private var ideStateFileURL: URL {
+        ideStateDirectoryURL.appendingPathComponent("current-ide-state.json")
+    }
+
+    /// Agent 通常以临时文件 + rename 的方式更新状态，因此监听目录而不是单个文件。
+    /// 仅在真实文件变化时解析 JSON；一次性 timer 在 30s/120s 的准确过期点刷新状态。
+    private func startIDEStateMonitoring() {
+        stopIDEStateMonitoring()
+        pollIDEStateFile()
+
+        do {
+            try FileManager.default.createDirectory(
+                at: ideStateDirectoryURL,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            startIDEStateFallbackPolling()
+            return
+        }
+
+        let descriptor = open(ideStateDirectoryURL.path, O_EVTONLY)
+        guard descriptor >= 0 else {
+            startIDEStateFallbackPolling()
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .extend, .attrib, .rename, .delete],
+            queue: ideStateMonitorQueue
+        )
+        source.setEventHandler { [weak self] in
             Task { @MainActor in
-                guard let self else { return }
-                self.pollIDEStateFile()
+                self?.scheduleIDEStateRefresh()
+            }
+        }
+        source.setCancelHandler {
+            close(descriptor)
+        }
+        ideStateDirectoryMonitor = source
+        source.resume()
+    }
+
+    private func stopIDEStateMonitoring() {
+        ideStateRefreshTask?.cancel()
+        ideStateRefreshTask = nil
+        ideStateExpiryTimer?.invalidate()
+        ideStateExpiryTimer = nil
+        ideStateFallbackTimer?.invalidate()
+        ideStateFallbackTimer = nil
+        ideStateDirectoryMonitor?.cancel()
+        ideStateDirectoryMonitor = nil
+    }
+
+    private func scheduleIDEStateRefresh() {
+        ideStateRefreshTask?.cancel()
+        ideStateRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard !Task.isCancelled else { return }
+            self?.pollIDEStateFile()
+        }
+    }
+
+    /// 极少数无法创建目录监听器的环境下保留兼容回退；正常路径不会启动这个 timer。
+    private func startIDEStateFallbackPolling() {
+        ideStateFallbackTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.pollIDEStateFile()
+            }
+        }
+    }
+
+    private func scheduleIDEStateExpiry(at deadline: TimeInterval?) {
+        ideStateExpiryTimer?.invalidate()
+        ideStateExpiryTimer = nil
+        guard let deadline else { return }
+
+        let interval = max(0.05, deadline - Date().timeIntervalSince1970)
+        ideStateExpiryTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.pollIDEStateFile()
             }
         }
     }
@@ -769,10 +857,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func pollIDEStateFile() {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/AhaKeyConfig/current-ide-state.json")
-        guard let data = try? Data(contentsOf: url),
+        guard let data = try? Data(contentsOf: ideStateFileURL),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            scheduleIDEStateExpiry(at: nil)
             if liveIDEStateValue != nil { liveIDEStateValue = nil }
             if agentLightMode != nil { agentLightMode = nil }
             if agentSwitchState != nil { agentSwitchState = nil }
@@ -780,27 +867,31 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             return
         }
         let now = Date().timeIntervalSince1970
+        var expiryDeadlines: [TimeInterval] = []
         // stateValue 是瞬时态（hook 触发），30s 过期；超时则置空，固件 LED 也会回到无 state 默认
         if let v = obj["stateValue"] as? Int,
            let stateTs = (obj["stateTs"] as? Double) ?? (obj["ts"] as? Double),
-           now - stateTs <= 30 {
+           now < stateTs + 30 {
             if liveIDEStateValue != v { liveIDEStateValue = v }
+            expiryDeadlines.append(stateTs + 30)
         } else {
             if liveIDEStateValue != nil { liveIDEStateValue = nil }
         }
         // lightMode/switchState/workMode 来自 BLE 通知，2 分钟没新数据视为 agent 已断连
-        if let topTs = obj["ts"] as? Double, now - topTs <= 120 {
+        if let topTs = obj["ts"] as? Double, now < topTs + 120 {
             let lm = obj["lightMode"] as? Int
             let sw = obj["switchState"] as? Int
             let wm = obj["workMode"] as? Int
             if agentLightMode != lm { agentLightMode = lm }
             if agentSwitchState != sw { agentSwitchState = sw }
             if agentWorkMode != wm { agentWorkMode = wm }
+            expiryDeadlines.append(topTs + 120)
         } else {
             if agentLightMode != nil { agentLightMode = nil }
             if agentSwitchState != nil { agentSwitchState = nil }
             if agentWorkMode != nil { agentWorkMode = nil }
         }
+        scheduleIDEStateExpiry(at: expiryDeadlines.min())
         clearOptimisticSwitchOverrideIfMatched()
     }
 

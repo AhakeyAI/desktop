@@ -45,8 +45,12 @@ public final class ProcessDetector: ObservableObject {
         pattern: "^[A-Za-z0-9_.\\-]+$",
         options: []
     )
-    private static let pgrepURL = URL(fileURLWithPath: "/usr/bin/pgrep")
     private static let psURL = URL(fileURLWithPath: "/bin/ps")
+
+    private struct RunningCLIProcess: Sendable {
+        let executableName: String
+        let commandLine: String
+    }
 
     public init(pollInterval: TimeInterval = 5.0) {
         self.pollInterval = pollInterval
@@ -63,7 +67,9 @@ public final class ProcessDetector: ObservableObject {
             self.cancelTimerOnQueue()
 
             let timer = DispatchSource.makeTimerSource(queue: self.queue)
-            timer.schedule(deadline: .now(), repeating: self.pollInterval)
+            // Run once below, then continue at the configured cadence. Scheduling at
+            // `.now()` as well caused two overlapping process scans on every start.
+            timer.schedule(deadline: .now() + self.pollInterval, repeating: self.pollInterval)
             timer.setEventHandler { [weak self] in
                 self?.checkNow()
             }
@@ -96,9 +102,13 @@ public final class ProcessDetector: ObservableObject {
 
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 guard let self else { return }
+                // Capture all command lines once. The old implementation launched pgrep for
+                // every configured process name and then ps again for every matching PID.
+                let cliProcesses = self.runningCLIProcesses()
                 let active = self.detect(
                     targets: targetsSnapshot,
-                    runningApps: runningApps
+                    runningApps: runningApps,
+                    cliProcesses: cliProcesses
                 )
 
                 DispatchQueue.main.async {
@@ -121,7 +131,8 @@ public final class ProcessDetector: ObservableObject {
 
     private func detect(
         targets: [Target],
-        runningApps: [NSRunningApplication]
+        runningApps: [NSRunningApplication],
+        cliProcesses: [RunningCLIProcess]
     ) -> [Target] {
         let runningBundleIds = Set(runningApps.compactMap { $0.bundleIdentifier })
         let runningNames = Set(runningApps.compactMap { $0.localizedName })
@@ -131,7 +142,8 @@ public final class ProcessDetector: ObservableObject {
             if isTargetRunning(
                 target,
                 runningBundleIds: runningBundleIds,
-                runningNames: runningNames
+                runningNames: runningNames,
+                cliProcesses: cliProcesses
             ) {
                 active.append(target)
             }
@@ -142,7 +154,8 @@ public final class ProcessDetector: ObservableObject {
     private func isTargetRunning(
         _ target: Target,
         runningBundleIds: Set<String>,
-        runningNames: Set<String>
+        runningNames: Set<String>,
+        cliProcesses: [RunningCLIProcess]
     ) -> Bool {
         if let bid = target.bundleIdentifier, runningBundleIds.contains(bid) {
             return true
@@ -152,43 +165,53 @@ public final class ProcessDetector: ObservableObject {
         }
 
         for processName in target.processNames {
-            if isCLIProcessRunning(name: processName, hints: target.commandLineHints) {
+            if isCLIProcessRunning(
+                name: processName,
+                hints: target.commandLineHints,
+                processes: cliProcesses
+            ) {
                 return true
             }
         }
         return false
     }
 
-    private func isCLIProcessRunning(name: String, hints: [String]) -> Bool {
+    private func isCLIProcessRunning(
+        name: String,
+        hints: [String],
+        processes: [RunningCLIProcess]
+    ) -> Bool {
         guard validateProcessName(name) else {
             log.warning("Rejected unsafe process name: \(name)")
             return false
         }
 
-        let (pgrepOutput, _) = runProcess(
-            executable: Self.pgrepURL,
-            arguments: ["-x", name]
-        ) ?? ("", -1)
-
-        let pids = pgrepOutput
-            .components(separatedBy: .newlines)
-            .filter { !$0.isEmpty }
-            .filter { UInt32($0) != nil }
-
-        guard !pids.isEmpty else { return false }
-        if hints.isEmpty { return true }
-
-        for pid in pids {
-            guard validateProcessName(pid) else { continue }
-            let (cmdline, _) = runProcess(
-                executable: Self.psURL,
-                arguments: ["-o", "command=", "-p", pid]
-            ) ?? ("", -1)
-            for hint in hints where cmdline.contains(hint) {
-                return true
-            }
+        let matches = processes.lazy.filter { $0.executableName == name }
+        if hints.isEmpty {
+            return matches.first != nil
         }
-        return false
+        return matches.contains { process in
+            hints.contains { process.commandLine.localizedCaseInsensitiveContains($0) }
+        }
+    }
+
+    private func runningCLIProcesses() -> [RunningCLIProcess] {
+        guard let result = runProcess(
+            executable: Self.psURL,
+            arguments: ["-axo", "command="]
+        ), result.exitCode == 0 else {
+            return []
+        }
+
+        return result.output.split(separator: "\n").compactMap { line in
+            let commandLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let executable = commandLine.split(whereSeparator: \.isWhitespace).first else {
+                return nil
+            }
+            let executableName = URL(fileURLWithPath: String(executable)).lastPathComponent
+            guard !executableName.isEmpty else { return nil }
+            return RunningCLIProcess(executableName: executableName, commandLine: commandLine)
+        }
     }
 
     private func validateProcessName(_ name: String) -> Bool {
@@ -205,11 +228,13 @@ public final class ProcessDetector: ObservableObject {
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return nil
         }
+        // Drain stdout before waiting. `ps -axo command=` can exceed the pipe buffer;
+        // waiting first deadlocks the child and lets subsequent timer scans pile up.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         return (String(data: data, encoding: .utf8) ?? "", process.terminationStatus)
     }
 

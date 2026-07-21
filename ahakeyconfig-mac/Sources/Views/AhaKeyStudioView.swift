@@ -13,7 +13,7 @@ struct AhaKeyStudioView: View {
     @StateObject private var cloudAccount = CloudAccountManager.shared
     @StateObject private var agentManager = AgentManager.shared
     @StateObject private var powerProtection = PowerProtectionManager.shared
-    @StateObject private var powerProcessDetector = ProcessDetector(pollInterval: 5.0)
+    @StateObject private var powerProcessDetector = ProcessDetector(pollInterval: 15.0)
 
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
@@ -3371,6 +3371,9 @@ private struct AhaKeyKeyboardCanvasView: View {
 
     @State private var modeSwitchPressed = false
     @State private var leverPressed = false
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.controlActiveState) private var controlActiveState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let baseWidth: CGFloat = 109
     private let baseHeight: CGFloat = 54
@@ -3502,24 +3505,17 @@ private struct AhaKeyKeyboardCanvasView: View {
                     .foregroundStyle(Color.black.opacity(0.72))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                    let colors = ledColors(effect: effect, time: context.date.timeIntervalSince1970, count: 10, baseColor: baseColor)
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.black.opacity(0.12))
-                        HStack(spacing: rect.width * 0.026) {
-                            ForEach(0..<10, id: \.self) { index in
-                                Capsule()
-                                    .fill(colors[index])
-                                    .frame(width: rect.width * 0.072, height: rect.height * 0.26)
-                                    .shadow(color: colors[index].opacity(0.65), radius: 2.5)
-                            }
-                        }
-                        .padding(.horizontal, rect.width * 0.04)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: rect.height * 0.48)
-                }
+                LightBarCanvas(
+                    effect: effect,
+                    baseColor: baseColor,
+                    framesPerSecond: effect.isAnimated
+                        && scenePhase == .active
+                        && controlActiveState != .inactive
+                        && !reduceMotion
+                        ? (selectedPart == .lightBar ? 10 : 5)
+                        : nil
+                )
+                .frame(height: rect.height * 0.48)
             }
             .frame(width: rect.width, height: rect.height)
             .modifier(HotspotChrome(part: part, selectedPart: selectedPart, dirtyParts: dirtyParts))
@@ -3602,7 +3598,11 @@ private struct AhaKeyKeyboardCanvasView: View {
             // .id(gifPath) 强制 SwiftUI 在路径切换时销毁并重建视图，
             // 否则旧路径的 @State frames/currentFrame/timer 会与新路径错位，
             // 导致 Mode 切换瞬间画布渲染上一档 GIF 的某一帧（claude / cursor 互窜）。
-            AnimatedGIFView(path: gifPath, fps: modeDraft.oled.framesPerSecond)
+            AnimatedGIFView(
+                path: gifPath,
+                fps: modeDraft.oled.framesPerSecond,
+                isFocused: selectedPart == .oledDisplay
+            )
                 .id(gifPath)
         } else {
             ZStack {
@@ -3787,8 +3787,63 @@ private struct AhaKeyKeyboardCanvasView: View {
         value / baseWidth * width
     }
 
-    private func ledColors(effect: LightEffectStyle, time: TimeInterval, count: Int,
-                           baseColor: Color = Self.firmwareRed) -> [Color] {
+    private struct LightBarCanvas: View {
+        let effect: LightEffectStyle
+        let baseColor: Color
+        let framesPerSecond: Double?
+
+        var body: some View {
+            Group {
+                if let framesPerSecond {
+                    TimelineView(.periodic(from: .now, by: 1.0 / framesPerSecond)) { context in
+                        strip(colors: AhaKeyKeyboardCanvasView.lightBarColors(
+                            effect: effect,
+                            time: context.date.timeIntervalSince1970,
+                            count: 10,
+                            baseColor: baseColor
+                        ))
+                    }
+                } else {
+                    strip(colors: AhaKeyKeyboardCanvasView.lightBarColors(
+                        effect: effect,
+                        time: 0,
+                        count: 10,
+                        baseColor: baseColor
+                    ))
+                }
+            }
+            .accessibilityHidden(true)
+        }
+
+        private func strip(colors: [Color]) -> some View {
+            Canvas(opaque: false, rendersAsynchronously: false) { context, size in
+                let bounds = CGRect(origin: .zero, size: size)
+                context.fill(
+                    Path(roundedRect: bounds, cornerRadius: min(12, size.height / 2)),
+                    with: .color(Color.black.opacity(0.12))
+                )
+
+                let horizontalPadding = size.width * 0.04
+                let spacing = size.width * 0.026
+                let availableWidth = max(0, size.width - horizontalPadding * 2 - spacing * 9)
+                let barWidth = availableWidth / 10
+                let barHeight = size.height * (0.26 / 0.48)
+                let y = (size.height - barHeight) / 2
+
+                for index in 0..<min(10, colors.count) {
+                    let x = horizontalPadding + CGFloat(index) * (barWidth + spacing)
+                    let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: barHeight / 2),
+                        with: .color(colors[index])
+                    )
+                }
+            }
+        }
+    }
+
+    private static func lightBarColors(effect: LightEffectStyle, time: TimeInterval, count: Int,
+                                       baseColor: Color = Self.firmwareRed) -> [Color] {
         switch effect {
         case .off:
             return Array(repeating: Color.gray.opacity(0.15), count: count)
@@ -3796,8 +3851,7 @@ private struct AhaKeyKeyboardCanvasView: View {
             let center = Double(count - 1) / 2.0
             return (0..<count).map { i in
                 let dist = abs(Double(i) - center) / center
-                let pulse = (sin(time * 1.5) + 1.0) / 2.0 * 0.15
-                return baseColor.opacity(0.2 + (1.0 - dist) * 0.65 + pulse)
+                return baseColor.opacity(0.2 + (1.0 - dist) * 0.65)
             }
         case .singleMove:
             let period = 2.4
@@ -3917,50 +3971,128 @@ private struct AhaKeyKeyboardCanvasView: View {
     }
 }
 
-private struct AnimatedGIFView: View {
+private struct AnimatedGIFView: NSViewRepresentable {
     let path: String
     let fps: Int
+    let isFocused: Bool
 
-    @State private var frames: [NSImage] = []
-    @State private var currentFrame = 0
-    @State private var gifTimer: Timer? = nil
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.controlActiveState) private var controlActiveState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    var body: some View {
-        Group {
-            if !frames.isEmpty, currentFrame >= 0, currentFrame < frames.count {
-                Image(nsImage: frames[currentFrame])
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                Color.black
-            }
+    func makeNSView(context: Context) -> AnimatedGIFLayerView {
+        AnimatedGIFLayerView()
+    }
+
+    func updateNSView(_ nsView: AnimatedGIFLayerView, context: Context) {
+        let effectiveFPS = isFocused ? max(fps, 1) : min(max(fps, 1), 2)
+        nsView.configure(
+            path: path,
+            fps: effectiveFPS,
+            plays: scenePhase == .active
+                && controlActiveState != .inactive
+                && !reduceMotion
+        )
+    }
+
+    static func dismantleNSView(_ nsView: AnimatedGIFLayerView, coordinator: ()) {
+        nsView.stopPlayback()
+    }
+}
+
+/// Updates only a backing layer's contents. Keeping the GIF clock out of SwiftUI state
+/// prevents every frame from invalidating the surrounding keyboard layout tree.
+@MainActor
+private final class AnimatedGIFLayerView: NSView {
+    private var frames: [CGImage] = []
+    private var currentFrame = 0
+    private var gifTimer: Timer?
+    private var loadedPath: String?
+    private var playbackFPS = 0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.contentsGravity = .resizeAspect
+        layer?.masksToBounds = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        layer?.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    }
+
+    func configure(path: String, fps: Int, plays: Bool) {
+        if loadedPath != path {
+            loadFrames(path: path)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
-        .onAppear { loadFrames() }
-        .onDisappear {
-            gifTimer?.invalidate()
-            gifTimer = nil
+
+        if plays, frames.count > 1 {
+            startPlayback(fps: fps)
+        } else {
+            stopPlayback()
         }
     }
 
-    private func loadFrames() {
+    private func loadFrames(path: String) {
+        stopPlayback()
+        loadedPath = path
+        frames = []
+        currentFrame = 0
+        layer?.contents = nil
         let url = URL(fileURLWithPath: path)
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return }
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return }
         let count = CGImageSourceGetCount(src)
         guard count > 0 else { return }
-        var images: [NSImage] = []
+        // The physical OLED is 160×80. Decoding 1024×576 source GIFs at full size
+        // retained hundreds of MB for a preview that is only a few hundred points wide.
+        // 320 px preserves Retina preview quality while bounding the frame cache.
+        let thumbnailOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 320,
+            kCGImageSourceShouldCacheImmediately: true,
+        ] as CFDictionary
+        frames.reserveCapacity(count)
         for i in 0..<count {
-            guard let cgImage = CGImageSourceCreateImageAtIndex(src, i, nil) else { continue }
-            images.append(NSImage(cgImage: cgImage, size: .zero))
+            guard let cgImage = CGImageSourceCreateThumbnailAtIndex(src, i, thumbnailOptions) else { continue }
+            frames.append(cgImage)
         }
-        frames = images
-        currentFrame = 0
-        guard count > 1 else { return }
-        let interval = 1.0 / Double(max(fps, 1))
-        gifTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
-            currentFrame = (currentFrame + 1) % max(1, frames.count)
-        }
+        layer?.contents = frames.first
+    }
+
+    private func startPlayback(fps: Int) {
+        let fps = max(fps, 1)
+        guard gifTimer == nil || playbackFPS != fps else { return }
+        stopPlayback()
+        playbackFPS = fps
+        let timer = Timer(
+            timeInterval: 1.0 / Double(fps),
+            target: self,
+            selector: #selector(advanceFrame),
+            userInfo: nil,
+            repeats: true
+        )
+        RunLoop.main.add(timer, forMode: .common)
+        gifTimer = timer
+    }
+
+    @objc private func advanceFrame() {
+        guard !frames.isEmpty else { return }
+        currentFrame = (currentFrame + 1) % frames.count
+        layer?.contents = frames[currentFrame]
+    }
+
+    func stopPlayback() {
+        gifTimer?.invalidate()
+        gifTimer = nil
+        playbackFPS = 0
     }
 }
 

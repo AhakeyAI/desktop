@@ -504,6 +504,15 @@ enum LightEffectStyle: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    var isAnimated: Bool {
+        switch self {
+        case .off, .middleLight:
+            false
+        default:
+            true
+        }
+    }
+
     var firmwareIndex: UInt8 {
         switch self {
         case .off: 0

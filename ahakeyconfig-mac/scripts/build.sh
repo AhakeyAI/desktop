@@ -95,7 +95,9 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   ditto "$APP_ROOT/Resources/DefaultOLED" "$APP_BUNDLE/Contents/Resources/DefaultOLED"
 fi
 
-BUILD_NUMBER="$(git -C "$APP_ROOT/../.." rev-list --count HEAD 2>/dev/null || echo 1)"
+REPO_ROOT="$(git -C "$APP_ROOT" rev-parse --show-toplevel 2>/dev/null || echo "$APP_ROOT")"
+BUILD_NUMBER="$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 
 cat > "$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -127,6 +129,8 @@ cat > "$INFO_PLIST" <<PLIST
   <string>0.1.0</string>
   <key>CFBundleVersion</key>
   <string>${BUILD_NUMBER}</string>
+  <key>AhaKeyGitCommit</key>
+  <string>${GIT_COMMIT}</string>
   <key>LSMinimumSystemVersion</key>
   <string>${MACOS_DEPLOYMENT_TARGET}</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
