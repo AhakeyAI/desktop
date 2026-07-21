@@ -12,7 +12,7 @@
     <VBox spacing="20" HBox.hgrow="ALWAYS">
         <StackPane fx:id="lightBarCard" styleClass="light-bar-card">
             <VBox spacing="6" alignment="CENTER">
-                <Label styleClass="hotspot-label" text="灯条"/>
+                <Label fx:id="lightBarLabel" styleClass="hotspot-label"/>
                 <HBox fx:id="lightBarTrack" spacing="10" styleClass="light-bar-track" alignment="CENTER">
                     <Region fx:id="lightSeg1" styleClass="light-segment"/>
                     <Region fx:id="lightSeg2" styleClass="light-segment"/>

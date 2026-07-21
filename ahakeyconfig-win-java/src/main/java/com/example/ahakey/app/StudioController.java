@@ -11,6 +11,7 @@ import com.example.ahakey.service.HookDispatchServer;
 import com.example.ahakey.service.OledUploadService;
 import com.example.ahakey.util.OLEDFrameEncoder;
 import com.example.ahakey.util.StudioStore;
+import com.example.ahakey.util.LanguageManager;
 import javafx.application.Platform;
 import javafx.stage.FileChooser;
 import org.slf4j.Logger;
@@ -27,6 +28,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class StudioController {
     private static final Logger logger = LoggerFactory.getLogger(StudioController.class);
+    private final LanguageManager languageManager = LanguageManager.getInstance();
     private final DeviceStatus deviceStatus = new DeviceStatus();
     private final StudioState studioState = new StudioState();
     private final AgentManager agentManager = new AgentManager();
@@ -123,6 +125,10 @@ public class StudioController {
 
     public AgentManager getAgentManager() {
         return agentManager;
+    }
+
+    public int getHookDispatchPort() {
+        return hookDispatchServer.getActualPort();
     }
 
     public boolean isEffectivelyConnected() {
@@ -400,14 +406,24 @@ public class StudioController {
      * @return true 表示用户确认，false 表示用户拒绝
      */
     private boolean showApprovalDialog(String platform, String eventName) {
+        if (!javafx.application.Platform.isFxApplicationThread()) {
+            java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+            final boolean[] result = {false};
+            javafx.application.Platform.runLater(() -> {
+                result[0] = showApprovalDialog(platform, eventName);
+                latch.countDown();
+            });
+            try { latch.await(30, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { }
+            return result[0];
+        }
         javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
-        alert.setTitle("AhaKey - 操作确认");
+        alert.setTitle(languageManager.getString("dialog.confirm-title"));
         alert.setHeaderText(null);
-        alert.setContentText(String.format("%s 正在请求执行操作（%s）\n\n当前处于手动模式，请确认是否允许此操作？", 
+        alert.setContentText(String.format(languageManager.getString("dialog.confirm-content"), 
             platform, eventName));
         
-        javafx.scene.control.ButtonType okButton = new javafx.scene.control.ButtonType("允许");
-        javafx.scene.control.ButtonType cancelButton = new javafx.scene.control.ButtonType("拒绝");
+        javafx.scene.control.ButtonType okButton = new javafx.scene.control.ButtonType(languageManager.getString("dialog.allow"));
+        javafx.scene.control.ButtonType cancelButton = new javafx.scene.control.ButtonType(languageManager.getString("dialog.deny"));
         alert.getButtonTypes().setAll(okButton, cancelButton);
         
         java.util.Optional<javafx.scene.control.ButtonType> result = alert.showAndWait();
@@ -422,11 +438,11 @@ public class StudioController {
         int count = OLEDFrameEncoder.frameCount(path);
         int limit = localSafeGifFrameLimit();
         if (count <= 0) {
-            throw new IllegalStateException("这个 GIF 没有可读取的帧，请换一个文件。");
+            throw new IllegalStateException(languageManager.getString("dialog.gif-no-frames"));
         }
         if (count > limit) {
             throw new IllegalStateException(
-                "这个 GIF 有 " + count + " 帧，超过当前固件每个模式的安全上限 " + limit + " 帧。请缩短 GIF、降低帧数，或者改用静态图片。"
+                String.format(languageManager.getString("dialog.gif-too-many-frames"), count, limit)
             );
         }
         return count;
@@ -434,11 +450,11 @@ public class StudioController {
 
     public void selectOledGif(javafx.stage.Window owner) {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("选择 GIF 或图片");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("GIF 动图", "*.gif"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG 图片", "*.png"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JPG 图片", "*.jpg", "*.jpeg"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("GIF 或图片", "*.gif", "*.png", "*.jpg", "*.jpeg"));
+        chooser.setTitle(languageManager.getString("dialog.select-gif"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-gif"), "*.gif"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-png"), "*.png"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-jpg"), "*.jpg", "*.jpeg"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-all"), "*.gif", "*.png", "*.jpg", "*.jpeg"));
         var file = chooser.showOpenDialog(owner);
         if (file == null) {
             return;
@@ -639,12 +655,12 @@ public class StudioController {
 
     public String configurationModeButtonTitle() {
         if (studioState.syncingProperty().get()) {
-            return "保存中…";
+            return languageManager.getString("button.save-progress");
         }
         if (agentManager.isEditingConfiguration()) {
-            return "保存配置";
+            return languageManager.getString("button.save-config");
         }
-        return "编辑配置";
+        return languageManager.getString("button.edit-config");
     }
 
     public void handleConfigurationModeButton() {

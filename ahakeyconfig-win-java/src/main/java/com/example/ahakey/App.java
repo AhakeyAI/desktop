@@ -4,6 +4,7 @@ import com.example.ahakey.app.StudioController;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
 import com.example.ahakey.service.VoiceInputManager;
+import com.example.ahakey.util.LanguageManager;
 import com.example.ahakey.view.CanvasPane;
 import com.example.ahakey.view.InspectorPane;
 import com.example.ahakey.view.StatusBar;
@@ -87,12 +88,19 @@ public class App extends Application {
      */
     @Override
     public void start(Stage primaryStage) {
+        if (SingleInstanceChecker.isAlreadyRunning()) {
+            logger.info("检测到已有实例运行，退出");
+            Platform.exit();
+            return;
+        }
+        logger.info("AhaKey Studio 启动中...");
+        
         this.primaryStage = primaryStage;
 
-        // 禁用隐式退出：当窗口隐藏时不会自动关闭应用，只有明确调用 Platform.exit() 才会退出
         Platform.setImplicitExit(false);
 
-        // 1. 创建主控制器，作为整个应用的核心协调者
+        initLanguage();
+
         controller = new StudioController();
         
         // 2. 条件初始化语音输入管理器（根据 model.enabled 配置）
@@ -268,6 +276,32 @@ public class App extends Application {
     /**
      * 初始化系统托盘
      */
+    private void initLanguage() {
+        try {
+            LanguageManager languageManager = LanguageManager.getInstance();
+            
+            java.io.File prefsDir = new java.io.File(
+                System.getProperty("user.home"), ".ahakey"
+            );
+            java.io.File prefsFile = new java.io.File(prefsDir, "preferences.properties");
+            
+            if (prefsFile.exists()) {
+                java.util.Properties prefs = new java.util.Properties();
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(prefsFile)) {
+                    prefs.load(fis);
+                    String savedLang = prefs.getProperty("AhaKeySelectedLanguage");
+                    if (savedLang != null && !savedLang.isEmpty()) {
+                        languageManager.switchLanguage(savedLang);
+                    }
+                }
+            }
+            
+            logger.info("语言设置初始化完成，当前语言: {}", languageManager.getCurrentLanguage());
+        } catch (Exception e) {
+            logger.warn("初始化语言设置失败: {}", e.getMessage());
+        }
+    }
+    
     private void initSystemTray() {
         if (!SystemTray.isSupported()) {
             logger.warn("系统托盘不受支持");
@@ -366,11 +400,24 @@ public class App extends Application {
             if (controller != null) {
                 controller.shutdown();
             }
+            
+            stopBleDriverProcess();
         } catch (Exception e) {
             logger.warn("Application shutdown cleanup failed: {}", e.getMessage());
         } finally {
             Platform.exit();
             System.exit(0);
+        }
+    }
+    
+    private void stopBleDriverProcess() {
+        try {
+            logger.info("停止 BLE_tcp_driver.exe 进程...");
+            new ProcessBuilder("taskkill", "/F", "/IM", "BLE_tcp_driver.exe").redirectErrorStream(true).start().waitFor();
+            Thread.sleep(300);
+            logger.info("BLE_tcp_driver.exe 进程已停止");
+        } catch (Exception e) {
+            logger.warn("停止 BLE_tcp_driver.exe 进程失败: {}", e.getMessage());
         }
     }
     

@@ -41,42 +41,56 @@ public final class StudioStore {
         }
         try {
             StudioState.PersistedDraft savedDraft = MAPPER.readValue(file, StudioState.PersistedDraft.class);
-            // 始终使用新的默认配置作为基础（确保按键配置与固件对齐）
             StudioState.PersistedDraft defaults = StudioState.PersistedDraft.defaults();
-            
-            // 合并用户自定义的非按键内容（如 OLED 图片等）
+
             if (savedDraft.modes != null) {
                 for (int i = 0; i < Math.min(savedDraft.modes.length, defaults.modes.length); i++) {
-                    if (savedDraft.modes[i] != null) {
-                        StudioState.PersistedDraft.ModeDraft savedMode = savedDraft.modes[i];
-                        StudioState.PersistedDraft.ModeDraft defaultMode = defaults.modes[i];
-                        // 保留用户自定义的 OLED 设置
-                        if (savedMode.oledGifPath != null && !savedMode.oledGifPath.isEmpty()) {
-                            defaultMode.oledGifPath = savedMode.oledGifPath;
-                        }
-                        if (savedMode.oledFps > 0) {
-                            defaultMode.oledFps = savedMode.oledFps;
-                        }
-                        if (savedMode.oledFrameCount > 0) {
-                            defaultMode.oledFrameCount = savedMode.oledFrameCount;
-                        }
-                        if (savedMode.voicePresetId != null) {
-                            defaultMode.voicePresetId = savedMode.voicePresetId;
-                        }
-                        if (savedMode.aiLightEffectIds != null) {
-                            defaultMode.aiLightEffectIds = savedMode.aiLightEffectIds;
-                        }
+                    StudioState.PersistedDraft.ModeDraft savedMode = savedDraft.modes[i];
+                    StudioState.PersistedDraft.ModeDraft defaultMode = defaults.modes[i];
+                    if (savedMode == null) continue;
+                    defaultMode.key1Hid = savedMode.key1Hid;
+                    defaultMode.key1Desc = savedMode.key1Desc;
+                    defaultMode.key1Macro = savedMode.key1Macro;
+                    defaultMode.key2Hid = savedMode.key2Hid;
+                    defaultMode.key2Desc = savedMode.key2Desc;
+                    defaultMode.key2Macro = savedMode.key2Macro;
+                    defaultMode.key3Hid = savedMode.key3Hid;
+                    defaultMode.key3Desc = savedMode.key3Desc;
+                    defaultMode.key3Macro = savedMode.key3Macro;
+                    defaultMode.key4Hid = savedMode.key4Hid;
+                    defaultMode.key4Desc = savedMode.key4Desc;
+                    defaultMode.key4Macro = savedMode.key4Macro;
+                    if (savedMode.oledGifPath != null && !savedMode.oledGifPath.isEmpty()) {
+                        defaultMode.oledGifPath = savedMode.oledGifPath;
+                    }
+                    if (savedMode.oledFps > 0) {
+                        defaultMode.oledFps = savedMode.oledFps;
+                    }
+                    if (savedMode.oledFrameCount > 0) {
+                        defaultMode.oledFrameCount = savedMode.oledFrameCount;
+                    }
+                    if (savedMode.oledSummary != null) {
+                        defaultMode.oledSummary = savedMode.oledSummary;
+                    }
+                    if (savedMode.oledCaption != null) {
+                        defaultMode.oledCaption = savedMode.oledCaption;
+                    }
+                    if (savedMode.voicePresetId != null) {
+                        defaultMode.voicePresetId = savedMode.voicePresetId;
+                    }
+                    if (savedMode.aiLightEffectIds != null) {
+                        defaultMode.aiLightEffectIds = savedMode.aiLightEffectIds;
                     }
                 }
             }
-            
-            // 保留全局设置
+
             defaults.revision = savedDraft.revision;
             defaults.lightBarPreviewId = savedDraft.lightBarPreviewId;
             defaults.lightBrightness = savedDraft.lightBrightness;
-            
+
             return defaults;
         } catch (IOException e) {
+            logger.warn("StudioStore.load failed, returning defaults: {}", e.getMessage());
             return StudioState.PersistedDraft.defaults();
         }
     }

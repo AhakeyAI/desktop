@@ -1,5 +1,6 @@
 package com.example.ahakey.model;
 
+import com.example.ahakey.util.LanguageManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import javafx.beans.property.*;
@@ -67,6 +68,8 @@ public class DeviceStatus {
     }
     
     public String getSwitchTitle() {
-        return isAutoApproval() ? "自动批准" : "手动批准";
+        return isAutoApproval() 
+            ? LanguageManager.getInstance().getString("status.auto-approval")
+            : LanguageManager.getInstance().getString("status.manual-approval");
     }
 }

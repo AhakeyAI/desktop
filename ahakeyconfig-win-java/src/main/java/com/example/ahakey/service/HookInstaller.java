@@ -11,6 +11,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 
 /**
  * Hook 安装器 - 独立于 UI 的 Hook 管理服务
@@ -18,7 +19,7 @@ import java.util.function.Consumer;
  */
 public class HookInstaller {
 
-    private final int dispatchPort;
+    private final IntSupplier portSupplier;
     private final Consumer<String> logger;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -43,9 +44,9 @@ public class HookInstaller {
         {"TaskCompleted", "10"}, {"Stop", "10"}, {"UserPromptSubmit", "10"}
     };
 
-    // Cursor: 5 个事件
+    // Cursor: 5 个事件（preToolUse 需要长超时，因为手动模式弹出用户确认对话框）
     private static final String[][] CURSOR_EVENTS = {
-        {"sessionStart", "10"}, {"sessionEnd", "10"}, {"preToolUse", "10"},
+        {"sessionStart", "10"}, {"sessionEnd", "10"}, {"preToolUse", "120"},
         {"postToolUse", "10"}, {"stop", "10"}
     };
 
@@ -73,8 +74,16 @@ public class HookInstaller {
     };
 
     public HookInstaller(int dispatchPort, Consumer<String> logger) {
-        this.dispatchPort = dispatchPort;
+        this(() -> dispatchPort, logger);
+    }
+
+    public HookInstaller(IntSupplier portSupplier, Consumer<String> logger) {
+        this.portSupplier = portSupplier;
         this.logger = logger;
+    }
+
+    private int currentPort() {
+        return portSupplier.getAsInt();
     }
 
     /**
@@ -134,7 +143,7 @@ public class HookInstaller {
             String content = new String(Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
             switch (platform) {
                 case "Claude": return content.contains("ahakey-claude.ps1");
-                case "Cursor": return content.contains("ahakey-cursor.ps1");
+                case "Cursor": return content.contains("\"command\"") && content.contains("ahakey-cursor.ps1");
                 case "Codex": {
                     Path sidecar = Paths.get(System.getProperty("user.home"), ".codex", CODEX_SIDECAR_NAME);
                     return sidecar.toFile().exists();
@@ -160,7 +169,7 @@ public class HookInstaller {
             "} catch { }\n" +
             "try {\n" +
             "    $tcp = New-Object System.Net.Sockets.TcpClient\n" +
-            "    $tcp.Connect('127.0.0.1', " + dispatchPort + ")\n" +
+            "    $tcp.Connect('127.0.0.1', " + currentPort() + ")\n" +
             "    $writer = New-Object System.IO.StreamWriter($tcp.GetStream())\n" +
             "    $writer.WriteLine($EventName)\n" +
             "    $writer.Flush()\n" +
@@ -201,18 +210,26 @@ public class HookInstaller {
             "# AhaKey Codex Hook - Auto-generated, do not edit\n" +
             "param([Parameter(Position=0)][string]$EventName)\n" +
             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
-            "# Codex lifecycle hooks must output exactly {} (Codex validates JSON schema)\n" +
-            "if ($EventName -ne 'CodexPermissionRequest') {\n" +
-            "    [Console]::WriteLine('{}')\n" +
+            "# Codex PreToolUse: 拨杆手动模式 → ask 用户确认\n" +
+            "if ($EventName -eq 'CodexPreToolUse') {\n" +
+            "    if ($response -match '\"autoApproved\"\\s*:\\s*true') {\n" +
+            "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
+            "    } else {\n" +
+            "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
+            "    }\n" +
             "    exit 0\n" +
             "}\n" +
-            "# Codex PermissionRequest: output hookSpecificOutput in Codex format\n" +
-            "$isAuto = $response -match '\"autoApproved\"\\s*:\\s*true'\n" +
-            "if ($isAuto) {\n" +
-            "    [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
-            "} else {\n" +
-            "    [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\"}}')\n" +
+            "# Codex PermissionRequest: 拨杆手动模式 → ask 用户确认\n" +
+            "if ($EventName -eq 'CodexPermissionRequest') {\n" +
+            "    if ($response -match '\"autoApproved\"\\s*:\\s*true') {\n" +
+            "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
+            "    } else {\n" +
+            "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
+            "    }\n" +
+            "    exit 0\n" +
             "}\n" +
+            "# Codex 其他 lifecycle hooks must output exactly {} (Codex validates JSON schema)\n" +
+            "[Console]::WriteLine('{}')\n" +
             "exit 0\n";
         Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
@@ -235,9 +252,14 @@ public class HookInstaller {
             "# AhaKey Cursor Hook - Auto-generated, do not edit\n" +
             "param([Parameter(Position=0)][string]$EventName)\n" +
             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
-            "# Cursor: pass through server response (Cursor 特有格式)\n" +
-            "if ($response) { [Console]::WriteLine($response) } else { [Console]::WriteLine('{\"ok\":true}') }\n" +
-            "exit 0\n";
+            "# Cursor: output response and exit with non-zero when denied\n" +
+            "if ($response) {\n" +
+            "    [Console]::WriteLine($response)\n" +
+            "    if ($response -match '\"permission\"\\s*:\\s*\"deny\"') { exit 1 } else { exit 0 }\n" +
+            "} else {\n" +
+            "    [Console]::WriteLine('{\"permission\":\"allow\"}')\n" +
+            "    exit 0\n" +
+            "}\n";
         Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
@@ -451,7 +473,7 @@ public class HookInstaller {
         String home = System.getProperty("user.home");
         return switch (hookName) {
             case "Claude" -> Paths.get(home, ".claude", "hooks", CLAUDE_SCRIPT_NAME);
-            case "Cursor" -> Paths.get(home, ".cursor", "settings", "hooks", CURSOR_SCRIPT_NAME);
+            case "Cursor" -> Paths.get(home, ".cursor", "hooks.json");
             case "Codex" -> Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
             case "Kimi" -> Paths.get(home, ".config", "kimi-cli", "hooks.json");
             default -> Paths.get(home, ".ahakey", "hooks", "ahakey-" + hookName.toLowerCase() + ".ps1");

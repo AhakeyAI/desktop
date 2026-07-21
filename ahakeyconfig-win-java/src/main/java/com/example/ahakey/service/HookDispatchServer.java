@@ -193,14 +193,14 @@ public class HookDispatchServer {
 
             line = line.trim();
             String eventName = parseEventName(line);
-            logger.debug("Hook 事件: {} (原始: {})", eventName, line);
 
             EventEntry entry = EVENT_MAP.get(eventName);
             if (entry == null) {
-                logger.warn("未知 hook 事件: {}", eventName);
+                logger.warn("未知 hook 事件: {} (原始: {})", eventName, line);
                 writer.println("{\"ok\":false,\"error\":\"unknown event: " + eventName + "\"}");
                 return;
             }
+            logger.debug("[{}] 收到事件: {} (原始: {})", entry.platform(), eventName, line);
 
             switch (entry.platform()) {
                 case CLAUDE -> handleClaudeEvent(writer, eventName, entry.state());
@@ -217,68 +217,87 @@ public class HookDispatchServer {
     private void handleClaudeEvent(PrintWriter writer, String eventName, IDEState state) {
         if (state == IDEState.PERMISSION_REQUEST) {
             boolean auto = checkAutoApproval(false);
-            logger.info("Claude PermissionRequest: 拨杆={}", auto ? "自动" : "手动");
-            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + auto + "}");
+            logger.info("[Claude] {} 拨杆={}", eventName, auto ? "自动" : "手动");
+            if (!auto && approvalCallback != null) {
+                boolean approved = approvalCallback.requestApproval("Claude", eventName);
+                logger.info("[Claude] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
+                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+            } else {
+                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + auto + "}");
+            }
             return;
         }
-        handleGeneric(writer, eventName, state);
+        handleGeneric(writer, eventName, state, "Claude");
     }
 
     private void handleCodexEvent(PrintWriter writer, String eventName, IDEState state) {
-        if (state == IDEState.PERMISSION_REQUEST) {
-            boolean auto = checkAutoApproval(false);
-            logger.info("Codex PermissionRequest: 拨杆={}", auto ? "自动" : "手动");
-            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + auto + "}");
+        boolean needApproval = "CodexPreToolUse".equals(eventName) || state == IDEState.PERMISSION_REQUEST;
+        if (needApproval) {
+            boolean auto = checkAutoApproval(true);
+            logger.info("[Codex] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+            try { bleManager.updateState((byte) state.getCode()); }
+            catch (Exception e) { logger.warn("[Codex] BLE 状态更新失败: {}", e.getMessage()); }
+
+            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
+            logger.info("[Codex] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
+            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
             return;
         }
-        handleGeneric(writer, eventName, state);
+        handleGeneric(writer, eventName, state, "Codex");
     }
 
     private void handleKimiEvent(PrintWriter writer, String eventName, IDEState state) {
         if ("KimiPreToolUse".equals(eventName)) {
             boolean auto = checkAutoApproval(true);
-            logger.info("KimiPreToolUse: 拨杆={} (switchState={})",
-                    auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+            logger.info("[Kimi] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
             try { bleManager.updateState((byte) state.getCode()); }
-            catch (Exception e) { logger.warn("BLE 状态更新失败: {}", e.getMessage()); }
+            catch (Exception e) { logger.warn("[Kimi] BLE 状态更新失败: {}", e.getMessage()); }
             
             if (auto) {
                 writer.println("{}");
+            } else if (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName)) {
+                writer.println("{}");
+                logger.info("[Kimi] {} 用户操作=允许", eventName);
             } else {
                 writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
-                logger.info("KimiPreToolUse: 手动模式拦截");
+                logger.info("[Kimi] {} 用户操作=拒绝", eventName);
             }
             return;
         }
-        handleGeneric(writer, eventName, state);
+        handleGeneric(writer, eventName, state, "Kimi");
     }
 
     private void handleCursorEvent(PrintWriter writer, String eventName, IDEState state) {
         if ("preToolUse".equals(eventName)) {
+            int switchState = bleManager.getCachedStatus().getSwitchState();
             boolean auto = checkAutoApproval(true);
-            logger.info("Cursor preToolUse: 拨杆={} (switchState={})",
-                    auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+            logger.info("[Cursor] {} 拨杆={} switchState={} callback={}", eventName, auto ? "自动" : "手动", switchState, approvalCallback != null);
             try { bleManager.updateState((byte) state.getCode()); }
-            catch (Exception e) { logger.warn("BLE 状态更新失败: {}", e.getMessage()); }
+            catch (Exception e) { logger.warn("[Cursor] BLE 状态更新失败: {}", e.getMessage()); }
             
             if (auto) {
-                writer.println("{\"ok\":true}");
+                logger.info("[Cursor] {} 自动放行", eventName);
+                writer.println("{\"permission\":\"allow\"}");
+            } else if (approvalCallback != null && approvalCallback.requestApproval("Cursor", eventName)) {
+                logger.info("[Cursor] {} 用户操作=允许", eventName);
+                writer.println("{\"permission\":\"allow\"}");
             } else {
-                writer.println("{\"ok\":true,\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
-                logger.info("Cursor preToolUse: 手动模式拦截");
+                String reason = approvalCallback == null ? "回调未注册" : "用户拒绝";
+                logger.info("[Cursor] {} 用户操作=拒绝({})", eventName, reason);
+                writer.println("{\"permission\":\"deny\",\"user_message\":\"手动模式，" + reason + "\"}");
             }
             return;
         }
-        handleGeneric(writer, eventName, state);
+        handleGeneric(writer, eventName, state, "Cursor");
     }
 
-    private void handleGeneric(PrintWriter writer, String eventName, IDEState state) {
+    private void handleGeneric(PrintWriter writer, String eventName, IDEState state, String platform) {
         try {
             bleManager.updateState((byte) state.getCode());
-            logger.info("Hook 分发成功: {} → {} (code={})", eventName, state.name(), state.getCode());
+            logger.info("[{}] {} → {} (code={})", platform, eventName, state.name(), state.getCode());
             writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode() + "}");
         } catch (Exception e) {
-            logger.error("BLE 状态更新失败: {}", e.getMessage());
+            logger.error("[{}] BLE 状态更新失败: {}", platform, e.getMessage());
             writer.println("{\"ok\":false,\"error\":\"BLE update failed\"}");
         }
     }

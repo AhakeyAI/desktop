@@ -2,6 +2,7 @@ package com.example.ahakey.view;
 
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.StudioState;
+import com.example.ahakey.util.LanguageManager;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -10,6 +11,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 
 public class StatusBar extends HBox {
+    private final LanguageManager languageManager = LanguageManager.getInstance();
+    
     public StatusBar(DeviceStatus deviceStatus, StudioState studioState) {
         init(deviceStatus, studioState);
     }
@@ -22,21 +25,21 @@ public class StatusBar extends HBox {
 
         Label selection = new Label();
         selection.textProperty().bind(Bindings.createStringBinding(
-            () -> "当前选中: " + studioState.getSelectedPart().getDisplayTitle(),
+            () -> languageManager.getString("status-bar.selection") + studioState.getSelectedPart().getDisplayTitle(),
             studioState.selectedPartProperty()
         ));
         selection.getStyleClass().add("status-bar-text");
 
         Label device = new Label();
         device.textProperty().bind(Bindings.createStringBinding(
-            () -> "设备: " + deviceStatus.getDeviceName(),
+            () -> languageManager.getString("status-bar.device") + deviceStatus.getDeviceName(),
             deviceStatus.deviceNameProperty()
         ));
         device.getStyleClass().add("status-bar-text");
 
         Label dirty = new Label();
         dirty.textProperty().bind(Bindings.createStringBinding(
-            () -> "待保存改动: " + studioState.getDirtyCount(),
+            () -> languageManager.getString("status-bar.dirty") + studioState.getDirtyCount(),
             studioState.dirtyCountProperty()
         ));
         dirty.getStyleClass().add("status-bar-text");

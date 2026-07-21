@@ -48,17 +48,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Status "Maven build successful" Green
 
-# Clean old installer
-if (Test-Path $InstallerDir) {
-    Write-Status "Removing old installer..." Yellow
-    try {
-        Get-Process -Name "AhaKeyStudio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 500
-    } catch { }
-    $null = New-Item -ItemType Directory -Path "$TargetDir\empty_dir" -Force -ErrorAction SilentlyContinue
-    robocopy "$TargetDir\empty_dir" $InstallerDir /MIR /NFL /NDL /NJH /NJS | Out-Null
-    Remove-Item -Path "$TargetDir\empty_dir" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path $InstallerDir -Recurse -Force -ErrorAction SilentlyContinue
+# Ensure installer directory exists
+if (-not (Test-Path $InstallerDir)) {
+    New-Item -ItemType Directory -Path $InstallerDir | Out-Null
 }
 
 # Create clean temporary input directory
