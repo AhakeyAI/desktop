@@ -564,7 +564,7 @@ public class BleManager {
                     // 解析BLE状态响应（参考Python的parse_status_response）
                     // 格式: [connected:1][name_len:1][name:N][mac_len:1][mac:N][is_target:1]
                     boolean bleConnected = (data[0] & 0xFF) == 1;
-                    String deviceName = "等待设备";
+                    String deviceName = "";
                     
                     if (data.length >= 3) {
                         int nameLen = data[1] & 0xFF;
@@ -573,14 +573,13 @@ public class BleManager {
                         }
                     }
                     
-                    logger.info("BLE状态响应 - 连接: {}, 设备名: {}", bleConnected, deviceName);
+                    logger.info("BLE状态响应 - 连接: {}, 设备名: {}", bleConnected, deviceName.isEmpty() ? "(empty)" : deviceName);
                     
-                    // 更新心跳时间戳（收到BLE状态响应也算作状态更新）
                     lastStatusUpdateTime = System.currentTimeMillis();
                     
                     boolean wasConnected = cachedStatus.isConnected();
                     cachedStatus.setConnected(bleConnected);
-                    cachedStatus.setDeviceName(bleConnected ? deviceName : "等待设备");
+                    cachedStatus.setDeviceName(bleConnected ? deviceName : "");
                     
                     // 如果是从断开变为连接，通知回调
                     if (bleConnected && !wasConnected) {
@@ -635,8 +634,7 @@ public class BleManager {
                 status.getSwitchState());
             if (usbTransport.isOpen()) {
                 status.setDeviceName("AhaKey USB");
-            } else if (cachedStatus.getDeviceName() != null && !cachedStatus.getDeviceName().isBlank()
-                && !"等待设备".equals(cachedStatus.getDeviceName())) {
+            } else if (cachedStatus.getDeviceName() != null && !cachedStatus.getDeviceName().isBlank()) {
                 status.setDeviceName(cachedStatus.getDeviceName());
             }
             status.setConnected(true);

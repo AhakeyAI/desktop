@@ -922,7 +922,7 @@ public class TopBar extends VBox {
         deviceRow1.getChildren().addAll(connStatus, batteryStatus);
 
         HBox deviceRow2 = new HBox(16);
-        Label deviceName = new Label(languageManager.getString("dialog.device-name") + ": " + (this.deviceStatus.getDeviceName() != null ? this.deviceStatus.getDeviceName() : "—"));
+        Label deviceName = new Label(languageManager.getString("dialog.device-name") + ": " + this.deviceStatus.getDisplayDeviceName());
         deviceName.getStyleClass().add("dialog-text");
         Label switchState = new Label();
         switchState.getStyleClass().add("dialog-text");

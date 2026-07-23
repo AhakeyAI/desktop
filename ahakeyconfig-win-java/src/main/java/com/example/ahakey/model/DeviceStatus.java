@@ -18,7 +18,7 @@ public class DeviceStatus {
     private final IntegerProperty lightMode = new SimpleIntegerProperty(0);
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
     private final IntegerProperty switchState = new SimpleIntegerProperty(-1);
-    private final StringProperty deviceName = new SimpleStringProperty("等待设备");
+    private final StringProperty deviceName = new SimpleStringProperty("");
     
     // Getters
     public boolean isConnected() { return isConnected.get(); }
@@ -71,5 +71,13 @@ public class DeviceStatus {
         return isAutoApproval() 
             ? LanguageManager.getInstance().getString("status.auto-approval")
             : LanguageManager.getInstance().getString("status.manual-approval");
+    }
+    
+    public String getDisplayDeviceName() {
+        String name = deviceName.get();
+        if (name == null || name.isBlank()) {
+            return LanguageManager.getInstance().getString("status.waiting-device");
+        }
+        return name;
     }
 }
