@@ -72,22 +72,39 @@ public class BleManager {
     }
 
     public void connect() {
+        long startTime = System.currentTimeMillis();
+        logger.info("[BLE] === 开始连接 (第{}次尝试) ===", ++connectAttemptCount);
+        
         if (isScanning) {
+            logger.warn("[BLE] 正在扫描中，忽略连接请求");
             return;
         }
         isScanning = true;
+        
         new Thread(() -> {
+            logger.info("[BLE] 连接线程启动，耗时={}ms", System.currentTimeMillis() - startTime);
+            
+            long phaseStart = System.currentTimeMillis();
             closeTcpOnly();
+            logger.info("[BLE] closeTcpOnly 完成，耗时={}ms", System.currentTimeMillis() - phaseStart);
+            
+            phaseStart = System.currentTimeMillis();
             if (tryConnectUsb()) {
+                logger.info("[BLE] USB连接成功，总耗时={}ms", System.currentTimeMillis() - startTime);
                 return;
             }
-            logger.info("Start connecting BLE bridge - {}:{}", host, port);
+            logger.info("[BLE] USB连接失败，尝试BLE桥，耗时={}ms", System.currentTimeMillis() - phaseStart);
+            
+            logger.info("[BLE] Start connecting BLE bridge - {}:{}", host, port);
             try {
+                phaseStart = System.currentTimeMillis();
                 socket = new Socket();
                 socket.connect(new InetSocketAddress(host, port), 5000);
                 socket.setTcpNoDelay(true);
                 outputStream = socket.getOutputStream();
                 inputStream = socket.getInputStream();
+                logger.info("[BLE] Socket连接成功，耗时={}ms", System.currentTimeMillis() - phaseStart);
+                
                 isConnected = true;
                 isScanning = false;
                 cachedStatus.setConnected(false);
@@ -98,88 +115,123 @@ public class BleManager {
                 if (cachedStatus.getSwitchState() < 0) {
                     cachedStatus.setSwitchState(1);
                 }
-                logger.info("BLE bridge connected - {}:{}", host, port);
+                logger.info("[BLE] BLE bridge connected - {}:{}", host, port);
+                
+                phaseStart = System.currentTimeMillis();
                 startReader();
+                logger.info("[BLE] startReader 完成，耗时={}ms", System.currentTimeMillis() - phaseStart);
+                
+                phaseStart = System.currentTimeMillis();
                 queryBridgeDeviceInfo();
+                logger.info("[BLE] queryBridgeDeviceInfo 完成，耗时={}ms", System.currentTimeMillis() - phaseStart);
+                
+                logger.info("[BLE] === 连接完成，总耗时={}ms ===", System.currentTimeMillis() - startTime);
             } catch (IOException e) {
                 isScanning = false;
                 isConnected = false;
                 cachedStatus.setConnected(false);
-                logger.warn("BLE bridge connect failed - {}:{}: {}", host, port, e.getMessage());
+                logger.warn("[BLE] BLE bridge connect failed - {}:{}: {}, 总耗时={}ms", 
+                    host, port, e.getMessage(), System.currentTimeMillis() - startTime);
                 callback.onError("BLE bridge connect failed (" + host + ":" + port + "): " + e.getMessage());
             }
         }, "device-connect").start();
     }
+    
+    private int connectAttemptCount = 0;
     public void disconnect() {
-        logger.info("=== 开始断开连接 ===");
+        long startTime = System.currentTimeMillis();
+        logger.info("[BLE] === 开始断开连接 ===");
         
         // 第一步：立即标记断开状态，阻止新操作
-        logger.debug("步骤1: 设置断开状态");
+        long phaseStart = System.currentTimeMillis();
         isConnected = false;
         cachedStatus.setConnected(false);
+        logger.info("[BLE] 步骤1: 设置断开状态，耗时={}ms", System.currentTimeMillis() - phaseStart);
         
         // 第二步：唤醒等待响应的线程
-        logger.debug("步骤2: 唤醒等待响应的线程");
+        phaseStart = System.currentTimeMillis();
         commandLock.lock();
         try {
             responseReady.signalAll();
-            logger.debug("步骤2完成: 已唤醒等待线程");
         } finally {
             commandLock.unlock();
         }
+        logger.info("[BLE] 步骤2: 唤醒等待响应的线程，耗时={}ms", System.currentTimeMillis() - phaseStart);
         
         // 第三步：关闭 USB（会停止其内部 readerThread）
-        logger.debug("步骤3: 关闭 USB 传输");
+        phaseStart = System.currentTimeMillis();
         try {
             usbTransport.close();
-            logger.debug("步骤3完成: USB 传输已关闭");
+            logger.info("[BLE] 步骤3: USB 传输已关闭，耗时={}ms", System.currentTimeMillis() - phaseStart);
         } catch (Exception e) {
-            logger.error("步骤3失败: USB 关闭异常 - {}", e.getMessage(), e);
+            logger.error("[BLE] 步骤3失败: USB 关闭异常 - {}，耗时={}ms", e.getMessage(), System.currentTimeMillis() - phaseStart, e);
         }
         
         // 第四步：关闭 TCP 连接
-        logger.debug("步骤4: 关闭 TCP 连接");
+        phaseStart = System.currentTimeMillis();
         try {
             closeTcpOnly();
-            logger.debug("步骤4完成: TCP 连接已关闭");
+            logger.info("[BLE] 步骤4: TCP 连接已关闭，耗时={}ms", System.currentTimeMillis() - phaseStart);
         } catch (Exception e) {
-            logger.error("步骤4失败: TCP 关闭异常 - {}", e.getMessage(), e);
+            logger.error("[BLE] 步骤4失败: TCP 关闭异常 - {}，耗时={}ms", e.getMessage(), System.currentTimeMillis() - phaseStart, e);
         }
         
         // 第五步：通知回调（最后执行，避免回调中访问正在清理的资源）
-        logger.debug("步骤5: 通知断开回调");
+        phaseStart = System.currentTimeMillis();
         try {
             callback.onDisconnected();
-            logger.debug("步骤5完成: 回调通知成功");
+            logger.info("[BLE] 步骤5: 回调通知成功，耗时={}ms", System.currentTimeMillis() - phaseStart);
         } catch (Exception e) {
-            logger.error("步骤5失败: 回调异常 - {}", e.getMessage(), e);
+            logger.error("[BLE] 步骤5失败: 回调异常 - {}，耗时={}ms", e.getMessage(), System.currentTimeMillis() - phaseStart, e);
         }
         
-        logger.info("=== 断开连接完成 ===");
+        logger.info("[BLE] === 断开连接完成，总耗时={}ms ===", System.currentTimeMillis() - startTime);
     }
 
     private void closeTcpOnly() {
+        long startTime = System.currentTimeMillis();
+        logger.info("[BLE] closeTcpOnly 开始");
+        
         try {
             if (readerThread != null) {
+                long phaseStart = System.currentTimeMillis();
                 readerThread.interrupt();
+                // 等待线程退出
+                try {
+                    readerThread.join(2000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                logger.info("[BLE] readerThread 已中断并等待退出，耗时={}ms", System.currentTimeMillis() - phaseStart);
             }
+            
             if (inputStream != null) {
+                long phaseStart = System.currentTimeMillis();
                 inputStream.close();
+                logger.info("[BLE] inputStream 已关闭，耗时={}ms", System.currentTimeMillis() - phaseStart);
             }
+            
             if (outputStream != null) {
+                long phaseStart = System.currentTimeMillis();
                 outputStream.close();
+                logger.info("[BLE] outputStream 已关闭，耗时={}ms", System.currentTimeMillis() - phaseStart);
             }
+            
             if (socket != null) {
+                long phaseStart = System.currentTimeMillis();
                 socket.close();
+                logger.info("[BLE] socket 已关闭，耗时={}ms", System.currentTimeMillis() - phaseStart);
             }
         } catch (IOException e) {
-            logger.warn("Close TCP connection failed: {}", e.getMessage());
+            logger.warn("[BLE] Close TCP connection failed: {}", e.getMessage());
         } finally {
             inputStream = null;
             outputStream = null;
             socket = null;
             readerThread = null;
         }
+        
+        logger.info("[BLE] closeTcpOnly 完成，总耗时={}ms", System.currentTimeMillis() - startTime);
     }
 
     public void sendCommand(byte[] command) throws IOException {
@@ -493,36 +545,41 @@ public class BleManager {
     }
 
     private void startReader() {
+        logger.info("[BLE] startReader 开始创建读取线程");
         readerThread = new Thread(() -> {
+            logger.info("[BLE] readerThread 已启动");
             byte[] header = new byte[3];
             try {
                 while (isConnected && !Thread.currentThread().isInterrupted()) {
                     if (!readFully(inputStream, header, 3)) {
-                        logger.warn("BLE 读取头部失败，连接可能已断开");
+                        logger.warn("[BLE] readerThread: 读取头部失败，连接可能已断开");
                         break;
                     }
                     int len = (header[1] & 0xFF) | ((header[2] & 0xFF) << 8);
                     byte[] body = len > 0 ? new byte[len] : new byte[0];
                     if (len > 0 && !readFully(inputStream, body, len)) {
-                        logger.warn("BLE 读取数据失败，连接可能已断开");
+                        logger.warn("[BLE] readerThread: 读取数据失败，连接可能已断开");
                         break;
                     }
                     handlePacket(header[0], body);
                 }
             } catch (IOException e) {
-                logger.warn("BLE 读取异常: {}", e.getMessage());
+                logger.warn("[BLE] readerThread: 读取异常 - {}", e.getMessage());
                 if (isConnected) {
                     callback.onError("BLE 桥连接断开: " + e.getMessage());
                 }
             } finally {
-                logger.info("BLE 读取线程退出");
+                logger.info("[BLE] readerThread: 线程退出，isConnected={}, isInterrupted={}", 
+                    isConnected, Thread.currentThread().isInterrupted());
                 if (isConnected && Thread.currentThread() == readerThread) {
+                    logger.info("[BLE] readerThread: 触发自动断开连接");
                     disconnect();
                 }
             }
         }, "ble-tcp-reader");
         readerThread.setDaemon(true);
         readerThread.start();
+        logger.info("[BLE] startReader: 读取线程已启动");
     }
 
     private void handlePacket(byte type, byte[] data) {

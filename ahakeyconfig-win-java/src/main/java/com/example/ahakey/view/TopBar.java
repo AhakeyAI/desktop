@@ -351,22 +351,59 @@ public class TopBar extends VBox {
      * - 如果 BLE_tcp_driver.exe 已运行，弹窗提示
      * - 否则启动同级目录下的 BLE_tcp_driver.exe
      */
+    private volatile boolean bleButtonProcessing = false;
+    private volatile long lastBleButtonClickTime = 0;
+    private static final long BLE_BUTTON_CLICK_DELAY_MS = 2000;
+    
     private void handleBleButtonClick() {
-        if (isBleDriverRunning()) {
-            if (isBleBridgeReachable()) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
-                alert.setHeaderText(null);
-                alert.setContentText(languageManager.getString("dialog.ble-running"));
-                alert.showAndWait();
-            } else {
-                stopBleDriverProcess();
-                launchBleDriver();
-            }
-        } else {
-            // 启动 BLE 驱动
-            launchBleDriver();
+        long now = System.currentTimeMillis();
+        
+        if (now - lastBleButtonClickTime < BLE_BUTTON_CLICK_DELAY_MS) {
+            return;
         }
+        
+        if (bleButtonProcessing) {
+            return;
+        }
+        
+        lastBleButtonClickTime = now;
+        bleButtonProcessing = true;
+        
+        new Thread(() -> {
+            try {
+                boolean running = isBleDriverRunning();
+                
+                if (!running) {
+                    launchBleDriver();
+                    return;
+                }
+                
+                boolean reachable = isBleBridgeReachable();
+                
+                if (reachable) {
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
+                        alert.setHeaderText(null);
+                        alert.setContentText(languageManager.getString("dialog.ble-running"));
+                        alert.showAndWait();
+                    });
+                } else {
+                    Thread.sleep(1500);
+                    reachable = isBleBridgeReachable();
+                    
+                    if (!reachable) {
+                        stopBleDriverProcess();
+                        Thread.sleep(500);
+                        launchBleDriver();
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                bleButtonProcessing = false;
+            }
+        }, "ble-button-handler").start();
     }
 
     /**
@@ -600,12 +637,25 @@ public class TopBar extends VBox {
     }
 
     private boolean isBleBridgeReachable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("127.0.0.1", 9000), 800);
-            return true;
-        } catch (Exception e) {
-            return false;
+        int maxRetries = 3;
+        int delayMs = 300;
+        
+        for (int i = 0; i < maxRetries; i++) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", 9000), 500);
+                return true;
+            } catch (Exception e) {
+                if (i < maxRetries - 1) {
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
         }
+        return false;
     }
 
     private void stopBleDriverProcess() {
@@ -679,15 +729,25 @@ public class TopBar extends VBox {
                 final File finalBleExe = bleExe;
                 ProcessBuilder pb = new ProcessBuilder(finalBleExe.getAbsolutePath());
                 pb.directory(finalBleExe.getParentFile());
-                pb.start();
                 
-                // 短暂延迟后再次检查，给用户反馈
+                pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                
+                Process process = pb.start();
+                
+                new Thread(() -> {
+                    try {
+                        int exitCode = process.waitFor();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }, "ble-driver-monitor").start();
+                
                 new Thread(() -> {
                     try {
                         Thread.sleep(1000);
                         Platform.runLater(() -> {
                             if (isBleDriverRunning()) {
-                                // 启动成功，无需额外提示
                             } else {
                                 showAlert(languageManager.getString("dialog.ble-driver-title"), String.format(languageManager.getString("dialog.ble-start-fail"), finalBleExe.getAbsolutePath()));
                             }
@@ -948,57 +1008,11 @@ public class TopBar extends VBox {
         addLog("[System] Java Version: " + System.getProperty("java.version"));
         addLog("");
 
-        // 检测并记录各 Hook 状态
-        String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
-        boolean[] hookInstalled = new boolean[4];
-        
-        for (int i = 0; i < hookNames.length; i++) {
-            String name = hookNames[i];
-            Path path = hookInstaller.getHookConfigPath(name);
-            File file = path.toFile();
-            
-            boolean installed = isHookInstalled(name);
-            
-            String detectionPrefix = languageManager.getString("hook.detection");
-            addLog(detectionPrefix + " === " + name + " Hook ===");
-            addLog(detectionPrefix + " " + languageManager.getString("hook.check-path") + ": " + path);
-            addLog(detectionPrefix + " " + languageManager.getString("hook.file-exists") + ": " + file.exists());
-            
-            if (file.exists()) {
-                try {
-                    String fileContent = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-                    addLog(detectionPrefix + " " + languageManager.getString("hook.file-size") + ": " + fileContent.length() + " chars");
-                    
-                    if ("Claude".equals(name)) {
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " SessionStart: " + fileContent.contains("SessionStart"));
-                    } else if ("Cursor".equals(name)) {
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " sessionStart: " + fileContent.contains("sessionStart"));
-                    } else if ("Codex".equals(name)) {
-                        String home = System.getProperty("user.home");
-                        Path sidecar = Paths.get(home, ".codex", HookInstaller.CODEX_SIDECAR_NAME);
-                        addLog(detectionPrefix + " sidecar " + languageManager.getString("hook.file-exists") + ": " + sidecar.toFile().exists());
-                        addLog(detectionPrefix + " hooks.json content length: " + fileContent.length());
-                    } else if ("Kimi".equals(name)) {
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " BEGIN marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_START));
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " END marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_END));
-                    }
-                } catch (Exception e) {
-                    addLog(detectionPrefix + " " + languageManager.getString("hook.read-failed") + ": " + e.getMessage());
-                }
-            }
-            
-            hookInstalled[i] = installed;
-            addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + (installed ? "Installed" : "Not Installed"));
-            addLog("");
-        }
-
-        // Hook 安装卡片
-        VBox claudeCard = createHookCard("Claude", hookInstalled[0]);
-        VBox cursorCard = createHookCard("Cursor", hookInstalled[1]);
-        VBox codexCard = createHookCard("Codex", hookInstalled[2]);
-        VBox kimiCard = createHookCard("Kimi", hookInstalled[3]);
+        // Hook 安装卡片（先用空状态创建，后面异步更新）
+        VBox claudeCard = createHookCard("Claude", false);
+        VBox cursorCard = createHookCard("Cursor", false);
+        VBox codexCard = createHookCard("Codex", false);
+        VBox kimiCard = createHookCard("Kimi", false);
 
         // 日志卡片
         VBox logCard = new VBox(8);
@@ -1036,7 +1050,82 @@ public class TopBar extends VBox {
         Scene scene = new Scene(scrollPane);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
         dialog.setScene(scene);
-        dialog.showAndWait();
+        
+        // 先显示对话框，然后在后台线程中进行 Hook 检测
+        dialog.show();
+        
+        // 在后台线程中检测 Hook 状态
+        new Thread(() -> {
+            String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
+            boolean[] hookInstalled = new boolean[4];
+            VBox[] hookCards = {claudeCard, cursorCard, codexCard, kimiCard};
+            
+            for (int i = 0; i < hookNames.length; i++) {
+                String name = hookNames[i];
+                Path path = hookInstaller.getHookConfigPath(name);
+                File file = path.toFile();
+                
+                boolean installed = isHookInstalled(name);
+                hookInstalled[i] = installed;
+                
+                String detectionPrefix = languageManager.getString("hook.detection");
+                addLog(detectionPrefix + " === " + name + " Hook ===");
+                addLog(detectionPrefix + " " + languageManager.getString("hook.check-path") + ": " + path);
+                addLog(detectionPrefix + " " + languageManager.getString("hook.file-exists") + ": " + file.exists());
+                
+                if (file.exists()) {
+                    try {
+                        String fileContent = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+                        addLog(detectionPrefix + " " + languageManager.getString("hook.file-size") + ": " + fileContent.length() + " chars");
+                        
+                        if ("Claude".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " SessionStart: " + fileContent.contains("SessionStart"));
+                        } else if ("Cursor".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " sessionStart: " + fileContent.contains("sessionStart"));
+                        } else if ("Codex".equals(name)) {
+                            String home = System.getProperty("user.home");
+                            Path sidecar = Paths.get(home, ".codex", HookInstaller.CODEX_SIDECAR_NAME);
+                            addLog(detectionPrefix + " sidecar " + languageManager.getString("hook.file-exists") + ": " + sidecar.toFile().exists());
+                            addLog(detectionPrefix + " hooks.json content length: " + fileContent.length());
+                        } else if ("Kimi".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " BEGIN marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_START));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " END marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_END));
+                        }
+                    } catch (Exception e) {
+                        addLog(detectionPrefix + " " + languageManager.getString("hook.read-failed") + ": " + e.getMessage());
+                    }
+                }
+                
+                addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + (installed ? "Installed" : "Not Installed"));
+                addLog("");
+                
+                // 更新卡片状态
+                int finalI = i;
+                boolean finalInstalled = installed;
+                Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
+            }
+        }, "hook-detection").start();
+    }
+    
+    private void updateHookCardStatus(VBox card, String hookName, boolean isInstalled) {
+        for (var child : card.getChildren()) {
+            if (child instanceof Button button) {
+                if (isInstalled) {
+                    button.setText(languageManager.getString("hook.uninstall"));
+                    button.getStyleClass().remove("button-install");
+                    button.getStyleClass().add("button-uninstall");
+                    button.setOnAction(event -> uninstallHook(hookName));
+                } else {
+                    button.setText(languageManager.getString("hook.install"));
+                    button.getStyleClass().remove("button-uninstall");
+                    button.getStyleClass().add("button-install");
+                    button.setOnAction(event -> installHook(hookName));
+                }
+                break;
+            }
+        }
     }
 
     private VBox createHookCard(String hookName, boolean isInstalled) {
