@@ -18,8 +18,8 @@ import Foundation
 ///     不会触发询问——实测证明这个值不满足"手动档需每次确认"的诉求（早期版本误用过）；
 ///   - `never`：从不询问，失败也不上报用户——对应自动档。
 /// Codex 的 `PermissionRequest` hook 协议本身不支持 `ask`/`deny`，必须像
-/// `KimiPermissionModeController` 改写 Kimi 的 `default_permission_mode` 一样，
-/// 直接改写 Codex 自身的审批策略开关，才能让拨杆真正接管。
+/// `KimiConfigLeverSync` 改写 `default_yolo` 一样，直接改写 Codex 自身的审批策略
+/// 开关，才能让拨杆真正接管。
 enum CodexConfigLeverSync {
     private static var configURL: URL {
         FileManager.default.homeDirectoryForCurrentUser

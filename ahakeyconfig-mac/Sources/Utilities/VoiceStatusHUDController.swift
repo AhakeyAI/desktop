@@ -93,13 +93,13 @@ struct VoiceStatusHUDState: Equatable {
     let title: String
     let subtitle: String
 
-    static let recording = VoiceStatusHUDState(kind: .recording, title: NSLocalizedString("录音中", comment: ""), subtitle: NSLocalizedString("再次按语音键结束", comment: ""))
-    static let recognizing = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("本地识别中", comment: ""), subtitle: NSLocalizedString("正在整理语音文本", comment: ""))
-    static let ahaType = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("AhaType 整理中", comment: ""), subtitle: NSLocalizedString("云端正在优化文本", comment: ""))
-    static let pasting = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("准备粘贴", comment: ""), subtitle: NSLocalizedString("正在写入当前光标", comment: ""))
-    static let done = VoiceStatusHUDState(kind: .success, title: NSLocalizedString("已写入", comment: ""), subtitle: NSLocalizedString("语音文本已完成", comment: ""))
-    static let empty = VoiceStatusHUDState(kind: .warning, title: NSLocalizedString("未识别到内容", comment: ""), subtitle: NSLocalizedString("请靠近麦克风重试", comment: ""))
-    static let failed = VoiceStatusHUDState(kind: .warning, title: NSLocalizedString("写入失败", comment: ""), subtitle: NSLocalizedString("请检查输入权限", comment: ""))
+    static let recording = VoiceStatusHUDState(kind: .recording, title: "录音中", subtitle: "再次按语音键结束")
+    static let recognizing = VoiceStatusHUDState(kind: .processing, title: "本地识别中", subtitle: "正在整理语音文本")
+    static let ahaType = VoiceStatusHUDState(kind: .processing, title: "AhaType 整理中", subtitle: "云端正在优化文本")
+    static let pasting = VoiceStatusHUDState(kind: .processing, title: "准备粘贴", subtitle: "正在写入当前光标")
+    static let done = VoiceStatusHUDState(kind: .success, title: "已写入", subtitle: "语音文本已完成")
+    static let empty = VoiceStatusHUDState(kind: .warning, title: "未识别到内容", subtitle: "请靠近麦克风重试")
+    static let failed = VoiceStatusHUDState(kind: .warning, title: "写入失败", subtitle: "请检查输入权限")
 }
 
 private struct VoiceStatusHUDView: View {

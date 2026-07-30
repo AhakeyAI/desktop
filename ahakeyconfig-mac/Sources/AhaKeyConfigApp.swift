@@ -1,5 +1,4 @@
 import AppKit
-import AhaKeyConfigShared
 import SwiftUI
 import AVFoundation
 import Speech
@@ -19,26 +18,13 @@ struct AhaKeyConfigApp: App {
 
         if #available(macOS 13.0, *) {
             MenuBarExtra("AhaKey", systemImage: "keyboard") {
-                Button(NSLocalizedString("打开主窗口", comment: "")) {
+                Button("打开主窗口") {
                     appDelegate.reopenMainWindow()
                 }
 
                 Divider()
 
-                let ppm = PowerProtectionManager.shared
-                Button(ppm.enabled ? NSLocalizedString("关闭合盖运行", comment: "") : NSLocalizedString("开启合盖运行", comment: "")) {
-                    ppm.enabled.toggle()
-                }
-
-                Button(NSLocalizedString("立即恢复正常休眠", comment: "")) {
-                    ppm.deactivateAll()
-                    ppm.enabled = false
-                }
-                .disabled(!ppm.isProtectionActive)
-
-                Divider()
-
-                Button(NSLocalizedString("退出 AhaKey Studio", comment: "")) {
+                Button("退出 AhaKey Studio") {
                     NSApp.terminate(nil)
                 }
             }
@@ -78,9 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             DispatchQueue.main.async {
                 if success {
                     let alert = NSAlert()
-                    alert.messageText = NSLocalizedString("检测到应用签名变化", comment: "")
-                    alert.informativeText = NSLocalizedString("麦克风权限已自动重置，下次点击「申请」按钮时会弹出系统授权对话框。", comment: "")
-                    alert.addButton(withTitle: NSLocalizedString("确定", comment: ""))
+                    alert.messageText = "检测到应用签名变化"
+                    alert.informativeText = "麦克风权限已自动重置，下次点击「申请」按钮时会弹出系统授权对话框。"
+                    alert.addButton(withTitle: "确定")
                     alert.runModal()
                 }
             }
@@ -88,7 +74,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         UNUserNotificationCenter.current().delegate = self
 
-        PowerProtectionManager.shared.configureAsApp()
         VoiceRelayService.shared.start()
         NativeSpeechTranscriptionService.shared.start()
     }
@@ -104,12 +89,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidBecomeActive(_ notification: Notification) {
         VoiceRelayService.shared.refreshPermissions()
         NativeSpeechTranscriptionService.shared.refreshPermissions()
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        // Best-effort cleanup: SIGKILL can't be caught, but normal quit/updates
-        // will release assertions and the virtual display lock.
-        _ = PowerProtectionManager.shared.deactivateAll()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

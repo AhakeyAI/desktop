@@ -12,7 +12,8 @@ fi
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio}"
 APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
-DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-AhaKey Installer}"
+# HFS+ is case-insensitive; avoid a volume name that shares the app bundle prefix.
+DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-Install AhaKey Studio}"
 DMG_BASENAME="${DMG_BASENAME:-AhaKey-Studio-macOS-prod-$(date +%Y%m%d%H%M%S)}"
 DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME.dmg"
 DMG_STAGING_DIR="$OUTPUT_DIR/.dmg-staging"
@@ -67,9 +68,7 @@ echo "💽 Creating writable HFS+ DMG..."
 # macOS 26 起 hdiutil create -srcfolder 无法处理含签名 .app 的目录（EPERM），
 # 改为：先建空 DMG → 挂载 → ditto 拷入文件，再走 AppleScript 布局。
 APP_SIZE_MB=$(du -sm "$APP_BUNDLE_PATH" | awk '{print $1}')
-# HFS+ needs more headroom than the raw app size; use a generous pad to avoid
-# fcopyfile "Operation not permitted" / "No space left" errors on macOS 26.
-DMG_SIZE_MB=$(( APP_SIZE_MB + 128 ))
+DMG_SIZE_MB=$(( APP_SIZE_MB + 32 ))
 
 rm -f "$RW_DMG_PATH"
 hdiutil create \
@@ -189,19 +188,9 @@ if [[ -n "$NOTARY_PROFILE" ]]; then
   echo "🧾 Notarizing DMG with profile: $NOTARY_PROFILE"
   xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG_PATH"
-elif [[ -n "$NOTARY_APPLE_ID" && -n "$NOTARY_TEAM_ID" && -n "$NOTARY_PASSWORD" ]]; then
-  echo "🧾 Notarizing DMG with Apple ID: $NOTARY_APPLE_ID"
-  xcrun notarytool submit "$DMG_PATH" \
-    --apple-id "$NOTARY_APPLE_ID" \
-    --team-id "$NOTARY_TEAM_ID" \
-    --password "$NOTARY_PASSWORD" \
-    --wait
-  xcrun stapler staple "$DMG_PATH"
 elif [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
-  echo "❌ RELEASE_DISTRIBUTION=1 requires notarization credentials."
-  echo "   Option A: set NOTARY_PROFILE to a keychain profile created with:"
-  echo "     xcrun notarytool store-credentials <profile-name> --apple-id <apple-id> --team-id <team-id> --password <app-specific-password>"
-  echo "   Option B: set NOTARY_APPLE_ID, NOTARY_TEAM_ID and NOTARY_PASSWORD."
+  echo "❌ RELEASE_DISTRIBUTION=1 requires NOTARY_PROFILE."
+  echo "   Create one with: xcrun notarytool store-credentials <profile-name> ..."
   exit 1
 fi
 

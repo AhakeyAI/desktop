@@ -6,7 +6,7 @@ struct KeyConfig: Codable {
     var description: String = ""
 
     var displayName: String {
-        hidCode == 0 ? NSLocalizedString("未设置", comment: "") : HIDUsage.name(for: hidCode)
+        hidCode == 0 ? "未设置" : HIDUsage.name(for: hidCode)
     }
 }
 
@@ -33,9 +33,9 @@ struct KeyMappingView: View {
 
     @State private var selectedKey = 0
     @State private var keys: [KeyConfig] = KeyConfigStore.load() ?? [
-        KeyConfig(hidCode: HIDUsage.capsLock, description: NSLocalizedString("录音", comment: "")),
+        KeyConfig(hidCode: HIDUsage.capsLock, description: "录音"),
         KeyConfig(hidCode: HIDUsage.enter, description: "Enter"),
-        KeyConfig(hidCode: HIDUsage.escape, description: NSLocalizedString("取消", comment: "")),
+        KeyConfig(hidCode: HIDUsage.escape, description: "取消"),
         KeyConfig(hidCode: HIDUsage.backspace, description: "Backspace"),
     ]
     @State private var showWriteSuccess = false
@@ -45,7 +45,7 @@ struct KeyMappingView: View {
     var body: some View {
         Form {
             // MARK: - 按键选择
-            Section(NSLocalizedString("按键映射", comment: "")) {
+            Section("按键映射") {
                 HStack(spacing: 12) {
                     ForEach(0..<4) { index in
                         Button {
@@ -81,17 +81,17 @@ struct KeyMappingView: View {
             }
 
             // MARK: - 编辑选中键
-            Section(String(format: NSLocalizedString("Key %d 设置", comment: ""), selectedKey + 1)) {
-                Picker(NSLocalizedString("键码", comment: ""), selection: $keys[selectedKey].hidCode) {
-                    Text(NSLocalizedString("未设置", comment: "")).tag(UInt8(0))
+            Section("Key \(selectedKey + 1) 设置") {
+                Picker("键码", selection: $keys[selectedKey].hidCode) {
+                    Text("未设置").tag(UInt8(0))
                     ForEach(HIDUsage.allOptions, id: \.code) { option in
                         Text("\(option.name)  (\(String(format: "0x%02X", option.code)))")
                             .tag(option.code)
                     }
                 }
 
-                CompatLabeledContent(NSLocalizedString("描述", comment: "")) {
-                    TextField(NSLocalizedString("显示在键盘 LCD 上", comment: ""), text: $keys[selectedKey].description)
+                CompatLabeledContent("描述") {
+                    TextField("显示在键盘 LCD 上", text: $keys[selectedKey].description)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
                 }
@@ -100,22 +100,22 @@ struct KeyMappingView: View {
             // MARK: - 预设方案
             Section {
                 HStack {
-                    Button(NSLocalizedString("EchoWrite 推荐", comment: "")) {
+                    Button("EchoWrite 推荐") {
                         applyEchoWritePreset()
                     }
                     .buttonStyle(.bordered)
                     .help("Key1=F18(EchoWrite) Key2=Enter Key3=Escape Key4=Enter")
 
-                    Button(NSLocalizedString("恢复默认", comment: "")) {
+                    Button("恢复默认") {
                         applyDefaultPreset()
                     }
                     .buttonStyle(.bordered)
-                    .help(NSLocalizedString("恢复出厂默认键位", comment: ""))
+                    .help("恢复出厂默认键位")
                 }
             } header: {
-                Text(NSLocalizedString("预设方案", comment: ""))
+                Text("预设方案")
             } footer: {
-                Text(NSLocalizedString("EchoWrite 推荐：Key1 发送 F18 触发随声写录音，Key2/4 确认，Key3 取消。", comment: ""))
+                Text("EchoWrite 推荐：Key1 发送 F18 触发随声写录音，Key2/4 确认，Key3 取消。")
                     .font(.caption)
             }
 
@@ -123,13 +123,13 @@ struct KeyMappingView: View {
             if bleManager.isConnected {
                 Section {
                     HStack {
-                        Button(NSLocalizedString("应用全部键位到设备", comment: "")) {
+                        Button("应用全部键位到设备") {
                             writeAllKeys()
                         }
                         .buttonStyle(.borderedProminent)
 
                         if showWriteSuccess {
-                            Label(NSLocalizedString("已发送", comment: ""), systemImage: "checkmark.circle.fill")
+                            Label("已发送", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                                 .font(.caption)
                         }
@@ -140,7 +140,7 @@ struct KeyMappingView: View {
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
-                        Text(NSLocalizedString("请先连接 AhaKey 设备", comment: ""))
+                        Text("请先连接 AhaKey 设备")
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)

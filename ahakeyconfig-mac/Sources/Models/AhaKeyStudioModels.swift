@@ -32,33 +32,33 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
     var subtitle: String {
         switch self {
         case .mode0:
-            NSLocalizedString("Claude Code · 终端权限 Y/N", comment: "")
+            "Claude Code · 终端权限 Y/N"
         case .mode1:
             "Cursor · Composer Accept/Reject"
         case .mode2:
             "Codex · ↵ / Esc"
         case .mode3:
-            NSLocalizedString("custom · 自定义模式", comment: "")
+            "custom · 自定义模式"
         }
     }
 
     var guidance: String {
         switch self {
         case .mode0:
-            NSLocalizedString("针对 Claude Code 终端权限菜单：Key2 直接输入 Y（同意），Key3 直接输入 N（拒绝）。", comment: "")
+            "针对 Claude Code 终端权限菜单：Key2 直接输入 Y（同意），Key3 直接输入 N（拒绝）。"
         case .mode1:
-            NSLocalizedString("针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。", comment: "")
+            "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。"
         case .mode2:
-            NSLocalizedString("针对 Codex 终端审批：Key2 发送 ↵ 确认，Key3 发送 Esc 取消。", comment: "")
+            "针对 Codex 终端审批：Key2 发送 ↵ 确认，Key3 发送 Esc 取消。"
         case .mode3:
-            NSLocalizedString("自定义模式：可自由配置所有按键和灯效。", comment: "")
+            "自定义模式：可自由配置所有按键和灯效。"
         }
     }
 
     var guidanceHoverDetail: String? {
         switch self {
         case .mode1:
-            return NSLocalizedString("若需与「⌘↵ 接受 / ⌘⌫ 拒绝」等组合键一致，请在编辑器里为对应键加修饰，并在 Cursor 设置 → Keyboard Shortcuts 中绑成相同组合。", comment: "")
+            return "若需与「⌘↵ 接受 / ⌘⌫ 拒绝」等组合键一致，请在编辑器里为对应键加修饰，并在 Cursor 设置 → Keyboard Shortcuts 中绑成相同组合。"
         case .mode0, .mode2, .mode3:
             return nil
         }
@@ -96,9 +96,9 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .lightBar:
-            NSLocalizedString("灯条", comment: "")
+            "灯条"
         case .oledDisplay:
-            NSLocalizedString("LCD 屏幕", comment: "")
+            "LCD 屏幕"
         case .key1:
             "Key 1"
         case .key2:
@@ -108,26 +108,26 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .key4:
             "Key 4"
         case .toggleSwitch:
-            NSLocalizedString("拨杆", comment: "")
+            "拨杆"
         }
     }
 
     var subtitle: String {
         switch self {
         case .lightBar:
-            NSLocalizedString("状态反馈", comment: "")
+            "AI 状态反馈"
         case .oledDisplay:
-            NSLocalizedString("图片显示", comment: "")
+            "动图显示"
         case .key1:
-            NSLocalizedString("语音键", comment: "")
+            "语音键"
         case .key2:
-            NSLocalizedString("确认键", comment: "")
+            "确认键"
         case .key3:
-            NSLocalizedString("取消键", comment: "")
+            "取消键"
         case .key4:
-            NSLocalizedString("删除键", comment: "")
+            "删除键"
         case .toggleSwitch:
-            NSLocalizedString("批准方式", comment: "")
+            "批准方式"
         }
     }
 
@@ -145,7 +145,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .key3:
             "xmark"
         case .key4:
-            "arrow.left"
+            "delete.left"
         case .toggleSwitch:
             "switch.2"
         }
@@ -193,13 +193,13 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .voice:
-            NSLocalizedString("语音键", comment: "")
+            "语音键"
         case .approve:
-            NSLocalizedString("确认键", comment: "")
+            "确认键"
         case .reject:
-            NSLocalizedString("取消键", comment: "")
+            "取消键"
         case .submit:
-            NSLocalizedString("删除键", comment: "")
+            "删除键"
         }
     }
 
@@ -212,7 +212,7 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
         case .reject:
             "xmark"
         case .submit:
-            "arrow.left"
+            "delete.left"
         }
     }
 
@@ -232,13 +232,13 @@ enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {
     var manualText: String {
         switch self {
         case .voice:
-            NSLocalizedString("优先用来触发语音输入，用户在软件里看到的是语音软件名，底层仍写成快捷键。", comment: "")
+            "优先用来触发语音输入，用户在软件里看到的是语音软件名，底层仍写成快捷键。"
         case .approve:
-            NSLocalizedString("适合批准、确认、继续执行这类高频动作。", comment: "")
+            "适合批准、确认、继续执行这类高频动作。"
         case .reject:
-            NSLocalizedString("适合拒绝、取消、停止这类相反动作。", comment: "")
+            "适合拒绝、取消、停止这类相反动作。"
         case .submit:
-            NSLocalizedString("出厂默认 Backspace，适合删除、撤销输入或清理当前内容。", comment: "")
+            "出厂默认 Backspace，适合删除、撤销输入或清理当前内容。"
         }
     }
 }
@@ -317,7 +317,7 @@ struct ShortcutBinding: Codable, Equatable {
         let modifierLabel = orderedModifiers.map(\.symbol).joined()
         let keyLabel = keyCode == 0 ? "" : HIDUsage.name(for: keyCode)
         let combined = modifierLabel + keyLabel
-        return combined.isEmpty ? NSLocalizedString("未设置", comment: "") : combined
+        return combined.isEmpty ? "未设置" : combined
     }
 
     var isConfigured: Bool {
@@ -372,34 +372,34 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .macOSNative, .claudeCode, .kimiCode:
-            NSLocalizedString("macOS 原生转写", comment: "")
+            "macOS 原生转写"
         case .typeless:
             "Fn/Globe"
         case .wechat:
-            NSLocalizedString("微信语音", comment: "")
+            "微信语音"
         case .codex:
             "Codex"
         case .doubao:
-            NSLocalizedString("豆包输入法", comment: "")
+            "豆包输入法"
         case .custom:
-            NSLocalizedString("自定义快捷键", comment: "")
+            "自定义快捷键"
         }
     }
 
     var detail: String {
         switch self {
         case .macOSNative, .claudeCode, .kimiCode:
-            NSLocalizedString("调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。", comment: "")
+            "调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。"
         case .typeless:
-            NSLocalizedString("预设对应快捷键：Typeless/微信语音/豆包输入法内仍选 Fn/Globe。本 Studio 使用 F19 作为 Fn 触发键；按下后向系统注入「按住 Fn」。旧版 F18 仍会兼容监听。请授予输入监控与辅助功能。", comment: "")
+            "预设对应快捷键：Typeless/微信语音/豆包输入法内仍选 Fn/Globe。本 Studio 使用 F19 作为 Fn 触发键；按下后向系统注入「按住 Fn」。旧版 F18 仍会兼容监听。请授予输入监控与辅助功能。"
         case .wechat:
-            NSLocalizedString("AhaKey Studio 使用 F19 作为 Fn 触发键，并在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。", comment: "")
+            "AhaKey Studio 使用 F19 作为 Fn 触发键，并在后台把语音键的按下/松开转换成 Fn/Globe，便于接入微信语音。"
         case .doubao:
-            NSLocalizedString("豆包输入法 Mac 版需要直接接收真实语音键事件。AhaKey Studio 会切到豆包输入源，并把 F18 配置为豆包长按语音快捷键；按住语音键说话，松开后由豆包提交文字。", comment: "")
+            "豆包输入法 Mac 版需要直接接收真实语音键事件。AhaKey Studio 会切到豆包输入源，并把 F18 配置为豆包长按语音快捷键；按住语音键说话，松开后由豆包提交文字。"
         case .codex:
-            NSLocalizedString("规划中，保留入口。", comment: "")
+            "规划中，保留入口。"
         case .custom:
-            NSLocalizedString("直接自己指定底层快捷键。", comment: "")
+            "直接自己指定底层快捷键。"
         }
     }
 
@@ -446,26 +446,26 @@ enum LightBarPreviewState: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .aiRunning:
-            NSLocalizedString("运行中", comment: "")
+            "AI 运行中"
         case .waitingApproval:
-            NSLocalizedString("等待批准", comment: "")
+            "等待批准"
         case .stopped:
-            NSLocalizedString("已停止", comment: "")
+            "已停止"
         case .taskCompleted:
-            NSLocalizedString("任务完成", comment: "")
+            "任务完成"
         }
     }
 
     var detail: String {
         switch self {
         case .aiRunning:
-            NSLocalizedString("默认效果是来回流水灯。", comment: "")
+            "默认效果是来回流水灯。"
         case .waitingApproval:
-            NSLocalizedString("提醒用户当前需要确认。", comment: "")
+            "提醒用户当前需要确认。"
         case .stopped:
-            NSLocalizedString("默认用红色常亮停住。", comment: "")
+            "默认用红色常亮停住。"
         case .taskCompleted:
-            NSLocalizedString("表示本轮执行已经完成。", comment: "")
+            "表示本轮执行已经完成。"
         }
     }
 
@@ -535,45 +535,45 @@ enum LightEffectStyle: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .off: NSLocalizedString("熄灭", comment: "")
-        case .middleLight: NSLocalizedString("中间停住", comment: "")
-        case .singleMove: NSLocalizedString("来回流水", comment: "")
-        case .breathing: NSLocalizedString("整条呼吸", comment: "")
-        case .rainbowMove: NSLocalizedString("彩虹流水", comment: "")
-        case .rainbowWave: NSLocalizedString("彩虹波浪", comment: "")
-        case .rainbowWaveSlow: NSLocalizedString("彩虹慢波浪", comment: "")
-        case .typingRipple: NSLocalizedString("打字涟漪", comment: "")
-        case .comet: NSLocalizedString("彗星拖尾", comment: "")
-        case .scanBar: NSLocalizedString("扫描条", comment: "")
-        case .pulseCenter: NSLocalizedString("中心脉冲", comment: "")
-        case .warningBlink: NSLocalizedString("警告闪烁", comment: "")
-        case .successSweep: NSLocalizedString("成功扫过", comment: "")
-        case .blueThinking: NSLocalizedString("蓝色思考", comment: "")
-        case .lowBattery: NSLocalizedString("低电量", comment: "")
-        case .chargingFlow: NSLocalizedString("充电流动", comment: "")
-        case .approvalWait: NSLocalizedString("等待审批", comment: "")
+        case .off: "熄灭"
+        case .middleLight: "中间停住"
+        case .singleMove: "来回流水"
+        case .breathing: "整条呼吸"
+        case .rainbowMove: "彩虹流水"
+        case .rainbowWave: "彩虹波浪"
+        case .rainbowWaveSlow: "彩虹慢波浪"
+        case .typingRipple: "打字涟漪"
+        case .comet: "彗星拖尾"
+        case .scanBar: "扫描条"
+        case .pulseCenter: "中心脉冲"
+        case .warningBlink: "警告闪烁"
+        case .successSweep: "成功扫过"
+        case .blueThinking: "蓝色思考"
+        case .lowBattery: "低电量"
+        case .chargingFlow: "充电流动"
+        case .approvalWait: "等待审批"
         }
     }
 
     var detail: String {
         switch self {
-        case .off: NSLocalizedString("不点亮灯条。", comment: "")
-        case .middleLight: NSLocalizedString("中间最亮，两侧渐弱，适合停住提示。", comment: "")
-        case .singleMove: NSLocalizedString("单点来回移动，适合运行中。", comment: "")
-        case .breathing: NSLocalizedString("整条均匀起伏，适合等待确认。", comment: "")
-        case .rainbowMove: NSLocalizedString("彩色单点流水，更活跃。", comment: "")
-        case .rainbowWave: NSLocalizedString("整条彩色流动，更显眼。", comment: "")
-        case .rainbowWaveSlow: NSLocalizedString("比普通彩虹波浪更慢，适合做氛围效果。", comment: "")
-        case .typingRipple: NSLocalizedString("从中心向两侧扩散的涟漪效果。", comment: "")
-        case .comet: NSLocalizedString("带拖尾的单向扫过，像彗星。", comment: "")
-        case .scanBar: NSLocalizedString("3 灯一组左右扫描。", comment: "")
-        case .pulseCenter: NSLocalizedString("中心快速脉冲扩散。", comment: "")
-        case .warningBlink: NSLocalizedString("橙色快速闪烁，适合警告。", comment: "")
-        case .successSweep: NSLocalizedString("绿色从左到右逐渐点亮。", comment: "")
-        case .blueThinking: NSLocalizedString("蓝色呼吸波浪，适合思考中。", comment: "")
-        case .lowBattery: NSLocalizedString("红色慢闪，表示低电量。", comment: "")
-        case .chargingFlow: NSLocalizedString("绿色填充流动，表示充电中。", comment: "")
-        case .approvalWait: NSLocalizedString("琥珀色呼吸 + 中心闪烁，等待用户操作。", comment: "")
+        case .off: "不点亮灯条。"
+        case .middleLight: "中间最亮，两侧渐弱，适合停住提示。"
+        case .singleMove: "单点来回移动，适合运行中。"
+        case .breathing: "整条均匀起伏，适合等待确认。"
+        case .rainbowMove: "彩色单点流水，更活跃。"
+        case .rainbowWave: "整条彩色流动，更显眼。"
+        case .rainbowWaveSlow: "比普通彩虹波浪更慢，适合做氛围效果。"
+        case .typingRipple: "从中心向两侧扩散的涟漪效果。"
+        case .comet: "带拖尾的单向扫过，像彗星。"
+        case .scanBar: "3 灯一组左右扫描。"
+        case .pulseCenter: "中心快速脉冲扩散。"
+        case .warningBlink: "橙色快速闪烁，适合警告。"
+        case .successSweep: "绿色从左到右逐渐点亮。"
+        case .blueThinking: "蓝色呼吸波浪，适合思考中。"
+        case .lowBattery: "红色慢闪，表示低电量。"
+        case .chargingFlow: "绿色填充流动，表示充电中。"
+        case .approvalWait: "琥珀色呼吸 + 中心闪烁，等待用户操作。"
         }
     }
 }
@@ -681,11 +681,11 @@ enum MacroAction: UInt8, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .noOp: return NSLocalizedString("空操作", comment: "")
-        case .downKey: return NSLocalizedString("按下", comment: "")
-        case .upKey: return NSLocalizedString("松开", comment: "")
-        case .delay: return NSLocalizedString("延时", comment: "")
-        case .upAllKeys: return NSLocalizedString("全部松开", comment: "")
+        case .noOp: return "空操作"
+        case .downKey: return "按下"
+        case .upKey: return "松开"
+        case .delay: return "延时"
+        case .upAllKeys: return "全部松开"
         }
     }
 
@@ -844,13 +844,14 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
             return voicePreset.title
         }
         if usesMacro {
-            return String(format: NSLocalizedString("宏：%@", comment: ""), macro.displaySummary)
+            return "宏：\(macro.displaySummary)"
         }
         return shortcut.displayLabel
     }
 }
 
 enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
+    case idle = 0
     case working = 1
     case waiting = 2
     case done = 3
@@ -858,9 +859,10 @@ enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
     var id: Int { rawValue }
     var title: String {
         switch self {
-        case .working: return NSLocalizedString("工作中", comment: "")
-        case .waiting: return NSLocalizedString("等待授权", comment: "")
-        case .done: return NSLocalizedString("已完成 / 停止", comment: "")
+        case .idle: return "待机"
+        case .working: return "进行中"
+        case .waiting: return "待批准"
+        case .done: return "已完成"
         }
     }
 }
@@ -869,12 +871,62 @@ struct AhaKeyTaskGIFAssetDraft: Codable, Equatable, Identifiable {
     var state: AhaKeyTaskDisplayState
     var localAssetPath: String?
     var framesPerSecond: Int
+    var deviceSchemaVersion: Int?
     var id: Int { state.rawValue }
 
-    init(state: AhaKeyTaskDisplayState, localAssetPath: String? = nil, framesPerSecond: Int = 12) {
+    init(
+        state: AhaKeyTaskDisplayState,
+        localAssetPath: String? = nil,
+        framesPerSecond: Int = 12,
+        deviceSchemaVersion: Int? = nil
+    ) {
         self.state = state
         self.localAssetPath = localAssetPath
         self.framesPerSecond = min(20, max(5, framesPerSecond))
+        self.deviceSchemaVersion = deviceSchemaVersion
+    }
+}
+
+struct AhaKeyTaskGIFSetDraft: Codable, Equatable {
+    var assets: [AhaKeyTaskGIFAssetDraft]
+
+    init(assets: [AhaKeyTaskGIFAssetDraft]) { self.assets = Self.normalizedAssets(assets) }
+
+    static func defaultSet(assetPath: String?, framesPerSecond: Int) -> AhaKeyTaskGIFSetDraft {
+        AhaKeyTaskGIFSetDraft(assets: AhaKeyTaskDisplayState.allCases.map {
+            AhaKeyTaskGIFAssetDraft(state: $0, localAssetPath: $0 == .done ? assetPath : nil, framesPerSecond: framesPerSecond)
+        })
+    }
+
+    static func emptySet() -> AhaKeyTaskGIFSetDraft {
+        AhaKeyTaskGIFSetDraft(assets: AhaKeyTaskDisplayState.allCases.map { AhaKeyTaskGIFAssetDraft(state: $0) })
+    }
+
+    func asset(for state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        assets.first { $0.state == state } ?? AhaKeyTaskGIFAssetDraft(state: state)
+    }
+
+    mutating func updateAsset(_ asset: AhaKeyTaskGIFAssetDraft) {
+        if let index = assets.firstIndex(where: { $0.state == asset.state }) { assets[index] = asset }
+        else { assets.append(asset) }
+        assets = Self.normalizedAssets(assets)
+    }
+
+    private static func normalizedAssets(_ candidates: [AhaKeyTaskGIFAssetDraft]) -> [AhaKeyTaskGIFAssetDraft] {
+        AhaKeyTaskDisplayState.allCases.map { state in
+            if let existing = candidates.first(where: { $0.state == state }) {
+                return existing
+            }
+            if state == .idle, let working = candidates.first(where: { $0.state == .working }) {
+                return AhaKeyTaskGIFAssetDraft(
+                    state: .idle,
+                    localAssetPath: working.localAssetPath,
+                    framesPerSecond: working.framesPerSecond,
+                    deviceSchemaVersion: working.deviceSchemaVersion
+                )
+            }
+            return AhaKeyTaskGIFAssetDraft(state: state)
+        }
     }
 }
 
@@ -882,35 +934,46 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
     var localAssetPath: String?
     var statusLine: String
     var framesPerSecond: Int
-    /// 单套任务状态图：working / waiting / done。
-    /// `done` 同时作为普通模式切换后的默认动画。
-    var taskGIFAssets: [AhaKeyTaskGIFAssetDraft]
+    var taskGIFSets: [AhaKeyTaskGIFSetDraft]
+    var activeGIFSet: Int
+    /// 0 is an existing one-GIF draft that needs migration on its first device write.
+    var taskGIFSchemaVersion: Int
 
     private enum CodingKeys: String, CodingKey {
         case localAssetPath
         case statusLine
         case framesPerSecond
-        case taskGIFAssets
+        case taskGIFSets
+        case activeGIFSet
+        case taskGIFSchemaVersion
     }
 
     init(
         localAssetPath: String?, statusLine: String, framesPerSecond: Int = 12,
-        taskGIFAssets: [AhaKeyTaskGIFAssetDraft]? = nil
+        taskGIFSets: [AhaKeyTaskGIFSetDraft]? = nil, activeGIFSet: Int = 0, taskGIFSchemaVersion: Int = 0
     ) {
         self.localAssetPath = localAssetPath
         self.statusLine = statusLine
-        self.framesPerSecond = min(30, max(1, framesPerSecond))
-        self.taskGIFAssets = Self.normalizedAssets(taskGIFAssets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: self.framesPerSecond)
+        self.framesPerSecond = min(20, max(5, framesPerSecond))
+        self.taskGIFSets = Self.normalizedSets(taskGIFSets ?? [], legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        self.activeGIFSet = min(1, max(0, activeGIFSet))
+        self.taskGIFSchemaVersion = max(0, taskGIFSchemaVersion)
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         localAssetPath = try container.decodeIfPresent(String.self, forKey: .localAssetPath)
         statusLine = try container.decode(String.self, forKey: .statusLine)
-        let storedFPS = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
-        framesPerSecond = min(30, max(1, storedFPS))
-        let storedAssets = try container.decodeIfPresent([AhaKeyTaskGIFAssetDraft].self, forKey: .taskGIFAssets)
-        taskGIFAssets = Self.normalizedAssets(storedAssets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        framesPerSecond = min(20, max(5, try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12))
+        taskGIFSets = Self.normalizedSets(try container.decodeIfPresent([AhaKeyTaskGIFSetDraft].self, forKey: .taskGIFSets) ?? [], legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        activeGIFSet = min(1, max(0, try container.decodeIfPresent(Int.self, forKey: .activeGIFSet) ?? 0))
+        taskGIFSchemaVersion = max(0, try container.decodeIfPresent(Int.self, forKey: .taskGIFSchemaVersion) ?? 0)
+        // Schema 1 duplicated the legacy animation into Set B during
+        // migration. Remove only exact duplicates; independently configured
+        // Set B assets are preserved.
+        if taskGIFSchemaVersion < 2, taskGIFSets.count > 1, taskGIFSets[1] == taskGIFSets[0] {
+            taskGIFSets[1] = .emptySet()
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -918,63 +981,55 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         try container.encodeIfPresent(localAssetPath, forKey: .localAssetPath)
         try container.encode(statusLine, forKey: .statusLine)
         try container.encode(framesPerSecond, forKey: .framesPerSecond)
-        try container.encode(taskGIFAssets, forKey: .taskGIFAssets)
+        try container.encode(taskGIFSets, forKey: .taskGIFSets)
+        try container.encode(activeGIFSet, forKey: .activeGIFSet)
+        try container.encode(taskGIFSchemaVersion, forKey: .taskGIFSchemaVersion)
     }
 
-    func taskAsset(for state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
-        taskGIFAssets.first { $0.state == state } ?? AhaKeyTaskGIFAssetDraft(state: state)
+    func taskAsset(set: Int, state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        let normalizedSet = min(1, max(0, set))
+        guard taskGIFSets.indices.contains(normalizedSet) else { return AhaKeyTaskGIFAssetDraft(state: state) }
+        return taskGIFSets[normalizedSet].asset(for: state)
     }
 
-    mutating func updateTaskAsset(_ asset: AhaKeyTaskGIFAssetDraft) {
-        if let index = taskGIFAssets.firstIndex(where: { $0.state == asset.state }) {
-            taskGIFAssets[index] = asset
-        } else {
-            taskGIFAssets.append(asset)
-        }
-        taskGIFAssets = Self.normalizedAssets(taskGIFAssets)
-        if asset.state == .done {
+    mutating func updateTaskAsset(set: Int, asset: AhaKeyTaskGIFAssetDraft) {
+        ensureTaskGIFSets()
+        let normalizedSet = min(1, max(0, set))
+        taskGIFSets[normalizedSet].updateAsset(asset)
+        if normalizedSet == 0 && asset.state == .done {
             localAssetPath = asset.localAssetPath
             framesPerSecond = asset.framesPerSecond
         }
     }
 
-    private static func normalizedAssets(
-        _ candidates: [AhaKeyTaskGIFAssetDraft]?,
-        legacyAssetPath: String?,
-        legacyFramesPerSecond: Int
-    ) -> [AhaKeyTaskGIFAssetDraft] {
-        let base = candidates ?? []
-        return AhaKeyTaskDisplayState.allCases.map { state in
-            base.first { $0.state == state }
-                ?? AhaKeyTaskGIFAssetDraft(state: state, localAssetPath: state == .done ? legacyAssetPath : nil, framesPerSecond: legacyFramesPerSecond)
-        }
+    mutating func ensureTaskGIFSets() {
+        taskGIFSets = Self.normalizedSets(taskGIFSets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        activeGIFSet = min(1, max(0, activeGIFSet))
     }
 
-    private static func normalizedAssets(_ candidates: [AhaKeyTaskGIFAssetDraft]) -> [AhaKeyTaskGIFAssetDraft] {
-        normalizedAssets(candidates, legacyAssetPath: nil, legacyFramesPerSecond: 12)
+    private static func normalizedSets(_ candidates: [AhaKeyTaskGIFSetDraft], legacyAssetPath: String?, legacyFramesPerSecond: Int) -> [AhaKeyTaskGIFSetDraft] {
+        var result = Array(candidates.prefix(2))
+        if result.isEmpty { result.append(.defaultSet(assetPath: legacyAssetPath, framesPerSecond: legacyFramesPerSecond)) }
+        while result.count < 2 { result.append(.emptySet()) }
+        return result
     }
 
     static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyOLEDDraft {
         let statusLine: String
         switch mode {
         case .mode0:
-            statusLine = NSLocalizedString("Claude Code · 终端权限菜单 Y/N。", comment: "")
+            statusLine = "Claude Code · 终端权限菜单 Y/N。"
         case .mode1:
-            statusLine = NSLocalizedString("Cursor · ↵ 接受改动 / ⌫ 拒绝改动。", comment: "")
+            statusLine = "Cursor · ↵ 接受改动 / ⌫ 拒绝改动。"
         case .mode2:
-            statusLine = NSLocalizedString("Codex · 审批 ↵ / Esc。", comment: "")
+            statusLine = "Codex · 审批 ↵ / Esc。"
         case .mode3:
-            statusLine = NSLocalizedString("自定义模式。", comment: "")
-        }
-        let bundledPath = DefaultOLEDAssets.bundledAssetPath(for: mode)
-        let assets = AhaKeyTaskDisplayState.allCases.map {
-            AhaKeyTaskGIFAssetDraft(state: $0, localAssetPath: $0 == .done ? bundledPath : nil, framesPerSecond: 12)
+            statusLine = "自定义模式。"
         }
         return AhaKeyOLEDDraft(
-            localAssetPath: bundledPath,
+            localAssetPath: DefaultOLEDAssets.bundledAssetPath(for: mode),
             statusLine: statusLine,
-            framesPerSecond: 12,
-            taskGIFAssets: assets
+            framesPerSecond: 12
         )
     }
 }
@@ -1130,6 +1185,7 @@ struct AhaKeyStudioDraft: Codable, Equatable {
 
 enum AhaKeyStudioStore {
     private static let key = "ahakey.studio.draft.v1"
+    private static let syncBaselineKey = "ahakey.studio.sync-baseline.v1"
 
     static func load() -> AhaKeyStudioDraft? {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -1148,14 +1204,24 @@ enum AhaKeyStudioStore {
         UserDefaults.standard.set(data, forKey: key)
     }
 
+    static func loadSyncBaseline() -> AhaKeyStudioDraft? {
+        guard let data = UserDefaults.standard.data(forKey: syncBaselineKey) else { return nil }
+        return try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data)
+    }
+
+    static func saveSyncBaseline(_ draft: AhaKeyStudioDraft) {
+        guard let data = try? JSONEncoder().encode(draft) else { return }
+        UserDefaults.standard.set(data, forKey: syncBaselineKey)
+    }
+
     private static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
         var next = draft
         var mode0 = next.draft(for: .mode0)
         let legacyDescriptions: [AhaKeyKeyRole: String] = [
-            .voice: NSLocalizedString("语音", comment: ""),
-            .approve: NSLocalizedString("批准", comment: ""),
-            .reject: NSLocalizedString("拒绝", comment: ""),
-            .submit: NSLocalizedString("回车", comment: ""),
+            .voice: "语音",
+            .approve: "批准",
+            .reject: "拒绝",
+            .submit: "回车",
         ]
 
         for role in AhaKeyKeyRole.allCases {
@@ -1231,17 +1297,17 @@ enum AhaKeyStudioStore {
         }
 
         let legacyOLEDStatusLines: Set<String> = [
-            NSLocalizedString("当前仅支持图片", comment: ""),
-            NSLocalizedString("切换模式时会先显示按键描述，再回到 Mode 1 默认图片。", comment: ""),
-            NSLocalizedString("当前模式还未上传图片，后续可替换成你的自定义图片。", comment: ""),
-            NSLocalizedString("Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。", comment: ""),
-            NSLocalizedString("Claude Code · 终端权限菜单 Y/N。", comment: ""),
-            NSLocalizedString("Codex · 审批 ↵ / Esc。", comment: ""),
+            "当前仅支持动图",
+            "切换模式时会先显示按键描述，再回到 Mode 1 默认动图。",
+            "当前模式还未上传动图，后续可替换成你的自定义 GIF。",
+            "Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。",
+            "Claude Code · 终端权限菜单 Y/N。",
+            "Codex · 审批 ↵ / Esc。",
         ]
         let legacyApproveBinding = ShortcutBinding(keyCode: HIDUsage.enter)
         let legacyRejectBinding = ShortcutBinding(keyCode: HIDUsage.escape)
-        let legacyApproveDescriptions: Set<String> = ["Accept", NSLocalizedString("批准", comment: ""), ""]
-        let legacyRejectDescriptions: Set<String> = ["Reject", NSLocalizedString("拒绝", comment: ""), ""]
+        let legacyApproveDescriptions: Set<String> = ["Accept", "批准", ""]
+        let legacyRejectDescriptions: Set<String> = ["Reject", "拒绝", ""]
 
         for mode in AhaKeyModeSlot.allCases {
             var modeDraft = next.draft(for: mode)
@@ -1288,7 +1354,7 @@ enum AhaKeyStudioStore {
             var submitKey = modeDraft.key(for: .submit)
             if submitKey.macro.isEmpty,
                submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.enter),
-               (submitKey.description == "Enter" || submitKey.description == NSLocalizedString("回车", comment: "") || submitKey.description.isEmpty)
+               (submitKey.description == "Enter" || submitKey.description == "回车" || submitKey.description.isEmpty)
             {
                 let targetSubmit = target.key(for: .submit)
                 submitKey.shortcut = targetSubmit.shortcut
@@ -1299,7 +1365,7 @@ enum AhaKeyStudioStore {
             submitKey = modeDraft.key(for: .submit)
             if submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.backspace),
                submitKey.macro.isEmpty,
-               ["", "backspace", "Back space", "Back Space", NSLocalizedString("删除", comment: ""), NSLocalizedString("删除键", comment: "")].contains(submitKey.description)
+               ["", "backspace", "Back space", "Back Space", "删除", "删除键"].contains(submitKey.description)
             {
                 submitKey.description = AhaKeyKeyRole.submit.defaultDescription
                 modeDraft.updateKey(submitKey)

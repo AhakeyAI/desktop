@@ -11,7 +11,7 @@ struct OLEDManagerView: View {
 
     var body: some View {
         Form {
-            Section(NSLocalizedString("动画管理", comment: "")) {
+            Section("动画管理") {
                 // 预览区
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -28,26 +28,26 @@ struct OLEDManagerView: View {
                             Image(systemName: "photo")
                                 .font(.largeTitle)
                                 .foregroundStyle(.tertiary)
-                            Text(NSLocalizedString("无图片", comment: ""))
+                            Text("无图片")
                                 .foregroundStyle(.tertiary)
                         }
                     }
                 }
 
                 HStack(spacing: 12) {
-                    Button(NSLocalizedString("添加图片", comment: "")) {
+                    Button("添加图片") {
                         selectImage()
                     }
                     .buttonStyle(.bordered)
 
-                    Button(NSLocalizedString("添加 GIF", comment: "")) {
+                    Button("添加 GIF") {
                         selectGIF()
                     }
                     .buttonStyle(.bordered)
 
                     Spacer()
 
-                    Button(NSLocalizedString("清空", comment: "")) {
+                    Button("清空") {
                         selectedImage = nil
                         selectedGIFURL = nil
                         frameCount = 0
@@ -62,7 +62,7 @@ struct OLEDManagerView: View {
                         Stepper("\(fps)", value: $fps, in: 1...30)
                             .frame(width: 100)
                         Spacer()
-                        Text(String(format: NSLocalizedString("%d 帧", comment: ""), frameCount))
+                        Text("\(frameCount) 帧")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -70,15 +70,16 @@ struct OLEDManagerView: View {
 
             if bleManager.isConnected {
                 Section {
-                    Button(NSLocalizedString("上传到设备", comment: "")) {
+                    Button("上传到设备") {
                         // TODO: 通过 BLE 0x7343 分包上传图片/GIF 数据
+                        // OLED 分辨率和图片格式待逆向确认
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(selectedImage == nil && selectedGIFURL == nil)
                 }
             } else {
                 Section {
-                    Text(NSLocalizedString("请先连接 AhaKey 设备", comment: ""))
+                    Text("请先连接 AhaKey 设备")
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -111,6 +112,7 @@ struct OLEDManagerView: View {
             }
             selectedGIFURL = url
             selectedImage = NSImage(contentsOf: url)
+            // GIF 帧数估算
             if let source = CGImageSourceCreateWithURL(url as CFURL, nil) {
                 frameCount = CGImageSourceGetCount(source)
             }

@@ -1,9 +1,8 @@
 import Foundation
-import AhaKeyConfigShared
 
 enum HookSupport {
     static let permissionLedValue: UInt8 = 1
-    static let socketPath = AhaKeyPaths.agentSocketPath
+    static let socketPath = "/tmp/ahakey.sock"
     static let stateRequestTimeout: Double = 2.0
     static let permissionRequestTimeout: Double = 5.0
 
@@ -98,8 +97,8 @@ enum HookSupport {
         switchState: Int?
     ) {
         if switchState == nil, reply == nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（\(socketPath) 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
-                + NSLocalizedString("请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n", comment: "")
+            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（/tmp/ahakey.sock 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
+                + "请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if switchState == nil, reply != nil {
             let msg = "[ahakey-hook] \(ide) \(hookName): 回包无有效 switchState（需 BLE 已连且能读到拨杆 0=自动批准），将按交回用户/终端处理。\n"
@@ -245,7 +244,7 @@ enum HookSupport {
         var out: [String: Any] = [
             "userCliConfig": CursorCliLeverSync.diagnosticSnapshotForLog(),
             "userPermissionsJson": CursorPermissionsJsonLeverSync.diagnosticSnapshotForLog(),
-            "note": NSLocalizedString("IDE「Not in allowlist」用 ~/.cursor/permissions.json 的 terminalAllowlist，与 userCliConfig（cli-config=CLI）分离；见 cursor.com/docs/reference/permissions", comment: ""),
+            "note": "IDE「Not in allowlist」用 ~/.cursor/permissions.json 的 terminalAllowlist，与 userCliConfig（cli-config=CLI）分离；见 cursor.com/docs/reference/permissions",
             "stdinFields": cursorStdinDebugFields(stdinData),
             "processEnvCursorVscode": cursorRelatedEnvForLog(),
         ]
