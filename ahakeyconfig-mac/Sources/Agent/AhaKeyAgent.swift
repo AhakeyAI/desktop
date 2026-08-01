@@ -69,7 +69,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     var onLog: ((String) -> Void)?
 
-    init(socketPath: String = "/tmp/ahakey.sock") {
+    init(socketPath: String = AhaKeySocket.defaultPath) {
         self.socketPath = socketPath
         if let raw = UserDefaults.standard.object(forKey: Self.switchOverrideDefaultsKey) as? Int {
             userSwitchOverride = UInt8(clamping: raw)
@@ -198,6 +198,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
 
         startWatchdog()
+
+        do {
+            try AhaKeySocket.prepareDirectory()
+        } catch {
+            emit("socket 目录准备失败: \(error.localizedDescription)")
+            return false
+        }
+
         // 清理没有监听进程的残留 socket
         unlink(socketPath)
 
@@ -213,20 +221,32 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
         }
 
+        // socket 文件的权限由 bind 时的 umask 决定，事后 chmod 会留下一个短暂的宽松窗口，
+        // 所以两手都做：先用 umask 压到 0600，bind 完再 chmod 兜底。
+        let previousMask = umask(0o177)
         let bindResult = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
                 bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
+        umask(previousMask)
         guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return false }
+        if chmod(socketPath, 0o600) != 0 {
+            emit("chmod 0600 失败: \(errno)（socket 可能对其他用户可见）")
+        }
 
         listen(fd, 5)
-        emit("监听 Unix socket: \(socketPath)")
+        emit("监听 Unix socket: \(socketPath)（0600，仅本用户）")
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             while true {
                 let clientFd = accept(fd, nil, nil)
                 guard clientFd >= 0 else { continue }
+                guard AhaKeySocket.peerIsSameUser(clientFd) else {
+                    close(clientFd)
+                    self?.emit("拒绝连接：对端不是本用户")
+                    continue
+                }
                 self?.handleClient(clientFd)
             }
         }

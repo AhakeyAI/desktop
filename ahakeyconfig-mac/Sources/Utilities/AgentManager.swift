@@ -56,7 +56,10 @@ final class AgentManager: ObservableObject {
     @Published private(set) var isAgentOperationInProgress = false
 
     private let label = "lab.jawa.ahakeyconfig.agent"
-    private let socketPath = "/tmp/ahakey.sock"
+
+    /// 必须与 Agent target 的 `AhaKeySocket.defaultPath` 一致（两个 target 不共享源码）。
+    private let socketPath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/AhaKeyConfig/agent.sock").path
 
     private var launchAgentsDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -552,7 +555,7 @@ final class AgentManager: ObservableObject {
             self.isAgentOperationInProgress = false
             self.refresh()
             if !self.isRunning {
-                var m = "已执行 launchctl load / start，但尚未检测到 Agent 在运行（未出现 /tmp/ahakey.sock）。\n\n"
+                var m = "已执行 launchctl load / start，但尚未检测到 Agent 在运行（未出现 \(socketPath)）。\n\n"
                 if !loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput) {
                     m += "load：\n\(loadRes.mergedOutput.isEmpty ? "（无输出）" : loadRes.mergedOutput)\n\n"
                 }
@@ -1384,12 +1387,12 @@ final class AgentManager: ObservableObject {
     }
 
     private func patchKimiApprovalPy(atPath path: String) throws -> KimiCliPatchStatus {
-        let marker = "_AHAKEY_SOCKET_PATH = \"/tmp/ahakey.sock\""
+        let marker = "_AHAKEY_SOCKET_PATH = os.path.expanduser("
         let helperAnchor = "type Response = Literal[\"approve\", \"approve_for_session\", \"reject\"]\n"
         let helperBlock = """
         type Response = Literal["approve", "approve_for_session", "reject"]
 
-        _AHAKEY_SOCKET_PATH = "/tmp/ahakey.sock"
+        _AHAKEY_SOCKET_PATH = os.path.expanduser("~/Library/Application Support/AhaKeyConfig/agent.sock")
         _AHAKEY_APPROVAL_CACHE_TTL_S = 0.35
         _ahakey_cache_at = 0.0
         _ahakey_cache_value: dict[str, object] | None = None
@@ -1445,6 +1448,7 @@ final class AgentManager: ObservableObject {
         let oldImports = "import uuid\n"
         let newImports = """
         import json
+        import os
         import socket
         import time
         import uuid

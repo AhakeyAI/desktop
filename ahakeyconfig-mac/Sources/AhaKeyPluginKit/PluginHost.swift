@@ -6,7 +6,7 @@ import Foundation
 // 当前最小三件套：
 //   - host/getInfo          → 返回宿主 app 元信息（bundleID / version / build / platform）
 //   - host/log              → 插件把日志打到宿主 stderr
-//   - host/getSwitchState   → 通过 /tmp/ahakey.sock 问 daemon 拨杆状态（agent 没跑则返回 null）
+//   - host/getSwitchState   → 通过 agent 的 Unix socket 问 daemon 拨杆状态（agent 没跑则返回 null）
 //
 // 后续要加的（如 host/showNotification、host/openURL、host/storage/*）按相同方式接到
 // `registerDefaultHandlers` 即可。增加新方法时记得在 manifest 的权限白名单里同步声明。
@@ -125,14 +125,16 @@ enum HostLog {
 
 // MARK: - host/getSwitchState
 
-/// 与 `Agent/HookClient.swift` 走同一套 `/tmp/ahakey.sock` 协议
+/// 与 `Agent/HookClient.swift` 走同一套 socket 协议
 /// （`{"cmd":"permission","value":1}` → `{"switchState": Int, ...}`）。
 /// agent 没跑或 BLE 没连上时返回 nil。
 ///
 /// 没把 socket 协议抽成共用 util，是因为 Agent target 与 AhaKeyPluginKit 暂不互相依赖；
 /// 后续若多处都要用，再抽 `AhaKeyAgentBridge` library。
+/// 在那之前，路径必须与 `Agent/HookSupport.swift` 的 `AhaKeySocket.defaultPath` 保持一致。
 enum HostAgentBridge {
-    static let socketPath = "/tmp/ahakey.sock"
+    static let socketPath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/AhaKeyConfig/agent.sock").path
     static let timeout: Double = 2.0
 
     static func readSwitchState() -> Int? {

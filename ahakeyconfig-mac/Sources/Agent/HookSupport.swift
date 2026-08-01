@@ -1,8 +1,46 @@
 import Foundation
 
+/// Agent 与 hook 客户端之间那条 Unix socket 的位置与权限约定。
+///
+/// 不放 `/tmp`：该目录全局可写，任何本机用户都能在 agent 启动前抢先 bind 同名路径来冒充
+/// agent（agent 见到已有监听就会主动让位，见 `AhaKeyAgent.startSocketListener`），
+/// 从而对每一次审批请求回「自动批准」，物理拨杆就此失效。
+/// `~/Library/Application Support/AhaKeyConfig/` 只有本人可进入，这条路径被封死。
+///
+/// 注意：同一 uid 下的进程仍然连得上——Unix 权限位管不了这一层。真正的边界是「别人」，
+/// 不是「你自己跑的其它程序」。
+enum AhaKeySocket {
+    static var defaultPath: String {
+        directoryURL.appendingPathComponent("agent.sock").path
+    }
+
+    static var directoryURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
+    }
+
+    /// 建目录并收紧到 0700；已存在时也强制改一次权限，避免历史遗留的宽松目录。
+    static func prepareDirectory() throws {
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
+    }
+
+    /// 校验对端与自己同一个 uid。跨用户的连接一律拒掉。
+    static func peerIsSameUser(_ fd: Int32) -> Bool {
+        var uid = uid_t(0)
+        var gid = gid_t(0)
+        guard getpeereid(fd, &uid, &gid) == 0 else { return false }
+        return uid == getuid()
+    }
+}
+
 enum HookSupport {
     static let permissionLedValue: UInt8 = 1
-    static let socketPath = "/tmp/ahakey.sock"
+    static var socketPath: String { AhaKeySocket.defaultPath }
     static let stateRequestTimeout: Double = 2.0
     static let permissionRequestTimeout: Double = 5.0
 
@@ -97,7 +135,7 @@ enum HookSupport {
         switchState: Int?
     ) {
         if switchState == nil, reply == nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（/tmp/ahakey.sock 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
+            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（\(socketPath) 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
                 + "请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if switchState == nil, reply != nil {
