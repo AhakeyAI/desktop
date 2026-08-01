@@ -56,7 +56,10 @@ final class AgentManager: ObservableObject {
     @Published private(set) var isAgentOperationInProgress = false
 
     private let label = "lab.jawa.ahakeyconfig.agent"
-    private let socketPath = "/tmp/ahakey.sock"
+
+    /// 必须与 Agent target 的 `AhaKeySocket.defaultPath` 一致（两个 target 不共享源码）。
+    private let socketPath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/AhaKeyConfig/agent.sock").path
 
     private var launchAgentsDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -200,13 +203,7 @@ final class AgentManager: ObservableObject {
             var tv = timeval(tv_sec: 2, tv_usec: 0)
             setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
             setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-            var addr = sockaddr_un()
-            addr.sun_family = sa_family_t(AF_UNIX)
-            socketPath.withCString { src in
-                withUnsafeMutablePointer(to: &addr.sun_path) { dst in
-                    _ = strcpy(UnsafeMutableRawPointer(dst).assumingMemoryBound(to: CChar.self), src)
-                }
-            }
+            guard var addr = makeUnixAddress(path: socketPath) else { return }
             let ok = withUnsafePointer(to: &addr) { ptr in
                 ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                     connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
@@ -236,13 +233,7 @@ final class AgentManager: ObservableObject {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        socketPath.withCString { src in
-            withUnsafeMutablePointer(to: &addr.sun_path) { dst in
-                _ = strcpy(UnsafeMutableRawPointer(dst).assumingMemoryBound(to: CChar.self), src)
-            }
-        }
+        guard var addr = makeUnixAddress(path: socketPath) else { return false }
         let ok = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
@@ -552,7 +543,7 @@ final class AgentManager: ObservableObject {
             self.isAgentOperationInProgress = false
             self.refresh()
             if !self.isRunning {
-                var m = "已执行 launchctl load / start，但尚未检测到 Agent 在运行（未出现 /tmp/ahakey.sock）。\n\n"
+                var m = "已执行 launchctl load / start，但尚未检测到 Agent 在运行（未出现 \(socketPath)）。\n\n"
                 if !loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput) {
                     m += "load：\n\(loadRes.mergedOutput.isEmpty ? "（无输出）" : loadRes.mergedOutput)\n\n"
                 }
@@ -1384,12 +1375,12 @@ final class AgentManager: ObservableObject {
     }
 
     private func patchKimiApprovalPy(atPath path: String) throws -> KimiCliPatchStatus {
-        let marker = "_AHAKEY_SOCKET_PATH = \"/tmp/ahakey.sock\""
+        let marker = "_AHAKEY_SOCKET_PATH = os.path.expanduser("
         let helperAnchor = "type Response = Literal[\"approve\", \"approve_for_session\", \"reject\"]\n"
         let helperBlock = """
         type Response = Literal["approve", "approve_for_session", "reject"]
 
-        _AHAKEY_SOCKET_PATH = "/tmp/ahakey.sock"
+        _AHAKEY_SOCKET_PATH = os.path.expanduser("~/Library/Application Support/AhaKeyConfig/agent.sock")
         _AHAKEY_APPROVAL_CACHE_TTL_S = 0.35
         _ahakey_cache_at = 0.0
         _ahakey_cache_value: dict[str, object] | None = None
@@ -1445,6 +1436,7 @@ final class AgentManager: ObservableObject {
         let oldImports = "import uuid\n"
         let newImports = """
         import json
+        import os
         import socket
         import time
         import uuid
@@ -1781,4 +1773,20 @@ final class AgentManager: ObservableObject {
     private func runLaunchctlQuiet(_ args: [String]) -> Bool {
         runLaunchctlDetailed(args).ok
     }
+}
+
+/// 填充 `sockaddr_un`，路径放不下时返回 nil。
+///
+/// `sun_path` 只有 104 字节，而 socket 路径含用户主目录，长度随用户名变化。
+/// 与 `Agent/AhaKeySocket.makeAddress` 同一份逻辑，两个 target 不共享源码。
+private func makeUnixAddress(path: String) -> sockaddr_un? {
+    var addr = sockaddr_un()
+    addr.sun_family = sa_family_t(AF_UNIX)
+    let capacity = MemoryLayout.size(ofValue: addr.sun_path)
+    guard path.utf8.count < capacity else { return nil }
+    withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
+        let dst = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
+        path.withCString { _ = strlcpy(dst, $0, capacity) }
+    }
+    return addr
 }

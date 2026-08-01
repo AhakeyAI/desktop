@@ -52,6 +52,9 @@ jobs:
       - name: Compile-check all targets (debug)
         run: swift build
 
+      - name: Unit tests
+        run: swift test
+
       - name: Package "AhaKey Studio.app" (release, ad-hoc signed)
         run: |
           chmod +x scripts/package_app.sh

@@ -73,7 +73,10 @@ struct ContentView: View {
             isRecording: nativeSpeech.isRecording,
             transcriptPreview: nativeSpeech.transcriptPreview,
             lastCommittedText: nativeSpeech.lastCommittedText,
-            speechStatusMessage: nativeSpeech.statusMessage
+            speechStatusMessage: nativeSpeech.statusMessage,
+            speechLocaleIdentifier: nativeSpeech.speechLocaleIdentifier,
+            activeLocaleDescription: nativeSpeech.activeLocaleDescription,
+            availableSpeechLocales: nativeSpeech.availableSpeechLocales
         )
     }
 
@@ -118,6 +121,9 @@ struct ContentView: View {
             toggleTryExperience: {
                 voiceRelay.suppressPermissionOnboarding()
                 nativeSpeech.toggleRecordingFromVoiceKey()
+            },
+            setSpeechLocale: { identifier in
+                nativeSpeech.speechLocaleIdentifier = identifier
             }
         )
     }

@@ -2,7 +2,7 @@ import Foundation
 
 enum HookSupport {
     static let permissionLedValue: UInt8 = 1
-    static let socketPath = "/tmp/ahakey.sock"
+    static var socketPath: String { AhaKeySocket.defaultPath }
     static let stateRequestTimeout: Double = 2.0
     static let permissionRequestTimeout: Double = 5.0
 
@@ -42,14 +42,7 @@ enum HookSupport {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        socketPath.withCString { src in
-            withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
-                let dst = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
-                _ = strcpy(dst, src)
-            }
-        }
+        guard var addr = AhaKeySocket.makeAddress(path: socketPath) else { return nil }
         let addrLen = socklen_t(MemoryLayout<sockaddr_un>.size)
         let connected = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
@@ -97,7 +90,7 @@ enum HookSupport {
         switchState: Int?
     ) {
         if switchState == nil, reply == nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（/tmp/ahakey.sock 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
+            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（\(socketPath) 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
                 + "请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if switchState == nil, reply != nil {

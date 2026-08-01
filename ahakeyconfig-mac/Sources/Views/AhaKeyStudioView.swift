@@ -710,6 +710,11 @@ struct AhaKeyStudioView: View {
                         Text(nativeSpeech.lastPermissionCheckSummary)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+
+                        Text("识别语言：\(nativeSpeech.activeLocaleDescription)（在语音键的「语音输入方式」里更改）")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
                         Divider()
 
                         HStack(spacing: 10) {
@@ -938,6 +943,28 @@ struct AhaKeyStudioView: View {
                             Text("只要 AhaKey Studio 在后台运行，Mode 1 出厂语音键发出的 F18 就会被直接接管到苹果原生转写。现在不再依赖系统听写快捷键。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            Divider()
+
+                            HStack(spacing: 10) {
+                                Text("识别语言")
+                                    .font(.callout)
+                                Picker("", selection: $nativeSpeech.speechLocaleIdentifier) {
+                                    Text("自动（跟随系统）").tag("")
+                                    Divider()
+                                    ForEach(nativeSpeech.availableSpeechLocales) { option in
+                                        Text(option.name).tag(option.id)
+                                    }
+                                }
+                                .labelsHidden()
+                                Spacer(minLength: 0)
+                            }
+                            Text("当前生效：\(nativeSpeech.activeLocaleDescription)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("「自动」按系统首选语言的顺序推断；系统语言不是你口述的语言时，在这里显式选一个。")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                         Text("语音键的输入方式独立于当前 Mode，在任意 Mode 下都可使用相同的语音输入设置。")
                             .font(.caption)

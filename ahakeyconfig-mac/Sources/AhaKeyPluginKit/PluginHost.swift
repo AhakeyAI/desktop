@@ -6,7 +6,7 @@ import Foundation
 // 当前最小三件套：
 //   - host/getInfo          → 返回宿主 app 元信息（bundleID / version / build / platform）
 //   - host/log              → 插件把日志打到宿主 stderr
-//   - host/getSwitchState   → 通过 /tmp/ahakey.sock 问 daemon 拨杆状态（agent 没跑则返回 null）
+//   - host/getSwitchState   → 通过 agent 的 Unix socket 问 daemon 拨杆状态（agent 没跑则返回 null）
 //
 // 后续要加的（如 host/showNotification、host/openURL、host/storage/*）按相同方式接到
 // `registerDefaultHandlers` 即可。增加新方法时记得在 manifest 的权限白名单里同步声明。
@@ -125,14 +125,16 @@ enum HostLog {
 
 // MARK: - host/getSwitchState
 
-/// 与 `Agent/HookClient.swift` 走同一套 `/tmp/ahakey.sock` 协议
+/// 与 `Agent/HookClient.swift` 走同一套 socket 协议
 /// （`{"cmd":"permission","value":1}` → `{"switchState": Int, ...}`）。
 /// agent 没跑或 BLE 没连上时返回 nil。
 ///
 /// 没把 socket 协议抽成共用 util，是因为 Agent target 与 AhaKeyPluginKit 暂不互相依赖；
 /// 后续若多处都要用，再抽 `AhaKeyAgentBridge` library。
+/// 在那之前，路径必须与 `Agent/AhaKeySocket.defaultPath` 保持一致。
 enum HostAgentBridge {
-    static let socketPath = "/tmp/ahakey.sock"
+    static let socketPath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/AhaKeyConfig/agent.sock").path
     static let timeout: Double = 2.0
 
     static func readSwitchState() -> Int? {
@@ -152,14 +154,7 @@ enum HostAgentBridge {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        socketPath.withCString { src in
-            withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
-                let dst = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
-                _ = strcpy(dst, src)
-            }
-        }
+        guard var addr = makeUnixAddress(path: socketPath) else { return nil }
         let len = socklen_t(MemoryLayout<sockaddr_un>.size)
         let connected = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, len) }
@@ -179,4 +174,20 @@ enum HostAgentBridge {
         guard n > 0 else { return nil }
         return (try? JSONSerialization.jsonObject(with: Data(buf[0 ..< Int(n)]))) as? [String: Any]
     }
+}
+
+/// 填充 `sockaddr_un`，路径放不下时返回 nil。
+///
+/// `sun_path` 只有 104 字节，而 socket 路径含用户主目录，长度随用户名变化。
+/// 与 `Agent/AhaKeySocket.makeAddress` 同一份逻辑，两个 target 不共享源码。
+private func makeUnixAddress(path: String) -> sockaddr_un? {
+    var addr = sockaddr_un()
+    addr.sun_family = sa_family_t(AF_UNIX)
+    let capacity = MemoryLayout.size(ofValue: addr.sun_path)
+    guard path.utf8.count < capacity else { return nil }
+    withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
+        let dst = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
+        path.withCString { _ = strlcpy(dst, $0, capacity) }
+    }
+    return addr
 }

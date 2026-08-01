@@ -4,6 +4,13 @@ import ApplicationServices
 import Foundation
 import Speech
 
+/// 界面语言选择器里的一项。
+struct SpeechLocaleOption: Identifiable, Hashable {
+    /// 直接用 locale identifier 当 id（`SFSpeechRecognizer.supportedLocales()` 内唯一）。
+    let id: String
+    let name: String
+}
+
 @MainActor
 final class NativeSpeechTranscriptionService: ObservableObject {
     static let shared = NativeSpeechTranscriptionService()
@@ -34,6 +41,33 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         didSet { UserDefaults.standard.set(longPressThresholdMs, forKey: "nativeSpeech.longPressThresholdMs") }
     }
 
+    // MARK: 识别语言
+
+    /// 用户显式选择的识别语言；空串 = 自动（按系统首选语言顺序推断）。
+    ///
+    /// 必须可显式设置：系统首选语言第一项未必是用户想说的语言（例如界面英文、地区中国、
+    /// 但日常口述中文），这种情况下任何自动推断都只会一直选错。
+    @Published var speechLocaleIdentifier: String = UserDefaults.standard.string(forKey: "nativeSpeech.localeIdentifier") ?? "" {
+        didSet {
+            UserDefaults.standard.set(speechLocaleIdentifier, forKey: "nativeSpeech.localeIdentifier")
+            refreshActiveLocaleDescription()
+        }
+    }
+
+    /// 下一次录音实际会用的识别语言，供界面展示。
+    ///
+    /// `SFSpeechRecognizer(locale:)` 会静默归一化——传 `en-CN` 拿回的是 `en-US`——
+    /// 所以最终结果必须显式呈现，否则用户无从判断自己到底在用哪个模型。
+    @Published private(set) var activeLocaleDescription = "尚未确定"
+
+    /// 本机支持的识别语言，按中文名排序（界面文案本身就是硬编码中文）。
+    let availableSpeechLocales: [SpeechLocaleOption] = {
+        let display = Locale(identifier: "zh-Hans")
+        return SFSpeechRecognizer.supportedLocales()
+            .map { SpeechLocaleOption(id: $0.identifier, name: display.localizedString(forIdentifier: $0.identifier) ?? $0.identifier) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }()
+
     /// 当前是否处于长按录音模式（按住中，松手会直接发送）
     @Published private(set) var isLongPressRecording = false
 
@@ -53,6 +87,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     func start() {
         AhaTypeTextOptimizer.shared.refreshFromDisk()
+        refreshActiveLocaleDescription()
         refreshPermissions(requestIfNeeded: false)
     }
 
@@ -371,7 +406,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         guard let recognizer = makeSpeechRecognizer() else {
-            statusMessage = "当前系统语言暂不支持苹果原生转写。"
+            statusMessage = "没有可用的识别语言，请在「语音识别语言」里选一个。"
             appendDiagnostic("speech recognizer unavailable")
             return
         }
@@ -594,11 +629,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     private func makeSpeechRecognizer() -> SFSpeechRecognizer? {
-        if let preferredIdentifier = Locale.preferredLanguages.first {
-            let locale = Locale(identifier: preferredIdentifier)
-            if let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable {
-                return recognizer
-            }
+        if let locale = resolvedSpeechLocale(),
+           let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable {
+            return recognizer
         }
 
         if let recognizer = SFSpeechRecognizer(), recognizer.isAvailable {
@@ -606,6 +639,25 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         return nil
+    }
+
+    /// 用户显式选择优先，否则按系统首选语言的顺序推断；都不中时由调用方回落到系统默认识别器。
+    private func resolvedSpeechLocale() -> Locale? {
+        SpeechLocaleResolver.resolve(
+            preference: speechLocaleIdentifier,
+            preferredLanguages: Locale.preferredLanguages,
+            supported: SFSpeechRecognizer.supportedLocales()
+        )
+    }
+
+    private func refreshActiveLocaleDescription() {
+        let display = Locale(identifier: "zh-Hans")
+        guard let locale = resolvedSpeechLocale() ?? SFSpeechRecognizer()?.locale else {
+            activeLocaleDescription = "无可用识别语言"
+            return
+        }
+        let name = display.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+        activeLocaleDescription = "\(name)（\(locale.identifier)）"
     }
 
     private func missingPermissionMessage(
@@ -782,6 +834,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         Task.detached {
             do {
                 try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                DiagnosticLogRotator.rotateIfNeeded(at: url)
                 if !FileManager.default.fileExists(atPath: url.path) {
                     try Data(line.utf8).write(to: url)
                 } else {
@@ -795,6 +848,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             }
         }
     }
+
 
     private var diagnosticLogURL: URL {
         let directory = FileManager.default.homeDirectoryForCurrentUser

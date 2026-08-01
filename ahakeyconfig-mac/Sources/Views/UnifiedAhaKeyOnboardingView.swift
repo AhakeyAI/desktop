@@ -22,6 +22,10 @@ struct AhaKeyOnboardingPermissionState: Equatable {
     var transcriptPreview: String
     var lastCommittedText: String
     var speechStatusMessage: String
+    /// 空串 = 自动跟随系统首选语言
+    var speechLocaleIdentifier: String
+    var activeLocaleDescription: String
+    var availableSpeechLocales: [SpeechLocaleOption]
 
     var bluetoothReady: Bool {
         bluetoothPermissionGranted && bluetoothPoweredOn
@@ -50,6 +54,7 @@ struct AhaKeyOnboardingActions {
     var recheckPermissions: () -> Void
     var openSystemSettings: () -> Void
     var toggleTryExperience: () -> Void
+    var setSpeechLocale: (String) -> Void
 }
 
 enum AhaKeyOnboardingPermissionKind {
@@ -325,6 +330,30 @@ struct UnifiedAhaKeyOnboardingView: View {
                 title: "第三步：体验输入",
                 detail: "请蓝牙连接小键盘后，将光标放在这里，按下麦克风键开始说话。"
             )
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Text("识别语言")
+                        .font(.system(size: 15, weight: .semibold))
+                    Picker("", selection: Binding(
+                        get: { permissionState.speechLocaleIdentifier },
+                        set: { actions.setSpeechLocale($0) }
+                    )) {
+                        Text("自动（跟随系统）").tag("")
+                        Divider()
+                        ForEach(permissionState.availableSpeechLocales) { option in
+                            Text(option.name).tag(option.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 240)
+                    Spacer(minLength: 0)
+                }
+                Text("当前生效：\(permissionState.activeLocaleDescription)。说的语言和这里不一致就会转写成乱码，先选对再试。")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
