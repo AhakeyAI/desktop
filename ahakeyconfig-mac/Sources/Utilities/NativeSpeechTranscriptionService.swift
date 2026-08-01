@@ -4,6 +4,13 @@ import ApplicationServices
 import Foundation
 import Speech
 
+/// 界面语言选择器里的一项。
+struct SpeechLocaleOption: Identifiable, Hashable {
+    /// 直接用 locale identifier 当 id（`SFSpeechRecognizer.supportedLocales()` 内唯一）。
+    let id: String
+    let name: String
+}
+
 @MainActor
 final class NativeSpeechTranscriptionService: ObservableObject {
     static let shared = NativeSpeechTranscriptionService()
@@ -34,6 +41,33 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         didSet { UserDefaults.standard.set(longPressThresholdMs, forKey: "nativeSpeech.longPressThresholdMs") }
     }
 
+    // MARK: 识别语言
+
+    /// 用户显式选择的识别语言；空串 = 自动（按系统首选语言顺序推断）。
+    ///
+    /// 必须可显式设置：系统首选语言第一项未必是用户想说的语言（例如界面英文、地区中国、
+    /// 但日常口述中文），这种情况下任何自动推断都只会一直选错。
+    @Published var speechLocaleIdentifier: String = UserDefaults.standard.string(forKey: "nativeSpeech.localeIdentifier") ?? "" {
+        didSet {
+            UserDefaults.standard.set(speechLocaleIdentifier, forKey: "nativeSpeech.localeIdentifier")
+            refreshActiveLocaleDescription()
+        }
+    }
+
+    /// 下一次录音实际会用的识别语言，供界面展示。
+    ///
+    /// `SFSpeechRecognizer(locale:)` 会静默归一化——传 `en-CN` 拿回的是 `en-US`——
+    /// 所以最终结果必须显式呈现，否则用户无从判断自己到底在用哪个模型。
+    @Published private(set) var activeLocaleDescription = "尚未确定"
+
+    /// 本机支持的识别语言，按中文名排序（界面文案本身就是硬编码中文）。
+    let availableSpeechLocales: [SpeechLocaleOption] = {
+        let display = Locale(identifier: "zh-Hans")
+        return SFSpeechRecognizer.supportedLocales()
+            .map { SpeechLocaleOption(id: $0.identifier, name: display.localizedString(forIdentifier: $0.identifier) ?? $0.identifier) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }()
+
     /// 当前是否处于长按录音模式（按住中，松手会直接发送）
     @Published private(set) var isLongPressRecording = false
 
@@ -53,6 +87,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     func start() {
         AhaTypeTextOptimizer.shared.refreshFromDisk()
+        refreshActiveLocaleDescription()
         refreshPermissions(requestIfNeeded: false)
     }
 
@@ -371,7 +406,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         guard let recognizer = makeSpeechRecognizer() else {
-            statusMessage = "当前系统语言暂不支持苹果原生转写。"
+            statusMessage = "没有可用的识别语言，请在「语音识别语言」里选一个。"
             appendDiagnostic("speech recognizer unavailable")
             return
         }
@@ -594,11 +629,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     private func makeSpeechRecognizer() -> SFSpeechRecognizer? {
-        if let preferredIdentifier = Locale.preferredLanguages.first {
-            let locale = Locale(identifier: preferredIdentifier)
-            if let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable {
-                return recognizer
-            }
+        if let locale = resolvedSpeechLocale(),
+           let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable {
+            return recognizer
         }
 
         if let recognizer = SFSpeechRecognizer(), recognizer.isAvailable {
@@ -606,6 +639,70 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         return nil
+    }
+
+    /// 解析出真正要用的识别语言：
+    ///
+    /// 1. 用户显式选择且本机仍支持 → 直接用；
+    /// 2. 否则按 `Locale.preferredLanguages` 的**顺序**逐项尝试，每项先要求语言 + 地区都命中，
+    ///    再退到只按语言命中——保持与系统惯例一致的可预期行为；
+    /// 3. 都不中 → 交给调用方回落到系统默认识别器。
+    ///
+    /// 全程只从 `supportedLocales()` 里挑，不把未经校验的 identifier 丢给 `SFSpeechRecognizer(locale:)`，
+    /// 避免它静默换成另一种语言。
+    private func resolvedSpeechLocale() -> Locale? {
+        let supported = SFSpeechRecognizer.supportedLocales()
+
+        if !speechLocaleIdentifier.isEmpty,
+           let chosen = supported.first(where: { $0.identifier == speechLocaleIdentifier }) {
+            return chosen
+        }
+
+        for preferred in Locale.preferredLanguages {
+            if let hit = Self.matchLocale(preferred, in: supported) {
+                return hit
+            }
+        }
+        return nil
+    }
+
+    /// 把一个语言标签匹配到受支持的识别语言。
+    ///
+    /// 先按语言 + 地区精确匹配（`zh-Hans-CN` → `zh-CN`）；不命中就退到只按语言，
+    /// 此时把「该语言用哪个地区」交给 `SFSpeechRecognizer(locale:)` 自己归一化
+    /// （`en` → `en-US`）——一种语言往往有十几个地区变体（en 就有 13 个），
+    /// 自己在 `supportedLocales()` 这个 **Set** 里挑第一个会得到不确定的结果。
+    ///
+    /// 用 `NSLocale.components(fromLocaleIdentifier:)` 拆解，而不是 macOS 13+ 才有的
+    /// `Locale.language` —— 本工程部署目标是 macOS 12。
+    private static func matchLocale(_ identifier: String, in supported: Set<Locale>) -> Locale? {
+        let parts = NSLocale.components(fromLocaleIdentifier: identifier)
+        guard let language = parts[NSLocale.Key.languageCode.rawValue], !language.isEmpty else { return nil }
+
+        if let region = parts[NSLocale.Key.countryCode.rawValue] {
+            let exact = supported.first {
+                let c = NSLocale.components(fromLocaleIdentifier: $0.identifier)
+                return c[NSLocale.Key.languageCode.rawValue] == language
+                    && c[NSLocale.Key.countryCode.rawValue] == region
+            }
+            if let exact { return exact }
+        }
+
+        guard let normalized = SFSpeechRecognizer(locale: Locale(identifier: language))?.locale,
+              supported.contains(where: { $0.identifier == normalized.identifier }) else {
+            return nil
+        }
+        return normalized
+    }
+
+    private func refreshActiveLocaleDescription() {
+        let display = Locale(identifier: "zh-Hans")
+        guard let locale = resolvedSpeechLocale() ?? SFSpeechRecognizer()?.locale else {
+            activeLocaleDescription = "无可用识别语言"
+            return
+        }
+        let name = display.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+        activeLocaleDescription = "\(name)（\(locale.identifier)）"
     }
 
     private func missingPermissionMessage(
