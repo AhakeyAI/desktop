@@ -834,6 +834,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         Task.detached {
             do {
                 try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                DiagnosticLogRotator.rotateIfNeeded(at: url)
                 if !FileManager.default.fileExists(atPath: url.path) {
                     try Data(line.utf8).write(to: url)
                 } else {
