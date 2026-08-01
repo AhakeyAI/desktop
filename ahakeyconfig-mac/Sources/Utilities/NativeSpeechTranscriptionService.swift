@@ -641,58 +641,13 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         return nil
     }
 
-    /// 解析出真正要用的识别语言：
-    ///
-    /// 1. 用户显式选择且本机仍支持 → 直接用；
-    /// 2. 否则按 `Locale.preferredLanguages` 的**顺序**逐项尝试，每项先要求语言 + 地区都命中，
-    ///    再退到只按语言命中——保持与系统惯例一致的可预期行为；
-    /// 3. 都不中 → 交给调用方回落到系统默认识别器。
-    ///
-    /// 全程只从 `supportedLocales()` 里挑，不把未经校验的 identifier 丢给 `SFSpeechRecognizer(locale:)`，
-    /// 避免它静默换成另一种语言。
+    /// 用户显式选择优先，否则按系统首选语言的顺序推断；都不中时由调用方回落到系统默认识别器。
     private func resolvedSpeechLocale() -> Locale? {
-        let supported = SFSpeechRecognizer.supportedLocales()
-
-        if !speechLocaleIdentifier.isEmpty,
-           let chosen = supported.first(where: { $0.identifier == speechLocaleIdentifier }) {
-            return chosen
-        }
-
-        for preferred in Locale.preferredLanguages {
-            if let hit = Self.matchLocale(preferred, in: supported) {
-                return hit
-            }
-        }
-        return nil
-    }
-
-    /// 把一个语言标签匹配到受支持的识别语言。
-    ///
-    /// 先按语言 + 地区精确匹配（`zh-Hans-CN` → `zh-CN`）；不命中就退到只按语言，
-    /// 此时把「该语言用哪个地区」交给 `SFSpeechRecognizer(locale:)` 自己归一化
-    /// （`en` → `en-US`）——一种语言往往有十几个地区变体（en 就有 13 个），
-    /// 自己在 `supportedLocales()` 这个 **Set** 里挑第一个会得到不确定的结果。
-    ///
-    /// 用 `NSLocale.components(fromLocaleIdentifier:)` 拆解，而不是 macOS 13+ 才有的
-    /// `Locale.language` —— 本工程部署目标是 macOS 12。
-    private static func matchLocale(_ identifier: String, in supported: Set<Locale>) -> Locale? {
-        let parts = NSLocale.components(fromLocaleIdentifier: identifier)
-        guard let language = parts[NSLocale.Key.languageCode.rawValue], !language.isEmpty else { return nil }
-
-        if let region = parts[NSLocale.Key.countryCode.rawValue] {
-            let exact = supported.first {
-                let c = NSLocale.components(fromLocaleIdentifier: $0.identifier)
-                return c[NSLocale.Key.languageCode.rawValue] == language
-                    && c[NSLocale.Key.countryCode.rawValue] == region
-            }
-            if let exact { return exact }
-        }
-
-        guard let normalized = SFSpeechRecognizer(locale: Locale(identifier: language))?.locale,
-              supported.contains(where: { $0.identifier == normalized.identifier }) else {
-            return nil
-        }
-        return normalized
+        SpeechLocaleResolver.resolve(
+            preference: speechLocaleIdentifier,
+            preferredLanguages: Locale.preferredLanguages,
+            supported: SFSpeechRecognizer.supportedLocales()
+        )
     }
 
     private func refreshActiveLocaleDescription() {
@@ -892,6 +847,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             }
         }
     }
+
 
     private var diagnosticLogURL: URL {
         let directory = FileManager.default.homeDirectoryForCurrentUser
