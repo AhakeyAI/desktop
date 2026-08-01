@@ -131,7 +131,7 @@ enum HostLog {
 ///
 /// 没把 socket 协议抽成共用 util，是因为 Agent target 与 AhaKeyPluginKit 暂不互相依赖；
 /// 后续若多处都要用，再抽 `AhaKeyAgentBridge` library。
-/// 在那之前，路径必须与 `Agent/HookSupport.swift` 的 `AhaKeySocket.defaultPath` 保持一致。
+/// 在那之前，路径必须与 `Agent/AhaKeySocket.defaultPath` 保持一致。
 enum HostAgentBridge {
     static let socketPath = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/AhaKeyConfig/agent.sock").path
@@ -154,14 +154,7 @@ enum HostAgentBridge {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        socketPath.withCString { src in
-            withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
-                let dst = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
-                _ = strcpy(dst, src)
-            }
-        }
+        guard var addr = makeUnixAddress(path: socketPath) else { return nil }
         let len = socklen_t(MemoryLayout<sockaddr_un>.size)
         let connected = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, len) }
@@ -181,4 +174,20 @@ enum HostAgentBridge {
         guard n > 0 else { return nil }
         return (try? JSONSerialization.jsonObject(with: Data(buf[0 ..< Int(n)]))) as? [String: Any]
     }
+}
+
+/// 填充 `sockaddr_un`，路径放不下时返回 nil。
+///
+/// `sun_path` 只有 104 字节，而 socket 路径含用户主目录，长度随用户名变化。
+/// 与 `Agent/AhaKeySocket.makeAddress` 同一份逻辑，两个 target 不共享源码。
+private func makeUnixAddress(path: String) -> sockaddr_un? {
+    var addr = sockaddr_un()
+    addr.sun_family = sa_family_t(AF_UNIX)
+    let capacity = MemoryLayout.size(ofValue: addr.sun_path)
+    guard path.utf8.count < capacity else { return nil }
+    withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
+        let dst = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
+        path.withCString { _ = strlcpy(dst, $0, capacity) }
+    }
+    return addr
 }

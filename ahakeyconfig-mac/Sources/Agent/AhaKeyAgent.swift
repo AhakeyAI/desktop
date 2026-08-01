@@ -212,17 +212,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { emit("socket() 失败"); return false }
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        socketPath.withCString { ptr in
-            withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
-                let buf = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
-                strcpy(buf, ptr)
-            }
+        guard var addr = AhaKeySocket.makeAddress(path: socketPath) else {
+            emit("socket 路径超出 sockaddr_un 容量: \(socketPath)")
+            close(fd)
+            return false
         }
 
-        // socket 文件的权限由 bind 时的 umask 决定，事后 chmod 会留下一个短暂的宽松窗口，
-        // 所以两手都做：先用 umask 压到 0600，bind 完再 chmod 兜底。
+        // 权限由 bind 时的 umask 决定，事后 chmod 会留下一个宽松窗口，所以两者都做。
         let previousMask = umask(0o177)
         let bindResult = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
@@ -284,14 +280,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard fd >= 0 else { return false }
         defer { close(fd) }
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        path.withCString { ptr in
-            withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
-                let buf = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
-                strcpy(buf, ptr)
-            }
-        }
+        guard var addr = AhaKeySocket.makeAddress(path: path) else { return false }
 
         return withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in

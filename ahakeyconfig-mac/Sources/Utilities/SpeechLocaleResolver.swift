@@ -1,10 +1,7 @@
 import Foundation
 import Speech
 
-/// 把语言标签解析成真正可用的识别语言。
-///
-/// 从 `NativeSpeechTranscriptionService` 拆出来：不碰 UI 状态、不需要 MainActor，
-/// 能单独测——这段逻辑的分支（精确匹配 / 回退 / 无解）正是最容易出错的地方。
+/// 把语言标签解析成可用的识别语言。不依赖 UI 状态与 MainActor，可单独测试。
 enum SpeechLocaleResolver {
     /// - Parameters:
     ///   - preference: 用户显式选择的 identifier；空串表示自动。
@@ -30,11 +27,10 @@ enum SpeechLocaleResolver {
         return nil
     }
 
-    /// 先按语言 + 地区精确匹配（`zh-Hans-CN` → `zh-CN`）；不命中就退到只按语言。
+    /// 先按语言 + 地区精确匹配（`zh-Hans-CN` → `zh-CN`），不命中退到只按语言。
     ///
-    /// 退化时不自己在 `supported` 里挑：那是个 `Set`，而一种语言常有十几个地区变体
-    /// （光 `en` 就有 13 个），挑出来的结果在不同运行之间会变。把"这个语言用哪个地区"
-    /// 交给 `normalize`，默认即 `SFSpeechRecognizer` 自身的归一化（`en` → `en-US`）。
+    /// 退化时地区由 `normalize` 决定，不从 `supported` 里挑：那是 `Set`，`en` 有 13 个
+    /// 地区变体，取出来的结果不稳定。
     static func match(
         _ identifier: String,
         in supported: Set<Locale>,

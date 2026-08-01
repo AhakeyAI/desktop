@@ -56,7 +56,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AhaKeyConfigTests",
-            dependencies: ["AhaKeyConfig"],
+            dependencies: ["AhaKeyConfig", "AhaKeyConfigAgent"],
             path: "Tests/AhaKeyConfigTests"
         ),
     ]

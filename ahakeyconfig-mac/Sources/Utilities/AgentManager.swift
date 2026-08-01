@@ -203,13 +203,7 @@ final class AgentManager: ObservableObject {
             var tv = timeval(tv_sec: 2, tv_usec: 0)
             setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
             setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-            var addr = sockaddr_un()
-            addr.sun_family = sa_family_t(AF_UNIX)
-            socketPath.withCString { src in
-                withUnsafeMutablePointer(to: &addr.sun_path) { dst in
-                    _ = strcpy(UnsafeMutableRawPointer(dst).assumingMemoryBound(to: CChar.self), src)
-                }
-            }
+            guard var addr = makeUnixAddress(path: socketPath) else { return }
             let ok = withUnsafePointer(to: &addr) { ptr in
                 ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                     connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
@@ -239,13 +233,7 @@ final class AgentManager: ObservableObject {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        socketPath.withCString { src in
-            withUnsafeMutablePointer(to: &addr.sun_path) { dst in
-                _ = strcpy(UnsafeMutableRawPointer(dst).assumingMemoryBound(to: CChar.self), src)
-            }
-        }
+        guard var addr = makeUnixAddress(path: socketPath) else { return false }
         let ok = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
@@ -1785,4 +1773,20 @@ final class AgentManager: ObservableObject {
     private func runLaunchctlQuiet(_ args: [String]) -> Bool {
         runLaunchctlDetailed(args).ok
     }
+}
+
+/// 填充 `sockaddr_un`，路径放不下时返回 nil。
+///
+/// `sun_path` 只有 104 字节，而 socket 路径含用户主目录，长度随用户名变化。
+/// 与 `Agent/AhaKeySocket.makeAddress` 同一份逻辑，两个 target 不共享源码。
+private func makeUnixAddress(path: String) -> sockaddr_un? {
+    var addr = sockaddr_un()
+    addr.sun_family = sa_family_t(AF_UNIX)
+    let capacity = MemoryLayout.size(ofValue: addr.sun_path)
+    guard path.utf8.count < capacity else { return nil }
+    withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
+        let dst = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
+        path.withCString { _ = strlcpy(dst, $0, capacity) }
+    }
+    return addr
 }
