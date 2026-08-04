@@ -74,6 +74,8 @@ logs/
 # Local model / runtime payloads
 internal/
 .gstack/
+/ahakeyconfig-win-java/.m2repo/
+/ahakeyconfig-win-java/target/
 
 # Java / Maven build output
 target/
@@ -112,3 +114,16 @@ ahakey-web-main/
 backspace.png
 codex.gif
 cursor.gif
+
+# Python / bridge runtime outputs
+*.out
+*.err
+
+# BLE_tcp_bridge_v3 — 防止打包时再生成 30+ 个按时间戳命名的 spec
+BLE_tcp_bridge_v3/ahakey-bridge-2*.spec
+BLE_tcp_bridge_v3/ahakey-bridge-onefile-2*.spec
+BLE_tcp_bridge_v3/test-winrt.spec
+
+# Rust toolchain installer 不该入库
+rustup-init.exe
+
