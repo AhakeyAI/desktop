@@ -5,6 +5,7 @@
   export let deviceName: string = "";
   export let batteryLevel: number = 0;
   export let switchTitle: string = "手动批准";
+  export let connecting: boolean = false;
 
   const dispatch = createEventDispatcher();
   let menuOpen = false;
@@ -75,9 +76,10 @@
 
     <button
       class={connected ? "button-disconnect" : "button-connect"}
+      disabled={connecting}
       on:click={() => dispatch("toggleConnect")}
     >
-      {connected ? "断开连接" : "连接设备"}
+      {connected ? "断开连接" : (connecting ? "连接中..." : "连接设备")}
     </button>
 
     <button class="button-ble" on:click={() => dispatch("bleDriver")}>BLE 驱动</button>
