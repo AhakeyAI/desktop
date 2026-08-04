@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=AhaKey BLE Bridge
+Comment=Bluetooth BLE bridge for AhaKey keyboard
+Exec=ahakey-ble-bridge
+Icon=ahakey-ble-bridge
+Terminal=false
+StartupWMClass=AhaKeyBLEBridge
+Categories=Utility;System;
+Keywords=bluetooth;ble;keyboard;
