@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 
 public class StudioState {
@@ -63,29 +64,48 @@ public class StudioState {
         return key;
     }
 
+    private KeyConfig createMacroKey(String description, int[][] macroSteps) {
+        KeyConfig key = new KeyConfig(0, description);
+        key.setVoicePreset(VoicePreset.CUSTOM);
+        for (int[] step : macroSteps) {
+            String actionType = switch (step[0]) {
+                case 1 -> "DOWN_KEY";
+                case 2 -> "UP_KEY";
+                default -> "DELAY";
+            };
+            key.addMacroStep(actionType, step[1]);
+        }
+        return key;
+    }
+
     private void resetModeDefaults(ModeSlot mode) {
         EnumMap<StudioPart, KeyConfig> map = keyConfigs.get(mode);
         oledDrafts.putIfAbsent(mode, new OledModeDraft());
         if (mode == ModeSlot.MODE0) {
             map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
-            map.put(StudioPart.KEY2, createKey(HIDUsage.getCode("Y"), "Approve"));
-            map.put(StudioPart.KEY3, createKey(HIDUsage.getCode("N"), "Reject"));
+            map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Yes"));
+            map.put(StudioPart.KEY3, createMacroKey("No", new int[][]{
+                {1, HIDUsage.DOWN_ARROW}, {2, HIDUsage.DOWN_ARROW}, {3, 10},
+                {1, HIDUsage.DOWN_ARROW}, {2, HIDUsage.DOWN_ARROW}, {3, 10},
+                {1, HIDUsage.DOWN_ARROW}, {2, HIDUsage.DOWN_ARROW}, {3, 10},
+                {1, HIDUsage.ENTER}, {2, HIDUsage.ENTER}
+            }));
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Claude"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 1"));
             lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
         } else if (mode == ModeSlot.MODE1) {
-            map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F17, "Transcribe", VoicePreset.WINDOWS_NATIVE));
-            map.put(StudioPart.KEY2, createKey(HIDUsage.getCode("Y"), "Yes"));
-            map.put(StudioPart.KEY3, createKey(HIDUsage.ESCAPE, "Cancel"));
+            map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
+            map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Accept"));
+            map.put(StudioPart.KEY3, createKey(HIDUsage.BACKSPACE, "Reject"));
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Cursor"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 2"));
             lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
         } else if (mode == ModeSlot.MODE2) {
             map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
-            map.put(StudioPart.KEY2, createKey(HIDUsage.getCode("Y"), "Accept"));
-            map.put(StudioPart.KEY3, createKey(HIDUsage.getCode("N"), "Decline"));
+            map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Accept"));
+            map.put(StudioPart.KEY3, createKey(HIDUsage.ESCAPE, "Reject"));
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Codex"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 3"));
@@ -360,10 +380,18 @@ public class StudioState {
             ModeSlot mode = ModeSlot.values()[i];
             PersistedDraft.ModeDraft md = draft.modes[i];
             EnumMap<StudioPart, KeyConfig> map = keyConfigs.get(mode);
-            map.put(StudioPart.KEY1, new KeyConfig(md.key1Hid, md.key1Desc));
-            map.put(StudioPart.KEY2, new KeyConfig(md.key2Hid, md.key2Desc));
-            map.put(StudioPart.KEY3, new KeyConfig(md.key3Hid, md.key3Desc));
-            map.put(StudioPart.KEY4, new KeyConfig(md.key4Hid, md.key4Desc));
+            KeyConfig k1 = new KeyConfig(md.key1Hid, md.key1Desc);
+            KeyConfig k2 = new KeyConfig(md.key2Hid, md.key2Desc);
+            KeyConfig k3 = new KeyConfig(md.key3Hid, md.key3Desc);
+            KeyConfig k4 = new KeyConfig(md.key4Hid, md.key4Desc);
+            if (md.key1Macro != null) k1.setMacro(md.key1Macro);
+            if (md.key2Macro != null) k2.setMacro(md.key2Macro);
+            if (md.key3Macro != null) k3.setMacro(md.key3Macro);
+            if (md.key4Macro != null) k4.setMacro(md.key4Macro);
+            map.put(StudioPart.KEY1, k1);
+            map.put(StudioPart.KEY2, k2);
+            map.put(StudioPart.KEY3, k3);
+            map.put(StudioPart.KEY4, k4);
             oledSummaries.get(mode).set(md.oledSummary);
             oledCaptions.get(mode).set(md.oledCaption);
             OledModeDraft od = getOledDraft(mode);
@@ -372,7 +400,6 @@ public class StudioState {
             od.setFrameCount(md.oledFrameCount);
             od.setStatusLine(md.oledSummary);
             od.setCaptionLine(md.oledCaption);
-            var k1 = map.get(StudioPart.KEY1);
             if (md.voicePresetId != null) {
                 try {
                     k1.setVoicePreset(VoicePreset.valueOf(md.voicePresetId));
@@ -408,14 +435,22 @@ public class StudioState {
         d.modes = new PersistedDraft.ModeDraft[ModeSlot.values().length];
         for (ModeSlot mode : ModeSlot.values()) {
             PersistedDraft.ModeDraft md = new PersistedDraft.ModeDraft();
-            md.key1Hid = getKeyConfig(mode, StudioPart.KEY1).getHidCode();
-            md.key1Desc = getKeyConfig(mode, StudioPart.KEY1).getDescription();
-            md.key2Hid = getKeyConfig(mode, StudioPart.KEY2).getHidCode();
-            md.key2Desc = getKeyConfig(mode, StudioPart.KEY2).getDescription();
-            md.key3Hid = getKeyConfig(mode, StudioPart.KEY3).getHidCode();
-            md.key3Desc = getKeyConfig(mode, StudioPart.KEY3).getDescription();
-            md.key4Hid = getKeyConfig(mode, StudioPart.KEY4).getHidCode();
-            md.key4Desc = getKeyConfig(mode, StudioPart.KEY4).getDescription();
+            KeyConfig k1 = getKeyConfig(mode, StudioPart.KEY1);
+            KeyConfig k2 = getKeyConfig(mode, StudioPart.KEY2);
+            KeyConfig k3 = getKeyConfig(mode, StudioPart.KEY3);
+            KeyConfig k4 = getKeyConfig(mode, StudioPart.KEY4);
+            md.key1Hid = k1.getHidCode();
+            md.key1Desc = k1.getDescription();
+            md.key1Macro = k1.getMacro();
+            md.key2Hid = k2.getHidCode();
+            md.key2Desc = k2.getDescription();
+            md.key2Macro = k2.getMacro();
+            md.key3Hid = k3.getHidCode();
+            md.key3Desc = k3.getDescription();
+            md.key3Macro = k3.getMacro();
+            md.key4Hid = k4.getHidCode();
+            md.key4Desc = k4.getDescription();
+            md.key4Macro = k4.getMacro();
             md.oledSummary = oledSummaries.get(mode).get();
             md.oledCaption = oledCaptions.get(mode).get();
             OledModeDraft od = getOledDraft(mode);
@@ -447,12 +482,16 @@ public class StudioState {
         public static class ModeDraft {
             public int key1Hid;
             public String key1Desc;
+            public List<MacroStep> key1Macro;
             public int key2Hid;
             public String key2Desc;
+            public List<MacroStep> key2Macro;
             public int key3Hid;
             public String key3Desc;
+            public List<MacroStep> key3Macro;
             public int key4Hid;
             public String key4Desc;
+            public List<MacroStep> key4Macro;
             public String oledSummary;
             public String oledCaption;
             public String oledGifPath;

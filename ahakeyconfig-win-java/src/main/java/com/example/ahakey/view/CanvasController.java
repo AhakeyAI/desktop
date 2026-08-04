@@ -6,6 +6,7 @@ import com.example.ahakey.model.LightEffectStyle;
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
+import com.example.ahakey.util.LanguageManager;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.beans.binding.Bindings;
@@ -46,6 +47,9 @@ public class CanvasController {
 
     @FXML
     private Label modeIcon;
+    
+    @FXML
+    private Label lightBarLabel;
     
     @FXML
     private StackPane lightBarCard;
@@ -100,7 +104,9 @@ public class CanvasController {
     private static final String COLOR_AMBER = "#ff9f0a";
     
     public void initialize() {
-        // 初始化时绑定事件
+        if (lightBarLabel != null) {
+            lightBarLabel.setText(LanguageManager.getInstance().getString("studio-part.light-bar"));
+        }
     }
     
     public void setStudioState(StudioState studioState) {

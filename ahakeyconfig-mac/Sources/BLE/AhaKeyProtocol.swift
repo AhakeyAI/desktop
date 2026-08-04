@@ -9,13 +9,16 @@ enum AhaKeyCommand {
     static let trailer: [UInt8] = [0xCC, 0xDD]
     static let oledWidth = 160
     static let oledHeight = 80
+    static let oledEncodedFrameBytes = oledWidth * oledHeight * 2
     static let oledFrameSlotSize = 28_672
     static let oledFactoryReservedSlots = 10
     static let oledModeCount = 4
     static let oledMaxFramesPerMode = 70
     static let oledMaxFrames = oledMaxFramesPerMode
-    /// 用户选择的 GIF 源文件大小上限（避免过大文件拖慢解码与 BLE 上传）。
-    static let oledMaxSourceFileBytes = 2 * 1024 * 1024 // 2 MB
+    /// Task-state assets are uploaded and committed independently.
+    static let taskOLEDMaxFrames = 30
+    static let animatedOLEDMaxSourceFileBytes = 50 * 1024 * 1024
+    static let staticOLEDMaxSourceFileBytes = 50 * 1024 * 1024
     /// 固件端要求每个 prepareWrite 的 address 必须 4096 字节对齐（flash 扇区大小）。
     /// 原厂 Python 客户端也用 4096 作为写入分块大小，一次 prepareWrite 刚好擦写一个扇区。
     static let oledChunkSize = 4096
@@ -36,6 +39,17 @@ enum AhaKeyCommand {
     static let cmdSetLightMapping: UInt8 = 0x84  // per-mode per-state LED 映射
     static let cmdSetBrightness: UInt8 = 0x85    // 全局 WS2812 亮度 1-100
     static let cmdSetWorkMode: UInt8 = 0x92      // 远程切换工作模式 0-3
+    // AI OLED state resources: Working=1, Waiting=2, Done=3.
+    static let cmdUpdateTaskPic: UInt8 = 0x93
+    static let cmdReadTaskPicState: UInt8 = 0x94
+    static let cmdUpdateTaskPicSet: UInt8 = 0x95
+    static let cmdReadTaskPicSet: UInt8 = 0x96
+    static let cmdSetActiveTaskPicSet: UInt8 = 0x97
+    /// Finish a task-GIF data transfer without changing the normal OLED animation binding.
+    static let cmdFinishTaskPicWrite: UInt8 = 0x98
+    static let cmdCapabilities: UInt8 = 0x99
+    static let cmdAbortPictureWrite: UInt8 = 0x9A
+    static let cmdPrepareSessionWrite: UInt8 = 0x9B
 
     static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
         UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
@@ -113,6 +127,30 @@ enum AhaKeyCommand {
         return Data(header + [cmdPrepareWrite] + payload + trailer)
     }
 
+    static func queryCapabilities() -> Data {
+        Data(header + [cmdCapabilities] + trailer)
+    }
+
+    static func prepareSessionWrite(sessionID: UInt16, chunkLength: Int, address: UInt32) -> Data {
+        let payload: [UInt8] = [
+            UInt8(sessionID & 0xFF), UInt8((sessionID >> 8) & 0xFF),
+            UInt8(chunkLength & 0xFF), UInt8((chunkLength >> 8) & 0xFF),
+            UInt8(address & 0xFF), UInt8((address >> 8) & 0xFF),
+            UInt8((address >> 16) & 0xFF), UInt8((address >> 24) & 0xFF),
+        ]
+        return Data(header + [cmdPrepareSessionWrite] + payload + trailer)
+    }
+
+    static func abortPictureWrite(sessionID: UInt16? = nil) -> Data {
+        guard let sessionID else {
+            return Data(header + [cmdAbortPictureWrite] + trailer)
+        }
+        return Data(header + [
+            cmdAbortPictureWrite,
+            UInt8(sessionID & 0xFF), UInt8((sessionID >> 8) & 0xFF),
+        ] + trailer)
+    }
+
     /// 更新 LCD 动画参数 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
     static func updatePicture(mode: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
         let payload: [UInt8] = [
@@ -125,6 +163,43 @@ enum AhaKeyCommand {
             UInt8((timeDelayMs >> 8) & 0xFF),
         ]
         return Data(header + [cmdUpdatePic] + payload + trailer)
+    }
+
+    /// AI OLED metadata: mode, state, flash frame range and frame delay.
+    static func updateTaskPicture(mode: UInt8, state: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
+        let payload: [UInt8] = [
+            mode, state,
+            UInt8(startIndex & 0xFF), UInt8((startIndex >> 8) & 0xFF),
+            UInt8(frameCount & 0xFF), UInt8((frameCount >> 8) & 0xFF),
+            UInt8(timeDelayMs & 0xFF), UInt8((timeDelayMs >> 8) & 0xFF),
+        ]
+        return Data(header + [cmdUpdateTaskPic] + payload + trailer)
+    }
+
+    static func readTaskPictureState(mode: UInt8, state: UInt8) -> Data {
+        Data(header + [cmdReadTaskPicState, mode, state] + trailer)
+    }
+
+    static func updateTaskPictureSet(mode: UInt8, set: UInt8, state: UInt8, startIndex: UInt16, frameCount: UInt16, timeDelayMs: UInt16) -> Data {
+        let payload: [UInt8] = [
+            mode, set, state,
+            UInt8(startIndex & 0xFF), UInt8((startIndex >> 8) & 0xFF),
+            UInt8(frameCount & 0xFF), UInt8((frameCount >> 8) & 0xFF),
+            UInt8(timeDelayMs & 0xFF), UInt8((timeDelayMs >> 8) & 0xFF),
+        ]
+        return Data(header + [cmdUpdateTaskPicSet] + payload + trailer)
+    }
+
+    static func readTaskPictureSet(mode: UInt8, set: UInt8, state: UInt8) -> Data {
+        Data(header + [cmdReadTaskPicSet, mode, set, state] + trailer)
+    }
+
+    static func setActiveTaskPictureSet(mode: UInt8, set: UInt8) -> Data {
+        Data(header + [cmdSetActiveTaskPicSet, mode, set] + trailer)
+    }
+
+    static func finishTaskPictureWrite() -> Data {
+        Data(header + [cmdFinishTaskPicWrite] + trailer)
     }
 
     /// IDE 状态同步 → AA BB 90 [state] CC DD
@@ -154,6 +229,40 @@ enum AhaKeyCommand {
     /// 切换工作模式 → AA BB 92 [mode] CC DD
     static func setWorkMode(_ mode: UInt8) -> Data {
         Data(header + [cmdSetWorkMode, min(3, mode)] + trailer)
+    }
+}
+
+struct AhaKeyFirmwareCapabilities: Equatable {
+    static let idleTaskPictureFlag: UInt16 = 1 << 0
+    static let sessionUploadFlag: UInt16 = 1 << 3
+
+    let protocolVersion: Int
+    let modeCount: Int
+    let setCount: Int
+    let stateCount: Int
+    let flags: UInt16
+    let maxPacketSize: Int
+    let userSlotLimit: Int
+    let factorySlotBase: Int
+    let factoryBundleVersion: UInt32
+    let factoryManifestCRC: UInt32
+    let factoryStatus: Int
+    let factoryError: Int
+    let reclaimSlotBase: Int
+    let reclaimSlotLimit: Int
+
+    var supportsIdleTaskPicture: Bool {
+        stateCount >= 4 && flags & Self.idleTaskPictureFlag != 0
+    }
+
+    var supportsSessionUpload: Bool {
+        flags & Self.sessionUploadFlag != 0
+    }
+
+    var supportedTaskDisplayStates: [AhaKeyTaskDisplayState] {
+        supportsIdleTaskPicture
+            ? AhaKeyTaskDisplayState.allCases
+            : AhaKeyTaskDisplayState.allCases.filter { $0 != .idle }
     }
 }
 
@@ -223,6 +332,7 @@ struct AhaKeyDeviceStatus {
     let lightMode: Int
     let switchState: Int
     let brightness: Int
+    let activePictureSet: Int
 }
 
 struct AhaKeyPictureState {
@@ -231,6 +341,17 @@ struct AhaKeyPictureState {
     let picLength: Int
     let frameInterval: Int
     let allModeMaxPic: Int
+}
+
+struct AhaKeyTaskPictureState: Hashable {
+    let mode: Int
+    let set: Int
+    let state: Int
+    let startIndex: Int
+    let picLength: Int
+    let frameInterval: Int
+    let allModeMaxPic: Int
+    let activeSet: Int
 }
 
 /// AhaKey 协议响应解析器
@@ -260,6 +381,7 @@ enum AhaKeyResponseParser {
 
         let base = payload.startIndex + 1 // skip cmd echo
         let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 35
+        let activePictureSet = payload.count >= 10 ? Int(payload[base + 8]) : 0
         return AhaKeyDeviceStatus(
             battery: Int(payload[base]),
             signal: Int(Int8(bitPattern: payload[base + 1])),
@@ -268,11 +390,13 @@ enum AhaKeyResponseParser {
             workMode: Int(payload[base + 4]),
             lightMode: Int(payload[base + 5]),
             switchState: Int(payload[base + 6]),
-            brightness: brightness
+            brightness: brightness,
+            activePictureSet: activePictureSet
         )
     }
 
     static func parsePictureStateResponse(_ payload: Data) -> AhaKeyPictureState? {
+        // 0x83 payload is mode + three UInt16 fields + max-slot UInt16 = 9 bytes.
         guard payload.count >= 9 else { return nil }
 
         let mode = Int(payload[0])
@@ -287,6 +411,58 @@ enum AhaKeyResponseParser {
             picLength: picLength,
             frameInterval: frameInterval,
             allModeMaxPic: allModeMaxPic
+        )
+    }
+
+    static func parseTaskPictureStateResponse(_ payload: Data) -> AhaKeyTaskPictureState? {
+        guard payload.count >= 10 else { return nil }
+        return AhaKeyTaskPictureState(
+            mode: Int(payload[0]), set: 0, state: Int(payload[1]),
+            startIndex: Int(UInt16(payload[2]) | (UInt16(payload[3]) << 8)),
+            picLength: Int(UInt16(payload[4]) | (UInt16(payload[5]) << 8)),
+            frameInterval: Int(UInt16(payload[6]) | (UInt16(payload[7]) << 8)),
+            allModeMaxPic: Int(UInt16(payload[8]) | (UInt16(payload[9]) << 8)), activeSet: 0
+        )
+    }
+
+    static func parseTaskPictureSetResponse(_ payload: Data) -> AhaKeyTaskPictureState? {
+        guard payload.count >= 12 else { return nil }
+        return AhaKeyTaskPictureState(
+            mode: Int(payload[0]), set: Int(payload[1]), state: Int(payload[2]),
+            startIndex: Int(UInt16(payload[3]) | (UInt16(payload[4]) << 8)),
+            picLength: Int(UInt16(payload[5]) | (UInt16(payload[6]) << 8)),
+            frameInterval: Int(UInt16(payload[7]) | (UInt16(payload[8]) << 8)),
+            allModeMaxPic: Int(UInt16(payload[9]) | (UInt16(payload[10]) << 8)), activeSet: Int(payload[11])
+        )
+    }
+
+    static func parseCapabilities(_ payload: Data) -> AhaKeyFirmwareCapabilities? {
+        guard payload.count >= 14 else { return nil }
+        func u16(_ offset: Int) -> UInt16 {
+            UInt16(payload[offset]) | (UInt16(payload[offset + 1]) << 8)
+        }
+        func u32(_ offset: Int) -> UInt32 {
+            UInt32(payload[offset])
+                | (UInt32(payload[offset + 1]) << 8)
+                | (UInt32(payload[offset + 2]) << 16)
+                | (UInt32(payload[offset + 3]) << 24)
+        }
+        let hasExtendedFactoryFields = payload.count >= 22
+        return AhaKeyFirmwareCapabilities(
+            protocolVersion: Int(payload[0]),
+            modeCount: Int(payload[1]),
+            setCount: Int(payload[2]),
+            stateCount: Int(payload[3]),
+            flags: u16(4),
+            maxPacketSize: Int(u16(6)),
+            userSlotLimit: Int(u16(8)),
+            factorySlotBase: hasExtendedFactoryFields ? Int(u16(10)) : Int(u16(8)),
+            factoryBundleVersion: hasExtendedFactoryFields ? u32(12) : 0,
+            factoryManifestCRC: hasExtendedFactoryFields ? u32(16) : 0,
+            factoryStatus: hasExtendedFactoryFields ? Int(payload[20]) : 0,
+            factoryError: hasExtendedFactoryFields ? Int(payload[21]) : 0,
+            reclaimSlotBase: payload.count >= 26 ? Int(u16(22)) : Int(u16(10)),
+            reclaimSlotLimit: payload.count >= 26 ? Int(u16(24)) : Int(u16(12))
         )
     }
 

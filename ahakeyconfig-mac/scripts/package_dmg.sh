@@ -12,7 +12,8 @@ fi
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio}"
 APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
-DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-AhaKey Studio Installer}"
+# HFS+ is case-insensitive; avoid a volume name that shares the app bundle prefix.
+DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-Install AhaKey Studio}"
 DMG_BASENAME="${DMG_BASENAME:-AhaKey-Studio-macOS-prod-$(date +%Y%m%d%H%M%S)}"
 DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME.dmg"
 DMG_STAGING_DIR="$OUTPUT_DIR/.dmg-staging"

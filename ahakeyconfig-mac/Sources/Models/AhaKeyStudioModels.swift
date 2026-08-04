@@ -850,29 +850,130 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
     }
 }
 
+enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
+    case idle = 0
+    case working = 1
+    case waiting = 2
+    case done = 3
+
+    var id: Int { rawValue }
+    var title: String {
+        switch self {
+        case .idle: return "待机"
+        case .working: return "进行中"
+        case .waiting: return "待批准"
+        case .done: return "已完成"
+        }
+    }
+}
+
+struct AhaKeyTaskGIFAssetDraft: Codable, Equatable, Identifiable {
+    var state: AhaKeyTaskDisplayState
+    var localAssetPath: String?
+    var framesPerSecond: Int
+    var deviceSchemaVersion: Int?
+    var id: Int { state.rawValue }
+
+    init(
+        state: AhaKeyTaskDisplayState,
+        localAssetPath: String? = nil,
+        framesPerSecond: Int = 12,
+        deviceSchemaVersion: Int? = nil
+    ) {
+        self.state = state
+        self.localAssetPath = localAssetPath
+        self.framesPerSecond = min(20, max(5, framesPerSecond))
+        self.deviceSchemaVersion = deviceSchemaVersion
+    }
+}
+
+struct AhaKeyTaskGIFSetDraft: Codable, Equatable {
+    var assets: [AhaKeyTaskGIFAssetDraft]
+
+    init(assets: [AhaKeyTaskGIFAssetDraft]) { self.assets = Self.normalizedAssets(assets) }
+
+    static func defaultSet(assetPath: String?, framesPerSecond: Int) -> AhaKeyTaskGIFSetDraft {
+        AhaKeyTaskGIFSetDraft(assets: AhaKeyTaskDisplayState.allCases.map {
+            AhaKeyTaskGIFAssetDraft(state: $0, localAssetPath: $0 == .done ? assetPath : nil, framesPerSecond: framesPerSecond)
+        })
+    }
+
+    static func emptySet() -> AhaKeyTaskGIFSetDraft {
+        AhaKeyTaskGIFSetDraft(assets: AhaKeyTaskDisplayState.allCases.map { AhaKeyTaskGIFAssetDraft(state: $0) })
+    }
+
+    func asset(for state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        assets.first { $0.state == state } ?? AhaKeyTaskGIFAssetDraft(state: state)
+    }
+
+    mutating func updateAsset(_ asset: AhaKeyTaskGIFAssetDraft) {
+        if let index = assets.firstIndex(where: { $0.state == asset.state }) { assets[index] = asset }
+        else { assets.append(asset) }
+        assets = Self.normalizedAssets(assets)
+    }
+
+    private static func normalizedAssets(_ candidates: [AhaKeyTaskGIFAssetDraft]) -> [AhaKeyTaskGIFAssetDraft] {
+        AhaKeyTaskDisplayState.allCases.map { state in
+            if let existing = candidates.first(where: { $0.state == state }) {
+                return existing
+            }
+            if state == .idle, let working = candidates.first(where: { $0.state == .working }) {
+                return AhaKeyTaskGIFAssetDraft(
+                    state: .idle,
+                    localAssetPath: working.localAssetPath,
+                    framesPerSecond: working.framesPerSecond,
+                    deviceSchemaVersion: working.deviceSchemaVersion
+                )
+            }
+            return AhaKeyTaskGIFAssetDraft(state: state)
+        }
+    }
+}
+
 struct AhaKeyOLEDDraft: Codable, Equatable {
     var localAssetPath: String?
     var statusLine: String
     var framesPerSecond: Int
+    var taskGIFSets: [AhaKeyTaskGIFSetDraft]
+    var activeGIFSet: Int
+    /// 0 is an existing one-GIF draft that needs migration on its first device write.
+    var taskGIFSchemaVersion: Int
 
     private enum CodingKeys: String, CodingKey {
         case localAssetPath
         case statusLine
         case framesPerSecond
+        case taskGIFSets
+        case activeGIFSet
+        case taskGIFSchemaVersion
     }
 
-    init(localAssetPath: String?, statusLine: String, framesPerSecond: Int = 12) {
+    init(
+        localAssetPath: String?, statusLine: String, framesPerSecond: Int = 12,
+        taskGIFSets: [AhaKeyTaskGIFSetDraft]? = nil, activeGIFSet: Int = 0, taskGIFSchemaVersion: Int = 0
+    ) {
         self.localAssetPath = localAssetPath
         self.statusLine = statusLine
-        self.framesPerSecond = framesPerSecond
+        self.framesPerSecond = min(20, max(5, framesPerSecond))
+        self.taskGIFSets = Self.normalizedSets(taskGIFSets ?? [], legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        self.activeGIFSet = min(1, max(0, activeGIFSet))
+        self.taskGIFSchemaVersion = max(0, taskGIFSchemaVersion)
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         localAssetPath = try container.decodeIfPresent(String.self, forKey: .localAssetPath)
         statusLine = try container.decode(String.self, forKey: .statusLine)
-        let storedFPS = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
-        framesPerSecond = min(30, max(1, storedFPS))
+        framesPerSecond = min(20, max(5, try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12))
+        taskGIFSets = Self.normalizedSets(try container.decodeIfPresent([AhaKeyTaskGIFSetDraft].self, forKey: .taskGIFSets) ?? [], legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        activeGIFSet = min(1, max(0, try container.decodeIfPresent(Int.self, forKey: .activeGIFSet) ?? 0))
+        taskGIFSchemaVersion = max(0, try container.decodeIfPresent(Int.self, forKey: .taskGIFSchemaVersion) ?? 0)
+        // Schema 1 duplicated the legacy animation into Set B during
+        // migration. Remove only exact duplicates; independently configured
+        // Set B assets are preserved.
+        if taskGIFSchemaVersion < 2, taskGIFSets.count > 1, taskGIFSets[1] == taskGIFSets[0] {
+            taskGIFSets[1] = .emptySet()
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -880,6 +981,37 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         try container.encodeIfPresent(localAssetPath, forKey: .localAssetPath)
         try container.encode(statusLine, forKey: .statusLine)
         try container.encode(framesPerSecond, forKey: .framesPerSecond)
+        try container.encode(taskGIFSets, forKey: .taskGIFSets)
+        try container.encode(activeGIFSet, forKey: .activeGIFSet)
+        try container.encode(taskGIFSchemaVersion, forKey: .taskGIFSchemaVersion)
+    }
+
+    func taskAsset(set: Int, state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        let normalizedSet = min(1, max(0, set))
+        guard taskGIFSets.indices.contains(normalizedSet) else { return AhaKeyTaskGIFAssetDraft(state: state) }
+        return taskGIFSets[normalizedSet].asset(for: state)
+    }
+
+    mutating func updateTaskAsset(set: Int, asset: AhaKeyTaskGIFAssetDraft) {
+        ensureTaskGIFSets()
+        let normalizedSet = min(1, max(0, set))
+        taskGIFSets[normalizedSet].updateAsset(asset)
+        if normalizedSet == 0 && asset.state == .done {
+            localAssetPath = asset.localAssetPath
+            framesPerSecond = asset.framesPerSecond
+        }
+    }
+
+    mutating func ensureTaskGIFSets() {
+        taskGIFSets = Self.normalizedSets(taskGIFSets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        activeGIFSet = min(1, max(0, activeGIFSet))
+    }
+
+    private static func normalizedSets(_ candidates: [AhaKeyTaskGIFSetDraft], legacyAssetPath: String?, legacyFramesPerSecond: Int) -> [AhaKeyTaskGIFSetDraft] {
+        var result = Array(candidates.prefix(2))
+        if result.isEmpty { result.append(.defaultSet(assetPath: legacyAssetPath, framesPerSecond: legacyFramesPerSecond)) }
+        while result.count < 2 { result.append(.emptySet()) }
+        return result
     }
 
     static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyOLEDDraft {
@@ -1053,6 +1185,7 @@ struct AhaKeyStudioDraft: Codable, Equatable {
 
 enum AhaKeyStudioStore {
     private static let key = "ahakey.studio.draft.v1"
+    private static let syncBaselineKey = "ahakey.studio.sync-baseline.v1"
 
     static func load() -> AhaKeyStudioDraft? {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -1069,6 +1202,16 @@ enum AhaKeyStudioStore {
     static func save(_ draft: AhaKeyStudioDraft) {
         guard let data = try? JSONEncoder().encode(draft) else { return }
         UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func loadSyncBaseline() -> AhaKeyStudioDraft? {
+        guard let data = UserDefaults.standard.data(forKey: syncBaselineKey) else { return nil }
+        return try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data)
+    }
+
+    static func saveSyncBaseline(_ draft: AhaKeyStudioDraft) {
+        guard let data = try? JSONEncoder().encode(draft) else { return }
+        UserDefaults.standard.set(data, forKey: syncBaselineKey)
     }
 
     private static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {

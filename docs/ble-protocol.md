@@ -41,9 +41,12 @@ AhaKeyConfig (Swift) ──BLE──> AhaKey-X1 键盘
 | UPDATE_CUSTOM_KEY | 0x73 | 按键配置（快捷键/宏/描述） |
 | PREPARE_WRITE | 0x80 | 大数据写入准备 |
 | WRITE_RESULT | 0x81 | 写入结果 ACK |
-| UPDATE_PIC | 0x82 | 更新动画参数 |
-| READ_PIC_STATE | 0x83 | 读取动画状态 |
-| **UPDATE_STATE** | **0x90** | **IDE 状态同步 → LED 变色** |
+| UPDATE_PIC | 0x82 | 更新旧版每 Mode 动画参数 |
+| READ_PIC_STATE | 0x83 | 读取旧版每 Mode 动画状态 |
+| UPDATE_TASK_PIC | 0x84 | 写入 Mode/套图/任务状态动画槽 |
+| READ_TASK_PIC_STATE | 0x85 | 读取任务动画槽 |
+| SET_ACTIVE_TASK_PIC_SET | 0x86 | 设置或读取当前 GIF 套图 |
+| **UPDATE_STATE** | **0x90** | **IDE 状态同步 → LED 与 LCD 状态图** |
 
 ## 4. 设备状态查询
 
@@ -167,6 +170,36 @@ time_delay = 1000 / fps（毫秒）
 **发送**: `AA BB 83 [mode:1] CC DD`
 
 **响应**: `AA BB 83 00 [mode:1] [start_index:2 LE] [pic_length:2 LE] [frame_interval:2 LE] [all_mode_max_pic:2 LE] CC DD`
+
+### 任务状态双套 GIF（固件扩展）
+
+每个 Mode 有两套 GIF；每套按 IDE 状态 `0...8` 各保存一个动画槽。74 个物理帧槽由全部任务动画共享。
+
+**写入任务槽**:
+
+```
+AA BB 84 [mode:1] [set:1] [state:1] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD
+```
+
+- `set`: 0=套图 A，1=套图 B
+- `state`: 与 `UPDATE_STATE (0x90)` 的 IDE 状态值一致
+- `frame_count=0` 清空该状态槽，不擦除原始帧，帧槽可被后续上传复用
+
+**读取任务槽**:
+
+```
+发送: AA BB 85 [mode] [set] [state] CC DD
+响应: AA BB 85 00 [mode] [set] [state] [start:2 LE] [count:2 LE] [interval:2 LE] [max:2 LE] [active_set] CC DD
+```
+
+**切换/查询套图**:
+
+```
+发送: AA BB 86 [mode] [set] CC DD
+响应: AA BB 86 00 [mode] [active_set] CC DD
+```
+
+`set=0xFF` 只查询。键盘电源键双击会在当前 Mode 的套图 A/B 之间切换、持久化，并重置 LCD 动画帧序。收到合法 `0x90` 状态后，新固件同样会立即重置帧序并显示该状态对应的动画；未配置状态依次回退到当前套图的 SessionEnd、套图 A、旧版 `0x82` 动画。
 
 ## 9. 响应格式
 

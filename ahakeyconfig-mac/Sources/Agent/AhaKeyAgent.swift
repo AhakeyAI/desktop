@@ -57,15 +57,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lastSentState: UInt8 = 0
     private var watchdogTimer: DispatchSourceTimer?
 
-    /// 各活跃态超时时长（秒）：
-    ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
-    ///   其余工具执行态 → 60s（工具可能运行较久，避免误触发）
-    private func watchdogTimeout(for state: UInt8) -> Double {
-        switch state {
-        case 1, 7: return 30   // PermissionRequest / UserPromptSubmit：短超时
-        default:   return 60   // PreToolUse / PostToolUse / SessionStart / TaskCompleted
-        }
-    }
+    private let hookHeartbeatInterval: Double = 30
+    private let hookStaleTimeout: Double = 90
 
     var onLog: ((String) -> Void)?
 
@@ -190,13 +183,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         )
     }
 
-    func startSocketListener() {
+    @discardableResult
+    func startSocketListener() -> Bool {
+        if Self.hasLiveSocket(at: socketPath) {
+            emit("已有 Agent 在监听 Unix socket: \(socketPath)")
+            return false
+        }
+
         startWatchdog()
-        // 清理旧 socket
+        // 清理没有监听进程的残留 socket
         unlink(socketPath)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { emit("socket() 失败"); return }
+        guard fd >= 0 else { emit("socket() 失败"); return false }
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -212,7 +211,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return }
+        guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return false }
 
         listen(fd, 5)
         emit("监听 Unix socket: \(socketPath)")
@@ -224,13 +223,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 self?.handleClient(clientFd)
             }
         }
+        return true
     }
 
     // MARK: - 看门狗
 
     private func startWatchdog() {
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 30, repeating: 10)
+        timer.schedule(deadline: .now() + hookHeartbeatInterval, repeating: hookHeartbeatInterval)
         timer.setEventHandler { [weak self] in
             self?.checkWatchdog()
         }
@@ -240,17 +240,43 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     private func checkWatchdog() {
         guard let lastAt = lastHookStateAt else { return }
-        let activeStates: [UInt8] = [1, 2, 3, 4, 6, 7]
+        // Notification / permission / running states need a heartbeat. Stop and
+        // TaskCompleted deliberately do not: firmware returns DONE to IDLE after 60s.
+        let activeStates: [UInt8] = [0, 1, 2, 3, 4, 7]
         guard activeStates.contains(lastSentState) else { return }
         let elapsed = Date().timeIntervalSince(lastAt)
-        let threshold = watchdogTimeout(for: lastSentState)
-        guard elapsed >= threshold else { return }
-        emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），自动发 Stop(5)")
-        sendState(5)
-        lastHookStateAt = nil  // 重置，避免重复触发
+        if elapsed >= hookStaleTimeout {
+            emit("看门狗：\(Int(elapsed))s 无 Hook 活动，回到待机")
+            sendState(8)
+            lastHookStateAt = nil
+        } else {
+            emit("状态心跳：续期 \(lastSentState)")
+            sendState(lastSentState)
+        }
     }
 
     // MARK: - Socket handling
+
+    private static func hasLiveSocket(at path: String) -> Bool {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        path.withCString { ptr in
+            withUnsafeMutablePointer(to: &addr.sun_path) { sunPath in
+                let buf = UnsafeMutableRawPointer(sunPath).assumingMemoryBound(to: CChar.self)
+                strcpy(buf, ptr)
+            }
+        }
+
+        return withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
+            }
+        }
+    }
 
     /// 单个客户端的处理：读一包请求，按 JSON 或旧版纯数字分发。
     ///

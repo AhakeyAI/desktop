@@ -1,24 +1,26 @@
 package com.example.ahakey.model;
 
+import com.example.ahakey.util.LanguageManager;
+
 public enum IDEState {
-    SESSION_START(4, "会话开始", "Claude/Codex 会话刚启动，适合给用户一个启动反馈。"),
-    USER_PROMPT_SUBMIT(7, "用户提交输入", "用户把问题或指令提交给 AI，适合短暂输入反馈。"),
-    PRE_TOOL_USE(3, "工具即将执行", "AI 准备调用工具或执行动作。"),
-    PERMISSION_REQUEST(1, "等待批准", "AI 需要用户确认，例如批准命令、文件修改或工具调用。"),
-    POST_TOOL_USE(2, "工具执行完成", "一次工具调用结束，AI 可能继续分析或进入下一步。"),
-    NOTIFICATION(0, "通知提醒", "普通提示或状态通知。"),
-    TASK_COMPLETED(6, "任务完成", "本轮任务已经完成。"),
-    STOP(5, "AI 停止", "AI 当前停止输出或处于待命状态。"),
-    SESSION_END(8, "会话结束", "会话收尾或退出。");
+    SESSION_START(4, "ide-state.session-start", "ide-state.session-start-desc"),
+    USER_PROMPT_SUBMIT(7, "ide-state.user-prompt-submit", "ide-state.user-prompt-submit-desc"),
+    PRE_TOOL_USE(3, "ide-state.pre-tool-use", "ide-state.pre-tool-use-desc"),
+    PERMISSION_REQUEST(1, "ide-state.permission-request", "ide-state.permission-request-desc"),
+    POST_TOOL_USE(2, "ide-state.post-tool-use", "ide-state.post-tool-use-desc"),
+    NOTIFICATION(0, "ide-state.notification", "ide-state.notification-desc"),
+    TASK_COMPLETED(6, "ide-state.task-completed", "ide-state.task-completed-desc"),
+    STOP(5, "ide-state.stop", "ide-state.stop-desc"),
+    SESSION_END(8, "ide-state.session-end", "ide-state.session-end-desc");
 
     private final int code;
-    private final String label;
-    private final String description;
+    private final String labelKey;
+    private final String descriptionKey;
 
-    IDEState(int code, String label, String description) {
+    IDEState(int code, String labelKey, String descriptionKey) {
         this.code = code;
-        this.label = label;
-        this.description = description;
+        this.labelKey = labelKey;
+        this.descriptionKey = descriptionKey;
     }
 
     public int getCode() {
@@ -26,15 +28,15 @@ public enum IDEState {
     }
 
     public String getLabel() {
-        return label;
+        return LanguageManager.getInstance().getString(labelKey);
     }
 
     public String getDescription() {
-        return description;
+        return LanguageManager.getInstance().getString(descriptionKey);
     }
 
     public String getFullLabel() {
-        return code + " " + label;
+        return code + " " + getLabel();
     }
 
     public static IDEState fromCode(int code) {

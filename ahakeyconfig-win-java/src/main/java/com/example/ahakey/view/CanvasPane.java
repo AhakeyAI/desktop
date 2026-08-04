@@ -4,6 +4,7 @@ import com.example.ahakey.app.StudioController;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.StudioState;
+import com.example.ahakey.util.LanguageManager;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -20,6 +21,7 @@ public class CanvasPane extends VBox {
     private final StudioState studioState;
     private final DeviceStatus deviceStatus;
     private final StudioController controller;
+    private final LanguageManager languageManager = LanguageManager.getInstance();
 
     private final Label modeGuidance = new Label();
 
@@ -54,7 +56,7 @@ public class CanvasPane extends VBox {
         HBox titleRow = new HBox(16);
         titleRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label keyboardMode = new Label("键盘模式");
+        Label keyboardMode = new Label(languageManager.getString("canvas.keyboard-mode"));
         keyboardMode.getStyleClass().add("section-title");
 
         HBox picker = new HBox(4);

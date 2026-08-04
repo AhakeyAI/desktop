@@ -1,22 +1,24 @@
 package com.example.ahakey.model;
 
+import com.example.ahakey.util.LanguageManager;
+
 public enum StudioPart {
-    LIGHT_BAR("lightBar", "灯条", "AI 状态灯效"),
-    OLED("oledDisplay", "OLED 屏幕", "GIF / 图片"),
-    KEY1("key1", "Key 1", "快捷键"),
-    KEY2("key2", "Key 2", "快捷键"),
-    KEY3("key3", "Key 3", "快捷键"),
-    KEY4("key4", "Key 4", "快捷键"),
-    TOGGLE_SWITCH("toggleSwitch", "拨杆", "审批模式");
+    LIGHT_BAR("lightBar", "studio-part.light-bar", "studio-part.light-bar-sub"),
+    OLED("oledDisplay", "studio-part.oled", "studio-part.oled-sub"),
+    KEY1("key1", "studio-part.key1", "studio-part.key-sub"),
+    KEY2("key2", "studio-part.key2", "studio-part.key-sub"),
+    KEY3("key3", "studio-part.key3", "studio-part.key-sub"),
+    KEY4("key4", "studio-part.key4", "studio-part.key-sub"),
+    TOGGLE_SWITCH("toggleSwitch", "studio-part.toggle-switch", "studio-part.toggle-switch-sub");
 
     private final String id;
-    private final String title;
-    private final String subtitle;
+    private final String titleKey;
+    private final String subtitleKey;
 
-    StudioPart(String id, String title, String subtitle) {
+    StudioPart(String id, String titleKey, String subtitleKey) {
         this.id = id;
-        this.title = title;
-        this.subtitle = subtitle;
+        this.titleKey = titleKey;
+        this.subtitleKey = subtitleKey;
     }
 
     public String getId() {
@@ -24,15 +26,15 @@ public enum StudioPart {
     }
 
     public String getTitle() {
-        return title;
+        return LanguageManager.getInstance().getString(titleKey);
     }
 
     public String getSubtitle() {
-        return subtitle;
+        return LanguageManager.getInstance().getString(subtitleKey);
     }
 
     public String getDisplayTitle() {
-        return title + " · " + subtitle;
+        return getTitle() + " · " + getSubtitle();
     }
 
     public boolean isKey() {

@@ -46,17 +46,27 @@ enum OLEDFrameEncoder {
         return nil
     }
 
-    /// 若超过 `AhaKeyCommand.oledMaxSourceFileBytes` 则抛出 `sourceFileTooLarge`。
-    static func validateGIFSourceFileSize(at url: URL) throws {
+    static func validateSourceFileSize(at url: URL) throws {
         guard let n = sourceFileByteCount(at: url) else {
             return
         }
-        guard n <= AhaKeyCommand.oledMaxSourceFileBytes else {
-            throw OLEDFrameEncodingError.sourceFileTooLarge(fileSize: n, maxBytes: AhaKeyCommand.oledMaxSourceFileBytes)
+        let animated = frameCount(at: url) > 1
+        let limit = animated
+            ? AhaKeyCommand.animatedOLEDMaxSourceFileBytes
+            : AhaKeyCommand.staticOLEDMaxSourceFileBytes
+        guard n <= limit else {
+            throw OLEDFrameEncodingError.sourceFileTooLarge(fileSize: n, maxBytes: limit)
         }
     }
 
-    static func validateFrameCount(at url: URL) throws {
+    static func validateGIFSourceFileSize(at url: URL) throws {
+        try validateSourceFileSize(at: url)
+    }
+
+    static func validateFrameCount(
+        at url: URL,
+        maxFrames: Int = AhaKeyCommand.oledMaxFramesPerMode
+    ) throws {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw OLEDFrameEncodingError.cannotCreateImageSource
         }
@@ -64,13 +74,13 @@ enum OLEDFrameEncoder {
         guard count > 0 else {
             throw OLEDFrameEncodingError.noFrames
         }
-        guard count <= AhaKeyCommand.oledMaxFramesPerMode else {
-            throw OLEDFrameEncodingError.tooManyFrames(count: count, max: AhaKeyCommand.oledMaxFramesPerMode)
+        guard count <= maxFrames else {
+            throw OLEDFrameEncodingError.tooManyFrames(count: count, max: maxFrames)
         }
     }
 
-    static func frames(fromGIFAt url: URL) throws -> [Data] {
-        try validateGIFSourceFileSize(at: url)
+    static func frames(fromGIFAt url: URL, maxFrames: Int = AhaKeyCommand.oledMaxFramesPerMode) throws -> [Data] {
+        try validateSourceFileSize(at: url)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw OLEDFrameEncodingError.cannotCreateImageSource
         }
@@ -79,21 +89,47 @@ enum OLEDFrameEncoder {
         guard count > 0 else {
             throw OLEDFrameEncodingError.noFrames
         }
-        guard count <= AhaKeyCommand.oledMaxFramesPerMode else {
-            throw OLEDFrameEncodingError.tooManyFrames(count: count, max: AhaKeyCommand.oledMaxFramesPerMode)
+        let cappedCount = max(1, maxFrames)
+        let indexes: [Int]
+        if count <= cappedCount {
+            indexes = Array(0 ..< count)
+        } else if cappedCount == 1 {
+            indexes = [0]
+        } else {
+            indexes = (0 ..< cappedCount).map {
+                Int((Double($0) * Double(count - 1) / Double(cappedCount - 1)).rounded())
+            }
         }
 
         var frames: [Data] = []
-        frames.reserveCapacity(count)
-        for index in 0 ..< count {
-            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+        frames.reserveCapacity(indexes.count)
+        for index in indexes {
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: max(
+                    AhaKeyCommand.oledWidth,
+                    AhaKeyCommand.oledHeight
+                ),
+                kCGImageSourceShouldCacheImmediately: true,
+            ]
+            guard let image = CGImageSourceCreateThumbnailAtIndex(
+                source,
+                index,
+                options as CFDictionary
+            ) else { continue }
             frames.append(try encodeFrame(image))
         }
 
         guard !frames.isEmpty else {
             throw OLEDFrameEncodingError.noFrames
         }
-        return frames
+        return collapsingStaticFrames(frames)
+    }
+
+    static func collapsingStaticFrames(_ frames: [Data]) -> [Data] {
+        guard let first = frames.first, frames.count > 1 else { return frames }
+        return frames.dropFirst().allSatisfy { $0 == first } ? [first] : frames
     }
 
     private static func encodeFrame(_ image: CGImage) throws -> Data {
@@ -132,7 +168,7 @@ enum OLEDFrameEncoder {
 
         // 每帧恰好 160*80*2 = 25600 字节 RGB565 大端，原厂 Python 也不做 padding。
         // flash 物理帧槽是 28672 字节，剩下的 3072 字节由 address 递增自然留空。
-        var data = Data(capacity: width * height * 2)
+        var data = Data(capacity: AhaKeyCommand.oledEncodedFrameBytes)
         for pixel in stride(from: 0, to: rgba.count, by: bytesPerPixel) {
             let red = UInt16(rgba[pixel])
             let green = UInt16(rgba[pixel + 1])
@@ -141,6 +177,7 @@ enum OLEDFrameEncoder {
             data.append(UInt8((rgb565 >> 8) & 0xFF))
             data.append(UInt8(rgb565 & 0xFF))
         }
+        assert(data.count == AhaKeyCommand.oledEncodedFrameBytes)
         return data
     }
 }

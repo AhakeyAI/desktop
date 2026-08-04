@@ -33,54 +33,66 @@ public class HookDispatchServer {
 
     public static final int DEFAULT_PORT = 8765;
 
+    /**
+     * 手动批准确认回调 - 用于在手动模式下请求用户确认
+     */
+    @FunctionalInterface
+    public interface ApprovalCallback {
+        /**
+         * 请求用户确认操作
+         * @param platform 平台名称
+         * @param eventName 事件名称
+         * @return true 表示用户确认，false 表示用户拒绝
+         */
+        boolean requestApproval(String platform, String eventName);
+    }
+
     private final BleManager bleManager;
     private final int port;
     private ServerSocket serverSocket;
     private ExecutorService executor;
     private volatile boolean running;
+    private ApprovalCallback approvalCallback;
 
-    /**
-     * 所有平台 hook 事件名 → IDEState 映射。
-     * 前缀 Codex* / Kimi* 以及无前缀的 Claude/Cursor 事件名均映射到相同的 BLE 状态码。
-     */
-    private static final Map<String, IDEState> EVENT_MAP = new HashMap<>();
+    enum Platform { CLAUDE, CODEX, KIMI, CURSOR }
+
+    record EventEntry(Platform platform, IDEState state) {}
+
+    /** 事件名 → (Platform, IDEState)，每个事件名唯一归属一个平台，无命名冲突风险。 */
+    private static final Map<String, EventEntry> EVENT_MAP = new HashMap<>();
 
     static {
-        // Claude 事件名（PascalCase）
-        EVENT_MAP.put("SessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("SessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("PreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("PostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("PermissionRequest", IDEState.PERMISSION_REQUEST);
-        EVENT_MAP.put("Notification", IDEState.NOTIFICATION);
-        EVENT_MAP.put("TaskCompleted", IDEState.TASK_COMPLETED);
-        EVENT_MAP.put("Stop", IDEState.STOP);
-        EVENT_MAP.put("UserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
+        // Claude（PascalCase）
+        for (String[] e : new String[][]{
+            {"SessionStart", "SESSION_START"}, {"SessionEnd", "SESSION_END"},
+            {"PreToolUse", "PRE_TOOL_USE"}, {"PostToolUse", "POST_TOOL_USE"},
+            {"Notification", "NOTIFICATION"}, {"TaskCompleted", "TASK_COMPLETED"},
+            {"Stop", "STOP"}, {"UserPromptSubmit", "USER_PROMPT_SUBMIT"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CLAUDE, IDEState.valueOf(e[1])));
+        EVENT_MAP.put("PermissionRequest", new EventEntry(Platform.CLAUDE, IDEState.PERMISSION_REQUEST));
 
-        // Cursor 事件名（camelCase）
-        EVENT_MAP.put("sessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("sessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("preToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("postToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("stop", IDEState.STOP);
+        // Codex（Codex* 前缀）
+        for (String[] e : new String[][]{
+            {"CodexSessionStart", "SESSION_START"}, {"CodexSessionEnd", "SESSION_END"},
+            {"CodexPreToolUse", "PRE_TOOL_USE"}, {"CodexPostToolUse", "POST_TOOL_USE"},
+            {"CodexStop", "STOP"}, {"CodexUserPromptSubmit", "USER_PROMPT_SUBMIT"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CODEX, IDEState.valueOf(e[1])));
+        EVENT_MAP.put("CodexPermissionRequest", new EventEntry(Platform.CODEX, IDEState.PERMISSION_REQUEST));
 
-        // Codex 事件名（Codex* 前缀）
-        EVENT_MAP.put("CodexSessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("CodexSessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("CodexPreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("CodexPostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("CodexPermissionRequest", IDEState.PERMISSION_REQUEST);
-        EVENT_MAP.put("CodexStop", IDEState.STOP);
-        EVENT_MAP.put("CodexUserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
+        // Kimi（Kimi* 前缀）
+        for (String[] e : new String[][]{
+            {"KimiNotification", "NOTIFICATION"}, {"KimiSessionStart", "SESSION_START"},
+            {"KimiSessionEnd", "SESSION_END"}, {"KimiPreToolUse", "PRE_TOOL_USE"},
+            {"KimiPostToolUse", "POST_TOOL_USE"}, {"KimiUserPromptSubmit", "USER_PROMPT_SUBMIT"},
+            {"KimiStop", "STOP"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.KIMI, IDEState.valueOf(e[1])));
 
-        // Kimi 事件名（Kimi* 前缀）
-        EVENT_MAP.put("KimiNotification", IDEState.NOTIFICATION);
-        EVENT_MAP.put("KimiSessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("KimiSessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("KimiPreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("KimiPostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("KimiUserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
-        EVENT_MAP.put("KimiStop", IDEState.STOP);
+        // Cursor（camelCase）
+        for (String[] e : new String[][]{
+            {"sessionStart", "SESSION_START"}, {"sessionEnd", "SESSION_END"},
+            {"preToolUse", "PRE_TOOL_USE"}, {"postToolUse", "POST_TOOL_USE"},
+            {"stop", "STOP"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CURSOR, IDEState.valueOf(e[1])));
     }
 
     public HookDispatchServer(BleManager bleManager) {
@@ -90,6 +102,13 @@ public class HookDispatchServer {
     public HookDispatchServer(BleManager bleManager, int port) {
         this.bleManager = bleManager;
         this.port = port;
+    }
+
+    /**
+     * 设置手动批准确认回调
+     */
+    public void setApprovalCallback(ApprovalCallback callback) {
+        this.approvalCallback = callback;
     }
 
     /**
@@ -149,6 +168,18 @@ public class HookDispatchServer {
         }
     }
 
+    /**
+     * 检查自动批准状态。
+     * @param forceRefresh 是否强制刷新设备状态（通过 BLE 查询）
+     * @return true 表示自动批准模式，false 表示手动批准模式
+     */
+    private boolean checkAutoApproval(boolean forceRefresh) {
+        if (forceRefresh) {
+            bleManager.queryStatusAndWait(200);
+        }
+        return bleManager.getCachedStatus().isAutoApproval();
+    }
+
     private void handleClient(Socket client) {
         try (client;
              BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
@@ -162,58 +193,112 @@ public class HookDispatchServer {
 
             line = line.trim();
             String eventName = parseEventName(line);
-            logger.debug("Hook 事件: {} (原始: {})", eventName, line);
 
-            IDEState state = EVENT_MAP.get(eventName);
-            if (state == null) {
-                logger.warn("未知 hook 事件: {}", eventName);
+            EventEntry entry = EVENT_MAP.get(eventName);
+            if (entry == null) {
+                logger.warn("未知 hook 事件: {} (原始: {})", eventName, line);
                 writer.println("{\"ok\":false,\"error\":\"unknown event: " + eventName + "\"}");
                 return;
             }
+            logger.debug("[{}] 收到事件: {} (原始: {})", entry.platform(), eventName, line);
 
-            // 检查 PermissionRequest 事件是否需要自动批准
-            if (state == IDEState.PERMISSION_REQUEST) {
-                boolean isAutoApproval = bleManager.getCachedStatus().isAutoApproval();
-                if (isAutoApproval) {
-                    logger.info("自动批准模式: 跳过 PermissionRequest 事件");
-                    writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":true}");
-                } else {
-                    logger.info("手动批准模式: 返回拒绝决策");
-                    writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":false}");
-                }
-                return;
-            }
-
-            // Kimi PreToolUse：刷新设备状态后直接返回 Kimi 决策格式，PS1 hook 原样透传
-            if ("KimiPreToolUse".equals(eventName)) {
-                bleManager.queryStatusAndWait(200);
-                boolean isAuto = bleManager.getCachedStatus().isAutoApproval();
-                logger.info("KimiPreToolUse: 拨杆={} (switchState={})",
-                        isAuto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
-                try {
-                    bleManager.updateState((byte) state.getCode());
-                } catch (Exception e) {
-                    logger.warn("BLE 状态更新失败: {}", e.getMessage());
-                }
-                if (isAuto) {
-                    writer.println("{}");
-                } else {
-                    writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"AhaKey: manual mode, switch dial to auto\"}}");
-                }
-                return;
-            }
-
-            try {
-                bleManager.updateState((byte) state.getCode());
-                logger.info("Hook 分发成功: {} → {} (code={})", eventName, state.name(), state.getCode());
-                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode() + "}");
-            } catch (Exception e) {
-                logger.error("BLE 状态更新失败: {}", e.getMessage());
-                writer.println("{\"ok\":false,\"error\":\"BLE update failed\"}");
+            switch (entry.platform()) {
+                case CLAUDE -> handleClaudeEvent(writer, eventName, entry.state());
+                case CODEX  -> handleCodexEvent(writer, eventName, entry.state());
+                case KIMI   -> handleKimiEvent(writer, eventName, entry.state());
+                case CURSOR -> handleCursorEvent(writer, eventName, entry.state());
             }
 
         } catch (IOException e) {
             logger.debug("Hook 客户端处理异常: {}", e.getMessage());
+        }
+    }
+
+    private void handleClaudeEvent(PrintWriter writer, String eventName, IDEState state) {
+        if (state == IDEState.PERMISSION_REQUEST) {
+            boolean auto = checkAutoApproval(false);
+            logger.info("[Claude] {} 拨杆={}", eventName, auto ? "自动" : "手动");
+            if (!auto && approvalCallback != null) {
+                boolean approved = approvalCallback.requestApproval("Claude", eventName);
+                logger.info("[Claude] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
+                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+            } else {
+                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + auto + "}");
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Claude");
+    }
+
+    private void handleCodexEvent(PrintWriter writer, String eventName, IDEState state) {
+        boolean needApproval = "CodexPreToolUse".equals(eventName) || state == IDEState.PERMISSION_REQUEST;
+        if (needApproval) {
+            boolean auto = checkAutoApproval(true);
+            logger.info("[Codex] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+            try { bleManager.updateState((byte) state.getCode()); }
+            catch (Exception e) { logger.warn("[Codex] BLE 状态更新失败: {}", e.getMessage()); }
+
+            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
+            logger.info("[Codex] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
+            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Codex");
+    }
+
+    private void handleKimiEvent(PrintWriter writer, String eventName, IDEState state) {
+        if ("KimiPreToolUse".equals(eventName)) {
+            boolean auto = checkAutoApproval(true);
+            logger.info("[Kimi] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+            try { bleManager.updateState((byte) state.getCode()); }
+            catch (Exception e) { logger.warn("[Kimi] BLE 状态更新失败: {}", e.getMessage()); }
+            
+            if (auto) {
+                writer.println("{}");
+            } else if (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName)) {
+                writer.println("{}");
+                logger.info("[Kimi] {} 用户操作=允许", eventName);
+            } else {
+                writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
+                logger.info("[Kimi] {} 用户操作=拒绝", eventName);
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Kimi");
+    }
+
+    private void handleCursorEvent(PrintWriter writer, String eventName, IDEState state) {
+        if ("preToolUse".equals(eventName)) {
+            int switchState = bleManager.getCachedStatus().getSwitchState();
+            boolean auto = checkAutoApproval(true);
+            logger.info("[Cursor] {} 拨杆={} switchState={} callback={}", eventName, auto ? "自动" : "手动", switchState, approvalCallback != null);
+            try { bleManager.updateState((byte) state.getCode()); }
+            catch (Exception e) { logger.warn("[Cursor] BLE 状态更新失败: {}", e.getMessage()); }
+            
+            if (auto) {
+                logger.info("[Cursor] {} 自动放行", eventName);
+                writer.println("{\"permission\":\"allow\"}");
+            } else if (approvalCallback != null && approvalCallback.requestApproval("Cursor", eventName)) {
+                logger.info("[Cursor] {} 用户操作=允许", eventName);
+                writer.println("{\"permission\":\"allow\"}");
+            } else {
+                String reason = approvalCallback == null ? "回调未注册" : "用户拒绝";
+                logger.info("[Cursor] {} 用户操作=拒绝({})", eventName, reason);
+                writer.println("{\"permission\":\"deny\",\"user_message\":\"手动模式，" + reason + "\"}");
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Cursor");
+    }
+
+    private void handleGeneric(PrintWriter writer, String eventName, IDEState state, String platform) {
+        try {
+            bleManager.updateState((byte) state.getCode());
+            logger.info("[{}] {} → {} (code={})", platform, eventName, state.name(), state.getCode());
+            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode() + "}");
+        } catch (Exception e) {
+            logger.error("[{}] BLE 状态更新失败: {}", platform, e.getMessage());
+            writer.println("{\"ok\":false,\"error\":\"BLE update failed\"}");
         }
     }
 

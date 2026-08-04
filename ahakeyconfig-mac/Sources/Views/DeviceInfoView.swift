@@ -56,7 +56,7 @@ struct DeviceInfoView: View {
                                     Text(owner.title)
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
-                                         ? "改键、LCD、同步、本机灯效测试（macOS 暂不支持 USB 有线配置）"
+                                         ? "改键、LCD、同步、本机灯效测试（支持蓝牙或 USB 有线配置）"
                                          : "Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
@@ -75,7 +75,9 @@ struct DeviceInfoView: View {
                     }
                     CompatLabeledContent("当前") {
                         HStack(spacing: 6) {
-                            Text(bleManager.isConnected ? "本 App 已连接蓝牙" : "本 App 未连接")
+                            Text(bleManager.isWiredConnected
+                                 ? "本 App 已通过 USB 有线连接"
+                                 : (bleManager.isConnected ? "本 App 已连接蓝牙" : "本 App 未连接"))
                             Text("·")
                                 .foregroundStyle(.tertiary)
                             Text(agentBluetoothStatusText())

@@ -4,8 +4,11 @@ import com.example.ahakey.app.StudioController;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.service.AgentManager;
+import com.example.ahakey.service.HookDispatchServer;
+import com.example.ahakey.service.HookInstaller;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.util.Icons;
+import com.example.ahakey.util.LanguageManager;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
@@ -27,6 +30,8 @@ import javafx.scene.Scene;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import java.util.Optional;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
@@ -37,9 +42,6 @@ import java.io.File;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.animation.AnimationTimer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
 public class TopBar extends VBox {
     private final StudioController controller;
@@ -48,6 +50,9 @@ public class TopBar extends VBox {
     private final AgentManager agentManager;
     private VoiceInputManager voiceInputManager;
     private TextArea logArea;
+    private final HookInstaller hookInstaller;
+    private final LanguageManager languageManager;
+    private MenuItem languageMenuItem;
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -57,6 +62,11 @@ public class TopBar extends VBox {
     private volatile boolean isRecording = false;
     private volatile boolean voiceRunning = false;
     private FloatingVoiceNotification floatingNotification;  // 浮动通知窗口
+    
+    // BLE按钮长按相关
+    private volatile boolean bleButtonPressed = false;
+    private volatile boolean bleLongPressTriggered = false;
+    private Thread bleLongPressThread;
 
     public TopBar(StudioController controller, DeviceStatus deviceStatus,
                   StudioState studioState, AgentManager agentManager) {
@@ -64,10 +74,14 @@ public class TopBar extends VBox {
         this.deviceStatus = deviceStatus;
         this.studioState = studioState;
         this.agentManager = agentManager;
+        this.hookInstaller = new HookInstaller(
+            () -> controller.getHookDispatchPort(), this::addLog);
+        this.languageManager = LanguageManager.getInstance();
         setSpacing(0);
         setPadding(new Insets(0));
         getStyleClass().add("top-bar");
         initContent();
+        setupLanguageChangeListener();
     }
     
     /**
@@ -89,19 +103,23 @@ public class TopBar extends VBox {
         infoPills.getChildren().addAll(
             new InfoPill(
                 Bindings.createStringBinding(
-                    () -> controller.isEffectivelyConnected() ? "已连接"
-                        : (deviceStatus.isScanning() ? "扫描中" : "未连接"),
+                    () -> controller.isEffectivelyConnected() ? languageManager.getString("status.connected")
+                        : (deviceStatus.isScanning() ? languageManager.getString("status.scanning") : languageManager.getString("status.disconnected")),
                     deviceStatus.isConnectedProperty(),
                     deviceStatus.isScanningProperty()
                 ),
-                deviceStatus.deviceNameProperty(),
+                Bindings.createStringBinding(
+                    () -> controller.isEffectivelyConnected() ? deviceStatus.getDeviceName() : languageManager.getString("status.waiting-device"),
+                    deviceStatus.isConnectedProperty(),
+                    deviceStatus.deviceNameProperty()
+                ),
                 Bindings.createObjectBinding(
                     () -> controller.isEffectivelyConnected() ? AccentColor.GREEN : AccentColor.ORANGE,
                     deviceStatus.isConnectedProperty()
                 )
             ),
             new InfoPill(
-                Bindings.createStringBinding(() -> "电量"),
+                Bindings.createStringBinding(() -> languageManager.getString("status.battery")),
                 Bindings.createStringBinding(
                     () -> controller.isEffectivelyConnected() ? deviceStatus.getBatteryLevel() + "%" : "—",
                     deviceStatus.isConnectedProperty(),
@@ -110,7 +128,7 @@ public class TopBar extends VBox {
                 Bindings.createObjectBinding(() -> AccentColor.BLUE)
             ),
             new InfoPill(
-                Bindings.createStringBinding(() -> "拨杆"),
+                Bindings.createStringBinding(() -> languageManager.getString("status.switch")),
                 Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty()),
                 Bindings.createObjectBinding(
                     () -> deviceStatus.isAutoApproval() ? AccentColor.MINT : AccentColor.INDIGO,
@@ -123,7 +141,7 @@ public class TopBar extends VBox {
         Button connectButton = new Button();
         connectButton.getStyleClass().add("button-connect");
         connectButton.textProperty().bind(Bindings.createStringBinding(
-            () -> deviceStatus.isConnected() ? "断开连接" : "连接设备",
+            () -> deviceStatus.isConnected() ? languageManager.getString("button.disconnect") : languageManager.getString("button.connect"),
             deviceStatus.isConnectedProperty()
         ));
         // 连接状态变化时切换按钮样式
@@ -140,9 +158,9 @@ public class TopBar extends VBox {
         });
 
         // BLE 驱动按钮
-        Button bleButton = new Button("BLE驱动");
+        Button bleButton = new Button(languageManager.getString("button.ble-driver"));
         bleButton.getStyleClass().add("button-ble");
-        bleButton.setOnAction(event -> handleBleButtonClick());
+        setupBleButtonLongPress(bleButton);
 
         ToggleButton ahaTypeToggle = new ToggleButton();
         ahaTypeToggle.getStyleClass().add("toggle-button");
@@ -154,7 +172,7 @@ public class TopBar extends VBox {
         ahaTypeToggle.selectedProperty().addListener((obs, oldValue, newValue) -> studioState.toggleAhaType(newValue));
 
         // 语音启动按钮
-        voiceRecordButton = new Button("启动语音输入");
+        voiceRecordButton = new Button(languageManager.getString("button.start-voice"));
         voiceRecordButton.getStyleClass().add("button-voice");
         voiceRecordButton.setOnAction(event -> toggleVoiceService());
         
@@ -162,7 +180,7 @@ public class TopBar extends VBox {
         voiceStatusLamp = new VoiceStatusLamp();
         
         // 语音状态标签
-        voiceStatusLabel = new Label("语音未启动");
+        voiceStatusLabel = new Label(languageManager.getString("voice.status.stopped"));
         voiceStatusLabel.getStyleClass().add("voice-status");
         
         // 语音识别结果预览
@@ -178,7 +196,7 @@ public class TopBar extends VBox {
         VBox ahaTypeStatus = createStatusBox(
             studioState.ahaTypeEnabledProperty(),
             Bindings.createStringBinding(
-                () -> studioState.ahaTypeEnabledProperty().get() ? "AhaType 开启" : "AhaType 关闭",
+                () -> studioState.ahaTypeEnabledProperty().get() ? languageManager.getString("aha-type.enabled") : languageManager.getString("aha-type.disabled"),
                 studioState.ahaTypeEnabledProperty()
             ),
             studioState.ahaTypeStatusProperty()
@@ -190,13 +208,13 @@ public class TopBar extends VBox {
         VBox configStatus = createStatusBox(
             Bindings.createBooleanBinding(agentManager::isEditingConfiguration, agentManager.bluetoothOwnerProperty()),
             Bindings.createStringBinding(
-                () -> agentManager.isEditingConfiguration() ? "编辑配置中" : "键盘控制中",
+                () -> agentManager.isEditingConfiguration() ? languageManager.getString("config.status.editing") : languageManager.getString("config.status.keyboard-control"),
                 agentManager.bluetoothOwnerProperty()
             ),
             Bindings.createStringBinding(
                 () -> agentManager.isEditingConfiguration()
-                    ? "正在编辑配置"
-                    : "键盘正常运行中",
+                    ? languageManager.getString("config.status.editing-detail")
+                    : languageManager.getString("config.status.keyboard-detail"),
                 agentManager.bluetoothOwnerProperty()
             )
         );
@@ -213,25 +231,34 @@ public class TopBar extends VBox {
         ));
         configModeButton.setOnAction(event -> controller.handleConfigurationModeButton());
 
-        Menu moreMenu = new Menu("更多");
+        Menu moreMenu = new Menu(languageManager.getString("menu.more"));
         Text moreIcon = Icons.moreHorizontal("16");
         moreMenu.setGraphic(moreIcon);
 
-        MenuItem restoreDefaults = new MenuItem("恢复当前模式默认值");
+        MenuItem restoreDefaults = new MenuItem(languageManager.getString("menu.restore-defaults"));
         restoreDefaults.setOnAction(event -> studioState.restoreCurrentModeDefaults());
-        MenuItem reconnect = new MenuItem("重新连接设备");
+        MenuItem reconnect = new MenuItem(languageManager.getString("menu.reconnect"));
         reconnect.setOnAction(event -> {
             controller.userDisconnect();
             controller.userConnect();
         });
-        MenuItem clearOled = new MenuItem("清空 OLED 预览");
+        MenuItem clearOled = new MenuItem(languageManager.getString("menu.clear-oled"));
         clearOled.setOnAction(event -> studioState.clearOledPreview());
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
-        MenuItem deviceInfo = new MenuItem("设备信息 · Hooks…");
+        MenuItem deviceInfo = new MenuItem(languageManager.getString("menu.device-info"));
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
-        MenuItem cloudAccount = new MenuItem("云端账号 · AhaType…");
+        MenuItem versionInfo = new MenuItem(languageManager.getString("menu.version-info"));
+        versionInfo.setOnAction(event -> showVersionDialog());
+        
+        languageMenuItem = new MenuItem(languageManager.getLanguageToggleText());
+        languageMenuItem.setOnAction(event -> toggleLanguage());
+        
+        MenuItem exitApp = new MenuItem(languageManager.getString("menu.exit"));
+        exitApp.setOnAction(event -> exitApplication());
+        
+        MenuItem cloudAccount = new MenuItem(languageManager.getString("menu.cloud-account"));
         SeparatorMenuItem divider2 = new SeparatorMenuItem();
-        MenuItem refresh = new MenuItem("刷新 AhaType 状态");
+        MenuItem refresh = new MenuItem(languageManager.getString("menu.refresh-ahatype"));
         refresh.setOnAction(event -> studioState.toggleAhaType(studioState.ahaTypeEnabledProperty().get()));
 
         // 条件添加 AhaType 相关菜单项
@@ -242,18 +269,23 @@ public class TopBar extends VBox {
                 clearOled,
                 divider1,
                 deviceInfo,
+                versionInfo,
+                languageMenuItem,
+                exitApp,
                 cloudAccount,
                 divider2,
                 refresh
             );
         } else {
-            // 模型禁用时，隐藏 AhaType 相关菜单
             moreMenu.getItems().addAll(
                 restoreDefaults,
                 reconnect,
                 clearOled,
                 divider1,
-                deviceInfo
+                deviceInfo,
+                versionInfo,
+                languageMenuItem,
+                exitApp
             );
         }
 
@@ -319,31 +351,311 @@ public class TopBar extends VBox {
      * - 如果 BLE_tcp_driver.exe 已运行，弹窗提示
      * - 否则启动同级目录下的 BLE_tcp_driver.exe
      */
+    private volatile boolean bleButtonProcessing = false;
+    private volatile long lastBleButtonClickTime = 0;
+    private static final long BLE_BUTTON_CLICK_DELAY_MS = 2000;
+    
     private void handleBleButtonClick() {
-        if (isBleDriverRunning()) {
-            if (isBleBridgeReachable()) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("BLE 驱动");
-                alert.setHeaderText(null);
-                alert.setContentText("BLE 驱动已打开");
-                alert.showAndWait();
-            } else {
-                stopBleDriverProcess();
-                launchBleDriver();
-            }
-        } else {
-            // 启动 BLE 驱动
-            launchBleDriver();
+        long now = System.currentTimeMillis();
+        
+        if (now - lastBleButtonClickTime < BLE_BUTTON_CLICK_DELAY_MS) {
+            return;
         }
+        
+        if (bleButtonProcessing) {
+            return;
+        }
+        
+        lastBleButtonClickTime = now;
+        bleButtonProcessing = true;
+        
+        new Thread(() -> {
+            try {
+                boolean running = isBleDriverRunning();
+                
+                if (!running) {
+                    launchBleDriver();
+                    return;
+                }
+                
+                boolean reachable = isBleBridgeReachable();
+                
+                if (reachable) {
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
+                        alert.setHeaderText(null);
+                        alert.setContentText(languageManager.getString("dialog.ble-running"));
+                        alert.showAndWait();
+                    });
+                } else {
+                    Thread.sleep(1500);
+                    reachable = isBleBridgeReachable();
+                    
+                    if (!reachable) {
+                        stopBleDriverProcess();
+                        Thread.sleep(500);
+                        launchBleDriver();
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                bleButtonProcessing = false;
+            }
+        }, "ble-button-handler").start();
     }
 
-    private boolean isBleBridgeReachable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("127.0.0.1", 9000), 800);
-            return true;
+    /**
+     * 设置 BLE 按钮长按功能
+     * 长按5秒：强制关闭所有 BLE_tcp_driver 进程（包括挂起的）
+     * 短按：正常的 BLE 驱动启动/重启逻辑
+     */
+    private void setupBleButtonLongPress(Button bleButton) {
+        bleButton.setOnMousePressed(event -> {
+            bleButtonPressed = true;
+            bleLongPressTriggered = false;
+            
+            bleLongPressThread = new Thread(() -> {
+                try {
+                    Thread.sleep(5000);
+                    if (bleButtonPressed && !bleLongPressTriggered) {
+                        bleLongPressTriggered = true;
+                        Platform.runLater(() -> {
+                            forceKillAllBleProcesses();
+                        });
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, "ble-longpress");
+            bleLongPressThread.start();
+        });
+        
+        bleButton.setOnMouseReleased(event -> {
+            bleButtonPressed = false;
+            if (bleLongPressThread != null) {
+                bleLongPressThread.interrupt();
+                bleLongPressThread = null;
+            }
+            
+            if (!bleLongPressTriggered) {
+                handleBleButtonClick();
+            }
+        });
+        
+        bleButton.setOnMouseExited(event -> {
+            if (bleButtonPressed) {
+                bleButtonPressed = false;
+                if (bleLongPressThread != null) {
+                    bleLongPressThread.interrupt();
+                    bleLongPressThread = null;
+                }
+            }
+        });
+    }
+    
+    /**
+     * 强制杀死所有 BLE_tcp_driver 进程（包括挂起的）
+     */
+    private void forceKillAllBleProcesses() {
+        new Thread(() -> {
+            int initialCount = countBleProcesses();
+            if (initialCount == 0) {
+                Platform.runLater(() -> showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-no-process")));
+                return;
+            }
+            
+            boolean success = killProcessesWithMultipleMethods();
+            
+            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            
+            int remainingCount = countBleProcesses();
+            
+            Platform.runLater(() -> {
+                if (remainingCount == 0) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
+                    alert.setHeaderText(null);
+                    alert.setContentText(languageManager.getString("dialog.ble-kill-success"));
+                    alert.showAndWait();
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
+                    alert.setHeaderText(null);
+                    alert.setContentText(String.format(languageManager.getString("dialog.ble-kill-fail"), remainingCount));
+                    alert.showAndWait();
+                }
+            });
+        }, "ble-kill").start();
+    }
+    
+    private boolean killProcessesWithMultipleMethods() {
+        boolean success = false;
+        
+        success = sendShutdownCommand();
+        
+        if (!success) {
+            success |= executeKillCommand("taskkill", "/F", "/IM", "BLE_tcp_driver.exe");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("taskkill", "/F", "/T", "/IM", "BLE_tcp_driver.exe");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Stop-Process -Name BLE_tcp_driver -Force -ErrorAction SilentlyContinue");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Get-Process -Name BLE_tcp_driver -ErrorAction SilentlyContinue | Stop-Process -Force");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("wmic", "process", "where", "name='BLE_tcp_driver.exe'", "call", "terminate");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Get-WmiObject Win32_Process -Filter \"Name='BLE_tcp_driver.exe'\" | ForEach-Object { $_.Terminate() }");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "$pids = (Get-CimInstance Win32_Process -Filter 'Name=''BLE_tcp_driver.exe''').ProcessId; if($pids) { taskkill /F /PID $pids -ErrorAction SilentlyContinue }");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Get-CimInstance Win32_Process -Filter 'Name=''BLE_tcp_driver.exe''' | Invoke-CimMethod -MethodName Terminate");
+        }
+        
+        if (!success) {
+            success |= killProcessByPidList();
+        }
+        
+        return success;
+    }
+    
+    private boolean killProcessByPidList() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH", "/FO", "CSV");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
+                        String[] parts = line.split(",");
+                        if (parts.length >= 2) {
+                            String pidStr = parts[1].replace("\"", "").trim();
+                            try {
+                                int pid = Integer.parseInt(pidStr);
+                                new ProcessBuilder("taskkill", "/F", "/PID", String.valueOf(pid)).redirectErrorStream(true).start().waitFor();
+                            } catch (NumberFormatException e) {
+                                // ignore
+                            }
+                        }
+                    }
+                }
+            }
+            p.waitFor();
+            
+            Thread.sleep(500);
+            return countBleProcesses() == 0;
         } catch (Exception e) {
             return false;
         }
+    }
+    
+    private boolean sendShutdownCommand() {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress("127.0.0.1", 9000), 1000);
+            
+            byte[] shutdownPacket = new byte[3];
+            shutdownPacket[0] = 0x05;
+            shutdownPacket[1] = 0x00;
+            shutdownPacket[2] = 0x00;
+            
+            socket.getOutputStream().write(shutdownPacket);
+            socket.getOutputStream().flush();
+            
+            Thread.sleep(500);
+            
+            return countBleProcesses() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private boolean executeKillCommand(String... command) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(true);
+            pb.directory(new File(System.getProperty("user.dir")));
+            Process p = pb.start();
+            int exitCode = p.waitFor();
+            
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(p.getInputStream()))) {
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                }
+            }
+            
+            Thread.sleep(300);
+            
+            return countBleProcesses() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * 统计 BLE_tcp_driver 进程数量
+     */
+    private int countBleProcesses() {
+        int count = 0;
+        try {
+            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
+                        count++;
+                    }
+                }
+            }
+            p.waitFor();
+        } catch (Exception e) {
+            // 统计失败，返回0
+        }
+        return count;
+    }
+
+    private boolean isBleBridgeReachable() {
+        int maxRetries = 3;
+        int delayMs = 300;
+        
+        for (int i = 0; i < maxRetries; i++) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", 9000), 500);
+                return true;
+            } catch (Exception e) {
+                if (i < maxRetries - 1) {
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private void stopBleDriverProcess() {
@@ -417,29 +729,39 @@ public class TopBar extends VBox {
                 final File finalBleExe = bleExe;
                 ProcessBuilder pb = new ProcessBuilder(finalBleExe.getAbsolutePath());
                 pb.directory(finalBleExe.getParentFile());
-                pb.start();
                 
-                // 短暂延迟后再次检查，给用户反馈
+                pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                
+                Process process = pb.start();
+                
+                new Thread(() -> {
+                    try {
+                        int exitCode = process.waitFor();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }, "ble-driver-monitor").start();
+                
                 new Thread(() -> {
                     try {
                         Thread.sleep(1000);
                         Platform.runLater(() -> {
                             if (isBleDriverRunning()) {
-                                // 启动成功，无需额外提示
                             } else {
-                                showAlert("BLE 驱动", "BLE 驱动启动失败，请手动运行: " + finalBleExe.getAbsolutePath());
+                                showAlert(languageManager.getString("dialog.ble-driver-title"), String.format(languageManager.getString("dialog.ble-start-fail"), finalBleExe.getAbsolutePath()));
                             }
                         });
                     } catch (Exception ignored) {}
                 }).start();
             } else {
-                showAlert("BLE 驱动", "未找到 BLE_tcp_driver.exe\n已尝试以下位置:\n" 
+                showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-not-found") + "\n" 
                     + new File(appDir, "BLE_tcp_driver.exe").getAbsolutePath() + "\n"
                     + (appDirFile.getParentFile() != null ? new File(appDirFile.getParentFile(), "BLE_tcp_driver.exe").getAbsolutePath() : "") + "\n"
                     + new File(System.getProperty("user.dir"), "BLE_tcp_driver.exe").getAbsolutePath());
             }
         } catch (Exception e) {
-            showAlert("BLE 驱动", "启动失败: " + e.getMessage());
+            showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-start-fail").replace("%s", "") + e.getMessage());
         }
     }
     
@@ -459,7 +781,7 @@ public class TopBar extends VBox {
      */
     private void toggleVoiceService() {
         if (voiceInputManager == null) {
-            setVoiceStatus("error", "语音服务未初始化");
+            setVoiceStatus("error", languageManager.getString("voice.status.voice-service-unavailable"));
             return;
         }
         
@@ -476,7 +798,7 @@ public class TopBar extends VBox {
     private void startVoiceService() {
         voiceRunning = true;
         updateVoiceButtonState();
-        setVoiceStatus("starting", "语音启动中");
+        setVoiceStatus("starting", languageManager.getString("voice.status.starting"));
         
         // 创建浮动通知窗口
         if (floatingNotification == null) {
@@ -519,7 +841,7 @@ public class TopBar extends VBox {
     private void stopVoiceService() {
         voiceRunning = false;
         updateVoiceButtonState();
-        setVoiceStatus("stopping", "语音关闭中");
+        setVoiceStatus("stopping", languageManager.getString("voice.status.stopping"));
         
         // 关闭浮动通知窗口
         if (floatingNotification != null) {
@@ -536,7 +858,7 @@ public class TopBar extends VBox {
             try {
                 Thread.sleep(500);
                 Platform.runLater(() -> {
-                    setVoiceStatus("stopped", "语音未启动");
+                    setVoiceStatus("stopped", languageManager.getString("voice.status.stopped"));
                     voiceResultPreview.setText("");
                 });
             } catch (InterruptedException e) {
@@ -576,8 +898,8 @@ public class TopBar extends VBox {
         
         if (voiceInputManager == null || !voiceInputManager.isEnabled()) {
             voiceRecordButton.setDisable(true);
-            voiceRecordButton.setText("启动语音输入 (不可用)");
-            setVoiceStatus("error", "语音服务未加载");
+            voiceRecordButton.setText(languageManager.getString("button.voice-unavailable"));
+            setVoiceStatus("error", languageManager.getString("voice.status.voice-service-unavailable"));
             return;
         }
         
@@ -585,10 +907,10 @@ public class TopBar extends VBox {
         
         if (voiceRunning) {
             voiceRecordButton.getStyleClass().add("voice-recording");
-            voiceRecordButton.setText("停止语音输入");
+            voiceRecordButton.setText(languageManager.getString("button.stop-voice"));
         } else {
             voiceRecordButton.getStyleClass().remove("voice-recording");
-            voiceRecordButton.setText("启动语音输入");
+            voiceRecordButton.setText(languageManager.getString("button.start-voice"));
         }
     }
 
@@ -626,7 +948,7 @@ public class TopBar extends VBox {
     private void showDeviceInfoDialog() {
         Stage dialog = new Stage();
         dialog.initOwner(getScene().getWindow());
-        dialog.setTitle("Hook 安装 & 分发工具");
+        dialog.setTitle(languageManager.getString("dialog.hook-title"));
         dialog.setWidth(550);
         dialog.setHeight(650);
 
@@ -641,31 +963,31 @@ public class TopBar extends VBox {
         deviceCard.getStyleClass().add("dialog-card");
         deviceCard.setPadding(new Insets(12));
 
-        Label deviceTitle = new Label("设备信息");
+        Label deviceTitle = new Label(languageManager.getString("dialog.device-info"));
         deviceTitle.getStyleClass().add("dialog-card-title");
 
         HBox deviceRow1 = new HBox(16);
         Label connStatus = new Label();
         connStatus.getStyleClass().add("dialog-text");
         connStatus.textProperty().bind(Bindings.createStringBinding(() ->
-            "连接: " + (this.deviceStatus.isConnected() ? "已连接" : "未连接"),
+            languageManager.getString("dialog.connection") + ": " + (this.deviceStatus.isConnected() ? languageManager.getString("status.connected") : languageManager.getString("status.disconnected")),
             this.deviceStatus.isConnectedProperty()
         ));
         Label batteryStatus = new Label();
         batteryStatus.getStyleClass().add("dialog-text");
         batteryStatus.textProperty().bind(Bindings.createStringBinding(() ->
-            "电量: " + this.deviceStatus.getBatteryLevel() + "%",
+            languageManager.getString("status.battery") + ": " + this.deviceStatus.getBatteryLevel() + "%",
             this.deviceStatus.batteryLevelProperty()
         ));
         deviceRow1.getChildren().addAll(connStatus, batteryStatus);
 
         HBox deviceRow2 = new HBox(16);
-        Label deviceName = new Label("设备名: " + (this.deviceStatus.getDeviceName() != null ? this.deviceStatus.getDeviceName() : "—"));
+        Label deviceName = new Label(languageManager.getString("dialog.device-name") + ": " + this.deviceStatus.getDisplayDeviceName());
         deviceName.getStyleClass().add("dialog-text");
         Label switchState = new Label();
         switchState.getStyleClass().add("dialog-text");
         switchState.textProperty().bind(Bindings.createStringBinding(() ->
-            "拨杆: " + this.deviceStatus.getSwitchTitle(),
+            languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
             this.deviceStatus.switchStateProperty()
         ));
         deviceRow2.getChildren().addAll(deviceName, switchState);
@@ -678,93 +1000,45 @@ public class TopBar extends VBox {
         logArea.setEditable(false);
         logArea.setPrefHeight(150);
         logArea.setWrapText(true);
-        logArea.setText("[系统] Hook 安装工具已启动\n");
+        logArea.setText("[System] Hook installation tool started\n");
         
-        // 输出用户目录信息
         String homeDir = System.getProperty("user.home");
-        addLog("[系统] 用户目录: " + homeDir);
-        addLog("[系统] 操作系统: " + System.getProperty("os.name"));
-        addLog("[系统] Java 版本: " + System.getProperty("java.version"));
+        addLog("[System] User Directory: " + homeDir);
+        addLog("[System] OS: " + System.getProperty("os.name"));
+        addLog("[System] Java Version: " + System.getProperty("java.version"));
         addLog("");
 
-        // 检测并记录各 Hook 状态
-        String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
-        boolean[] hookInstalled = new boolean[4];
-        
-        for (int i = 0; i < hookNames.length; i++) {
-            String name = hookNames[i];
-            Path path = getHookConfigPath(name);
-            File file = path.toFile();
-            
-            // 使用完整的检查逻辑
-            boolean installed = isHookInstalled(name);
-            
-            // 添加详细调试信息
-            addLog("[检测] === " + name + " Hook ===");
-            addLog("[检测] 检查路径: " + path);
-            addLog("[检测] 文件存在: " + file.exists());
-            
-            if (file.exists()) {
-                try {
-                    String fileContent = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-                    addLog("[检测] 文件大小: " + fileContent.length() + " 字符");
-                    
-                    if ("Claude".equals(name)) {
-                        addLog("[检测] 包含 hooks: " + fileContent.contains("\"hooks\""));
-                        addLog("[检测] 包含 SessionStart: " + fileContent.contains("SessionStart"));
-                    } else if ("Cursor".equals(name)) {
-                        addLog("[检测] 包含 hooks: " + fileContent.contains("\"hooks\""));
-                        addLog("[检测] 包含 sessionStart: " + fileContent.contains("sessionStart"));
-                    } else if ("Codex".equals(name)) {
-                        String home = System.getProperty("user.home");
-                        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
-                        addLog("[检测] sidecar 存在: " + sidecar.toFile().exists());
-                        addLog("[检测] hooks.json 内容长度: " + fileContent.length());
-                    } else if ("Kimi".equals(name)) {
-                        addLog("[检测] 包含 BEGIN 标记: " + fileContent.contains(KIMI_HOOK_BLOCK_START));
-                        addLog("[检测] 包含 END 标记: " + fileContent.contains(KIMI_HOOK_BLOCK_END));
-                    }
-                } catch (Exception e) {
-                    addLog("[检测] 读取文件失败: " + e.getMessage());
-                }
-            }
-            
-            hookInstalled[i] = installed;
-            addLog("[检测] 最终状态: " + (installed ? "已安装" : "未安装"));
-            addLog("");
-        }
-
-        // Hook 安装卡片
-        VBox claudeCard = createHookCard("Claude", hookInstalled[0]);
-        VBox cursorCard = createHookCard("Cursor", hookInstalled[1]);
-        VBox codexCard = createHookCard("Codex", hookInstalled[2]);
-        VBox kimiCard = createHookCard("Kimi", hookInstalled[3]);
+        // Hook 安装卡片（先用空状态创建，后面异步更新）
+        VBox claudeCard = createHookCard("Claude", false);
+        VBox cursorCard = createHookCard("Cursor", false);
+        VBox codexCard = createHookCard("Codex", false);
+        VBox kimiCard = createHookCard("Kimi", false);
 
         // 日志卡片
         VBox logCard = new VBox(8);
         logCard.getStyleClass().add("dialog-card");
         logCard.setPadding(new Insets(12));
 
-        Label logTitle = new Label("日志");
+        Label logTitle = new Label(languageManager.getString("dialog.log"));
         logTitle.getStyleClass().add("dialog-log-title");
         logCard.getChildren().addAll(logTitle, logArea);
 
         // 操作按钮
         HBox actionButtons = new HBox(10);
-        Button connectBtn = new Button("连接设备");
+        Button connectBtn = new Button(languageManager.getString("button.connect"));
         connectBtn.getStyleClass().add("button-connect");
         connectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty());
         connectBtn.setOnAction(event -> controller.userConnect());
 
-        Button disconnectBtn = new Button("断开连接");
+        Button disconnectBtn = new Button(languageManager.getString("button.disconnect"));
         disconnectBtn.getStyleClass().add("button-disconnect");
         disconnectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty().not());
         disconnectBtn.setOnAction(event -> controller.userDisconnect());
 
-        Button clearLogBtn = new Button("清空日志");
-        clearLogBtn.setOnAction(event -> logArea.setText("[系统] 日志已清空\n"));
+        Button clearLogBtn = new Button(languageManager.getString("dialog.clear-log"));
+        clearLogBtn.setOnAction(event -> logArea.setText("[System] Log cleared\n"));
 
-        Button closeBtn = new Button("关闭");
+        Button closeBtn = new Button(languageManager.getString("dialog.close"));
         closeBtn.setOnAction(event -> dialog.close());
 
         actionButtons.getChildren().addAll(connectBtn, disconnectBtn, clearLogBtn, closeBtn);
@@ -776,7 +1050,82 @@ public class TopBar extends VBox {
         Scene scene = new Scene(scrollPane);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
         dialog.setScene(scene);
-        dialog.showAndWait();
+        
+        // 先显示对话框，然后在后台线程中进行 Hook 检测
+        dialog.show();
+        
+        // 在后台线程中检测 Hook 状态
+        new Thread(() -> {
+            String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
+            boolean[] hookInstalled = new boolean[4];
+            VBox[] hookCards = {claudeCard, cursorCard, codexCard, kimiCard};
+            
+            for (int i = 0; i < hookNames.length; i++) {
+                String name = hookNames[i];
+                Path path = hookInstaller.getHookConfigPath(name);
+                File file = path.toFile();
+                
+                boolean installed = isHookInstalled(name);
+                hookInstalled[i] = installed;
+                
+                String detectionPrefix = languageManager.getString("hook.detection");
+                addLog(detectionPrefix + " === " + name + " Hook ===");
+                addLog(detectionPrefix + " " + languageManager.getString("hook.check-path") + ": " + path);
+                addLog(detectionPrefix + " " + languageManager.getString("hook.file-exists") + ": " + file.exists());
+                
+                if (file.exists()) {
+                    try {
+                        String fileContent = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+                        addLog(detectionPrefix + " " + languageManager.getString("hook.file-size") + ": " + fileContent.length() + " chars");
+                        
+                        if ("Claude".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " SessionStart: " + fileContent.contains("SessionStart"));
+                        } else if ("Cursor".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " sessionStart: " + fileContent.contains("sessionStart"));
+                        } else if ("Codex".equals(name)) {
+                            String home = System.getProperty("user.home");
+                            Path sidecar = Paths.get(home, ".codex", HookInstaller.CODEX_SIDECAR_NAME);
+                            addLog(detectionPrefix + " sidecar " + languageManager.getString("hook.file-exists") + ": " + sidecar.toFile().exists());
+                            addLog(detectionPrefix + " hooks.json content length: " + fileContent.length());
+                        } else if ("Kimi".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " BEGIN marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_START));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " END marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_END));
+                        }
+                    } catch (Exception e) {
+                        addLog(detectionPrefix + " " + languageManager.getString("hook.read-failed") + ": " + e.getMessage());
+                    }
+                }
+                
+                addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + (installed ? "Installed" : "Not Installed"));
+                addLog("");
+                
+                // 更新卡片状态
+                int finalI = i;
+                boolean finalInstalled = installed;
+                Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
+            }
+        }, "hook-detection").start();
+    }
+    
+    private void updateHookCardStatus(VBox card, String hookName, boolean isInstalled) {
+        for (var child : card.getChildren()) {
+            if (child instanceof Button button) {
+                if (isInstalled) {
+                    button.setText(languageManager.getString("hook.uninstall"));
+                    button.getStyleClass().remove("button-install");
+                    button.getStyleClass().add("button-uninstall");
+                    button.setOnAction(event -> uninstallHook(hookName));
+                } else {
+                    button.setText(languageManager.getString("hook.install"));
+                    button.getStyleClass().remove("button-uninstall");
+                    button.getStyleClass().add("button-install");
+                    button.setOnAction(event -> installHook(hookName));
+                }
+                break;
+            }
+        }
     }
 
     private VBox createHookCard(String hookName, boolean isInstalled) {
@@ -792,10 +1141,10 @@ public class TopBar extends VBox {
         titleRow.getChildren().addAll(title, spacer1);
 
         HBox statusRow = new HBox(8);
-        Label statusLabel = new Label("安装状态:");
+        Label statusLabel = new Label(languageManager.getString("hook.installation-status") + ":");
         statusLabel.getStyleClass().add("dialog-status-label");
 
-        Label statusValue = new Label(isInstalled ? "已安装" : "未安装");
+        Label statusValue = new Label(isInstalled ? languageManager.getString("hook.installed") : languageManager.getString("hook.not-installed"));
         if (isInstalled) {
             statusValue.getStyleClass().add("dialog-status-installed");
         } else {
@@ -805,20 +1154,20 @@ public class TopBar extends VBox {
         Region spacer2 = new Region();
         HBox.setHgrow(spacer2, Priority.ALWAYS);
 
-        Button installBtn = new Button("安装");
+        Button installBtn = new Button(languageManager.getString("button.install"));
         installBtn.getStyleClass().add("button-install");
         installBtn.setOnAction(event -> {
             installHook(hookName);
-            statusValue.setText("已安装");
+            statusValue.setText(languageManager.getString("hook.installed"));
             statusValue.getStyleClass().remove("dialog-status-uninstalled");
             statusValue.getStyleClass().add("dialog-status-installed");
         });
 
-        Button uninstallBtn = new Button("卸载");
+        Button uninstallBtn = new Button(languageManager.getString("button.uninstall"));
         uninstallBtn.getStyleClass().add("button-uninstall");
         uninstallBtn.setOnAction(event -> {
             uninstallHook(hookName);
-            statusValue.setText("未安装");
+            statusValue.setText(languageManager.getString("hook.not-installed"));
             statusValue.getStyleClass().remove("dialog-status-installed");
             statusValue.getStyleClass().add("dialog-status-uninstalled");
         });
@@ -829,468 +1178,19 @@ public class TopBar extends VBox {
         return card;
     }
 
-    // ==================== Hook 管理（与 Python 版完全对齐） ====================
-
-    private static final ObjectMapper HOOK_MAPPER = new ObjectMapper();
-    private static final int HOOK_DISPATCH_PORT = 8765;
-    private static final String CODEX_SIDECAR_NAME = ".ahakey_codex_hooks_v1";
-    private static final String CODEX_HOOK_BLOCK_START = "# BEGIN AhaKey Codex Hooks";
-    private static final String CODEX_HOOK_BLOCK_END = "# END AhaKey Codex Hooks";
-    private static final String KIMI_HOOK_BLOCK_START = "# BEGIN AhaKey Kimi Hooks";
-    private static final String KIMI_HOOK_BLOCK_END = "# END AhaKey Kimi Hooks";
-
-    // Claude: 9 个事件（与 Python HOOK_EVENTS 完全一致）
-    private static final String[][] CLAUDE_EVENTS = {
-        {"SessionStart", "10"}, {"SessionEnd", "10"}, {"PreToolUse", "10"},
-        {"PostToolUse", "10"}, {"PermissionRequest", "60"}, {"Notification", "10"},
-        {"TaskCompleted", "10"}, {"Stop", "10"}, {"UserPromptSubmit", "10"}
-    };
-    // Cursor: 5 个事件（与 Python CURSOR_HOOK_EVENTS 完全一致）
-    private static final String[][] CURSOR_EVENTS = {
-        {"sessionStart", "10"}, {"sessionEnd", "10"}, {"preToolUse", "10"},
-        {"postToolUse", "10"}, {"stop", "10"}
-    };
-    // Codex: 6 个事件（与 Python CODEX_HOOK_EVENTS 完全一致）
-    private static final String[][] CODEX_EVENTS = {
-        {"SessionStart", "CodexSessionStart", "10"}, {"PostToolUse", "CodexPostToolUse", "10"},
-        {"PreToolUse", "CodexPreToolUse", "20"}, {"PermissionRequest", "CodexPermissionRequest", "20"},
-        {"UserPromptSubmit", "CodexUserPromptSubmit", "10"}, {"Stop", "CodexStop", "10"}
-    };
-    // Kimi: 7 个事件（与 Python kimi_hooks.KIMI_HOOK_ENTRIES 完全一致）
-    private static final String[][] KIMI_EVENTS = {
-        {"Notification", "KimiNotification", "10"}, {"SessionStart", "KimiSessionStart", "10"},
-        {"SessionEnd", "KimiSessionEnd", "10"}, {"PreToolUse", "KimiPreToolUse", "20"},
-        {"PostToolUse", "KimiPostToolUse", "10"}, {"UserPromptSubmit", "KimiUserPromptSubmit", "10"},
-        {"Stop", "KimiStop", "10"}
-    };
-
-    private static final String HOOK_SCRIPT_NAME = "ahakey-hook.ps1";
-
-    private Path getHookScriptPath() {
-        String home = System.getProperty("user.home");
-        return Paths.get(home, ".ahakey", "hooks", HOOK_SCRIPT_NAME);
-    }
-
-    private String buildHookCommand(String agentEvent) {
-        Path scriptPath = getHookScriptPath();
-        String ps = scriptPath.toString().replace("\\", "/");
-        return "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"" + ps + "\" " + agentEvent;
-    }
-
-    /**
-     * 生成 hook 分发 PowerShell 脚本（~/.ahakey/hooks/ahakey-hook.ps1）。
-     * 该脚本接收事件名参数，通过 TCP 发送到 Java HookDispatchServer，后者映射为 BLE 状态码。
-     */
-    private void generateHookScript() {
-        Path scriptPath = getHookScriptPath();
-        try {
-            java.nio.file.Files.createDirectories(scriptPath.getParent());
-            String content =
-                "# AhaKey Hook Dispatcher - Auto-generated, do not edit\n" +
-                "# Receives hook event name as argument, dispatches to AhaKey Studio via TCP.\n" +
-                "# Compatible with Claude Code, Codex, Kimi, and Cursor hooks.\n" +
-                "param([Parameter(Position=0)][string]$EventName)\n" +
-                "try {\n" +
-                "    if ([Console]::IsInputRedirected) { $null = [Console]::In.ReadToEnd() }\n" +
-                "} catch { }\n" +
-                "try {\n" +
-                "    $tcp = New-Object System.Net.Sockets.TcpClient\n" +
-                "    $tcp.Connect('127.0.0.1', " + HOOK_DISPATCH_PORT + ")\n" +
-                "    $writer = New-Object System.IO.StreamWriter($tcp.GetStream())\n" +
-                "    $writer.WriteLine($EventName)\n" +
-                "    $writer.Flush()\n" +
-                "    $reader = New-Object System.IO.StreamReader($tcp.GetStream())\n" +
-                "    $response = $reader.ReadLine()\n" +
-                "    $tcp.Close()\n" +
-                "} catch {\n" +
-                "    $response = $null\n" +
-                "}\n" +
-                "# Codex lifecycle hooks must output exactly {} (Codex validates JSON schema)\n" +
-                "if ($EventName -match '^Codex' -and $EventName -ne 'CodexPermissionRequest') {\n" +
-                "    [Console]::WriteLine('{}')\n" +
-                "    exit 0\n" +
-                "}\n" +
-                "# Codex PermissionRequest: output hookSpecificOutput in Codex format\n" +
-                "if ($EventName -eq 'CodexPermissionRequest') {\n" +
-                "    $isAuto = $response -match '\"autoApproved\"\\s*:\\s*true'\n" +
-                "    if ($isAuto) {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
-                "    } else {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\"}}')\n" +
-                "    }\n" +
-                "    exit 0\n" +
-                "}\n" +
-                "# Claude PermissionRequest: output hookSpecificOutput in Claude format\n" +
-                "if ($EventName -eq 'PermissionRequest') {\n" +
-                "    $isAuto = $response -match '\"autoApproved\"\\s*:\\s*true'\n" +
-                "    if ($isAuto) {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
-                "    } else {\n" +
-                "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
-                "    }\n" +
-                "    exit 0\n" +
-                "}\n" +
-                "# Kimi / Cursor: pass through server response\n" +
-                "if ($response) { [Console]::WriteLine($response) } else { [Console]::WriteLine('{\"ok\":true}') }\n" +
-                "exit 0\n";
-            java.nio.file.Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            addLog("[安装] 生成分发脚本: " + scriptPath);
-        } catch (Exception e) {
-            addLog("[警告] 生成分发脚本失败: " + e.getMessage());
-        }
-    }
-
-    private String tomlEscape(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private Path getHookConfigPath(String hookName) {
-        String home = System.getProperty("user.home");
-        switch (hookName) {
-            case "Claude": return Paths.get(home, ".claude", "settings.json");
-            case "Cursor": return Paths.get(home, ".cursor", "hooks.json");
-            case "Codex": return Paths.get(home, ".codex", "hooks.json");
-            case "Kimi": return Paths.get(home, ".kimi", "config.toml");
-            default: return Paths.get(home, "." + hookName.toLowerCase(), "config.json");
-        }
-    }
+    // ==================== Hook 管理（委托给 HookInstaller） ====================
 
     private boolean isHookInstalled(String hookName) {
-        switch (hookName) {
-            case "Claude": return checkClaudeHookInstalled(getHookConfigPath("Claude"));
-            case "Cursor": return checkCursorHookInstalled(getHookConfigPath("Cursor"));
-            case "Codex": return checkCodexHookInstalled();
-            case "Kimi": return checkKimiHookInstalled(getHookConfigPath("Kimi"));
-            default: return false;
-        }
-    }
-
-    private boolean checkClaudeHookInstalled(Path path) {
-        if (!path.toFile().exists()) return false;
-        try {
-            String c = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            return c.contains("\"hooks\"") && c.contains("SessionStart");
-        } catch (Exception e) { addLog("[错误] 读取 Claude 配置: " + e.getMessage()); return false; }
-    }
-
-    private boolean checkCursorHookInstalled(Path path) {
-        if (!path.toFile().exists()) return false;
-        try {
-            String c = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            return c.contains("\"hooks\"") && c.contains("sessionStart");
-        } catch (Exception e) { addLog("[错误] 读取 Cursor 配置: " + e.getMessage()); return false; }
-    }
-
-    private boolean checkCodexHookInstalled() {
-        String home = System.getProperty("user.home");
-        return Paths.get(home, ".codex", CODEX_SIDECAR_NAME).toFile().exists();
-    }
-
-    private boolean checkKimiHookInstalled(Path path) {
-        if (!path.toFile().exists()) return false;
-        try {
-            String c = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            return c.contains(KIMI_HOOK_BLOCK_START) && c.contains(KIMI_HOOK_BLOCK_END);
-        } catch (Exception e) { addLog("[错误] 读取 Kimi 配置: " + e.getMessage()); return false; }
+        return hookInstaller.isInstalled(hookName);
     }
 
     private void installHook(String hookName) {
-        addLog("[安装] 开始安装 " + hookName + " Hook...");
-        // 先生成分发脚本（所有平台共用）
-        generateHookScript();
-        switch (hookName) {
-            case "Claude": installClaudeHooks(); break;
-            case "Cursor": installCursorHooks(); break;
-            case "Codex": installCodexHooks(); break;
-            case "Kimi": installKimiHooks(); break;
-            default: addLog("[错误] 未知 Hook 类型: " + hookName);
-        }
+        hookInstaller.install(hookName);
     }
 
     private void uninstallHook(String hookName) {
         addLog("[卸载] 开始卸载 " + hookName + " Hook...");
-        switch (hookName) {
-            case "Claude": uninstallClaudeHooks(); break;
-            case "Cursor": uninstallCursorHooks(); break;
-            case "Codex": uninstallCodexHooks(); break;
-            case "Kimi": uninstallKimiHooks(); break;
-            default: addLog("[错误] 未知 Hook 类型: " + hookName);
-        }
-    }
-
-    // ---- Claude: ~/.claude/settings.json（9 个事件） ----
-    private void installClaudeHooks() {
-        Path path = getHookConfigPath("Claude");
-        try {
-            java.nio.file.Files.createDirectories(path.getParent());
-            backupFile(path);
-            ObjectNode settings = loadJsonSettings(path);
-            ObjectNode hooks = HOOK_MAPPER.createObjectNode();
-            for (String[] ev : CLAUDE_EVENTS) {
-                ObjectNode cmd = HOOK_MAPPER.createObjectNode();
-                cmd.put("type", "command");
-                cmd.put("command", buildHookCommand(ev[0]));
-                cmd.put("timeout", Integer.parseInt(ev[1]));
-                ArrayNode inner = HOOK_MAPPER.createArrayNode();
-                inner.add(cmd);
-                ObjectNode wrapper = HOOK_MAPPER.createObjectNode();
-                wrapper.put("matcher", "");
-                wrapper.set("hooks", inner);
-                ArrayNode outer = HOOK_MAPPER.createArrayNode();
-                outer.add(wrapper);
-                hooks.set(ev[0], outer);
-            }
-            settings.set("hooks", hooks);
-            HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-            addLog("[成功] 已注册 " + CLAUDE_EVENTS.length + " 个 Claude hook 事件");
-            addLog("[成功] 配置文件: " + path);
-        } catch (Exception e) { addLog("[错误] Claude 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallClaudeHooks() {
-        Path path = getHookConfigPath("Claude");
-        try {
-            if (!path.toFile().exists()) { addLog("[信息] 配置文件不存在"); return; }
-            ObjectNode settings = loadJsonSettings(path);
-            if (settings.has("hooks")) {
-                settings.remove("hooks");
-                HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-                addLog("[成功] 已从 Claude 配置中移除 hooks");
-            } else { addLog("[信息] 配置中不存在 hooks"); }
-        } catch (Exception e) { addLog("[错误] Claude 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- Cursor: ~/.cursor/hooks.json（5 个事件） ----
-    private void installCursorHooks() {
-        Path path = getHookConfigPath("Cursor");
-        try {
-            java.nio.file.Files.createDirectories(path.getParent());
-            backupFile(path);
-            ObjectNode settings = loadJsonSettings(path);
-            ObjectNode existingHooks = settings.has("hooks") ? (ObjectNode) settings.get("hooks") : HOOK_MAPPER.createObjectNode();
-            for (String[] ev : CURSOR_EVENTS) {
-                ObjectNode entry = HOOK_MAPPER.createObjectNode();
-                entry.put("command", buildHookCommand(ev[0]));
-                entry.put("timeout", Integer.parseInt(ev[1]));
-                ArrayNode arr = HOOK_MAPPER.createArrayNode();
-                arr.add(entry);
-                existingHooks.set(ev[0], arr);
-            }
-            settings.set("hooks", existingHooks);
-            settings.put("version", 1);
-            HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-            addLog("[成功] 已注册 " + CURSOR_EVENTS.length + " 个 Cursor hook 事件");
-            addLog("[成功] 配置文件: " + path);
-        } catch (Exception e) { addLog("[错误] Cursor 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallCursorHooks() {
-        Path path = getHookConfigPath("Cursor");
-        try {
-            if (!path.toFile().exists()) { addLog("[信息] 配置文件不存在"); return; }
-            ObjectNode settings = loadJsonSettings(path);
-            if (settings.has("hooks")) {
-                settings.remove("hooks");
-                HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
-                addLog("[成功] 已从 Cursor 配置中移除 hooks");
-            } else { addLog("[信息] 配置中不存在 hooks"); }
-        } catch (Exception e) { addLog("[错误] Cursor 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- Codex: ~/.codex/hooks.json + config.toml + sidecar（6 个事件） ----
-    private void installCodexHooks() {
-        String home = System.getProperty("user.home");
-        Path hooksJson = Paths.get(home, ".codex", "hooks.json");
-        Path configToml = Paths.get(home, ".codex", "config.toml");
-        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
-        try {
-            java.nio.file.Files.createDirectories(hooksJson.getParent());
-            backupFile(hooksJson);
-            // 构建 hooks.json（与 Python build_codex_hooks_json 完全一致）
-            ObjectNode hooks = HOOK_MAPPER.createObjectNode();
-            for (String[] ev : CODEX_EVENTS) {
-                ObjectNode cmd = HOOK_MAPPER.createObjectNode();
-                cmd.put("type", "command");
-                cmd.put("command", buildHookCommand(ev[1]));
-                cmd.put("timeout", Integer.parseInt(ev[2]));
-                ArrayNode innerArr = HOOK_MAPPER.createArrayNode();
-                innerArr.add(cmd);
-                ObjectNode entry = HOOK_MAPPER.createObjectNode();
-                if ("SessionStart".equals(ev[0])) {
-                    entry.put("matcher", "startup|resume|clear");
-                } else if ("UserPromptSubmit".equals(ev[0]) || "Stop".equals(ev[0])) {
-                    // no matcher
-                } else {
-                    entry.put("matcher", "*");
-                }
-                entry.set("hooks", innerArr);
-                ArrayNode outerArr = HOOK_MAPPER.createArrayNode();
-                outerArr.add(entry);
-                hooks.set(ev[0], outerArr);
-            }
-            ObjectNode root = HOOK_MAPPER.createObjectNode();
-            root.set("hooks", hooks);
-            HOOK_MAPPER.writerWithDefaultPrettyPrinter().writeValue(hooksJson.toFile(), root);
-            addLog("[成功] 已写入 " + hooksJson);
-            // 写入 sidecar 管理标记
-            java.nio.file.Files.write(sidecar, java.time.LocalDateTime.now().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            // 更新 config.toml：确保 [features] hooks = true
-            backupFile(configToml);
-            String toml = configToml.toFile().exists()
-                ? new String(java.nio.file.Files.readAllBytes(configToml), java.nio.charset.StandardCharsets.UTF_8)
-                : "";
-            toml = removeCodexHookBlock(toml);
-            toml = ensureCodexHooksFeature(toml);
-            if (!toml.contains("AhaKey：生命周期 hooks")) {
-                toml = toml.trim() + "\n\n# AhaKey：生命周期 hooks 由 hook_install 写入 ~/.codex/hooks.json\n";
-            }
-            java.nio.file.Files.write(configToml, toml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            addLog("[成功] 已更新 " + configToml + "（[features].hooks = true）");
-            addLog("[成功] 已注册 " + CODEX_EVENTS.length + " 个 Codex hook 事件");
-        } catch (Exception e) { addLog("[错误] Codex 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallCodexHooks() {
-        String home = System.getProperty("user.home");
-        Path hooksJson = Paths.get(home, ".codex", "hooks.json");
-        Path configToml = Paths.get(home, ".codex", "config.toml");
-        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
-        try {
-            if (sidecar.toFile().exists()) {
-                java.nio.file.Files.delete(sidecar);
-                if (hooksJson.toFile().exists()) {
-                    java.nio.file.Files.delete(hooksJson);
-                    addLog("[成功] 已删除 " + hooksJson + "（由 AhaKey 安装器写入）");
-                }
-            }
-            if (configToml.toFile().exists()) {
-                String toml = new String(java.nio.file.Files.readAllBytes(configToml), java.nio.charset.StandardCharsets.UTF_8);
-                if (toml.contains(CODEX_HOOK_BLOCK_START)) {
-                    toml = removeCodexHookBlock(toml);
-                    java.nio.file.Files.write(configToml, toml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                    addLog("[成功] 已从 config.toml 移除内联 AhaKey Codex 块");
-                }
-            }
-            addLog("[成功] Codex Hook 卸载完成");
-        } catch (Exception e) { addLog("[错误] Codex 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- Kimi: ~/.kimi/config.toml（7 个事件，TOML [[hooks]] 块） ----
-    private void installKimiHooks() {
-        Path path = getHookConfigPath("Kimi");
-        try {
-            java.nio.file.Files.createDirectories(path.getParent());
-            backupFile(path);
-            String existing = path.toFile().exists()
-                ? new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8)
-                : "";
-            String cleaned = removeKimiHookBlock(existing).trim();
-            String hookBlock = buildKimiHookBlock();
-            String result = (cleaned.isEmpty() ? "" : cleaned + "\n\n") + hookBlock + "\n";
-            java.nio.file.Files.write(path, result.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            addLog("[成功] 已注册 " + KIMI_EVENTS.length + " 个 Kimi hook 事件");
-            addLog("[成功] 配置文件: " + path);
-        } catch (Exception e) { addLog("[错误] Kimi 安装失败: " + e.getMessage()); }
-    }
-
-    private void uninstallKimiHooks() {
-        Path path = getHookConfigPath("Kimi");
-        try {
-            if (!path.toFile().exists()) { addLog("[信息] 配置文件不存在"); return; }
-            String content = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-            String cleaned = removeKimiHookBlock(content);
-            if (!cleaned.equals(content)) {
-                java.nio.file.Files.write(path, cleaned.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                addLog("[成功] Hook 块已从配置文件中删除");
-            } else { addLog("[警告] 未找到 AhaKey Hook 块"); }
-        } catch (Exception e) { addLog("[错误] Kimi 卸载失败: " + e.getMessage()); }
-    }
-
-    // ---- 配置构建辅助方法 ----
-    private String buildKimiHookBlock() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(KIMI_HOOK_BLOCK_START).append("\n");
-        sb.append("# Managed by AhaKey. Kimi CLI hooks run this installer with Kimi* event names.\n");
-        sb.append("# Re-run Install Kimi Hooks after upgrading kimi-cli so the dial-control patch is restored.\n");
-        for (String[] ev : KIMI_EVENTS) {
-            sb.append("\n[[hooks]]\n");
-            sb.append("event = \"").append(ev[0]).append("\"\n");
-            sb.append("matcher = \"\"\n");
-            sb.append("command = \"").append(tomlEscape(buildHookCommand(ev[1]))).append("\"\n");
-            sb.append("timeout = ").append(ev[2]).append("\n");
-        }
-        sb.append("\n").append(KIMI_HOOK_BLOCK_END).append("\n");
-        return sb.toString();
-    }
-
-    private String removeKimiHookBlock(String content) {
-        return removeBlock(content, KIMI_HOOK_BLOCK_START, KIMI_HOOK_BLOCK_END);
-    }
-
-    private String removeCodexHookBlock(String content) {
-        return removeBlock(content, CODEX_HOOK_BLOCK_START, CODEX_HOOK_BLOCK_END);
-    }
-
-    private String removeBlock(String content, String startMarker, String endMarker) {
-        String result = content;
-        while (true) {
-            int start = result.indexOf(startMarker);
-            if (start == -1) break;
-            int end = result.indexOf(endMarker, start);
-            if (end == -1) break;
-            String before = result.substring(0, start);
-            String after = result.substring(end + endMarker.length());
-            result = before + after;
-        }
-        while (result.contains("\n\n\n")) result = result.replace("\n\n\n", "\n\n");
-        return result.trim().isEmpty() ? "" : result.trim() + "\n";
-    }
-
-    private String ensureCodexHooksFeature(String config) {
-        String[] lines = config.split("\n");
-        int featuresStart = -1;
-        for (int i = 0; i < lines.length; i++) {
-            if (lines[i].trim().equals("[features]")) { featuresStart = i; break; }
-        }
-        if (featuresStart == -1) {
-            String base = config.trim();
-            return (base.isEmpty() ? "" : base + "\n\n") + "[features]\nhooks = true\n";
-        }
-        int sectionEnd = lines.length;
-        for (int i = featuresStart + 1; i < lines.length; i++) {
-            String t = lines[i].trim();
-            if (t.startsWith("[") && t.endsWith("]")) { sectionEnd = i; break; }
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i <= featuresStart; i++) sb.append(lines[i]).append("\n");
-        sb.append("hooks = true\n");
-        for (int i = featuresStart + 1; i < sectionEnd; i++) {
-            String t = lines[i].trim();
-            if (t.startsWith("hooks") && t.contains("=")) continue;
-            if (t.startsWith("codex_hooks")) continue;
-            sb.append(lines[i]).append("\n");
-        }
-        for (int i = sectionEnd; i < lines.length; i++) sb.append(lines[i]).append("\n");
-        return sb.toString();
-    }
-
-    private ObjectNode loadJsonSettings(Path path) {
-        try {
-            if (path.toFile().exists()) {
-                return (ObjectNode) HOOK_MAPPER.readTree(path.toFile());
-            }
-        } catch (Exception e) { addLog("[警告] 解析配置失败，将使用空配置: " + e.getMessage()); }
-        return HOOK_MAPPER.createObjectNode();
-    }
-
-    private void backupFile(Path path) {
-        if (!path.toFile().exists()) return;
-        try {
-            String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            Path backup = path.resolveSibling(path.getFileName().toString() + ".bak." + ts);
-            java.nio.file.Files.copy(path, backup);
-            addLog("[备份] " + backup.getFileName());
-        } catch (Exception e) { addLog("[警告] 备份失败: " + e.getMessage()); }
+        hookInstaller.uninstall(hookName);
     }
 
     private void addLog(String message) {
@@ -1299,6 +1199,62 @@ public class TopBar extends VBox {
             logArea.appendText("[" + timestamp + "] " + message + "\n");
             logArea.setScrollTop(Double.MAX_VALUE);
         }
+    }
+    
+    private void showVersionDialog() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(languageManager.getString("dialog.version-title"));
+        alert.setHeaderText(null);
+        
+        String version = getVersion();
+        alert.setContentText(String.format(languageManager.getString("dialog.version-content"), version));
+        
+        alert.showAndWait();
+    }
+    
+    private String getVersion() {
+        String version = System.getProperty("app.version");
+        if (version == null || version.isEmpty()) {
+            version = "unknown";
+        }
+        return version;
+    }
+    
+    private void toggleLanguage() {
+        String newLang = languageManager.isChinese() ? "en" : "zh";
+        languageManager.switchLanguage(newLang);
+        
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle(languageManager.getString("language-change-title"));
+        alert.setHeaderText(null);
+        alert.setContentText(languageManager.isChinese() 
+            ? languageManager.getString("language-change-chinese") 
+            : languageManager.getString("language-change-english"));
+        
+        ButtonType exitBtn = new ButtonType(languageManager.getString("dialog.exit-now"));
+        ButtonType laterBtn = new ButtonType(languageManager.getString("dialog.exit-later"));
+        
+        alert.getButtonTypes().setAll(exitBtn, laterBtn);
+        
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == exitBtn) {
+            exitApplication();
+        }
+    }
+    
+    private void exitApplication() {
+        Platform.exit();
+        System.exit(0);
+    }
+    
+    private void setupLanguageChangeListener() {
+        LanguageManager.LanguageChangeNotifier.addListener(() -> {
+            Platform.runLater(() -> {
+                if (languageMenuItem != null) {
+                    languageMenuItem.setText(languageManager.getLanguageToggleText());
+                }
+            });
+        });
     }
     
     /**

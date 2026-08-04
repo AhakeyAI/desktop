@@ -64,7 +64,8 @@ logs/
 **/config_client.json
 **/settings.json.bak.*
 **/hooks.json.bak.*
-scripts/build.local.env
+**/build.local.env
+**/*.local.env
 
 # Local backups / temp
 *.bak
@@ -78,6 +79,36 @@ internal/
 target/
 *.class
 
-# Firmware object files
-*.o
-obj_final/
+# Swift build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+
+# Packaged outputs
+dist/
+
+# Local env (signing creds etc.) — covered by **/*.local.env above
+
+# Server codebase (separate Gitee repo)
+badao-resource-sharing-backstage/
+
+# Firmware backup / artifacts
+CH582m_vibe_coding_BLE_keyboard-master.bak-previous/
+*.hex
+
+# Local SSH keys / toolchain
+.ssh/
+.toolchain/
+
+# Server setup helpers
+server-ssh-setup.md
+server-ssh-setup.sh
+
+# Web client (separate project)
+ahakey-web-main/
+
+# Misc local assets
+backspace.png
+codex.gif
+cursor.gif

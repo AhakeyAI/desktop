@@ -1,19 +1,21 @@
 package com.example.ahakey.model;
 
+import com.example.ahakey.util.LanguageManager;
+
 /** 与 Swift `LightBarPreviewState` 一致：画布灯条预览的四种业务语义。 */
 public enum LightBarPreviewState {
-    AI_RUNNING("aiRunning", "AI 运行中", IDEState.POST_TOOL_USE),
-    WAITING_APPROVAL("waitingApproval", "等待批准", IDEState.PERMISSION_REQUEST),
-    STOPPED("stopped", "已停止", IDEState.STOP),
-    TASK_COMPLETED("taskCompleted", "任务完成", IDEState.STOP);
+    AI_RUNNING("aiRunning", "light-bar-preview.ai-running", IDEState.POST_TOOL_USE),
+    WAITING_APPROVAL("waitingApproval", "light-bar-preview.waiting-approval", IDEState.PERMISSION_REQUEST),
+    STOPPED("stopped", "light-bar-preview.stopped", IDEState.STOP),
+    TASK_COMPLETED("taskCompleted", "light-bar-preview.task-completed", IDEState.STOP);
 
     private final String id;
-    private final String title;
+    private final String titleKey;
     private final IDEState ideState;
 
-    LightBarPreviewState(String id, String title, IDEState ideState) {
+    LightBarPreviewState(String id, String titleKey, IDEState ideState) {
         this.id = id;
-        this.title = title;
+        this.titleKey = titleKey;
         this.ideState = ideState;
     }
 
@@ -22,7 +24,7 @@ public enum LightBarPreviewState {
     }
 
     public String getTitle() {
-        return title;
+        return LanguageManager.getInstance().getString(titleKey);
     }
 
     public IDEState getIdeState() {
@@ -30,12 +32,7 @@ public enum LightBarPreviewState {
     }
 
     public String getDetail() {
-        return switch (this) {
-            case AI_RUNNING -> "手动模式为来回流水，自动模式为彩虹移动。";
-            case WAITING_APPROVAL -> "提醒用户当前需要确认。";
-            case STOPPED -> "默认用红色常亮停住。";
-            case TASK_COMPLETED -> "表示本轮执行已经完成。";
-        };
+        return LanguageManager.getInstance().getString(titleKey + "-detail");
     }
 
     public static LightBarPreviewState fromId(String id) {

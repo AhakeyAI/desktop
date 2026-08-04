@@ -10,6 +10,7 @@ import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.OledModeDraft;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
+import com.example.ahakey.util.LanguageManager;
 import javafx.scene.control.Spinner;
 import javafx.stage.Window;
 import com.example.ahakey.service.AgentManager;
@@ -43,6 +44,7 @@ public class InspectorPane extends ScrollPane {
     private final DeviceStatus deviceStatus;
     private final StudioState studioState;
     private final AgentManager agentManager;
+    private final LanguageManager languageManager = LanguageManager.getInstance();
     private final VBox content = new VBox(18);
     private final VBox header = new VBox(8);
     private final VBox body = new VBox(16);
@@ -124,12 +126,12 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createSimulateKeyGroup(StudioPart part) {
-        return createGroupBox("模拟按键", () -> {
+        return createGroupBox(languageManager.getString("inspector.simulate-key"), () -> {
             VBox box = new VBox(8);
             KeyConfig key = studioState.getKeyConfig(part);
             var voice = controller.getVoiceRelay();
 
-            Button simulate = new Button("模拟按一次 Key1");
+            Button simulate = new Button(languageManager.getString("inspector.simulate-key1"));
             simulate.getStyleClass().add("button-prominent");
             simulate.setOnAction(e -> voice.simulateKeyByHid(key.getHidCode()));
 
@@ -143,24 +145,24 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createKeyBindingGroup(StudioPart part) {
-        return createGroupBox("将写入键盘的按键绑定", () -> {
+        return createGroupBox(languageManager.getString("inspector.key-binding"), () -> {
             VBox box = new VBox(14);
             KeyConfig key = studioState.getKeyConfig(part);
             boolean voiceLocked = part == StudioPart.KEY1 && key.getVoicePreset().locksShortcut();
 
             if (!voiceLocked) {
-                Label typeLabel = new Label("按键类型");
+                Label typeLabel = new Label(languageManager.getString("inspector.key-type"));
                 typeLabel.getStyleClass().add("field-label");
                 ComboBox<String> typeCombo = new ComboBox<>();
-                typeCombo.getItems().addAll(List.of("快捷键", "宏"));
+                typeCombo.getItems().addAll(List.of(languageManager.getString("inspector.shortcut"), languageManager.getString("inspector.macro")));
                 typeCombo.getStyleClass().add("combo-box");
-                typeCombo.setValue(key.usesMacro() ? "宏" : "快捷键");
+                typeCombo.setValue(key.usesMacro() ? languageManager.getString("inspector.macro") : languageManager.getString("inspector.shortcut"));
                 typeCombo.valueProperty().addListener((obs, old, newValue) -> {
-                    if ("快捷键".equals(newValue)) {
+                    if (languageManager.getString("inspector.shortcut").equals(newValue)) {
                         for (int i = key.getMacroStepCount() - 1; i >= 0; i--) {
                             key.removeMacroStep(i);
                         }
-                    } else if ("宏".equals(newValue)) {
+                    } else if (languageManager.getString("inspector.macro").equals(newValue)) {
                         // 切换到宏模式时，确保至少有一个宏步骤
                         if (key.getMacroStepCount() == 0) {
                             key.addMacroStep("DOWN_KEY", 40); // 添加一个默认步骤
@@ -177,9 +179,9 @@ public class InspectorPane extends ScrollPane {
                     box.getChildren().add(createShortcutEditor(part));
                 }
             } else {
-                Label presetLabel = new Label("当前为语音预设模式");
+                Label presetLabel = new Label(languageManager.getString("inspector.voice-preset-mode"));
                 presetLabel.getStyleClass().add("key-preview-label");
-                Label lockNote = new Label("语音预设会固定 F17/F18 触发键；改为「自定义快捷键」后可编辑 HID。");
+                Label lockNote = new Label(languageManager.getString("inspector.voice-preset-note"));
                 lockNote.getStyleClass().add("warning-note");
                 lockNote.setWrapText(true);
                 box.getChildren().addAll(presetLabel, lockNote);
@@ -192,7 +194,7 @@ public class InspectorPane extends ScrollPane {
         VBox box = new VBox(12);
         KeyConfig key = studioState.getKeyConfig(part);
 
-        Label listLabel = new Label("键码列表 (修饰键在前, 普通键在后):");
+        Label listLabel = new Label(languageManager.getString("inspector.key-code-list"));
         listLabel.getStyleClass().add("field-label");
 
         javafx.scene.control.ListView<String> keyListView = new javafx.scene.control.ListView<>();
@@ -352,7 +354,7 @@ public class InspectorPane extends ScrollPane {
         keySelector.getStyleClass().addAll("combo-box", "combo-box-small");
         keySelector.setValue("--- 修饰键 ---");
 
-        Button addBtn = new Button("添加");
+        Button addBtn = new Button(languageManager.getString("inspector.add"));
         addBtn.getStyleClass().add("btn-secondary");
         addBtn.setOnAction(e -> {
             String selected = keySelector.getValue();
@@ -416,7 +418,7 @@ public class InspectorPane extends ScrollPane {
             }
         });
 
-        Button deleteBtn = new Button("删除");
+        Button deleteBtn = new Button(languageManager.getString("inspector.delete"));
         deleteBtn.getStyleClass().add("btn-secondary");
         deleteBtn.setDisable(keyListView.getSelectionModel().getSelectedIndex() < 0);
         deleteBtn.setOnAction(e -> {
@@ -520,7 +522,7 @@ public class InspectorPane extends ScrollPane {
         }
 
         HBox buttonRow = new HBox(8);
-        Button addStepBtn = new Button("+ 添加步骤");
+        Button addStepBtn = new Button(languageManager.getString("inspector.add-step"));
         addStepBtn.getStyleClass().add("btn-primary");
         addStepBtn.setOnAction(e -> {
             key.addMacroStep("DOWN_KEY", 40);
@@ -528,7 +530,7 @@ public class InspectorPane extends ScrollPane {
             rebuild();
         });
 
-        Button clearBtn = new Button("清空");
+        Button clearBtn = new Button(languageManager.getString("inspector.clear"));
         clearBtn.getStyleClass().add("btn-secondary");
         clearBtn.setOnAction(e -> {
             for (int i = key.getMacroStepCount() - 1; i >= 0; i--) {
@@ -540,10 +542,10 @@ public class InspectorPane extends ScrollPane {
 
         buttonRow.getChildren().addAll(addStepBtn, clearBtn);
 
-        Label previewLabel = new Label("预览: " + key.formatMacroPreview());
+        Label previewLabel = new Label(languageManager.getString("inspector.preview") + key.formatMacroPreview());
         previewLabel.getStyleClass().add("group-note");
 
-        Label note = new Label("固件按顺序串行发送；延时单位 3ms（最大 765ms）。需要更长延时请叠加多个延时步骤。");
+        Label note = new Label(languageManager.getString("inspector.macro-note"));
         note.getStyleClass().add("warning-note");
         note.setWrapText(true);
 
@@ -560,24 +562,28 @@ public class InspectorPane extends ScrollPane {
         indexLabel.setMinWidth(30);
 
         ComboBox<String> actionCombo = new ComboBox<>();
-        actionCombo.getItems().addAll(List.of("按下", "松开", "延时"));
+        actionCombo.getItems().addAll(List.of(languageManager.getString("inspector.press"), languageManager.getString("inspector.release"), languageManager.getString("inspector.delay")));
         actionCombo.getStyleClass().add("combo-box-small");
         
         String actionType = key.getMacroStepAction(index);
         String actionText = switch (actionType) {
-            case "DOWN_KEY" -> "按下";
-            case "UP_KEY" -> "松开";
-            case "DELAY" -> "延时";
-            default -> "按下";
+            case "DOWN_KEY" -> languageManager.getString("inspector.press");
+            case "UP_KEY" -> languageManager.getString("inspector.release");
+            case "DELAY" -> languageManager.getString("inspector.delay");
+            default -> languageManager.getString("inspector.press");
         };
         actionCombo.setValue(actionText);
         actionCombo.valueProperty().addListener((obs, old, newValue) -> {
-            String newActionType = switch (newValue) {
-                case "按下" -> "DOWN_KEY";
-                case "松开" -> "UP_KEY";
-                case "延时" -> "DELAY";
-                default -> "DOWN_KEY";
-            };
+            String newActionType;
+            if (languageManager.getString("inspector.press").equals(newValue)) {
+                newActionType = "DOWN_KEY";
+            } else if (languageManager.getString("inspector.release").equals(newValue)) {
+                newActionType = "UP_KEY";
+            } else if (languageManager.getString("inspector.delay").equals(newValue)) {
+                newActionType = "DELAY";
+            } else {
+                newActionType = "DOWN_KEY";
+            }
             int currentParam = key.getMacroStepParam(index);
             key.updateMacroStep(index, newActionType, currentParam);
             studioState.markDirty(part);
@@ -698,18 +704,18 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createDescriptionGroup(StudioPart part) {
-        return createGroupBox("按键描述", () -> {
+        return createGroupBox(languageManager.getString("inspector.key-description"), () -> {
             VBox box = new VBox(8);
 
             TextField descField = new TextField(studioState.getKeyConfig(part).getDescription());
-            descField.setPromptText("例如 Record / Approve / Reject / Backspace");
+            descField.setPromptText(languageManager.getString("inspector.desc-placeholder"));
             descField.getStyleClass().add("text-field");
             descField.textProperty().addListener((obs, oldValue, newValue) -> studioState.updateKeyDescription(part, newValue));
 
-            Label warning = new Label("建议使用英文、数字和常用符号。");
+            Label warning = new Label(languageManager.getString("inspector.desc-warning"));
             warning.getStyleClass().add("warning-note");
 
-            Label actual = new Label("设备实际写入：" + studioState.getKeyConfig(part).getDescription());
+            Label actual = new Label(languageManager.getString("inspector.device-write") + studioState.getKeyConfig(part).getDescription());
             actual.getStyleClass().add("group-note");
 
             box.getChildren().addAll(descField, warning, actual);
@@ -721,7 +727,7 @@ public class InspectorPane extends ScrollPane {
         VBox root = new VBox(16);
         ModeSlot mode = studioState.getSelectedMode();
 
-        VBox brightnessBox = createGroupBox("灯光亮度", () -> {
+        VBox brightnessBox = createGroupBox(languageManager.getString("inspector.light-brightness"), () -> {
             VBox box = new VBox(10);
             HBox row = new HBox(10);
             row.setAlignment(Pos.CENTER_LEFT);
@@ -735,19 +741,19 @@ public class InspectorPane extends ScrollPane {
                 }
             });
 
-            Button test = new Button("测试亮度");
+            Button test = new Button(languageManager.getString("inspector.test-brightness"));
             test.setDisable(!deviceStatus.isConnected());
             test.setOnAction(e -> controller.sendLightBrightnessToDevice());
 
-            row.getChildren().addAll(new Label("亮度"), spinner, test);
-            Label note = new Label("可先测试亮度，保存配置后写入键盘。");
+            row.getChildren().addAll(new Label(languageManager.getString("inspector.brightness")), spinner, test);
+            Label note = new Label(languageManager.getString("inspector.brightness-note"));
             note.getStyleClass().add("group-note");
             note.setWrapText(true);
             box.getChildren().addAll(row, note);
             return box;
         });
 
-        VBox statesBox = createGroupBox(mode.getTitle() + " AI 状态灯效", () -> {
+        VBox statesBox = createGroupBox(mode.getTitle() + " " + languageManager.getString("inspector.ai-light-effects"), () -> {
             VBox box = new VBox(12);
             for (IDEState ideState : IDEState.values()) {
                 VBox row = new VBox(6);
@@ -776,7 +782,7 @@ public class InspectorPane extends ScrollPane {
                     }
                 });
 
-                Button test = new Button("测试");
+                Button test = new Button(languageManager.getString("inspector.test"));
                 test.setDisable(!deviceStatus.isConnected());
                 test.setOnAction(e -> controller.previewLightEffectOnDevice(combo.getValue()));
 
@@ -791,13 +797,13 @@ public class InspectorPane extends ScrollPane {
 
             HBox actions = new HBox(10);
             actions.setAlignment(Pos.CENTER_LEFT);
-            Button sync = new Button("保存当前模式灯效");
+            Button sync = new Button(languageManager.getString("inspector.save-light-config"));
             sync.getStyleClass().add("button-prominent");
             sync.setDisable(!deviceStatus.isConnected());
             sync.setOnAction(e -> controller.syncCurrentModeLightConfig());
             actions.getChildren().add(sync);
 
-            Label note = new Label("测试按钮会直接预览灯效；保存当前模式灯效会写入 " + mode.getTitle() + " 的 9 个 AI 状态。");
+            Label note = new Label(languageManager.getString("inspector.light-note") + " " + mode.getTitle());
             note.getStyleClass().add("group-note");
             note.setWrapText(true);
             box.getChildren().addAll(actions, note);
@@ -818,7 +824,7 @@ public class InspectorPane extends ScrollPane {
         VBox root = new VBox(16);
         OledModeDraft draft = studioState.getOledDraft();
 
-        root.getChildren().add(createGroupBox("当前模式的 OLED GIF / 图片", () -> {
+        root.getChildren().add(createGroupBox(languageManager.getString("inspector.oled-preview"), () -> {
             VBox box = new VBox(12);
 
             // OLED 预览区域
@@ -842,13 +848,13 @@ public class InspectorPane extends ScrollPane {
             box.getChildren().add(previewArea);
 
             Label asset = new Label(
-                draft.getLocalAssetPath() != null ? draft.getLocalAssetPath() : "未选择 GIF / 图片"
+                draft.getLocalAssetPath() != null ? draft.getLocalAssetPath() : languageManager.getString("inspector.oled-none")
             );
             asset.getStyleClass().add("group-note");
             asset.setWrapText(true);
 
             HBox actions = new HBox(8);
-            Button pick = new Button("选择 GIF 或图片");
+            Button pick = new Button(languageManager.getString("inspector.oled-select"));
             pick.getStyleClass().add("button-prominent");
             pick.setMinWidth(80);
             pick.setOnAction(e -> {
@@ -856,7 +862,7 @@ public class InspectorPane extends ScrollPane {
                 controller.selectOledGif(w);
                 rebuild();
             });
-            Button upload = new Button("上传到设备");
+            Button upload = new Button(languageManager.getString("inspector.oled-upload"));
             upload.getStyleClass().add("button-prominent");
             upload.setMinWidth(90);
             upload.disableProperty().bind(Bindings.createBooleanBinding(
@@ -867,11 +873,11 @@ public class InspectorPane extends ScrollPane {
                 draft.localAssetPathProperty()
             ));
             upload.textProperty().bind(Bindings.createStringBinding(
-                () -> studioState.uploadingOledProperty().get() ? "上传中…" : "上传到设备",
+                () -> studioState.uploadingOledProperty().get() ? languageManager.getString("inspector.oled-uploading") : languageManager.getString("inspector.oled-upload"),
                 studioState.uploadingOledProperty()
             ));
             upload.setOnAction(e -> controller.uploadCurrentOledToDevice());
-            Button clear = new Button("清空");
+            Button clear = new Button(languageManager.getString("inspector.clear"));
             clear.setMinWidth(60);
             clear.setOnAction(e -> {
                 studioState.clearOledPreview();
@@ -890,17 +896,15 @@ public class InspectorPane extends ScrollPane {
             progress.textProperty().bind(studioState.oledUploadDetailProperty());
             progress.getStyleClass().add("group-note");
 
-            Label limits = new Label(
-                "支持 GIF / PNG / JPG，单个文件不超过 2 MB；GIF 最多 70 帧；图片会自动适配 160×80 屏幕。"
-            );
+            Label limits = new Label(languageManager.getString("inspector.oled-limits"));
             limits.getStyleClass().add("group-note");
             limits.setWrapText(true);
 
-            box.getChildren().addAll(asset, actions, new Label("帧率 (FPS)"), fps, progress, limits);
+            box.getChildren().addAll(asset, actions, new Label(languageManager.getString("inspector.fps")), fps, progress, limits);
             return box;
         }));
 
-        root.getChildren().add(createGroupBox("屏幕文字", () -> {
+        root.getChildren().add(createGroupBox(languageManager.getString("inspector.screen-text"), () -> {
             VBox box = new VBox(10);
             TextField titleField = new TextField(studioState.getOledSummary());
             titleField.getStyleClass().add("text-field");
@@ -908,25 +912,25 @@ public class InspectorPane extends ScrollPane {
             TextField captionField = new TextField(studioState.getOledCaption());
             captionField.getStyleClass().add("text-field");
             captionField.textProperty().addListener((obs, o, n) -> studioState.setOledCaption(n));
-            Label note = new Label("建议使用英文、数字和常用符号。");
+            Label note = new Label(languageManager.getString("inspector.desc-warning"));
             note.getStyleClass().add("warning-note");
             note.setWrapText(true);
-            box.getChildren().addAll(new Label("主标题"), titleField, new Label("副标题"), captionField, note);
+            box.getChildren().addAll(new Label(languageManager.getString("inspector.main-title")), titleField, new Label(languageManager.getString("inspector.sub-title")), captionField, note);
             return box;
         }));
         return root;
     }
 
     private VBox createToggleGroup() {
-        return createGroupBox("拨杆语义", () -> {
+        return createGroupBox(languageManager.getString("inspector.switch-semantics"), () -> {
             VBox box = new VBox(10);
 
             ToggleGroup group = new ToggleGroup();
-            ToggleButton autoButton = new ToggleButton("自动批准");
+            ToggleButton autoButton = new ToggleButton(languageManager.getString("inspector.auto-approval"));
             autoButton.getStyleClass().add("binding-toggle");
             autoButton.setToggleGroup(group);
 
-            ToggleButton manualButton = new ToggleButton("手动批准");
+            ToggleButton manualButton = new ToggleButton(languageManager.getString("inspector.manual-approval"));
             manualButton.getStyleClass().add("binding-toggle");
             manualButton.setToggleGroup(group);
 
@@ -943,7 +947,7 @@ public class InspectorPane extends ScrollPane {
                 deviceStatus.switchStateProperty()
             ));
 
-            Label note = new Label("拨杆本身不写入 HID，但会改变设备侧的审批语义和右侧状态显示。");
+            Label note = new Label(languageManager.getString("inspector.switch-note"));
             note.getStyleClass().add("group-note");
 
             box.getChildren().addAll(new HBox(4, autoButton, manualButton), note);
