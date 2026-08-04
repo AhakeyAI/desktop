@@ -24,7 +24,6 @@ toml = { workspace = true }
 bincode = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-btleplug = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 once_cell = { workspace = true }
@@ -41,17 +40,7 @@ windows = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_UI_Accessibility",
     "Win32_UI_Input",
-    # BLE (WinRT) — 走 Windows.Devices.Bluetooth.* API
-    # 与 C# BLE_tcp_driver 一致:DeviceWatcher + AQS 拿已配对设备
-    "Devices_Bluetooth",
-    "Devices_Bluetooth_Advertisement",
-    "Devices_Bluetooth_GenericAttributeProfile",
-    "Devices_Enumeration",
-    "Foundation",
-    "Foundation_Collections",
-    "Storage_Streams",
 ] }
-regex = "1"
 
 [features]
 default = ["custom-protocol"]

@@ -46,10 +46,19 @@ pub fn get_all_keys(state: State<AppState>) -> Vec<KeyConfig> {
 // ====================== 设备 / BLE ======================
 
 #[tauri::command]
-pub async fn scan_devices(state: State<'_, AppState>) -> AppResult<Vec<ScanResult>> {
-    tracing::info!("[cmd] scan_devices called");
-    let _guard = state.ble_lock.lock().await;
-    state.ble.scan().await
+pub async fn scan_devices(_state: State<'_, AppState>) -> AppResult<Vec<ScanResult>> {
+    // v2 BLE_tcp_bridge 不暴露 scan 协议 — 设备需先在 Windows 蓝牙里手动配对,
+    // 然后从 config_store 读 last_device 返回(用户后续可点"重连上次设备")
+    tracing::info!("[cmd] scan_devices called (v2 bridge: list last_device)");
+    Ok(crate::service::config_store::load_last_device()
+        .map(|d| crate::model::ScanResult {
+            address: d.address,
+            name: d.name,
+            rssi: -50,
+            matched_ahakey: true,
+        })
+        .into_iter()
+        .collect())
 }
 
 #[tauri::command]

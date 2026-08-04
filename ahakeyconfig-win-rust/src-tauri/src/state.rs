@@ -70,7 +70,7 @@ impl AppState {
             light_preview: RwLock::new(light),
             hook_running: AtomicBool::new(false),
             ble_lock: Mutex::new(()),
-            ble: Arc::new(BleManager::new(app)),
+            ble: Arc::new(BleManager::new(app)?),
         })
     }
 
