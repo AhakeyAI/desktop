@@ -4,6 +4,7 @@
   export let keys: Array<{ id: number; label: string; name: string }> = [];
   export let selectedKeyId: number = 1;
   export let lightSegments: number[] = [];
+  export let switchTitle: string = "";
 
   const dispatch = createEventDispatcher();
 
@@ -52,7 +53,7 @@
           <div class="knob-switch">
             <div class="knob-handle"></div>
           </div>
-          <div class="knob-label">手动批准</div>
+          <div class="knob-label">{switchTitle || "手动批准"}</div>
           <div class="knob-num-circle">
             <span>1</span>
           </div>

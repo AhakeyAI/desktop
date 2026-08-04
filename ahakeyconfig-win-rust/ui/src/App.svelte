@@ -74,10 +74,18 @@
     };
   });
 
-  function onModeChange(e: CustomEvent<number>) {
-    selectedMode = e.detail;
+  async function onModeChange(e: CustomEvent<number>) {
+    const newMode = e.detail;
+    selectedMode = newMode;
     unsavedCount += 1;
-    toastInfo(`已切换到 ${modeSlots[e.detail]?.name}`);
+    toastInfo(`已切换到 ${modeSlots[newMode]?.name}`);
+    // 必须通知后端,否则下个 device-status-changed 事件会用 state.active_mode(0)覆盖 selectedMode
+    try {
+      await invoke("set_active_mode", { mode: newMode });
+    } catch (e) {
+      console.error("[MODE] set_active_mode failed:", e);
+      toastError(`切换 mode 失败: ${e}`);
+    }
   }
 
   function onKeyClick(e: CustomEvent<number>) {
@@ -240,6 +248,7 @@
           keys={keys}
           selectedKeyId={selectedKeyId}
           lightSegments={lightSegments}
+          switchTitle={state.switch_title}
           on:keyclick={onKeyClick}
         />
       </div>
