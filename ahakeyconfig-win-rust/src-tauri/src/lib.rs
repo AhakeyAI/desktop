@@ -67,6 +67,10 @@ pub fn run() {
             commands::get_aha_type_status,
             commands::set_language,
             commands::get_language,
+            commands::change_name,
+            commands::save_config,
+            commands::set_brightness,
+            commands::preview_light_effect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

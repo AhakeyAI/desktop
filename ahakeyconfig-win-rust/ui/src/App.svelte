@@ -62,6 +62,7 @@
   let selectedDevice: ScanResult | null = null;
   let showDevicePicker = false;
   let connectError = "";
+  let connecting = false;            // 连接中 — 显示 loading 状态避免重复点击
 
   // 上次连接的设备(用于快速重连 — 解决隐私设备扫不到的问题)
   let lastDevice: LastDevice | null = null;
@@ -200,12 +201,27 @@
 
   async function confirmConnect() {
     if (!selectedDevice) return;
+    if (connecting) return;            // 防重入
     const deviceLabel = selectedDevice.name || selectedDevice.address;
+    connecting = true;
+    toastInfo(`正在连接 ${deviceLabel}...`);
     try {
-      await invoke("connect_device", {
-        address: selectedDevice.address,
-        name: selectedDevice.name || selectedDevice.address,
+      // 客户端兜底 15s timeout:
+      // - 后端正常 connect 路径:扫描找设备 + GATT 订阅 + 周期查询 task 启动,
+      //   实测 ~5-6s 完成(set_connected + emit 事件)
+      // - 5s 早 reject 会被误伤:日志显示 "connect complete" 后客户端 timeout 才触发
+      // - 后端 BLE 重试 6 次可能 30+ 秒,15s 仍然早失败,UI 不卡
+      const timeoutMs = 15000;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`连接超时(${timeoutMs / 1000}s),后端可能在重试 BLE — 看 ahakey-test.log.err`)), timeoutMs);
       });
+      await Promise.race([
+        invoke("connect_device", {
+          address: selectedDevice.address,
+          name: selectedDevice.name || selectedDevice.address,
+        }),
+        timeoutPromise,
+      ]);
       // 连接成功才关闭弹窗
       showDevicePicker = false;
       toastSuccess(`已连接到 ${deviceLabel}`);
@@ -214,6 +230,8 @@
       connectError = String(e);
       toastError(`连接失败: ${e}`);
       console.error("[BLE] connect failed:", e);
+    } finally {
+      connecting = false;
     }
   }
 
@@ -427,10 +445,10 @@
         {/if}
         <button
           class="picker-btn-primary"
-          disabled={!selectedDevice || scanning}
+          disabled={!selectedDevice || scanning || connecting}
           on:click={confirmConnect}
         >
-          连接
+          {connecting ? "连接中..." : "连接"}
         </button>
       </div>
     </div>

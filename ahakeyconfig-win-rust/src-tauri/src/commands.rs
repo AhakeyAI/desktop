@@ -150,9 +150,14 @@ pub fn get_version_info() -> AppResult<device_info::AppVersionInfo> {
 
 // ====================== 模式 / 键位 ======================
 
+/// 切换工作模式(mode 0-3)。
+/// 先更新本地 state(UI 立即响应),再发 set_work_mode 协议帧到设备。
 #[tauri::command]
-pub fn set_active_mode(mode: u8, state: State<AppState>) -> AppResult<()> {
-    state.set_active_mode(mode)
+pub async fn set_active_mode(mode: u8, state: State<'_, AppState>) -> AppResult<()> {
+    state.set_active_mode(mode)?;
+    let frame = crate::protocol::set_work_mode(mode);
+    state.ble.send_frame(&frame).await?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -220,10 +225,102 @@ pub fn reset_all_keys(state: State<AppState>) -> AppResult<Vec<Vec<KeyConfig>>> 
     Ok(out)
 }
 
+/// 把指定 mode 的所有键位配置发到设备。
+/// 对每个 key_index 调一次 set_key_mapping。
+/// bindings 转 HID 字节的策略:
+///   - "Ctrl"/"Shift"/"Alt"/"GUI"(大小写不敏感)作为 modifier → 按 ROL 顺序合并成首字节
+///   - 其它字符串当 hex (e.g. "0x04") 或十进制数字 parse → 后续字节
+///   - 空 bindings 发空 payload(等同于清除键位)
 #[tauri::command]
-pub fn apply_keys_to_device(mode: u8, state: State<AppState>) -> AppResult<()> {
-    let _ = state.get_keys_for_mode(mode);
+pub async fn apply_keys_to_device(mode: u8, state: State<'_, AppState>) -> AppResult<()> {
+    let keys = state.get_keys_for_mode(mode);
+    for (idx, key) in keys.iter().enumerate() {
+        let hid_codes = parse_bindings_to_hid(&key.bindings);
+        let frame = crate::protocol::set_key_mapping(mode, idx as u8, &hid_codes);
+        state.ble.send_frame(&frame).await?;
+    }
     Ok(())
+}
+
+// ====================== 设备控制(发到 BLE 设备) ======================
+
+/// 修改设备蓝牙名称。持久化需要用户随后调 save_config。
+#[tauri::command]
+pub async fn change_name(name: String, state: State<'_, AppState>) -> AppResult<()> {
+    if name.is_empty() {
+        return Err(AppError::Other("device name is empty".into()));
+    }
+    let frame = crate::protocol::change_name(&name);
+    state.ble.send_frame(&frame).await?;
+    Ok(())
+}
+
+/// 触发设备把当前配置写入 Flash。
+/// 与 `change_name` / `set_brightness` / `apply_keys_to_device` 配合使用:
+/// 这些命令只更新 RAM,save_config 之后才落盘。
+#[tauri::command]
+pub async fn save_config(state: State<'_, AppState>) -> AppResult<()> {
+    let frame = crate::protocol::save_config();
+    state.ble.send_frame(&frame).await?;
+    Ok(())
+}
+
+/// 全局 WS2812 灯条亮度 1-100。超界由 `protocol::builder` 自动 clamp。
+#[tauri::command]
+pub async fn set_brightness(brightness: u8, state: State<'_, AppState>) -> AppResult<()> {
+    let frame = crate::protocol::set_brightness(brightness);
+    state.ble.send_frame(&frame).await?;
+    Ok(())
+}
+
+/// 预览灯效(不落盘,与 setLightEffect 对应)。
+/// Swift 命名 `previewLightEffect`,Java 命名 `setLightEffect`,命令码同为 0x91。
+#[tauri::command]
+pub async fn preview_light_effect(effect: u8, state: State<'_, AppState>) -> AppResult<()> {
+    let frame = crate::protocol::preview_light_effect(effect);
+    state.ble.send_frame(&frame).await?;
+    Ok(())
+}
+///
+/// 返回字节格式(modifier 风格的简化):
+/// - 第 1 个字节:modifier mask (LCtrl=0x01, LShift=0x02, LAlt=0x04, LGUI=0x08,
+///                        RCtrl=0x10, RShift=0x20, RAlt=0x40, RGui=0x80)
+///   如果没有任何 modifier,首字节填 0x00。
+/// - 后续字节:按 binding 顺序,把 `code` 字段当十进制数字 parse。
+///
+/// 注:这是简化的"modifier + 数字码"方案,完整 HID 键盘报告需要
+/// 包含 reserved byte (0x00) 和具体 usage table。当前为最简可用,
+/// 后续如果用户报按键不对应,可以再扩。
+fn parse_bindings_to_hid(bindings: &[crate::model::KeyCodeBinding]) -> Vec<u8> {
+    let mut modifier: u8 = 0;
+    let mut codes: Vec<u8> = Vec::new();
+    for b in bindings {
+        let key_upper = b.key.to_uppercase();
+        match key_upper.as_str() {
+            "LCTRL" | "CTRL" | "CONTROL" => modifier |= 0x01,
+            "LSHIFT" | "SHIFT" => modifier |= 0x02,
+            "LALT" | "ALT" => modifier |= 0x04,
+            "LGUI" | "GUI" | "WIN" | "META" => modifier |= 0x08,
+            "RCTRL" => modifier |= 0x10,
+            "RSHIFT" => modifier |= 0x20,
+            "RALT" => modifier |= 0x40,
+            "RGUI" => modifier |= 0x80,
+            _ => {
+                // 其它 key 字段,尝试把 code 解析为 u8
+                if let Ok(n) = b.code.parse::<u8>() {
+                    codes.push(n);
+                } else if let Some(hex) = b.code.strip_prefix("0x").or_else(|| b.code.strip_prefix("0X")) {
+                    if let Ok(n) = u8::from_str_radix(hex, 16) {
+                        codes.push(n);
+                    }
+                }
+            }
+        }
+    }
+    let mut out = Vec::with_capacity(1 + codes.len());
+    out.push(modifier);
+    out.extend(codes);
+    out
 }
 
 // ====================== 模拟按键 ======================

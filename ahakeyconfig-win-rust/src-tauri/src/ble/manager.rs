@@ -28,7 +28,7 @@ use crate::error::{AppError, AppResult};
 use crate::model::ScanResult;
 
 /// 周期状态查询间隔(秒)— 与 Java 端 BLE 轮询节奏一致
-const STATUS_QUERY_INTERVAL_SECS: u64 = 2;
+const STATUS_QUERY_INTERVAL_SECS: u64 = 1;
 
 /// 扫描超时(秒)— 扫描时等待设备发现的时长。
 /// AhaKey 键盘类设备广播间隔通常 ≥1 秒(省电模式),
@@ -56,6 +56,8 @@ const NOTIFY_CHAR_UUID: Uuid = Uuid::from_bytes([
 struct ConnState {
     peripheral: Peripheral,
     notify_char: Characteristic,
+    /// BLE 0x7343 cmd-write characteristic — 所有写命令的入口
+    cmd_char: Characteristic,
     notify_task: JoinHandle<()>,
     poll_task: JoinHandle<()>,
 }
@@ -369,8 +371,10 @@ impl BleManager {
         });
 
         // 9. spawn 周期查询任务
-        // 每 2 秒 write STATUS_QUERY_FRAME 到 cmd char(WithoutResponse),
+        // 每 1 秒 write STATUS_QUERY_FRAME 到 cmd char(WithoutResponse),
         // 设备收到后回 13 字节状态 notify,被步骤 8 的 consumer 解析并更新 UI。
+        // 间隔 1s: 实测 AhaKey 5A93 在 GATT idle 5-7 秒后会主动关闭通道(省电),
+        //         1s keep-alive 避免 idle timeout。
         let peripheral_clone = peripheral.clone();
         let cmd_char_clone = cmd_char.clone();
         let app_p = self.app.clone();
@@ -379,17 +383,44 @@ impl BleManager {
                 tokio::time::interval(Duration::from_secs(STATUS_QUERY_INTERVAL_SECS));
             // 第一次 tick 立即返回 — 连上后立即发一次查询
             ticker.tick().await;
+            let mut consecutive_failures: u32 = 0;
             loop {
-                if let Err(e) = peripheral_clone
+                match peripheral_clone
                     .write(&cmd_char_clone, &STATUS_QUERY_FRAME, WriteType::WithoutResponse)
                     .await
                 {
-                    warn!("[BLE] status query write failed: {e}");
-                    // 通知前端断开
-                    let state = app_p.state::<crate::state::AppState>();
-                    state.set_disconnected();
-                    let _ = app_p.emit("device-status-changed", state.get_studio_state());
-                    return;
+                    Ok(()) => {
+                        if consecutive_failures > 0 {
+                            info!("[BLE] status query recovered after {consecutive_failures} failures");
+                        }
+                        consecutive_failures = 0;
+                    }
+                    Err(e) => {
+                        consecutive_failures += 1;
+                        warn!(
+                            "[BLE] status query write failed ({consecutive_failures}/3): {e}"
+                        );
+                        if consecutive_failures >= 3 {
+                            // 连续 3 次失败,认定连接死了 — 清理 + 通知前端
+                            warn!("[BLE] status query failed 3 times in a row, marking disconnected");
+                            let state = app_p.state::<crate::state::AppState>();
+                            state.set_disconnected();
+                            let _ = app_p.emit(
+                                "device-status-changed",
+                                state.get_studio_state(),
+                            );
+                            // 尝试主动断开 peripheral(可能 GATT 通道已经死了,
+                            // 所以我们不 await,只 fire-and-forget)
+                            let p = peripheral_clone.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let _ = p.disconnect().await;
+                            });
+                            return;
+                        }
+                        // 单次失败: 立刻重试一次,不等 ticker
+                        tokio::time::sleep(Duration::from_millis(200)).await;
+                        continue;
+                    }
                 }
                 ticker.tick().await;
             }
@@ -399,6 +430,7 @@ impl BleManager {
         *self.conn.lock().await = Some(ConnState {
             peripheral,
             notify_char,
+            cmd_char,
             notify_task,
             poll_task,
         });
@@ -432,6 +464,29 @@ impl BleManager {
             let _ = conn.peripheral.disconnect().await;
             info!("[BLE] disconnected");
         }
+    }
+
+    /// 发送一个完整协议帧到已连接的设备。
+    ///
+    /// 这是 commands.rs 里所有"apply_* / set_* / change_*"调用的统一入口。
+    /// 帧字节由调用方用 `crate::protocol::builder::*` 构造,
+    /// 这里只负责找到 cmd_char 并 write。
+    ///
+    /// 失败时:如果未连接,返回 `Ble("not connected")`;
+    /// 如果 BLE 写入失败,返回 `Ble("write: ...")`。
+    pub async fn send_frame(&self, frame: &[u8]) -> AppResult<()> {
+        let (peripheral, cmd_char) = {
+            let guard = self.conn.lock().await;
+            let conn = guard
+                .as_ref()
+                .ok_or_else(|| AppError::Ble("not connected".into()))?;
+            (conn.peripheral.clone(), conn.cmd_char.clone())
+        };
+        peripheral
+            .write(&cmd_char, frame, WriteType::WithoutResponse)
+            .await
+            .map_err(|e| AppError::Ble(format!("BLE write: {e}")))?;
+        Ok(())
     }
 
     /// 通过 USB HID 连接 AhaKey(USB-C 直连通道)。
