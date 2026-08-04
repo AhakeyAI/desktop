@@ -27,6 +27,10 @@
     name: string;
   }
 
+  /// 7 个 hotspot — 对齐 win-java StudioPart.id
+  /// lightBar / oledDisplay / key1-4 / toggleSwitch
+  type StudioPart = 'lightBar' | 'oledDisplay' | 'key1' | 'key2' | 'key3' | 'key4' | 'toggleSwitch';
+
   let state: StudioState | null = null;
   let loadingMsg = "Loading...";
 
@@ -46,8 +50,20 @@
     { id: 4, label: "K4", name: "Backspace" },
   ];
 
-  const lightSegments = [0, 1, 2, 3, 4, 5, 6, 7];
+  const lightSegments = [0, 1, 2, 3];
   let unsavedCount = 0;
+
+  /// 当前选中的 hotspot(7 选 1)— 决定 CanvasPane 哪个蓝框 + InspectorPane 渲染哪种 group
+  let selectedPart: StudioPart = 'key1';
+
+  function onSelectPart(e: CustomEvent<StudioPart>) {
+    selectedPart = e.detail;
+    // 选中 K1-K4 时同步 selectedKeyId(给 InspectorPane 用)
+    if (e.detail === 'key1') selectedKeyId = 1;
+    else if (e.detail === 'key2') selectedKeyId = 2;
+    else if (e.detail === 'key3') selectedKeyId = 3;
+    else if (e.detail === 'key4') selectedKeyId = 4;
+  }
 
   // 连接状态
   // v2 bridge 链路下设备永远只有 1 个(从 config_store 读 last_device),不再需要弹窗
@@ -246,16 +262,16 @@
 
         <CanvasPane
           keys={keys}
-          selectedKeyId={selectedKeyId}
+          selectedPart={selectedPart}
           lightSegments={lightSegments}
           switchTitle={state.switch_title}
-          on:keyclick={onKeyClick}
+          modeIndex={selectedMode}
+          on:selectPart={onSelectPart}
         />
       </div>
 
       <InspectorPane
-        selectedKeyId={selectedKeyId}
-        selectedKey={keys.find((k) => k.id === selectedKeyId)}
+        selectedPart={selectedPart}
         mode={selectedMode}
         modeName={modeSlots[selectedMode]?.name ?? ""}
         on:simulate={onSimulateKey}
