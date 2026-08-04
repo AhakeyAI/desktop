@@ -1,15 +1,18 @@
 package com.example.ahakey.service;
 
+import com.sun.jna.Library;
+import com.sun.jna.Native;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
  * Ubuntu/Linux 平台 USB HID 传输层
- * 使用 Linux HIDAPI 或 /dev/hidraw 接口访问设备
+ * 使用 Linux /dev/hidraw 接口访问设备
  */
 public class UsbHidTransport implements Closeable {
     private static final Logger logger = LoggerFactory.getLogger(UsbHidTransport.class);
@@ -20,9 +23,22 @@ public class UsbHidTransport implements Closeable {
 
     private volatile boolean running;
     private Consumer<byte[]> frameConsumer;
+    private int nativeFd = -1;
+    private String devicePath;
+    private Thread readerThread;
+
+    public interface LibC extends Library {
+        LibC INSTANCE = Native.load("c", LibC.class);
+
+        int O_RDWR = 2;
+
+        int open(String path, int flags);
+        int close(int fd);
+        long read(int fd, byte[] buf, long count);
+        long write(int fd, byte[] buf, long count);
+    }
 
     public static boolean isPresent() {
-        // Ubuntu 平台检查设备是否存在
         return findDevicePath() != null;
     }
 
@@ -30,17 +46,27 @@ public class UsbHidTransport implements Closeable {
         if (isOpen()) {
             return;
         }
-        String path = findDevicePath();
-        if (path == null) {
+        devicePath = findDevicePath();
+        if (devicePath == null) {
             throw new IOException("USB HID device not found");
         }
+
+        int fd = LibC.INSTANCE.open(devicePath, LibC.O_RDWR);
+        if (fd < 0) {
+            int err = Native.getLastError();
+            String hint = err == 13 ? " (permission denied — add udev rule or join 'input' group)" : "";
+            throw new IOException("Failed to open " + devicePath + ": errno=" + err + hint);
+        }
+
+        nativeFd = fd;
         frameConsumer = onFrame;
         running = true;
-        logger.info("USB HID connected: {}", path);
+        startReader();
+        logger.info("USB HID connected: {}", devicePath);
     }
 
     public synchronized boolean isOpen() {
-        return running;
+        return running && nativeFd >= 0;
     }
 
     public synchronized void sendCommand(byte[] frame) throws IOException {
@@ -70,18 +96,62 @@ public class UsbHidTransport implements Closeable {
         }
     }
 
+    private void startReader() {
+        readerThread = new Thread(() -> {
+            byte[] buffer = new byte[REPORT_SIZE];
+            while (running) {
+                int fd;
+                synchronized (this) {
+                    fd = nativeFd;
+                }
+                if (fd < 0) break;
+                try {
+                    long bytesRead = LibC.INSTANCE.read(fd, buffer, REPORT_SIZE);
+                    if (bytesRead > 0) {
+                        byte[] frame = extractFrame(buffer, (int) bytesRead);
+                        if (frame != null && frameConsumer != null) {
+                            frameConsumer.accept(frame);
+                        }
+                    } else if (bytesRead < 0) {
+                        if (running) {
+                            logger.warn("USB read error: errno={}", Native.getLastError());
+                        }
+                        break;
+                    }
+                } catch (Exception e) {
+                    if (running) {
+                        logger.warn("USB read exception: {}", e.getMessage());
+                    }
+                    break;
+                }
+            }
+            logger.debug("USB reader thread exiting");
+        }, "usb-hid-reader");
+        readerThread.setDaemon(true);
+        readerThread.start();
+    }
+
+    private void writeReport(byte[] payload) throws IOException {
+        int fd;
+        synchronized (this) {
+            fd = nativeFd;
+        }
+        if (fd < 0) throw new IOException("USB HID not connected");
+        long bytesWritten = LibC.INSTANCE.write(fd, payload, payload.length);
+        if (bytesWritten < 0) {
+            throw new IOException("USB HID write failed: errno=" + Native.getLastError());
+        }
+        if (bytesWritten != payload.length) {
+            logger.warn("Partial write: {} of {} bytes", bytesWritten, payload.length);
+        }
+    }
+
     private static void sleepQuietly(long millis) {
         try {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    private void writeReport(byte[] payload64) throws IOException {
-        // Ubuntu 版本：使用 Java 的 ProcessBuilder 调用 hidapi 工具或直接写入 /dev/hidraw
-        // 这里使用简化实现，实际项目中需要使用 JNA 或专门的 HID 库
-        logger.debug("USB HID write (Linux stub): {} bytes", payload64.length);
     }
 
     private void ensureOpen() throws IOException {
@@ -92,22 +162,49 @@ public class UsbHidTransport implements Closeable {
 
     @Override
     public synchronized void close() {
-        logger.debug("USB close: 开始关闭 USB 传输");
+        logger.debug("USB close: starting shutdown");
         running = false;
+
+        if (readerThread != null) {
+            readerThread.interrupt();
+            readerThread = null;
+        }
+
+        if (nativeFd >= 0) {
+            LibC.INSTANCE.close(nativeFd);
+            nativeFd = -1;
+        }
+
         frameConsumer = null;
-        logger.debug("USB close: 关闭完成");
+        devicePath = null;
+        logger.debug("USB close: shutdown complete");
     }
 
-    private static String findDevicePath() {
-        // Ubuntu 版本：查找 /dev/hidraw* 设备
-        // VID_413C PID_2107 是 AhaKey 设备
+    private static byte[] extractFrame(byte[] data, int len) {
+        int start = -1;
+        for (int i = 0; i + 1 < len; i++) {
+            if (data[i] == (byte) 0xAA && data[i + 1] == (byte) 0xBB) {
+                start = i;
+                break;
+            }
+        }
+        if (start < 0) return null;
+        for (int i = start + 3; i + 1 < len; i++) {
+            if (data[i] == (byte) 0xCC && data[i + 1] == (byte) 0xDD) {
+                return Arrays.copyOfRange(data, start, i + 2);
+            }
+        }
+        return null;
+    }
+
+    static String findDevicePath() {
         try {
             java.io.File devDir = new java.io.File("/dev");
             java.io.File[] hidrawFiles = devDir.listFiles((dir, name) -> name.startsWith("hidraw"));
             if (hidrawFiles != null) {
                 for (java.io.File file : hidrawFiles) {
-                    String path = "/sys/class/hidraw/" + file.getName() + "/device/uevent";
-                    java.io.File uevent = new java.io.File(path);
+                    String ueventPath = "/sys/class/hidraw/" + file.getName() + "/device/uevent";
+                    java.io.File uevent = new java.io.File(ueventPath);
                     if (uevent.exists()) {
                         String content = new String(java.nio.file.Files.readAllBytes(uevent.toPath()));
                         if (content.contains("HID_ID=0003:0000413C:00002107")) {

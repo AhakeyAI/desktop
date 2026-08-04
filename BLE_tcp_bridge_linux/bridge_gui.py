@@ -13,6 +13,7 @@ import signal
 import socket
 import struct
 import sys
+import time
 import traceback
 from dataclasses import dataclass, asdict
 from enum import IntEnum
@@ -22,7 +23,7 @@ from typing import Optional, List, Dict
 import dbus
 import dbus.service
 import dbus.mainloop.glib
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject, QThread, QSize
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QThread, QSize
 from PyQt5.QtGui import QFont, QIcon, QKeyEvent, QTextCursor, QColor
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -109,27 +110,42 @@ class TcpClient:
         self.writer = writer
         self.bridge = bridge
         self.addr = writer.get_extra_info('peername')
+        self.last_activity = time.time()  # 记录最后活动时间
 
     async def handle(self):
         try:
             while True:
-                header = await self.reader.readexactly(3)
-                pkt_type = header[0]
-                length = header[1] | (header[2] << 8)
-                data = b''
-                if length > 0:
-                    data = await self.reader.readexactly(length)
-                await self.bridge.handle_packet(self, pkt_type, data)
+                try:
+                    # 添加读取超时（60秒）
+                    header = await asyncio.wait_for(
+                        self.reader.readexactly(3),
+                        timeout=60.0
+                    )
+                    self.last_activity = time.time()  # 更新活动时间
+                    pkt_type = header[0]
+                    length = header[1] | (header[2] << 8)
+                    data = b''
+                    if length > 0:
+                        data = await asyncio.wait_for(
+                            self.reader.readexactly(length),
+                            timeout=30.0  # 数据读取超时30秒
+                        )
+                    await self.bridge.handle_packet(self, pkt_type, data)
+                except asyncio.TimeoutError:
+                    logger.warning(f"TCP client {self.addr} read timeout (60s)")
+                    self.bridge.log("orange", f"TCP 客户端 {self.addr} 读取超时，断开连接")
+                    break
         except asyncio.IncompleteReadError:
-            pass
+            self.bridge.log("darkcyan", f"TCP 客户端已断开: {self.addr}")
         except Exception as e:
-            logger.error(f"TCP client error: {e}")
+            logger.error(f"TCP client {self.addr} error: {e}")
         finally:
             self.bridge.remove_client(self)
 
     def send(self, data: bytes):
         try:
             self.writer.write(data)
+            self.last_activity = time.time()  # 发送数据也更新活动时间
         except Exception as e:
             logger.error(f"Send to {self.addr} failed: {e}")
 
@@ -162,6 +178,8 @@ class AsyncWorker(QThread):
         self.server = None
         self.claude_state: Optional[bytes] = None  # 保存 Claude 状态，用于重连后重发
         self.device_status: Dict[str, any] = {}    # 保存设备状态信息
+        self._signal_matches = []   # 追踪已注册的 D-Bus 信号接收器，防止累积
+        self._reconnecting = False  # 防止多个断开事件触发多次自动重连
 
         self.TARGET_SERVICE = "0000ffe0-0000-1000-8000-00805f9b34fb"
         self.DEVICE_STATUS_QUERY = bytes([0xAA, 0xBB, 0x00, 0xCC, 0xDD])
@@ -289,6 +307,15 @@ class AsyncWorker(QThread):
         except Exception as e:
             logger.error(f"Scan error: {e}")
 
+    def _cleanup_signal_receivers(self):
+        """移除所有已注册的 D-Bus 信号接收器，防止重连后累积导致回调重复触发"""
+        for match in self._signal_matches:
+            try:
+                match.remove()
+            except Exception:
+                pass
+        self._signal_matches = []
+
     def connect_to_device(self, path: str, name: str, address: str):
         try:
             self.device_path = path
@@ -315,12 +342,15 @@ class AsyncWorker(QThread):
 
             self.log("blue", f"设备已配对，直接连接: {name}")
 
-            self.bus.add_signal_receiver(
+            # 清理旧接收器，防止多次重连后信号被触发多次
+            self._cleanup_signal_receivers()
+            match = self.bus.add_signal_receiver(
                 self.on_properties_changed,
                 signal_name="PropertiesChanged",
                 dbus_interface="org.freedesktop.DBus.Properties",
                 path=path
             )
+            self._signal_matches.append(match)
 
             self.device_iface.Connect(
                 reply_handler=lambda: self._on_connect_reply(),
@@ -363,7 +393,11 @@ class AsyncWorker(QThread):
         self.log("red", f"BLE 连接失败: {error}")
         self.connected = False
         self.auto_connecting = False
-        # 不自动重连！避免与BlueZ自动重连冲突
+        # 连接失败后（含 NoReply）等待30秒再重试，给设备足够时间完成内部重置
+        if self.config.has_saved_device and not self._reconnecting:
+            self._reconnecting = True
+            self.log("blue", "30秒后重试连接...")
+            GLib.timeout_add(30000, self._auto_reconnect_once)
 
     def discover_services(self):
         try:
@@ -476,8 +510,13 @@ class AsyncWorker(QThread):
 
     def _on_connected_delayed(self):
         """连接后的延迟操作 - 在 StartNotify 成功后被调用"""
+        # StartNotify 是异步的，回调触发时设备可能已断开，直接返回避免启动无效保活
+        if not self.connected:
+            self.log("orange", "StartNotify 回调触发时已断开，忽略")
+            return
+
         # 延迟500ms发送状态查询，确保BlueZ完成所有GATT操作
-        QTimer.singleShot(500, self._send_initial_status_query)
+        GLib.timeout_add(500, self._send_initial_status_query_once)
 
         # 启动保活定时器，每30秒发送一次心跳防止设备休眠
         self.start_keepalive_timer()
@@ -485,12 +524,16 @@ class AsyncWorker(QThread):
         # 重连后重发保存的 Claude 状态到 BLE 设备
         if self.claude_state:
             self.log("blue", f"重发 Claude 状态到设备: {self.claude_state.hex()}")
-            QTimer.singleShot(600, lambda: self.send_ble_command(self.claude_state, char_path=self.command_char_path, max_chunk=20))
+            claude_state = self.claude_state
+            GLib.timeout_add(600, lambda: (
+                self.send_ble_command(claude_state, char_path=self.command_char_path, max_chunk=20), False
+            )[1])
 
-    def _send_initial_status_query(self):
-        """发送初始状态查询"""
+    def _send_initial_status_query_once(self):
+        """发送初始状态查询（GLib 单次回调，返回 False 不重复）"""
         self.log("blue", "发送初始状态查询...")
         self.send_device_status_query()
+        return False  # GLib: 只执行一次
 
     def _retry_discover_services(self, retries_left: int):
         """重试发现服务，每次间隔1秒"""
@@ -503,8 +546,9 @@ class AsyncWorker(QThread):
             if self.connected and not self.target_confirmed:
                 self.log("blue", f"重试发现服务 (还剩 {retries_left - 1} 次)...")
                 self.discover_services()
+            return False  # GLib: 只执行一次
 
-        QTimer.singleShot(1000, retry)
+        GLib.timeout_add(1000, retry)
 
     def _subscribe_notify(self, char_path: str):
         try:
@@ -521,13 +565,14 @@ class AsyncWorker(QThread):
                 reply_handler=on_notify_started,
                 error_handler=lambda e: self.log("red", f"通知订阅失败: {e}")
             )
-            # 注册特征值变化监听（监听该特征路径的 PropertiesChanged 信号）
-            self.bus.add_signal_receiver(
+            # 注册特征值变化监听
+            match = self.bus.add_signal_receiver(
                 self.on_characteristic_changed,
                 signal_name="PropertiesChanged",
                 dbus_interface="org.freedesktop.DBus.Properties",
                 path=char_path
             )
+            self._signal_matches.append(match)
             self.log("blue", f"已订阅特征通知: {char_path}")
         except Exception as e:
             logger.error(f"Subscribe error: {e}")
@@ -537,19 +582,39 @@ class AsyncWorker(QThread):
             connected = bool(changed["Connected"])
             if not connected and self.connected:
                 self.connected = False
+                self.target_confirmed = False
+                self.write_char_path = None
+                self.notify_char_path = None
+                self.command_char_path = None
+                self.data_char_path = None
+                self.stop_keepalive_timer()
                 self.log("red", f"Disconnected: {self.device_name}")
                 self.disconnected_signal.emit()
-                # 不自动重连！避免与BlueZ自动重连冲突导致设备断开
-                # 如需重连，请在UI上手动点击连接按钮
+                # _reconnecting 标志确保只触发一次自动重连，即使信号接收器仍有残余
+                if self.config.has_saved_device and not self._reconnecting:
+                    self._reconnecting = True
+                    self.log("blue", "2秒后自动重连...")
+                    GLib.timeout_add(2000, self._auto_reconnect_once)
         if "ServicesResolved" in changed:
             services_resolved = bool(changed["ServicesResolved"])
             if services_resolved and not self.target_confirmed:
                 self.log("blue", "GATT 服务已发现")
                 self.discover_services()
 
+    def _auto_reconnect_once(self):
+        """自动重连（GLib 单次回调）"""
+        self._reconnecting = False
+        if not self.connected and self.running and self.config.has_saved_device:
+            self.log("blue", f"自动重连: {self.config.ble_name} [{self.config.ble_mac}]")
+            self.auto_connecting = False  # 重置，允许重新触发
+            self.scan_devices()
+        return False  # GLib: 只执行一次
+
     def on_characteristic_changed(self, interface: str, changed: dict, invalidated: list):
         if "Value" in changed:
             data = bytes(changed["Value"])
+            # 更新最后收到数据的时间（用于超时检测）
+            self.last_ble_data_time = time.time()
             self.log("blue", f"收到 BLE 数据: 长度={len(data)}, 原始数据={data.hex()}")
 
             # 检查是否是设备状态（格式: [0xAA][0xBB][0x00][8字节设备信息][0xCC][0xDD] = 13字节）
@@ -582,28 +647,31 @@ class AsyncWorker(QThread):
                 client.send(packet)
 
     def start_keepalive_timer(self):
-        """启动保活定时器，每30秒发送心跳防止设备休眠"""
+        """启动保活定时器，每30秒发送心跳防止设备休眠（使用 GLib，线程安全）"""
         self.stop_keepalive_timer()
-        self.keepalive_timer = QTimer()
-        self.keepalive_timer.timeout.connect(self._keepalive_ping)
-        self.keepalive_timer.start(30000)  # 30秒
-        self.log("blue", "保活定时器已启动")
+        self._keepalive_source_id = GLib.timeout_add(10000, self._keepalive_ping)
+        self.last_ble_data_time = time.time()  # 初始化，避免首次检查误判
+        self.log("blue", "保活定时器已启动 (10s间隔)")
 
     def stop_keepalive_timer(self):
         """停止保活定时器"""
-        if hasattr(self, 'keepalive_timer') and self.keepalive_timer:
-            self.keepalive_timer.stop()
-            self.keepalive_timer = None
+        if hasattr(self, '_keepalive_source_id') and self._keepalive_source_id:
+            GLib.source_remove(self._keepalive_source_id)
+            self._keepalive_source_id = None
 
     def _keepalive_ping(self):
-        """保活心跳：只发送状态查询，不触发重连"""
+        """保活心跳：发送状态查询（GLib 回调，返回 True 继续重复）"""
         if not self.connected or not self.write_char_path:
-            return
+            return True  # 继续等待，BlueZ 的 Connected 属性变化负责检测真实断开
 
-        # 连接正常，发送保活心跳
+        # 检查上次收到数据的时间，记录警告但不主动断开（由 BlueZ 负责断连事件）
+        elapsed = time.time() - self.last_ble_data_time
+        if elapsed > 60:  # 60秒无数据，记录警告
+            self.log("orange", f"BLE 60秒无数据 ({elapsed:.0f}s)，设备可能无响应")
+
         self.log("blue", "保活心跳...")
         self.send_device_status_query()
-        # 注意：不要在这里触发重连！BLE扫描会干扰现有连接
+        return True  # GLib: 继续重复
 
     def send_device_status_query(self):
         """发送状态查询，返回是否成功"""
@@ -702,24 +770,35 @@ class AsyncWorker(QThread):
             self.log("gray", "重新扫描蓝牙设备...")
             self.scan_devices()
 
-    def disconnect_device(self):
+    def software_disconnect(self):
+        """软件层面断开：清理内部状态，停止保活，但保持 BLE 物理连接"""
+        # 清理信号接收器，停止接收 BLE 通知和属性变化事件
+        self._cleanup_signal_receivers()
+
         self.connected = False
         self.target_confirmed = False
         self.write_char_path = None
         self.notify_char_path = None
         self.command_char_path = None
         self.data_char_path = None
-        self.stop_keepalive_timer()  # 停止保活定时器
+        self.stop_keepalive_timer()
+
+        # 注意：不调用 StopNotify！部分设备（如 AhaKey）在 CCCD 清零后会主动断开 BLE 连接
+
+        self.log("blue", "软件已断开连接（BLE 物理连接保持）")
+        self.disconnected_signal.emit()
+
+    def disconnect_device(self):
+        """真实断开：同时断开 BlueZ 层面的 BLE 连接"""
+        self.software_disconnect()
 
         if self.device_iface:
             try:
-                self.log("blue", f"正在断开设备连接: {self.device_path}")
+                self.log("blue", f"正在断开 BLE 连接: {self.device_path}")
                 self.device_iface.Disconnect()
                 self.log("blue", "BLE 设备连接已断开")
             except Exception as e:
                 self.log("red", f"断开失败: {e}")
-
-        self.disconnected_signal.emit()
 
     def manual_connect(self, name: str, address: str):
         if self.connected:
@@ -755,6 +834,8 @@ class AsyncWorker(QThread):
             self.log("red", f"TCP服务器启动失败: {e}")
 
     async def handle_tcp_client(self, reader, writer):
+        addr = writer.get_extra_info('peername')
+        self.log("darkcyan", f"TCP 客户端已连接: {addr}")
         client = TcpClient(reader, writer, self)
         self.clients.append(client)
         self.client_count_changed.emit(len(self.clients))
@@ -963,8 +1044,8 @@ class MainWindow(QMainWindow):
 
     def on_connect_clicked(self):
         if self.btn_connect.text() == "断开":
-            # 断开BLE连接并清理状态
-            self.worker.disconnect_device()
+            # 只断开软件连接，保持电脑与设备的 BLE 物理连接
+            self.worker.software_disconnect()
             return
 
         idx = self.device_combo.currentIndex()

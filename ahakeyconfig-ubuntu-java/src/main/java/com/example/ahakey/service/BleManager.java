@@ -12,6 +12,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -40,6 +42,12 @@ public class BleManager {
     private volatile boolean isScanning;
     private DeviceStatus cachedStatus = new DeviceStatus();
     private volatile long lastStatusUpdateTime = 0;  // 最后一次状态更新时间
+    
+    // 心跳保活相关字段
+    private volatile long lastPacketTime = 0;  // 最后一次收到数据包的时间
+    private Timer healthCheckTimer;  // 健康检查定时器
+    private static final long HEALTH_CHECK_INTERVAL_MS = 30000;  // 每30秒检查一次
+    private static final long CONNECTION_TIMEOUT_MS = 60000;  // 60秒无数据视为超时
 
     public interface BleCallback {
         void onConnected();
@@ -107,6 +115,7 @@ public class BleManager {
                 }
                 logger.info("BLE bridge connected - {}:{}", host, port);
                 startReader();
+                startHealthCheck();  // 启动健康检查
                 queryBridgeDeviceInfo();
             } catch (IOException e) {
                 isScanning = false;
@@ -124,6 +133,10 @@ public class BleManager {
         logger.debug("步骤1: 设置断开状态");
         isConnected = false;
         cachedStatus.setConnected(false);
+        
+        // 第一步半：停止健康检查定时器
+        logger.debug("步骤1.5: 停止健康检查");
+        stopHealthCheck();
         
         // 第二步：唤醒等待响应的线程
         logger.debug("步骤2: 唤醒等待响应的线程");
@@ -392,10 +405,13 @@ public class BleManager {
     }
 
     private boolean tryConnectUsb() {
+        String usbPath = UsbHidTransport.findDevicePath();
+        if (usbPath == null) {
+            return false;
+        }
+        // Device is physically present — attempt to open it.
+        // Do NOT fall back to TCP if open fails (permission issue etc.).
         try {
-            if (!UsbHidTransport.isPresent()) {
-                return false;
-            }
             closeTcpOnly();
             usbTransport.open(this::onBleNotify);
             isConnected = true;
@@ -403,13 +419,17 @@ public class BleManager {
             cachedStatus.setConnected(true);
             cachedStatus.setDeviceName("AhaKey USB");
             cachedStatus.setBatteryLevel(100);
+            startHealthCheck();
             callback.onConnected();
             queryBridgeDeviceInfo();
             return true;
         } catch (Exception e) {
             logger.warn("USB HID connect failed: {}", e.getMessage());
             usbTransport.close();
-            return false;
+            isScanning = false;
+            callback.onError("USB 有线连接失败: " + e.getMessage());
+            // Return true to prevent further TCP fallback — the error has been reported.
+            return true;
         }
     }
 
@@ -428,6 +448,7 @@ public class BleManager {
             cachedStatus.setConnected(true);
             cachedStatus.setDeviceName("AhaKey USB");
             cachedStatus.setBatteryLevel(100);
+            startHealthCheck();  // 启动健康检查
             callback.onConnected();
             return true;
         } catch (Exception e) {
@@ -534,6 +555,10 @@ public class BleManager {
 
     private void handlePacket(byte type, byte[] data) {
         logger.debug("收到 TCP 包: type=0x{}, len={}", Integer.toHexString(type & 0xFF), data == null ? 0 : data.length);
+        
+        // 更新最后收到数据包的时间（用于健康检查）
+        lastPacketTime = System.currentTimeMillis();
+        
         switch (type) {
             case BleTcpPacket.BLE_NOTIFY -> onBleNotify(data);
             case BleTcpPacket.DEVICE_INFO_RESP -> {
@@ -698,6 +723,55 @@ public class BleManager {
             read += n;
         }
         return true;
+    }
+    
+    /**
+     * 启动健康检查定时器
+     * 定期检查连接状态，如果超过一定时间未收到数据包则断开并尝试重连
+     */
+    private void startHealthCheck() {
+        stopHealthCheck();  // 先停止之前的定时器
+        
+        lastPacketTime = System.currentTimeMillis();
+        healthCheckTimer = new Timer("ble-health-check", true);
+        healthCheckTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (!isConnected) {
+                    return;
+                }
+                
+                long elapsed = System.currentTimeMillis() - lastPacketTime;
+                if (elapsed > CONNECTION_TIMEOUT_MS) {
+                    logger.warn("BLE 连接超时 ({}ms 无数据)，断开并尝试重连", elapsed);
+                    // 在定时器线程中执行断开和重连
+                    new Thread(() -> {
+                        disconnect();
+                        try {
+                            Thread.sleep(1000);  // 等待1秒后重连
+                            connect();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }, "ble-reconnect").start();
+                } else if (elapsed > HEALTH_CHECK_INTERVAL_MS) {
+                    logger.debug("BLE 连接健康检查: {}ms 无数据", elapsed);
+                }
+            }
+        }, HEALTH_CHECK_INTERVAL_MS, HEALTH_CHECK_INTERVAL_MS);
+        
+        logger.info("BLE 健康检查已启动 (超时阈值: {}ms)", CONNECTION_TIMEOUT_MS);
+    }
+    
+    /**
+     * 停止健康检查定时器
+     */
+    private void stopHealthCheck() {
+        if (healthCheckTimer != null) {
+            healthCheckTimer.cancel();
+            healthCheckTimer = null;
+            logger.info("BLE 健康检查已停止");
+        }
     }
 }
 
