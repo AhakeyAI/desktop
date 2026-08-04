@@ -1,0 +1,1 @@
+Get-PnpDevice | Where-Object { $_.InstanceId -like "*VID_1EA7*" } | Select-Object FriendlyName, InstanceId, Status | Format-List

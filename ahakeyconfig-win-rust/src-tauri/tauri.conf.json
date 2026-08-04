@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AhaKeyStudio",
+  "version": "1.0.0",
+  "identifier": "com.ahakey.studio.dev2",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AhaKey Studio",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "category": "Utility",
+    "shortDescription": "AhaKey Studio",
+    "longDescription": "AhaKey keyboard configuration and system voice routing"
+  }
+}

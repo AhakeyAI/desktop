@@ -1,0 +1,30 @@
+# Rust
+target/
+**/*.rs.bk
+# Cargo.lock excluded only for binary crates; included for libraries
+# src-tauri/Cargo.lock
+# Personal cargo config (target-dir override etc.) — do not commit
+.cargo/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Node
+ui/node_modules/
+ui/dist/
+ui/.svelte-kit/
+ui/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

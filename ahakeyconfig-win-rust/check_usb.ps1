@@ -1,0 +1,1 @@
+Get-PnpDevice | Where-Object { $_.InstanceId -like "*USB*VID*" -and $_.Status -eq "OK" } | Select-Object FriendlyName, InstanceId | Format-Table -AutoSize

@@ -1,0 +1,11 @@
+{
+  "name": "ahakey-studio",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd ui && npm run dev",
+    "build": "cd ui && npm run build",
+    "preview": "cd ui && npm run preview",
+    "tauri": "cd src-tauri && cargo tauri dev"
+  }
+}
