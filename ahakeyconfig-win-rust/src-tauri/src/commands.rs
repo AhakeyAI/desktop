@@ -418,24 +418,42 @@ pub fn get_all_voice_routes(state: State<AppState>) -> Vec<voice_route::VoiceRou
 
 // ====================== Hook 控制 ======================
 
+/// 检测所有 platform 的 hook 状态
 #[tauri::command]
-pub fn install_hook(state: State<AppState>) -> AppResult<()> {
-    if state.is_hook_running() {
-        return Err(AppError::Other("hook already installed".to_string()));
+pub fn detect_hooks(app: tauri::AppHandle) -> Vec<crate::service::hook_installer::HookStatus> {
+    let installer = crate::service::hook_installer::HookInstaller::new(app);
+    installer.detect_all()
+}
+
+/// 安装指定 platform 的 hook
+#[tauri::command]
+pub fn install_hook(platform: String, app: tauri::AppHandle) -> AppResult<()> {
+    let p = crate::service::hook_installer::HookPlatform::from_str(&platform)
+        .ok_or_else(|| AppError::Other(format!("未知 Hook 平台: {}", platform)))?;
+    let installer = crate::service::hook_installer::HookInstaller::new(app);
+    installer.install(p);
+    Ok(())
+}
+
+/// 卸载指定 platform 的 hook
+#[tauri::command]
+pub fn uninstall_hook(platform: String, app: tauri::AppHandle) -> AppResult<()> {
+    let p = crate::service::hook_installer::HookPlatform::from_str(&platform)
+        .ok_or_else(|| AppError::Other(format!("未知 Hook 平台: {}", platform)))?;
+    let installer = crate::service::hook_installer::HookInstaller::new(app);
+    installer.uninstall(p);
+    Ok(())
+}
+
+/// 检测某个 platform 是否已安装 hook
+#[tauri::command]
+pub fn is_hook_installed(platform: String, app: tauri::AppHandle) -> bool {
+    if let Some(p) = crate::service::hook_installer::HookPlatform::from_str(&platform) {
+        let installer = crate::service::hook_installer::HookInstaller::new(app);
+        installer.is_installed(p)
+    } else {
+        false
     }
-    state.set_hook_running(true);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn uninstall_hook(state: State<AppState>) -> AppResult<()> {
-    state.set_hook_running(false);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn is_hook_running(state: State<AppState>) -> bool {
-    state.is_hook_running()
 }
 
 // ====================== AhaType ======================

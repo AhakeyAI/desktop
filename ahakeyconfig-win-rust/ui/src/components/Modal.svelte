@@ -1,5 +1,70 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { activeModal } from "../stores/ui";
+
+  interface HookStatus {
+    platform: string;
+    installed: boolean;
+    config_path: string;
+    script_dir: string;
+  }
+
+  let hookStatuses: HookStatus[] = [];
+  let hookLog: string[] = [];
+  let busyPlatform: string = "";
+
+  async function refreshHookStatus() {
+    try {
+      hookStatuses = await invoke<HookStatus[]>("detect_hooks");
+    } catch (e) {
+      console.error("[HOOK] detect_hooks failed:", e);
+    }
+  }
+
+  async function installHook(platform: string) {
+    if (busyPlatform) return;
+    busyPlatform = platform;
+    try {
+      await invoke("install_hook", { platform });
+      await refreshHookStatus();
+    } catch (e) {
+      console.error("[HOOK] install failed:", e);
+      hookLog = [...hookLog, `[错误] 安装 ${platform} 失败: ${e}`];
+    } finally {
+      busyPlatform = "";
+    }
+  }
+
+  async function uninstallHook(platform: string) {
+    if (busyPlatform) return;
+    busyPlatform = platform;
+    try {
+      await invoke("uninstall_hook", { platform });
+      await refreshHookStatus();
+    } catch (e) {
+      console.error("[HOOK] uninstall failed:", e);
+      hookLog = [...hookLog, `[错误] 卸载 ${platform} 失败: ${e}`];
+    } finally {
+      busyPlatform = "";
+    }
+  }
+
+  onMount(() => {
+    // 监听后端 hook-log 事件,append 到 log 面板
+    const unlisten = listen<string>("hook-log", (e) => {
+      hookLog = [...hookLog, e.payload].slice(-200);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  });
+
+  // 当打开 device-info modal 时,刷新 hook 状态
+  $: if ($activeModal === "device-info") {
+    refreshHookStatus();
+  }
 
   $: if ($activeModal) {
     document.body.style.overflow = "hidden";
@@ -41,12 +106,67 @@
 
       <div class="modal-body">
         {#if $activeModal === "device-info"}
+          <!-- 设备信息 section -->
+          <div class="section-title">设备信息</div>
           <div class="kv"><span>设备名称</span><span>AhaKey Pro</span></div>
           <div class="kv"><span>连接状态</span><span class="status-disconnected">未连接</span></div>
           <div class="kv"><span>电池电量</span><span>—</span></div>
           <div class="kv"><span>固件版本</span><span>1.2.3</span></div>
           <div class="kv"><span>MAC 地址</span><span>—</span></div>
           <div class="kv"><span>信号强度</span><span>—</span></div>
+
+          <!-- Hook 管理 section -->
+          <div class="section-title">Hook 管理 (Claude / Cursor / Codex / Kimi)</div>
+          <p class="section-sub">
+            安装 Hook 后,这些 IDE 的 lifecycle 事件会通过 TCP 推送到 AhaKey Studio
+            (端口 18900),用于自动/手动模式控制台灯效。
+          </p>
+          <div class="hook-grid">
+            {#each hookStatuses as hook (hook.platform)}
+              <div class="hook-card" class:installed={hook.installed}>
+                <div class="hook-card-header">
+                  <span class="hook-name">{hook.platform}</span>
+                  <span class="hook-status" class:status-on={hook.installed}>
+                    {hook.installed ? "✓ 已安装" : "○ 未安装"}
+                  </span>
+                </div>
+                <div class="hook-card-path" title={hook.config_path}>{hook.config_path}</div>
+                <div class="hook-card-actions">
+                  {#if hook.installed}
+                    <button
+                      class="button-action"
+                      disabled={busyPlatform === hook.platform}
+                      on:click={() => uninstallHook(hook.platform)}
+                    >
+                      {busyPlatform === hook.platform ? "卸载中..." : "卸载"}
+                    </button>
+                  {:else}
+                    <button
+                      class="button-prominent"
+                      disabled={busyPlatform === hook.platform}
+                      on:click={() => installHook(hook.platform)}
+                    >
+                      {busyPlatform === hook.platform ? "安装中..." : "安装"}
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+            {#if hookStatuses.length === 0}
+              <div class="hook-empty">正在检测 hook 状态…</div>
+            {/if}
+          </div>
+
+          <!-- Log 面板 -->
+          <div class="section-title">安装日志</div>
+          <div class="hook-log">
+            {#each hookLog as line, i (i)}
+              <div class="hook-log-line">{line}</div>
+            {/each}
+            {#if hookLog.length === 0}
+              <div class="hook-log-empty">暂无日志</div>
+            {/if}
+          </div>
         {/if}
 
         {#if $activeModal === "version-info"}
@@ -140,7 +260,8 @@
     border-radius: 16px;
     box-shadow: 0 16px 48px rgba(15, 23, 42, 0.20);
     min-width: 360px;
-    max-width: 480px;
+    max-width: 720px;
+    width: 90vw;
     max-height: 80vh;
     overflow: hidden;
     display: flex;
@@ -178,6 +299,109 @@
     padding: 20px;
     overflow-y: auto;
     flex: 1;
+  }
+
+  /* Section 标题(用于 device-info 内的 设备信息 / Hook 管理 / 安装日志) */
+  .section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1d1d1f;
+    margin: 18px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f0f2f5;
+  }
+  .section-title:first-child {
+    margin-top: 0;
+  }
+  .section-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0 0 12px;
+  }
+
+  /* Hook 卡片网格(2 列) */
+  .hook-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .hook-card {
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fafbfc;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hook-card.installed {
+    border-color: #34c759;
+    background: #f0fdf4;
+  }
+  .hook-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .hook-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d1d1f;
+  }
+  .hook-status {
+    font-size: 11px;
+    color: #86868b;
+  }
+  .hook-status.status-on {
+    color: #34c759;
+    font-weight: 600;
+  }
+  .hook-card-path {
+    font-size: 10px;
+    color: #86868b;
+    font-family: ui-monospace, monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hook-card-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .hook-card-actions button {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .hook-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #86868b;
+    font-size: 12px;
+    padding: 24px 0;
+  }
+
+  /* Log 面板 */
+  .hook-log {
+    background: #0a0a0a;
+    color: #d4d4d4;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .hook-log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .hook-log-empty {
+    color: #6b7280;
+    font-style: italic;
   }
   .modal-text {
     font-size: 14px;
