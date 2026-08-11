@@ -40,6 +40,7 @@ final class AgentManager: ObservableObject {
     @Published private(set) var isInstalled = false
     @Published private(set) var isRunning = false
     @Published private(set) var isAgentBLEConnected = false   // agent 的 BLE 是否真正连上键盘
+    @Published private(set) var agentBLEConnectionState = AgentBLEConnectionState.disconnected
     @Published private(set) var hooksInstalled = false        // Claude / Cursor / Codex / Kimi hooks 是否装了任何一个
     @Published private(set) var claudeHooksInstalled = false
     @Published private(set) var cursorHooksInstalled = false
@@ -179,11 +180,15 @@ final class AgentManager: ObservableObject {
         if isRunning {
             let socketPath = socketPath
             DispatchQueue.global(qos: .utility).async { [weak self, socketPath] in
-                let bleConnected = Self.querySocketBLEConnected(socketPath: socketPath)
-                DispatchQueue.main.async { self?.isAgentBLEConnected = bleConnected }
+                let connectionState = Self.querySocketBLEConnectionState(socketPath: socketPath)
+                DispatchQueue.main.async {
+                    self?.isAgentBLEConnected = connectionState.isConnected
+                    self?.agentBLEConnectionState = connectionState
+                }
             }
         } else {
             isAgentBLEConnected = false
+            agentBLEConnectionState = .disconnected
         }
     }
 
@@ -225,11 +230,12 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    /// 向 agent socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
+    /// 向 agent socket 发 status 命令，读取 Agent 实际持有的连接与 GATT 通道状态。
+    /// 旧版 Agent 只返回 switchState，`AgentBLEConnectionState` 会兼容该回包。
     /// 同步执行，需在后台线程调用。
-    nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
+    nonisolated private static func querySocketBLEConnectionState(socketPath: String) -> AgentBLEConnectionState {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { return false }
+        guard fd >= 0 else { return .disconnected }
         defer { close(fd) }
 
         var tv = timeval(tv_sec: 2, tv_usec: 0)
@@ -248,23 +254,23 @@ final class AgentManager: ObservableObject {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard ok == 0 else { return false }
+        guard ok == 0 else { return .disconnected }
 
-        guard let payload = "{\"cmd\":\"status\"}\n".data(using: .utf8) else { return false }
+        guard let payload = "{\"cmd\":\"status\"}\n".data(using: .utf8) else { return .disconnected }
         let wrote = payload.withUnsafeBytes { ptr -> Int in
             guard let base = ptr.baseAddress else { return -1 }
             return write(fd, base, ptr.count)
         }
-        guard wrote > 0 else { return false }
+        guard wrote > 0 else { return .disconnected }
 
         var buf = [UInt8](repeating: 0, count: 256)
         let n = read(fd, &buf, buf.count)
-        guard n > 0 else { return false }
+        guard n > 0 else { return .disconnected }
 
         guard let json = try? JSONSerialization.jsonObject(with: Data(buf[0..<n])) as? [String: Any] else {
-            return false
+            return .disconnected
         }
-        return !(json["switchState"] is NSNull) && json["switchState"] != nil
+        return AgentBLEConnectionState(socketReply: json)
     }
 
     // MARK: - 蓝牙占用方（App ↔ Agent 二选一）

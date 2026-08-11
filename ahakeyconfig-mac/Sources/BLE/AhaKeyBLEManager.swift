@@ -201,16 +201,36 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
-    /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
+    /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用。
+    /// Agent 持有键盘时仍保持抑制；用户必须先切换所有权，不能借权限申请路径抢占 GATT 连接。
     func userInitiatedConnect() {
         ensureCentralManager()
-        suppressAutomaticConnection = false
+        guard !suppressAutomaticConnection else {
+            bleConnectionStatus = "由 Agent 管理"
+            return
+        }
         connectAutomatically()
     }
 
     /// 与 `AgentManager` 的蓝牙占用方一致：交给 Agent 时为 true，交回本 App 时为 false。
     func setSuppressedForAgentOwningKeyboard(_ suppress: Bool) {
         suppressAutomaticConnection = suppress
+        guard suppress else { return }
+
+        pendingConnect = false
+        central?.stopScan()
+        isScanning = false
+        autoReconnectTimer?.invalidate()
+        autoReconnectTimer = nil
+        stopRSSIPolling()
+        stopStatusPolling()
+
+        let activePeripheral = peripheral
+        resetLocalBLEConnectionState()
+        if let activePeripheral {
+            central?.cancelPeripheralConnection(activePeripheral)
+        }
+        bleConnectionStatus = "由 Agent 管理"
     }
 
     func connectAutomatically() {
@@ -249,6 +269,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func startScan() {
+        guard !suppressAutomaticConnection else { return }
         guard central?.state == .poweredOn else {
             pendingConnect = true
             return
@@ -275,7 +296,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func disconnect() {
         guard let peripheral else { return }
         central?.cancelPeripheralConnection(peripheral)
-        appendLog("用户主动断开")
+        if !suppressAutomaticConnection {
+            appendLog("用户主动断开")
+        }
     }
 
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
@@ -551,10 +574,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func startAutoReconnectPolling() {
+        guard !suppressAutomaticConnection else {
+            autoReconnectTimer?.invalidate()
+            autoReconnectTimer = nil
+            return
+        }
         autoReconnectTimer?.invalidate()
         autoReconnectTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
+                guard !self.suppressAutomaticConnection else { return }
                 guard self.central?.state == .poweredOn else { return }
                 guard !self.isConnected, !self.isScanning else { return }
                 guard self.bleConnectionStatus != "连接中…" else { return }
@@ -589,6 +618,26 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private func stopStatusPolling() {
         statusPollTimer?.invalidate()
         statusPollTimer = nil
+    }
+
+    /// 仅清理本 App 的瞬态 BLE 引用，不清 lastPeripheralUUID，以便用户将所有权切回 App 时直连。
+    private func resetLocalBLEConnectionState() {
+        isConnected = false
+        dataChar = nil
+        commandChar = nil
+        notifyChar = nil
+        batteryLevelChar = nil
+        dataCharReady = false
+        commandCharReady = false
+        notifyCharReady = false
+        peripheral = nil
+        writeQueue.removeAll()
+        isWriting = false
+        writeBatches.removeAll()
+        didQueryAfterConnect = false
+        keyboardPictureStates.removeAll()
+        stopRSSIPolling()
+        stopStatusPolling()
     }
 
     private func startIDEStatePolling() {
@@ -902,6 +951,11 @@ enum OLEDUploadError: LocalizedError {
 extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
         Task { @MainActor in
+            if self.suppressAutomaticConnection {
+                self.refreshBluetoothAuthorization()
+                self.bleConnectionStatus = "由 Agent 管理"
+                return
+            }
             switch central.state {
             case .poweredOn:
                 self.refreshBluetoothAuthorization()
@@ -932,6 +986,11 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         guard name.lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) else { return }
 
         Task { @MainActor in
+            guard !self.suppressAutomaticConnection else {
+                self.central?.stopScan()
+                self.isScanning = false
+                return
+            }
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
             self.central?.stopScan()
             self.isScanning = false
@@ -944,6 +1003,11 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
+            guard !self.suppressAutomaticConnection else {
+                central.cancelPeripheralConnection(peripheral)
+                self.bleConnectionStatus = "由 Agent 管理"
+                return
+            }
             self.isConnected = true
             self.deviceName = peripheral.name
             self.bleDeviceUUID = peripheral.identifier.uuidString
@@ -965,13 +1029,17 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
+            guard !self.suppressAutomaticConnection else {
+                self.bleConnectionStatus = "由 Agent 管理"
+                return
+            }
             self.bleConnectionStatus = "连接失败"
             self.appendLog("连接失败: \(error?.localizedDescription ?? "未知")", isError: true)
             self.startAutoReconnectPolling()
             // 3 秒后重试
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(Double(3) * 1_000_000_000))
-                if !self.isConnected {
+                if !self.suppressAutomaticConnection, !self.isConnected {
                     self.connectAutomatically()
                 }
             }
@@ -982,37 +1050,27 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         Task { @MainActor in
             let dropped = self.writeQueue.count
             let openBatches = self.writeBatches.count
+            self.resetLocalBLEConnectionState()
+            if self.suppressAutomaticConnection {
+                self.autoReconnectTimer?.invalidate()
+                self.autoReconnectTimer = nil
+                self.bleConnectionStatus = "由 Agent 管理"
+                return
+            }
             if dropped > 0 || openBatches > 0 {
                 self.appendLog(
                     "BLE 已断开，丢弃未发出命令 \(dropped) 条（未闭合批 \(openBatches) 个）。\(error.map { "原因：\($0.localizedDescription)" } ?? "")",
                     isError: true
                 )
             }
-            self.isConnected = false
             self.bleConnectionStatus = "已断开"
-            self.dataChar = nil
-            self.commandChar = nil
-            self.notifyChar = nil
-            self.batteryLevelChar = nil
-            self.dataCharReady = false
-            self.commandCharReady = false
-            self.notifyCharReady = false
-            // 不清 peripheral 和 lastPeripheralUUID——用于直连重试
-            self.peripheral = nil
-            self.writeQueue.removeAll()
-            self.isWriting = false
-            self.writeBatches.removeAll()
-            self.didQueryAfterConnect = false
-            self.keyboardPictureStates.removeAll()
-            self.stopRSSIPolling()
-            self.stopStatusPolling()
             self.startAutoReconnectPolling()
             self.appendLog("已断开: \(error?.localizedDescription ?? "正常")")
 
             // 2 秒后自动重连
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(Double(2) * 1_000_000_000))
-                if !self.isConnected {
+                if !self.suppressAutomaticConnection, !self.isConnected {
                     self.appendLog("尝试自动重连…")
                     self.connectAutomatically()
                 }

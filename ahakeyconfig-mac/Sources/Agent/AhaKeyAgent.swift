@@ -338,7 +338,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             lastHookStateAt = Date()
             sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
-                let body = Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
+                let body = self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
                     self.emit("（拨杆非 0：PermissionRequest 将交回终端手动确认）")
@@ -349,23 +349,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
 
         case "status":
-            // 判断 BLE 是否真实连上键盘：只有当 cachedSwitchState 不为 nil 时（键盘通过 notify 上报过）才算连上。
-            // effectiveSwitchState 在用户设置了 userSwitchOverride 时即使未连上 BLE 也有值，不能作为连上键盘的依据。
+            // 回传真实 GATT 通道状态；主 App 由 Agent 持有蓝牙时，必须以这条状态
+            // 而不是被暂停的 App BLE Manager 的缓存设备名和“连接中”来渲染。
             if cachedSwitchState != nil {
-                Self.replyAndClose(clientFd, [
-                    "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
-                    "lightMode": cachedLightMode.map { Int($0) } ?? NSNull(),
-                ])
+                Self.replyAndClose(clientFd, statusReply(nil, cachedSwitch: effectiveSwitchState, cachedLight: cachedLightMode))
             } else {
                 querySwitchState(timeout: 1.5) { status in
-                    Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
+                    Self.replyAndClose(clientFd, self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
                 }
             }
 
         case "approval_status":
             // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
             querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
+                Self.replyAndClose(clientFd, self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
             }
 
         case "set_switch_override":
@@ -388,16 +385,25 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    private static func statusReply(_ status: AgentDeviceStatus?,
-                                    cachedSwitch: UInt8?,
-                                    cachedLight: UInt8?) -> [String: Any] {
-        if let s = status {
-            return ["switchState": s.switchState, "lightMode": s.lightMode]
-        }
-        return [
-            "switchState": cachedSwitch.map { Int($0) } ?? NSNull(),
-            "lightMode": cachedLight.map { Int($0) } ?? NSNull(),
+    private func statusReply(_ status: AgentDeviceStatus?,
+                             cachedSwitch: UInt8?,
+                             cachedLight: UInt8?) -> [String: Any] {
+        let gattReady = peripheral != nil && commandChar != nil && notifyChar != nil
+        var reply: [String: Any] = [
+            "isConnected": gattReady,
+            "deviceName": peripheral?.name ?? NSNull(),
+            "deviceUUID": peripheral?.identifier.uuidString ?? NSNull(),
+            "commandReady": commandChar != nil,
+            "notifyReady": notifyChar != nil,
         ]
+        if let s = status {
+            reply["switchState"] = s.switchState
+            reply["lightMode"] = s.lightMode
+            return reply
+        }
+        reply["switchState"] = cachedSwitch.map { Int($0) } ?? NSNull()
+        reply["lightMode"] = cachedLight.map { Int($0) } ?? NSNull()
+        return reply
     }
 
     private func scheduleStateReset(to state: UInt8, afterMs: Int, reason: String) {

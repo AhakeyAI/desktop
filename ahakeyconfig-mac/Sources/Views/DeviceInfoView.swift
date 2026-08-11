@@ -19,7 +19,7 @@ struct DeviceInfoView: View {
                     Divider()
                     infoCell("固件", value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
                     Divider()
-                    infoCell("设备名", value: bleManager.deviceName ?? "—")
+                    infoCell("设备名", value: displayedDeviceName)
                 }
                 .frame(height: 50)
 
@@ -297,58 +297,10 @@ struct DeviceInfoView: View {
 
             // MARK: - BLE 连接状态
             Section {
-                CompatLabeledContent("连接") {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(bleManager.isConnected ? Color.green : Color.orange)
-                            .frame(width: 8, height: 8)
-                        Text(bleManager.bleConnectionStatus)
-                    }
-                }
-                CompatLabeledContent("设备名") {
-                    if isEditingName {
-                        HStack(spacing: 4) {
-                            TextField("最长 15 字节", text: $editableName)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 160)
-                                .onSubmit { submitNameChange() }
-                            Button("保存") { submitNameChange() }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                            Button("取消") { isEditingName = false }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                        }
-                    } else {
-                        HStack(spacing: 6) {
-                            Text(bleManager.deviceName ?? "—")
-                                .textSelection(.enabled)
-                            if bleManager.isConnected {
-                                Button {
-                                    editableName = bleManager.deviceName ?? ""
-                                    isEditingName = true
-                                } label: {
-                                    Image(systemName: "pencil")
-                                        .font(.caption)
-                                }
-                                .buttonStyle(.borderless)
-                            }
-                        }
-                    }
-                }
-                CompatLabeledContent("UUID") {
-                    Text(bleManager.bleDeviceUUID)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                }
-                HStack {
-                    CompatLabeledContent("特征") {
-                        HStack(spacing: 8) {
-                            charBadge("DATA", ready: bleManager.dataCharReady)
-                            charBadge("CMD", ready: bleManager.commandCharReady)
-                            charBadge("NOTIFY", ready: bleManager.notifyCharReady)
-                        }
-                    }
+                if agentManager.bluetoothConnectionOwner == .agentDaemon {
+                    agentBLEConnectionStatus
+                } else {
+                    appBLEConnectionStatus
                 }
             } header: {
                 Text("BLE 连接状态")
@@ -488,6 +440,98 @@ struct DeviceInfoView: View {
                     .fill(ready ? Color.green.opacity(0.15) : Color.gray.opacity(0.1))
             )
             .foregroundStyle(ready ? Color.green : Color.secondary)
+    }
+
+    private var displayedDeviceName: String {
+        if agentManager.bluetoothConnectionOwner == .agentDaemon {
+            return agentManager.agentBLEConnectionState.deviceName ?? "—"
+        }
+        return bleManager.deviceName ?? "—"
+    }
+
+    private var agentBLEConnectionStatus: some View {
+        let agentState = agentManager.agentBLEConnectionState
+        return Group {
+            CompatLabeledContent("连接") {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(agentState.isConnected ? Color.green : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text(agentState.isConnected ? "Agent 已连接" : "Agent 连接中…")
+                }
+            }
+            CompatLabeledContent("设备名") {
+                Text(agentState.deviceName ?? "等待 Agent 返回设备信息")
+                    .textSelection(.enabled)
+            }
+            CompatLabeledContent("UUID") {
+                Text(agentState.deviceUUID ?? "—")
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+            }
+            CompatLabeledContent("特征") {
+                HStack(spacing: 8) {
+                    charBadge("CMD", ready: agentState.commandReady)
+                    charBadge("NOTIFY", ready: agentState.notifyReady)
+                }
+            }
+        }
+    }
+
+    private var appBLEConnectionStatus: some View {
+        Group {
+            CompatLabeledContent("连接") {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(bleManager.isConnected ? Color.green : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text(bleManager.bleConnectionStatus)
+                }
+            }
+            CompatLabeledContent("设备名") {
+                if isEditingName {
+                    HStack(spacing: 4) {
+                        TextField("最长 15 字节", text: $editableName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 160)
+                            .onSubmit { submitNameChange() }
+                        Button("保存") { submitNameChange() }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        Button("取消") { isEditingName = false }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                } else {
+                    HStack(spacing: 6) {
+                        Text(bleManager.deviceName ?? "—")
+                            .textSelection(.enabled)
+                        if bleManager.isConnected {
+                            Button {
+                                editableName = bleManager.deviceName ?? ""
+                                isEditingName = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                }
+            }
+            CompatLabeledContent("UUID") {
+                Text(bleManager.bleDeviceUUID)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+            }
+            CompatLabeledContent("特征") {
+                HStack(spacing: 8) {
+                    charBadge("DATA", ready: bleManager.dataCharReady)
+                    charBadge("CMD", ready: bleManager.commandCharReady)
+                    charBadge("NOTIFY", ready: bleManager.notifyCharReady)
+                }
+            }
+        }
     }
 
     private func switchStateLabel(_ state: Int) -> String {
