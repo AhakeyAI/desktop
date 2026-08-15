@@ -24,6 +24,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var peripheral: CBPeripheral?
     private var commandChar: CBCharacteristic?
     private var notifyChar: CBCharacteristic?
+    private let usbTransport = AgentUSBHIDTransport()
     private var lastUUID: UUID?
     private let serviceUUID = CBUUID(string: "7340")
     private let commandCharUUID = CBUUID(string: "7343")
@@ -68,6 +69,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             userSwitchOverride = UInt8(clamping: raw)
         }
         super.init()
+        usbTransport.onConnected = { [weak self] in
+            DispatchQueue.main.async { self?.usbDidConnect() }
+        }
+        usbTransport.onDisconnected = { [weak self] in
+            DispatchQueue.main.async { self?.usbDidDisconnect() }
+        }
+        usbTransport.onFrame = { [weak self] data in
+            DispatchQueue.main.async { self?.handleUSBFrame(data) }
+        }
+        usbTransport.onError = { [weak self] message in
+            DispatchQueue.main.async { self?.emit(message) }
+        }
+        usbTransport.start()
         central = CBCentralManager(delegate: self, queue: nil)
         // 启动时如果有持久化的 override，立刻把它落进共享文件，让主 App UI 一上来就能看到
         Self.writeLiveState(switchState: userSwitchOverride)
@@ -99,11 +113,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func sendState(_ state: UInt8) {
         pendingStateReset?.cancel()
         pendingStateReset = nil
+        let data = Data(header + [0x90, state] + trailer)
+        if usbTransport.isConnected {
+            do {
+                try usbTransport.sendCommand(data)
+                lastSentState = state
+                emit("→ USB LED 状态 \(state): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                Self.writeLiveState(stateValue: state)
+                return
+            } catch {
+                emit("USB LED 状态发送失败，尝试 BLE: \(error)")
+            }
+        }
         guard let commandChar, let peripheral else {
             emit("LED 状态 \(state): 未连接")
             return
         }
-        let data = Data(header + [0x90, state] + trailer)
         let wt: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(data, for: commandChar, type: wt)
@@ -153,15 +178,25 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 超时时用缓存兜底；仍然没有则返回 nil。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
-        guard let commandChar, let peripheral else {
-            completion(nil)
-            return
-        }
         // 发设备状态查询命令 AA BB 00 CC DD
         let query = Data(header + [0x00] + trailer)
-        let wt: CBCharacteristicWriteType =
-            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(query, for: commandChar, type: wt)
+        if usbTransport.isConnected {
+            do {
+                try usbTransport.sendCommand(query)
+            } catch {
+                emit("USB 状态查询失败: \(error)")
+                completion(cachedStatus())
+                return
+            }
+        } else {
+            guard let commandChar, let peripheral else {
+                completion(nil)
+                return
+            }
+            let wt: CBCharacteristicWriteType =
+                commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+            peripheral.writeValue(query, for: commandChar, type: wt)
+        }
 
         statusWaiters.append(completion)
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
@@ -347,10 +382,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
 
         case "status":
-            // 判断 BLE 是否真实连上键盘：只有当 cachedSwitchState 不为 nil 时（键盘通过 notify 上报过）才算连上。
+            // USB 以 HID 打开成功即为已连接；BLE 需等待键盘 notify 上报过状态。
             // effectiveSwitchState 在用户设置了 userSwitchOverride 时即使未连上 BLE 也有值，不能作为连上键盘的依据。
-            if cachedSwitchState != nil {
+            if cachedSwitchState != nil || usbTransport.isConnected {
                 Self.replyAndClose(clientFd, [
+                    "connected": true,
+                    "transport": usbTransport.isConnected ? "usb" : "bluetooth",
                     "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
                     "lightMode": cachedLightMode.map { Int($0) } ?? NSNull(),
                 ])
@@ -390,9 +427,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                                     cachedSwitch: UInt8?,
                                     cachedLight: UInt8?) -> [String: Any] {
         if let s = status {
-            return ["switchState": s.switchState, "lightMode": s.lightMode]
+            return ["connected": true, "switchState": s.switchState, "lightMode": s.lightMode]
         }
         return [
+            "connected": false,
             "switchState": cachedSwitch.map { Int($0) } ?? NSNull(),
             "lightMode": cachedLight.map { Int($0) } ?? NSNull(),
         ]
@@ -426,6 +464,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - Connection
 
     private func connectAutomatically() {
+        guard !usbTransport.isConnected else { return }
         // 1. 用已知 UUID
         if let uuid = lastUUID {
             let known = central.retrievePeripherals(withIdentifiers: [uuid])
@@ -458,10 +497,48 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         onLog?(msg)
     }
 
+    private func usbDidConnect() {
+        emit("USB 有线 Agent 通道已连接")
+        if let peripheral {
+            central.cancelPeripheralConnection(peripheral)
+        }
+        try? usbTransport.sendCommand(Data(header + [0x00] + trailer))
+    }
+
+    private func usbDidDisconnect() {
+        emit("USB 有线 Agent 通道已断开，回退 BLE")
+        cachedSwitchState = nil
+        cachedLightMode = nil
+        if central.state == .poweredOn {
+            connectAutomatically()
+        }
+    }
+
+    private func handleUSBFrame(_ data: Data) {
+        guard let status = Self.parseDeviceStatus(data) else { return }
+        acceptStatus(status, source: "USB")
+    }
+
+    private func acceptStatus(_ status: AgentDeviceStatus, source: String) {
+        cachedSwitchState = UInt8(clamping: status.switchState)
+        cachedLightMode = UInt8(clamping: status.lightMode)
+        emit("← \(source) status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+        Self.writeLiveState(
+            lightMode: UInt8(clamping: status.lightMode),
+            switchState: effectiveSwitchState,
+            workMode: UInt8(clamping: max(0, status.workMode))
+        )
+
+        guard !statusWaiters.isEmpty else { return }
+        let waiters = statusWaiters
+        statusWaiters.removeAll()
+        for waiter in waiters { waiter(status) }
+    }
+
     // MARK: - CBCentralManagerDelegate
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        if central.state == .poweredOn {
+        if central.state == .poweredOn, !usbTransport.isConnected {
             emit("蓝牙就绪")
             connectAutomatically()
         }
@@ -534,21 +611,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
               let data = characteristic.value else { return }
         guard let status = Self.parseDeviceStatus(data) else { return }
 
-        cachedSwitchState = UInt8(clamping: status.switchState)
-        cachedLightMode = UInt8(clamping: status.lightMode)
-        emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
-        // 写共享文件时优先使用用户覆盖值，否则用键盘真实上报。这样主 App 画布上的拨杆位置始终与
-        // hook 实际使用的批准逻辑一致（避免画布显示一档、hook 按另一档运行的割裂）。
-        Self.writeLiveState(
-            lightMode: UInt8(clamping: status.lightMode),
-            switchState: effectiveSwitchState,
-            workMode: UInt8(clamping: max(0, status.workMode))
-        )
-
-        guard !statusWaiters.isEmpty else { return }
-        let waiters = statusWaiters
-        statusWaiters.removeAll()
-        for w in waiters { w(status) }
+        acceptStatus(status, source: "BLE")
     }
 
     // MARK: - 协议内联解析

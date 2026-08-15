@@ -1,5 +1,10 @@
 import Foundation
 
+// LaunchAgent stdout is redirected to a regular file and would otherwise be
+// block-buffered for a long time, hiding current USB/connection diagnostics.
+setbuf(stdout, nil)
+setbuf(stderr, nil)
+
 // ahakeyconfig-agent
 //
 // 两种运行模式（由首个参数决定）：

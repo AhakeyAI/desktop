@@ -1181,6 +1181,22 @@ struct AhaKeyStudioDraft: Codable, Equatable {
             modes[index] = updated
         }
     }
+
+    /// Firmware command 0x85 stores one device-wide brightness value rather
+    /// than one value per mode. Keep the duplicated draft fields synchronized
+    /// so editing from any mode cannot later be overwritten by Mode 1.
+    var globalBrightness: Int {
+        draft(for: .mode0).lightBar.brightness
+    }
+
+    mutating func setGlobalBrightness(_ value: Int) {
+        let normalized = max(1, min(100, value))
+        for slot in AhaKeyModeSlot.allCases {
+            var mode = draft(for: slot)
+            mode.lightBar.brightness = normalized
+            updateMode(mode)
+        }
+    }
 }
 
 enum AhaKeyStudioStore {
@@ -1216,6 +1232,10 @@ enum AhaKeyStudioStore {
 
     private static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
         var next = draft
+        // Older app builds exposed one slider per mode even though firmware
+        // brightness is global. Mode 0 is what those builds actually wrote to
+        // the keyboard, so use it as the migration source of truth.
+        next.setGlobalBrightness(next.globalBrightness)
         var mode0 = next.draft(for: .mode0)
         let legacyDescriptions: [AhaKeyKeyRole: String] = [
             .voice: "语音",

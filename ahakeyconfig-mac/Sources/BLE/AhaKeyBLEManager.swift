@@ -187,10 +187,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         usbTransport.onError = { [weak self] error in
             Task { @MainActor in self?.appendLog("USB HID: \(error.localizedDescription)", isError: true) }
         }
-        usbTransport.start()
         let storedOwner = UserDefaults.standard.string(forKey: "lab.jawa.ahakeyconfig.bluetoothConnectionOwner")
         if storedOwner == nil || storedOwner == BluetoothConnectionOwner.agentDaemon.rawValue {
             suppressAutomaticConnection = true
+        } else {
+            usbTransport.start()
         }
         // 只有蓝牙权限已授予时才创建 CBCentralManager（创建即触发系统弹窗）。
         // 权限未决时延迟到用户点「申请」后调用 ensureCentralManager()。
@@ -208,8 +209,26 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         central = CBCentralManager(delegate: self, queue: nil)
     }
 
-    private var hasConfigurationTransport: Bool {
-        isWiredConnected || (peripheral != nil && commandChar != nil && dataChar != nil)
+    var transportCapabilities: AhaKeyTransportCapabilities {
+        AhaKeyTransportCapabilities.resolve(
+            isUSBConnected: isWiredConnected,
+            isBLEConnected: isBLEConnected,
+            commandCharReady: commandCharReady,
+            dataCharReady: dataCharReady,
+            notifyCharReady: notifyCharReady
+        )
+    }
+
+    var isConfigurationReady: Bool {
+        transportCapabilities.isConfigurationReady
+    }
+
+    var isCommandTransportReady: Bool {
+        transportCapabilities.canSendCommands
+    }
+
+    var isBulkDataTransportReady: Bool {
+        transportCapabilities.canTransferBulkData
     }
 
     private func usbDidConnect() {
@@ -265,6 +284,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func refreshBluetoothAuthorization() {
         bluetoothPermissionGranted = Self.currentBluetoothAuthorizationGranted()
         bluetoothPoweredOn = central?.state == .poweredOn
+        guard !isWiredConnected else {
+            bleConnectionStatus = "有线已连接"
+            return
+        }
         if !bluetoothPermissionGranted {
             bleConnectionStatus = "蓝牙权限未开启"
         } else if central?.state == .poweredOff {
@@ -303,13 +326,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
     func userInitiatedConnect() {
         ensureCentralManager()
-        suppressAutomaticConnection = false
+        setSuppressedForAgentOwningKeyboard(false)
         connectAutomatically()
     }
 
     /// 与 `AgentManager` 的蓝牙占用方一致：交给 Agent 时为 true，交回本 App 时为 false。
     func setSuppressedForAgentOwningKeyboard(_ suppress: Bool) {
         suppressAutomaticConnection = suppress
+        if suppress {
+            usbTransport.stop()
+        } else {
+            usbTransport.start()
+        }
     }
 
     func connectAutomatically() {
@@ -352,6 +380,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func startScan() {
+        guard !isWiredConnected else {
+            bleConnectionStatus = "有线已连接"
+            return
+        }
         guard central?.state == .poweredOn else {
             pendingConnect = true
             return
@@ -369,20 +401,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if self.isScanning {
                 self.central?.stopScan()
                 self.isScanning = false
-                self.bleConnectionStatus = "等待设备"
+                if !self.isWiredConnected {
+                    self.bleConnectionStatus = "等待设备"
+                }
                 self.appendLog("扫描超时，继续后台轮询设备")
             }
         }
     }
 
     func disconnect() {
-        if isWiredConnected {
+        if let peripheral {
+            central?.cancelPeripheralConnection(peripheral)
+            appendLog(isWiredConnected ? "已保留 USB，释放主 App 的 BLE 连接" : "用户主动断开")
+        } else if isWiredConnected {
             appendLog("USB 有线连接由拔线断开")
-            return
         }
-        guard let peripheral else { return }
-        central?.cancelPeripheralConnection(peripheral)
-        appendLog("用户主动断开")
     }
 
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
@@ -799,7 +832,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 同步 IDE 状态到键盘 LED
     func updateIDEState(_ state: IDEState) {
-        guard hasConfigurationTransport else { return }
+        guard isCommandTransportReady else { return }
         let cmd = AhaKeyCommand.updateState(state)
         writeCommand(cmd)
     }
@@ -811,25 +844,25 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func setLightMapping(mode: UInt8, stateEffects: [UInt8]) {
-        guard hasConfigurationTransport else { return }
+        guard isCommandTransportReady else { return }
         writeCommand(AhaKeyCommand.setLightMapping(mode: mode, stateEffects: stateEffects))
         appendLog("→ 灯效映射 mode=\(mode) effects=\(stateEffects)")
     }
 
     func setBrightness(_ value: UInt8) {
-        guard hasConfigurationTransport else { return }
+        guard isCommandTransportReady else { return }
         writeCommand(AhaKeyCommand.setBrightness(value))
         appendLog("→ 亮度 \(value)")
     }
 
     func previewLightEffect(_ effect: UInt8) {
-        guard hasConfigurationTransport else { return }
+        guard isCommandTransportReady else { return }
         writeCommand(AhaKeyCommand.previewLightEffect(effect))
         appendLog("→ 预览灯效 \(effect)")
     }
 
     func setWorkMode(_ mode: UInt8) {
-        guard hasConfigurationTransport else { return }
+        guard isCommandTransportReady else { return }
         writeCommand(AhaKeyCommand.setWorkMode(mode))
         appendLog("→ 工作模式 \(mode)")
     }
@@ -1007,7 +1040,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 所有 AhaKey 主服务特征就绪后触发（仅一次）
     private func onAllCharacteristicsReady() {
-        guard hasConfigurationTransport else { return }
+        guard isConfigurationReady else { return }
         guard !didQueryAfterConnect else { return }
         didQueryAfterConnect = true
         appendLog("所有特征就绪，开始顺序握手")
@@ -1480,11 +1513,15 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             case .poweredOff:
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
-                self.bleConnectionStatus = "蓝牙关闭"
+                if !self.isWiredConnected {
+                    self.bleConnectionStatus = "蓝牙关闭"
+                }
             case .unauthorized:
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙权限未开启", isError: true)
-                self.bleConnectionStatus = "蓝牙权限未开启"
+                if !self.isWiredConnected {
+                    self.bleConnectionStatus = "蓝牙权限未开启"
+                }
             default:
                 self.refreshBluetoothAuthorization()
                 break
@@ -1502,6 +1539,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         guard name.lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) else { return }
 
         Task { @MainActor in
+            guard !self.isWiredConnected else { return }
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
             self.central?.stopScan()
             self.isScanning = false
@@ -1538,7 +1576,9 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
-            self.bleConnectionStatus = "连接失败"
+            if !self.isWiredConnected {
+                self.bleConnectionStatus = "连接失败"
+            }
             self.appendLog("连接失败: \(error?.localizedDescription ?? "未知")", isError: true)
             self.startAutoReconnectPolling()
             // 3 秒后重试
@@ -1804,7 +1844,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
     /// 发送探测命令
     func sendProbeCommands() {
-        guard hasConfigurationTransport else {
+        guard isConfigurationReady else {
             appendLog("命令通道未就绪", isError: true)
             return
         }

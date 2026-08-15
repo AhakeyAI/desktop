@@ -1,27 +1,25 @@
 import Foundation
 import IOKit.hid
 
-/// USB configuration interface exposed by the firmware alongside the keyboard HID interface.
-/// Windows uses the same VID/PID and 64-byte reports on interface MI_01.
-final class AhaKeyUSBHIDTransport {
+/// USB command channel used by the background Agent for live state updates.
+/// The main app owns configuration/bulk transfers; the Agent only sends short
+/// commands such as 0x90 and status queries while it is the selected owner.
+final class AgentUSBHIDTransport {
     static let vendorID = 0x413C
     static let productID = 0x2107
     static let reportSize = 64
     static let commandChannel: UInt8 = 0xA1
-    static let dataChannel: UInt8 = 0xA2
 
     var onConnected: (() -> Void)?
     var onDisconnected: (() -> Void)?
     var onFrame: ((Data) -> Void)?
-    var onError: ((Error) -> Void)?
+    var onError: ((String) -> Void)?
 
     private let manager: IOHIDManager
     private var device: IOHIDDevice?
     private var reportBuffer = [UInt8](repeating: 0, count: reportSize + 1)
     private var managerIsOpen = false
-    private var isEnabled = false
     private var retryTimer: Timer?
-    private var lastOpenError: IOReturn?
 
     init() {
         manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -35,7 +33,7 @@ final class AhaKeyUSBHIDTransport {
             manager,
             { context, _, _, device in
                 guard let context else { return }
-                Unmanaged<AhaKeyUSBHIDTransport>.fromOpaque(context).takeUnretainedValue().attach(device)
+                Unmanaged<AgentUSBHIDTransport>.fromOpaque(context).takeUnretainedValue().attach(device)
             },
             Unmanaged.passUnretained(self).toOpaque()
         )
@@ -43,7 +41,7 @@ final class AhaKeyUSBHIDTransport {
             manager,
             { context, _, _, device in
                 guard let context else { return }
-                Unmanaged<AhaKeyUSBHIDTransport>.fromOpaque(context).takeUnretainedValue().remove(device)
+                Unmanaged<AgentUSBHIDTransport>.fromOpaque(context).takeUnretainedValue().remove(device)
             },
             Unmanaged.passUnretained(self).toOpaque()
         )
@@ -65,61 +63,42 @@ final class AhaKeyUSBHIDTransport {
     var isConnected: Bool { device != nil }
 
     func start() {
-        isEnabled = true
         attemptOpenAndDiscover()
     }
 
-    /// Release the configuration HID so the background Agent can own it.
-    /// The manager stays scheduled and can be resumed later with `start()`.
-    func stop() {
-        isEnabled = false
-        stopRetrying()
-        guard let device else { return }
-        IOHIDDeviceUnscheduleFromRunLoop(device, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
-        IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
-        self.device = nil
-        onDisconnected?()
+    func sendCommand(_ payload: Data) throws {
+        guard let device else { throw AgentUSBError.notConnected }
+        guard payload.count <= Self.reportSize - 2 else { throw AgentUSBError.commandTooLarge }
+        var report = [UInt8](repeating: 0, count: Self.reportSize)
+        report[0] = Self.commandChannel
+        report[1] = UInt8(payload.count)
+        payload.copyBytes(to: &report[2], count: payload.count)
+        let result = IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput, 0, report, report.count)
+        guard result == kIOReturnSuccess else { throw AgentUSBError.writeFailed(result) }
     }
 
     private func attemptOpenAndDiscover() {
-        guard isEnabled else { return }
-        if managerIsOpen {
-            discoverMatchingDevices()
-            if device == nil { scheduleRetry() }
-            return
+        if !managerIsOpen {
+            let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+            if result == kIOReturnSuccess {
+                managerIsOpen = true
+            }
         }
-
-        let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        if result != kIOReturnSuccess {
-            // On recent macOS releases the manager may report NotPermitted
-            // while its matching set is already available. Try the matched
-            // vendor interface directly before treating this as a failure.
-            discoverMatchingDevices()
-            guard device == nil else { return }
-            reportOpenError(result)
-            scheduleRetry()
-            return
-        }
-        managerIsOpen = true
-        lastOpenError = nil
         discoverMatchingDevices()
         if device == nil { scheduleRetry() }
     }
 
-    /// Matching callbacks can be missed while macOS is waiting for the user
-    /// to allow a newly attached USB accessory. Re-enumerate after each open.
     private func discoverMatchingDevices() {
         guard device == nil,
               let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>
         else { return }
-
         for candidate in devices where device == nil {
             attach(candidate)
         }
     }
 
     private func scheduleRetry() {
-        guard isEnabled, retryTimer == nil, device == nil else { return }
+        guard retryTimer == nil, device == nil else { return }
         let timer = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in
             self?.attemptOpenAndDiscover()
         }
@@ -127,43 +106,17 @@ final class AhaKeyUSBHIDTransport {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    private func stopRetrying() {
-        retryTimer?.invalidate()
-        retryTimer = nil
-    }
-
-    private func reportOpenError(_ result: IOReturn) {
-        guard lastOpenError != result else { return }
-        lastOpenError = result
-        onError?(USBTransportError.openFailed(result))
-    }
-
-    func sendCommand(_ frame: Data) throws {
-        guard frame.count <= Self.reportSize - 2 else { throw USBTransportError.commandTooLarge }
-        try send(channel: Self.commandChannel, payload: frame)
-    }
-
-    func sendData(_ data: Data) async throws {
-        var offset = 0
-        while offset < data.count {
-            let end = min(offset + Self.reportSize - 2, data.count)
-            try send(channel: Self.dataChannel, payload: Data(data[offset ..< end]))
-            offset = end
-            try await Task.sleep(nanoseconds: 2_000_000)
-        }
-    }
-
     private func attach(_ candidate: IOHIDDevice) {
-        guard isEnabled, device == nil else { return }
+        guard device == nil else { return }
         let result = IOHIDDeviceOpen(candidate, IOOptionBits(kIOHIDOptionsTypeNone))
         guard result == kIOReturnSuccess else {
-            reportOpenError(result)
+            onError?("USB HID open failed (\(result))")
             scheduleRetry()
             return
         }
         device = candidate
-        lastOpenError = nil
-        stopRetrying()
+        retryTimer?.invalidate()
+        retryTimer = nil
         IOHIDDeviceScheduleWithRunLoop(candidate, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
         IOHIDDeviceRegisterInputReportCallback(
             candidate,
@@ -171,7 +124,7 @@ final class AhaKeyUSBHIDTransport {
             reportBuffer.count,
             { context, _, _, _, _, report, reportLength in
                 guard let context else { return }
-                let transport = Unmanaged<AhaKeyUSBHIDTransport>.fromOpaque(context).takeUnretainedValue()
+                let transport = Unmanaged<AgentUSBHIDTransport>.fromOpaque(context).takeUnretainedValue()
                 transport.receive(Data(bytes: report, count: reportLength))
             },
             Unmanaged.passUnretained(self).toOpaque()
@@ -185,23 +138,7 @@ final class AhaKeyUSBHIDTransport {
         IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
         self.device = nil
         onDisconnected?()
-        if isEnabled { scheduleRetry() }
-    }
-
-    private func send(channel: UInt8, payload: Data) throws {
-        guard let device else { throw USBTransportError.notConnected }
-        var report = [UInt8](repeating: 0, count: Self.reportSize)
-        report[0] = channel
-        report[1] = UInt8(payload.count)
-        payload.copyBytes(to: &report[2], count: payload.count)
-        let result = IOHIDDeviceSetReport(
-            device,
-            kIOHIDReportTypeOutput,
-            0,
-            report,
-            report.count
-        )
-        guard result == kIOReturnSuccess else { throw USBTransportError.writeFailed(result) }
+        scheduleRetry()
     }
 
     private func receive(_ report: Data) {
@@ -219,18 +156,8 @@ final class AhaKeyUSBHIDTransport {
     }
 }
 
-enum USBTransportError: LocalizedError {
+private enum AgentUSBError: Error {
     case notConnected
     case commandTooLarge
-    case openFailed(IOReturn)
     case writeFailed(IOReturn)
-
-    var errorDescription: String? {
-        switch self {
-        case .notConnected: return "USB HID device is not connected"
-        case .commandTooLarge: return "USB command exceeds 62-byte payload limit"
-        case let .openFailed(code): return "Could not open USB HID device (\(code))"
-        case let .writeFailed(code): return "USB HID write failed (\(code))"
-        }
-    }
 }

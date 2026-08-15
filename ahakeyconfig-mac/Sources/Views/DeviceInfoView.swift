@@ -159,7 +159,8 @@ struct DeviceInfoView: View {
                                     .controlSize(.small)
                             }
                             Button("安装并启用") {
-                                agentManager.install()
+                                agentManager.setBluetoothConnectionOwner(.agentDaemon, bleManager: bleManager)
+                                agentManager.install(activateAgent: true)
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -297,7 +298,7 @@ struct DeviceInfoView: View {
                 }
             }
 
-            // MARK: - BLE 连接状态
+            // MARK: - 配置连接状态
             Section {
                 CompatLabeledContent("连接") {
                     HStack(spacing: 6) {
@@ -344,16 +345,16 @@ struct DeviceInfoView: View {
                         .textSelection(.enabled)
                 }
                 HStack {
-                    CompatLabeledContent("特征") {
+                    CompatLabeledContent("通道") {
                         HStack(spacing: 8) {
-                            charBadge("DATA", ready: bleManager.dataCharReady)
-                            charBadge("CMD", ready: bleManager.commandCharReady)
-                            charBadge("NOTIFY", ready: bleManager.notifyCharReady)
+                            charBadge("CMD", ready: bleManager.transportCapabilities.canSendCommands)
+                            charBadge("RESPONSE", ready: bleManager.transportCapabilities.canReceiveResponses)
+                            charBadge("DATA", ready: bleManager.transportCapabilities.canTransferBulkData)
                         }
                     }
                 }
             } header: {
-                Text("BLE 连接状态")
+                Text(bleManager.isWiredConnected ? "USB 配置连接" : "蓝牙配置连接")
             }
 
             // MARK: - 操作
@@ -497,15 +498,15 @@ struct DeviceInfoView: View {
     }
 
     private func agentBluetoothStatusText() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "Agent 已连接蓝牙" }
-        if agentManager.isRunning { return "Agent 运行中（BLE 未连接）" }
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "Agent 已连接键盘" }
+        if agentManager.isRunning { return "Agent 运行中（键盘未连接）" }
         if agentManager.isInstalled { return "Agent 未运行" }
         return "Agent 未安装"
     }
 
     private func agentBluetoothShortLabel() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "已连蓝牙" }
-        if agentManager.isRunning { return "BLE 未连接" }
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "已连键盘" }
+        if agentManager.isRunning { return "键盘未连接" }
         if agentManager.isInstalled { return "未运行" }
         return "未装 Agent"
     }

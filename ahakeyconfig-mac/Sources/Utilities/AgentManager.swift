@@ -225,7 +225,7 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    /// 向 agent socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
+    /// 向 agent socket 发 status 命令，switchState 非 null 即代表 USB 或 BLE 已连上键盘。
     /// 同步执行，需在后台线程调用。
     nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -263,6 +263,9 @@ final class AgentManager: ObservableObject {
 
         guard let json = try? JSONSerialization.jsonObject(with: Data(buf[0..<n])) as? [String: Any] else {
             return false
+        }
+        if let connected = json["connected"] as? Bool {
+            return connected
         }
         return !(json["switchState"] is NSNull) && json["switchState"] != nil
     }
@@ -457,10 +460,15 @@ final class AgentManager: ObservableObject {
         installedAgentBinaryPath() != agentBinaryPath
     }
 
-    func install() {
+    func install(activateAgent: Bool = true) {
         agentUserAlert = nil
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
+
+        if activateAgent {
+            bluetoothConnectionOwner = .agentDaemon
+            UserDefaults.standard.set(BluetoothConnectionOwner.agentDaemon.rawValue, forKey: Self.bluetoothOwnerKey)
+        }
 
         guard isAgentBinaryPresentInBundle else {
             agentUserAlert = "应用包内没有可执行的 ahakeyconfig-agent（路径：…/Contents/MacOS/ahakeyconfig-agent）。请确认发版脚本已把该二进制一并打进 .app；仅有主程序时无法安装守护进程。"
@@ -473,7 +481,7 @@ final class AgentManager: ObservableObject {
 
         // 2. 仅当用户希望 Agent 持有蓝牙时才 load（否则只写入 plist，避免装完立刻抢 GATT）
         var loadFailed = false
-        if bluetoothConnectionOwner == .agentDaemon {
+        if activateAgent || bluetoothConnectionOwner == .agentDaemon {
             let load = runLaunchctlDetailed(["load", plistPath])
             if !load.ok && !isBenignLaunchctlLoadMessage(load.mergedOutput) {
                 loadFailed = true
@@ -492,8 +500,8 @@ final class AgentManager: ObservableObject {
         refresh()
 
         var lines: [String] = []
-        if bluetoothConnectionOwner == .agentDaemon, !loadFailed {
-            lines.append("launchctl load 已执行。若数秒后未显示「运行中」，请点「查看日志」。")
+        if (activateAgent || bluetoothConnectionOwner == .agentDaemon), !loadFailed {
+            lines.append("✅ Agent 安装完成，已请求 macOS 启动。若数秒后未显示「运行中」，请点「查看日志」。")
         }
         if !claudeLine.isEmpty { lines.append(claudeLine) }
         if !cursorLine.isEmpty { lines.append(cursorLine) }
