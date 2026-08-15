@@ -2,6 +2,67 @@ import XCTest
 @testable import AhaKeyConfig
 
 final class AhaKeyProtocolTests: XCTestCase {
+    func testGlobalBrightnessSynchronizesEveryModeAndClamps() {
+        var draft = AhaKeyStudioDraft.default
+
+        draft.setGlobalBrightness(14)
+
+        XCTAssertEqual(draft.globalBrightness, 14)
+        XCTAssertEqual(
+            AhaKeyModeSlot.allCases.map { draft.draft(for: $0).lightBar.brightness },
+            [14, 14, 14, 14]
+        )
+
+        draft.setGlobalBrightness(200)
+        XCTAssertEqual(draft.globalBrightness, 100)
+        XCTAssertTrue(AhaKeyModeSlot.allCases.allSatisfy {
+            draft.draft(for: $0).lightBar.brightness == 100
+        })
+    }
+
+    func testUSBConfigurationCapabilitiesDoNotDependOnBLECharacteristics() {
+        let capabilities = AhaKeyTransportCapabilities.resolve(
+            isUSBConnected: true,
+            isBLEConnected: false,
+            commandCharReady: false,
+            dataCharReady: false,
+            notifyCharReady: false
+        )
+
+        XCTAssertEqual(capabilities.preferredTransport, .usb)
+        XCTAssertTrue(capabilities.isConfigurationReady)
+        XCTAssertTrue(capabilities.canSendCommands)
+        XCTAssertTrue(capabilities.canReceiveResponses)
+        XCTAssertTrue(capabilities.canTransferBulkData)
+    }
+
+    func testIncompleteBLEDiscoveryIsNotConfigurationReady() {
+        let capabilities = AhaKeyTransportCapabilities.resolve(
+            isUSBConnected: false,
+            isBLEConnected: true,
+            commandCharReady: true,
+            dataCharReady: false,
+            notifyCharReady: false
+        )
+
+        XCTAssertEqual(capabilities.preferredTransport, .bluetooth)
+        XCTAssertTrue(capabilities.canSendCommands)
+        XCTAssertFalse(capabilities.isConfigurationReady)
+        XCTAssertFalse(capabilities.canTransferBulkData)
+    }
+
+    func testUSBIsPreferredWhenBothTransportsArePresent() {
+        let capabilities = AhaKeyTransportCapabilities.resolve(
+            isUSBConnected: true,
+            isBLEConnected: true,
+            commandCharReady: true,
+            dataCharReady: true,
+            notifyCharReady: true
+        )
+
+        XCTAssertEqual(capabilities.preferredTransport, .usb)
+    }
+
     func testParsesRhinoCapabilities() {
         let payload = Data([
             3, 4, 2, 4,

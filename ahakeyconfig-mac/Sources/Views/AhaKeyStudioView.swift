@@ -110,8 +110,7 @@ struct AhaKeyStudioView: View {
             }
         }
         .onChange(of: selectedMode) { newValue in
-            guard bleManager.isConnected,
-                  bleManager.commandCharReady,
+            guard bleManager.isCommandTransportReady,
                   bleManager.workMode != newValue.rawValue else { return }
             bleManager.setWorkMode(UInt8(newValue.rawValue))
             syncStatusMessage = "已通知键盘切换到 \(newValue.title)。"
@@ -317,7 +316,7 @@ struct AhaKeyStudioView: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
-        .help("日常使用由 Agent 控制键盘；需要改键、LCD 或同步时，进入编辑配置后由 AhaKey Studio 临时接管蓝牙。")
+        .help("日常使用可由 Agent 通过蓝牙控制键盘；需要改键、LCD 或同步时，AhaKey Studio 会优先使用已连接的 USB 配置通道。")
     }
 
     private var ahaTypeModeStatus: some View {
@@ -570,7 +569,7 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.regular)
-                        .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady)
+                        .disabled(isSyncing || !bleManager.isCommandTransportReady)
                     }
 
                     if isSyncing {
@@ -593,7 +592,7 @@ struct AhaKeyStudioView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
-                    .disabled(isSyncing || !bleManager.isConnected)
+                    .disabled(isSyncing || !bleManager.isConfigurationReady)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -1601,7 +1600,8 @@ struct AhaKeyStudioView: View {
                     HStack(spacing: 8) {
                         if !agentManager.isInstalled {
                             Button("安装 Agent + Hook") {
-                                agentManager.install()
+                                agentManager.setBluetoothConnectionOwner(.agentDaemon, bleManager: bleManager)
+                                agentManager.install(activateAgent: true)
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -1923,6 +1923,12 @@ struct AhaKeyStudioView: View {
         dirtyCount > 0
     }
 
+    private var hasUnsyncedOLEDChanges: Bool {
+        AhaKeyModeSlot.allCases.contains { mode in
+            studioDraft.draft(for: mode).oled != lastSyncedDraft.draft(for: mode).oled
+        }
+    }
+
     private var dirtyCount: Int {
         AhaKeyModeSlot.allCases.reduce(into: 0) { count, mode in
             let current = studioDraft.draft(for: mode)
@@ -2127,7 +2133,7 @@ struct AhaKeyStudioView: View {
     private func enterEditingConfiguration() {
         isTransitioningToKeyboardControl = false
         agentManager.setBluetoothConnectionOwner(.ahaKeyStudio, bleManager: bleManager)
-        syncStatusMessage = "已进入编辑配置，AhaKey Studio 将临时接管蓝牙。"
+        syncStatusMessage = "已进入编辑配置，AhaKey Studio 将使用 USB 或蓝牙配置通道。"
     }
 
     private func finishEditingConfiguration() {
@@ -2136,7 +2142,7 @@ struct AhaKeyStudioView: View {
             return
         }
 
-        if bleManager.isConnected && bleManager.commandCharReady {
+        if bleManager.isConfigurationReady {
             syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
         } else {
             syncStatusMessage = "设备连接中，连接成功后将自动同步并返回控制模式…"
@@ -2157,12 +2163,12 @@ struct AhaKeyStudioView: View {
         returnToKeyboardControl()
     }
 
-    // 轮询等待 BLE 连接且命令通道就绪（最多 10 秒），连接后自动同步并返回键盘控制。
+    // 轮询等待 USB 或 BLE 配置通道就绪（最多 10 秒），连接后自动同步并返回键盘控制。
     private func waitForConnectionThenSync() {
         Task { @MainActor in
             for _ in 0..<20 {
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                if bleManager.isConnected && bleManager.commandCharReady {
+                if bleManager.isConfigurationReady {
                     syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
                     return
                 }
@@ -2210,7 +2216,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: Bool, showResultAlert: Bool) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
+        guard bleManager.isConfigurationReady else {
             let message = showResultAlert ? "设备未连接，请先连接键盘后重试。" : "设备未连接或命令通道未就绪，当前只保存本地草稿。"
             syncStatusMessage = message
             if showResultAlert {
@@ -2231,7 +2237,11 @@ struct AhaKeyStudioView: View {
         deviceWriteTask = Task { @MainActor in
             defer { self.deviceWriteTask = nil }
             do {
-                let uploadedOLEDCount = try await uploadChangedOLEDsToDevice()
+                // Key/light-only writes must not enter the slower task-image
+                // query/upload protocol when no OLED resource changed.
+                let uploadedOLEDCount = hasUnsyncedOLEDChanges
+                    ? try await uploadChangedOLEDsToDevice()
+                    : 0
                 var commands = commandsForModes(AhaKeyModeSlot.allCases)
                 commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
 
@@ -2512,7 +2522,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func resendCurrentModeToDevice() {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
+        guard bleManager.isConfigurationReady else {
             syncStatusMessage = "设备未连接或命令通道未就绪，当前只保存本地草稿。"
             return
         }
@@ -2626,7 +2636,7 @@ struct AhaKeyStudioView: View {
             ))
         }
 
-        let brightness = UInt8(studioDraft.draft(for: modes[0]).lightBar.brightness)
+        let brightness = UInt8(studioDraft.globalBrightness)
         commands.append((AhaKeyCommand.setBrightness(brightness), "亮度 \(brightness)%"))
 
         return commands
@@ -2741,12 +2751,10 @@ struct AhaKeyStudioView: View {
 
     private var brightnessBinding: Binding<Double> {
         Binding(
-            get: { Double(currentModeDraft.lightBar.brightness) },
+            get: { Double(studioDraft.globalBrightness) },
             set: { newValue in
                 var draft = studioDraft
-                var mode = draft.draft(for: selectedMode)
-                mode.lightBar.brightness = Int(newValue)
-                draft.updateMode(mode)
+                draft.setGlobalBrightness(Int(newValue))
                 studioDraft = draft
                 AhaKeyStudioStore.save(studioDraft)
                 previewBrightness(Int(newValue))
@@ -2759,7 +2767,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func previewLightEffect(_ effect: LightEffectStyle) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
+        guard bleManager.isCommandTransportReady else {
             syncStatusMessage = "已更新虚拟灯效预览；连接键盘后可预览到设备。"
             return
         }
@@ -2768,12 +2776,18 @@ struct AhaKeyStudioView: View {
     }
 
     private func previewBrightness(_ value: Int) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
+        guard bleManager.isCommandTransportReady else {
             syncStatusMessage = "已更新亮度为 \(value)%；连接键盘后可预览到设备。"
             return
         }
-        bleManager.setBrightness(UInt8(max(1, min(100, value))))
-        syncStatusMessage = "正在预览灯光强度：\(value)% 。"
+        let normalized = UInt8(max(1, min(100, value)))
+        let previewEffect = currentModeDraft.lightBar.effect(for: lightBarPreview)
+        // Brightness is not visually observable while firmware lightMode is 0.
+        // Re-apply the currently selected preview effect after every slider
+        // update so dragging from a dim value back to 100% remains visible.
+        bleManager.setBrightness(normalized)
+        bleManager.previewLightEffect(previewEffect.firmwareIndex)
+        syncStatusMessage = "正在以\(previewEffect.title)预览灯光强度：\(value)% 。"
     }
 
     private func infoPill(title: String, subtitle: String, accent: Color, width: CGFloat = 86) -> some View {
