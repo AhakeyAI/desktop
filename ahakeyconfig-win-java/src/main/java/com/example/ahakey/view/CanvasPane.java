@@ -36,7 +36,8 @@ public class CanvasPane extends VBox {
         setSpacing(14);
         setPadding(new Insets(16));
         getStyleClass().add("canvas-pane");
-        setMinWidth(420);
+        setMinWidth(600);
+        setPrefWidth(680);
         setMaxWidth(780);
         HBox.setHgrow(this, Priority.NEVER);
 
@@ -103,6 +104,7 @@ public class CanvasPane extends VBox {
             CanvasController controller = loader.getController();
             controller.setStudioState(studioState);
             controller.setDeviceStatus(deviceStatus);
+            controller.setTaskActivityService(this.controller.getTaskActivityService());
             preview.getChildren().add(layout);
         } catch (IOException e) {
             e.printStackTrace();

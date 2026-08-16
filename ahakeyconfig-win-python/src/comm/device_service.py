@@ -13,6 +13,7 @@ from .protocol import (
     PKT_QUERY_STATUS, PKT_QUERY_INFO, PKT_STATUS_RESP, PKT_INFO_RESP,
     DeviceCmd, KeySubType, build_device_frame, parse_device_frame,
     parse_status_response, parse_info_response, parse_pic_state_response,
+    parse_capabilities_response, parse_standby_timeout_response,
 )
 from .tcp_client import TcpClient
 
@@ -97,6 +98,37 @@ class DeviceService(QObject):
     def save_config(self):
         """保存配置到设备"""
         self.send_command(DeviceCmd.SAVE_CONFIG)
+
+    def _request_payload(self, cmd: DeviceCmd, data: bytes = b"", timeout: float = 5.0) -> bytes:
+        """发送命令并返回去掉状态码后的响应数据。"""
+        with self._lock:
+            self._resp_event.clear()
+            self.tcp.send(PKT_WRITE_CMD, build_device_frame(cmd, data))
+            payload = self._wait_response(cmd, timeout)
+            if not payload or payload[0] != 0:
+                raise RuntimeError(
+                    f"Device error, cmd=0x{cmd:02X}, "
+                    f"code={payload[0] if payload else 'None'}"
+                )
+            return payload[1:]
+
+    def query_capabilities(self) -> dict:
+        """查询协议、固件、硬件版本和能力位。"""
+        return parse_capabilities_response(
+            self._request_payload(DeviceCmd.QUERY_CAPABILITIES)
+        )
+
+    def get_standby_timeout_minutes(self) -> int:
+        """读取 Protocol v2 待机时间。"""
+        return parse_standby_timeout_response(
+            self._request_payload(DeviceCmd.STANDBY_TIMEOUT)
+        )
+
+    def set_standby_timeout_minutes(self, minutes: int):
+        """设置待机时间；调用方确认后还需执行 save_config() 持久化。"""
+        if not 0 <= minutes <= 1440:
+            raise ValueError("Standby timeout must be in range 0..1440 minutes")
+        self.send_command(DeviceCmd.STANDBY_TIMEOUT, struct.pack("<H", minutes))
 
     # ==============================
     # 大批量数据写入

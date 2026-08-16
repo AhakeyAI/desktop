@@ -31,6 +31,8 @@ public class StudioState {
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
         new SimpleObjectProperty<>(LightBarPreviewState.AI_RUNNING);
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
+    private final KeyConfig voiceKeyShort = new KeyConfig(0x4000, "Typeless");
+    private final KeyConfig voiceKeyLong = new KeyConfig(0x0A00, "WeChat Voice");
 
     private final Map<ModeSlot, EnumMap<StudioPart, KeyConfig>> keyConfigs = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, StringProperty> oledSummaries = new EnumMap<>(ModeSlot.class);
@@ -235,6 +237,22 @@ public class StudioState {
         return keyConfigs.get(mode).get(part);
     }
 
+    public KeyConfig getVoiceKeyShort() {
+        return voiceKeyShort;
+    }
+
+    public KeyConfig getVoiceKeyLong() {
+        return voiceKeyLong;
+    }
+
+    public void resetVoiceKeyDefaults() {
+        voiceKeyShort.setHidCode(0x4000);
+        voiceKeyShort.setDescription("Typeless");
+        voiceKeyLong.setHidCode(0x0A00);
+        voiceKeyLong.setDescription("WeChat Voice");
+        markDirty(StudioPart.KEY1);
+    }
+
     public static int keyIndexFor(StudioPart part) {
         return switch (part) {
             case KEY1 -> 0;
@@ -342,6 +360,7 @@ public class StudioState {
 
     public void restoreCurrentModeDefaults() {
         resetModeDefaults(getSelectedMode());
+        resetVoiceKeyDefaults();
         dirtyParts.add(StudioPart.KEY1);
         dirtyParts.add(StudioPart.KEY2);
         dirtyParts.add(StudioPart.KEY3);
@@ -376,6 +395,8 @@ public class StudioState {
     }
 
     public void loadFromPersisted(PersistedDraft draft) {
+        voiceKeyShort.setHidCode(draft.voiceKeyShortHid == null ? 0x4000 : draft.voiceKeyShortHid);
+        voiceKeyLong.setHidCode(draft.voiceKeyLongHid == null ? 0x0A00 : draft.voiceKeyLongHid);
         for (int i = 0; i < ModeSlot.values().length; i++) {
             ModeSlot mode = ModeSlot.values()[i];
             PersistedDraft.ModeDraft md = draft.modes[i];
@@ -429,6 +450,8 @@ public class StudioState {
 
     public PersistedDraft toPersisted() {
         PersistedDraft d = new PersistedDraft();
+        d.voiceKeyShortHid = voiceKeyShort.getHidCode();
+        d.voiceKeyLongHid = voiceKeyLong.getHidCode();
         d.revision = revision.get();
         d.lightBarPreviewId = lightBarPreview.get().getId();
         d.lightBrightness = lightBrightness.get();
@@ -472,6 +495,8 @@ public class StudioState {
         public int revision;
         public String lightBarPreviewId = LightBarPreviewState.AI_RUNNING.getId();
         public int lightBrightness = 35;
+        public Integer voiceKeyShortHid = 0x4000;
+        public Integer voiceKeyLongHid = 0x0A00;
         public ModeDraft[] modes = new ModeDraft[ModeSlot.values().length];
 
         public static PersistedDraft defaults() {

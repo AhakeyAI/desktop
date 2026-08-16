@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>ahakey-studio</artifactId>
-    <version>1.0.0</version>
+    <version>1.5.3</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -77,6 +77,13 @@
             <artifactId>onnxruntime</artifactId>
             <version>1.16.3</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -89,6 +96,12 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
             </plugin>
 
             <plugin>
@@ -143,6 +156,9 @@
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
                         </manifest>
+                        <manifestEntries>
+                            <Implementation-Version>${project.version}</Implementation-Version>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>

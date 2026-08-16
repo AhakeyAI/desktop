@@ -24,6 +24,7 @@ dist/
 out/
 release/
 publish/
+**/installer/
 bin/
 obj/
 _internal/
@@ -74,6 +75,7 @@ logs/
 # Local model / runtime payloads
 internal/
 .gstack/
+**/release-private/
 /ahakeyconfig-win-java/.m2repo/
 /ahakeyconfig-win-java/target/
 

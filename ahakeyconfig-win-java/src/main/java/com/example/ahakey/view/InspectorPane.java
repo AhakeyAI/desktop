@@ -37,6 +37,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public class InspectorPane extends ScrollPane {
@@ -105,17 +106,11 @@ public class InspectorPane extends ScrollPane {
         ));
 
         if (part == StudioPart.KEY1) {
-            // KEY1 始终使用自定义快捷键模式
-            KeyConfig key1 = studioState.getKeyConfig(StudioPart.KEY1);
-            if (key1.getVoicePreset() != com.example.ahakey.model.VoicePreset.CUSTOM) {
-                key1.setVoicePreset(com.example.ahakey.model.VoicePreset.CUSTOM);
-            }
-            body.getChildren().add(createKeyBindingGroup(part));
-            body.getChildren().add(createSimulateKeyGroup(part));
-            body.getChildren().add(createDescriptionGroup(part));
+            body.getChildren().add(createDualVoiceKeyGroup());
         } else if (part.isKey()) {
             body.getChildren().add(createKeyBindingGroup(part));
             body.getChildren().add(createDescriptionGroup(part));
+            body.getChildren().add(createSimulateKeyGroup(part));
         } else if (part == StudioPart.LIGHT_BAR) {
             body.getChildren().add(createLightBarGroup());
         } else if (part == StudioPart.OLED) {
@@ -125,19 +120,91 @@ public class InspectorPane extends ScrollPane {
         }
     }
 
+    private VBox createDualVoiceKeyGroup() {
+        return createGroupBox("语音键：短按 / 长按", () -> {
+            VBox box = new VBox(16);
+            Label hint = new Label(
+                "全局配置，所有模式共用。短按会点击一次快捷键；按住超过 350ms 后，"
+                    + "长按快捷键会保持按下，松开语音键时释放。任一列表清空即可禁用对应动作。"
+            );
+            hint.setWrapText(true);
+            hint.getStyleClass().add("warning-note");
+
+            Label shortLabel = new Label("短按快捷键（默认：Right Alt，用于 Typeless）");
+            shortLabel.getStyleClass().add("field-label");
+            Label longLabel = new Label("长按快捷键（默认：Left Ctrl + Left Win，用于微信语音输入）");
+            longLabel.getStyleClass().add("field-label");
+
+            Button testShort = new Button("测试短按");
+            testShort.getStyleClass().add("button-prominent");
+            testShort.setOnAction(event -> controller.getVoiceRelay()
+                .simulateKeyByHid(studioState.getVoiceKeyShort().getHidCode()));
+
+            Button testLong = new Button("按住测试长按");
+            testLong.getStyleClass().add("button-prominent");
+            AtomicBoolean longTestPressed = new AtomicBoolean(false);
+            testLong.setOnMousePressed(event -> {
+                if (event.isPrimaryButtonDown() && longTestPressed.compareAndSet(false, true)) {
+                    controller.getVoiceRelay().pressKeyByHid(
+                        studioState.getVoiceKeyLong().getHidCode());
+                }
+            });
+            testLong.setOnMouseReleased(event -> {
+                if (longTestPressed.compareAndSet(true, false)) {
+                    controller.getVoiceRelay().releaseKeyByHid(
+                        studioState.getVoiceKeyLong().getHidCode());
+                }
+            });
+            testLong.setOnMouseExited(event -> {
+                if (longTestPressed.compareAndSet(true, false)) {
+                    controller.getVoiceRelay().releaseKeyByHid(
+                        studioState.getVoiceKeyLong().getHidCode());
+                }
+            });
+            testLong.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+                if (!isFocused && longTestPressed.compareAndSet(true, false)) {
+                    controller.getVoiceRelay().releaseKeyByHid(
+                        studioState.getVoiceKeyLong().getHidCode());
+                }
+            });
+            Label testHint = new Label();
+            testHint.textProperty().bind(controller.getVoiceRelay().lastSimulateHintProperty());
+            testHint.getStyleClass().add("warning-note");
+            testHint.setWrapText(true);
+
+            box.getChildren().addAll(
+                hint,
+                shortLabel,
+                createShortcutEditor(studioState.getVoiceKeyShort(), StudioPart.KEY1),
+                longLabel,
+                createShortcutEditor(studioState.getVoiceKeyLong(), StudioPart.KEY1),
+                new HBox(8, testShort, testLong),
+                testHint
+            );
+            return box;
+        });
+    }
+
     private VBox createSimulateKeyGroup(StudioPart part) {
         return createGroupBox(languageManager.getString("inspector.simulate-key"), () -> {
             VBox box = new VBox(8);
             KeyConfig key = studioState.getKeyConfig(part);
             var voice = controller.getVoiceRelay();
 
-            Button simulate = new Button(languageManager.getString("inspector.simulate-key1"));
+            Button simulate = new Button("模拟按键");
             simulate.getStyleClass().add("button-prominent");
-            simulate.setOnAction(e -> voice.simulateKeyByHid(key.getHidCode()));
+            simulate.setOnAction(e -> {
+                if (!key.usesMacro()) voice.simulateKeyByHid(key.getHidCode());
+            });
+            simulate.setDisable(key.usesMacro());
 
             Label hint = new Label();
-            hint.textProperty().bind(voice.lastSimulateHintProperty());
             hint.getStyleClass().add("warning-note");
+            if (key.usesMacro()) {
+                hint.setText("复杂宏序列暂不执行模拟；切换为单个快捷键后可在此测试。");
+            } else {
+                hint.textProperty().bind(voice.lastSimulateHintProperty());
+            }
 
             box.getChildren().addAll(simulate, hint);
             return box;
@@ -191,8 +258,11 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createShortcutEditor(StudioPart part) {
+        return createShortcutEditor(studioState.getKeyConfig(part), part);
+    }
+
+    private VBox createShortcutEditor(KeyConfig key, StudioPart dirtyPart) {
         VBox box = new VBox(12);
-        KeyConfig key = studioState.getKeyConfig(part);
 
         Label listLabel = new Label(languageManager.getString("inspector.key-code-list"));
         listLabel.getStyleClass().add("field-label");
@@ -412,7 +482,7 @@ public class InspectorPane extends ScrollPane {
                         // 处理普通键（设置为基础键位）
                         key.setHidCode(modifiers | codeToAdd);
                     }
-                    studioState.markDirty(part);
+                    studioState.markDirty(dirtyPart);
                 }
                 rebuild();
             }
@@ -470,7 +540,7 @@ public class InspectorPane extends ScrollPane {
                     key.setHidCode(modifiers);
                 }
                 
-                studioState.markDirty(part);
+                studioState.markDirty(dirtyPart);
                 rebuild();
             }
         });

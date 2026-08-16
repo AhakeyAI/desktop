@@ -12,6 +12,8 @@ import javafx.animation.Timeline;
 import javafx.beans.binding.Bindings;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
+import com.example.ahakey.service.TaskActivityService;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Region;
@@ -94,6 +96,7 @@ public class CanvasController {
     private DeviceStatus deviceStatus;
     private Timeline lightAnimation;
     private int animationFrame = 0;
+    private TaskActivityService taskActivityService;
     
     private static final String COLOR_ACTIVE = "#0a84ff";
     private static final String COLOR_DIM = "#6b7280";
@@ -119,6 +122,39 @@ public class CanvasController {
     public void setDeviceStatus(DeviceStatus deviceStatus) {
         this.deviceStatus = deviceStatus;
         bindDeviceStatus();
+    }
+
+    public void setTaskActivityService(TaskActivityService service) {
+        this.taskActivityService = service;
+        service.visibleTasksProperty().addListener((obs, old, value) -> refreshTaskLights());
+        refreshTaskLights();
+    }
+
+    private void refreshTaskLights() {
+        if (taskActivityService == null || !taskActivityService.isMultiMode()) {
+            setStableLightPreview();
+            return;
+        }
+        Region[] segments = {lightSeg1, lightSeg2, lightSeg3, lightSeg4};
+        for (int i = 0; i < segments.length; i++) {
+            Region seg = segments[i];
+            if (seg == null) continue;
+            int slot = i;
+            var task = taskActivityService.getVisibleTasks().stream().filter(t -> t.slot() == slot).findFirst();
+            if (task.isEmpty()) {
+                setLightSegment(seg, COLOR_DIM, 0.35);
+                Tooltip.install(seg, new Tooltip("任务槽 " + (i + 1) + "：空闲"));
+            } else {
+                var t = task.get();
+                String color = t.state() == 2 || t.state() == 4 ? COLOR_RED : COLOR_GREEN;
+                setLightSegment(seg, color, t.foreground() ? 1.0 : 0.72);
+                Tooltip.install(seg, new Tooltip(t.platform() + "\n" + t.title() + "\n" + taskStateText(t.state())));
+            }
+        }
+    }
+
+    private String taskStateText(int state) {
+        return switch (state) { case 1 -> "运行中"; case 2 -> "等待审批"; case 3 -> "已完成"; case 4 -> "错误"; default -> "空闲"; };
     }
     
     private void bindDeviceStatus() {

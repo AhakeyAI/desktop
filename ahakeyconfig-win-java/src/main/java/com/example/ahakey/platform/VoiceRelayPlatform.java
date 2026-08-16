@@ -1,6 +1,7 @@
 package com.example.ahakey.platform;
 
 import com.example.ahakey.model.ModeSlot;
+import com.example.ahakey.model.KeyConfig;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.model.VoicePreset;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
@@ -46,6 +47,20 @@ public final class VoiceRelayPlatform {
 
     public void simulateKeyByHid(int hidCode) {
         windows.simulateKeyByHid(hidCode);
+    }
+
+    public void simulateMacro(KeyConfig config) { windows.simulateMacro(config); }
+
+    public void pressKeyByHid(int hidCode) {
+        windows.pressKeyByHid(hidCode);
+    }
+
+    public void releaseKeyByHid(int hidCode) {
+        windows.releaseKeyByHid(hidCode);
+    }
+
+    public void releaseAllSimulatedKeys() {
+        windows.releaseAllSimulatedKeys();
     }
 
     public BooleanProperty listeningProperty() {

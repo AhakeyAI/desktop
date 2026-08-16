@@ -1,0 +1,274 @@
+name: Release Windows and Publish Stable Manifest
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vMAJOR.MINOR.PATCH tag to release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-stable-release
+  cancel-in-progress: false
+
+env:
+  FIRMWARE_VERSION: "1.1.1"
+  BASELINE_OBJECT: "release-inputs/AhaKeyStudio-voice-baseline.zip"
+  WCHISP_OBJECT: "release-inputs/WCHISPTool-CH57x-59x.zip"
+  FIRMWARE_OBJECT: "release-inputs/AhaKey-X1-firmware-1.1.1-ch582.hex"
+
+jobs:
+  release:
+    runs-on: windows-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Resolve and validate release version
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          if ($env:REQUESTED_TAG -notmatch '^v(\d+\.\d+\.\d+)$') {
+            throw "Release tag must use vMAJOR.MINOR.PATCH"
+          }
+          $version = $Matches[1]
+          [xml]$pom = Get-Content ahakeyconfig-win-java/pom.xml -Raw
+          if ([string]$pom.project.version -ne $version) {
+            throw "Tag $env:REQUESTED_TAG does not match pom.xml $($pom.project.version)"
+          }
+          "tag=$env:REQUESTED_TAG" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install CloudBase CLI and WiX
+        shell: pwsh
+        run: |
+          npm install --global @cloudbase/cli@3
+          choco install wixtoolset --version=3.14.1.20250415 --yes --no-progress
+
+      - name: Authenticate existing CloudBase environment
+        shell: pwsh
+        env:
+          CLOUDBASE_SECRET_ID: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+          CLOUDBASE_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+          CLOUDBASE_ENV_ID: ${{ secrets.WECHAT_CLOUD_ENV_ID }}
+        run: |
+          foreach ($name in @(
+            "CLOUDBASE_SECRET_ID",
+            "CLOUDBASE_SECRET_KEY",
+            "CLOUDBASE_ENV_ID"
+          )) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) {
+              throw "Missing production secret: $name"
+            }
+          }
+          tcb login `
+            --apiKeyId "$env:CLOUDBASE_SECRET_ID" `
+            --apiKey "$env:CLOUDBASE_SECRET_KEY"
+
+      - name: Download private release inputs
+        shell: pwsh
+        env:
+          CLOUDBASE_ENV_ID: ${{ secrets.WECHAT_CLOUD_ENV_ID }}
+          BASELINE_SHA256: ${{ secrets.WINDOWS_RELEASE_BASELINE_SHA256 }}
+          WCHISP_SHA256: ${{ secrets.WCHISP_BUNDLE_SHA256 }}
+          FIRMWARE_SHA256: ${{ secrets.FIRMWARE_1_1_1_SHA256 }}
+        run: |
+          $input = Join-Path $env:RUNNER_TEMP "release-inputs"
+          New-Item -ItemType Directory -Force -Path $input | Out-Null
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage download `
+            "$env:BASELINE_OBJECT" "$input/baseline.zip"
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage download `
+            "$env:WCHISP_OBJECT" "$input/wchisp.zip"
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage download `
+            "$env:FIRMWARE_OBJECT" `
+            "$input/AhaKey-X1-firmware-1.1.1-ch582.hex"
+          $checks = @{
+            "$input/baseline.zip" = $env:BASELINE_SHA256
+            "$input/wchisp.zip" = $env:WCHISP_SHA256
+            "$input/AhaKey-X1-firmware-1.1.1-ch582.hex" = $env:FIRMWARE_SHA256
+          }
+          foreach ($entry in $checks.GetEnumerator()) {
+            if ($entry.Value -notmatch '^[0-9a-fA-F]{64}$') {
+              throw "Missing or invalid expected SHA-256 for $($entry.Key)"
+            }
+            $actual = (Get-FileHash -LiteralPath $entry.Key -Algorithm SHA256).Hash
+            if ($actual -ne $entry.Value) {
+              throw "SHA-256 mismatch for $($entry.Key)"
+            }
+          }
+          Expand-Archive -LiteralPath "$input/baseline.zip" -DestinationPath "$input/baseline"
+          Expand-Archive -LiteralPath "$input/wchisp.zip" -DestinationPath "$input/wchisp"
+
+      - name: Build protected Windows installer
+        shell: pwsh
+        run: |
+          $input = Join-Path $env:RUNNER_TEMP "release-inputs"
+          ./ahakeyconfig-win-java/build-release-installer.ps1 `
+            -BaselineInstallDir "$input/baseline/AhaKeyStudio" `
+            -FirmwareHex "$input/AhaKey-X1-firmware-1.1.1-ch582.hex" `
+            -AppVersion "${{ steps.version.outputs.version }}" `
+            -FirmwareVersion "$env:FIRMWARE_VERSION" `
+            -WchIspBundleDir "$input/wchisp/WCHISPTool_CH57x-59x" `
+            -IncludeLicensedWchIsp
+
+      - name: Sign Windows installer
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          SIGNING_TIMESTAMP_URL: ${{ secrets.WINDOWS_SIGNING_TIMESTAMP_URL }}
+        run: |
+          foreach ($name in @("SIGNING_PFX_BASE64", "SIGNING_PFX_PASSWORD")) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) {
+              throw "Missing production signing secret: $name"
+            }
+          }
+          $version = "${{ steps.version.outputs.version }}"
+          $installer = "ahakeyconfig-win-java/installer/AhaKeyStudio-$version-windows-x64.exe"
+          $certificate = Join-Path $env:RUNNER_TEMP "ahakey-code-signing.pfx"
+          $timestamp = if ([string]::IsNullOrWhiteSpace($env:SIGNING_TIMESTAMP_URL)) {
+            "http://timestamp.digicert.com"
+          } else {
+            $env:SIGNING_TIMESTAMP_URL
+          }
+          try {
+            [IO.File]::WriteAllBytes(
+              $certificate,
+              [Convert]::FromBase64String($env:SIGNING_PFX_BASE64)
+            )
+            $signTool = Get-ChildItem `
+              -LiteralPath "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
+              -Filter signtool.exe `
+              -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1 -ExpandProperty FullName
+            if (-not $signTool) {
+              throw "Windows SDK signtool.exe was not found"
+            }
+            & $signTool sign /f $certificate /p $env:SIGNING_PFX_PASSWORD `
+              /fd SHA256 /tr $timestamp /td SHA256 $installer
+            if ($LASTEXITCODE -ne 0) {
+              throw "Authenticode signing failed with exit code $LASTEXITCODE"
+            }
+            & $signTool verify /pa /v $installer
+            if ($LASTEXITCODE -ne 0) {
+              throw "Authenticode verification failed with exit code $LASTEXITCODE"
+            }
+          } finally {
+            if (Test-Path -LiteralPath $certificate) {
+              Remove-Item -LiteralPath $certificate -Force
+            }
+          }
+
+      - name: Prepare checksummed release assets and manifest
+        id: assets
+        shell: pwsh
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.CLOUDBASE_STORAGE_PUBLIC_BASE_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PUBLIC_BASE_URL)) {
+            throw "Missing CLOUDBASE_STORAGE_PUBLIC_BASE_URL"
+          }
+          $version = "${{ steps.version.outputs.version }}"
+          $publish = Join-Path $env:RUNNER_TEMP "publish"
+          New-Item -ItemType Directory -Force -Path $publish | Out-Null
+          $installer = "ahakeyconfig-win-java/installer/AhaKeyStudio-$version-windows-x64.exe"
+          $firmwareSource = Join-Path $env:RUNNER_TEMP "release-inputs/AhaKey-X1-firmware-1.1.1-ch582.hex"
+          $firmware = Join-Path $publish "AhaKey-X1-firmware-1.1.1-ch582.hex"
+          Copy-Item -LiteralPath $firmwareSource -Destination $firmware
+          foreach ($asset in @($installer, $firmware)) {
+            $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+            [IO.File]::WriteAllText(
+              "$asset.sha256",
+              "$hash  $([IO.Path]::GetFileName($asset))`n",
+              [Text.UTF8Encoding]::new($false)
+            )
+          }
+          ./ahakeyconfig-win-java/New-StableManifest.ps1 `
+            -AppVersion $version `
+            -FirmwareVersion "$env:FIRMWARE_VERSION" `
+            -Installer $installer `
+            -FirmwareHex $firmware `
+            -PublicBaseUrl $env:PUBLIC_BASE_URL `
+            -NotesFile "docs/release-$version.md" `
+            -Output "$publish/stable.json"
+          "installer=$installer" >> $env:GITHUB_OUTPUT
+          "firmware=$firmware" >> $env:GITHUB_OUTPUT
+          "publish=$publish" >> $env:GITHUB_OUTPUT
+
+      - name: Upload immutable assets to existing CloudBase storage
+        shell: pwsh
+        env:
+          CLOUDBASE_ENV_ID: ${{ secrets.WECHAT_CLOUD_ENV_ID }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $prefix = "releases/v$version"
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage upload `
+            "${{ steps.assets.outputs.installer }}" `
+            "$prefix/AhaKeyStudio-$version-windows-x64.exe"
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage upload `
+            "${{ steps.assets.outputs.installer }}.sha256" `
+            "$prefix/AhaKeyStudio-$version-windows-x64.exe.sha256"
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage upload `
+            "${{ steps.assets.outputs.firmware }}" `
+            "$prefix/AhaKey-X1-firmware-1.1.1-ch582.hex"
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage upload `
+            "${{ steps.assets.outputs.firmware }}.sha256" `
+            "$prefix/AhaKey-X1-firmware-1.1.1-ch582.hex.sha256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: AhaKey Studio ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            ${{ steps.assets.outputs.installer }}
+            ${{ steps.assets.outputs.installer }}.sha256
+            ${{ steps.assets.outputs.firmware }}
+            ${{ steps.assets.outputs.firmware }}.sha256
+
+      - name: Publish stable manifest last
+        shell: pwsh
+        env:
+          CLOUDBASE_ENV_ID: ${{ secrets.WECHAT_CLOUD_ENV_ID }}
+        run: |
+          tcb -e "$env:CLOUDBASE_ENV_ID" storage upload `
+            "${{ steps.assets.outputs.publish }}/stable.json" `
+            "releases/stable.json"
+
+      - name: Verify public stable endpoint
+        shell: pwsh
+        run: |
+          $manifest = Invoke-RestMethod -Uri "https://ahakey.com/stable.json" `
+            -Headers @{ "Cache-Control" = "no-cache" }
+          if ($manifest.app.version -ne "${{ steps.version.outputs.version }}") {
+            throw "ahakey.com has not exposed the new stable version"
+          }
+          if ($manifest.firmware.ch582.version -ne "$env:FIRMWARE_VERSION") {
+            throw "ahakey.com returned the wrong firmware version"
+          }

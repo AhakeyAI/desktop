@@ -28,6 +28,9 @@ import java.util.function.Supplier;
  * 对齐 macOS {@code VoiceRelayService} 的 Windows 子集：低级别键盘钩子吞掉 F17/F18，触发 Win+H。
  */
 public final class WindowsVoiceRelayService {
+    /** Keys held by an in-app test; never includes the physical keyboard. */
+    private final java.util.Set<Integer> simulatedKeysDown =
+        java.util.Collections.synchronizedSet(new java.util.LinkedHashSet<>());
     private static final int WH_KEYBOARD_LL = 13;
     private static final int WM_KEYDOWN = 0x0100;
     private static final int WM_KEYUP = 0x0101;
@@ -285,7 +288,13 @@ public final class WindowsVoiceRelayService {
         // modifiers up (reverse)
         for (int i = modVks.size() - 1; i >= 0; i--) { fillKey(inputs[idx++], modVks.get(i), true); }
 
-        User32.INSTANCE.SendInput(new WinUser.DWORD(total), inputs, inputs[0].size());
+        int sent = User32.INSTANCE.SendInput(
+            new WinUser.DWORD(total), inputs, inputs[0].size()).intValue();
+        if (sent != total) {
+            forceReleaseVirtualKeys(baseVk, modVks);
+            lastSimulateHint.set("Key simulation was incomplete; all keys were released.");
+            return;
+        }
         String desc = com.example.ahakey.model.HIDUsage.getName(baseHid);
         if (!modVks.isEmpty()) {
             java.util.List<String> names = new java.util.ArrayList<>();
@@ -300,6 +309,124 @@ public final class WindowsVoiceRelayService {
             desc = String.join("+", names) + "+" + desc;
         }
         lastSimulateHint.set("已模拟 " + desc);
+    }
+
+    public void simulateMacro(com.example.ahakey.model.KeyConfig config) {
+        if (config == null || !config.usesMacro()) return;
+        new Thread(() -> {
+            try {
+                for (int i = 0; i < config.getMacroStepCount(); i++) {
+                    String action = config.getMacroStepAction(i);
+                    int value = config.getMacroStepParam(i);
+                    if ("DELAY".equals(action)) Thread.sleep(Math.max(0, value * 3L));
+                    else if ("DOWN_KEY".equals(action)) sendRawHid(value, false);
+                    else if ("UP_KEY".equals(action)) sendRawHid(value, true);
+                }
+                lastSimulateHint.set("宏按键模拟完成。");
+            } catch (Exception e) {
+                lastSimulateHint.set("宏按键模拟失败：" + e.getMessage());
+            } finally {
+                releaseAllSimulatedKeys();
+            }
+        }, "macro-simulator").start();
+    }
+
+    private void sendRawHid(int hidCode, boolean keyUp) {
+        int vk = hidBaseToVk(hidCode & 0xFF);
+        if (vk < 0) return;
+        WinUser.INPUT[] input = (WinUser.INPUT[]) new WinUser.INPUT().toArray(1);
+        fillKey(input[0], vk, keyUp);
+        int sent = User32.INSTANCE.SendInput(new WinUser.DWORD(1), input, input[0].size()).intValue();
+        if (sent == 1) {
+            if (keyUp) simulatedKeysDown.remove(vk);
+            else simulatedKeysDown.add(vk);
+        }
+    }
+
+    /** Presses a configured shortcut and keeps it down until releaseKeyByHid. */
+    public void pressKeyByHid(int hidCode) {
+        if (sendHidState(hidCode, true)) {
+            lastSimulateHint.set("模拟按键已按下；松开测试按钮时释放。");
+        }
+    }
+
+    /** Releases a shortcut previously pressed by pressKeyByHid. */
+    public void releaseKeyByHid(int hidCode) {
+        if (sendHidState(hidCode, false)) {
+            lastSimulateHint.set("模拟按键已释放。");
+        }
+    }
+
+    private boolean sendHidState(int hidCode, boolean down) {
+        if (hidCode == 0) {
+            lastSimulateHint.set("未设置按键，无法模拟。");
+            return false;
+        }
+        java.util.List<Integer> modifierVks = new java.util.ArrayList<>();
+        if ((hidCode & 0x100) != 0) modifierVks.add(0x10);
+        if ((hidCode & 0x200) != 0) modifierVks.add(0x11);
+        if ((hidCode & 0x400) != 0) modifierVks.add(0x12);
+        if ((hidCode & 0x800) != 0) modifierVks.add(0x5B);
+        if ((hidCode & 0x1000) != 0) modifierVks.add(0xA1);
+        if ((hidCode & 0x2000) != 0) modifierVks.add(0xA3);
+        if ((hidCode & 0x4000) != 0) modifierVks.add(0xA5);
+        if ((hidCode & 0x8000) != 0) modifierVks.add(0x5C);
+        int baseVk = hidBaseToVk(hidCode & 0xFF);
+        int total = modifierVks.size() + (baseVk >= 0 ? 1 : 0);
+        if (total == 0) {
+            lastSimulateHint.set("无法识别当前按键，无法模拟。");
+            return false;
+        }
+        WinUser.INPUT[] inputs = (WinUser.INPUT[]) new WinUser.INPUT().toArray(total);
+        int index = 0;
+        if (down) {
+            for (int vk : modifierVks) fillKey(inputs[index++], vk, false);
+            if (baseVk >= 0) fillKey(inputs[index], baseVk, false);
+        } else {
+            if (baseVk >= 0) fillKey(inputs[index++], baseVk, true);
+            for (int i = modifierVks.size() - 1; i >= 0; i--) {
+                fillKey(inputs[index++], modifierVks.get(i), true);
+            }
+        }
+        int sent = User32.INSTANCE.SendInput(
+            new WinUser.DWORD(total), inputs, inputs[0].size()).intValue();
+        if (sent != total) {
+            forceReleaseVirtualKeys(baseVk, modifierVks);
+            releaseAllSimulatedKeys();
+            lastSimulateHint.set("Key simulation was incomplete; all keys were released.");
+            return false;
+        }
+        if (down) {
+            simulatedKeysDown.addAll(modifierVks);
+            if (baseVk >= 0) simulatedKeysDown.add(baseVk);
+        } else {
+            if (baseVk >= 0) simulatedKeysDown.remove(baseVk);
+            simulatedKeysDown.removeAll(modifierVks);
+        }
+        return true;
+    }
+
+    /** Safe to invoke repeatedly on focus loss, disconnect, and shutdown. */
+    public void releaseAllSimulatedKeys() {
+        java.util.List<Integer> keys;
+        synchronized (simulatedKeysDown) {
+            keys = new java.util.ArrayList<>(simulatedKeysDown);
+            simulatedKeysDown.clear();
+        }
+        for (int i = keys.size() - 1; i >= 0; i--) sendVirtualKeyUp(keys.get(i));
+    }
+
+    private void forceReleaseVirtualKeys(int baseVk, java.util.List<Integer> modifiers) {
+        if (baseVk >= 0) sendVirtualKeyUp(baseVk);
+        for (int i = modifiers.size() - 1; i >= 0; i--) sendVirtualKeyUp(modifiers.get(i));
+        if (baseVk >= 0) simulatedKeysDown.remove(baseVk);
+        simulatedKeysDown.removeAll(modifiers);
+    }
+
+    private void sendVirtualKeyUp(int vk) {
+        WinUser.INPUT[] input = (WinUser.INPUT[]) new WinUser.INPUT().toArray(1);
+        fillKey(input[0], vk, true);
+        User32.INSTANCE.SendInput(new WinUser.DWORD(1), input, input[0].size());
     }
 
     private static int hidBaseToVk(int hid) {

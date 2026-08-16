@@ -9,9 +9,11 @@ import com.example.ahakey.service.BleManager;
 import com.example.ahakey.service.DeviceSyncService;
 import com.example.ahakey.service.HookDispatchServer;
 import com.example.ahakey.service.OledUploadService;
+import com.example.ahakey.service.TaskActivityService;
 import com.example.ahakey.util.OLEDFrameEncoder;
 import com.example.ahakey.util.StudioStore;
 import com.example.ahakey.util.LanguageManager;
+import com.example.ahakey.update.SemanticVersion;
 import javafx.application.Platform;
 import javafx.stage.FileChooser;
 import org.slf4j.Logger;
@@ -22,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.prefs.Preferences;
 
 /**
  * 应用总线：连接 Swift 中 `AhaKeyStudioView` + `BLE` + `AgentManager` 的编排逻辑。
@@ -36,7 +39,17 @@ public class StudioController {
     private final BleManager bleManager;
     private final boolean simulateBle;
     private final HookDispatchServer hookDispatchServer;
+    private final TaskActivityService taskActivityService;
+    private final Preferences preferences = Preferences.userNodeForPackage(StudioController.class);
     private final com.example.ahakey.service.KimiAhaKeyBridge kimiAhaKeyBridge;
+    private volatile SemanticVersion lastKnownFirmwareVersion;
+    private volatile SemanticVersion pendingFirmwareVersion;
+    private volatile int pendingUserMode = -1;
+    private volatile long pendingUserModeDeadlineNanos;
+    private volatile boolean manuallyDisconnected;
+    private volatile String lastConnectionError;
+    private static final long USER_MODE_CONFIRM_TIMEOUT_NANOS =
+        TimeUnit.MILLISECONDS.toNanos(2500);
 
     private int lastSyncedRevision = -1;
     
@@ -61,6 +74,8 @@ public class StudioController {
                 // 有线（USB HID）连接时启动 Kimi AhaKey 桥接（无线模式下 9000 端口已由 BLE-TCP bridge 占用）
                 if (bleManager.isUsbConnected()) {
                     kimiAhaKeyBridge.start();
+                } else {
+                    kimiAhaKeyBridge.stop();
                 }
                 // 启动定时轮询（BLE通知不可靠，需要主动查询）
                 startStatusPolling();
@@ -68,7 +83,9 @@ public class StudioController {
 
             @Override
             public void onDisconnected() {
+                pendingUserMode = -1;
                 Platform.runLater(() -> deviceStatus.setConnected(false));
+                kimiAhaKeyBridge.stop();
                 // 停止定时轮询
                 stopStatusPolling();
             }
@@ -83,6 +100,9 @@ public class StudioController {
 
             @Override
             public void onError(String message) {
+                if (isTransientConnectionError(message)) {
+                    lastConnectionError = message;
+                }
                 Platform.runLater(() -> studioState.syncStatusProperty().set(message));
             }
         });
@@ -99,9 +119,17 @@ public class StudioController {
         studioState.selectedModeProperty().addListener((o, a, b) -> onDraftChange.run());
 
         // 启动 Hook 分发服务器（接收 Codex/Claude/Cursor/Kimi hook 事件 → BLE 状态码）
-        hookDispatchServer = new HookDispatchServer(bleManager);
+        taskActivityService = new TaskActivityService(bleManager);
+        hookDispatchServer = new HookDispatchServer(bleManager, taskActivityService, HookDispatchServer.DEFAULT_PORT);
+        taskActivityService.setMultiMode(preferences.getBoolean("task.display.multi", false));
         hookDispatchServer.setApprovalCallback(this::showApprovalDialog);
         hookDispatchServer.start();
+
+        bleManager.setModeChangeListener(mode -> Platform.runLater(() -> {
+            if (mode >= 0 && mode < ModeSlot.values().length) {
+                studioState.setSelectedMode(ModeSlot.fromIndex(mode));
+            }
+        }));
 
         // KimiAhaKeyBridge 在设备连接后按连接类型决定是否启动（见 onConnected）
         kimiAhaKeyBridge = new com.example.ahakey.service.KimiAhaKeyBridge(bleManager);
@@ -123,12 +151,37 @@ public class StudioController {
         return studioState;
     }
 
+    public SemanticVersion getLastKnownFirmwareVersion() {
+        return lastKnownFirmwareVersion;
+    }
+
+    public void setLastKnownFirmwareVersion(SemanticVersion version) {
+        lastKnownFirmwareVersion = version;
+    }
+
+    public SemanticVersion getPendingFirmwareVersion() {
+        return pendingFirmwareVersion;
+    }
+
+    public void setPendingFirmwareVersion(SemanticVersion version) {
+        pendingFirmwareVersion = version;
+    }
+
     public AgentManager getAgentManager() {
         return agentManager;
     }
 
     public int getHookDispatchPort() {
         return hookDispatchServer.getActualPort();
+    }
+
+    public TaskActivityService getTaskActivityService() { return taskActivityService; }
+
+    public boolean isMultiTaskDisplay() { return taskActivityService.isMultiMode(); }
+
+    public void setMultiTaskDisplay(boolean enabled) {
+        preferences.putBoolean("task.display.multi", enabled);
+        taskActivityService.setMultiMode(enabled);
     }
 
     public boolean isEffectivelyConnected() {
@@ -140,6 +193,7 @@ public class StudioController {
     }
 
     public void shutdown() {
+        voiceRelay.releaseAllSimulatedKeys();
         voiceRelay.stop();
         stopStatusPolling();
         hookDispatchServer.stop();
@@ -157,18 +211,14 @@ public class StudioController {
             return t;
         });
         // 从配置文件读取轮询周期，默认3秒
-        int pollPeriod = ModelConfig.getInstance().getStatusPollPeriodSeconds();
+        int pollPeriod = Math.max(1, Math.min(2,
+            ModelConfig.getInstance().getStatusPollPeriodSeconds()));
         logger.info("设备状态轮询周期: {}秒", pollPeriod);
         pollFuture = statusPoller.scheduleAtFixedRate(() -> {
-            if (!simulateBle && deviceStatus.isConnected()) {
+            if (!simulateBle && !bleManager.isScanning()
+                && bleManager.isTransportSessionActive()) {
                 try {
                     bleManager.queryStatus();
-                    // 检查心跳超时：超过15秒没有收到状态更新，认为设备已断开
-                    long lastUpdate = bleManager.getLastStatusUpdateTime();
-                    if (lastUpdate > 0 && System.currentTimeMillis() - lastUpdate > 15000) {
-                        logger.warn("设备心跳超时，断开连接");
-                        bleManager.disconnect();
-                    }
                 } catch (Exception e) {
                     logger.warn("轮询设备状态失败: {}", e.getMessage());
                 }
@@ -187,7 +237,26 @@ public class StudioController {
         }
     }
 
+    private void clearResolvedConnectionError() {
+        String connectionError = lastConnectionError;
+        if (connectionError == null) {
+            return;
+        }
+        if (connectionError.equals(studioState.syncStatusProperty().get())) {
+            studioState.syncStatusProperty().set("设备已通过 BLE 连接。");
+        }
+        lastConnectionError = null;
+    }
+
+    private static boolean isTransientConnectionError(String message) {
+        if (message == null) {
+            return false;
+        }
+        return message.contains("BLE bridge") || message.contains("BLE 桥");
+    }
+
     public void userConnect() {
+        manuallyDisconnected = false;
         logger.info("用户请求连接 - simulateBle: {}", simulateBle);
         if (simulateBle) {
             logger.info("使用模拟模式，直接设置为已连接");
@@ -200,15 +269,27 @@ public class StudioController {
         logger.info("使用真实BLE连接");
         deviceStatus.setScanning(true);
         bleManager.connect();
+        // Poll the transport while it is connecting. A physical keyboard is
+        // shown as connected only after it returns an actual protocol frame.
+        startStatusPolling();
     }
 
     public void userDisconnect() {
+        manuallyDisconnected = true;
+        voiceRelay.releaseAllSimulatedKeys();
         bleManager.disconnect();
+    }
+
+    public boolean isManuallyDisconnected() {
+        return manuallyDisconnected;
     }
 
     public void selectKeyboardMode(ModeSlot mode) {
         studioState.setSelectedMode(mode);
         if (!simulateBle && deviceStatus.isConnected()) {
+            pendingUserMode = mode.getIndex();
+            pendingUserModeDeadlineNanos = System.nanoTime()
+                + USER_MODE_CONFIRM_TIMEOUT_NANOS;
             bleManager.setWorkMode(mode.getIndex());
         }
     }
@@ -217,8 +298,11 @@ public class StudioController {
         agentManager.setBluetoothOwner(AgentManager.BluetoothOwner.AHAKEY_STUDIO);
         studioState.syncStatusProperty().set("已进入编辑配置模式。");
         refreshVoiceRoutes();
-        if (!deviceStatus.isConnected() && !simulateBle) {
+        if (!deviceStatus.isConnected() && !simulateBle && !manuallyDisconnected) {
             userConnect();
+        } else if (!deviceStatus.isConnected() && manuallyDisconnected) {
+            studioState.syncStatusProperty().set(
+                "已手动断开设备；编辑内容仅保存在本地，点击“连接设备”后才能写入键盘。");
         }
     }
 
@@ -230,8 +314,11 @@ public class StudioController {
         if (deviceStatus.isConnected() || simulateBle) {
             syncAllModes(true);
         } else {
-            studioState.syncStatusProperty().set("设备未连接，请先连接键盘。");
-            userConnect();
+            studioState.syncStatusProperty().set(
+                "设备已断开；配置仍保存在本地，请连接设备后再写入键盘。");
+            if (!manuallyDisconnected) {
+                userConnect();
+            }
         }
     }
 
@@ -264,7 +351,17 @@ public class StudioController {
             return;
         }
 
-        var commands = DeviceSyncService.commandsForModes(studioState, ModeSlot.values());
+        boolean includeVoiceKey = false;
+        try {
+            var capabilities = bleManager.queryDeviceCapabilities();
+            includeVoiceKey = capabilities != null
+                && capabilities.supports(AhaKeyProtocol.CAP_VOICE_KEY_DUAL_V1);
+        } catch (Exception exception) {
+            logger.info("设备未提供语音键扩展能力，继续保存普通配置: {}",
+                exception.getMessage());
+        }
+        var commands = DeviceSyncService.commandsForModes(
+            studioState, includeVoiceKey, ModeSlot.values());
         studioState.syncingProperty().set(true);
         studioState.syncStatusProperty().set("正在通过 " + transport + " 写入设备配置...");
         studioState.syncStatusProperty().set("正在写入设备配置...");
@@ -684,10 +781,38 @@ public class StudioController {
         deviceStatus.setScanning(false);
         deviceStatus.setBatteryLevel(status.getBatteryLevel());
         deviceStatus.setDeviceName(status.getDeviceName());
+        deviceStatus.setTransport(status.getTransport());
         deviceStatus.setWorkMode(status.getWorkMode());
         deviceStatus.setSwitchState(status.getSwitchState());
-        ModeSlot deviceMode = ModeSlot.fromIndex(status.getWorkMode());
-        if (deviceMode != studioState.getSelectedMode()) {
+        deviceStatus.setConnectionReadinessKnown(status.isConnectionReadinessKnown());
+        deviceStatus.setBleLinkConnected(status.isBleLinkConnected());
+        deviceStatus.setHidInputReady(status.isHidInputReady());
+        deviceStatus.setUsbConfigReady(status.isUsbConfigReady());
+        if (status.isConnected()) {
+            clearResolvedConnectionError();
+        }
+        if (status.getWorkMode() >= 0 && status.getWorkMode() < ModeSlot.values().length) {
+            studioState.setSelectedMode(ModeSlot.fromIndex(status.getWorkMode()));
+        }
+
+        int reportedMode = status.getWorkMode();
+        if (reportedMode < 0 || reportedMode >= ModeSlot.values().length) {
+            return;
+        }
+        if (pendingUserMode >= 0) {
+            if (reportedMode == pendingUserMode) {
+                pendingUserMode = -1;
+            } else if (System.nanoTime() < pendingUserModeDeadlineNanos) {
+                // Do not let an in-flight response undo a mode the user just selected.
+                return;
+            } else {
+                pendingUserMode = -1;
+            }
+        }
+
+        ModeSlot deviceMode = ModeSlot.fromIndex(reportedMode);
+        if (studioState.getSelectedMode() != deviceMode) {
+            logger.info("设备按键切换模式，同步上位机: {}", deviceMode);
             studioState.setSelectedMode(deviceMode);
         }
     }

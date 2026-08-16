@@ -776,6 +776,36 @@ BorderPane > .center .scroll-pane > .viewport {
     -fx-font-size: 13px;
 }
 
+/* Firmware workflow uses light step surfaces inside the dark maintenance card. */
+.maintenance-step > .title {
+    -fx-background-color: #e5e7eb;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 0 0 1 0;
+    -fx-text-fill: #111827;
+}
+
+.maintenance-step > .title > .text {
+    -fx-fill: #111827;
+}
+
+.maintenance-step > .title > .arrow-button > .arrow {
+    -fx-background-color: #374151;
+}
+
+.maintenance-step > .content {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #cbd5e1;
+}
+
+.maintenance-step > .content .label,
+.maintenance-step > .content .check-box {
+    -fx-text-fill: #1f2937;
+}
+
+.dialog-dark-check-box {
+    -fx-text-fill: #f3f4f6;
+}
+
 .dialog-log-area {
     -fx-background-color: #1a1a1a;
     -fx-text-fill: #aaa;

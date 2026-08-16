@@ -13,16 +13,29 @@ import java.util.function.Consumer;
 public final class DeviceSyncService {
     public record LabeledCommand(byte[] data, String label) {
     }
+    private record ExpectedVoiceConfig(byte[] shortCodes, byte[] longCodes) {
+    }
 
     private DeviceSyncService() {
     }
 
     public static List<LabeledCommand> commandsForModes(StudioState state, ModeSlot... modes) {
+        return commandsForModes(state, true, modes);
+    }
+
+    /**
+     * Builds a granular save plan.  Older firmware can still receive normal
+     * key/light settings even when the optional dual voice-key command is not
+     * advertised.
+     */
+    public static List<LabeledCommand> commandsForModes(
+        StudioState state, boolean includeVoiceKey, ModeSlot... modes
+    ) {
         List<LabeledCommand> out = new ArrayList<>();
         for (ModeSlot mode : modes) {
             int modeIndex = mode.getIndex();
             for (StudioPart part : List.of(
-                StudioPart.KEY1, StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4
+                StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4
             )) {
                 var key = state.getKeyConfig(mode, part);
                 int keyIndex = StudioState.keyIndexFor(part);
@@ -101,6 +114,15 @@ public final class DeviceSyncService {
         }
 
         out.add(new LabeledCommand(AhaKeyProtocol.setLightBrightness(state.getLightBrightness()), "灯光亮度"));
+        if (includeVoiceKey) {
+            out.add(new LabeledCommand(
+                AhaKeyProtocol.setVoiceKeyConfig(
+                    state.getVoiceKeyShort().getHidCode(),
+                    state.getVoiceKeyLong().getHidCode()
+                ),
+                "语音键短按/长按快捷键"
+            ));
+        }
         out.add(new LabeledCommand(AhaKeyProtocol.saveConfig(), "保存全部配置到设备"));
         return out;
     }
@@ -112,6 +134,7 @@ public final class DeviceSyncService {
         Runnable onError,
         Consumer<String> onProgress
     ) {
+        ExpectedVoiceConfig expectedVoice = findExpectedVoiceConfig(commands);
         new Thread(() -> {
             try {
                 int i = 0;
@@ -120,10 +143,26 @@ public final class DeviceSyncService {
                     if (onProgress != null) {
                         onProgress.accept("保存中 (" + i + "/" + commands.size() + ") " + cmd.label());
                     }
-                    ble.sendCommand(cmd.data());
-                    Thread.sleep(50);
+                    byte[] frame = cmd.data();
+                    if (frame.length < 5) {
+                        throw new java.io.IOException("配置命令格式无效: " + cmd.label());
+                    }
+                    // BLE notifications are asynchronous. Waiting for each
+                    // command ACK prevents a delayed 0x97 write ACK from being
+                    // mistaken for the later 0x97 configuration readback.
+                    ble.sendCommandExpecting(frame, frame[2]);
+                    Thread.sleep(20);
                 }
                 Thread.sleep(250);
+                if (expectedVoice != null) {
+                    var verified = ble.readVoiceKeyConfig();
+                    if (verified == null
+                        || !java.util.Arrays.equals(verified.shortCodes(), expectedVoice.shortCodes())
+                        || !java.util.Arrays.equals(verified.longCodes(), expectedVoice.longCodes())
+                        || verified.longPressMs() != AhaKeyProtocol.VOICE_KEY_LONG_PRESS_MS) {
+                        throw new java.io.IOException("语音键配置回读校验失败，请确认固件支持短按/长按功能");
+                    }
+                }
                 if (onComplete != null) {
                     onComplete.run();
                 }
@@ -136,5 +175,24 @@ public final class DeviceSyncService {
                 }
             }
         }, "aha-device-sync").start();
+    }
+
+    private static ExpectedVoiceConfig findExpectedVoiceConfig(List<LabeledCommand> commands) {
+        for (LabeledCommand command : commands) {
+            byte[] frame = command.data();
+            if (frame.length < 7 || frame[2] != AhaKeyProtocol.CMD_VOICE_KEY_CONFIG) {
+                continue;
+            }
+            int offset = 3;
+            int shortCount = frame[offset++] & 0xFF;
+            if (offset + shortCount >= frame.length - 2) return null;
+            byte[] shortCodes = java.util.Arrays.copyOfRange(frame, offset, offset + shortCount);
+            offset += shortCount;
+            int longCount = frame[offset++] & 0xFF;
+            if (offset + longCount != frame.length - 2) return null;
+            byte[] longCodes = java.util.Arrays.copyOfRange(frame, offset, offset + longCount);
+            return new ExpectedVoiceConfig(shortCodes, longCodes);
+        }
+        return null;
     }
 }

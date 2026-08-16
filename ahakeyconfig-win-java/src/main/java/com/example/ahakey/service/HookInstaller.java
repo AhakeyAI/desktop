@@ -108,7 +108,7 @@ public class HookInstaller {
     /**
      * 安装指定平台的 Hook
      */
-    public void install(String platform) {
+    public boolean install(String platform) {
         log("[安装] 开始安装 " + platform + " Hook...");
         generateAllScripts();
         switch (platform) {
@@ -116,8 +116,12 @@ public class HookInstaller {
             case "Cursor": installCursorHooks(); break;
             case "Codex": installCodexHooks(); break;
             case "Kimi": installKimiHooks(); break;
-            default: log("[错误] 未知 Hook 类型: " + platform);
+            default: {
+                log("[错误] 未知 Hook 类型: " + platform);
+                return false;
+            }
         }
+        return isInstalled(platform);
     }
 
     /**
@@ -165,13 +169,16 @@ public class HookInstaller {
             "# AhaKey Core - Auto-generated, do not edit\n" +
             "# Contains TCP connection logic, to be dot-sourced by platform-specific scripts\n" +
             "try {\n" +
-            "    if ([Console]::IsInputRedirected) { $null = [Console]::In.ReadToEnd() }\n" +
+            "    if ([Console]::IsInputRedirected) { $hookInput = [Console]::In.ReadToEnd() } else { $hookInput = '' }\n" +
             "} catch { }\n" +
             "try {\n" +
             "    $tcp = New-Object System.Net.Sockets.TcpClient\n" +
             "    $tcp.Connect('127.0.0.1', " + currentPort() + ")\n" +
             "    $writer = New-Object System.IO.StreamWriter($tcp.GetStream())\n" +
-            "    $writer.WriteLine($EventName)\n" +
+            "    $taskId = ''; $title = ''\n" +
+            "    try { $j = $hookInput | ConvertFrom-Json; $taskId = @($j.session_id,$j.sessionId,$j.conversation_id,$j.thread_id) | Where-Object { $_ } | Select-Object -First 1; $title = @($j.title,$j.window_title,$j.cwd) | Where-Object { $_ } | Select-Object -First 1 } catch { }\n" +
+            "    $payload = @{ cmd=$EventName; taskId=[string]$taskId; title=[string]$title } | ConvertTo-Json -Compress\n" +
+            "    $writer.WriteLine($payload)\n" +
             "    $writer.Flush()\n" +
             "    $reader = New-Object System.IO.StreamReader($tcp.GetStream())\n" +
             "    $response = $reader.ReadLine()\n" +

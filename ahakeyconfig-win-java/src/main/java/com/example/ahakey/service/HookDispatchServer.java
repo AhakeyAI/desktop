@@ -1,6 +1,8 @@
 package com.example.ahakey.service;
 
 import com.example.ahakey.model.IDEState;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +50,8 @@ public class HookDispatchServer {
     }
 
     private final BleManager bleManager;
+    private final TaskActivityService taskActivityService;
+    private static final ObjectMapper JSON = new ObjectMapper();
     private final int port;
     private ServerSocket serverSocket;
     private ExecutorService executor;
@@ -96,13 +100,20 @@ public class HookDispatchServer {
     }
 
     public HookDispatchServer(BleManager bleManager) {
-        this(bleManager, DEFAULT_PORT);
+        this(bleManager, new TaskActivityService(bleManager), DEFAULT_PORT);
     }
 
     public HookDispatchServer(BleManager bleManager, int port) {
+        this(bleManager, new TaskActivityService(bleManager), port);
+    }
+
+    public HookDispatchServer(BleManager bleManager, TaskActivityService taskActivityService, int port) {
         this.bleManager = bleManager;
+        this.taskActivityService = taskActivityService;
         this.port = port;
     }
+
+    public TaskActivityService getTaskActivityService() { return taskActivityService; }
 
     /**
      * 设置手动批准确认回调
@@ -201,6 +212,10 @@ public class HookDispatchServer {
                 return;
             }
             logger.debug("[{}] 收到事件: {} (原始: {})", entry.platform(), eventName, line);
+
+            HookMetadata metadata = parseMetadata(line);
+            taskActivityService.accept(entry.platform().name(), profile(entry.platform()),
+                metadata.taskId(), metadata.title(), entry.state());
 
             switch (entry.platform()) {
                 case CLAUDE -> handleClaudeEvent(writer, eventName, entry.state());
@@ -327,6 +342,27 @@ public class HookDispatchServer {
         return line;
     }
 
+    private record HookMetadata(String taskId, String title) {}
+
+    private HookMetadata parseMetadata(String line) {
+        if (!line.startsWith("{")) return new HookMetadata("", "");
+        try {
+            JsonNode root = JSON.readTree(line);
+            return new HookMetadata(root.path("taskId").asText(""), root.path("title").asText(""));
+        } catch (Exception ignored) {
+            return new HookMetadata("", "");
+        }
+    }
+
+    private int profile(Platform platform) {
+        return switch (platform) {
+            case CLAUDE -> 0;
+            case CURSOR -> 1;
+            case CODEX -> 2;
+            case KIMI -> 3;
+        };
+    }
+
     public void stop() {
         running = false;
         try {
@@ -339,6 +375,7 @@ public class HookDispatchServer {
         if (executor != null) {
             executor.shutdownNow();
         }
+        taskActivityService.close();
         logger.info("Hook 分发服务器已停止");
     }
 }

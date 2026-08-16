@@ -14,15 +14,12 @@ import javafx.util.Duration;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
-import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import org.slf4j.Logger;
@@ -115,8 +112,8 @@ public class App extends Application {
         
         // 4. 配置主窗口（Stage）属性
         primaryStage.setTitle("AhaKey Studio");      // 窗口标题
-        primaryStage.setMinWidth(800);              // 最小宽度（分屏/多屏适配）
-        primaryStage.setMinHeight(600);              // 最小高度
+        primaryStage.setMinWidth(1024);             // Preserve panel geometry on narrow windows.
+        primaryStage.setMinHeight(640);
         primaryStage.setWidth(1280);                 // 默认宽度
         primaryStage.setHeight(820);                 // 默认高度
         primaryStage.getIcons().add(new Image(getClass().getResourceAsStream("/ahakey.jpg")));
@@ -145,7 +142,7 @@ public class App extends Application {
         // 中间区域：使用 HBox 水平排列两个面板
         HBox centerPane = new HBox();
         centerPane.getStyleClass().add("workspace");
-        centerPane.setMinWidth(Region.USE_PREF_SIZE); // HBox 不缩小，由外层 ScrollPane 处理溢出
+        centerPane.setMinWidth(1100); // Scroll instead of compressing the keyboard preview.
         
         // CanvasPane（画布面板）：显示键盘布局预览
         CanvasPane canvasPane = new CanvasPane(controller);
@@ -160,7 +157,7 @@ public class App extends Application {
         
         // 包裹在 ScrollPane 中：跨屏幕拖拽时 DPI 变化不会导致变形
         ScrollPane centerScroll = new ScrollPane(centerPane);
-        centerScroll.setFitToWidth(true);
+        centerScroll.setFitToWidth(false);
         centerScroll.setFitToHeight(true);
         centerScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         centerScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
@@ -205,33 +202,11 @@ public class App extends Application {
             }
         });
 
-        // 8. 跨屏幕拖拽防护：记住高分屏窗口尺寸，拖回来时自动恢复
-        // 问题场景：2880x1800(高DPI) → 1920x1080(低DPI) → 2880x1800，窗口被压缩无法恢复
-        final double[] savedSize = {1280, 820}; // 保存高分屏的窗口尺寸
-        final double[] lastScreenDpi = {0};     // 上次所在屏幕的 DPI
-
-        PauseTransition layoutRefresh = new PauseTransition(Duration.millis(500));
+        // JavaFX performs per-monitor scaling. Only request a fresh layout
+        // after a screen/size change; never force another monitor's pixel
+        // dimensions onto the current monitor.
+        PauseTransition layoutRefresh = new PauseTransition(Duration.millis(150));
         layoutRefresh.setOnFinished(e -> Platform.runLater(() -> {
-            // 检测当前屏幕 DPI
-            double currentDpi = getCurrentScreenDpi(primaryStage);
-            
-            if (lastScreenDpi[0] > 0 && currentDpi > lastScreenDpi[0] * 1.1) {
-                // 从低DPI屏回到了高DPI屏，恢复保存的窗口尺寸
-                logger.debug("检测到低DPI→高DPI切换 ({}→{})，恢复窗口尺寸 {}x{}",
-                    (int) lastScreenDpi[0], (int) currentDpi, (int) savedSize[0], (int) savedSize[1]);
-                primaryStage.setWidth(savedSize[0]);
-                primaryStage.setHeight(savedSize[1]);
-            }
-            
-            // 保存当前尺寸（如果窗口在高分屏上且尺寸足够大）
-            if (currentDpi >= 120 || primaryStage.getWidth() >= 1100) {
-                savedSize[0] = primaryStage.getWidth();
-                savedSize[1] = primaryStage.getHeight();
-            }
-            
-            lastScreenDpi[0] = currentDpi;
-            
-            // 强制刷新布局
             root.applyCss();
             root.requestLayout();
         }));
@@ -490,21 +465,4 @@ public class App extends Application {
         launch(args);
     }
     
-    /**
-     * 获取窗口当前所在屏幕的 DPI
-     * 通过比较窗口中心点与各屏幕边界来确定当前屏幕
-     */
-    private double getCurrentScreenDpi(Stage stage) {
-        double centerX = stage.getX() + stage.getWidth() / 2;
-        double centerY = stage.getY() + stage.getHeight() / 2;
-        
-        for (Screen screen : Screen.getScreens()) {
-            Rectangle2D bounds = screen.getBounds();
-            if (bounds.contains(centerX, centerY)) {
-                return screen.getDpi();
-            }
-        }
-        // 回退：使用主屏幕 DPI
-        return Screen.getPrimary().getDpi();
-    }
 }

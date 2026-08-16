@@ -23,6 +23,7 @@
 <img src="https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows&logoColor=white" alt="Windows">
 <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+">
 <img src="https://img.shields.io/badge/SwiftUI-007AFF?logo=swift&logoColor=white" alt="SwiftUI">
+<img src="https://img.shields.io/badge/JavaFX-17-ED8B00?logo=openjdk&logoColor=white" alt="JavaFX 17">
 <img src="https://img.shields.io/badge/PySide6-3776AB?logo=python&logoColor=white" alt="PySide6">
 
 <br/>
@@ -59,14 +60,16 @@ The desktop app does two things:
 
 See `platforms/macos/README.md` and `platforms/macos/client/README.md` for build instructions, BLE protocol docs, and the source map.
 
-### Windows — stable baseline
+### Windows — actively developed
 
-The Windows client (Python PySide6 + .NET BLE bridge + Swift-equivalent helper) is preserved as the imported baseline. No major refactor this cycle. See `platforms/windows/README.md`.
+The current Windows client is the JavaFX application in `ahakeyconfig-win-java`. The PySide6 implementation remains in `ahakeyconfig-win-python` as a protocol-compatible baseline. Protocol changes must be synchronized between both implementations. See `docs/ble-protocol.md`.
 
 ## Repository layout
 
 ```
 desktop/
+├── ahakeyconfig-win-java/ # Current Windows JavaFX client
+├── ahakeyconfig-win-python/ # Python protocol baseline
 ├── platforms/
 │   ├── macos/client/      # Swift + SwiftUI client (active)
 │   └── windows/           # Windows client baseline
@@ -85,7 +88,7 @@ Build artifacts (`.exe`, `.msi`, `.app`, `.dmg`) are **not** committed. Installe
 ## Current status
 
 - macOS client has moved past the post-migration cleanup phase and is in **active feature development** — voice agent, Feishu integration, and the new workbench UI all landed in this cycle.
-- Windows client remains on the imported baseline.
+- Windows JavaFX client is in active development; the Python client is retained as a compatibility baseline.
 - Windows / macOS are intentionally kept in separate platform directories: different runtimes, UI models, and system capabilities.
 
 ## Start here
@@ -126,14 +129,16 @@ New contributors:
 
 构建说明、BLE 协议文档和源码索引见 `platforms/macos/README.md` 与 `platforms/macos/client/README.md`。
 
-### Windows — 稳定 baseline
+### Windows — 持续开发
 
-Windows 客户端（Python PySide6 + .NET BLE 桥接 + 辅助 helper）保持迁入时的 baseline，本轮无大规模重构。详见 `platforms/windows/README.md`。
+当前 Windows 主客户端是 `ahakeyconfig-win-java` 下的 JavaFX 应用；`ahakeyconfig-win-python` 保留为协议兼容基线。协议变更必须同步两个实现，命令登记表见 `docs/ble-protocol.md`。
 
 ## 仓库结构
 
 ```
 desktop/
+├── ahakeyconfig-win-java/ # 当前 Windows JavaFX 客户端
+├── ahakeyconfig-win-python/ # Python 协议基线
 ├── platforms/
 │   ├── macos/client/      # Swift + SwiftUI 客户端（活跃）
 │   └── windows/           # Windows 客户端 baseline
@@ -152,7 +157,7 @@ desktop/
 ## 当前状态
 
 - macOS 客户端已走过迁入后整理阶段，进入**活跃功能开发**期 —— 本轮新增了 voice agent、飞书集成、新工作台 UI。
-- Windows 客户端维持在迁入时的 baseline。
+- Windows JavaFX 客户端处于持续开发状态；Python 客户端作为兼容基线保留。
 - Windows / macOS 保留独立平台目录：运行时、UI 模型、系统能力差异较大，不混合管理。
 
 ## 新同学建议先读

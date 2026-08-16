@@ -87,6 +87,12 @@ public final class StudioStore {
             defaults.revision = savedDraft.revision;
             defaults.lightBarPreviewId = savedDraft.lightBarPreviewId;
             defaults.lightBrightness = savedDraft.lightBrightness;
+            if (savedDraft.voiceKeyShortHid != null) {
+                defaults.voiceKeyShortHid = savedDraft.voiceKeyShortHid;
+            }
+            if (savedDraft.voiceKeyLongHid != null) {
+                defaults.voiceKeyLongHid = savedDraft.voiceKeyLongHid;
+            }
 
             return defaults;
         } catch (IOException e) {

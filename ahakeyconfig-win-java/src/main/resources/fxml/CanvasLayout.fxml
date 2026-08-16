@@ -8,8 +8,8 @@
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.shape.Rectangle?>
 
-<HBox spacing="24" styleClass="keyboard-stage" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.ahakey.view.CanvasController">
-    <VBox spacing="20" HBox.hgrow="ALWAYS">
+<HBox spacing="24" minWidth="520" styleClass="keyboard-stage" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.ahakey.view.CanvasController">
+    <VBox spacing="20" minWidth="330" HBox.hgrow="ALWAYS">
         <StackPane fx:id="lightBarCard" styleClass="light-bar-card">
             <VBox spacing="6" alignment="CENTER">
                 <Label fx:id="lightBarLabel" styleClass="hotspot-label"/>
@@ -23,7 +23,7 @@
         </StackPane>
 
         <StackPane styleClass="keys-container" alignment="CENTER">
-            <HBox fx:id="keysRow" spacing="10" alignment="CENTER">
+            <HBox fx:id="keysRow" spacing="10" minWidth="318" alignment="CENTER">
                 <StackPane fx:id="key1Card" styleClass="device-hotspot" minWidth="72" minHeight="72" maxWidth="110" maxHeight="110">
                     <VBox spacing="8" alignment="CENTER">
                         <Label styleClass="key-glyph" text="K1"/>

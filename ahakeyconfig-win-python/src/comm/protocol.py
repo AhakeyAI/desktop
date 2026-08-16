@@ -38,6 +38,7 @@ FRAME_TAIL = b"\xCC\xDD"
 
 
 class DeviceCmd(IntEnum):
+    QUERY_STATUS       = 0x00  # 查询设备状态
     SAVE_CONFIG        = 0x04  # 保存动图及按键配置信息
     CHANGE_NAME        = 0x01  # 修改设备名字
     CHANGE_APPEARE     = 0x02  # 修改设备外观
@@ -46,6 +47,24 @@ class DeviceCmd(IntEnum):
     WRITE_RESULT       = 0x81  # 数据写结果
     UPDATE_PIC         = 0x82  # 图片数据更新
     READ_PIC_STATE     = 0x83  # 读取图片状态
+    SET_AI_LIGHT       = 0x84  # AI 状态灯配置
+    SET_LIGHT_LEVEL    = 0x85  # 灯光亮度
+    UPDATE_STATE       = 0x90  # AI/IDE 状态同步
+    SET_LIGHT_EFFECT   = 0x91  # 灯效
+    SET_WORK_MODE      = 0x92  # 工作模式
+    SET_AI_OLED        = 0x93  # AI OLED 动画配置
+    READ_AI_OLED       = 0x94  # 查询 AI OLED 动画配置
+    STANDBY_TIMEOUT    = 0x95  # Protocol v2 待机时间
+    FACTORY_RESET      = 0x96  # USB-only reset, payload A5 5A
+    VOICE_KEY_CONFIG   = 0x97  # Global short/long voice-key shortcuts
+    QUERY_CAPABILITIES = 0x9F  # Protocol v2 能力协商
+
+
+CAP_STANDBY_TIMEOUT_V2 = 1 << 0
+CAP_FACTORY_RESET_V1 = 1 << 1
+CAP_VOICE_KEY_DUAL_V1 = 1 << 2
+VOICE_KEY_LONG_PRESS_MS = 350
+VOICE_KEY_MAX_CODES = 9
 
 
 # BLE 设备外观类型
@@ -175,4 +194,64 @@ def parse_pic_state_response(data: bytes) -> dict:
         "pic_length": pic_length,
         "frame_interval": frame_interval,
         "all_mode_max_pic": all_mode_max_pic,
+    }
+
+
+def parse_capabilities_response(data: bytes) -> dict:
+    """解析 0x9F 响应中状态码之后的 9 字节能力数据。"""
+    if len(data) < 9:
+        return {}
+    protocol_major, protocol_minor, firmware_major, firmware_minor, hardware_revision, flags = (
+        struct.unpack("<BBBBBI", data[:9])
+    )
+    return {
+        "protocol_major": protocol_major,
+        "protocol_minor": protocol_minor,
+        "firmware_major": firmware_major,
+        "firmware_minor": firmware_minor,
+        "hardware_revision": hardware_revision,
+        "capability_bits": flags,
+        "supports_standby_timeout_v2": bool(flags & CAP_STANDBY_TIMEOUT_V2),
+        "supports_factory_reset_v1": bool(flags & CAP_FACTORY_RESET_V1),
+        "supports_voice_key_dual_v1": bool(flags & CAP_VOICE_KEY_DUAL_V1),
+        "firmware_patch": data[9] if len(data) >= 10 else 0,
+    }
+
+
+def parse_standby_timeout_response(data: bytes) -> int:
+    """解析 0x95 响应中状态码之后的 uint16 LE 分钟数。"""
+    if len(data) < 2:
+        raise ValueError("Invalid standby timeout response")
+    return struct.unpack("<H", data[:2])[0]
+
+
+def build_voice_key_config(short_codes: bytes, long_codes: bytes) -> bytes:
+    """Build the variable-length 0x97 payload (empty action is allowed)."""
+    if len(short_codes) > VOICE_KEY_MAX_CODES or len(long_codes) > VOICE_KEY_MAX_CODES:
+        raise ValueError("Voice shortcut contains too many HID codes")
+    return bytes([len(short_codes)]) + short_codes + bytes([len(long_codes)]) + long_codes
+
+
+def parse_voice_key_config_response(data: bytes) -> dict:
+    """Parse the 0x97 response payload after the status byte."""
+    if len(data) < 4:
+        raise ValueError("Invalid voice key response")
+    offset = 0
+    short_count = data[offset]
+    offset += 1
+    if short_count > VOICE_KEY_MAX_CODES or offset + short_count >= len(data):
+        raise ValueError("Invalid short voice shortcut")
+    short_codes = data[offset:offset + short_count]
+    offset += short_count
+    long_count = data[offset]
+    offset += 1
+    if long_count > VOICE_KEY_MAX_CODES or offset + long_count + 2 != len(data):
+        raise ValueError("Invalid long voice shortcut")
+    long_codes = data[offset:offset + long_count]
+    offset += long_count
+    threshold_ms = struct.unpack("<H", data[offset:offset + 2])[0]
+    return {
+        "short_codes": short_codes,
+        "long_codes": long_codes,
+        "long_press_ms": threshold_ms,
     }

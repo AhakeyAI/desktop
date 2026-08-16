@@ -40,12 +40,17 @@ public class UsbHidTransport implements Closeable {
     private Thread readerThread;
     private volatile boolean running;
     private Consumer<byte[]> frameConsumer;
+    private Runnable disconnectedCallback;
 
     public static boolean isPresent() {
         return findDevicePath() != null;
     }
 
     public synchronized void open(Consumer<byte[]> onFrame) throws IOException {
+        open(onFrame, null);
+    }
+
+    public synchronized void open(Consumer<byte[]> onFrame, Runnable onDisconnected) throws IOException {
         if (isOpen()) {
             return;
         }
@@ -83,6 +88,7 @@ public class UsbHidTransport implements Closeable {
         writeHandle = w;
         devicePath = path;
         frameConsumer = onFrame;
+        disconnectedCallback = onDisconnected;
         running = true;
         startReader();
         logger.info("USB HID connected: {}", path);
@@ -182,7 +188,10 @@ public class UsbHidTransport implements Closeable {
             }
             // 线程退出时自行关闭 handles（避免主线程在 ReadFile 阻塞时关闭）
             logger.debug("USB reader: 线程退出，自行关闭 handles");
+            Runnable callback = null;
             synchronized (UsbHidTransport.this) {
+                boolean unexpectedDisconnect = running;
+                running = false;
                 if (readHandle != null && !isInvalidHandle(readHandle)) {
                     try {
                         Kernel32.INSTANCE.CloseHandle(readHandle);
@@ -202,6 +211,16 @@ public class UsbHidTransport implements Closeable {
                     writeHandle = null;
                 }
                 devicePath = null;
+                if (unexpectedDisconnect) {
+                    callback = disconnectedCallback;
+                }
+            }
+            if (callback != null) {
+                try {
+                    callback.run();
+                } catch (Exception e) {
+                    logger.warn("USB disconnect callback failed: {}", e.getMessage());
+                }
             }
         }, "usb-hid-reader");
         readerThread.setDaemon(true);
@@ -258,6 +277,7 @@ public class UsbHidTransport implements Closeable {
         writeHandle = null;
         devicePath = null;
         readerThread = null;
+        disconnectedCallback = null;
         logger.debug("USB close: 关闭完成");
     }
 
@@ -272,6 +292,7 @@ public class UsbHidTransport implements Closeable {
         readHandle = null;
         writeHandle = null;
         devicePath = null;
+        disconnectedCallback = null;
     }
 
     private static boolean isInvalidHandle(Pointer h) {
