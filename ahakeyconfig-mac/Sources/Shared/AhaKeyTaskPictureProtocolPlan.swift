@@ -83,10 +83,31 @@ public struct AhaKeyLegacyDefaultPictureLayout: Equatable {
 public enum AhaKeyOLEDDirtyPolicy {
     public static func isDirty(
         mode: AhaKeyProtocolMode,
+        baselineNamespace: String? = nil,
         defaultPictureChanged: Bool,
         completeOLEDChanged: Bool
     ) -> Bool {
-        mode == .legacyBaseOnly ? defaultPictureChanged : completeOLEDChanged
+        let usesLegacyBaseScope = mode == .legacyBaseOnly
+            || baselineNamespace?.hasSuffix(".legacy-base") == true
+        return usesLegacyBaseScope ? defaultPictureChanged : completeOLEDChanged
+    }
+}
+
+public struct AhaKeyDefaultPictureEncodingPlan: Equatable {
+    public let transmittedFrameCount: Int
+    public let encodedByteCount: Int
+
+    public static func make(
+        sourceFrameCount: Int,
+        deviceFrameLimit: Int,
+        encodedBytesPerFrame: Int = 25_600
+    ) -> AhaKeyDefaultPictureEncodingPlan? {
+        guard sourceFrameCount > 0, deviceFrameLimit > 0, encodedBytesPerFrame > 0 else { return nil }
+        let transmittedFrameCount = min(sourceFrameCount, deviceFrameLimit)
+        return AhaKeyDefaultPictureEncodingPlan(
+            transmittedFrameCount: transmittedFrameCount,
+            encodedByteCount: transmittedFrameCount * encodedBytesPerFrame
+        )
     }
 }
 

@@ -1094,6 +1094,7 @@ TRANSLATIONS = {
     "支持 GIF、PNG、JPG": "Supports GIF, PNG, and JPG",
     "普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 2 MB，FPS 1–30，帧数上限以设备容量为准（常见 1.x 固件为每模式 16 帧）。": "Default images use legacy firmware commands 0x80 + 0x82. Source files must be ≤ 2 MB at 1–30 FPS; the frame limit follows device capacity (typically 16 frames per mode on 1.x firmware).",
     "设备未保存刚写入的默认图片槽位；未标记为已同步，请重试。": "The device did not retain the default-image slot that was just written. It remains unsynchronized; please try again.",
+    "源文件 %@；设备编码 %d/%d 帧，共 %@（160×80 RGB565，超出容量自动均匀抽帧）。": "Source %@; device encoding %d/%d frames, %@ total (160×80 RGB565; excess frames are sampled evenly to fit capacity).",
     "已选择 %d 帧默认图片，写入设备后生效。": "Selected a %d-frame default image. Write to the device to apply it.",
     "已更新 %@ 的默认图片；写入设备请使用底部通用按钮。": "Updated the default image for %@. Use the main button at the bottom to write it to the device.",
     "已清空当前模式默认图片，写入设备后生效。": "Cleared the default image for the current mode. Write to the device to apply it.",

@@ -72,6 +72,12 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
             defaultPictureChanged: true,
             completeOLEDChanged: true
         ))
+        XCTAssertFalse(AhaKeyOLEDDirtyPolicy.isDirty(
+            mode: .negotiating,
+            baselineNamespace: "515C.legacy-base",
+            defaultPictureChanged: false,
+            completeOLEDChanged: true
+        ))
     }
 
     func testBaseOnlyUsesIndependentBaselineAndRetriesExternalAssets() {
@@ -107,6 +113,20 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
             deviceFrameCount: 6,
             deviceFrameIntervalMs: 83
         ))
+    }
+
+    func testDefaultPictureEncodingAutomaticallyCapsFramesForDevice() {
+        XCTAssertEqual(
+            AhaKeyDefaultPictureEncodingPlan.make(sourceFrameCount: 40, deviceFrameLimit: 16),
+            AhaKeyDefaultPictureEncodingPlan(
+                transmittedFrameCount: 16,
+                encodedByteCount: 16 * 25_600
+            )
+        )
+        XCTAssertEqual(
+            AhaKeyDefaultPictureEncodingPlan.make(sourceFrameCount: 1, deviceFrameLimit: 16)?.encodedByteCount,
+            25_600
+        )
     }
 
     func testLegacyUsesSingleSetThreeStateCommandsWithoutSessionFinish() {

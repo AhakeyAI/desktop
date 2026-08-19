@@ -143,8 +143,6 @@ struct AhaKeyStudioView: View {
         .onChange(of: bleManager.isConnected) { connected in
             if !connected {
                 oledAutoSyncDoneForConnection = false
-                syncBaselineDeviceKey = nil
-                lastSyncedDraft = Self.unsyncedTaskPictureBaseline(from: studioDraft)
             }
         }
         .onChange(of: bleManager.firmwareCapabilities) { capabilities in
@@ -1630,6 +1628,12 @@ struct AhaKeyStudioView: View {
                     Text(String(format: NSLocalizedString("播放速度 %d FPS", comment: ""), currentModeDraft.oled.framesPerSecond))
                 }
 
+                if let summary = defaultOLEDTransferSummary {
+                    Text(summary)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
                 Text(NSLocalizedString("普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 2 MB，FPS 1–30，帧数上限以设备容量为准（常见 1.x 固件为每模式 16 帧）。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1716,6 +1720,36 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
         }
+    }
+
+    private var defaultOLEDTransferSummary: String? {
+        guard let path = currentModeDraft.oled.localAssetPath else { return nil }
+        let url = URL(fileURLWithPath: path)
+        let sourceFrames = OLEDFrameEncoder.frameCount(at: url)
+        guard sourceFrames > 0 else { return nil }
+        let reportedCapacity = bleManager.keyboardPictureStates[selectedMode.rawValue]?.totalCapacity
+        let frameLimit = reportedCapacity.flatMap {
+            AhaKeyLegacyDefaultPictureLayout.make(modeIndex: selectedMode.rawValue, totalCapacity: $0)?.maxFrames
+        } ?? AhaKeyCommand.oledMaxFramesPerMode
+        guard let plan = AhaKeyDefaultPictureEncodingPlan.make(
+            sourceFrameCount: sourceFrames,
+            deviceFrameLimit: frameLimit,
+            encodedBytesPerFrame: AhaKeyCommand.oledEncodedFrameBytes
+        ) else { return nil }
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useBytes]
+        formatter.countStyle = .file
+        let sourceSize = OLEDFrameEncoder.sourceFileByteCount(at: url).map {
+            formatter.string(fromByteCount: Int64($0))
+        } ?? "—"
+        let encodedSize = formatter.string(fromByteCount: Int64(plan.encodedByteCount))
+        return String(
+            format: NSLocalizedString("源文件 %@；设备编码 %d/%d 帧，共 %@（160×80 RGB565，超出容量自动均匀抽帧）。", comment: ""),
+            sourceSize,
+            plan.transmittedFrameCount,
+            sourceFrames,
+            encodedSize
+        )
     }
 
     private var switchInspector: some View {
@@ -2189,7 +2223,6 @@ struct AhaKeyStudioView: View {
 
         do {
             try OLEDFrameEncoder.validateGIFSourceFileSize(at: url)
-            try OLEDFrameEncoder.validateFrameCount(at: url, maxFrames: AhaKeyCommand.oledMaxFramesPerMode)
         } catch {
             syncStatusMessage = (error as? LocalizedError)?.errorDescription
                 ?? NSLocalizedString("图片文件不符合上传限制。", comment: "")
@@ -2628,8 +2661,7 @@ struct AhaKeyStudioView: View {
 
             let assetURL = URL(fileURLWithPath: assetPath)
             try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-            try OLEDFrameEncoder.validateFrameCount(at: assetURL, maxFrames: layout.maxFrames)
-            let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+            let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL, maxFrames: layout.maxFrames)
             let startIndex = UInt16(layout.startIndex)
             syncStatusMessage = String(
                 format: NSLocalizedString("正在上传 %@ 的默认图片…", comment: ""), mode.title
@@ -2667,6 +2699,7 @@ struct AhaKeyStudioView: View {
             || current.framesPerSecond != baseline.framesPerSecond
         return AhaKeyOLEDDirtyPolicy.isDirty(
             mode: bleManager.protocolMode,
+            baselineNamespace: syncBaselineDeviceKey,
             defaultPictureChanged: defaultPictureChanged,
             completeOLEDChanged: current != baseline
         )
