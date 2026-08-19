@@ -1268,7 +1268,10 @@ enum AhaKeyStudioStore {
         syncBaselineKey + "." + deviceKey
     }
 
-    private static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
+    static func migratedDraft(
+        from draft: AhaKeyStudioDraft,
+        bundledAssetPath: (AhaKeyModeSlot) -> String? = DefaultOLEDAssets.bundledAssetPath
+    ) -> AhaKeyStudioDraft {
         var next = draft
         var mode0 = next.draft(for: .mode0)
         let legacyDescriptions: [AhaKeyKeyRole: String] = [
@@ -1373,7 +1376,7 @@ enum AhaKeyStudioStore {
 
             // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
             // 刷成当前构建下内置 GIF 的绝对路径；用户自选的外部路径原样保留。
-            if let bundled = DefaultOLEDAssets.bundledAssetPath(for: mode) {
+            if let bundled = bundledAssetPath(mode) {
                 if modeDraft.oled.localAssetPath == nil
                     || (modeDraft.oled.localAssetPath.map(DefaultOLEDAssets.isBundledPath) ?? false)
                 {
@@ -1382,6 +1385,18 @@ enum AhaKeyStudioStore {
             } else if let existing = modeDraft.oled.localAssetPath,
                       DefaultOLEDAssets.isBundledPath(existing) {
                 modeDraft.oled.localAssetPath = nil
+            }
+
+            // M2 双套迁移后，内置默认图路径也存在于 taskGIFSets 中。App 换位置时必须逐槽
+            // 重写；否则未编辑的其他 mode 会在统一写入时反复报“无法读取图片文件”。
+            for set in 0 ..< 2 {
+                for state in AhaKeyTaskDisplayState.allCases {
+                    var asset = modeDraft.oled.taskAsset(set: set, state: state)
+                    guard let existing = asset.localAssetPath,
+                          DefaultOLEDAssets.isBundledPath(existing) else { continue }
+                    asset.localAssetPath = bundledAssetPath(mode)
+                    modeDraft.oled.updateTaskAsset(set: set, asset: asset)
+                }
             }
 
             var voiceKey = modeDraft.key(for: .voice)

@@ -2,6 +2,26 @@ import XCTest
 @testable import AhaKeyConfig
 
 final class AhaKeyTaskPictureCommandTests: XCTestCase {
+    func testDraftMigrationRelocatesHistoricalBundlePathsInsideTaskSets() {
+        let historicalPath = "/Applications/AhaKey Studio.app/Contents/Resources/DefaultOLED/cursor.gif"
+        let currentPath = "/private/tmp/AhaKey Studio.app/Contents/Resources/DefaultOLED/cursor.gif"
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode1)
+        var asset = mode.oled.taskAsset(set: 0, state: .done)
+        asset.localAssetPath = historicalPath
+        mode.oled.updateTaskAsset(set: 0, asset: asset)
+        draft.updateMode(mode)
+
+        let migrated = AhaKeyStudioStore.migratedDraft(from: draft) { slot in
+            slot == .mode1 ? currentPath : nil
+        }
+
+        XCTAssertEqual(
+            migrated.draft(for: .mode1).oled.taskAsset(set: 0, state: .done).localAssetPath,
+            currentPath
+        )
+    }
+
     func testSessionCommandsUseLittleEndianFields() {
         XCTAssertEqual(Array(AhaKeyCommand.prepareSessionWrite(
             sessionID: 0x1234,

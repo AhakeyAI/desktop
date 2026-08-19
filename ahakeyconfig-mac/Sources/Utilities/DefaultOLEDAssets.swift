@@ -35,8 +35,15 @@ enum DefaultOLEDAssets {
     /// 判断一个 localAssetPath 是否指向某个 bundle 内置素材。
     /// 迁移逻辑用：当用户的草稿引用已失效的 bundle 路径（比如换 app 位置、换 mode）时可以安全重写。
     static func isBundledPath(_ path: String) -> Bool {
-        guard let resourcesURL = Bundle.main.resourceURL else { return false }
-        let resourcesPath = resourcesURL.appendingPathComponent(subdirectory).path
-        return path.hasPrefix(resourcesPath + "/")
+        if let resourcesURL = Bundle.main.resourceURL {
+            let resourcesPath = resourcesURL.appendingPathComponent(subdirectory).path
+            if path.hasPrefix(resourcesPath + "/") { return true }
+        }
+
+        // App 被替换、移动或从 DMG 启动后，草稿里仍可能保存上一份 .app 的绝对路径。
+        // 只认可 AhaKey 内置文件名 + 标准 App Bundle 资源目录，避免误改用户自选图片。
+        let knownNames = Set(AhaKeyModeSlot.allCases.compactMap(bundledFileName).map { $0 + ".gif" })
+        return knownNames.contains(URL(fileURLWithPath: path).lastPathComponent)
+            && path.contains("/Contents/Resources/\(subdirectory)/")
     }
 }
