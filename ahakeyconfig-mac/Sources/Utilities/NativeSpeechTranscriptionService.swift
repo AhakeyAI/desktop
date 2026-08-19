@@ -4,6 +4,25 @@ import ApplicationServices
 import Foundation
 import Speech
 
+enum NativeSpeechRecordingTrigger {
+    case shortPress
+    case longPress
+}
+
+struct NativeSpeechFinalizePolicy {
+    static func shouldBypassAhaType(
+        for trigger: NativeSpeechRecordingTrigger,
+        longPressAhaTypeEnabled: Bool
+    ) -> Bool {
+        switch trigger {
+        case .shortPress:
+            return false
+        case .longPress:
+            return !longPressAhaTypeEnabled
+        }
+    }
+}
+
 @MainActor
 final class NativeSpeechTranscriptionService: ObservableObject {
     static let shared = NativeSpeechTranscriptionService()
@@ -19,10 +38,6 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     @Published private(set) var lastPermissionCheckSummary = NSLocalizedString("尚未检查麦克风、语音转写与 Siri 权限。", comment: "")
 
     // MARK: 录音触发方式配置
-    /// 短按（切换式）：录音结束后是否调用 AhaType 整理
-    @Published var shortPressAhaTypeEnabled: Bool = UserDefaults.standard.object(forKey: "nativeSpeech.shortPressAhaType") as? Bool ?? true {
-        didSet { UserDefaults.standard.set(shortPressAhaTypeEnabled, forKey: "nativeSpeech.shortPressAhaType") }
-    }
     /// 长按模式（按住录音，松手发送）始终开启，不再由用户关闭
     @Published var longPressEnabled: Bool = true
     /// 长按模式结束后是否调用 AhaType（默认关闭：快速直发）
@@ -175,7 +190,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             longPressTimerWork?.cancel()
             longPressTimerWork = nil
             appendDiagnostic("long press key up → stop + \(longPressAhaTypeEnabled ? "ahatype" : "direct")")
-            stopRecording(bypassAhaType: !longPressAhaTypeEnabled)
+            stopRecording(for: .longPress)
             return
         }
 
@@ -185,7 +200,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             longPressTimerWork = nil
             appendDiagnostic("short press (keyUp before threshold) → toggle")
             if isRecording {
-                stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
+                stopRecording(for: .shortPress)
             } else {
                 startRecording()
             }
@@ -193,7 +208,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             // 长按模式开启时，短按第一次已进入切换式录音；第二次短按没有 timer，
             // 仍应按短按配置结束录音，保持“按一次开始，再按一次结束”的体验。
             appendDiagnostic("short press while recording → stop")
-            stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
+            stopRecording(for: .shortPress)
         } else if !longPressEnabled {
             // 无长按模式：keyDown 已处理，keyUp 不重复
         }
@@ -201,14 +216,14 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     func toggleRecordingFromVoiceKey() {
         if isRecording {
-            stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
+            stopRecording(for: .shortPress)
         } else {
             startRecording()
         }
     }
 
     func stopRecording() {
-        stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
+        stopRecording(for: .shortPress)
     }
 
     func requestMicrophonePermission() {
@@ -353,6 +368,13 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
+    }
+
+    private func stopRecording(for trigger: NativeSpeechRecordingTrigger) {
+        stopRecording(bypassAhaType: NativeSpeechFinalizePolicy.shouldBypassAhaType(
+            for: trigger,
+            longPressAhaTypeEnabled: longPressAhaTypeEnabled
+        ))
     }
 
     private func startRecording() {

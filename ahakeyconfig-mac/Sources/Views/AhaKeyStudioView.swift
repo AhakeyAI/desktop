@@ -1121,22 +1121,9 @@ struct AhaKeyStudioView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Label(NSLocalizedString("按一下开始，再按一下结束", comment: ""), systemImage: "hand.tap.fill")
                                     .font(.callout.weight(.semibold))
-                                Text(NSLocalizedString("录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。", comment: ""))
+                                Text(NSLocalizedString("录音结束后，AhaType 总开关开启时会先经云端整理，再写入光标。", comment: ""))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
-                                    HStack(spacing: 6) {
-                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
-                                            .font(.callout)
-                                        if !ahaType.isEnabled {
-                                            Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                                .toggleStyle(.switch)
-                                .disabled(!ahaType.isEnabled)
 
                                 Divider()
 

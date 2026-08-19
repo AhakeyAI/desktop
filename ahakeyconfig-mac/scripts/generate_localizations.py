@@ -574,7 +574,7 @@ TRANSLATIONS = {
     "当前选择由 ahakeyconfig-agent 占用蓝牙。请先在上方「蓝牙连接」切到 AhaKey Studio，或点击顶栏「设备信息 · Agent」切换。": "Bluetooth is currently set to be used by ahakeyconfig-agent. Please switch \"Bluetooth Connection\" above to AhaKey Studio, or click the top bar \"Device Info · Agent\" to switch.",
     "录音": "Record",
     "录音中": "Recording",
-    "录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。": "After recording ends, the toggle below decides whether to format via AhaType before writing to the cursor.",
+    "录音结束后，AhaType 总开关开启时会先经云端整理，再写入光标。": "After recording ends, the result is organized in the cloud before being written at the cursor whenever the main AhaType switch is on.",
     "录音转写中": "Recording & Transcribing",
     "彗星拖尾": "Comet Tail",
     "彩色单点流水，更活跃。": "Colorful single-dot flowing water, more lively.",
