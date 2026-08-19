@@ -283,6 +283,8 @@ final class AgentManager: ObservableObject {
     }
 
     private func applyBluetoothOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager, isLaunch: Bool) {
+        // 阶段 4：把 Agent 活性通道注入 BLEManager——共享文件 agent* 状态的过期判断以 socket status 心跳为准
+        bleManager.agentBLEConnectedProvider = { [weak self] in self?.isAgentBLEConnected ?? false }
         switch owner {
         case .ahaKeyStudio:
             bleManager.setSuppressedForAgentOwningKeyboard(false)
@@ -444,15 +446,13 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    private func installedAgentBinaryPath() -> String? {
-        guard let plist = NSDictionary(contentsOfFile: plistPath),
-              let args = plist["ProgramArguments"] as? [String],
-              let first = args.first else { return nil }
-        return first
-    }
-
     private func launchAgentNeedsRewrite() -> Bool {
-        installedAgentBinaryPath() != agentBinaryPath
+        // 必须比较完整 ProgramArguments：旧版本 plist 的 --socket 参数指向 /tmp/ahakey.sock，
+        // 只比二进制路径会在同路径覆盖安装后保留旧 socket 路径，导致 Agent 在 /tmp 绑定而 GUI 在
+        // Application Support 等待，表现为"已 load/start 但未检测到 Agent 在运行"。
+        guard let plist = NSDictionary(contentsOfFile: plistPath),
+              let args = plist["ProgramArguments"] as? [String] else { return true }
+        return args != [agentBinaryPath, "--socket", socketPath]
     }
 
     func install() {
@@ -1083,6 +1083,13 @@ final class AgentManager: ObservableObject {
         if !config.isEmpty { config += "\n\n" }
         config += buildCodexHookBlock()
         config += "\n"
+        // Codex 新版本要求 hooks 内容哈希已记录信任（[hooks.state] trusted_hash）才会执行；
+        // 每次重装都会改动内容使旧信任失效，必须与 hook 块一起重写信任条目。
+        config = CodexHookTrust.upsertTrustEntries(
+            in: config,
+            configPath: codexConfigPath,
+            entries: codexHookTrustEntries()
+        )
 
         do {
             try config.write(toFile: codexConfigPath, atomically: true, encoding: .utf8)
@@ -1170,7 +1177,8 @@ final class AgentManager: ObservableObject {
         guard let config = try? String(contentsOfFile: path, encoding: .utf8) else {
             return String(format: NSLocalizedString("无法读取 %@，请检查权限。", comment: ""), String(path))
         }
-        let next = removeCodexHookBlock(from: config)
+        // 连同 AhaKey 管理的 [hooks.state] 信任条目一起移除，避免卸载后残留失效哈希。
+        let next = CodexHookTrust.removeTrustEntries(in: removeCodexHookBlock(from: config), configPath: path)
         guard next != config else {
             return String(format: NSLocalizedString("在 %@ 中未发现 AhaKey Codex hook 标记块。", comment: ""), String(path))
         }
@@ -1202,6 +1210,19 @@ final class AgentManager: ObservableObject {
         lines.append("")
         lines.append(codexHookBlockEnd)
         return lines.joined(separator: "\n")
+    }
+
+    /// 与 buildCodexHookBlock 写入内容一一对应的 [hooks.state] 信任条目。
+    /// command 取 TOML 反转义后的原始值（与 codex 解析后参与哈希的值一致）。
+    private func codexHookTrustEntries() -> [(key: String, hash: String)] {
+        let binQuoted = shellQuote(agentBinaryPath)
+        return codexHookEvents.compactMap { item in
+            let command = "/bin/zsh -lc \(shellQuote("\(binQuoted) hook \(item.agentEvent)"))"
+            guard let key = CodexHookTrust.stateKey(configPath: codexConfigPath, event: item.event),
+                  let hash = CodexHookTrust.trustedHash(event: item.event, matcher: "", command: command, timeout: item.timeout)
+            else { return nil }
+            return (key, hash)
+        }
     }
 
     private func removeCodexHookBlock(from config: String) -> String {

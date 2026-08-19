@@ -74,13 +74,8 @@ struct DeviceInfoView: View {
                         }
                     }
                     CompatLabeledContent(NSLocalizedString("当前", comment: "")) {
-                        HStack(spacing: 6) {
-                            Text(bleManager.isConnected ? NSLocalizedString("本 App 已连接蓝牙", comment: "") : NSLocalizedString("本 App 未连接", comment: ""))
-                            Text("·")
-                                .foregroundStyle(.tertiary)
-                            Text(agentBluetoothStatusText())
-                        }
-                        .font(.callout)
+                        Text(bleOwnershipText())
+                            .font(.callout)
                     }
                 }
             } header: {
@@ -95,7 +90,7 @@ struct DeviceInfoView: View {
             // MARK: - 拨杆状态
             Section {
                 HStack {
-                    Text(NSLocalizedString("拨杆档位", comment: ""))
+                    Text(NSLocalizedString("当前档位", comment: ""))
                     Spacer()
                     HStack(spacing: 6) {
                         Circle()
@@ -107,20 +102,6 @@ struct DeviceInfoView: View {
                 }
             } header: {
                 Text(NSLocalizedString("拨杆档位", comment: ""))
-            }
-
-            // MARK: - 实时控制当前前台 Kimi（实验）
-            Section {
-                Toggle(isOn: $agentManager.kimiTUIAdapterEnabled) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(NSLocalizedString("实时控制当前前台 Kimi", comment: ""))
-                        Text(NSLocalizedString("拨杆切换时，自动向前台 Terminal.app / iTerm2 的 Kimi tab 发送 /yolo on/off。默认关闭。", comment: ""))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } header: {
-                Text(NSLocalizedString("实验功能", comment: ""))
             }
 
             // MARK: - LED 状态同步
@@ -286,6 +267,20 @@ struct DeviceInfoView: View {
                 .frame(width: 540, height: 380)
             }
 
+            // MARK: - 实时控制当前前台 Kimi（实验）
+            Section {
+                Toggle(isOn: $agentManager.kimiTUIAdapterEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(NSLocalizedString("实时控制当前前台 Kimi", comment: ""))
+                        Text(NSLocalizedString("拨杆切换时，自动向前台 Terminal.app / iTerm2 的 Kimi tab 发送 /yolo on/off。默认关闭。", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text(NSLocalizedString("实验功能", comment: ""))
+            }
+
             // MARK: - LED 测试
             if bleManager.isConnected {
                 Section {
@@ -314,9 +309,12 @@ struct DeviceInfoView: View {
                 CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(bleManager.isConnected ? Color.green : Color.orange)
+                            .fill((bleManager.isConnected || agentManager.isAgentBLEConnected) ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
-                        Text(bleManager.bleConnectionStatus)
+                        Text(bleManager.isConnected ? bleManager.bleConnectionStatus
+                             : (agentManager.isAgentBLEConnected
+                                ? bleOwnershipText()
+                                : bleManager.bleConnectionStatus))
                     }
                 }
                 CompatLabeledContent(NSLocalizedString("设备名", comment: "")) {
@@ -405,53 +403,8 @@ struct DeviceInfoView: View {
 
             // MARK: - 通信日志
             Section {
-                VStack(alignment: .leading, spacing: 0) {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 2) {
-                                ForEach(bleManager.commLog) { entry in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text(entry.formattedTime)
-                                            .font(.system(.caption2, design: .monospaced))
-                                            .foregroundStyle(.tertiary)
-                                            .frame(width: 80, alignment: .leading)
-                                        Text(entry.message)
-                                            .font(.system(.caption2, design: .monospaced))
-                                            .foregroundStyle(entry.isError ? .red : .secondary)
-                                            .textSelection(.enabled)
-                                    }
-                                    .id(entry.id)
-                                }
-                            }
-                            .padding(8)
-                        }
-                        .frame(height: 150)
-                        .background(Color.primary.opacity(0.03))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .onChange(of: bleManager.commLog.count) { _ in
-                            if let last = bleManager.commLog.last {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            }
-                        }
-                    }
-
-                    HStack {
-                        Spacer()
-                        Button(NSLocalizedString("复制全部", comment: "")) {
-                            let text = bleManager.commLog.map { "[\($0.formattedTime)] \($0.message)" }.joined(separator: "\n")
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(text, forType: .string)
-                        }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                        Button(NSLocalizedString("清空", comment: "")) {
-                            bleManager.clearLog()
-                        }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                    }
-                    .padding(.top, 4)
-                }
+                // 独立 Store：日志 append 只刷新这个子视图，不波及观察 manager 的其它 View
+                CommLogSection(logStore: bleManager.logStore)
             } header: {
                 Text(NSLocalizedString("通信日志", comment: ""))
             }
@@ -467,6 +420,9 @@ struct DeviceInfoView: View {
         } message: {
             Text(agentManager.agentUserAlert ?? "")
         }
+        // RSSI 轮询只在设备信息窗口打开时进行：打开立即读一次并恢复 5 秒轮询，关闭停止
+        .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
+        .onDisappear { bleManager.setDiagnosticsWindowVisible(false) }
 
     }
 
@@ -508,11 +464,12 @@ struct DeviceInfoView: View {
         state == 0 ? NSLocalizedString("自动批准", comment: "") : NSLocalizedString("手动批准", comment: "")
     }
 
-    private func agentBluetoothStatusText() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return NSLocalizedString("Agent 已连接蓝牙", comment: "") }
-        if agentManager.isRunning { return NSLocalizedString("Agent 运行中（BLE 未连接）", comment: "") }
-        if agentManager.isInstalled { return NSLocalizedString("Agent 未运行", comment: "") }
-        return NSLocalizedString("Agent 未安装", comment: "")
+    /// 蓝牙占用的用户视角表述：编辑器（本 App）与 Agent 二选一持有键盘连接。
+    /// 避免"本 App 未连接 / 已断开"在 Agent 占用时被误读为故障。
+    private func bleOwnershipText() -> String {
+        if bleManager.isConnected { return NSLocalizedString("编辑器占用蓝牙 · Agent 空闲", comment: "") }
+        if agentManager.isAgentBLEConnected { return NSLocalizedString("编辑器空闲 · Agent 占用蓝牙", comment: "") }
+        return NSLocalizedString("编辑器空闲 · Agent 空闲（未连接键盘）", comment: "")
     }
 
     private func agentBluetoothShortLabel() -> String {
@@ -568,5 +525,86 @@ struct DeviceInfoView: View {
         guard !name.isEmpty else { return }
         bleManager.changeDeviceName(name)
         isEditingName = false
+    }
+}
+
+// MARK: - 通信日志（观察独立的 BLELogStore）
+
+/// 通信日志区：内存诊断级日志列表 + 复制/清空 + 临时详细级（TX/RX 抓包）开关。
+/// 只观察 `BLELogStore`，日志刷新不再触发整个 DeviceInfoView / 观察 manager 的 View 重绘。
+private struct CommLogSection: View {
+    @ObservedObject var logStore: BLELogStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(logStore.entries) { entry in
+                            HStack(alignment: .top, spacing: 8) {
+                                Text(entry.formattedTime)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 80, alignment: .leading)
+                                Text(entry.message)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(entry.isError ? .red : .secondary)
+                                    .textSelection(.enabled)
+                            }
+                            .id(entry.id)
+                        }
+                    }
+                    .padding(8)
+                }
+                .frame(height: 150)
+                .background(Color.primary.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .onChange(of: logStore.entries.count) { _ in
+                    if let last = logStore.entries.last {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button(NSLocalizedString("复制全部", comment: "")) {
+                    let text = logStore.entries.map { "[\($0.formattedTime)] \($0.message)" }.joined(separator: "\n")
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+                Button(NSLocalizedString("清空", comment: "")) {
+                    logStore.clear()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+            }
+            .padding(.top, 4)
+
+            // 临时详细级（TX/RX 抓包）：默认关闭，开启 15 分钟自动关闭，写 ble-verbose.log
+            Toggle(isOn: Binding(
+                get: { logStore.isVerboseLoggingEnabled },
+                set: { logStore.setVerboseLoggingEnabled($0) }
+            )) {
+                Text(NSLocalizedString("详细日志（TX/RX 抓包）", comment: ""))
+                    .font(.caption)
+            }
+            .toggleStyle(.checkbox)
+            .padding(.top, 6)
+            if logStore.isVerboseLoggingEnabled, let expiresAt = logStore.verboseSessionExpiresAt {
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    let remainingMinutes = max(1, Int(ceil(expiresAt.timeIntervalSince(context.date) / 60)))
+                    Text(String(format: NSLocalizedString("原始收发写入 ble-verbose.log，约 %d 分钟后自动关闭", comment: ""), remainingMinutes))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text(NSLocalizedString("开启后原始收发写入 ble-verbose.log（5MB×3 轮转），15 分钟自动关闭", comment: ""))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }

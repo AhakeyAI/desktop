@@ -15,6 +15,11 @@ public enum AhaKeyPaths {
         applicationSupportDirectory.appendingPathComponent("ahakey.sock").path
     }
 
+    /// 跨进程 BLE 连接锁（flock）文件路径，见 `BLEConnectionLock`。
+    public static var bleConnectionLockPath: String {
+        applicationSupportDirectory.appendingPathComponent("ble-owner.lock").path
+    }
+
     /// 确保 Application Support 子目录存在，并设置为仅用户自己可访问（0700）。
     public static func ensureApplicationSupportDirectory() throws {
         try FileManager.default.createDirectory(

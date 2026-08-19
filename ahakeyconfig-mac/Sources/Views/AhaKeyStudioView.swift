@@ -13,7 +13,7 @@ struct AhaKeyStudioView: View {
     @StateObject private var cloudAccount = CloudAccountManager.shared
     @StateObject private var agentManager = AgentManager.shared
     @StateObject private var powerProtection = PowerProtectionManager.shared
-    @StateObject private var powerProcessDetector = ProcessDetector(pollInterval: 15.0)
+    @StateObject private var powerProcessDetector = ProcessDetector.shared
 
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
@@ -100,12 +100,8 @@ struct AhaKeyStudioView: View {
                 userInfo: ["workMode": bleManager.workMode]
             )
             scheduleStartupPermissionOnboarding()
-            powerProcessDetector.start()
-
-            if powerProcessDetector.isAnyTargetRunning {
-                powerProtection.begin(.aiCodingIdleProcess)
-                powerProtection.begin(.aiCodingLidCloseProcess)
-            }
+            // 进程检测与防休眠接线已移到 App 层（AppDelegate + ProcessDetector.shared），
+            // 窗口关闭后检测与防休眠继续运行。
 
             if !powerProtectionFirstTimeAlertShown {
                 powerProtectionFirstTimeAlertShown = true
@@ -165,20 +161,6 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: nativeSpeech.speechRecognitionGranted) { _ in
             refreshStartupPermissionOnboarding()
-        }
-        .onChange(of: powerProcessDetector.isAnyTargetRunning) { running in
-            if running {
-                powerProtection.begin(.aiCodingIdleProcess)
-                powerProtection.begin(.aiCodingLidCloseProcess)
-            } else {
-                powerProtection.end(.aiCodingIdleProcess)
-                powerProtection.end(.aiCodingLidCloseProcess)
-            }
-        }
-        .onDisappear {
-            powerProcessDetector.stop()
-            powerProtection.end(.aiCodingIdleProcess)
-            powerProtection.end(.aiCodingLidCloseProcess)
         }
         .onChange(of: nativeSpeech.siriEnabled) { _ in
             refreshStartupPermissionOnboarding()
@@ -2410,7 +2392,19 @@ struct AhaKeyStudioView: View {
                 let needsClear = asset.localAssetPath == nil && (deviceState?.picLength ?? 0) > 0
                 let needsUpload = asset.localAssetPath != nil && (deviceState?.picLength ?? 0) == 0
                 let assetChanged = asset != previous
-                guard assetChanged || needsClear || needsUpload else { continue }
+                guard assetChanged || needsClear || needsUpload else {
+                    // 上传被跳过不代表默认动画绑定正确：历史上 0x95 只写任务槽，
+                    // 从不更新 0x82 默认动画绑定，这里顺手修复已同步设备的绑定。
+                    if state == .done {
+                        await repairDefaultPictureBindingIfNeeded(
+                            mode: mode,
+                            asset: asset,
+                            deviceDone: deviceState,
+                            deviceDefault: defaultPictureStates.first { $0.mode == mode.rawValue }
+                        )
+                    }
+                    continue
+                }
 
                 var reasons: [String] = []
                 if assetChanged { reasons.append(NSLocalizedString("内容已改", comment: "")) }
@@ -2455,6 +2449,15 @@ struct AhaKeyStudioView: View {
                     markTaskPictureSynced(mode: mode, state: state, asset: asset)
                     completedTaskResourceCount += 1
                     uploadCount += 1
+                    if state == .done {
+                        // done 任务图同时作为模式切换后的默认动画：把刚上传的帧区间绑定为默认动画（0x82）。
+                        await repairDefaultPictureBindingIfNeeded(
+                            mode: mode,
+                            asset: asset,
+                            deviceDone: updated,
+                            deviceDefault: defaultPictureStates.first { $0.mode == mode.rawValue }
+                        )
+                    }
                 } catch OLEDUploadError.cancelled {
                     throw OLEDUploadError.cancelled
                 } catch OLEDUploadError.connectionLost {
@@ -2475,6 +2478,38 @@ struct AhaKeyStudioView: View {
         }
 
         return uploadCount
+    }
+
+    /// done 任务图同时承担「模式切换后的默认动画」。固件在模式切换后显示的是 0x82
+    /// 默认动画绑定（key_bund.pic[mode] / IDLE 任务槽），0x95 任务图写入不影响它；
+    /// 这里确保默认动画绑定与 done 槽位一致。绑定失败不阻断整体写入，只记日志。
+    private func repairDefaultPictureBindingIfNeeded(
+        mode: AhaKeyModeSlot,
+        asset: AhaKeyTaskGIFAssetDraft,
+        deviceDone: AhaKeyTaskPictureState?,
+        deviceDefault: AhaKeyPictureState?
+    ) async {
+        let repair = AhaKeyOLEDSyncPlan.defaultBindingRepair(
+            doneAssetPath: asset.localAssetPath,
+            deviceDone: deviceDone.map {
+                AhaKeyOLEDSyncPlan.Binding(startIndex: $0.startIndex, frameCount: $0.picLength, frameIntervalMs: $0.frameInterval)
+            },
+            deviceDefault: deviceDefault.map {
+                AhaKeyOLEDSyncPlan.Binding(startIndex: $0.startIndex, frameCount: $0.picLength, frameIntervalMs: $0.frameInterval)
+            }
+        )
+        guard let repair else { return }
+        do {
+            try await bleManager.bindDefaultPicture(
+                mode: UInt8(mode.rawValue),
+                startIndex: UInt16(repair.startIndex),
+                frameCount: UInt16(repair.frameCount),
+                timeDelayMs: UInt16(repair.frameIntervalMs)
+            )
+            bleManager.appendCommLogLine("已将 \(mode.title) 的默认动画绑定到「已完成」任务图（start=\(repair.startIndex)，帧数=\(repair.frameCount)）。")
+        } catch {
+            bleManager.appendCommLogLine("绑定 \(mode.title) 默认动画失败：\(error.localizedDescription)", isError: true)
+        }
     }
 
     private func markTaskPictureSynced(mode: AhaKeyModeSlot, state: AhaKeyTaskDisplayState, asset: AhaKeyTaskGIFAssetDraft) {
@@ -4424,10 +4459,17 @@ private struct CloudAccountView: View {
                 .font(.callout)
                 .textSelection(.enabled)
 
+            // 当期剩余额度（月度优先），常驻展示：未充值或无数据时显示 0。
+            quotaRow(title: NSLocalizedString("剩余额度", comment: ""), value: account.remainingQuotaText)
+
             VStack(alignment: .leading, spacing: 8) {
                 quotaRow(title: NSLocalizedString("每日", comment: ""), value: account.quotaText("daily"))
                 quotaRow(title: NSLocalizedString("每周", comment: ""), value: account.quotaText("weekly"))
                 quotaRow(title: NSLocalizedString("每月", comment: ""), value: account.quotaText("monthly"))
+                // 仅当识别到余额字段时渲染，后端没有该字段时不多一行"暂无"。
+                if let balanceText = account.balanceText {
+                    quotaRow(title: NSLocalizedString("余额", comment: ""), value: balanceText)
+                }
             }
             .padding(12)
             .background(

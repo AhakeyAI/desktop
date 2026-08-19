@@ -1068,7 +1068,16 @@ TRANSLATIONS = {
     "（文件不存在：%@）\n\n可先点「安装 Kimi Hooks」创建并写入 AhaKey 标记块；须已安装并使用 Kimi Code CLI：https://moonshotai.github.io/kimi-cli/": "(File does not exist: %@)\n\nYou can tap Install Kimi Hooks to create and write the AhaKey marker block; requires Kimi Code CLI installed and in use: https://moonshotai.github.io/kimi-cli/",
     "（文件不存在：%@）\n\n可点诊断面板中「合并 Shell 白名单 + approvalMode=auto」从空白创建；或自行在文档中按 `permissions` 配置。": "(File does not exist: %@)\n\nYou can tap Merge Shell Allowlist + approvalMode=auto in the diagnostics panel to create from scratch, or configure `permissions` yourself according to the docs.",
     "（无输出）": "(No output)",
-    "（无输出，退出非 0）": "(No output, exit code non-zero)"
+    "（无输出，退出非 0）": "(No output, exit code non-zero)",
+    "余额": "Balance",
+    "登录已过期，请重新登录。": "Session expired. Please sign in again.",
+    "云端返回的用户信息缺少可识别字段。": "The server response didn't contain any recognizable account fields.",
+    "配额拉取失败，请打开云端账号手动刷新。": "Couldn't fetch quota. Open Cloud Account and refresh manually.",
+    "剩余额度": "Remaining Quota",
+    "编辑器占用蓝牙 · Agent 空闲": "Studio holds Bluetooth · Agent idle",
+    "编辑器空闲 · Agent 占用蓝牙": "Studio idle · Agent holds Bluetooth",
+    "编辑器空闲 · Agent 空闲（未连接键盘）": "Studio idle · Agent idle (keyboard not connected)",
+    "当前档位": "Current Position"
 }
 
 

@@ -1,5 +1,6 @@
 import AppKit
 import AhaKeyConfigShared
+import Combine
 import SwiftUI
 import AVFoundation
 import Speech
@@ -51,6 +52,9 @@ struct AhaKeyConfigApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    /// 防休眠与进程检测的常驻订阅（应用级，窗口关闭不影响）。
+    private var powerProtectionCancellable: AnyCancellable?
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
@@ -93,8 +97,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
 
         PowerProtectionManager.shared.configureAsApp()
+        // 进程检测生命周期移出 SwiftUI：App 启动即开始，窗口关闭检测继续运行（它驱动防休眠）。
+        // 防休眠接线也放这里常驻，不再依赖 AhaKeyStudioView 的 onAppear/onDisappear/onChange。
+        let processDetector = ProcessDetector.shared
+        processDetector.start()
+        powerProtectionCancellable = processDetector.$isAnyTargetRunning
+            .removeDuplicates()
+            .sink { running in
+                let ppm = PowerProtectionManager.shared
+                if running {
+                    ppm.begin(.aiCodingIdleProcess)
+                    ppm.begin(.aiCodingLidCloseProcess)
+                } else {
+                    ppm.end(.aiCodingIdleProcess)
+                    ppm.end(.aiCodingLidCloseProcess)
+                }
+            }
         VoiceRelayService.shared.start()
         NativeSpeechTranscriptionService.shared.start()
+
+        // 启动恢复登录态后主动拉一次云端 profile（配额/余额），失败自动重试，
+        // 不再依赖用户手动打开云端账号弹窗。
+        Task { @MainActor in
+            let account = CloudAccountManager.shared
+            if account.isLoggedIn {
+                account.refreshProfile(showAlertOnFailure: false, retryDelays: [2, 5, 10])
+            }
+        }
     }
 
     func userNotificationCenter(
