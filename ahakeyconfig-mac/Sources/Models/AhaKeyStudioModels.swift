@@ -671,6 +671,13 @@ struct AhaKeyLightBarDraft: Codable, Equatable {
         AhaKeyLightStateDraft(state: .sessionEnd, effect: .off),
     ]
 
+    var usesLegacyAllApprovalDefaults: Bool {
+        brightness == 35
+            && stateMappings.count == IDEState.allCases.count
+            && Set(stateMappings.map(\.state)) == Set(IDEState.allCases)
+            && stateMappings.allSatisfy { $0.effect == .approvalWait }
+    }
+
     static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyLightBarDraft {
         _ = mode
         return AhaKeyLightBarDraft(stateMappings: defaultMappings, brightness: 35)
@@ -1236,7 +1243,10 @@ enum AhaKeyStudioStore {
         return decodeStoredDraft(rawData)
     }
 
-    private static func decodeStoredDraft(_ rawData: Data) -> AhaKeyStudioDraft? {
+    private static func decodeStoredDraft(
+        _ rawData: Data,
+        migrateLegacyLightDefaults: Bool = true
+    ) -> AhaKeyStudioDraft? {
         // 双 schema：本 key 被主线（3 态单套 taskGIFAssets）与 Rhino（4 态双套 taskGIFSets）
         // 两版 app 共用，先归一化为统一格式再解码。模型解码器本身也兼容旧 key，此处迁移失败时回退原始数据。
         let data = AhaKeyStudioDraftMigration.migrateDraftData(rawData) ?? rawData
@@ -1247,7 +1257,10 @@ enum AhaKeyStudioStore {
         for slot in AhaKeyModeSlot.allCases where !existingSlots.contains(slot) {
             draft.modes.append(AhaKeyModeDraft.default(for: slot))
         }
-        return migratedDraft(from: draft)
+        return migratedDraft(
+            from: draft,
+            migrateLegacyLightDefaults: migrateLegacyLightDefaults
+        )
     }
 
     static func save(_ draft: AhaKeyStudioDraft) {
@@ -1257,7 +1270,7 @@ enum AhaKeyStudioStore {
 
     static func loadSyncBaseline(deviceKey: String) -> AhaKeyStudioDraft? {
         guard let rawData = UserDefaults.standard.data(forKey: syncBaselineStorageKey(deviceKey)) else { return nil }
-        return decodeStoredDraft(rawData)
+        return decodeStoredDraft(rawData, migrateLegacyLightDefaults: false)
     }
 
     static func saveSyncBaseline(_ draft: AhaKeyStudioDraft, deviceKey: String) {
@@ -1287,7 +1300,7 @@ enum AhaKeyStudioStore {
             .sorted()
         for storageKey in candidates {
             guard let rawData = UserDefaults.standard.data(forKey: storageKey),
-                  let baseline = decodeStoredDraft(rawData),
+                  let baseline = decodeStoredDraft(rawData, migrateLegacyLightDefaults: false),
                   legacyBaseBaseline(baseline, matches: currentDraft) else { continue }
             let deviceKey = String(storageKey.dropFirst(storagePrefix.count))
             return (deviceKey, baseline)
@@ -1316,6 +1329,7 @@ enum AhaKeyStudioStore {
 
     static func migratedDraft(
         from draft: AhaKeyStudioDraft,
+        migrateLegacyLightDefaults: Bool = true,
         bundledAssetPath: (AhaKeyModeSlot) -> String? = DefaultOLEDAssets.bundledAssetPath
     ) -> AhaKeyStudioDraft {
         var next = draft
@@ -1415,6 +1429,10 @@ enum AhaKeyStudioStore {
         for mode in AhaKeyModeSlot.allCases {
             var modeDraft = next.draft(for: mode)
             let target = AhaKeyModeDraft.default(for: mode)
+
+            if migrateLegacyLightDefaults, modeDraft.lightBar.usesLegacyAllApprovalDefaults {
+                modeDraft.lightBar.stateMappings = AhaKeyLightBarDraft.defaultMappings
+            }
 
             if legacyOLEDStatusLines.contains(modeDraft.oled.statusLine) {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
