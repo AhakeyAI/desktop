@@ -229,4 +229,106 @@ final class DeviceStateReducerTests: XCTestCase {
         XCTAssertEqual(confirmed.core.switchState, 1)
         XCTAssertEqual(confirmed.effect, .none)
     }
+
+    // MARK: - M1d：协商结果与设备身份归并
+
+    private let sampleCapabilities = AhaKeyFirmwareCapabilities(
+        protocolVersion: 3, modeCount: 4, setCount: 2, stateCount: 4,
+        flags: 0x3F, maxPacketSize: 244, userSlotLimit: 288, factorySlotBase: 304,
+        factoryBundleVersion: 2, factoryManifestCRC: 0x822C5DF6,
+        factoryStatus: 2, factoryError: 0, reclaimSlotBase: 296, reclaimSlotLimit: 304
+    )
+
+    /// 协商完成：protocolMode 进核心投影，能力帧进诊断投影。
+    func testCapabilitiesNegotiatedSplitsAcrossProjections() {
+        let result = DeviceStateReducer.apply(
+            .capabilitiesNegotiated(mode: .current, capabilities: sampleCapabilities),
+            core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot()
+        )
+        XCTAssertEqual(result.core.protocolMode, .current)
+        XCTAssertEqual(result.diagnostics.firmwareCapabilities, sampleCapabilities)
+        XCTAssertEqual(result.effect, .none)
+
+        // 再 apply 同一结果：零变化
+        let again = DeviceStateReducer.apply(
+            .capabilitiesNegotiated(mode: .current, capabilities: sampleCapabilities),
+            core: result.core, diagnostics: result.diagnostics
+        )
+        XCTAssertEqual(again.core, result.core)
+        XCTAssertEqual(again.diagnostics, result.diagnostics)
+    }
+
+    /// 协商失败回退（legacy / restrictedUnknown）：无能力帧，诊断投影不残留。
+    func testCapabilitiesNegotiatedFallbackClearsCapabilities() {
+        let negotiated = DeviceStateReducer.apply(
+            .capabilitiesNegotiated(mode: .current, capabilities: sampleCapabilities),
+            core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot()
+        )
+        let fallback = DeviceStateReducer.apply(
+            .capabilitiesNegotiated(mode: .legacy, capabilities: nil),
+            core: negotiated.core, diagnostics: negotiated.diagnostics
+        )
+        XCTAssertEqual(fallback.core.protocolMode, .legacy)
+        XCTAssertNil(fallback.diagnostics.firmwareCapabilities)
+    }
+
+    /// 设备身份事件：nil 项保留原值，非 nil 项覆盖。
+    func testDeviceIdentityEventKeepsUnspecifiedFields() {
+        let advertised = DeviceStateReducer.apply(
+            .deviceIdentity(identifier: "505C", serialNumber: nil),
+            core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot()
+        )
+        XCTAssertEqual(advertised.core.deviceIdentifier, "505C")
+        XCTAssertEqual(advertised.core.deviceSerialNumber, "—")
+
+        let serialRead = DeviceStateReducer.apply(
+            .deviceIdentity(identifier: nil, serialNumber: "AHX1-C0F55C506C54889A"),
+            core: advertised.core, diagnostics: advertised.diagnostics
+        )
+        XCTAssertEqual(serialRead.core.deviceIdentifier, "505C")
+        XCTAssertEqual(serialRead.core.deviceSerialNumber, "AHX1-C0F55C506C54889A")
+    }
+
+    /// 新连接：协商状态回到 negotiating、清除上一连接能力帧，准备重新协商。
+    func testConnectedResetsNegotiationState() {
+        let negotiated = DeviceStateReducer.apply(
+            .capabilitiesNegotiated(mode: .current, capabilities: sampleCapabilities),
+            core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot()
+        )
+        let reconnected = DeviceStateReducer.apply(
+            .connected(name: "AhaKey X1", uuid: "UUID-1"),
+            core: negotiated.core, diagnostics: negotiated.diagnostics
+        )
+        XCTAssertEqual(reconnected.core.protocolMode, .negotiating)
+        XCTAssertNil(reconnected.diagnostics.firmwareCapabilities)
+        XCTAssertEqual(reconnected.core.deviceName, "AhaKey X1")
+    }
+
+    /// 断开：协商结果与设备编号失效，其余核心字段（电量/固件/模式）保留。
+    func testDisconnectedClearsNegotiationAndIdentity() {
+        var snapshot = DeviceStateReducer.apply(
+            sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot()
+        )
+        snapshot = DeviceStateReducer.apply(
+            .capabilitiesNegotiated(mode: .current, capabilities: sampleCapabilities),
+            core: snapshot.core, diagnostics: snapshot.diagnostics
+        )
+        snapshot = DeviceStateReducer.apply(
+            .deviceIdentity(identifier: "505C", serialNumber: "AHX1-C0F55C506C54889A"),
+            core: snapshot.core, diagnostics: snapshot.diagnostics
+        )
+
+        let disconnected = DeviceStateReducer.apply(
+            .disconnected, core: snapshot.core, diagnostics: snapshot.diagnostics
+        )
+        XCTAssertFalse(disconnected.core.isConnected)
+        XCTAssertEqual(disconnected.core.protocolMode, .negotiating)
+        XCTAssertEqual(disconnected.core.deviceIdentifier, "—")
+        XCTAssertEqual(disconnected.core.deviceSerialNumber, "—")
+        XCTAssertNil(disconnected.diagnostics.firmwareCapabilities)
+        // 既有行为不动：电量/固件/模式保留
+        XCTAssertEqual(disconnected.core.batteryLevel, 87)
+        XCTAssertEqual(disconnected.core.firmwareMainVersion, 1)
+        XCTAssertEqual(disconnected.core.workMode, 2)
+    }
 }

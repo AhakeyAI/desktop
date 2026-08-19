@@ -25,15 +25,23 @@ public struct CoreDeviceSnapshot: Equatable {
     public var brightness: Int = 35
     /// 各 mode 当前激活的任务图套图索引（0x97 或设备状态上报）。
     public var activeTaskPictureSets: [Int: Int] = [:]
+    /// 4 位设备编号（广播 manufacturer data 或序列号提取），未识别为 "—"。
+    public var deviceIdentifier: String = "—"
+    /// 设备序列号原文（2A25 读取），未读取为 "—"。
+    public var deviceSerialNumber: String = "—"
+    /// 0x99 协商出的协议模式。每次连接建立回到 negotiating，协商完成后进入终态。
+    public var protocolMode: AhaKeyProtocolMode = .negotiating
 
     public init() {}
 }
 
-/// 诊断投影：RSSI、固件详细信息等遥测。与核心投影隔离，不允许触发主 Studio 刷新。
+/// 诊断投影：RSSI、固件详细信息、固件能力等遥测。与核心投影隔离，不允许触发主 Studio 刷新。
 public struct DeviceDiagnosticsSnapshot: Equatable {
     public var signalStrength: Int = 0
     public var firmwareRevision: String = "—"
     public var modelNumber: String = "—"
+    /// 0x99 查询回的固件能力（仅协商成功时非空；属于遥测，不进核心投影）。
+    public var firmwareCapabilities: AhaKeyFirmwareCapabilities? = nil
 
     public init() {}
 }
@@ -49,6 +57,11 @@ public enum DeviceStateEvent: Equatable {
     case rssi(Int)
     /// Device Information Service 回包（固件修订号 / 型号，连接后各读一次）。nil 表示该项未携带、保留原值。
     case deviceInfo(firmwareRevision: String?, modelNumber: String?)
+    /// 设备身份：广播 manufacturer data 提取的设备编号（serialNumber 为 nil），
+    /// 或 2A25 序列号回包（可同时携带由序列号推出的编号）。nil 表示该项未携带、保留原值。
+    case deviceIdentity(identifier: String?, serialNumber: String?)
+    /// 0x99 协商完成：protocolMode 终态 + 能力帧（仅成功时非空，进诊断投影）。
+    case capabilitiesNegotiated(mode: AhaKeyProtocolMode, capabilities: AhaKeyFirmwareCapabilities?)
     /// 0x96 查询 / 0x97 设置回包的当前激活任务图套图。
     case activePictureSet(mode: Int, set: Int)
     /// 连接成功：设备身份（名字/UUID）。
@@ -127,6 +140,14 @@ public enum DeviceStateReducer {
             if let firmwareRevision { diagnostics.firmwareRevision = firmwareRevision }
             if let modelNumber { diagnostics.modelNumber = modelNumber }
 
+        case let .deviceIdentity(identifier, serialNumber):
+            if let identifier { core.deviceIdentifier = identifier }
+            if let serialNumber { core.deviceSerialNumber = serialNumber }
+
+        case let .capabilitiesNegotiated(mode, capabilities):
+            core.protocolMode = mode
+            diagnostics.firmwareCapabilities = capabilities
+
         case let .activePictureSet(mode, set):
             core.activeTaskPictureSets[mode] = set
 
@@ -134,10 +155,18 @@ public enum DeviceStateReducer {
             core.isConnected = true
             core.deviceName = name
             core.deviceUUID = uuid
+            // 新连接必须重新协商：回到 negotiating，清掉上一连接的能力帧
+            core.protocolMode = .negotiating
+            diagnostics.firmwareCapabilities = nil
 
         case .disconnected:
             core.isConnected = false
             core.activeTaskPictureSets.removeAll()
+            // 协商结果与设备编号绑定具体连接，断开即失效（与 Rhino 行为一致）
+            core.protocolMode = .negotiating
+            core.deviceIdentifier = "—"
+            core.deviceSerialNumber = "—"
+            diagnostics.firmwareCapabilities = nil
             diagnostics.signalStrength = 0
 
         case let .userSetSwitch(value):

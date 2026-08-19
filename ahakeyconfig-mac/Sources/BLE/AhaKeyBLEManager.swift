@@ -65,6 +65,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     var bleDeviceUUID: String { coreSnapshot.deviceUUID }
     /// 各 mode 当前激活的任务图套图索引（由 0x97 或设备状态上报）。
     var activeTaskPictureSets: [Int: Int] { coreSnapshot.activeTaskPictureSets }
+    /// 4 位设备编号（广播 manufacturer data 或序列号提取），未识别为 "—"。
+    var deviceIdentifier: String { coreSnapshot.deviceIdentifier }
+    /// 设备序列号原文（2A25），未读取为 "—"。
+    var deviceSerialNumber: String { coreSnapshot.deviceSerialNumber }
+    /// 0x99 协商出的协议模式（M1d）。
+    var protocolMode: AhaKeyProtocolMode { coreSnapshot.protocolMode }
+    /// 0x99 查询回的固件能力（诊断遥测投影，仅协商成功时非空）。
+    var firmwareCapabilities: AhaKeyFirmwareCapabilities? { diagnosticsSnapshot.firmwareCapabilities }
+    /// 任务图配置入口（M2 的 0x93/0x95 路径选择以此为门）。
+    var allowsTaskPictureConfiguration: Bool { coreSnapshot.protocolMode.allowsTaskPictureConfiguration }
+    /// USB 有线配置通道启用入口（R2a 防护：仅 current 协议放行；M3 移植 USB 时消费）。
+    var allowsUSBConfigurationTransport: Bool { coreSnapshot.protocolMode.allowsUSBConfigurationTransport }
 
     /// 所有周期性 BLE 状态的唯一归并入口。BLE 回调禁止直接写状态属性，必须构造事件走这里。
     private func apply(_ event: DeviceStateEvent) {
@@ -144,8 +156,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     static let deviceInfoServiceUUID = CBUUID(string: "180A")
     static let firmwareRevisionCharUUID = CBUUID(string: "2A26")
     static let modelNumberCharUUID = CBUUID(string: "2A24")
+    static let serialNumberCharUUID = CBUUID(string: "2A25")
 
-    nonisolated static let deviceNamePrefix = "AhaKey"
+    nonisolated static let deviceNamePrefix = AhaKeyDevicePresentation.bleNamePrefix
 
     // MARK: - Private
 
@@ -1055,7 +1068,59 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         didQueryAfterConnect = true
         appendLog(NSLocalizedString("所有特征就绪，查询设备状态", comment: ""))
         queryDeviceStatus()
+        negotiateFirmwareCapabilities()
         queryAllPictureStates()
+    }
+
+    /// 连接后协商入口：延迟 200ms 让首帧状态回包先行，再做 0x99 能力查询（与 Rhino 顺序一致）。
+    private func negotiateFirmwareCapabilities() {
+        Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            await self.queryFirmwareCapabilities()
+        }
+    }
+
+    /// 0x99 固件能力协商：最多重试 maxAttempts 次；
+    /// 成功按 protocolVersion 定 mode，全失败按 firmwareMainVersion 回退 legacy / restrictedUnknown。
+    /// 结果经 `.capabilitiesNegotiated` 事件进入快照投影（protocolMode → 核心投影，能力帧 → 诊断投影）。
+    private func queryFirmwareCapabilities() async {
+        var lastFailure = NSLocalizedString("设备未返回能力帧", comment: "")
+        for attempt in 1 ... AhaKeyProtocolNegotiation.maxAttempts {
+            do {
+                let response = try await sendCommandAwaitingResponse(
+                    AhaKeyCommand.queryCapabilities(),
+                    expectedCommand: AhaKeyCommand.cmdCapabilities,
+                    timeoutSeconds: AhaKeyProtocolNegotiation.attemptTimeoutSeconds
+                )
+                guard let capabilities = AhaKeyFirmwareCapabilities.parse(response.payload) else {
+                    lastFailure = NSLocalizedString("能力帧长度或字段无效", comment: "")
+                    continue
+                }
+                let mode = AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities)
+                apply(.capabilitiesNegotiated(mode: mode, capabilities: capabilities))
+                appendLog(
+                    "协议 v\(capabilities.protocolVersion)，\(capabilities.modeCount) modes，"
+                        + "\(capabilities.stateCount) states，BLE packet \(capabilities.maxPacketSize)B"
+                )
+                return
+            } catch {
+                lastFailure = error.localizedDescription
+            }
+            if AhaKeyProtocolNegotiation.shouldRetry(afterFailedAttempt: attempt) {
+                appendLog("能力查询第 \(attempt) 次失败，正在重试：\(lastFailure)", isError: true)
+                try? await Task.sleep(nanoseconds: AhaKeyProtocolNegotiation.retryDelayNanoseconds)
+            }
+        }
+
+        let fallback = AhaKeyProtocolNegotiation.fallbackMode(firmwareMainVersion: firmwareMainVersion)
+        apply(.capabilitiesNegotiated(mode: fallback, capabilities: nil))
+        switch fallback {
+        case .legacy:
+            appendLog("连续三次能力查询失败，按已知旧版固件兼容：\(lastFailure)", isError: true)
+        default:
+            appendLog("连续三次无法识别固件协议，进入受限兼容模式：\(lastFailure)", isError: true)
+        }
     }
 
     /// 顺序查询每个 mode 的 0x83 图片元信息，结果累积到 keyboardPictureStates
@@ -1336,9 +1401,16 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     ) {
         let name = peripheral.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
         guard name.lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) else { return }
+        // 新固件广播在 manufacturer data 里带 4 位设备编号（旧固件没有，回退到连接后读序列号）
+        let advertisedIdentifier = AhaKeyDevicePresentation.advertisedIdentifier(
+            manufacturerData: advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
+        )
 
         Task { @MainActor in
-            self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
+            if let advertisedIdentifier {
+                self.apply(.deviceIdentity(identifier: advertisedIdentifier, serialNumber: nil))
+            }
+            self.appendLog("发现设备: \(AhaKeyDevicePresentation.diagnosticLabel(identifier: advertisedIdentifier ?? "—")) RSSI=\(RSSI)")
             // 扫到目标设备广播：退避重置回 4s 并立即连接
             self.reconnectBackoff.reset()
             self.central?.stopScan()
@@ -1450,7 +1522,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                     peripheral.discoverCharacteristics([Self.batteryLevelCharUUID], for: service)
                 case Self.deviceInfoServiceUUID:
                     peripheral.discoverCharacteristics(
-                        [Self.firmwareRevisionCharUUID, Self.modelNumberCharUUID],
+                        [Self.firmwareRevisionCharUUID, Self.modelNumberCharUUID, Self.serialNumberCharUUID],
                         for: service
                     )
                 default:
@@ -1495,6 +1567,8 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                 case Self.firmwareRevisionCharUUID:
                     peripheral.readValue(for: char)
                 case Self.modelNumberCharUUID:
+                    peripheral.readValue(for: char)
+                case Self.serialNumberCharUUID:
                     peripheral.readValue(for: char)
 
                 default:
@@ -1553,6 +1627,14 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
         case Self.modelNumberCharUUID:
             if let str = String(data: data, encoding: .utf8) {
                 apply(.deviceInfo(firmwareRevision: nil, modelNumber: str))
+            }
+        case Self.serialNumberCharUUID:
+            if let str = String(data: data, encoding: .utf8) {
+                let serial = str.uppercased()
+                // 旧固件 4 位序列号即设备编号；新格式 "AHX1-<uid>" 由 UID 提取
+                let identifier = serial.count == 4 ? serial : AhaKeyDevicePresentation.shortIdentifier(from: serial)
+                apply(.deviceIdentity(identifier: identifier, serialNumber: serial))
+                appendLog("← 设备身份: \(AhaKeyDevicePresentation.diagnosticLabel(identifier: deviceIdentifier, serialNumber: serial))", category: .verbose)
             }
         default:
             appendLog("← 未知(\(uuid)): \(hex)")

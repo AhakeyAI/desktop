@@ -49,6 +49,8 @@ enum AhaKeyCommand {
     static let cmdSetActiveTaskPicSet: UInt8 = 0x97
     /// 结束任务图数据写入，但不替换普通每模式动画绑定。
     static let cmdFinishTaskPicWrite: UInt8 = 0x98
+    /// 固件能力查询（M1d：协商 protocolMode，解析逻辑在 AhaKeyConfigShared 的 AhaKeyFirmwareCapabilities）。
+    static let cmdCapabilities: UInt8 = 0x99
 
     static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
         UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
@@ -175,6 +177,11 @@ enum AhaKeyCommand {
 
     static func finishTaskPictureWrite() -> Data {
         Data(header + [cmdFinishTaskPicWrite] + trailer)
+    }
+
+    /// 固件能力查询 → AA BB 99 CC DD
+    static func queryCapabilities() -> Data {
+        Data(header + [cmdCapabilities] + trailer)
     }
 
     /// IDE 状态同步 → AA BB 90 [state] CC DD

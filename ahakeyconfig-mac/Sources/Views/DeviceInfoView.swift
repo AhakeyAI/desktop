@@ -1,3 +1,4 @@
+import AhaKeyConfigShared
 import SwiftUI
 
 struct DeviceInfoView: View {
@@ -29,6 +30,15 @@ struct DeviceInfoView: View {
                     infoCell(NSLocalizedString("灯光", comment: ""), value: lightModeName(bleManager.lightMode))
                     Divider()
                     infoCell(NSLocalizedString("信号", comment: ""), value: String(format: NSLocalizedString("%d dBm", comment: ""), bleManager.signalStrength))
+                }
+                .frame(height: 50)
+
+                HStack(spacing: 0) {
+                    infoCell(NSLocalizedString("型号", comment: ""), value: bleManager.modelNumber == "—" ? AhaKeyDevicePresentation.modelName : bleManager.modelNumber)
+                    Divider()
+                    infoCell(NSLocalizedString("设备编号", comment: ""), value: bleManager.deviceIdentifier)
+                    Divider()
+                    infoCell(NSLocalizedString("协议模式", comment: ""), value: protocolModeLabel(bleManager.protocolMode))
                 }
                 .frame(height: 50)
             } header: {
@@ -353,6 +363,11 @@ struct DeviceInfoView: View {
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                 }
+                CompatLabeledContent(NSLocalizedString("固件能力", comment: "")) {
+                    Text(capabilitiesSummary(bleManager.firmwareCapabilities))
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
                 HStack {
                     CompatLabeledContent(NSLocalizedString("特征", comment: "")) {
                         HStack(spacing: 8) {
@@ -496,6 +511,24 @@ struct DeviceInfoView: View {
         case 2: return "Breathing"
         default: return "\(mode)"
         }
+    }
+
+    private func protocolModeLabel(_ mode: AhaKeyProtocolMode) -> String {
+        switch mode {
+        case .negotiating: return NSLocalizedString("协商中…", comment: "")
+        case .legacy: return NSLocalizedString("旧版兼容 (legacy)", comment: "")
+        case .current: return NSLocalizedString("当前协议 (v3)", comment: "")
+        case .restrictedUnknown: return NSLocalizedString("受限未知", comment: "")
+        }
+    }
+
+    private func capabilitiesSummary(_ capabilities: AhaKeyFirmwareCapabilities?) -> String {
+        guard let capabilities else { return "—" }
+        return String(
+            format: NSLocalizedString("v%d · %d 模式 · %d 套 · %d 状态 · %dB", comment: ""),
+            capabilities.protocolVersion, capabilities.modeCount,
+            capabilities.setCount, capabilities.stateCount, capabilities.maxPacketSize
+        )
     }
 
     @ViewBuilder
