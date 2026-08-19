@@ -191,11 +191,24 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         let data = Data(header + [0x90, state] + trailer)
-        let wt: CBCharacteristicWriteType =
-            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        let writeKind = StateCommandWritePolicy.choose(
+            supportsWrite: commandChar.properties.contains(.write),
+            supportsWriteWithoutResponse: commandChar.properties.contains(.writeWithoutResponse)
+        )
+        let wt: CBCharacteristicWriteType
+        switch writeKind {
+        case .withResponse:
+            wt = .withResponse
+        case .withoutResponse:
+            wt = .withoutResponse
+        case .unavailable:
+            emit("LED 状态 \(state): 命令通道不支持写入")
+            return
+        }
         peripheral.writeValue(data, for: commandChar, type: wt)
         lastSentState = state
-        emit("→ LED 状态 \(state): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        let confirmation = writeKind == .withResponse ? "等待 BLE 确认" : "无 BLE 确认"
+        emit("→ LED 状态 \(state)（\(confirmation)）: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         Self.writeLiveState(stateValue: state)
         // 事件性写入每次必写；stateValue 不参与去重比较，但文件 mtime 已刷新，需重置 touch 计时
         liveStateCoalescer.noteEventWrite(LiveStateWriteCoalescer.Snapshot(), at: Date().timeIntervalSince1970)
@@ -706,6 +719,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic.uuid == commandCharUUID || characteristic.uuid == notifyCharUUID,
               let data = characteristic.value else { return }
+        if let acknowledgement = StateCommandAcknowledgement.parse(data) {
+            if acknowledgement.resultCode == 0 {
+                emit("← 固件已应用 LED/OLED 状态命令 0x90")
+            } else {
+                emit("← 固件拒绝 LED/OLED 状态命令 0x90，错误码 \(acknowledgement.resultCode)")
+            }
+            return
+        }
         guard let status = Self.parseDeviceStatus(data) else { return }
 
         let hardwareSwitchState = UInt8(clamping: status.switchState)
@@ -747,6 +768,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let waiters = statusWaiters
         statusWaiters.removeAll()
         for w in waiters { w(status) }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard characteristic.uuid == commandCharUUID else { return }
+        if let error {
+            emit("← LED/OLED 状态 BLE 写入失败：\(error.localizedDescription)")
+        } else {
+            emit("← LED/OLED 状态 BLE 写入已确认")
+        }
     }
 
     // MARK: - 协议内联解析
