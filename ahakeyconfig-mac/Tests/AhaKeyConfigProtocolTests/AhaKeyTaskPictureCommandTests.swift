@@ -22,6 +22,34 @@ final class AhaKeyTaskPictureCommandTests: XCTestCase {
         )
     }
 
+    func testBuild62LegacyBaseBaselineIsRecoveredWhenRecentPointerIsMissing() throws {
+        let defaults = UserDefaults.standard
+        let deviceKey = "test-\(UUID().uuidString).legacy-base"
+        let storageKey = "ahakey.studio.sync-baseline.v2.\(deviceKey)"
+        let recentKey = "ahakey.studio.sync-baseline.most-recent-device"
+        let previousRecent = defaults.object(forKey: recentKey)
+        defer {
+            defaults.removeObject(forKey: storageKey)
+            if let previousRecent {
+                defaults.set(previousRecent, forKey: recentKey)
+            } else {
+                defaults.removeObject(forKey: recentKey)
+            }
+        }
+
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode0)
+        mode.oled.localAssetPath = "/tmp/unique-\(UUID().uuidString).png"
+        draft.updateMode(mode)
+        defaults.set(try JSONEncoder().encode(draft), forKey: storageKey)
+        defaults.removeObject(forKey: recentKey)
+
+        let recovered = AhaKeyStudioStore.loadMostRecentSyncBaseline(matching: draft)
+
+        XCTAssertEqual(recovered?.deviceKey, deviceKey)
+        XCTAssertEqual(recovered?.draft, draft)
+    }
+
     func testSessionCommandsUseLittleEndianFields() {
         XCTAssertEqual(Array(AhaKeyCommand.prepareSessionWrite(
             sessionID: 0x1234,

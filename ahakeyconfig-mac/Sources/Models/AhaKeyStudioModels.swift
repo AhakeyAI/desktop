@@ -1229,6 +1229,7 @@ struct AhaKeyStudioDraft: Codable, Equatable {
 enum AhaKeyStudioStore {
     private static let key = "ahakey.studio.draft.v1"
     private static let syncBaselineKey = "ahakey.studio.sync-baseline.v2"
+    private static let mostRecentSyncBaselineDeviceKey = "ahakey.studio.sync-baseline.most-recent-device"
 
     static func load() -> AhaKeyStudioDraft? {
         guard let rawData = UserDefaults.standard.data(forKey: key) else { return nil }
@@ -1262,6 +1263,51 @@ enum AhaKeyStudioStore {
     static func saveSyncBaseline(_ draft: AhaKeyStudioDraft, deviceKey: String) {
         guard let data = try? JSONEncoder().encode(draft) else { return }
         UserDefaults.standard.set(data, forKey: syncBaselineStorageKey(deviceKey))
+        markMostRecentSyncBaseline(deviceKey: deviceKey)
+    }
+
+    static func markMostRecentSyncBaseline(deviceKey: String) {
+        UserDefaults.standard.set(deviceKey, forKey: mostRecentSyncBaselineDeviceKey)
+    }
+
+    static func loadMostRecentSyncBaseline(
+        matching currentDraft: AhaKeyStudioDraft? = nil
+    ) -> (deviceKey: String, draft: AhaKeyStudioDraft)? {
+        if let deviceKey = UserDefaults.standard.string(forKey: mostRecentSyncBaselineDeviceKey),
+           let draft = loadSyncBaseline(deviceKey: deviceKey) {
+            return (deviceKey, draft)
+        }
+
+        // build 62 之前没有“最近设备”指针。只迁移与当前基础配置完全一致的 legacy-base
+        // 基线，避免在多键盘环境中把另一台设备的未同步状态误套过来。
+        guard let currentDraft else { return nil }
+        let storagePrefix = syncBaselineKey + "."
+        let candidates = UserDefaults.standard.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix(storagePrefix) && $0.hasSuffix(".legacy-base") }
+            .sorted()
+        for storageKey in candidates {
+            guard let rawData = UserDefaults.standard.data(forKey: storageKey),
+                  let baseline = decodeStoredDraft(rawData),
+                  legacyBaseBaseline(baseline, matches: currentDraft) else { continue }
+            let deviceKey = String(storageKey.dropFirst(storagePrefix.count))
+            return (deviceKey, baseline)
+        }
+        return nil
+    }
+
+    private static func legacyBaseBaseline(
+        _ baseline: AhaKeyStudioDraft,
+        matches current: AhaKeyStudioDraft
+    ) -> Bool {
+        AhaKeyModeSlot.allCases.allSatisfy { mode in
+            let lhs = baseline.draft(for: mode)
+            let rhs = current.draft(for: mode)
+            let keysMatch = AhaKeyKeyRole.allCases.allSatisfy { lhs.key(for: $0) == rhs.key(for: $0) }
+            return keysMatch
+                && lhs.lightBar == rhs.lightBar
+                && lhs.oled.localAssetPath == rhs.oled.localAssetPath
+                && lhs.oled.framesPerSecond == rhs.oled.framesPerSecond
+        }
     }
 
     private static func syncBaselineStorageKey(_ deviceKey: String) -> String {

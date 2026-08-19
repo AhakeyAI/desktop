@@ -122,6 +122,29 @@ public enum AhaKeySyncBaselineNamespace {
     }
 }
 
+public enum AhaKeySyncBaselineLoadPolicy {
+    public enum Decision: Equatable {
+        case loadConnectedDevice
+        case preserveExisting
+        case restoreMostRecent
+        case resetUnsynchronized
+    }
+
+    public static func decision(
+        mode: AhaKeyProtocolMode,
+        hasExistingBaseline: Bool
+    ) -> Decision {
+        switch mode {
+        case .legacy, .legacyBaseOnly, .current:
+            return .loadConnectedDevice
+        case .negotiating:
+            return hasExistingBaseline ? .preserveExisting : .restoreMostRecent
+        case .restrictedUnknown:
+            return .resetUnsynchronized
+        }
+    }
+}
+
 public enum AhaKeyLegacyBaseInitialBaselinePolicy {
     /// 固件内置资源无需首次重写；外部自定义资源必须从“未同步”开始，避免沿用旧任务图基线。
     public static func assetPath(_ path: String?, isBundledAsset: Bool) -> String? {

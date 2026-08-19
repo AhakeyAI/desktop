@@ -62,13 +62,16 @@ struct AhaKeyStudioView: View {
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
         let initialDraft = AhaKeyStudioStore.load() ?? .default
+        let recentBaseline = AhaKeyStudioStore.loadMostRecentSyncBaseline(matching: initialDraft)
         // 注意：不要在这里调用 VoiceRelayService.updateRoutes —— SwiftUI 会因 bleManager
         // 的 @Published 属性（workMode/电量/连接状态等）频繁重建 view，init 会跟着多次执行。
         // 任何在 init 里调用 updateRoutes 都会重置 functionRelay 的 holdingRoute（按住状态），
         // 导致微信等"按住说话"过几秒就自动结束。正确入口在下面的 .onAppear。
         _studioDraft = State(initialValue: initialDraft)
-        _lastSyncedDraft = State(initialValue: Self.unsyncedTaskPictureBaseline(from: initialDraft))
-        _syncBaselineDeviceKey = State(initialValue: nil)
+        _lastSyncedDraft = State(
+            initialValue: recentBaseline?.draft ?? Self.unsyncedTaskPictureBaseline(from: initialDraft)
+        )
+        _syncBaselineDeviceKey = State(initialValue: recentBaseline?.deviceKey)
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
@@ -3028,11 +3031,26 @@ struct AhaKeyStudioView: View {
     }
 
     private func loadSyncBaselineForConnectedDevice(mode: AhaKeyProtocolMode) {
-        guard mode == .legacy || mode == .legacyBaseOnly || mode == .current else {
+        switch AhaKeySyncBaselineLoadPolicy.decision(
+            mode: mode,
+            hasExistingBaseline: syncBaselineDeviceKey != nil
+        ) {
+        case .preserveExisting:
+            return
+        case .restoreMostRecent:
+            if let recent = AhaKeyStudioStore.loadMostRecentSyncBaseline(matching: studioDraft) {
+                syncBaselineDeviceKey = recent.deviceKey
+                lastSyncedDraft = recent.draft
+            }
+            return
+        case .resetUnsynchronized:
             syncBaselineDeviceKey = nil
             lastSyncedDraft = Self.unsyncedTaskPictureBaseline(from: studioDraft)
             return
+        case .loadConnectedDevice:
+            break
         }
+        guard mode == .legacy || mode == .legacyBaseOnly || mode == .current else { return }
         let identity = bleManager.bleDeviceUUID.isEmpty
             ? (bleManager.deviceIdentifier == "—" ? (bleManager.deviceName ?? "unknown") : bleManager.deviceIdentifier)
             : bleManager.bleDeviceUUID
@@ -3040,10 +3058,14 @@ struct AhaKeyStudioView: View {
         let key = "\(identity).\(namespace)"
         guard syncBaselineDeviceKey != key else { return }
         syncBaselineDeviceKey = key
-        lastSyncedDraft = AhaKeyStudioStore.loadSyncBaseline(deviceKey: key)
-            ?? (mode == .legacyBaseOnly
+        if let saved = AhaKeyStudioStore.loadSyncBaseline(deviceKey: key) {
+            lastSyncedDraft = saved
+            AhaKeyStudioStore.markMostRecentSyncBaseline(deviceKey: key)
+        } else {
+            lastSyncedDraft = mode == .legacyBaseOnly
                 ? Self.initialLegacyBaseSyncBaseline(from: studioDraft)
-                : Self.unsyncedTaskPictureBaseline(from: studioDraft))
+                : Self.unsyncedTaskPictureBaseline(from: studioDraft)
+        }
     }
 
     private func saveCurrentDeviceSyncBaseline() {

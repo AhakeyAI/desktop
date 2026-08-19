@@ -129,6 +129,21 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
         )
     }
 
+    func testNegotiatingProtocolPreservesKnownBaselineAndRestoresRecentOnLaunch() {
+        XCTAssertEqual(
+            AhaKeySyncBaselineLoadPolicy.decision(mode: .negotiating, hasExistingBaseline: true),
+            .preserveExisting
+        )
+        XCTAssertEqual(
+            AhaKeySyncBaselineLoadPolicy.decision(mode: .negotiating, hasExistingBaseline: false),
+            .restoreMostRecent
+        )
+        XCTAssertEqual(
+            AhaKeySyncBaselineLoadPolicy.decision(mode: .legacyBaseOnly, hasExistingBaseline: true),
+            .loadConnectedDevice
+        )
+    }
+
     func testLegacyUsesSingleSetThreeStateCommandsWithoutSessionFinish() {
         let plan = AhaKeyTaskPictureProtocolPlan.make(mode: .legacy, capabilities: nil)
 
