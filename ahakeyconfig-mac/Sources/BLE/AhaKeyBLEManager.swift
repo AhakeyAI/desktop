@@ -1401,10 +1401,11 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     ) {
         let name = peripheral.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
         guard name.lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) else { return }
-        // 新固件广播在 manufacturer data 里带 4 位设备编号（旧固件没有，回退到连接后读序列号）
+        // 新固件广播在 manufacturer data 里带 4 位设备编号；
+        // 旧固件没有，回退取 BLE 名后缀（"AhaKey 515C" → 515C），再不行连接后读序列号
         let advertisedIdentifier = AhaKeyDevicePresentation.advertisedIdentifier(
             manufacturerData: advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
-        )
+        ) ?? AhaKeyDevicePresentation.nameSuffixIdentifier(name)
 
         Task { @MainActor in
             if let advertisedIdentifier {

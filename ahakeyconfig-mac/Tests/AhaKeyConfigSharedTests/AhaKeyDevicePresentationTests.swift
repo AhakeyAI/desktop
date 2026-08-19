@@ -82,4 +82,13 @@ final class AhaKeyDevicePresentationTests: XCTestCase {
             "AhaKey X1 / 505C / AHX1-C0F55C506C54889A"
         )
     }
+
+    func testNameSuffixIdentifier() {
+        XCTAssertEqual(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey 515C"), "515C")
+        XCTAssertEqual(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey 50af"), "50AF")
+        XCTAssertNil(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey X1"))
+        XCTAssertNil(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey ,,,,"))
+        XCTAssertNil(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey"))
+        XCTAssertNil(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey 515C extra"))
+    }
 }

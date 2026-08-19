@@ -48,6 +48,16 @@ public enum AhaKeyDevicePresentation {
         return identifier.uppercased()
     }
 
+    /// 旧固件的 BLE 名后缀即设备编号（"AhaKey 515C" → "515C"，固件把 MAC 后 4 位拼在名后）。
+    /// 新固件 "AhaKey X1" 无编号后缀、未个性化设备残留逗号占位（"AhaKey ,,,,"），均返回 nil。
+    public static func nameSuffixIdentifier(_ name: String) -> String? {
+        let parts = name.split(separator: " ")
+        guard parts.count == 2, parts[0].lowercased() == "ahakey" else { return nil }
+        let suffix = parts[1]
+        guard suffix.count == 4, suffix.allSatisfy({ $0.isHexDigit }) else { return nil }
+        return suffix.uppercased()
+    }
+
     /// 多设备选择场景的设备编号副标题；单设备且无需消歧时不显示。
     public static func selectionSubtitle(identifier: String, deviceCount: Int, needsDisambiguation: Bool = false) -> String? {
         guard identifier != "—", deviceCount > 1 || needsDisambiguation else { return nil }

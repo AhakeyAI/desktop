@@ -38,7 +38,7 @@ struct DeviceInfoView: View {
                     Divider()
                     infoCell(NSLocalizedString("设备编号", comment: ""), value: bleManager.deviceIdentifier)
                     Divider()
-                    infoCell(NSLocalizedString("协议模式", comment: ""), value: protocolModeLabel(bleManager.protocolMode))
+                    infoCell(NSLocalizedString("协议模式", comment: ""), value: bleManager.isConnected ? protocolModeLabel(bleManager.protocolMode) : "—")
                 }
                 .frame(height: 50)
             } header: {
