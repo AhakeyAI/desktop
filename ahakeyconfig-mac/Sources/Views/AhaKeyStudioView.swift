@@ -5201,10 +5201,6 @@ private struct CloudAccountView: View {
             Text(optimizer.statusMessage)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-            Text(optimizer.lastQuotaSummary)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
     }
 
