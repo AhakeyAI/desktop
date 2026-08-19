@@ -14,6 +14,16 @@ final class HookStateWatchdogTests: XCTestCase {
         XCTAssertEqual(decision, .heldProcessAlive)
     }
 
+    /// Codex Desktop 当前未触发 Stop hook；最后一个 PostToolUse 超时后应视为本轮完成，
+    /// 即使 Codex App 本身仍在运行，也不能让键盘永久停留在进行中。
+    func testPostToolUseTimeoutResetsWhileCodexAppRemainsRunning() {
+        let decision = HookStateWatchdog.decide(Input(
+            lastSentState: 2, elapsedSinceLastHook: 190, timeout: 60,
+            isTargetProcessRunning: true
+        ))
+        XCTAssertEqual(decision, .resetToIdle)
+    }
+
     /// 进程死了 + 已超时（崩溃导致 end hook 丢失）：归位。
     func testTimeoutWithProcessGoneResets() {
         let decision = HookStateWatchdog.decide(Input(

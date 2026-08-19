@@ -56,7 +56,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 共享文件写前去重（阶段 4）：相同快照不重复落盘，30s 无任何写入时仅 touch mtime。
     private var liveStateCoalescer = LiveStateWriteCoalescer()
 
-    // MARK: 看门狗（CLI 崩溃/退出导致 end 类 hook 永远丢失时兜底归位；进程仍存活的长思考不归位）
+    // MARK: 看门狗（CLI 崩溃/退出或 Codex PostToolUse 后缺少 Stop 时兜底归位；长工具执行不归位）
     /// 最近一次 hook 发来状态命令的时间（nil = 尚未收到）
     private var lastHookStateAt: Date?
     /// 最近一次我们主动发给键盘的 LED 状态
@@ -394,8 +394,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard let lastAt = lastHookStateAt else { return }
         let elapsed = Date().timeIntervalSince(lastAt)
         let threshold = watchdogTimeout(for: lastSentState)
-        // 归位门控：只有目标 CLI 进程全部退出（崩溃/退出导致 end 类 hook 永远丢失）
-        // 才允许归位；进程仍存活 = 长思考/长执行中无新 hook，必须保持灯效。
+        // 归位门控：一般执行态只有目标 CLI 进程全部退出才归位；PostToolUse(2)
+        // 已表示工具结束，Codex Desktop 若漏发 Stop，则允许其超时归位。
         switch HookStateWatchdog.decide(HookStateWatchdog.Input(
             lastSentState: lastSentState,
             elapsedSinceLastHook: elapsed,
@@ -411,7 +411,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             return
         case .resetToIdle:
-            emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动且目标进程已退出（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），自动发 Stop(5)")
+            let reason = lastSentState == 2 ? "PostToolUse 后未收到 Stop" : "目标进程已退出"
+            emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动且\(reason)（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），自动发 Stop(5)")
             didLogWatchdogHold = false
             hookActivityActive = false
             powerProtection.end(.aiCodingIdleHook)

@@ -1,10 +1,22 @@
 import Foundation
+import AhaKeyConfigShared
 
 enum CodexHookHandler {
     static func handleState(stateValue: UInt8) {
         let stdinData = HookSupport.readAllStdinSilently()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Codex")
-        let reply = HookSupport.sendUnifiedLightState(stateValue: stateValue)
+        let plan = CodexHookStatePlan.make(stateValue: stateValue)
+        var request: [String: Any] = [
+            "cmd": plan.command == .state ? "state" : "state_with_reset",
+            "value": Int(plan.stateValue),
+        ]
+        if let resetValue = plan.resetValue {
+            request["resetValue"] = Int(resetValue)
+        }
+        if let delayMilliseconds = plan.delayMilliseconds {
+            request["delayMs"] = delayMilliseconds
+        }
+        let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.stateRequestTimeout)
         let switchState = HookSupport.intValue(reply?["switchState"])
 
         // SessionStart 时把拨杆状态写入顶层 approval_policy：

@@ -7,10 +7,11 @@ import Foundation
 /// 键盘 LED 归位（发 Stop）。但「长时间无新 hook 事件」有两种完全不同的含义：
 ///
 /// - CLI 崩溃/退出：end 类 hook 永远丢失，灯必须归位 —— 这是看门狗的正当职责；
-/// - 长思考 / 长工具执行中：进程活着，只是没有新事件 —— 此时归位就是误灭。
+/// - 长思考 / 长工具执行中：进程活着，只是没有新事件 —— PreToolUse 等执行态不能归位；
+/// - Codex Desktop 的 PostToolUse：工具已经结束，但当前版本可能不再触发 Stop，
+///   此时进程会一直活着，必须允许 PostToolUse 超时后归位。
 ///
-/// 因此归位必须同时满足「已超时」且「目标进程已全部退出」；只要任一目标
-/// CLI/IDE 进程仍存活，一律保持灯效（宁可多亮，不可误灭）。
+/// 因此一般执行态仍要求「已超时且目标进程退出」；PostToolUse 是唯一例外。
 public enum HookStateWatchdog {
 
     /// 一次看门狗检查的输入快照。
@@ -54,10 +55,12 @@ public enum HookStateWatchdog {
         [1, 2, 3, 4, 6, 7].contains(state)
     }
 
-    /// 纯决策：超时 + 进程存活 → 是否归位。
+    /// 纯决策：超时 + 进程存活 → 是否归位。PostToolUse(2) 已表示工具结束，
+    /// 因而在缺少 Stop hook 时可作为任务结束兜底。
     public static func decide(_ input: Input) -> Decision {
         guard isActiveState(input.lastSentState) else { return .notActiveState }
         guard input.elapsedSinceLastHook >= input.timeout else { return .withinTimeout }
+        if input.lastSentState == 2 { return .resetToIdle }
         return input.isTargetProcessRunning ? .heldProcessAlive : .resetToIdle
     }
 }
