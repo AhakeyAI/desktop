@@ -103,6 +103,7 @@ struct AhaKeyStudioView: View {
             SwitchStateNotifier.shared.bind(to: bleManager)
             loadSyncBaselineForConnectedDevice(mode: bleManager.protocolMode)
             reconcileActiveTaskPictureSetsFromDevice(bleManager.activeTaskPictureSets)
+            refreshEditingTaskPictureSetFromDraft()
             NotificationCenter.default.post(
                 name: .ahaKeyKeyboardWorkModeChanged,
                 object: nil,
@@ -137,6 +138,7 @@ struct AhaKeyStudioView: View {
             }
         }
         .onChange(of: selectedMode) { newValue in
+            refreshEditingTaskPictureSetFromDraft()
             guard bleManager.isConnected,
                   bleManager.commandCharReady,
                   bleManager.workMode != newValue.rawValue else { return }
@@ -163,6 +165,7 @@ struct AhaKeyStudioView: View {
                 handleFactoryResourceChange(bleManager.firmwareCapabilities)
                 // active-set 状态可能早于能力协商到达；baseline 就绪后主动补一次归并。
                 reconcileActiveTaskPictureSetsFromDevice(bleManager.activeTaskPictureSets)
+                refreshEditingTaskPictureSetFromDraft()
             }
             if mode != .current {
                 selectedOLEDGIFSet = 0
@@ -171,6 +174,7 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: bleManager.activeTaskPictureSets) { activeSets in
             reconcileActiveTaskPictureSetsFromDevice(activeSets)
+            refreshEditingTaskPictureSetFromDraft()
         }
         .onChange(of: bleManager.keyboardPictureStates) { _ in
             guard !oledAutoSyncDoneForConnection else { return }
@@ -1471,19 +1475,13 @@ struct AhaKeyStudioView: View {
                             .foregroundStyle(.secondary)
 
                         if bleManager.taskPictureProtocolPlan?.supportsActiveSet == true {
-                            Picker("", selection: $selectedOLEDGIFSet) {
+                            Picker("", selection: selectedOLEDGIFSetBinding) {
                                 Text(NSLocalizedString("套图 A", comment: "")).tag(0)
                                 Text(NSLocalizedString("套图 B", comment: "")).tag(1)
                             }
                             .pickerStyle(.segmented)
 
-                            Picker(NSLocalizedString("设备激活套图", comment: ""), selection: activeOLEDGIFSetBinding) {
-                                Text(NSLocalizedString("套图 A", comment: "")).tag(0)
-                                Text(NSLocalizedString("套图 B", comment: "")).tag(1)
-                            }
-                            .pickerStyle(.segmented)
-
-                            Text(NSLocalizedString("双击键盘电源键可切换当前模式的整套状态图；也可在上方选择写入后的激活套图。", comment: ""))
+                            Text(NSLocalizedString("当前编辑的套图会在写入后自动激活；双击键盘电源键仍可切换当前模式的整套状态图。", comment: ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -2158,12 +2156,24 @@ struct AhaKeyStudioView: View {
         )
     }
 
-    private var activeOLEDGIFSetBinding: Binding<Int> {
+    private var selectedOLEDGIFSetBinding: Binding<Int> {
         Binding(
-            get: { currentModeDraft.oled.activeGIFSet },
+            get: { selectedOLEDGIFSet },
             set: { newValue in
-                updateCurrentMode { $0.oled.activeGIFSet = min(1, max(0, newValue)) }
+                let desiredSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
+                    editingSet: newValue,
+                    supportedSetIndices: bleManager.taskPictureProtocolPlan?.setIndices ?? [0]
+                )
+                selectedOLEDGIFSet = desiredSet
+                updateCurrentMode { $0.oled.activeGIFSet = desiredSet }
             }
+        )
+    }
+
+    private func refreshEditingTaskPictureSetFromDraft() {
+        selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
+            editingSet: currentModeDraft.oled.activeGIFSet,
+            supportedSetIndices: bleManager.taskPictureProtocolPlan?.setIndices ?? [0]
         )
     }
 

@@ -2,6 +2,23 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
+    func testEditedTaskPictureSetBecomesDesiredActiveSetWithoutASecondSelection() {
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.desiredActiveSet(
+                editingSet: 1,
+                supportedSetIndices: [0, 1]
+            ),
+            1
+        )
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.desiredActiveSet(
+                editingSet: 1,
+                supportedSetIndices: [0]
+            ),
+            0
+        )
+    }
+
     func testLegacyBaseOnlyKeepsDefaultPictureEditorWhileHidingTaskPictures() {
         let sections = AhaKeyOLEDInspectorSections.make(mode: .legacyBaseOnly)
 

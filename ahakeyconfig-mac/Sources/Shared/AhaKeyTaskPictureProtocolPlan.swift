@@ -212,6 +212,15 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
     }
 }
 
+/// 双套图只有一个用户选择：当前正在编辑的套图，就是写入后希望设备激活的套图。
+/// 单套图协议会自然收敛到它唯一支持的索引。
+public enum AhaKeyTaskPictureSetSelection {
+    public static func desiredActiveSet(editingSet: Int, supportedSetIndices: [Int]) -> Int {
+        guard let fallback = supportedSetIndices.first else { return 0 }
+        return supportedSetIndices.contains(editingSet) ? editingSet : fallback
+    }
+}
+
 /// 在用户槽与固件声明的回收槽中寻找第一段连续空闲空间。
 public enum AhaKeyPictureSlotAllocator {
     public static func allocate(

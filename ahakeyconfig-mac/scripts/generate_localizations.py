@@ -1094,7 +1094,7 @@ TRANSLATIONS = {
     "编辑器空闲 · Agent 占用蓝牙": "Studio idle · Agent holds Bluetooth",
     "编辑器空闲 · Agent 空闲（未连接键盘）": "Studio idle · Agent idle (keyboard not connected)",
     "当前档位": "Current Position",
-    "双击键盘电源键可切换当前模式的整套状态图；也可在上方选择写入后的激活套图。": "Double-press the keyboard power key to switch the full status-image set for the current mode, or choose which set should be active after writing above.",
+    "当前编辑的套图会在写入后自动激活；双击键盘电源键仍可切换当前模式的整套状态图。": "The set you are editing is activated automatically after writing; double-press the keyboard power key to switch the full status-image set for the current mode.",
     "图片帧编码尺寸无效；每帧必须是 160×80 RGB565。": "Invalid encoded frame size; each frame must be 160×80 RGB565.",
     "基础配置已写入；任务图未写入，因为当前固件协议无法识别。": "Basic configuration was written. Task images were skipped because the firmware protocol could not be identified.",
     "套图 A": "Set A",
@@ -1128,7 +1128,6 @@ TRANSLATIONS = {
     "槽位与默认动画重叠迁移": "Slot overlaps the default animation and must be migrated",
     "状态资源：固件按 Hook 状态自动切换待机、工作中、等待授权、已完成。": "Status resources: firmware automatically switches between Idle, Working, Awaiting Approval, and Done based on Hook state.",
     "设备当前使用出厂图": "Device is currently using a factory image",
-    "设备激活套图": "Active Set on Device",
     "连接并识别固件后可编辑任务状态图。": "Connect and identify the firmware before editing task status images.",
     "键位与灯效已写入；任务图因固件协议未识别而跳过。": "Key mapping and lighting were written; task images were skipped because the firmware protocol could not be identified."
 }
