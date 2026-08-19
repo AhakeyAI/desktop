@@ -84,4 +84,15 @@ final class AhaKeyTaskPictureCommandTests: XCTestCase {
         XCTAssertEqual(response?.payload, Data())
         XCTAssertNil(AhaKeyResponseParser.parseTaskPictureStateResponse(response?.payload ?? Data()))
     }
+
+    func testBaseLegacyDefaultPictureUsesFixedModeSlotAndCommand82() {
+        XCTAssertEqual(AhaKeyCommand.oledStartIndex(forMode: 0), 10)
+        XCTAssertEqual(AhaKeyCommand.oledStartIndex(forMode: 3), 220)
+        XCTAssertEqual(
+            Array(AhaKeyCommand.updatePicture(
+                mode: 2, startIndex: 150, frameCount: 4, timeDelayMs: 100
+            )),
+            [0xAA, 0xBB, 0x82, 2, 150, 0, 4, 0, 100, 0, 0xCC, 0xDD]
+        )
+    }
 }

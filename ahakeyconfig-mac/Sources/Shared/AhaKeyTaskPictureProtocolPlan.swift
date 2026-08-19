@@ -19,6 +19,35 @@ public enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
     public static let legacyStates: [AhaKeyTaskDisplayState] = [.working, .waiting, .done]
 }
 
+/// LCD Inspector 的能力分区。普通默认图片（0x80 + 0x82）与任务状态图是两项独立能力。
+public struct AhaKeyOLEDInspectorSections: Equatable {
+    public let showsDefaultPictureEditor: Bool
+    public let showsTaskPictureEditor: Bool
+
+    public static func make(mode: AhaKeyProtocolMode) -> AhaKeyOLEDInspectorSections {
+        AhaKeyOLEDInspectorSections(
+            showsDefaultPictureEditor: mode == .legacyBaseOnly,
+            showsTaskPictureEditor: mode == .legacy || mode == .current
+        )
+    }
+}
+
+public enum AhaKeyDefaultPictureSyncDecision: Equatable {
+    case skip
+    case clear
+    case upload
+
+    public static func decide(
+        hasLocalAsset: Bool,
+        assetChanged: Bool,
+        deviceFrameCount: Int
+    ) -> AhaKeyDefaultPictureSyncDecision {
+        if assetChanged { return hasLocalAsset ? .upload : .clear }
+        if hasLocalAsset, deviceFrameCount == 0 { return .upload }
+        return .skip
+    }
+}
+
 /// 任务图协议的纯策略层。BLE/UI 只消费这个计划，不再各自猜测固件代际。
 public struct AhaKeyTaskPictureProtocolPlan: Equatable {
     public enum MetadataFormat: Equatable {

@@ -2,6 +2,40 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
+    func testLegacyBaseOnlyKeepsDefaultPictureEditorWhileHidingTaskPictures() {
+        let sections = AhaKeyOLEDInspectorSections.make(mode: .legacyBaseOnly)
+
+        XCTAssertTrue(sections.showsDefaultPictureEditor)
+        XCTAssertFalse(sections.showsTaskPictureEditor)
+    }
+
+    func testDefaultPictureSyncUploadsChangesAndClearsRemovedAsset() {
+        XCTAssertEqual(
+            AhaKeyDefaultPictureSyncDecision.decide(
+                hasLocalAsset: true, assetChanged: true, deviceFrameCount: 4
+            ),
+            .upload
+        )
+        XCTAssertEqual(
+            AhaKeyDefaultPictureSyncDecision.decide(
+                hasLocalAsset: false, assetChanged: true, deviceFrameCount: 4
+            ),
+            .clear
+        )
+        XCTAssertEqual(
+            AhaKeyDefaultPictureSyncDecision.decide(
+                hasLocalAsset: true, assetChanged: false, deviceFrameCount: 0
+            ),
+            .upload
+        )
+        XCTAssertEqual(
+            AhaKeyDefaultPictureSyncDecision.decide(
+                hasLocalAsset: true, assetChanged: false, deviceFrameCount: 4
+            ),
+            .skip
+        )
+    }
+
     func testLegacyUsesSingleSetThreeStateCommandsWithoutSessionFinish() {
         let plan = AhaKeyTaskPictureProtocolPlan.make(mode: .legacy, capabilities: nil)
 
