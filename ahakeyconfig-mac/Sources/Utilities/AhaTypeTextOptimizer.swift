@@ -1,5 +1,8 @@
 import Foundation
+import os.log
 import AhaKeyConfigShared
+
+private let ahaTypeLog = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "AhaType")
 
 @MainActor
 final class AhaTypeTextOptimizer: ObservableObject {
@@ -225,6 +228,10 @@ final class AhaTypeTextOptimizer: ObservableObject {
 
         let iso = ISO8601DateFormatter()
         if let date = iso.date(from: value) { return date }
+        // 服务端返回的 token_valid_until 可能带毫秒和时区偏移（如 2026-09-15T12:18:42.000+08:00），
+        // 默认 withInternetDateTime 解析不了毫秒，需显式加 withFractionalSeconds。
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: value) { return date }
         return nil
     }
 
@@ -232,10 +239,16 @@ final class AhaTypeTextOptimizer: ObservableObject {
         if let validUntil = quota["token_valid_until"] {
             config["token_valid_until"] = validUntil
         }
-        for key in ["limit_daily", "limit_weekly", "limit_monthly", "used_daily", "used_weekly", "used_monthly"] {
+        let quotaKeys = ["limit_daily", "limit_weekly", "limit_monthly", "used_daily", "used_weekly", "used_monthly"]
+        var mergedAny = false
+        for key in quotaKeys {
             if let value = quota[key] {
                 config[key] = intValue(value)
+                mergedAny = true
             }
+        }
+        if !mergedAny {
+            ahaTypeLog.warning("AhaType 返回的 quota 未包含已知配额字段：\(quota.keys.sorted())")
         }
         config["quota_updated_at"] = Date().timeIntervalSince1970
     }
@@ -284,9 +297,8 @@ final class AhaTypeTextOptimizer: ObservableObject {
     }
 
     private func sanitize(_ config: inout [String: Any]) {
-        for key in ["api_base", "token_balance", "typeless_balance"] {
-            config.removeValue(forKey: key)
-        }
+        // 不再删除 token_balance / typeless_balance：后端可能仍在使用，删除会抹掉余额显示数据。
+        config.removeValue(forKey: "api_base")
         if var user = config["user"] as? [String: Any] {
             user.removeValue(forKey: "is_admin")
             config["user"] = user

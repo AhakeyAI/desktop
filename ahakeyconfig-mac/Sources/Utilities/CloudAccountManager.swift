@@ -1,5 +1,8 @@
 import Foundation
+import os.log
 import AhaKeyConfigShared
+
+private let cloudAccountLog = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "CloudAccount")
 
 @MainActor
 final class CloudAccountManager: ObservableObject {
@@ -80,9 +83,11 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = NSLocalizedString("请输入账号密码重新登录。", comment: "")
     }
 
+    /// retryDelays 非空时按给定间隔（秒）做有限重试（登录后/启动拉取用），最终失败给出明确提示。
     func refreshProfile(showAlertOnFailure: Bool = true,
                         forceRefresh: Bool = true,
-                        successMessage: String = NSLocalizedString("用户信息已刷新。", comment: "")) {
+                        successMessage: String = NSLocalizedString("用户信息已刷新。", comment: ""),
+                        retryDelays: [TimeInterval] = []) {
         guard !accessToken.isEmpty else {
             logout()
             return
@@ -91,30 +96,58 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = NSLocalizedString("正在刷新用户信息…", comment: "")
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
-            do {
-                let object = try await request(
-                    path: cacheBustedPath("api/v1/auth/users/me", enabled: forceRefresh),
-                    method: "GET",
-                    body: nil,
-                    authorized: true,
-                    bypassCache: forceRefresh
-                )
-                let data = try payloadData(from: object, fallbackError: NSLocalizedString("获取用户信息失败", comment: ""))
-                await MainActor.run {
-                    self.applyProfile(data)
-                    self.statusMessage = successMessage
-                }
-            } catch {
-                await MainActor.run {
-                    if showAlertOnFailure {
-                        self.alertMessage = error.localizedDescription
-                        self.statusMessage = NSLocalizedString("刷新失败。", comment: "")
-                    } else {
-                        self.statusMessage = NSLocalizedString("已登录，用户信息稍后可刷新。", comment: "")
+            var attempt = 0
+            while true {
+                attempt += 1
+                cloudAccountLog.info("refreshProfile 开始（第 \(attempt) 次尝试）")
+                do {
+                    let object = try await request(
+                        path: cacheBustedPath("api/v1/auth/users/me", enabled: forceRefresh),
+                        method: "GET",
+                        body: nil,
+                        authorized: true,
+                        bypassCache: forceRefresh
+                    )
+                    let data = try payloadData(from: object, fallbackError: NSLocalizedString("获取用户信息失败", comment: ""))
+                    guard QuotaProfileNormalizer.normalize(data).recognizedAnyField else {
+                        cloudAccountLog.warning("refreshProfile 返回数据未识别到任何已知字段，视为拉取失败")
+                        throw CloudAccountError(NSLocalizedString("云端返回的用户信息缺少可识别字段。", comment: ""))
                     }
-                    if showAlertOnFailure, (error as? CloudAccountError)?.statusCode == 401 {
-                        self.logout()
+                    await MainActor.run {
+                        self.applyProfile(data)
+                        self.statusMessage = successMessage
                     }
+                    cloudAccountLog.info("refreshProfile 成功（第 \(attempt) 次尝试）")
+                    return
+                } catch {
+                    let statusCode = (error as? CloudAccountError)?.statusCode
+                    cloudAccountLog.error("refreshProfile 失败（第 \(attempt) 次尝试，HTTP \(statusCode ?? -1)）：\(error.localizedDescription)")
+                    // 401 任何路径都退出登录，不再停留在假登录态。
+                    if statusCode == 401 {
+                        cloudAccountLog.warning("refreshProfile 收到 401，退出登录")
+                        await MainActor.run {
+                            self.logout()
+                            self.statusMessage = NSLocalizedString("登录已过期，请重新登录。", comment: "")
+                        }
+                        return
+                    }
+                    if attempt <= retryDelays.count {
+                        let delay = retryDelays[attempt - 1]
+                        cloudAccountLog.info("refreshProfile 将于 \(delay)s 后重试")
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                    await MainActor.run {
+                        if showAlertOnFailure {
+                            self.alertMessage = error.localizedDescription
+                            self.statusMessage = NSLocalizedString("刷新失败。", comment: "")
+                        } else if retryDelays.isEmpty {
+                            self.statusMessage = NSLocalizedString("已登录，用户信息稍后可刷新。", comment: "")
+                        } else {
+                            self.statusMessage = NSLocalizedString("配额拉取失败，请打开云端账号手动刷新。", comment: "")
+                        }
+                    }
+                    return
                 }
             }
         }
@@ -185,7 +218,13 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    self.alertMessage = error.localizedDescription
+                    if (error as? CloudAccountError)?.statusCode == 401 {
+                        // 会话已失效：登出回到登录界面，不再停留在"点了订阅只弹请先登录"的假登录态。
+                        self.logout()
+                        self.alertMessage = NSLocalizedString("登录已过期，请重新登录。", comment: "")
+                    } else {
+                        self.alertMessage = error.localizedDescription
+                    }
                     self.statusMessage = NSLocalizedString("创建支付订单失败。", comment: "")
                 }
             }
@@ -237,7 +276,35 @@ final class CloudAccountManager: ObservableObject {
         if limit <= 0 {
             return used > 0 ? String(format: NSLocalizedString("已用 %d · 无上限", comment: ""), used) : NSLocalizedString("暂无", comment: "")
         }
-        return "\(used) / \(limit)"
+        // 展示 剩余/额度：剩余 = limit - used，下限钳到 0。
+        return "\(max(0, limit - used)) / \(limit)"
+    }
+
+    /// 当期剩余额度：优先月度（limit_monthly - used_monthly），月度字段缺失时退而取每周/每日。
+    /// 常驻展示：profile 未加载或没有任何可用周期时显示 "0"（未充值即 0）。只显示剩余数值，不带总额度。
+    var remainingQuotaText: String {
+        guard let profile else { return "0" }
+        for period in ["monthly", "weekly", "daily"] {
+            guard let rawLimit = profile["limit_\(period)"], !(rawLimit is NSNull) else { continue }
+            let limit = intValue(rawLimit)
+            guard limit > 0 else { continue }
+            let used = intValue(profile["used_\(period)"])
+            return "\(max(0, limit - used))"
+        }
+        return "0"
+    }
+
+    /// 余额展示：仅当 profile 识别到余额字段时返回值，没有就不渲染该行。
+    /// 余额单位待后端确认，这里原值透传不换算。
+    var balanceText: String? {
+        guard let profile else { return nil }
+        for key in ["token_balance", "typeless_balance", "balance"] {
+            if let value = profile[key], !(value is NSNull) {
+                let text = stringValue(value)
+                if !text.isEmpty { return text }
+            }
+        }
+        return nil
     }
 
     func priceText(for plan: CloudRechargePlan) -> String {
@@ -344,10 +411,13 @@ final class CloudAccountManager: ObservableObject {
                     self.saveLogin(token: token, authData: data)
                     self.statusMessage = successMessage
                 }
+                cloudAccountLog.info("云端账号认证成功（\(path)）")
+                // 登录后静默拉 profile，失败做有限重试，不再无声。
                 await MainActor.run {
-                    self.refreshProfile(showAlertOnFailure: false)
+                    self.refreshProfile(showAlertOnFailure: false, retryDelays: [2, 5, 10])
                 }
             } catch {
+                cloudAccountLog.error("云端账号认证失败（\(path)）：\(error.localizedDescription)")
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
                     self.statusMessage = NSLocalizedString("账号请求失败。", comment: "")
@@ -374,12 +444,27 @@ final class CloudAccountManager: ObservableObject {
         isLoggedIn = true
     }
 
-    private func applyProfile(_ profile: [String: Any]) {
-        let normalized = normalizedProfile(profile)
+    /// 返回是否真正应用了 profile：标准化后一个可识别字段都没有时视为拉取失败，
+    /// 保留旧 profile，不再存空 profile（避免 UI 全显示"暂无"）。
+    @discardableResult
+    private func applyProfile(_ profile: [String: Any]) -> Bool {
+        let result = QuotaProfileNormalizer.normalize(profile)
+        guard result.recognizedAnyField else {
+            cloudAccountLog.warning("applyProfile 未识别到任何已知字段，保留旧 profile")
+            return false
+        }
+        var normalized = result.profile
+        if stringValue(normalized["token_valid_until"]).isEmpty, let validUntil = jwtExpirationString(accessToken) {
+            normalized["token_valid_until"] = validUntil
+        }
+        if let balanceKey = result.balanceKey {
+            cloudAccountLog.info("profile 命中余额字段：\(balanceKey)")
+        }
         self.profile = normalized
         isLoggedIn = true
         AhaTypeTextOptimizer.shared.patchCloudToken(accessToken)
         AhaTypeTextOptimizer.shared.setUserProfile(normalized)
+        return true
     }
 
     private func seedLocalProfile(token: String, authData: [String: Any]) {
@@ -394,53 +479,14 @@ final class CloudAccountManager: ObservableObject {
         if let validUntil = jwtExpirationString(token) {
             profile["token_valid_until"] = validUntil
         }
-        profile["limit_daily"] = firstInt(in: authData, keys: ["limit_daily", "limitDaily"])
-        profile["limit_weekly"] = firstInt(in: authData, keys: ["limit_weekly", "limitWeekly"])
-        profile["limit_monthly"] = firstInt(in: authData, keys: ["limit_monthly", "limitMonthly"])
-        profile["used_daily"] = firstInt(in: authData, keys: ["used_daily", "usedDaily"])
-        profile["used_weekly"] = firstInt(in: authData, keys: ["used_weekly", "usedWeekly"])
-        profile["used_monthly"] = firstInt(in: authData, keys: ["used_monthly", "usedMonthly"])
         self.profile = profile
         AhaTypeTextOptimizer.shared.setUserProfile(profile)
     }
 
     private func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
-        var profile = raw
-        let aliases: [(String, String)] = [
-            ("id", "userId"),
-            ("user_id", "userId"),
-            ("token_valid_until", "tokenValidUntil"),
-            ("limit_daily", "limitDaily"),
-            ("limit_weekly", "limitWeekly"),
-            ("limit_monthly", "limitMonthly"),
-            ("used_daily", "usedDaily"),
-            ("used_weekly", "usedWeekly"),
-            ("used_monthly", "usedMonthly"),
-        ]
-        for (snake, camel) in aliases where profile[snake] == nil {
-            if let value = raw[camel] {
-                profile[snake] = value
-            }
-        }
+        var profile = QuotaProfileNormalizer.normalize(raw).profile
         if stringValue(profile["token_valid_until"]).isEmpty, let validUntil = jwtExpirationString(accessToken) {
             profile["token_valid_until"] = validUntil
-        }
-        if var policy = profile["policy"] as? [String: Any] {
-            let policyAliases: [(String, String)] = [
-                ("recharge_prices_fen", "rechargePricesFen"),
-                ("default_limit_daily", "defaultLimitDaily"),
-                ("default_limit_weekly", "defaultLimitWeekly"),
-                ("default_limit_monthly", "defaultLimitMonthly"),
-                ("enable_daily", "enableDaily"),
-                ("enable_weekly", "enableWeekly"),
-                ("enable_monthly", "enableMonthly"),
-            ]
-            for (snake, camel) in policyAliases where policy[snake] == nil {
-                if let value = policy[camel] {
-                    policy[snake] = value
-                }
-            }
-            profile["policy"] = policy
         }
         return profile
     }
@@ -494,7 +540,10 @@ final class CloudAccountManager: ObservableObject {
         let code = intValue(object["code"])
         guard code == 0 || code == 200 else {
             let msg = responseMessage(object)
-            throw CloudAccountError(msg.isEmpty ? fallbackError : msg)
+            // 后端把鉴权失败包在 HTTP 200 里返回（如 {"code":500,"data":401,"msg":"未登录或Token无效"}），
+            // 映射为 statusCode 401，让 refreshProfile 的统一 401 登出逻辑真正生效。
+            let authFailed = code == 401 || intValue(object["data"]) == 401
+            throw CloudAccountError(msg.isEmpty ? fallbackError : msg, statusCode: authFailed ? 401 : nil)
         }
         return object["data"] as? [String: Any] ?? [:]
     }
