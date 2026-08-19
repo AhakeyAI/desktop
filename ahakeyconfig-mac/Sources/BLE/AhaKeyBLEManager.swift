@@ -11,8 +11,10 @@ private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "BLE")
 
 /// 0x83 查询回来的某个 mode 的图片元信息（用 Equatable struct 方便 SwiftUI .onChange 监听）
 struct KeyboardPictureState: Equatable {
+    let startIndex: Int
     let frameCount: Int
     let frameIntervalMs: Int
+    let totalCapacity: Int
 }
 
 /// 0x94/0x96 查询回来的任务图槽位标识
@@ -803,8 +805,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             expectedCommand: AhaKeyCommand.cmdUpdatePic
         )
         keyboardPictureStates[Int(mode)] = KeyboardPictureState(
+            startIndex: Int(startIndex),
             frameCount: Int(frameCount),
-            frameIntervalMs: Int(timeDelayMs)
+            frameIntervalMs: Int(timeDelayMs),
+            totalCapacity: keyboardPictureStates[Int(mode)]?.totalCapacity ?? 0
         )
     }
 
@@ -1267,8 +1271,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 do {
                     let state = try await self.readPictureState(mode: UInt8(slot))
                     self.keyboardPictureStates[slot] = KeyboardPictureState(
+                        startIndex: state.startIndex,
                         frameCount: state.picLength,
-                        frameIntervalMs: state.frameInterval
+                        frameIntervalMs: state.frameInterval,
+                        totalCapacity: state.allModeMaxPic
                     )
                     self.appendLog("  mode\(slot) flash: 帧数=\(state.picLength) 间隔=\(state.frameInterval)ms")
                 } catch {
@@ -1512,6 +1518,7 @@ enum OLEDUploadError: LocalizedError {
     case timeout(command: UInt8)
     case deviceRejected(command: UInt8, status: UInt8)
     case invalidPictureStatePayload
+    case defaultPictureMetadataMismatch
     case invalidTaskPictureStatePayload
     case taskPictureMetadataMismatch
     case cancelled
@@ -1537,6 +1544,8 @@ enum OLEDUploadError: LocalizedError {
             return String(format: NSLocalizedString("设备拒绝了命令 0x%02X，状态码 0x%02X", comment: ""), command, status)
         case .invalidPictureStatePayload:
             return NSLocalizedString("设备返回的动画槽位信息无法解析。", comment: "")
+        case .defaultPictureMetadataMismatch:
+            return NSLocalizedString("设备未保存刚写入的默认图片槽位；未标记为已同步，请重试。", comment: "")
         case .invalidTaskPictureStatePayload:
             return NSLocalizedString("设备返回的任务动画槽位信息无法解析；请确认键盘已烧录任务 GIF 固件。", comment: "")
         case .taskPictureMetadataMismatch:

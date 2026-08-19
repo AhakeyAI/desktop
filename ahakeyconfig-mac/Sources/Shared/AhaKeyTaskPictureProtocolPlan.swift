@@ -40,11 +40,86 @@ public enum AhaKeyDefaultPictureSyncDecision: Equatable {
     public static func decide(
         hasLocalAsset: Bool,
         assetChanged: Bool,
+        deviceStartIndex: Int? = nil,
+        expectedStartIndex: Int? = nil,
         deviceFrameCount: Int
     ) -> AhaKeyDefaultPictureSyncDecision {
         if assetChanged { return hasLocalAsset ? .upload : .clear }
+        if hasLocalAsset,
+           let deviceStartIndex,
+           let expectedStartIndex,
+           deviceStartIndex != expectedStartIndex {
+            return .upload
+        }
         if hasLocalAsset, deviceFrameCount == 0 { return .upload }
         return .skip
+    }
+}
+
+/// 旧固件把 0x83 返回的图片总槽位扣除出厂保留区后，平均分给四个 Mode。
+/// 不能使用新固件的固定 70 帧步长：在役 1.x 固件通常只报告 74 个总槽位。
+public struct AhaKeyLegacyDefaultPictureLayout: Equatable {
+    public let startIndex: Int
+    public let maxFrames: Int
+
+    public static func make(
+        modeIndex: Int,
+        totalCapacity: Int,
+        reservedSlots: Int = 10,
+        modeCount: Int = 4
+    ) -> AhaKeyLegacyDefaultPictureLayout? {
+        guard (0 ..< modeCount).contains(modeIndex),
+              totalCapacity > reservedSlots,
+              modeCount > 0 else { return nil }
+        let perMode = (totalCapacity - reservedSlots) / modeCount
+        guard perMode > 0 else { return nil }
+        return AhaKeyLegacyDefaultPictureLayout(
+            startIndex: reservedSlots + modeIndex * perMode,
+            maxFrames: perMode
+        )
+    }
+}
+
+public enum AhaKeyOLEDDirtyPolicy {
+    public static func isDirty(
+        mode: AhaKeyProtocolMode,
+        defaultPictureChanged: Bool,
+        completeOLEDChanged: Bool
+    ) -> Bool {
+        mode == .legacyBaseOnly ? defaultPictureChanged : completeOLEDChanged
+    }
+}
+
+public enum AhaKeySyncBaselineNamespace {
+    public static func suffix(for mode: AhaKeyProtocolMode) -> String? {
+        switch mode {
+        case .legacy: return "legacy"
+        case .legacyBaseOnly: return "legacy-base"
+        case .current: return "current"
+        case .negotiating, .restrictedUnknown: return nil
+        }
+    }
+}
+
+public enum AhaKeyLegacyBaseInitialBaselinePolicy {
+    /// 固件内置资源无需首次重写；外部自定义资源必须从“未同步”开始，避免沿用旧任务图基线。
+    public static func assetPath(_ path: String?, isBundledAsset: Bool) -> String? {
+        isBundledAsset ? path : nil
+    }
+}
+
+public enum AhaKeyDefaultPictureWriteVerification {
+    public static func matches(
+        expectedStartIndex: Int,
+        expectedFrameCount: Int,
+        expectedFrameIntervalMs: Int,
+        deviceStartIndex: Int,
+        deviceFrameCount: Int,
+        deviceFrameIntervalMs: Int
+    ) -> Bool {
+        expectedStartIndex == deviceStartIndex
+            && expectedFrameCount == deviceFrameCount
+            && expectedFrameIntervalMs == deviceFrameIntervalMs
     }
 }
 

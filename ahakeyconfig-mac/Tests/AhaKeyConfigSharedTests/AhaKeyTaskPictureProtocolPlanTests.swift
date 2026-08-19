@@ -36,6 +36,79 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
         )
     }
 
+    func testDefaultPictureSyncRepairsNonEmptyDeviceBindingAtWrongSlot() {
+        XCTAssertEqual(
+            AhaKeyDefaultPictureSyncDecision.decide(
+                hasLocalAsset: true,
+                assetChanged: false,
+                deviceStartIndex: 276,
+                expectedStartIndex: 10,
+                deviceFrameCount: 4
+            ),
+            .upload
+        )
+    }
+
+    func testLegacyDefaultPictureLayoutUsesDeviceReportedCapacity() {
+        XCTAssertEqual(
+            AhaKeyLegacyDefaultPictureLayout.make(modeIndex: 0, totalCapacity: 74),
+            AhaKeyLegacyDefaultPictureLayout(startIndex: 10, maxFrames: 16)
+        )
+        XCTAssertEqual(
+            AhaKeyLegacyDefaultPictureLayout.make(modeIndex: 3, totalCapacity: 74),
+            AhaKeyLegacyDefaultPictureLayout(startIndex: 58, maxFrames: 16)
+        )
+        XCTAssertNil(AhaKeyLegacyDefaultPictureLayout.make(modeIndex: 0, totalCapacity: 10))
+    }
+
+    func testBaseOnlyDirtyStateIgnoresUnsupportedTaskPictureFields() {
+        XCTAssertFalse(AhaKeyOLEDDirtyPolicy.isDirty(
+            mode: .legacyBaseOnly,
+            defaultPictureChanged: false,
+            completeOLEDChanged: true
+        ))
+        XCTAssertTrue(AhaKeyOLEDDirtyPolicy.isDirty(
+            mode: .legacyBaseOnly,
+            defaultPictureChanged: true,
+            completeOLEDChanged: true
+        ))
+    }
+
+    func testBaseOnlyUsesIndependentBaselineAndRetriesExternalAssets() {
+        XCTAssertEqual(AhaKeySyncBaselineNamespace.suffix(for: .legacy), "legacy")
+        XCTAssertEqual(AhaKeySyncBaselineNamespace.suffix(for: .legacyBaseOnly), "legacy-base")
+        XCTAssertEqual(AhaKeySyncBaselineNamespace.suffix(for: .current), "current")
+        XCTAssertNil(AhaKeyLegacyBaseInitialBaselinePolicy.assetPath(
+            "/tmp/custom.gif", isBundledAsset: false
+        ))
+        XCTAssertEqual(
+            AhaKeyLegacyBaseInitialBaselinePolicy.assetPath(
+                "/Applications/AhaKey Studio.app/Contents/Resources/DefaultOLED/codex.gif",
+                isBundledAsset: true
+            ),
+            "/Applications/AhaKey Studio.app/Contents/Resources/DefaultOLED/codex.gif"
+        )
+    }
+
+    func testDefaultPictureWriteMustMatchDeviceReadback() {
+        XCTAssertTrue(AhaKeyDefaultPictureWriteVerification.matches(
+            expectedStartIndex: 26,
+            expectedFrameCount: 6,
+            expectedFrameIntervalMs: 83,
+            deviceStartIndex: 26,
+            deviceFrameCount: 6,
+            deviceFrameIntervalMs: 83
+        ))
+        XCTAssertFalse(AhaKeyDefaultPictureWriteVerification.matches(
+            expectedStartIndex: 26,
+            expectedFrameCount: 6,
+            expectedFrameIntervalMs: 83,
+            deviceStartIndex: 10,
+            deviceFrameCount: 6,
+            deviceFrameIntervalMs: 83
+        ))
+    }
+
     func testLegacyUsesSingleSetThreeStateCommandsWithoutSessionFinish() {
         let plan = AhaKeyTaskPictureProtocolPlan.make(mode: .legacy, capabilities: nil)
 

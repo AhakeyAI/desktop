@@ -1630,7 +1630,7 @@ struct AhaKeyStudioView: View {
                     Text(String(format: NSLocalizedString("播放速度 %d FPS", comment: ""), currentModeDraft.oled.framesPerSecond))
                 }
 
-                Text(NSLocalizedString("普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 2 MB，FPS 1–30，单模式最多 70 帧。", comment: ""))
+                Text(NSLocalizedString("普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 2 MB，FPS 1–30，帧数上限以设备容量为准（常见 1.x 固件为每模式 16 帧）。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -2164,7 +2164,7 @@ struct AhaKeyStudioView: View {
             for role in AhaKeyKeyRole.allCases where current.key(for: role) != baseline.key(for: role) {
                 count += 1
             }
-            if current.oled != baseline.oled {
+            if oledIsDirty(current: current.oled, baseline: baseline.oled) {
                 count += 1
             }
             if current.lightBar != baseline.lightBar {
@@ -2337,7 +2337,7 @@ struct AhaKeyStudioView: View {
             guard let role = part.keyRole else { return false }
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
-            return current.oled != baseline.oled
+            return oledIsDirty(current: current.oled, baseline: baseline.oled)
         case .lightBar:
             return current.lightBar != baseline.lightBar
         case .toggleSwitch:
@@ -2598,13 +2598,23 @@ struct AhaKeyStudioView: View {
         for mode in AhaKeyModeSlot.allCases {
             let draft = studioDraft.draft(for: mode).oled
             let baseline = lastSyncedDraft.draft(for: mode).oled
-            let deviceFrameCount = bleManager.keyboardPictureStates[mode.rawValue]?.frameCount ?? 0
+            let deviceState = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
+            guard let layout = AhaKeyLegacyDefaultPictureLayout.make(
+                modeIndex: mode.rawValue,
+                totalCapacity: deviceState.allModeMaxPic,
+                reservedSlots: AhaKeyCommand.oledFactoryReservedSlots,
+                modeCount: AhaKeyCommand.oledModeCount
+            ) else {
+                throw OLEDUploadError.invalidPictureStatePayload
+            }
             let changed = draft.localAssetPath != baseline.localAssetPath
                 || draft.framesPerSecond != baseline.framesPerSecond
             let decision = AhaKeyDefaultPictureSyncDecision.decide(
                 hasLocalAsset: draft.localAssetPath != nil,
                 assetChanged: changed,
-                deviceFrameCount: deviceFrameCount
+                deviceStartIndex: deviceState.startIndex,
+                expectedStartIndex: layout.startIndex,
+                deviceFrameCount: deviceState.picLength
             )
             if decision == .skip { continue }
             if decision == .clear {
@@ -2618,9 +2628,9 @@ struct AhaKeyStudioView: View {
 
             let assetURL = URL(fileURLWithPath: assetPath)
             try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-            try OLEDFrameEncoder.validateFrameCount(at: assetURL, maxFrames: AhaKeyCommand.oledMaxFramesPerMode)
+            try OLEDFrameEncoder.validateFrameCount(at: assetURL, maxFrames: layout.maxFrames)
             let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
-            let startIndex = AhaKeyCommand.oledStartIndex(forMode: UInt8(mode.rawValue))
+            let startIndex = UInt16(layout.startIndex)
             syncStatusMessage = String(
                 format: NSLocalizedString("正在上传 %@ 的默认图片…", comment: ""), mode.title
             )
@@ -2630,6 +2640,18 @@ struct AhaKeyStudioView: View {
                 mode: UInt8(mode.rawValue),
                 startIndex: startIndex
             )
+            let expectedInterval = max(1, 1000 / max(1, draft.framesPerSecond))
+            let readback = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
+            guard AhaKeyDefaultPictureWriteVerification.matches(
+                expectedStartIndex: Int(startIndex),
+                expectedFrameCount: frames.count,
+                expectedFrameIntervalMs: expectedInterval,
+                deviceStartIndex: readback.startIndex,
+                deviceFrameCount: readback.picLength,
+                deviceFrameIntervalMs: readback.frameInterval
+            ) else {
+                throw OLEDUploadError.defaultPictureMetadataMismatch
+            }
             updateMode(mode) { modeDraft in
                 modeDraft.oled.statusLine = String(
                     format: NSLocalizedString("默认图片已写入设备（%d 帧）。", comment: ""), frames.count
@@ -2638,6 +2660,16 @@ struct AhaKeyStudioView: View {
             uploadCount += 1
         }
         return uploadCount
+    }
+
+    private func oledIsDirty(current: AhaKeyOLEDDraft, baseline: AhaKeyOLEDDraft) -> Bool {
+        let defaultPictureChanged = current.localAssetPath != baseline.localAssetPath
+            || current.framesPerSecond != baseline.framesPerSecond
+        return AhaKeyOLEDDirtyPolicy.isDirty(
+            mode: bleManager.protocolMode,
+            defaultPictureChanged: defaultPictureChanged,
+            completeOLEDChanged: current != baseline
+        )
     }
 
     private func uploadChangedOLEDsToDevice() async throws -> Int {
@@ -2971,11 +3003,14 @@ struct AhaKeyStudioView: View {
         let identity = bleManager.bleDeviceUUID.isEmpty
             ? (bleManager.deviceIdentifier == "—" ? (bleManager.deviceName ?? "unknown") : bleManager.deviceIdentifier)
             : bleManager.bleDeviceUUID
-        let key = "\(identity).\(mode == .current ? "current" : "legacy")"
+        guard let namespace = AhaKeySyncBaselineNamespace.suffix(for: mode) else { return }
+        let key = "\(identity).\(namespace)"
         guard syncBaselineDeviceKey != key else { return }
         syncBaselineDeviceKey = key
         lastSyncedDraft = AhaKeyStudioStore.loadSyncBaseline(deviceKey: key)
-            ?? (mode == .legacyBaseOnly ? studioDraft : Self.unsyncedTaskPictureBaseline(from: studioDraft))
+            ?? (mode == .legacyBaseOnly
+                ? Self.initialLegacyBaseSyncBaseline(from: studioDraft)
+                : Self.unsyncedTaskPictureBaseline(from: studioDraft))
     }
 
     private func saveCurrentDeviceSyncBaseline() {
@@ -2998,6 +3033,20 @@ struct AhaKeyStudioView: View {
             // 新设备没有同步记录时，不能把草稿中的激活套图误当成已写入设备。
             modeDraft.oled.activeGIFSet = -1
             modeDraft.oled.taskGIFSchemaVersion = 0
+            baseline.updateMode(modeDraft)
+        }
+        return baseline
+    }
+
+    private static func initialLegacyBaseSyncBaseline(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
+        var baseline = draft
+        for mode in AhaKeyModeSlot.allCases {
+            var modeDraft = baseline.draft(for: mode)
+            let path = modeDraft.oled.localAssetPath
+            modeDraft.oled.localAssetPath = AhaKeyLegacyBaseInitialBaselinePolicy.assetPath(
+                path,
+                isBundledAsset: path.map(DefaultOLEDAssets.isBundledPath) ?? false
+            )
             baseline.updateMode(modeDraft)
         }
         return baseline
