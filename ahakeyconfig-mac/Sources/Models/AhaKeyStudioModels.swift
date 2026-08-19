@@ -980,7 +980,8 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         if let storedSets = try container.decodeIfPresent([AhaKeyTaskGIFSetDraft].self, forKey: .taskGIFSets) {
             // Rhino / 统一格式：双套。
             taskGIFSets = Self.normalizedSets(storedSets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
-            activeGIFSet = min(1, max(0, try container.decodeIfPresent(Int.self, forKey: .activeGIFSet) ?? 0))
+            // -1 仅用于“该设备的激活套图尚未同步”基线，必须跨重启保留以便失败后重试。
+            activeGIFSet = Self.normalizedBaselineActiveSet(try container.decodeIfPresent(Int.self, forKey: .activeGIFSet) ?? 0)
             taskGIFSchemaVersion = max(0, try container.decodeIfPresent(Int.self, forKey: .taskGIFSchemaVersion) ?? 0)
         } else {
             // 主线旧格式：3 态单套 taskGIFAssets（或更老的仅 localAssetPath）。
@@ -1041,7 +1042,12 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
 
     mutating func ensureTaskGIFSets() {
         taskGIFSets = Self.normalizedSets(taskGIFSets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
-        activeGIFSet = min(1, max(0, activeGIFSet))
+        // -1 是设备同步基线专用的“未知”值；更新图片槽时不能把它误认成套图 A。
+        activeGIFSet = Self.normalizedBaselineActiveSet(activeGIFSet)
+    }
+
+    private static func normalizedBaselineActiveSet(_ value: Int) -> Int {
+        min(1, max(-1, value))
     }
 
     private static func normalizedSets(_ candidates: [AhaKeyTaskGIFSetDraft], legacyAssetPath: String?, legacyFramesPerSecond: Int) -> [AhaKeyTaskGIFSetDraft] {

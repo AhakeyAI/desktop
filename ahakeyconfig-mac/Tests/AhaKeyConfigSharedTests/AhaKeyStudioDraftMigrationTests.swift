@@ -179,6 +179,25 @@ final class AhaKeyStudioDraftMigrationTests: XCTestCase {
         }
     }
 
+    func testUnsyncedActiveSetSentinelSurvivesBaselineRoundTrip() throws {
+        var root = jsonDict(fixtureData("draft-rhino"))
+        var storedModes = modes(root)
+        for index in storedModes.indices {
+            var mode = storedModes[index]
+            var storedOLED = oled(of: mode)
+            storedOLED["activeGIFSet"] = -1
+            mode["oled"] = storedOLED
+            storedModes[index] = mode
+        }
+        root["modes"] = storedModes
+
+        let input = try JSONSerialization.data(withJSONObject: root)
+        let migrated = try XCTUnwrap(AhaKeyStudioDraftMigration.migrateDraftData(input))
+        for mode in modes(jsonDict(migrated)) {
+            XCTAssertEqual(oled(of: mode)["activeGIFSet"] as? Int, -1)
+        }
+    }
+
     // MARK: - schema < 2 套图 B 去重（Rhino 规则）
 
     func testSchema1DuplicateSetBIsCleared() throws {

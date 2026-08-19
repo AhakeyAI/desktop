@@ -33,6 +33,7 @@ struct AhaKeyStudioView: View {
     // AhaKeyStudio 交还蓝牙给 Agent 的过渡期：保持"已连接"显示，直到 Agent 接管或超时。
     @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
+    @State private var selectedOLEDGIFSet = 0
     @State private var selectedOLEDTaskState: AhaKeyTaskDisplayState = .done
     @State private var showsDeviceInfo = false
     @State private var showsCloudAccount = false
@@ -96,6 +97,8 @@ struct AhaKeyStudioView: View {
             applyCursorRejectMacroSelfHealIfNeeded()
             voiceRelay.updateRoutes(from: studioDraft)
             SwitchStateNotifier.shared.bind(to: bleManager)
+            loadSyncBaselineForConnectedDevice(mode: bleManager.protocolMode)
+            reconcileActiveTaskPictureSetsFromDevice(bleManager.activeTaskPictureSets)
             NotificationCenter.default.post(
                 name: .ahaKeyKeyboardWorkModeChanged,
                 object: nil,
@@ -148,13 +151,24 @@ struct AhaKeyStudioView: View {
             if capabilities?.supportsIdleTaskPicture != true, selectedOLEDTaskState == .idle {
                 selectedOLEDTaskState = .working
             }
+            if (bleManager.taskPictureProtocolPlan?.setIndices.count ?? 1) < 2 {
+                selectedOLEDGIFSet = 0
+            }
         }
         .onChange(of: bleManager.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
-            if mode == .current { handleFactoryResourceChange(bleManager.firmwareCapabilities) }
-            if mode != .current, selectedOLEDTaskState == .idle {
-                selectedOLEDTaskState = .working
+            if mode == .current {
+                handleFactoryResourceChange(bleManager.firmwareCapabilities)
+                // active-set 状态可能早于能力协商到达；baseline 就绪后主动补一次归并。
+                reconcileActiveTaskPictureSetsFromDevice(bleManager.activeTaskPictureSets)
             }
+            if mode != .current {
+                selectedOLEDGIFSet = 0
+                if selectedOLEDTaskState == .idle { selectedOLEDTaskState = .working }
+            }
+        }
+        .onChange(of: bleManager.activeTaskPictureSets) { activeSets in
+            reconcileActiveTaskPictureSetsFromDevice(activeSets)
         }
         .onChange(of: bleManager.keyboardPictureStates) { _ in
             guard !oledAutoSyncDoneForConnection else { return }
@@ -1437,83 +1451,110 @@ struct AhaKeyStudioView: View {
         VStack(alignment: .leading, spacing: 16) {
             GroupBox(NSLocalizedString("任务状态动图", comment: "")) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text(NSLocalizedString("状态资源：固件按 Hook 状态自动切换工作中、等待授权、已完成。", comment: ""))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if !bleManager.allowsTaskPictureConfiguration {
+                        Text(taskPictureUnavailableMessage)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                    } else {
+                        Text(bleManager.protocolMode == .current
+                             ? NSLocalizedString("状态资源：固件按 Hook 状态自动切换待机、工作中、等待授权、已完成。", comment: "")
+                             : NSLocalizedString("状态资源：固件按 Hook 状态自动切换工作中、等待授权、已完成。", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                        // M2a：UI 仍只展示 3 态（第 0 套）；M2b 按固件能力接 idle 与双套。
-                        ForEach(AhaKeyTaskDisplayState.legacyStates) { state in
-                            Button { selectedOLEDTaskState = state } label: {
-                                Text(state.title)
-                                    .font(.caption.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 32)
-                                    .background(RoundedRectangle(cornerRadius: 6).fill(state == selectedOLEDTaskState ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor)))
-                                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(state == selectedOLEDTaskState ? Color.accentColor : Color.black.opacity(0.08), lineWidth: state == selectedOLEDTaskState ? 1.5 : 1))
+                        if bleManager.taskPictureProtocolPlan?.supportsActiveSet == true {
+                            Picker("", selection: $selectedOLEDGIFSet) {
+                                Text(NSLocalizedString("套图 A", comment: "")).tag(0)
+                                Text(NSLocalizedString("套图 B", comment: "")).tag(1)
                             }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.black.opacity(0.9))
-                            .frame(height: 140)
+                            .pickerStyle(.segmented)
 
-                        if let image = currentOLEDPreviewImage {
-                            Image(nsImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(height: 112)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        } else {
-                            VStack(spacing: 10) {
-                                Image(systemName: "photo.artframe")
-                                    .font(.system(size: 28))
-                                    .foregroundStyle(.white.opacity(0.8))
-                                Text(NSLocalizedString("当前仅支持动图", comment: ""))
-                                    .foregroundStyle(.white.opacity(0.85))
-                                Text(NSLocalizedString("文字、token、模型状态显示开发中", comment: ""))
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.55))
+                            Picker(NSLocalizedString("设备激活套图", comment: ""), selection: activeOLEDGIFSetBinding) {
+                                Text(NSLocalizedString("套图 A", comment: "")).tag(0)
+                                Text(NSLocalizedString("套图 B", comment: "")).tag(1)
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(NSLocalizedString("双击键盘电源键可切换当前模式的整套状态图；也可在上方选择写入后的激活套图。", comment: ""))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: visibleTaskDisplayStates.count), spacing: 8) {
+                            ForEach(visibleTaskDisplayStates) { state in
+                                Button { selectedOLEDTaskState = state } label: {
+                                    Text(state.title)
+                                        .font(.caption.weight(.semibold))
+                                        .frame(maxWidth: .infinity, minHeight: 32)
+                                        .background(RoundedRectangle(cornerRadius: 6).fill(state == selectedOLEDTaskState ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor)))
+                                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(state == selectedOLEDTaskState ? Color.accentColor : Color.black.opacity(0.08), lineWidth: state == selectedOLEDTaskState ? 1.5 : 1))
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
-                    }
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.black.opacity(0.9))
+                                .frame(height: 140)
 
-                    HStack(spacing: 10) {
-                        Button(NSLocalizedString("选择 GIF 或图片", comment: "")) {
-                            selectOLEDImage()
+                            if let image = currentOLEDPreviewImage {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(height: 112)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else {
+                                VStack(spacing: 10) {
+                                    Image(systemName: "photo.artframe")
+                                        .font(.system(size: 28))
+                                        .foregroundStyle(.white.opacity(0.8))
+                                    Text(NSLocalizedString("当前仅支持动图", comment: ""))
+                                        .foregroundStyle(.white.opacity(0.85))
+                                    Text(NSLocalizedString("文字、token、模型状态显示开发中", comment: ""))
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.55))
+                                }
+                            }
                         }
-                        .buttonStyle(.bordered)
 
-                        Button(NSLocalizedString("预览动图", comment: "")) {
-                            showsOLEDPlaybackPreview = true
+                        HStack(spacing: 10) {
+                            Button(NSLocalizedString("选择 GIF 或图片", comment: "")) {
+                                selectOLEDImage()
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button(NSLocalizedString("预览动图", comment: "")) {
+                                showsOLEDPlaybackPreview = true
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(currentOLEDTaskAsset.localAssetPath == nil)
+
+                            Button(NSLocalizedString("清空", comment: "")) {
+                                clearCurrentOLED()
+                            }
+                            .buttonStyle(.bordered)
+
+                            Spacer()
+
+                            Text(selectedOLEDTaskState.title)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(currentOLEDTaskAsset.localAssetPath == nil)
 
-                        Button(NSLocalizedString("清空", comment: "")) {
-                            clearCurrentOLED()
+                        Stepper(value: oledFramesPerSecondBinding, in: 5 ... 20) {
+                            Text(String(format: NSLocalizedString("播放速度 %d FPS", comment: ""), currentOLEDTaskAsset.framesPerSecond))
                         }
-                        .buttonStyle(.bordered)
 
-                        Spacer()
+                        Text(NSLocalizedString("任务状态图每张最多 30 帧（超出自动均匀抽帧），源文件 ≤ 2 MB，FPS 5–20。", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                        Text(selectedOLEDTaskState.title)
+                        Text(currentModeDraft.oled.statusLine)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
-                    Stepper(value: oledFramesPerSecondBinding, in: 5 ... 20) {
-                        Text(String(format: NSLocalizedString("播放速度 %d FPS", comment: ""), currentOLEDTaskAsset.framesPerSecond))
-                    }
-
-                    Text(NSLocalizedString("任务状态图每张最多 30 帧（超出自动均匀抽帧），源文件 ≤ 2 MB，FPS 5–20。", comment: ""))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Text(currentModeDraft.oled.statusLine)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
                 .padding(.top, 4)
             }
@@ -1857,7 +1898,7 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentOLEDTaskAsset: AhaKeyTaskGIFAssetDraft {
-        currentModeDraft.oled.taskAsset(for: selectedOLEDTaskState)
+        currentModeDraft.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
     }
 
     private var currentOLEDPreviewImage: NSImage? {
@@ -1993,12 +2034,38 @@ struct AhaKeyStudioView: View {
             get: { currentOLEDTaskAsset.framesPerSecond },
             set: { newValue in
                 updateCurrentMode { mode in
-                    var asset = mode.oled.taskAsset(for: selectedOLEDTaskState)
+                    var asset = mode.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
                     asset.framesPerSecond = min(20, max(5, newValue))
-                    mode.oled.updateTaskAsset(asset)
+                    mode.oled.updateTaskAsset(set: selectedOLEDGIFSet, asset: asset)
                 }
             }
         )
+    }
+
+    private var activeOLEDGIFSetBinding: Binding<Int> {
+        Binding(
+            get: { currentModeDraft.oled.activeGIFSet },
+            set: { newValue in
+                updateCurrentMode { $0.oled.activeGIFSet = min(1, max(0, newValue)) }
+            }
+        )
+    }
+
+    private var visibleTaskDisplayStates: [AhaKeyTaskDisplayState] {
+        bleManager.protocolMode == .current
+            ? (bleManager.supportedTaskDisplayStates.isEmpty ? AhaKeyTaskDisplayState.allCases : bleManager.supportedTaskDisplayStates)
+            : AhaKeyTaskDisplayState.legacyStates
+    }
+
+    private var taskPictureUnavailableMessage: String {
+        switch bleManager.protocolMode {
+        case .negotiating:
+            return NSLocalizedString("连接并识别固件后可编辑任务状态图。", comment: "")
+        case .restrictedUnknown:
+            return NSLocalizedString("当前固件协议无法识别，任务状态图配置已停用；键位和灯效仍可使用。", comment: "")
+        case .legacy, .current:
+            return ""
+        }
     }
 
     private var hasUnsyncedChanges: Bool {
@@ -2031,10 +2098,10 @@ struct AhaKeyStudioView: View {
 
     private func clearCurrentOLED() {
         updateCurrentMode { mode in
-            var asset = mode.oled.taskAsset(for: selectedOLEDTaskState)
+            var asset = mode.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
             asset.localAssetPath = nil
-            mode.oled.updateTaskAsset(asset)
-            mode.oled.statusLine = String(format: NSLocalizedString("已清空 %@，写入设备后生效。", comment: ""), selectedOLEDTaskState.title)
+            mode.oled.updateTaskAsset(set: selectedOLEDGIFSet, asset: asset)
+            mode.oled.statusLine = String(format: NSLocalizedString("已清空套图 %@ · %@，写入设备后生效。", comment: ""), selectedOLEDGIFSet == 0 ? "A" : "B", selectedOLEDTaskState.title)
         }
     }
 
@@ -2179,12 +2246,12 @@ struct AhaKeyStudioView: View {
             }
             let frameCount = OLEDFrameEncoder.frameCount(at: url)
             updateCurrentMode { mode in
-                var asset = mode.oled.taskAsset(for: selectedOLEDTaskState)
+                var asset = mode.oled.taskAsset(set: selectedOLEDGIFSet, state: selectedOLEDTaskState)
                 asset.localAssetPath = url.path
-                mode.oled.updateTaskAsset(asset)
-                mode.oled.statusLine = String(format: NSLocalizedString("已选 %d 帧图片：%@。", comment: ""), max(frameCount, 1), selectedOLEDTaskState.title)
+                mode.oled.updateTaskAsset(set: selectedOLEDGIFSet, asset: asset)
+                mode.oled.statusLine = String(format: NSLocalizedString("已选 %d 帧图片：套图 %@ · %@。", comment: ""), max(frameCount, 1), selectedOLEDGIFSet == 0 ? "A" : "B", selectedOLEDTaskState.title)
             }
-            syncStatusMessage = String(format: NSLocalizedString("已更新 %@ 的 %@ 预览；写入设备请使用底部通用按钮。", comment: ""), selectedMode.title, selectedOLEDTaskState.title)
+            syncStatusMessage = String(format: NSLocalizedString("已更新 %@ 套图 %@ 的 %@ 预览；写入设备请使用底部通用按钮。", comment: ""), selectedMode.title, selectedOLEDGIFSet == 0 ? "A" : "B", selectedOLEDTaskState.title)
         }
     }
 
@@ -2557,10 +2624,12 @@ struct AhaKeyStudioView: View {
             if protocolPlan.supportsActiveSet {
                 let desiredSet = min(1, max(0, currentOLED.activeGIFSet))
                 let deviceSet = bleManager.activeTaskPictureSets[mode.rawValue] ?? 0
-                if desiredSet != deviceSet {
+                if desiredSet != baselineOLED.activeGIFSet {
                     do {
-                        try await bleManager.setActiveTaskPictureSet(mode: UInt8(mode.rawValue), set: UInt8(desiredSet))
-                        try await bleManager.saveConfigAwaitingResponse()
+                        if desiredSet != deviceSet {
+                            try await bleManager.setActiveTaskPictureSet(mode: UInt8(mode.rawValue), set: UInt8(desiredSet))
+                            try await bleManager.saveConfigAwaitingResponse()
+                        }
                         markActiveTaskPictureSetSynced(mode: mode, set: desiredSet)
                     } catch {
                         let label = "\(mode.title) · 激活套图 \(desiredSet == 0 ? "A" : "B")"
@@ -2631,6 +2700,34 @@ struct AhaKeyStudioView: View {
         var modeDraft = baseline.draft(for: mode)
         modeDraft.oled.activeGIFSet = set
         baseline.updateMode(modeDraft)
+        lastSyncedDraft = baseline
+        saveCurrentDeviceSyncBaseline()
+    }
+
+    /// 物理双击切套后让 UI 跟随设备；若用户已在 UI 选择了另一套但尚未写入，则保留用户选择。
+    private func reconcileActiveTaskPictureSetsFromDevice(_ activeSets: [Int: Int]) {
+        guard bleManager.protocolMode == .current, syncBaselineDeviceKey != nil else { return }
+        var draft = studioDraft
+        var baseline = lastSyncedDraft
+        var changed = false
+
+        for mode in AhaKeyModeSlot.allCases {
+            guard let deviceSet = activeSets[mode.rawValue], (0 ... 1).contains(deviceSet) else { continue }
+            var draftMode = draft.draft(for: mode)
+            var baselineMode = baseline.draft(for: mode)
+            // -1 表示该设备尚未同步；draft != baseline 表示用户已有待写入选择。
+            guard baselineMode.oled.activeGIFSet >= 0,
+                  draftMode.oled.activeGIFSet == baselineMode.oled.activeGIFSet else { continue }
+            guard draftMode.oled.activeGIFSet != deviceSet else { continue }
+            draftMode.oled.activeGIFSet = deviceSet
+            baselineMode.oled.activeGIFSet = deviceSet
+            draft.updateMode(draftMode)
+            baseline.updateMode(baselineMode)
+            changed = true
+        }
+
+        guard changed else { return }
+        studioDraft = draft
         lastSyncedDraft = baseline
         saveCurrentDeviceSyncBaseline()
     }
@@ -2711,6 +2808,8 @@ struct AhaKeyStudioView: View {
                     modeDraft.oled.updateTaskAsset(set: set, asset: asset)
                 }
             }
+            // 新设备没有同步记录时，不能把草稿中的激活套图误当成已写入设备。
+            modeDraft.oled.activeGIFSet = -1
             modeDraft.oled.taskGIFSchemaVersion = 0
             baseline.updateMode(modeDraft)
         }

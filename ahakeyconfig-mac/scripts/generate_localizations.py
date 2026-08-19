@@ -1077,7 +1077,27 @@ TRANSLATIONS = {
     "编辑器占用蓝牙 · Agent 空闲": "Studio holds Bluetooth · Agent idle",
     "编辑器空闲 · Agent 占用蓝牙": "Studio idle · Agent holds Bluetooth",
     "编辑器空闲 · Agent 空闲（未连接键盘）": "Studio idle · Agent idle (keyboard not connected)",
-    "当前档位": "Current Position"
+    "当前档位": "Current Position",
+    "双击键盘电源键可切换当前模式的整套状态图；也可在上方选择写入后的激活套图。": "Double-press the keyboard power key to switch the full status-image set for the current mode, or choose which set should be active after writing above.",
+    "图片帧编码尺寸无效；每帧必须是 160×80 RGB565。": "Invalid encoded frame size; each frame must be 160×80 RGB565.",
+    "基础配置已写入；任务图未写入，因为当前固件协议无法识别。": "Basic configuration was written. Task images were skipped because the firmware protocol could not be identified.",
+    "套图 A": "Set A",
+    "套图 B": "Set B",
+    "已更新 %@ 套图 %@ 的 %@ 预览；写入设备请使用底部通用按钮。": "Updated the %3$@ preview for Set %2$@ in %1$@. Use the main button at the bottom to write it to the device.",
+    "已清空套图 %@ · %@，写入设备后生效。": "Cleared Set %@ · %@. Write to the device to apply.",
+    "已识别新固件出厂图片；本地图片草稿保持不变。": "Detected factory images from the new firmware; local image drafts were left unchanged.",
+    "已选 %d 帧图片：套图 %@ · %@。": "Selected a %d-frame image: Set %@ · %@.",
+    "当前固件协议不支持这项任务图操作。": "The current firmware protocol does not support this task-image operation.",
+    "当前固件协议无法识别，任务状态图配置已停用；键位和灯效仍可使用。": "The firmware protocol could not be identified, so task-image configuration is disabled. Key mapping and lighting remain available.",
+    "待机": "Idle",
+    "旧版数据迁移(schema<3)": "Legacy data migration (schema < 3)",
+    "检测到固件出厂图片已更新；本地自定义图片已标记为待写入。": "Detected updated factory images; local custom images were marked for writing.",
+    "槽位与默认动画重叠迁移": "Slot overlaps the default animation and must be migrated",
+    "状态资源：固件按 Hook 状态自动切换待机、工作中、等待授权、已完成。": "Status resources: firmware automatically switches between Idle, Working, Awaiting Approval, and Done based on Hook state.",
+    "设备当前使用出厂图": "Device is currently using a factory image",
+    "设备激活套图": "Active Set on Device",
+    "连接并识别固件后可编辑任务状态图。": "Connect and identify the firmware before editing task status images.",
+    "键位与灯效已写入；任务图因固件协议未识别而跳过。": "Key mapping and lighting were written; task images were skipped because the firmware protocol could not be identified."
 }
 
 
