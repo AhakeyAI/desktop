@@ -9,6 +9,8 @@ enum AhaKeyCommand {
     static let trailer: [UInt8] = [0xCC, 0xDD]
     static let oledWidth = 160
     static let oledHeight = 80
+    /// 单帧编码后固定字节数（160×80 RGB565 大端，无 padding）。
+    static let oledEncodedFrameBytes = oledWidth * oledHeight * 2
     static let oledFrameSlotSize = 28_672
     static let oledFactoryReservedSlots = 10
     static let oledModeCount = 4
@@ -51,6 +53,10 @@ enum AhaKeyCommand {
     static let cmdFinishTaskPicWrite: UInt8 = 0x98
     /// 固件能力查询（M1d：协商 protocolMode，解析逻辑在 AhaKeyConfigShared 的 AhaKeyFirmwareCapabilities）。
     static let cmdCapabilities: UInt8 = 0x99
+    /// 中止一次会话图片写入（0x9B 开启的 session），可带 sessionID。
+    static let cmdAbortPictureWrite: UInt8 = 0x9A
+    /// 会话式图片写入预备（带 sessionID 的 0x80 变体，M2b1：supportsSessionUpload 时使用）。
+    static let cmdPrepareSessionWrite: UInt8 = 0x9B
 
     static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
         UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
@@ -126,6 +132,30 @@ enum AhaKeyCommand {
             UInt8((address >> 24) & 0xFF),
         ]
         return Data(header + [cmdPrepareWrite] + payload + trailer)
+    }
+
+    /// 会话式预备写入 → AA BB 9B [session:2 LE] [chunk_len:2 LE] [address:4 LE] CC DD
+    /// 与 0x80 等价但带 sessionID；随后的每个 BLE 数据子包以 2 字节 sessionID 前缀标记，
+    /// 失败/取消时用 0x9A 按 sessionID 中止，避免半截写入污染 flash。
+    static func prepareSessionWrite(sessionID: UInt16, chunkLength: Int, address: UInt32) -> Data {
+        let payload: [UInt8] = [
+            UInt8(sessionID & 0xFF), UInt8((sessionID >> 8) & 0xFF),
+            UInt8(chunkLength & 0xFF), UInt8((chunkLength >> 8) & 0xFF),
+            UInt8(address & 0xFF), UInt8((address >> 8) & 0xFF),
+            UInt8((address >> 16) & 0xFF), UInt8((address >> 24) & 0xFF),
+        ]
+        return Data(header + [cmdPrepareSessionWrite] + payload + trailer)
+    }
+
+    /// 中止会话写入 → AA BB 9A [session:2 LE]? CC DD（不带 sessionID 时中止当前会话）
+    static func abortPictureWrite(sessionID: UInt16? = nil) -> Data {
+        guard let sessionID else {
+            return Data(header + [cmdAbortPictureWrite] + trailer)
+        }
+        return Data(header + [
+            cmdAbortPictureWrite,
+            UInt8(sessionID & 0xFF), UInt8((sessionID >> 8) & 0xFF),
+        ] + trailer)
     }
 
     /// 更新 LCD 动画参数 → AA BB 82 [mode] [start_index:2 LE] [frame_count:2 LE] [time_delay:2 LE] CC DD

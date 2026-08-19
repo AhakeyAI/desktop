@@ -17,6 +17,7 @@ struct AhaKeyStudioView: View {
 
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
+    @State private var syncBaselineDeviceKey: String?
     @State private var selectedMode: AhaKeyModeSlot
     @State private var selectedPart: AhaKeyStudioPart
     @State private var lightBarPreview: IDEState
@@ -64,7 +65,8 @@ struct AhaKeyStudioView: View {
         // 任何在 init 里调用 updateRoutes 都会重置 functionRelay 的 holdingRoute（按住状态），
         // 导致微信等"按住说话"过几秒就自动结束。正确入口在下面的 .onAppear。
         _studioDraft = State(initialValue: initialDraft)
-        _lastSyncedDraft = State(initialValue: initialDraft)
+        _lastSyncedDraft = State(initialValue: Self.unsyncedTaskPictureBaseline(from: initialDraft))
+        _syncBaselineDeviceKey = State(initialValue: nil)
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
@@ -135,7 +137,24 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = String(format: NSLocalizedString("已通知键盘切换到 %@。", comment: ""), newValue.title)
         }
         .onChange(of: bleManager.isConnected) { connected in
-            if !connected { oledAutoSyncDoneForConnection = false }
+            if !connected {
+                oledAutoSyncDoneForConnection = false
+                syncBaselineDeviceKey = nil
+                lastSyncedDraft = Self.unsyncedTaskPictureBaseline(from: studioDraft)
+            }
+        }
+        .onChange(of: bleManager.firmwareCapabilities) { capabilities in
+            handleFactoryResourceChange(capabilities)
+            if capabilities?.supportsIdleTaskPicture != true, selectedOLEDTaskState == .idle {
+                selectedOLEDTaskState = .working
+            }
+        }
+        .onChange(of: bleManager.protocolMode) { mode in
+            loadSyncBaselineForConnectedDevice(mode: mode)
+            if mode == .current { handleFactoryResourceChange(bleManager.firmwareCapabilities) }
+            if mode != .current, selectedOLEDTaskState == .idle {
+                selectedOLEDTaskState = .working
+            }
         }
         .onChange(of: bleManager.keyboardPictureStates) { _ in
             guard !oledAutoSyncDoneForConnection else { return }
@@ -2290,12 +2309,20 @@ struct AhaKeyStudioView: View {
         completedTaskResourceCount = 0
         syncStatusMessage = NSLocalizedString("正在准备写入设备…", comment: "")
         let returnAgent = returnToKeyboardControlWhenDone
+        let taskPicturesWereEligible = bleManager.allowsTaskPictureConfiguration
 
         deviceWriteTask?.cancel()
         deviceWriteTask = Task { @MainActor in
             defer { self.deviceWriteTask = nil }
             do {
-                let uploadedOLEDCount = try await uploadChangedOLEDsToDevice()
+                let uploadedOLEDCount: Int
+                if taskPicturesWereEligible {
+                    uploadedOLEDCount = try await uploadChangedOLEDsToDevice()
+                } else {
+                    lastTaskUploadFailures = []
+                    uploadedOLEDCount = 0
+                    bleManager.appendCommLogLine("当前固件协议未识别，已跳过任务图；继续写入键位与灯效。", isError: true)
+                }
                 var commands = commandsForModes(AhaKeyModeSlot.allCases)
                 commands.append((data: AhaKeyCommand.saveConfig(), label: NSLocalizedString("保存全部配置到设备", comment: "")))
 
@@ -2310,14 +2337,23 @@ struct AhaKeyStudioView: View {
                         // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
                         try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
                         let failures = self.lastTaskUploadFailures
-                        if failures.isEmpty {
+                        if failures.isEmpty, taskPicturesWereEligible {
                             self.lastSyncedDraft = self.studioDraft
+                            self.saveCurrentDeviceSyncBaseline()
+                        } else if !taskPicturesWereEligible {
+                            self.mergeBasicConfigurationIntoSyncBaseline()
                         }
                         // 部分失败时只把成功上传的槽位写入 baseline，下次写入只重试失败的图。
                         self.lastSyncDate = Date()
                         self.isSyncing = false
                         self.isCancellingDeviceWrite = false
-                        if failures.isEmpty {
+                        if !taskPicturesWereEligible {
+                            self.syncStatusMessage = NSLocalizedString("键位与灯效已写入；任务图因固件协议未识别而跳过。", comment: "")
+                            if showResultAlert {
+                                self.writeResultAlertMessage = NSLocalizedString("基础配置已写入；任务图未写入，因为当前固件协议无法识别。", comment: "")
+                                self.showsWriteResultAlert = true
+                            }
+                        } else if failures.isEmpty {
                             self.syncStatusMessage = NSLocalizedString("已全部写入设备并保存。", comment: "")
                             if showResultAlert {
                                 self.writeResultAlertMessage = NSLocalizedString("配置已成功写入键盘。", comment: "")
@@ -2358,6 +2394,9 @@ struct AhaKeyStudioView: View {
     }
 
     private func uploadChangedOLEDsToDevice() async throws -> Int {
+        guard let protocolPlan = bleManager.taskPictureProtocolPlan else {
+            throw OLEDUploadError.unsupportedFirmwareProtocol
+        }
         var uploadCount = 0
         lastTaskUploadFailures = []
         var deviceStates: [AhaKeyTaskPictureState]
@@ -2379,52 +2418,91 @@ struct AhaKeyStudioView: View {
         }
         let defaultOccupiedRegions = defaultPictureStates
             .filter { $0.picLength > 0 }
-            .map { (start: $0.startIndex, end: $0.startIndex + $0.picLength) }
-        let maxFrames = AhaKeyCommand.oledFactoryReservedSlots + AhaKeyCommand.oledModeCount * AhaKeyCommand.oledMaxFramesPerMode
+            .map { $0.startIndex ..< ($0.startIndex + $0.picLength) }
+        let overlappingSlots = bleManager.protocolMode == .current ? Set(deviceStates.compactMap { taskState -> KeyboardTaskPictureSlot? in
+            guard taskState.picLength > 0 else { return nil }
+            let taskRange = taskState.startIndex ..< (taskState.startIndex + taskState.picLength)
+            guard defaultOccupiedRegions.contains(where: {
+                taskRange.lowerBound < $0.upperBound && $0.lowerBound < taskRange.upperBound
+            }) else { return nil }
+            return KeyboardTaskPictureSlot(mode: taskState.mode, set: taskState.set, state: taskState.state)
+        }) : []
+        if !overlappingSlots.isEmpty {
+            bleManager.appendCommLogLine("检测到旧版任务 GIF 与普通动画槽位重叠；本次将迁移受影响资源。")
+        }
+        let maxFrames = bleManager.firmwareCapabilities?.userSlotLimit
+            ?? (AhaKeyCommand.oledFactoryReservedSlots + AhaKeyCommand.oledModeCount * AhaKeyCommand.oledMaxFramesPerMode)
+        let reclaimBase = bleManager.firmwareCapabilities?.reclaimSlotBase ?? Int.max
+        let reclaimLimit = bleManager.firmwareCapabilities?.reclaimSlotLimit ?? Int.max
 
         for mode in AhaKeyModeSlot.allCases {
             let currentOLED = studioDraft.draft(for: mode).oled
             let baselineOLED = lastSyncedDraft.draft(for: mode).oled
-            // M2a：命令路径不变，仍只同步 legacy 3 态 × 套图 0；M2b 按 protocolMode 扩展 idle/双套。
-            for state in AhaKeyTaskDisplayState.legacyStates {
-                let asset = currentOLED.taskAsset(for: state)
-                let previous = baselineOLED.taskAsset(for: state)
-                let target = KeyboardTaskPictureSlot(mode: mode.rawValue, set: 0, state: state.rawValue)
-                let deviceState = deviceStates.first { $0.mode == target.mode && $0.set == target.set && $0.state == target.state }
-                let needsClear = asset.localAssetPath == nil && (deviceState?.picLength ?? 0) > 0
-                let needsUpload = asset.localAssetPath != nil && (deviceState?.picLength ?? 0) == 0
-                let assetChanged = asset != previous
-                guard assetChanged || needsClear || needsUpload else {
-                    // 上传被跳过不代表默认动画绑定正确：历史上 0x95 只写任务槽，
-                    // 从不更新 0x82 默认动画绑定，这里顺手修复已同步设备的绑定。
-                    if state == .done {
-                        await repairDefaultPictureBindingIfNeeded(
-                            mode: mode,
-                            asset: asset,
-                            deviceDone: deviceState,
-                            deviceDefault: defaultPictureStates.first { $0.mode == mode.rawValue }
-                        )
+            for set in protocolPlan.setIndices {
+                for state in bleManager.supportedTaskDisplayStates {
+                    let asset = currentOLED.taskAsset(set: set, state: state)
+                    let previous = baselineOLED.taskAsset(set: set, state: state)
+                    let target = KeyboardTaskPictureSlot(mode: mode.rawValue, set: set, state: state.rawValue)
+                    let deviceState = deviceStates.first { $0.mode == target.mode && $0.set == target.set && $0.state == target.state }
+                    let decision = AhaKeyTaskPictureSyncDecision.decide(
+                        hasLocalAsset: asset.localAssetPath != nil,
+                        assetChanged: asset != previous,
+                        deviceStartIndex: deviceState?.startIndex ?? 0,
+                        deviceFrameCount: deviceState?.picLength ?? 0,
+                        factorySlotBase: bleManager.firmwareCapabilities?.factorySlotBase,
+                        reclaimRange: reclaimBase < reclaimLimit ? reclaimBase ..< reclaimLimit : nil,
+                        overlapsDefaultPicture: overlappingSlots.contains(target),
+                        deviceSchemaVersion: asset.deviceSchemaVersion
+                    )
+                    switch decision {
+                    case .skip:
+                        if set == 0, state == .done {
+                            await repairDefaultPictureBindingIfNeeded(
+                                mode: mode,
+                                asset: asset,
+                                deviceDone: deviceState,
+                                deviceDefault: defaultPictureStates.first { $0.mode == mode.rawValue }
+                            )
+                        }
+                        continue
+                    case .markSynchronizedWithoutWrite:
+                        markTaskPictureSynced(mode: mode, set: set, state: state, asset: asset)
+                        continue
+                    case .clear, .upload:
+                        break
                     }
-                    continue
-                }
 
-                var reasons: [String] = []
-                if assetChanged { reasons.append(NSLocalizedString("内容已改", comment: "")) }
-                if needsUpload { reasons.append(NSLocalizedString("设备该槽为空", comment: "")) }
-                if needsClear { reasons.append(NSLocalizedString("需清除", comment: "")) }
-                bleManager.appendCommLogLine("待写入 \(mode.title)·\(state.title)：\(reasons.joined(separator: "、"))", isError: false)
+                    let reasons: [String]
+                    switch decision {
+                    case .clear:
+                        reasons = [NSLocalizedString("需清除", comment: "")]
+                    case .upload(let uploadReasons):
+                        reasons = uploadReasons.map { reason in
+                            switch reason {
+                            case .assetChanged: return NSLocalizedString("内容已改", comment: "")
+                            case .deviceSlotEmpty: return NSLocalizedString("设备该槽为空", comment: "")
+                            case .deviceUsesFactoryAsset: return NSLocalizedString("设备当前使用出厂图", comment: "")
+                            case .overlapsDefaultPicture: return NSLocalizedString("槽位与默认动画重叠迁移", comment: "")
+                            case .schemaMigration: return NSLocalizedString("旧版数据迁移(schema<3)", comment: "")
+                            }
+                        }
+                    case .skip, .markSynchronizedWithoutWrite:
+                        reasons = []
+                    }
+                    let setLabel = set == 0 ? "A" : "B"
+                    bleManager.appendCommLogLine("待写入 \(mode.title)·套图\(setLabel)·\(state.title)：\(reasons.joined(separator: "、"))", isError: false)
 
-                syncStatusMessage = "正在处理第 \(completedTaskResourceCount + 1) 张：\(mode.title) · \(state.title)…"
+                    syncStatusMessage = "正在处理第 \(completedTaskResourceCount + 1) 张：\(mode.title) · 套图 \(setLabel) · \(state.title)…"
 
-                do {
+                    do {
                     guard let assetPath = asset.localAssetPath else {
-                        try await bleManager.clearTaskPicture(mode: UInt8(mode.rawValue), set: 0, state: UInt8(state.rawValue))
+                        try await bleManager.clearTaskPicture(mode: UInt8(mode.rawValue), set: UInt8(set), state: UInt8(state.rawValue))
                         if let index = deviceStates.firstIndex(where: { $0.mode == target.mode && $0.set == target.set && $0.state == target.state }) {
                             let old = deviceStates[index]
                             deviceStates[index] = AhaKeyTaskPictureState(mode: old.mode, set: old.set, state: old.state, startIndex: 0, picLength: 0, frameInterval: 0, allModeMaxPic: old.allModeMaxPic, activeSet: old.activeSet)
                         }
                         try await bleManager.saveConfigAwaitingResponse()
-                        markTaskPictureSynced(mode: mode, state: state, asset: asset)
+                        markTaskPictureSynced(mode: mode, set: set, state: state, asset: asset)
                         completedTaskResourceCount += 1
                         continue
                     }
@@ -2433,26 +2511,27 @@ struct AhaKeyStudioView: View {
                     try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
                     let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL, maxFrames: AhaKeyCommand.taskOLEDMaxFrames)
                     let occupied = (deviceStates.filter { !($0.mode == target.mode && $0.set == target.set && $0.state == target.state) && $0.picLength > 0 }
-                        .map { (start: $0.startIndex, end: $0.startIndex + $0.picLength) }
+                        .map { $0.startIndex ..< ($0.startIndex + $0.picLength) }
                         + defaultOccupiedRegions)
-                        .sorted { $0.start < $1.start }
-                    var start = AhaKeyCommand.oledFactoryReservedSlots
-                    for region in occupied {
-                        if start + frames.count <= region.start { break }
-                        start = max(start, region.end)
+                    guard let start = AhaKeyPictureSlotAllocator.allocate(
+                        frameCount: frames.count,
+                        primaryRange: AhaKeyCommand.oledFactoryReservedSlots ..< maxFrames,
+                        reclaimRange: reclaimBase < reclaimLimit ? reclaimBase ..< reclaimLimit : nil,
+                        occupiedRanges: occupied
+                    ) else {
+                        let capacityLimit = reclaimBase < reclaimLimit ? max(maxFrames, reclaimLimit) : maxFrames
+                        throw OLEDUploadError.noAvailablePictureSlot(needed: frames.count, max: capacityLimit)
                     }
-                    guard start + frames.count <= maxFrames else { throw OLEDUploadError.noAvailablePictureSlot(needed: frames.count, max: maxFrames) }
 
-                    try await bleManager.uploadTaskOLEDFrames(frames, fps: asset.framesPerSecond, mode: UInt8(mode.rawValue), set: 0, state: UInt8(state.rawValue), startIndex: UInt16(start))
-                    let updated = AhaKeyTaskPictureState(mode: mode.rawValue, set: 0, state: state.rawValue, startIndex: start, picLength: frames.count, frameInterval: max(1, 1000 / asset.framesPerSecond), allModeMaxPic: maxFrames, activeSet: bleManager.activeTaskPictureSets[mode.rawValue] ?? 0)
+                    try await bleManager.uploadTaskOLEDFrames(frames, fps: asset.framesPerSecond, mode: UInt8(mode.rawValue), set: UInt8(set), state: UInt8(state.rawValue), startIndex: UInt16(start))
+                    let updated = AhaKeyTaskPictureState(mode: mode.rawValue, set: set, state: state.rawValue, startIndex: start, picLength: frames.count, frameInterval: max(1, 1000 / asset.framesPerSecond), allModeMaxPic: maxFrames, activeSet: bleManager.activeTaskPictureSets[mode.rawValue] ?? 0)
                     if let index = deviceStates.firstIndex(where: { $0.mode == target.mode && $0.set == target.set && $0.state == target.state }) { deviceStates[index] = updated }
                     else { deviceStates.append(updated) }
                     try await bleManager.saveConfigAwaitingResponse()
-                    markTaskPictureSynced(mode: mode, state: state, asset: asset)
+                    markTaskPictureSynced(mode: mode, set: set, state: state, asset: asset)
                     completedTaskResourceCount += 1
                     uploadCount += 1
-                    if state == .done {
-                        // done 任务图同时作为模式切换后的默认动画：把刚上传的帧区间绑定为默认动画（0x82）。
+                    if set == 0, state == .done {
                         await repairDefaultPictureBindingIfNeeded(
                             mode: mode,
                             asset: asset,
@@ -2460,21 +2539,38 @@ struct AhaKeyStudioView: View {
                             deviceDefault: defaultPictureStates.first { $0.mode == mode.rawValue }
                         )
                     }
-                } catch OLEDUploadError.cancelled {
+                    } catch OLEDUploadError.cancelled {
                     throw OLEDUploadError.cancelled
                 } catch OLEDUploadError.connectionLost {
                     throw OLEDUploadError.connectionLost
                 } catch is CancellationError {
                     throw OLEDUploadError.cancelled
                 } catch {
-                    let label = "\(mode.title) · \(state.title)"
-                    lastTaskUploadFailures.append(label)
+                    let label = "\(mode.title) · 套图 \(setLabel) · \(state.title)"
+                    lastTaskUploadFailures.append("\(label)：\(error.localizedDescription)")
                     bleManager.appendCommLogLine("第 \(completedTaskResourceCount + 1) 张「\(label)」写入失败，跳过并继续：\(error.localizedDescription)", isError: true)
                     completedTaskResourceCount += 1
                     continue
+                    }
+                }
+            }
+            if protocolPlan.supportsActiveSet {
+                let desiredSet = min(1, max(0, currentOLED.activeGIFSet))
+                let deviceSet = bleManager.activeTaskPictureSets[mode.rawValue] ?? 0
+                if desiredSet != deviceSet {
+                    do {
+                        try await bleManager.setActiveTaskPictureSet(mode: UInt8(mode.rawValue), set: UInt8(desiredSet))
+                        try await bleManager.saveConfigAwaitingResponse()
+                        markActiveTaskPictureSetSynced(mode: mode, set: desiredSet)
+                    } catch {
+                        let label = "\(mode.title) · 激活套图 \(desiredSet == 0 ? "A" : "B")"
+                        lastTaskUploadFailures.append("\(label)：\(error.localizedDescription)")
+                        bleManager.appendCommLogLine("写入「\(label)」失败：\(error.localizedDescription)", isError: true)
+                    }
                 }
             }
             updateMode(mode) { modeDraft in
+                modeDraft.oled.taskGIFSchemaVersion = 3
                 modeDraft.oled.statusLine = NSLocalizedString("任务状态动图已写入设备。", comment: "")
             }
         }
@@ -2482,9 +2578,7 @@ struct AhaKeyStudioView: View {
         return uploadCount
     }
 
-    /// done 任务图同时承担「模式切换后的默认动画」。固件在模式切换后显示的是 0x82
-    /// 默认动画绑定（key_bund.pic[mode] / IDLE 任务槽），0x95 任务图写入不影响它；
-    /// 这里确保默认动画绑定与 done 槽位一致。绑定失败不阻断整体写入，只记日志。
+    /// legacy 固件没有 idle 任务槽，done 图需额外经 0x82 绑定成模式默认动画。
     private func repairDefaultPictureBindingIfNeeded(
         mode: AhaKeyModeSlot,
         asset: AhaKeyTaskGIFAssetDraft,
@@ -2492,6 +2586,7 @@ struct AhaKeyStudioView: View {
         deviceDefault: AhaKeyPictureState?
     ) async {
         let repair = AhaKeyOLEDSyncPlan.defaultBindingRepair(
+            protocolMode: bleManager.protocolMode,
             doneAssetPath: asset.localAssetPath,
             deviceDone: deviceDone.map {
                 AhaKeyOLEDSyncPlan.Binding(startIndex: $0.startIndex, frameCount: $0.picLength, frameIntervalMs: $0.frameInterval)
@@ -2514,18 +2609,112 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    private func markTaskPictureSynced(mode: AhaKeyModeSlot, state: AhaKeyTaskDisplayState, asset: AhaKeyTaskGIFAssetDraft) {
+    private func markTaskPictureSynced(mode: AhaKeyModeSlot, set: Int, state: AhaKeyTaskDisplayState, asset: AhaKeyTaskGIFAssetDraft) {
+        var syncedAsset = asset
+        syncedAsset.deviceSchemaVersion = 3
         var baseline = lastSyncedDraft
         var baselineMode = baseline.draft(for: mode)
-        baselineMode.oled.updateTaskAsset(asset)
+        baselineMode.oled.updateTaskAsset(set: set, asset: syncedAsset)
         baseline.updateMode(baselineMode)
         lastSyncedDraft = baseline
+        saveCurrentDeviceSyncBaseline()
 
         var current = studioDraft
         var currentMode = current.draft(for: mode)
-        currentMode.oled.updateTaskAsset(asset)
+        currentMode.oled.updateTaskAsset(set: set, asset: syncedAsset)
         current.updateMode(currentMode)
         studioDraft = current
+    }
+
+    private func markActiveTaskPictureSetSynced(mode: AhaKeyModeSlot, set: Int) {
+        var baseline = lastSyncedDraft
+        var modeDraft = baseline.draft(for: mode)
+        modeDraft.oled.activeGIFSet = set
+        baseline.updateMode(modeDraft)
+        lastSyncedDraft = baseline
+        saveCurrentDeviceSyncBaseline()
+    }
+
+    /// 未识别协议只允许基础写入：键位/灯效进入同步基线，OLED 保持 dirty。
+    private func mergeBasicConfigurationIntoSyncBaseline() {
+        var merged = studioDraft
+        for mode in AhaKeyModeSlot.allCases {
+            var modeDraft = merged.draft(for: mode)
+            modeDraft.oled = lastSyncedDraft.draft(for: mode).oled
+            merged.updateMode(modeDraft)
+        }
+        lastSyncedDraft = merged
+    }
+
+    /// 固件出厂资源束变化时，只重置“设备已同步”基线中的本地图标记。
+    /// 草稿本身保持不变，因此自定义图会在下次写入时重新落到用户槽；nil 草稿继续沿用固件出厂资源。
+    private func handleFactoryResourceChange(_ capabilities: AhaKeyFirmwareCapabilities?) {
+        guard bleManager.protocolMode == .current,
+              let capabilities, capabilities.factoryManifestCRC != 0 else { return }
+        loadSyncBaselineForConnectedDevice(mode: .current)
+        let key = "ahakey.factory.manifest.last-seen." + (syncBaselineDeviceKey ?? "unknown")
+        let previous = UInt32(truncatingIfNeeded: UserDefaults.standard.integer(forKey: key))
+        guard previous != capabilities.factoryManifestCRC else { return }
+
+        var baseline = lastSyncedDraft
+        for mode in AhaKeyModeSlot.allCases {
+            var modeDraft = baseline.draft(for: mode)
+            for set in 0 ..< 2 {
+                for state in AhaKeyTaskDisplayState.allCases {
+                    var asset = modeDraft.oled.taskAsset(set: set, state: state)
+                    asset.localAssetPath = nil
+                    asset.deviceSchemaVersion = 3
+                    modeDraft.oled.updateTaskAsset(set: set, asset: asset)
+                }
+            }
+            modeDraft.oled.taskGIFSchemaVersion = 3
+            baseline.updateMode(modeDraft)
+        }
+        lastSyncedDraft = baseline
+        saveCurrentDeviceSyncBaseline()
+        UserDefaults.standard.set(Int(capabilities.factoryManifestCRC), forKey: key)
+        syncStatusMessage = previous == 0
+            ? NSLocalizedString("已识别新固件出厂图片；本地图片草稿保持不变。", comment: "")
+            : NSLocalizedString("检测到固件出厂图片已更新；本地自定义图片已标记为待写入。", comment: "")
+    }
+
+    private func loadSyncBaselineForConnectedDevice(mode: AhaKeyProtocolMode) {
+        guard mode == .legacy || mode == .current else {
+            syncBaselineDeviceKey = nil
+            lastSyncedDraft = Self.unsyncedTaskPictureBaseline(from: studioDraft)
+            return
+        }
+        let identity = bleManager.bleDeviceUUID.isEmpty
+            ? (bleManager.deviceIdentifier == "—" ? (bleManager.deviceName ?? "unknown") : bleManager.deviceIdentifier)
+            : bleManager.bleDeviceUUID
+        let key = "\(identity).\(mode == .legacy ? "legacy" : "current")"
+        guard syncBaselineDeviceKey != key else { return }
+        syncBaselineDeviceKey = key
+        lastSyncedDraft = AhaKeyStudioStore.loadSyncBaseline(deviceKey: key)
+            ?? Self.unsyncedTaskPictureBaseline(from: studioDraft)
+    }
+
+    private func saveCurrentDeviceSyncBaseline() {
+        guard let syncBaselineDeviceKey else { return }
+        AhaKeyStudioStore.saveSyncBaseline(lastSyncedDraft, deviceKey: syncBaselineDeviceKey)
+    }
+
+    private static func unsyncedTaskPictureBaseline(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
+        var baseline = draft
+        for mode in AhaKeyModeSlot.allCases {
+            var modeDraft = baseline.draft(for: mode)
+            for set in 0 ..< 2 {
+                for state in AhaKeyTaskDisplayState.allCases {
+                    var asset = modeDraft.oled.taskAsset(set: set, state: state)
+                    asset.localAssetPath = nil
+                    asset.deviceSchemaVersion = nil
+                    modeDraft.oled.updateTaskAsset(set: set, asset: asset)
+                }
+            }
+            modeDraft.oled.taskGIFSchemaVersion = 0
+            baseline.updateMode(modeDraft)
+        }
+        return baseline
     }
 
     private func resendCurrentModeToDevice() {

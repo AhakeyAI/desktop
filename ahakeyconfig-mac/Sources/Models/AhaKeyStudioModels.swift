@@ -860,28 +860,6 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
     }
 }
 
-enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
-    case idle = 0
-    case working = 1
-    case waiting = 2
-    case done = 3
-
-    var id: Int { rawValue }
-    var title: String {
-        switch self {
-        case .idle: return NSLocalizedString("待机", comment: "")
-        case .working: return NSLocalizedString("工作中", comment: "")
-        case .waiting: return NSLocalizedString("等待授权", comment: "")
-        case .done: return NSLocalizedString("已完成 / 停止", comment: "")
-        }
-    }
-
-    /// 古早（legacy）固件只支持 working / waiting / done 三态。
-    /// M2a 过渡期内 UI 选择器与 0x94/0x95 命令路径仍只遍历这三态，
-    /// 保持与旧固件逐字节一致的行为；M2b 按 protocolMode 切换到 allCases（含 idle）。
-    static let legacyStates: [AhaKeyTaskDisplayState] = [.working, .waiting, .done]
-}
-
 struct AhaKeyTaskGIFAssetDraft: Codable, Equatable, Identifiable {
     var state: AhaKeyTaskDisplayState
     var localAssetPath: String?
@@ -958,8 +936,8 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
     /// - 古早固件：没有 idle 任务槽，待机画面来自 0x82 默认动画绑定，
     ///   因此 done 图上传后必须用 0x82 把同一帧区间绑为默认动画
     ///   （见 `AhaKeyOLEDSyncPlan.defaultBindingRepair` / `bindDefaultPicture`）。
-    /// - 新固件（Rhino）：有独立 idle 任务槽，待机槽覆盖出厂默认动画，
-    ///   0x82 绑定仍按 done 槽维护以兼容旧行为。
+    /// - 新固件（Rhino）：有独立 idle 任务槽，待机槽覆盖出厂默认动画；
+    ///   不发 0x82，避免覆盖普通每模式动画。
     var localAssetPath: String?
     var statusLine: String
     var framesPerSecond: Int
@@ -1244,9 +1222,14 @@ struct AhaKeyStudioDraft: Codable, Equatable {
 
 enum AhaKeyStudioStore {
     private static let key = "ahakey.studio.draft.v1"
+    private static let syncBaselineKey = "ahakey.studio.sync-baseline.v2"
 
     static func load() -> AhaKeyStudioDraft? {
         guard let rawData = UserDefaults.standard.data(forKey: key) else { return nil }
+        return decodeStoredDraft(rawData)
+    }
+
+    private static func decodeStoredDraft(_ rawData: Data) -> AhaKeyStudioDraft? {
         // 双 schema：本 key 被主线（3 态单套 taskGIFAssets）与 Rhino（4 态双套 taskGIFSets）
         // 两版 app 共用，先归一化为统一格式再解码。模型解码器本身也兼容旧 key，此处迁移失败时回退原始数据。
         let data = AhaKeyStudioDraftMigration.migrateDraftData(rawData) ?? rawData
@@ -1263,6 +1246,20 @@ enum AhaKeyStudioStore {
     static func save(_ draft: AhaKeyStudioDraft) {
         guard let data = try? JSONEncoder().encode(draft) else { return }
         UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func loadSyncBaseline(deviceKey: String) -> AhaKeyStudioDraft? {
+        guard let rawData = UserDefaults.standard.data(forKey: syncBaselineStorageKey(deviceKey)) else { return nil }
+        return decodeStoredDraft(rawData)
+    }
+
+    static func saveSyncBaseline(_ draft: AhaKeyStudioDraft, deviceKey: String) {
+        guard let data = try? JSONEncoder().encode(draft) else { return }
+        UserDefaults.standard.set(data, forKey: syncBaselineStorageKey(deviceKey))
+    }
+
+    private static func syncBaselineStorageKey(_ deviceKey: String) -> String {
+        syncBaselineKey + "." + deviceKey
     }
 
     private static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {

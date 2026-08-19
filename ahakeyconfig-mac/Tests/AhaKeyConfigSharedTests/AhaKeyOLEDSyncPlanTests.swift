@@ -71,4 +71,27 @@ final class AhaKeyOLEDSyncPlanTests: XCTestCase {
             deviceDefault: nil
         ), done)
     }
+
+    func testProtocolAwareRepairOnlyRunsForLegacy() {
+        let done = AhaKeyOLEDSyncPlan.Binding(startIndex: 14, frameCount: 1, frameIntervalMs: 83)
+
+        XCTAssertEqual(AhaKeyOLEDSyncPlan.defaultBindingRepair(
+            protocolMode: .legacy,
+            doneAssetPath: "/tmp/custom.gif",
+            deviceDone: done,
+            deviceDefault: nil
+        ), done)
+        XCTAssertNil(AhaKeyOLEDSyncPlan.defaultBindingRepair(
+            protocolMode: .current,
+            doneAssetPath: "/tmp/custom.gif",
+            deviceDone: done,
+            deviceDefault: nil
+        ))
+        XCTAssertNil(AhaKeyOLEDSyncPlan.defaultBindingRepair(
+            protocolMode: .restrictedUnknown,
+            doneAssetPath: "/tmp/custom.gif",
+            deviceDone: done,
+            deviceDefault: nil
+        ))
+    }
 }
