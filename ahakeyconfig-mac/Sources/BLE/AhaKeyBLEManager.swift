@@ -659,7 +659,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         var failedReads = 0
         for mode in 0 ..< AhaKeyCommand.oledModeCount {
             for set in 0 ..< 1 {
-                for state in AhaKeyTaskDisplayState.allCases {
+                // M2a：读取范围保持 legacy 3 态，与旧固件行为一致；M2b 按 protocolMode 扩展。
+                for state in AhaKeyTaskDisplayState.legacyStates {
                     do {
                         result.append(try await readTaskPictureState(mode: UInt8(mode), set: UInt8(set), state: UInt8(state.rawValue)))
                     } catch OLEDUploadError.cancelled {

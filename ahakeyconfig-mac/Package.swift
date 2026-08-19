@@ -59,7 +59,8 @@ let package = Package(
         .testTarget(
             name: "AhaKeyConfigSharedTests",
             dependencies: ["AhaKeyConfigShared"],
-            path: "Tests/AhaKeyConfigSharedTests"
+            path: "Tests/AhaKeyConfigSharedTests",
+            resources: [.copy("Fixtures")]
         ),
     ]
 )

@@ -1,0 +1,397 @@
+{
+ "modes": [
+  {
+   "keys": [
+    {
+     "shortcut": {
+      "keyCode": 109,
+      "modifiers": []
+     },
+     "voicePreset": "macOSNative",
+     "description": "Record",
+     "role": 0
+    },
+    {
+     "shortcut": {
+      "keyCode": 40,
+      "modifiers": []
+     },
+     "description": "Yes",
+     "role": 1
+    },
+    {
+     "shortcut": {
+      "keyCode": 42,
+      "modifiers": []
+     },
+     "description": "No",
+     "role": 2
+    },
+    {
+     "shortcut": {
+      "keyCode": 81,
+      "modifiers": []
+     },
+     "description": "Backspace",
+     "role": 3
+    }
+   ],
+   "mode": 0,
+   "oled": {
+    "statusLine": "GIF 源文件约 2.1 MB，超过单文件上限 2.1 MB。请压缩分辨率、减少帧数或缩短动图后再试。",
+    "framesPerSecond": 12,
+    "localAssetPath": "/tmp/mainline/m0-done.gif",
+    "taskGIFAssets": [
+     {
+      "state": 1,
+      "localAssetPath": "/tmp/mainline/m0-working.gif",
+      "framesPerSecond": 11
+     },
+     {
+      "state": 2,
+      "localAssetPath": "/tmp/mainline/m0-waiting.gif",
+      "framesPerSecond": 12
+     },
+     {
+      "state": 3,
+      "localAssetPath": "/tmp/mainline/m0-done.gif",
+      "framesPerSecond": 13
+     }
+    ]
+   },
+   "lightBar": {
+    "stateMappings": [
+     {
+      "state": 0,
+      "effect": "approvalWait"
+     },
+     {
+      "state": 1,
+      "effect": "approvalWait"
+     },
+     {
+      "state": 2,
+      "effect": "singleMove"
+     },
+     {
+      "state": 3,
+      "effect": "singleMove"
+     },
+     {
+      "state": 4,
+      "effect": "singleMove"
+     },
+     {
+      "state": 5,
+      "effect": "middleLight"
+     },
+     {
+      "state": 6,
+      "effect": "successSweep"
+     },
+     {
+      "state": 7,
+      "effect": "singleMove"
+     },
+     {
+      "state": 8,
+      "effect": "off"
+     }
+    ],
+    "brightness": 35
+   }
+  },
+  {
+   "keys": [
+    {
+     "shortcut": {
+      "keyCode": 109,
+      "modifiers": []
+     },
+     "voicePreset": "macOSNative",
+     "description": "Record",
+     "role": 0
+    },
+    {
+     "shortcut": {
+      "keyCode": 40,
+      "modifiers": []
+     },
+     "description": "Accept",
+     "role": 1
+    },
+    {
+     "shortcut": {
+      "keyCode": 42,
+      "modifiers": []
+     },
+     "description": "Reject",
+     "role": 2
+    },
+    {
+     "shortcut": {
+      "keyCode": 42,
+      "modifiers": []
+     },
+     "description": "Backspace",
+     "role": 3
+    }
+   ],
+   "mode": 1,
+   "oled": {
+    "statusLine": "任务状态动图已写入设备。",
+    "framesPerSecond": 12,
+    "localAssetPath": "/tmp/mainline/m1-done.gif",
+    "taskGIFAssets": [
+     {
+      "state": 1,
+      "localAssetPath": "/tmp/mainline/m1-working.gif",
+      "framesPerSecond": 11
+     },
+     {
+      "state": 3,
+      "localAssetPath": "/tmp/mainline/m1-done.gif",
+      "framesPerSecond": 13
+     }
+    ]
+   },
+   "lightBar": {
+    "stateMappings": [
+     {
+      "state": 0,
+      "effect": "pulseCenter"
+     },
+     {
+      "state": 1,
+      "effect": "approvalWait"
+     },
+     {
+      "state": 2,
+      "effect": "successSweep"
+     },
+     {
+      "state": 3,
+      "effect": "singleMove"
+     },
+     {
+      "state": 4,
+      "effect": "rainbowWave"
+     },
+     {
+      "state": 5,
+      "effect": "middleLight"
+     },
+     {
+      "state": 6,
+      "effect": "successSweep"
+     },
+     {
+      "state": 7,
+      "effect": "breathing"
+     },
+     {
+      "state": 8,
+      "effect": "off"
+     }
+    ],
+    "brightness": 35
+   }
+  },
+  {
+   "keys": [
+    {
+     "shortcut": {
+      "keyCode": 109,
+      "modifiers": []
+     },
+     "voicePreset": "macOSNative",
+     "description": "Record",
+     "role": 0
+    },
+    {
+     "shortcut": {
+      "keyCode": 40,
+      "modifiers": []
+     },
+     "description": "Accept",
+     "role": 1
+    },
+    {
+     "shortcut": {
+      "keyCode": 41,
+      "modifiers": []
+     },
+     "description": "Reject",
+     "role": 2
+    },
+    {
+     "shortcut": {
+      "keyCode": 42,
+      "modifiers": []
+     },
+     "description": "Backspace",
+     "role": 3
+    }
+   ],
+   "mode": 2,
+   "oled": {
+    "statusLine": "任务状态动图已写入设备。",
+    "framesPerSecond": 12,
+    "localAssetPath": "/Applications/AhaKey Studio.app/Contents/Resources/DefaultOLED/codex.gif",
+    "taskGIFAssets": [
+     {
+      "state": 1,
+      "framesPerSecond": 12
+     },
+     {
+      "state": 2,
+      "framesPerSecond": 12
+     },
+     {
+      "state": 3,
+      "framesPerSecond": 12,
+      "localAssetPath": "/Applications/AhaKey Studio.app/Contents/Resources/DefaultOLED/codex.gif"
+     }
+    ]
+   },
+   "lightBar": {
+    "stateMappings": [
+     {
+      "state": 0,
+      "effect": "pulseCenter"
+     },
+     {
+      "state": 1,
+      "effect": "approvalWait"
+     },
+     {
+      "state": 2,
+      "effect": "singleMove"
+     },
+     {
+      "state": 3,
+      "effect": "singleMove"
+     },
+     {
+      "state": 4,
+      "effect": "rainbowWave"
+     },
+     {
+      "state": 5,
+      "effect": "middleLight"
+     },
+     {
+      "state": 6,
+      "effect": "successSweep"
+     },
+     {
+      "state": 7,
+      "effect": "singleMove"
+     },
+     {
+      "state": 8,
+      "effect": "off"
+     }
+    ],
+    "brightness": 35
+   }
+  },
+  {
+   "keys": [
+    {
+     "shortcut": {
+      "keyCode": 109,
+      "modifiers": []
+     },
+     "voicePreset": "macOSNative",
+     "description": "Record",
+     "role": 0
+    },
+    {
+     "shortcut": {
+      "keyCode": 40,
+      "modifiers": []
+     },
+     "description": "Accept",
+     "role": 1
+    },
+    {
+     "shortcut": {
+      "keyCode": 41,
+      "modifiers": []
+     },
+     "description": "Reject",
+     "role": 2
+    },
+    {
+     "shortcut": {
+      "keyCode": 42,
+      "modifiers": []
+     },
+     "description": "Backspace",
+     "role": 3
+    }
+   ],
+   "mode": 3,
+   "oled": {
+    "statusLine": "任务状态动图已写入设备。",
+    "framesPerSecond": 12,
+    "taskGIFAssets": [
+     {
+      "state": 1,
+      "framesPerSecond": 12
+     },
+     {
+      "state": 2,
+      "framesPerSecond": 12
+     },
+     {
+      "state": 3,
+      "framesPerSecond": 12
+     }
+    ]
+   },
+   "lightBar": {
+    "stateMappings": [
+     {
+      "state": 0,
+      "effect": "pulseCenter"
+     },
+     {
+      "state": 1,
+      "effect": "approvalWait"
+     },
+     {
+      "state": 2,
+      "effect": "successSweep"
+     },
+     {
+      "state": 3,
+      "effect": "singleMove"
+     },
+     {
+      "state": 4,
+      "effect": "rainbowWave"
+     },
+     {
+      "state": 5,
+      "effect": "middleLight"
+     },
+     {
+      "state": 6,
+      "effect": "successSweep"
+     },
+     {
+      "state": 7,
+      "effect": "breathing"
+     },
+     {
+      "state": 8,
+      "effect": "off"
+     }
+    ],
+    "brightness": 35
+   }
+  }
+ ]
+}

@@ -1423,7 +1423,8 @@ struct AhaKeyStudioView: View {
                         .foregroundStyle(.secondary)
 
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                        ForEach(AhaKeyTaskDisplayState.allCases) { state in
+                        // M2a：UI 仍只展示 3 态（第 0 套）；M2b 按固件能力接 idle 与双套。
+                        ForEach(AhaKeyTaskDisplayState.legacyStates) { state in
                             Button { selectedOLEDTaskState = state } label: {
                                 Text(state.title)
                                     .font(.caption.weight(.semibold))
@@ -2384,7 +2385,8 @@ struct AhaKeyStudioView: View {
         for mode in AhaKeyModeSlot.allCases {
             let currentOLED = studioDraft.draft(for: mode).oled
             let baselineOLED = lastSyncedDraft.draft(for: mode).oled
-            for state in AhaKeyTaskDisplayState.allCases {
+            // M2a：命令路径不变，仍只同步 legacy 3 态 × 套图 0；M2b 按 protocolMode 扩展 idle/双套。
+            for state in AhaKeyTaskDisplayState.legacyStates {
                 let asset = currentOLED.taskAsset(for: state)
                 let previous = baselineOLED.taskAsset(for: state)
                 let target = KeyboardTaskPictureSlot(mode: mode.rawValue, set: 0, state: state.rawValue)

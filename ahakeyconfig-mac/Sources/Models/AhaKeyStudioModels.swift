@@ -1,3 +1,4 @@
+import AhaKeyConfigShared
 import Foundation
 
 enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
@@ -860,6 +861,7 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
 }
 
 enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
+    case idle = 0
     case working = 1
     case waiting = 2
     case done = 3
@@ -867,49 +869,128 @@ enum AhaKeyTaskDisplayState: Int, Codable, CaseIterable, Identifiable {
     var id: Int { rawValue }
     var title: String {
         switch self {
+        case .idle: return NSLocalizedString("待机", comment: "")
         case .working: return NSLocalizedString("工作中", comment: "")
         case .waiting: return NSLocalizedString("等待授权", comment: "")
         case .done: return NSLocalizedString("已完成 / 停止", comment: "")
         }
     }
+
+    /// 古早（legacy）固件只支持 working / waiting / done 三态。
+    /// M2a 过渡期内 UI 选择器与 0x94/0x95 命令路径仍只遍历这三态，
+    /// 保持与旧固件逐字节一致的行为；M2b 按 protocolMode 切换到 allCases（含 idle）。
+    static let legacyStates: [AhaKeyTaskDisplayState] = [.working, .waiting, .done]
 }
 
 struct AhaKeyTaskGIFAssetDraft: Codable, Equatable, Identifiable {
     var state: AhaKeyTaskDisplayState
     var localAssetPath: String?
     var framesPerSecond: Int
+    /// Rhino 设备写入追踪：该资源最后一次成功写入设备时的任务图 schema 版本。
+    /// 主线旧草稿没有此字段（nil），视为"尚未按新 schema 写入"。
+    var deviceSchemaVersion: Int?
     var id: Int { state.rawValue }
 
-    init(state: AhaKeyTaskDisplayState, localAssetPath: String? = nil, framesPerSecond: Int = 12) {
+    init(
+        state: AhaKeyTaskDisplayState,
+        localAssetPath: String? = nil,
+        framesPerSecond: Int = 12,
+        deviceSchemaVersion: Int? = nil
+    ) {
         self.state = state
         self.localAssetPath = localAssetPath
         self.framesPerSecond = min(20, max(5, framesPerSecond))
+        self.deviceSchemaVersion = deviceSchemaVersion
+    }
+}
+
+/// 一套任务状态图（4 态 × 1 套）。统一模型为每 mode 2 套（A/B）× 4 态；
+/// 古早固件降级为只用第 0 套的 3 态（见 `AhaKeyTaskDisplayState.legacyStates`）。
+struct AhaKeyTaskGIFSetDraft: Codable, Equatable {
+    var assets: [AhaKeyTaskGIFAssetDraft]
+
+    init(assets: [AhaKeyTaskGIFAssetDraft]) { self.assets = Self.normalizedAssets(assets) }
+
+    static func defaultSet(assetPath: String?, framesPerSecond: Int) -> AhaKeyTaskGIFSetDraft {
+        AhaKeyTaskGIFSetDraft(assets: AhaKeyTaskDisplayState.allCases.map {
+            AhaKeyTaskGIFAssetDraft(state: $0, localAssetPath: $0 == .done ? assetPath : nil, framesPerSecond: framesPerSecond)
+        })
+    }
+
+    static func emptySet() -> AhaKeyTaskGIFSetDraft {
+        AhaKeyTaskGIFSetDraft(assets: AhaKeyTaskDisplayState.allCases.map { AhaKeyTaskGIFAssetDraft(state: $0) })
+    }
+
+    func asset(for state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        assets.first { $0.state == state } ?? AhaKeyTaskGIFAssetDraft(state: state)
+    }
+
+    mutating func updateAsset(_ asset: AhaKeyTaskGIFAssetDraft) {
+        if let index = assets.firstIndex(where: { $0.state == asset.state }) { assets[index] = asset }
+        else { assets.append(asset) }
+        assets = Self.normalizedAssets(assets)
+    }
+
+    private static func normalizedAssets(_ candidates: [AhaKeyTaskGIFAssetDraft]) -> [AhaKeyTaskGIFAssetDraft] {
+        AhaKeyTaskDisplayState.allCases.map { state in
+            if let existing = candidates.first(where: { $0.state == state }) {
+                return existing
+            }
+            // 待机无独立资源时回退 working 图（Rhino 语义）：3 态旧草稿迁入 4 态后，
+            // 待机画面与"进行中"一致，不会出现空屏。
+            if state == .idle, let working = candidates.first(where: { $0.state == .working }) {
+                return AhaKeyTaskGIFAssetDraft(
+                    state: .idle,
+                    localAssetPath: working.localAssetPath,
+                    framesPerSecond: working.framesPerSecond,
+                    deviceSchemaVersion: working.deviceSchemaVersion
+                )
+            }
+            return AhaKeyTaskGIFAssetDraft(state: state)
+        }
     }
 }
 
 struct AhaKeyOLEDDraft: Codable, Equatable {
+    /// 顶层默认动画路径，语义与旧版一致：它始终镜像套图 A 的 done 槽
+    /// （`updateTaskAsset(set: 0, asset:)` 在 done 更新时回写本字段）。
+    /// 与固件命令的关系（M2b 落地命令路径，此处只约束模型语义）：
+    /// - 古早固件：没有 idle 任务槽，待机画面来自 0x82 默认动画绑定，
+    ///   因此 done 图上传后必须用 0x82 把同一帧区间绑为默认动画
+    ///   （见 `AhaKeyOLEDSyncPlan.defaultBindingRepair` / `bindDefaultPicture`）。
+    /// - 新固件（Rhino）：有独立 idle 任务槽，待机槽覆盖出厂默认动画，
+    ///   0x82 绑定仍按 done 槽维护以兼容旧行为。
     var localAssetPath: String?
     var statusLine: String
     var framesPerSecond: Int
-    /// 单套任务状态图：working / waiting / done。
-    /// `done` 同时作为普通模式切换后的默认动画。
-    var taskGIFAssets: [AhaKeyTaskGIFAssetDraft]
+    /// 双套任务状态图，恒归一化为 2 套（A/B）；古早固件只用第 0 套。
+    var taskGIFSets: [AhaKeyTaskGIFSetDraft]
+    var activeGIFSet: Int
+    /// 任务图持久化 schema：0 = 旧单图/单套草稿（首次写入设备时需迁移上传），
+    /// 2 = 双套，3 = 带 deviceSchemaVersion 追踪。沿用 Rhino 语义。
+    var taskGIFSchemaVersion: Int
 
     private enum CodingKeys: String, CodingKey {
         case localAssetPath
         case statusLine
         case framesPerSecond
+        case taskGIFSets
+        case activeGIFSet
+        case taskGIFSchemaVersion
+        /// 仅解码用：主线旧格式（3 态单套）。编码只写新字段。
         case taskGIFAssets
     }
 
     init(
         localAssetPath: String?, statusLine: String, framesPerSecond: Int = 12,
-        taskGIFAssets: [AhaKeyTaskGIFAssetDraft]? = nil
+        taskGIFSets: [AhaKeyTaskGIFSetDraft]? = nil, activeGIFSet: Int = 0, taskGIFSchemaVersion: Int = 0
     ) {
         self.localAssetPath = localAssetPath
         self.statusLine = statusLine
         self.framesPerSecond = min(30, max(1, framesPerSecond))
-        self.taskGIFAssets = Self.normalizedAssets(taskGIFAssets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: self.framesPerSecond)
+        self.taskGIFSets = Self.normalizedSets(taskGIFSets ?? [], legacyAssetPath: localAssetPath, legacyFramesPerSecond: self.framesPerSecond)
+        self.activeGIFSet = min(1, max(0, activeGIFSet))
+        self.taskGIFSchemaVersion = max(0, taskGIFSchemaVersion)
     }
 
     init(from decoder: Decoder) throws {
@@ -918,8 +999,29 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         statusLine = try container.decode(String.self, forKey: .statusLine)
         let storedFPS = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
         framesPerSecond = min(30, max(1, storedFPS))
-        let storedAssets = try container.decodeIfPresent([AhaKeyTaskGIFAssetDraft].self, forKey: .taskGIFAssets)
-        taskGIFAssets = Self.normalizedAssets(storedAssets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        if let storedSets = try container.decodeIfPresent([AhaKeyTaskGIFSetDraft].self, forKey: .taskGIFSets) {
+            // Rhino / 统一格式：双套。
+            taskGIFSets = Self.normalizedSets(storedSets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+            activeGIFSet = min(1, max(0, try container.decodeIfPresent(Int.self, forKey: .activeGIFSet) ?? 0))
+            taskGIFSchemaVersion = max(0, try container.decodeIfPresent(Int.self, forKey: .taskGIFSchemaVersion) ?? 0)
+        } else {
+            // 主线旧格式：3 态单套 taskGIFAssets（或更老的仅 localAssetPath）。
+            // 单套内容进套图 A：done 缺省时按旧语义种子 localAssetPath，
+            // idle 由 AhaKeyTaskGIFSetDraft 归一化回退 working 图；套图 B 初始为空。
+            let legacyAssets = try container.decodeIfPresent([AhaKeyTaskGIFAssetDraft].self, forKey: .taskGIFAssets) ?? []
+            var setACandidates = legacyAssets
+            if !setACandidates.contains(where: { $0.state == .done }), localAssetPath != nil {
+                setACandidates.append(AhaKeyTaskGIFAssetDraft(state: .done, localAssetPath: localAssetPath, framesPerSecond: framesPerSecond))
+            }
+            taskGIFSets = [AhaKeyTaskGIFSetDraft(assets: setACandidates), .emptySet()]
+            activeGIFSet = 0
+            taskGIFSchemaVersion = 0
+        }
+        // Rhino schema 1 迁移时曾把默认动画复制进套图 B；仅当 B 与 A 完全相等时清除，
+        // 独立配置过的套图 B 保留。
+        if taskGIFSchemaVersion < 2, taskGIFSets.count > 1, taskGIFSets[1] == taskGIFSets[0] {
+            taskGIFSets[1] = .emptySet()
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -927,40 +1029,48 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         try container.encodeIfPresent(localAssetPath, forKey: .localAssetPath)
         try container.encode(statusLine, forKey: .statusLine)
         try container.encode(framesPerSecond, forKey: .framesPerSecond)
-        try container.encode(taskGIFAssets, forKey: .taskGIFAssets)
+        try container.encode(taskGIFSets, forKey: .taskGIFSets)
+        try container.encode(activeGIFSet, forKey: .activeGIFSet)
+        try container.encode(taskGIFSchemaVersion, forKey: .taskGIFSchemaVersion)
     }
 
-    func taskAsset(for state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
-        taskGIFAssets.first { $0.state == state } ?? AhaKeyTaskGIFAssetDraft(state: state)
+    func taskAsset(set: Int, state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        let normalizedSet = min(1, max(0, set))
+        guard taskGIFSets.indices.contains(normalizedSet) else { return AhaKeyTaskGIFAssetDraft(state: state) }
+        return taskGIFSets[normalizedSet].asset(for: state)
     }
 
-    mutating func updateTaskAsset(_ asset: AhaKeyTaskGIFAssetDraft) {
-        if let index = taskGIFAssets.firstIndex(where: { $0.state == asset.state }) {
-            taskGIFAssets[index] = asset
-        } else {
-            taskGIFAssets.append(asset)
-        }
-        taskGIFAssets = Self.normalizedAssets(taskGIFAssets)
-        if asset.state == .done {
+    mutating func updateTaskAsset(set: Int, asset: AhaKeyTaskGIFAssetDraft) {
+        ensureTaskGIFSets()
+        let normalizedSet = min(1, max(0, set))
+        taskGIFSets[normalizedSet].updateAsset(asset)
+        // 保持旧语义：套图 A 的 done 兼任默认动画，顶层 localAssetPath/framesPerSecond 随之更新。
+        if normalizedSet == 0 && asset.state == .done {
             localAssetPath = asset.localAssetPath
             framesPerSecond = asset.framesPerSecond
         }
     }
 
-    private static func normalizedAssets(
-        _ candidates: [AhaKeyTaskGIFAssetDraft]?,
-        legacyAssetPath: String?,
-        legacyFramesPerSecond: Int
-    ) -> [AhaKeyTaskGIFAssetDraft] {
-        let base = candidates ?? []
-        return AhaKeyTaskDisplayState.allCases.map { state in
-            base.first { $0.state == state }
-                ?? AhaKeyTaskGIFAssetDraft(state: state, localAssetPath: state == .done ? legacyAssetPath : nil, framesPerSecond: legacyFramesPerSecond)
-        }
+    /// M2a 兼容访问器：旧 UI/命令路径只看第 0 套。M2b 接双套后删除。
+    func taskAsset(for state: AhaKeyTaskDisplayState) -> AhaKeyTaskGIFAssetDraft {
+        taskAsset(set: 0, state: state)
     }
 
-    private static func normalizedAssets(_ candidates: [AhaKeyTaskGIFAssetDraft]) -> [AhaKeyTaskGIFAssetDraft] {
-        normalizedAssets(candidates, legacyAssetPath: nil, legacyFramesPerSecond: 12)
+    /// M2a 兼容访问器：旧 UI/命令路径只写第 0 套。M2b 接双套后删除。
+    mutating func updateTaskAsset(_ asset: AhaKeyTaskGIFAssetDraft) {
+        updateTaskAsset(set: 0, asset: asset)
+    }
+
+    mutating func ensureTaskGIFSets() {
+        taskGIFSets = Self.normalizedSets(taskGIFSets, legacyAssetPath: localAssetPath, legacyFramesPerSecond: framesPerSecond)
+        activeGIFSet = min(1, max(0, activeGIFSet))
+    }
+
+    private static func normalizedSets(_ candidates: [AhaKeyTaskGIFSetDraft], legacyAssetPath: String?, legacyFramesPerSecond: Int) -> [AhaKeyTaskGIFSetDraft] {
+        var result = Array(candidates.prefix(2))
+        if result.isEmpty { result.append(.defaultSet(assetPath: legacyAssetPath, framesPerSecond: legacyFramesPerSecond)) }
+        while result.count < 2 { result.append(.emptySet()) }
+        return result
     }
 
     static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyOLEDDraft {
@@ -975,15 +1085,10 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         case .mode3:
             statusLine = NSLocalizedString("自定义模式。", comment: "")
         }
-        let bundledPath = DefaultOLEDAssets.bundledAssetPath(for: mode)
-        let assets = AhaKeyTaskDisplayState.allCases.map {
-            AhaKeyTaskGIFAssetDraft(state: $0, localAssetPath: $0 == .done ? bundledPath : nil, framesPerSecond: 12)
-        }
         return AhaKeyOLEDDraft(
-            localAssetPath: bundledPath,
+            localAssetPath: DefaultOLEDAssets.bundledAssetPath(for: mode),
             statusLine: statusLine,
-            framesPerSecond: 12,
-            taskGIFAssets: assets
+            framesPerSecond: 12
         )
     }
 }
@@ -1141,8 +1246,11 @@ enum AhaKeyStudioStore {
     private static let key = "ahakey.studio.draft.v1"
 
     static func load() -> AhaKeyStudioDraft? {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              var draft = try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data) else {
+        guard let rawData = UserDefaults.standard.data(forKey: key) else { return nil }
+        // 双 schema：本 key 被主线（3 态单套 taskGIFAssets）与 Rhino（4 态双套 taskGIFSets）
+        // 两版 app 共用，先归一化为统一格式再解码。模型解码器本身也兼容旧 key，此处迁移失败时回退原始数据。
+        let data = AhaKeyStudioDraftMigration.migrateDraftData(rawData) ?? rawData
+        guard var draft = try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data) else {
             return nil
         }
         let existingSlots = Set(draft.modes.map(\.mode))
