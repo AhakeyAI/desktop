@@ -7,6 +7,22 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "USB 接口": "USB Interface",
+    "USB HID 写入失败（%d）": "USB HID write failed (%d)",
+    "USB HID 有线配置通道已断开，配置写入回退 BLE": "USB HID configuration disconnected; configuration writes fell back to BLE",
+    "USB HID 设备未连接": "USB HID device is not connected",
+    "USB 有线（BLE 备用）": "Wired USB (BLE fallback)",
+    "BLE（USB 等待 current 协议）": "BLE (USB waiting for current protocol)",
+    "BLE（USB 设备身份未匹配）": "BLE (USB device identity not matched)",
+    "已启用，仅用于 current 协议配置": "Enabled for current-protocol configuration only",
+    "已检测，等待 current 协议、设备身份与 App 配置会话": "Detected; waiting for the current protocol, matching device identity, and an app configuration session",
+    "等待 App 取得配置会话": "waiting for the app to acquire the configuration session",
+    "等待 BLE 协商 current 协议": "waiting for BLE to negotiate the current protocol",
+    "改键、LCD、同步、本机灯效测试（current 固件 USB 优先，BLE 自动兜底）": "Key mapping, LCD, sync, and local lighting tests (current firmware prefers USB with automatic BLE fallback)",
+    "未检测": "Not Detected",
+    "无法打开 USB HID 设备（%d）": "Could not open USB HID device (%d)",
+    "配置通道": "Configuration Transport",
+    "配置连接状态": "Configuration Connection Status",
     "\n\n请重新打开终端，或执行 `source ~/.zshrc`，让 launcher 生效。": "\n\nPlease reopen the terminal, or run `source ~/.zshrc` to activate the launcher.",
     "\n                1. 画布点 LCD 屏幕 → Inspector 显示「修改」\n                2. 点「修改」进入编辑态（接管 BLE）\n                3. 选择你的图片（动图推荐 ≤200 帧、≤2MB），可先在虚拟屏幕里预览\n                4. 确认后点底部「写入键盘」统一写入设备\n                ": "\n                1. Tap the LCD screen on the canvas → the Inspector shows Edit\n                2. Tap Edit to enter editing mode (taking over BLE)\n                3. Choose your image (animation recommended ≤200 frames, ≤2 MB); preview it on the virtual screen first\n                4. After confirming, tap Write to Keyboard at the bottom to write everything to the device\n                ",
     "\n                Mode 1 → claude_0.gif（出厂内置）\n                Mode 2 → cursor.gif\n                Mode 3 → codex.gif\n                Mode 4 → 预留/自定义\n\n                首次连接键盘且发现某个 Mode 的 flash slot 为空时，主 App 会自动把对应 bundle 图片推到键盘上。\n                ": "\n                Mode 1 → claude_0.gif (built-in)\n                Mode 2 → cursor.gif\n                Mode 3 → codex.gif\n                Mode 4 → reserved / custom\n\n                On first connection, if the main app finds a Mode flash slot empty, it automatically pushes the corresponding bundled image to the keyboard.\n                ",

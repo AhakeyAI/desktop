@@ -66,7 +66,7 @@ struct DeviceInfoView: View {
                                     Text(owner.title)
                                         .fontWeight(selected ? .semibold : .regular)
                                     Text(owner == .ahaKeyStudio
-                                         ? NSLocalizedString("改键、LCD、同步、本机灯效测试（macOS 暂不支持 USB 有线配置）", comment: "")
+                                         ? NSLocalizedString("改键、LCD、同步、本机灯效测试（current 固件 USB 优先，BLE 自动兜底）", comment: "")
                                          : NSLocalizedString("Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询", comment: ""))
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
@@ -314,8 +314,33 @@ struct DeviceInfoView: View {
                 }
             }
 
-            // MARK: - BLE 连接状态
+            // MARK: - 配置连接状态
             Section {
+                CompatLabeledContent(NSLocalizedString("配置通道", comment: "")) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(bleManager.isUSBConfigurationActive ? Color.green : Color.blue)
+                            .frame(width: 8, height: 8)
+                        Text(bleManager.configurationTransportLabel)
+                    }
+                }
+                CompatLabeledContent(NSLocalizedString("USB 接口", comment: "")) {
+                    if let identity = bleManager.usbDeviceIdentity {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(identity.transportDescription)
+                                .font(.system(.caption, design: .monospaced))
+                            Text(bleManager.isUSBConfigurationActive
+                                 ? NSLocalizedString("已启用，仅用于 current 协议配置", comment: "")
+                                 : NSLocalizedString("已检测，等待 current 协议、设备身份与 App 配置会话", comment: ""))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .textSelection(.enabled)
+                    } else {
+                        Text(NSLocalizedString("未检测", comment: ""))
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
@@ -378,7 +403,7 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text(NSLocalizedString("BLE 连接状态", comment: ""))
+                Text(NSLocalizedString("配置连接状态", comment: ""))
             }
 
             // MARK: - 操作

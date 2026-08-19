@@ -125,6 +125,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var bluetoothPoweredOn = false
     @Published private(set) var oledUploadProgress: OLEDUploadProgress?
     @Published private(set) var isUploadingOLED = false
+    /// 物理枚举到的 USB 配置接口；是否可用于命令仍由 current 协议与配置会话锁共同决定。
+    @Published private(set) var usbDeviceIdentity: AhaKeyUSBDeviceIdentity?
     /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），用于画布 LED 颜色实时还原
     @Published private(set) var liveIDEStateValue: Int? = nil
     /// Agent 端 BLE 通知缓存的 lightMode/switchState/workMode（agent 占用蓝牙时主 App 自己 BLE 未连，靠这些读到键盘实时状态）
@@ -171,6 +173,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     // MARK: - Private
 
     private var central: CBCentralManager?
+    private let usbTransport = AhaKeyUSBHIDTransport()
     private var peripheral: CBPeripheral?
     private var dataChar: CBCharacteristic?
     private var commandChar: CBCharacteristic?
@@ -222,6 +225,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var dataWriteResultContinuation: CheckedContinuation<Void, Error>?
     private var dataWriteTimeoutTask: Task<Void, Never>?
     private var dataPacketWriteTask: Task<Void, Never>?
+    /// 某命令已因 USB 超时改走 BLE 时，忽略同 opcode 的迟到 USB 应答。
+    private var bleFallbackCommands: Set<UInt8> = []
+    /// 当前图片写入任务一旦发生 USB 数据确认超时，余下重试固定走 BLE。
+    private var forceBLEPictureTransfer = false
 
     // MARK: - Init
 
@@ -231,6 +238,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         if storedOwner == nil || storedOwner == BluetoothConnectionOwner.agentDaemon.rawValue {
             suppressAutomaticConnection = true
         }
+        usbTransport.onConnected = { [weak self] identity in
+            Task { @MainActor in self?.usbDidConnect(identity) }
+        }
+        usbTransport.onDisconnected = { [weak self] in
+            Task { @MainActor in self?.usbDidDisconnect() }
+        }
+        usbTransport.onFrame = { [weak self] data in
+            Task { @MainActor in self?.handleUSBFrame(data) }
+        }
+        usbTransport.onError = { [weak self] error in
+            Task { @MainActor in
+                self?.appendLog("USB HID: \(error.localizedDescription)", isError: true)
+            }
+        }
+        usbTransport.start()
         // 只有蓝牙权限已授予时才创建 CBCentralManager（创建即触发系统弹窗）。
         // 权限未决时延迟到用户点「申请」后调用 ensureCentralManager()。
         if CBCentralManager.authorization == .allowedAlways {
@@ -245,6 +267,68 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func ensureCentralManager() {
         guard central == nil else { return }
         central = CBCentralManager(delegate: self, queue: nil)
+    }
+
+    var isUSBAttached: Bool { usbDeviceIdentity != nil }
+
+    var isUSBConfigurationActive: Bool {
+        selectedConfigurationRoute(forceBLE: false) == .usb
+    }
+
+    var configurationTransportLabel: String {
+        if isUSBConfigurationActive { return NSLocalizedString("USB 有线（BLE 备用）", comment: "") }
+        if isUSBAttached, protocolMode != .current {
+            return NSLocalizedString("BLE（USB 等待 current 协议）", comment: "")
+        }
+        if isUSBAttached, protocolMode == .current {
+            return NSLocalizedString("BLE（USB 设备身份未匹配）", comment: "")
+        }
+        return NSLocalizedString("BLE", comment: "")
+    }
+
+    private var configurationSessionOwned: Bool {
+        !suppressAutomaticConnection && connectionLock.holdsLock && isConnected
+    }
+
+    private func selectedConfigurationRoute(forceBLE: Bool) -> AhaKeyConfigurationTransportRoute {
+        AhaKeyConfigurationTransportSelector.route(
+            AhaKeyConfigurationTransportContext(
+                protocolMode: protocolMode,
+                usbAttached: usbTransport.isConnected,
+                configurationSessionOwned: configurationSessionOwned,
+                usbDeviceIdentifier: usbDeviceIdentity?.shortIdentifier,
+                negotiatedDeviceIdentifier: deviceIdentifier,
+                forceBLE: forceBLE
+            )
+        )
+    }
+
+    private func usbDidConnect(_ identity: AhaKeyUSBDeviceIdentity) {
+        usbDeviceIdentity = identity
+        let gate = protocolMode == .current
+            ? NSLocalizedString("等待 App 取得配置会话", comment: "")
+            : NSLocalizedString("等待 BLE 协商 current 协议", comment: "")
+        appendLog("检测到 USB HID \(identity.transportDescription)，\(gate)", category: .lifecycle)
+    }
+
+    private func usbDidDisconnect() {
+        guard usbDeviceIdentity != nil else { return }
+        usbDeviceIdentity = nil
+        appendLog(NSLocalizedString("USB HID 有线配置通道已断开，配置写入回退 BLE", comment: ""), category: .lifecycle)
+    }
+
+    private func handleUSBFrame(_ data: Data) {
+        guard selectedConfigurationRoute(forceBLE: false) == .usb else {
+            appendLog("忽略未获 current 配置权限的 USB 应答: \(data.hexString)", category: .verbose)
+            return
+        }
+        if let response = AhaKeyResponseParser.parseCommandResponse(data),
+           bleFallbackCommands.contains(response.cmd) {
+            appendLog("忽略 USB 迟到应答 0x\(String(format: "%02X", response.cmd))", category: .verbose)
+            return
+        }
+        appendLog("← USB: \(data.hexString)", category: .verbose)
+        parseProtocolResponse(data)
     }
 
     // MARK: - Public API
@@ -408,15 +492,26 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
-    func writeCommand(_ data: Data) {
+    @discardableResult
+    func writeCommand(_ data: Data, forceBLE: Bool = false) -> AhaKeyConfigurationTransportRoute? {
+        if selectedConfigurationRoute(forceBLE: forceBLE) == .usb {
+            do {
+                try usbTransport.sendCommand(data)
+                appendLog("→ USB CMD \(data.count)B: \(data.hexString)", category: .verbose)
+                return .usb
+            } catch {
+                appendLog("USB 命令发送失败，回退 BLE：\(error.localizedDescription)", isError: true)
+            }
+        }
         guard let commandChar, let peripheral else {
             appendLog(NSLocalizedString("命令通道未就绪", comment: ""), isError: true)
-            return
+            return nil
         }
         let writeType: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(data, for: commandChar, type: writeType)
         appendLog("→ CMD \(data.count)B: \(data.hexString)", category: .verbose)
+        return .ble
     }
 
     func uploadOLEDFrames(
@@ -424,8 +519,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         fps: Int,
         mode: UInt8 = 0,
         startIndex: UInt16 = 0,
-        preserveDefaultPictureBinding: Bool = false
+        preserveDefaultPictureBinding: Bool = false,
+        resetTransportPreference: Bool = true
     ) async throws {
+        if resetTransportPreference {
+            forceBLEPictureTransfer = false
+        }
         guard let peripheral, let dataChar, commandChar != nil else {
             throw OLEDUploadError.channelNotReady
         }
@@ -454,7 +553,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         var uploadFinished = false
         defer {
             if !uploadFinished, let sessionID = currentUploadSessionID {
-                writeCommand(AhaKeyCommand.abortPictureWrite(sessionID: sessionID))
+                writeCommand(
+                    AhaKeyCommand.abortPictureWrite(sessionID: sessionID),
+                    forceBLE: forceBLEPictureTransfer
+                )
             }
             currentUploadSessionID = nil
             isUploadingOLED = false
@@ -475,25 +577,57 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
             for chunk in chunks {
                 let address = frameAddress + UInt32(chunk.offset)
-                let prepare: Data
-                let expectedCommand: UInt8
-                if usesSessionUpload {
-                    let sessionID = UInt16.random(in: 1 ... UInt16.max)
-                    currentUploadSessionID = sessionID
-                    prepare = AhaKeyCommand.prepareSessionWrite(
-                        sessionID: sessionID,
-                        chunkLength: chunk.data.count,
-                        address: address
+                var chunkAttempt = 0
+                while true {
+                    chunkAttempt += 1
+                    let prepare: Data
+                    let expectedCommand: UInt8
+                    if usesSessionUpload {
+                        let sessionID = UInt16.random(in: 1 ... UInt16.max)
+                        currentUploadSessionID = sessionID
+                        prepare = AhaKeyCommand.prepareSessionWrite(
+                            sessionID: sessionID,
+                            chunkLength: chunk.data.count,
+                            address: address
+                        )
+                        expectedCommand = AhaKeyCommand.cmdPrepareSessionWrite
+                    } else {
+                        prepare = AhaKeyCommand.prepareWrite(chunkLength: chunk.data.count, address: address)
+                        expectedCommand = AhaKeyCommand.cmdPrepareWrite
+                    }
+                    _ = try await sendCommandAwaitingResponse(
+                        prepare,
+                        expectedCommand: expectedCommand,
+                        forceBLE: forceBLEPictureTransfer
                     )
-                    expectedCommand = AhaKeyCommand.cmdPrepareSessionWrite
-                } else {
-                    prepare = AhaKeyCommand.prepareWrite(chunkLength: chunk.data.count, address: address)
-                    expectedCommand = AhaKeyCommand.cmdPrepareWrite
-                }
-                _ = try await sendCommandAwaitingResponse(prepare, expectedCommand: expectedCommand)
 
-                try await writeDataChunk(chunk.data, to: peripheral, characteristic: dataChar, type: writeType)
-                currentUploadSessionID = nil
+                    let usedUSB = selectedConfigurationRoute(forceBLE: forceBLEPictureTransfer) == .usb
+                    do {
+                        try await writeDataChunk(chunk.data, to: peripheral, characteristic: dataChar, type: writeType)
+                        currentUploadSessionID = nil
+                        break
+                    } catch {
+                        guard shouldRetryPictureChunkOverBLE(
+                            after: error,
+                            usedUSB: usedUSB,
+                            usesSessionUpload: usesSessionUpload,
+                            chunkAttempt: chunkAttempt
+                        ) else {
+                            throw error
+                        }
+                        forceBLEPictureTransfer = true
+                        if let sessionID = currentUploadSessionID {
+                            _ = try await sendCommandAwaitingResponse(
+                                AhaKeyCommand.abortPictureWrite(sessionID: sessionID),
+                                expectedCommand: AhaKeyCommand.cmdAbortPictureWrite,
+                                timeoutSeconds: 2.0,
+                                forceBLE: true
+                            )
+                        }
+                        currentUploadSessionID = nil
+                        appendLog("当前图片数据块 USB 传输失败，已回滚会话并改用 BLE 重写", isError: true)
+                    }
+                }
                 completedChunks += 1
                 oledUploadProgress = OLEDUploadProgress(
                     completedChunks: completedChunks,
@@ -515,7 +649,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if taskPictureProtocolPlan?.finishesRawUpload == true {
                 let finishCommand = AhaKeyCommand.finishTaskPictureWrite()
                 appendLog("→ finishTaskPictureWrite mode=\(mode) startIndex=\(startIndex) hex=\(finishCommand.hexString)", category: .verbose)
-                _ = try await sendCommandAwaitingResponse(finishCommand, expectedCommand: AhaKeyCommand.cmdFinishTaskPicWrite)
+                _ = try await sendCommandAwaitingResponse(
+                    finishCommand,
+                    expectedCommand: AhaKeyCommand.cmdFinishTaskPicWrite,
+                    forceBLE: forceBLEPictureTransfer
+                )
             }
         } else {
             let delay = UInt16(max(1, 1000 / max(1, fps)))
@@ -526,10 +664,28 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 timeDelayMs: delay
             )
             appendLog("→ updatePicture mode=\(mode) startIndex=\(startIndex) frameCount=\(frames.count) delayMs=\(delay) hex=\(updateCommand.hexString)", category: .verbose)
-            _ = try await sendCommandAwaitingResponse(updateCommand, expectedCommand: AhaKeyCommand.cmdUpdatePic)
+            _ = try await sendCommandAwaitingResponse(
+                updateCommand,
+                expectedCommand: AhaKeyCommand.cmdUpdatePic,
+                forceBLE: forceBLEPictureTransfer
+            )
         }
         uploadFinished = true
         appendLog("LCD 上传完成: \(frames.count) 帧, start=\(startIndex)")
+    }
+
+    private func shouldRetryPictureChunkOverBLE(
+        after error: Error,
+        usedUSB: Bool,
+        usesSessionUpload: Bool,
+        chunkAttempt: Int
+    ) -> Bool {
+        guard usedUSB, usesSessionUpload, chunkAttempt == 1 else { return false }
+        if error is AhaKeyUSBTransportError { return true }
+        if case OLEDUploadError.timeout(let command) = error {
+            return command == AhaKeyCommand.cmdWriteResult
+        }
+        return false
     }
 
     /// 批量写入命令（每条间隔 50ms，避免设备过载）。**该批**全部写入后会在主线程执行 `completion`（若入队 0 条则立即执行）。
@@ -673,6 +829,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let delay = UInt16(max(1, 1000 / max(1, fps)))
         let maxAttempts = 3
         var lastError: Error?
+        forceBLEPictureTransfer = false
         for attempt in 1 ... maxAttempts {
             do {
                 try await uploadOLEDFrames(
@@ -680,13 +837,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     fps: fps,
                     mode: mode,
                     startIndex: startIndex,
-                    preserveDefaultPictureBinding: true
+                    preserveDefaultPictureBinding: true,
+                    resetTransportPreference: false
                 )
                 let metadata = taskPictureUpdate(
                     plan: plan, mode: mode, set: set, state: state, startIndex: startIndex,
                     frameCount: UInt16(frames.count), timeDelayMs: delay
                 )
-                _ = try await sendCommandAwaitingResponse(metadata.data, expectedCommand: metadata.expectedCommand)
+                _ = try await sendCommandAwaitingResponse(
+                    metadata.data,
+                    expectedCommand: metadata.expectedCommand,
+                    forceBLE: forceBLEPictureTransfer
+                )
                 let confirmed = try await readTaskPictureState(mode: mode, set: set, state: state)
                 guard confirmed.startIndex == Int(startIndex), confirmed.picLength == frames.count,
                       confirmed.frameInterval == Int(delay) else {
@@ -1284,7 +1446,47 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
-    private func sendCommandAwaitingResponse(_ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0) async throws -> CommandResponse {
+    private func sendCommandAwaitingResponse(
+        _ data: Data,
+        expectedCommand: UInt8,
+        timeoutSeconds: Double = 5.0,
+        forceBLE: Bool = false
+    ) async throws -> CommandResponse {
+        let attemptedUSB = selectedConfigurationRoute(forceBLE: forceBLE) == .usb
+        do {
+            return try await sendCommandAwaitingResponseOnce(
+                data,
+                expectedCommand: expectedCommand,
+                timeoutSeconds: timeoutSeconds,
+                forceBLE: forceBLE
+            )
+        } catch OLEDUploadError.timeout
+            where attemptedUSB && !forceBLE && peripheral != nil && commandChar != nil {
+            if expectedCommand == AhaKeyCommand.cmdPrepareWrite ||
+                expectedCommand == AhaKeyCommand.cmdPrepareSessionWrite {
+                forceBLEPictureTransfer = true
+            }
+            appendLog(
+                "USB 命令 0x\(String(format: "%02X", expectedCommand)) 响应超时，回退 BLE 重试",
+                isError: true
+            )
+            bleFallbackCommands.insert(expectedCommand)
+            defer { bleFallbackCommands.remove(expectedCommand) }
+            return try await sendCommandAwaitingResponseOnce(
+                data,
+                expectedCommand: expectedCommand,
+                timeoutSeconds: timeoutSeconds,
+                forceBLE: true
+            )
+        }
+    }
+
+    private func sendCommandAwaitingResponseOnce(
+        _ data: Data,
+        expectedCommand: UInt8,
+        timeoutSeconds: Double,
+        forceBLE: Bool
+    ) async throws -> CommandResponse {
         if Task.isCancelled { throw OLEDUploadError.cancelled }
         let result = try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CommandResponse, Error>) in
@@ -1305,7 +1507,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                         result: .failure(OLEDUploadError.timeout(command: expectedCommand))
                     )
                 }
-                writeCommand(data)
+                writeCommand(data, forceBLE: forceBLE)
             }
         }, onCancel: {
             Task { @MainActor [weak self] in
@@ -1339,35 +1541,35 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     return
                 }
                 dataWriteResultContinuation = continuation
-                let negotiatedLength = max(1, peripheral.maximumWriteValueLength(for: type))
-                let sessionID = currentUploadSessionID
-                let minimumPacketLength = sessionID == nil ? 1 : 3
-                let firmwareLimit = max(
-                    minimumPacketLength,
-                    firmwareCapabilities?.maxPacketSize ?? AhaKeyCommand.oledPacketSize
-                )
-                let maxPacketLength = min(negotiatedLength, firmwareLimit)
-                let packets = AhaKeyPictureDataPacketizer.packets(
-                    for: data,
-                    maxPacketLength: maxPacketLength,
-                    sessionID: sessionID
-                )
-                let payloadLength = max(1, maxPacketLength - (sessionID == nil ? 0 : 2))
-                appendLog("→ DATA \(data.count)B, 分片 \(payloadLength)B (协商上限 \(negotiatedLength)B)", category: .verbose)
+                let usesUSB = selectedConfigurationRoute(forceBLE: forceBLEPictureTransfer) == .usb
 
                 dataWriteTimeoutTask?.cancel()
                 dataWriteTimeoutTask = Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
                     guard !Task.isCancelled else { return }
+                    if usesUSB {
+                        self?.forceBLEPictureTransfer = true
+                        self?.appendLog("USB 图片数据确认超时，当前上传后续重试改走 BLE", isError: true)
+                    }
                     self?.finishDataWrite(.failure(OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult)))
                 }
-                dataPacketWriteTask?.cancel()
-                dataPacketWriteTask = Task { @MainActor in
-                    for packet in packets {
-                        guard !Task.isCancelled else { return }
-                        peripheral.writeValue(packet, for: characteristic, type: type)
-                        try? await Task.sleep(nanoseconds: UInt64(12) * 1_000_000)
+                if usesUSB {
+                    dataPacketWriteTask?.cancel()
+                    dataPacketWriteTask = Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        do {
+                            try await self.usbTransport.sendData(data)
+                            self.appendLog("→ USB DATA \(data.count)B", category: .verbose)
+                        } catch is CancellationError {
+                            return
+                        } catch {
+                            self.forceBLEPictureTransfer = true
+                            self.appendLog("USB DATA 发送失败，等待回滚 session：\(error.localizedDescription)", isError: true)
+                            self.finishDataWrite(.failure(error))
+                        }
                     }
+                } else {
+                    startBLEDataWrite(data, to: peripheral, characteristic: characteristic, type: type)
                 }
             }
         }, onCancel: {
@@ -1375,6 +1577,37 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 self?.finishDataWrite(.failure(OLEDUploadError.cancelled))
             }
         })
+    }
+
+    private func startBLEDataWrite(
+        _ data: Data,
+        to peripheral: CBPeripheral,
+        characteristic: CBCharacteristic,
+        type: CBCharacteristicWriteType
+    ) {
+        let negotiatedLength = max(1, peripheral.maximumWriteValueLength(for: type))
+        let sessionID = currentUploadSessionID
+        let minimumPacketLength = sessionID == nil ? 1 : 3
+        let firmwareLimit = max(
+            minimumPacketLength,
+            firmwareCapabilities?.maxPacketSize ?? AhaKeyCommand.oledPacketSize
+        )
+        let maxPacketLength = min(negotiatedLength, firmwareLimit)
+        let packets = AhaKeyPictureDataPacketizer.packets(
+            for: data,
+            maxPacketLength: maxPacketLength,
+            sessionID: sessionID
+        )
+        let payloadLength = max(1, maxPacketLength - (sessionID == nil ? 0 : 2))
+        appendLog("→ BLE DATA \(data.count)B, 分片 \(payloadLength)B (协商上限 \(negotiatedLength)B)", category: .verbose)
+        dataPacketWriteTask?.cancel()
+        dataPacketWriteTask = Task { @MainActor in
+            for packet in packets {
+                guard !Task.isCancelled else { return }
+                peripheral.writeValue(packet, for: characteristic, type: type)
+                try? await Task.sleep(nanoseconds: UInt64(12) * 1_000_000)
+            }
+        }
     }
 
     private func finishDataWrite(_ result: Result<Void, Error>) {
