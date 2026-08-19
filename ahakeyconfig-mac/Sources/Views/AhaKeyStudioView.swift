@@ -719,8 +719,8 @@ struct AhaKeyStudioView: View {
         .alert(NSLocalizedString("写入结果", comment: ""), isPresented: $showsWriteResultAlert) {
             Button(NSLocalizedString("继续编辑", comment: ""), role: .cancel) {}
             Button(NSLocalizedString("完成编辑", comment: "")) {
-                if writeResultAlertMessage.contains(NSLocalizedString("成功", comment: "")) {
-                    completeEditingAfterSuccessfulWrite()
+                if WriteResultAlertPolicy.shouldExitEditing(for: .completeEditing) {
+                    completeEditingAfterWriteResult()
                 }
             }
             .keyboardShortcut(.defaultAction)
@@ -2299,7 +2299,7 @@ struct AhaKeyStudioView: View {
         performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
     }
 
-    private func completeEditingAfterSuccessfulWrite() {
+    private func completeEditingAfterWriteResult() {
         commitModeNameEdit()
         withAnimation(.easeInOut(duration: 0.18)) {
             isEditingInspector = false
