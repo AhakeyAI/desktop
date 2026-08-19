@@ -10,12 +10,14 @@ import Foundation
 /// 协商出的协议模式。
 /// - negotiating: 已连接、尚未完成 0x99 协商（每次连接/断开都会回到该状态）。
 /// - legacy: 0x99 三次查询均无应答，且 firmwareMainVersion == 1（已知旧固件，走旧命令集）。
+/// - legacyBaseOnly: 固件版本为 1，但 0x94 只返回未知命令的通用空应答；仅支持键位/灯效等基础配置。
 /// - current: 0x99 应答 protocolVersion == 3（当前 Rhino 协议）。
 /// - restrictedUnknown: 0x99 有应答但协议版本未知，或无应答且固件版本也不是已知旧版——
 ///   只保留最保守的只读能力，禁用写入类高级功能。
 public enum AhaKeyProtocolMode: Equatable {
     case negotiating
     case legacy
+    case legacyBaseOnly
     case current
     case restrictedUnknown
 
@@ -138,8 +140,12 @@ public enum AhaKeyProtocolNegotiation {
         capabilities.protocolVersion == 3 ? .current : .restrictedUnknown
     }
 
-    /// 三次全部失败：firmwareMainVersion == 1 按已知旧固件走 legacy，否则 restrictedUnknown。
-    public static func fallbackMode(firmwareMainVersion: Int) -> AhaKeyProtocolMode {
-        firmwareMainVersion == 1 ? .legacy : .restrictedUnknown
+    /// 三次全部失败：固件 1.x 再用 0x94 实探任务图能力，避免把“未知命令通用成功空包”误判成可写。
+    public static func fallbackMode(
+        firmwareMainVersion: Int,
+        supportsLegacyTaskPictures: Bool
+    ) -> AhaKeyProtocolMode {
+        guard firmwareMainVersion == 1 else { return .restrictedUnknown }
+        return supportsLegacyTaskPictures ? .legacy : .legacyBaseOnly
     }
 }

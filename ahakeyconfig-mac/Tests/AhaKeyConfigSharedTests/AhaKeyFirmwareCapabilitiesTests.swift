@@ -152,10 +152,26 @@ final class AhaKeyFirmwareCapabilitiesTests: XCTestCase {
     }
 
     func testFallbackAfterExhaustedAttempts() {
-        XCTAssertEqual(AhaKeyProtocolNegotiation.fallbackMode(firmwareMainVersion: 1), .legacy)
+        XCTAssertEqual(
+            AhaKeyProtocolNegotiation.fallbackMode(
+                firmwareMainVersion: 1,
+                supportsLegacyTaskPictures: true
+            ),
+            .legacy
+        )
+        XCTAssertEqual(
+            AhaKeyProtocolNegotiation.fallbackMode(
+                firmwareMainVersion: 1,
+                supportsLegacyTaskPictures: false
+            ),
+            .legacyBaseOnly
+        )
         for version in [0, 2, 3, 255] {
             XCTAssertEqual(
-                AhaKeyProtocolNegotiation.fallbackMode(firmwareMainVersion: version),
+                AhaKeyProtocolNegotiation.fallbackMode(
+                    firmwareMainVersion: version,
+                    supportsLegacyTaskPictures: true
+                ),
                 .restrictedUnknown,
                 "firmwareMainVersion \(version) 应为 restrictedUnknown"
             )
@@ -177,12 +193,14 @@ final class AhaKeyFirmwareCapabilitiesTests: XCTestCase {
         XCTAssertTrue(AhaKeyProtocolMode.current.allowsUSBConfigurationTransport)
         XCTAssertFalse(AhaKeyProtocolMode.negotiating.allowsUSBConfigurationTransport)
         XCTAssertFalse(AhaKeyProtocolMode.legacy.allowsUSBConfigurationTransport)
+        XCTAssertFalse(AhaKeyProtocolMode.legacyBaseOnly.allowsUSBConfigurationTransport)
         XCTAssertFalse(AhaKeyProtocolMode.restrictedUnknown.allowsUSBConfigurationTransport)
     }
 
     func testTaskPictureConfigurationAllowedOnKnownProtocols() {
         XCTAssertTrue(AhaKeyProtocolMode.current.allowsTaskPictureConfiguration)
         XCTAssertTrue(AhaKeyProtocolMode.legacy.allowsTaskPictureConfiguration)
+        XCTAssertFalse(AhaKeyProtocolMode.legacyBaseOnly.allowsTaskPictureConfiguration)
         XCTAssertFalse(AhaKeyProtocolMode.negotiating.allowsTaskPictureConfiguration)
         XCTAssertFalse(AhaKeyProtocolMode.restrictedUnknown.allowsTaskPictureConfiguration)
     }

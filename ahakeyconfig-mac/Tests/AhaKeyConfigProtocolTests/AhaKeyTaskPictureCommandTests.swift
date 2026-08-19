@@ -72,4 +72,16 @@ final class AhaKeyTaskPictureCommandTests: XCTestCase {
         XCTAssertEqual(current?.state, 3)
         XCTAssertEqual(current?.activeSet, 1)
     }
+
+    func testGenericSuccessForUnknownLegacyCommandIsNotTaskPictureSupport() {
+        // 2026-06-23 之前的 1.x 固件会对未知 0x94 返回这个通用成功空包。
+        let response = AhaKeyResponseParser.parseCommandResponse(Data([
+            0xAA, 0xBB, 0x94, 0x00, 0xCC, 0xDD,
+        ]))
+
+        XCTAssertEqual(response?.cmd, AhaKeyCommand.cmdReadTaskPicState)
+        XCTAssertEqual(response?.status, 0)
+        XCTAssertEqual(response?.payload, Data())
+        XCTAssertNil(AhaKeyResponseParser.parseTaskPictureStateResponse(response?.payload ?? Data()))
+    }
 }

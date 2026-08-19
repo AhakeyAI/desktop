@@ -1221,13 +1221,41 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             }
         }
 
-        let fallback = AhaKeyProtocolNegotiation.fallbackMode(firmwareMainVersion: firmwareMainVersion)
+        let supportsLegacyTaskPictures = firmwareMainVersion == 1
+            ? await probeLegacyTaskPictureSupport()
+            : false
+        let fallback = AhaKeyProtocolNegotiation.fallbackMode(
+            firmwareMainVersion: firmwareMainVersion,
+            supportsLegacyTaskPictures: supportsLegacyTaskPictures
+        )
         apply(.capabilitiesNegotiated(mode: fallback, capabilities: nil))
         switch fallback {
         case .legacy:
-            appendLog("连续三次能力查询失败，按已知旧版固件兼容：\(lastFailure)", isError: true)
+            appendLog("连续三次能力查询失败；0x94 实探成功，按支持任务 GIF 的旧版固件兼容：\(lastFailure)", isError: true)
+        case .legacyBaseOnly:
+            appendLog("固件 1.x 未实现任务 GIF 命令（0x94 返回空载荷或无响应）；保留键位与灯效配置，停用任务图写入。", isError: true)
         default:
             appendLog("连续三次无法识别固件协议，进入受限兼容模式：\(lastFailure)", isError: true)
+        }
+    }
+
+    /// 早期 1.x 固件会对未知命令返回 `AA BB <cmd> 00 CC DD`，不能仅凭 status=0 判断支持。
+    /// 只有 0x94 返回完整且与请求一致的元数据，才启用 legacy 任务图上传。
+    private func probeLegacyTaskPictureSupport() async -> Bool {
+        do {
+            let response = try await sendCommandAwaitingResponse(
+                AhaKeyCommand.readTaskPictureState(mode: 0, state: UInt8(AhaKeyTaskDisplayState.working.rawValue)),
+                expectedCommand: AhaKeyCommand.cmdReadTaskPicState,
+                timeoutSeconds: 1.0
+            )
+            guard let picture = AhaKeyResponseParser.parseTaskPictureStateResponse(response.payload) else {
+                appendLog("旧固件 0x94 实探返回 \(response.payload.count)B 载荷，不支持任务 GIF。", isError: true)
+                return false
+            }
+            return picture.mode == 0 && picture.state == AhaKeyTaskDisplayState.working.rawValue
+        } catch {
+            appendLog("旧固件 0x94 实探失败：\(error.localizedDescription)", isError: true)
+            return false
         }
     }
 

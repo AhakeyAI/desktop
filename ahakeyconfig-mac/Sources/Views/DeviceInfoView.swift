@@ -517,6 +517,7 @@ struct DeviceInfoView: View {
         switch mode {
         case .negotiating: return NSLocalizedString("协商中…", comment: "")
         case .legacy: return NSLocalizedString("旧版兼容 (legacy)", comment: "")
+        case .legacyBaseOnly: return NSLocalizedString("旧版基础功能 (无任务 GIF)", comment: "")
         case .current: return NSLocalizedString("当前协议 (v3)", comment: "")
         case .restrictedUnknown: return NSLocalizedString("受限未知", comment: "")
         }

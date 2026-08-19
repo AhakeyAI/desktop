@@ -58,7 +58,7 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
                 supportsActiveSet: setCount > 1,
                 usesSessionUpload: capabilities?.supportsSessionUpload == true
             )
-        case .negotiating, .restrictedUnknown:
+        case .negotiating, .legacyBaseOnly, .restrictedUnknown:
             return nil
         }
     }

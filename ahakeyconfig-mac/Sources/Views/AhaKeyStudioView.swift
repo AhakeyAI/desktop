@@ -2061,6 +2061,8 @@ struct AhaKeyStudioView: View {
         switch bleManager.protocolMode {
         case .negotiating:
             return NSLocalizedString("连接并识别固件后可编辑任务状态图。", comment: "")
+        case .legacyBaseOnly:
+            return NSLocalizedString("当前 1.x 固件未包含任务 GIF 命令；键位和灯效仍可写入。任务状态动图需要手动烧录支持 0x93/0x94 的固件。", comment: "")
         case .restrictedUnknown:
             return NSLocalizedString("当前固件协议无法识别，任务状态图配置已停用；键位和灯效仍可使用。", comment: "")
         case .legacy, .current:
@@ -2388,7 +2390,7 @@ struct AhaKeyStudioView: View {
                 } else {
                     lastTaskUploadFailures = []
                     uploadedOLEDCount = 0
-                    bleManager.appendCommLogLine("当前固件协议未识别，已跳过任务图；继续写入键位与灯效。", isError: true)
+                    bleManager.appendCommLogLine("当前固件不支持任务图写入，已跳过任务图；继续写入键位与灯效。", isError: true)
                 }
                 var commands = commandsForModes(AhaKeyModeSlot.allCases)
                 commands.append((data: AhaKeyCommand.saveConfig(), label: NSLocalizedString("保存全部配置到设备", comment: "")))
@@ -2415,9 +2417,9 @@ struct AhaKeyStudioView: View {
                         self.isSyncing = false
                         self.isCancellingDeviceWrite = false
                         if !taskPicturesWereEligible {
-                            self.syncStatusMessage = NSLocalizedString("键位与灯效已写入；任务图因固件协议未识别而跳过。", comment: "")
+                            self.syncStatusMessage = NSLocalizedString("键位与灯效已写入；当前固件不支持任务图写入，已跳过任务图。", comment: "")
                             if showResultAlert {
-                                self.writeResultAlertMessage = NSLocalizedString("基础配置已写入；任务图未写入，因为当前固件协议无法识别。", comment: "")
+                                self.writeResultAlertMessage = NSLocalizedString("基础配置已写入；当前固件不支持任务图写入。", comment: "")
                                 self.showsWriteResultAlert = true
                             }
                         } else if failures.isEmpty {

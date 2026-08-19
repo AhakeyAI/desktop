@@ -37,6 +37,7 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
 
     func testUnknownModesDoNotProduceWritablePlan() {
         XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .negotiating, capabilities: nil))
+        XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .legacyBaseOnly, capabilities: nil))
         XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .restrictedUnknown, capabilities: nil))
     }
 
