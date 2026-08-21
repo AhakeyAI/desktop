@@ -9,6 +9,29 @@ final class DeviceStateReducerTests: XCTestCase {
         brightness: 35, activePictureSet: 0
     )
 
+    func testFullStatusFreshnessResetsForEveryConnection() {
+        let diagnostics = DeviceDiagnosticsSnapshot()
+        var core = DeviceStateReducer.apply(
+            .connected(name: "AhaKey-X1", uuid: "ABC-123"),
+            core: CoreDeviceSnapshot(),
+            diagnostics: diagnostics
+        ).core
+        XCTAssertFalse(core.hasReceivedFullStatus)
+
+        core = DeviceStateReducer.apply(sampleStatus, core: core, diagnostics: diagnostics).core
+        XCTAssertTrue(core.hasReceivedFullStatus)
+
+        core = DeviceStateReducer.apply(.disconnected, core: core, diagnostics: diagnostics).core
+        XCTAssertFalse(core.hasReceivedFullStatus)
+
+        core = DeviceStateReducer.apply(
+            .connected(name: "AhaKey-X1", uuid: "ABC-123"),
+            core: core,
+            diagnostics: diagnostics
+        ).core
+        XCTAssertFalse(core.hasReceivedFullStatus)
+    }
+
     /// 同一完整状态帧重复 apply 100 次：只有第一次产生快照变化，之后 99 次零变化。
     func testSameFullStatusApplied100TimesOnlyChangesOnce() {
         var core = CoreDeviceSnapshot()

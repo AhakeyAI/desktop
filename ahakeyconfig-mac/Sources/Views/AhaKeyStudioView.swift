@@ -1942,10 +1942,12 @@ struct AhaKeyStudioView: View {
         return bleManager.agentLightMode
     }
     private var liveKeyboardSwitchState: Int {
-        // 用户刚点完虚拟拨杆但 agent / BLE 还没回报新值时，优先用乐观值，按下立刻可见
-        if let opt = bleManager.optimisticSwitchOverride { return opt }
-        if bleManager.isConnected { return bleManager.switchState }
-        return bleManager.agentSwitchState ?? 1
+        LiveKeyboardSwitchStateResolver.resolve(
+            optimisticOverride: bleManager.optimisticSwitchOverride,
+            appIsConnected: bleManager.isConnected,
+            appState: bleManager.currentConnectionSwitchState,
+            agentState: bleManager.agentSwitchState
+        ) ?? 1
     }
     private var liveKeyboardWorkMode: Int? {
         if bleManager.isConnected { return bleManager.workMode }

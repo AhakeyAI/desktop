@@ -63,6 +63,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     var workMode: Int { coreSnapshot.workMode }
     var lightMode: Int { coreSnapshot.lightMode }
     var switchState: Int { coreSnapshot.switchState }
+    /// 仅在当前 BLE 连接收到首帧完整状态后提供拨杆值，避免把初始/上次连接缓存误当实时状态。
+    var currentConnectionSwitchState: Int? {
+        coreSnapshot.hasReceivedFullStatus ? coreSnapshot.switchState : nil
+    }
     var brightness: Int { coreSnapshot.brightness }
     var bleDeviceUUID: String { coreSnapshot.deviceUUID }
     /// 各 mode 当前激活的任务图套图索引（由 0x97 或设备状态上报）。

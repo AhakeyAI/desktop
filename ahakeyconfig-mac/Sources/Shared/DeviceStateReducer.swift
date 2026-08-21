@@ -19,6 +19,8 @@ public struct CoreDeviceSnapshot: Equatable {
     public var workMode: Int = 0
     public var lightMode: Int = 0
     public var switchState: Int = 0
+    /// 当前 BLE 连接是否已收到至少一帧完整设备状态；首帧前不得把默认值 0 当成真实拨杆位置。
+    public var hasReceivedFullStatus: Bool = false
     /// 用户点虚拟拨杆后的乐观值。设置后轮询回包与之一致才确认入库（并清除）；
     /// 不一致视为在途旧帧不动拨杆字段；3s 超时未确认则回退到最后确认值。
     public var pendingSwitchOverride: Int? = nil
@@ -109,6 +111,7 @@ public enum DeviceStateReducer {
 
         switch event {
         case let .fullStatus(battery, firmwareMain, firmwareSub, workMode, lightMode, switchState, brightness, activePictureSet):
+            core.hasReceivedFullStatus = true
             core.batteryLevel = battery
             core.firmwareMainVersion = firmwareMain
             core.firmwareSubVersion = firmwareSub
@@ -153,6 +156,7 @@ public enum DeviceStateReducer {
 
         case let .connected(name, uuid):
             core.isConnected = true
+            core.hasReceivedFullStatus = false
             core.deviceName = name
             core.deviceUUID = uuid
             // 新连接必须重新协商：回到 negotiating，清掉上一连接的能力帧
@@ -161,6 +165,7 @@ public enum DeviceStateReducer {
 
         case .disconnected:
             core.isConnected = false
+            core.hasReceivedFullStatus = false
             core.activeTaskPictureSets.removeAll()
             // 协商结果与设备编号绑定具体连接，断开即失效（与 Rhino 行为一致）
             core.protocolMode = .negotiating

@@ -104,10 +104,10 @@ struct DeviceInfoView: View {
                     Spacer()
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(bleManager.switchState == 0 ? Color.green : Color.indigo)
+                            .fill(liveSwitchState.map { $0 == 0 ? Color.green : Color.indigo } ?? Color.gray.opacity(0.4))
                             .frame(width: 10, height: 10)
-                            .animation(.easeInOut(duration: 0.1), value: bleManager.switchState)
-                        Text(switchStateLabel(bleManager.switchState))
+                            .animation(.easeInOut(duration: 0.1), value: liveSwitchState)
+                        Text(liveSwitchState.map(switchStateLabel) ?? "—")
                     }
                 }
             } header: {
@@ -502,6 +502,15 @@ struct DeviceInfoView: View {
 
     private func switchStateLabel(_ state: Int) -> String {
         state == 0 ? NSLocalizedString("自动批准", comment: "") : NSLocalizedString("手动批准", comment: "")
+    }
+
+    private var liveSwitchState: Int? {
+        LiveKeyboardSwitchStateResolver.resolve(
+            optimisticOverride: bleManager.optimisticSwitchOverride,
+            appIsConnected: bleManager.isConnected,
+            appState: bleManager.currentConnectionSwitchState,
+            agentState: bleManager.agentSwitchState
+        )
     }
 
     /// 蓝牙占用的用户视角表述：编辑器（本 App）与 Agent 二选一持有键盘连接。
