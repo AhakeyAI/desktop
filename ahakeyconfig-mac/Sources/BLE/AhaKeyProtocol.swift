@@ -18,8 +18,8 @@ enum AhaKeyCommand {
     static let oledMaxFrames = oledMaxFramesPerMode
     /// 任务状态资源单张上限（超出时均匀抽帧）。
     static let taskOLEDMaxFrames = 30
-    /// 用户选择的 GIF 源文件大小上限（避免过大文件拖慢解码与 BLE 上传）。
-    static let oledMaxSourceFileBytes = 2 * 1024 * 1024 // 2 MB
+    /// 用户选择的图片源文件安全上限。设备数据仍会自动缩放、抽帧并编码为 RGB565。
+    static let oledMaxSourceFileBytes = 20 * 1024 * 1024 // 20 MiB
     /// 固件端要求每个 prepareWrite 的 address 必须 4096 字节对齐（flash 扇区大小）。
     /// 原厂 Python 客户端也用 4096 作为写入分块大小，一次 prepareWrite 刚好擦写一个扇区。
     static let oledChunkSize = 4096

@@ -27,6 +27,8 @@ struct AhaKeyStudioView: View {
     @State private var isSyncing = false
     @State private var isCancellingDeviceWrite = false
     @State private var completedTaskResourceCount = 0
+    /// 普通默认图片写入失败时只记录该图片，不能阻断键位与灯效。
+    @State private var lastDefaultPictureUploadFailures: [String] = []
     /// 最近一次设备写入中失败的任务图描述。非空表示部分成功：键位/灯效已保存，仅这些图需重试。
     @State private var lastTaskUploadFailures: [String] = []
     @State private var deviceWriteTask: Task<Void, Never>?
@@ -1539,7 +1541,7 @@ struct AhaKeyStudioView: View {
                             Text(String(format: NSLocalizedString("播放速度 %d FPS", comment: ""), currentOLEDTaskAsset.framesPerSecond))
                         }
 
-                        Text(NSLocalizedString("任务状态图每张最多 30 帧（超出自动均匀抽帧），源文件 ≤ 2 MB，FPS 5–20。", comment: ""))
+                        Text(NSLocalizedString("任务状态图每张最多 30 帧（超出自动均匀抽帧），源文件 ≤ 20 MB，FPS 5–20。", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -1622,7 +1624,7 @@ struct AhaKeyStudioView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text(NSLocalizedString("普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 2 MB，FPS 1–30，帧数上限以设备容量为准（常见 1.x 固件为每模式 16 帧）。", comment: ""))
+                Text(NSLocalizedString("普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 20 MB，客户端会自动缩放并按设备容量抽帧，FPS 1–30。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -2528,6 +2530,8 @@ struct AhaKeyStudioView: View {
         isSyncing = true
         isCancellingDeviceWrite = false
         completedTaskResourceCount = 0
+        lastDefaultPictureUploadFailures = []
+        lastTaskUploadFailures = []
         syncStatusMessage = NSLocalizedString("正在准备写入设备…", comment: "")
         let returnAgent = returnToKeyboardControlWhenDone
         let taskPicturesWereEligible = bleManager.allowsTaskPictureConfiguration
@@ -2538,14 +2542,16 @@ struct AhaKeyStudioView: View {
             defer { self.deviceWriteTask = nil }
             do {
                 var uploadedOLEDCount = 0
+                var updatedDefaultPictureCount = 0
                 if defaultPicturesWereEligible {
-                    uploadedOLEDCount += try await uploadChangedDefaultOLEDsToDevice()
+                    updatedDefaultPictureCount = try await uploadChangedDefaultOLEDsToDevice()
+                    uploadedOLEDCount += updatedDefaultPictureCount
                 }
                 if taskPicturesWereEligible {
                     uploadedOLEDCount += try await uploadChangedOLEDsToDevice()
                 } else {
                     lastTaskUploadFailures = []
-                    bleManager.appendCommLogLine("当前固件不支持任务图写入，已跳过任务图；继续写入键位与灯效。", isError: true)
+                    bleManager.appendCommLogLine("当前固件不支持任务图写入，已跳过该可选功能；继续写入键位与灯效。")
                 }
                 var commands = commandsForModes(AhaKeyModeSlot.allCases)
                 commands.append((data: AhaKeyCommand.saveConfig(), label: NSLocalizedString("保存全部配置到设备", comment: "")))
@@ -2560,40 +2566,40 @@ struct AhaKeyStudioView: View {
                     Task { @MainActor in
                         // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
                         try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
-                        let failures = self.lastTaskUploadFailures
+                        let failures = self.lastDefaultPictureUploadFailures + self.lastTaskUploadFailures
                         if failures.isEmpty, taskPicturesWereEligible {
                             self.lastSyncedDraft = self.studioDraft
                             self.saveCurrentDeviceSyncBaseline()
                         } else if !taskPicturesWereEligible {
                             self.mergeBasicConfigurationIntoSyncBaseline(
                                 includeDefaultPictures: defaultPicturesWereEligible
+                                    && self.lastDefaultPictureUploadFailures.isEmpty
                             )
                         }
                         // 部分失败时只把成功上传的槽位写入 baseline，下次写入只重试失败的图。
                         self.lastSyncDate = Date()
                         self.isSyncing = false
                         self.isCancellingDeviceWrite = false
-                        if !taskPicturesWereEligible {
-                            self.syncStatusMessage = defaultPicturesWereEligible
-                                ? NSLocalizedString("默认图片、键位与灯效已写入；当前固件不支持任务状态图，已跳过任务状态图。", comment: "")
-                                : NSLocalizedString("键位与灯效已写入；当前固件不支持任务图写入，已跳过任务图。", comment: "")
+                        if !failures.isEmpty {
+                            let list = failures.joined(separator: NSLocalizedString("、", comment: ""))
+                            self.syncStatusMessage = String(format: NSLocalizedString("键位与灯效已保存；有 %d 张图片未更新：%@。其余配置不受影响，可再次点击写入仅重试这些图片。", comment: ""), failures.count, list)
                             if showResultAlert {
-                                self.writeResultAlertMessage = defaultPicturesWereEligible
-                                    ? NSLocalizedString("默认图片与基础配置已写入；当前固件不支持任务状态图。", comment: "")
-                                    : NSLocalizedString("基础配置已写入；当前固件不支持任务图写入。", comment: "")
+                                self.writeResultAlertMessage = String(format: NSLocalizedString("部分完成：键位与灯效已写入，但有 %d 张图片未更新（%@）。其余配置不受影响，可再次点击写入仅重试这些图片。", comment: ""), failures.count, list)
+                                self.showsWriteResultAlert = true
+                            }
+                        } else if !taskPicturesWereEligible {
+                            let message = AhaKeyDeviceWriteResultMessage.taskPicturesUnsupported(
+                                defaultPictureUpdated: updatedDefaultPictureCount > 0
+                            )
+                            self.syncStatusMessage = message
+                            if showResultAlert {
+                                self.writeResultAlertMessage = message
                                 self.showsWriteResultAlert = true
                             }
                         } else if failures.isEmpty {
                             self.syncStatusMessage = NSLocalizedString("已全部写入设备并保存。", comment: "")
                             if showResultAlert {
                                 self.writeResultAlertMessage = NSLocalizedString("配置已成功写入键盘。", comment: "")
-                                self.showsWriteResultAlert = true
-                            }
-                        } else {
-                            let list = failures.joined(separator: NSLocalizedString("、", comment: ""))
-                            self.syncStatusMessage = String(format: NSLocalizedString("键位/灯效已保存；有 %d 张图片未写入：%@。其余图片不受影响，可再次点击写入仅重试这些图片。", comment: ""), failures.count, list)
-                            if showResultAlert {
-                                self.writeResultAlertMessage = String(format: NSLocalizedString("部分完成：键位与灯效已写入，但有 %d 张图片未写入（%@）。其余图片不受影响，可再次点击写入仅重试这些图片。", comment: ""), failures.count, list)
                                 self.showsWriteResultAlert = true
                             }
                         }
@@ -2627,71 +2633,98 @@ struct AhaKeyStudioView: View {
     private func uploadChangedDefaultOLEDsToDevice() async throws -> Int {
         guard bleManager.protocolMode == .legacyBaseOnly else { return 0 }
         var uploadCount = 0
+        lastDefaultPictureUploadFailures = []
 
         for mode in AhaKeyModeSlot.allCases {
-            let draft = studioDraft.draft(for: mode).oled
-            let baseline = lastSyncedDraft.draft(for: mode).oled
-            let deviceState = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
-            guard let layout = AhaKeyLegacyDefaultPictureLayout.make(
-                modeIndex: mode.rawValue,
-                totalCapacity: deviceState.allModeMaxPic,
-                reservedSlots: AhaKeyCommand.oledFactoryReservedSlots,
-                modeCount: AhaKeyCommand.oledModeCount
-            ) else {
-                throw OLEDUploadError.invalidPictureStatePayload
-            }
-            let changed = draft.localAssetPath != baseline.localAssetPath
-                || draft.framesPerSecond != baseline.framesPerSecond
-            let decision = AhaKeyDefaultPictureSyncDecision.decide(
-                hasLocalAsset: draft.localAssetPath != nil,
-                assetChanged: changed,
-                deviceStartIndex: deviceState.startIndex,
-                expectedStartIndex: layout.startIndex,
-                deviceFrameCount: deviceState.picLength
-            )
-            if decision == .skip { continue }
-            if decision == .clear {
-                try await bleManager.bindDefaultPicture(
-                    mode: UInt8(mode.rawValue), startIndex: 0, frameCount: 0, timeDelayMs: 0
+            do {
+                let draft = studioDraft.draft(for: mode).oled
+                let baseline = lastSyncedDraft.draft(for: mode).oled
+                let deviceState = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
+                guard let layout = AhaKeyLegacyDefaultPictureLayout.make(
+                    modeIndex: mode.rawValue,
+                    totalCapacity: deviceState.allModeMaxPic,
+                    reservedSlots: AhaKeyCommand.oledFactoryReservedSlots,
+                    modeCount: AhaKeyCommand.oledModeCount
+                ) else {
+                    throw OLEDUploadError.invalidPictureStatePayload
+                }
+                let changed = draft.localAssetPath != baseline.localAssetPath
+                    || draft.framesPerSecond != baseline.framesPerSecond
+                let decision = AhaKeyDefaultPictureSyncDecision.decide(
+                    hasLocalAsset: draft.localAssetPath != nil,
+                    assetChanged: changed,
+                    deviceStartIndex: deviceState.startIndex,
+                    expectedStartIndex: layout.startIndex,
+                    deviceFrameCount: deviceState.picLength
                 )
+                if decision == .skip { continue }
+                if decision == .clear {
+                    try await bleManager.bindDefaultPicture(
+                        mode: UInt8(mode.rawValue), startIndex: 0, frameCount: 0, timeDelayMs: 0
+                    )
+                    markDefaultPictureSynced(mode: mode)
+                    uploadCount += 1
+                    continue
+                }
+                guard let assetPath = draft.localAssetPath else { continue }
+
+                let assetURL = URL(fileURLWithPath: assetPath)
+                try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
+                let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL, maxFrames: layout.maxFrames)
+                let startIndex = UInt16(layout.startIndex)
+                syncStatusMessage = String(
+                    format: NSLocalizedString("正在上传 %@ 的默认图片…", comment: ""), mode.title
+                )
+                try await bleManager.uploadOLEDFrames(
+                    frames,
+                    fps: draft.framesPerSecond,
+                    mode: UInt8(mode.rawValue),
+                    startIndex: startIndex
+                )
+                let expectedInterval = max(1, 1000 / max(1, draft.framesPerSecond))
+                let readback = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
+                guard AhaKeyDefaultPictureWriteVerification.matches(
+                    expectedStartIndex: Int(startIndex),
+                    expectedFrameCount: frames.count,
+                    expectedFrameIntervalMs: expectedInterval,
+                    deviceStartIndex: readback.startIndex,
+                    deviceFrameCount: readback.picLength,
+                    deviceFrameIntervalMs: readback.frameInterval
+                ) else {
+                    throw OLEDUploadError.defaultPictureMetadataMismatch
+                }
+                updateMode(mode) { modeDraft in
+                    modeDraft.oled.statusLine = String(
+                        format: NSLocalizedString("默认图片已写入设备（%d 帧）。", comment: ""), frames.count
+                    )
+                }
+                markDefaultPictureSynced(mode: mode)
                 uploadCount += 1
+            } catch OLEDUploadError.cancelled {
+                throw OLEDUploadError.cancelled
+            } catch OLEDUploadError.connectionLost {
+                throw OLEDUploadError.connectionLost
+            } catch is CancellationError {
+                throw OLEDUploadError.cancelled
+            } catch {
+                let label = String(format: NSLocalizedString("%@ · 默认图片", comment: ""), mode.title)
+                lastDefaultPictureUploadFailures.append("\(label)：\(error.localizedDescription)")
+                bleManager.appendCommLogLine("「\(label)」未更新，继续写入键位与灯效：\(error.localizedDescription)", isError: true)
                 continue
             }
-            guard let assetPath = draft.localAssetPath else { continue }
-
-            let assetURL = URL(fileURLWithPath: assetPath)
-            try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-            let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL, maxFrames: layout.maxFrames)
-            let startIndex = UInt16(layout.startIndex)
-            syncStatusMessage = String(
-                format: NSLocalizedString("正在上传 %@ 的默认图片…", comment: ""), mode.title
-            )
-            try await bleManager.uploadOLEDFrames(
-                frames,
-                fps: draft.framesPerSecond,
-                mode: UInt8(mode.rawValue),
-                startIndex: startIndex
-            )
-            let expectedInterval = max(1, 1000 / max(1, draft.framesPerSecond))
-            let readback = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
-            guard AhaKeyDefaultPictureWriteVerification.matches(
-                expectedStartIndex: Int(startIndex),
-                expectedFrameCount: frames.count,
-                expectedFrameIntervalMs: expectedInterval,
-                deviceStartIndex: readback.startIndex,
-                deviceFrameCount: readback.picLength,
-                deviceFrameIntervalMs: readback.frameInterval
-            ) else {
-                throw OLEDUploadError.defaultPictureMetadataMismatch
-            }
-            updateMode(mode) { modeDraft in
-                modeDraft.oled.statusLine = String(
-                    format: NSLocalizedString("默认图片已写入设备（%d 帧）。", comment: ""), frames.count
-                )
-            }
-            uploadCount += 1
         }
         return uploadCount
+    }
+
+    private func markDefaultPictureSynced(mode: AhaKeyModeSlot) {
+        var baseline = lastSyncedDraft
+        var baselineMode = baseline.draft(for: mode)
+        baselineMode.oled.localAssetPath = studioDraft.draft(for: mode).oled.localAssetPath
+        baselineMode.oled.framesPerSecond = studioDraft.draft(for: mode).oled.framesPerSecond
+        baselineMode.oled.statusLine = studioDraft.draft(for: mode).oled.statusLine
+        baseline.updateMode(baselineMode)
+        lastSyncedDraft = baseline
+        saveCurrentDeviceSyncBaseline()
     }
 
     private func oledIsDirty(current: AhaKeyOLEDDraft, baseline: AhaKeyOLEDDraft) -> Bool {
@@ -5849,7 +5882,7 @@ private struct OLEDTopicView: View {
             HelpSection(title: NSLocalizedString("替换成自己的图片", comment: ""), body: NSLocalizedString("""
                 1. 画布点 LCD 屏幕 → Inspector 显示「修改」
                 2. 点「修改」进入编辑态（接管 BLE）
-                3. 选择你的图片（动图推荐 ≤200 帧、≤2MB），可先在虚拟屏幕里预览
+                3. 选择你的图片（源文件 ≤20 MB，客户端会自动缩放并按设备容量抽帧），可先在虚拟屏幕里预览
                 4. 确认后点底部「写入键盘」统一写入设备
                 """, comment: ""))
 
