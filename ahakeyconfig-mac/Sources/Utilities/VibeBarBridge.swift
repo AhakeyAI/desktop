@@ -10,8 +10,20 @@ final class VibeBarBridge {
 
     func attach(
         bleManager: AhaKeyBLEManager,
-        voiceRelay: VoiceRelayService = .shared,
-        nativeSpeech: NativeSpeechTranscriptionService = .shared,
+        onOpenMainWindow: @escaping () -> Void
+    ) {
+        attach(
+            bleManager: bleManager,
+            voiceRelay: .shared,
+            nativeSpeech: .shared,
+            onOpenMainWindow: onOpenMainWindow
+        )
+    }
+
+    func attach(
+        bleManager: AhaKeyBLEManager,
+        voiceRelay: VoiceRelayService,
+        nativeSpeech: NativeSpeechTranscriptionService,
         onOpenMainWindow: @escaping () -> Void
     ) {
         state.onOpenMainWindow = onOpenMainWindow

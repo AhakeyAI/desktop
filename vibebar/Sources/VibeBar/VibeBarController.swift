@@ -12,6 +12,14 @@ public final class VibeBarController {
     private var isHoveringExpanded = false
     private var isExpanded = false
     private weak var state: VibeBarState?
+    private var presentationScreen: NSScreen?
+    private var desiredPresentation: Presentation = .compact
+    private var presentationTask: Task<Void, Never>?
+
+    private enum Presentation: Equatable {
+        case compact
+        case expanded
+    }
 
     private init() {}
 
@@ -42,8 +50,9 @@ public final class VibeBarController {
         }
 
         self.notch = notch
-        startPointerTracking()
+        presentationScreen = screenContainingPointer() ?? NSScreen.main ?? NSScreen.screens.first
         compactNow()
+        startPointerTracking()
     }
 
     public func stop() {
@@ -51,54 +60,64 @@ public final class VibeBarController {
         pointerTimer = nil
         pendingCompactTask?.cancel()
         pendingCompactTask = nil
+        presentationTask?.cancel()
+        presentationTask = nil
         notch = nil
         state = nil
+        presentationScreen = nil
     }
 
     // MARK: - Notch state machine
 
     private func compactNow() {
-        pendingCompactTask?.cancel()
+        cancelPendingCompact()
         isExpanded = false
         isHoveringExpanded = false
-        Task { await notch?.compact(on: targetScreen) }
+        requestPresentation(.compact, on: presentationScreen ?? preferredScreen)
     }
 
-    private func expandNow() {
-        pendingCompactTask?.cancel()
+    private func expandNow(on screen: NSScreen? = nil) {
+        cancelPendingCompact()
         isExpanded = true
-        Task { await notch?.expand(on: targetScreen) }
+        requestPresentation(.expanded, on: screen ?? screenContainingPointer() ?? preferredScreen)
     }
 
     private func compactHoverChanged(_ hovering: Bool) {
-        if hovering { expandNow() }
+        if hovering { expandNow(on: screenContainingPointer()) }
     }
 
     private func expandedMenuAppeared() {
-        pendingCompactTask?.cancel()
+        cancelPendingCompact()
         isExpanded = true
     }
 
     private func expandedHoverChanged(_ hovering: Bool) {
         isHoveringExpanded = hovering
         if hovering {
-            pendingCompactTask?.cancel()
+            cancelPendingCompact()
         } else {
             scheduleCompactIfIdle()
         }
     }
 
     private func scheduleCompactIfIdle() {
-        pendingCompactTask?.cancel()
+        guard pendingCompactTask == nil else { return }
         pendingCompactTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            self?.pendingCompactTask = nil
             self?.compactIfIdle()
         }
     }
 
     private func compactIfIdle() {
-        guard isExpanded, !isHoveringExpanded else { return }
+        guard isExpanded, !isHoveringExpanded, !pointerIsInExpandedInteractionZone else { return }
         compactNow()
+    }
+
+    private func cancelPendingCompact() {
+        pendingCompactTask?.cancel()
+        pendingCompactTask = nil
     }
 
     private func startPointerTracking() {
@@ -110,23 +129,73 @@ public final class VibeBarController {
     }
 
     private func expandIfPointerIsInTopHotZone() {
-        guard !isExpanded, topHotZone.contains(NSEvent.mouseLocation) else { return }
-        expandNow()
+        if !isExpanded {
+            guard let screen = screenWhoseTopHotZoneContainsPointer() else { return }
+            expandNow(on: screen)
+        } else if pointerIsInExpandedInteractionZone {
+            cancelPendingCompact()
+        } else if !isHoveringExpanded {
+            scheduleCompactIfIdle()
+        }
     }
 
-    private var topHotZone: CGRect {
-        let screen = targetScreen
-        let width: CGFloat = 440
-        let height: CGFloat = 58
-        return CGRect(
-            x: screen.frame.midX - width / 2,
-            y: screen.frame.maxY - height,
-            width: width,
-            height: height
-        )
+    private func requestPresentation(_ presentation: Presentation, on screen: NSScreen) {
+        desiredPresentation = presentation
+        presentationScreen = screen
+        guard presentationTask == nil else { return }
+
+        presentationTask = Task { @MainActor [weak self] in
+            await self?.drainPresentationRequests()
+        }
     }
 
-    private var targetScreen: NSScreen {
-        NSScreen.main ?? NSScreen.screens.first!
+    private func drainPresentationRequests() async {
+        defer { presentationTask = nil }
+
+        while !Task.isCancelled {
+            guard let notch else { return }
+            let requestedPresentation = desiredPresentation
+            let requestedScreen = presentationScreen ?? preferredScreen
+
+            switch requestedPresentation {
+            case .compact:
+                await notch.compact(on: requestedScreen)
+            case .expanded:
+                await notch.expand(on: requestedScreen)
+            }
+
+            let requestIsCurrent = desiredPresentation == requestedPresentation
+                && presentationScreen?.frame == requestedScreen.frame
+            if requestIsCurrent { return }
+        }
+    }
+
+    private func screenContainingPointer() -> NSScreen? {
+        let screens = NSScreen.screens
+        guard let index = VibeBarHoverGeometry.screenIndex(
+            containing: NSEvent.mouseLocation,
+            screenFrames: screens.map(\.frame)
+        ) else { return nil }
+        return screens[index]
+    }
+
+    private func screenWhoseTopHotZoneContainsPointer() -> NSScreen? {
+        let screens = NSScreen.screens
+        guard let index = VibeBarHoverGeometry.screenIndex(
+            withTopHotZoneContaining: NSEvent.mouseLocation,
+            screenFrames: screens.map(\.frame)
+        ) else { return nil }
+        return screens[index]
+    }
+
+    private var pointerIsInExpandedInteractionZone: Bool {
+        VibeBarHoverGeometry.screenIndex(
+            withExpandedInteractionZoneContaining: NSEvent.mouseLocation,
+            screenFrames: NSScreen.screens.map(\.frame)
+        ) != nil
+    }
+
+    private var preferredScreen: NSScreen {
+        presentationScreen ?? screenContainingPointer() ?? NSScreen.main ?? NSScreen.screens[0]
     }
 }

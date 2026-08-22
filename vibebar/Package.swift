@@ -24,5 +24,10 @@ let package = Package(
             dependencies: ["VibeBar"],
             path: "Sources/VibeBarSmoke"
         ),
+        .testTarget(
+            name: "VibeBarTests",
+            dependencies: ["VibeBar"],
+            path: "Tests/VibeBarTests"
+        ),
     ]
 )
