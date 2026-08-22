@@ -4,7 +4,7 @@
 
 - `desktop` 是 AhaKey-X1 的多平台 monorepo,按**客户端 / 组件**组织源码,而不是把不同技术栈混在同一目录。
 - 各桌面客户端(macOS / Windows / Linux)保留各自的运行时、UI 结构、系统集成方式与构建链路。
-- 设备侧的共享组件(键盘固件、BLE ↔ TCP 桥接)独立成顶层目录。
+- 设备侧的桌面通信组件(BLE ↔ TCP 桥接)独立成顶层目录。
 
 ## 客户端与组件
 
@@ -27,7 +27,6 @@
 
 ### 共享设备组件
 
-- `CH582m_vibe_coding_BLE_keyboard-master/` — 键盘固件(C,CH582M MCU)。
 - `BLE_tcp_bridge/` — BLE ↔ TCP 桥接(C#),供非原生客户端通过本地 TCP 与设备交互。
 
 ## 拨杆审批闸门
