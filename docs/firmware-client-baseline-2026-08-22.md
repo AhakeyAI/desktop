@@ -1,6 +1,6 @@
 # AhaKey 固件与客户端冻结基线
 
-状态：WBS 0.1 完成；WBS 0.2 静态差异矩阵完成，HIL 待验证
+状态：WBS 0.1 完成；WBS 0.2 部分完成，Flash 布局与 HIL 待验证
 
 冻结时间：2026-08-22（Asia/Singapore）
 
@@ -23,9 +23,11 @@ Gitee 的完整 `git fetch --all` 本次等待超时后被中止，但单独的 
 - 本地 `rhino` 在 Gitee 冻结点后包含五个明确相关提交：Agent task lease/设备身份、macOS USB 枚举、VBUS 传输切换、客户端身份兼容、固件 v11 启动采样。
 - `origin/main-anpx` 相对共同基线包含 18 个提交；只有 `0da59ce` 的 current USB 行为进入本次移植候选，其他 UI、插件、Windows Rust 和文件删除不得捎带合并。
 
-## 3. 固件静态差异矩阵
+## 3. 固件静态差异矩阵（WBS 0.2 部分产物）
 
 “已发现”只表示源码存在，不代表已经通过真实键盘 HIL。
+
+本轮已完成行为和协议入口的静态比较；尚未取得三个基线各自的 linker map、Flash 分区地址、区域大小及实际占用，因此不能把 WBS 0.2 标为完成。完整 Flash 布局矩阵必须在可重复构建三套固件后补齐。
 
 | 能力 | GitHub hardware `dev` | Gitee/本地 Rhino | 统一版决定 |
 |---|---|---|---|

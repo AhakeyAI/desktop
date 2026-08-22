@@ -29,11 +29,12 @@
 | Runtime 架构规格 | 初稿完成 | 纳入本文并继续校准语音、轮询与跨平台边界 |
 | `AhaKeyRuntimeContract.swift` | WBS 5.0 interface v1.1 已冻结，契约测试通过 | 下一步只从公开 interface 向 SQLite 持久层推进 |
 | `AhaKeyInMemoryRuntimeAdapter.swift` | R0 测试 Adapter 原型 | 仅测试使用，不接入生产路径 |
-| `AhaKeyRuntimeContractTests.swift` | 10 项契约测试；完整 Swift 套件 181 项通过 | 作为后续兼容基线 |
+| `AhaKeyRuntimeContractTests.swift` | 13 项契约测试；完整 Swift 套件 184 项通过 | 作为后续兼容基线 |
 | SQLite WAL、资源仓库、XPC、Hook socket | 未开始 | 按 WBS 5 顺序实施 |
 | Runtime 设备独占、Studio 纯客户端化 | 未开始 | 未完成前不得宣称新客户端架构正式交付 |
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
-| WBS 0.1/0.2 基线与静态差异 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md)；HIL 风险仍开放 |
+| WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md) |
+| WBS 0.2 行为/协议/Flash 矩阵 | 部分完成 | 行为与协议入口已静态比较；Flash 地址、大小、占用和 HIL 仍开放 |
 
 已解决的跨方案冲突：
 

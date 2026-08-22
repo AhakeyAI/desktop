@@ -119,11 +119,18 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         let package = try package(baseRevision: 11)
         _ = try await adapter.apply(package)
 
-        try await adapter.complete(operation: package.operationID, state: .partiallyCompleted)
+        try await adapter.complete(
+            operation: package.operationID,
+            state: .partiallyCompleted,
+            completedSteps: 2,
+            totalSteps: 5
+        )
 
         let snapshot = try await adapter.snapshot()
         XCTAssertEqual(snapshot.configurationRevision, .init(11))
         XCTAssertEqual(snapshot.operations.first?.state, .partiallyCompleted)
+        XCTAssertEqual(snapshot.operations.first?.completedSteps, 2)
+        XCTAssertEqual(snapshot.operations.first?.totalSteps, 5)
     }
 
     func testCompletedOperationCanBeReplayedIdempotentlyAfterRevisionAdvances() async throws {
@@ -141,11 +148,33 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
 
     func testPolicyKeepsRuntimeOnlyForComputerSideEnhancements() {
         XCTAssertFalse(AhaKeyRuntimePolicy().requiresPersistentRuntime)
-        XCTAssertTrue(AhaKeyRuntimePolicy(aiHooksEnabled: true).requiresPersistentRuntime)
-        XCTAssertTrue(AhaKeyRuntimePolicy(ahaTypeEnabled: true).requiresPersistentRuntime)
-        XCTAssertTrue(AhaKeyRuntimePolicy(sessionRoutingEnabled: true).requiresPersistentRuntime)
+        XCTAssertTrue(
+            AhaKeyRuntimePolicy(
+                aiHooks: .init(enabledTools: [.codex], approvalPolicy: .manual)
+            ).requiresPersistentRuntime
+        )
+        XCTAssertTrue(
+            AhaKeyRuntimePolicy(
+                ahaType: .init(enabled: true, trigger: .f18)
+            ).requiresPersistentRuntime
+        )
+        XCTAssertTrue(
+            AhaKeyRuntimePolicy(voiceRouting: .latestActionableSession).requiresPersistentRuntime
+        )
         XCTAssertFalse(AhaKeyRuntimePolicy().requiresDeviceConnection)
-        XCTAssertTrue(AhaKeyRuntimePolicy(dynamicDeviceStateEnabled: true).requiresDeviceConnection)
+        XCTAssertTrue(
+            AhaKeyRuntimePolicy(
+                aiHooks: .init(
+                    enabledTools: [.kimi],
+                    approvalPolicy: .followLever(automaticPosition: .up)
+                )
+            ).requiresDeviceConnection
+        )
+        XCTAssertTrue(
+            AhaKeyRuntimePolicy(
+                devicePresentation: .init(ledEnabled: true, oledEnabled: false)
+            ).requiresDeviceConnection
+        )
     }
 
     func testEquivalentPolicyUpdateDoesNotPublishRuntimeState() async throws {
@@ -155,12 +184,40 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         let unchangedSnapshot = try await adapter.snapshot()
         XCTAssertEqual(unchangedSnapshot.latestEventSequence, .init(0))
 
-        let changed = AhaKeyRuntimePolicy(sessionRoutingEnabled: true)
+        let changed = AhaKeyRuntimePolicy(voiceRouting: .latestActionableSession)
         try await adapter.updatePolicy(changed)
         let changedSnapshot = try await adapter.snapshot()
         XCTAssertEqual(changedSnapshot.latestEventSequence, .init(1))
         XCTAssertEqual(changedSnapshot.policy, changed)
         XCTAssertEqual(changedSnapshot.keepAliveReasons, [.sessionRouting])
+    }
+
+    func testRuntimePolicyRoundTripPreservesTriggerApprovalRoutingAndDiagnostics() throws {
+        let policy = AhaKeyRuntimePolicy(
+            ahaType: .init(
+                enabled: true,
+                trigger: .init(hidUsage: 0x6D, modifiers: [.function])
+            ),
+            aiHooks: .init(
+                enabledTools: [.claude, .codex, .cursor, .kimi],
+                approvalPolicy: .followLever(automaticPosition: .up)
+            ),
+            voiceRouting: .latestActionableSession,
+            devicePresentation: .init(ledEnabled: true, oledEnabled: true),
+            powerProtectionEnabled: true,
+            diagnostics: .init(verboseProtocolLoggingUntil: Date(timeIntervalSince1970: 1_800))
+        )
+
+        let encoded = try JSONEncoder().encode(policy)
+        let decoded = try JSONDecoder().decode(AhaKeyRuntimePolicy.self, from: encoded)
+
+        XCTAssertEqual(decoded, policy)
+        XCTAssertTrue(decoded.requiresPersistentRuntime)
+        XCTAssertTrue(decoded.requiresDeviceConnection)
+        XCTAssertEqual(
+            decoded.keepAliveReasons,
+            [.ahaType, .aiHooks, .dynamicDeviceState, .sessionRouting, .powerProtection, .temporaryDiagnostics]
+        )
     }
 
     func testSnapshotCodableRoundTripPreservesRuntimeAndDeviceDiagnostics() async throws {
@@ -170,12 +227,38 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AhaKeyRuntimeSnapshot.self, from: encoded)
 
         XCTAssertEqual(decoded, snapshot)
+        XCTAssertEqual(decoded.runtimeVersion, .init(major: 0, minor: 1, patch: 0, buildMetadata: "development"))
         XCTAssertEqual(decoded.permissions[.microphone], .notDetermined)
         XCTAssertEqual(decoded.devices.first?.capabilities, [.configurationV4, .usbConfiguration])
         XCTAssertEqual(decoded.devices.first?.sessionGeneration, .init(4))
         XCTAssertEqual(decoded.devices.first?.transportGeneration, .init(9))
         XCTAssertEqual(decoded.devices.first?.state.leverPosition, 1)
         XCTAssertEqual(decoded.devices.first?.state.activeTaskPictureSets, [2: 1])
+    }
+
+    func testStructuredDiagnosticAndSecurityEventsRoundTrip() throws {
+        let events = [
+            AhaKeyRuntimeEvent(
+                sequence: .init(1),
+                payload: .diagnostic(.init(code: "transport-timeout", severity: .warning))
+            ),
+            AhaKeyRuntimeEvent(
+                sequence: .init(2),
+                payload: .security(.init(code: "hook-rate-limited", severity: .error))
+            ),
+        ]
+
+        let encoded = try JSONEncoder().encode(events)
+        XCTAssertEqual(try JSONDecoder().decode([AhaKeyRuntimeEvent].self, from: encoded), events)
+    }
+
+    func testPermanentFailureStatesDistinguishWhetherDeviceWasModified() {
+        XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithoutWrites.isTerminal)
+        XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithPartialCommit.isTerminal)
+        XCTAssertNotEqual(
+            AhaKeyRuntimeOperationState.failedWithoutWrites,
+            AhaKeyRuntimeOperationState.failedWithPartialCommit
+        )
     }
 
     private func makeAdapter(revision: UInt64 = 0) throws -> AhaKeyInMemoryRuntimeAdapter {

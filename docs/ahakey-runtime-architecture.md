@@ -238,11 +238,14 @@ XPC 握手返回 Runtime、interface 和配置包版本及能力集合。Runtime
 
 R0 interface v1.1 已冻结：
 
+- Snapshot 明确携带 Runtime、interface 与配置包 schema 三类版本。
 - 纯硬件前台语音不进入 RuntimePolicy；AhaType 与定向会话路由分别表达。
+- RuntimePolicy 结构化表达 AhaType 触发键、启用的 AI 工具、拨杆批准规则、语音路由、动态 LED/OLED、防休眠和临时诊断期限。
 - Snapshot 包含权限、保活原因、设备能力、真实设备状态以及 session/transport generation；RSSI 不进入主快照。
-- Event 携带 operation/device/generation context，并支持 lifecycle、permission 与 keep-alive 变化。
+- Event 携带 operation/device/generation context，并支持 lifecycle、permission、keep-alive、结构化诊断与安全事件。
 - 相同策略更新零事件发布。
 - 只有完整完成的声明式目标推进 configuration revision；部分完成保留原 revision。
+- 永久失败区分“未写入”和“保留部分提交”；部分完成记录真实 completed/total steps。
 - operation ID 的相同配置包在 revision 推进后仍可幂等重放，内容冲突仍被拒绝。
 
 下一阶段是 R0 持久化内核：SQLite WAL journal、内容寻址资源仓库、配额和崩溃恢复；尚未接入生产 Runtime、BLE/USB 或 Studio。

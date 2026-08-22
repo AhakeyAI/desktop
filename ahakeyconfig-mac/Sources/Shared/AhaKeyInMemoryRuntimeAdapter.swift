@@ -112,18 +112,26 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
     public func complete(
         operation: AhaKeyRuntimeOperationID,
         state: AhaKeyRuntimeOperationState,
+        completedSteps: UInt32? = nil,
+        totalSteps: UInt32? = nil,
         messageCode: String? = nil
     ) throws {
         guard state.isTerminal else { throw AhaKeyInMemoryRuntimeAdapterError.nonTerminalCompletion }
         guard let summary = currentSnapshot.operations.first(where: { $0.id == operation }) else {
             throw AhaKeyInMemoryRuntimeAdapterError.operationNotFound
         }
+        let resolvedTotalSteps = totalSteps ?? summary.totalSteps
+        let resolvedCompletedSteps = completedSteps ?? resolvedTotalSteps
+        guard resolvedCompletedSteps <= resolvedTotalSteps,
+              state != .partiallyCompleted || resolvedCompletedSteps < resolvedTotalSteps else {
+            throw AhaKeyInMemoryRuntimeAdapterError.invalidStepProgress
+        }
         let updated = AhaKeyRuntimeOperationSummary(
             id: summary.id,
             targetDeviceID: summary.targetDeviceID,
             state: state,
-            completedSteps: summary.totalSteps,
-            totalSteps: summary.totalSteps,
+            completedSteps: resolvedCompletedSteps,
+            totalSteps: resolvedTotalSteps,
             messageCode: messageCode
         )
         replaceOperation(updated)
@@ -178,6 +186,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         latestEventSequence: AhaKeyRuntimeEventSequence? = nil
     ) {
         currentSnapshot = AhaKeyRuntimeSnapshot(
+            runtimeVersion: currentSnapshot.runtimeVersion,
             interfaceVersion: currentSnapshot.interfaceVersion,
             supportedConfigurationSchemaVersions: currentSnapshot.supportedConfigurationSchemaVersions,
             lifecycleState: currentSnapshot.lifecycleState,
@@ -200,4 +209,5 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
 public enum AhaKeyInMemoryRuntimeAdapterError: Error, Equatable, Sendable {
     case operationNotFound
     case nonTerminalCompletion
+    case invalidStepProgress
 }

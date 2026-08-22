@@ -12,6 +12,27 @@ public struct AhaKeyRuntimeInterfaceVersion: Codable, Equatable, Hashable, Senda
     }
 }
 
+public struct AhaKeyRuntimeVersion: Codable, Equatable, Hashable, Sendable {
+    public static let development = Self(
+        major: 0,
+        minor: 1,
+        patch: 0,
+        buildMetadata: "development"
+    )
+
+    public let major: UInt16
+    public let minor: UInt16
+    public let patch: UInt16
+    public let buildMetadata: String?
+
+    public init(major: UInt16, minor: UInt16, patch: UInt16, buildMetadata: String? = nil) {
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+        self.buildMetadata = buildMetadata
+    }
+}
+
 public struct AhaKeyRuntimeEventSequence: Codable, Equatable, Hashable, Comparable, Sendable {
     public let rawValue: UInt64
 
@@ -213,46 +234,150 @@ public enum AhaKeyRuntimeKeepAliveReason: String, Codable, Equatable, Hashable, 
     case dynamicDeviceState
     case sessionRouting
     case powerProtection
+    case temporaryDiagnostics
     case activeOperation
     case studioConnection
 }
 
-public struct AhaKeyRuntimePolicy: Codable, Equatable, Sendable {
-    public var ahaTypeEnabled: Bool
-    public var aiHooksEnabled: Bool
-    public var dynamicDeviceStateEnabled: Bool
-    public var sessionRoutingEnabled: Bool
-    public var powerProtectionEnabled: Bool
+public enum AhaKeyRuntimeShortcutModifier: String, Codable, Equatable, Hashable, Sendable {
+    case control
+    case option
+    case shift
+    case command
+    case function
+}
 
-    public init(
-        ahaTypeEnabled: Bool = false,
-        aiHooksEnabled: Bool = false,
-        dynamicDeviceStateEnabled: Bool = false,
-        sessionRoutingEnabled: Bool = false,
-        powerProtectionEnabled: Bool = false
-    ) {
-        self.ahaTypeEnabled = ahaTypeEnabled
-        self.aiHooksEnabled = aiHooksEnabled
-        self.dynamicDeviceStateEnabled = dynamicDeviceStateEnabled
-        self.sessionRoutingEnabled = sessionRoutingEnabled
-        self.powerProtectionEnabled = powerProtectionEnabled
-    }
+public struct AhaKeyRuntimeShortcut: Codable, Equatable, Sendable {
+    public static let f18 = Self(hidUsage: 0x6D)
 
-    public var requiresPersistentRuntime: Bool {
-        ahaTypeEnabled || aiHooksEnabled || dynamicDeviceStateEnabled || sessionRoutingEnabled || powerProtectionEnabled
+    public let hidUsage: UInt16
+    public let modifiers: Set<AhaKeyRuntimeShortcutModifier>
+
+    public init(hidUsage: UInt16, modifiers: Set<AhaKeyRuntimeShortcutModifier> = []) {
+        self.hidUsage = hidUsage
+        self.modifiers = modifiers
     }
+}
+
+public struct AhaKeyRuntimeAhaTypePolicy: Codable, Equatable, Sendable {
+    public var enabled: Bool
+    public var trigger: AhaKeyRuntimeShortcut
+
+    public init(enabled: Bool = false, trigger: AhaKeyRuntimeShortcut = .f18) {
+        self.enabled = enabled
+        self.trigger = trigger
+    }
+}
+
+public struct AhaKeyRuntimeAITool: RawRepresentable, Codable, Equatable, Hashable, Sendable {
+    public static let claude = Self(rawValue: "claude")
+    public static let codex = Self(rawValue: "codex")
+    public static let cursor = Self(rawValue: "cursor")
+    public static let kimi = Self(rawValue: "kimi")
+
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+}
+
+public enum AhaKeyRuntimeLeverPosition: String, Codable, Equatable, Sendable {
+    case up
+    case middle
+    case down
+}
+
+public enum AhaKeyRuntimeApprovalPolicy: Codable, Equatable, Sendable {
+    case manual
+    case followLever(automaticPosition: AhaKeyRuntimeLeverPosition)
 
     public var requiresDeviceConnection: Bool {
-        aiHooksEnabled || dynamicDeviceStateEnabled
+        if case .followLever = self { return true }
+        return false
+    }
+}
+
+public struct AhaKeyRuntimeAIHookPolicy: Codable, Equatable, Sendable {
+    public var enabledTools: Set<AhaKeyRuntimeAITool>
+    public var approvalPolicy: AhaKeyRuntimeApprovalPolicy
+
+    public init(
+        enabledTools: Set<AhaKeyRuntimeAITool> = [],
+        approvalPolicy: AhaKeyRuntimeApprovalPolicy = .manual
+    ) {
+        self.enabledTools = enabledTools
+        self.approvalPolicy = approvalPolicy
+    }
+
+    public var isEnabled: Bool { !enabledTools.isEmpty }
+}
+
+public enum AhaKeyRuntimeVoiceRoutingPolicy: String, Codable, Equatable, Sendable {
+    case foreground
+    case latestActionableSession
+}
+
+public struct AhaKeyRuntimeDevicePresentationPolicy: Codable, Equatable, Sendable {
+    public var ledEnabled: Bool
+    public var oledEnabled: Bool
+
+    public init(ledEnabled: Bool = false, oledEnabled: Bool = false) {
+        self.ledEnabled = ledEnabled
+        self.oledEnabled = oledEnabled
+    }
+
+    public var isEnabled: Bool { ledEnabled || oledEnabled }
+}
+
+public struct AhaKeyRuntimeDiagnosticPolicy: Codable, Equatable, Sendable {
+    public var verboseProtocolLoggingUntil: Date?
+
+    public init(verboseProtocolLoggingUntil: Date? = nil) {
+        self.verboseProtocolLoggingUntil = verboseProtocolLoggingUntil
+    }
+}
+
+public struct AhaKeyRuntimePolicy: Codable, Equatable, Sendable {
+    public var ahaType: AhaKeyRuntimeAhaTypePolicy
+    public var aiHooks: AhaKeyRuntimeAIHookPolicy
+    public var voiceRouting: AhaKeyRuntimeVoiceRoutingPolicy
+    public var devicePresentation: AhaKeyRuntimeDevicePresentationPolicy
+    public var powerProtectionEnabled: Bool
+    public var diagnostics: AhaKeyRuntimeDiagnosticPolicy
+
+    public init(
+        ahaType: AhaKeyRuntimeAhaTypePolicy = .init(),
+        aiHooks: AhaKeyRuntimeAIHookPolicy = .init(),
+        voiceRouting: AhaKeyRuntimeVoiceRoutingPolicy = .foreground,
+        devicePresentation: AhaKeyRuntimeDevicePresentationPolicy = .init(),
+        powerProtectionEnabled: Bool = false,
+        diagnostics: AhaKeyRuntimeDiagnosticPolicy = .init()
+    ) {
+        self.ahaType = ahaType
+        self.aiHooks = aiHooks
+        self.voiceRouting = voiceRouting
+        self.devicePresentation = devicePresentation
+        self.powerProtectionEnabled = powerProtectionEnabled
+        self.diagnostics = diagnostics
+    }
+
+    public var requiresPersistentRuntime: Bool { !keepAliveReasons.isEmpty }
+
+    public var requiresDeviceConnection: Bool {
+        devicePresentation.isEnabled
+            || (aiHooks.isEnabled && aiHooks.approvalPolicy.requiresDeviceConnection)
+            || diagnostics.verboseProtocolLoggingUntil != nil
     }
 
     public var keepAliveReasons: Set<AhaKeyRuntimeKeepAliveReason> {
         var reasons: Set<AhaKeyRuntimeKeepAliveReason> = []
-        if ahaTypeEnabled { reasons.insert(.ahaType) }
-        if aiHooksEnabled { reasons.insert(.aiHooks) }
-        if dynamicDeviceStateEnabled { reasons.insert(.dynamicDeviceState) }
-        if sessionRoutingEnabled { reasons.insert(.sessionRouting) }
+        if ahaType.enabled { reasons.insert(.ahaType) }
+        if aiHooks.isEnabled { reasons.insert(.aiHooks) }
+        if devicePresentation.isEnabled { reasons.insert(.dynamicDeviceState) }
+        if voiceRouting == .latestActionableSession { reasons.insert(.sessionRouting) }
         if powerProtectionEnabled { reasons.insert(.powerProtection) }
+        if diagnostics.verboseProtocolLoggingUntil != nil { reasons.insert(.temporaryDiagnostics) }
         return reasons
     }
 }
@@ -339,10 +464,14 @@ public enum AhaKeyRuntimeOperationState: String, Codable, Equatable, Sendable {
     case cancellationRequested
     case completed
     case partiallyCompleted
-    case failed
+    case failedWithoutWrites
+    case failedWithPartialCommit
 
     public var isTerminal: Bool {
-        self == .completed || self == .partiallyCompleted || self == .failed
+        self == .completed
+            || self == .partiallyCompleted
+            || self == .failedWithoutWrites
+            || self == .failedWithPartialCommit
     }
 }
 
@@ -372,6 +501,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
 }
 
 public struct AhaKeyRuntimeSnapshot: Codable, Equatable, Sendable {
+    public let runtimeVersion: AhaKeyRuntimeVersion
     public let interfaceVersion: AhaKeyRuntimeInterfaceVersion
     public let supportedConfigurationSchemaVersions: Set<UInt16>
     public let lifecycleState: AhaKeyRuntimeLifecycleState
@@ -385,6 +515,7 @@ public struct AhaKeyRuntimeSnapshot: Codable, Equatable, Sendable {
     public let latestEventSequence: AhaKeyRuntimeEventSequence
 
     public init(
+        runtimeVersion: AhaKeyRuntimeVersion = .development,
         interfaceVersion: AhaKeyRuntimeInterfaceVersion = .current,
         supportedConfigurationSchemaVersions: Set<UInt16> = [AhaKeyConfigurationPackage.currentSchemaVersion],
         lifecycleState: AhaKeyRuntimeLifecycleState,
@@ -397,6 +528,7 @@ public struct AhaKeyRuntimeSnapshot: Codable, Equatable, Sendable {
         keepAliveReasons: Set<AhaKeyRuntimeKeepAliveReason>? = nil,
         latestEventSequence: AhaKeyRuntimeEventSequence
     ) {
+        self.runtimeVersion = runtimeVersion
         self.interfaceVersion = interfaceVersion
         self.supportedConfigurationSchemaVersions = supportedConfigurationSchemaVersions
         self.lifecycleState = lifecycleState
@@ -419,6 +551,34 @@ public enum AhaKeyRuntimeEventPayload: Codable, Equatable, Sendable {
     case lifecycleChanged(AhaKeyRuntimeLifecycleState)
     case permissionsChanged(AhaKeyRuntimePermissionSnapshot)
     case keepAliveReasonsChanged(Set<AhaKeyRuntimeKeepAliveReason>)
+    case diagnostic(AhaKeyRuntimeDiagnosticEvent)
+    case security(AhaKeyRuntimeSecurityEvent)
+}
+
+public enum AhaKeyRuntimeEventSeverity: String, Codable, Equatable, Sendable {
+    case info
+    case warning
+    case error
+}
+
+public struct AhaKeyRuntimeDiagnosticEvent: Codable, Equatable, Sendable {
+    public let code: String
+    public let severity: AhaKeyRuntimeEventSeverity
+
+    public init(code: String, severity: AhaKeyRuntimeEventSeverity) {
+        self.code = code
+        self.severity = severity
+    }
+}
+
+public struct AhaKeyRuntimeSecurityEvent: Codable, Equatable, Sendable {
+    public let code: String
+    public let severity: AhaKeyRuntimeEventSeverity
+
+    public init(code: String, severity: AhaKeyRuntimeEventSeverity) {
+        self.code = code
+        self.severity = severity
+    }
 }
 
 public struct AhaKeyRuntimeEventContext: Codable, Equatable, Sendable {
