@@ -216,7 +216,7 @@ struct AhaKeyStudioView: View {
 
             ahaTypeModeStatus
 
-            configurationModeStatus
+            configurationModeControl
 
             if shouldShowTopBarInstallStartButton {
                 Button("安装启动") {
@@ -289,6 +289,10 @@ struct AhaKeyStudioView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
+            Spacer(minLength: 0)
+            Image(systemName: isEditingConfiguration ? "checkmark.circle" : "pencil.circle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isEditingConfiguration ? Color.blue : Color.green)
         }
         .frame(width: 138, alignment: .leading)
         .padding(.horizontal, 10)
@@ -297,7 +301,18 @@ struct AhaKeyStudioView: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
-        .help("日常使用由 Agent 控制键盘；需要改键、LCD 或同步时，进入编辑配置后由 AhaKey Studio 临时接管蓝牙。")
+    }
+
+    private var configurationModeControl: some View {
+        Button(action: handleConfigurationModeButton) {
+            configurationModeStatus
+        }
+        .buttonStyle(.plain)
+        .disabled(isSyncing)
+        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .accessibilityLabel(configurationModeButtonTitle)
+        .accessibilityHint(configurationModeButtonHelp)
+        .help(configurationModeButtonHelp)
     }
 
     private var ahaTypeModeStatus: some View {
@@ -1391,6 +1406,24 @@ struct AhaKeyStudioView: View {
 
     private var lightBarInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if bleManager.supportsConfigurableLighting == false {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("当前键盘固件不支持可写灯效", systemImage: "exclamationmark.triangle.fill")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.orange)
+                        Text("旧 v1.0 会对未实现的 0x84/0x85/0x91 返回“成功”，但不会改灯。请先刷入 2026-06-22 后的新固件；客户端已禁止把这种假 ACK 当作写入成功。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else if bleManager.supportsConfigurableLighting == true {
+                Label("新灯效协议已就绪（0x84 / 0x85 / 0x91）", systemImage: "checkmark.seal.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
             GroupBox("状态灯效映射") {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(IDEState.workflowOrder) { state in
@@ -2160,6 +2193,10 @@ struct AhaKeyStudioView: View {
 
         Task { @MainActor in
             do {
+                let desiredBrightness = UInt8(max(1, min(100, studioDraft.draft(for: .mode0).lightBar.brightness)))
+                syncStatusMessage = "正在验证键盘灯效固件…"
+                try await bleManager.verifyConfigurableLightingSupport(brightness: desiredBrightness)
+
                 let uploadedOLEDCount = try await uploadChangedOLEDsToDevice()
                 var commands = commandsForModes(AhaKeyModeSlot.allCases)
                 commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
@@ -2170,22 +2207,19 @@ struct AhaKeyStudioView: View {
                 } else {
                     self.syncStatusMessage = "正在写入灯效与键位配置（约 \(total) 条）…"
                 }
-                self.bleManager.writeCommandsSequentially(commands) {
-                    Task { @MainActor in
-                        // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
-                        try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
-                        self.lastSyncedDraft = self.studioDraft
-                        self.lastSyncDate = Date()
-                        self.isSyncing = false
-                        self.syncStatusMessage = "已全部写入设备并保存。"
-                        if showResultAlert {
-                            self.writeResultAlertMessage = "配置已成功写入键盘。"
-                            self.showsWriteResultAlert = true
-                        }
-                        if returnAgent {
-                            self.returnToKeyboardControl()
-                        }
-                    }
+                try await self.bleManager.writeCommandsConfirmingResponses(commands)
+                // 最后的 0x04 已收到固件 ACK，略等再交还蓝牙。
+                try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
+                self.lastSyncedDraft = self.studioDraft
+                self.lastSyncDate = Date()
+                self.isSyncing = false
+                self.syncStatusMessage = "已全部写入设备并保存（所有命令已确认）。"
+                if showResultAlert {
+                    self.writeResultAlertMessage = "配置已成功写入键盘，并收到固件确认。"
+                    self.showsWriteResultAlert = true
+                }
+                if returnAgent {
+                    self.returnToKeyboardControl()
                 }
             } catch {
                 let message = "写入键盘失败：\(error.localizedDescription)"
@@ -2248,12 +2282,17 @@ struct AhaKeyStudioView: View {
 
         isSyncing = true
         syncStatusMessage = "正在写入 \(selectedMode.title)…"
-        bleManager.writeCommandsSequentially(commands) {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
+        Task { @MainActor in
+            do {
+                let desiredBrightness = UInt8(max(1, min(100, currentModeDraft.lightBar.brightness)))
+                try await bleManager.verifyConfigurableLightingSupport(brightness: desiredBrightness)
+                try await bleManager.writeCommandsConfirmingResponses(commands)
                 self.lastSyncDate = Date()
                 self.isSyncing = false
-                self.syncStatusMessage = "已重新发送 \(self.selectedMode.title) 当前模式。"
+                self.syncStatusMessage = "已重新写入 \(self.selectedMode.title)（固件已确认）。"
+            } catch {
+                self.isSyncing = false
+                self.syncStatusMessage = "写入键盘失败：\(error.localizedDescription)"
             }
         }
     }
@@ -2488,6 +2527,10 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = "已更新虚拟灯效预览；连接键盘后可预览到设备。"
             return
         }
+        guard bleManager.supportsConfigurableLighting != false else {
+            syncStatusMessage = "当前是旧协议固件，0x91 会假返回成功但不改灯；请先刷新固件。"
+            return
+        }
         bleManager.previewLightEffect(effect.firmwareIndex)
         syncStatusMessage = "正在预览灯效：\(effect.title)。"
     }
@@ -2495,6 +2538,10 @@ struct AhaKeyStudioView: View {
     private func previewBrightness(_ value: Int) {
         guard bleManager.isConnected && bleManager.commandCharReady else {
             syncStatusMessage = "已更新亮度为 \(value)%；连接键盘后可预览到设备。"
+            return
+        }
+        guard bleManager.supportsConfigurableLighting != false else {
+            syncStatusMessage = "当前是旧协议固件，亮度不会写入；请先刷新固件。"
             return
         }
         bleManager.setBrightness(UInt8(max(1, min(100, value))))
