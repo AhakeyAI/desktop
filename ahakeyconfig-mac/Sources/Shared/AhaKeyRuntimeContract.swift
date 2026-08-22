@@ -63,6 +63,15 @@ public struct AhaKeyRuntimeDeviceID: Codable, Equatable, Hashable, Sendable {
         }
         self.rawValue = normalized
     }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 public struct AhaKeyConfigurationRevision: Codable, Equatable, Hashable, Comparable, Sendable {
@@ -134,25 +143,60 @@ public struct AhaKeyRuntimeDeviceCapability: RawRepresentable, Codable, Equatabl
     }
 }
 
+public struct AhaKeyRuntimePercentage: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: UInt8
+
+    public init(_ rawValue: Int) throws {
+        guard (0 ... 100).contains(rawValue) else {
+            throw AhaKeyRuntimeContractError.invalidPercentage(rawValue)
+        }
+        self.rawValue = UInt8(rawValue)
+    }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(Int.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+public struct AhaKeyRuntimeModeIndex: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: UInt8
+    public init(_ rawValue: UInt8) { self.rawValue = rawValue }
+}
+
+public struct AhaKeyRuntimeLightMode: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: UInt8
+    public init(_ rawValue: UInt8) { self.rawValue = rawValue }
+}
+
+public struct AhaKeyRuntimeTaskPictureSetIndex: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: UInt8
+    public init(_ rawValue: UInt8) { self.rawValue = rawValue }
+}
+
 /// Stable device-state projection exposed to Studio. Diagnostic telemetry such as RSSI
 /// intentionally lives outside this snapshot so routine sampling cannot refresh hidden UI.
 public struct AhaKeyRuntimeDeviceState: Codable, Equatable, Sendable {
-    public let batteryLevel: Int?
-    public let workMode: Int?
-    public let lightMode: Int?
-    public let leverPosition: Int?
-    public let brightness: Int?
+    public let batteryLevel: AhaKeyRuntimePercentage?
+    public let workMode: AhaKeyRuntimeModeIndex?
+    public let lightMode: AhaKeyRuntimeLightMode?
+    public let leverPosition: AhaKeyRuntimeLeverPosition?
+    public let brightness: AhaKeyRuntimePercentage?
     public let firmwareVersion: String?
-    public let activeTaskPictureSets: [Int: Int]
+    public let activeTaskPictureSets: [AhaKeyRuntimeModeIndex: AhaKeyRuntimeTaskPictureSetIndex]
 
     public init(
-        batteryLevel: Int? = nil,
-        workMode: Int? = nil,
-        lightMode: Int? = nil,
-        leverPosition: Int? = nil,
-        brightness: Int? = nil,
+        batteryLevel: AhaKeyRuntimePercentage? = nil,
+        workMode: AhaKeyRuntimeModeIndex? = nil,
+        lightMode: AhaKeyRuntimeLightMode? = nil,
+        leverPosition: AhaKeyRuntimeLeverPosition? = nil,
+        brightness: AhaKeyRuntimePercentage? = nil,
         firmwareVersion: String? = nil,
-        activeTaskPictureSets: [Int: Int] = [:]
+        activeTaskPictureSets: [AhaKeyRuntimeModeIndex: AhaKeyRuntimeTaskPictureSetIndex] = [:]
     ) {
         self.batteryLevel = batteryLevel
         self.workMode = workMode
@@ -382,11 +426,80 @@ public struct AhaKeyRuntimePolicy: Codable, Equatable, Sendable {
     }
 }
 
+public struct AhaKeyResourceIdentifier: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(_ rawValue: String) throws {
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty,
+              !normalized.contains("/"),
+              !normalized.contains("\\"),
+              normalized != ".",
+              normalized != ".." else {
+            throw AhaKeyRuntimeContractError.invalidResourceIdentifier
+        }
+        self.rawValue = normalized
+    }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+public struct AhaKeySHA256Digest: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(_ rawValue: String) throws {
+        let normalized = rawValue.lowercased()
+        let hexadecimal = CharacterSet(charactersIn: "0123456789abcdef")
+        guard normalized.count == 64,
+              normalized.unicodeScalars.allSatisfy(hexadecimal.contains) else {
+            throw AhaKeyRuntimeContractError.invalidResourceDigest
+        }
+        self.rawValue = normalized
+    }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+public struct AhaKeyMediaType: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(_ rawValue: String) throws {
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            throw AhaKeyRuntimeContractError.invalidMediaType
+        }
+        self.rawValue = normalized
+    }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 public struct AhaKeyConfigurationResource: Codable, Equatable, Hashable, Sendable {
-    public let logicalIdentifier: String
-    public let sha256: String
+    public let logicalIdentifier: AhaKeyResourceIdentifier
+    public let sha256: AhaKeySHA256Digest
     public let byteCount: UInt64
-    public let mediaType: String
+    public let mediaType: AhaKeyMediaType
 
     public init(
         logicalIdentifier: String,
@@ -394,28 +507,36 @@ public struct AhaKeyConfigurationResource: Codable, Equatable, Hashable, Sendabl
         byteCount: UInt64,
         mediaType: String
     ) throws {
-        let identifier = logicalIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !identifier.isEmpty,
-              !identifier.contains("/"),
-              !identifier.contains("\\"),
-              identifier != ".",
-              identifier != ".." else {
-            throw AhaKeyRuntimeContractError.invalidResourceIdentifier
-        }
-        let normalizedDigest = sha256.lowercased()
-        let hexadecimal = CharacterSet(charactersIn: "0123456789abcdef")
-        guard normalizedDigest.count == 64,
-              normalizedDigest.unicodeScalars.allSatisfy(hexadecimal.contains) else {
-            throw AhaKeyRuntimeContractError.invalidResourceDigest
-        }
-        let normalizedMediaType = mediaType.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedMediaType.isEmpty else {
-            throw AhaKeyRuntimeContractError.invalidMediaType
-        }
-        self.logicalIdentifier = identifier
-        self.sha256 = normalizedDigest
+        self.logicalIdentifier = try AhaKeyResourceIdentifier(logicalIdentifier)
+        self.sha256 = try AhaKeySHA256Digest(sha256)
         self.byteCount = byteCount
-        self.mediaType = normalizedMediaType
+        self.mediaType = try AhaKeyMediaType(mediaType)
+    }
+
+    public init(
+        logicalIdentifier: AhaKeyResourceIdentifier,
+        sha256: AhaKeySHA256Digest,
+        byteCount: UInt64,
+        mediaType: AhaKeyMediaType
+    ) {
+        self.logicalIdentifier = logicalIdentifier
+        self.sha256 = sha256
+        self.byteCount = byteCount
+        self.mediaType = mediaType
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case logicalIdentifier, sha256, byteCount, mediaType
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            logicalIdentifier: try container.decode(AhaKeyResourceIdentifier.self, forKey: .logicalIdentifier),
+            sha256: try container.decode(AhaKeySHA256Digest.self, forKey: .sha256),
+            byteCount: try container.decode(UInt64.self, forKey: .byteCount),
+            mediaType: try container.decode(AhaKeyMediaType.self, forKey: .mediaType)
+        )
     }
 }
 
@@ -455,6 +576,43 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
         self.desiredConfiguration = desiredConfiguration
         self.resources = resources
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, operationID, targetDeviceID, baseRevision, desiredConfiguration, resources
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            schemaVersion: container.decode(UInt16.self, forKey: .schemaVersion),
+            operationID: container.decode(AhaKeyRuntimeOperationID.self, forKey: .operationID),
+            targetDeviceID: container.decode(AhaKeyRuntimeDeviceID.self, forKey: .targetDeviceID),
+            baseRevision: container.decode(AhaKeyConfigurationRevision.self, forKey: .baseRevision),
+            desiredConfiguration: container.decode(Data.self, forKey: .desiredConfiguration),
+            resources: container.decode([AhaKeyConfigurationResource].self, forKey: .resources)
+        )
+    }
+}
+
+public struct AhaKeyRuntimeEventCode: Codable, Equatable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(_ rawValue: String) throws {
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalized.count <= 128 else {
+            throw AhaKeyRuntimeContractError.invalidEventCode
+        }
+        self.rawValue = normalized
+    }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 public enum AhaKeyRuntimeOperationState: String, Codable, Equatable, Sendable {
@@ -481,7 +639,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let state: AhaKeyRuntimeOperationState
     public let completedSteps: UInt32
     public let totalSteps: UInt32
-    public let messageCode: String?
+    public let messageCode: AhaKeyRuntimeEventCode?
 
     public init(
         id: AhaKeyRuntimeOperationID,
@@ -489,7 +647,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         state: AhaKeyRuntimeOperationState,
         completedSteps: UInt32 = 0,
         totalSteps: UInt32 = 0,
-        messageCode: String? = nil
+        messageCode: AhaKeyRuntimeEventCode? = nil
     ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
@@ -562,20 +720,20 @@ public enum AhaKeyRuntimeEventSeverity: String, Codable, Equatable, Sendable {
 }
 
 public struct AhaKeyRuntimeDiagnosticEvent: Codable, Equatable, Sendable {
-    public let code: String
+    public let code: AhaKeyRuntimeEventCode
     public let severity: AhaKeyRuntimeEventSeverity
 
-    public init(code: String, severity: AhaKeyRuntimeEventSeverity) {
+    public init(code: AhaKeyRuntimeEventCode, severity: AhaKeyRuntimeEventSeverity) {
         self.code = code
         self.severity = severity
     }
 }
 
 public struct AhaKeyRuntimeSecurityEvent: Codable, Equatable, Sendable {
-    public let code: String
+    public let code: AhaKeyRuntimeEventCode
     public let severity: AhaKeyRuntimeEventSeverity
 
-    public init(code: String, severity: AhaKeyRuntimeEventSeverity) {
+    public init(code: AhaKeyRuntimeEventCode, severity: AhaKeyRuntimeEventSeverity) {
         self.code = code
         self.severity = severity
     }
@@ -643,4 +801,6 @@ public enum AhaKeyRuntimeContractError: Error, Equatable, Sendable {
     case targetDeviceMismatch
     case staleConfigurationRevision(expected: AhaKeyConfigurationRevision, received: AhaKeyConfigurationRevision)
     case operationIdentifierConflict
+    case invalidPercentage(Int)
+    case invalidEventCode
 }

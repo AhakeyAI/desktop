@@ -26,6 +26,30 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         }
     }
 
+    func testCodableDecodingCannotBypassContractValidation() throws {
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyRuntimeDeviceID.self, from: Data("\"   \"".utf8))
+        )
+
+        let invalidResource = Data(
+            """
+            {"logicalIdentifier":"../escape","sha256":"bad","byteCount":1,"mediaType":"image/gif"}
+            """.utf8
+        )
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyConfigurationResource.self, from: invalidResource)
+        )
+
+        let validPackage = try package()
+        let encoded = try JSONEncoder().encode(validPackage)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object["desiredConfiguration"] = ""
+        let invalidPackage = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: invalidPackage)
+        )
+    }
+
     func testApplyIsIdempotentButRejectsOperationIDReuseWithDifferentContent() async throws {
         let adapter = try makeAdapter()
         let operationID = AhaKeyRuntimeOperationID()
@@ -232,19 +256,22 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertEqual(decoded.devices.first?.capabilities, [.configurationV4, .usbConfiguration])
         XCTAssertEqual(decoded.devices.first?.sessionGeneration, .init(4))
         XCTAssertEqual(decoded.devices.first?.transportGeneration, .init(9))
-        XCTAssertEqual(decoded.devices.first?.state.leverPosition, 1)
-        XCTAssertEqual(decoded.devices.first?.state.activeTaskPictureSets, [2: 1])
+        XCTAssertEqual(decoded.devices.first?.state.leverPosition, .middle)
+        XCTAssertEqual(
+            decoded.devices.first?.state.activeTaskPictureSets,
+            [.init(2): .init(1)]
+        )
     }
 
     func testStructuredDiagnosticAndSecurityEventsRoundTrip() throws {
         let events = [
             AhaKeyRuntimeEvent(
                 sequence: .init(1),
-                payload: .diagnostic(.init(code: "transport-timeout", severity: .warning))
+                payload: .diagnostic(.init(code: try .init("transport-timeout"), severity: .warning))
             ),
             AhaKeyRuntimeEvent(
                 sequence: .init(2),
-                payload: .security(.init(code: "hook-rate-limited", severity: .error))
+                payload: .security(.init(code: try .init("hook-rate-limited"), severity: .error))
             ),
         ]
 
@@ -274,13 +301,13 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             sessionGeneration: .init(4),
             transportGeneration: .init(9),
             state: .init(
-                batteryLevel: 85,
-                workMode: 2,
-                lightMode: 1,
-                leverPosition: 1,
-                brightness: 35,
+                batteryLevel: try .init(85),
+                workMode: .init(2),
+                lightMode: .init(1),
+                leverPosition: .middle,
+                brightness: try .init(35),
                 firmwareVersion: "3.0",
-                activeTaskPictureSets: [2: 1]
+                activeTaskPictureSets: [.init(2): .init(1)]
             )
         )
         return AhaKeyInMemoryRuntimeAdapter(

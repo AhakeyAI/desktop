@@ -114,7 +114,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         state: AhaKeyRuntimeOperationState,
         completedSteps: UInt32? = nil,
         totalSteps: UInt32? = nil,
-        messageCode: String? = nil
+        messageCode: AhaKeyRuntimeEventCode? = nil
     ) throws {
         guard state.isTerminal else { throw AhaKeyInMemoryRuntimeAdapterError.nonTerminalCompletion }
         guard let summary = currentSnapshot.operations.first(where: { $0.id == operation }) else {

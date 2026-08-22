@@ -29,7 +29,7 @@
 | Runtime 架构规格 | 初稿完成 | 纳入本文并继续校准语音、轮询与跨平台边界 |
 | `AhaKeyRuntimeContract.swift` | WBS 5.0 interface v1.1 已冻结，契约测试通过 | 下一步只从公开 interface 向 SQLite 持久层推进 |
 | `AhaKeyInMemoryRuntimeAdapter.swift` | R0 测试 Adapter 原型 | 仅测试使用，不接入生产路径 |
-| `AhaKeyRuntimeContractTests.swift` | 13 项契约测试；完整 Swift 套件 184 项通过 | 作为后续兼容基线 |
+| `AhaKeyRuntimeContractTests.swift` | 14 项契约测试；完整 Swift 套件 185 项通过 | 作为后续兼容基线 |
 | SQLite WAL、资源仓库、XPC、Hook socket | 未开始 | 按 WBS 5 顺序实施 |
 | Runtime 设备独占、Studio 纯客户端化 | 未开始 | 未完成前不得宣称新客户端架构正式交付 |
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
