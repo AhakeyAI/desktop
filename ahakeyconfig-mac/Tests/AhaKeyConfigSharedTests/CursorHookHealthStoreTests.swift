@@ -87,7 +87,7 @@ final class CursorHookHealthStoreTests: XCTestCase {
 
     func testDetailedDiagnosticSessionAutomaticallyStopsAfter15Minutes() {
         let startedAt = Date(timeIntervalSince1970: 1_000)
-        var session = CursorHookDetailedDiagnosticSession()
+        var session = VerboseLogSessionController()
 
         session.start(now: startedAt)
         XCTAssertTrue(session.isActive)

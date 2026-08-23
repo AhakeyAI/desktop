@@ -21,27 +21,6 @@ public enum CursorHookLatencyBucket: String, Sendable {
     }
 }
 
-public struct CursorHookDetailedDiagnosticSession: Equatable, Sendable {
-    private var session = VerboseLogSessionController(duration: 15 * 60)
-
-    public init() {}
-
-    public var isActive: Bool { session.isActive }
-
-    public mutating func start(now: Date) {
-        session.start(now: now)
-    }
-
-    @discardableResult
-    public mutating func advance(to now: Date) -> Bool {
-        session.advance(to: now)
-    }
-
-    public mutating func stop() {
-        session.stop()
-    }
-}
-
 /// 常开健康日志只接受有界枚举和版本；API 本身不接受 prompt、command、cwd、路径或环境。
 public final class CursorHookHealthStore {
     public let maxFileSize: Int

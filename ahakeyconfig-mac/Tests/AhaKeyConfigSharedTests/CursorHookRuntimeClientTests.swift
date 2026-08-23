@@ -56,16 +56,14 @@ final class CursorHookRuntimeClientTests: XCTestCase {
                 XCTAssertEqual(result.status, 0, tool)
                 XCTAssertEqual(result.stdout, "", tool)
             }
-        }
-
-        let offline = try runAgent(at: agentPath, tool: "Shell")
-        XCTAssertEqual(offline.status, 0)
-        XCTAssertEqual(offline.stdout, "")
-
-        try withRuntime(delay: 2.5, decision: .automatic) {
-            let timeout = try runAgent(at: agentPath, tool: "MCP")
-            XCTAssertEqual(timeout.status, 0)
-            XCTAssertEqual(timeout.stdout, "")
+            let offline = try runAgent(at: agentPath, tool: tool)
+            XCTAssertEqual(offline.status, 0, tool)
+            XCTAssertEqual(offline.stdout, "", tool)
+            try withRuntime(delay: 2.5, decision: .automatic) {
+                let timeout = try runAgent(at: agentPath, tool: tool)
+                XCTAssertEqual(timeout.status, 0, tool)
+                XCTAssertEqual(timeout.stdout, "", tool)
+            }
         }
     }
 

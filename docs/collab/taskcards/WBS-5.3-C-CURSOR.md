@@ -1,10 +1,10 @@
 # 任务卡 WBS-5.3-C-CURSOR：Cursor Hook 三态与安装迁移
 
-计划/WBS：5.3-C、§9.4、§15.0-3  
-状态：`active`  
-执行 owner：Cursor  
-独立验收方：Kimi + Codex（Cursor 不自验其业务实现）  
-基线：`feat/unified-client` @ `1ac1524`（WBS 5.2 accepted）  
+计划/WBS：5.3-C、§9.4、§15.0-3
+状态：`active`
+执行 owner：Cursor
+独立验收方：Kimi + Codex（Cursor 不自验其业务实现）
+基线：`feat/unified-client` @ `1ac1524`（WBS 5.2 accepted）
 目标：实现“拨杆上推自动批准、下推恢复 Cursor 原生手动批准”，Runtime 离线/超时 fail-open，并永久关闭旧客户端重复 Hook 与硬 deny 问题。
 
 ## 允许修改路径
@@ -102,3 +102,16 @@
 - `swift test`：245 tests，1 个显式 process-smoke skip，0 failures；随后脚本单独运行该 process smoke 通过。Release build、`git diff --check` 通过。
 - 当前 Cursor `3.17.8` 已由 bundle CLI 核实。N-1 `3.7.27` arm64 官方产物已下载，SHA-256 与历史 cask 一致，解包后 CLI 输出 `3.7.27`。
 - 尚缺：需要登录/可回滚的测试 Cursor profile，实际触发 3.17.8 与 3.7.27 IDE/CLI 工具事件；当前独立 CLI 状态为 `Not logged in`。未获用户明确授权前不覆盖真实 `~/.cursor/hooks.json`，也不创建 git commit。
+
+### [2026-08-23 19:45] Cursor 3.17.8 IDE 实测与提交
+
+- 用户授权短窗口覆盖/恢复真实 `~/.cursor/hooks.json`；测试前内容为 `{"hooks":{},"version":1}`，测试后已逐字恢复并读回确认。
+- 3.17.8 IDE 原生 user `preToolUse` 实测：
+  - automatic：release agent 40 ms、exit 0、输出 `{"permission":"allow"}`，Cursor 记录 valid response。
+  - manual：24 ms、exit 0、stdout 空，Cursor 记录 no valid response，原生工具继续执行。
+  - offline：stdout 空、exit 0，health `offlineCount=1`，工具继续执行。
+  - timeout：fake Runtime 延迟 3 秒、client 2 秒超时，stdout 空、exit 0，health `timeoutCount=1` 且 latency bucket `at_least_1000ms`，工具继续执行。
+- Claude user `PreToolUse` 同时存在但保持空输出；新 native 决策入口仍唯一。真实配置恢复后仅剩原有 Claude 兼容来源。
+- 用户授权后创建提交 `e8e8ca5`（`fix(cursor): restore native approval with fail-open hooks`）。
+- 提交后复验：246 tests，2 个显式 live/process harness skip，0 failures；process smoke 单独通过；Release build 与 `git diff --check` 通过。
+- 剩余门禁：CLI 尚未登录；3.7.27 IDE/CLI 尚未实际触发工具事件。CLI device login 已启动，等待用户完成 Cloudflare/账户验证。
