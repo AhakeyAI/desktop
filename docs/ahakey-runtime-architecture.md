@@ -253,9 +253,10 @@ R0 interface v1.1 已冻结：
 R0 持久化内核已完成：
 
 - SQLite 使用 WAL、`synchronous=FULL`、schema version 和外键约束；拒绝打开更高版本 schema。
-- 已受理事务、步骤确认、同步基线、RuntimePolicy 和事件序号均可跨进程重启恢复；崩溃前的 `running` 状态重开后归一为 `paused`。
-- 资源在事务受理前校验普通文件、长度和 SHA-256，复制到权限收紧的内容寻址目录；相同摘要去重计费，并实施单文件与总容量配额。
-- 恢复前重新验证托管资源完整性；符号链接、损坏资源和 operation ID 内容冲突均拒绝。
-- 9 项持久化集成测试与完整 194 项 Swift 测试通过。
+- 已受理事务、步骤确认、同步基线、RuntimePolicy 和事件序号均可跨进程重启恢复；崩溃前的 `running` 状态重开后归一为 `paused`，`partiallyCompleted` 保留已确认步骤并允许续传。
+- 完成结果与新的同步基线必须在同一个 SQLite 事务提交；部分完成和失败结果不能替换 active baseline。
+- 资源在事务受理前校验普通文件、长度和 SHA-256，复制到权限收紧的内容寻址目录；相同摘要去重计费，并实施单文件与总容量配额。非空资源包还必须通过调用方提供的 domain/device validator；默认 validator 拒绝受理，WBS 5.6 的 planner 负责帧数、解码内存和设备容量规则。
+- CAS 文件先落盘并同步父目录，再提交 WAL；启动时清理未进入 journal 的 staging/orphan 文件。恢复前重新验证托管资源完整性，资源路径只能由已验证摘要推导。
+- 11 项持久化集成测试与完整 196 项 Swift 测试通过。
 
 下一阶段是 WBS 5.2 生产 seam：签名 XPC、受限 framed Hook socket、版本握手和事件重放。持久内核尚未接入生产 Runtime、BLE/USB 或 Studio。

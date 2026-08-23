@@ -282,6 +282,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     func testPermanentFailureStatesDistinguishWhetherDeviceWasModified() {
         XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithoutWrites.isTerminal)
         XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithPartialCommit.isTerminal)
+        XCTAssertTrue(AhaKeyRuntimeOperationState.partiallyCompleted.isRecoveryCandidate)
+        XCTAssertFalse(AhaKeyRuntimeOperationState.partiallyCompleted.isFinalResult)
         XCTAssertNotEqual(
             AhaKeyRuntimeOperationState.failedWithoutWrites,
             AhaKeyRuntimeOperationState.failedWithPartialCommit

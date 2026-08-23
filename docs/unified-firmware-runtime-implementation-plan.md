@@ -29,7 +29,7 @@
 | Runtime 架构规格 | 初稿完成 | 纳入本文并继续校准语音、轮询与跨平台边界 |
 | `AhaKeyRuntimeContract.swift` | WBS 5.0 interface v1.1 已冻结，契约测试通过 | 持久层只依赖该公开 interface，不反向泄漏 SQL/文件布局 |
 | `AhaKeyInMemoryRuntimeAdapter.swift` | R0 测试 Adapter 原型 | 仅测试使用，不接入生产路径 |
-| Runtime 持久化测试 | 14 项契约测试、9 项持久化集成测试；完整 Swift 套件 194 项通过 | 作为后续兼容与崩溃恢复基线 |
+| Runtime 持久化测试 | 14 项契约测试、11 项持久化集成测试；完整 Swift 套件 196 项通过 | 作为后续兼容与崩溃恢复基线 |
 | SQLite WAL、资源仓库 | WBS 5.1 已完成 | 生产 Runtime 接入前保持为独立持久事务内核 |
 | XPC、Hook socket | 未开始 | 下一批按 WBS 5.2 实施 |
 | Runtime 设备独占、Studio 纯客户端化 | 未开始 | 未完成前不得宣称新客户端架构正式交付 |

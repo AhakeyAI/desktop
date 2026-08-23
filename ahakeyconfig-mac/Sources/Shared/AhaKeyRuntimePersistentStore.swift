@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import SQLite3
 
@@ -84,6 +85,28 @@ public struct AhaKeyRuntimeSyncBaseline: Codable, Equatable, Sendable {
     }
 }
 
+/// Domain/device validation remains outside the storage module, but it is mandatory before
+/// a package containing resources can be accepted. WBS 5.6 supplies the production planner.
+public protocol AhaKeyRuntimePackageAcceptanceValidator: Sendable {
+    func validate(
+        package: AhaKeyConfigurationPackage,
+        managedResourceURLs: [AhaKeyResourceIdentifier: URL]
+    ) throws
+}
+
+public struct AhaKeyRuntimeRejectingResourceValidator: AhaKeyRuntimePackageAcceptanceValidator {
+    public init() {}
+
+    public func validate(
+        package: AhaKeyConfigurationPackage,
+        managedResourceURLs: [AhaKeyResourceIdentifier: URL]
+    ) throws {
+        guard package.resources.isEmpty, managedResourceURLs.isEmpty else {
+            throw AhaKeyRuntimePersistenceError.domainResourceValidationRequired
+        }
+    }
+}
+
 public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case cannotOpenDatabase(String)
     case databaseFailure(String)
@@ -103,6 +126,9 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case emptySyncBaseline
     case unsupportedSchemaVersion(Int32)
     case unsafeResourceFile(AhaKeyResourceIdentifier)
+    case domainResourceValidationRequired
+    case invalidOperationOutcome
+    case invalidOutcomeBaseline
 }
 
 public actor AhaKeyRuntimePersistentStore {
@@ -111,12 +137,14 @@ public actor AhaKeyRuntimePersistentStore {
     private let database: OpaquePointer
     private let resourcesDirectory: URL
     private let quota: AhaKeyRuntimeResourceQuota
+    private let acceptanceValidator: any AhaKeyRuntimePackageAcceptanceValidator
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
     public init(
         rootDirectory: URL,
-        quota: AhaKeyRuntimeResourceQuota = .default
+        quota: AhaKeyRuntimeResourceQuota = .default,
+        acceptanceValidator: any AhaKeyRuntimePackageAcceptanceValidator = AhaKeyRuntimeRejectingResourceValidator()
     ) throws {
         try FileManager.default.createDirectory(
             at: rootDirectory,
@@ -142,6 +170,7 @@ public actor AhaKeyRuntimePersistentStore {
         database = handle
         self.resourcesDirectory = resourcesDirectory
         self.quota = quota
+        self.acceptanceValidator = acceptanceValidator
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: databaseURL.path)
         do {
             try Self.execute("PRAGMA journal_mode=WAL", on: handle)
@@ -175,6 +204,7 @@ public actor AhaKeyRuntimePersistentStore {
                 """,
                 on: handle
             )
+            try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
             try Self.execute(
                 """
                 CREATE TABLE IF NOT EXISTS runtime_transaction_resources (
@@ -314,8 +344,13 @@ public actor AhaKeyRuntimePersistentStore {
                             ofItemAtPath: temporary.path
                         )
                         let handle = try FileHandle(forUpdating: temporary)
-                        try handle.synchronize()
-                        try handle.close()
+                        do {
+                            try handle.synchronize()
+                            try handle.close()
+                        } catch {
+                            try? handle.close()
+                            throw error
+                        }
                         try FileManager.default.moveItem(at: temporary, to: destination)
                     } catch {
                         try? FileManager.default.removeItem(at: temporary)
@@ -326,6 +361,17 @@ public actor AhaKeyRuntimePersistentStore {
                     try validateResourceFile(at: destination, against: resource)
                 }
             }
+
+            let managedResources = Dictionary(
+                uniqueKeysWithValues: package.resources.map {
+                    ($0.logicalIdentifier, managedResourceURL(for: $0.sha256))
+                }
+            )
+            try acceptanceValidator.validate(
+                package: package,
+                managedResourceURLs: managedResources
+            )
+            try Self.synchronizeDirectory(resourcesDirectory)
 
             try Self.execute("BEGIN IMMEDIATE", on: database)
             do {
@@ -341,6 +387,7 @@ public actor AhaKeyRuntimePersistentStore {
             }
         } catch {
             for url in newlyCreatedFiles { try? FileManager.default.removeItem(at: url) }
+            try? Self.synchronizeDirectory(resourcesDirectory)
             throw error
         }
         return package.operationID
@@ -348,20 +395,23 @@ public actor AhaKeyRuntimePersistentStore {
 
     public func resourceURL(for digest: AhaKeySHA256Digest) throws -> URL? {
         let statement = try prepare(
-            "SELECT relative_path FROM runtime_resources WHERE digest = ?"
+            "SELECT relative_path, byte_count FROM runtime_resources WHERE digest = ?"
         )
         defer { sqlite3_finalize(statement) }
         try bind(digest.rawValue, at: 1, to: statement)
         let result = sqlite3_step(statement)
         if result == SQLITE_DONE { return nil }
         guard result == SQLITE_ROW,
-              let relativePath = sqlite3_column_text(statement, 0) else {
-            throw databaseError()
-        }
-        let url = resourcesDirectory.appendingPathComponent(String(cString: relativePath))
-        guard FileManager.default.fileExists(atPath: url.path) else {
+              let relativePath = sqlite3_column_text(statement, 0),
+              String(cString: relativePath) == digest.rawValue else {
             throw AhaKeyRuntimePersistenceError.corruptTransaction
         }
+        let byteCount = sqlite3_column_int64(statement, 1)
+        guard byteCount >= 0 else {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        let url = managedResourceURL(for: digest)
+        try validateManagedFile(at: url, digest: digest, byteCount: UInt64(byteCount))
         return url
     }
 
@@ -441,16 +491,19 @@ public actor AhaKeyRuntimePersistentStore {
         defer { sqlite3_finalize(statement) }
         try bind(operationID.rawValue.uuidString, at: 1, to: statement)
         var steps: [AhaKeyRuntimeStepIdentifier] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
             guard let text = sqlite3_column_text(statement, 0) else {
                 throw AhaKeyRuntimePersistenceError.corruptTransaction
             }
             steps.append(try .init(String(cString: text)))
+            result = sqlite3_step(statement)
         }
+        guard result == SQLITE_DONE else { throw databaseError() }
         return steps
     }
 
-    public func saveSyncBaseline(_ baseline: AhaKeyRuntimeSyncBaseline) throws {
+    private func upsertSyncBaseline(_ baseline: AhaKeyRuntimeSyncBaseline) throws {
         let statement = try prepare(
             """
             INSERT INTO runtime_sync_baselines
@@ -521,9 +574,59 @@ public actor AhaKeyRuntimePersistentStore {
         guard existing.package.targetDeviceID == summary.targetDeviceID else {
             throw AhaKeyRuntimePersistenceError.operationTargetMismatch
         }
-        guard !existing.state.isTerminal else {
+        guard !existing.state.isFinalResult else {
             throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
         }
+        guard !summary.state.isTerminal else {
+            throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
+        }
+        try validateProgress(summary)
+        try updateOperationRow(summary)
+    }
+
+    public func commitOperationOutcome(
+        _ summary: AhaKeyRuntimeOperationSummary,
+        syncBaseline: AhaKeyRuntimeSyncBaseline?
+    ) throws {
+        guard summary.state.isTerminal else {
+            throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
+        }
+        guard let existing = try transaction(summary.id) else {
+            throw AhaKeyRuntimePersistenceError.operationNotFound
+        }
+        guard existing.package.targetDeviceID == summary.targetDeviceID else {
+            throw AhaKeyRuntimePersistenceError.operationTargetMismatch
+        }
+        guard !existing.state.isFinalResult else {
+            throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
+        }
+        try validateProgress(summary)
+
+        if summary.state == .completed {
+            let expectedRevision = existing.package.baseRevision.rawValue.addingReportingOverflow(1)
+            guard !expectedRevision.overflow,
+                  let syncBaseline,
+                  syncBaseline.deviceID == existing.package.targetDeviceID,
+                  syncBaseline.revision.rawValue == expectedRevision.partialValue,
+                  syncBaseline.confirmedConfiguration == existing.package.desiredConfiguration else {
+                throw AhaKeyRuntimePersistenceError.invalidOutcomeBaseline
+            }
+        } else if syncBaseline != nil {
+            throw AhaKeyRuntimePersistenceError.invalidOutcomeBaseline
+        }
+
+        try Self.execute("BEGIN IMMEDIATE", on: database)
+        do {
+            try updateOperationRow(summary)
+            if let syncBaseline { try upsertSyncBaseline(syncBaseline) }
+            try Self.execute("COMMIT", on: database)
+        } catch {
+            try? Self.execute("ROLLBACK", on: database)
+            throw error
+        }
+    }
+
+    private func validateProgress(_ summary: AhaKeyRuntimeOperationSummary) throws {
         guard summary.completedSteps <= summary.totalSteps else {
             throw AhaKeyRuntimePersistenceError.invalidOperationProgress
         }
@@ -535,7 +638,9 @@ public actor AhaKeyRuntimePersistentStore {
            (summary.totalSteps == 0 || summary.completedSteps >= summary.totalSteps) {
             throw AhaKeyRuntimePersistenceError.invalidOperationProgress
         }
+    }
 
+    private func updateOperationRow(_ summary: AhaKeyRuntimeOperationSummary) throws {
         let statement = try prepare(
             """
             UPDATE runtime_transactions
@@ -565,7 +670,8 @@ public actor AhaKeyRuntimePersistentStore {
         )
         defer { sqlite3_finalize(statement) }
         var candidates: [AhaKeyRuntimePersistedTransaction] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
             guard let operationText = sqlite3_column_text(statement, 0),
                   let operationUUID = UUID(uuidString: String(cString: operationText)) else {
                 throw AhaKeyRuntimePersistenceError.corruptTransaction
@@ -575,14 +681,13 @@ public actor AhaKeyRuntimePersistentStore {
                 statement: statement,
                 columnOffset: 1
             )
-            switch transaction.state {
-            case .completed, .failedWithoutWrites, .failedWithPartialCommit:
-                break
-            case .accepted, .running, .paused, .cancellationRequested, .partiallyCompleted:
+            if transaction.state.isRecoveryCandidate {
                 try validateManagedResources(for: transaction.package)
                 candidates.append(transaction)
             }
+            result = sqlite3_step(statement)
         }
+        guard result == SQLITE_DONE else { throw databaseError() }
         return candidates
     }
 
@@ -713,6 +818,31 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
+    private func validateManagedFile(
+        at url: URL,
+        digest expectedDigest: AhaKeySHA256Digest,
+        byteCount expectedByteCount: UInt64
+    ) throws {
+        let standardizedRoot = resourcesDirectory.standardizedFileURL.path + "/"
+        let standardizedURL = url.standardizedFileURL
+        guard standardizedURL.path.hasPrefix(standardizedRoot),
+              standardizedURL.deletingLastPathComponent() == resourcesDirectory.standardizedFileURL else {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        let values = try standardizedURL.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+        )
+        guard values.isRegularFile == true, values.isSymbolicLink != true else {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        let attributes = try FileManager.default.attributesOfItem(atPath: standardizedURL.path)
+        guard let size = attributes[.size] as? NSNumber,
+              size.uint64Value == expectedByteCount,
+              try digest(of: standardizedURL) == expectedDigest.rawValue else {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+    }
+
     private func validateResourceFile(
         at url: URL,
         against resource: AhaKeyConfigurationResource
@@ -781,6 +911,65 @@ public actor AhaKeyRuntimePersistentStore {
             )
         }
         return sqlite3_column_int(statement, 0)
+    }
+
+    private static func reconcileResourceDirectory(
+        _ directory: URL,
+        with database: OpaquePointer
+    ) throws {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(
+            database,
+            "SELECT digest FROM runtime_resources",
+            -1,
+            &statement,
+            nil
+        ) == SQLITE_OK, let statement else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                String(cString: sqlite3_errmsg(database))
+            )
+        }
+        defer { sqlite3_finalize(statement) }
+        var referenced: Set<String> = []
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            guard let text = sqlite3_column_text(statement, 0) else {
+                throw AhaKeyRuntimePersistenceError.corruptTransaction
+            }
+            referenced.insert(String(cString: text))
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                String(cString: sqlite3_errmsg(database))
+            )
+        }
+
+        var removedAny = false
+        for url in try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: []
+        ) where !referenced.contains(url.lastPathComponent) {
+            try FileManager.default.removeItem(at: url)
+            removedAny = true
+        }
+        if removedAny { try synchronizeDirectory(directory) }
+    }
+
+    private static func synchronizeDirectory(_ directory: URL) throws {
+        let descriptor = open(directory.path, O_RDONLY)
+        guard descriptor >= 0 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "cannot open resource directory for synchronization: \(errno)"
+            )
+        }
+        defer { close(descriptor) }
+        guard fsync(descriptor) == 0 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "cannot synchronize resource directory: \(errno)"
+            )
+        }
     }
 
     private func prepare(_ sql: String) throws -> OpaquePointer {

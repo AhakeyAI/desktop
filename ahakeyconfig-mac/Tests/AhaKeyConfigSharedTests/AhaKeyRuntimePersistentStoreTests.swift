@@ -4,6 +4,13 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
+    private struct AllowingResourceValidator: AhaKeyRuntimePackageAcceptanceValidator {
+        func validate(
+            package: AhaKeyConfigurationPackage,
+            managedResourceURLs: [AhaKeyResourceIdentifier: URL]
+        ) throws {}
+    }
+
     func testAcceptedTransactionIsRecoverableAfterStoreReopens() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -38,7 +45,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             mediaType: "image/gif"
         )
         let package = try makePackage(resources: [resource])
-        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let store = try resourceStore(rootDirectory: root)
         _ = try await store.accept(
             package,
             resourceFiles: [resource.logicalIdentifier: source]
@@ -76,7 +83,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         )
         let store = try AhaKeyRuntimePersistentStore(
             rootDirectory: root,
-            quota: .init(maxSingleResourceBytes: 32, maxTotalResourceBytes: 20)
+            quota: .init(maxSingleResourceBytes: 32, maxTotalResourceBytes: 20),
+            acceptanceValidator: AllowingResourceValidator()
         )
 
         _ = try await store.accept(
@@ -108,9 +116,14 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let package = try makePackage()
+        let completedBaseline = try AhaKeyRuntimeSyncBaseline(
+            deviceID: package.targetDeviceID,
+            revision: .init(8),
+            confirmedConfiguration: package.desiredConfiguration
+        )
 
         do {
-            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            let store = try resourceStore(rootDirectory: root)
             _ = try await store.accept(package, resourceFiles: [:])
             try await store.updateOperation(
                 .init(
@@ -129,22 +142,25 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             XCTAssertEqual(recovered.first?.state, .paused)
             XCTAssertEqual(recovered.first?.completedSteps, 2)
             XCTAssertEqual(recovered.first?.totalSteps, 5)
-            try await reopened.updateOperation(
+            try await reopened.commitOperationOutcome(
                 .init(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
                     state: .completed,
                     completedSteps: 5,
                     totalSteps: 5
-                )
+                ),
+                syncBaseline: completedBaseline
             )
         }
 
         let finalStore = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let remainingCandidates = try await finalStore.recoveryCandidates()
         let completedTransaction = try await finalStore.transaction(package.operationID)
+        let persistedBaseline = try await finalStore.syncBaseline(for: package.targetDeviceID)
         XCTAssertTrue(remainingCandidates.isEmpty)
         XCTAssertEqual(completedTransaction?.state, .completed)
+        XCTAssertEqual(persistedBaseline, completedBaseline)
     }
 
     func testPolicyAndEventSequencePersistAcrossRestart() async throws {
@@ -167,7 +183,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             XCTAssertEqual(second, .init(2))
         }
 
-        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let reopened = try resourceStore(rootDirectory: root)
         let recoveredPolicy = try await reopened.loadPolicy()
         let third = try await reopened.reserveEventSequence()
         XCTAssertEqual(recoveredPolicy, policy)
@@ -179,25 +195,16 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let package = try makePackage()
         let uploadStep = try AhaKeyRuntimeStepIdentifier("upload-image-03c9f206")
-        let baseline = try AhaKeyRuntimeSyncBaseline(
-            deviceID: package.targetDeviceID,
-            revision: .init(8),
-            confirmedConfiguration: Data("confirmed-configuration-v8".utf8)
-        )
-
         do {
             let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
             _ = try await store.accept(package, resourceFiles: [:])
             try await store.confirmStep(uploadStep, for: package.operationID)
             try await store.confirmStep(uploadStep, for: package.operationID)
-            try await store.saveSyncBaseline(baseline)
         }
 
         let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let confirmedSteps = try await reopened.confirmedSteps(for: package.operationID)
-        let recoveredBaseline = try await reopened.syncBaseline(for: package.targetDeviceID)
         XCTAssertEqual(confirmedSteps, [uploadStep])
-        XCTAssertEqual(recoveredBaseline, baseline)
     }
 
     func testRecoveryRejectsAResourceThatChangedAfterAcceptance() async throws {
@@ -214,7 +221,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let package = try makePackage(resources: [resource])
 
         do {
-            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            let store = try resourceStore(rootDirectory: root)
             _ = try await store.accept(
                 package,
                 resourceFiles: [resource.logicalIdentifier: source]
@@ -224,7 +231,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             try Data("tampered!!!!".utf8).write(to: managedURL)
         }
 
-        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let reopened = try resourceStore(rootDirectory: root)
         do {
             _ = try await reopened.recoveryCandidates()
             XCTFail("Expected corrupt managed resource rejection")
@@ -267,7 +274,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             digest: "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be",
             byteCount: 12
         )
-        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let store = try resourceStore(rootDirectory: root)
 
         do {
             _ = try await store.accept(
@@ -281,6 +288,54 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 .unsafeResourceFile(resource.logicalIdentifier)
             )
         }
+    }
+
+    func testPartiallyCompletedOperationCanResumeWithoutAdvancingBaseline() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePackage()
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.commitOperationOutcome(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .partiallyCompleted,
+                completedSteps: 2,
+                totalSteps: 5
+            ),
+            syncBaseline: nil
+        )
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .running,
+                completedSteps: 2,
+                totalSteps: 5
+            )
+        )
+
+        let resumed = try await store.transaction(package.operationID)
+        let baseline = try await store.syncBaseline(for: package.targetDeviceID)
+        XCTAssertEqual(resumed?.state, .running)
+        XCTAssertNil(baseline)
+    }
+
+    func testReopeningRemovesUnjournaledCASFilesBeforeQuotaAccounting() async throws {
+        let root = temporaryDirectory()
+        let resources = root.appendingPathComponent("resources", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        let orphan = resources.appendingPathComponent(
+            "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"
+        )
+        try Data("resource-one".utf8).write(to: orphan)
+
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let usage = try await store.resourceStorageUsage()
+        XCTAssertEqual(usage, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
     }
 
     private func temporaryDirectory() -> URL {
@@ -311,6 +366,13 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             sha256: digest,
             byteCount: byteCount,
             mediaType: "image/gif"
+        )
+    }
+
+    private func resourceStore(rootDirectory: URL) throws -> AhaKeyRuntimePersistentStore {
+        try AhaKeyRuntimePersistentStore(
+            rootDirectory: rootDirectory,
+            acceptanceValidator: AllowingResourceValidator()
         )
     }
 }
