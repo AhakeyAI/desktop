@@ -224,26 +224,6 @@ final class RuntimeXPCLibXPCServerTests: XCTestCase {
         XCTAssertNotNil(server)
     }
 
-    func testProductionInitRejectsInvalidRequirementFromPolicy() {
-        let policy = AhaKeyRuntimeXPCPeerPolicy(
-            expectedUserID: getuid(),
-            expectedTeamIdentifier: "VALIDTEAM",
-            allowedSigningIdentifiers: ["lab.jawa.ahakeyconfig"]
-        )
-        // 伪造一个非法 requirement（绕过 policy 的生成逻辑）
-        let server = try? AhaKeyRuntimeXPCLibXPCServer(
-            serviceName: "ai.ahakey.runtime.test",
-            peerPolicy: policy
-        ) {
-            AhaKeyRuntimeXPCSessionEndpoint(serverHandshake: self.makeServerHandshake()) { _ in
-                .policyUpdated
-            }
-        }
-        // 实际上 policy 生成的 requirement 是合法的，所以这里不会 throw。
-        // 这个测试主要验证 public init 的接口形态（非可选 serviceName + peerPolicy）。
-        XCTAssertNotNil(server)
-    }
-
     // MARK: - Payload 上限
 
     func testOversizedPayloadIsRejectedBeforeDataAllocationAndHandlerNotCalled() throws {
@@ -274,7 +254,8 @@ final class RuntimeXPCLibXPCServerTests: XCTestCase {
         let lastReply = client.sendRaw(message, timeout: 2)
         let unwrapped = try XCTUnwrap(lastReply)
         XCTAssertEqual(xpc_get_type(unwrapped), XPC_TYPE_DICTIONARY)
-        XCTAssertNotNil(xpc_dictionary_get_string(unwrapped, "error"))
+        let errorCString = try XCTUnwrap(xpc_dictionary_get_string(unwrapped, "error"))
+        XCTAssertEqual(String(cString: errorCString), "payload-too-large")
         wait(for: [handlerCalls], timeout: 1)
     }
 }

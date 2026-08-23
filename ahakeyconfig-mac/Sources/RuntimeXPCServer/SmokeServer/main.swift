@@ -78,8 +78,6 @@ do {
 }
 
 server.start()
-
-server.start()
 print("READY \(serviceName)")
 fflush(stdout)
 
