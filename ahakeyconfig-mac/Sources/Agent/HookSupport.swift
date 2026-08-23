@@ -6,6 +6,15 @@ enum HookSupport {
     static let socketPath = AhaKeyPaths.agentSocketPath
     static let stateRequestTimeout: Double = 2.0
     static let permissionRequestTimeout: Double = 5.0
+    static let cursorRuntimeQueryTimeout: Double = 2.0
+    static let hookBuildIdentifier: String = {
+        let value = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmed, !trimmed.isEmpty {
+            return "cursor-\(trimmed)"
+        }
+        return "cursor-development"
+    }()
 
     static let diagnosticTimestampFormatter: DateFormatter = {
         let f = DateFormatter()

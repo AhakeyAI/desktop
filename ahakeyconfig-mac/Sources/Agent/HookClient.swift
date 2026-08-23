@@ -1,4 +1,5 @@
 import Foundation
+import AhaKeyConfigShared
 
 /// 仅负责事件路由；各 IDE 的具体逻辑已拆到独立 handler，避免互相影响。
 enum HookClient {
@@ -51,6 +52,14 @@ enum HookClient {
 
     static func run(event: String) -> Int32 {
         signal(SIGPIPE, SIG_IGN)
+
+        if CursorHookSourceDeduper.route(
+            event: event,
+            environment: ProcessInfo.processInfo.environment
+        ) == .noOp {
+            _ = HookSupport.readAllStdinSilently()
+            return 0
+        }
         
         // 调试日志：记录所有收到的事件
         FileHandle.standardError.write(Data("[ahakey-hook] DEBUG: received event: '\(event)'\n".utf8))

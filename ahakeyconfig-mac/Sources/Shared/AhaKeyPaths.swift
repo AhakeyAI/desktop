@@ -15,6 +15,13 @@ public enum AhaKeyPaths {
         applicationSupportDirectory.appendingPathComponent("ahakey.sock").path
     }
 
+    /// Runtime restricted Hook socket；父目录由 Runtime 以 0700 创建，socket 为 0600。
+    public static var runtimeHookSocketURL: URL {
+        applicationSupportDirectory
+            .appendingPathComponent("private", isDirectory: true)
+            .appendingPathComponent("hook.sock")
+    }
+
     /// 跨进程 BLE 连接锁（flock）文件路径，见 `BLEConnectionLock`。
     public static var bleConnectionLockPath: String {
         applicationSupportDirectory.appendingPathComponent("ble-owner.lock").path

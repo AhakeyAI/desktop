@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook sessionStart", "timeout": 20 }
+    ],
+    "sessionEnd": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook sessionEnd", "timeout": 10 }
+    ],
+    "preToolUse": [
+      { "command": "/usr/local/bin/foreign-hook", "timeout": 10 },
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook preToolUse", "timeout": 20 }
+    ],
+    "beforeShellExecution": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook beforeShellExecution", "timeout": 20 },
+      { "command": "/usr/local/bin/foreign-hook", "timeout": 10 }
+    ],
+    "beforeMCPExecution": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook beforeMCPExecution", "timeout": 20 }
+    ],
+    "beforeReadFile": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook beforeReadFile", "timeout": 20 }
+    ],
+    "beforeSubmitPrompt": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook beforeSubmitPrompt", "timeout": 30 }
+    ],
+    "postToolUse": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook postToolUse", "timeout": 10 }
+    ],
+    "stop": [
+      { "command": "'/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent' hook stop", "timeout": 10 }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "/Applications/AhaKey.app/ahakeyconfig-agent hook sessionStart --ahakey-cursor-hook-v1",
+        "timeout": 10,
+        "failClosed": false
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "/Applications/AhaKey.app/ahakeyconfig-agent hook sessionEnd --ahakey-cursor-hook-v1",
+        "timeout": 10,
+        "failClosed": false
+      }
+    ],
+    "preToolUse": [
+      { "command": "/usr/local/bin/foreign-hook", "timeout": 10 },
+      {
+        "command": "/Applications/AhaKey.app/ahakeyconfig-agent hook preToolUse --ahakey-cursor-hook-v1",
+        "timeout": 20,
+        "failClosed": false
+      }
+    ],
+    "beforeShellExecution": [
+      { "command": "/usr/local/bin/foreign-hook", "timeout": 10 }
+    ],
+    "postToolUse": [
+      {
+        "command": "/Applications/AhaKey.app/ahakeyconfig-agent hook postToolUse --ahakey-cursor-hook-v1",
+        "timeout": 10,
+        "failClosed": false
+      }
+    ],
+    "stop": [
+      {
+        "command": "/Applications/AhaKey.app/ahakeyconfig-agent hook stop --ahakey-cursor-hook-v1",
+        "timeout": 10,
+        "failClosed": false
+      }
+    ]
+  }
+}

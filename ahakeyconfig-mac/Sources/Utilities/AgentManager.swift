@@ -394,7 +394,7 @@ final class AgentManager: ObservableObject {
     }
 
     private func isAhakeyHookCommand(_ command: String) -> Bool {
-        command.contains("ahakeyconfig-agent") || command.contains("ahakey-state")
+        CursorHookInstaller.isManagedCommand(command)
     }
 
     private func checkRunning() -> Bool {
@@ -911,22 +911,6 @@ final class AgentManager: ObservableObject {
 
     // MARK: - Cursor hooks
 
-    /// Cursor 支持的 hook 事件（小驼峰，与 `HookClient` 一致）。
-    /// 批准链集中在 `preToolUse`（在任意工具前调用，可 stdout `permission`）；若你在 `hooks.json` 里自行添加
-    /// `beforeShellExecution` / `beforeMCPExecution` 并指向本 agent，其事件名在 `HookClient` 中同样支持拨杆。
-    /// 安装时写入这些事件；**卸载**时会遍历 `hooks` 的**所有键**（含旧版/合并进的 `beforeReadFile`、`beforeSubmitPrompt` 等），避免只卸一半导致「没反应」。
-    private let cursorHookEvents: [String] = [
-        "sessionStart",
-        "sessionEnd",
-        "preToolUse",
-        "beforeShellExecution",
-        "beforeMCPExecution",
-        "beforeReadFile",
-        "beforeSubmitPrompt",
-        "postToolUse",
-        "stop",
-    ]
-
     private let codexHookBlockStart = "# BEGIN AhaKey Codex Hooks"
     private let codexHookBlockEnd = "# END AhaKey Codex Hooks"
     private let codexHookEvents: [(event: String, agentEvent: String, timeout: Int)] = [
@@ -1038,31 +1022,12 @@ final class AgentManager: ObservableObject {
             return String(format: NSLocalizedString("Cursor Hooks：无法创建目录 %@：%@", comment: ""), String(cursorDir), String(error.localizedDescription))
         }
 
-        var settings = loadCursorSettings() ?? [:]
-        var hooks = settings["hooks"] as? [String: Any] ?? [:]
-
-        let binQuoted = shellQuote(agentBinaryPath)
-
-        for event in cursorHookEvents {
-            let cmd = "\(binQuoted) hook \(event)"
-            // Cursor：`{ "hooks": { "<event>": [{ "command": "...", "timeout": N }] } }`
-            // 读拨杆/写状态略慢，长超时与 `HookClient` 一致
-            let t: Int
-            if event == "beforeSubmitPrompt" { t = 30 }
-            else if ["preToolUse", "beforeShellExecution", "beforeMCPExecution", "beforeReadFile", "sessionStart"].contains(event) { t = 20 }
-            else { t = 10 }
-            var entries = hooks[event] as? [[String: Any]] ?? []
-            entries.removeAll { isAhakeyHookCommand(($0["command"] as? String) ?? "") }
-            entries.append(["command": cmd, "timeout": t])
-            hooks[event] = entries
-        }
-
-        settings["hooks"] = hooks
-        if settings["version"] == nil {
-            settings["version"] = 1
-        }
+        let settings = CursorHookInstaller.install(
+            in: loadCursorSettings() ?? [:],
+            agentCommand: shellQuote(agentBinaryPath)
+        )
         if saveCursorSettings(settings) {
-            log.info("Cursor hooks 已写入")
+            log.info("Cursor hooks v1 已写入（单一 preToolUse 决策入口）")
             return ""
         }
         return String(format: NSLocalizedString("Cursor Hooks：无法写入 %@。请检查权限或磁盘空间。", comment: ""), String(cursorHooksPath))
