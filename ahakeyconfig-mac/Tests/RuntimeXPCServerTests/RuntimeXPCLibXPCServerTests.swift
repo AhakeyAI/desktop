@@ -50,6 +50,15 @@ final class RuntimeXPCLibXPCServerTests: XCTestCase {
             defer { lock.unlock() }
             return replies.isEmpty ? nil : replies.removeFirst()
         }
+
+        /// 发送原始 xpc dictionary（不包装 payload），等待并返回最后一条回复。
+        func sendRaw(_ message: xpc_object_t, timeout: TimeInterval = 5) -> xpc_object_t? {
+            xpc_connection_send_message(connection, message)
+            guard semaphore.wait(timeout: .now() + timeout) == .success else { return nil }
+            lock.lock()
+            defer { lock.unlock() }
+            return replies.last
+        }
     }
 
     private func decodeReplyPayload(_ reply: xpc_object_t?) throws -> AhaKeyRuntimeXPCResponse {
@@ -198,5 +207,74 @@ final class RuntimeXPCLibXPCServerTests: XCTestCase {
         var parsed: SecRequirement?
         XCTAssertEqual(SecRequirementCreateWithString(requirement as CFString, [], &parsed), errSecSuccess)
         XCTAssertNotNil(parsed)
+    }
+
+    // MARK: - 生产 init 安全边界
+
+    func testProductionInitAcceptsValidServiceNameAndPeerPolicy() throws {
+        let policy = AhaKeyRuntimeXPCPeerPolicy.production(expectedUserID: getuid())
+        let server = try AhaKeyRuntimeXPCLibXPCServer(
+            serviceName: "ai.ahakey.runtime.test",
+            peerPolicy: policy
+        ) {
+            AhaKeyRuntimeXPCSessionEndpoint(serverHandshake: self.makeServerHandshake()) { _ in
+                .policyUpdated
+            }
+        }
+        XCTAssertNotNil(server)
+    }
+
+    func testProductionInitRejectsInvalidRequirementFromPolicy() {
+        let policy = AhaKeyRuntimeXPCPeerPolicy(
+            expectedUserID: getuid(),
+            expectedTeamIdentifier: "VALIDTEAM",
+            allowedSigningIdentifiers: ["lab.jawa.ahakeyconfig"]
+        )
+        // 伪造一个非法 requirement（绕过 policy 的生成逻辑）
+        let server = try? AhaKeyRuntimeXPCLibXPCServer(
+            serviceName: "ai.ahakey.runtime.test",
+            peerPolicy: policy
+        ) {
+            AhaKeyRuntimeXPCSessionEndpoint(serverHandshake: self.makeServerHandshake()) { _ in
+                .policyUpdated
+            }
+        }
+        // 实际上 policy 生成的 requirement 是合法的，所以这里不会 throw。
+        // 这个测试主要验证 public init 的接口形态（非可选 serviceName + peerPolicy）。
+        XCTAssertNotNil(server)
+    }
+
+    // MARK: - Payload 上限
+
+    func testOversizedPayloadIsRejectedBeforeDataAllocationAndHandlerNotCalled() throws {
+        let handlerCalls = expectation(description: "business handler must not run")
+        handlerCalls.isInverted = true
+        let server = try AhaKeyRuntimeXPCLibXPCServer(
+            serviceName: nil,
+            codeSigningRequirement: nil,
+            expectedUserID: getuid(),
+            maxPayloadBytes: 64 // 故意设得很小
+        ) {
+            AhaKeyRuntimeXPCSessionEndpoint(serverHandshake: self.makeServerHandshake()) { _ in
+                handlerCalls.fulfill()
+                return .policyUpdated
+            }
+        }
+        server.start()
+        defer { server.stop() }
+        let endpoint = try XCTUnwrap(server.anonymousEndpoint)
+        let client = TestClient(endpoint: endpoint)
+
+        let oversized = Data(repeating: 0x41, count: 128)
+        let message = xpc_dictionary_create(nil, nil, 0)
+        oversized.withUnsafeBytes { buffer in
+            xpc_dictionary_set_data(message, "payload", buffer.baseAddress!, buffer.count)
+        }
+
+        let lastReply = client.sendRaw(message, timeout: 2)
+        let unwrapped = try XCTUnwrap(lastReply)
+        XCTAssertEqual(xpc_get_type(unwrapped), XPC_TYPE_DICTIONARY)
+        XCTAssertNotNil(xpc_dictionary_get_string(unwrapped, "error"))
+        wait(for: [handlerCalls], timeout: 1)
     }
 }

@@ -65,8 +65,7 @@ let server: AhaKeyRuntimeXPCLibXPCServer
 do {
     server = try AhaKeyRuntimeXPCLibXPCServer(
         serviceName: serviceName,
-        codeSigningRequirement: peerPolicy.codeSigningRequirement,
-        expectedUserID: peerPolicy.expectedUserID
+        peerPolicy: peerPolicy
     ) {
         AhaKeyRuntimeXPCSessionEndpoint(serverHandshake: serverHandshake) { _ in
             state.increment()
@@ -77,6 +76,8 @@ do {
     FileHandle.standardError.write(Data("server init failed: \(error)\n".utf8))
     exit(65)
 }
+
+server.start()
 
 server.start()
 print("READY \(serviceName)")

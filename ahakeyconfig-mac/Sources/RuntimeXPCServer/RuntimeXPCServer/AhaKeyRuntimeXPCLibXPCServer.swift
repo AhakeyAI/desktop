@@ -30,6 +30,7 @@ public final class AhaKeyRuntimeXPCLibXPCServer: @unchecked Sendable {
     private let codeSigningRequirement: String?
     private let expectedUserID: uid_t
     private let endpointFactory: EndpointFactory
+    private let maxPayloadBytes: Int
     private let queue = DispatchQueue(label: "ai.ahakey.runtime.xpc.listener", qos: .utility)
 
     private let stateLock = NSLock()
@@ -37,16 +38,41 @@ public final class AhaKeyRuntimeXPCLibXPCServer: @unchecked Sendable {
     private var peers: [ObjectIdentifier: xpc_connection_t] = [:]
     private var stopped = false
 
+    /// 生产 public initializer：强制非可选 Mach service name 与 peer policy。
     /// - Parameters:
-    ///   - serviceName: 非 nil 时注册为当前用户域 Mach service；nil 时为 anonymous listener。
-    ///   - codeSigningRequirement: 绑定到 peer 的 cs requirement 字符串；仅允许单测注入 nil
-    ///     （仅校验 EUID），生产路径必须通过 peer policy 提供。
-    ///   - expectedUserID: 期望的 peer EUID（生产为当前用户）。
+    ///   - serviceName: Mach service 名称（非空，非可选）。
+    ///   - peerPolicy: 包含 expectedUserID 与 codeSigningRequirement 的 peer 策略。
+    ///   - maxPayloadBytes: 单条消息 payload 上限（默认 8 MiB，与 endpoint 默认值对齐）。
     ///   - endpointFactory: 每条 accepted connection 一个独立 endpoint。
     public init(
+        serviceName: String,
+        peerPolicy: AhaKeyRuntimeXPCPeerPolicy,
+        maxPayloadBytes: Int = 8 * 1024 * 1024,
+        endpointFactory: @escaping EndpointFactory
+    ) throws {
+        precondition(!serviceName.isEmpty && serviceName.utf8.count <= 128)
+        precondition(maxPayloadBytes > 0)
+        let requirement = peerPolicy.codeSigningRequirement
+        var parsed: SecRequirement?
+        guard SecRequirementCreateWithString(requirement as CFString, [], &parsed)
+            == errSecSuccess, parsed != nil
+        else {
+            throw AhaKeyRuntimeXPCLibXPCServerError.invalidCodeSigningRequirement
+        }
+        self.listenerKind = .machService(serviceName)
+        self.codeSigningRequirement = requirement
+        self.expectedUserID = uid_t(peerPolicy.expectedUserID)
+        self.maxPayloadBytes = maxPayloadBytes
+        self.endpointFactory = endpointFactory
+    }
+
+    /// 测试/内部 initializer：允许 nil serviceName（anonymous listener）与 nil
+    /// codeSigningRequirement（仅 EUID 校验）。**不得用于生产路径**。
+    internal init(
         serviceName: String?,
         codeSigningRequirement: String?,
         expectedUserID: uid_t,
+        maxPayloadBytes: Int = 8 * 1024 * 1024,
         endpointFactory: @escaping EndpointFactory
     ) throws {
         if let codeSigningRequirement {
@@ -65,6 +91,7 @@ public final class AhaKeyRuntimeXPCLibXPCServer: @unchecked Sendable {
         }
         self.codeSigningRequirement = codeSigningRequirement
         self.expectedUserID = expectedUserID
+        self.maxPayloadBytes = maxPayloadBytes
         self.endpointFactory = endpointFactory
     }
 
@@ -181,6 +208,11 @@ public final class AhaKeyRuntimeXPCLibXPCServer: @unchecked Sendable {
               payloadLength > 0
         else {
             replyError(peer: peer, reason: "missing-payload")
+            return
+        }
+        // 在 Data 分配前检查 payload 上限：超限直接拒绝，不进入业务 handler。
+        guard payloadLength <= maxPayloadBytes else {
+            replyError(peer: peer, reason: "payload-too-large")
             return
         }
         let requestData = Data(bytes: payloadPointer, count: payloadLength)
