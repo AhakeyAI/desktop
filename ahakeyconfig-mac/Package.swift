@@ -4,13 +4,16 @@ import PackageDescription
 let package = Package(
     name: "AhaKeyConfig",
     platforms: [
-        .macOS("12.0")
+        .macOS(.v13)
     ],
     products: [
         .executable(name: "AhaKeyConfig", targets: ["AhaKeyConfig"]),
         .executable(name: "ahakeyconfig-agent", targets: ["AhaKeyConfigAgent"]),
         .executable(name: "PluginShowcase", targets: ["PluginShowcase"]),
         .library(name: "AhaKeyPluginKit", targets: ["AhaKeyPluginKit"]),
+    ],
+    dependencies: [
+        .package(path: "../vibebar"),
     ],
 
     targets: [
@@ -30,7 +33,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "AhaKeyConfig",
-            dependencies: ["AhaKeyPluginKit"],
+            dependencies: [
+                "AhaKeyPluginKit",
+                .product(name: "VibeBar", package: "VibeBar"),
+            ],
             path: "Sources",
             exclude: ["Agent", "AhaKeyPlugin", "AhaKeyPluginKit", "AhaKeyPluginShowcase"],
             // 与 scripts/build.sh 中 Info.plist 一致。嵌入 __info_plist 段后 TCC 可识别。
@@ -53,6 +59,11 @@ let package = Package(
         .executableTarget(
             name: "AhaKeyConfigAgent",
             path: "Sources/Agent"
+        ),
+        .testTarget(
+            name: "AhaKeyConfigTests",
+            dependencies: ["AhaKeyConfig"],
+            path: "Tests/AhaKeyConfigTests"
         ),
     ]
 )

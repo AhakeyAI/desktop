@@ -3,16 +3,24 @@ import SwiftUI
 import AVFoundation
 import Speech
 import UserNotifications
+import VibeBar
 
 @main
 struct AhaKeyConfigApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var bleManager = AhaKeyBLEManager()
+    @State private var vibeBarBridge = VibeBarBridge()
 
     var body: some Scene {
         WindowGroup("AhaKey Studio") {
             ContentView(bleManager: bleManager)
                 .frame(minWidth: 1180, minHeight: 680)
+                .onAppear {
+                    vibeBarBridge.attach(bleManager: bleManager) { [weak appDelegate] in
+                        appDelegate?.reopenMainWindow()
+                    }
+                    VibeBarController.shared.start(state: vibeBarBridge.state)
+                }
         }
         .windowStyle(.titleBar)
 

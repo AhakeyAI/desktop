@@ -59,10 +59,15 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var lightMode: Int = 0
     @Published private(set) var switchState: Int = 0
     @Published private(set) var brightness: Int = 35
+    /// `nil` 表示尚未收到状态；`false` 表示旧协议固件（状态帧的亮度保留位为 0）。
+    /// 新固件把该字节定义为 1...100 的 WS2812 亮度，并实现 0x84/0x85/0x91。
+    @Published private(set) var supportsConfigurableLighting: Bool?
     @Published private(set) var bleConnectionStatus: String = "未连接"
     @Published private(set) var bleDeviceUUID: String = "—"
     @Published private(set) var bluetoothPermissionGranted = true
     @Published private(set) var bluetoothPoweredOn = false
+    /// 细分的「卡在哪条链路」诊断，把笼统的「等待设备」拆成可操作提示（Issue #34）。
+    @Published private(set) var linkDiagnostic: LinkDiagnostic = .idle
     @Published private(set) var oledUploadProgress: OLEDUploadProgress?
     @Published private(set) var isUploadingOLED = false
     /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），用于画布 LED 颜色实时还原
@@ -103,7 +108,19 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     static let firmwareRevisionCharUUID = CBUUID(string: "2A26")
     static let modelNumberCharUUID = CBUUID(string: "2A24")
 
-    nonisolated static let deviceNamePrefix = "AhaKey"
+    // 标准 HID Service —— 设备被系统蓝牙 / 语音链路连上后常只暴露 HID / DeviceInfo，
+    // 用它来把「已连接但已停止广播 0x7340」的设备从系统侧捞回来（见 connectAutomatically，Issue #34）。
+    static let hidServiceUUID = CBUUID(string: "1812")
+
+    /// 设备广播名前缀白名单。除官方 "AhaKey" 外，也认 vibe coding 固件的 "vibe code" 名
+    /// （CH582m_vibe_coding_BLE_keyboard 固件默认广播名形如 "vibe code XXXX"）。
+    nonisolated static let deviceNamePrefixes = ["AhaKey", "vibe code"]
+
+    /// 设备名是否匹配任一已知前缀（大小写无关）。
+    nonisolated static func matchesDeviceName(_ name: String?) -> Bool {
+        guard let lower = name?.lowercased() else { return false }
+        return deviceNamePrefixes.contains { lower.hasPrefix($0.lowercased()) }
+    }
 
     // MARK: - Private
 
@@ -188,17 +205,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
-    private static func currentBluetoothAuthorizationGranted() -> Bool {
-        switch CBCentralManager.authorization {
+    nonisolated static func isBluetoothAuthorizationGranted(_ authorization: CBManagerAuthorization) -> Bool {
+        switch authorization {
         case .allowedAlways:
             return true
         case .notDetermined:
-            return true
+            return false
         case .restricted, .denied:
             return false
         @unknown default:
-            return true
+            return false
         }
+    }
+
+    private static func currentBluetoothAuthorizationGranted() -> Bool {
+        isBluetoothAuthorizationGranted(CBCentralManager.authorization)
     }
 
     /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
@@ -214,9 +235,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func connectAutomatically() {
-        guard !suppressAutomaticConnection else { return }
+        guard !suppressAutomaticConnection else {
+            // 蓝牙交由 ahakeyconfig-agent 占用，本 App 不直连——这是预期行为，明确标记以免被当成故障。
+            linkDiagnostic = .ownedByAgent
+            return
+        }
         guard central?.state == .poweredOn else {
             pendingConnect = true
+            switch central?.state {
+            case .poweredOff: linkDiagnostic = .bluetoothOff
+            case .unauthorized: linkDiagnostic = .bluetoothUnauthorized
+            default: break
+            }
             return
         }
 
@@ -229,14 +259,24 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 p.delegate = self
                 central?.connect(p, options: nil)
                 bleConnectionStatus = "连接中…"
+                linkDiagnostic = .connecting
                 return
             }
         }
 
-        // 2. 查找系统已连接设备
-        let connected = central?.retrieveConnectedPeripherals(withServices: [Self.serviceUUID]) ?? []
-        if let existing = connected.first(where: { ($0.name ?? "").lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) }) {
-            appendLog("发现系统已连接设备: \(existing.name ?? "?")")
+        // 2. 查找系统已连接设备。
+        //    根因兜底（Issue #34）：设备一旦被系统蓝牙 / 语音(HID) 链路连上，通常会停止广播，
+        //    基于广播的 scanForPeripherals(withServices:[0x7340]) 永远扫不到它；且若此前无人发现过
+        //    0x7340，retrieveConnectedPeripherals(withServices:[0x7340]) 也为空。所以这里用更宽的标准
+        //    service 集合把设备捞回来，再主动 connect → didConnect 里 discoverServices 补发现 0x7340。
+        if let existing = systemConnectedAhaKeyPeripheral() {
+            if isConfigServiceVisible(existing) {
+                appendLog("发现系统已连接设备: \(existing.name ?? "?")")
+                linkDiagnostic = .connecting
+            } else {
+                appendLog("设备已被系统/语音链路连接但未广播配置服务，主动接管 0x7340: \(existing.name ?? "?")")
+                linkDiagnostic = .systemConnectedNoConfigLink
+            }
             self.peripheral = existing
             existing.delegate = self
             central?.connect(existing, options: nil)
@@ -248,6 +288,24 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         startScan()
     }
 
+    /// 用更宽的标准 service 集合在「系统已连接」外设里查找 AhaKey 设备——即使它已停止广播 0x7340。
+    private func systemConnectedAhaKeyPeripheral() -> CBPeripheral? {
+        let lookupServices = [
+            Self.serviceUUID,
+            Self.deviceInfoServiceUUID,
+            Self.batteryServiceUUID,
+            Self.hidServiceUUID,
+        ]
+        let connected = central?.retrieveConnectedPeripherals(withServices: lookupServices) ?? []
+        return connected.first { Self.matchesDeviceName($0.name) }
+    }
+
+    /// 该设备是否已在系统层暴露过 0x7340 配置 service：用于区分「完整可连」与「仅 HID / 语音链路」。
+    private func isConfigServiceVisible(_ peripheral: CBPeripheral) -> Bool {
+        (central?.retrieveConnectedPeripherals(withServices: [Self.serviceUUID]) ?? [])
+            .contains { $0.identifier == peripheral.identifier }
+    }
+
     func startScan() {
         guard central?.state == .poweredOn else {
             pendingConnect = true
@@ -255,6 +313,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         isScanning = true
         bleConnectionStatus = "扫描中…"
+        linkDiagnostic = .scanning
         appendLog("开始扫描 AhaKey 设备…")
         central?.scanForPeripherals(
             withServices: [Self.serviceUUID],
@@ -267,7 +326,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 self.central?.stopScan()
                 self.isScanning = false
                 self.bleConnectionStatus = "等待设备"
-                self.appendLog("扫描超时，继续后台轮询设备")
+                // 扫描超时后再用宽 service 探一次，区分「设备已连但未广播配置链路」与「彻底没发现设备」（Issue #34）。
+                if self.systemConnectedAhaKeyPeripheral() != nil {
+                    self.linkDiagnostic = .systemConnectedNoConfigLink
+                    self.appendLog("扫描超时：检测到设备已被系统/语音链路连接，但配置链路 0x7340 未建立")
+                } else {
+                    self.linkDiagnostic = .noDeviceFound
+                    self.appendLog("扫描超时，继续后台轮询设备")
+                }
             }
         }
     }
@@ -478,6 +544,69 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.previewLightEffect(effect))
         appendLog("→ 预览灯效 \(effect)")
+    }
+
+    /// 写入前主动验证新灯效协议。旧 v1.0 对未知命令也返回 status=0，不能只看 0x85 ACK；
+    /// 必须再查询状态并确认亮度字段真的变成期望值。
+    func verifyConfigurableLightingSupport(brightness value: UInt8) async throws {
+        guard commandChar != nil else { throw OLEDUploadError.channelNotReady }
+
+        let expected = max(1, min(100, value))
+        appendLog("验证灯效协议：写入亮度 \(expected)% 并回读…")
+        _ = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.setBrightness(expected),
+            expectedCommand: AhaKeyCommand.cmdSetBrightness
+        )
+
+        let response = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.queryDeviceStatus(),
+            expectedCommand: 0x00
+        )
+        guard let status = AhaKeyResponseParser.parseDeviceStatus(response.payload) else {
+            throw OLEDUploadError.invalidDeviceStatusPayload
+        }
+
+        let supported = status.brightness == Int(expected)
+        supportsConfigurableLighting = supported
+        guard supported else {
+            throw OLEDUploadError.unsupportedLightingFirmware(
+                main: status.firmwareMain,
+                sub: status.firmwareSub,
+                reportedBrightness: status.brightness
+            )
+        }
+        appendLog("灯效协议验证通过：0x84/0x85/0x91 可用")
+    }
+
+    /// 严格串行发送并等待每一条设备 ACK。只有所有命令（包括最后的 0x04 保存）
+    /// 都收到 status=0，调用方才能向用户报告“写入成功”。
+    func writeCommandsConfirmingResponses(
+        _ commands: [(data: Data, label: String)],
+        interCommandDelayMilliseconds: UInt64 = 50
+    ) async throws {
+        guard commandChar != nil else { throw OLEDUploadError.channelNotReady }
+
+        for (index, command) in commands.enumerated() {
+            guard command.data.count >= 5,
+                  command.data[0] == 0xAA,
+                  command.data[1] == 0xBB else {
+                throw OLEDUploadError.invalidCommandFrame
+            }
+            let commandID = command.data[2]
+            appendLog(command.label)
+            _ = try await sendCommandAwaitingResponse(
+                command.data,
+                expectedCommand: commandID
+            )
+
+            if index < commands.count - 1, interCommandDelayMilliseconds > 0 {
+                try await Task.sleep(nanoseconds: interCommandDelayMilliseconds * 1_000_000)
+            }
+        }
+    }
+
+    nonisolated static func statusAdvertisesConfigurableLighting(brightness: Int) -> Bool {
+        (1...100).contains(brightness)
     }
 
     func setWorkMode(_ mode: UInt8) {
@@ -696,8 +825,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     }
                 }
             }
-            group.addTask {
+            group.addTask { [weak self] in
                 try await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
+                // 超时必须主动 resume 仍挂着的 continuation 并移除它：CheckedContinuation 不响应任务取消，
+                // 否则 withThrowingTaskGroup 会一直等这个永不结束的子任务而 hang，导致本函数永不返回 →
+                // defer 不清理 → protocolResponseWaiters 残留 → 状态轮询被 guard 永久挡死（设备某档/某模式
+                // 不回应即复现：界面不再随键盘变化刷新，必须重连）。removeValue 原子取出，与响应处理互斥，不会重复 resume。
+                await MainActor.run { [weak self] in
+                    self?.protocolResponseWaiters.removeValue(forKey: expectedCommand)?
+                        .resume(throwing: OLEDUploadError.timeout(command: expectedCommand))
+                }
                 throw OLEDUploadError.timeout(command: expectedCommand)
             }
 
@@ -868,6 +1005,52 @@ final class SwitchStateNotifier: ObservableObject {
     }
 }
 
+/// 设备「卡在哪条链路」的细分诊断（Issue #34）：把笼统的「等待设备」拆成可操作的提示，
+/// 让用户能区分「蓝牙已连但配置链路未连」与「设备完全没连接」。
+enum LinkDiagnostic: Equatable {
+    case idle                          // 初始 / 空闲
+    case scanning                      // 扫描中
+    case connecting                    // 连接中
+    case connected                     // 配置链路 (0x7340) 已连
+    case bluetoothOff                  // 系统蓝牙未开启
+    case bluetoothUnauthorized         // 未授权蓝牙权限
+    case ownedByAgent                  // BLE 交由 ahakeyconfig-agent 占用（本 App 不直连，属预期）
+    case systemConnectedNoConfigLink   // 设备已被系统 / 语音(HID) 链路连接，但 0x7340 配置链路未建立
+    case noDeviceFound                 // 未发现设备（未开机 / 不在范围 / 未配对）
+
+    /// 顶栏 pill 用的极简副标题。
+    var shortMessage: String {
+        switch self {
+        case .idle, .scanning: return "扫描中…"
+        case .connecting: return "连接中…"
+        case .connected: return "已连接"
+        case .bluetoothOff: return "蓝牙未开启"
+        case .bluetoothUnauthorized: return "无蓝牙权限"
+        case .ownedByAgent: return "Agent 占用中"
+        case .systemConnectedNoConfigLink: return "配置链路未连"
+        case .noDeviceFound: return "未发现设备"
+        }
+    }
+
+    /// 详细可操作说明，供设备信息 / tooltip 展示。
+    var detail: String {
+        switch self {
+        case .idle: return "正在初始化蓝牙…"
+        case .scanning: return "正在扫描 AhaKey 设备…"
+        case .connecting: return "正在连接设备…"
+        case .connected: return "AhaKey 配置链路 (0x7340) 已连接。"
+        case .bluetoothOff: return "系统蓝牙未开启。请在「控制中心 / 系统设置 > 蓝牙」打开蓝牙。"
+        case .bluetoothUnauthorized: return "未授权蓝牙权限。请在「系统设置 > 隐私与安全性 > 蓝牙」中允许 AhaKey Studio。"
+        case .ownedByAgent: return "蓝牙当前交由 ahakeyconfig-agent 占用，本 App 不直接连接（这是预期行为）。配置链路状态请参考 Agent；如需本 App 直连，请在设备信息里把「蓝牙连接」切回本 App。"
+        case .systemConnectedNoConfigLink: return "设备已通过系统蓝牙（HID / 语音链路）连接，但 AhaKey 配置服务 0x7340 尚未建立。本 App 正在尝试主动接管该链路；若长时间无效，请在「系统设置 > 蓝牙」忽略此设备后重新配对。"
+        case .noDeviceFound: return "未发现 AhaKey 设备。请确认设备已开机、处于蓝牙范围内并已与本机配对。"
+        }
+    }
+
+    /// 是否为「配置链路完整可用」。
+    var isHealthy: Bool { self == .connected }
+}
+
 enum OLEDUploadError: LocalizedError {
     case channelNotReady
     case noFrames
@@ -876,6 +1059,9 @@ enum OLEDUploadError: LocalizedError {
     case timeout(command: UInt8)
     case deviceRejected(command: UInt8, status: UInt8)
     case invalidPictureStatePayload
+    case invalidDeviceStatusPayload
+    case invalidCommandFrame
+    case unsupportedLightingFirmware(main: Int, sub: Int, reportedBrightness: Int)
 
     var errorDescription: String? {
         switch self {
@@ -893,6 +1079,12 @@ enum OLEDUploadError: LocalizedError {
             return String(format: "设备拒绝了命令 0x%02X，状态码 0x%02X", command, status)
         case .invalidPictureStatePayload:
             return "设备返回的动画槽位信息无法解析。"
+        case .invalidDeviceStatusPayload:
+            return "设备返回的状态信息无法解析。"
+        case .invalidCommandFrame:
+            return "待写入的命令帧格式不正确。"
+        case .unsupportedLightingFirmware(let main, let sub, let reportedBrightness):
+            return "当前键盘是旧灯效协议固件（设备回报 v\(main).\(sub)，亮度字段 \(reportedBrightness)），不会执行 0x84/0x85/0x91。请先刷入 2026-06-22 后的新固件，本次未上报写入成功。"
         }
     }
 }
@@ -911,10 +1103,12 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
                 self.bleConnectionStatus = "蓝牙关闭"
+                self.linkDiagnostic = .bluetoothOff
             case .unauthorized:
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙权限未开启", isError: true)
                 self.bleConnectionStatus = "蓝牙权限未开启"
+                self.linkDiagnostic = .bluetoothUnauthorized
             default:
                 self.refreshBluetoothAuthorization()
                 break
@@ -929,7 +1123,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         let name = peripheral.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
-        guard name.lowercased().hasPrefix(Self.deviceNamePrefix.lowercased()) else { return }
+        guard Self.matchesDeviceName(name) else { return }
 
         Task { @MainActor in
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
@@ -949,6 +1143,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.bleDeviceUUID = peripheral.identifier.uuidString
             self.lastPeripheralUUID = peripheral.identifier
             self.bleConnectionStatus = "已连接"
+            self.linkDiagnostic = .connected
             self.appendLog("已连接: \(peripheral.name ?? "?") UUID=\(peripheral.identifier.uuidString)")
             self.autoReconnectTimer?.invalidate()
             self.autoReconnectTimer = nil
@@ -997,6 +1192,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.dataCharReady = false
             self.commandCharReady = false
             self.notifyCharReady = false
+            self.supportsConfigurableLighting = nil
             // 不清 peripheral 和 lastPeripheralUUID——用于直连重试
             self.peripheral = nil
             self.writeQueue.removeAll()
@@ -1162,6 +1358,9 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             lightMode = status.lightMode
             switchState = status.switchState
             brightness = status.brightness
+            supportsConfigurableLighting = Self.statusAdvertisesConfigurableLighting(brightness: status.brightness)
+            // 状态帧不是普通的 [cmd,status] ACK，需要在这里单独唤醒 0x00 查询等待者。
+            protocolResponseWaiters.removeValue(forKey: 0x00)?.resume(returning: (status: 0, payload: data))
             appendLog("  状态: 电量=\(status.battery) 固件=\(status.firmwareMain).\(status.firmwareSub) 模式=\(status.workMode) 灯=\(status.lightMode) 开关=\(status.switchState) 亮度=\(status.brightness)")
         } else if AhaKeyResponseParser.isProtocolFrame(data) {
             if let response = AhaKeyResponseParser.parseCommandResponse(data) {

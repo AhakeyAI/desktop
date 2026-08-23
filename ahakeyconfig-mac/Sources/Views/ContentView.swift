@@ -6,7 +6,6 @@ struct ContentView: View {
     @StateObject private var voiceRelay = VoiceRelayService.shared
     @StateObject private var nativeSpeech = NativeSpeechTranscriptionService.shared
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
-    @State private var dismissedIncompleteOnboardingThisSession = false
 
     var body: some View {
         ZStack {
@@ -20,7 +19,6 @@ struct ContentView: View {
                     actions: onboardingActions
                 ) { _, _ in
                     unifiedOnboardingCompleted = true
-                    dismissedIncompleteOnboardingThisSession = !onboardingPermissionState.allPermissionsGranted
                     voiceRelay.suppressPermissionOnboarding(for: 60)
                 }
                 .transition(.opacity)
@@ -39,7 +37,6 @@ struct ContentView: View {
         }
         .onChange(of: onboardingPermissionState.allPermissionsGranted) { allGranted in
             if allGranted {
-                dismissedIncompleteOnboardingThisSession = false
                 unifiedOnboardingCompleted = true
                 voiceRelay.showsPermissionOnboarding = false
             } else if shouldShowUnifiedOnboarding {
@@ -78,8 +75,7 @@ struct ContentView: View {
     }
 
     private var shouldShowUnifiedOnboarding: Bool {
-        !unifiedOnboardingCompleted ||
-            (!onboardingPermissionState.allPermissionsGranted && !dismissedIncompleteOnboardingThisSession)
+        !unifiedOnboardingCompleted
     }
 
     private var onboardingActions: AhaKeyOnboardingActions {

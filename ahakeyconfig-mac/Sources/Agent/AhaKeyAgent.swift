@@ -28,8 +28,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let serviceUUID = CBUUID(string: "7340")
     private let commandCharUUID = CBUUID(string: "7343")
     private let notifyCharUUID = CBUUID(string: "7344")
-    private let deviceNamePrefix = "AhaKey"
+    /// 设备名前缀白名单：官方 "AhaKey" 及 vibe coding 固件的 "vibe code"（与主 App 保持一致）。
+    private let deviceNamePrefixes = ["AhaKey", "vibe code"]
     private let socketPath: String
+
+    private func matchesDeviceName(_ name: String?) -> Bool {
+        guard let lower = name?.lowercased() else { return false }
+        return deviceNamePrefixes.contains { lower.hasPrefix($0.lowercased()) }
+    }
 
     private let header: [UInt8] = [0xAA, 0xBB]
     private let trailer: [UInt8] = [0xCC, 0xDD]
@@ -442,7 +448,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         // 2. 系统已连接
         let connected = central.retrieveConnectedPeripherals(withServices: [serviceUUID])
-        if let p = connected.first(where: { ($0.name ?? "").lowercased().hasPrefix(deviceNamePrefix.lowercased()) }) {
+        if let p = connected.first(where: { matchesDeviceName($0.name) }) {
             emit("系统已连接: \(p.name ?? "?")")
             peripheral = p
             p.delegate = self
@@ -472,7 +478,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
         let name = peripheral.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
-        guard name.lowercased().hasPrefix(deviceNamePrefix.lowercased()) else { return }
+        guard matchesDeviceName(name) else { return }
         central.stopScan()
         emit("发现: \(name)")
         self.peripheral = peripheral
