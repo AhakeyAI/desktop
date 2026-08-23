@@ -178,6 +178,34 @@ public struct AhaKeyRuntimeXPCPeerPolicy: Sendable {
             && identity.teamIdentifier == expectedTeamIdentifier
             && allowedSigningIdentifiers.contains(identity.signingIdentifier)
     }
+
+    // MARK: - WBS 5.2 生产 libxpc peer requirement
+
+    /// 批准的发布 Team ID（Developer ID 签名链）。
+    public static let productionTeamIdentifier = "P2VFVRZK7P"
+    /// 允许连接生产 Runtime XPC 的客户端签名身份（Studio；后续签名 Runtime helper 加入此集合）。
+    public static let productionAllowedSigningIdentifiers: Set<String> = ["lab.jawa.ahakeyconfig"]
+
+    /// 生产默认策略：当前 UID + 批准 Team ID + Studio 签名身份。测试不得通过此处弱化默认值；
+    /// 测试 identity 只能经 init 显式注入。
+    public static func production(expectedUserID: UInt32 = getuid()) -> Self {
+        Self(
+            expectedUserID: expectedUserID,
+            expectedTeamIdentifier: productionTeamIdentifier,
+            allowedSigningIdentifiers: productionAllowedSigningIdentifiers
+        )
+    }
+
+    /// 生成绑定到 XPC peer 的 code signing requirement 字符串（macOS 12+
+    /// `xpc_connection_set_peer_code_signing_requirement` 语义）：Apple 信任锚 +
+    /// 批准 Team ID + 允许的签名身份之一。
+    public var codeSigningRequirement: String {
+        let identifiers = allowedSigningIdentifiers
+            .sorted()
+            .map { "identifier \"\($0)\"" }
+            .joined(separator: " or ")
+        return "anchor apple generic and certificate leaf[subject.OU] = \"\(expectedTeamIdentifier)\" and (\(identifiers))"
+    }
 }
 
 public struct AhaKeyRuntimeXPCHandshake: Codable, Equatable, Sendable {
