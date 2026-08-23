@@ -250,4 +250,12 @@ R0 interface v1.1 已冻结：
 - 永久失败区分“未写入”和“保留部分提交”；部分完成记录真实 completed/total steps。
 - operation ID 的相同配置包在 revision 推进后仍可幂等重放，内容冲突仍被拒绝。
 
-下一阶段是 R0 持久化内核：SQLite WAL journal、内容寻址资源仓库、配额和崩溃恢复；尚未接入生产 Runtime、BLE/USB 或 Studio。
+R0 持久化内核已完成：
+
+- SQLite 使用 WAL、`synchronous=FULL`、schema version 和外键约束；拒绝打开更高版本 schema。
+- 已受理事务、步骤确认、同步基线、RuntimePolicy 和事件序号均可跨进程重启恢复；崩溃前的 `running` 状态重开后归一为 `paused`。
+- 资源在事务受理前校验普通文件、长度和 SHA-256，复制到权限收紧的内容寻址目录；相同摘要去重计费，并实施单文件与总容量配额。
+- 恢复前重新验证托管资源完整性；符号链接、损坏资源和 operation ID 内容冲突均拒绝。
+- 9 项持久化集成测试与完整 194 项 Swift 测试通过。
+
+下一阶段是 WBS 5.2 生产 seam：签名 XPC、受限 framed Hook socket、版本握手和事件重放。持久内核尚未接入生产 Runtime、BLE/USB 或 Studio。

@@ -27,10 +27,11 @@
 | 产物 | 状态 | 处理决定 |
 |---|---|---|
 | Runtime 架构规格 | 初稿完成 | 纳入本文并继续校准语音、轮询与跨平台边界 |
-| `AhaKeyRuntimeContract.swift` | WBS 5.0 interface v1.1 已冻结，契约测试通过 | 下一步只从公开 interface 向 SQLite 持久层推进 |
+| `AhaKeyRuntimeContract.swift` | WBS 5.0 interface v1.1 已冻结，契约测试通过 | 持久层只依赖该公开 interface，不反向泄漏 SQL/文件布局 |
 | `AhaKeyInMemoryRuntimeAdapter.swift` | R0 测试 Adapter 原型 | 仅测试使用，不接入生产路径 |
-| `AhaKeyRuntimeContractTests.swift` | 14 项契约测试；完整 Swift 套件 185 项通过 | 作为后续兼容基线 |
-| SQLite WAL、资源仓库、XPC、Hook socket | 未开始 | 按 WBS 5 顺序实施 |
+| Runtime 持久化测试 | 14 项契约测试、9 项持久化集成测试；完整 Swift 套件 194 项通过 | 作为后续兼容与崩溃恢复基线 |
+| SQLite WAL、资源仓库 | WBS 5.1 已完成 | 生产 Runtime 接入前保持为独立持久事务内核 |
+| XPC、Hook socket | 未开始 | 下一批按 WBS 5.2 实施 |
 | Runtime 设备独占、Studio 纯客户端化 | 未开始 | 未完成前不得宣称新客户端架构正式交付 |
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
 | WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md) |
@@ -841,7 +842,7 @@ AhaType
 | ID | 工作包 | 产物 | 依赖 |
 |---|---|---|---|
 | 5.0 | **已完成**：冻结 RuntimePolicy、Snapshot、Event、ConfigurationPackage 与 revision 语义 | R0 interface v1.1 | 无 |
-| 5.1 | SQLite WAL journal、内容寻址资源仓库、配额与崩溃恢复 | 持久事务内核 | 5.0 |
+| 5.1 | **已完成**：SQLite WAL journal、内容寻址资源仓库、配额与崩溃恢复 | 持久事务内核 | 5.0 |
 | 5.2 | 签名 XPC、受限 framed hook socket、握手与事件重放 | 生产 seam | 5.0-5.1 |
 | 5.3 | Agent 演进为 RuntimeOrchestrator，迁移 AhaType、AI Hook/批准、灯效与防休眠 | 单一后台进程 | 5.2 |
 | 5.4 | 按策略启停模块；区分前台纯硬件语音、AhaType 与定向路由 | 生命周期测试 | 5.3 |
@@ -852,7 +853,7 @@ AhaType
 | 5.9 | 旧 Agent 清理、签名 helper、Keychain/权限/安装迁移与原子更新 | 正式 Runtime 安装链 | 5.3-5.8 |
 | 5.10 | macOS interface 的跨平台语义抽象与 Windows Adapter 方案 | 跨平台 seam 决定 | 5.0、4.7 |
 
-退出条件：Runtime 是生产环境唯一设备 owner；Studio 完全退出后增强功能和已受理事务继续；纯硬件配置时 Runtime 不常驻；配置、崩溃恢复、权限升级和旧 Agent 清理均通过实机验证。WBS 5.0 已完成；必须先完成 5.1-5.3，不能跳到 5.5 或 5.7。
+退出条件：Runtime 是生产环境唯一设备 owner；Studio 完全退出后增强功能和已受理事务继续；纯硬件配置时 Runtime 不常驻；配置、崩溃恢复、权限升级和旧 Agent 清理均通过实机验证。WBS 5.0-5.1 已完成；必须继续完成 5.2-5.3，不能跳到 5.5 或 5.7。
 
 ### WBS 5A：最近待操作会话定向（18-29 人日）
 
