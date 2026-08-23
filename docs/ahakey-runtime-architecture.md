@@ -260,4 +260,12 @@ R0 持久化内核已完成：
 - `resumablePartial` 内部名称继续使用 v1.1 的 `partiallyCompleted` wire/SQLite 值，并兼容解码两种拼写，避免破坏冻结接口和既有 journal。
 - 12 项持久化集成测试与完整 197 项 Swift 测试通过。
 
-下一阶段是 WBS 5.2 生产 seam：签名 XPC、受限 framed Hook socket、版本握手和事件重放。持久内核尚未接入生产 Runtime、BLE/USB 或 Studio。
+R1 的 WBS 5.2 已完成 Hook 与 XPC wire/client seam，生产 XPC server 和签名双进程 smoke 尚未关闭：
+
+- Studio 通道已完成版本化 request/response、session endpoint、`NSXPCConnection` client bridge、超时/取消和单次 reply gate。请求必须先协商 interface current/N-1，消息上限为 8 MiB；握手返回 Runtime/interface/configuration schema 版本与能力集合，白名单包含诊断和固件升级入口。macOS 12 的生产 server 必须改用 C libxpc，在激活 accepted peer 前设置 code-signing requirement 并校验 EUID；禁止通过 `NSXPCConnection.processIdentifier` 二次查询 SecCode，因为它不能与原始连接 audit identity 严格绑定。
+- Hook 通道使用 4-byte big-endian 长度前缀 JSON frame，单帧默认上限 64 KiB；socket 父目录 `0700`、socket `0600`，server/client 双向校验同 UID 和文件类型。只公开 AI 状态、批准查询和拨杆查询，不能构造配置包、固件或任意 opcode。
+- Hook current/N-1 握手、build ID 上限、连接内与跨连接限速、读写超时、半包/连续帧及安全 stale socket 清理均在 seam 内处理。
+- 有界事件重放检测游标断档；断档时显式要求刷新权威 Snapshot，进度 UI 不依赖事件必达。
+- 新增 14 项生产 seam 测试；完整 Swift 测试为 211 项，Release 构建通过。
+
+下一步先实现最小 libxpc Runtime server，并生成签名 Runtime/Studio 双进程外壳，完成无设备 XPC 正向连接和错误签名拒绝 smoke，以关闭 WBS 5.2。随后进入 WBS 5.3：把现有 Agent 演进为 RuntimeOrchestrator，并将 AhaType、AI Hook/批准、动态灯效与防休眠接到上述 seam。持久内核和生产 seam 尚未成为 BLE/USB 唯一 owner；第一次真实键盘/拨杆门禁安排在 5.3 接入现有设备路径后、5.3 宣告完成前。

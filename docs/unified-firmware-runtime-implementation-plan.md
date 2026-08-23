@@ -31,7 +31,7 @@
 | `AhaKeyInMemoryRuntimeAdapter.swift` | R0 测试 Adapter 原型 | 仅测试使用，不接入生产路径 |
 | Runtime 持久化测试 | 14 项契约测试、12 项持久化集成测试；完整 Swift 套件 197 项通过 | 作为后续兼容与崩溃恢复基线 |
 | SQLite WAL、资源仓库 | WBS 5.1 已完成 | 生产 Runtime 接入前保持为独立持久事务内核 |
-| XPC、Hook socket | 未开始 | 下一批按 WBS 5.2 实施 |
+| XPC、Hook socket | Hook 与 XPC wire/client seam 已完成；生产 server 待 libxpc 签名绑定 | 先完成 libxpc server 与无设备双签名进程 smoke，再进入 5.3 RuntimeOrchestrator 与真实拨杆门禁 |
 | Runtime 设备独占、Studio 纯客户端化 | 未开始 | 未完成前不得宣称新客户端架构正式交付 |
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
 | WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md) |
@@ -843,7 +843,7 @@ AhaType
 |---|---|---|---|
 | 5.0 | **已完成**：冻结 RuntimePolicy、Snapshot、Event、ConfigurationPackage 与 revision 语义 | R0 interface v1.1 | 无 |
 | 5.1 | **已完成**：SQLite WAL journal、内容寻址资源仓库、配额与崩溃恢复 | 持久事务内核 | 5.0 |
-| 5.2 | 签名 XPC、受限 framed hook socket、握手与事件重放 | 生产 seam | 5.0-5.1 |
+| 5.2 | **部分完成**：受限 framed Hook socket、XPC wire/client、握手与事件重放已完成；待 libxpc peer signing requirement server 与双签名进程 smoke 后关闭 | 生产 seam | 5.0-5.1 |
 | 5.3 | Agent 演进为 RuntimeOrchestrator，迁移 AhaType、AI Hook/批准、灯效与防休眠 | 单一后台进程 | 5.2 |
 | 5.4 | 按策略启停模块；区分前台纯硬件语音、AhaType 与定向路由 | 生命周期测试 | 5.3 |
 | 5.5 | BLE/USB、current-only 协商、设备身份、命令队列、waiter 与断线恢复迁入 Runtime | 唯一设备 owner | 5.1-5.3 |
@@ -1011,6 +1011,19 @@ Release 2（再 2-3 周）
 Release 2 不能反向阻塞 Release 1；会话定向属于 Runtime 增强能力，不改变基础语音的纯硬件承诺。
 
 ## 15. 发布门禁与验收矩阵
+
+### 15.0 过程测试与实机介入节奏
+
+测试不得集中到 WBS 6。每个 Runtime 批次采用以下逐级门禁：
+
+1. **每次提交**：相关公开 seam 的单元/契约测试、`git diff --check`；批次结束运行完整 Swift 测试和 Release 构建。
+2. **WBS 5.2 无设备集成门禁**：连续/拆分/超长 frame、N/N-1 握手、未握手拒绝、白名单消息、跨连接总限速、socket `0600` 与同 UID、XPC wire/timeout/cancellation、事件断档强制 Snapshot。生产 server 在 macOS 12+ 使用 C libxpc 的 `xpc_connection_set_peer_code_signing_requirement` 与 `xpc_connection_get_euid`，不允许用 `NSXPCConnection.processIdentifier` 重新查询 SecCode。随后用两个实际签名进程验证 Studio ↔ Runtime XPC；错误 Team/Signing ID 必须拒绝。签名 smoke 不需要键盘，未通过时 WBS 5.2 保持“部分完成”。
+3. **第一次实机冒烟——签名 smoke 通过且 WBS 5.3 接入现有 Agent 路径后、5.3 完成前**：使用当前可用固件和至少一把真实键盘，不等待统一固件。必须验证 Hook ↔ Runtime socket、实时拨杆“自动/手动”切换、Studio 完全退出后 AI 检测与防休眠继续、断连重连，以及后台状态响应不超过 2 秒。连接键盘连续运行至少 30 分钟并采样 CPU/RSS；相同状态轮询必须零 UI 发布、零常规磁盘日志。此门禁失败不得宣告 5.3 完成。
+4. **第二次实机 HIL——WBS 5.5 唯一设备 owner 完成后**：macOS 上 BLE/USB 各跑连接、切换、睡眠唤醒、迟到回包隔离和 Studio 退出；确认旧 Agent/Studio 不再争抢设备。
+5. **配置事务实机 HIL——WBS 5.6 完成后**：图片与基础配置、取消、断电、断连、恢复、容量拒绝和 revision/baseline 一致性。
+6. **完整发布 HIL——WBS 6.2/6.4**：Mac/Windows × USB/BLE、Standard/Rhino、升级/降级、8 小时重连与性能矩阵。这是发布门禁，不替代前述早期实机测试。
+
+第一次实机使用现有固件验证 Runtime/Hook/拨杆后台链路；统一固件的平台识别、纯硬件语音和自定义拨杆宏按 WBS 1-3 的固件 Alpha 另行验收，二者不能混为一次测试。
 
 ### 15.1 纯硬件语音
 
