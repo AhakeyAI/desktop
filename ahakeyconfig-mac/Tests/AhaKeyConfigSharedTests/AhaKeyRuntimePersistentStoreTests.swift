@@ -261,6 +261,32 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         }
     }
 
+    func testLegacyPartialStateInJournalRecoversAsResumablePartial() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePackage()
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            _ = try await store.accept(package, resourceFiles: [:])
+        }
+
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        let sql = """
+        UPDATE runtime_transactions
+        SET state='partiallyCompleted', completed_steps=2, total_steps=5
+        WHERE operation_id='\(package.operationID.rawValue.uuidString)'
+        """
+        XCTAssertEqual(sqlite3_exec(database, sql, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(database)
+
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let candidates = try await reopened.recoveryCandidates()
+        XCTAssertEqual(candidates.first?.state, .resumablePartial)
+        XCTAssertEqual(candidates.first?.completedSteps, 2)
+    }
+
     func testAcceptanceRejectsSymbolicLinkResourceSources() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

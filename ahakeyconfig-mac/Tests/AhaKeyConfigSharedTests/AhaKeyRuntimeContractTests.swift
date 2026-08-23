@@ -278,11 +278,20 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode([AhaKeyRuntimeEvent].self, from: encoded), events)
     }
 
-    func testPermanentFailureStatesDistinguishWhetherDeviceWasModified() {
+    func testPermanentFailureStatesDistinguishWhetherDeviceWasModified() throws {
         XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithoutWrites.isTerminal)
         XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithPartialCommit.isTerminal)
         XCTAssertTrue(AhaKeyRuntimeOperationState.resumablePartial.isRecoveryCandidate)
         XCTAssertFalse(AhaKeyRuntimeOperationState.resumablePartial.isTerminal)
+        let legacyWireValue = Data("\"partiallyCompleted\"".utf8)
+        XCTAssertEqual(
+            try JSONDecoder().decode(AhaKeyRuntimeOperationState.self, from: legacyWireValue),
+            .resumablePartial
+        )
+        XCTAssertEqual(
+            try JSONEncoder().encode(AhaKeyRuntimeOperationState.resumablePartial),
+            legacyWireValue
+        )
         XCTAssertNotEqual(
             AhaKeyRuntimeOperationState.failedWithoutWrites,
             AhaKeyRuntimeOperationState.failedWithPartialCommit

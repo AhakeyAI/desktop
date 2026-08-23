@@ -120,6 +120,9 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         guard let summary = currentSnapshot.operations.first(where: { $0.id == operation }) else {
             throw AhaKeyInMemoryRuntimeAdapterError.operationNotFound
         }
+        guard !summary.state.isTerminal else {
+            throw AhaKeyInMemoryRuntimeAdapterError.terminalOperationCannotResume
+        }
         let resolvedTotalSteps = totalSteps ?? summary.totalSteps
         let resolvedCompletedSteps = completedSteps ?? resolvedTotalSteps
         guard resolvedCompletedSteps <= resolvedTotalSteps else {
@@ -155,6 +158,9 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         }
         guard let summary = currentSnapshot.operations.first(where: { $0.id == operation }) else {
             throw AhaKeyInMemoryRuntimeAdapterError.operationNotFound
+        }
+        guard !summary.state.isTerminal else {
+            throw AhaKeyInMemoryRuntimeAdapterError.terminalOperationCannotResume
         }
         let updated = AhaKeyRuntimeOperationSummary(
             id: summary.id,
@@ -233,4 +239,5 @@ public enum AhaKeyInMemoryRuntimeAdapterError: Error, Equatable, Sendable {
     case operationNotFound
     case nonTerminalCompletion
     case invalidStepProgress
+    case terminalOperationCannotResume
 }

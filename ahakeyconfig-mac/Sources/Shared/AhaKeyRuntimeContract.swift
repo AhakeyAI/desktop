@@ -632,6 +632,35 @@ public enum AhaKeyRuntimeOperationState: String, Codable, Equatable, Sendable {
     }
 
     public var isRecoveryCandidate: Bool { !isTerminal }
+
+    /// Interface v1.1 shipped the resumable partial state under this wire spelling.
+    /// Keep encoding it so older v1.1 clients remain able to decode new events/snapshots.
+    public var compatibleRawValue: String {
+        self == .resumablePartial ? "partiallyCompleted" : rawValue
+    }
+
+    public init?(compatibleRawValue: String) {
+        if compatibleRawValue == "partiallyCompleted" {
+            self = .resumablePartial
+        } else {
+            self.init(rawValue: compatibleRawValue)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        guard let value = Self(compatibleRawValue: rawValue) else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Unknown operation state")
+            )
+        }
+        self = value
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(compatibleRawValue)
+    }
 }
 
 public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {

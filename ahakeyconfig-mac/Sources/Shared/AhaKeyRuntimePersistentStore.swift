@@ -667,7 +667,7 @@ public actor AhaKeyRuntimePersistentStore {
             """
         )
         defer { sqlite3_finalize(statement) }
-        try bind(summary.state.rawValue, at: 1, to: statement)
+        try bind(summary.state.compatibleRawValue, at: 1, to: statement)
         try bind(UInt64(summary.completedSteps), at: 2, to: statement)
         try bind(UInt64(summary.totalSteps), at: 3, to: statement)
         if let messageCode = summary.messageCode {
@@ -717,7 +717,7 @@ public actor AhaKeyRuntimePersistentStore {
         guard let packageBytes = sqlite3_column_blob(statement, columnOffset),
               let stateText = sqlite3_column_text(statement, columnOffset + 1),
               let state = AhaKeyRuntimeOperationState(
-                  rawValue: String(cString: stateText)
+                  compatibleRawValue: String(cString: stateText)
               ) else {
             throw AhaKeyRuntimePersistenceError.corruptTransaction
         }
@@ -762,7 +762,7 @@ public actor AhaKeyRuntimePersistentStore {
         defer { sqlite3_finalize(statement) }
         try bind(package.operationID.rawValue.uuidString, at: 1, to: statement)
         try bind(encoder.encode(package), at: 2, to: statement)
-        try bind(AhaKeyRuntimeOperationState.accepted.rawValue, at: 3, to: statement)
+        try bind(AhaKeyRuntimeOperationState.accepted.compatibleRawValue, at: 3, to: statement)
         try stepDone(statement)
     }
 
