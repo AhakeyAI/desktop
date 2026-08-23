@@ -143,16 +143,15 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         let package = try package(baseRevision: 11)
         _ = try await adapter.apply(package)
 
-        try await adapter.complete(
+        try await adapter.recordResumablePartial(
             operation: package.operationID,
-            state: .partiallyCompleted,
             completedSteps: 2,
             totalSteps: 5
         )
 
         let snapshot = try await adapter.snapshot()
         XCTAssertEqual(snapshot.configurationRevision, .init(11))
-        XCTAssertEqual(snapshot.operations.first?.state, .partiallyCompleted)
+        XCTAssertEqual(snapshot.operations.first?.state, .resumablePartial)
         XCTAssertEqual(snapshot.operations.first?.completedSteps, 2)
         XCTAssertEqual(snapshot.operations.first?.totalSteps, 5)
     }
@@ -282,8 +281,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     func testPermanentFailureStatesDistinguishWhetherDeviceWasModified() {
         XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithoutWrites.isTerminal)
         XCTAssertTrue(AhaKeyRuntimeOperationState.failedWithPartialCommit.isTerminal)
-        XCTAssertTrue(AhaKeyRuntimeOperationState.partiallyCompleted.isRecoveryCandidate)
-        XCTAssertFalse(AhaKeyRuntimeOperationState.partiallyCompleted.isFinalResult)
+        XCTAssertTrue(AhaKeyRuntimeOperationState.resumablePartial.isRecoveryCandidate)
+        XCTAssertFalse(AhaKeyRuntimeOperationState.resumablePartial.isTerminal)
         XCTAssertNotEqual(
             AhaKeyRuntimeOperationState.failedWithoutWrites,
             AhaKeyRuntimeOperationState.failedWithPartialCommit

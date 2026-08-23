@@ -122,8 +122,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         }
         let resolvedTotalSteps = totalSteps ?? summary.totalSteps
         let resolvedCompletedSteps = completedSteps ?? resolvedTotalSteps
-        guard resolvedCompletedSteps <= resolvedTotalSteps,
-              state != .partiallyCompleted || resolvedCompletedSteps < resolvedTotalSteps else {
+        guard resolvedCompletedSteps <= resolvedTotalSteps else {
             throw AhaKeyInMemoryRuntimeAdapterError.invalidStepProgress
         }
         let updated = AhaKeyRuntimeOperationSummary(
@@ -142,6 +141,30 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
                 )
             )
         }
+        publish(.operationChanged(updated), context: eventContext(for: updated))
+    }
+
+    public func recordResumablePartial(
+        operation: AhaKeyRuntimeOperationID,
+        completedSteps: UInt32,
+        totalSteps: UInt32,
+        messageCode: AhaKeyRuntimeEventCode? = nil
+    ) throws {
+        guard completedSteps < totalSteps else {
+            throw AhaKeyInMemoryRuntimeAdapterError.invalidStepProgress
+        }
+        guard let summary = currentSnapshot.operations.first(where: { $0.id == operation }) else {
+            throw AhaKeyInMemoryRuntimeAdapterError.operationNotFound
+        }
+        let updated = AhaKeyRuntimeOperationSummary(
+            id: summary.id,
+            targetDeviceID: summary.targetDeviceID,
+            state: .resumablePartial,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode
+        )
+        replaceOperation(updated)
         publish(.operationChanged(updated), context: eventContext(for: updated))
     }
 

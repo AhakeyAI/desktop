@@ -621,26 +621,17 @@ public enum AhaKeyRuntimeOperationState: String, Codable, Equatable, Sendable {
     case paused
     case cancellationRequested
     case completed
-    case partiallyCompleted
+    case resumablePartial
     case failedWithoutWrites
     case failedWithPartialCommit
 
     public var isTerminal: Bool {
         self == .completed
-            || self == .partiallyCompleted
             || self == .failedWithoutWrites
             || self == .failedWithPartialCommit
     }
 
-    /// A final result cannot be resumed under the same operation identifier.
-    /// `partiallyCompleted` ends one execution attempt but remains recoverable.
-    public var isFinalResult: Bool {
-        self == .completed
-            || self == .failedWithoutWrites
-            || self == .failedWithPartialCommit
-    }
-
-    public var isRecoveryCandidate: Bool { !isFinalResult }
+    public var isRecoveryCandidate: Bool { !isTerminal }
 }
 
 public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {

@@ -7,7 +7,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
     private struct AllowingResourceValidator: AhaKeyRuntimePackageAcceptanceValidator {
         func validate(
             package: AhaKeyConfigurationPackage,
-            managedResourceURLs: [AhaKeyResourceIdentifier: URL]
+            resources: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
         ) throws {}
     }
 
@@ -296,15 +296,14 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let package = try makePackage()
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         _ = try await store.accept(package, resourceFiles: [:])
-        try await store.commitOperationOutcome(
+        try await store.updateOperation(
             .init(
                 id: package.operationID,
                 targetDeviceID: package.targetDeviceID,
-                state: .partiallyCompleted,
+                state: .resumablePartial,
                 completedSteps: 2,
                 totalSteps: 5
-            ),
-            syncBaseline: nil
+            )
         )
         try await store.updateOperation(
             .init(

@@ -87,10 +87,20 @@ public struct AhaKeyRuntimeSyncBaseline: Codable, Equatable, Sendable {
 
 /// Domain/device validation remains outside the storage module, but it is mandatory before
 /// a package containing resources can be accepted. WBS 5.6 supplies the production planner.
+public struct AhaKeyRuntimeResourceValidationInput: Sendable {
+    public let resource: AhaKeyConfigurationResource
+    public let contents: Data
+
+    public init(resource: AhaKeyConfigurationResource, contents: Data) {
+        self.resource = resource
+        self.contents = contents
+    }
+}
+
 public protocol AhaKeyRuntimePackageAcceptanceValidator: Sendable {
     func validate(
         package: AhaKeyConfigurationPackage,
-        managedResourceURLs: [AhaKeyResourceIdentifier: URL]
+        resources: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
     ) throws
 }
 
@@ -99,9 +109,9 @@ public struct AhaKeyRuntimeRejectingResourceValidator: AhaKeyRuntimePackageAccep
 
     public func validate(
         package: AhaKeyConfigurationPackage,
-        managedResourceURLs: [AhaKeyResourceIdentifier: URL]
+        resources: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
     ) throws {
-        guard package.resources.isEmpty, managedResourceURLs.isEmpty else {
+        guard package.resources.isEmpty, resources.isEmpty else {
             throw AhaKeyRuntimePersistenceError.domainResourceValidationRequired
         }
     }
@@ -362,15 +372,23 @@ public actor AhaKeyRuntimePersistentStore {
                 }
             }
 
-            let managedResources = Dictionary(
+            let validationInputs = try Dictionary(
                 uniqueKeysWithValues: package.resources.map {
-                    ($0.logicalIdentifier, managedResourceURL(for: $0.sha256))
+                    let url = managedResourceURL(for: $0.sha256)
+                    return (
+                        $0.logicalIdentifier,
+                        AhaKeyRuntimeResourceValidationInput(
+                            resource: $0,
+                            contents: try Data(contentsOf: url, options: [.mappedIfSafe])
+                        )
+                    )
                 }
             )
             try acceptanceValidator.validate(
                 package: package,
-                managedResourceURLs: managedResources
+                resources: validationInputs
             )
+            try validateManagedResources(for: package)
             try Self.synchronizeDirectory(resourcesDirectory)
 
             try Self.execute("BEGIN IMMEDIATE", on: database)
@@ -574,7 +592,7 @@ public actor AhaKeyRuntimePersistentStore {
         guard existing.package.targetDeviceID == summary.targetDeviceID else {
             throw AhaKeyRuntimePersistenceError.operationTargetMismatch
         }
-        guard !existing.state.isFinalResult else {
+        guard !existing.state.isTerminal else {
             throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
         }
         guard !summary.state.isTerminal else {
@@ -597,7 +615,7 @@ public actor AhaKeyRuntimePersistentStore {
         guard existing.package.targetDeviceID == summary.targetDeviceID else {
             throw AhaKeyRuntimePersistenceError.operationTargetMismatch
         }
-        guard !existing.state.isFinalResult else {
+        guard !existing.state.isTerminal else {
             throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
         }
         try validateProgress(summary)
@@ -634,7 +652,7 @@ public actor AhaKeyRuntimePersistentStore {
            summary.completedSteps != summary.totalSteps {
             throw AhaKeyRuntimePersistenceError.invalidOperationProgress
         }
-        if summary.state == .partiallyCompleted,
+        if summary.state == .resumablePartial,
            (summary.totalSteps == 0 || summary.completedSteps >= summary.totalSteps) {
             throw AhaKeyRuntimePersistenceError.invalidOperationProgress
         }
