@@ -81,6 +81,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     // MARK: - Hook Socket Server（HIL-RUNTIME-1-HOOK-SERVER）
     private var hookServer: AhaKeyRuntimeHookSocketServer?
+    private let hookSocketURL: URL
 
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
@@ -94,8 +95,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     var onLog: ((String) -> Void)?
 
-    init(socketPath: String = AhaKeyPaths.agentSocketPath) {
+    init(socketPath: String = AhaKeyPaths.agentSocketPath, hookSocketURL: URL = AhaKeyPaths.runtimeHookSocketURL) {
         self.socketPath = socketPath
+        self.hookSocketURL = hookSocketURL
         // 旧版会持久化虚拟拨杆覆盖，导致真实硬件档位永远无法回写。迁移时清除它。
         UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         super.init()
@@ -135,6 +137,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     func shutdown() {
+        hookServer?.stop()
+        hookServer = nil
+        processDetector.stop()
         processDetector.stop()
         _ = powerProtection.deactivateAll()
         // 编排器侧同步清理（模块 stop 委托到 deactivate，与上面幂等重叠无害）
@@ -493,12 +498,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
 
         let server = AhaKeyRuntimeHookSocketServer(
-            socketURL: AhaKeyPaths.runtimeHookSocketURL,
+            socketURL: hookSocketURL,
             handler: handler
         )
         try server.start()
         hookServer = server
-        emit("监听 Hook socket: \(AhaKeyPaths.runtimeHookSocketURL.path)")
+        emit("监听 Hook socket: \(hookSocketURL.path)")
     }
 
     private func handleAIState(_ state: AhaKeyRuntimeHookAIState) {

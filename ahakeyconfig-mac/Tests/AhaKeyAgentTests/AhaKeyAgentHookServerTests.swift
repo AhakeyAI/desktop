@@ -5,23 +5,30 @@ import Darwin
 
 /// HIL-RUNTIME-1-HOOK-SERVER：验证生产 Agent 实例化并监听 hook.sock，
 /// 且 handler 正确映射拨杆状态到 approval/lever 响应。
+/// 所有测试使用隔离的临时 socket 路径，不触碰生产 `~/Library/Application Support/AhaKeyConfig/private/hook.sock`。
 final class AhaKeyAgentHookServerTests: XCTestCase {
     private var agent: AhaKeyAgent!
+    private var testHookURL: URL!
 
     override func setUp() {
         super.setUp()
-        agent = AhaKeyAgent(socketPath: "/tmp/ahk-agent-test-\(UUID().uuidString.prefix(8)).sock")
+        let root = URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appendingPathComponent("ahk-agent-test-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        testHookURL = root.appendingPathComponent("private", isDirectory: true)
+            .appendingPathComponent("hook.sock")
+        agent = AhaKeyAgent(
+            socketPath: "/tmp/ahk-agent-test-\(UUID().uuidString.prefix(8)).sock",
+            hookSocketURL: testHookURL
+        )
     }
 
     override func tearDown() {
         agent?.shutdown()
-        let hookPath = AhaKeyPaths.runtimeHookSocketURL.path
-        if FileManager.default.fileExists(atPath: hookPath) {
-            try? FileManager.default.removeItem(atPath: hookPath)
-        }
-        let lockPath = hookPath + ".lock"
-        if FileManager.default.fileExists(atPath: lockPath) {
-            try? FileManager.default.removeItem(atPath: lockPath)
+        // 仅清理临时测试目录，不触碰生产路径
+        if let url = testHookURL {
+            let parent = url.deletingLastPathComponent().deletingLastPathComponent()
+            try? FileManager.default.removeItem(at: parent)
         }
         super.tearDown()
     }
@@ -29,19 +36,15 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
     // MARK: - 生产接线：Server 启动与权限
 
     func testHookServerStartsAndCreatesSocketWithCorrectPermissions() throws {
-        let hookPath = AhaKeyPaths.runtimeHookSocketURL.path
-        try? FileManager.default.removeItem(atPath: hookPath)
-        try? FileManager.default.removeItem(atPath: hookPath + ".lock")
-
         try agent.startHookServer()
 
         var status = stat()
-        XCTAssertEqual(lstat(hookPath, &status), 0)
+        XCTAssertEqual(lstat(testHookURL.path, &status), 0)
         XCTAssertEqual(status.st_mode & S_IFMT, S_IFSOCK)
         XCTAssertEqual(status.st_mode & 0o777, 0o600)
         XCTAssertEqual(status.st_uid, getuid())
 
-        let parent = AhaKeyPaths.runtimeHookSocketURL.deletingLastPathComponent().path
+        let parent = testHookURL.deletingLastPathComponent().path
         var dirStatus = stat()
         XCTAssertEqual(lstat(parent, &dirStatus), 0)
         XCTAssertEqual(dirStatus.st_mode & S_IFMT, S_IFDIR)
@@ -49,7 +52,10 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
     }
 
     func testSecondHookServerCannotBindSameSocket() throws {
-        let agent2 = AhaKeyAgent(socketPath: "/tmp/ahk-agent-test-\(UUID().uuidString.prefix(8)).sock")
+        let agent2 = AhaKeyAgent(
+            socketPath: "/tmp/ahk-agent-test-\(UUID().uuidString.prefix(8)).sock",
+            hookSocketURL: testHookURL
+        )
         defer { agent2.shutdown() }
 
         try agent.startHookServer()
@@ -59,13 +65,23 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
         }
     }
 
+    func testShutdownStopsHookServer() throws {
+        try agent.startHookServer()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: testHookURL.path))
+
+        agent.shutdown()
+
+        // shutdown 应 stop hookServer 并移除 socket
+        XCTAssertFalse(FileManager.default.fileExists(atPath: testHookURL.path))
+    }
+
     // MARK: - Handler 行为：Approval / Lever
 
     func testHandlerReturnsAutomaticApprovalWhenSwitchIsAuto() throws {
         agent.setSwitchOverride(0)
 
         try agent.startHookServer()
-        let client = AhaKeyRuntimeHookSocketClient(socketURL: AhaKeyPaths.runtimeHookSocketURL)
+        let client = AhaKeyRuntimeHookSocketClient(socketURL: testHookURL)
         let requestID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
         let response = try client.exchange(
@@ -81,7 +97,7 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
         agent.setSwitchOverride(1)
 
         try agent.startHookServer()
-        let client = AhaKeyRuntimeHookSocketClient(socketURL: AhaKeyPaths.runtimeHookSocketURL)
+        let client = AhaKeyRuntimeHookSocketClient(socketURL: testHookURL)
         let requestID = UUID()
 
         let response = try client.exchange(
@@ -95,7 +111,7 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
 
     func testHandlerReturnsUnavailableApprovalWhenSwitchUnknown() throws {
         try agent.startHookServer()
-        let client = AhaKeyRuntimeHookSocketClient(socketURL: AhaKeyPaths.runtimeHookSocketURL)
+        let client = AhaKeyRuntimeHookSocketClient(socketURL: testHookURL)
         let requestID = UUID()
 
         let response = try client.exchange(
@@ -111,7 +127,7 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
         agent.setSwitchOverride(0)
 
         try agent.startHookServer()
-        let client = AhaKeyRuntimeHookSocketClient(socketURL: AhaKeyPaths.runtimeHookSocketURL)
+        let client = AhaKeyRuntimeHookSocketClient(socketURL: testHookURL)
 
         let response = try client.exchange(
             handshake: .init(protocolVersion: .current, client: .codex, hookBuildID: "test-4"),
@@ -126,7 +142,7 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
         agent.setSwitchOverride(1)
 
         try agent.startHookServer()
-        let client = AhaKeyRuntimeHookSocketClient(socketURL: AhaKeyPaths.runtimeHookSocketURL)
+        let client = AhaKeyRuntimeHookSocketClient(socketURL: testHookURL)
 
         let response = try client.exchange(
             handshake: .init(protocolVersion: .current, client: .codex, hookBuildID: "test-5"),
@@ -139,7 +155,7 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
 
     func testHandlerReturnsNilLeverWhenSwitchUnknown() throws {
         try agent.startHookServer()
-        let client = AhaKeyRuntimeHookSocketClient(socketURL: AhaKeyPaths.runtimeHookSocketURL)
+        let client = AhaKeyRuntimeHookSocketClient(socketURL: testHookURL)
 
         let response = try client.exchange(
             handshake: .init(protocolVersion: .current, client: .codex, hookBuildID: "test-6"),
@@ -152,7 +168,7 @@ final class AhaKeyAgentHookServerTests: XCTestCase {
 
     func testHandlerAcknowledgesAIState() throws {
         try agent.startHookServer()
-        let client = AhaKeyRuntimeHookSocketClient(socketURL: AhaKeyPaths.runtimeHookSocketURL)
+        let client = AhaKeyRuntimeHookSocketClient(socketURL: testHookURL)
 
         let response = try client.exchange(
             handshake: .init(protocolVersion: .current, client: .codex, hookBuildID: "test-7"),
