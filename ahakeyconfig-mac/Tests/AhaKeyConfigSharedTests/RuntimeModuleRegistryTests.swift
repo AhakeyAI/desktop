@@ -23,13 +23,7 @@ private final class TestModule: RuntimeModule, @unchecked Sendable {
         status = .running
     }
 
-    func stop() async throws {
-        stopCallCount += 1
-        if shouldFailStop {
-            throw RuntimeModuleError.stopFailed(module: id, underlying: "injected-stop-failure")
-        }
-        status = .idle
-    }
+    func stop() async {
         stopCallCount += 1
         if shouldFailStop {
             status = .failed(.stopFailed(module: id, underlying: "injected-stop-failure"))
