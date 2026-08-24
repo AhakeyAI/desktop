@@ -74,6 +74,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var powerProtectionModule: PowerProtectionRuntimeModule?
     /// 切片 4：AI 集成（Hook 状态链看门狗 + 进程兜底即时检测）
     private var aiIntegrationModule: AIIntegrationRuntimeModule?
+    /// 切片 5：动态灯效发送能力门控（sendState 与状态仍留 Agent）
+    private var lightingModule: LightingRuntimeModule?
 
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
@@ -95,6 +97,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         central = CBCentralManager(delegate: self, queue: nil)
         Self.clearLiveSwitchState()
         setupPowerProtection()
+        setupLightingModule()
+    }
+
+    /// 切片 5：灯效模块装配——registry 注册并启动（不得只留空字段，Codex 13:52-1）。
+    private func setupLightingModule() {
+        let module = LightingRuntimeModule()
+        lightingModule = module
+        Task {
+            await runtimeModuleRegistry.register(module)
+            await runtimeModuleRegistry.applyTransition(RuntimeModuleTransition(
+                started: [.dynamicLighting], stopped: [], residencyChanged: nil
+            ))
+        }
     }
 
     func shutdown() {
@@ -216,6 +231,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         updatePowerProtectionFromHook(state: state)
         pendingStateReset?.cancel()
         pendingStateReset = nil
+        // 切片 5：发送能力受灯效模块 `.running` 门控（启停「发送能力」）；
+        // lastSentState / pendingStateReset / live-state 仍留在 Agent（Codex 13:52-2）。
+        guard lightingModule?.status == .running else {
+            emit("LED 状态 \(state): 灯效模块未运行，发送被门控")
+            return
+        }
         guard let commandChar, let peripheral else {
             emit("LED 状态 \(state): 未连接")
             return
