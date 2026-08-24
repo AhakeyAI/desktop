@@ -69,6 +69,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 当前是否有 hook 发来的活跃状态（与 processDetector 独立）
     private var hookActivityActive = false
 
+    // MARK: Runtime 编排（WBS 5.3 切片 3：防休眠作为 RuntimeModule 接入，行为不变）
+    private let runtimeModuleRegistry = RuntimeModuleRegistry()
+    private var powerProtectionModule: PowerProtectionRuntimeModule?
+
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
     ///   其余工具执行态 → 60s（工具可能运行较久，避免误触发）
@@ -94,12 +98,31 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func shutdown() {
         processDetector.stop()
         _ = powerProtection.deactivateAll()
+        // 编排器侧同步清理（模块 stop 委托到 deactivate，与上面幂等重叠无害）
+        Task { await runtimeModuleRegistry.stopAll() }
         lockRetryItem?.cancel()
         lockRetryItem = nil
         connectionLock.release()
     }
 
     private func setupPowerProtection() {
+        // 防休眠经 RuntimeModuleRegistry 编排（切片 3）：模块 start/stop 委托到
+        // 原有 activate/deactivate 行为，策略化 gating 随 orchestrator 装配切片接入。
+        let module = PowerProtectionRuntimeModule(
+            onStart: { [weak self] in self?.activatePowerProtectionBehavior() },
+            onStop: { [weak self] in self?.deactivatePowerProtectionBehavior() }
+        )
+        powerProtectionModule = module
+        Task {
+            await runtimeModuleRegistry.register(module)
+            await runtimeModuleRegistry.applyTransition(RuntimeModuleTransition(
+                started: [.powerProtection], stopped: [], residencyChanged: true
+            ))
+        }
+    }
+
+    /// 原 setupPowerProtection 的实际行为：启动时自清 + 进程兜底检测驱动防护。
+    private func activatePowerProtectionBehavior() {
         // 启动时自清，防止上次崩溃遗留断言或虚拟显示器。
         _ = powerProtection.deactivateAll()
 
@@ -112,6 +135,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             .store(in: &cancellables)
         processDetector.start()
+    }
+
+    private func deactivatePowerProtectionBehavior() {
+        processDetector.stop()
+        _ = powerProtection.deactivateAll()
     }
 
     private var cancellables = Set<AnyCancellable>()
