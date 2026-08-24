@@ -72,6 +72,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: Runtime 编排（WBS 5.3 切片 3：防休眠作为 RuntimeModule 接入，行为不变）
     private let runtimeModuleRegistry = RuntimeModuleRegistry()
     private var powerProtectionModule: PowerProtectionRuntimeModule?
+    /// 切片 4：AI 集成（Hook 状态链看门狗 + 进程兜底即时检测）
+    private var aiIntegrationModule: AIIntegrationRuntimeModule?
 
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
@@ -355,8 +357,24 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     func startSocketListener() {
-        startWatchdog()
-        processDetector.checkNow()
+        // AI 集成（看门狗 + 进程兜底即时检测）经 RuntimeModuleRegistry 编排（切片 4）。
+        // socket 传输与命令分发保持原位，wire 协议逐字不变。
+        let module = AIIntegrationRuntimeModule(
+            onStart: { [weak self] in
+                self?.startWatchdog()
+                self?.processDetector.checkNow()
+            },
+            onStop: { [weak self] in
+                self?.stopWatchdog()
+            }
+        )
+        aiIntegrationModule = module
+        Task {
+            await runtimeModuleRegistry.register(module)
+            await runtimeModuleRegistry.applyTransition(RuntimeModuleTransition(
+                started: [.aiIntegration], stopped: [], residencyChanged: nil
+            ))
+        }
 
         // 确保 socket 所在目录仅当前用户可访问
         do {
@@ -406,6 +424,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - 看门狗
 
     private func startWatchdog() {
+        guard watchdogTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 30, repeating: 10)
         timer.setEventHandler { [weak self] in
@@ -413,6 +432,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         timer.resume()
         watchdogTimer = timer
+    }
+
+    private func stopWatchdog() {
+        watchdogTimer?.cancel()
+        watchdogTimer = nil
+        didLogWatchdogHold = false
     }
 
     /// 「超时但进程仍存活」的保持日志每个 episode 只记一次，避免 10s 周期刷屏。
