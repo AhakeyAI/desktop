@@ -76,6 +76,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var aiIntegrationModule: AIIntegrationRuntimeModule?
     /// 切片 5：动态灯效发送能力门控（sendState 与状态仍留 Agent）
     private var lightingModule: LightingRuntimeModule?
+    /// 切片 6：AhaType 生命周期 seam（引擎实体仍在 Studio/Utilities，此处仅登记生命周期）
+    private var ahaTypeModule: AhaTypeRuntimeModule?
 
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
@@ -98,6 +100,23 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         Self.clearLiveSwitchState()
         setupPowerProtection()
         setupLightingModule()
+        setupAhaTypeModule()
+    }
+
+    /// 切片 6：AhaType seam 装配——仅登记生命周期；引擎实体（转写/优化器/HUD）
+    /// 仍在 Studio 进程（Sources/Utilities，本卡禁改），策略桥接待 WBS 5.7。
+    private func setupAhaTypeModule() {
+        let module = AhaTypeRuntimeModule(
+            onStart: { [weak self] in self?.emit("AhaType seam 已启动（引擎实体由 Studio 承载，策略桥接待 5.7）") },
+            onStop: { [weak self] in self?.emit("AhaType seam 已停止") }
+        )
+        ahaTypeModule = module
+        Task {
+            await runtimeModuleRegistry.register(module)
+            await runtimeModuleRegistry.applyTransition(RuntimeModuleTransition(
+                started: [.ahaType], stopped: [], residencyChanged: nil
+            ))
+        }
     }
 
     /// 切片 5：灯效模块装配——registry 注册并启动（不得只留空字段，Codex 13:52-1）。
