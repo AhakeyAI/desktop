@@ -79,6 +79,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 切片 6：AhaType 生命周期 seam（引擎实体仍在 Studio/Utilities，此处仅登记生命周期）
     private var ahaTypeModule: AhaTypeRuntimeModule?
 
+    // MARK: - Hook Socket Server（HIL-RUNTIME-1-HOOK-SERVER）
+    private var hookServer: AhaKeyRuntimeHookSocketServer?
+
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
     ///   其余工具执行态 → 60s（工具可能运行较久，避免误触发）
@@ -458,6 +461,78 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 guard clientFd >= 0 else { continue }
                 self?.handleClient(clientFd)
             }
+        }
+    }
+
+    // MARK: - Hook Socket Server
+
+    func startHookServer() throws {
+        let handler: AhaKeyRuntimeHookSocketServer.Handler = { [weak self] handshake, request in
+            guard let self else {
+                return .acknowledged
+            }
+            switch request {
+            case .aiState(let state):
+                DispatchQueue.main.async { [weak self] in
+                    self?.handleAIState(state)
+                }
+                return .acknowledged
+
+            case .approvalQuery(let query):
+                let decision = self.approvalDecisionForCurrentState()
+                return .approvalDecision(requestID: query.requestID, decision: decision)
+
+            case .leverQuery:
+                let position = self.leverPositionForCurrentState()
+                return .leverPosition(position)
+
+            case .handshake:
+                // Server handles handshake internally; this path should not be reached.
+                return .acknowledged
+            }
+        }
+
+        let server = AhaKeyRuntimeHookSocketServer(
+            socketURL: AhaKeyPaths.runtimeHookSocketURL,
+            handler: handler
+        )
+        try server.start()
+        hookServer = server
+        emit("监听 Hook socket: \(AhaKeyPaths.runtimeHookSocketURL.path)")
+    }
+
+    private func handleAIState(_ state: AhaKeyRuntimeHookAIState) {
+        let stateValue: UInt8
+        switch state.event {
+        case .idle, .sessionEnded:
+            stateValue = 5
+        case .working:
+            stateValue = 3
+        case .permissionRequested:
+            stateValue = 1
+        case .awaitingFollowup:
+            stateValue = 7
+        }
+        sendState(stateValue)
+    }
+
+    private func approvalDecisionForCurrentState() -> AhaKeyRuntimeHookApprovalDecision {
+        guard let switchState = effectiveSwitchState else {
+            return .unavailable
+        }
+        switch switchState {
+        case 0: return .automatic
+        case 1: return .manual
+        default: return .unavailable
+        }
+    }
+
+    private func leverPositionForCurrentState() -> AhaKeyRuntimeLeverPosition? {
+        guard let switchState = effectiveSwitchState else { return nil }
+        switch switchState {
+        case 0: return .up
+        case 1: return .down
+        default: return nil
         }
     }
 

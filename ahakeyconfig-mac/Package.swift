@@ -99,5 +99,10 @@ let package = Package(
             name: "RuntimeXPCServerTests",
             dependencies: ["RuntimeXPCServer", "AhaKeyConfigShared"]
         ),
+        .testTarget(
+            name: "AhaKeyAgentTests",
+            dependencies: ["AhaKeyConfigAgent", "AhaKeyConfigShared"],
+            path: "Tests/AhaKeyAgentTests"
+        ),
     ]
 )

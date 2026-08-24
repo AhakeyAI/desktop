@@ -31,6 +31,7 @@ agent.onLog = { msg in
     print("[\(ts)] \(msg)")
 }
 agent.startSocketListener()
+try? agent.startHookServer()
 
 // Graceful cleanup on SIGINT/SIGTERM. SIGKILL cannot be caught; stale state is
 // cleaned up the next time either process starts.
