@@ -45,24 +45,27 @@ final class CursorHookRuntimeClientTests: XCTestCase {
         )
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: agentPath))
 
-        for tool in ["Read", "Write", "Shell", "MCP", "Task"] {
-            try withRuntime(decision: .automatic) {
-                let result = try runAgent(at: agentPath, tool: tool)
-                XCTAssertEqual(result.status, 0, tool)
-                XCTAssertEqual(result.stdout, #"{"permission":"allow"}"# + "\n", tool)
-            }
-            try withRuntime(decision: .manual) {
-                let result = try runAgent(at: agentPath, tool: tool)
-                XCTAssertEqual(result.status, 0, tool)
-                XCTAssertEqual(result.stdout, "", tool)
-            }
-            let offline = try runAgent(at: agentPath, tool: tool)
-            XCTAssertEqual(offline.status, 0, tool)
-            XCTAssertEqual(offline.stdout, "", tool)
-            try withRuntime(delay: 2.5, decision: .automatic) {
-                let timeout = try runAgent(at: agentPath, tool: tool)
-                XCTAssertEqual(timeout.status, 0, tool)
-                XCTAssertEqual(timeout.stdout, "", tool)
+        for cursorVersion in ["3.17.8", "3.7.27"] {
+            for tool in ["Read", "Write", "Shell", "MCP", "Task"] {
+                let label = "\(cursorVersion) \(tool)"
+                try withRuntime(decision: .automatic) {
+                    let result = try runAgent(at: agentPath, tool: tool, cursorVersion: cursorVersion)
+                    XCTAssertEqual(result.status, 0, label)
+                    XCTAssertEqual(result.stdout, #"{"permission":"allow"}"# + "\n", label)
+                }
+                try withRuntime(decision: .manual) {
+                    let result = try runAgent(at: agentPath, tool: tool, cursorVersion: cursorVersion)
+                    XCTAssertEqual(result.status, 0, label)
+                    XCTAssertEqual(result.stdout, "", label)
+                }
+                let offline = try runAgent(at: agentPath, tool: tool, cursorVersion: cursorVersion)
+                XCTAssertEqual(offline.status, 0, label)
+                XCTAssertEqual(offline.stdout, "", label)
+                try withRuntime(delay: 2.5, decision: .automatic) {
+                    let timeout = try runAgent(at: agentPath, tool: tool, cursorVersion: cursorVersion)
+                    XCTAssertEqual(timeout.status, 0, label)
+                    XCTAssertEqual(timeout.stdout, "", label)
+                }
             }
         }
     }
@@ -88,7 +91,11 @@ final class CursorHookRuntimeClientTests: XCTestCase {
         try body()
     }
 
-    private func runAgent(at path: String, tool: String) throws -> (
+    private func runAgent(
+        at path: String,
+        tool: String,
+        cursorVersion: String = "3.17.8"
+    ) throws -> (
         status: Int32,
         stdout: String
     ) {
@@ -96,7 +103,7 @@ final class CursorHookRuntimeClientTests: XCTestCase {
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = ["hook", "preToolUse"]
         var environment = ProcessInfo.processInfo.environment
-        environment["CURSOR_VERSION"] = "3.17.8"
+        environment["CURSOR_VERSION"] = cursorVersion
         process.environment = environment
 
         let input = Pipe()
