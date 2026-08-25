@@ -171,8 +171,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         _ = powerProtection.deactivateAll()
 
         // 进程兜底检测：只要目标 IDE/CLI 在跑，就保持防护。
+        // 修复 F3：移除 .dropFirst()，避免订阅时目标已在运行导致 begin() 永不被调用。
         processDetector.$isAnyTargetRunning
-            .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] running in
                 self?.updatePowerProtectionFromProcessDetector(running: running)
