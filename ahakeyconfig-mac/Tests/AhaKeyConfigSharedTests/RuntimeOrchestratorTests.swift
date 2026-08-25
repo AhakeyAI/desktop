@@ -12,6 +12,26 @@ private final class FakeModule: RuntimeModule, @unchecked Sendable {
     func stop() async { stopCalls += 1; status = .idle }
 }
 
+/// 首次 start 失败、之后恢复的模块（重启恢复测试用）。
+private final class FlakyModule: RuntimeModule, @unchecked Sendable {
+    let id: RuntimeModuleID
+    private(set) var status: RuntimeModuleStatus = .idle
+    var startCalls = 0
+    var failNextStart = true
+
+    init(id: RuntimeModuleID) { self.id = id }
+    func start() async throws {
+        startCalls += 1
+        if failNextStart {
+            failNextStart = false
+            status = .failed(.startFailed(module: id, underlying: "boom"))
+            throw RuntimeModuleError.startFailed(module: id, underlying: "boom")
+        }
+        status = .running
+    }
+    func stop() async { status = .idle }
+}
+
 final class RuntimeOrchestratorTests: XCTestCase {
 
     private func makeOrchestrator() async -> (RuntimeOrchestrator, [RuntimeModuleID: FakeModule]) {

@@ -22,12 +22,13 @@ struct AgentDeviceStatus {
 
 /// 轻量 BLE 守护进程：维持连接 + 接收 Unix socket 命令 → 发送 LED 状态 / 回传拨杆状态
 final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    /// 兼容默认策略：保持现有生产行为（AI Hook + 动态灯效开启），
+    /// 兼容默认策略：保持现有生产行为（AI Hook + 动态灯效 + 防休眠开启），
     /// 其余模块按策略显式启停。随策略化装配成熟后可改为全部关闭。
     public static let compatibleDefaultPolicy: AhaKeyRuntimePolicy = {
         var policy = AhaKeyRuntimePolicy()
         policy.aiHooks.enabledTools = [.claude, .cursor, .codex, .kimi]
         policy.devicePresentation.ledEnabled = true
+        policy.powerProtectionEnabled = true
         return policy
     }()
 
@@ -111,7 +112,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     ) {
         self.socketPath = socketPath
         self.hookSocketURL = hookSocketURL
-        self.orchestrator = RuntimeOrchestrator()
         // 旧版会持久化虚拟拨杆覆盖，导致真实硬件档位永远无法回写。迁移时清除它。
         UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         super.init()
