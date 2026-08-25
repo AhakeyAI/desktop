@@ -1,9 +1,9 @@
 # 任务卡 WBS-5.6-CONFIG-TRANSACTIONS：声明式配置事务
 
-计划/WBS：5.6  
-状态：`active`  
-执行 owner：Kimi  
-基线：`feat/unified-client` @ `79fc2a1`（HIL-RUNTIME-2 accepted HEAD）  
+计划/WBS：5.6
+状态：`active`
+执行 owner：Kimi
+基线：`feat/unified-client` @ `79fc2a1`（HIL-RUNTIME-2 accepted HEAD）
 目标：将完整目标配置规划为图片/基础配置事务，支持校验、取消、断线恢复和 revision/baseline 原子推进。
 
 ## 4.1 口径（用户 23:57 批准）
@@ -93,3 +93,31 @@ planner 边界、容量拒绝、断线/重启/取消/恢复、旧协议 current-
   7. current-only：三处 ready 点挂 `scheduleConfigurationRecovery()`，`recoveryCandidates()` → runner 续跑；防重入。
 - 已知差异（按 00:45 许可声明）：槽位布局 `factorySlotBase + slot×30` 为 Runtime 独占，未复用 Studio first-fit 分配器。
 - WAL 资源步整步重做，不跨重连保 session（符合口径）。USB 链路维持跳过。实机断电/断连仍归 HIL-CONFIG-TRANSACTIONS（USER-GATE），本卡不标 HIL 通过。
+
+### [2026-08-26 01:20] Codex：整卡验收退回返工
+
+- `lastReviewedCommit: cd09e59`；固定审查范围 `79fc2a1...cd09e59`。
+- 自动门禁通过：382 tests（2 skipped）、0 failures；Agent Release build 通过；`git diff --check` 通过。
+- 状态 `review → active`：生产路径仍有阻塞，修复后以新 HEAD 整卡重新提审：
+  1. 命令 head timer 与 waiter registry 必须只有一个超时 owner，不得二次 `advanceQueue()`；迟到 ACK 不得移除后悬挂 continuation。
+  2. `0x81` waiter 必须在发送 packet 前建立；失败/超时/取消时保留 session 直到 `0x9A` 收尾，不得被 `defer` 提前清空。
+  3. 当前步完成后必须重读 WAL 取消态；已有 `cancellationRequested` 时不得继续下一步，转入取消结算。
+  4. 帧上限、编码器、上传数和绑定数必须同一口径；禁止当前「planner 允许 120 / 上传截断 30 / 绑定仍写声明数」。容量按实际帧占用核算，不是只数资源个数。
+  5. validator 必须用 CAS `Data` 校验实际图片帧数/尺寸/解码预算，不能仅信任申报元数据。
+  6. `defaultAnimation` 已进 `referencedResources`，必须有对应 resource program 与绑定语义；不得因 mapper 只搜 task asset 而永久失败。
+  7. 补生产 `Agent apply(package)` 受理入口和取消入口；仅 ready 后扫旧 `recoveryCandidates()` 不等于新包受理。
+- 要求补充定向测试：超时单次推进/迟到 ACK、快速 0x81、0x9A 收尾、步间取消、30/31 帧与总帧容量、申报与 CAS 实际元数据不一致、defaultAnimation、新包 apply/cancel。
+- HIL-CONFIG 仍为返工通过后的 USER-GATE；`WBS-5.7` 保持 draft。
+
+### [2026-08-26 01:40] Kimi：返工完成，整卡重新提审
+
+- 新 HEAD `0238a46`（15 文件，+726/-97）。全量 swift test 通过；Agent Release 构建通过；`git diff --check` 干净。
+- R1 超时唯一 owner：waiter registry 统一收集；迟到 ACK（outcome=nil）不续 continuation、不二次 advanceQueue；超时仅当属于当前 head 才推进。
+- R2 0x81 waiter 先于 packet 建立（Task 发包在 waiter 就位后开始）；session 只在 0x81 成功或 0x9A 收尾后清空；0x81 路由抽为 Shared 纯决策 `AhaKeyPictureWriteResultRouter`。
+- R3 Runner 循环顶部重读 WAL 取消态并立即结算（测试语义同步更新：取消后 run 直接返回 resumablePartial 且不再执行任何步骤）。
+- R4 帧上限/上传/绑定同一口径 30；容量按实际帧占用折算槽位（含 defaultAnimation）；槽位分配按占用跨度推进。
+- R5 AcceptanceValidator 以 CAS 实际图片（CGImageSource）校验帧数/尺寸/解码预算；申报不一致 → `resourceMetadataMismatch`。
+- R6 OLED 新增 `defaultAnimationFrames`（旧 JSON 兼容）；defaultAnimation 有资源程序与 0x82 绑定（`bindDefaultPicture`）。
+- R7 Agent 生产入口 `applyConfigurationPackage` / `cancelConfiguration` + socket `apply_config` / `cancel_config`；与恢复共用单飞闸门（busy）。
+- 定向测试新增：0x82 帧字节、0x81 session 路由 5 例、30/31 帧、容量帧占用 2 例、申报与 CAS 不一致 4 例、步间取消结算、defaultAnimation 程序与绑定 2 例。
+- 诚实声明：超时单次推进/迟到 ACK 的 agent 侧 glue 无可测 seam（AhaKeyAgent 实例化依赖 CBCentralManager），该不变量靠构造保证 + DeviceCommandSequencer 既有测试覆盖核心语义；实机验证归 HIL-CONFIG。apply/cancel 的 socket 端到端同样归 HIL-CONFIG。
