@@ -18,7 +18,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
     }
 
     private func capabilities(
-        modeCount: Int = 4, setCount: Int = 2, stateCount: Int = 4, userSlotLimit: Int = 8
+        modeCount: Int = 4, setCount: Int = 2, stateCount: Int = 4, userSlotLimit: Int = 288
     ) -> AhaKeyFirmwareCapabilities {
         AhaKeyFirmwareCapabilities(
             protocolVersion: 3, modeCount: modeCount, setCount: setCount, stateCount: stateCount,
@@ -101,13 +101,13 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
     }
 
     func testRejectsTaskStateBeyondDevice() {
-        // stateCount=2 的设备不认 done(2)
+        // stateCount=2 的设备不认 done(3)
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(assets: [asset("img-a", state: .done)]),
             resources: [meta("img-a")],
             capabilities: capabilities(stateCount: 2), protocolMode: .current
         )
-        XCTAssertEqual(result, .failure(.taskStateUnsupported(state: 2, deviceStateCount: 2)))
+        XCTAssertEqual(result, .failure(.taskStateUnsupported(state: 3, deviceStateCount: 2)))
     }
 
     // MARK: 资源校验
@@ -174,9 +174,9 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: d,
             resources: [meta("img-a"), meta("img-b"), meta("img-c")],
-            capabilities: capabilities(userSlotLimit: 2), protocolMode: .current
+            capabilities: capabilities(userSlotLimit: 23), protocolMode: .current
         )
-        XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 3, slotLimit: 2)))
+        XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 24, slotLimit: 23)))
     }
 
     func testSlotAssignmentIsDeterministic() {
@@ -214,13 +214,13 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
     }
 
     func testCapacityCountsDefaultAnimationFrames() {
-        // defaultAnimation(30帧=1槽) + task asset(30帧=1槽) = 2 槽 > 1 槽上限
+        // defaultAnimation(30帧) + task asset(30帧) = 60 帧 > 59 帧上限
         let d = desiredWithDefault(frames: 30, extraAssets: [asset("img-a", frames: 30)])
         let result = AhaKeyConfigurationPlanner.plan(
             desired: d, resources: [meta("img-default"), meta("img-a")],
-            capabilities: capabilities(userSlotLimit: 1), protocolMode: .current
+            capabilities: capabilities(userSlotLimit: 59), protocolMode: .current
         )
-        XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 2, slotLimit: 1)))
+        XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 60, slotLimit: 59)))
     }
 
     func testDefaultAnimationResourceGetsProgramSlot() {

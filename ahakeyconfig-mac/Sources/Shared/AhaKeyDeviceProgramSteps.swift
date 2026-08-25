@@ -147,10 +147,15 @@ public enum AhaKeyConfigurationStepMapper {
         steps.append(.setLightMapping(mode: mode.slot, effects: effects))
         steps.append(.setBrightness(UInt8(mode.lightBar.brightness)))
 
-        // 任务图绑定：双套 × 各状态（无独立资源的 idle 回退 working，对齐既有语义）
+        // 默认动画绑定（0x95 idle 槽；defaultAnimation 与 task set idle 素材必须是同一 CAS 引用）
         for (setIndex, set) in mode.oled.taskSets.enumerated() {
             for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
-                let asset = effectiveAsset(in: set, for: state)
+                let asset = effectiveAsset(
+                    in: set, for: state,
+                    defaultAnimation: mode.oled.defaultAnimation,
+                    defaultFPS: mode.oled.framesPerSecond,
+                    defaultAnimationFrames: mode.oled.defaultAnimationFrames
+                )
                 guard let identifier = asset.resource,
                       let slot = plan.slotAssignments[identifier],
                       let frames = asset.declaredFrameCount, frames > 0 else { continue }
@@ -162,17 +167,7 @@ public enum AhaKeyConfigurationStepMapper {
                 ))
             }
         }
-        // 默认动画绑定（0x82；固件同步到各套图 IDLE 槽）
-        if let identifier = mode.oled.defaultAnimation,
-           let slot = plan.slotAssignments[identifier],
-           let frames = mode.oled.defaultAnimationFrames, frames > 0 {
-            let startFrame = layout.startFrameIndex(slot: slot, factorySlotBase: capabilities.factorySlotBase)
-            let interval = max(layout.defaultFrameIntervalFloor, UInt16(1000 / mode.oled.framesPerSecond))
-            steps.append(.bindDefaultPicture(
-                mode: mode.slot, startIndex: startFrame,
-                frameCount: UInt16(frames), intervalMs: interval
-            ))
-        }
+
         if mode.oled.activeSet >= 0 {
             steps.append(.setActiveTaskPictureSet(mode: mode.slot, set: UInt8(mode.oled.activeSet)))
         }
@@ -249,10 +244,13 @@ public enum AhaKeyConfigurationStepMapper {
         return table[effect] ?? 0
     }
 
-    /// idle 无独立资源时回退 working（Rhino 语义对齐 AhaKeyTaskGIFSetDraft 归一化）。
+    /// idle 无独立资源时回退 working；若仍无资源且存在 defaultAnimation，则回退 defaultAnimation。
     static func effectiveAsset(
         in set: AhaKeyDesiredConfiguration.TaskSet,
-        for state: AhaKeyDesiredConfiguration.TaskDisplayState
+        for state: AhaKeyDesiredConfiguration.TaskDisplayState,
+        defaultAnimation: AhaKeyResourceIdentifier? = nil,
+        defaultFPS: Int = 12,
+        defaultAnimationFrames: Int? = nil
     ) -> AhaKeyDesiredConfiguration.TaskAsset {
         if let asset = set.assets.first(where: { $0.state == state }), asset.resource != nil {
             return asset
@@ -260,6 +258,11 @@ public enum AhaKeyConfigurationStepMapper {
         if state == .idle,
            let working = set.assets.first(where: { $0.state == .working }), working.resource != nil {
             return working
+        }
+        if state == .idle, let defaultAnimation {
+            let frames = defaultAnimationFrames ?? 1
+            return try! .init(state: .idle, resource: defaultAnimation, framesPerSecond: defaultFPS,
+                              pixelWidth: 160, pixelHeight: 80, declaredFrameCount: frames)
         }
         return set.assets.first(where: { $0.state == state })
             ?? (try! .init(state: state, resource: nil, framesPerSecond: 12))

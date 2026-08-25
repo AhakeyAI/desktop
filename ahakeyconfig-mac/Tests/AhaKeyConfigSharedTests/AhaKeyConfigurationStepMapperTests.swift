@@ -142,7 +142,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         XCTAssertTrue(steps.contains(.setLightMapping(mode: 2, effects: [0, 4, 0, 0, 0, 0, 0, 0, 0])))
         XCTAssertTrue(steps.contains(.setBrightness(55)))
         // 绑定：done→slot0(帧10起,12帧,100ms)，working→slot1(帧40起,30帧,50ms 下限 33→50)，idle 回退 working
-        XCTAssertTrue(steps.contains(.bindTaskPicture(mode: 2, set: 0, state: 2,
+        XCTAssertTrue(steps.contains(.bindTaskPicture(mode: 2, set: 0, state: 3,
                                                       startIndex: 10, frameCount: 12, intervalMs: 100)))
         XCTAssertTrue(steps.contains(.bindTaskPicture(mode: 2, set: 0, state: 1,
                                                       startIndex: 40, frameCount: 30, intervalMs: 50)))
@@ -240,9 +240,14 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         let steps = Mapper.baseConfigurationProgram(
             mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
         )
-        // slot0 → 起始帧 = factorySlotBase(10)；8 帧；interval = max(33, 1000/12)=83
-        XCTAssertTrue(steps.contains(.bindDefaultPicture(
-            mode: 0, startIndex: 10, frameCount: 8, intervalMs: 83
+        // defaultAnimation 通过 0x95 idle 槽绑定，不发 0x82
+        XCTAssertTrue(steps.contains(.bindTaskPicture(
+            mode: 0, set: 0, state: 0,
+            startIndex: 10, frameCount: 8, intervalMs: 83
         )))
+        XCTAssertFalse(steps.contains(where: {
+            if case .bindDefaultPicture = $0 { return true }
+            return false
+        }))
     }
 }

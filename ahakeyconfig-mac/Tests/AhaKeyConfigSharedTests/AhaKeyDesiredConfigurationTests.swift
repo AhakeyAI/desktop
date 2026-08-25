@@ -33,7 +33,7 @@ final class AhaKeyDesiredConfigurationTests: XCTestCase {
             try! .init(state: .idle, resource: resource("oled-mode0-idle"), framesPerSecond: 12, pixelWidth: 128, pixelHeight: 128, declaredFrameCount: 8),
             try! .init(state: .working, resource: resource("oled-mode0-working"), framesPerSecond: 12, pixelWidth: 128, pixelHeight: 128, declaredFrameCount: 8),
             try! .init(state: .done, resource: resource("oled-mode0-done"), framesPerSecond: 12, pixelWidth: 128, pixelHeight: 128, declaredFrameCount: 8),
-            try! .init(state: .error, resource: nil, framesPerSecond: 12),
+            try! .init(state: .waiting, resource: nil, framesPerSecond: 12),
         ])
         let setB = try AhaKeyDesiredConfiguration.TaskSet(assets: [
             try! .init(state: .idle, resource: nil, framesPerSecond: 12),
@@ -164,5 +164,65 @@ final class AhaKeyDesiredConfigurationTests: XCTestCase {
             resource("oled-mode0-working"),
             resource("oled-mode0-done"),
         ])
+    }
+
+    // MARK: OLED decode 负向校验（返工 R4）
+
+    private func makeOLEDJSON(
+        fps: Int = 12,
+        taskSetCount: Int = 2,
+        activeSet: Int = 0,
+        defaultAnimation: String? = nil,
+        defaultAnimationFrames: Int? = nil
+    ) -> Data {
+        let taskSet: [String: Any] = ["assets": [["state": 0, "framesPerSecond": 12]]]
+        var dict: [String: Any] = [
+            "statusLine": "test",
+            "framesPerSecond": fps,
+            "taskSets": Array(repeating: taskSet, count: taskSetCount),
+            "activeSet": activeSet
+        ]
+        if let defaultAnimation {
+            dict["defaultAnimation"] = defaultAnimation
+        }
+        if let defaultAnimationFrames {
+            dict["defaultAnimationFrames"] = defaultAnimationFrames
+        }
+        return try! JSONSerialization.data(withJSONObject: dict)
+    }
+
+    func testDecodeRejectsInvalidFPS() {
+        let json = makeOLEDJSON(fps: 31)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyDesiredConfiguration.OLED.self, from: json)
+        ) { XCTAssertEqual($0 as? AhaKeyDesiredConfigurationError, .invalidFramesPerSecond) }
+    }
+
+    func testDecodeRejectsWrongTaskSetCount() {
+        let json = makeOLEDJSON(taskSetCount: 1)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyDesiredConfiguration.OLED.self, from: json)
+        ) { XCTAssertEqual($0 as? AhaKeyDesiredConfigurationError, .invalidTaskSetCount) }
+    }
+
+    func testDecodeRejectsInvalidActiveSet() {
+        let json = makeOLEDJSON(activeSet: 2)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyDesiredConfiguration.OLED.self, from: json)
+        ) { XCTAssertEqual($0 as? AhaKeyDesiredConfigurationError, .invalidActiveSet) }
+    }
+
+    func testDecodeRejectsDefaultAnimationWithoutFrames() {
+        let json = makeOLEDJSON(defaultAnimation: "img-default", defaultAnimationFrames: nil)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyDesiredConfiguration.OLED.self, from: json)
+        ) { XCTAssertEqual($0 as? AhaKeyDesiredConfigurationError, .missingDeclaredMetadata) }
+    }
+
+    func testDecodeRejectsDefaultAnimationWithZeroFrames() {
+        let json = makeOLEDJSON(defaultAnimation: "img-default", defaultAnimationFrames: 0)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyDesiredConfiguration.OLED.self, from: json)
+        ) { XCTAssertEqual($0 as? AhaKeyDesiredConfigurationError, .missingDeclaredMetadata) }
     }
 }

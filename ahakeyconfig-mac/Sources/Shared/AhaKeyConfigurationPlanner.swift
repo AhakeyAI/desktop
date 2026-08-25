@@ -265,7 +265,7 @@ public enum AhaKeyConfigurationPlanner {
             }
         }
 
-        // 4. 设备容量：按实际帧占用核算（每槽 framesPerSlot 帧），不是只数资源个数。
+        // 4. 设备容量：按实际帧占用核算，不是只数资源个数或槽数。
         let framesPerSlot = AhaKeyDeviceLayoutPolicy().framesPerSlot
         var declaredFrames: [AhaKeyResourceIdentifier: Int] = [:]
         for mode in desired.modes {
@@ -279,12 +279,9 @@ public enum AhaKeyConfigurationPlanner {
             }
         }
         let ordered = referenced.sorted(by: { $0.rawValue < $1.rawValue })
-        let slotsNeeded = ordered.reduce(0) { partial, identifier in
-            let frames = max(1, declaredFrames[identifier] ?? 0)
-            return partial + Int(ceil(Double(frames) / Double(framesPerSlot)))
-        }
-        guard slotsNeeded <= capabilities.userSlotLimit else {
-            return .failure(.deviceCapacityExceeded(slotsNeeded: slotsNeeded, slotLimit: capabilities.userSlotLimit))
+        let totalFrames = ordered.reduce(0) { $0 + (declaredFrames[$1] ?? 0) }
+        guard totalFrames <= capabilities.userSlotLimit else {
+            return .failure(.deviceCapacityExceeded(slotsNeeded: totalFrames, slotLimit: capabilities.userSlotLimit))
         }
 
         // 5. 槽位分配 + 事务序列（槽位跨度 = 该资源实际占用的槽数）

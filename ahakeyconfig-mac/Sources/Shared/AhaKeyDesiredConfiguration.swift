@@ -177,7 +177,7 @@ public struct AhaKeyDesiredConfiguration: Codable, Equatable, Sendable {
             self.activeSet = activeSet
         }
 
-        /// 兼容切片 0 已冻结的旧 JSON（无 defaultAnimationFrames 字段）。
+        /// 兼容切片 0 已冻结的旧 JSON（无 defaultAnimationFrames 字段），带校验。
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             defaultAnimation = try container.decodeIfPresent(AhaKeyResourceIdentifier.self, forKey: .defaultAnimation)
@@ -186,12 +186,22 @@ public struct AhaKeyDesiredConfiguration: Codable, Equatable, Sendable {
             framesPerSecond = try container.decode(Int.self, forKey: .framesPerSecond)
             taskSets = try container.decode([TaskSet].self, forKey: .taskSets)
             activeSet = try container.decode(Int.self, forKey: .activeSet)
+            guard (1...30).contains(framesPerSecond) else {
+                throw AhaKeyDesiredConfigurationError.invalidFramesPerSecond
+            }
+            guard taskSets.count == 2 else { throw AhaKeyDesiredConfigurationError.invalidTaskSetCount }
+            guard (-1...1).contains(activeSet) else { throw AhaKeyDesiredConfigurationError.invalidActiveSet }
+            if defaultAnimation != nil {
+                guard let frames = defaultAnimationFrames, frames > 0 else {
+                    throw AhaKeyDesiredConfigurationError.missingDeclaredMetadata
+                }
+            }
         }
     }
 
-    /// 任务图状态：0=idle 1=working 2=done 3=error（对齐 AhaKeyTaskDisplayState）。
+    /// 任务图状态：0=idle 1=working 2=waiting 3=done（对齐 AhaKeyTaskDisplayState）。
     public enum TaskDisplayState: UInt8, Codable, CaseIterable, Sendable {
-        case idle = 0, working = 1, done = 2, error = 3
+        case idle = 0, working = 1, waiting = 2, done = 3
     }
 
     public struct TaskSet: Codable, Equatable, Sendable {
