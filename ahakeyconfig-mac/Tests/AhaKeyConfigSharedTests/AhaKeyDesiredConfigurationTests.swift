@@ -30,9 +30,9 @@ final class AhaKeyDesiredConfigurationTests: XCTestCase {
                   description: "回退"),
         ]
         let setA = try AhaKeyDesiredConfiguration.TaskSet(assets: [
-            try! .init(state: .idle, resource: resource("oled-mode0-idle"), framesPerSecond: 12),
-            try! .init(state: .working, resource: resource("oled-mode0-working"), framesPerSecond: 12),
-            try! .init(state: .done, resource: resource("oled-mode0-done"), framesPerSecond: 12),
+            try! .init(state: .idle, resource: resource("oled-mode0-idle"), framesPerSecond: 12, pixelWidth: 128, pixelHeight: 128, declaredFrameCount: 8),
+            try! .init(state: .working, resource: resource("oled-mode0-working"), framesPerSecond: 12, pixelWidth: 128, pixelHeight: 128, declaredFrameCount: 8),
+            try! .init(state: .done, resource: resource("oled-mode0-done"), framesPerSecond: 12, pixelWidth: 128, pixelHeight: 128, declaredFrameCount: 8),
             try! .init(state: .error, resource: nil, framesPerSecond: 12),
         ])
         let setB = try AhaKeyDesiredConfiguration.TaskSet(assets: [

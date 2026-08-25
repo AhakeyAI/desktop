@@ -191,14 +191,53 @@ public struct AhaKeyDesiredConfiguration: Codable, Equatable, Sendable {
         public let resource: AhaKeyResourceIdentifier?
         /// 5...20。
         public let framesPerSecond: Int
+        /// 声明的素材元数据（提交方已知 GIF 尺寸/帧数）：planner 据此做尺寸/解码内存校验。
+        /// 有 resource 时必须提供；无 resource 时忽略。
+        public let pixelWidth: Int?
+        public let pixelHeight: Int?
+        public let declaredFrameCount: Int?
 
-        public init(state: TaskDisplayState, resource: AhaKeyResourceIdentifier?, framesPerSecond: Int) throws {
+        public init(
+            state: TaskDisplayState,
+            resource: AhaKeyResourceIdentifier?,
+            framesPerSecond: Int,
+            pixelWidth: Int? = nil,
+            pixelHeight: Int? = nil,
+            declaredFrameCount: Int? = nil
+        ) throws {
             guard (5...20).contains(framesPerSecond) else {
                 throw AhaKeyDesiredConfigurationError.invalidFramesPerSecond
+            }
+            if resource != nil {
+                guard let pixelWidth, let pixelHeight, pixelWidth > 0, pixelHeight > 0 else {
+                    throw AhaKeyDesiredConfigurationError.invalidAssetDimensions
+                }
+                guard let declaredFrameCount, declaredFrameCount > 0 else {
+                    throw AhaKeyDesiredConfigurationError.invalidAssetFrameCount
+                }
             }
             self.state = state
             self.resource = resource
             self.framesPerSecond = framesPerSecond
+            self.pixelWidth = pixelWidth
+            self.pixelHeight = pixelHeight
+            self.declaredFrameCount = declaredFrameCount
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case state, resource, framesPerSecond, pixelWidth, pixelHeight, declaredFrameCount
+        }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            try self.init(
+                state: c.decode(TaskDisplayState.self, forKey: .state),
+                resource: c.decodeIfPresent(AhaKeyResourceIdentifier.self, forKey: .resource),
+                framesPerSecond: c.decode(Int.self, forKey: .framesPerSecond),
+                pixelWidth: c.decodeIfPresent(Int.self, forKey: .pixelWidth),
+                pixelHeight: c.decodeIfPresent(Int.self, forKey: .pixelHeight),
+                declaredFrameCount: c.decodeIfPresent(Int.self, forKey: .declaredFrameCount)
+            )
         }
     }
 
@@ -265,6 +304,8 @@ public enum AhaKeyDesiredConfigurationError: Error, Equatable {
     case invalidTaskSetCount
     case invalidActiveSet
     case duplicateTaskState
+    case invalidAssetDimensions
+    case invalidAssetFrameCount
     case invalidBrightness
     case duplicateLightState
     case emptyLightEffect
