@@ -298,16 +298,11 @@ final class AgentManager: ObservableObject {
             bleManager.setSuppressedForAgentOwningKeyboard(true)
             bleManager.disconnect()
             guard isInstalled else {
-                log.info("未安装 LaunchAgent，无法将蓝牙交给 Agent，临时允许 App 连接")
-                bleManager.setSuppressedForAgentOwningKeyboard(false)
+                // WBS-5.5：Runtime 失败不得回退为 Studio 直连（架构 §11/§12）。
+                // 只提示用户安装/修复 Agent，绝不静默放开 Studio 竞争 Central。
+                log.info("未安装 LaunchAgent；保持 Studio 抑制，不回退直连")
                 if !isLaunch {
-                    agentUserAlert = NSLocalizedString("尚未安装 Agent，无法切回「键盘控制中」。请在「更多 → 设备信息 · Agent」里先安装并启用 Agent。", comment: "")
-                }
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: UInt64(500) * 1_000_000)
-                    if !bleManager.isConnected, !bleManager.isScanning {
-                        bleManager.connectAutomatically()
-                    }
+                    agentUserAlert = NSLocalizedString("尚未安装 Agent，键盘蓝牙保持由 Agent 独占但当前无 Agent 运行。请在「更多 → 设备信息 · Agent」里安装并启用 Agent。", comment: "")
                 }
                 return
             }

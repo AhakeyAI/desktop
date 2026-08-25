@@ -68,6 +68,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var negotiationAttempts = 0
     private var awaitingCapabilityResponse = false
     private var negotiationTimeoutItem: DispatchWorkItem?
+
+    // MARK: 状态归并（WBS-5.5 切片 4：周期帧与连接生命周期经 DeviceStateReducer）
+    private var coreSnapshot = CoreDeviceSnapshot()
+    private var diagnosticsSnapshot = DeviceDiagnosticsSnapshot()
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var pendingStateReset: DispatchWorkItem?
     /// 固件不会在拨杆变动时主动通知，因此 Agent 占用蓝牙时也必须轮询真实状态。
@@ -899,6 +903,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
+        let r = DeviceStateReducer.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString),
+                                         core: coreSnapshot, diagnostics: diagnosticsSnapshot)
+        coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
         performTransportActions(transportCore.handle(.connected(uuid: peripheral.identifier.uuidString), now: Date()))
     }
 
@@ -913,6 +920,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         awaitingCapabilityResponse = false
         negotiationTimeoutItem?.cancel()
         negotiationTimeoutItem = nil
+        let r = DeviceStateReducer.apply(.disconnected, core: coreSnapshot, diagnostics: diagnosticsSnapshot)
+        coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
         // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）——
         // 代际已随下次连接推进，旧 waiter 不可能被迟到回包完成。
         if !statusWaiters.isEmpty {
@@ -1023,10 +1032,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         guard let status = Self.parseDeviceStatus(data) else { return }
 
-        let hardwareSwitchState = UInt8(clamping: status.switchState)
+        // 经 DeviceStateReducer 归并（唯一状态入口）；Agent 无 pendingSwitchOverride，
+        // reducer 产出与原始解析等价，但 pending/超时语义对后续 UI 共享可用。
+        let reduced = DeviceStateReducer.apply(
+            .fullStatus(battery: status.battery, firmwareMain: status.firmwareMain,
+                        firmwareSub: status.firmwareSub, workMode: status.workMode,
+                        lightMode: status.lightMode, switchState: status.switchState,
+                        brightness: -1, activePictureSet: -1),
+            core: coreSnapshot, diagnostics: diagnosticsSnapshot
+        )
+        coreSnapshot = reduced.core
+        diagnosticsSnapshot = reduced.diagnostics
+
+        let hardwareSwitchState = UInt8(clamping: reduced.core.switchState)
         let previousSwitchState = cachedSwitchState
         cachedSwitchState = hardwareSwitchState
-        cachedLightMode = UInt8(clamping: status.lightMode)
+        cachedLightMode = UInt8(clamping: reduced.core.lightMode)
         if userSwitchOverride != nil {
             userSwitchOverride = nil
             userSwitchOverrideTimeout?.cancel()
