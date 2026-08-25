@@ -83,6 +83,15 @@ final class AhaKeyUSBHIDTransport {
         }
     }
 
+    /// 停止 USB 占用（WBS-5.5：Agent 独占时 Studio 不得再作为竞争方持有 USB HID）。
+    func stop() {
+        if let device {
+            IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
+            self.device = nil
+        }
+        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+    }
+
     func sendCommand(_ frame: Data) throws {
         try send(report: AhaKeyUSBHIDReportCodec.report(channel: .command, payload: frame))
     }

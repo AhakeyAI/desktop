@@ -162,6 +162,17 @@ public struct DeviceWaiterRegistry {
         }
     }
 
+    /// 断连/失效：强败**全部** waiter（含当前代际——transport 已消失，无人能给它们回包）。
+    @discardableResult
+    public mutating func invalidateAll() -> [(requestID: UInt64, outcome: DeviceWaiterOutcome)] {
+        let all = waiters.keys.sorted()
+        guard !all.isEmpty else { return [] }
+        return all.map { id in
+            waiters.removeValue(forKey: id)
+            return (id, .generationInvalidated)
+        }
+    }
+
     /// 代际失效（断连/重连）：移除所有绑定旧代际的 waiter。
     /// 返回被强败的 waiter（requestID 有序）。绑定新代际的不受影响。
     @discardableResult

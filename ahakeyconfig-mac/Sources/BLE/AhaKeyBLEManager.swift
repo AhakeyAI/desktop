@@ -256,7 +256,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 self?.appendLog("USB HID: \(error.localizedDescription)", isError: true)
             }
         }
-        usbTransport.start()
+        // WBS-5.5：Agent 独占时 Studio 连 USB transport 也不启动
+        if !suppressAutomaticConnection {
+            usbTransport.start()
+        }
         // 只有蓝牙权限已授予时才创建 CBCentralManager（创建即触发系统弹窗）。
         // 权限未决时延迟到用户点「申请」后调用 ensureCentralManager()。
         if CBCentralManager.authorization == .allowedAlways {
@@ -387,12 +390,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func setSuppressedForAgentOwningKeyboard(_ suppress: Bool) {
         suppressAutomaticConnection = suppress
         if suppress {
-            // 切给 Agent：释放跨进程连接锁，Agent 方可获取
+            // 切给 Agent：释放跨进程连接锁，Agent 方可获取；USB HID 也停止占用
             connectionLock.release()
             didLogConnectionLockBusy = false
+            usbTransport.stop()
         } else {
-            // 切回本 App（用户显式操作）：退避重置回 4s，尽快重连
+            // 切回本 App（用户显式操作）：退避重置回 4s，尽快重连；恢复 USB transport
             reconnectBackoff.reset()
+            usbTransport.start()
         }
     }
 

@@ -77,20 +77,25 @@ final class DeviceTransportCoreTests: XCTestCase {
         XCTAssertEqual(c.currentGenerations.transport, genBefore.transport + 1, "重连必须推进 transport generation")
     }
 
-    func testDisconnect_invalidatesStaleWaiters_keepsNewGeneration() {
+    func testDisconnect_failsCurrentGenerationWaiters() {
         var c = makeCore()
         driveToReady(&c)
-        var w = c.waiters
-        let staleID = w.register(operationID: 1, deviceID: "507C", generations: c.currentGenerations, now: now, timeout: 60)
-        c = DeviceTransportCore(sessionGeneration: 1, backoff: BackoffSchedule(intervals: [2]))
-        driveToReady(&c)
-        // 新核心代际不同：旧 waiter 注册表若在真实模块里同一实例，这里直接验证 registry 语义
-        _ = staleID
-        // 等价语义在 DeviceCommandSequencerTests 已覆盖；这里验证核心断连清队列：
-        var q = DeviceCommandQueue()
-        _ = q.enqueue(DeviceCommand(operationID: 1, deviceID: "507C", generations: DeviceGenerations(session: 1, transport: 1), opcode: 0, payload: Data()))
-        q.invalidateAll()
-        XCTAssertTrue(q.pending.isEmpty)
+        let id = c.registerWaiter(operationID: 1, now: now, timeout: 60)
+        XCTAssertNotNil(id)
+        _ = c.handle(.disconnected(uuid: "UUID-A"), now: now)
+        XCTAssertTrue(c.waiters.isEmpty, "断连必须强败当前代际 waiter（transport 已消失）")
+    }
+
+    func testReady_requiresStableDeviceID_noUUIDFallback() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        _ = c.handle(.discovered(uuid: "U", deviceID: nil), now: now)  // 广播无编号
+        _ = c.handle(.connected(uuid: "U"), now: now)
+        _ = c.handle(.servicesReady(uuid: "U"), now: now)
+        _ = c.handle(.negotiationFinished(uuid: "U", mode: .current), now: now)
+        XCTAssertFalse(c.isReady, "未识别稳定 device ID 不得 ready（禁止 UUID 兜底）")
+        XCTAssertNil(c.registerWaiter(operationID: 1, now: now, timeout: 10), "未识别设备不得注册 waiter")
     }
 
     func testDisconnect_backoffSequence_progresses() {

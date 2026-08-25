@@ -49,6 +49,8 @@ public enum DeviceTransportEvent {
     case servicesReady(uuid: String)
     /// 0x99 协商终态。
     case negotiationFinished(uuid: String, mode: AhaKeyProtocolMode)
+    /// 连接后补充设备身份（已知 UUID/系统已连路径没有广播包，用设备名后缀/2A25 序列号）。
+    case deviceIdentified(deviceID: String)
     case disconnected(uuid: String)
     case reconnectTimerFired
 }
@@ -128,15 +130,18 @@ public struct DeviceTransportCore {
             phase = .negotiating(uuid: uuid)
             return [.sendCapabilityNegotiation(uuid: uuid)]
 
-        case let .negotiationFinished(uuid, mode):
-            guard case .negotiating = phase else { return [] }
+        case let .negotiationFinished(uuid, mode):            guard case .negotiating = phase else { return [] }
             guard mode == .current else {
                 // current-only：不 ready、不断连（保留诊断通道），等待外部策略。
                 return []
             }
-            let deviceID = stableDeviceID ?? uuid
-            stableDeviceID = deviceID
+            // 稳定 device ID 必须来自广播编号/序列号；未识别不得 ready（禁止 UUID 兜底）。
+            guard let deviceID = stableDeviceID else { return [] }
             phase = .ready(uuid: uuid, deviceID: deviceID)
+            return []
+
+        case let .deviceIdentified(deviceID):
+            if stableDeviceID == nil { stableDeviceID = deviceID }
             return []
 
         case let .disconnected(uuid):
@@ -164,10 +169,46 @@ public struct DeviceTransportCore {
         return [.scan]
     }
 
-    /// 断连/失效公共收尾：强败旧代际 waiter、清队列。
+    /// 断连/失效公共收尾：强败全部 waiter（含当前代际）、清队列。
     private mutating func invalidateTransport() -> [DeviceTransportAction] {
-        _ = waiters.invalidateGenerations(notMatching: generations)
+        _ = waiters.invalidateAll()
         commandQueue.invalidateAll()
         return []
+    }
+
+    // MARK: - 命令/waiter 生产路径封装（Agent/Runtime 使用，不允许绕过）
+
+    /// 入队命令；返回应立即下发的 head（若此前空闲）。
+    @discardableResult
+    public mutating func enqueue(_ cmd: DeviceCommand) -> DeviceCommand? {
+        commandQueue.enqueue(cmd)
+    }
+
+    /// head 完成，返回新放行的命令。
+    @discardableResult
+    public mutating func completeHeadCommand() -> DeviceCommand? {
+        commandQueue.completeHead()
+    }
+
+    public var inFlightCommand: DeviceCommand? { commandQueue.inFlight }
+
+    /// 注册绑定当前代际的 waiter，返回 requestID。
+    public mutating func registerWaiter(operationID: UInt64, now: Date, timeout: TimeInterval) -> UInt64? {
+        guard let deviceID = stableDeviceID else { return nil }  // 未识别设备身份不注册 waiter
+        return waiters.register(operationID: operationID, deviceID: deviceID,
+                                generations: generations, now: now, timeout: timeout)
+    }
+
+    /// 回包路由：五元匹配才完成；迟到回包返回 nil。
+    @discardableResult
+    public mutating func resolveWaiter(requestID: UInt64, operationID: UInt64, payload: Data) -> DeviceWaiterOutcome? {
+        guard let deviceID = stableDeviceID else { return nil }
+        return waiters.resolve(requestID: requestID, fromOperation: operationID,
+                               device: deviceID, generations: generations, payload: payload)
+    }
+
+    /// 收集超时 waiter。
+    public mutating func collectWaiterTimeouts(now: Date) -> [(requestID: UInt64, outcome: DeviceWaiterOutcome)] {
+        waiters.collectTimeouts(now: now)
     }
 }

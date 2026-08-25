@@ -57,9 +57,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     private static let switchOverrideDefaultsKey = "lab.jawa.ahakeyconfig.agent.userSwitchOverride"
 
-    /// 等待下一次 status 回包的回调队列（用于 querySwitchState）。
-    /// WBS-5.5：每个 waiter 绑定登记时的代际；断连换代后迟到回包不得完成旧 waiter。
-    private var statusWaiters: [(generations: DeviceGenerations, completion: (AgentDeviceStatus?) -> Void)] = []
+    /// 状态查询 waiter 的完成回调（requestID → completion）。
+    /// 注册/路由全部经 DeviceTransportCore（五元绑定）；本表只挂回调。
+    private var waiterCompletions: [UInt64: (AgentDeviceStatus?) -> Void] = [:]
+    /// operationID → requestID（回包路由用）
+    private var operationWaiters: [UInt64: UInt64] = [:]
+    private var operationCounter: UInt64 = 0
+    /// head 命令超时（无应答时放行下一条，防止队列卡死）
+    private var headTimeoutItem: DispatchWorkItem?
 
     // MARK: 设备 transport 核心（WBS-5.5 切片 3）
     /// 生命周期/代际/waiter 归属的唯一决策点；本类只做 CoreBluetooth 适配与动作落地。
@@ -313,28 +318,82 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit("LED 状态 \(state): 协议协商未完成或非 current，发送被门控")
             return
         }
-        let data = Data(header + [0x90, state] + trailer)
+        // 串行队列（WBS-5.5 ①）：sendState 不得绕过队列直写。
+        operationCounter &+= 1
+        let cmd = DeviceCommand(
+            operationID: operationCounter,
+            deviceID: transportCore.stableDeviceID ?? "",
+            generations: transportCore.currentGenerations,
+            opcode: 0x90,
+            payload: Data([state])
+        )
+        if let head = transportCore.enqueue(cmd) {
+            writeCommand(head)
+        }
+    }
+
+    /// head 命令的真实 BLE 写入（wire 协议逐字不变）。
+    private func writeCommand(_ cmd: DeviceCommand) {
+        guard let commandChar, let peripheral else { return }
+        let frame: Data
+        switch cmd.opcode {
+        case 0x90:
+            guard let state = cmd.payload.first else { return }
+            frame = Data(header + [0x90, state] + trailer)
+        case 0x00:
+            frame = Data(header + [0x00] + trailer)
+        default:
+            frame = Data(header + [cmd.opcode] + cmd.payload + trailer)
+        }
         let writeKind = StateCommandWritePolicy.choose(
             supportsWrite: commandChar.properties.contains(.write),
             supportsWriteWithoutResponse: commandChar.properties.contains(.writeWithoutResponse)
         )
         let wt: CBCharacteristicWriteType
         switch writeKind {
-        case .withResponse:
-            wt = .withResponse
-        case .withoutResponse:
-            wt = .withoutResponse
+        case .withResponse: wt = .withResponse
+        case .withoutResponse: wt = .withoutResponse
         case .unavailable:
-            emit("LED 状态 \(state): 命令通道不支持写入")
+            emit("命令 0x\(String(cmd.opcode, radix: 16)): 命令通道不支持写入")
+            _ = transportCore.completeHeadCommand()
             return
         }
-        peripheral.writeValue(data, for: commandChar, type: wt)
-        lastSentState = state
-        let confirmation = writeKind == .withResponse ? "等待 BLE 确认" : "无 BLE 确认"
-        emit("→ LED 状态 \(state)（\(confirmation)）: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
-        Self.writeLiveState(stateValue: state)
-        // 事件性写入每次必写；stateValue 不参与去重比较，但文件 mtime 已刷新，需重置 touch 计时
-        liveStateCoalescer.noteEventWrite(LiveStateWriteCoalescer.Snapshot(), at: Date().timeIntervalSince1970)
+        peripheral.writeValue(frame, for: commandChar, type: wt)
+        if cmd.opcode == 0x90, let state = cmd.payload.first {
+            lastSentState = state
+            emit("→ LED 状态 \(state): \(frame.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            Self.writeLiveState(stateValue: state)
+            liveStateCoalescer.noteEventWrite(LiveStateWriteCoalescer.Snapshot(), at: Date().timeIntervalSince1970)
+        }
+        // head 超时：无应答时放行下一条，防止队列卡死
+        headTimeoutItem?.cancel()
+        let op = cmd.operationID
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.transportCore.inFlightCommand?.operationID == op else { return }
+            self.emit("命令 op=\(op) 应答超时，放行下一条")
+            self.failWaiter(forOperation: op, outcome: .timedOut)
+            self.advanceQueue()
+        }
+        headTimeoutItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: item)
+    }
+
+    /// head 完成（收到对应应答）：失败其 waiter（若有）并放行下一条。
+    private func advanceQueue() {
+        headTimeoutItem?.cancel()
+        headTimeoutItem = nil
+        if let next = transportCore.completeHeadCommand() {
+            writeCommand(next)
+        }
+    }
+
+    private func failWaiter(forOperation op: UInt64, outcome: DeviceWaiterOutcome) {
+        guard let rid = operationWaiters.removeValue(forKey: op),
+              let completion = waiterCompletions.removeValue(forKey: rid) else { return }
+        switch outcome {
+        case .timedOut: completion(cachedStatus())
+        default: completion(nil)
+        }
     }
 
     /// 把 agent 当前对键盘的认知（最近一次 hook 发送的 stateValue + BLE 上报的 lightMode/switchState/workMode）
@@ -393,12 +452,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         try? encoded.write(to: url, options: .atomic)
     }
 
+    /// 经串行队列发一次 0x00 状态查询（不带 waiter）。
     private func requestDeviceStatus() {
-        guard let commandChar, let peripheral else { return }
-        let query = Data(header + [0x00] + trailer)
-        let wt: CBCharacteristicWriteType =
-            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(query, for: commandChar, type: wt)
+        guard transportCore.isReady else { return }
+        operationCounter &+= 1
+        let cmd = DeviceCommand(
+            operationID: operationCounter,
+            deviceID: transportCore.stableDeviceID ?? "",
+            generations: transportCore.currentGenerations,
+            opcode: 0x00,
+            payload: Data()
+        )
+        if let head = transportCore.enqueue(cmd) {
+            writeCommand(head)
+        }
     }
 
     private func startStatusPolling() {
@@ -406,7 +473,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 1.0, repeating: 1.5)
         timer.setEventHandler { [weak self] in
-            guard let self, self.statusWaiters.isEmpty else { return }
+            guard let self else { return }
+            // waiter 超时收集（querySwitchState 的兜底 fire）
+            let expired = self.transportCore.collectWaiterTimeouts(now: Date())
+            for (rid, outcome) in expired {
+                if let completion = self.waiterCompletions.removeValue(forKey: rid) {
+                    self.operationWaiters = self.operationWaiters.filter { $0.value != rid }
+                    completion(outcome == .timedOut ? self.cachedStatus() : nil)
+                }
+            }
+            // 无 waiter 时周期轮询真实状态（固件不主动通知拨杆变动）
+            guard self.waiterCompletions.isEmpty else { return }
             self.requestDeviceStatus()
         }
         statusPollTimer = timer
@@ -422,22 +499,28 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 超时时用缓存兜底；仍然没有则返回 nil。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
-        guard peripheral != nil else {
+        // current-only：未 ready（未连/未协商/身份未识别）直接 nil，不注册 waiter
+        guard transportCore.isReady, peripheral != nil else {
             completion(nil)
             return
         }
-        // 发设备状态查询命令 AA BB 00 CC DD
-        requestDeviceStatus()
-
-        statusWaiters.append((generations: transportCore.currentGenerations, completion: completion))
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-            guard let self else { return }
-            // 把目前仍在队列里的 waiter 全部用缓存兜底 fire 掉
-            guard !self.statusWaiters.isEmpty else { return }
-            let waiters = self.statusWaiters
-            self.statusWaiters.removeAll()
-            let fallback = self.cachedStatus()
-            for w in waiters { w.completion(fallback) }
+        operationCounter &+= 1
+        let op = operationCounter
+        guard let rid = transportCore.registerWaiter(operationID: op, now: Date(), timeout: timeout) else {
+            completion(nil)
+            return
+        }
+        waiterCompletions[rid] = completion
+        operationWaiters[op] = rid
+        let cmd = DeviceCommand(
+            operationID: op,
+            deviceID: transportCore.stableDeviceID ?? "",
+            generations: transportCore.currentGenerations,
+            opcode: 0x00,
+            payload: Data()
+        )
+        if let head = transportCore.enqueue(cmd) {
+            writeCommand(head)
         }
     }
 
@@ -896,8 +979,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         emit("发现: \(name)")
         self.peripheral = peripheral
         peripheral.delegate = self
-        _ = transportCore.handle(.discovered(uuid: peripheral.identifier.uuidString, deviceID: nil), now: Date())
-        central.connect(peripheral, options: nil)
+        // 动作由 transport 核心决策并执行（不得丢弃 handle 返回的 actions）
+        performTransportActions(transportCore.handle(.discovered(uuid: peripheral.identifier.uuidString, deviceID: advertisedDeviceID(from: advertisementData, name: name)), now: Date()))
+    }
+
+    /// 稳定设备编号：manufacturer data 4 位编号 → 设备名后缀（对齐 Studio 的解析顺序）。
+    private func advertisedDeviceID(from advertisementData: [String: Any], name: String) -> String? {
+        AhaKeyDevicePresentation.advertisedIdentifier(
+            manufacturerData: advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
+        ) ?? AhaKeyDevicePresentation.nameSuffixIdentifier(name)
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -906,7 +996,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let r = DeviceStateReducer.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString),
                                          core: coreSnapshot, diagnostics: diagnosticsSnapshot)
         coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
-        performTransportActions(transportCore.handle(.connected(uuid: peripheral.identifier.uuidString), now: Date()))
+        var actions = transportCore.handle(.connected(uuid: peripheral.identifier.uuidString), now: Date())
+        // 已知 UUID/系统已连路径无广播包：连接后用设备名后缀补稳定身份
+        if let id = AhaKeyDevicePresentation.nameSuffixIdentifier(peripheral.name ?? "") {
+            actions += transportCore.handle(.deviceIdentified(deviceID: id), now: Date())
+        }
+        performTransportActions(actions)
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
@@ -922,12 +1017,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         negotiationTimeoutItem = nil
         let r = DeviceStateReducer.apply(.disconnected, core: coreSnapshot, diagnostics: diagnosticsSnapshot)
         coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
-        // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）——
-        // 代际已随下次连接推进，旧 waiter 不可能被迟到回包完成。
-        if !statusWaiters.isEmpty {
-            let waiters = statusWaiters
-            statusWaiters.removeAll()
-            for w in waiters { w.completion(nil) }
+        // 断连：核心强败全部 waiter（含当前代际），回调以 nil 收尾，队列清空
+        headTimeoutItem?.cancel()
+        headTimeoutItem = nil
+        if !waiterCompletions.isEmpty {
+            let completions = waiterCompletions
+            waiterCompletions.removeAll()
+            operationWaiters.removeAll()
+            for (_, c) in completions { c(nil) }
         }
         emit(NSLocalizedString("连接断开", comment: ""))
         performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
@@ -1028,6 +1125,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             } else {
                 emit("← 固件拒绝 LED/OLED 状态命令 0x90，错误码 \(acknowledgement.resultCode)")
             }
+            // 0x90 ACK 完成 head，放行下一条
+            if transportCore.inFlightCommand?.opcode == 0x90 {
+                advanceQueue()
+            }
             return
         }
         guard let status = Self.parseDeviceStatus(data) else { return }
@@ -1079,14 +1180,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             break
         }
 
-        guard !statusWaiters.isEmpty else { return }
-        let current = transportCore.currentGenerations
-        let waiters = statusWaiters
-        statusWaiters.removeAll()
-        // 代际归属：只有登记代际与当前一致的 waiter 才能被本帧完成；
-        // 旧代际 waiter（断连换代后的迟到回包）一律以 nil 收尾，不得吃到新代际数据。
-        for w in waiters {
-            w.completion(w.generations == current ? status : nil)
+        // 0x00 应答路由到 head 命令的 waiter（五元绑定；代际不符=迟到回包，nil 收尾）
+        if let head = transportCore.inFlightCommand, head.opcode == 0x00,
+           let rid = operationWaiters.removeValue(forKey: head.operationID) {
+            let outcome = transportCore.resolveWaiter(requestID: rid, operationID: head.operationID, payload: data)
+            if let completion = waiterCompletions.removeValue(forKey: rid) {
+                completion(outcome != nil ? status : nil)
+            }
+        }
+        if transportCore.inFlightCommand?.opcode == 0x00 {
+            advanceQueue()
         }
     }
 
