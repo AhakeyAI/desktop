@@ -55,6 +55,15 @@ if [ -d "Resources" ]; then
 	cp -R "Resources/." "${APP}/Contents/Resources/" 2>/dev/null || true
 fi
 
+FLASHER_RESOURCES="${APP}/Contents/Resources/FirmwareFlasher"
+if [ -d "${FLASHER_RESOURCES}" ]; then
+	(
+		cd "${FLASHER_RESOURCES}"
+		shasum -a 256 -c SOURCE_SHA256SUMS
+	)
+	chmod +x "${FLASHER_RESOURCES}/tools/arm64/wchisp" "${FLASHER_RESOURCES}/tools/x86_64/wchisp"
+fi
+
 # ad-hoc 签名,让产物在本地/CI 检查时可被 Gatekeeper 识别为已签名(非公证)。
 codesign --force --deep --sign - "${APP}" 2>/dev/null || echo "warn: codesign skipped (no codesign available)"
 

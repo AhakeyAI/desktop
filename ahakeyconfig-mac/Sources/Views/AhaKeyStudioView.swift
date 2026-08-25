@@ -26,6 +26,7 @@ struct AhaKeyStudioView: View {
     @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
     @State private var showsDeviceInfo = false
+    @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
     @State private var showsAhaTypeLoginRequiredToast = false
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
@@ -170,6 +171,9 @@ struct AhaKeyStudioView: View {
             DeviceInfoSheetContainer(bleManager: bleManager)
                 .frame(width: 720, height: 720)
         }
+        .sheet(isPresented: $showsFirmwareFlasher) {
+            FirmwareFlasherView(bleManager: bleManager)
+        }
         .sheet(isPresented: $showsCloudAccount) {
             CloudAccountView()
                 .frame(width: 520, height: 620)
@@ -248,6 +252,9 @@ struct AhaKeyStudioView: View {
                 }
                 Button("设备信息 · Agent…") {
                     showsDeviceInfo = true
+                }
+                Button("固件升级 · USB ISP…") {
+                    showsFirmwareFlasher = true
                 }
                 Divider()
                 Button("云端账号 · AhaType…") {
