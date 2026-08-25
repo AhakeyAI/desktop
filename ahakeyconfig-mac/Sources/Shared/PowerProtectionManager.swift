@@ -589,9 +589,11 @@ final class AssertionProtection {
 
     func activate() throws {
         guard !isActive else { return }
+        // 第二参数是 AssertionLevel：必须传 kIOPMAssertionLevelOn(255)；
+        // 传 0 = kIOPMAssertionLevelOff，断言创建即失效（pmset 不可见）。
         let status = IOPMAssertionCreateWithName(
             kIOPMAssertPreventUserIdleSystemSleep as CFString,
-            0,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
             "AhaKey Studio: Preventing idle sleep during coding tasks" as CFString,
             &assertionID
         )

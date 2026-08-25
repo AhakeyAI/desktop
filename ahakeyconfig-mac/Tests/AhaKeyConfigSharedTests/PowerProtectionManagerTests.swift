@@ -1,5 +1,6 @@
 import XCTest
 import IOKit
+import IOKit.pwr_mgt
 @testable import AhaKeyConfigShared
 
 final class PowerProtectionManagerTests: XCTestCase {
@@ -220,6 +221,29 @@ final class PowerProtectionManagerTests: XCTestCase {
         XCTAssertTrue(manager.isProtectionActive)
         XCTAssertEqual(manager.activeLevel, .assertion, "idle reason 必须以 L1 断言承重（pmset 可见）")
         XCTAssertNil(manager.failedLayers[.assertion], "L1 断言不得激活失败")
+    }
+
+    /// 回归（15:40 生产取证）：断言必须以 kIOPMAssertionLevelOn 创建——
+    /// 传 0（LevelOff）会创建即失效、pmset 不可见。用 IOPMCopyAssertionsByProcess
+    /// 直读本进程断言列表验证真实持有。
+    func testIdleAssertionVisibleToPowerManagement() {
+        manager.begin(.aiCodingIdleProcess)
+        let e = expectation(description: "active")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { e.fulfill() }
+        wait(for: [e], timeout: 1.0)
+        XCTAssertTrue(manager.isProtectionActive)
+
+        var assertions: Unmanaged<CFDictionary>?
+        let rc = IOPMCopyAssertionsByProcess(&assertions)
+        guard rc == kIOReturnSuccess, let dict = assertions?.takeRetainedValue() as? [NSNumber: Any] else {
+            XCTFail("IOPMCopyAssertionsByProcess 失败 rc=\(rc)")
+            return
+        }
+        let pid = ProcessInfo.processInfo.processIdentifier
+        // 结构：pid → [断言字典]，每项含 AssertType / AssertLevel
+        let mine = dict[NSNumber(value: pid)] as? [[String: Any]] ?? []
+        let held = mine.contains { ($0["AssertType"] as? String) == kIOPMAssertPreventUserIdleSystemSleep as String }
+        XCTAssertTrue(held, "本进程必须真实持有 PreventUserIdleSystemSleep（pmset 可见）")
     }
 
     /// 直读 IORegistry 根电源域的 SleepDisabled（测试级真实取证）。
