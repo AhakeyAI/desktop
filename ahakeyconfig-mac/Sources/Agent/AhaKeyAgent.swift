@@ -57,8 +57,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     private static let switchOverrideDefaultsKey = "lab.jawa.ahakeyconfig.agent.userSwitchOverride"
 
-    /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
-    private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
+    /// 等待下一次 status 回包的回调队列（用于 querySwitchState）。
+    /// WBS-5.5：每个 waiter 绑定登记时的代际；断连换代后迟到回包不得完成旧 waiter。
+    private var statusWaiters: [(generations: DeviceGenerations, completion: (AgentDeviceStatus?) -> Void)] = []
+
+    // MARK: 设备 transport 核心（WBS-5.5 切片 3）
+    /// 生命周期/代际/waiter 归属的唯一决策点；本类只做 CoreBluetooth 适配与动作落地。
+    private var transportCore = DeviceTransportCore(sessionGeneration: 1)
+    /// 0x99 协商进度
+    private var negotiationAttempts = 0
+    private var awaitingCapabilityResponse = false
+    private var negotiationTimeoutItem: DispatchWorkItem?
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var pendingStateReset: DispatchWorkItem?
     /// 固件不会在拨杆变动时主动通知，因此 Agent 占用蓝牙时也必须轮询真实状态。
@@ -295,6 +304,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit("LED 状态 \(state): 未连接")
             return
         }
+        // current-only（WBS-5.5）：0x99 协商未到 .current 前不下发业务命令。
+        guard transportCore.isReady else {
+            emit("LED 状态 \(state): 协议协商未完成或非 current，发送被门控")
+            return
+        }
         let data = Data(header + [0x90, state] + trailer)
         let writeKind = StateCommandWritePolicy.choose(
             supportsWrite: commandChar.properties.contains(.write),
@@ -411,7 +425,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 发设备状态查询命令 AA BB 00 CC DD
         requestDeviceStatus()
 
-        statusWaiters.append(completion)
+        statusWaiters.append((generations: transportCore.currentGenerations, completion: completion))
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
             guard let self else { return }
             // 把目前仍在队列里的 waiter 全部用缓存兜底 fire 掉
@@ -419,7 +433,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             let waiters = self.statusWaiters
             self.statusWaiters.removeAll()
             let fallback = self.cachedStatus()
-            for w in waiters { w(fallback) }
+            for w in waiters { w.completion(fallback) }
         }
     }
 
@@ -765,34 +779,61 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 抢锁失败后的 15s 重试项
     private var lockRetryItem: DispatchWorkItem?
 
+    /// 连接入口：全部决策交给 DeviceTransportCore，本类只落地动作。
     private func connectAutomatically() {
-        // 跨进程锁：抢不到不连接，15s 后重试
-        guard acquireConnectionLock() else { return }
-        // 1. 用已知 UUID
-        if let uuid = lastUUID {
-            let known = central.retrievePeripherals(withIdentifiers: [uuid])
-            if let p = known.first {
-                emit("直连已知设备: \(uuid.uuidString.prefix(8))…")
-                peripheral = p
-                p.delegate = self
-                central.connect(p, options: nil)
-                return
+        performTransportActions(transportCore.handle(.bluetoothPoweredOn, now: Date()))
+    }
+
+    /// transport 核心动作 → CoreBluetooth 落地。
+    private func performTransportActions(_ actions: [DeviceTransportAction]) {
+        for action in actions {
+            switch action {
+            case .acquireConnectionLock:
+                if acquireConnectionLock() {
+                    performTransportActions(transportCore.handle(.lockAcquired, now: Date()))
+                } else {
+                    _ = transportCore.handle(.lockBusy, now: Date())
+                }
+            case .scan:
+                emit(NSLocalizedString("开始扫描…", comment: ""))
+                central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+            case .connectKnown(let uuidString):
+                guard let uuid = UUID(uuidString: uuidString) else { break }
+                if let p = peripheral, p.identifier == uuid {
+                    p.delegate = self
+                    central.connect(p, options: nil)
+                } else if let p = central.retrievePeripherals(withIdentifiers: [uuid]).first {
+                    emit("直连已知设备: \(uuidString.prefix(8))…")
+                    peripheral = p
+                    p.delegate = self
+                    central.connect(p, options: nil)
+                } else {
+                    // 已知 UUID 已不可达：回退扫描
+                    emit(NSLocalizedString("开始扫描…", comment: ""))
+                    central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+                }
+            case .connectSystemAttached:
+                let connected = central.retrieveConnectedPeripherals(withServices: [serviceUUID])
+                if let p = connected.first(where: { ($0.name ?? "").lowercased().hasPrefix(deviceNamePrefix.lowercased()) }) {
+                    emit("系统已连接: \(p.name ?? "?")")
+                    peripheral = p
+                    p.delegate = self
+                    central.connect(p, options: nil)
+                }
+            case .discoverServices:
+                peripheral?.discoverServices([serviceUUID])
+            case .sendCapabilityNegotiation:
+                sendNegotiationQuery()
+            case .disconnect:
+                if let peripheral { central.cancelPeripheralConnection(peripheral) }
+            case .scheduleReconnectTimer(let after):
+                emit(String(format: NSLocalizedString("已断开，%.0fs 后重连", comment: ""), after))
+                DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in
+                    guard let self else { return }
+                    self.performTransportActions(self.transportCore.handle(.reconnectTimerFired, now: Date()))
+                }
             }
         }
-
-        // 2. 系统已连接
-        let connected = central.retrieveConnectedPeripherals(withServices: [serviceUUID])
-        if let p = connected.first(where: { ($0.name ?? "").lowercased().hasPrefix(deviceNamePrefix.lowercased()) }) {
-            emit("系统已连接: \(p.name ?? "?")")
-            peripheral = p
-            p.delegate = self
-            central.connect(p, options: nil)
-            return
-        }
-
-        // 3. 扫描
-        emit(NSLocalizedString("开始扫描…", comment: ""))
-        central.scanForPeripherals(withServices: [serviceUUID], options: nil)
     }
 
     /// 发起连接前必须持有跨进程连接锁；被 GUI 持有时不 attach，15s 后重试（不刷日志）。
@@ -820,7 +861,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             guard let self else { return }
             self.lockRetryItem = nil
             guard !self.connectionLock.holdsLock, self.peripheral == nil else { return }
-            self.connectAutomatically()
+            // 仍在等锁：只重试取锁动作，不重置连接退避
+            self.performTransportActions([.acquireConnectionLock])
         }
         lockRetryItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: item)
@@ -837,6 +879,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if central.state == .poweredOn {
             emit(NSLocalizedString("蓝牙就绪", comment: ""))
             connectAutomatically()
+        } else {
+            _ = transportCore.handle(.bluetoothUnavailable, now: Date())
         }
     }
 
@@ -848,13 +892,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         emit("发现: \(name)")
         self.peripheral = peripheral
         peripheral.delegate = self
+        _ = transportCore.handle(.discovered(uuid: peripheral.identifier.uuidString, deviceID: nil), now: Date())
         central.connect(peripheral, options: nil)
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
-        peripheral.discoverServices([serviceUUID])
+        performTransportActions(transportCore.handle(.connected(uuid: peripheral.identifier.uuidString), now: Date()))
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
@@ -864,16 +909,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         self.peripheral = nil
         cachedSwitchState = nil
         cachedLightMode = nil
-        // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
+        negotiationAttempts = 0
+        awaitingCapabilityResponse = false
+        negotiationTimeoutItem?.cancel()
+        negotiationTimeoutItem = nil
+        // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）——
+        // 代际已随下次连接推进，旧 waiter 不可能被迟到回包完成。
         if !statusWaiters.isEmpty {
             let waiters = statusWaiters
             statusWaiters.removeAll()
-            for w in waiters { w(nil) }
+            for w in waiters { w.completion(nil) }
         }
-        emit(NSLocalizedString("已断开，2s 后重连", comment: ""))
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            self?.connectAutomatically()
-        }
+        emit(NSLocalizedString("连接断开", comment: ""))
+        performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
     }
 
     // MARK: - CBPeripheralDelegate
@@ -894,16 +942,77 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 emit(NSLocalizedString("通知通道已订阅", comment: ""))
             }
         }
-        // 两个特征都就绪后发一次初始状态查询
+        // 两个特征都就绪 → transport 核心推进到协商（current-only：协商成功才允许业务写入与轮询）
         if commandChar != nil, notifyChar != nil {
+            performTransportActions(transportCore.handle(.servicesReady(uuid: peripheral.identifier.uuidString), now: Date()))
+        }
+    }
+
+    // MARK: - 0x99 能力协商（current-only）
+
+    /// 发送 0x99 能力查询；最多 3 次，每次 2s 超时（对齐 Shared/AhaKeyProtocolNegotiation）。
+    private func sendNegotiationQuery() {
+        guard let commandChar, let peripheral else { return }
+        negotiationAttempts += 1
+        awaitingCapabilityResponse = true
+        let frame = Data(header + [0x99] + trailer)
+        let wt: CBCharacteristicWriteType =
+            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(frame, for: commandChar, type: wt)
+        emit("→ 0x99 能力查询（第 \(negotiationAttempts) 次）")
+        negotiationTimeoutItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.negotiationTimedOut()
+        }
+        negotiationTimeoutItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+    }
+
+    private func negotiationTimedOut() {
+        guard awaitingCapabilityResponse else { return }
+        awaitingCapabilityResponse = false
+        if negotiationAttempts < 3 {
+            emit("0x99 超时，重试")
+            sendNegotiationQuery()
+        } else {
+            emit("0x99 三次无应答：固件非 current 协议，本连接不接管业务写入")
+            _ = transportCore.handle(.negotiationFinished(
+                uuid: peripheral?.identifier.uuidString ?? "", mode: .restrictedUnknown), now: Date())
+        }
+    }
+
+    /// 0x99 应答帧：AA BB 99 [payload≥14B] CC DD
+    private func handleCapabilityResponse(_ data: Data) {
+        guard awaitingCapabilityResponse else { return }
+        awaitingCapabilityResponse = false
+        negotiationTimeoutItem?.cancel()
+        negotiationTimeoutItem = nil
+        let payload = data.dropFirst(3).dropLast(2)
+        guard let caps = AhaKeyFirmwareCapabilities.parse(Data(payload)) else {
+            negotiationTimedOut()
+            return
+        }
+        let mode = AhaKeyProtocolNegotiation.mode(forCapabilities: caps)
+        emit("← 0x99 能力帧：protocol v\(caps.protocolVersion)，mode=\(mode)")
+        let uuid = peripheral?.identifier.uuidString ?? ""
+        performTransportActions(transportCore.handle(.negotiationFinished(uuid: uuid, mode: mode), now: Date()))
+        if transportCore.isReady {
+            emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
             startStatusPolling()
+        } else {
+            emit("协议 mode=\(mode) 非 current，保持连接但不做业务写入")
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic.uuid == commandCharUUID || characteristic.uuid == notifyCharUUID,
               let data = characteristic.value else { return }
+        // 0x99 能力应答优先于状态/ACK 解析
+        if data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x99 {
+            handleCapabilityResponse(data)
+            return
+        }
         if let acknowledgement = StateCommandAcknowledgement.parse(data) {
             if acknowledgement.resultCode == 0 {
                 emit("← 固件已应用 LED/OLED 状态命令 0x90")
@@ -950,9 +1059,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
 
         guard !statusWaiters.isEmpty else { return }
+        let current = transportCore.currentGenerations
         let waiters = statusWaiters
         statusWaiters.removeAll()
-        for w in waiters { w(status) }
+        // 代际归属：只有登记代际与当前一致的 waiter 才能被本帧完成；
+        // 旧代际 waiter（断连换代后的迟到回包）一律以 nil 收尾，不得吃到新代际数据。
+        for w in waiters {
+            w.completion(w.generations == current ? status : nil)
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
