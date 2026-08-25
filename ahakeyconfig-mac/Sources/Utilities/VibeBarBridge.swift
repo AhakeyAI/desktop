@@ -26,6 +26,8 @@ final class VibeBarBridge {
         nativeSpeech: NativeSpeechTranscriptionService,
         onOpenMainWindow: @escaping () -> Void
     ) {
+        // WindowGroup 的视图可能多次出现；重新绑定前取消旧订阅，避免重复回调与上游对象滞留。
+        cancellables.removeAll()
         state.onOpenMainWindow = onOpenMainWindow
 
         // BLE

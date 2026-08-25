@@ -23,6 +23,10 @@ struct AhaKeyConfigApp: App {
                 }
         }
         .windowStyle(.titleBar)
+        .commands {
+            // 主程序只有一个工作区，禁用 Command-N，避免 WindowGroup 累积多个完整视图树。
+            CommandGroup(replacing: .newItem) { }
+        }
 
         if #available(macOS 13.0, *) {
             MenuBarExtra("AhaKey", systemImage: "keyboard") {

@@ -1,6 +1,7 @@
 import AppKit
 import CoreImage
 import Darwin
+import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -161,7 +162,8 @@ struct AhaKeyStudioView: View {
         .sheet(isPresented: $showsOLEDPlaybackPreview) {
             OLEDMotionPreviewSheet(
                 modeTitle: selectedMode.title,
-                assetPath: currentModeDraft.oled.localAssetPath
+                assetPath: currentModeDraft.oled.localAssetPath,
+                fps: currentModeDraft.oled.framesPerSecond
             )
         }
         .sheet(isPresented: $showsDeviceInfo) {
@@ -1334,10 +1336,11 @@ struct AhaKeyStudioView: View {
                             .fill(Color.black.opacity(0.9))
                             .frame(height: 140)
 
-                        if let image = currentOLEDPreviewImage {
-                            Image(nsImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
+                        if let path = currentModeDraft.oled.localAssetPath {
+                            AnimatedGIFView(
+                                path: path,
+                                fps: currentModeDraft.oled.framesPerSecond
+                            )
                                 .frame(height: 112)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                         } else {
@@ -1747,11 +1750,6 @@ struct AhaKeyStudioView: View {
         syncStatusMessage = next == 0
             ? "虚拟拨杆 → 自动批准（hook 自动放行；灯效若不变需先刷支持 0x91 的固件）"
             : "虚拟拨杆 → 手动批准（hook 交回终端确认）"
-    }
-
-    private var currentOLEDPreviewImage: NSImage? {
-        guard let path = currentModeDraft.oled.localAssetPath else { return nil }
-        return NSImage(contentsOfFile: path)
     }
 
     private var currentOLEDAssetURL: URL? {
@@ -3379,8 +3377,8 @@ private struct AhaKeyKeyboardCanvasView: View {
     @ViewBuilder
     private func screenBody(screenWidth: CGFloat, screenHeight: CGFloat) -> some View {
         if let gifPath = modeDraft.oled.localAssetPath {
-            // .id(gifPath) 强制 SwiftUI 在路径切换时销毁并重建视图，
-            // 否则旧路径的 @State frames/currentFrame/timer 会与新路径错位，
+            // .id(gifPath) 强制 SwiftUI 在路径切换时销毁并重建播放器，
+            // 否则旧路径的图片源与新路径可能短暂错位，
             // 导致 Mode 切换瞬间画布渲染上一档 GIF 的某一帧（claude / cursor 互窜）。
             AnimatedGIFView(path: gifPath, fps: modeDraft.oled.framesPerSecond)
                 .id(gifPath)
@@ -3700,15 +3698,14 @@ private struct AhaKeyKeyboardCanvasView: View {
 private struct AnimatedGIFView: View {
     let path: String
     let fps: Int
+    var maxPixelSize = 320
 
-    @State private var frames: [NSImage] = []
-    @State private var currentFrame = 0
-    @State private var gifTimer: Timer? = nil
+    @StateObject private var player = AnimatedGIFPlayer()
 
     var body: some View {
         Group {
-            if !frames.isEmpty, currentFrame >= 0, currentFrame < frames.count {
-                Image(nsImage: frames[currentFrame])
+            if let currentImage = player.currentImage {
+                Image(nsImage: currentImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
             } else {
@@ -3717,29 +3714,101 @@ private struct AnimatedGIFView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
-        .onAppear { loadFrames() }
+        .onAppear {
+            player.start(path: path, fps: fps, maxPixelSize: maxPixelSize)
+        }
+        .onChange(of: path) { newPath in
+            player.start(path: newPath, fps: fps, maxPixelSize: maxPixelSize)
+        }
+        .onChange(of: fps) { newFPS in
+            player.start(path: path, fps: newFPS, maxPixelSize: maxPixelSize)
+        }
         .onDisappear {
-            gifTimer?.invalidate()
-            gifTimer = nil
+            player.stop()
         }
     }
+}
 
-    private func loadFrames() {
+/// GIF 预览只保留当前缩放帧。避免把源文件的所有原分辨率帧一次性解码并常驻内存。
+private final class AnimatedGIFPlayer: ObservableObject {
+    @Published private(set) var currentImage: NSImage?
+
+    private var imageSource: CGImageSource?
+    private var timer: Timer?
+    private var frameCount = 0
+    private var currentFrameIndex = 0
+    private var maxPixelSize = 320
+
+    func start(path: String, fps: Int, maxPixelSize: Int) {
+        stop()
+
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         let url = URL(fileURLWithPath: path)
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return }
-        let count = CGImageSourceGetCount(src)
-        guard count > 0 else { return }
-        var images: [NSImage] = []
-        for i in 0..<count {
-            guard let cgImage = CGImageSourceCreateImageAtIndex(src, i, nil) else { continue }
-            images.append(NSImage(cgImage: cgImage, size: .zero))
+        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else {
+            return
         }
-        frames = images
-        currentFrame = 0
-        guard count > 1 else { return }
-        let interval = 1.0 / Double(max(fps, 1))
-        gifTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
-            currentFrame = (currentFrame + 1) % max(1, frames.count)
+
+        let frameCount = CGImageSourceGetCount(imageSource)
+        guard frameCount > 0 else { return }
+
+        self.imageSource = imageSource
+        self.frameCount = frameCount
+        self.currentFrameIndex = 0
+        self.maxPixelSize = max(1, maxPixelSize)
+        renderCurrentFrame()
+
+        guard frameCount > 1 else { return }
+        let timer = Timer(timeInterval: 1.0 / Double(max(fps, 1)), repeats: true) { [weak self] _ in
+            self?.advanceFrame()
+        }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        imageSource = nil
+        frameCount = 0
+        currentFrameIndex = 0
+        currentImage = nil
+    }
+
+    deinit {
+        timer?.invalidate()
+    }
+
+    private func advanceFrame() {
+        guard frameCount > 1 else { return }
+        currentFrameIndex = (currentFrameIndex + 1) % frameCount
+        renderCurrentFrame()
+    }
+
+    private func renderCurrentFrame() {
+        guard let imageSource else {
+            currentImage = nil
+            return
+        }
+
+        let thumbnailOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            kCGImageSourceShouldCache: false,
+        ] as CFDictionary
+
+        currentImage = autoreleasepool {
+            guard let cgImage = CGImageSourceCreateThumbnailAtIndex(
+                imageSource,
+                currentFrameIndex,
+                thumbnailOptions
+            ) else {
+                return nil
+            }
+            return NSImage(
+                cgImage: cgImage,
+                size: NSSize(width: cgImage.width, height: cgImage.height)
+            )
         }
     }
 }
@@ -4280,6 +4349,7 @@ private struct HotspotChrome: ViewModifier {
 private struct OLEDMotionPreviewSheet: View {
     let modeTitle: String
     let assetPath: String?
+    let fps: Int
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -4304,7 +4374,7 @@ private struct OLEDMotionPreviewSheet: View {
                     .fill(Color.black.opacity(0.92))
 
                 if let assetPath {
-                    DraggableAnimatedGIFPreview(path: assetPath)
+                    DraggableAnimatedGIFPreview(path: assetPath, fps: fps)
                         .padding(12)
                 } else {
                     VStack(spacing: 10) {
@@ -4331,6 +4401,7 @@ private struct OLEDMotionPreviewSheet: View {
 /// 支持鼠标按住拖拽（上下左右）查看大图，避免仅靠滚轮导致横向浏览困难。
 private struct DraggableAnimatedGIFPreview: View {
     let path: String
+    let fps: Int
     @State private var imageSize = CGSize(width: 480, height: 240)
     @State private var offset: CGSize = .zero
     @State private var dragStartOffset: CGSize = .zero
@@ -4338,7 +4409,7 @@ private struct DraggableAnimatedGIFPreview: View {
     var body: some View {
         GeometryReader { proxy in
             let viewportSize = proxy.size
-            AnimatedGIFPreview(path: path)
+            AnimatedGIFView(path: path, fps: fps, maxPixelSize: 1_200)
                 .frame(width: imageSize.width, height: imageSize.height)
                 .position(
                     x: viewportSize.width / 2 + offset.width,
@@ -4384,25 +4455,6 @@ private struct DraggableAnimatedGIFPreview: View {
             width: min(max(proposed.width, -maxX), maxX),
             height: min(max(proposed.height, -maxY), maxY)
         )
-    }
-}
-
-private struct AnimatedGIFPreview: NSViewRepresentable {
-    let path: String
-
-    func makeNSView(context: Context) -> NSImageView {
-        let imageView = NSImageView()
-        imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.animates = true
-        imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 12
-        imageView.layer?.masksToBounds = true
-        imageView.imageAlignment = .alignCenter
-        return imageView
-    }
-
-    func updateNSView(_ nsView: NSImageView, context: Context) {
-        nsView.image = NSImage(contentsOfFile: path)
     }
 }
 
