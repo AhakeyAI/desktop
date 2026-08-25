@@ -14,10 +14,10 @@ public actor RuntimeOrchestrator {
     private let registry = RuntimeModuleRegistry()
     private var currentPlan = RuntimeModulePlan(desiredModules: [])
 
-    /// 应用串行链：每次 applyPolicy/stopAll 都排在前一个操作完成之后。
-    /// actor 在 `await registry` 处会让出，仅靠 actor 隔离无法防止并发
-    /// applyPolicy 交错（会出现重复 start / 启停乱序）；任务链保证严格 FIFO。
-    private var applyChain: Task<Void, Never> = Task {}
+    /// 应用串行链（尾任务）。关键点：链上的任务必须**包含整段工作**，
+    /// 而非只包含「等待上一段」——否则 gate 先行完成，后续调用会在
+    /// `await registry` 处与上一段实际工作交错（actor 重入竞态）。
+    private var tail: Task<Void, Never> = Task {}
 
     public init() {}
 
@@ -27,13 +27,22 @@ public actor RuntimeOrchestrator {
     }
 
     /// 应用新策略。返回实际发生的 transition；无变化返回 `nil`（调用方不得发布）。
+    ///
+    /// 串行化：整段工作（含 `await registry`）放进链上任务 `op`，
+    /// `tail` 等待 `op` 完成——后续调用必须等上一段实际工作结束才进入。
     @discardableResult
     public func applyPolicy(_ policy: AhaKeyRuntimePolicy) async -> RuntimeModuleTransition? {
-        let prior = applyChain
-        let gate = Task { await prior.value }
-        applyChain = gate
-        await gate.value
+        let prior = tail
+        let op = Task<RuntimeModuleTransition?, Never> { [self] in
+            await prior.value
+            return await self.applySerialized(policy)
+        }
+        tail = Task { _ = await op.value }
+        return await op.value
+    }
 
+    /// 串行区：一次只有一个调用在运行（由 `tail` 链保证）。
+    private func applySerialized(_ policy: AhaKeyRuntimePolicy) async -> RuntimeModuleTransition? {
         let next = RuntimeOrchestratorCore.plan(for: policy)
         guard let transition = RuntimeOrchestratorCore.transition(from: currentPlan, to: next)
         else { return nil }
@@ -52,11 +61,16 @@ public actor RuntimeOrchestrator {
 
     /// 进程退出清理：停止全部模块（排入串行链，避免与进行中的启停交错）。
     public func stopAll() async {
-        let prior = applyChain
-        let gate = Task { await prior.value }
-        applyChain = gate
-        await gate.value
+        let prior = tail
+        let op = Task<Void, Never> { [self] in
+            await prior.value
+            await self.stopAllSerialized()
+        }
+        tail = Task { await op.value }
+        await op.value
+    }
 
+    private func stopAllSerialized() async {
         await registry.stopAll()
         currentPlan = RuntimeModulePlan(desiredModules: [])
     }

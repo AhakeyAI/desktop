@@ -12,6 +12,37 @@ private final class FakeModule: RuntimeModule, @unchecked Sendable {
     func stop() async { stopCalls += 1; status = .idle }
 }
 
+/// 带重叠探测的慢模块：start/stop 各挂起 10ms 制造宽重入窗口，
+/// 任何并发交错都会推高 maxInFlight（对未串行化实现稳定失败）。
+private final class GuardedModule: RuntimeModule, @unchecked Sendable {
+    let id: RuntimeModuleID
+    private(set) var status: RuntimeModuleStatus = .idle
+    var startCalls = 0
+    var stopCalls = 0
+    private var inFlight = 0
+    private(set) var maxInFlight = 0
+
+    init(id: RuntimeModuleID) { self.id = id }
+
+    func start() async throws {
+        startCalls += 1
+        inFlight += 1
+        maxInFlight = max(maxInFlight, inFlight)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        status = .running
+        inFlight -= 1
+    }
+
+    func stop() async {
+        stopCalls += 1
+        inFlight += 1
+        maxInFlight = max(maxInFlight, inFlight)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        status = .idle
+        inFlight -= 1
+    }
+}
+
 /// 首次 start 失败、之后恢复的模块（重启恢复测试用）。
 private final class FlakyModule: RuntimeModule, @unchecked Sendable {
     let id: RuntimeModuleID
@@ -125,32 +156,47 @@ final class RuntimeOrchestratorTests: XCTestCase {
 
     // MARK: - 切片 4：生命周期 / 重启恢复 / 竞态 / CPU 空转
 
-    /// 竞态：并发 applyPolicy 由 actor 串行化，最终态确定且无重复 start。
-    func testConcurrentPolicyApplicationIsDeterministic() async throws {
-        let (orchestrator, fakes) = await makeOrchestrator()
+    /// 竞态（确定性）：并发相同策略必须恰好 start 一次；交错开关策略不得出现
+    /// start/stop 重叠（GuardedModule 宽重入窗口，未串行化实现稳定失败）。
+    func testConcurrentPolicyApplicationIsDeterministic() async {
+        let orchestrator = RuntimeOrchestrator()
+        let guarded = GuardedModule(id: .powerProtection)
+        await orchestrator.register(guarded)
+
         var on = AhaKeyRuntimePolicy()
         on.powerProtectionEnabled = true
         let off = AhaKeyRuntimePolicy()
 
-        // 并发交替应用开/关策略；actor 串行化保证模块启停不重不漏
+        // 20 个并发相同策略：恰好一次 start
         await withTaskGroup(of: RuntimeModuleTransition?.self) { group in
-            for i in 0 ..< 50 {
+            for _ in 0 ..< 20 {
+                group.addTask { await orchestrator.applyPolicy(on) }
+            }
+            for await _ in group {}
+        }
+        XCTAssertEqual(guarded.startCalls, 1, "并发相同策略必须只启动一次")
+
+        // 60 次交错开/关：任意串行序都合法，但不允许启停重叠
+        await withTaskGroup(of: RuntimeModuleTransition?.self) { group in
+            for i in 0 ..< 60 {
                 group.addTask { await orchestrator.applyPolicy(i.isMultiple(of: 2) ? on : off) }
             }
             for await _ in group {}
         }
-        let resident = await orchestrator.shouldStayResident
-        let fake = try XCTUnwrap(fakes[.powerProtection])
-        XCTAssertEqual(fake.status, resident ? .running : .idle, "模块状态必须与最终 plan 常驻性一致")
-        XCTAssertLessThanOrEqual(fake.startCalls, fake.stopCalls + 1, "竞态下不得出现悬而未停的 start")
+        XCTAssertEqual(guarded.maxInFlight, 1, "启停不得重叠（FIFO 链必须串行整段工作）")
 
-        // 再应用一次等价策略：零工作（无 transition、无额外 start/stop）
+        // 模块状态必须与最终 plan 一致
+        let resident = await orchestrator.shouldStayResident
+        XCTAssertEqual(guarded.status, resident ? .running : .idle, "模块状态必须与最终 plan 一致")
+        XCTAssertLessThanOrEqual(guarded.startCalls, guarded.stopCalls + 1, "不得有悬而未停的 start")
+
+        // 再应用等价策略：零工作
         let finalPolicy = resident ? on : off
-        let starts = fake.startCalls, stops = fake.stopCalls
+        let starts = guarded.startCalls, stops = guarded.stopCalls
         let t = await orchestrator.applyPolicy(finalPolicy)
         XCTAssertNil(t)
-        XCTAssertEqual(fake.startCalls, starts)
-        XCTAssertEqual(fake.stopCalls, stops)
+        XCTAssertEqual(guarded.startCalls, starts)
+        XCTAssertEqual(guarded.stopCalls, stops)
     }
 
     /// 重启恢复：模块 start 失败 → .failed；策略收窄再放开后可恢复运行。
