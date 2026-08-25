@@ -33,6 +33,13 @@ public enum AhaKeyPaths {
         applicationSupportDirectory.appendingPathComponent("device-identity.json")
     }
 
+    /// Runtime 持久事务存储根（WBS-5.1 WAL + CAS；5.6 配置事务恢复从这里捞）。
+    public static var runtimeStoreDirectory: URL {
+        applicationSupportDirectory
+            .appendingPathComponent("private", isDirectory: true)
+            .appendingPathComponent("runtime-store", isDirectory: true)
+    }
+
     /// 确保 Application Support 子目录存在，并设置为仅用户自己可访问（0700）。
     public static func ensureApplicationSupportDirectory() throws {
         try FileManager.default.createDirectory(

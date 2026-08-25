@@ -31,10 +31,10 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
     // MARK: 资源上传程序
 
     func testResourceUploadProgramAddressesAndChunks() {
-        // 2 帧 × 28672B → 每帧 7 块（28672/4096=7），共 14 对 prepare+chunk
+        // 2 帧 × 编码 25600B → 每帧 7 块（⌈25600/4096⌉=7，末块 1024），共 14 对 prepare+chunk
         let steps = Mapper.resourceUploadProgram(
             digest: digest(), slotIndex: 0,
-            encodedFrameCount: 2, encodedFrameBytes: 28_672,
+            encodedFrameCount: 2,
             usesSessionUpload: true, capabilities: capabilities()
         )
         XCTAssertEqual(steps.count, 28)
@@ -43,26 +43,49 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         }
         XCTAssertNotNil(session)          // 会话式
         XCTAssertEqual(len, 4096)
-        XCTAssertEqual(addr, 10 * 28_672) // slot0 首帧地址
+        XCTAssertEqual(addr, 10 * 28_672) // slot0 首帧地址（flash 槽 28672B 步长）
         XCTAssertEqual(addr % 4096, 0, "地址必须扇区对齐")
+        // session 按 chunk 轮换（对齐 Studio 生产路径）
+        guard case .prepareWrite(let session2, _, _) = steps[2] else {
+            return XCTFail("第二块应为 prepareWrite")
+        }
+        XCTAssertNotNil(session2)
+        XCTAssertNotEqual(session, session2, "每块独立会话，失败可精确回滚当前块")
         // 第二帧地址 = (10+1)*28672
         let secondFramePrepare = steps[14]
         guard case .prepareWrite(_, _, let addr2) = secondFramePrepare else {
             return XCTFail("第二帧首步应为 prepareWrite")
         }
         XCTAssertEqual(addr2, 11 * 28_672)
+        // 帧内末块 = 25600 % 4096 = 1024，且 chunk offset 索引编码流
+        guard case .writeResourceChunk(_, let chunkOffset, let chunkLen) = steps[13] else {
+            return XCTFail("chunk 步类型错误")
+        }
+        XCTAssertEqual(chunkOffset, 6 * 4096)
+        XCTAssertEqual(chunkLen, 1024)
     }
 
     func testResourceUploadProgramLegacyPrepareWithoutSession() {
         let steps = Mapper.resourceUploadProgram(
             digest: digest(), slotIndex: 0,
-            encodedFrameCount: 1, encodedFrameBytes: 28_672,
+            encodedFrameCount: 1,
             usesSessionUpload: false, capabilities: capabilities(sessionUpload: false)
         )
         guard case .prepareWrite(let session, _, _) = steps.first else {
             return XCTFail("首步应为 prepareWrite")
         }
         XCTAssertNil(session)
+    }
+
+    func testResourceUploadProgramCapsFramesAtSlotLimit() {
+        // 声明 70 帧但槽位上限 30：程序只排 30 帧（声明超限由 planner 拒绝兜底）
+        let steps = Mapper.resourceUploadProgram(
+            digest: digest(), slotIndex: 0,
+            encodedFrameCount: 70,
+            usesSessionUpload: false, capabilities: capabilities(sessionUpload: false)
+        )
+        let prepares = steps.filter { if case .prepareWrite = $0 { return true }; return false }
+        XCTAssertEqual(prepares.count, 30 * 7)
     }
 
     // MARK: base 配置程序
@@ -148,6 +171,9 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         )
         XCTAssertNotNil(resourceProgram)
         XCTAssertFalse(resourceProgram!.isEmpty)
+        // 分块由声明帧数（12）× 固定编码长度决定，与 CAS 源 byteCount 无关
+        let prepares = resourceProgram!.filter { if case .prepareWrite = $0 { return true }; return false }
+        XCTAssertEqual(prepares.count, 12 * 7)
         let baseProgram = Mapper.program(
             for: try! .init("base:mode:2"), desired: desired, plan: plan,
             resources: metas, capabilities: capabilities()

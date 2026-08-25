@@ -41,15 +41,19 @@ public struct AhaKeyDeviceLayoutPolicy: Equatable, Sendable {
     public var framesPerSlot: Int
     /// flash 帧槽字节数。
     public var frameSlotBytes: Int
+    /// RGB565 编码后每帧字节数（160×80×2）。flash 数据必须是编码帧，不是 CAS 源字节。
+    public var encodedFrameBytes: Int
     /// 写入分块字节数（4096 对齐要求）。
     public var chunkBytes: Int
     /// 每帧间隔（ms）= 1000 / fps。
     public var defaultFrameIntervalFloor: UInt16
 
     public init(framesPerSlot: Int = 30, frameSlotBytes: Int = 28_672,
+                encodedFrameBytes: Int = 25_600,
                 chunkBytes: Int = 4096, defaultFrameIntervalFloor: UInt16 = 33) {
         self.framesPerSlot = framesPerSlot
         self.frameSlotBytes = frameSlotBytes
+        self.encodedFrameBytes = encodedFrameBytes
         self.chunkBytes = chunkBytes
         self.defaultFrameIntervalFloor = defaultFrameIntervalFloor
     }
@@ -66,32 +70,36 @@ public enum AhaKeyConfigurationStepMapper {
 
     /// resource 步骤的上传程序：prepare+chunk 循环（会话式优先），末尾不写绑定
     /// （绑定属于 base 步骤，槽位引用必须先就位）。
-    /// - Parameter encodedFrames: 执行前已由资源编码 seam 把 GIF 转成 RGB565 帧，
-    ///   此处只排布地址/分块；帧字节经 digest+offset 引用。
+    /// - 帧字节数固定为 RGB565 编码长度（默认 25600B/帧）；offset/length 索引的是
+    ///   **编码后字节流**，由执行层把 CAS 源（GIF/PNG）先经 `AhaKeyOLEDFrameEncoderCore`
+    ///   编码再切片——CAS 源字节绝不直接当 flash 数据。
+    /// - session 按 chunk 轮换（对齐 Studio 生产路径：每块独立 0x9B 会话，
+    ///   失败时可精确回滚当前块）。
     public static func resourceUploadProgram(
         digest: AhaKeySHA256Digest,
         slotIndex: Int,
         encodedFrameCount: Int,
-        encodedFrameBytes: Int,
         usesSessionUpload: Bool,
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init()
     ) -> [AhaKeyDeviceProgramStep] {
         let startFrame = layout.startFrameIndex(slot: slotIndex, factorySlotBase: capabilities.factorySlotBase)
+        let frameCount = min(encodedFrameCount, layout.framesPerSlot)
+        let frameBytes = layout.encodedFrameBytes
         var steps: [AhaKeyDeviceProgramStep] = []
-        let sessionID: UInt16? = usesSessionUpload ? UInt16.random(in: 1...UInt16.max) : nil
-        for frame in 0..<encodedFrameCount {
+        for frame in 0..<frameCount {
             let frameAddress = UInt32(Int(startFrame) + frame) * UInt32(layout.frameSlotBytes)
             var offset = 0
-            while offset < encodedFrameBytes {
-                let length = min(layout.chunkBytes, encodedFrameBytes - offset)
+            while offset < frameBytes {
+                let length = min(layout.chunkBytes, frameBytes - offset)
+                let sessionID: UInt16? = usesSessionUpload ? UInt16.random(in: 1...UInt16.max) : nil
                 steps.append(.prepareWrite(
                     sessionID: sessionID, chunkLength: length,
                     address: frameAddress + UInt32(offset)
                 ))
                 steps.append(.writeResourceChunk(
                     digest: digest,
-                    offset: frame * encodedFrameBytes + offset,
+                    offset: frame * frameBytes + offset,
                     length: length
                 ))
                 offset += length
@@ -178,10 +186,11 @@ public enum AhaKeyConfigurationStepMapper {
                   let meta = resources.first(where: { $0.logicalIdentifier.rawValue == identifier }),
                   let asset = findAsset(identifier: identifier, in: desired),
                   let frames = asset.declaredFrameCount else { return nil }
+            // 帧数取声明值（容量由 planner 校验），编码长度由 layout 固定；
+            // meta.byteCount 是 CAS 源（GIF）大小，绝不是 flash 编码长度。
             return resourceUploadProgram(
                 digest: meta.sha256, slotIndex: slot,
                 encodedFrameCount: frames,
-                encodedFrameBytes: Int(meta.byteCount) / max(1, frames),
                 usesSessionUpload: capabilities.supportsSessionUpload,
                 capabilities: capabilities, layout: layout
             )

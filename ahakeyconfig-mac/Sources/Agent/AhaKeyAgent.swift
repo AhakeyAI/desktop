@@ -40,6 +40,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let serviceUUID = CBUUID(string: "7340")
     private let commandCharUUID = CBUUID(string: "7343")
     private let notifyCharUUID = CBUUID(string: "7344")
+    /// 数据特征（配置事务资源块直写，WBS-5.6）
+    private let dataCharUUID = CBUUID(string: "7341")
+    private var dataChar: CBCharacteristic?
     /// Device Information：改名设备（无 4 位名后缀）靠 2A25 序列号推导稳定身份
     private let deviceInfoServiceUUID = CBUUID(string: "180A")
     private let serialNumberCharUUID = CBUUID(string: "2A25")
@@ -71,11 +74,29 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     // MARK: 设备 transport 核心（WBS-5.5 切片 3）
     /// 生命周期/代际/waiter 归属的唯一决策点；本类只做 CoreBluetooth 适配与动作落地。
-    private var transportCore = DeviceTransportCore(sessionGeneration: 1)
+    /// fileprivate：程序执行 transport（本文件内）需读 isReady 做取消检查点。
+    fileprivate var transportCore = DeviceTransportCore(sessionGeneration: 1)
     /// 0x99 协商进度
     private var negotiationAttempts = 0
     private var awaitingCapabilityResponse = false
     private var negotiationTimeoutItem: DispatchWorkItem?
+    /// 协商出的固件能力（配置事务 planner 输入，WBS-5.6）
+    private var negotiatedCapabilities: AhaKeyFirmwareCapabilities?
+
+    // MARK: 配置事务（WBS-5.6）：sequencer 命令 waiter + 0x81 数据写 waiter + 恢复接线
+    /// 配置类命令走 DeviceTransportCore 串行队列 + 五元 waiter（与状态查询同一纪律）；
+    /// requestID → continuation；operationID → requestID 路由表。
+    private var configWaiterContinuations: [UInt64: CheckedContinuation<(status: UInt8, payload: Data), Error>] = [:]
+    private var configOperationWaiters: [UInt64: UInt64] = [:]
+    /// 0x81 图片写入确认 waiter（数据通道；session 校验在路由处）。
+    private var dataWriteContinuation: CheckedContinuation<Void, Error>?
+    private var dataWriteTimeoutItem: DispatchWorkItem?
+    /// 在途 0x9B 会话（0x81 须匹配；失败/取消时 0x9A 回滚）。
+    private var activeUploadSessionID: UInt16?
+    /// 编码字节流缓存（digest → RGB565 流；CAS 源绝不直接当 flash 数据）。
+    private var encodedStreamCache: [AhaKeySHA256Digest: Data] = [:]
+    /// 正在恢复/执行中的配置事务（防重入）
+    private var configurationRecoveryInFlight = false
 
     // MARK: 状态归并（WBS-5.5 切片 4：周期帧与连接生命周期经 DeviceStateReducer）
     private var coreSnapshot = CoreDeviceSnapshot()
@@ -483,6 +504,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 if let completion = self.waiterCompletions.removeValue(forKey: rid) {
                     self.operationWaiters = self.operationWaiters.filter { $0.value != rid }
                     completion(outcome == .timedOut ? self.cachedStatus() : nil)
+                }
+                // 配置命令 waiter 超时（同一 registry，统一在此兜底）
+                if let continuation = self.configWaiterContinuations.removeValue(forKey: rid) {
+                    self.configOperationWaiters = self.configOperationWaiters.filter { $0.value != rid }
+                    continuation.resume(throwing: AhaKeyAgentCommandError.ackTimedOut)
+                    self.advanceQueue()
                 }
             }
             // 无 waiter 时周期轮询真实状态（固件不主动通知拨杆变动）
@@ -1068,6 +1095,21 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             operationWaiters.removeAll()
             for (_, c) in completions { c(nil) }
         }
+        // 配置事务 waiter 一并强败（WAL 里有恢复点，重连后 recovery 续跑）；
+        // 断连瞬间无法补 0x9A，固件侧会话靠自身超时回收。
+        activeUploadSessionID = nil
+        if !configWaiterContinuations.isEmpty {
+            let pending = configWaiterContinuations
+            configWaiterContinuations.removeAll()
+            configOperationWaiters.removeAll()
+            for (_, c) in pending { c.resume(throwing: AhaKeyAgentCommandError.disconnected) }
+        }
+        if let dataContinuation = dataWriteContinuation {
+            dataWriteContinuation = nil
+            dataWriteTimeoutItem?.cancel()
+            dataWriteTimeoutItem = nil
+            dataContinuation.resume(throwing: AhaKeyAgentCommandError.disconnected)
+        }
         emit(NSLocalizedString("连接断开", comment: ""))
         performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
     }
@@ -1076,7 +1118,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) {
-            peripheral.discoverCharacteristics([commandCharUUID, notifyCharUUID], for: service)
+            peripheral.discoverCharacteristics([commandCharUUID, notifyCharUUID, dataCharUUID], for: service)
         }
         if let infoService = peripheral.services?.first(where: { $0.uuid == deviceInfoServiceUUID }) {
             peripheral.discoverCharacteristics([serialNumberCharUUID], for: infoService)
@@ -1097,6 +1139,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
             startStatusPolling()
+            scheduleConfigurationRecovery()
         }
     }
 
@@ -1115,6 +1158,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 notifyChar = char
                 peripheral.setNotifyValue(true, for: char)
                 emit(NSLocalizedString("通知通道已订阅", comment: ""))
+            } else if char.uuid == dataCharUUID {
+                dataChar = char
+                emit(NSLocalizedString("数据通道就绪", comment: ""))
             }
         }
         // 两个特征都就绪 → transport 核心推进到协商（current-only：协商成功才允许业务写入与轮询）
@@ -1170,6 +1216,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         let mode = AhaKeyProtocolNegotiation.mode(forCapabilities: caps)
+        negotiatedCapabilities = caps
         emit("← 0x99 能力帧：protocol v\(caps.protocolVersion)，mode=\(mode)")
         let uuid = peripheral?.identifier.uuidString ?? ""
         performTransportActions(transportCore.handle(.negotiationFinished(uuid: uuid, mode: mode), now: Date()))
@@ -1177,6 +1224,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
             startStatusPolling()
+            scheduleConfigurationRecovery()
         } else if mode == .current {
             emit("协议 v3 已确认，等待稳定设备身份（广播编号或 2A25 序列号）…")
         } else {
@@ -1196,6 +1244,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
                     requestDeviceStatus()
                     startStatusPolling()
+                    scheduleConfigurationRecovery()
                 }
             } else {
                 // 占位符序列号（如 Rhino 固件硬编码 "Serial Number"）：UUID 兜底
@@ -1209,6 +1258,30 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 0x99 能力应答优先于状态/ACK 解析
         if data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x99 {
             handleCapabilityResponse(data)
+            return
+        }
+        // 0x81 图片写入确认（数据通道收尾；session 必须匹配当前在途会话）
+        if data.count >= 6, data[0] == 0xAA, data[1] == 0xBB, data[2] == AhaKeyWireFrameBuilder.cmdWriteResult,
+           data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD {
+            handlePictureWriteResult(status: data[3], payload: data[4 ..< data.count - 2])
+            return
+        }
+        // 配置事务命令 ACK（sequencer head 五元匹配；0x00/0x90 走各自既有路径）
+        if data.count >= 6, data[0] == 0xAA, data[1] == 0xBB,
+           data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD,
+           data[2] != 0x00, data[2] != 0x90,
+           let head = transportCore.inFlightCommand, head.opcode == data[2],
+           let rid = configOperationWaiters.removeValue(forKey: head.operationID) {
+            let outcome = transportCore.resolveWaiter(
+                requestID: rid, operationID: head.operationID,
+                payload: Data(data[3 ..< data.count - 2])
+            )
+            if let continuation = configWaiterContinuations.removeValue(forKey: rid) {
+                if outcome != nil {
+                    continuation.resume(returning: (status: data[3], payload: Data(data[4 ..< data.count - 2])))
+                } // 迟到回包：不完成，等超时兜底
+            }
+            advanceQueue()
             return
         }
         if let acknowledgement = StateCommandAcknowledgement.parse(data) {
@@ -1316,5 +1389,260 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             lightMode: Int(payload[base + 5]),
             switchState: Int(payload[base + 6])
         )
+    }
+
+    // MARK: - 配置事务恢复与程序执行（WBS-5.6 切片 5b）
+
+    /// ready 后捞起 WAL 里未竟事务续跑（断线/重启恢复的唯一入口；防重入）。
+    private func scheduleConfigurationRecovery() {
+        guard !configurationRecoveryInFlight else { return }
+        configurationRecoveryInFlight = true
+        let capabilities = negotiatedCapabilities
+        Task {
+            defer { self.configurationRecoveryInFlight = false }
+            do {
+                let store = try AhaKeyRuntimePersistentStore(
+                    rootDirectory: AhaKeyPaths.runtimeStoreDirectory,
+                    acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+                )
+                let candidates = try await store.recoveryCandidates()
+                guard !candidates.isEmpty else { return }
+                self.emit("配置事务恢复：发现 \(candidates.count) 个未竟事务")
+                let runner = AhaKeyConfigurationTransactionRunner(store: store)
+                for candidate in candidates {
+                    // 取消请求中的事务不自动复活（等用户显式恢复）
+                    guard candidate.state != .cancellationRequested else { continue }
+                    guard let caps = capabilities, self.transportCore.isReady else { break }
+                    let package = candidate.package
+                    let state = try await runner.run(
+                        package: package,
+                        resourceFiles: [:],  // 资源已 CAS 落库（accept 幂等，重入不要求文件）
+                        capabilities: caps,
+                        protocolMode: .current
+                    ) { [weak self] step in
+                        guard let self else { return .retryableFailure }
+                        return await self.executeConfigurationStep(
+                            step, package: package, store: store, capabilities: caps
+                        )
+                    }
+                    self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 恢复结果：\(state.rawValue)")
+                }
+            } catch {
+                self.emit("配置事务恢复失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// 执行单个 WAL 步骤：映射为线协议程序并经 BLE 执行。
+    private func executeConfigurationStep(
+        _ step: AhaKeyRuntimeStepIdentifier,
+        package: AhaKeyConfigurationPackage,
+        store: AhaKeyRuntimePersistentStore,
+        capabilities: AhaKeyFirmwareCapabilities
+    ) async -> AhaKeyConfigurationStepResult {
+        guard transportCore.isReady, peripheral != nil, commandChar != nil else { return .retryableFailure }
+        guard let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
+            return .permanentFailure
+        }
+        let planning = AhaKeyConfigurationPlanner.plan(
+            desired: desired, resources: package.resources,
+            capabilities: capabilities, protocolMode: .current
+        )
+        guard case .success(let plan) = planning,
+              let program = AhaKeyConfigurationStepMapper.program(
+                  for: step, desired: desired, plan: plan,
+                  resources: package.resources, capabilities: capabilities
+              ) else { return .permanentFailure }
+        let transport = AgentProgramTransport(agent: self, store: store)
+        do {
+            try await AhaKeyDeviceProgramExecutor.execute(program, over: transport)
+            return .success
+        } catch AhaKeyDeviceProgramExecutionError.cancelled {
+            return .retryableFailure
+        } catch let error as AhaKeyAgentCommandError {
+            switch error {
+            case .deviceRejected, .resourceMissing, .malformedFrame:
+                return .permanentFailure
+            case .disconnected, .ackTimedOut, .cancelled:
+                return .retryableFailure
+            }
+        } catch is AhaKeyOLEDFrameEncoderCore.EncodingError {
+            // 源图片无法编码/超限：重试不会变好
+            return .permanentFailure
+        } catch {
+            return .retryableFailure
+        }
+    }
+
+    /// 配置命令：经 DeviceTransportCore 串行队列 + 五元 waiter 下发，等 cmd 回显 ACK。
+    /// 纪律与 querySwitchState 相同：waiter 绑定当前代际，断连/迟到由核心裁决。
+    fileprivate func sendConfigurationCommand(_ frame: Data, expectingAck ack: UInt8) async throws {
+        guard transportCore.isReady, let commandChar, let peripheral else {
+            throw AhaKeyAgentCommandError.disconnected
+        }
+        // frame = AA BB [cmd] [payload…] CC DD
+        guard frame.count >= 5, frame[2] == ack else { throw AhaKeyAgentCommandError.malformedFrame }
+        let response = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(status: UInt8, payload: Data), Error>) in
+            operationCounter &+= 1
+            let op = operationCounter
+            guard let rid = transportCore.registerWaiter(operationID: op, now: Date(), timeout: 3) else {
+                continuation.resume(throwing: AhaKeyAgentCommandError.disconnected)
+                return
+            }
+            configWaiterContinuations[rid] = continuation
+            configOperationWaiters[op] = rid
+            let cmd = DeviceCommand(
+                operationID: op,
+                deviceID: transportCore.stableDeviceID ?? "",
+                generations: transportCore.currentGenerations,
+                opcode: ack,
+                payload: Data(frame[3 ..< frame.count - 2])
+            )
+            if let head = transportCore.enqueue(cmd) {
+                writeCommand(head)
+            }
+        }
+        guard response.status == 0 else { throw AhaKeyAgentCommandError.deviceRejected }
+    }
+
+    /// 资源数据块直写：CAS 源 → RGB565 编码（AhaKeyOLEDFrameEncoderCore）→ 按编码流切片
+    /// → AhaKeyPictureDataPacketizer 加 session 前缀 → data 特征 → 等 0x81（session 匹配）。
+    fileprivate func writeConfigurationChunk(
+        digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?,
+        store: AhaKeyRuntimePersistentStore
+    ) async throws {
+        guard transportCore.isReady, let dataChar, let peripheral else {
+            throw AhaKeyAgentCommandError.disconnected
+        }
+        let stream = try await encodedStream(for: digest, store: store)
+        guard offset >= 0, length > 0, offset + length <= stream.count else {
+            throw AhaKeyAgentCommandError.resourceMissing
+        }
+        let chunk = Data(stream[offset ..< offset + length])
+
+        let writeType: CBCharacteristicWriteType =
+            dataChar.properties.contains(.write) ? .withResponse : .withoutResponse
+        let negotiatedLength = max(1, peripheral.maximumWriteValueLength(for: writeType))
+        let firmwareLimit = max(sessionID == nil ? 1 : 3, negotiatedCapabilities?.maxPacketSize ?? 180)
+        let packets = AhaKeyPictureDataPacketizer.packets(
+            for: chunk,
+            maxPacketLength: min(negotiatedLength, firmwareLimit),
+            sessionID: sessionID
+        )
+
+        activeUploadSessionID = sessionID
+        defer { activeUploadSessionID = nil }
+
+        for packet in packets {
+            guard transportCore.isReady else { throw AhaKeyAgentCommandError.disconnected }
+            peripheral.writeValue(packet, for: dataChar, type: writeType)
+            try? await Task.sleep(nanoseconds: 12_000_000)
+        }
+
+        // 0x81 写入确认（5s，与 Studio 一致）；session 校验在 handlePictureWriteResult。
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            dataWriteContinuation = continuation
+            let timeout = DispatchWorkItem { [weak self] in
+                guard let self, let pending = self.dataWriteContinuation else { return }
+                self.dataWriteContinuation = nil
+                self.dataWriteTimeoutItem = nil
+                pending.resume(throwing: AhaKeyAgentCommandError.ackTimedOut)
+            }
+            dataWriteTimeoutItem = timeout
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
+        }
+    }
+
+    /// 0x81 路由：session 匹配 + status 裁决（对齐 Studio BLEManager 语义）。
+    private func handlePictureWriteResult(status: UInt8, payload: Data.SubSequence) {
+        if let expected = activeUploadSessionID {
+            guard payload.count >= 2 else {
+                emit("← 忽略缺少 session 的图片写入确认")
+                return
+            }
+            let responseSession = UInt16(payload[payload.startIndex]) | (UInt16(payload[payload.startIndex + 1]) << 8)
+            guard responseSession == expected else {
+                emit("← 忽略过期图片确认 session=\(responseSession)，当前=\(expected)")
+                return
+            }
+        }
+        guard let continuation = dataWriteContinuation else { return }
+        dataWriteContinuation = nil
+        dataWriteTimeoutItem?.cancel()
+        dataWriteTimeoutItem = nil
+        if status == 0 {
+            continuation.resume()
+        } else {
+            continuation.resume(throwing: AhaKeyAgentCommandError.deviceRejected)
+        }
+    }
+
+    /// 失败/取消收尾：有在途会话且仍连接时补 0x9A 回滚（尽力而为）。
+    fileprivate func abortConfigurationSession() async {
+        guard let sessionID = activeUploadSessionID else { return }
+        activeUploadSessionID = nil
+        if let continuation = dataWriteContinuation {
+            dataWriteContinuation = nil
+            dataWriteTimeoutItem?.cancel()
+            dataWriteTimeoutItem = nil
+            continuation.resume(throwing: AhaKeyAgentCommandError.cancelled)
+        }
+        guard transportCore.isReady, let commandChar, let peripheral,
+              let frame = AhaKeyWireFrameBuilder.commandFrame(for: .abortSession(sessionID: sessionID)) else { return }
+        let wt: CBCharacteristicWriteType =
+            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(frame, for: commandChar, type: wt)
+        emit("→ 已回滚图片写入会话 \(sessionID)（0x9A）")
+    }
+
+    /// CAS 源 → RGB565 编码流（按 digest 缓存；单恢复周期内重复 chunk 不重复编码）。
+    private func encodedStream(
+        for digest: AhaKeySHA256Digest, store: AhaKeyRuntimePersistentStore
+    ) async throws -> Data {
+        if let cached = encodedStreamCache[digest] { return cached }
+        guard let url = try await store.resourceURL(for: digest) else {
+            throw AhaKeyAgentCommandError.resourceMissing
+        }
+        let frames = try AhaKeyOLEDFrameEncoderCore.frames(
+            fromImageAt: url,
+            maxFrames: AhaKeyDeviceLayoutPolicy().framesPerSlot,
+            maxSourceFileBytes: 20 * 1024 * 1024
+        )
+        let stream = AhaKeyOLEDFrameEncoderCore.encodedStream(frames: frames)
+        encodedStreamCache[digest] = stream
+        return stream
+    }
+}
+
+/// 配置命令错误（agent 侧 seam）。
+enum AhaKeyAgentCommandError: Error, Equatable {
+    case disconnected
+    case ackTimedOut
+    case deviceRejected
+    case resourceMissing
+    case malformedFrame
+    case cancelled
+}
+
+/// 程序执行 seam 的 agent BLE 实现（agent 全部状态在 main 队列访问，故 @unchecked）。
+private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTransport {
+    let agent: AhaKeyAgent
+    let store: AhaKeyRuntimePersistentStore
+
+    func sendCommand(_ frame: Data, expectingAck ack: UInt8) async throws {
+        try await agent.sendConfigurationCommand(frame, expectingAck: ack)
+    }
+
+    func writeChunk(digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?) async throws {
+        try await agent.writeConfigurationChunk(
+            digest: digest, offset: offset, length: length, sessionID: sessionID, store: store
+        )
+    }
+
+    /// 断连即视为取消（executor 随后补 0x9A 收尾）；用户取消经 runner 两阶段在步间生效。
+    func isCancellationRequested() -> Bool { !agent.transportCore.isReady }
+
+    func abortActiveSession() async {
+        await agent.abortConfigurationSession()
     }
 }

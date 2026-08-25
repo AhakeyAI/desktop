@@ -22,7 +22,8 @@ public enum AhaKeyConfigurationStepResult: Equatable, Sendable {
 public struct AhaKeyConfigurationTransactionRunner {
 
     /// transport seam：执行一个步骤（resource upload / base config）。
-    public typealias StepExecutor = (AhaKeyRuntimeStepIdentifier) -> AhaKeyConfigurationStepResult
+    /// async：真实 BLE 执行包含 ACK/0x81 等待；同步假实现可直接返回字面量。
+    public typealias StepExecutor = (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult
 
     public let store: AhaKeyRuntimePersistentStore
 
@@ -78,7 +79,7 @@ public struct AhaKeyConfigurationTransactionRunner {
                                        completed: UInt32(confirmed.count), total: totalSteps)
                 actions.removeFirst()
             case .executeStep(let step):
-                switch execute(step) {
+                switch await execute(step) {
                 case .success:
                     // 先落 WAL 再决策（崩溃即恢复点）
                     try await store.confirmStep(step, for: package.operationID)

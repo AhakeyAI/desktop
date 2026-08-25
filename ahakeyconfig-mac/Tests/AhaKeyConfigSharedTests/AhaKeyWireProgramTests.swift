@@ -68,9 +68,10 @@ final class AhaKeyWireProgramTests: XCTestCase {
 
     private final class FakeTransport: AhaKeyDeviceProgramTransport, @unchecked Sendable {
         var commands: [Data] = []
-        var chunks: [(Int, Int)] = []
+        var chunks: [(Int, Int, UInt16?)] = []
         var cancelled = false
         var failAtCommand: Int? = nil
+        var abortCalls = 0
 
         func sendCommand(_ frame: Data, expectingAck ack: UInt8) async throws {
             if let failAt = failAtCommand, commands.count == failAt {
@@ -78,10 +79,11 @@ final class AhaKeyWireProgramTests: XCTestCase {
             }
             commands.append(frame)
         }
-        func writeChunk(digest: AhaKeySHA256Digest, offset: Int, length: Int) async throws {
-            chunks.append((offset, length))
+        func writeChunk(digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?) async throws {
+            chunks.append((offset, length, sessionID))
         }
         func isCancellationRequested() -> Bool { cancelled }
+        func abortActiveSession() async { abortCalls += 1 }
     }
 
     func testExecutorRoutesCommandsAndChunks() async throws {
@@ -97,6 +99,9 @@ final class AhaKeyWireProgramTests: XCTestCase {
         XCTAssertEqual(transport.commands[0][2], 0x9B)
         XCTAssertEqual(transport.commands[1][2], 0x04)
         XCTAssertEqual(transport.chunks.map { "\($0.0):\($0.1)" }, ["0:100"])
+        // prepareWrite 的 session 必须传给紧随的数据块（0x81 校验用）
+        XCTAssertEqual(transport.chunks[0].2, 7)
+        XCTAssertEqual(transport.abortCalls, 0, "成功路径不得触发 0x9A 回滚")
     }
 
     func testExecutorStopsAtCancellationCheckpoint() async {
@@ -111,6 +116,23 @@ final class AhaKeyWireProgramTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AhaKeyDeviceProgramExecutionError, .cancelled)
             XCTAssertTrue(transport.chunks.isEmpty)
+            XCTAssertEqual(transport.abortCalls, 1, "取消必须补 0x9A 收尾")
+        }
+    }
+
+    func testExecutorAbortsSessionOnCommandFailure() async {
+        let d = try! AhaKeySHA256Digest(String(repeating: "a", count: 64))
+        let transport = FakeTransport()
+        transport.failAtCommand = 1  // saveConfig 失败
+        do {
+            try await AhaKeyDeviceProgramExecutor.execute([
+                .prepareWrite(sessionID: 9, chunkLength: 10, address: 0),
+                .writeResourceChunk(digest: d, offset: 0, length: 10),
+                .saveConfig,
+            ], over: transport)
+            XCTFail("应抛错")
+        } catch {
+            XCTAssertEqual(transport.abortCalls, 1, "命令失败必须补 0x9A 收尾")
         }
     }
 }

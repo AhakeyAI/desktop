@@ -111,9 +111,15 @@ public protocol AhaKeyDeviceProgramTransport: Sendable {
     /// 发送命令帧并等待匹配 ACK（超时/设备拒绝抛错）。
     func sendCommand(_ frame: Data, expectingAck ack: UInt8) async throws
     /// 直写资源数据块（data 特征，按包大小再切由实现负责）。
-    func writeChunk(digest: AhaKeySHA256Digest, offset: Int, length: Int) async throws
+    /// - 数据切片引用的是**编码后字节流**（实现负责 CAS 源 → RGB565 编码）。
+    /// - sessionID 为当前在途 0x9B 会话：实现必须给数据包加 session 前缀，
+    ///   并在块结束后等待 0x81 写入确认且校验 session 匹配；sessionID 为 nil 时
+    ///   走 0x80 裸写（无 0x81 等待语义由实现按固件代际决定）。
+    func writeChunk(digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?) async throws
     /// 取消检查点：用户已请求取消时返回 true。
     func isCancellationRequested() -> Bool
+    /// 失败/取消收尾：有在途会话时补 0x9A 回滚（尽力而为；断连时无操作）。
+    func abortActiveSession() async
 }
 
 public enum AhaKeyDeviceProgramExecutionError: Error, Equatable {
@@ -122,21 +128,41 @@ public enum AhaKeyDeviceProgramExecutionError: Error, Equatable {
 
 public enum AhaKeyDeviceProgramExecutor {
     /// 顺序执行程序；遇到 .writeResourceChunk 走数据通道，其余走命令 ACK。
-    /// 会话式上传在失败时由调用层决定是否补 abortSession（程序已含收尾步骤）。
+    /// 会话跟踪：prepareWrite 的 sessionID 传递给紧随的 chunk 写（0x81 校验用）；
+    /// 任何失败/取消先经 transport 补 0x9A 回滚在途会话，再向上抛。
     public static func execute(
         _ program: [AhaKeyDeviceProgramStep],
         over transport: AhaKeyDeviceProgramTransport
     ) async throws {
-        for step in program {
-            if transport.isCancellationRequested() {
-                throw AhaKeyDeviceProgramExecutionError.cancelled
+        var activeSession: UInt16?
+        do {
+            for step in program {
+                if transport.isCancellationRequested() {
+                    throw AhaKeyDeviceProgramExecutionError.cancelled
+                }
+                switch step {
+                case .prepareWrite(let sessionID, _, _):
+                    activeSession = sessionID
+                    if let frame = AhaKeyWireFrameBuilder.commandFrame(for: step),
+                       let ack = AhaKeyWireFrameBuilder.expectedAck(for: step) {
+                        try await transport.sendCommand(frame, expectingAck: ack)
+                    }
+                case .writeResourceChunk(let digest, let offset, let length):
+                    try await transport.writeChunk(
+                        digest: digest, offset: offset, length: length,
+                        sessionID: activeSession
+                    )
+                    activeSession = nil
+                default:
+                    if let frame = AhaKeyWireFrameBuilder.commandFrame(for: step),
+                       let ack = AhaKeyWireFrameBuilder.expectedAck(for: step) {
+                        try await transport.sendCommand(frame, expectingAck: ack)
+                    }
+                }
             }
-            if case .writeResourceChunk(let digest, let offset, let length) = step {
-                try await transport.writeChunk(digest: digest, offset: offset, length: length)
-            } else if let frame = AhaKeyWireFrameBuilder.commandFrame(for: step),
-                      let ack = AhaKeyWireFrameBuilder.expectedAck(for: step) {
-                try await transport.sendCommand(frame, expectingAck: ack)
-            }
+        } catch {
+            await transport.abortActiveSession()
+            throw error
         }
     }
 }
