@@ -21,8 +21,6 @@ public enum AhaKeyDeviceProgramStep: Equatable, Sendable {
     case setActiveTaskPictureSet(mode: UInt8, set: UInt8)
     /// 0x98 结束任务图写入（不替换每模式默认动画绑定）。
     case finishTaskPictureWrite
-    /// 0x82 绑定模式默认动画（固件会同步到各套图 IDLE 槽；只改绑定不写数据区）。
-    case bindDefaultPicture(mode: UInt8, startIndex: UInt16, frameCount: UInt16, intervalMs: UInt16)
     /// 0x73/0x73 键位映射（shortcut）。
     case setKeyShortcut(mode: UInt8, keyIndex: UInt8, hidCodes: [UInt8])
     /// 0x73/0x74 固件宏。
@@ -244,7 +242,7 @@ public enum AhaKeyConfigurationStepMapper {
         return table[effect] ?? 0
     }
 
-    /// idle 无独立资源时回退 working；若仍无资源且存在 defaultAnimation，则回退 defaultAnimation。
+    /// idle 无独立资源时优先回退 defaultAnimation；若仍无资源，则回退 working。
     static func effectiveAsset(
         in set: AhaKeyDesiredConfiguration.TaskSet,
         for state: AhaKeyDesiredConfiguration.TaskDisplayState,
@@ -255,14 +253,14 @@ public enum AhaKeyConfigurationStepMapper {
         if let asset = set.assets.first(where: { $0.state == state }), asset.resource != nil {
             return asset
         }
-        if state == .idle,
-           let working = set.assets.first(where: { $0.state == .working }), working.resource != nil {
-            return working
-        }
         if state == .idle, let defaultAnimation {
             let frames = defaultAnimationFrames ?? 1
             return try! .init(state: .idle, resource: defaultAnimation, framesPerSecond: defaultFPS,
                               pixelWidth: 160, pixelHeight: 80, declaredFrameCount: frames)
+        }
+        if state == .idle,
+           let working = set.assets.first(where: { $0.state == .working }), working.resource != nil {
+            return working
         }
         return set.assets.first(where: { $0.state == state })
             ?? (try! .init(state: state, resource: nil, framesPerSecond: 12))

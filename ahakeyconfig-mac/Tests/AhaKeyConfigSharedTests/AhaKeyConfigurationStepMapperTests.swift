@@ -245,9 +245,6 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
             mode: 0, set: 0, state: 0,
             startIndex: 10, frameCount: 8, intervalMs: 83
         )))
-        XCTAssertFalse(steps.contains(where: {
-            if case .bindDefaultPicture = $0 { return true }
-            return false
-        }))
+        // 0x82 bindDefaultPicture 已删除：current 协议禁止，该 case 不存在
     }
 }

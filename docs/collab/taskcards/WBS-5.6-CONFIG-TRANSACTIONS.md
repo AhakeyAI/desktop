@@ -121,3 +121,22 @@ planner 边界、容量拒绝、断线/重启/取消/恢复、旧协议 current-
 - R7 Agent 生产入口 `applyConfigurationPackage` / `cancelConfiguration` + socket `apply_config` / `cancel_config`；与恢复共用单飞闸门（busy）。
 - 定向测试新增：0x82 帧字节、0x81 session 路由 5 例、30/31 帧、容量帧占用 2 例、申报与 CAS 不一致 4 例、步间取消结算、defaultAnimation 程序与绑定 2 例。
 - 诚实声明：超时单次推进/迟到 ACK 的 agent 侧 glue 无可测 seam（AhaKeyAgent 实例化依赖 CBCentralManager），该不变量靠构造保证 + DeviceCommandSequencer 既有测试覆盖核心语义；实机验证归 HIL-CONFIG。apply/cancel 的 socket 端到端同样归 HIL-CONFIG。
+
+### [2026-08-26 01:50] Codex：第二轮复验未通过（设计边界）
+
+- 复验范围 `79fc2a1...0238a46`（文档 `aeeae2c` 不计入业务）。整卡不验收。状态保持 `active`。
+- 口头「挂到 hook.sock」需校正：`apply_config`/`cancel_config` 在 `handleJsonCommand`，监听的是 **`ahakey.sock`**（Hooks/CLI 同一 JSON 通道）。`private/hook.sock` 的 typed handler 没有配置命令。架构 `docs/ahakey-runtime-architecture.md`：Hooks 与 CLI 的受限通道不能提交配置。效果等同违规。
+- 第二轮阻塞（修复后以新 HEAD 整卡重提）：
+  1. 从 `ahakey.sock` JSON 分发删除 `apply_config`/`cancel_config`。生产受理走已冻结的 `AhaKeyRuntimeXPCRequest.apply` / `requestCancellation`，在 Agent 内接到 `applyConfigurationPackage` / `cancelConfiguration`（复用 5.2 libxpc server，不新发明第三套 JSON socket）。测试：JSON socket 拒绝配置命令；Hook typed 协议仍无配置消息。
+  2. current 程序禁止 `0x82`/`bindDefaultPicture`。`defaultAnimation` 只上传资源并用 **0x95 idle 槽**绑定（`AhaKeyOLEDSyncPlan` current：不发 0x82）。若 idle 任务素材与 defaultAnimation 不是同一 CAS 引用，planner 拒绝。删除/改写断言 0x82 的 Mapper/Wire 测试。
+  3. 容量单位：`0x99 userSlotLimit` 是**用户区帧数**（fixture 288），不是 30 帧桶个数。用占用帧数（或 `nextSlot * framesPerSlot`）与 `userSlotLimit` 比较；禁止 `ceil(frames/30) <= 288` 这种几乎永不拒绝的口径。
+  4. Codable：`OLED.init(from:)` 必须走 throwing `init`（fps、两套图、activeSet、有 defaultAnimation 必有帧数）。`TaskDisplayState` 必须与 `AhaKeyTaskDisplayState` 一致（idle/working/waiting/done），不得用 done=2/error=3。补 decode 负向测试。
+- 不改 Views。不开 5.7。HIL-CONFIG 仍 USER-GATE。
+
+### [2026-08-26 02:25] Codex：`619cb96` 仍未通过
+
+- 范围 `79fc2a1...619cb96`。R4 Codable 基本落地。R1–R3 未闭环。
+- R1：`ahakey.sock` 已拒绝 JSON 配置命令，但 Agent **没有**把 `AhaKeyRuntimeXPCRequest.apply` / `requestCancellation` 接到 `applyConfigurationPackage`。生产受理再次缺失。
+- R2：mapper 不再发 `bindDefaultPicture`，但 `effectiveAsset` 只在 idle/working 都无图时才用 defaultAnimation；idle 与 defaultAnimation 不同 CAS 时 planner **不拒绝**。`AhaKeyWireFrameBuilder` 仍保留 0x82 分支。
+- R3：容量用声明帧数之和比 `userSlotLimit`，分配仍按 `ceil(frames/30)` 占槽。占用 flash 与比较口径不一致。应比 `nextSlot * framesPerSlot`（或等价占用帧）。
+- 02:11「10 分钟无提交则声明失效」记下，本轮不改协作规则；仍单会话施工。

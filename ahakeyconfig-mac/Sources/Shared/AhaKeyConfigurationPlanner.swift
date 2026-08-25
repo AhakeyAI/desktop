@@ -156,6 +156,8 @@ public enum AhaKeyConfigurationPlanner {
         case tooManyFrames(AhaKeyResourceIdentifier, frames: Int, limit: Int)
         /// 解码内存超上限。
         case decodeMemoryExceeded(AhaKeyResourceIdentifier, bytes: UInt64, limit: UInt64)
+        /// idle 任务素材与 defaultAnimation 不是同一 CAS 引用。
+        case idleAnimationMismatch(idle: AhaKeyResourceIdentifier, defaultAnimation: AhaKeyResourceIdentifier)
         /// 设备容量不足：按实际帧占用折算的槽位需求超出用户槽位数。
         case deviceCapacityExceeded(slotsNeeded: Int, slotLimit: Int)
     }
@@ -265,7 +267,20 @@ public enum AhaKeyConfigurationPlanner {
             }
         }
 
-        // 4. 设备容量：按实际帧占用核算，不是只数资源个数或槽数。
+        // 4. CAS 一致性：idle 任务素材若带 resource，必须与 defaultAnimation 同一引用
+        for mode in desired.modes {
+            guard let defaultAnimation = mode.oled.defaultAnimation else { continue }
+            for set in mode.oled.taskSets {
+                if let idleAsset = set.assets.first(where: { $0.state == .idle }),
+                   let idleResource = idleAsset.resource,
+                   idleResource != defaultAnimation {
+                    return .failure(.idleAnimationMismatch(
+                        idle: idleResource, defaultAnimation: defaultAnimation))
+                }
+            }
+        }
+
+        // 5. 设备容量：按实际帧占用核算，不是只数资源个数或槽数。
         let framesPerSlot = AhaKeyDeviceLayoutPolicy().framesPerSlot
         var declaredFrames: [AhaKeyResourceIdentifier: Int] = [:]
         for mode in desired.modes {
@@ -279,15 +294,23 @@ public enum AhaKeyConfigurationPlanner {
             }
         }
         let ordered = referenced.sorted(by: { $0.rawValue < $1.rawValue })
-        let totalFrames = ordered.reduce(0) { $0 + (declaredFrames[$1] ?? 0) }
-        guard totalFrames <= capabilities.userSlotLimit else {
-            return .failure(.deviceCapacityExceeded(slotsNeeded: totalFrames, slotLimit: capabilities.userSlotLimit))
+
+        // 先算占用槽位再比容量（slot 步长固定 framesPerSlot，未满槽仍占空间）
+        var nextSlot = 0
+        for identifier in ordered {
+            let frames = max(1, declaredFrames[identifier] ?? 0)
+            nextSlot += Int(ceil(Double(frames) / Double(framesPerSlot)))
+        }
+        let occupiedFrames = nextSlot * framesPerSlot
+        guard occupiedFrames <= capabilities.userSlotLimit else {
+            return .failure(.deviceCapacityExceeded(
+                slotsNeeded: occupiedFrames, slotLimit: capabilities.userSlotLimit))
         }
 
-        // 5. 槽位分配 + 事务序列（槽位跨度 = 该资源实际占用的槽数）
+        // 6. 槽位分配 + 事务序列（槽位跨度 = 该资源实际占用的槽数）
         var assignments: [AhaKeyResourceIdentifier: Int] = [:]
         var uploads: [ResourceUpload] = []
-        var nextSlot = 0
+        nextSlot = 0  // 复用容量计算后的游标
         for identifier in ordered {
             assignments[identifier] = nextSlot
             uploads.append(ResourceUpload(resource: resourceIndex[identifier]!, slotIndex: nextSlot))

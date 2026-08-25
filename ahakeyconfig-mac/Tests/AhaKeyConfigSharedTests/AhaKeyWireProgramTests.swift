@@ -64,14 +64,6 @@ final class AhaKeyWireProgramTests: XCTestCase {
         XCTAssertEqual(frame, Data([0xAA, 0xBB, 0x73, 0x75, 0, 0]) + "Yes123".data(using: .ascii)! + Data([0xCC, 0xDD]))
     }
 
-    func testBindDefaultPictureBytes() {
-        // 0x82: mode startIdx(LE) frames(LE) interval(LE)（对齐 AhaKeyCommand.updatePicture）
-        XCTAssertEqual(
-            Builder.commandFrame(for: .bindDefaultPicture(mode: 1, startIndex: 40, frameCount: 8, intervalMs: 83)),
-            Data([0xAA, 0xBB, 0x82, 1, 40, 0, 8, 0, 83, 0, 0xCC, 0xDD])
-        )
-        XCTAssertEqual(Builder.expectedAck(for: .bindDefaultPicture(mode: 0, startIndex: 0, frameCount: 1, intervalMs: 100)), 0x82)
-    }
 
     // MARK: 执行 seam
 

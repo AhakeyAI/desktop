@@ -65,13 +65,7 @@ public enum AhaKeyWireFrameBuilder {
             return frame(cmdSetActiveTaskPicSet, [mode, set])
         case .finishTaskPictureWrite:
             return frame(cmdFinishTaskPicWrite, [])
-        case .bindDefaultPicture(let mode, let startIndex, let frameCount, let intervalMs):
-            return frame(cmdUpdatePic, [
-                mode,
-                UInt8(startIndex & 0xFF), UInt8((startIndex >> 8) & 0xFF),
-                UInt8(frameCount & 0xFF), UInt8((frameCount >> 8) & 0xFF),
-                UInt8(intervalMs & 0xFF), UInt8((intervalMs >> 8) & 0xFF),
-            ])
+        // bindDefaultPicture (0x82) 已删除：current 协议禁止，defaultAnimation 走 0x95 idle 槽。
         case .setKeyShortcut(let mode, let keyIndex, let hidCodes):
             return frame(cmdUpdateCustomKey, [subShortcut, mode, keyIndex] + hidCodes)
         case .setKeyMacro(let mode, let keyIndex, let pairs):

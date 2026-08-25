@@ -176,7 +176,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
             resources: [meta("img-a"), meta("img-b"), meta("img-c")],
             capabilities: capabilities(userSlotLimit: 23), protocolMode: .current
         )
-        XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 24, slotLimit: 23)))
+        XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 90, slotLimit: 23)))
     }
 
     func testSlotAssignmentIsDeterministic() {

@@ -37,6 +37,12 @@ do {
     let ts = ISO8601DateFormatter().string(from: Date())
     print("[\(ts)] Hook server 启动失败: \(error)")
 }
+do {
+    try agent.startXPCServer()
+} catch {
+    let ts = ISO8601DateFormatter().string(from: Date())
+    print("[\(ts)] XPC server 启动失败: \(error)")
+}
 
 // Graceful cleanup on SIGINT/SIGTERM. SIGKILL cannot be caught; stale state is
 // cleaned up the next time either process starts.

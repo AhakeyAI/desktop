@@ -41,7 +41,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "AhaKeyConfigAgent",
-            dependencies: ["AhaKeyConfigShared"],
+            dependencies: ["AhaKeyConfigShared", "RuntimeXPCServer"],
             path: "Sources/Agent"
         ),
         .target(

@@ -70,6 +70,8 @@ logs/
 # Local backups / temp
 *.bak
 *.tmp
+docs/collab/backups/*
+!docs/collab/backups/README.md
 
 # Local model / runtime payloads
 internal/

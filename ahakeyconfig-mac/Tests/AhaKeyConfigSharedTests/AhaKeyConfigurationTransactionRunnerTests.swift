@@ -27,7 +27,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
     private func capabilities() -> AhaKeyFirmwareCapabilities {
         AhaKeyFirmwareCapabilities(
             protocolVersion: 3, modeCount: 4, setCount: 2, stateCount: 4,
-            flags: 0, maxPacketSize: 200, userSlotLimit: 8, factorySlotBase: 8,
+            flags: 0, maxPacketSize: 200, userSlotLimit: 288, factorySlotBase: 8,
             factoryBundleVersion: 0, factoryManifestCRC: 0, factoryStatus: 0, factoryError: 0,
             reclaimSlotBase: 0, reclaimSlotLimit: 0
         )

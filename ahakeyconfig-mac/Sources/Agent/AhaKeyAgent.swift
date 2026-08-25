@@ -3,6 +3,7 @@ import CoreBluetooth
 import Foundation
 import os.log
 import AhaKeyConfigShared
+import RuntimeXPCServer
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig.agent", category: "BLE")
 
@@ -134,6 +135,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - Hook Socket Server（HIL-RUNTIME-1-HOOK-SERVER）
     private var hookServer: AhaKeyRuntimeHookSocketServer?
     private let hookSocketURL: URL
+
+    // MARK: - XPC Server（WBS-5.6 R1：生产配置入口）
+    private var xpcServer: AhaKeyRuntimeXPCLibXPCServer?
 
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
@@ -617,6 +621,60 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     // MARK: - Hook Socket Server
+
+    // MARK: XPC Server
+
+    func startXPCServer() throws {
+        let serviceName = "lab.jawa.ahakeyconfig.runtime"
+        let peerPolicy = AhaKeyRuntimeXPCPeerPolicy.production()
+        let handshake = AhaKeyRuntimeXPCServerHandshake(
+            runtimeVersion: .development,
+            interfaceVersion: .current,
+            supportedConfigurationSchemaVersions: [3],
+            capabilities: [.configuration, .snapshot, .diagnostics]
+        )
+        let endpointFactory: AhaKeyRuntimeXPCLibXPCServer.EndpointFactory = { [weak self] in
+            guard let self else {
+                return AhaKeyRuntimeXPCSessionEndpoint(serverHandshake: handshake) { _ in
+                    .failure(try! AhaKeyRuntimeEventCode("unsupported-request"))
+                }
+            }
+            return AhaKeyRuntimeXPCSessionEndpoint(serverHandshake: handshake) { [weak self] request in
+                guard let self else {
+                    throw AhaKeyRuntimeXPCTransportError.invalidResponse
+                }
+                switch request {
+                case .apply(let package):
+                    let stagingDir = AhaKeyPaths.applicationSupportDirectory
+                        .appendingPathComponent("staging", isDirectory: true)
+                    var resourceFiles: [AhaKeyResourceIdentifier: URL] = [:]
+                    for resource in package.resources {
+                        let url = stagingDir.appendingPathComponent(resource.logicalIdentifier.rawValue)
+                        if FileManager.default.fileExists(atPath: url.path) {
+                            resourceFiles[resource.logicalIdentifier] = url
+                        }
+                    }
+                    let state = try await self.applyConfigurationPackage(package, resourceFiles: resourceFiles)
+                    return .operationAccepted(package.operationID)
+
+                case .requestCancellation(let operationID):
+                    await self.cancelConfiguration(operationID: operationID)
+                    return .cancellation(.requested)
+
+                default:
+                    return .failure(try! AhaKeyRuntimeEventCode("unsupported-request"))
+                }
+            }
+        }
+        let server = try AhaKeyRuntimeXPCLibXPCServer(
+            serviceName: serviceName,
+            peerPolicy: peerPolicy,
+            endpointFactory: endpointFactory
+        )
+        server.start()
+        xpcServer = server
+        emit("监听 XPC service: \(serviceName)")
+    }
 
     func startHookServer() throws {
         let handler: AhaKeyRuntimeHookSocketServer.Handler = { [weak self] handshake, request in
