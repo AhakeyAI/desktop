@@ -14,6 +14,11 @@ public actor RuntimeOrchestrator {
     private let registry = RuntimeModuleRegistry()
     private var currentPlan = RuntimeModulePlan(desiredModules: [])
 
+    /// 应用串行链：每次 applyPolicy/stopAll 都排在前一个操作完成之后。
+    /// actor 在 `await registry` 处会让出，仅靠 actor 隔离无法防止并发
+    /// applyPolicy 交错（会出现重复 start / 启停乱序）；任务链保证严格 FIFO。
+    private var applyChain: Task<Void, Never> = Task {}
+
     public init() {}
 
     /// 注册模块（仅登记，不启动；启动由 applyPolicy 驱动）。
@@ -24,11 +29,16 @@ public actor RuntimeOrchestrator {
     /// 应用新策略。返回实际发生的 transition；无变化返回 `nil`（调用方不得发布）。
     @discardableResult
     public func applyPolicy(_ policy: AhaKeyRuntimePolicy) async -> RuntimeModuleTransition? {
+        let prior = applyChain
+        let gate = Task { await prior.value }
+        applyChain = gate
+        await gate.value
+
         let next = RuntimeOrchestratorCore.plan(for: policy)
         guard let transition = RuntimeOrchestratorCore.transition(from: currentPlan, to: next)
         else { return nil }
-        await registry.applyTransition(transition)
         currentPlan = next
+        await registry.applyTransition(transition)
         return transition
     }
 
@@ -40,8 +50,13 @@ public actor RuntimeOrchestrator {
         await registry.snapshot()
     }
 
-    /// 进程退出清理：停止全部模块。
+    /// 进程退出清理：停止全部模块（排入串行链，避免与进行中的启停交错）。
     public func stopAll() async {
+        let prior = applyChain
+        let gate = Task { await prior.value }
+        applyChain = gate
+        await gate.value
+
         await registry.stopAll()
         currentPlan = RuntimeModulePlan(desiredModules: [])
     }

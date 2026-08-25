@@ -122,4 +122,101 @@ final class RuntimeOrchestratorTests: XCTestCase {
         let shouldStayResident = await orchestrator.shouldStayResident
         XCTAssertFalse(shouldStayResident)
     }
+
+    // MARK: - 切片 4：生命周期 / 重启恢复 / 竞态 / CPU 空转
+
+    /// 竞态：并发 applyPolicy 由 actor 串行化，最终态确定且无重复 start。
+    func testConcurrentPolicyApplicationIsDeterministic() async throws {
+        let (orchestrator, fakes) = await makeOrchestrator()
+        var on = AhaKeyRuntimePolicy()
+        on.powerProtectionEnabled = true
+        let off = AhaKeyRuntimePolicy()
+
+        // 并发交替应用开/关策略；actor 串行化保证模块启停不重不漏
+        await withTaskGroup(of: RuntimeModuleTransition?.self) { group in
+            for i in 0 ..< 50 {
+                group.addTask { await orchestrator.applyPolicy(i.isMultiple(of: 2) ? on : off) }
+            }
+            for await _ in group {}
+        }
+        let resident = await orchestrator.shouldStayResident
+        let fake = try XCTUnwrap(fakes[.powerProtection])
+        XCTAssertEqual(fake.status, resident ? .running : .idle, "模块状态必须与最终 plan 常驻性一致")
+        XCTAssertLessThanOrEqual(fake.startCalls, fake.stopCalls + 1, "竞态下不得出现悬而未停的 start")
+
+        // 再应用一次等价策略：零工作（无 transition、无额外 start/stop）
+        let finalPolicy = resident ? on : off
+        let starts = fake.startCalls, stops = fake.stopCalls
+        let t = await orchestrator.applyPolicy(finalPolicy)
+        XCTAssertNil(t)
+        XCTAssertEqual(fake.startCalls, starts)
+        XCTAssertEqual(fake.stopCalls, stops)
+    }
+
+    /// 重启恢复：模块 start 失败 → .failed；策略收窄再放开后可恢复运行。
+    func testFailedModuleRecoversAfterPolicyCycle() async {
+        let orchestrator = RuntimeOrchestrator()
+        let flaky = FlakyModule(id: .powerProtection)
+        await orchestrator.register(flaky)
+
+        var policy = AhaKeyRuntimePolicy()
+        policy.powerProtectionEnabled = true
+
+        // 第一次启动失败：错误隔离，模块标 .failed，编排器仍可继续服役
+        _ = await orchestrator.applyPolicy(policy)
+        if case .failed = flaky.status {} else {
+            XCTFail("首次启动应失败并标记 .failed，实际 \(flaky.status)")
+        }
+
+        // 策略收窄（全关）→ 停止失败模块；再放开 → 重新启动成功
+        _ = await orchestrator.applyPolicy(AhaKeyRuntimePolicy())
+        XCTAssertEqual(flaky.status, .idle)
+        let t = await orchestrator.applyPolicy(policy)
+        XCTAssertEqual(t?.started, [.powerProtection], "恢复必须真实发生 transition（调用方可发布）")
+        XCTAssertEqual(flaky.status, .running)
+        XCTAssertEqual(flaky.startCalls, 2)
+    }
+
+    /// CPU 空转：长时间同策略轮询零工作——无 transition、无重复 start/stop。
+    func testRepeatedSamePolicyPollingIsZeroWork() async {
+        let (orchestrator, fakes) = await makeOrchestrator()
+        var policy = AhaKeyRuntimePolicy()
+        policy.powerProtectionEnabled = true
+        policy.aiHooks.enabledTools = [.cursor]
+        _ = await orchestrator.applyPolicy(policy)
+
+        // 模拟周期轮询 1000 次同策略
+        for _ in 0 ..< 1000 {
+            let t = await orchestrator.applyPolicy(policy)
+            XCTAssertNil(t, "同策略轮询必须零发布")
+        }
+        XCTAssertEqual(fakes[.powerProtection]?.startCalls, 1, "轮询不得重复启动模块")
+        XCTAssertEqual(fakes[.aiIntegration]?.startCalls, 1)
+        XCTAssertEqual(fakes[.powerProtection]?.stopCalls, 0)
+    }
+
+    /// 生命周期幂等：stopAll 可重复调用；未注册的模块 ID 在 transition 中被安全忽略。
+    func testLifecycleIdempotency() async {
+        let orchestrator = RuntimeOrchestrator()
+        let fake = FakeModule(id: .powerProtection)
+        await orchestrator.register(fake)
+
+        var policy = AhaKeyRuntimePolicy()
+        policy.powerProtectionEnabled = true
+        policy.devicePresentation.ledEnabled = true // dynamicLighting 未注册
+        _ = await orchestrator.applyPolicy(policy)
+        XCTAssertEqual(fake.status, .running, "已注册模块正常启动")
+        let resident = await orchestrator.shouldStayResident
+        XCTAssertTrue(resident, "未注册模块不影响常驻推导")
+
+        await orchestrator.stopAll()
+        await orchestrator.stopAll() // 幂等
+        XCTAssertEqual(fake.status, .idle)
+        XCTAssertEqual(fake.stopCalls, 1, "幂等 stopAll 不得重复 stop")
+
+        // stopAll 后策略可重新驱动启动
+        _ = await orchestrator.applyPolicy(policy)
+        XCTAssertEqual(fake.status, .running)
+        XCTAssertEqual(fake.startCalls, 2)
+    }
 }

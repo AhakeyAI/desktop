@@ -99,10 +99,10 @@ public actor RuntimeModuleRegistry {
         statuses[id] ?? .idle
     }
 
-    /// 强制停止所有已注册模块（用于进程退出清理）。
+    /// 强制停止所有已注册模块（用于进程退出清理）。幂等：仅 stop 运行中的模块。
     public func stopAll() async {
         await withTaskGroup(of: Void.self) { group in
-            for (_, module) in modules {
+            for (id, module) in modules where statuses[id] == .running {
                 group.addTask {
                     await module.stop()
                 }
