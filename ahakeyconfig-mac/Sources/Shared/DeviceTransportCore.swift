@@ -67,6 +67,8 @@ public struct DeviceTransportCore {
     public private(set) var waiters = DeviceWaiterRegistry()
     private let sessionGeneration: UInt64
     private var transportGeneration: UInt64 = 0
+    /// 协商完成但身份未识别时暂存 mode，等 deviceIdentified 补齐后落 ready。
+    private var pendingNegotiatedMode: AhaKeyProtocolMode? = nil
 
     public init(sessionGeneration: UInt64, backoff: BackoffSchedule = BackoffSchedule()) {
         self.sessionGeneration = sessionGeneration
@@ -135,13 +137,22 @@ public struct DeviceTransportCore {
                 // current-only：不 ready、不断连（保留诊断通道），等待外部策略。
                 return []
             }
-            // 稳定 device ID 必须来自广播编号/序列号；未识别不得 ready（禁止 UUID 兜底）。
-            guard let deviceID = stableDeviceID else { return [] }
+            // 稳定 device ID 必须来自广播编号/序列号；未识别时暂存 mode，等身份补齐再落 ready。
+            guard let deviceID = stableDeviceID else {
+                pendingNegotiatedMode = mode
+                return []
+            }
             phase = .ready(uuid: uuid, deviceID: deviceID)
             return []
 
         case let .deviceIdentified(deviceID):
             if stableDeviceID == nil { stableDeviceID = deviceID }
+            // 身份补齐：若协商已在等身份，落 ready
+            if let mode = pendingNegotiatedMode, mode == .current,
+               case .negotiating(let uuid) = phase {
+                pendingNegotiatedMode = nil
+                phase = .ready(uuid: uuid, deviceID: deviceID)
+            }
             return []
 
         case let .disconnected(uuid):

@@ -142,3 +142,32 @@ final class DeviceTransportCoreTests: XCTestCase {
         XCTAssertEqual(actions, [.scheduleReconnectTimer(after: 2)])
     }
 }
+
+extension DeviceTransportCoreTests {
+    func testIdentityRace_negotiationWaitsForDeviceID_thenReady() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        _ = c.handle(.discovered(uuid: "U", deviceID: nil), now: now)
+        _ = c.handle(.connected(uuid: "U"), now: now)
+        _ = c.handle(.servicesReady(uuid: "U"), now: now)
+        _ = c.handle(.negotiationFinished(uuid: "U", mode: .current), now: now)
+        XCTAssertFalse(c.isReady)
+        // 序列号回读补齐身份 → 立即 ready
+        _ = c.handle(.deviceIdentified(deviceID: "507C"), now: now)
+        XCTAssertTrue(c.isReady)
+        XCTAssertEqual(c.stableDeviceID, "507C")
+    }
+
+    func testIdentityRace_legacyMode_notUnlockedByIdentity() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        _ = c.handle(.discovered(uuid: "U", deviceID: nil), now: now)
+        _ = c.handle(.connected(uuid: "U"), now: now)
+        _ = c.handle(.servicesReady(uuid: "U"), now: now)
+        _ = c.handle(.negotiationFinished(uuid: "U", mode: .legacy), now: now)
+        _ = c.handle(.deviceIdentified(deviceID: "507C"), now: now)
+        XCTAssertFalse(c.isReady, "legacy 协商结果不因身份补齐而放行")
+    }
+}

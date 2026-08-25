@@ -40,6 +40,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let serviceUUID = CBUUID(string: "7340")
     private let commandCharUUID = CBUUID(string: "7343")
     private let notifyCharUUID = CBUUID(string: "7344")
+    /// Device Information：改名设备（无 4 位名后缀）靠 2A25 序列号推导稳定身份
+    private let deviceInfoServiceUUID = CBUUID(string: "180A")
+    private let serialNumberCharUUID = CBUUID(string: "2A25")
     private let deviceNamePrefix = "AhaKey"
     private let socketPath: String
 
@@ -882,8 +885,18 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     _ = transportCore.handle(.lockBusy, now: Date())
                 }
             case .scan:
-                emit(NSLocalizedString("开始扫描…", comment: ""))
-                central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+                // 先查系统已连接（macOS HID 持有链路时外设不再广播，纯扫描永远找不到）——
+                // HIL-RUNTIME-2 实证：agent 重启后 lastUUID 丢失，必须保留这一跳。
+                let attached = central.retrieveConnectedPeripherals(withServices: [serviceUUID])
+                if let p = attached.first(where: { ($0.name ?? "").lowercased().hasPrefix(deviceNamePrefix.lowercased()) }) {
+                    emit("系统已连接: \(p.name ?? "?")")
+                    peripheral = p
+                    p.delegate = self
+                    performTransportActions(transportCore.handle(.systemAttachedDeviceFound(uuid: p.identifier.uuidString), now: Date()))
+                } else {
+                    emit(NSLocalizedString("开始扫描…", comment: ""))
+                    central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+                }
             case .connectKnown(let uuidString):
                 guard let uuid = UUID(uuidString: uuidString) else { break }
                 if let p = peripheral, p.identifier == uuid {
@@ -908,7 +921,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     central.connect(p, options: nil)
                 }
             case .discoverServices:
-                peripheral?.discoverServices([serviceUUID])
+                peripheral?.discoverServices([serviceUUID, deviceInfoServiceUUID])
             case .sendCapabilityNegotiation:
                 sendNegotiationQuery()
             case .disconnect:
@@ -1033,11 +1046,21 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else { return }
-        peripheral.discoverCharacteristics([commandCharUUID, notifyCharUUID], for: service)
+        if let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) {
+            peripheral.discoverCharacteristics([commandCharUUID, notifyCharUUID], for: service)
+        }
+        if let infoService = peripheral.services?.first(where: { $0.uuid == deviceInfoServiceUUID }) {
+            peripheral.discoverCharacteristics([serialNumberCharUUID], for: infoService)
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        if service.uuid == deviceInfoServiceUUID {
+            for char in service.characteristics ?? [] where char.uuid == serialNumberCharUUID {
+                peripheral.readValue(for: char)
+            }
+            return
+        }
         for char in service.characteristics ?? [] {
             if char.uuid == commandCharUUID {
                 commandChar = char
@@ -1093,7 +1116,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         awaitingCapabilityResponse = false
         negotiationTimeoutItem?.cancel()
         negotiationTimeoutItem = nil
-        let payload = data.dropFirst(3).dropLast(2)
+        // 帧格式与 AhaKeyResponseParser 一致：AA BB [cmd] [status] [payload] CC DD
+        let payload = data.dropFirst(4).dropLast(2)
+        emit("← 0x99 原始应答: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         guard let caps = AhaKeyFirmwareCapabilities.parse(Data(payload)) else {
             negotiationTimedOut()
             return
@@ -1106,12 +1131,28 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
             startStatusPolling()
+        } else if mode == .current {
+            emit("协议 v3 已确认，等待稳定设备身份（广播编号或 2A25 序列号）…")
         } else {
             emit("协议 mode=\(mode) 非 current，保持连接但不做业务写入")
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        // 2A25 序列号 → 稳定设备身份（改名设备的关键路径）
+        if characteristic.uuid == serialNumberCharUUID,
+           let data = characteristic.value,
+           let serial = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           let shortID = AhaKeyDevicePresentation.shortIdentifier(from: serial) {
+            emit("← 2A25 序列号 \(serial) → 设备编号 \(shortID)")
+            performTransportActions(transportCore.handle(.deviceIdentified(deviceID: shortID), now: Date()))
+            if transportCore.isReady {
+                emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
+                requestDeviceStatus()
+                startStatusPolling()
+            }
+            return
+        }
         guard characteristic.uuid == commandCharUUID || characteristic.uuid == notifyCharUUID,
               let data = characteristic.value else { return }
         // 0x99 能力应答优先于状态/ACK 解析
