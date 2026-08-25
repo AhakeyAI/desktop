@@ -851,37 +851,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             ])
 
         case "apply_config":
-            // 生产受理入口（WBS-5.6 R7）：{"cmd":"apply_config","packagePath":...,"resourceDir":...}
-            // packagePath = AhaKeyConfigurationPackage JSON；resourceDir 内按 logicalIdentifier 命名资源文件。
-            guard let packagePath = obj["packagePath"] as? String else {
-                Self.replyAndClose(clientFd, ["error": "apply_config 缺 packagePath"])
-                return
-            }
-            let resourceDir = obj["resourceDir"] as? String
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                do {
-                    let state = try await self.applyConfigurationPackageFromDisk(
-                        packagePath: packagePath, resourceDir: resourceDir
-                    )
-                    Self.replyAndClose(clientFd, ["ok": true, "state": state.rawValue])
-                } catch {
-                    Self.replyAndClose(clientFd, ["ok": false, "error": "\(error)"])
-                }
-            }
+            // R1: ahakey.sock 拒绝配置命令；生产入口走 XPC (AhaKeyRuntimeXPCRequest.apply)
+            Self.replyAndClose(clientFd, ["error": "apply_config rejected: configuration commands must use XPC (AhaKeyRuntimeXPCRequest.apply)"])
 
         case "cancel_config":
-            // 生产取消入口：{"cmd":"cancel_config","operationID":"<uuid>"}
-            guard let idString = obj["operationID"] as? String,
-                  let uuid = UUID(uuidString: idString) else {
-                Self.replyAndClose(clientFd, ["error": "cancel_config 缺有效 operationID"])
-                return
-            }
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                await self.cancelConfiguration(operationID: AhaKeyRuntimeOperationID(uuid))
-                Self.replyAndClose(clientFd, ["ok": true])
-            }
+            // R1: ahakey.sock 拒绝配置命令；生产入口走 XPC (AhaKeyRuntimeXPCRequest.requestCancellation)
+            Self.replyAndClose(clientFd, ["error": "cancel_config rejected: configuration commands must use XPC (AhaKeyRuntimeXPCRequest.requestCancellation)"])
 
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
