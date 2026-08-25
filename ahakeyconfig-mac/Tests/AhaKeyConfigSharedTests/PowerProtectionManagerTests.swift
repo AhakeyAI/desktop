@@ -148,14 +148,9 @@ final class PowerProtectionManagerTests: XCTestCase {
         XCTAssertTrue(manager.activeReasons.contains(.aiCodingLidCloseProcess))
     }
 
-    /// 跨实例拆除（模拟 Studio 退出）：实例 B 激活后 deactivateAll 会把全局
-    /// IORegistry `SleepDisabled` 清掉；实例 A（模拟 Agent）reason 仍在，
-    /// 下一次安全周期必须重新断言，而不是永久失效。
-    ///
-    /// 注意：写入 IOPMrootDomain 需要 root（kIOReturnNotPermitted），普通用户进程
-    /// 的 L2 必然失败。本测试因此不断言物理值，而是断言**可见性不变式**：
-    /// 激活要么真实生效，要么失败被记录到 failedLayers（不得静默假激活），
-    /// 且对端拆除/自愈循环中 reason 不丢失。
+    /// 跨实例拆除（模拟 Studio 退出）：对端实例 deactivateAll 不得影响本实例。
+    /// idle reason 现为 L1（进程属主断言，天然不可被对端拆除）；
+    /// L2/L3 共享资源由安全周期 refresh 自愈覆盖。
     func testPeerTeardownKeepsReasonsAndVisibility() {
         let peer = PowerProtectionManager()
         peer.enabled = true
@@ -166,16 +161,7 @@ final class PowerProtectionManagerTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { e1.fulfill() }
         wait(for: [e1], timeout: 1.0)
         XCTAssertTrue(manager.isProtectionActive)
-
-        // 可见性不变式：L2 要么真生效，要么失败可见
-        let l2Real = Self.readSleepDisabled() == true
-        if !l2Real {
-            let e = expectation(description: "failedLayers published")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { e.fulfill() }
-            wait(for: [e], timeout: 1.0)
-            XCTAssertNotNil(manager.failedLayers[.ioRegistry],
-                            "L2 未生效时必须在 failedLayers 中可见（宿主可能拒绝非 root 写入）")
-        }
+        XCTAssertEqual(manager.activeLevel, .assertion)
 
         // 对端（模拟 Studio）激活后整体拆除
         peer.begin(.aiCodingIdleProcess)
@@ -184,13 +170,25 @@ final class PowerProtectionManagerTests: XCTestCase {
         wait(for: [e2], timeout: 1.0)
         _ = peer.deactivateAll()
 
-        // A 的 reason 与自愈路径不受对端拆除影响
+        // A 的 reason、层级与 L1 断言都不受对端拆除影响
         manager.performSafetyCheck()
         XCTAssertTrue(manager.activeReasons.contains(.aiCodingIdleProcess),
                       "对端 deactivateAll 不得清除本实例 reason")
         XCTAssertTrue(manager.isProtectionActive)
-        if l2Real {
-            XCTAssertEqual(Self.readSleepDisabled(), true, "可写宿主上 A 必须在安全周期内重断言 L2")
+        XCTAssertEqual(manager.activeLevel, .assertion, "对端拆除后本实例 L1 断言必须存续")
+    }
+
+    /// L2 可见性不变式（firmwareUpgrade 仍走 ioRegistry 层）：要么真生效，
+    /// 要么失败落 failedLayers——杜绝静默假激活。
+    func testL2FailureIsVisibleNotSilent() {
+        manager.begin(.firmwareUpgrade)
+        let e = expectation(description: "fw active")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { e.fulfill() }
+        wait(for: [e], timeout: 1.0)
+        XCTAssertTrue(manager.isProtectionActive)
+        if Self.readSleepDisabled() != true {
+            XCTAssertNotNil(manager.failedLayers[.ioRegistry],
+                            "L2 未生效时必须在 failedLayers 中可见（宿主可能拒绝非 root 写入）")
         }
     }
 
@@ -200,6 +198,28 @@ final class PowerProtectionManagerTests: XCTestCase {
         let service = IORegistryProtection.openRootPowerDomain()
         XCTAssertNotEqual(service, 0, "IOPMrootDomain 必须可打开（路径失效时需回退匹配）")
         if service != 0 { IOObjectRelease(service) }
+    }
+
+    /// 行为变更（Codex 15:07）：AI 编程 idle reason 的承重层提升为 L1 系统断言
+    /// （L2 非 root 不可写，不能承重）；合盖 reason 仍为 L3 虚拟显示器。
+    func testAICodingIdleReasonsRequireAssertionLevel() {
+        XCTAssertEqual(PowerProtectionReason.aiCodingIdleHook.requiredLevel, .assertion)
+        XCTAssertEqual(PowerProtectionReason.aiCodingIdleProcess.requiredLevel, .assertion)
+        XCTAssertEqual(PowerProtectionReason.userRequestedIdle.requiredLevel, .assertion)
+        XCTAssertEqual(PowerProtectionReason.aiCodingLidCloseHook.requiredLevel, .virtualDisplay)
+        XCTAssertEqual(PowerProtectionReason.aiCodingLidCloseProcess.requiredLevel, .virtualDisplay)
+        XCTAssertEqual(PowerProtectionReason.userRequestedLidClose.requiredLevel, .virtualDisplay)
+    }
+
+    /// 端到端：idle reason 激活后 L1 断言真实持有（IOPMAssertion 用户态可用）。
+    func testIdleReasonActivatesAssertionLayer() {
+        manager.begin(.aiCodingIdleProcess)
+        let e = expectation(description: "active")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { e.fulfill() }
+        wait(for: [e], timeout: 1.0)
+        XCTAssertTrue(manager.isProtectionActive)
+        XCTAssertEqual(manager.activeLevel, .assertion, "idle reason 必须以 L1 断言承重（pmset 可见）")
+        XCTAssertNil(manager.failedLayers[.assertion], "L1 断言不得激活失败")
     }
 
     /// 直读 IORegistry 根电源域的 SleepDisabled（测试级真实取证）。

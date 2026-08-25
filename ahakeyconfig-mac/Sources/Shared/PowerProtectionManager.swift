@@ -55,8 +55,11 @@ public struct PowerProtectionReason: Hashable, RawRepresentable, CustomStringCon
     /// The strongest level this reason requires.
     public var requiredLevel: PowerProtectionLevel {
         switch self {
-        case .aiCodingIdleHook, .aiCodingIdleProcess,
-             .firmwareUpgrade, .oledUpload:
+        case .aiCodingIdleHook, .aiCodingIdleProcess:
+            // WBS 5.4 Codex 15:07 裁决：L2（IORegistry SleepDisabled）非 root 不可写，
+            // 不能作防空闲休眠承重层；idle 类 reason 提升为 L1 系统断言（pmset 可见）。
+            return .assertion
+        case .firmwareUpgrade, .oledUpload:
             return .ioRegistry
         case .aiCodingLidCloseHook, .aiCodingLidCloseProcess,
              .userRequestedLidClose:
