@@ -1,49 +1,48 @@
 import Foundation
 
-/// 桥接 `AhaKeyRuntimePolicy` 与 `RuntimeModuleRegistry` 的策略化启停编排器。
+/// Runtime 编排器：策略驱动的模块启停唯一入口（WBS 5.4 切片 3）。
 ///
-/// 职责：
-/// 1. 根据当前 policy 推导目标模块集合（`RuntimeModulePlan`）；
-/// 2. 只在事实变化时通过 `RuntimeModuleRegistry` 执行并行启停；
-/// 3. 提供 `shouldStayResident` 与模块状态 snapshot。
-///
-/// 线程安全：内部状态由 `actor` 隔离。
+/// 组合 `RuntimeOrchestratorCore`（策略→模块集合、变更检测）与
+/// `RuntimeModuleRegistry`（并发启停、错误隔离）：
+/// - `applyPolicy` 只在事实变化时应用并返回 transition（正常轮询零发布）；
+/// - keep-alive/常驻性由策略单一推导（`plan.shouldStayResident`），
+///   不存在第二处决策；
+/// - 全部增强关闭 → 所有模块停止（Runtime 本体是否退出由宿主进程语义决定，
+///   见任务卡执行记录：launchd KeepAlive 下进程退出会立即重拉，本卡选择
+///   「模块全停、进程空闲驻留」作为有界形态，CPU 实测 0.0%）。
 public actor RuntimeOrchestrator {
-    public let registry: RuntimeModuleRegistry
-    private var currentPolicy: AhaKeyRuntimePolicy
-    private var currentPlan: RuntimeModulePlan
+    private let registry = RuntimeModuleRegistry()
+    private var currentPlan = RuntimeModulePlan(desiredModules: [])
 
-    public init(
-        registry: RuntimeModuleRegistry = RuntimeModuleRegistry(),
-        initialPolicy: AhaKeyRuntimePolicy = AhaKeyRuntimePolicy()
-    ) {
-        self.registry = registry
-        self.currentPolicy = initialPolicy
-        self.currentPlan = RuntimeOrchestratorCore.plan(for: initialPolicy)
+    public init() {}
+
+    /// 注册模块（仅登记，不启动；启动由 applyPolicy 驱动）。
+    public func register(_ module: any RuntimeModule) async {
+        await registry.register(module)
     }
 
-    /// 更新策略。只在 policy 或推导出的 plan 发生事实变化时才应用 transition。
-    /// 返回实际发生的 transition；若 policy 未变化或 plan 未变化则返回 `nil`。
+    /// 应用新策略。返回实际发生的 transition；无变化返回 `nil`（调用方不得发布）。
     @discardableResult
-    public func updatePolicy(_ policy: AhaKeyRuntimePolicy) async -> RuntimeModuleTransition? {
-        guard policy != currentPolicy else { return nil }
-        let newPlan = RuntimeOrchestratorCore.plan(for: policy)
-        guard let transition = RuntimeOrchestratorCore.transition(from: currentPlan, to: newPlan) else {
-            currentPolicy = policy
-            currentPlan = newPlan
-            return nil
-        }
+    public func applyPolicy(_ policy: AhaKeyRuntimePolicy) async -> RuntimeModuleTransition? {
+        let next = RuntimeOrchestratorCore.plan(for: policy)
+        guard let transition = RuntimeOrchestratorCore.transition(from: currentPlan, to: next)
+        else { return nil }
         await registry.applyTransition(transition)
-        currentPolicy = policy
-        currentPlan = newPlan
+        currentPlan = next
         return transition
     }
 
-    public var policy: AhaKeyRuntimePolicy { currentPolicy }
-    public var plan: RuntimeModulePlan { currentPlan }
+    /// 当前是否有任一增强模块应常驻运行。
     public var shouldStayResident: Bool { currentPlan.shouldStayResident }
 
-    public func snapshot() async -> [RuntimeModuleID: RuntimeModuleStatus] {
+    /// 当前各模块状态快照。
+    public func moduleStatuses() async -> [RuntimeModuleID: RuntimeModuleStatus] {
         await registry.snapshot()
+    }
+
+    /// 进程退出清理：停止全部模块。
+    public func stopAll() async {
+        await registry.stopAll()
+        currentPlan = RuntimeModulePlan(desiredModules: [])
     }
 }

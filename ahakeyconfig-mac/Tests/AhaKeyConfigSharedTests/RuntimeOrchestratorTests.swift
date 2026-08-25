@@ -1,169 +1,105 @@
 import XCTest
 @testable import AhaKeyConfigShared
 
-// MARK: - Test Fixtures
-
-private final class TestModule: RuntimeModule, @unchecked Sendable {
+private final class FakeModule: RuntimeModule, @unchecked Sendable {
     let id: RuntimeModuleID
     private(set) var status: RuntimeModuleStatus = .idle
-    var shouldFailStart = false
-    var startCallCount = 0
+    var startCalls = 0
+    var stopCalls = 0
 
-    init(id: RuntimeModuleID) {
-        self.id = id
-    }
-
-    func start() async throws {
-        startCallCount += 1
-        if shouldFailStart {
-            throw RuntimeModuleError.startFailed(module: id, underlying: "injected-start-failure")
-        }
-        status = .running
-    }
-
-    func stop() async {
-        status = .idle
-    }
+    init(id: RuntimeModuleID) { self.id = id }
+    func start() async throws { startCalls += 1; status = .running }
+    func stop() async { stopCalls += 1; status = .idle }
 }
 
-// MARK: - Tests
-
 final class RuntimeOrchestratorTests: XCTestCase {
-    private var registry: RuntimeModuleRegistry!
-    private var orchestrator: RuntimeOrchestrator!
 
-    override func setUp() async throws {
-        registry = RuntimeModuleRegistry()
-        orchestrator = RuntimeOrchestrator(registry: registry)
+    private func makeOrchestrator() async -> (RuntimeOrchestrator, [RuntimeModuleID: FakeModule]) {
+        let orchestrator = RuntimeOrchestrator()
+        let fakes: [RuntimeModuleID: FakeModule] = [
+            .ahaType: FakeModule(id: .ahaType),
+            .aiIntegration: FakeModule(id: .aiIntegration),
+            .dynamicLighting: FakeModule(id: .dynamicLighting),
+            .powerProtection: FakeModule(id: .powerProtection),
+        ]
+        for fake in fakes.values { await orchestrator.register(fake) }
+        return (orchestrator, fakes)
     }
 
-    override func tearDown() async throws {
-        await registry?.stopAll()
-    }
-
-    // MARK: - 初始状态
-
-    func testInitialPolicyAllOffYieldsNoResidency() async {
-        let o = RuntimeOrchestrator(registry: registry, initialPolicy: AhaKeyRuntimePolicy())
-        let shouldStayResident = await o.shouldStayResident
-        XCTAssertFalse(shouldStayResident)
-        let snap = await o.snapshot()
-        XCTAssertTrue(snap.isEmpty || snap.values.allSatisfy { $0 == .idle })
-    }
-
-    // MARK: - 策略更新 → 模块启停
-
-    func testUpdatePolicyStartsModules() async {
-        let module = TestModule(id: .aiIntegration)
-        await registry.register(module)
+    func testPolicyDrivesModuleStartStop() async {
+        let (orchestrator, fakes) = await makeOrchestrator()
 
         var policy = AhaKeyRuntimePolicy()
+        policy.powerProtectionEnabled = true
         policy.aiHooks.enabledTools = [.cursor]
 
-        let transition = await orchestrator.updatePolicy(policy)
-        XCTAssertNotNil(transition)
-        XCTAssertEqual(transition?.started, [.aiIntegration])
+        let t1 = await orchestrator.applyPolicy(policy)
+        XCTAssertEqual(t1?.started, [.powerProtection, .aiIntegration])
+        XCTAssertEqual(fakes[.powerProtection]?.status, .running)
+        XCTAssertEqual(fakes[.aiIntegration]?.status, .running)
+        XCTAssertEqual(fakes[.dynamicLighting]?.startCalls, 0, "未启用模块不得启动")
         let shouldStayResident = await orchestrator.shouldStayResident
         XCTAssertTrue(shouldStayResident)
+
+        // 策略收窄：只剩防休眠
+        policy.aiHooks.enabledTools = []
+        let t2 = await orchestrator.applyPolicy(policy)
+        XCTAssertEqual(t2?.stopped, [.aiIntegration])
+        XCTAssertEqual(fakes[.aiIntegration]?.status, .idle)
+        XCTAssertEqual(fakes[.powerProtection]?.status, .running, "保留模块不受影响")
     }
 
-    func testUpdatePolicyStopsModules() async {
-        let aiModule = TestModule(id: .aiIntegration)
-        let ppModule = TestModule(id: .powerProtection)
-        await registry.register(aiModule)
-        await registry.register(ppModule)
-
-        var initial = AhaKeyRuntimePolicy()
-        initial.aiHooks.enabledTools = [.cursor]
-        initial.powerProtectionEnabled = true
-        await orchestrator.updatePolicy(initial)
-
-        var next = AhaKeyRuntimePolicy()
-        next.aiHooks.enabledTools = [.cursor] // keep ai
-
-        let transition = await orchestrator.updatePolicy(next)
-        XCTAssertNotNil(transition)
-        XCTAssertEqual(transition?.stopped, [.powerProtection])
-    }
-
-    func testNoTransitionWhenPolicyUnchanged() async {
-        let module = TestModule(id: .ahaType)
-        await registry.register(module)
-
+    func testSamePolicyProducesNoTransition() async {
+        let (orchestrator, fakes) = await makeOrchestrator()
         var policy = AhaKeyRuntimePolicy()
-        policy.ahaType.enabled = true
-
-        let t1 = await orchestrator.updatePolicy(policy)
-        XCTAssertNotNil(t1)
-
-        let t2 = await orchestrator.updatePolicy(policy)
-        XCTAssertNil(t2)
-    }
-
-    func testShouldExitWhenAllEnhancementsOff() async {
-        let module = TestModule(id: .aiIntegration)
-        await registry.register(module)
-
-        var policy = AhaKeyRuntimePolicy()
-        policy.aiHooks.enabledTools = [.kimi]
-        await orchestrator.updatePolicy(policy)
-        let shouldStayResident1 = await orchestrator.shouldStayResident
-        XCTAssertTrue(shouldStayResident1)
-
-        let transition = await orchestrator.updatePolicy(AhaKeyRuntimePolicy())
-        XCTAssertNotNil(transition)
-        let shouldStayResident2 = await orchestrator.shouldStayResident
-        XCTAssertFalse(shouldStayResident2)
-    }
-
-    // MARK: - 组合启停与重复 worker 防护
-
-    func testCombinedPolicyStartsMultipleModules() async {
-        let ahaModule = TestModule(id: .ahaType)
-        let aiModule = TestModule(id: .aiIntegration)
-        let ppModule = TestModule(id: .powerProtection)
-        await registry.register(ahaModule)
-        await registry.register(aiModule)
-        await registry.register(ppModule)
-
-        var policy = AhaKeyRuntimePolicy()
-        policy.ahaType.enabled = true
-        policy.aiHooks.enabledTools = [.claude]
         policy.powerProtectionEnabled = true
 
-        let transition = await orchestrator.updatePolicy(policy)
-        XCTAssertNotNil(transition)
-        XCTAssertEqual(transition?.started, [.ahaType, .aiIntegration, .powerProtection])
-        let shouldStayResident = await orchestrator.shouldStayResident
-        XCTAssertTrue(shouldStayResident)
+        _ = await orchestrator.applyPolicy(policy)
+        let again = await orchestrator.applyPolicy(policy)
+        XCTAssertNil(again, "相同策略零发布（正常轮询语义）")
+        XCTAssertEqual(fakes[.powerProtection]?.startCalls, 1, "不得重复启动")
     }
 
-    func testRepeatedUpdateDoesNotDuplicateStart() async {
-        let module = TestModule(id: .dynamicLighting)
-        await registry.register(module)
-
+    func testAllOffStopsEverythingAndEndsResidency() async {
+        let (orchestrator, fakes) = await makeOrchestrator()
         var policy = AhaKeyRuntimePolicy()
+        policy.powerProtectionEnabled = true
         policy.devicePresentation.ledEnabled = true
+        _ = await orchestrator.applyPolicy(policy)
 
-        let t1 = await orchestrator.updatePolicy(policy)
-        XCTAssertNotNil(t1)
-        XCTAssertEqual(t1?.started, [.dynamicLighting])
-
-        let t2 = await orchestrator.updatePolicy(policy)
-        XCTAssertNil(t2)
+        let off = await orchestrator.applyPolicy(AhaKeyRuntimePolicy())
+        XCTAssertEqual(off?.stopped, [.powerProtection, .dynamicLighting])
+        XCTAssertEqual(off?.residencyChanged, false)
+        let shouldStayResident = await orchestrator.shouldStayResident
+        XCTAssertFalse(shouldStayResident, "全关闭后不常驻")
+        XCTAssertTrue(fakes.values.allSatisfy { $0.status == .idle || $0.startCalls == 0 })
     }
 
-    // MARK: - Snapshot
+    func testIndependentModulesDoNotShareWorkers() async {
+        // 组合启用：每个模块只被 start 一次，无重复 worker
+        let (orchestrator, fakes) = await makeOrchestrator()
+        var policy = AhaKeyRuntimePolicy()
+        policy.ahaType.enabled = true
+        policy.aiHooks.enabledTools = [.kimi, .claude]
+        policy.devicePresentation.oledEnabled = true
+        policy.powerProtectionEnabled = true
 
-    func testSnapshotReflectsRunningModules() async {
-        let module = TestModule(id: .powerProtection)
-        await registry.register(module)
+        _ = await orchestrator.applyPolicy(policy)
+        for fake in fakes.values {
+            XCTAssertEqual(fake.startCalls, 1, "\(fake.id) 应恰好启动一次")
+            XCTAssertEqual(fake.status, .running)
+        }
+    }
 
+    func testStopAllForProcessExit() async {
+        let (orchestrator, fakes) = await makeOrchestrator()
         var policy = AhaKeyRuntimePolicy()
         policy.powerProtectionEnabled = true
-        await orchestrator.updatePolicy(policy)
+        _ = await orchestrator.applyPolicy(policy)
 
-        let snap = await orchestrator.snapshot()
-        XCTAssertEqual(snap[.powerProtection], .running)
+        await orchestrator.stopAll()
+        XCTAssertEqual(fakes[.powerProtection]?.status, .idle)
+        let shouldStayResident = await orchestrator.shouldStayResident
+        XCTAssertFalse(shouldStayResident)
     }
 }

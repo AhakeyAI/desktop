@@ -78,9 +78,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 当前是否有 hook 发来的活跃状态（与 processDetector 独立）
     private var hookActivityActive = false
 
-    // MARK: Runtime 编排（WBS 5.3 切片 3：防休眠作为 RuntimeModule 接入，行为不变）
-    private let runtimeModuleRegistry = RuntimeModuleRegistry()
-    private let orchestrator: RuntimeOrchestrator
+    // MARK: Runtime 编排（WBS 5.4 切片 3：策略驱动模块启停，唯一入口为 RuntimeOrchestrator）
+    private let orchestrator = RuntimeOrchestrator()
     private var powerProtectionModule: PowerProtectionRuntimeModule?
     /// 切片 4：AI 集成（Hook 状态链看门狗 + 进程兜底即时检测）
     private var aiIntegrationModule: AIIntegrationRuntimeModule?
@@ -112,76 +111,69 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     ) {
         self.socketPath = socketPath
         self.hookSocketURL = hookSocketURL
-        self.orchestrator = RuntimeOrchestrator(registry: runtimeModuleRegistry, initialPolicy: initialPolicy)
+        self.orchestrator = RuntimeOrchestrator()
         // 旧版会持久化虚拟拨杆覆盖，导致真实硬件档位永远无法回写。迁移时清除它。
         UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         super.init()
         central = CBCentralManager(delegate: self, queue: nil)
         Self.clearLiveSwitchState()
-        registerModules()
         Task {
-            await orchestrator.updatePolicy(initialPolicy)
+            await registerModules()
+            await orchestrator.applyPolicy(initialPolicy)
         }
     }
 
     /// 切片 6：AhaType seam 装配——仅登记生命周期；引擎实体（转写/优化器/HUD）
     /// 仍在 Studio 进程（Sources/Utilities，本卡禁改），策略桥接待 WBS 5.7。
-    private func registerAhaTypeModule() {
+    private func registerAhaTypeModule() async {
         let module = AhaTypeRuntimeModule(
             onStart: { [weak self] in self?.emit("AhaType seam 已启动（引擎实体由 Studio 承载，策略桥接待 5.7）") },
             onStop: { [weak self] in self?.emit("AhaType seam 已停止") }
         )
         ahaTypeModule = module
-        Task {
-            await runtimeModuleRegistry.register(module)
-        }
+        await orchestrator.register(module)
     }
 
-    /// 切片 5：灯效模块装配——registry 注册（启动由 orchestrator 策略驱动）。
-    private func registerLightingModule() {
+    /// 切片 5：灯效模块装配——orchestrator 注册（启动由策略驱动）。
+    private func registerLightingModule() async {
         let module = LightingRuntimeModule()
         lightingModule = module
-        Task {
-            await runtimeModuleRegistry.register(module)
-        }
+        await orchestrator.register(module)
     }
 
     func shutdown() {
         hookServer?.stop()
         hookServer = nil
         processDetector.stop()
-        processDetector.stop()
         _ = powerProtection.deactivateAll()
-        // 编排器侧同步清理（模块 stop 委托到 deactivate，与上面幂等重叠无害）
-        Task { await runtimeModuleRegistry.stopAll() }
+        // 编排器侧清理（模块 stop 委托到 deactivate，与上面幂等重叠无害）
+        Task { await orchestrator.stopAll() }
         lockRetryItem?.cancel()
         lockRetryItem = nil
         connectionLock.release()
     }
 
-    private func registerPowerProtectionModule() {
-        // 防休眠经 RuntimeModuleRegistry 编排（切片 3）：模块 start/stop 委托到
-        // 原有 activate/deactivate 行为，策略化 gating 随 orchestrator 装配切片接入。
+    private func registerPowerProtectionModule() async {
+        // 防休眠经 RuntimeOrchestrator 编排（切片 3）：模块 start/stop 委托到
+        // 原有 activate/deactivate 行为，策略化 gating 由 orchestrator 策略驱动。
         let module = PowerProtectionRuntimeModule(
             onStart: { [weak self] in self?.activatePowerProtectionBehavior() },
             onStop: { [weak self] in self?.deactivatePowerProtectionBehavior() }
         )
         powerProtectionModule = module
-        Task {
-            await runtimeModuleRegistry.register(module)
-        }
+        await orchestrator.register(module)
     }
 
-    /// 注册所有 Runtime 模块到 Registry（只注册，不启动；启停由 orchestrator 策略驱动）。
-    private func registerModules() {
-        registerPowerProtectionModule()
-        registerLightingModule()
-        registerAhaTypeModule()
-        registerAIIntegrationModule()
+    /// 注册所有 Runtime 模块到 Orchestrator（只注册，不启动；启停由策略驱动）。
+    private func registerModules() async {
+        await registerPowerProtectionModule()
+        await registerLightingModule()
+        await registerAhaTypeModule()
+        await registerAIIntegrationModule()
     }
 
     /// 切片 4：AI 集成模块注册（看门狗 + 进程兜底即时检测）。
-    private func registerAIIntegrationModule() {
+    private func registerAIIntegrationModule() async {
         let module = AIIntegrationRuntimeModule(
             onStart: { [weak self] in
                 self?.startWatchdog()
@@ -192,14 +184,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
         )
         aiIntegrationModule = module
-        Task {
-            await runtimeModuleRegistry.register(module)
-        }
+        await orchestrator.register(module)
     }
 
     /// 策略更新入口。外部（Studio XPC / CLI）通过此处驱动模块启停。
     func updatePolicy(_ policy: AhaKeyRuntimePolicy) async {
-        await orchestrator.updatePolicy(policy)
+        await orchestrator.applyPolicy(policy)
     }
 
     /// 原 setupPowerProtection 的实际行为：启动时自清 + 进程兜底检测驱动防护。
