@@ -446,7 +446,7 @@ public final class PowerProtectionManager: ObservableObject {
         safetyTimer = timer
     }
 
-    private func performSafetyCheck() {
+    internal func performSafetyCheck() {
         let hadLidClose = state.activeReasons.contains(where: \.isLidCloseReason)
 
         if shouldReleaseAllDueToSafety() {
@@ -485,6 +485,13 @@ public final class PowerProtectionManager: ObservableObject {
             }
         } else {
             state.lidCloseStartTime = nil
+        }
+
+        // Heal: if protection is supposed to be active, refresh L2/L3 layers
+        // in case another process (e.g. AhaKey Studio) deactivated them.
+        if !state.activeReasons.isEmpty {
+            ioRegistry.refresh()
+            virtualDisplay.refresh()
         }
     }
 
@@ -634,6 +641,18 @@ final class IORegistryProtection {
         isActive = false
         log.info("L2 IORegistry protection deactivated")
     }
+
+    /// Re-assert the SleepDisabled property in case another process
+    /// (e.g. Studio) cleared it externally.
+    internal func refresh() {
+        guard isActive else { return }
+        if service != 0 {
+            IORegistryEntrySetCFProperty(service, "SleepDisabled" as CFString, kCFBooleanTrue)
+            log.info("L2 IORegistry protection refreshed")
+        } else {
+            isActive = false
+        }
+    }
 }
 
 // MARK: - Cross-process L3 Coordination
@@ -736,6 +755,45 @@ final class VirtualDisplayProtection {
             log.info("L3 Virtual display deactivated (peer owns lock)")
         }
         isActive = false
+    }
+
+    /// Re-acquire the virtual-display lock and recreate the display if a peer
+    /// process (e.g. Studio) exited and released the lock externally.
+    internal func refresh() {
+        guard isActive else { return }
+        if VirtualDisplayCoordinator.shared.holdsLock {
+            if virtualDisplay == nil {
+                let display = AhaKeyVirtualDisplay(
+                    name: "AhaKey Virtual Display",
+                    width: 1920,
+                    height: 1080,
+                    refreshRate: 60.0
+                )
+                if let display = display {
+                    virtualDisplay = display
+                    log.info("L3 Virtual display recreated (lock retained)")
+                } else {
+                    log.error("L3 Virtual display recreation failed")
+                }
+            }
+        } else {
+            let acquired = VirtualDisplayCoordinator.shared.acquire()
+            if acquired {
+                let display = AhaKeyVirtualDisplay(
+                    name: "AhaKey Virtual Display",
+                    width: 1920,
+                    height: 1080,
+                    refreshRate: 60.0
+                )
+                if let display = display {
+                    virtualDisplay = display
+                    log.info("L3 Virtual display refreshed (took over lock after peer exit)")
+                } else {
+                    VirtualDisplayCoordinator.shared.release()
+                    log.error("L3 Virtual display creation failed after taking lock")
+                }
+            }
+        }
     }
 }
 
