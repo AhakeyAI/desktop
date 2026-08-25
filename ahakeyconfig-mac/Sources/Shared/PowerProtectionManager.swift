@@ -618,7 +618,7 @@ final class IORegistryProtection {
 
     func activate() throws {
         guard !isActive else { return }
-        service = IORegistryEntryFromPath(kIOMainPortDefault, "IOService:/IOResources/IOPMrootDomain")
+        service = Self.openRootPowerDomain()
         guard service != 0 else {
             throw PowerProtectionError.activationFailed(level: .ioRegistry, reason: NSLocalizedString("无法获取 IOPMrootDomain", comment: ""))
         }
@@ -631,6 +631,14 @@ final class IORegistryProtection {
             service = 0
             throw PowerProtectionError.activationFailed(level: .ioRegistry, reason: "status \(result)")
         }
+    }
+
+    /// 打开根电源域：`IORegistryEntryFromPath` 在部分 macOS 版本返回 0
+    /// （本机实测 14.x 失效），回退到 `IOServiceGetMatchingService`。
+    internal static func openRootPowerDomain() -> io_registry_entry_t {
+        let byPath = IORegistryEntryFromPath(kIOMainPortDefault, "IOService:/IOResources/IOPMrootDomain")
+        if byPath != 0 { return byPath }
+        return IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
     }
 
     func deactivate() {
