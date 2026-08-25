@@ -141,6 +141,8 @@ public struct AhaKeyDesiredConfiguration: Codable, Equatable, Sendable {
     public struct OLED: Codable, Equatable, Sendable {
         /// 顶层默认动画资源引用（镜像套图 A done 槽语义；nil = 无）。
         public let defaultAnimation: AhaKeyResourceIdentifier?
+        /// defaultAnimation 的声明帧数（有 defaultAnimation 时必填；与 CAS 实际帧数一致由受理校验保证）。
+        public let defaultAnimationFrames: Int?
         public let statusLine: String
         /// 1...30。
         public let framesPerSecond: Int
@@ -151,6 +153,7 @@ public struct AhaKeyDesiredConfiguration: Codable, Equatable, Sendable {
 
         public init(
             defaultAnimation: AhaKeyResourceIdentifier?,
+            defaultAnimationFrames: Int? = nil,
             statusLine: String,
             framesPerSecond: Int,
             taskSets: [TaskSet],
@@ -161,11 +164,28 @@ public struct AhaKeyDesiredConfiguration: Codable, Equatable, Sendable {
             }
             guard taskSets.count == 2 else { throw AhaKeyDesiredConfigurationError.invalidTaskSetCount }
             guard (-1...1).contains(activeSet) else { throw AhaKeyDesiredConfigurationError.invalidActiveSet }
+            if defaultAnimation != nil {
+                guard let frames = defaultAnimationFrames, frames > 0 else {
+                    throw AhaKeyDesiredConfigurationError.missingDeclaredMetadata
+                }
+            }
             self.defaultAnimation = defaultAnimation
+            self.defaultAnimationFrames = defaultAnimationFrames
             self.statusLine = statusLine
             self.framesPerSecond = framesPerSecond
             self.taskSets = taskSets
             self.activeSet = activeSet
+        }
+
+        /// 兼容切片 0 已冻结的旧 JSON（无 defaultAnimationFrames 字段）。
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            defaultAnimation = try container.decodeIfPresent(AhaKeyResourceIdentifier.self, forKey: .defaultAnimation)
+            defaultAnimationFrames = try container.decodeIfPresent(Int.self, forKey: .defaultAnimationFrames)
+            statusLine = try container.decode(String.self, forKey: .statusLine)
+            framesPerSecond = try container.decode(Int.self, forKey: .framesPerSecond)
+            taskSets = try container.decode([TaskSet].self, forKey: .taskSets)
+            activeSet = try container.decode(Int.self, forKey: .activeSet)
         }
     }
 
@@ -309,4 +329,6 @@ public enum AhaKeyDesiredConfigurationError: Error, Equatable {
     case invalidBrightness
     case duplicateLightState
     case emptyLightEffect
+    /// 有资源引用但缺少声明元数据（如 defaultAnimation 缺帧数）。
+    case missingDeclaredMetadata
 }

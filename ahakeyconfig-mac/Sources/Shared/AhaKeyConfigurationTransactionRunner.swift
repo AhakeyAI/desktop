@@ -68,6 +68,11 @@ public struct AhaKeyConfigurationTransactionRunner {
             plan: plan
         )
         while true {
+            // 步间安全点：用户取消在当前步完成后生效——重读 WAL 取消态，
+            // 已有 cancellationRequested 时立即转入取消结算，绝不继续下一步。
+            if let settled = try await settleCancellation(operationID: package.operationID) {
+                return settled
+            }
             guard let action = actions.first else {
                 return try await store.transaction(package.operationID)?.state ?? .accepted
             }

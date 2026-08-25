@@ -1,0 +1,95 @@
+# 任务卡 WBS-5.6-CONFIG-TRANSACTIONS：声明式配置事务
+
+计划/WBS：5.6  
+状态：`active`  
+执行 owner：Kimi  
+基线：`feat/unified-client` @ `79fc2a1`（HIL-RUNTIME-2 accepted HEAD）  
+目标：将完整目标配置规划为图片/基础配置事务，支持校验、取消、断线恢复和 revision/baseline 原子推进。
+
+## 4.1 口径（用户 23:57 批准）
+
+- **Waive** 队列「必须先 accepted 整张 `WBS-4-STUDIO-V4`」。不刷机、不开 WBS-1。
+- 本卡 **第 0 刀** 在 Shared 冻结 `AhaKeyConfigurationPackage.desiredConfiguration` 的唯一 Codable 正文（v4 最小集：键位/基础配置 + 任务图/默认图资源引用 + 能喂现有 `AhaKeyTaskPictureProtocolPlan` / `AhaKeyOLEDSyncPlan` 的字段）。
+- **禁止第二套 Studio 私有 JSON。** `Sources/Views/**`、`Sources/Models/**` 不得另立并行 schema。Studio 日后（5.7 / 4.2–4.8）只 encode 本卡冻结类型。
+- 信封继续用已冻结的 `AhaKeyConfigurationPackage`（schemaVersion/operationID/device/revision/resources）；不要把 opcode、物理槽位、重试策略放进包。
+
+## 允许修改路径
+
+- `ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeContract.swift`（仅 desiredConfiguration 解码类型挂钩，不破坏 envelope wire）
+- 新建 `ahakeyconfig-mac/Sources/Shared/` 下配置正文 / planner / 事务编排文件
+- `ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimePersistentStore.swift`（接入生产 `AhaKeyRuntimePackageAcceptanceValidator`，不绕过 WAL/CAS）
+- `ahakeyconfig-mac/Sources/Shared/AhaKeyTaskPictureProtocolPlan.swift`、`AhaKeyOLEDSyncPlan.swift`（复用，不复制第二套槽位算法）
+- `ahakeyconfig-mac/Sources/Shared/DeviceTransportCore.swift`、`DeviceCommandSequencer.swift`（事务步进与断线恢复）
+- `ahakeyconfig-mac/Sources/Agent/**`（受理 `apply(package)` 生产路径，不改 Studio UI）
+- `ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/**`、`ahakeyconfig-mac/Tests/AhaKeyAgentTests/**` 中配置/planner/事务测试
+- 本卡执行记录与 `board.md` 末尾
+
+## 禁止事项
+
+- 不刷机、不开工 WBS-1、不 merge。
+- 不改 `Sources/Views/**`（5.7 / WBS-4 UI）。
+- 不让 Studio/测试调用方发送物理 opcode 或槽位策略。
+- 不绕过 5.1 WAL/CAS；失败事务不得替换 active baseline。
+- 不把 `protocolVersion != 3` 标成 `.current`；USB 配置写入仍 current-only。
+- 不做 5A 会话定向。不宣布产品 5.3 完成。
+
+## 完成定义
+
+0. Shared 正文类型 + round-trip 测试；`desiredConfiguration` 只编解码该类型。
+1. 尺寸/帧数/解码内存/设备容量 planner 校验（接 `0x99` 能力与 CAS）。
+2. current-only 执行计划；legacy 仅既有 plan 函数允许的基础/任务图路径。
+3. 资源事务与基础配置事务；取消 / partial resume / 永久失败语义。
+4. 完整成功与 sync baseline 同一 SQLite 事务提交；revision 单调。
+
+## 测试 / 门禁
+
+planner 边界、容量拒绝、断线/重启/取消/恢复、旧协议 current-only、revision 单调；完整 Swift 测试；`swift build -c release --product ahakeyconfig-agent`；`git diff --check`。
+
+实机断电/断连属 **HIL-CONFIG-TRANSACTIONS**（USER-GATE），本卡不标 HIL 通过。
+
+## 前置与晋级
+
+5.5 + HIL-RUNTIME-2 accepted。4.1 整卡 waived。Kimi 已 ACK；Codex 00:13 翻 `active`。完成后进入 HIL-CONFIG，不自动刷机。
+
+## 执行记录（append-only）
+
+等待 Codex 晋级 `ready`。
+
+### [2026-08-25 23:57] Codex 晋级 ready
+
+- 用户批准：不先做固件；5.6 翻 ready；不刷机；不发明第二套 Studio 私有 JSON。
+- 第 0 刀冻结 Shared 正文。WBS-4 的 4.2–4.8 UI 仍 draft。
+
+### [2026-08-26 00:13] Codex ACK → active；单会话施工
+
+- 00:01 ACK 基线 `79fc2a1`。本卡 `ready` → `active`。
+- 双 Kimi 会话互踩：执行期由 **00:01 接单主会话** 独占写代码。心跳会话只读板，不实现。
+- `1c23da4` 切片 0 未整卡验收。工作区若仍有未提交 `AhaKeyDesiredConfiguration.swift`，主会话恢复到 HEAD 后再继续。
+
+### [2026-08-26 00:31] Codex：切片 0–3 记下，整卡未验收
+
+- HEAD `a13b0eb`：0 Codable `1c23da4` → 1 planner `2dc7997` → 2 engine `29d48ec` → 3 runner+WAL `a13b0eb`。
+- Runner 的 `StepExecutor` 仍是注入缝；Agent 尚未 `apply(package)`。完成定义 0–4 的「SQLite 侧」可测部分在切片 3；设备写入仍属切片 4。
+- 切片 4：复用既有 `AhaKeyTaskPictureProtocolPlan` / `AhaKeyOLEDSyncPlan` / 键位灯效命令构造，禁止把 opcode 放进 package，current-only，走 `DeviceCommandSequencer`。
+- 切片 5：断线恢复接线 + Release agent + `git diff --check` 后提审。HIL-CONFIG 仍 USER-GATE。
+
+### [2026-08-26 00:45] Codex：4/5a 记下，5b 硬约束
+
+- HEAD `83b2534`（4=`2a63f5c`，5a=`83b2534`）。整卡不验收。
+- 5b 必须：CAS GIF → 现有 `OLEDFrameEncoder`（160×80 RGB565 25600B/帧）；flash 地址步长 28672；data 特征按 `AhaKeyPictureDataPacketizer` 加 session 前缀；chunk 完成后等 **0x81**；失败/取消/断线发 **0x9A**；current-only；`DeviceCommandSequencer`；ready 后 `recoveryCandidates()`。
+- 禁止把 `package.resources.byteCount`（GIF）当编码帧长。`program(for:)` 里 `byteCount/frames` 不能当生产路径。
+- 不改 Views。USB 仍跳过。不标 HIL 通过。
+
+### [2026-08-26 01:12] Kimi：切片 5b 完成，提审
+
+- 提交 `cd09e59`（9 文件，+609/-129）。全量 `swift test` 通过（All tests passed，0 failures）；`git diff --check` 干净。
+- 按 Codex 00:45 硬约束逐条落地：
+  1. CAS GIF 不再当 flash 数据：编码实现下沉 `Shared/AhaKeyOLEDFrameEncoderCore`（160×80 RGB565，25600B/帧），App 侧 `Utilities/OLEDFrameEncoder` 变为委托壳（仅常量注入+本地化文案），Views 未改。
+  2. 映射层资源步：编码长度由 `AhaKeyDeviceLayoutPolicy.encodedFrameBytes=25600` 固定，`meta.byteCount` 不再参与分块（测试新增断言）；flash 地址按 28672B 槽步长。
+  3. 数据通道复用 `AhaKeyPictureDataPacketizer`（session 前缀逐包）；session 按 chunk 轮换（对齐 Studio 生产路径）；chunk 结束后等 0x81 且 session 必须匹配（`handlePictureWriteResult`）。
+  4. 失败/取消由 executor 统一 `abortActiveSession()` 补 0x9A；断连瞬间由 agent 强败全部 waiter，会话靠固件超时回收。
+  5. 配置命令全部走 `DeviceCommandSequencer`（`transportCore.enqueue` + 五元 waiter + 代际强败 + 超时收集），删除切片间临时的 `pendingCommandAcks` 旁路。
+  6. Runner `StepExecutor` 改 async（真实 BLE 含 ACK/0x81 等待；同步假实现自动兼容）。
+  7. current-only：三处 ready 点挂 `scheduleConfigurationRecovery()`，`recoveryCandidates()` → runner 续跑；防重入。
+- 已知差异（按 00:45 许可声明）：槽位布局 `factorySlotBase + slot×30` 为 Runtime 独占，未复用 Studio first-fit 分配器。
+- WAL 资源步整步重做，不跨重连保 session（符合口径）。USB 链路维持跳过。实机断电/断连仍归 HIL-CONFIG-TRANSACTIONS（USER-GATE），本卡不标 HIL 通过。

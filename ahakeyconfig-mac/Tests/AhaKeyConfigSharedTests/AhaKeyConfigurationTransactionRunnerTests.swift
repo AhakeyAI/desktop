@@ -1,4 +1,5 @@
 import CryptoKit
+import ImageIO
 import XCTest
 @testable import AhaKeyConfigShared
 
@@ -32,9 +33,28 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         )
     }
 
-    private func resourceFile(_ name: String, bytes: Int = 64) -> URL {
+    /// 受理校验以 CAS 实际图片为准：测试资源必须是真实 GIF（128×128×8 帧，与声明一致）。
+    private func makeGIFData(width: Int = 128, height: Int = 128, frames: Int = 8) -> Data {
+        let buffer = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(
+            buffer, "com.compuserve.gif" as CFString, frames, nil
+        )!
+        for _ in 0 ..< frames {
+            var rgba = [UInt8](repeating: 200, count: width * height * 4)
+            let context = CGContext(
+                data: &rgba, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )!
+            CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+        }
+        CGImageDestinationFinalize(destination)
+        return buffer as Data
+    }
+
+    private func resourceFile(_ name: String) -> URL {
         let url = root.appendingPathComponent(name)
-        try! Data(repeating: 0xAB, count: bytes).write(to: url)
+        try! makeGIFData().write(to: url)
         return url
     }
 
@@ -61,16 +81,19 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
             try AhaKeyDesiredConfiguration.Mode(slot: UInt8($0), keys: [key], oled: oled, lightBar: lightBar)
         }
         let desired = try AhaKeyDesiredConfiguration(modes: modes)
-        let sha = SHA256.hash(data: Data(repeating: 0xAB, count: 64)).map { String(format: "%02x", $0) }.joined()
+        let gifData = makeGIFData()
+        let sha = SHA256.hash(data: gifData).map { String(format: "%02x", $0) }.joined()
         let package = try AhaKeyConfigurationPackage(
             targetDeviceID: .init("4F3E"),
             baseRevision: .init(0),
             desiredConfiguration: desired.canonicalData(),
             resources: [try! AhaKeyConfigurationResource(
-                logicalIdentifier: "img-a", sha256: sha, byteCount: 64, mediaType: "gif"
+                logicalIdentifier: "img-a", sha256: sha, byteCount: UInt64(gifData.count), mediaType: "gif"
             )]
         )
-        return (package, [try! AhaKeyResourceIdentifier("img-a"): resourceFile("img-a.gif")])
+        let url = root.appendingPathComponent("img-a.gif")
+        try! gifData.write(to: url)
+        return (package, [try! AhaKeyResourceIdentifier("img-a"): url])
     }
 
     // MARK: 通过路径：全步骤成功 → completed + baseline 原子推进
@@ -169,7 +192,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         XCTAssertEqual(settled, .failedWithoutWrites)
     }
 
-    func testCancelWithWritesStaysResumable() async throws {
+    func testCancelWithWritesSettlesAtStepBoundary() async throws {
         let (package, files) = try makePackage(modeCount: 2)
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
         // 跑一步就取消
@@ -180,15 +203,18 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
             state: .running, completedSteps: 1, totalSteps: 3
         ))
         try await runner.requestCancel(operationID: package.operationID)
-        // 未结算前：run 不执行任何步骤（engine 对 cancellationRequested 返回 none）
-        let duringCancel = try await runner.run(
+        // R3 步间安全点：run 在循环顶部重读取消态并直接结算——
+        // 有写入 → resumablePartial，且绝不执行后续步骤
+        var executed: [String] = []
+        let settled = try await runner.run(
             package: package, resourceFiles: files,
             capabilities: capabilities(), protocolMode: .current
-        ) { _ in .success }
-        XCTAssertEqual(duringCancel, .cancellationRequested)
-        // 结算：有写入 → resumablePartial（可恢复语义，不是强制失败）
-        let settled = try await runner.settleCancellation(operationID: package.operationID)
+        ) { step in executed.append(step.rawValue); return .success }
         XCTAssertEqual(settled, .resumablePartial)
+        XCTAssertTrue(executed.isEmpty, "取消结算后不得再执行任何步骤")
+        // 结算幂等：非 cancellationRequested 态返回 nil
+        let settledAgain = try await runner.settleCancellation(operationID: package.operationID)
+        XCTAssertNil(settledAgain)
         // 显式重跑 = 用户恢复意图：跳过已确认步并完成
         let after = try await runner.run(
             package: package, resourceFiles: files,

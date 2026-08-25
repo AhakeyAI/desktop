@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 // MARK: - 声明式配置 planner（WBS-5.6 切片 1）
 //
@@ -37,11 +38,13 @@ public enum AhaKeyConfigurationPlanner {
             self.allowedImageMediaTypes = allowedImageMediaTypes
         }
 
-        /// current 协议默认预算：单资源 2 MiB、解码内存 16 MiB、单素材 120 帧。
+        /// current 协议默认预算：单资源 2 MiB、解码内存 16 MiB、单素材 30 帧。
+        /// 帧上限与 `AhaKeyDeviceLayoutPolicy.framesPerSlot` 同一口径：planner 拒绝的，
+        /// 上传/绑定绝不静默截断——声明数、上传数、绑定数三者恒等。
         public static let currentDefault = Policy(
             maxAssetBytes: 2 * 1024 * 1024,
             maxDecodedMemoryBytes: 16 * 1024 * 1024,
-            maxFramesPerAsset: 120
+            maxFramesPerAsset: 30
         )
     }
 
@@ -49,6 +52,8 @@ public enum AhaKeyConfigurationPlanner {
 
     /// 生产受理校验器：挂在 `AhaKeyRuntimePersistentStore.acceptanceValidator`。
     /// 覆盖：desiredConfiguration 可解码、资源引用完整、媒体类型、字节/帧数/解码内存预算。
+    /// 不信任申报元数据：帧数/尺寸/解码预算以 CAS 实际图片数据（CGImageSource 解析）为准，
+    /// 申报与实际不一致即拒绝受理。
     /// 设备能力（modeCount/setCount/stateCount/槽位数）与 current-only 是连接态信息，
     /// 由 `plan(...)` 在执行前校验，不在本受理层。
     public struct AcceptanceValidator: AhaKeyRuntimePackageAcceptanceValidator {
@@ -75,19 +80,59 @@ public enum AhaKeyConfigurationPlanner {
                     )
                 }
             }
+            // CAS 实际数据校验：申报 vs 实际帧数/尺寸/解码预算
             for mode in desired.modes {
+                if let identifier = mode.oled.defaultAnimation {
+                    try validateActualImage(
+                        identifier: identifier,
+                        declaredFrames: mode.oled.defaultAnimationFrames ?? 0,
+                        declaredWidth: nil, declaredHeight: nil,
+                        contents: resources[identifier]?.contents
+                    )
+                }
                 for set in mode.oled.taskSets {
                     for asset in set.assets where asset.resource != nil {
-                        let frames = asset.declaredFrameCount ?? 0
-                        let decoded = UInt64(asset.pixelWidth ?? 0) * UInt64(asset.pixelHeight ?? 0)
-                            * UInt64(policy.bytesPerPixel) * UInt64(frames)
-                        guard frames <= policy.maxFramesPerAsset, decoded <= policy.maxDecodedMemoryBytes else {
-                            throw AhaKeyRuntimePersistenceError.resourceTooLarge(
-                                limit: policy.maxDecodedMemoryBytes, attempted: decoded
-                            )
-                        }
+                        let identifier = asset.resource!
+                        try validateActualImage(
+                            identifier: identifier,
+                            declaredFrames: asset.declaredFrameCount ?? 0,
+                            declaredWidth: asset.pixelWidth, declaredHeight: asset.pixelHeight,
+                            contents: resources[identifier]?.contents
+                        )
                     }
                 }
+            }
+        }
+
+        /// 以 CAS 实际图片为准：帧数/尺寸必须与申报一致，解码预算按实际值核算。
+        private func validateActualImage(
+            identifier: AhaKeyResourceIdentifier,
+            declaredFrames: Int,
+            declaredWidth: Int?, declaredHeight: Int?,
+            contents: Data?
+        ) throws {
+            guard let contents,
+                  let source = CGImageSourceCreateWithData(contents as CFData, nil),
+                  CGImageSourceGetCount(source) > 0,
+                  let first = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                throw AhaKeyRuntimePersistenceError.resourceMetadataMismatch(identifier.rawValue)
+            }
+            let actualFrames = CGImageSourceGetCount(source)
+            guard declaredFrames == actualFrames else {
+                throw AhaKeyRuntimePersistenceError.resourceMetadataMismatch(identifier.rawValue)
+            }
+            if let declaredWidth, declaredWidth != first.width {
+                throw AhaKeyRuntimePersistenceError.resourceMetadataMismatch(identifier.rawValue)
+            }
+            if let declaredHeight, declaredHeight != first.height {
+                throw AhaKeyRuntimePersistenceError.resourceMetadataMismatch(identifier.rawValue)
+            }
+            let decoded = UInt64(first.width) * UInt64(first.height)
+                * UInt64(policy.bytesPerPixel) * UInt64(actualFrames)
+            guard decoded <= policy.maxDecodedMemoryBytes else {
+                throw AhaKeyRuntimePersistenceError.resourceTooLarge(
+                    limit: policy.maxDecodedMemoryBytes, attempted: decoded
+                )
             }
         }
     }
@@ -111,8 +156,8 @@ public enum AhaKeyConfigurationPlanner {
         case tooManyFrames(AhaKeyResourceIdentifier, frames: Int, limit: Int)
         /// 解码内存超上限。
         case decodeMemoryExceeded(AhaKeyResourceIdentifier, bytes: UInt64, limit: UInt64)
-        /// 去重后资源总数超出设备用户槽位数。
-        case deviceCapacityExceeded(resources: Int, slots: Int)
+        /// 设备容量不足：按实际帧占用折算的槽位需求超出用户槽位数。
+        case deviceCapacityExceeded(slotsNeeded: Int, slotLimit: Int)
     }
 
     // MARK: 计划产物（声明式步骤）
@@ -195,8 +240,14 @@ public enum AhaKeyConfigurationPlanner {
                 return .failure(.assetTooLarge(identifier, bytes: meta.byteCount, limit: policy.maxAssetBytes))
             }
         }
-        // 帧数与解码内存：按素材声明逐条校验
+        // 帧数与解码内存：按素材声明逐条校验（含 defaultAnimation；实际值由受理校验核对 CAS）
         for mode in desired.modes {
+            if let identifier = mode.oled.defaultAnimation {
+                let frames = mode.oled.defaultAnimationFrames ?? 0
+                guard frames > 0, frames <= policy.maxFramesPerAsset else {
+                    return .failure(.tooManyFrames(identifier, frames: frames, limit: policy.maxFramesPerAsset))
+                }
+            }
             for set in mode.oled.taskSets {
                 for asset in set.assets where asset.resource != nil {
                     let identifier = asset.resource!
@@ -214,18 +265,37 @@ public enum AhaKeyConfigurationPlanner {
             }
         }
 
-        // 4. 设备容量：去重资源数 ≤ 用户槽位数
+        // 4. 设备容量：按实际帧占用核算（每槽 framesPerSlot 帧），不是只数资源个数。
+        let framesPerSlot = AhaKeyDeviceLayoutPolicy().framesPerSlot
+        var declaredFrames: [AhaKeyResourceIdentifier: Int] = [:]
+        for mode in desired.modes {
+            if let identifier = mode.oled.defaultAnimation {
+                declaredFrames[identifier] = mode.oled.defaultAnimationFrames ?? 0
+            }
+            for set in mode.oled.taskSets {
+                for asset in set.assets where asset.resource != nil {
+                    declaredFrames[asset.resource!] = asset.declaredFrameCount ?? 0
+                }
+            }
+        }
         let ordered = referenced.sorted(by: { $0.rawValue < $1.rawValue })
-        guard ordered.count <= capabilities.userSlotLimit else {
-            return .failure(.deviceCapacityExceeded(resources: ordered.count, slots: capabilities.userSlotLimit))
+        let slotsNeeded = ordered.reduce(0) { partial, identifier in
+            let frames = max(1, declaredFrames[identifier] ?? 0)
+            return partial + Int(ceil(Double(frames) / Double(framesPerSlot)))
+        }
+        guard slotsNeeded <= capabilities.userSlotLimit else {
+            return .failure(.deviceCapacityExceeded(slotsNeeded: slotsNeeded, slotLimit: capabilities.userSlotLimit))
         }
 
-        // 5. 槽位分配 + 事务序列
+        // 5. 槽位分配 + 事务序列（槽位跨度 = 该资源实际占用的槽数）
         var assignments: [AhaKeyResourceIdentifier: Int] = [:]
         var uploads: [ResourceUpload] = []
-        for (index, identifier) in ordered.enumerated() {
-            assignments[identifier] = index
-            uploads.append(ResourceUpload(resource: resourceIndex[identifier]!, slotIndex: index))
+        var nextSlot = 0
+        for identifier in ordered {
+            assignments[identifier] = nextSlot
+            uploads.append(ResourceUpload(resource: resourceIndex[identifier]!, slotIndex: nextSlot))
+            let frames = max(1, declaredFrames[identifier] ?? 0)
+            nextSlot += Int(ceil(Double(frames) / Double(framesPerSlot)))
         }
         var transactions: [PlannedTransaction] = []
         if !uploads.isEmpty { transactions.append(.resources(uploads)) }

@@ -505,11 +505,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     self.operationWaiters = self.operationWaiters.filter { $0.value != rid }
                     completion(outcome == .timedOut ? self.cachedStatus() : nil)
                 }
-                // 配置命令 waiter 超时（同一 registry，统一在此兜底）
+                // 配置命令 waiter 超时（registry 是唯一超时 owner）。
+                // 只有当超时 waiter 属于当前 head 时才推进队列，且推进后
+                // 迟到 ACK 因 outcome==nil 不会二次推进（见 didUpdateValue 路由）。
                 if let continuation = self.configWaiterContinuations.removeValue(forKey: rid) {
+                    let isHeadWaiter = self.configOperationWaiters
+                        .first(where: { $0.value == rid })
+                        .map { $0.key == self.transportCore.inFlightCommand?.operationID } ?? false
                     self.configOperationWaiters = self.configOperationWaiters.filter { $0.value != rid }
                     continuation.resume(throwing: AhaKeyAgentCommandError.ackTimedOut)
-                    self.advanceQueue()
+                    if isHeadWaiter { self.advanceQueue() }
                 }
             }
             // 无 waiter 时周期轮询真实状态（固件不主动通知拨杆变动）
@@ -844,6 +849,39 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
                 "override": userSwitchOverride.map { Int($0) } ?? NSNull(),
             ])
+
+        case "apply_config":
+            // 生产受理入口（WBS-5.6 R7）：{"cmd":"apply_config","packagePath":...,"resourceDir":...}
+            // packagePath = AhaKeyConfigurationPackage JSON；resourceDir 内按 logicalIdentifier 命名资源文件。
+            guard let packagePath = obj["packagePath"] as? String else {
+                Self.replyAndClose(clientFd, ["error": "apply_config 缺 packagePath"])
+                return
+            }
+            let resourceDir = obj["resourceDir"] as? String
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    let state = try await self.applyConfigurationPackageFromDisk(
+                        packagePath: packagePath, resourceDir: resourceDir
+                    )
+                    Self.replyAndClose(clientFd, ["ok": true, "state": state.rawValue])
+                } catch {
+                    Self.replyAndClose(clientFd, ["ok": false, "error": "\(error)"])
+                }
+            }
+
+        case "cancel_config":
+            // 生产取消入口：{"cmd":"cancel_config","operationID":"<uuid>"}
+            guard let idString = obj["operationID"] as? String,
+                  let uuid = UUID(uuidString: idString) else {
+                Self.replyAndClose(clientFd, ["error": "cancel_config 缺有效 operationID"])
+                return
+            }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.cancelConfiguration(operationID: AhaKeyRuntimeOperationID(uuid))
+                Self.replyAndClose(clientFd, ["ok": true])
+            }
 
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
@@ -1271,17 +1309,21 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
            data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD,
            data[2] != 0x00, data[2] != 0x90,
            let head = transportCore.inFlightCommand, head.opcode == data[2],
-           let rid = configOperationWaiters.removeValue(forKey: head.operationID) {
+           let rid = configOperationWaiters[head.operationID] {
             let outcome = transportCore.resolveWaiter(
                 requestID: rid, operationID: head.operationID,
                 payload: Data(data[3 ..< data.count - 2])
             )
-            if let continuation = configWaiterContinuations.removeValue(forKey: rid) {
-                if outcome != nil {
+            // 只有五元真正匹配才完成 waiter 并推进队列；迟到 ACK（outcome==nil）
+            // 既不续 continuation 也不 advanceQueue——head 推进的唯一时机是
+            // 「waiter 完成」或「head 自己的 waiter 超时」，两者互斥。
+            if outcome != nil {
+                configOperationWaiters.removeValue(forKey: head.operationID)
+                if let continuation = configWaiterContinuations.removeValue(forKey: rid) {
                     continuation.resume(returning: (status: data[3], payload: Data(data[4 ..< data.count - 2])))
-                } // 迟到回包：不完成，等超时兜底
+                }
+                advanceQueue()
             }
-            advanceQueue()
             return
         }
         if let acknowledgement = StateCommandAcknowledgement.parse(data) {
@@ -1401,35 +1443,102 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         Task {
             defer { self.configurationRecoveryInFlight = false }
             do {
-                let store = try AhaKeyRuntimePersistentStore(
-                    rootDirectory: AhaKeyPaths.runtimeStoreDirectory,
-                    acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
-                )
+                let store = try Self.makeConfigurationStore()
                 let candidates = try await store.recoveryCandidates()
                 guard !candidates.isEmpty else { return }
                 self.emit("配置事务恢复：发现 \(candidates.count) 个未竟事务")
-                let runner = AhaKeyConfigurationTransactionRunner(store: store)
                 for candidate in candidates {
                     // 取消请求中的事务不自动复活（等用户显式恢复）
                     guard candidate.state != .cancellationRequested else { continue }
                     guard let caps = capabilities, self.transportCore.isReady else { break }
-                    let package = candidate.package
-                    let state = try await runner.run(
-                        package: package,
-                        resourceFiles: [:],  // 资源已 CAS 落库（accept 幂等，重入不要求文件）
-                        capabilities: caps,
-                        protocolMode: .current
-                    ) { [weak self] step in
-                        guard let self else { return .retryableFailure }
-                        return await self.executeConfigurationStep(
-                            step, package: package, store: store, capabilities: caps
-                        )
-                    }
-                    self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 恢复结果：\(state.rawValue)")
+                    let state = try await self.runConfigurationTransaction(
+                        package: candidate.package, resourceFiles: [:],
+                        store: store, capabilities: caps
+                    )
+                    self.emit("配置事务 \(candidate.package.operationID.rawValue.uuidString.prefix(8))… 恢复结果：\(state.rawValue)")
                 }
             } catch {
                 self.emit("配置事务恢复失败：\(error.localizedDescription)")
             }
+        }
+    }
+
+    // MARK: 生产受理 / 取消入口（WBS-5.6 R7）
+
+    private static func makeConfigurationStore() throws -> AhaKeyRuntimePersistentStore {
+        try AhaKeyRuntimePersistentStore(
+            rootDirectory: AhaKeyPaths.runtimeStoreDirectory,
+            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+        )
+    }
+
+    /// socket apply_config 的磁盘入口：package JSON + 资源目录（按 logicalIdentifier 命名）。
+    func applyConfigurationPackageFromDisk(packagePath: String, resourceDir: String?) async throws -> AhaKeyRuntimeOperationState {
+        let data = try Data(contentsOf: URL(fileURLWithPath: packagePath))
+        let package = try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: data)
+        var resourceFiles: [AhaKeyResourceIdentifier: URL] = [:]
+        if let resourceDir {
+            for resource in package.resources {
+                let url = URL(fileURLWithPath: resourceDir)
+                    .appendingPathComponent(resource.logicalIdentifier.rawValue)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    resourceFiles[resource.logicalIdentifier] = url
+                }
+            }
+        }
+        return try await applyConfigurationPackage(package, resourceFiles: resourceFiles)
+    }
+
+    /// 生产受理入口：新配置包（current-only；与恢复共用单飞闸门，互不插队）。
+    func applyConfigurationPackage(
+        _ package: AhaKeyConfigurationPackage,
+        resourceFiles: [AhaKeyResourceIdentifier: URL]
+    ) async throws -> AhaKeyRuntimeOperationState {
+        guard let caps = negotiatedCapabilities, transportCore.isReady else {
+            throw AhaKeyAgentCommandError.disconnected
+        }
+        guard !configurationRecoveryInFlight else {
+            throw AhaKeyAgentCommandError.busy
+        }
+        configurationRecoveryInFlight = true
+        defer { configurationRecoveryInFlight = false }
+        let store = try Self.makeConfigurationStore()
+        let state = try await runConfigurationTransaction(
+            package: package, resourceFiles: resourceFiles, store: store, capabilities: caps
+        )
+        emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 受理结果：\(state.rawValue)")
+        return state
+    }
+
+    /// 生产取消入口：落 cancellationRequested；执行器在步间安全点结算。
+    func cancelConfiguration(operationID: AhaKeyRuntimeOperationID) async {
+        do {
+            let store = try Self.makeConfigurationStore()
+            try await AhaKeyConfigurationTransactionRunner(store: store).requestCancel(operationID: operationID)
+            emit("配置事务 \(operationID.rawValue.uuidString.prefix(8))… 已请求取消")
+        } catch {
+            emit("配置事务取消失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 决策-执行循环（恢复与新受理共用；transport 经 AgentProgramTransport 落到 BLE）。
+    private func runConfigurationTransaction(
+        package: AhaKeyConfigurationPackage,
+        resourceFiles: [AhaKeyResourceIdentifier: URL],
+        store: AhaKeyRuntimePersistentStore,
+        capabilities: AhaKeyFirmwareCapabilities
+    ) async throws -> AhaKeyRuntimeOperationState {
+        let runner = AhaKeyConfigurationTransactionRunner(store: store)
+        return try await runner.run(
+            package: package,
+            resourceFiles: resourceFiles,
+            capabilities: capabilities,
+            protocolMode: .current
+        ) { [weak self] step in
+            guard let self else { return .retryableFailure }
+            return await self.executeConfigurationStep(
+                step, package: package, store: store, capabilities: capabilities
+            )
         }
     }
 
@@ -1463,7 +1572,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             switch error {
             case .deviceRejected, .resourceMissing, .malformedFrame:
                 return .permanentFailure
-            case .disconnected, .ackTimedOut, .cancelled:
+            case .disconnected, .ackTimedOut, .cancelled, .busy:
                 return .retryableFailure
             }
         } catch is AhaKeyOLEDFrameEncoderCore.EncodingError {
@@ -1531,15 +1640,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         )
 
         activeUploadSessionID = sessionID
-        defer { activeUploadSessionID = nil }
 
-        for packet in packets {
-            guard transportCore.isReady else { throw AhaKeyAgentCommandError.disconnected }
-            peripheral.writeValue(packet, for: dataChar, type: writeType)
-            try? await Task.sleep(nanoseconds: 12_000_000)
-        }
-
-        // 0x81 写入确认（5s，与 Studio 一致）；session 校验在 handlePictureWriteResult。
+        // 0x81 waiter 必须在任何 packet 发出前建立（快速 ACK 不得丢失）；
+        // 失败/超时时 activeUploadSessionID 保留给 abortConfigurationSession 发 0x9A，
+        // 只有 0x81 成功（handlePictureWriteResult）或 0x9A 收尾后才清空。
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             dataWriteContinuation = continuation
             let timeout = DispatchWorkItem { [weak self] in
@@ -1550,36 +1654,56 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             dataWriteTimeoutItem = timeout
             DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
+
+            // waiter 就位后再发数据包（12ms 间隔，与 Studio 生产路径一致）
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                for packet in packets {
+                    guard self.transportCore.isReady, self.dataWriteContinuation != nil else { return }
+                    peripheral.writeValue(packet, for: dataChar, type: writeType)
+                    try? await Task.sleep(nanoseconds: 12_000_000)
+                }
+            }
         }
     }
 
-    /// 0x81 路由：session 匹配 + status 裁决（对齐 Studio BLEManager 语义）。
+    /// 0x81 路由：纯决策在 Shared（AhaKeyPictureWriteResultRouter），此处只做落地。
     private func handlePictureWriteResult(status: UInt8, payload: Data.SubSequence) {
-        if let expected = activeUploadSessionID {
-            guard payload.count >= 2 else {
-                emit("← 忽略缺少 session 的图片写入确认")
-                return
-            }
-            let responseSession = UInt16(payload[payload.startIndex]) | (UInt16(payload[payload.startIndex + 1]) << 8)
-            guard responseSession == expected else {
-                emit("← 忽略过期图片确认 session=\(responseSession)，当前=\(expected)")
-                return
-            }
+        switch AhaKeyPictureWriteResultRouter.decide(
+            status: status, payload: Array(payload), expectedSession: activeUploadSessionID
+        ) {
+        case .ignoreMissingSession:
+            emit("← 忽略缺少 session 的图片写入确认")
+            return
+        case .ignoreStaleSession(let session):
+            emit("← 忽略过期图片确认 session=\(session)，当前=\(activeUploadSessionID ?? 0)")
+            return
+        case .success, .deviceRejected:
+            break
         }
         guard let continuation = dataWriteContinuation else { return }
         dataWriteContinuation = nil
         dataWriteTimeoutItem?.cancel()
         dataWriteTimeoutItem = nil
         if status == 0 {
+            activeUploadSessionID = nil  // 0x81 成功：会话正常关闭
             continuation.resume()
         } else {
+            // 失败保留 session，由 executor 收尾补 0x9A 后清空
             continuation.resume(throwing: AhaKeyAgentCommandError.deviceRejected)
         }
     }
 
-    /// 失败/取消收尾：有在途会话且仍连接时补 0x9A 回滚（尽力而为）。
+    /// 失败/取消收尾：先补 0x9A 回滚在途会话，再强败数据 waiter，最后清 session。
     fileprivate func abortConfigurationSession() async {
         guard let sessionID = activeUploadSessionID else { return }
+        if transportCore.isReady, let commandChar, let peripheral,
+           let frame = AhaKeyWireFrameBuilder.commandFrame(for: .abortSession(sessionID: sessionID)) {
+            let wt: CBCharacteristicWriteType =
+                commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+            peripheral.writeValue(frame, for: commandChar, type: wt)
+            emit("→ 已回滚图片写入会话 \(sessionID)（0x9A）")
+        }
         activeUploadSessionID = nil
         if let continuation = dataWriteContinuation {
             dataWriteContinuation = nil
@@ -1587,12 +1711,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             dataWriteTimeoutItem = nil
             continuation.resume(throwing: AhaKeyAgentCommandError.cancelled)
         }
-        guard transportCore.isReady, let commandChar, let peripheral,
-              let frame = AhaKeyWireFrameBuilder.commandFrame(for: .abortSession(sessionID: sessionID)) else { return }
-        let wt: CBCharacteristicWriteType =
-            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(frame, for: commandChar, type: wt)
-        emit("→ 已回滚图片写入会话 \(sessionID)（0x9A）")
     }
 
     /// CAS 源 → RGB565 编码流（按 digest 缓存；单恢复周期内重复 chunk 不重复编码）。
@@ -1622,6 +1740,8 @@ enum AhaKeyAgentCommandError: Error, Equatable {
     case resourceMissing
     case malformedFrame
     case cancelled
+    /// 已有配置事务在飞（恢复或受理单飞闸门）。
+    case busy
 }
 
 /// 程序执行 seam 的 agent BLE 实现（agent 全部状态在 main 队列访问，故 @unchecked）。

@@ -197,4 +197,52 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         )
         XCTAssertEqual(Mapper.shortcutHidCodes(shortcut), [0xE0, 0xE1, 0xE3, 0x04])
     }
+
+    // MARK: defaultAnimation（返工 R6：资源程序 + 0x82 绑定语义）
+
+    private func modeWithDefaultAnimation() throws -> (AhaKeyDesiredConfiguration, AhaKeyConfigurationPlanner.Plan) {
+        let setA = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let setB = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let oled = try AhaKeyDesiredConfiguration.OLED(
+            defaultAnimation: resource("img-default"), defaultAnimationFrames: 8,
+            statusLine: "", framesPerSecond: 12, taskSets: [setA, setB], activeSet: 0
+        )
+        let lightBar = try AhaKeyDesiredConfiguration.LightBar(stateMappings: [], brightness: 50)
+        let mode = try AhaKeyDesiredConfiguration.Mode(slot: 0, keys: [], oled: oled, lightBar: lightBar)
+        let desired = try AhaKeyDesiredConfiguration(modes: [mode])
+        let plan = AhaKeyConfigurationPlanner.Plan(
+            transactions: [], slotAssignments: [resource("img-default"): 0]
+        )
+        return (desired, plan)
+    }
+
+    func testDefaultAnimationHasResourceProgram() throws {
+        let (desired, plan) = try modeWithDefaultAnimation()
+        let metas = [try! AhaKeyConfigurationResource(
+            logicalIdentifier: "img-default",
+            sha256: String(repeating: "a", count: 64), byteCount: 12345, mediaType: "gif"
+        )]
+        let program = Mapper.program(
+            for: try! .init("resource:img-default"), desired: desired, plan: plan,
+            resources: metas, capabilities: capabilities()
+        )
+        // 不得因 mapper 只搜 task asset 而永久失败；8 帧 × 7 块
+        let prepares = program?.filter { if case .prepareWrite = $0 { return true }; return false }
+        XCTAssertEqual(prepares?.count, 8 * 7)
+    }
+
+    func testDefaultAnimationBindingInBaseProgram() throws {
+        let (desired, plan) = try modeWithDefaultAnimation()
+        let steps = Mapper.baseConfigurationProgram(
+            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
+        )
+        // slot0 → 起始帧 = factorySlotBase(10)；8 帧；interval = max(33, 1000/12)=83
+        XCTAssertTrue(steps.contains(.bindDefaultPicture(
+            mode: 0, startIndex: 10, frameCount: 8, intervalMs: 83
+        )))
+    }
 }

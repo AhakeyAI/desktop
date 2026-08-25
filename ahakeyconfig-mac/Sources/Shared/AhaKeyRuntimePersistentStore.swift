@@ -139,6 +139,8 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case domainResourceValidationRequired
     case invalidOperationOutcome
     case invalidOutcomeBaseline
+    /// 申报元数据与 CAS 实际图片不一致（帧数/尺寸），或图片无法解码。
+    case resourceMetadataMismatch(String)
 }
 
 public actor AhaKeyRuntimePersistentStore {

@@ -21,6 +21,8 @@ public enum AhaKeyDeviceProgramStep: Equatable, Sendable {
     case setActiveTaskPictureSet(mode: UInt8, set: UInt8)
     /// 0x98 结束任务图写入（不替换每模式默认动画绑定）。
     case finishTaskPictureWrite
+    /// 0x82 绑定模式默认动画（固件会同步到各套图 IDLE 槽；只改绑定不写数据区）。
+    case bindDefaultPicture(mode: UInt8, startIndex: UInt16, frameCount: UInt16, intervalMs: UInt16)
     /// 0x73/0x73 键位映射（shortcut）。
     case setKeyShortcut(mode: UInt8, keyIndex: UInt8, hidCodes: [UInt8])
     /// 0x73/0x74 固件宏。
@@ -160,6 +162,17 @@ public enum AhaKeyConfigurationStepMapper {
                 ))
             }
         }
+        // 默认动画绑定（0x82；固件同步到各套图 IDLE 槽）
+        if let identifier = mode.oled.defaultAnimation,
+           let slot = plan.slotAssignments[identifier],
+           let frames = mode.oled.defaultAnimationFrames, frames > 0 {
+            let startFrame = layout.startFrameIndex(slot: slot, factorySlotBase: capabilities.factorySlotBase)
+            let interval = max(layout.defaultFrameIntervalFloor, UInt16(1000 / mode.oled.framesPerSecond))
+            steps.append(.bindDefaultPicture(
+                mode: mode.slot, startIndex: startFrame,
+                frameCount: UInt16(frames), intervalMs: interval
+            ))
+        }
         if mode.oled.activeSet >= 0 {
             steps.append(.setActiveTaskPictureSet(mode: mode.slot, set: UInt8(mode.oled.activeSet)))
         }
@@ -184,10 +197,9 @@ public enum AhaKeyConfigurationStepMapper {
             let identifier = String(raw.dropFirst("resource:".count))
             guard let slot = plan.slotAssignments.first(where: { $0.key.rawValue == identifier })?.value,
                   let meta = resources.first(where: { $0.logicalIdentifier.rawValue == identifier }),
-                  let asset = findAsset(identifier: identifier, in: desired),
-                  let frames = asset.declaredFrameCount else { return nil }
-            // 帧数取声明值（容量由 planner 校验），编码长度由 layout 固定；
-            // meta.byteCount 是 CAS 源（GIF）大小，绝不是 flash 编码长度。
+                  let frames = declaredFrames(for: identifier, in: desired) else { return nil }
+            // 帧数取声明值（容量/上限由 planner 校验，实际值由受理校验核对 CAS），
+            // 编码长度由 layout 固定；meta.byteCount 是 CAS 源（GIF）大小，不参与分块。
             return resourceUploadProgram(
                 digest: meta.sha256, slotIndex: slot,
                 encodedFrameCount: frames,
@@ -253,13 +265,15 @@ public enum AhaKeyConfigurationStepMapper {
             ?? (try! .init(state: state, resource: nil, framesPerSecond: 12))
     }
 
-    static func findAsset(
-        identifier: String, in desired: AhaKeyDesiredConfiguration
-    ) -> AhaKeyDesiredConfiguration.TaskAsset? {
+    /// 资源声明帧数：任务素材取 TaskAsset.declaredFrameCount；defaultAnimation 取 OLED 字段。
+    static func declaredFrames(for identifier: String, in desired: AhaKeyDesiredConfiguration) -> Int? {
         for mode in desired.modes {
+            if mode.oled.defaultAnimation?.rawValue == identifier {
+                return mode.oled.defaultAnimationFrames
+            }
             for set in mode.oled.taskSets {
                 for asset in set.assets where asset.resource?.rawValue == identifier {
-                    return asset
+                    return asset.declaredFrameCount
                 }
             }
         }

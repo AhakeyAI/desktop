@@ -40,6 +40,7 @@ final class AhaKeyDesiredConfigurationTests: XCTestCase {
         ])
         let oled = try AhaKeyDesiredConfiguration.OLED(
             defaultAnimation: resource("oled-mode0-done"),
+            defaultAnimationFrames: 8,
             statusLine: "AhaKey",
             framesPerSecond: 12,
             taskSets: [setA, setB],
