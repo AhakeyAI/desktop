@@ -45,6 +45,53 @@ public enum AhaKeyConfigurationPlanner {
         )
     }
 
+    // MARK: 5.1 WAL 受理校验器（策略级；能力/协议级校验在 plan 时做）
+
+    /// 生产受理校验器：挂在 `AhaKeyRuntimePersistentStore.acceptanceValidator`。
+    /// 覆盖：desiredConfiguration 可解码、资源引用完整、媒体类型、字节/帧数/解码内存预算。
+    /// 设备能力（modeCount/setCount/stateCount/槽位数）与 current-only 是连接态信息，
+    /// 由 `plan(...)` 在执行前校验，不在本受理层。
+    public struct AcceptanceValidator: AhaKeyRuntimePackageAcceptanceValidator {
+        public let policy: Policy
+
+        public init(policy: Policy = .currentDefault) {
+            self.policy = policy
+        }
+
+        public func validate(
+            package: AhaKeyConfigurationPackage,
+            resources: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
+        ) throws {
+            let desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
+            let declared = Dictionary(uniqueKeysWithValues: package.resources.map { ($0.logicalIdentifier, $0) })
+            for identifier in desired.referencedResources {
+                guard let meta = declared[identifier] else {
+                    throw AhaKeyRuntimePersistenceError.unexpectedResourceFiles
+                }
+                guard policy.allowedImageMediaTypes.contains(meta.mediaType.rawValue),
+                      meta.byteCount > 0, meta.byteCount <= policy.maxAssetBytes else {
+                    throw AhaKeyRuntimePersistenceError.resourceTooLarge(
+                        limit: policy.maxAssetBytes, attempted: meta.byteCount
+                    )
+                }
+            }
+            for mode in desired.modes {
+                for set in mode.oled.taskSets {
+                    for asset in set.assets where asset.resource != nil {
+                        let frames = asset.declaredFrameCount ?? 0
+                        let decoded = UInt64(asset.pixelWidth ?? 0) * UInt64(asset.pixelHeight ?? 0)
+                            * UInt64(policy.bytesPerPixel) * UInt64(frames)
+                        guard frames <= policy.maxFramesPerAsset, decoded <= policy.maxDecodedMemoryBytes else {
+                            throw AhaKeyRuntimePersistenceError.resourceTooLarge(
+                                limit: policy.maxDecodedMemoryBytes, attempted: decoded
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: 拒绝原因（planner 校验，全部 fail-fast 在写入前）
 
     public enum Rejection: Error, Equatable, Sendable {
