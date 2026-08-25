@@ -294,6 +294,25 @@ public struct AhaKeyRuntimeFirmwareUpgradeRequest: Codable, Equatable, Sendable 
     }
 }
 
+public struct AhaKeyXPCResourceIngestionItem: Codable, Equatable, Sendable {
+    public let logicalIdentifier: AhaKeyResourceIdentifier
+    public let sha256: AhaKeySHA256Digest
+    public let byteCount: UInt64
+    public let data: Data
+
+    public init(
+        logicalIdentifier: AhaKeyResourceIdentifier,
+        sha256: AhaKeySHA256Digest,
+        byteCount: UInt64,
+        data: Data
+    ) {
+        self.logicalIdentifier = logicalIdentifier
+        self.sha256 = sha256
+        self.byteCount = byteCount
+        self.data = data
+    }
+}
+
 public enum AhaKeyRuntimeXPCRequest: Codable, Equatable, Sendable {
     case handshake(AhaKeyRuntimeXPCHandshake)
     case snapshot
@@ -303,6 +322,7 @@ public enum AhaKeyRuntimeXPCRequest: Codable, Equatable, Sendable {
     case updatePolicy(AhaKeyRuntimePolicy)
     case diagnostics(after: AhaKeyRuntimeEventSequence?)
     case startFirmwareUpgrade(AhaKeyRuntimeFirmwareUpgradeRequest)
+    case ingestResources([AhaKeyXPCResourceIngestionItem])
 }
 
 public enum AhaKeyRuntimeXPCResponse: Codable, Equatable, Sendable {
@@ -314,6 +334,7 @@ public enum AhaKeyRuntimeXPCResponse: Codable, Equatable, Sendable {
     case policyUpdated
     case diagnosticEvents([AhaKeyRuntimeEvent])
     case firmwareUpgradeAccepted(AhaKeyRuntimeOperationID)
+    case resourcesIngested
     case failure(AhaKeyRuntimeEventCode)
 }
 
@@ -358,7 +379,7 @@ public struct AhaKeyRuntimeXPCSession: Sendable {
             return .handshakeAccepted(proposed.interfaceVersion)
 
         case .snapshot, .events, .apply, .requestCancellation, .updatePolicy,
-             .diagnostics, .startFirmwareUpgrade:
+             .diagnostics, .startFirmwareUpgrade, .ingestResources:
             guard negotiatedVersion != nil else {
                 throw AhaKeyRuntimeXPCSessionError.handshakeRequired
             }

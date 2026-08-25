@@ -664,6 +664,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     let state = try await self.applyConfigurationPackage(package, resourceFiles: [:])
                     return Self.xpcResponse(for: state, operationID: package.operationID)
 
+                case .ingestResources(let items):
+                    let store = try Self.makeConfigurationStore()
+                    do {
+                        try await store.ingestResources(items)
+                    } catch let error as AhaKeyRuntimePersistenceError {
+                        switch error {
+                        case .resourceTooLarge, .resourceQuotaExceeded:
+                            return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
+                        case .resourceDigestMismatch, .resourceByteCountMismatch:
+                            return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
+                        default:
+                            return .failure(try! AhaKeyRuntimeEventCode("ingest-failed"))
+                        }
+                    }
+                    return .resourcesIngested
+
                 case .requestCancellation(let operationID):
                     await self.cancelConfiguration(operationID: operationID)
                     return .cancellation(.requested)

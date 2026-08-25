@@ -426,6 +426,91 @@ public actor AhaKeyRuntimePersistentStore {
         return package.operationID
     }
 
+    /// 将资源数据写入 CAS（managed storage），不创建事务。
+    /// 用于 XPC 预上传：Studio 先 ingest，再发 apply。
+    public func ingestResources(_ items: [AhaKeyXPCResourceIngestionItem]) throws {
+        for item in items {
+            guard item.byteCount <= quota.maxSingleResourceBytes else {
+                throw AhaKeyRuntimePersistenceError.resourceTooLarge(
+                    limit: quota.maxSingleResourceBytes,
+                    attempted: item.byteCount
+                )
+            }
+        }
+
+        var newBytes: UInt64 = 0
+        for item in items {
+            if try !resourceExists(item.sha256) {
+                let (sum, overflow) = newBytes.addingReportingOverflow(item.byteCount)
+                guard !overflow else {
+                    throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
+                        limit: quota.maxTotalResourceBytes,
+                        attempted: UInt64.max
+                    )
+                }
+                newBytes = sum
+            }
+        }
+        let currentBytes = try resourceStorageUsage()
+        let (attemptedBytes, overflow) = currentBytes.addingReportingOverflow(newBytes)
+        guard !overflow, attemptedBytes <= quota.maxTotalResourceBytes else {
+            throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
+                limit: quota.maxTotalResourceBytes,
+                attempted: overflow ? UInt64.max : attemptedBytes
+            )
+        }
+
+        var newlyCreatedFiles: [URL] = []
+        do {
+            for item in items {
+                let destination = managedResourceURL(for: item.sha256)
+                if !FileManager.default.fileExists(atPath: destination.path) {
+                    let temporary = resourcesDirectory.appendingPathComponent(".staging-\(UUID().uuidString)")
+                    do {
+                        try item.data.write(to: temporary, options: .atomic)
+                        let resource = AhaKeyConfigurationResource(
+                            logicalIdentifier: item.logicalIdentifier,
+                            sha256: item.sha256,
+                            byteCount: item.byteCount,
+                            mediaType: try AhaKeyMediaType("application/octet-stream")
+                        )
+                        try validateResourceFile(at: temporary, against: resource)
+                        try FileManager.default.setAttributes(
+                            [.posixPermissions: 0o600],
+                            ofItemAtPath: temporary.path
+                        )
+                        let handle = try FileHandle(forUpdating: temporary)
+                        do {
+                            try handle.synchronize()
+                            try handle.close()
+                        } catch {
+                            try? handle.close()
+                            throw error
+                        }
+                        try FileManager.default.moveItem(at: temporary, to: destination)
+                    } catch {
+                        try? FileManager.default.removeItem(at: temporary)
+                        throw error
+                    }
+                    newlyCreatedFiles.append(destination)
+                } else {
+                    let resource = AhaKeyConfigurationResource(
+                        logicalIdentifier: item.logicalIdentifier,
+                        sha256: item.sha256,
+                        byteCount: item.byteCount,
+                        mediaType: try AhaKeyMediaType("application/octet-stream")
+                    )
+                    try validateResourceFile(at: destination, against: resource)
+                }
+            }
+            try Self.synchronizeDirectory(resourcesDirectory)
+        } catch {
+            for url in newlyCreatedFiles { try? FileManager.default.removeItem(at: url) }
+            try? Self.synchronizeDirectory(resourcesDirectory)
+            throw error
+        }
+    }
+
     public func resourceURL(for digest: AhaKeySHA256Digest) throws -> URL? {
         let statement = try prepare(
             "SELECT relative_path, byte_count FROM runtime_resources WHERE digest = ?"

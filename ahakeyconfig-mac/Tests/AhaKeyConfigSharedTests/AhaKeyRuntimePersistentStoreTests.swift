@@ -57,6 +57,101 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(managedData, Data("resource-one".utf8))
     }
 
+    func testAcceptWithEmptyResourceFilesSucceedsWhenDigestInCAS() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let resource = try AhaKeyConfigurationResource(
+            logicalIdentifier: "mode1-working",
+            sha256: "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be",
+            byteCount: 12,
+            mediaType: "image/gif"
+        )
+        let package = try makePackage(resources: [resource])
+        let store = try resourceStore(rootDirectory: root)
+
+        // 先通过 ingestResources 把资源写入 CAS
+        try await store.ingestResources([
+            AhaKeyXPCResourceIngestionItem(
+                logicalIdentifier: resource.logicalIdentifier,
+                sha256: resource.sha256,
+                byteCount: resource.byteCount,
+                data: Data("resource-one".utf8)
+            )
+        ])
+
+        // 空 resourceFiles + digest 已在库 → accept 成功
+        let acceptedID = try await store.accept(package, resourceFiles: [:])
+        XCTAssertEqual(acceptedID, package.operationID)
+    }
+
+    func testAcceptWithEmptyResourceFilesFailsWhenDigestNotInCAS() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let resource = try AhaKeyConfigurationResource(
+            logicalIdentifier: "mode1-working",
+            sha256: "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be",
+            byteCount: 12,
+            mediaType: "image/gif"
+        )
+        let package = try makePackage(resources: [resource])
+        let store = try resourceStore(rootDirectory: root)
+
+        do {
+            _ = try await store.accept(package, resourceFiles: [:])
+            XCTFail("Expected missingResourceFile when digest not in CAS")
+        } catch {
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePersistenceError,
+                .missingResourceFile(resource.logicalIdentifier)
+            )
+        }
+    }
+
+    func testIngestResourcesPutsDataIntoCAS() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let store = try resourceStore(rootDirectory: root)
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("idle"),
+            sha256: try AhaKeySHA256Digest("03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"),
+            byteCount: 12,
+            data: Data("resource-one".utf8)
+        )
+        try await store.ingestResources([item])
+
+        let expectedPath = root.appendingPathComponent("resources/\(item.sha256.rawValue)")
+        let exists = FileManager.default.fileExists(atPath: expectedPath.path)
+        XCTAssertTrue(exists)
+        let data = try Data(contentsOf: expectedPath)
+        XCTAssertEqual(data, Data("resource-one".utf8))
+    }
+
+    func testIngestResourcesRejectsInvalidDigest() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let store = try resourceStore(rootDirectory: root)
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("idle"),
+            sha256: try AhaKeySHA256Digest("03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"),
+            byteCount: 12,
+            data: Data("wrong-data".utf8)
+        )
+        do {
+            try await store.ingestResources([item])
+            XCTFail("Expected validation failure")
+        } catch {
+            XCTAssertTrue(error is AhaKeyRuntimePersistenceError)
+        }
+    }
+
     func testQuotaCountsUniqueContentOnlyAndRejectsNewContentBeyondLimit() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
