@@ -993,7 +993,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         self.peripheral = peripheral
         peripheral.delegate = self
         // 动作由 transport 核心决策并执行（不得丢弃 handle 返回的 actions）
-        performTransportActions(transportCore.handle(.discovered(uuid: peripheral.identifier.uuidString, deviceID: advertisedDeviceID(from: advertisementData, name: name)), now: Date()))
+        let deviceID = advertisedDeviceID(from: advertisementData, name: name)
+        if let deviceID {
+            cacheIdentity(uuid: peripheral.identifier.uuidString, deviceID: deviceID)
+        }
+        performTransportActions(transportCore.handle(.discovered(uuid: peripheral.identifier.uuidString, deviceID: deviceID), now: Date()))
     }
 
     /// 稳定设备编号：manufacturer data 4 位编号 → 设备名后缀（对齐 Studio 的解析顺序）。
@@ -1003,6 +1007,28 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         ) ?? AhaKeyDevicePresentation.nameSuffixIdentifier(name)
     }
 
+    // MARK: - 稳定身份缓存（改名设备/系统持有路径没有广播包）
+
+    private func cacheIdentity(uuid: String, deviceID: String) {
+        let url = AhaKeyPaths.deviceIdentityCacheURL
+        var map: [String: String] = [:]
+        if let data = try? Data(contentsOf: url),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
+            map = obj
+        }
+        guard map[uuid] != deviceID else { return }
+        map[uuid] = deviceID
+        if let data = try? JSONSerialization.data(withJSONObject: map) {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    private func cachedIdentity(for uuid: String) -> String? {
+        guard let data = try? Data(contentsOf: AhaKeyPaths.deviceIdentityCacheURL),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { return nil }
+        return obj[uuid]
+    }
+
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
@@ -1010,8 +1036,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                                          core: coreSnapshot, diagnostics: diagnosticsSnapshot)
         coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
         var actions = transportCore.handle(.connected(uuid: peripheral.identifier.uuidString), now: Date())
-        // 已知 UUID/系统已连路径无广播包：连接后用设备名后缀补稳定身份
+        // 已知 UUID/系统已连路径无广播包：设备名后缀 → 身份缓存 → 2A25 序列号，逐级补稳定身份
+        let uuid = peripheral.identifier.uuidString
         if let id = AhaKeyDevicePresentation.nameSuffixIdentifier(peripheral.name ?? "") {
+            actions += transportCore.handle(.deviceIdentified(deviceID: id), now: Date())
+        } else if let id = cachedIdentity(for: uuid) {
             actions += transportCore.handle(.deviceIdentified(deviceID: id), now: Date())
         }
         performTransportActions(actions)

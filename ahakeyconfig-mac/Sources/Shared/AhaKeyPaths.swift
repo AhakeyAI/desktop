@@ -27,6 +27,12 @@ public enum AhaKeyPaths {
         applicationSupportDirectory.appendingPathComponent("ble-owner.lock").path
     }
 
+    /// 稳定设备身份缓存（WBS-5.5）：UUID → 设备编号。
+    /// 广播路径从 manufacturer data 学到后持久化；系统已连/已知 UUID 路径（无广播包）回查。
+    public static var deviceIdentityCacheURL: URL {
+        applicationSupportDirectory.appendingPathComponent("device-identity.json")
+    }
+
     /// 确保 Application Support 子目录存在，并设置为仅用户自己可访问（0700）。
     public static func ensureApplicationSupportDirectory() throws {
         try FileManager.default.createDirectory(
