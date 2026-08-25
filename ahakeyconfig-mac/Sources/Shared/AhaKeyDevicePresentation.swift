@@ -58,6 +58,15 @@ public enum AhaKeyDevicePresentation {
         return suffix.uppercased()
     }
 
+    /// 无编号固件的兜底身份：CoreBluetooth UUID 末 4 位十六进制。
+    /// 该 UUID 由 macOS 按「同一台 Mac × 同一外设」稳定分配，适合无广播编号、
+    /// 无名后缀、2A25 为占位符（如 "Serial Number"）的设备维持稳定状态绑定。
+    public static func uuidFallbackIdentifier(_ uuid: String) -> String? {
+        let hex = uuid.uppercased().filter { $0.isHexDigit }
+        guard hex.count >= 4 else { return nil }
+        return String(hex.suffix(4))
+    }
+
     /// 多设备选择场景的设备编号副标题；单设备且无需消歧时不显示。
     public static func selectionSubtitle(identifier: String, deviceCount: Int, needsDisambiguation: Bool = false) -> String? {
         guard identifier != "—", deviceCount > 1 || needsDisambiguation else { return nil }

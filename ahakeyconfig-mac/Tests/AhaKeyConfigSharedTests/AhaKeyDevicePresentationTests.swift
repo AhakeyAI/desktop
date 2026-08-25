@@ -91,4 +91,15 @@ final class AhaKeyDevicePresentationTests: XCTestCase {
         XCTAssertNil(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey"))
         XCTAssertNil(AhaKeyDevicePresentation.nameSuffixIdentifier("AhaKey 515C extra"))
     }
+
+    func testUUIDFallbackIdentifier() {
+        // 实机取证：无编号固件（mfg data 仅 5 字节头、2A25="Serial Number"）的兜底身份
+        XCTAssertEqual(
+            AhaKeyDevicePresentation.uuidFallbackIdentifier("3A9D2D14-3720-2D36-18C5-84B776CC4F3E"),
+            "4F3E"
+        )
+        XCTAssertEqual(AhaKeyDevicePresentation.uuidFallbackIdentifier("84b776cc4f3e"), "4F3E")
+        XCTAssertNil(AhaKeyDevicePresentation.uuidFallbackIdentifier(""))
+        XCTAssertNil(AhaKeyDevicePresentation.uuidFallbackIdentifier("---"))
+    }
 }

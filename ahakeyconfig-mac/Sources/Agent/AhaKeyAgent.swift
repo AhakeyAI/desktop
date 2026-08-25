@@ -1080,6 +1080,23 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         if let infoService = peripheral.services?.first(where: { $0.uuid == deviceInfoServiceUUID }) {
             peripheral.discoverCharacteristics([serialNumberCharUUID], for: infoService)
+        } else if error == nil {
+            // 无 Device Information 服务：序列号路径不存在，直接用 UUID 兜底身份
+            applyUUIDFallbackIdentityIfNeeded(peripheral)
+        }
+    }
+
+    /// 无广播编号/名后缀/有效序列号时的最后身份来源（CB UUID 同机稳定）。
+    /// 已识别（名后缀/缓存/真实序列号先到）时不覆盖：transport 核心本身也只认首个身份。
+    private func applyUUIDFallbackIdentityIfNeeded(_ peripheral: CBPeripheral) {
+        guard let id = AhaKeyDevicePresentation.uuidFallbackIdentifier(peripheral.identifier.uuidString) else { return }
+        emit("无广播编号/有效序列号：使用 UUID 兜底身份 \(id)")
+        cacheIdentity(uuid: peripheral.identifier.uuidString, deviceID: id)
+        performTransportActions(transportCore.handle(.deviceIdentified(deviceID: id), now: Date()))
+        if transportCore.isReady {
+            emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
+            requestDeviceStatus()
+            startStatusPolling()
         }
     }
 
@@ -1169,16 +1186,21 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         // 2A25 序列号 → 稳定设备身份（改名设备的关键路径）
-        if characteristic.uuid == serialNumberCharUUID,
-           let data = characteristic.value,
-           let serial = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           let shortID = AhaKeyDevicePresentation.shortIdentifier(from: serial) {
-            emit("← 2A25 序列号 \(serial) → 设备编号 \(shortID)")
-            performTransportActions(transportCore.handle(.deviceIdentified(deviceID: shortID), now: Date()))
-            if transportCore.isReady {
-                emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
-                requestDeviceStatus()
-                startStatusPolling()
+        if characteristic.uuid == serialNumberCharUUID {
+            let serial = characteristic.value.flatMap { String(data: $0, encoding: .utf8) }?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let serial, let shortID = AhaKeyDevicePresentation.shortIdentifier(from: serial) {
+                emit("← 2A25 序列号 \(serial) → 设备编号 \(shortID)")
+                performTransportActions(transportCore.handle(.deviceIdentified(deviceID: shortID), now: Date()))
+                if transportCore.isReady {
+                    emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
+                    requestDeviceStatus()
+                    startStatusPolling()
+                }
+            } else {
+                // 占位符序列号（如 Rhino 固件硬编码 "Serial Number"）：UUID 兜底
+                emit("← 2A25 序列号 \(serial ?? "< unreadable >") 非编号格式，启用 UUID 兜底身份")
+                applyUUIDFallbackIdentityIfNeeded(peripheral)
             }
             return
         }
