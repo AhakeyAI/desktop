@@ -298,8 +298,11 @@ public actor AhaKeyRuntimePersistentStore {
         }
 
         let expectedIdentifiers = Set(package.resources.map(\.logicalIdentifier))
-        guard Set(resourceFiles.keys) == expectedIdentifiers else {
-            throw AhaKeyRuntimePersistenceError.unexpectedResourceFiles
+        let providedIdentifiers = Set(resourceFiles.keys)
+        if !providedIdentifiers.isEmpty {
+            guard providedIdentifiers == expectedIdentifiers else {
+                throw AhaKeyRuntimePersistenceError.unexpectedResourceFiles
+            }
         }
         for resource in package.resources {
             guard resource.byteCount <= quota.maxSingleResourceBytes else {
@@ -308,11 +311,18 @@ public actor AhaKeyRuntimePersistentStore {
                     attempted: resource.byteCount
                 )
             }
-            guard let sourceURL = resourceFiles[resource.logicalIdentifier],
-                  FileManager.default.fileExists(atPath: sourceURL.path) else {
-                throw AhaKeyRuntimePersistenceError.missingResourceFile(resource.logicalIdentifier)
+            if let sourceURL = resourceFiles[resource.logicalIdentifier] {
+                guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                    throw AhaKeyRuntimePersistenceError.missingResourceFile(resource.logicalIdentifier)
+                }
+                try validateResourceFile(at: sourceURL, against: resource)
+            } else {
+                let destination = managedResourceURL(for: resource.sha256)
+                guard FileManager.default.fileExists(atPath: destination.path) else {
+                    throw AhaKeyRuntimePersistenceError.missingResourceFile(resource.logicalIdentifier)
+                }
+                try validateManagedFile(at: destination, digest: resource.sha256, byteCount: resource.byteCount)
             }
-            try validateResourceFile(at: sourceURL, against: resource)
         }
 
         var newDigests: Set<AhaKeySHA256Digest> = []
@@ -346,8 +356,11 @@ public actor AhaKeyRuntimePersistentStore {
                 if !FileManager.default.fileExists(atPath: destination.path) {
                     let temporary = resourcesDirectory.appendingPathComponent(".staging-\(UUID().uuidString)")
                     do {
+                        guard let sourceURL = resourceFiles[resource.logicalIdentifier] else {
+                            throw AhaKeyRuntimePersistenceError.missingResourceFile(resource.logicalIdentifier)
+                        }
                         try FileManager.default.copyItem(
-                            at: resourceFiles[resource.logicalIdentifier]!,
+                            at: sourceURL,
                             to: temporary
                         )
                         try validateResourceFile(at: temporary, against: resource)
