@@ -42,6 +42,42 @@ do {
 } catch {
     let ts = ISO8601DateFormatter().string(from: Date())
     print("[\(ts)] XPC server 启动失败: \(error)")
+    print("[\(ts)] 说明：XPC service 'lab.jawa.ahakeyconfig.runtime' 需要 launchd MachServices 登记。")
+    print("[\(ts)] 请将以下 plist 放入 ~/Library/LaunchAgents/ 并执行 launchctl load：")
+    print("""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>lab.jawa.ahakeyconfig.agent</string>
+        <key>MachServices</key>
+        <dict>
+            <key>lab.jawa.ahakeyconfig.runtime</key>
+            <true/>
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>/Applications/AhaKeyConfig.app/Contents/MacOS/ahakeyconfig-agent</string>
+        </array>
+        <key>RunAtLoad</key>
+        <true/>
+    </dict>
+    </plist>
+    """)
+    print("[\(ts)] 缺少 launchd 登记时 Studio 无法通过 XPC 下发配置；Agent 仍提供 BLE/Hook 服务。")
+}
+do {
+    try agent.startHookServer()
+} catch {
+    let ts = ISO8601DateFormatter().string(from: Date())
+    print("[\(ts)] Hook server 启动失败: \(error)")
+}
+do {
+    try agent.startXPCServer()
+} catch {
+    let ts = ISO8601DateFormatter().string(from: Date())
+    print("[\(ts)] XPC server 启动失败: \(error)")
 }
 
 // Graceful cleanup on SIGINT/SIGTERM. SIGKILL cannot be caught; stale state is

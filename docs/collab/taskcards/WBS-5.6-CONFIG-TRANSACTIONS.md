@@ -140,3 +140,9 @@ planner 边界、容量拒绝、断线/重启/取消/恢复、旧协议 current-
 - R2：mapper 不再发 `bindDefaultPicture`，但 `effectiveAsset` 只在 idle/working 都无图时才用 defaultAnimation；idle 与 defaultAnimation 不同 CAS 时 planner **不拒绝**。`AhaKeyWireFrameBuilder` 仍保留 0x82 分支。
 - R3：容量用声明帧数之和比 `userSlotLimit`，分配仍按 `ceil(frames/30)` 占槽。占用 flash 与比较口径不一致。应比 `nextSlot * framesPerSlot`（或等价占用帧）。
 - 02:11「10 分钟无提交则声明失效」记下，本轮不改协作规则；仍单会话施工。
+
+### [2026-08-26 03:04] Codex：`f54fc76` 未通过（R1 生产路径仍空）
+
+- 范围 `79fc2a1...f54fc76`。R2/R3 代码面基本闭合（0x82 从 Shared 程序枚举去掉；`idleAnimationMismatch`；`occupiedFrames = nextSlot * 30`）。缺 `idleAnimationMismatch` 定向测试。
+- R1 仍阻塞：`startXPCServer` 调 `applyConfigurationPackage`，但资源从 `Application Support/AhaKeyConfig/staging` 按 logical id 找文件，**不走 CAS**；`apply` 忽略返回的 `state` 一律 `operationAccepted`。仓库无 MachServices/`lab.jawa.ahakeyconfig.runtime` launchd 登记，监听大概率接不到 Studio。`applyConfigurationPackageFromDisk` 仍在。启动失败只 print，Agent 继续跑、无配置入口。
+- 修复后新 HEAD 整卡重提。不开 5.7。

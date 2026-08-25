@@ -645,17 +645,24 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
                 switch request {
                 case .apply(let package):
-                    let stagingDir = AhaKeyPaths.applicationSupportDirectory
-                        .appendingPathComponent("staging", isDirectory: true)
-                    var resourceFiles: [AhaKeyResourceIdentifier: URL] = [:]
-                    for resource in package.resources {
-                        let url = stagingDir.appendingPathComponent(resource.logicalIdentifier.rawValue)
-                        if FileManager.default.fileExists(atPath: url.path) {
-                            resourceFiles[resource.logicalIdentifier] = url
+                    // 生产路径：资源必须已入 CAS（由 Studio 预上传或先前恢复）；不接受 staging/ 裸读。
+                    let store = try Self.makeConfigurationStore()
+                    do {
+                        _ = try await store.accept(package, resourceFiles: [:])
+                    } catch let error as AhaKeyRuntimePersistenceError {
+                        switch error {
+                        case .missingResourceFile(let identifier):
+                            return .failure(try! AhaKeyRuntimeEventCode("missing-resource:\(identifier.rawValue)"))
+                        case .resourceDigestMismatch, .resourceByteCountMismatch, .resourceMetadataMismatch:
+                            return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
+                        case .resourceTooLarge, .resourceQuotaExceeded:
+                            return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
+                        default:
+                            return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
                         }
                     }
-                    let state = try await self.applyConfigurationPackage(package, resourceFiles: resourceFiles)
-                    return .operationAccepted(package.operationID)
+                    let state = try await self.applyConfigurationPackage(package, resourceFiles: [:])
+                    return Self.xpcResponse(for: state, operationID: package.operationID)
 
                 case .requestCancellation(let operationID):
                     await self.cancelConfiguration(operationID: operationID)
@@ -674,6 +681,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         server.start()
         xpcServer = server
         emit("监听 XPC service: \(serviceName)")
+    }
+
+    /// 将事务终态映射为 XPC 响应；失败不伪装 operationAccepted。
+    private static func xpcResponse(for state: AhaKeyRuntimeOperationState, operationID: AhaKeyRuntimeOperationID) -> AhaKeyRuntimeXPCResponse {
+        switch state {
+        case .failedWithoutWrites, .failedWithPartialCommit:
+            return .failure(try! AhaKeyRuntimeEventCode("transaction-failed:\(state.rawValue)"))
+        default:
+            return .operationAccepted(operationID)
+        }
     }
 
     func startHookServer() throws {
@@ -1503,23 +1520,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             rootDirectory: AhaKeyPaths.runtimeStoreDirectory,
             acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
         )
-    }
-
-    /// socket apply_config 的磁盘入口：package JSON + 资源目录（按 logicalIdentifier 命名）。
-    func applyConfigurationPackageFromDisk(packagePath: String, resourceDir: String?) async throws -> AhaKeyRuntimeOperationState {
-        let data = try Data(contentsOf: URL(fileURLWithPath: packagePath))
-        let package = try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: data)
-        var resourceFiles: [AhaKeyResourceIdentifier: URL] = [:]
-        if let resourceDir {
-            for resource in package.resources {
-                let url = URL(fileURLWithPath: resourceDir)
-                    .appendingPathComponent(resource.logicalIdentifier.rawValue)
-                if FileManager.default.fileExists(atPath: url.path) {
-                    resourceFiles[resource.logicalIdentifier] = url
-                }
-            }
-        }
-        return try await applyConfigurationPackage(package, resourceFiles: resourceFiles)
     }
 
     /// 生产受理入口：新配置包（current-only；与恢复共用单飞闸门，互不插队）。

@@ -244,6 +244,33 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         XCTAssertEqual(result, .failure(.tooManyFrames(resource("img-default"), frames: 31, limit: 30)))
     }
 
+    func testRejectsIdleAnimationMismatch() {
+        // idle 任务素材带 resource 且与 defaultAnimation 不是同一 CAS 引用 → 拒绝
+        let setA = try! AhaKeyDesiredConfiguration.TaskSet(assets: [
+            asset("img-working", state: .working),
+            asset("img-idle", state: .idle)
+        ])
+        let setB = try! AhaKeyDesiredConfiguration.TaskSet(assets: [asset(nil, state: .idle, w: nil, h: nil, frames: nil)])
+        let oled = try! AhaKeyDesiredConfiguration.OLED(
+            defaultAnimation: resource("img-default"), defaultAnimationFrames: 8,
+            statusLine: "", framesPerSecond: 12, taskSets: [setA, setB], activeSet: 0
+        )
+        let lightBar = try! AhaKeyDesiredConfiguration.LightBar(stateMappings: [], brightness: 35)
+        let key = AhaKeyDesiredConfiguration.Key(
+            role: .approve, action: .shortcut(try! .init(keyCode: 0x28)), description: "Yes"
+        )
+        let mode = try! AhaKeyDesiredConfiguration.Mode(slot: 0, keys: [key], oled: oled, lightBar: lightBar)
+        let d = try! AhaKeyDesiredConfiguration(modes: [mode])
+
+        let result = AhaKeyConfigurationPlanner.plan(
+            desired: d,
+            resources: [meta("img-default"), meta("img-working"), meta("img-idle")],
+            capabilities: capabilities(), protocolMode: .current
+        )
+        XCTAssertEqual(result, .failure(.idleAnimationMismatch(
+            idle: resource("img-idle"), defaultAnimation: resource("img-default"))))
+    }
+
     // MARK: 受理校验以 CAS 实际数据为准（返工 R5）
 
     private func makeGIFData(width: Int = 128, height: Int = 128, frames: Int = 8) -> Data {
