@@ -144,7 +144,7 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
 }
 
 public actor AhaKeyRuntimePersistentStore {
-    public static let schemaVersion: Int32 = 1
+    public static let schemaVersion: Int32 = 2
 
     private let database: OpaquePointer
     private let resourcesDirectory: URL
@@ -208,6 +208,29 @@ public actor AhaKeyRuntimePersistentStore {
             try Self.execute(
                 """
                 CREATE TABLE IF NOT EXISTS runtime_resources (
+                    digest TEXT PRIMARY KEY NOT NULL,
+                    byte_count INTEGER NOT NULL,
+                    media_type TEXT NOT NULL,
+                    relative_path TEXT NOT NULL
+                )
+                """,
+                on: handle
+            )
+            try Self.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_staged_resources (
+                    digest TEXT PRIMARY KEY NOT NULL,
+                    byte_count INTEGER NOT NULL,
+                    media_type TEXT NOT NULL,
+                    logical_identifier TEXT NOT NULL,
+                    relative_path TEXT NOT NULL
+                )
+                """,
+                on: handle
+            )
+            try Self.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_staged_resources (
                     digest TEXT PRIMARY KEY NOT NULL,
                     byte_count INTEGER NOT NULL,
                     media_type TEXT NOT NULL,
@@ -328,7 +351,10 @@ public actor AhaKeyRuntimePersistentStore {
         var newDigests: Set<AhaKeySHA256Digest> = []
         var newBytes: UInt64 = 0
         for resource in package.resources where !newDigests.contains(resource.sha256) {
-            if try !resourceExists(resource.sha256) {
+            // staged journal 已计入 resourceStorageUsage()，不再作为 newBytes 重复计配额。
+            let alreadyCounted = try resourceExists(resource.sha256)
+                || stagedResourceByteCount(resource.sha256) != nil
+            if !alreadyCounted {
                 newDigests.insert(resource.sha256)
                 let (sum, overflow) = newBytes.addingReportingOverflow(resource.byteCount)
                 guard !overflow else {
@@ -412,6 +438,8 @@ public actor AhaKeyRuntimePersistentStore {
                 for resource in package.resources {
                     try insertResource(resource)
                     try link(resource, to: package.operationID)
+                    // 转正：staged journal 同事务删除，资源从预上传变为正式资源。
+                    try deleteStagedResource(resource.sha256)
                 }
                 try Self.execute("COMMIT", on: database)
             } catch {
@@ -438,9 +466,22 @@ public actor AhaKeyRuntimePersistentStore {
             }
         }
 
+        // 元数据冲突拒绝：同一 digest 已 journal（staged 或正式）但申报字节数不同。
+        for item in items {
+            if let stagedBytes = try stagedResourceByteCount(item.sha256), stagedBytes != item.byteCount {
+                throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+            }
+            if let acceptedBytes = try journaledResourceByteCount(item.sha256), acceptedBytes != item.byteCount {
+                throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+            }
+        }
+
+        // 去重：已入库（正式或 staged journal）的 digest 不重复计配额。
         var newBytes: UInt64 = 0
         for item in items {
-            if try !resourceExists(item.sha256) {
+            let alreadyJournaled = try resourceExists(item.sha256)
+                || stagedResourceByteCount(item.sha256) != nil
+            if !alreadyJournaled {
                 let (sum, overflow) = newBytes.addingReportingOverflow(item.byteCount)
                 guard !overflow else {
                     throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
@@ -504,6 +545,18 @@ public actor AhaKeyRuntimePersistentStore {
                 }
             }
             try Self.synchronizeDirectory(resourcesDirectory)
+            // durable staged journal：文件全部落盘并 fsync 后，同事务写入 journal。
+            // 崩溃窗口内「有文件无 journal」由启动 reconciliation 当 orphan 清理，方向安全。
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                for item in items {
+                    try insertStagedResource(item)
+                }
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
         } catch {
             for url in newlyCreatedFiles { try? FileManager.default.removeItem(at: url) }
             try? Self.synchronizeDirectory(resourcesDirectory)
@@ -534,7 +587,12 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     public func resourceStorageUsage() throws -> UInt64 {
-        let statement = try prepare("SELECT COALESCE(SUM(byte_count), 0) FROM runtime_resources")
+        // 配额核算 = 正式资源 + staged journal（未 apply 的预上传同样占配额，防绕过）。
+        let statement = try prepare("""
+            SELECT
+                (SELECT COALESCE(SUM(byte_count), 0) FROM runtime_resources) +
+                (SELECT COALESCE(SUM(byte_count), 0) FROM runtime_staged_resources)
+            """)
         defer { sqlite3_finalize(statement) }
         guard sqlite3_step(statement) == SQLITE_ROW else { throw databaseError() }
         let value = sqlite3_column_int64(statement, 0)
@@ -914,6 +972,65 @@ public actor AhaKeyRuntimePersistentStore {
         throw databaseError()
     }
 
+    /// staged journal 中该 digest 的申报字节数；无记录返回 nil。
+    private func stagedResourceByteCount(_ digest: AhaKeySHA256Digest) throws -> UInt64? {
+        let statement = try prepare(
+            "SELECT byte_count FROM runtime_staged_resources WHERE digest = ?"
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(digest.rawValue, at: 1, to: statement)
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return nil }
+        guard result == SQLITE_ROW else { throw databaseError() }
+        let byteCount = sqlite3_column_int64(statement, 0)
+        guard byteCount >= 0 else { throw AhaKeyRuntimePersistenceError.corruptTransaction }
+        return UInt64(byteCount)
+    }
+
+    /// 正式资源表中该 digest 的字节数；无记录返回 nil。
+    private func journaledResourceByteCount(_ digest: AhaKeySHA256Digest) throws -> UInt64? {
+        let statement = try prepare(
+            "SELECT byte_count FROM runtime_resources WHERE digest = ?"
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(digest.rawValue, at: 1, to: statement)
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return nil }
+        guard result == SQLITE_ROW else { throw databaseError() }
+        let byteCount = sqlite3_column_int64(statement, 0)
+        guard byteCount >= 0 else { throw AhaKeyRuntimePersistenceError.corruptTransaction }
+        return UInt64(byteCount)
+    }
+
+    /// 写入 staged journal：已是正式资源的 digest 无需 staged 记录；其余按 digest 幂等。
+    private func insertStagedResource(_ item: AhaKeyXPCResourceIngestionItem) throws {
+        if try resourceExists(item.sha256) { return }
+        let statement = try prepare(
+            """
+            INSERT OR IGNORE INTO runtime_staged_resources
+                (digest, byte_count, media_type, logical_identifier, relative_path)
+            VALUES (?, ?, ?, ?, ?)
+            """
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(item.sha256.rawValue, at: 1, to: statement)
+        try bind(item.byteCount, at: 2, to: statement)
+        try bind("application/octet-stream", at: 3, to: statement)
+        try bind(item.logicalIdentifier.rawValue, at: 4, to: statement)
+        try bind(item.sha256.rawValue, at: 5, to: statement)
+        try stepDone(statement)
+    }
+
+    /// accept 转正后删除 staged journal（同事务，保证原子切换）。
+    private func deleteStagedResource(_ digest: AhaKeySHA256Digest) throws {
+        let statement = try prepare(
+            "DELETE FROM runtime_staged_resources WHERE digest = ?"
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(digest.rawValue, at: 1, to: statement)
+        try stepDone(statement)
+    }
+
     private func digest(of url: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
@@ -1036,9 +1153,11 @@ public actor AhaKeyRuntimePersistentStore {
         with database: OpaquePointer
     ) throws {
         var statement: OpaquePointer?
+        // staged journal（runtime_staged_resources）与正式资源同样构成清理保护：
+        // 已 journal 的预上传文件不是 orphan，重启清理不得删除。
         guard sqlite3_prepare_v2(
             database,
-            "SELECT digest FROM runtime_resources",
+            "SELECT digest FROM runtime_resources UNION SELECT digest FROM runtime_staged_resources",
             -1,
             &statement,
             nil
