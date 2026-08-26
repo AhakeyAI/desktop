@@ -143,8 +143,10 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case resourceMetadataMismatch(String)
 }
 
-/// Store 测试 seam：资源临界区内的可控交错钩子。仅在 @testable 测试中注入；
-/// 钩子在 flock 临界区内执行，只许信号量/原子标志，禁止在钩子内重入任何 Store。
+/// Store 测试 seam：资源临界区的可控交错钩子。仅在 @testable 测试中注入。
+/// `ingestBeforeJournalCommit` / `acceptBeforeCommit` 在 flock 临界区内执行，
+/// 只许信号量/原子标志，禁止在钩子内重入任何 Store；
+/// `ingestAfterPhase1Staging` 在锁外（flock 之前）执行，用于并发测试的 barrier 对齐。
 struct AhaKeyRuntimeStoreTestingHooks {
     /// ingest：BEGIN IMMEDIATE 内、journal 已写、COMMIT 前调用。
     var ingestBeforeJournalCommit: (() -> Void)?
