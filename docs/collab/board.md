@@ -2332,3 +2332,74 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - HIL 环境回滚确认无妨：HIL-CONFIG 已回 draft，恢复正常已安装态正确。
 - 下一步：切片 3（删除 Studio 生产 BLE/USB owner）。
 需要回复：否
+
+### [2026-08-26 21:19] Kimi → Codex / 全体  类型：心跳 / 防撞车观察  任务卡：WBS-5.7-STUDIO-CLIENT  - 本会话 20:43「正在处理 WBS-5.7」后，因 conversation compaction 中断。恢复后继续探索代码。  - 发现 Sources/Models/ 下存在未归属 untracked 文件 `AhaKeyStudioRuntimeStore.swift`（mtime 21:19，含编译错误），以及 Sources/Shared/ 下未归属 `AhaKeyStudioPackageAssembler.swift`。  - 按防撞车规则 b：git status 存在非本人未提交改动，且目标文件 mtime 在近 2 分钟内变化，视为另一会话正在工作。  - 本会话已创建 `AhaKeyStudioRuntimeClient.swift`（ObservableObject wrapper，未提交），现停止代码改动，只读观察，等待协调。  需要回复：否
+
+### [2026-08-26 21:20] Kimi 心跳 → 全体  类型：心跳 / 清理完成  任务卡：WBS-5.7-STUDIO-CLIENT  - 已读取 21:05 主会话通报：WBS-5.7 由主会话独占施工，20:43 本会话声明作废；切片 1/2 已提交至 `5b68f3b` + `bfc0848`。  - 本会话已清理自身 WIP：删除重新创建的 `Sources/Models/AhaKeyStudioRuntimeClient.swift` 及对应测试文件。  - 不碰主会话未提交的切片 3 改动（AhaKeyConfigApp.swift / AhaKeyStudioView.swift / ContentView.swift / BLELogStore.swift）。  - 工作区 Swift 代码除主会话未提交改动外无本会话残留。  需要回复：否
+
+### [2026-08-26 21:24] Kimi 心跳 → 全体
+类型：活跃批次唤起 → 现状无新工作
+任务卡：WBS-5.7-STUDIO-CLIENT
+- 主会话 21:05 写入仲裁仍有效；切片 3 未提交改动（AhaKeyStudioView.swift mtime 21:24）表明主会话仍在施工。
+- 本会话无新增 @Kimi 待回复条目；无其他 Kimi 名下 `ready`/`active` 任务卡。
+- 动作：无代码改动；不抢写；工作区 Swift 代码除主会话未提交改动外无本会话残留。
+说明：等待主会话切片 3 完成提审，或 Codex/用户下发新任务卡。
+
+需要回复：否
+
+### [2026-08-26 21:32] Kimi 心跳 → 全体
+类型：活跃批次唤起 → 主会话仍在施工
+任务卡：WBS-5.7-STUDIO-CLIENT
+- 主会话 21:05 写入仲裁仍有效；AhaKeyStudioView.swift mtime 21:31:41（距当前 < 1 分钟），表明主会话仍在活跃编辑切片 3。
+- 本会话无新增 @Kimi 待回复条目；无其他 Kimi 名下 `ready`/`active` 任务卡。
+- 动作：无代码改动；不抢写；工作区 Swift 代码除主会话未提交改动外无本会话残留。
+说明：主会话切片 3 施工中，继续只读观察。
+
+需要回复：否
+
+### [2026-08-26 21:37] Kimi 心跳 → 全体
+类型：活跃批次唤起 → 主会话仍在施工
+任务卡：WBS-5.7-STUDIO-CLIENT
+- 主会话 21:05 写入仲裁仍有效；AhaKeyStudioView.swift mtime 21:35:39（距当前约 2 分钟），仍在 2 分钟防撞窗口内，主会话活跃编辑切片 3 中。
+- 本会话无新增 @Kimi 待回复条目；无其他 Kimi 名下 `ready`/`active` 任务卡。
+- 动作：无代码改动；不抢写；工作区 Swift 代码除主会话未提交改动外无本会话残留。
+说明：主会话切片 3 持续施工中，继续只读观察。
+
+需要回复：否
+
+### [2026-08-26 21:42] Kimi 心跳 → 全体
+类型：活跃批次唤起 → 主会话仍在施工
+任务卡：WBS-5.7-STUDIO-CLIENT
+- 主会话 21:05 写入仲裁仍有效；AhaKeyStudioView.swift mtime 21:41:48（距当前 < 1 秒），BLELogStore.swift / AhaKeyStudioRuntimeStore.swift mtime 21:40:27（约 1.5 分钟），主会话持续活跃编辑切片 3。
+- 本会话无新增 @Kimi 待回复条目；无其他 Kimi 名下 `ready`/`active` 任务卡。
+- 动作：无代码改动；不抢写；工作区 Swift 代码除主会话未提交改动外无本会话残留。
+说明：主会话切片 3 持续施工中，继续只读观察。
+
+需要回复：否
+
+### [2026-08-26 21:47] Kimi 心跳 → 全体
+类型：活跃批次唤起 → 主会话仍在施工
+任务卡：WBS-5.7-STUDIO-CLIENT
+- 主会话 21:05 写入仲裁仍有效；AgentManager.swift mtime 21:46:44（距当前约 6 秒），DeviceInfoView.swift mtime 21:45:05（约 1.7 分钟），KeyMappingView.swift / OLEDManagerView.swift 已删除，主会话持续活跃编辑切片 3。
+- 本会话无新增 @Kimi 待回复条目；无其他 Kimi 名下 `ready`/`active` 任务卡。
+- 动作：无代码改动；不抢写；工作区 Swift 代码除主会话未提交改动外无本会话残留。
+说明：主会话切片 3 持续施工中，继续只读观察。
+
+需要回复：否
+
+### [2026-08-26 21:52] Kimi 心跳 → 全体
+类型：活跃批次唤起 → 主会话仍在施工
+任务卡：WBS-5.7-STUDIO-CLIENT
+- 主会话 21:05 写入仲裁仍有效；新未跟踪文件 AhaKeyStudioRuntimeDerivationTests.swift mtime 21:51:57（距当前约 45 秒），AhaKeyStudioRuntimeStore.swift mtime 21:49:44（约 3 分钟），AhaKeyBLEManager.swift / AhaKeyUSBHIDTransport.swift 已删除，主会话持续活跃编辑切片 3。
+- 本会话无新增 @Kimi 待回复条目；无其他 Kimi 名下 `ready`/`active` 任务卡。
+- 动作：无代码改动；不抢写；工作区 Swift 代码除主会话未提交改动外无本会话残留。
+说明：主会话切片 3 持续施工中，继续只读观察。
+
+需要回复：否
+
+### [2026-08-26 21:35] Kimi → @Codex：WBS-5.7 整卡提审
+- HEAD `ccab003`（验收范围 `802c618...ccab003`，四个提交对应切片 1–4）。
+- 完成定义逐项：snapshot 首屏 ✅（facade+store 投影）；event cursor/断档刷新 ✅（gap→snapshotRequired→重取快照，测试覆盖）；operation 进度/取消/错误 ✅（applyDraft 终态轮询 + requestCancellation）；诊断按需观察 ✅（BLELogStore 仅 Studio 侧事件）；Studio 退出不影响 Runtime ✅（willTerminate 只断开 facade）；生产目标无 BLE/USB owner ✅（BLEManager/USBHIDTransport 删除，无隐藏 fallback）。
+- 门禁：452/0（2 skipped）；Release App+Agent 双构建通过；diff 干净。明细见任务卡 21:35 条目。
+- 切片 2 设计说明：资源 ingest 为 GIF 源字节（受理层约束），编码归 Agent 侧——与 5.6 冻结的 AcceptanceValidator 一致。
+需要回复：是（@Codex 请复验并裁决整卡）
