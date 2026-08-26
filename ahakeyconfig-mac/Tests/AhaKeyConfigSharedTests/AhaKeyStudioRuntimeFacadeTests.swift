@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import AhaKeyConfigShared
 
@@ -16,6 +17,13 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         var gapResponsesRemaining = 0
         /// 注入错误：非 nil 时下一次 exchange 抛错（自动消费）。
         var nextError: Error?
+        /// 切片 2：ingest/apply/cancel 脚本化响应（nil = 默认成功）。
+        var ingestResponse: AhaKeyRuntimeXPCResponse?
+        var applyResponse: AhaKeyRuntimeXPCResponse?
+        var cancellationDisposition: AhaKeyRuntimeCancellationDisposition = .requested
+        private(set) var ingestedItems: [AhaKeyXPCResourceIngestionItem]?
+        private(set) var appliedPackage: AhaKeyConfigurationPackage?
+        private(set) var cancelledOperation: AhaKeyRuntimeOperationID?
         private(set) var requestLog: [String] = []
 
         init(snapshot: AhaKeyRuntimeSnapshot) {
@@ -52,6 +60,18 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
                     return .eventReplay(.events([]))
                 }
                 return .eventReplay(.events(eventBatches.removeFirst()))
+            case .ingestResources(let items):
+                requestLog.append("ingest(\(items.count))")
+                ingestedItems = items
+                return ingestResponse ?? .resourcesIngested
+            case .apply(let package):
+                requestLog.append("apply")
+                appliedPackage = package
+                return applyResponse ?? .operationAccepted(package.operationID)
+            case .requestCancellation(let operationID):
+                requestLog.append("cancel(\(operationID.rawValue.uuidString))")
+                cancelledOperation = operationID
+                return .cancellation(cancellationDisposition)
             default:
                 return .failure(try! AhaKeyRuntimeEventCode("unsupported"))
             }
@@ -230,5 +250,232 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertTrue(recorder.contains { $0.connection == .online })
         await facade.stop()
         recorder.stop()
+    }
+
+    // MARK: - 切片 2：apply / ingest / 取消
+
+    /// 假资源加载器：返回固定字节与元数据，可注入错误。
+    private struct FakeResourceLoader: AhaKeyStudioResourceLoader {
+        var data: Data
+        var frameCount: Int
+        var pixelWidth: Int
+        var pixelHeight: Int
+        var error: Error?
+
+        func load(from url: URL) throws -> AhaKeyStudioLoadedResource {
+            if let error { throw error }
+            var hasher = SHA256()
+            hasher.update(data: data)
+            let hex = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+            return try AhaKeyStudioLoadedResource(
+                data: data,
+                sha256: AhaKeySHA256Digest(hex),
+                frameCount: frameCount,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight
+            )
+        }
+    }
+
+    private func gifAsset(
+        _ state: AhaKeyDesiredConfiguration.TaskDisplayState,
+        name: String,
+        frames: Int
+    ) -> AhaKeyStudioTaskAssetInput {
+        AhaKeyStudioTaskAssetInput(
+            state: state,
+            localFileURL: URL(fileURLWithPath: "/tmp/ahakey-facade-\(name).gif"),
+            framesPerSecond: 12,
+            declaredFrameCount: frames,
+            pixelWidth: 160,
+            pixelHeight: 80
+        )
+    }
+
+    /// 单模式输入：套图 A done 带资源（6 帧），其余槽无资源。
+    private func applyModeInput(slot: UInt8 = 0) -> AhaKeyStudioModeInput {
+        let emptySet = AhaKeyStudioTaskSetInput(assets: [
+            AhaKeyStudioTaskAssetInput(state: .idle, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .working, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .waiting, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .done, framesPerSecond: 12),
+        ])
+        var setA = emptySet
+        setA.assets[3] = gifAsset(.done, name: "done", frames: 6)
+        return AhaKeyStudioModeInput(
+            slot: slot,
+            keys: [
+                AhaKeyStudioKeyInput(
+                    role: .approve,
+                    action: .shortcut(try! .init(modifiers: [], keyCode: 0x28)),
+                    description: "Accept"
+                ),
+            ],
+            oled: AhaKeyStudioOLEDInput(
+                statusLine: "s", framesPerSecond: 12, taskSets: [setA, emptySet], activeSet: 0
+            ),
+            lightBar: AhaKeyStudioLightBarInput(
+                stateMappings: [AhaKeyStudioLightMappingInput(state: 3, effect: "singleMove")],
+                brightness: 35
+            )
+        )
+    }
+
+    func testApplyIngestsBeforeApplyAndEchoesOperationID() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let operationID = try await facade.apply(
+            modes: [applyModeInput()], targetDeviceID: device, baseRevision: .init(7)
+        )
+        // 顺序断言：ingest 先于 apply。
+        XCTAssertEqual(transport.requestLog, ["ingest(1)", "apply"])
+        // operationID 与包内一致（FakeTransport 回声），且发布到 view state。
+        XCTAssertEqual(operationID, transport.appliedPackage?.operationID)
+        let state = await facade.currentState()
+        XCTAssertEqual(state.lastApplyOperationID, operationID)
+        // 包内容：device/revision/canonical 配置。
+        let package = try XCTUnwrap(transport.appliedPackage)
+        XCTAssertEqual(package.targetDeviceID, device)
+        XCTAssertEqual(package.baseRevision, .init(7))
+        let desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
+        XCTAssertEqual(desired.modes[0].oled.defaultAnimationFrames, 6, "申报帧数与加载帧数一致")
+        // 资源摘要：sha256/byteCount 对源数据（冻结契约：CAS 存 GIF 源，客户端不预编码）。
+        let item = try XCTUnwrap(transport.ingestedItems?.first)
+        var hasher = SHA256()
+        hasher.update(data: payload)
+        let expectedHex = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(item.sha256.rawValue, expectedHex)
+        XCTAssertEqual(item.byteCount, UInt64(payload.count))
+        XCTAssertEqual(item.logicalIdentifier.rawValue, "mode0-default")
+        XCTAssertEqual(package.resources.first?.sha256.rawValue, expectedHex)
+        XCTAssertEqual(package.resources.first?.mediaType.rawValue, "gif")
+        await facade.stop()
+    }
+
+    func testIngestRejectionSkipsApply() async throws {
+        let loader = FakeResourceLoader(data: Data([1]), frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        transport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+        )
+        do {
+            _ = try await facade.apply(
+                modes: [applyModeInput()],
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("ingest 被拒必须抛错")
+        } catch let error as AhaKeyStudioApplyError {
+            XCTAssertEqual(error, .ingestRejected(try AhaKeyRuntimeEventCode("resource.quota")))
+        }
+        XCTAssertEqual(transport.requestLog, ["ingest(1)"], "ingest 失败不得发 apply")
+        XCTAssertNil(transport.appliedPackage)
+    }
+
+    func testApplyRejectionIsDistinguishable() async throws {
+        let loader = FakeResourceLoader(data: Data([1]), frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        transport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+        )
+        do {
+            _ = try await facade.apply(
+                modes: [applyModeInput()],
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("apply 被拒必须抛错")
+        } catch let error as AhaKeyStudioApplyError {
+            XCTAssertEqual(error, .applyRejected(try AhaKeyRuntimeEventCode("device.busy")))
+        }
+        XCTAssertEqual(transport.requestLog, ["ingest(1)", "apply"])
+    }
+
+    func testResourceLoadFailureSkipsTransport() async throws {
+        struct Boom: Error {}
+        var loader = FakeResourceLoader(data: Data(), frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        loader.error = Boom()
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+        )
+        do {
+            _ = try await facade.apply(
+                modes: [applyModeInput()],
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("资源缺失必须抛错")
+        } catch let error as AhaKeyStudioApplyError {
+            guard case .resourceLoadFailed(let identifier, let path, _) = error else {
+                return XCTFail("应为 resourceLoadFailed，实际 \(error)")
+            }
+            XCTAssertEqual(identifier, "mode0-default")
+            XCTAssertTrue(path.hasSuffix("ahakey-facade-done.gif"))
+        }
+        XCTAssertTrue(transport.requestLog.isEmpty, "资源读失败不得发任何请求")
+    }
+
+    func testDeclaredMetadataMismatchSkipsTransport() async throws {
+        // 申报 6 帧，实际加载 3 帧 → fail-fast，不发 ingest/apply。
+        let loader = FakeResourceLoader(data: Data([1]), frameCount: 3, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+        )
+        do {
+            _ = try await facade.apply(
+                modes: [applyModeInput()],
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("元数据不符必须抛错")
+        } catch let error as AhaKeyStudioApplyError {
+            XCTAssertEqual(error, .resourceMetadataMismatch(identifier: "mode0-default"))
+        }
+        XCTAssertTrue(transport.requestLog.isEmpty)
+    }
+
+    func testRequestCancellationPassthrough() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        transport.cancellationDisposition = .requested
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+        )
+        let target = AhaKeyRuntimeOperationID()
+        let disposition = try await facade.requestCancellation(target)
+        XCTAssertEqual(disposition, .requested)
+        XCTAssertEqual(transport.cancelledOperation, target)
+        XCTAssertEqual(transport.requestLog, ["cancel(\(target.rawValue.uuidString))"])
+    }
+
+    func testApplyWithoutResourcesSkipsIngest() async throws {
+        // 无资源引用的纯键位/灯条配置：直接 apply，不发 ingest。
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+        )
+        let emptySet = AhaKeyStudioTaskSetInput(assets: [
+            AhaKeyStudioTaskAssetInput(state: .idle, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .working, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .waiting, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .done, framesPerSecond: 12),
+        ])
+        var mode = applyModeInput()
+        mode.oled.taskSets = [emptySet, emptySet]
+        _ = try await facade.apply(
+            modes: [mode],
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+            baseRevision: .init(0)
+        )
+        XCTAssertEqual(transport.requestLog, ["apply"])
+        XCTAssertNil(transport.ingestedItems)
     }
 }

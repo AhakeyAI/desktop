@@ -1,4 +1,7 @@
+import CoreGraphics
+import CryptoKit
 import Foundation
+import ImageIO
 
 // MARK: - WBS 5.7 切片 1：Studio Runtime client/facade
 //
@@ -49,17 +52,21 @@ public struct AhaKeyStudioRuntimeViewState: Equatable, Sendable {
     public var eventCursor: AhaKeyRuntimeEventSequence?
     /// 最近一次错误描述（用于 banner；成功跟随后会清除）。
     public var lastError: String?
+    /// 最近一次 apply 受理的 operationID（供 UI 关联 snapshot.operations 进度）。
+    public var lastApplyOperationID: AhaKeyRuntimeOperationID?
 
     public init(
         connection: AhaKeyStudioRuntimeConnectionState = .offline,
         snapshot: AhaKeyRuntimeSnapshot? = nil,
         eventCursor: AhaKeyRuntimeEventSequence? = nil,
-        lastError: String? = nil
+        lastError: String? = nil,
+        lastApplyOperationID: AhaKeyRuntimeOperationID? = nil
     ) {
         self.connection = connection
         self.snapshot = snapshot
         self.eventCursor = eventCursor
         self.lastError = lastError
+        self.lastApplyOperationID = lastApplyOperationID
     }
 }
 
@@ -73,6 +80,8 @@ public actor AhaKeyStudioRuntimeFacade {
     private let clientBuildID: String
     /// 重连退避基数（秒）；测试可注入 0 加速。
     private let reconnectBackoffBase: TimeInterval
+    /// 资源加载器：读本地 GIF + 计算摘要/帧数/尺寸；测试注入假实现。
+    private let resourceLoader: any AhaKeyStudioResourceLoader
 
     private var state = AhaKeyStudioRuntimeViewState()
     private var continuations: [UUID: AsyncStream<AhaKeyStudioRuntimeViewState>.Continuation] = [:]
@@ -81,11 +90,13 @@ public actor AhaKeyStudioRuntimeFacade {
     public init(
         transport: any AhaKeyStudioRuntimeTransport,
         clientBuildID: String,
-        reconnectBackoffBase: TimeInterval = 1.0
+        reconnectBackoffBase: TimeInterval = 1.0,
+        resourceLoader: any AhaKeyStudioResourceLoader = AhaKeyStudioGIFResourceLoader()
     ) {
         self.transport = transport
         self.clientBuildID = clientBuildID
         self.reconnectBackoffBase = reconnectBackoffBase
+        self.resourceLoader = resourceLoader
     }
 
     /// 当前视图状态（首屏前为 offline）。
@@ -122,6 +133,42 @@ public actor AhaKeyStudioRuntimeFacade {
         followTask?.cancel()
         followTask = nil
         update { $0.connection = .offline }
+    }
+
+    // MARK: - 操作请求（直接通过 transport，不经过事件循环）
+
+    /// 预上传资源到 Runtime Store（XPC `ingestResources`）。
+    public func ingestResources(_ items: [AhaKeyXPCResourceIngestionItem]) async throws {
+        let response = try await transport.exchange(.ingestResources(items))
+        guard case .resourcesIngested = response else {
+            throw AhaKeyRuntimeXPCTransportError.invalidResponse
+        }
+    }
+
+    /// 提交配置包并返回 operation ID。调用方应先 `ingestResources` 再 `apply`。
+    public func apply(_ package: AhaKeyConfigurationPackage) async throws -> AhaKeyRuntimeOperationID {
+        let response = try await transport.exchange(.apply(package))
+        guard case .operationAccepted(let operationID) = response else {
+            throw AhaKeyRuntimeXPCTransportError.invalidResponse
+        }
+        return operationID
+    }
+
+    /// 请求取消指定 operation。
+    public func requestCancellation(of operationID: AhaKeyRuntimeOperationID) async throws -> AhaKeyRuntimeCancellationDisposition {
+        let response = try await transport.exchange(.requestCancellation(operationID))
+        guard case .cancellation(let disposition) = response else {
+            throw AhaKeyRuntimeXPCTransportError.invalidResponse
+        }
+        return disposition
+    }
+
+    /// 更新 Runtime policy。
+    public func updatePolicy(_ policy: AhaKeyRuntimePolicy) async throws {
+        let response = try await transport.exchange(.updatePolicy(policy))
+        guard case .policyUpdated = response else {
+            throw AhaKeyRuntimeXPCTransportError.invalidResponse
+        }
     }
 
     // MARK: - 主循环
@@ -217,5 +264,189 @@ public actor AhaKeyStudioRuntimeFacade {
         for continuation in continuations.values {
             continuation.yield(state)
         }
+    }
+}
+
+// MARK: - WBS 5.7 切片 2：apply 入口（ingestResources → apply）与取消
+
+/// facade apply 的资源加载结果：GIF 源图字节 + 内容摘要 + 申报复核所需的帧数/尺寸。
+/// 冻结契约（AcceptanceValidator）：CAS 内容是源 GIF，mediaType "gif"，
+/// sha256/byteCount 对源数据；RGB565 编码是 Runtime/Agent 侧职责，客户端不预编码。
+public struct AhaKeyStudioLoadedResource: Equatable, Sendable {
+    public let data: Data
+    public let sha256: AhaKeySHA256Digest
+    public let frameCount: Int
+    public let pixelWidth: Int
+    public let pixelHeight: Int
+
+    public init(
+        data: Data,
+        sha256: AhaKeySHA256Digest,
+        frameCount: Int,
+        pixelWidth: Int,
+        pixelHeight: Int
+    ) {
+        self.data = data
+        self.sha256 = sha256
+        self.frameCount = frameCount
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+    }
+}
+
+/// 资源加载抽象（可注入测试替身）。
+public protocol AhaKeyStudioResourceLoader: Sendable {
+    func load(from url: URL) throws -> AhaKeyStudioLoadedResource
+}
+
+/// 生产加载器：读 GIF 源字节，SHA-256 摘要，CGImageSource 复核帧数与首帧尺寸。
+public struct AhaKeyStudioGIFResourceLoader: AhaKeyStudioResourceLoader {
+    public enum LoadError: Error, Equatable {
+        case unreadable
+        case notAnImage
+    }
+
+    public init() {}
+
+    public func load(from url: URL) throws -> AhaKeyStudioLoadedResource {
+        guard let data = try? Data(contentsOf: url) else { throw LoadError.unreadable }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            throw LoadError.notAnImage
+        }
+        let frameCount = CGImageSourceGetCount(source)
+        guard frameCount > 0,
+              let first = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw LoadError.notAnImage
+        }
+        var hasher = SHA256()
+        hasher.update(data: data)
+        let hex = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return try AhaKeyStudioLoadedResource(
+            data: data,
+            sha256: AhaKeySHA256Digest(hex),
+            frameCount: frameCount,
+            pixelWidth: first.width,
+            pixelHeight: first.height
+        )
+    }
+}
+
+/// apply 路径错误：资源缺失 / 元数据不符 / ingest 被拒 / apply 被拒 / 取消被拒，各自可区分。
+public enum AhaKeyStudioApplyError: Error, Equatable {
+    /// 本地资源读不出或不是可解析图片。
+    case resourceLoadFailed(identifier: String, path: String, reason: String)
+    /// 申报元数据（帧数/宽高）与实际文件不符。
+    case resourceMetadataMismatch(identifier: String)
+    /// Runtime 拒绝 ingest（附 failure code）。
+    case ingestRejected(AhaKeyRuntimeEventCode)
+    /// Runtime 拒绝 apply（附 failure code）。
+    case applyRejected(AhaKeyRuntimeEventCode)
+    /// Runtime 拒绝取消请求（附 failure code）。
+    case cancellationRejected(AhaKeyRuntimeEventCode)
+    /// Runtime 返回了与请求不匹配的响应。
+    case unexpectedResponse
+}
+
+extension AhaKeyStudioRuntimeFacade {
+    /// Studio 提交入口：组装 → 读资源（锁外）→ ingestResources → apply。
+    /// 返回 Runtime 受理的 operationID；进度经 snapshot.operations / operationChanged 事件跟随。
+    public func apply(
+        modes: [AhaKeyStudioModeInput],
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        baseRevision: AhaKeyConfigurationRevision
+    ) async throws -> AhaKeyRuntimeOperationID {
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: modes)
+        // 文件读取与摘要在 actor 锁外做（nonisolated），不阻塞状态发布。
+        let prepared = try await prepareResources(assembled.resources)
+        let gifMediaType = try AhaKeyMediaType("gif")
+        let packageResources = prepared.map {
+            AhaKeyConfigurationResource(
+                logicalIdentifier: $0.input.logicalIdentifier,
+                sha256: $0.loaded.sha256,
+                byteCount: UInt64($0.loaded.data.count),
+                mediaType: gifMediaType
+            )
+        }
+        let package = try AhaKeyConfigurationPackage(
+            targetDeviceID: targetDeviceID,
+            baseRevision: baseRevision,
+            desiredConfiguration: assembled.configuration.canonicalData(),
+            resources: packageResources
+        )
+
+        if !prepared.isEmpty {
+            let items = prepared.map {
+                AhaKeyXPCResourceIngestionItem(
+                    logicalIdentifier: $0.input.logicalIdentifier,
+                    sha256: $0.loaded.sha256,
+                    byteCount: UInt64($0.loaded.data.count),
+                    data: $0.loaded.data
+                )
+            }
+            let ingestResponse = try await transport.exchange(.ingestResources(items))
+            switch ingestResponse {
+            case .resourcesIngested:
+                break
+            case .failure(let code):
+                throw AhaKeyStudioApplyError.ingestRejected(code)
+            default:
+                throw AhaKeyStudioApplyError.unexpectedResponse
+            }
+        }
+
+        let applyResponse = try await transport.exchange(.apply(package))
+        switch applyResponse {
+        case .operationAccepted(let operationID):
+            update { $0.lastApplyOperationID = operationID }
+            return operationID
+        case .failure(let code):
+            throw AhaKeyStudioApplyError.applyRejected(code)
+        default:
+            throw AhaKeyStudioApplyError.unexpectedResponse
+        }
+    }
+
+    /// 取消已受理的 operation：透传 .requestCancellation。
+    public func requestCancellation(
+        _ operationID: AhaKeyRuntimeOperationID
+    ) async throws -> AhaKeyRuntimeCancellationDisposition {
+        let response = try await transport.exchange(.requestCancellation(operationID))
+        switch response {
+        case .cancellation(let disposition):
+            return disposition
+        case .failure(let code):
+            throw AhaKeyStudioApplyError.cancellationRejected(code)
+        default:
+            throw AhaKeyStudioApplyError.unexpectedResponse
+        }
+    }
+
+    /// 锁外资源准备：读文件 + 复核申报元数据（帧数/宽高与实际一致，否则 fail-fast）。
+    private nonisolated func prepareResources(
+        _ inputs: [AhaKeyStudioResourceInput]
+    ) async throws -> [(input: AhaKeyStudioResourceInput, loaded: AhaKeyStudioLoadedResource)] {
+        var prepared: [(AhaKeyStudioResourceInput, AhaKeyStudioLoadedResource)] = []
+        prepared.reserveCapacity(inputs.count)
+        for input in inputs {
+            let loaded: AhaKeyStudioLoadedResource
+            do {
+                loaded = try await resourceLoader.load(from: input.fileURL)
+            } catch {
+                throw AhaKeyStudioApplyError.resourceLoadFailed(
+                    identifier: input.logicalIdentifier.rawValue,
+                    path: input.fileURL.path,
+                    reason: String(describing: error)
+                )
+            }
+            guard loaded.frameCount == input.declaredFrameCount,
+                  loaded.pixelWidth == input.pixelWidth,
+                  loaded.pixelHeight == input.pixelHeight else {
+                throw AhaKeyStudioApplyError.resourceMetadataMismatch(
+                    identifier: input.logicalIdentifier.rawValue
+                )
+            }
+            prepared.append((input, loaded))
+        }
+        return prepared
     }
 }
