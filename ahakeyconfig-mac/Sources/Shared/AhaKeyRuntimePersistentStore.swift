@@ -177,11 +177,22 @@ public actor AhaKeyRuntimePersistentStore {
         testingHooks = hooks
     }
 
-    /// 临界区辅助：flock LOCK_EX/UN 成对；body 抛错也保证解锁。
-    private static func withExclusiveLock<T>(_ fd: Int32, _ body: () throws -> T) rethrows -> T {
-        flock(fd, LOCK_EX)
-        defer { flock(fd, LOCK_UN) }
-        return try body()
+    /// 临界区辅助：flock LOCK_EX/UN 成对，返回值受校验（EINTR/EBADF 不得当作已加锁）。
+    private static func withExclusiveLock<T>(_ fd: Int32, _ body: () throws -> T) throws -> T {
+        guard flock(fd, LOCK_EX) == 0 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure("flock LOCK_EX failed: errno=\(errno)")
+        }
+        do {
+            let result = try body()
+            guard flock(fd, LOCK_UN) == 0 else {
+                throw AhaKeyRuntimePersistenceError.databaseFailure("flock LOCK_UN failed: errno=\(errno)")
+            }
+            return result
+        } catch {
+            // body 抛错时尽力解锁（失败无可恢复手段，进程退出由 OS 回收）。
+            _ = flock(fd, LOCK_UN)
+            throw error
+        }
     }
 
     public init(
@@ -215,6 +226,7 @@ public actor AhaKeyRuntimePersistentStore {
         guard openResult == SQLITE_OK, let handle else {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown sqlite error"
             if let handle { sqlite3_close(handle) }
+            close(lockFD)
             throw AhaKeyRuntimePersistenceError.cannotOpenDatabase(message)
         }
         database = handle
@@ -317,12 +329,10 @@ public actor AhaKeyRuntimePersistentStore {
                 """,
                 on: handle
             )
-            // 资源目录 reconcile 与 staged prune 在临界区内执行：与其他 Store 的
-            // ingest/accept 互斥，不会删到正在进行中的安装（Codex 14:40 finding #1/#2）。
-            try Self.withExclusiveLock(lockFD) {
-                try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
-                try Self.pruneStagedJournalMissingFiles(resourcesDirectory, with: handle)
-            }
+            // 资源目录 reconcile 与 staged prune 由外层 init 临界区覆盖，直接执行
+            // （不得再嵌套 withExclusiveLock：同 fd 内层 LOCK_UN 会提前放锁）。
+            try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
+            try Self.pruneStagedJournalMissingFiles(resourcesDirectory, with: handle)
             if existingSchemaVersion < Self.schemaVersion {
                 try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
             }
@@ -350,6 +360,8 @@ public actor AhaKeyRuntimePersistentStore {
         _ package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL]
     ) throws -> AhaKeyRuntimeOperationID {
+        // 整个 accept（含命中已有事务的早退校验）都在资源临界区内：与 init/ingest 互斥。
+        return try Self.withExclusiveLock(lockFileDescriptor) {
         if let existing = try transaction(package.operationID) {
             guard existing.package == package else {
                 throw AhaKeyRuntimePersistenceError.operationIdentifierConflict
@@ -358,8 +370,6 @@ public actor AhaKeyRuntimePersistentStore {
             return package.operationID
         }
 
-        // 临界区：与 init reconcile/prune、ingest admission 互斥（同一 root 的 flock）。
-        return try Self.withExclusiveLock(lockFileDescriptor) {
         let expectedIdentifiers = Set(package.resources.map(\.logicalIdentifier))
         let providedIdentifiers = Set(resourceFiles.keys)
         if !providedIdentifiers.isEmpty {
@@ -642,6 +652,8 @@ public actor AhaKeyRuntimePersistentStore {
             for (_, temporary) in stagingFiles { try? FileManager.default.removeItem(at: temporary) }
             throw error
         }
+        // 成功路径同样清理：幂等 skip（已 journal/已转正）的 item 可能留下 phase-1 临时文件。
+        for (_, temporary) in stagingFiles { try? FileManager.default.removeItem(at: temporary) }
     }
 
     public func resourceURL(for digest: AhaKeySHA256Digest) throws -> URL? {
