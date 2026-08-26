@@ -684,9 +684,100 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         sqlite3_close(verify)
     }
 
-    /// 并发配额窗口代理测试：配额核算在 BEGIN IMMEDIATE 内（写序列化），
-    /// 先 staged 12B，再另一 Store 实例 ingest 22B 必须拒绝（合计 34 > 20）。
-    func testConcurrentStoreCannotJointlyExceedQuota() async throws {
+    // MARK: - 真并发临界区测试（hook + semaphore 制造可控交错，非顺序代理）
+
+    /// finding #1：ingest 持锁期间，并发 Store init 的 reconcile/prune 必须阻塞，
+    /// 不得删除正在提交的 staged journal；放行后 journal 与 final 文件都完好。
+    func testInitReconcileBlocksBehindIngestCriticalSection() async throws {
+        let root = temporaryDirectory()
+        let resources = root.appendingPathComponent("resources", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let digest = try AhaKeySHA256Digest(
+            "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"
+        )
+        let storeA = try resourceStore(rootDirectory: root)
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        await storeA.setTestingHooks(.init(ingestBeforeJournalCommit: {
+            entered.signal()
+            _ = release.wait(timeout: .now() + 10)
+        }))
+
+        let ingestTask = Task {
+            try await storeA.ingestResources([
+                AhaKeyXPCResourceIngestionItem(
+                    logicalIdentifier: try AhaKeyResourceIdentifier("idle"),
+                    sha256: digest, byteCount: 12, data: Data("resource-one".utf8)
+                )
+            ])
+        }
+        XCTAssertEqual(entered.wait(timeout: .now() + 5), .success)
+
+        // A 持锁停在 COMMIT 前；并发初始化 storeB（其 reconcile/prune 在锁内）。
+        let storeBTask = Task { try resourceStore(rootDirectory: root) }
+        // 500ms 内 B 必须无法完成初始化——证明被 flock 阻塞。
+        let bEarly = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { (try? await storeBTask.value) != nil }
+            group.addTask { try? await Task.sleep(nanoseconds: 500_000_000); return false }
+            return await group.next() ?? false
+        }
+        XCTAssertFalse(bEarly, "storeB init 在 ingest 临界区内完成，flock 未生效")
+        release.signal()
+        try await ingestTask.value
+        _ = try await storeBTask.value
+
+        // journal 与 final 文件都完好，未被并发 prune 删除。
+        let usage = try await storeA.resourceStorageUsage()
+        XCTAssertEqual(usage, 12)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: resources.appendingPathComponent(digest.rawValue).path
+        ))
+    }
+
+    /// finding #2：两个 Store 并发 ingest 同 digest 被锁串行化，幂等成功、
+    /// 配额只计一次、无 loser 临时文件残留。
+    func testConcurrentIngestSameDigestIsSerializedAndIdempotent() async throws {
+        let root = temporaryDirectory()
+        let resources = root.appendingPathComponent("resources", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let digest = try AhaKeySHA256Digest(
+            "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"
+        )
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("idle"),
+            sha256: digest, byteCount: 12, data: Data("resource-one".utf8)
+        )
+        let storeA = try resourceStore(rootDirectory: root)
+        let storeB = try resourceStore(rootDirectory: root)
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        await storeA.setTestingHooks(.init(ingestBeforeJournalCommit: {
+            entered.signal()
+            _ = release.wait(timeout: .now() + 10)
+        }))
+
+        let taskA = Task { try await storeA.ingestResources([item]) }
+        XCTAssertEqual(entered.wait(timeout: .now() + 5), .success)
+        // B 并发 ingest 同 digest：先被 flock 阻塞，A 放行后幂等成功。
+        let taskB = Task { try await storeB.ingestResources([item]) }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        release.signal()
+        try await taskA.value
+        try await taskB.value
+
+        let usage = try await storeA.resourceStorageUsage()
+        XCTAssertEqual(usage, 12)
+        // 无 loser 的 .staging- 临时文件残留。
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: resources.path)
+            .filter { $0.hasPrefix(".staging-") }
+        XCTAssertTrue(leftovers.isEmpty)
+    }
+
+    /// finding #2 配额面：并发 ingest 的 admission 被锁串行化——A(12B) 提交后，
+    /// B(22B) 在锁内重算用量并拒绝（合计 34 > 20），不能双双越过总配额。
+    func testConcurrentQuotaAdmissionIsSerialized() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -694,19 +785,27 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let storeA = try AhaKeyRuntimePersistentStore(
             rootDirectory: root, quota: quota, acceptanceValidator: AllowingResourceValidator()
         )
-        try await storeA.ingestResources([
-            AhaKeyXPCResourceIngestionItem(
-                logicalIdentifier: try AhaKeyResourceIdentifier("first"),
-                sha256: try AhaKeySHA256Digest("03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"),
-                byteCount: 12, data: Data("resource-one".utf8)
-            )
-        ])
-
-        // 第二个 Store 实例（等价于另一个 XPC 请求新建的 store）看到 staged 配额。
         let storeB = try AhaKeyRuntimePersistentStore(
             rootDirectory: root, quota: quota, acceptanceValidator: AllowingResourceValidator()
         )
-        do {
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        await storeA.setTestingHooks(.init(ingestBeforeJournalCommit: {
+            entered.signal()
+            _ = release.wait(timeout: .now() + 10)
+        }))
+
+        let taskA = Task {
+            try await storeA.ingestResources([
+                AhaKeyXPCResourceIngestionItem(
+                    logicalIdentifier: try AhaKeyResourceIdentifier("first"),
+                    sha256: try AhaKeySHA256Digest("03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"),
+                    byteCount: 12, data: Data("resource-one".utf8)
+                )
+            ])
+        }
+        XCTAssertEqual(entered.wait(timeout: .now() + 5), .success)
+        let taskB = Task {
             try await storeB.ingestResources([
                 AhaKeyXPCResourceIngestionItem(
                     logicalIdentifier: try AhaKeyResourceIdentifier("second"),
@@ -714,13 +813,50 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     byteCount: 22, data: Data("resource-two-is-larger".utf8)
                 )
             ])
-            XCTFail("Expected quota rejection across store instances")
+        }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        release.signal()
+        try await taskA.value
+        do {
+            try await taskB.value
+            XCTFail("B 必须在锁内 admission 时被配额拒绝")
         } catch {
             XCTAssertEqual(
                 error as? AhaKeyRuntimePersistenceError,
                 .resourceQuotaExceeded(limit: 20, attempted: 34)
             )
         }
+    }
+
+    /// finding #3：批内同 digest 冲突（byteCount/data 不一致）在去重前拒绝，不得静默吞掉。
+    func testBatchDuplicateDigestConflictRejectedBeforeDedup() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try resourceStore(rootDirectory: root)
+        let digest = try AhaKeySHA256Digest(
+            "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"
+        )
+        let first = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("idle"),
+            sha256: digest, byteCount: 12, data: Data("resource-one".utf8)
+        )
+        let conflicting = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("idle-conflict"),
+            sha256: digest, byteCount: 13, data: Data("resource-one".utf8)
+        )
+        do {
+            try await store.ingestResources([first, conflicting])
+            XCTFail("批内冲突必须在去重前拒绝")
+        } catch {
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePersistenceError,
+                .resourceByteCountMismatch(try AhaKeyResourceIdentifier("idle-conflict"))
+            )
+        }
+        // 拒绝后无任何 journal/文件残留。
+        let usage = try await store.resourceStorageUsage()
+        XCTAssertEqual(usage, 0)
     }
 
     private func temporaryDirectory() -> URL {

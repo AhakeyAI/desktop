@@ -143,6 +143,20 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case resourceMetadataMismatch(String)
 }
 
+/// Store 测试 seam：资源临界区内的可控交错钩子。仅在 @testable 测试中注入；
+/// 钩子在 flock 临界区内执行，只许信号量/原子标志，禁止在钩子内重入任何 Store。
+struct AhaKeyRuntimeStoreTestingHooks {
+    /// ingest：BEGIN IMMEDIATE 内、journal 已写、COMMIT 前调用。
+    var ingestBeforeJournalCommit: (() -> Void)?
+    /// accept：BEGIN IMMEDIATE 内、事务已写、COMMIT 前调用。
+    var acceptBeforeCommit: (() -> Void)?
+
+    init(ingestBeforeJournalCommit: (() -> Void)? = nil, acceptBeforeCommit: (() -> Void)? = nil) {
+        self.ingestBeforeJournalCommit = ingestBeforeJournalCommit
+        self.acceptBeforeCommit = acceptBeforeCommit
+    }
+}
+
 public actor AhaKeyRuntimePersistentStore {
     public static let schemaVersion: Int32 = 2
 
@@ -150,8 +164,25 @@ public actor AhaKeyRuntimePersistentStore {
     private let resourcesDirectory: URL
     private let quota: AhaKeyRuntimeResourceQuota
     private let acceptanceValidator: any AhaKeyRuntimePackageAcceptanceValidator
+    /// 同一 persistence root 的跨 Store/跨进程 advisory 锁（flock）。init reconciliation/prune、
+    /// ingest admission+install+journal、accept 转正都在该临界区内；进程崩溃由 OS 释放锁。
+    private let lockFileDescriptor: Int32
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+
+    /// 测试 seam：资源临界区内的可控交错钩子（仅 @testable；钩子在锁内执行，禁止重入 Store）。
+    var testingHooks = AhaKeyRuntimeStoreTestingHooks()
+
+    func setTestingHooks(_ hooks: AhaKeyRuntimeStoreTestingHooks) {
+        testingHooks = hooks
+    }
+
+    /// 临界区辅助：flock LOCK_EX/UN 成对；body 抛错也保证解锁。
+    private static func withExclusiveLock<T>(_ fd: Int32, _ body: () throws -> T) rethrows -> T {
+        flock(fd, LOCK_EX)
+        defer { flock(fd, LOCK_UN) }
+        return try body()
+    }
 
     public init(
         rootDirectory: URL,
@@ -167,6 +198,13 @@ public actor AhaKeyRuntimePersistentStore {
         try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: resourcesDirectory.path)
         let databaseURL = rootDirectory.appendingPathComponent("runtime.sqlite3", isDirectory: false)
+        // 先拿锁文件：init 的 reconciliation/prune 必须与其他 Store 的 ingest/accept 互斥。
+        let lockURL = rootDirectory.appendingPathComponent(".runtime-store.lock", isDirectory: false)
+        let lockFD = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
+        guard lockFD >= 0 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure("cannot open store lock file: errno=\(errno)")
+        }
+        lockFileDescriptor = lockFD
         var handle: OpaquePointer?
         let openResult = sqlite3_open_v2(
             databaseURL.path,
@@ -185,6 +223,9 @@ public actor AhaKeyRuntimePersistentStore {
         self.acceptanceValidator = acceptanceValidator
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: databaseURL.path)
         do {
+            // 整个 init 临界区（pragma/建表/reconcile/prune）都在 flock 内：与其他 Store 的
+            // ingest/accept 写事务互斥，避免 schema 写入撞上 BEGIN IMMEDIATE（SQLITE_BUSY）。
+            try Self.withExclusiveLock(lockFD) {
             try Self.execute("PRAGMA journal_mode=WAL", on: handle)
             try Self.execute("PRAGMA synchronous=FULL", on: handle)
             try Self.execute("PRAGMA foreign_keys=ON", on: handle)
@@ -228,20 +269,6 @@ public actor AhaKeyRuntimePersistentStore {
                 """,
                 on: handle
             )
-            try Self.execute(
-                """
-                CREATE TABLE IF NOT EXISTS runtime_staged_resources (
-                    digest TEXT PRIMARY KEY NOT NULL,
-                    byte_count INTEGER NOT NULL,
-                    media_type TEXT NOT NULL,
-                    logical_identifier TEXT NOT NULL,
-                    relative_path TEXT NOT NULL
-                )
-                """,
-                on: handle
-            )
-            try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
-            try Self.pruneStagedJournalMissingFiles(resourcesDirectory, with: handle)
             try Self.execute(
                 """
                 CREATE TABLE IF NOT EXISTS runtime_transaction_resources (
@@ -290,16 +317,25 @@ public actor AhaKeyRuntimePersistentStore {
                 """,
                 on: handle
             )
+            // 资源目录 reconcile 与 staged prune 在临界区内执行：与其他 Store 的
+            // ingest/accept 互斥，不会删到正在进行中的安装（Codex 14:40 finding #1/#2）。
+            try Self.withExclusiveLock(lockFD) {
+                try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
+                try Self.pruneStagedJournalMissingFiles(resourcesDirectory, with: handle)
+            }
             if existingSchemaVersion < Self.schemaVersion {
                 try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
             }
+            }
         } catch {
+            close(lockFD)
             sqlite3_close(handle)
             throw error
         }
     }
 
     deinit {
+        close(lockFileDescriptor)
         sqlite3_close(database)
     }
 
@@ -322,6 +358,8 @@ public actor AhaKeyRuntimePersistentStore {
             return package.operationID
         }
 
+        // 临界区：与 init reconcile/prune、ingest admission 互斥（同一 root 的 flock）。
+        return try Self.withExclusiveLock(lockFileDescriptor) {
         let expectedIdentifiers = Set(package.resources.map(\.logicalIdentifier))
         let providedIdentifiers = Set(resourceFiles.keys)
         if !providedIdentifiers.isEmpty {
@@ -443,6 +481,8 @@ public actor AhaKeyRuntimePersistentStore {
                     // 转正：staged journal 同事务删除，资源从预上传变为正式资源。
                     try deleteStagedResource(resource.sha256)
                 }
+                // 测试 seam：锁内 COMMIT 前的可控交错点（仅 @testable 注入）。
+                testingHooks.acceptBeforeCommit?()
                 try Self.execute("COMMIT", on: database)
             } catch {
                 try? Self.execute("ROLLBACK", on: database)
@@ -454,6 +494,7 @@ public actor AhaKeyRuntimePersistentStore {
             throw error
         }
         return package.operationID
+        }
     }
 
     /// 将资源数据写入 CAS（managed storage），不创建事务。
@@ -468,15 +509,24 @@ public actor AhaKeyRuntimePersistentStore {
             }
         }
 
-        // 阶段 1：把数据写入临时文件（.staging- 前缀）。final 文件名在 journal 提交前不存在，
-        // 因此并发 Store 的 reconciliation 不会误删（Codex 12:42 finding #1）；reconcile 跳过
-        // 点前缀文件，并发 ingest 途中的临时文件同样安全。崩溃残留由启动时
-        // pruneStagedJournalMissingFiles 按龄期（>1h）回收，journal 无文件行同步删除。
+        // 批内一致性先于去重（Codex 14:40 finding #3）：同 digest 的所有 item 必须
+        // byteCount 与 data 完全一致，任一冲突立即拒绝，不做静默去重。
+        var uniqueByDigest: [AhaKeySHA256Digest: AhaKeyXPCResourceIngestionItem] = [:]
+        for item in items {
+            if let first = uniqueByDigest[item.sha256] {
+                guard first.byteCount == item.byteCount, first.data == item.data else {
+                    throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+                }
+            } else {
+                uniqueByDigest[item.sha256] = item
+            }
+        }
+
+        // 阶段 1（锁外允许）：把数据写入 .staging- 临时文件并 fsync。崩溃残留由启动
+        // prune 按龄期（>1h）回收；并发 reconcile 在锁内执行且跳过点前缀文件，不会误删。
         var stagingFiles: [AhaKeySHA256Digest: URL] = [:]
         do {
-            for item in items {
-                // 同批重复 digest：阶段 1 只写一次临时文件（阶段 2 还有批内 Set 去重计配额）。
-                if stagingFiles[item.sha256] != nil { continue }
+            for item in uniqueByDigest.values {
                 let destination = managedResourceURL(for: item.sha256)
                 if !FileManager.default.fileExists(atPath: destination.path) {
                     let temporary = resourcesDirectory.appendingPathComponent(".staging-\(UUID().uuidString)")
@@ -511,77 +561,85 @@ public actor AhaKeyRuntimePersistentStore {
                     try validateResourceFile(at: destination, against: resource)
                 }
             }
+        } catch {
+            for (_, temporary) in stagingFiles { try? FileManager.default.removeItem(at: temporary) }
+            throw error
+        }
 
-            // 阶段 2：BEGIN IMMEDIATE 事务内完成去重、冲突检测、配额核算、journal 写入。
-            try Self.execute("BEGIN IMMEDIATE", on: database)
-            do {
-                // 先读既有用量（此时本批尚未插入，不会把新行双计进 newBytes）。
-                let existingBytes = try resourceStorageUsage()
-                var batchDigests: Set<AhaKeySHA256Digest> = []
-                var pendingInserts: [AhaKeyXPCResourceIngestionItem] = []
-                var newBytes: UInt64 = 0
-                for item in items {
-                    // 同批去重
-                    guard batchDigests.insert(item.sha256).inserted else { continue }
-
-                    // 冲突检测：同一 digest 已存在（staged 或正式）且字节数不同 → 拒绝
-                    if let stagedBytes = try stagedResourceByteCount(item.sha256) {
-                        guard stagedBytes == item.byteCount else {
-                            throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+        // 阶段 2（flock 临界区，file-before-WAL）：BEGIN IMMEDIATE → 冲突/配额 admission →
+        // 安装 final + 父目录 fsync → 写 journal → COMMIT。init 的 reconcile/prune 与其他
+        // Store 的 ingest/accept 都在同一把锁内，不存在「清理撞安装」窗口（14:40 #1/#2）。
+        do {
+            try Self.withExclusiveLock(lockFileDescriptor) {
+                try Self.execute("BEGIN IMMEDIATE", on: database)
+                var installedFinals: [URL] = []
+                do {
+                    // 先读既有用量（本批尚未插入，不会把新行双计进 newBytes）。
+                    let existingBytes = try resourceStorageUsage()
+                    var pendingInserts: [AhaKeyXPCResourceIngestionItem] = []
+                    var newBytes: UInt64 = 0
+                    for item in uniqueByDigest.values.sorted(by: { $0.sha256.rawValue < $1.sha256.rawValue }) {
+                        // 冲突检测：同一 digest 已 journal（staged 或正式）且字节数不同 → 拒绝
+                        if let stagedBytes = try stagedResourceByteCount(item.sha256) {
+                            guard stagedBytes == item.byteCount else {
+                                throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+                            }
+                            continue // 已 journal，幂等
                         }
-                        continue // 已 journal，幂等
-                    }
-                    if let acceptedBytes = try journaledResourceByteCount(item.sha256) {
-                        guard acceptedBytes == item.byteCount else {
-                            throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+                        if let acceptedBytes = try journaledResourceByteCount(item.sha256) {
+                            guard acceptedBytes == item.byteCount else {
+                                throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+                            }
+                            continue // 已转正，幂等
                         }
-                        continue // 已转正，幂等
+                        let (sum, sumOverflow) = newBytes.addingReportingOverflow(item.byteCount)
+                        guard !sumOverflow else {
+                            throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
+                                limit: quota.maxTotalResourceBytes,
+                                attempted: UInt64.max
+                            )
+                        }
+                        newBytes = sum
+                        pendingInserts.append(item)
                     }
 
-                    // 配额核算：只统计本事务新入库的 digest。
-                    let (sum, overflow) = newBytes.addingReportingOverflow(item.byteCount)
-                    guard !overflow else {
+                    let (attemptedBytes, quotaOverflow) = existingBytes.addingReportingOverflow(newBytes)
+                    guard !quotaOverflow, attemptedBytes <= quota.maxTotalResourceBytes else {
                         throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
                             limit: quota.maxTotalResourceBytes,
-                            attempted: UInt64.max
+                            attempted: quotaOverflow ? UInt64.max : attemptedBytes
                         )
                     }
-                    newBytes = sum
-                    pendingInserts.append(item)
-                }
 
-                let (attemptedBytes, overflow) = existingBytes.addingReportingOverflow(newBytes)
-                guard !overflow, attemptedBytes <= quota.maxTotalResourceBytes else {
-                    throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
-                        limit: quota.maxTotalResourceBytes,
-                        attempted: overflow ? UInt64.max : attemptedBytes
-                    )
-                }
+                    // file-before-WAL：先安装 final 并同步父目录，再写 journal，最后 COMMIT。
+                    // 崩溃于 COMMIT 前：journal 回滚、final 文件由下次启动 reconcile 按 orphan 清理。
+                    for item in pendingInserts {
+                        let destination = managedResourceURL(for: item.sha256)
+                        if !FileManager.default.fileExists(atPath: destination.path) {
+                            guard let temporary = stagingFiles[item.sha256] else {
+                                throw AhaKeyRuntimePersistenceError.missingResourceFile(item.logicalIdentifier)
+                            }
+                            try FileManager.default.moveItem(at: temporary, to: destination)
+                            installedFinals.append(destination)
+                        }
+                        try insertStagedResource(item)
+                    }
+                    try Self.synchronizeDirectory(resourcesDirectory)
 
-                // 配额与冲突全部通过后统一写 journal（每 digest 恰好一次，plain INSERT 防静默吞冲突）。
-                for item in pendingInserts {
-                    try insertStagedResource(item)
-                }
+                    // 测试 seam：锁内 COMMIT 前的可控交错点（仅 @testable 注入）。
+                    testingHooks.ingestBeforeJournalCommit?()
 
-                try Self.execute("COMMIT", on: database)
-            } catch {
-                try? Self.execute("ROLLBACK", on: database)
-                throw error
-            }
-
-            // 阶段 3：事务已提交，把 staging 文件 move 到 final + fsync。
-            for (digest, temporary) in stagingFiles {
-                let destination = managedResourceURL(for: digest)
-                if !FileManager.default.fileExists(atPath: destination.path) {
-                    try FileManager.default.moveItem(at: temporary, to: destination)
+                    try Self.execute("COMMIT", on: database)
+                } catch {
+                    try? Self.execute("ROLLBACK", on: database)
+                    // 撤销未随 journal 提交的 final 安装；临时文件由外层 catch 清理。
+                    for url in installedFinals { try? FileManager.default.removeItem(at: url) }
+                    try? Self.synchronizeDirectory(resourcesDirectory)
+                    throw error
                 }
             }
-            try Self.synchronizeDirectory(resourcesDirectory)
         } catch {
-            // 清理 staging 文件
-            for (_, temporary) in stagingFiles {
-                try? FileManager.default.removeItem(at: temporary)
-            }
+            for (_, temporary) in stagingFiles { try? FileManager.default.removeItem(at: temporary) }
             throw error
         }
     }
