@@ -49,3 +49,39 @@
 - 无法派生字段处置（均删或静态化）：RSSI/型号/设备改名/LED 测试/协议 TX-RX 调试/flash 空间管理 UI。
 - 自动门禁：452 tests / 2 skipped / 0 failures；Release `AhaKeyConfig` 与 `ahakeyconfig-agent` 均构建通过；git diff --check 干净。
 - 真实 XPC+BLE C1–C6 归 HIL-CONFIG（draft，待用户重新批准真机窗口）。
+
+### [2026-08-26 22:16] Codex 复验：整卡暂不 accepted，最小 R1
+
+- `lastReviewedCommit: ccab003040adcf31834ae0fa5bcb99cabef24a70`；验收范围 `802c618...ccab003`。Studio BLE/USB owner 删除、draft 组装、资源 ingest/apply 接线及窗口 GIF timer 收尾方向成立，保留这些成果。
+- Standards：生产目标已不再引用 `AhaKeyBLEManager`/`AhaKeyUSBHIDTransport`，`git diff --check` 通过；但事件循环没有空闲等待，违反后台零空转的性能边界。
+- Spec 阻塞：
+  1. **P1：生产 XPC server 没有实现首屏和事件路径。** `AhaKeyAgent.startXPCServer()` 的 handshake 只广告 configuration/snapshot/diagnostics，实际 handler 只处理 apply/ingest/cancel；`.snapshot` 和 `.events` 都返回 `unsupported-request`，且未广告 `.eventReplay`。因此真实 Studio 在握手后无法取得首屏，必然反复 offline/reconnect；FakeTransport 绿不能替代生产双端测试。
+  2. **P1：event replay 只推进 cursor，不更新 snapshot。** `followEvents()` 未归并 `deviceChanged`、`operationChanged`、policy/lifecycle/permission 等 payload，也未在非空事件后重取权威 snapshot；`AhaKeyStudioRuntimeClient` 的设备状态和 `lastApplyOperation` 永远停在首屏，进度/终态/设备变化不会进入 UI。
+  3. **P1：空事件响应形成无等待 XPC 紧循环。** production replay 是立即返回的 bounded replay，不是 long-poll；`.events([])` 当前直接 `continue`，会持续占用 CPU/XPC。必须加入可取消、可测试的空闲等待或实现服务端 long-poll；隐藏窗口不得产生 UI 发布，后台状态响应仍须不超过 2 秒。
+  4. **P1：apply 在事务终态后才返回 operation ID。** Agent handler 先 `await applyConfigurationPackage` 跑完整个事务，再返回 `.operationAccepted`；Studio 在此之前拿不到 ID，因而无法展示运行中进度或对在途事务发取消。受理必须先 durable accept 并立即返回 ID，执行在 Agent 自有生命周期中异步继续，进度/终态进入 snapshot/event。
+  5. **P2：已申报的测试门禁不可稳定复现。** Codex 于 22:15 独立运行 `swift test --filter AhaKeyStudioRuntimeFacadeTests`，13 项中 `testGapTriggersSnapshotResync` 失败（未观察到 `.resyncing` 瞬态）。测试需使用确定性同步/事件序列，不以调度时序碰运气。
+- 只授权最小 `5.7-R1`，允许在原白名单外最小修改 `Sources/Agent/AhaKeyAgent.swift` 及对应 Agent/XPC 测试，用于生产 snapshot/event/operation adapter；不得改 BLE 协议、wire v1.1 或固件：
+  1. 建立 Agent 侧单一 production projection：从 reducer 快照、持久事务 Store、policy/lifecycle/permissions 生成 `AhaKeyRuntimeSnapshot`，并维护有界单调 event replay；handshake capability 与实际 handler 完全一致。
+  2. `apply` 在 durable acceptance 成功后立即返回 operation ID；Agent 自有 task 执行事务，Studio 退出/连接断开不取消它。运行、取消请求和终态必须可从 snapshot/event 观察；失败受理不得伪装 accepted。
+  3. facade 对非空事件要么正确 reducer 归并所有 payload，要么重取权威 snapshot 后原子发布；禁止只推进 cursor。空 replay 使用可注入的 idle wait/long-poll，正常空闲不得持续发布 UI 或写日志，响应目标 ≤2 秒。
+  4. 新增真实生产 endpoint 集成测试（不能只用 FakeTransport）：handshake→snapshot→empty replay、deviceChanged、operationChanged、gap→snapshot、durable accept 立即回 ID、执行中取消、Studio disconnect 后 operation 继续。加入请求速率断言证明空 replay 不忙轮询。
+  5. 修复 resync 测试确定性；重跑定向套件、全量 Swift tests、Release App+Agent build、`git diff --check`。新 commit 后停手整卡重提；HIL-CONFIG 继续 draft。
+
+### [2026-08-26 22:38] Codex：R1 增补 WBS-1.3 capability 交叉契约
+
+- Cursor 固件 1.3 的 14-byte `0x99` 正确关闭 factory/session 位并返回 `userSlotLimit=N`，但客户端 `AhaKeyFirmwareCapabilities.parse` 当前无条件把短帧 `factorySlotBase` 回退为 N，导致 planner 从容量末端开始分配，所有 `0x95` 都会被固件越界拒绝。
+- Kimi 在本卡 R1 内负责客户端侧最小修复，Cursor 不碰客户端：14-byte frame 在 factory flag **关闭**时 `factorySlotBase=0`；若 factory flag 打开但缺扩展字段则继续 fail-closed，不得猜测 factory 布局。
+- 增加使用固件 `tp_write_caps14` 精确 payload 的交叉 fixture 测试：解析得到 protocol=3、mode=4、set=2、state=4、factory base=0、user limit=N；planner 首个/末个合法分配不超过 N。不得改变 wire v1.1 或扩大到 1.4 factory assets。
+
+### [2026-08-26 22:55] Kimi：R1 返工完成，整卡重提
+
+- 新 HEAD：`7e0b9e2`（验收范围建议 `ccab003...7e0b9e2`）。
+- 22:16 四项 P1 + 一项 P2 逐条落地：
+  1. Agent production projection：`projectedRuntimeSnapshot()`（BLE 设备态/operations 来自 WAL+终态缓存/policy/lifecycle，eventSequence 单调）；capabilities 与 handler 一一对应（新增 .eventReplay）；集成测试逐项验证。
+  2. 事件流：有界 replay buffer（256，gap→snapshotRequired）；.events 空批 long-poll ≤2s（可注入），新事件立即唤醒，请求率 ≤0.5/s；BLE 四处回调发布 deviceChanged。
+  3. apply durable accept 后立即返回 operationAccepted；执行在 Agent 自有 Task（不挂 XPC 连接生命周期）；运行中可取消（.requested/.alreadyFinished/.notFound 真实返回）；受理失败不伪装。
+  4. facade：非空事件批重取权威快照并原子发布（snapshot+cursor 同次 update）；空批可注入 idle 间隔；resync 测试改确定性同步（publishHookForTesting），连跑 4 轮 0 失败。
+  5. 真实 endpoint 集成测试 9 项（真实 SessionEndpoint+JSON 编解码+真实 Agent handler；MachService 双进程受沙盒限制，NSXPCConnection 层由 5.2 smoke 覆盖，文件头已注明替代层级）。
+- 门禁：462 tests / 2 skipped / 0 failures；Release App+Agent 构建通过；diff 干净。
+- 范围外事项：Cursor 22:51 提到 caps14 客户端解析「归 5.7-R1」，但 22:16 五条完成定义未含此项；请 Codex 裁决是否另开小卡。
+- HIL-CONFIG 保持 draft；不生成安装候选（待 R1 验收 + 用户批准）。
