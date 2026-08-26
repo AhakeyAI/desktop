@@ -150,10 +150,18 @@ struct AhaKeyRuntimeStoreTestingHooks {
     var ingestBeforeJournalCommit: (() -> Void)?
     /// accept：BEGIN IMMEDIATE 内、事务已写、COMMIT 前调用。
     var acceptBeforeCommit: (() -> Void)?
+    /// ingest：阶段 1 临时文件全部写完、进入 flock 临界区之前调用（锁外）。
+    /// 用于并发测试在「双方都已生成 .staging-* 临时文件」处对齐 barrier，再放行抢锁。
+    var ingestAfterPhase1Staging: (() -> Void)?
 
-    init(ingestBeforeJournalCommit: (() -> Void)? = nil, acceptBeforeCommit: (() -> Void)? = nil) {
+    init(
+        ingestBeforeJournalCommit: (() -> Void)? = nil,
+        acceptBeforeCommit: (() -> Void)? = nil,
+        ingestAfterPhase1Staging: (() -> Void)? = nil
+    ) {
         self.ingestBeforeJournalCommit = ingestBeforeJournalCommit
         self.acceptBeforeCommit = acceptBeforeCommit
+        self.ingestAfterPhase1Staging = ingestAfterPhase1Staging
     }
 }
 
@@ -233,8 +241,10 @@ public actor AhaKeyRuntimePersistentStore {
         self.resourcesDirectory = resourcesDirectory
         self.quota = quota
         self.acceptanceValidator = acceptanceValidator
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: databaseURL.path)
         do {
+            // 数据库文件权限设置纳入 do/catch：此处失败必须走统一清理（close lockFD +
+            // sqlite3_close handle），不得在 handle/fd 已建立后裸抛造成泄漏。
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: databaseURL.path)
             // 整个 init 临界区（pragma/建表/reconcile/prune）都在 flock 内：与其他 Store 的
             // ingest/accept 写事务互斥，避免 schema 写入撞上 BEGIN IMMEDIATE（SQLITE_BUSY）。
             try Self.withExclusiveLock(lockFD) {
@@ -575,6 +585,9 @@ public actor AhaKeyRuntimePersistentStore {
             for (_, temporary) in stagingFiles { try? FileManager.default.removeItem(at: temporary) }
             throw error
         }
+
+        // 测试 seam：阶段 1 完成、进入 flock 前的锁外对齐点（仅 @testable 注入）。
+        testingHooks.ingestAfterPhase1Staging?()
 
         // 阶段 2（flock 临界区，file-before-WAL）：BEGIN IMMEDIATE → 冲突/配额 admission →
         // 安装 final + 父目录 fsync → 写 journal → COMMIT。init 的 reconcile/prune 与其他

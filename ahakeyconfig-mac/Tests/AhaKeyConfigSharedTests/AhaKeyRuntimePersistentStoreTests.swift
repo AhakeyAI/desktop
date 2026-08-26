@@ -691,9 +691,10 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
     func testInitReconcileBlocksBehindIngestCriticalSection() async throws {
         final class CompletionBox: @unchecked Sendable {
             private let lock = NSLock()
-            private(set) var finishedAt: Date?
-            func mark() { lock.lock(); finishedAt = Date(); lock.unlock() }
-            var isFinished: Bool { lock.lock(); defer { lock.unlock() }; return finishedAt != nil }
+            private var finishedAtStorage: Date?
+            var finishedAt: Date? { lock.lock(); defer { lock.unlock() }; return finishedAtStorage }
+            func mark() { lock.lock(); finishedAtStorage = Date(); lock.unlock() }
+            var isFinished: Bool { finishedAt != nil }
         }
 
         let root = temporaryDirectory()
@@ -747,6 +748,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
     /// finding #2：两个 Store 并发 ingest 同 digest 被锁串行化，幂等成功、
     /// 配额只计一次、无 loser 临时文件残留。
+    /// barrier 对齐在「双方 phase-1 均已写出 .staging-* 临时文件、尚未进 flock」处，
+    /// 再放行抢锁——真实覆盖「双方都先生成临时文件再争锁」的 loser temp 路径。
     func testConcurrentIngestSameDigestIsSerializedAndIdempotent() async throws {
         let root = temporaryDirectory()
         let resources = root.appendingPathComponent("resources", isDirectory: true)
@@ -761,25 +764,29 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         )
         let storeA = try resourceStore(rootDirectory: root)
         let storeB = try resourceStore(rootDirectory: root)
-        let entered = DispatchSemaphore(value: 0)
-        let release = DispatchSemaphore(value: 0)
-        await storeA.setTestingHooks(.init(ingestBeforeJournalCommit: {
-            entered.signal()
-            _ = release.wait(timeout: .now() + 10)
-        }))
+        // phase-1 barrier：双方都写出临时文件后由主线程统一放行，随后并发抢 flock。
+        let staged = DispatchSemaphore(value: 0)
+        let gate = DispatchSemaphore(value: 0)
+        let phase1Hook: () -> Void = {
+            staged.signal()
+            _ = gate.wait(timeout: .now() + 10)
+        }
+        await storeA.setTestingHooks(.init(ingestAfterPhase1Staging: phase1Hook))
+        await storeB.setTestingHooks(.init(ingestAfterPhase1Staging: phase1Hook))
 
         let taskA = Task { try await storeA.ingestResources([item]) }
-        XCTAssertEqual(entered.wait(timeout: .now() + 5), .success)
-        // B 并发 ingest 同 digest：先被 flock 阻塞，A 放行后幂等成功。
         let taskB = Task { try await storeB.ingestResources([item]) }
-        try await Task.sleep(nanoseconds: 100_000_000)
-        release.signal()
+        // 等待双方都完成 phase-1（临时文件都已存在），再双双放行抢锁。
+        XCTAssertEqual(staged.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(staged.wait(timeout: .now() + 5), .success)
+        gate.signal()
+        gate.signal()
         try await taskA.value
         try await taskB.value
 
         let usage = try await storeA.resourceStorageUsage()
         XCTAssertEqual(usage, 12)
-        // 无 loser 的 .staging- 临时文件残留。
+        // 无 loser 的 .staging- 临时文件残留（赢方安装 final，输方幂等 skip 后成功路径清理）。
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: resources.path)
             .filter { $0.hasPrefix(".staging-") }
         XCTAssertTrue(leftovers.isEmpty)
@@ -838,8 +845,10 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         }
     }
 
-    /// 跨 Store 并发元数据冲突：A 的 staged 行在锁内可见后，并发 B 的同 digest
-    /// 不同 byteCount 必须在临界区内被拒绝（不得被 INSERT 吞掉或双双成功）。
+    /// 跨 Store 并发元数据冲突：预置 staged 行（byteCount=99）后，并发 B 的同 digest
+    /// 真实数据（byteCount=12）必须在 flock 临界区内被冲突检测拒绝
+    /// （digest 由数据决定，无法用真实数据构造「同 digest 不同字节数」，故用 raw sqlite
+    /// 预置不一致的 staged 行，使冲突真实抵达锁内检测而非锁外自校验）。
     func testConcurrentConflictingByteCountRejectedInsideCriticalSection() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -849,31 +858,44 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         )
         let storeA = try resourceStore(rootDirectory: root)
         let storeB = try resourceStore(rootDirectory: root)
+
+        // raw sqlite 预置：digest 已有 staged 行，byteCount=99（与真实数据的 12 冲突）。
+        var seed: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(
+            root.appendingPathComponent("runtime.sqlite3").path, &seed
+        ), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(seed, """
+            INSERT INTO runtime_staged_resources
+                (digest, byte_count, media_type, logical_identifier, relative_path)
+            VALUES ('\(digest.rawValue)', 99, 'application/octet-stream', 'idle-seed', '\(digest.rawValue)')
+            """, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(seed)
+
+        // A 持锁停在 COMMIT 前（ingest 一个无关 digest），证明 B 的拒绝发生在进锁之后。
         let entered = DispatchSemaphore(value: 0)
         let release = DispatchSemaphore(value: 0)
         await storeA.setTestingHooks(.init(ingestBeforeJournalCommit: {
             entered.signal()
             _ = release.wait(timeout: .now() + 10)
         }))
-
         let taskA = Task {
             try await storeA.ingestResources([
                 AhaKeyXPCResourceIngestionItem(
-                    logicalIdentifier: try AhaKeyResourceIdentifier("idle"),
-                    sha256: digest, byteCount: 12, data: Data("resource-one".utf8)
+                    logicalIdentifier: try AhaKeyResourceIdentifier("other"),
+                    sha256: try AhaKeySHA256Digest("a49df6264aac97259550659f2d7ede6c30689e36881c4a37b31db3a4a2c199a6"),
+                    byteCount: 22, data: Data("resource-two-is-larger".utf8)
                 )
             ])
         }
         XCTAssertEqual(entered.wait(timeout: .now() + 5), .success)
 
-        // B 并发声明同 digest 但 byteCount=13（与 A 的 12 冲突）。B 的数据与 12 一致、
-        // 申报 13 会先在自身校验处失败；为让冲突抵达锁内检测，预置 file 与声明一致的路径：
-        // 这里直接验证「A 提交后 B 进锁看到 staged 12 ≠ 13」的终局语义。
+        // B 的真实数据（12 bytes）与预置 staged 行（99）冲突：phase-1 自校验通过，
+        // 进锁后在 staged 冲突检测处被拒绝。
         let taskB = Task {
             try await storeB.ingestResources([
                 AhaKeyXPCResourceIngestionItem(
                     logicalIdentifier: try AhaKeyResourceIdentifier("idle-conflict"),
-                    sha256: digest, byteCount: 13, data: Data("resource-one".utf8)
+                    sha256: digest, byteCount: 12, data: Data("resource-one".utf8)
                 )
             ])
         }
@@ -889,9 +911,9 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 .resourceByteCountMismatch(try AhaKeyResourceIdentifier("idle-conflict"))
             )
         }
-        // A 的 staged 行不受 B 影响。
+        // 预置 staged 行不受影响；用量 = 预置 99 + A 的 22。
         let usage = try await storeA.resourceStorageUsage()
-        XCTAssertEqual(usage, 12)
+        XCTAssertEqual(usage, 121)
     }
 
     /// accept seam 接线验证：临界区 COMMIT 前钩子被真实调用（配合 ingest seam 覆盖两个入口）。
