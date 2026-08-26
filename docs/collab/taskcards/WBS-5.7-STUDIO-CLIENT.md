@@ -85,3 +85,32 @@
 - 门禁：462 tests / 2 skipped / 0 failures；Release App+Agent 构建通过；diff 干净。
 - 范围外事项：Cursor 22:51 提到 caps14 客户端解析「归 5.7-R1」，但 22:16 五条完成定义未含此项；请 Codex 裁决是否另开小卡。
 - HIL-CONFIG 保持 draft；不生成安装候选（待 R1 验收 + 用户批准）。
+
+### [2026-08-26 23:18] Codex：R1 主体成立，退回最后一个最小 R2
+
+- `lastReviewedCommit: 7e0b9e20b42d83d63e8d6c25108c9bb9c8926a70`；固定代码范围 `41b23dc...7e0b9e2`。Codex 独立复跑 production endpoint 9/9、facade 14/14 均通过，`git diff --check` 干净。R1 的 production snapshot/events、有界 replay、durable accept 即返 ID、Agent 异步执行、取消及 facade 原子重取方向保留。
+- 本卡不能 accepted，以下为一次性收口的 R2，不再拆散：
+  1. **P1：正常周期状态没有发布到 Runtime。** `0x00` 回包在 reducer 更新 `coreSnapshot` 后未调用 `publishDeviceChangedIfNeeded()`；因此电量、工作模式、灯效、拨杆等真实变化不会触发 event，Studio 仍停在旧值。只在 reducer 结果确有变化时发布一次；相同状态零 UI 发布。同时删除每轮相同状态的 `emit("← status …")` 常规日志，只保留状态变化和错误，满足 1.5 秒后台轮询“零常规日志”。
+  2. **P1：连续/并发 apply 的 durable accepted 可能永久滞留。** 当前每次 accept 都新建 Task，后一个遇到 `configurationRecoveryInFlight` 直接 busy 退出，前一个完成后不会排空 WAL，只能等下次重连；多个 XPC session 又可并发读写非隔离的 `cachedRuntimeStore`/单飞标志。改为 Agent 自有、单一隔离的串行执行协调器/worker：所有 durable accepted 入队，worker 持续排空；不得覆盖在途 Task，不得让两个 BLE runner 并行。补双客户端同时提交、首个阻塞/第二个受理/随后两者均终态的确定性测试。
+  3. **P1：Runtime schema 广告自相矛盾。** handshake 写死 `[3]`，当前 `AhaKeyConfigurationPackage.currentSchemaVersion` 与 snapshot 默认却是 `[1]`。以当前包 schema 单一来源生成 handshake/snapshot，并在 endpoint 测试断言二者一致且包含实际提交包版本；不得继续写裸常量。
+  4. **P1：22:38 已生效并由 Kimi ACK 的 caps14 交叉契约未实现。** 使用固件精确 fixture `03 04 02 04 33 00 c8 00 20 01 00 00 00 00`；factory flag 关闭时 `factorySlotBase=0`，`userSlotLimit=288`；factory flag 打开但仅 14 bytes 时 parse 必须 fail-closed。补 planner 首个/末个合法范围与 288 越界拒绝测试。
+  5. **P2：long-poll 有 lost-wakeup 窗口。** “检查空缓冲”与“登记 waiter”分属两次 main 调度，夹缝事件会令请求白等完整 2 秒。把 waiter 注册与二次 replay 检查收敛到同一隔离临界区，补可控交错测试；新事件响应仍以不超过 2 秒为门禁。
+- lifecycle/permissions 真实来源不在本轮扩大：沿用此前“权限等非设备遥测可暂时独立”的裁决；真实 NSXPC connection invalidation 组合证据进入 HIL-CONFIG/签名 smoke，不以进程内 wrapper 冒充。
+- 允许最小修改：本卡既有白名单、`Sources/Agent/AhaKeyAgent.swift`，必要时可在 Shared 新建一个小型隔离执行/投影协调器及对应测试；禁止改 wire v1.1、BLE opcode、固件、安装器或进入 HIL。完成后跑定向测试、全量 Swift、App+Agent Release、diff check，新 commit 停手整卡重提。
+
+### [2026-08-26 23:19] Codex：哈希更正
+
+- 上条 `lastReviewedCommit` 的完整值录入有误；正确值为 `7e0b9e264b52e721320ab125046fd4bf59b79994`。范围与 R2 裁决不变。
+
+### [2026-08-26 23:35] Kimi：R2 收口完成，整卡重提
+
+- 新 HEAD：`4171111`（验收范围 `7e0b9e2...4171111`）。
+- 23:18 五条逐条落地：
+  1. 状态轮询：0x00 回包 reducer 更新后调 publishDeviceChangedIfNeeded()（投影去重，确有变化才发布一次）；相同状态轮询零常规日志（常规 emit 已删，保留状态变化/错误）。
+  2. 串行执行协调器：新 Shared actor `AhaKeyConfigurationExecutionCoordinator`（单 worker、kick 幂等、趟内排空 WAL、趟间接续）；删除 configurationExecutionTask/configurationRecoveryInFlight；cachedRuntimeStore 收敛进 actor 隔离缓存。双客户端并发测试：首个阻塞、第二个受理、maxConcurrent==1、放行后双双 completed。
+  3. schema 同源：handshake=[AhaKeyConfigurationPackage.currentSchemaVersion]，与 snapshot 默认同源；endpoint 测试断言 handshake==snapshot==实交包 schema。
+  4. caps14 交叉契约：精确 fixture 03 04 02 04 33 00 c8 00 20 01 00 00 00 00 → factorySlotBase=0/userSlotLimit=288；factoryOn+14B fail-closed（parse nil）；planner 首槽=帧0/末槽=240（270≤288）、300>288 越界拒绝。
+  5. long-poll lost-wakeup：waiter 登记+二次复查收敛同一 MainActor 临界区，夹缝事件立即返回；≤2s 门禁保留。
+- 门禁：471 tests / 2 skipped / 0 failures（连跑 2 轮）；Release App+Agent 通过；diff 干净。
+- 风险声明：factory flag 位 1<<2 由两份 fixture 反推（0x3F/0x33），固件位布局文档化后需对齐；解析 fail-closed，最坏拒绝协商。
+- 未安装、未进 HIL；HIL-CONFIG 保持 draft。
