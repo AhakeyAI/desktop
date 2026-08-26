@@ -34,11 +34,14 @@ public enum AhaKeyProtocolMode: Equatable {
 }
 
 /// 0x99 能力帧解析结果。三档长度变体：
-/// - 14 字节：基础字段（无出厂资源信息，factory 字段回退为用户槽位上限/0）；
-/// - 22 字节：含出厂资源束信息（factory*）；
+/// - 14 字节：基础字段（无出厂资源信息；factory flag 关闭时 factorySlotBase=0，
+///   不得回退为用户槽位上限——WBS-5.7 R2 caps14 交叉契约）；
+/// - 22 字节：含出厂资源束信息（factory*，仅 factory flag 打开时可信）；
 /// - 26 字节：额外含回收槽位区间（reclaim*）。
 public struct AhaKeyFirmwareCapabilities: Equatable {
     public static let idleTaskPictureFlag: UInt16 = 1 << 0
+    /// 出厂资源束能力位。打开时必须携带 22 字节扩展字段，否则 parse fail-closed。
+    public static let factoryAssetsFlag: UInt16 = 1 << 2
     public static let sessionUploadFlag: UInt16 = 1 << 3
 
     public let protocolVersion: Int
@@ -88,6 +91,9 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
     }
 
     /// 解析 0x99 应答 payload（不含帧头帧尾）。长度不足 14 字节返回 nil。
+    /// fail-closed 纪律（WBS-5.7 R2 caps14 交叉契约，固件证据 WBS-1 22:51）：
+    /// factory flag 打开但帧不足 22 字节 → 返回 nil（不得猜测 factory 布局）；
+    /// factory flag 关闭 → factorySlotBase=0（用户槽位从 0 起编，0x95 才不会越界被拒）。
     public static func parse(_ payload: Data) -> AhaKeyFirmwareCapabilities? {
         guard payload.count >= 14 else { return nil }
         func u16(_ offset: Int) -> UInt16 {
@@ -99,22 +105,25 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
                 | (UInt32(payload[offset + 2]) << 16)
                 | (UInt32(payload[offset + 3]) << 24)
         }
-        let hasExtendedFactoryFields = payload.count >= 22
+        let flags = u16(4)
+        let factoryAdvertised = flags & Self.factoryAssetsFlag != 0
+        if factoryAdvertised && payload.count < 22 { return nil }
+        let hasExtendedFactoryFields = factoryAdvertised && payload.count >= 22
         return AhaKeyFirmwareCapabilities(
             protocolVersion: Int(payload[0]),
             modeCount: Int(payload[1]),
             setCount: Int(payload[2]),
             stateCount: Int(payload[3]),
-            flags: u16(4),
+            flags: flags,
             maxPacketSize: Int(u16(6)),
             userSlotLimit: Int(u16(8)),
-            factorySlotBase: hasExtendedFactoryFields ? Int(u16(10)) : Int(u16(8)),
+            factorySlotBase: hasExtendedFactoryFields ? Int(u16(10)) : 0,
             factoryBundleVersion: hasExtendedFactoryFields ? u32(12) : 0,
             factoryManifestCRC: hasExtendedFactoryFields ? u32(16) : 0,
             factoryStatus: hasExtendedFactoryFields ? Int(payload[20]) : 0,
             factoryError: hasExtendedFactoryFields ? Int(payload[21]) : 0,
-            reclaimSlotBase: payload.count >= 26 ? Int(u16(22)) : Int(u16(10)),
-            reclaimSlotLimit: payload.count >= 26 ? Int(u16(24)) : Int(u16(12))
+            reclaimSlotBase: payload.count >= 26 ? Int(u16(22)) : (hasExtendedFactoryFields ? Int(u16(10)) : 0),
+            reclaimSlotLimit: payload.count >= 26 ? Int(u16(24)) : (hasExtendedFactoryFields ? Int(u16(12)) : 0)
         )
     }
 }

@@ -96,8 +96,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var activeUploadSessionID: UInt16?
     /// 编码字节流缓存（digest → RGB565 流；CAS 源绝不直接当 flash 数据）。
     private var encodedStreamCache: [AhaKeySHA256Digest: Data] = [:]
-    /// 正在恢复/执行中的配置事务（防重入）
-    private var configurationRecoveryInFlight = false
 
     // MARK: 状态归并（WBS-5.5 切片 4：周期帧与连接生命周期经 DeviceStateReducer）
     private var coreSnapshot = CoreDeviceSnapshot()
@@ -145,7 +143,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 有界回放缓冲：超界丢弃最老事件，断档客户端收 snapshotRequired。仅 main 队列读写。
     private var projectionEventBuffer: AhaKeyRuntimeEventReplayBuffer
     /// events long-poll 挂起的 waiter（新事件或超时唤醒）。仅 main 队列读写。
-    private var projectionEventWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    /// R2-5：continuation 携带复查结果——非 nil 为临界区内二次复查的即时结果，
+    /// nil 为「被唤醒/超时/取消，请最终复查」信号。
+    private var projectionEventWaiters: [UUID: CheckedContinuation<AhaKeyRuntimeEventReplayVerdict?, Never>] = [:]
     /// 本会话已知 operation 摘要（含终态窗口；snapshot.operations 与 WAL 合并）。仅 main 队列。
     private var projectionOperations: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary] = [:]
     /// 终态 operation 插入序（投影终态缓存上限 64，超出淘汰最老；WAL 仍持久）。
@@ -156,8 +156,30 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lastPublishedDeviceSnapshot: AhaKeyRuntimeDeviceSnapshot?
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
-    /// durable accept 后的异步执行 Task（Agent 自有生命周期，不挂在 XPC 连接上）。
-    private var configurationExecutionTask: Task<Void, Never>?
+    /// R2-2：串行执行协调器——所有 durable accepted 入队，单一 worker 持续排空 WAL；
+    /// 不覆盖在途 Task，不产生两个并行 BLE runner；多 XPC session 并发由 actor 隔离。
+    private lazy var configurationCoordinator = AhaKeyConfigurationExecutionCoordinator(
+        pendingPackages: { [weak self] in
+            guard let self,
+                  let store = try? await self.makeRuntimeStore(),
+                  let candidates = try? await store.recoveryCandidates() else { return [] }
+            // 取消请求中的事务不自动复活（等用户显式恢复）。
+            return candidates.filter { $0.state != .cancellationRequested }.map { $0.package }
+        },
+        executePackage: { [weak self] package in
+            guard let self else { return }
+            do {
+                let state = try await self.applyConfigurationPackage(package, resourceFiles: [:])
+                self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行结果：\(state.rawValue)")
+            } catch {
+                // disconnected 等：WAL 保留恢复点，不伪装终态；ready/后续 kick 再排空。
+                self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行延迟/中断：\(error.localizedDescription)")
+            }
+            await self.publishOperationProgress(operationID: package.operationID)
+        }
+    )
+    /// R2-2：Runtime Store 缓存收敛进 actor（多 XPC session 并发读写隔离）。
+    private let runtimeStoreCache = AhaKeyAgentRuntimeStoreCache()
     /// events 空批 long-poll 时长（秒）；测试注入短值。
     var runtimeEventsLongPollInterval: TimeInterval = 2.0
     /// 集成测试 seam（仅 @testable；生产为 nil）。
@@ -227,7 +249,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // R1：events long-poll 挂起 waiter 收尾（进程退出路径，绝不泄漏 continuation）。
         let pendingWaiters = projectionEventWaiters
         projectionEventWaiters.removeAll()
-        for (_, continuation) in pendingWaiters { continuation.resume() }
+        for (_, continuation) in pendingWaiters { continuation.resume(returning: nil) }
     }
 
     private func registerPowerProtectionModule() async {
@@ -667,7 +689,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         AhaKeyRuntimeXPCServerHandshake(
             runtimeVersion: .development,
             interfaceVersion: .current,
-            supportedConfigurationSchemaVersions: [3],
+            // R2-3：schema 广告以包 schema 为单一来源（与 AhaKeyRuntimeSnapshot 默认一致），不写裸常量。
+            supportedConfigurationSchemaVersions: [AhaKeyConfigurationPackage.currentSchemaVersion],
             capabilities: [.configuration, .snapshot, .eventReplay, .diagnostics]
         )
     }
@@ -701,9 +724,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// XPC 请求处理（生产 server 与进程内集成测试共用同一路径）。
     ///
-    /// 纪律（WBS-5.7 R1）：
+    /// 纪律（WBS-5.7 R1/R2）：
     /// - apply：store.accept durable 受理成功 → 立即返回 .operationAccepted；
-    ///   事务执行在 Agent 自有 Task 异步跑（见 startConfigurationExecution），
+    ///   事务执行经串行协调器（AhaKeyConfigurationExecutionCoordinator）排空 WAL，
     ///   Studio 断连/退出不影响；受理失败一律 .failure，绝不伪装 accepted。
     /// - snapshot：单一权威投影（BLE 设备状态 + WAL operation 摘要 + policy + 单调事件序号）。
     /// - events：有事件/断档立即返回；空批 long-poll（≤ runtimeEventsLongPollInterval），
@@ -712,7 +735,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         switch request {
         case .apply(let package):
             // 生产路径：资源必须已入 CAS（由 Studio 预上传或先前恢复）；不接受 staging/ 裸读。
-            let store = try makeRuntimeStore()
+            let store = try await makeRuntimeStore()
             do {
                 _ = try await store.accept(package, resourceFiles: [:])
             } catch let error as AhaKeyRuntimePersistenceError {
@@ -727,13 +750,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
                 }
             }
-            // durable acceptance 成功：投影立即发布 accepted，执行异步推进。
+            // durable acceptance 成功：投影立即发布 accepted，执行交给串行协调器排空 WAL。
             await noteOperationAccepted(package)
-            startConfigurationExecution(package: package)
+            await configurationCoordinator.kick()
             return .operationAccepted(package.operationID)
 
         case .ingestResources(let items):
-            let store = try makeRuntimeStore()
+            let store = try await makeRuntimeStore()
             do {
                 try await store.ingestResources(items)
             } catch let error as AhaKeyRuntimePersistenceError {
@@ -1469,6 +1492,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         // 经 DeviceStateReducer 归并（唯一状态入口）；Agent 无 pendingSwitchOverride，
         // reducer 产出与原始解析等价，但 pending/超时语义对后续 UI 共享可用。
+        let coreBefore = coreSnapshot
         let reduced = DeviceStateReducer.apply(
             .fullStatus(battery: status.battery, firmwareMain: status.firmwareMain,
                         firmwareSub: status.firmwareSub, workMode: status.workMode,
@@ -1492,7 +1516,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if previousSwitchState != hardwareSwitchState {
             KimiTUIAdapter.applyModeIfNeeded(for: Int(hardwareSwitchState))
         }
-        emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+        // R2-1：只在 reducer 结果确有变化时记状态日志；1.5s 后台轮询的相同状态零常规日志。
+        if reduced.core != coreBefore {
+            emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+        }
         // 阶段 4 写前去重：与最后已发布快照比较，相同不重复落盘（GUI 目录监听零唤醒）；
         // 30s 无任何写入时仅 touch mtime。真实变化（或首次发布）才落盘——
         // 一律写入键盘真实 GPIO 状态，避免旧虚拟模拟把 UI / hook 锁在错误档位。
@@ -1513,6 +1540,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case .skip:
             break
         }
+
+        // R2-1：周期状态变化（电量/工作模式/灯效/拨杆）必须发布到 Runtime。
+        // 内部按投影内容去重：相同状态零 UI 发布，确有变化才发一次 deviceChanged。
+        publishDeviceChangedIfNeeded()
 
         // 0x00 应答路由到 head 命令的 waiter（五元绑定；代际不符=迟到回包，nil 收尾）
         if let head = transportCore.inFlightCommand, head.opcode == 0x00,
@@ -1562,64 +1593,25 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     // MARK: - 配置事务恢复与程序执行（WBS-5.6 切片 5b）
 
-    /// ready 后捞起 WAL 里未竟事务续跑（断线/重启恢复的唯一入口；防重入）。
+    /// ready 后捞起 WAL 里未竟事务续跑（断线/重启恢复入口）。
+    /// R2-2：统一走串行协调器 kick——与新受理共用同一 worker，互不插队、不并行。
     private func scheduleConfigurationRecovery() {
-        guard !configurationRecoveryInFlight else { return }
-        configurationRecoveryInFlight = true
-        let capabilities = negotiatedCapabilities
-        Task {
-            defer { self.configurationRecoveryInFlight = false }
-            do {
-                let store = try makeRuntimeStore()
-                let candidates = try await store.recoveryCandidates()
-                guard !candidates.isEmpty else { return }
-                self.emit("配置事务恢复：发现 \(candidates.count) 个未竟事务")
-                for candidate in candidates {
-                    // 取消请求中的事务不自动复活（等用户显式恢复）
-                    guard candidate.state != .cancellationRequested else { continue }
-                    guard let caps = capabilities, self.transportCore.isReady else { break }
-                    let state = try await self.runConfigurationTransaction(
-                        package: candidate.package, resourceFiles: [:],
-                        store: store, capabilities: caps
-                    )
-                    self.emit("配置事务 \(candidate.package.operationID.rawValue.uuidString.prefix(8))… 恢复结果：\(state.rawValue)")
-                    await self.publishOperationProgress(operationID: candidate.package.operationID)
-                }
-            } catch {
-                self.emit("配置事务恢复失败：\(error.localizedDescription)")
-            }
-        }
+        Task { await configurationCoordinator.kick() }
     }
 
     // MARK: 生产受理 / 取消入口（WBS-5.6 R7；WBS-5.7 R1 改为 durable accept + 异步执行）
 
-    private static func makeConfigurationStore() throws -> AhaKeyRuntimePersistentStore {
-        try AhaKeyRuntimePersistentStore(
-            rootDirectory: AhaKeyPaths.runtimeStoreDirectory,
-            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
-        )
-    }
-
     /// Store 构造：默认生产目录；测试经 executionTestHooks.storeDirectory 重定向到临时目录。
-    /// 同一目录复用单实例（多实例对同一 root 的 flock/SQLite 连接会相互竞争）。
-    private func makeRuntimeStore() throws -> AhaKeyRuntimePersistentStore {
+    /// 缓存收敛进 AhaKeyAgentRuntimeStoreCache（actor）：同一目录复用单实例，
+    /// 多 XPC session 并发访问由 actor 隔离（R2-2）。
+    private func makeRuntimeStore() async throws -> AhaKeyRuntimePersistentStore {
         let directory = executionTestHooks?.storeDirectory ?? AhaKeyPaths.runtimeStoreDirectory
-        if let cached = cachedRuntimeStore, cached.directory == directory {
-            return cached.store
-        }
-        let store = try AhaKeyRuntimePersistentStore(
-            rootDirectory: directory,
-            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
-        )
-        cachedRuntimeStore = (directory, store)
-        return store
+        return try await runtimeStoreCache.store(for: directory)
     }
 
-    /// 缓存的 Runtime Store（见 makeRuntimeStore）。
-    private var cachedRuntimeStore: (directory: URL, store: AhaKeyRuntimePersistentStore)?
-
-    /// 生产受理入口：新配置包（current-only；与恢复共用单飞闸门，互不插队）。
-    /// 5.7 R1：仅由 startConfigurationExecution 的 Agent 自有 Task 调用（XPC handler 不再同步等待）。
+    /// 生产受理入口：新配置包（current-only）。
+    /// R2-2：串行性由 AhaKeyConfigurationExecutionCoordinator 保证（单 worker），此处不再单飞闸门；
+    /// 仅由协调器 worker 调用（XPC handler 不直接执行）。
     func applyConfigurationPackage(
         _ package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL]
@@ -1629,12 +1621,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard let caps = capabilities, ready else {
             throw AhaKeyAgentCommandError.disconnected
         }
-        guard !configurationRecoveryInFlight else {
-            throw AhaKeyAgentCommandError.busy
-        }
-        configurationRecoveryInFlight = true
-        defer { configurationRecoveryInFlight = false }
-        let store = try makeRuntimeStore()
+        let store = try await makeRuntimeStore()
         let state = try await runConfigurationTransaction(
             package: package, resourceFiles: resourceFiles, store: store, capabilities: caps
         )
@@ -1647,7 +1634,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     @discardableResult
     func cancelConfiguration(operationID: AhaKeyRuntimeOperationID) async -> AhaKeyRuntimeCancellationDisposition {
         do {
-            let store = try makeRuntimeStore()
+            let store = try await makeRuntimeStore()
             guard let record = try await store.transaction(operationID) else { return .notFound }
             guard !record.state.isTerminal else { return .alreadyFinished }
             try await AhaKeyConfigurationTransactionRunner(store: store).requestCancel(operationID: operationID)
@@ -1894,26 +1881,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    /// durable accept 后的异步执行：Agent 自有 Task，Studio 断连/退出不影响。
-    /// 设备未 ready / 单飞闸门占用时事务留在 WAL，ready 后由 scheduleConfigurationRecovery 接管；
-    /// 执行不挂在任何 XPC 连接生命周期上。
-    private func startConfigurationExecution(package: AhaKeyConfigurationPackage) {
-        configurationExecutionTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let state = try await self.applyConfigurationPackage(package, resourceFiles: [:])
-                self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 异步执行结果：\(state.rawValue)")
-            } catch {
-                // busy/disconnected 等：WAL 保留恢复点，不伪装终态。
-                self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行延迟/中断：\(error.localizedDescription)")
-            }
-            await self.publishOperationProgress(operationID: package.operationID)
-        }
-    }
-
     /// 从 WAL 读最新状态并发布 operationChanged（进度/终态的唯一发布点）。
     private func publishOperationProgress(operationID: AhaKeyRuntimeOperationID) async {
-        guard let store = try? makeRuntimeStore(),
+        guard let store = try? await makeRuntimeStore(),
               let record = try? await store.transaction(operationID) else { return }
         let summary = Self.operationSummary(from: record)
         await MainActor.run {
@@ -1961,7 +1931,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         let waiters = projectionEventWaiters
         projectionEventWaiters.removeAll()
-        for (_, continuation) in waiters { continuation.resume() }
+        for (_, continuation) in waiters { continuation.resume(returning: nil) }
     }
 
     /// 设备投影有变化才发布 deviceChanged。可在任意队列调用（内部落到 main）。
@@ -2072,7 +2042,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         var operations = main.cachedOperations
         var revision = AhaKeyConfigurationRevision(0)
-        if let store = try? makeRuntimeStore() {
+        if let store = try? await makeRuntimeStore() {
             // WAL 非终态事务并入投影。
             if let candidates = try? await store.recoveryCandidates() {
                 for candidate in candidates {
@@ -2101,54 +2071,94 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         )
     }
 
-    /// events 请求：有事件/断档立即返回；空批 long-poll，新事件立即唤醒，超时返回空批。
+    /// events 请求：有事件/断档立即返回；空批 long-poll（R2-5：waiter 注册与二次 replay
+    /// 复查收敛进同一 MainActor 临界区，消除 lost-wakeup 夹缝），新事件立即唤醒，超时返回空批。
     private func handleEventsRequest(after cursor: AhaKeyRuntimeEventSequence?) async -> AhaKeyRuntimeXPCResponse {
-        for attempt in 0 ... 1 {
-            let result = await MainActor.run { () -> Result<AhaKeyRuntimeEventReplayResult, AhaKeyRuntimeEventReplayError> in
-                do {
-                    return .success(try self.projectionEventBuffer.events(after: cursor))
-                } catch let error as AhaKeyRuntimeEventReplayError {
-                    return .failure(error)
-                } catch {
-                    return .failure(.cursorAheadOfRuntime)
-                }
-            }
-            switch result {
-            case .success(.snapshotRequired(let latest)):
-                return .eventReplay(.snapshotRequired(latest: latest))
-            case .success(.events(let events)):
-                if !events.isEmpty || attempt == 1 {
-                    return .eventReplay(.events(events))
-                }
-                await waitForRuntimeEventSignal(timeout: runtimeEventsLongPollInterval)
-            case .failure:
-                return .failure(try! AhaKeyRuntimeEventCode("cursor-ahead-of-runtime"))
-            }
+        // 快路径：已有事件/断档/错误立即返回；空批进入 long-poll。
+        let fast = await replayVerdict(after: cursor)
+        if case .success(.events(let events)) = fast, events.isEmpty {
+            // 空批 → long-poll。
+        } else {
+            return eventReplayResponse(fast)
         }
-        return .eventReplay(.events([]))
+        // 测试 seam：确定性地在「快路径空批 → waiter 登记」夹缝中注入事件（生产恒 nil）。
+        if let gapHook = await MainActor.run(body: { self.executionTestHooks?.eventsLongPollGapHook }) {
+            await MainActor.run(body: { gapHook() })
+        }
+        if let immediate = await longPollRuntimeEvents(after: cursor, timeout: runtimeEventsLongPollInterval) {
+            // 临界区内二次复查命中（夹缝事件/断档/错误）：立即返回，不白等。
+            return eventReplayResponse(immediate)
+        }
+        // 被新事件唤醒 / 超时 / 取消：最终复查（此次允许空批返回）。
+        return eventReplayResponse(await replayVerdict(after: cursor))
     }
 
-    /// long-poll 等待：新事件发布或超时唤醒；handler 任务取消时兜底唤醒（不泄漏 continuation）。
-    private func waitForRuntimeEventSignal(timeout: TimeInterval) async {
+    /// replay 结果 → XPC 响应的统一映射。
+    private func eventReplayResponse(_ verdict: AhaKeyRuntimeEventReplayVerdict) -> AhaKeyRuntimeXPCResponse {
+        switch verdict {
+        case .failure:
+            return .failure(try! AhaKeyRuntimeEventCode("cursor-ahead-of-runtime"))
+        case .success(.snapshotRequired(let latest)):
+            return .eventReplay(.snapshotRequired(latest: latest))
+        case .success(.events(let events)):
+            return .eventReplay(.events(events))
+        }
+    }
+
+    /// 回放检查（任意队列可调用；内部落到 main 读缓冲）。
+    private func replayVerdict(after cursor: AhaKeyRuntimeEventSequence?) async -> AhaKeyRuntimeEventReplayVerdict {
+        await MainActor.run { self.replayVerdictOnMain(after: cursor) }
+    }
+
+    @MainActor
+    private func replayVerdictOnMain(after cursor: AhaKeyRuntimeEventSequence?) -> AhaKeyRuntimeEventReplayVerdict {
+        do {
+            return .success(try projectionEventBuffer.events(after: cursor))
+        } catch let error as AhaKeyRuntimeEventReplayError {
+            return .failure(error)
+        } catch {
+            return .failure(.cursorAheadOfRuntime)
+        }
+    }
+
+    /// long-poll：waiter 登记与二次 replay 复查在同一 MainActor 临界区（R2-5）。
+    ///
+    /// 临界区内先登记 waiter 再复查缓冲：
+    /// - 登记之前夹缝里发布的事件 → 复查命中，立即返回非 nil 结果（不白等完整超时）；
+    /// - 登记之后发布的事件 → publishRuntimeEvent 唤醒本 waiter（返回 nil，调用方最终复查）。
+    /// 超时/任务取消同样以 nil 收尾；continuation 绝不泄漏。
+    private func longPollRuntimeEvents(
+        after cursor: AhaKeyRuntimeEventSequence?,
+        timeout: TimeInterval
+    ) async -> AhaKeyRuntimeEventReplayVerdict? {
         let id = UUID()
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<AhaKeyRuntimeEventReplayVerdict?, Never>) in
                 DispatchQueue.main.async { [weak self] in
                     guard let self else {
-                        continuation.resume()
+                        continuation.resume(returning: nil)
                         return
                     }
+                    // 同一隔离临界区：登记 → 复查（顺序不可换：先复查后登记才会出现 lost-wakeup）。
                     self.projectionEventWaiters[id] = continuation
-                    DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                        guard let pending = self?.projectionEventWaiters.removeValue(forKey: id) else { return }
-                        pending.resume()
+                    let recheck = self.replayVerdictOnMain(after: cursor)
+                    if case .success(.events(let events)) = recheck, events.isEmpty {
+                        // 仍为空批：挂起至新事件或超时。
+                        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                            guard let pending = self?.projectionEventWaiters.removeValue(forKey: id) else { return }
+                            pending.resume(returning: nil)
+                        }
+                    } else {
+                        // 复查命中夹缝事件/断档/错误：摘除 waiter 立即返回。
+                        self.projectionEventWaiters.removeValue(forKey: id)
+                        continuation.resume(returning: recheck)
                     }
                 }
             }
         } onCancel: {
             DispatchQueue.main.async { [weak self] in
                 guard let pending = self?.projectionEventWaiters.removeValue(forKey: id) else { return }
-                pending.resume()
+                pending.resume(returning: nil)
             }
         }
     }
@@ -2164,11 +2174,39 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 配合 executionTestHooks.isReady/capabilities/stepExecutor 可免 BLE 驱动执行路径。
     func simulateDeviceForTesting(_ device: AhaKeyRuntimeDeviceSnapshot?) async {
         await MainActor.run {
-            var hooks = self.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
-            hooks.simulatedDevice = device
-            self.executionTestHooks = hooks
-            self.publishDeviceChangedOnMain()
+            self.setSimulatedDeviceOnMainForTesting(device)
         }
+    }
+
+    /// 测试 seam：MainActor 上同步更换模拟设备投影并立即发布 deviceChanged。
+    /// 供 eventsLongPollGapHook 在 lost-wakeup 交错测试中于临界区夹缝内注入事件（R2-5）。
+    @MainActor
+    func setSimulatedDeviceOnMainForTesting(_ device: AhaKeyRuntimeDeviceSnapshot?) {
+        var hooks = self.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        hooks.simulatedDevice = device
+        self.executionTestHooks = hooks
+        self.publishDeviceChangedOnMain()
+    }
+}
+
+/// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
+typealias AhaKeyRuntimeEventReplayVerdict = Result<AhaKeyRuntimeEventReplayResult, AhaKeyRuntimeEventReplayError>
+
+/// Runtime Store 缓存（R2-2）：actor 隔离，多 XPC session 并发读写安全；
+/// 同一目录复用单实例（多实例对同一 root 的 flock/SQLite 连接会相互竞争）。
+private actor AhaKeyAgentRuntimeStoreCache {
+    private var cached: (directory: URL, store: AhaKeyRuntimePersistentStore)?
+
+    func store(for directory: URL) throws -> AhaKeyRuntimePersistentStore {
+        if let cached, cached.directory == directory {
+            return cached.store
+        }
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: directory,
+            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+        )
+        cached = (directory, store)
+        return store
     }
 }
 
@@ -2196,6 +2234,9 @@ struct AhaKeyAgentExecutionTestHooks {
     var storeDirectory: URL?
     /// 非 nil 时作为投影中的设备快照（deviceChanged 事件源）。
     var simulatedDevice: AhaKeyRuntimeDeviceSnapshot?
+    /// 非 nil 时在 events 空批快路径之后、long-poll waiter 登记之前于 MainActor 同步调用，
+    /// 用于确定性地构造 lost-wakeup 交错（R2-5 测试；生产恒 nil）。
+    var eventsLongPollGapHook: (@MainActor @Sendable () -> Void)?
 }
 
 /// 程序执行 seam 的 agent BLE 实现（agent 全部状态在 main 队列访问，故 @unchecked）。

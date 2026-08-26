@@ -55,24 +55,11 @@ final class AhaKeyFirmwareCapabilitiesTests: XCTestCase {
         XCTAssertEqual(capabilities?.reclaimSlotLimit, 2)
     }
 
-    func testParses14ByteCapabilitiesWithFallbacks() {
+    func testRejects14ByteCapabilitiesWhenFactoryFlagOn() {
+        // flags=0x3F（factory bit 开）但帧仅 14 字节：fail-closed，不得猜测 factory 布局
+        //（WBS-5.7 R2 caps14 交叉契约）。
         let payload = rhino26Payload.prefix(14)
-        let capabilities = AhaKeyFirmwareCapabilities.parse(Data(payload))
-
-        XCTAssertEqual(capabilities?.protocolVersion, 3)
-        XCTAssertEqual(capabilities?.modeCount, 4)
-        XCTAssertEqual(capabilities?.stateCount, 4)
-        XCTAssertEqual(capabilities?.maxPacketSize, 244)
-        XCTAssertEqual(capabilities?.userSlotLimit, 288)
-        // 无出厂字段：factorySlotBase 回退为 userSlotLimit，其余出厂字段为 0
-        XCTAssertEqual(capabilities?.factorySlotBase, 288)
-        XCTAssertEqual(capabilities?.factoryBundleVersion, 0)
-        XCTAssertEqual(capabilities?.factoryManifestCRC, 0)
-        XCTAssertEqual(capabilities?.factoryStatus, 0)
-        XCTAssertEqual(capabilities?.factoryError, 0)
-        // 回收槽位区间回退读取 offset 10/12
-        XCTAssertEqual(capabilities?.reclaimSlotBase, 304)
-        XCTAssertEqual(capabilities?.reclaimSlotLimit, 2)
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(payload)))
     }
 
     func testRejectsTruncatedCapabilities() {

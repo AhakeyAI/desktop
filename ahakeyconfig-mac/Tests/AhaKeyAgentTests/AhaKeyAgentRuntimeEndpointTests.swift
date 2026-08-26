@@ -478,4 +478,144 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         let snapshot = try await client2.snapshot()
         XCTAssertTrue(snapshot.operations.contains { $0.id == operationID && $0.state == .completed })
     }
+
+    // MARK: - R2-3：schema 广告单一来源
+
+    func testHandshakeAndSnapshotAdvertiseSingleSchemaSource() async throws {
+        let agent = makeAgent()
+        let client = EndpointClient(agent: agent)
+        let handshake = try await client.handshake()
+        let snapshot = try await client.snapshot()
+        XCTAssertEqual(
+            handshake.supportedConfigurationSchemaVersions,
+            snapshot.supportedConfigurationSchemaVersions,
+            "handshake 与 snapshot 的 schema 广告必须同源一致"
+        )
+        XCTAssertEqual(
+            handshake.supportedConfigurationSchemaVersions,
+            [AhaKeyConfigurationPackage.currentSchemaVersion],
+            "schema 广告必须以 AhaKeyConfigurationPackage.currentSchemaVersion 为单一来源"
+        )
+        // 实际提交包的 schemaVersion 必须被广告覆盖。
+        let package = try makePackage(deviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"))
+        XCTAssertTrue(handshake.supportedConfigurationSchemaVersions.contains(package.schemaVersion))
+    }
+
+    // MARK: - R2-2：并发 apply 串行排空
+
+    /// 执行并发探针：记录 stepExecutor 最大并行度（证明不存在两个并行 runner）。
+    private actor ExecutionConcurrencyProbe {
+        private(set) var inFlight = 0
+        private(set) var maxConcurrent = 0
+
+        func enter() {
+            inFlight += 1
+            maxConcurrent = max(maxConcurrent, inFlight)
+        }
+
+        func exit() {
+            inFlight -= 1
+        }
+    }
+
+    func testConcurrentAppliesFromTwoClientsSerializeAndDrain() async throws {
+        let agent = makeAgent()
+        let gate = StepGate()
+        let probe = ExecutionConcurrencyProbe()
+        var hooks = agent.executionTestHooks
+        hooks?.isReady = true
+        hooks?.capabilities = testCapabilities()
+        hooks?.stepExecutor = { _ in
+            await probe.enter()
+            await gate.wait()
+            await probe.exit()
+            return .success
+        }
+        agent.executionTestHooks = hooks
+        await agent.simulateDeviceForTesting(simulatedDevice())
+
+        // 双客户端（两条独立 XPC 会话）同时提交。
+        let client1 = EndpointClient(agent: agent)
+        let client2 = EndpointClient(agent: agent)
+        try await client1.handshake()
+        try await client2.handshake()
+        let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let package1 = try makePackage(deviceID: deviceID)
+        let package2 = try makePackage(deviceID: deviceID)
+
+        // 首个事务被闸门阻塞执行中；第二个 apply 必须仍然受理成功（durable accept 即返 ID）。
+        async let response1 = client1.exchange(.apply(package1))
+        async let response2 = client2.exchange(.apply(package2))
+        let start = Date()
+        let (r1, r2) = try await (response1, response2)
+        let acceptDuration = Date().timeIntervalSince(start)
+        guard case .operationAccepted(let op1) = r1, case .operationAccepted(let op2) = r2 else {
+            return XCTFail("两个 apply 都必须 durable accept，实际 \(r1) / \(r2)")
+        }
+        XCTAssertLessThan(acceptDuration, 1.0, "受理不得被在途事务阻塞（busy 滞留已收口）")
+
+        // 串行证据：闸门仍关闭时，op1 在飞（非终态），op2 必须仍为 accepted（不得并行进入 running）。
+        let midSnapshot = try await client1.snapshot()
+        let mid1 = midSnapshot.operations.first { $0.id == op1 }
+        let mid2 = midSnapshot.operations.first { $0.id == op2 }
+        XCTAssertNotNil(mid1)
+        XCTAssertEqual(mid2?.state, .accepted, "串行协调器下第二个事务必须排队等待，不得并行执行")
+        XCTAssertFalse(mid1?.state.isTerminal ?? true)
+
+        // 放行后两者都必须到终态（worker 持续排空 WAL，无需重连）。
+        await gate.release()
+        let terminal1 = await awaitTerminalState(client1, operationID: op1)
+        let terminal2 = await awaitTerminalState(client2, operationID: op2)
+        XCTAssertEqual(terminal1, .completed)
+        XCTAssertEqual(terminal2, .completed, "后受理事务必须在前者完成后自动执行到终态")
+        let maxConcurrent = await probe.maxConcurrent
+        XCTAssertEqual(maxConcurrent, 1, "任一时刻只能有一个事务执行体在飞（不得两个 BLE runner 并行）")
+    }
+
+    // MARK: - R2-5：long-poll lost-wakeup 收口
+
+    func testLongPollGapEventReturnedImmediatelyWithoutFullTimeout() async throws {
+        let agent = makeAgent(longPoll: 5.0)
+        let device = simulatedDevice()
+        // 可控交错：在「空批快路径 → waiter 登记」夹缝中确定性地发布事件。
+        var hooks = agent.executionTestHooks
+        hooks?.eventsLongPollGapHook = { [weak agent] in
+            agent?.setSimulatedDeviceOnMainForTesting(device)
+        }
+        agent.executionTestHooks = hooks
+
+        let client = EndpointClient(agent: agent)
+        try await client.handshake()
+
+        let start = Date()
+        let result = try await client.events(after: .init(0))
+        let duration = Date().timeIntervalSince(start)
+        // 夹缝事件必须被临界区二次复查命中：立即返回，不白等完整 5s 超时（≤2s 门禁）。
+        XCTAssertLessThan(duration, 2.0, "夹缝事件不得白等完整 long-poll 超时")
+        guard case .events(let events) = result, events.count == 1 else {
+            return XCTFail("夹缝中发布的事件必须立即返回，实际 \(result)")
+        }
+        guard case .deviceChanged(let published) = events.first?.payload else {
+            return XCTFail("事件应为 deviceChanged")
+        }
+        XCTAssertEqual(published.id, try AhaKeyRuntimeDeviceID("TEST-DEVICE"))
+        XCTAssertEqual(events.first?.sequence, .init(1))
+    }
+
+    // MARK: - R2-1 旁证：相同投影零 UI 发布
+
+    func testIdenticalDeviceProjectionPublishesNoDuplicateEvent() async throws {
+        let agent = makeAgent()
+        let client = EndpointClient(agent: agent)
+        try await client.handshake()
+
+        await agent.simulateDeviceForTesting(simulatedDevice())
+        // 相同投影再次驱动：不得发布第二个 deviceChanged。
+        await agent.simulateDeviceForTesting(simulatedDevice())
+
+        guard case .events(let events) = try await client.events(after: .init(0)) else {
+            return XCTFail("应返回事件批")
+        }
+        XCTAssertEqual(events.count, 1, "相同状态必须零 UI 发布（内容去重）")
+    }
 }
