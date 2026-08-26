@@ -80,6 +80,8 @@ public actor AhaKeyStudioRuntimeFacade {
     private let clientBuildID: String
     /// 重连退避基数（秒）；测试可注入 0 加速。
     private let reconnectBackoffBase: TimeInterval
+    /// 空事件批后的空闲间隔（秒；服务端 long-poll 已兜底，此处防紧循环）。测试注入 0。
+    private let idlePollInterval: TimeInterval
     /// 资源加载器：读本地 GIF + 计算摘要/帧数/尺寸；测试注入假实现。
     private let resourceLoader: any AhaKeyStudioResourceLoader
 
@@ -87,15 +89,26 @@ public actor AhaKeyStudioRuntimeFacade {
     private var continuations: [UUID: AsyncStream<AhaKeyStudioRuntimeViewState>.Continuation] = [:]
     private var followTask: Task<Void, Never>?
 
+    /// 测试 seam：每次状态发布时在 update 内同步回调（actor 上）。
+    /// 用于确定性断言瞬态（如 resyncing/offline），不依赖 AsyncStream 订阅时序。
+    private var publishHookForTesting: (@Sendable (AhaKeyStudioRuntimeViewState) -> Void)?
+
+    /// 测试 seam 注入（跨 actor 写入经方法完成）。
+    func setPublishHookForTesting(_ hook: (@Sendable (AhaKeyStudioRuntimeViewState) -> Void)?) {
+        publishHookForTesting = hook
+    }
+
     public init(
         transport: any AhaKeyStudioRuntimeTransport,
         clientBuildID: String,
         reconnectBackoffBase: TimeInterval = 1.0,
+        idlePollInterval: TimeInterval = 0.5,
         resourceLoader: any AhaKeyStudioResourceLoader = AhaKeyStudioGIFResourceLoader()
     ) {
         self.transport = transport
         self.clientBuildID = clientBuildID
         self.reconnectBackoffBase = reconnectBackoffBase
+        self.idlePollInterval = idlePollInterval
         self.resourceLoader = resourceLoader
     }
 
@@ -223,13 +236,24 @@ public actor AhaKeyStudioRuntimeFacade {
     }
 
     /// 事件跟随：按 cursor 拉取回放；断档（snapshotRequired）→ 重取快照后继续。
+    /// 纪律（WBS-5.7 R1）：
+    /// - 非空事件批：先校验单调，再重取权威 snapshot，snapshot 与 cursor 同一次 update 原子发布
+    ///   （禁止只推进 cursor 不更新 snapshot）。
+    /// - 空批：服务端 long-poll 已兜底；此处再加可注入 idle 间隔，绝不紧循环。
     private func followEvents() async throws {
         while !Task.isCancelled {
             let cursor = state.eventCursor
             let response = try await transport.exchange(.events(after: cursor))
             switch response {
             case .eventReplay(.events(let events)):
-                guard !events.isEmpty else { continue }
+                if events.isEmpty {
+                    if idlePollInterval > 0 {
+                        try? await Task.sleep(nanoseconds: UInt64(idlePollInterval * 1_000_000_000))
+                    } else {
+                        await Task.yield()
+                    }
+                    continue
+                }
                 // 单调校验：Runtime 保证递增；不递增视为协议错误，重取快照。
                 var cursorValue = cursor
                 var monotonic = true
@@ -241,9 +265,17 @@ public actor AhaKeyStudioRuntimeFacade {
                     try await refreshSnapshot()
                     continue
                 }
+                // 非空事件后重取权威 snapshot（设备/operation/policy 等 payload 归并以服务端快照为准），
+                // snapshot 与事件游标在同一次 update 中原子发布。
+                let snapshotResponse = try await transport.exchange(.snapshot)
+                guard case .snapshot(let snapshot) = snapshotResponse else {
+                    throw AhaKeyRuntimeXPCTransportError.invalidResponse
+                }
+                let followedCursor = cursorValue ?? snapshot.latestEventSequence
                 update {
                     $0.connection = .online
-                    $0.eventCursor = cursorValue
+                    $0.snapshot = snapshot
+                    $0.eventCursor = max(followedCursor, snapshot.latestEventSequence)
                     $0.lastError = nil
                 }
             case .eventReplay(.snapshotRequired):
@@ -261,6 +293,7 @@ public actor AhaKeyStudioRuntimeFacade {
 
     private func update(_ mutate: (inout AhaKeyStudioRuntimeViewState) -> Void) {
         mutate(&state)
+        publishHookForTesting?(state)
         for continuation in continuations.values {
             continuation.yield(state)
         }

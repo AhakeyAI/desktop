@@ -25,9 +25,30 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         private(set) var appliedPackage: AhaKeyConfigurationPackage?
         private(set) var cancelledOperation: AhaKeyRuntimeOperationID?
         private(set) var requestLog: [String] = []
+        /// 已服务事件推进到的最新序号（snapshot 响应据此重建，模拟 Runtime 权威序号）。
+        private var latestSequence: UInt64
 
         init(snapshot: AhaKeyRuntimeSnapshot) {
             self.snapshot = snapshot
+            self.latestSequence = snapshot.latestEventSequence.rawValue
+        }
+
+        /// 以当前 latestSequence 重建权威快照（其余字段沿用脚本快照）。
+        private func currentSnapshot() -> AhaKeyRuntimeSnapshot {
+            AhaKeyRuntimeSnapshot(
+                runtimeVersion: snapshot.runtimeVersion,
+                interfaceVersion: snapshot.interfaceVersion,
+                supportedConfigurationSchemaVersions: snapshot.supportedConfigurationSchemaVersions,
+                lifecycleState: snapshot.lifecycleState,
+                devices: snapshot.devices,
+                activeDeviceID: snapshot.activeDeviceID,
+                configurationRevision: snapshot.configurationRevision,
+                operations: snapshot.operations,
+                policy: snapshot.policy,
+                permissions: snapshot.permissions,
+                keepAliveReasons: snapshot.keepAliveReasons,
+                latestEventSequence: .init(latestSequence)
+            )
         }
 
         func exchange(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse {
@@ -49,17 +70,19 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
                 ))
             case .snapshot:
                 requestLog.append("snapshot")
-                return .snapshot(snapshot)
+                return .snapshot(currentSnapshot())
             case .events(let after):
                 requestLog.append("events(\(after?.rawValue.description ?? "nil"))")
                 if gapResponsesRemaining > 0 {
                     gapResponsesRemaining -= 1
-                    return .eventReplay(.snapshotRequired(latest: snapshot.latestEventSequence))
+                    return .eventReplay(.snapshotRequired(latest: currentSnapshot().latestEventSequence))
                 }
                 guard !eventBatches.isEmpty else {
                     return .eventReplay(.events([]))
                 }
-                return .eventReplay(.events(eventBatches.removeFirst()))
+                let batch = eventBatches.removeFirst()
+                if let last = batch.last { latestSequence = max(latestSequence, last.sequence.rawValue) }
+                return .eventReplay(.events(batch))
             case .ingestResources(let items):
                 requestLog.append("ingest(\(items.count))")
                 ingestedItems = items
@@ -78,23 +101,17 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         }
     }
 
-    /// 状态流记录器：后台消费 facade 发布的状态序列，供精确断言瞬态。
+    /// 状态记录器：经 facade 的 publishHookForTesting 同步记录每次发布，
+    /// 确定性捕获瞬态（不依赖 AsyncStream 订阅时序）。
     private final class StateRecorder: @unchecked Sendable {
         private let lock = NSLock()
         private(set) var states: [AhaKeyStudioRuntimeViewState] = []
-        private var task: Task<Void, Never>?
 
-        func start(_ facade: AhaKeyStudioRuntimeFacade) {
-            task = Task {
-                for await state in await facade.viewStates() {
-                    lock.lock()
-                    states.append(state)
-                    lock.unlock()
-                }
-            }
+        func record(_ state: AhaKeyStudioRuntimeViewState) {
+            lock.lock()
+            states.append(state)
+            lock.unlock()
         }
-
-        func stop() { task?.cancel() }
 
         func contains(_ predicate: (AhaKeyStudioRuntimeViewState) -> Bool) -> Bool {
             lock.lock()
@@ -140,7 +157,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
     func testHandshakeThenSnapshotFirstScreen() async {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
         await facade.start()
         let online = await waitUntil { await facade.currentState().connection == .online }
@@ -158,7 +175,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         transport.eventBatches = [[makeEvent(1), makeEvent(2)], [makeEvent(3)]]
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
         await facade.start()
         let followed = await waitUntil {
@@ -170,37 +187,61 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         await facade.stop()
     }
 
+    func testNonEmptyEventsRefetchAuthoritativeSnapshotAtomically() async {
+        // R1：非空事件批后必须重取权威 snapshot，且 snapshot+cursor 同一次发布。
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        transport.eventBatches = [[makeEvent(1)]]
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.start()
+        let followed = await waitUntil {
+            await facade.currentState().eventCursor == AhaKeyRuntimeEventSequence(1)
+        }
+        XCTAssertTrue(followed)
+        let state = await facade.currentState()
+        // 原子发布：snapshot 的 latestEventSequence 与 cursor 一致（来自重取的权威快照）。
+        XCTAssertEqual(state.snapshot?.latestEventSequence, .init(1))
+        XCTAssertEqual(state.connection, .online)
+        // 首屏 snapshot + 事件后重取 snapshot 至少 2 次。
+        let snapshotCount = transport.requestLog.filter { $0 == "snapshot" }.count
+        XCTAssertGreaterThanOrEqual(snapshotCount, 2)
+        await facade.stop()
+    }
+
     func testGapTriggersSnapshotResync() async {
         // Runtime 已推进到 5；回放断档一次，随后恢复空批。
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 5))
         transport.gapResponsesRemaining = 1
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
         let recorder = StateRecorder()
-        recorder.start(facade)
+        await facade.setPublishHookForTesting { state in recorder.record(state) }
         await facade.start()
+        // 确定性：等待「已记录到 resyncing 瞬态」且「重取快照后 online + 游标 5」同时成立，
+        // 不采样时序碰运气（publishHook 在 update 内同步触发，发布过的瞬态必被记录）。
         let resynced = await waitUntil {
             let state = await facade.currentState()
-            return state.connection == .online && state.eventCursor == .init(5)
+            return state.connection == .online
+                && state.eventCursor == .init(5)
+                && recorder.contains { $0.connection == .resyncing }
         }
-        XCTAssertTrue(resynced, "断档后必须重取快照并把游标复位到 5")
-        XCTAssertTrue(recorder.contains { $0.connection == .resyncing }, "必须发布过 resyncing 瞬态")
+        XCTAssertTrue(resynced, "断档后必须发布过 resyncing 瞬态，重取快照并把游标复位到 5")
         // 首屏 snapshot + 断档重取 snapshot ≥ 2 次。
         let snapshotCount = transport.requestLog.filter { $0 == "snapshot" }.count
         XCTAssertGreaterThanOrEqual(snapshotCount, 2)
         await facade.stop()
-        recorder.stop()
     }
 
     func testTransportErrorGoesOfflineThenReconnects() async {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         transport.nextError = AhaKeyRuntimeXPCTransportError.requestTimedOut
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
         let recorder = StateRecorder()
-        recorder.start(facade)
+        await facade.setPublishHookForTesting { state in recorder.record(state) }
         await facade.start()
         let recovered = await waitUntil {
             await facade.currentState().connection == .online
@@ -209,13 +250,12 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertTrue(recovered, "必须经历 offline(带错误) 后重连恢复 online")
         XCTAssertEqual(transport.requestLog.first, "error")
         await facade.stop()
-        recorder.stop()
     }
 
     func testStopPublishesOfflineAndIsIdempotent() async {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
         await facade.start()
         _ = await waitUntil { await facade.currentState().connection == .online }
@@ -238,18 +278,23 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
     func testViewStateStreamYieldsCurrentThenUpdates() async {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
-        let recorder = StateRecorder()
-        recorder.start(facade)
+        // 确定性：先 await viewStates()（actor 方法返回时 continuation 已注册并 yield 当前值），
+        // 再 start——首元素必为订阅时刻的 offline，不受消费任务调度时序影响。
+        let stream = await facade.viewStates()
         await facade.start()
-        let online = await waitUntil { await facade.currentState().connection == .online }
-        XCTAssertTrue(online)
-        // 首条是订阅时的当前值（offline），随后出现 online。
-        XCTAssertTrue(recorder.contains { $0.connection == .offline })
-        XCTAssertTrue(recorder.contains { $0.connection == .online })
+        var iterator = stream.makeAsyncIterator()
+        let first = await iterator.next()
+        XCTAssertEqual(first?.connection, .offline, "订阅即收到当前值（offline）")
+        // 随后必出现 online 更新。
+        var sawOnline = false
+        let deadline = Date().addingTimeInterval(5)
+        while !sawOnline, Date() < deadline, let state = await iterator.next() {
+            if state.connection == .online { sawOnline = true }
+        }
+        XCTAssertTrue(sawOnline, "启动后必须发布 online")
         await facade.stop()
-        recorder.stop()
     }
 
     // MARK: - 切片 2：apply / ingest / 取消
@@ -326,7 +371,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
         let operationID = try await facade.apply(
@@ -362,7 +407,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         transport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
         )
         do {
             _ = try await facade.apply(
@@ -383,7 +428,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         transport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
         )
         do {
             _ = try await facade.apply(
@@ -404,7 +449,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         loader.error = Boom()
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
         )
         do {
             _ = try await facade.apply(
@@ -428,7 +473,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let loader = FakeResourceLoader(data: Data([1]), frameCount: 3, pixelWidth: 160, pixelHeight: 80)
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
         )
         do {
             _ = try await facade.apply(
@@ -447,7 +492,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         transport.cancellationDisposition = .requested
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
         let target = AhaKeyRuntimeOperationID()
         let disposition = try await facade.requestCancellation(target)
@@ -460,7 +505,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         // 无资源引用的纯键位/灯条配置：直接 apply，不发 ingest。
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
         )
         let emptySet = AhaKeyStudioTaskSetInput(assets: [
             AhaKeyStudioTaskAssetInput(state: .idle, framesPerSecond: 12),
