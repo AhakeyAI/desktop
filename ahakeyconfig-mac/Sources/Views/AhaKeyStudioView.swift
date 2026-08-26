@@ -6,7 +6,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct AhaKeyStudioView: View {
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    /// Studio 唯一设备事实源（WBS 5.7 切片 3：纯 Runtime 客户端，无 BLE/USB owner）。
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
     @StateObject private var voiceRelay = VoiceRelayService.shared
     @StateObject private var nativeSpeech = NativeSpeechTranscriptionService.shared
     @StateObject private var ahaType = AhaTypeTextOptimizer.shared
@@ -61,11 +62,11 @@ struct AhaKeyStudioView: View {
     @State private var writeResultAlertMessage = ""
     @State private var showsLanguageRestartAlert = false
 
-    init(bleManager: AhaKeyBLEManager) {
-        self.bleManager = bleManager
+    init(runtimeStore: AhaKeyStudioRuntimeClient) {
+        self.runtimeStore = runtimeStore
         let initialDraft = AhaKeyStudioStore.load() ?? .default
         let recentBaseline = AhaKeyStudioStore.loadMostRecentSyncBaseline(matching: initialDraft)
-        // 注意：不要在这里调用 VoiceRelayService.updateRoutes —— SwiftUI 会因 bleManager
+        // 注意：不要在这里调用 VoiceRelayService.updateRoutes —— SwiftUI 会因 runtimeStore
         // 的 @Published 属性（workMode/电量/连接状态等）频繁重建 view，init 会跟着多次执行。
         // 任何在 init 里调用 updateRoutes 都会重置 functionRelay 的 holdingRoute（按住状态），
         // 导致微信等"按住说话"过几秒就自动结束。正确入口在下面的 .onAppear。
@@ -74,7 +75,7 @@ struct AhaKeyStudioView: View {
             initialValue: recentBaseline?.draft ?? Self.unsyncedTaskPictureBaseline(from: initialDraft)
         )
         _syncBaselineDeviceKey = State(initialValue: recentBaseline?.deviceKey)
-        let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
+        let initialMode = AhaKeyModeSlot(rawValue: runtimeStore.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
         _lightBarPreview = State(initialValue: .preToolUse)
@@ -96,20 +97,18 @@ struct AhaKeyStudioView: View {
         .frame(minWidth: 1180, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
-            agentManager.applyStoredBluetoothPreferenceOnLaunch(bleManager: bleManager)
             voiceRelay.start()
             nativeSpeech.start()
-            bleManager.refreshBluetoothAuthorization()
             applyCursorRejectMacroSelfHealIfNeeded()
             voiceRelay.updateRoutes(from: studioDraft)
-            SwitchStateNotifier.shared.bind(to: bleManager)
-            loadSyncBaselineForConnectedDevice(mode: bleManager.protocolMode)
-            reconcileActiveTaskPictureSetsFromDevice(bleManager.activeTaskPictureSets)
+            SwitchStateNotifier.shared.bind(to: runtimeStore)
+            loadSyncBaselineForConnectedDevice(mode: runtimeStore.protocolMode)
+            reconcileActiveTaskPictureSetsFromDevice(runtimeStore.activeTaskPictureSets)
             refreshEditingTaskPictureSetFromDraft()
             NotificationCenter.default.post(
                 name: .ahaKeyKeyboardWorkModeChanged,
                 object: nil,
-                userInfo: ["workMode": bleManager.workMode]
+                userInfo: ["workMode": runtimeStore.workMode]
             )
             scheduleStartupPermissionOnboarding()
             // 进程检测与防休眠接线已移到 App 层（AppDelegate + ProcessDetector.shared），
@@ -132,41 +131,27 @@ struct AhaKeyStudioView: View {
             AhaKeyStudioStore.save(newValue)
             voiceRelay.updateRoutes(from: newValue)
         }
-        // 键盘物理档位变化（BLE 查询/通知上报）→ 自动切到对应 Mode 标签，
-        // 这样 LCD 预览、快捷键草稿、发出去的 updateState 三者一致。
-        .onChange(of: bleManager.workMode) { newValue in
+        // 键盘物理档位变化（Runtime 快照上报）→ 自动切到对应 Mode 标签，
+        // 这样 LCD 预览、快捷键草稿、下次 apply 三者一致。
+        .onChange(of: runtimeStore.workMode) { newValue in
             if let slot = AhaKeyModeSlot(rawValue: newValue), slot != selectedMode {
                 selectedMode = slot
             }
         }
-        .onChange(of: selectedMode) { newValue in
+        // Studio 不再直连设备：切换 Mode 标签只改本地编辑目标，不向键盘发模式切换命令。
+        .onChange(of: selectedMode) { _ in
             refreshEditingTaskPictureSetFromDraft()
-            guard bleManager.isConnected,
-                  bleManager.commandCharReady,
-                  bleManager.workMode != newValue.rawValue else { return }
-            bleManager.setWorkMode(UInt8(newValue.rawValue))
-            syncStatusMessage = String(format: NSLocalizedString("已通知键盘切换到 %@。", comment: ""), newValue.title)
         }
-        .onChange(of: bleManager.isConnected) { connected in
+        .onChange(of: runtimeStore.isConnected) { connected in
             if !connected {
                 oledAutoSyncDoneForConnection = false
             }
         }
-        .onChange(of: bleManager.firmwareCapabilities) { capabilities in
-            handleFactoryResourceChange(capabilities)
-            if capabilities?.supportsIdleTaskPicture != true, selectedOLEDTaskState == .idle {
-                selectedOLEDTaskState = .working
-            }
-            if (bleManager.taskPictureProtocolPlan?.setIndices.count ?? 1) < 2 {
-                selectedOLEDGIFSet = 0
-            }
-        }
-        .onChange(of: bleManager.protocolMode) { mode in
+        .onChange(of: runtimeStore.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
             if mode == .current {
-                handleFactoryResourceChange(bleManager.firmwareCapabilities)
-                // active-set 状态可能早于能力协商到达；baseline 就绪后主动补一次归并。
-                reconcileActiveTaskPictureSetsFromDevice(bleManager.activeTaskPictureSets)
+                // active-set 状态可能早于快照其余字段到达；baseline 就绪后主动补一次归并。
+                reconcileActiveTaskPictureSetsFromDevice(runtimeStore.activeTaskPictureSets)
                 refreshEditingTaskPictureSetFromDraft()
             }
             if mode != .current {
@@ -174,22 +159,9 @@ struct AhaKeyStudioView: View {
                 if selectedOLEDTaskState == .idle { selectedOLEDTaskState = .working }
             }
         }
-        .onChange(of: bleManager.activeTaskPictureSets) { activeSets in
+        .onChange(of: runtimeStore.activeTaskPictureSets) { activeSets in
             reconcileActiveTaskPictureSetsFromDevice(activeSets)
             refreshEditingTaskPictureSetFromDraft()
-        }
-        .onChange(of: bleManager.keyboardPictureStates) { _ in
-            guard !oledAutoSyncDoneForConnection else { return }
-            // 四个 mode 都查回来才动手
-            guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
-            oledAutoSyncDoneForConnection = true
-            Task { await autoSyncDefaultOLEDsIfNeeded() }
-        }
-        .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
-            refreshStartupPermissionOnboarding()
-        }
-        .onChange(of: bleManager.bluetoothPoweredOn) { _ in
-            refreshStartupPermissionOnboarding()
         }
         .onChange(of: voiceRelay.inputMonitoringGranted) { _ in
             refreshStartupPermissionOnboarding()
@@ -239,7 +211,7 @@ struct AhaKeyStudioView: View {
             )
         }
         .sheet(isPresented: $showsDeviceInfo) {
-            DeviceInfoSheetContainer(bleManager: bleManager)
+            DeviceInfoSheetContainer(runtimeStore: runtimeStore)
                 .frame(width: 720, height: 720)
         }
         .sheet(isPresented: $showsCloudAccount) {
@@ -265,14 +237,14 @@ struct AhaKeyStudioView: View {
 
             HStack(spacing: 8) {
                 infoPill(
-                    title: isEffectivelyConnected ? NSLocalizedString("已连接", comment: "") : (bleManager.isScanning ? NSLocalizedString("扫描中", comment: "") : NSLocalizedString("未连接", comment: "")),
-                    subtitle: bleManager.deviceName ?? NSLocalizedString("等待设备", comment: ""),
+                    title: isEffectivelyConnected ? NSLocalizedString("已连接", comment: "") : (runtimeStore.isOnline ? NSLocalizedString("未连接", comment: "") : NSLocalizedString("Runtime 离线", comment: "")),
+                    subtitle: runtimeStore.deviceName ?? NSLocalizedString("等待设备", comment: ""),
                     accent: isEffectivelyConnected ? .green : .orange,
                     width: 118
                 )
                 infoPill(
                     title: NSLocalizedString("电量", comment: ""),
-                    subtitle: isEffectivelyConnected ? "\(bleManager.batteryLevel)%" : "—",
+                    subtitle: isEffectivelyConnected ? "\(runtimeStore.batteryLevel)%" : "—",
                     accent: .blue
                 )
                 infoPill(
@@ -287,12 +259,13 @@ struct AhaKeyStudioView: View {
 
             Spacer(minLength: 0)
 
-            if !bleManager.isConnected, agentManager.bluetoothConnectionOwner == .ahaKeyStudio {
-                Button(bleManager.isScanning ? NSLocalizedString("扫描中…", comment: "") : NSLocalizedString("连接设备", comment: "")) {
-                    bleManager.userInitiatedConnect()
+            if !runtimeStore.isConnected {
+                Button(NSLocalizedString("连接设备…", comment: "")) {
+                    // Studio 不直接扫描/连接：键盘由 Agent（Runtime）持有，引导用户去设备信息管理。
+                    showsDeviceInfo = true
                 }
                 .buttonStyle(.bordered)
-                .disabled(bleManager.isScanning)
+                .help(NSLocalizedString("键盘连接由后台 Agent 管理。点此打开「设备信息 · Agent」查看连接状态或安装/启动 Agent。", comment: ""))
             }
 
             if shouldShowTopBarInstallStartButton {
@@ -311,10 +284,6 @@ struct AhaKeyStudioView: View {
             Menu {
                 Button(NSLocalizedString("恢复当前模式默认值", comment: "")) {
                     restoreCurrentModeDefaults()
-                }
-                Button(NSLocalizedString("重新连接设备", comment: "")) {
-                    bleManager.disconnect()
-                    bleManager.userInitiatedConnect()
                 }
                 Button(NSLocalizedString("清空剪贴板", comment: "")) {
                     NSPasteboard.general.clearContents()
@@ -489,7 +458,8 @@ struct AhaKeyStudioView: View {
                     liveLightMode: liveCanvasLightMode,
                     liveIDEStateValue: liveCanvasIDEStateValue,
                     switchState: liveCanvasSwitchState,
-                    keyboardPictureFrameCount: bleManager.keyboardPictureStates[selectedMode.rawValue]?.frameCount
+                    // 设备 flash 各 Mode 帧数是诊断遥测，不在 Runtime 快照内；画布角标不再显示实时帧数。
+                    keyboardPictureFrameCount: nil
                 )
                 .aspectRatio(109.0 / 54.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)
@@ -674,18 +644,6 @@ struct AhaKeyStudioView: View {
 
                     Spacer()
 
-                    if selectedPart == .lightBar {
-                        Button {
-                            previewLightEffect(for: lightBarPreview)
-                        } label: {
-                            Label(NSLocalizedString("预览到键盘", comment: ""), systemImage: "play.fill")
-                                .font(.callout.weight(.medium))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.regular)
-                        .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady)
-                    }
-
                     if isSyncing {
                         Button {
                             cancelCurrentDeviceWrite()
@@ -706,7 +664,7 @@ struct AhaKeyStudioView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
-                    .disabled(isSyncing || !bleManager.isConnected)
+                    .disabled(isSyncing || !runtimeStore.isConnected)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -819,7 +777,6 @@ struct AhaKeyStudioView: View {
                         HStack(spacing: 10) {
                             Button(NSLocalizedString("再次申请权限", comment: "")) {
                                 requestPermissionsThenOpenPrivacySettingsIfNeeded(
-                                    bleManager: bleManager,
                                     voiceRelay: voiceRelay,
                                     nativeSpeech: nativeSpeech
                                 )
@@ -1450,20 +1407,20 @@ struct AhaKeyStudioView: View {
 
             GroupBox(NSLocalizedString("任务状态动图", comment: "")) {
                 VStack(alignment: .leading, spacing: 14) {
-                    if !bleManager.allowsTaskPictureConfiguration {
+                    if !runtimeStore.allowsTaskPictureConfiguration {
                         Text(taskPictureUnavailableMessage)
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 8)
                     } else {
-                        Text(bleManager.protocolMode == .current
+                        Text(runtimeStore.protocolMode == .current
                              ? NSLocalizedString("状态资源：固件按 Hook 状态自动切换待机、工作中、等待授权、已完成。", comment: "")
                              : NSLocalizedString("状态资源：固件按 Hook 状态自动切换工作中、等待授权、已完成。", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        if bleManager.taskPictureProtocolPlan?.supportsActiveSet == true {
+                        if runtimeStore.taskPictureProtocolPlan?.supportsActiveSet == true {
                             Picker("", selection: selectedOLEDGIFSetBinding) {
                                 Text(NSLocalizedString("套图 A", comment: "")).tag(0)
                                 Text(NSLocalizedString("套图 B", comment: "")).tag(1)
@@ -1717,10 +1674,8 @@ struct AhaKeyStudioView: View {
         let url = URL(fileURLWithPath: path)
         let sourceFrames = OLEDFrameEncoder.frameCount(at: url)
         guard sourceFrames > 0 else { return nil }
-        let reportedCapacity = bleManager.keyboardPictureStates[selectedMode.rawValue]?.totalCapacity
-        let frameLimit = reportedCapacity.flatMap {
-            AhaKeyLegacyDefaultPictureLayout.make(modeIndex: selectedMode.rawValue, totalCapacity: $0)?.maxFrames
-        } ?? AhaKeyCommand.oledMaxFramesPerMode
+        // 设备 flash 容量属 Runtime/固件侧事实，不在 Studio 快照内；按协议固定上限估算。
+        let frameLimit = AhaKeyCommand.oledMaxFramesPerMode
         guard let plan = AhaKeyDefaultPictureEncodingPlan.make(
             sourceFrameCount: sourceFrames,
             deviceFrameLimit: frameLimit,
@@ -1763,7 +1718,7 @@ struct AhaKeyStudioView: View {
 
             switchEffectivenessBox
 
-            if bleManager.switchState == 0 {
+            if liveKeyboardSwitchState == 0 {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         Label(NSLocalizedString("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", comment: ""), systemImage: "exclamationmark.triangle.fill")
@@ -1822,18 +1777,12 @@ struct AhaKeyStudioView: View {
                             .controlSize(.small)
                         } else if !agentManager.isRunning {
                             // 与「设备信息 · Agent」相同：在 launchd 中 load + start 守护进程。
-                            // 若当前由本 App 占用蓝牙，此处也应引导先去设备信息把「蓝牙连接」切给 Agent，否则与主流程二选一相冲突（故与 DeviceInfo 同样禁用直接启动）。
                             Button(NSLocalizedString("启动 Agent", comment: "")) {
                                 agentManager.start()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .disabled(agentManager.bluetoothConnectionOwner == .ahaKeyStudio)
-                            .help(
-                                agentManager.bluetoothConnectionOwner == .ahaKeyStudio
-                                ? NSLocalizedString("当前由本 App 占用蓝牙。请打开下方「设备信息…」，在「蓝牙连接」里选「由 Agent 占用」后再启 Agent；与设备信息里「启动」按钮规则一致。", comment: "")
-                                : NSLocalizedString("与「设备信息 · Agent」中的启动相同，由 launchd 加载并执行 ahakeyconfig-agent。", comment: "")
-                            )
+                            .help(NSLocalizedString("与「设备信息 · Agent」中的启动相同，由 launchd 加载并执行 ahakeyconfig-agent。键盘连接始终由 Agent 持有。", comment: ""))
                         }
                         Button(NSLocalizedString("设备信息（蓝牙 / 启停 Agent）…", comment: "")) {
                             showsDeviceInfo = true
@@ -1904,7 +1853,7 @@ struct AhaKeyStudioView: View {
                 HelpCenterSheet(
                     studioDraft: studioDraft,
                     selectedMode: selectedMode,
-                    bleManager: bleManager
+                    runtimeStore: runtimeStore
                 )
             }
         }
@@ -1927,31 +1876,29 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentSwitchTitle: String {
-        // 用统一的 liveKeyboardSwitchState：主 App 自占 BLE 时是 bleManager.switchState，
-        // 否则取 agent 共享文件里的值（含用户拨杆覆盖）。否则点了画布拨杆，
-        // 因为 bleManager.switchState 一直是初始 0，画布会一直停留在「自动批准」。
+        // 统一的 liveKeyboardSwitchState：Runtime 快照拨杆优先，否则取 Agent 共享文件里的值（含用户拨杆覆盖）。
         liveKeyboardSwitchState == 0 ? NSLocalizedString("自动批准", comment: "") : NSLocalizedString("手动批准", comment: "")
     }
 
     /// 取键盘当前实时状态 (lightMode/switchState/workMode)：
-    /// - 主 App 已自连 BLE（编辑配置时）→ 用主 App 自己的 BLE 读数
-    /// - 主 App 未连，但 agent 仍占用 BLE 在写共享文件 → 读 agent 发布的缓存
+    /// - Runtime 快照里设备已连接 → 用 Runtime 事实（device.state）
+    /// - 快照未连接，但 Agent 仍在写共享文件 → 读 Agent 发布的缓存
     /// - 两者都没有 → nil（画布回落到模拟）
     private var liveKeyboardLightMode: Int? {
-        if bleManager.isConnected { return bleManager.lightMode }
-        return bleManager.agentLightMode
+        if runtimeStore.isConnected { return runtimeStore.lightMode }
+        return runtimeStore.agentLightMode
     }
     private var liveKeyboardSwitchState: Int {
         LiveKeyboardSwitchStateResolver.resolve(
-            optimisticOverride: bleManager.optimisticSwitchOverride,
-            appIsConnected: bleManager.isConnected,
-            appState: bleManager.currentConnectionSwitchState,
-            agentState: bleManager.agentSwitchState
+            optimisticOverride: runtimeStore.optimisticSwitchOverride,
+            appIsConnected: runtimeStore.isConnected,
+            appState: runtimeStore.currentConnectionSwitchState,
+            agentState: runtimeStore.agentSwitchState
         ) ?? 1
     }
     private var liveKeyboardWorkMode: Int? {
-        if bleManager.isConnected { return bleManager.workMode }
-        return bleManager.agentWorkMode
+        if runtimeStore.isConnected { return runtimeStore.workMode }
+        return runtimeStore.agentWorkMode
     }
     private var liveCanvasLightMode: Int? {
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
@@ -1959,7 +1906,7 @@ struct AhaKeyStudioView: View {
     }
     private var liveCanvasIDEStateValue: Int? {
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
-        return bleManager.liveIDEStateValue
+        return runtimeStore.liveIDEStateValue
     }
     private var liveCanvasSwitchState: Int { liveKeyboardSwitchState }
 
@@ -1970,24 +1917,20 @@ struct AhaKeyStudioView: View {
     }
 
     /// 用户点击虚拟拨杆：在当前 effective switchState 基础上 0↔1 翻转，
-    /// 只设置软件覆盖；最新固件中 0x91 是灯效预览，不再用于 sw_state。
+    /// 只设置软件覆盖（经 Agent socket）；Studio 不直接向键盘发命令。
     private func toggleVirtualSwitch() {
         let current = liveKeyboardSwitchState
         let next: UInt8 = current == 0 ? 1 : 0
         // 1) 立刻设乐观值 → 画布按钮即时翻转
-        bleManager.applyOptimisticSwitchOverride(next)
-        // 2) 保留调用入口，但 BLEManager 不会再发送旧 0x91，只写诊断日志
-        if bleManager.isConnected {
-            bleManager.setSwitchStateViaBLE(next)
-        }
-        // 3) 让 agent 设置软覆盖
+        runtimeStore.applyOptimisticSwitchOverride(next)
+        // 2) 让 Agent 设置软覆盖
         AgentManager.shared.sendSwitchOverride(next)
-        // 4) 短延迟后强制重读共享文件，确认真实值已对齐（agent 写文件通常 < 100ms）
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak bleManager] in
-            bleManager?.refreshAgentStateFromFileNow()
+        // 3) 短延迟后强制重读共享文件，确认真实值已对齐（agent 写文件通常 < 100ms）
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak runtimeStore] in
+            runtimeStore?.refreshAgentStateFromFileNow()
         }
         syncStatusMessage = next == 0
-            ? NSLocalizedString("虚拟拨杆 → 自动批准（hook 自动放行；灯效若不变需先刷支持 0x91 的固件）", comment: "")
+            ? NSLocalizedString("虚拟拨杆 → 自动批准（hook 自动放行）", comment: "")
             : NSLocalizedString("虚拟拨杆 → 手动批准（hook 交回终端确认）", comment: "")
     }
 
@@ -2010,12 +1953,13 @@ struct AhaKeyStudioView: View {
     }
 
     private var isEditingConfiguration: Bool {
-        agentManager.bluetoothConnectionOwner == .ahaKeyStudio
+        // Runtime 架构下 Studio 不再接管蓝牙：编辑态 = Runtime 在线且设备协议就绪。
+        runtimeStore.isConfigurationReady
     }
 
-    // AhaKeyStudio 直连、Agent 已连上键盘、或正在交还蓝牙的过渡期，任一满足即视为设备已连接。
+    // Runtime 快照里设备已连接即视为已连接（BLE/USB 均由 Runtime/Agent 持有）。
     private var isEffectivelyConnected: Bool {
-        bleManager.isConnected || agentManager.isAgentBLEConnected || isTransitioningToKeyboardControl
+        runtimeStore.isConnected || isTransitioningToKeyboardControl
     }
 
     private var shouldShowTopBarInstallStartButton: Bool {
@@ -2024,30 +1968,16 @@ struct AhaKeyStudioView: View {
 
     private var configurationModeDetail: String {
         if isEditingConfiguration {
-            if bleManager.isConnected {
-                return NSLocalizedString("AhaKey Studio 正在配置键盘", comment: "")
-            }
-            return bleManager.isScanning ? NSLocalizedString("AhaKey Studio 正在连接键盘", comment: "") : NSLocalizedString("AhaKey Studio 等待连接键盘", comment: "")
+            return NSLocalizedString("配置可经 Runtime 写入键盘", comment: "")
         }
-        // 蓝牙交给 Agent：若顶栏仍显示「安装启动」，说明 Hook/Agent 未齐备，勿与左侧「已连接」拼成「已可控制」。
-        if !isEditingConfiguration && shouldShowTopBarInstallStartButton && isEffectivelyConnected {
-            if agentManager.isRunning && agentManager.isAgentBLEConnected {
-                return NSLocalizedString("Agent 正在控制键盘", comment: "")
-            }
-            return NSLocalizedString("安装启动后才能控制键盘", comment: "")
+        if runtimeStore.isConnected {
+            return NSLocalizedString("键盘已连接；协议识别中或仅支持只读", comment: "")
         }
-        // 蓝牙交给 Agent 时：与左侧 infoPill「已连接」口径一致（isEffectivelyConnected），避免出现「已连接」+「等待键盘」的互斥文案。
-        if isEffectivelyConnected {
-            if agentManager.isRunning && agentManager.isAgentBLEConnected {
-                return NSLocalizedString("Agent 正在控制键盘", comment: "")
-            }
-            if agentManager.isRunning {
-                return NSLocalizedString("键盘已连接；正在同步 Agent 连接状态", comment: "")
-            }
-            return NSLocalizedString("键盘已连接", comment: "")
+        if runtimeStore.isOnline {
+            return NSLocalizedString("Runtime 在线，等待键盘连接", comment: "")
         }
         if agentManager.isRunning {
-            return NSLocalizedString("Agent 运行中，等待键盘连接", comment: "")
+            return NSLocalizedString("Agent 运行中，正在建立 Runtime 连接", comment: "")
         }
         if agentManager.isInstalled {
             return NSLocalizedString("Agent 已安装，正在准备控制", comment: "")
@@ -2153,7 +2083,7 @@ struct AhaKeyStudioView: View {
             set: { newValue in
                 let desiredSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
                     editingSet: newValue,
-                    supportedSetIndices: bleManager.taskPictureProtocolPlan?.setIndices ?? [0]
+                    supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? [0]
                 )
                 selectedOLEDGIFSet = desiredSet
                 updateCurrentMode { $0.oled.activeGIFSet = desiredSet }
@@ -2164,22 +2094,22 @@ struct AhaKeyStudioView: View {
     private func refreshEditingTaskPictureSetFromDraft() {
         selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
             editingSet: currentModeDraft.oled.activeGIFSet,
-            supportedSetIndices: bleManager.taskPictureProtocolPlan?.setIndices ?? [0]
+            supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? [0]
         )
     }
 
     private var visibleTaskDisplayStates: [AhaKeyTaskDisplayState] {
-        bleManager.protocolMode == .current
-            ? (bleManager.supportedTaskDisplayStates.isEmpty ? AhaKeyTaskDisplayState.allCases : bleManager.supportedTaskDisplayStates)
+        runtimeStore.protocolMode == .current
+            ? (runtimeStore.supportedTaskDisplayStates.isEmpty ? AhaKeyTaskDisplayState.allCases : runtimeStore.supportedTaskDisplayStates)
             : AhaKeyTaskDisplayState.legacyStates
     }
 
     private var oledInspectorSections: AhaKeyOLEDInspectorSections {
-        AhaKeyOLEDInspectorSections.make(mode: bleManager.protocolMode)
+        AhaKeyOLEDInspectorSections.make(mode: runtimeStore.protocolMode)
     }
 
     private var taskPictureUnavailableMessage: String {
-        switch bleManager.protocolMode {
+        switch runtimeStore.protocolMode {
         case .negotiating:
             return NSLocalizedString("连接并识别固件后可编辑任务状态图。", comment: "")
         case .legacyBaseOnly:
@@ -2413,18 +2343,7 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    private func handleConfigurationModeButton() {
-        if isEditingConfiguration {
-            finishEditingConfiguration()
-        } else {
-            enterEditingConfiguration()
-        }
-    }
-
     private func installStartAgentFromTopBar() {
-        if agentManager.bluetoothConnectionOwner != .agentDaemon {
-            agentManager.setBluetoothConnectionOwner(.agentDaemon, bleManager: bleManager)
-        }
         if !agentManager.isInstalled || !agentManager.hooksInstalled {
             agentManager.install()
         } else {
@@ -2432,10 +2351,10 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    /// Runtime 架构下「进入编辑」不再伴随蓝牙接管：草稿改动保存在本地，写入经 Runtime apply。
     private func enterEditingConfiguration() {
         isTransitioningToKeyboardControl = false
-        agentManager.setBluetoothConnectionOwner(.ahaKeyStudio, bleManager: bleManager)
-        syncStatusMessage = NSLocalizedString("已进入编辑配置，AhaKey Studio 将临时接管蓝牙。", comment: "")
+        syncStatusMessage = NSLocalizedString("已进入编辑：改动先保存在本地，点「写入键盘」经 Runtime 同步。", comment: "")
     }
 
     private func finishEditingConfiguration() {
@@ -2444,12 +2363,10 @@ struct AhaKeyStudioView: View {
             return
         }
 
-        if bleManager.isConnected && bleManager.commandCharReady {
-            syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
+        if runtimeStore.isConnected {
+            performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: true, showResultAlert: false)
         } else {
-            syncStatusMessage = NSLocalizedString("设备连接中，连接成功后将自动同步并返回控制模式…", comment: "")
-            bleManager.userInitiatedConnect()
-            waitForConnectionThenSync()
+            syncStatusMessage = NSLocalizedString("Runtime 尚未识别到已连接的键盘；请在「设备信息 · Agent」确认 Agent 已连接后重试。", comment: "")
         }
     }
 
@@ -2465,61 +2382,19 @@ struct AhaKeyStudioView: View {
         returnToKeyboardControl()
     }
 
-    // 轮询等待 BLE 连接且命令通道就绪（最多 10 秒），连接后自动同步并返回键盘控制。
-    private func waitForConnectionThenSync() {
-        Task { @MainActor in
-            for _ in 0..<20 {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                if bleManager.isConnected && bleManager.commandCharReady {
-                    syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
-                    return
-                }
-            }
-            syncStatusMessage = NSLocalizedString("连接超时，本次未写入键盘；已释放蓝牙给 Agent，可再次进入编辑后重试保存。", comment: "")
-            returnToKeyboardControl()
-        }
-    }
-
+    /// 键盘连接始终由 Agent（Runtime）持有；这里只收尾本地编辑态文案。
     private func returnToKeyboardControl() {
-        isTransitioningToKeyboardControl = true
-        agentManager.setBluetoothConnectionOwner(.agentDaemon, bleManager: bleManager)
-        syncStatusMessage = NSLocalizedString("正在恢复键盘控制，Agent 正在连接键盘…", comment: "")
-        monitorAgentReconnect()
+        isTransitioningToKeyboardControl = false
+        syncStatusMessage = NSLocalizedString("键盘控制由 Agent 持续持有。", comment: "")
     }
 
-    // 返回键盘控制后每 2s 轮询一次 Agent BLE 状态（等待异步 socket 查询完成后再读值），
-    // 最多等待 20s；超时后尝试重启 Agent。过渡期结束时清除 isTransitioningToKeyboardControl。
-    private func monitorAgentReconnect() {
-        Task { @MainActor in
-            for i in 0..<10 {
-                // 第一次等短些，让 Agent 有时间启动
-                let waitMs: UInt64 = i == 0 ? 1_500_000_000 : 2_000_000_000
-                try? await Task.sleep(nanoseconds: waitMs)
-                agentManager.refresh()
-                // 等待 refresh() 内部的异步 socket 查询写回主线程（最多 2.5s timeout）
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                if agentManager.isAgentBLEConnected {
-                    syncStatusMessage = NSLocalizedString("已返回键盘控制，Agent 将接管蓝牙。", comment: "")
-                    isTransitioningToKeyboardControl = false
-                    return
-                }
-                // 约 10s 后 Agent 仍未连上，尝试重启
-                if i == 2, !agentManager.isAgentBLEConnected {
-                    agentManager.start()
-                }
-            }
-            syncStatusMessage = NSLocalizedString("已返回键盘控制，Agent 将接管蓝牙。", comment: "")
-            isTransitioningToKeyboardControl = false
-        }
-    }
-
-    private func syncAllModesToDevice(returnToKeyboardControlWhenDone: Bool = false) {
-        performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: returnToKeyboardControlWhenDone, showResultAlert: false)
-    }
-
+    /// 保存路径（WBS 5.7 切片 3）：draft → facade.apply（ingestResources → apply），
+    /// 进度由 Runtime snapshot.operations 驱动；取消走 requestCancellation。
     private func performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: Bool, showResultAlert: Bool) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            let message = showResultAlert ? NSLocalizedString("设备未连接，请先连接键盘后重试。", comment: "") : NSLocalizedString("设备未连接或命令通道未就绪，当前只保存本地草稿。", comment: "")
+        guard runtimeStore.isOnline, runtimeStore.isConnected else {
+            let message = showResultAlert
+                ? NSLocalizedString("设备未连接：请确认 Agent 已运行并连接键盘后重试。", comment: "")
+                : NSLocalizedString("Runtime 离线或设备未连接，当前只保存本地草稿。", comment: "")
             syncStatusMessage = message
             if showResultAlert {
                 writeResultAlertMessage = message
@@ -2534,82 +2409,68 @@ struct AhaKeyStudioView: View {
         completedTaskResourceCount = 0
         lastDefaultPictureUploadFailures = []
         lastTaskUploadFailures = []
-        syncStatusMessage = NSLocalizedString("正在准备写入设备…", comment: "")
+        syncStatusMessage = NSLocalizedString("正在提交配置到 Runtime…", comment: "")
         let returnAgent = returnToKeyboardControlWhenDone
-        let taskPicturesWereEligible = bleManager.allowsTaskPictureConfiguration
-        let defaultPicturesWereEligible = oledInspectorSections.showsDefaultPictureEditor
 
         deviceWriteTask?.cancel()
         deviceWriteTask = Task { @MainActor in
             defer { self.deviceWriteTask = nil }
             do {
-                var uploadedOLEDCount = 0
-                var updatedDefaultPictureCount = 0
-                if defaultPicturesWereEligible {
-                    updatedDefaultPictureCount = try await uploadChangedDefaultOLEDsToDevice()
-                    uploadedOLEDCount += updatedDefaultPictureCount
-                }
-                if taskPicturesWereEligible {
-                    uploadedOLEDCount += try await uploadChangedOLEDsToDevice()
-                } else {
-                    lastTaskUploadFailures = []
-                    bleManager.appendCommLogLine("当前固件不支持任务图写入，已跳过该可选功能；继续写入键位与灯效。")
-                }
-                var commands = commandsForModes(AhaKeyModeSlot.allCases)
-                commands.append((data: AhaKeyCommand.saveConfig(), label: NSLocalizedString("保存全部配置到设备", comment: "")))
-
-                let total = commands.count
-                if uploadedOLEDCount > 0 {
-                    self.syncStatusMessage = String(format: NSLocalizedString("已上传 %d 个 LCD 动图，正在写入灯效与键位配置（约 %d 条）…", comment: ""), uploadedOLEDCount, total)
-                } else {
-                    self.syncStatusMessage = String(format: NSLocalizedString("正在写入灯效与键位配置（约 %d 条）…", comment: ""), total)
-                }
-                self.bleManager.writeCommandsSequentially(commands) {
-                    Task { @MainActor in
-                        // 队列与 50ms 间隔已保证顺序；略等再交还蓝牙，避免固件尚未处理完最后帧。
-                        try? await Task.sleep(nanoseconds: UInt64(250) * 1_000_000)
-                        let failures = self.lastDefaultPictureUploadFailures + self.lastTaskUploadFailures
-                        if failures.isEmpty, taskPicturesWereEligible {
-                            self.lastSyncedDraft = self.studioDraft
-                            self.saveCurrentDeviceSyncBaseline()
-                        } else if !taskPicturesWereEligible {
-                            self.mergeBasicConfigurationIntoSyncBaseline(
-                                includeDefaultPictures: defaultPicturesWereEligible
-                                    && self.lastDefaultPictureUploadFailures.isEmpty
-                            )
-                        }
-                        // 部分失败时只把成功上传的槽位写入 baseline，下次写入只重试失败的图。
+                let operationID = try await self.runtimeStore.applyDraft(self.studioDraft)
+                self.runtimeStore.appendCommLogLine("配置包已提交 Runtime，operation=\(operationID.rawValue.uuidString)")
+                // 进度跟随 Runtime 快照中的 operation 摘要，直到终态。
+                while !Task.isCancelled {
+                    guard let operation = self.runtimeStore.lastApplyOperation,
+                          operation.id == operationID else {
+                        try await Task.sleep(nanoseconds: 300_000_000)
+                        continue
+                    }
+                    if operation.totalSteps > 0 {
+                        self.syncStatusMessage = String(
+                            format: NSLocalizedString("Runtime 正在写入设备（%u/%u）…", comment: ""),
+                            operation.completedSteps, operation.totalSteps
+                        )
+                    }
+                    switch operation.state {
+                    case .completed:
+                        self.lastSyncedDraft = self.studioDraft
+                        self.saveCurrentDeviceSyncBaseline()
                         self.lastSyncDate = Date()
                         self.isSyncing = false
                         self.isCancellingDeviceWrite = false
-                        if !failures.isEmpty {
-                            let list = failures.joined(separator: NSLocalizedString("、", comment: ""))
-                            self.syncStatusMessage = String(format: NSLocalizedString("键位与灯效已保存；有 %d 张图片未更新：%@。其余配置不受影响，可再次点击写入仅重试这些图片。", comment: ""), failures.count, list)
-                            if showResultAlert {
-                                self.writeResultAlertMessage = String(format: NSLocalizedString("部分完成：键位与灯效已写入，但有 %d 张图片未更新（%@）。其余配置不受影响，可再次点击写入仅重试这些图片。", comment: ""), failures.count, list)
-                                self.showsWriteResultAlert = true
-                            }
-                        } else if !taskPicturesWereEligible {
-                            let message = AhaKeyDeviceWriteResultMessage.taskPicturesUnsupported(
-                                defaultPictureUpdated: updatedDefaultPictureCount > 0
-                            )
-                            self.syncStatusMessage = message
-                            if showResultAlert {
-                                self.writeResultAlertMessage = message
-                                self.showsWriteResultAlert = true
-                            }
-                        } else if failures.isEmpty {
-                            self.syncStatusMessage = NSLocalizedString("已全部写入设备并保存。", comment: "")
-                            if showResultAlert {
-                                self.writeResultAlertMessage = NSLocalizedString("配置已成功写入键盘。", comment: "")
-                                self.showsWriteResultAlert = true
-                            }
+                        self.syncStatusMessage = NSLocalizedString("已全部写入设备并保存。", comment: "")
+                        if showResultAlert {
+                            self.writeResultAlertMessage = NSLocalizedString("配置已成功写入键盘。", comment: "")
+                            self.showsWriteResultAlert = true
                         }
-                        if returnAgent {
-                            self.returnToKeyboardControl()
+                        if returnAgent { self.returnToKeyboardControl() }
+                        return
+                    case .resumablePartial, .failedWithPartialCommit:
+                        self.isSyncing = false
+                        self.isCancellingDeviceWrite = false
+                        let code = operation.messageCode?.rawValue ?? "—"
+                        let message = String(format: NSLocalizedString("部分完成：Runtime 报告部分步骤未写入（%@）。可再次点击写入重试。", comment: ""), code)
+                        self.syncStatusMessage = message
+                        if showResultAlert {
+                            self.writeResultAlertMessage = message
+                            self.showsWriteResultAlert = true
                         }
+                        if returnAgent { self.returnToKeyboardControl() }
+                        return
+                    case .failedWithoutWrites:
+                        throw AhaKeyStudioViewWriteError.operationFailed(code: operation.messageCode?.rawValue ?? "—")
+                    case .accepted, .running, .paused, .cancellationRequested:
+                        try await Task.sleep(nanoseconds: 300_000_000)
                     }
                 }
+                // Task 被取消（用户点了取消写入）
+                self.isSyncing = false
+                self.isCancellingDeviceWrite = false
+                self.syncStatusMessage = NSLocalizedString("已请求取消本次写入；设备侧已完成的部分会保留。", comment: "")
+            } catch is CancellationError {
+                self.isSyncing = false
+                self.isCancellingDeviceWrite = false
+                self.syncStatusMessage = NSLocalizedString("已请求取消本次写入；设备侧已完成的部分会保留。", comment: "")
             } catch {
                 let message = String(format: NSLocalizedString("写入键盘失败：%@", comment: ""), error.localizedDescription)
                 self.isSyncing = false
@@ -2626,367 +2487,31 @@ struct AhaKeyStudioView: View {
     private func cancelCurrentDeviceWrite() {
         guard isSyncing, !isCancellingDeviceWrite else { return }
         isCancellingDeviceWrite = true
-        syncStatusMessage = NSLocalizedString("正在停止当前图片写入；已完成的图片会保留…", comment: "")
-        bleManager.cancelOLEDUpload()
-        deviceWriteTask?.cancel()
-    }
-
-    /// 不带任务 GIF 的 1.x 固件仍支持每个 Mode 的普通默认图片（0x80 数据 + 0x82 绑定）。
-    private func uploadChangedDefaultOLEDsToDevice() async throws -> Int {
-        guard bleManager.protocolMode == .legacyBaseOnly else { return 0 }
-        var uploadCount = 0
-        lastDefaultPictureUploadFailures = []
-
-        for mode in AhaKeyModeSlot.allCases {
+        syncStatusMessage = NSLocalizedString("正在请求 Runtime 取消本次写入…", comment: "")
+        Task { @MainActor in
             do {
-                let draft = studioDraft.draft(for: mode).oled
-                let baseline = lastSyncedDraft.draft(for: mode).oled
-                let deviceState = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
-                guard let layout = AhaKeyLegacyDefaultPictureLayout.make(
-                    modeIndex: mode.rawValue,
-                    totalCapacity: deviceState.allModeMaxPic,
-                    reservedSlots: AhaKeyCommand.oledFactoryReservedSlots,
-                    modeCount: AhaKeyCommand.oledModeCount
-                ) else {
-                    throw OLEDUploadError.invalidPictureStatePayload
-                }
-                let changed = draft.localAssetPath != baseline.localAssetPath
-                    || draft.framesPerSecond != baseline.framesPerSecond
-                let decision = AhaKeyDefaultPictureSyncDecision.decide(
-                    hasLocalAsset: draft.localAssetPath != nil,
-                    assetChanged: changed,
-                    deviceStartIndex: deviceState.startIndex,
-                    expectedStartIndex: layout.startIndex,
-                    deviceFrameCount: deviceState.picLength
-                )
-                if decision == .skip { continue }
-                if decision == .clear {
-                    try await bleManager.bindDefaultPicture(
-                        mode: UInt8(mode.rawValue), startIndex: 0, frameCount: 0, timeDelayMs: 0
-                    )
-                    markDefaultPictureSynced(mode: mode)
-                    uploadCount += 1
-                    continue
-                }
-                guard let assetPath = draft.localAssetPath else { continue }
-
-                let assetURL = URL(fileURLWithPath: assetPath)
-                try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-                let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL, maxFrames: layout.maxFrames)
-                let startIndex = UInt16(layout.startIndex)
-                syncStatusMessage = String(
-                    format: NSLocalizedString("正在上传 %@ 的默认图片…", comment: ""), mode.title
-                )
-                try await bleManager.uploadOLEDFrames(
-                    frames,
-                    fps: draft.framesPerSecond,
-                    mode: UInt8(mode.rawValue),
-                    startIndex: startIndex
-                )
-                let expectedInterval = max(1, 1000 / max(1, draft.framesPerSecond))
-                let readback = try await bleManager.readPictureState(mode: UInt8(mode.rawValue))
-                guard AhaKeyDefaultPictureWriteVerification.matches(
-                    expectedStartIndex: Int(startIndex),
-                    expectedFrameCount: frames.count,
-                    expectedFrameIntervalMs: expectedInterval,
-                    deviceStartIndex: readback.startIndex,
-                    deviceFrameCount: readback.picLength,
-                    deviceFrameIntervalMs: readback.frameInterval
-                ) else {
-                    throw OLEDUploadError.defaultPictureMetadataMismatch
-                }
-                updateMode(mode) { modeDraft in
-                    modeDraft.oled.statusLine = String(
-                        format: NSLocalizedString("默认图片已写入设备（%d 帧）。", comment: ""), frames.count
-                    )
-                }
-                markDefaultPictureSynced(mode: mode)
-                uploadCount += 1
-            } catch OLEDUploadError.cancelled {
-                throw OLEDUploadError.cancelled
-            } catch OLEDUploadError.connectionLost {
-                throw OLEDUploadError.connectionLost
-            } catch is CancellationError {
-                throw OLEDUploadError.cancelled
+                _ = try await runtimeStore.cancelLastApply()
             } catch {
-                let label = String(format: NSLocalizedString("%@ · 默认图片", comment: ""), mode.title)
-                lastDefaultPictureUploadFailures.append("\(label)：\(error.localizedDescription)")
-                bleManager.appendCommLogLine("「\(label)」未更新，继续写入键位与灯效：\(error.localizedDescription)", isError: true)
-                continue
+                runtimeStore.appendCommLogLine("取消请求失败：\(error.localizedDescription)", isError: true)
             }
+            deviceWriteTask?.cancel()
         }
-        return uploadCount
-    }
-
-    private func markDefaultPictureSynced(mode: AhaKeyModeSlot) {
-        var baseline = lastSyncedDraft
-        var baselineMode = baseline.draft(for: mode)
-        baselineMode.oled.localAssetPath = studioDraft.draft(for: mode).oled.localAssetPath
-        baselineMode.oled.framesPerSecond = studioDraft.draft(for: mode).oled.framesPerSecond
-        baselineMode.oled.statusLine = studioDraft.draft(for: mode).oled.statusLine
-        baseline.updateMode(baselineMode)
-        lastSyncedDraft = baseline
-        saveCurrentDeviceSyncBaseline()
     }
 
     private func oledIsDirty(current: AhaKeyOLEDDraft, baseline: AhaKeyOLEDDraft) -> Bool {
         let defaultPictureChanged = current.localAssetPath != baseline.localAssetPath
             || current.framesPerSecond != baseline.framesPerSecond
         return AhaKeyOLEDDirtyPolicy.isDirty(
-            mode: bleManager.protocolMode,
+            mode: runtimeStore.protocolMode,
             baselineNamespace: syncBaselineDeviceKey,
             defaultPictureChanged: defaultPictureChanged,
             completeOLEDChanged: current != baseline
         )
     }
 
-    private func uploadChangedOLEDsToDevice() async throws -> Int {
-        guard let protocolPlan = bleManager.taskPictureProtocolPlan else {
-            throw OLEDUploadError.unsupportedFirmwareProtocol
-        }
-        var uploadCount = 0
-        lastTaskUploadFailures = []
-        var deviceStates: [AhaKeyTaskPictureState]
-        do {
-            deviceStates = try await bleManager.readAllTaskPictureStates()
-        } catch {
-            // 新烧录的设备可能能响应 0x94 但没有缓存元数据；元数据只用于保留旧范围，不能阻塞首次写入。
-            deviceStates = []
-            bleManager.appendCommLogLine("AI OLED 槽位读取不可用，按首次写入重新分配：\(error.localizedDescription)", isError: true)
-        }
-        var defaultPictureStates: [AhaKeyPictureState] = []
-        for mode in AhaKeyModeSlot.allCases {
-            do {
-                defaultPictureStates.append(try await bleManager.readPictureState(mode: UInt8(mode.rawValue)))
-            } catch {
-                // 旧版固件可能没有可解析的 0x83 响应；资源上传本身无需此可选校验。
-                bleManager.appendCommLogLine("默认动画槽位读取不可用，跳过占用校验：\(error.localizedDescription)", isError: true)
-            }
-        }
-        let defaultOccupiedRegions = defaultPictureStates
-            .filter { $0.picLength > 0 }
-            .map { $0.startIndex ..< ($0.startIndex + $0.picLength) }
-        let overlappingSlots = bleManager.protocolMode == .current ? Set(deviceStates.compactMap { taskState -> KeyboardTaskPictureSlot? in
-            guard taskState.picLength > 0 else { return nil }
-            let taskRange = taskState.startIndex ..< (taskState.startIndex + taskState.picLength)
-            guard defaultOccupiedRegions.contains(where: {
-                taskRange.lowerBound < $0.upperBound && $0.lowerBound < taskRange.upperBound
-            }) else { return nil }
-            return KeyboardTaskPictureSlot(mode: taskState.mode, set: taskState.set, state: taskState.state)
-        }) : []
-        if !overlappingSlots.isEmpty {
-            bleManager.appendCommLogLine("检测到旧版任务 GIF 与普通动画槽位重叠；本次将迁移受影响资源。")
-        }
-        let maxFrames = bleManager.firmwareCapabilities?.userSlotLimit
-            ?? (AhaKeyCommand.oledFactoryReservedSlots + AhaKeyCommand.oledModeCount * AhaKeyCommand.oledMaxFramesPerMode)
-        let reclaimBase = bleManager.firmwareCapabilities?.reclaimSlotBase ?? Int.max
-        let reclaimLimit = bleManager.firmwareCapabilities?.reclaimSlotLimit ?? Int.max
-
-        for mode in AhaKeyModeSlot.allCases {
-            let currentOLED = studioDraft.draft(for: mode).oled
-            let baselineOLED = lastSyncedDraft.draft(for: mode).oled
-            for set in protocolPlan.setIndices {
-                for state in bleManager.supportedTaskDisplayStates {
-                    let asset = currentOLED.taskAsset(set: set, state: state)
-                    let previous = baselineOLED.taskAsset(set: set, state: state)
-                    let target = KeyboardTaskPictureSlot(mode: mode.rawValue, set: set, state: state.rawValue)
-                    let deviceState = deviceStates.first { $0.mode == target.mode && $0.set == target.set && $0.state == target.state }
-                    let decision = AhaKeyTaskPictureSyncDecision.decide(
-                        hasLocalAsset: asset.localAssetPath != nil,
-                        assetChanged: asset != previous,
-                        deviceStartIndex: deviceState?.startIndex ?? 0,
-                        deviceFrameCount: deviceState?.picLength ?? 0,
-                        factorySlotBase: bleManager.firmwareCapabilities?.factorySlotBase,
-                        reclaimRange: reclaimBase < reclaimLimit ? reclaimBase ..< reclaimLimit : nil,
-                        overlapsDefaultPicture: overlappingSlots.contains(target),
-                        deviceSchemaVersion: asset.deviceSchemaVersion
-                    )
-                    switch decision {
-                    case .skip:
-                        if set == 0, state == .done {
-                            await repairDefaultPictureBindingIfNeeded(
-                                mode: mode,
-                                asset: asset,
-                                deviceDone: deviceState,
-                                deviceDefault: defaultPictureStates.first { $0.mode == mode.rawValue }
-                            )
-                        }
-                        continue
-                    case .markSynchronizedWithoutWrite:
-                        markTaskPictureSynced(mode: mode, set: set, state: state, asset: asset)
-                        continue
-                    case .clear, .upload:
-                        break
-                    }
-
-                    let reasons: [String]
-                    switch decision {
-                    case .clear:
-                        reasons = [NSLocalizedString("需清除", comment: "")]
-                    case .upload(let uploadReasons):
-                        reasons = uploadReasons.map { reason in
-                            switch reason {
-                            case .assetChanged: return NSLocalizedString("内容已改", comment: "")
-                            case .deviceSlotEmpty: return NSLocalizedString("设备该槽为空", comment: "")
-                            case .deviceUsesFactoryAsset: return NSLocalizedString("设备当前使用出厂图", comment: "")
-                            case .overlapsDefaultPicture: return NSLocalizedString("槽位与默认动画重叠迁移", comment: "")
-                            case .schemaMigration: return NSLocalizedString("旧版数据迁移(schema<3)", comment: "")
-                            }
-                        }
-                    case .skip, .markSynchronizedWithoutWrite:
-                        reasons = []
-                    }
-                    let setLabel = set == 0 ? "A" : "B"
-                    bleManager.appendCommLogLine("待写入 \(mode.title)·套图\(setLabel)·\(state.title)：\(reasons.joined(separator: "、"))", isError: false)
-
-                    syncStatusMessage = "正在处理第 \(completedTaskResourceCount + 1) 张：\(mode.title) · 套图 \(setLabel) · \(state.title)…"
-
-                    do {
-                    guard let assetPath = asset.localAssetPath else {
-                        try await bleManager.clearTaskPicture(mode: UInt8(mode.rawValue), set: UInt8(set), state: UInt8(state.rawValue))
-                        if let index = deviceStates.firstIndex(where: { $0.mode == target.mode && $0.set == target.set && $0.state == target.state }) {
-                            let old = deviceStates[index]
-                            deviceStates[index] = AhaKeyTaskPictureState(mode: old.mode, set: old.set, state: old.state, startIndex: 0, picLength: 0, frameInterval: 0, allModeMaxPic: old.allModeMaxPic, activeSet: old.activeSet)
-                        }
-                        try await bleManager.saveConfigAwaitingResponse()
-                        markTaskPictureSynced(mode: mode, set: set, state: state, asset: asset)
-                        completedTaskResourceCount += 1
-                        continue
-                    }
-
-                    let assetURL = URL(fileURLWithPath: assetPath)
-                    try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-                    let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL, maxFrames: AhaKeyCommand.taskOLEDMaxFrames)
-                    let occupied = (deviceStates.filter { !($0.mode == target.mode && $0.set == target.set && $0.state == target.state) && $0.picLength > 0 }
-                        .map { $0.startIndex ..< ($0.startIndex + $0.picLength) }
-                        + defaultOccupiedRegions)
-                    guard let start = AhaKeyPictureSlotAllocator.allocate(
-                        frameCount: frames.count,
-                        primaryRange: AhaKeyCommand.oledFactoryReservedSlots ..< maxFrames,
-                        reclaimRange: reclaimBase < reclaimLimit ? reclaimBase ..< reclaimLimit : nil,
-                        occupiedRanges: occupied
-                    ) else {
-                        let capacityLimit = reclaimBase < reclaimLimit ? max(maxFrames, reclaimLimit) : maxFrames
-                        throw OLEDUploadError.noAvailablePictureSlot(needed: frames.count, max: capacityLimit)
-                    }
-
-                    try await bleManager.uploadTaskOLEDFrames(frames, fps: asset.framesPerSecond, mode: UInt8(mode.rawValue), set: UInt8(set), state: UInt8(state.rawValue), startIndex: UInt16(start))
-                    let updated = AhaKeyTaskPictureState(mode: mode.rawValue, set: set, state: state.rawValue, startIndex: start, picLength: frames.count, frameInterval: max(1, 1000 / asset.framesPerSecond), allModeMaxPic: maxFrames, activeSet: bleManager.activeTaskPictureSets[mode.rawValue] ?? 0)
-                    if let index = deviceStates.firstIndex(where: { $0.mode == target.mode && $0.set == target.set && $0.state == target.state }) { deviceStates[index] = updated }
-                    else { deviceStates.append(updated) }
-                    try await bleManager.saveConfigAwaitingResponse()
-                    markTaskPictureSynced(mode: mode, set: set, state: state, asset: asset)
-                    completedTaskResourceCount += 1
-                    uploadCount += 1
-                    if set == 0, state == .done {
-                        await repairDefaultPictureBindingIfNeeded(
-                            mode: mode,
-                            asset: asset,
-                            deviceDone: updated,
-                            deviceDefault: defaultPictureStates.first { $0.mode == mode.rawValue }
-                        )
-                    }
-                    } catch OLEDUploadError.cancelled {
-                    throw OLEDUploadError.cancelled
-                } catch OLEDUploadError.connectionLost {
-                    throw OLEDUploadError.connectionLost
-                } catch is CancellationError {
-                    throw OLEDUploadError.cancelled
-                } catch {
-                    let label = "\(mode.title) · 套图 \(setLabel) · \(state.title)"
-                    lastTaskUploadFailures.append("\(label)：\(error.localizedDescription)")
-                    bleManager.appendCommLogLine("第 \(completedTaskResourceCount + 1) 张「\(label)」写入失败，跳过并继续：\(error.localizedDescription)", isError: true)
-                    completedTaskResourceCount += 1
-                    continue
-                    }
-                }
-            }
-            if protocolPlan.supportsActiveSet {
-                let desiredSet = min(1, max(0, currentOLED.activeGIFSet))
-                let deviceSet = bleManager.activeTaskPictureSets[mode.rawValue] ?? 0
-                if desiredSet != baselineOLED.activeGIFSet {
-                    do {
-                        if desiredSet != deviceSet {
-                            try await bleManager.setActiveTaskPictureSet(mode: UInt8(mode.rawValue), set: UInt8(desiredSet))
-                            try await bleManager.saveConfigAwaitingResponse()
-                        }
-                        markActiveTaskPictureSetSynced(mode: mode, set: desiredSet)
-                    } catch {
-                        let label = "\(mode.title) · 激活套图 \(desiredSet == 0 ? "A" : "B")"
-                        lastTaskUploadFailures.append("\(label)：\(error.localizedDescription)")
-                        bleManager.appendCommLogLine("写入「\(label)」失败：\(error.localizedDescription)", isError: true)
-                    }
-                }
-            }
-            updateMode(mode) { modeDraft in
-                modeDraft.oled.taskGIFSchemaVersion = 3
-                modeDraft.oled.statusLine = NSLocalizedString("任务状态动图已写入设备。", comment: "")
-            }
-        }
-
-        return uploadCount
-    }
-
-    /// legacy 固件没有 idle 任务槽，done 图需额外经 0x82 绑定成模式默认动画。
-    private func repairDefaultPictureBindingIfNeeded(
-        mode: AhaKeyModeSlot,
-        asset: AhaKeyTaskGIFAssetDraft,
-        deviceDone: AhaKeyTaskPictureState?,
-        deviceDefault: AhaKeyPictureState?
-    ) async {
-        let repair = AhaKeyOLEDSyncPlan.defaultBindingRepair(
-            protocolMode: bleManager.protocolMode,
-            doneAssetPath: asset.localAssetPath,
-            deviceDone: deviceDone.map {
-                AhaKeyOLEDSyncPlan.Binding(startIndex: $0.startIndex, frameCount: $0.picLength, frameIntervalMs: $0.frameInterval)
-            },
-            deviceDefault: deviceDefault.map {
-                AhaKeyOLEDSyncPlan.Binding(startIndex: $0.startIndex, frameCount: $0.picLength, frameIntervalMs: $0.frameInterval)
-            }
-        )
-        guard let repair else { return }
-        do {
-            try await bleManager.bindDefaultPicture(
-                mode: UInt8(mode.rawValue),
-                startIndex: UInt16(repair.startIndex),
-                frameCount: UInt16(repair.frameCount),
-                timeDelayMs: UInt16(repair.frameIntervalMs)
-            )
-            bleManager.appendCommLogLine("已将 \(mode.title) 的默认动画绑定到「已完成」任务图（start=\(repair.startIndex)，帧数=\(repair.frameCount)）。")
-        } catch {
-            bleManager.appendCommLogLine("绑定 \(mode.title) 默认动画失败：\(error.localizedDescription)", isError: true)
-        }
-    }
-
-    private func markTaskPictureSynced(mode: AhaKeyModeSlot, set: Int, state: AhaKeyTaskDisplayState, asset: AhaKeyTaskGIFAssetDraft) {
-        var syncedAsset = asset
-        syncedAsset.deviceSchemaVersion = 3
-        var baseline = lastSyncedDraft
-        var baselineMode = baseline.draft(for: mode)
-        baselineMode.oled.updateTaskAsset(set: set, asset: syncedAsset)
-        baseline.updateMode(baselineMode)
-        lastSyncedDraft = baseline
-        saveCurrentDeviceSyncBaseline()
-
-        var current = studioDraft
-        var currentMode = current.draft(for: mode)
-        currentMode.oled.updateTaskAsset(set: set, asset: syncedAsset)
-        current.updateMode(currentMode)
-        studioDraft = current
-    }
-
-    private func markActiveTaskPictureSetSynced(mode: AhaKeyModeSlot, set: Int) {
-        var baseline = lastSyncedDraft
-        var modeDraft = baseline.draft(for: mode)
-        modeDraft.oled.activeGIFSet = set
-        baseline.updateMode(modeDraft)
-        lastSyncedDraft = baseline
-        saveCurrentDeviceSyncBaseline()
-    }
-
     /// 物理双击切套后让 UI 跟随设备；若用户已在 UI 选择了另一套但尚未写入，则保留用户选择。
     private func reconcileActiveTaskPictureSetsFromDevice(_ activeSets: [Int: Int]) {
-        guard bleManager.protocolMode == .current, syncBaselineDeviceKey != nil else { return }
+        guard runtimeStore.protocolMode == .current, syncBaselineDeviceKey != nil else { return }
         var draft = studioDraft
         var baseline = lastSyncedDraft
         var changed = false
@@ -3012,56 +2537,6 @@ struct AhaKeyStudioView: View {
         saveCurrentDeviceSyncBaseline()
     }
 
-    /// 未识别协议只允许基础写入：键位/灯效进入同步基线，OLED 保持 dirty。
-    private func mergeBasicConfigurationIntoSyncBaseline(includeDefaultPictures: Bool = false) {
-        var merged = studioDraft
-        for mode in AhaKeyModeSlot.allCases {
-            var modeDraft = merged.draft(for: mode)
-            let currentOLED = modeDraft.oled
-            modeDraft.oled = lastSyncedDraft.draft(for: mode).oled
-            if includeDefaultPictures {
-                modeDraft.oled.localAssetPath = currentOLED.localAssetPath
-                modeDraft.oled.framesPerSecond = currentOLED.framesPerSecond
-                modeDraft.oled.statusLine = currentOLED.statusLine
-            }
-            merged.updateMode(modeDraft)
-        }
-        lastSyncedDraft = merged
-        saveCurrentDeviceSyncBaseline()
-    }
-
-    /// 固件出厂资源束变化时，只重置“设备已同步”基线中的本地图标记。
-    /// 草稿本身保持不变，因此自定义图会在下次写入时重新落到用户槽；nil 草稿继续沿用固件出厂资源。
-    private func handleFactoryResourceChange(_ capabilities: AhaKeyFirmwareCapabilities?) {
-        guard bleManager.protocolMode == .current,
-              let capabilities, capabilities.factoryManifestCRC != 0 else { return }
-        loadSyncBaselineForConnectedDevice(mode: .current)
-        let key = "ahakey.factory.manifest.last-seen." + (syncBaselineDeviceKey ?? "unknown")
-        let previous = UInt32(truncatingIfNeeded: UserDefaults.standard.integer(forKey: key))
-        guard previous != capabilities.factoryManifestCRC else { return }
-
-        var baseline = lastSyncedDraft
-        for mode in AhaKeyModeSlot.allCases {
-            var modeDraft = baseline.draft(for: mode)
-            for set in 0 ..< 2 {
-                for state in AhaKeyTaskDisplayState.allCases {
-                    var asset = modeDraft.oled.taskAsset(set: set, state: state)
-                    asset.localAssetPath = nil
-                    asset.deviceSchemaVersion = 3
-                    modeDraft.oled.updateTaskAsset(set: set, asset: asset)
-                }
-            }
-            modeDraft.oled.taskGIFSchemaVersion = 3
-            baseline.updateMode(modeDraft)
-        }
-        lastSyncedDraft = baseline
-        saveCurrentDeviceSyncBaseline()
-        UserDefaults.standard.set(Int(capabilities.factoryManifestCRC), forKey: key)
-        syncStatusMessage = previous == 0
-            ? NSLocalizedString("已识别新固件出厂图片；本地图片草稿保持不变。", comment: "")
-            : NSLocalizedString("检测到固件出厂图片已更新；本地自定义图片已标记为待写入。", comment: "")
-    }
-
     private func loadSyncBaselineForConnectedDevice(mode: AhaKeyProtocolMode) {
         switch AhaKeySyncBaselineLoadPolicy.decision(
             mode: mode,
@@ -3083,9 +2558,10 @@ struct AhaKeyStudioView: View {
             break
         }
         guard mode == .legacy || mode == .legacyBaseOnly || mode == .current else { return }
-        let identity = bleManager.bleDeviceUUID.isEmpty
-            ? (bleManager.deviceIdentifier == "—" ? (bleManager.deviceName ?? "unknown") : bleManager.deviceIdentifier)
-            : bleManager.bleDeviceUUID
+        // Runtime 快照的设备稳定 ID 作为基线 namespace；无快照时退回显示名。
+        let identity = runtimeStore.deviceKey
+            ?? runtimeStore.deviceName
+            ?? "unknown"
         guard let namespace = AhaKeySyncBaselineNamespace.suffix(for: mode) else { return }
         let key = "\(identity).\(namespace)"
         guard syncBaselineDeviceKey != key else { return }
@@ -3139,28 +2615,6 @@ struct AhaKeyStudioView: View {
         return baseline
     }
 
-    private func resendCurrentModeToDevice() {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = NSLocalizedString("设备未连接或命令通道未就绪，当前只保存本地草稿。", comment: "")
-            return
-        }
-
-        applyCursorRejectMacroSelfHealIfNeeded()
-        var commands = commandsForModes([selectedMode])
-        commands.append((data: AhaKeyCommand.saveConfig(), label: String(format: NSLocalizedString("保存 %@ 当前配置", comment: ""), selectedMode.title)))
-
-        isSyncing = true
-        syncStatusMessage = String(format: NSLocalizedString("正在写入 %@…", comment: ""), selectedMode.title)
-        bleManager.writeCommandsSequentially(commands) {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
-                self.lastSyncDate = Date()
-                self.isSyncing = false
-                self.syncStatusMessage = String(format: NSLocalizedString("已重新发送 %@ 当前模式。", comment: ""), self.selectedMode.title)
-            }
-        }
-    }
-
     /// Cursor 档「取消键」若仍为默认 ⌫ 却残留宏，同步会走 0x74 而非单键。清掉误残留宏并与迁移逻辑一致。
     private func applyCursorRejectMacroSelfHealIfNeeded() {
         var next = studioDraft
@@ -3172,181 +2626,6 @@ struct AhaKeyStudioView: View {
         m1.updateKey(reject)
         next.updateMode(m1)
         studioDraft = next
-    }
-
-    private func commandsForModes(_ modes: [AhaKeyModeSlot]) -> [(data: Data, label: String)] {
-        var commands: [(data: Data, label: String)] = []
-
-        for mode in modes {
-            let draft = studioDraft.draft(for: mode)
-            for role in AhaKeyKeyRole.allCases {
-                let key = draft.key(for: role)
-                let keyIndex = UInt8(role.rawValue)
-                let modeByte = UInt8(mode.rawValue)
-
-                if key.usesMacro {
-                    // 固件对 0x73 快捷键、0x74 宏是分层存储的；从「快捷键」改「宏」时须先清掉旧快捷键，否则会残留。
-                    commands.append((
-                        data: AhaKeyCommand.setKeyMapping(
-                            mode: modeByte,
-                            keyIndex: keyIndex,
-                            hidCodes: []
-                        ),
-                        label: String(format: NSLocalizedString("清除 %@ %@ 快捷键层（将写入宏）", comment: ""), mode.title, key.title)
-                    ))
-                    commands.append((
-                        data: AhaKeyCommand.setKeyMacro(
-                            mode: modeByte,
-                            keyIndex: keyIndex,
-                            macroData: key.macro.flattenedBytes
-                        ),
-                        label: String(format: NSLocalizedString("写入 %@ %@ 宏: %@", comment: ""), mode.title, key.title, key.macro.displaySummary)
-                    ))
-                } else {
-                    // 从「宏」改「快捷键 / 无键」时须先发空 0x74，否则设备可能仍走旧宏（Cursor/其它 mode 上表现为改键不生效）。
-                    commands.append((
-                        data: AhaKeyCommand.setKeyMacro(
-                            mode: modeByte,
-                            keyIndex: keyIndex,
-                            macroData: []
-                        ),
-                        label: String(format: NSLocalizedString("清除 %@ %@ 宏层（将写入快捷键）", comment: ""), mode.title, key.title)
-                    ))
-                    if !key.shortcut.hidCodes.isEmpty {
-                        commands.append((
-                            data: AhaKeyCommand.setKeyMapping(
-                                mode: modeByte,
-                                keyIndex: keyIndex,
-                                hidCodes: key.shortcut.hidCodes
-                            ),
-                            label: String(format: NSLocalizedString("写入 %@ %@ 快捷键: %@", comment: ""), mode.title, key.title, key.shortcut.displayLabel)
-                        ))
-                    } else {
-                        commands.append((
-                            data: AhaKeyCommand.setKeyMapping(
-                                mode: modeByte,
-                                keyIndex: keyIndex,
-                                hidCodes: []
-                            ),
-                            label: String(format: NSLocalizedString("清除 %@ %@ 快捷键", comment: ""), mode.title, key.title)
-                        ))
-                    }
-                }
-
-                let sanitizedDescription = key.description.sanitizedASCII(maxLength: 20)
-                commands.append((
-                    data: AhaKeyCommand.setKeyDescription(
-                        mode: UInt8(mode.rawValue),
-                        keyIndex: keyIndex,
-                        text: key.description
-                    ),
-                    label: String(format: NSLocalizedString("写入 %@ %@ 描述: %@", comment: ""), mode.title, key.title, sanitizedDescription.isEmpty ? NSLocalizedString("空白", comment: "") : sanitizedDescription)
-                ))
-            }
-        }
-
-        for mode in modes {
-            let lb = studioDraft.draft(for: mode).lightBar
-            let effects = IDEState.allCases.map { lb.effect(for: $0).firmwareIndex }
-            commands.append((
-                AhaKeyCommand.setLightMapping(mode: UInt8(mode.rawValue), stateEffects: effects),
-                String(format: NSLocalizedString("灯效映射 %@", comment: ""), mode.title)
-            ))
-        }
-
-        let brightness = UInt8(studioDraft.draft(for: modes[0]).lightBar.brightness)
-        commands.append((AhaKeyCommand.setBrightness(brightness), String(format: NSLocalizedString("亮度 %d%%", comment: ""), brightness)))
-
-        return commands
-    }
-
-    /// 首次连接键盘后自动把 bundle 默认 GIF 推到没有上传过的 mode slot。
-    /// 触发时机：bleManager.keyboardPictureStates 四个 mode 都查回来之后
-    /// （由 .onChange(of: bleManager.keyboardPictureStates) 调度）。
-    /// 守卫：
-    /// - 只上传 picLength==0（slot 完全空）的 mode；非 0 视为用户已自定义或固件出厂图
-    /// - 只在 draft 的 localAssetPath 仍指向 bundle 默认（用户没手动换过）时上传
-    /// - 每次连接只跑一次（oledAutoSyncDoneForConnection 标志位由 .onChange(isConnected) 重置）
-    private func autoSyncDefaultOLEDsIfNeeded() async {
-        guard bleManager.isConnected else { return }
-        // 四个 mode 全部 0x83 查询回来才动手，避免半截判断把已上传 slot 当成空
-        guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
-
-        for mode in AhaKeyModeSlot.allCases {
-            guard let state = bleManager.keyboardPictureStates[mode.rawValue] else { continue }
-            guard state.frameCount == 0 else { continue }
-            guard let bundledPath = DefaultOLEDAssets.bundledAssetPath(for: mode) else { continue }
-            let draft = studioDraft.draft(for: mode)
-            guard let drafPath = draft.oled.localAssetPath,
-                  DefaultOLEDAssets.isBundledPath(drafPath) else { continue }
-
-            let assetURL = URL(fileURLWithPath: bundledPath)
-            do {
-                try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-                let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
-                let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
-                try await bleManager.uploadOLEDFrames(
-                    frames,
-                    fps: draft.oled.framesPerSecond,
-                    mode: UInt8(mode.rawValue),
-                    startIndex: UInt16(startIndex)
-                )
-                updateMode(mode) { m in
-                    m.oled.statusLine = String(format: NSLocalizedString("已自动同步默认动图（%d 帧）。", comment: ""), frames.count)
-                }
-            } catch {
-                syncStatusMessage = String(format: NSLocalizedString("%@ 默认动图自动同步失败: %@", comment: ""), mode.title, error.localizedDescription)
-            }
-        }
-    }
-
-    private func resolveOLEDUploadStartIndex(for targetMode: AhaKeyModeSlot, frameCount: Int) async throws -> Int {
-        guard frameCount <= AhaKeyCommand.oledMaxFramesPerMode else {
-            throw OLEDUploadError.tooManyFrames(max: AhaKeyCommand.oledMaxFramesPerMode)
-        }
-
-        _ = try? await bleManager.readPictureState(mode: UInt8(targetMode.rawValue))
-        return Int(AhaKeyCommand.oledStartIndex(forMode: UInt8(targetMode.rawValue)))
-    }
-
-    private func canPlacePictureRange(
-        start: Int,
-        count: Int,
-        occupiedRegions: [(start: Int, end: Int)],
-        maxCapacity: Int
-    ) -> Bool {
-        let end = start + count
-        guard start >= 0, end <= maxCapacity else { return false }
-        return occupiedRegions.allSatisfy { region in
-            end <= region.start || start >= region.end
-        }
-    }
-
-    private func findFreePictureSpace(
-        occupiedRegions: [(start: Int, end: Int)],
-        neededCount: Int,
-        maxCapacity: Int
-    ) -> Int? {
-        guard !occupiedRegions.isEmpty else { return 0 }
-
-        if occupiedRegions[0].start >= neededCount {
-            return 0
-        }
-
-        for index in 0 ..< (occupiedRegions.count - 1) {
-            let gapStart = occupiedRegions[index].end
-            let gapEnd = occupiedRegions[index + 1].start
-            if gapEnd - gapStart >= neededCount {
-                return gapStart
-            }
-        }
-
-        let lastEnd = occupiedRegions.last?.end ?? 0
-        if lastEnd + neededCount <= maxCapacity {
-            return lastEnd
-        }
-
-        return nil
     }
 
     private func lightEffectBinding(for state: IDEState) -> Binding<LightEffectStyle> {
@@ -3387,21 +2666,13 @@ struct AhaKeyStudioView: View {
     }
 
     private func previewLightEffect(_ effect: LightEffectStyle) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = NSLocalizedString("已更新虚拟灯效预览；连接键盘后可预览到设备。", comment: "")
-            return
-        }
-        bleManager.previewLightEffect(effect.firmwareIndex)
-        syncStatusMessage = String(format: NSLocalizedString("正在预览灯效：%@。", comment: ""), effect.title)
+        // Runtime 架构下 Studio 不直连设备：灯效预览只更新本地画布；写入设备走「写入键盘」。
+        syncStatusMessage = String(format: NSLocalizedString("已更新虚拟灯效预览：%@；写入设备请使用底部通用按钮。", comment: ""), effect.title)
     }
 
     private func previewBrightness(_ value: Int) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = String(format: NSLocalizedString("已更新亮度为 %d%%；连接键盘后可预览到设备。", comment: ""), value)
-            return
-        }
-        bleManager.setBrightness(UInt8(max(1, min(100, value))))
-        syncStatusMessage = String(format: NSLocalizedString("正在预览灯光强度：%d%% 。", comment: ""), value)
+        // 同上：亮度改动先落在草稿与画布预览，设备写入走 Runtime apply。
+        syncStatusMessage = String(format: NSLocalizedString("已更新亮度为 %d%%；写入设备请使用底部通用按钮。", comment: ""), value)
     }
 
     private func infoPill(title: String, subtitle: String, accent: Color, width: CGFloat = 86) -> some View {
@@ -3463,9 +2734,7 @@ struct AhaKeyStudioView: View {
     }
 
     private var startupPermissionsReady: Bool {
-        bleManager.bluetoothPermissionGranted &&
-            bleManager.bluetoothPoweredOn &&
-            voiceRelay.inputMonitoringGranted &&
+        voiceRelay.inputMonitoringGranted &&
             voiceRelay.accessibilityGranted &&
             nativeSpeech.microphoneGranted &&
             nativeSpeech.speechRecognitionGranted &&
@@ -3475,7 +2744,6 @@ struct AhaKeyStudioView: View {
 
     private func scheduleStartupPermissionOnboarding() {
         voiceRelay.showsPermissionOnboarding = false
-        bleManager.refreshBluetoothAuthorization()
         voiceRelay.refreshPermissions(deferredTCCRequery: true)
         nativeSpeech.refreshPermissions(deferredTCCRequery: true)
     }
@@ -3486,7 +2754,7 @@ struct AhaKeyStudioView: View {
 }
 
 private struct VoicePermissionOnboardingSheet: View {
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
     @ObservedObject var voiceRelay: VoiceRelayService
     @ObservedObject var nativeSpeech: NativeSpeechTranscriptionService
     @Environment(\.dismiss) private var dismiss
@@ -3497,16 +2765,11 @@ private struct VoicePermissionOnboardingSheet: View {
     @State private var fixAlertIsSuccess = false
     @State private var showFixAlert = false
 
-    private var bluetoothStatusText: String {
-        let status: String
-        if bleManager.bluetoothPermissionGranted {
-            status = bleManager.bluetoothPoweredOn
-                ? NSLocalizedString("已开启", comment: "")
-                : NSLocalizedString("已授权但蓝牙关闭", comment: "")
-        } else {
-            status = NSLocalizedString("未授权", comment: "")
-        }
-        return NSLocalizedString("蓝牙", comment: "") + " " + status
+    private var keyboardConnectionStatusText: String {
+        let status = runtimeStore.isOnline
+            ? NSLocalizedString("已连接", comment: "")
+            : NSLocalizedString("未连接", comment: "")
+        return NSLocalizedString("键盘连接", comment: "") + " " + status
     }
 
     var body: some View {
@@ -3514,12 +2777,12 @@ private struct VoicePermissionOnboardingSheet: View {
             Text(NSLocalizedString("新手权限引导", comment: ""))
                 .font(.system(size: 24, weight: .semibold))
 
-            Text(NSLocalizedString("AhaKey Studio 首次使用需要完成几项系统授权：连接键盘需要蓝牙，后台接管语音键需要输入监控与辅助功能，macOS 原生语音需要麦克风、语音转写、Siri 与听写。", comment: ""))
+            Text(NSLocalizedString("AhaKey Studio 首次使用需要完成几项系统授权：后台接管语音键需要输入监控与辅助功能，macOS 原生语音需要麦克风、语音转写、Siri 与听写；键盘连接由后台 Agent 自动管理。", comment: ""))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 10) {
-                permissionRow(title: NSLocalizedString("蓝牙", comment: ""), granted: bleManager.bluetoothPermissionGranted && bleManager.bluetoothPoweredOn, detail: bleManager.bluetoothPermissionGranted ? NSLocalizedString("打开系统蓝牙，用于发现、连接和同步 AhaKey 键盘。", comment: "") : NSLocalizedString("在「隐私与安全性 > 蓝牙」中允许 AhaKey Studio 使用蓝牙。", comment: ""))
+                permissionRow(title: NSLocalizedString("键盘连接", comment: ""), granted: runtimeStore.isOnline, detail: NSLocalizedString("键盘连接由后台 Agent 管理，无需蓝牙授权；确保 Agent 已安装并运行。", comment: ""))
                 permissionRow(title: NSLocalizedString("麦克风", comment: ""), granted: nativeSpeech.microphoneGranted, detail: NSLocalizedString("允许 AhaKey Studio 使用苹果原生语音采集。", comment: ""))
                 permissionRow(title: NSLocalizedString("语音转写", comment: ""), granted: nativeSpeech.speechRecognitionGranted, detail: NSLocalizedString("允许 AhaKey Studio 使用苹果原生语音识别。", comment: ""))
                 permissionRow(title: "Siri", granted: nativeSpeech.siriEnabled, detail: NSLocalizedString("在「系统设置 > Siri 与聚焦」里开启 Siri，供 macOS 原生语音能力使用。", comment: ""))
@@ -3532,7 +2795,7 @@ private struct VoicePermissionOnboardingSheet: View {
                 Text(NSLocalizedString("授权步骤", comment: ""))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(NSLocalizedString("1. 点「现在申请权限」，按系统弹窗允许蓝牙、麦克风和语音转写。", comment: ""))
+                Text(NSLocalizedString("1. 点「现在申请权限」，按系统弹窗允许麦克风和语音转写。", comment: ""))
                 Text(NSLocalizedString("2. 自动打开系统设置后，依次开启 Siri、听写、辅助功能。", comment: ""))
                 Text(NSLocalizedString("3. 最后开启输入监控；系统提示重启时退出并重新打开。", comment: ""))
                 Text(NSLocalizedString("4. 回到这里点「我已完成，重新检查」继续体验输入。", comment: ""))
@@ -3547,7 +2810,7 @@ private struct VoicePermissionOnboardingSheet: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(bluetoothStatusText)
+                Text(keyboardConnectionStatusText)
                 Text(voiceRelay.lastPermissionCheckSummary)
                 Text(nativeSpeech.lastPermissionCheckSummary)
             }
@@ -3557,7 +2820,6 @@ private struct VoicePermissionOnboardingSheet: View {
             HStack(spacing: 12) {
                 Button(NSLocalizedString("现在申请权限", comment: "")) {
                     requestPermissionsThenOpenPrivacySettingsIfNeeded(
-                        bleManager: bleManager,
                         voiceRelay: voiceRelay,
                         nativeSpeech: nativeSpeech
                     )
@@ -3565,7 +2827,6 @@ private struct VoicePermissionOnboardingSheet: View {
                 .buttonStyle(.borderedProminent)
 
                 Button(NSLocalizedString("我已完成，重新检查", comment: "")) {
-                    bleManager.refreshBluetoothAuthorization()
                     voiceRelay.refreshPermissions(deferredTCCRequery: true)
                     nativeSpeech.refreshPermissions(deferredTCCRequery: true)
                 }
@@ -3617,10 +2878,7 @@ private struct VoicePermissionOnboardingSheet: View {
         .onChange(of: voiceRelay.accessibilityGranted) { _ in
             closeIfReady()
         }
-        .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
-            closeIfReady()
-        }
-        .onChange(of: bleManager.bluetoothPoweredOn) { _ in
+        .onChange(of: runtimeStore.isOnline) { _ in
             closeIfReady()
         }
         .alert(fixAlertTitle, isPresented: $showFixAlert) {
@@ -3653,8 +2911,7 @@ private struct VoicePermissionOnboardingSheet: View {
     }
 
     private var allPermissionsReady: Bool {
-        bleManager.bluetoothPermissionGranted &&
-            bleManager.bluetoothPoweredOn &&
+        runtimeStore.isOnline &&
             voiceRelay.inputMonitoringGranted &&
             voiceRelay.accessibilityGranted &&
             nativeSpeech.microphoneGranted &&
@@ -4798,13 +4055,9 @@ private func openFirstAvailableSystemSettingsURL(_ candidates: [String]) -> Bool
 
 @MainActor
 private func openFirstMissingVoicePermissionSettings(
-    bleManager: AhaKeyBLEManager,
     voiceRelay: VoiceRelayService,
     nativeSpeech: NativeSpeechTranscriptionService
 ) {
-    if !bleManager.bluetoothPermissionGranted || !bleManager.bluetoothPoweredOn {
-        if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth"]) { return }
-    }
     if !nativeSpeech.microphoneGranted {
         if openFirstAvailableSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"]) { return }
     }
@@ -4829,17 +4082,14 @@ private func openFirstMissingVoicePermissionSettings(
 /// 先走系统 API 申请；随后在桌面端打开「隐私与安全性」相关页。输入监控 / 辅助功能在多数 macOS 版本上**不会**像 iOS 那样弹窗，麦克风和语音在「已选择过」后也不再弹窗，因此必须配合系统设置界面。
 @MainActor
 private func requestPermissionsThenOpenPrivacySettingsIfNeeded(
-    bleManager: AhaKeyBLEManager,
     voiceRelay: VoiceRelayService,
     nativeSpeech: NativeSpeechTranscriptionService,
     delay: TimeInterval = 0.45
 ) {
-    bleManager.refreshBluetoothAuthorization()
     voiceRelay.refreshPermissions(requestIfNeeded: true)
     nativeSpeech.refreshPermissions(requestIfNeeded: true)
     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-        bleManager.refreshBluetoothAuthorization()
-        openFirstMissingVoicePermissionSettings(bleManager: bleManager, voiceRelay: voiceRelay, nativeSpeech: nativeSpeech)
+        openFirstMissingVoicePermissionSettings(voiceRelay: voiceRelay, nativeSpeech: nativeSpeech)
     }
 }
 
@@ -4899,7 +4149,7 @@ private struct RestartToApplyPermissionsButton: View {
 
 private struct DeviceInfoSheetContainer: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
 
     var body: some View {
         VStack(spacing: 0) {
@@ -4931,7 +4181,7 @@ private struct DeviceInfoSheetContainer: View {
 
     @ViewBuilder
     private var sheetFormContent: some View {
-        DeviceInfoView(bleManager: bleManager)
+        DeviceInfoView(runtimeStore: runtimeStore)
             .padding(.horizontal, 18)
             .padding(.bottom, 18)
             .padding(.top, 6)
@@ -5444,7 +4694,7 @@ private enum HelpTopic: String, CaseIterable, Identifiable {
 private struct HelpCenterSheet: View {
     let studioDraft: AhaKeyStudioDraft
     let selectedMode: AhaKeyModeSlot
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
     @Environment(\.dismiss) private var dismiss
     @State private var topic: HelpTopic = .overview
 
@@ -5520,8 +4770,8 @@ private struct HelpCenterSheet: View {
         case .overview:      OverviewTopicView()
         case .modes:         ModesTopicView(selectedMode: selectedMode)
         case .canvas:        CanvasTopicView()
-        case .toggleSwitch:  ToggleSwitchTopicView(bleManager: bleManager)
-        case .oled:          OLEDTopicView(studioDraft: studioDraft, bleManager: bleManager)
+        case .toggleSwitch:  ToggleSwitchTopicView(runtimeStore: runtimeStore)
+        case .oled:          OLEDTopicView(studioDraft: studioDraft, runtimeStore: runtimeStore)
         case .lightBar:      LightBarTopicView()
         case .voice:         VoiceTopicView()
         case .diagnostics:   DiagnosticsTopicView()
@@ -5777,7 +5027,7 @@ private struct CanvasTopicView: View {
 }
 
 private struct ToggleSwitchTopicView: View {
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -5819,9 +5069,9 @@ private struct ToggleSwitchTopicView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(NSLocalizedString("现状一览", comment: "")).font(.subheadline.weight(.medium))
-                stateRow(NSLocalizedString("当前生效值", comment: ""), "\(bleManager.agentSwitchState ?? bleManager.switchState)")
-                stateRow(NSLocalizedString("Agent 端覆盖", comment: ""), bleManager.agentSwitchState != nil ? String(format: NSLocalizedString("%d（覆盖中）", comment: ""), bleManager.agentSwitchState!) : NSLocalizedString("未设置（用键盘真实值）", comment: ""))
-                stateRow(NSLocalizedString("乐观显示中", comment: ""), bleManager.optimisticSwitchOverride != nil ? NSLocalizedString("是（等待对齐）", comment: "") : NSLocalizedString("否", comment: ""))
+                stateRow(NSLocalizedString("当前生效值", comment: ""), "\(runtimeStore.agentSwitchState ?? runtimeStore.switchState)")
+                stateRow(NSLocalizedString("Agent 端覆盖", comment: ""), runtimeStore.agentSwitchState != nil ? String(format: NSLocalizedString("%d（覆盖中）", comment: ""), runtimeStore.agentSwitchState!) : NSLocalizedString("未设置（用键盘真实值）", comment: ""))
+                stateRow(NSLocalizedString("乐观显示中", comment: ""), runtimeStore.optimisticSwitchOverride != nil ? NSLocalizedString("是（等待对齐）", comment: "") : NSLocalizedString("否", comment: ""))
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
@@ -5862,7 +5112,7 @@ private struct ToggleSwitchTopicView: View {
 
 private struct OLEDTopicView: View {
     let studioDraft: AhaKeyStudioDraft
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -5896,23 +5146,9 @@ private struct OLEDTopicView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(NSLocalizedString("现在键盘 flash 各 Mode 状态", comment: "")).font(.subheadline.weight(.medium))
-                ForEach(AhaKeyModeSlot.allCases) { mode in
-                    HStack {
-                        Text(mode.title + " · " + mode.name).font(.callout)
-                        Spacer()
-                        if let s = bleManager.keyboardPictureStates[mode.rawValue] {
-                            if s.frameCount > 0 {
-                                Label(String(format: NSLocalizedString("%d 帧", comment: ""), s.frameCount), systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                    .font(.callout)
-                            } else {
-                                Label(NSLocalizedString("空", comment: ""), systemImage: "tray").foregroundStyle(.secondary).font(.callout)
-                            }
-                        } else {
-                            Text(NSLocalizedString("尚未查询", comment: "")).font(.callout).foregroundStyle(.tertiary)
-                        }
-                    }
-                }
+                Text(NSLocalizedString("flash 帧数/容量等实时状态由 Runtime 同步，帮助中心不再单独查询；请以画布 LCD 角标为准。", comment: ""))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
@@ -6095,5 +5331,18 @@ private struct FAQTopicView: View {
             Divider().padding(.leading, 26).padding(.top, 4)
         }
         .padding(.vertical, 8)
+    }
+}
+
+
+/// Runtime 统一写入失败（未提交任何改动时抛出；部分提交走部分完成文案不抛错）。
+private enum AhaKeyStudioViewWriteError: LocalizedError {
+    case operationFailed(code: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .operationFailed(let code):
+            return String(format: NSLocalizedString("Runtime 写入失败（%@），未提交任何改动。", comment: ""), code)
+        }
     }
 }

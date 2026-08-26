@@ -44,7 +44,15 @@ final class BLELogStore: ObservableObject {
         qos: .utility
     )
 
-    init(verboseLogFileURL: URL = AhaKeyBLEManager.verboseLogFileURL) {
+    /// 详细抓包日志路径（自 AhaKeyBLEManager 迁入；Studio 诊断窗口边界）。
+    nonisolated static var verboseLogFileURL: URL {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig/diagnostics", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("ble-verbose.log")
+    }
+
+    init(verboseLogFileURL: URL = BLELogStore.verboseLogFileURL) {
         verboseLogWriter = RotatingLogFile(fileURL: verboseLogFileURL)
     }
 

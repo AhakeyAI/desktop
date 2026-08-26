@@ -2,99 +2,44 @@ import AhaKeyConfigShared
 import SwiftUI
 
 struct DeviceInfoView: View {
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
     @StateObject private var agentManager = AgentManager.shared
-    @State private var isEditingName = false
-    @State private var editableName = ""
     @State private var showAgentLog = false
     @State private var agentLogPanel = 0
     @State private var logPanelContentTick = 0
-    @State private var showAgentRequiredForAgentBLE = false
 
     var body: some View {
         Form {
             // MARK: - 设备信息
             Section {
                 HStack(spacing: 0) {
-                    infoCell(NSLocalizedString("电量", comment: ""), value: String(format: NSLocalizedString("%d%%", comment: ""), bleManager.batteryLevel))
+                    infoCell(NSLocalizedString("电量", comment: ""), value: String(format: NSLocalizedString("%d%%", comment: ""), runtimeStore.batteryLevel))
                     Divider()
-                    infoCell(NSLocalizedString("固件", comment: ""), value: String(format: NSLocalizedString("v%d.%d", comment: ""), bleManager.firmwareMainVersion, bleManager.firmwareSubVersion))
+                    infoCell(NSLocalizedString("固件", comment: ""), value: runtimeStore.firmwareVersion ?? "—")
                     Divider()
-                    infoCell(NSLocalizedString("设备名", comment: ""), value: bleManager.deviceName ?? "—")
+                    infoCell(NSLocalizedString("设备名", comment: ""), value: runtimeStore.deviceName ?? "—")
                 }
                 .frame(height: 50)
 
                 HStack(spacing: 0) {
-                    infoCell(NSLocalizedString("工作模式", comment: ""), value: workModeName(bleManager.workMode))
+                    infoCell(NSLocalizedString("工作模式", comment: ""), value: workModeName(runtimeStore.workMode))
                     Divider()
-                    infoCell(NSLocalizedString("灯光", comment: ""), value: lightModeName(bleManager.lightMode))
+                    infoCell(NSLocalizedString("灯光", comment: ""), value: lightModeName(runtimeStore.lightMode))
                     Divider()
-                    infoCell(NSLocalizedString("信号", comment: ""), value: String(format: NSLocalizedString("%d dBm", comment: ""), bleManager.signalStrength))
+                    infoCell(NSLocalizedString("协议模式", comment: ""), value: runtimeStore.isConnected ? protocolModeLabel(runtimeStore.protocolMode) : "—")
                 }
                 .frame(height: 50)
 
                 HStack(spacing: 0) {
-                    infoCell(NSLocalizedString("型号", comment: ""), value: bleManager.modelNumber == "—" ? AhaKeyDevicePresentation.modelName : bleManager.modelNumber)
+                    infoCell(NSLocalizedString("型号", comment: ""), value: AhaKeyDevicePresentation.modelName)
                     Divider()
-                    infoCell(NSLocalizedString("设备编号", comment: ""), value: bleManager.deviceIdentifier)
+                    infoCell(NSLocalizedString("设备编号", comment: ""), value: runtimeStore.deviceKey ?? "—")
                     Divider()
-                    infoCell(NSLocalizedString("协议模式", comment: ""), value: bleManager.isConnected ? protocolModeLabel(bleManager.protocolMode) : "—")
+                    infoCell(NSLocalizedString("配置通道", comment: ""), value: runtimeStore.isConnected ? runtimeStore.configurationTransportLabel : "—")
                 }
                 .frame(height: 50)
             } header: {
                 Text(NSLocalizedString("设备信息", comment: ""))
-            }
-
-            // MARK: - 蓝牙连接（App 与 Agent 二选一）
-            Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(NSLocalizedString("同一时间只能由本 App 或 Agent 其中之一连接键盘，请在此切换。", comment: ""))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 10) {
-                        ForEach(BluetoothConnectionOwner.allCases) { owner in
-                            let selected = agentManager.bluetoothConnectionOwner == owner
-                            let disableAgent = owner == .agentDaemon && !agentManager.isInstalled
-                            Button {
-                                if owner == .agentDaemon && !agentManager.isInstalled {
-                                    showAgentRequiredForAgentBLE = true
-                                } else {
-                                    agentManager.setBluetoothConnectionOwner(owner, bleManager: bleManager)
-                                }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(owner.title)
-                                        .fontWeight(selected ? .semibold : .regular)
-                                    Text(owner == .ahaKeyStudio
-                                         ? NSLocalizedString("改键、LCD、同步、本机灯效测试（current 固件 USB 优先，BLE 自动兜底）", comment: "")
-                                         : NSLocalizedString("Claude/Cursor/Codex/Kimi Hook、灯条状态、拨杆查询", comment: ""))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.leading)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(selected ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.04))
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(disableAgent)
-                        }
-                    }
-                    CompatLabeledContent(NSLocalizedString("当前", comment: "")) {
-                        Text(bleOwnershipText())
-                            .font(.callout)
-                    }
-                }
-            } header: {
-                Text(NSLocalizedString("蓝牙连接", comment: ""))
-            }
-            .alert(NSLocalizedString("需要先安装 Agent", comment: ""), isPresented: $showAgentRequiredForAgentBLE) {
-                Button(NSLocalizedString("好", comment: ""), role: .cancel) {}
-            } message: {
-                Text(NSLocalizedString("将蓝牙交给 `ahakeyconfig-agent` 前，请先在下方完成「安装并启用」，生成 LaunchAgent。", comment: ""))
             }
 
             // MARK: - 拨杆状态
@@ -145,13 +90,10 @@ struct DeviceInfoView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .disabled(agentManager.bluetoothConnectionOwner == .ahaKeyStudio)
-                        .help(agentManager.bluetoothConnectionOwner == .ahaKeyStudio
-                              ? NSLocalizedString("当前由本 App 占用蓝牙，Agent 应处于未加载。请先在「蓝牙连接」中选中 Agent 后再启停守护进程。", comment: "")
-                              : NSLocalizedString("从 launchd 加载并启动/卸载停止 Agent 进程。", comment: ""))
+                        .help(NSLocalizedString("从 launchd 加载并启动/卸载停止 Agent 进程。", comment: ""))
 
                         Button(NSLocalizedString("卸载", comment: ""), role: .destructive) {
-                            agentManager.uninstall(bleManager: bleManager)
+                            agentManager.uninstall()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -225,9 +167,6 @@ struct DeviceInfoView: View {
                 if !agentManager.isAgentBinaryPresentInBundle {
                     Text(NSLocalizedString("发版包内未包含 ahakeyconfig-agent，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。", comment: ""))
                         .foregroundStyle(.orange)
-                } else if agentManager.isInstalled, agentManager.bluetoothConnectionOwner == .ahaKeyStudio, !agentManager.isRunning {
-                    Text(NSLocalizedString("已由本 App 占用蓝牙：要让 Agent 接管，请将「蓝牙连接」选为 ahakeyconfig-agent。", comment: ""))
-                        .foregroundStyle(.secondary)
                 }
             }
             .sheet(isPresented: $showAgentLog) {
@@ -291,160 +230,36 @@ struct DeviceInfoView: View {
                 Text(NSLocalizedString("实验功能", comment: ""))
             }
 
-            // MARK: - LED 测试
-            if bleManager.isConnected {
-                Section {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                        ForEach(Array(IDEState.allCases.enumerated()), id: \.offset) { _, state in
-                            Button {
-                                bleManager.updateIDEState(state)
-                            } label: {
-                                Text(state.label)
-                                    .font(.caption)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 6)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                } header: {
-                    Text(NSLocalizedString("LED 测试", comment: ""))
-                } footer: {
-                    Text(NSLocalizedString("点击按钮发送对应状态到键盘，观察 LED 变化。", comment: ""))
-                }
-            }
-
             // MARK: - 配置连接状态
             Section {
                 CompatLabeledContent(NSLocalizedString("配置通道", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(bleManager.isUSBConfigurationActive ? Color.green : Color.blue)
+                            .fill(runtimeStore.isUSBConfigurationActive ? Color.green : Color.blue)
                             .frame(width: 8, height: 8)
-                        Text(bleManager.configurationTransportLabel)
-                    }
-                }
-                CompatLabeledContent(NSLocalizedString("USB 接口", comment: "")) {
-                    if let identity = bleManager.usbDeviceIdentity {
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(identity.transportDescription)
-                                .font(.system(.caption, design: .monospaced))
-                            Text(bleManager.isUSBConfigurationActive
-                                 ? NSLocalizedString("已启用，仅用于 current 协议配置", comment: "")
-                                 : NSLocalizedString("已检测，等待 current 协议、设备身份与 App 配置会话", comment: ""))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .textSelection(.enabled)
-                    } else {
-                        Text(NSLocalizedString("未检测", comment: ""))
-                            .foregroundStyle(.secondary)
+                        Text(runtimeStore.configurationTransportLabel)
                     }
                 }
                 CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill((bleManager.isConnected || agentManager.isAgentBLEConnected) ? Color.green : Color.orange)
+                            .fill((runtimeStore.isConnected || agentManager.isAgentBLEConnected) ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
-                        Text(bleManager.isConnected ? bleManager.bleConnectionStatus
-                             : (agentManager.isAgentBLEConnected
-                                ? bleOwnershipText()
-                                : bleManager.bleConnectionStatus))
+                        Text(connectionStatusText())
                     }
                 }
                 CompatLabeledContent(NSLocalizedString("设备名", comment: "")) {
-                    if isEditingName {
-                        HStack(spacing: 4) {
-                            TextField(NSLocalizedString("最长 15 字节", comment: ""), text: $editableName)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 160)
-                                .onSubmit { submitNameChange() }
-                            Button(NSLocalizedString("保存", comment: "")) { submitNameChange() }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                            Button(NSLocalizedString("取消", comment: "")) { isEditingName = false }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                        }
-                    } else {
-                        HStack(spacing: 6) {
-                            Text(bleManager.deviceName ?? "—")
-                                .textSelection(.enabled)
-                            if bleManager.isConnected {
-                                Button {
-                                    editableName = bleManager.deviceName ?? ""
-                                    isEditingName = true
-                                } label: {
-                                    Image(systemName: "pencil")
-                                        .font(.caption)
-                                }
-                                .buttonStyle(.borderless)
-                            }
-                        }
-                    }
-                }
-                CompatLabeledContent("UUID") {
-                    Text(bleManager.bleDeviceUUID)
-                        .font(.system(.caption, design: .monospaced))
+                    Text(runtimeStore.deviceName ?? "—")
                         .textSelection(.enabled)
-                }
-                CompatLabeledContent(NSLocalizedString("固件能力", comment: "")) {
-                    Text(capabilitiesSummary(bleManager.firmwareCapabilities))
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                }
-                HStack {
-                    CompatLabeledContent(NSLocalizedString("特征", comment: "")) {
-                        HStack(spacing: 8) {
-                            charBadge("DATA", ready: bleManager.dataCharReady)
-                            charBadge("CMD", ready: bleManager.commandCharReady)
-                            charBadge("NOTIFY", ready: bleManager.notifyCharReady)
-                        }
-                    }
                 }
             } header: {
                 Text(NSLocalizedString("配置连接状态", comment: ""))
             }
 
-            // MARK: - 操作
-            Section {
-                HStack {
-                    if !bleManager.isConnected {
-                        Button(bleManager.isScanning ? NSLocalizedString("扫描中…", comment: "") : NSLocalizedString("连接设备", comment: "")) {
-                            bleManager.userInitiatedConnect()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(bleManager.isScanning || agentManager.bluetoothConnectionOwner == .agentDaemon)
-                        .help(agentManager.bluetoothConnectionOwner == .agentDaemon
-                              ? NSLocalizedString("当前选择由 ahakeyconfig-agent 占用蓝牙。请先在上方「蓝牙连接」切到 AhaKey Studio，或点击顶栏「设备信息 · Agent」切换。", comment: "")
-                              : NSLocalizedString("本 App 主动连接键盘。", comment: ""))
-                    } else {
-                        Button(NSLocalizedString("查询状态", comment: "")) {
-                            bleManager.queryDeviceStatus()
-                        }
-                        .buttonStyle(.bordered)
-                        .help(NSLocalizedString("发送 AA BB 00 CC DD 查询设备状态", comment: ""))
-
-                        Button(NSLocalizedString("探测协议", comment: "")) {
-                            bleManager.sendProbeCommands()
-                        }
-                        .buttonStyle(.bordered)
-                        .help(NSLocalizedString("向设备发送探测命令，观察通信日志中的回调", comment: ""))
-
-                        Spacer()
-
-                        Button(NSLocalizedString("断开", comment: ""), role: .destructive) {
-                            bleManager.disconnect()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
-
             // MARK: - 通信日志
             Section {
-                // 独立 Store：日志 append 只刷新这个子视图，不波及观察 manager 的其它 View
-                CommLogSection(logStore: bleManager.logStore)
+                // 独立 Store：日志 append 只刷新这个子视图，不波及观察 store 的其它 View
+                CommLogSection(logStore: runtimeStore.logStore)
             } header: {
                 Text(NSLocalizedString("通信日志", comment: ""))
             }
@@ -460,10 +275,6 @@ struct DeviceInfoView: View {
         } message: {
             Text(agentManager.agentUserAlert ?? "")
         }
-        // RSSI 轮询只在设备信息窗口打开时进行：打开立即读一次并恢复 5 秒轮询，关闭停止
-        .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
-        .onDisappear { bleManager.setDiagnosticsWindowVisible(false) }
-
     }
 
     // MARK: - Components
@@ -488,37 +299,24 @@ struct DeviceInfoView: View {
         }
     }
 
-    private func charBadge(_ label: String, ready: Bool) -> some View {
-        Text(label)
-            .font(.system(.caption2, design: .monospaced))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(ready ? Color.green.opacity(0.15) : Color.gray.opacity(0.1))
-            )
-            .foregroundStyle(ready ? Color.green : Color.secondary)
-    }
-
     private func switchStateLabel(_ state: Int) -> String {
         state == 0 ? NSLocalizedString("自动批准", comment: "") : NSLocalizedString("手动批准", comment: "")
     }
 
     private var liveSwitchState: Int? {
         LiveKeyboardSwitchStateResolver.resolve(
-            optimisticOverride: bleManager.optimisticSwitchOverride,
-            appIsConnected: bleManager.isConnected,
-            appState: bleManager.currentConnectionSwitchState,
-            agentState: bleManager.agentSwitchState
+            optimisticOverride: runtimeStore.optimisticSwitchOverride,
+            appIsConnected: runtimeStore.isConnected,
+            appState: runtimeStore.currentConnectionSwitchState,
+            agentState: runtimeStore.agentSwitchState
         )
     }
 
-    /// 蓝牙占用的用户视角表述：编辑器（本 App）与 Agent 二选一持有键盘连接。
-    /// 避免"本 App 未连接 / 已断开"在 Agent 占用时被误读为故障。
-    private func bleOwnershipText() -> String {
-        if bleManager.isConnected { return NSLocalizedString("编辑器占用蓝牙 · Agent 空闲", comment: "") }
-        if agentManager.isAgentBLEConnected { return NSLocalizedString("编辑器空闲 · Agent 占用蓝牙", comment: "") }
-        return NSLocalizedString("编辑器空闲 · Agent 空闲（未连接键盘）", comment: "")
+    /// 连接状态的用户视角表述：Runtime 在线 + Agent 连接组合。
+    private func connectionStatusText() -> String {
+        if runtimeStore.isConnected { return NSLocalizedString("已连接键盘（Runtime 在线）", comment: "") }
+        if runtimeStore.isOnline { return NSLocalizedString("Runtime 在线 · 未连接键盘", comment: "") }
+        return NSLocalizedString("Runtime 离线（未连接）", comment: "")
     }
 
     private func agentBluetoothShortLabel() -> String {
@@ -557,15 +355,6 @@ struct DeviceInfoView: View {
         }
     }
 
-    private func capabilitiesSummary(_ capabilities: AhaKeyFirmwareCapabilities?) -> String {
-        guard let capabilities else { return "—" }
-        return String(
-            format: NSLocalizedString("v%d · %d 模式 · %d 套 · %d 状态 · %dB", comment: ""),
-            capabilities.protocolVersion, capabilities.modeCount,
-            capabilities.setCount, capabilities.stateCount, capabilities.maxPacketSize
-        )
-    }
-
     @ViewBuilder
     private var logPanelContent: some View {
         switch agentLogPanel {
@@ -587,19 +376,12 @@ struct DeviceInfoView: View {
             Text("")
         }
     }
-
-    private func submitNameChange() {
-        let name = editableName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        bleManager.changeDeviceName(name)
-        isEditingName = false
-    }
 }
 
 // MARK: - 通信日志（观察独立的 BLELogStore）
 
 /// 通信日志区：内存诊断级日志列表 + 复制/清空 + 临时详细级（TX/RX 抓包）开关。
-/// 只观察 `BLELogStore`，日志刷新不再触发整个 DeviceInfoView / 观察 manager 的 View 重绘。
+/// 只观察 `BLELogStore`，日志刷新不再触发整个 DeviceInfoView / 观察 store 的 View 重绘。
 private struct CommLogSection: View {
     @ObservedObject var logStore: BLELogStore
 

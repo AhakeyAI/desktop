@@ -4,41 +4,13 @@ import AhaKeyConfigShared
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "AgentManager")
 
-// MARK: - 蓝牙占用方（AhaKey Studio 与 Agent 是两套独立进程，同一时刻只应有一个 GATT 连接键盘）
-
-/// 由谁持有与键盘的 BLE 连接。
-/// - `ahaKeyStudio`：主 App 连接，用于改键、LCD、本机 LED 测试等。
-/// - `agentDaemon`：仅运行 `ahakeyconfig-agent`（Hook → Unix socket → 写 0x90 状态、读拨杆），由 LaunchAgent 拉起。
-enum BluetoothConnectionOwner: String, CaseIterable, Identifiable {
-    case ahaKeyStudio
-    case agentDaemon
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .ahaKeyStudio: return "AhaKey Studio"
-        case .agentDaemon: return "ahakeyconfig-agent"
-        }
-    }
-
-    var shortDetail: String {
-        switch self {
-        case .ahaKeyStudio: return NSLocalizedString("本 App 连接蓝牙，用于配置与同步。Agent 的 LaunchJob 在持有方为 App 时不会加载，避免抢连接。", comment: "")
-        case .agentDaemon: return NSLocalizedString("仅 Agent 连接蓝牙。Claude/Cursor/Codex/Kimi Code CLI Hook 才能驱动灯条与拨杆查询；本 App 里无法对键盘发 BLE 命令。", comment: "")
-        }
-    }
-}
-
 /// 管理 ahakeyconfig-agent 守护进程的安装、启停、状态查询
 @MainActor
 final class AgentManager: ObservableObject {
     static let shared = AgentManager()
 
-    private static let bluetoothOwnerKey = "lab.jawa.ahakeyconfig.bluetoothConnectionOwner"
     private static let appGroupSuite = "lab.jawa.ahakeyconfig"
     private static let kimiTUIAdapterEnabledKey = "kimiTUIAdapterEnabled"
-    private static var didApplyLaunchBluetoothPreference = false
 
     @Published private(set) var isInstalled = false
     @Published private(set) var isRunning = false
@@ -48,9 +20,6 @@ final class AgentManager: ObservableObject {
     @Published private(set) var cursorHooksInstalled = false
     @Published private(set) var codexHooksInstalled = false
     @Published private(set) var kimiHooksInstalled = false
-
-    /// 用户选择的蓝牙占用方（存 UserDefaults，启动时应用一次）
-    @Published var bluetoothConnectionOwner: BluetoothConnectionOwner = .agentDaemon
 
     /// 实验性「实时控制当前前台 Kimi」开关。
     /// 开启后，拨杆切到自动/手动时会尝试向前台 Terminal.app / iTerm2 的当前 Kimi tab
@@ -153,13 +122,6 @@ final class AgentManager: ObservableObject {
     }
 
     init() {
-        if let raw = UserDefaults.standard.string(forKey: Self.bluetoothOwnerKey),
-           let stored = BluetoothConnectionOwner(rawValue: raw) {
-            bluetoothConnectionOwner = stored
-        } else {
-            bluetoothConnectionOwner = .agentDaemon
-            UserDefaults.standard.set(BluetoothConnectionOwner.agentDaemon.rawValue, forKey: Self.bluetoothOwnerKey)
-        }
         kimiTUIAdapterEnabled = UserDefaults(suiteName: Self.appGroupSuite)?.bool(forKey: Self.kimiTUIAdapterEnabledKey) ?? false
         refresh()
     }
@@ -263,65 +225,6 @@ final class AgentManager: ObservableObject {
             return false
         }
         return !(json["switchState"] is NSNull) && json["switchState"] != nil
-    }
-
-    // MARK: - 蓝牙占用方（App ↔ Agent 二选一）
-
-    /// 启动主窗口时调用一次：按用户上次选择，要么由 App 连键盘，要么交给 Agent（不自动连 App）。
-    func applyStoredBluetoothPreferenceOnLaunch(bleManager: AhaKeyBLEManager) {
-        guard !Self.didApplyLaunchBluetoothPreference else { return }
-        Self.didApplyLaunchBluetoothPreference = true
-        applyBluetoothOwner(bluetoothConnectionOwner, bleManager: bleManager, isLaunch: true)
-    }
-
-    /// 用户在「设备信息」里切换占用方时调用。
-    func setBluetoothConnectionOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager) {
-        guard owner != bluetoothConnectionOwner else { return }
-        bluetoothConnectionOwner = owner
-        UserDefaults.standard.set(owner.rawValue, forKey: Self.bluetoothOwnerKey)
-        applyBluetoothOwner(owner, bleManager: bleManager, isLaunch: false)
-    }
-
-    private func applyBluetoothOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager, isLaunch: Bool) {
-        // 阶段 4：把 Agent 活性通道注入 BLEManager——共享文件 agent* 状态的过期判断以 socket status 心跳为准
-        bleManager.agentBLEConnectedProvider = { [weak self] in self?.isAgentBLEConnected ?? false }
-        switch owner {
-        case .ahaKeyStudio:
-            bleManager.setSuppressedForAgentOwningKeyboard(false)
-            unloadAgentLaunchJobRemovingSocket()
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 700 : 600) * 1_000_000)
-                guard !bleManager.isConnected, !bleManager.isScanning else { return }
-                bleManager.connectAutomatically()
-            }
-        case .agentDaemon:
-            bleManager.setSuppressedForAgentOwningKeyboard(true)
-            bleManager.disconnect()
-            guard isInstalled else {
-                // WBS-5.5：Runtime 失败不得回退为 Studio 直连（架构 §11/§12）。
-                // 只提示用户安装/修复 Agent，绝不静默放开 Studio 竞争 Central。
-                log.info("未安装 LaunchAgent；保持 Studio 抑制，不回退直连")
-                if !isLaunch {
-                    agentUserAlert = NSLocalizedString("尚未安装 Agent，键盘蓝牙保持由 Agent 独占但当前无 Agent 运行。请在「更多 → 设备信息 · Agent」里安装并启用 Agent。", comment: "")
-                }
-                return
-            }
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 500 : 550) * 1_000_000)
-                _ = runLaunchctlQuiet(["load", plistPath])
-                _ = runLaunchctlQuiet(["start", label])
-                self.refresh()
-            }
-        }
-        if !isLaunch {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { [weak self] in
-                self?.refresh()
-            }
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                self?.refresh()
-            }
-        }
     }
 
     /// 从 launchd 卸载 Agent（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
@@ -464,16 +367,14 @@ final class AgentManager: ObservableObject {
         unloadAgentLaunchJobRemovingSocket()
         guard writeLaunchAgentPlist() else { return }
 
-        // 2. 仅当用户希望 Agent 持有蓝牙时才 load（否则只写入 plist，避免装完立刻抢 GATT）
+        // 2. 载入并启动 Agent LaunchJob
         var loadFailed = false
-        if bluetoothConnectionOwner == .agentDaemon {
-            let load = runLaunchctlDetailed(["load", plistPath])
-            if !load.ok && !isBenignLaunchctlLoadMessage(load.mergedOutput) {
-                loadFailed = true
-                log.error("launchctl load failed: \(load.mergedOutput)")
-                let out = load.mergedOutput.isEmpty ? NSLocalizedString("（无输出，退出非 0）", comment: "") : load.mergedOutput
-                agentUserAlert = String(format: NSLocalizedString("LaunchAgent 的 plist 已保存，但 launchctl load 失败，守护进程未载入。\n\nlaunchctl 输出：\n%@\n\n常见原因：同一 Label 已存在、plist 无效、对 ~/Library/LaunchAgents 无写权限。可先点「卸载」再装，或在「控制台」搜索 %@。", comment: ""), String(out), String(label))
-            }
+        let load = runLaunchctlDetailed(["load", plistPath])
+        if !load.ok && !isBenignLaunchctlLoadMessage(load.mergedOutput) {
+            loadFailed = true
+            log.error("launchctl load failed: \(load.mergedOutput)")
+            let out = load.mergedOutput.isEmpty ? NSLocalizedString("（无输出，退出非 0）", comment: "") : load.mergedOutput
+            agentUserAlert = String(format: NSLocalizedString("LaunchAgent 的 plist 已保存，但 launchctl load 失败，守护进程未载入。\n\nlaunchctl 输出：\n%@\n\n常见原因：同一 Label 已存在、plist 无效、对 ~/Library/LaunchAgents 无写权限。可先点「卸载」再装，或在「控制台」搜索 %@。", comment: ""), String(out), String(label))
         }
 
         // 3. 安装 Claude / Cursor / Codex / Kimi hooks（直接指向 agent 二进制 hook 子命令）
@@ -485,7 +386,7 @@ final class AgentManager: ObservableObject {
         refresh()
 
         var lines: [String] = []
-        if bluetoothConnectionOwner == .agentDaemon, !loadFailed {
+        if !loadFailed {
             lines.append(NSLocalizedString("launchctl load 已执行。若数秒后未显示「运行中」，请点「查看日志」。", comment: ""))
         }
         if !claudeLine.isEmpty { lines.append(claudeLine) }
@@ -500,7 +401,7 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    func uninstall(bleManager: AhaKeyBLEManager? = nil) {
+    func uninstall() {
         // 1. 卸载 LaunchAgent
         _ = runLaunchctlQuiet(["unload", plistPath])
         try? FileManager.default.removeItem(atPath: plistPath)
@@ -518,10 +419,6 @@ final class AgentManager: ObservableObject {
         if FileManager.default.fileExists(atPath: socketPath) {
             try? FileManager.default.removeItem(atPath: socketPath)
         }
-
-        bluetoothConnectionOwner = .ahaKeyStudio
-        UserDefaults.standard.set(BluetoothConnectionOwner.ahaKeyStudio.rawValue, forKey: Self.bluetoothOwnerKey)
-        bleManager?.setSuppressedForAgentOwningKeyboard(false)
 
         log.info("已卸载 agent + hooks")
         refresh()

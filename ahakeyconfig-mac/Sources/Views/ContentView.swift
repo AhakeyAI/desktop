@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
-    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
     @StateObject private var voiceRelay = VoiceRelayService.shared
     @StateObject private var nativeSpeech = NativeSpeechTranscriptionService.shared
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
@@ -33,7 +33,6 @@ struct ContentView: View {
             } else {
                 voiceRelay.showsPermissionOnboarding = false
             }
-            bleManager.refreshBluetoothAuthorization()
             voiceRelay.refreshPermissions(deferredTCCRequery: true)
             nativeSpeech.refreshPermissions(deferredTCCRequery: true)
         }
@@ -51,17 +50,19 @@ struct ContentView: View {
     @ViewBuilder
     private var mainWorkspace: some View {
         if #available(macOS 14.0, *) {
-            AhaKeyStudioView(bleManager: bleManager)
+            AhaKeyStudioView(runtimeStore: runtimeStore)
                 .focusEffectDisabled()
         } else {
-            AhaKeyStudioView(bleManager: bleManager)
+            AhaKeyStudioView(runtimeStore: runtimeStore)
         }
     }
 
     private var onboardingPermissionState: AhaKeyOnboardingPermissionState {
         AhaKeyOnboardingPermissionState(
-            bluetoothPermissionGranted: bleManager.bluetoothPermissionGranted,
-            bluetoothPoweredOn: bleManager.bluetoothPoweredOn,
+            // Studio 不再直接持有蓝牙：权限与连接由 Runtime/Agent 管理；
+            // 该行语义改为「Runtime/Agent 在线」（离线时引导用户安装/启动 Agent）。
+            bluetoothPermissionGranted: true,
+            bluetoothPoweredOn: runtimeStore.isOnline,
             inputMonitoringGranted: voiceRelay.inputMonitoringGranted,
             accessibilityGranted: voiceRelay.accessibilityGranted,
             microphoneGranted: nativeSpeech.microphoneGranted,
@@ -87,7 +88,7 @@ struct ContentView: View {
             requestPermissions: {
                 voiceRelay.suppressPermissionOnboarding()
                 requestOnboardingPermissionsThenOpenPrivacySettingsIfNeeded(
-                    bleManager: bleManager,
+                    runtimeStore: runtimeStore,
                     voiceRelay: voiceRelay,
                     nativeSpeech: nativeSpeech
                 )
@@ -96,21 +97,20 @@ struct ContentView: View {
                 voiceRelay.suppressPermissionOnboarding()
                 requestSingleOnboardingPermission(
                     kind,
-                    bleManager: bleManager,
+                    runtimeStore: runtimeStore,
                     voiceRelay: voiceRelay,
                     nativeSpeech: nativeSpeech
                 )
             },
             recheckPermissions: {
                 voiceRelay.suppressPermissionOnboarding()
-                bleManager.refreshBluetoothAuthorization()
                 voiceRelay.refreshPermissions(deferredTCCRequery: true)
                 nativeSpeech.refreshPermissions(deferredTCCRequery: true)
             },
             openSystemSettings: {
                 voiceRelay.suppressPermissionOnboarding()
                 openFirstMissingOnboardingPermissionSettings(
-                    bleManager: bleManager,
+                    runtimeStore: runtimeStore,
                     voiceRelay: voiceRelay,
                     nativeSpeech: nativeSpeech
                 )
@@ -126,7 +126,7 @@ struct ContentView: View {
 @MainActor
 private func requestSingleOnboardingPermission(
     _ kind: AhaKeyOnboardingPermissionKind,
-    bleManager: AhaKeyBLEManager,
+    runtimeStore: AhaKeyStudioRuntimeClient,
     voiceRelay: VoiceRelayService,
     nativeSpeech: NativeSpeechTranscriptionService
 ) {
@@ -134,14 +134,10 @@ private func requestSingleOnboardingPermission(
 
     switch kind {
     case .bluetooth:
-        bleManager.ensureCentralManager()
-        bleManager.refreshBluetoothAuthorization()
-        bleManager.userInitiatedConnect()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            bleManager.refreshBluetoothAuthorization()
-            if bleManager.bluetoothAuthorizationDeniedOrRestricted || !bleManager.bluetoothPoweredOn {
-                openOnboardingPermissionSettings(.bluetooth)
-            }
+        // Studio 不再直连蓝牙：键盘连接由 Runtime/Agent 管理。离线时引导安装/启动 Agent。
+        if !runtimeStore.isOnline {
+            AgentManager.shared.refresh()
+            AgentManager.shared.agentUserAlert = NSLocalizedString("键盘连接由后台 Agent 管理。请在主界面「更多 → 设备信息 · Agent」里安装并启动 Agent；Agent 运行后会自动连接键盘。", comment: "")
         }
 
     case .inputMonitoring:
@@ -187,20 +183,18 @@ private func requestSingleOnboardingPermission(
 
 @MainActor
 private func requestOnboardingPermissionsThenOpenPrivacySettingsIfNeeded(
-    bleManager: AhaKeyBLEManager,
+    runtimeStore: AhaKeyStudioRuntimeClient,
     voiceRelay: VoiceRelayService,
     nativeSpeech: NativeSpeechTranscriptionService,
     delay: TimeInterval = 0.45
 ) {
-    bleManager.refreshBluetoothAuthorization()
     voiceRelay.suppressPermissionOnboarding()
     voiceRelay.refreshPermissions(requestIfNeeded: true)
     nativeSpeech.refreshPermissions(requestIfNeeded: true)
     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
         voiceRelay.suppressPermissionOnboarding()
-        bleManager.refreshBluetoothAuthorization()
         openFirstMissingOnboardingPermissionSettings(
-            bleManager: bleManager,
+            runtimeStore: runtimeStore,
             voiceRelay: voiceRelay,
             nativeSpeech: nativeSpeech
         )
@@ -209,13 +203,10 @@ private func requestOnboardingPermissionsThenOpenPrivacySettingsIfNeeded(
 
 @MainActor
 private func openFirstMissingOnboardingPermissionSettings(
-    bleManager: AhaKeyBLEManager,
+    runtimeStore: AhaKeyStudioRuntimeClient,
     voiceRelay: VoiceRelayService,
     nativeSpeech: NativeSpeechTranscriptionService
 ) {
-    if !bleManager.bluetoothPermissionGranted || !bleManager.bluetoothPoweredOn {
-        if openFirstAvailableOnboardingSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth"]) { return }
-    }
     if !voiceRelay.inputMonitoringGranted {
         if openFirstAvailableOnboardingSystemSettingsURL(["x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"]) { return }
     }

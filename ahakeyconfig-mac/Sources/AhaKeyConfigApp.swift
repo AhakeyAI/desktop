@@ -9,15 +9,24 @@ import UserNotifications
 @main
 struct AhaKeyConfigApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var bleManager = AhaKeyBLEManager()
+    /// Studio 唯一设备事实源：Runtime facade（XPC）→ store。BLE/USB 由 Runtime（Agent）独占。
+    @StateObject private var runtimeStore: AhaKeyStudioRuntimeClient
 
     init() {
         AppLanguageInitializer.applySystemLanguageIfNeeded()
+        let buildID = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "dev"
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: AhaKeyStudioRuntimeXPCTransport(),
+            clientBuildID: buildID
+        )
+        let store = AhaKeyStudioRuntimeClient(facade: facade)
+        _runtimeStore = StateObject(wrappedValue: store)
+        StudioRuntimeStoreHolder.store = store
     }
 
     var body: some Scene {
         WindowGroup("AhaKey Studio") {
-            ContentView(bleManager: bleManager)
+            ContentView(runtimeStore: runtimeStore)
                 .frame(minWidth: 1180, minHeight: 680)
         }
         .windowStyle(.titleBar)
@@ -49,6 +58,12 @@ struct AhaKeyConfigApp: App {
             }
         }
     }
+}
+
+/// App.init 与 AppDelegate 之间的 store 传递（NSApplicationDelegateAdaptor 在 init 中尚不可用）。
+@MainActor
+enum StudioRuntimeStoreHolder {
+    static var store: AhaKeyStudioRuntimeClient?
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -95,6 +110,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         UNUserNotificationCenter.current().delegate = self
+
+        // Studio Runtime facade 生命周期：启动即跟随 Runtime（握手→快照→事件游标）。
+        Task { @MainActor in
+            StudioRuntimeStoreHolder.store?.connect()
+        }
 
         PowerProtectionManager.shared.configureAsApp()
         // 进程检测生命周期移出 SwiftUI：App 启动即开始，窗口关闭检测继续运行（它驱动防休眠）。
@@ -143,6 +163,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // Best-effort cleanup: SIGKILL can't be caught, but normal quit/updates
         // will release assertions and the virtual display lock.
         _ = PowerProtectionManager.shared.deactivateAll()
+        // 停止 facade 跟随；Runtime 已受理的 operation 不受影响（不主动 cancel）。
+        Task { @MainActor in
+            StudioRuntimeStoreHolder.store?.disconnect()
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
