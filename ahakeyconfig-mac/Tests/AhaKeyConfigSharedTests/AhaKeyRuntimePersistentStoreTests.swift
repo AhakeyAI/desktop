@@ -619,6 +619,110 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertNotNil(promotedURL)
     }
 
+    /// 批内重复 digest：单次 ingest 两个同 digest item，配额只计一次（Codex 12:42 finding #4）。
+    func testSingleBatchDuplicateDigestCountsOnce() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = try resourceStore(rootDirectory: root)
+        let digest = try AhaKeySHA256Digest(
+            "03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"
+        )
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("idle"),
+            sha256: digest, byteCount: 12, data: Data("resource-one".utf8)
+        )
+        let duplicate = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("idle-copy"),
+            sha256: digest, byteCount: 12, data: Data("resource-one".utf8)
+        )
+        try await store.ingestResources([item, duplicate])
+        let usage = try await store.resourceStorageUsage()
+        XCTAssertEqual(usage, 12)
+    }
+
+    /// 崩溃窗口：journal 已提交但 final 文件缺失（commit 与 move 之间崩溃），
+    /// 下次启动 prune 删除该 journal 行并释放配额（Codex 12:42 finding #1 的反向窗口）。
+    func testStartupPrunesStagedJournalRowWithMissingFile() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let orphanDigest = "1111111111111111111111111111111111111111111111111111111111111111"
+
+        do {
+            // 首次初始化建表。
+            let storeA = try resourceStore(rootDirectory: root)
+            _ = try await storeA.health()
+        }
+
+        // 模拟崩溃残留：journal 行存在，final 文件从未落盘。
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        let insert = """
+        INSERT INTO runtime_staged_resources
+            (digest, byte_count, media_type, logical_identifier, relative_path)
+        VALUES ('\(orphanDigest)', 64, 'application/octet-stream', 'orphan', '\(orphanDigest)')
+        """
+        XCTAssertEqual(sqlite3_exec(database, insert, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(database)
+
+        let storeB = try resourceStore(rootDirectory: root)
+        let usage = try await storeB.resourceStorageUsage()
+        XCTAssertEqual(usage, 0)
+
+        // prune 后该行不再保护配额，也不影响后续同 digest 重新 ingest。
+        var verify: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &verify), SQLITE_OK)
+        var stmt: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(
+            verify, "SELECT COUNT(*) FROM runtime_staged_resources WHERE digest = '\(orphanDigest)'",
+            -1, &stmt, nil
+        ), SQLITE_OK)
+        XCTAssertEqual(sqlite3_step(stmt), SQLITE_ROW)
+        XCTAssertEqual(sqlite3_column_int(stmt, 0), 0)
+        sqlite3_finalize(stmt)
+        sqlite3_close(verify)
+    }
+
+    /// 并发配额窗口代理测试：配额核算在 BEGIN IMMEDIATE 内（写序列化），
+    /// 先 staged 12B，再另一 Store 实例 ingest 22B 必须拒绝（合计 34 > 20）。
+    func testConcurrentStoreCannotJointlyExceedQuota() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let quota = AhaKeyRuntimeResourceQuota(maxSingleResourceBytes: 32, maxTotalResourceBytes: 20)
+        let storeA = try AhaKeyRuntimePersistentStore(
+            rootDirectory: root, quota: quota, acceptanceValidator: AllowingResourceValidator()
+        )
+        try await storeA.ingestResources([
+            AhaKeyXPCResourceIngestionItem(
+                logicalIdentifier: try AhaKeyResourceIdentifier("first"),
+                sha256: try AhaKeySHA256Digest("03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"),
+                byteCount: 12, data: Data("resource-one".utf8)
+            )
+        ])
+
+        // 第二个 Store 实例（等价于另一个 XPC 请求新建的 store）看到 staged 配额。
+        let storeB = try AhaKeyRuntimePersistentStore(
+            rootDirectory: root, quota: quota, acceptanceValidator: AllowingResourceValidator()
+        )
+        do {
+            try await storeB.ingestResources([
+                AhaKeyXPCResourceIngestionItem(
+                    logicalIdentifier: try AhaKeyResourceIdentifier("second"),
+                    sha256: try AhaKeySHA256Digest("a49df6264aac97259550659f2d7ede6c30689e36881c4a37b31db3a4a2c199a6"),
+                    byteCount: 22, data: Data("resource-two-is-larger".utf8)
+                )
+            ])
+            XCTFail("Expected quota rejection across store instances")
+        } catch {
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePersistenceError,
+                .resourceQuotaExceeded(limit: 20, attempted: 34)
+            )
+        }
+    }
+
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("AhaKeyRuntimePersistentStoreTests-\(UUID().uuidString)", isDirectory: true)

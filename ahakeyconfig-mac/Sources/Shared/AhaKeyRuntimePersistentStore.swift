@@ -234,12 +234,14 @@ public actor AhaKeyRuntimePersistentStore {
                     digest TEXT PRIMARY KEY NOT NULL,
                     byte_count INTEGER NOT NULL,
                     media_type TEXT NOT NULL,
+                    logical_identifier TEXT NOT NULL,
                     relative_path TEXT NOT NULL
                 )
                 """,
                 on: handle
             )
             try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
+            try Self.pruneStagedJournalMissingFiles(resourcesDirectory, with: handle)
             try Self.execute(
                 """
                 CREATE TABLE IF NOT EXISTS runtime_transaction_resources (
@@ -466,74 +468,39 @@ public actor AhaKeyRuntimePersistentStore {
             }
         }
 
-        // 元数据冲突拒绝：同一 digest 已 journal（staged 或正式）但申报字节数不同。
-        for item in items {
-            if let stagedBytes = try stagedResourceByteCount(item.sha256), stagedBytes != item.byteCount {
-                throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
-            }
-            if let acceptedBytes = try journaledResourceByteCount(item.sha256), acceptedBytes != item.byteCount {
-                throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
-            }
-        }
-
-        // 去重：已入库（正式或 staged journal）的 digest 不重复计配额。
-        var newBytes: UInt64 = 0
-        for item in items {
-            let alreadyJournaled = try resourceExists(item.sha256)
-                || stagedResourceByteCount(item.sha256) != nil
-            if !alreadyJournaled {
-                let (sum, overflow) = newBytes.addingReportingOverflow(item.byteCount)
-                guard !overflow else {
-                    throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
-                        limit: quota.maxTotalResourceBytes,
-                        attempted: UInt64.max
-                    )
-                }
-                newBytes = sum
-            }
-        }
-        let currentBytes = try resourceStorageUsage()
-        let (attemptedBytes, overflow) = currentBytes.addingReportingOverflow(newBytes)
-        guard !overflow, attemptedBytes <= quota.maxTotalResourceBytes else {
-            throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
-                limit: quota.maxTotalResourceBytes,
-                attempted: overflow ? UInt64.max : attemptedBytes
-            )
-        }
-
-        var newlyCreatedFiles: [URL] = []
+        // 阶段 1：把数据写入临时文件（.staging- 前缀）。final 文件名在 journal 提交前不存在，
+        // 因此并发 Store 的 reconciliation 不会误删（Codex 12:42 finding #1）；reconcile 跳过
+        // 点前缀文件，并发 ingest 途中的临时文件同样安全。崩溃残留由启动时
+        // pruneStagedJournalMissingFiles 按龄期（>1h）回收，journal 无文件行同步删除。
+        var stagingFiles: [AhaKeySHA256Digest: URL] = [:]
         do {
             for item in items {
+                // 同批重复 digest：阶段 1 只写一次临时文件（阶段 2 还有批内 Set 去重计配额）。
+                if stagingFiles[item.sha256] != nil { continue }
                 let destination = managedResourceURL(for: item.sha256)
                 if !FileManager.default.fileExists(atPath: destination.path) {
                     let temporary = resourcesDirectory.appendingPathComponent(".staging-\(UUID().uuidString)")
+                    let resource = AhaKeyConfigurationResource(
+                        logicalIdentifier: item.logicalIdentifier,
+                        sha256: item.sha256,
+                        byteCount: item.byteCount,
+                        mediaType: try AhaKeyMediaType("application/octet-stream")
+                    )
+                    try item.data.write(to: temporary, options: .atomic)
+                    try validateResourceFile(at: temporary, against: resource)
+                    try FileManager.default.setAttributes(
+                        [.posixPermissions: 0o600],
+                        ofItemAtPath: temporary.path
+                    )
+                    let handle = try FileHandle(forUpdating: temporary)
                     do {
-                        try item.data.write(to: temporary, options: .atomic)
-                        let resource = AhaKeyConfigurationResource(
-                            logicalIdentifier: item.logicalIdentifier,
-                            sha256: item.sha256,
-                            byteCount: item.byteCount,
-                            mediaType: try AhaKeyMediaType("application/octet-stream")
-                        )
-                        try validateResourceFile(at: temporary, against: resource)
-                        try FileManager.default.setAttributes(
-                            [.posixPermissions: 0o600],
-                            ofItemAtPath: temporary.path
-                        )
-                        let handle = try FileHandle(forUpdating: temporary)
-                        do {
-                            try handle.synchronize()
-                            try handle.close()
-                        } catch {
-                            try? handle.close()
-                            throw error
-                        }
-                        try FileManager.default.moveItem(at: temporary, to: destination)
+                        try handle.synchronize()
+                        try handle.close()
                     } catch {
-                        try? FileManager.default.removeItem(at: temporary)
+                        try? handle.close()
                         throw error
                     }
-                    newlyCreatedFiles.append(destination)
+                    stagingFiles[item.sha256] = temporary
                 } else {
                     let resource = AhaKeyConfigurationResource(
                         logicalIdentifier: item.logicalIdentifier,
@@ -544,22 +511,77 @@ public actor AhaKeyRuntimePersistentStore {
                     try validateResourceFile(at: destination, against: resource)
                 }
             }
-            try Self.synchronizeDirectory(resourcesDirectory)
-            // durable staged journal：文件全部落盘并 fsync 后，同事务写入 journal。
-            // 崩溃窗口内「有文件无 journal」由启动 reconciliation 当 orphan 清理，方向安全。
+
+            // 阶段 2：BEGIN IMMEDIATE 事务内完成去重、冲突检测、配额核算、journal 写入。
             try Self.execute("BEGIN IMMEDIATE", on: database)
             do {
+                // 先读既有用量（此时本批尚未插入，不会把新行双计进 newBytes）。
+                let existingBytes = try resourceStorageUsage()
+                var batchDigests: Set<AhaKeySHA256Digest> = []
+                var pendingInserts: [AhaKeyXPCResourceIngestionItem] = []
+                var newBytes: UInt64 = 0
                 for item in items {
+                    // 同批去重
+                    guard batchDigests.insert(item.sha256).inserted else { continue }
+
+                    // 冲突检测：同一 digest 已存在（staged 或正式）且字节数不同 → 拒绝
+                    if let stagedBytes = try stagedResourceByteCount(item.sha256) {
+                        guard stagedBytes == item.byteCount else {
+                            throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+                        }
+                        continue // 已 journal，幂等
+                    }
+                    if let acceptedBytes = try journaledResourceByteCount(item.sha256) {
+                        guard acceptedBytes == item.byteCount else {
+                            throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(item.logicalIdentifier)
+                        }
+                        continue // 已转正，幂等
+                    }
+
+                    // 配额核算：只统计本事务新入库的 digest。
+                    let (sum, overflow) = newBytes.addingReportingOverflow(item.byteCount)
+                    guard !overflow else {
+                        throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
+                            limit: quota.maxTotalResourceBytes,
+                            attempted: UInt64.max
+                        )
+                    }
+                    newBytes = sum
+                    pendingInserts.append(item)
+                }
+
+                let (attemptedBytes, overflow) = existingBytes.addingReportingOverflow(newBytes)
+                guard !overflow, attemptedBytes <= quota.maxTotalResourceBytes else {
+                    throw AhaKeyRuntimePersistenceError.resourceQuotaExceeded(
+                        limit: quota.maxTotalResourceBytes,
+                        attempted: overflow ? UInt64.max : attemptedBytes
+                    )
+                }
+
+                // 配额与冲突全部通过后统一写 journal（每 digest 恰好一次，plain INSERT 防静默吞冲突）。
+                for item in pendingInserts {
                     try insertStagedResource(item)
                 }
+
                 try Self.execute("COMMIT", on: database)
             } catch {
                 try? Self.execute("ROLLBACK", on: database)
                 throw error
             }
+
+            // 阶段 3：事务已提交，把 staging 文件 move 到 final + fsync。
+            for (digest, temporary) in stagingFiles {
+                let destination = managedResourceURL(for: digest)
+                if !FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.moveItem(at: temporary, to: destination)
+                }
+            }
+            try Self.synchronizeDirectory(resourcesDirectory)
         } catch {
-            for url in newlyCreatedFiles { try? FileManager.default.removeItem(at: url) }
-            try? Self.synchronizeDirectory(resourcesDirectory)
+            // 清理 staging 文件
+            for (_, temporary) in stagingFiles {
+                try? FileManager.default.removeItem(at: temporary)
+            }
             throw error
         }
     }
@@ -1004,10 +1026,10 @@ public actor AhaKeyRuntimePersistentStore {
 
     /// 写入 staged journal：已是正式资源的 digest 无需 staged 记录；其余按 digest 幂等。
     private func insertStagedResource(_ item: AhaKeyXPCResourceIngestionItem) throws {
-        if try resourceExists(item.sha256) { return }
+
         let statement = try prepare(
             """
-            INSERT OR IGNORE INTO runtime_staged_resources
+            INSERT INTO runtime_staged_resources
                 (digest, byte_count, media_type, logical_identifier, relative_path)
             VALUES (?, ?, ?, ?, ?)
             """
@@ -1187,11 +1209,88 @@ public actor AhaKeyRuntimePersistentStore {
             at: directory,
             includingPropertiesForKeys: nil,
             options: []
-        ) where !referenced.contains(url.lastPathComponent) {
+        ) where !referenced.contains(url.lastPathComponent) && !url.lastPathComponent.hasPrefix(".") {
             try FileManager.default.removeItem(at: url)
             removedAny = true
         }
         if removedAny { try synchronizeDirectory(directory) }
+    }
+
+    /// 启动清理（journal-first 契约的另一半，Codex 12:42 finding #1 的崩溃窗口）：
+    /// 1. staged journal 已提交但 final 文件从未落盘（崩溃于 COMMIT 与 move 之间）→ 删除该
+    ///    journal 行，释放配额，apply 会重新要求 ingest；
+    /// 2. 超过 1 小时的 `.staging-` 临时文件视为崩溃残留删除（1 小时内可能正被并发 ingest
+    ///    使用，保留；reconcile 对点前缀文件一律跳过）。
+    private static func pruneStagedJournalMissingFiles(
+        _ directory: URL,
+        with database: OpaquePointer
+    ) throws {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(
+            database,
+            "SELECT digest FROM runtime_staged_resources",
+            -1,
+            &statement,
+            nil
+        ) == SQLITE_OK, let statement else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                String(cString: sqlite3_errmsg(database))
+            )
+        }
+        var stagedDigests: [String] = []
+        while true {
+            let result = sqlite3_step(statement)
+            if result == SQLITE_DONE { break }
+            guard result == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else {
+                sqlite3_finalize(statement)
+                throw AhaKeyRuntimePersistenceError.corruptTransaction
+            }
+            stagedDigests.append(String(cString: text))
+        }
+        sqlite3_finalize(statement)
+
+        var prunedAny = false
+        for digest in stagedDigests {
+            let fileURL = directory.appendingPathComponent(digest, isDirectory: false)
+            guard !FileManager.default.fileExists(atPath: fileURL.path) else { continue }
+            var delete: OpaquePointer?
+            guard sqlite3_prepare_v2(
+                database,
+                "DELETE FROM runtime_staged_resources WHERE digest = ?",
+                -1,
+                &delete,
+                nil
+            ) == SQLITE_OK, let delete else {
+                throw AhaKeyRuntimePersistenceError.databaseFailure(
+                    String(cString: sqlite3_errmsg(database))
+                )
+            }
+            _ = sqlite3_bind_text(delete, 1, digest, -1, Self.sqliteTransient)
+            guard sqlite3_step(delete) == SQLITE_DONE else {
+                sqlite3_finalize(delete)
+                throw AhaKeyRuntimePersistenceError.databaseFailure(
+                    String(cString: sqlite3_errmsg(database))
+                )
+            }
+            sqlite3_finalize(delete)
+            prunedAny = true
+        }
+
+        // 崩溃残留的 .staging- 临时文件按龄期回收（>1 小时）。
+        let cutoff = Date().addingTimeInterval(-3600)
+        for url in try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: []
+        ) where url.lastPathComponent.hasPrefix(".staging-") {
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate ?? .distantPast
+            if modified < cutoff {
+                try? FileManager.default.removeItem(at: url)
+                prunedAny = true
+            }
+        }
+        if prunedAny { try? synchronizeDirectory(directory) }
     }
 
     private static func synchronizeDirectory(_ directory: URL) throws {
