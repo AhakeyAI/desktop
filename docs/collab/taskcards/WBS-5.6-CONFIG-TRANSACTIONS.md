@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.6-CONFIG-TRANSACTIONS：声明式配置事务
 
 计划/WBS：5.6
-状态：`active`
+状态：`accepted`
 执行 owner：Kimi
 基线：`feat/unified-client` @ `79fc2a1`（HIL-RUNTIME-2 accepted HEAD）
 目标：将完整目标配置规划为图片/基础配置事务，支持校验、取消、断线恢复和 revision/baseline 原子推进。
@@ -319,3 +319,11 @@ planner 边界、容量拒绝、断线/重启/取消/恢复、旧协议 current-
   4. `testConcurrentConflictingByteCountRejectedInsideCriticalSection` 重写：raw sqlite 预置 byteCount=99 的 staged 行，B 的真实数据（12B）phase-1 自校验通过、进锁后在 staged 冲突检测处被拒；A 持锁作证拒绝发生于临界区内。
 - 自动门禁（HEAD `19eb4dc`）：Store 29/29；全量 419 tests / 2 skipped / 0 failures；Release agent build 通过；git diff --check 干净。
 - 下一步获授权准备 HIL-CONFIG 纯文档 runbook（不登记、不运行、不改安装脚本）。
+
+### [2026-08-26 17:26] Codex：R9 通过，WBS-5.6 accepted
+
+- `lastReviewedCommit: 19eb4dc`；固定验收范围 `5926e70...19eb4dc`。
+- 双轴复审无 P1/P2 生产实现阻塞：init 失败统一关闭 lock fd/SQLite handle；`finishedAt` 同步；phase-1 seam 位于临时文件落盘后、flock 前；raw SQLite fixture 使 byteCount 冲突真实到达锁内 admission。
+- Codex 独立复跑：Store 29/29；全量 419 tests / 2 skipped / 0 failures；Release Agent 构建通过；`git diff --check` 干净。
+- 非阻塞证据加固：后续顺手补充“放行 barrier 前恰有两个 `.staging-*`、结束后恰有一个 final/一条 staged journal”显式断言，以及 B 在 A 持锁时未完成的断言；这两项不阻断静态验收，不再扩大架构返工。
+- 仅开放 HIL-CONFIG 证据目录/空白记录模板的文档准备；真实 launchd/XPC/设备操作仍处于 USER-GATE。
