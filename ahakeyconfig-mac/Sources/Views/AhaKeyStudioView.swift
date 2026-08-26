@@ -3914,6 +3914,8 @@ private final class AnimatedGIFLayerView: NSView {
     private var gifTimer: Timer?
     private var loadedPath: String?
     private var playbackFPS = 0
+    /// 记录「应播放」语义：窗口隐藏/移除时暂停定时器，回窗后恢复。
+    private var playsRequested = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -3930,14 +3932,24 @@ private final class AnimatedGIFLayerView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         layer?.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        if window == nil {
+            // 窗口移除（关闭/隐藏）：停掉 GIF 时钟，不留后台动画。
+            stopPlayback()
+        } else if playsRequested, frames.count > 1 {
+            startPlayback(fps: playbackFPSRequested)
+        }
     }
 
+    private var playbackFPSRequested = 0
+
     func configure(path: String, fps: Int, plays: Bool) {
+        playsRequested = plays
+        playbackFPSRequested = fps
         if loadedPath != path {
             loadFrames(path: path)
         }
 
-        if plays, frames.count > 1 {
+        if plays, frames.count > 1, window != nil {
             startPlayback(fps: fps)
         } else {
             stopPlayback()
