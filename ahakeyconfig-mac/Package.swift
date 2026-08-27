@@ -46,7 +46,7 @@ let package = Package(
         ),
         .target(
             name: "AhaKeyConfigShared",
-            dependencies: ["AhaKeyVirtualDisplayBridge"],
+            dependencies: ["AhaKeyVirtualDisplayBridge", "CLibXPC"],
             path: "Sources/Shared",
             linkerSettings: [
                 .linkedFramework("IOKit"),
@@ -81,7 +81,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "RuntimeXPCSmokeClient",
-            dependencies: ["CLibXPC", "AhaKeyConfigShared"],
+            dependencies: ["AhaKeyConfigShared"],
             path: "Sources/RuntimeXPCServer/SmokeClient"
         ),
         .testTarget(
@@ -97,7 +97,7 @@ let package = Package(
         ),
         .testTarget(
             name: "RuntimeXPCServerTests",
-            dependencies: ["RuntimeXPCServer", "AhaKeyConfigShared"]
+            dependencies: ["RuntimeXPCServer", "AhaKeyConfigShared", "CLibXPC"]
         ),
         .testTarget(
             name: "AhaKeyAgentTests",

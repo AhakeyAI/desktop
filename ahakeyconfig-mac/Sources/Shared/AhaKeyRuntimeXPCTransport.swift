@@ -4,11 +4,16 @@ import Foundation
     func exchange(_ request: Data, reply: @escaping (Data?, NSError?) -> Void)
 }
 
-public enum AhaKeyRuntimeXPCTransportError: Error, Sendable {
+public enum AhaKeyRuntimeXPCTransportError: Error, Equatable, Sendable {
     case requestTooLarge
     case responseTooLarge
     case invalidResponse
     case requestTimedOut
+    case missingPayload
+    case payloadTooLarge
+    case peerError(String)
+    case connectionInvalid
+    case queueSaturated
 }
 
 public actor AhaKeyRuntimeXPCSessionEndpoint {
@@ -70,6 +75,9 @@ public final class AhaKeyRuntimeXPCServiceBridge: NSObject, AhaKeyRuntimeXPCServ
     }
 }
 
+/// NSXPC 单元测试 seam（匿名 NSXPCListener）。**不是** Studio 生产入口：
+/// 生产 Runtime Mach service 由 `AhaKeyRuntimeXPCLibXPCServer` 提供，Studio 必须走
+/// `AhaKeyStudioRuntimeXPCTransport` → `AhaKeyRuntimeXPCLibXPCClient`。
 public final class AhaKeyRuntimeXPCConnectionTransport: @unchecked Sendable {
     private let connection: NSXPCConnection
 

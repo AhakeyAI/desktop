@@ -10,25 +10,25 @@ import ImageIO
 // 事实源永远在 Runtime；本 facade 不复制设备状态，只保存「最近一次快照 + 事件游标」
 // 作为 UI 派生输入。传输层可注入（生产 = XPC，测试 = 内存假实现）。
 
-/// Studio facade 的请求/响应传输抽象。生产实现走 `AhaKeyRuntimeXPCConnectionTransport`。
+/// Studio facade 的请求/响应传输抽象。生产实现走 `AhaKeyRuntimeXPCLibXPCClient`。
 public protocol AhaKeyStudioRuntimeTransport: Sendable {
     func exchange(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse
 }
 
-/// 生产 XPC 传输：JSON 编解码 + 既有连接 transport（wire v1.1 不变）。
+/// 生产 XPC 传输：libxpc dictionary `payload` JSON（与 Agent server / 5.2 smoke 同一 wire）。
 public struct AhaKeyStudioRuntimeXPCTransport: AhaKeyStudioRuntimeTransport {
-    private let connection: AhaKeyRuntimeXPCConnectionTransport
-    private let timeout: TimeInterval
+    private let client: AhaKeyRuntimeXPCLibXPCClient
 
     public init(machServiceName: String = "lab.jawa.ahakeyconfig.runtime", timeout: TimeInterval = 10) {
-        self.connection = AhaKeyRuntimeXPCConnectionTransport(machServiceName: machServiceName)
-        self.timeout = timeout
+        self.client = AhaKeyRuntimeXPCLibXPCClient(machServiceName: machServiceName, requestTimeout: timeout)
+    }
+
+    public init(client: AhaKeyRuntimeXPCLibXPCClient) {
+        self.client = client
     }
 
     public func exchange(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse {
-        let requestData = try JSONEncoder().encode(request)
-        let responseData = try await connection.exchange(requestData, timeout: timeout)
-        return try JSONDecoder().decode(AhaKeyRuntimeXPCResponse.self, from: responseData)
+        try await client.exchange(request)
     }
 }
 
