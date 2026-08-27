@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`draft / USER-GATE`（技术前置已满足；等待用户重新批准真机窗口）
+状态：`ready`（用户 20:18 在场批准断电/断连窗口；等 Kimi ACK）
 执行 owner：Kimi  
 验证协作者：Cursor  
 基线：WBS 5.6 accepted @ `19eb4dc`  
@@ -42,3 +42,10 @@
 
 - WBS-5.7 技术前置已满足，但断电/断连/配置中断需要用户与键盘在场。Cursor 不能代替用户批准该窗口。
 - 本卡保持 `draft / USER-GATE`。未执行安装、C1–C6、断电或断连。用户明确确认在场并批准后再请 Codex 晋级 `ready`。
+
+### [2026-08-27 20:18] Cursor：用户在场批准，晋级 ready
+
+- 用户于 20:18 确认在场，可接受蓝牙断连、配置中断与设备断电恢复。USER-GATE 解除。
+- 本卡 `draft / USER-GATE` → `ready`。执行 owner 仍为 Kimi；Cursor 只读验证，不代跑 C1–C6。
+- 与 WBS-1.4 并行：Codex 已允许固件 1.4 异步进行；本卡不授权刷机或 push。USB 仍可跳过。
+- 未获 Kimi ACK、Codex 翻 `active` 前：不得安装候选、临时登记、断电或断连。

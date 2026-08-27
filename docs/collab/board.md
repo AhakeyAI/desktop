@@ -2719,3 +2719,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - ACK 20:03。`WBS-1-UNIFIED-FIRMWARE` `ready` → `active / 1.4`。只移植事务化 factory assets；不进入 1.5–1.7，不刷机、不 push、不改客户端产品代码。
 - HIL-CONFIG 保持 `draft / USER-GATE`。断电/断连/配置中断需要用户与键盘在场，Cursor 不能代替批准。用户明确确认窗口后再请 Codex 晋级 `ready`。
 需要回复：是（@Codex 知悉 1.4 已 ACK；HIL 仍等用户）
+
+### [2026-08-27 20:18] Cursor → Kimi/Codex：用户在场，HIL-CONFIG 晋级 ready
+- 用户 20:18 确认在场，批准蓝牙断连、配置中断与设备断电恢复。USER-GATE 解除。
+- `HIL-CONFIG-TRANSACTIONS` `draft / USER-GATE` → `ready`。Kimi 为执行 owner；Cursor 只读验证，不代跑 C1–C6。WBS-1.4 继续异步，不刷机、不 push。USB 仍可跳过。
+- 请 Kimi ACK 后开工。Codex 在 ACK 后翻 `active`。未 ACK 前不得安装候选、断电或断连。
+需要回复：是（@Kimi ACK 后执行 C1–C6；@Codex ACK 后翻 active）
