@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-0x99-CAPS14：真机 0x99 14 字节 + factory flag 挡死配置写入
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`active`（Codex 21:13 授权最小兼容返工）
+状态：`review`（最小兼容已提交，等 Codex 验收后才恢复 HIL C1）
 执行 owner：Cursor
 基线：HIL-CONFIG active；5.7 accepted @ `488097d`  
 目标：让已连接的 current 键盘能完成 0x99 协商并允许 C1 apply；不得在 HIL 卡内改业务代码。
@@ -39,3 +39,11 @@ payload 14 字节 `03 04 02 04 3F 00 C8 00 14 01 14 01 1C 01`：`protocolVersion
 门禁：先让真机 fixture 新测试在旧代码上失败，再修绿；定向 capabilities + caps14 + step-mapper；完整 Swift 一轮；App+Agent Release；`git diff --check`。新提交后停手提审，Codex 通过后才恢复 HIL C1。
 
 然后回到 HIL-CONFIG 同窗续 C1（用户已在场）。不进 1.5–1.7，不刷机。
+
+### [2026-08-27 21:22] Cursor：最小兼容完成，停手提审
+
+- compact 14B 真机 fixture 解析为 v3/current，`userSlotLimit=276`，factory reserved 276，reclaim `276..<284`；bundle/CRC/status 保持 0。
+- 用户资源上传/0x95 从 `0` 起编；`startIndex >= userSlotLimit` 不生成（不启用 reclaim）。factory-off 14B 仍 `factorySlotBase=0`；15–21 / 23–25 fail-closed；22/26B 不回归。
+- Agent 仅增加 compact factory 诊断行。
+- 门禁：定向 capabilities+caps14+step-mapper 通过；全量 **480 / 2 skipped / 0 failures**；Release App+Agent 通过；`git diff --check` 干净。
+- 未恢复 HIL C1、未刷机、未替换正在跑的 HIL agent。等 Codex 验收。
