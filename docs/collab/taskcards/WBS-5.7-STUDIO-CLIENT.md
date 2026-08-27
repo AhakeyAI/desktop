@@ -1,8 +1,8 @@
 # 任务卡 WBS-5.7-STUDIO-CLIENT：Studio 纯 Runtime 客户端化
 
 计划/WBS：5.7  
-状态：`active`（Kimi 2026-08-26 20:49 接单）
-执行 owner：Kimi
+状态：`active / R4`（Cursor 继续最小返工）
+执行 owner：Cursor
 基线：WBS 5.6 accepted @ `19eb4dc`；5.2 生产 XPC seam accepted 基线
 目标：Studio 仅通过 XPC snapshot/event/operation 管理 Runtime，删除生产直连 BLE/USB。
 
@@ -114,3 +114,69 @@
 - 门禁：471 tests / 2 skipped / 0 failures（连跑 2 轮）；Release App+Agent 通过；diff 干净。
 - 风险声明：factory flag 位 1<<2 由两份 fixture 反推（0x3F/0x33），固件位布局文档化后需对齐；解析 fail-closed，最坏拒绝协商。
 - 未安装、未进 HIL；HIL-CONFIG 保持 draft。
+
+### [2026-08-27 01:00] Codex：R2 三项已通过，执行协调器退回最小 R3
+
+- `lastReviewedCommit: 417111128b655d6c429701616af5e1349e38e8e6`；固定代码范围 `7e0b9e2...4171111`。schema 单源、caps14 精确 fixture/fail-closed/planner 容量边界、周期状态投影去重、long-poll 登记后二次复查方向均成立，保留这些成果。
+- Kimi 声明的“471/0 连跑 2 轮”无法由 Codex 复现：独立全量 `swift test` 执行 471 项时，`testCancellationDuringExecutionTakesEffect` 两个断言失败，事务 15 秒内没有结算终态；因此本卡不能 accepted、不得构建安装候选或进入 HIL。
+- Standards：
+  1. **P1：单 worker 的初始化和 BLE executor 隔离未闭合。** `configurationCoordinator` 是非隔离 `lazy var`，两个并发 XPC handler 可竞态初始化两个 actor；测试审查中已出现 `maxConcurrent=2`。同时 coordinator executor 仍从非 MainActor 直接读取/修改 main-queue 所有的 `negotiatedCapabilities`、`transportCore`、CoreBluetooth characteristic、waiter/continuation。必须在单一隔离域内一次构造并持有 coordinator，并把配置执行对 BLE 状态的访问收敛到明确的 MainActor seam（或等价单一 actor），不能继续靠 `@unchecked Sendable` 口头保证。
+  2. **P2：long-poll 取消早于 waiter 登记时仍可能滞留到完整超时。** operation 与 onCancel 都异步派发 main；若取消删除先执行，会找不到 waiter，随后仍登记 continuation。把取消/登记状态纳入同一隔离状态机并补 cancellation-before-registration 交错测试。
+- Spec：
+  1. **P1：排队事务取消后可能永久停在 `cancellationRequested`。** provider 明确过滤该状态，而终态必须由 runner 的 `settleCancellation` 结算；这正是本轮全量测试失败所暴露的时序。不得过滤排队取消；取消落 WAL 后必须 kick worker，并让 runner/等价安全结算路径推进到约定终态。补“首个阻塞、第二个 accepted、取消第二个”的确定性测试。
+  2. **P1：队首进入 `paused/resumablePartial` 后 worker 仍继续执行后续快照中的包。** 这会让后提交配置越过未完成配置，之后恢复旧事务可能覆盖新 baseline。执行单包必须向 coordinator 返回终态/阻塞结果；只有队首 terminal 才继续下一包，非终态立即停止本趟等待 reconnect/显式恢复。补首包 retryable failure、第二包不得开始的测试。
+  3. **P2：周期状态测试仍未走真实 `0x00` parser→reducer→event 接线。** 当前只重复 `simulateDeviceForTesting`。增加生产回包 seam 的确定性测试：首帧发布一次、相同帧零事件零常规日志、单字段变化再发布一次。
+- 最小 R3 白名单：`Sources/Agent/AhaKeyAgent.swift`、执行协调器（建议移入 Agent Runtime 内部模块并保持 internal）、相关 endpoint/coordinator/status tests、本卡与看板。禁止改 caps14 已通过实现、wire v1.1、固件、UI、安装器或 HIL。
+- R3 门禁：排队取消、队首暂停阻断后续、双客户端首次撞 coordinator 初始化、BLE/MainActor 隔离、long-poll 取消交错、真实 0x00 状态去重；上述压力用例至少 50 轮，完整 Swift tests 至少连续 3 轮全绿，再跑 App+Agent Release 与 diff check。新 commit 后停手重提。
+
+### [2026-08-27 10:02] Codex：用户裁决 R3 由 Cursor 接手
+
+- Kimi 因额度耗尽立即停止本卡业务代码写入；Cursor 自本条起成为 R3 唯一写者。固件 WBS-1.4 继续冻结，不与客户端 R3 并行。
+- 有效已提交基线仍是 `417111128b655d6c429701616af5e1349e38e8e6`（仓库文档 HEAD `bbbfcc5`）；R2 已通过项继续冻结，不得重做或改动 caps14、wire v1.1、固件、UI、安装器或 HIL。
+- Kimi 在额度耗尽前留下三处**未提交且结构损坏的 R3 半成品**，只可作为意图参考，不是可编译基线：
+  - `ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift`
+  - `ahakeyconfig-mac/Sources/Shared/AhaKeyConfigurationExecutionCoordinator.swift`
+  - `ahakeyconfig-mac/Tests/AhaKeyAgentTests/AhaKeyAgentRuntimeEndpointTests.swift`
+- Cursor 第一检查点：先阅读上述三文件相对 HEAD 的 diff，识别可保留意图；用精确编辑清除重复属性、重复初始化、重复 long-poll 块、残留旧执行调用及测试重复闭合。不得用全仓 reset/checkout，不得覆盖其他用户文档改动。
+- 清场门禁：上述三文件能编译、相关定向测试至少跑通一次，并在看板回传“保留了什么/丢弃了什么”；通过后才继续实现 01:00 R3 六项。最终门禁仍为压力用例 50 轮、完整 Swift tests 连续 3 轮、App+Agent 双 Release、`git diff --check`。
+- 本次只变更 owner 与交接纪律，不代表 R3 已完成；不得安装候选、不得进入 HIL-CONFIG、不得刷机或 push。
+
+### [2026-08-27 10:09] Cursor ACK 接管 R3
+
+- ACK 10:02。本卡唯一写者：Cursor。有效代码基线 `4171111`；文档 HEAD `bbbfcc5`。三处未提交 Swift 为损坏半成品，只作意图参考，不叠加、不全仓 reset。
+- 下一检查点：精确清场三文件并恢复编译，再在看板回传保留/舍弃清单。通过后才做 01:00 R3 六项。固件 1.4 暂停。不安装、不进 HIL、不刷机、不 push。
+
+### [2026-08-27 10:49] Cursor 清场清单 + R3 完成并停手
+
+- 新 HEAD：`6d9bb99`（建议验收范围 `4171111...6d9bb99`）。未全仓 reset；未改 caps14/wire/固件/UI/安装器。
+- 清场保留：`executePackage -> Bool` 且非终态 break；pending 不再过滤 `cancellationRequested`；init 同步一次构造 coordinator（非 lazy）；`longPollCancelledIDs`；`injectRawStatusPacketForTesting` + `stableDeviceID`；0x00 去重测试。
+- 清场丢弃：重复 `configurationCoordinator` 声明与半截 lazy 初始化、重复 `runtimeEventsLongPollInterval`/`executionTestHooks`、重复 init 尾、重复 long-poll 函数、测试文件重复闭合与粘贴的旧用例残片。
+- R3 六项：取消后 kick；队首 paused/resumablePartial 阻断后续包；ready/BLE 守卫走 MainActor；long-poll 取消早于登记；真实 0x00 parser→reducer→event。
+- 门禁：endpoint 18/18；排队取消压力 50 轮；全量 `swift test` 连跑 3 轮均为 **476 / 2 skipped / 0 failures**；Release App+Agent 通过；`git diff --check` 干净。
+- 未安装、未进 HIL、未刷机、未 push。固件 1.4 仍暂停。
+
+### [2026-08-27 10:54] Codex 复验：R3 部分通过，退回最小 R4
+
+- `lastReviewedCommit: 6d9bb99a83e99cb4e9453e51dc25d585fde0c664`；验收范围 `4171111...6d9bb99`。清场正确；单一非 lazy coordinator、普通 queued cancel、队首暂停阻断、基础 cancellation-before-registration 与 0x00 去重方向成立。Codex 独立复跑 endpoint 18/18（含现有 50 轮）通过，`git diff --check` 通过。
+- **Standards P1：BLE/MainActor 隔离仍未闭合。** 目前只有 ready/caps 守卫进入 `MainActor.run`；worker 随后仍直接调用 `sendConfigurationCommand`、`writeConfigurationChunk`、`abortConfigurationSession`，在 coordinator executor 读写 `transportCore`、CoreBluetooth characteristic/peripheral、operation counter、waiter/continuation 与 upload session。R4 必须把完整 Agent BLE adapter/seam 收敛到 `@MainActor`（或等价单一 actor）；不得继续用 `@unchecked Sendable` 掩盖这些跨域访问。
+- **Spec P1：paused 队首后的排队取消仍无法结算。** provider 按 FIFO 返回全表，coordinator 遇首个非终态即停止；若首包已经 paused/resumablePartial、第二包随后 cancellationRequested，取消 kick 仍只会重试首包并再次停止，第二包无法终态。R4 将“纯 WAL 取消结算”与“会写设备的有序执行”分开：可先安全结算任意排队取消，但不得让后续配置越过 paused 队首。补“首包 paused、第二包取消、第三包 accepted”的确定性测试：第二包终态，第一包保持非终态，第三包零 BLE 步骤。
+- **P2：long-poll 取消表仍可能永久增长。** waiter 已被事件/超时移除后若取消回调到达，当前代码会把 ID 插入 `longPollCancelledIDs`，但登记阶段已结束、再无清理机会。R4 使用一个隔离状态表覆盖 registering/waiting/completed/cancelled，所有终态必须清场；测试用 barrier 精确构造“取消先于登记”及“完成后迟到取消”，并断言无 waiter/取消 ID 残留。
+- **P2：0x00 测试复制生产逻辑。** `injectRawStatusPacketForTesting` 重写了一份 parse/reducer/cache/log/publish，未走生产 `didUpdateValue` 共用入口；两者可漂移。R4 抽取唯一 `consumeDeviceStatus(_:)`（名称可调整），生产回包与测试注入都调用同一函数；保留首帧一次、相同帧零发布零常规日志、单字段变化一次的断言。
+- **门禁证据：** 当前 50 轮只覆盖普通 queued cancel，未覆盖上述组合与隔离交错。R4 建立覆盖 coordinator 首撞、paused+queued-cancel、long-poll 两种交错、共同 0x00 入口的确定性压力矩阵（每条至少 50 轮或一个同时覆盖全部路径的 50 轮矩阵）。完整 Swift tests 连续 3 轮、App+Agent 双 Release、diff check 后停手重提。
+- Codex 独立全量运行 476 项时 Hook socket 套件出现 3 failures（`ioFailure(35)`），同套件隔离复跑 14/14 通过，初判为套件间环境/时序干扰而非 R3 直接回归；但“全量连续三轮绿”尚未被独立复现。R4 不扩大修改 Hook 业务代码，若再次发生只补测试隔离证据并上报。
+- 白名单不变；禁止修改 caps14、wire v1.1、固件、UI、安装器或 HIL。固件 1.4 继续冻结。
+
+### [2026-08-27 12:33] Cursor ACK 最小 R4
+
+- ACK 10:54 / 10:55。唯一写者：Cursor。基线 `6d9bb99`。做完整 BLE MainActor seam、paused 队首后的排队取消结算、long-poll 状态清场、0x00 共用入口与压力矩阵。不改 caps14/wire/固件/UI/安装器。不安装、不进 HIL、不刷机、不 push。固件 1.4 仍冻结。
+
+### [2026-08-27 13:36] Cursor：R4 返工完成，整卡重提
+
+- 新 HEAD：`b43fa2d`（建议验收范围 `6d9bb99...b43fa2d`）。未全仓 reset；未改 caps14、XPC wire v1.1、固件、UI、安装器、Hook 业务代码。
+- Standards P1：`sendConfigurationCommand` / `writeConfigurationChunk` / `abortConfigurationSession` 标 `@MainActor`；`AgentProgramTransport` 只 hop 这些方法。`isCancellationRequested()` 改为 async，经 `programTransportIsDisconnected()` 读 `transportCore.isReady`，删除 `DispatchQueue.main.sync`。`@unchecked Sendable` 仍只覆盖 agent 指针。
+- Spec P1：coordinator 每趟先 `settleQueuedCancellations`（纯 WAL）；`executePackage` 对已 paused/resumablePartial 立即返回非终态，不越过队首写设备。测试：首包 paused、第二包取消终态、第三包保持 accepted。
+- P2 long-poll：会话 `registering/waiting/cancelled`，`completeLongPoll` 移除 session+waiter；迟到取消 no-op。barrier 覆盖取消先于登记与完成后迟到取消；断言 session/waiter 为 0。等待本身不整段占住 MainActor，避免 XCTest async 并行与 XCTWaiter 互锁。
+- P2 0x00：生产 `didUpdateValue` 与 `injectRawStatusPacketForTesting` 共用 `consumeDeviceStatus`。
+- 门禁：`AhaKeyAgentRuntimeEndpointTests` 20/20（含 50 轮矩阵：首撞、paused+queued-cancel、long-poll 两种交错、0x00 注入）；async 用例改为同步 `runEndpointTest` 以免 Xcode 16 并行枚举卡死。全量 `swift test` 连续 3 轮均为 **478 / 2 skipped / 0 failures**（本机未再出现 Hook `ioFailure(35)`）。Release `AhaKeyConfig` + `ahakeyconfig-agent` 通过；`git diff --check` 干净。
+- 未安装、未进 HIL、未刷机、未 push。固件 1.4 仍冻结。
+

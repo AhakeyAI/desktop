@@ -20,7 +20,7 @@
 | 4A | `HIL-RUNTIME-1-HOOK-SERVER` | Kimi；Cursor 验证 | §15.0-4 返工 | accepted | Codex 11:50：User 确认 11:38 bootout；listen+三态独立证据；`fa6c02e` |
 | 5 | `WBS-5.4-LIFECYCLE` | Kimi | 5.4 | accepted | Codex 17:02：HEAD `762863d`；独立 pmset Agent 64088 持断言；无 Studio UI；双 socket；定向 21 测通过 |
 | 6 | `WBS-0-RISK-CLOSURE` | Kimi | 0.2-0.7 | accepted | Codex 19:01：macOS 证据独立复核；Windows 0xEE / USB 枚举 / SDK Link.ld 延期；不启动 WBS-1 直至固件工作树冻结 |
-| 7 | `WBS-1-UNIFIED-FIRMWARE` | Cursor | 1.1-1.7 | active | Codex 14:16：`b4f9cc4` 产物属实但 harness fail-open/不可 clean-clone 复现；继续 1.1R2，未开 1.2 |
+| 7 | `WBS-1-UNIFIED-FIRMWARE` | Cursor | 1.1-1.7 | active / 1.3 accepted | 固件 `9135183` + 客户端 `4171111` caps14 交叉门禁通过；暂不开放 1.4，等 5.7-R3 accepted |
 | 8 | `WBS-2-PLATFORM-VOICE` | Kimi | 2.1-2.8 | draft | WBS 1 accepted |
 | 9 | `WBS-3-LEVER-MACROS` | Kimi | 3.1-3.6 | draft | WBS 2 accepted |
 | 10 | `WBS-4-STUDIO-V4` | Cursor | 4.1-4.8 | draft | WBS 3 accepted |
@@ -28,8 +28,8 @@
 | 11A | `WBS-5.5-HIL-REWORK` | Kimi | 5.5 | accepted | Codex 22:44：`0bab8af` 解析+回连+身份；v0 为 status 字节误读 |
 | 12 | `HIL-RUNTIME-2` | Kimi；Cursor 验证 | §15.0-5 | accepted | Codex 23:46：独立 sock/flock/v3 帧；USB 跳过；UUID 末 4 位身份为例外 |
 | 13 | `WBS-5.6-CONFIG-TRANSACTIONS` | Kimi | 5.6 | active | Codex 14:40：`aca0dd7` journal-first 仍有 prune/rename 对称竞态；改 root-scoped 协调锁 + file-before-WAL + 真并发测试 |
-| 14 | `HIL-CONFIG-TRANSACTIONS` | Kimi；Cursor 验证 | §15.0-6 | draft / USER-GATE | 5.6 accepted、断电/断连测试窗口 |
-| 15 | `WBS-5.7-STUDIO-CLIENT` | Cursor | 5.7 | draft | HIL-CONFIG-TRANSACTIONS accepted |
+| 14 | `WBS-5.7-STUDIO-CLIENT` | Cursor | 5.7 | review / R4 | Cursor `b43fa2d` 重提；等 Codex 复验 BLE 隔离、paused 后取消结算、long-poll 清场、0x00 共用入口 |
+| 15 | `HIL-CONFIG-TRANSACTIONS` | Kimi；Cursor 只读验证 | §15.0-6 | draft / 等待 5.7 | 5.7 accepted、重新确认断电/断连窗口 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 | draft | 5.4 + 4.3 + 5.7 accepted |
 | 17 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9 | draft / USER-GATE | 5.3-5.8 accepted、签名安装窗口 |
 | 18 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 | draft | 5.9 accepted |
@@ -37,6 +37,6 @@
 | 20 | `WBS-6-QUALIFICATION` | Kimi；Cursor 验证 | 6.1-6.4/6.4A | draft / USER-GATE | WBS 1-5 与适用 5A accepted |
 | 21 | `WBS-6-BETA-RELEASE` | Cursor；Kimi 验证 | 6.5-6.7 | draft / USER-GATE | 6.1-6.4 accepted、用户批准 Beta/灰度/发布 |
 
-队列不是一般并行许可。调度 OPS、WBS 5.2、`WBS-5.3-C-CURSOR`、`WBS-5.3-ORCHESTRATOR`、`HIL-RUNTIME-1-HOOK-SERVER`、`HIL-RUNTIME-1`、`WBS-5.4-LIFECYCLE`、`WBS-0-RISK-CLOSURE`、`WBS-5.5-DEVICE-OWNER`、`WBS-5.5-HIL-REWORK`、`HIL-RUNTIME-2` 与 `WBS-5.6-CONFIG-TRANSACTIONS` 已 accepted（5.6 @ `c62ade9`）。用户批准的并行例外：`WBS-1-UNIFIED-FIRMWARE` 现为 Cursor `active`，只写独立固件工作区。HIL-CONFIG 为 USER-GATE。5.7 与 WBS-4 UI 仍 draft。刷机、远端 push 和量产切换仍需 USER-GATE。
+队列不是一般并行许可。调度 OPS、WBS 5.2、`WBS-5.3-C-CURSOR`、`WBS-5.3-ORCHESTRATOR`、`HIL-RUNTIME-1-HOOK-SERVER`、`HIL-RUNTIME-1`、`WBS-5.4-LIFECYCLE`、`WBS-0-RISK-CLOSURE`、`WBS-5.5-DEVICE-OWNER`、`WBS-5.5-HIL-REWORK`、`HIL-RUNTIME-2` 与 `WBS-5.6-CONFIG-TRANSACTIONS` 已 accepted（5.6 有效基线 `19eb4dc`）。当前 `WBS-5.7-STUDIO-CLIENT` R4 已提交 `b43fa2d` 待 Codex 复验；独立固件仓 WBS-1.4 暂停，避免同一执行者跨仓并发。HIL-CONFIG 保持 draft，等 5.7 accepted 后再开 USER-GATE。刷机、远端 push 和量产切换仍需 USER-GATE。
 
 并行例外：用户于 2026-08-23 19:20 明确要求提前启动下一张 Kimi 卡。Codex 证明 WBS-0 静态预研只写 `docs/research/wbs-0-static-preflight.md`、基线文档指定追加段、本卡与 board，不触碰 5.3-C Hook 文件；因此允许该静态子阶段与 5.3-C 并行。WBS-0 实机部分、WBS-1 及正式队列依赖不随之放开。
