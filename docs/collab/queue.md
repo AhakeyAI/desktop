@@ -31,7 +31,7 @@
 | 14 | `WBS-5.7-STUDIO-CLIENT` | Cursor | 5.7 | accepted | Codex 20:03：`488097d`；R6 序列断言与独立门禁通过 |
 | 15 | `HIL-CONFIG-TRANSACTIONS` | Cursor；Codex 只读验收 | §15.0-6 | blocked / 等待 Studio XPC | Agent 已 current；C1 被 Studio NSXPC↔libxpc 挡住 |
 | 15A | `HIL-CONFIG-0x99-CAPS14` | Cursor | HIL 阻塞返工 | accepted | Codex 21:47：`3b08d82`；双轴与独立门禁通过 |
-| 15B | `HIL-CONFIG-STUDIO-XPC-CLIENT` | Cursor | HIL 阻塞返工 | review / R1 | Cursor 23:10：`5eccbcd` 代际/取消/encoder 重提 |
+| 15B | `HIL-CONFIG-STUDIO-XPC-CLIENT` | Cursor | HIL 阻塞返工 | active / R2 | Codex 00:05：仅收口非 accepted handshake 不得放行业务 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 | draft | 5.4 + 4.3 + 5.7 accepted |
 | 17 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9 | draft / USER-GATE | 5.3-5.8 accepted、签名安装窗口 |
 | 18 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 | draft | 5.9 accepted |

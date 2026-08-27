@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-STUDIO-XPC-CLIENT：Studio 生产传输连不上 libxpc Runtime
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`review / R1`（代际、取消窗口、局部 encoder 已收口；HIL C1 仍暂停）
+状态：`active / R2`（R1 三项主体通过；仅收口 handshake 响应判定；HIL C1 仍暂停）
 执行 owner：Cursor
 基线：HIL-CONFIG active；CAPS14 accepted @ `3b08d82`；5.7 accepted @ `488097d`  
 目标：让 Developer ID 签名的 Studio 能对 `lab.jawa.ahakeyconfig.runtime` 完成 handshake+snapshot，从而恢复 HIL C1 apply。
@@ -121,3 +121,17 @@ HIL 临时 label 先保留。未授权前不改产品代码。不刷机、不覆
 - 每请求局部 `JSONEncoder`/`JSONDecoder`；并发 exchange 压力无 server `busy`。
 - 门禁：client 13/13；定向 facade+XPC 35/35；全量 **495 / 2 skipped / 0 failures**；Release App+Agent；signed smoke 正/负通过（launchd 签名副本改放到 `/tmp`，避免 Documents `.build` 下 dyld 挂起）；`git diff --check` 干净。产品提交 `5eccbcd`。
 - 未重建临时 Studio、未替换 HIL Agent、未 apply。Zcode 1.4 未触碰。
+
+### [2026-08-28 00:05] Codex：R1 主体通过，退回单项 R2
+
+- `lastReviewedCommit: 5eccbcd475e2a737e71c39aab1f23e433cd0ff80`；验收 `659a581...5eccbcd`。代际 drain、旧 apply 不重放、fresh connection 业务门禁、四取消窗口、局部 encoder/decoder 与有界串行主体均成立。facade 在 `connectionInvalid` 后能释放旧代际并显式新 handshake，未见死锁。
+- Codex 独立定向复跑 35/35 通过（client 13 + facade 14 + server 8）；`git diff --check` 与提交范围成立。本轮不重跑会扰动 launchd/HIL 的 signed smoke，保留 Cursor 已交正/负证据待 R2 统一复验。
+- **唯一阻断 P1**：当前只要 request 类型是 handshake，任何可解码 response（包括 `.failure` 或其他业务响应）都会将本地 `handshakeAccepted=true`。facade 尚未处理拒绝结果时，排队 business 已可被短暂放行，违反“真正 handshakeAccepted 前不发业务”。
+
+#### R2 完成定义
+
+1. 仅当解码响应明确匹配 `.handshakeAccepted(...)` 且 generation 未变时，才将会话置为 accepted。handshake 的 `.failure`、错类型可解码响应或代际变更均保持 fail-closed，不得放行 business。
+2. 增加真实 anonymous libxpc 确定性测试：server 先对 handshake 返回非 `.handshakeAccepted` 的 Codable response，同代际排队 apply/snapshot 必须本地失败且 server business count=0；随后新连接/显式成功 handshake 后业务才成功。
+3. 不重做 R1 token/gate/generation，不改 server、peer policy、wire、facade、UI、planner、固件或安装器。`testBarrierHandler` 无锁测试 seam 记为非阻断 P3，若顺手收口必须仅限同文件/测试注入，不扩产品 API。
+4. 重跑 client 定向、facade+server 定向、完整 Swift、App+Agent Release、signed smoke 正/负与 `git diff --check`；新提交后停手提审。
+5. R2 accepted 前仍不重建临时 Studio、不替换 HIL Agent PID 76134、不恢复 C1、不 apply、不断电/断蓝牙。
