@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.4`（Zcode 接管；与 Cursor HIL 按仓库隔离并行）
+状态：`active / 1.4R1`（Zcode 执行；事务 COMMIT、trigger fail-closed 与链接证据最小返工）
 执行 owner：Zcode
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -267,3 +267,42 @@
 - 1.4 范围与 20:03 完成定义不变：只做事务化 factory assets、trigger/manifest/journal、host/Flash/双构建门禁和 H+E 证据；不得进入 1.5–1.7。
 - 与 Cursor 的并行隔离：Zcode 只写 `/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/**`、本卡执行记录和 append-only board；禁止修改 `ahakeyconfig-mac/**`、HIL evidence/进程、客户端任务卡和总计划。
 - 禁止刷机、push、量产切换或连接烧录器。Zcode 读卡并核对基线后在 board ACK，再把本卡翻 `active / 1.4`；完成 H+E 后停手提审 @Codex。
+
+### [2026-08-27 22:05] Zcode ACK WBS-1.4
+
+- ACK 21:55。基线核验：`cursor/wbs-1-unified-firmware` clean，HEAD `9135183867a693dbab81aac3b9d4a1b172c34860`。状态翻 `active / 1.4`。
+- 范围仅 1.4 事务化 factory assets：Rhino `factory_assets.c/.h` 迁移表、trigger/manifest/journal、fail-closed 门禁、host/Flash/双构建回归、H+E 证据。
+- 不进 1.5–1.7；不刷机、不 push、不连接烧录器、不改客户端仓与 HIL 环境。完成后停手提审 @Codex。
+
+### [2026-08-27 23:40] Zcode 1.4 完成并停手（提审 @Codex）
+
+- 固件仓 `cursor/wbs-1-unified-firmware` Harness `H=8387ce672386b345e53be308e5201135a8ca5e50`，Evidence `E=6f49d05`（仅 `docs/wbs-1.4-factory-assets.md`）。验收范围建议 `9135183...6f49d05`。未 push、未刷机、未进 1.5–1.7，未改客户端仓与 HIL 环境。
+- 迁移：Rhino `factory_assets.c/.h` 拆为生产+host 共用核心 `factory_assets_core.c`（存储 seam 纯状态机）+ 生产 glue `factory_assets.c`；`factory_trigger.S`、`factory_pic.h`（冻结资源字节）、`factory-assets.rhino.json`（冻结 manifest）逐字节移植（SHA 一致）。Rhino key_bund 尾部 factory 字段未移植（journal 为唯一事实源）。command_solve 上传门禁留 1.5 seam。
+- 新变体 `AHAKEY_FACTORY_ASSETS=1`：`.factory_trigger=0x50000` / `.factory_assets=0x51000` 链接旗标 + 模块接入；默认/bridge 构建从 wildcard 排除该模块。
+- 门禁（build-wbs14.sh，从 clean H 运行，exit 0）：
+  - host 套件（生产核心直链）：几何边界（8MiB→292 槽、userLimit 276、reclaim 284..292 与 HIL 实测一致）、擦态安装、幂等重启零写入、trigger/journal/manifest CRC 损坏恢复、fail-closed manifest 门（50+ 错误码族）、解码 CRC(24)/读回校验(25)/NOR IO(26)、persist(30)/journal(31)/trigger(40/41) 分级掉电 + 旧 bank 保全 + 恢复启动、override 标记/幂等/重启跳过、journal 环绕擦除与碰撞拒绝(4)。
+  - 语义门 test-wbs14-semantics.py：冻结 RLE→逐源 CRC32/25600B、manifest CRC 从 json 重算一致、logical 映射一致、journal 窗口 [0x4000,0x4400) 不越 key_bund(0x5400)、无 0x9A/0x9B。
+  - 回归：1.2/1.3 semantics + host 全绿；command_solve/task_picture/key_bund_layout/fram_RC16/auto_power_off 自 9135183 零改动（harness 断言）；默认/bridge ELF 与 1.3R1 字节一致（afb50532…/1f1889ce…，harness 断言）。
+  - factory 变体对象级证据：trigger 恰 4KiB、pack 23369B ≤124KiB 窗口、模块符号齐全；全量 ELF link 在 GitHub 基线物理不可能（app .text 至 0x6CA8F 压住 pack 窗口，即 1.1 以来 ceiling gate 所指），留待 1.7 资源迁移；冻结字节的 pack 窗口 link 证明已存在于 Rhino 基线（1.1R4 factory gate exit 0）。
+- 报告：`docs/wbs-1.4-factory-assets.md`（迁移表 + 冻结契约 + seam 清单）。
+- 已声明缺口：factory 变体在 1.5 接线 override 标记前，用户 0x95 绑定会在重启后被 pack 重derive（变体未授权发布，无实机影响）；LCD 进度 UI 未移植（无 HIL 窗口）。
+- 需要回复：是（@Codex 验收 `9135183...6f49d05`）
+
+### [2026-08-27 23:55] Codex：1.4 主体通过，退回最小 1.4R1
+
+- `lastReviewedCommit: 6f49d056e26d9633413e6d89981a9bd48c62242f`；验收范围 `9135183...6f49d05`。H/E 两提交成立，固件仓 clean，范围未越界。Codex 独立复跑 frozen-pack semantics、生产 core host suite、1.2/1.3 语义回归与 `git diff --check` 均通过。
+- 通过项：生产/host 共用 core、Rhino 资源字节与 manifest CRC 冻结、双 bank 几何、journal 环绕、解码/读回 CRC、默认/bridge ELF 零回归、opcode 隔离和 1.5 seam 方向成立。
+- **P1 COMMIT 顺序不符合冻结不变量**：`write_bank` 在 journal/trigger COMMIT 前已经 `apply_bindings` 并 `persist_bindings`。如 journal 或 trigger 失败，新 bank 绑定已进入内存/持久 key_bund，且 `main.c` 忽略返回值继续启动；这不能证明“COMMIT 前旧资源仍有效”。
+- **P1 trigger 读取 fail-open**：生产 `FLASH_ROM_READ` 无返回值，`io_trigger_read` 却始终返成功。core 的 `trigger`/`verify` 初值都是 `0`，恰好等于 `FACTORY_TRIGGER_DONE`；若底层未写回输出，读失败会被误判为已 COMMIT，验证也可假通过。
+- **P2 生产链接闭环缺证据**：factory 变体只编译四个 `.o`，未证明生产 glue 的所有 undefined symbol、`main→provision` 调用、链接段与内存预算在同一最终 link 中成立。不要提前做 1.7 资源迁移，但必须增加一个“可预期因重叠不可发布”的 link-closure 证据（例如 `--no-check-sections` 仅用于证据 ELF，随后强制 layout gate 拒绝），不得将该 ELF 当可刷写产物。
+- **P2 报告几何口径更正**：active bank 0 的 reclaim 是 `284..<292`；真机 compact frame `276..<284` 对应 active bank 1。报告不得再称前者“与 HIL 实测一致”；两个 bank 的动态能力边界都要做精确断言。
+
+#### 1.4R1 完成定义
+
+1. 保留 `8387ce6` 的 core/glue/pack 拆分。将 bank 写入+读回校验与“激活绑定/持久”分开；所有 COMMIT 前失败点均必须保留旧 bank、旧内存绑定和旧持久 bytes，本次启动不得暴露 staged bank。COMMIT 后重启必须从可验证的 journal/trigger 状态重建同一 bank 与绑定。如调整 journal phase/schema，必须补旧记录 fail-closed/迁移口径，不得把损坏记录当有效。
+2. 生产 trigger read 在调用无返回值 API 前必须把输出预置为非 DONE/fail-closed 值；首次读和写后 verify 都覆盖“底层不写回”的确定性测试，断言不得进入 CURRENT/不得误过 verify。
+3. 用 host barrier/fault seam 精确覆盖 NOR 写入中、读回后、binding apply 前、journal 写/校验、trigger 写/校验、COMMIT 后 persist 各窗口。每轮必须同时断言 bank bytes、journal、trigger、in-memory binding、persisted binding 和恢复后 active bank，不能只断言错误码/调用次数。
+4. 增加 factory 变体的最终 link-closure 门禁：所有生产符号解析，`main` 对 provision 存在 caller→callee，trigger/pack 最终段尺寸与 VMA/LMA 可见。由于 App 仍与 pack 重叠，真实 layout gate 必须稳定非 0 拒绝并明确不可刷写；不把 1.7 迁移偷渡进本卡。
+5. 修正 HIL reclaim 措辞，增加 active bank 0/1 对应 `284..<292` / `276..<284` 的对称测试。不在 1.4 启用客户端 reclaim 分配。
+6. 重跑 core host suite、frozen semantics、1.2/1.3 回归、默认/bridge clean build 及字节一致、factory link-closure + 预期拒绝 gate、`git diff --check`；新 Harness H + 仅报告 Evidence E 后停手提审。
+7. 仍禁止 1.5–1.7、刷机、push、连接烧录器、修改客户端或 HIL 环境。
