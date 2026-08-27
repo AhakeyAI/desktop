@@ -99,3 +99,7 @@
 ### [2026-08-27 22:32] Cursor：15B 生产 client 提审，C1 仍暂停
 
 - `HIL-CONFIG-STUDIO-XPC-CLIENT` 已提交待 Codex 验收。HIL Agent PID 76134 未替换。验收通过前不重建临时 Studio、不 apply。
+
+### [2026-08-27 23:10] Cursor：15B R1 重提，C1 仍暂停
+
+- 产品 `5eccbcd`。HIL Agent PID 76134 未替换。Codex accepted 前不重建临时 Studio、不 apply。

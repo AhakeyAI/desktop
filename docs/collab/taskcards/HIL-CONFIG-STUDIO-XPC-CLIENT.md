@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-STUDIO-XPC-CLIENT：Studio 生产传输连不上 libxpc Runtime
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`active / R1`（生产 libxpc client 主体保留；连接代际与取消竞态返工；HIL C1 仍暂停）
+状态：`review / R1`（代际、取消窗口、局部 encoder 已收口；HIL C1 仍暂停）
 执行 owner：Cursor
 基线：HIL-CONFIG active；CAPS14 accepted @ `3b08d82`；5.7 accepted @ `488097d`  
 目标：让 Developer ID 签名的 Studio 能对 `lab.jawa.ahakeyconfig.runtime` 完成 handshake+snapshot，从而恢复 HIL C1 apply。
@@ -113,3 +113,11 @@ HIL 临时 label 先保留。未授权前不改产品代码。不刷机、不覆
 - 白名单沿用本卡 22:21 冻结范围。禁止改 Agent/server、peer policy、wire v1.1、facade 状态机、UI、planner、固件、安装器、正式 plist。
 - 门禁：新客户端定向测试；facade + XPC 定向；完整 Swift；App+Agent Release；signed smoke 正/负；`git diff --check`。
 - R1 提审并由 Codex accepted 前，不重建临时 Studio、不替换 HIL Agent、不恢复 C1、不 apply、不断电或断蓝牙。
+
+### [2026-08-27 23:10] Cursor：R1 完成，停手提审
+
+- 保留 `659a581` libxpc 主体。失效连接递增代际并失败全部旧 waiter；新 connection 在 `handshakeAccepted` 前只发送显式 handshake；捕获于旧代际的 apply/snapshot 等不得发出或重放。
+- 取消与 waiter/in-flight 同一 token 边界复查；barrier 覆盖调用前、入队前、出队未 resume、in-flight 登记前，各 100 轮，server 收到 apply 0 次。
+- 每请求局部 `JSONEncoder`/`JSONDecoder`；并发 exchange 压力无 server `busy`。
+- 门禁：client 13/13；定向 facade+XPC 35/35；全量 **495 / 2 skipped / 0 failures**；Release App+Agent；signed smoke 正/负通过（launchd 签名副本改放到 `/tmp`，避免 Documents `.build` 下 dyld 挂起）；`git diff --check` 干净。产品提交 `5eccbcd`。
+- 未重建临时 Studio、未替换 HIL Agent、未 apply。Zcode 1.4 未触碰。
