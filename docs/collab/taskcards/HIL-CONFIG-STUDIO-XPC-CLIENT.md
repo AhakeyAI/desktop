@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-STUDIO-XPC-CLIENT：Studio 生产传输连不上 libxpc Runtime
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`review`（生产 libxpc client 已提审；HIL C1 仍暂停）
+状态：`active / R1`（生产 libxpc client 主体保留；连接代际与取消竞态返工；HIL C1 仍暂停）
 执行 owner：Cursor
 基线：HIL-CONFIG active；CAPS14 accepted @ `3b08d82`；5.7 accepted @ `488097d`  
 目标：让 Developer ID 签名的 Studio 能对 `lab.jawa.ahakeyconfig.runtime` 完成 handshake+snapshot，从而恢复 HIL C1 apply。
@@ -95,3 +95,21 @@ HIL 临时 label 先保留。未授权前不改产品代码。不刷机、不覆
 - `RuntimeXPCSmokeClient` 正向复用 Studio 生产 transport；ad-hoc 仍 exit 3。
 - 门禁：client 单测 7/7；定向 facade+XPC 43/43；全量 **489 / 2 skipped / 0 failures**；Release App+Agent；`scripts/runtime-xpc-signed-smoke.sh` 正/负通过；`git diff --check` 干净。
 - 未重建临时 Studio、未替换 HIL Agent、未 apply。等 Codex accepted 后再验证 UI online 并续 C1。
+
+### [2026-08-27 22:46] Codex：退回最小 R1；不重做 libxpc 主体
+
+验收范围 `2ccfeef...659a581`。独立定向 29/29 通过，白名单与传输方向正确；正向 smoke 已复用 Studio 生产 transport。但以下三项是进入真实 apply 前的阻断：
+
+1. **P1 连接代际 / handshake 门禁**：当 timeout、cancel 或 XPC error 使当前 connection 失效时，旧代际已排队的 business request 不得在 gate 释放后自动换一条新 connection 发出。新 connection 在 `handshakeAccepted` 前只允许显式 handshake；捕获于旧 generation 的 snapshot/events/ingest/apply/cancel 必须明确失败，特别是非幂等 apply 不得自动重放。facade 按已有 run loop 显式重新 handshake，成功后才 snapshot/继续业务。
+2. **P1 取消原子性**：取消可能早于 waiter 入队、早于 in-flight 登记，或发生在 waiter 已出队但尚未 resume 的窗口。这些取消必须被记住并在同一同步边界复查；已取消的 apply 绝不得到达 server。
+3. **P1 编码器并发**：当前共享 `JSONEncoder` 在串行 gate 外被 `@unchecked Sendable` client 并发调用。改为每请求局部 encoder，或把 encode 收入可证明的串行区域；decoder 同理保持单串行。
+
+#### R1 完成定义
+
+- 保留 `659a581` 的 libxpc client、Studio transport 与 smoke 复用方向，不重做 server/facade/wire。
+- 用 anonymous libxpc 真实 client/server 做确定性代际测试：handshake 后挂起 in-flight、排入 business request、强制 connection 失效；断言旧代际排队业务失败且未到达新 endpoint。随后显式新 handshake 成功，再发 business request 才成功。
+- 用 barrier/hook 覆盖：调用前已取消、waiter 入队前取消、waiter 出队到 resume 之间取消、in-flight 登记前取消。每项断言 server 收到 0 次；不接受只靠 sleep 的测试，压力矩阵至少 100 轮。
+- 增加并发 encode/exchange 压力测试，证明无共享 encoder 数据竞争、无 server `busy`。
+- 白名单沿用本卡 22:21 冻结范围。禁止改 Agent/server、peer policy、wire v1.1、facade 状态机、UI、planner、固件、安装器、正式 plist。
+- 门禁：新客户端定向测试；facade + XPC 定向；完整 Swift；App+Agent Release；signed smoke 正/负；`git diff --check`。
+- R1 提审并由 Codex accepted 前，不重建临时 Studio、不替换 HIL Agent、不恢复 C1、不 apply、不断电或断蓝牙。
