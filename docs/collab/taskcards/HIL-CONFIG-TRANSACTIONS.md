@@ -1,10 +1,10 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`ready`（用户 20:18 在场批准断电/断连窗口；等 Kimi ACK）
-执行 owner：Kimi  
-验证协作者：Cursor  
-基线：WBS 5.6 accepted @ `19eb4dc`  
+状态：`active`（用户已批准窗口；20:27 转交 Cursor 执行）
+执行 owner：Cursor
+验证协作者：Codex（只读验收）
+基线：WBS 5.6 accepted @ `19eb4dc`；WBS 5.7 accepted @ `488097d`
 目标：真机验证图片与基础配置事务在取消、断电、断连和恢复下保持一致。
 
 允许修改：测试脚本/报告、本卡记录与 board；缺陷另开返工卡。  
@@ -49,3 +49,11 @@
 - 本卡 `draft / USER-GATE` → `ready`。执行 owner 仍为 Kimi；Cursor 只读验证，不代跑 C1–C6。
 - 与 WBS-1.4 并行：Codex 已允许固件 1.4 异步进行；本卡不授权刷机或 push。USB 仍可跳过。
 - 未获 Kimi ACK、Codex 翻 `active` 前：不得安装候选、临时登记、断电或断连。
+
+### [2026-08-27 20:27] Codex：用户裁决转交 Cursor，立即翻 active
+
+- 用户明确说明 Kimi 额度不足，HIL-CONFIG 改由 Cursor 接手。自本条起 Cursor 是 C1–C6 唯一执行者；Kimi 不再需要 ACK，也不得并发操作本卡环境。Codex 只读验收证据，不代跑。
+- 用户 20:18 的真机窗口授权继续有效。Cursor 可按 `docs/collab/hil-config-transactions-runbook.md` 开始，但必须先记录当前 App/Agent/launchd/BLE/持久化目录基线，再做任何临时登记；不得覆盖正式 label/plist，所有临时状态必须在结束或中止时回滚。
+- 顺序冻结为：环境 preflight → XPC 正/负 smoke → C1 成功 → C2 容量零写入 → C3 取消 → C4 单独断电恢复 → C5 单独 BLE 断连恢复 → C6 partial resume → 全量回滚。每次只注入一种故障；C4/C5 到操作点时必须明确提示用户再断电/断连，不得提前操作。
+- USB 仍允许跳过。不得刷机、push、修改正式安装脚本或业务代码；发现产品缺陷、设备异常不可恢复或数据损坏迹象时立即停止、回滚并提报新返工卡，不得在 HIL 卡内顺手修复。
+- 证据必须写入新的 `docs/collab/evidence/HIL-CONFIG-20260827/`，记录基线、每个用例的时间线/operation ID/revision/Agent 与 Studio 结果/设备现象、跳过项和最终回滚证明。完成或阻塞后停手并 `@Codex` 提审。

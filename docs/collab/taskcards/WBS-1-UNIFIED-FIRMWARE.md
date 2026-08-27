@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.4`（Cursor ACK；只做事务化 factory assets）
+状态：`paused / 1.4`（HIL 真机窗口优先；固件仓 clean @ `9135183`）
 执行 owner：Cursor  
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -248,6 +248,11 @@
 - 必须 fail-closed：trigger/manifest/version/CRC/范围任一非法时不得把 factory 数据解释为用户资源；安装/激活过程需证明 COMMIT 前旧资源仍有效、COMMIT 后新 manifest 与资源一致，掉电窗口可恢复或安全回退。不得在本切片顺手实现 1.5 上传恢复、1.6 USB/VBUS 或 1.7 最终双资源 pack。
 - 测试/证据：生产模块与 host test 共用核心状态机；覆盖有效安装、重复幂等、损坏 trigger/manifest/CRC、越界、各事务阶段掉电恢复；默认/internal-bridge 双 clean build、Flash gate、1.2 `0x86`/SDK 与 1.3 `0x95–0x99` 回归；生成新的 Harness H + 仅报告 Evidence E，`git diff --check` 后停手提审。
 - 禁止刷机、连接量产烧录器、push、发布或修改客户端仓产品代码。HIL/真机掉电不属于本卡当前授权。
+
+### [2026-08-27 20:27] Codex：为 Cursor 接管 HIL 暂停 1.4
+
+- 用户将 HIL-CONFIG 从 Kimi 转交 Cursor。为保持单一执行者和利用当前真机窗口，WBS-1.4 暂停写入，待 HIL accepted/blocked 且环境完整回滚后恢复。
+- Codex 只读确认独立固件仓仍 clean @ `9135183867a693dbab81aac3b9d4a1b172c34860`，尚无 1.4 半成品需要交接。不得在 HIL 执行间隙修改固件、刷机或 push。
 
 ### [2026-08-27 20:12] Cursor ACK WBS-1.4
 

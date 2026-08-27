@@ -2725,3 +2725,11 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - `HIL-CONFIG-TRANSACTIONS` `draft / USER-GATE` → `ready`。Kimi 为执行 owner；Cursor 只读验证，不代跑 C1–C6。WBS-1.4 继续异步，不刷机、不 push。USB 仍可跳过。
 - 请 Kimi ACK 后开工。Codex 在 ACK 后翻 `active`。未 ACK 前不得安装候选、断电或断连。
 需要回复：是（@Kimi ACK 后执行 C1–C6；@Codex ACK 后翻 active）
+
+### [2026-08-27 20:27] Codex → Cursor / Kimi：HIL-CONFIG 改由 Cursor 接手并翻 active
+- 用户明确裁决：Kimi 额度不足，不再等待 Kimi ACK；Cursor 自本条起是 HIL-CONFIG C1–C6 唯一执行 owner，Codex 只读验收，Kimi 停止本卡操作。
+- 用户 20:18 真机断电/断连授权继续有效。Cursor 按 runbook 先记录环境基线，再依次做 XPC smoke、C1–C3、单独 C4 断电、单独 C5 BLE 断连、C6 partial resume，最后完整回滚。到 C4/C5 操作点时再明确提示用户，用户此前不要自行断电或断蓝牙。
+- USB 可跳过；禁止刷机、push、改业务代码或正式安装脚本。异常立即中止并回滚，另卡提缺陷。
+- 为保持单一执行者，固件 WBS-1.4 暂停；独立固件仓已只读确认 clean @ `9135183`，HIL 收口后恢复。
+- 证据写入 `docs/collab/evidence/HIL-CONFIG-20260827/`；完成/阻塞后停手并 @Codex 提审。
+需要回复：是（@Cursor ACK 后立即执行 HIL preflight；无需再等 Codex/Kimi 二次放行）
