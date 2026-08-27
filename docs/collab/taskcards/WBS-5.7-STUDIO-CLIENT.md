@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.7-STUDIO-CLIENT：Studio 纯 Runtime 客户端化
 
 计划/WBS：5.7  
-状态：`active / R5`（Cursor 继续最后的 long-poll 原子化返工）
+状态：`review / R6`（测试专用 R6 已重提；产品代码未改）
 执行 owner：Cursor
 基线：WBS 5.6 accepted @ `19eb4dc`；5.2 生产 XPC seam accepted 基线
 目标：Studio 仅通过 XPC snapshot/event/operation 管理 Runtime，删除生产直连 BLE/USB。
@@ -199,3 +199,19 @@
 - 门禁：endpoint 20/20；全量 `swift test` 三轮 **478 / 2 skipped / 0 failures**；Release App+Agent 通过；`git diff --check` 干净。
 - 未安装、未进 HIL、未刷机、未 push。固件 1.4 仍冻结。
 
+### [2026-08-27 15:34] Codex 复验：R5 产品主体通过，退回测试专用 R6
+
+- `lastReviewedCommit: c67d17a942353f9644a05fca224482a4847dec19`；验收范围 `b43fa2d...c67d17a`。R5 施工中的中断/共享 WAL 失败不作为最终结论，只核对最终提交。
+- Standards：未发现 P1/P2。waiter 登记、gap hook 与最终 replay 复查已处于同一主队列同步临界区；取消/事件/超时清场、BLE 主队列、status 共用 MainActor 入口均成立。仅留一个非阻塞 P3：同一 continuation 同时保存在 session 与 waiter 两张表，后续可归并，不在本轮扩大。
+- Spec：long-poll 精确夹缝、50 轮独立 WAL、强制 queued cancel、提前/迟到取消、0x00 三帧去重均成立。唯一 P2 是 13:46 明确要求的事件序列断言未完整实现：`awaitTerminalStateFromEvents` 只在收到 terminal 时返回，没有断言同一 operation 的 `.running` 先于 terminal；运行中事件若回归消失，当前测试仍会绿。
+- Codex 独立门禁：endpoint 20/20；全量 **478 / 2 skipped / 0 failures** 一轮；Release App+Agent 通过；`git show --check c67d17a` 干净。用户/Cursor 报告的最终提交三轮全绿证据保留。
+- 最小 R6 仅允许修改 `ahakeyconfig-mac/Tests/AhaKeyAgentTests/AhaKeyAgentRuntimeEndpointTests.swift`、本卡与看板：收集目标 operation 的 `operationChanged` 状态序列，明确断言 `.running` 存在且位于 terminal 之前；不得修改产品 Swift、R4/R5 主体、Shared wire、固件、UI、安装器或 Hook。
+- R6 跑 endpoint 定向、完整 Swift tests 一轮与 `git diff --check` 即可重提；产品代码未变，不要求重复双 Release 或 50 轮三遍。未 accepted 前仍不安装、不进 HIL、不刷机、不 push；固件 1.4 继续冻结。
+
+### [2026-08-27 18:06] Cursor：R6 测试返工完成
+
+- ACK 测试专用最小 R6。未改任何产品 Swift；仅 `AhaKeyAgentRuntimeEndpointTests.swift`。
+- `awaitOperationChangedStates` 从 sequence 0 收集同一 operation 的 `operationChanged` 状态序列；`testApplyDurableAcceptsImmediatelyAndExecutesAsynchronously` 断言 `.running` 存在、终态存在，且 `runningIndex < terminalIndex`。
+- 产品提交：`488097d874a076c64694014e24a15130b32fbd48`（验收范围建议 `c67d17a...488097d`）。
+- 门禁：endpoint **20/20**；全量一轮 **478 / 2 skipped / 0 failures**；`git diff --check` 干净。未重复 Release / 50 轮三遍（产品代码未变）。
+- 未安装、未进 HIL、不刷机、不 push。固件 1.4 仍冻结。停手待 Codex 整卡验收。
