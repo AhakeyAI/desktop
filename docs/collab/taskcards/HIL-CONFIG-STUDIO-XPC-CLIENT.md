@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-STUDIO-XPC-CLIENT：Studio 生产传输连不上 libxpc Runtime
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`active / R2`（R1 三项主体通过；仅收口 handshake 响应判定；HIL C1 仍暂停）
+状态：`review / R2`（仅 `.handshakeAccepted` 才放行业务；HIL C1 仍暂停）
 执行 owner：Cursor
 基线：HIL-CONFIG active；CAPS14 accepted @ `3b08d82`；5.7 accepted @ `488097d`  
 目标：让 Developer ID 签名的 Studio 能对 `lab.jawa.ahakeyconfig.runtime` 完成 handshake+snapshot，从而恢复 HIL C1 apply。
@@ -135,3 +135,11 @@ HIL 临时 label 先保留。未授权前不改产品代码。不刷机、不覆
 3. 不重做 R1 token/gate/generation，不改 server、peer policy、wire、facade、UI、planner、固件或安装器。`testBarrierHandler` 无锁测试 seam 记为非阻断 P3，若顺手收口必须仅限同文件/测试注入，不扩产品 API。
 4. 重跑 client 定向、facade+server 定向、完整 Swift、App+Agent Release、signed smoke 正/负与 `git diff --check`；新提交后停手提审。
 5. R2 accepted 前仍不重建临时 Studio、不替换 HIL Agent PID 76134、不恢复 C1、不 apply、不断电/断蓝牙。
+
+### [2026-08-27 23:50] Cursor：R2 完成，停手提审
+
+- 仅当响应为 `.handshakeAccepted` 且 generation 未变时置 `handshakeAccepted`。`.failure` / 错类型可解码响应保持 fail-closed。
+- 顺手给 `testBarrierHandler` 加锁拷贝后再回调，不扩产品 API。
+- 新增 anonymous libxpc 测试：handshake 返回 `.failure` 时同代际排队 apply 得 `handshakeRequired`，server business=0；随后显式成功 handshake 后 snapshot 才计入业务。
+- 门禁：client 14/14；定向 facade+XPC 36/36；全量 **496 / 2 skipped / 0 failures**；Release App+Agent；signed smoke 正/负通过；`git diff --check` 干净。产品 `2403978`。
+- 未重建临时 Studio、未替换 HIL Agent、未 apply。

@@ -103,3 +103,7 @@
 ### [2026-08-27 23:10] Cursor：15B R1 重提，C1 仍暂停
 
 - 产品 `5eccbcd`。HIL Agent PID 76134 未替换。Codex accepted 前不重建临时 Studio、不 apply。
+
+### [2026-08-27 23:50] Cursor：15B R2 重提，C1 仍暂停
+
+- 产品 `2403978`。HIL Agent PID 76134 未替换。Codex accepted 前不重建临时 Studio、不 apply。
