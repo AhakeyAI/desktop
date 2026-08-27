@@ -2,7 +2,7 @@
 
 计划/WBS：3.1-3.6  
 状态：`draft`  
-执行 owner：Kimi  
+执行 owner：Zcode
 基线：WBS 2 accepted 提交  
 目标：拨杆每档可配置硬件快捷键/宏，同时继续独立发布 Runtime 状态；硬件动作与自动批准语义正交。
 

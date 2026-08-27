@@ -1,8 +1,8 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`paused / 1.4`（HIL 真机窗口优先；固件仓 clean @ `9135183`）
-执行 owner：Cursor  
+状态：`ready / 1.4`（Zcode 接管；与 Cursor HIL 按仓库隔离并行）
+执行 owner：Zcode
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
 
@@ -259,3 +259,11 @@
 - ACK 20:03。本卡 `ready` → `active`。只写 `/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/**`、本卡与看板。产品源仍为 `9135183` 祖先树，不换 `eternal-dev`。
 - 范围：Rhino `factory_assets` 事务化出厂资源模块、trigger/manifest/journal、构建/host 门禁。不进入 1.5–1.7，不占用 `0x9A`/`0x9B`，不复用 `0x95–0x99`。
 - 不刷机、不 push、不改客户端产品代码。HIL-CONFIG 真机窗口不由本 ACK 打开。
+
+### [2026-08-27 21:55] Codex：WBS-1.4 转交 Zcode，恢复 ready
+
+- 用户新增 Zcode 并要求与 Cursor 并行。Cursor 继续唯一执行客户端仓 HIL-CONFIG；Zcode 自本条起是独立固件仓 WBS-1.4 唯一写者，Cursor 停止固件写入。
+- 基线冻结为分支 `cursor/wbs-1-unified-firmware`、clean HEAD `9135183867a693dbab81aac3b9d4a1b172c34860`。沿用现有分支名，不重命名、不 rebase、不重开仓库；若 ACK 时不 clean，立即 blocked 上报。
+- 1.4 范围与 20:03 完成定义不变：只做事务化 factory assets、trigger/manifest/journal、host/Flash/双构建门禁和 H+E 证据；不得进入 1.5–1.7。
+- 与 Cursor 的并行隔离：Zcode 只写 `/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/**`、本卡执行记录和 append-only board；禁止修改 `ahakeyconfig-mac/**`、HIL evidence/进程、客户端任务卡和总计划。
+- 禁止刷机、push、量产切换或连接烧录器。Zcode 读卡并核对基线后在 board ACK，再把本卡翻 `active / 1.4`；完成 H+E 后停手提审 @Codex。

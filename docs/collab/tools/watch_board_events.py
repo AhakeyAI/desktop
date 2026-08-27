@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wake the active Cursor coordinator when Kimi requests a Codex reply.
+"""Wake the active coordinator when an execution owner requests a reply.
 
 The board remains the durable source of truth. This process only turns a
 filesystem append into a low-latency wake notification for the current Cursor
@@ -67,20 +67,20 @@ def newest_message(text: str) -> str:
 
 
 def should_wake(message: str) -> bool:
-    if not message or "Kimi →" not in message:
+    if not message or not any(owner in message for owner in ("Kimi →", "Cursor →", "Zcode →")):
         return False
     return (
         "需要回复：是" in message
-        and ("@Codex" in message or "@Cursor" in message)
+        and any(target in message for target in ("@Codex", "@Cursor", "@Zcode", "@Kimi"))
     )
 
 
 def emit_wake(message: str) -> str:
     digest = hashlib.sha256(message.encode("utf-8")).hexdigest()
-    heading = message.splitlines()[0] if message else "Kimi board event"
+    heading = message.splitlines()[0] if message else "execution-owner board event"
     payload = {
         "prompt": (
-            "Kimi 已在 docs/collab/board.md 追加需要 Codex/Cursor 回复的事件。"
+            "执行方已在 docs/collab/board.md 追加需要回复的事件。"
             "立即读取 board.md EOF、相关任务卡和 queue；先 ACK，再按完成定义"
             "执行 owner 工作或只读验收/裁决。不要依赖聊天转述，严格遵守任务卡白名单。"
         ),

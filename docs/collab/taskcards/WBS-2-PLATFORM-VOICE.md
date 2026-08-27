@@ -2,7 +2,7 @@
 
 计划/WBS：2.1-2.8  
 状态：`draft`  
-执行 owner：Kimi  
+执行 owner：Zcode
 基线：WBS 1 accepted 提交  
 目标：设备连接电脑后学习/识别 Mac 与 Windows，无 Studio/Runtime 时发送 macOS F5、Windows Win+H 或用户选择的第三方语音模板。
 

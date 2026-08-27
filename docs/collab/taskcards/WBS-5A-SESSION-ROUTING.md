@@ -2,7 +2,7 @@
 
 计划/WBS：5A.1-5A.11  
 状态：`draft`  
-执行 owner：Kimi  
+执行 owner：Zcode
 基线：基础版 WBS 5.9 accepted 后冻结  
 目标：实现 session/turn/client/owner envelope、Registry/Selector/Lease 与 Codex App 精确目标 Adapter，错误目标时绝不注入。
 

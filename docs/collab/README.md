@@ -1,6 +1,6 @@
-# 三方异步沟通区（Codex / Kimi / Cursor）
+# 四方异步沟通区（Codex / Kimi / Cursor / Zcode）
 
-本目录是 Codex、Kimi、Cursor 三方的**唯一异步沟通通道**。规则如下，三方共同遵守：
+本目录是 Codex、Kimi、Cursor、Zcode 的**唯一异步沟通通道**。规则如下，各方共同遵守：
 
 ## 原则
 
@@ -8,8 +8,8 @@
 2. **append-only**：`board.md` 只允许在末尾追加条目，不修改、不删除历史条目。更正旧信息用新条目说明。禁止用 `>`、整文件 Write 或截断覆盖。追加请用 `python3 docs/collab/tools/append_board.py`（stdin 或参数）。
 3. **先读后写**：每次开始工作前，先通读 `board.md` 末尾自上次读后的新条目，以及与自己相关的任务卡。
 4. **写完即答**：读到需要自己回应的条目（标了 `@你的名字` 或 `需要回复`），在同次工作中追加回复，不拖延。
-5. **完成事件**：Kimi/Cursor 完成、阻塞或请求验收时，必须在条目末尾写 `需要回复：是（@Codex）`（Kimi 主叫）。Codex 通过 `watch_board_events.py` 获知；独立验收口径见下文「等待、唤醒与独立验收」。不依赖 Goal 自动续跑，也不把周期性心跳当完成信号。
-6. **Kimi 单会话施工**：任一 `ready/active` 任务卡在同一时刻只允许 **一个** Kimi 会话改产品代码。5 分钟心跳/巡检会话只读 `board.md` 与任务卡，禁止 Write/覆盖白名单源码。防撞车发现并发写入时停手，不 `checkout` 对方未提交稿以外的「整文件重写」。谁接单 ACK，谁施工到提审。
+5. **完成事件**：Kimi/Cursor/Zcode 完成、阻塞或请求验收时，必须在条目末尾写 `需要回复：是（@Codex）`。Codex 通过 `watch_board_events.py` 获知；独立验收口径见下文「等待、唤醒与独立验收」。不依赖 Goal 自动续跑，也不把周期性心跳当完成信号。
+6. **执行方单会话施工**：任一 `ready/active` 任务卡在同一时刻只允许 **一个** owner 会话改产品代码。巡检会话只读 `board.md` 与任务卡，禁止覆盖白名单源码。防撞车发现并发写入时停手；谁接单 ACK，谁施工到提审。
 
 ## 文件结构
 
@@ -33,14 +33,14 @@ docs/collab/
 需要回复：否 | 是（@某方，期望回复内容）
 ```
 
-- `→` 标明预期读者：全体 / Codex / Kimi / Cursor。
+- `→` 标明预期读者：全体 / Codex / Kimi / Cursor / Zcode。
 - 「决定请求」只有 Codex 能拍板（涉及范围、优先级、门禁）；三方分歧升级给用户时在条目里显式写「升级用户裁决」。
 
 ## 任务卡规则
 
 - 只有 Codex 创建和修改 `taskcards/` 下的任务卡状态字段。
 - 只有 Codex 修改 `queue.md` 的顺序、依赖和晋级口径；默认任一时刻只有一张卡处于 `ready/active/review`。
-- 执行方（Kimi/Cursor）在任务卡文件末尾的「执行记录」区追加自己的进展与交接条目。
+- 执行方（Kimi/Cursor/Zcode）在任务卡文件末尾的「执行记录」区追加自己的进展与交接条目。
 - 任务卡字段以最终方案 [`docs/codex-kimi-cursor-collaboration.md`](../codex-kimi-cursor-collaboration.md) 第 5 节为准；根目录两份提案只保留为历史输入。
 
 ## 等待、唤醒与独立验收
@@ -48,8 +48,8 @@ docs/collab/
 用户 2026-08-25 冻结（Goal 暂停无效时以本目录 + watcher 为准，不靠 thread Goal 续跑）：
 
 1. **墙钟等待**（采集、ACK、USER-GATE）：不打开 Goal 自动续跑。进度以 `queue.md`、任务卡和 `board.md` 为事实源。
-2. **Watcher**：`tools/watch_board_events.py` **只**在最新条目为 `Kimi →` 且含 `需要回复：是` 且 `@Codex` 或 `@Cursor` 时唤醒。不扫 `否`，不改该脚本。
-3. **Kimi 主叫**：采集或工作包完成时必须写 `需要回复：是（@Codex）`。这是唤醒主路径。
+2. **Watcher**：`tools/watch_board_events.py` 在最新条目来自 Kimi/Cursor/Zcode、含 `需要回复：是` 且提及 `@Codex` 或另一执行方时唤醒。不扫 `否`。
+3. **执行方主叫**：采集或工作包完成时必须写 `需要回复：是（@Codex）`。这是唤醒主路径。
 4. **独立验收不被「否」卡住**：报告与原始证据已齐时，Codex 可验收，即使最新心跳是 `需要回复：否`。否则又变回等人传话。
 5. **到点证据不足**：board **一次** `@Kimi` 催补采，卡保持 `active`。把已否决窗口再交一次或明显造假则当场拒绝。不因此打开 Goal 续跑，也不把又一条「否」当成还在采。
 6. **重复唤醒算一次**：Kimi 的「是」与 ETA sleeper 落到同一完成事件时，只做一轮验收。

@@ -2,7 +2,7 @@
 
 计划/WBS：6.1-6.4、适用时 6.4A  
 状态：`draft`（`USER-GATE`）  
-执行 owner：Kimi  
+执行 owner：Zcode
 验证协作者：Cursor  
 基线：WBS 1-5 与适用 5A accepted 后冻结候选版本  
 目标：完成 reducer/日志/隐藏 UI 性能、跨平台 USB/BLE、量产一致性、升级/降级/断电/断连门禁。
