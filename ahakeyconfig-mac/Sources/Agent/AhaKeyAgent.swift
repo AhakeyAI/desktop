@@ -192,8 +192,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         hookSocketURL: URL = AhaKeyPaths.runtimeHookSocketURL,
         initialPolicy: AhaKeyRuntimePolicy = AhaKeyAgent.compatibleDefaultPolicy,
         eventReplayCapacity: Int = 256,
-        enableRuntimeModules: Bool = true,
-        centralManagerQueue: DispatchQueue? = nil
+        enableRuntimeModules: Bool = true
     ) {
         self.socketPath = socketPath
         self.hookSocketURL = hookSocketURL
@@ -202,7 +201,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 旧版会持久化虚拟拨杆覆盖，导致真实硬件档位永远无法回写。迁移时清除它。
         UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         super.init()
-        central = CBCentralManager(delegate: self, queue: centralManagerQueue)
+        central = CBCentralManager(delegate: self, queue: nil)
         Self.clearLiveSwitchState()
         self.configurationCoordinator = AhaKeyConfigurationExecutionCoordinator(
             pendingPackages: { [weak self] in
@@ -1522,7 +1521,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             return
         }
-        guard let status = consumeDeviceStatus(data) else { return }
+        guard let status = MainActor.assumeIsolated({ self.consumeDeviceStatus(data) }) else { return }
 
         // 0x00 应答路由到 head 命令的 waiter（五元绑定；代际不符=迟到回包，nil 收尾）
         if let head = transportCore.inFlightCommand, head.opcode == 0x00,
@@ -1571,6 +1570,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     /// 生产 0x00 回包与测试注入的唯一消费入口（parse → reducer → cache/log/publish）。
+    @MainActor
     @discardableResult
     private func consumeDeviceStatus(_ data: Data) -> AgentDeviceStatus? {
         guard let status = Self.parseDeviceStatus(data) else { return nil }
@@ -1618,7 +1618,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case .skip:
             break
         }
-        publishDeviceChangedIfNeeded()
+        publishDeviceChangedOnMain()
         return status
     }
 
@@ -2145,10 +2145,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         } else {
             return eventReplayResponse(fast)
         }
-        // 测试 seam：确定性地在「快路径空批 → waiter 登记」夹缝中注入事件（生产恒 nil）。
-        if let gapHook = await MainActor.run(body: { self.executionTestHooks?.eventsLongPollGapHook }) {
-            await MainActor.run(body: { gapHook() })
-        }
+        // 测试 seam：快路径空批之后由 long-poll 同一临界区登记 waiter 并复查。
         if let immediate = await longPollRuntimeEvents(after: cursor, timeout: runtimeEventsLongPollInterval) {
             // 临界区内二次复查命中（夹缝事件/断档/错误）：立即返回，不白等。
             return eventReplayResponse(immediate)
@@ -2185,8 +2182,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    /// long-poll 不得整段占住 MainActor：XCTest async 用例会并行枚举，
-    /// 主线程 XCTWaiter 与 `@MainActor` 等待互锁。会话表/waiter 的短临界区才上 MainActor。
+    /// long-poll：before-register 屏障之后，waiter 登记与最终 replay 复查必须在
+    /// 同一个 MainActor 同步临界区内完成，中间不得 await / 另起 Task。
     private func longPollRuntimeEvents(
         after cursor: AhaKeyRuntimeEventSequence?,
         timeout: TimeInterval
@@ -2197,45 +2194,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             await hook()
         }
 
-        enum AfterHookDecision {
-            case returnNil
-            case returnRecheck(AhaKeyRuntimeEventReplayVerdict)
-            case wait
-        }
-        let decision = await MainActor.run { () -> AfterHookDecision in
-            switch self.longPollSessions[id] {
-            case .cancelled, .none, .waiting:
-                self.longPollSessions.removeValue(forKey: id)
-                return .returnNil
-            case .registering:
-                break
-            }
-            let recheck = self.replayVerdictOnMain(after: cursor)
-            if case .success(.events(let events)) = recheck, events.isEmpty {
-                return .wait
-            }
-            self.longPollSessions.removeValue(forKey: id)
-            return .returnRecheck(recheck)
-        }
-        switch decision {
-        case .returnNil:
-            if let hook = await MainActor.run(body: { self.executionTestHooks?.longPollAfterCompleteHook }) {
-                await hook()
-            }
-            return nil
-        case .returnRecheck(let recheck):
-            if let hook = await MainActor.run(body: { self.executionTestHooks?.longPollAfterCompleteHook }) {
-                await hook()
-            }
-            return recheck
-        case .wait:
-            break
-        }
-
         let timeoutBox = LongPollTimeoutBox()
         let verdict = await withTaskCancellationHandler {
             await withCheckedContinuation { (continuation: CheckedContinuation<AhaKeyRuntimeEventReplayVerdict?, Never>) in
-                Task { @MainActor [weak self] in
+                DispatchQueue.main.async { [weak self] in
                     guard let self else {
                         continuation.resume(returning: nil)
                         return
@@ -2251,12 +2213,24 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     case .registering:
                         break
                     }
+                    // 同一主队列同步临界区：挂 waiter + 最终 replay 复查，中间无 await。
                     self.projectionEventWaiters[id] = continuation
                     self.longPollSessions[id] = .waiting(continuation)
-                    let nanoseconds = UInt64(max(timeout, 0) * 1_000_000_000)
-                    timeoutBox.task = Task { @MainActor [weak self] in
-                        try? await Task.sleep(nanoseconds: nanoseconds)
-                        self?.completeLongPoll(id, result: nil)
+                    if let gapHook = self.executionTestHooks?.eventsLongPollGapHook {
+                        gapHook()
+                    }
+                    if self.projectionEventWaiters[id] == nil {
+                        return
+                    }
+                    let recheck = self.replayVerdictOnMain(after: cursor)
+                    if case .success(.events(let events)) = recheck, events.isEmpty {
+                        let nanoseconds = UInt64(max(timeout, 0) * 1_000_000_000)
+                        timeoutBox.task = Task { @MainActor [weak self] in
+                            try? await Task.sleep(nanoseconds: nanoseconds)
+                            self?.completeLongPoll(id, result: nil)
+                        }
+                    } else {
+                        self.completeLongPoll(id, result: recheck)
                     }
                 }
             }
@@ -2295,6 +2269,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     /// 测试 seam：直接注入原始 0x00 回包，走生产 `consumeDeviceStatus` 入口。
+    @MainActor
     internal func injectRawStatusPacketForTesting(_ data: Data) {
         _ = consumeDeviceStatus(data)
     }
@@ -2370,8 +2345,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var simulatedDevice: AhaKeyRuntimeDeviceSnapshot?
     /// 非 nil 时覆盖 transportCore.stableDeviceID（测试 0x00 parser→reducer→event 路径）。
     var stableDeviceID: String?
-    /// 非 nil 时在 events 空批快路径之后、long-poll waiter 登记之前于 MainActor 同步调用，
-    /// 用于确定性地构造 lost-wakeup 交错（R2-5 测试；生产恒 nil）。
+    /// 非 nil 时在 long-poll 已挂 waiter 的同一 MainActor 同步临界区内调用，
+    /// 随后立即 replay 复查（R2-5 / R5；生产恒 nil）。
     var eventsLongPollGapHook: (@MainActor @Sendable () -> Void)?
     /// R4：会话已标 registering、尚未写入 waiter 时的异步屏障。
     var longPollBeforeRegisterHook: (@Sendable () async -> Void)?

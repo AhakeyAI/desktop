@@ -136,11 +136,12 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             socketPath: testRoot.appendingPathComponent("agent-\(UUID().uuidString.prefix(6)).sock").path,
             hookSocketURL: testRoot.appendingPathComponent("hook-\(UUID().uuidString.prefix(6)).sock"),
             eventReplayCapacity: replayCapacity,
-            enableRuntimeModules: false,
-            centralManagerQueue: DispatchQueue(label: "ahk.endpoint.test.ble")
+            enableRuntimeModules: false
         )
+        let storeDir = testRoot.appendingPathComponent("store-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
         agent.runtimeEventsLongPollInterval = longPoll
-        agent.executionTestHooks = AhaKeyAgentExecutionTestHooks(storeDirectory: testRoot)
+        agent.executionTestHooks = AhaKeyAgentExecutionTestHooks(storeDirectory: storeDir)
         agents.append(agent)
         return agent
     }
@@ -202,7 +203,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
     }
 
-    /// 事件跟随直到目标 operation 进入终态（或超时返回 nil）。优先 snapshot，避免 long-poll 吞掉超时。
+    /// snapshot 轮询终态（矩阵/排队取消用）。事件路径见 `awaitTerminalStateFromEvents`。
     private func awaitTerminalState(
         _ client: EndpointClient,
         operationID: AhaKeyRuntimeOperationID,
@@ -217,6 +218,63 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
         return nil
+    }
+
+    /// 通过 operationChanged 事件观察终态（不得只用 snapshot 轮询掩盖事件回归）。
+    private func awaitTerminalStateFromEvents(
+        _ client: EndpointClient,
+        operationID: AhaKeyRuntimeOperationID,
+        timeout: TimeInterval = 15
+    ) async -> AhaKeyRuntimeOperationState? {
+        let deadline = Date().addingTimeInterval(timeout)
+        var cursor = AhaKeyRuntimeEventSequence(0)
+        while Date() < deadline {
+            guard let result = try? await client.events(after: cursor) else { return nil }
+            switch result {
+            case .snapshotRequired(let latest):
+                cursor = latest
+            case .events(let events):
+                for event in events {
+                    cursor = max(cursor, event.sequence)
+                    if case .operationChanged(let summary) = event.payload,
+                       summary.id == operationID, summary.state.isTerminal {
+                        return summary.state
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private func assertZeroZeroThreeFrameDedup(
+        _ agent: AhaKeyAgent,
+        _ client: EndpointClient,
+        round: Int? = nil
+    ) async throws {
+        let prefix = round.map { "round \($0): " } ?? ""
+        var logLines: [String] = []
+        agent.onLog = { logLines.append($0) }
+        let basePacket = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
+        let before = try await client.snapshot().latestEventSequence
+        await MainActor.run { agent.injectRawStatusPacketForTesting(basePacket) }
+        guard case .events(let events1) = try await client.events(after: before) else {
+            return XCTFail("\(prefix)0x00 首帧应返回 events")
+        }
+        XCTAssertEqual(events1.count, 1, "\(prefix)0x00 首帧必须发布一次")
+        logLines.removeAll()
+        await MainActor.run { agent.injectRawStatusPacketForTesting(basePacket) }
+        let afterFirst = events1.last?.sequence ?? before
+        guard case .events(let events2) = try await client.events(after: afterFirst) else {
+            return XCTFail("\(prefix)0x00 相同帧应返回 events")
+        }
+        XCTAssertEqual(events2.count, 0, "\(prefix)0x00 相同帧必须零发布")
+        XCTAssertEqual(logLines.filter { $0.contains("status") }.count, 0, "\(prefix)0x00 相同帧必须零常规日志")
+        let changedPacket = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 2, 0, 0xCC, 0xDD])
+        await MainActor.run { agent.injectRawStatusPacketForTesting(changedPacket) }
+        guard case .events(let events3) = try await client.events(after: afterFirst) else {
+            return XCTFail("\(prefix)0x00 变化帧应返回 events")
+        }
+        XCTAssertEqual(events3.count, 1, "\(prefix)0x00 单字段变化必须再发布一次")
     }
 
     // MARK: - handshake / snapshot / empty replay
@@ -395,7 +453,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
 
         // 放行执行：终态经事件可观察，snapshot 反映 completed + revision 推进。
         await gate.release()
-        let terminal = await awaitTerminalState(client, operationID: operationID)
+        let terminal = await awaitTerminalStateFromEvents(client, operationID: operationID)
         XCTAssertEqual(terminal, .completed, "执行终态必须经 operationChanged 事件发布")
         let final = try await client.snapshot()
         XCTAssertTrue(final.operations.contains { $0.id == operationID && $0.state == .completed })
@@ -409,7 +467,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
         let package = try makePackage(deviceID: deviceID)
         let operationID = package.operationID
-        let storeDirectory = testRoot!
+        let storeDirectory = agent.executionTestHooks!.storeDirectory!
         var hooks = agent.executionTestHooks
         hooks?.isReady = true
         hooks?.capabilities = testCapabilities()
@@ -671,7 +729,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         let basePacket = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
 
         // 首帧：hasReceivedFullStatus false→true，必须发布一次 deviceChanged。
-        agent.injectRawStatusPacketForTesting(basePacket)
+        await MainActor.run { agent.injectRawStatusPacketForTesting(basePacket) }
         try await Task.sleep(nanoseconds: 50_000_000)
         let firstEvents = try await client.events(after: .init(0))
         guard case .events(let events1) = firstEvents else {
@@ -685,7 +743,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
 
         // 相同帧：零事件、零常规日志。
         logLines.removeAll()
-        agent.injectRawStatusPacketForTesting(basePacket)
+        await MainActor.run { agent.injectRawStatusPacketForTesting(basePacket) }
         try await Task.sleep(nanoseconds: 50_000_000)
         let secondEvents = try await client.events(after: events1.first!.sequence)
         guard case .events(let events2) = secondEvents else {
@@ -696,7 +754,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
 
         // 单字段变化（lightMode 1→2）：再发布一次。
         let changedPacket = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 2, 0, 0xCC, 0xDD])
-        agent.injectRawStatusPacketForTesting(changedPacket)
+        await MainActor.run { agent.injectRawStatusPacketForTesting(changedPacket) }
         try await Task.sleep(nanoseconds: 50_000_000)
         let thirdEvents = try await client.events(after: events2.last?.sequence ?? events1.first!.sequence)
         guard case .events(let events3) = thirdEvents else {
@@ -896,12 +954,14 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
-    func testR4PressureMatrixFiftyRounds() {
+    func testR5PressureMatrixFiftyRounds() {
         runEndpointTest { [self] in
         for round in 0..<50 {
             let agent = makeAgent(longPoll: 0.08)
             let reached = OnceSignal()
             let allow = StepGate()
+            let lateReached = OnceSignal()
+            let lateAllow = StepGate()
             var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
             hooks.isReady = true
             hooks.capabilities = testCapabilities()
@@ -915,31 +975,36 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             try await client2.handshake()
             let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
 
-            async let a1 = client1.exchange(.apply(try makePackage(deviceID: deviceID)))
-            async let a2 = client2.exchange(.apply(try makePackage(deviceID: deviceID)))
-            let (r1, r2) = try await (a1, a2)
-            guard case .operationAccepted(let op1) = r1, case .operationAccepted = r2 else {
+            guard case .operationAccepted(let op1) = try await client1.exchange(.apply(try makePackage(deviceID: deviceID))),
+                  case .operationAccepted(let op2) = try await client2.exchange(.apply(try makePackage(deviceID: deviceID))) else {
                 return XCTFail("round \(round): 双客户端首撞必须都受理")
             }
             try await Task.sleep(nanoseconds: 80_000_000)
+            var state1: AhaKeyRuntimeOperationState?
+            let pauseDeadline = Date().addingTimeInterval(2)
+            while Date() < pauseDeadline {
+                state1 = try await client1.snapshot().operations.first { $0.id == op1 }?.state
+                if state1 == .paused || state1 == .resumablePartial { break }
+                try await Task.sleep(nanoseconds: 20_000_000)
+            }
+            XCTAssertTrue(
+                state1 == .paused || state1 == .resumablePartial,
+                "round \(round): 队首必须非终态，实际 \(String(describing: state1))"
+            )
             let snapshotAfterPair = try await client1.snapshot()
-            let head = snapshotAfterPair.operations.first {
-                $0.state == .paused || $0.state == .resumablePartial
-            }
-            let queued = snapshotAfterPair.operations.first {
-                $0.id != head?.id && $0.id != op1 && !$0.state.isTerminal
-            } ?? snapshotAfterPair.operations.first {
-                $0.id != op1 && !$0.state.isTerminal && $0.state == .accepted
-            }
+            let queued = snapshotAfterPair.operations.first { $0.id == op2 }
+            XCTAssertNotNil(queued, "round \(round): 必须找到排队第二包")
+            XCTAssertEqual(queued?.state, .accepted, "round \(round): 第二包必须仍为 accepted")
+            XCTAssertNotEqual(op2, op1)
+
             let third = try makePackage(deviceID: deviceID)
             guard case .operationAccepted(let op3) = try await client1.exchange(.apply(third)) else {
                 return XCTFail("round \(round): 第三包必须受理")
             }
-            if let cancelOp = queued?.id, cancelOp != op3 {
-                _ = try await client1.exchange(.requestCancellation(cancelOp))
-                let settled = await awaitTerminalState(client1, operationID: cancelOp, timeout: 5)
-                XCTAssertTrue(settled?.isTerminal ?? false, "round \(round): paused 后排队取消必须结算")
-            }
+            let cancellation = try await client1.exchange(.requestCancellation(op2))
+            XCTAssertEqual(cancellation, .cancellation(.requested), "round \(round): 排队取消必须受理")
+            let settled = await awaitTerminalState(client1, operationID: op2, timeout: 5)
+            XCTAssertTrue(settled?.isTerminal ?? false, "round \(round): paused 后排队取消必须结算")
             let state3 = try await client1.snapshot().operations.first { $0.id == op3 }?.state
             XCTAssertEqual(state3, .accepted, "round \(round): 第三包不得越过队首")
 
@@ -949,19 +1014,36 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                 await allow.wait()
             }
             agent.executionTestHooks = pollHooks
-
             let cursor = try await client1.snapshot().latestEventSequence
             let pollTask = Task { try await client1.events(after: cursor) }
             await reached.wait()
             pollTask.cancel()
             await allow.release()
             _ = try? await pollTask.value
+
+            var lateHooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+            lateHooks.longPollBeforeRegisterHook = nil
+            lateHooks.longPollAfterCompleteHook = {
+                await lateReached.signal()
+                await lateAllow.wait()
+            }
+            agent.executionTestHooks = lateHooks
+            let lateCursor = try await client1.snapshot().latestEventSequence
+            let lateTask = Task { try await client1.events(after: lateCursor) }
+            await lateReached.wait()
+            lateTask.cancel()
+            await lateAllow.release()
+            _ = try? await lateTask.value
             let leaks = await MainActor.run { agent.longPollLeakCountsForTesting() }
             XCTAssertEqual(leaks.sessions, 0, "round \(round): long-poll 不得残留 session")
             XCTAssertEqual(leaks.waiters, 0, "round \(round): long-poll 不得残留 waiter")
 
-            let packet = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
-            agent.injectRawStatusPacketForTesting(packet)
+            await MainActor.run {
+                var cleared = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+                cleared.simulatedDevice = nil
+                agent.executionTestHooks = cleared
+            }
+            try await assertZeroZeroThreeFrameDedup(agent, client1, round: round)
             agent.shutdown()
         }
         }
