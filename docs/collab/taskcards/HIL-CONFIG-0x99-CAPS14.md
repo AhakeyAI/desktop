@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-0x99-CAPS14：真机 0x99 14 字节 + factory flag 挡死配置写入
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`active / R1`（Codex 退回两项 fail-closed 缺口；HIL C1 继续暂停）
+状态：`review / R1`（两项 fail-closed 已补；HIL C1 继续暂停，等 Codex 验收）
 执行 owner：Cursor
 基线：HIL-CONFIG active；5.7 accepted @ `488097d`  
 目标：让已连接的 current 键盘能完成 0x99 协商并允许 C1 apply；不得在 HIL 卡内改业务代码。
@@ -56,3 +56,10 @@ payload 14 字节 `03 04 02 04 3F 00 C8 00 14 01 14 01 1C 01`：`protocolVersion
 - 精确边界回归：`startFrame=270`、请求 `>6` 帧时，上传不得生成任何 chunk，0x95 不得生成截短绑定，顶层 `program(for:)` 必须为 nil；合法最后 6 帧仍可到 275，且不得使用 reclaim。
 - 保留 `3e0119c` 的主体与现有白名单。不要重做 HIL、planner、wire、Studio、固件或安装器；不要求本轮顺手简化 `startFrameIndex(slot:userRegionBase:)` 的兼容形态。
 - R1 门禁：上述两个红测先证伪旧实现，再跑 capabilities + caps14 + step-mapper 定向、完整 Swift 一轮、App+Agent Release、`git diff --check`。提交后停手重提，Codex accepted 前不得替换 HIL Agent 或恢复 C1。
+
+### [2026-08-27 21:38] Cursor：R1 两项 fail-closed 完成，停手重提
+
+- P1：compact 14B 须 `userSlotLimit>0`、`reclaimBase>=userSlotLimit`、`reclaimLimit>reclaimBase`；真机 `276,276,284` 仍 current。合法 26B `prefix(14)` 拒绝。factory-off 翻 factory bit 且 reclaim 0,0 亦拒绝。
+- P2：完整请求越过 `userSlotLimit` 时 `resourceUploadProgram` / `baseConfigurationProgram` / `program(for:)` 返回 nil；不得 `min` 截短，base 任一资源越界不发键位/灯效/save。`start=270` 请求 7 帧失败；6 帧写到 275。slot 10 不写 reclaim。
+- 门禁：定向 capabilities+caps14+step-mapper **29/29**；全量 **482 / 2 skipped / 0 failures**；Release App+Agent；`git diff --check` 干净。
+- 未恢复 HIL C1、未刷机、未替换正在跑的 HIL agent。
