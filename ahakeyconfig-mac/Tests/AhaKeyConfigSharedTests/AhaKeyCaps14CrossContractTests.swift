@@ -42,17 +42,11 @@ final class AhaKeyCaps14CrossContractTests: XCTestCase {
         XCTAssertFalse(capabilities?.supportsSessionUpload ?? true)
     }
 
-    func testCaps14WithFactoryFlagOnParsesCompactLayout() {
-        // factory flag 打开的 14B 是 compact 布局，不是截断扩展帧。
+    func testCaps14WithFactoryFlagOnRejectsInvalidCompactStructure() {
+        // factory-off fixture 翻 factory bit 后 reclaim 为 0,0，不满足 compact 结构关系，必须 fail-closed。
         var payload = caps14Payload
         payload[4] = 0x37
-        let capabilities = AhaKeyFirmwareCapabilities.parse(payload)
-        XCTAssertEqual(capabilities?.protocolVersion, 3)
-        XCTAssertEqual(capabilities?.userSlotLimit, 288)
-        XCTAssertEqual(capabilities?.factorySlotBase, 288)
-        XCTAssertEqual(capabilities?.reclaimSlotBase, 0)
-        XCTAssertEqual(capabilities?.reclaimSlotLimit, 0)
-        XCTAssertEqual(capabilities?.factoryBundleVersion, 0)
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(payload))
     }
 
     // MARK: - planner 交叉：槽位范围与越界拒绝

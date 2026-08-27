@@ -92,6 +92,8 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
     /// - 13B 以下、15...21B、23...25B：歧义/截断，fail-closed。
     /// - factory-off 14B：`factorySlotBase=0`（caps14 交叉契约）。
     /// - factory compact 14B：`factorySlotBase=userSlotLimit`，reclaim 取 u16(10)/u16(12)；
+    ///   须满足 `userSlotLimit>0`、`reclaimBase>=userSlotLimit`、`reclaimLimit>reclaimBase`，
+    ///   否则视为截断 extended，fail-closed。
     ///   不得把缺失的 22B factory 扩展字段猜出来。
     /// - factory 22/26B：维持扩展字段语义。
     public static func parse(_ payload: Data) -> AhaKeyFirmwareCapabilities? {
@@ -109,9 +111,34 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
         let flags = u16(4)
         let factoryAdvertised = flags & Self.factoryAssetsFlag != 0
         let userSlotLimit = Int(u16(8))
-        let isCompactFactory = factoryAdvertised && count == 14
+        if factoryAdvertised && count == 14 {
+            let reclaimBase = Int(u16(10))
+            let reclaimLimit = Int(u16(12))
+            // compact 必须能与截断 extended 区分：user>0、reclaimBase>=user、reclaimLimit>reclaimBase。
+            guard userSlotLimit > 0,
+                  reclaimBase >= userSlotLimit,
+                  reclaimLimit > reclaimBase else {
+                return nil
+            }
+            return AhaKeyFirmwareCapabilities(
+                protocolVersion: Int(payload[0]),
+                modeCount: Int(payload[1]),
+                setCount: Int(payload[2]),
+                stateCount: Int(payload[3]),
+                flags: flags,
+                maxPacketSize: Int(u16(6)),
+                userSlotLimit: userSlotLimit,
+                factorySlotBase: userSlotLimit,
+                factoryBundleVersion: 0,
+                factoryManifestCRC: 0,
+                factoryStatus: 0,
+                factoryError: 0,
+                reclaimSlotBase: reclaimBase,
+                reclaimSlotLimit: reclaimLimit
+            )
+        }
         let hasExtendedFactoryFields = factoryAdvertised && (count == 22 || count >= 26)
-        if factoryAdvertised && !isCompactFactory && !hasExtendedFactoryFields {
+        if factoryAdvertised && !hasExtendedFactoryFields {
             return nil
         }
         return AhaKeyFirmwareCapabilities(
@@ -122,19 +149,13 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
             flags: flags,
             maxPacketSize: Int(u16(6)),
             userSlotLimit: userSlotLimit,
-            factorySlotBase: isCompactFactory
-                ? userSlotLimit
-                : (hasExtendedFactoryFields ? Int(u16(10)) : 0),
+            factorySlotBase: hasExtendedFactoryFields ? Int(u16(10)) : 0,
             factoryBundleVersion: hasExtendedFactoryFields ? u32(12) : 0,
             factoryManifestCRC: hasExtendedFactoryFields ? u32(16) : 0,
             factoryStatus: hasExtendedFactoryFields ? Int(payload[20]) : 0,
             factoryError: hasExtendedFactoryFields ? Int(payload[21]) : 0,
-            reclaimSlotBase: isCompactFactory
-                ? Int(u16(10))
-                : (count >= 26 ? Int(u16(22)) : (hasExtendedFactoryFields ? Int(u16(10)) : 0)),
-            reclaimSlotLimit: isCompactFactory
-                ? Int(u16(12))
-                : (count >= 26 ? Int(u16(24)) : (hasExtendedFactoryFields ? Int(u16(12)) : 0))
+            reclaimSlotBase: count >= 26 ? Int(u16(22)) : (hasExtendedFactoryFields ? Int(u16(10)) : 0),
+            reclaimSlotLimit: count >= 26 ? Int(u16(24)) : (hasExtendedFactoryFields ? Int(u16(12)) : 0)
         )
     }
 }

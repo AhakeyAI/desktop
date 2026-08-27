@@ -30,13 +30,13 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
 
     // MARK: 资源上传程序
 
-    func testResourceUploadProgramAddressesAndChunks() {
+    func testResourceUploadProgramAddressesAndChunks() throws {
         // 2 帧 × 编码 25600B → 每帧 7 块（⌈25600/4096⌉=7，末块 1024），共 14 对 prepare+chunk
-        let steps = Mapper.resourceUploadProgram(
+        let steps = try XCTUnwrap(Mapper.resourceUploadProgram(
             digest: digest(), slotIndex: 0,
             encodedFrameCount: 2,
             usesSessionUpload: true, capabilities: capabilities()
-        )
+        ))
         XCTAssertEqual(steps.count, 28)
         guard case .prepareWrite(let session, let len, let addr) = steps.first else {
             return XCTFail("首步应为 prepareWrite")
@@ -65,25 +65,25 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         XCTAssertEqual(chunkLen, 1024)
     }
 
-    func testResourceUploadProgramLegacyPrepareWithoutSession() {
-        let steps = Mapper.resourceUploadProgram(
+    func testResourceUploadProgramLegacyPrepareWithoutSession() throws {
+        let steps = try XCTUnwrap(Mapper.resourceUploadProgram(
             digest: digest(), slotIndex: 0,
             encodedFrameCount: 1,
             usesSessionUpload: false, capabilities: capabilities(sessionUpload: false)
-        )
+        ))
         guard case .prepareWrite(let session, _, _) = steps.first else {
             return XCTFail("首步应为 prepareWrite")
         }
         XCTAssertNil(session)
     }
 
-    func testResourceUploadProgramCapsFramesAtSlotLimit() {
+    func testResourceUploadProgramCapsFramesAtSlotLimit() throws {
         // 声明 70 帧但槽位上限 30：程序只排 30 帧（声明超限由 planner 拒绝兜底）
-        let steps = Mapper.resourceUploadProgram(
+        let steps = try XCTUnwrap(Mapper.resourceUploadProgram(
             digest: digest(), slotIndex: 0,
             encodedFrameCount: 70,
             usesSessionUpload: false, capabilities: capabilities(sessionUpload: false)
-        )
+        ))
         let prepares = steps.filter { if case .prepareWrite = $0 { return true }; return false }
         XCTAssertEqual(prepares.count, 30 * 7)
     }
@@ -130,9 +130,9 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
 
     func testBaseProgramContainsKeyLightBindActivateFinishSave() throws {
         let (desired, plan) = try modeWithEverything()
-        let steps = Mapper.baseConfigurationProgram(
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
             mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
-        )
+        ))
         // 键位：approve shortcut（⌘+Enter = E3 28）、reject macro、approve description
         XCTAssertTrue(steps.contains(.setKeyShortcut(mode: 2, keyIndex: 1, hidCodes: [0xE3, 0x28])))
         XCTAssertTrue(steps.contains(.setKeyMacro(mode: 2, keyIndex: 2, pairs: [1, 0x51])))
@@ -237,9 +237,9 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
 
     func testDefaultAnimationBindingInBaseProgram() throws {
         let (desired, plan) = try modeWithDefaultAnimation()
-        let steps = Mapper.baseConfigurationProgram(
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
             mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
-        )
+        ))
         // defaultAnimation 通过 0x95 idle 槽绑定，不发 0x82
         XCTAssertTrue(steps.contains(.bindTaskPicture(
             mode: 0, set: 0, state: 0,
@@ -261,25 +261,25 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         ]))!
     }
 
-    func testCompactFactoryUserWritesStartAtZeroAndStayInPrimary() {
+    func testCompactFactoryUserWritesStartAtZeroAndStayInPrimary() throws {
         let caps = compactHilCapabilities()
         XCTAssertEqual(caps.userSlotLimit, 276)
         XCTAssertEqual(caps.factorySlotBase, 276)
-        let steps = Mapper.resourceUploadProgram(
+        let steps = try XCTUnwrap(Mapper.resourceUploadProgram(
             digest: digest(), slotIndex: 0,
             encodedFrameCount: 1,
             usesSessionUpload: false, capabilities: caps
-        )
+        ))
         guard case .prepareWrite(_, _, let addr) = steps.first else {
             return XCTFail("首槽必须从用户区 0 起编")
         }
         XCTAssertEqual(addr, 0)
-        let binds = Mapper.baseConfigurationProgram(
+        let binds = try XCTUnwrap(Mapper.baseConfigurationProgram(
             mode: try! modeWithDefaultAnimation().0.modes[0],
             desired: try! modeWithDefaultAnimation().0,
             plan: try! modeWithDefaultAnimation().1,
             capabilities: caps
-        ).compactMap { step -> UInt16? in
+        )).compactMap { step -> UInt16? in
             if case .bindTaskPicture(_, _, _, let start, let count, _) = step {
                 XCTAssertLessThan(start, 276)
                 XCTAssertLessThanOrEqual(Int(start) + Int(count), 276)
@@ -291,14 +291,100 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         XCTAssertFalse(binds.contains(where: { $0 >= 276 }))
     }
 
-    func testCompactFactoryDoesNotEmitReclaimStartIndex() {
+    func testCompactFactoryDoesNotEmitReclaimStartIndex() throws {
         let caps = compactHilCapabilities()
-        // slot 10 → 300 >= 276，必须不生成 reclaim 写入
-        let steps = Mapper.resourceUploadProgram(
+        // slot 10 → 300 >= 276，必须整体失败，不得生成 reclaim 写入或空成功程序
+        XCTAssertNil(Mapper.resourceUploadProgram(
             digest: digest(), slotIndex: 10,
             encodedFrameCount: 1,
             usesSessionUpload: false, capabilities: caps
+        ))
+        let (desired, plan) = try compactDesired(slot: 10, frames: 1)
+        let metas = [try! AhaKeyConfigurationResource(
+            logicalIdentifier: "img-edge",
+            sha256: String(repeating: "a", count: 64), byteCount: 25600, mediaType: "gif"
+        )]
+        XCTAssertNil(Mapper.program(
+            for: try! .init("resource:img-edge"), desired: desired, plan: plan,
+            resources: metas, capabilities: caps
+        ))
+    }
+
+    private func compactDesired(slot: Int, frames: Int) throws -> (AhaKeyDesiredConfiguration, AhaKeyConfigurationPlanner.Plan) {
+        let setA = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let setB = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let oled = try AhaKeyDesiredConfiguration.OLED(
+            defaultAnimation: resource("img-edge"), defaultAnimationFrames: frames,
+            statusLine: "", framesPerSecond: 12, taskSets: [setA, setB], activeSet: 0
         )
-        XCTAssertTrue(steps.isEmpty)
+        let lightBar = try AhaKeyDesiredConfiguration.LightBar(stateMappings: [], brightness: 50)
+        let mode = try AhaKeyDesiredConfiguration.Mode(slot: 0, keys: [], oled: oled, lightBar: lightBar)
+        let desired = try AhaKeyDesiredConfiguration(modes: [mode])
+        let plan = AhaKeyConfigurationPlanner.Plan(
+            transactions: [], slotAssignments: [resource("img-edge"): slot]
+        )
+        return (desired, plan)
+    }
+
+    func testCompactPrimaryOverflowFailsWholeProgram() throws {
+        let caps = compactHilCapabilities()
+        let layout = AhaKeyDeviceLayoutPolicy()
+        XCTAssertEqual(layout.startFrameIndex(slot: 9, userRegionBase: 0), 270)
+        // start=270，请求 7 帧越过 276：不得截短成 6 帧。
+        XCTAssertNil(Mapper.resourceUploadProgram(
+            digest: digest(), slotIndex: 9,
+            encodedFrameCount: 7,
+            usesSessionUpload: false, capabilities: caps
+        ))
+        let overflow = try compactDesired(slot: 9, frames: 7)
+        let metas = [try! AhaKeyConfigurationResource(
+            logicalIdentifier: "img-edge",
+            sha256: String(repeating: "a", count: 64), byteCount: 7 * 25600, mediaType: "gif"
+        )]
+        XCTAssertNil(Mapper.program(
+            for: try! .init("resource:img-edge"), desired: overflow.0, plan: overflow.1,
+            resources: metas, capabilities: caps
+        ))
+        XCTAssertNil(Mapper.baseConfigurationProgram(
+            mode: overflow.0.modes[0], desired: overflow.0, plan: overflow.1, capabilities: caps
+        ))
+        XCTAssertNil(Mapper.program(
+            for: try! .init("base:mode:0"), desired: overflow.0, plan: overflow.1,
+            resources: metas, capabilities: caps
+        ))
+    }
+
+    func testCompactPrimaryLastSixFramesOccupyThrough275() throws {
+        let caps = compactHilCapabilities()
+        let steps = try XCTUnwrap(Mapper.resourceUploadProgram(
+            digest: digest(), slotIndex: 9,
+            encodedFrameCount: 6,
+            usesSessionUpload: false, capabilities: caps
+        ))
+        let prepares = steps.compactMap { step -> UInt32? in
+            if case .prepareWrite(_, _, let addr) = step { return addr }
+            return nil
+        }
+        XCTAssertEqual(prepares.count, 6 * 7)
+        XCTAssertEqual(prepares.first, 270 * 28_672)
+        XCTAssertEqual(prepares.last, 275 * 28_672 + UInt32(6 * 4096))
+        XCTAssertFalse(prepares.contains(where: { $0 >= 276 * 28_672 }))
+        let legal = try compactDesired(slot: 9, frames: 6)
+        let binds = try XCTUnwrap(Mapper.baseConfigurationProgram(
+            mode: legal.0.modes[0], desired: legal.0, plan: legal.1, capabilities: caps
+        )).compactMap { step -> (UInt16, UInt16)? in
+            if case .bindTaskPicture(_, _, _, let start, let count, _) = step {
+                return (start, count)
+            }
+            return nil
+        }
+        XCTAssertEqual(binds.first?.0, 270)
+        XCTAssertEqual(binds.first?.1, 6)
+        XCTAssertTrue(binds.allSatisfy { Int($0.0) + Int($0.1) <= 276 })
+        XCTAssertFalse(binds.contains(where: { $0.0 >= 276 }))
     }
 }

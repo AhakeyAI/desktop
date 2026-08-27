@@ -87,6 +87,8 @@ final class AhaKeyFirmwareCapabilitiesTests: XCTestCase {
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(21))))
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(23))))
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(25))))
+        // 合法 26B 的前 14B 会把 factorySlotBase/bundleVersion 误读成 reclaim；结构校验必须拒绝。
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(14))))
     }
 
     // MARK: - 能力标志位

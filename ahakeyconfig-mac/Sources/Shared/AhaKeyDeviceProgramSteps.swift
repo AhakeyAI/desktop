@@ -83,16 +83,17 @@ public enum AhaKeyConfigurationStepMapper {
         usesSessionUpload: Bool,
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init()
-    ) -> [AhaKeyDeviceProgramStep] {
+    ) -> [AhaKeyDeviceProgramStep]? {
         let startFrame = layout.startFrameIndex(slot: slotIndex, userRegionBase: 0)
-        guard Int(startFrame) < capabilities.userSlotLimit else { return [] }
-        let frameCount = min(encodedFrameCount, layout.framesPerSlot)
-        let remaining = capabilities.userSlotLimit - Int(startFrame)
-        guard remaining > 0 else { return [] }
-        let cappedCount = min(frameCount, remaining)
+        let start = Int(startFrame)
+        guard start < capabilities.userSlotLimit else { return nil }
+        let requested = min(encodedFrameCount, layout.framesPerSlot)
+        let remaining = capabilities.userSlotLimit - start
+        // 完整请求必须落在 primary 0..<userSlotLimit；越界不得静默截短。
+        guard requested > 0, requested <= remaining else { return nil }
         let frameBytes = layout.encodedFrameBytes
         var steps: [AhaKeyDeviceProgramStep] = []
-        for frame in 0..<cappedCount {
+        for frame in 0..<requested {
             let frameAddress = UInt32(Int(startFrame) + frame) * UInt32(layout.frameSlotBytes)
             var offset = 0
             while offset < frameBytes {
@@ -123,7 +124,38 @@ public enum AhaKeyConfigurationStepMapper {
         plan: AhaKeyConfigurationPlanner.Plan,
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init()
-    ) -> [AhaKeyDeviceProgramStep] {
+    ) -> [AhaKeyDeviceProgramStep]? {
+        struct BindSpec {
+            let setIndex: Int
+            let state: UInt8
+            let startFrame: UInt16
+            let frameCount: UInt16
+            let intervalMs: UInt16
+        }
+        var binds: [BindSpec] = []
+        for (setIndex, set) in mode.oled.taskSets.enumerated() {
+            for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
+                let asset = effectiveAsset(
+                    in: set, for: state,
+                    defaultAnimation: mode.oled.defaultAnimation,
+                    defaultFPS: mode.oled.framesPerSecond,
+                    defaultAnimationFrames: mode.oled.defaultAnimationFrames
+                )
+                guard let identifier = asset.resource,
+                      let slot = plan.slotAssignments[identifier],
+                      let frames = asset.declaredFrameCount, frames > 0 else { continue }
+                let startFrame = layout.startFrameIndex(slot: slot, userRegionBase: 0)
+                let start = Int(startFrame)
+                let remaining = capabilities.userSlotLimit - start
+                guard start < capabilities.userSlotLimit, frames <= remaining else { return nil }
+                let interval = max(layout.defaultFrameIntervalFloor, UInt16(1000 / asset.framesPerSecond))
+                binds.append(BindSpec(
+                    setIndex: setIndex, state: state.rawValue,
+                    startFrame: startFrame, frameCount: UInt16(frames), intervalMs: interval
+                ))
+            }
+        }
+
         var steps: [AhaKeyDeviceProgramStep] = []
 
         // 键位（声明式 action → 0x73 子类型帧）
@@ -150,29 +182,11 @@ public enum AhaKeyConfigurationStepMapper {
         steps.append(.setLightMapping(mode: mode.slot, effects: effects))
         steps.append(.setBrightness(UInt8(mode.lightBar.brightness)))
 
-        // 默认动画绑定（0x95 idle 槽；defaultAnimation 与 task set idle 素材必须是同一 CAS 引用）
-        for (setIndex, set) in mode.oled.taskSets.enumerated() {
-            for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
-                let asset = effectiveAsset(
-                    in: set, for: state,
-                    defaultAnimation: mode.oled.defaultAnimation,
-                    defaultFPS: mode.oled.framesPerSecond,
-                    defaultAnimationFrames: mode.oled.defaultAnimationFrames
-                )
-                guard let identifier = asset.resource,
-                      let slot = plan.slotAssignments[identifier],
-                      let frames = asset.declaredFrameCount, frames > 0 else { continue }
-                let startFrame = layout.startFrameIndex(slot: slot, userRegionBase: 0)
-                let requested = Int(frames)
-                let remaining = capabilities.userSlotLimit - Int(startFrame)
-                guard Int(startFrame) < capabilities.userSlotLimit, remaining > 0 else { continue }
-                let cappedFrames = min(requested, remaining)
-                let interval = max(layout.defaultFrameIntervalFloor, UInt16(1000 / asset.framesPerSecond))
-                steps.append(.bindTaskPicture(
-                    mode: mode.slot, set: UInt8(setIndex), state: state.rawValue,
-                    startIndex: startFrame, frameCount: UInt16(cappedFrames), intervalMs: interval
-                ))
-            }
+        for bind in binds {
+            steps.append(.bindTaskPicture(
+                mode: mode.slot, set: UInt8(bind.setIndex), state: bind.state,
+                startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
+            ))
         }
 
         if mode.oled.activeSet >= 0 {
