@@ -14,7 +14,7 @@
 | # | 用例 | 结果 | 证据文件 |
 |---|------|------|----------|
 | smoke | XPC 正/负 | 通过 | [00-baseline-and-smoke.md](00-baseline-and-smoke.md) |
-| C1 | 图片+基础配置成功 | 未执行 | [cases/C1.md](cases/C1.md) |
+| C1 | 图片+基础配置成功 | 阻塞（0x99 parse） | [cases/C1.md](cases/C1.md) |
 | C2 | 容量拒绝零写入 | 未执行 | [cases/C2.md](cases/C2.md) |
 | C3 | 取消 | 未执行 | [cases/C3.md](cases/C3.md) |
 | C4 | 断电恢复 | 未执行 | [cases/C4.md](cases/C4.md) |

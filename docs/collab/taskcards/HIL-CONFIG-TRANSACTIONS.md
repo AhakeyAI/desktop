@@ -69,3 +69,9 @@
 - 正式 plist 未覆盖；HIL label `lab.jawa.ahakeyconfig.agent.hil` 已登记，MachServices `lab.jawa.ahakeyconfig.runtime` active。
 - 正向 handshake+snapshot exit 0；负向 ad-hoc `rejected` exit 3。证据 `docs/collab/evidence/HIL-CONFIG-20260827/`。
 - C1 前不断电、不断蓝牙。已安装 Studio 为 8/21 旧包，C1 走仓库 5.7 Studio，不覆盖 `/Applications`。
+
+### [2026-08-27 21:06] Cursor：C1 阻塞于 0x99 parse fail-closed
+
+- BLE 已连接 AhaKey X1（用户按键后 21:02）。XPC 仍可用。未断电、未关蓝牙。
+- 0x99 payload 14 字节且 `flags=0x003F` 含 factory 位 → `parse` 返回 nil → 非 current → 配置写入门控。未在本卡修改业务代码。
+- C1–C6 暂停。HIL 临时 agent 先保持，便于授权后同窗续测。返工卡：`HIL-CONFIG-0x99-CAPS14`。
