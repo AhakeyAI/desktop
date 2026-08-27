@@ -14,6 +14,7 @@ public enum AhaKeyRuntimeXPCTransportError: Error, Equatable, Sendable {
     case peerError(String)
     case connectionInvalid
     case queueSaturated
+    case handshakeRequired
 }
 
 public actor AhaKeyRuntimeXPCSessionEndpoint {

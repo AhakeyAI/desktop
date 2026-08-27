@@ -11,7 +11,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${SCRIPT_DIR}/.."
-BUILD_DIR="${PROJECT_DIR}/.build/smoke-$(date +%s)"
+# launchd/dyld 从 ~/Documents 下的 .build 加载会挂起；签名副本放到 /tmp。
+BUILD_DIR="/tmp/ahakey-xpc-smoke-$(date +%s)"
 TMP_DIR="$(mktemp -d -t ahakey-xpc-smoke)"
 RESULT_PATH="${TMP_DIR}/result.json"
 
