@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-STUDIO-XPC-CLIENT：Studio 生产传输连不上 libxpc Runtime
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`ready`（Codex 22:21 已确认根因并授权最小生产客户端返工）
+状态：`review`（生产 libxpc client 已提审；HIL C1 仍暂停）
 执行 owner：Cursor
 基线：HIL-CONFIG active；CAPS14 accepted @ `3b08d82`；5.7 accepted @ `488097d`  
 目标：让 Developer ID 签名的 Studio 能对 `lab.jawa.ahakeyconfig.runtime` 完成 handshake+snapshot，从而恢复 HIL C1 apply。
@@ -81,3 +81,17 @@
 ## 约束
 
 HIL 临时 label 先保留。未授权前不改产品代码。不刷机、不覆盖 `/Applications`。
+
+### [2026-08-27 22:24] Cursor ACK：按冻结方案施工生产 libxpc client
+
+- ACK 22:21。本卡 `ready` → `active`。只改白名单：Shared libxpc client、Studio 生产 transport、smoke 复用该 transport、对应测试。
+- 不改 Agent/server、peer policy、wire v1.1、planner、UI、固件、安装器、正式 plist。不替换 HIL Agent，不 apply，不断电/关蓝牙。
+- Zcode 1.4 并行不受影响。
+
+### [2026-08-27 22:32] Cursor：生产 libxpc client 完成，停手提审
+
+- Shared 新增 `AhaKeyRuntimeXPCLibXPCClient`：持久 Mach/`endpoint` 连接、`payload` JSON、单 in-flight、有界排队、超时/取消/失效后不复用连接。
+- `AhaKeyStudioRuntimeXPCTransport` 改持该 client；NSXPC `AhaKeyRuntimeXPCConnectionTransport` 仅保留单元 seam。Agent/peer policy/wire/UI 未改。
+- `RuntimeXPCSmokeClient` 正向复用 Studio 生产 transport；ad-hoc 仍 exit 3。
+- 门禁：client 单测 7/7；定向 facade+XPC 43/43；全量 **489 / 2 skipped / 0 failures**；Release App+Agent；`scripts/runtime-xpc-signed-smoke.sh` 正/负通过；`git diff --check` 干净。
+- 未重建临时 Studio、未替换 HIL Agent、未 apply。等 Codex accepted 后再验证 UI online 并续 C1。

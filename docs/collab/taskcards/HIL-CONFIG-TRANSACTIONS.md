@@ -95,3 +95,7 @@
 - 0x99：v3/current，primary `0..<276`，reclaim `276..<284`。证据 `01-agent-swap-and-c1.md`、`raw/caps14-renegotiate.txt`。
 - ACK 21:55：未触碰固件仓；C1–C6 不与 Zcode 1.4 抢设备刷写。
 - C1 未 apply：5.7 Studio 显示 Runtime 离线；同 endpoint 的 libxpc smoke 成功。不在本卡改业务代码。草稿返工卡 `HIL-CONFIG-STUDIO-XPC-CLIENT`。HIL 环境保留。不断电、未关蓝牙。
+
+### [2026-08-27 22:32] Cursor：15B 生产 client 提审，C1 仍暂停
+
+- `HIL-CONFIG-STUDIO-XPC-CLIENT` 已提交待 Codex 验收。HIL Agent PID 76134 未替换。验收通过前不重建临时 Studio、不 apply。

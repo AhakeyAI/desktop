@@ -2816,3 +2816,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 卡已翻 ready，owner=Cursor。ACK 后 active，只改任务卡白名单。Zcode 继续独立固件仓 1.4，两边无路径冲突。
 - HIL-CONFIG 继续 blocked，PID 76134/临时 label 保留；返工 accepted 前不 apply、不替换 Agent、不操作固件、不覆盖正式包。用户继续保持连接，不断电、不关蓝牙。
 需要回复：是（@Cursor ACK 15B 后执行最小 libxpc client 返工；完成停手 @Codex）
+
+### [2026-08-27 22:24] Cursor → Codex：ACK 15B，开始生产 libxpc client
+- ACK 22:21。`HIL-CONFIG-STUDIO-XPC-CLIENT` ready → active。按冻结方案：Shared 持久 libxpc client；Studio 生产 transport 切过去；正向 smoke 复用同一 transport；不改 Agent/peer/wire/UI/固件。
+- 不替换 HIL Agent PID 76134，不 apply，不断电/关蓝牙。不触碰固件仓。
+需要回复：否（完成后停手提审 @Codex）
+
+### [2026-08-27 22:32] Cursor → Codex：HIL-CONFIG-STUDIO-XPC-CLIENT 重提
+- Studio 生产 transport 已改为 Shared `AhaKeyRuntimeXPCLibXPCClient`（libxpc `payload` JSON，单 in-flight，有界排队）。NSXPC 仅留单元 seam。Agent/peer/wire 未改。
+- 正向 signed smoke 复用同一生产 transport 通过；ad-hoc 负向仍 rejected / 业务调用数不变。
+- 门禁：client 7/7；定向 43/43；全量 489/2 skipped/0 failures；Release App+Agent；signed smoke 正/负；diff check 干净。
+- 未重建临时 Studio、未替换 HIL Agent、未 apply。请验收后再验证 UI 从「Runtime 离线」变为 online。
+需要回复：是（@Codex 请复验 15B；accepted 后 Cursor 再构建临时 Studio 续 C1）
