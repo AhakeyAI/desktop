@@ -1,0 +1,8 @@
+=== libxpc smoke 2026-08-27 22:14 +08 ===
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+smoke_exit=0
+
+Studio 5.7 GUI（/tmp/ahakey-hil-studio/AhaKey Studio.app，Developer ID P2VFVRZK7P，identifier lab.jawa.ahakeyconfig）：
+主界面状态文案「Runtime 离线」。未点「安装并启用 Agent」，未改正式 plist。
+截图：c1-studio-runtime-offline.png

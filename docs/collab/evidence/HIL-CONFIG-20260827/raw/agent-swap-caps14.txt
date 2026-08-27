@@ -1,0 +1,35 @@
+=== swap start Thu Aug 27 21:51:18 +08 2026 ===
+HEAD=1bfe579
+product_baseline=3b08d82
+old_hil_pid=10092
+old_official_pid=27278
+old_tmp_sha=e7c623f5a82b5dd997f8180c3193898c708d9ceb39a2747d91a83e1e5c3f4191
+new_build_sha=392d5e0648e7a54a8eed3f33140cf8c24a52cf345e1988d3972a233e24ff44ca
+official_plist_sha_before=61da75e0ece09f3bf422770aa707b7cb99af865ff4d004e2b1e1da9d84055804
+=== bootout official (plist stays) ===
+=== bootout HIL ===
+all ahakeyconfig-agent gone after 1s
+remaining after wait:
+=== install new binary to /tmp only ===
+new_tmp_sha=392d5e0648e7a54a8eed3f33140cf8c24a52cf345e1988d3972a233e24ff44ca
+Identifier=ahakeyconfig-agent
+Signature=adhoc
+TeamIdentifier=not set
+=== official plist unchanged? ===
+official_plist_sha_after=61da75e0ece09f3bf422770aa707b7cb99af865ff4d004e2b1e1da9d84055804
+applications_app_mtime=Aug 21 14:58:06 2026
+=== bootstrap+kickstart HIL ===
+	state = running
+	program = /tmp/ahakey-hil-bin/ahakeyconfig-agent
+	runs = 1
+	pid = 76134
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+=== official should be not loaded ===
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent" in domain for user gui: 501
+=== processes ===
+heartline        76134   0.2  0.1 435357968  16016   ??  S     9:51PM   0:00.12 /tmp/ahakey-hil-bin/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+=== swap end Thu Aug 27 21:51:21 +08 2026 ===

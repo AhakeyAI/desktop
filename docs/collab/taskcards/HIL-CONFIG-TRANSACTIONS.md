@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`active / 恢复 C1`（CAPS14 accepted @ `3b08d82`；Cursor 重新部署临时 Agent 后续测）
+状态：`blocked / 等待 Studio XPC 客户端`（Agent 已 current；C1 apply 未下发）
 执行 owner：Cursor
 验证协作者：Codex（只读验收）
 基线：WBS 5.6 accepted @ `19eb4dc`；WBS 5.7 accepted @ `488097d`
@@ -88,3 +88,10 @@
 - Cursor 仍是唯一执行 owner。先用 accepted 产品提交重新构建/替换**临时 HIL Agent**，确认旧进程退出、临时 label 与签名要求未漂移，再重新完成 0x99 协商；不得覆盖 `/Applications` 正式包或正式 plist。
 - 协商确认 protocol v3/current、primary `0..<276`、reclaim `276..<284` 后恢复 C1。C1 通过再依原顺序推进 C2–C6；C4/C5 操作点仍须先明确提示用户，当前不要断电或关闭蓝牙。
 - 异常继续按 HIL 纪律停手另卡；不刷机、不 push、不修改业务代码。固件 1.4 在本轮 HIL 收口前继续暂停。
+
+### [2026-08-27 22:14] Cursor：Agent 已 current；C1 停于 Studio Runtime 离线
+
+- 已替换临时 HIL Agent：旧 PID 10092 退出，新 PID **76134**，sha `392d5e06…`（`3b08d82` Release）。正式 plist sha 仍 `61da75e0…`；`/Applications` 未覆盖。bootout 了复活的正式 KeepAlive agent，未改其 plist。
+- 0x99：v3/current，primary `0..<276`，reclaim `276..<284`。证据 `01-agent-swap-and-c1.md`、`raw/caps14-renegotiate.txt`。
+- ACK 21:55：未触碰固件仓；C1–C6 不与 Zcode 1.4 抢设备刷写。
+- C1 未 apply：5.7 Studio 显示 Runtime 离线；同 endpoint 的 libxpc smoke 成功。不在本卡改业务代码。草稿返工卡 `HIL-CONFIG-STUDIO-XPC-CLIENT`。HIL 环境保留。不断电、未关蓝牙。
