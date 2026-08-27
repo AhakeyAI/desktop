@@ -1,0 +1,14 @@
+Executable=/Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/RuntimeXPCSmokeClient
+Identifier=lab.jawa.ahakeyconfig
+Format=Mach-O thin (arm64)
+CodeDirectory v=20500 size=10529 flags=0x10000(runtime) hashes=323+2 location=embedded
+Signature size=9047
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Aug 27, 2026 at 20:43:44
+Info.plist=not bound
+TeamIdentifier=P2VFVRZK7P
+Runtime Version=26.4.0
+Sealed Resources=none
+Internal requirements count=1 size=184

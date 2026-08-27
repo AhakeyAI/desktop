@@ -1,0 +1,12 @@
+{
+  "KeepAlive" => true
+  "Label" => "lab.jawa.ahakeyconfig.agent"
+  "ProgramArguments" => [
+    0 => "/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent"
+    1 => "--socket"
+    2 => "/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent.log"
+  "StandardOutPath" => "/Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent.log"
+}

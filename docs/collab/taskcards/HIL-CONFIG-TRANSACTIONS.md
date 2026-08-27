@@ -57,3 +57,15 @@
 - 顺序冻结为：环境 preflight → XPC 正/负 smoke → C1 成功 → C2 容量零写入 → C3 取消 → C4 单独断电恢复 → C5 单独 BLE 断连恢复 → C6 partial resume → 全量回滚。每次只注入一种故障；C4/C5 到操作点时必须明确提示用户再断电/断连，不得提前操作。
 - USB 仍允许跳过。不得刷机、push、修改正式安装脚本或业务代码；发现产品缺陷、设备异常不可恢复或数据损坏迹象时立即停止、回滚并提报新返工卡，不得在 HIL 卡内顺手修复。
 - 证据必须写入新的 `docs/collab/evidence/HIL-CONFIG-20260827/`，记录基线、每个用例的时间线/operation ID/revision/Agent 与 Studio 结果/设备现象、跳过项和最终回滚证明。完成或阻塞后停手并 `@Codex` 提审。
+
+### [2026-08-27 20:41] Cursor ACK：立即执行 preflight
+
+- ACK 20:27。不再等待 Kimi/Codex 二次放行。本卡 `active`，Cursor 为 C1–C6 唯一执行者。
+- 固件 1.4 保持暂停；固件仓只读确认 `9135183` clean。不刷机、不 push、不改业务代码。
+- 先记录 App/Agent/launchd/BLE/持久化基线，再做临时 HIL launchd 与 XPC 正/负 smoke。C4/C5 前不提示断电或断蓝牙。
+
+### [2026-08-27 20:47] Cursor：preflight + XPC smoke 通过，准备 C1
+
+- 正式 plist 未覆盖；HIL label `lab.jawa.ahakeyconfig.agent.hil` 已登记，MachServices `lab.jawa.ahakeyconfig.runtime` active。
+- 正向 handshake+snapshot exit 0；负向 ad-hoc `rejected` exit 3。证据 `docs/collab/evidence/HIL-CONFIG-20260827/`。
+- C1 前不断电、不断蓝牙。已安装 Studio 为 8/21 旧包，C1 走仓库 5.7 Studio，不覆盖 `/Applications`。

@@ -1,0 +1,165 @@
+=== time ===
+Thu Aug 27 20:41:49 +08 2026
+=== git client ===
+ca3184b0beeac74329c690653ea31b9fc7cc4e9f
+ca3184b docs(collab): transfer HIL-CONFIG to Cursor
+## feat/unified-client
+ M docs/firmware-client-baseline-2026-08-22.md
+ M docs/unified-firmware-runtime-implementation-plan.md
+?? append_entry.py
+?? cursor-codex-coordination-proposal.md
+?? docs/codex-kimi-cursor-collaboration.md
+?? docs/collab/evidence/HIL-CONFIG-20260827/
+?? docs/research/github-master-firmware-2026-08-26.md
+?? docs/research/hid-capture/
+?? docs/research/wbs-0-static-preflight.md
+?? fix_f3.py
+?? fix_orchestrator_init.py
+?? fix_orchestrator_init2.py
+?? fix_race.py
+?? fix_race2.py
+?? kimi-codex-division-of-labor-proposal.md
+=== git firmware ===
+9135183867a693dbab81aac3b9d4a1b172c34860
+## cursor/wbs-1-unified-firmware
+=== launchctl list ahakey ===
+56036	0	application.lab.jawa.ahakeyconfig.48807751.48807758
+29085	-13	lab.jawa.ahakeyconfig.agent
+=== launchctl print gui domain grep ===
+		   56036      - 	application.lab.jawa.ahakeyconfig.48807751.48807758
+		   29085    -13 	lab.jawa.ahakeyconfig.agent
+=== LaunchAgents files ===
+-rw-r--r--@   1 heartline  staff   874 Aug 26 19:45 lab.jawa.ahakeyconfig.agent.plist
+=== pgrep agents ===
+4723 tee /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/preflight-baseline.txt
+29085 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+29085 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+56036 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+=== Applications ===
+drwxr-xr-x@ 3 heartline  admin  96 Aug 21 14:58 /Applications/AhaKey Studio.app
+0.1.0
+70
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+=== persist ===
+total 32
+drwxr-xr-x@  10 heartline  staff   320 Aug 27 20:41 .
+drwx------+ 104 heartline  staff  3328 Aug 23 11:26 ..
+-rw-r--r--@   1 heartline  staff     0 Aug 27 14:02 .dat.nosync6EAC.ANk2jN
+srw-------@   1 heartline  staff     0 Aug 27 14:02 ahakey.sock
+-rw-r--r--@   1 heartline  staff   255 Jul  7 19:42 ahatype.json
+-rw-r--r--@   1 heartline  staff     6 Aug 27 14:02 ble-owner.lock
+-rw-r--r--@   1 heartline  staff   143 Aug 27 20:41 current-ide-state.json
+-rw-r--r--@   1 heartline  staff    47 Aug 25 23:27 device-identity.json
+drwxr-xr-x@  12 heartline  staff   384 Aug 26 17:54 diagnostics
+drwx------@   5 heartline  staff   160 Aug 27 14:02 private
+ 61M	/Users/heartline/Library/Application Support/AhaKeyConfig
+=== sockets ===
+srw-------@ 1 heartline  staff  0 Aug 27 14:02 /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+-rw-r--r--@ 1 heartline  wheel      342 Aug 25 14:47 /tmp/ahakey-board-backup-state.json
+-rw-r--r--@ 1 heartline  wheel      362 Aug 25 14:46 /tmp/ahakey-board-backup-test-state.json
+-rw-r--r--@ 1 heartline  wheel      362 Aug 25 14:47 /tmp/ahakey-board-backup-test-state2.json
+-rw-r--r--@ 1 heartline  wheel      189 Aug 26 12:45 /tmp/ahakey-codex-board-watch-state.json
+-rw-r--r--@ 1 heartline  wheel     2173 Aug 23 13:54 /tmp/ahakey-collab-readme.txt
+-rw-r--r--@ 1 heartline  wheel     9640 Aug 23 13:54 /tmp/ahakey-collab-spec.txt
+-rw-r--r--@ 1 heartline  wheel       34 Aug 23 20:20 /tmp/ahakey-cursor-hooks-before-cli-smoke.json
+-rw-r--r--@ 1 heartline  wheel       34 Aug 24 10:53 /tmp/ahakey-cursor-hooks-before-n1-ide.json
+-rw-r--r--@ 1 heartline  wheel   554425 Aug 26 17:41 /tmp/ahakey-gitee-a.map.norm
+-rw-r--r--@ 1 heartline  wheel   554425 Aug 26 17:41 /tmp/ahakey-gitee-b.map.norm
+-rw-r--r--@ 1 heartline  wheel   560095 Aug 26 17:41 /tmp/ahakey-github-a.map.norm
+-rw-r--r--@ 1 heartline  wheel   560095 Aug 26 17:41 /tmp/ahakey-github-b.map.norm
+-rw-r--r--@ 1 heartline  wheel   554851 Aug 26 17:41 /tmp/ahakey-local-a.map.norm
+-rw-r--r--@ 1 heartline  wheel   554851 Aug 26 17:41 /tmp/ahakey-local-b.map.norm
+-rwxr-xr-x@ 1 heartline  wheel      543 Aug 24 11:01 /tmp/ahakey-n1-hook-wrap.sh
+-rw-r--r--@ 1 heartline  wheel     1258 Aug 24 10:33 /tmp/ahakey-n1-ide-auto.log
+-rw-r--r--@ 1 heartline  wheel    51639 Aug 24 11:44 /tmp/ahakey-n1-ide-hook-parent.log
+-rw-r--r--@ 1 heartline  wheel     1255 Aug 24 10:33 /tmp/ahakey-n1-ide-man.log
+-rw-r--r--@ 1 heartline  wheel    83047 Aug 24 11:32 /tmp/ahakey-n1-ide-manual.png
+-rwxr-xr-x@ 1 heartline  wheel     1136 Aug 24 10:46 /tmp/ahakey-n1-ide-smoke.sh
+-rw-r--r--@ 1 heartline  wheel     1258 Aug 24 10:34 /tmp/ahakey-n1-ide-to.log
+-rw-r--r--@ 1 heartline  wheel    62230 Aug 24 11:15 /tmp/ahakey-n1-ide-win.png
+-rw-r--r--@ 1 heartline  wheel    62241 Aug 24 11:19 /tmp/ahakey-n1-ide-win2.png
+-rw-r--r--@ 1 heartline  wheel    70699 Aug 24 11:21 /tmp/ahakey-n1-ide-win3.png
+-rw-r--r--@ 1 heartline  wheel    70726 Aug 24 11:24 /tmp/ahakey-n1-ide-win4.png
+-rw-r--r--@ 1 heartline  wheel    74006 Aug 24 11:25 /tmp/ahakey-n1-ide-win5.png
+-rw-r--r--@ 1 heartline  wheel    86247 Aug 24 11:26 /tmp/ahakey-n1-ide-win6.png
+-rw-r--r--@ 1 heartline  wheel   536736 Aug 24 11:12 /tmp/ahakey-n1-screen.png
+-rw-r--r--@ 1 heartline  wheel  2490425 Aug 24 11:14 /tmp/ahakey-n1-screen2.png
+-rw-r--r--@ 1 heartline  wheel     1186 Aug 27 00:58 /tmp/ahakey-r2-cancel.log
+-rw-r--r--@ 1 heartline  wheel     1206 Aug 27 00:58 /tmp/ahakey-r2-concurrency.log
+-rw-r--r--@ 1 heartline  wheel    57969 Aug 23 09:19 /tmp/ahakey-wbs51-compat-full.log
+-rw-r--r--@ 1 heartline  wheel     2577 Aug 23 09:21 /tmp/ahakey-wbs51-compat-release.log
+-rw-r--r--@ 1 heartline  wheel    57674 Aug 23 09:13 /tmp/ahakey-wbs51-final-full.log
+-rw-r--r--@ 1 heartline  wheel     2577 Aug 23 09:14 /tmp/ahakey-wbs51-final-release.log
+-rw-r--r--@ 1 heartline  wheel    57674 Aug 23 09:01 /tmp/ahakey-wbs51-review-fixes.log
+-rw-r--r--@ 1 heartline  wheel     2577 Aug 23 09:02 /tmp/ahakey-wbs51-review-release.log
+srwxr-xr-x@ 1 heartline  wheel        0 Aug 14 12:10 /tmp/ahakey.sock
+
+/tmp/ahakey-cursor-n1-3.7.27:
+total 529816
+drwxr-xr-x@   4 heartline  wheel        128 Aug 23 19:33 .
+drwxrwxrwt  386 root       wheel      12352 Aug 27 20:41 ..
+-rw-r--r--@   1 heartline  wheel  271263788 Aug 23 19:33 Cursor.zip
+drwxr-xr-x@   4 heartline  wheel        128 Aug 24 11:27 app
+
+/tmp/ahakey-fw-audit.cr1M37:
+total 0
+drwx------@   5 heartline  wheel    160 Aug 21 15:41 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+drwxr-xr-x@   3 heartline  wheel     96 Aug 21 15:41 gitee-rhino
+drwxr-xr-x@   8 heartline  wheel    256 Aug 26 00:00 github-dev
+drwxr-xr-x@   3 heartline  wheel     96 Aug 21 15:41 local-rhino
+
+/tmp/ahakey-hardware-baseline.WQsVKq:
+total 0
+drwx------@   3 heartline  wheel     96 Aug 22 11:40 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+drwxr-xr-x@   9 heartline  wheel    288 Aug 27 00:00 repo
+
+/tmp/ahakey-hw:
+total 0
+drwxr-xr-x@   8 heartline  wheel    256 Aug 25 00:00 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+drwxr-xr-x@   7 heartline  wheel    224 Aug 25 00:00 .git
+drwxr-xr-x@   2 heartline  wheel     64 Aug 25 00:00 .settings
+drwxr-xr-x@   6 heartline  wheel    192 Aug 24 00:04 APP
+drwxr-xr-x@   3 heartline  wheel     96 Aug 25 00:00 Profile
+drwxr-xr-x@   2 heartline  wheel     64 Aug 25 00:00 hard_ware
+drwxr-xr-x@   3 heartline  wheel     96 Aug 19 13:54 java-demo1
+
+/tmp/ahakey-kimi-cli-check-20260721:
+total 0
+drwxr-xr-x@   4 heartline  wheel    128 Aug  3 00:07 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+drwxr-xr-x@   3 heartline  wheel     96 Aug  3 00:07 packages
+drwxr-xr-x@   3 heartline  wheel     96 Jul 21 14:34 src
+
+/tmp/ahakey-kimi-code-check-20260721:
+total 0
+drwxr-xr-x@   3 heartline  wheel     96 Aug  3 00:07 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+lrwxr-xr-x@   1 heartline  wheel      9 Jul 21 14:34 CLAUDE.md -> AGENTS.md
+
+/tmp/ahakey-main-anpx-client-sync-20260729:
+total 0
+drwxr-xr-x@   4 heartline  wheel    128 Aug  8 00:02 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+drwxr-xr-x@   3 heartline  wheel     96 Aug  8 00:02 .build
+drwxr-xr-x@   3 heartline  wheel     96 Aug  8 00:02 ahakeyconfig-mac
+
+/tmp/ahakey-n1-ide-home:
+total 0
+drwxr-xr-x@   5 heartline  wheel    160 Aug 24 10:46 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+drwxr-xr-x@   3 heartline  wheel     96 Aug 24 10:46 .cursor
+drwxr-xr-x@  32 heartline  wheel   1024 Aug 24 11:46 cursor-user-data
+drwxr-xr-x@   4 heartline  wheel    128 Aug 24 11:35 workspace
+
+/tmp/ahakey-rhino-baseline.9SM0gy:
+total 0
+drwx------@   3 heartline  wheel     96 Aug 22 11:40 .
+drwxrwxrwt  386 root       wheel  12352 Aug 27 20:41 ..
+drwxr-xr-x@   8 heartline  wheel    256 Aug 27 00:00 CH582m_vibe_coding_BLE_keyboard-master
