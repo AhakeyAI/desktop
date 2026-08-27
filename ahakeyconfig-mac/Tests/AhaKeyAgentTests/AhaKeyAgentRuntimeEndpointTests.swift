@@ -203,7 +203,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
     }
 
-    /// snapshot 轮询终态（矩阵/排队取消用）。事件路径见 `awaitTerminalStateFromEvents`。
+    /// snapshot 轮询终态（矩阵/排队取消用）。事件路径见 `awaitOperationChangedStates`。
     private func awaitTerminalState(
         _ client: EndpointClient,
         operationID: AhaKeyRuntimeOperationID,
@@ -220,16 +220,18 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         return nil
     }
 
-    /// 通过 operationChanged 事件观察终态（不得只用 snapshot 轮询掩盖事件回归）。
-    private func awaitTerminalStateFromEvents(
+    /// 通过 operationChanged 收集同一 operation 的状态序列，直到终态。
+    /// 从 sequence 0 回放，避免订阅偏晚漏掉 `.running`。
+    private func awaitOperationChangedStates(
         _ client: EndpointClient,
         operationID: AhaKeyRuntimeOperationID,
         timeout: TimeInterval = 15
-    ) async -> AhaKeyRuntimeOperationState? {
+    ) async -> [AhaKeyRuntimeOperationState] {
         let deadline = Date().addingTimeInterval(timeout)
         var cursor = AhaKeyRuntimeEventSequence(0)
+        var observed: [AhaKeyRuntimeOperationState] = []
         while Date() < deadline {
-            guard let result = try? await client.events(after: cursor) else { return nil }
+            guard let result = try? await client.events(after: cursor) else { return observed }
             switch result {
             case .snapshotRequired(let latest):
                 cursor = latest
@@ -237,13 +239,16 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                 for event in events {
                     cursor = max(cursor, event.sequence)
                     if case .operationChanged(let summary) = event.payload,
-                       summary.id == operationID, summary.state.isTerminal {
-                        return summary.state
+                       summary.id == operationID {
+                        observed.append(summary.state)
+                        if summary.state.isTerminal {
+                            return observed
+                        }
                     }
                 }
             }
         }
-        return nil
+        return observed
     }
 
     private func assertZeroZeroThreeFrameDedup(
@@ -451,10 +456,15 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             $0.id == operationID && ($0.state == .accepted || $0.state == .running)
         }, "accepted 摘要必须立即可从 snapshot 观察")
 
-        // 放行执行：终态经事件可观察，snapshot 反映 completed + revision 推进。
+        // 放行执行：同一 operation 的 operationChanged 必须先发布 .running，再发布终态。
         await gate.release()
-        let terminal = await awaitTerminalStateFromEvents(client, operationID: operationID)
-        XCTAssertEqual(terminal, .completed, "执行终态必须经 operationChanged 事件发布")
+        let states = await awaitOperationChangedStates(client, operationID: operationID)
+        guard let runningIndex = states.firstIndex(of: .running),
+              let terminalIndex = states.firstIndex(where: { $0.isTerminal }) else {
+            return XCTFail("operationChanged 必须同时包含 .running 与终态，实际 \(states)")
+        }
+        XCTAssertLessThan(runningIndex, terminalIndex, ".running 必须出现在终态之前，实际 \(states)")
+        XCTAssertEqual(states[terminalIndex], .completed, "执行终态必须经 operationChanged 事件发布")
         let final = try await client.snapshot()
         XCTAssertTrue(final.operations.contains { $0.id == operationID && $0.state == .completed })
         XCTAssertEqual(final.configurationRevision, .init(1), "完成后 baseline revision 必须 base+1")
