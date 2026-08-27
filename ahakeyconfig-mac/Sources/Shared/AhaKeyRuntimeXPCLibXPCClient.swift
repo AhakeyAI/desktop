@@ -41,8 +41,20 @@ public final class AhaKeyRuntimeXPCLibXPCClient: @unchecked Sendable {
     private var generation = 1
     private var handshakeAccepted = false
     private var inFlight: InFlight?
+    private var testBarrierHandlerStorage: ((TestBarrier, @escaping () -> Void) -> Void)?
 
-    var testBarrierHandler: ((TestBarrier, @escaping () -> Void) -> Void)?
+    var testBarrierHandler: ((TestBarrier, @escaping () -> Void) -> Void)? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return testBarrierHandlerStorage
+        }
+        set {
+            lock.lock()
+            testBarrierHandlerStorage = newValue
+            lock.unlock()
+        }
+    }
 
     public init(
         machServiceName: String,
@@ -103,6 +115,13 @@ public final class AhaKeyRuntimeXPCLibXPCClient: @unchecked Sendable {
         resumeDropped(dropped, inFlightResult: .failure(AhaKeyRuntimeXPCTransportError.connectionInvalid))
     }
 
+    private func invokeTestBarrier(_ barrier: TestBarrier, cancel: @escaping () -> Void) {
+        lock.lock()
+        let handler = testBarrierHandlerStorage
+        lock.unlock()
+        handler?(barrier, cancel)
+    }
+
     /// 解析 server 回复（单测覆盖 missing / oversize / error dictionary / XPC error）。
     static func parsePeerEvent(_ event: xpc_object_t, maxPayloadBytes: Int) throws -> Data {
         let eventType = xpc_get_type(event)
@@ -152,12 +171,12 @@ public final class AhaKeyRuntimeXPCLibXPCClient: @unchecked Sendable {
         }
 
         return try await gate.withPermit(token: token, barrier: { [weak self] barrier, barrierToken in
-            self?.testBarrierHandler?(barrier) {
+            self?.invokeTestBarrier(barrier) {
                 barrierToken.markCancelled()
                 self?.handleCancel(barrierToken)
             }
         }) {
-            self.testBarrierHandler?(.beforeRegisterInFlight, cancelCurrent)
+            self.invokeTestBarrier(.beforeRegisterInFlight, cancel: cancelCurrent)
             let responseData = try await self.sendOnWire(
                 payload,
                 token: token,
@@ -166,7 +185,7 @@ public final class AhaKeyRuntimeXPCLibXPCClient: @unchecked Sendable {
             )
             let decoder = JSONDecoder()
             let response = try decoder.decode(AhaKeyRuntimeXPCResponse.self, from: responseData)
-            if isHandshake {
+            if isHandshake, case .handshakeAccepted = response {
                 self.lock.lock()
                 if self.generation == capturedGeneration {
                     self.handshakeAccepted = true

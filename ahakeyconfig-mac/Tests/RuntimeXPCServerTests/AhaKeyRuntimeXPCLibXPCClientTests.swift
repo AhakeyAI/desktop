@@ -227,6 +227,73 @@ final class AhaKeyRuntimeXPCLibXPCClientTests: XCTestCase {
         XCTAssertEqual(applyCount.value, 0)
     }
 
+    func testRejectedHandshakeDoesNotAdmitQueuedBusiness() async throws {
+        let business = Counter()
+        let hang = HangGate()
+        let rejectOnce = OnceFlag()
+        let package = try applyPackage()
+        let server = ScriptedAnonymousLibXPCServer { request in
+            switch request {
+            case .handshake:
+                await hang.wait()
+                if rejectOnce.consume() {
+                    return .failure(try! AhaKeyRuntimeEventCode("handshake.rejected"))
+                }
+                return .handshakeAccepted(self.handshake())
+            case .apply:
+                business.increment()
+                return .operationAccepted(package.operationID)
+            case .snapshot:
+                business.increment()
+                return .snapshot(self.snapshot())
+            default:
+                business.increment()
+                return .policyUpdated
+            }
+        }
+        defer { server.stop() }
+        let client = AhaKeyRuntimeXPCLibXPCClient(endpoint: server.endpoint, requestTimeout: 5)
+
+        let handshakeEntered = Expectation()
+        hang.onEnter = { handshakeEntered.fulfill() }
+        let handshakeTask = Task {
+            try await client.exchange(
+                .handshake(.init(interfaceVersion: .current, clientBuildID: "libxpc-client-test"))
+            )
+        }
+        await handshakeEntered.wait()
+
+        let applyQueued = Expectation()
+        client.testBarrierHandler = { barrier, _ in
+            if barrier == .afterEnqueueWaiter {
+                applyQueued.fulfill()
+            }
+        }
+        let applyTask = Task { try await client.exchange(.apply(package)) }
+        await applyQueued.wait()
+        client.testBarrierHandler = nil
+        hang.release()
+
+        let handshakeResponse = try await handshakeTask.value
+        guard case .failure = handshakeResponse else {
+            return XCTFail("handshake must surface the rejected Codable response")
+        }
+        do {
+            _ = try await applyTask.value
+            XCTFail("queued apply must not run after a non-accepted handshake")
+        } catch AhaKeyRuntimeXPCTransportError.handshakeRequired {
+            // Expected.
+        }
+        XCTAssertEqual(business.value, 0, "server must not see business before handshakeAccepted")
+
+        try await handshakeOn(client)
+        let screen = try await client.exchange(.snapshot)
+        guard case .snapshot = screen else {
+            return XCTFail("business after explicit handshakeAccepted must succeed")
+        }
+        XCTAssertEqual(business.value, 1)
+    }
+
     func testCancelBeforeCallNeverSendsApply() async throws {
         try await runCancelMatrix(rounds: 100, window: .beforeCall)
     }
@@ -475,6 +542,117 @@ private final class HangGate: @unchecked Sendable {
         continuation = nil
         onEnter = nil
         lock.unlock()
+    }
+}
+
+private final class OnceFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var consumed = false
+
+    func consume() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if consumed {
+            return false
+        }
+        consumed = true
+        return true
+    }
+}
+
+private final class ScriptedAnonymousLibXPCServer: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "ai.ahakey.test.scripted.xpc")
+    private let lock = NSLock()
+    private let listener: xpc_connection_t
+    private var peers: [ObjectIdentifier: xpc_connection_t] = [:]
+    private var stopped = false
+    private let handler: @Sendable (AhaKeyRuntimeXPCRequest) async -> AhaKeyRuntimeXPCResponse
+
+    var endpoint: xpc_endpoint_t {
+        xpc_endpoint_create(listener)
+    }
+
+    init(handler: @escaping @Sendable (AhaKeyRuntimeXPCRequest) async -> AhaKeyRuntimeXPCResponse) {
+        self.handler = handler
+        listener = ahk_xpc_create_anonymous_listener(queue)
+        xpc_connection_set_event_handler(listener) { [weak self] event in
+            self?.handleListenerEvent(event)
+        }
+        xpc_connection_resume(listener)
+    }
+
+    func stop() {
+        lock.lock()
+        stopped = true
+        let peers = self.peers
+        self.peers.removeAll()
+        lock.unlock()
+        xpc_connection_cancel(listener)
+        for peer in peers.values {
+            xpc_connection_cancel(peer)
+        }
+    }
+
+    private func handleListenerEvent(_ event: xpc_object_t) {
+        let eventType = xpc_get_type(event)
+        if eventType == XPC_TYPE_ERROR {
+            return
+        }
+        guard eventType == XPC_TYPE_CONNECTION else { return }
+        accept(peer: event)
+    }
+
+    private func accept(peer: xpc_connection_t) {
+        guard xpc_connection_get_euid(peer) == getuid() else {
+            xpc_connection_cancel(peer)
+            return
+        }
+        xpc_connection_set_event_handler(peer) { [weak self] event in
+            self?.handlePeerEvent(event, peer: peer)
+        }
+        lock.lock()
+        if stopped {
+            lock.unlock()
+            xpc_connection_cancel(peer)
+            return
+        }
+        peers[ObjectIdentifier(peer)] = peer
+        lock.unlock()
+        xpc_connection_resume(peer)
+    }
+
+    private func handlePeerEvent(_ event: xpc_object_t, peer: xpc_connection_t) {
+        let eventType = xpc_get_type(event)
+        if eventType == XPC_TYPE_ERROR {
+            lock.lock()
+            peers[ObjectIdentifier(peer)] = nil
+            lock.unlock()
+            xpc_connection_cancel(peer)
+            return
+        }
+        guard eventType == XPC_TYPE_DICTIONARY else { return }
+        var payloadLength = 0
+        guard let pointer = xpc_dictionary_get_data(event, "payload", &payloadLength), payloadLength > 0 else {
+            return
+        }
+        let requestData = Data(bytes: pointer, count: payloadLength)
+        let handler = self.handler
+        Task {
+            do {
+                let request = try JSONDecoder().decode(AhaKeyRuntimeXPCRequest.self, from: requestData)
+                let response = await handler(request)
+                let encoded = try JSONEncoder().encode(response)
+                let reply = xpc_dictionary_create(nil, nil, 0)
+                encoded.withUnsafeBytes { buffer in
+                    if let base = buffer.baseAddress, buffer.count > 0 {
+                        xpc_dictionary_set_data(reply, "payload", base, buffer.count)
+                    }
+                }
+                xpc_connection_send_message(peer, reply)
+            } catch {
+                return
+            }
+        }
     }
 }
 
