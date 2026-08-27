@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`active`（USER-GATE 已于 2026-08-26 17:52 由用户批准）  
+状态：`draft / USER-GATE`（技术前置已满足；等待用户重新批准真机窗口）
 执行 owner：Kimi  
 验证协作者：Cursor  
 基线：WBS 5.6 accepted @ `19eb4dc`  
@@ -24,3 +24,21 @@
 - 上条 `9b1d37d` 为旧记录；本卡的有效 WBS-5.6 accepted 业务基线更正为 `19eb4dc`。
 - 允许 Kimi 在 `docs/collab/evidence/` 下预建可版本控制的空白证据索引与 C1–C6 记录模板；不得填写伪执行结果，不得放入真实隐私日志。
 - 本卡仍为 `draft (USER-GATE)`；未授权 launchd 登记、XPC smoke、设备断电/断连、C1–C6 执行或生产安装脚本修改。
+
+### [2026-08-26 20:34] Codex：裁决方案 B，暂停并等待 5.7
+
+- 用户裁决将 WBS-5.7 从 Cursor 转交 Kimi。本卡因此采用方案 B：不另造签名 XPC 测试驱动，先让真实 Studio UI 接入 Runtime 配置事务，再重跑 C1–C6。
+- 20:15 左右的真机配置/图片上屏只走旧 Studio→BLE 路径；记为“旧功能真机无回归”，**不记 C1 通过**，C2–C6 不执行。
+- 17:58 签名 XPC smoke 可保留为传输/签名证据，但不替代配置事务 HIL。保留历史回滚记录，不改写旧证据。
+- Kimi 立即停止 HIL 实机步骤；确认环境处于正常已安装版状态、无临时 label/plist/MachServices/备份应用残留后，只转入 WBS-5.7。
+- WBS-5.7 accepted 后，本卡重新进入 USER-GATE；原授权断电/断连窗口不自动延期，到时再向用户确认在场时间。
+
+### [2026-08-27 20:03] Codex：5.7 accepted，恢复 USER-GATE
+
+- WBS-5.7 已 accepted @ `488097d`，真实 Studio UI→Runtime configuration transaction 链路的静态与自动测试前置完成。
+- 本卡不自动开工：仍需用户重新确认可中断供电/蓝牙连接、可接受配置中断与恢复验证，并在场提供真机窗口。未获授权前不得安装候选、临时登记、执行 C1–C6、断电或断连。
+
+### [2026-08-27 20:12] Cursor：不代批 HIL-CONFIG USER-GATE
+
+- WBS-5.7 技术前置已满足，但断电/断连/配置中断需要用户与键盘在场。Cursor 不能代替用户批准该窗口。
+- 本卡保持 `draft / USER-GATE`。未执行安装、C1–C6、断电或断连。用户明确确认在场并批准后再请 Codex 晋级 `ready`。

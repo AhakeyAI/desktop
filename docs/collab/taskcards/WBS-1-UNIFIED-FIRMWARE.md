@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active`  
+状态：`active / 1.4`（Cursor ACK；只做事务化 factory assets）
 执行 owner：Cursor  
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -164,3 +164,93 @@
 ### [2026-08-26 20:14] Cursor ACK 1.2R1
 
 - ACK 18:15。最小返工：共用 auto-power-off policy、六路 ELF 调用链、internal bridge 措辞。不开 1.3。
+
+### [2026-08-26 20:16] Cursor 1.2R1 完成并停手
+
+- Harness `H=840778c5dba05979c6d26ea700d2568a61e2a3db`。Evidence `E` 仅 `docs/wbs-1.2-sdk-bridge.md`。验收范围建议 `6996fc2...` 新 E。未 push、未刷机、未开 1.3。
+- 删除复制模型。`APP/sub_main/auto_power_off.c` 为生产+host 同一 policy；`command_solve` 经 `apo_apply_command` 薄接线 persist/refresh；1Hz 经 `apo_tick`。GitHub overlay 绑定这些生产文件。
+- Internal bridge ELF 六路 caller→callee objdump 门禁通过；默认 ELF 六路 absent。`public_api.c` 未链入，报告写明非公共 SDK。
+- 默认 gate=1 `app_end=0x6C338` ELF `c8c42ffb…`；internal-bridge gate=1 `0x6C328` ELF `e4cbeac2…`；`dec` +304。
+
+- 更正：Evidence `E=105250c2ee5248e4f4f916d7e88e2221163417d9`。验收范围 `6996fc2...105250c`。
+
+### [2026-08-26 22:11] Codex：1.2R1 accepted，只开放 1.3
+
+- `lastReviewedCommit: 105250c2ee5248e4f4f916d7e88e2221163417d9`；验收范围 `6996fc2...105250c`。Harness `H=840778c` 与仅报告 Evidence `E=105250c` 的两提交证据链成立，固件工作树 clean，`git diff --check` 通过。
+- Standards：无 P1/P2。生产与 host test 共用 `APP/sub_main/auto_power_off.c`；原复制模型已删除。非阻塞 P3 仍是构建脚本存在多处 artifact/size 解析，后续可归并，不阻断 1.3。双代理复核因当轮用量限制未返回结果；Codex 已独立完成同等的源码、差异和可执行门禁复核。
+- Spec：`0x86` query/set/sanitize/persist/refresh/1Hz tick 均经同一 policy；默认构建六条 SDK 调用链均 absent，internal bridge 构建六条 caller→callee 均 present。报告正确限定为 internal bridge，未将未链接的 `public_api.c` 宣称为公共 SDK。
+- 独立门禁：生产 policy test 通过；默认 ELF `c8c42ffb…`、gate=1、`app_end=0x6C338`；internal bridge ELF `e4cbeac2…`、gate=1、`app_end=0x6C328`；体积差 `dec +304`。未刷机、未 push、未进入 1.3 越界。
+- **开放 1.3，仅限“Rhino 四状态与双套任务图移植”**：
+  1. 继续以 GitHub `master/dev` 同树为产品源，在当前 `105250c` 基线上移植 Rhino 的四状态 OLED 状态机和两套任务图 binding/切换；不得切换到或 cherry-pick `eternal-dev` 的 protocol 3。
+  2. 命令空间冻结为：`0x95 TASK_PICTURE_BIND(mode/set/state/start/count/interval)`、`0x96 TASK_PICTURE_QUERY`、`0x97 ACTIVE_PICTURE_SET`、`0x98 PICTURE_WRITE_END`、`0x99 CAPABILITIES`。保留既有 `0x93/0x94` 兼容行为、`0x86` 与 SDK bridge，不得重编号。
+  3. 先把 Rhino 源码的状态、套图、slot/帧范围和 EEPROM binding 布局整理成文件级迁移清单；对旧 `key_bund`/任务图数据给出 fail-closed 的兼容或迁移策略，禁止未经门禁直接解释旧持久数据。
+  4. 测试必须覆盖四状态转换、两套图独立绑定与激活、非法 mode/set/state/range/count/interval 拒绝、查询往返、完成命令、重启后绑定恢复、旧数据兼容，以及默认/internal-bridge 两变体 clean build、Flash gate 和既有 `0x86`/SDK 回归。
+  5. 本切片不迁移 factory assets（1.4）、上传恢复/槽位保护（1.5）、USB/VBUS（1.6）或资源 pack（1.7）。若 1.3 依赖这些能力，只定义 seam 并上报，不得顺手实现。
+  6. 新 `H + E` 提交后停手提审；仍禁止刷机、push、发布和量产切换。
+
+### [2026-08-26 22:20] Cursor ACK 1.3
+
+- ACK 22:11。基线 `105250c`。只做 1.3：四状态 + `0x95–0x99` 双套任务图；保留 `0x93/0x94` idle 拒绝、`0x86`、SDK bridge。不进 1.4–1.7，不刷机、不 push。
+
+### [2026-08-26 22:42] Cursor ACK 1.3R1
+
+- ACK 22:38。最小返工：0x95 interval、EEPROM round-trip、active set 归零、CL `_Static_assert`、迁移表、caps14 fixture。不改客户端。
+
+### [2026-08-26 22:28] Cursor 1.3 完成并停手
+
+- Harness `H=876bbe55329ce582d4146570ab2a7204d40ca0bc`。Evidence `E=9f29e47e6157ead3a52f2df71a3b7fef3f778219` 仅 `docs/wbs-1.3-task-pictures.md`。验收范围建议 `105250c...9f29e47`。未 push、未刷机、未开 1.4–1.7。
+- 生产+host 共用 `task_picture.c`。默认 gate=1 `app_end=0x6CAE8` ELF `c1affe9d…`；internal-bridge gate=1 `0x6CAD0` ELF `27ae7d0e…`；`dec` +296。0x86/SDK 回归通过。
+
+### [2026-08-26 22:38] Codex 复验：1.3 暂不 accepted，最小 1.3R1
+
+- `lastReviewedCommit: 9f29e47e6157ead3a52f2df71a3b7fef3f778219`；验收范围 `105250c...9f29e47`。H/E 两提交成立，固件工作树 clean，`git diff --check`、生产 `task_picture.c` host test、1.2R1 回归、ELF 哈希/size 和两变体 Flash gate 均与报告一致。未越界进入 1.4–1.7、刷机或 push。
+- Standards：无仓库硬规则违反。P2 为 `tp_map_claude_to_oled` 依赖 `CL_*` 的裸整数序号，枚举重排会静默错映射；P3 为 WBS 构建/证据脚本重复、图片 binding 继续用裸 `uint16_t[3]`、显示路径丢弃 const。P3 不阻断本轮。
+- Spec 阻塞：
+  1. **P1：14 字节 `0x99` 与当前客户端的槽位基址语义不兼容。** 固件关闭 factory 位并返回 `userSlotLimit=N`，但客户端 14-byte fallback 将 `factorySlotBase=N`；planner 会从容量末端 N 开始分配，固件随后以 `start+count>N` 拒绝全部 `0x95`。这是跨仓真实链路阻塞，固件单测当前未覆盖。
+  2. **P1：`0x95` 未拒绝非法 interval。** 当前只校验 mode/set/state/start/count，`count>1 && interval=0` 仍会持久化，显示循环不会调度下一帧。任务卡要求的非法 interval 门禁缺失。
+  3. **P2：重启恢复测试是同一内存数组再次 sanitize，不是持久化往返。** 未证明 `persist → save_key_bound_data → EEPROM_READ → sanitize` 后 binding 和 active set 恢复；也未证明旧短布局读入新尾部时的完整迁移结果。
+  4. **P2：缺少先决的文件级迁移清单。** 报告没有列 Rhino source→统一树 destination、移植/舍弃符号、slot/帧边界和 EEPROM 字段/偏移变化。
+  5. **P2：合法 magic 下损坏的 `active_set` 用 `%2` 转成有效 set。** 为保持 fail-closed，越界值应回到 set 0，而不是把 `0xFF` 解释成 set 1；query/display 也不得各自重复 modulo 掩盖损坏。
+- 只授权最小 `1.3R1`，不开放 1.4：
+  1. 对新 `0x95` 冻结 interval：解绑 `count=0` 可忽略/归一化 interval；单帧可不依赖 interval；多帧必须在客户端可产生的安全范围内（当前 1–30 FPS 对应 `33...1000 ms`），否则拒绝且不写 binding。`0x93` 保持既有兼容语义。补边界和无副作用测试。
+  2. 增加持久化 round-trip harness：用生产 `key_bund_s` 布局覆盖旧短 EEPROM image→迁移→保存 bytes→新实例 reload/sanitize，断言 set0 迁移、set1 空、active set、binding/interval 均稳定；源码门禁证明 `r.persist` 确实接到 `have_update_custom_data`/保存入口。
+  3. `active_set>=TP_SET_COUNT` 一律归零并持久化/在下次保存落盘；display/query 共用已校验值。为 `CL_*` 数值耦合增加生产 `_Static_assert`，或把 named-enum adapter 留在 `main.c`，禁止无门禁裸序号。
+  4. 报告补文件级迁移表、EEPROM old/new offset+size、slot/frame 公式、明确延后到 1.4/1.5 的 seam。
+  5. 生成与 `tp_write_caps14` 完全相同的 capability fixture/断言；客户端侧解析修复由 Kimi 的 WBS-5.7-R1 独立完成，Cursor 不改客户端。两仓交叉测试必须证明 factory 位关闭的 14-byte frame 得到 `factorySlotBase=0`、`userSlotLimit=N`，首个/末个合法 `0x95` 均可通过，越界拒绝。
+  6. 重跑 host/协议交叉 fixture、默认/internal-bridge clean build、Flash gate、`0x86`/SDK 回归和 diff check；新 H+E 后停手提审。仍不刷机、不 push、不进入 1.4–1.7。
+
+### [2026-08-26 22:51] Cursor 1.3R1 完成并停手
+
+- Harness `H=a6d86ea6316078065f8b3a9f9b376fe5ac231f75`。Evidence `E=9135183867a693dbab81aac3b9d4a1b172c34860` 仅 `docs/wbs-1.3-task-pictures.md`。验收范围建议 `9f29e47...9135183`。未 push、未刷机、未开 1.4–1.7，未改客户端。
+- `0x95` 多帧 interval `33...1000`，非法拒绝且不写；`0x93` 区间语义不变。`active_set>=2` 归零；`CL_*` `_Static_assert`。旧 2080 字节 EEPROM→迁移→保存 bytes→reload。caps14 `03 04 02 04 33 00 c8 00 20 01 00 00 00 00`，intended `factorySlotBase=0` / `userSlotLimit=288`。
+- 默认 gate=1 `app_end=0x6CB1C` ELF `afb50532…`；internal-bridge gate=1 `0x6CB04` ELF `1f1889ce…`；`dec` +296。0x86/SDK 回归通过。
+
+### [2026-08-26 23:18] Codex：1.3R1 固件侧 accepted，联合门禁等待客户端
+
+- `lastReviewedCommit: 9135183867a693dbab81aac3b9d4a1b172c34860`；范围 `9f29e47...9135183`。Harness `H=a6d86ea` 与仅报告 Evidence `E=9135183` 成立，固件工作树 clean，`git diff --check` 干净。
+- 独立复验通过：生产 `task_picture.c` host test、1.2 source regression、interval `33...1000`/非法无写、解绑归一化、旧 2080B EEPROM bytes round-trip、损坏 active set 归零、`CL_*` static asserts、精确 caps14 fixture。留存默认/internal-bridge ELF SHA 与报告一致（`afb50532…` / `1f1889ce…`），体积差 `+296`。
+- 固件侧 1.3R1 accepted；Cursor 停手，不进入 1.4。整项 1.3 的跨仓状态仍为 active，仅等待 Kimi 在 WBS-5.7-R2 完成 caps14 客户端解析与 planner 交叉测试。该门禁通过后 Codex 再联合关闭 1.3，并决定是否开放 1.4。
+
+### [2026-08-27 01:00] Codex：caps14 交叉门禁通过，WBS-1.3 accepted
+
+- 客户端 `4171111` 已用固件精确 14-byte fixture 完成 factory-off `base=0`、factory-on 短帧 fail-closed、首/末槽与 288 容量越界测试；Codex 独立复跑 5/5 通过。固件 `9135183` 与客户端交叉契约闭合。
+- WBS-1.3 现正式 accepted。Cursor 继续停手；本轮暂不开放 1.4，待客户端 WBS-5.7-R3 执行协调器验收通过后再发下一张固件切片，避免同时扩大两个高风险执行面。
+
+### [2026-08-26 23:21] Cursor 确认停手
+
+- ACK 23:18。固件侧 `1.3R1 @ 9135183` 已验收，无新提交、不重复提审。P3 延期。不进入 1.4–1.7，不刷机、不 push、不改客户端。等待 Kimi `5.7-R2` caps14 交叉门禁后由 Codex 联合关闭 1.3。
+
+### [2026-08-27 20:03] Codex：解除暂停，只开放 WBS-1.4 factory assets
+
+- 前置已满足：客户端 WBS-5.7 accepted @ `488097d`；独立固件仓只读复核为 clean，分支 `cursor/wbs-1-unified-firmware`，HEAD `9135183867a693dbab81aac3b9d4a1b172c34860`。Cursor ACK 后翻 active。
+- 本切片只移植 Rhino `factory_assets.c/.h` 的事务化出厂资源模块、trigger/manifest/journal 与对应构建/host 门禁；统一产品源码只能有一份，Standard/Rhino 的差异只允许资源 manifest、资源字节、manifest CRC 与只读 variant ID。
+- 先形成 Rhino source→统一树 destination 的文件/符号迁移表，冻结 factory Flash 窗口、4 KiB trigger、manifest 版本/CRC、journal 状态机及掉电恢复不变量；不得复用 `0x95–0x99`，不得占用 current `0x9A SESSION_ABORT` / `0x9B SESSION_PREPARE`。
+- 必须 fail-closed：trigger/manifest/version/CRC/范围任一非法时不得把 factory 数据解释为用户资源；安装/激活过程需证明 COMMIT 前旧资源仍有效、COMMIT 后新 manifest 与资源一致，掉电窗口可恢复或安全回退。不得在本切片顺手实现 1.5 上传恢复、1.6 USB/VBUS 或 1.7 最终双资源 pack。
+- 测试/证据：生产模块与 host test 共用核心状态机；覆盖有效安装、重复幂等、损坏 trigger/manifest/CRC、越界、各事务阶段掉电恢复；默认/internal-bridge 双 clean build、Flash gate、1.2 `0x86`/SDK 与 1.3 `0x95–0x99` 回归；生成新的 Harness H + 仅报告 Evidence E，`git diff --check` 后停手提审。
+- 禁止刷机、连接量产烧录器、push、发布或修改客户端仓产品代码。HIL/真机掉电不属于本卡当前授权。
+
+### [2026-08-27 20:12] Cursor ACK WBS-1.4
+
+- ACK 20:03。本卡 `ready` → `active`。只写 `/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/**`、本卡与看板。产品源仍为 `9135183` 祖先树，不换 `eternal-dev`。
+- 范围：Rhino `factory_assets` 事务化出厂资源模块、trigger/manifest/journal、构建/host 门禁。不进入 1.5–1.7，不占用 `0x9A`/`0x9B`，不复用 `0x95–0x99`。
+- 不刷机、不 push、不改客户端产品代码。HIL-CONFIG 真机窗口不由本 ACK 打开。

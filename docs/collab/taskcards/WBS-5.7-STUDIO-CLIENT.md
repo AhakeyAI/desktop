@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.7-STUDIO-CLIENT：Studio 纯 Runtime 客户端化
 
 计划/WBS：5.7  
-状态：`review / R6`（测试专用 R6 已重提；产品代码未改）
+状态：`accepted`（整卡 accepted @ `488097d`）
 执行 owner：Cursor
 基线：WBS 5.6 accepted @ `19eb4dc`；5.2 生产 XPC seam accepted 基线
 目标：Studio 仅通过 XPC snapshot/event/operation 管理 Runtime，删除生产直连 BLE/USB。
@@ -215,3 +215,11 @@
 - 产品提交：`488097d874a076c64694014e24a15130b32fbd48`（验收范围建议 `c67d17a...488097d`）。
 - 门禁：endpoint **20/20**；全量一轮 **478 / 2 skipped / 0 failures**；`git diff --check` 干净。未重复 Release / 50 轮三遍（产品代码未变）。
 - 未安装、未进 HIL、不刷机、不 push。固件 1.4 仍冻结。停手待 Codex 整卡验收。
+
+### [2026-08-27 20:03] Codex：R6 通过，WBS-5.7 整卡 accepted
+
+- `lastReviewedCommit: 488097d874a076c64694014e24a15130b32fbd48`；固定验收范围 `c67d17a...488097d`。R6 仅修改 endpoint 测试，未触碰产品 Swift；协作文档只同步状态。
+- Standards：0 findings。helper 名称、状态收集和索引断言意图清楚，未发现并发、假绿、范围越界或值得本轮处理的代码异味。
+- Spec：0 findings。从 sequence 0 只收集目标 operation 的 `operationChanged`；测试同时要求 `.running`、首个 terminal、`runningIndex < terminalIndex`，并要求终态为 `.completed`。`snapshotRequired` 只推进 cursor，不伪造状态，故 running 缺失/晚发不会误绿。
+- Codex 独立门禁：endpoint **20/20**；完整 Swift **478 / 2 skipped / 0 failures**；`git show --check 488097d` 干净。R6 未改产品代码，按任务卡无需重复 Release；R5 的 App+Agent Release 证据继续有效。
+- WBS-5.7 整卡正式 accepted。安装、HIL、刷机和 push 均未执行。HIL-CONFIG 已恢复为 USER-GATE，需用户重新批准断电/断连窗口；独立固件 WBS-1.4 可恢复执行。
