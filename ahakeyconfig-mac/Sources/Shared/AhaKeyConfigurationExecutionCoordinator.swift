@@ -16,10 +16,10 @@ import Foundation
 // （失败事务留在 WAL，由后续 kick/重连恢复，worker 不空转重试）。
 
 public actor AhaKeyConfigurationExecutionCoordinator {
-    /// 拉取 WAL 待执行候选包（按受理序；取消请求中/终态由提供方过滤）。
+    /// 拉取 WAL 待执行候选包（按受理序；取消请求中的排队事务不得过滤，由执行体结算）。
     public typealias PendingPackagesProvider = @Sendable () async -> [AhaKeyConfigurationPackage]
     /// 执行单个事务（必须兜住全部错误、不抛出）。
-    public typealias ExecutePackage = @Sendable (AhaKeyConfigurationPackage) async -> Void
+    public typealias ExecutePackage = @Sendable (AhaKeyConfigurationPackage) async -> Bool
 
     private let pendingPackagesProvider: PendingPackagesProvider
     private let executePackage: ExecutePackage
@@ -61,7 +61,8 @@ public actor AhaKeyConfigurationExecutionCoordinator {
             kickWhileRunning = false
             let pending = await pendingPackagesProvider()
             for package in pending {
-                await executePackage(package)
+                let isTerminal = await executePackage(package)
+                guard isTerminal else { break }
             }
             guard kickWhileRunning else { break }
         }

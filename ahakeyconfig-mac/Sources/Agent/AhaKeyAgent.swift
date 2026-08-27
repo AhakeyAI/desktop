@@ -156,32 +156,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lastPublishedDeviceSnapshot: AhaKeyRuntimeDeviceSnapshot?
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
-    /// R2-2：串行执行协调器——所有 durable accepted 入队，单一 worker 持续排空 WAL；
-    /// 不覆盖在途 Task，不产生两个并行 BLE runner；多 XPC session 并发由 actor 隔离。
-    private lazy var configurationCoordinator = AhaKeyConfigurationExecutionCoordinator(
-        pendingPackages: { [weak self] in
-            guard let self,
-                  let store = try? await self.makeRuntimeStore(),
-                  let candidates = try? await store.recoveryCandidates() else { return [] }
-            // 取消请求中的事务不自动复活（等用户显式恢复）。
-            return candidates.filter { $0.state != .cancellationRequested }.map { $0.package }
-        },
-        executePackage: { [weak self] package in
-            guard let self else { return }
-            do {
-                let state = try await self.applyConfigurationPackage(package, resourceFiles: [:])
-                self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行结果：\(state.rawValue)")
-            } catch {
-                // disconnected 等：WAL 保留恢复点，不伪装终态；ready/后续 kick 再排空。
-                self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行延迟/中断：\(error.localizedDescription)")
-            }
-            await self.publishOperationProgress(operationID: package.operationID)
-        }
-    )
+    /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
+    private var configurationCoordinator: AhaKeyConfigurationExecutionCoordinator!
     /// R2-2：Runtime Store 缓存收敛进 actor（多 XPC session 并发读写隔离）。
     private let runtimeStoreCache = AhaKeyAgentRuntimeStoreCache()
     /// events 空批 long-poll 时长（秒）；测试注入短值。
     var runtimeEventsLongPollInterval: TimeInterval = 2.0
+    /// R3：long-poll 取消早于 waiter 登记的防 race 集合。仅 main 队列读写。
+    private var longPollCancelledIDs = Set<UUID>()
     /// 集成测试 seam（仅 @testable；生产为 nil）。
     var executionTestHooks: AhaKeyAgentExecutionTestHooks?
 
@@ -212,6 +194,27 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         super.init()
         central = CBCentralManager(delegate: self, queue: nil)
         Self.clearLiveSwitchState()
+        self.configurationCoordinator = AhaKeyConfigurationExecutionCoordinator(
+            pendingPackages: { [weak self] in
+                guard let self,
+                      let store = try? await self.makeRuntimeStore(),
+                      let candidates = try? await store.recoveryCandidates() else { return [] }
+                return candidates.map { $0.package }
+            },
+            executePackage: { [weak self] package in
+                guard let self else { return false }
+                do {
+                    let state = try await self.applyConfigurationPackage(package, resourceFiles: [:])
+                    self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行结果：\(state.rawValue)")
+                    await self.publishOperationProgress(operationID: package.operationID)
+                    return state.isTerminal
+                } catch {
+                    self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行延迟/中断：\(error.localizedDescription)")
+                    await self.publishOperationProgress(operationID: package.operationID)
+                    return false
+                }
+            }
+        )
         Task {
             await registerModules()
             await orchestrator.applyPolicy(initialPolicy)
@@ -1616,9 +1619,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         _ package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL]
     ) async throws -> AhaKeyRuntimeOperationState {
-        let capabilities = executionTestHooks?.capabilities ?? negotiatedCapabilities
-        let ready = executionTestHooks?.isReady ?? transportCore.isReady
-        guard let caps = capabilities, ready else {
+        let (caps, ready) = await MainActor.run { () -> (AhaKeyFirmwareCapabilities?, Bool) in
+            (self.executionTestHooks?.capabilities ?? self.negotiatedCapabilities,
+             self.executionTestHooks?.isReady ?? self.transportCore.isReady)
+        }
+        guard let caps = caps, ready else {
             throw AhaKeyAgentCommandError.disconnected
         }
         let store = try await makeRuntimeStore()
@@ -1641,6 +1646,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit("配置事务 \(operationID.rawValue.uuidString.prefix(8))… 已请求取消")
             // 取消受理本身即可观察（cancellationRequested 进入投影/事件）。
             await publishOperationProgress(operationID: operationID)
+            // 排队取消必须 kick worker，否则可能永远等不到 settleCancellation。
+            await configurationCoordinator.kick()
             return .requested
         } catch {
             emit("配置事务取消失败：\(error.localizedDescription)")
@@ -1685,7 +1692,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         store: AhaKeyRuntimePersistentStore,
         capabilities: AhaKeyFirmwareCapabilities
     ) async -> AhaKeyConfigurationStepResult {
-        guard transportCore.isReady, peripheral != nil, commandChar != nil else { return .retryableFailure }
+        let bleReady = await MainActor.run {
+            self.transportCore.isReady && self.peripheral != nil && self.commandChar != nil
+        }
+        guard bleReady else { return .retryableFailure }
         guard let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
             return .permanentFailure
         }
@@ -1958,7 +1968,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     @MainActor
     private func projectedDeviceSnapshot() -> AhaKeyRuntimeDeviceSnapshot? {
         if let simulated = executionTestHooks?.simulatedDevice { return simulated }
-        guard let deviceIDString = transportCore.stableDeviceID,
+        guard let deviceIDString = executionTestHooks?.stableDeviceID ?? transportCore.stableDeviceID,
               let deviceID = try? AhaKeyRuntimeDeviceID(deviceIDString) else { return nil }
         let protocolState: AhaKeyRuntimeDeviceProtocolState
         let connected: Bool
@@ -2139,6 +2149,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                         continuation.resume(returning: nil)
                         return
                     }
+                    // R3：若取消已先于登记到达，立即 resume nil（调用方最终复查）。
+                    if self.longPollCancelledIDs.remove(id) != nil {
+                        continuation.resume(returning: nil)
+                        return
+                    }
                     // 同一隔离临界区：登记 → 复查（顺序不可换：先复查后登记才会出现 lost-wakeup）。
                     self.projectionEventWaiters[id] = continuation
                     let recheck = self.replayVerdictOnMain(after: cursor)
@@ -2157,7 +2172,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
         } onCancel: {
             DispatchQueue.main.async { [weak self] in
-                guard let pending = self?.projectionEventWaiters.removeValue(forKey: id) else { return }
+                guard let self else { return }
+                // R3：若 waiter 尚未登记，记录取消 ID，供登记时立即识别。
+                if self.projectionEventWaiters[id] == nil {
+                    self.longPollCancelledIDs.insert(id)
+                    return
+                }
+                guard let pending = self.projectionEventWaiters.removeValue(forKey: id) else { return }
                 pending.resume(returning: nil)
             }
         }
@@ -2168,6 +2189,29 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func diagnosticsResponse(after cursor: AhaKeyRuntimeEventSequence?) -> AhaKeyRuntimeXPCResponse {
         let events = projectionDiagnosticEvents.filter { cursor == nil || $0.sequence > cursor! }
         return .diagnosticEvents(events)
+    }
+
+    /// 测试 seam：直接注入原始 0x00 回包，走真实 parse→reducer→publish 路径。
+    /// 仅 @testable 测试使用。
+    internal func injectRawStatusPacketForTesting(_ data: Data) {
+        guard let status = Self.parseDeviceStatus(data) else { return }
+        let coreBefore = coreSnapshot
+        let reduced = DeviceStateReducer.apply(
+            .fullStatus(battery: status.battery, firmwareMain: status.firmwareMain,
+                        firmwareSub: status.firmwareSub, workMode: status.workMode,
+                        lightMode: status.lightMode, switchState: status.switchState,
+                        brightness: -1, activePictureSet: -1),
+            core: coreSnapshot, diagnostics: diagnosticsSnapshot
+        )
+        coreSnapshot = reduced.core
+        diagnosticsSnapshot = reduced.diagnostics
+        let hardwareSwitchState = UInt8(clamping: reduced.core.switchState)
+        cachedSwitchState = hardwareSwitchState
+        cachedLightMode = UInt8(clamping: reduced.core.lightMode)
+        if reduced.core != coreBefore {
+            emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+        }
+        publishDeviceChangedIfNeeded()
     }
 
     /// 测试 seam：设置模拟设备投影并立即发布 deviceChanged（等效 BLE 连接/断开驱动）。
@@ -2234,6 +2278,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var storeDirectory: URL?
     /// 非 nil 时作为投影中的设备快照（deviceChanged 事件源）。
     var simulatedDevice: AhaKeyRuntimeDeviceSnapshot?
+    /// 非 nil 时覆盖 transportCore.stableDeviceID（测试 0x00 parser→reducer→event 路径）。
+    var stableDeviceID: String?
     /// 非 nil 时在 events 空批快路径之后、long-poll waiter 登记之前于 MainActor 同步调用，
     /// 用于确定性地构造 lost-wakeup 交错（R2-5 测试；生产恒 nil）。
     var eventsLongPollGapHook: (@MainActor @Sendable () -> Void)?
@@ -2255,7 +2301,10 @@ private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTr
     }
 
     /// 断连即视为取消（executor 随后补 0x9A 收尾）；用户取消经 runner 两阶段在步间生效。
-    func isCancellationRequested() -> Bool { !agent.transportCore.isReady }
+    func isCancellationRequested() -> Bool {
+        if Thread.isMainThread { return !agent.transportCore.isReady }
+        return DispatchQueue.main.sync { !agent.transportCore.isReady }
+    }
 
     func abortActiveSession() async {
         await agent.abortConfigurationSession()
