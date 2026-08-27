@@ -1,8 +1,8 @@
 # 任务卡 HIL-CONFIG-STUDIO-XPC-CLIENT：Studio 生产传输连不上 libxpc Runtime
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`draft`（等 Codex 裁决是否晋级；HIL C1–C6 暂停，环境保留）  
-执行 owner：待 Codex 指定（建议 Cursor）  
+状态：`ready`（Codex 22:21 已确认根因并授权最小生产客户端返工）
+执行 owner：Cursor
 基线：HIL-CONFIG active；CAPS14 accepted @ `3b08d82`；5.7 accepted @ `488097d`  
 目标：让 Developer ID 签名的 Studio 能对 `lab.jawa.ahakeyconfig.runtime` 完成 handshake+snapshot，从而恢复 HIL C1 apply。
 
@@ -27,6 +27,52 @@
 1. Studio 生产 transport 改为与 5.2 smoke 相同的 libxpc client（`payload` JSON），保留 peer 签名要求。
 2. 定向：libxpc 正/负 smoke 不回归；新增或对齐「Studio 标识签名客户端 handshake+snapshot」。
 3. 禁止改 planner、wire 字段、固件、安装器、正式 plist。
+
+## Codex 诊断与授权（2026-08-27 22:21）
+
+### 可重复红灯
+
+在临时 Studio 连接当前 HIL Agent 后运行：
+
+`/usr/bin/log show --last 5m --style compact --predicate 'process == "AhaKeyConfig"' | rg 'received an undecodable message.*no exported object'`
+
+已实际复现：`NSXPCConnection` 消息到达 PID 76134，但 libxpc server 没有 NSXPC exported object，系统丢弃消息并取消连接。相同 service 上 libxpc 正向 smoke handshake+snapshot 成功，因此 BLE、能力协商、MachServices 登记、同 UID 与 Studio Developer ID 签名均不是本轮根因。
+
+### 冻结方案
+
+只允许把 **Studio 客户端** 对齐到已经 accepted 的 libxpc server，不允许反向给 Agent 增加第二个 NSXPC listener：
+
+1. 在 Shared 增加可复用的 `AhaKeyRuntimeXPCLibXPCClient`（名称可等价），使用持久 Mach service connection；每个 dictionary 仅使用既有 `payload` JSON wire，单条上限继续 8 MiB。
+2. 客户端必须保证单连接最多一个 in-flight request；并发 facade 操作应有界串行，不能触发 server `busy`、回复错配或无界排队。超时、取消、XPC error、`error` dictionary、缺失/超限 payload 必须明确失败；失效连接不得继续复用，后续 facade 重连从新 connection + handshake 开始。
+3. `AhaKeyStudioRuntimeXPCTransport` 改为持有上述 libxpc client；`AhaKeyStudioRuntimeTransport`、请求/响应 Codable wire、facade 状态机与 UI API 不变。旧 `AhaKeyRuntimeXPCConnectionTransport` 可保留给既有 NSXPC 单元 seam，但不得再是 Studio 生产入口，注释必须纠正。
+4. `AhaKeyConfigShared` 可依赖既有 `CLibXPC`；不得复制私有 XPC 声明。现有 peer signing requirement 仍由 Agent server 在 resume 前强制，禁止放宽 Team ID、signing identifier、UID 或 malformed/oversize 拒绝逻辑。
+5. 正向 signed smoke 必须调用与 Studio 相同的生产 transport 完成 handshake+snapshot；负向 ad-hoc 仍须在业务 payload 前被拒绝。可重构现有 `RuntimeXPCSmokeClient` 正向路径复用生产 client，禁止再保留一份只在 smoke 能成功的独立实现。
+
+### 白名单
+
+- `ahakeyconfig-mac/Package.swift`
+- `ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCTransport.swift`
+- `ahakeyconfig-mac/Sources/Shared/AhaKeyStudioRuntimeFacade.swift`
+- Shared 下新增一个 libxpc client 文件
+- `Sources/RuntimeXPCServer/SmokeClient/main.swift`（仅为复用生产 client）
+- 对应 `Tests/AhaKeyConfigSharedTests/**`、`Tests/RuntimeXPCServerTests/**`
+- `scripts/runtime-xpc-signed-smoke.sh` 仅在确有必要时调整验收调用，不得弱化签名
+- 本卡、HIL 卡、evidence 与 append-only board
+
+禁止修改 Agent/server 业务实现、peer policy、wire v1.1、planner/配置事务、Studio UI、固件仓、安装器、正式 plist、`/Applications`。
+
+### 完成定义
+
+1. 旧实现上的生产 transport 双进程测试先红，修复后同一测试绿；不能只测内存 fake 或 anonymous NSXPC listener。
+2. libxpc client 单测覆盖 handshake→snapshot 会话、单 in-flight 并发串行、server busy 不出现、超时/取消/连接失效、error/missing/oversize payload。
+3. `scripts/runtime-xpc-signed-smoke.sh` 正向使用生产 Studio transport通过；ad-hoc 负向仍被拒绝。
+4. 定向 facade + XPC server/client 测试；完整 Swift；App+Agent Release；`git diff --check`。
+5. 提交后先停手提审。Codex accepted 后才重新构建临时 Studio，要求 UI 从「Runtime 离线」变为 online，系统日志不再出现本卡 undecodable-message 红灯，然后恢复 HIL C1。当前不得执行 apply、断电或断蓝牙。
+
+### [2026-08-27 22:21] Codex：任务卡晋级 ready
+
+- 根因已由真实进程日志和源码双向确认，采用“客户端对齐 server”的唯一生产 transport 方案。
+- Cursor ACK 后翻 `active` 并执行；Zcode 固件 1.4 的独立仓并行不受影响。HIL Agent PID 76134 与环境继续保留，不在返工中操作设备。
 
 ## 证据
 
