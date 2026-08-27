@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-0x99-CAPS14：真机 0x99 14 字节 + factory flag 挡死配置写入
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`review / R1`（两项 fail-closed 已补；HIL C1 继续暂停，等 Codex 验收）
+状态：`accepted`（Codex 21:47 验收通过 @ `3b08d82`）
 执行 owner：Cursor
 基线：HIL-CONFIG active；5.7 accepted @ `488097d`  
 目标：让已连接的 current 键盘能完成 0x99 协商并允许 C1 apply；不得在 HIL 卡内改业务代码。
@@ -63,3 +63,10 @@ payload 14 字节 `03 04 02 04 3F 00 C8 00 14 01 14 01 1C 01`：`protocolVersion
 - P2：完整请求越过 `userSlotLimit` 时 `resourceUploadProgram` / `baseConfigurationProgram` / `program(for:)` 返回 nil；不得 `min` 截短，base 任一资源越界不发键位/灯效/save。`start=270` 请求 7 帧失败；6 帧写到 275。slot 10 不写 reclaim。
 - 门禁：定向 capabilities+caps14+step-mapper **29/29**；全量 **482 / 2 skipped / 0 failures**；Release App+Agent；`git diff --check` 干净。
 - 未恢复 HIL C1、未刷机、未替换正在跑的 HIL agent。
+
+### [2026-08-27 21:47] Codex：R1 accepted，返工卡关闭
+
+- 验收 `3e0119c...3b08d82`。Standards 轴无阻塞，仅记录上传/绑定边界算术重复这一非阻塞维护建议；Spec 轴 0 findings，无范围越界。
+- 独立门禁：capabilities + caps14 + step-mapper 29/29；完整 Swift 482/2 skipped/0 failures；App 与 Agent Release 均通过；`git show --check 3b08d82` 干净。
+- P1/P2 已闭合：截断 extended 14B fail-closed；真机 compact `276/276/284` 保持 current；`start=270 + 7` 整体失败，合法 6 帧到 275，不使用 reclaim。
+- 本卡 accepted @ `3b08d82`。恢复 HIL-CONFIG，不在本卡执行真机步骤。

@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`blocked / 等待 CAPS14`（HIL 环境保留；C1–C6 暂停）
+状态：`active / 恢复 C1`（CAPS14 accepted @ `3b08d82`；Cursor 重新部署临时 Agent 后续测）
 执行 owner：Cursor
 验证协作者：Codex（只读验收）
 基线：WBS 5.6 accepted @ `19eb4dc`；WBS 5.7 accepted @ `488097d`
@@ -81,3 +81,10 @@
 - HIL 卡保持不改业务代码；C1–C6 全部暂停，环境暂留，不刷机、不制造假绿。独立返工卡 `HIL-CONFIG-0x99-CAPS14` 已翻 active，owner 为 Cursor。
 - 原“14B+factory 直接 base=0”方案不获批准。真机 14B 是 Rhino compact factory 格式，最后两项为 reclaim 边界；返工必须同时正确解析 compact 布局并修正 Runtime primary user 写址从 0 开始，不能靠伪造 factory base 绕过门控。
 - Cursor 完成返工并经 Codex 验收后，本卡才恢复 active 续跑 C1。此前用户继续保持键盘连接，不自行断电或关闭蓝牙。
+
+### [2026-08-27 21:47] Codex：CAPS14 accepted，恢复 C1
+
+- `HIL-CONFIG-0x99-CAPS14` 已 accepted @ `3b08d82`；独立门禁 29/29、完整 482/2 skipped/0 failures、双 Release 通过。
+- Cursor 仍是唯一执行 owner。先用 accepted 产品提交重新构建/替换**临时 HIL Agent**，确认旧进程退出、临时 label 与签名要求未漂移，再重新完成 0x99 协商；不得覆盖 `/Applications` 正式包或正式 plist。
+- 协商确认 protocol v3/current、primary `0..<276`、reclaim `276..<284` 后恢复 C1。C1 通过再依原顺序推进 C2–C6；C4/C5 操作点仍须先明确提示用户，当前不要断电或关闭蓝牙。
+- 异常继续按 HIL 纪律停手另卡；不刷机、不 push、不修改业务代码。固件 1.4 在本轮 HIL 收口前继续暂停。
