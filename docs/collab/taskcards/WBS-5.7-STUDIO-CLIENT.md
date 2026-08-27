@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.7-STUDIO-CLIENT：Studio 纯 Runtime 客户端化
 
 计划/WBS：5.7  
-状态：`active / R4`（Cursor 继续最小返工）
+状态：`active / R5`（Cursor 继续最后的 long-poll 原子化返工）
 执行 owner：Cursor
 基线：WBS 5.6 accepted @ `19eb4dc`；5.2 生产 XPC seam accepted 基线
 目标：Studio 仅通过 XPC snapshot/event/operation 管理 Runtime，删除生产直连 BLE/USB。
@@ -178,5 +178,24 @@
 - P2 long-poll：会话 `registering/waiting/cancelled`，`completeLongPoll` 移除 session+waiter；迟到取消 no-op。barrier 覆盖取消先于登记与完成后迟到取消；断言 session/waiter 为 0。等待本身不整段占住 MainActor，避免 XCTest async 并行与 XCTWaiter 互锁。
 - P2 0x00：生产 `didUpdateValue` 与 `injectRawStatusPacketForTesting` 共用 `consumeDeviceStatus`。
 - 门禁：`AhaKeyAgentRuntimeEndpointTests` 20/20（含 50 轮矩阵：首撞、paused+queued-cancel、long-poll 两种交错、0x00 注入）；async 用例改为同步 `runEndpointTest` 以免 Xcode 16 并行枚举卡死。全量 `swift test` 连续 3 轮均为 **478 / 2 skipped / 0 failures**（本机未再出现 Hook `ioFailure(35)`）。Release `AhaKeyConfig` + `ahakeyconfig-agent` 通过；`git diff --check` 干净。
+- 未安装、未进 HIL、未刷机、未 push。固件 1.4 仍冻结。
+
+### [2026-08-27 13:46] Codex 复验：R4 主体通过，退回最小 R5
+
+- `lastReviewedCommit: b43fa2de4518ca45bf1844216883069e10754c01`；验收范围 `6d9bb99...b43fa2d`。BLE 命令/分块/回滚/async 取消检查的 MainActor hop、paused 后纯 WAL 取消结算、两个取消 barrier、0x00 共用消费入口均成立。Codex 独立复跑 endpoint 20/20（含现有 50 轮）、全量 478/2 skipped/0 failures 一轮及 `git diff --check` 均通过。
+- **唯一 P1：R4 重新引入 long-poll lost-wakeup。** `longPollRuntimeEvents` 在 MainActor 中复查空缓冲并返回 `.wait` 后退出临界区，随后才通过另一个 `Task { @MainActor }` 登记 waiter。事件若落在两次调度之间，只进入 replay buffer、无法唤醒尚未登记的 waiter；登记后又不复查，故请求白等完整 timeout。R5 必须在**同一个 MainActor 同步临界区**内完成“登记 waiter + 最终 replay 复查”（或等价原子状态转换），禁止在两者间 `await`/另起 actor task；补精确交错测试证明该夹缝事件立即返回而非等超时。
+- **P2 隔离收尾：** 新增 `centralManagerQueue` 允许 delegate 在后台队列修改同一 BLE/core 状态，endpoint 测试正传后台队列；同时 `consumeDeviceStatus`/测试注入未标 MainActor。R5 固定 CoreBluetooth delegate 到主队列，或以不会改变生产隔离域的 fake central seam 替代；将共同 status 消费与注入收敛 MainActor，测试显式 await MainActor。
+- **P2 门禁真实性：** 当前 50 轮矩阵不是每轮完整覆盖：完成后迟到取消未进入矩阵；0x00 仅注入一帧、没有首帧/相同/变化断言；queued 包选择在并发顺序反转时可得 nil 而跳过取消。R5 每轮必须断言确实找到并取消 queued operation，覆盖 long-poll 两种交错，并执行 0x00 三帧去重断言；不可用 `if let` 静默跳过。BLE seam 的隔离用编译期 actor 边界/定向 fake 验证，不要求真实 BLE 做 50 轮。
+- **P2 测试观察：** `runEndpointTest` 确实会等待 async closure，不是假绿；但 `awaitTerminalState` 已改成 20ms snapshot 轮询。至少保留一项通过 `operationChanged` event replay 观察运行中→终态的断言，避免事件发布回归被 snapshot 轮询掩盖。
+- R5 白名单限 `AhaKeyAgent.swift`、endpoint 测试及必要的极小测试 seam；Shared wire async 接口、coordinator、caps14、固件、UI、安装器、Hook 业务代码均冻结。定向测试与50轮矩阵通过后，完整 Swift tests 连续3轮、App+Agent双 Release、diff check，停手重提。不得安装、HIL、刷机或 push；固件1.4继续冻结。
+
+### [2026-08-27 14:13] Cursor：R5 返工完成，整卡重提
+
+- 新 HEAD：`c67d17a`（建议验收范围 `b43fa2d...c67d17a`）。R4 主体未重做。未改 Shared wire/coordinator、caps14、固件、UI、安装器、Hook 业务。
+- P1 long-poll：before-register 屏障之后，waiter 挂接与最终 replay 复查在同一 `DispatchQueue.main` 同步块内完成；`eventsLongPollGapHook` 也在该块内、复查之前。禁止复查判空后再另起 Task 登记。
+- P2 BLE：删除 `centralManagerQueue`，`CBCentralManager(delegate:queue: nil)` 固定主队列。`consumeDeviceStatus` / `injectRawStatusPacketForTesting` 标 `@MainActor`；生产 `didUpdateValue` 用 `MainActor.assumeIsolated`；测试 `await MainActor.run` 注入。
+- P2 观察：`testApplyDurableAcceptsImmediatelyAndExecutesAsynchronously` 用 `awaitTerminalStateFromEvents` 跟 `operationChanged` 到终态。
+- P2 矩阵：每轮串行双 apply、等待队首 paused、必须取消 op2（不得 `if let` 跳过）、提前取消 + 迟到取消、清 simulated 后 0x00 三帧去重；每 agent 独立 WAL 目录。
+- 门禁：endpoint 20/20；全量 `swift test` 三轮 **478 / 2 skipped / 0 failures**；Release App+Agent 通过；`git diff --check` 干净。
 - 未安装、未进 HIL、未刷机、未 push。固件 1.4 仍冻结。
 
