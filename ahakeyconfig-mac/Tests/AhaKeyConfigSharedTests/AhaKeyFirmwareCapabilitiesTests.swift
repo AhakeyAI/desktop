@@ -55,16 +55,38 @@ final class AhaKeyFirmwareCapabilitiesTests: XCTestCase {
         XCTAssertEqual(capabilities?.reclaimSlotLimit, 2)
     }
 
-    func testRejects14ByteCapabilitiesWhenFactoryFlagOn() {
-        // flags=0x3F（factory bit 开）但帧仅 14 字节：fail-closed，不得猜测 factory 布局
-        //（WBS-5.7 R2 caps14 交叉契约）。
-        let payload = rhino26Payload.prefix(14)
-        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(payload)))
+    func testParsesCompact14ByteRhinoFactoryCapabilities() {
+        // HIL 真机 0x99 payload：compact factory 14B，不是截断 22B。
+        let payload = Data([
+            0x03, 0x04, 0x02, 0x04,
+            0x3F, 0x00,
+            0xC8, 0x00,
+            0x14, 0x01,
+            0x14, 0x01,
+            0x1C, 0x01,
+        ])
+        let capabilities = AhaKeyFirmwareCapabilities.parse(payload)
+        XCTAssertEqual(capabilities?.protocolVersion, 3)
+        XCTAssertEqual(AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities!), .current)
+        XCTAssertEqual(capabilities?.flags, 0x003F)
+        XCTAssertEqual(capabilities?.maxPacketSize, 200)
+        XCTAssertEqual(capabilities?.userSlotLimit, 276)
+        XCTAssertEqual(capabilities?.factorySlotBase, 276, "factory reserved boundary = userSlotLimit")
+        XCTAssertEqual(capabilities?.reclaimSlotBase, 276)
+        XCTAssertEqual(capabilities?.reclaimSlotLimit, 284)
+        XCTAssertEqual(capabilities?.factoryBundleVersion, 0)
+        XCTAssertEqual(capabilities?.factoryManifestCRC, 0)
+        XCTAssertEqual(capabilities?.factoryStatus, 0)
+        XCTAssertEqual(capabilities?.factoryError, 0)
     }
 
-    func testRejectsTruncatedCapabilities() {
+    func testRejectsAmbiguousFactoryTruncation() {
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(repeating: 0, count: 13)))
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data()))
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(15))))
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(21))))
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(23))))
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(25))))
     }
 
     // MARK: - 能力标志位

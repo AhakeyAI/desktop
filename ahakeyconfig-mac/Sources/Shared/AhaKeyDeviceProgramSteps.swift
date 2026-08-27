@@ -3,7 +3,7 @@ import Foundation
 // MARK: - 设备线协议程序（WBS-5.6 切片 4）
 //
 // 声明式步骤 → 线协议程序的纯映射层。Studio 从此不发物理 opcode/槽位：
-// 槽位布局（factorySlotBase 起、每槽 taskSlotFrames 帧）由本模块独占决策。
+// 槽位布局（用户区从 0 起、每槽 taskSlotFrames 帧）由本模块独占决策。
 // 输出为语义程序步骤；资源字节由 CAS digest 引用，执行期经 transport seam 取数。
 
 /// 线协议程序步骤（纯值，可测试、可恢复对账）。
@@ -58,9 +58,10 @@ public struct AhaKeyDeviceLayoutPolicy: Equatable, Sendable {
         self.defaultFrameIntervalFloor = defaultFrameIntervalFloor
     }
 
-    /// planner 槽位号 → 设备起始帧索引。
-    public func startFrameIndex(slot: Int, factorySlotBase: Int) -> UInt16 {
-        UInt16(factorySlotBase + slot * framesPerSlot)
+    /// planner 槽位号 → 用户区起始帧索引。用户资源从 `userRegionBase`（生产路径为 0）起编，
+    /// 不得把 `factorySlotBase` 当作上传/绑定起点。
+    public func startFrameIndex(slot: Int, userRegionBase: Int) -> UInt16 {
+        UInt16(userRegionBase + slot * framesPerSlot)
     }
 }
 
@@ -83,11 +84,15 @@ public enum AhaKeyConfigurationStepMapper {
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init()
     ) -> [AhaKeyDeviceProgramStep] {
-        let startFrame = layout.startFrameIndex(slot: slotIndex, factorySlotBase: capabilities.factorySlotBase)
+        let startFrame = layout.startFrameIndex(slot: slotIndex, userRegionBase: 0)
+        guard Int(startFrame) < capabilities.userSlotLimit else { return [] }
         let frameCount = min(encodedFrameCount, layout.framesPerSlot)
+        let remaining = capabilities.userSlotLimit - Int(startFrame)
+        guard remaining > 0 else { return [] }
+        let cappedCount = min(frameCount, remaining)
         let frameBytes = layout.encodedFrameBytes
         var steps: [AhaKeyDeviceProgramStep] = []
-        for frame in 0..<frameCount {
+        for frame in 0..<cappedCount {
             let frameAddress = UInt32(Int(startFrame) + frame) * UInt32(layout.frameSlotBytes)
             var offset = 0
             while offset < frameBytes {
@@ -157,11 +162,15 @@ public enum AhaKeyConfigurationStepMapper {
                 guard let identifier = asset.resource,
                       let slot = plan.slotAssignments[identifier],
                       let frames = asset.declaredFrameCount, frames > 0 else { continue }
-                let startFrame = layout.startFrameIndex(slot: slot, factorySlotBase: capabilities.factorySlotBase)
+                let startFrame = layout.startFrameIndex(slot: slot, userRegionBase: 0)
+                let requested = Int(frames)
+                let remaining = capabilities.userSlotLimit - Int(startFrame)
+                guard Int(startFrame) < capabilities.userSlotLimit, remaining > 0 else { continue }
+                let cappedFrames = min(requested, remaining)
                 let interval = max(layout.defaultFrameIntervalFloor, UInt16(1000 / asset.framesPerSecond))
                 steps.append(.bindTaskPicture(
                     mode: mode.slot, set: UInt8(setIndex), state: state.rawValue,
-                    startIndex: startFrame, frameCount: UInt16(frames), intervalMs: interval
+                    startIndex: startFrame, frameCount: UInt16(cappedFrames), intervalMs: interval
                 ))
             }
         }

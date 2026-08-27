@@ -13,7 +13,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         AhaKeyFirmwareCapabilities(
             protocolVersion: 3, modeCount: 4, setCount: 2, stateCount: 4,
             flags: sessionUpload ? AhaKeyFirmwareCapabilities.sessionUploadFlag : 0,
-            maxPacketSize: 200, userSlotLimit: 8, factorySlotBase: factorySlotBase,
+            maxPacketSize: 200, userSlotLimit: 288, factorySlotBase: factorySlotBase,
             factoryBundleVersion: 0, factoryManifestCRC: 0, factoryStatus: 0, factoryError: 0,
             reclaimSlotBase: 0, reclaimSlotLimit: 0
         )
@@ -23,9 +23,9 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
 
     func testSlotLayoutDeterministic() {
         let layout = AhaKeyDeviceLayoutPolicy()
-        XCTAssertEqual(layout.startFrameIndex(slot: 0, factorySlotBase: 10), 10)
-        XCTAssertEqual(layout.startFrameIndex(slot: 1, factorySlotBase: 10), 40)
-        XCTAssertEqual(layout.startFrameIndex(slot: 2, factorySlotBase: 10), 70)
+        XCTAssertEqual(layout.startFrameIndex(slot: 0, userRegionBase: 0), 0)
+        XCTAssertEqual(layout.startFrameIndex(slot: 1, userRegionBase: 0), 30)
+        XCTAssertEqual(layout.startFrameIndex(slot: 2, userRegionBase: 0), 60)
     }
 
     // MARK: 资源上传程序
@@ -43,7 +43,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         }
         XCTAssertNotNil(session)          // 会话式
         XCTAssertEqual(len, 4096)
-        XCTAssertEqual(addr, 10 * 28_672) // slot0 首帧地址（flash 槽 28672B 步长）
+        XCTAssertEqual(addr, 0 * 28_672) // 用户区从 0 起编，不得用 factorySlotBase
         XCTAssertEqual(addr % 4096, 0, "地址必须扇区对齐")
         // session 按 chunk 轮换（对齐 Studio 生产路径）
         guard case .prepareWrite(let session2, _, _) = steps[2] else {
@@ -51,12 +51,12 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         }
         XCTAssertNotNil(session2)
         XCTAssertNotEqual(session, session2, "每块独立会话，失败可精确回滚当前块")
-        // 第二帧地址 = (10+1)*28672
+        // 第二帧地址 = (0+1)*28672
         let secondFramePrepare = steps[14]
         guard case .prepareWrite(_, _, let addr2) = secondFramePrepare else {
             return XCTFail("第二帧首步应为 prepareWrite")
         }
-        XCTAssertEqual(addr2, 11 * 28_672)
+        XCTAssertEqual(addr2, 1 * 28_672)
         // 帧内末块 = 25600 % 4096 = 1024，且 chunk offset 索引编码流
         guard case .writeResourceChunk(_, let chunkOffset, let chunkLen) = steps[13] else {
             return XCTFail("chunk 步类型错误")
@@ -141,13 +141,13 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         // 灯效：state1=approvalWait(4)，其余 off；亮度 55
         XCTAssertTrue(steps.contains(.setLightMapping(mode: 2, effects: [0, 4, 0, 0, 0, 0, 0, 0, 0])))
         XCTAssertTrue(steps.contains(.setBrightness(55)))
-        // 绑定：done→slot0(帧10起,12帧,100ms)，working→slot1(帧40起,30帧,50ms 下限 33→50)，idle 回退 working
+        // 绑定：done→slot0(帧0起,12帧,100ms)，working→slot1(帧30起,30帧,50ms 下限 33→50)，idle 回退 working
         XCTAssertTrue(steps.contains(.bindTaskPicture(mode: 2, set: 0, state: 3,
-                                                      startIndex: 10, frameCount: 12, intervalMs: 100)))
+                                                      startIndex: 0, frameCount: 12, intervalMs: 100)))
         XCTAssertTrue(steps.contains(.bindTaskPicture(mode: 2, set: 0, state: 1,
-                                                      startIndex: 40, frameCount: 30, intervalMs: 50)))
+                                                      startIndex: 30, frameCount: 30, intervalMs: 50)))
         XCTAssertTrue(steps.contains(.bindTaskPicture(mode: 2, set: 0, state: 0,
-                                                      startIndex: 40, frameCount: 30, intervalMs: 50)))
+                                                      startIndex: 30, frameCount: 30, intervalMs: 50)))
         // 激活套图 1 + finish + save 收尾
         XCTAssertTrue(steps.contains(.setActiveTaskPictureSet(mode: 2, set: 1)))
         XCTAssertEqual(steps.dropLast(2).last, .setActiveTaskPictureSet(mode: 2, set: 1))
@@ -243,8 +243,62 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         // defaultAnimation 通过 0x95 idle 槽绑定，不发 0x82
         XCTAssertTrue(steps.contains(.bindTaskPicture(
             mode: 0, set: 0, state: 0,
-            startIndex: 10, frameCount: 8, intervalMs: 83
+            startIndex: 0, frameCount: 8, intervalMs: 83
         )))
         // 0x82 bindDefaultPicture 已删除：current 协议禁止，该 case 不存在
+    }
+
+    // MARK: compact factory 14B — 用户区 0..<userSlotLimit，不写 reclaim
+
+    private func compactHilCapabilities() -> AhaKeyFirmwareCapabilities {
+        AhaKeyFirmwareCapabilities.parse(Data([
+            0x03, 0x04, 0x02, 0x04,
+            0x3F, 0x00,
+            0xC8, 0x00,
+            0x14, 0x01,
+            0x14, 0x01,
+            0x1C, 0x01,
+        ]))!
+    }
+
+    func testCompactFactoryUserWritesStartAtZeroAndStayInPrimary() {
+        let caps = compactHilCapabilities()
+        XCTAssertEqual(caps.userSlotLimit, 276)
+        XCTAssertEqual(caps.factorySlotBase, 276)
+        let steps = Mapper.resourceUploadProgram(
+            digest: digest(), slotIndex: 0,
+            encodedFrameCount: 1,
+            usesSessionUpload: false, capabilities: caps
+        )
+        guard case .prepareWrite(_, _, let addr) = steps.first else {
+            return XCTFail("首槽必须从用户区 0 起编")
+        }
+        XCTAssertEqual(addr, 0)
+        let binds = Mapper.baseConfigurationProgram(
+            mode: try! modeWithDefaultAnimation().0.modes[0],
+            desired: try! modeWithDefaultAnimation().0,
+            plan: try! modeWithDefaultAnimation().1,
+            capabilities: caps
+        ).compactMap { step -> UInt16? in
+            if case .bindTaskPicture(_, _, _, let start, let count, _) = step {
+                XCTAssertLessThan(start, 276)
+                XCTAssertLessThanOrEqual(Int(start) + Int(count), 276)
+                return start
+            }
+            return nil
+        }
+        XCTAssertEqual(binds.first, 0)
+        XCTAssertFalse(binds.contains(where: { $0 >= 276 }))
+    }
+
+    func testCompactFactoryDoesNotEmitReclaimStartIndex() {
+        let caps = compactHilCapabilities()
+        // slot 10 → 300 >= 276，必须不生成 reclaim 写入
+        let steps = Mapper.resourceUploadProgram(
+            digest: digest(), slotIndex: 10,
+            encodedFrameCount: 1,
+            usesSessionUpload: false, capabilities: caps
+        )
+        XCTAssertTrue(steps.isEmpty)
     }
 }

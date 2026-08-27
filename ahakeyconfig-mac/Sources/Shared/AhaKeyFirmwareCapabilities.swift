@@ -33,14 +33,12 @@ public enum AhaKeyProtocolMode: Equatable {
     }
 }
 
-/// 0x99 能力帧解析结果。三档长度变体：
-/// - 14 字节：基础字段（无出厂资源信息；factory flag 关闭时 factorySlotBase=0，
-///   不得回退为用户槽位上限——WBS-5.7 R2 caps14 交叉契约）；
-/// - 22 字节：含出厂资源束信息（factory*，仅 factory flag 打开时可信）；
-/// - 26 字节：额外含回收槽位区间（reclaim*）。
+/// 0x99 能力帧解析结果。长度变体：
+/// - factory-off 14 字节：`factorySlotBase=0`（用户区从 0 起编）；
+/// - factory compact 14 字节：`userSlotLimit` / reclaim 区间在帧内，`factorySlotBase=userSlotLimit`；
+/// - factory 22/26 字节：出厂资源束扩展（26 另含 reclaim 覆盖字段）。
 public struct AhaKeyFirmwareCapabilities: Equatable {
     public static let idleTaskPictureFlag: UInt16 = 1 << 0
-    /// 出厂资源束能力位。打开时必须携带 22 字节扩展字段，否则 parse fail-closed。
     public static let factoryAssetsFlag: UInt16 = 1 << 2
     public static let sessionUploadFlag: UInt16 = 1 << 3
 
@@ -90,12 +88,15 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
         flags & Self.sessionUploadFlag != 0
     }
 
-    /// 解析 0x99 应答 payload（不含帧头帧尾）。长度不足 14 字节返回 nil。
-    /// fail-closed 纪律（WBS-5.7 R2 caps14 交叉契约，固件证据 WBS-1 22:51）：
-    /// factory flag 打开但帧不足 22 字节 → 返回 nil（不得猜测 factory 布局）；
-    /// factory flag 关闭 → factorySlotBase=0（用户槽位从 0 起编，0x95 才不会越界被拒）。
+    /// 解析 0x99 应答 payload（不含帧头帧尾）。
+    /// - 13B 以下、15...21B、23...25B：歧义/截断，fail-closed。
+    /// - factory-off 14B：`factorySlotBase=0`（caps14 交叉契约）。
+    /// - factory compact 14B：`factorySlotBase=userSlotLimit`，reclaim 取 u16(10)/u16(12)；
+    ///   不得把缺失的 22B factory 扩展字段猜出来。
+    /// - factory 22/26B：维持扩展字段语义。
     public static func parse(_ payload: Data) -> AhaKeyFirmwareCapabilities? {
-        guard payload.count >= 14 else { return nil }
+        let count = payload.count
+        guard count == 14 || count == 22 || count >= 26 else { return nil }
         func u16(_ offset: Int) -> UInt16 {
             UInt16(payload[offset]) | (UInt16(payload[offset + 1]) << 8)
         }
@@ -107,8 +108,12 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
         }
         let flags = u16(4)
         let factoryAdvertised = flags & Self.factoryAssetsFlag != 0
-        if factoryAdvertised && payload.count < 22 { return nil }
-        let hasExtendedFactoryFields = factoryAdvertised && payload.count >= 22
+        let userSlotLimit = Int(u16(8))
+        let isCompactFactory = factoryAdvertised && count == 14
+        let hasExtendedFactoryFields = factoryAdvertised && (count == 22 || count >= 26)
+        if factoryAdvertised && !isCompactFactory && !hasExtendedFactoryFields {
+            return nil
+        }
         return AhaKeyFirmwareCapabilities(
             protocolVersion: Int(payload[0]),
             modeCount: Int(payload[1]),
@@ -116,14 +121,20 @@ public struct AhaKeyFirmwareCapabilities: Equatable {
             stateCount: Int(payload[3]),
             flags: flags,
             maxPacketSize: Int(u16(6)),
-            userSlotLimit: Int(u16(8)),
-            factorySlotBase: hasExtendedFactoryFields ? Int(u16(10)) : 0,
+            userSlotLimit: userSlotLimit,
+            factorySlotBase: isCompactFactory
+                ? userSlotLimit
+                : (hasExtendedFactoryFields ? Int(u16(10)) : 0),
             factoryBundleVersion: hasExtendedFactoryFields ? u32(12) : 0,
             factoryManifestCRC: hasExtendedFactoryFields ? u32(16) : 0,
             factoryStatus: hasExtendedFactoryFields ? Int(payload[20]) : 0,
             factoryError: hasExtendedFactoryFields ? Int(payload[21]) : 0,
-            reclaimSlotBase: payload.count >= 26 ? Int(u16(22)) : (hasExtendedFactoryFields ? Int(u16(10)) : 0),
-            reclaimSlotLimit: payload.count >= 26 ? Int(u16(24)) : (hasExtendedFactoryFields ? Int(u16(12)) : 0)
+            reclaimSlotBase: isCompactFactory
+                ? Int(u16(10))
+                : (count >= 26 ? Int(u16(22)) : (hasExtendedFactoryFields ? Int(u16(10)) : 0)),
+            reclaimSlotLimit: isCompactFactory
+                ? Int(u16(12))
+                : (count >= 26 ? Int(u16(24)) : (hasExtendedFactoryFields ? Int(u16(12)) : 0))
         )
     }
 }

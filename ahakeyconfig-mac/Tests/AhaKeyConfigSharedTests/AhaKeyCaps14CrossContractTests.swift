@@ -4,7 +4,7 @@ import XCTest
 /// WBS-5.7 R2 caps14 交叉契约（固件证据：WBS-1-UNIFIED-FIRMWARE 22:51，
 /// `tp_write_caps14` 精确 payload `03 04 02 04 33 00 c8 00 20 01 00 00 00 00`）：
 /// factory flag 关闭的 14 字节能力帧 → factorySlotBase=0、userSlotLimit=288；
-/// factory flag 打开但仅 14 字节 → parse fail-closed；
+/// factory flag 打开的 compact 14 字节按 Rhino 布局解析（不得当截断 22B 丢掉）；
 /// planner 首个/末个合法槽位不越界，288 帧上限越界必须拒绝。
 final class AhaKeyCaps14CrossContractTests: XCTestCase {
 
@@ -42,11 +42,17 @@ final class AhaKeyCaps14CrossContractTests: XCTestCase {
         XCTAssertFalse(capabilities?.supportsSessionUpload ?? true)
     }
 
-    func testCaps14WithFactoryFlagOnFailsClosed() {
-        // factory flag 打开（0x33 | 0x04 = 0x37）但帧仅 14 字节：parse 必须 fail-closed。
+    func testCaps14WithFactoryFlagOnParsesCompactLayout() {
+        // factory flag 打开的 14B 是 compact 布局，不是截断扩展帧。
         var payload = caps14Payload
         payload[4] = 0x37
-        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(payload))
+        let capabilities = AhaKeyFirmwareCapabilities.parse(payload)
+        XCTAssertEqual(capabilities?.protocolVersion, 3)
+        XCTAssertEqual(capabilities?.userSlotLimit, 288)
+        XCTAssertEqual(capabilities?.factorySlotBase, 288)
+        XCTAssertEqual(capabilities?.reclaimSlotBase, 0)
+        XCTAssertEqual(capabilities?.reclaimSlotLimit, 0)
+        XCTAssertEqual(capabilities?.factoryBundleVersion, 0)
     }
 
     // MARK: - planner 交叉：槽位范围与越界拒绝
@@ -117,10 +123,10 @@ final class AhaKeyCaps14CrossContractTests: XCTestCase {
         // 首个合法槽位：slot 0 → 设备帧 0（factorySlotBase=0 起编）。
         XCTAssertEqual(plan.slotAssignments[resource("r01")], 0)
         let layout = AhaKeyDeviceLayoutPolicy()
-        XCTAssertEqual(layout.startFrameIndex(slot: 0, factorySlotBase: caps14().factorySlotBase), 0)
+        XCTAssertEqual(layout.startFrameIndex(slot: 0, userRegionBase: caps14().factorySlotBase), 0)
         // 末个合法槽位：slot 8 → 起始帧 240，结束帧 270 ≤ userSlotLimit 288。
         XCTAssertEqual(plan.slotAssignments[resource("r09")], 8)
-        let lastStart = Int(layout.startFrameIndex(slot: 8, factorySlotBase: caps14().factorySlotBase))
+        let lastStart = Int(layout.startFrameIndex(slot: 8, userRegionBase: caps14().factorySlotBase))
         XCTAssertEqual(lastStart, 240)
         XCTAssertLessThanOrEqual(lastStart + layout.framesPerSlot, caps14().userSlotLimit)
     }
@@ -147,7 +153,7 @@ final class AhaKeyCaps14CrossContractTests: XCTestCase {
         // 末槽起始帧将是 288 + 240 = 528，必然被固件越界拒绝——证明本修复是必要条件。
         XCTAssertEqual(caps14().factorySlotBase, 0, "caps14 必须解析为 0，不得回退 288")
         let layout = AhaKeyDeviceLayoutPolicy()
-        let legacyLastStart = Int(layout.startFrameIndex(slot: 8, factorySlotBase: 288))
+        let legacyLastStart = Int(layout.startFrameIndex(slot: 8, userRegionBase: 288))
         XCTAssertGreaterThan(legacyLastStart, caps14().userSlotLimit)
     }
 }

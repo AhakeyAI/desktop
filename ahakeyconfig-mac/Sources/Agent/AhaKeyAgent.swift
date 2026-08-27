@@ -1437,6 +1437,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let mode = AhaKeyProtocolNegotiation.mode(forCapabilities: caps)
         negotiatedCapabilities = caps
         emit("← 0x99 能力帧：protocol v\(caps.protocolVersion)，mode=\(mode)")
+        if caps.flags & AhaKeyFirmwareCapabilities.factoryAssetsFlag != 0, payload.count == 14 {
+            emit("← 0x99 compact factory：primary 0..<\(caps.userSlotLimit)，factory reserved \(caps.factorySlotBase)，reclaim \(caps.reclaimSlotBase)..<\(caps.reclaimSlotLimit)")
+        }
         let uuid = peripheral?.identifier.uuidString ?? ""
         performTransportActions(transportCore.handle(.negotiationFinished(uuid: uuid, mode: mode), now: Date()))
         publishDeviceChangedIfNeeded()
