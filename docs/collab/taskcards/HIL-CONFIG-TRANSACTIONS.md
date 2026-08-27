@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`active`（用户已批准窗口；20:27 转交 Cursor 执行）
+状态：`blocked / 等待 CAPS14`（HIL 环境保留；C1–C6 暂停）
 执行 owner：Cursor
 验证协作者：Codex（只读验收）
 基线：WBS 5.6 accepted @ `19eb4dc`；WBS 5.7 accepted @ `488097d`
@@ -75,3 +75,9 @@
 - BLE 已连接 AhaKey X1（用户按键后 21:02）。XPC 仍可用。未断电、未关蓝牙。
 - 0x99 payload 14 字节且 `flags=0x003F` 含 factory 位 → `parse` 返回 nil → 非 current → 配置写入门控。未在本卡修改业务代码。
 - C1–C6 暂停。HIL 临时 agent 先保持，便于授权后同窗续测。返工卡：`HIL-CONFIG-0x99-CAPS14`。
+
+### [2026-08-27 21:13] Codex：确认真实兼容缺陷，转入独立最小返工卡
+
+- HIL 卡保持不改业务代码；C1–C6 全部暂停，环境暂留，不刷机、不制造假绿。独立返工卡 `HIL-CONFIG-0x99-CAPS14` 已翻 active，owner 为 Cursor。
+- 原“14B+factory 直接 base=0”方案不获批准。真机 14B 是 Rhino compact factory 格式，最后两项为 reclaim 边界；返工必须同时正确解析 compact 布局并修正 Runtime primary user 写址从 0 开始，不能靠伪造 factory base 绕过门控。
+- Cursor 完成返工并经 Codex 验收后，本卡才恢复 active 续跑 C1。此前用户继续保持键盘连接，不自行断电或关闭蓝牙。
