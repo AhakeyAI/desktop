@@ -83,7 +83,7 @@ final class AhaKeyWireProgramTests: XCTestCase {
         func writeChunk(digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?) async throws {
             chunks.append((offset, length, sessionID))
         }
-        func isCancellationRequested() -> Bool { cancelled }
+        func isCancellationRequested() async -> Bool { cancelled }
         func abortActiveSession() async { abortCalls += 1 }
     }
 

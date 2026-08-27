@@ -14,7 +14,6 @@ import XCTest
 /// 免 BLE 驱动经 `AhaKeyAgentExecutionTestHooks`（生产恒 nil）：模拟设备投影、
 /// ready/capabilities 门控、步骤执行器、Store 目录重定向到临时目录。
 final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
-
     /// 进程内端到端客户端：每次构造一个独立 endpoint（= 一条独立 XPC 会话）。
     private final class EndpointClient: @unchecked Sendable {
         private let endpoint: AhaKeyRuntimeXPCSessionEndpoint
@@ -83,6 +82,24 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    /// 一次性到达信号：测试屏障用。
+    private actor OnceSignal {
+        private var fired = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        func wait() async {
+            if fired { return }
+            await withCheckedContinuation { waiters.append($0) }
+        }
+
+        func signal() {
+            fired = true
+            let pending = waiters
+            waiters.removeAll()
+            for waiter in pending { waiter.resume() }
+        }
+    }
+
     private var testRoot: URL!
     private var agents: [AhaKeyAgent] = []
 
@@ -100,11 +117,27 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         super.tearDown()
     }
 
+    /// 把 async 用例变成同步 XCTest，避免 Xcode 16 对 async 方法并行枚举导致 MainActor 卡死。
+    private func runEndpointTest(_ work: @escaping () async throws -> Void) {
+        let finished = expectation(description: "endpoint-test")
+        Task {
+            do {
+                try await work()
+            } catch {
+                XCTFail("endpoint test error: \(error)")
+            }
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: 120)
+    }
+
     private func makeAgent(replayCapacity: Int = 256, longPoll: TimeInterval = 0.3) -> AhaKeyAgent {
         let agent = AhaKeyAgent(
             socketPath: testRoot.appendingPathComponent("agent-\(UUID().uuidString.prefix(6)).sock").path,
             hookSocketURL: testRoot.appendingPathComponent("hook-\(UUID().uuidString.prefix(6)).sock"),
-            eventReplayCapacity: replayCapacity
+            eventReplayCapacity: replayCapacity,
+            enableRuntimeModules: false,
+            centralManagerQueue: DispatchQueue(label: "ahk.endpoint.test.ble")
         )
         agent.runtimeEventsLongPollInterval = longPoll
         agent.executionTestHooks = AhaKeyAgentExecutionTestHooks(storeDirectory: testRoot)
@@ -169,35 +202,27 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
     }
 
-    /// 事件跟随直到目标 operation 进入终态（或超时返回 nil）。cursor 跨调用递增。
+    /// 事件跟随直到目标 operation 进入终态（或超时返回 nil）。优先 snapshot，避免 long-poll 吞掉超时。
     private func awaitTerminalState(
         _ client: EndpointClient,
         operationID: AhaKeyRuntimeOperationID,
         timeout: TimeInterval = 15
     ) async -> AhaKeyRuntimeOperationState? {
         let deadline = Date().addingTimeInterval(timeout)
-        var cursor = AhaKeyRuntimeEventSequence(0)
         while Date() < deadline {
-            guard let result = try? await client.events(after: cursor) else { return nil }
-            switch result {
-            case .snapshotRequired(let latest):
-                cursor = latest
-            case .events(let events):
-                for event in events {
-                    cursor = max(cursor, event.sequence)
-                    if case .operationChanged(let summary) = event.payload,
-                       summary.id == operationID, summary.state.isTerminal {
-                        return summary.state
-                    }
-                }
+            if let state = try? await client.snapshot().operations.first(where: { $0.id == operationID })?.state,
+               state.isTerminal {
+                return state
             }
+            try? await Task.sleep(nanoseconds: 20_000_000)
         }
         return nil
     }
 
     // MARK: - handshake / snapshot / empty replay
 
-    func testHandshakeAdvertisesExactlyHandledCapabilities() async throws {
+    func testHandshakeAdvertisesExactlyHandledCapabilities() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let client = EndpointClient(agent: agent)
         let handshake = try await client.handshake()
@@ -229,9 +254,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             return XCTFail("未广告能力不得被处理")
         }
         XCTAssertEqual(code.rawValue, "unsupported-request")
+        }
     }
 
-    func testSnapshotReturnsAuthoritativeProjection() async throws {
+    func testSnapshotReturnsAuthoritativeProjection() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let client = EndpointClient(agent: agent)
         try await client.handshake()
@@ -250,9 +277,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertEqual(withDevice.activeDeviceID, try AhaKeyRuntimeDeviceID("TEST-DEVICE"))
         XCTAssertEqual(withDevice.devices.first?.protocolState, .currentReady)
         XCTAssertEqual(withDevice.latestEventSequence, .init(1))
+        }
     }
 
-    func testEmptyReplayLongPollsAndReturnsEmptyBatch() async throws {
+    func testEmptyReplayLongPollsAndReturnsEmptyBatch() {
+        runEndpointTest { [self] in
         let agent = makeAgent(longPoll: 0.3)
         let client = EndpointClient(agent: agent)
         try await client.handshake()
@@ -275,9 +304,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         // 请求率断言：3 次请求耗时 ≥ 3×0.25s ⇒ 空闲请求率 ≤ 4/s（生产 2s long-poll ⇒ ≤0.5/s）。
         let total = elapsed.reduce(0, +)
         XCTAssertLessThanOrEqual(Double(elapsed.count) / total, 4.0)
+        }
     }
 
-    func testNewEventWakesLongPollImmediately() async throws {
+    func testNewEventWakesLongPollImmediately() {
+        runEndpointTest { [self] in
         let agent = makeAgent(longPoll: 5.0)
         let client = EndpointClient(agent: agent)
         try await client.handshake()
@@ -298,11 +329,13 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
         XCTAssertEqual(device.id, try AhaKeyRuntimeDeviceID("TEST-DEVICE"))
         XCTAssertEqual(events.first?.sequence, .init(1))
+        }
     }
 
     // MARK: - gap → snapshotRequired
 
-    func testReplayBufferOverflowYieldsSnapshotRequired() async throws {
+    func testReplayBufferOverflowYieldsSnapshotRequired() {
+        runEndpointTest { [self] in
         let agent = makeAgent(replayCapacity: 2)
         let client = EndpointClient(agent: agent)
         try await client.handshake()
@@ -321,11 +354,13 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             return XCTFail("未断档游标应正常回放")
         }
         XCTAssertEqual(tail.map(\.sequence), [.init(4)])
+        }
     }
 
     // MARK: - apply：durable accept 立即回 ID + 异步执行
 
-    func testApplyDurableAcceptsImmediatelyAndExecutesAsynchronously() async throws {
+    func testApplyDurableAcceptsImmediatelyAndExecutesAsynchronously() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let gate = StepGate()
         var hooks = agent.executionTestHooks
@@ -365,9 +400,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         let final = try await client.snapshot()
         XCTAssertTrue(final.operations.contains { $0.id == operationID && $0.state == .completed })
         XCTAssertEqual(final.configurationRevision, .init(1), "完成后 baseline revision 必须 base+1")
+        }
     }
 
-    func testCancellationDuringExecutionTakesEffect() async throws {
+    func testCancellationDuringExecutionTakesEffect() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
         let package = try makePackage(deviceID: deviceID)
@@ -415,9 +452,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertEqual(again, .cancellation(.alreadyFinished))
         let unknown = try await client.exchange(.requestCancellation(AhaKeyRuntimeOperationID()))
         XCTAssertEqual(unknown, .cancellation(.notFound))
+        }
     }
 
-    func testFailedAcceptanceReturnsFailureNotAccepted() async throws {
+    func testFailedAcceptanceReturnsFailureNotAccepted() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let client = EndpointClient(agent: agent)
         try await client.handshake()
@@ -443,11 +482,13 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             return XCTFail("受理失败必须 .failure，实际 \(response)")
         }
         XCTAssertTrue(code.rawValue.hasPrefix("missing-resource:"), "实际 code=\(code.rawValue)")
+        }
     }
 
     // MARK: - 客户端断连不影响已受理执行
 
-    func testClientDisconnectDoesNotAffectAcceptedExecution() async throws {
+    func testClientDisconnectDoesNotAffectAcceptedExecution() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let gate = StepGate()
         var hooks = agent.executionTestHooks
@@ -477,11 +518,13 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertEqual(terminal, .completed, "Studio 断连不得影响 Agent 已受理事务的执行")
         let snapshot = try await client2.snapshot()
         XCTAssertTrue(snapshot.operations.contains { $0.id == operationID && $0.state == .completed })
+        }
     }
 
     // MARK: - R2-3：schema 广告单一来源
 
-    func testHandshakeAndSnapshotAdvertiseSingleSchemaSource() async throws {
+    func testHandshakeAndSnapshotAdvertiseSingleSchemaSource() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let client = EndpointClient(agent: agent)
         let handshake = try await client.handshake()
@@ -499,6 +542,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         // 实际提交包的 schemaVersion 必须被广告覆盖。
         let package = try makePackage(deviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"))
         XCTAssertTrue(handshake.supportedConfigurationSchemaVersions.contains(package.schemaVersion))
+        }
     }
 
     // MARK: - R2-2：并发 apply 串行排空
@@ -518,7 +562,8 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
-    func testConcurrentAppliesFromTwoClientsSerializeAndDrain() async throws {
+    func testConcurrentAppliesFromTwoClientsSerializeAndDrain() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let gate = StepGate()
         let probe = ExecutionConcurrencyProbe()
@@ -570,11 +615,13 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertEqual(terminal2, .completed, "后受理事务必须在前者完成后自动执行到终态")
         let maxConcurrent = await probe.maxConcurrent
         XCTAssertEqual(maxConcurrent, 1, "任一时刻只能有一个事务执行体在飞（不得两个 BLE runner 并行）")
+        }
     }
 
     // MARK: - R2-5：long-poll lost-wakeup 收口
 
-    func testLongPollGapEventReturnedImmediatelyWithoutFullTimeout() async throws {
+    func testLongPollGapEventReturnedImmediatelyWithoutFullTimeout() {
+        runEndpointTest { [self] in
         let agent = makeAgent(longPoll: 5.0)
         let device = simulatedDevice()
         // 可控交错：在「空批快路径 → waiter 登记」夹缝中确定性地发布事件。
@@ -600,13 +647,15 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
         XCTAssertEqual(published.id, try AhaKeyRuntimeDeviceID("TEST-DEVICE"))
         XCTAssertEqual(events.first?.sequence, .init(1))
+        }
     }
 
     // MARK: - R2-1 旁证：相同投影零 UI 发布
 
     // MARK: - R3：真实 0x00 parser→reducer→event 去重测试
 
-    func testRealZeroZeroPacketParserReducerEventDeduplication() async throws {
+    func testRealZeroZeroPacketParserReducerEventDeduplication() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
         hooks.stableDeviceID = "TEST-DEVICE"
@@ -658,9 +707,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             return XCTFail("变化帧应为 deviceChanged")
         }
         XCTAssertEqual(changedDevice.state.lightMode?.rawValue, 2)
+        }
     }
 
-    func testIdenticalDeviceProjectionPublishesNoDuplicateEvent() async throws {
+    func testIdenticalDeviceProjectionPublishesNoDuplicateEvent() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let client = EndpointClient(agent: agent)
         try await client.handshake()
@@ -673,11 +724,13 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             return XCTFail("应返回事件批")
         }
         XCTAssertEqual(events.count, 1, "相同状态必须零 UI 发布（内容去重）")
+        }
     }
 
     // MARK: - R3：排队取消结算 / 队首非终态阻断 / long-poll 提前取消
 
-    func testQueuedCancellationIsSettledWithoutBeingFiltered() async throws {
+    func testQueuedCancellationIsSettledWithoutBeingFiltered() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let gate = StepGate()
         var hooks = agent.executionTestHooks
@@ -709,9 +762,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertEqual(terminal1, .completed)
         XCTAssertNotNil(terminal2, "排队取消必须被 worker 结算，不得停在 cancellationRequested")
         XCTAssertTrue(terminal2?.isTerminal ?? false)
+        }
     }
 
-    func testPausedHeadDoesNotExecuteFollowingPackage() async throws {
+    func testPausedHeadDoesNotExecuteFollowingPackage() {
+        runEndpointTest { [self] in
         let agent = makeAgent()
         let probe = ExecutionConcurrencyProbe()
         var hooks = agent.executionTestHooks
@@ -743,54 +798,172 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertEqual(state2, .accepted, "后续包不得开始执行")
         let maxConcurrent = await probe.maxConcurrent
         XCTAssertEqual(maxConcurrent, 1, "队首暂停后不得再执行第二包")
+        }
     }
 
-    func testLongPollCancellationBeforeWaiterRegistrationReturnsImmediately() async throws {
+    func testPausedHeadQueuedCancelDoesNotStartFollowingPackage() {
+        runEndpointTest { [self] in
+        let agent = makeAgent()
+        var hooks = agent.executionTestHooks
+        hooks?.isReady = true
+        hooks?.capabilities = testCapabilities()
+        hooks?.stepExecutor = { _ in .retryableFailure }
+        agent.executionTestHooks = hooks
+        await agent.simulateDeviceForTesting(simulatedDevice())
+
+        let client = EndpointClient(agent: agent)
+        try await client.handshake()
+        let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let first = try makePackage(deviceID: deviceID)
+        guard case .operationAccepted(let op1) = try await client.exchange(.apply(first)) else {
+            return XCTFail("首包必须受理")
+        }
+        try await Task.sleep(nanoseconds: 150_000_000)
+        let paused = try await client.snapshot().operations.first { $0.id == op1 }?.state
+        XCTAssertTrue(paused == .paused || paused == .resumablePartial, "首包应进入非终态，实际 \(String(describing: paused))")
+
+        let second = try makePackage(deviceID: deviceID)
+        let third = try makePackage(deviceID: deviceID)
+        guard case .operationAccepted(let op2) = try await client.exchange(.apply(second)),
+              case .operationAccepted(let op3) = try await client.exchange(.apply(third)) else {
+            return XCTFail("后续包必须受理")
+        }
+        let cancellation = try await client.exchange(.requestCancellation(op2))
+        XCTAssertEqual(cancellation, .cancellation(.requested))
+
+        let terminal2 = await awaitTerminalState(client, operationID: op2, timeout: 5)
+        XCTAssertTrue(terminal2?.isTerminal ?? false, "排队取消必须在 paused 队首之后仍能结算")
+        let snapshot = try await client.snapshot()
+        let state1 = snapshot.operations.first { $0.id == op1 }?.state
+        let state3 = snapshot.operations.first { $0.id == op3 }?.state
+        XCTAssertTrue(state1 == .paused || state1 == .resumablePartial, "队首保持非终态")
+        XCTAssertEqual(state3, .accepted, "第三包不得越过队首开始执行")
+        }
+    }
+
+    func testLongPollCancellationBeforeWaiterRegistrationReturnsImmediately() {
+        runEndpointTest { [self] in
         let agent = makeAgent(longPoll: 5.0)
+        let reached = OnceSignal()
+        let allow = StepGate()
+        var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        hooks.longPollBeforeRegisterHook = {
+            await reached.signal()
+            await allow.wait()
+        }
+        agent.executionTestHooks = hooks
         let client = EndpointClient(agent: agent)
         try await client.handshake()
         let start = Date()
         let task = Task {
             try await client.events(after: .init(0))
         }
+        await reached.wait()
         task.cancel()
-        let result = try? await task.value
+        await allow.release()
+        _ = try? await task.value
         let duration = Date().timeIntervalSince(start)
         XCTAssertLessThan(duration, 2.0, "取消早于 waiter 登记不得白等完整 long-poll")
-        if let result {
-            guard case .events = result else {
-                return XCTFail("取消后最终复查应为空批或取消错误，实际 \(result)")
-            }
+        let leaks = await MainActor.run { agent.longPollLeakCountsForTesting() }
+        XCTAssertEqual(leaks.sessions, 0, "取消先于登记不得残留 session")
+        XCTAssertEqual(leaks.waiters, 0, "取消先于登记不得残留 waiter")
         }
     }
 
-    func testR3CriticalPathsSurviveFiftyRounds() async throws {
+    func testLongPollLateCancelAfterCompleteDoesNotLeak() {
+        runEndpointTest { [self] in
+        let agent = makeAgent(longPoll: 0.05)
+        let reached = OnceSignal()
+        let allow = StepGate()
+        var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        hooks.longPollAfterCompleteHook = {
+            await reached.signal()
+            await allow.wait()
+        }
+        agent.executionTestHooks = hooks
+        let client = EndpointClient(agent: agent)
+        try await client.handshake()
+        let task = Task {
+            try await client.events(after: .init(0))
+        }
+        await reached.wait()
+        task.cancel()
+        await allow.release()
+        _ = try? await task.value
+        let leaks = await MainActor.run { agent.longPollLeakCountsForTesting() }
+        XCTAssertEqual(leaks.sessions, 0, "迟到取消不得残留 session")
+        XCTAssertEqual(leaks.waiters, 0, "迟到取消不得残留 waiter")
+        }
+    }
+
+    func testR4PressureMatrixFiftyRounds() {
+        runEndpointTest { [self] in
         for round in 0..<50 {
-            let agent = makeAgent(longPoll: 0.05)
-            let gate = StepGate()
-            var hooks = agent.executionTestHooks
-            hooks?.isReady = true
-            hooks?.capabilities = testCapabilities()
-            hooks?.stepExecutor = { _ in
-                await gate.wait()
-                return .success
-            }
+            let agent = makeAgent(longPoll: 0.08)
+            let reached = OnceSignal()
+            let allow = StepGate()
+            var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+            hooks.isReady = true
+            hooks.capabilities = testCapabilities()
+            hooks.stableDeviceID = "TEST-DEVICE"
+            hooks.stepExecutor = { _ in .retryableFailure }
             agent.executionTestHooks = hooks
             await agent.simulateDeviceForTesting(simulatedDevice())
-            let client = EndpointClient(agent: agent)
-            try await client.handshake()
+            let client1 = EndpointClient(agent: agent)
+            let client2 = EndpointClient(agent: agent)
+            try await client1.handshake()
+            try await client2.handshake()
             let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
-            guard case .operationAccepted(let op1) = try await client.exchange(.apply(try makePackage(deviceID: deviceID))),
-                  case .operationAccepted(let op2) = try await client.exchange(.apply(try makePackage(deviceID: deviceID))) else {
-                return XCTFail("round \(round): apply 必须受理")
+
+            async let a1 = client1.exchange(.apply(try makePackage(deviceID: deviceID)))
+            async let a2 = client2.exchange(.apply(try makePackage(deviceID: deviceID)))
+            let (r1, r2) = try await (a1, a2)
+            guard case .operationAccepted(let op1) = r1, case .operationAccepted = r2 else {
+                return XCTFail("round \(round): 双客户端首撞必须都受理")
             }
-            let cancelResponse = try await client.exchange(.requestCancellation(op2))
-            XCTAssertEqual(cancelResponse, .cancellation(.requested))
-            await gate.release()
-            let terminal2 = await awaitTerminalState(client, operationID: op2, timeout: 5)
-            XCTAssertTrue(terminal2?.isTerminal ?? false, "round \(round): 排队取消必须结算")
-            _ = op1
+            try await Task.sleep(nanoseconds: 80_000_000)
+            let snapshotAfterPair = try await client1.snapshot()
+            let head = snapshotAfterPair.operations.first {
+                $0.state == .paused || $0.state == .resumablePartial
+            }
+            let queued = snapshotAfterPair.operations.first {
+                $0.id != head?.id && $0.id != op1 && !$0.state.isTerminal
+            } ?? snapshotAfterPair.operations.first {
+                $0.id != op1 && !$0.state.isTerminal && $0.state == .accepted
+            }
+            let third = try makePackage(deviceID: deviceID)
+            guard case .operationAccepted(let op3) = try await client1.exchange(.apply(third)) else {
+                return XCTFail("round \(round): 第三包必须受理")
+            }
+            if let cancelOp = queued?.id, cancelOp != op3 {
+                _ = try await client1.exchange(.requestCancellation(cancelOp))
+                let settled = await awaitTerminalState(client1, operationID: cancelOp, timeout: 5)
+                XCTAssertTrue(settled?.isTerminal ?? false, "round \(round): paused 后排队取消必须结算")
+            }
+            let state3 = try await client1.snapshot().operations.first { $0.id == op3 }?.state
+            XCTAssertEqual(state3, .accepted, "round \(round): 第三包不得越过队首")
+
+            var pollHooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+            pollHooks.longPollBeforeRegisterHook = {
+                await reached.signal()
+                await allow.wait()
+            }
+            agent.executionTestHooks = pollHooks
+
+            let cursor = try await client1.snapshot().latestEventSequence
+            let pollTask = Task { try await client1.events(after: cursor) }
+            await reached.wait()
+            pollTask.cancel()
+            await allow.release()
+            _ = try? await pollTask.value
+            let leaks = await MainActor.run { agent.longPollLeakCountsForTesting() }
+            XCTAssertEqual(leaks.sessions, 0, "round \(round): long-poll 不得残留 session")
+            XCTAssertEqual(leaks.waiters, 0, "round \(round): long-poll 不得残留 waiter")
+
+            let packet = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
+            agent.injectRawStatusPacketForTesting(packet)
             agent.shutdown()
+        }
         }
     }
 }

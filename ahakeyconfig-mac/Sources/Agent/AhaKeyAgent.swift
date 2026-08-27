@@ -162,11 +162,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let runtimeStoreCache = AhaKeyAgentRuntimeStoreCache()
     /// events 空批 long-poll 时长（秒）；测试注入短值。
     var runtimeEventsLongPollInterval: TimeInterval = 2.0
-    /// R3：long-poll 取消早于 waiter 登记的防 race 集合。仅 main 队列读写。
-    private var longPollCancelledIDs = Set<UUID>()
+    /// R4：long-poll 会话状态机。仅 main 队列。
+    private enum LongPollSession {
+        case registering
+        case waiting(CheckedContinuation<AhaKeyRuntimeEventReplayVerdict?, Never>)
+        case cancelled
+    }
+    private var longPollSessions: [UUID: LongPollSession] = [:]
+    /// long-poll 超时任务句柄（continuation 闭包为 @Sendable，不能捕获 inout）。
+    private final class LongPollTimeoutBox: @unchecked Sendable {
+        var task: Task<Void, Never>?
+    }
     /// 集成测试 seam（仅 @testable；生产为 nil）。
     var executionTestHooks: AhaKeyAgentExecutionTestHooks?
-
     /// 各活跃态超时时长（秒）：
     ///   1=PermissionRequest / 7=UserPromptSubmit → 30s（等待阶段，手动停止后无 hook 跟进）
     ///   其余工具执行态 → 60s（工具可能运行较久，避免误触发）
@@ -183,7 +191,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         socketPath: String = AhaKeyPaths.agentSocketPath,
         hookSocketURL: URL = AhaKeyPaths.runtimeHookSocketURL,
         initialPolicy: AhaKeyRuntimePolicy = AhaKeyAgent.compatibleDefaultPolicy,
-        eventReplayCapacity: Int = 256
+        eventReplayCapacity: Int = 256,
+        enableRuntimeModules: Bool = true,
+        centralManagerQueue: DispatchQueue? = nil
     ) {
         self.socketPath = socketPath
         self.hookSocketURL = hookSocketURL
@@ -192,7 +202,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 旧版会持久化虚拟拨杆覆盖，导致真实硬件档位永远无法回写。迁移时清除它。
         UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         super.init()
-        central = CBCentralManager(delegate: self, queue: nil)
+        central = CBCentralManager(delegate: self, queue: centralManagerQueue)
         Self.clearLiveSwitchState()
         self.configurationCoordinator = AhaKeyConfigurationExecutionCoordinator(
             pendingPackages: { [weak self] in
@@ -201,9 +211,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                       let candidates = try? await store.recoveryCandidates() else { return [] }
                 return candidates.map { $0.package }
             },
+            settleQueuedCancellations: { [weak self] in
+                await self?.settleQueuedCancellations()
+            },
             executePackage: { [weak self] package in
                 guard let self else { return false }
                 do {
+                    if let store = try? await self.makeRuntimeStore(),
+                       let record = try? await store.transaction(package.operationID) {
+                        if record.state == .paused || record.state == .resumablePartial {
+                            return false
+                        }
+                        if record.state.isTerminal { return true }
+                    }
                     let state = try await self.applyConfigurationPackage(package, resourceFiles: [:])
                     self.emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 执行结果：\(state.rawValue)")
                     await self.publishOperationProgress(operationID: package.operationID)
@@ -215,9 +235,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
             }
         )
-        Task {
-            await registerModules()
-            await orchestrator.applyPolicy(initialPolicy)
+        if enableRuntimeModules {
+            Task {
+                await registerModules()
+                await orchestrator.applyPolicy(initialPolicy)
+            }
         }
     }
 
@@ -250,9 +272,18 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         lockRetryItem = nil
         connectionLock.release()
         // R1：events long-poll 挂起 waiter 收尾（进程退出路径，绝不泄漏 continuation）。
-        let pendingWaiters = projectionEventWaiters
-        projectionEventWaiters.removeAll()
-        for (_, continuation) in pendingWaiters { continuation.resume(returning: nil) }
+        let flushWaiters = { [weak self] in
+            guard let self else { return }
+            let pendingWaiters = self.projectionEventWaiters
+            self.projectionEventWaiters.removeAll()
+            self.longPollSessions.removeAll()
+            for (_, continuation) in pendingWaiters { continuation.resume(returning: nil) }
+        }
+        if Thread.isMainThread {
+            flushWaiters()
+        } else {
+            DispatchQueue.main.async(execute: flushWaiters)
+        }
     }
 
     private func registerPowerProtectionModule() async {
@@ -1491,62 +1522,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             return
         }
-        guard let status = Self.parseDeviceStatus(data) else { return }
-
-        // 经 DeviceStateReducer 归并（唯一状态入口）；Agent 无 pendingSwitchOverride，
-        // reducer 产出与原始解析等价，但 pending/超时语义对后续 UI 共享可用。
-        let coreBefore = coreSnapshot
-        let reduced = DeviceStateReducer.apply(
-            .fullStatus(battery: status.battery, firmwareMain: status.firmwareMain,
-                        firmwareSub: status.firmwareSub, workMode: status.workMode,
-                        lightMode: status.lightMode, switchState: status.switchState,
-                        brightness: -1, activePictureSet: -1),
-            core: coreSnapshot, diagnostics: diagnosticsSnapshot
-        )
-        coreSnapshot = reduced.core
-        diagnosticsSnapshot = reduced.diagnostics
-
-        let hardwareSwitchState = UInt8(clamping: reduced.core.switchState)
-        let previousSwitchState = cachedSwitchState
-        cachedSwitchState = hardwareSwitchState
-        cachedLightMode = UInt8(clamping: reduced.core.lightMode)
-        if userSwitchOverride != nil {
-            userSwitchOverride = nil
-            userSwitchOverrideTimeout?.cancel()
-            userSwitchOverrideTimeout = nil
-            emit("← 收到真实拨杆状态 \(hardwareSwitchState)，已清除虚拟拨杆覆盖")
-        }
-        if previousSwitchState != hardwareSwitchState {
-            KimiTUIAdapter.applyModeIfNeeded(for: Int(hardwareSwitchState))
-        }
-        // R2-1：只在 reducer 结果确有变化时记状态日志；1.5s 后台轮询的相同状态零常规日志。
-        if reduced.core != coreBefore {
-            emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
-        }
-        // 阶段 4 写前去重：与最后已发布快照比较，相同不重复落盘（GUI 目录监听零唤醒）；
-        // 30s 无任何写入时仅 touch mtime。真实变化（或首次发布）才落盘——
-        // 一律写入键盘真实 GPIO 状态，避免旧虚拟模拟把 UI / hook 锁在错误档位。
-        let snapshot = LiveStateWriteCoalescer.Snapshot(
-            lightMode: status.lightMode,
-            switchState: Int(hardwareSwitchState),
-            workMode: max(0, status.workMode)
-        )
-        switch liveStateCoalescer.decision(for: snapshot, at: Date().timeIntervalSince1970) {
-        case .write:
-            Self.writeLiveState(
-                lightMode: UInt8(clamping: status.lightMode),
-                switchState: hardwareSwitchState,
-                workMode: UInt8(clamping: max(0, status.workMode))
-            )
-        case .touchOnly:
-            Self.touchLiveStateFile()
-        case .skip:
-            break
-        }
-
-        // R2-1：周期状态变化（电量/工作模式/灯效/拨杆）必须发布到 Runtime。
-        // 内部按投影内容去重：相同状态零 UI 发布，确有变化才发一次 deviceChanged。
-        publishDeviceChangedIfNeeded()
+        guard let status = consumeDeviceStatus(data) else { return }
 
         // 0x00 应答路由到 head 命令的 waiter（五元绑定；代际不符=迟到回包，nil 收尾）
         if let head = transportCore.inFlightCommand, head.opcode == 0x00,
@@ -1592,6 +1568,58 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             lightMode: Int(payload[base + 5]),
             switchState: Int(payload[base + 6])
         )
+    }
+
+    /// 生产 0x00 回包与测试注入的唯一消费入口（parse → reducer → cache/log/publish）。
+    @discardableResult
+    private func consumeDeviceStatus(_ data: Data) -> AgentDeviceStatus? {
+        guard let status = Self.parseDeviceStatus(data) else { return nil }
+        let coreBefore = coreSnapshot
+        let reduced = DeviceStateReducer.apply(
+            .fullStatus(battery: status.battery, firmwareMain: status.firmwareMain,
+                        firmwareSub: status.firmwareSub, workMode: status.workMode,
+                        lightMode: status.lightMode, switchState: status.switchState,
+                        brightness: -1, activePictureSet: -1),
+            core: coreSnapshot, diagnostics: diagnosticsSnapshot
+        )
+        coreSnapshot = reduced.core
+        diagnosticsSnapshot = reduced.diagnostics
+
+        let hardwareSwitchState = UInt8(clamping: reduced.core.switchState)
+        let previousSwitchState = cachedSwitchState
+        cachedSwitchState = hardwareSwitchState
+        cachedLightMode = UInt8(clamping: reduced.core.lightMode)
+        if userSwitchOverride != nil {
+            userSwitchOverride = nil
+            userSwitchOverrideTimeout?.cancel()
+            userSwitchOverrideTimeout = nil
+            emit("← 收到真实拨杆状态 \(hardwareSwitchState)，已清除虚拟拨杆覆盖")
+        }
+        if previousSwitchState != hardwareSwitchState {
+            KimiTUIAdapter.applyModeIfNeeded(for: Int(hardwareSwitchState))
+        }
+        if reduced.core != coreBefore {
+            emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+        }
+        let snapshot = LiveStateWriteCoalescer.Snapshot(
+            lightMode: status.lightMode,
+            switchState: Int(hardwareSwitchState),
+            workMode: max(0, status.workMode)
+        )
+        switch liveStateCoalescer.decision(for: snapshot, at: Date().timeIntervalSince1970) {
+        case .write:
+            Self.writeLiveState(
+                lightMode: UInt8(clamping: status.lightMode),
+                switchState: hardwareSwitchState,
+                workMode: UInt8(clamping: max(0, status.workMode))
+            )
+        case .touchOnly:
+            Self.touchLiveStateFile()
+        case .skip:
+            break
+        }
+        publishDeviceChangedIfNeeded()
+        return status
     }
 
     // MARK: - 配置事务恢复与程序执行（WBS-5.6 切片 5b）
@@ -1652,6 +1680,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         } catch {
             emit("配置事务取消失败：\(error.localizedDescription)")
             return .notFound
+        }
+    }
+
+    /// R4：纯 WAL 取消结算。不得发 BLE，可在 paused 队首之前把排队取消推到终态。
+    private func settleQueuedCancellations() async {
+        guard let store = try? await makeRuntimeStore(),
+              let candidates = try? await store.recoveryCandidates() else { return }
+        let runner = AhaKeyConfigurationTransactionRunner(store: store)
+        for candidate in candidates where candidate.state == .cancellationRequested {
+            if let settled = try? await runner.settleCancellation(operationID: candidate.operationID) {
+                emit("配置事务 \(candidate.operationID.rawValue.uuidString.prefix(8))… 排队取消已结算：\(settled.rawValue)")
+                await publishOperationProgress(operationID: candidate.operationID)
+            }
         }
     }
 
@@ -1729,8 +1770,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
+    @MainActor
+    fileprivate func programTransportIsDisconnected() -> Bool {
+        !transportCore.isReady
+    }
+
     /// 配置命令：经 DeviceTransportCore 串行队列 + 五元 waiter 下发，等 cmd 回显 ACK。
     /// 纪律与 querySwitchState 相同：waiter 绑定当前代际，断连/迟到由核心裁决。
+    /// R4：完整 BLE 命令路径仅 MainActor 访问 CoreBluetooth / waiter。
+    @MainActor
     fileprivate func sendConfigurationCommand(_ frame: Data, expectingAck ack: UInt8) async throws {
         guard transportCore.isReady, let commandChar, let peripheral else {
             throw AhaKeyAgentCommandError.disconnected
@@ -1762,6 +1810,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 资源数据块直写：CAS 源 → RGB565 编码（AhaKeyOLEDFrameEncoderCore）→ 按编码流切片
     /// → AhaKeyPictureDataPacketizer 加 session 前缀 → data 特征 → 等 0x81（session 匹配）。
+    /// R4：资源数据块直写仅 MainActor 访问 data 特征 / upload session / waiter。
+    @MainActor
     fileprivate func writeConfigurationChunk(
         digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?,
         store: AhaKeyRuntimePersistentStore
@@ -1841,6 +1891,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     /// 失败/取消收尾：先补 0x9A 回滚在途会话，再强败数据 waiter，最后清 session。
+    @MainActor
     fileprivate func abortConfigurationSession() async {
         guard let sessionID = activeUploadSessionID else { return }
         if transportCore.isReady, let commandChar, let peripheral,
@@ -1941,7 +1992,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         let waiters = projectionEventWaiters
         projectionEventWaiters.removeAll()
-        for (_, continuation) in waiters { continuation.resume(returning: nil) }
+        for (id, continuation) in waiters {
+            longPollSessions.removeValue(forKey: id)
+            continuation.resume(returning: nil)
+        }
     }
 
     /// 设备投影有变化才发布 deviceChanged。可在任意队列调用（内部落到 main）。
@@ -2131,57 +2185,106 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    /// long-poll：waiter 登记与二次 replay 复查在同一 MainActor 临界区（R2-5）。
-    ///
-    /// 临界区内先登记 waiter 再复查缓冲：
-    /// - 登记之前夹缝里发布的事件 → 复查命中，立即返回非 nil 结果（不白等完整超时）；
-    /// - 登记之后发布的事件 → publishRuntimeEvent 唤醒本 waiter（返回 nil，调用方最终复查）。
-    /// 超时/任务取消同样以 nil 收尾；continuation 绝不泄漏。
+    /// long-poll 不得整段占住 MainActor：XCTest async 用例会并行枚举，
+    /// 主线程 XCTWaiter 与 `@MainActor` 等待互锁。会话表/waiter 的短临界区才上 MainActor。
     private func longPollRuntimeEvents(
         after cursor: AhaKeyRuntimeEventSequence?,
         timeout: TimeInterval
     ) async -> AhaKeyRuntimeEventReplayVerdict? {
         let id = UUID()
-        return await withTaskCancellationHandler {
+        await MainActor.run { self.longPollSessions[id] = .registering }
+        if let hook = await MainActor.run(body: { self.executionTestHooks?.longPollBeforeRegisterHook }) {
+            await hook()
+        }
+
+        enum AfterHookDecision {
+            case returnNil
+            case returnRecheck(AhaKeyRuntimeEventReplayVerdict)
+            case wait
+        }
+        let decision = await MainActor.run { () -> AfterHookDecision in
+            switch self.longPollSessions[id] {
+            case .cancelled, .none, .waiting:
+                self.longPollSessions.removeValue(forKey: id)
+                return .returnNil
+            case .registering:
+                break
+            }
+            let recheck = self.replayVerdictOnMain(after: cursor)
+            if case .success(.events(let events)) = recheck, events.isEmpty {
+                return .wait
+            }
+            self.longPollSessions.removeValue(forKey: id)
+            return .returnRecheck(recheck)
+        }
+        switch decision {
+        case .returnNil:
+            if let hook = await MainActor.run(body: { self.executionTestHooks?.longPollAfterCompleteHook }) {
+                await hook()
+            }
+            return nil
+        case .returnRecheck(let recheck):
+            if let hook = await MainActor.run(body: { self.executionTestHooks?.longPollAfterCompleteHook }) {
+                await hook()
+            }
+            return recheck
+        case .wait:
+            break
+        }
+
+        let timeoutBox = LongPollTimeoutBox()
+        let verdict = await withTaskCancellationHandler {
             await withCheckedContinuation { (continuation: CheckedContinuation<AhaKeyRuntimeEventReplayVerdict?, Never>) in
-                DispatchQueue.main.async { [weak self] in
+                Task { @MainActor [weak self] in
                     guard let self else {
                         continuation.resume(returning: nil)
                         return
                     }
-                    // R3：若取消已先于登记到达，立即 resume nil（调用方最终复查）。
-                    if self.longPollCancelledIDs.remove(id) != nil {
+                    switch self.longPollSessions[id] {
+                    case .cancelled, .none:
+                        self.longPollSessions.removeValue(forKey: id)
                         continuation.resume(returning: nil)
                         return
+                    case .waiting:
+                        continuation.resume(returning: nil)
+                        return
+                    case .registering:
+                        break
                     }
-                    // 同一隔离临界区：登记 → 复查（顺序不可换：先复查后登记才会出现 lost-wakeup）。
                     self.projectionEventWaiters[id] = continuation
-                    let recheck = self.replayVerdictOnMain(after: cursor)
-                    if case .success(.events(let events)) = recheck, events.isEmpty {
-                        // 仍为空批：挂起至新事件或超时。
-                        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                            guard let pending = self?.projectionEventWaiters.removeValue(forKey: id) else { return }
-                            pending.resume(returning: nil)
-                        }
-                    } else {
-                        // 复查命中夹缝事件/断档/错误：摘除 waiter 立即返回。
-                        self.projectionEventWaiters.removeValue(forKey: id)
-                        continuation.resume(returning: recheck)
+                    self.longPollSessions[id] = .waiting(continuation)
+                    let nanoseconds = UInt64(max(timeout, 0) * 1_000_000_000)
+                    timeoutBox.task = Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: nanoseconds)
+                        self?.completeLongPoll(id, result: nil)
                     }
                 }
             }
         } onCancel: {
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
-                // R3：若 waiter 尚未登记，记录取消 ID，供登记时立即识别。
-                if self.projectionEventWaiters[id] == nil {
-                    self.longPollCancelledIDs.insert(id)
-                    return
+                switch self.longPollSessions[id] {
+                case .waiting:
+                    self.completeLongPoll(id, result: nil)
+                case .registering:
+                    self.longPollSessions[id] = .cancelled
+                case .cancelled, .none:
+                    break
                 }
-                guard let pending = self.projectionEventWaiters.removeValue(forKey: id) else { return }
-                pending.resume(returning: nil)
             }
         }
+        timeoutBox.task?.cancel()
+        if let hook = await MainActor.run(body: { self.executionTestHooks?.longPollAfterCompleteHook }) {
+            await hook()
+        }
+        return verdict
+    }
+
+    @MainActor
+    private func completeLongPoll(_ id: UUID, result: AhaKeyRuntimeEventReplayVerdict?) {
+        let continuation = projectionEventWaiters.removeValue(forKey: id)
+        longPollSessions.removeValue(forKey: id)
+        continuation?.resume(returning: result)
     }
 
     /// diagnostics 请求：返回留存的诊断/安全事件（after 游标过滤）。
@@ -2191,27 +2294,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         return .diagnosticEvents(events)
     }
 
-    /// 测试 seam：直接注入原始 0x00 回包，走真实 parse→reducer→publish 路径。
-    /// 仅 @testable 测试使用。
+    /// 测试 seam：直接注入原始 0x00 回包，走生产 `consumeDeviceStatus` 入口。
     internal func injectRawStatusPacketForTesting(_ data: Data) {
-        guard let status = Self.parseDeviceStatus(data) else { return }
-        let coreBefore = coreSnapshot
-        let reduced = DeviceStateReducer.apply(
-            .fullStatus(battery: status.battery, firmwareMain: status.firmwareMain,
-                        firmwareSub: status.firmwareSub, workMode: status.workMode,
-                        lightMode: status.lightMode, switchState: status.switchState,
-                        brightness: -1, activePictureSet: -1),
-            core: coreSnapshot, diagnostics: diagnosticsSnapshot
-        )
-        coreSnapshot = reduced.core
-        diagnosticsSnapshot = reduced.diagnostics
-        let hardwareSwitchState = UInt8(clamping: reduced.core.switchState)
-        cachedSwitchState = hardwareSwitchState
-        cachedLightMode = UInt8(clamping: reduced.core.lightMode)
-        if reduced.core != coreBefore {
-            emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
-        }
-        publishDeviceChangedIfNeeded()
+        _ = consumeDeviceStatus(data)
+    }
+
+    @MainActor
+    func longPollLeakCountsForTesting() -> (sessions: Int, waiters: Int) {
+        (longPollSessions.count, projectionEventWaiters.count)
     }
 
     /// 测试 seam：设置模拟设备投影并立即发布 deviceChanged（等效 BLE 连接/断开驱动）。
@@ -2283,9 +2373,14 @@ struct AhaKeyAgentExecutionTestHooks {
     /// 非 nil 时在 events 空批快路径之后、long-poll waiter 登记之前于 MainActor 同步调用，
     /// 用于确定性地构造 lost-wakeup 交错（R2-5 测试；生产恒 nil）。
     var eventsLongPollGapHook: (@MainActor @Sendable () -> Void)?
+    /// R4：会话已标 registering、尚未写入 waiter 时的异步屏障。
+    var longPollBeforeRegisterHook: (@Sendable () async -> Void)?
+    /// R4：long-poll continuation 已结束后、函数返回前的异步屏障（迟到取消清场）。
+    var longPollAfterCompleteHook: (@Sendable () async -> Void)?
 }
 
-/// 程序执行 seam 的 agent BLE 实现（agent 全部状态在 main 队列访问，故 @unchecked）。
+/// 程序执行 seam：仅通过 MainActor 隔离方法触达 CoreBluetooth / waiter / upload session。
+/// `@unchecked Sendable` 只覆盖 agent 身份指针，不授权跨域读写 BLE 可变状态。
 private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTransport {
     let agent: AhaKeyAgent
     let store: AhaKeyRuntimePersistentStore
@@ -2300,10 +2395,8 @@ private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTr
         )
     }
 
-    /// 断连即视为取消（executor 随后补 0x9A 收尾）；用户取消经 runner 两阶段在步间生效。
-    func isCancellationRequested() -> Bool {
-        if Thread.isMainThread { return !agent.transportCore.isReady }
-        return DispatchQueue.main.sync { !agent.transportCore.isReady }
+    func isCancellationRequested() async -> Bool {
+        await agent.programTransportIsDisconnected()
     }
 
     func abortActiveSession() async {

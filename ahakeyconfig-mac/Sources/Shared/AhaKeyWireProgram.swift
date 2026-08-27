@@ -118,8 +118,9 @@ public protocol AhaKeyDeviceProgramTransport: Sendable {
     ///   并在块结束后等待 0x81 写入确认且校验 session 匹配；sessionID 为 nil 时
     ///   走 0x80 裸写（无 0x81 等待语义由实现按固件代际决定）。
     func writeChunk(digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?) async throws
-    /// 取消检查点：用户已请求取消时返回 true。
-    func isCancellationRequested() -> Bool
+    /// 取消检查点：链路不可用或用户已请求取消时返回 true。
+    /// 必须 async，以便实现 hop 到 MainActor 读 CoreBluetooth 状态，禁止 `DispatchQueue.main.sync`。
+    func isCancellationRequested() async -> Bool
     /// 失败/取消收尾：有在途会话时补 0x9A 回滚（尽力而为；断连时无操作）。
     func abortActiveSession() async
 }
@@ -139,7 +140,7 @@ public enum AhaKeyDeviceProgramExecutor {
         var activeSession: UInt16?
         do {
             for step in program {
-                if transport.isCancellationRequested() {
+                if await transport.isCancellationRequested() {
                     throw AhaKeyDeviceProgramExecutionError.cancelled
                 }
                 switch step {
