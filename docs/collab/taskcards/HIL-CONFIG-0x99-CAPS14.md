@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-0x99-CAPS14：真机 0x99 14 字节 + factory flag 挡死配置写入
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`review`（最小兼容已提交，等 Codex 验收后才恢复 HIL C1）
+状态：`active / R1`（Codex 退回两项 fail-closed 缺口；HIL C1 继续暂停）
 执行 owner：Cursor
 基线：HIL-CONFIG active；5.7 accepted @ `488097d`  
 目标：让已连接的 current 键盘能完成 0x99 协商并允许 C1 apply；不得在 HIL 卡内改业务代码。
@@ -47,3 +47,12 @@ payload 14 字节 `03 04 02 04 3F 00 C8 00 14 01 14 01 1C 01`：`protocolVersion
 - Agent 仅增加 compact factory 诊断行。
 - 门禁：定向 capabilities+caps14+step-mapper 通过；全量 **480 / 2 skipped / 0 failures**；Release App+Agent 通过；`git diff --check` 干净。
 - 未恢复 HIL C1、未刷机、未替换正在跑的 HIL agent。等 Codex 验收。
+
+### [2026-08-27 21:30] Codex：验收退回 R1（仅修两项 fail-closed）
+
+- 验收范围 `6406bb2...3e0119c`；六个产品/测试文件均在白名单内。独立定向测试 27/27 通过，`git show --check 3e0119c` 干净；Cursor 报告的全量 480/2 skipped/0 failures 与双 Release 证据记入，但因下列阻塞不重复跑全量。
+- **P1 compact/extended 歧义仍 fail-open：** 当前 parser 把任意 `factory flag + count == 14` 当 compact。把合法 26B extended 帧截成 14B 后，其字节 10...13 是 extended 的 `factorySlotBase + bundleVersion`，会被误读为 reclaim 边界并认成 current。R1 必须先校验 compact 结构关系，至少满足 `userSlotLimit > 0`、`reclaimBase >= userSlotLimit`、`reclaimLimit > reclaimBase`，否则返回 nil；新增“合法 extended fixture 的 `prefix(14)` 必须拒绝”测试。真机 `276,276,284` 必须继续通过。
+- **P2 容量不足仍被静默截短：** `resourceUploadProgram` 用 `min(frameCount, remaining)` 生成部分上传，`baseConfigurationProgram` 同样用 `min(requested, remaining)` 生成缩短的 0x95。任务卡要求容量不足整体 fail-closed，不能把一张图部分写入/绑定后当成功。R1 必须让完整请求越过 `userSlotLimit` 时整个对应程序失败，并确保 `program(for:)` 返回 nil/永久失败，不得仅返回空步骤后被当成功；base 中任一资源越界时也不得继续发键位、灯效、save 等部分配置。
+- 精确边界回归：`startFrame=270`、请求 `>6` 帧时，上传不得生成任何 chunk，0x95 不得生成截短绑定，顶层 `program(for:)` 必须为 nil；合法最后 6 帧仍可到 275，且不得使用 reclaim。
+- 保留 `3e0119c` 的主体与现有白名单。不要重做 HIL、planner、wire、Studio、固件或安装器；不要求本轮顺手简化 `startFrameIndex(slot:userRegionBase:)` 的兼容形态。
+- R1 门禁：上述两个红测先证伪旧实现，再跑 capabilities + caps14 + step-mapper 定向、完整 Swift 一轮、App+Agent Release、`git diff --check`。提交后停手重提，Codex accepted 前不得替换 HIL Agent 或恢复 C1。
