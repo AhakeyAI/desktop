@@ -3,7 +3,7 @@
 > 唯一权威事实源：`desktop/docs/windows-stabilization-plan.md`。适用范围是
 > `desktop/ahakeyconfig-win-java` 及其 Windows 发布脚本；固件仓库只读，不在本轮修改。
 >
-> 最后更新：2026-08-28。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
+> 最后更新：2026-08-29。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
 
 ## 1. 生产路径与安全不变式
 
@@ -176,8 +176,8 @@ preview-part3-release-overlay.ps1 (only with a real release baseline)
 必须以命令实际输出更新；Authenticode 签名、WiX、正式发布基线、WCHISP、
 USB/BLE/GIF/OLED/语音设备均属于外部依赖；firmware 1.4.7 HEX/provenance 开发基线已在本机。
 
-本轮实际结果（2026-08-28）：`mvn clean test` 通过（159/0/0/0），
-`mvn clean package` 通过（同样 159/0/0/0，内置
+本轮实际结果（2026-08-29）：使用仓库工具目录中的 Maven 3.9.16/JDK 17 执行
+`mvn clean test` 通过（159/0/0/0），`mvn clean package` 通过（同样 159/0/0/0，内置
 `RELEASE_ARTIFACT_CONTENTS=OK`）；Windows PowerShell 5.1 和 pwsh 7 均解析 9 个脚本
 成功；独立 `Test-ReleaseArtifactContents.ps1` 与本地 JAR 清单检查成功。
 `preview-part3-release-overlay.ps1` 未运行到编译阶段：缺少
