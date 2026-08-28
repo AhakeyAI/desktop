@@ -478,6 +478,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     @MainActor
     func sendState(_ state: UInt8) {
+        traceCommand(.sendState(state))
         updatePowerProtectionFromHook(state: state)
         pendingStateReset?.cancel()
         pendingStateReset = nil
@@ -519,11 +520,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    /// 非 MainActor 入口的显式跳转。窗口隔离由 `sendState` 的 `@MainActor` 保证。
+    /// 仅用于真正非隔离 ingress（socket 读线程上的旧纯数字协议）。
+    /// 已在 `@MainActor` 上的命令入口必须同步调用 `sendState`，不得再 hop。
     private func sendStateHoppingToMain(_ state: UInt8) {
         Task { @MainActor [weak self] in
             self?.sendState(state)
         }
+    }
+
+    private func traceCommand(_ event: AhaKeyAgentCommandTraceEvent) {
+        executionTestHooks?.commandTrace?(event)
     }
 
     /// head 命令的真实 BLE 写入（wire 协议逐字不变）。
@@ -704,6 +710,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 超时时用缓存兜底；仍然没有则返回 nil。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
+        traceCommand(.querySwitchState)
         // current-only：未 ready（未连/未协商/身份未识别）直接 nil，不注册 waiter
         guard transportCore.isReady, peripheral != nil else {
             completion(nil)
@@ -903,7 +910,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             switch request {
             case .aiState(let state):
-                DispatchQueue.main.async { [weak self] in
+                Task { @MainActor [weak self] in
                     self?.handleAIState(state)
                 }
                 return .acknowledged
@@ -931,6 +938,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         emit("监听 Hook socket: \(hookSocketURL.path)")
     }
 
+    @MainActor
     private func handleAIState(_ state: AhaKeyRuntimeHookAIState) {
         let stateValue: UInt8
         switch state.event {
@@ -943,7 +951,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case .awaitingFollowup:
             stateValue = 7
         }
-        sendStateHoppingToMain(stateValue)
+        sendState(stateValue)
     }
 
     private func approvalDecisionForCurrentState() -> AhaKeyRuntimeHookApprovalDecision {
@@ -973,7 +981,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 30, repeating: 10)
         timer.setEventHandler { [weak self] in
-            self?.checkWatchdog()
+            Task { @MainActor in
+                self?.checkWatchdog()
+            }
         }
         timer.resume()
         watchdogTimer = timer
@@ -988,6 +998,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 「超时但进程仍存活」的保持日志每个 episode 只记一次，避免 10s 周期刷屏。
     private var didLogWatchdogHold = false
 
+    @MainActor
     private func checkWatchdog() {
         guard let lastAt = lastHookStateAt else { return }
         let elapsed = Date().timeIntervalSince(lastAt)
@@ -1015,7 +1026,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             hookActivityActive = false
             powerProtection.end(.aiCodingIdleHook)
             powerProtection.end(.aiCodingLidCloseHook)
-            sendStateHoppingToMain(5)
+            sendState(5)
             lastHookStateAt = nil  // 重置，避免重复触发
         }
     }
@@ -1048,7 +1059,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if let lineData = line.data(using: .utf8),
            let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
            let cmd = obj["cmd"] as? String {
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.handleJsonCommand(cmd: cmd, obj: obj, clientFd: clientFd)
             }
             return // fd 在命令 handler 里最终关闭
@@ -1061,14 +1072,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         close(clientFd)
     }
 
-    /// 在主队列执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
+    /// 在 MainActor 上执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
+    @MainActor
     private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
         switch cmd {
         case "state":
             if let v = obj["value"] as? Int {
                 lastHookStateAt = Date()
                 didLogWatchdogHold = false
-                sendStateHoppingToMain(UInt8(clamping: v))
+                sendState(UInt8(clamping: v))
             }
             Self.replyAndClose(clientFd, ["ok": true])
 
@@ -1076,7 +1088,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             let stateValue = obj["value"] as? Int ?? 0
             let resetValue = obj["resetValue"] as? Int ?? 4
             let delayMs = max(0, obj["delayMs"] as? Int ?? 1200)
-            sendStateHoppingToMain(UInt8(clamping: stateValue))
+            sendState(UInt8(clamping: stateValue))
             scheduleStateReset(
                 to: UInt8(clamping: resetValue),
                 afterMs: delayMs,
@@ -1089,7 +1101,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             let stateValue = obj["value"] as? Int ?? 1
             lastHookStateAt = Date()
             didLogWatchdogHold = false
-            sendStateHoppingToMain(UInt8(clamping: stateValue))
+            sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
                 let body = Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
@@ -1153,18 +1165,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         ]
     }
 
+    @MainActor
     private func scheduleStateReset(to state: UInt8, afterMs: Int, reason: String) {
         pendingStateReset?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            // 延迟回落是独立 ingress，此时才 hop 回 MainActor。
             self.sendStateHoppingToMain(state)
             self.emit("自动回落灯态：\(reason)")
         }
         pendingStateReset = work
+        traceCommand(.installStateReset(state))
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(afterMs), execute: work)
     }
 
     private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {
+        guard fd >= 0 else { return }
         DispatchQueue.global(qos: .utility).async {
             if let data = try? JSONSerialization.data(withJSONObject: dict, options: []) {
                 var out = data
@@ -1782,18 +1798,28 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         capabilities: AhaKeyFirmwareCapabilities
     ) async throws -> AhaKeyRuntimeOperationState {
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
+        return try await withConfigurationTransportWindow {
+            try await self.runConfigurationProgram(
+                runner: runner, package: package, resourceFiles: resourceFiles,
+                store: store, capabilities: capabilities
+            )
+        }
+    }
+
+    /// 生产事务窗口配对：成功、抛错、取消都走同一条 begin/end。
+    private func withConfigurationTransportWindow<T>(
+        _ work: () async throws -> T
+    ) async throws -> T {
         await MainActor.run {
             if self.configurationTransportWindow.begin() {
                 self.emit("配置事务窗口开启，暂缓 0x90")
             }
+            self.traceCommand(.transportWindowBegin)
         }
         do {
-            let state = try await runConfigurationProgram(
-                runner: runner, package: package, resourceFiles: resourceFiles,
-                store: store, capabilities: capabilities
-            )
+            let value = try await work()
             await MainActor.run { self.endConfigurationTransportWindow() }
-            return state
+            return value
         } catch {
             await MainActor.run { self.endConfigurationTransportWindow() }
             throw error
@@ -1803,6 +1829,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 事务窗口收尾：计数归零时补发窗口内被暂缓的最后一次灯态。
     @MainActor
     private func endConfigurationTransportWindow() {
+        traceCommand(.transportWindowEnd)
         switch configurationTransportWindow.end() {
         case .stillOpen:
             break
@@ -2421,6 +2448,27 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         self.executionTestHooks = hooks
         self.publishDeviceChangedOnMain()
     }
+
+    /// 测试 seam：走生产 `handleJsonCommand`，不经 Unix socket。
+    @MainActor
+    func handleJsonCommandForTesting(cmd: String, obj: [String: Any]) {
+        handleJsonCommand(cmd: cmd, obj: obj, clientFd: -1)
+    }
+
+    @MainActor
+    var hasPendingStateResetForTesting: Bool { pendingStateReset != nil }
+
+    @MainActor
+    var isConfigurationTransportWindowActiveForTesting: Bool {
+        configurationTransportWindow.isActive
+    }
+
+    /// 测试 seam：生产 `withConfigurationTransportWindow` 配对（正常 / 抛错 / 取消）。
+    func withConfigurationTransportWindowForTesting<T>(
+        _ work: () async throws -> T
+    ) async throws -> T {
+        try await withConfigurationTransportWindow(work)
+    }
 }
 
 /// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
@@ -2477,6 +2525,16 @@ struct AhaKeyAgentExecutionTestHooks {
     var longPollBeforeRegisterHook: (@Sendable () async -> Void)?
     /// R4：long-poll continuation 已结束后、函数返回前的异步屏障（迟到取消清场）。
     var longPollAfterCompleteHook: (@Sendable () async -> Void)?
+    /// C-1R2：命令时序 / 事务窗口配对观察（生产恒 nil）。
+    var commandTrace: (@Sendable (AhaKeyAgentCommandTraceEvent) -> Void)?
+}
+
+enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {
+    case sendState(UInt8)
+    case installStateReset(UInt8)
+    case querySwitchState
+    case transportWindowBegin
+    case transportWindowEnd
 }
 
 /// 程序执行 seam：仅通过 MainActor 隔离方法触达 CoreBluetooth / waiter / upload session。

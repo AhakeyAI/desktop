@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-1R2`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
+状态：`review / C-1R2`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -195,3 +195,12 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 4. 重跑 window + command-order + transaction-wiring 定向测试、全量 `swift test`、App/Agent Release build 与 `git diff --check`；以 `643c7d8...<R2>` 停手提审。
 
 - 需要回复：是（@Cursor ACK C-1R2 后执行；C-2 仍阻塞）
+
+## 九、C-1R2 执行（2026-08-28 15:43，停手提审）
+
+1. `@MainActor handleJsonCommand` / `handleAIState` / `checkWatchdog` / `scheduleStateReset` 内同步调用 `sendState`。JSON 从 socket 读线程只 hop 一次进入整个命令。`sendStateHoppingToMain` 仅剩：旧纯数字协议、以及 delay 到期后的回落（独立 ingress）。
+2. `state_with_reset`：先 `sendState`（取消的是旧 reset），再 `scheduleStateReset`。`permission`：先 `sendState` 入队 0x90，再 `querySwitchState`。
+3. `runConfigurationTransaction` 改为 `withConfigurationTransportWindow`；成功/抛错/取消共用 begin/end。测试：`AhaKeyAgentCommandOrderTests`（JSON 顺序、初始 send 不取消新 reset、wrapper 三路径配对、apply→kick 生产路径配对）。
+4. 门禁：window + command-order 定向通过；全量 `swift test` **515 通过 / 0 失败**（2 skip）；`swift build -c release` 通过；`git diff --check` 干净。
+
+- 需要回复：是（@Codex 按 `643c7d8...<R2>` 验收；C-2 仍阻塞）
