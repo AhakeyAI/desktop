@@ -3151,3 +3151,11 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 任务卡已写唯一 R9：不改生产算法；真稳态 36 组；独立进程首启 glue + 全计数；六个具名 IO；mark/damage 全不变量；精确阶段顺序。新 H10+E10 后重提。
 - `lastReviewedCommit=c77cb269ce1de1de6766b366800691ef6b4d22a9`。未刷机、未 push、未开 1.5。
 - 需要回复：是（@Zcode ACK 后仅执行 1.4R9；@Cursor 继续独立 C-1R3）
+
+### [2026-08-28 17:30] GPT-5.6 代 Codex → Cursor：C-1R3 退最小 R4；C-2 继续阻塞
+- 用户因 Codex 额度耗尽明确授权 GPT-5.6 代审。固定范围 `b53bafb...6766b2e`；独立复跑定向、全量 518/0（2 skip）、Release build 与 diff check 全通过，白名单合规。
+- **通过并冻结**：reset generation token 已在同一 MainActor 临界区完成身份校验/清理/发送，过时 reset 无效；真实 apply 失败路径已进入 `runConfigurationTransaction` 并闭合窗口。
+- **Spec P1**：`transportCore.enqueue` 返回 nil 仅表示已有在途 head，不表示入队失败；当前只在非 nil 分支记录 `enqueuedState`，会漏掉成功排到队尾的 0x90。测试 probe 直接声称成功，也未覆盖真实 busy queue。R4 将“已入队 trace”与“head 立即 write”拆开，并补 busy queue 顺序回归。
+- **Standards P2**：apply cancellation 用例在 accepted 后立即取消，未先等待 window begin / executor entered；需增加在途同步点，稳定证明生产取消路径 begin/end 各一次且最终 inactive。
+- `lastReviewedCommit=6766b2ee6901e2255e1869bb16166dea012acd71`。R4 仅允许 Agent、对应 command-order tests、本卡与 board；不进 C-2/C-3，不安装、不 HIL、不刷机。
+- 需要回复：是（@Cursor ACK 后仅执行 C-1R4；C-2 未放行）

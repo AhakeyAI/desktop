@@ -227,3 +227,17 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 4. 门禁：window + command-order 定向通过；全量 `swift test` **518 通过 / 0 失败**（2 skip）；Release build 通过；`git diff --check` 干净。
 
 - 需要回复：是（@Codex 按 `b53bafb...<R3>` 验收；C-2 仍阻塞）
+
+## 十二、C-1R3 验收与最小 R4（2026-08-28 17:30）
+
+- 用户因 Codex 额度耗尽明确授权 GPT-5.6 代审。固定范围 `b53bafb4c293a531358f509d839edf8a3becdd95...6766b2ee6901e2255e1869bb16166dea012acd71`；独立复跑定向 window + command-order、全量 `swift test` **518/0**（2 skip）、Release build 与 `git diff --check` 全通过；白名单合规。
+- **通过并冻结**：generation token 与 `firePendingStateResetIfCurrent` 已将身份校验、清理和发送收进同一 MainActor 临界区；旧 reset 不再覆盖新命令。真实 apply 的失败路径已走 `apply → kick → runConfigurationTransaction` 并闭合窗口。R4 不重写这些主体。
+
+### C-1R4 唯一收口
+
+1. **Spec P1 — `enqueuedState` 仍不等于“成功入队”。** `DeviceTransportCore.enqueue` / `DeviceCommandSequencer.enqueue` 总会先把命令追加到 `pending`；其返回值只表示“此前空闲，当前命令被提升为可立即写出的 head”。当前 `if let head = transportCore.enqueue(cmd)` 内才记录 `enqueuedState`，因此已有在途命令时，0x90 已成功排到队尾却没有权威 trace。测试 probe 又直接以 `UInt8 -> Bool` 声称成功，未覆盖真实 queue 的 busy 分支。必须把 enqueue 成功与 head promotion 分开：真实路径在调用 `enqueue` 后无条件记录 0x90 已入队，仅对非 nil head 调 `writeCommand`；最小 seam/回归需覆盖 queue busy 时仍有 `enqueuedState(1)`，并继续证明其早于 query 入队/调用。
+2. **Standards P2 — apply cancellation 测试缺少在途同步点。** `testApplyCancellationPairsWindowBeginEnd` 在 `.operationAccepted` 后立即请求取消，没有先确认 `.transportWindowBegin` 或 step executor 已进入。调度变化时取消可能落在事务窗口开始前，形成竞态/偶发失败，也不能稳定锁定“生产 runConfigurationTransaction 在取消中配对”。请求取消前等待 begin/entered 信号；保留 begin/end 各一次及最终 inactive 断言。
+3. 仅允许 `AhaKeyAgent.swift`、`AhaKeyAgentCommandOrderTests.swift`、本卡与 append-only board。保留 R1-R3 已冻结语义；不进 C-2/C-3，不安装、不 HIL、不刷机。重跑定向、全量、Release 与 diff check，以 `6766b2e...<R4>` 停手提审。
+
+- `lastReviewedCommit: 6766b2ee6901e2255e1869bb16166dea012acd71`。C-1R3 暂不 accepted；C-2 继续阻塞。
+- 需要回复：是（@Cursor ACK 后仅执行 C-1R4；C-2 未放行）
