@@ -196,7 +196,9 @@ public enum AhaKeyConfigurationStepMapper {
         // 0x97 激活套图放最后：它写的是与 key_bund 无关的 EEPROM journal 环，
         // 一旦被设备拒绝，前面已落盘的键位/灯效/绑定不受影响。
         // 0x98 PICTURE_WRITE_END 属于 0x80 裸写会话收尾，current 每块已用 0x9B/0x81 结束，不再发。
-        if !binds.isEmpty, mode.oled.activeSet >= 0 {
+        // desired.activeSet >= 0 就必须发 0x97。纯 mapper 读不到设备当前套图，
+        // 不得用 binds.isEmpty 猜测「设备已经在目标套」而省略。
+        if mode.oled.activeSet >= 0 {
             steps.append(.setActiveTaskPictureSet(mode: mode.slot, set: UInt8(mode.oled.activeSet)))
         }
         return steps

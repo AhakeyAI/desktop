@@ -7,6 +7,60 @@ import RuntimeXPCServer
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig.agent", category: "BLE")
 
+/// 配置事务期间暂缓 0x90 的协调器。隔离由 `@MainActor` 表达；begin/end 必须配对。
+@MainActor
+final class AhaKeyConfigurationTransportWindow {
+    enum SendDecision: Equatable {
+        /// 窗口未开，调用方应立即下发。
+        case sendNow
+        /// 首次暂缓或值变化：调用方记一条常规日志。
+        case deferAndLog(UInt8)
+        /// 与当前暂缓值相同：不写下发、不写常规日志。
+        case deferSilent
+    }
+
+    enum CloseDecision: Equatable {
+        case stillOpen
+        /// 窗口归零且有暂缓值：恰好补发一次。
+        case replayAndLog(UInt8)
+        /// 窗口归零且无暂缓值：不补发。
+        case idle
+        /// end 次数超过 begin：不静默归零、不补发。
+        case unmatchedEnd
+    }
+
+    private var inFlight = 0
+    private var deferred: UInt8?
+
+    var isActive: Bool { inFlight > 0 }
+
+    /// - Returns: `true` 当 0→1，调用方记「窗口进入」。
+    @discardableResult
+    func begin() -> Bool {
+        let opened = inFlight == 0
+        inFlight += 1
+        return opened
+    }
+
+    func evaluateSend(_ state: UInt8) -> SendDecision {
+        guard inFlight > 0 else { return .sendNow }
+        if deferred == state { return .deferSilent }
+        deferred = state
+        return .deferAndLog(state)
+    }
+
+    func end() -> CloseDecision {
+        guard inFlight > 0 else { return .unmatchedEnd }
+        inFlight -= 1
+        guard inFlight == 0 else { return .stillOpen }
+        if let value = deferred {
+            deferred = nil
+            return .replayAndLog(value)
+        }
+        return .idle
+    }
+}
+
 /// 设备 8 字节状态解析结果。
 ///
 /// 与 Sources/BLE/AhaKeyProtocol.swift 的 `AhaKeyDeviceStatus` 保持同构；
@@ -96,11 +150,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var activeUploadSessionID: UInt16?
     /// 编码字节流缓存（digest → RGB565 流；CAS 源绝不直接当 flash 数据）。
     private var encodedStreamCache: [AhaKeySHA256Digest: Data] = [:]
-    /// 在飞配置事务计数：>0 期间不下发 0x90（固件收到 0x90 会全屏重绘 OLED，
-    /// 覆盖「Uploading Pic...」并与 flash 写入争 SPI）。
-    private var configurationTransactionsInFlight = 0
-    /// 事务窗口内被暂缓的最后一次灯态，窗口结束后补发一次。
-    private var stateDeferredDuringConfiguration: UInt8?
+    /// 配置事务窗口：>0 期间不下发 0x90（固件收到 0x90 会全屏重绘 OLED）。
+    /// 隔离由窗口类型的 `@MainActor` 保证。
+    @MainActor
+    private let configurationTransportWindow = AhaKeyConfigurationTransportWindow()
 
     // MARK: 状态归并（WBS-5.5 切片 4：周期帧与连接生命周期经 DeviceStateReducer）
     private var coreSnapshot = CoreDeviceSnapshot()
@@ -423,6 +476,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     // MARK: - Public
 
+    @MainActor
     func sendState(_ state: UInt8) {
         updatePowerProtectionFromHook(state: state)
         pendingStateReset?.cancel()
@@ -437,10 +491,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit("LED 状态 \(state): 未连接")
             return
         }
-        if configurationTransactionsInFlight > 0 {
-            stateDeferredDuringConfiguration = state
-            emit("LED 状态 \(state): 配置事务进行中，暂缓下发")
+        switch configurationTransportWindow.evaluateSend(state) {
+        case .deferAndLog(let value):
+            emit("LED 状态 \(value): 配置事务进行中，暂缓下发")
             return
+        case .deferSilent:
+            return
+        case .sendNow:
+            break
         }
         // current-only（WBS-5.5）：0x99 协商未到 .current 前不下发业务命令。
         guard transportCore.isReady else {
@@ -458,6 +516,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         )
         if let head = transportCore.enqueue(cmd) {
             writeCommand(head)
+        }
+    }
+
+    /// 非 MainActor 入口的显式跳转。窗口隔离由 `sendState` 的 `@MainActor` 保证。
+    private func sendStateHoppingToMain(_ state: UInt8) {
+        Task { @MainActor [weak self] in
+            self?.sendState(state)
         }
     }
 
@@ -878,7 +943,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case .awaitingFollowup:
             stateValue = 7
         }
-        sendState(stateValue)
+        sendStateHoppingToMain(stateValue)
     }
 
     private func approvalDecisionForCurrentState() -> AhaKeyRuntimeHookApprovalDecision {
@@ -950,7 +1015,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             hookActivityActive = false
             powerProtection.end(.aiCodingIdleHook)
             powerProtection.end(.aiCodingLidCloseHook)
-            sendState(5)
+            sendStateHoppingToMain(5)
             lastHookStateAt = nil  // 重置，避免重复触发
         }
     }
@@ -991,7 +1056,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         // 旧协议：纯数字当作 state，fire-and-forget
         if let state = UInt8(line) {
-            DispatchQueue.main.async { [weak self] in self?.sendState(state) }
+            sendStateHoppingToMain(state)
         }
         close(clientFd)
     }
@@ -1003,7 +1068,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             if let v = obj["value"] as? Int {
                 lastHookStateAt = Date()
                 didLogWatchdogHold = false
-                sendState(UInt8(clamping: v))
+                sendStateHoppingToMain(UInt8(clamping: v))
             }
             Self.replyAndClose(clientFd, ["ok": true])
 
@@ -1011,7 +1076,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             let stateValue = obj["value"] as? Int ?? 0
             let resetValue = obj["resetValue"] as? Int ?? 4
             let delayMs = max(0, obj["delayMs"] as? Int ?? 1200)
-            sendState(UInt8(clamping: stateValue))
+            sendStateHoppingToMain(UInt8(clamping: stateValue))
             scheduleStateReset(
                 to: UInt8(clamping: resetValue),
                 afterMs: delayMs,
@@ -1024,7 +1089,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             let stateValue = obj["value"] as? Int ?? 1
             lastHookStateAt = Date()
             didLogWatchdogHold = false
-            sendState(UInt8(clamping: stateValue))
+            sendStateHoppingToMain(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
                 let body = Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
@@ -1092,7 +1157,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         pendingStateReset?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            self.sendState(state)
+            self.sendStateHoppingToMain(state)
             self.emit("自动回落灯态：\(reason)")
         }
         pendingStateReset = work
@@ -1717,7 +1782,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         capabilities: AhaKeyFirmwareCapabilities
     ) async throws -> AhaKeyRuntimeOperationState {
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
-        await MainActor.run { self.configurationTransactionsInFlight += 1 }
+        await MainActor.run {
+            if self.configurationTransportWindow.begin() {
+                self.emit("配置事务窗口开启，暂缓 0x90")
+            }
+        }
         do {
             let state = try await runConfigurationProgram(
                 runner: runner, package: package, resourceFiles: resourceFiles,
@@ -1734,11 +1803,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 事务窗口收尾：计数归零时补发窗口内被暂缓的最后一次灯态。
     @MainActor
     private func endConfigurationTransportWindow() {
-        configurationTransactionsInFlight = max(0, configurationTransactionsInFlight - 1)
-        guard configurationTransactionsInFlight == 0,
-              let deferred = stateDeferredDuringConfiguration else { return }
-        stateDeferredDuringConfiguration = nil
-        sendState(deferred)
+        switch configurationTransportWindow.end() {
+        case .stillOpen:
+            break
+        case .idle:
+            break
+        case .replayAndLog(let deferred):
+            emit("配置事务窗口关闭，补发 LED 状态 \(deferred)")
+            sendState(deferred)
+        case .unmatchedEnd:
+            emit("配置事务窗口 end 无匹配 begin，忽略此次收尾")
+        }
     }
 
     private func runConfigurationProgram(

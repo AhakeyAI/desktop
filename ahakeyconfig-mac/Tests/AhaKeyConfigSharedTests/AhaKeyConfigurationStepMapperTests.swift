@@ -168,7 +168,8 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         XCTAssertLessThan(lastBindIndex, saveIndex)
     }
 
-    func testEmptyOledBaseOmitsActivateAndFinish() throws {
+    /// 无资源绑定仍必须发 0x97：mapper 不得用 binds.isEmpty 猜测设备当前套图。
+    func testEmptyOledBaseStillActivatesAndOmitsFinish() throws {
         let setA = try AhaKeyDesiredConfiguration.TaskSet(assets: [
             try! .init(state: .idle, resource: nil, framesPerSecond: 12),
         ])
@@ -189,8 +190,39 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
             mode: mode, desired: desired, plan: .init(transactions: [], slotAssignments: [:]),
             capabilities: capabilities()
         ))
+        XCTAssertFalse(steps.contains { if case .bindTaskPicture = $0 { return true }; return false })
         XCTAssertFalse(steps.contains { if case .finishTaskPictureWrite = $0 { return true }; return false })
+        XCTAssertEqual(steps.dropLast(1).last, .saveConfig)
+        XCTAssertEqual(steps.last, .setActiveTaskPictureSet(mode: 0, set: 0))
+        let saveIndex = try XCTUnwrap(steps.firstIndex(of: .saveConfig))
+        let activateIndex = try XCTUnwrap(steps.firstIndex(of: .setActiveTaskPictureSet(mode: 0, set: 0)))
+        XCTAssertLessThan(saveIndex, activateIndex)
+    }
+
+    /// activeSet == -1 表示尚未同步基线，这是 desired 自己的状态，不是对设备当前套图的猜测。
+    func testUnsyncedActiveSetOmitsActivateButStillSaves() throws {
+        let setA = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let setB = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let oled = try AhaKeyDesiredConfiguration.OLED(
+            defaultAnimation: nil, statusLine: "", framesPerSecond: 12,
+            taskSets: [setA, setB], activeSet: -1
+        )
+        let lightBar = try AhaKeyDesiredConfiguration.LightBar(stateMappings: [], brightness: 35)
+        let key = AhaKeyDesiredConfiguration.Key(
+            role: .approve, action: .shortcut(try! .init(keyCode: 0x28)), description: "Yes"
+        )
+        let mode = try AhaKeyDesiredConfiguration.Mode(slot: 0, keys: [key], oled: oled, lightBar: lightBar)
+        let desired = try AhaKeyDesiredConfiguration(modes: [mode])
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
+            mode: mode, desired: desired, plan: .init(transactions: [], slotAssignments: [:]),
+            capabilities: capabilities()
+        ))
         XCTAssertFalse(steps.contains { if case .setActiveTaskPictureSet = $0 { return true }; return false })
+        XCTAssertFalse(steps.contains { if case .finishTaskPictureWrite = $0 { return true }; return false })
         XCTAssertEqual(steps.last, .saveConfig)
     }
 

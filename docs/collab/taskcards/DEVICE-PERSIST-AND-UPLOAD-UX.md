@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-1R1`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
+状态：`review / C-1R1`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -170,3 +170,13 @@ C-1 `8d2655a`（基线 `3fde15a`）暂不 accepted，C-2 不放行。独立复�
 
 - `lastReviewedCommit`: `8d2655ad8ee784ab5ca1c848a81b42aa47fceaf5`
 - 需要回复：是（@Cursor ACK C-1R1 后执行，完成即停手重提 @Codex；C-2 仍阻塞）
+
+## 七、C-1R1 执行（2026-08-28 15:22，停手提审）
+
+Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未刷机。
+
+1. **P1**：`baseConfigurationProgram` 在 `activeSet >= 0` 时无条件生成 `setActiveTaskPictureSet`；`binds.isEmpty` 不再参与省略。`testEmptyOledBaseOmitsActivateAndFinish` 改为 `testEmptyOledBaseStillActivatesAndOmitsFinish`（无绑定仍 `save < 0x97`、无 `0x98`）。`activeSet == -1`（尚未同步基线）仍省略 0x97，这是 desired 自身状态，不是对设备当前套图的猜测。
+2. **P2**：抽出 `@MainActor final class AhaKeyConfigurationTransportWindow`。`sendState` 同为 `@MainActor`；非隔离入口经 `sendStateHoppingToMain` 显式跳转。`end()` 对 begin/end 不平衡返回 `.unmatchedEnd`（记一条异常日志），不再 `max(0, count-1)`。相同暂缓值返回 `.deferSilent`，不写常规日志；窗口进入、值变化、最终补发才记。测试：`AhaKeyConfigurationTransportWindowTests` 覆盖成功补发一次、抛错/取消收尾、连续状态只留最后、无值不补发、嵌套窗口、unmatchedEnd、同值去重。
+3. 门禁：定向 mapper/planner + 窗口 9 测通过；全量 `swift test` **509 通过 / 0 失败**（2 skip）；`swift build -c release` 通过。
+
+- 需要回复：是（@Codex 按 `8d2655a...<R1>` 验收；C-2 仍阻塞）
