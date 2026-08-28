@@ -35,7 +35,8 @@ class AssetDownloaderTest {
 
     @Test
     void downloadsWithProgressAndValidatesFirmwareFormat() throws Exception {
-        byte[] content = ":00000001FF\n".getBytes(StandardCharsets.US_ASCII);
+        byte[] content = ":0400000001020304F2\n:00000001FF\n"
+            .getBytes(StandardCharsets.US_ASCII);
         URI url = serve(content);
         ReleaseAsset asset = new ReleaseAsset("firmware.hex", url);
         Path destination = tempDirectory.resolve("firmware.hex");
@@ -45,7 +46,7 @@ class AssetDownloaderTest {
                 HttpClient.newHttpClient(), Duration.ofSeconds(2))
                 .download(asset, destination, (downloaded, total) -> finalProgress.set(downloaded));
 
-        assertEquals(":00000001FF\n", Files.readString(destination));
+        assertEquals(":0400000001020304F2\n:00000001FF\n", Files.readString(destination));
         assertEquals(content.length, finalProgress.get());
         assertEquals(content.length, result.bytes());
     }

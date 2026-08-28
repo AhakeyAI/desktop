@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Locale;
 
 /** Launches the Windows installer outside the application process and restarts on success. */
 final class WindowsUpdateInstaller {
@@ -52,6 +53,75 @@ final class WindowsUpdateInstaller {
         """;
 
     private WindowsUpdateInstaller() {}
+
+    @FunctionalInterface
+    interface SignatureVerifier {
+        SignatureVerification verify(Path installer, String expectedPublisher)
+            throws IOException;
+    }
+
+    record SignatureVerification(boolean valid, String signerSubject) {}
+
+    private static final SignatureVerifier AUTHENTICODE_VERIFIER =
+        WindowsUpdateInstaller::verifyWithPowerShell;
+
+    static void verifyDownloadedInstaller(Path installer) throws IOException {
+        String expectedPublisher = System.getProperty(
+            "ahakey.update.expectedPublisher", "").trim();
+        if (expectedPublisher.isBlank()) {
+            throw new IOException(
+                "Installer publisher policy is not configured; update aborted");
+        }
+        verifyDownloadedInstaller(installer, expectedPublisher, AUTHENTICODE_VERIFIER);
+    }
+
+    static void verifyDownloadedInstaller(
+        Path installer, String expectedPublisher, SignatureVerifier verifier
+    ) throws IOException {
+        if (!java.nio.file.Files.isRegularFile(installer)) {
+            throw new IOException("Downloaded installer is missing");
+        }
+        byte[] header = java.nio.file.Files.readAllBytes(installer);
+        if (header.length < 2 || header[0] != 'M' || header[1] != 'Z') {
+            throw new IOException("Downloaded installer is not a valid Windows executable");
+        }
+        SignatureVerification result = verifier.verify(installer, expectedPublisher);
+        if (result == null || !result.valid()
+            || result.signerSubject() == null
+            || !result.signerSubject().toLowerCase(Locale.ROOT)
+                .contains(expectedPublisher.toLowerCase(Locale.ROOT))) {
+            throw new IOException("Installer Authenticode signature or publisher is invalid");
+        }
+    }
+
+    private static SignatureVerification verifyWithPowerShell(
+        Path installer, String ignoredExpectedPublisher
+    ) throws IOException {
+        String path = installer.toAbsolutePath().toString().replace("'", "''");
+        List<String> command = List.of(
+            "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive",
+            "-ExecutionPolicy", "Bypass", "-Command",
+            "$s=Get-AuthenticodeSignature -LiteralPath '" + path
+                + "'; [Console]::Out.WriteLine([string]$s.Status);"
+                + "[Console]::Out.WriteLine([string]$s.SignerCertificate.Subject)"
+        );
+        try {
+            Process process = new ProcessBuilder(command)
+                .redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).trim();
+            int exit = process.waitFor();
+            String[] lines = output.split("\\R", 2);
+            return new SignatureVerification(exit == 0 && lines.length > 0
+                && "Valid".equalsIgnoreCase(lines[0].trim()),
+                lines.length > 1 ? lines[1].trim() : "");
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Authenticode verification interrupted", interrupted);
+        } catch (IOException failure) {
+            throw new IOException("Authenticode verification could not run", failure);
+        }
+    }
 
     static void launch(
         Path installer, Path currentApplication, SemanticVersion expectedVersion

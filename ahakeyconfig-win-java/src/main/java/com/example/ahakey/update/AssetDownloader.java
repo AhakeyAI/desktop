@@ -1,5 +1,7 @@
 package com.example.ahakey.update;
 
+import com.example.ahakey.firmware.IntelHexValidator;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.http.HttpClient;
@@ -107,21 +109,7 @@ public final class AssetDownloader {
                 }
             }
         } else if (lower.endsWith(".hex")) {
-            boolean record = false;
-            boolean eof = false;
-            for (String line : Files.readAllLines(file,
-                    java.nio.charset.StandardCharsets.US_ASCII)) {
-                String trimmed = line.trim();
-                if (trimmed.isEmpty()) continue;
-                if (!trimmed.matches(":[0-9A-Fa-f]+") || (trimmed.length() & 1) == 0) {
-                    throw new IOException("Downloaded firmware is not valid Intel HEX");
-                }
-                record = true;
-                if (trimmed.equalsIgnoreCase(":00000001FF")) eof = true;
-            }
-            if (!record || !eof) {
-                throw new IOException("Downloaded firmware is missing the Intel HEX end record");
-            }
+            IntelHexValidator.validate(file);
         }
     }
 

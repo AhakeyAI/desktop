@@ -15,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReleaseArtifactContentsTest {
     private static final List<String> REQUIRED = List.of(
+        "com/example/ahakey/protocol/AhaKeyProtocol.class",
+        "com/example/ahakey/protocol/AhaKeyResponseParser.class",
         "com/example/ahakey/app/WorkModeSynchronizer.class",
         "com/example/ahakey/app/ManualApprovalGate.class",
         "com/example/ahakey/service/ApprovalService.class",
@@ -30,6 +32,7 @@ class ReleaseArtifactContentsTest {
         "com/example/ahakey/app/ApplicationLifecycle.class",
         "com/example/ahakey/SingleInstanceChecker.class",
         "com/example/ahakey/firmware/IntelHexValidator.class",
+        "com/example/ahakey/update/WindowsUpdateInstaller.class",
         "com/example/ahakey/platform/windows/VoiceKeyPressState.class",
         "firmware-capabilities.properties"
     );
@@ -48,7 +51,7 @@ class ReleaseArtifactContentsTest {
     void verifierRejectsArtifactMissingAProductionClass() throws Exception {
         Result result = verify(jar("incomplete.jar", REQUIRED.subList(1, REQUIRED.size())));
         assertFalse(result.success());
-        assertTrue(result.output().contains("WorkModeSynchronizer.class"));
+        assertTrue(result.output().contains("AhaKeyProtocol.class"));
     }
 
     private Path jar(String name, List<String> entries) throws Exception {

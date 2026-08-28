@@ -18,6 +18,7 @@ public final class StableReleaseClient {
         URI.create("https://ahakey.com/stable.json");
     private static final int SUPPORTED_SCHEMA_VERSION = 1;
     private static final int MAX_MANIFEST_CHARS = 256 * 1024;
+    private static final String ALLOWED_MANIFEST_HOST = "ahakey.com";
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -165,16 +166,20 @@ public final class StableReleaseClient {
         return value == null || value.isNull() ? "" : value.asText();
     }
 
-    private static URI configuredEndpoint() {
+    static URI configuredEndpoint() {
         String override = System.getProperty(
             "ahakey.update.manifestUrl", "").trim();
         if (override.isBlank()) {
             return DEFAULT_ENDPOINT;
         }
         URI endpoint = URI.create(override);
-        if (!"https".equalsIgnoreCase(endpoint.getScheme())) {
+        if (!"https".equalsIgnoreCase(endpoint.getScheme())
+                || endpoint.getHost() == null
+                || endpoint.getUserInfo() != null
+                || !ALLOWED_MANIFEST_HOST.equalsIgnoreCase(endpoint.getHost())) {
             throw new IllegalArgumentException(
-                "ahakey.update.manifestUrl must use HTTPS");
+                "ahakey.update.manifestUrl must use HTTPS and host "
+                    + ALLOWED_MANIFEST_HOST + " without userinfo");
         }
         return endpoint;
     }

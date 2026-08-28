@@ -33,4 +33,22 @@ class IntelHexValidatorTest {
         Files.writeString(garbage, "not firmware");
         assertThrows(Exception.class, () -> IntelHexValidator.validate(garbage));
     }
+
+    @Test
+    void enforcesAbsoluteCh582AddressBoundsAndExtendedLinearAddress() throws Exception {
+        Path legal = temp.resolve("legal-max.hex");
+        Files.writeString(legal,
+            ":020000040006F4\n:01FFFF00AA57\n:00000001FF\n");
+        assertDoesNotThrow(() -> IntelHexValidator.validate(legal));
+
+        Path beyond = temp.resolve("beyond.hex");
+        Files.writeString(beyond,
+            ":020000040007F3\n:01000000AA55\n:00000001FF\n");
+        assertThrows(Exception.class, () -> IntelHexValidator.validate(beyond));
+
+        Path overlap = temp.resolve("overlap.hex");
+        Files.writeString(overlap,
+            ":020000040000FA\n:020000000102FB\n:0100010003FB\n:00000001FF\n");
+        assertThrows(Exception.class, () -> IntelHexValidator.validate(overlap));
+    }
 }

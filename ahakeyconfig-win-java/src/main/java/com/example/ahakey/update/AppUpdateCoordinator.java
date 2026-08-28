@@ -142,13 +142,14 @@ public final class AppUpdateCoordinator {
                             + (total > 0 ? " / " + total : "") + " bytes");
                     })
                 );
+                WindowsUpdateInstaller.verifyDownloadedInstaller(result.path());
                 Platform.runLater(() -> {
                     progressStage.close();
                     Alert confirm = alert(owner, Alert.AlertType.CONFIRMATION,
                         text("准备安装", "Ready to Install"),
                         text(
-                            "安装包已下载并通过基本格式检查。\n",
-                            "The installer passed basic download validation.\n"
+                            "安装包已下载并通过 MZ 与 Authenticode 发布者校验。\n",
+                            "The installer passed MZ and Authenticode publisher validation.\n"
                         ) + text(
                             "确认后将退出 AhaKeyStudio 并启动安装程序。",
                             "AhaKeyStudio will quit and start the installer."

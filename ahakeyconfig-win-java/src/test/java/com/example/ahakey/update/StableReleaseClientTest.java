@@ -24,6 +24,7 @@ class StableReleaseClientTest {
         if (server != null) {
             server.stop(0);
         }
+        System.clearProperty("ahakey.update.manifestUrl");
     }
 
     @Test
@@ -87,6 +88,26 @@ class StableReleaseClientTest {
     void mapsMissingManifestToEmpty() throws Exception {
         assertEquals(Optional.empty(),
             clientReturning(404, "{}").fetchLatest());
+    }
+
+    @Test
+    void configuredManifestEndpointRequiresPinnedHttpsHostWithoutUserinfo() {
+        assertEquals(StableReleaseClient.DEFAULT_ENDPOINT,
+            StableReleaseClient.configuredEndpoint());
+        for (String unsafe : new String[]{
+            "http://ahakey.com/stable.json",
+            "https://download.ahakey.com/stable.json",
+            "https://user:secret@ahakey.com/stable.json",
+            "/stable.json"
+        }) {
+            System.setProperty("ahakey.update.manifestUrl", unsafe);
+            assertThrows(IllegalArgumentException.class,
+                StableReleaseClient::configuredEndpoint, unsafe);
+        }
+        System.setProperty("ahakey.update.manifestUrl",
+            "https://ahakey.com/releases/stable.json");
+        assertEquals(URI.create("https://ahakey.com/releases/stable.json"),
+            StableReleaseClient.configuredEndpoint());
     }
 
     private String manifest(boolean available) {

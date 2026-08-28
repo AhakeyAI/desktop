@@ -28,6 +28,9 @@ public final class FirmwareCapabilities {
         Integer.parseInt(required("requiredDeviceModel"));
     public static final String REQUIRED_DEVICE_MODEL_NAME =
         required("requiredDeviceModelName");
+    /** Inclusive absolute address ceiling from the CH582 release linker contract. */
+    public static final long MAX_FIRMWARE_ADDRESS =
+        Long.decode(required("maxFirmwareAddress"));
 
     static {
         String[] protocol = required("requiredProtocolVersion").split("\\.", -1);
@@ -73,7 +76,7 @@ public final class FirmwareCapabilities {
         AhaKeyResponseParser.DeviceCapabilities capabilities
     ) {
         if (capabilities == null) {
-            throw new IllegalStateException("Device did not return the 0x9D capability contract");
+            throw new IllegalStateException("Device did not return the 0x9F capability contract");
         }
         SemanticVersion firmware = new SemanticVersion(
             capabilities.firmwareMajor(), capabilities.firmwareMinor(),

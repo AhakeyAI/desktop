@@ -8,6 +8,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class WindowsUpdateInstallerTest {
     @Test
@@ -56,5 +57,36 @@ class WindowsUpdateInstallerTest {
                 .toAbsolutePath().normalize(),
             expected
         );
+    }
+
+    @Test
+    void requiresValidSignatureAndExpectedPublisherBeforeLaunch() throws Exception {
+        Path installer = java.nio.file.Files.createTempFile("signed", ".exe");
+        java.nio.file.Files.write(installer, new byte[]{'M', 'Z', 0, 0});
+        var valid = (WindowsUpdateInstaller.SignatureVerifier)
+            (path, publisher) -> new WindowsUpdateInstaller.SignatureVerification(
+                true, "CN=AhaKey Software, O=AhaKey");
+        WindowsUpdateInstaller.verifyDownloadedInstaller(installer, "AhaKey", valid);
+        assertThrows(java.io.IOException.class, () ->
+            WindowsUpdateInstaller.verifyDownloadedInstaller(installer, "AhaKey",
+                (path, publisher) -> new WindowsUpdateInstaller.SignatureVerification(
+                    false, "CN=AhaKey Software")));
+        assertThrows(java.io.IOException.class, () ->
+            WindowsUpdateInstaller.verifyDownloadedInstaller(installer, "AhaKey",
+                (path, publisher) -> new WindowsUpdateInstaller.SignatureVerification(
+                    true, "CN=Untrusted")));
+        assertThrows(java.io.IOException.class, () ->
+            WindowsUpdateInstaller.verifyDownloadedInstaller(installer, "AhaKey",
+                (path, publisher) -> null));
+    }
+
+    @Test
+    void rejectsMalformedExecutableBeforeSignatureVerifier() throws Exception {
+        Path installer = java.nio.file.Files.createTempFile("malformed", ".exe");
+        java.nio.file.Files.write(installer, new byte[]{'N', 'O'});
+        assertThrows(java.io.IOException.class, () ->
+            WindowsUpdateInstaller.verifyDownloadedInstaller(installer, "AhaKey",
+                (path, publisher) -> new WindowsUpdateInstaller.SignatureVerification(
+                    true, "CN=AhaKey")));
     }
 }

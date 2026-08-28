@@ -14,6 +14,8 @@ if (-not (Test-Path -LiteralPath $resolvedJar -PathType Leaf)) {
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $requiredEntries = @(
+    "com/example/ahakey/protocol/AhaKeyProtocol.class",
+    "com/example/ahakey/protocol/AhaKeyResponseParser.class",
     "com/example/ahakey/app/WorkModeSynchronizer.class",
     "com/example/ahakey/app/ManualApprovalGate.class",
     "com/example/ahakey/service/ApprovalService.class",
@@ -29,6 +31,7 @@ $requiredEntries = @(
     "com/example/ahakey/app/ApplicationLifecycle.class",
     "com/example/ahakey/SingleInstanceChecker.class",
     "com/example/ahakey/firmware/IntelHexValidator.class",
+    "com/example/ahakey/update/WindowsUpdateInstaller.class",
     "com/example/ahakey/platform/windows/VoiceKeyPressState.class",
     "firmware-capabilities.properties"
 )

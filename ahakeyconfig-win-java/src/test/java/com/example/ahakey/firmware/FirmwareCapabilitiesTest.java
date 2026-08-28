@@ -58,6 +58,7 @@ class FirmwareCapabilitiesTest {
             FirmwareCapabilities.REQUIRED_CAPABILITY_MASK);
         assertEquals(1, FirmwareCapabilities.REQUIRED_DEVICE_MODEL);
         assertEquals("AhaKey-X1", FirmwareCapabilities.REQUIRED_DEVICE_MODEL_NAME);
+        assertEquals(0x0006FFFFL, FirmwareCapabilities.MAX_FIRMWARE_ADDRESS);
     }
 
     @Test
