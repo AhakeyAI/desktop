@@ -3159,3 +3159,8 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - **Standards P2**：apply cancellation 用例在 accepted 后立即取消，未先等待 window begin / executor entered；需增加在途同步点，稳定证明生产取消路径 begin/end 各一次且最终 inactive。
 - `lastReviewedCommit=6766b2ee6901e2255e1869bb16166dea012acd71`。R4 仅允许 Agent、对应 command-order tests、本卡与 board；不进 C-2/C-3，不安装、不 HIL、不刷机。
 - 需要回复：是（@Cursor ACK 后仅执行 C-1R4；C-2 未放行）
+
+### [2026-08-28 17:34] GPT-5.6 代 Codex：C-1R4 证据要求补充
+- 双轴复核确认 P1 更强：`stateCommandEnqueueProbe` 在 lighting/连接/ready/命令构造之前分叉并提前返回，完全没有调用真实 `DeviceTransportCore.enqueue`；R4 seam 必须落在生产命令构造/queue 边界并驱动同一 enqueue 语义，不能继续用 `UInt8 -> Bool` 自报成功。
+- P2 同步补全：取消请求前等待 window begin / executor entered；失败与取消用例除 begin/end + inactive 外，还要读取 WAL/operation，分别断言失败终态和 settled cancellation 终态，避免只凭窗口闭合推断执行分支。
+- 其余裁决不变：reset 修复冻结，C-1R3 未 accepted，C-2 继续阻塞；详细清单已合并进任务卡第十二节。

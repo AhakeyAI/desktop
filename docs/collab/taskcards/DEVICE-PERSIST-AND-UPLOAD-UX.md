@@ -235,8 +235,8 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 
 ### C-1R4 唯一收口
 
-1. **Spec P1 — `enqueuedState` 仍不等于“成功入队”。** `DeviceTransportCore.enqueue` / `DeviceCommandSequencer.enqueue` 总会先把命令追加到 `pending`；其返回值只表示“此前空闲，当前命令被提升为可立即写出的 head”。当前 `if let head = transportCore.enqueue(cmd)` 内才记录 `enqueuedState`，因此已有在途命令时，0x90 已成功排到队尾却没有权威 trace。测试 probe 又直接以 `UInt8 -> Bool` 声称成功，未覆盖真实 queue 的 busy 分支。必须把 enqueue 成功与 head promotion 分开：真实路径在调用 `enqueue` 后无条件记录 0x90 已入队，仅对非 nil head 调 `writeCommand`；最小 seam/回归需覆盖 queue busy 时仍有 `enqueuedState(1)`，并继续证明其早于 query 入队/调用。
-2. **Standards P2 — apply cancellation 测试缺少在途同步点。** `testApplyCancellationPairsWindowBeginEnd` 在 `.operationAccepted` 后立即请求取消，没有先确认 `.transportWindowBegin` 或 step executor 已进入。调度变化时取消可能落在事务窗口开始前，形成竞态/偶发失败，也不能稳定锁定“生产 runConfigurationTransaction 在取消中配对”。请求取消前等待 begin/entered 信号；保留 begin/end 各一次及最终 inactive 断言。
+1. **Spec P1 — `enqueuedState` 仍不等于“成功入队”。** `DeviceTransportCore.enqueue` / `DeviceCommandSequencer.enqueue` 总会先把命令追加到 `pending`；其返回值只表示“此前空闲，当前命令被提升为可立即写出的 head”。当前 `if let head = transportCore.enqueue(cmd)` 内才记录 `enqueuedState`，因此已有在途命令时，0x90 已成功排到队尾却没有权威 trace。测试 probe 更在 lighting/连接/ready/命令构造之前分叉并提前 return，仅以 `UInt8 -> Bool` 自报成功，完全未调用真实 `DeviceTransportCore.enqueue`，不能作为“实际 0x90 入队”的权威证据。必须把 enqueue 成功与 head promotion 分开：真实路径在调用 `enqueue` 后无条件记录 0x90 已入队，仅对非 nil head 调 `writeCommand`；测试 seam 必须位于与生产相同的命令构造/queue 边界并实际驱动该 enqueue 语义，回归覆盖 queue busy 时仍有 `enqueuedState(1)`，且早于 query 入队/调用。
+2. **Standards P2 — apply 失败/取消证据仍不闭合。** `testApplyCancellationPairsWindowBeginEnd` 在 `.operationAccepted` 后立即请求取消，没有先确认 `.transportWindowBegin` 或 step executor 已进入；调度变化时取消可能落在事务窗口开始前，形成竞态/偶发失败。失败用例仅注入 `.permanentFailure`，取消用例仅断言 cancellation request accepted；两者都未读取 WAL/operation 最终状态，窗口闭合不能单独证明闭合属于预期失败/取消路径。请求取消前等待 begin/entered 信号，并分别断言失败终态与 settled cancellation 终态；保留 begin/end 各一次及最终 inactive 断言。
 3. 仅允许 `AhaKeyAgent.swift`、`AhaKeyAgentCommandOrderTests.swift`、本卡与 append-only board。保留 R1-R3 已冻结语义；不进 C-2/C-3，不安装、不 HIL、不刷机。重跑定向、全量、Release 与 diff check，以 `6766b2e...<R4>` 停手提审。
 
 - `lastReviewedCommit: 6766b2ee6901e2255e1869bb16166dea012acd71`。C-1R3 暂不 accepted；C-2 继续阻塞。
