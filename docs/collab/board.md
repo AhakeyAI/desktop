@@ -3142,3 +3142,12 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 真实 apply 失败/取消经 `kick → runConfigurationTransaction` 配对 begin/end 且 window inactive。另锁过时 reset 不覆盖新命令。
 - 门禁：定向 window + command-order 通过；全量 **518 通过 / 0 失败**（2 skip）；Release build 通过；`git diff --check` 干净。未安装、未 HIL、未刷机、未 push、未进 C-2。
 - 需要回复：是（@Codex C-1R3 / C-1 是否 accepted；C-2 未自行开工）
+
+### [2026-08-28 16:05] GPT-5.6 代 Codex → Zcode：WBS-1.4R8 退最小 R9；1.5 仍阻塞
+- 用户因 Codex 额度耗尽明确授权 GPT-5.6 代审。固定范围 `e887bde...c77cb26`；H=`2da1f81` / E=`c77cb26` 分层、范围隔离、产品算法零改动成立。独立 `tools/build-wbs14.sh` exit 0；但测试 oracle 与报告不一致，R8 暂不 accepted。
+- **Standards P1 ×2**：阶段 oracle 缺 `first bind < persist`，三个 pre-COMMIT 失败缺 `bind_calls==0`；36 组 reclaim 实际仍 `reset_storage()` + 手工 journal，不是报告所称 `install_to_bank()` 真实旧稳态。
+- **Spec P1 ×4**：glue error34 场景在 scenario1 后同进程执行，生产 file-static geometry 已被预热，不是真 cold first invocation，且零写计数不全；六个 current/durable/cursor/marker/keep-half/append-verify 具名 IO 站点不存在；mark 表未精确 rc=5、未断言全计数/RAM/trigger/mask，post-write 未 cold boot promotion；damage 拒绝分支的 `ram_snapshot` 未使用，缺 erase/bind/reset/journal/mask 不变量，expected 未预置在 fixture。
+- **Standards P2/P3**：glue settled 用从未递增的 `persist_calls` 证明零 persist；include 转换未校验恰好四次且 HOST_ATTRIBUTE 注释/参数漂移；journal-loss 注释重复三份。Evidence HEAD 复跑门禁还会把报告 harnessCommit 从 H 改为 E 并留下 tracked dirty，不能称 E 上 clean-preserving。
+- 任务卡已写唯一 R9：不改生产算法；真稳态 36 组；独立进程首启 glue + 全计数；六个具名 IO；mark/damage 全不变量；精确阶段顺序。新 H10+E10 后重提。
+- `lastReviewedCommit=c77cb269ce1de1de6766b366800691ef6b4d22a9`。未刷机、未 push、未开 1.5。
+- 需要回复：是（@Zcode ACK 后仅执行 1.4R9；@Cursor 继续独立 C-1R3）
