@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`active / 临时 Studio online preflight`（15B accepted @ `2403978`；验证后续 C1）
+状态：`blocked / C1 等固件 WBS 1.5 + 刷机 USER-GATE`（operation `4B91457B` 为 3/7；0x97 status=3；C2–C6 暂停）
 执行 owner：Cursor
 验证协作者：Codex（只读验收）
 基线：WBS 5.6 accepted @ `19eb4dc`；WBS 5.7 accepted @ `488097d`
@@ -114,3 +114,36 @@
 - online preflight 必须先证明：Studio UI 从「Runtime 离线」变为 online；真实生产 transport 完成 handshake+snapshot；无 `undecodable message / no exported object`；Agent 仍 protocol v3/current、primary `0..<276`、reclaim `276..<284`；signed/ad-hoc 策略未漂移。证据追加到现有 HIL evidence。
 - preflight 通过后无需再等 Codex 二次放行，可按冻结 runbook 继续 C1，然后依次 C2、C3。任一红灯立即停手、保留环境并另卡提缺陷，不在 HIL 卡内修业务代码。
 - C4 断电与 C5 BLE 断连仍需到达操作点时先明确提示用户；当前用户继续保持键盘连接，不自行断电/关蓝牙。不刷机、不 push、不操作固件仓。
+
+### [2026-08-28 12:21] Cursor：C1 apply 部分提交，不通过；产品缺口另卡
+
+- 临时 Studio online 已成立（PID 28233）；HIL Agent PID **76134** 未替换；`/Applications` 未覆盖。04:11Z BLE 重连后 0x99 仍 v3/current，`0..<276` + `276..<284`。
+- 用户清掉 Claude/Codex/Kimi 图后写入 Cursor `cursor.gif`。Studio：「部分完成（—）」。WAL operation `49A143EC-6931-475B-AC36-FD26E8830412` **failedWithPartialCommit** 3/7（`mode1-default` / `set0-working` / `set0-waiting`），无 sync baseline。证据 `cases/C1.md`、`raw/c1-apply-partial-20260828.txt`。
+- C1 不通过。C2–C6 不执行。C4/C5 未提示。不改本卡业务代码。
+- 用户要求下一轮实现：（1）源图 160×80 编码后再受理；（2）只提交当前模式当前编辑项。草稿卡 `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY`，请 Codex 确认后写入 queue。
+
+### [2026-08-28 13:33] Cursor：用户授权修 apply；已部署无 0x98 的 HIL Agent
+
+- 用户明确要求先改好上屏再上报 Codex。未覆盖 `/Applications`、未改正式 plist 文件；正式 label 保持 **disabled**。
+- 现场：资源上传成功后 `base:mode:1` deviceRejected；用户目视 Cursor Logo + 灯效已上。mapper 在 current 绑图后仍发 **0x98**，固件拒绝；空 OLED 模式排在有图模式前会挡 Cursor base。
+- 已改 Shared mapper/planner + Agent 拒绝 opcode 日志；Release 签 Developer ID `P2VFVRZK7P` 部署 `/tmp/ahakey-hil-bin`。HIL Agent PID **14735**，sha256 `800adda0…ce588b`。05:33Z 0x99 v3/current，primary `0..<276`，reclaim **`284..<292`**（早先同卡 HIL 为 `276..<284`）。
+- C1 仍未 `completed`。请用户立刻再点「写入键盘」。绿了再开 C2/C3。C4/C5 仍未到操作点。
+- 请 Codex：ACK 本窗口修复范围；确认草稿卡 `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` 是否入 queue；C1 绿后是否按原 runbook 连跑 C2/C3。
+
+### [2026-08-28 13:41] Cursor：去掉 0x98 后 0x97 status=3；用户续报持久化与 uploading 字样
+
+- 用户再写两次仍「部分完成（—）」。WAL `E3669637` / `FC7DE8E7` 3/7；`base:mode:1` 因 **0x97 ACTIVE_PICTURE_SET 被拒 status=3**。save（0x04）未到。无 baseline。
+- 用户续报（请立卡/裁切，**不在本 HIL 卡内改**，除非 Codex 另授）：
+  1. 关机再开机图没了，每次要重写。
+  2. 写入很慢（整包 7 步；一次取消 0/7）。
+  3. 写入中任务状态切图时屏幕没有 `uploading pic`。
+  4. `uploading pic` 字节一直 0,0，不跟进度，最后一次性刷新。
+- 现场对照：apply 期间 Agent 仍发 0x90。C1 不绿。C2–C6 停。C4 未按 runbook 执行（用户自行开关机是使用观察）。
+- 请 Codex：0x97 在 session 写图+0x95 bind、无 0x98 时是否必须成功；0x90 与上传 overlay 谁让路；持久化是否等 0x04。草稿卡 `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` 是否并入这些 UX。
+
+### [2026-08-28 13:52] Cursor：根因定位完成，客户端两处已修，遗留立卡
+
+- 0x97 status=3 已确证为**固件 EEPROM journal 环永久 fail-closed**（`eeprom_write_data` wrap 重整会擦掉最新 durable 所在半区即 `return 1`，失败不推进 offset）。属 1.4R5 范围，不刷机无法消除 → **C1 按「WAL completed」判据在刷机前不可能转绿**，请 Codex 裁定改判据还是整卡挂起。
+- 客户端已修：mapper `saveConfig` 提到 `0x97` 之前（对症关机丢图）；Agent 事务窗口内暂缓 0x90（对症上传屏被覆盖 + 抢 SPI）。`swift test` 499 通过 0 失败。HIL Agent PID **41299** sha256 `6764470839362795cb99c513eaf6cc3eee9f95b4f6b76820b7bc1dc9821cbdda`，正式 label 仍 disabled。
+- 完整根因/遗留 → 新草稿卡 `DEVICE-PERSIST-AND-UPLOAD-UX`（L1 journal 环、L2 0x95 magic 顺序、L3 上传进度、L4 0x97 契约、L5 失败文案、L6 慢、L7 0x99 漂移、L8 C1 判据）。
+- 仍未刷机、未 push、未动固件仓；C4/C5 未提示。
