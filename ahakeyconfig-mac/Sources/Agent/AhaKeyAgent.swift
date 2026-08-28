@@ -96,6 +96,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var activeUploadSessionID: UInt16?
     /// 编码字节流缓存（digest → RGB565 流；CAS 源绝不直接当 flash 数据）。
     private var encodedStreamCache: [AhaKeySHA256Digest: Data] = [:]
+    /// 在飞配置事务计数：>0 期间不下发 0x90（固件收到 0x90 会全屏重绘 OLED，
+    /// 覆盖「Uploading Pic...」并与 flash 写入争 SPI）。
+    private var configurationTransactionsInFlight = 0
+    /// 事务窗口内被暂缓的最后一次灯态，窗口结束后补发一次。
+    private var stateDeferredDuringConfiguration: UInt8?
 
     // MARK: 状态归并（WBS-5.5 切片 4：周期帧与连接生命周期经 DeviceStateReducer）
     private var coreSnapshot = CoreDeviceSnapshot()
@@ -430,6 +435,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         guard let commandChar, let peripheral else {
             emit("LED 状态 \(state): 未连接")
+            return
+        }
+        if configurationTransactionsInFlight > 0 {
+            stateDeferredDuringConfiguration = state
+            emit("LED 状态 \(state): 配置事务进行中，暂缓下发")
             return
         }
         // current-only（WBS-5.5）：0x99 协商未到 .current 前不下发业务命令。
@@ -1707,7 +1717,38 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         capabilities: AhaKeyFirmwareCapabilities
     ) async throws -> AhaKeyRuntimeOperationState {
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
-        return try await runner.run(
+        await MainActor.run { self.configurationTransactionsInFlight += 1 }
+        do {
+            let state = try await runConfigurationProgram(
+                runner: runner, package: package, resourceFiles: resourceFiles,
+                store: store, capabilities: capabilities
+            )
+            await MainActor.run { self.endConfigurationTransportWindow() }
+            return state
+        } catch {
+            await MainActor.run { self.endConfigurationTransportWindow() }
+            throw error
+        }
+    }
+
+    /// 事务窗口收尾：计数归零时补发窗口内被暂缓的最后一次灯态。
+    @MainActor
+    private func endConfigurationTransportWindow() {
+        configurationTransactionsInFlight = max(0, configurationTransactionsInFlight - 1)
+        guard configurationTransactionsInFlight == 0,
+              let deferred = stateDeferredDuringConfiguration else { return }
+        stateDeferredDuringConfiguration = nil
+        sendState(deferred)
+    }
+
+    private func runConfigurationProgram(
+        runner: AhaKeyConfigurationTransactionRunner,
+        package: AhaKeyConfigurationPackage,
+        resourceFiles: [AhaKeyResourceIdentifier: URL],
+        store: AhaKeyRuntimePersistentStore,
+        capabilities: AhaKeyFirmwareCapabilities
+    ) async throws -> AhaKeyRuntimeOperationState {
+        try await runner.run(
             package: package,
             resourceFiles: resourceFiles,
             capabilities: capabilities,
@@ -1757,18 +1798,21 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             try await AhaKeyDeviceProgramExecutor.execute(program, over: transport)
             return .success
         } catch AhaKeyDeviceProgramExecutionError.cancelled {
+            emit("配置步骤 \(step.rawValue) 可重试失败：cancelled")
             return .retryableFailure
         } catch let error as AhaKeyAgentCommandError {
+            emit("配置步骤 \(step.rawValue) 失败：\(error)")
             switch error {
             case .deviceRejected, .resourceMissing, .malformedFrame:
                 return .permanentFailure
             case .disconnected, .ackTimedOut, .cancelled, .busy:
                 return .retryableFailure
             }
-        } catch is AhaKeyOLEDFrameEncoderCore.EncodingError {
-            // 源图片无法编码/超限：重试不会变好
+        } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
+            emit("配置步骤 \(step.rawValue) 编码失败：\(error)")
             return .permanentFailure
         } catch {
+            emit("配置步骤 \(step.rawValue) 可重试失败：\(error)")
             return .retryableFailure
         }
     }
@@ -1808,7 +1852,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 writeCommand(head)
             }
         }
-        guard response.status == 0 else { throw AhaKeyAgentCommandError.deviceRejected }
+        guard response.status == 0 else {
+            emit("配置命令 0x\(String(format: "%02X", ack)) 被设备拒绝 status=\(response.status)")
+            throw AhaKeyAgentCommandError.deviceRejected
+        }
     }
 
     /// 资源数据块直写：CAS 源 → RGB565 编码（AhaKeyOLEDFrameEncoderCore）→ 按编码流切片

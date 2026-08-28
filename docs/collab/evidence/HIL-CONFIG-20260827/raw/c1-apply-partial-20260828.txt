@@ -1,0 +1,25 @@
+[2026-08-28T03:49:19Z] 连接断开
+[2026-08-28T03:49:19Z] 已断开，30s 后重连
+[2026-08-28T03:49:49Z] 直连已知设备: 3A9D2D14…
+[2026-08-28T04:11:23Z] 已连接: AhaKey X1
+[2026-08-28T04:11:24Z] 数据通道就绪
+[2026-08-28T04:11:24Z] 命令通道就绪
+[2026-08-28T04:11:24Z] 通知通道已订阅
+[2026-08-28T04:11:24Z] → 0x99 能力查询（第 1 次）
+[2026-08-28T04:11:24Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 14 01 1C 01 CC DD
+[2026-08-28T04:11:24Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-08-28T04:11:24Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 276..<284
+[2026-08-28T04:11:24Z] current 协议协商完成，开始状态轮询
+[2026-08-28T04:11:24Z] ← 2A25 序列号 Serial Number 非编号格式，启用 UUID 兜底身份
+[2026-08-28T04:11:24Z] 无广播编号/有效序列号：使用 UUID 兜底身份 4F3E
+[2026-08-28T04:11:24Z] current 协议协商完成，开始状态轮询
+[2026-08-28T04:11:24Z] ← status battery=60 light=16 switch=0
+[2026-08-28T04:11:40Z] ← status battery=58 light=16 switch=0
+[2026-08-28T04:12:40Z] ← status battery=60 light=16 switch=0
+[2026-08-28T04:13:40Z] ← status battery=58 light=16 switch=0
+[2026-08-28T04:14:40Z] ← status battery=60 light=16 switch=0
+[2026-08-28T04:16:40Z] ← status battery=58 light=16 switch=0
+[2026-08-28T04:17:40Z] ← status battery=60 light=16 switch=0
+[2026-08-28T04:18:39Z] 配置事务 49A143EC… 受理结果：failedWithPartialCommit
+[2026-08-28T04:18:39Z] 配置事务 49A143EC… 执行结果：failedWithPartialCommit
+[2026-08-28T04:18:40Z] ← status battery=58 light=16 switch=0

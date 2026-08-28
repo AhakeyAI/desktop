@@ -68,6 +68,24 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         XCTAssertEqual(plan.transactions[1].modeSlots, [0])
     }
 
+    func testBaseModeSlotsRunPictureModesBeforeEmptyOledModes() {
+        let withPic = desired(modeSlot: 1, assets: [asset("img-a")])
+        let emptyAssets: [AhaKeyDesiredConfiguration.TaskAsset] = [
+            asset(nil, state: .idle, w: nil, h: nil, frames: nil),
+            asset(nil, state: .working, w: nil, h: nil, frames: nil),
+            asset(nil, state: .waiting, w: nil, h: nil, frames: nil),
+            asset(nil, state: .done, w: nil, h: nil, frames: nil),
+        ]
+        let empty = desired(modeSlot: 0, assets: emptyAssets)
+        let combined = try! AhaKeyDesiredConfiguration(modes: empty.modes + withPic.modes)
+        let result = AhaKeyConfigurationPlanner.plan(
+            desired: combined, resources: [meta("img-a")],
+            capabilities: capabilities(), protocolMode: .current
+        )
+        guard case .success(let plan) = result else { return XCTFail("应规划成功: \(result)") }
+        XCTAssertEqual(plan.transactions[1].modeSlots, [1, 0])
+    }
+
     func testDuplicateResourceReferenceGetsSingleSlot() {
         let d = desired(assets: [asset("img-a"), asset("img-a", state: .working)])
         let result = AhaKeyConfigurationPlanner.plan(

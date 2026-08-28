@@ -148,10 +148,49 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
                                                       startIndex: 30, frameCount: 30, intervalMs: 50)))
         XCTAssertTrue(steps.contains(.bindTaskPicture(mode: 2, set: 0, state: 0,
                                                       startIndex: 30, frameCount: 30, intervalMs: 50)))
-        // 激活套图 1 + finish + save 收尾
-        XCTAssertTrue(steps.contains(.setActiveTaskPictureSet(mode: 2, set: 1)))
-        XCTAssertEqual(steps.dropLast(2).last, .setActiveTaskPictureSet(mode: 2, set: 1))
-        XCTAssertEqual(steps.dropLast(1).last, .finishTaskPictureWrite)
+        // save 先落盘，0x97 激活套图排最后。current 不在 base 步发 0x98。
+        XCTAssertEqual(steps.dropLast(1).last, .saveConfig)
+        XCTAssertEqual(steps.last, .setActiveTaskPictureSet(mode: 2, set: 1))
+        XCTAssertFalse(steps.contains { if case .finishTaskPictureWrite = $0 { return true }; return false })
+    }
+
+    /// 0x97 写的是独立 EEPROM journal 环，被拒时不得回滚已落盘配置：save 必须严格早于 0x97。
+    func testBaseProgramSavesBeforeActivatingTaskPictureSet() throws {
+        let (desired, plan) = try modeWithEverything()
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
+            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
+        ))
+        let saveIndex = try XCTUnwrap(steps.firstIndex(of: .saveConfig))
+        let activateIndex = try XCTUnwrap(steps.firstIndex(of: .setActiveTaskPictureSet(mode: 2, set: 1)))
+        XCTAssertLessThan(saveIndex, activateIndex)
+        // 绑定必须早于 save，否则落盘的 key_bund 不含本次绑定。
+        let lastBindIndex = try XCTUnwrap(steps.lastIndex { if case .bindTaskPicture = $0 { return true }; return false })
+        XCTAssertLessThan(lastBindIndex, saveIndex)
+    }
+
+    func testEmptyOledBaseOmitsActivateAndFinish() throws {
+        let setA = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let setB = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try! .init(state: .idle, resource: nil, framesPerSecond: 12),
+        ])
+        let oled = try AhaKeyDesiredConfiguration.OLED(
+            defaultAnimation: nil, statusLine: "", framesPerSecond: 12,
+            taskSets: [setA, setB], activeSet: 0
+        )
+        let lightBar = try AhaKeyDesiredConfiguration.LightBar(stateMappings: [], brightness: 35)
+        let key = AhaKeyDesiredConfiguration.Key(
+            role: .approve, action: .shortcut(try! .init(keyCode: 0x28)), description: "Yes"
+        )
+        let mode = try AhaKeyDesiredConfiguration.Mode(slot: 0, keys: [key], oled: oled, lightBar: lightBar)
+        let desired = try AhaKeyDesiredConfiguration(modes: [mode])
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
+            mode: mode, desired: desired, plan: .init(transactions: [], slotAssignments: [:]),
+            capabilities: capabilities()
+        ))
+        XCTAssertFalse(steps.contains { if case .finishTaskPictureWrite = $0 { return true }; return false })
+        XCTAssertFalse(steps.contains { if case .setActiveTaskPictureSet = $0 { return true }; return false })
         XCTAssertEqual(steps.last, .saveConfig)
     }
 

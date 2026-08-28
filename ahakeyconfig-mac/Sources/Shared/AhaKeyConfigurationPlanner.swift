@@ -319,7 +319,19 @@ public enum AhaKeyConfigurationPlanner {
         }
         var transactions: [PlannedTransaction] = []
         if !uploads.isEmpty { transactions.append(.resources(uploads)) }
-        transactions.append(.base(modeSlots: desired.modes.map(\.slot).sorted()))
+        // 有 OLED 资源的模式先跑 base（绑定/save），避免空图模式在 0x97/0x98 上永久失败
+        // 导致后面带图模式永远执行不到、屏幕仍显示旧图。
+        let pictureSlots = desired.modes.filter(Self.modeReferencesPictures).map(\.slot).sorted()
+        let otherSlots = desired.modes.filter { !Self.modeReferencesPictures($0) }.map(\.slot).sorted()
+        transactions.append(.base(modeSlots: pictureSlots + otherSlots))
         return .success(Plan(transactions: transactions, slotAssignments: assignments))
+    }
+
+    /// 模式是否引用了任意图片资源（default 或任务槽）。
+    private static func modeReferencesPictures(_ mode: AhaKeyDesiredConfiguration.Mode) -> Bool {
+        if mode.oled.defaultAnimation != nil { return true }
+        return mode.oled.taskSets.contains { set in
+            set.assets.contains { $0.resource != nil }
+        }
     }
 }

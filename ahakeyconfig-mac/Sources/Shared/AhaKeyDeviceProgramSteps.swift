@@ -189,11 +189,16 @@ public enum AhaKeyConfigurationStepMapper {
             ))
         }
 
-        if mode.oled.activeSet >= 0 {
+        // save 必须排在 0x97 之前。0x95 绑定自身的持久化发生在固件置 set magic 之前，
+        // 只有显式 save 才会把带 magic 的 key_bund 落盘，否则重启 sanitize 会清空绑定。
+        steps.append(.saveConfig)
+
+        // 0x97 激活套图放最后：它写的是与 key_bund 无关的 EEPROM journal 环，
+        // 一旦被设备拒绝，前面已落盘的键位/灯效/绑定不受影响。
+        // 0x98 PICTURE_WRITE_END 属于 0x80 裸写会话收尾，current 每块已用 0x9B/0x81 结束，不再发。
+        if !binds.isEmpty, mode.oled.activeSet >= 0 {
             steps.append(.setActiveTaskPictureSet(mode: mode.slot, set: UInt8(mode.oled.activeSet)))
         }
-        steps.append(.finishTaskPictureWrite)
-        steps.append(.saveConfig)
         return steps
     }
 
