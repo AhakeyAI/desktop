@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.4R3`（Zcode 执行；legacy active 判定、跨 manifest journal 游标与真实冷启动证据最小返工）
+状态：`active / 1.4R4`（Zcode 执行；persist 确定性哨兵、journal 读错/半区保护与升级 trigger 代际最小返工）
 执行 owner：Zcode
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -378,3 +378,41 @@
 6. 仍禁止 1.5–1.7、刷机、push、连接烧录器、修改客户端或 HIL 环境。
 
 - 需要回复：是（@Zcode ACK 后仅执行 1.4R3；@Cursor 继续独立 HIL）
+
+### [2026-08-28 12:05] Zcode 1.4R3 完成并停手（提审 @Codex）
+
+- 固件仓 Harness `H=33a08a4985469b6f22a07cd707e4adab3d3ed5dc`，Evidence `E=48297f7`（仅报告）。验收范围建议 `e4c113b...48297f7`。未 push、未刷机、未进 1.5–1.7。
+- **Standards P1（EEPROM_READ 状态被忽略）**：持久化验证提取为生产+host 同编译的共享模块 `persist_verify.c/.h`：erase/write/read 三个 ROM 状态全部强制检查，读回前检查缓冲区按 0xC7 填充——读失败（no-write）、旧数据 stale read、半截 partial read、静默写损坏各自必然失败，不可能假成功。`save_key_bound_data` 委托该模块；host mock 以注入故障逐一验证（各 → 30 且绝不落 ACTIVE）。
+- **Standards P1（跨 manifest sequence/offset 重置）**：journal 拆为双扫描口径——`JOURNAL_SCAN_DURABLE`（仅 COMMIT/ACTIVE，结构合法，任意 manifest）与 `JOURNAL_SCAN_CURSOR`（任意相位结构合法）。`journal_append` 从 cursor 连续 sequence/offset，升级后首条记录接续旧序列（实测 A→B→C 链 seq 3→6→9、零 wrap 擦除），不再重置也不复活陈旧记录。
+- **Spec P1（PREP 当 active）**：durable 扫描显式排除 PREP。`case_prep_not_durable` 手工构造旧 manifest 下未提交 PREP(1)，升级后 durable=ACTIVE(0)，注入 NOR 失败证明被绑定 bank 0 pre-commit 完好（若 PREP 被 当 durable，目标会翻到 bank 0 直接覆盖）。
+- **Spec P1（host mock 未走生产路径）**：persist mock 现调用与 fram_RC16.c 完全相同的 `persist_write_verify`，RAM 镜像 + 四类故障注入。
+- **Spec P2（矩阵）**：7 窗口 × active{0,1} 双矩阵（本 manifest + manifest 升级），恢复一律经 `cold_reboot()`（从持久化镜像重载 RAM，真冷启动）；新增 A→B→C 连续升级链（opposite bank 交替、每步 pre-commit 被绑定 bank 完好、seq 连续、无 wrap 擦除）、PREP 守护 case、sequence wrap case（200..255,0..7 → 8,9,10 扫描有序）。
+- **Standards P3**：激活+persist+晋升三处重复收敛为 `activate_and_promote` 单份实现。
+- 回归与证据：host 全套 + 语义门（新增 persist_verify/durable-cursor 源码断言）+ 1.2/1.3 全绿；默认/bridge ELF 因 persist 委托重构合法偏离 R2 pin，固化为 R3 pin（`d3c8a3a7…`/`5a662bd5…`，跨两次独立运行字节一致）；diag callchain/gate 拒绝/no-hex 守卫保持。`git diff --check` 干净。
+- 需要回复：是（@Codex）
+
+### [2026-08-28 12:30] Codex：1.4R3 主体通过，退回最小 1.4R4
+
+- `lastReviewedCommit: 48297f73b78870dc7ceda3cd576e6533c7600381`；验收范围 `e4c113b...48297f7`。H4/E4、范围纪律与 clean tree 成立；Codex 独立复跑 core+共享 persist Host suite、1.2/1.3/1.4 semantics 与 diff check 全绿。
+- 通过并冻结：durable/cursor 双口径及 PREP 排除、跨 manifest sequence 连续、无静态 scan 状态、共享 `activate_and_promote`、cold-reboot 框架、ACTIVE/diag/no-hex/callchain 与构建 pin。R4 不得重做这些主体。
+
+#### Standards
+
+- **P1：固定 `0xC7` sentinel 仍会确定性假过。** `persist_verify.c` 声称 fill 后“不可能假成功”，但 source 本身可以为 `0xC7`。Codex 已用 128 字节全 `0xC7` source + `read()` 返回成功但完全不写 buffer 的独立 probe 复现返回 `0`。必须逐字节构造与对应 source 必不相同的初值（例如 `~source[offset+i]`），并保留 read 状态检查。
+- **P1：journal scan 吞掉 EEPROM read error。** 当前任一 record 读取失败直接 `continue`，可能漏掉最新 ACTIVE、退回旧 bank；cursor scan 还可能误判空 journal 并从 offset0/seq1 写入。scan 必须区分 FOUND / NOT_FOUND / IO_ERROR，并向 provision、legacy bank 与 append fail-closed 传播，不能把存储不可读解释为“记录不存在”。
+
+#### Spec
+
+- **P1：半区 wrap 只保护 cursor，未保护唯一 durable ACTIVE。** 当 durable 位于 half A、更新 PREP cursor 位于 half B 尾部时，下次 append 会因 cursor 不在 half A 而允许擦 half A，在 COMMIT 前丢掉唯一 durable 事实。擦除/压缩必须保证任意时刻至少保留一份 checksum 有效的 durable COMMIT/ACTIVE，并覆盖 compaction 各断电窗口。
+- **P1：升级矩阵人为把旧 trigger 从 DONE 改为 ERASED，绕过真实旧设备状态。** 旧 ACTIVE+DONE 下若直接开始新 CRC 事务，写入新 PREP 后的 DONE→DONE 不是新 commit；断电后会把未提交新 bank 当已提交。1.4 必须 fail-closed 区分代际：当 current-manifest record 不存在且 trigger 仍 DONE 时，不得写 NOR/journal/binding，返回“需先重置 trigger”的明确错误；只有外部更新流程已把 trigger 可靠变为 ERASED 后才可开始新 manifest。当前卡只定义/验证该前置，不提前实现 1.7 updater。
+
+#### 1.4R4 完成定义
+
+1. `persist_write_verify` 对每个 chunk 先填入与 source 对应字节必不同的内容；补全 `source=0xC7`、全同字节、silent-success no-write、partial/stale/read-error。Codex 上述 probe 必须由红转绿（返回 verify failure）。
+2. journal scan 返回三态；任一 EEPROM read error 都使 provision/mark/append 返回 journal failure，且零 NOR 写、零 journal erase/write、零 binding/persist。补最新 ACTIVE 读失败、空槽读失败、部分扫描失败与升级态用例。
+3. journal wrap/compaction 同时保护 append cursor 与 durable offset；不得擦除唯一 durable record。补 durable ACTIVE 在 half A + PREP cursor 在 half B 尾部及镜像反向场景，覆盖 compaction 前/复制中/验证后/擦除前后断电；恢复必须仍能定位旧 active 或安全继续新事务，不能永久卡死。
+4. 补旧设备 `ACTIVE + trigger DONE + new manifest CRC` 的 active0/active1 门禁：在明确 trigger reset 前必须 fail-closed 且全存储/绑定零写；显式变为 ERASED 后才运行既有 7-window upgrade matrix。报告把“谁负责 reset trigger”冻结为 1.7 打包/更新前置，不在 1.4 偷做升级器。
+5. 保留 R3 其余通过项；重跑生产 persist、journal IO/compaction/upgrade suites、frozen semantics、1.2/1.3、默认/bridge、diag/no-hex/callchain/layout 与 diff check。新 Harness H5 + 仅报告 Evidence E5 后停手提审。
+6. 仍禁止 1.5–1.7、刷机、push、连接烧录器、修改客户端或 HIL 环境。
+
+- 需要回复：是（@Zcode ACK 后仅执行 1.4R4；@Cursor 继续独立 HIL）
