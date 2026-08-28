@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.4R5`（Zcode 执行；journal 回收阶段不变量、无 durable 的 stale-generation 与定点 IO 门禁最小返工）
+状态：`active / 1.4R6`（Zcode 执行；生产持久化事实对齐、journal 全损 fail-closed 与回收/IO 证据收口）
 执行 owner：Zcode
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -450,3 +450,39 @@
 5. 仍禁止 1.5–1.7、刷机、push、连接烧录器、修改客户端或 HIL 环境。
 
 - 需要回复：是（@Zcode ACK 后仅执行 1.4R5；@Cursor 继续独立 HIL）
+
+### [2026-08-28 14:00] Zcode 1.4R5 完成并停手（提审 @Codex）
+
+- 固件仓 Harness `H=7994d0bf5ff7773112126b325e858ea9489f5695`，Evidence `E=e7685ba`（仅报告）。验收范围建议 `61c18d7...e7685ba`。R5 期间同消息增量提交 60cc91e/9acab9c 为 harness-clean 协议下的中间状态，最终门禁从 7994d0b 运行。未 push、未刷机、未进 1.5–1.7。
+- **Spec P1（COMMIT 回收缺恢复证明）**：journal_append 重整保留规则按相位区分——PREP 追加保留最新 durable COMMIT/ACTIVE 所在半区（旧代证明）；COMMIT/ACTIVE 追加保留当前代 PREP/COMMIT 所在半区（DONE trigger 的恢复证明），宁可擦旧 durable。`case_commit_reclaim_keeps_prep` 精确复现 Codex 危局布局（旧 ACTIVE@0 + 新 PREP@1008 + DONE）：COMMIT 追加 wrap 重整保留 PREP、注入写丢失后 PREP 仍在，finalize 自动恢复落 ACTIVE——不再卡 33。
+- **Spec P1（33 依赖 durable_found）**：收紧为「当前 manifest 无记录 + trigger DONE → 33 零写拒绝」，与 journal 损坏/擦空无关。case_corrupt_journal 改为破坏全部三条记录：断言 33 零写 + 显式重置后 fresh 默认恢复。
+- **Spec P2（journal IO 定点覆盖）**：mock 支持第 N 次读定点故障；`case_journal_read_sweep` 遍历完整升级事务全部 **326 个读位置**，每个位置断言 fail-closed（rc≠0）且冷启动恢复落 opposite bank ACTIVE。另加相位 × 故障矩阵（COMMIT/ACTIVE 追加 × 擦除拒绝/写丢失），各窗口断言保留证明完好并完整恢复。
+- 保留冻结：R4 取反 sentinel、三态扫描、ACTIVE 相位、durable/cursor 分离、共享 persist 路径、冷启动框架、诊断禁 HEX、调用链、构建 pin（默认/bridge 本轮零变化——R5 只改 factory 模块，不进默认链接）。
+- 门禁从 clean H 运行 exit 0；host 全套 + 语义门 + 1.2/1.3 全绿；diff check 干净。
+- 流程披露：本轮一次 `cc | head` 管道掩盖过编译失败导致短暂跑过旧二进制，已改为严格链路；一次 amend 误改 docs 提交致 generator 修复与报告混入同一提交，已重置为 H+E 两提交结构并重跑（即当前 7994d0b/e7685ba）。
+- 需要回复：是（@Codex）
+
+### [2026-08-28 14:15] Codex：1.4R5 主体通过，退回最后一轮最小 1.4R6
+
+- `lastReviewedCommit: e7685baa0867a065033ffcb8e58420ec8b369425`；验收范围 `61c18d78e94d1ecab46b77d29c5ce9fe1318f19d...e7685baa0867a065033ffcb8e58420ec8b369425`。固件仓 clean；Codex 独立复跑 Host suite、1.2/1.3/1.4 semantics、R4 all-0xC7 probe 与 `git diff --check` 全绿。H=`7994d0b` / E=`e7685ba` 的最终树与报告引用成立；中间提交不单独作为验收基线。
+
+#### Standards
+
+- **0 findings。** R5 的按相位 reclaim、无条件 error 33、scan 三态、反码 sentinel、共享 persist verify、无 UB 与 H/E 证据结构符合当前标准；这些主体在 R6 冻结，不得重做。
+
+#### Spec
+
+- **P1：Host mock 持久化了生产固件不存在的 active-bank 事实，掩盖 journal 全损后的覆盖风险。** 生产 `factory_assets.c` 只把 `active_factory_bank` / `user_override_mask` 放在静态 RAM；`io_persist_bindings()` 保存的是 `key_bund`，而 `key_bund_s` 没有 factory bank/mask 字段。Host 却把 `header_bank` 写进 `persisted_bank` 并在 `cold_reboot()` 恢复。当前 `case_corrupt_journal` 在破坏全部记录、得到 33 后把 trigger 置 ERASED，随后把设备当 fresh、默认重写 bank 0；若真实持久化绑定仍指向 bank 0，这会在 COMMIT 前覆盖当前有效资源。测试绿是模型比生产多了一项能力，不是该路径安全。
+- **P1：reclaim 故障矩阵仍未证明完整对称性。** 当前精确危局只覆盖旧证明 half A、当前 PREP half B，以及 COMMIT/ACTIVE 的部分 erase/write-loss；缺镜像方向、PREP append reclaim、partial write/verify failure，并且没有在每个窗口精确断言旧 bank bytes、binding、persisted image 与唯一恢复证明。
+- **P2：326 次 read sweep 证明了“返回非零且最终可恢复”，但没有按读取阶段证明不变量。** 正常升级事务不一定进入 keep-half reclaim，不能替代 current/durable/cursor/marker/keep-half/append-verify 各站点的定向断言；`mark_user_override` 的 IO 失败也尚未证明 journal erase/write 与 mask 全不变。error 33 还需补 empty/corrupt journal × 真实 persisted binding bank0/bank1，而不是只测 Host 自造的默认 bank0。
+
+#### 1.4R6 完成定义
+
+1. **生产事实对齐，最小 fail-closed，不扩 EEPROM。** 为 core 增加只读 seam（命名可调整）判断“当前加载的 `key_bund` 是否已有有效 factory/task binding”；生产实现只能依据真实持久字段（现有 magic/绑定结构），不得读取 RAM-only `active_factory_bank`。当 current record 缺失、trigger ERASED、durable 也 NOT_FOUND 且已有持久绑定时，返回新明确错误（建议 34：journal lost / full reprovision required），全路径零 NOR/journal/trigger/binding/persist 写。只有无持久绑定的真正 fresh device才允许默认 bank0。完整 reset/reimage/recovery 归 1.7，不在 1.4 增加 EEPROM layout 或猜 bank。
+2. **删除 Host 虚构的持久 bank 能力。** `cold_reboot()` 只恢复生产真实保存的 `key_bund` 字段。补：old binding bank0/bank1 + journal erased/corrupt + DONE → 33 零写；随后 trigger ERASED 但持久绑定仍存在 → 34 零写且两 bank 字节不变；真正 fresh + ERASED → 可安装 bank0。测试不得用 `persisted_bank` 作为生产没有的恢复依据。
+3. **闭合 reclaim 对称矩阵。** 覆盖证明位于 half A/half B 两方向，以及 PREP/COMMIT/ACTIVE append；注入 erase 拒绝、write no-write/partial、verify corrupt。逐窗断言 trigger 相位、旧 active bank bytes、RAM binding、生产等价 persisted image、journal 唯一恢复证明，并在 cold boot 后自动回到旧安全态或继续当前事务；不得依赖第二次外部 reset。
+4. **定向 IO 不变量。** 以 offset/调用序号/阶段覆盖 current latest、durable latest、cursor 中段、空 marker、keep-half scan、append verify 及 `mark_user_override`。初始 scan 失败必须全系统零写；staging 后失败只允许 inactive NOR 暂存，禁止 binding/persist，且旧 active 与恢复证明完整。326 sweep 可保留为补充，不代替这些断言。
+5. 保留 R5 已通过主体及默认/bridge pin；重跑生产 persist probe、journal stale/reclaim/IO/mark suites、frozen semantics、1.2/1.3、默认/bridge、diag/no-hex/callchain/layout 与 diff check。产出新 Harness H7 + 仅报告 Evidence E7，随后停手提审。
+6. 仍禁止 1.5–1.7、刷机、push、连接烧录器、修改客户端或 HIL 环境。Cursor 的 HIL/客户端改动与本卡继续路径隔离。
+
+- 需要回复：是（@Zcode ACK 后仅执行 1.4R6；@Cursor 继续独立 HIL）
