@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 对齐 macOS {@code VoiceRelayService} 的 Windows 子集：低级别键盘钩子吞掉 F17/F18，触发 Win+H。
@@ -36,6 +38,12 @@ public final class WindowsVoiceRelayService {
     private static final int WM_KEYUP = 0x0101;
     private static final int VK_F17 = 0x80;
     private static final int VK_F18 = 0x81;
+    private final VoiceKeyPressState pressedVoiceKeys = new VoiceKeyPressState();
+    private final ExecutorService voiceCommandQueue = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "win-voice-command");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private static WindowsVoiceRelayService instance;
 
@@ -187,6 +195,7 @@ public final class WindowsVoiceRelayService {
     }
 
     public void stop() {
+        pressedVoiceKeys.clear();
         if (hookThreadId != 0) {
             User32.INSTANCE.PostThreadMessage(hookThreadId, WinUser.WM_QUIT, new WPARAM(0), new LPARAM(0));
         }
@@ -228,7 +237,7 @@ public final class WindowsVoiceRelayService {
                     // 延迟一段时间后自动停止录音
                     new Thread(() -> {
                         try {
-                            Thread.sleep(3); // 录制3秒
+                            Thread.sleep(3000); // 录制3秒
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
@@ -496,8 +505,6 @@ public final class WindowsVoiceRelayService {
     }
 
     private void simulateF18Key() {
-        // F18 的虚拟键码是 0x87
-        int VK_F18 = 0x87;
         WinUser.INPUT[] inputs = (WinUser.INPUT[]) new WinUser.INPUT().toArray(2);
         fillKey(inputs[0], VK_F18, false);
         fillKey(inputs[1], VK_F18, true);
@@ -554,26 +561,25 @@ public final class WindowsVoiceRelayService {
         if (route == null) {
             return null;
         }
-        int upFlag = 0x0080;
-        if ((evt.flags & upFlag) != 0) {
-            // 按键释放
-            if (message == WM_KEYUP && onVoiceKeyUp != null) {
-                onVoiceKeyUp.run();
+        if (message == WM_KEYUP) {
+            if (pressedVoiceKeys.firstKeyUp(vk)) {
+                voiceCommandQueue.execute(() -> {
+                    Runnable callback = onVoiceKeyUp;
+                    if (callback != null) callback.run();
+                });
             }
-            return new LRESULT(1);
-        }
-        if ((evt.flags & 0x40000000) != 0) {
             return new LRESULT(1);
         }
         if (message == WM_KEYDOWN) {
-            // 按键按下
-            // 添加防抖检查，避免重复触发
-            if (onVoiceKeyDown != null) {
-                onVoiceKeyDown.run();
-            } else {
-                // 如果没有设置自定义回调，使用默认行为（发送 Win+H）
-                WindowsVoiceTyping.trigger();
+            if (pressedVoiceKeys.firstKeyDown(vk)) {
+                voiceCommandQueue.execute(() -> {
+                    Runnable callback = onVoiceKeyDown;
+                    if (callback != null) callback.run();
+                    else WindowsVoiceTyping.trigger();
+                });
             }
+            // Auto-repeat is swallowed but never queued twice.
+            return new LRESULT(1);
         }
         return new LRESULT(1);
     }

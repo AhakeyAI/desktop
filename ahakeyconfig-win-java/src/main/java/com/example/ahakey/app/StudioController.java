@@ -5,10 +5,14 @@ import com.example.ahakey.model.*;
 import com.example.ahakey.platform.VoiceRelayPlatform;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.service.AgentManager;
+import com.example.ahakey.service.ApprovalService;
 import com.example.ahakey.service.BleManager;
 import com.example.ahakey.service.DeviceSyncService;
 import com.example.ahakey.service.HookDispatchServer;
 import com.example.ahakey.service.OledUploadService;
+import com.example.ahakey.service.GifUploadRules;
+import com.example.ahakey.service.GifSelectionHistory;
+import com.example.ahakey.service.LightOperationCoordinator;
 import com.example.ahakey.service.TaskActivityService;
 import com.example.ahakey.util.OLEDFrameEncoder;
 import com.example.ahakey.util.StudioStore;
@@ -20,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -40,16 +45,17 @@ public class StudioController {
     private final boolean simulateBle;
     private final HookDispatchServer hookDispatchServer;
     private final TaskActivityService taskActivityService;
+    private final ApprovalService approvalService;
     private final Preferences preferences = Preferences.userNodeForPackage(StudioController.class);
     private final com.example.ahakey.service.KimiAhaKeyBridge kimiAhaKeyBridge;
     private volatile SemanticVersion lastKnownFirmwareVersion;
     private volatile SemanticVersion pendingFirmwareVersion;
-    private volatile int pendingUserMode = -1;
-    private volatile long pendingUserModeDeadlineNanos;
+    private final WorkModeSynchronizer workModeSynchronizer =
+        new WorkModeSynchronizer(deviceStatus, studioState);
+    private final StatusRefreshScheduler statusRefreshScheduler =
+        new StatusRefreshScheduler();
     private volatile boolean manuallyDisconnected;
     private volatile String lastConnectionError;
-    private static final long USER_MODE_CONFIRM_TIMEOUT_NANOS =
-        TimeUnit.MILLISECONDS.toNanos(2500);
 
     private int lastSyncedRevision = -1;
     
@@ -72,7 +78,8 @@ public class StudioController {
                     applyBleStatus(status);
                 });
                 // 有线（USB HID）连接时启动 Kimi AhaKey 桥接（无线模式下 9000 端口已由 BLE-TCP bridge 占用）
-                if (bleManager.isUsbConnected()) {
+                if (bleManager.isUsbConnected()
+                    && !bleManager.isBleBridgeSessionActive()) {
                     kimiAhaKeyBridge.start();
                 } else {
                     kimiAhaKeyBridge.stop();
@@ -83,7 +90,7 @@ public class StudioController {
 
             @Override
             public void onDisconnected() {
-                pendingUserMode = -1;
+                workModeSynchronizer.invalidateSession();
                 Platform.runLater(() -> deviceStatus.setConnected(false));
                 kimiAhaKeyBridge.stop();
                 // 停止定时轮询
@@ -120,19 +127,26 @@ public class StudioController {
 
         // 启动 Hook 分发服务器（接收 Codex/Claude/Cursor/Kimi hook 事件 → BLE 状态码）
         taskActivityService = new TaskActivityService(bleManager);
-        hookDispatchServer = new HookDispatchServer(bleManager, taskActivityService, HookDispatchServer.DEFAULT_PORT);
+        approvalService = new ApprovalService(bleManager);
+        hookDispatchServer = new HookDispatchServer(
+            bleManager, taskActivityService, approvalService, HookDispatchServer.DEFAULT_PORT);
+        taskActivityService.setDisplayModeListener(result -> Platform.runLater(() -> {
+            if (result.status() != TaskActivityService.DisplayModeStatus.OFFLINE_PENDING) {
+                preferences.putBoolean("task.display.multi", result.confirmedMultiMode());
+            }
+            studioState.syncStatusProperty().set(result.message());
+        }));
         taskActivityService.setMultiMode(preferences.getBoolean("task.display.multi", false));
         hookDispatchServer.setApprovalCallback(this::showApprovalDialog);
         hookDispatchServer.start();
 
-        bleManager.setModeChangeListener(mode -> Platform.runLater(() -> {
-            if (mode >= 0 && mode < ModeSlot.values().length) {
-                studioState.setSelectedMode(ModeSlot.fromIndex(mode));
-            }
-        }));
+        bleManager.setModeChangeListener(mode ->
+            Platform.runLater(() -> applyReportedWorkMode(mode)));
+        bleManager.setTransportSessionInvalidationListener(
+            workModeSynchronizer::invalidateSession);
 
         // KimiAhaKeyBridge 在设备连接后按连接类型决定是否启动（见 onConnected）
-        kimiAhaKeyBridge = new com.example.ahakey.service.KimiAhaKeyBridge(bleManager);
+        kimiAhaKeyBridge = new com.example.ahakey.service.KimiAhaKeyBridge(approvalService);
     }
 
     public BleManager getBleManager() {
@@ -182,6 +196,9 @@ public class StudioController {
     public void setMultiTaskDisplay(boolean enabled) {
         preferences.putBoolean("task.display.multi", enabled);
         taskActivityService.setMultiMode(enabled);
+        studioState.syncStatusProperty().set(deviceStatus.isConnected()
+            ? "正在等待设备确认任务显示模式…"
+            : "任务显示模式仅在本地修改，待设备重连后同步。");
     }
 
     public boolean isEffectivelyConnected() {
@@ -196,10 +213,11 @@ public class StudioController {
         voiceRelay.releaseAllSimulatedKeys();
         voiceRelay.stop();
         stopStatusPolling();
+        statusRefreshScheduler.shutdown();
         hookDispatchServer.stop();
         kimiAhaKeyBridge.stop();
         if (!simulateBle) {
-            bleManager.disconnect();
+            bleManager.shutdown();
         }
     }
     
@@ -285,12 +303,18 @@ public class StudioController {
     }
 
     public void selectKeyboardMode(ModeSlot mode) {
-        studioState.setSelectedMode(mode);
-        if (!simulateBle && deviceStatus.isConnected()) {
-            pendingUserMode = mode.getIndex();
-            pendingUserModeDeadlineNanos = System.nanoTime()
-                + USER_MODE_CONFIRM_TIMEOUT_NANOS;
-            bleManager.setWorkMode(mode.getIndex());
+        WorkModeSynchronizer.SelectionResult result = workModeSynchronizer.selectUserMode(
+            mode,
+            !simulateBle && deviceStatus.isConnected(),
+            () -> bleManager.setWorkMode(mode.getIndex())
+        );
+        switch (result) {
+            case OFFLINE_UI_ONLY -> studioState.syncStatusProperty().set(
+                "已选择 " + mode.getTitle() + "（仅本地编辑，尚未同步到设备）。");
+            case SENT_PENDING -> studioState.syncStatusProperty().set(
+                "模式命令已发送，等待设备确认。");
+            case SEND_FAILED -> studioState.syncStatusProperty().set(
+                "模式发送失败，已回滚到设备上次确认的模式。");
         }
     }
 
@@ -334,9 +358,14 @@ public class StudioController {
             return;
         }
         if (simulateBle) {
-            studioState.clearDirtyAfterSync();
-            lastSyncedRevision = studioState.getRevision();
-            studioState.syncStatusProperty().set("模拟模式：已标记为保存。");
+            int syncRevision = studioState.getRevision();
+            StudioState.DirtySnapshot dirtySnapshot =
+                studioState.captureDirtySnapshot();
+            studioState.clearDirtyAfterSync(dirtySnapshot);
+            lastSyncedRevision = syncRevision;
+            studioState.syncStatusProperty().set(studioState.getRevision() == syncRevision
+                ? "模拟模式：已标记为保存。"
+                : "模拟模式：已保存先前快照，后续修改仍待保存。");
             if (returnToAgentWhenDone) {
                 returnToKeyboardControl();
             }
@@ -353,42 +382,35 @@ public class StudioController {
 
         boolean includeVoiceKey = false;
         try {
-            var capabilities = bleManager.queryDeviceCapabilities();
-            includeVoiceKey = capabilities != null
-                && capabilities.supports(AhaKeyProtocol.CAP_VOICE_KEY_DUAL_V1);
+            var capabilities = bleManager.requireStabilizedDeviceContract();
+            includeVoiceKey = capabilities.supports(AhaKeyProtocol.CAP_VOICE_KEY_DUAL_V1);
         } catch (Exception exception) {
-            logger.info("设备未提供语音键扩展能力，继续保存普通配置: {}",
+            logger.warn("设备未满足稳定版能力合同，已阻止配置写入: {}",
                 exception.getMessage());
+            studioState.syncStatusProperty().set(
+                "设备能力合同不兼容，无法安全保存配置：" + exception.getMessage());
+            return;
         }
-        var commands = DeviceSyncService.commandsForModes(
-            studioState, includeVoiceKey, ModeSlot.values());
+        int syncRevision = studioState.getRevision();
+        StudioState.DirtySnapshot dirtySnapshot = studioState.captureDirtySnapshot();
+        var commands = List.copyOf(DeviceSyncService.commandsForModes(
+            studioState, includeVoiceKey, ModeSlot.values()));
         studioState.syncingProperty().set(true);
         studioState.syncStatusProperty().set("正在通过 " + transport + " 写入设备配置...");
         studioState.syncStatusProperty().set("正在写入设备配置...");
         studioState.syncStatusProperty().set("Saving via " + transport + "...");
-        int syncRevision = studioState.getRevision();
-        new Thread(() -> {
-            try {
-                Thread.sleep(45000);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-            if (studioState.syncingProperty().get() && studioState.getRevision() == syncRevision) {
-                Platform.runLater(() -> {
-                    studioState.syncingProperty().set(false);
-                    studioState.syncStatusProperty().set("保存超时，请重新连接键盘后再保存。");
-                });
-            }
-        }, "device-sync-watchdog").start();
-        DeviceSyncService.writeSequentially(
+        DeviceSyncService.SyncHandle syncHandle = DeviceSyncService.writeSequentially(
             bleManager,
             commands,
             () -> Platform.runLater(() -> {
-                studioState.clearDirtyAfterSync();
-                lastSyncedRevision = studioState.getRevision();
+                studioState.clearDirtyAfterSync(dirtySnapshot);
+                lastSyncedRevision = syncRevision;
                 studioState.syncingProperty().set(false);
-                studioState.syncStatusProperty().set("已保存配置。");
-                bleManager.queryStatus();
+                studioState.syncStatusProperty().set(
+                    studioState.getRevision() == syncRevision
+                        ? "已保存配置。"
+                        : "设备已保存先前快照，后续修改仍待保存。");
+                statusRefreshScheduler.submit(bleManager::queryStatus);
                 if (returnToAgentWhenDone) {
                     returnToKeyboardControl();
                 }
@@ -396,6 +418,21 @@ public class StudioController {
             () -> Platform.runLater(() -> studioState.syncingProperty().set(false)),
             msg -> Platform.runLater(() -> studioState.syncStatusProperty().set(msg))
         );
+        Thread watchdog = new Thread(() -> {
+            try {
+                Thread.sleep(45000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (syncHandle.isRunning() && studioState.syncingProperty().get()) {
+                syncHandle.cancel();
+                Platform.runLater(() -> studioState.syncStatusProperty().set(
+                    "保存超时，已请求取消；在后台事务实际退出前将阻止冲突写入。"));
+            }
+        }, "device-sync-watchdog");
+        watchdog.setDaemon(true);
+        watchdog.start();
     }
     public void previewLightOnDevice() {
         LightBarPreviewState preview = studioState.getLightBarPreview();
@@ -405,12 +442,16 @@ public class StudioController {
         }
         // 使用 IDE 状态码发送（适配当前固件，固件根据 claude_state 映射灯效）
         IDEState ideState = preview.getIdeState();
-        if (!simulateBle) {
-            bleManager.updateState((byte) ideState.getCode());
+        String success = "已发送灯效预览：" + preview.getTitle() + " → "
+            + ideState.getFullLabel();
+        if (simulateBle) {
+            studioState.syncStatusProperty().set(success);
+            return;
         }
-        studioState.syncStatusProperty().set(
-            "已发送灯效预览：" + preview.getTitle() + " → " + ideState.getFullLabel()
-        );
+        runLightOperation("light-preview", () -> LightOperationCoordinator.execute(
+            success,
+            LightOperationCoordinator.step("灯效预览写入",
+                () -> bleManager.updateStateOrThrow((byte) ideState.getCode()))));
     }
 
     public void previewLightEffectOnDevice(LightEffectStyle effect) {
@@ -421,10 +462,15 @@ public class StudioController {
             studioState.syncStatusProperty().set("请先连接键盘，再测试灯效。");
             return;
         }
-        if (!simulateBle) {
-            bleManager.setLightEffect(effect.getCode());
+        String success = "已发送灯效测试：" + effect.getTitle();
+        if (simulateBle) {
+            studioState.syncStatusProperty().set(success);
+            return;
         }
-        studioState.syncStatusProperty().set("已发送灯效测试：" + effect.getTitle());
+        runLightOperation("light-effect-preview", () -> LightOperationCoordinator.execute(
+            success,
+            LightOperationCoordinator.step("灯效写入",
+                () -> bleManager.setLightEffect(effect.getCode()))));
     }
 
     public void sendLightBrightnessToDevice() {
@@ -438,11 +484,12 @@ public class StudioController {
             studioState.syncStatusProperty().set("已发送灯光亮度：" + brightness);
             return;
         }
-        new Thread(() -> {
-            bleManager.setLightBrightness(brightness);
-            bleManager.setLightEffect(LightEffectStyle.RAINBOW_MOVE.getCode());
-            Platform.runLater(() -> studioState.syncStatusProperty().set("已发送灯光亮度：" + brightness));
-        }, "brightness-test").start();
+        runLightOperation("brightness-test", () -> LightOperationCoordinator.execute(
+                "已发送灯光亮度：" + brightness,
+                LightOperationCoordinator.step("亮度写入",
+                    () -> bleManager.setLightBrightness(brightness)),
+                LightOperationCoordinator.step("灯效写入",
+                    () -> bleManager.setLightEffect(LightEffectStyle.RAINBOW_MOVE.getCode()))));
     }
     public void syncCurrentModeLightConfig() {
         ModeSlot mode = studioState.getSelectedMode();
@@ -450,11 +497,30 @@ public class StudioController {
             studioState.syncStatusProperty().set("请先连接键盘，再保存当前模式灯效。");
             return;
         }
-        if (!simulateBle) {
-            bleManager.setAiLightConfig(mode.getIndex(), studioState.getAiLightEffectBytes(mode));
-            bleManager.setLightBrightness(studioState.getLightBrightness());
+        String success = "已保存 " + mode.getTitle() + " 的 AI 状态灯效和亮度。";
+        if (simulateBle) {
+            studioState.syncStatusProperty().set(success);
+            return;
         }
-        studioState.syncStatusProperty().set("已保存 " + mode.getTitle() + " 的 AI 状态灯效和亮度。");
+        runLightOperation("light-mode-sync", () -> LightOperationCoordinator.execute(
+            success,
+            LightOperationCoordinator.step("AI 状态灯效配置写入",
+                () -> bleManager.setAiLightConfig(
+                    mode.getIndex(), studioState.getAiLightEffectBytes(mode))),
+            LightOperationCoordinator.step("亮度写入",
+                () -> bleManager.setLightBrightness(studioState.getLightBrightness()))));
+    }
+
+    private void runLightOperation(
+        String threadName,
+        java.util.function.Supplier<LightOperationCoordinator.Result> operation
+    ) {
+        Thread worker = new Thread(() -> {
+            LightOperationCoordinator.Result result = operation.get();
+            Platform.runLater(() -> studioState.syncStatusProperty().set(result.message()));
+        }, threadName);
+        worker.setDaemon(true);
+        worker.start();
     }
 
     public void updateSwitchState(int state) {
@@ -505,15 +571,52 @@ public class StudioController {
     private boolean showApprovalDialog(String platform, String eventName) {
         if (!javafx.application.Platform.isFxApplicationThread()) {
             java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-            final boolean[] result = {false};
+            ManualApprovalGate gate = new ManualApprovalGate();
+            java.util.concurrent.atomic.AtomicReference<javafx.scene.control.Alert> alertRef =
+                new java.util.concurrent.atomic.AtomicReference<>();
             javafx.application.Platform.runLater(() -> {
-                result[0] = showApprovalDialog(platform, eventName);
+                if (gate.isCompleted()) return;
+                javafx.scene.control.Alert alert = createApprovalAlert(platform, eventName);
+                alertRef.set(alert);
+                java.util.Optional<javafx.scene.control.ButtonType> selected = alert.showAndWait();
+                javafx.scene.control.ButtonType allowButton = alert.getButtonTypes().get(0);
+                gate.complete(selected.isPresent() && selected.get() == allowButton);
                 latch.countDown();
             });
-            try { latch.await(30, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { }
-            return result[0];
+            try {
+                if (!latch.await(15, java.util.concurrent.TimeUnit.SECONDS)) {
+                    gate.timeout();
+                    javafx.application.Platform.runLater(() -> {
+                        javafx.scene.control.Alert alert = alertRef.get();
+                        if (alert != null && alert.isShowing()) alert.close();
+                    });
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                gate.timeout();
+            }
+            return gate.isAllowed();
         }
-        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        ManualApprovalGate gate = new ManualApprovalGate();
+        javafx.scene.control.Alert alert = createApprovalAlert(platform, eventName);
+        javafx.animation.PauseTransition timeout =
+            new javafx.animation.PauseTransition(javafx.util.Duration.seconds(15));
+        timeout.setOnFinished(event -> {
+            if (gate.timeout() && alert.isShowing()) alert.close();
+        });
+        timeout.play();
+        java.util.Optional<javafx.scene.control.ButtonType> result = alert.showAndWait();
+        timeout.stop();
+        javafx.scene.control.ButtonType allowButton = alert.getButtonTypes().get(0);
+        gate.complete(result.isPresent() && result.get() == allowButton);
+        return gate.isAllowed();
+    }
+
+    private javafx.scene.control.Alert createApprovalAlert(
+        String platform, String eventName
+    ) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+            javafx.scene.control.Alert.AlertType.CONFIRMATION);
         alert.setTitle(languageManager.getString("dialog.confirm-title"));
         alert.setHeaderText(null);
         alert.setContentText(String.format(languageManager.getString("dialog.confirm-content"), 
@@ -522,27 +625,16 @@ public class StudioController {
         javafx.scene.control.ButtonType okButton = new javafx.scene.control.ButtonType(languageManager.getString("dialog.allow"));
         javafx.scene.control.ButtonType cancelButton = new javafx.scene.control.ButtonType(languageManager.getString("dialog.deny"));
         alert.getButtonTypes().setAll(okButton, cancelButton);
-        
-        java.util.Optional<javafx.scene.control.ButtonType> result = alert.showAndWait();
-        return result.isPresent() && result.get() == okButton;
+        return alert;
     }
 
     private int validateLocalOledAsset(Path path, boolean isStaticImage) throws Exception {
-        OLEDFrameEncoder.validateGifSourceFileSize(path);
         if (isStaticImage) {
+            OLEDFrameEncoder.validateGifSourceFileSize(path);
             return 1;
         }
-        int count = OLEDFrameEncoder.frameCount(path);
-        int limit = localSafeGifFrameLimit();
-        if (count <= 0) {
-            throw new IllegalStateException(languageManager.getString("dialog.gif-no-frames"));
-        }
-        if (count > limit) {
-            throw new IllegalStateException(
-                String.format(languageManager.getString("dialog.gif-too-many-frames"), count, limit)
-            );
-        }
-        return count;
+        GifUploadRules.Preflight preflight = OLEDFrameEncoder.preflight(path, 0);
+        return Math.min(preflight.sourceFrames(), preflight.targetFrameLimit());
     }
 
     public void selectOledGif(javafx.stage.Window owner) {
@@ -552,6 +644,12 @@ public class StudioController {
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-png"), "*.png"));
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-jpg"), "*.jpg", "*.jpeg"));
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-all"), "*.gif", "*.png", "*.jpg", "*.jpeg"));
+        java.io.File last = GifSelectionHistory.initialLocation();
+        if (last != null) {
+            java.io.File directory = last.isDirectory() ? last : last.getParentFile();
+            if (directory != null && directory.isDirectory()) chooser.setInitialDirectory(directory);
+            if (last.isFile()) chooser.setInitialFileName(last.getName());
+        }
         var file = chooser.showOpenDialog(owner);
         if (file == null) {
             return;
@@ -563,7 +661,22 @@ public class StudioController {
             if (!isStaticImage && !isGifImage(fileName)) {
                 throw new IllegalStateException("只支持 GIF、PNG、JPG、JPEG 文件。");
             }
+            if (!isStaticImage) {
+                GifUploadRules.Preflight preflight = OLEDFrameEncoder.preflight(path, 0);
+                if (preflight.needsOptimization()) {
+                    javafx.scene.control.Alert confirmation = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.CONFIRMATION,
+                        String.format("GIF 将自动优化为 %d×%d、最多 %d 帧，并尽量保持原始总时长。是否继续？",
+                            GifUploadRules.WIDTH, GifUploadRules.HEIGHT,
+                            preflight.targetFrameLimit()),
+                        javafx.scene.control.ButtonType.OK,
+                        javafx.scene.control.ButtonType.CANCEL);
+                    if (confirmation.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL)
+                        != javafx.scene.control.ButtonType.OK) return;
+                }
+            }
             int count = validateLocalOledAsset(path, isStaticImage);
+            GifSelectionHistory.remember(path);
             studioState.applyOledGifSelection(path.toString(), count);
             studioState.syncStatusProperty().set(
                 isStaticImage
@@ -575,34 +688,6 @@ public class StudioController {
             studioState.syncStatusProperty().set("GIF / 图片导入失败：" + message);
             showOledWarning("GIF / 图片不适合上传", message);
         }
-    }
-
-    public void previewOledOnDevice() {
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("设备未连接，请先连接键盘。");
-            userConnect();
-            return;
-        }
-        OledModeDraft draft = studioState.getOledDraft();
-        String path = draft.getLocalAssetPath();
-        if (path == null || path.isBlank()) {
-            studioState.syncStatusProperty().set("请先选择 GIF。");
-            return;
-        }
-        if (simulateBle) {
-            studioState.syncStatusProperty().set("（模拟）OLED 预览已跳过。");
-            return;
-        }
-        OledUploadService.previewGif(
-            bleManager,
-            Path.of(path),
-            draft.getFramesPerSecond(),
-            msg -> Platform.runLater(() -> studioState.syncStatusProperty().set(msg)),
-            err -> Platform.runLater(() -> {
-                studioState.syncStatusProperty().set("OLED 预览失败：" + err);
-                showOledWarning("OLED 预览失败", err);
-            })
-        );
     }
 
     public void uploadCurrentOledToDevice() {
@@ -782,7 +867,6 @@ public class StudioController {
         deviceStatus.setBatteryLevel(status.getBatteryLevel());
         deviceStatus.setDeviceName(status.getDeviceName());
         deviceStatus.setTransport(status.getTransport());
-        deviceStatus.setWorkMode(status.getWorkMode());
         deviceStatus.setSwitchState(status.getSwitchState());
         deviceStatus.setConnectionReadinessKnown(status.isConnectionReadinessKnown());
         deviceStatus.setBleLinkConnected(status.isBleLinkConnected());
@@ -791,34 +875,23 @@ public class StudioController {
         if (status.isConnected()) {
             clearResolvedConnectionError();
         }
-        if (status.getWorkMode() >= 0 && status.getWorkMode() < ModeSlot.values().length) {
-            studioState.setSelectedMode(ModeSlot.fromIndex(status.getWorkMode()));
-        }
+        applyReportedWorkMode(status.getWorkMode());
+    }
 
-        int reportedMode = status.getWorkMode();
-        if (reportedMode < 0 || reportedMode >= ModeSlot.values().length) {
-            return;
-        }
-        if (pendingUserMode >= 0) {
-            if (reportedMode == pendingUserMode) {
-                pendingUserMode = -1;
-            } else if (System.nanoTime() < pendingUserModeDeadlineNanos) {
-                // Do not let an in-flight response undo a mode the user just selected.
-                return;
-            } else {
-                pendingUserMode = -1;
-            }
-        }
-
-        ModeSlot deviceMode = ModeSlot.fromIndex(reportedMode);
-        if (studioState.getSelectedMode() != deviceMode) {
-            logger.info("设备按键切换模式，同步上位机: {}", deviceMode);
-            studioState.setSelectedMode(deviceMode);
+    private void applyReportedWorkMode(int reportedMode) {
+        WorkModeSynchronizer.Action action =
+            workModeSynchronizer.applyDeviceReport(reportedMode);
+        if (action == WorkModeSynchronizer.Action.IGNORE_STALE) {
+            logger.debug("忽略尚未确认的延迟模式状态: reported={}", reportedMode);
+        } else if (action == WorkModeSynchronizer.Action.APPLY_DEVICE) {
+            logger.info("设备模式状态已同步到上位机: {}", reportedMode);
         }
     }
 
     private void persistDraft() {
-        StudioStore.save(studioState.toPersisted());
+        if (!StudioStore.save(studioState.toPersisted())) {
+            studioState.syncStatusProperty().set("本地配置保存失败；设备配置未受影响，请检查磁盘权限。");
+        }
     }
 }
 

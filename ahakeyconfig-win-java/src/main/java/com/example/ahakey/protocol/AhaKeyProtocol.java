@@ -31,13 +31,13 @@ public class AhaKeyProtocol {
     public static final byte CMD_TASK_HEARTBEAT = (byte) 0x9A;
     public static final byte CMD_MODE_SYNC = (byte) 0x9B;
     public static final byte CMD_GIF_LAYOUT = (byte) 0x9C;
-    public static final byte CMD_QUERY_CAPABILITIES = (byte) 0x9F;
+    public static final byte CMD_QUERY_CAPABILITIES = (byte) 0x9D;
 
     // 0x86 曾被不同固件分支重复用于“GIF 套图”和“待机时间”。
     // Protocol v2 中保留该值，不再发送；待机时间统一使用 0x95。
     public static final byte CMD_LEGACY_CONFLICT = (byte) 0x86;
 
-    // 0x9F 能力位
+    // 0x9D 能力位
     public static final long CAP_STANDBY_TIMEOUT_V2 = 1L << 0;
     public static final long CAP_FACTORY_RESET_V1 = 1L << 1;
     public static final long CAP_VOICE_KEY_DUAL_V1 = 1L << 2;
@@ -48,6 +48,8 @@ public class AhaKeyProtocol {
     public static final long CAP_MODE_SYNC_V1 = 1L << 7;
     public static final long CAP_DEVICE_MODEL_V1 = 1L << 8;
     public static final long CAP_CONNECTION_READY_V1 = 1L << 9;
+    public static final long CAP_STABILIZED_CONTRACT_V1 = 1L << 10;
+    public static final long REQUIRED_STABILIZED_CAPABILITY_MASK = 0x7FFL;
     public static final int CONNECTION_BLE_LINK = 1 << 0;
     public static final int CONNECTION_HID_READY = 1 << 1;
     public static final int CONNECTION_USB_READY = 1 << 2;

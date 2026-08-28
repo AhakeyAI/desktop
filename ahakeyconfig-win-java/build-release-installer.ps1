@@ -2,7 +2,8 @@ param(
     [string]$BaselineInstallDir = (Join-Path $env:ProgramFiles "AhaKeyStudio"),
     [string]$FirmwareHex = "",
     [string]$AppVersion = "",
-    [string]$FirmwareVersion = "1.4.0",
+    [Parameter(Mandatory = $true)]
+    [string]$FirmwareVersion,
     [string]$WchIspBundleDir = "",
     [string]$WixBin = "",
     [string]$UpdateManifestUrl = "",
@@ -22,7 +23,15 @@ $pomVersion = [string]$pom.project.version
 if ([string]::IsNullOrWhiteSpace($AppVersion)) {
     $tag = [string]$env:GITHUB_REF_NAME
     if ([string]::IsNullOrWhiteSpace($tag)) {
-        $tag = (& git -C $projectDir describe --tags --exact-match 2>$null)
+        # Windows PowerShell can promote native stderr to a terminating error
+        # under Stop. An untagged development checkout is expected here.
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "SilentlyContinue"
+            $tag = (& git -C $projectDir describe --tags --exact-match 2>$null)
+        } finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
         if ($LASTEXITCODE -ne 0) {
             $tag = ""
         }
@@ -43,6 +52,12 @@ if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') {
 if ($FirmwareVersion -notmatch '^\d+\.\d+\.\d+$') {
     throw "FirmwareVersion must use MAJOR.MINOR.PATCH: $FirmwareVersion"
 }
+. (Join-Path $projectDir "Test-FirmwareReleaseInput.ps1")
+$firmwareValidation = Assert-AhaKeyFirmwareReleaseInput `
+    -ProjectDir $projectDir `
+    -FirmwareVersion $FirmwareVersion `
+    -FirmwareHex $FirmwareHex `
+    -RequireFirmware:(-not $PrepareOnly)
 if (-not [string]::IsNullOrWhiteSpace($UpdateManifestUrl)) {
     $updateManifestUri = [Uri]$UpdateManifestUrl
     if (-not $updateManifestUri.IsAbsoluteUri -or
@@ -132,13 +147,16 @@ if ($bleDriver) {
 }
 
 if (-not [string]::IsNullOrWhiteSpace($FirmwareHex)) {
-    if (-not (Test-Path -LiteralPath $FirmwareHex)) {
-        throw "Firmware HEX does not exist: $FirmwareHex"
-    }
     $firmwareDir = Join-Path $inputDir "firmware"
     New-Item -ItemType Directory -Force -Path $firmwareDir | Out-Null
-    Copy-Item -LiteralPath $FirmwareHex -Destination `
-        (Join-Path $firmwareDir "AhaKey-X1-firmware-$FirmwareVersion-ch582.hex")
+    $bundledFirmwarePath = Join-Path $firmwareDir $firmwareValidation.FirmwareName
+    Copy-Item -LiteralPath $FirmwareHex -Destination $bundledFirmwarePath
+    Copy-Item -LiteralPath $firmwareValidation.ProvenancePath -Destination `
+        (Join-Path $firmwareDir ([IO.Path]::GetFileName($firmwareValidation.ProvenancePath)))
+    if ([IO.Path]::GetFileName($bundledFirmwarePath) -cne
+        "AhaKey-X1-firmware-$($firmwareValidation.Capabilities.expectedBundledVersion)-ch582.hex") {
+        throw "Packaged firmware filename does not match Java BUNDLED_FIRMWARE_NAME"
+    }
 }
 
 if ($IncludeLicensedWchIsp) {
@@ -183,13 +201,14 @@ if (Test-Path -LiteralPath (Join-Path $inputDir "models\model_q8.onnx")) {
     throw "Unsafe model_q8.onnx was introduced into the release input."
 }
 
-Write-Output "RELEASE_INPUT_VALIDATION=OK"
+Write-Output $(if ([string]::IsNullOrWhiteSpace($FirmwareHex)) {
+    "RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE"
+} else {
+    "RELEASE_INPUT_VALIDATION=OK"
+})
 Write-Output "Prepared input: $inputDir"
 if ($PrepareOnly) {
     exit 0
-}
-if ([string]::IsNullOrWhiteSpace($FirmwareHex)) {
-    throw "A release installer requires -FirmwareHex with the built CH582 $FirmwareVersion firmware."
 }
 
 $jdkCandidates = @()
@@ -312,4 +331,9 @@ if (Test-Path -LiteralPath $final -PathType Leaf) {
     Remove-Item -LiteralPath $final -Force
 }
 Move-Item -LiteralPath $generated -Destination $final
+$signature = Get-AuthenticodeSignature -LiteralPath $final
+if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+    throw "Release candidate installer must have a Valid Authenticode signature; status=$($signature.Status)"
+}
+Write-Output "AUTHENTICODE_SIGNATURE=VALID"
 Write-Output "INSTALLER=$final"

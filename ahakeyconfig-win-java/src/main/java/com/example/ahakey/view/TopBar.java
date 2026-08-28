@@ -321,9 +321,7 @@ public class TopBar extends VBox {
                 versionInfo,
                 languageMenuItem,
                 exitApp,
-                cloudAccount,
-                divider2,
-                refresh
+                cloudAccount
             );
         } else {
             moreMenu.getItems().addAll(
@@ -376,7 +374,8 @@ public class TopBar extends VBox {
         mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
         mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons, taskDisplayToggle);
         if (modelEnabled) {
-            mainRow.getChildren().addAll(ahaTypeToggle, ahaTypeStatus, voiceControlBox);
+            // AhaType remains hidden until a real processor exists.
+            mainRow.getChildren().add(voiceControlBox);
         } else {
             // 隐藏语音相关控件
             voiceRecordButton.setVisible(false);
@@ -724,11 +723,7 @@ public class TopBar extends VBox {
     }
 
     private void stopBleDriverProcess() {
-        try {
-            new ProcessBuilder("taskkill", "/F", "/IM", "BLE_tcp_driver.exe").redirectErrorStream(true).start().waitFor();
-            Thread.sleep(300);
-        } catch (Exception ignored) {
-        }
+        com.example.ahakey.service.BleBridgeProcessOwner.stopOwned();
     }
     
     /**
@@ -799,6 +794,7 @@ public class TopBar extends VBox {
                 pb.redirectError(ProcessBuilder.Redirect.INHERIT);
                 
                 Process process = pb.start();
+                com.example.ahakey.service.BleBridgeProcessOwner.register(process);
                 
                 new Thread(() -> {
                     try {
@@ -1257,10 +1253,11 @@ public class TopBar extends VBox {
         Button uninstallBtn = new Button(languageManager.getString("button.uninstall"));
         uninstallBtn.getStyleClass().add("button-uninstall");
         uninstallBtn.setOnAction(event -> {
-            uninstallHook(hookName);
-            statusValue.setText(languageManager.getString("hook.not-installed"));
-            statusValue.getStyleClass().remove("dialog-status-installed");
-            statusValue.getStyleClass().add("dialog-status-uninstalled");
+            if (uninstallHook(hookName)) {
+                statusValue.setText(languageManager.getString("hook.not-installed"));
+                statusValue.getStyleClass().remove("dialog-status-installed");
+                statusValue.getStyleClass().add("dialog-status-uninstalled");
+            }
         });
 
         statusRow.getChildren().addAll(statusLabel, statusValue, spacer2, installBtn, uninstallBtn);
@@ -1292,9 +1289,21 @@ public class TopBar extends VBox {
         return installed;
     }
 
-    private void uninstallHook(String hookName) {
+    private boolean uninstallHook(String hookName) {
         addLog("[卸载] 开始卸载 " + hookName + " Hook...");
-        hookInstaller.uninstall(hookName);
+        boolean removed = hookInstaller.uninstall(hookName);
+        if (!removed) {
+            Alert result = new Alert(Alert.AlertType.ERROR);
+            if (getScene() != null && getScene().getWindow() != null) {
+                result.initOwner(getScene().getWindow());
+            }
+            result.setTitle("Hook 卸载失败");
+            result.setHeaderText(null);
+            result.setContentText(
+                hookName + " Hook 卸载后仍可检测到，请查看本窗口底部日志。");
+            result.showAndWait();
+        }
+        return removed;
     }
 
     private void addLog(String message) {
@@ -1342,8 +1351,7 @@ public class TopBar extends VBox {
     }
     
     private void exitApplication() {
-        Platform.exit();
-        System.exit(0);
+        com.example.ahakey.app.ApplicationLifecycle.requestExit();
     }
     
     private void setupLanguageChangeListener() {

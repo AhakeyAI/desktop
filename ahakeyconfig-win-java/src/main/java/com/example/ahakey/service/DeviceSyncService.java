@@ -11,6 +11,12 @@ import java.util.function.Consumer;
 
 /** 对齐 Swift `commandsForModes` + `writeCommandsSequentially`。 */
 public final class DeviceSyncService {
+    public static final class SyncHandle {
+        private final Thread worker;
+        private SyncHandle(Thread worker) { this.worker = worker; }
+        public void cancel() { worker.interrupt(); }
+        public boolean isRunning() { return worker.isAlive(); }
+    }
     public record LabeledCommand(byte[] data, String label) {
     }
     private record ExpectedVoiceConfig(byte[] shortCodes, byte[] longCodes) {
@@ -127,7 +133,7 @@ public final class DeviceSyncService {
         return out;
     }
 
-    public static void writeSequentially(
+    public static SyncHandle writeSequentially(
         BleManager ble,
         List<LabeledCommand> commands,
         Runnable onComplete,
@@ -135,34 +141,37 @@ public final class DeviceSyncService {
         Consumer<String> onProgress
     ) {
         ExpectedVoiceConfig expectedVoice = findExpectedVoiceConfig(commands);
-        new Thread(() -> {
+        Thread worker = new Thread(() -> {
             try {
-                int i = 0;
-                for (LabeledCommand cmd : commands) {
-                    i++;
-                    if (onProgress != null) {
-                        onProgress.accept("保存中 (" + i + "/" + commands.size() + ") " + cmd.label());
+                ble.executeDeviceTransaction(() -> {
+                    int i = 0;
+                    for (LabeledCommand cmd : commands) {
+                        i++;
+                        if (onProgress != null) {
+                            onProgress.accept("保存中 (" + i + "/" + commands.size() + ") " + cmd.label());
+                        }
+                        byte[] frame = cmd.data();
+                        if (frame.length < 5) {
+                            throw new java.io.IOException("配置命令格式无效: " + cmd.label());
+                        }
+                        // Nested command transactions are reentrant. The outer
+                        // lifecycle transaction prevents status recovery from
+                        // closing the transport midway through a complete save.
+                        ble.sendCommandExpecting(frame, frame[2]);
+                        Thread.sleep(20);
                     }
-                    byte[] frame = cmd.data();
-                    if (frame.length < 5) {
-                        throw new java.io.IOException("配置命令格式无效: " + cmd.label());
+                    Thread.sleep(250);
+                    if (expectedVoice != null) {
+                        var verified = ble.readVoiceKeyConfig();
+                        if (verified == null
+                            || !java.util.Arrays.equals(verified.shortCodes(), expectedVoice.shortCodes())
+                            || !java.util.Arrays.equals(verified.longCodes(), expectedVoice.longCodes())
+                            || verified.longPressMs() != AhaKeyProtocol.VOICE_KEY_LONG_PRESS_MS) {
+                            throw new java.io.IOException("语音键配置回读校验失败，请确认固件支持短按/长按功能");
+                        }
                     }
-                    // BLE notifications are asynchronous. Waiting for each
-                    // command ACK prevents a delayed 0x97 write ACK from being
-                    // mistaken for the later 0x97 configuration readback.
-                    ble.sendCommandExpecting(frame, frame[2]);
-                    Thread.sleep(20);
-                }
-                Thread.sleep(250);
-                if (expectedVoice != null) {
-                    var verified = ble.readVoiceKeyConfig();
-                    if (verified == null
-                        || !java.util.Arrays.equals(verified.shortCodes(), expectedVoice.shortCodes())
-                        || !java.util.Arrays.equals(verified.longCodes(), expectedVoice.longCodes())
-                        || verified.longPressMs() != AhaKeyProtocol.VOICE_KEY_LONG_PRESS_MS) {
-                        throw new java.io.IOException("语音键配置回读校验失败，请确认固件支持短按/长按功能");
-                    }
-                }
+                    return null;
+                });
                 if (onComplete != null) {
                     onComplete.run();
                 }
@@ -174,7 +183,10 @@ public final class DeviceSyncService {
                     onError.run();
                 }
             }
-        }, "aha-device-sync").start();
+        }, "aha-device-sync");
+        worker.setDaemon(true);
+        worker.start();
+        return new SyncHandle(worker);
     }
 
     private static ExpectedVoiceConfig findExpectedVoiceConfig(List<LabeledCommand> commands) {

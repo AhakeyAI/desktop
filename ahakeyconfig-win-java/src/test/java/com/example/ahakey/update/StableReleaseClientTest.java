@@ -65,6 +65,25 @@ class StableReleaseClientTest {
     }
 
     @Test
+    void rejectsUnsafeAssetUrls() throws Exception {
+        String valid = "https://download.ahakey.com/releases/v1.2.0/"
+            + "AhaKeyStudio-1.2.0-windows-x64.exe";
+        for (String unsafe : new String[] {
+            "http://download.ahakey.com/AhaKeyStudio-1.2.0-windows-x64.exe",
+            "/releases/AhaKeyStudio-1.2.0-windows-x64.exe",
+            "https:///AhaKeyStudio-1.2.0-windows-x64.exe",
+            "https://user:secret@download.ahakey.com/AhaKeyStudio-1.2.0-windows-x64.exe",
+            "https://[malformed/AhaKeyStudio-1.2.0-windows-x64.exe"
+        }) {
+            String invalid = manifest(true).replace(valid, unsafe);
+            assertThrows(Exception.class,
+                () -> clientReturning(200, invalid).fetchLatest(), unsafe);
+            stopServer();
+            server = null;
+        }
+    }
+
+    @Test
     void mapsMissingManifestToEmpty() throws Exception {
         assertEquals(Optional.empty(),
             clientReturning(404, "{}").fetchLatest());

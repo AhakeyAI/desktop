@@ -51,6 +51,7 @@ public class HookDispatchServer {
 
     private final BleManager bleManager;
     private final TaskActivityService taskActivityService;
+    private final ApprovalService approvalService;
     private static final ObjectMapper JSON = new ObjectMapper();
     private final int port;
     private ServerSocket serverSocket;
@@ -59,6 +60,10 @@ public class HookDispatchServer {
     private ApprovalCallback approvalCallback;
 
     enum Platform { CLAUDE, CODEX, KIMI, CURSOR }
+
+    private static final String SOURCE_HARDWARE_AUTO = "hardware-auto";
+    private static final String SOURCE_USER_CONFIRMED = "user-confirmed";
+    private static final String SOURCE_FAIL_CLOSED = "fail-closed";
 
     record EventEntry(Platform platform, IDEState state) {}
 
@@ -108,8 +113,18 @@ public class HookDispatchServer {
     }
 
     public HookDispatchServer(BleManager bleManager, TaskActivityService taskActivityService, int port) {
+        this(bleManager, taskActivityService, new ApprovalService(bleManager), port);
+    }
+
+    public HookDispatchServer(
+        BleManager bleManager,
+        TaskActivityService taskActivityService,
+        ApprovalService approvalService,
+        int port
+    ) {
         this.bleManager = bleManager;
         this.taskActivityService = taskActivityService;
+        this.approvalService = approvalService;
         this.port = port;
     }
 
@@ -122,9 +137,7 @@ public class HookDispatchServer {
         this.approvalCallback = callback;
     }
 
-    /**
-     * 启动服务器。如果端口被占用，会自动递增端口号重试（最多 10 次）。
-     */
+    /** Starts the configured stable endpoint; never silently migrates ports. */
     public void start() {
         if (running) return;
         executor = Executors.newCachedThreadPool(r -> {
@@ -133,25 +146,16 @@ public class HookDispatchServer {
             return t;
         });
 
-        int attempts = 0;
-        int tryPort = port;
-        while (attempts < 10) {
-            try {
-                serverSocket = new ServerSocket();
-                serverSocket.setReuseAddress(true);
-                serverSocket.bind(new InetSocketAddress("127.0.0.1", tryPort));
-                running = true;
-                logger.info("Hook 分发服务器已启动 - 127.0.0.1:{}", tryPort);
-                break;
-            } catch (IOException e) {
-                logger.warn("端口 {} 被占用，尝试下一个...", tryPort);
-                tryPort++;
-                attempts++;
-            }
-        }
-
-        if (!running) {
-            logger.error("Hook 分发服务器启动失败，已尝试端口 {}-{}", port, tryPort - 1);
+        try {
+            serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress("127.0.0.1", port));
+            running = true;
+            logger.info("Hook 分发服务器已启动 - 127.0.0.1:{}",
+                serverSocket.getLocalPort());
+        } catch (IOException failure) {
+            logger.error("Hook 分发服务器固定端口 {} 启动失败: {}", port,
+                failure.getMessage());
             return;
         }
 
@@ -177,18 +181,6 @@ public class HookDispatchServer {
                 }
             }
         }
-    }
-
-    /**
-     * 检查自动批准状态。
-     * @param forceRefresh 是否强制刷新设备状态（通过 BLE 查询）
-     * @return true 表示自动批准模式，false 表示手动批准模式
-     */
-    private boolean checkAutoApproval(boolean forceRefresh) {
-        if (forceRefresh) {
-            bleManager.queryStatusAndWait(200);
-        }
-        return bleManager.getCachedStatus().isAutoApproval();
     }
 
     private void handleClient(Socket client) {
@@ -231,14 +223,18 @@ public class HookDispatchServer {
 
     private void handleClaudeEvent(PrintWriter writer, String eventName, IDEState state) {
         if (state == IDEState.PERMISSION_REQUEST) {
-            boolean auto = checkAutoApproval(false);
-            logger.info("[Claude] {} 拨杆={}", eventName, auto ? "自动" : "手动");
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            logger.info("[Claude] {} approvalState={} fresh={}",
+                eventName, snapshot.state(), snapshot.fresh());
             if (!auto && approvalCallback != null) {
                 boolean approved = approvalCallback.requestApproval("Claude", eventName);
                 logger.info("[Claude] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
-                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+                writeCanonical(writer, Platform.CLAUDE, eventName, approved,
+                    approved ? SOURCE_USER_CONFIRMED : SOURCE_FAIL_CLOSED);
             } else {
-                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + auto + "}");
+                writeCanonical(writer, Platform.CLAUDE, eventName, auto,
+                    auto ? SOURCE_HARDWARE_AUTO : SOURCE_FAIL_CLOSED);
             }
             return;
         }
@@ -248,14 +244,18 @@ public class HookDispatchServer {
     private void handleCodexEvent(PrintWriter writer, String eventName, IDEState state) {
         boolean needApproval = "CodexPreToolUse".equals(eventName) || state == IDEState.PERMISSION_REQUEST;
         if (needApproval) {
-            boolean auto = checkAutoApproval(true);
-            logger.info("[Codex] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            logger.info("[Codex] {} approvalState={} fresh={}",
+                eventName, snapshot.state(), snapshot.fresh());
             try { bleManager.updateState((byte) state.getCode()); }
             catch (Exception e) { logger.warn("[Codex] BLE 状态更新失败: {}", e.getMessage()); }
 
             boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
             logger.info("[Codex] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
-            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+            writeCanonical(writer, Platform.CODEX, eventName, approved,
+                auto ? SOURCE_HARDWARE_AUTO
+                    : approved ? SOURCE_USER_CONFIRMED : SOURCE_FAIL_CLOSED);
             return;
         }
         handleGeneric(writer, eventName, state, "Codex");
@@ -263,18 +263,23 @@ public class HookDispatchServer {
 
     private void handleKimiEvent(PrintWriter writer, String eventName, IDEState state) {
         if ("KimiPreToolUse".equals(eventName)) {
-            boolean auto = checkAutoApproval(true);
-            logger.info("[Kimi] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            logger.info("[Kimi] {} approvalState={} fresh={}",
+                eventName, snapshot.state(), snapshot.fresh());
             try { bleManager.updateState((byte) state.getCode()); }
             catch (Exception e) { logger.warn("[Kimi] BLE 状态更新失败: {}", e.getMessage()); }
             
             if (auto) {
-                writer.println("{}");
+                writeCanonical(writer, Platform.KIMI, eventName, true,
+                    SOURCE_HARDWARE_AUTO);
             } else if (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName)) {
-                writer.println("{}");
+                writeCanonical(writer, Platform.KIMI, eventName, true,
+                    SOURCE_USER_CONFIRMED);
                 logger.info("[Kimi] {} 用户操作=允许", eventName);
             } else {
-                writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
+                writeCanonical(writer, Platform.KIMI, eventName, false,
+                    SOURCE_FAIL_CLOSED);
                 logger.info("[Kimi] {} 用户操作=拒绝", eventName);
             }
             return;
@@ -284,22 +289,26 @@ public class HookDispatchServer {
 
     private void handleCursorEvent(PrintWriter writer, String eventName, IDEState state) {
         if ("preToolUse".equals(eventName)) {
-            int switchState = bleManager.getCachedStatus().getSwitchState();
-            boolean auto = checkAutoApproval(true);
-            logger.info("[Cursor] {} 拨杆={} switchState={} callback={}", eventName, auto ? "自动" : "手动", switchState, approvalCallback != null);
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            logger.info("[Cursor] {} approvalState={} fresh={} callback={}",
+                eventName, snapshot.state(), snapshot.fresh(), approvalCallback != null);
             try { bleManager.updateState((byte) state.getCode()); }
             catch (Exception e) { logger.warn("[Cursor] BLE 状态更新失败: {}", e.getMessage()); }
             
             if (auto) {
                 logger.info("[Cursor] {} 自动放行", eventName);
-                writer.println("{\"permission\":\"allow\"}");
+                writeCanonical(writer, Platform.CURSOR, eventName, true,
+                    SOURCE_HARDWARE_AUTO);
             } else if (approvalCallback != null && approvalCallback.requestApproval("Cursor", eventName)) {
                 logger.info("[Cursor] {} 用户操作=允许", eventName);
-                writer.println("{\"permission\":\"allow\"}");
+                writeCanonical(writer, Platform.CURSOR, eventName, true,
+                    SOURCE_USER_CONFIRMED);
             } else {
                 String reason = approvalCallback == null ? "回调未注册" : "用户拒绝";
                 logger.info("[Cursor] {} 用户操作=拒绝({})", eventName, reason);
-                writer.println("{\"permission\":\"deny\",\"user_message\":\"手动模式，" + reason + "\"}");
+                writeCanonical(writer, Platform.CURSOR, eventName, false,
+                    SOURCE_FAIL_CLOSED);
             }
             return;
         }
@@ -310,11 +319,31 @@ public class HookDispatchServer {
         try {
             bleManager.updateState((byte) state.getCode());
             logger.info("[{}] {} → {} (code={})", platform, eventName, state.name(), state.getCode());
-            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode() + "}");
+            writeCanonical(writer, Platform.valueOf(platform.toUpperCase()),
+                eventName, false, SOURCE_FAIL_CLOSED);
         } catch (Exception e) {
             logger.error("[{}] BLE 状态更新失败: {}", platform, e.getMessage());
-            writer.println("{\"ok\":false,\"error\":\"BLE update failed\"}");
+            writeCanonical(writer, Platform.valueOf(platform.toUpperCase()),
+                eventName, false, SOURCE_FAIL_CLOSED);
         }
+    }
+
+    private static void writeCanonical(
+        PrintWriter writer,
+        Platform platform,
+        String eventName,
+        boolean allow,
+        String approvalSource
+    ) {
+        writer.print("{\"schemaVersion\":1,\"platform\":\"");
+        writer.print(platform.name().toLowerCase());
+        writer.print("\",\"event\":\"");
+        writer.print(eventName);
+        writer.print("\",\"allow\":");
+        writer.print(allow);
+        writer.print(",\"approvalSource\":\"");
+        writer.print(approvalSource);
+        writer.println("\"}");
     }
 
     /**

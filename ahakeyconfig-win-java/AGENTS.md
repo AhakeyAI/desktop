@@ -1,5 +1,12 @@
 # ahakeyconfig-win-java
 
+## 必读的长期工程文档
+
+修改 Windows 客户端前，必须阅读 `../docs/windows-stabilization-plan.md`。
+
+如果修改了 Windows 架构、运行流程、审批语义、Hook 格式、设备协议假设、
+固件能力、已支持功能、已知限制或验证状态，必须在同一次变更中更新该文档。
+
 ## 项目结构
 
 Java 17 Maven 单模块项目，基于 **JavaFX 17** 构建的桌面应用程序，用于键盘设备配置和语音输入功能。
@@ -28,7 +35,7 @@ src/main/java/com/example/ahakey/
 
 **应用启动方式：**
 - IDE 运行：`mvn javafx:run`
-- 打包后运行：`java -jar ahakey-studio-1.0.0.jar`
+- 打包后运行：`java -jar target/ahakey-studio-1.5.3.jar`
 - 安装包运行：`AhaKeyStudio-xxx.exe`（通过 jpackage 生成）
 
 ## 配置
@@ -49,8 +56,13 @@ mvn javafx:run
 # 打包为可执行 JAR
 mvn clean package
 
-# 打包为 Windows 安装包（需 jpackage）
-powershell -ExecutionPolicy Bypass -File build-installer.ps1
+# 仅准备发布输入；允许暂缺真实固件，不能视为正式发布产物
+powershell -ExecutionPolicy Bypass -File build-installer.ps1 -PrepareOnly
+
+# 正式 Windows 安装包（需真实 CH582 HEX、jpackage、WiX 和发布基线）
+powershell -ExecutionPolicy Bypass -File build-installer.ps1 `
+  -FirmwareVersion 1.4.7 `
+  -FirmwareHex C:\release\AhaKey-X1-firmware-1.4.7-ch582.hex
 ```
 
 **构建脚本：**
@@ -200,7 +212,7 @@ target/
 ├── classes/          # 编译后的 class 文件
 ├── lib/              # 依赖 JAR（jackson, jna, logback, javafx 等）
 ├── jpackage-resources/ # jpackage 资源
-├── ahakey-studio-1.0.0.jar # 可执行 JAR
+├── ahakey-studio-1.5.3.jar # 可执行 JAR
 └── installer/        # Windows 安装包（.exe, .zip）
 ```
 

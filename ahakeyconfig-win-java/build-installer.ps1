@@ -1,18 +1,32 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$FirmwareHex,
+    [string]$FirmwareHex = "",
     [string]$BaselineInstallDir = (Join-Path $env:ProgramFiles "AhaKeyStudio"),
     [string]$AppVersion = "",
-    [string]$FirmwareVersion = "1.4.0",
+    [string]$FirmwareVersion = "",
     [string]$WchIspBundleDir = "",
     [string]$WixBin = "",
     [switch]$IncludeLicensedWchIsp,
     [switch]$PrepareOnly
 )
 
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($FirmwareVersion)) {
+    if (-not $PrepareOnly) {
+        throw "Formal installer builds require an explicit -FirmwareVersion."
+    }
+    $capabilitiesPath = Join-Path $PSScriptRoot `
+        "src\main\resources\firmware-capabilities.properties"
+    $capabilities = ConvertFrom-StringData `
+        (Get-Content -LiteralPath $capabilitiesPath -Raw)
+    $FirmwareVersion = [string]$capabilities.expectedBundledVersion
+}
+
 # Compatibility entry point. All installer builds use the protected release
-# baseline so the original VoiceInputManager, SpeechService, ModelConfig and
-# deployed ONNX resources cannot be replaced by development classes.
+# baseline so VoiceInputManager, ModelConfig and deployed ONNX resources cannot
+# be replaced by development classes. SpeechService is intentionally overlaid
+# for deterministic tensor cleanup.
 & (Join-Path $PSScriptRoot "build-release-installer.ps1") `
     -BaselineInstallDir $BaselineInstallDir `
     -FirmwareHex $FirmwareHex `

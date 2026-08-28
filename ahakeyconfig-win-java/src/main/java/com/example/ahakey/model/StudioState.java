@@ -26,8 +26,8 @@ public class StudioState {
     private final StringProperty syncStatus = new SimpleStringProperty("修改会先保存在本地，保存配置后写入键盘。");
     private final StringProperty lastSyncSummary = new SimpleStringProperty("尚未保存");
     private final BooleanProperty syncing = new SimpleBooleanProperty(false);
-    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(true);
-    private final StringProperty ahaTypeStatus = new SimpleStringProperty("云端整理已启用");
+    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(false);
+    private final StringProperty ahaTypeStatus = new SimpleStringProperty("AhaType 尚未实现");
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
         new SimpleObjectProperty<>(LightBarPreviewState.AI_RUNNING);
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
@@ -43,6 +43,14 @@ public class StudioState {
     private final Map<ModeSlot, StringProperty> lightBarSummaries = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, EnumMap<IDEState, LightEffectStyle>> aiLightConfigs = new EnumMap<>(ModeSlot.class);
     private final EnumSet<StudioPart> dirtyParts = EnumSet.noneOf(StudioPart.class);
+    private final EnumMap<StudioPart, Integer> dirtyRevisions =
+        new EnumMap<>(StudioPart.class);
+
+    public record DirtySnapshot(Map<StudioPart, Integer> revisions) {
+        public DirtySnapshot {
+            revisions = Map.copyOf(revisions);
+        }
+    }
 
     public StudioState() {
         seedDefaults();
@@ -343,8 +351,9 @@ public class StudioState {
     }
 
     public void toggleAhaType(boolean enabled) {
-        ahaTypeEnabled.set(enabled);
-        ahaTypeStatus.set(enabled ? "云端整理已启用" : "语音结果直接粘贴");
+        // WIN-019: do not expose a no-op feature as enabled.
+        ahaTypeEnabled.set(false);
+        ahaTypeStatus.set("AhaType 尚未实现；语音结果直接输入");
     }
 
     public boolean isDirty(StudioPart part) {
@@ -352,23 +361,24 @@ public class StudioState {
     }
 
     public void markDirty(StudioPart part) {
+        int nextRevision = revision.get() + 1;
         dirtyParts.add(part);
+        dirtyRevisions.put(part, nextRevision);
         dirtyCount.set(dirtyParts.size());
-        revision.set(revision.get() + 1);
+        revision.set(nextRevision);
         syncStatus.set("有 " + dirtyParts.size() + " 处改动待保存。");
     }
 
     public void restoreCurrentModeDefaults() {
         resetModeDefaults(getSelectedMode());
         resetVoiceKeyDefaults();
-        dirtyParts.add(StudioPart.KEY1);
-        dirtyParts.add(StudioPart.KEY2);
-        dirtyParts.add(StudioPart.KEY3);
-        dirtyParts.add(StudioPart.KEY4);
-        dirtyParts.add(StudioPart.OLED);
-        dirtyParts.add(StudioPart.LIGHT_BAR);
+        int nextRevision = revision.get() + 1;
+        for (StudioPart part : StudioPart.values()) {
+            dirtyParts.add(part);
+            dirtyRevisions.put(part, nextRevision);
+        }
         dirtyCount.set(dirtyParts.size());
-        revision.set(revision.get() + 1);
+        revision.set(nextRevision);
         syncStatus.set("已恢复 " + getSelectedMode().getTitle() + " 默认值，等待保存。");
     }
 
@@ -384,9 +394,23 @@ public class StudioState {
     }
 
     public void clearDirtyAfterSync() {
-        dirtyParts.clear();
-        dirtyCount.set(0);
-        revision.set(revision.get() + 1);
+        clearDirtyAfterSync(captureDirtySnapshot());
+    }
+
+    public DirtySnapshot captureDirtySnapshot() {
+        return new DirtySnapshot(dirtyRevisions);
+    }
+
+    public void clearDirtyAfterSync(DirtySnapshot snapshot) {
+        if (snapshot == null) return;
+        for (Map.Entry<StudioPart, Integer> saved : snapshot.revisions().entrySet()) {
+            Integer current = dirtyRevisions.get(saved.getKey());
+            if (saved.getValue().equals(current)) {
+                dirtyRevisions.remove(saved.getKey());
+                dirtyParts.remove(saved.getKey());
+            }
+        }
+        dirtyCount.set(dirtyParts.size());
         lastSyncSummary.set("最近保存 " + LocalDateTime.now().format(SYNC_TIME_FORMAT));
     }
 

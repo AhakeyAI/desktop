@@ -319,37 +319,31 @@ public class SpeechService {
             }
             inputBuffer.flip();
             
-            OnnxTensor inputTensor = OnnxTensor.createTensor(env, inputBuffer, inputShape);
-            
             // 准备 x_length 输入 (模型期望 int32 类型)
             long[] lengthShape = {1};
             java.nio.IntBuffer lengthBuffer = java.nio.IntBuffer.allocate(1);
             lengthBuffer.put(inputSeqLen);
             lengthBuffer.flip();
-            OnnxTensor lengthTensor = OnnxTensor.createTensor(env, lengthBuffer, lengthShape);
-            
-            // 运行模型 - 使用正确的输入名称
-            Map<String, OnnxTensor> inputs = new HashMap<>();
-            inputs.put("x", inputTensor);
-            inputs.put("x_length", lengthTensor);
-            
             // 添加 language 输入 (0=自动检测, 1=中文, 2=英文, 3=日文, 4=韩文, 5=粤语)
             long[] langShape = {1};
             java.nio.IntBuffer langBuffer = java.nio.IntBuffer.allocate(1);
             langBuffer.put(language);
             langBuffer.flip();
-            OnnxTensor langTensor = OnnxTensor.createTensor(env, langBuffer, langShape);
-            inputs.put("language", langTensor);
-            
             // 添加 text_norm 输入 (0 = 不规范化, 1 = 规范化)
             long[] normShape = {1};
             java.nio.IntBuffer normBuffer = java.nio.IntBuffer.allocate(1);
             normBuffer.put(textNorm);
             normBuffer.flip();
-            OnnxTensor normTensor = OnnxTensor.createTensor(env, normBuffer, normShape);
-            inputs.put("text_norm", normTensor);
-            
-            try (OrtSession.Result result = session.run(inputs)) {
+            try (OnnxTensor inputTensor = OnnxTensor.createTensor(env, inputBuffer, inputShape);
+                 OnnxTensor lengthTensor = OnnxTensor.createTensor(env, lengthBuffer, lengthShape);
+                 OnnxTensor langTensor = OnnxTensor.createTensor(env, langBuffer, langShape);
+                 OnnxTensor normTensor = OnnxTensor.createTensor(env, normBuffer, normShape)) {
+                Map<String, OnnxTensor> inputs = new HashMap<>();
+                inputs.put("x", inputTensor);
+                inputs.put("x_length", lengthTensor);
+                inputs.put("language", langTensor);
+                inputs.put("text_norm", normTensor);
+                try (OrtSession.Result result = session.run(inputs)) {
                 // 获取输出
                 float[][][] output = (float[][][]) result.get(0).getValue();
                 logger.debug("输出维度: [{}][{}][{}]", output.length, output[0].length, output[0][0].length);
@@ -359,6 +353,7 @@ public class SpeechService {
                 
                 // 解码结果
                 return decodeLogits(logits);
+                }
             }
         } catch (Exception e) {
             logger.error("识别失败: {}", e.getMessage(), e);

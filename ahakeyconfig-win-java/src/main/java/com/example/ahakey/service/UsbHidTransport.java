@@ -17,7 +17,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Consumer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class UsbHidTransport implements Closeable {
     private static final Logger logger = LoggerFactory.getLogger(UsbHidTransport.class);
@@ -34,74 +37,137 @@ public class UsbHidTransport implements Closeable {
     private static final byte USB_COMMAND_PACKET = (byte) 0xA1;
     private static final byte USB_DATA_PACKET = (byte) 0xA2;
 
-    private Pointer readHandle;
-    private Pointer writeHandle;
-    private String devicePath;
-    private Thread readerThread;
-    private volatile boolean running;
-    private Consumer<byte[]> frameConsumer;
-    private Runnable disconnectedCallback;
+    private static final long READER_JOIN_TIMEOUT_MS = 2_000;
+
+    private final Object stateLock = new Object();
+    private final HidIo io;
+    private final long readerJoinTimeoutMillis;
+    private final AtomicLong generationSequence = new AtomicLong();
+    private volatile Session activeSession;
+
+    @FunctionalInterface
+    public interface FrameConsumer {
+        void accept(byte[] frame, long receivedAtNanos);
+    }
+
+    interface HidIo {
+        String findDevicePath();
+        Pointer openRead(String path);
+        Pointer openWrite(String path);
+        ReadResult read(Pointer handle, byte[] buffer);
+        boolean write(Pointer handle, byte[] buffer, IntByReference written);
+        void cancel(Pointer handle);
+        void close(Pointer handle);
+        int lastError();
+        boolean isInvalid(Pointer handle);
+    }
+
+    record ReadResult(boolean successful, int bytesRead, int errorCode) {}
+
+    private static final class Session {
+        final long generation;
+        final String devicePath;
+        final Pointer readHandle;
+        final Pointer writeHandle;
+        final FrameConsumer consumer;
+        final Runnable disconnectedCallback;
+        final AtomicBoolean stopRequested = new AtomicBoolean();
+        final AtomicBoolean handlesClosed = new AtomicBoolean();
+        final CountDownLatch terminated = new CountDownLatch(1);
+        final Object writeMutex = new Object();
+        volatile Thread readerThread;
+
+        Session(
+            long generation,
+            String devicePath,
+            Pointer readHandle,
+            Pointer writeHandle,
+            FrameConsumer consumer,
+            Runnable disconnectedCallback
+        ) {
+            this.generation = generation;
+            this.devicePath = devicePath;
+            this.readHandle = readHandle;
+            this.writeHandle = writeHandle;
+            this.consumer = consumer;
+            this.disconnectedCallback = disconnectedCallback;
+        }
+    }
+
+    public UsbHidTransport() {
+        this(new NativeHidIo(), READER_JOIN_TIMEOUT_MS);
+    }
+
+    UsbHidTransport(HidIo io) {
+        this(io, READER_JOIN_TIMEOUT_MS);
+    }
+
+    UsbHidTransport(HidIo io, long readerJoinTimeoutMillis) {
+        this.io = io;
+        this.readerJoinTimeoutMillis = readerJoinTimeoutMillis;
+    }
 
     public static boolean isPresent() {
         return findDevicePath() != null;
     }
 
-    public synchronized void open(Consumer<byte[]> onFrame) throws IOException {
+    public void open(FrameConsumer onFrame) throws IOException {
         open(onFrame, null);
     }
 
-    public synchronized void open(Consumer<byte[]> onFrame, Runnable onDisconnected) throws IOException {
-        if (isOpen()) {
-            return;
+    public void open(FrameConsumer onFrame, Runnable onDisconnected) throws IOException {
+        if (onFrame == null) {
+            throw new IllegalArgumentException("USB frame consumer is required");
         }
-        String path = findDevicePath();
+        synchronized (stateLock) {
+            if (isOpenLocked()) {
+                return;
+            }
+        }
+        String path = io.findDevicePath();
         if (path == null) {
             throw new IOException("USB HID device not found");
         }
-        Pointer r = Kernel32.INSTANCE.CreateFile(
-            new WString(path),
-            GENERIC_READ,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            Pointer.NULL,
-            OPEN_EXISTING,
-            0,
-            Pointer.NULL
-        );
-        if (isInvalidHandle(r)) {
-            throw new IOException("Open USB HID read failed: " + Native.getLastError());
+        Pointer r = io.openRead(path);
+        if (io.isInvalid(r)) {
+            throw new IOException("Open USB HID read failed: " + io.lastError());
         }
-        Pointer w = Kernel32.INSTANCE.CreateFile(
-            new WString(path),
-            GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            Pointer.NULL,
-            OPEN_EXISTING,
-            0,
-            Pointer.NULL
-        );
-        if (isInvalidHandle(w)) {
-            Kernel32.INSTANCE.CloseHandle(r);
-            throw new IOException("Open USB HID write failed: " + Native.getLastError());
+        Pointer w = io.openWrite(path);
+        if (io.isInvalid(w)) {
+            io.close(r);
+            throw new IOException("Open USB HID write failed: " + io.lastError());
         }
 
-        readHandle = r;
-        writeHandle = w;
-        devicePath = path;
-        frameConsumer = onFrame;
-        disconnectedCallback = onDisconnected;
-        running = true;
-        startReader();
+        Session session = new Session(
+            generationSequence.incrementAndGet(), path, r, w, onFrame, onDisconnected);
+        synchronized (stateLock) {
+            if (isOpenLocked()) {
+                closeSessionHandles(session);
+                return;
+            }
+            activeSession = session;
+        }
+        startReader(session);
         logger.info("USB HID connected: {}", path);
     }
 
-    public synchronized boolean isOpen() {
-        return devicePath != null && !devicePath.isBlank()
-            && readHandle != null && !isInvalidHandle(readHandle)
-            && writeHandle != null && !isInvalidHandle(writeHandle);
+    public boolean isOpen() {
+        synchronized (stateLock) {
+            return isOpenLocked();
+        }
     }
 
-    public synchronized void sendCommand(byte[] frame) throws IOException {
-        ensureOpen();
+    private boolean isOpenLocked() {
+        Session session = activeSession;
+        return session != null && !session.stopRequested.get()
+            && !session.handlesClosed.get()
+            && session.devicePath != null && !session.devicePath.isBlank()
+            && !io.isInvalid(session.readHandle)
+            && !io.isInvalid(session.writeHandle);
+    }
+
+    public void sendCommand(byte[] frame) throws IOException {
+        Session session = requireActiveSession();
         if (frame.length > REPORT_SIZE - 2) {
             throw new IOException("USB command frame too large: " + frame.length);
         }
@@ -109,11 +175,11 @@ public class UsbHidTransport implements Closeable {
         payload[0] = USB_COMMAND_PACKET;
         payload[1] = (byte) frame.length;
         System.arraycopy(frame, 0, payload, 2, frame.length);
-        writeReport(payload);
+        writeReport(session, payload);
     }
 
-    public synchronized void sendData(byte[] data) throws IOException {
-        ensureOpen();
+    public void sendData(byte[] data) throws IOException {
+        Session session = requireActiveSession();
         int offset = 0;
         while (offset < data.length) {
             int len = Math.min(REPORT_SIZE - 2, data.length - offset);
@@ -121,7 +187,7 @@ public class UsbHidTransport implements Closeable {
             payload[0] = USB_DATA_PACKET;
             payload[1] = (byte) len;
             System.arraycopy(data, offset, payload, 2, len);
-            writeReport(payload);
+            writeReport(session, payload);
             offset += len;
             sleepQuietly(2);
         }
@@ -135,96 +201,82 @@ public class UsbHidTransport implements Closeable {
         }
     }
 
-    private void writeReport(byte[] payload64) throws IOException {
+    private void writeReport(Session session, byte[] payload64) throws IOException {
         byte[] reportWithId = new byte[REPORT_SIZE + 1];
         reportWithId[0] = 0;
         System.arraycopy(payload64, 0, reportWithId, 1, payload64.length);
 
-        IntByReference written = new IntByReference();
-        Pointer h = writeHandle;
-        if (h == null || isInvalidHandle(h)) {
-            throw new IOException("USB HID write handle not connected");
-        }
-        boolean ok = Kernel32.INSTANCE.WriteFile(h, reportWithId, reportWithId.length, written, Pointer.NULL);
-        if (!ok) {
-            written.setValue(0);
-            ok = Kernel32.INSTANCE.WriteFile(h, payload64, payload64.length, written, Pointer.NULL);
-        }
-        if (!ok) {
-            throw new IOException("USB HID write failed: " + Native.getLastError());
+        synchronized (session.writeMutex) {
+            if (!isActive(session)) {
+                throw new IOException("USB HID session is no longer active");
+            }
+            IntByReference written = new IntByReference();
+            boolean ok = io.write(session.writeHandle, reportWithId, written);
+            if (!ok) {
+                written.setValue(0);
+                ok = io.write(session.writeHandle, payload64, written);
+            }
+            if (!ok) {
+                throw new IOException("USB HID write failed: " + io.lastError());
+            }
         }
     }
 
-    private void startReader() {
-        readerThread = new Thread(() -> {
+    private void startReader(Session session) {
+        Thread reader = new Thread(() -> {
             byte[] report = new byte[REPORT_SIZE + 1];
-            while (running) {
-                Pointer h = readHandle;
-                if (h == null || isInvalidHandle(h)) {
-                    break;
-                }
+            boolean unexpectedDisconnect = false;
+            try {
+              while (!session.stopRequested.get()) {
                 try {
                     Arrays.fill(report, (byte) 0);
-                    IntByReference read = new IntByReference();
-                    boolean ok = Kernel32.INSTANCE.ReadFile(h, report, report.length, read, Pointer.NULL);
-                    if (!ok || read.getValue() <= 0) {
-                        int err = Native.getLastError();
-                        if (running) {
-                            logger.warn("USB HID read stopped: {}", err);
+                    ReadResult result = io.read(session.readHandle, report);
+                    if (!result.successful() || result.bytesRead() <= 0) {
+                        if (!session.stopRequested.get()) {
+                            unexpectedDisconnect = true;
+                            logger.warn("USB HID read stopped: {}", result.errorCode());
                         }
                         break;
                     }
-                    byte[] frame = extractFrame(report, read.getValue());
-                    // 在调用回调前再次检查 running 状态
-                    if (running && frame != null && frameConsumer != null) {
-                        frameConsumer.accept(frame);
+                    // Capture arrival at the physical reader boundary before
+                    // frame extraction, protocol validation, logging or any
+                    // freshness coordination lock can delay processing.
+                    long receivedAtNanos = System.nanoTime();
+                    byte[] frame = extractFrame(report, result.bytesRead());
+                    if (!session.stopRequested.get() && isActive(session) && frame != null) {
+                        session.consumer.accept(frame, receivedAtNanos);
                     }
                 } catch (Exception e) {
-                    if (running) {
+                    if (!session.stopRequested.get()) {
+                        unexpectedDisconnect = true;
                         logger.warn("USB HID read error: {}", e.getMessage());
                     }
                     break;
                 }
-            }
-            // 线程退出时自行关闭 handles（避免主线程在 ReadFile 阻塞时关闭）
-            logger.debug("USB reader: 线程退出，自行关闭 handles");
-            Runnable callback = null;
-            synchronized (UsbHidTransport.this) {
-                boolean unexpectedDisconnect = running;
-                running = false;
-                if (readHandle != null && !isInvalidHandle(readHandle)) {
-                    try {
-                        Kernel32.INSTANCE.CloseHandle(readHandle);
-                        logger.debug("USB reader: 自行关闭 readHandle");
-                    } catch (Exception e) {
-                        logger.warn("USB reader: 关闭 readHandle 失败 - {}", e.getMessage());
+              }
+            } finally {
+                closeSessionHandles(session);
+                boolean wasActive;
+                synchronized (stateLock) {
+                    wasActive = activeSession == session;
+                    if (wasActive) {
+                        activeSession = null;
                     }
-                    readHandle = null;
                 }
-                if (writeHandle != null && !isInvalidHandle(writeHandle)) {
+                session.terminated.countDown();
+                if (unexpectedDisconnect && wasActive
+                    && !session.stopRequested.get() && session.disconnectedCallback != null) {
                     try {
-                        Kernel32.INSTANCE.CloseHandle(writeHandle);
-                        logger.debug("USB reader: 自行关闭 writeHandle");
+                        session.disconnectedCallback.run();
                     } catch (Exception e) {
-                        logger.warn("USB reader: 关闭 writeHandle 失败 - {}", e.getMessage());
+                        logger.warn("USB disconnect callback failed: {}", e.getMessage());
                     }
-                    writeHandle = null;
-                }
-                devicePath = null;
-                if (unexpectedDisconnect) {
-                    callback = disconnectedCallback;
                 }
             }
-            if (callback != null) {
-                try {
-                    callback.run();
-                } catch (Exception e) {
-                    logger.warn("USB disconnect callback failed: {}", e.getMessage());
-                }
-            }
-        }, "usb-hid-reader");
-        readerThread.setDaemon(true);
-        readerThread.start();
+        }, "usb-hid-reader-" + session.generation);
+        session.readerThread = reader;
+        reader.setDaemon(true);
+        reader.start();
     }
 
     private static byte[] extractFrame(byte[] data, int len) {
@@ -246,57 +298,125 @@ public class UsbHidTransport implements Closeable {
         return null;
     }
 
-    private void ensureOpen() throws IOException {
-        if (!isOpen()) {
-            throw new IOException("USB HID not connected");
+    private Session requireActiveSession() throws IOException {
+        synchronized (stateLock) {
+            if (!isOpenLocked()) {
+                throw new IOException("USB HID not connected");
+            }
+            return activeSession;
         }
+    }
+
+    private boolean isActive(Session session) {
+        return activeSession == session && !session.stopRequested.get()
+            && !session.handlesClosed.get();
     }
 
     @Override
-    public synchronized void close() {
-        logger.debug("USB close: 开始关闭 USB 传输");
-        
-        // 第一步：设置标志，让读取线程自行退出并关闭 handles
-        logger.debug("USB close: 设置 running=false");
-        running = false;
-        
-        // 第二步：等待读取线程退出（最多等待2秒）
-        if (readerThread != null && readerThread.isAlive()) {
-            logger.debug("USB close: 等待读取线程退出");
+    public void close() {
+        Session session;
+        synchronized (stateLock) {
+            session = activeSession;
+            if (session == null) {
+                return;
+            }
+            activeSession = null;
+            session.stopRequested.set(true);
+        }
+
+        // Cancel and close outside stateLock. The reader never needs that lock
+        // to observe its stop flag or release its own captured handles.
+        io.cancel(session.readHandle);
+        closeSessionHandles(session);
+        Thread reader = session.readerThread;
+        if (reader != null && reader != Thread.currentThread()) {
             try {
-                readerThread.join(2000);
-                logger.debug("USB close: 读取线程已退出");
-            } catch (InterruptedException e) {
-                logger.warn("USB close: 等待线程退出被中断");
+                if (!session.terminated.await(readerJoinTimeoutMillis, TimeUnit.MILLISECONDS)) {
+                    logger.warn(
+                        "USB reader generation {} did not exit within {}ms; it remains isolated",
+                        session.generation, readerJoinTimeoutMillis);
+                }
+            } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
             }
         }
-        
-        // 第三步：清理引用（handles 已由读取线程关闭）
-        readHandle = null;
-        writeHandle = null;
-        devicePath = null;
-        readerThread = null;
-        disconnectedCallback = null;
-        logger.debug("USB close: 关闭完成");
     }
 
-    private synchronized void closeQuietly() {
-        running = false;
-        if (readHandle != null && !isInvalidHandle(readHandle)) {
-            Kernel32.INSTANCE.CloseHandle(readHandle);
+    private void closeSessionHandles(Session session) {
+        if (!session.handlesClosed.compareAndSet(false, true)) {
+            return;
         }
-        if (writeHandle != null && !isInvalidHandle(writeHandle)) {
-            Kernel32.INSTANCE.CloseHandle(writeHandle);
-        }
-        readHandle = null;
-        writeHandle = null;
-        devicePath = null;
-        disconnectedCallback = null;
+        io.close(session.readHandle);
+        io.close(session.writeHandle);
     }
 
     private static boolean isInvalidHandle(Pointer h) {
         return h == null || Pointer.nativeValue(h) == 0 || Pointer.nativeValue(h) == -1;
+    }
+
+    private static final class NativeHidIo implements HidIo {
+        @Override
+        public String findDevicePath() {
+            return UsbHidTransport.findDevicePath();
+        }
+
+        @Override
+        public Pointer openRead(String path) {
+            return open(path, GENERIC_READ);
+        }
+
+        @Override
+        public Pointer openWrite(String path) {
+            return open(path, GENERIC_WRITE);
+        }
+
+        private Pointer open(String path, int access) {
+            return Kernel32.INSTANCE.CreateFile(
+                new WString(path), access, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                Pointer.NULL, OPEN_EXISTING, 0, Pointer.NULL);
+        }
+
+        @Override
+        public ReadResult read(Pointer handle, byte[] buffer) {
+            IntByReference read = new IntByReference();
+            boolean ok = Kernel32.INSTANCE.ReadFile(
+                handle, buffer, buffer.length, read, Pointer.NULL);
+            return new ReadResult(ok, read.getValue(), ok ? 0 : Native.getLastError());
+        }
+
+        @Override
+        public boolean write(Pointer handle, byte[] buffer, IntByReference written) {
+            return Kernel32.INSTANCE.WriteFile(
+                handle, buffer, buffer.length, written, Pointer.NULL);
+        }
+
+        @Override
+        public void cancel(Pointer handle) {
+            if (!isInvalid(handle)) {
+                try {
+                    Kernel32.INSTANCE.CancelIoEx(handle, Pointer.NULL);
+                } catch (Throwable failure) {
+                    logger.debug("CancelIoEx failed: {}", failure.getMessage());
+                }
+            }
+        }
+
+        @Override
+        public void close(Pointer handle) {
+            if (!isInvalid(handle)) {
+                Kernel32.INSTANCE.CloseHandle(handle);
+            }
+        }
+
+        @Override
+        public int lastError() {
+            return Native.getLastError();
+        }
+
+        @Override
+        public boolean isInvalid(Pointer handle) {
+            return isInvalidHandle(handle);
+        }
     }
 
     private static String findDevicePath() {
@@ -408,6 +528,7 @@ public class UsbHidTransport implements Closeable {
         Pointer CreateFile(WString fileName, int desiredAccess, int shareMode, Pointer securityAttributes, int creationDisposition, int flagsAndAttributes, Pointer templateFile);
         boolean WriteFile(Pointer file, byte[] buffer, int bytesToWrite, IntByReference bytesWritten, Pointer overlapped);
         boolean ReadFile(Pointer file, byte[] buffer, int bytesToRead, IntByReference bytesRead, Pointer overlapped);
+        boolean CancelIoEx(Pointer file, Pointer overlapped);
         boolean CloseHandle(Pointer object);
     }
 }

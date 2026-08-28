@@ -2,6 +2,7 @@ package com.example.ahakey.view;
 
 import com.example.ahakey.app.StudioController;
 import com.example.ahakey.firmware.FirmwareFlasher;
+import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.firmware.WindowsWchIspFlasher;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
@@ -31,9 +32,10 @@ import java.util.Optional;
 
 /** Firmware management and USB-only device factory reset cards. */
 public final class DeviceMaintenancePane {
-    static final String BUNDLED_FIRMWARE_VERSION = "1.4.0";
+    static final String BUNDLED_FIRMWARE_VERSION =
+        FirmwareCapabilities.BUNDLED_VERSION.toString();
     static final String BUNDLED_FIRMWARE_NAME =
-        "AhaKey-X1-firmware-" + BUNDLED_FIRMWARE_VERSION + "-ch582.hex";
+        FirmwareCapabilities.BUNDLED_FIRMWARE_NAME;
     private final StudioController controller;
     private final BleManager bleManager;
     private final DeviceStatus deviceStatus;
@@ -168,8 +170,8 @@ public final class DeviceMaintenancePane {
                     var caps = bleManager.queryDeviceCapabilities();
                     if (caps == null) {
                         throw new IllegalStateException(text(
-                            "设备未返回有效的 0x9F 版本信息",
-                            "The device did not return valid 0x9F version information"
+                            "设备未返回有效的 0x9D 版本信息",
+                            "The device did not return valid 0x9D version information"
                         ));
                     }
                     SemanticVersion version = new SemanticVersion(

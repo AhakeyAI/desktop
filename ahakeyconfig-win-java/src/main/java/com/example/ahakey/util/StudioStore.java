@@ -11,6 +11,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.channels.FileChannel;
 
 /** 对齐 Swift `AhaKeyStudioStore`（UserDefaults → 此处用 `~/.ahakey/studio-draft.json`）。 */
 public final class StudioStore {
@@ -25,12 +28,32 @@ public final class StudioStore {
     private StudioStore() {
     }
 
-    public static void save(StudioState.PersistedDraft draft) {
+    public static boolean save(StudioState.PersistedDraft draft) {
+        return save(DRAFT_PATH, draft);
+    }
+
+    static boolean save(Path destination, StudioState.PersistedDraft draft) {
+        Path temporary = destination.resolveSibling(destination.getFileName() + ".tmp");
         try {
-            Files.createDirectories(DRAFT_PATH.getParent());
-            MAPPER.writeValue(DRAFT_PATH.toFile(), draft);
+            Files.createDirectories(destination.getParent());
+            byte[] bytes = MAPPER.writeValueAsBytes(draft);
+            try (FileChannel channel = FileChannel.open(temporary,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE)) {
+                channel.write(java.nio.ByteBuffer.wrap(bytes));
+                channel.force(true);
+            }
+            try {
+                Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
         } catch (IOException e) {
             logger.error("StudioStore.save failed: {}", e.getMessage(), e);
+            try { Files.deleteIfExists(temporary); } catch (IOException ignored) {}
+            return false;
         }
     }
 

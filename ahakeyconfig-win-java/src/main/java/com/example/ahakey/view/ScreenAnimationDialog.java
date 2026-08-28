@@ -1,10 +1,14 @@
 package com.example.ahakey.view;
 
 import com.example.ahakey.app.StudioController;
+import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.service.BundledGifLibrary;
 import com.example.ahakey.service.OledUploadService;
+import com.example.ahakey.service.GifUploadRules;
+import com.example.ahakey.service.GifSelectionHistory;
+import com.example.ahakey.util.OLEDFrameEncoder;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -24,10 +28,12 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
 
 /** USB-only editor for the firmware fixed 4x4 GIF layout. */
 public final class ScreenAnimationDialog {
     private static final String[] ASSETS = {"默认", "运行中", "等待/错误", "已完成"};
+    private static final long JOB_TIMEOUT_MINUTES = 5;
 
     private ScreenAnimationDialog() {}
 
@@ -52,7 +58,9 @@ public final class ScreenAnimationDialog {
         }
     }
 
-    private record Job(ModeSlot mode, int asset, Path path, Label status) {}
+    private record Job(
+        ModeSlot mode, int asset, Path path, Label status, Runnable onCommitted
+    ) {}
 
     public static void show(Window owner, StudioController controller) {
         Stage stage = new Stage();
@@ -91,29 +99,33 @@ public final class ScreenAnimationDialog {
                                   DialogState dialogState) {
         FlowPane cards = new FlowPane(12, 12);
         File[] selected = new File[ASSETS.length];
+        boolean[] dirty = new boolean[ASSETS.length];
         Label[] statuses = new Label[ASSETS.length];
         List<Job> modeDefaults = new ArrayList<>();
         for (int asset = 0; asset < ASSETS.length; asset++) {
-            VBox card = assetCard(owner, controller, mode, asset, selected, statuses,
+            VBox card = assetCard(owner, controller, mode, asset, selected, dirty, statuses,
                 modeDefaults, dialogState);
             cards.getChildren().add(card);
         }
 
-        Button uploadAllSelected = new Button("写入本模式全部当前动画");
+        Button uploadAllSelected = new Button("写入本模式全部已修改动画");
         Button restoreMode = new Button("恢复本模式内置动画");
         dialogState.register(uploadAllSelected);
         dialogState.register(restoreMode);
         uploadAllSelected.setOnAction(event -> {
             List<Job> jobs = new ArrayList<>();
             for (int asset = 0; asset < selected.length; asset++) {
-                if (selected[asset] != null)
-                    jobs.add(new Job(mode, asset, selected[asset].toPath(), statuses[asset]));
+                if (dirty[asset] && selected[asset] != null) {
+                    int committedAsset = asset;
+                    jobs.add(new Job(mode, asset, selected[asset].toPath(), statuses[asset],
+                        () -> dirty[committedAsset] = false));
+                }
             }
             if (jobs.isEmpty()) {
                 new Alert(Alert.AlertType.WARNING, "本模式没有可写入的动画。").showAndWait();
                 return;
             }
-            runJobs(controller, dialogState, jobs, "本模式当前动画写入完成。");
+            runJobs(controller, dialogState, jobs, "本模式全部已修改动画写入完成。");
         });
         restoreMode.setOnAction(event -> {
             if (confirm("将覆盖 " + mode.getShortName() + " 的四个动画分区，是否继续？"))
@@ -129,7 +141,8 @@ public final class ScreenAnimationDialog {
     }
 
     private static VBox assetCard(Stage owner, StudioController controller, ModeSlot mode, int asset,
-                                  File[] selected, Label[] statuses, List<Job> modeDefaults,
+                                  File[] selected, boolean[] dirty, Label[] statuses,
+                                  List<Job> modeDefaults,
                                   DialogState dialogState) {
         Label title = new Label(ASSETS[asset]);
         title.setStyle("-fx-font-weight:bold;");
@@ -146,7 +159,6 @@ public final class ScreenAnimationDialog {
         Path bundled = null;
         try {
             bundled = BundledGifLibrary.extract(mode, asset);
-            selected[asset] = bundled.toFile();
             if (BundledGifLibrary.resource(mode, asset) != null)
                 preview.setImage(new Image(BundledGifLibrary.resource(mode, asset).toExternalForm(),
                     160, 80, true, true));
@@ -154,7 +166,7 @@ public final class ScreenAnimationDialog {
             status.setText("内置动画不可用：" + e.getMessage());
         }
 
-        Job defaultJob = bundled == null ? null : new Job(mode, asset, bundled, status);
+        Job defaultJob = bundled == null ? null : new Job(mode, asset, bundled, status, () -> {});
         if (defaultJob != null) {
             modeDefaults.add(defaultJob);
             dialogState.allJobs.add(defaultJob);
@@ -175,15 +187,49 @@ public final class ScreenAnimationDialog {
             FileChooser picker = new FileChooser();
             picker.setTitle("选择 160×80 GIF");
             picker.getExtensionFilters().add(new FileChooser.ExtensionFilter("GIF 动画", "*.gif"));
+            File last = lastSelectedGif();
+            if (last != null) {
+                File directory = last.isDirectory() ? last : last.getParentFile();
+                if (directory != null && directory.isDirectory())
+                    picker.setInitialDirectory(directory);
+                if (last.isFile()) picker.setInitialFileName(last.getName());
+            }
             File file = picker.showOpenDialog(owner);
             if (file == null) return;
+            try {
+                GifUploadRules.Preflight preflight =
+                    OLEDFrameEncoder.preflight(file.toPath(), asset);
+                if (preflight.needsOptimization() && !confirm(String.format(
+                    "所选 GIF 不完全符合设备限制：%n文件 %.1f MB（建议不超过 2 MB）%n"
+                        + "尺寸 %d×%d（设备 %d×%d）%n帧数 %d（该状态上限 %d）%n%n"
+                        + "是否自动缩放、按时间轴抽帧并尽量保持原始总时长？",
+                    preflight.fileBytes() / 1048576.0, preflight.width(), preflight.height(),
+                    GifUploadRules.WIDTH, GifUploadRules.HEIGHT, preflight.sourceFrames(),
+                    preflight.targetFrameLimit()))) {
+                    return;
+                }
+            } catch (Exception failure) {
+                new Alert(Alert.AlertType.ERROR,
+                    "GIF 预检失败：" + errorMessage(failure)).showAndWait();
+                return;
+            }
             selected[asset] = file;
+            dirty[asset] = true;
+            GifSelectionHistory.remember(file.toPath());
             fileName.setText(file.getName());
             preview.setImage(new Image(file.toURI().toString(), 160, 80, true, true));
             status.setText("已选择本地 GIF，等待写入；设备原配置尚未改变。");
+            upload.setDisable(false);
         });
-        upload.setOnAction(event -> runJobs(controller, dialogState,
-            List.of(new Job(mode, asset, selected[asset].toPath(), status)), "动画写入完成。"));
+        upload.setOnAction(event -> {
+            if (selected[asset] == null || !dirty[asset]) {
+                status.setText("请先选择需要写入的自定义 GIF。");
+                return;
+            }
+            runJobs(controller, dialogState,
+                List.of(new Job(mode, asset, selected[asset].toPath(), status,
+                    () -> dirty[asset] = false)), "动画写入完成。");
+        });
         restore.setOnAction(event -> {
             if (defaultJob != null)
                 runJobs(controller, dialogState, List.of(defaultJob), "内置动画恢复完成。");
@@ -225,8 +271,9 @@ public final class ScreenAnimationDialog {
             for (Job job : jobs) {
                 CountDownLatch done = new CountDownLatch(1);
                 AtomicReference<String> error = new AtomicReference<>();
-                OledUploadService.uploadAsset(controller.getBleManager(), job.mode(), job.asset(),
-                    job.path(), 12,
+                OledUploadService.UploadHandle handle = OledUploadService.uploadAsset(
+                    controller.getBleManager(), job.mode(), job.asset(),
+                    job.path(), 0,
                     progress -> Platform.runLater(() -> job.status().setText(progress.detail())),
                     result -> {
                         Platform.runLater(() -> job.status().setText(result));
@@ -238,8 +285,14 @@ public final class ScreenAnimationDialog {
                         done.countDown();
                     });
                 try {
-                    done.await();
+                    if (!done.await(JOB_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+                        handle.cancel();
+                        failure = "写入超过 " + JOB_TIMEOUT_MINUTES
+                            + " 分钟，已请求取消；设备事务锁会保持到后台操作实际退出。";
+                        break;
+                    }
                 } catch (InterruptedException e) {
+                    handle.cancel();
                     Thread.currentThread().interrupt();
                     failure = "操作已中断";
                     break;
@@ -248,6 +301,7 @@ public final class ScreenAnimationDialog {
                     failure = error.get();
                     break;
                 }
+                if (job.onCommitted() != null) job.onCommitted().run();
             }
             String finalFailure = failure;
             Platform.runLater(() -> {
@@ -269,7 +323,8 @@ public final class ScreenAnimationDialog {
                 var layout = controller.getBleManager().queryGifLayout();
                 if (layout == null) text = "设备未返回 Flash 布局。";
                 else if (!layout.hasPhysicalFlashDiagnostics())
-                    text = "固件仅返回旧版布局，写入前请升级到固件 1.4.3。";
+                    text = "固件仅返回旧版布局，写入前请升级到固件 "
+                        + FirmwareCapabilities.MINIMUM_GIF_VERSION + "。";
                 else text = String.format(
                     "Flash ID 0x%04X；实际容量 %.1f MiB；可用帧槽 %d；规划分区共 %d 个帧槽。",
                     layout.flashId(), layout.flashBytes() / 1048576.0, layout.frameSlots(),
@@ -305,6 +360,10 @@ public final class ScreenAnimationDialog {
     private static boolean confirm(String message) {
         return new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL)
             .showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+    }
+
+    private static File lastSelectedGif() {
+        return GifSelectionHistory.initialLocation();
     }
 
     private static String errorMessage(Throwable error) {

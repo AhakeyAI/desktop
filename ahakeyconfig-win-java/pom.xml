@@ -182,6 +182,35 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>verify-release-artifact-contents</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>powershell.exe</executable>
+                            <arguments>
+                                <argument>-NoLogo</argument>
+                                <argument>-NoProfile</argument>
+                                <argument>-NonInteractive</argument>
+                                <argument>-ExecutionPolicy</argument>
+                                <argument>Bypass</argument>
+                                <argument>-File</argument>
+                                <argument>${project.basedir}/Test-ReleaseArtifactContents.ps1</argument>
+                                <argument>-JarPath</argument>
+                                <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

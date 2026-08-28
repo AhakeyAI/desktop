@@ -22,7 +22,7 @@ class AhaKeyProtocolTest {
     @Test
     void buildsProtocolV2Commands() {
         assertArrayEquals(
-            new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0x9F, (byte) 0xCC, (byte) 0xDD},
+            new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0x9D, (byte) 0xCC, (byte) 0xDD},
             AhaKeyProtocol.queryCapabilities()
         );
         assertArrayEquals(

@@ -119,6 +119,14 @@ public final class StableReleaseClient {
         }
         try {
             URI url = URI.create(requiredText(node, "url"));
+            if (!url.isAbsolute()
+                || !"https".equalsIgnoreCase(url.getScheme())
+                || url.getHost() == null
+                || url.getHost().isBlank()
+                || url.getUserInfo() != null) {
+                throw new IllegalArgumentException(
+                    "Release asset URL must be absolute HTTPS without userinfo");
+            }
             return new ReleaseAsset(name, url);
         } catch (IllegalArgumentException exception) {
             throw new IOException("Invalid release asset at " + path, exception);

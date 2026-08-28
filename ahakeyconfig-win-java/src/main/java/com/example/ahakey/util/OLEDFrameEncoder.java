@@ -1,10 +1,14 @@
 package com.example.ahakey.util;
 
 import com.example.ahakey.protocol.AhaKeyProtocol;
+import com.example.ahakey.service.GifUploadRules;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import javax.imageio.metadata.IIOMetadata;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -26,14 +30,107 @@ public final class OLEDFrameEncoder {
         }
     }
 
+    public record EncodedAnimation(
+        List<EncodedFrame> frames,
+        int frameIntervalMs,
+        long sourceDurationMs,
+        boolean optimized
+    ) {}
+
     private OLEDFrameEncoder() {
     }
 
     public static void validateGifSourceFileSize(Path path) throws IOException {
         long size = Files.size(path);
-        if (size > AhaKeyProtocol.OLED_MAX_SOURCE_FILE_BYTES) {
+        if (size > GifUploadRules.MAX_SOURCE_BYTES) {
             throw new IOException("源文件超过 2 MB 上限（当前约 " + (size / 1024) + " KB）。请压缩图片/GIF 后重新选择。");
         }
+    }
+
+    public static GifUploadRules.Preflight preflight(Path gifPath, int asset)
+        throws IOException {
+        long bytes = Files.size(gifPath);
+        if (bytes > GifUploadRules.HARD_DECODE_LIMIT_BYTES) {
+            throw new IOException("源 GIF 超过 20 MB 安全解码上限。");
+        }
+        try (ImageInputStream stream = ImageIO.createImageInputStream(gifPath.toFile())) {
+            Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+            if (!readers.hasNext()) throw new IOException("无法读取 GIF 文件。");
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(stream, false);
+                int count = reader.getNumImages(true);
+                if (count < 1 || count > GifUploadRules.MAX_DECODE_FRAMES) {
+                    throw new IOException("GIF 帧数超出安全解码范围（1–"
+                        + GifUploadRules.MAX_DECODE_FRAMES + "）。");
+                }
+                long duration = 0;
+                for (int i = 0; i < count; i++) duration += frameDelayMs(reader, i);
+                return new GifUploadRules.Preflight(
+                    gifPath, bytes, reader.getWidth(0), reader.getHeight(0), count,
+                    duration, GifUploadRules.frameLimit(asset));
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    public static EncodedAnimation optimizedAnimation(Path gifPath, int asset)
+        throws IOException {
+        GifUploadRules.Preflight preflight = preflight(gifPath, asset);
+        try (ImageInputStream stream = ImageIO.createImageInputStream(gifPath.toFile())) {
+            Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+            if (!readers.hasNext()) throw new IOException("无法读取 GIF 文件。");
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(stream, false);
+                int count = reader.getNumImages(true);
+                int[] delays = new int[count];
+                for (int i = 0; i < count; i++) delays[i] = frameDelayMs(reader, i);
+                GifUploadRules.OptimizationPlan plan =
+                    GifUploadRules.plan(delays, GifUploadRules.frameLimit(asset));
+                List<EncodedFrame> frames = new ArrayList<>(plan.outputFrameCount());
+                for (int index : plan.sourceIndices()) {
+                    BufferedImage frame = reader.read(index);
+                    if (frame == null) throw new IOException("GIF 第 " + index + " 帧无法读取。");
+                    frames.add(encodeFrame(frame));
+                }
+                return new EncodedAnimation(
+                    frames, plan.frameIntervalMs(), plan.sourceDurationMs(),
+                    preflight.needsOptimization());
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private static int frameDelayMs(ImageReader reader, int imageIndex) {
+        try {
+            IIOMetadata metadata = reader.getImageMetadata(imageIndex);
+            Node root = metadata.getAsTree("javax_imageio_gif_image_1.0");
+            Node graphic = findNode(root, "GraphicControlExtension");
+            if (graphic != null) {
+                NamedNodeMap attributes = graphic.getAttributes();
+                Node delay = attributes == null ? null : attributes.getNamedItem("delayTime");
+                if (delay != null) {
+                    int hundredths = Integer.parseInt(delay.getNodeValue());
+                    if (hundredths > 0) return hundredths * 10;
+                }
+            }
+        } catch (Exception ignored) {
+            // Malformed/missing timing has a deterministic safe default.
+        }
+        return GifUploadRules.DEFAULT_FRAME_DELAY_MS;
+    }
+
+    private static Node findNode(Node node, String name) {
+        if (node == null) return null;
+        if (name.equals(node.getNodeName())) return node;
+        for (Node child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+            Node found = findNode(child, name);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     public static int frameCount(Path gifPath) throws IOException {

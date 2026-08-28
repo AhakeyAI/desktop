@@ -158,7 +158,7 @@ public final class AppUpdateCoordinator {
                         try {
                             PREFS.put(INSTALLED_NOTICE, version.toString());
                             launchInstallerAndRestart(result.path(), version);
-                            Platform.exit();
+                            com.example.ahakey.app.ApplicationLifecycle.requestExit();
                         } catch (Exception exception) {
                             alert(owner, Alert.AlertType.ERROR,
                                 text("无法启动安装程序", "Cannot Start Installer"),

@@ -102,8 +102,26 @@ function Replace-ExactlyOnce {
 $topBarSource = Replace-ExactlyOnce `
     $topBarSource `
     "floatingNotification = new FloatingVoiceNotification();" `
-    "floatingNotification = FloatingVoiceNotification.getInstance();" `
+    "floatingNotification = releaseCompatibleVoiceNotification();" `
     "installed-release voice notification compatibility"
+
+$voiceLampMarker = "    private class VoiceStatusLamp extends Canvas {"
+$voiceNotificationCompatibility = @"
+    private static FloatingVoiceNotification releaseCompatibleVoiceNotification() {
+        try {
+            return (FloatingVoiceNotification) FloatingVoiceNotification.class
+                .getMethod("getInstance")
+                .invoke(null);
+        } catch (ReflectiveOperationException unavailableSingleton) {
+            return new FloatingVoiceNotification();
+        }
+    }
+
+$voiceLampMarker
+"@
+$topBarSource = Replace-ExactlyOnce `
+    $topBarSource $voiceLampMarker $voiceNotificationCompatibility.TrimEnd() `
+    "voice notification API compatibility"
 
 $batteryExpressionPattern =
     '\(\) -> controller\.isEffectivelyConnected\(\) \? deviceStatus\.getBatteryLevel\(\) \+ "%" : "[^"]*"'
@@ -169,7 +187,6 @@ $topBarSource = [regex]::Replace(
     $dialogBatteryNew.TrimEnd()
 )
 
-$voiceLampMarker = "    private class VoiceStatusLamp extends Canvas {"
 $batteryFormatter = @"
     private static String formatBattery(DeviceStatus status) {
         if (!status.isConnected()) {
@@ -603,8 +620,11 @@ $currentTopBar = Get-Content -LiteralPath (Join-Path $projectDir `
 $currentTopBar = Replace-ExactlyOnce `
     $currentTopBar `
     "floatingNotification = new FloatingVoiceNotification();" `
-    "floatingNotification = FloatingVoiceNotification.getInstance();" `
+    "floatingNotification = releaseCompatibleVoiceNotification();" `
     "installed-release voice notification compatibility"
+$currentTopBar = Replace-ExactlyOnce `
+    $currentTopBar $voiceLampMarker $voiceNotificationCompatibility.TrimEnd() `
+    "voice notification API compatibility"
 [IO.File]::WriteAllText($generatedController, $currentController, [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText($generatedInspector, $currentInspector, [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText($generatedTopBar, $currentTopBar, [Text.UTF8Encoding]::new($false))
@@ -641,22 +661,40 @@ $classPath = [string]::Join(";", @($baselineJar) + $libJars)
 
 $sources = @(
     $generatedApp,
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\SingleInstanceChecker.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\protocol\AhaKeyProtocol.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\protocol\AhaKeyResponseParser.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\model\DeviceStatus.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\model\VoicePreset.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\model\StudioState.java"),
-    $generatedStore,
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\app\WorkModeSynchronizer.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\app\ManualApprovalGate.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\app\StatusRefreshScheduler.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\app\ApplicationLifecycle.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\util\StudioStore.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\util\OLEDFrameEncoder.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\BleManager.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\UsbHidTransport.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\DeviceSyncService.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\HookInstaller.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\HookDispatchServer.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\ApprovalService.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\ApprovalSnapshot.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\ApprovalState.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\PhysicalStatusFreshness.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\KimiAhaKeyBridge.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\TaskActivityService.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\LightOperationCoordinator.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\OledUploadService.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\BundledGifLibrary.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\GifUploadRules.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\GifSelectionHistory.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\BleBridgeProcessOwner.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\SpeechService.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\KeyboardInjector.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\platform\VoiceRelayPlatform.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\platform\windows\WindowsVoiceRelayService.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\platform\windows\VoiceKeyPressState.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\util\FirstRunState.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\util\LanguageManager.java"),
     $generatedController,
@@ -694,7 +732,7 @@ Copy-Item -LiteralPath $baselineJar -Destination $previewJar
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$allowedEntryPattern = "^(com/example/ahakey/App.*\.class|com/example/ahakey/protocol/AhaKeyProtocol\.class|com/example/ahakey/protocol/AhaKeyResponseParser.*\.class|com/example/ahakey/model/(DeviceStatus|VoicePreset|StudioState).*\.class|com/example/ahakey/app/StudioController.*\.class|com/example/ahakey/util/(StudioStore|FirstRunState|LanguageManager).*\.class|com/example/ahakey/service/(BleManager|UsbHidTransport|DeviceSyncService|HookInstaller|HookDispatchServer|TaskActivityService|OledUploadService|BundledGifLibrary).*\.class|com/example/ahakey/platform/VoiceRelayPlatform\.class|com/example/ahakey/platform/windows/WindowsVoiceRelayService.*\.class|com/example/ahakey/view/(TopBar|CanvasPane|InspectorPane|StandbySettingsPane|DeviceMaintenancePane|SupportPane|BluetoothPairingGuide|ScreenAnimationDialog).*\.class|com/example/ahakey/firmware/.*\.class|com/example/ahakey/update/.*\.class|default-gifs/(claude|cursor|codex|mode4)/(default|running|waiting-error|completed)\.gif|fxml/CanvasLayout\.fxml|images/support-service-qr\.png|messages_(zh|en)\.properties|style\.css)$"
+$allowedEntryPattern = "^(com/example/ahakey/(App|SingleInstanceChecker).*\.class|com/example/ahakey/protocol/AhaKeyProtocol\.class|com/example/ahakey/protocol/AhaKeyResponseParser.*\.class|com/example/ahakey/model/(DeviceStatus|VoicePreset|StudioState).*\.class|com/example/ahakey/app/(StudioController|WorkModeSynchronizer|ManualApprovalGate|StatusRefreshScheduler|ApplicationLifecycle).*\.class|com/example/ahakey/util/(StudioStore|FirstRunState|LanguageManager|OLEDFrameEncoder).*\.class|com/example/ahakey/service/(BleManager|UsbHidTransport|DeviceSyncService|HookInstaller|HookDispatchServer|ApprovalService|ApprovalSnapshot|ApprovalState|PhysicalStatusFreshness|KimiAhaKeyBridge|TaskActivityService|LightOperationCoordinator|OledUploadService|BundledGifLibrary|GifUploadRules|GifSelectionHistory|BleBridgeProcessOwner|SpeechService|KeyboardInjector).*\.class|com/example/ahakey/platform/VoiceRelayPlatform\.class|com/example/ahakey/platform/windows/(WindowsVoiceRelayService|VoiceKeyPressState).*\.class|com/example/ahakey/view/(TopBar|CanvasPane|InspectorPane|StandbySettingsPane|DeviceMaintenancePane|SupportPane|BluetoothPairingGuide|ScreenAnimationDialog).*\.class|com/example/ahakey/firmware/.*\.class|com/example/ahakey/update/.*\.class|firmware-capabilities\.properties|default-gifs/(claude|cursor|codex|mode4)/(default|running|waiting-error|completed)\.gif|fxml/CanvasLayout\.fxml|images/support-service-qr\.png|messages_(zh|en)\.properties|style\.css)$"
 
 $zip = [IO.Compression.ZipFile]::Open(
     $previewJar,
@@ -845,6 +883,29 @@ try {
             $messageInput.Dispose()
         }
     }
+
+    $firmwareCapabilities = Join-Path $projectDir `
+        "src\main\resources\firmware-capabilities.properties"
+    if (-not (Test-Path -LiteralPath $firmwareCapabilities -PathType Leaf)) {
+        throw "Firmware capability resource is missing: $firmwareCapabilities"
+    }
+    $firmwareCapabilitiesEntryName = "firmware-capabilities.properties"
+    $existingFirmwareCapabilities = $zip.GetEntry($firmwareCapabilitiesEntryName)
+    if ($existingFirmwareCapabilities) {
+        $existingFirmwareCapabilities.Delete()
+    }
+    $firmwareCapabilitiesEntry = $zip.CreateEntry(
+        $firmwareCapabilitiesEntryName,
+        [IO.Compression.CompressionLevel]::Optimal
+    )
+    $firmwareCapabilitiesInput = [IO.File]::OpenRead($firmwareCapabilities)
+    $firmwareCapabilitiesOutput = $firmwareCapabilitiesEntry.Open()
+    try {
+        $firmwareCapabilitiesInput.CopyTo($firmwareCapabilitiesOutput)
+    } finally {
+        $firmwareCapabilitiesOutput.Dispose()
+        $firmwareCapabilitiesInput.Dispose()
+    }
 } finally {
     $zip.Dispose()
 }
@@ -901,8 +962,6 @@ $protectedEntries = @(
     "com/example/ahakey/service/VoiceInputManager.class",
     "com/example/ahakey/service/VoiceInputManager`$Consumer.class",
     "com/example/ahakey/service/VoiceInputManager`$VoiceStatus.class",
-    "com/example/ahakey/service/SpeechService.class",
-    "com/example/ahakey/service/SpeechService`$Consumer.class",
     "com/example/ahakey/config/ModelConfig.class",
     "model_config.properties"
 )
@@ -919,12 +978,17 @@ if ($previewHashes.ContainsKey("models/model_q8.onnx")) {
     throw "The overlay unexpectedly contains models/model_q8.onnx."
 }
 
+& (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") -JarPath $previewJar
+if ($LASTEXITCODE -ne 0) {
+    throw "Release overlay artifact content validation failed."
+}
+
 Write-Output "OVERLAY_VALIDATION=OK"
 Write-Output "Baseline JAR: $baselineJar"
 Write-Output "Preview JAR:  $previewJar"
 Write-Output "Changed entries:"
 $changedEntries | ForEach-Object { Write-Output "  $_" }
-Write-Output "Protected voice/model classes and model_config.properties are byte-identical."
+Write-Output "Protected VoiceInputManager/ModelConfig classes and model_config.properties are byte-identical."
 
 if ($Launch) {
     if (-not (Test-Path -LiteralPath $javaw)) {

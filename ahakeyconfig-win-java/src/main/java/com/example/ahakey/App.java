@@ -1,6 +1,8 @@
 package com.example.ahakey;
 
 import com.example.ahakey.app.StudioController;
+import com.example.ahakey.app.ApplicationLifecycle;
+import com.example.ahakey.service.BleBridgeProcessOwner;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
 import com.example.ahakey.service.VoiceInputManager;
@@ -85,14 +87,15 @@ public class App extends Application {
      */
     @Override
     public void start(Stage primaryStage) {
-        if (SingleInstanceChecker.isAlreadyRunning()) {
+        this.primaryStage = primaryStage;
+        if (SingleInstanceChecker.acquireOrActivate(this::showFromTray)) {
             logger.info("检测到已有实例运行，退出");
             Platform.exit();
             return;
         }
         logger.info("AhaKey Studio 启动中...");
         
-        this.primaryStage = primaryStage;
+        ApplicationLifecycle.registerExitHandler(this::shutdownApplication);
 
         Platform.setImplicitExit(false);
 
@@ -376,23 +379,12 @@ public class App extends Application {
                 controller.shutdown();
             }
             
-            stopBleDriverProcess();
+            BleBridgeProcessOwner.stopOwned();
         } catch (Exception e) {
             logger.warn("Application shutdown cleanup failed: {}", e.getMessage());
         } finally {
             Platform.exit();
             System.exit(0);
-        }
-    }
-    
-    private void stopBleDriverProcess() {
-        try {
-            logger.info("停止 BLE_tcp_driver.exe 进程...");
-            new ProcessBuilder("taskkill", "/F", "/IM", "BLE_tcp_driver.exe").redirectErrorStream(true).start().waitFor();
-            Thread.sleep(300);
-            logger.info("BLE_tcp_driver.exe 进程已停止");
-        } catch (Exception e) {
-            logger.warn("停止 BLE_tcp_driver.exe 进程失败: {}", e.getMessage());
         }
     }
     

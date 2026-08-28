@@ -1,5 +1,6 @@
 package com.example.ahakey.service;
 
+import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
@@ -27,6 +28,22 @@ public final class OledUploadService {
 
     public record AssetState(int mode, int asset, int startIndex, int frameCount,
                              int frameInterval, int totalFrameSlots) {}
+
+    public static final class UploadHandle {
+        private final Thread worker;
+
+        private UploadHandle(Thread worker) {
+            this.worker = worker;
+        }
+
+        public void cancel() {
+            worker.interrupt();
+        }
+
+        public boolean isRunning() {
+            return worker.isAlive();
+        }
+    }
 
     private OledUploadService() {}
 
@@ -88,7 +105,8 @@ public final class OledUploadService {
         }
         if (layout == null) throw new IllegalStateException("设备未返回 GIF/Flash 布局。");
         if (!layout.hasPhysicalFlashDiagnostics()) {
-            throw new IllegalStateException("当前固件未报告真实 Flash 容量。请先升级到固件 1.4.3 后再写入 GIF。");
+            throw new IllegalStateException("当前固件未报告真实 Flash 容量。请先升级到固件 "
+                + FirmwareCapabilities.MINIMUM_GIF_VERSION + " 后再写入 GIF。");
         }
         if (layout.profiles() != AhaKeyProtocol.GIF_PROFILE_COUNT
             || layout.assetsPerProfile() != AhaKeyProtocol.GIF_ASSET_COUNT
@@ -114,59 +132,56 @@ public final class OledUploadService {
         return new UploadPlan(startIndex, frameCount, assetCapacity, layout.frameSlots(), layout);
     }
 
-    public static void uploadAsset(BleManager ble, ModeSlot mode, int asset, Path path, int fps,
-                                   Consumer<UploadProgress> onProgress, Consumer<String> onComplete,
-                                   Consumer<String> onError) {
+    public static UploadHandle uploadAsset(
+        BleManager ble, ModeSlot mode, int asset, Path path, int ignoredFps,
+        Consumer<UploadProgress> onProgress, Consumer<String> onComplete,
+        Consumer<String> onError
+    ) {
         Thread thread = new Thread(() -> {
             if (!GIF_OPERATION_LOCK.tryLock()) {
                 fail(onError, "已有 GIF 写入或清除操作正在进行，请等待完成。");
                 return;
             }
             try {
-                int count;
-                List<OLEDFrameEncoder.EncodedFrame> frames;
+                OLEDFrameEncoder.EncodedAnimation animation;
                 try {
-                    count = OLEDFrameEncoder.frameCount(path);
-                    int capacity = AhaKeyProtocol.gifAssetCapacity(asset);
-                    if (count < 1 || count > capacity)
-                        throw new IllegalStateException("该状态 GIF 必须为 1–" + capacity + " 帧。");
-                    frames = OLEDFrameEncoder.framesFromGif(path, count);
+                    animation = OLEDFrameEncoder.optimizedAnimation(path, asset);
                 } catch (Exception e) {
                     throw stepFailure("解析 GIF", e);
                 }
-
-                UploadPlan plan = validateUploadPlan(ble, mode, asset, count);
-                for (int i = 0; i < frames.size(); i++) {
-                    if (onProgress != null)
-                        onProgress.accept(new UploadProgress(i, count, "写入帧 " + (i + 1) + "/" + count));
-                    try {
+                int count = animation.frames().size();
+                String result = ble.executeDeviceTransaction(() -> {
+                    UploadPlan plan = validateUploadPlan(ble, mode, asset, count);
+                    for (int i = 0; i < animation.frames().size(); i++) {
+                        if (Thread.currentThread().isInterrupted()) {
+                            throw new InterruptedException("GIF 写入已取消");
+                        }
+                        if (onProgress != null) onProgress.accept(
+                            new UploadProgress(i, count, "写入帧 " + (i + 1) + "/" + count));
                         ble.writeLargeData(
                             (long) (plan.startIndex() + i) * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE,
-                            frames.get(i).rgb565);
+                            animation.frames().get(i).rgb565);
                         Thread.sleep(25);
-                    } catch (Exception e) {
-                        throw stepFailure("写入第 " + (i + 1) + " 帧", e);
                     }
-                }
-
-                int delay = Math.max(1, 1000 / Math.max(1, fps));
-                byte[] command = asset == 0
-                    ? AhaKeyProtocol.updatePicture(mode.getIndex(), plan.startIndex(), count, delay)
-                    : AhaKeyProtocol.setAiOledPicture(mode.getIndex(), asset, plan.startIndex(), count, delay);
-                try {
+                    int delay = animation.frameIntervalMs();
+                    byte[] command = asset == 0
+                        ? AhaKeyProtocol.updatePicture(mode.getIndex(), plan.startIndex(), count, delay)
+                        : AhaKeyProtocol.setAiOledPicture(
+                            mode.getIndex(), asset, plan.startIndex(), count, delay);
                     ble.sendCommandExpecting(command,
-                        asset == 0 ? AhaKeyProtocol.CMD_UPDATE_PIC : AhaKeyProtocol.CMD_SET_AI_OLED_CONFIG);
-                } catch (Exception e) {
-                    throw stepFailure("提交动画配置", e);
-                }
-                try {
-                    ble.sendCommandExpecting(AhaKeyProtocol.saveConfig(), AhaKeyProtocol.CMD_SAVE_CONFIG);
-                } catch (Exception e) {
-                    throw stepFailure("保存动画配置", e);
-                }
-                if (onComplete != null) onComplete.accept(String.format(
-                    "动画写入完成：%d 帧；Flash ID 0x%04X，容量 %.1f MiB",
-                    count, plan.layout().flashId(), plan.layout().flashBytes() / 1048576.0));
+                        asset == 0 ? AhaKeyProtocol.CMD_UPDATE_PIC
+                            : AhaKeyProtocol.CMD_SET_AI_OLED_CONFIG);
+                    ble.sendCommandExpecting(
+                        AhaKeyProtocol.saveConfig(), AhaKeyProtocol.CMD_SAVE_CONFIG);
+                    AssetState verified = readAssetState(ble, mode, asset);
+                    verifyAssetState(verified, plan.startIndex(), count, delay);
+                    return String.format(
+                        "动画写入并回读完成：%d 帧，间隔 %d ms；Flash ID 0x%04X，容量 %.1f MiB%s",
+                        count, delay, plan.layout().flashId(),
+                        plan.layout().flashBytes() / 1048576.0,
+                        animation.optimized() ? "；已自动优化并保持总时长" : "");
+                });
+                if (onComplete != null) onComplete.accept(result);
             } catch (Exception e) {
                 fail(onError, message(e));
             } finally {
@@ -175,6 +190,7 @@ public final class OledUploadService {
         }, "oled-asset-upload");
         thread.setDaemon(true);
         thread.start();
+        return new UploadHandle(thread);
     }
 
     public static void clearAsset(BleManager ble, ModeSlot mode, int asset,
@@ -185,18 +201,20 @@ public final class OledUploadService {
                 return;
             }
             try {
-                if (!ble.isUsbConnected()) throw new IllegalStateException("屏幕动画只能通过 USB 修改。");
-                int start = AhaKeyProtocol.gifPartitionStart(mode.getIndex(), asset);
-                byte[] command = asset == 0
-                    ? AhaKeyProtocol.updatePicture(mode.getIndex(), start, 0, 0)
-                    : AhaKeyProtocol.setAiOledPicture(mode.getIndex(), asset, start, 0, 0);
-                try {
+                ble.executeDeviceTransaction(() -> {
+                    if (!ble.isUsbConnected())
+                        throw new IllegalStateException("屏幕动画只能通过 USB 修改。");
+                    int start = AhaKeyProtocol.gifPartitionStart(mode.getIndex(), asset);
+                    byte[] command = asset == 0
+                        ? AhaKeyProtocol.updatePicture(mode.getIndex(), start, 0, 0)
+                        : AhaKeyProtocol.setAiOledPicture(mode.getIndex(), asset, start, 0, 0);
                     ble.sendCommandExpecting(command,
                         asset == 0 ? AhaKeyProtocol.CMD_UPDATE_PIC : AhaKeyProtocol.CMD_SET_AI_OLED_CONFIG);
                     ble.sendCommandExpecting(AhaKeyProtocol.saveConfig(), AhaKeyProtocol.CMD_SAVE_CONFIG);
-                } catch (Exception e) {
-                    throw stepFailure("清除并保存动画配置", e);
-                }
+                    AssetState verified = readAssetState(ble, mode, asset);
+                    verifyAssetState(verified, start, 0, 0);
+                    return null;
+                });
                 if (onComplete != null) onComplete.accept("该状态动画已清空");
             } catch (Exception e) {
                 fail(onError, message(e));
@@ -209,13 +227,13 @@ public final class OledUploadService {
     }
 
     // Compatibility entry points used by the older editor.
-    public static void uploadGif(BleManager ble, ModeSlot mode, Path path, int fps,
+    public static UploadHandle uploadGif(BleManager ble, ModeSlot mode, Path path, int fps,
                                  Consumer<UploadProgress> progress, Consumer<String> complete,
                                  Consumer<String> error) {
-        uploadAsset(ble, mode, 0, path, fps, progress, complete, error);
+        return uploadAsset(ble, mode, 0, path, fps, progress, complete, error);
     }
 
-    public static void uploadStaticImage(BleManager ble, ModeSlot mode, Path path,
+    public static UploadHandle uploadStaticImage(BleManager ble, ModeSlot mode, Path path,
                                          Consumer<UploadProgress> progress, Consumer<String> complete,
                                          Consumer<String> error) {
         Thread thread = new Thread(() -> {
@@ -224,15 +242,23 @@ public final class OledUploadService {
                 return;
             }
             try {
-                UploadPlan plan = validateUploadPlan(ble, mode, 0, 1);
                 OLEDFrameEncoder.EncodedFrame frame = OLEDFrameEncoder.frameFromSingleImage(path);
                 if (progress != null) progress.accept(new UploadProgress(0, 1, "写入静态图片"));
-                ble.writeLargeData((long) plan.startIndex() * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE,
-                    frame.rgb565);
-                ble.sendCommandExpecting(
-                    AhaKeyProtocol.updatePicture(mode.getIndex(), plan.startIndex(), 1, 0),
-                    AhaKeyProtocol.CMD_UPDATE_PIC);
-                if (complete != null) complete.accept(mode.getTitle() + " OLED 图片上传完成");
+                ble.executeDeviceTransaction(() -> {
+                    UploadPlan plan = validateUploadPlan(ble, mode, 0, 1);
+                    ble.writeLargeData(
+                        (long) plan.startIndex() * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE,
+                        frame.rgb565);
+                    ble.sendCommandExpecting(
+                        AhaKeyProtocol.updatePicture(mode.getIndex(), plan.startIndex(), 1, 0),
+                        AhaKeyProtocol.CMD_UPDATE_PIC);
+                    ble.sendCommandExpecting(
+                        AhaKeyProtocol.saveConfig(), AhaKeyProtocol.CMD_SAVE_CONFIG);
+                    verifyAssetState(readAssetState(ble, mode, 0), plan.startIndex(), 1, 0);
+                    return null;
+                });
+                if (complete != null)
+                    complete.accept(mode.getTitle() + " OLED 图片已保存并回读验证");
             } catch (Exception e) {
                 fail(error, message(e));
             } finally {
@@ -241,15 +267,25 @@ public final class OledUploadService {
         }, "oled-static-upload");
         thread.setDaemon(true);
         thread.start();
-    }
-
-    public static void previewGif(BleManager ble, Path path, int fps,
-                                  Consumer<String> complete, Consumer<String> error) {
-        uploadAsset(ble, ModeSlot.MODE0, 0, path, fps, null, complete, error);
+        return new UploadHandle(thread);
     }
 
     private static IllegalStateException stepFailure(String step, Exception cause) {
         return new IllegalStateException(step + "失败：" + message(cause), cause);
+    }
+
+    static void verifyAssetState(
+        AssetState actual, int expectedStart, int expectedCount, int expectedInterval
+    ) {
+        if (actual == null || actual.startIndex() != expectedStart
+            || actual.frameCount() != expectedCount
+            || actual.frameInterval() != expectedInterval) {
+            throw new IllegalStateException(String.format(
+                "动画回读不一致：期望 start=%d/count=%d/interval=%d，实际 %s",
+                expectedStart, expectedCount, expectedInterval,
+                actual == null ? "无响应" : String.format("start=%d/count=%d/interval=%d",
+                    actual.startIndex(), actual.frameCount(), actual.frameInterval())));
+        }
     }
 
     private static String message(Throwable error) {

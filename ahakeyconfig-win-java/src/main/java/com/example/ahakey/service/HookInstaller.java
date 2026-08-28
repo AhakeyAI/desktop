@@ -6,10 +6,13 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.nio.file.Files;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Map;
+import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
@@ -21,6 +24,7 @@ public class HookInstaller {
 
     private final IntSupplier portSupplier;
     private final Consumer<String> logger;
+    private final Path userHome;
     private final ObjectMapper mapper = new ObjectMapper();
 
     // 各平台 Hook 脚本名称
@@ -74,24 +78,29 @@ public class HookInstaller {
     };
 
     public HookInstaller(int dispatchPort, Consumer<String> logger) {
-        this(() -> dispatchPort, logger);
+        this(Paths.get(System.getProperty("user.home")), () -> dispatchPort, logger);
     }
 
     public HookInstaller(IntSupplier portSupplier, Consumer<String> logger) {
+        this(Paths.get(System.getProperty("user.home")), portSupplier, logger);
+    }
+
+    HookInstaller(Path userHome, IntSupplier portSupplier, Consumer<String> logger) {
+        this.userHome = userHome.toAbsolutePath().normalize();
         this.portSupplier = portSupplier;
         this.logger = logger;
     }
 
     private int currentPort() {
-        return portSupplier.getAsInt();
+        int supplied = portSupplier.getAsInt();
+        return supplied > 0 ? supplied : HookDispatchServer.DEFAULT_PORT;
     }
 
     /**
      * 生成所有 Hook 脚本（core + 各平台专属）
      */
     public void generateAllScripts() {
-        String home = System.getProperty("user.home");
-        Path hooksDir = Paths.get(home, ".ahakey", "hooks");
+        Path hooksDir = userHome.resolve(".ahakey").resolve("hooks");
         try {
             Files.createDirectories(hooksDir);
             generateCoreScript(hooksDir);
@@ -127,14 +136,22 @@ public class HookInstaller {
     /**
      * 卸载指定平台的 Hook
      */
-    public void uninstall(String platform) {
+    public boolean uninstall(String platform) {
         switch (platform) {
             case "Claude": uninstallClaudeHooks(); break;
             case "Cursor": uninstallCursorHooks(); break;
             case "Codex": uninstallCodexHooks(); break;
             case "Kimi": uninstallKimiHooks(); break;
-            default: log("[错误] 未知 Hook 类型: " + platform);
+            default: {
+                log("[错误] 未知 Hook 类型: " + platform);
+                return false;
+            }
         }
+        boolean removed = !isInstalled(platform);
+        log(removed
+            ? "[验证] " + platform + " Hook 已不在配置中"
+            : "[错误] " + platform + " Hook 卸载后仍可检测到");
+        return removed;
     }
 
     /**
@@ -143,15 +160,16 @@ public class HookInstaller {
     public boolean isInstalled(String platform) {
         try {
             Path path = getHookConfigPath(platform);
-            if (!path.toFile().exists()) return false;
-            String content = new String(Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+            Path script = scriptPath(platform);
+            if (!Files.isRegularFile(path) || !Files.isRegularFile(script)) return false;
+            String content = Files.readString(path, StandardCharsets.UTF_8);
             switch (platform) {
-                case "Claude": return content.contains("ahakey-claude.ps1");
-                case "Cursor": return content.contains("\"command\"") && content.contains("ahakey-cursor.ps1");
-                case "Codex": {
-                    Path sidecar = Paths.get(System.getProperty("user.home"), ".codex", CODEX_SIDECAR_NAME);
-                    return sidecar.toFile().exists();
-                }
+                case "Claude": return containsManagedCommand(
+                    mapper.readTree(content), CLAUDE_SCRIPT_NAME);
+                case "Cursor": return containsManagedCommand(
+                    mapper.readTree(content), CURSOR_SCRIPT_NAME);
+                case "Codex": return containsManagedCommand(
+                    mapper.readTree(content), CODEX_SCRIPT_NAME);
                 case "Kimi": return content.contains(KIMI_HOOK_BLOCK_START) && content.contains(KIMI_HOOK_BLOCK_END);
                 default: return false;
             }
@@ -168,6 +186,29 @@ public class HookInstaller {
         String content =
             "# AhaKey Core - Auto-generated, do not edit\n" +
             "# Contains TCP connection logic, to be dot-sourced by platform-specific scripts\n" +
+            "function Test-AhaKeyCanonicalResponse([string]$Text,[string]$ExpectedPlatform,[string]$ExpectedEvent) {\n" +
+            "    if ($null -eq $Text) { return $false }\n" +
+            "    try { $parsed = $Text | ConvertFrom-Json } catch { return $false }\n" +
+            "    if ($null -eq $parsed -or $parsed -is [System.Array]) { return $false }\n" +
+            "    $properties = @($parsed.PSObject.Properties)\n" +
+            "    $expectedNames = @('schemaVersion','platform','event','allow','approvalSource')\n" +
+            "    if ($properties.Count -ne 5) { return $false }\n" +
+            "    for ($i=0; $i -lt 5; $i++) { if ($properties[$i].Name -cne $expectedNames[$i]) { return $false } }\n" +
+            "    if (-not (($parsed.schemaVersion -is [int]) -or ($parsed.schemaVersion -is [long])) -or $parsed.schemaVersion -ne 1) { return $false }\n" +
+            "    if ($parsed.platform -isnot [string] -or $parsed.platform -cne $ExpectedPlatform) { return $false }\n" +
+            "    if ($parsed.event -isnot [string] -or $parsed.event -cne $ExpectedEvent) { return $false }\n" +
+            "    if ($parsed.allow -isnot [bool]) { return $false }\n" +
+            "    if ($parsed.approvalSource -isnot [string] -or @('hardware-auto','user-confirmed','fail-closed') -cnotcontains $parsed.approvalSource) { return $false }\n" +
+            "    if ($parsed.allow -and $parsed.approvalSource -ceq 'fail-closed') { return $false }\n" +
+            "    if (-not $parsed.allow -and $parsed.approvalSource -cne 'fail-closed') { return $false }\n" +
+            "    return $true\n" +
+            "}\n" +
+            "function Test-AhaKeyCanonicalAllow([string]$Text,[string]$ExpectedPlatform,[string]$ExpectedEvent) {\n" +
+            "    if (-not (Test-AhaKeyCanonicalResponse $Text $ExpectedPlatform $ExpectedEvent)) { return $false }\n" +
+            "    $hardware = '{\"schemaVersion\":1,\"platform\":\"' + $ExpectedPlatform + '\",\"event\":\"' + $ExpectedEvent + '\",\"allow\":true,\"approvalSource\":\"hardware-auto\"}'\n" +
+            "    $confirmed = '{\"schemaVersion\":1,\"platform\":\"' + $ExpectedPlatform + '\",\"event\":\"' + $ExpectedEvent + '\",\"allow\":true,\"approvalSource\":\"user-confirmed\"}'\n" +
+            "    return [string]::Equals($Text,$hardware,[System.StringComparison]::Ordinal) -or [string]::Equals($Text,$confirmed,[System.StringComparison]::Ordinal)\n" +
+            "}\n" +
             "try {\n" +
             "    if ([Console]::IsInputRedirected) { $hookInput = [Console]::In.ReadToEnd() } else { $hookInput = '' }\n" +
             "} catch { }\n" +
@@ -180,8 +221,12 @@ public class HookInstaller {
             "    $payload = @{ cmd=$EventName; taskId=[string]$taskId; title=[string]$title } | ConvertTo-Json -Compress\n" +
             "    $writer.WriteLine($payload)\n" +
             "    $writer.Flush()\n" +
-            "    $reader = New-Object System.IO.StreamReader($tcp.GetStream())\n" +
-            "    $response = $reader.ReadLine()\n" +
+            "    $stream = $tcp.GetStream(); $stream.ReadTimeout = 17000\n" +
+            "    $buffer = New-Object byte[] 512; $count = 0; $terminated = $false\n" +
+            "    while ($count -lt $buffer.Length) { $read = $stream.Read($buffer,$count,1); if ($read -eq 0) { break }; if ($buffer[$count] -eq 10) { $terminated = $true; break }; $count++ }\n" +
+            "    if (-not $terminated) { throw 'AhaKey response exceeded 512 bytes or was truncated' }\n" +
+            "    if ($count -gt 0 -and $buffer[$count-1] -eq 13) { $count-- }\n" +
+            "    $response = [System.Text.Encoding]::UTF8.GetString($buffer,0,$count)\n" +
             "    $tcp.Close()\n" +
             "} catch {\n" +
             "    $response = $null\n" +
@@ -197,16 +242,15 @@ public class HookInstaller {
             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
             "# Claude PermissionRequest: output hookSpecificOutput in Claude format\n" +
             "if ($EventName -eq 'PermissionRequest') {\n" +
-            "    $isAuto = $response -match '\"autoApproved\"\\s*:\\s*true'\n" +
-            "    if ($isAuto) {\n" +
+            "    if (Test-AhaKeyCanonicalAllow $response 'claude' 'PermissionRequest') {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
             "    } else {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
             "    }\n" +
             "    exit 0\n" +
             "}\n" +
-            "# Claude lifecycle events: pass through server response\n" +
-            "if ($response) { [Console]::WriteLine($response) } else { [Console]::WriteLine('{\"ok\":true}') }\n" +
+            "# Claude lifecycle events never make approval decisions\n" +
+            "[Console]::WriteLine('{}')\n" +
             "exit 0\n";
         Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
@@ -219,7 +263,7 @@ public class HookInstaller {
             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
             "# Codex PreToolUse: 拨杆手动模式 → ask 用户确认\n" +
             "if ($EventName -eq 'CodexPreToolUse') {\n" +
-            "    if ($response -match '\"autoApproved\"\\s*:\\s*true') {\n" +
+            "    if (Test-AhaKeyCanonicalAllow $response 'codex' 'CodexPreToolUse') {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
             "    } else {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
@@ -228,7 +272,7 @@ public class HookInstaller {
             "}\n" +
             "# Codex PermissionRequest: 拨杆手动模式 → ask 用户确认\n" +
             "if ($EventName -eq 'CodexPermissionRequest') {\n" +
-            "    if ($response -match '\"autoApproved\"\\s*:\\s*true') {\n" +
+            "    if (Test-AhaKeyCanonicalAllow $response 'codex' 'CodexPermissionRequest') {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
             "    } else {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
@@ -247,8 +291,14 @@ public class HookInstaller {
             "# AhaKey Kimi Hook - Auto-generated, do not edit\n" +
             "param([Parameter(Position=0)][string]$EventName)\n" +
             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
-            "# Kimi: pass through server response (Kimi 特有格式)\n" +
-            "if ($response) { [Console]::WriteLine($response) } else { [Console]::WriteLine('{\"ok\":true}') }\n" +
+            "# Kimi PreToolUse: canonical internal allow is translated to Kimi's empty object\n" +
+            "if ($EventName -eq 'KimiPreToolUse') {\n" +
+            "    if (Test-AhaKeyCanonicalAllow $response 'kimi' 'KimiPreToolUse') { [Console]::WriteLine('{}'); exit 0 }\n" +
+            "    [Console]::WriteLine('{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"AhaKey approval state is unavailable\"}}')\n" +
+            "    exit 1\n" +
+            "}\n" +
+            "# Kimi lifecycle events do not make approval decisions\n" +
+            "if ($response) { [Console]::WriteLine($response) } else { [Console]::WriteLine('{\"ok\":false}') }\n" +
             "exit 0\n";
         Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
@@ -259,14 +309,14 @@ public class HookInstaller {
             "# AhaKey Cursor Hook - Auto-generated, do not edit\n" +
             "param([Parameter(Position=0)][string]$EventName)\n" +
             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
-            "# Cursor: output response and exit with non-zero when denied\n" +
-            "if ($response) {\n" +
-            "    [Console]::WriteLine($response)\n" +
-            "    if ($response -match '\"permission\"\\s*:\\s*\"deny\"') { exit 1 } else { exit 0 }\n" +
-            "} else {\n" +
+            "# Cursor: translate only an exact canonical internal allow\n" +
+            "if ($EventName -eq 'preToolUse' -and (Test-AhaKeyCanonicalAllow $response 'cursor' 'preToolUse')) {\n" +
             "    [Console]::WriteLine('{\"permission\":\"allow\"}')\n" +
             "    exit 0\n" +
             "}\n";
+        content +=
+            "[Console]::WriteLine('{\"permission\":\"deny\",\"user_message\":\"AhaKey Desktop is unavailable or returned an invalid response; manual approval is required\"}')\n" +
+            "exit 1\n";
         Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
@@ -278,7 +328,7 @@ public class HookInstaller {
             Files.createDirectories(path.getParent());
             backupFile(path);
             ObjectNode settings = loadJsonSettings(path);
-            ObjectNode hooks = mapper.createObjectNode();
+            ObjectNode hooks = hooksObject(settings);
             for (String[] ev : CLAUDE_EVENTS) {
                 ObjectNode cmd = mapper.createObjectNode();
                 cmd.put("type", "command");
@@ -289,12 +339,12 @@ public class HookInstaller {
                 ObjectNode wrapper = mapper.createObjectNode();
                 wrapper.put("matcher", "");
                 wrapper.set("hooks", inner);
-                ArrayNode outer = mapper.createArrayNode();
+                ArrayNode outer = eventArray(hooks, ev[0]);
+                removeManagedEntries(outer, CLAUDE_SCRIPT_NAME, true);
                 outer.add(wrapper);
-                hooks.set(ev[0], outer);
             }
             settings.set("hooks", hooks);
-            mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
+            writeJsonAtomically(path, settings);
             log("[成功] 已注册 " + CLAUDE_EVENTS.length + " 个 Claude hook 事件");
             log("[成功] 配置文件: " + path);
         } catch (Exception e) { log("[错误] Claude 安装失败: " + e.getMessage()); }
@@ -306,32 +356,32 @@ public class HookInstaller {
             Files.createDirectories(path.getParent());
             backupFile(path);
             ObjectNode settings = loadJsonSettings(path);
-            ObjectNode existingHooks = settings.has("hooks") ? (ObjectNode) settings.get("hooks") : mapper.createObjectNode();
+            ObjectNode existingHooks = hooksObject(settings);
             for (String[] ev : CURSOR_EVENTS) {
                 ObjectNode entry = mapper.createObjectNode();
                 entry.put("command", buildHookCommand(CURSOR_SCRIPT_NAME, ev[0]));
                 entry.put("timeout", Integer.parseInt(ev[1]));
-                ArrayNode arr = mapper.createArrayNode();
+                ArrayNode arr = eventArray(existingHooks, ev[0]);
+                removeManagedEntries(arr, CURSOR_SCRIPT_NAME, false);
                 arr.add(entry);
-                existingHooks.set(ev[0], arr);
             }
             settings.set("hooks", existingHooks);
             settings.put("version", 1);
-            mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
+            writeJsonAtomically(path, settings);
             log("[成功] 已注册 " + CURSOR_EVENTS.length + " 个 Cursor hook 事件");
             log("[成功] 配置文件: " + path);
         } catch (Exception e) { log("[错误] Cursor 安装失败: " + e.getMessage()); }
     }
 
     private void installCodexHooks() {
-        String home = System.getProperty("user.home");
-        Path hooksJson = Paths.get(home, ".codex", "hooks.json");
-        Path configToml = Paths.get(home, ".codex", "config.toml");
-        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
+        Path hooksJson = userHome.resolve(".codex").resolve("hooks.json");
+        Path configToml = userHome.resolve(".codex").resolve("config.toml");
+        Path sidecar = userHome.resolve(".codex").resolve(CODEX_SIDECAR_NAME);
         try {
             Files.createDirectories(hooksJson.getParent());
             backupFile(hooksJson);
-            ObjectNode hooks = mapper.createObjectNode();
+            ObjectNode root = loadJsonSettings(hooksJson);
+            ObjectNode hooks = hooksObject(root);
             for (String[] ev : CODEX_EVENTS) {
                 ObjectNode cmd = mapper.createObjectNode();
                 cmd.put("type", "command");
@@ -348,13 +398,12 @@ public class HookInstaller {
                     entry.put("matcher", "*");
                 }
                 entry.set("hooks", innerArr);
-                ArrayNode outerArr = mapper.createArrayNode();
+                ArrayNode outerArr = eventArray(hooks, ev[0]);
+                removeManagedEntries(outerArr, CODEX_SCRIPT_NAME, true);
                 outerArr.add(entry);
-                hooks.set(ev[0], outerArr);
             }
-            ObjectNode root = mapper.createObjectNode();
             root.set("hooks", hooks);
-            mapper.writerWithDefaultPrettyPrinter().writeValue(hooksJson.toFile(), root);
+            writeJsonAtomically(hooksJson, root);
             log("[成功] 已写入 " + hooksJson);
             Files.write(sidecar, java.time.LocalDateTime.now().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             backupFile(configToml);
@@ -363,10 +412,10 @@ public class HookInstaller {
                 : "";
             toml = removeCodexHookBlock(toml);
             toml = ensureCodexHooksFeature(toml);
-            if (!toml.contains("AhaKey：生命周期 hooks")) {
-                toml = toml.trim() + "\n\n# AhaKey：生命周期 hooks 由 hook_install 写入 ~/.codex/hooks.json\n";
-            }
-            Files.write(configToml, toml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            toml = toml.trim() + "\n\n" + CODEX_HOOK_BLOCK_START
+                + "\n# AhaKey：生命周期 hooks 由 AhaKey Studio 写入 ~/.codex/hooks.json\n"
+                + CODEX_HOOK_BLOCK_END + "\n";
+            writeTextAtomically(configToml, toml);
             log("[成功] 已更新 " + configToml + "（[features].hooks = true）");
             log("[成功] 已注册 " + CODEX_EVENTS.length + " 个 Codex hook 事件");
         } catch (Exception e) { log("[错误] Codex 安装失败: " + e.getMessage()); }
@@ -383,7 +432,7 @@ public class HookInstaller {
             String cleaned = removeKimiHookBlock(existing).trim();
             String hookBlock = buildKimiHookBlock();
             String result = (cleaned.isEmpty() ? "" : cleaned + "\n\n") + hookBlock + "\n";
-            Files.write(path, result.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            writeTextAtomically(path, result);
             log("[成功] 已注册 " + KIMI_EVENTS.length + " 个 Kimi hook 事件");
             log("[成功] 配置文件: " + path);
         } catch (Exception e) { log("[错误] Kimi 安装失败: " + e.getMessage()); }
@@ -396,9 +445,8 @@ public class HookInstaller {
         try {
             if (!path.toFile().exists()) { log("[信息] Claude 配置文件不存在"); return; }
             ObjectNode settings = loadJsonSettings(path);
-            if (settings.has("hooks")) {
-                settings.remove("hooks");
-                mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
+            if (removeManagedHooks(settings, CLAUDE_SCRIPT_NAME, true)) {
+                writeJsonAtomically(path, settings);
                 log("[成功] Hook 配置已从 " + path + " 中移除");
             } else {
                 log("[警告] 未找到 Claude Hook 配置");
@@ -411,9 +459,8 @@ public class HookInstaller {
         try {
             if (!path.toFile().exists()) { log("[信息] Cursor 配置文件不存在"); return; }
             ObjectNode settings = loadJsonSettings(path);
-            if (settings.has("hooks")) {
-                settings.remove("hooks");
-                mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
+            if (removeManagedHooks(settings, CURSOR_SCRIPT_NAME, false)) {
+                writeJsonAtomically(path, settings);
                 log("[成功] Hook 配置已从 " + path + " 中移除");
             } else {
                 log("[警告] 未找到 Cursor Hook 配置");
@@ -422,10 +469,9 @@ public class HookInstaller {
     }
 
     private void uninstallCodexHooks() {
-        String home = System.getProperty("user.home");
-        Path hooksJson = Paths.get(home, ".codex", "hooks.json");
-        Path configToml = Paths.get(home, ".codex", "config.toml");
-        Path sidecar = Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
+        Path hooksJson = userHome.resolve(".codex").resolve("hooks.json");
+        Path configToml = userHome.resolve(".codex").resolve("config.toml");
+        Path sidecar = userHome.resolve(".codex").resolve(CODEX_SIDECAR_NAME);
         try {
             if (sidecar.toFile().exists()) {
                 Files.delete(sidecar);
@@ -435,9 +481,8 @@ public class HookInstaller {
             }
             if (hooksJson.toFile().exists()) {
                 ObjectNode settings = loadJsonSettings(hooksJson);
-                if (settings.has("hooks")) {
-                    settings.remove("hooks");
-                    mapper.writerWithDefaultPrettyPrinter().writeValue(hooksJson.toFile(), settings);
+                if (removeManagedHooks(settings, CODEX_SCRIPT_NAME, true)) {
+                    writeJsonAtomically(hooksJson, settings);
                     log("[成功] Hook 配置已从 " + hooksJson + " 中移除");
                 }
             }
@@ -445,7 +490,7 @@ public class HookInstaller {
                 String content = new String(Files.readAllBytes(configToml), java.nio.charset.StandardCharsets.UTF_8);
                 String cleaned = removeCodexHookBlock(content);
                 if (!cleaned.equals(content)) {
-                    Files.write(configToml, cleaned.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    writeTextAtomically(configToml, cleaned);
                     log("[成功] Hook 块已从 " + configToml + " 中移除");
                 }
             }
@@ -459,7 +504,7 @@ public class HookInstaller {
             String content = new String(Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
             String cleaned = removeKimiHookBlock(content);
             if (!cleaned.equals(content)) {
-                Files.write(path, cleaned.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                writeTextAtomically(path, cleaned);
                 log("[成功] Hook 块已从配置文件中删除");
             } else {
                 log("[警告] 未找到 AhaKey Hook 块");
@@ -470,21 +515,173 @@ public class HookInstaller {
     // ==================== 辅助方法 ====================
 
     private String buildHookCommand(String scriptName, String agentEvent) {
-        String home = System.getProperty("user.home");
-        Path scriptPath = Paths.get(home, ".ahakey", "hooks", scriptName);
+        Path scriptPath = userHome.resolve(".ahakey").resolve("hooks").resolve(scriptName);
         String ps = scriptPath.toString().replace("\\", "/");
         return "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"" + ps + "\" " + agentEvent;
     }
 
     public Path getHookConfigPath(String hookName) {
-        String home = System.getProperty("user.home");
         return switch (hookName) {
-            case "Claude" -> Paths.get(home, ".claude", "hooks", CLAUDE_SCRIPT_NAME);
-            case "Cursor" -> Paths.get(home, ".cursor", "hooks.json");
-            case "Codex" -> Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
-            case "Kimi" -> Paths.get(home, ".config", "kimi-cli", "hooks.json");
-            default -> Paths.get(home, ".ahakey", "hooks", "ahakey-" + hookName.toLowerCase() + ".ps1");
+            case "Claude" -> userHome.resolve(".claude").resolve("settings.json");
+            case "Cursor" -> userHome.resolve(".cursor").resolve("hooks.json");
+            case "Codex" -> userHome.resolve(".codex").resolve("hooks.json");
+            case "Kimi" -> userHome.resolve(".config").resolve("kimi-cli").resolve("hooks.json");
+            default -> userHome.resolve(".ahakey").resolve("hooks")
+                .resolve("ahakey-" + hookName.toLowerCase() + ".ps1");
         };
+    }
+
+    private Path scriptPath(String platform) {
+        String scriptName = switch (platform) {
+            case "Claude" -> CLAUDE_SCRIPT_NAME;
+            case "Cursor" -> CURSOR_SCRIPT_NAME;
+            case "Codex" -> CODEX_SCRIPT_NAME;
+            case "Kimi" -> KIMI_SCRIPT_NAME;
+            default -> throw new IllegalArgumentException("Unknown Hook platform: " + platform);
+        };
+        return userHome.resolve(".ahakey").resolve("hooks").resolve(scriptName);
+    }
+
+    private ObjectNode hooksObject(ObjectNode settings) throws Exception {
+        JsonNode existing = settings.get("hooks");
+        if (existing == null || existing.isNull()) {
+            ObjectNode hooks = mapper.createObjectNode();
+            settings.set("hooks", hooks);
+            return hooks;
+        }
+        if (!(existing instanceof ObjectNode hooks)) {
+            throw new IllegalStateException("Existing hooks configuration is not an object");
+        }
+        return hooks;
+    }
+
+    private ArrayNode eventArray(ObjectNode hooks, String eventName) {
+        JsonNode existing = hooks.get(eventName);
+        if (existing == null || existing.isNull()) {
+            ArrayNode events = mapper.createArrayNode();
+            hooks.set(eventName, events);
+            return events;
+        }
+        if (!(existing instanceof ArrayNode events)) {
+            throw new IllegalStateException(
+                "Existing hook event " + eventName + " is not an array");
+        }
+        return events;
+    }
+
+    private boolean removeManagedEntries(
+        ArrayNode entries,
+        String scriptName,
+        boolean nestedHooks
+    ) {
+        boolean changed = false;
+        for (int index = entries.size() - 1; index >= 0; index--) {
+            JsonNode entry = entries.get(index);
+            if (nestedHooks && entry instanceof ObjectNode wrapper
+                && wrapper.get("hooks") instanceof ArrayNode commands) {
+                boolean wrapperChanged = false;
+                for (int commandIndex = commands.size() - 1;
+                     commandIndex >= 0;
+                     commandIndex--) {
+                    if (isManagedCommand(commands.get(commandIndex), scriptName)) {
+                        commands.remove(commandIndex);
+                        changed = true;
+                        wrapperChanged = true;
+                    }
+                }
+                if (wrapperChanged && commands.isEmpty()) {
+                    entries.remove(index);
+                }
+            } else if (isManagedCommand(entry, scriptName)) {
+                entries.remove(index);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean removeManagedHooks(
+        ObjectNode settings,
+        String scriptName,
+        boolean nestedHooks
+    ) {
+        JsonNode node = settings.get("hooks");
+        if (!(node instanceof ObjectNode hooks)) {
+            return false;
+        }
+        boolean changed = false;
+        List<String> eventNames = new ArrayList<>();
+        hooks.fieldNames().forEachRemaining(eventNames::add);
+        for (String eventName : eventNames) {
+            JsonNode eventNode = hooks.get(eventName);
+            if (!(eventNode instanceof ArrayNode entries)) {
+                continue;
+            }
+            boolean eventChanged = removeManagedEntries(
+                entries, scriptName, nestedHooks);
+            changed |= eventChanged;
+            if (eventChanged && entries.isEmpty()) {
+                hooks.remove(eventName);
+            }
+        }
+        if (changed && hooks.isEmpty()) {
+            settings.remove("hooks");
+        }
+        return changed;
+    }
+
+    private boolean containsManagedCommand(JsonNode node, String scriptName) {
+        if (node == null) return false;
+        if (isManagedCommand(node, scriptName)) return true;
+        if (node.isContainerNode()) {
+            for (JsonNode child : node) {
+                if (containsManagedCommand(child, scriptName)) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isManagedCommand(JsonNode node, String scriptName) {
+        if (!(node instanceof ObjectNode object)) return false;
+        JsonNode command = object.get("command");
+        if (command == null || !command.isTextual()) return false;
+        String normalized = command.asText().replace('\\', '/').toLowerCase();
+        return normalized.contains("/.ahakey/hooks/")
+            && normalized.contains(scriptName.toLowerCase());
+    }
+
+    private void writeJsonAtomically(Path path, ObjectNode value) throws Exception {
+        Files.createDirectories(path.getParent());
+        Path temporary = Files.createTempFile(
+            path.getParent(), path.getFileName().toString(), ".tmp");
+        try {
+            mapper.writerWithDefaultPrettyPrinter().writeValue(temporary.toFile(), value);
+            replaceAtomically(temporary, path);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    private void writeTextAtomically(Path path, String value) throws Exception {
+        Files.createDirectories(path.getParent());
+        Path temporary = Files.createTempFile(
+            path.getParent(), path.getFileName().toString(), ".tmp");
+        try {
+            Files.writeString(temporary, value, StandardCharsets.UTF_8);
+            replaceAtomically(temporary, path);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    private void replaceAtomically(Path temporary, Path target) throws Exception {
+        try {
+            Files.move(temporary, target,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException exception) {
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private ObjectNode loadJsonSettings(Path path) throws Exception {
@@ -492,10 +689,11 @@ public class HookInstaller {
             return mapper.createObjectNode();
         }
         JsonNode node = mapper.readTree(path.toFile());
-        if (node instanceof ObjectNode) {
-            return (ObjectNode) node;
+        if (node instanceof ObjectNode object) {
+            return object;
         }
-        return mapper.createObjectNode();
+        throw new IllegalStateException(
+            "Existing JSON configuration root is not an object: " + path);
     }
 
     private void backupFile(Path path) throws Exception {
@@ -546,15 +744,36 @@ public class HookInstaller {
     }
 
     private String ensureCodexHooksFeature(String toml) {
-        if (toml.contains("[features]")) {
-            if (toml.contains("hooks")) {
-                return toml.replaceAll("hooks\\s*=\\s*false", "hooks = true");
-            } else {
-                return toml.replace("[features]", "[features]\nhooks = true");
+        List<String> lines = new ArrayList<>(List.of(toml.split("\\R", -1)));
+        int featuresStart = -1;
+        for (int index = 0; index < lines.size(); index++) {
+            if ("[features]".equals(lines.get(index).trim())) {
+                featuresStart = index;
+                break;
             }
-        } else {
-            return toml.trim() + "\n\n[features]\nhooks = true";
         }
+        if (featuresStart < 0) {
+            String prefix = toml.trim();
+            return (prefix.isEmpty() ? "" : prefix + "\n\n")
+                + "[features]\nhooks = true";
+        }
+
+        int sectionEnd = lines.size();
+        for (int index = featuresStart + 1; index < lines.size(); index++) {
+            String line = lines.get(index).trim();
+            if (line.startsWith("[") && line.endsWith("]")) {
+                sectionEnd = index;
+                break;
+            }
+        }
+        for (int index = featuresStart + 1; index < sectionEnd; index++) {
+            if (lines.get(index).matches("\\s*hooks\\s*=.*")) {
+                lines.set(index, "hooks = true");
+                return String.join("\n", lines);
+            }
+        }
+        lines.add(featuresStart + 1, "hooks = true");
+        return String.join("\n", lines);
     }
 
     private void log(String message) {

@@ -7,6 +7,14 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot "Test-FirmwareReleaseInput.ps1")
+$capabilities = Get-AhaKeyFirmwareCapabilities -ProjectDir $PSScriptRoot
+$firmwareValidation = Assert-AhaKeyFirmwareReleaseInput `
+    -ProjectDir $PSScriptRoot `
+    -FirmwareVersion ([string]$capabilities.expectedBundledVersion) `
+    -FirmwareHex $FirmwareHex `
+    -RequireFirmware
+
 $requiredEnvironment = @(
     "TENCENTCLOUD_SECRET_ID",
     "TENCENTCLOUD_SECRET_KEY",
@@ -30,7 +38,6 @@ foreach ($path in @($baseline, $wchIsp, $FirmwareHex)) {
 $expected = @{
     $baseline = "3202419edf0b137b73e39d5a97465385708e3100e6e49134c9809827783105df"
     $wchIsp = "e3949c1ee4c8c434ae2374c3d3b0ecf06a58ad2fd7eade20a83d2bec422eff36"
-    $FirmwareHex = "10ff6af2e7b6915751794ca45d8dc8d8873a1c350d9c551436e6098876ff9a50"
 }
 foreach ($entry in $expected.GetEnumerator()) {
     $actual = (Get-FileHash -LiteralPath $entry.Key -Algorithm SHA256).
@@ -59,7 +66,11 @@ if ($LASTEXITCODE -ne 0) { throw "Baseline upload failed" }
     "release-inputs/WCHISPTool-CH57x-59x.zip"
 if ($LASTEXITCODE -ne 0) { throw "WCHISP upload failed" }
 & $tcb.Source -e $env:WECHAT_CLOUD_ENV_ID storage upload $FirmwareHex `
-    "release-inputs/AhaKey-X1-firmware-1.1.1-ch582.hex"
+    "release-inputs/AhaKey-X1-firmware-1.4.7-ch582.hex"
 if ($LASTEXITCODE -ne 0) { throw "Firmware upload failed" }
+& $tcb.Source -e $env:WECHAT_CLOUD_ENV_ID storage upload `
+    $firmwareValidation.ProvenancePath `
+    "release-inputs/AhaKey-X1-firmware-1.4.7-ch582.provenance.json"
+if ($LASTEXITCODE -ne 0) { throw "Firmware provenance upload failed" }
 
 Write-Output "RELEASE_INPUT_UPLOAD=OK"

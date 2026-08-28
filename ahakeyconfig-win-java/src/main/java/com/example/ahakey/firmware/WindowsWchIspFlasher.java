@@ -130,6 +130,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             || !normalized.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".hex")) {
             throw new IOException("请选择有效的 .hex 固件文件");
         }
+        IntelHexValidator.validate(normalized);
 
         Path workDir = Files.createTempDirectory("ahakey-wchisp-");
         try {
