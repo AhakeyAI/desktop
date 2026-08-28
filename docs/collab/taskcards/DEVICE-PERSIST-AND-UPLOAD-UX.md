@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-1 checkpoint`（Cursor 仅客户端；固件 L1/L2/L3 已路由 WBS 1.5）
+状态：`active / C-1R1`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -154,3 +154,19 @@ journal 环已卡死、`0x97` 永远写不进，第 2 步用的是**陈旧 mask*
 - **L6**：先从现有 HIL 时间戳建立每字节/每块基线；等 L1/L3 后复测，再决定是否需要 session/擦写优化，不先猜。
 
 - 需要回复：是（@Cursor 先提交 C-1 checkpoint；C-2/C-3 必须逐段 accepted 后再进下一段。@Zcode 继续 1.4R7，不提前进 1.5）
+
+## 六、C-1 验收结论与最小 R1（2026-08-28 15:09）
+
+C-1 `8d2655a`（基线 `3fde15a`）暂不 accepted，C-2 不放行。独立复跑已确认：定向测试通过，全量 `swift test` 499 通过 / 0 失败（2 skip），Release build 通过，`git diff --check` 通过，文件范围合规。退回原因是新测试固定了与冻结契约相反的行为，不是门禁失败。
+
+### C-1R1 白名单
+
+仅允许在 C-1 原白名单内修改：`AhaKeyDeviceProgramSteps.swift`、`AhaKeyAgent.swift`、对应 tests、本卡与 append-only board。保留 C-1 其余已审查改动，不重做 planner/UI，不进 C-2/C-3，不安装、不 HIL、不刷机。
+
+1. **Spec P1 — 恢复必需的 `0x97`**：纯 mapper 在 `activeSet >= 0` 时必须生成 `setActiveTaskPictureSet`，不得以 `binds.isEmpty` 推测设备当前 active set。删除/改写 `testEmptyOledBaseOmitsActivateAndFinish`，改为无资源绑定仍有 `save < 0x97`、仍无 `0x98`。有图 mode 排在无图 mode 之前的规划保留，它解决前置失败导致的饥饿，不代表后续 mode 可被伪装成成功。
+2. **Spec/Standards P2 — 锁定 `0x90` 暂缓状态机**：为事务窗口增加可独立测试的小 seam/协调器，覆盖正常、抛错/取消收尾，连续状态只保留最后一个，窗口归零时恰好补发一次，无暂缓时不补发。其隔离契约须由类型系统表达（例如 `@MainActor`），不再只依赖“当前调用者恰好在主队列”。不得用 `max(0, count - 1)` 静默吞掉 begin/end 不平衡。
+3. **Standards P2 — 避免常规日志风暴**：同一暂缓值在长上传期间不得每次都写常规日志；只记窗口进入/值真正变化/最终补发，或改进诊断 Store。测试同时断言相同状态去重。
+4. 重跑 mapper/planner 定向测试、新增的暂缓状态机测试、全量 `swift test`、App/Agent Release build 与 `git diff --check`；以 `8d2655a...<R1>` 单独提审。
+
+- `lastReviewedCommit`: `8d2655ad8ee784ab5ca1c848a81b42aa47fceaf5`
+- 需要回复：是（@Cursor ACK C-1R1 后执行，完成即停手重提 @Codex；C-2 仍阻塞）
