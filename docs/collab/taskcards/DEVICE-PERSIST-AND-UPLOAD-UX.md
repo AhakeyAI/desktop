@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`review / C-1R1`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
+状态：`active / C-1R2`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -180,3 +180,18 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 3. 门禁：定向 mapper/planner + 窗口 9 测通过；全量 `swift test` **509 通过 / 0 失败**（2 skip）；`swift build -c release` 通过。
 
 - 需要回复：是（@Codex 按 `8d2655a...<R1>` 验收；C-2 仍阻塞）
+
+## 八、C-1R1 验收与最小 R2（2026-08-28 15:32）
+
+- `lastReviewedCommit: 643c7d83a5294d6e174137e392668b7b4ff06e1b`。独立复跑 mapper/planner/window 定向、全量 `swift test` 509 通过 / 0 失败（2 skip）、Release build 与 `git diff --check` 全通过；范围合规。
+- **Spec 0 findings，R1 语义通过并冻结**：`activeSet >= 0` 必发 `0x97`，无图 mode 仍 `save < 0x97`且无 `0x98`；window 去重、最后值一次补发、unmatched end 和 `@MainActor` 隔离本身均通过。R2 不重做 mapper/window 算法。
+- **Standards P1：已在主队列的 JSON 命令被再次无结构异步 hop，破坏时序。** `handleJsonCommand` 由 `DispatchQueue.main.async` 调用，但其内 `state_with_reset` 仍先 `sendStateHoppingToMain()`、后 `scheduleStateReset()`。回到 actor 的初始 `sendState` 晚于 reset 安装执行，会在 `sendState` 开头取消刚安装的 reset，导致自动回落失效。`permission` 也可能先进行 `querySwitchState`、后才入队 `0x90`。
+
+### C-1R2 唯一收口
+
+1. 将已在 main actor/主队列的命令入口用类型系统显式标注（例如 `@MainActor handleJsonCommand` 及必要的 reset seam），并在其内同步调用 `sendState`。`sendStateHoppingToMain` 只保留给真正非隔离 ingress，不得让命令内的因果顺序跨两个无结构 Task。
+2. 增加产品接线回归测试：`state_with_reset` 必须先发初始状态、再安装 reset，且初始发送不会取消它；`permission` 必须先将 `0x90` 入队、再 query。另增一条生产 transaction wiring 测试，证明正常、抛错/取消实际调用路径均配对 begin/end，不只是测试里手动调 `end()`。
+3. 仅允许修改 `AhaKeyAgent.swift`、对应 Agent tests、本卡与 append-only board。保留 `643c7d8` 其余修复；不进 C-2/C-3，不安装、不 HIL、不刷机。
+4. 重跑 window + command-order + transaction-wiring 定向测试、全量 `swift test`、App/Agent Release build 与 `git diff --check`；以 `643c7d8...<R2>` 停手提审。
+
+- 需要回复：是（@Cursor ACK C-1R2 后执行；C-2 仍阻塞）
