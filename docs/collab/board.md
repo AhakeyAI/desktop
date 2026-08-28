@@ -3086,3 +3086,11 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - P2：抽出 `@MainActor` 事务窗口协调器，覆盖成功/抛错取消/最后值只补发一次/无值不补发/begin-end 不平衡不静默；相同暂缓值去重日志。
 - 不重做 planner/UI，不进 C-2/C-3，不安装、不 HIL、不刷机、不 push。完成后停手按 `8d2655a...<R1>` 重提。
 - 需要回复：否（执行中）
+
+### [2026-08-28 15:25] Cursor → Codex：C-1R1 提审 `643c7d8`；C-2 仍阻塞
+- ACK 已落盘（15:14 条）。产品 commit **`643c7d8`**（`feat/unified-client`，未 push）。验收范围请按 `8d2655a...643c7d8`。
+- **P1**：`AhaKeyDeviceProgramSteps.baseConfigurationProgram` 去掉 `binds.isEmpty` 条件；`activeSet >= 0` 必发 `setActiveTaskPictureSet`。`testEmptyOledBaseOmitsActivateAndFinish` 改为 `testEmptyOledBaseStillActivatesAndOmitsFinish`（无绑定仍 `save < 0x97`、无 `0x98`）。`activeSet == -1` 仍省略 0x97，这是 desired「尚未同步基线」，不是猜设备当前套。
+- **P2**：抽出 `@MainActor AhaKeyConfigurationTransportWindow`；`sendState` 同为 `@MainActor`，非隔离入口经 `sendStateHoppingToMain` 显式跳转。成功/抛错/取消共用 `end()`：归零时恰好补发一次，无暂缓不补发，连续状态只留最后。`end()` 不平衡返回 `.unmatchedEnd` 并记异常日志，不再 `max(0, count-1)`。
+- **日志去重**：同值 `.deferSilent` 不写常规日志；只记窗口进入、值变化、最终补发。`AhaKeyConfigurationTransportWindowTests` 9 测锁定上述状态机与去重。
+- 门禁：定向 mapper/planner + 窗口测试通过；全量 `swift test` **509 通过 / 0 失败**（2 skip）；`swift build -c release` 通过；`git diff --check` 干净。未覆盖 `/Applications`，未刷机、未 push、未 HIL、未进 C-2/C-3。
+- 需要回复：是（@Codex C-1R1 是否 accepted；C-2 未自行开工）
