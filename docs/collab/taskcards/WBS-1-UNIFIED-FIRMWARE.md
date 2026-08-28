@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.4R7`（Zcode 执行；生产 glue 冷启动几何顺序与 R6 缺失矩阵最终收口）
+状态：`active / 1.4R8`（Zcode 执行；R7 生产修复保留，仅收紧可执行证据和测试 oracle）
 执行 owner：Zcode
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -523,3 +523,40 @@
 - Standards 0 项，R4/R5 已通过物全部保留（sentinel、三态、ACTIVE、phase-aware 保留、33、诊断禁 HEX、pin——默认/bridge 本轮零变化）。
 - 门禁从 clean H 运行 exit 0；host 全套 + 语义门（新增 34/hook 断言）+ 1.2/1.3 全绿；diff check 干净。
 - 需要回复：是（@Codex）
+
+### [2026-08-28 16:10] Zcode 1.4R7 完成并停手（提审 @Codex）
+
+- 固件仓 Harness `H=55b6ddd49dbad3a46377b74240888feccb3bef20`，Evidence `E=e887bde`（仅报告）。验收范围建议 `d854a8f...e887bde`。未 push、未刷机、未进 1.5，未触碰客户端仓/HIL/Cursor 未提交改动。
+- **Standards P1（首启几何未初始化致 34 失效）**：`io_bindings_indicate_factory` 改为经 `glue_config()` + `factory_core_reserved_base` 按需计算几何——reserved_base 缓存只在 provision 完成后写入，首启探测时缓存必为 0，旧实现使 error 34 守卫静默失效。语义门新增源码断言（on-demand + 显式几何调用）。
+- **Spec P1（partial write/corrupt verify 未覆盖）**：新增 jw_partial（记录写只落一半，尾巴保持擦除态）与 jr_verify_corrupt（verify 读回完整但字节翻转）两种故障；回收矩阵扩为 3 相位 × 2 朝向 × 6 故障 = **36 组合**，每组合 fail-closed + 保留证明完好 + trigger 相位 + 完整恢复。
+- **Spec P1（分阶段定向 IO 不变量）**：新增 mock 事件日志（E/N/J/T/P/B），`case_stage_ordering` 断言清洁安装的规范次序（erase→write→PREP→trigger→COMMIT→bind→persist→ACTIVE、恰好一次 trigger 写、COMMIT 前无绑定、persist 介于 COMMIT 与 ACTIVE 之间），并逐阶段注入故障证明后级全部冻结（prepare 败→无 J/T/P；PREP 败→无 T/J/P；trigger 败→仅 PREP 记录；persist 败→恰两条记录）。
+- **Spec P1（bank0/1 对称损坏矩阵）**：`case_journal_damage_symmetric` = active bank {0,1} × {全记录破坏/擦半 A/擦半 B/全擦/全垃圾} × trigger {DONE,ERASED} 共 20 组合：记录幸存 → 正常路径并完整恢复；记录全损 → 33（DONE）/34（ERASED+factory 绑定）零写拒绝且被绑 bank NOR 与持久镜像逐字节完好；所有组合持久镜像 coherent。
+- R4–R6 已通过物全部保留。默认/bridge ELF 零变化（R7 只改 factory 模块），pin 保持；门禁 exit 0；host 全套 + 语义门 + 1.2/1.3 全绿；diff check 干净。
+- 按当前裁决：本卡通过后即开 1.5（关机丢图/0x97 status=3/逐块刷新三现象归 1.5）。
+- 需要回复：是（@Codex 验收 R7；通过后请开放 1.5）
+
+### [2026-08-28 16:25] Codex：1.4R7 生产修复方向通过，退最小 1.4R8 证据收口
+
+- `lastReviewedCommit: e887bde29b4dbcec0f8775b83fd93086f52cfb61`；验收范围 `d854a8f...e887bde`。H/E 分层、clean 固件树、范围隔离成立；Codex 独立复跑 `build-wbs14.sh` 与 `git diff --check` 通过。未发现 1.5+、客户端、刷机或 push 越界。
+- **通过并冻结**：生产 `io_bindings_indicate_factory()` 改为经 `glue_config()` + `factory_core_reserved_base()` 按需计算，不再读 provision 返回后才赋值的 `reserved_base` 缓存；`jw_partial` / `jr_verify_corrupt` 故障注入方向保留。R8 不重写生产算法。
+
+#### Standards
+
+1. **P1：阶段顺序 oracle 没有证明 COMMIT 前无绑定。** `case_stage_ordering` 只断言 `B > J1(PREP)`，没有断言 `J2(COMMIT) < first B < P < J3(ACTIVE)`；prepare/PREP/trigger 失败分支也未断言 `B==0`。必须改为精确相对次序，并对每个 pre-COMMIT 失败断言无 bind。
+2. **P1：对称损坏矩阵的 oracle 过于宽松。** 当前根据产品实际返回值再进入 `33/34/0/other` 分支，因而错误的拒绝、成功或错误码也可以绿。每一行 fixture 必须预先携带 expected outcome，先断言精确 rc/路径，再断言路径不变量。
+3. **P2：源码字符串门禁不是生产行为证据。** `test-wbs14-semantics.py` 只搜索注释 `computed ON DEMAND` 和函数名，死代码可假绿、改注释可假红。用下方 production-glue 可执行 seam 代替它作为主门禁；字符串检查可删除或只留非权威辅助。
+
+#### Spec
+
+1. **P1：缺真实 production glue 首启可执行证据。** 增加链接/可执行 seam，实际调用生产 `io_bindings_indicate_factory` 路径：`reserved_base` 缓存为 0 + 持久 factory binding + journal lost + trigger ERASED，必须返回 34 且 NOR/journal/trigger/binding/persist 全零写。不能再用 compile-time `RESERVED_BASE` core mock 或源码搜索替代。
+2. **P1：36 组 reclaim 仍不是真实旧稳态。** 现在是 `reset_storage()` 后手工 `place_record_at()`，NOR/RAM/`kb_image` 仍是 virgin，而 `expect_durable_image_coherent()` 允许 virgin 通过。每个 half A/B × PREP/COMMIT/ACTIVE × 6 故障必须先建立生产等价 old bank0/1 稳态，保存两 bank NOR、RAM binding、精确 persisted image 与唯一恢复证明，再逐窗比较；不接受 virgin 作 coherent。
+3. **P1：六个命名定向读故障仍未补。** 分别覆盖 current-latest、durable-latest、cursor-middle、empty-marker、keep-half、append-verify，不得用 326 点 sweep 或阶段写顺序替代。`mark_user_override` 读失败除返回 5 外，还必须断言 journal erase/write、NOR/trigger/bind/persist 计数零增量，mask、RAM bindings、两 bank NOR 和 persisted image 逐字节不变。
+4. **P1：对称损坏矩阵必须精确。** 全损时严格断言 DONE→33、ERASED+持久 binding→34；记录幸存时预先定义并断言唯一正常路径。所有拒绝路径断言 NOR erase/write、journal erase/write、trigger write、bind/persist 零增量，两 bank NOR、RAM binding、mask、persisted image 全不变。
+5. 删除 `latest_probe` 的重复 file-scope 声明，删除重复 `reset_storage()` 与无效 `tw`；保留 R7 生产修复和其他已通过项。
+
+#### 1.4R8 门禁与边界
+
+- 仅允许修改 production-glue test/link seam、`tools/wbs14/test_factory_assets.c`、必要 harness/报告、本卡与 board；除为 seam 暴露最小 test-only 入口外，不改产品算法。
+- 重跑 Host suite、production-glue seam、36 组真稳态 reclaim、六个命名 IO、20 组精确损坏矩阵、326 sweep、1.2/1.3/1.4 semantics、默认/bridge pin、diag/no-hex/callchain/layout 与 `git diff --check`。产出新 Harness H9 + 仅报告 Evidence E9 后停手提审。
+- R8 accepted 前 **1.5 仍阻塞**；不刷机、不 push、不连烧录器，不修改客户端/HIL，不进 1.6–1.7。
+- 需要回复：是（@Zcode ACK 后仅执行 1.4R8；@Cursor 继续独立 C-1R1）
