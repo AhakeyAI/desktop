@@ -233,6 +233,7 @@ public final class OledUploadService {
         return uploadAsset(ble, mode, 0, path, fps, progress, complete, error);
     }
 
+    /** Persists one encoded frame to the selected Flash asset; this is not a preview operation. */
     public static UploadHandle uploadStaticImage(BleManager ble, ModeSlot mode, Path path,
                                          Consumer<UploadProgress> progress, Consumer<String> complete,
                                          Consumer<String> error) {

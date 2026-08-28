@@ -86,9 +86,6 @@ public final class StudioStore {
                     if (savedMode.oledGifPath != null && !savedMode.oledGifPath.isEmpty()) {
                         defaultMode.oledGifPath = savedMode.oledGifPath;
                     }
-                    if (savedMode.oledFps > 0) {
-                        defaultMode.oledFps = savedMode.oledFps;
-                    }
                     if (savedMode.oledFrameCount > 0) {
                         defaultMode.oledFrameCount = savedMode.oledFrameCount;
                     }

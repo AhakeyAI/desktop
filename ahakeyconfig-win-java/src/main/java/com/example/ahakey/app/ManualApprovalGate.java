@@ -17,6 +17,10 @@ final class ManualApprovalGate {
         return complete(false);
     }
 
+    boolean cancel() {
+        return complete(false);
+    }
+
     boolean isCompleted() {
         return completed.get();
     }

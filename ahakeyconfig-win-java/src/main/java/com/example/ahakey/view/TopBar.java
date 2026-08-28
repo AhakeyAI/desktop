@@ -346,21 +346,6 @@ public class TopBar extends VBox {
         actionButtons.setAlignment(Pos.CENTER_LEFT);
         actionButtons.getChildren().addAll(connectButton, bleButton);
 
-        ToggleButton singleTasks = new ToggleButton("单任务");
-        ToggleButton multiTasks = new ToggleButton("多任务");
-        singleTasks.getStyleClass().add("mode-toggle");
-        multiTasks.getStyleClass().add("mode-toggle");
-        Runnable refreshTaskToggle = () -> {
-            boolean multi = controller.isMultiTaskDisplay();
-            singleTasks.setSelected(!multi);
-            multiTasks.setSelected(multi);
-        };
-        singleTasks.setOnAction(event -> { controller.setMultiTaskDisplay(false); refreshTaskToggle.run(); });
-        multiTasks.setOnAction(event -> { controller.setMultiTaskDisplay(true); refreshTaskToggle.run(); });
-        refreshTaskToggle.run();
-        HBox taskDisplayToggle = new HBox(3, new Label("任务灯效"), singleTasks, multiTasks);
-        taskDisplayToggle.setAlignment(Pos.CENTER_LEFT);
-
         // 状态信息与操作按钮之间的固定间距
         Region spacer = new Region();
         spacer.setMinWidth(12);
@@ -372,7 +357,7 @@ public class TopBar extends VBox {
         mainRow.setAlignment(Pos.CENTER_LEFT);
         mainRow.setPadding(new Insets(6, 16, 6, 16));
         mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
-        mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons, taskDisplayToggle);
+        mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons);
         if (modelEnabled) {
             // AhaType remains hidden until a real processor exists.
             mainRow.getChildren().add(voiceControlBox);

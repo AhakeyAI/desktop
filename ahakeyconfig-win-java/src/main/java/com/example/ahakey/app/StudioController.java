@@ -56,6 +56,9 @@ public class StudioController {
         new StatusRefreshScheduler();
     private volatile boolean manuallyDisconnected;
     private volatile String lastConnectionError;
+    /** Only one manual approval alert may be active; concurrent requests fail closed. */
+    private final java.util.concurrent.locks.ReentrantLock approvalDialogLock =
+        new java.util.concurrent.locks.ReentrantLock(true);
 
     private int lastSyncedRevision = -1;
     
@@ -194,7 +197,6 @@ public class StudioController {
     public boolean isMultiTaskDisplay() { return taskActivityService.isMultiMode(); }
 
     public void setMultiTaskDisplay(boolean enabled) {
-        preferences.putBoolean("task.display.multi", enabled);
         taskActivityService.setMultiMode(enabled);
         studioState.syncStatusProperty().set(deviceStatus.isConnected()
             ? "正在等待设备确认任务显示模式…"
@@ -569,6 +571,11 @@ public class StudioController {
      * @return true 表示用户确认，false 表示用户拒绝
      */
     private boolean showApprovalDialog(String platform, String eventName) {
+        if (!approvalDialogLock.tryLock()) {
+            logger.warn("Manual approval already active; denying concurrent request from {}", platform);
+            return false;
+        }
+        try {
         if (!javafx.application.Platform.isFxApplicationThread()) {
             java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
             ManualApprovalGate gate = new ManualApprovalGate();
@@ -586,14 +593,12 @@ public class StudioController {
             try {
                 if (!latch.await(15, java.util.concurrent.TimeUnit.SECONDS)) {
                     gate.timeout();
-                    javafx.application.Platform.runLater(() -> {
-                        javafx.scene.control.Alert alert = alertRef.get();
-                        if (alert != null && alert.isShowing()) alert.close();
-                    });
+                    closeApprovalAlert(alertRef);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                gate.timeout();
+                gate.cancel();
+                closeApprovalAlert(alertRef);
             }
             return gate.isAllowed();
         }
@@ -610,6 +615,18 @@ public class StudioController {
         javafx.scene.control.ButtonType allowButton = alert.getButtonTypes().get(0);
         gate.complete(result.isPresent() && result.get() == allowButton);
         return gate.isAllowed();
+        } finally {
+            approvalDialogLock.unlock();
+        }
+    }
+
+    private void closeApprovalAlert(
+        java.util.concurrent.atomic.AtomicReference<javafx.scene.control.Alert> alertRef
+    ) {
+        javafx.application.Platform.runLater(() -> {
+            javafx.scene.control.Alert alert = alertRef.get();
+            if (alert != null && alert.isShowing()) alert.close();
+        });
     }
 
     private javafx.scene.control.Alert createApprovalAlert(
@@ -795,7 +812,7 @@ public class StudioController {
                 bleManager,
                 mode,
                 imagePath,
-                draft.getFramesPerSecond(),
+                0,
                 progress -> Platform.runLater(() -> {
                     double progressValue = progress.totalFrames() > 0 ? (double) progress.completedFrames() / progress.totalFrames() : 0;
                     progressBar.setProgress(progressValue);

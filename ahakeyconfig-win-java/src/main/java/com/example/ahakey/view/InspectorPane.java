@@ -15,6 +15,7 @@ import javafx.scene.control.Spinner;
 import javafx.stage.Window;
 import com.example.ahakey.service.AgentManager;
 import javafx.beans.binding.Bindings;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -49,6 +50,7 @@ public class InspectorPane extends ScrollPane {
     private final VBox content = new VBox(18);
     private final VBox header = new VBox(8);
     private final VBox body = new VBox(16);
+    private Runnable taskModeRefresh = () -> {};
 
     public InspectorPane(StudioController controller) {
         this.controller = controller;
@@ -75,6 +77,13 @@ public class InspectorPane extends ScrollPane {
         studioState.selectedModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.lightBarPreviewProperty().addListener((obs, oldValue, newValue) -> rebuild());
         agentManager.bluetoothOwnerProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        controller.getTaskActivityService().addDisplayModeListener(result -> {
+            try {
+                Platform.runLater(taskModeRefresh);
+            } catch (IllegalStateException toolkitNotStarted) {
+                taskModeRefresh.run();
+            }
+        });
         rebuild();
     }
 
@@ -797,6 +806,33 @@ public class InspectorPane extends ScrollPane {
         VBox root = new VBox(16);
         ModeSlot mode = studioState.getSelectedMode();
 
+        VBox taskModeBox = createGroupBox("任务灯效模式", () -> {
+            VBox box = new VBox(8);
+            ToggleGroup group = new ToggleGroup();
+            ToggleButton single = new ToggleButton("单任务");
+            ToggleButton multi = new ToggleButton("多任务");
+            single.setToggleGroup(group);
+            multi.setToggleGroup(group);
+            single.getStyleClass().add("mode-toggle");
+            multi.getStyleClass().add("mode-toggle");
+            Runnable refresh = () -> {
+                boolean selectedMulti = controller.isMultiTaskDisplay();
+                single.setSelected(!selectedMulti);
+                multi.setSelected(selectedMulti);
+            };
+            single.setOnAction(event -> controller.setMultiTaskDisplay(false));
+            multi.setOnAction(event -> controller.setMultiTaskDisplay(true));
+            taskModeRefresh = refresh;
+            refresh.run();
+            Label note = new Label("先发送并获得设备确认，再提交 Preferences；失败会回滚。");
+            note.getStyleClass().add("group-note");
+            note.setWrapText(true);
+            HBox controls = new HBox(8, single, multi);
+            controls.setAlignment(Pos.CENTER_LEFT);
+            box.getChildren().addAll(controls, note);
+            return box;
+        });
+
         VBox brightnessBox = createGroupBox(languageManager.getString("inspector.light-brightness"), () -> {
             VBox box = new VBox(10);
             HBox row = new HBox(10);
@@ -871,7 +907,10 @@ public class InspectorPane extends ScrollPane {
             sync.getStyleClass().add("button-prominent");
             sync.setDisable(!deviceStatus.isConnected());
             sync.setOnAction(e -> controller.syncCurrentModeLightConfig());
-            actions.getChildren().add(sync);
+            Button animations = new Button("屏幕动画设置");
+            animations.setOnAction(e -> ScreenAnimationDialog.show(
+                getScene() == null ? null : getScene().getWindow(), controller, mode));
+            actions.getChildren().addAll(sync, animations);
 
             Label note = new Label(languageManager.getString("inspector.light-note") + " " + mode.getTitle());
             note.getStyleClass().add("group-note");
@@ -880,7 +919,7 @@ public class InspectorPane extends ScrollPane {
             return box;
         });
 
-        root.getChildren().addAll(brightnessBox, statesBox);
+        root.getChildren().addAll(taskModeBox, brightnessBox, statesBox);
         return root;
     }
     private Label caption(String text) {
@@ -955,13 +994,6 @@ public class InspectorPane extends ScrollPane {
             });
             actions.getChildren().addAll(pick, upload, clear);
 
-            Spinner<Integer> fps = new Spinner<>(1, 30, draft.getFramesPerSecond());
-            fps.setEditable(true);
-            fps.valueProperty().addListener((o, a, b) -> {
-                if (b != null) {
-                    draft.setFramesPerSecond(b);
-                }
-            });
             Label progress = new Label();
             progress.textProperty().bind(studioState.oledUploadDetailProperty());
             progress.getStyleClass().add("group-note");
@@ -970,7 +1002,7 @@ public class InspectorPane extends ScrollPane {
             limits.getStyleClass().add("group-note");
             limits.setWrapText(true);
 
-            box.getChildren().addAll(asset, actions, new Label(languageManager.getString("inspector.fps")), fps, progress, limits);
+            box.getChildren().addAll(asset, actions, progress, limits);
             return box;
         }));
 

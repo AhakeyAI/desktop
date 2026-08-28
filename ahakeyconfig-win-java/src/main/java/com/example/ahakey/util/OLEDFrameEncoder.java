@@ -167,7 +167,10 @@ public final class OLEDFrameEncoder {
             ImageReader reader = readers.next();
             try {
                 reader.setInput(stream, false);
-                int count = Math.min(reader.getNumImages(true), maxFrames);
+                int count = reader.getNumImages(true);
+                if (count > maxFrames) {
+                    throw new IOException("GIF 帧数超过设备上限，请先确认并优化后再上传。");
+                }
                 if (count <= 0) {
                     throw new IOException("GIF 没有可编码的帧。");
                 }

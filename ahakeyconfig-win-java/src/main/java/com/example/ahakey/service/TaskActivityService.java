@@ -7,6 +7,7 @@ import javafx.beans.property.ReadOnlyListWrapper;
 import javafx.collections.FXCollections;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,8 +32,8 @@ public final class TaskActivityService implements AutoCloseable {
     ) {}
     private volatile boolean desiredMultiMode;
     private volatile boolean confirmedMultiMode;
-    private volatile java.util.function.Consumer<DisplayModeResult> displayModeListener =
-        ignored -> {};
+    private final CopyOnWriteArrayList<java.util.function.Consumer<DisplayModeResult>>
+        displayModeListeners = new CopyOnWriteArrayList<>();
     private volatile boolean lastConnected;
     static final long COMPLETED_VISIBLE_MILLIS = 30_000L;
     private static final class MutableTask {
@@ -49,7 +50,13 @@ public final class TaskActivityService implements AutoCloseable {
     public void setDisplayModeListener(
         java.util.function.Consumer<DisplayModeResult> listener
     ) {
-        displayModeListener = listener == null ? ignored -> {} : listener;
+        displayModeListeners.clear();
+        addDisplayModeListener(listener);
+    }
+    public void addDisplayModeListener(
+        java.util.function.Consumer<DisplayModeResult> listener
+    ) {
+        if (listener != null) displayModeListeners.add(listener);
     }
     public void setMultiMode(boolean enabled) {
         desiredMultiMode = enabled;
@@ -225,8 +232,9 @@ public final class TaskActivityService implements AutoCloseable {
             + failure.getMessage());
     }
     private void notifyDisplayMode(DisplayModeStatus status, String message) {
-        displayModeListener.accept(new DisplayModeResult(
-            desiredMultiMode, confirmedMultiMode, status, message));
+        DisplayModeResult result = new DisplayModeResult(
+            desiredMultiMode, confirmedMultiMode, status, message);
+        displayModeListeners.forEach(listener -> listener.accept(result));
     }
     private void publish() {
         List<TaskSnapshot> snapshot = new ArrayList<>();

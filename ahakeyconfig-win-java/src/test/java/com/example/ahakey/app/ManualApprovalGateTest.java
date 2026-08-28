@@ -26,4 +26,11 @@ class ManualApprovalGateTest {
         assertFalse(gate.isAllowed());
         assertFalse(gate.complete(true));
     }
+
+    @Test void cancelDeniesAndLateCompletionIsIgnored() {
+        ManualApprovalGate gate = new ManualApprovalGate();
+        assertTrue(gate.cancel());
+        assertFalse(gate.complete(true));
+        assertFalse(gate.isAllowed());
+    }
 }

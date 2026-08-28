@@ -63,6 +63,11 @@ public final class ScreenAnimationDialog {
     ) {}
 
     public static void show(Window owner, StudioController controller) {
+        show(owner, controller, null);
+    }
+
+    /** Opens the persistent screen-animation editor and focuses the selected mode tab. */
+    public static void show(Window owner, StudioController controller, ModeSlot initialMode) {
         Stage stage = new Stage();
         if (owner != null) stage.initOwner(owner);
         stage.initModality(Modality.NONE);
@@ -74,6 +79,9 @@ public final class ScreenAnimationDialog {
         TabPane profiles = new TabPane();
         for (ModeSlot mode : ModeSlot.values())
             profiles.getTabs().add(profileTab(stage, controller, mode, dialogState));
+        if (initialMode != null) {
+            profiles.getSelectionModel().select(initialMode.ordinal());
+        }
 
         Button restoreAll = new Button("恢复全部内置动画");
         dialogState.register(restoreAll);

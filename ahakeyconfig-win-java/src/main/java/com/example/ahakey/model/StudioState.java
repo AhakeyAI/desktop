@@ -441,7 +441,6 @@ public class StudioState {
             oledCaptions.get(mode).set(md.oledCaption);
             OledModeDraft od = getOledDraft(mode);
             od.setLocalAssetPath(md.oledGifPath);
-            od.setFramesPerSecond(md.oledFps);
             od.setFrameCount(md.oledFrameCount);
             od.setStatusLine(md.oledSummary);
             od.setCaptionLine(md.oledCaption);
@@ -502,7 +501,6 @@ public class StudioState {
             md.oledCaption = oledCaptions.get(mode).get();
             OledModeDraft od = getOledDraft(mode);
             md.oledGifPath = od.getLocalAssetPath();
-            md.oledFps = od.getFramesPerSecond();
             md.oledFrameCount = od.getFrameCount();
             md.voicePresetId = getKeyConfig(mode, StudioPart.KEY1).getVoicePreset().name();
             md.aiLightEffectIds = new String[IDEState.values().length];
@@ -544,6 +542,8 @@ public class StudioState {
             public String oledSummary;
             public String oledCaption;
             public String oledGifPath;
+            /** Legacy input compatibility; never written or used by the client. */
+            @com.fasterxml.jackson.annotation.JsonIgnore
             public int oledFps = 10;
             public int oledFrameCount;
             public String voicePresetId = VoicePreset.CUSTOM.name();

@@ -170,8 +170,8 @@ public final class DeviceMaintenancePane {
                     var caps = bleManager.queryDeviceCapabilities();
                     if (caps == null) {
                         throw new IllegalStateException(text(
-                            "设备未返回有效的 0x9D 版本信息",
-                            "The device did not return valid 0x9D version information"
+                            "设备未返回有效的 0x9F 版本信息",
+                            "The device did not return valid 0x9F version information"
                         ));
                     }
                     SemanticVersion version = new SemanticVersion(
