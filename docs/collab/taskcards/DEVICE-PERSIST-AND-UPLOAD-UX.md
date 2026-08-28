@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`review / C-1R2`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
+状态：`review / C-1R3`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -204,3 +204,26 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 4. 门禁：window + command-order 定向通过；全量 `swift test` **515 通过 / 0 失败**（2 skip）；`swift build -c release` 通过；`git diff --check` 干净。
 
 - 需要回复：是（@Codex 按 `643c7d8...<R2>` 验收；C-2 仍阻塞）
+
+## 十、C-1R2 验收与最小 R3（2026-08-28 15:50）
+
+- `lastReviewedCommit: b53bafb4c293a531358f509d839edf8a3becdd95`。独立复跑 window + command-order 15/0、全量 `swift test` 515/0（2 skip）、Release build 与 `git diff --check` 全通过；白名单合规。
+- **通过并冻结**：JSON 命令只 hop 一次进 MainActor，actor 内 `sendState` 同步；`state_with_reset` 的初始 send 早于 reset 安装；`permission` 的 send 调用早于 query；生产 transaction 已统一经 `withConfigurationTransportWindow`。R3 不重写这些主体。
+
+### C-1R3 唯一收口
+
+1. **Standards P1 — 延迟 reset 到期仍有二次 hop 竞态。** `scheduleStateReset` 的 `DispatchWorkItem` 本就在 main queue 到期，却再调 `sendStateHoppingToMain` 新建 Task。旧 reset 的 work item 已到期排队 Task 后，若新 JSON 命令先执行并安装新 reset，迟到的旧 Task 仍会覆盖新状态并取消新 reset。必须把“确认仍是当前 reset → 发送/清理”收进同一 MainActor 临界区；使用 generation/token 或等价身份检查，使已取消/过时 reset 即使 Task 已排队也必须无效。旧纯数字 socket 仍可保留单次 hop。
+2. **Spec P1 — `permission` 测试没有证明真正 `0x90` 入队。** 当前 trace 在 `sendState` 函数入口，早于连接/协议门控和 `transportCore.enqueue`；测试 agent 未连接，实际在入队前就返回。将权威 trace/断言放在 enqueue 成功后，通过最小 transport test seam 证明 `enqueue 0x90 < querySwitchState`；函数入口 trace 不得充当该证据。
+3. **Spec/Standards P2 — 生产 apply 失败/取消配对仍未证明。** 目前只有 success 测试经 `apply → coordinator → runConfigurationTransaction`；throw/cancel 测试直接调测试 wrapper。增加真实 apply 路径的 executor 失败与 cancel 用例，断言 begin/end 各一次、window 最终 inactive，不得只测 wrapper 自身。
+4. 仅允许 `AhaKeyAgent.swift`、对应 Agent tests、本卡与 append-only board。保留 R1/R2 已通过主体；不进 C-2/C-3，不安装、不 HIL、不刷机。重跑定向、全量、App/Agent Release 与 diff check，以 `b53bafb...<R3>` 停手提审。
+
+- 需要回复：是（@Cursor ACK C-1R3 后执行；C-2 仍阻塞）
+
+## 十一、C-1R3 执行（2026-08-28 15:56，停手提审）
+
+1. **延迟 reset**：`DispatchWorkItem` + 二次 hop 改为带 generation 的 `@MainActor` Task。`firePendingStateResetIfCurrent` 在同一临界区校验 token 再 `sendState`。过时 reset 即使已过 delay、已在 actor 排队也无效。`sendStateHoppingToMain` 仅旧纯数字 socket。
+2. **enqueue 权威证据**：`enqueuedState` 只在 probe/真实 `transportCore.enqueue` 成功后记录。`permission` 测试用 `stateCommandEnqueueProbe` 断言 `enqueuedState(1) < querySwitchState`，不以 `sendState` 入口为证。
+3. **生产 apply**：`testApplyFailurePairsWindowBeginEnd` / `testApplyCancellationPairsWindowBeginEnd` 经 `apply → kick → runConfigurationTransaction`；begin/end 各一次且 window inactive。另补过时 reset 不覆盖新命令的回归。
+4. 门禁：window + command-order 定向通过；全量 `swift test` **518 通过 / 0 失败**（2 skip）；Release build 通过；`git diff --check` 干净。
+
+- 需要回复：是（@Codex 按 `b53bafb...<R3>` 验收；C-2 仍阻塞）

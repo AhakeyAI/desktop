@@ -159,7 +159,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var coreSnapshot = CoreDeviceSnapshot()
     private var diagnosticsSnapshot = DeviceDiagnosticsSnapshot()
     /// 工具完成 / 用户提交等短暂态的自动回落。
-    private var pendingStateReset: DispatchWorkItem?
+    private var pendingStateResetTask: Task<Void, Never>?
+    /// 递增令牌：已取消或过时的 reset 即使已过 delay、已在 MainActor 排队也必须无效。
+    private var pendingStateResetGeneration: UInt64 = 0
     /// 固件不会在拨杆变动时主动通知，因此 Agent 占用蓝牙时也必须轮询真实状态。
     private var statusPollTimer: DispatchSourceTimer?
     /// 共享文件写前去重（阶段 4）：相同快照不重复落盘，30s 无任何写入时仅 touch mtime。
@@ -480,17 +482,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func sendState(_ state: UInt8) {
         traceCommand(.sendState(state))
         updatePowerProtectionFromHook(state: state)
-        pendingStateReset?.cancel()
-        pendingStateReset = nil
+        invalidatePendingStateReset()
         // 切片 5：发送能力受灯效模块 `.running` 门控（启停「发送能力」）；
         // lastSentState / pendingStateReset / live-state 仍留在 Agent（Codex 13:52-2）。
-        guard lightingModule?.status == .running else {
-            emit("LED 状态 \(state): 灯效模块未运行，发送被门控")
-            return
-        }
-        guard let commandChar, let peripheral else {
-            emit("LED 状态 \(state): 未连接")
-            return
+        let usingEnqueueProbe = executionTestHooks?.stateCommandEnqueueProbe != nil
+        if !usingEnqueueProbe {
+            guard lightingModule?.status == .running else {
+                emit("LED 状态 \(state): 灯效模块未运行，发送被门控")
+                return
+            }
+            guard let commandChar, let peripheral else {
+                emit("LED 状态 \(state): 未连接")
+                return
+            }
         }
         switch configurationTransportWindow.evaluateSend(state) {
         case .deferAndLog(let value):
@@ -500,6 +504,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         case .sendNow:
             break
+        }
+        if let probe = executionTestHooks?.stateCommandEnqueueProbe {
+            if probe(state) {
+                traceCommand(.enqueuedState(state))
+            }
+            return
         }
         // current-only（WBS-5.5）：0x99 协商未到 .current 前不下发业务命令。
         guard transportCore.isReady else {
@@ -516,6 +526,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             payload: Data([state])
         )
         if let head = transportCore.enqueue(cmd) {
+            traceCommand(.enqueuedState(state))
             writeCommand(head)
         }
     }
@@ -1166,17 +1177,36 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     @MainActor
+    private func invalidatePendingStateReset() {
+        pendingStateResetGeneration &+= 1
+        pendingStateResetTask?.cancel()
+        pendingStateResetTask = nil
+    }
+
+    @MainActor
     private func scheduleStateReset(to state: UInt8, afterMs: Int, reason: String) {
-        pendingStateReset?.cancel()
-        let work = DispatchWorkItem { [weak self] in
+        pendingStateResetGeneration &+= 1
+        let generation = pendingStateResetGeneration
+        pendingStateResetTask?.cancel()
+        pendingStateResetTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(afterMs) * 1_000_000)
+            } catch {
+                return
+            }
             guard let self else { return }
-            // 延迟回落是独立 ingress，此时才 hop 回 MainActor。
-            self.sendStateHoppingToMain(state)
-            self.emit("自动回落灯态：\(reason)")
+            self.firePendingStateResetIfCurrent(generation: generation, to: state, reason: reason)
         }
-        pendingStateReset = work
         traceCommand(.installStateReset(state))
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(afterMs), execute: work)
+    }
+
+    /// 确认仍是当前 generation 再发送：与清理同在 MainActor 临界区，过时 reset 即使已排队也无效。
+    @MainActor
+    private func firePendingStateResetIfCurrent(generation: UInt64, to state: UInt8, reason: String) {
+        guard pendingStateResetGeneration == generation else { return }
+        pendingStateResetTask = nil
+        sendState(state)
+        emit("自动回落灯态：\(reason)")
     }
 
     private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {
@@ -2456,7 +2486,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     @MainActor
-    var hasPendingStateResetForTesting: Bool { pendingStateReset != nil }
+    var hasPendingStateResetForTesting: Bool { pendingStateResetTask != nil }
 
     @MainActor
     var isConfigurationTransportWindowActiveForTesting: Bool {
@@ -2527,10 +2557,13 @@ struct AhaKeyAgentExecutionTestHooks {
     var longPollAfterCompleteHook: (@Sendable () async -> Void)?
     /// C-1R2：命令时序 / 事务窗口配对观察（生产恒 nil）。
     var commandTrace: (@Sendable (AhaKeyAgentCommandTraceEvent) -> Void)?
+    /// C-1R3：跳过 BLE 门控，把 0x90 视为 enqueue；返回 true 记权威 `enqueuedState`。
+    var stateCommandEnqueueProbe: (@Sendable (UInt8) -> Bool)?
 }
 
 enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {
     case sendState(UInt8)
+    case enqueuedState(UInt8)
     case installStateReset(UInt8)
     case querySwitchState
     case transportWindowBegin

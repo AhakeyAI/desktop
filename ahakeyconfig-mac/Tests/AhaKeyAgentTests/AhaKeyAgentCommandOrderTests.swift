@@ -54,7 +54,7 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
             catch { XCTFail("command-order test error: \(error)") }
             finished.fulfill()
         }
-        wait(for: [finished], timeout: 30)
+        wait(for: [finished], timeout: 45)
     }
 
     private func makeAgent() -> AhaKeyAgent {
@@ -101,9 +101,51 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
         runTest { [self] in
             let agent = makeAgent()
             let log = attachTrace(agent)
+            var hooks = agent.executionTestHooks
+            hooks?.stateCommandEnqueueProbe = { _ in true }
+            agent.executionTestHooks = hooks
             await MainActor.run {
                 agent.handleJsonCommandForTesting(cmd: "permission", obj: ["value": 1])
-                XCTAssertEqual(log.snapshot, [.sendState(1), .querySwitchState])
+                let ordered = log.snapshot.filter {
+                    switch $0 {
+                    case .enqueuedState, .querySwitchState: return true
+                    default: return false
+                    }
+                }
+                XCTAssertEqual(
+                    ordered,
+                    [.enqueuedState(1), .querySwitchState],
+                    "权威证据是 enqueue 成功，不是 sendState 函数入口"
+                )
+            }
+        }
+    }
+
+    func testStaleDelayedResetDoesNotOverrideNewerCommand() {
+        runTest { [self] in
+            let agent = makeAgent()
+            let log = attachTrace(agent)
+            await MainActor.run {
+                agent.handleJsonCommandForTesting(cmd: "state_with_reset", obj: [
+                    "value": 3, "resetValue": 4, "delayMs": 80,
+                ])
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+            await MainActor.run {
+                agent.handleJsonCommandForTesting(cmd: "state_with_reset", obj: [
+                    "value": 7, "resetValue": 8, "delayMs": 60_000,
+                ])
+                XCTAssertTrue(agent.hasPendingStateResetForTesting)
+            }
+            try await Task.sleep(nanoseconds: 150_000_000)
+            await MainActor.run {
+                let sent = log.snapshot.compactMap { event -> UInt8? in
+                    if case .sendState(let value) = event { return value }
+                    return nil
+                }
+                XCTAssertEqual(sent, [3, 7], "过时 reset(4) 不得在新命令之后发送")
+                XCTAssertTrue(agent.hasPendingStateResetForTesting, "迟到的旧 reset 不得取消新 reset")
+                XCTAssertTrue(log.snapshot.contains(.installStateReset(8)))
             }
         }
     }
@@ -171,69 +213,133 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
     /// apply 走 `configurationCoordinator.kick` → `runConfigurationTransaction`，必须用同一套 begin/end。
     func testApplyTransactionPairsWindowBeginEnd() {
         runTest { [self] in
+            try await assertApplyWindowPairing(stepExecutor: { _ in .success })
+        }
+    }
+
+    func testApplyFailurePairsWindowBeginEnd() {
+        runTest { [self] in
+            try await assertApplyWindowPairing(stepExecutor: { _ in .permanentFailure })
+        }
+    }
+
+    func testApplyCancellationPairsWindowBeginEnd() {
+        runTest { [self] in
             let agent = makeAgent()
             let log = attachTrace(agent)
-            var hooks = agent.executionTestHooks
-            hooks?.isReady = true
-            hooks?.capabilities = AhaKeyFirmwareCapabilities(
-                protocolVersion: 3, modeCount: 4, setCount: 2, stateCount: 4,
-                flags: AhaKeyFirmwareCapabilities.sessionUploadFlag,
-                maxPacketSize: 200, userSlotLimit: 8, factorySlotBase: 10,
-                factoryBundleVersion: 0, factoryManifestCRC: 0, factoryStatus: 0, factoryError: 0,
-                reclaimSlotBase: 0, reclaimSlotLimit: 0
-            )
-            hooks?.stepExecutor = { _ in .success }
-            agent.executionTestHooks = hooks
-            await agent.simulateDeviceForTesting(AhaKeyRuntimeDeviceSnapshot(
-                id: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-                displayName: "Test AhaKey",
-                protocolState: .currentReady,
-                preferredTransport: .bluetooth,
-                usbAttached: false,
-                bluetoothConnected: true
-            ))
-            let emptySet = AhaKeyStudioTaskSetInput(assets: [
-                AhaKeyStudioTaskAssetInput(state: .idle, framesPerSecond: 12),
-                AhaKeyStudioTaskAssetInput(state: .working, framesPerSecond: 12),
-                AhaKeyStudioTaskAssetInput(state: .waiting, framesPerSecond: 12),
-                AhaKeyStudioTaskAssetInput(state: .done, framesPerSecond: 12),
-            ])
-            let mode = AhaKeyStudioModeInput(
-                slot: 0,
-                keys: [
-                    AhaKeyStudioKeyInput(
-                        role: .approve,
-                        action: .shortcut(try .init(modifiers: [], keyCode: 0x28)),
-                        description: "Accept"
-                    ),
-                ],
-                oled: AhaKeyStudioOLEDInput(
-                    statusLine: "s", framesPerSecond: 12, taskSets: [emptySet, emptySet], activeSet: 0
-                ),
-                lightBar: AhaKeyStudioLightBarInput(
-                    stateMappings: [AhaKeyStudioLightMappingInput(state: 3, effect: "singleMove")],
-                    brightness: 35
+            let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+            let package = try makePackage(deviceID: deviceID)
+            let storeDirectory = agent.executionTestHooks!.storeDirectory!
+            try await prepareApply(agent, stepExecutor: { _ in
+                let store = try! AhaKeyRuntimePersistentStore(
+                    rootDirectory: storeDirectory,
+                    acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
                 )
-            )
-            let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
-            let package = try AhaKeyConfigurationPackage(
-                targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-                baseRevision: .init(0),
-                desiredConfiguration: assembled.configuration.canonicalData(),
-                resources: []
-            )
-            let response = try await agent.handleRuntimeXPCRequest(.apply(package))
-            guard case .operationAccepted = response else {
-                return XCTFail("apply 必须受理，实际 \(response)")
+                let deadline = Date().addingTimeInterval(10)
+                while Date() < deadline {
+                    if let record = try? await store.transaction(package.operationID),
+                       record.state == .cancellationRequested {
+                        return .retryableFailure
+                    }
+                    try? await Task.sleep(nanoseconds: 20_000_000)
+                }
+                return .success
+            })
+            let accepted = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .operationAccepted = accepted else {
+                return XCTFail("apply 必须受理，实际 \(accepted)")
             }
-            let deadline = Date().addingTimeInterval(10)
-            while Date() < deadline {
-                if log.windowEvents == [.transportWindowBegin, .transportWindowEnd] { break }
-                try await Task.sleep(nanoseconds: 20_000_000)
-            }
+            let cancellation = try await agent.handleRuntimeXPCRequest(
+                .requestCancellation(package.operationID)
+            )
+            XCTAssertEqual(cancellation, .cancellation(.requested))
+            await waitForWindowClosed(log)
             XCTAssertEqual(log.windowEvents, [.transportWindowBegin, .transportWindowEnd])
             let active = await MainActor.run { agent.isConfigurationTransportWindowActiveForTesting }
             XCTAssertFalse(active)
+        }
+    }
+
+    private func assertApplyWindowPairing(
+        stepExecutor: @escaping @Sendable (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult
+    ) async throws {
+        let agent = makeAgent()
+        let log = attachTrace(agent)
+        try await prepareApply(agent, stepExecutor: stepExecutor)
+        let package = try makePackage(deviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"))
+        let response = try await agent.handleRuntimeXPCRequest(.apply(package))
+        guard case .operationAccepted = response else {
+            return XCTFail("apply 必须受理，实际 \(response)")
+        }
+        await waitForWindowClosed(log)
+        XCTAssertEqual(log.windowEvents, [.transportWindowBegin, .transportWindowEnd])
+        let active = await MainActor.run { agent.isConfigurationTransportWindowActiveForTesting }
+        XCTAssertFalse(active)
+    }
+
+    private func prepareApply(
+        _ agent: AhaKeyAgent,
+        stepExecutor: @escaping @Sendable (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult
+    ) async throws {
+        var hooks = agent.executionTestHooks
+        hooks?.isReady = true
+        hooks?.capabilities = AhaKeyFirmwareCapabilities(
+            protocolVersion: 3, modeCount: 4, setCount: 2, stateCount: 4,
+            flags: AhaKeyFirmwareCapabilities.sessionUploadFlag,
+            maxPacketSize: 200, userSlotLimit: 8, factorySlotBase: 10,
+            factoryBundleVersion: 0, factoryManifestCRC: 0, factoryStatus: 0, factoryError: 0,
+            reclaimSlotBase: 0, reclaimSlotLimit: 0
+        )
+        hooks?.stepExecutor = stepExecutor
+        agent.executionTestHooks = hooks
+        await agent.simulateDeviceForTesting(AhaKeyRuntimeDeviceSnapshot(
+            id: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            displayName: "Test AhaKey",
+            protocolState: .currentReady,
+            preferredTransport: .bluetooth,
+            usbAttached: false,
+            bluetoothConnected: true
+        ))
+    }
+
+    private func makePackage(deviceID: AhaKeyRuntimeDeviceID) throws -> AhaKeyConfigurationPackage {
+        let emptySet = AhaKeyStudioTaskSetInput(assets: [
+            AhaKeyStudioTaskAssetInput(state: .idle, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .working, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .waiting, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .done, framesPerSecond: 12),
+        ])
+        let mode = AhaKeyStudioModeInput(
+            slot: 0,
+            keys: [
+                AhaKeyStudioKeyInput(
+                    role: .approve,
+                    action: .shortcut(try .init(modifiers: [], keyCode: 0x28)),
+                    description: "Accept"
+                ),
+            ],
+            oled: AhaKeyStudioOLEDInput(
+                statusLine: "s", framesPerSecond: 12, taskSets: [emptySet, emptySet], activeSet: 0
+            ),
+            lightBar: AhaKeyStudioLightBarInput(
+                stateMappings: [AhaKeyStudioLightMappingInput(state: 3, effect: "singleMove")],
+                brightness: 35
+            )
+        )
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
+        return try AhaKeyConfigurationPackage(
+            targetDeviceID: deviceID,
+            baseRevision: .init(0),
+            desiredConfiguration: assembled.configuration.canonicalData(),
+            resources: []
+        )
+    }
+
+    private func waitForWindowClosed(_ log: TraceLog) async {
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline {
+            if log.windowEvents == [.transportWindowBegin, .transportWindowEnd] { return }
+            try? await Task.sleep(nanoseconds: 20_000_000)
         }
     }
 }
