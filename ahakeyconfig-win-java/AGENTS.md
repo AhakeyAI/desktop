@@ -57,12 +57,18 @@ mvn javafx:run
 mvn clean package
 
 # 仅准备发布输入；允许暂缺真实固件，不能视为正式发布产物
-powershell -ExecutionPolicy Bypass -File build-installer.ps1 -PrepareOnly
+powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 `
+  -AppVersion 1.5.3 `
+  -FirmwareVersion 1.4.7 `
+  -BaselineInstallDir 'C:\Program Files\AhaKeyStudio' `
+  -PrepareOnly
 
 # 正式 Windows 安装包（需真实 CH582 HEX、jpackage、WiX 和发布基线）
-powershell -ExecutionPolicy Bypass -File build-installer.ps1 `
+powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 `
+  -AppVersion 1.5.3 `
   -FirmwareVersion 1.4.7 `
-  -FirmwareHex C:\release\AhaKey-X1-firmware-1.4.7-ch582.hex
+  -FirmwareHex 'C:\release\AhaKey-X1-firmware-1.4.7-ch582.hex' `
+  -BaselineInstallDir 'C:\Program Files\AhaKeyStudio'
 ```
 
 **构建脚本：**
