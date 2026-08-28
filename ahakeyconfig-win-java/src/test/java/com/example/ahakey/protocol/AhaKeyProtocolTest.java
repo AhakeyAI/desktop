@@ -8,6 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.InputStream;
+import java.util.HexFormat;
+
 class AhaKeyProtocolTest {
     @Test
     void usesBoundedPacedFlashTransfers() {
@@ -22,8 +28,15 @@ class AhaKeyProtocolTest {
     @Test
     void buildsProtocolV2Commands() {
         assertArrayEquals(
-            new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0x9D, (byte) 0xCC, (byte) 0xDD},
+            new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0x9F, (byte) 0xCC, (byte) 0xDD},
             AhaKeyProtocol.queryCapabilities()
+        );
+        assertEquals((byte) 0x9D, AhaKeyProtocol.CMD_CONFIG_QUERY);
+        assertEquals((byte) 0x9F, AhaKeyProtocol.CMD_QUERY_CAPABILITIES);
+        assertArrayEquals(
+                new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0x9D, 1, 1, 0,
+                (byte) 0xCC, (byte) 0xDD},
+            AhaKeyProtocol.configQuery(1, 1, 0)
         );
         assertArrayEquals(
             new byte[]{
@@ -67,6 +80,66 @@ class AhaKeyProtocolTest {
             30,
             AhaKeyResponseParser.parseStandbyTimeoutMinutes(new byte[]{30, 0}).intValue()
         );
+    }
+
+    @Test
+    void parsesAndValidatesBoundedConfigChunks() {
+        var response = AhaKeyResponseParser.parseCommandResponse(new byte[]{
+            (byte) 0xAA, (byte) 0xBB, (byte) 0x9D, 0,
+            0, 0, 100, 96, 4, 0x11, 0x22, 0x33, 0x44,
+            (byte) 0xCC, (byte) 0xDD});
+        var chunk = AhaKeyResponseParser.parseConfigChunk(response);
+        assertNotNull(chunk);
+        assertEquals(100, chunk.totalLength());
+        assertEquals(96, chunk.offset());
+        assertArrayEquals(new byte[]{0x11, 0x22, 0x33, 0x44}, chunk.data());
+        assertThrows(IllegalArgumentException.class,
+            () -> AhaKeyProtocol.configQuery(3, 0, 0));
+        assertThrows(IllegalArgumentException.class,
+            () -> AhaKeyProtocol.configQuery(2, 0, 2));
+        assertEquals(null, AhaKeyResponseParser.parseConfigChunk(
+            AhaKeyResponseParser.parseCommandResponse(new byte[]{
+                (byte) 0xAA, (byte) 0xBB, (byte) 0x9D, 0,
+                2, 0, 2, 0, 8, 1, (byte) 0xCC, (byte) 0xDD})));
+    }
+
+    @Test
+    void crossEndGoldenFixtureSeparatesConfigAndCapabilityQueries() throws Exception {
+        JsonNode fixture;
+        try (InputStream input = getClass().getResourceAsStream(
+            "/protocol-fixtures/ahakey-protocol-3.2.json")) {
+            fixture = new ObjectMapper().readTree(input);
+        }
+        JsonNode config = fixture.get("golden9d");
+        assertArrayEquals(hex(config.get("validFirstLightSettings").get("request").asText()),
+            AhaKeyProtocol.configQuery(2, 0, 0));
+        assertArrayEquals(hex(fixture.get("golden9f").get("request").asText()),
+            AhaKeyProtocol.queryCapabilities());
+
+        for (String field : new String[]{"validFirstLightSettings",
+            "validFinalShortLightSettings", "trailerLikeData"}) {
+            var response = AhaKeyResponseParser.parseCommandResponse(
+                hex(config.get(field).get("response").asText()));
+            assertNotNull(AhaKeyResponseParser.parseConfigChunk(response), field);
+        }
+        for (String field : new String[]{"invalidResource", "invalidOffset", "malformedLength"}) {
+            var response = AhaKeyResponseParser.parseCommandResponse(
+                hex(config.get(field).get("response").asText()));
+            assertNotNull(response, field);
+            assertEquals((byte) 0x9D, response.cmd());
+            assertTrue(response.status() != 0);
+            assertEquals(null, AhaKeyResponseParser.parseConfigChunk(response));
+        }
+        var caps = AhaKeyResponseParser.parseCommandResponse(
+            hex(fixture.get("golden9f").get("response").asText()));
+        assertNotNull(caps);
+        assertEquals((byte) 0x9F, caps.cmd());
+        assertEquals(3, AhaKeyResponseParser.parseDeviceCapabilities(caps.payload())
+            .protocolMajor());
+    }
+
+    private static byte[] hex(String value) {
+        return HexFormat.of().parseHex(value.replace(" ", ""));
     }
 
     @Test

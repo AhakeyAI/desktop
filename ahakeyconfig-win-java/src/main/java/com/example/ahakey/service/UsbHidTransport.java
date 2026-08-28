@@ -1,5 +1,6 @@
 package com.example.ahakey.service;
 
+import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
@@ -75,6 +76,7 @@ public class UsbHidTransport implements Closeable {
         final AtomicBoolean handlesClosed = new AtomicBoolean();
         final CountDownLatch terminated = new CountDownLatch(1);
         final Object writeMutex = new Object();
+        final FrameExtractor frameExtractor = new FrameExtractor();
         volatile Thread readerThread;
 
         Session(
@@ -242,9 +244,11 @@ public class UsbHidTransport implements Closeable {
                     // frame extraction, protocol validation, logging or any
                     // freshness coordination lock can delay processing.
                     long receivedAtNanos = System.nanoTime();
-                    byte[] frame = extractFrame(report, result.bytesRead());
-                    if (!session.stopRequested.get() && isActive(session) && frame != null) {
-                        session.consumer.accept(frame, receivedAtNanos);
+                    List<byte[]> frames = session.frameExtractor.accept(report, result.bytesRead());
+                    if (!session.stopRequested.get() && isActive(session)) {
+                        for (byte[] frame : frames) {
+                            session.consumer.accept(frame, receivedAtNanos);
+                        }
                     }
                 } catch (Exception e) {
                     if (!session.stopRequested.get()) {
@@ -279,23 +283,109 @@ public class UsbHidTransport implements Closeable {
         reader.start();
     }
 
-    private static byte[] extractFrame(byte[] data, int len) {
-        int start = -1;
-        for (int i = 0; i + 1 < len; i++) {
-            if (data[i] == (byte) 0xAA && data[i + 1] == (byte) 0xBB) {
-                start = i;
-                break;
+    /**
+     * Accumulates HID reports and extracts complete protocol frames. Config
+     * query responses carry their own bounded chunk length, so a CC DD byte
+     * pair inside the chunk is data, never an end marker.
+     */
+    static final class FrameExtractor {
+        private byte[] pending = new byte[0];
+
+        List<byte[]> accept(byte[] report, int length) {
+            if (report == null || length <= 0) {
+                return List.of();
             }
-        }
-        if (start < 0) {
-            return null;
-        }
-        for (int i = start + 3; i + 1 < len; i++) {
-            if (data[i] == (byte) 0xCC && data[i + 1] == (byte) 0xDD) {
-                return Arrays.copyOfRange(data, start, i + 2);
+            int count = Math.min(length, report.length);
+            byte[] combined = Arrays.copyOf(pending, pending.length + count);
+            System.arraycopy(report, 0, combined, pending.length, count);
+            pending = combined;
+            if (pending.length > 4096) {
+                pending = Arrays.copyOfRange(pending, pending.length - 64, pending.length);
             }
+
+            List<byte[]> frames = new ArrayList<>();
+            int cursor = 0;
+            while (true) {
+                int start = findHeader(pending, cursor);
+                if (start < 0) {
+                    pending = keepPossibleHeaderTail(pending);
+                    break;
+                }
+                if (start > 0) {
+                    pending = Arrays.copyOfRange(pending, start, pending.length);
+                    cursor = 0;
+                }
+                int frameLength = expectedLength(pending);
+                if (frameLength == 0) {
+                    break; // header or length fields are split across reports
+                }
+                if (frameLength < 0) {
+                    pending = Arrays.copyOfRange(pending, 1, pending.length);
+                    cursor = 0;
+                    continue;
+                }
+                if (pending.length < frameLength) {
+                    break;
+                }
+                if (pending[frameLength - 2] != (byte) 0xCC
+                    || pending[frameLength - 1] != (byte) 0xDD) {
+                    pending = Arrays.copyOfRange(pending, 1, pending.length);
+                    cursor = 0;
+                    continue;
+                }
+                frames.add(Arrays.copyOf(pending, frameLength));
+                pending = Arrays.copyOfRange(pending, frameLength, pending.length);
+                cursor = 0;
+            }
+            return frames;
         }
-        return null;
+
+        private static int expectedLength(byte[] bytes) {
+            if (bytes.length < 3) {
+                return 0;
+            }
+            int command = bytes[2] & 0xFF;
+            if (command == (AhaKeyProtocol.CMD_CONFIG_QUERY & 0xFF)) {
+                if (bytes.length < 9) {
+                    return 0;
+                }
+                int chunkLength = bytes[8] & 0xFF;
+                if (chunkLength <= 0 || chunkLength > 8) {
+                    return -1;
+                }
+                return 11 + chunkLength;
+            }
+            if (command == (AhaKeyProtocol.CMD_QUERY_CAPABILITIES & 0xFF)) {
+                return 17;
+            }
+            int trailer = findTrailer(bytes, 3);
+            return trailer < 0 ? 0 : trailer + 2;
+        }
+
+        private static int findHeader(byte[] bytes, int from) {
+            for (int i = Math.max(0, from); i + 1 < bytes.length; i++) {
+                if (bytes[i] == (byte) 0xAA && bytes[i + 1] == (byte) 0xBB) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static int findTrailer(byte[] bytes, int from) {
+            for (int i = Math.max(0, from); i + 1 < bytes.length; i++) {
+                if (bytes[i] == (byte) 0xCC && bytes[i + 1] == (byte) 0xDD) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static byte[] keepPossibleHeaderTail(byte[] bytes) {
+            if (bytes.length > 0 && bytes[bytes.length - 1] == (byte) 0xAA) {
+                return new byte[]{(byte) 0xAA};
+            }
+            return new byte[0];
+        }
     }
 
     private Session requireActiveSession() throws IOException {

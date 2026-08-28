@@ -31,13 +31,16 @@ public class AhaKeyProtocol {
     public static final byte CMD_TASK_HEARTBEAT = (byte) 0x9A;
     public static final byte CMD_MODE_SYNC = (byte) 0x9B;
     public static final byte CMD_GIF_LAYOUT = (byte) 0x9C;
-    public static final byte CMD_QUERY_CAPABILITIES = (byte) 0x9D;
+    /** Bounded persistent configuration read: resource, index, offset. */
+    public static final byte CMD_CONFIG_QUERY = (byte) 0x9D;
+    /** Device information/capability contract query. */
+    public static final byte CMD_QUERY_CAPABILITIES = (byte) 0x9F;
 
     // 0x86 曾被不同固件分支重复用于“GIF 套图”和“待机时间”。
     // Protocol v2 中保留该值，不再发送；待机时间统一使用 0x95。
     public static final byte CMD_LEGACY_CONFLICT = (byte) 0x86;
 
-    // 0x9D 能力位
+    // 0x9F 能力位
     public static final long CAP_STANDBY_TIMEOUT_V2 = 1L << 0;
     public static final long CAP_FACTORY_RESET_V1 = 1L << 1;
     public static final long CAP_VOICE_KEY_DUAL_V1 = 1L << 2;
@@ -134,6 +137,30 @@ public class AhaKeyProtocol {
 
     public static byte[] queryCapabilities() {
         return buildFrame(CMD_QUERY_CAPABILITIES, new byte[0]);
+    }
+
+    public static byte[] configQuery(int resource, int index, int offset) {
+        validateConfigAddress(resource, index, offset);
+        return buildFrame(CMD_CONFIG_QUERY, new byte[]{
+            (byte) resource, (byte) index, (byte) offset});
+    }
+
+    public static int configValueLength(int resource, int index) {
+        return switch (resource) {
+            case 0 -> index >= 0 && index < 16 ? 100 : -1;
+            case 1 -> index >= 0 && index < 4 ? 9 : -1;
+            case 2 -> index == 0 ? 2 : -1;
+            default -> -1;
+        };
+    }
+
+    public static void validateConfigAddress(int resource, int index, int offset) {
+        int length = configValueLength(resource, index);
+        if (length < 0 || offset < 0 || offset >= length) {
+            throw new IllegalArgumentException(
+                "Invalid config query resource/index/offset: "
+                    + resource + "/" + index + "/" + offset);
+        }
     }
 
     public static byte[] queryStandbyTimeout() {

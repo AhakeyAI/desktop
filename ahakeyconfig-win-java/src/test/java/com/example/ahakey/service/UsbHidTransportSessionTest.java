@@ -1,5 +1,6 @@
 package com.example.ahakey.service;
 
+import com.example.ahakey.protocol.AhaKeyResponseParser;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
 import org.junit.jupiter.api.Test;
@@ -13,10 +14,45 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UsbHidTransportSessionTest {
+    @Test
+    void configPayloadCcDdDoesNotTruncateAndSupportsSplitPaddedAndMultipleReports() {
+        byte[] frame = hex("AA BB 9D 00 02 00 02 00 02 11 CC CC DD");
+        UsbHidTransport.FrameExtractor extractor = new UsbHidTransport.FrameExtractor();
+        assertTrue(extractor.accept(Arrays.copyOf(frame, 8), 8).isEmpty());
+        byte[] padded = new byte[64];
+        System.arraycopy(frame, 8, padded, 0, frame.length - 8);
+        var frames = extractor.accept(padded, padded.length);
+        assertEquals(1, frames.size());
+        assertArrayEquals(frame, frames.get(0));
+        var parsed = AhaKeyResponseParser.parseConfigChunk(
+            AhaKeyResponseParser.parseCommandResponse(frames.get(0)));
+        assertNotNull(parsed);
+        assertArrayEquals(new byte[]{0x11, (byte) 0xCC}, parsed.data());
+
+        UsbHidTransport.FrameExtractor multiple = new UsbHidTransport.FrameExtractor();
+        byte[] second = hex("AA BB 9D 00 01 00 09 08 01 AA CC DD");
+        byte[] carrier = new byte[frame.length + second.length];
+        System.arraycopy(frame, 0, carrier, 0, frame.length);
+        System.arraycopy(second, 0, carrier, frame.length, second.length);
+        assertEquals(2, multiple.accept(carrier, carrier.length).size());
+    }
+
+    @Test
+    void configExtractorRejectsMalformedTrailerAndTruncatedResponse() {
+        UsbHidTransport.FrameExtractor extractor = new UsbHidTransport.FrameExtractor();
+        byte[] malformed = hex("AA BB 9D 00 02 00 02 00 02 11 22 00 00");
+        assertTrue(extractor.accept(malformed, malformed.length).isEmpty());
+        byte[] truncated = hex("AA BB 9D 00 00 00 64 00 08 01 02");
+        assertTrue(extractor.accept(truncated, truncated.length).isEmpty());
+        assertNotNull(extractor);
+    }
+
     @Test
     void blockedReadCloseReopenKeepsOldReaderIsolatedUntilItExits() throws Exception {
         ControlledHidIo io = new ControlledHidIo(true);
@@ -86,6 +122,10 @@ class UsbHidTransportSessionTest {
             94, 50, 1, 3, 2, 1, (byte) switchState, 35, 3,
             (byte) 0xCC, (byte) 0xDD
         };
+    }
+
+    private static byte[] hex(String value) {
+        return java.util.HexFormat.of().parseHex(value.replace(" ", ""));
     }
 
     private static final class ControlledHidIo implements UsbHidTransport.HidIo {

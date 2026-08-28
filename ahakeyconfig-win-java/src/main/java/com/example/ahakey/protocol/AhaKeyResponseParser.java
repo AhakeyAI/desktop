@@ -38,6 +38,23 @@ public final class AhaKeyResponseParser {
         }
     }
 
+    public record ConfigChunk(
+        int resource,
+        int index,
+        int totalLength,
+        int offset,
+        byte[] data
+    ) {
+        public ConfigChunk {
+            data = data == null ? new byte[0] : data.clone();
+        }
+
+        @Override
+        public byte[] data() {
+            return data.clone();
+        }
+    }
+
     public record VoiceKeyConfig(byte[] shortCodes, byte[] longCodes, int longPressMs) {
         public boolean matches(int shortHidCode, int longHidCode) {
             return java.util.Arrays.equals(shortCodes, AhaKeyProtocol.hidCodesForShortcut(shortHidCode))
@@ -94,6 +111,28 @@ public final class AhaKeyResponseParser {
             payload.length >= 10 ? payload[9] & 0xFF : 0,
             payload.length >= 11 ? payload[10] & 0xFF : 0
         );
+    }
+
+    public static ConfigChunk parseConfigChunk(CommandResponse response) {
+        if (response == null || response.cmd() != AhaKeyProtocol.CMD_CONFIG_QUERY
+            || response.status() != 0 || response.payload() == null
+            || response.payload().length < 5) {
+            return null;
+        }
+        byte[] payload = response.payload();
+        int resource = payload[0] & 0xFF;
+        int index = payload[1] & 0xFF;
+        int totalLength = payload[2] & 0xFF;
+        int offset = payload[3] & 0xFF;
+        int chunkLength = payload[4] & 0xFF;
+        if (chunkLength > 8 || payload.length != 5 + chunkLength
+            || totalLength <= 0 || offset >= totalLength
+            || chunkLength <= 0 || offset + chunkLength > totalLength
+            || AhaKeyProtocol.configValueLength(resource, index) != totalLength) {
+            return null;
+        }
+        byte[] data = java.util.Arrays.copyOfRange(payload, 5, payload.length);
+        return new ConfigChunk(resource, index, totalLength, offset, data);
     }
 
     public record ModeSync(int mode, int source, int sequence) {}

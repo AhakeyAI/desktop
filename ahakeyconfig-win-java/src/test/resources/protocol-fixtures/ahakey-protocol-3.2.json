@@ -1,0 +1,38 @@
+{
+  "protocolVersion": "3.2",
+  "firmwareVersion": "1.4.7",
+  "deviceModel": "AhaKey-X1",
+  "deviceModelId": 1,
+  "capabilityMask": "0x7FF",
+  "golden9f": {
+    "request": "AA BB 9F CC DD",
+    "response": "AA BB 9F 00 03 02 01 04 01 FF 07 00 00 07 01 CC DD"
+  },
+  "golden9d": {
+    "validFirstLightSettings": {
+      "request": "AA BB 9D 02 00 00 CC DD",
+      "response": "AA BB 9D 00 02 00 02 00 02 23 00 CC DD"
+    },
+    "validFinalShortLightSettings": {
+      "request": "AA BB 9D 02 00 01 CC DD",
+      "response": "AA BB 9D 00 02 00 02 01 01 00 CC DD"
+    },
+    "invalidResource": {
+      "request": "AA BB 9D 03 00 00 CC DD",
+      "response": "AA BB 9D 02 CC DD"
+    },
+    "invalidOffset": {
+      "request": "AA BB 9D 02 00 02 CC DD",
+      "response": "AA BB 9D 02 CC DD"
+    },
+    "malformedLength": {
+      "request": "AA BB 9D 02 00 CC DD",
+      "response": "AA BB 9D 01 CC DD"
+    },
+    "trailerLikeData": {
+      "setupRequest": "AA BB 73 73 00 00 CC DD 01 CC DD",
+      "request": "AA BB 9D 00 00 00 CC DD",
+      "response": "AA BB 9D 00 00 00 64 00 08 73 03 CC DD 01 00 00 00 CC DD"
+    }
+  }
+}
