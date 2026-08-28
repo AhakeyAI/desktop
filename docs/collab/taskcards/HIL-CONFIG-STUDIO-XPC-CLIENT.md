@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-STUDIO-XPC-CLIENT：Studio 生产传输连不上 libxpc Runtime
 
 计划/WBS：HIL-CONFIG 阻塞返工  
-状态：`review / R2`（仅 `.handshakeAccepted` 才放行业务；HIL C1 仍暂停）
+状态：`accepted`（生产 Studio libxpc client accepted @ `2403978`；转回 HIL 验证）
 执行 owner：Cursor
 基线：HIL-CONFIG active；CAPS14 accepted @ `3b08d82`；5.7 accepted @ `488097d`  
 目标：让 Developer ID 签名的 Studio 能对 `lab.jawa.ahakeyconfig.runtime` 完成 handshake+snapshot，从而恢复 HIL C1 apply。
@@ -143,3 +143,10 @@ HIL 临时 label 先保留。未授权前不改产品代码。不刷机、不覆
 - 新增 anonymous libxpc 测试：handshake 返回 `.failure` 时同代际排队 apply 得 `handshakeRequired`，server business=0；随后显式成功 handshake 后 snapshot 才计入业务。
 - 门禁：client 14/14；定向 facade+XPC 36/36；全量 **496 / 2 skipped / 0 failures**；Release App+Agent；signed smoke 正/负通过；`git diff --check` 干净。产品 `2403978`。
 - 未重建临时 Studio、未替换 HIL Agent、未 apply。
+
+### [2026-08-28 09:50] Codex：15B R2 accepted
+
+- 验收 `5eccbcd...2403978`。Standards 0 findings；Spec 0 findings。只有明确 `.handshakeAccepted` 且 generation 未变时才开放业务；非 accepted Codable 响应下，排队 apply 本地返回 `handshakeRequired`，server business count=0，随后显式成功 handshake 才放行 snapshot。
+- `testBarrierHandler` 已改为锁内拷贝、锁外回调，未见数据竞争或回调重入锁反转。未修改 Agent/server、peer policy、wire、facade、UI 或 R1 token/gate/generation 主体。
+- Codex 独立定向 36/36 通过（client 14 / facade 14 / server 8），`git show --check 2403978` 干净。Cursor 提交的完整 496/2 skipped/0 failures、双 Release 与 signed smoke 正/负证据接受。
+- 15B 正式 accepted @ `2403978`。本卡停止施工；下一步按 HIL-CONFIG 卡重建临时 Studio、验证 online 后续 C1。

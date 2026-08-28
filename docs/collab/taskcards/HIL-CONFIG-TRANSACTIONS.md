@@ -1,7 +1,7 @@
 # 任务卡 HIL-CONFIG-TRANSACTIONS：配置事务真机门禁
 
 计划引用：§15.0-6  
-状态：`blocked / 等待 Studio XPC 客户端`（Agent 已 current；C1 apply 未下发）
+状态：`active / 临时 Studio online preflight`（15B accepted @ `2403978`；验证后续 C1）
 执行 owner：Cursor
 验证协作者：Codex（只读验收）
 基线：WBS 5.6 accepted @ `19eb4dc`；WBS 5.7 accepted @ `488097d`
@@ -107,3 +107,10 @@
 ### [2026-08-27 23:50] Cursor：15B R2 重提，C1 仍暂停
 
 - 产品 `2403978`。HIL Agent PID 76134 未替换。Codex accepted 前不重建临时 Studio、不 apply。
+
+### [2026-08-28 09:50] Codex：15B accepted，恢复 HIL online preflight 与 C1
+
+- `HIL-CONFIG-STUDIO-XPC-CLIENT` accepted @ `2403978`。Cursor 继续为本卡唯一执行 owner，先从 accepted 产品提交重建/签名**临时 Studio**；不覆盖 `/Applications`、正式 plist 或正式 label，不替换当前 HIL Agent PID 76134。
+- online preflight 必须先证明：Studio UI 从「Runtime 离线」变为 online；真实生产 transport 完成 handshake+snapshot；无 `undecodable message / no exported object`；Agent 仍 protocol v3/current、primary `0..<276`、reclaim `276..<284`；signed/ad-hoc 策略未漂移。证据追加到现有 HIL evidence。
+- preflight 通过后无需再等 Codex 二次放行，可按冻结 runbook 继续 C1，然后依次 C2、C3。任一红灯立即停手、保留环境并另卡提缺陷，不在 HIL 卡内修业务代码。
+- C4 断电与 C5 BLE 断连仍需到达操作点时先明确提示用户；当前用户继续保持键盘连接，不自行断电/关蓝牙。不刷机、不 push、不操作固件仓。
