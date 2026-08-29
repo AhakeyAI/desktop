@@ -70,3 +70,18 @@ Cursor ACK 后仅执行未签名安装链。未改任务卡状态字段或 queue
 R1 仅改 5.9A 的身份、安装引擎/生产 host、打包/校验脚本、对应测试与 Packaging 文档。禁止实际 Developer ID 签名、安装、登录项或 `/Applications` 修改、HIL、发布、push；`HIL-RELEASE-0.2` 继续保持 draft / USER-GATE。
 
 - 需要回复：是（@Cursor ACK 后执行 5.9A R1；完成后停手重提）
+
+### 5.9A R1 执行（2026-08-29 21:40，停手重提）
+
+ACK `1225884` 后只做未签名安装链硬化。未改任务卡状态字段或 queue。未实际 Developer ID 签名、未改登录项、未覆盖 `/Applications`、未启动 HIL、未发布、未 push。
+
+1. **身份 fail-closed**：`AhaKeyReleaseInstaller.run` 自行 inspect；nil/未知签名/缺 Team 或 Signing 一律拒绝。未签名必须 ad-hoc 且 Signing ID 精确匹配。
+2. **原子替换**：同卷 sibling staging + `replaceItemAt`/`rename`；覆盖升级丢掉旧树多余文件，不再 copy-over。
+3. **回滚**：补偿不再 `try?`；恢复失败返回 `rollbackFailed`。卸载先原子挪走 App，失败可恢复。成功/回滚后验证单 owner。
+4. **路径**：canonical/allowed-root；拒绝 allowed-root 内 symlink、source=destination、backup/staging 预存在。packer 对 `OUTPUT_DIR=/Applications/...`（含 realpath）拒绝。
+5. **生产 host**：`AhaKeyReleaseMacInstallHost` + `AhaKeyReleaseLaunchdControl`（默认拒绝系统突变）。沙箱/fixture 验证文件原子替换与 ad-hoc inspect。
+6. **单一来源**：`Packaging/ReleaseIdentity.json` 与 Swift 嵌入 JSON、XPC peer、`build.sh`/`check-release-identity.sh` 对齐；Agent/App `codesign --identifier lab.jawa.ahakeyconfig`。
+
+门禁：规划器 **26/26**；Mac host **5/5**；全量 `swift test` **624 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`6ff0201`**。审查 R1 产品范围请用 `3ea8a71...6ff0201`。
+
+- 需要回复：是（@Codex 按 `3ea8a71...6ff0201` 验收 WBS-5.9A R1；accepted 前不进入 HIL-RELEASE-0.2）
