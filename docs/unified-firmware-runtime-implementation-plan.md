@@ -1,8 +1,8 @@
 # AhaKey 统一固件、纯硬件语音与 Runtime 解耦实施计划
 
-状态：统一调度基线；Runtime 设备所有权决策已确认
+状态：统一调度基线；采用 0.2 → 0.3 → 0.4 → 0.5 → 1.0 → 1.1 分批发布；Runtime 设备所有权决策已确认
 
-日期：2026-08-22
+日期：2026-08-22（发布列车拆分更新 2026-08-29）
 适用范围：AhaKey X1 固件、macOS Studio、Windows Studio、后台 Runtime、生产烧录与发布流程
 
 ## 0. 文档权威、当前进度与单一实施入口
@@ -31,11 +31,28 @@
 | `AhaKeyInMemoryRuntimeAdapter.swift` | R0 测试 Adapter 原型 | 仅测试使用，不接入生产路径 |
 | Runtime 持久化测试 | 14 项契约测试、12 项持久化集成测试；完整 Swift 套件 197 项通过 | 作为后续兼容与崩溃恢复基线 |
 | SQLite WAL、资源仓库 | WBS 5.1 已完成 | 生产 Runtime 接入前保持为独立持久事务内核 |
-| XPC、Hook socket | Hook 与 XPC wire/client seam 已完成；生产 server 待 libxpc 签名绑定 | 先完成 libxpc server 与无设备双签名进程 smoke，再进入 5.3 RuntimeOrchestrator 与真实拨杆门禁 |
-| Runtime 设备独占、Studio 纯客户端化 | 未开始 | 未完成前不得宣称新客户端架构正式交付 |
+| XPC、Hook socket | WBS 5.2 accepted @ `1ac1524`；libxpc 签名 server 与双进程 smoke 已通过 | 作为 v0.2 稳定生产 seam，不再列为开放前置 |
+| Runtime 设备独占、Studio 纯客户端化 | WBS 5.5/5.7 静态与自动门禁完成 | 主链已 accepted；0.2 先经兼容策略、最小安装链与独立 HIL 发布，不再等待全部新功能 |
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
-| WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md) |
+| WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md)；2026-08-26 确认 GitHub **`master@71b11676` 与 `dev@3e7f900` 源码树相同** |
+| WBS 1 统一固件 | 进行中 | 1.1-1.4 已验收（1.4 @ `97f0ae8`）；当前 Zcode 只执行 1.5 slice 1 R16，1.6-1.7 未开放。**产品源仍为 GitHub master/dev 同树**，不换到 `eternal-dev`。 |
+| OLED 编辑/局部提交 | 进行中 | Cursor 执行 E-1R1；该能力归 0.3，不进入 0.2 的可见功能面 |
 | WBS 0.2 行为/协议/Flash 矩阵 | 部分完成 | 行为与协议入口已静态比较；Flash 地址、大小、占用和 HIL 仍开放 |
+
+### 0.1 产品版本列车（2026-08-29 冻结）
+
+版本号描述的是**可交付产品能力**，不等同于某一张 WBS 是否全部完成；正文中的产品版本可读作 `v0.2` 等，以区别 WBS `0.2` 这类工作包编号。后续功能不得反向阻塞前一版本，前一版本也不得以隐藏按钮掩盖未经验证的写入路径。
+
+| 版本 | 面向用户的交付 | 必须完成 | 明确不包含 |
+|---|---|---|---|
+| **v0.2 可用客户端 Beta** | macOS Studio + 轻量 Runtime；AI Hook 自动/手动批准、后台设备检测、防休眠、连接状态；经兼容门控验证后的基础键位/灯效配置；正式签名 DMG | 已验收 Runtime 主链；`RELEASE-0.2-COMPATIBILITY`；WBS 5.9A；`HIL-RELEASE-0.2` | OLED/任务图写入、统一固件、跨平台语音、拨杆宏、Windows、会话定向 |
+| **v0.3 统一固件与 OLED** | 统一固件、可靠图片上传/持久化/进度、Standard/Rhino 两个 pack、配置事务 C1-C6 | WBS 1.5-1.7、OLED E 系列、HIL-CONFIG、`HIL-RELEASE-0.3` | 平台语音、拨杆宏、Windows、会话定向 |
+| **v0.4 纯硬件语音** | macOS F5、Windows Win+H、Typeless/Fn/Globe/F19 fallback、平台学习；基础语音无需 Runtime | WBS 2、WBS 4.1-4.4、WBS 5.8、`HIL-RELEASE-0.4` | 拨杆自定义宏、Windows Studio 完整对齐、会话定向 |
+| **v0.5 拨杆快捷键/宏** | 三档自定义快捷键、宏、互锁与 Runtime 状态正交 | WBS 3、WBS 4.5、`HIL-RELEASE-0.5` | Windows 正式客户端、完整量产资格、会话定向 |
+| **v1.0 正式统一版** | macOS/Windows 对齐、完整迁移/升级/降级、性能与量产门禁、正式包 | WBS 4.6-4.8、5.10、5.9B、WBS 6.1-6.7（不含 6.4A） | 最近待操作会话定向 |
+| **v1.1 会话定向** | Codex App 精确会话唤起、TargetLease、安全草稿、首批 Terminal Adapter | WBS 5A、`HIL-RELEASE-1.1` | 可选 PTY wrapper 等后续增强 |
+
+发布纪律：每个版本都维护自己的功能开关、兼容矩阵、HIL 证据、安装/回滚包和已知限制；禁止在 v0.2 包中暴露 v0.3 的 OLED 写入口，也禁止为了赶 v0.2 恢复 Studio 直连 BLE。
 
 已解决的跨方案冲突：
 
@@ -90,7 +107,11 @@ macOS 当前已有三个可复用层次：
 
 ### 2.2 固件
 
-GitHub `AhaKey-X1-hardware-source/dev` 当前基线提交为 `3e7f900`。该基线包括有线 HID、AI 状态、拨杆上报、自动关机和默认关闭的 SDK bridge；默认录音键仍为 F18。
+GitHub 公开产品源是 [`AhaKey-X1-hardware-source/master`](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/tree/master) @ `71b11676c4ebc8ff5b4885a24b601cb9cc04aa67`（2026-08-14 将 `dev` 合入 `master`）。**该提交的 tree 与 `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6` 字节级相同**（`git diff 3e7f900 origin/master` 为空）。WBS 0.1 冻结的 `3e7f900` 因此仍是正确的 `git archive` 产品基线；不必为“追上线上 master”再做一次源码 rebase。
+
+该树包括有线 HID、AI 状态（`0x90–0x94`）、拨杆上报、可配置自动关机（`0x86`）和默认关闭的 SDK bridge；默认录音键仍为 F18。没有 Rhino 的 `factory_assets`，也没有 `0x95–0x99`。
+
+独立统一仓 `cursor/wbs-1-unified-firmware` 以该树为祖先，只叠加：可重复 macOS 工具链/Flash 门禁，以及 1.2 的 `auto_power_off` 共用策略模块（opcode 仍为 `0x86`）。不得把未合入 `master` 的 `eternal-dev`（protocol 3 / 重编号 `0x95–0x9F`）或 `port-pr2-safe-effects`（删除 SDK bridge）当作线上产品源。
 
 Gitee/Rhino 定制版及本地 Rhino 后续包含：
 
@@ -103,11 +124,12 @@ Gitee/Rhino 定制版及本地 Rhino 后续包含：
 
 整合结论：
 
-- GitHub `dev` 作为统一主线。
-- Rhino 能力按行为逐项移植，不做目录级盲目合并。
-- SDK bridge、自动关机等 GitHub 新能力不得丢失。
+- GitHub **`master`（树 ≡ `dev@3e7f900`）** 作为统一主线产品源。独立仓分支 `cursor/wbs-1-unified-firmware` 是当前 `unified-dev`。
+- Rhino 能力按行为逐项移植到该树上，不做目录级盲目合并，也不先换成 `eternal-dev`。
+- SDK bridge（default-off / internal-enable）与 `0x86` 自动关机等 GitHub 已发布能力不得丢失。
 - Rhino 稳定性、资源和上传能力不得回退。
 - Standard 与 Rhino 只允许出厂资源不同，不允许长期形成两套业务代码。
+- `eternal-dev` 的 protocol 3 把 `0x95–0x9F` 用于待机/任务槽/配置读取，与本计划 v4（Rhino 任务图 `0x95–0x99` + 平台/事务 `0x9C–0x9F`）冲突；合入前必须单独 ADR，不能当“更新的 master”。
 
 ## 3. 目标技术架构
 
@@ -352,7 +374,9 @@ Studio 中每个档位可独立选择：无动作、快捷键、宏、系统动�
 
 ### 7.1 统一主线
 
-建议在 GitHub 固件仓库建立 `unified-dev`，验收后合入 `dev`：
+公开合入目标是 GitHub `master`（当前与 `dev` 同树）。施工在独立仓 `cursor/wbs-1-unified-firmware`（unified-dev），验收后再考虑回推 `dev`/`master`；未授权不得 push 远端。
+
+目录目标不变：
 
 ```text
 firmware/
@@ -401,20 +425,20 @@ AhaKey-X1-rhino-factory.hex
 
 先建立行为矩阵，再逐项移植并验收：
 
-| 能力 | GitHub dev | Rhino/local | 统一版要求 |
-|---|---:|---:|---:|
-| SDK bridge | 有 | 缺失 | 保留 |
-| 可配置自动关机 | 有 | 部分落后 | 保留 GitHub 新版 |
-| 四状态/双套任务图 | 基础 | 完整 | 移植 Rhino |
-| 事务化出厂资源 | 缺失 | 有 | 移植 Rhino |
-| 图片上传恢复与槽位保护 | 较弱 | 有 | 移植 Rhino |
-| USB/BLE 身份与 VBUS 修复 | 部分 | 本地较新 | 以实机结果合并 |
-| 平台识别/语义动作 | 无 | 无 | 新增 |
-| 拨杆硬件动作 | 无 | 无 | 新增 |
+| 能力 | GitHub master/dev 同树 | Rhino/local | 统一版要求 |
+|---|---|---|---|
+| SDK bridge | 有（default-off） | 缺失 | 保留；1.2 仅 internal enable，不宣称公共 SDK |
+| 可配置自动关机 | `0x86` | 部分落后 | 保留 GitHub 号与语义；1.2R1 共用 policy 模块 |
+| 四状态/双套任务图 | 基础 `0x93/0x94` | 完整 `0x95–0x98` | 移植 Rhino（1.3），勿用 eternal-dev 的 `0x95` 待机语义 |
+| 事务化出厂资源 | 缺失 | 有 | 移植 Rhino（1.4） |
+| 图片上传恢复与槽位保护 | 较弱 | 有 | 移植 Rhino（1.5） |
+| USB/BLE 身份与 VBUS 修复 | 部分 | 本地较新 | 以实机结果合并（1.6） |
+| 平台识别/语义动作 | 无 | 无 | 新增（WBS 2） |
+| 拨杆硬件动作 | 无 | 无 | 新增（WBS 3） |
 
 ## 8. 固件协议 v4
 
-保留现有 `0x73` 快捷键/宏写入和 `0x99` 能力协商，v4 增加能力位：
+保留现有 `0x73` 快捷键/宏写入；从 Rhino 移植并冻结 `0x95-0x99`（任务图绑定/查询/激活/完成/能力协商），v4 增加能力位：
 
 ```text
 supportsHostPlatform
@@ -427,16 +451,28 @@ supportsDualTaskPictureSet
 supportsSessionUpload
 ```
 
-建议使用正式命令空间剩余范围：
+正式命令空间冻结如下。现有客户端已经使用 `0x9A/0x9B` 做会话化资源上传，禁止再分配给平台或动作：
 
 ```text
-0x9A  PLATFORM       读取状态 / 自动 hint / 用户覆盖
-0x9B  ACTION_BINDING 读取或写入 key / lever 动作
-0x9C  CONFIG_TX      begin / commit / abort
-0x9D  CONFIG_READ    分页读取有效配置
+0x84  LIGHT_MAPPING       AI 状态灯效映射（既有）
+0x85  BRIGHTNESS          亮度（既有）
+0x86  AUTO_POWER_OFF      自动关机（既有）
+0x95  TASK_PICTURE_BIND   mode/set/state/start/count/interval（Rhino/current）
+0x96  TASK_PICTURE_QUERY  查询任务图绑定
+0x97  ACTIVE_PICTURE_SET  激活套图
+0x98  PICTURE_WRITE_END   完成任务图写入
+0x99  CAPABILITIES        能力与 factory 状态
+0x9A  SESSION_ABORT       中止会话化资源写入（current）
+0x9B  SESSION_PREPARE     准备会话化资源写入（current）
+0x9C  PLATFORM            读取状态 / 自动 hint / 用户覆盖（v4）
+0x9D  ACTION_BINDING      读取或写入 key / lever 动作（v4）
+0x9E  CONFIG_TX           begin / commit / abort（v4）
+0x9F  CONFIG_READ         分页读取有效配置（v4）
 ```
 
 `0xA0-0xEF` 继续保留给 SDK 用户命令。
+
+`eternal-dev` 上的 protocol 3 占用 `0x95–0x9F` 做待机/任务槽/配置读取，**未合入 master**。v4 冻结前禁止从该分支 cherry-pick 命令号。
 
 `ACTION_BINDING` 使用统一目标寻址：
 
@@ -784,11 +820,11 @@ AhaType
 
 | ID | 工作包 | 产物 | 依赖 |
 |---|---|---|---|
-| 1.1 | 建立 unified-dev 与可重复工具链 | CI 可构建固件 | 0.1 |
-| 1.2 | 保留 GitHub SDK bridge/自动关机 | 基线能力测试 | 1.1 |
-| 1.3 | 移植 Rhino 四状态和双套任务图 | 统一 OLED 状态机 | 1.2 |
-| 1.4 | 移植事务化 factory assets | 资源模块 | 1.2 |
-| 1.5 | 移植图片上传恢复和槽位保护 | 上传 HIL 测试 | 1.3-1.4 |
+| 1.1 | **已验收 @ `cec02f8`**：独立仓 + 可重复工具链 + 三基线 Flash 门禁 | CI 可构建固件 | 0.1 |
+| 1.2 | **已验收 @ `105250c`**：保留 GitHub master 的 SDK bridge / `0x86`（internal enable + 共用 policy） | 生产 policy 与六路调用链门禁 | 1.1 |
+| 1.3 | **已验收 @ `9135183`**：Rhino 四状态/双套任务图、caps14 交叉契约、interval 与持久化迁移 | 统一 OLED 状态机 | 1.2 accepted |
+| 1.4 | **已验收 @ `97f0ae8`**：事务化 factory assets 与断电恢复门禁 | 资源模块 | 1.2、1.3 accepted |
+| 1.5 | **进行中 / slice 1 R16**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与真实逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
 | 1.6 | 合并 USB/BLE 身份与 VBUS 修复 | 传输回归报告 | 1.2 |
 | 1.7 | 建立 Standard/Rhino 两份资源 pack | 两个量产产物 | 1.4 |
 
@@ -843,17 +879,20 @@ AhaType
 |---|---|---|---|
 | 5.0 | **已完成**：冻结 RuntimePolicy、Snapshot、Event、ConfigurationPackage 与 revision 语义 | R0 interface v1.1 | 无 |
 | 5.1 | **已完成**：SQLite WAL journal、内容寻址资源仓库、配额与崩溃恢复 | 持久事务内核 | 5.0 |
-| 5.2 | **部分完成**：受限 framed Hook socket、XPC wire/client、握手与事件重放已完成；待 libxpc peer signing requirement server 与双签名进程 smoke 后关闭 | 生产 seam | 5.0-5.1 |
-| 5.3 | Agent 演进为 RuntimeOrchestrator，迁移 AhaType、AI Hook/批准、灯效与防休眠 | 单一后台进程 | 5.2 |
-| 5.4 | 按策略启停模块；区分前台纯硬件语音、AhaType 与定向路由 | 生命周期测试 | 5.3 |
-| 5.5 | BLE/USB、current-only 协商、设备身份、命令队列、waiter 与断线恢复迁入 Runtime | 唯一设备 owner | 5.1-5.3 |
-| 5.6 | 声明式配置规划、图片/基础配置事务、取消与恢复 | 可恢复配置事务 | 5.5、4.1 |
-| 5.7 | Studio 接入 snapshot/event/operation UI，并删除生产直连 BLE/USB | Studio 纯客户端 | 5.2、5.6 |
-| 5.8 | 删除 Studio 无条件语音启动，验证纯硬件路径零监听 | 纯硬件路径零 Runtime | 5.4、4.3 |
-| 5.9 | 旧 Agent 清理、签名 helper、Keychain/权限/安装迁移与原子更新 | 正式 Runtime 安装链 | 5.3-5.8 |
+| 5.2 | **已验收 @ `1ac1524`**：受限 Hook socket、libxpc XPC、签名 peer policy、握手/重放与双签名 smoke | 生产 seam | 5.0-5.1 |
+| 5.3 | **已验收 @ `b49e83e`**：RuntimeOrchestrator 接入 AhaType、AI Hook/批准、灯效与防休眠 | 单一后台进程 | 5.2 |
+| 5.4 | **已验收 @ `762863d`**：策略化生命周期、Studio 退出保活与后台模块启停 | 生命周期测试 | 5.3 |
+| 5.5 | **已验收 @ `ea770d6`**：BLE/USB、协商、身份、命令队列、waiter 与断线恢复迁入 Runtime | 唯一设备 owner | 5.1-5.3 |
+| 5.6 | **静态实现已验收 @ `19eb4dc`，待 HIL-CONFIG USER-GATE**：声明式配置规划、图片/基础配置事务、取消与恢复 | 可恢复配置事务 | 5.5、4.1 |
+| 5.7 | **已验收 @ `488097d`**：Studio 纯 Runtime 客户端、production snapshot/event、即时 operation acceptance、事件刷新、空闲 long-poll 与并发/取消收口 | Studio 纯客户端；进入 HIL USER-GATE | 5.2、5.6 |
+| 5.8 | **目标 v0.4**：删除 Studio 无条件语音启动，验证纯硬件路径零监听 | 纯硬件路径零 Runtime | 5.4、4.3 |
+| 5.9A | **目标 v0.2**：最小签名安装链、稳定身份、旧进程互斥清理、原子升级/回滚与 DMG | v0.2 Beta 安装包 | 5.3-5.7、v0.2 兼容策略 |
+| 5.9B | **目标 v1.0**：完整 Keychain/TCC/权限迁移、支持版本升级/降级矩阵与正式安装器 | 正式 Runtime 安装链 | 5.8、5.9A、4.8、5.10 |
 | 5.10 | macOS interface 的跨平台语义抽象与 Windows Adapter 方案 | 跨平台 seam 决定 | 5.0、4.7 |
 
-退出条件：Runtime 是生产环境唯一设备 owner；Studio 完全退出后增强功能和已受理事务继续；纯硬件配置时 Runtime 不常驻；配置、崩溃恢复、权限升级和旧 Agent 清理均通过实机验证。WBS 5.0-5.1 已完成；必须继续完成 5.2-5.3，不能跳到 5.5 或 5.7。
+调度更新（2026-08-26）：真机回归证明当前 Studio 保存仍走旧直接 BLE 路径，不会触发 5.6 的 Runtime Store/operation。用户因此裁决将 5.7 从 Cursor 转交 Kimi，并将顺序从“HIL-CONFIG→5.7”改为“5.7 Studio Runtime 客户端化→HIL-CONFIG C1–C6”。旧路径配置/图片上屏成功只记兼容回归，不记配置事务 HIL 通过。
+
+退出条件按版本分段：0.2 只要求 Runtime 为唯一设备 owner、Studio 退出后已启用后台能力继续、兼容功能面 fail-closed、最小安装/回滚和 0.2 HIL 通过；0.3-0.5 逐步加入固件/OLED/语音/拨杆；1.0 才要求完整权限迁移、Windows 和量产矩阵。
 
 ### WBS 5A：最近待操作会话定向（18-29 人日）
 
@@ -877,138 +916,53 @@ AhaType
 
 | ID | 工作包 | 产物 | 依赖 |
 |---|---|---|---|
-| 6.1 | reducer/日志/隐藏 UI 性能门禁 | 性能报告 | WBS 4-5 |
-| 6.2 | Mac/Windows × USB/BLE HIL 矩阵 | 硬件测试报告 | WBS 1-5 |
-| 6.3 | Standard/Rhino 量产一致性校验 | 二进制差异报告 | WBS 1 |
-| 6.4 | 升级、降级、断电和断连测试 | 恢复报告 | WBS 1-5 |
+| 6.0A | **目标 v0.2**：当前量产固件 + macOS BLE 的兼容、性能、安装/回滚 HIL | v0.2 发布资格报告 | 5.9A、v0.2 兼容策略 |
+| 6.0B | **目标 v0.3-v0.5**：每个增量版本执行适用的固件/OLED/语音/拨杆 HIL | 分版本增量资格报告 | 对应功能 WBS |
+| 6.1 | **目标 v1.0**：reducer/日志/隐藏 UI 完整性能门禁 | 性能报告 | WBS 4-5 |
+| 6.2 | **目标 v1.0**：Mac/Windows × USB/BLE HIL 矩阵 | 硬件测试报告 | WBS 1-5 |
+| 6.3 | **目标 v1.0**：Standard/Rhino 量产一致性校验 | 二进制差异报告 | WBS 1 |
+| 6.4 | **目标 v1.0**：升级、降级、断电和断连测试 | 恢复报告 | WBS 1-5 |
 | 6.4A | 多会话选择、lease 与错误目标注入测试 | 会话路由报告 | WBS 5A |
 | 6.5 | 基础版本内测 10 台 | 阻断问题清单 | 6.1-6.4 |
 | 6.6 | 灰度 50 台 | 遥测与客服反馈 | 6.5 |
 | 6.7 | 正式发布与工厂切换 | 签名安装包/固件包 | 6.6 |
 
-退出条件：基础版本性能、功能、升级和量产门禁全部通过，无 P0/P1 缺陷。WBS 5A 使用 6.4A 独立验收，不能反向阻塞基础版本。
+退出条件按发布列车执行：6.0A 只放行 v0.2；6.0B 分别放行 v0.3-v0.5；6.1-6.7 放行 v1.0。任何早期版本不得借用未来版本的未完成能力；WBS 5A 使用 6.4A 独立验收，不能反向阻塞 v1.0。
 
 ## 14. 分批交付节奏
 
-以下日历按“1 固件 + 1 macOS + 1 Windows/协议 + 1 QA”并行估算；若只有 1-2 名工程师，应以人日为准，整体周期约增加 50%-100%。
+发布采用短列车，不再等待“统一固件 + 语音 + 拨杆 + Windows”全部完成才交付客户端。日历以当前卡实际验收为准，不在本文承诺固定日期。
 
-完整范围总工作量约 127-194 人日。日历周期不能直接用总人日除以人数，因为固件硬件验证、Runtime 设备接管、签名权限、会话 join 和灰度发布存在顺序门禁。
+### 14.1 v0.2：先交付可用 macOS 客户端
 
-### 批次 A：技术风险关闭，1 周
+执行顺序：
 
-范围：WBS 0。
+1. Codex 关闭当前 E-1R1 review；若仍有返工，可将其冻结/暂停在 v0.3，不能继续阻塞 v0.2。OLED 能力在 v0.2 始终隐藏。
+2. Cursor 执行 `RELEASE-0.2-COMPATIBILITY`，建立单一 `ReleaseFeaturePolicy`：按发布版本、固件能力和 HIL 结果决定功能可见性及可写范围。
+3. 基础键位/灯效若会间接生成 OLED/0x97 步骤，必须在 v0.2 兼容 planner 中剥离或拒绝；不能发送半套包。
+4. Cursor 执行 WBS 5.9A，生成可复现的可签名候选，并提供安装/升级/卸载/回滚测试。
+5. 用户批准 `HIL-RELEASE-0.2`：实际签名候选，用当前量产固件 + 真实键盘验证安装、连接、基础配置、Hook 拨杆自动/手动、防休眠、Studio 退出、重启和 CPU/RSS。
+6. 无 P0/P1 后交付 v0.2 Beta；不等待 WBS 1.5、HIL-CONFIG C1-C6、WBS 2/3/5A。
 
-可交付：
+### 14.2 v0.3：统一固件与 OLED
 
-- 三套固件差异矩阵。
-- Fn/Globe 可行性结论。
-- USB/BLE 平台识别边界。
-- protocol v4 草案。
-- Flash/EEPROM/RAM 预算。
-- Codex hook session id 与桌面 thread/目标 locator 的 join 结论。
+Zcode 完成 WBS 1.5-1.7；Cursor 完成 OLED E 系列剩余切片。用户批准刷机后先跑 HIL-E1，再跑 HIL-CONFIG C1-C6。验收必须覆盖图片上传逐块进度、0x97 持久成功、关机后 active set 保留、取消/断连/断电恢复和 Standard/Rhino pack。通过后把 OLED 从 `ReleaseFeaturePolicy` 中开放，并发布 v0.3 增量包。
 
-此批次不发给用户。未通过不得开始量产功能开发。
+### 14.3 v0.4：纯硬件语音
 
-### 批次 B：统一固件基线，2-3 周
+完成 WBS 2、WBS 4.1-4.4 与 WBS 5.8。重点验收“Studio 和 Runtime 均退出时，系统/第三方语音仍由固件快捷键工作”；只有 AhaType 需要 Runtime。
 
-范围：WBS 1。
+### 14.4 v0.5：拨杆快捷键与宏
 
-可交付：
+完成 WBS 3 与 WBS 4.5。验收三档动作、快速拨动、release-all、宏重入、配置/升级互锁，并确认硬件宏与 AI 自动批准拨杆语义正交。
 
-- Standard/Rhino 共用源码的内部固件。
-- 两套出厂资源包。
-- Rhino 功能与 GitHub 新能力 parity 报告。
-- USB/BLE 基础回归。
+### 14.5 v1.0：正式统一版
 
-此批次可给内部硬件团队，不给普通用户升级。
+完成 WBS 4.6-4.8、5.9B、5.10 和 WBS 6 正式资格/灰度/量产。交付 macOS DMG、Windows 安装包、Standard/Rhino 固件、升级/降级/回滚包和客服材料。
 
-### 批次 C：纯硬件语音与平台学习，2 周
+### 14.6 v1.1：最近待操作会话定向
 
-范围：WBS 2 + Studio 最小平台 UI。
-
-可交付：
-
-- macOS F5、Windows Win+H 系统语音。
-- Typeless Fn/Globe 或 F19 fallback。
-- USB 自动识别、host hint、BLE 平台学习。
-- 平台未知设备端兜底。
-- protocol v4 beta。
-
-此批次进入 10 台 Alpha。验收重点是“Studio 退出后仍可用”。
-
-### 批次 D：拨杆快捷键/宏，1-2 周
-
-范围：WBS 3 + Studio 拨杆 UI。
-
-可交付：
-
-- 上/中/下三档动作。
-- 快捷键、宏、无动作、系统动作。
-- AI 自动/手动批准语义继续独立工作。
-- 快速拨动与卡键压力报告。
-
-可以与批次 C 后半段并行，但不能早于 `InputActionModule` 稳定。
-
-### 批次 E1：Runtime 与 Studio 解耦，5-7 周
-
-范围：WBS 4 余项 + WBS 5。
-
-可交付：
-
-- 系统/第三方语音完全脱离 Studio/Runtime。
-- AhaType 由正式 Runtime 提供。
-- AI 检测、自动批准、动态灯效、防休眠在 Studio 退出后继续。
-- 未启用增强功能时 Runtime 不运行。
-- 签名 helper 和权限升级路径。
-
-此批次先进入 20 台 Beta。统一固件、纯硬件语音和拨杆可以在此前作为内部固件验证，但包含新配置 UI 的公开客户端不得绕过 Runtime 唯一设备所有权门禁。会话定向不阻塞此批次。
-
-### 批次 E2：最近待操作会话定向，2-3 周
-
-范围：WBS 5A。
-
-可交付：
-
-- Hook session/turn/client envelope。
-- `awaitingApproval / awaitingFollowup / working` 会话状态机。
-- 最近待批准优先的 SessionSelector。
-- 一次语音手势固定的 TargetLease。
-- Codex App 精确会话唤起和升级 smoke test。
-- 系统听写、第三方语音与 AhaType 三种执行目标的定向 handoff。
-- 目标失效后的安全草稿和禁止误注入。
-- iTerm2/tmux 首批 Terminal Adapter beta。
-
-此批次进入 30-50 台定向会话 Beta。Codex App Adapter 达到发布门槛后即可发版；可选 PTY wrapper 放入后续增强，不阻塞首发。
-
-### 批次 F：性能与正式量产，2 周
-
-范围：WBS 6。
-
-可交付：
-
-- CPU/RAM/日志/响应性能报告。
-- 基础版本完整 HIL；会话定向批次另附多会话路由回归。
-- Standard/Rhino 两套正式量产包。
-- macOS 签名 DMG、Windows 安装包、固件升级包。
-- 回滚包和客服排障文档。
-
-预计基础正式版（不含会话定向）并行团队总日历：12-15 周；完整范围含会话定向约 14-18 周。串行小团队按 20-28 周规划。
-
-若拆成产品版本：
-
-```text
-Internal Alpha（第 5-8 周，不公开发布新客户端）
-  统一固件 + 纯硬件跨平台语音 + 拨杆快捷键/宏
-
-Release 1（第 12-15 周）
-  Internal Alpha 能力 + Runtime 唯一设备所有权 + Studio 纯客户端
-  + AhaType + AI/防休眠后台持续运行 + 性能/签名/灰度门禁
-
-Release 2（再 2-3 周）
-  最近待操作会话定向 + Codex App Adapter + 首批终端 Adapter
-```
-
-Release 2 不能反向阻塞 Release 1；会话定向属于 Runtime 增强能力，不改变基础语音的纯硬件承诺。
+完成 WBS 5A 与 6.4A。Codex App Adapter、TargetLease、安全草稿和首批 Terminal Adapter 独立发布；不能反向阻塞 v1.0。
 
 ## 15. 发布门禁与验收矩阵
 
@@ -1024,6 +978,17 @@ Release 2 不能反向阻塞 Release 1；会话定向属于 Runtime 增强能力
 6. **完整发布 HIL——WBS 6.2/6.4**：Mac/Windows × USB/BLE、Standard/Rhino、升级/降级、8 小时重连与性能矩阵。这是发布门禁，不替代前述早期实机测试。
 
 第一次实机使用现有固件验证 Runtime/Hook/拨杆后台链路；统一固件的平台识别、纯硬件语音和自定义拨杆宏按 WBS 1-3 的固件 Alpha 另行验收，二者不能混为一次测试。
+
+### 15.0A 分版本发布门禁
+
+| 版本 | 必须通过的最小门禁 | 失败时处理 |
+|---|---|---|
+| v0.2 | 当前量产固件兼容矩阵；功能策略 fail-closed；基础配置无 OLED/0x97 副作用；Hook/防休眠/退出 Studio；30 分钟真实键盘 CPU/RSS；签名安装/升级/卸载/回滚 | 不发布 v0.2；不得临时显示 OLED 或恢复直连 BLE |
+| v0.3 | WBS 1.5-1.7；刷机 USER-GATE；HIL-E1；HIL-CONFIG C1-C6；关机持久化与逐块进度 | 保持 v0.2 功能策略，OLED 继续隐藏 |
+| v0.4 | Mac/Windows × USB/BLE 平台学习与系统/第三方语音；Studio/Runtime 均退出 | 保持 v0.3，不把 AhaType 冒充纯硬件语音 |
+| v0.5 | 拨杆 500 次/档、快速越档、宏重入、release-all 与升级互锁 | 保持 v0.4，拨杆自定义 UI 不开放 |
+| v1.0 | WBS 6.1-6.7 完整资格、灰度与量产；Windows 对齐；完整迁移 | 不切正式渠道或工厂 |
+| v1.1 | WBS 6.4A 多会话错误目标注入与 Adapter 升级回归 | 只回退会话定向，不影响 v1.0 基础能力 |
 
 ### 15.1 纯硬件语音
 
@@ -1102,13 +1067,13 @@ Release 2 不能反向阻塞 Release 1；会话定向属于 Runtime 增强能力
 ## 17. 建议的项目里程碑
 
 ```text
-M0  技术风险关闭
-M1  统一固件 parity
-M2  纯硬件跨平台语音
-M3  拨杆快捷键/宏
-M4  Runtime/Studio 解耦
-M5  最近待操作会话定向
-M6  性能与量产发布
+M0    技术风险与 Runtime/Studio 主链关闭（已完成主体）
+M0.2  可用 macOS 客户端 Beta：兼容策略 + 最小安装链 + 当前固件 HIL
+M0.3  统一固件 parity + OLED/配置事务 HIL
+M0.4  纯硬件跨平台语音
+M0.5  拨杆快捷键/宏
+M1.0  Windows、完整迁移、性能灰度与量产发布
+M1.1  最近待操作会话定向
 ```
 
 每个里程碑都必须有可烧录固件、配套客户端、测试报告和回滚产物；不能只以代码合并作为完成标准。

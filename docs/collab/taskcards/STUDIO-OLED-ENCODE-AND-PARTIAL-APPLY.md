@@ -1,10 +1,10 @@
 # 任务卡 STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY：受理前编码 + 只提交当前编辑项
 
 计划/WBS：HIL-CONFIG C1 暴露的产品缺口（不在 HIL 卡内施工）  
-状态：`active / E-1R1`（Cursor 最小返工；accepted 后立即进入真机 HIL-E1）
+状态：`review / E-1R1`（产品 `4cc56a7` 已提审；accepted 后立即进入真机 HIL-E1）
 提出：Cursor（用户 2026-08-28 12:20 明确要求下一轮实现）  
 执行 owner：Cursor（Codex 验收）  
-目标版本：0.3（代码可先完成；0.2 功能策略必须隐藏）
+目标版本：v0.3（代码可先完成；v0.2 功能策略必须隐藏）
 基线：`feat/unified-client` 产品 `3bc52b2b6bc33b1fd483e6db7377a27dde389af7`；调度文档 `90b472831433f02740749f915ad993fcf3a058a7`
 
 ## 用户要求（冻结意图，细节待 Codex 裁切白名单）

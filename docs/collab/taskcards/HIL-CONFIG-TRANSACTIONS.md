@@ -4,6 +4,7 @@
 状态：`blocked / C1 等固件 WBS 1.5 + 刷机 USER-GATE`（operation `4B91457B` 为 3/7；0x97 status=3；C2–C6 暂停）
 执行 owner：Cursor
 验证协作者：Codex（只读验收）
+目标版本：v0.3
 基线：WBS 5.6 accepted @ `19eb4dc`；WBS 5.7 accepted @ `488097d`
 目标：真机验证图片与基础配置事务在取消、断电、断连和恢复下保持一致。
 
