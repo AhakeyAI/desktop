@@ -2563,6 +2563,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             var policy: AhaKeyRuntimePolicy
             var latestEventSequence: AhaKeyRuntimeEventSequence
             var cachedOperations: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary]
+            var projectionTerminalOrder: [AhaKeyRuntimeOperationID]
             var byteProgress: [AhaKeyRuntimeOperationID: AhaKeyByteProgressProjector]
         }
         let main = await MainActor.run { () -> MainPart in
@@ -2573,6 +2574,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 policy: self.currentPolicy,
                 latestEventSequence: self.projectionLatestSequence,
                 cachedOperations: self.projectionOperations,
+                projectionTerminalOrder: self.projectionTerminalOrder,
                 byteProgress: self.byteProgressByOperation
             )
         }
@@ -2585,26 +2587,45 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     operations[candidate.operationID] = Self.operationSummary(from: candidate)
                 }
             }
-            // 终态不在 recoveryCandidates 内；新 Agent 内存缓存为空时必须从 WAL 投影。
-            // 单一有界窗口：内存终态优先（含淘汰后重放、即使已不在 WAL 窗口），
-            // 再按 WAL terminal-transition order 从最新补足到 64。不裁剪缓存。
-            if let terminals = try? await store.recentTerminalTransactions() {
-                let limit = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
-                var terminalCount = operations.values.filter(\.state.isTerminal).count
-                for terminal in terminals.reversed() {
-                    guard terminalCount < limit else { break }
-                    if operations[terminal.operationID] == nil {
-                        operations[terminal.operationID] = Self.operationSummary(from: terminal)
-                        terminalCount += 1
-                    }
-                }
-            }
-            // 已知 operation 一律以 WAL 最新状态为准，再叠内存字节进度。
+            // 先刷新已知 operation 的 WAL 状态，再裁定有界终态窗口：
+            // 否则缓存里的 running 会在补窗之后才变成终态，把 64 扩成 65。
             for id in operations.keys {
                 if let record = try? await store.transaction(id) {
                     operations[id] = Self.operationSummary(from: record)
                 }
             }
+            // 单一有界窗口：内存终态优先（含淘汰后重放、刷新后新转入终态的项），
+            // 再按 WAL terminal-transition order 从最新补足到 64。不裁剪缓存。
+            let limit = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
+            var bounded: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary] = [:]
+            for (id, summary) in operations where !summary.state.isTerminal {
+                bounded[id] = summary
+            }
+            var terminalCount = 0
+            let extras = operations.keys.filter { id in
+                operations[id]?.state.isTerminal == true
+                    && !main.projectionTerminalOrder.contains(id)
+            }
+            var memoryTerminalIDs = extras
+            memoryTerminalIDs.append(contentsOf: main.projectionTerminalOrder.reversed())
+            for id in memoryTerminalIDs {
+                guard terminalCount < limit else { break }
+                guard let summary = operations[id], summary.state.isTerminal else { continue }
+                if bounded[id] == nil {
+                    bounded[id] = summary
+                    terminalCount += 1
+                }
+            }
+            if let terminals = try? await store.recentTerminalTransactions() {
+                for terminal in terminals.reversed() {
+                    guard terminalCount < limit else { break }
+                    if bounded[terminal.operationID] == nil {
+                        bounded[terminal.operationID] = Self.operationSummary(from: terminal)
+                        terminalCount += 1
+                    }
+                }
+            }
+            operations = bounded
             if let deviceID = main.activeDeviceID,
                let baseline = try? await store.syncBaseline(for: deviceID) {
                 revision = baseline.revision
@@ -2862,6 +2883,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 测试 seam：释放本实例持有的 WAL 连接，模拟进程退出后再由新 Agent 打开同一 root。
     func closeRuntimeStoreForTesting() async {
         await runtimeStoreCache.clear()
+    }
+
+    /// 测试 seam：把 WAL 最新状态发布为 operationChanged，形成同进程投影缓存。
+    func publishOperationProgressForTesting(_ operationID: AhaKeyRuntimeOperationID) async {
+        await publishOperationProgress(operationID: operationID)
     }
 }
 
