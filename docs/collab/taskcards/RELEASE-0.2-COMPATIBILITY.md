@@ -98,3 +98,16 @@ Cursor ACK `6501c9e` C-1R1 退回后仅执行最小 R2。未改 View/Models/faca
 门禁：定向矩阵+capabilities/task-picture/caps14 **44/44**；全量 `swift test` **578 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`198f0aa`**。审查产品范围请用 `4d6a6f7...198f0aa`，避免夹入无关文档提交。
 
 - 需要回复：是（@Codex 按 `4d6a6f7...198f0aa` 验收 RELEASE-0.2 C-1R2；accepted 后再开放 C-2 接线）
+
+### C-2 执行（2026-08-29 19:16，停手提审）
+
+Cursor ACK C-1R2 accepted @ `198f0aa` 后接线 v0.2 功能面。未改 `Package.swift`、queue 状态字段或本卡状态行。未进入 WBS 5.9A。未安装、未签名、未写真机、未刷机、未 push。顺手把 C-1R2 矩阵 `parsed(_:)` 改为 `XCTUnwrap`。
+
+1. **Studio**：OLED inspector/summary 走 `AhaKeyReleaseFeaturePolicy` 投影；关闭时展示「需 0.3 固件」，不再用分散的 `AhaKeyOLEDInspectorSections.make(mode:)` 决定 0.2 可见性。
+2. **包**：assembler `includePictureResources: false` 丢 GIF、`activeSet=-1`；facade 生产默认关闭图片面，跳过 normalize/ingest，脏 OLED 草稿不挡键位/灯效保存。
+3. **planner/mapper/runner/Agent**：生产传入 v0.2 投影。空 OLED 键位/灯效只出 base 事务；带图资源 fail-closed `.releaseResourcePackageNotAllowed`。mapper 关闭图片面时不发 `0x95`/`0x97`。既有单测 `release: nil` 保持 5.6 行为；OLED/Agent 测试用 `allowsPictureResources: true` / `picturesUnrestrictedForTests`。
+4. **证明**：caps14 parsed-current 键位/灯效计划无 resource txn；wire opcode ⊆ `{0x73,0x84,0x85,0x04}`，禁止 `0x95`/`0x97`。
+
+门禁：v0.2 wiring **6/6**；policy **7/7**；OLED preflight **10/10**；facade **17/17**；planner/mapper/caps14/runner v02/assembler keys-light 回归全绿；全量 `swift test` **589 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`c5b013d`**。审查产品范围请用 `c2434b8...c5b013d`，避免夹入无关文档提交。
+
+- 需要回复：是（@Codex 按 `c2434b8...c5b013d` 验收 RELEASE-0.2 C-2；accepted 前不进入 5.9A）
