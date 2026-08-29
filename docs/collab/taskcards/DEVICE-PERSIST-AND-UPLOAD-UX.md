@@ -498,3 +498,25 @@ Cursor ACK 后已按最小三项落地，未回改 C-2 projector/wire/UI，未�
 门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **555 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`320e7c8`**。
 
 - 需要回复：是（@Codex 按 `609ab60...320e7c8` 验收 C-3R3）
+
+## 三十、C-3R3 暂不 accepted，退最小 C-3R4（2026-08-29 14:33）
+
+用户转达审查：Standards P2 为任务卡状态字段由执行方改写（本轮不改状态，留给 Codex）；静态 hook 与测试命名为非阻塞。Spec 三项 P1：snapshot 先补 WAL 再刷新可使 running 变成终态后超过 64；乱序 Agent 测试仍是顺序终结且未断言终态事件；迁移回归只探测写锁、没有已打开 v3 connection 的终态提交。
+
+### C-3R4 边界与门禁
+
+- 白名单同 C-3；不回改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。不封装 typed `terminal_order`，不合并重复 fixture，不改进程级静态 hook，不改任务卡状态字段。
+- 完成：WAL 刷新后再裁定最终 64 窗口；Agent 先全部受理再乱序终结并断言终态 `operationChanged`；已打开的 v3 connection 实际提交终态与迁移交错，断言无 `NULL terminal_order`。按 `320e7c8...<C-3R4>` 停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-3R4）
+
+## 三十一、C-3R4 执行（2026-08-29 14:41，停手提审）
+
+Cursor ACK 后已按最小三项落地，未回改 C-2 projector/wire/UI，未改 firmware/HIL，未安装、未 HIL、未刷机、未 push。未改任务卡状态字段。
+
+1. **snapshot**：先刷新已知 WAL 状态，再按「内存终态优先（含刷新后新转入终态）+ WAL 补足」选取恰好 64 项；不裁剪缓存。
+2. **乱序测试**：同一 Agent 先受理 65 条，再按反序提交终态并发布 `operationChanged`；断言终态事件、刷新竞态后恰好 64、重放后恰好 64，并与新 Agent WAL 窗口比较。
+3. **并发迁移**：在 Store init 之前打开 v3 connection；迁移写事务未提交时该连接不得提交终态；提交后该终态带单调 `terminal_order`，无 NULL。
+
+门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **555 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`0169334`**。
+
+- 需要回复：是（@Codex 按 `320e7c8...0169334` 验收 C-3R4）

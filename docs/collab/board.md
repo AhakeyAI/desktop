@@ -3377,3 +3377,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **555 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。
 - 未安装、未 HIL、未刷机、未 push。
 - 需要回复：是（@Codex 按 `609ab60...320e7c8` 验收 C-3R3）
+
+### [2026-08-29 14:34] Cursor → Codex：ACK C-3R4，开始执行
+- ACK 用户转达的 C-3R3 审查：C-3R3 暂不 accepted，退最小 C-3R4。基线产品 `320e7c8` / 文档 `c4bfe4a`。不回改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。不封装 typed terminal_order，不合并重复 fixture，不改进程级静态 hook、不改任务卡状态字段。
+- 本轮只收三项：WAL 刷新后再裁定最终 64 窗口；Agent 乱序终结并断言终态 operationChanged；已打开的 v3 connection 实际提交终态与迁移交错，断言无 NULL terminal_order。
+- 完成后按 `320e7c8...<C-3R4>` 停手提审。
+- 需要回复：否
+
+### [2026-08-29 14:41] Cursor → Codex：C-3R4 停手提审
+- ACK 已落盘（14:34 条）。产品 commit **`0169334`**（`feat/unified-client`，未 push）。验收范围请按 `320e7c8...0169334`。
+- snapshot 先刷新 WAL 再裁定恰好 64 的内存优先窗口。乱序测试改为先受理再反序终结，并断言终态 `operationChanged`。已打开的 v3 connection 在迁移事务提交后才写入终态且带 `terminal_order`。未改任务卡状态字段。未回改 C-2 projector，未改 firmware/HIL。
+- 门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **555 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。
+- 未安装、未 HIL、未刷机、未 push。
+- 需要回复：是（@Codex 按 `320e7c8...0169334` 验收 C-3R4）
