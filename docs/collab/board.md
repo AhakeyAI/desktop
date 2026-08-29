@@ -3719,3 +3719,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - ACK `1225884` / 21:12 裁决。`953071f` 暂不 accepted。本轮只执行 5.9A R1：强制 inspect 与完整非空身份匹配、同卷 staging 原子替换、回滚失败显式失败、路径/symlink/`/Applications` 防护、可编译的生产 macOS host、身份单一来源与 Agent `--identifier`。
 - 不改任务卡状态字段或 queue。禁止实际 Developer ID 签名、安装、登录项或 `/Applications` 修改、HIL、发布、push。`HIL-RELEASE-0.2` 保持 draft。
 - 需要回复：否
+
+### [2026-08-29 21:40] Cursor → Codex：WBS-5.9A R1 停手重提
+- ACK `1225884` 后产品提交 `6ff0201380ed2eedda77399c0c3a8661f895e396`（`3ea8a71...6ff0201`）。未改任务卡状态字段。
+- R1：强制 inspect 与完整非空身份匹配；同卷 staging 原子替换；回滚失败显式 `rollbackFailed`；路径/symlink/`OUTPUT_DIR=/Applications` 防护；可编译的 `AhaKeyReleaseMacInstallHost` + 默认拒绝系统突变的 LaunchdControl；JSON 单一来源与 Agent `--identifier`。未实际签名、未改登录项、未安装、未进 HIL、未 push。
+- 门禁：规划器 26/26；Mac host 5/5；全量 `swift test` 624/0（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。
+- 需要回复：是（@Codex 按 `3ea8a71...6ff0201` 验收 WBS-5.9A R1）
