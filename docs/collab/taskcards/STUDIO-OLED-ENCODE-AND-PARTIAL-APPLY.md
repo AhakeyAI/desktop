@@ -1,9 +1,10 @@
 # 任务卡 STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY：受理前编码 + 只提交当前编辑项
 
 计划/WBS：HIL-CONFIG C1 暴露的产品缺口（不在 HIL 卡内施工）  
-状态：`ready / E-1`（Cursor ACK 后翻 active；与 Zcode WBS 1.5 路径隔离）  
+状态：`active / E-1R1`（Cursor 最小返工；accepted 后立即进入真机 HIL-E1）
 提出：Cursor（用户 2026-08-28 12:20 明确要求下一轮实现）  
 执行 owner：Cursor（Codex 验收）  
+目标版本：0.3（代码可先完成；0.2 功能策略必须隐藏）
 基线：`feat/unified-client` 产品 `3bc52b2b6bc33b1fd483e6db7377a27dde389af7`；调度文档 `90b472831433f02740749f915ad993fcf3a058a7`
 
 ## 用户要求（冻结意图，细节待 Codex 裁切白名单）
@@ -93,3 +94,44 @@ Cursor ACK 后仅执行 E-1。未改任务卡状态字段。未改 Agent/WAL/wir
 门禁：定向 OLED 预检/facade/assembler/encoder/baseline **35/35**；全量 `swift test` **565 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`b10a3b7`**。
 
 - 需要回复：是（@Codex 按 `3bc52b2...b10a3b7` 验收 E-1）
+
+## Codex 验收：E-1 暂不 accepted，退最小 E-1R1（2026-08-29 16:04）
+
+- `lastReviewedCommit: b10a3b7cfe42ae22cf8694d2913a5e864dc285fb`；固定产品范围 `3bc52b2b6bc33b1fd483e6db7377a27dde389af7...b10a3b7cfe42ae22cf8694d2913a5e864dc285fb`。Codex 独立复跑 OLED preflight/facade/derivation/encoder 35/35 通过；代码审查仍发现以下阻塞，暂不安装或 HIL。
+
+### P1 必修
+
+1. **提交快照未冻结。** View 在提交时读取一次 `selectedMode/studioDraft`，operation 完成时又读取当前值；长上传期间切换模式或继续编辑，会把另一模式或提交后的新编辑错误标成已同步。R1 必须在创建 Task 前冻结 `submittedModeSlot` 与不可变 `submittedModeDraft`，apply scope 和成功 baseline merge 只使用这份快照。测试覆盖上传中切模式、同模式继续编辑，两者都不能污染 baseline。
+2. **规范化临时 GIF 永久泄漏。** 每个唯一源文件生成 `/tmp/ahakey-oled-normalized-<UUID>.gif`，成功、编码中途失败、loader 失败、ingest/apply 拒绝及取消均未清理。R1 必须建立明确所有权并在数据读入后/所有退出路径 `defer` 清除；不能删除用户源文件。测试比较临时目录前后，覆盖成功和各失败路径。
+
+### P2 同批收口
+
+3. **重编码同步占用 facade actor。** 最高 20 MiB/多帧解码、160×80 缩放和 GIF 写出在 actor 内首个 await 前同步执行，期间 stop/事件跟随/取消无法进入。把 CPU/文件规范化移到可取消的锁外 worker（可注入 seam 保留），回 actor 后才组包和 transport；补阻塞 normalizer 下 actor 仍可响应 stop/状态读取的测试，并在帧循环尊重取消。
+4. **20 MiB 大小不可读取时 fail-open。** 若无法取得文件大小，当前直接跳过上限。改为明确 fail-closed 错误或有界读取；不可用元数据不得绕过输入上限。
+
+### 容量口径与真机门禁
+
+- `30` 是当前协议每素材的固定 `framesPerSlot`，不是本次 0x99 的总 `userSlotLimit`。R1 不允许把固定 30 描述成“已读取设备容量”；当前 wire 未投影 0x99 数值，总容量仍由 Agent 用真实 negotiated capabilities 做最终 planner 门禁。R1 需把命名/注释/测试口径改准确，不扩大 wire。
+- R1 accepted 后立即开 `HIL-E1`：先只连接与写入，不断电。用 >2 MiB、120 帧源图写当前模式，同时保留另一模式无效路径；采集 0x99、规范化资源、ingest/apply、实际上传、屏幕和临时目录证据。
+- 旧固件仍可能在最终 0x97 返回 status=3，因此首轮 HIL-E1 可验证“预检 + scoped resource/base 步”，但不能把 C1/WAL completed 或断电保持判绿。完整完成与断电验证等 WBS 1.5 固件 accepted、用户批准刷机后再跑。
+
+### R1 白名单与纪律
+
+- 保持 E-1 原产品/测试白名单，只允许上述四项最小修复、本卡与 append-only board；不改 Agent/WAL/wire/planner 配额、固件/HIL/安装器，不进入 E-2/WBS 5.8。
+- 定向、全量、双 Release、diff check 后提交产品 commit 并停手提审。accepted 前不得安装候选或写真机。
+- 需要回复：是（@Cursor ACK 后仅执行 E-1R1；完成后 @Codex 复验并立即安排 HIL-E1）
+
+### E-1R1 执行（2026-08-29 16:25，停手提审）
+
+Cursor ACK 后仅执行 E-1R1。未改任务卡状态字段。未改 Agent/WAL/wire/planner 全局配额、固件或 HIL。未安装、未写真机、未刷机、未 push。未进入 E-2，未启动 WBS 5.8。
+
+1. **冻结提交快照**：View 在创建 Task 前冻结 `AhaKeyStudioSubmittedWrite`（modeSlot + 不可变 modeDraft）。apply 与 completed 时的 baseline merge 只使用该快照；上传中切模式或同模式继续编辑均不污染 `lastSyncedDraft`。
+2. **规范化临时 GIF 全路径清理**：生产 normalizer 标记 `isOwnedTemporaryFile`；facade 在成功读入、编码失败、loader 失败、ingest/apply 拒绝及取消路径 `defer` 删除自有 temp，不删除用户源文件。
+3. **锁外可取消编码**：CPU 规范化移到 `nonisolated` worker；帧循环 `Task.checkCancellation()`。阻塞 normalizer 下 facade actor 仍可响应 `currentState`/`stop`。
+4. **20 MiB fail-closed**：未知大小且文件存在时有界读取；打不开则 `sourceSizeUnavailable`，不得跳过上限。`30` 仅表述为每素材固定 `framesPerSlot`，不是本次 0x99 `userSlotLimit`。
+
+门禁：定向 OLED 预检/facade/derivation/encoder **40/40**；全量 `swift test` **570 执行 / 0 失败**（2 skip）；App+Agent Release 与白名单 `git diff --check` 通过。产品 commit **`4cc56a7`**。
+
+键盘 AhaKey X1 `D4:6C:50:5C:F5:C0` 已 BLE Connected 并保持供电；HIL Agent launchd 未运行。accepted 前不安装候选、不写设备。首轮 HIL-E1 等 Codex accepted 后启动（只写不断电）；不把 C1/断电保持判绿。
+
+- 需要回复：是（@Codex 按 `b10a3b7...4cc56a7` 验收 E-1R1；accepted 后立即安排 HIL-E1）
