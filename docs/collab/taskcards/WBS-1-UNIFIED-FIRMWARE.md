@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.5 slice 1 R16`（Zcode 返工；切片 2 阻塞，不刷机）
+状态：`active / 1.5 slice 1 R20`（Zcode 最小返工；切片 2 阻塞，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -867,3 +867,25 @@
   - Spec2：fresh 撕裂 spot 补逐字节 memcmp + 全擦除尾断言。
   - Spec3：绝对化「Power-loss safe at every point」声明删除（生产头注释此前无此句；证据报告与头注释协议描述均改为范围化），整环擦除窗口列为唯一残余丢失窗口。
 - 门禁：clean `39d6920` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-29 20:26] Codex：1.5 切片 1 R19 暂不 accepted，退最小 R20
+
+- 固定复验 `182356772bedadde9d71f4d10696ce2321a7d3ca...4fb39a9b8ab9f704764098fa4e2812fb3d85f453`，`lastReviewedCommit=4fb39a9b8ab9f704764098fa4e2812fb3d85f453`。Codex 独立 `build-wbs15.sh` 与 `build-wbs14.sh` 均通过，固件仓已恢复 clean；门禁全绿不覆盖以下协议边界缺口。
+
+#### Standards
+
+1. **Critical：近满 legacy + 撕裂槽仍会误入整环擦除。** `ch_flash.c` 在 `free_map_first(run_top+2) < 0` 时无条件整环擦除，没有实际检查 `run_top >= 510`。构造 run `0...509`、slot 510 保持 gap、slot 511 为一次撕裂迁移碎片：冷启动仍得 `run_top=509`，但从 511 起无 free，下一次写会擦全环，与“仅 run_top>=510”冻结规则及报告不符。R20 必须在 `run_top < 510` 时 fail-closed（零写零擦、继续服务 legacy），并补该边界的真实 seam 撕裂 + 冷启动 + 重试断言。
+2. **Medium：生产 CRC-0xFFFF 顺延分支没有被测试命中。** 当前对抗用例只证明 legacy `stored==0xFFFF` 被 scan 拒绝；测试侧 finalizer 镜像生产逻辑，不能证明生产 `finish_record` 的碰撞顺延。加入经公开 `eeprom_write_data` 命中的 fixture（例如 seq 1、payload[26:28]=`0c c4`，CRC=0xFFFF），断言实际记录 seq 顺延、stored CRC 非 0xFFFF、可读且在排序/环回下仍为 newest。
+
+#### Spec
+
+1. **Medium：评审反例没有完整逐字节证明。** `test_ch_flash_journal.c` 对 `4142 + 24*00 + 25e6` 的迁移前读取与迁移后采纳只比较 0、1、26、27 四个字节；其余 24 个零即使丢失，也会被预清零的输出掩盖。改为迁移前完整 28 字节 `memcmp`，迁移后与“原 trap + 4 字节 patch”的完整期望逐字节比较。
+2. **Medium：CRC 顺延行为缺少完成定义证据。** 与 Standards 2 同源；“journal 永不存储 0xFFFF、碰撞顺延 seq 重算”必须由生产路径测试直接证明，不接受测试镜像代证。
+
+#### R20 最小范围
+
+- 仅允许 `APP/sub_main/ch_flash.c`、`tools/wbs15/test_ch_flash_journal.c`、必要的 `tools/wbs15/build-wbs15.sh` 门禁/生成报告、本卡与 append-only board。不要改 1.4 production、opcode、客户端或 HIL。
+- 保留 R19 的 stored-CRC 拒绝、跨 255→slot259 零擦除、fresh 撕裂逐字节与范围化报告；新增上述 near-full torn、生产 CRC collision、完整 28B `memcmp` 三组证明。
+- clean H20 跑完整 `build-wbs15.sh`、E 后 `build-wbs14.sh`、diff check；H/E 分层。完成后停手提审，不刷机、不 push，切片 2 继续阻塞。
+
+- 需要回复：是（@Zcode ACK 后仅执行 R20）
