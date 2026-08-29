@@ -130,6 +130,9 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         XCTAssertEqual(state, .failedWithoutWrites)
         let noBaseline = try await store.syncBaseline(for: package.targetDeviceID)
         XCTAssertNil(noBaseline)
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.messageCode, .configurationPlanRejected)
+        XCTAssertNil(record?.failureContext)
     }
 
     // MARK: 永久失败：有写入 → failedWithPartialCommit
@@ -148,6 +151,46 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         // 已确认步骤保留（恢复对账依据）
         let confirmed = try await store.confirmedSteps(for: package.operationID).map(\.rawValue)
         XCTAssertEqual(confirmed, ["resource:img-a", "base:mode:0"])
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.failureContext?.failedStepID?.rawValue, "base:mode:1")
+        XCTAssertNil(record?.messageCode)
+        XCTAssertNil(record?.failureContext?.opcode)
+    }
+
+    func testTypedPermanentFailurePersistsOpcodeStatusAndReloads() async throws {
+        let (package, files) = try makePackage(modeCount: 2)
+        let step = try AhaKeyRuntimeStepIdentifier("base:mode:1")
+        let context = AhaKeyRuntimeOperationFailureContext(
+            failedStepID: step,
+            opcode: 0x97,
+            deviceStatus: 3
+        )
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package, resourceFiles: files,
+            capabilities: capabilities(), protocolMode: .current
+        ) { current in
+            if current == step {
+                return .failure(.init(
+                    retryable: false,
+                    messageCode: .configurationDeviceRejected,
+                    context: context
+                ))
+            }
+            return .success
+        }
+        XCTAssertEqual(state, .failedWithPartialCommit)
+        let first = try await store.transaction(package.operationID)
+        XCTAssertEqual(first?.messageCode, .configurationDeviceRejected)
+        XCTAssertEqual(first?.failureContext, context)
+
+        let reopened = try AhaKeyRuntimePersistentStore(
+            rootDirectory: root,
+            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+        )
+        let reloaded = try await reopened.transaction(package.operationID)
+        XCTAssertEqual(reloaded?.messageCode, .configurationDeviceRejected)
+        XCTAssertEqual(reloaded?.failureContext, context)
+        XCTAssertEqual(reloaded?.state, .failedWithPartialCommit)
     }
 
     // MARK: 可重试失败 → resumablePartial，重跑恢复并完成
@@ -164,6 +207,9 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
             return .success
         }
         XCTAssertEqual(state1, .resumablePartial)
+        let paused = try await store.transaction(package.operationID)
+        XCTAssertEqual(paused?.failureContext?.failedStepID?.rawValue, "base:mode:0")
+        XCTAssertNil(paused?.failureContext?.opcode)
 
         // 模拟断线后重跑：同 package 幂等 accept，跳过已确认步
         firstRun = false
@@ -177,6 +223,9 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         }
         XCTAssertEqual(state2, .completed)
         XCTAssertEqual(executed, ["base:mode:0", "base:mode:1"])  // resource 步未重放
+        let completed = try await store.transaction(package.operationID)
+        XCTAssertNil(completed?.failureContext)
+        XCTAssertNil(completed?.messageCode)
         let resumedBaseline = try await store.syncBaseline(for: package.targetDeviceID)
         XCTAssertEqual(resumedBaseline?.revision.rawValue, 1)
     }

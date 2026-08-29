@@ -30,6 +30,25 @@ public struct AhaKeyRuntimePersistedTransaction: Equatable, Sendable {
     public let completedSteps: UInt32
     public let totalSteps: UInt32
     public let messageCode: AhaKeyRuntimeEventCode?
+    public let failureContext: AhaKeyRuntimeOperationFailureContext?
+
+    public init(
+        operationID: AhaKeyRuntimeOperationID,
+        package: AhaKeyConfigurationPackage,
+        state: AhaKeyRuntimeOperationState,
+        completedSteps: UInt32,
+        totalSteps: UInt32,
+        messageCode: AhaKeyRuntimeEventCode?,
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil
+    ) {
+        self.operationID = operationID
+        self.package = package
+        self.state = state
+        self.completedSteps = completedSteps
+        self.totalSteps = totalSteps
+        self.messageCode = messageCode
+        self.failureContext = failureContext.flatMap { $0.isEmpty ? nil : $0 }
+    }
 }
 
 public struct AhaKeyRuntimeStepIdentifier: Codable, Equatable, Hashable, Sendable {
@@ -168,7 +187,7 @@ struct AhaKeyRuntimeStoreTestingHooks {
 }
 
 public actor AhaKeyRuntimePersistentStore {
-    public static let schemaVersion: Int32 = 2
+    public static let schemaVersion: Int32 = 3
 
     private let database: OpaquePointer
     private let resourcesDirectory: URL
@@ -345,6 +364,14 @@ public actor AhaKeyRuntimePersistentStore {
             // （不得再嵌套 withExclusiveLock：同 fd 内层 LOCK_UN 会提前放锁）。
             try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
             try Self.pruneStagedJournalMissingFiles(resourcesDirectory, with: handle)
+            if existingSchemaVersion < 3 {
+                if try !Self.table(handle, "runtime_transactions", hasColumn: "failure_context") {
+                    try Self.execute(
+                        "ALTER TABLE runtime_transactions ADD COLUMN failure_context TEXT",
+                        on: handle
+                    )
+                }
+            }
             if existingSchemaVersion < Self.schemaVersion {
                 try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
             }
@@ -838,7 +865,7 @@ public actor AhaKeyRuntimePersistentStore {
     ) throws -> AhaKeyRuntimePersistedTransaction? {
         let statement = try prepare(
             """
-            SELECT package, state, completed_steps, total_steps, message_code
+            SELECT package, state, completed_steps, total_steps, message_code, failure_context
             FROM runtime_transactions WHERE operation_id = ?
             """
         )
@@ -927,7 +954,7 @@ public actor AhaKeyRuntimePersistentStore {
         let statement = try prepare(
             """
             UPDATE runtime_transactions
-            SET state = ?, completed_steps = ?, total_steps = ?, message_code = ?
+            SET state = ?, completed_steps = ?, total_steps = ?, message_code = ?, failure_context = ?
             WHERE operation_id = ?
             """
         )
@@ -938,16 +965,21 @@ public actor AhaKeyRuntimePersistentStore {
         if let messageCode = summary.messageCode {
             try bind(messageCode.rawValue, at: 4, to: statement)
         } else {
-            guard sqlite3_bind_null(statement, 4) == SQLITE_OK else { throw databaseError() }
+            try bindNull(at: 4, to: statement)
         }
-        try bind(summary.id.rawValue.uuidString, at: 5, to: statement)
+        if let failureContext = summary.failureContext, !failureContext.isEmpty {
+            try bind(try encoder.encode(failureContext), at: 5, to: statement)
+        } else {
+            try bindNull(at: 5, to: statement)
+        }
+        try bind(summary.id.rawValue.uuidString, at: 6, to: statement)
         try stepDone(statement)
     }
 
     public func recoveryCandidates() throws -> [AhaKeyRuntimePersistedTransaction] {
         let statement = try prepare(
             """
-            SELECT operation_id, package, state, completed_steps, total_steps, message_code
+            SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context
             FROM runtime_transactions ORDER BY rowid
             """
         )
@@ -1001,19 +1033,48 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.corruptTransaction
         }
         let messageCode: AhaKeyRuntimeEventCode?
-        if let value = sqlite3_column_text(statement, columnOffset + 4) {
+        if sqlite3_column_type(statement, columnOffset + 4) != SQLITE_NULL,
+           let value = sqlite3_column_text(statement, columnOffset + 4) {
             messageCode = try AhaKeyRuntimeEventCode(String(cString: value))
         } else {
             messageCode = nil
         }
+        let failureContext = try decodeFailureContext(statement, column: columnOffset + 5)
         return .init(
             operationID: operationID,
             package: package,
             state: state,
             completedSteps: UInt32(completedSteps),
             totalSteps: UInt32(totalSteps),
-            messageCode: messageCode
+            messageCode: messageCode,
+            failureContext: failureContext
         )
+    }
+
+    private func decodeFailureContext(
+        _ statement: OpaquePointer,
+        column: Int32
+    ) throws -> AhaKeyRuntimeOperationFailureContext? {
+        let type = sqlite3_column_type(statement, column)
+        guard type != SQLITE_NULL else { return nil }
+        let payload: Data
+        if type == SQLITE_BLOB, let bytes = sqlite3_column_blob(statement, column) {
+            let count = Int(sqlite3_column_bytes(statement, column))
+            guard count > 0 else { return nil }
+            payload = Data(bytes: bytes, count: count)
+        } else if let text = sqlite3_column_text(statement, column) {
+            let string = String(cString: text)
+            guard !string.isEmpty else { return nil }
+            payload = Data(string.utf8)
+        } else {
+            return nil
+        }
+        do {
+            let decoded = try decoder.decode(AhaKeyRuntimeOperationFailureContext.self, from: payload)
+            return decoded.isEmpty ? nil : decoded
+        } catch {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
     }
 
     private func insertTransaction(_ package: AhaKeyConfigurationPackage) throws {
@@ -1400,6 +1461,40 @@ public actor AhaKeyRuntimePersistentStore {
             throw databaseError()
         }
         return statement
+    }
+
+    private static func table(
+        _ database: OpaquePointer,
+        _ table: String,
+        hasColumn column: String
+    ) throws -> Bool {
+        var statement: OpaquePointer?
+        let sql = "PRAGMA table_info(\(table))"
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
+              let statement else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                String(cString: sqlite3_errmsg(database))
+            )
+        }
+        defer { sqlite3_finalize(statement) }
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            if let name = sqlite3_column_text(statement, 1),
+               String(cString: name) == column {
+                return true
+            }
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                String(cString: sqlite3_errmsg(database))
+            )
+        }
+        return false
+    }
+
+    private func bindNull(at index: Int32, to statement: OpaquePointer) throws {
+        guard sqlite3_bind_null(statement, index) == SQLITE_OK else { throw databaseError() }
     }
 
     private func bind(_ value: String, at index: Int32, to statement: OpaquePointer) throws {

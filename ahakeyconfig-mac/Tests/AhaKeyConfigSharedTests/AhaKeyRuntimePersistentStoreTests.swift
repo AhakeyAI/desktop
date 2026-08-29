@@ -382,6 +382,89 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(candidates.first?.completedSteps, 2)
     }
 
+    func testV2StoreMigratesInPlaceAndReadsHistoricalFailureContextAsNil() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let package = try makePackage()
+        let packageData = try JSONEncoder().encode(package)
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        let sql = """
+        PRAGMA user_version=2;
+        CREATE TABLE runtime_transactions (
+            operation_id TEXT PRIMARY KEY NOT NULL,
+            package BLOB NOT NULL,
+            state TEXT NOT NULL,
+            completed_steps INTEGER NOT NULL,
+            total_steps INTEGER NOT NULL,
+            message_code TEXT
+        );
+        """
+        XCTAssertEqual(sqlite3_exec(database, sql, nil, nil, nil), SQLITE_OK)
+        var statement: OpaquePointer?
+        XCTAssertEqual(
+            sqlite3_prepare_v2(
+                database,
+                "INSERT INTO runtime_transactions (operation_id, package, state, completed_steps, total_steps, message_code) VALUES (?, ?, 'failedWithoutWrites', 0, 2, NULL)",
+                -1,
+                &statement,
+                nil
+            ),
+            SQLITE_OK
+        )
+        let operationID = package.operationID.rawValue.uuidString
+        operationID.withCString { sqlite3_bind_text(statement, 1, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) }
+        packageData.withUnsafeBytes { bytes in
+            _ = sqlite3_bind_blob(statement, 2, bytes.baseAddress, Int32(packageData.count), unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
+        sqlite3_finalize(statement)
+        sqlite3_close(database)
+
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let health = try await store.health()
+        XCTAssertEqual(health.schemaVersion, 3)
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.state, .failedWithoutWrites)
+        XCTAssertNil(record?.messageCode)
+        XCTAssertNil(record?.failureContext)
+    }
+
+    func testFailureContextRoundTripsAfterReopen() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePackage()
+        let context = AhaKeyRuntimeOperationFailureContext(
+            failedStepID: try AhaKeyRuntimeStepIdentifier("base:mode:0"),
+            opcode: 0x97,
+            deviceStatus: 3
+        )
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            _ = try await store.accept(package, resourceFiles: [:])
+            try await store.commitOperationOutcome(
+                AhaKeyRuntimeOperationSummary(
+                    id: package.operationID,
+                    targetDeviceID: package.targetDeviceID,
+                    state: .failedWithoutWrites,
+                    completedSteps: 0,
+                    totalSteps: 2,
+                    messageCode: .configurationDeviceRejected,
+                    failureContext: context
+                ),
+                syncBaseline: nil
+            )
+        }
+
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let record = try await reopened.transaction(package.operationID)
+        XCTAssertEqual(record?.messageCode, .configurationDeviceRejected)
+        XCTAssertEqual(record?.failureContext, context)
+        XCTAssertEqual(record?.state, .failedWithoutWrites)
+    }
+
     func testAcceptanceRejectsSymbolicLinkResourceSources() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

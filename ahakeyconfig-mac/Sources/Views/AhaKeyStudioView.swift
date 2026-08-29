@@ -2452,8 +2452,7 @@ struct AhaKeyStudioView: View {
                     case .resumablePartial, .failedWithPartialCommit:
                         self.isSyncing = false
                         self.isCancellingDeviceWrite = false
-                        let code = operation.messageCode?.rawValue ?? "—"
-                        let message = String(format: NSLocalizedString("部分完成：Runtime 报告部分步骤未写入（%@）。可再次点击写入重试。", comment: ""), code)
+                        let message = AhaKeyStudioFailureText.message(for: operation)
                         self.syncStatusMessage = message
                         if showResultAlert {
                             self.writeResultAlertMessage = message
@@ -2462,7 +2461,9 @@ struct AhaKeyStudioView: View {
                         if returnAgent { self.returnToKeyboardControl() }
                         return
                     case .failedWithoutWrites:
-                        throw AhaKeyStudioViewWriteError.operationFailed(code: operation.messageCode?.rawValue ?? "—")
+                        throw AhaKeyStudioViewWriteError.operationFailed(
+                            message: AhaKeyStudioFailureText.message(for: operation)
+                        )
                     case .accepted, .running, .paused, .cancellationRequested:
                         try await Task.sleep(nanoseconds: 300_000_000)
                     }
@@ -5353,12 +5354,12 @@ private struct FAQTopicView: View {
 
 /// Runtime 统一写入失败（未提交任何改动时抛出；部分提交走部分完成文案不抛错）。
 private enum AhaKeyStudioViewWriteError: LocalizedError {
-    case operationFailed(code: String)
+    case operationFailed(message: String)
 
     var errorDescription: String? {
         switch self {
-        case .operationFailed(let code):
-            return String(format: NSLocalizedString("Runtime 写入失败（%@），未提交任何改动。", comment: ""), code)
+        case .operationFailed(let message):
+            return message
         }
     }
 }

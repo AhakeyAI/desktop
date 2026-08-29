@@ -33,6 +33,8 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         XCTAssertGreaterThan(first?.completedBytes ?? 0, 0)
         XCTAssertEqual(first?.totalBytes, 3 * 25_600)
         XCTAssertNotNil(first?.currentStepID)
+        XCTAssertNil(first?.failureContext)
+        XCTAssertNil(first?.messageCode)
         let replayed = try await operationSummaries(agent, operationID: package.operationID)
         XCTAssertEqual(replayed.last?.completedBytes, first?.completedBytes)
         let again = try await snapshotOperation(agent, id: package.operationID)
@@ -46,7 +48,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         var hooks = agent.executionTestHooks
         hooks?.progressMonotonicNanos = { ticks.value }
         hooks?.failConfigurationWriteAfterAckCount = 3
-        hooks?.failConfigurationChunkWith = .deviceRejected
+        hooks?.failConfigurationChunkWith = .deviceRejected(opcode: 0x81, status: 3)
         agent.executionTestHooks = hooks
         let package = try await startResourceApply(agent)
         try await waitUntil {
@@ -130,7 +132,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         var hooks = agent.executionTestHooks
         hooks?.progressMonotonicNanos = { ticks.value }
         hooks?.failConfigurationWriteAfterAckCount = 2
-        hooks?.failConfigurationChunkWith = .deviceRejected
+        hooks?.failConfigurationChunkWith = .deviceRejected(opcode: 0x81, status: 3)
         agent.executionTestHooks = hooks
         let package = try await startResourceApply(agent)
         try await waitUntil {
@@ -142,6 +144,38 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let last = try await operationSummaries(agent, operationID: package.operationID).last
         XCTAssertEqual(last?.state, .failedWithoutWrites)
         XCTAssertEqual(last?.completedBytes, 8192)
+    }
+
+    func testProductionCommandRejectPersistsFailureContextThroughEventSnapshotAndReload() async throws {
+        let agent = makeAgent(skipBLE: true)
+        var hooks = agent.executionTestHooks
+        hooks?.failConfigurationCommandOpcode = AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet
+        hooks?.failConfigurationCommandStatus = 3
+        agent.executionTestHooks = hooks
+        let package = try await startResourceApply(agent)
+        try await waitUntil {
+            (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
+        }
+        let snapshot = try await snapshotOperation(agent, id: package.operationID)
+        XCTAssertEqual(snapshot?.state, .failedWithPartialCommit)
+        XCTAssertEqual(snapshot?.messageCode, .configurationDeviceRejected)
+        XCTAssertEqual(snapshot?.failureContext?.opcode, 0x97)
+        XCTAssertEqual(snapshot?.failureContext?.deviceStatus, 3)
+        XCTAssertEqual(snapshot?.failureContext?.failedStepID?.rawValue, "base:mode:0")
+        XCTAssertNotNil(snapshot?.failureContext)
+
+        let events = try await operationSummaries(agent, operationID: package.operationID)
+        XCTAssertEqual(events.last, snapshot, "失败转移 event 必须与紧随 snapshot 同源")
+
+        let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.state, snapshot?.state)
+        XCTAssertEqual(record?.messageCode, snapshot?.messageCode)
+        XCTAssertEqual(record?.failureContext, snapshot?.failureContext)
+
+        let resnapshot = try await snapshotOperation(agent, id: package.operationID)
+        XCTAssertEqual(resnapshot, snapshot)
     }
 
     func testCancelAfterFirstResourceDoesNotAdvanceIntoNextResourceBytes() async throws {

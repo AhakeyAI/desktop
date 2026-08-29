@@ -620,3 +620,72 @@ enum AhaKeyStudioWriteProgressText {
         return String(format: format, operation.completedSteps, operation.totalSteps, elapsedSeconds)
     }
 }
+
+enum AhaKeyStudioFailureText {
+    static func message(for operation: AhaKeyRuntimeOperationSummary) -> String {
+        let detail = detail(for: operation)
+        switch operation.state {
+        case .failedWithoutWrites:
+            return String(
+                format: NSLocalizedString("Runtime 写入失败（%@），未提交任何改动。", comment: ""),
+                detail
+            )
+        default:
+            return String(
+                format: NSLocalizedString("部分完成：Runtime 报告部分步骤未写入（%@）。可再次点击写入重试。", comment: ""),
+                detail
+            )
+        }
+    }
+
+    static func detail(for operation: AhaKeyRuntimeOperationSummary) -> String {
+        if let context = operation.failureContext, !context.isEmpty {
+            return structuredDetail(context)
+        }
+        if let code = operation.messageCode {
+            return localizedCategory(code)
+        }
+        return "—"
+    }
+
+    private static func structuredDetail(_ context: AhaKeyRuntimeOperationFailureContext) -> String {
+        if let step = context.failedStepID, let opcode = context.opcode, let status = context.deviceStatus {
+            return String(
+                format: NSLocalizedString("步骤 %@，命令 0x%02X，status=%u", comment: ""),
+                step.rawValue, opcode, status
+            )
+        }
+        var parts: [String] = []
+        if let step = context.failedStepID {
+            parts.append(String(format: NSLocalizedString("步骤 %@", comment: ""), step.rawValue))
+        }
+        if let opcode = context.opcode {
+            parts.append(String(format: NSLocalizedString("命令 0x%02X", comment: ""), opcode))
+        }
+        if let status = context.deviceStatus {
+            parts.append(String(format: NSLocalizedString("status=%u", comment: ""), status))
+        }
+        return parts.joined(separator: "，")
+    }
+
+    private static func localizedCategory(_ code: AhaKeyRuntimeEventCode) -> String {
+        switch code.rawValue {
+        case AhaKeyRuntimeEventCode.configurationDeviceRejected.rawValue:
+            return NSLocalizedString("设备拒绝了配置命令", comment: "")
+        case AhaKeyRuntimeEventCode.configurationCommandTimeout.rawValue:
+            return NSLocalizedString("配置命令超时", comment: "")
+        case AhaKeyRuntimeEventCode.configurationDisconnected.rawValue:
+            return NSLocalizedString("设备连接已断开", comment: "")
+        case AhaKeyRuntimeEventCode.configurationResourceMissing.rawValue:
+            return NSLocalizedString("资源缺失或无法读取", comment: "")
+        case AhaKeyRuntimeEventCode.configurationEncodingFailed.rawValue:
+            return NSLocalizedString("图片编码失败", comment: "")
+        case AhaKeyRuntimeEventCode.configurationPlanRejected.rawValue:
+            return NSLocalizedString("配置方案无法执行", comment: "")
+        case AhaKeyRuntimeEventCode.configurationMalformedFrame.rawValue:
+            return NSLocalizedString("配置命令格式错误", comment: "")
+        default:
+            return code.rawValue
+        }
+    }
+}

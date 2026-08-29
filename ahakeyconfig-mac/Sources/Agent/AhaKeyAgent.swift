@@ -1936,9 +1936,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         capabilities: AhaKeyFirmwareCapabilities
     ) async -> AhaKeyConfigurationStepResult {
         let bleReady = await MainActor.run { self.configurationTransportIsReady() }
-        guard bleReady else { return .retryableFailure }
+        guard bleReady else {
+            return .failure(.init(
+                retryable: true,
+                messageCode: .configurationDisconnected,
+                context: .init(failedStepID: step)
+            ))
+        }
         guard let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
-            return .permanentFailure
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationEncodingFailed,
+                context: .init(failedStepID: step)
+            ))
         }
         let planning = AhaKeyConfigurationPlanner.plan(
             desired: desired, resources: package.resources,
@@ -1948,7 +1958,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
               let program = AhaKeyConfigurationStepMapper.program(
                   for: step, desired: desired, plan: plan,
                   resources: package.resources, capabilities: capabilities
-              ) else { return .permanentFailure }
+              ) else {
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationPlanRejected,
+                context: .init(failedStepID: step)
+            ))
+        }
         let transport = AgentProgramTransport(
             agent: self, store: store, operationID: package.operationID, stepID: step
         )
@@ -1957,21 +1973,72 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return .success
         } catch AhaKeyDeviceProgramExecutionError.cancelled {
             emit("配置步骤 \(step.rawValue) 可重试失败：cancelled")
-            return .retryableFailure
+            return .failure(.init(
+                retryable: true,
+                messageCode: nil,
+                context: .init(failedStepID: step)
+            ))
         } catch let error as AhaKeyAgentCommandError {
             emit("配置步骤 \(step.rawValue) 失败：\(error)")
-            switch error {
-            case .deviceRejected, .resourceMissing, .malformedFrame:
-                return .permanentFailure
-            case .disconnected, .ackTimedOut, .cancelled, .busy:
-                return .retryableFailure
-            }
+            return mapConfigurationCommandError(error, step: step)
         } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
             emit("配置步骤 \(step.rawValue) 编码失败：\(error)")
-            return .permanentFailure
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationEncodingFailed,
+                context: .init(failedStepID: step)
+            ))
         } catch {
             emit("配置步骤 \(step.rawValue) 可重试失败：\(error)")
-            return .retryableFailure
+            return .failure(.init(
+                retryable: true,
+                messageCode: nil,
+                context: .init(failedStepID: step)
+            ))
+        }
+    }
+
+    private func mapConfigurationCommandError(
+        _ error: AhaKeyAgentCommandError,
+        step: AhaKeyRuntimeStepIdentifier
+    ) -> AhaKeyConfigurationStepResult {
+        switch error {
+        case .deviceRejected(let opcode, let status):
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationDeviceRejected,
+                context: .init(failedStepID: step, opcode: opcode, deviceStatus: status)
+            ))
+        case .resourceMissing:
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationResourceMissing,
+                context: .init(failedStepID: step)
+            ))
+        case .malformedFrame:
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationMalformedFrame,
+                context: .init(failedStepID: step)
+            ))
+        case .disconnected:
+            return .failure(.init(
+                retryable: true,
+                messageCode: .configurationDisconnected,
+                context: .init(failedStepID: step)
+            ))
+        case .ackTimedOut:
+            return .failure(.init(
+                retryable: true,
+                messageCode: .configurationCommandTimeout,
+                context: .init(failedStepID: step)
+            ))
+        case .cancelled, .busy:
+            return .failure(.init(
+                retryable: true,
+                messageCode: nil,
+                context: .init(failedStepID: step)
+            ))
         }
     }
 
@@ -2003,6 +2070,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 throw AhaKeyAgentCommandError.disconnected
             }
             guard frame.count >= 5, frame[2] == ack else { throw AhaKeyAgentCommandError.malformedFrame }
+            try throwIfConfigurationCommandRejected(
+                opcode: ack,
+                status: simulatedConfigurationCommandStatus(for: ack)
+            )
             return
         }
         guard transportCore.isReady, commandChar != nil, peripheral != nil else {
@@ -2031,9 +2102,26 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
         }
         guard response.status == 0 else {
-            emit("配置命令 0x\(String(format: "%02X", ack)) 被设备拒绝 status=\(response.status)")
-            throw AhaKeyAgentCommandError.deviceRejected
+            try throwIfConfigurationCommandRejected(opcode: ack, status: response.status)
+            return
         }
+    }
+
+    /// 命令/ACK 拒绝的唯一生产抛出点：带上真实 opcode 与 device status。
+    private func throwIfConfigurationCommandRejected(opcode: UInt8, status: UInt8) throws {
+        guard status != 0 else { return }
+        emit("配置命令 0x\(String(format: "%02X", opcode)) 被设备拒绝 status=\(status)")
+        throw AhaKeyAgentCommandError.deviceRejected(opcode: opcode, status: status)
+    }
+
+    private func simulatedConfigurationCommandStatus(for opcode: UInt8) -> UInt8 {
+        guard let status = executionTestHooks?.failConfigurationCommandStatus, status != 0 else {
+            return 0
+        }
+        if let expected = executionTestHooks?.failConfigurationCommandOpcode, expected != opcode {
+            return 0
+        }
+        return status
     }
 
     /// 资源数据块直写：CAS 源 → RGB565 编码（AhaKeyOLEDFrameEncoderCore）→ 按编码流切片
@@ -2154,7 +2242,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             continuation.resume()
         } else {
             // 失败保留 session，由 executor 收尾补 0x9A 后清空
-            continuation.resume(throwing: AhaKeyAgentCommandError.deviceRejected)
+            continuation.resume(throwing: AhaKeyAgentCommandError.deviceRejected(opcode: 0x81, status: status))
         }
     }
 
@@ -2248,7 +2336,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             state: record.state,
             completedSteps: record.completedSteps,
             totalSteps: record.totalSteps,
-            messageCode: record.messageCode
+            messageCode: record.messageCode,
+            failureContext: record.failureContext
         )
     }
 
@@ -2781,7 +2870,7 @@ private actor AhaKeyAgentRuntimeStoreCache {
 enum AhaKeyAgentCommandError: Error, Equatable {
     case disconnected
     case ackTimedOut
-    case deviceRejected
+    case deviceRejected(opcode: UInt8, status: UInt8)
     case resourceMissing
     case malformedFrame
     case cancelled
@@ -2821,6 +2910,10 @@ struct AhaKeyAgentExecutionTestHooks {
     /// 下一次 writeConfigurationChunk 立刻失败（一次性）。
     var failNextConfigurationChunk: Bool = false
     var failConfigurationChunkWith: AhaKeyAgentCommandError = .disconnected
+    /// 测试 seam：配置命令走与生产相同的 status≠0 拒绝点。nil/0 表示成功。
+    var failConfigurationCommandStatus: UInt8?
+    /// 非 nil 时只拒绝该 opcode；nil 表示任意配置命令。
+    var failConfigurationCommandOpcode: UInt8?
     /// 每个 chunk 在 ACK 前调用（已确认成功次数）。
     var beforeConfigurationChunkWrite: (@Sendable (Int) async -> Void)?
     /// 生产 executor 进入 WAL 步、切完 currentStepID 之后、执行程序之前。

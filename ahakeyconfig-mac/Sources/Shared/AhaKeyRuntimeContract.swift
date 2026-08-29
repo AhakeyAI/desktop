@@ -597,6 +597,21 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
 public struct AhaKeyRuntimeEventCode: Codable, Equatable, Hashable, Sendable {
     public let rawValue: String
 
+    /// 设备拒绝配置命令 / 0x81 ACK。
+    public static let configurationDeviceRejected = must("configuration.device-rejected")
+    /// 配置命令 ACK 超时。
+    public static let configurationCommandTimeout = must("configuration.command-timeout")
+    /// 传输断开。
+    public static let configurationDisconnected = must("configuration.disconnected")
+    /// 资源缺失或无法读取。
+    public static let configurationResourceMissing = must("configuration.resource-missing")
+    /// 编码失败（包体损坏或图片编码）。
+    public static let configurationEncodingFailed = must("configuration.encoding-failed")
+    /// planner / 步骤映射拒绝。
+    public static let configurationPlanRejected = must("configuration.plan-rejected")
+    /// 线协议帧格式错误。
+    public static let configurationMalformedFrame = must("configuration.malformed-frame")
+
     public init(_ rawValue: String) throws {
         let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty, normalized.count <= 128 else {
@@ -612,6 +627,45 @@ public struct AhaKeyRuntimeEventCode: Codable, Equatable, Hashable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
+    }
+
+    private static func must(_ rawValue: String) -> AhaKeyRuntimeEventCode {
+        do {
+            return try AhaKeyRuntimeEventCode(rawValue)
+        } catch {
+            preconditionFailure("invalid built-in event code \(rawValue)")
+        }
+    }
+}
+
+/// C-3：可选结构化失败上下文。字段缺失解码为 nil；全 nil 视为无 context。
+/// wire/WAL 只承载稳定标识，禁止本地化文本与自由格式日志。
+public struct AhaKeyRuntimeOperationFailureContext: Codable, Equatable, Sendable {
+    public let failedStepID: AhaKeyRuntimeStepIdentifier?
+    public let opcode: UInt8?
+    public let deviceStatus: UInt8?
+
+    public init(
+        failedStepID: AhaKeyRuntimeStepIdentifier? = nil,
+        opcode: UInt8? = nil,
+        deviceStatus: UInt8? = nil
+    ) {
+        self.failedStepID = failedStepID
+        self.opcode = opcode
+        self.deviceStatus = deviceStatus
+    }
+
+    public var isEmpty: Bool {
+        failedStepID == nil && opcode == nil && deviceStatus == nil
+    }
+
+    public func mergingMissingStep(_ step: AhaKeyRuntimeStepIdentifier) -> AhaKeyRuntimeOperationFailureContext {
+        if failedStepID != nil { return self }
+        return AhaKeyRuntimeOperationFailureContext(
+            failedStepID: step,
+            opcode: opcode,
+            deviceStatus: deviceStatus
+        )
     }
 }
 
@@ -676,6 +730,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let totalBytes: UInt64?
     /// C-2：当前正在执行的资源步。缺省/旧 payload 为 nil。
     public let currentStepID: AhaKeyRuntimeStepIdentifier?
+    /// C-3：结构化失败上下文。缺省/旧 payload 为 nil；成功 operation 必须为 nil。
+    public let failureContext: AhaKeyRuntimeOperationFailureContext?
 
     public init(
         id: AhaKeyRuntimeOperationID,
@@ -686,7 +742,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         messageCode: AhaKeyRuntimeEventCode? = nil,
         completedBytes: UInt64? = nil,
         totalBytes: UInt64? = nil,
-        currentStepID: AhaKeyRuntimeStepIdentifier? = nil
+        currentStepID: AhaKeyRuntimeStepIdentifier? = nil,
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
@@ -697,6 +754,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.completedBytes = completedBytes
         self.totalBytes = totalBytes
         self.currentStepID = currentStepID
+        self.failureContext = failureContext.flatMap { $0.isEmpty ? nil : $0 }
     }
 
     public func withByteProgress(
@@ -713,7 +771,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             messageCode: messageCode,
             completedBytes: completedBytes,
             totalBytes: totalBytes,
-            currentStepID: currentStepID
+            currentStepID: currentStepID,
+            failureContext: failureContext
         )
     }
 }

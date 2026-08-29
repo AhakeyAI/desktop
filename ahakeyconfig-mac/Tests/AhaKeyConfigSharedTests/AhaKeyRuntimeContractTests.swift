@@ -313,15 +313,17 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertNil(decoded.completedBytes)
         XCTAssertNil(decoded.totalBytes)
         XCTAssertNil(decoded.currentStepID)
+        XCTAssertNil(decoded.failureContext)
         let object = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]
         XCTAssertNil(object["completedBytes"])
         XCTAssertNil(object["totalBytes"])
         XCTAssertNil(object["currentStepID"])
+        XCTAssertNil(object["failureContext"])
     }
 
     func testOperationSummaryNewJSONIsIgnoredByFrozenV11Decoder() throws {
         let newJSON = Data("""
-        {"id":{"rawValue":"00000000-0000-4000-8000-000000000002"},"targetDeviceID":"TEST-DEVICE","state":"running","completedSteps":1,"totalSteps":7,"completedBytes":1200,"totalBytes":4800,"currentStepID":"resource:mode1-set0-working"}
+        {"id":{"rawValue":"00000000-0000-4000-8000-000000000002"},"targetDeviceID":"TEST-DEVICE","state":"running","completedSteps":1,"totalSteps":7,"completedBytes":1200,"totalBytes":4800,"currentStepID":"resource:mode1-set0-working","messageCode":"configuration.device-rejected","failureContext":{"failedStepID":"base:mode:0","opcode":151,"deviceStatus":3}}
         """.utf8)
         let frozen = try JSONDecoder().decode(FrozenV11OperationSummary.self, from: newJSON)
         XCTAssertEqual(frozen.id.rawValue, UUID(uuidString: "00000000-0000-4000-8000-000000000002"))
@@ -329,8 +331,12 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertEqual(frozen.state, .running)
         XCTAssertEqual(frozen.completedSteps, 1)
         XCTAssertEqual(frozen.totalSteps, 7)
-        XCTAssertNil(frozen.messageCode)
+        XCTAssertEqual(frozen.messageCode?.rawValue, "configuration.device-rejected")
         XCTAssertEqual(try JSONDecoder().decode(AhaKeyRuntimeInterfaceVersion.self, from: Data("{\"major\":1,\"minor\":1}".utf8)), .current)
+        let current = try JSONDecoder().decode(AhaKeyRuntimeOperationSummary.self, from: newJSON)
+        XCTAssertEqual(current.failureContext?.failedStepID?.rawValue, "base:mode:0")
+        XCTAssertEqual(current.failureContext?.opcode, 0x97)
+        XCTAssertEqual(current.failureContext?.deviceStatus, 3)
     }
 
     func testOperationSummaryOmitsNilByteKeys() throws {
@@ -343,6 +349,25 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertNil(object["completedBytes"])
         XCTAssertNil(object["totalBytes"])
         XCTAssertNil(object["currentStepID"])
+        XCTAssertNil(object["failureContext"])
+        XCTAssertNil(object["messageCode"])
+    }
+
+    func testOperationSummaryOmitsNilFailureContextInnerKeys() throws {
+        let summary = AhaKeyRuntimeOperationSummary(
+            id: AhaKeyRuntimeOperationID(),
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            state: .failedWithoutWrites,
+            messageCode: .configurationDeviceRejected,
+            failureContext: AhaKeyRuntimeOperationFailureContext(
+                failedStepID: try AhaKeyRuntimeStepIdentifier("base:mode:0")
+            )
+        )
+        let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(summary)) as! [String: Any]
+        let context = try XCTUnwrap(object["failureContext"] as? [String: Any])
+        XCTAssertEqual(context["failedStepID"] as? String, "base:mode:0")
+        XCTAssertNil(context["opcode"])
+        XCTAssertNil(context["deviceStatus"])
     }
 
     private func makeAdapter(revision: UInt64 = 0) throws -> AhaKeyInMemoryRuntimeAdapter {

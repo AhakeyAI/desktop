@@ -11,12 +11,30 @@ import Foundation
 // - 失败事务绝不携带 baseline（WAL 侧拒绝）。
 // transport 以 StepExecutor 闭包注入，单测用假实现；真实 BLE 映射在切片 5。
 
+public struct AhaKeyConfigurationStepFailure: Equatable, Sendable {
+    public let retryable: Bool
+    public let messageCode: AhaKeyRuntimeEventCode?
+    public let context: AhaKeyRuntimeOperationFailureContext?
+
+    public init(
+        retryable: Bool,
+        messageCode: AhaKeyRuntimeEventCode? = nil,
+        context: AhaKeyRuntimeOperationFailureContext? = nil
+    ) {
+        self.retryable = retryable
+        self.messageCode = messageCode
+        self.context = context.flatMap { $0.isEmpty ? nil : $0 }
+    }
+}
+
 public enum AhaKeyConfigurationStepResult: Equatable, Sendable {
     case success
     /// 可重试（断线/超时）：事务进入 paused/resumablePartial。
     case retryableFailure
     /// 永久失败（设备拒绝/校验失败）：进入终态。
     case permanentFailure
+    /// C-3：带稳定大类与可选结构化上下文的执行结果。旧调用方可继续用无 context 的两态。
+    case failure(AhaKeyConfigurationStepFailure)
 }
 
 public struct AhaKeyConfigurationTransactionRunner {
@@ -46,7 +64,11 @@ public struct AhaKeyConfigurationTransactionRunner {
 
         // 2. planner（current-only + 容量校验）；拒绝即永久失败终态
         guard let desired = try? package.decodedConfigurationModel() else {
-            return try await finishTerminal(package: package, hasWrites: false)
+            return try await finishTerminal(
+                package: package,
+                hasWrites: false,
+                messageCode: .configurationEncodingFailed
+            )
         }
         let planning = AhaKeyConfigurationPlanner.plan(
             desired: desired,
@@ -55,12 +77,18 @@ public struct AhaKeyConfigurationTransactionRunner {
             protocolMode: protocolMode
         )
         guard case .success(let plan) = planning else {
-            return try await finishTerminal(package: package, hasWrites: false)
+            return try await finishTerminal(
+                package: package,
+                hasWrites: false,
+                messageCode: .configurationPlanRejected
+            )
         }
 
         // 3. 决策-执行循环
         var confirmed = try await store.confirmedSteps(for: package.operationID)
         let totalSteps = UInt32(AhaKeyConfigurationTransactionEngine.stepIdentifiers(for: plan).count)
+        var capturedMessageCode: AhaKeyRuntimeEventCode?
+        var capturedContext: AhaKeyRuntimeOperationFailureContext?
         var actions = AhaKeyConfigurationTransactionEngine.decide(
             event: .start,
             record: try await store.transaction(package.operationID),
@@ -80,12 +108,21 @@ public struct AhaKeyConfigurationTransactionRunner {
             case .none:
                 return try await store.transaction(package.operationID)?.state ?? .accepted
             case .persistState(let state):
-                try await persistNonTerminal(state, package: package,
-                                       completed: UInt32(confirmed.count), total: totalSteps)
+                let attachFailure = state == .resumablePartial || state == .paused
+                try await persistNonTerminal(
+                    state,
+                    package: package,
+                    completed: UInt32(confirmed.count),
+                    total: totalSteps,
+                    messageCode: attachFailure ? capturedMessageCode : nil,
+                    failureContext: attachFailure ? capturedContext : nil
+                )
                 actions.removeFirst()
             case .executeStep(let step):
-                switch await execute(step) {
-                case .success:
+                let report = unpacked(await execute(step), step: step)
+                if report.success {
+                    capturedMessageCode = nil
+                    capturedContext = nil
                     // 先落 WAL 再决策（崩溃即恢复点）
                     try await store.confirmStep(step, for: package.operationID)
                     confirmed = try await store.confirmedSteps(for: package.operationID)
@@ -93,14 +130,11 @@ public struct AhaKeyConfigurationTransactionRunner {
                         event: .stepSucceeded(step),
                         record: try await store.transaction(package.operationID),
                         confirmedSteps: confirmed, plan: plan)
-                case .retryableFailure:
+                } else {
+                    capturedMessageCode = report.messageCode
+                    capturedContext = report.context
                     actions = AhaKeyConfigurationTransactionEngine.decide(
-                        event: .stepFailedRetryable(step),
-                        record: try await store.transaction(package.operationID),
-                        confirmedSteps: confirmed, plan: plan)
-                case .permanentFailure:
-                    actions = AhaKeyConfigurationTransactionEngine.decide(
-                        event: .stepFailedPermanent(step),
+                        event: report.retryable ? .stepFailedRetryable(step) : .stepFailedPermanent(step),
                         record: try await store.transaction(package.operationID),
                         confirmedSteps: confirmed, plan: plan)
                 }
@@ -118,8 +152,14 @@ public struct AhaKeyConfigurationTransactionRunner {
                 return .completed
             case .commitTerminal(let state):
                 try await store.commitOperationOutcome(
-                    summary(package: package, state: state,
-                            completed: UInt32(confirmed.count), total: totalSteps),
+                    summary(
+                        package: package,
+                        state: state,
+                        completed: UInt32(confirmed.count),
+                        total: totalSteps,
+                        messageCode: capturedMessageCode,
+                        failureContext: capturedContext
+                    ),
                     syncBaseline: nil
                 )
                 return state
@@ -161,32 +201,99 @@ public struct AhaKeyConfigurationTransactionRunner {
 
     // MARK: - 私有
 
+    private struct StepReport {
+        let success: Bool
+        let retryable: Bool
+        let messageCode: AhaKeyRuntimeEventCode?
+        let context: AhaKeyRuntimeOperationFailureContext?
+    }
+
+    private func unpacked(
+        _ result: AhaKeyConfigurationStepResult,
+        step: AhaKeyRuntimeStepIdentifier
+    ) -> StepReport {
+        switch result {
+        case .success:
+            return StepReport(success: true, retryable: false, messageCode: nil, context: nil)
+        case .retryableFailure:
+            return StepReport(
+                success: false,
+                retryable: true,
+                messageCode: nil,
+                context: AhaKeyRuntimeOperationFailureContext(failedStepID: step)
+            )
+        case .permanentFailure:
+            return StepReport(
+                success: false,
+                retryable: false,
+                messageCode: nil,
+                context: AhaKeyRuntimeOperationFailureContext(failedStepID: step)
+            )
+        case .failure(let detail):
+            let context = (detail.context ?? AhaKeyRuntimeOperationFailureContext())
+                .mergingMissingStep(step)
+            return StepReport(
+                success: false,
+                retryable: detail.retryable,
+                messageCode: detail.messageCode,
+                context: context.isEmpty ? nil : context
+            )
+        }
+    }
+
     private func summary(
         package: AhaKeyConfigurationPackage,
         state: AhaKeyRuntimeOperationState,
-        completed: UInt32, total: UInt32
+        completed: UInt32,
+        total: UInt32,
+        messageCode: AhaKeyRuntimeEventCode? = nil,
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) -> AhaKeyRuntimeOperationSummary {
         AhaKeyRuntimeOperationSummary(
-            id: package.operationID, targetDeviceID: package.targetDeviceID,
-            state: state, completedSteps: completed, totalSteps: total, messageCode: nil
+            id: package.operationID,
+            targetDeviceID: package.targetDeviceID,
+            state: state,
+            completedSteps: completed,
+            totalSteps: total,
+            messageCode: state == .completed ? nil : messageCode,
+            failureContext: state == .completed ? nil : failureContext
         )
     }
 
     private func persistNonTerminal(
         _ state: AhaKeyRuntimeOperationState,
         package: AhaKeyConfigurationPackage,
-        completed: UInt32, total: UInt32
+        completed: UInt32,
+        total: UInt32,
+        messageCode: AhaKeyRuntimeEventCode? = nil,
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) async throws {
-        try await store.updateOperation(summary(package: package, state: state, completed: completed, total: total))
+        try await store.updateOperation(
+            summary(
+                package: package,
+                state: state,
+                completed: completed,
+                total: total,
+                messageCode: messageCode,
+                failureContext: failureContext
+            )
+        )
     }
 
     private func finishTerminal(
-        package: AhaKeyConfigurationPackage, hasWrites: Bool
+        package: AhaKeyConfigurationPackage,
+        hasWrites: Bool,
+        messageCode: AhaKeyRuntimeEventCode?
     ) async throws -> AhaKeyRuntimeOperationState {
         let state: AhaKeyRuntimeOperationState = hasWrites ? .failedWithPartialCommit : .failedWithoutWrites
         try await store.commitOperationOutcome(
-            summary(package: package, state: state, completed: 0,
-                    total: UInt32(package.resources.count)),
+            summary(
+                package: package,
+                state: state,
+                completed: 0,
+                total: UInt32(package.resources.count),
+                messageCode: messageCode
+            ),
             syncBaseline: nil
         )
         return state
