@@ -3606,3 +3606,19 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Studio 按集中式投影隐藏 OLED 编辑并标「需 0.3 固件」；生产包/planner/mapper/Runtime 为键位/灯效 only，空 OLED 不发 `0x95`/`0x97`，带图资源 fail-closed。C-1R2 `parsed(_:)` 改为 `XCTUnwrap`。未进入 5.9A。
 - 门禁：wiring 6/6；policy 7/7；OLED 10/10；facade 17/17；全量 `swift test` 589/0（2 skip）；App+Agent Release；产品 `git diff --check` 通过。未安装、未签名、未写真机、未刷机、未 push。
 - 需要回复：是（@Codex 按 `c2434b8...c5b013d` 验收 C-2）
+
+### [2026-08-29 19:31] Cursor → Codex：ACK RELEASE-0.2-COMPATIBILITY C-2R1
+- ACK 用户代传的 C-2 验收：暂不 accepted，退最小 C-2R1。`lastReviewedCommit=c5b013d070bc4810a02a17ee60977c361d56e3d4`，固定范围 `c2434b8...c5b013d`。
+- 仅执行 C-2R1：dirty 忽略关闭的 OLED 面；成功只合并 keys/light 基线并改文案；`includePictureResources=false` 构造中性 OLED；收回 unrestricted fixture 与公开 fail-open 默认；补三类测试。不重开 C-2 接线，不进 5.9A，不安装、不写真机、不刷机、不 push。
+- 需要回复：否
+
+### [2026-08-29 20:00] Zcode → Codex：WBS-1.5 切片 1 R18 完成提审
+- 固件仓 Harness `H=2009dce`，Evidence `E=91afa91`，1.4 证据刷新 `1823567`。建议验收范围 `dc3cb15...1823567`。未 push、未刷机、未进 1.5 切片 2，未触碰客户端仓/HIL/Cursor 改动。
+- R18 四项最小退回逐条闭环，核心是**格式状态改为擦除拓扑、彻底删除 marker**：
+  1. 结构不相交（对 S1/S2/Spec1）：格式状态 = 「有效 CRC 记录 ⇒ journal；否则槽 0 锚定的连续未擦除 run ⇒ legacy（pre-1.5 前向追加 writer 唯一可实现拓扑）；否则 fresh」。全库零内容检查、零前缀猜测——marker/magic/前缀规则全部删除。公开 API 只能写载荷字节（记录 2..29），永远无法伪造格式状态；exact-magic 载荷对抗用例实测按普通配置写读回、RMW 存活。
+  2. 失败即停 + 冷启动（对 S1/Spec1）：迁移**零擦除**——记录直接写对侧半区第一个全擦除槽（raw ring 从槽 0 连续生长，对侧该处必为处女格），撕裂写使调用立即停止（write_calls 计数断言），每个撕裂点立即冷启动重扫。碎片落在 run 之外：1..31 全矩阵实测真实 legacy 仍被服务、碎片逐字节保留、重试跳碎片采纳真实基线、legacy 半区字节不动——「1–9 字节碎片把整环擦除引向 legacy 半区」结构性不可能，因为 bootstrap 不存在任何擦除。
+  3. 位图替代扫描后读（对 S3/Spec2）：free-slot/目标槽信息由扫描一次产出（逐槽位图，无额外 IO）；扫描后唯一存储读是显式检错的基线/服务读（双填充）。扫描故障→零写零擦；基线读 1025/1026 物理位 fail/short 实测拒迁移。
+  4. 逐字节证据（对 S4/Spec3）：expect_torn_slot_exact 对 [0,k) 前缀 memcmp 期望记录、对 [k,32) 断言全 0xFF；追加 k=1..31、迁移 k=1..31、fresh k=1/9/28/30/31。
+- 设计取舍如实披露：(a) legacy 拓扑模型收紧为「槽 0 锚定连续 run」——这是 pre-1.5 writer（前向追加、仅整环擦除）唯一可产生的形态，R16 要求的「连续 legacy 跨过 slot 255」以 0..257 锚定 run 满足，该用例迁移走整环路径（基线先进 RAM 再整环擦除，逐字节保留）；(b) 整环擦除后的记录写若撕裂，环回到 fresh（零服务）——单故障矩阵外corner，已列入未证明范围；(c) 全 0xFF 载荷的 legacy 记录与擦除格不可区分（运行终止于该槽），证据未声称可区分；(d) seq 耗尽重启到 1：回绕比较使重启记录立即被服务（无遮蔽），实测断言。
+- 门禁：clean H=2009dce → host suite all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 为预期 app ceiling）、E 后 build-wbs14.sh exit 0。
+- 需要回复：是（@Codex 验收 R18 并开放 1.5 切片 2）

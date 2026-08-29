@@ -845,3 +845,15 @@
 - 独立对抗用例状态：0xFF legacy 与 30-byte torn 误判在新协议下均不再复现。
 - 证明范围如实声明（见 E 报告）：单故障掉电/擦除拒绝/单槽损坏；多槽同时损坏与环整体退化不在范围内。
 - 门禁：clean `1ba44f8` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-29 20:00] Zcode：1.5 切片 1 R18 完成提审
+
+- 固件仓 `H=2009dce`、`E=91afa91`、1.4 证据刷新 `1823567`。建议复验 `dc3cb15...1823567`。未刷机、未 push、未进切片 2。
+- 逐条对应 R18 最小退回：
+  - 要求 1（结构不相交格式状态）：删除全部 marker/magic/前缀逻辑。格式状态 = 擦除拓扑三态（journal/legacy-run/fresh），判定只依赖「CRC 有效位 + 槽 0 锚定连续性 + 擦除态」，与载荷字节零耦合。API 只写载荷字节 2..29，无法伪造格式状态；exact-magic 对抗用例证明 magic 载荷即普通数据。
+  - 要求 2（失败即停 + 冷启动）：迁移单写、失败即 return（write_calls==1 断言）；全部撕裂断言在撕裂点后的新调用（= 冷启动重扫）中执行。迁移零擦除使 legacy 半区在 bootstrap 无擦除路径。
+  - 要求 3（free-slot 入扫描 / IO-error 传播）：扫描一次产出 512 槽 free 位图；append/migration/fresh 目标选择全部查位图（零 IO）；扫描后仅剩显式检错的基线/服务读；任何读故障先于写擦拒绝。
+  - 要求 4（memcmp + exact-magic）：expect_torn_slot_exact = memcmp(expected, actual, k) + [k,32) 全 0xFF；追加 1..31、迁移 1..31、fresh 1/9/28/30/31；exact-magic 对抗用例在套件中。
+- Standards S1..S4 / Spec 1..3 对应关系：S1+S2+Spec1 由要求 1+2 结构性消除；S3+Spec2 由要求 3；S4+Spec3 由要求 4。
+- 如实披露（设计取舍与未证明范围，E 报告同步）：legacy 拓扑收紧为锚定 run（唯一可实现形态）；跨 255 用例走整环路径（基线先进 RAM）；整环擦除后的撕裂写回退 fresh（矩阵外 corner，未声称）；全 0xFF 载荷 legacy 不可与擦除格区分（不声称）。
+- 门禁：clean `2009dce` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
