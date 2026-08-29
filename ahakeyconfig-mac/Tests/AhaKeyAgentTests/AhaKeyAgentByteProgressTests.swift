@@ -381,6 +381,88 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         )
     }
 
+    func testRefreshedTerminalsKeepNewestWindowWithoutPublish() async throws {
+        let storeDir = testRoot.appendingPathComponent("store-c3r5-refresh-order", isDirectory: true)
+        try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let window = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
+        let total = window + 2
+        let gate = ApplyReplayGate()
+        let agent = makeAgent(skipBLE: true, storeDirectory: storeDir)
+        var hooks = agent.executionTestHooks
+        hooks?.stepExecutor = { _ in
+            await gate.waitForReplay()
+            return .permanentFailure
+        }
+        agent.executionTestHooks = hooks
+        await agent.simulateDeviceForTesting(simulatedDevice())
+        let assembled = try makeAssembledResources(fileCount: 1)
+        try await ingest(agent, assembled: assembled)
+
+        var packages: [AhaKeyConfigurationPackage] = []
+        for _ in 0..<total {
+            let package = try makePackage(from: assembled)
+            packages.append(package)
+            let response = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .operationAccepted = response else {
+                return XCTFail("apply 必须受理，实际 \(response)")
+            }
+        }
+        try await waitUntil {
+            guard case .snapshot(let snapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return false
+            }
+            return snapshot.operations.count == total
+        }
+
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+        var interleaved: [AhaKeyConfigurationPackage] = []
+        interleaved.append(contentsOf: packages.enumerated().reversed().compactMap { index, package in
+            index % 2 == 1 ? package : nil
+        })
+        interleaved.append(contentsOf: packages.enumerated().reversed().compactMap { index, package in
+            index % 2 == 0 ? package : nil
+        })
+        XCTAssertEqual(interleaved.count, total)
+        for package in interleaved {
+            try await store.commitOperationOutcome(
+                AhaKeyRuntimeOperationSummary(
+                    id: package.operationID,
+                    targetDeviceID: package.targetDeviceID,
+                    state: .failedWithoutWrites,
+                    completedSteps: 0,
+                    totalSteps: 0
+                ),
+                syncBaseline: nil
+            )
+        }
+        let newestIDs = Set(interleaved.suffix(window).map(\.operationID))
+        let droppedIDs = Set(interleaved.prefix(total - window).map(\.operationID))
+
+        let live = try await agent.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let snapshot) = live else {
+            return XCTFail("刷新后 snapshot 必须成功，实际 \(live)")
+        }
+        let liveTerminals = snapshot.operations.filter(\.state.isTerminal)
+        XCTAssertEqual(liveTerminals.count, window, "多个刷新新终态必须按 terminal_order 取最新 64")
+        XCTAssertEqual(Set(liveTerminals.map(\.id)), newestIDs)
+        XCTAssertTrue(droppedIDs.isDisjoint(with: Set(liveTerminals.map(\.id))))
+
+        await agent.closeRuntimeStoreForTesting()
+        agent.shutdown()
+        agents.removeAll { $0 === agent }
+
+        let restarted = makeAgent(skipBLE: true, storeDirectory: storeDir)
+        let restartedLive = try await restarted.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let restartedSnapshot) = restartedLive else {
+            return XCTFail("重启 snapshot 必须成功，实际 \(restartedLive)")
+        }
+        let restartedTerminals = restartedSnapshot.operations.filter(\.state.isTerminal)
+        XCTAssertEqual(restartedTerminals.count, window)
+        XCTAssertEqual(Set(restartedTerminals.map(\.id)), newestIDs)
+        XCTAssertEqual(Set(restartedTerminals.map(\.id)), Set(liveTerminals.map(\.id)))
+        await gate.allowContinue()
+    }
+
     func testCancelAfterFirstResourceDoesNotAdvanceIntoNextResourceBytes() async throws {
         let agent = makeAgent(skipBLE: true)
         let probe = StepProbe()

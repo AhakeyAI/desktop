@@ -2563,7 +2563,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             var policy: AhaKeyRuntimePolicy
             var latestEventSequence: AhaKeyRuntimeEventSequence
             var cachedOperations: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary]
-            var projectionTerminalOrder: [AhaKeyRuntimeOperationID]
             var byteProgress: [AhaKeyRuntimeOperationID: AhaKeyByteProgressProjector]
         }
         let main = await MainActor.run { () -> MainPart in
@@ -2574,7 +2573,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 policy: self.currentPolicy,
                 latestEventSequence: self.projectionLatestSequence,
                 cachedOperations: self.projectionOperations,
-                projectionTerminalOrder: self.projectionTerminalOrder,
                 byteProgress: self.byteProgressByOperation
             )
         }
@@ -2595,20 +2593,36 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
             }
             // 单一有界窗口：内存终态优先（含淘汰后重放、刷新后新转入终态的项），
-            // 再按 WAL terminal-transition order 从最新补足到 64。不裁剪缓存。
+            // 刷新新终态按 WAL terminal_order DESC 排序，再补足到 64。不裁剪缓存。
             let limit = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
             var bounded: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary] = [:]
             for (id, summary) in operations where !summary.state.isTerminal {
                 bounded[id] = summary
             }
             var terminalCount = 0
-            let extras = operations.keys.filter { id in
-                operations[id]?.state.isTerminal == true
-                    && !main.projectionTerminalOrder.contains(id)
+            let memoryTerminalIDs = operations.keys.filter { operations[$0]?.state.isTerminal == true }
+            // API 在窗口内 oldest-first（newest 在末尾）；反转后再按 terminal_order DESC 选窗。
+            let walNewestFirst = Array(((try? await store.recentTerminalTransactions(
+                limit: max(limit, memoryTerminalIDs.count)
+            )) ?? []).reversed())
+            var walRank: [AhaKeyRuntimeOperationID: Int] = [:]
+            walRank.reserveCapacity(walNewestFirst.count)
+            for (index, terminal) in walNewestFirst.enumerated() {
+                walRank[terminal.operationID] = index
             }
-            var memoryTerminalIDs = extras
-            memoryTerminalIDs.append(contentsOf: main.projectionTerminalOrder.reversed())
-            for id in memoryTerminalIDs {
+            let orderedMemoryTerminals = memoryTerminalIDs.sorted { lhs, rhs in
+                switch (walRank[lhs], walRank[rhs]) {
+                case let (left?, right?):
+                    return left < right
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    return lhs.rawValue.uuidString < rhs.rawValue.uuidString
+                }
+            }
+            for id in orderedMemoryTerminals {
                 guard terminalCount < limit else { break }
                 guard let summary = operations[id], summary.state.isTerminal else { continue }
                 if bounded[id] == nil {
@@ -2616,13 +2630,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     terminalCount += 1
                 }
             }
-            if let terminals = try? await store.recentTerminalTransactions() {
-                for terminal in terminals.reversed() {
-                    guard terminalCount < limit else { break }
-                    if bounded[terminal.operationID] == nil {
-                        bounded[terminal.operationID] = Self.operationSummary(from: terminal)
-                        terminalCount += 1
-                    }
+            for terminal in walNewestFirst {
+                guard terminalCount < limit else { break }
+                if bounded[terminal.operationID] == nil {
+                    bounded[terminal.operationID] = Self.operationSummary(from: terminal)
+                    terminalCount += 1
                 }
             }
             operations = bounded

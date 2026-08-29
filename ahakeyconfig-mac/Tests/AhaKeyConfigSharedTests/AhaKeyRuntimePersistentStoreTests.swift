@@ -562,7 +562,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             private var acquiredAtStorage: Date?
             private var userVersionStorage: Int32 = -1
             private var beginResultStorage: Int32 = -1
-            private var assignedOrderStorage: Int64 = -1
+            private var updateResultStorage: Int32 = -1
             var acquiredAt: Date? {
                 lock.lock(); defer { lock.unlock() }
                 return acquiredAtStorage
@@ -575,16 +575,16 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 lock.lock(); defer { lock.unlock() }
                 return beginResultStorage
             }
-            var assignedOrder: Int64 {
+            var updateResult: Int32 {
                 lock.lock(); defer { lock.unlock() }
-                return assignedOrderStorage
+                return updateResultStorage
             }
-            func mark(beginResult: Int32, userVersion: Int32, assignedOrder: Int64) {
+            func mark(beginResult: Int32, userVersion: Int32, updateResult: Int32) {
                 lock.lock()
                 acquiredAtStorage = Date()
                 beginResultStorage = beginResult
                 userVersionStorage = userVersion
-                assignedOrderStorage = assignedOrder
+                updateResultStorage = updateResult
                 lock.unlock()
             }
         }
@@ -629,7 +629,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let concurrentTask = Task.detached {
             let begin = sqlite3_exec(preexistingHandle, "BEGIN IMMEDIATE", nil, nil, nil)
             var version: Int32 = -1
-            var assigned: Int64 = -1
+            var updateResult: Int32 = -1
             if begin == SQLITE_OK {
                 var versionStatement: OpaquePointer?
                 if sqlite3_prepare_v2(preexistingHandle, "PRAGMA user_version", -1, &versionStatement, nil) == SQLITE_OK {
@@ -638,41 +638,31 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     }
                     sqlite3_finalize(versionStatement)
                 }
-                var maxStatement: OpaquePointer?
-                if sqlite3_prepare_v2(
-                    preexistingHandle,
-                    "SELECT COALESCE(MAX(terminal_order), 0) FROM runtime_transactions",
-                    -1,
-                    &maxStatement,
-                    nil
-                ) == SQLITE_OK {
-                    if sqlite3_step(maxStatement) == SQLITE_ROW {
-                        assigned = sqlite3_column_int64(maxStatement, 0) + 1
-                    }
-                    sqlite3_finalize(maxStatement)
-                }
                 var update: OpaquePointer?
                 if sqlite3_prepare_v2(
                     preexistingHandle,
                     """
                     UPDATE runtime_transactions
-                    SET state = 'failedWithoutWrites', terminal_order = ?
+                    SET state = 'failedWithoutWrites',
+                        completed_steps = 0,
+                        total_steps = 2,
+                        message_code = NULL,
+                        failure_context = NULL
                     WHERE operation_id = ?
                     """,
                     -1,
                     &update,
                     nil
                 ) == SQLITE_OK {
-                    sqlite3_bind_int64(update, 1, assigned)
                     acceptedID.withCString {
-                        sqlite3_bind_text(update, 2, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                        sqlite3_bind_text(update, 1, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
                     }
-                    sqlite3_step(update)
+                    updateResult = sqlite3_step(update)
                     sqlite3_finalize(update)
                 }
                 sqlite3_exec(preexistingHandle, "COMMIT", nil, nil, nil)
             }
-            gate.mark(beginResult: begin, userVersion: version, assignedOrder: assigned)
+            gate.mark(beginResult: begin, userVersion: version, updateResult: updateResult)
         }
 
         try await Task.sleep(nanoseconds: 500_000_000)
@@ -684,15 +674,36 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertGreaterThan(gate.acquiredAt ?? .distantPast, releaseTime)
         XCTAssertEqual(gate.beginResult, SQLITE_OK)
         XCTAssertEqual(gate.userVersion, AhaKeyRuntimePersistentStore.schemaVersion)
-        XCTAssertGreaterThan(gate.assignedOrder, 0)
+        XCTAssertEqual(gate.updateResult, SQLITE_DONE)
 
         let health = try await store.health()
         XCTAssertEqual(health.schemaVersion, 4)
+        XCTAssertTrue(try terminalOrderTriggerExists(root: root))
+        let historicalOrder = try XCTUnwrap(try terminalOrder(root: root, operationID: historical.operationID))
+        let migratedLegacyOrder = try XCTUnwrap(try terminalOrder(root: root, operationID: accepted.operationID))
+        XCTAssertGreaterThan(migratedLegacyOrder, historicalOrder)
+
+        let explicit = try makePackage()
+        _ = try await store.accept(explicit, resourceFiles: [:])
+        try await store.commitOperationOutcome(
+            AhaKeyRuntimeOperationSummary(
+                id: explicit.operationID,
+                targetDeviceID: explicit.targetDeviceID,
+                state: .failedWithoutWrites,
+                completedSteps: 0,
+                totalSteps: 2
+            ),
+            syncBaseline: nil
+        )
+        let explicitOrder = try XCTUnwrap(try terminalOrder(root: root, operationID: explicit.operationID))
+        XCTAssertEqual(explicitOrder, migratedLegacyOrder + 1, "v4 显式 order 不得被兼容 trigger 二次改写")
+
         let terminals = try await store.recentTerminalTransactions()
-        XCTAssertEqual(Set(terminals.map(\.operationID)), [historical.operationID, accepted.operationID])
+        XCTAssertEqual(
+            Set(terminals.map(\.operationID)),
+            [historical.operationID, accepted.operationID, explicit.operationID]
+        )
         XCTAssertEqual(try nullTerminalOrderCount(root: root), 0)
-        XCTAssertEqual(try terminalOrder(root: root, operationID: accepted.operationID), gate.assignedOrder)
-        XCTAssertNotNil(try terminalOrder(root: root, operationID: historical.operationID))
     }
 
     func testAcceptanceRejectsSymbolicLinkResourceSources() async throws {
@@ -1356,6 +1367,31 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         defer { sqlite3_finalize(statement) }
         XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
         return Int(sqlite3_column_int(statement, 0))
+    }
+
+    private func terminalOrderTriggerExists(root: URL) throws -> Bool {
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        var statement: OpaquePointer?
+        XCTAssertEqual(
+            sqlite3_prepare_v2(
+                database,
+                """
+                SELECT COUNT(*) FROM sqlite_master
+                WHERE type = 'trigger'
+                  AND name = 'runtime_transactions_assign_terminal_order'
+                """,
+                -1,
+                &statement,
+                nil
+            ),
+            SQLITE_OK
+        )
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+        return sqlite3_column_int(statement, 0) == 1
     }
 
     private func terminalOrder(

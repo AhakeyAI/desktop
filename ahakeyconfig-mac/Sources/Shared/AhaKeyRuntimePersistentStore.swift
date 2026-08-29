@@ -210,6 +210,23 @@ public actor AhaKeyRuntimePersistentStore {
     public static let schemaVersion: Int32 = 4
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
     public static let snapshotProjectionTerminalLimit = 64
+    /// 旧 v3 writer 只更新既有列、不写 `terminal_order`。迁移后该 trigger 仅在
+    /// 状态进入终态且 order 仍为 NULL 时分配 MAX+1；显式写入的 v4 order 不被覆盖。
+    static let terminalOrderCompatibilityTriggerSQL = """
+        CREATE TRIGGER IF NOT EXISTS runtime_transactions_assign_terminal_order
+        AFTER UPDATE OF state ON runtime_transactions
+        FOR EACH ROW
+        WHEN NEW.state IN ('completed', 'failedWithoutWrites', 'failedWithPartialCommit')
+         AND NEW.terminal_order IS NULL
+        BEGIN
+            UPDATE runtime_transactions
+            SET terminal_order = (
+                SELECT COALESCE(MAX(terminal_order), 0) FROM runtime_transactions
+            ) + 1
+            WHERE operation_id = NEW.operation_id
+              AND terminal_order IS NULL;
+        END
+        """
 
     private let database: OpaquePointer
     private let resourcesDirectory: URL
@@ -432,6 +449,7 @@ public actor AhaKeyRuntimePersistentStore {
                             on: handle
                         )
                         try Self.execute("DROP TABLE terminal_order_backfill", on: handle)
+                        try Self.execute(Self.terminalOrderCompatibilityTriggerSQL, on: handle)
                     }
                     try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
                     AhaKeyRuntimeStoreSchemaMigrationTestingHooks.insideWriteTransaction?()
@@ -440,6 +458,8 @@ public actor AhaKeyRuntimePersistentStore {
                     try? Self.execute("ROLLBACK", on: handle)
                     throw error
                 }
+            } else {
+                try Self.execute(Self.terminalOrderCompatibilityTriggerSQL, on: handle)
             }
             }
         } catch {
