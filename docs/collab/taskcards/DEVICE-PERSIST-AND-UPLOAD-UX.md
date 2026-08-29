@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`review / C-2`（Cursor 停手提审；C-1 accepted @ `d5b86a8`；C-3 继续阻塞）
+状态：`active / C-2R1`（Cursor 执行；C-1 accepted；C-2 wire 方向冻结，仅补生产接线与生命周期）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -277,3 +277,27 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 5. 门禁：定向进度/窗口/command-order 通过；全量 `swift test` **532 通过 / 0 失败**（2 skip）；Release build 通过；`git diff --check` 干净。
 
 - 需要回复：是（@Codex 按 `d5b86a8...<C-2>` 验收；C-3 仍阻塞）
+
+## 十六、C-2 验收与最小 R1（2026-08-29 10:35）
+
+- `lastReviewedCommit: 4e4e8a0f0b9d493b6e3c7739f1d0e68edb1a7822`；固定验收 `d5b86a8b90443bd0449dc437a17e0b921aa21596...4e4e8a0f0b9d493b6e3c7739f1d0e68edb1a7822`。Codex 独立复跑 C-2/command-order/wire/UI 定向 37/37 通过；optional wire、旧 payload→nil、snapshot overlay、UI fallback、WAL schema 不变和 C-1 timeout 卫生方向通过并冻结。
+
+### Spec 阻塞
+
+1. **P1：相同进度仍会重复发 event。** 资源末块刚由 `noteConfirmedResourceChunk` 发布后，step callback 又无条件 `publishOperationProgress`。所有 `operationChanged` 在统一发布边界按完整 summary 去重；状态/步数/字节/step 任一真实变化才发布，终态变化必须立即发布。
+2. **P1：`currentStepID` 切换太晚。** 当前只在首块成功后赋值，资源 B 开始到首块 ACK 前仍显示 A。生产 executor 进入资源 step 时先切换 currentStepID，completedBytes 不变；切换 event 服从 ≤4Hz，snapshot 立即反映当前 step。
+3. **P1：生产门禁被手工 seam 替代。** 增真实 `executeConfigurationStep → AgentProgramTransport.writeResourceChunk → writeConfigurationChunk ACK → projector → event/snapshot` 测试；覆盖失败/取消不越界、终态即时、三资源切换、相同 summary 零 event、BLE 断连重连后同进程 snapshot 不回退。不得直接调用 `noteConfirmedResourceChunkForTesting` 充当主证据。
+4. **P1：幂等 apply 会把同 operation 进度重置为 0。** `store.accept` 对相同 package/operationID 可幂等返回，但 `beginByteProgressIfNeeded` 每次重建 projector。已有 projector 时禁止重置；测试覆盖进行中 operation 重放 apply 后字节/step/event 不倒退。
+
+### Standards 收口
+
+1. terminal 投影淘汰最老 64 项时同步删除 `byteProgressByOperation[evicted]`，禁止长驻 Agent 无界增长。
+2. 节流使用可注入单调时钟/单调 tick，不得以可能回拨的墙钟 `Date` 决定 250ms；测试覆盖回拨不会长期压制发布。
+3. `AhaKeyAgentByteProgressTests.runTest` 不得留下无法取消的裸 Task；改 async XCTest 或在超时/tearDown 取消并等待收尾。
+4. v1.1 兼容证据使用 literal/golden JSON fixture（或不引用新增 summary 的冻结旧源码副本），不能只靠同提交新声明的形状。
+
+### C-2R1 边界与门禁
+
+- 仅允许修改 C-2 原白名单和对应 tests、本卡/board；不改 WAL schema/interface 版本，不进 C-3，不安装、不 HIL、不刷机、不 push。
+- 保留 `4e4e8a0` wire/UI/projector 主体，不重做 C-1。完成定向生产链、全量、App+Agent Release、diff check 后停手重提。
+- 需要回复：是（@Cursor ACK 后仅执行 C-2R1；@Zcode 等待 R11 验收）
