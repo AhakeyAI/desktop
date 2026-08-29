@@ -831,3 +831,17 @@
   - P3 真撕裂：seam 落 16 字节前缀后失败；append 跳撕裂槽；撕裂字节保留；fresh 环上撕裂前缀亦不进基线（fresh 语义 + 原字节保留）。
 - 如实披露：R16 中途曾引入 `legacy_newest_slot` 无条件 return 1 回归（8 项 host 失败），已在 H16 修复并复跑全部门禁；跨 255 场景被回收半区的旧 legacy 记录（254/255）按 R15 已接受的对侧回收语义擦除，仅保留最新记录所在半区，证据中如实断言。
 - 门禁：clean `8656bd4` → host suite all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 为预期）、build-wbs14.sh exit 0。
+
+### [2026-08-29 18:20] Zcode：1.5 切片 1 R17 完成提审
+
+- 固件仓 `H=1ba44f8`、`E=a4e6cf1`、1.4 证据刷新 `dc3cb15`。建议复验 `52b008d...dc3cb15`。未刷机、未 push、未进切片 2。
+- 逐条对应 R17 退回要求：
+  - 要求 1（持久格式状态）：记录格式不变（seq:u16+payload:28+CRC16）；有效 CRC ⇒ journal 格式（持久、无歧义）；payload==`journal_fmt_magic` 的有效记录 = PREP 标记；其余有效记录 = COMMITTED。bootstrap 双标记 + 记录（seq 2），单撕裂写后环仍为 JOURNAL；撕裂标记碎片按 magic 前缀+0xFF 尾识别为协议残片（识别协议自身哨兵，非对用户数据的内容启发）。
+  - 要求 2（迁移前 legacy 读）：`eeprom_read_data` 在无有效配置记录时服务最新 legacy 载荷，测试逐字节断言（含 0xFF 载荷）。
+  - 要求 3（扫描三态）：`scan_ring` 任一槽 `read_full` 失败 ⇒ 整扫描失败；写路径零写零擦拒绝；测试 arm 扫描中段故障断言拒绝且干净重读仍服务最新。
+  - 要求 4（双填充检测）：`read_full` 0x55/0xAA 双填充；基线物理读 1025（第一遍）与 1026（第二遍）的 fail 与 partial 均拒迁移；服务路径 partial 关零。
+  - 要求 5（0xFF legacy + 1..31 撕裂）：legacy 载荷 0xFF 字节服务/采纳/落盘逐字节断言；seam 撕裂矩阵 k=1..31 断言前记录服务、前缀逐字节保留、尾擦除、跳槽、恢复；迁移 commit 28/30 与 marker 撕裂（位置 10/30）自愈另测。
+  - 要求 6（seam 真撕裂）：seam `write_fail_prefix` 控制断点，所有撕裂用例经 seam 制造；手工 fixture 撕裂用例已删除（字节翻转仅保留用于位腐矩阵，与撕裂区分）。
+- 独立对抗用例状态：0xFF legacy 与 30-byte torn 误判在新协议下均不再复现。
+- 证明范围如实声明（见 E 报告）：单故障掉电/擦除拒绝/单槽损坏；多槽同时损坏与环整体退化不在范围内。
+- 门禁：clean `1ba44f8` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
