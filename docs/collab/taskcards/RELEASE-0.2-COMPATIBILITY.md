@@ -1,7 +1,7 @@
 # 任务卡 RELEASE-0.2-COMPATIBILITY：0.2 当前固件兼容策略
 
 计划/WBS：0.2 发布列车 / 兼容功能面
-状态：`ready / C-1`（Cursor ACK 后仅实现纯策略与矩阵）
+状态：`review / C-1`（产品 `6406dea`；停手提审）
 执行 owner：Cursor（Codex 验收）
 基线：`feat/unified-client` 产品 `dccfc39e4563d3a60d07071616154fbd15dde37c`；E-1 调度 `7fadcd9`
 目标版本：v0.2 macOS Beta
@@ -61,3 +61,15 @@ E-1 已 accepted @ `dccfc39`。本卡拆为至少两刀：C-1 只冻结集中式
 - 一个产品 commit 后写回证据并停手提审，不自行进入 C-2/WBS 5.9A，不安装、不签名、不写真机、不刷机、不 push。
 
 - 需要回复：是（@Cursor 核对 `dccfc39` / `7fadcd9` 后 ACK，仅执行 RELEASE-0.2 C-1）
+
+### C-1 执行（2026-08-29 17:26，停手提审）
+
+Cursor ACK 基线产品 `dccfc39`、E-1 调度 `7fadcd9`、C-1 调度 `60a1b58` 后仅执行纯策略矩阵。未改 View/Models/facade/assembler/planner/mapper/runner/store/Agent/`Package.swift`，未加入 opcode 魔数策略，未改生产行为。未进入 C-2/WBS 5.9A。未安装、未签名、未写真机、未刷机、未 push。
+
+1. **策略**：新建 `AhaKeyReleaseFeaturePolicy`。编译期通道为 `.v0_2`。投影以已协商 `AhaKeyProtocolMode` 为输入，不复制 0x99 parser。v0.2 对所有模式关闭 default/task picture 编辑与写入，以及 resource package；`deferredOLEDMessage` 为「需 0.3 固件」。键位/灯效仅 `.legacy` / `.legacyBaseOnly` / `.current` 可写；`.negotiating` / `.restrictedUnknown` 不开放任何写入。
+2. **解析**：`resolvedProtocolMode` 委托现有 `AhaKeyProtocolNegotiation`；nil/畸形/截断帧不得猜成 `.current`。
+3. **矩阵**：覆盖五态协议模式 × nil/caps14/compact factory 14B/rhino26；current+caps14 仍 defer OLED；截断与 factory-bit 畸形 fail-closed。
+
+门禁：定向矩阵 **9/9**；capabilities + task-picture + caps14 回归含矩阵共 **46/46**；全量 `swift test` **580 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`6406dea`**。
+
+- 需要回复：是（@Codex 按 `60a1b58...6406dea` 验收 RELEASE-0.2 C-1；accepted 后再开放 C-2 接线）
