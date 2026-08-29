@@ -672,4 +672,53 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertEqual(desired.modes[0].lightBar.brightness, 35)
         await facade.stop()
     }
+
+    func testV02DefaultApplySucceedsWithMalformedOLEDDraft() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+        )
+        var mode = applyModeInput()
+        mode.oled = AhaKeyStudioOLEDInput(
+            statusLine: "stale-broken-oled",
+            framesPerSecond: 99,
+            taskSets: [
+                AhaKeyStudioTaskSetInput(assets: [
+                    AhaKeyStudioTaskAssetInput(state: .idle, framesPerSecond: 12),
+                    AhaKeyStudioTaskAssetInput(state: .working, framesPerSecond: 12),
+                    AhaKeyStudioTaskAssetInput(state: .waiting, framesPerSecond: 12),
+                    gifAsset(.done, name: "broken", frames: 6),
+                ])
+            ],
+            activeSet: 0
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let operationID = try await facade.apply(
+            modes: [mode],
+            scope: .init(modeSlot: 0),
+            targetDeviceID: device,
+            baseRevision: .init(7)
+        )
+        XCTAssertEqual(transport.requestLog, ["apply"])
+        XCTAssertNil(transport.ingestedItems)
+        let package = try XCTUnwrap(transport.appliedPackage)
+        XCTAssertEqual(package.operationID, operationID)
+        XCTAssertTrue(package.resources.isEmpty)
+        let desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
+        XCTAssertNil(desired.modes[0].oled.defaultAnimation)
+        XCTAssertEqual(desired.modes[0].oled.activeSet, -1)
+        XCTAssertEqual(desired.modes[0].oled.statusLine, "")
+        XCTAssertEqual(desired.modes[0].oled.framesPerSecond, 12)
+        XCTAssertEqual(desired.modes[0].oled.taskSets.count, 2)
+        XCTAssertTrue(desired.modes[0].oled.taskSets.allSatisfy { set in
+            set.assets.allSatisfy { $0.resource == nil }
+        })
+        XCTAssertEqual(desired.modes[0].keys.count, 1)
+        XCTAssertEqual(desired.modes[0].keys[0].description, "Accept")
+        XCTAssertEqual(desired.modes[0].lightBar.brightness, 35)
+        await facade.stop()
+    }
 }
