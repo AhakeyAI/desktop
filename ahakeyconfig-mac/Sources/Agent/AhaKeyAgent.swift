@@ -334,9 +334,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         processDetector.stop()
         _ = powerProtection.deactivateAll()
         // 编排器侧清理（模块 stop 委托到 deactivate，与上面幂等重叠无害）
-        Task { [weak self] in
-            await self?.orchestrator.stopAll()
-        }
+        Task { await orchestrator.stopAll() }
         lockRetryItem?.cancel()
         lockRetryItem = nil
         connectionLock.release()
@@ -2588,7 +2586,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
             }
             // 终态不在 recoveryCandidates 内；新 Agent 内存缓存为空时必须从 WAL 投影。
-            // 窗口与 projectionTerminalOrder 64 上限对齐，避免把已淘汰终态拉回 snapshot。
+            // 窗口按 terminal-transition order，与 projectionTerminalOrder 64 上限对齐。
+            // 不裁剪缓存：淘汰后幂等 apply 会把 durable 终态重新放入投影，即使它已不在 WAL 窗口。
             if let terminals = try? await store.recentTerminalTransactions() {
                 for terminal in terminals where operations[terminal.operationID] == nil {
                     operations[terminal.operationID] = Self.operationSummary(from: terminal)

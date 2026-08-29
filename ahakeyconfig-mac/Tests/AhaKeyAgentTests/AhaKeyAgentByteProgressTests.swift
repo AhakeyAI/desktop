@@ -233,6 +233,70 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         XCTAssertNotNil(again, "全新 Agent 必须从 WAL 终态行投影失败上下文")
     }
 
+    func testOutOfOrderTerminalWindowMatchesInProcessAndFreshAgent() async throws {
+        let storeDir = testRoot.appendingPathComponent("store-c3r2-terminal-order", isDirectory: true)
+        try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let window = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
+        var packages: [AhaKeyConfigurationPackage] = []
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+            for _ in 0..<(window + 1) {
+                let package = try AhaKeyConfigurationPackage(
+                    targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+                    baseRevision: .init(0),
+                    desiredConfiguration: Data("configuration-v1".utf8),
+                    resources: []
+                )
+                _ = try await store.accept(package, resourceFiles: [:])
+                packages.append(package)
+            }
+            for package in packages.reversed() {
+                try await store.commitOperationOutcome(
+                    AhaKeyRuntimeOperationSummary(
+                        id: package.operationID,
+                        targetDeviceID: package.targetDeviceID,
+                        state: .failedWithoutWrites,
+                        completedSteps: 0,
+                        totalSteps: 0
+                    ),
+                    syncBaseline: nil
+                )
+            }
+        }
+        let firstAccepted = packages[0]
+        let firstTerminal = packages[window]
+
+        let agent = makeAgent(skipBLE: true, storeDirectory: storeDir)
+        let live = try await agent.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let snapshot) = live else {
+            return XCTFail("snapshot 必须成功，实际 \(live)")
+        }
+        let liveTerminals = snapshot.operations.filter(\.state.isTerminal)
+        XCTAssertEqual(liveTerminals.count, window)
+        XCTAssertNil(liveTerminals.first { $0.id == firstTerminal.operationID })
+        XCTAssertEqual(
+            liveTerminals.first { $0.id == firstAccepted.operationID }?.state,
+            .failedWithoutWrites
+        )
+
+        await agent.closeRuntimeStoreForTesting()
+        agent.shutdown()
+        agents.removeAll { $0 === agent }
+
+        let restarted = makeAgent(skipBLE: true, storeDirectory: storeDir)
+        let restartedLive = try await restarted.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let restartedSnapshot) = restartedLive else {
+            return XCTFail("重启 snapshot 必须成功，实际 \(restartedLive)")
+        }
+        let restartedTerminals = restartedSnapshot.operations.filter(\.state.isTerminal)
+        XCTAssertEqual(restartedTerminals.count, window)
+        XCTAssertNil(restartedTerminals.first { $0.id == firstTerminal.operationID })
+        XCTAssertEqual(
+            restartedTerminals.first { $0.id == firstAccepted.operationID }?.state,
+            .failedWithoutWrites
+        )
+    }
+
     func testCancelAfterFirstResourceDoesNotAdvanceIntoNextResourceBytes() async throws {
         let agent = makeAgent(skipBLE: true)
         let probe = StepProbe()

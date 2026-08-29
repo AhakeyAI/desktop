@@ -187,7 +187,7 @@ struct AhaKeyRuntimeStoreTestingHooks {
 }
 
 public actor AhaKeyRuntimePersistentStore {
-    public static let schemaVersion: Int32 = 3
+    public static let schemaVersion: Int32 = 4
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
     public static let snapshotProjectionTerminalLimit = 64
 
@@ -373,6 +373,40 @@ public actor AhaKeyRuntimePersistentStore {
                         on: handle
                     )
                 }
+            }
+            if existingSchemaVersion < 4 {
+                if try !Self.table(handle, "runtime_transactions", hasColumn: "terminal_order") {
+                    try Self.execute(
+                        "ALTER TABLE runtime_transactions ADD COLUMN terminal_order INTEGER",
+                        on: handle
+                    )
+                }
+                // 历史终态没有进入终态时刻；只能按受理 rowid 回填，之后的提交用严格单调序号。
+                try Self.execute(
+                    """
+                    CREATE TEMP TABLE terminal_order_backfill AS
+                    SELECT operation_id,
+                           ROW_NUMBER() OVER (ORDER BY rowid) AS assigned
+                    FROM runtime_transactions
+                    WHERE state IN (
+                        'completed', 'failedWithoutWrites', 'failedWithPartialCommit'
+                    )
+                      AND terminal_order IS NULL
+                    """,
+                    on: handle
+                )
+                try Self.execute(
+                    """
+                    UPDATE runtime_transactions
+                    SET terminal_order = (
+                        SELECT assigned FROM terminal_order_backfill
+                        WHERE terminal_order_backfill.operation_id = runtime_transactions.operation_id
+                    )
+                    WHERE operation_id IN (SELECT operation_id FROM terminal_order_backfill)
+                    """,
+                    on: handle
+                )
+                try Self.execute("DROP TABLE terminal_order_backfill", on: handle)
             }
             if existingSchemaVersion < Self.schemaVersion {
                 try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
@@ -930,7 +964,7 @@ public actor AhaKeyRuntimePersistentStore {
 
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
-            try updateOperationRow(summary)
+            try updateOperationRow(summary, terminalOrder: try allocateTerminalOrder())
             if let syncBaseline { try upsertSyncBaseline(syncBaseline) }
             try Self.execute("COMMIT", on: database)
         } catch {
@@ -961,11 +995,28 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
-    private func updateOperationRow(_ summary: AhaKeyRuntimeOperationSummary) throws {
+    private func allocateTerminalOrder() throws -> UInt64 {
+        let statement = try prepare(
+            "SELECT COALESCE(MAX(terminal_order), 0) FROM runtime_transactions"
+        )
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { throw databaseError() }
+        let current = sqlite3_column_int64(statement, 0)
+        guard current >= 0, current < Int64.max else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure("terminal order exhausted")
+        }
+        return UInt64(current) + 1
+    }
+
+    private func updateOperationRow(
+        _ summary: AhaKeyRuntimeOperationSummary,
+        terminalOrder: UInt64? = nil
+    ) throws {
         let statement = try prepare(
             """
             UPDATE runtime_transactions
-            SET state = ?, completed_steps = ?, total_steps = ?, message_code = ?, failure_context = ?
+            SET state = ?, completed_steps = ?, total_steps = ?, message_code = ?, failure_context = ?,
+                terminal_order = ?
             WHERE operation_id = ?
             """
         )
@@ -983,7 +1034,12 @@ public actor AhaKeyRuntimePersistentStore {
         } else {
             try bindNull(at: 5, to: statement)
         }
-        try bind(summary.id.rawValue.uuidString, at: 6, to: statement)
+        if let terminalOrder {
+            try bind(terminalOrder, at: 6, to: statement)
+        } else {
+            try bindNull(at: 6, to: statement)
+        }
+        try bind(summary.id.rawValue.uuidString, at: 7, to: statement)
         try stepDone(statement)
     }
 
@@ -1027,8 +1083,8 @@ public actor AhaKeyRuntimePersistentStore {
             """
             SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context
             FROM runtime_transactions
-            WHERE state IN ('completed', 'failedWithoutWrites', 'failedWithPartialCommit')
-            ORDER BY rowid DESC
+            WHERE terminal_order IS NOT NULL
+            ORDER BY terminal_order DESC
             LIMIT ?
             """
         )

@@ -426,7 +426,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         do {
             let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
             let health = try await store.health()
-            XCTAssertEqual(health.schemaVersion, 3)
+            XCTAssertEqual(health.schemaVersion, 4)
             let record = try await store.transaction(package.operationID)
             XCTAssertEqual(record?.state, .failedWithoutWrites)
             XCTAssertNil(record?.messageCode)
@@ -435,7 +435,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
         let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let reopenedHealth = try await reopened.health()
-        XCTAssertEqual(reopenedHealth.schemaVersion, 3)
+        XCTAssertEqual(reopenedHealth.schemaVersion, 4)
         let reopenedRecord = try await reopened.transaction(package.operationID)
         XCTAssertEqual(reopenedRecord?.state, .failedWithoutWrites)
         XCTAssertNil(reopenedRecord?.messageCode)
@@ -521,6 +521,39 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertNil(record?.failureContext)
         let remaining = try await store.recoveryCandidates()
         XCTAssertEqual(remaining.map(\.operationID), [package.operationID])
+    }
+
+    func testRecentTerminalsFollowTransitionOrderNotAcceptanceOrder() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let window = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        var packages: [AhaKeyConfigurationPackage] = []
+        for _ in 0..<(window + 1) {
+            let package = try makePackage()
+            _ = try await store.accept(package, resourceFiles: [:])
+            packages.append(package)
+        }
+        for package in packages.reversed() {
+            try await store.commitOperationOutcome(
+                AhaKeyRuntimeOperationSummary(
+                    id: package.operationID,
+                    targetDeviceID: package.targetDeviceID,
+                    state: .failedWithoutWrites,
+                    completedSteps: 0,
+                    totalSteps: 0
+                ),
+                syncBaseline: nil
+            )
+        }
+        let terminals = try await store.recentTerminalTransactions()
+        XCTAssertEqual(terminals.count, window)
+        XCTAssertEqual(terminals.last?.operationID, packages[0].operationID)
+        XCTAssertFalse(
+            terminals.contains { $0.operationID == packages[window].operationID },
+            "最先进入终态的最近受理行必须被 64 窗口淘汰"
+        )
+        XCTAssertTrue(terminals.contains { $0.operationID == packages[0].operationID })
     }
 
     func testAcceptanceRejectsSymbolicLinkResourceSources() async throws {
