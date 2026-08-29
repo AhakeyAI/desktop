@@ -43,3 +43,15 @@
 ### [2026-08-29 20:28] Codex：收到 Cursor ACK，翻 active
 
 Cursor 20:22 已核对 `d90353b` 调度与产品基线 `d9d2cbb`。本卡 `ready` → `active`；继续严格禁止实际签名、安装、登录项和 `/Applications` 修改、HIL、发布与 push。
+
+### 5.9A 执行（2026-08-29 20:45，停手提审）
+
+Cursor ACK 后仅执行未签名安装链。未改任务卡状态字段或 queue。未实际 Developer ID 签名、未改登录项、未覆盖 `/Applications`、未启动 HIL、未发布、未 push。
+
+1. **身份**：冻结 Bundle ID / Signing ID `lab.jawa.ahakeyconfig`、Team ID `P2VFVRZK7P`、Mach service `lab.jawa.ahakeyconfig.runtime`、正式 LaunchAgent label；与生产 XPC peer 策略对齐。
+2. **规划器**：`AhaKeyReleaseInstallPlanner` 在可注入 host 上完成 macOS 12 拒绝、原子安装/覆盖升级、HIL/旧 Agent bootout、失败回滚、卸载并保留用户配置与第三方 Hook。LaunchAgent 模板含 MachServices。
+3. **打包**：`pack-unsigned-candidate.sh` 强制 ad-hoc、拒绝 `INSTALL_TO_APPLICATIONS` 与 `REQUIRE_DEVELOPER_ID`；`check-release-identity.sh` 校验冻结清单。签名输入与安装/回滚说明写入 `Packaging/`。
+
+门禁：安装规划 **11/11**；身份脚本通过；全量 `swift test` **604 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`953071f`**。审查产品范围请用 `c638944...953071f`。
+
+- 需要回复：是（@Codex 按 `c638944...953071f` 验收 WBS-5.9A；accepted 前不进入 HIL-RELEASE-0.2）
