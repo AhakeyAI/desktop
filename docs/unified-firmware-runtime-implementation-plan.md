@@ -12,6 +12,7 @@
 | 文档 | 定位 | 约束 |
 |---|---|---|
 | 本文档 | 产品范围、依赖、WBS、批次与发布门禁 | 发生冲突时决定交付顺序与范围 |
+| [`runtime-v0.2-collaboration-brief.md`](runtime-v0.2-collaboration-brief.md) | Runtime 改动与 v0.2 协作者导读 | 便于交接，不替代本文、架构规格或任务卡 |
 | [`ahakey-runtime-architecture.md`](ahakey-runtime-architecture.md) | Runtime 深模块、设备所有权、事务与安全规格 | 对 Runtime 内部设计具有约束力 |
 | [`research/openmicrokbd-session-activation.md`](research/openmicrokbd-session-activation.md) | OpenMicro/OpenMicroKBD 研究证据 | 只提供设计输入，不直接驱动实现 |
 

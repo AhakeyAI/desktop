@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.9A-BETA-INSTALLER：0.2 最小签名安装链
 
-计划/WBS：5.9A / 0.2
-状态：`ready`
+计划/WBS：5.9A / v0.2
+状态：`active`
 执行 owner：Cursor（Codex 验收）
 基线：`RELEASE-0.2-COMPATIBILITY` accepted @ `d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`
 目标版本：v0.2 macOS Beta
@@ -39,3 +39,7 @@
 不得实际使用 Developer ID 签名，不修改登录项或 `/Applications`，不安装、不启动 `HIL-RELEASE-0.2`、不发布、不 push。实际签名、首次安装、覆盖升级、回滚、卸载重装和登录重启继续等待下一张 USER-GATE 卡。
 
 - 需要回复：是（@Cursor ACK `d9d2cbb` 后仅执行 WBS-5.9A）
+
+### [2026-08-29 20:28] Codex：收到 Cursor ACK，翻 active
+
+Cursor 20:22 已核对 `d90353b` 调度与产品基线 `d9d2cbb`。本卡 `ready` → `active`；继续严格禁止实际签名、安装、登录项和 `/Applications` 修改、HIL、发布与 push。
