@@ -160,6 +160,10 @@ public enum AhaKeyConfigurationPlanner {
         case idleAnimationMismatch(idle: AhaKeyResourceIdentifier, defaultAnimation: AhaKeyResourceIdentifier)
         /// 设备容量不足：按实际帧占用折算的槽位需求超出用户槽位数。
         case deviceCapacityExceeded(slotsNeeded: Int, slotLimit: Int)
+        /// 当前发布通道关闭图片资源包，配置却引用了 OLED 资源。
+        case releaseResourcePackageNotAllowed
+        /// 当前发布通道未开放基础写入。
+        case releaseWriteNotAllowed
     }
 
     // MARK: 计划产物（声明式步骤）
@@ -208,10 +212,20 @@ public enum AhaKeyConfigurationPlanner {
         resources: [AhaKeyConfigurationResource],
         capabilities: AhaKeyFirmwareCapabilities,
         protocolMode: AhaKeyProtocolMode,
-        policy: Policy = .currentDefault
+        policy: Policy = .currentDefault,
+        release: AhaKeyReleaseFeatureProjection? = nil
     ) -> Result<Plan, Rejection> {
         // 1. current-only
         guard protocolMode == .current else { return .failure(.unsupportedProtocol) }
+        if let release {
+            guard release.allowsBasicConfigurationWrite else {
+                return .failure(.releaseWriteNotAllowed)
+            }
+            if !release.allowsResourcePackage,
+               !desired.referencedResources.isEmpty || !resources.isEmpty {
+                return .failure(.releaseResourcePackageNotAllowed)
+            }
+        }
 
         // 2. 结构对账：模式槽位 / 套图数 / 任务状态在设备能力内
         for mode in desired.modes {

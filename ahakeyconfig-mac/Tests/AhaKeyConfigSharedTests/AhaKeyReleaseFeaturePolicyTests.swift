@@ -58,10 +58,8 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         )
     }
 
-    private func parsed(_ payload: Data) -> AhaKeyFirmwareCapabilities {
-        let capabilities = AhaKeyFirmwareCapabilities.parse(payload)
-        XCTAssertNotNil(capabilities)
-        return capabilities!
+    private func parsed(_ payload: Data) throws -> AhaKeyFirmwareCapabilities {
+        try XCTUnwrap(AhaKeyFirmwareCapabilities.parse(payload))
     }
 
     /// Typed case：协商状态直接携带预期协议模式与写入资格，不用字符串标签查表。
@@ -71,7 +69,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         let allowsBasicConfigurationWrite: Bool
     }
 
-    private var projectionFixtures: [ProjectionFixture] {
+    private func projectionFixtures() throws -> [ProjectionFixture] {
         [
             ProjectionFixture(
                 state: .negotiating,
@@ -104,17 +102,17 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
                 allowsBasicConfigurationWrite: false
             ),
             ProjectionFixture(
-                state: .parsed(parsed(caps14Payload)),
+                state: .parsed(try parsed(caps14Payload)),
                 expectedMode: .current,
                 allowsBasicConfigurationWrite: true
             ),
             ProjectionFixture(
-                state: .parsed(parsed(compactFactory14Payload)),
+                state: .parsed(try parsed(compactFactory14Payload)),
                 expectedMode: .current,
                 allowsBasicConfigurationWrite: true
             ),
             ProjectionFixture(
-                state: .parsed(parsed(rhino26Payload)),
+                state: .parsed(try parsed(rhino26Payload)),
                 expectedMode: .current,
                 allowsBasicConfigurationWrite: true
             ),
@@ -133,7 +131,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         XCTAssertEqual(AhaKeyReleaseFeaturePolicy.current, .v0_2)
     }
 
-    func testPolicyValuesAreSendableAndEquatable() {
+    func testPolicyValuesAreSendableAndEquatable() throws {
         func requireSendableEquatable<T: Sendable & Equatable>(_ value: T) {
             _ = value
         }
@@ -149,16 +147,16 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
             )
         )
         requireSendableEquatable(AhaKeyProtocolMode.current)
-        requireSendableEquatable(parsed(caps14Payload))
-        requireSendableEquatable(AhaKeyReleaseNegotiationState.parsed(parsed(caps14Payload)))
+        requireSendableEquatable(try parsed(caps14Payload))
+        requireSendableEquatable(AhaKeyReleaseNegotiationState.parsed(try parsed(caps14Payload)))
         requireSendableEquatable(AhaKeyReleaseFeaturePolicy.current)
         requireSendableEquatable(policy.projection(.negotiating))
     }
 
     // MARK: - Full v0.2 matrix
 
-    func testV0_2ProjectionFixturesCloseOLEDAndMatchWriteEligibility() {
-        for fixture in projectionFixtures {
+    func testV0_2ProjectionFixturesCloseOLEDAndMatchWriteEligibility() throws {
+        for fixture in try projectionFixtures() {
             XCTAssertEqual(
                 AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(fixture.state),
                 fixture.expectedMode,
@@ -190,8 +188,8 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         }
     }
 
-    func testV0_2ParsedCurrentStillDefersOLED() {
-        let capabilities = parsed(caps14Payload)
+    func testV0_2ParsedCurrentStillDefersOLED() throws {
+        let capabilities = try parsed(caps14Payload)
         XCTAssertEqual(AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities), .current)
         XCTAssertTrue(AhaKeyProtocolMode.current.allowsTaskPictureConfiguration)
 
@@ -203,8 +201,8 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
 
     // MARK: - Resolver: malformed vs no-response
 
-    func testResolvedModeUsesNegotiationForParsedCapabilities() {
-        let caps14 = parsed(caps14Payload)
+    func testResolvedModeUsesNegotiationForParsedCapabilities() throws {
+        let caps14 = try parsed(caps14Payload)
         XCTAssertEqual(
             AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(.parsed(caps14)),
             .current
@@ -240,18 +238,18 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         assertOLEDAndResourcesClosed(projection, "malformed")
     }
 
-    func testParsedCapabilityFixturesAreAvailableToTheMatrix() {
-        XCTAssertEqual(parsed(caps14Payload).factorySlotBase, 0)
+    func testParsedCapabilityFixturesAreAvailableToTheMatrix() throws {
+        XCTAssertEqual(try parsed(caps14Payload).factorySlotBase, 0)
         XCTAssertEqual(
-            AhaKeyProtocolNegotiation.mode(forCapabilities: parsed(caps14Payload)),
+            AhaKeyProtocolNegotiation.mode(forCapabilities: try parsed(caps14Payload)),
             .current
         )
         XCTAssertEqual(
-            AhaKeyProtocolNegotiation.mode(forCapabilities: parsed(compactFactory14Payload)),
+            AhaKeyProtocolNegotiation.mode(forCapabilities: try parsed(compactFactory14Payload)),
             .current
         )
         XCTAssertEqual(
-            AhaKeyProtocolNegotiation.mode(forCapabilities: parsed(rhino26Payload)),
+            AhaKeyProtocolNegotiation.mode(forCapabilities: try parsed(rhino26Payload)),
             .current
         )
         XCTAssertEqual(

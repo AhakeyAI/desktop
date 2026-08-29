@@ -669,6 +669,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         var hooks = AhaKeyAgentExecutionTestHooks(storeDirectory: storeDir)
         hooks.isReady = true
         hooks.capabilities = testCapabilities()
+        hooks.release = .picturesUnrestrictedForTests
         hooks.skipConfigurationBLEWriteGates = skipBLE
         agent.executionTestHooks = hooks
         agents.append(agent)

@@ -1904,7 +1904,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             package: package,
             resourceFiles: resourceFiles,
             capabilities: capabilities,
-            protocolMode: .current
+            protocolMode: .current,
+            release: releaseProjection(for: capabilities)
         ) { [weak self] step in
             guard let self else { return .retryableFailure }
             await MainActor.run {
@@ -1926,6 +1927,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             await self.publishOperationProgress(operationID: package.operationID)
             return result
         }
+    }
+
+    private func releaseProjection(
+        for capabilities: AhaKeyFirmwareCapabilities
+    ) -> AhaKeyReleaseFeatureProjection {
+        executionTestHooks?.release
+            ?? AhaKeyReleaseFeaturePolicy.current.projection(.parsed(capabilities))
     }
 
     /// 执行单个 WAL 步骤：映射为线协议程序并经 BLE 执行。
@@ -1950,14 +1958,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 context: .init(failedStepID: step)
             ))
         }
+        let release = releaseProjection(for: capabilities)
         let planning = AhaKeyConfigurationPlanner.plan(
             desired: desired, resources: package.resources,
-            capabilities: capabilities, protocolMode: .current
+            capabilities: capabilities, protocolMode: .current, release: release
         )
         guard case .success(let plan) = planning,
               let program = AhaKeyConfigurationStepMapper.program(
                   for: step, desired: desired, plan: plan,
-                  resources: package.resources, capabilities: capabilities
+                  resources: package.resources, capabilities: capabilities,
+                  release: release
               ) else {
             return .failure(.init(
                 retryable: false,
@@ -2362,9 +2372,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
               let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
             return 0
         }
+        let release = releaseProjection(for: capabilities)
         let planning = AhaKeyConfigurationPlanner.plan(
             desired: desired, resources: package.resources,
-            capabilities: capabilities, protocolMode: .current
+            capabilities: capabilities, protocolMode: .current, release: release
         )
         guard case .success(let plan) = planning else { return 0 }
         var total: UInt64 = 0
@@ -2372,7 +2383,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             guard step.rawValue.hasPrefix("resource:"),
                   let program = AhaKeyConfigurationStepMapper.program(
                     for: step, desired: desired, plan: plan,
-                    resources: package.resources, capabilities: capabilities
+                    resources: package.resources, capabilities: capabilities,
+                    release: release
                   ) else { continue }
             for item in program {
                 if case .writeResourceChunk(_, _, let length) = item {
@@ -2946,6 +2958,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var isReady: Bool?
     /// 非 nil 时覆盖协商能力（planner 输入）。
     var capabilities: AhaKeyFirmwareCapabilities?
+    /// 非 nil 时覆盖发布功能投影（OLED 事务测试打开图片面；生产恒 nil）。
+    var release: AhaKeyReleaseFeatureProjection?
     /// 非 nil 时替代 BLE 步骤执行（可观察 WAL 取消态、注入延迟）。
     var stepExecutor: (@Sendable (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult)?
     /// 非 nil 时重定向 Runtime Store 到临时目录（测试隔离生产 WAL）。

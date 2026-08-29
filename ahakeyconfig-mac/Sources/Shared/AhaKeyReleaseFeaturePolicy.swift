@@ -41,12 +41,29 @@ public struct AhaKeyReleaseFeatureProjection: Equatable, Sendable {
     public let allowsBasicConfigurationWrite: Bool
     public let deferredOLEDReason: AhaKeyDeferredOLEDReason?
 
+    /// 测试夹具：开放图片写入面。生产路径必须用 `AhaKeyReleaseFeaturePolicy.current.projection`。
+    public static let picturesUnrestrictedForTests = AhaKeyReleaseFeatureProjection(
+        channel: .v0_2,
+        allowedWriteSurfaces: [.keysAndLight, .defaultPictures, .taskPictures],
+        showsKeysAndLightEditor: true,
+        showsDefaultPictureEditor: true,
+        showsTaskPictureEditor: true,
+        allowsResourcePackage: true,
+        allowsBasicConfigurationWrite: true,
+        deferredOLEDReason: nil
+    )
+
     public var showsOLEDInspector: Bool {
         showsDefaultPictureEditor || showsTaskPictureEditor
     }
 
     public func allows(_ surface: AhaKeyWriteSurface) -> Bool {
         allowedWriteSurfaces.contains(surface)
+    }
+
+    /// 默认图或任务图任一写入面开放即视为允许图片步骤（0x95/0x97/资源包）。
+    public var allowsPictureWrites: Bool {
+        allows(.defaultPictures) || allows(.taskPictures)
     }
 }
 

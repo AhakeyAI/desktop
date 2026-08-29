@@ -332,6 +332,7 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
             reclaimSlotBase: 0, reclaimSlotLimit: 0
         )
         hooks?.stepExecutor = stepExecutor
+        hooks?.release = .picturesUnrestrictedForTests
         agent.executionTestHooks = hooks
         await agent.simulateDeviceForTesting(AhaKeyRuntimeDeviceSnapshot(
             id: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),

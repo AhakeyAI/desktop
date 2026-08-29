@@ -392,7 +392,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
+            allowsPictureResources: true
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
         let operationID = try await facade.apply(
@@ -432,7 +433,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         transport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
+            allowsPictureResources: true
         )
         do {
             _ = try await facade.apply(
@@ -455,7 +457,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         transport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
+            allowsPictureResources: true
         )
         do {
             _ = try await facade.apply(
@@ -478,7 +481,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
+            allowsPictureResources: true
         )
         do {
             _ = try await facade.apply(
@@ -504,7 +508,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
+            allowsPictureResources: true
         )
         do {
             _ = try await facade.apply(
@@ -586,7 +591,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let gate = GateImageNormalizer()
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: gate
+            resourceLoader: loader, imageNormalizer: gate,
+            allowsPictureResources: true
         )
         let applyTask = Task {
             _ = try await facade.apply(
@@ -612,7 +618,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let gate = GateImageNormalizer()
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: gate
+            resourceLoader: loader, imageNormalizer: gate,
+            allowsPictureResources: true
         )
         let applyTask = Task {
             try await facade.apply(
@@ -633,5 +640,36 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             XCTFail("应为 CancellationError，实际 \(error)")
         }
         XCTAssertTrue(transport.requestLog.isEmpty)
+    }
+
+    func testV02DefaultApplyStripsPictureResourcesAndSkipsIngest() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let operationID = try await facade.apply(
+            modes: [applyModeInput()],
+            scope: .init(modeSlot: 0),
+            targetDeviceID: device,
+            baseRevision: .init(7)
+        )
+        XCTAssertEqual(transport.requestLog, ["apply"])
+        XCTAssertNil(transport.ingestedItems)
+        let package = try XCTUnwrap(transport.appliedPackage)
+        XCTAssertEqual(package.operationID, operationID)
+        XCTAssertTrue(package.resources.isEmpty)
+        let desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
+        XCTAssertNil(desired.modes[0].oled.defaultAnimation)
+        XCTAssertEqual(desired.modes[0].oled.activeSet, -1)
+        XCTAssertTrue(desired.modes[0].oled.taskSets.allSatisfy { set in
+            set.assets.allSatisfy { $0.resource == nil }
+        })
+        XCTAssertEqual(desired.modes[0].keys.count, 1)
+        XCTAssertEqual(desired.modes[0].lightBar.brightness, 35)
+        await facade.stop()
     }
 }

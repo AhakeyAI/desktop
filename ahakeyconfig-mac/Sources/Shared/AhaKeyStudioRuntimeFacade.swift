@@ -86,6 +86,8 @@ public actor AhaKeyStudioRuntimeFacade {
     private let resourceLoader: any AhaKeyStudioResourceLoader
     /// 受理前规范化：同源 OLED 编码核心 + 写出 160×80 GIF；测试可注入。
     private let imageNormalizer: any AhaKeyStudioImageNormalizer
+    /// 是否把图片资源打进配置包。生产取当前发布通道；OLED 预检测试可打开以覆盖编码路径。
+    private let allowsPictureResources: Bool
 
     private var state = AhaKeyStudioRuntimeViewState()
     private var continuations: [UUID: AsyncStream<AhaKeyStudioRuntimeViewState>.Continuation] = [:]
@@ -106,7 +108,9 @@ public actor AhaKeyStudioRuntimeFacade {
         reconnectBackoffBase: TimeInterval = 1.0,
         idlePollInterval: TimeInterval = 0.5,
         resourceLoader: any AhaKeyStudioResourceLoader = AhaKeyStudioGIFResourceLoader(),
-        imageNormalizer: any AhaKeyStudioImageNormalizer = AhaKeyStudioOLEDImageNormalizer()
+        imageNormalizer: any AhaKeyStudioImageNormalizer = AhaKeyStudioOLEDImageNormalizer(),
+        allowsPictureResources: Bool = AhaKeyReleaseFeaturePolicy.current
+            .projection(.negotiating).allowsResourcePackage
     ) {
         self.transport = transport
         self.clientBuildID = clientBuildID
@@ -114,6 +118,7 @@ public actor AhaKeyStudioRuntimeFacade {
         self.idlePollInterval = idlePollInterval
         self.resourceLoader = resourceLoader
         self.imageNormalizer = imageNormalizer
+        self.allowsPictureResources = allowsPictureResources
     }
 
     /// 当前视图状态（首屏前为 offline）。
@@ -519,18 +524,28 @@ extension AhaKeyStudioRuntimeFacade {
         guard scoped.count == 1 else {
             throw AhaKeyStudioApplyError.emptyApplyScope
         }
+        // 生产 v0.2 关闭图片面；测试可打开以覆盖编码/ingest。
+        let includePictureResources = allowsPictureResources
         let normalizer = imageNormalizer
         var ownedTemps: [URL] = []
         defer { Self.removeOwnedTemporaryFiles(ownedTemps) }
-        let result = try await Self.normalizeOLEDAssets(
-            scoped,
-            maxFrames: maxFrames,
-            maxSourceFileBytes: maxSourceFileBytes,
-            normalizer: normalizer
+        let normalizedModes: [AhaKeyStudioModeInput]
+        if includePictureResources {
+            let result = try await Self.normalizeOLEDAssets(
+                scoped,
+                maxFrames: maxFrames,
+                maxSourceFileBytes: maxSourceFileBytes,
+                normalizer: normalizer
+            )
+            normalizedModes = result.modes
+            ownedTemps = result.ownedTemps
+        } else {
+            normalizedModes = scoped
+        }
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(
+            modes: normalizedModes,
+            includePictureResources: includePictureResources
         )
-        let normalizedModes = result.modes
-        ownedTemps = result.ownedTemps
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: normalizedModes)
         // 文件读取与摘要在 actor 锁外做（nonisolated），不阻塞状态发布。
         let prepared = try await prepareResources(assembled.resources)
         Self.removeOwnedTemporaryFiles(ownedTemps)

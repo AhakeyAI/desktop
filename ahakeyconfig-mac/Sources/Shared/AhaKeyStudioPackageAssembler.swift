@@ -219,8 +219,10 @@ public enum AhaKeyStudioPackageAssembler {
 
     /// 组装：输入 → (canonical desired configuration, 资源输入清单)。
     /// 构造校验全部在这里（角色去重/套图数/fps 范围等由 DesiredConfiguration 各 init 兜底）。
+    /// - Parameter includePictureResources: false 时忽略本地 GIF，产出无资源、activeSet=-1 的键位/灯效包。
     public static func assemble(
-        modes: [AhaKeyStudioModeInput]
+        modes: [AhaKeyStudioModeInput],
+        includePictureResources: Bool = true
     ) throws -> AhaKeyStudioAssembledConfiguration {
         guard !modes.isEmpty else { throw AhaKeyStudioPackageAssemblerError.emptyModes }
 
@@ -238,7 +240,7 @@ public enum AhaKeyStudioPackageAssembler {
 
             // 套图 A done 槽：defaultAnimation 镜像源。
             let doneAsset = oled.taskSets[0].assets.first { $0.state == .done }
-            let doneURL = doneAsset?.localFileURL
+            let doneURL = includePictureResources ? doneAsset?.localFileURL : nil
             var defaultIdentifier: AhaKeyResourceIdentifier?
             if let doneURL {
                 let identifier = try AhaKeyResourceIdentifier(defaultAnimationIdentifier(mode: slot))
@@ -258,7 +260,7 @@ public enum AhaKeyStudioPackageAssembler {
                     var resourceIdentifier: AhaKeyResourceIdentifier?
                     // 素材的申报元数据：镜像槽（idle / 套图 A done）一律取 done 源，保证同引用同元数据。
                     var metadataSource = asset
-                    if let url = asset.localFileURL {
+                    if includePictureResources, let url = asset.localFileURL {
                         switch asset.state {
                         case .idle:
                             // planner 冻结约束：idle 带资源必须同 defaultAnimation 引用。
@@ -314,7 +316,7 @@ public enum AhaKeyStudioPackageAssembler {
                 statusLine: oled.statusLine,
                 framesPerSecond: oled.framesPerSecond,
                 taskSets: assembledSets,
-                activeSet: oled.activeSet
+                activeSet: includePictureResources ? oled.activeSet : -1
             )
             let assembledLightBar = try AhaKeyDesiredConfiguration.LightBar(
                 stateMappings: lightMappings,

@@ -123,7 +123,8 @@ public enum AhaKeyConfigurationStepMapper {
         desired: AhaKeyDesiredConfiguration,
         plan: AhaKeyConfigurationPlanner.Plan,
         capabilities: AhaKeyFirmwareCapabilities,
-        layout: AhaKeyDeviceLayoutPolicy = .init()
+        layout: AhaKeyDeviceLayoutPolicy = .init(),
+        release: AhaKeyReleaseFeatureProjection? = nil
     ) -> [AhaKeyDeviceProgramStep]? {
         struct BindSpec {
             let setIndex: Int
@@ -182,11 +183,14 @@ public enum AhaKeyConfigurationStepMapper {
         steps.append(.setLightMapping(mode: mode.slot, effects: effects))
         steps.append(.setBrightness(UInt8(mode.lightBar.brightness)))
 
-        for bind in binds {
-            steps.append(.bindTaskPicture(
-                mode: mode.slot, set: UInt8(bind.setIndex), state: bind.state,
-                startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
-            ))
+        let allowsPictureWrites = release?.allowsPictureWrites ?? true
+        if allowsPictureWrites {
+            for bind in binds {
+                steps.append(.bindTaskPicture(
+                    mode: mode.slot, set: UInt8(bind.setIndex), state: bind.state,
+                    startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
+                ))
+            }
         }
 
         // save 必须排在 0x97 之前。0x95 绑定自身的持久化发生在固件置 set magic 之前，
@@ -198,7 +202,8 @@ public enum AhaKeyConfigurationStepMapper {
         // 0x98 PICTURE_WRITE_END 属于 0x80 裸写会话收尾，current 每块已用 0x9B/0x81 结束，不再发。
         // desired.activeSet >= 0 就必须发 0x97。纯 mapper 读不到设备当前套图，
         // 不得用 binds.isEmpty 猜测「设备已经在目标套」而省略。
-        if mode.oled.activeSet >= 0 {
+        // 发布通道关闭图片面时不得发 0x95/0x97。
+        if allowsPictureWrites, mode.oled.activeSet >= 0 {
             steps.append(.setActiveTaskPictureSet(mode: mode.slot, set: UInt8(mode.oled.activeSet)))
         }
         return steps
@@ -213,10 +218,12 @@ public enum AhaKeyConfigurationStepMapper {
         plan: AhaKeyConfigurationPlanner.Plan,
         resources: [AhaKeyConfigurationResource],
         capabilities: AhaKeyFirmwareCapabilities,
-        layout: AhaKeyDeviceLayoutPolicy = .init()
+        layout: AhaKeyDeviceLayoutPolicy = .init(),
+        release: AhaKeyReleaseFeatureProjection? = nil
     ) -> [AhaKeyDeviceProgramStep]? {
         let raw = stepID.rawValue
         if raw.hasPrefix("resource:") {
+            if let release, !release.allowsResourcePackage { return nil }
             let identifier = String(raw.dropFirst("resource:".count))
             guard let slot = plan.slotAssignments.first(where: { $0.key.rawValue == identifier })?.value,
                   let meta = resources.first(where: { $0.logicalIdentifier.rawValue == identifier }),
@@ -234,7 +241,7 @@ public enum AhaKeyConfigurationStepMapper {
            let mode = desired.modes.first(where: { $0.slot == slot }) {
             return baseConfigurationProgram(
                 mode: mode, desired: desired, plan: plan,
-                capabilities: capabilities, layout: layout
+                capabilities: capabilities, layout: layout, release: release
             )
         }
         return nil

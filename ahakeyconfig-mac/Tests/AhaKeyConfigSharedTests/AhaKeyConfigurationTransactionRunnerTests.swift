@@ -293,4 +293,58 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         let secondBaseline = try await store.syncBaseline(for: package1.targetDeviceID)
         XCTAssertEqual(secondBaseline?.revision.rawValue, 2)
     }
+
+    private func makeKeysAndLightPackage() throws -> AhaKeyConfigurationPackage {
+        let emptySet = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try .init(state: .idle, resource: nil, framesPerSecond: 12),
+            try .init(state: .working, resource: nil, framesPerSecond: 12),
+            try .init(state: .waiting, resource: nil, framesPerSecond: 12),
+            try .init(state: .done, resource: nil, framesPerSecond: 12),
+        ])
+        let oled = try AhaKeyDesiredConfiguration.OLED(
+            defaultAnimation: nil, statusLine: "", framesPerSecond: 12,
+            taskSets: [emptySet, emptySet], activeSet: 0
+        )
+        let lightBar = try AhaKeyDesiredConfiguration.LightBar(stateMappings: [], brightness: 35)
+        let key = AhaKeyDesiredConfiguration.Key(
+            role: .approve, action: .shortcut(try .init(keyCode: 0x28)), description: "Yes"
+        )
+        let mode = try AhaKeyDesiredConfiguration.Mode(slot: 0, keys: [key], oled: oled, lightBar: lightBar)
+        let desired = try AhaKeyDesiredConfiguration(modes: [mode])
+        return try AhaKeyConfigurationPackage(
+            targetDeviceID: .init("4F3E"),
+            baseRevision: .init(0),
+            desiredConfiguration: desired.canonicalData(),
+            resources: []
+        )
+    }
+
+    func testV02PicturePackageFailsWithoutWrites() async throws {
+        let (package, files) = try makePackage()
+        let release = AhaKeyReleaseFeaturePolicy.current.projection(.parsed(capabilities()))
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package, resourceFiles: files,
+            capabilities: capabilities(), protocolMode: .current, release: release
+        ) { _ in .success }
+        XCTAssertEqual(state, .failedWithoutWrites)
+        let noBaseline = try await store.syncBaseline(for: package.targetDeviceID)
+        XCTAssertNil(noBaseline)
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.messageCode, .configurationPlanRejected)
+    }
+
+    func testV02KeysAndLightPackageRunsBaseOnly() async throws {
+        let package = try makeKeysAndLightPackage()
+        let release = AhaKeyReleaseFeaturePolicy.current.projection(.parsed(capabilities()))
+        var executed: [String] = []
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package, resourceFiles: [:],
+            capabilities: capabilities(), protocolMode: .current, release: release
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(state, .completed)
+        XCTAssertEqual(executed, ["base:mode:0"])
+    }
 }

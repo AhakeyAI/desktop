@@ -24,6 +24,11 @@ public struct AhaKeyOLEDInspectorSections: Equatable {
     public let showsDefaultPictureEditor: Bool
     public let showsTaskPictureEditor: Bool
 
+    public init(showsDefaultPictureEditor: Bool, showsTaskPictureEditor: Bool) {
+        self.showsDefaultPictureEditor = showsDefaultPictureEditor
+        self.showsTaskPictureEditor = showsTaskPictureEditor
+    }
+
     public static func make(mode: AhaKeyProtocolMode) -> AhaKeyOLEDInspectorSections {
         AhaKeyOLEDInspectorSections(
             showsDefaultPictureEditor: mode == .legacyBaseOnly,

@@ -57,6 +57,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         resourceFiles: [AhaKeyResourceIdentifier: URL],
         capabilities: AhaKeyFirmwareCapabilities,
         protocolMode: AhaKeyProtocolMode,
+        release: AhaKeyReleaseFeatureProjection? = nil,
         execute: StepExecutor
     ) async throws -> AhaKeyRuntimeOperationState {
         // 1. 受理（WAL accept：CAS 落资源 + 事务记录，幂等）
@@ -74,7 +75,8 @@ public struct AhaKeyConfigurationTransactionRunner {
             desired: desired,
             resources: package.resources,
             capabilities: capabilities,
-            protocolMode: protocolMode
+            protocolMode: protocolMode,
+            release: release
         )
         guard case .success(let plan) = planning else {
             return try await finishTerminal(

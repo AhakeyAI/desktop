@@ -214,7 +214,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             clientBuildID: "test",
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
-            resourceLoader: loader
+            resourceLoader: loader,
+            allowsPictureResources: true
         )
         _ = try await facade.apply(
             modes: [modeInput(slot: 0, url: source)],
@@ -269,7 +270,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
                 transport: transport,
                 clientBuildID: "test",
                 reconnectBackoffBase: 0,
-                idlePollInterval: 0
+                idlePollInterval: 0,
+                allowsPictureResources: true
             )
             _ = try await facade.apply(
                 modes: [modeInput(slot: slot, url: url, frames: 1, width: 800, height: 400)],
@@ -306,7 +308,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
             resourceLoader: loader,
-            imageNormalizer: normalizer
+            imageNormalizer: normalizer,
+            allowsPictureResources: true
         )
         _ = try await facade.apply(
             modes: [
@@ -334,7 +337,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0
+            idlePollInterval: 0,
+            allowsPictureResources: true
         )
         do {
             _ = try await facade.apply(
@@ -358,7 +362,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0
+            idlePollInterval: 0,
+            allowsPictureResources: true
         )
         do {
             _ = try await facade.apply(
@@ -388,7 +393,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0
+            idlePollInterval: 0,
+            allowsPictureResources: true
         )
         do {
             _ = try await facade.apply(
@@ -430,7 +436,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0
+            idlePollInterval: 0,
+            allowsPictureResources: true
         )
         _ = try await facade.apply(
             modes: [modeInput(slot: 0, url: small, frames: 1, width: 160, height: 80)],
@@ -450,7 +457,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: failTransport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0
+            idlePollInterval: 0,
+            allowsPictureResources: true
         )
         do {
             _ = try await failFacade.apply(
@@ -480,7 +488,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: okTransport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0
+            idlePollInterval: 0,
+            allowsPictureResources: true
         )
         _ = try await okFacade.apply(
             modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
@@ -501,7 +510,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             clientBuildID: "test",
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
-            resourceLoader: ThrowingLoader()
+            resourceLoader: ThrowingLoader(),
+            allowsPictureResources: true
         )
         do {
             _ = try await failFacade.apply(
@@ -585,7 +595,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             clientBuildID: "test",
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
-            imageNormalizer: gate
+            imageNormalizer: gate,
+            allowsPictureResources: true
         )
         let cancelBefore = normalizedTempGIFPaths()
         let applyTask = Task {
@@ -653,7 +664,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0
+            idlePollInterval: 0,
+            allowsPictureResources: true
         )
     }
 

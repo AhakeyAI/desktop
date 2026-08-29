@@ -977,10 +977,17 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var oledSummary: some View {
-        let oled = currentModeDraft.oled
-        summaryRow(NSLocalizedString("动图", comment: ""), value: oled.localAssetPath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? NSLocalizedString("默认动图", comment: ""))
-        summaryRow(NSLocalizedString("播放速度", comment: ""), value: "\(oled.framesPerSecond) FPS")
-        summaryRow(NSLocalizedString("状态行", comment: ""), value: oled.statusLine.isEmpty ? "—" : String(oled.statusLine.prefix(32)))
+        if !releaseFeatureProjection.showsOLEDInspector {
+            summaryRow(
+                NSLocalizedString("LCD", comment: ""),
+                value: deferredOLEDMessage(releaseFeatureProjection.deferredOLEDReason ?? .requiresFirmwareV0_3)
+            )
+        } else {
+            let oled = currentModeDraft.oled
+            summaryRow(NSLocalizedString("动图", comment: ""), value: oled.localAssetPath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? NSLocalizedString("默认动图", comment: ""))
+            summaryRow(NSLocalizedString("播放速度", comment: ""), value: "\(oled.framesPerSecond) FPS")
+            summaryRow(NSLocalizedString("状态行", comment: ""), value: oled.statusLine.isEmpty ? "—" : String(oled.statusLine.prefix(32)))
+        }
     }
 
     @ViewBuilder
@@ -1399,7 +1406,33 @@ struct AhaKeyStudioView: View {
         )
     }
 
+    @ViewBuilder
     private var oledInspector: some View {
+        Group {
+            if !releaseFeatureProjection.showsOLEDInspector {
+                deferredOLEDInspector
+            } else {
+                editableOLEDInspector
+            }
+        }
+    }
+
+    private var deferredOLEDInspector: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            GroupBox(NSLocalizedString("LCD / 任务状态动图", comment: "")) {
+                Text(deferredOLEDMessage(releaseFeatureProjection.deferredOLEDReason ?? .requiresFirmwareV0_3))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+                Text(NSLocalizedString("0.2 只开放键位和灯效。图片编辑与写入将在 0.3 固件提供。", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var editableOLEDInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
             if oledInspectorSections.showsDefaultPictureEditor {
                 defaultOLEDPictureEditor
@@ -2104,8 +2137,26 @@ struct AhaKeyStudioView: View {
             : AhaKeyTaskDisplayState.legacyStates
     }
 
+    private var releaseFeatureProjection: AhaKeyReleaseFeatureProjection {
+        runtimeStore.releaseFeatureProjection
+    }
+
     private var oledInspectorSections: AhaKeyOLEDInspectorSections {
-        AhaKeyOLEDInspectorSections.make(mode: runtimeStore.protocolMode)
+        let projection = releaseFeatureProjection
+        if !projection.showsOLEDInspector {
+            return AhaKeyOLEDInspectorSections(
+                showsDefaultPictureEditor: false,
+                showsTaskPictureEditor: false
+            )
+        }
+        return AhaKeyOLEDInspectorSections.make(mode: runtimeStore.protocolMode)
+    }
+
+    private func deferredOLEDMessage(_ reason: AhaKeyDeferredOLEDReason) -> String {
+        switch reason {
+        case .requiresFirmwareV0_3:
+            return NSLocalizedString("需 0.3 固件", comment: "")
+        }
     }
 
     private var taskPictureUnavailableMessage: String {

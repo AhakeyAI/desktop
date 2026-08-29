@@ -242,4 +242,12 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         )
         XCTAssertNotEqual(live.draft(for: .mode1).oled.statusLine, merged.draft(for: .mode1).oled.statusLine)
     }
+
+    func testV02PresentationClosesOLEDInspector() {
+        let presentation = AhaKeyStudioDevicePresentation()
+        XCTAssertFalse(presentation.releaseFeatureProjection.showsOLEDInspector)
+        XCTAssertFalse(presentation.releaseFeatureProjection.allowsResourcePackage)
+        XCTAssertFalse(presentation.releaseFeatureProjection.allowsPictureWrites)
+        XCTAssertEqual(presentation.releaseFeatureProjection.deferredOLEDReason, .requiresFirmwareV0_3)
+    }
 }

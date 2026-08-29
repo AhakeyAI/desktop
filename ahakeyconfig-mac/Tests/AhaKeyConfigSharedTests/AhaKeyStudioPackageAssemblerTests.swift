@@ -255,4 +255,24 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
         XCTAssertEqual(assembled.configuration.modes[0].oled.activeSet, -1, "-1 = 尚未同步基线，跨重启保留")
     }
+
+    func testKeysAndLightOnlyDropsPictureResourcesAndUnsetsActiveSet() throws {
+        let mode = modeInput(slot: 0, donePath: "done-a")
+        let withPictures = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
+        XCTAssertFalse(withPictures.resources.isEmpty)
+        XCTAssertEqual(withPictures.configuration.modes[0].oled.activeSet, 0)
+
+        let keysAndLight = try AhaKeyStudioPackageAssembler.assemble(
+            modes: [mode],
+            includePictureResources: false
+        )
+        XCTAssertTrue(keysAndLight.resources.isEmpty)
+        XCTAssertNil(keysAndLight.configuration.modes[0].oled.defaultAnimation)
+        XCTAssertEqual(keysAndLight.configuration.modes[0].oled.activeSet, -1)
+        XCTAssertEqual(keysAndLight.configuration.modes[0].keys, withPictures.configuration.modes[0].keys)
+        XCTAssertEqual(
+            keysAndLight.configuration.modes[0].lightBar,
+            withPictures.configuration.modes[0].lightBar
+        )
+    }
 }
