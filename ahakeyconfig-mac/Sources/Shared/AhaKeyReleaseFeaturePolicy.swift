@@ -41,8 +41,8 @@ public struct AhaKeyReleaseFeatureProjection: Equatable, Sendable {
     public let allowsBasicConfigurationWrite: Bool
     public let deferredOLEDReason: AhaKeyDeferredOLEDReason?
 
-    /// 测试夹具：开放图片写入面。生产路径必须用 `AhaKeyReleaseFeaturePolicy.current.projection`。
-    public static let picturesUnrestrictedForTests = AhaKeyReleaseFeatureProjection(
+    /// 测试夹具：开放图片写入面。仅测试目标经 `@testable` 可见；生产必须用 `AhaKeyReleaseFeaturePolicy.current.projection`。
+    static let picturesUnrestrictedForTests = AhaKeyReleaseFeatureProjection(
         channel: .v0_2,
         allowedWriteSurfaces: [.keysAndLight, .defaultPictures, .taskPictures],
         showsKeysAndLightEditor: true,

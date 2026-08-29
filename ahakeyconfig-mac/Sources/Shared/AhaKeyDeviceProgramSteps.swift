@@ -124,7 +124,7 @@ public enum AhaKeyConfigurationStepMapper {
         plan: AhaKeyConfigurationPlanner.Plan,
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init(),
-        release: AhaKeyReleaseFeatureProjection? = nil
+        release: AhaKeyReleaseFeatureProjection
     ) -> [AhaKeyDeviceProgramStep]? {
         struct BindSpec {
             let setIndex: Int
@@ -183,7 +183,7 @@ public enum AhaKeyConfigurationStepMapper {
         steps.append(.setLightMapping(mode: mode.slot, effects: effects))
         steps.append(.setBrightness(UInt8(mode.lightBar.brightness)))
 
-        let allowsPictureWrites = release?.allowsPictureWrites ?? true
+        let allowsPictureWrites = release.allowsPictureWrites
         if allowsPictureWrites {
             for bind in binds {
                 steps.append(.bindTaskPicture(
@@ -219,11 +219,11 @@ public enum AhaKeyConfigurationStepMapper {
         resources: [AhaKeyConfigurationResource],
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init(),
-        release: AhaKeyReleaseFeatureProjection? = nil
+        release: AhaKeyReleaseFeatureProjection
     ) -> [AhaKeyDeviceProgramStep]? {
         let raw = stepID.rawValue
         if raw.hasPrefix("resource:") {
-            if let release, !release.allowsResourcePackage { return nil }
+            if !release.allowsResourcePackage { return nil }
             let identifier = String(raw.dropFirst("resource:".count))
             guard let slot = plan.slotAssignments.first(where: { $0.key.rawValue == identifier })?.value,
                   let meta = resources.first(where: { $0.logicalIdentifier.rawValue == identifier }),

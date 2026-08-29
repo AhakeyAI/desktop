@@ -206,7 +206,11 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         var submitted = baseline.draft(for: .mode1)
         submitted.oled.statusLine = "submitted-mode-1"
         submitted.oled.taskGIFSets[0].assets[3].localAssetPath = "/tmp/cursor.gif"
-        let merged = AhaKeyStudioRuntimeStore.mergingSubmittedMode(submitted, into: baseline)
+        let merged = AhaKeyStudioRuntimeStore.mergingSubmittedMode(
+            submitted,
+            into: baseline,
+            includeOLED: true
+        )
         XCTAssertEqual(merged.draft(for: .mode1).oled.statusLine, "submitted-mode-1")
         XCTAssertEqual(merged.draft(for: .mode1).oled.taskGIFSets[0].assets[3].localAssetPath, "/tmp/cursor.gif")
         XCTAssertEqual(
@@ -234,13 +238,73 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         continued.oled.statusLine = "edited-after-submit-same-mode"
         live.updateMode(continued)
 
-        let merged = submitted.merging(into: baseline)
+        let merged = submitted.merging(into: baseline, includeOLED: true)
         XCTAssertEqual(merged.draft(for: .mode1).oled.statusLine, "submitted-cursor")
         XCTAssertEqual(
             merged.draft(for: .mode0).oled.statusLine,
             baseline.draft(for: .mode0).oled.statusLine
         )
         XCTAssertNotEqual(live.draft(for: .mode1).oled.statusLine, merged.draft(for: .mode1).oled.statusLine)
+    }
+
+    func testHiddenOLEDDraftDoesNotCountAsUnsynced() {
+        var current = AhaKeyStudioDraft.default
+        var mode = current.draft(for: .mode0)
+        mode.oled.statusLine = "stale-hidden-oled"
+        current.updateMode(mode)
+        let projection = AhaKeyReleaseFeaturePolicy.current.projection(.negotiating)
+        XCTAssertFalse(AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(projection))
+        XCTAssertEqual(
+            AhaKeyStudioDraftDirtyPolicy.unsyncedCount(
+                current: current,
+                baseline: .default,
+                includeOLED: AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(projection),
+                oledIsDirty: { $0 != $1 }
+            ),
+            0
+        )
+        XCTAssertEqual(
+            AhaKeyStudioDraftDirtyPolicy.unsyncedCount(
+                current: current,
+                baseline: .default,
+                includeOLED: true,
+                oledIsDirty: { $0 != $1 }
+            ),
+            1
+        )
+        mode.updateKey(AhaKeyKeyDraft(
+            role: .approve,
+            shortcut: mode.key(for: .approve).shortcut,
+            macro: mode.key(for: .approve).macro,
+            description: "dirty-key",
+            voicePreset: mode.key(for: .approve).voicePreset
+        ))
+        current.updateMode(mode)
+        XCTAssertEqual(
+            AhaKeyStudioDraftDirtyPolicy.unsyncedCount(
+                current: current,
+                baseline: .default,
+                includeOLED: false,
+                oledIsDirty: { $0 != $1 }
+            ),
+            1
+        )
+    }
+
+    func testMergingSubmittedModeDoesNotPromoteOLEDWhenPicturesClosed() {
+        let baseline = AhaKeyStudioDraft.default
+        var submitted = baseline.draft(for: .mode1)
+        submitted.oled.statusLine = "should-not-promote"
+        submitted.oled.taskGIFSets[0].assets[3].localAssetPath = "/tmp/stale.gif"
+        submitted.lightBar.brightness = 77
+        let merged = AhaKeyStudioRuntimeStore.mergingSubmittedMode(
+            submitted,
+            into: baseline,
+            includeOLED: false
+        )
+        XCTAssertEqual(merged.draft(for: .mode1).oled, baseline.draft(for: .mode1).oled)
+        XCTAssertEqual(merged.draft(for: .mode1).lightBar.brightness, 77)
+        XCTAssertEqual(merged.draft(for: .mode0).oled, baseline.draft(for: .mode0).oled)
     }
 
     func testV02PresentationClosesOLEDInspector() {

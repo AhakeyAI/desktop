@@ -93,7 +93,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
 
     func testDefaultLikeInputProducesValidConfiguration() throws {
         let modes = (0 ... 3).map { modeInput(slot: UInt8($0), donePath: "mode\($0)-done") }
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: modes)
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: modes, includePictureResources: true)
         let configuration = assembled.configuration
         XCTAssertEqual(configuration.modes.count, 4)
         XCTAssertEqual(Set(configuration.modes.map(\.slot)).count, 4, "模式槽位去重")
@@ -111,7 +111,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
     }
 
     func testDefaultAnimationMirrorsSetADoneSlot() throws {
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [modeInput(slot: 0, donePath: "done-a")])
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [modeInput(slot: 0, donePath: "done-a")], includePictureResources: true)
         let oled = assembled.configuration.modes[0].oled
         let expected = try AhaKeyResourceIdentifier("mode0-default")
         XCTAssertEqual(oled.defaultAnimation, expected)
@@ -126,7 +126,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
     }
 
     func testNoDoneResourceYieldsNilDefaultAnimation() throws {
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [modeInput(slot: 1)])
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [modeInput(slot: 1)], includePictureResources: true)
         let oled = assembled.configuration.modes[0].oled
         XCTAssertNil(oled.defaultAnimation)
         XCTAssertNil(oled.defaultAnimationFrames)
@@ -141,7 +141,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
             asset(.done, path: "b-done"),
         ])
         let make: () throws -> AhaKeyStudioAssembledConfiguration = {
-            try AhaKeyStudioPackageAssembler.assemble(modes: [self.modeInput(slot: 2, donePath: "a-done", setB: setB)])
+            try AhaKeyStudioPackageAssembler.assemble(modes: [self.modeInput(slot: 2, donePath: "a-done", setB: setB)], includePictureResources: true)
         }
         let first = try make()
         let second = try make()
@@ -169,7 +169,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
             ),
             lightBar: modeInput(slot: 0).lightBar
         )
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
         let oled = assembled.configuration.modes[0].oled
         let expected = try AhaKeyResourceIdentifier("mode0-default")
         XCTAssertEqual(oled.taskSets[0].assets.first { $0.state == .idle }?.resource, expected)
@@ -192,7 +192,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
             ),
             lightBar: modeInput(slot: 3).lightBar
         )
-        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode])) { error in
+        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)) { error in
             XCTAssertEqual(
                 error as? AhaKeyStudioPackageAssemblerError,
                 .idleResourceMustMirrorDefaultAnimation(mode: 3)
@@ -216,7 +216,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
             ),
             lightBar: modeInput(slot: 0).lightBar
         )
-        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode])) { error in
+        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)) { error in
             XCTAssertEqual(
                 error as? AhaKeyStudioPackageAssemblerError,
                 .missingAssetMetadata(identifier: "mode0-default")
@@ -227,7 +227,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
     func testDuplicateKeyRoleRejected() throws {
         var mode = modeInput(slot: 0)
         mode.keys.append(mode.keys[0])
-        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode])) { error in
+        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)) { error in
             XCTAssertEqual(error as? AhaKeyDesiredConfigurationError, .duplicateKeyRole)
         }
     }
@@ -241,7 +241,7 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
             ),
             lightBar: modeInput(slot: 0).lightBar
         )
-        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode])) { error in
+        XCTAssertThrowsError(try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)) { error in
             XCTAssertEqual(
                 error as? AhaKeyStudioPackageAssemblerError,
                 .invalidTaskSetCount(mode: 0, count: 1)
@@ -252,13 +252,13 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
     func testActiveSetBaselineMinusOnePassesThrough() throws {
         var mode = modeInput(slot: 0)
         mode.oled.activeSet = -1
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
         XCTAssertEqual(assembled.configuration.modes[0].oled.activeSet, -1, "-1 = 尚未同步基线，跨重启保留")
     }
 
     func testKeysAndLightOnlyDropsPictureResourcesAndUnsetsActiveSet() throws {
         let mode = modeInput(slot: 0, donePath: "done-a")
-        let withPictures = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
+        let withPictures = try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
         XCTAssertFalse(withPictures.resources.isEmpty)
         XCTAssertEqual(withPictures.configuration.modes[0].oled.activeSet, 0)
 
@@ -274,5 +274,36 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
             keysAndLight.configuration.modes[0].lightBar,
             withPictures.configuration.modes[0].lightBar
         )
+        XCTAssertEqual(keysAndLight.configuration.modes[0].oled.statusLine, "")
+        XCTAssertEqual(keysAndLight.configuration.modes[0].oled.framesPerSecond, 12)
+    }
+
+    func testKeysAndLightOnlyIgnoresMalformedOLEDDraft() throws {
+        let mode = AhaKeyStudioModeInput(
+            slot: 0,
+            keys: modeInput(slot: 0).keys,
+            oled: AhaKeyStudioOLEDInput(
+                statusLine: "stale-broken-oled",
+                framesPerSecond: 99,
+                taskSets: [setWith(donePath: "broken")],
+                activeSet: 0
+            ),
+            lightBar: modeInput(slot: 0).lightBar
+        )
+        XCTAssertThrowsError(
+            try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
+        )
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(
+            modes: [mode],
+            includePictureResources: false
+        )
+        XCTAssertTrue(assembled.resources.isEmpty)
+        XCTAssertNil(assembled.configuration.modes[0].oled.defaultAnimation)
+        XCTAssertEqual(assembled.configuration.modes[0].oled.activeSet, -1)
+        XCTAssertEqual(assembled.configuration.modes[0].oled.statusLine, "")
+        XCTAssertEqual(assembled.configuration.modes[0].oled.framesPerSecond, 12)
+        XCTAssertEqual(assembled.configuration.modes[0].oled.taskSets.count, 2)
+        XCTAssertEqual(assembled.configuration.modes[0].keys.count, 4)
+        XCTAssertEqual(assembled.configuration.modes[0].lightBar.brightness, 35)
     }
 }

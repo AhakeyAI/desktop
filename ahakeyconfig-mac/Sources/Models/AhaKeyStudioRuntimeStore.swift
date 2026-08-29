@@ -285,13 +285,19 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         try await applyDraft(AhaKeyStudioDraft(modes: [submission.modeDraft]), scope: submission.scope)
     }
 
-    /// 成功写入后只把已提交模式合并进同步基线，其它模式草稿保持未同步。
+    /// 成功写入后只把已提交模式的已写入面合并进同步基线。
+    /// `includeOLED == false` 时保留旧 OLED 基线，避免把未下发的图片草稿记成已同步。
     nonisolated static func mergingSubmittedMode(
         _ submitted: AhaKeyModeDraft,
-        into baseline: AhaKeyStudioDraft
+        into baseline: AhaKeyStudioDraft,
+        includeOLED: Bool
     ) -> AhaKeyStudioDraft {
+        var merged = submitted
+        if !includeOLED {
+            merged.oled = baseline.draft(for: submitted.mode).oled
+        }
         var next = baseline
-        next.updateMode(submitted)
+        next.updateMode(merged)
         return next
     }
 
@@ -506,6 +512,34 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     }
 }
 
+/// v0.2 关闭 OLED 面时，dirty 与成功基线都不得把未写入图片当已同步。
+enum AhaKeyStudioDraftDirtyPolicy {
+    static func includeOLEDSurface(_ projection: AhaKeyReleaseFeatureProjection) -> Bool {
+        projection.showsOLEDInspector
+    }
+
+    static func unsyncedCount(
+        current: AhaKeyStudioDraft,
+        baseline: AhaKeyStudioDraft,
+        includeOLED: Bool,
+        oledIsDirty: (AhaKeyOLEDDraft, AhaKeyOLEDDraft) -> Bool
+    ) -> Int {
+        AhaKeyModeSlot.allCases.reduce(into: 0) { count, mode in
+            let currentMode = current.draft(for: mode)
+            let baselineMode = baseline.draft(for: mode)
+            for role in AhaKeyKeyRole.allCases where currentMode.key(for: role) != baselineMode.key(for: role) {
+                count += 1
+            }
+            if includeOLED, oledIsDirty(currentMode.oled, baselineMode.oled) {
+                count += 1
+            }
+            if currentMode.lightBar != baselineMode.lightBar {
+                count += 1
+            }
+        }
+    }
+}
+
 /// 点击「写入键盘」瞬间冻结的当前模式。apply 与成功 baseline 只使用这份快照。
 struct AhaKeyStudioSubmittedWrite: Equatable {
     let modeSlot: AhaKeyModeSlot
@@ -522,8 +556,8 @@ struct AhaKeyStudioSubmittedWrite: Equatable {
         )
     }
 
-    func merging(into baseline: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
-        AhaKeyStudioRuntimeStore.mergingSubmittedMode(modeDraft, into: baseline)
+    func merging(into baseline: AhaKeyStudioDraft, includeOLED: Bool) -> AhaKeyStudioDraft {
+        AhaKeyStudioRuntimeStore.mergingSubmittedMode(modeDraft, into: baseline, includeOLED: includeOLED)
     }
 }
 

@@ -805,7 +805,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
                 brightness: 35
             )
         )
-        return try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
+        return try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
     }
 
     private func makeGIFData(width: Int = 160, height: Int = 80, fill: UInt8) -> Data {

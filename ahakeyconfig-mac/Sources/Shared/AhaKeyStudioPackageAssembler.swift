@@ -219,10 +219,10 @@ public enum AhaKeyStudioPackageAssembler {
 
     /// 组装：输入 → (canonical desired configuration, 资源输入清单)。
     /// 构造校验全部在这里（角色去重/套图数/fps 范围等由 DesiredConfiguration 各 init 兜底）。
-    /// - Parameter includePictureResources: false 时忽略本地 GIF，产出无资源、activeSet=-1 的键位/灯效包。
+    /// - Parameter includePictureResources: false 时忽略旧 OLED 草稿，产出中性空 OLED 的键位/灯效包。
     public static func assemble(
         modes: [AhaKeyStudioModeInput],
-        includePictureResources: Bool = true
+        includePictureResources: Bool
     ) throws -> AhaKeyStudioAssembledConfiguration {
         guard !modes.isEmpty else { throw AhaKeyStudioPackageAssemblerError.emptyModes }
 
@@ -231,6 +231,32 @@ public enum AhaKeyStudioPackageAssembler {
 
         for mode in modes {
             let slot = mode.slot
+            let keys = mode.keys.map {
+                AhaKeyDesiredConfiguration.Key(
+                    role: $0.role,
+                    action: $0.action,
+                    description: $0.description,
+                    voicePreset: $0.voicePreset
+                )
+            }
+            let lightMappings = try mode.lightBar.stateMappings.map {
+                try AhaKeyDesiredConfiguration.LightStateMapping(state: $0.state, effect: $0.effect)
+            }
+            let assembledLightBar = try AhaKeyDesiredConfiguration.LightBar(
+                stateMappings: lightMappings,
+                brightness: mode.lightBar.brightness
+            )
+
+            if !includePictureResources {
+                assembledModes.append(try AhaKeyDesiredConfiguration.Mode(
+                    slot: slot,
+                    keys: keys,
+                    oled: try keysAndLightNeutralOLED(),
+                    lightBar: assembledLightBar
+                ))
+                continue
+            }
+
             let oled = mode.oled
             guard oled.taskSets.count == 2 else {
                 throw AhaKeyStudioPackageAssemblerError.invalidTaskSetCount(
@@ -240,7 +266,7 @@ public enum AhaKeyStudioPackageAssembler {
 
             // 套图 A done 槽：defaultAnimation 镜像源。
             let doneAsset = oled.taskSets[0].assets.first { $0.state == .done }
-            let doneURL = includePictureResources ? doneAsset?.localFileURL : nil
+            let doneURL = doneAsset?.localFileURL
             var defaultIdentifier: AhaKeyResourceIdentifier?
             if let doneURL {
                 let identifier = try AhaKeyResourceIdentifier(defaultAnimationIdentifier(mode: slot))
@@ -260,7 +286,7 @@ public enum AhaKeyStudioPackageAssembler {
                     var resourceIdentifier: AhaKeyResourceIdentifier?
                     // 素材的申报元数据：镜像槽（idle / 套图 A done）一律取 done 源，保证同引用同元数据。
                     var metadataSource = asset
-                    if includePictureResources, let url = asset.localFileURL {
+                    if let url = asset.localFileURL {
                         switch asset.state {
                         case .idle:
                             // planner 冻结约束：idle 带资源必须同 defaultAnimation 引用。
@@ -298,17 +324,6 @@ public enum AhaKeyStudioPackageAssembler {
                 assembledSets.append(try AhaKeyDesiredConfiguration.TaskSet(assets: assembledAssets))
             }
 
-            let keys = try mode.keys.map {
-                AhaKeyDesiredConfiguration.Key(
-                    role: $0.role,
-                    action: $0.action,
-                    description: $0.description,
-                    voicePreset: $0.voicePreset
-                )
-            }
-            let lightMappings = try mode.lightBar.stateMappings.map {
-                try AhaKeyDesiredConfiguration.LightStateMapping(state: $0.state, effect: $0.effect)
-            }
             let assembledOLED = try AhaKeyDesiredConfiguration.OLED(
                 defaultAnimation: defaultIdentifier,
                 defaultAnimationFrames: defaultIdentifier == nil
@@ -316,11 +331,7 @@ public enum AhaKeyStudioPackageAssembler {
                 statusLine: oled.statusLine,
                 framesPerSecond: oled.framesPerSecond,
                 taskSets: assembledSets,
-                activeSet: includePictureResources ? oled.activeSet : -1
-            )
-            let assembledLightBar = try AhaKeyDesiredConfiguration.LightBar(
-                stateMappings: lightMappings,
-                brightness: mode.lightBar.brightness
+                activeSet: oled.activeSet
             )
             assembledModes.append(try AhaKeyDesiredConfiguration.Mode(
                 slot: slot,
@@ -333,6 +344,24 @@ public enum AhaKeyStudioPackageAssembler {
         let configuration = try AhaKeyDesiredConfiguration(modes: assembledModes)
         let resources = resourceInputs.values.sorted { $0.logicalIdentifier.rawValue < $1.logicalIdentifier.rawValue }
         return AhaKeyStudioAssembledConfiguration(configuration: configuration, resources: resources)
+    }
+
+    /// 键位/灯效包使用的中性 OLED：不读取、不校验调用方草稿。
+    private static func keysAndLightNeutralOLED() throws -> AhaKeyDesiredConfiguration.OLED {
+        let emptySet = try AhaKeyDesiredConfiguration.TaskSet(assets: [
+            try .init(state: .idle, resource: nil, framesPerSecond: 12),
+            try .init(state: .working, resource: nil, framesPerSecond: 12),
+            try .init(state: .waiting, resource: nil, framesPerSecond: 12),
+            try .init(state: .done, resource: nil, framesPerSecond: 12),
+        ])
+        return try AhaKeyDesiredConfiguration.OLED(
+            defaultAnimation: nil,
+            defaultAnimationFrames: nil,
+            statusLine: "",
+            framesPerSecond: 12,
+            taskSets: [emptySet, emptySet],
+            activeSet: -1
+        )
     }
 
     /// 登记资源输入：申报元数据必须齐全且为正。

@@ -57,7 +57,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         resourceFiles: [AhaKeyResourceIdentifier: URL],
         capabilities: AhaKeyFirmwareCapabilities,
         protocolMode: AhaKeyProtocolMode,
-        release: AhaKeyReleaseFeatureProjection? = nil,
+        release: AhaKeyReleaseFeatureProjection,
         execute: StepExecutor
     ) async throws -> AhaKeyRuntimeOperationState {
         // 1. 受理（WAL accept：CAS 落资源 + 事务记录，幂等）

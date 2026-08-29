@@ -194,7 +194,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                 brightness: 35
             )
         )
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode])
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
         return try AhaKeyConfigurationPackage(
             targetDeviceID: deviceID,
             baseRevision: .init(0),

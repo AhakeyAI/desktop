@@ -131,8 +131,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
     func testBaseProgramContainsKeyLightBindActivateFinishSave() throws {
         let (desired, plan) = try modeWithEverything()
         let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
-            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
-        ))
+            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities(), release: .picturesUnrestrictedForTests))
         // 键位：approve shortcut（⌘+Enter = E3 28）、reject macro、approve description
         XCTAssertTrue(steps.contains(.setKeyShortcut(mode: 2, keyIndex: 1, hidCodes: [0xE3, 0x28])))
         XCTAssertTrue(steps.contains(.setKeyMacro(mode: 2, keyIndex: 2, pairs: [1, 0x51])))
@@ -158,8 +157,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
     func testBaseProgramSavesBeforeActivatingTaskPictureSet() throws {
         let (desired, plan) = try modeWithEverything()
         let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
-            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
-        ))
+            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities(), release: .picturesUnrestrictedForTests))
         let saveIndex = try XCTUnwrap(steps.firstIndex(of: .saveConfig))
         let activateIndex = try XCTUnwrap(steps.firstIndex(of: .setActiveTaskPictureSet(mode: 2, set: 1)))
         XCTAssertLessThan(saveIndex, activateIndex)
@@ -188,8 +186,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         let desired = try AhaKeyDesiredConfiguration(modes: [mode])
         let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
             mode: mode, desired: desired, plan: .init(transactions: [], slotAssignments: [:]),
-            capabilities: capabilities()
-        ))
+            capabilities: capabilities(), release: .picturesUnrestrictedForTests))
         XCTAssertFalse(steps.contains { if case .bindTaskPicture = $0 { return true }; return false })
         XCTAssertFalse(steps.contains { if case .finishTaskPictureWrite = $0 { return true }; return false })
         XCTAssertEqual(steps.dropLast(1).last, .saveConfig)
@@ -219,8 +216,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         let desired = try AhaKeyDesiredConfiguration(modes: [mode])
         let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
             mode: mode, desired: desired, plan: .init(transactions: [], slotAssignments: [:]),
-            capabilities: capabilities()
-        ))
+            capabilities: capabilities(), release: .picturesUnrestrictedForTests))
         XCTAssertFalse(steps.contains { if case .setActiveTaskPictureSet = $0 { return true }; return false })
         XCTAssertFalse(steps.contains { if case .finishTaskPictureWrite = $0 { return true }; return false })
         XCTAssertEqual(steps.last, .saveConfig)
@@ -238,8 +234,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         ]
         let resourceProgram = Mapper.program(
             for: try! .init("resource:img-a"), desired: desired, plan: plan,
-            resources: metas, capabilities: capabilities()
-        )
+            resources: metas, capabilities: capabilities(), release: .picturesUnrestrictedForTests)
         XCTAssertNotNil(resourceProgram)
         XCTAssertFalse(resourceProgram!.isEmpty)
         // 分块由声明帧数（12）× 固定编码长度决定，与 CAS 源 byteCount 无关
@@ -247,17 +242,14 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         XCTAssertEqual(prepares.count, 12 * 7)
         let baseProgram = Mapper.program(
             for: try! .init("base:mode:2"), desired: desired, plan: plan,
-            resources: metas, capabilities: capabilities()
-        )
+            resources: metas, capabilities: capabilities(), release: .picturesUnrestrictedForTests)
         XCTAssertNotNil(baseProgram)
         XCTAssertNil(Mapper.program(
             for: try! .init("base:mode:9"), desired: desired, plan: plan,
-            resources: metas, capabilities: capabilities()
-        ))
+            resources: metas, capabilities: capabilities(), release: .picturesUnrestrictedForTests))
         XCTAssertNil(Mapper.program(
             for: try! .init("bogus"), desired: desired, plan: plan,
-            resources: metas, capabilities: capabilities()
-        ))
+            resources: metas, capabilities: capabilities(), release: .picturesUnrestrictedForTests))
     }
 
     // MARK: 修饰键顺序
@@ -299,8 +291,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         )]
         let program = Mapper.program(
             for: try! .init("resource:img-default"), desired: desired, plan: plan,
-            resources: metas, capabilities: capabilities()
-        )
+            resources: metas, capabilities: capabilities(), release: .picturesUnrestrictedForTests)
         // 不得因 mapper 只搜 task asset 而永久失败；8 帧 × 7 块
         let prepares = program?.filter { if case .prepareWrite = $0 { return true }; return false }
         XCTAssertEqual(prepares?.count, 8 * 7)
@@ -309,8 +300,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
     func testDefaultAnimationBindingInBaseProgram() throws {
         let (desired, plan) = try modeWithDefaultAnimation()
         let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
-            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities()
-        ))
+            mode: desired.modes[0], desired: desired, plan: plan, capabilities: capabilities(), release: .picturesUnrestrictedForTests))
         // defaultAnimation 通过 0x95 idle 槽绑定，不发 0x82
         XCTAssertTrue(steps.contains(.bindTaskPicture(
             mode: 0, set: 0, state: 0,
@@ -349,8 +339,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
             mode: try! modeWithDefaultAnimation().0.modes[0],
             desired: try! modeWithDefaultAnimation().0,
             plan: try! modeWithDefaultAnimation().1,
-            capabilities: caps
-        )).compactMap { step -> UInt16? in
+            capabilities: caps, release: .picturesUnrestrictedForTests)).compactMap { step -> UInt16? in
             if case .bindTaskPicture(_, _, _, let start, let count, _) = step {
                 XCTAssertLessThan(start, 276)
                 XCTAssertLessThanOrEqual(Int(start) + Int(count), 276)
@@ -377,8 +366,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         )]
         XCTAssertNil(Mapper.program(
             for: try! .init("resource:img-edge"), desired: desired, plan: plan,
-            resources: metas, capabilities: caps
-        ))
+            resources: metas, capabilities: caps, release: .picturesUnrestrictedForTests))
     }
 
     private func compactDesired(slot: Int, frames: Int) throws -> (AhaKeyDesiredConfiguration, AhaKeyConfigurationPlanner.Plan) {
@@ -418,15 +406,12 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         )]
         XCTAssertNil(Mapper.program(
             for: try! .init("resource:img-edge"), desired: overflow.0, plan: overflow.1,
-            resources: metas, capabilities: caps
-        ))
+            resources: metas, capabilities: caps, release: .picturesUnrestrictedForTests))
         XCTAssertNil(Mapper.baseConfigurationProgram(
-            mode: overflow.0.modes[0], desired: overflow.0, plan: overflow.1, capabilities: caps
-        ))
+            mode: overflow.0.modes[0], desired: overflow.0, plan: overflow.1, capabilities: caps, release: .picturesUnrestrictedForTests))
         XCTAssertNil(Mapper.program(
             for: try! .init("base:mode:0"), desired: overflow.0, plan: overflow.1,
-            resources: metas, capabilities: caps
-        ))
+            resources: metas, capabilities: caps, release: .picturesUnrestrictedForTests))
     }
 
     func testCompactPrimaryLastSixFramesOccupyThrough275() throws {
@@ -446,8 +431,7 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         XCTAssertFalse(prepares.contains(where: { $0 >= 276 * 28_672 }))
         let legal = try compactDesired(slot: 9, frames: 6)
         let binds = try XCTUnwrap(Mapper.baseConfigurationProgram(
-            mode: legal.0.modes[0], desired: legal.0, plan: legal.1, capabilities: caps
-        )).compactMap { step -> (UInt16, UInt16)? in
+            mode: legal.0.modes[0], desired: legal.0, plan: legal.1, capabilities: caps, release: .picturesUnrestrictedForTests)).compactMap { step -> (UInt16, UInt16)? in
             if case .bindTaskPicture(_, _, _, let start, let count, _) = step {
                 return (start, count)
             }

@@ -213,18 +213,16 @@ public enum AhaKeyConfigurationPlanner {
         capabilities: AhaKeyFirmwareCapabilities,
         protocolMode: AhaKeyProtocolMode,
         policy: Policy = .currentDefault,
-        release: AhaKeyReleaseFeatureProjection? = nil
+        release: AhaKeyReleaseFeatureProjection
     ) -> Result<Plan, Rejection> {
         // 1. current-only
         guard protocolMode == .current else { return .failure(.unsupportedProtocol) }
-        if let release {
-            guard release.allowsBasicConfigurationWrite else {
-                return .failure(.releaseWriteNotAllowed)
-            }
-            if !release.allowsResourcePackage,
-               !desired.referencedResources.isEmpty || !resources.isEmpty {
-                return .failure(.releaseResourcePackageNotAllowed)
-            }
+        guard release.allowsBasicConfigurationWrite else {
+            return .failure(.releaseWriteNotAllowed)
+        }
+        if !release.allowsResourcePackage,
+           !desired.referencedResources.isEmpty || !resources.isEmpty {
+            return .failure(.releaseResourcePackageNotAllowed)
         }
 
         // 2. 结构对账：模式槽位 / 套图数 / 任务状态在设备能力内

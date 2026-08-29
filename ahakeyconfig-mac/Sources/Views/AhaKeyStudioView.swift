@@ -2177,19 +2177,12 @@ struct AhaKeyStudioView: View {
     }
 
     private var dirtyCount: Int {
-        AhaKeyModeSlot.allCases.reduce(into: 0) { count, mode in
-            let current = studioDraft.draft(for: mode)
-            let baseline = lastSyncedDraft.draft(for: mode)
-            for role in AhaKeyKeyRole.allCases where current.key(for: role) != baseline.key(for: role) {
-                count += 1
-            }
-            if oledIsDirty(current: current.oled, baseline: baseline.oled) {
-                count += 1
-            }
-            if current.lightBar != baseline.lightBar {
-                count += 1
-            }
-        }
+        AhaKeyStudioDraftDirtyPolicy.unsyncedCount(
+            current: studioDraft,
+            baseline: lastSyncedDraft,
+            includeOLED: AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(releaseFeatureProjection),
+            oledIsDirty: { oledIsDirty(current: $0, baseline: $1) }
+        )
     }
 
     private func restoreCurrentModeDefaults() {
@@ -2355,6 +2348,9 @@ struct AhaKeyStudioView: View {
             guard let role = part.keyRole else { return false }
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
+            guard AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(releaseFeatureProjection) else {
+                return false
+            }
             return oledIsDirty(current: current.oled, baseline: baseline.oled)
         case .lightBar:
             return current.lightBar != baseline.lightBar
@@ -2491,14 +2487,24 @@ struct AhaKeyStudioView: View {
                     }
                     switch operation.state {
                     case .completed:
-                        self.lastSyncedDraft = submittedWrite.merging(into: self.lastSyncedDraft)
+                        let includeOLED = AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(
+                            self.releaseFeatureProjection
+                        )
+                        self.lastSyncedDraft = submittedWrite.merging(
+                            into: self.lastSyncedDraft,
+                            includeOLED: includeOLED
+                        )
                         self.saveCurrentDeviceSyncBaseline()
                         self.lastSyncDate = Date()
                         self.isSyncing = false
                         self.isCancellingDeviceWrite = false
-                        self.syncStatusMessage = NSLocalizedString("已全部写入设备并保存。", comment: "")
+                        self.syncStatusMessage = includeOLED
+                            ? NSLocalizedString("已全部写入设备并保存。", comment: "")
+                            : NSLocalizedString("键位和灯效已写入设备并保存。", comment: "")
                         if showResultAlert {
-                            self.writeResultAlertMessage = NSLocalizedString("配置已成功写入键盘。", comment: "")
+                            self.writeResultAlertMessage = includeOLED
+                                ? NSLocalizedString("配置已成功写入键盘。", comment: "")
+                                : NSLocalizedString("键位和灯效已成功写入键盘。", comment: "")
                             self.showsWriteResultAlert = true
                         }
                         if returnAgent { self.returnToKeyboardControl() }

@@ -60,8 +60,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
     func testValidConfigurationProducesResourceThenBaseTransactions() {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(), resources: [meta("img-a")],
-            capabilities: capabilities(), protocolMode: .current
-        )
+            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .success(let plan) = result else { return XCTFail("应规划成功: \(result)") }
         XCTAssertEqual(plan.transactions.map(\.kind), [.resourceUpload, .baseConfiguration])
         XCTAssertEqual(plan.slotAssignments[resource("img-a")], 0)
@@ -80,8 +79,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let combined = try! AhaKeyDesiredConfiguration(modes: empty.modes + withPic.modes)
         let result = AhaKeyConfigurationPlanner.plan(
             desired: combined, resources: [meta("img-a")],
-            capabilities: capabilities(), protocolMode: .current
-        )
+            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .success(let plan) = result else { return XCTFail("应规划成功: \(result)") }
         XCTAssertEqual(plan.transactions[1].modeSlots, [1, 0])
     }
@@ -89,8 +87,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
     func testDuplicateResourceReferenceGetsSingleSlot() {
         let d = desired(assets: [asset("img-a"), asset("img-a", state: .working)])
         let result = AhaKeyConfigurationPlanner.plan(
-            desired: d, resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current
-        )
+            desired: d, resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .success(let plan) = result else { return XCTFail("应成功: \(result)") }
         XCTAssertEqual(plan.slotAssignments.count, 1)
         XCTAssertEqual(plan.transactions[0].uploads.count, 1)
@@ -102,8 +99,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         for mode in [AhaKeyProtocolMode.legacy, .legacyBaseOnly, .negotiating, .restrictedUnknown] {
             let result = AhaKeyConfigurationPlanner.plan(
                 desired: desired(), resources: [meta("img-a")],
-                capabilities: capabilities(), protocolMode: mode
-            )
+                capabilities: capabilities(), protocolMode: mode, release: .picturesUnrestrictedForTests)
             XCTAssertEqual(result, .failure(.unsupportedProtocol), "\(mode) 应拒绝")
         }
     }
@@ -113,8 +109,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
     func testRejectsModeSlotBeyondDevice() {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(modeSlot: 3), resources: [meta("img-a")],
-            capabilities: capabilities(modeCount: 2), protocolMode: .current
-        )
+            capabilities: capabilities(modeCount: 2), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.modeSlotExceedsDevice(slot: 3, deviceModeCount: 2)))
     }
 
@@ -123,8 +118,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(assets: [asset("img-a", state: .done)]),
             resources: [meta("img-a")],
-            capabilities: capabilities(stateCount: 2), protocolMode: .current
-        )
+            capabilities: capabilities(stateCount: 2), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.taskStateUnsupported(state: 3, deviceStateCount: 2)))
     }
 
@@ -132,24 +126,21 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
 
     func testRejectsMissingResource() {
         let result = AhaKeyConfigurationPlanner.plan(
-            desired: desired(), resources: [], capabilities: capabilities(), protocolMode: .current
-        )
+            desired: desired(), resources: [], capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.missingResource(resource("img-a"))))
     }
 
     func testRejectsDisallowedMediaType() {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(), resources: [meta("img-a", mediaType: "png")],
-            capabilities: capabilities(), protocolMode: .current
-        )
+            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.disallowedMediaType(resource("img-a"), "png")))
     }
 
     func testRejectsOversizedAsset() {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(), resources: [meta("img-a", bytes: 3 * 1024 * 1024)],
-            capabilities: capabilities(), protocolMode: .current
-        )
+            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .failure(.assetTooLarge(let id, let bytes, _)) = result else {
             return XCTFail("应拒绝超大资源: \(result)")
         }
@@ -161,13 +152,11 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         // 帧上限与上传/绑定同一口径（30）：声明 31 即拒绝，绝不静默截断
         let r30 = AhaKeyConfigurationPlanner.plan(
             desired: desired(assets: [asset("img-a", frames: 30)]),
-            resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current
-        )
+            resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .success = r30 else { return XCTFail("30 帧应通过: \(r30)") }
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(assets: [asset("img-a", frames: 31)]),
-            resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current
-        )
+            resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.tooManyFrames(resource("img-a"), frames: 31, limit: 30)))
     }
 
@@ -175,8 +164,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         // 512×512×4B×30帧 = 30 MiB > 16 MiB（帧数在上限内，专测解码内存维度）
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desired(assets: [asset("img-a", w: 512, h: 512, frames: 30)]),
-            resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current
-        )
+            resources: [meta("img-a")], capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .failure(.decodeMemoryExceeded(let id, _, _)) = result else {
             return XCTFail("应拒绝解码内存超限: \(result)")
         }
@@ -192,8 +180,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: d,
             resources: [meta("img-a"), meta("img-b"), meta("img-c")],
-            capabilities: capabilities(userSlotLimit: 23), protocolMode: .current
-        )
+            capabilities: capabilities(userSlotLimit: 23), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 90, slotLimit: 23)))
     }
 
@@ -201,9 +188,9 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let d = desired(assets: [asset("img-b"), asset("img-a", state: .working)])
         let resources = [meta("img-b"), meta("img-a")]
         let r1 = AhaKeyConfigurationPlanner.plan(
-            desired: d, resources: resources, capabilities: capabilities(), protocolMode: .current)
+            desired: d, resources: resources, capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         let r2 = AhaKeyConfigurationPlanner.plan(
-            desired: d, resources: resources.reversed(), capabilities: capabilities(), protocolMode: .current)
+            desired: d, resources: resources.reversed(), capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .success(let p1) = r1, case .success(let p2) = r2 else {
             return XCTFail("两次规划都应成功")
         }
@@ -236,8 +223,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let d = desiredWithDefault(frames: 30, extraAssets: [asset("img-a", frames: 30)])
         let result = AhaKeyConfigurationPlanner.plan(
             desired: d, resources: [meta("img-default"), meta("img-a")],
-            capabilities: capabilities(userSlotLimit: 59), protocolMode: .current
-        )
+            capabilities: capabilities(userSlotLimit: 59), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.deviceCapacityExceeded(slotsNeeded: 60, slotLimit: 59)))
     }
 
@@ -245,8 +231,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let d = desiredWithDefault(frames: 30, extraAssets: [asset("img-a", frames: 30)])
         let result = AhaKeyConfigurationPlanner.plan(
             desired: d, resources: [meta("img-a"), meta("img-default")],
-            capabilities: capabilities(), protocolMode: .current
-        )
+            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         guard case .success(let plan) = result else { return XCTFail("应成功: \(result)") }
         // 两个资源各占一槽，槽位按标识符排序确定
         XCTAssertEqual(plan.slotAssignments[resource("img-a")], 0)
@@ -257,8 +242,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let d = desiredWithDefault(frames: 31)
         let result = AhaKeyConfigurationPlanner.plan(
             desired: d, resources: [meta("img-default")],
-            capabilities: capabilities(), protocolMode: .current
-        )
+            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.tooManyFrames(resource("img-default"), frames: 31, limit: 30)))
     }
 
@@ -283,8 +267,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: d,
             resources: [meta("img-default"), meta("img-working"), meta("img-idle")],
-            capabilities: capabilities(), protocolMode: .current
-        )
+            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests)
         XCTAssertEqual(result, .failure(.idleAnimationMismatch(
             idle: resource("img-idle"), defaultAnimation: resource("img-default"))))
     }
