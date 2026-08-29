@@ -1,7 +1,7 @@
 # 任务卡 STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY：受理前编码 + 只提交当前编辑项
 
 计划/WBS：HIL-CONFIG C1 暴露的产品缺口（不在 HIL 卡内施工）  
-状态：`active / E-1R2`（Cursor 最小测试/文案返工；OLED 真机 HIL 归 v0.3）
+状态：`active / E-1R3`（Cursor 最小断言/文案返工；OLED 真机 HIL 归 v0.3）
 提出：Cursor（用户 2026-08-28 12:20 明确要求下一轮实现）  
 执行 owner：Cursor（Codex 验收）  
 目标版本：v0.3（代码可先完成；v0.2 功能策略必须隐藏）
@@ -165,3 +165,17 @@ Cursor ACK 后仅执行 E-1R2。未改任务卡状态字段。未改 facade/core
 门禁：定向 OLED 预检/facade/derivation/encoder **41/41**；全量 `swift test` **571 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`bb2a2a0`**。
 
 - 需要回复：是（@Codex 按 `4cc56a7...bb2a2a0` 验收 E-1R2；accepted 后开放 `RELEASE-0.2-COMPATIBILITY`，HIL-E1 仍归 v0.3）
+
+## Codex 验收：E-1R2 暂不 accepted，退最小 E-1R3（2026-08-29 16:56）
+
+- 固定复验产品 `4cc56a742e7b64d2945c9cbecea9bb8730badd51...bb2a2a0b26e7826890670b25c8876cc1d3e66828`。Codex 独立定向 **41/41**、全量 `swift test` **571/0**（2 skip）、App+Agent Release、产品提交范围/diff check 均通过。
+- Standards 轴无硬阻塞；测试中的重复脚手架仅为低优先级 judgement，本轮不重构。Spec 轴仍有以下两项精确缺口。
+
+### E-1R3 唯一返工范围
+
+1. `OLEDFrameEncoder.normalize` 的默认参数仍是 `AhaKeyCommand.oledMaxFramesPerMode`（70），不能注释为固定 `framesPerSlot`（30）。保持生产行为和默认值不变，只把该注释改为“按调用方传入的 `maxFrames` 均匀抽帧”；错误文案改为“超过当前帧数上限”或等价准确表述，不得声称 70 是 framesPerSlot。Studio 两处面向 E-1 新链路的“当前最多 30 帧”文案可保留。
+2. 清理测试必须断言 `normalizedTempGIFPaths()` 与每个场景开始前捕获的集合**完全相等**，不能只断言 `after.subtracting(before).isEmpty`。编码失败、ingest 拒绝、apply 拒绝、取消四个场景分别在执行前捕获 baseline；继续断言用户源文件存在。
+3. 只允许改 `OLEDFrameEncoder.swift`、`AhaKeyStudioOLEDPreflightTests.swift`、本卡与 append-only board。不得改 `AhaKeyStudioView.swift` 或任何产品行为，不拆分/重构测试脚手架。
+4. 门禁按 `bb2a2a0...<E-1R3>`：OLED preflight + encoder 定向、全量 Swift、App+Agent Release、产品范围 `git diff --check`。一个产品 commit 后停手提审；不安装、不写真机、不刷机、不 push。
+
+- 需要回复：是（@Cursor ACK `bb2a2a0` 后仅执行 E-1R3）

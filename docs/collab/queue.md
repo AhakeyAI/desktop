@@ -35,8 +35,8 @@
 | 15A | `HIL-CONFIG-0x99-CAPS14` | Cursor | HIL 阻塞返工 | accepted | Codex 21:47：`3b08d82`；双轴与独立门禁通过 |
 | 15B | `HIL-CONFIG-STUDIO-XPC-CLIENT` | Cursor | HIL 阻塞返工 | accepted | Codex 09:50：R2 双轴 0 findings，accepted @ `2403978` |
 | 15C | `DEVICE-PERSIST-AND-UPLOAD-UX` | Cursor；固件路由 Zcode/WBS 1.5 | HIL C1 跨端缺口 | accepted / C-3 | C-1/C-2/C-3 accepted @ `3bc52b2`；固件遗留继续由 WBS 1.5 闭环 |
-| 15D | `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` | Cursor | HIL C1 编辑/受理缺口 | active / E-1R2 | `4cc56a7` 产品逻辑通过；补齐 temp 清理失败矩阵与 framesPerSlot 文案 |
-| 15E | `RELEASE-0.2-COMPATIBILITY` | Cursor | v0.2 功能策略 | draft | E-1R2 accepted；客户端写入域空闲 |
+| 15D | `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` | Cursor | HIL C1 编辑/受理缺口 | active / E-1R3 | `bb2a2a0` 测试矩阵已补；修正 70/30 注释冲突与精确集合断言 |
+| 15E | `RELEASE-0.2-COMPATIBILITY` | Cursor | v0.2 功能策略 | draft | E-1R3 accepted；客户端写入域空闲 |
 | 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | draft | 15E accepted；只开发/验证安装链，不实际签名安装 |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | draft / USER-GATE | 15E、15F accepted；真实当前量产键盘在场 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
@@ -50,7 +50,7 @@
 | 21 | `WBS-6-BETA-RELEASE` | Cursor；Zcode 验证 | 6.5-6.7 / v1.0 | draft / USER-GATE | v1.0 的 6.1-6.4 accepted；不重复承担 v0.2 Beta |
 | 22 | `HIL-RELEASE-1.1` | Cursor；Zcode 验证 | 6.4A / v1.1 | draft / USER-GATE | WBS 5A accepted；不反向阻塞 v1.0 |
 
-队列不是一般并行许可。Cursor 当前只执行 E-1R2 的测试/文案最小返工；Zcode 仅执行独立固件仓 WBS 1.5 R16。v0.2 三张后续卡均为 draft：E-1R2 accepted 后先做兼容策略，再做 5.9A，最后经用户门禁跑 v0.2 HIL。OLED HIL-E1 归 v0.3，不在本轮直接启动。HIL-CONFIG 继续 blocked，待 WBS 1.5 + 刷机门禁后归 v0.3；WBS 2/3/5.8/5A/6 不能反向阻塞 v0.2。刷机、安装、远端 push 和量产切换仍需 USER-GATE。
+队列不是一般并行许可。Cursor 当前只执行 E-1R3 的断言/文案最小返工；Zcode 仅执行独立固件仓 WBS 1.5 R16。v0.2 三张后续卡均为 draft：E-1R3 accepted 后先做兼容策略，再做 5.9A，最后经用户门禁跑 v0.2 HIL。OLED HIL-E1 归 v0.3，不在本轮直接启动。HIL-CONFIG 继续 blocked，待 WBS 1.5 + 刷机门禁后归 v0.3；WBS 2/3/5.8/5A/6 不能反向阻塞 v0.2。刷机、安装、远端 push 和量产切换仍需 USER-GATE。
 
 发布列车：`v0.2 = 15E → 15F → 15G`；`v0.3 = WBS 1.5-1.7 + OLED E 系列 + HIL-CONFIG → 19A`；`v0.4 = WBS 2 + WBS 4.1-4.4 + 5.8 → 19B`；`v0.5 = WBS 3 + WBS 4.5 → 19C`；`v1.0 = WBS 4.6-4.8 + 5.10 → 5.9B → WBS 6`；`v1.1 = WBS 5A → 22`。
 
