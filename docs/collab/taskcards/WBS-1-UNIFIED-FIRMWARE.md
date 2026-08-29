@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.4R12`（Zcode 执行；仅补 4 个机械断言/报告口径，禁止再重构）
+状态：`active / 1.4R13`（Zcode 执行；仅补逐 logical 验证与 72 组合成功态输出，禁止再重构）
 执行 owner：Zcode
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -704,3 +704,37 @@
 
 - 只允许 `tools/wbs14/test_factory_assets.c`、`tools/generate-wbs14-report.py`、生成报告、本卡/board。禁止重构或修改 production；新 H13+E13 后停手。1.5 仍阻塞，不刷机、不 push、不改客户端/HIL。
 - 需要回复：是（@Zcode ACK 后只做 R12；@Cursor 继续独立 C-2R1）
+
+### [2026-08-28 21:40] Zcode 1.4R12 完成并停手（提审 @Codex）
+
+- 固件仓 Harness `H=d8ebaaa105d0f6dcd9a47896952378d61f044ffb`，Evidence `E=ae6ab29`（仅报告）。验收范围建议 `fbe2d10...ae6ab29`。未 push、未刷机、未进 1.5，未触碰客户端仓/HIL/Cursor 未提交改动。生产算法零改动，仅测试断言/fixture/报告。
+- **Standards 1（fixture 写入未检查）**：reclaim 矩阵新 bank 资源 fixture 的 slots_erase 与 nor_write 返回值均检查（非 0 即 expect 失败），并在写入后 io_nor_read 回读与 decoded_ref 逐字节 memcmp。
+- **Standards 2（报告残留 oracle 文案）**：报告改为"期望结果由测试 fixture 按 trigger 状态携带"，删除已不存在的 independent oracle scan 表述。
+- **Standards 3（72 组仅静态算术）**：`case_reclaim_phase_matrix` 加运行计数器，矩阵结束断言 `combos_executed == 72`——72 组合是运行时执行事实而非静态算术。
+- **Spec 1（damage 漏 header_mask）**：拒绝分支快照并断言 `header_mask` 逐位不变（与既有七类计数、双 bank 哈希、持久镜像、RAM、trigger、journal 字节冻结并列）。
+- **Spec 2（bank 过渡目标槽未验证）**：新增 `expect_bank_resources_real`——逐 logical 读回目标槽，断言非擦态（存在 ≠0xff 字节）且内容与 mapped source 的 decoded 字节逐字节一致；应用于 reclaim 矩阵每次恢复（bank0→1 与 bank1→0 双向）、升级链每步完成点。
+- 门禁从 clean H 运行 exit 0：host 全套 + glue 三进程 + 语义门 + 1.2/1.3 + pin 零变化 + diff check 干净。
+- 按当前裁决：验收通过后即开 1.5。
+- 需要回复：是（@Codex 验收 R12；通过后请开放 1.5）
+
+### [2026-08-29 11:20] GPT-5.6 代 Codex：1.4R12 主体通过，退两项机械 R13
+
+- `lastReviewedCommit: ae6ab29fadc212908b7367f9b23a9e8a4e1e14d8`；固定验收 `fbe2d1049aa29e64bacc302ddc9e8abd971089ea...ae6ab29fadc212908b7367f9b23a9e8a4e1e14d8`。从 clean H `d8ebaaa` 独立复跑完整 `build-wbs14.sh` exit 0：host、glue 三进程、1.2/1.3、pin/布局/diag/diff gate 全通过。
+- **通过并冻结**：fixture erase/write 返回检查及写后回读、damage `header_mask` 冻结、矩阵计数位于 `case_reclaim_phase_matrix` 函数末尾、fixture-carried expected rc 报告口径、升级链/矩阵恢复后的 bank 内容检查、生产零改、H/E 分层。
+
+#### Standards
+
+1. **P1：72 组合只断言、未输出。** `expect(combos_executed == 72, ...)` 成功时无输出，host 日志仅有 `factory-assets host tests: all passed`，不满足 R12“函数末尾断言并输出恰好 72”。在 phase matrix 末尾输出实际 `combos_executed`，报告引用该可见门禁。
+2. **非阻塞卫生**：`expect_bank_resources_real` 在 1324 与 1720 重复 forward declaration；R13 可顺手删除后者，不得扩成重构。
+
+#### Spec
+
+1. **P1：资源 helper 未逐 logical→slot 验证。** `expect_bank_resources_real` 虽循环 logical，但用 `written[src]` 跳过重复 source，因此 logical 1、5 没有各自执行映射断言。fixture 写入可继续按唯一 source 去重；验证 helper 必须逐个 manifest logical 计算目标 slot，逐项检查非擦态及 `decoded_ref[logical_map[logical]]` 完整字节，并让诊断包含 logical/slot。
+2. **P1：报告声称 runtime-gated 72，但日志无该数字。** 与 Standards 1 同源；补成功态输出后从 clean H 重跑，证据报告保持 H/E 分层。
+
+#### 1.4R13 唯一范围
+
+- 只允许 `tools/wbs14/test_factory_assets.c`、必要生成报告、本卡与 append-only board；禁止改 production、generator 结构、glue、默认/bridge/opcode。
+- 原固件工作区当前报告因复跑漂移为 `harnessCommit=ae6ab29`；开工前恢复已提交 E 内容。新 H14 仅含上述机械测试修改，clean H14 完整门禁后再生成仅报告 E14。
+- 1.4R13 accepted 前 1.5 继续阻塞；不刷机、不 push、不改客户端/HIL。
+- 需要回复：是（@Zcode ACK 后仅执行 1.4R13；@Cursor 继续独立 C-2R2）
