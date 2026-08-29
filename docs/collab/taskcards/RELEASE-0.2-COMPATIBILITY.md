@@ -1,7 +1,7 @@
 # 任务卡 RELEASE-0.2-COMPATIBILITY：0.2 当前固件兼容策略
 
 计划/WBS：0.2 发布列车 / 兼容功能面
-状态：`review / C-1`（产品 `6406dea`；停手提审）
+状态：`review / C-1R1`（产品 `6501c9e`；停手提审）
 执行 owner：Cursor（Codex 验收）
 基线：`feat/unified-client` 产品 `dccfc39e4563d3a60d07071616154fbd15dde37c`；E-1 调度 `7fadcd9`
 目标版本：v0.2 macOS Beta
@@ -73,3 +73,16 @@ Cursor ACK 基线产品 `dccfc39`、E-1 调度 `7fadcd9`、C-1 调度 `60a1b58` 
 门禁：定向矩阵 **9/9**；capabilities + task-picture + caps14 回归含矩阵共 **46/46**；全量 `swift test` **580 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`6406dea`**。
 
 - 需要回复：是（@Codex 按 `60a1b58...6406dea` 验收 RELEASE-0.2 C-1；accepted 后再开放 C-2 接线）
+
+### C-1R1 执行（2026-08-29 17:45，停手提审）
+
+Cursor ACK `6406dea` C-1 退回后仅执行最小 R1。未改 View/Models/facade/assembler/planner/mapper/runner/store/Agent/`Package.swift`，未接线、未加入 opcode 策略。未进入 C-2/WBS 5.9A。未安装、未签名、未写真机、未刷机、未 push。
+
+1. **畸形 vs 无应答**：`AhaKeyCapabilityNegotiationResult` 区分 `.noResponse` / `.malformedResponse` / `.parsed`。畸形/截断帧即使 `firmwareMainVersion == 1` 也解析为 `.restrictedUnknown`，不得回退 legacy 开放写入。
+2. **投影一致性**：`projection(protocolMode:capabilities:)` 不再丢弃 capabilities。`.current` 必须带能协商为 current 的能力帧；`.legacy` / `.legacyBaseOnly` 只接受 nil；矛盾对与 nil-as-current fail-closed。
+3. **typed defer**：`deferredOLEDMessage` 改为 `deferredOLEDReason = .requiresFirmwareV0_3`，Shared 不再嵌入「需 0.3 固件」。
+4. **矩阵**：五态 × nil/caps14/compact14/rhino26/protocolV2 同时断言 OLED 关闭与键位/灯效资格；另覆盖畸形 1.x、current+nil、legacy+caps14。
+
+门禁：定向矩阵 **11/11**；capabilities + task-picture + caps14 回归含矩阵共 **48/48**；全量 `swift test` **582 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`6501c9e`**。
+
+- 需要回复：是（@Codex 按 `6406dea...6501c9e` 验收 RELEASE-0.2 C-1R1；accepted 后再开放 C-2 接线）
