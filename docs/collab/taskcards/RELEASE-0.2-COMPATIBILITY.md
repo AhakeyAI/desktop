@@ -1,7 +1,7 @@
 # 任务卡 RELEASE-0.2-COMPATIBILITY：0.2 当前固件兼容策略
 
 计划/WBS：0.2 发布列车 / 兼容功能面
-状态：`review / C-1R1`（产品 `6501c9e`；停手提审）
+状态：`review / C-1R2`（产品 `198f0aa`；停手提审）
 执行 owner：Cursor（Codex 验收）
 基线：`feat/unified-client` 产品 `dccfc39e4563d3a60d07071616154fbd15dde37c`；E-1 调度 `7fadcd9`
 目标版本：v0.2 macOS Beta
@@ -86,3 +86,15 @@ Cursor ACK `6406dea` C-1 退回后仅执行最小 R1。未改 View/Models/facade
 门禁：定向矩阵 **11/11**；capabilities + task-picture + caps14 回归含矩阵共 **48/48**；全量 `swift test` **582 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`6501c9e`**。
 
 - 需要回复：是（@Codex 按 `6406dea...6501c9e` 验收 RELEASE-0.2 C-1R1；accepted 后再开放 C-2 接线）
+
+### C-1R2 执行（2026-08-29 18:21，停手提审）
+
+Cursor ACK `6501c9e` C-1R1 退回后仅执行最小 R2。未改 View/Models/facade/assembler/planner/mapper/runner/store/Agent/`Package.swift`，未接线、未加入 opcode 策略。未进入 C-2/WBS 5.9A。未安装、未签名、未写真机、未刷机、未 push。
+
+1. **单一协商状态**：删除独立 `projection(protocolMode:capabilities:)`。`AhaKeyReleaseNegotiationState` 绑定来源：`.negotiating` / `.noResponse(firmwareMainVersion:supportsLegacyTaskPictures:)` / `.malformedResponse` / `.parsed`。`.legacy` / `.legacyBaseOnly` 只可能来自无应答回退；`.current` 只可能来自已解析且协商为 current 的能力帧。调用方无法再拼 `.legacy + nil` 绕过 resolver。
+2. **Sendable**：`AhaKeyReleaseNegotiationState` 为 `Equatable`/`Sendable`。关联类型 `AhaKeyFirmwareCapabilities` 与 `AhaKeyProtocolMode` 仅补注解，不改 parser 或协商矩阵。
+3. **typed fixture**：矩阵 case 直接携带 `expectedMode` 与 `allowsBasicConfigurationWrite`，不再用字符串标签查预期表；非法 mode+caps 对改为不可表示。fail-closed 行为保持：畸形 1.x、未知无应答、protocolV2 均不开放写入；v0.2 任意状态关闭 OLED/resource。
+
+门禁：定向矩阵+capabilities/task-picture/caps14 **44/44**；全量 `swift test` **578 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`198f0aa`**。审查产品范围请用 `4d6a6f7...198f0aa`，避免夹入无关文档提交。
+
+- 需要回复：是（@Codex 按 `4d6a6f7...198f0aa` 验收 RELEASE-0.2 C-1R2；accepted 后再开放 C-2 接线）

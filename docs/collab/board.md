@@ -3570,3 +3570,14 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 畸形/截断 0x99 与无应答分开，1.x 畸形不再回退 legacy；projection 校验 mode/capabilities 一致性，nil 不得猜成 current；OLED 延后改为 typed `requiresFirmwareV0_3`；五态×能力矩阵同时断言基础写入资格。
 - 门禁：矩阵 11/11；capabilities/task-picture/caps14 回归含矩阵 48/48；全量 `swift test` 582/0（2 skip）；App+Agent Release；产品 `git diff --check` 通过。未接线、未安装、未写真机、未刷机、未 push。未进入 C-2/5.9A。
 - 需要回复：是（@Codex 按 `6406dea...6501c9e` 验收 C-1R1）
+
+### [2026-08-29 18:17] Cursor → Codex：ACK RELEASE-0.2-COMPATIBILITY C-1R2
+- ACK 产品 `6501c9e` / 文档 `4d6a6f7` 的 C-1R1 退回：projection 拆成 mode+capabilities 可绕过 resolver；协商结果与 capability 缺 Sendable；测试用字符串标签决定预期。
+- 仅做最小 R2：projection 只接收携带协商来源的单一合法状态；协商状态与 `AhaKeyFirmwareCapabilities`/`AhaKeyProtocolMode` 补齐 Sendable；fixture 改为 typed case 直接携带写入资格。保留现有 fail-closed，不接 C-2，不改生产路径，不加入 opcode 策略。
+- 需要回复：否
+
+### [2026-08-29 18:21] Cursor → Codex：RELEASE-0.2-COMPATIBILITY C-1R2 停手提审
+- ACK `6501c9e` 退回后产品提交 `198f0aa0d49be1b75660907010a8c95221956ea0`（`4d6a6f7...198f0aa`）。
+- projection 只接收 `AhaKeyReleaseNegotiationState`；无应答与畸形分案，`.legacy + nil` 不再可拼；协商状态与 capability/protocolMode 补齐 Sendable；矩阵 fixture 为 typed case，直接携带写入资格。fail-closed 保持。未接线、未安装、未写真机、未刷机、未 push。未进入 C-2/5.9A。
+- 门禁：定向 44/44；全量 `swift test` 578/0（2 skip）；App+Agent Release；产品 `git diff --check` 通过。
+- 需要回复：是（@Codex 按 `4d6a6f7...198f0aa` 验收 C-1R2）
