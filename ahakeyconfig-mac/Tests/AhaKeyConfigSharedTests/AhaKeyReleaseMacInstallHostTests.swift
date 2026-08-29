@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import AhaKeyConfigShared
 
@@ -58,6 +59,11 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         XCTAssertEqual(report.signatureKind, .adhoc)
         XCTAssertEqual(report.signingIdentifier, identity.signingIdentifier)
         XCTAssertNil(report.teamIdentifier)
+        XCTAssertTrue(report.appIntegrityVerified)
+        XCTAssertTrue(report.agentIntegrityVerified)
+        XCTAssertEqual(report.agentSigningIdentifier, identity.signingIdentifier)
+        XCTAssertEqual(report.agentSignatureKind, .adhoc)
+        XCTAssertNil(report.agentTeamIdentifier)
     }
 
     func testMacHostEndToEndSandboxInstall() throws {
@@ -65,7 +71,9 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
         let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root)
         try FileManager.default.createDirectory(atPath: layout.launchAgentsDirectory, withIntermediateDirectories: true)
-        let fixture = try makeAppFixture(in: root, name: "AhaKey Studio.app", marker: "agent")
+        let candidates = (root as NSString).appendingPathComponent("Candidates")
+        try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
+        let fixture = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "agent")
         let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
         let host = AhaKeyReleaseMacInstallHost(system: system)
         let outcome = try AhaKeyReleaseInstaller.run(
@@ -106,6 +114,7 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
                 backup: dest + ".ahakey-backup",
                 staging: dest + ".ahakey-staging",
                 allowedRoots: [apps],
+                candidateRoots: [root],
                 permitsApplicationsDestination: false,
                 itemExists: FileManager.default.fileExists(atPath:),
                 resolve: { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path },
@@ -115,6 +124,150 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
                 }
             )
         )
+    }
+
+    func testLaunchdControlReadsListAndPrintAndThrowsOnNonZero() throws {
+        let process = AhaKeyReleaseRecordingProcessRunner()
+        let uid = getuid()
+        process.outputByJoinedArguments["list"] = """
+        PID\tStatus\tLabel
+        -\t0\t\(identity.agentLaunchdLabel)
+        -\t0\t\(identity.hilLaunchdLabel)
+        """
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 0
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] = 0
+        let control = AhaKeyReleaseLaunchdControl(
+            allowSystemMutation: true,
+            process: process
+        )
+        XCTAssertEqual(
+            try control.loadedLaunchdLabels(),
+            [identity.agentLaunchdLabel, identity.hilLaunchdLabel]
+        )
+
+        process.statusByJoinedArguments["list"] = 1
+        process.outputByJoinedArguments["list"] = "launchctl list failed"
+        XCTAssertThrowsError(try control.loadedLaunchdLabels()) { error in
+            guard case .hostFailure = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("list 非零必须抛 hostFailure，got \(error)")
+            }
+        }
+
+        process.statusByJoinedArguments["list"] = 0
+        process.statusByJoinedArguments["bootout gui/\(uid)/\(identity.agentLaunchdLabel)"] = 5
+        XCTAssertThrowsError(try control.bootout(label: identity.agentLaunchdLabel)) { error in
+            guard case .hostFailure = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("bootout 非零必须抛 hostFailure，got \(error)")
+            }
+        }
+
+        process.statusByJoinedArguments["bootstrap gui/\(uid) /tmp/agent.plist"] = 7
+        XCTAssertThrowsError(
+            try control.bootstrap(label: identity.agentLaunchdLabel, plistPath: "/tmp/agent.plist")
+        ) { error in
+            guard case .hostFailure = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("bootstrap 非零必须抛 hostFailure，got \(error)")
+            }
+        }
+    }
+
+    func testLaunchdControlPrintDiscoversOfficialOwnerWhenListOmitsIt() throws {
+        let process = AhaKeyReleaseRecordingProcessRunner()
+        let uid = getuid()
+        process.outputByJoinedArguments["list"] = """
+        PID\tStatus\tLabel
+        -\t0\tcom.apple.accountsd
+        """
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 0
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] = 1
+        let control = AhaKeyReleaseLaunchdControl(allowSystemMutation: false, process: process)
+        XCTAssertEqual(try control.loadedLaunchdLabels(), [identity.agentLaunchdLabel])
+    }
+
+    func testProductionHostFactoryIsWiredAndRefusesMutation() {
+        let host = AhaKeyReleaseInstaller.productionHost()
+        _ = host
+        let control = AhaKeyReleaseLaunchdControl(allowSystemMutation: false)
+        XCTAssertThrowsError(try control.bootout(label: identity.agentLaunchdLabel)) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.systemMutationNotAllowed)
+            )
+        }
+    }
+
+    func testPlistWriteOverwritesWithoutRemovingDestination() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let path = (root as NSString).appendingPathComponent("LaunchAgents/lab.jawa.ahakeyconfig.agent.plist")
+        let host = AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseRecordingSystemControl())
+        try host.writeFile(at: path, data: Data("v1".utf8))
+        XCTAssertEqual(host.readFile(at: path), Data("v1".utf8))
+        try host.writeFile(at: path, data: Data("v2-longer-payload".utf8))
+        XCTAssertEqual(host.readFile(at: path), Data("v2-longer-payload".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+        let temp = ((path as NSString).deletingLastPathComponent as NSString)
+            .appendingPathComponent(".lab.jawa.ahakeyconfig.agent.plist.ahakey-tmp")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: temp))
+    }
+
+    func testStagingReverifyRejectsTamperedAgentBeforeSwap() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let installed = try makeAppFixture(in: root, name: "installed.app", marker: "old")
+        try FileManager.default.moveItem(atPath: installed.app, toPath: layout.applicationsAppPath)
+        let candidate = try makeAppFixture(in: root, name: "candidate.app", marker: "new")
+        let system = AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true)
+        system.failingVerifyIfPathContains = ".ahakey-staging"
+        let host = AhaKeyReleaseMacInstallHost(system: system)
+        XCTAssertThrowsError(
+            try host.replaceDirectoryAtomically(
+                from: candidate.app,
+                to: layout.applicationsAppPath,
+                backup: layout.backupAppPath,
+                staging: layout.stagingAppPath
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.identityRejected(.appIntegrityFailed))
+            )
+        }
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: identity.agentBinaryPath(inApp: layout.applicationsAppPath)
+            )
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: layout.backupAppPath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: layout.stagingAppPath))
+    }
+
+    func testCandidateParentDirectorySymlinkIsRejectedOnDisk() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let real = (root as NSString).appendingPathComponent("real-candidates")
+        let candidates = (root as NSString).appendingPathComponent("Candidates")
+        try FileManager.default.createDirectory(atPath: real, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: candidates, withDestinationPath: real)
+        let source = (candidates as NSString).appendingPathComponent("candidate.app")
+        XCTAssertThrowsError(
+            try AhaKeyReleasePathGuard.validateCandidateSource(
+                source,
+                candidateRoots: [candidates],
+                isSymlink: { path in
+                    (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) != nil
+                }
+            )
+        ) { error in
+            guard case .pathContainsSymlink = error as? AhaKeyReleasePathViolation else {
+                return XCTFail("\(error)")
+            }
+        }
     }
 
     private struct AppFixture {

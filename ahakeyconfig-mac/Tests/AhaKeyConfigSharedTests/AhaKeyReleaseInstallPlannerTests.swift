@@ -58,6 +58,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
     func testUnsignedCandidateWithUnknownKindIsRejected() throws {
         var report = try validCandidate()
         report.signatureKind = .unknown
+        report.agentSignatureKind = .unknown
         XCTAssertEqual(
             AhaKeyReleaseSigningChecklist.check(report),
             .rejected(.unsignedCandidateNotAdHoc)
@@ -76,7 +77,9 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
     func testDeveloperIDMissingTeamIsRejected() throws {
         var report = try validCandidate()
         report.signatureKind = .developerID
+        report.agentSignatureKind = .developerID
         report.teamIdentifier = nil
+        report.agentTeamIdentifier = nil
         report.signingIdentifier = identity.signingIdentifier
         XCTAssertEqual(
             AhaKeyReleaseSigningChecklist.check(report),
@@ -87,7 +90,9 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
     func testDeveloperIDMissingSigningIdentifierIsRejected() throws {
         var report = try validCandidate()
         report.signatureKind = .developerID
+        report.agentSignatureKind = .developerID
         report.teamIdentifier = identity.teamIdentifier
+        report.agentTeamIdentifier = identity.teamIdentifier
         report.signingIdentifier = "  "
         XCTAssertEqual(
             AhaKeyReleaseSigningChecklist.check(report),
@@ -98,7 +103,9 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
     func testSignedCandidateWithWrongTeamIsRejected() throws {
         var report = try validCandidate()
         report.signatureKind = .developerID
+        report.agentSignatureKind = .developerID
         report.teamIdentifier = "UNKNOWNTEAM"
+        report.agentTeamIdentifier = "UNKNOWNTEAM"
         report.signingIdentifier = identity.signingIdentifier
         XCTAssertEqual(
             AhaKeyReleaseSigningChecklist.check(report),
@@ -111,8 +118,8 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.darwinMajor = 22
         let layout = layout(root: "/sandbox")
         let result = AhaKeyReleaseInstallPlanner.plan(
-            request: .install(candidateAppPath: "/candidate.app"),
-            snapshot: host.snapshot(layout: layout),
+            request: .install(candidateAppPath: candidatePath()),
+            snapshot: try host.snapshot(layout: layout),
             layout: layout,
             candidate: nil
         )
@@ -127,7 +134,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.candidateReport = nil
         XCTAssertThrowsError(
             try AhaKeyReleaseInstaller.run(
-                request: .install(candidateAppPath: "/candidate.app"),
+                request: .install(candidateAppPath: candidatePath()),
                 host: host,
                 layout: layout(root: "/sandbox")
             )
@@ -145,9 +152,9 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.darwinMajor = 21
         host.preserved["config"] = "keep"
         let layout = layout(root: "/sandbox")
-        let snapshot = host.snapshot(layout: layout)
+        let snapshot = try host.snapshot(layout: layout)
         let result = AhaKeyReleaseInstallPlanner.plan(
-            request: .install(candidateAppPath: "/candidate.app"),
+            request: .install(candidateAppPath: candidatePath()),
             snapshot: snapshot,
             layout: layout,
             candidate: try validCandidate()
@@ -180,7 +187,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.preserved["/sandbox/Home/.cursor/hooks.json"] = "third-party"
         let layout = self.layout(root: "/sandbox")
         let outcome = try AhaKeyReleaseInstaller.run(
-            request: .install(candidateAppPath: "/candidate.app"),
+            request: .install(candidateAppPath: candidatePath()),
             host: host,
             layout: layout
         )
@@ -199,8 +206,9 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.trees[layout.applicationsAppPath] = ["stale-extra", "old-binary"]
         host.loaded = [identity.agentLaunchdLabel, identity.hilLaunchdLabel]
         host.files[layout.launchAgentPlistPath] = Data("old-plist".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("hil-plist".utf8)
         let outcome = try AhaKeyReleaseInstaller.run(
-            request: .upgrade(candidateAppPath: "/candidate.app"),
+            request: .upgrade(candidateAppPath: candidatePath()),
             host: host,
             layout: layout
         )
@@ -217,7 +225,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.preserved["/sandbox/Home/.claude/settings.json"] = "hooks"
         let layout = self.layout(root: "/sandbox")
         let outcome = try AhaKeyReleaseInstaller.run(
-            request: .install(candidateAppPath: "/candidate.app"),
+            request: .install(candidateAppPath: candidatePath()),
             host: host,
             layout: layout,
             injectFailureAt: .installApp
@@ -238,7 +246,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         let previousPlist = Data("previous-agent-plist".utf8)
         host.files[layout.launchAgentPlistPath] = previousPlist
         let outcome = try AhaKeyReleaseInstaller.run(
-            request: .upgrade(candidateAppPath: "/candidate.app"),
+            request: .upgrade(candidateAppPath: candidatePath()),
             host: host,
             layout: layout,
             injectFailureAt: .writeLaunchAgent
@@ -260,7 +268,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.failReplaceAfterSuccesses = 1
         XCTAssertThrowsError(
             try AhaKeyReleaseInstaller.run(
-                request: .upgrade(candidateAppPath: "/candidate.app"),
+                request: .upgrade(candidateAppPath: candidatePath()),
                 host: host,
                 layout: layout,
                 injectFailureAt: .installApp
@@ -279,6 +287,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.loaded = [identity.agentLaunchdLabel, identity.hilLaunchdLabel]
         host.loginItemRegistered = true
         host.files[layout.launchAgentPlistPath] = Data("plist".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("hil-plist".utf8)
         host.preserved["/sandbox/Home/Library/Application Support/AhaKeyConfig"] = "keep-store"
         host.preserved["/sandbox/Home/.kimi/config.toml"] = "keep-hook"
         let outcome = try AhaKeyReleaseInstaller.run(request: .uninstall, host: host, layout: layout)
@@ -321,7 +330,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.candidateReport = bad
         XCTAssertThrowsError(
             try AhaKeyReleaseInstaller.run(
-                request: .install(candidateAppPath: "/candidate.app"),
+                request: .install(candidateAppPath: candidatePath()),
                 host: host,
                 layout: layout
             )
@@ -337,6 +346,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
                 backup: "/sandbox/Applications/AhaKey Studio.app.ahakey-backup",
                 staging: "/sandbox/Applications/AhaKey Studio.app.ahakey-staging",
                 allowedRoots: ["/sandbox/Applications"],
+                candidateRoots: ["/sandbox/Applications"],
                 permitsApplicationsDestination: false,
                 itemExists: { _ in false },
                 resolve: { $0 },
@@ -353,6 +363,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
                 backup: "/sandbox/Applications/AhaKey Studio.app.ahakey-backup",
                 staging: "/sandbox/Applications/AhaKey Studio.app.ahakey-staging",
                 allowedRoots: ["/sandbox/Applications", "/tmp"],
+                candidateRoots: ["/tmp"],
                 permitsApplicationsDestination: false,
                 itemExists: { $0.hasSuffix(".ahakey-backup") },
                 resolve: { $0 },
@@ -379,12 +390,160 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
                 backup: "/sandbox/Applications/AhaKey Studio.app.ahakey-backup",
                 staging: "/sandbox/Applications/AhaKey Studio.app.ahakey-staging",
                 allowedRoots: ["/sandbox/Applications"],
+                candidateRoots: ["/tmp"],
                 permitsApplicationsDestination: false,
                 itemExists: { _ in false },
                 resolve: { path in
                     path == "/sandbox/Applications" ? "/tmp/outside" : path
                 },
                 isSymlink: { $0 == "/sandbox/Applications" }
+            )
+        ) { error in
+            guard case .pathContainsSymlink = error as? AhaKeyReleasePathViolation else {
+                return XCTFail("\(error)")
+            }
+        }
+    }
+
+    func testAppIntegrityFailureIsRejected() throws {
+        var report = try validCandidate()
+        report.appIntegrityVerified = false
+        XCTAssertEqual(
+            AhaKeyReleaseSigningChecklist.check(report),
+            .rejected(.appIntegrityFailed)
+        )
+    }
+
+    func testAgentIntegrityFailureIsRejected() throws {
+        var report = try validCandidate()
+        report.agentIntegrityVerified = false
+        XCTAssertEqual(
+            AhaKeyReleaseSigningChecklist.check(report),
+            .rejected(.agentIntegrityFailed)
+        )
+    }
+
+    func testAgentSigningIdentifierMismatchIsRejected() throws {
+        var report = try validCandidate()
+        report.agentSigningIdentifier = "other.signing.id"
+        XCTAssertEqual(
+            AhaKeyReleaseSigningChecklist.check(report),
+            .rejected(.agentSigningIdentifierMismatch(found: "other.signing.id"))
+        )
+    }
+
+    func testFailureAfterFirstBootoutPreservesExactAppTree() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        let exactTree: Set<String> = ["old-binary", "keep-me", "nested/resource"]
+        host.trees[layout.applicationsAppPath] = exactTree
+        host.loaded = [identity.agentLaunchdLabel, identity.hilLaunchdLabel]
+        host.loginItemRegistered = true
+        let officialPlist = Data("official-before".utf8)
+        let hilPlist = Data("hil-before".utf8)
+        host.files[layout.launchAgentPlistPath] = officialPlist
+        host.files[layout.hilLaunchAgentPlistPath] = hilPlist
+        let outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: candidatePath()),
+            host: host,
+            layout: layout,
+            injectFailureAt: .bootout(label: identity.agentLaunchdLabel)
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], exactTree)
+        XCTAssertNil(host.trees[layout.backupAppPath])
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], officialPlist)
+        XCTAssertEqual(host.files[layout.hilLaunchAgentPlistPath], hilPlist)
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel, identity.hilLaunchdLabel])
+        XCTAssertTrue(host.loginItemRegistered)
+        XCTAssertTrue(outcome.appInstalled)
+    }
+
+    func testRollbackRestoresHilAndOfficialOwners() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-binary"]
+        host.loaded = [identity.agentLaunchdLabel, identity.hilLaunchdLabel]
+        host.loginItemRegistered = false
+        let officialPlist = Data("official-prev".utf8)
+        let hilPlist = Data("hil-prev".utf8)
+        host.files[layout.launchAgentPlistPath] = officialPlist
+        host.files[layout.hilLaunchAgentPlistPath] = hilPlist
+        let outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: candidatePath()),
+            host: host,
+            layout: layout,
+            injectFailureAt: .writeLaunchAgent
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], ["old-binary"])
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], officialPlist)
+        XCTAssertEqual(host.files[layout.hilLaunchAgentPlistPath], hilPlist)
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel, identity.hilLaunchdLabel])
+        XCTAssertFalse(host.loginItemRegistered)
+    }
+
+    func testAmbiguousExtraOwnerIsRejectedBeforeMutation() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        let exactTree: Set<String> = ["do-not-touch"]
+        host.trees[layout.applicationsAppPath] = exactTree
+        host.loaded = [identity.agentLaunchdLabel, identity.agentLaunchdLabel + ".legacy"]
+        host.files[layout.launchAgentPlistPath] = Data("official".utf8)
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.ambiguousPreviousOwners([
+                    identity.agentLaunchdLabel,
+                    identity.agentLaunchdLabel + ".legacy",
+                ]))
+            )
+        }
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], exactTree)
+        XCTAssertEqual(host.loaded, [identity.agentLaunchdLabel, identity.agentLaunchdLabel + ".legacy"])
+        XCTAssertEqual(host.writes, [])
+    }
+
+    func testMissingOwnerPlistIsRejectedBeforeMutation() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["keep"]
+        host.loaded = [identity.hilLaunchdLabel]
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.ambiguousPreviousOwners([identity.hilLaunchdLabel]))
+            )
+        }
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], ["keep"])
+        XCTAssertEqual(host.loaded, [identity.hilLaunchdLabel])
+    }
+
+    func testCandidateParentSymlinkIsRejected() throws {
+        XCTAssertThrowsError(
+            try AhaKeyReleasePathGuard.validateReplacement(
+                source: "/sandbox/Candidates/nested/candidate.app",
+                destination: "/sandbox/Applications/AhaKey Studio.app",
+                backup: "/sandbox/Applications/AhaKey Studio.app.ahakey-backup",
+                staging: "/sandbox/Applications/AhaKey Studio.app.ahakey-staging",
+                allowedRoots: ["/sandbox/Applications"],
+                candidateRoots: ["/sandbox/Candidates"],
+                permitsApplicationsDestination: false,
+                itemExists: { _ in false },
+                resolve: { $0 },
+                isSymlink: { $0 == "/sandbox/Candidates/nested" }
             )
         ) { error in
             guard case .pathContainsSymlink = error as? AhaKeyReleasePathViolation else {
@@ -401,8 +560,12 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         let host = FakeInstallHost()
         host.darwinMajor = 22
         host.candidateReport = try? validCandidate()
-        host.trees["/candidate.app"] = ["new-binary"]
+        host.trees[candidatePath()] = ["new-binary"]
         return host
+    }
+
+    private func candidatePath(root: String = "/sandbox") -> String {
+        (root as NSString).appendingPathComponent("Candidates/candidate.app")
     }
 
     private func validCandidate() throws -> AhaKeyReleaseCandidateReport {
@@ -416,7 +579,11 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
             agentBinaryPresent: true,
             launchAgentPlist: plist,
             signingIdentifier: identity.signingIdentifier,
-            signatureKind: .adhoc
+            signatureKind: .adhoc,
+            appIntegrityVerified: true,
+            agentIntegrityVerified: true,
+            agentSigningIdentifier: identity.signingIdentifier,
+            agentSignatureKind: .adhoc
         )
     }
 
@@ -442,7 +609,7 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     var replaceSuccesses = 0
     var symlinks: [String: String] = [:]
 
-    func snapshot(layout: AhaKeyReleaseInstallLayout) -> AhaKeyReleaseHostSnapshot {
+    func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
         var exists: [String: Bool] = [:]
         for path in layout.preservedPaths {
             exists[path] = preserved[path] != nil

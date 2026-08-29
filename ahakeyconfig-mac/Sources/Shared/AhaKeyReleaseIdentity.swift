@@ -221,6 +221,10 @@ public enum AhaKeyReleaseSigningRejection: Equatable, Sendable {
     case signingIdentifierMismatch(found: String)
     case unexpectedDeveloperID
     case unsignedCandidateNotAdHoc
+    case appIntegrityFailed
+    case agentIntegrityFailed
+    case agentSigningIdentifierMismatch(found: String)
+    case agentSignatureKindMismatch
 }
 
 public struct AhaKeyReleaseCandidateReport: Equatable, Sendable {
@@ -230,6 +234,11 @@ public struct AhaKeyReleaseCandidateReport: Equatable, Sendable {
     public var teamIdentifier: String?
     public var signingIdentifier: String?
     public var signatureKind: AhaKeyReleaseSignatureKind
+    public var appIntegrityVerified: Bool
+    public var agentIntegrityVerified: Bool
+    public var agentSigningIdentifier: String?
+    public var agentTeamIdentifier: String?
+    public var agentSignatureKind: AhaKeyReleaseSignatureKind
 
     public init(
         bundleIdentifier: String?,
@@ -237,7 +246,12 @@ public struct AhaKeyReleaseCandidateReport: Equatable, Sendable {
         launchAgentPlist: Data?,
         teamIdentifier: String? = nil,
         signingIdentifier: String? = nil,
-        signatureKind: AhaKeyReleaseSignatureKind = .unknown
+        signatureKind: AhaKeyReleaseSignatureKind = .unknown,
+        appIntegrityVerified: Bool = false,
+        agentIntegrityVerified: Bool = false,
+        agentSigningIdentifier: String? = nil,
+        agentTeamIdentifier: String? = nil,
+        agentSignatureKind: AhaKeyReleaseSignatureKind = .unknown
     ) {
         self.bundleIdentifier = bundleIdentifier
         self.agentBinaryPresent = agentBinaryPresent
@@ -245,6 +259,11 @@ public struct AhaKeyReleaseCandidateReport: Equatable, Sendable {
         self.teamIdentifier = teamIdentifier
         self.signingIdentifier = signingIdentifier
         self.signatureKind = signatureKind
+        self.appIntegrityVerified = appIntegrityVerified
+        self.agentIntegrityVerified = agentIntegrityVerified
+        self.agentSigningIdentifier = agentSigningIdentifier
+        self.agentTeamIdentifier = agentTeamIdentifier
+        self.agentSignatureKind = agentSignatureKind
     }
 }
 
@@ -274,10 +293,25 @@ public enum AhaKeyReleaseSigningChecklist {
         if signing != identity.signingIdentifier {
             return .rejected(.signingIdentifierMismatch(found: signing))
         }
+        guard report.appIntegrityVerified else {
+            return .rejected(.appIntegrityFailed)
+        }
+        guard report.agentIntegrityVerified else {
+            return .rejected(.agentIntegrityFailed)
+        }
+        guard let agentSigning = nonempty(report.agentSigningIdentifier) else {
+            return .rejected(.missingSigningIdentifier)
+        }
+        if agentSigning != identity.signingIdentifier {
+            return .rejected(.agentSigningIdentifierMismatch(found: agentSigning))
+        }
+        if report.agentSignatureKind != report.signatureKind {
+            return .rejected(.agentSignatureKindMismatch)
+        }
 
         switch report.signatureKind {
         case .adhoc:
-            if nonempty(report.teamIdentifier) != nil {
+            if nonempty(report.teamIdentifier) != nil || nonempty(report.agentTeamIdentifier) != nil {
                 return .rejected(.unexpectedDeveloperID)
             }
             return .unsignedCandidateReady
@@ -287,6 +321,12 @@ public enum AhaKeyReleaseSigningChecklist {
             }
             if team != identity.teamIdentifier {
                 return .rejected(.teamIdentifierMismatch(found: team))
+            }
+            if let agentTeam = nonempty(report.agentTeamIdentifier), agentTeam != identity.teamIdentifier {
+                return .rejected(.teamIdentifierMismatch(found: agentTeam))
+            }
+            if nonempty(report.agentTeamIdentifier) == nil {
+                return .rejected(.missingTeamIdentifier)
             }
             return .signedIdentityMatches
         case .unknown:

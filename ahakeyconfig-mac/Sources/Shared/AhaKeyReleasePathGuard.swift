@@ -15,6 +15,10 @@ public enum AhaKeyReleasePathViolation: Equatable, Error, Sendable {
 /// Canonical / allowed-root / symlink / `/Applications` 输出防护。
 /// 安装器在任何删除、复制、rename 之前调用；打包脚本走同一套规则的 Python 镜像。
 public enum AhaKeyReleasePathGuard {
+    public static func parentDirectory(_ path: String) -> String {
+        (path as NSString).deletingLastPathComponent
+    }
+
     public static func standardizedAbsolute(_ path: String) throws -> String {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw AhaKeyReleasePathViolation.emptyPath }
@@ -105,6 +109,7 @@ public enum AhaKeyReleasePathGuard {
         backup: String,
         staging: String,
         allowedRoots: [String],
+        candidateRoots: [String],
         permitsApplicationsDestination: Bool,
         itemExists: (String) -> Bool,
         resolve: (String) -> String?,
@@ -117,6 +122,7 @@ public enum AhaKeyReleasePathGuard {
         if src == dest || src == bak || dest == bak || src == stage || dest == stage {
             throw AhaKeyReleasePathViolation.sourceEqualsDestination
         }
+        try validateCandidateSource(src, candidateRoots: candidateRoots, isSymlink: isSymlink)
         if !permitsApplicationsDestination {
             try refuseApplicationsOutput(dest)
             try refuseApplicationsOutput(bak)
@@ -175,7 +181,53 @@ public enum AhaKeyReleasePathGuard {
         }
     }
 
-    public static func parentDirectory(_ path: String) -> String {
-        (path as NSString).deletingLastPathComponent
+    public static func validateDestructive(
+        _ path: String,
+        allowedRoots: [String],
+        permitsApplicationsDestination: Bool,
+        resolve: (String) -> String?,
+        isSymlink: (String) -> Bool
+    ) throws {
+        let canonical = try standardizedAbsolute(path)
+        if !permitsApplicationsDestination {
+            try refuseApplicationsOutput(canonical)
+        }
+        _ = try requireAllowed(canonical, roots: allowedRoots)
+        try rejectSymlinkInsideAllowedRoots(
+            canonical,
+            roots: allowedRoots,
+            resolve: resolve,
+            isSymlink: isSymlink
+        )
+        if isSymlink(canonical) {
+            throw AhaKeyReleasePathViolation.pathContainsSymlink(canonical)
+        }
+    }
+
+    /// Candidate 必须落在明确的 candidate root 下，并从该 root 起检查整条父级链。
+    public static func validateCandidateSource(
+        _ source: String,
+        candidateRoots: [String],
+        isSymlink: (String) -> Bool
+    ) throws {
+        let src = try standardizedAbsolute(source)
+        let roots = try candidateRoots.map(standardizedAbsolute)
+        guard let root = roots.first(where: { src == $0 || src.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }) else {
+            throw AhaKeyReleasePathViolation.pathEscapesAllowedRoot(src)
+        }
+        if isSymlink(root) {
+            throw AhaKeyReleasePathViolation.pathContainsSymlink(root)
+        }
+        var prefix = root
+        if src != root {
+            let extra = String(src.dropFirst(root.count))
+            let remainder = extra.split(separator: "/").map(String.init).filter { !$0.isEmpty }
+            for part in remainder {
+                prefix = (prefix as NSString).appendingPathComponent(part)
+                if isSymlink(prefix) {
+                    throw AhaKeyReleasePathViolation.pathContainsSymlink(prefix)
+                }
+            }
+        }
     }
 }

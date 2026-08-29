@@ -12,6 +12,7 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
     public var userConfigDirectory: String
     public var hookPaths: [String]
     public var permitsSystemApplicationsInstall: Bool
+    public var candidateAllowedRoots: [String]
 
     public init(
         applicationsAppPath: String,
@@ -22,7 +23,8 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         socketPath: String,
         userConfigDirectory: String,
         hookPaths: [String],
-        permitsSystemApplicationsInstall: Bool = false
+        permitsSystemApplicationsInstall: Bool = false,
+        candidateAllowedRoots: [String] = []
     ) {
         self.applicationsAppPath = applicationsAppPath
         self.backupAppPath = backupAppPath
@@ -33,10 +35,24 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         self.userConfigDirectory = userConfigDirectory
         self.hookPaths = hookPaths
         self.permitsSystemApplicationsInstall = permitsSystemApplicationsInstall
+        self.candidateAllowedRoots = candidateAllowedRoots
     }
 
     public var stagingAppPath: String {
         applicationsAppPath + ".ahakey-staging"
+    }
+
+    public var hilLaunchAgentPlistPath: String {
+        (launchAgentsDirectory as NSString).appendingPathComponent(
+            "\(AhaKeyReleaseIdentity.current.hilLaunchdLabel).plist"
+        )
+    }
+
+    public func plistPath(forLabel label: String, identity: AhaKeyReleaseIdentity = .current) -> String {
+        if label == identity.hilLaunchdLabel {
+            return hilLaunchAgentPlistPath
+        }
+        return launchAgentPlistPath
     }
 
     public var allowedRoots: [String] {
@@ -74,7 +90,8 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
                 (home as NSString).appendingPathComponent(".codex/config.toml"),
                 (home as NSString).appendingPathComponent(".kimi/config.toml"),
             ],
-            permitsSystemApplicationsInstall: false
+            permitsSystemApplicationsInstall: false,
+            candidateAllowedRoots: [(root as NSString).appendingPathComponent("Candidates")]
         )
     }
 
@@ -96,7 +113,11 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
                 (home as NSString).appendingPathComponent(".codex/config.toml"),
                 (home as NSString).appendingPathComponent(".kimi/config.toml"),
             ],
-            permitsSystemApplicationsInstall: true
+            permitsSystemApplicationsInstall: true,
+            candidateAllowedRoots: [
+                FileManager.default.temporaryDirectory.path,
+                (home as NSString).appendingPathComponent("Downloads"),
+            ]
         )
     }
 }
@@ -144,6 +165,7 @@ public enum AhaKeyReleaseInstallRejection: Equatable, Error, Sendable {
     case missingCandidate
     case identityRejected(AhaKeyReleaseSigningRejection)
     case systemMutationNotAllowed
+    case ambiguousPreviousOwners(Set<String>)
 }
 
 public enum AhaKeyReleaseInstallStep: Equatable, Sendable {
@@ -162,6 +184,18 @@ public enum AhaKeyReleaseInstallStep: Equatable, Sendable {
     case verifyCleanUninstall
 }
 
+public struct AhaKeyReleaseOwnerRecord: Equatable, Sendable {
+    public var label: String
+    public var plistPath: String
+    public var plist: Data
+
+    public init(label: String, plistPath: String, plist: Data) {
+        self.label = label
+        self.plistPath = plistPath
+        self.plist = plist
+    }
+}
+
 public struct AhaKeyReleaseInstallPlan: Equatable, Sendable {
     public let request: AhaKeyReleaseInstallRequest
     public let steps: [AhaKeyReleaseInstallStep]
@@ -170,6 +204,7 @@ public struct AhaKeyReleaseInstallPlan: Equatable, Sendable {
     public let candidateAppPath: String?
     public let previousLaunchAgentPlist: Data?
     public let previousOwnerLabels: Set<String>
+    public let previousOwnerRecords: [AhaKeyReleaseOwnerRecord]
     public let previousLoginItemRegistered: Bool
     public let hadPreviousApp: Bool
 }
@@ -194,7 +229,7 @@ public enum AhaKeyReleaseInstallError: Error, Equatable {
 
 /// 安装器与测试共用的 host 缝：真实实现走文件原子替换 + 可注入 launchd；测试可完全内存化。
 public protocol AhaKeyReleaseInstallHost: AnyObject {
-    func snapshot(layout: AhaKeyReleaseInstallLayout) -> AhaKeyReleaseHostSnapshot
+    func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot
     func inspectCandidate(at appPath: String, identity: AhaKeyReleaseIdentity) throws -> AhaKeyReleaseCandidateReport
     func itemExists(at path: String) -> Bool
     func isSymlink(_ path: String) -> Bool
@@ -225,6 +260,7 @@ public enum AhaKeyReleaseInstallPlanner {
         identity: AhaKeyReleaseIdentity = .current,
         candidate: AhaKeyReleaseCandidateReport? = nil,
         previousLaunchAgentPlist: Data? = nil,
+        previousOwnerRecords: [AhaKeyReleaseOwnerRecord] = [],
         safety: AhaKeyReleaseInstallSafety = .sandboxOnly
     ) -> Result<AhaKeyReleaseInstallPlan, AhaKeyReleaseInstallRejection> {
         if snapshot.darwinMajor < identity.minimumDarwinMajor {
@@ -236,6 +272,14 @@ public enum AhaKeyReleaseInstallPlanner {
 
         let preserved = layout.preservedPaths
         let previousOwners = competingLabels(in: snapshot.loadedLaunchdLabels, identity: identity)
+        let knownOwners: Set<String> = [identity.agentLaunchdLabel, identity.hilLaunchdLabel]
+        if !previousOwners.isSubset(of: knownOwners) {
+            return .failure(.ambiguousPreviousOwners(previousOwners))
+        }
+        let recordLabels = Set(previousOwnerRecords.map(\.label))
+        if recordLabels != previousOwners {
+            return .failure(.ambiguousPreviousOwners(previousOwners))
+        }
 
         switch request {
         case .uninstall:
@@ -257,6 +301,7 @@ public enum AhaKeyReleaseInstallPlanner {
                 candidateAppPath: nil,
                 previousLaunchAgentPlist: previousLaunchAgentPlist,
                 previousOwnerLabels: previousOwners,
+                previousOwnerRecords: previousOwnerRecords,
                 previousLoginItemRegistered: snapshot.loginItemRegistered,
                 hadPreviousApp: snapshot.appInstalled
             ))
@@ -297,6 +342,7 @@ public enum AhaKeyReleaseInstallPlanner {
                 candidateAppPath: candidatePath,
                 previousLaunchAgentPlist: previousLaunchAgentPlist,
                 previousOwnerLabels: previousOwners,
+                previousOwnerRecords: previousOwnerRecords,
                 previousLoginItemRegistered: snapshot.loginItemRegistered,
                 hadPreviousApp: snapshot.appInstalled
             ))
@@ -314,9 +360,21 @@ public enum AhaKeyReleaseInstaller {
         safety: AhaKeyReleaseInstallSafety = .sandboxOnly,
         injectFailureAt: AhaKeyReleaseInstallStep? = nil
     ) throws -> AhaKeyReleaseInstallOutcome {
-        let snapshot = host.snapshot(layout: layout)
+        let snapshot = try host.snapshot(layout: layout)
         var inspected: AhaKeyReleaseCandidateReport?
         let previousPlist = host.readFile(at: layout.launchAgentPlistPath)
+        let owners = AhaKeyReleaseInstallPlanner.competingLabels(
+            in: snapshot.loadedLaunchdLabels,
+            identity: identity
+        )
+        var records: [AhaKeyReleaseOwnerRecord] = []
+        for label in owners.sorted() {
+            let path = layout.plistPath(forLabel: label, identity: identity)
+            guard let data = host.readFile(at: path) else {
+                throw AhaKeyReleaseInstallError.rejected(.ambiguousPreviousOwners(owners))
+            }
+            records.append(AhaKeyReleaseOwnerRecord(label: label, plistPath: path, plist: data))
+        }
         switch request {
         case .install(let path), .upgrade(let path):
             do {
@@ -334,6 +392,7 @@ public enum AhaKeyReleaseInstaller {
             identity: identity,
             candidate: inspected,
             previousLaunchAgentPlist: previousPlist,
+            previousOwnerRecords: records,
             safety: safety
         )
         switch planned {
@@ -380,8 +439,15 @@ public enum AhaKeyReleaseInstallEngine {
                     throw AhaKeyReleaseInstallError.injectedFailure(step)
                 }
             }
-            let snap = host.snapshot(layout: layout)
-            try verifyTerminalState(plan: plan, snapshot: snap, identity: identity, rolledBack: false)
+            let snap = try host.snapshot(layout: layout)
+            try verifyTerminalState(
+                plan: plan,
+                snapshot: snap,
+                host: host,
+                layout: layout,
+                identity: identity,
+                rolledBack: false
+            )
             return AhaKeyReleaseInstallOutcome(
                 completedSteps: completed,
                 rolledBack: false,
@@ -396,9 +462,16 @@ public enum AhaKeyReleaseInstallEngine {
             } catch {
                 throw AhaKeyReleaseInstallError.rollbackFailed(String(describing: error))
             }
-            let snap = host.snapshot(layout: layout)
+            let snap = try host.snapshot(layout: layout)
             do {
-                try verifyTerminalState(plan: plan, snapshot: snap, identity: identity, rolledBack: true)
+                try verifyTerminalState(
+                    plan: plan,
+                    snapshot: snap,
+                    host: host,
+                    layout: layout,
+                    identity: identity,
+                    rolledBack: true
+                )
             } catch {
                 throw AhaKeyReleaseInstallError.rollbackFailed(String(describing: error))
             }
@@ -435,6 +508,8 @@ public enum AhaKeyReleaseInstallEngine {
     private static func verifyTerminalState(
         plan: AhaKeyReleaseInstallPlan,
         snapshot: AhaKeyReleaseHostSnapshot,
+        host: AhaKeyReleaseInstallHost,
+        layout: AhaKeyReleaseInstallLayout,
         identity: AhaKeyReleaseIdentity,
         rolledBack: Bool
     ) throws {
@@ -443,12 +518,23 @@ public enum AhaKeyReleaseInstallEngine {
             identity: identity
         )
         if rolledBack {
-            if plan.hadPreviousApp {
-                if owners != [identity.agentLaunchdLabel] {
-                    throw AhaKeyReleaseInstallError.dualOwnerRemaining(owners)
-                }
-            } else if !owners.isEmpty {
+            if snapshot.appInstalled != plan.hadPreviousApp {
+                throw AhaKeyReleaseInstallError.rollbackFailed("appInstalled=\(snapshot.appInstalled) expected \(plan.hadPreviousApp)")
+            }
+            if snapshot.loginItemRegistered != plan.previousLoginItemRegistered {
+                throw AhaKeyReleaseInstallError.rollbackFailed("loginItem mismatch")
+            }
+            if owners != plan.previousOwnerLabels {
                 throw AhaKeyReleaseInstallError.dualOwnerRemaining(owners)
+            }
+            if let previous = plan.previousLaunchAgentPlist,
+               host.readFile(at: layout.launchAgentPlistPath) != previous {
+                throw AhaKeyReleaseInstallError.rollbackFailed("official plist mismatch")
+            }
+            for record in plan.previousOwnerRecords {
+                if host.readFile(at: record.plistPath) != record.plist {
+                    throw AhaKeyReleaseInstallError.rollbackFailed("owner plist mismatch for \(record.label)")
+                }
             }
             return
         }
@@ -456,6 +542,9 @@ public enum AhaKeyReleaseInstallEngine {
         case .uninstall:
             if !owners.isEmpty {
                 throw AhaKeyReleaseInstallError.dualOwnerRemaining(owners)
+            }
+            if snapshot.appInstalled {
+                throw AhaKeyReleaseInstallError.rollbackFailed("app still installed after uninstall")
             }
         case .install, .upgrade:
             if owners != [identity.agentLaunchdLabel] {
@@ -477,32 +566,34 @@ public enum AhaKeyReleaseInstallEngine {
         case .installApp:
             try installCandidate(plan: plan, host: host, layout: layout, identity: identity)
         case .writeLaunchAgent:
-            try host.writeFile(at: layout.launchAgentPlistPath, data: plan.launchAgentPlist)
+            try guardedWrite(layout.launchAgentPlistPath, data: plan.launchAgentPlist, host: host, layout: layout)
         case .bootstrap(let label):
             try host.bootstrap(label: label, plistPath: layout.launchAgentPlistPath)
         case .restorePreviousLaunchAgent:
             try restorePlist(plan: plan, host: host, layout: layout)
         case .removeLaunchAgent:
             if host.itemExists(at: layout.launchAgentPlistPath) {
-                try host.removeTree(layout.launchAgentPlistPath)
+                try guardedRemove(layout.launchAgentPlistPath, host: host, layout: layout)
             }
         case .registerLoginItem:
             try host.registerLoginItem()
         case .unregisterLoginItem:
             try host.unregisterLoginItem()
         case .restoreApp:
-            try restoreApp(host: host, layout: layout)
+            try restoreApp(host: host, layout: layout, appWasMutated: true)
         case .removeApp:
             try setAsideInstalledApp(plan: plan, host: host, layout: layout)
         case .removeBackup:
             if host.itemExists(at: layout.backupAppPath) {
-                try host.removeTree(layout.backupAppPath)
+                try guardedRemove(layout.backupAppPath, host: host, layout: layout)
             }
         case .verifySingleOwner, .verifyCleanUninstall:
-            let snap = host.snapshot(layout: layout)
+            let snap = try host.snapshot(layout: layout)
             try verifyTerminalState(
                 plan: plan,
                 snapshot: snap,
+                host: host,
+                layout: layout,
                 identity: identity,
                 rolledBack: false
             )
@@ -572,6 +663,7 @@ public enum AhaKeyReleaseInstallEngine {
                 backup: backup,
                 staging: staging,
                 allowedRoots: layout.allowedRoots,
+                candidateRoots: layout.candidateAllowedRoots,
                 permitsApplicationsDestination: layout.permitsSystemApplicationsInstall,
                 itemExists: host.itemExists(at:),
                 resolve: host.resolvedPath,
@@ -582,11 +674,18 @@ public enum AhaKeyReleaseInstallEngine {
         }
     }
 
-    private static func restoreApp(host: AhaKeyReleaseInstallHost, layout: AhaKeyReleaseInstallLayout) throws {
+    private static func restoreApp(
+        host: AhaKeyReleaseInstallHost,
+        layout: AhaKeyReleaseInstallLayout,
+        appWasMutated: Bool
+    ) throws {
+        if !appWasMutated {
+            return
+        }
         let scratch = layout.applicationsAppPath + ".ahakey-rollback-scratch"
         guard host.itemExists(at: layout.backupAppPath) else {
             if host.itemExists(at: layout.applicationsAppPath) {
-                try host.removeTree(layout.applicationsAppPath)
+                try guardedRemove(layout.applicationsAppPath, host: host, layout: layout)
             }
             return
         }
@@ -597,11 +696,50 @@ public enum AhaKeyReleaseInstallEngine {
             staging: layout.stagingAppPath
         )
         if host.itemExists(at: scratch) {
-            try host.removeTree(scratch)
+            try guardedRemove(scratch, host: host, layout: layout)
         }
         if host.itemExists(at: layout.backupAppPath) {
-            try host.removeTree(layout.backupAppPath)
+            try guardedRemove(layout.backupAppPath, host: host, layout: layout)
         }
+    }
+
+    private static func guardedRemove(
+        _ path: String,
+        host: AhaKeyReleaseInstallHost,
+        layout: AhaKeyReleaseInstallLayout
+    ) throws {
+        do {
+            try AhaKeyReleasePathGuard.validateDestructive(
+                path,
+                allowedRoots: layout.allowedRoots + [AhaKeyReleasePathGuard.parentDirectory(path)],
+                permitsApplicationsDestination: layout.permitsSystemApplicationsInstall,
+                resolve: host.resolvedPath,
+                isSymlink: host.isSymlink
+            )
+        } catch let violation as AhaKeyReleasePathViolation {
+            throw AhaKeyReleaseInstallError.pathViolation(violation)
+        }
+        try host.removeTree(path)
+    }
+
+    private static func guardedWrite(
+        _ path: String,
+        data: Data,
+        host: AhaKeyReleaseInstallHost,
+        layout: AhaKeyReleaseInstallLayout
+    ) throws {
+        do {
+            try AhaKeyReleasePathGuard.validateDestructive(
+                path,
+                allowedRoots: layout.allowedRoots,
+                permitsApplicationsDestination: layout.permitsSystemApplicationsInstall,
+                resolve: host.resolvedPath,
+                isSymlink: host.isSymlink
+            )
+        } catch let violation as AhaKeyReleasePathViolation {
+            throw AhaKeyReleaseInstallError.pathViolation(violation)
+        }
+        try host.writeFile(at: path, data: data)
     }
 
     private static func restorePlist(
@@ -610,9 +748,9 @@ public enum AhaKeyReleaseInstallEngine {
         layout: AhaKeyReleaseInstallLayout
     ) throws {
         if let previous = plan.previousLaunchAgentPlist {
-            try host.writeFile(at: layout.launchAgentPlistPath, data: previous)
+            try guardedWrite(layout.launchAgentPlistPath, data: previous, host: host, layout: layout)
         } else if host.itemExists(at: layout.launchAgentPlistPath) {
-            try host.removeTree(layout.launchAgentPlistPath)
+            try guardedRemove(layout.launchAgentPlistPath, host: host, layout: layout)
         }
     }
 
@@ -623,41 +761,59 @@ public enum AhaKeyReleaseInstallEngine {
         layout: AhaKeyReleaseInstallLayout,
         identity: AhaKeyReleaseIdentity
     ) throws {
-        if completed.contains(.registerLoginItem) || host.snapshot(layout: layout).loginItemRegistered {
-            if !plan.previousLoginItemRegistered {
+        let appWasMutated = completed.contains(.installApp) || completed.contains(.removeApp)
+        if try host.snapshot(layout: layout).loginItemRegistered != plan.previousLoginItemRegistered {
+            if plan.previousLoginItemRegistered {
+                try host.registerLoginItem()
+            } else {
                 try host.unregisterLoginItem()
             }
         }
-        try host.bootout(label: identity.agentLaunchdLabel)
-        for extra in AhaKeyReleaseInstallPlanner.competingLabels(
-            in: host.snapshot(layout: layout).loadedLaunchdLabels,
+
+        try restoreApp(host: host, layout: layout, appWasMutated: appWasMutated)
+
+        let currentOwners = AhaKeyReleaseInstallPlanner.competingLabels(
+            in: try host.snapshot(layout: layout).loadedLaunchdLabels,
             identity: identity
-        ) where extra != identity.agentLaunchdLabel {
+        )
+        for extra in currentOwners.subtracting(plan.previousOwnerLabels) {
             try host.bootout(label: extra)
         }
 
-        if plan.hadPreviousApp {
-            try restoreApp(host: host, layout: layout)
-            try restorePlist(plan: plan, host: host, layout: layout)
-            try host.bootstrap(label: identity.agentLaunchdLabel, plistPath: layout.launchAgentPlistPath)
-            if plan.previousLoginItemRegistered {
-                try host.registerLoginItem()
+        for record in plan.previousOwnerRecords {
+            try guardedWrite(record.plistPath, data: record.plist, host: host, layout: layout)
+        }
+        let ownersAfterRestore = AhaKeyReleaseInstallPlanner.competingLabels(
+            in: try host.snapshot(layout: layout).loadedLaunchdLabels,
+            identity: identity
+        )
+        for record in plan.previousOwnerRecords {
+            if !ownersAfterRestore.contains(record.label) {
+                try host.bootstrap(label: record.label, plistPath: record.plistPath)
             }
-        } else {
-            if completed.contains(.writeLaunchAgent) || host.itemExists(at: layout.launchAgentPlistPath) {
+        }
+
+        if plan.previousOwnerRecords.isEmpty {
+            for leftover in AhaKeyReleaseInstallPlanner.competingLabels(
+                in: try host.snapshot(layout: layout).loadedLaunchdLabels,
+                identity: identity
+            ) {
+                try host.bootout(label: leftover)
+            }
+            if host.itemExists(at: layout.launchAgentPlistPath), plan.previousLaunchAgentPlist == nil {
                 try restorePlist(plan: plan, host: host, layout: layout)
             }
+        }
+
+        if !plan.hadPreviousApp, appWasMutated {
             if host.itemExists(at: layout.applicationsAppPath) {
-                try host.removeTree(layout.applicationsAppPath)
+                try guardedRemove(layout.applicationsAppPath, host: host, layout: layout)
             }
             if host.itemExists(at: layout.backupAppPath) {
-                try host.removeTree(layout.backupAppPath)
+                try guardedRemove(layout.backupAppPath, host: host, layout: layout)
             }
             if host.itemExists(at: layout.stagingAppPath) {
-                try host.removeTree(layout.stagingAppPath)
-            }
-            if plan.previousLoginItemRegistered {
-                try host.registerLoginItem()
+                try guardedRemove(layout.stagingAppPath, host: host, layout: layout)
             }
         }
     }

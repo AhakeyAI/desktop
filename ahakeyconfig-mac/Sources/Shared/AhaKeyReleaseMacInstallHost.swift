@@ -18,16 +18,57 @@ public struct AhaKeyReleaseCodeSignature: Equatable, Sendable {
     }
 }
 
+public protocol AhaKeyReleaseProcessRunning: AnyObject {
+    func run(executable: String, arguments: [String]) throws -> (status: Int32, output: String)
+}
+
+public final class AhaKeyReleasePosixProcessRunner: AhaKeyReleaseProcessRunning {
+    public init() {}
+
+    public func run(executable: String, arguments: [String]) throws -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        process.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+    }
+}
+
+public final class AhaKeyReleaseRecordingProcessRunner: AhaKeyReleaseProcessRunning {
+    public var calls: [[String]] = []
+    public var statusByJoinedArguments: [String: Int32] = [:]
+    public var outputByJoinedArguments: [String: String] = [:]
+    public var defaultStatus: Int32 = 0
+    public var defaultOutput = ""
+
+    public init() {}
+
+    public func run(executable: String, arguments: [String]) throws -> (status: Int32, output: String) {
+        _ = executable
+        calls.append(arguments)
+        let key = arguments.joined(separator: " ")
+        let status = statusByJoinedArguments[key] ?? defaultStatus
+        let output = outputByJoinedArguments[key] ?? defaultOutput
+        return (status, output)
+    }
+}
+
 /// launchd / 登录项 / codesign 检查缝。生产适配器会改系统；测试注入 Recording 适配器。
 public protocol AhaKeyReleaseSystemControl: AnyObject {
     func darwinMajor() -> Int
-    func loadedLaunchdLabels() -> Set<String>
+    func loadedLaunchdLabels() throws -> Set<String>
     var loginItemRegistered: Bool { get }
     func bootout(label: String) throws
     func bootstrap(label: String, plistPath: String) throws
     func registerLoginItem() throws
     func unregisterLoginItem() throws
     func inspectCodeSignature(at path: String) throws -> AhaKeyReleaseCodeSignature
+    func verifyCodeSignature(at path: String) throws
 }
 
 public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemControl {
@@ -36,6 +77,10 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
     public var loginItemRegistered: Bool
     public var signatures: [String: AhaKeyReleaseCodeSignature]
     public var useProcessCodesign: Bool
+    public var bootoutError: AhaKeyReleaseInstallError?
+    public var bootstrapError: AhaKeyReleaseInstallError?
+    public var failingVerify: Set<String> = []
+    public var failingVerifyIfPathContains: String?
 
     public init(
         darwinMajorValue: Int = 22,
@@ -53,13 +98,19 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
 
     public func darwinMajor() -> Int { darwinMajorValue }
 
-    public func loadedLaunchdLabels() -> Set<String> { loaded }
+    public func loadedLaunchdLabels() throws -> Set<String> { loaded }
 
     public func bootout(label: String) throws {
+        if let bootoutError {
+            throw bootoutError
+        }
         loaded.remove(label)
     }
 
     public func bootstrap(label: String, plistPath: String) throws {
+        if let bootstrapError {
+            throw bootstrapError
+        }
         _ = plistPath
         loaded.insert(label)
     }
@@ -81,15 +132,39 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
         }
         throw AhaKeyReleaseInstallError.hostFailure("no signature for \(path)")
     }
+
+    public func verifyCodeSignature(at path: String) throws {
+        if failingVerify.contains(path) {
+            throw AhaKeyReleaseInstallError.rejected(.identityRejected(.appIntegrityFailed))
+        }
+        if let needle = failingVerifyIfPathContains, path.contains(needle) {
+            throw AhaKeyReleaseInstallError.rejected(.identityRejected(.appIntegrityFailed))
+        }
+        if useProcessCodesign {
+            try AhaKeyReleaseCodesignInspector.verifyStrict(at: path)
+            return
+        }
+        if signatures[path] == nil {
+            throw AhaKeyReleaseInstallError.hostFailure("no signature for \(path)")
+        }
+    }
 }
 
 /// 真实 launchctl + SMAppService。默认拒绝系统突变；HIL 才能把 `allowSystemMutation` 打开。
+/// `loadedLaunchdLabels` / login-item status 是只读查询，不要求 mutation 开关。
 public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
     public var allowSystemMutation: Bool
-    public var loginItemRegistered: Bool = false
+    private let process: AhaKeyReleaseProcessRunning
+    private let identity: AhaKeyReleaseIdentity
 
-    public init(allowSystemMutation: Bool = false) {
+    public init(
+        allowSystemMutation: Bool = false,
+        process: AhaKeyReleaseProcessRunning = AhaKeyReleasePosixProcessRunner(),
+        identity: AhaKeyReleaseIdentity = .current
+    ) {
         self.allowSystemMutation = allowSystemMutation
+        self.process = process
+        self.identity = identity
     }
 
     public func darwinMajor() -> Int {
@@ -97,26 +172,51 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
         return version.majorVersion + 9
     }
 
-    public func loadedLaunchdLabels() -> Set<String> {
-        []
+    public var loginItemRegistered: Bool {
+        if #available(macOS 13.0, *) {
+            return SMAppService.mainApp.status == .enabled
+        }
+        return false
+    }
+
+    public func loadedLaunchdLabels() throws -> Set<String> {
+        let result = try process.run(executable: "/bin/launchctl", arguments: ["list"])
+        if result.status != 0 {
+            throw AhaKeyReleaseInstallError.hostFailure("launchctl list exit \(result.status): \(result.output)")
+        }
+        var loaded: Set<String> = []
+        for raw in result.output.split(whereSeparator: \.isNewline) {
+            let parts = raw.split(whereSeparator: \.isWhitespace).map(String.init)
+            guard let label = parts.last, identity.isAhaKeyLaunchdLabel(label) else { continue }
+            loaded.insert(label)
+        }
+        for label in [identity.agentLaunchdLabel, identity.hilLaunchdLabel] {
+            let printResult = try process.run(
+                executable: "/bin/launchctl",
+                arguments: ["print", guiTarget(label)]
+            )
+            if printResult.status == 0 {
+                loaded.insert(label)
+            }
+        }
+        return loaded
     }
 
     public func bootout(label: String) throws {
         try requireMutation()
-        _ = try runLaunchctl(["bootout", guiTarget(label)])
+        try runLaunchctlChecked(["bootout", guiTarget(label)])
     }
 
     public func bootstrap(label: String, plistPath: String) throws {
         try requireMutation()
         _ = label
-        _ = try runLaunchctl(["bootstrap", "gui/\(getuid())", plistPath])
+        try runLaunchctlChecked(["bootstrap", "gui/\(getuid())", plistPath])
     }
 
     public func registerLoginItem() throws {
         try requireMutation()
         if #available(macOS 13.0, *) {
             try SMAppService.mainApp.register()
-            loginItemRegistered = true
         } else {
             throw AhaKeyReleaseInstallError.rejected(.unsupportedMacOS(darwinMajor: darwinMajor()))
         }
@@ -126,12 +226,15 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
         try requireMutation()
         if #available(macOS 13.0, *) {
             try SMAppService.mainApp.unregister()
-            loginItemRegistered = false
         }
     }
 
     public func inspectCodeSignature(at path: String) throws -> AhaKeyReleaseCodeSignature {
         try AhaKeyReleaseCodesignInspector.inspect(at: path)
+    }
+
+    public func verifyCodeSignature(at path: String) throws {
+        try AhaKeyReleaseCodesignInspector.verifyStrict(at: path)
     }
 
     private func requireMutation() throws {
@@ -144,22 +247,32 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
         "gui/\(getuid())/\(label)"
     }
 
-    @discardableResult
-    private func runLaunchctl(_ arguments: [String]) throws -> String {
+    private func runLaunchctlChecked(_ arguments: [String]) throws {
+        let result = try process.run(executable: "/bin/launchctl", arguments: arguments)
+        if result.status != 0 {
+            throw AhaKeyReleaseInstallError.hostFailure(
+                "launchctl \(arguments.joined(separator: " ")) exit \(result.status): \(result.output)"
+            )
+        }
+    }
+}
+
+public enum AhaKeyReleaseCodesignInspector {
+    public static func verifyStrict(at path: String) throws {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = arguments
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["--verify", "--strict", "--verbose=2", path]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
         try process.run()
         process.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8) ?? ""
+        if process.terminationStatus != 0 {
+            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            throw AhaKeyReleaseInstallError.hostFailure("codesign --verify --strict failed for \(path): \(output)")
+        }
     }
-}
 
-public enum AhaKeyReleaseCodesignInspector {
     public static func inspect(at path: String) throws -> AhaKeyReleaseCodeSignature {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
@@ -205,6 +318,25 @@ public enum AhaKeyReleaseCodesignInspector {
     }
 }
 
+public enum AhaKeyReleaseDiskSync {
+    public static func fsyncItem(at path: String) throws {
+        let fd = open(path, O_RDONLY)
+        guard fd >= 0 else {
+            throw AhaKeyReleaseInstallError.hostFailure("open for fsync failed: \(path)")
+        }
+        defer { close(fd) }
+        if fcntl(fd, F_FULLFSYNC) == -1 {
+            if fsync(fd) != 0 {
+                throw AhaKeyReleaseInstallError.hostFailure("fsync failed: \(path)")
+            }
+        }
+    }
+
+    public static func fsyncDirectory(at path: String) throws {
+        try fsyncItem(at: path)
+    }
+}
+
 /// 生产安装 host：真实文件原子替换 + 可注入的 launchd/登录项。
 /// 本卡只允许沙箱 layout + Recording 系统控制；不得对 `/Applications` 或真实 LaunchAgents 调用。
 public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
@@ -216,7 +348,12 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         self.system = system
     }
 
-    public func snapshot(layout: AhaKeyReleaseInstallLayout) -> AhaKeyReleaseHostSnapshot {
+    /// HIL 可调用的生产 host。默认禁止系统突变。
+    public static func production(allowSystemMutation: Bool = false) -> AhaKeyReleaseMacInstallHost {
+        AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseLaunchdControl(allowSystemMutation: allowSystemMutation))
+    }
+
+    public func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
         var exists: [String: Bool] = [:]
         for path in layout.preservedPaths {
             exists[path] = fileManager.fileExists(atPath: path)
@@ -224,7 +361,7 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         return AhaKeyReleaseHostSnapshot(
             darwinMajor: system.darwinMajor(),
             appInstalled: fileManager.fileExists(atPath: layout.applicationsAppPath),
-            loadedLaunchdLabels: system.loadedLaunchdLabels(),
+            loadedLaunchdLabels: try system.loadedLaunchdLabels(),
             loginItemRegistered: system.loginItemRegistered,
             preservedPathExists: exists
         )
@@ -243,14 +380,40 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
             .deletingLastPathComponent()
             .appendingPathComponent("LaunchAgent.plist")
         let launchPlist = try? Data(contentsOf: companion)
-        let signature = try system.inspectCodeSignature(at: appPath)
+        var appIntegrity = false
+        var agentIntegrity = false
+        if agentPresent {
+            do {
+                try system.verifyCodeSignature(at: appPath)
+                appIntegrity = true
+            } catch {
+                appIntegrity = false
+            }
+            do {
+                try system.verifyCodeSignature(at: agent)
+                agentIntegrity = true
+            } catch {
+                agentIntegrity = false
+            }
+        }
+        let appSignature = try system.inspectCodeSignature(at: appPath)
+        let agentSignature = agentPresent ? try system.inspectCodeSignature(at: agent) : AhaKeyReleaseCodeSignature(
+            signatureKind: .unknown,
+            teamIdentifier: nil,
+            signingIdentifier: nil
+        )
         return AhaKeyReleaseCandidateReport(
             bundleIdentifier: bundleID,
             agentBinaryPresent: agentPresent,
             launchAgentPlist: launchPlist,
-            teamIdentifier: signature.teamIdentifier,
-            signingIdentifier: signature.signingIdentifier,
-            signatureKind: signature.signatureKind
+            teamIdentifier: appSignature.teamIdentifier,
+            signingIdentifier: appSignature.signingIdentifier,
+            signatureKind: appSignature.signatureKind,
+            appIntegrityVerified: appIntegrity,
+            agentIntegrityVerified: agentIntegrity,
+            agentSigningIdentifier: agentSignature.signingIdentifier,
+            agentTeamIdentifier: agentSignature.teamIdentifier,
+            agentSignatureKind: agentSignature.signatureKind
         )
     }
 
@@ -259,10 +422,7 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     }
 
     public func isSymlink(_ path: String) -> Bool {
-        var isDir: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDir) else { return false }
-        guard let attrs = try? fileManager.attributesOfItem(atPath: path) else { return false }
-        return (attrs[.type] as? FileAttributeType) == .typeSymbolicLink
+        (try? fileManager.destinationOfSymbolicLink(atPath: path)) != nil
     }
 
     public func resolvedPath(_ path: String) -> String? {
@@ -279,7 +439,14 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         let destParent = (to as NSString).deletingLastPathComponent
         try fileManager.createDirectory(atPath: destParent, withIntermediateDirectories: true)
         try fileManager.copyItem(atPath: from, toPath: staging)
-        try verifyStagedApp(staging)
+        try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
+        try fsyncTree(staging)
+        do {
+            try verifyStagedApp(staging)
+        } catch {
+            try? fileManager.removeItem(atPath: staging)
+            throw error
+        }
         let destURL = URL(fileURLWithPath: to)
         let stagingURL = URL(fileURLWithPath: staging)
         if fileManager.fileExists(atPath: to) {
@@ -293,6 +460,7 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         } else {
             try renameAtomically(from: staging, to: to)
         }
+        try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
         if fileManager.fileExists(atPath: staging) {
             try fileManager.removeItem(atPath: staging)
         }
@@ -305,23 +473,28 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         let destParent = (to as NSString).deletingLastPathComponent
         try fileManager.createDirectory(atPath: destParent, withIntermediateDirectories: true)
         try renameAtomically(from: from, to: to)
+        try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
     }
 
     public func removeTree(_ path: String) throws {
         if fileManager.fileExists(atPath: path) {
+            let parent = (path as NSString).deletingLastPathComponent
             try fileManager.removeItem(atPath: path)
+            try AhaKeyReleaseDiskSync.fsyncDirectory(at: parent)
         }
     }
 
     public func writeFile(at path: String, data: Data) throws {
         let directory = (path as NSString).deletingLastPathComponent
         try fileManager.createDirectory(atPath: directory, withIntermediateDirectories: true)
-        let temp = path + ".ahakey-tmp"
-        try data.write(to: URL(fileURLWithPath: temp), options: .atomic)
-        if fileManager.fileExists(atPath: path) {
-            try fileManager.removeItem(atPath: path)
-        }
+        let temp = (directory as NSString).appendingPathComponent(
+            "." + (path as NSString).lastPathComponent + ".ahakey-tmp"
+        )
+        try data.write(to: URL(fileURLWithPath: temp), options: [])
+        try AhaKeyReleaseDiskSync.fsyncItem(at: temp)
         try renameAtomically(from: temp, to: path)
+        try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
+        try AhaKeyReleaseDiskSync.fsyncItem(at: path)
     }
 
     public func readFile(at path: String) -> Data? {
@@ -346,16 +519,73 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
 
     private func verifyStagedApp(_ staging: String) throws {
         let identity = AhaKeyReleaseIdentity.current
+        let info = URL(fileURLWithPath: staging).appendingPathComponent("Contents/Info.plist")
+        let infoData = try Data(contentsOf: info)
+        let plist = try PropertyListSerialization.propertyList(from: infoData, options: [], format: nil)
+        let bundleID = (plist as? [String: Any])?["CFBundleIdentifier"] as? String
+        guard bundleID == identity.bundleIdentifier else {
+            throw AhaKeyReleaseInstallError.rejected(
+                .identityRejected(.bundleIdentifierMismatch(found: bundleID ?? ""))
+            )
+        }
         let agent = identity.agentBinaryPath(inApp: staging)
         var isDir: ObjCBool = false
         guard fileManager.fileExists(atPath: agent, isDirectory: &isDir), !isDir.boolValue else {
             throw AhaKeyReleaseInstallError.rejected(.identityRejected(.missingAgentBinary))
         }
+        do {
+            try system.verifyCodeSignature(at: staging)
+        } catch {
+            throw AhaKeyReleaseInstallError.rejected(.identityRejected(.appIntegrityFailed))
+        }
+        do {
+            try system.verifyCodeSignature(at: agent)
+        } catch {
+            throw AhaKeyReleaseInstallError.rejected(.identityRejected(.agentIntegrityFailed))
+        }
+        let appSignature = try system.inspectCodeSignature(at: staging)
+        let agentSignature = try system.inspectCodeSignature(at: agent)
+        let report = AhaKeyReleaseCandidateReport(
+            bundleIdentifier: bundleID,
+            agentBinaryPresent: true,
+            launchAgentPlist: try identity.launchAgentPlist(
+                agentBinaryPath: agent,
+                socketPath: "/tmp/ahakey-staging.sock",
+                logPath: "/tmp/ahakey-staging.log"
+            ),
+            teamIdentifier: appSignature.teamIdentifier,
+            signingIdentifier: appSignature.signingIdentifier,
+            signatureKind: appSignature.signatureKind,
+            appIntegrityVerified: true,
+            agentIntegrityVerified: true,
+            agentSigningIdentifier: agentSignature.signingIdentifier,
+            agentTeamIdentifier: agentSignature.teamIdentifier,
+            agentSignatureKind: agentSignature.signatureKind
+        )
+        if case .rejected(let reason) = AhaKeyReleaseSigningChecklist.check(report, identity: identity) {
+            throw AhaKeyReleaseInstallError.rejected(.identityRejected(reason))
+        }
+    }
+
+    private func fsyncTree(_ root: String) throws {
+        let enumerator = fileManager.enumerator(atPath: root)
+        while let relative = enumerator?.nextObject() as? String {
+            let full = (root as NSString).appendingPathComponent(relative)
+            try AhaKeyReleaseDiskSync.fsyncItem(at: full)
+        }
+        try AhaKeyReleaseDiskSync.fsyncDirectory(at: root)
     }
 
     private func renameAtomically(from: String, to: String) throws {
         if rename(from, to) != 0 {
             throw AhaKeyReleaseInstallError.hostFailure("rename \(from) → \(to) errno=\(errno)")
         }
+    }
+}
+
+extension AhaKeyReleaseInstaller {
+    /// 产品/HIL 入口：生产 host + 生产布局。本卡不得把 `allowSystemMutation` 打开。
+    public static func productionHost(allowSystemMutation: Bool = false) -> AhaKeyReleaseMacInstallHost {
+        .production(allowSystemMutation: allowSystemMutation)
     }
 }
