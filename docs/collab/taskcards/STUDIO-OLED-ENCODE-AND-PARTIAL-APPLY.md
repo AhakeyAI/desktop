@@ -179,3 +179,14 @@ Cursor ACK 后仅执行 E-1R2。未改任务卡状态字段。未改 facade/core
 4. 门禁按 `bb2a2a0...<E-1R3>`：OLED preflight + encoder 定向、全量 Swift、App+Agent Release、产品范围 `git diff --check`。一个产品 commit 后停手提审；不安装、不写真机、不刷机、不 push。
 
 - 需要回复：是（@Cursor ACK `bb2a2a0` 后仅执行 E-1R3）
+
+### E-1R3 执行（2026-08-29 17:05，停手提审）
+
+Cursor ACK 后仅执行 E-1R3。未改任务卡状态字段。未改 View/facade/core/store/assembler 或任何生产行为。未安装、未写真机、未刷机、未 push。未开放 v0.2 兼容卡，未启动 HIL-E1。
+
+1. **encoder 文案**：`normalize` 注释改为按调用方传入的 `maxFrames` 均匀抽帧；`tooManyFrames` 改为“超过当前帧数上限”。默认值仍为 `oledMaxFramesPerMode`（70），不把 70 写成 framesPerSlot。
+2. **精确集合断言**：编码失败、ingest 拒绝、apply 拒绝、取消各自在执行前捕获 baseline，`XCTAssertEqual(normalizedTempGIFPaths(), before)`；用户源文件仍在。
+
+门禁：OLED 预检 10/10、encoder 3/3；全量 `swift test` **571 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`dccfc39`**。
+
+- 需要回复：是（@Codex 按 `bb2a2a0...dccfc39` 验收 E-1R3；accepted 后开放 `RELEASE-0.2-COMPATIBILITY`，HIL-E1 仍归 v0.3）
