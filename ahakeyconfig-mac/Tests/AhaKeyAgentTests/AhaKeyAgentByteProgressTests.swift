@@ -234,49 +234,62 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
     }
 
     func testOutOfOrderTerminalWindowMatchesInProcessAndFreshAgent() async throws {
-        let storeDir = testRoot.appendingPathComponent("store-c3r2-terminal-order", isDirectory: true)
+        let storeDir = testRoot.appendingPathComponent("store-c3r3-terminal-order", isDirectory: true)
         try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
         let window = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
+        let agent = makeAgent(skipBLE: true, storeDirectory: storeDir)
+        var hooks = agent.executionTestHooks
+        hooks?.stepExecutor = { _ in .permanentFailure }
+        agent.executionTestHooks = hooks
+        await agent.simulateDeviceForTesting(simulatedDevice())
+        let assembled = try makeAssembledResources(fileCount: 1)
+        try await ingest(agent, assembled: assembled)
+
         var packages: [AhaKeyConfigurationPackage] = []
-        do {
-            let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
-            for _ in 0..<(window + 1) {
-                let package = try AhaKeyConfigurationPackage(
-                    targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-                    baseRevision: .init(0),
-                    desiredConfiguration: Data("configuration-v1".utf8),
-                    resources: []
-                )
-                _ = try await store.accept(package, resourceFiles: [:])
-                packages.append(package)
+        for _ in 0..<(window + 1) {
+            let package = try makePackage(from: assembled)
+            packages.append(package)
+            let response = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .operationAccepted = response else {
+                return XCTFail("apply 必须受理，实际 \(response)")
             }
-            for package in packages.reversed() {
-                try await store.commitOperationOutcome(
-                    AhaKeyRuntimeOperationSummary(
-                        id: package.operationID,
-                        targetDeviceID: package.targetDeviceID,
-                        state: .failedWithoutWrites,
-                        completedSteps: 0,
-                        totalSteps: 0
-                    ),
-                    syncBaseline: nil
-                )
+            try await waitUntil {
+                (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
             }
         }
         let firstAccepted = packages[0]
-        let firstTerminal = packages[window]
+        let secondAccepted = packages[1]
+        let lastAccepted = packages[window]
 
-        let agent = makeAgent(skipBLE: true, storeDirectory: storeDir)
         let live = try await agent.handleRuntimeXPCRequest(.snapshot)
         guard case .snapshot(let snapshot) = live else {
             return XCTFail("snapshot 必须成功，实际 \(live)")
         }
         let liveTerminals = snapshot.operations.filter(\.state.isTerminal)
         XCTAssertEqual(liveTerminals.count, window)
-        XCTAssertNil(liveTerminals.first { $0.id == firstTerminal.operationID })
+        XCTAssertNil(liveTerminals.first { $0.id == firstAccepted.operationID })
         XCTAssertEqual(
-            liveTerminals.first { $0.id == firstAccepted.operationID }?.state,
+            liveTerminals.first { $0.id == lastAccepted.operationID }?.state,
             .failedWithoutWrites
+        )
+
+        let replay = try await agent.handleRuntimeXPCRequest(.apply(firstAccepted))
+        guard case .operationAccepted = replay else {
+            return XCTFail("终态幂等 apply 仍须受理，实际 \(replay)")
+        }
+        let replayedLive = try await agent.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let replayedSnapshot) = replayedLive else {
+            return XCTFail("重放后 snapshot 必须成功，实际 \(replayedLive)")
+        }
+        let replayedTerminals = replayedSnapshot.operations.filter(\.state.isTerminal)
+        XCTAssertEqual(replayedTerminals.count, window, "同进程缓存 + WAL 合并后必须恰好 64")
+        XCTAssertEqual(
+            replayedTerminals.first { $0.id == firstAccepted.operationID }?.state,
+            .failedWithoutWrites
+        )
+        XCTAssertNil(
+            replayedTerminals.first { $0.id == secondAccepted.operationID },
+            "重放最旧终态淘汰缓存第二项后，不得再从 WAL 补回而膨胀窗口"
         )
 
         await agent.closeRuntimeStoreForTesting()
@@ -290,9 +303,13 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         }
         let restartedTerminals = restartedSnapshot.operations.filter(\.state.isTerminal)
         XCTAssertEqual(restartedTerminals.count, window)
-        XCTAssertNil(restartedTerminals.first { $0.id == firstTerminal.operationID })
+        XCTAssertNil(restartedTerminals.first { $0.id == firstAccepted.operationID })
         XCTAssertEqual(
-            restartedTerminals.first { $0.id == firstAccepted.operationID }?.state,
+            restartedTerminals.first { $0.id == secondAccepted.operationID }?.state,
+            .failedWithoutWrites
+        )
+        XCTAssertEqual(
+            restartedTerminals.first { $0.id == lastAccepted.operationID }?.state,
             .failedWithoutWrites
         )
     }
@@ -402,7 +419,9 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
     }
 
     func testTerminalCacheEvictionDropsByteProgress() async throws {
-        let agent = makeAgent(skipBLE: false)
+        let storeDir = testRoot.appendingPathComponent("store-c3r3-eviction", isDirectory: true)
+        try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let agent = makeAgent(skipBLE: false, storeDirectory: storeDir)
         var hooks = agent.executionTestHooks
         hooks?.isReady = true
         hooks?.capabilities = testCapabilities()
@@ -412,10 +431,12 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let assembled = try makeAssembledResources(fileCount: 1)
         try await ingest(agent, assembled: assembled)
         var firstPackage: AhaKeyConfigurationPackage?
+        var secondPackage: AhaKeyConfigurationPackage?
         var firstTerminal: AhaKeyRuntimeOperationState?
         for index in 0..<65 {
             let package = try makePackage(from: assembled)
             if index == 0 { firstPackage = package }
+            if index == 1 { secondPackage = package }
             let response = try await agent.handleRuntimeXPCRequest(.apply(package))
             guard case .operationAccepted = response else {
                 return XCTFail("apply 必须受理，实际 \(response)")
@@ -430,6 +451,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let count = await MainActor.run { agent.byteProgressCacheCountForTesting() }
         XCTAssertLessThanOrEqual(count, 64)
         let evicted = try XCTUnwrap(firstPackage)
+        let second = try XCTUnwrap(secondPackage)
         let durable = try XCTUnwrap(firstTerminal)
         XCTAssertTrue(durable.isTerminal)
         let missingBeforeReplay = try await snapshotOperation(agent, id: evicted.operationID)
@@ -449,6 +471,35 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             "终态淘汰后重放不得再发 accepted，实际 \(replayed.map(\.state))"
         )
         XCTAssertEqual(replayed.last?.state, durable)
+
+        let replayedLive = try await agent.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let replayedSnapshot) = replayedLive else {
+            return XCTFail("重放后 snapshot 必须成功，实际 \(replayedLive)")
+        }
+        let replayedTerminals = replayedSnapshot.operations.filter(\.state.isTerminal)
+        XCTAssertEqual(replayedTerminals.count, 64, "重放淘汰项后 snapshot 终态必须恰好 64")
+        XCTAssertEqual(replayedTerminals.first { $0.id == evicted.operationID }?.state, durable)
+        XCTAssertNil(
+            replayedTerminals.first { $0.id == second.operationID },
+            "缓存淘汰第二项后 WAL 不得把它补回而使窗口超过 64"
+        )
+
+        await agent.closeRuntimeStoreForTesting()
+        agent.shutdown()
+        agents.removeAll { $0 === agent }
+
+        let restarted = makeAgent(skipBLE: true, storeDirectory: storeDir)
+        let restartedLive = try await restarted.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let restartedSnapshot) = restartedLive else {
+            return XCTFail("重启 snapshot 必须成功，实际 \(restartedLive)")
+        }
+        let restartedTerminals = restartedSnapshot.operations.filter(\.state.isTerminal)
+        XCTAssertEqual(restartedTerminals.count, 64)
+        XCTAssertNil(restartedTerminals.first { $0.id == evicted.operationID })
+        XCTAssertEqual(
+            restartedTerminals.first { $0.id == second.operationID }?.state,
+            durable
+        )
     }
 
     // MARK: - Helpers

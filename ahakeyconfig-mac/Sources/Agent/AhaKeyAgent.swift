@@ -2586,11 +2586,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
             }
             // 终态不在 recoveryCandidates 内；新 Agent 内存缓存为空时必须从 WAL 投影。
-            // 窗口按 terminal-transition order，与 projectionTerminalOrder 64 上限对齐。
-            // 不裁剪缓存：淘汰后幂等 apply 会把 durable 终态重新放入投影，即使它已不在 WAL 窗口。
+            // 单一有界窗口：内存终态优先（含淘汰后重放、即使已不在 WAL 窗口），
+            // 再按 WAL terminal-transition order 从最新补足到 64。不裁剪缓存。
             if let terminals = try? await store.recentTerminalTransactions() {
-                for terminal in terminals where operations[terminal.operationID] == nil {
-                    operations[terminal.operationID] = Self.operationSummary(from: terminal)
+                let limit = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
+                var terminalCount = operations.values.filter(\.state.isTerminal).count
+                for terminal in terminals.reversed() {
+                    guard terminalCount < limit else { break }
+                    if operations[terminal.operationID] == nil {
+                        operations[terminal.operationID] = Self.operationSummary(from: terminal)
+                        terminalCount += 1
+                    }
                 }
             }
             // 已知 operation 一律以 WAL 最新状态为准，再叠内存字节进度。

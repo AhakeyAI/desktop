@@ -556,6 +556,115 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertTrue(terminals.contains { $0.operationID == packages[0].operationID })
     }
 
+    func testV4MigrationAndConcurrentOutcomeShareOneWriteTransaction() async throws {
+        final class GateBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var acquiredAtStorage: Date?
+            private var userVersionStorage: Int32 = -1
+            private var beginResultStorage: Int32 = -1
+            var acquiredAt: Date? {
+                lock.lock(); defer { lock.unlock() }
+                return acquiredAtStorage
+            }
+            var userVersion: Int32 {
+                lock.lock(); defer { lock.unlock() }
+                return userVersionStorage
+            }
+            var beginResult: Int32 {
+                lock.lock(); defer { lock.unlock() }
+                return beginResultStorage
+            }
+            func mark(beginResult: Int32, userVersion: Int32) {
+                lock.lock()
+                acquiredAtStorage = Date()
+                beginResultStorage = beginResult
+                userVersionStorage = userVersion
+                lock.unlock()
+            }
+        }
+
+        let root = temporaryDirectory()
+        defer {
+            AhaKeyRuntimeStoreSchemaMigrationTestingHooks.insideWriteTransaction = nil
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let historical = try makePackage()
+        let accepted = try makePackage()
+        try seedV3Transactions(
+            root: root,
+            rows: [
+                (historical, "failedWithoutWrites"),
+                (accepted, "accepted")
+            ]
+        )
+
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        AhaKeyRuntimeStoreSchemaMigrationTestingHooks.insideWriteTransaction = {
+            entered.signal()
+            _ = release.wait(timeout: .now() + 10)
+        }
+
+        let initTask = Task.detached {
+            try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        }
+        XCTAssertEqual(entered.wait(timeout: .now() + 5), .success)
+
+        let gate = GateBox()
+        let concurrentTask = Task.detached {
+            let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+            var handle: OpaquePointer?
+            let opened = sqlite3_open(databaseURL.path, &handle)
+            defer { sqlite3_close(handle) }
+            guard opened == SQLITE_OK, let handle else {
+                gate.mark(beginResult: opened, userVersion: -1)
+                return
+            }
+            sqlite3_busy_timeout(handle, 10_000)
+            let begin = sqlite3_exec(handle, "BEGIN IMMEDIATE", nil, nil, nil)
+            var version: Int32 = -1
+            if begin == SQLITE_OK {
+                var statement: OpaquePointer?
+                if sqlite3_prepare_v2(handle, "PRAGMA user_version", -1, &statement, nil) == SQLITE_OK {
+                    if sqlite3_step(statement) == SQLITE_ROW {
+                        version = sqlite3_column_int(statement, 0)
+                    }
+                    sqlite3_finalize(statement)
+                }
+                sqlite3_exec(handle, "ROLLBACK", nil, nil, nil)
+            }
+            gate.mark(beginResult: begin, userVersion: version)
+        }
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        XCTAssertNil(gate.acquiredAt, "迁移写事务未提交时并发 BEGIN IMMEDIATE 不得取得写锁")
+        let releaseTime = Date()
+        release.signal()
+        let store = try await initTask.value
+        await concurrentTask.value
+        XCTAssertGreaterThan(gate.acquiredAt ?? .distantPast, releaseTime)
+        XCTAssertEqual(gate.beginResult, SQLITE_OK)
+        XCTAssertEqual(gate.userVersion, AhaKeyRuntimePersistentStore.schemaVersion)
+
+        try await store.commitOperationOutcome(
+            AhaKeyRuntimeOperationSummary(
+                id: accepted.operationID,
+                targetDeviceID: accepted.targetDeviceID,
+                state: .failedWithoutWrites,
+                completedSteps: 0,
+                totalSteps: 2
+            ),
+            syncBaseline: nil
+        )
+
+        let health = try await store.health()
+        XCTAssertEqual(health.schemaVersion, 4)
+        let terminals = try await store.recentTerminalTransactions()
+        XCTAssertEqual(Set(terminals.map(\.operationID)), [historical.operationID, accepted.operationID])
+        XCTAssertEqual(try nullTerminalOrderCount(root: root), 0)
+    }
+
     func testAcceptanceRejectsSymbolicLinkResourceSources() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -1136,6 +1245,87 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("AhaKeyRuntimePersistentStoreTests-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    private func seedV3Transactions(
+        root: URL,
+        rows: [(AhaKeyConfigurationPackage, String)]
+    ) throws {
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        let sql = """
+        PRAGMA user_version=3;
+        CREATE TABLE runtime_transactions (
+            operation_id TEXT PRIMARY KEY NOT NULL,
+            package BLOB NOT NULL,
+            state TEXT NOT NULL,
+            completed_steps INTEGER NOT NULL,
+            total_steps INTEGER NOT NULL,
+            message_code TEXT,
+            failure_context TEXT
+        );
+        """
+        XCTAssertEqual(sqlite3_exec(database, sql, nil, nil, nil), SQLITE_OK)
+        let encoder = JSONEncoder()
+        for (package, state) in rows {
+            let packageData = try encoder.encode(package)
+            var statement: OpaquePointer?
+            XCTAssertEqual(
+                sqlite3_prepare_v2(
+                    database,
+                    "INSERT INTO runtime_transactions (operation_id, package, state, completed_steps, total_steps, message_code) VALUES (?, ?, ?, 0, 2, NULL)",
+                    -1,
+                    &statement,
+                    nil
+                ),
+                SQLITE_OK
+            )
+            let operationID = package.operationID.rawValue.uuidString
+            operationID.withCString {
+                sqlite3_bind_text(statement, 1, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+            packageData.withUnsafeBytes { bytes in
+                _ = sqlite3_bind_blob(
+                    statement,
+                    2,
+                    bytes.baseAddress,
+                    Int32(packageData.count),
+                    unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+                )
+            }
+            state.withCString {
+                sqlite3_bind_text(statement, 3, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+            XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    private func nullTerminalOrderCount(root: URL) throws -> Int {
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        var statement: OpaquePointer?
+        XCTAssertEqual(
+            sqlite3_prepare_v2(
+                database,
+                """
+                SELECT COUNT(*) FROM runtime_transactions
+                WHERE state IN ('completed', 'failedWithoutWrites', 'failedWithPartialCommit')
+                  AND terminal_order IS NULL
+                """,
+                -1,
+                &statement,
+                nil
+            ),
+            SQLITE_OK
+        )
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+        return Int(sqlite3_column_int(statement, 0))
     }
 
     private func makePackage(

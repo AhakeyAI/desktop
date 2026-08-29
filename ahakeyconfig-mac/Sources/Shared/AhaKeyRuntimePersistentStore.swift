@@ -186,6 +186,26 @@ struct AhaKeyRuntimeStoreTestingHooks {
     }
 }
 
+/// init 写事务 seam：实例 hooks 在 `init` 返回前无法注入，故用静态钩子交错迁移与终态提交。
+enum AhaKeyRuntimeStoreSchemaMigrationTestingHooks {
+    private static let lock = NSLock()
+    private static var insideWriteTransactionStorage: (() -> Void)?
+
+    /// schema 迁移写事务内、`user_version` 已更新、COMMIT 前调用。
+    static var insideWriteTransaction: (() -> Void)? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return insideWriteTransactionStorage
+        }
+        set {
+            lock.lock()
+            insideWriteTransactionStorage = newValue
+            lock.unlock()
+        }
+    }
+}
+
 public actor AhaKeyRuntimePersistentStore {
     public static let schemaVersion: Int32 = 4
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
@@ -366,50 +386,60 @@ public actor AhaKeyRuntimePersistentStore {
             // （不得再嵌套 withExclusiveLock：同 fd 内层 LOCK_UN 会提前放锁）。
             try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
             try Self.pruneStagedJournalMissingFiles(resourcesDirectory, with: handle)
-            if existingSchemaVersion < 3 {
-                if try !Self.table(handle, "runtime_transactions", hasColumn: "failure_context") {
-                    try Self.execute(
-                        "ALTER TABLE runtime_transactions ADD COLUMN failure_context TEXT",
-                        on: handle
-                    )
-                }
-            }
-            if existingSchemaVersion < 4 {
-                if try !Self.table(handle, "runtime_transactions", hasColumn: "terminal_order") {
-                    try Self.execute(
-                        "ALTER TABLE runtime_transactions ADD COLUMN terminal_order INTEGER",
-                        on: handle
-                    )
-                }
-                // 历史终态没有进入终态时刻；只能按受理 rowid 回填，之后的提交用严格单调序号。
-                try Self.execute(
-                    """
-                    CREATE TEMP TABLE terminal_order_backfill AS
-                    SELECT operation_id,
-                           ROW_NUMBER() OVER (ORDER BY rowid) AS assigned
-                    FROM runtime_transactions
-                    WHERE state IN (
-                        'completed', 'failedWithoutWrites', 'failedWithPartialCommit'
-                    )
-                      AND terminal_order IS NULL
-                    """,
-                    on: handle
-                )
-                try Self.execute(
-                    """
-                    UPDATE runtime_transactions
-                    SET terminal_order = (
-                        SELECT assigned FROM terminal_order_backfill
-                        WHERE terminal_order_backfill.operation_id = runtime_transactions.operation_id
-                    )
-                    WHERE operation_id IN (SELECT operation_id FROM terminal_order_backfill)
-                    """,
-                    on: handle
-                )
-                try Self.execute("DROP TABLE terminal_order_backfill", on: handle)
-            }
             if existingSchemaVersion < Self.schemaVersion {
-                try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
+                // ALTER / 回填 / user_version 必须同一写事务：否则已打开的连接可在
+                // 回填后、版本更新前提交终态，留下 terminal_order = NULL 并永久被窗口排除。
+                try Self.execute("BEGIN IMMEDIATE", on: handle)
+                do {
+                    if existingSchemaVersion < 3 {
+                        if try !Self.table(handle, "runtime_transactions", hasColumn: "failure_context") {
+                            try Self.execute(
+                                "ALTER TABLE runtime_transactions ADD COLUMN failure_context TEXT",
+                                on: handle
+                            )
+                        }
+                    }
+                    if existingSchemaVersion < 4 {
+                        if try !Self.table(handle, "runtime_transactions", hasColumn: "terminal_order") {
+                            try Self.execute(
+                                "ALTER TABLE runtime_transactions ADD COLUMN terminal_order INTEGER",
+                                on: handle
+                            )
+                        }
+                        // 历史终态没有进入终态时刻；只能按受理 rowid 回填，之后的提交用严格单调序号。
+                        try Self.execute(
+                            """
+                            CREATE TEMP TABLE terminal_order_backfill AS
+                            SELECT operation_id,
+                                   ROW_NUMBER() OVER (ORDER BY rowid) AS assigned
+                            FROM runtime_transactions
+                            WHERE state IN (
+                                'completed', 'failedWithoutWrites', 'failedWithPartialCommit'
+                            )
+                              AND terminal_order IS NULL
+                            """,
+                            on: handle
+                        )
+                        try Self.execute(
+                            """
+                            UPDATE runtime_transactions
+                            SET terminal_order = (
+                                SELECT assigned FROM terminal_order_backfill
+                                WHERE terminal_order_backfill.operation_id = runtime_transactions.operation_id
+                            )
+                            WHERE operation_id IN (SELECT operation_id FROM terminal_order_backfill)
+                            """,
+                            on: handle
+                        )
+                        try Self.execute("DROP TABLE terminal_order_backfill", on: handle)
+                    }
+                    try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
+                    AhaKeyRuntimeStoreSchemaMigrationTestingHooks.insideWriteTransaction?()
+                    try Self.execute("COMMIT", on: handle)
+                } catch {
+                    try? Self.execute("ROLLBACK", on: handle)
+                    throw error
+                }
             }
             }
         } catch {
