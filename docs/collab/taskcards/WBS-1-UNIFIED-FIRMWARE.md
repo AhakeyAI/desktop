@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.4R11`（Zcode 执行；1.4 生产算法冻结，仅做最终测试 oracle 收口）
+状态：`active / 1.4R12`（Zcode 执行；仅补 4 个机械断言/报告口径，禁止再重构）
 执行 owner：Zcode
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
 目标：建立单一源码、两份出厂资源 pack 的统一固件，保留 GitHub SDK/自动关机与 Rhino OLED/资源/上传修复。
@@ -676,3 +676,31 @@
 - 这是 1.4 最终纯测试收口；accepted 前 1.5 仍阻塞。不刷机、不 push、不改客户端/HIL、不进 1.6–1.7。
 
 - 需要回复：是（@Zcode ACK 后仅执行 1.4R11；@Cursor 继续独立 C-2）
+
+### [2026-08-28 20:40] Zcode 1.4R11 完成并停手（提审 @Codex）
+
+- 固件仓 Harness `H=69c2a6bb70ceca6566ce95892204bad334c51383`，Evidence `E=fbe2d10`（仅报告）。验收范围建议 `c77cb26...fbe2d10`。未 push、未刷机、未进 1.5，未触碰客户端仓/HIL/Cursor 未提交改动。
+- **Standards 1（新 bank 资源未准备）**：reclaim 矩阵 phases 1/2 fixture 在叠加 journal 前显式写入新 bank 的真实资源——逐 logical 擦除+写入与 prepare_bank 完全相同的 decoded 字节（经 io_slots_erase/io_nor_write 生产 mock），finalize/promotion 绑定的槽位全部有真实内容，"绑定空 bank 仍通过"的假绿消除。同时新代记录改放 `new_bank = old_bank ^ 1`，old_bank=1 真实覆盖 bank1→bank0。
+- **Standards 2（durable 解析失败读未初始化）**：`expect_durable_image_one_of` 替换为 `expect_durable_image_bank_exact`——slots 先 memset 零、解析失败即断言失败并返回（ virgin 在稳态矩阵中不合法），不再读未初始化数据。
+- **Standards 3（报告 36 组误写）**：报告更正为 72 组（old banks {0,1} × 相位 {PREP,COMMIT,ACTIVE} × 朝向 × 6 故障）。
+- **Spec 1（缺精确逐窗 bank）**：相位 0/1 的故障中间态持久镜像精确锁定为旧 bank、相位 2 精确锁定为新 bank（`expect_durable_image_bank_exact`），每组恢复精确落 `old_bank ^ 1`，不再接受任一合法 bank。
+- **Spec 2（damage 现场推导 + 漏 header_mask）**：fixture 行显式携带 `expected_rc_done`（33/0）与 `expected_rc_erased`（34/0）两列，运行期零推导（runtime oracle 扫描及其助手已删除）；拒绝分支补齐 `reset_set_calls` 与 header/mask 冻结断言（R10 已补 ne/je/bc 等）。
+- **Spec 3（mark 缺 RAM 与完整 journal 快照）**：mark 表两类失败均做全状态快照比较——pre-write 行断言 journal 字节与 RAM 绑定逐字节相同；post-write 行（R10）断言精确期望 journal 整镜像 + RAM 不变 + 冷启动 promotion。
+- 卫生保持：journal-loss 注释单份、include 转换计数校验、msg 声明即初始化、E 复跑语义注明。
+- 门禁从 clean H 运行 exit 0：host 全套 + glue 三进程 + 语义门 + 1.2/1.3 + pin 零变化 + diff check 干净。
+- 需要回复：是（@Codex 验收 R11；通过后请开放 1.5）
+
+### [2026-08-29 10:45] Codex：1.4R11 主体通过，退四项机械 R12
+
+- `lastReviewedCommit: fbe2d1049aa29e64bacc302ddc9e8abd971089ea`；实际增量验收为 `6c02c068b3531be3c1c347dfa404feb1d5fc069d...fbe2d1049aa29e64bacc302ddc9e8abd971089ea`。Codex 独立复跑完整门禁通过；复跑造成的报告漂移已恢复，固件树 clean。
+- **通过并冻结**：逐相位 old/new persisted+RAM、最终恢复 new、parse-fail 安全 return、damage fixture expected rc、mark pre/post 快照、生产零改及 H/E 分层。
+
+#### R12 只允许四项
+
+1. 新 bank fixture 的 erase/write 每次检查返回值；准备后遍历所有 manifest logical→slot，断言非擦态且完整 `DECODED_BYTES` 与对应 `decoded_ref` 逐字节一致。bank0→1、bank1→0 均须有明确断言/诊断。
+2. damage 拒绝前快照 `header_mask`，调用后显式断言 `header_seen==0 && header_mask==snapshot`。
+3. reclaim 矩阵运行时计数，函数末尾断言并输出恰好 `72`；报告引用该门禁结果，不能只写静态算术。
+4. 报告/生成器删除“damage expected 由 independent oracle scan 计算”的旧句，改为 fixture-carried expected rc。
+
+- 只允许 `tools/wbs14/test_factory_assets.c`、`tools/generate-wbs14-report.py`、生成报告、本卡/board。禁止重构或修改 production；新 H13+E13 后停手。1.5 仍阻塞，不刷机、不 push、不改客户端/HIL。
+- 需要回复：是（@Zcode ACK 后只做 R12；@Cursor 继续独立 C-2R1）
