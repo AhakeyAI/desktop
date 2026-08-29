@@ -99,25 +99,14 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
 
     func testPermissionEnqueuesStateBeforeQuery() {
         runTest { [self] in
-            let agent = makeAgent()
-            let log = attachTrace(agent)
-            var hooks = agent.executionTestHooks
-            hooks?.stateCommandEnqueueProbe = { _ in true }
-            agent.executionTestHooks = hooks
-            await MainActor.run {
-                agent.handleJsonCommandForTesting(cmd: "permission", obj: ["value": 1])
-                let ordered = log.snapshot.filter {
-                    switch $0 {
-                    case .enqueuedState, .querySwitchState: return true
-                    default: return false
-                    }
-                }
-                XCTAssertEqual(
-                    ordered,
-                    [.enqueuedState(1), .querySwitchState],
-                    "权威证据是 enqueue 成功，不是 sendState 函数入口"
-                )
-            }
+            try await assertPermissionEnqueuesStateBeforeQuery(occupyQueue: false)
+        }
+    }
+
+    /// queue busy 时 enqueue 返回 nil，仍必须记下 `enqueuedState`（入队 ≠ head promotion）。
+    func testPermissionEnqueuesStateWhenQueueBusy() {
+        runTest { [self] in
+            try await assertPermissionEnqueuesStateBeforeQuery(occupyQueue: true)
         }
     }
 
@@ -213,13 +202,19 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
     /// apply 走 `configurationCoordinator.kick` → `runConfigurationTransaction`，必须用同一套 begin/end。
     func testApplyTransactionPairsWindowBeginEnd() {
         runTest { [self] in
-            try await assertApplyWindowPairing(stepExecutor: { _ in .success })
+            try await assertApplyWindowPairing(
+                stepExecutor: { _ in .success },
+                expectedTerminal: .completed
+            )
         }
     }
 
     func testApplyFailurePairsWindowBeginEnd() {
         runTest { [self] in
-            try await assertApplyWindowPairing(stepExecutor: { _ in .permanentFailure })
+            try await assertApplyWindowPairing(
+                stepExecutor: { _ in .permanentFailure },
+                expectedTerminal: .failedWithoutWrites
+            )
         }
     }
 
@@ -230,7 +225,9 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
             let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
             let package = try makePackage(deviceID: deviceID)
             let storeDirectory = agent.executionTestHooks!.storeDirectory!
+            let entered = Once()
             try await prepareApply(agent, stepExecutor: { _ in
+                await entered.signal()
                 let store = try! AhaKeyRuntimePersistentStore(
                     rootDirectory: storeDirectory,
                     acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
@@ -249,6 +246,10 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
             guard case .operationAccepted = accepted else {
                 return XCTFail("apply 必须受理，实际 \(accepted)")
             }
+            await waitUntil {
+                log.windowEvents.contains(.transportWindowBegin)
+            }
+            await entered.wait()
             let cancellation = try await agent.handleRuntimeXPCRequest(
                 .requestCancellation(package.operationID)
             )
@@ -257,11 +258,46 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
             XCTAssertEqual(log.windowEvents, [.transportWindowBegin, .transportWindowEnd])
             let active = await MainActor.run { agent.isConfigurationTransportWindowActiveForTesting }
             XCTAssertFalse(active)
+            let record = try await waitForTerminalRecord(
+                storeDirectory: storeDirectory,
+                operationID: package.operationID
+            )
+            XCTAssertEqual(
+                record?.state,
+                .failedWithoutWrites,
+                "无写入取消必须结算到 failedWithoutWrites，不能停在 cancellationRequested"
+            )
+        }
+    }
+
+    private func assertPermissionEnqueuesStateBeforeQuery(occupyQueue: Bool) async throws {
+        let agent = makeAgent()
+        let log = attachTrace(agent)
+        var hooks = agent.executionTestHooks
+        hooks?.skipStateCommandBLEWriteGates = true
+        agent.executionTestHooks = hooks
+        await MainActor.run {
+            agent.primeTransportForCommandEnqueueForTesting(occupyQueue: occupyQueue)
+            agent.handleJsonCommandForTesting(cmd: "permission", obj: ["value": 1])
+            let ordered = log.snapshot.filter {
+                switch $0 {
+                case .enqueuedState, .querySwitchState: return true
+                default: return false
+                }
+            }
+            XCTAssertEqual(
+                ordered,
+                [.enqueuedState(1), .querySwitchState],
+                occupyQueue
+                    ? "queue busy 时 0x90 仍已入队，权威证据不得依赖 head promotion"
+                    : "权威证据是真实 enqueue 入队，不是 sendState 函数入口"
+            )
         }
     }
 
     private func assertApplyWindowPairing(
-        stepExecutor: @escaping @Sendable (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult
+        stepExecutor: @escaping @Sendable (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult,
+        expectedTerminal: AhaKeyRuntimeOperationState
     ) async throws {
         let agent = makeAgent()
         let log = attachTrace(agent)
@@ -275,6 +311,11 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
         XCTAssertEqual(log.windowEvents, [.transportWindowBegin, .transportWindowEnd])
         let active = await MainActor.run { agent.isConfigurationTransportWindowActiveForTesting }
         XCTAssertFalse(active)
+        let record = try await waitForTerminalRecord(
+            storeDirectory: agent.executionTestHooks!.storeDirectory!,
+            operationID: package.operationID
+        )
+        XCTAssertEqual(record?.state, expectedTerminal)
     }
 
     private func prepareApply(
@@ -336,11 +377,34 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
     }
 
     private func waitForWindowClosed(_ log: TraceLog) async {
-        let deadline = Date().addingTimeInterval(10)
+        await waitUntil { log.windowEvents == [.transportWindowBegin, .transportWindowEnd] }
+    }
+
+    private func waitUntil(_ predicate: () -> Bool, timeout: TimeInterval = 10) async {
+        let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if log.windowEvents == [.transportWindowBegin, .transportWindowEnd] { return }
+            if predicate() { return }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
+    }
+
+    private func waitForTerminalRecord(
+        storeDirectory: URL,
+        operationID: AhaKeyRuntimeOperationID,
+        timeout: TimeInterval = 10
+    ) async throws -> AhaKeyRuntimePersistedTransaction? {
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeDirectory,
+            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+        )
+        let deadline = Date().addingTimeInterval(timeout)
+        var last: AhaKeyRuntimePersistedTransaction?
+        while Date() < deadline {
+            last = try await store.transaction(operationID)
+            if let last, last.state.isTerminal { return last }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return last
     }
 }
 

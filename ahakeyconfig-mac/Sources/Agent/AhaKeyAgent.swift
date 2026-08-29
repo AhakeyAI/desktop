@@ -485,8 +485,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         invalidatePendingStateReset()
         // 切片 5：发送能力受灯效模块 `.running` 门控（启停「发送能力」）；
         // lastSentState / pendingStateReset / live-state 仍留在 Agent（Codex 13:52-2）。
-        let usingEnqueueProbe = executionTestHooks?.stateCommandEnqueueProbe != nil
-        if !usingEnqueueProbe {
+        // 测试可跳过 BLE 写出门控，但仍必须走命令构造与 `transportCore.enqueue`。
+        let skipBLEWriteGates = executionTestHooks?.skipStateCommandBLEWriteGates == true
+        if !skipBLEWriteGates {
             guard lightingModule?.status == .running else {
                 emit("LED 状态 \(state): 灯效模块未运行，发送被门控")
                 return
@@ -505,12 +506,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case .sendNow:
             break
         }
-        if let probe = executionTestHooks?.stateCommandEnqueueProbe {
-            if probe(state) {
-                traceCommand(.enqueuedState(state))
-            }
-            return
-        }
         // current-only（WBS-5.5）：0x99 协商未到 .current 前不下发业务命令。
         guard transportCore.isReady else {
             emit("LED 状态 \(state): 协议协商未完成或非 current，发送被门控")
@@ -525,8 +520,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             opcode: 0x90,
             payload: Data([state])
         )
-        if let head = transportCore.enqueue(cmd) {
-            traceCommand(.enqueuedState(state))
+        // enqueue 总是入队；返回值只表示是否提升为可立即写出的 head。
+        let head = transportCore.enqueue(cmd)
+        traceCommand(.enqueuedState(state))
+        if let head {
             writeCommand(head)
         }
     }
@@ -2499,6 +2496,29 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     ) async throws -> T {
         try await withConfigurationTransportWindow(work)
     }
+
+    /// 测试 seam：把真实 `transportCore` 推到 current-ready，使 `sendState` 走生产 enqueue。
+    /// `occupyQueue` 先放入一条在途命令，下一次 enqueue 返回 nil（已入队但非 head）。
+    @MainActor
+    func primeTransportForCommandEnqueueForTesting(occupyQueue: Bool = false) {
+        let now = Date()
+        _ = transportCore.handle(.bluetoothPoweredOn, now: now)
+        _ = transportCore.handle(.lockAcquired, now: now)
+        _ = transportCore.handle(.discovered(uuid: "TEST-UUID", deviceID: "TEST-DEVICE"), now: now)
+        _ = transportCore.handle(.connected(uuid: "TEST-UUID"), now: now)
+        _ = transportCore.handle(.servicesReady(uuid: "TEST-UUID"), now: now)
+        _ = transportCore.handle(.negotiationFinished(uuid: "TEST-UUID", mode: .current), now: now)
+        guard occupyQueue, transportCore.isReady else { return }
+        operationCounter &+= 1
+        let dummy = DeviceCommand(
+            operationID: operationCounter,
+            deviceID: transportCore.stableDeviceID ?? "",
+            generations: transportCore.currentGenerations,
+            opcode: 0x00,
+            payload: Data()
+        )
+        _ = transportCore.enqueue(dummy)
+    }
 }
 
 /// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
@@ -2557,8 +2577,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var longPollAfterCompleteHook: (@Sendable () async -> Void)?
     /// C-1R2：命令时序 / 事务窗口配对观察（生产恒 nil）。
     var commandTrace: (@Sendable (AhaKeyAgentCommandTraceEvent) -> Void)?
-    /// C-1R3：跳过 BLE 门控，把 0x90 视为 enqueue；返回 true 记权威 `enqueuedState`。
-    var stateCommandEnqueueProbe: (@Sendable (UInt8) -> Bool)?
+    /// C-1R4：跳过 lighting/外设写出门控，仍走命令构造与真实 `transportCore.enqueue`。
+    var skipStateCommandBLEWriteGates: Bool = false
 }
 
 enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {
