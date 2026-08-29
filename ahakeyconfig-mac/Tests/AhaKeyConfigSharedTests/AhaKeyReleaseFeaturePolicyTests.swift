@@ -41,12 +41,22 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         0x30, 0x01,
     ])
 
+    private func capabilities(protocolVersion: Int) -> AhaKeyFirmwareCapabilities {
+        AhaKeyFirmwareCapabilities(
+            protocolVersion: protocolVersion, modeCount: 4, setCount: 2, stateCount: 4,
+            flags: 0x3F, maxPacketSize: 244, userSlotLimit: 288, factorySlotBase: 0,
+            factoryBundleVersion: 0, factoryManifestCRC: 0,
+            factoryStatus: 0, factoryError: 0, reclaimSlotBase: 0, reclaimSlotLimit: 0
+        )
+    }
+
     private var capabilityFixtures: [(String, AhaKeyFirmwareCapabilities?)] {
         [
             ("nil", nil),
             ("caps14", AhaKeyFirmwareCapabilities.parse(caps14Payload)),
             ("compactFactory14", AhaKeyFirmwareCapabilities.parse(compactFactory14Payload)),
             ("rhino26", AhaKeyFirmwareCapabilities.parse(rhino26Payload)),
+            ("protocolV2", capabilities(protocolVersion: 2)),
         ]
     }
 
@@ -62,6 +72,18 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         ]
     }
 
+    /// 与生产实现分开的期望表：只有一致的安全终态才开放键位/灯效。
+    private func expectedAllowsBasic(mode: AhaKeyProtocolMode, capsLabel: String) -> Bool {
+        switch (mode, capsLabel) {
+        case (.legacy, "nil"), (.legacyBaseOnly, "nil"):
+            return true
+        case (.current, "caps14"), (.current, "compactFactory14"), (.current, "rhino26"):
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Channel
 
     func testCurrentChannelIsV0_2() {
@@ -69,15 +91,27 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         XCTAssertEqual(AhaKeyReleaseFeaturePolicy.current, .v0_2)
     }
 
-    // MARK: - v0.2 matrix: OLED/resource never open
+    // MARK: - Full v0.2 matrix: OLED closed and keys/light eligibility
 
-    func testV0_2NeverOpensOLEDOrResourcesForAnyModeOrCapability() {
+    func testV0_2MatrixClosesOLEDAndGatesBasicWritesForEveryModeAndCapability() {
         for mode in allModes {
             for (label, capabilities) in capabilityFixtures {
                 let projection = policy.projection(protocolMode: mode, capabilities: capabilities)
-                assertOLEDAndResourcesClosed(
-                    projection,
-                    "v0.2 mode=\(mode) caps=\(label)"
+                let context = "v0.2 mode=\(mode) caps=\(label)"
+                assertOLEDAndResourcesClosed(projection, context)
+
+                let expectBasic = expectedAllowsBasic(mode: mode, capsLabel: label)
+                XCTAssertEqual(
+                    projection.allowsBasicConfigurationWrite,
+                    expectBasic,
+                    "keys/light write \(context)"
+                )
+                XCTAssertEqual(projection.showsKeysAndLightEditor, expectBasic, "keys/light UI \(context)")
+                XCTAssertEqual(projection.allows(.keysAndLight), expectBasic, "keys/light surface \(context)")
+                XCTAssertEqual(
+                    projection.allowedWriteSurfaces,
+                    expectBasic ? [.keysAndLight] : [],
+                    "write surface set \(context)"
                 )
             }
         }
@@ -93,79 +127,78 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         assertOLEDAndResourcesClosed(projection, "current+caps14")
         XCTAssertTrue(projection.allows(.keysAndLight))
         XCTAssertTrue(projection.allowsBasicConfigurationWrite)
-        XCTAssertEqual(projection.deferredOLEDMessage, "需 0.3 固件")
+        XCTAssertEqual(projection.deferredOLEDReason, .requiresFirmwareV0_3)
     }
 
-    func testV0_2KeysAndLightSeparatedFromPictureEligibility() {
-        let cases: [(AhaKeyProtocolMode, Bool)] = [
-            (.negotiating, false),
-            (.legacy, true),
-            (.legacyBaseOnly, true),
-            (.current, true),
-            (.restrictedUnknown, false),
+    func testV0_2DoesNotGuessNilCapabilitiesAsCurrent() {
+        let projection = policy.projection(protocolMode: .current, capabilities: nil)
+        XCTAssertFalse(projection.allowsBasicConfigurationWrite)
+        XCTAssertTrue(projection.allowedWriteSurfaces.isEmpty)
+        assertOLEDAndResourcesClosed(projection, "current+nil")
+    }
+
+    func testV0_2RejectsContradictoryModeAndCapabilityPairs() {
+        let caps14 = AhaKeyFirmwareCapabilities.parse(caps14Payload)
+        XCTAssertNotNil(caps14)
+        let protocolV2 = capabilities(protocolVersion: 2)
+
+        let closed: [(AhaKeyProtocolMode, AhaKeyFirmwareCapabilities?, String)] = [
+            (.current, nil, "current+nil"),
+            (.current, protocolV2, "current+protocolV2"),
+            (.legacy, caps14, "legacy+caps14"),
+            (.legacyBaseOnly, caps14, "legacyBaseOnly+caps14"),
+            (.negotiating, caps14, "negotiating+caps14"),
+            (.restrictedUnknown, caps14, "restrictedUnknown+caps14"),
         ]
-        for (mode, expectBasic) in cases {
-            let projection = policy.projection(protocolMode: mode, capabilities: nil)
-            XCTAssertEqual(
-                projection.allowsBasicConfigurationWrite,
-                expectBasic,
-                "keys/light write for \(mode)"
-            )
-            XCTAssertEqual(projection.showsKeysAndLightEditor, expectBasic, "keys/light UI for \(mode)")
-            XCTAssertEqual(projection.allows(.keysAndLight), expectBasic, "keys/light surface for \(mode)")
-            XCTAssertFalse(projection.allows(.defaultPictures), "default pictures must stay closed for \(mode)")
-            XCTAssertFalse(projection.allows(.taskPictures), "task pictures must stay closed for \(mode)")
-            XCTAssertEqual(
-                projection.allowedWriteSurfaces,
-                expectBasic ? [.keysAndLight] : [],
-                "write surface set for \(mode)"
-            )
+        for (mode, capabilities, label) in closed {
+            let projection = policy.projection(protocolMode: mode, capabilities: capabilities)
+            XCTAssertFalse(projection.allowsBasicConfigurationWrite, label)
+            XCTAssertTrue(projection.allowedWriteSurfaces.isEmpty, label)
+            assertOLEDAndResourcesClosed(projection, label)
         }
     }
 
     func testV0_2UnknownStatesOpenNoWrites() {
         for mode in [AhaKeyProtocolMode.negotiating, .restrictedUnknown] {
-            let projection = policy.projection(protocolMode: mode, capabilities: nil)
-            XCTAssertTrue(projection.allowedWriteSurfaces.isEmpty, "\(mode) must open no write surfaces")
-            XCTAssertFalse(projection.allowsBasicConfigurationWrite)
-            XCTAssertFalse(projection.showsKeysAndLightEditor)
-            assertOLEDAndResourcesClosed(projection, "\(mode)")
+            for (label, capabilities) in capabilityFixtures {
+                let projection = policy.projection(protocolMode: mode, capabilities: capabilities)
+                XCTAssertTrue(
+                    projection.allowedWriteSurfaces.isEmpty,
+                    "\(mode) caps=\(label) must open no write surfaces"
+                )
+                XCTAssertFalse(projection.allowsBasicConfigurationWrite)
+                XCTAssertFalse(projection.showsKeysAndLightEditor)
+                assertOLEDAndResourcesClosed(projection, "\(mode)/\(label)")
+            }
         }
     }
 
-    // MARK: - Resolver: nil / truncated never become current
+    // MARK: - Resolver: malformed vs no-response
 
     func testResolvedModeUsesNegotiationForParsedCapabilities() {
         let caps14 = AhaKeyFirmwareCapabilities.parse(caps14Payload)!
         XCTAssertEqual(
-            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(parsedCapabilities: caps14),
+            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(.parsed(caps14)),
             .current
         )
         XCTAssertEqual(
             AhaKeyProtocolNegotiation.mode(forCapabilities: caps14),
-            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(parsedCapabilities: caps14)
-        )
-
-        let unknownVersion = AhaKeyFirmwareCapabilities(
-            protocolVersion: 2, modeCount: 4, setCount: 2, stateCount: 4,
-            flags: 0x3F, maxPacketSize: 244, userSlotLimit: 288, factorySlotBase: 0,
-            factoryBundleVersion: 0, factoryManifestCRC: 0,
-            factoryStatus: 0, factoryError: 0, reclaimSlotBase: 0, reclaimSlotLimit: 0
+            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(.parsed(caps14))
         )
         XCTAssertEqual(
-            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(parsedCapabilities: unknownVersion),
+            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(.parsed(capabilities(protocolVersion: 2))),
             .restrictedUnknown
         )
     }
 
-    func testNilCapabilitiesNeverResolveCurrent() {
+    func testNoResponseFallsBackByFirmwareVersion() {
         XCTAssertEqual(
-            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(parsedCapabilities: nil),
+            AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(.noResponse),
             .restrictedUnknown
         )
         XCTAssertEqual(
             AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(
-                parsedCapabilities: nil,
+                .noResponse,
                 firmwareMainVersion: 1,
                 supportsLegacyTaskPictures: true
             ),
@@ -173,7 +206,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         )
         XCTAssertEqual(
             AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(
-                parsedCapabilities: nil,
+                .noResponse,
                 firmwareMainVersion: 1,
                 supportsLegacyTaskPictures: false
             ),
@@ -181,7 +214,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         )
         XCTAssertEqual(
             AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(
-                parsedCapabilities: nil,
+                .noResponse,
                 firmwareMainVersion: 3,
                 supportsLegacyTaskPictures: true
             ),
@@ -189,14 +222,30 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         )
     }
 
+    func testMalformedResponseNeverFallsBackToLegacyOnFirmware1x() {
+        for supportsLegacy in [true, false] {
+            let mode = AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(
+                .malformedResponse,
+                firmwareMainVersion: 1,
+                supportsLegacyTaskPictures: supportsLegacy
+            )
+            XCTAssertEqual(mode, .restrictedUnknown, "supportsLegacy=\(supportsLegacy)")
+            let projection = policy.projection(protocolMode: mode, capabilities: nil)
+            XCTAssertTrue(projection.allowedWriteSurfaces.isEmpty)
+            XCTAssertFalse(projection.allowsBasicConfigurationWrite)
+            assertOLEDAndResourcesClosed(projection, "malformed+fw1")
+        }
+    }
+
     func testTruncatedAndMalformedCapabilityFramesFailClosed() {
         for (label, payload) in truncatedPayloads {
             XCTAssertNil(AhaKeyFirmwareCapabilities.parse(payload), "\(label) must fail parse")
             let mode = AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(
-                parsedCapabilities: AhaKeyFirmwareCapabilities.parse(payload),
-                firmwareMainVersion: 3
+                .malformedResponse,
+                firmwareMainVersion: 1,
+                supportsLegacyTaskPictures: true
             )
-            XCTAssertEqual(mode, .restrictedUnknown, "\(label) must not resolve current")
+            XCTAssertEqual(mode, .restrictedUnknown, "\(label) must not resolve legacy/current")
             let projection = policy.projection(protocolMode: mode, capabilities: nil)
             XCTAssertTrue(projection.allowedWriteSurfaces.isEmpty, "\(label) opens no writes")
             assertOLEDAndResourcesClosed(projection, label)
@@ -205,11 +254,9 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         var factoryBitWithoutCompactStructure = caps14Payload
         factoryBitWithoutCompactStructure[4] = 0x37
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(factoryBitWithoutCompactStructure))
-        let malformedMode = AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(
-            parsedCapabilities: AhaKeyFirmwareCapabilities.parse(factoryBitWithoutCompactStructure)
-        )
+        let malformedMode = AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(.malformedResponse)
         XCTAssertEqual(malformedMode, .restrictedUnknown)
-        let malformedProjection = policy.projection(protocolMode: malformedMode)
+        let malformedProjection = policy.projection(protocolMode: malformedMode, capabilities: nil)
         XCTAssertTrue(malformedProjection.allowedWriteSurfaces.isEmpty)
         assertOLEDAndResourcesClosed(malformedProjection, "factory-flag-invalid-compact")
     }
@@ -222,6 +269,10 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         XCTAssertEqual(
             AhaKeyProtocolNegotiation.mode(forCapabilities: AhaKeyFirmwareCapabilities.parse(caps14Payload)!),
             .current
+        )
+        XCTAssertEqual(
+            AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities(protocolVersion: 2)),
+            .restrictedUnknown
         )
     }
 
@@ -238,6 +289,6 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         XCTAssertFalse(projection.allowsResourcePackage, context)
         XCTAssertFalse(projection.allows(.defaultPictures), context)
         XCTAssertFalse(projection.allows(.taskPictures), context)
-        XCTAssertEqual(projection.deferredOLEDMessage, "需 0.3 固件", context)
+        XCTAssertEqual(projection.deferredOLEDReason, .requiresFirmwareV0_3, context)
     }
 }
