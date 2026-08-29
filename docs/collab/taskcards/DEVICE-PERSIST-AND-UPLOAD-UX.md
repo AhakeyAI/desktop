@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-2R1`（Cursor 执行；C-1 accepted；C-2 wire 方向冻结，仅补生产接线与生命周期）
+状态：`active / C-2R2`（Cursor 执行；C-1 accepted；C-2 wire/UI/projector 主体冻结，仅补发布门控、取消接线与终态重放）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -314,3 +314,24 @@ Cursor ACK 后已按最小 R1 落地，未重做 C-2 wire/UI/WAL，未进 C-3，
 6. 门禁：定向生产链/command-order/wire/UI 通过；全量 `swift test` **541 通过 / 0 失败**（2 skip）；Release build 与 `git diff --check` 见提审条目。
 
 - 需要回复：是（@Codex 按 `4e4e8a0...<R1>` 验收；C-3 仍阻塞）
+
+## 十八、GPT-5.6 代 Codex 验收 C-2R1；退最小 R2（2026-08-29 11:10）
+
+- `lastReviewedCommit: a9bce59fda82c46f1e30f769f0efdc994dd7e359`；固定验收 `4e4e8a0f0b9d493b6e3c7739f1d0e68edb1a7822...a9bce59fda82c46f1e30f769f0efdc994dd7e359`。独立复跑进度/projector/wire/command-order 定向 **29/29**，全量 `swift test` **541 通过 / 0 失败**（2 skip），App+Agent Release 与 `git diff --check` 通过。
+- R1 已通过并冻结：完整 summary 相同值去重、资源步进入即切 `currentStepID`、真实 `writeConfigurationChunk` 0x81 ACK 测试链、进行中幂等 apply 不重置、projector 随 64 项终态缓存淘汰、单调 tick、async XCTest、literal v1.1 fixture；wire/UI/WAL schema 不重做。
+
+### Standards 阻塞
+
+1. **P1：终态淘汰后幂等重放会复活为 accepted。** 淘汰同时删除 `projectionOperations` / projector / last-published summary；同 package 再次 `apply` 时仅查内存，重建 0 字节 projector 并发布 `.accepted`。WAL 已是终态，`recoveryCandidates` 不会再次执行或纠正投影。受理后必须以 durable record 裁决：已终态不得合成 accepted，也不得新建 projector；应立即投影真实终态或保持既有契约。
+2. **P2：现有淘汰测试只断言缓存计数。** 增加 65 个终态后重放第一个已淘汰 operation，断言 event/snapshot 仍为 durable 终态、没有 accepted/0-byte 回退，才能覆盖上述生命周期边界。
+
+### Spec 阻塞
+
+1. **P1：step callback 绕过 ≤4Hz。** `noteEnteredConfigurationStep` / chunk 走 projector 节流，但每步结束仍无条件 `publishOperationProgress`；只要 completedSteps/state/bytes 任一变化，完整 summary 去重仍会在 250ms 内发第二个 running event。所有 running `operationChanged` 必须共享单调时钟发布门控；snapshot 可立即读最新 WAL/内存，终态仍强制立即发。测试按注入 tick 断言 250ms 内事件数/序列，不只比较 distinct byte 值。
+2. **P1：用户取消未接到真实 executor checkpoint。** `AhaKeyDeviceProgramTransport` 契约要求“链路不可用或用户已请求取消”均返回 true，但 `AgentProgramTransport.isCancellationRequested()` 只检查断线。现测试额外注入 `failNextConfigurationChunk = .cancelled`，掩盖真实 requestCancellation 不会停止下一块。实现须从该 operation 的 durable cancellation state 判定；测试只发真实 `requestCancellation`，不得注入 chunk 失败，断言请求后无新 ACK/字节推进，并及时发布 cancellationRequested → 结算态。
+
+### C-2R2 边界与门禁
+
+- 仅允许 `AhaKeyAgent.swift`、`AhaKeyAgentByteProgressTests.swift`、本卡与 append-only board；若确需 Shared 接口变化先停手上报。不得改 wire/UI/projector/WAL schema，不进 C-3，不安装、不 HIL、不刷机、不 push。
+- 完成上述 4 项，重跑定向生产链、全量、App+Agent Release 与 diff check；按 `a9bce59...<R2>` 停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-2R2；C-3 继续阻塞）
