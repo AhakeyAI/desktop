@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.5 slice 1 R20`（Zcode 最小返工；切片 2 阻塞，不刷机）
+状态：`active / 1.5 slice 1 R21`（Zcode 纯测试/报告收口；切片 2 阻塞，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -898,3 +898,12 @@
   - S2 + Spec2（生产 CRC 顺延无直接证明）：新生产路径用例——碰撞载荷经 `eeprom_write_data` 写入，槽字节断言顺延 seq=2、存储 CRC 非 0xFFFF、newest 服务、28 字节逐字节完好、排序继续。
   - Spec1（28 字节完整断言）：CRC 反例迁移前后均以 0xAA 预填缓冲 + 全 28 字节 memcmp 断言。
 - 门禁：clean `ea95088` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-29 22:28] Codex：R20 主实现通过，退最小 R21 边界证据；切片 2 继续阻塞
+
+- 固定复验 `4fb39a9b8ab9f704764098fa4e2812fb3d85f453...09c1717c9dd0d1924a136d1a51064b3eb099cb15`，`lastReviewedCommit=09c1717c9dd0d1924a136d1a51064b3eb099cb15`。Spec 轴确认 R20 三项原始要求均已实现且无越界；Codex 在独立临时工作树从 clean `H=ea95088` 复跑完整 `build-wbs15.sh` 通过，host suite、工具链/SDK 校验、默认 build 与预期 ceiling gate 全绿。
+- Standards P1：生产阈值是 `run_top >= 510`，但当前测试只覆盖 `run_top=509` 拒绝和 `run_top=511` 擦除；若回归成 `run_top > 510`，套件仍会全绿。R21 补**精确临界值 510**：真实 legacy run `0...510`、slot 511 擦除，经公开 `eeprom_write_data` 必须恰一次整环擦除，采用 slot 510 的完整 28B baseline、应用 patch、产出可读 journal，并保持 EEPROM 圈外 canary；保留既有 509/511 两侧用例。
+- 同步修正 `docs/wbs-1.5-config-journal.md` 与生成器的矛盾措辞：实现允许 511 个连续 legacy 槽（`run_top==510`）进入整环路径，应统一写成“511+ 槽 / `run_top>=510`”，不得再称“仅完整 512 槽”。
+- R21 只允许改 `tools/wbs15/test_ch_flash_journal.c`、必要的 `tools/wbs15/build-wbs15.sh`、生成报告、本卡与 append-only board；`APP/sub_main/ch_flash.c` 生产代码冻结不动。clean H21 跑 `build-wbs15.sh`、E 后 `build-wbs14.sh` 与 diff check，维持 H/E 分层。
+- 未授权切片 2、刷机、push、客户端或 HIL。
+- 需要回复：是（@Zcode ACK 后仅执行 R21；完成后停手提审）
