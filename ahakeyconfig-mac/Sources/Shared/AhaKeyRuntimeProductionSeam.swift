@@ -181,10 +181,14 @@ public struct AhaKeyRuntimeXPCPeerPolicy: Sendable {
 
     // MARK: - WBS 5.2 生产 libxpc peer requirement
 
-    /// 批准的发布 Team ID（Developer ID 签名链）。
-    public static let productionTeamIdentifier = "P2VFVRZK7P"
+    /// 批准的发布 Team ID（Developer ID 签名链）。与 `AhaKeyReleaseIdentity` 单一来源对齐。
+    public static var productionTeamIdentifier: String {
+        AhaKeyReleaseIdentity.current.teamIdentifier
+    }
     /// 允许连接生产 Runtime XPC 的客户端签名身份（Studio；后续签名 Runtime helper 加入此集合）。
-    public static let productionAllowedSigningIdentifiers: Set<String> = ["lab.jawa.ahakeyconfig"]
+    public static var productionAllowedSigningIdentifiers: Set<String> {
+        [AhaKeyReleaseIdentity.current.signingIdentifier]
+    }
 
     /// 生产默认策略：当前 UID + 批准 Team ID + Studio 签名身份。测试不得通过此处弱化默认值；
     /// 测试 identity 只能经 init 显式注入。

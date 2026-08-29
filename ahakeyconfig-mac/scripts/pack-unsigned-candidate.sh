@@ -20,9 +20,17 @@ APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$APP_ROOT"
 
 IDENTITY_JSON="$APP_ROOT/Packaging/ReleaseIdentity.json"
+eval "$(python3 - "$IDENTITY_JSON" <<'PY'
+import json, pathlib, shlex, sys
+identity = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print("DEFAULT_APP_VERSION=" + shlex.quote(identity["productVersion"]))
+print("DEFAULT_MIN_OS=" + shlex.quote(identity["minimumMacOSVersion"]))
+PY
+)"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist/unsigned-v0.2}"
-APP_VERSION="${APP_VERSION:-0.2.0}"
-MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-13.0}"
+APP_VERSION="${APP_VERSION:-$DEFAULT_APP_VERSION}"
+MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-$DEFAULT_MIN_OS}"
+python3 "$SCRIPT_DIR/release_identity.py" check-output "$OUTPUT_DIR"
 
 if [[ "${INSTALL_TO_APPLICATIONS:-0}" == "1" ]]; then
   echo "❌ pack-unsigned-candidate.sh refuses INSTALL_TO_APPLICATIONS=1 (WBS 5.9A)."

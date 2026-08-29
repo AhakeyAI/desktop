@@ -19,6 +19,7 @@
 HIL 签名时：
 
 1. 以 `scripts/pack-unsigned-candidate.sh` 产出的候选为输入。
-2. `codesign --sign "Developer ID Application: … (P2VFVRZK7P)" --timestamp --options runtime` 分别签 agent 与 `.app`。
+2. `codesign --sign "Developer ID Application: … (P2VFVRZK7P)" --identifier lab.jawa.ahakeyconfig --timestamp --options runtime` 分别签 agent 与 `.app`。裸 Agent 必须带冻结 identifier，不得依赖默认文件名。
 3. 公证与 staple 只在 USER-GATE 执行。
 4. 不得改 Bundle ID / Team ID / Mach service。
+5. 身份唯一来源是 `Packaging/ReleaseIdentity.json`；Swift 嵌入副本、LaunchAgent 模板、XPC peer 策略与 `build.sh` 由 `check-release-identity.sh` 强一致校验。

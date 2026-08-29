@@ -6,16 +6,27 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 EXECUTABLE_NAME="AhaKeyConfig"
+IDENTITY_JSON="$APP_ROOT/Packaging/ReleaseIdentity.json"
+eval "$(python3 - "$IDENTITY_JSON" <<'PY'
+import json, pathlib, shlex, sys
+identity = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print("APP_IDENTIFIER=" + shlex.quote(identity["bundleIdentifier"]))
+print("SIGNING_IDENTIFIER=" + shlex.quote(identity["signingIdentifier"]))
+print("DEFAULT_APP_DISPLAY_NAME=" + shlex.quote(identity["appDisplayName"]))
+print("DEFAULT_APP_VERSION=" + shlex.quote(identity["productVersion"]))
+print("DEFAULT_MIN_OS=" + shlex.quote(identity["minimumMacOSVersion"]))
+print("AGENT_BINARY_NAME=" + shlex.quote(identity["agentBinaryName"]))
+PY
+)"
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio}"
-APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio}"
-APP_IDENTIFIER="lab.jawa.ahakeyconfig"
-APP_VERSION="${APP_VERSION:-0.1.0}"
-MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-12.0}"
+APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-$DEFAULT_APP_DISPLAY_NAME}"
+APP_VERSION="${APP_VERSION:-$DEFAULT_APP_VERSION}"
+MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-$DEFAULT_MIN_OS}"
 BUILD_ARCHS="${BUILD_ARCHS:-arm64 x86_64}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
 APP_BUNDLE="$OUTPUT_DIR/$APP_BUNDLE_NAME.app"
 APP_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
-AGENT_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/ahakeyconfig-agent"
+AGENT_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$AGENT_BINARY_NAME"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 ENTITLEMENTS="$APP_ROOT/.build/AhaKeyConfig.entitlements"
 ICON_SOURCE="${ICON_SOURCE:-$APP_ROOT/ahakeyicon.png}"
@@ -215,8 +226,8 @@ if [[ -n "${SIGNING_IDENTITY}" ]]; then
   fi
 
   xattr -cr "$APP_BUNDLE" 2>/dev/null || true
-  codesign "${SIGN_ARGS[@]}" "$AGENT_EXECUTABLE"
-  codesign "${APP_SIGN_ARGS[@]}" "$APP_BUNDLE"
+  codesign "${SIGN_ARGS[@]}" --identifier "$SIGNING_IDENTIFIER" "$AGENT_EXECUTABLE"
+  codesign "${APP_SIGN_ARGS[@]}" --identifier "$SIGNING_IDENTIFIER" "$APP_BUNDLE"
 else
   if [[ "$REQUIRE_DEVELOPER_ID" == "1" ]]; then
     echo "❌ RELEASE_DISTRIBUTION requires a valid Developer ID Application identity."
@@ -224,8 +235,8 @@ else
   fi
   echo "🧪 No signing identity found, using ad-hoc signature for local testing"
   xattr -cr "$APP_BUNDLE" 2>/dev/null || true
-  codesign --force --sign - "$AGENT_EXECUTABLE"
-  codesign --force --sign - "$APP_BUNDLE"
+  codesign --force --sign - --identifier "$SIGNING_IDENTIFIER" "$AGENT_EXECUTABLE"
+  codesign --force --sign - --identifier "$SIGNING_IDENTIFIER" "$APP_BUNDLE"
 fi
 
 echo "🔎 Verifying app signature..."
