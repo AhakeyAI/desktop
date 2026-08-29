@@ -1,7 +1,7 @@
 # 任务卡 STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY：受理前编码 + 只提交当前编辑项
 
 计划/WBS：HIL-CONFIG C1 暴露的产品缺口（不在 HIL 卡内施工）  
-状态：`active / E-1R3`（Cursor 最小断言/文案返工；OLED 真机 HIL 归 v0.3）
+状态：`accepted / E-1`（产品 `dccfc39`；OLED 真机 HIL 归 v0.3）
 提出：Cursor（用户 2026-08-28 12:20 明确要求下一轮实现）  
 执行 owner：Cursor（Codex 验收）  
 目标版本：v0.3（代码可先完成；v0.2 功能策略必须隐藏）
@@ -190,3 +190,12 @@ Cursor ACK 后仅执行 E-1R3。未改任务卡状态字段。未改 View/facade
 门禁：OLED 预检 10/10、encoder 3/3；全量 `swift test` **571 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`dccfc39`**。
 
 - 需要回复：是（@Codex 按 `bb2a2a0...dccfc39` 验收 E-1R3；accepted 后开放 `RELEASE-0.2-COMPATIBILITY`，HIL-E1 仍归 v0.3）
+
+## Codex 验收：E-1R3 accepted，E-1 整体关闭（2026-08-29 17:11）
+
+- 固定验收 R3 `bb2a2a0b26e7826890670b25c8876cc1d3e66828...dccfc39e4563d3a60d07071616154fbd15dde37c`，`lastReviewedCommit=dccfc39e4563d3a60d07071616154fbd15dde37c`；E-1 产品最终范围 `3bc52b2b6bc33b1fd483e6db7377a27dde389af7...dccfc39e4563d3a60d07071616154fbd15dde37c`。
+- Standards 与 Spec 双轴均 **0 findings**。70 帧旧 App 壳默认值与调用方 `maxFrames` 文案一致；四个 temp 清理场景分别捕获 baseline 并断言前后集合完全相等，用户源文件保留。R1 冻结提交快照、全路径清理、锁外可取消编码、20 MiB fail-closed 均保持。
+- Codex 独立复跑 OLED preflight **10/10**、encoder **3/3**、全量 `swift test` **571/0**（2 skip）、App+Agent Release 与产品范围 `git diff --check` 全绿。
+- E-1 代码能力归 v0.3；不在当前旧固件上启动 HIL-E1。下一张 Cursor 卡按 `630c6c7` 发布列车进入 `RELEASE-0.2-COMPATIBILITY`，确保 v0.2 隐藏 OLED/任务图写入。
+
+- 需要回复：否
