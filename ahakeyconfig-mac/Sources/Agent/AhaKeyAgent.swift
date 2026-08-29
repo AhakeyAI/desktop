@@ -881,9 +881,18 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
                 }
             }
-            // durable 已终态：幂等受理不得合成 accepted、不得重建 projector；立即投影真实终态。
-            if let record = try? await store.transaction(package.operationID), record.state.isTerminal {
-                await publishOperationProgress(operationID: package.operationID)
+            // durable 裁决必须 fail-closed：读失败不得合成 accepted / 重建 projector。
+            let record: AhaKeyRuntimePersistedTransaction
+            do {
+                guard let existing = try await store.transaction(package.operationID) else {
+                    return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
+                }
+                record = existing
+            } catch {
+                return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
+            }
+            if record.state.isTerminal {
+                await publishOperationProgress(from: record)
                 return .operationAccepted(package.operationID)
             }
             // durable acceptance 成功：投影立即发布 accepted，执行交给串行协调器排空 WAL。
@@ -2191,13 +2200,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// durable accept 后立即投影 accepted 并发布事件（执行进度/终态另行发布）。
     /// 幂等重放不得把已在跑的 operation 打回 accepted，也不得重置字节进度。
-    /// WAL 已终态时不得合成 accepted（终态缓存淘汰后内存为空，必须以 durable record 为准）。
+    /// 终态已在 apply 入口用抛错读裁决并投影；此处只拦内存中已过 accepted 的进行中 operation。
     private func noteOperationAccepted(_ package: AhaKeyConfigurationPackage) async {
-        if let store = try? await makeRuntimeStore(),
-           let record = try? await store.transaction(package.operationID),
-           record.state.isTerminal {
-            return
-        }
         let skip = await MainActor.run { () -> Bool in
             if let existing = self.projectionOperations[package.operationID],
                existing.state != .accepted {
@@ -2219,9 +2223,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func publishOperationProgress(operationID: AhaKeyRuntimeOperationID) async {
         guard let store = try? await makeRuntimeStore(),
               let record = try? await store.transaction(operationID) else { return }
+        await publishOperationProgress(from: record)
+    }
+
+    /// 用已经读到的 durable record 投影，避免二次 `try?` 把终态吞掉。
+    private func publishOperationProgress(from record: AhaKeyRuntimePersistedTransaction) async {
         let summary = await MainActor.run { () -> AhaKeyRuntimeOperationSummary in
             if record.state.isTerminal {
-                _ = self.byteProgressByOperation[operationID]?.publishTerminal(nowNanos: self.progressNowNanos())
+                _ = self.byteProgressByOperation[record.operationID]?.publishTerminal(
+                    nowNanos: self.progressNowNanos()
+                )
             }
             return self.overlayByteProgress(Self.operationSummary(from: record))
         }
@@ -2738,6 +2749,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func byteProgressCacheCountForTesting() -> Int {
         byteProgressByOperation.count
     }
+
+    @MainActor
+    func configurationChunkAckCountForTesting() -> Int {
+        configurationChunkAckCount
+    }
 }
 
 /// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
@@ -2849,8 +2865,12 @@ private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTr
 
     func isCancellationRequested() async -> Bool {
         if await agent.programTransportIsDisconnected() { return true }
-        guard let record = try? await store.transaction(operationID) else { return false }
-        return record.state == .cancellationRequested
+        do {
+            guard let record = try await store.transaction(operationID) else { return true }
+            return record.state == .cancellationRequested
+        } catch {
+            return true
+        }
     }
 
     func abortActiveSession() async {

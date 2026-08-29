@@ -56,11 +56,21 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         XCTAssertEqual(summary?.completedBytes, 12_288, "节流只限制发布，确认块仍必须进入权威 snapshot")
         XCTAssertEqual(summary?.state, .failedWithoutWrites)
         let summaries = try await operationSummaries(agent, operationID: package.operationID)
+        let states = summaries.map(\.state)
         let running = summaries.filter { $0.state == .running }
-        XCTAssertLessThanOrEqual(
+        XCTAssertEqual(
             running.count, 1,
-            "冻结 tick 时 250ms 内 running operationChanged 必须共享门控（含 step-end），实际 \(running.map(\.completedSteps))"
+            "冻结 tick 时 250ms 内恰好 1 个 running operationChanged（含 step-end），实际 \(states)"
         )
+        guard let runningIndex = states.firstIndex(of: .running) else {
+            return XCTFail("必须发出 running event")
+        }
+        XCTAssertEqual(
+            states.suffix(from: runningIndex).filter { $0 == .running }.count, 1,
+            "running 之后不得再发第二个 running"
+        )
+        XCTAssertEqual(states.last, .failedWithoutWrites)
+        XCTAssertLessThan(runningIndex, states.count - 1, "running 必须出现在终态之前")
         let runningBytes = summaries
             .filter { !$0.state.isTerminal }
             .compactMap(\.completedBytes)
@@ -144,6 +154,8 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             guard step.rawValue.hasPrefix("resource:") else { return }
             let count = await probe.appendResourceStep(step)
             guard count == 2 else { return }
+            let acksBefore = await MainActor.run { agent.configurationChunkAckCountForTesting() }
+            await probe.setAcksAtCancel(acksBefore)
             _ = try? await agent.handleRuntimeXPCRequest(.requestCancellation(package.operationID))
             if let summary = try? await self.snapshotOperation(agent, id: package.operationID) {
                 await probe.setSecondEnter(summary)
@@ -151,22 +163,28 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         }
         agent.executionTestHooks = hooks
         try await applyPrepared(agent, package: package)
-        try await waitUntil {
+        try await waitUntil(timeout: 2) {
             let state = try await self.snapshotOperation(agent, id: package.operationID)?.state
             return state == .resumablePartial || state == .failedWithoutWrites || state == .paused
         }
         let summary = try await snapshotOperation(agent, id: package.operationID)
         XCTAssertEqual(summary?.completedBytes, 25_600)
         XCTAssertLessThanOrEqual(summary?.completedBytes ?? .max, 25_600)
+        let acksAfter = await MainActor.run { agent.configurationChunkAckCountForTesting() }
+        let acksAtCancel = await probe.acksAtCancel
+        XCTAssertEqual(acksAfter, acksAtCancel, "请求后不得再有新 chunk ACK")
+        let entered = await probe.secondEnter
+        XCTAssertEqual(entered?.state, .cancellationRequested, "requestCancellation 必须立即投影 cancellationRequested")
         let states = try await operationSummaries(agent, operationID: package.operationID).map(\.state)
-        XCTAssertTrue(
-            states.contains(.cancellationRequested),
-            "真实 requestCancellation 必须发布 cancellationRequested，实际 \(states)"
-        )
-        XCTAssertTrue(
-            states.contains(.resumablePartial) || states.contains(.failedWithoutWrites) || states.contains(.paused),
-            "取消后必须进入结算态，实际 \(states)"
-        )
+        guard let cancelIndex = states.firstIndex(of: .cancellationRequested) else {
+            return XCTFail("必须发布 cancellationRequested，实际 \(states)")
+        }
+        guard let settledIndex = states.firstIndex(where: {
+            $0 == .resumablePartial || $0 == .failedWithoutWrites || $0 == .paused
+        }) else {
+            return XCTFail("取消后必须进入结算态，实际 \(states)")
+        }
+        XCTAssertLessThan(cancelIndex, settledIndex, "cancellationRequested 必须严格先于结算态")
         XCTAssertNotEqual(summary?.state, .running)
         XCTAssertNotEqual(summary?.state, .accepted)
     }
@@ -261,6 +279,8 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let evicted = try XCTUnwrap(firstPackage)
         let durable = try XCTUnwrap(firstTerminal)
         XCTAssertTrue(durable.isTerminal)
+        let missingBeforeReplay = try await snapshotOperation(agent, id: evicted.operationID)
+        XCTAssertNil(missingBeforeReplay, "replay 前第一个终态必须已从 snapshot 淘汰")
         let beforeReplay = try await latestEventSequence(agent)
         let replay = try await agent.handleRuntimeXPCRequest(.apply(evicted))
         guard case .operationAccepted = replay else {
@@ -500,6 +520,7 @@ private actor StepProbe {
     var operationID = AhaKeyRuntimeOperationID()
     var resourceSteps: [AhaKeyRuntimeStepIdentifier] = []
     var secondEnter: AhaKeyRuntimeOperationSummary?
+    var acksAtCancel = 0
 
     func setOperationID(_ id: AhaKeyRuntimeOperationID) {
         operationID = id
@@ -516,6 +537,10 @@ private actor StepProbe {
 
     func setSecondEnter(_ summary: AhaKeyRuntimeOperationSummary) {
         secondEnter = summary
+    }
+
+    func setAcksAtCancel(_ count: Int) {
+        acksAtCancel = count
     }
 }
 
