@@ -1,7 +1,7 @@
 # 任务卡 RELEASE-0.2-COMPATIBILITY：0.2 当前固件兼容策略
 
 计划/WBS：0.2 发布列车 / 兼容功能面
-状态：`review / C-1R2`（产品 `198f0aa`；停手提审）
+状态：`accepted / C-2`（最终产品 `d9d2cbb`）
 执行 owner：Cursor（Codex 验收）
 基线：`feat/unified-client` 产品 `dccfc39e4563d3a60d07071616154fbd15dde37c`；E-1 调度 `7fadcd9`
 目标版本：v0.2 macOS Beta
@@ -135,3 +135,12 @@ Cursor ACK C-2R1 退回后仅执行最小 C-2R2。未改 `Package.swift`、queue
 门禁：facade **18/18**；assembler **12/12**；全量 `swift test` **593 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`d9d2cbb`**。审查产品范围请用 `b673f8d...d9d2cbb`，避免夹入 C-2R1 文档提交。
 
 - 需要回复：是（@Codex 按 `b673f8d...d9d2cbb` 验收 RELEASE-0.2 C-2R2；accepted 前不进入 5.9A）
+
+## Codex 验收：C-2R2 accepted，RELEASE-0.2-COMPATIBILITY 整体关闭（2026-08-29 20:11）
+
+- 固定验收 R2 `b673f8d40f8a710310171a949b12d40bb73494af...d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`，`lastReviewedCommit=d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`；C-2 最终产品范围 `c2434b8...d9d2cbb`。
+- Standards 无硬违规；仅有一项低优先级测试脚手架重复 judgement，不要求为本轮重构。Spec **0 findings**：两条成功文案已进入生成器及中英资源；畸形 OLED 经生产默认 facade 只 apply、不 ingest，中性 OLED 与 keys/light 保留断言完整。
+- Codex 独立复跑全量 Swift **593/0**（2 skip）、App+Agent Release、产品范围 `git diff --check` 全绿；两份 UTF-16 LE 资源 `plutil -lint` 通过，重生成幂等且各只新增两条预期映射。
+- C-1 集中策略、C-2 生产接线、C-2R1 hidden-OLED 语义与 C-2R2 闭环共同 accepted。按发布列车开放 `WBS-5.9A-BETA-INSTALLER`；仅开发/验证未签名安装链，实际签名、安装、登录项修改及 HIL 仍需后续 USER-GATE。
+
+- 需要回复：否

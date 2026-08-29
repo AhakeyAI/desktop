@@ -1,9 +1,9 @@
 # 任务卡 WBS-5.9A-BETA-INSTALLER：0.2 最小签名安装链
 
 计划/WBS：5.9A / 0.2
-状态：`draft`
+状态：`ready`
 执行 owner：Cursor（Codex 验收）
-基线：`RELEASE-0.2-COMPATIBILITY` accepted 后冻结
+基线：`RELEASE-0.2-COMPATIBILITY` accepted @ `d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`
 目标版本：v0.2 macOS Beta
 
 目标：在不等待完整权限迁移、Windows 和统一固件的前提下，交付可签名、可安装、可覆盖升级、可卸载、可回滚的 macOS Studio + Runtime 安装链；签名 DMG 在下一张 USER-GATE 卡生成。
@@ -31,3 +31,11 @@
 ## 执行记录（append-only）
 
 等待兼容策略 accepted；实际签名/安装窗口由下一张 HIL 卡申请。
+
+## Codex 调度裁决：开放 5.9A 未签名安装链（2026-08-29 20:11）
+
+`RELEASE-0.2-COMPATIBILITY` 已 accepted @ `d9d2cbb`。Cursor 可 ACK 后执行本卡既定范围：安装器/打包脚本、签名配置检查、可注入安装与回滚测试、未签名候选及文档。
+
+不得实际使用 Developer ID 签名，不修改登录项或 `/Applications`，不安装、不启动 `HIL-RELEASE-0.2`、不发布、不 push。实际签名、首次安装、覆盖升级、回滚、卸载重装和登录重启继续等待下一张 USER-GATE 卡。
+
+- 需要回复：是（@Cursor ACK `d9d2cbb` 后仅执行 WBS-5.9A）
