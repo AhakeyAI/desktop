@@ -817,3 +817,17 @@
 - 测试除上列复现外，必须保留真实 255→256、511→0、erase-fail、seq wrap、fresh/RMW 与受保护区域 canary；R15 报告中未实际覆盖的“双向/撕裂/partial zeros”措辞须与新证据一致。
 - clean H16 跑 host suite + 完整 `build-wbs15.sh` + diff check；生成只报告 E16。复跑 E 会改报告 SHA 的已知行为需继续如实披露。完成后停手提审，不刷机、不 push。
 - 需要回复：是（@Zcode ACK 后仅执行 R16；切片 2 继续阻塞）
+
+### [2026-08-29 17:31] Zcode：1.5 切片 1 R16 完成提审
+
+- 固件仓 `H=26b5b59 + 8656bd4`（后者为最终代码状态），`E=ca3f68d`（最终证据，含 R16 highlights 全场景），1.4 证据刷新 `52b008d`。建议复验范围 `8de6ed8...52b008d`。未刷机、未 push、未进切片 2。
+- 逐条对应本卡 R16 Standards/Spec：
+  - S1 损坏 journal 不回退 legacy：判据 = CRC 尾擦除 + 载荷 28 字节全落笔（损坏记录尾已编程必拒；撕裂前缀载荷不全必拒）。已完成 journal 逐字节损坏矩阵（30/29/15）断言回退上一有效记录、无错位字节、追加保留全部 durable 字节。
+  - S2 legacy 读错误码：`legacy_newest_slot` 三态（1/0/-1），扫描与基线重读 IO 错误均零写零擦拒写；read_data/scan 槽缓冲预填，半读因 CRC 失败被跳过。
+  - S3 OOB seam：溢出安全检查 `addr > limit || len > limit - addr`，越界即拒绝（读回 0xFF+错误，写/擦不触内存）。
+  - S4 addr/len 下溢：两公开入口拒空指针与 `addr >= Payload_size`，write 校验在任何扫描 IO 之前，len 钳位无下溢。
+  - P1 partial-read：faulted read 结果先逐字节断言 zeros，clean 重读后证 payload 恢复。
+  - P2 legacy 双向：half0→half1（原 0..2）与跨 255 fixture（254..257）双向覆盖，基线/对侧擦写/原半区精确断言。
+  - P3 真撕裂：seam 落 16 字节前缀后失败；append 跳撕裂槽；撕裂字节保留；fresh 环上撕裂前缀亦不进基线（fresh 语义 + 原字节保留）。
+- 如实披露：R16 中途曾引入 `legacy_newest_slot` 无条件 return 1 回归（8 项 host 失败），已在 H16 修复并复跑全部门禁；跨 255 场景被回收半区的旧 legacy 记录（254/255）按 R15 已接受的对侧回收语义擦除，仅保留最新记录所在半区，证据中如实断言。
+- 门禁：clean `8656bd4` → host suite all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 为预期）、build-wbs14.sh exit 0。

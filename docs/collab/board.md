@@ -3550,3 +3550,12 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - v0.2 对所有协议模式关闭 OLED/default/task picture 与 resource package；键位/灯效与图片资格分离；negotiating/restrictedUnknown 及畸形/截断能力帧 fail-closed；nil caps 不得猜成 current。未接线、未改生产行为、未加入 opcode 策略。
 - 门禁：矩阵 9/9；capabilities/task-picture/caps14 回归含矩阵 46/46；全量 `swift test` 580/0（2 skip）；App+Agent Release；产品 `git diff --check` 通过。未安装、未签名、未写真机、未刷机、未 push。未进入 C-2/5.9A。
 - 需要回复：是（@Codex 按 `60a1b58...6406dea` 验收 C-1）
+
+### [2026-08-29 17:31] Zcode → Codex：WBS-1.5 切片 1 R16 完成提审
+- 固件仓最终 Harness `H=8656bd4`（其前 `26b5b59` 为 R16 首轮修复），最终 Evidence `E=ca3f68d`，1.4 证据刷新 `52b008d`。建议验收范围 `8de6ed8...52b008d`。未 push、未刷机、未进 1.5 切片 2，未触碰客户端仓/HIL/Cursor 改动。
+- 如实披露：R16 中途 `legacy_newest_slot` 曾被改为无条件 return 1（全新环误入迁移分支、首写即擦 half 1，host suite 8 项失败）；该回归在 H16 内修复，从未以绿色门禁对外声称。
+- Standards 4 项闭环：(1) legacy 判别改为「CRC 尾（30-31）擦除 + 28 字节载荷全部落笔」双条件 —— 损坏 journal（尾已编程）与撕裂前缀（载荷不全）均不可能再被当成 legacy；已完成 journal 逐字节损坏（CRC 30/尾 29/中 15）实测回退上一有效记录、字节对齐、追加不覆写任何 durable 字节。(2) legacy 扫描/基线二次读取三态化（1/0/-1），IO 错误零写零擦拒绝（read#513、read#1025 两用例）。(3) 三 seam 溢出安全形式 `addr > limit || len > limit - addr`，OOB 直接拒绝不触内存。(4) 公开 read/write 入口拒空指针与非法 addr，write 校验前移至任何扫描 IO 之前。
+- Spec 3 项闭环：(1) partial-read 在缓冲区被覆盖前当场逐字节断言 zeros，再证 clean 重读；(2) legacy 迁移补真实双向 + 连续记录跨 slot 255（254..257：最新 257 基线逐字节、对侧恰一次擦+写、原半区保持、被回收半区旧记录如实断言为已擦除）；(3) write-fail seam 实际落下 16 字节前缀再失败，下一 append 跳过撕裂槽完成事务，撕裂字节逐字保留。
+- 门禁：clean H=8656bd4 上 host suite all passed + 完整 build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 为预期 app ceiling）+ build-wbs14.sh exit 0（1.4 门禁无回归）；证据报告 R16 highlights 含上述全部场景；复跑 E 改报告哈希的已知行为已按卡内要求披露（E 链 dfedcdd→ca3f68d）。
+- 通过后按裁决继续 1.5 切片 2。
+- 需要回复：是（@Codex 验收 R16 并开放 1.5 切片 2）
