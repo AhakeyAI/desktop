@@ -4,7 +4,7 @@ import ImageIO
 import XCTest
 @testable import AhaKeyConfigShared
 
-/// E-1：受理前 160×80/容量抽帧预检 + 当前模式 scoped apply。
+/// E-1：受理前 160×80 / 每素材固定 framesPerSlot 抽帧预检 + 当前模式 scoped apply。
 final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
 
     private final class FakeTransport: AhaKeyStudioRuntimeTransport, @unchecked Sendable {
@@ -12,6 +12,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         private(set) var requestLog: [String] = []
         private(set) var ingestedItems: [AhaKeyXPCResourceIngestionItem] = []
         private(set) var appliedPackage: AhaKeyConfigurationPackage?
+        var ingestResponse: AhaKeyRuntimeXPCResponse?
+        var applyResponse: AhaKeyRuntimeXPCResponse?
 
         func exchange(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse {
             lock.lock()
@@ -20,11 +22,11 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             case .ingestResources(let items):
                 requestLog.append("ingest(\(items.count))")
                 ingestedItems = items
-                return .resourcesIngested
+                return ingestResponse ?? .resourcesIngested
             case .apply(let package):
                 requestLog.append("apply")
                 appliedPackage = package
-                return .operationAccepted(package.operationID)
+                return applyResponse ?? .operationAccepted(package.operationID)
             default:
                 return .failure(try! AhaKeyRuntimeEventCode("unsupported"))
             }
@@ -514,6 +516,193 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         XCTAssertTrue(failTransport.requestLog.isEmpty)
         XCTAssertEqual(normalizedTempGIFPaths().subtracting(before), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
+    }
+
+    func testOwnedTemporaryGIFRemovedOnEncodeIngestApplyRejectAndCancel() async throws {
+        let before = normalizedTempGIFPaths()
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let png = root.appendingPathComponent("still.png")
+        try writePNG(width: 160, height: 80, to: png)
+        let second = root.appendingPathComponent("still-2.png")
+        try writePNG(width: 160, height: 80, to: second)
+
+        let bogus = root.appendingPathComponent("not-an-image.txt")
+        try Data("not-an-image".utf8).write(to: bogus)
+        do {
+            _ = try await makeFacade().apply(
+                modes: [modeInput(slot: 0, url: bogus, frames: 1, width: 160, height: 80)],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("编码失败必须抛错")
+        } catch is AhaKeyStudioApplyError {
+        }
+        assertNoNewNormalizedTemps(before: before)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bogus.path), "不得删除用户源文件")
+
+        let ingestTransport = FakeTransport()
+        ingestTransport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
+        do {
+            _ = try await makeFacade(transport: ingestTransport).apply(
+                modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("ingest 拒绝必须抛错")
+        } catch let error as AhaKeyStudioApplyError {
+            XCTAssertEqual(error, .ingestRejected(try AhaKeyRuntimeEventCode("resource.quota")))
+        }
+        XCTAssertEqual(ingestTransport.requestLog, ["ingest(1)"])
+        assertNoNewNormalizedTemps(before: before)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
+
+        let applyTransport = FakeTransport()
+        applyTransport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
+        do {
+            _ = try await makeFacade(transport: applyTransport).apply(
+                modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("apply 拒绝必须抛错")
+        } catch let error as AhaKeyStudioApplyError {
+            XCTAssertEqual(error, .applyRejected(try AhaKeyRuntimeEventCode("device.busy")))
+        }
+        XCTAssertEqual(applyTransport.requestLog, ["ingest(1)", "apply"])
+        assertNoNewNormalizedTemps(before: before)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
+
+        let gate = GateAfterFirstOwnedTempNormalizer()
+        let cancelTransport = FakeTransport()
+        let cancelFacade = AhaKeyStudioRuntimeFacade(
+            transport: cancelTransport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0,
+            imageNormalizer: gate
+        )
+        let applyTask = Task {
+            _ = try await cancelFacade.apply(
+                modes: [modeInput(slot: 0, urls: [png, second])],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+        }
+        XCTAssertEqual(gate.started.wait(timeout: .now() + 2), .success)
+        applyTask.cancel()
+        gate.release.signal()
+        do {
+            _ = try await applyTask.value
+            XCTFail("取消后必须抛出 CancellationError")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("应为 CancellationError，实际 \(error)")
+        }
+        XCTAssertTrue(cancelTransport.requestLog.isEmpty)
+        assertNoNewNormalizedTemps(before: before)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path), "不得删除用户源文件")
+    }
+
+    private final class GateAfterFirstOwnedTempNormalizer: AhaKeyStudioImageNormalizer, @unchecked Sendable {
+        let inner = AhaKeyStudioOLEDImageNormalizer()
+        let started = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        private let lock = NSLock()
+        private var calls = 0
+
+        func normalize(
+            from url: URL,
+            maxFrames: Int,
+            maxSourceFileBytes: Int
+        ) throws -> AhaKeyStudioNormalizedImage {
+            lock.lock()
+            calls += 1
+            let call = calls
+            lock.unlock()
+            if call == 1 {
+                return try inner.normalize(
+                    from: url,
+                    maxFrames: maxFrames,
+                    maxSourceFileBytes: maxSourceFileBytes
+                )
+            }
+            started.signal()
+            release.wait()
+            try Task.checkCancellation()
+            return try inner.normalize(
+                from: url,
+                maxFrames: maxFrames,
+                maxSourceFileBytes: maxSourceFileBytes
+            )
+        }
+    }
+
+    private func makeFacade(
+        transport: FakeTransport = FakeTransport()
+    ) -> AhaKeyStudioRuntimeFacade {
+        AhaKeyStudioRuntimeFacade(
+            transport: transport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0
+        )
+    }
+
+    private func modeInput(slot: UInt8, urls: [URL]) -> AhaKeyStudioModeInput {
+        let empty = AhaKeyStudioTaskSetInput(assets: [
+            AhaKeyStudioTaskAssetInput(state: .idle, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .working, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .waiting, framesPerSecond: 12),
+            AhaKeyStudioTaskAssetInput(state: .done, framesPerSecond: 12),
+        ])
+        var setA = empty
+        if let first = urls.first {
+            setA.assets[1] = AhaKeyStudioTaskAssetInput(
+                state: .working,
+                localFileURL: first,
+                framesPerSecond: 12,
+                declaredFrameCount: 1,
+                pixelWidth: 160,
+                pixelHeight: 80
+            )
+        }
+        if urls.count > 1 {
+            setA.assets[3] = AhaKeyStudioTaskAssetInput(
+                state: .done,
+                localFileURL: urls[1],
+                framesPerSecond: 12,
+                declaredFrameCount: 1,
+                pixelWidth: 160,
+                pixelHeight: 80
+            )
+        }
+        return AhaKeyStudioModeInput(
+            slot: slot,
+            keys: [
+                AhaKeyStudioKeyInput(
+                    role: .approve,
+                    action: .shortcut(try! .init(modifiers: [], keyCode: 0x28)),
+                    description: "Accept"
+                ),
+            ],
+            oled: AhaKeyStudioOLEDInput(
+                statusLine: "s", framesPerSecond: 12, taskSets: [setA, empty], activeSet: 0
+            ),
+            lightBar: AhaKeyStudioLightBarInput(
+                stateMappings: [AhaKeyStudioLightMappingInput(state: 3, effect: "singleMove")],
+                brightness: 35
+            )
+        )
+    }
+
+    private func assertNoNewNormalizedTemps(before: Set<String>) {
+        XCTAssertEqual(normalizedTempGIFPaths().subtracting(before), [])
     }
 
     private func normalizedTempGIFPaths() -> Set<String> {

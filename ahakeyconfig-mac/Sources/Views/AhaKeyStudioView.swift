@@ -1581,7 +1581,7 @@ struct AhaKeyStudioView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text(NSLocalizedString("普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 20 MB，客户端会自动缩放并按设备容量抽帧，FPS 1–30。", comment: ""))
+                Text(NSLocalizedString("普通默认图片使用旧固件 0x80 + 0x82 写入；源文件 ≤ 20 MB，客户端会自动缩放并按每素材固定槽帧数（当前最多 30 帧）均匀抽帧，FPS 1–30。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -5154,7 +5154,7 @@ private struct OLEDTopicView: View {
             HelpSection(title: NSLocalizedString("替换成自己的图片", comment: ""), body: NSLocalizedString("""
                 1. 画布点 LCD 屏幕 → Inspector 显示「修改」
                 2. 点「修改」进入编辑态（接管 BLE）
-                3. 选择你的图片（源文件 ≤20 MB，客户端会自动缩放并按设备容量抽帧），可先在虚拟屏幕里预览
+                3. 选择你的图片（源文件 ≤20 MB，客户端会自动缩放并按每素材固定槽帧数（当前最多 30 帧）均匀抽帧），可先在虚拟屏幕里预览
                 4. 确认后点底部「写入键盘」统一写入设备
                 """, comment: ""))
 
