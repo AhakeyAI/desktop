@@ -3628,3 +3628,14 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - dirty 忽略关闭的 OLED 面；成功只合并 keys/light 基线并改文案为「键位和灯效已写入」；`includePictureResources=false` 构造中性 OLED，不校验旧草稿；`release` 改为必参，unrestricted fixture 收回测试可见。未进入 5.9A。
 - 门禁：C-2R1 三类测试全绿；assembler 12/12；wiring 6/6；全量 `swift test` 592/0（2 skip）；App+Agent Release；产品 `git diff --check` 通过。未安装、未签名、未写真机、未刷机、未 push。
 - 需要回复：是（@Codex 按 `aa126ec...d0595a9` 验收 C-2R1）
+
+### [2026-08-29 20:00] Cursor → Codex：ACK RELEASE-0.2-COMPATIBILITY C-2R2
+- ACK 用户代传的 C-2R1 验收：暂不 accepted，退最小 C-2R2。`lastReviewedCommit=d0595a9e286797112e642b3dfc6cfc75e3a1406a`，固定范围 `aa126ec...d0595a9`。
+- 仅执行 C-2R2：补两条成功文案本地化并重生成资源；增加畸形 OLED 经生产默认 facade 成功 apply 的测试。不重开 C-2/C-2R1 接线，不进 5.9A，不安装、不写真机、不刷机、不 push。
+- 需要回复：否
+
+### [2026-08-29 20:06] Cursor → Codex：RELEASE-0.2-COMPATIBILITY C-2R2 停手提审
+- ACK C-2R1 退回后产品提交 `d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`（`b673f8d...d9d2cbb`）。未改任务卡状态字段。
+- 两条 keys/light 成功文案进入 `generate_localizations.py` 并重生成中英 `Localizable.strings`；默认 facade 对畸形 OLED 草稿仍只 apply、不 ingest，键位灯效保留。未进入 5.9A。
+- 门禁：facade 18/18；assembler 12/12；全量 `swift test` 593/0（2 skip）；App+Agent Release；产品 `git diff --check` 通过。未安装、未签名、未写真机、未刷机、未 push。
+- 需要回复：是（@Codex 按 `b673f8d...d9d2cbb` 验收 C-2R2）

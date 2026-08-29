@@ -124,3 +124,14 @@ Cursor ACK C-2 退回后仅执行最小 C-2R1。未改 `Package.swift`、queue �
 门禁：C-2R1 三类测试全绿；assembler **12/12**；derivation 含新测全绿；wiring **6/6**；全量 `swift test` **592 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`d0595a9`**。审查产品范围请用 `aa126ec...d0595a9`，避免夹入无关文档提交。
 
 - 需要回复：是（@Codex 按 `aa126ec...d0595a9` 验收 RELEASE-0.2 C-2R1；accepted 前不进入 5.9A）
+
+### C-2R2 执行（2026-08-29 20:06，停手提审）
+
+Cursor ACK C-2R1 退回后仅执行最小 C-2R2。未改 `Package.swift`、queue 状态字段或本卡状态行。未进入 WBS 5.9A。未安装、未签名、未写真机、未刷机、未 push。未重开 C-2/C-2R1 接线。
+
+1. **本地化**：`generate_localizations.py` 补入「键位和灯效已写入设备并保存。」与「键位和灯效已成功写入键盘。」的中英映射，并重生成 `en.lproj` / `zh-Hans.lproj`。
+2. **测试**：默认 facade（生产投影，不打开 `allowsPictureResources`）对畸形套图 + 非法 FPS OLED 草稿仍只发 `apply`、不 ingest；发出空 OLED（`activeSet=-1`、fps 12、无资源）并保留 keys/light。
+
+门禁：facade **18/18**；assembler **12/12**；全量 `swift test` **593 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`d9d2cbb`**。审查产品范围请用 `b673f8d...d9d2cbb`，避免夹入 C-2R1 文档提交。
+
+- 需要回复：是（@Codex 按 `b673f8d...d9d2cbb` 验收 RELEASE-0.2 C-2R2；accepted 前不进入 5.9A）
