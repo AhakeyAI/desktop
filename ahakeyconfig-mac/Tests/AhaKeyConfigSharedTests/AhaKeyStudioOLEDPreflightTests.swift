@@ -488,7 +488,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
             baseRevision: .init(0)
         )
-        XCTAssertEqual(normalizedTempGIFPaths().subtracting(before), [])
+        XCTAssertEqual(normalizedTempGIFPaths(), before)
 
         struct ThrowingLoader: AhaKeyStudioResourceLoader {
             func load(from url: URL) throws -> AhaKeyStudioLoadedResource {
@@ -514,12 +514,11 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         } catch is AhaKeyStudioApplyError {
         }
         XCTAssertTrue(failTransport.requestLog.isEmpty)
-        XCTAssertEqual(normalizedTempGIFPaths().subtracting(before), [])
+        XCTAssertEqual(normalizedTempGIFPaths(), before)
         XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
     }
 
     func testOwnedTemporaryGIFRemovedOnEncodeIngestApplyRejectAndCancel() async throws {
-        let before = normalizedTempGIFPaths()
         let root = try temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let png = root.appendingPathComponent("still.png")
@@ -529,6 +528,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
 
         let bogus = root.appendingPathComponent("not-an-image.txt")
         try Data("not-an-image".utf8).write(to: bogus)
+        let encodeBefore = normalizedTempGIFPaths()
         do {
             _ = try await makeFacade().apply(
                 modes: [modeInput(slot: 0, url: bogus, frames: 1, width: 160, height: 80)],
@@ -539,11 +539,12 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             XCTFail("编码失败必须抛错")
         } catch is AhaKeyStudioApplyError {
         }
-        assertNoNewNormalizedTemps(before: before)
+        assertNoNewNormalizedTemps(before: encodeBefore)
         XCTAssertTrue(FileManager.default.fileExists(atPath: bogus.path), "不得删除用户源文件")
 
         let ingestTransport = FakeTransport()
         ingestTransport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
+        let ingestBefore = normalizedTempGIFPaths()
         do {
             _ = try await makeFacade(transport: ingestTransport).apply(
                 modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
@@ -556,11 +557,12 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             XCTAssertEqual(error, .ingestRejected(try AhaKeyRuntimeEventCode("resource.quota")))
         }
         XCTAssertEqual(ingestTransport.requestLog, ["ingest(1)"])
-        assertNoNewNormalizedTemps(before: before)
+        assertNoNewNormalizedTemps(before: ingestBefore)
         XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
 
         let applyTransport = FakeTransport()
         applyTransport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
+        let applyBefore = normalizedTempGIFPaths()
         do {
             _ = try await makeFacade(transport: applyTransport).apply(
                 modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
@@ -573,7 +575,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             XCTAssertEqual(error, .applyRejected(try AhaKeyRuntimeEventCode("device.busy")))
         }
         XCTAssertEqual(applyTransport.requestLog, ["ingest(1)", "apply"])
-        assertNoNewNormalizedTemps(before: before)
+        assertNoNewNormalizedTemps(before: applyBefore)
         XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
 
         let gate = GateAfterFirstOwnedTempNormalizer()
@@ -585,6 +587,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             idlePollInterval: 0,
             imageNormalizer: gate
         )
+        let cancelBefore = normalizedTempGIFPaths()
         let applyTask = Task {
             _ = try await cancelFacade.apply(
                 modes: [modeInput(slot: 0, urls: [png, second])],
@@ -604,7 +607,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             XCTFail("应为 CancellationError，实际 \(error)")
         }
         XCTAssertTrue(cancelTransport.requestLog.isEmpty)
-        assertNoNewNormalizedTemps(before: before)
+        assertNoNewNormalizedTemps(before: cancelBefore)
         XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
         XCTAssertTrue(FileManager.default.fileExists(atPath: second.path), "不得删除用户源文件")
     }
@@ -702,7 +705,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
     }
 
     private func assertNoNewNormalizedTemps(before: Set<String>) {
-        XCTAssertEqual(normalizedTempGIFPaths().subtracting(before), [])
+        XCTAssertEqual(normalizedTempGIFPaths(), before)
     }
 
     private func normalizedTempGIFPaths() -> Set<String> {

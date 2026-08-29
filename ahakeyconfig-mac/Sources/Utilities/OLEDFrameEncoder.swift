@@ -31,7 +31,7 @@ enum OLEDFrameEncodingError: LocalizedError {
         case .sourceSizeUnavailable:
             return NSLocalizedString("无法确认图片文件大小，拒绝绕过 20 MB 输入上限。", comment: "")
         case .tooManyFrames(let count, let max):
-            return String(format: NSLocalizedString("当前图片共有 %d 帧，超过每素材固定抽帧上限 %d 帧。请减少帧数或缩短图片后再试。", comment: ""), count, max)
+            return String(format: NSLocalizedString("当前图片共有 %d 帧，超过当前帧数上限 %d 帧。请减少帧数或缩短图片后再试。", comment: ""), count, max)
         }
     }
 
@@ -98,7 +98,7 @@ enum OLEDFrameEncoder {
         }
     }
 
-    /// 受理前预检：真实 160×80 编码 + 每素材固定 framesPerSlot 均匀抽帧，并写出规范化 GIF。
+    /// 受理前预检：真实 160×80 编码 + 按调用方传入的 `maxFrames` 均匀抽帧，并写出规范化 GIF。
     static func normalize(
         fromImageAt url: URL,
         maxFrames: Int = AhaKeyCommand.oledMaxFramesPerMode,
