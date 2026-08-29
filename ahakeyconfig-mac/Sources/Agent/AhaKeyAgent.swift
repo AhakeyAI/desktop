@@ -208,6 +208,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var projectionEventWaiters: [UUID: CheckedContinuation<AhaKeyRuntimeEventReplayVerdict?, Never>] = [:]
     /// 本会话已知 operation 摘要（含终态窗口；snapshot.operations 与 WAL 合并）。仅 main 队列。
     private var projectionOperations: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary] = [:]
+    /// C-2：资源字节进度内存投影，不进 WAL。仅 main 队列。
+    private var byteProgressByOperation: [AhaKeyRuntimeOperationID: AhaKeyByteProgressProjector] = [:]
     /// 终态 operation 插入序（投影终态缓存上限 64，超出淘汰最老；WAL 仍持久）。
     private var projectionTerminalOrder: [AhaKeyRuntimeOperationID] = []
     /// 诊断/安全事件留存（diagnostics 请求用；有界小表）。
@@ -874,6 +876,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
             }
             // durable acceptance 成功：投影立即发布 accepted，执行交给串行协调器排空 WAL。
+            await beginByteProgressIfNeeded(for: package)
             await noteOperationAccepted(package)
             await configurationCoordinator.kick()
             return .operationAccepted(package.operationID)
@@ -1922,7 +1925,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                   for: step, desired: desired, plan: plan,
                   resources: package.resources, capabilities: capabilities
               ) else { return .permanentFailure }
-        let transport = AgentProgramTransport(agent: self, store: store)
+        let transport = AgentProgramTransport(
+            agent: self, store: store, operationID: package.operationID, stepID: step
+        )
         do {
             try await AhaKeyDeviceProgramExecutor.execute(program, over: transport)
             return .success
@@ -2111,9 +2116,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// durable accept 后立即投影 accepted 并发布事件（执行进度/终态另行发布）。
     private func noteOperationAccepted(_ package: AhaKeyConfigurationPackage) async {
-        let summary = AhaKeyRuntimeOperationSummary(
+        let base = AhaKeyRuntimeOperationSummary(
             id: package.operationID, targetDeviceID: package.targetDeviceID, state: .accepted
         )
+        let summary = await MainActor.run { self.overlayByteProgress(base) }
         await MainActor.run {
             self.publishRuntimeEvent(.operationChanged(summary), context: .init(
                 operationID: package.operationID, deviceID: package.targetDeviceID
@@ -2125,7 +2131,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func publishOperationProgress(operationID: AhaKeyRuntimeOperationID) async {
         guard let store = try? await makeRuntimeStore(),
               let record = try? await store.transaction(operationID) else { return }
-        let summary = Self.operationSummary(from: record)
+        let summary = await MainActor.run { () -> AhaKeyRuntimeOperationSummary in
+            if record.state.isTerminal {
+                _ = self.byteProgressByOperation[operationID]?.publishTerminal(now: Date())
+            }
+            return self.overlayByteProgress(Self.operationSummary(from: record))
+        }
         await MainActor.run {
             self.publishRuntimeEvent(.operationChanged(summary), context: .init(
                 operationID: operationID, deviceID: record.package.targetDeviceID
@@ -2142,6 +2153,65 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             totalSteps: record.totalSteps,
             messageCode: record.messageCode
         )
+    }
+
+    @MainActor
+    private func overlayByteProgress(_ summary: AhaKeyRuntimeOperationSummary) -> AhaKeyRuntimeOperationSummary {
+        byteProgressByOperation[summary.id]?.overlay(summary) ?? summary
+    }
+
+    private func beginByteProgressIfNeeded(for package: AhaKeyConfigurationPackage) async {
+        let total = await MainActor.run { self.resourceByteTotal(for: package) }
+        await MainActor.run {
+            if total > 0 {
+                self.byteProgressByOperation[package.operationID] = AhaKeyByteProgressProjector(totalBytes: total)
+            }
+        }
+    }
+
+    @MainActor
+    private func resourceByteTotal(for package: AhaKeyConfigurationPackage) -> UInt64 {
+        let capabilities = executionTestHooks?.capabilities ?? negotiatedCapabilities
+        guard let capabilities,
+              let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
+            return 0
+        }
+        let planning = AhaKeyConfigurationPlanner.plan(
+            desired: desired, resources: package.resources,
+            capabilities: capabilities, protocolMode: .current
+        )
+        guard case .success(let plan) = planning else { return 0 }
+        var total: UInt64 = 0
+        for step in AhaKeyConfigurationTransactionEngine.stepIdentifiers(for: plan) {
+            guard step.rawValue.hasPrefix("resource:"),
+                  let program = AhaKeyConfigurationStepMapper.program(
+                    for: step, desired: desired, plan: plan,
+                    resources: package.resources, capabilities: capabilities
+                  ) else { continue }
+            for item in program {
+                if case .writeResourceChunk(_, _, let length) = item {
+                    total += UInt64(length)
+                }
+            }
+        }
+        return total
+    }
+
+    @MainActor
+    fileprivate func noteConfirmedResourceChunk(
+        operationID: AhaKeyRuntimeOperationID,
+        stepID: AhaKeyRuntimeStepIdentifier,
+        bytes: UInt64,
+        now: Date = Date()
+    ) {
+        guard var projector = byteProgressByOperation[operationID] else { return }
+        let shouldPublish = projector.confirmChunk(stepID: stepID, bytes: bytes, now: now)
+        byteProgressByOperation[operationID] = projector
+        guard shouldPublish, var summary = projectionOperations[operationID] else { return }
+        summary = overlayByteProgress(summary)
+        publishRuntimeEvent(.operationChanged(summary), context: .init(
+            operationID: operationID, deviceID: summary.targetDeviceID
+        ))
     }
 
     /// 追加投影事件：单调 sequence、有界回放、唤醒 long-poll waiter。仅 main 队列调用。
@@ -2272,6 +2342,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             var policy: AhaKeyRuntimePolicy
             var latestEventSequence: AhaKeyRuntimeEventSequence
             var cachedOperations: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary]
+            var byteProgress: [AhaKeyRuntimeOperationID: AhaKeyByteProgressProjector]
         }
         let main = await MainActor.run { () -> MainPart in
             let device = self.projectedDeviceSnapshot()
@@ -2280,7 +2351,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 activeDeviceID: device?.id,
                 policy: self.currentPolicy,
                 latestEventSequence: self.projectionLatestSequence,
-                cachedOperations: self.projectionOperations
+                cachedOperations: self.projectionOperations,
+                byteProgress: self.byteProgressByOperation
             )
         }
         var operations = main.cachedOperations
@@ -2292,7 +2364,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     operations[candidate.operationID] = Self.operationSummary(from: candidate)
                 }
             }
-            // 已知 operation 一律以 WAL 最新状态为准。
+            // 已知 operation 一律以 WAL 最新状态为准，再叠内存字节进度。
             for id in operations.keys {
                 if let record = try? await store.transaction(id) {
                     operations[id] = Self.operationSummary(from: record)
@@ -2301,6 +2373,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             if let deviceID = main.activeDeviceID,
                let baseline = try? await store.syncBaseline(for: deviceID) {
                 revision = baseline.revision
+            }
+        }
+        for id in operations.keys {
+            if let projector = main.byteProgress[id] {
+                operations[id] = projector.overlay(operations[id]!)
             }
         }
         return AhaKeyRuntimeSnapshot(
@@ -2519,6 +2596,23 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         )
         _ = transportCore.enqueue(dummy)
     }
+
+    /// C-2 测试 seam：走生产 `noteConfirmedResourceChunk`（确认块后才推进）。
+    @MainActor
+    func noteConfirmedResourceChunkForTesting(
+        operationID: AhaKeyRuntimeOperationID,
+        stepID: AhaKeyRuntimeStepIdentifier,
+        bytes: UInt64,
+        now: Date
+    ) {
+        noteConfirmedResourceChunk(operationID: operationID, stepID: stepID, bytes: bytes, now: now)
+    }
+
+    @MainActor
+    func beginByteProgressForTesting(operationID: AhaKeyRuntimeOperationID, totalBytes: UInt64) {
+        guard totalBytes > 0 else { return }
+        byteProgressByOperation[operationID] = AhaKeyByteProgressProjector(totalBytes: totalBytes)
+    }
 }
 
 /// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
@@ -2595,6 +2689,8 @@ enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {
 private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTransport {
     let agent: AhaKeyAgent
     let store: AhaKeyRuntimePersistentStore
+    let operationID: AhaKeyRuntimeOperationID
+    let stepID: AhaKeyRuntimeStepIdentifier
 
     func sendCommand(_ frame: Data, expectingAck ack: UInt8) async throws {
         try await agent.sendConfigurationCommand(frame, expectingAck: ack)
@@ -2604,6 +2700,13 @@ private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTr
         try await agent.writeConfigurationChunk(
             digest: digest, offset: offset, length: length, sessionID: sessionID, store: store
         )
+        await MainActor.run {
+            self.agent.noteConfirmedResourceChunk(
+                operationID: self.operationID,
+                stepID: self.stepID,
+                bytes: UInt64(length)
+            )
+        }
     }
 
     func isCancellationRequested() async -> Bool {

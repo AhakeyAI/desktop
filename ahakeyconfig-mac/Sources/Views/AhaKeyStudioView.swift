@@ -2427,16 +2427,13 @@ struct AhaKeyStudioView: View {
                         continue
                     }
                     if operation.totalSteps > 0 {
-                        // 首批步骤是图片资源上传，单步可达数分钟；只报步数会让界面看起来卡死，
-                        // 因此始终带上已用时长，并在停留在第 0 步时说明正在上传资源。
                         let elapsed = Int(Date().timeIntervalSince(writeStartedAt))
-                        let format = operation.completedSteps == 0
-                            ? NSLocalizedString("Runtime 正在上传图片资源（%u/%u，已用 %d 秒）…", comment: "")
-                            : NSLocalizedString("Runtime 正在写入设备（%u/%u，已用 %d 秒）…", comment: "")
-                        self.syncStatusMessage = String(
-                            format: format,
-                            operation.completedSteps, operation.totalSteps, elapsed
+                        let next = AhaKeyStudioWriteProgressText.status(
+                            for: operation, elapsedSeconds: elapsed
                         )
+                        if next != self.syncStatusMessage {
+                            self.syncStatusMessage = next
+                        }
                     }
                     switch operation.state {
                     case .completed:

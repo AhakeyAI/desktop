@@ -670,6 +670,12 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let completedSteps: UInt32
     public let totalSteps: UInt32
     public let messageCode: AhaKeyRuntimeEventCode?
+    /// C-2：已确认资源字节。缺省/旧 payload 为 nil，不改变 WAL 步语义。
+    public let completedBytes: UInt64?
+    /// C-2：本包资源总字节。缺省/旧 payload 为 nil。
+    public let totalBytes: UInt64?
+    /// C-2：当前正在执行的资源步。缺省/旧 payload 为 nil。
+    public let currentStepID: AhaKeyRuntimeStepIdentifier?
 
     public init(
         id: AhaKeyRuntimeOperationID,
@@ -677,7 +683,10 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         state: AhaKeyRuntimeOperationState,
         completedSteps: UInt32 = 0,
         totalSteps: UInt32 = 0,
-        messageCode: AhaKeyRuntimeEventCode? = nil
+        messageCode: AhaKeyRuntimeEventCode? = nil,
+        completedBytes: UInt64? = nil,
+        totalBytes: UInt64? = nil,
+        currentStepID: AhaKeyRuntimeStepIdentifier? = nil
     ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
@@ -685,6 +694,82 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.completedSteps = completedSteps
         self.totalSteps = totalSteps
         self.messageCode = messageCode
+        self.completedBytes = completedBytes
+        self.totalBytes = totalBytes
+        self.currentStepID = currentStepID
+    }
+
+    public func withByteProgress(
+        completedBytes: UInt64?,
+        totalBytes: UInt64?,
+        currentStepID: AhaKeyRuntimeStepIdentifier?
+    ) -> AhaKeyRuntimeOperationSummary {
+        AhaKeyRuntimeOperationSummary(
+            id: id,
+            targetDeviceID: targetDeviceID,
+            state: state,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID
+        )
+    }
+}
+
+/// 资源上传字节进度的内存投影。不写入 WAL；失败/取消不得越过最后确认块。
+public struct AhaKeyByteProgressProjector: Equatable, Sendable {
+    public static let minimumPublishInterval: TimeInterval = 0.25
+
+    public private(set) var completedBytes: UInt64 = 0
+    public private(set) var totalBytes: UInt64
+    public private(set) var currentStepID: AhaKeyRuntimeStepIdentifier?
+    private var lastPublishedCompleted: UInt64?
+    private var lastPublishedStep: AhaKeyRuntimeStepIdentifier?
+    private var lastPublishAt: Date?
+
+    public init(totalBytes: UInt64) {
+        self.totalBytes = totalBytes
+    }
+
+    /// 分块成功确认后推进。返回是否应对外发布（同值不发；运行中 ≤4Hz）。
+    public mutating func confirmChunk(
+        stepID: AhaKeyRuntimeStepIdentifier,
+        bytes: UInt64,
+        now: Date
+    ) -> Bool {
+        currentStepID = stepID
+        let next = completedBytes &+ bytes
+        completedBytes = totalBytes == 0 ? next : min(next, totalBytes)
+        return considerPublish(now: now, force: false)
+    }
+
+    /// 完成/失败/取消：立即发布最终已确认值（仍不得越过最后确认块）。
+    public mutating func publishTerminal(now: Date) -> Bool {
+        considerPublish(now: now, force: true)
+    }
+
+    public func overlay(_ summary: AhaKeyRuntimeOperationSummary) -> AhaKeyRuntimeOperationSummary {
+        guard totalBytes > 0 else { return summary }
+        return summary.withByteProgress(
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID
+        )
+    }
+
+    private mutating func considerPublish(now: Date, force: Bool) -> Bool {
+        if lastPublishedCompleted == completedBytes, lastPublishedStep == currentStepID {
+            return false
+        }
+        if !force, let lastPublishAt, now.timeIntervalSince(lastPublishAt) < Self.minimumPublishInterval {
+            return false
+        }
+        lastPublishedCompleted = completedBytes
+        lastPublishedStep = currentStepID
+        lastPublishAt = now
+        return true
     }
 }
 

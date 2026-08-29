@@ -298,6 +298,66 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         )
     }
 
+    func testOperationSummaryOldJSONDecodesNewFieldsAsNil() throws {
+        let frozen = FrozenV11OperationSummary(
+            id: AhaKeyRuntimeOperationID(),
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            state: .running,
+            completedSteps: 0,
+            totalSteps: 7,
+            messageCode: nil
+        )
+        let oldJSON = try JSONEncoder().encode(frozen)
+        let decoded = try JSONDecoder().decode(AhaKeyRuntimeOperationSummary.self, from: oldJSON)
+        XCTAssertEqual(decoded.id, frozen.id)
+        XCTAssertEqual(decoded.targetDeviceID, frozen.targetDeviceID)
+        XCTAssertEqual(decoded.state, .running)
+        XCTAssertEqual(decoded.completedSteps, 0)
+        XCTAssertEqual(decoded.totalSteps, 7)
+        XCTAssertNil(decoded.messageCode)
+        XCTAssertNil(decoded.completedBytes)
+        XCTAssertNil(decoded.totalBytes)
+        XCTAssertNil(decoded.currentStepID)
+        let object = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]
+        XCTAssertNil(object["completedBytes"])
+        XCTAssertNil(object["totalBytes"])
+        XCTAssertNil(object["currentStepID"])
+    }
+
+    func testOperationSummaryNewJSONIsIgnoredByFrozenV11Decoder() throws {
+        let summary = AhaKeyRuntimeOperationSummary(
+            id: AhaKeyRuntimeOperationID(),
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            state: .running,
+            completedSteps: 1,
+            totalSteps: 7,
+            completedBytes: 1200,
+            totalBytes: 4800,
+            currentStepID: try AhaKeyRuntimeStepIdentifier("resource:mode1-set0-working")
+        )
+        let newJSON = try JSONEncoder().encode(summary)
+        let frozen = try JSONDecoder().decode(FrozenV11OperationSummary.self, from: newJSON)
+        XCTAssertEqual(frozen.id, summary.id)
+        XCTAssertEqual(frozen.targetDeviceID, summary.targetDeviceID)
+        XCTAssertEqual(frozen.state, summary.state)
+        XCTAssertEqual(frozen.completedSteps, 1)
+        XCTAssertEqual(frozen.totalSteps, 7)
+        XCTAssertNil(frozen.messageCode)
+        XCTAssertEqual(try JSONDecoder().decode(AhaKeyRuntimeInterfaceVersion.self, from: Data("{\"major\":1,\"minor\":1}".utf8)), .current)
+    }
+
+    func testOperationSummaryOmitsNilByteKeys() throws {
+        let summary = AhaKeyRuntimeOperationSummary(
+            id: AhaKeyRuntimeOperationID(),
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            state: .accepted
+        )
+        let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(summary)) as! [String: Any]
+        XCTAssertNil(object["completedBytes"])
+        XCTAssertNil(object["totalBytes"])
+        XCTAssertNil(object["currentStepID"])
+    }
+
     private func makeAdapter(revision: UInt64 = 0) throws -> AhaKeyInMemoryRuntimeAdapter {
         let id = try AhaKeyRuntimeDeviceID("505c")
         let device = AhaKeyRuntimeDeviceSnapshot(
@@ -350,4 +410,14 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             resources: resources
         )
     }
+}
+
+/// 冻结的 v1.1 summary 形状：没有字节进度键。用于证明新 payload 可被旧解码器忽略多余键。
+private struct FrozenV11OperationSummary: Codable, Equatable {
+    let id: AhaKeyRuntimeOperationID
+    let targetDeviceID: AhaKeyRuntimeDeviceID
+    let state: AhaKeyRuntimeOperationState
+    let completedSteps: UInt32
+    let totalSteps: UInt32
+    let messageCode: AhaKeyRuntimeEventCode?
 }

@@ -183,7 +183,7 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
                     try await Task.sleep(nanoseconds: 10_000_000_000)
                 }
             }
-            await entered.wait()
+            try await entered.wait()
             task.cancel()
             do {
                 _ = try await task.value
@@ -249,7 +249,7 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
             await waitUntil {
                 log.windowEvents.contains(.transportWindowBegin)
             }
-            await entered.wait()
+            try await entered.wait()
             let cancellation = try await agent.handleRuntimeXPCRequest(
                 .requestCancellation(package.operationID)
             )
@@ -380,18 +380,26 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
         await waitUntil { log.windowEvents == [.transportWindowBegin, .transportWindowEnd] }
     }
 
-    private func waitUntil(_ predicate: () -> Bool, timeout: TimeInterval = 10) async {
+    private func waitUntil(
+        _ predicate: () -> Bool,
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if predicate() { return }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
+        XCTFail("waitUntil timed out", file: file, line: line)
     }
 
     private func waitForTerminalRecord(
         storeDirectory: URL,
         operationID: AhaKeyRuntimeOperationID,
-        timeout: TimeInterval = 10
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
     ) async throws -> AhaKeyRuntimePersistedTransaction? {
         let store = try AhaKeyRuntimePersistentStore(
             rootDirectory: storeDirectory,
@@ -404,23 +412,44 @@ final class AhaKeyAgentCommandOrderTests: XCTestCase {
             if let last, last.state.isTerminal { return last }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
+        XCTFail("terminal WAL record not reached", file: file, line: line)
         return last
     }
 }
 
+private struct OnceWaitTimeout: Error {}
+
 private actor Once {
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [UUID: CheckedContinuation<Void, any Error>] = [:]
+    private var timeouts: [UUID: Task<Void, Never>] = [:]
     private var fired = false
 
     func signal() {
         fired = true
+        for task in timeouts.values { task.cancel() }
+        timeouts.removeAll()
         let pending = waiters
         waiters.removeAll()
-        for waiter in pending { waiter.resume() }
+        for (_, waiter) in pending { waiter.resume() }
     }
 
-    func wait() async {
+    func wait(timeout: TimeInterval = 10) async throws {
         if fired { return }
-        await withCheckedContinuation { waiters.append($0) }
+        let id = UUID()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            waiters[id] = continuation
+            timeouts[id] = Task {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                await self.failIfPending(id)
+            }
+        }
+        timeouts[id]?.cancel()
+        timeouts[id] = nil
+    }
+
+    private func failIfPending(_ id: UUID) {
+        timeouts[id] = nil
+        guard let waiter = waiters.removeValue(forKey: id) else { return }
+        waiter.resume(throwing: OnceWaitTimeout())
     }
 }

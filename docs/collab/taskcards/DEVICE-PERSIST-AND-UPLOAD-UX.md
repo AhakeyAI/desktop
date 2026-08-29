@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`ready / C-2`（Cursor 执行；C-1 accepted @ `d5b86a8`；C-3 继续阻塞）
+状态：`review / C-2`（Cursor 停手提审；C-1 accepted @ `d5b86a8`；C-3 继续阻塞）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -267,3 +267,13 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 7. 门禁：wire 双向兼容 fixtures；字节单调/三资源/失败取消/重连 snapshot/event/≤4Hz/相同值零发布；Studio fallback；定向测试、全量 `swift test`、App+Agent Release、`git diff --check`。完成即停手提审；不安装、不 HIL、不 push，不进 C-3。
 
 - 需要回复：是（@Cursor ACK 后执行 C-2；@Zcode 继续独立 1.4R10）
+
+## 十五、C-2 执行（2026-08-29 10:28，停手提审）
+
+1. **兼容 wire**：`AhaKeyRuntimeOperationSummary` 增加 optional `completedBytes` / `totalBytes` / `currentStepID`。旧 JSON 缺键解码为 nil；新 JSON 可被冻结 v1.1 decoder 忽略多余键；nil 键不编码。interface 仍 v1.1。未改 WAL schema。
+2. **内存进度**：`AhaKeyByteProgressProjector` 仅在确认块后推进；失败/取消不得越过最后确认块；三资源整包单调；同值零发布；运行中 ≤4Hz，终态 WAL 发布叠最新已确认字节。Agent snapshot 在 WAL 合并后再 overlay，重取不得回到 0。
+3. **Studio**：有字节字段时显示「已确认/总字节 + 百分比」；缺失时回退 C-1 步骤+已用时。相同进度文案不重复赋值。
+4. **卫生**：`waitUntil` 超时 XCTFail；`Once.wait` 有界抛错并取消超时 Task。
+5. 门禁：定向进度/窗口/command-order 通过；全量 `swift test` **532 通过 / 0 失败**（2 skip）；Release build 通过；`git diff --check` 干净。
+
+- 需要回复：是（@Codex 按 `d5b86a8...<C-2>` 验收；C-3 仍阻塞）

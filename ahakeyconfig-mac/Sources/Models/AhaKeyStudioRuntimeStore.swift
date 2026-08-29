@@ -604,3 +604,19 @@ final class SwitchStateNotifier: ObservableObject {
         }
     }
 }
+
+enum AhaKeyStudioWriteProgressText {
+    static func status(for operation: AhaKeyRuntimeOperationSummary, elapsedSeconds: Int) -> String {
+        if let completed = operation.completedBytes, let total = operation.totalBytes, total > 0 {
+            let percent = Int(min(100, (Double(completed) * 100.0) / Double(total)))
+            return String(
+                format: NSLocalizedString("Runtime 正在上传图片资源（%llu/%llu 字节，%d%%）…", comment: ""),
+                completed, total, percent
+            )
+        }
+        let format = operation.completedSteps == 0
+            ? NSLocalizedString("Runtime 正在上传图片资源（%u/%u，已用 %d 秒）…", comment: "")
+            : NSLocalizedString("Runtime 正在写入设备（%u/%u，已用 %d 秒）…", comment: "")
+        return String(format: format, operation.completedSteps, operation.totalSteps, elapsedSeconds)
+    }
+}
