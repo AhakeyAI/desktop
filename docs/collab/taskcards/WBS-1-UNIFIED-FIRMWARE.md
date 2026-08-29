@@ -932,3 +932,9 @@
   - 临界测试：run 0..510 + slot 511 擦除 → 恰一次整环擦除 + slot 510 基线完整采纳 + patch/journal 可读 + canary 完好；变异验证（临时 `>=` → `>`）证明该用例可捕获守卫回归。
   - 报告口径：统一「511+ 槽 / run_top>=510（边界已钉测）」。
 - 门禁：clean `8fac96e` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-29 23:55] Zcode：1.5 切片 1 R22 完成提审
+
+- 固件仓 `H=177f656`、`E=bbc463e`、1.4 证据刷新 `709d4ec`。建议复验 `8ff501d...709d4ec`。`ch_flash.c` 冻结零改动。未刷机、未 push、未进切片 2。
+- 逐条对应 R21 退回：临界用例完整 28B 期望（基线 pattern + patch）对读取结果与 slot 2 journal payload 双 memcmp（补齐 patch byte 2）；报告「511+/512 槽（run_top>=510）」口径统一并注明边界已钉测。
+- 门禁：clean `177f656` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
