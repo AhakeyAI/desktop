@@ -61,4 +61,51 @@ final class OLEDFrameEncoderTests: XCTestCase {
             XCTAssertEqual(maxBytes, AhaKeyCommand.oledMaxSourceFileBytes)
         }
     }
+
+    func testNormalizeWrites160x80GIFAndEncodedBudget() throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ahakey-normalize-source-\(UUID().uuidString).png")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ahakey-normalize-out-\(UUID().uuidString).gif")
+        defer {
+            try? FileManager.default.removeItem(at: source)
+            try? FileManager.default.removeItem(at: destination)
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: 320,
+            height: 240,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
+        let image = try XCTUnwrap(context.makeImage())
+        let png = try XCTUnwrap(CGImageDestinationCreateWithURL(
+            source as CFURL,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(png, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(png))
+
+        let result = try OLEDFrameEncoder.normalize(fromImageAt: source, maxFrames: 30, writingGIFTo: destination)
+        XCTAssertEqual(result.frameCount, 1)
+        XCTAssertEqual(result.pixelWidth, 160)
+        XCTAssertEqual(result.pixelHeight, 80)
+        XCTAssertEqual(result.encodedByteCount, AhaKeyCommand.oledEncodedFrameBytes)
+        XCTAssertEqual(OLEDFrameEncoder.frameCount(at: destination), 1)
+        let preview = try XCTUnwrap(CGImageSourceCreateImageAtIndex(
+            try XCTUnwrap(CGImageSourceCreateWithURL(destination as CFURL, nil)),
+            0,
+            nil
+        ))
+        XCTAssertEqual(preview.width, 160)
+        XCTAssertEqual(preview.height, 80)
+    }
 }

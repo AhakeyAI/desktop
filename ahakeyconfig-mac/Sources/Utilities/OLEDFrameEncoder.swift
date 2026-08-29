@@ -89,6 +89,24 @@ enum OLEDFrameEncoder {
         }
     }
 
+    /// 受理前预检：真实 160×80 编码 + 容量抽帧，并写出规范化 GIF。
+    static func normalize(
+        fromImageAt url: URL,
+        maxFrames: Int = AhaKeyCommand.oledMaxFramesPerMode,
+        writingGIFTo destinationURL: URL
+    ) throws -> AhaKeyOLEDFrameEncoderCore.NormalizationResult {
+        do {
+            return try AhaKeyOLEDFrameEncoderCore.normalize(
+                fromImageAt: url,
+                maxFrames: maxFrames,
+                maxSourceFileBytes: AhaKeyCommand.oledMaxSourceFileBytes,
+                writingGIFTo: destinationURL
+            )
+        } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
+            throw OLEDFrameEncodingError(error)
+        }
+    }
+
     /// 旧接口别名，兼容仍调用 `fromImageAt` 的代码。
     static func frames(fromImageAt url: URL) throws -> [Data] {
         try frames(fromGIFAt: url, maxFrames: AhaKeyCommand.oledMaxFramesPerMode)

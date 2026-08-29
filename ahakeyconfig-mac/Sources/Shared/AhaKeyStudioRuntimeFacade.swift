@@ -84,6 +84,8 @@ public actor AhaKeyStudioRuntimeFacade {
     private let idlePollInterval: TimeInterval
     /// 资源加载器：读本地 GIF + 计算摘要/帧数/尺寸；测试注入假实现。
     private let resourceLoader: any AhaKeyStudioResourceLoader
+    /// 受理前规范化：同源 OLED 编码核心 + 写出 160×80 GIF；测试可注入。
+    private let imageNormalizer: any AhaKeyStudioImageNormalizer
 
     private var state = AhaKeyStudioRuntimeViewState()
     private var continuations: [UUID: AsyncStream<AhaKeyStudioRuntimeViewState>.Continuation] = [:]
@@ -103,13 +105,15 @@ public actor AhaKeyStudioRuntimeFacade {
         clientBuildID: String,
         reconnectBackoffBase: TimeInterval = 1.0,
         idlePollInterval: TimeInterval = 0.5,
-        resourceLoader: any AhaKeyStudioResourceLoader = AhaKeyStudioGIFResourceLoader()
+        resourceLoader: any AhaKeyStudioResourceLoader = AhaKeyStudioGIFResourceLoader(),
+        imageNormalizer: any AhaKeyStudioImageNormalizer = AhaKeyStudioOLEDImageNormalizer()
     ) {
         self.transport = transport
         self.clientBuildID = clientBuildID
         self.reconnectBackoffBase = reconnectBackoffBase
         self.idlePollInterval = idlePollInterval
         self.resourceLoader = resourceLoader
+        self.imageNormalizer = imageNormalizer
     }
 
     /// 当前视图状态（首屏前为 offline）。
@@ -303,8 +307,8 @@ public actor AhaKeyStudioRuntimeFacade {
 // MARK: - WBS 5.7 切片 2：apply 入口（ingestResources → apply）与取消
 
 /// facade apply 的资源加载结果：GIF 源图字节 + 内容摘要 + 申报复核所需的帧数/尺寸。
-/// 冻结契约（AcceptanceValidator）：CAS 内容是源 GIF，mediaType "gif"，
-/// sha256/byteCount 对源数据；RGB565 编码是 Runtime/Agent 侧职责，客户端不预编码。
+/// CAS 仍保存 GIF；申报帧数/尺寸必须来自受理前同源编码预检（160×80 + 容量抽帧），
+/// 不能抄源文件元数据。Agent 二次编码必须与预检帧数/输出预算一致。
 public struct AhaKeyStudioLoadedResource: Equatable, Sendable {
     public let data: Data
     public let sha256: AhaKeySHA256Digest
@@ -364,10 +368,87 @@ public struct AhaKeyStudioGIFResourceLoader: AhaKeyStudioResourceLoader {
     }
 }
 
+/// 生产 apply 的显式范围：必须带当前 modeSlot；空范围 fail-closed，不得把整份 draft 再过滤。
+public struct AhaKeyStudioApplyScope: Equatable, Sendable {
+    public var modeSlot: UInt8?
+
+    public init(modeSlot: UInt8?) {
+        self.modeSlot = modeSlot
+    }
+
+    public static var empty: AhaKeyStudioApplyScope { .init(modeSlot: nil) }
+
+    public var isEmpty: Bool { modeSlot == nil }
+}
+
+/// 受理前规范化结果：fileURL 指向预检写出的 160×80 GIF。
+public struct AhaKeyStudioNormalizedImage: Equatable, Sendable {
+    public let fileURL: URL
+    public let frameCount: Int
+    public let pixelWidth: Int
+    public let pixelHeight: Int
+    public let encodedByteCount: Int
+
+    public init(
+        fileURL: URL,
+        frameCount: Int,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        encodedByteCount: Int
+    ) {
+        self.fileURL = fileURL
+        self.frameCount = frameCount
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+        self.encodedByteCount = encodedByteCount
+    }
+}
+
+public protocol AhaKeyStudioImageNormalizer: Sendable {
+    func normalize(
+        from url: URL,
+        maxFrames: Int,
+        maxSourceFileBytes: Int
+    ) throws -> AhaKeyStudioNormalizedImage
+}
+
+/// 生产规范化器：同源编码核心 + 写出 CAS 可受理的 160×80 GIF。
+public struct AhaKeyStudioOLEDImageNormalizer: AhaKeyStudioImageNormalizer {
+    public init() {}
+
+    public func normalize(
+        from url: URL,
+        maxFrames: Int,
+        maxSourceFileBytes: Int
+    ) throws -> AhaKeyStudioNormalizedImage {
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ahakey-oled-normalized-\(UUID().uuidString).gif")
+        let result = try AhaKeyOLEDFrameEncoderCore.normalize(
+            fromImageAt: url,
+            maxFrames: maxFrames,
+            maxSourceFileBytes: maxSourceFileBytes,
+            writingGIFTo: destination
+        )
+        return AhaKeyStudioNormalizedImage(
+            fileURL: result.normalizedGIFURL,
+            frameCount: result.frameCount,
+            pixelWidth: result.pixelWidth,
+            pixelHeight: result.pixelHeight,
+            encodedByteCount: result.encodedByteCount
+        )
+    }
+}
+
 /// apply 路径错误：资源缺失 / 元数据不符 / ingest 被拒 / apply 被拒 / 取消被拒，各自可区分。
 public enum AhaKeyStudioApplyError: Error, Equatable {
+    /// 未显式给出当前 modeSlot，或范围内没有恰好一个模式。
+    case emptyApplyScope
     /// 本地资源读不出或不是可解析图片。
     case resourceLoadFailed(identifier: String, path: String, reason: String)
+    /// 同源编码预检失败（零帧、不可读、编码上下文失败）。
+    case encodingFailed(identifier: String, path: String, reason: String)
+    /// 源文件超过 Studio 20 MiB 输入上限。
+    case sourceFileTooLarge(identifier: String, fileSize: Int, maxBytes: Int)
     /// 申报元数据（帧数/宽高）与实际文件不符。
     case resourceMetadataMismatch(identifier: String)
     /// Runtime 拒绝 ingest（附 failure code）。
@@ -380,15 +461,55 @@ public enum AhaKeyStudioApplyError: Error, Equatable {
     case unexpectedResponse
 }
 
+extension AhaKeyStudioApplyError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .emptyApplyScope:
+            return "未指定当前编辑模式，拒绝提交整份草稿。"
+        case .resourceLoadFailed(_, let path, let reason):
+            return "无法读取图片（\(path)）：\(reason)"
+        case .encodingFailed(_, let path, let reason):
+            return "图片无法规范化为 160×80（\(path)）：\(reason)"
+        case .sourceFileTooLarge(_, let fileSize, let maxBytes):
+            return "图片源文件 \(fileSize) 字节，超过输入上限 \(maxBytes) 字节。"
+        case .resourceMetadataMismatch(let identifier):
+            return "图片 \(identifier) 的申报尺寸/帧数与预检结果不符。"
+        case .ingestRejected(let code):
+            return "Runtime 拒绝接收图片资源（\(code.rawValue)）。"
+        case .applyRejected(let code):
+            return "Runtime 拒绝提交配置（\(code.rawValue)）。"
+        case .cancellationRejected(let code):
+            return "Runtime 拒绝取消请求（\(code.rawValue)）。"
+        case .unexpectedResponse:
+            return "Runtime 返回了无法识别的响应。"
+        }
+    }
+}
+
 extension AhaKeyStudioRuntimeFacade {
-    /// Studio 提交入口：组装 → 读资源（锁外）→ ingestResources → apply。
-    /// 返回 Runtime 受理的 operationID；进度经 snapshot.operations / operationChanged 事件跟随。
+    /// Studio 提交入口：显式 scope → 同源编码预检 → 组装 → 读规范化 GIF → ingest → apply。
+    /// 空范围 fail-closed；其它模式的文件不会被打开。
     public func apply(
         modes: [AhaKeyStudioModeInput],
+        scope: AhaKeyStudioApplyScope,
         targetDeviceID: AhaKeyRuntimeDeviceID,
-        baseRevision: AhaKeyConfigurationRevision
+        baseRevision: AhaKeyConfigurationRevision,
+        maxFrames: Int = AhaKeyDeviceLayoutPolicy().framesPerSlot,
+        maxSourceFileBytes: Int = AhaKeyOLEDFrameEncoderCore.studioMaxSourceFileBytes
     ) async throws -> AhaKeyRuntimeOperationID {
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: modes)
+        guard let slot = scope.modeSlot else {
+            throw AhaKeyStudioApplyError.emptyApplyScope
+        }
+        var scoped = modes.filter { $0.slot == slot }
+        guard scoped.count == 1 else {
+            throw AhaKeyStudioApplyError.emptyApplyScope
+        }
+        try normalizeOLEDAssets(
+            in: &scoped,
+            maxFrames: maxFrames,
+            maxSourceFileBytes: maxSourceFileBytes
+        )
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: scoped)
         // 文件读取与摘要在 actor 锁外做（nonisolated），不阻塞状态发布。
         let prepared = try await prepareResources(assembled.resources)
         let gifMediaType = try AhaKeyMediaType("gif")
@@ -481,5 +602,69 @@ extension AhaKeyStudioRuntimeFacade {
             prepared.append((input, loaded))
         }
         return prepared
+    }
+
+    /// 只规范化范围内已引用的文件；同一源路径只跑一次编码核心。
+    private func normalizeOLEDAssets(
+        in modes: inout [AhaKeyStudioModeInput],
+        maxFrames: Int,
+        maxSourceFileBytes: Int
+    ) throws {
+        var cache: [String: AhaKeyStudioNormalizedImage] = [:]
+        for modeIndex in modes.indices {
+            for setIndex in modes[modeIndex].oled.taskSets.indices {
+                for assetIndex in modes[modeIndex].oled.taskSets[setIndex].assets.indices {
+                    guard let url = modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].localFileURL else {
+                        continue
+                    }
+                    let key = url.standardizedFileURL.path
+                    let normalized: AhaKeyStudioNormalizedImage
+                    if let cached = cache[key] {
+                        normalized = cached
+                    } else {
+                        do {
+                            normalized = try imageNormalizer.normalize(
+                                from: url,
+                                maxFrames: maxFrames,
+                                maxSourceFileBytes: maxSourceFileBytes
+                            )
+                            cache[key] = normalized
+                        } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
+                            throw mapEncodingError(error, path: url.path)
+                        } catch {
+                            throw AhaKeyStudioApplyError.encodingFailed(
+                                identifier: url.lastPathComponent,
+                                path: url.path,
+                                reason: String(describing: error)
+                            )
+                        }
+                    }
+                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].localFileURL = normalized.fileURL
+                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].declaredFrameCount = normalized.frameCount
+                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].pixelWidth = normalized.pixelWidth
+                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].pixelHeight = normalized.pixelHeight
+                }
+            }
+        }
+    }
+
+    private func mapEncodingError(
+        _ error: AhaKeyOLEDFrameEncoderCore.EncodingError,
+        path: String
+    ) -> AhaKeyStudioApplyError {
+        switch error {
+        case .sourceFileTooLarge(let fileSize, let maxBytes):
+            return .sourceFileTooLarge(
+                identifier: URL(fileURLWithPath: path).lastPathComponent,
+                fileSize: fileSize,
+                maxBytes: maxBytes
+            )
+        case .noFrames, .cannotCreateImageSource, .cannotCreateContext, .tooManyFrames:
+            return .encodingFailed(
+                identifier: URL(fileURLWithPath: path).lastPathComponent,
+                path: path,
+                reason: String(describing: error)
+            )
+        }
     }
 }

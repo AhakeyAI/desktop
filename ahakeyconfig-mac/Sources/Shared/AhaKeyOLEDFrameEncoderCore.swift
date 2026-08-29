@@ -24,6 +24,34 @@ public enum AhaKeyOLEDFrameEncoderCore {
     public static let height = 80
     public static let encodedFrameBytes = width * height * 2 // 25600
     public static let frameSlotBytes = 28_672
+    /// Studio 选图输入上限；planner 2 MiB 仍约束 CAS 受理字节，不得在此放宽。
+    public static let studioMaxSourceFileBytes = 20 * 1024 * 1024
+
+    /// 预检结果：实际跑过 RGB565 编码后的帧数/尺寸/预算，供申报元数据与二次编码对照。
+    public struct NormalizationResult: Equatable, Sendable {
+        public let frameCount: Int
+        public let pixelWidth: Int
+        public let pixelHeight: Int
+        public let encodedByteCount: Int
+        public let encodedFrames: [Data]
+        public let normalizedGIFURL: URL
+
+        public init(
+            frameCount: Int,
+            pixelWidth: Int,
+            pixelHeight: Int,
+            encodedByteCount: Int,
+            encodedFrames: [Data],
+            normalizedGIFURL: URL
+        ) {
+            self.frameCount = frameCount
+            self.pixelWidth = pixelWidth
+            self.pixelHeight = pixelHeight
+            self.encodedByteCount = encodedByteCount
+            self.encodedFrames = encodedFrames
+            self.normalizedGIFURL = normalizedGIFURL
+        }
+    }
 
     public static func frameCount(at url: URL) -> Int {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return 0 }
@@ -39,6 +67,17 @@ public enum AhaKeyOLEDFrameEncoderCore {
         return nil
     }
 
+    /// 均匀抽帧下标：与 Agent 二次编码使用同一公式，不得按源文件元数据直接截断。
+    public static func sampledFrameIndexes(sourceCount: Int, maxFrames: Int) -> [Int] {
+        guard sourceCount > 0 else { return [] }
+        let cappedCount = max(1, maxFrames)
+        if sourceCount <= cappedCount { return Array(0 ..< sourceCount) }
+        if cappedCount == 1 { return [0] }
+        return (0 ..< cappedCount).map {
+            Int((Double($0) * Double(sourceCount - 1) / Double(cappedCount - 1)).rounded())
+        }
+    }
+
     /// 从 GIF/PNG/JPEG 等图片源提取帧并编码为 RGB565（每帧恰好 25600B，大端）。
     /// 静态图片按 1 帧处理；帧数超过 maxFrames 时均匀抽帧。
     public static func frames(
@@ -46,35 +85,36 @@ public enum AhaKeyOLEDFrameEncoderCore {
         maxFrames: Int,
         maxSourceFileBytes: Int
     ) throws -> [Data] {
-        if let n = sourceFileByteCount(at: url), n > maxSourceFileBytes {
-            throw EncodingError.sourceFileTooLarge(fileSize: n, maxBytes: maxSourceFileBytes)
-        }
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-            throw EncodingError.cannotCreateImageSource
-        }
-        let count = CGImageSourceGetCount(source)
-        guard count > 0 else { throw EncodingError.noFrames }
+        try rasterizedFrames(
+            fromImageAt: url,
+            maxFrames: maxFrames,
+            maxSourceFileBytes: maxSourceFileBytes
+        ).map(\.encoded)
+    }
 
-        let cappedCount = max(1, maxFrames)
-        let indexes: [Int]
-        if count <= cappedCount {
-            indexes = Array(0 ..< count)
-        } else if cappedCount == 1 {
-            indexes = [0]
-        } else {
-            indexes = (0 ..< cappedCount).map {
-                Int((Double($0) * Double(count - 1) / Double(cappedCount - 1)).rounded())
-            }
-        }
-
-        var frames: [Data] = []
-        frames.reserveCapacity(indexes.count)
-        for index in indexes {
-            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
-            frames.append(try encodeFrame(image))
-        }
-        guard !frames.isEmpty else { throw EncodingError.noFrames }
-        return frames
+    /// 受理前预检：真实编码 160×80 RGB565，并写出可供 CAS 受理的规范化 GIF。
+    /// 申报帧数/宽高必须来自本结果，不得抄源文件元数据。
+    public static func normalize(
+        fromImageAt url: URL,
+        maxFrames: Int,
+        maxSourceFileBytes: Int,
+        writingGIFTo destinationURL: URL
+    ) throws -> NormalizationResult {
+        let rasterized = try rasterizedFrames(
+            fromImageAt: url,
+            maxFrames: maxFrames,
+            maxSourceFileBytes: maxSourceFileBytes
+        )
+        try writeGIF(images: rasterized.map(\.image), to: destinationURL)
+        let encodedFrames = rasterized.map(\.encoded)
+        return NormalizationResult(
+            frameCount: encodedFrames.count,
+            pixelWidth: width,
+            pixelHeight: height,
+            encodedByteCount: encodedFrames.count * encodedFrameBytes,
+            encodedFrames: encodedFrames,
+            normalizedGIFURL: destinationURL
+        )
     }
 
     /// 编码后的帧拼接为连续字节流（flash 写入程序按 offset/length 切片引用）。
@@ -86,7 +126,37 @@ public enum AhaKeyOLEDFrameEncoderCore {
 
     // MARK: - 私有
 
-    private static func encodeFrame(_ image: CGImage) throws -> Data {
+    private struct RasterizedFrame {
+        let image: CGImage
+        let encoded: Data
+    }
+
+    private static func rasterizedFrames(
+        fromImageAt url: URL,
+        maxFrames: Int,
+        maxSourceFileBytes: Int
+    ) throws -> [RasterizedFrame] {
+        if let n = sourceFileByteCount(at: url), n > maxSourceFileBytes {
+            throw EncodingError.sourceFileTooLarge(fileSize: n, maxBytes: maxSourceFileBytes)
+        }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            throw EncodingError.cannotCreateImageSource
+        }
+        let count = CGImageSourceGetCount(source)
+        guard count > 0 else { throw EncodingError.noFrames }
+
+        let indexes = sampledFrameIndexes(sourceCount: count, maxFrames: maxFrames)
+        var frames: [RasterizedFrame] = []
+        frames.reserveCapacity(indexes.count)
+        for index in indexes {
+            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+            frames.append(try encodeFrame(image))
+        }
+        guard !frames.isEmpty else { throw EncodingError.noFrames }
+        return frames
+    }
+
+    private static func encodeFrame(_ image: CGImage) throws -> RasterizedFrame {
         let bytesPerPixel = 4
         let bytesPerRow = width * bytesPerPixel
         var rgba = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
@@ -115,6 +185,9 @@ public enum AhaKeyOLEDFrameEncoderCore {
             height: Double(image.height) * scale
         )
         context.draw(image, in: drawRect)
+        guard let normalized = context.makeImage() else {
+            throw EncodingError.cannotCreateContext
+        }
 
         // 每帧恰好 25600B RGB565 大端；flash 物理帧槽 28672B，剩余 3072B 由地址递增留空。
         var data = Data(capacity: width * height * 2)
@@ -126,6 +199,31 @@ public enum AhaKeyOLEDFrameEncoderCore {
             data.append(UInt8((rgb565 >> 8) & 0xFF))
             data.append(UInt8(rgb565 & 0xFF))
         }
-        return data
+        return RasterizedFrame(image: normalized, encoded: data)
+    }
+
+    private static func writeGIF(images: [CGImage], to url: URL) throws {
+        guard !images.isEmpty else { throw EncodingError.noFrames }
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        guard let destination = CGImageDestinationCreateWithURL(
+            url as CFURL,
+            "com.compuserve.gif" as CFString,
+            images.count,
+            nil
+        ) else {
+            throw EncodingError.cannotCreateImageSource
+        }
+        for image in images {
+            CGImageDestinationAddImage(destination, image, nil)
+        }
+        guard CGImageDestinationFinalize(destination) else {
+            throw EncodingError.cannotCreateImageSource
+        }
     }
 }

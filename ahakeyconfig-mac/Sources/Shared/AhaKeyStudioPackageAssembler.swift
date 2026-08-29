@@ -7,8 +7,8 @@ import Foundation
 // 摘要计算在 `AhaKeyStudioRuntimeFacade.apply` 中经可注入的 resource loader 完成。
 //
 // 冻结语义对齐（AhaKeyConfigurationPlanner / AcceptanceValidator）：
-// - 资源一律是 GIF 源图（mediaType "gif"），CAS 内容必须可被 CGImageSource 解析；
-//   RGB565 编码是 Runtime/Agent 侧职责，客户端绝不预编码。
+// - 资源是可供 CAS 受理的 GIF；Studio facade 在组装前必须已跑过同源 OLED 编码核心，
+//   申报帧数/160×80 来自规范化结果。本层仍不读文件、不做编码。
 // - `defaultAnimation` 镜像套图 A 的 done 槽：同一逻辑标识符 "mode{slot}-default"，
 //   done 槽无资源时 defaultAnimation 为 nil。
 // - 任意套图的 idle 槽若带资源，必须与 defaultAnimation 同引用（planner 规则 4：

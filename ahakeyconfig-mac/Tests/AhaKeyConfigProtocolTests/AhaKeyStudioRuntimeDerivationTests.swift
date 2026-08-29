@@ -200,4 +200,22 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         XCTAssertTrue(presentation.isConnected)
         XCTAssertEqual(presentation.deviceName, "AhaKey")
     }
+
+    func testMergingSubmittedModeLeavesOtherModesUntouched() {
+        let baseline = AhaKeyStudioDraft.default
+        var submitted = baseline.draft(for: .mode1)
+        submitted.oled.statusLine = "submitted-mode-1"
+        submitted.oled.taskGIFSets[0].assets[3].localAssetPath = "/tmp/cursor.gif"
+        let merged = AhaKeyStudioRuntimeStore.mergingSubmittedMode(submitted, into: baseline)
+        XCTAssertEqual(merged.draft(for: .mode1).oled.statusLine, "submitted-mode-1")
+        XCTAssertEqual(merged.draft(for: .mode1).oled.taskGIFSets[0].assets[3].localAssetPath, "/tmp/cursor.gif")
+        XCTAssertEqual(
+            merged.draft(for: .mode0).oled.statusLine,
+            baseline.draft(for: .mode0).oled.statusLine
+        )
+        XCTAssertEqual(
+            merged.draft(for: .mode2).oled.taskGIFSets[0].assets[3].localAssetPath,
+            baseline.draft(for: .mode2).oled.taskGIFSets[0].assets[3].localAssetPath
+        )
+    }
 }

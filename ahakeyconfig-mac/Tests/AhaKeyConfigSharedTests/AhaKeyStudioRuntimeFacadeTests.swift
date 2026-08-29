@@ -322,6 +322,26 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         }
     }
 
+    private struct IdentityImageNormalizer: AhaKeyStudioImageNormalizer {
+        var frameCount: Int
+        var pixelWidth: Int = 160
+        var pixelHeight: Int = 80
+
+        func normalize(
+            from url: URL,
+            maxFrames: Int,
+            maxSourceFileBytes: Int
+        ) throws -> AhaKeyStudioNormalizedImage {
+            AhaKeyStudioNormalizedImage(
+                fileURL: url,
+                frameCount: frameCount,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                encodedByteCount: frameCount * AhaKeyOLEDFrameEncoderCore.encodedFrameBytes
+            )
+        }
+    }
+
     private func gifAsset(
         _ state: AhaKeyDesiredConfiguration.TaskDisplayState,
         name: String,
@@ -371,11 +391,15 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
         let operationID = try await facade.apply(
-            modes: [applyModeInput()], targetDeviceID: device, baseRevision: .init(7)
+            modes: [applyModeInput()],
+            scope: .init(modeSlot: 0),
+            targetDeviceID: device,
+            baseRevision: .init(7)
         )
         // 顺序断言：ingest 先于 apply。
         XCTAssertEqual(transport.requestLog, ["ingest(1)", "apply"])
@@ -407,11 +431,13 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         transport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
             _ = try await facade.apply(
                 modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
                 baseRevision: .init(0)
             )
@@ -428,11 +454,13 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         transport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
             _ = try await facade.apply(
                 modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
                 baseRevision: .init(0)
             )
@@ -449,11 +477,13 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         loader.error = Boom()
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
             _ = try await facade.apply(
                 modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
                 baseRevision: .init(0)
             )
@@ -473,11 +503,13 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let loader = FakeResourceLoader(data: Data([1]), frameCount: 3, pixelWidth: 160, pixelHeight: 80)
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
-            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0, resourceLoader: loader
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
             _ = try await facade.apply(
                 modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
                 baseRevision: .init(0)
             )
@@ -517,6 +549,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         mode.oled.taskSets = [emptySet, emptySet]
         _ = try await facade.apply(
             modes: [mode],
+            scope: .init(modeSlot: 0),
             targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
             baseRevision: .init(0)
         )

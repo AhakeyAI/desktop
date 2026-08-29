@@ -251,19 +251,37 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
 
     // MARK: - 保存路径（唯一写入口：draft → facade.apply；取消 → requestCancellation）
 
-    /// 提交整个 Studio 草稿：目标设备 = Runtime activeDevice，baseRevision = 快照 configurationRevision。
-    func applyDraft(_ draft: AhaKeyStudioDraft) async throws -> AhaKeyRuntimeOperationID {
+    /// 提交当前编辑模式：必须显式 scope；空范围 fail-closed，不扫描其它模式草稿。
+    func applyDraft(
+        _ draft: AhaKeyStudioDraft,
+        scope: AhaKeyStudioApplyScope
+    ) async throws -> AhaKeyRuntimeOperationID {
         guard isOnline, let snapshot = viewState.snapshot else {
             throw AhaKeyStudioStoreApplyError.runtimeOffline
         }
         guard let targetDeviceID = snapshot.activeDeviceID else {
             throw AhaKeyStudioStoreApplyError.noActiveDevice
         }
+        guard let rawSlot = scope.modeSlot,
+              let modeSlot = AhaKeyModeSlot(rawValue: Int(rawSlot)) else {
+            throw AhaKeyStudioStoreApplyError.emptyApplyScope
+        }
         return try await facade.apply(
-            modes: draft.packageModeInputs(),
+            modes: [draft.draft(for: modeSlot).packageInput()],
+            scope: scope,
             targetDeviceID: targetDeviceID,
             baseRevision: snapshot.configurationRevision
         )
+    }
+
+    /// 成功写入后只把已提交模式合并进同步基线，其它模式草稿保持未同步。
+    nonisolated static func mergingSubmittedMode(
+        _ submitted: AhaKeyModeDraft,
+        into baseline: AhaKeyStudioDraft
+    ) -> AhaKeyStudioDraft {
+        var next = baseline
+        next.updateMode(submitted)
+        return next
     }
 
     /// 取消已受理的 operation（透传 facade）。
@@ -486,6 +504,8 @@ enum AhaKeyStudioStoreApplyError: LocalizedError {
     case runtimeOffline
     /// Runtime 快照中没有活动设备。
     case noActiveDevice
+    /// 未显式给出当前编辑模式。
+    case emptyApplyScope
 
     var errorDescription: String? {
         switch self {
@@ -493,6 +513,8 @@ enum AhaKeyStudioStoreApplyError: LocalizedError {
             return NSLocalizedString("Runtime 离线：请确认 Agent 已安装并运行后重试。", comment: "")
         case .noActiveDevice:
             return NSLocalizedString("尚未识别到键盘：请确认 Agent 已连接设备后重试。", comment: "")
+        case .emptyApplyScope:
+            return NSLocalizedString("未指定当前编辑模式，拒绝把其它模式的草稿一并提交。", comment: "")
         }
     }
 }

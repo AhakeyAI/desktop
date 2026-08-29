@@ -2323,7 +2323,6 @@ struct AhaKeyStudioView: View {
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 try OLEDFrameEncoder.validateGIFSourceFileSize(at: url)
-                try OLEDFrameEncoder.validateFrameCount(at: url, maxFrames: AhaKeyCommand.taskOLEDMaxFrames)
             } catch {
                 let msg = (error as? LocalizedError)?.errorDescription ?? NSLocalizedString("图片文件不符合上传限制。", comment: "")
                 syncStatusMessage = msg
@@ -2416,7 +2415,10 @@ struct AhaKeyStudioView: View {
         deviceWriteTask = Task { @MainActor in
             defer { self.deviceWriteTask = nil }
             do {
-                let operationID = try await self.runtimeStore.applyDraft(self.studioDraft)
+                let operationID = try await self.runtimeStore.applyDraft(
+                    self.studioDraft,
+                    scope: AhaKeyStudioApplyScope(modeSlot: UInt8(self.selectedMode.rawValue))
+                )
                 self.runtimeStore.appendCommLogLine("配置包已提交 Runtime，operation=\(operationID.rawValue.uuidString)")
                 let writeStartedAt = Date()
                 // 进度跟随 Runtime 快照中的 operation 摘要，直到终态。
@@ -2437,7 +2439,10 @@ struct AhaKeyStudioView: View {
                     }
                     switch operation.state {
                     case .completed:
-                        self.lastSyncedDraft = self.studioDraft
+                        self.lastSyncedDraft = AhaKeyStudioRuntimeStore.mergingSubmittedMode(
+                            self.studioDraft.draft(for: self.selectedMode),
+                            into: self.lastSyncedDraft
+                        )
                         self.saveCurrentDeviceSyncBaseline()
                         self.lastSyncDate = Date()
                         self.isSyncing = false
