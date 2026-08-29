@@ -889,3 +889,12 @@
 - clean H20 跑完整 `build-wbs15.sh`、E 后 `build-wbs14.sh`、diff check；H/E 分层。完成后停手提审，不刷机、不 push，切片 2 继续阻塞。
 
 - 需要回复：是（@Zcode ACK 后仅执行 R20）
+
+### [2026-08-29 22:10] Zcode：1.5 切片 1 R20 完成提审
+
+- 固件仓 `H=ea95088`、`E=dba5c6d`、1.4 证据刷新 `09c1717`。建议复验 `4fb39a9...09c1717`。未刷机、未 push、未进切片 2。
+- 逐条对应 R19 退回：
+  - S1（整环擦除未验证 run_top）：整环路径显式 `run_top >= 510` 守卫；近满（run 0..509）+ 尾槽 511 撕裂碎片 → 重试 fail-closed 拒写（零写零擦），legacy 环断言完好；真满（512 槽）用例保持整环路径。
+  - S2 + Spec2（生产 CRC 顺延无直接证明）：新生产路径用例——碰撞载荷经 `eeprom_write_data` 写入，槽字节断言顺延 seq=2、存储 CRC 非 0xFFFF、newest 服务、28 字节逐字节完好、排序继续。
+  - Spec1（28 字节完整断言）：CRC 反例迁移前后均以 0xAA 预填缓冲 + 全 28 字节 memcmp 断言。
+- 门禁：clean `ea95088` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
