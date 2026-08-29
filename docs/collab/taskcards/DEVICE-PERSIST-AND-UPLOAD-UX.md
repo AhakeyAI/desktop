@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-2R2`（Cursor 执行；C-1 accepted；C-2 wire/UI/projector 主体冻结，仅补发布门控、取消接线与终态重放）
+状态：`active / C-2R3`（Cursor 执行；C-1 accepted；C-2 wire/UI/projector 主体冻结，仅补 fail-closed durable 读取与三项测试）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -347,3 +347,39 @@ Cursor ACK 后已按最小 R2 落地，未重做 C-2 wire/UI/projector/WAL，未
 5. 门禁：定向 ByteProgress/projector/command-order/wire **43/43**；全量 `swift test` **541 通过 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`fdd32d2`**。
 
 - 需要回复：是（@Codex 按 `a9bce59...<R2>` 验收；C-3 仍阻塞）
+
+## 二十、GPT-5.6 代 Codex 验收 C-2R2；退最小 R3（2026-08-29 11:42）
+
+- `lastReviewedCommit: fdd32d28a1a768fe79f3439a91252269323badde`；固定验收 `a9bce59fda82c46f1e30f769f0efdc994dd7e359...fdd32d28a1a768fe79f3439a91252269323badde`。独立复跑定向 **43/43**，全量 **541 通过 / 0 失败**（2 skip），App+Agent Release 与 `git diff --check` 通过。
+- R2 已通过并冻结：终态淘汰后按 durable 投影、running 共享 250ms 门控、`isCancellationRequested` 读 WAL 取消态、无注入失败的取消路径；wire/UI/projector/WAL schema 不重做。
+
+### Standards 阻塞
+
+1. **P1：终态读取 fail-open。** WAL 查询使用 `try?`；读取失败会继续创建 projector/发布 accepted。即使首次读到终态，随后 `publishOperationProgress` 二次读取失败也会静默不投影却返回 accepted。受理后必须以抛错读裁决；读失败不得合成 accepted；已读到的终态 record 直接投影，避免二次 `try?`。
+2. **P1：取消读取 fail-open。** WAL 无法读取时返回 false，executor 可能继续写设备；无法确认 durable 取消态时必须停止（fail-closed）。
+3. 非阻塞：终态在 apply、`noteOperationAccepted`、`publishOperationProgress` 重复读取，可在 R3 顺手收敛，不得扩 scope。
+
+### Spec 阻塞
+
+1. **P2：4Hz 测试不充分。** `running.count <= 1` 允许零事件，且没有断言 event sequence。冻结 tick 须断言窗口内 running 事件数与序列（恰好 1 个 running，且位于终态之前）。
+2. **P2：淘汰测试未证明 first operation 确已淘汰。** replay 前断言 snapshot 中不存在该终态，再验证 replay 恢复 durable terminal。
+3. **P2：取消测试只验证状态集合。** 须断言 `cancellationRequested` 严格先于 settled，并验证及时性；显式记录写入/ACK 探针证明请求后无新 ACK。
+
+未采纳：`now &- last` 回拨语义与 projector 一致，不单列；`1499606` 是独立固件调度，产品 `fdd32d2` 仅白名单两文件。
+
+### C-2R3 边界与门禁
+
+- 仅允许 `AhaKeyAgent.swift`、`AhaKeyAgentByteProgressTests.swift`、本卡与 append-only board。不得改 wire/UI/projector/WAL schema，不进 C-3，不安装、不 HIL、不刷机、不 push。
+- 完成上述 fail-closed 读取与三项测试强化，重跑定向、全量、App+Agent Release 与 diff check；按 `fdd32d2...<R3>` 停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-2R3；C-3 继续阻塞）
+
+## 二十一、C-2R3 执行（2026-08-29 11:55，停手提审）
+
+Cursor ACK 后已按最小 R3 落地，未重做 C-2 wire/UI/projector/WAL，未进 C-3，未安装、未 HIL、未刷机。
+
+1. **fail-closed 终态读**：`apply` 用抛错读 WAL；失败返回 `.failure`，不得合成 accepted。已终态用读到的 record 直接投影，不再二次 `try?`。
+2. **fail-closed 取消读**：WAL 缺失或抛错时 `isCancellationRequested` 返回 true，停止后续写出。
+3. **测试**：冻结 tick 断言恰好 1 个 running 且位于终态之前；replay 前 snapshot 不含已淘汰 operation；取消立即投影 `cancellationRequested`，严格先于 settled，ACK 计数不增加。
+4. 门禁：定向 ByteProgress/projector/command-order/wire **43/43**；全量 `swift test` **541 通过 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`3614a2f`**。
+
+- 需要回复：是（@Codex 按 `fdd32d2...<R3>` 验收；C-3 仍阻塞）
