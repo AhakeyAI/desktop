@@ -299,18 +299,13 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     }
 
     func testOperationSummaryOldJSONDecodesNewFieldsAsNil() throws {
-        let frozen = FrozenV11OperationSummary(
-            id: AhaKeyRuntimeOperationID(),
-            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-            state: .running,
-            completedSteps: 0,
-            totalSteps: 7,
-            messageCode: nil
-        )
-        let oldJSON = try JSONEncoder().encode(frozen)
+        // C-2R1：旧→新必须用 literal v1.1 JSON，不能靠同提交里新声明的 encoder 形状。
+        let oldJSON = Data("""
+        {"id":{"rawValue":"00000000-0000-4000-8000-000000000001"},"targetDeviceID":"TEST-DEVICE","state":"running","completedSteps":0,"totalSteps":7}
+        """.utf8)
         let decoded = try JSONDecoder().decode(AhaKeyRuntimeOperationSummary.self, from: oldJSON)
-        XCTAssertEqual(decoded.id, frozen.id)
-        XCTAssertEqual(decoded.targetDeviceID, frozen.targetDeviceID)
+        XCTAssertEqual(decoded.id.rawValue, UUID(uuidString: "00000000-0000-4000-8000-000000000001"))
+        XCTAssertEqual(decoded.targetDeviceID.rawValue, "TEST-DEVICE")
         XCTAssertEqual(decoded.state, .running)
         XCTAssertEqual(decoded.completedSteps, 0)
         XCTAssertEqual(decoded.totalSteps, 7)
@@ -325,21 +320,13 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     }
 
     func testOperationSummaryNewJSONIsIgnoredByFrozenV11Decoder() throws {
-        let summary = AhaKeyRuntimeOperationSummary(
-            id: AhaKeyRuntimeOperationID(),
-            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-            state: .running,
-            completedSteps: 1,
-            totalSteps: 7,
-            completedBytes: 1200,
-            totalBytes: 4800,
-            currentStepID: try AhaKeyRuntimeStepIdentifier("resource:mode1-set0-working")
-        )
-        let newJSON = try JSONEncoder().encode(summary)
+        let newJSON = Data("""
+        {"id":{"rawValue":"00000000-0000-4000-8000-000000000002"},"targetDeviceID":"TEST-DEVICE","state":"running","completedSteps":1,"totalSteps":7,"completedBytes":1200,"totalBytes":4800,"currentStepID":"resource:mode1-set0-working"}
+        """.utf8)
         let frozen = try JSONDecoder().decode(FrozenV11OperationSummary.self, from: newJSON)
-        XCTAssertEqual(frozen.id, summary.id)
-        XCTAssertEqual(frozen.targetDeviceID, summary.targetDeviceID)
-        XCTAssertEqual(frozen.state, summary.state)
+        XCTAssertEqual(frozen.id.rawValue, UUID(uuidString: "00000000-0000-4000-8000-000000000002"))
+        XCTAssertEqual(frozen.targetDeviceID.rawValue, "TEST-DEVICE")
+        XCTAssertEqual(frozen.state, .running)
         XCTAssertEqual(frozen.completedSteps, 1)
         XCTAssertEqual(frozen.totalSteps, 7)
         XCTAssertNil(frozen.messageCode)

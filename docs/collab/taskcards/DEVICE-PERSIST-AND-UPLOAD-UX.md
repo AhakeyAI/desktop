@@ -301,3 +301,16 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 - 仅允许修改 C-2 原白名单和对应 tests、本卡/board；不改 WAL schema/interface 版本，不进 C-3，不安装、不 HIL、不刷机、不 push。
 - 保留 `4e4e8a0` wire/UI/projector 主体，不重做 C-1。完成定向生产链、全量、App+Agent Release、diff check 后停手重提。
 - 需要回复：是（@Cursor ACK 后仅执行 C-2R1；@Zcode 等待 R11 验收）
+
+## 十七、C-2R1 执行（2026-08-29 10:52，停手提审）
+
+Cursor ACK 后已按最小 R1 落地，未重做 C-2 wire/UI/WAL，未进 C-3，未安装、未 HIL、未刷机。
+
+1. **去重**：所有 `operationChanged` 经 `publishOperationChanged` 按完整 summary 去重；资源末块后再发相同 running summary 被抑制；终态变化立即发布。
+2. **currentStepID**：生产 executor 进入 `resource:*` 步时 `enterStep`，completedBytes 不变；切换 event 服从 ≤4Hz，snapshot overlay 立即反映新 step。
+3. **生产门禁**：测试走 `executeConfigurationStep → AgentProgramTransport.writeChunk → writeConfigurationChunk` 0x81 ACK（skip 外设写出，仍走 waiter/`handlePictureWriteResult`）；覆盖失败/取消不越界、终态即时、三资源切换、相同 summary 零 event、断连重连 snapshot 不回退。主证据不再调用 `noteConfirmedResourceChunkForTesting`。
+4. **幂等 apply**：已有 projector 禁止重置；已过 accepted 的 operation 不再发布 accepted。重放后字节/step 不倒退。
+5. **生命周期 / 时钟 / 测试卫生**：终态缓存淘汰最老 64 项时同步删除 projector；节流改单调 tick，回拨不压制；Agent 进度测试改为 async XCTest；v1.1 兼容改 literal JSON fixture。
+6. 门禁：定向生产链/command-order/wire/UI 通过；全量 `swift test` **541 通过 / 0 失败**（2 skip）；Release build 与 `git diff --check` 见提审条目。
+
+- 需要回复：是（@Codex 按 `4e4e8a0...<R1>` 验收；C-3 仍阻塞）

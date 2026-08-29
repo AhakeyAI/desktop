@@ -721,33 +721,46 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
 /// 资源上传字节进度的内存投影。不写入 WAL；失败/取消不得越过最后确认块。
 public struct AhaKeyByteProgressProjector: Equatable, Sendable {
     public static let minimumPublishInterval: TimeInterval = 0.25
+    public static let minimumPublishIntervalNanoseconds: UInt64 = 250_000_000
 
     public private(set) var completedBytes: UInt64 = 0
     public private(set) var totalBytes: UInt64
     public private(set) var currentStepID: AhaKeyRuntimeStepIdentifier?
     private var lastPublishedCompleted: UInt64?
     private var lastPublishedStep: AhaKeyRuntimeStepIdentifier?
-    private var lastPublishAt: Date?
+    private var lastPublishAtNanos: UInt64?
 
     public init(totalBytes: UInt64) {
         self.totalBytes = totalBytes
     }
 
+    /// 生产 executor 进入资源步：只切 currentStepID，不推进 completedBytes。
+    /// 切换 event 服从 ≤4Hz；snapshot overlay 立即反映新 step。
+    public mutating func enterStep(
+        stepID: AhaKeyRuntimeStepIdentifier,
+        nowNanos: UInt64
+    ) -> Bool {
+        guard currentStepID != stepID else { return false }
+        currentStepID = stepID
+        return considerPublish(nowNanos: nowNanos, force: false)
+    }
+
     /// 分块成功确认后推进。返回是否应对外发布（同值不发；运行中 ≤4Hz）。
+    /// `nowNanos` 必须是单调 tick（生产用 `DispatchTime` uptime）；墙钟回拨不得长期压制。
     public mutating func confirmChunk(
         stepID: AhaKeyRuntimeStepIdentifier,
         bytes: UInt64,
-        now: Date
+        nowNanos: UInt64
     ) -> Bool {
         currentStepID = stepID
         let next = completedBytes &+ bytes
         completedBytes = totalBytes == 0 ? next : min(next, totalBytes)
-        return considerPublish(now: now, force: false)
+        return considerPublish(nowNanos: nowNanos, force: false)
     }
 
     /// 完成/失败/取消：立即发布最终已确认值（仍不得越过最后确认块）。
-    public mutating func publishTerminal(now: Date) -> Bool {
-        considerPublish(now: now, force: true)
+    public mutating func publishTerminal(nowNanos: UInt64) -> Bool {
+        considerPublish(nowNanos: nowNanos, force: true)
     }
 
     public func overlay(_ summary: AhaKeyRuntimeOperationSummary) -> AhaKeyRuntimeOperationSummary {
@@ -759,16 +772,17 @@ public struct AhaKeyByteProgressProjector: Equatable, Sendable {
         )
     }
 
-    private mutating func considerPublish(now: Date, force: Bool) -> Bool {
+    private mutating func considerPublish(nowNanos: UInt64, force: Bool) -> Bool {
         if lastPublishedCompleted == completedBytes, lastPublishedStep == currentStepID {
             return false
         }
-        if !force, let lastPublishAt, now.timeIntervalSince(lastPublishAt) < Self.minimumPublishInterval {
+        if !force, let last = lastPublishAtNanos, nowNanos >= last,
+           nowNanos - last < Self.minimumPublishIntervalNanoseconds {
             return false
         }
         lastPublishedCompleted = completedBytes
         lastPublishedStep = currentStepID
-        lastPublishAt = now
+        lastPublishAtNanos = nowNanos
         return true
     }
 }

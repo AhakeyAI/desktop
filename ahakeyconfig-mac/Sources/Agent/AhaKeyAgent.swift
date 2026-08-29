@@ -210,6 +210,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var projectionOperations: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary] = [:]
     /// C-2：资源字节进度内存投影，不进 WAL。仅 main 队列。
     private var byteProgressByOperation: [AhaKeyRuntimeOperationID: AhaKeyByteProgressProjector] = [:]
+    /// 最近一次真正发出的 operationChanged（完整 summary 去重）。仅 main 队列。
+    private var lastPublishedOperationSummaries: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary] = [:]
+    /// C-2R1 测试：skip-BLE 路径上已成功 0x81 ACK 的 chunk 数。仅 main 队列。
+    private var configurationChunkAckCount = 0
     /// 终态 operation 插入序（投影终态缓存上限 64，超出淘汰最老；WAL 仍持久）。
     private var projectionTerminalOrder: [AhaKeyRuntimeOperationID] = []
     /// 诊断/安全事件留存（diagnostics 请求用；有界小表）。
@@ -1887,6 +1891,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             protocolMode: .current
         ) { [weak self] step in
             guard let self else { return .retryableFailure }
+            await MainActor.run {
+                self.noteEnteredConfigurationStep(operationID: package.operationID, stepID: step)
+            }
+            if let hook = await MainActor.run(body: { self.executionTestHooks?.afterEnteringConfigurationStep }) {
+                await hook(step)
+            }
             let result: AhaKeyConfigurationStepResult
             if let override = self.executionTestHooks?.stepExecutor {
                 // 集成测试 seam：替代 BLE 步骤执行（可观察 WAL 取消态）。
@@ -1909,9 +1919,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         store: AhaKeyRuntimePersistentStore,
         capabilities: AhaKeyFirmwareCapabilities
     ) async -> AhaKeyConfigurationStepResult {
-        let bleReady = await MainActor.run {
-            self.transportCore.isReady && self.peripheral != nil && self.commandChar != nil
-        }
+        let bleReady = await MainActor.run { self.configurationTransportIsReady() }
         guard bleReady else { return .retryableFailure }
         guard let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
             return .permanentFailure
@@ -1953,7 +1961,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     @MainActor
     fileprivate func programTransportIsDisconnected() -> Bool {
-        !transportCore.isReady
+        !configurationTransportIsReady()
+    }
+
+    @MainActor
+    private func configurationTransportIsReady() -> Bool {
+        if executionTestHooks?.skipConfigurationBLEWriteGates == true {
+            return executionTestHooks?.isReady ?? transportCore.isReady
+        }
+        return transportCore.isReady && peripheral != nil && commandChar != nil
+    }
+
+    @MainActor
+    private func progressNowNanos() -> UInt64 {
+        executionTestHooks?.progressMonotonicNanos?() ?? DispatchTime.now().uptimeNanoseconds
     }
 
     /// 配置命令：经 DeviceTransportCore 串行队列 + 五元 waiter 下发，等 cmd 回显 ACK。
@@ -1961,7 +1982,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// R4：完整 BLE 命令路径仅 MainActor 访问 CoreBluetooth / waiter。
     @MainActor
     fileprivate func sendConfigurationCommand(_ frame: Data, expectingAck ack: UInt8) async throws {
-        guard transportCore.isReady, let commandChar, let peripheral else {
+        if executionTestHooks?.skipConfigurationBLEWriteGates == true {
+            guard configurationTransportIsReady() else {
+                throw AhaKeyAgentCommandError.disconnected
+            }
+            guard frame.count >= 5, frame[2] == ack else { throw AhaKeyAgentCommandError.malformedFrame }
+            return
+        }
+        guard transportCore.isReady, commandChar != nil, peripheral != nil else {
             throw AhaKeyAgentCommandError.disconnected
         }
         // frame = AA BB [cmd] [payload…] CC DD
@@ -2000,12 +2028,38 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         digest: AhaKeySHA256Digest, offset: Int, length: Int, sessionID: UInt16?,
         store: AhaKeyRuntimePersistentStore
     ) async throws {
-        guard transportCore.isReady, let dataChar, let peripheral else {
-            throw AhaKeyAgentCommandError.disconnected
+        let skipBLE = executionTestHooks?.skipConfigurationBLEWriteGates == true
+        if skipBLE {
+            guard configurationTransportIsReady() else {
+                throw AhaKeyAgentCommandError.disconnected
+            }
+        } else {
+            guard transportCore.isReady, dataChar != nil, peripheral != nil else {
+                throw AhaKeyAgentCommandError.disconnected
+            }
         }
         let stream = try await encodedStream(for: digest, store: store)
         guard offset >= 0, length > 0, offset + length <= stream.count else {
             throw AhaKeyAgentCommandError.resourceMissing
+        }
+        if let hook = executionTestHooks?.beforeConfigurationChunkWrite {
+            await hook(configurationChunkAckCount)
+        }
+        if executionTestHooks?.failNextConfigurationChunk == true {
+            executionTestHooks?.failNextConfigurationChunk = false
+            throw executionTestHooks?.failConfigurationChunkWith ?? .disconnected
+        }
+        if let failAfter = executionTestHooks?.failConfigurationWriteAfterAckCount,
+           configurationChunkAckCount >= failAfter {
+            throw executionTestHooks?.failConfigurationChunkWith ?? .disconnected
+        }
+        if skipBLE {
+            try await completeConfigurationChunkAck(sessionID: sessionID)
+            configurationChunkAckCount += 1
+            return
+        }
+        guard let dataChar, let peripheral else {
+            throw AhaKeyAgentCommandError.disconnected
         }
         let chunk = Data(stream[offset ..< offset + length])
 
@@ -2044,6 +2098,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     try? await Task.sleep(nanoseconds: 12_000_000)
                 }
             }
+        }
+    }
+
+    @MainActor
+    private func completeConfigurationChunkAck(sessionID: UInt16?) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            dataWriteContinuation = continuation
+            activeUploadSessionID = sessionID
+            var payload = Data()
+            if let sessionID {
+                payload.append(UInt8(sessionID & 0xFF))
+                payload.append(UInt8((sessionID >> 8) & 0xFF))
+            }
+            handlePictureWriteResult(status: 0, payload: payload[payload.startIndex...])
         }
     }
 
@@ -2115,15 +2183,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - Runtime 生产投影 / 事件回放实现（WBS-5.7 R1）
 
     /// durable accept 后立即投影 accepted 并发布事件（执行进度/终态另行发布）。
+    /// 幂等重放不得把已在跑的 operation 打回 accepted，也不得重置字节进度。
     private func noteOperationAccepted(_ package: AhaKeyConfigurationPackage) async {
+        let skip = await MainActor.run { () -> Bool in
+            if let existing = self.projectionOperations[package.operationID],
+               existing.state != .accepted {
+                return true
+            }
+            return false
+        }
+        if skip { return }
         let base = AhaKeyRuntimeOperationSummary(
             id: package.operationID, targetDeviceID: package.targetDeviceID, state: .accepted
         )
         let summary = await MainActor.run { self.overlayByteProgress(base) }
         await MainActor.run {
-            self.publishRuntimeEvent(.operationChanged(summary), context: .init(
-                operationID: package.operationID, deviceID: package.targetDeviceID
-            ))
+            self.publishOperationChanged(summary)
         }
     }
 
@@ -2133,14 +2208,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
               let record = try? await store.transaction(operationID) else { return }
         let summary = await MainActor.run { () -> AhaKeyRuntimeOperationSummary in
             if record.state.isTerminal {
-                _ = self.byteProgressByOperation[operationID]?.publishTerminal(now: Date())
+                _ = self.byteProgressByOperation[operationID]?.publishTerminal(nowNanos: self.progressNowNanos())
             }
             return self.overlayByteProgress(Self.operationSummary(from: record))
         }
         await MainActor.run {
-            self.publishRuntimeEvent(.operationChanged(summary), context: .init(
-                operationID: operationID, deviceID: record.package.targetDeviceID
-            ))
+            self.publishOperationChanged(summary)
         }
     }
 
@@ -2163,9 +2236,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func beginByteProgressIfNeeded(for package: AhaKeyConfigurationPackage) async {
         let total = await MainActor.run { self.resourceByteTotal(for: package) }
         await MainActor.run {
-            if total > 0 {
-                self.byteProgressByOperation[package.operationID] = AhaKeyByteProgressProjector(totalBytes: total)
-            }
+            guard self.byteProgressByOperation[package.operationID] == nil, total > 0 else { return }
+            self.byteProgressByOperation[package.operationID] = AhaKeyByteProgressProjector(totalBytes: total)
         }
     }
 
@@ -2198,19 +2270,43 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     @MainActor
+    private func noteEnteredConfigurationStep(
+        operationID: AhaKeyRuntimeOperationID,
+        stepID: AhaKeyRuntimeStepIdentifier
+    ) {
+        guard stepID.rawValue.hasPrefix("resource:") else { return }
+        guard var projector = byteProgressByOperation[operationID] else { return }
+        let shouldPublish = projector.enterStep(stepID: stepID, nowNanos: progressNowNanos())
+        byteProgressByOperation[operationID] = projector
+        guard shouldPublish, let summary = projectionOperations[operationID] else { return }
+        publishOperationChanged(overlayByteProgress(summary))
+    }
+
+    @MainActor
     fileprivate func noteConfirmedResourceChunk(
         operationID: AhaKeyRuntimeOperationID,
         stepID: AhaKeyRuntimeStepIdentifier,
         bytes: UInt64,
-        now: Date = Date()
+        nowNanos: UInt64? = nil
     ) {
         guard var projector = byteProgressByOperation[operationID] else { return }
-        let shouldPublish = projector.confirmChunk(stepID: stepID, bytes: bytes, now: now)
+        let shouldPublish = projector.confirmChunk(
+            stepID: stepID, bytes: bytes, nowNanos: nowNanos ?? progressNowNanos()
+        )
         byteProgressByOperation[operationID] = projector
         guard shouldPublish, var summary = projectionOperations[operationID] else { return }
         summary = overlayByteProgress(summary)
+        publishOperationChanged(summary)
+    }
+
+    @MainActor
+    private func publishOperationChanged(_ summary: AhaKeyRuntimeOperationSummary) {
+        if lastPublishedOperationSummaries[summary.id] == summary {
+            return
+        }
+        lastPublishedOperationSummaries[summary.id] = summary
         publishRuntimeEvent(.operationChanged(summary), context: .init(
-            operationID: operationID, deviceID: summary.targetDeviceID
+            operationID: summary.id, deviceID: summary.targetDeviceID
         ))
     }
 
@@ -2229,6 +2325,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 while projectionTerminalOrder.count > 64 {
                     let evicted = projectionTerminalOrder.removeFirst()
                     projectionOperations.removeValue(forKey: evicted)
+                    byteProgressByOperation.removeValue(forKey: evicted)
+                    lastPublishedOperationSummaries.removeValue(forKey: evicted)
                 }
             }
         case .diagnostic, .security:
@@ -2603,15 +2701,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         operationID: AhaKeyRuntimeOperationID,
         stepID: AhaKeyRuntimeStepIdentifier,
         bytes: UInt64,
-        now: Date
+        nowNanos: UInt64
     ) {
-        noteConfirmedResourceChunk(operationID: operationID, stepID: stepID, bytes: bytes, now: now)
+        noteConfirmedResourceChunk(operationID: operationID, stepID: stepID, bytes: bytes, nowNanos: nowNanos)
     }
 
     @MainActor
     func beginByteProgressForTesting(operationID: AhaKeyRuntimeOperationID, totalBytes: UInt64) {
-        guard totalBytes > 0 else { return }
+        guard byteProgressByOperation[operationID] == nil, totalBytes > 0 else { return }
         byteProgressByOperation[operationID] = AhaKeyByteProgressProjector(totalBytes: totalBytes)
+    }
+
+    @MainActor
+    func byteProgressCacheCountForTesting() -> Int {
+        byteProgressByOperation.count
     }
 }
 
@@ -2673,6 +2776,19 @@ struct AhaKeyAgentExecutionTestHooks {
     var commandTrace: (@Sendable (AhaKeyAgentCommandTraceEvent) -> Void)?
     /// C-1R4：跳过 lighting/外设写出门控，仍走命令构造与真实 `transportCore.enqueue`。
     var skipStateCommandBLEWriteGates: Bool = false
+    /// C-2R1：跳过 CoreBluetooth 外设写出，仍走 `writeConfigurationChunk` 的 0x81 waiter/ACK。
+    var skipConfigurationBLEWriteGates: Bool = false
+    /// 已成功 ACK 的 chunk 数达到该值后，下一次 write 抛 `failConfigurationChunkWith`。
+    var failConfigurationWriteAfterAckCount: Int?
+    /// 下一次 writeConfigurationChunk 立刻失败（一次性）。
+    var failNextConfigurationChunk: Bool = false
+    var failConfigurationChunkWith: AhaKeyAgentCommandError = .disconnected
+    /// 每个 chunk 在 ACK 前调用（已确认成功次数）。
+    var beforeConfigurationChunkWrite: (@Sendable (Int) async -> Void)?
+    /// 生产 executor 进入 WAL 步、切完 currentStepID 之后、执行程序之前。
+    var afterEnteringConfigurationStep: (@Sendable (AhaKeyRuntimeStepIdentifier) async -> Void)?
+    /// 可注入单调 tick（纳秒）；nil 时用 `DispatchTime` uptime。
+    var progressMonotonicNanos: (@Sendable () -> UInt64)?
 }
 
 enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {
