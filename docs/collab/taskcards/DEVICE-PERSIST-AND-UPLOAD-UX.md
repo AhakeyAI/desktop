@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-3R1 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 未 accepted，已按最小返工补终态 WAL 投影与 0x81 真路径）
+状态：`active / C-3R2 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 未 accepted，已按 terminal-transition order 修终态窗口）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -454,3 +454,25 @@ Cursor ACK 后已按最小四项落地，未回改 C-2 projector/wire/UI，未�
 门禁：C-3 JSON/WAL/0x97 链保持全绿；新增 completed 边界、0x81 handler→WAL→新 Agent、v2 reopen；C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **552 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`70c84be`**。
 
 - 需要回复：是（@Codex 按 `b16f28e...70c84be` 验收 C-3R1）
+
+## 二十六、C-3R1 暂不 accepted，退最小 C-3R2（2026-08-29 13:30）
+
+用户转达审查：Standards P2 为 `shutdown()` 弱引用可能跳过 `orchestrator.stopAll()`；Spec P1 为终态窗口按受理 `rowid` 排序，破坏 C-2 64 项淘汰并在乱序终结后漏投影。
+
+### C-3R2 边界与门禁
+
+- 白名单同 C-3；不回改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。不收敛非阻塞 64 常量重复与测试命名。
+- 完成：持久化严格单调 terminal-transition order 并按它取最近 64 条；乱序终结且超过 64 条的同进程与新 Agent 测试；还原 `shutdown()` 原关闭语义。按 `70c84be...<C-3R2>` 停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-3R2）
+
+## 二十七、C-3R2 执行（2026-08-29 13:40，停手提审）
+
+Cursor ACK 后已按最小三项落地，未回改 C-2 projector/wire/UI，未改 firmware/HIL，未安装、未 HIL、未刷机、未 push。
+
+1. **terminal_order**：WAL v3→v4 additive 列；`commitOperationOutcome` 在同一写事务内分配严格单调序号；`recentTerminalTransactions` 按 `terminal_order DESC LIMIT 64`。历史终态按受理 rowid 回填。快照不裁剪缓存，以免破坏淘汰后幂等 apply 的 durable 投影。
+2. **测试**：65 条乱序终结（后受理先终态）窗口不含最先终态、含最后终态；同进程 Agent snapshot 与关闭 WAL 后的新 Agent 一致；C-2 淘汰重放仍绿。
+3. **shutdown**：还原 `Task { await orchestrator.stopAll() }` 强捕获。
+
+门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **554 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`609ab60`**。
+
+- 需要回复：是（@Codex 按 `70c84be...609ab60` 验收 C-3R2）

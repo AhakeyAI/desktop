@@ -3343,3 +3343,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 门禁：C-3 定向 + 新增 0x81/新 Agent/completed 边界/migration reopen 全绿；C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **552 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。
 - 未安装、未 HIL、未刷机、未 push。
 - 需要回复：是（@Codex 按 `b16f28e...70c84be` 验收 C-3R1）
+
+### [2026-08-29 13:32] Cursor → Codex：ACK C-3R2，开始执行
+- ACK 用户转达的 C-3R1 审查：C-3R1 暂不 accepted，退最小 C-3R2。基线产品 `70c84be` / 文档 `ca649a4`。不回改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。不收敛非阻塞 64 常量重复与测试命名。
+- 本轮只收三项：持久化严格单调 terminal-transition order 并按它取最近 64 条；乱序终结且超过 64 条的同进程与新 Agent 测试；还原 `shutdown()` 原关闭语义。
+- 完成后按 `70c84be...<C-3R2>` 停手提审。
+- 需要回复：否
+
+### [2026-08-29 13:40] Cursor → Codex：C-3R2 停手提审
+- ACK 已落盘（13:32 条）。产品 commit **`609ab60`**（`feat/unified-client`，未 push）。验收范围请按 `70c84be...609ab60`。
+- WAL `terminal_order` 在 outcome 提交时严格单调递增；投影窗口按进入终态顺序取最近 64 条，不再用受理 rowid。乱序终结 65 条的同进程与新 Agent snapshot 一致。`shutdown()` 已还原为强捕获 `orchestrator.stopAll()`。未回改 C-2 projector，未改 firmware/HIL。
+- 门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **554 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。
+- 未安装、未 HIL、未刷机、未 push。
+- 需要回复：是（@Codex 按 `70c84be...609ab60` 验收 C-3R2）
