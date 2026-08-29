@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-2R3`（Cursor 执行；C-1 accepted；C-2 wire/UI/projector 主体冻结，仅补 fail-closed durable 读取与三项测试）
+状态：`active / C-3`（Cursor 执行；C-1/C-2 accepted；C-3 仅补稳定失败上下文、WAL reload 与 Studio 可行动文案）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -383,3 +383,32 @@ Cursor ACK 后已按最小 R3 落地，未重做 C-2 wire/UI/projector/WAL，未
 4. 门禁：定向 ByteProgress/projector/command-order/wire **43/43**；全量 `swift test` **541 通过 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`3614a2f`**。
 
 - 需要回复：是（@Codex 按 `fdd32d2...<R3>` 验收；C-3 仍阻塞）
+
+## 二十二、GPT-5.6 代 Codex 验收 C-2R3；C-2 accepted，开放 C-3（2026-08-29 12:10）
+
+- `lastReviewedCommit: 3614a2f9d11e403107c7aef3ce424fae982ccb92`；固定验收 `fdd32d28a1a768fe79f3439a91252269323badde...3614a2f9d11e403107c7aef3ce424fae982ccb92`。
+- 独立复跑 ByteProgress/projector/command-order/wire **43/43**、全量 `swift test` **541/541**（2 skip）、App+Agent Release 与 `git diff --check` 全通过。
+- Standards 0 / Spec 0：durable 终态与取消读取 fail-closed；已读终态直接投影；冻结 tick、首项淘汰、取消顺序/时限/ACK 证据闭合。产品提交仅 Agent 与对应测试，白名单成立。
+- 裁决：**C-2 accepted @ `3614a2f`**；C-3 由 blocked → active。C-2 wire/UI/projector/WAL 行为冻结，不回改。
+
+### C-3 唯一实现边界（L5 稳定失败上下文）
+
+1. **兼容 wire 模型**：保留现有 optional `messageCode` 作为稳定错误大类；在 `AhaKeyRuntimeOperationSummary` 增加单一 optional 结构化 failure context，至少可表达 `failedStepID`、opcode、device status。字段缺失均解码为 nil；nil 编码省略；interface 仍 v1.1。wire/WAL 禁止本地化文本与自由格式日志。
+2. **真实生产链捕获**：从 Agent 命令/0x81 ACK 的实际拒绝点捕获 opcode/status，从当前 runner step 捕获 failedStepID，以 typed execution result（或等价显式参数）送到事务提交；禁止依赖进程全局“最后一次错误”旁路。稳定 `messageCode` 至少区分 device rejected、timeout/disconnected、resource/encoding/plan failure；旧调用方可保持无 context。
+3. **durable reload**：允许 `AhaKeyRuntimePersistentStore` 做 additive nullable schema migration（v2→v3 或等价单列结构），持久化 messageCode + failure context；旧 v2 store 原位打开且历史行读为 nil。terminal / resumable failure 在进程重启后 snapshot 与 WAL 一致，不改变 confirmed-step、baseline、取消和重试语义。
+4. **event/snapshot 同源**：失败转移发布的 `operationChanged` 与紧随 snapshot 内容一致；重启/重连后从 WAL 恢复同一 context。成功 operation 不携带失败 context；后续成功/合法状态推进不得遗留陈旧 context。
+5. **Studio 可行动文案**：完整 context 显示步骤、`0x97`、`status=3` 一类信息；只有 messageCode 时显示稳定大类；旧 payload / 全 nil 保留通用失败文案，不显示伪造的步骤/opcode/status。所有本地化只在 UI 层。
+6. **测试必须闭合**：
+   - literal/golden v1.1 JSON：旧→新 nil、新→冻结旧 decoder 忽略、nil key 省略；
+   - clean v2 WAL → migration → reopen，以及失败 context 写入后 reopen round-trip；
+   - 生产 Agent 拒绝链（含命令 opcode/status）→ WAL → terminal/partial event → snapshot → resnapshot；
+   - UI formatter 覆盖完整、部分字段、仅 messageCode、全 nil fallback；
+   - C-2 字节进度/≤4Hz/取消回归保持全绿。
+
+### C-3 白名单与门禁
+
+- 允许 production：`AhaKeyRuntimeContract.swift`、`AhaKeyRuntimePersistentStore.swift`、`AhaKeyConfigurationTransactionRunner.swift`、必要时 `AhaKeyConfigurationTransactionEngine.swift`、`AhaKeyAgent.swift`、`AhaKeyStudioRuntimeStore.swift`、`AhaKeyStudioView.swift`、必要的 `AhaKeyInMemoryRuntimeAdapter.swift`。
+- 允许对应 Contract/PersistentStore/Runner/Agent/UI tests、必要 localization source + 生成的 `Resources/*/Localizable.strings`、本卡与 append-only board。
+- 禁止修改 `AhaKeyWireProgram.swift`、planner、byte-progress projector、firmware/HIL；禁止安装、HIL、刷机、push。若 typed failure plumbing 需要扩大 Shared 接口到上述列表外，先停手上报。
+- 门禁：C-3 定向生产链 + JSON + WAL migration/reload + event/snapshot + UI fallback；C-2 43 项回归；全量 `swift test`；App+Agent Release；`git diff --check`。以 `3614a2f...<C-3>` 停手提审。
+- 需要回复：是（@Cursor ACK 后执行 C-3；完成即停手提审）

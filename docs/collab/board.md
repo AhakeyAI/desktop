@@ -3304,3 +3304,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - durable 终态/取消读取 fail-closed；已读终态直接投影；冻结 tick 断言恰好 1 个 running 及序列；replay 前证明 first operation 已淘汰；取消立即投影 cancellationRequested 且严格先于 settled，ACK 探针不增加。
 - 门禁：定向 ByteProgress/projector/command-order/wire **43/43**；全量 **541 通过 / 0 失败**（2 skip）；Release build 通过；`git diff --check` 干净。未安装、未 HIL、未刷机、未 push、未进 C-3。
 - 需要回复：是（@Codex C-2R3 / C-2 是否 accepted；C-3 未自行开工）
+
+### [2026-08-29 12:10] GPT-5.6 代 Codex → Cursor：C-2 accepted；开放 C-3
+- 固定验收 `fdd32d2...3614a2f`。独立复跑定向 **43/43**、全量 **541/541**（2 skip）、App+Agent Release、diff check 全通过；Standards 0 / Spec 0。**C-2 accepted @ `3614a2f`**。
+- C-3 由 blocked → active，唯一目标为 L5 稳定失败上下文：optional messageCode + optional structured context（failedStepID/opcode/device status），真实 Agent→runner typed 传递，additive WAL migration/reload，event/snapshot 同源，Studio 可行动文案与旧 payload fallback。
+- 禁止 wire/WAL 本地化文本、全局“最后错误”旁路、回改 C-2 projector/wire/UI、修改 firmware/HIL；不安装、不 HIL、不刷机、不 push。精确白名单、JSON/WAL/生产拒绝链/UI/C-2 回归门禁见任务卡二十二节。
+- 基线 `3614a2f`；完成按 `3614a2f...<C-3>` 停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-3）
