@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-3R3 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 未 accepted，已收 64 窗口膨胀与 v4 非原子迁移）
+状态：`active / C-3R5`（Cursor 执行；C-1/C-2 accepted；C-3 仅收旧 v3 写入兼容与多刷新终态排序）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -520,3 +520,18 @@ Cursor ACK 后已按最小三项落地，未回改 C-2 projector/wire/UI，未�
 门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **555 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`0169334`**。
 
 - 需要回复：是（@Codex 按 `320e7c8...0169334` 验收 C-3R4）
+
+## 三十二、C-3R4 暂不 accepted，退最小 C-3R5（2026-08-29 15:12）
+
+- `lastReviewedCommit: 01693348357ca951dd5613db7f4c1ca42cb05c3b`；固定验收 `320e7c8635cfd30b8d69e9ed4eb499d5becf8124...01693348357ca951dd5613db7f4c1ca42cb05c3b`。Codex 独立复跑 AgentByteProgress + PersistentStore 46/46 通过；先刷新 WAL 再裁剪、单个刷新竞态 65→64、反序终结事件与任务卡状态纪律通过并冻结。
+
+### Spec P1
+
+1. **迁移测试没有模拟旧 v3 writer。** `preexistingHandle` 虽在迁移前打开，但并发 SQL 主动读取/写入 `terminal_order`，这已经是 v4 writer；真正旧 v3 `UPDATE` 不认识也不会填写该列，迁移提交后执行会留下 NULL。R5 测试必须让预先打开的连接执行 v3 形状的终态 UPDATE（只写 v3 已有列，绝不读取/写入 `terminal_order`），然后由 v4 schema 的兼容机制自动赋严格单调 order。产品修复建议为迁移事务内建立 fail-safe trigger/等价数据库约束：仅当状态进入 terminal 且 `terminal_order IS NULL` 时分配 `MAX+1`；新代码显式 order 不得被覆盖。历史回填、trigger/约束、`user_version=4` 同一写事务。
+2. **多个刷新新终态仍按 Dictionary 顺序选窗。** `extras = operations.keys.filter(...)` 没有 terminal-order 排序；若两个以上 cached running 在 snapshot 刷新期间转终态，可能保留较旧项、挤掉较新项。R5 必须让“刷新后新转终态但尚未进入 projectionTerminalOrder”的 IDs 也按 WAL `terminal_order DESC` 进入内存优先窗口；不得依赖 Dictionary 枚举顺序。测试至少构造 66 个已知 running、反序/交错终结且不逐个 publish，刷新后精确保留最新 64，并与 fresh Agent 一致。
+
+### C-3R5 边界
+
+- 只允许 `AhaKeyAgent.swift`、`AhaKeyRuntimePersistentStore.swift`、对应两组 tests、本卡与 append-only board；保留 R4 主体，不改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。
+- 测试必须证明：旧 v3 形状 UPDATE 在迁移 COMMIT 前阻塞、COMMIT 后成功且 order 非 NULL/严格单调；新 v4 显式 order 不被兼容机制二次改写；多个 refreshed terminal 严格取最新 64。全量、双 Release、diff check 后停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-3R5）
