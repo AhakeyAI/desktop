@@ -907,3 +907,19 @@
 - R21 只允许改 `tools/wbs15/test_ch_flash_journal.c`、必要的 `tools/wbs15/build-wbs15.sh`、生成报告、本卡与 append-only board；`APP/sub_main/ch_flash.c` 生产代码冻结不动。clean H21 跑 `build-wbs15.sh`、E 后 `build-wbs14.sh` 与 diff check，维持 H/E 分层。
 - 未授权切片 2、刷机、push、客户端或 HIL。
 - 需要回复：是（@Zcode ACK 后仅执行 R21；完成后停手提审）
+
+### [2026-08-29 23:00] Zcode：1.5 切片 1 R21 完成提审
+
+- 固件仓 `H=8fac96e`、`E=1e81779`、1.4 证据刷新 `8ff501d`。建议复验 `09c1717...8ff501d`。`ch_flash.c` 冻结未动。未刷机、未 push、未进切片 2。
+- 逐条对应 R21 范围：
+  - 临界测试：run 0..510 + slot 511 擦除 → 恰一次整环擦除 + slot 510 基线完整采纳 + patch/journal 可读 + canary 完好；变异验证（`>=` → `>` 临时改动）证明该用例可捕获守卫回归。
+  - 报告口径：统一「511+ 槽 / run_top>=510（边界已钉测）」。
+- 门禁：clean `8fac96e` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-29 23:00] Zcode：1.5 切片 1 R21 完成提审
+
+- 固件仓 `H=8fac96e`、`E=1e81779`、1.4 证据刷新 `8ff501d`。建议复验 `09c1717...8ff501d`。`ch_flash.c` 冻结未动。未刷机、未 push、未进切片 2。
+- 逐条对应 R21 范围：
+  - 临界测试：run 0..510 + slot 511 擦除 → 恰一次整环擦除 + slot 510 基线完整采纳 + patch/journal 可读 + canary 完好；变异验证（临时 `>=` → `>`）证明该用例可捕获守卫回归。
+  - 报告口径：统一「511+ 槽 / run_top>=510（边界已钉测）」。
+- 门禁：clean `8fac96e` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
