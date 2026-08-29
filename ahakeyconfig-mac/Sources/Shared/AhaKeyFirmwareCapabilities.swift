@@ -14,7 +14,7 @@ import Foundation
 /// - current: 0x99 应答 protocolVersion == 3（当前 Rhino 协议）。
 /// - restrictedUnknown: 0x99 有应答但协议版本未知，或无应答且固件版本也不是已知旧版——
 ///   只保留最保守的只读能力，禁用写入类高级功能。
-public enum AhaKeyProtocolMode: Equatable {
+public enum AhaKeyProtocolMode: Equatable, Sendable {
     case negotiating
     case legacy
     case legacyBaseOnly
@@ -37,7 +37,7 @@ public enum AhaKeyProtocolMode: Equatable {
 /// - factory-off 14 字节：`factorySlotBase=0`（用户区从 0 起编）；
 /// - factory compact 14 字节：`userSlotLimit` / reclaim 区间在帧内，`factorySlotBase=userSlotLimit`；
 /// - factory 22/26 字节：出厂资源束扩展（26 另含 reclaim 覆盖字段）。
-public struct AhaKeyFirmwareCapabilities: Equatable {
+public struct AhaKeyFirmwareCapabilities: Equatable, Sendable {
     public static let idleTaskPictureFlag: UInt16 = 1 << 0
     public static let factoryAssetsFlag: UInt16 = 1 << 2
     public static let sessionUploadFlag: UInt16 = 1 << 3

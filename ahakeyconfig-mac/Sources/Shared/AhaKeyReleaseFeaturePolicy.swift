@@ -18,10 +18,15 @@ public enum AhaKeyDeferredOLEDReason: Equatable, Sendable {
     case requiresFirmwareV0_3
 }
 
-/// 0x99 协商输入。必须把“无应答”和“收到畸形/截断应答”分开，避免 1.x 回退成可写 legacy。
-public enum AhaKeyCapabilityNegotiationResult: Equatable {
-    case noResponse
+/// 发布功能策略的唯一合法输入。协商来源与能力绑定，调用方不能把独立 mode + capabilities 拼起来绕过 resolver。
+public enum AhaKeyReleaseNegotiationState: Equatable, Sendable {
+    /// 已连接、0x99 尚未完成。
+    case negotiating
+    /// 0x99 无应答。仅此路径可产生 `.legacy` / `.legacyBaseOnly`。
+    case noResponse(firmwareMainVersion: Int?, supportsLegacyTaskPictures: Bool)
+    /// 收到畸形/截断 0x99。一律 `.restrictedUnknown`，即使固件 1.x。
     case malformedResponse
+    /// 已解析的能力帧。协议模式由现有 negotiation 推导，不得另传 mode。
     case parsed(AhaKeyFirmwareCapabilities)
 }
 
@@ -45,7 +50,7 @@ public struct AhaKeyReleaseFeatureProjection: Equatable, Sendable {
     }
 }
 
-/// 集中式发布功能策略。以发布通道与已协商的 `AhaKeyProtocolMode`/能力结果为输入，不复制 0x99 parser。
+/// 集中式发布功能策略。以发布通道与单一协商状态为输入，不复制 0x99 parser。
 public struct AhaKeyReleaseFeaturePolicy: Equatable, Sendable {
     public static let v0_2 = AhaKeyReleaseFeaturePolicy(channel: .v0_2)
     /// 编译期当前发布列车。v0.2 客户端必须走该通道。
@@ -57,18 +62,18 @@ public struct AhaKeyReleaseFeaturePolicy: Equatable, Sendable {
         self.channel = channel
     }
 
-    /// 从协商结果推导协议模式。畸形/截断应答一律 `.restrictedUnknown`，不得按固件 1.x 回退 legacy。
+    /// 从协商状态推导协议模式。畸形/截断应答一律 `.restrictedUnknown`，不得按固件 1.x 回退 legacy。
     public static func resolvedProtocolMode(
-        _ result: AhaKeyCapabilityNegotiationResult,
-        firmwareMainVersion: Int? = nil,
-        supportsLegacyTaskPictures: Bool = false
+        _ state: AhaKeyReleaseNegotiationState
     ) -> AhaKeyProtocolMode {
-        switch result {
+        switch state {
+        case .negotiating:
+            return .negotiating
         case .malformedResponse:
             return .restrictedUnknown
         case .parsed(let capabilities):
             return AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities)
-        case .noResponse:
+        case .noResponse(let firmwareMainVersion, let supportsLegacyTaskPictures):
             guard let firmwareMainVersion else {
                 return .restrictedUnknown
             }
@@ -79,29 +84,21 @@ public struct AhaKeyReleaseFeaturePolicy: Equatable, Sendable {
         }
     }
 
-    /// - Parameters:
-    ///   - protocolMode: 已完成协商的终态。
-    ///   - capabilities: 必须与 `protocolMode` 一致；矛盾或把 nil 猜成 current 时 fail-closed。
     public func projection(
-        protocolMode: AhaKeyProtocolMode,
-        capabilities: AhaKeyFirmwareCapabilities?
+        _ state: AhaKeyReleaseNegotiationState
     ) -> AhaKeyReleaseFeatureProjection {
         switch channel {
         case .v0_2:
-            return Self.v0_2Projection(protocolMode: protocolMode, capabilities: capabilities)
+            return Self.v0_2Projection(state)
         }
     }
 
-    /// v0.2：所有协议模式都关闭 default/task picture 与 resource package。
-    /// 基础配置只留给与能力结果一致的安全终态。
+    /// v0.2：所有协商状态都关闭 default/task picture 与 resource package。
+    /// 基础配置只留给带协商来源的安全终态。
     private static func v0_2Projection(
-        protocolMode: AhaKeyProtocolMode,
-        capabilities: AhaKeyFirmwareCapabilities?
+        _ state: AhaKeyReleaseNegotiationState
     ) -> AhaKeyReleaseFeatureProjection {
-        let allowsBasic = allowsBasicConfiguration(
-            protocolMode: protocolMode,
-            capabilities: capabilities
-        )
+        let allowsBasic = allowsBasicConfiguration(state)
 
         var surfaces: Set<AhaKeyWriteSurface> = []
         if allowsBasic {
@@ -120,20 +117,23 @@ public struct AhaKeyReleaseFeaturePolicy: Equatable, Sendable {
         )
     }
 
-    /// `.current` 必须带能协商为 current 的能力帧；`.legacy` / `.legacyBaseOnly` 只接受无应答（nil caps）。
-    /// 模式与能力矛盾、negotiating、restrictedUnknown 都不开放写入。
+    /// `.current` 只来自能协商为 current 的已解析能力帧；`.legacy` / `.legacyBaseOnly` 只来自无应答回退。
+    /// negotiating、malformed、未知固件无应答都不开放写入。
     private static func allowsBasicConfiguration(
-        protocolMode: AhaKeyProtocolMode,
-        capabilities: AhaKeyFirmwareCapabilities?
+        _ state: AhaKeyReleaseNegotiationState
     ) -> Bool {
-        switch protocolMode {
-        case .negotiating, .restrictedUnknown:
+        switch state {
+        case .negotiating, .malformedResponse:
             return false
-        case .current:
-            guard let capabilities else { return false }
-            return AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities) == .current
-        case .legacy, .legacyBaseOnly:
-            return capabilities == nil
+        case .noResponse:
+            switch resolvedProtocolMode(state) {
+            case .legacy, .legacyBaseOnly:
+                return true
+            case .negotiating, .current, .restrictedUnknown:
+                return false
+            }
+        case .parsed:
+            return resolvedProtocolMode(state) == .current
         }
     }
 }
