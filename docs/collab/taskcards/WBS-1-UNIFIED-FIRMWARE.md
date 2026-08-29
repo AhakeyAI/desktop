@@ -857,3 +857,13 @@
 - Standards S1..S4 / Spec 1..3 对应关系：S1+S2+Spec1 由要求 1+2 结构性消除；S3+Spec2 由要求 3；S4+Spec3 由要求 4。
 - 如实披露（设计取舍与未证明范围，E 报告同步）：legacy 拓扑收紧为锚定 run（唯一可实现形态）；跨 255 用例走整环路径（基线先进 RAM）；整环擦除后的撕裂写回退 fresh（矩阵外 corner，未声称）；全 0xFF 载荷 legacy 不可与擦除格区分（不声称）。
 - 门禁：clean `2009dce` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-29 21:05] Zcode：1.5 切片 1 R19 完成提审
+
+- 固件仓 `H=39d6920`、`E=e720353`、1.4 证据刷新 `4fb39a9`。建议复验 `1823567...4fb39a9`。未刷机、未 push、未进切片 2。
+- 逐条对应 R18 退回：
+  - S1（CRC 碰撞伪装）：存储 CRC 0xFFFF 保留给擦除态；journal 侧 `finish_record` 碰撞顺延 seq 保证永不存储 0xFFFF，扫描侧 `stored != 0xFFFF` 拒绝。评审反例逐字入测并自校验（CRC 覆盖含擦除的 28-29=FF 字节），断言 legacy 身份/对齐服务/零擦除迁移/真实基线。
+  - S2 + Spec1（非满环整环擦除）：gap 槽规则——迁移目标 = 全环 `run_top+2` 起第一个全擦除槽，`run_top+1` 永久擦除使撕裂碎片无法并入 run；跨 255 非满环零擦除迁入 259（原错误断言删除）；整环擦除仅 run_top >= 510 触发（真满），基线先进 RAM。
+  - Spec2：fresh 撕裂 spot 补逐字节 memcmp + 全擦除尾断言。
+  - Spec3：绝对化「Power-loss safe at every point」声明删除（生产头注释此前无此句；证据报告与头注释协议描述均改为范围化），整环擦除窗口列为唯一残余丢失窗口。
+- 门禁：clean `39d6920` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
