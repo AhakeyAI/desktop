@@ -178,6 +178,61 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         XCTAssertEqual(resnapshot, snapshot)
     }
 
+    func testProductionPictureWriteRejectPersistsThroughHandlerWALAndFreshAgent() async throws {
+        let storeDir = testRoot.appendingPathComponent("store-c3r1-0x81", isDirectory: true)
+        try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let package: AhaKeyConfigurationPackage
+        let snapshot: AhaKeyRuntimeOperationSummary
+        do {
+            let agent = makeAgent(skipBLE: true, storeDirectory: storeDir)
+            var hooks = agent.executionTestHooks
+            hooks?.failConfigurationPictureWriteStatus = 3
+            agent.executionTestHooks = hooks
+            package = try await startResourceApply(agent)
+            try await waitUntil {
+                (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
+            }
+            let observed = try await snapshotOperation(agent, id: package.operationID)
+            snapshot = try XCTUnwrap(observed)
+            XCTAssertEqual(snapshot.state, .failedWithoutWrites)
+            XCTAssertEqual(snapshot.messageCode, .configurationDeviceRejected)
+            XCTAssertEqual(snapshot.failureContext?.opcode, AhaKeyWireFrameBuilder.cmdWriteResult)
+            XCTAssertEqual(snapshot.failureContext?.deviceStatus, 3)
+            XCTAssertEqual(snapshot.failureContext?.opcode, 0x81)
+            XCTAssertTrue(
+                snapshot.failureContext?.failedStepID?.rawValue.hasPrefix("resource:") == true,
+                "0x81 拒绝必须带当前资源步，实际 \(String(describing: snapshot.failureContext?.failedStepID))"
+            )
+
+            let events = try await operationSummaries(agent, operationID: package.operationID)
+            XCTAssertEqual(events.last, snapshot, "0x81 失败转移 event 必须与紧随 snapshot 同源")
+
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+            let record = try await store.transaction(package.operationID)
+            XCTAssertEqual(record?.state, snapshot.state)
+            XCTAssertEqual(record?.messageCode, snapshot.messageCode)
+            XCTAssertEqual(record?.failureContext, snapshot.failureContext)
+            let recovered = try await store.recoveryCandidates()
+            XCTAssertTrue(recovered.isEmpty, "终态不得出现在 recoveryCandidates")
+            let terminals = try await store.recentTerminalTransactions()
+            XCTAssertEqual(
+                terminals.first { $0.operationID == package.operationID }?.failureContext,
+                snapshot.failureContext
+            )
+
+            await agent.closeRuntimeStoreForTesting()
+            agent.shutdown()
+            agents.removeAll { $0 === agent }
+        }
+
+        let restarted = makeAgent(skipBLE: true, storeDirectory: storeDir)
+        let again = try await snapshotOperation(restarted, id: package.operationID)
+        XCTAssertEqual(again?.state, snapshot.state)
+        XCTAssertEqual(again?.messageCode, snapshot.messageCode)
+        XCTAssertEqual(again?.failureContext, snapshot.failureContext)
+        XCTAssertNotNil(again, "全新 Agent 必须从 WAL 终态行投影失败上下文")
+    }
+
     func testCancelAfterFirstResourceDoesNotAdvanceIntoNextResourceBytes() async throws {
         let agent = makeAgent(skipBLE: true)
         let probe = StepProbe()
@@ -334,14 +389,19 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeAgent(skipBLE: Bool) -> AhaKeyAgent {
+    private func makeAgent(skipBLE: Bool, storeDirectory: URL? = nil) -> AhaKeyAgent {
         let agent = AhaKeyAgent(
             socketPath: testRoot.appendingPathComponent("agent-\(UUID().uuidString.prefix(6)).sock").path,
             hookSocketURL: testRoot.appendingPathComponent("hook-\(UUID().uuidString.prefix(6)).sock"),
             enableRuntimeModules: false
         )
-        let storeDir = testRoot.appendingPathComponent("store-\(UUID().uuidString.prefix(8))", isDirectory: true)
-        try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let storeDir: URL
+        if let storeDirectory {
+            storeDir = storeDirectory
+        } else {
+            storeDir = testRoot.appendingPathComponent("store-\(UUID().uuidString.prefix(8))", isDirectory: true)
+            try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        }
         var hooks = AhaKeyAgentExecutionTestHooks(storeDirectory: storeDir)
         hooks.isReady = true
         hooks.capabilities = testCapabilities()

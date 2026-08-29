@@ -334,7 +334,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         processDetector.stop()
         _ = powerProtection.deactivateAll()
         // 编排器侧清理（模块 stop 委托到 deactivate，与上面幂等重叠无害）
-        Task { await orchestrator.stopAll() }
+        Task { [weak self] in
+            await self?.orchestrator.stopAll()
+        }
         lockRetryItem?.cancel()
         lockRetryItem = nil
         connectionLock.release()
@@ -2215,7 +2217,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 payload.append(UInt8(sessionID & 0xFF))
                 payload.append(UInt8((sessionID >> 8) & 0xFF))
             }
-            handlePictureWriteResult(status: 0, payload: payload[payload.startIndex...])
+            let status = executionTestHooks?.failConfigurationPictureWriteStatus ?? 0
+            handlePictureWriteResult(status: status, payload: payload[payload.startIndex...])
         }
     }
 
@@ -2584,6 +2587,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     operations[candidate.operationID] = Self.operationSummary(from: candidate)
                 }
             }
+            // 终态不在 recoveryCandidates 内；新 Agent 内存缓存为空时必须从 WAL 投影。
+            // 窗口与 projectionTerminalOrder 64 上限对齐，避免把已淘汰终态拉回 snapshot。
+            if let terminals = try? await store.recentTerminalTransactions() {
+                for terminal in terminals where operations[terminal.operationID] == nil {
+                    operations[terminal.operationID] = Self.operationSummary(from: terminal)
+                }
+            }
             // 已知 operation 一律以 WAL 最新状态为准，再叠内存字节进度。
             for id in operations.keys {
                 if let record = try? await store.transaction(id) {
@@ -2843,6 +2853,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func configurationChunkAckCountForTesting() -> Int {
         configurationChunkAckCount
     }
+
+    /// 测试 seam：释放本实例持有的 WAL 连接，模拟进程退出后再由新 Agent 打开同一 root。
+    func closeRuntimeStoreForTesting() async {
+        await runtimeStoreCache.clear()
+    }
 }
 
 /// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
@@ -2863,6 +2878,10 @@ private actor AhaKeyAgentRuntimeStoreCache {
         )
         cached = (directory, store)
         return store
+    }
+
+    func clear() {
+        cached = nil
     }
 }
 
@@ -2910,6 +2929,8 @@ struct AhaKeyAgentExecutionTestHooks {
     /// 下一次 writeConfigurationChunk 立刻失败（一次性）。
     var failNextConfigurationChunk: Bool = false
     var failConfigurationChunkWith: AhaKeyAgentCommandError = .disconnected
+    /// 测试 seam：skipBLE 仍走 `handlePictureWriteResult`；非 nil/非 0 注入真实 0x81 拒绝。
+    var failConfigurationPictureWriteStatus: UInt8?
     /// 测试 seam：配置命令走与生产相同的 status≠0 拒绝点。nil/0 表示成功。
     var failConfigurationCommandStatus: UInt8?
     /// 非 nil 时只拒绝该 opcode；nil 表示任意配置命令。

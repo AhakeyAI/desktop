@@ -188,6 +188,8 @@ struct AhaKeyRuntimeStoreTestingHooks {
 
 public actor AhaKeyRuntimePersistentStore {
     public static let schemaVersion: Int32 = 3
+    /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
+    public static let snapshotProjectionTerminalLimit = 64
 
     private let database: OpaquePointer
     private let resourcesDirectory: URL
@@ -911,6 +913,7 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
         }
         try validateProgress(summary)
+        try validateCompletedClearsFailure(summary)
 
         if summary.state == .completed {
             let expectedRevision = existing.package.baseRevision.rawValue.addingReportingOverflow(1)
@@ -947,6 +950,14 @@ public actor AhaKeyRuntimePersistentStore {
         if summary.state == .resumablePartial,
            (summary.totalSteps == 0 || summary.completedSteps >= summary.totalSteps) {
             throw AhaKeyRuntimePersistenceError.invalidOperationProgress
+        }
+    }
+
+    /// 成功终态不得把失败字段写进 WAL；其它调用者不得绕过 runner 留下陈旧 context。
+    private func validateCompletedClearsFailure(_ summary: AhaKeyRuntimeOperationSummary) throws {
+        guard summary.state == .completed else { return }
+        if summary.messageCode != nil || summary.failureContext != nil {
+            throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
         }
     }
 
@@ -1004,6 +1015,43 @@ public actor AhaKeyRuntimePersistentStore {
         }
         guard result == SQLITE_DONE else { throw databaseError() }
         return candidates
+    }
+
+    /// 投影入口：枚举最近终态行。`recoveryCandidates()` 排除 terminal，Agent 重启后
+    /// 内存缓存为空时必须靠本 API 把失败 context 并入 snapshot。窗口与投影淘汰上限对齐。
+    public func recentTerminalTransactions(
+        limit: Int = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
+    ) throws -> [AhaKeyRuntimePersistedTransaction] {
+        let bounded = max(0, limit)
+        let statement = try prepare(
+            """
+            SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context
+            FROM runtime_transactions
+            WHERE state IN ('completed', 'failedWithoutWrites', 'failedWithPartialCommit')
+            ORDER BY rowid DESC
+            LIMIT ?
+            """
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(UInt64(bounded), at: 1, to: statement)
+        var terminals: [AhaKeyRuntimePersistedTransaction] = []
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            guard let operationText = sqlite3_column_text(statement, 0),
+                  let operationUUID = UUID(uuidString: String(cString: operationText)) else {
+                throw AhaKeyRuntimePersistenceError.corruptTransaction
+            }
+            terminals.append(
+                try decodeTransaction(
+                    operationID: .init(operationUUID),
+                    statement: statement,
+                    columnOffset: 1
+                )
+            )
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw databaseError() }
+        return terminals.reversed()
     }
 
     private func decodeTransaction(

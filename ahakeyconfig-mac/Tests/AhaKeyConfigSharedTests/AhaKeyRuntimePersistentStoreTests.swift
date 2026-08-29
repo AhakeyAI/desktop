@@ -423,13 +423,23 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         sqlite3_finalize(statement)
         sqlite3_close(database)
 
-        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        let health = try await store.health()
-        XCTAssertEqual(health.schemaVersion, 3)
-        let record = try await store.transaction(package.operationID)
-        XCTAssertEqual(record?.state, .failedWithoutWrites)
-        XCTAssertNil(record?.messageCode)
-        XCTAssertNil(record?.failureContext)
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            let health = try await store.health()
+            XCTAssertEqual(health.schemaVersion, 3)
+            let record = try await store.transaction(package.operationID)
+            XCTAssertEqual(record?.state, .failedWithoutWrites)
+            XCTAssertNil(record?.messageCode)
+            XCTAssertNil(record?.failureContext)
+        }
+
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let reopenedHealth = try await reopened.health()
+        XCTAssertEqual(reopenedHealth.schemaVersion, 3)
+        let reopenedRecord = try await reopened.transaction(package.operationID)
+        XCTAssertEqual(reopenedRecord?.state, .failedWithoutWrites)
+        XCTAssertNil(reopenedRecord?.messageCode)
+        XCTAssertNil(reopenedRecord?.failureContext)
     }
 
     func testFailureContextRoundTripsAfterReopen() async throws {
@@ -463,6 +473,54 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(record?.messageCode, .configurationDeviceRejected)
         XCTAssertEqual(record?.failureContext, context)
         XCTAssertEqual(record?.state, .failedWithoutWrites)
+        let recovered = try await reopened.recoveryCandidates()
+        XCTAssertTrue(recovered.isEmpty)
+        let terminals = try await reopened.recentTerminalTransactions()
+        XCTAssertEqual(terminals.map(\.operationID), [package.operationID])
+        XCTAssertEqual(terminals.first?.failureContext, context)
+    }
+
+    func testCommitCompletedRejectsFailureContextAtOutcomeBoundary() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePackage()
+        let completedBaseline = try AhaKeyRuntimeSyncBaseline(
+            deviceID: package.targetDeviceID,
+            revision: .init(8),
+            confirmedConfiguration: package.desiredConfiguration
+        )
+        let context = AhaKeyRuntimeOperationFailureContext(
+            failedStepID: try AhaKeyRuntimeStepIdentifier("base:mode:0"),
+            opcode: 0x97,
+            deviceStatus: 3
+        )
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+
+        do {
+            try await store.commitOperationOutcome(
+                AhaKeyRuntimeOperationSummary(
+                    id: package.operationID,
+                    targetDeviceID: package.targetDeviceID,
+                    state: .completed,
+                    completedSteps: 2,
+                    totalSteps: 2,
+                    messageCode: .configurationDeviceRejected,
+                    failureContext: context
+                ),
+                syncBaseline: completedBaseline
+            )
+            XCTFail("completed 不得携带失败字段")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .invalidOperationOutcome)
+        }
+
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.state, .accepted)
+        XCTAssertNil(record?.messageCode)
+        XCTAssertNil(record?.failureContext)
+        let remaining = try await store.recoveryCandidates()
+        XCTAssertEqual(remaining.map(\.operationID), [package.operationID])
     }
 
     func testAcceptanceRejectsSymbolicLinkResourceSources() async throws {
