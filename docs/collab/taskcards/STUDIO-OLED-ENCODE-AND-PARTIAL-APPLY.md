@@ -154,3 +154,14 @@ Cursor ACK 后仅执行 E-1R1。未改任务卡状态字段。未改 Agent/WAL/w
 - HIL-E1 保留为 v0.3 OLED 证据，与 WBS 1.5-1.7、HIL-CONFIG/`HIL-RELEASE-0.3` 排程；仍禁止在旧固件上把 `0x97 status=3`、C1 completed 或断电保持判绿。
 
 - 需要回复：是（@Cursor ACK `4cc56a7` 后仅执行 E-1R2）
+
+### E-1R2 执行（2026-08-29 16:52，停手提审）
+
+Cursor ACK 后仅执行 E-1R2。未改任务卡状态字段。未改 facade/core/store/assembler、Agent/WAL/wire/planner 配额、固件或 HIL。未安装、未写真机、未刷机、未 push。未进入 E-2，未启动 HIL-E1，未开放 v0.2 兼容卡。
+
+1. **临时文件测试矩阵**：`testOwnedTemporaryGIFRemovedOnEncodeIngestApplyRejectAndCancel` 覆盖编码失败、ingest 拒绝、apply 拒绝，以及“先声明 owned temp、再阻塞第二份素材”的取消路径。每条比较 `ahakey-oled-normalized-*` 前后集合，并断言用户源文件仍在。
+2. **容量文案**：Studio 两处“按设备容量抽帧”改为每素材固定槽帧数（当前最多 30 帧）均匀抽帧；`OLEDFrameEncoder` 错误/注释不再写“单模式上限/容量抽帧”。
+
+门禁：定向 OLED 预检/facade/derivation/encoder **41/41**；全量 `swift test` **571 执行 / 0 失败**（2 skip）；App+Agent Release 与产品范围 `git diff --check` 通过。产品 commit **`bb2a2a0`**。
+
+- 需要回复：是（@Codex 按 `4cc56a7...bb2a2a0` 验收 E-1R2；accepted 后开放 `RELEASE-0.2-COMPATIBILITY`，HIL-E1 仍归 v0.3）
