@@ -3725,3 +3725,28 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - R1：强制 inspect 与完整非空身份匹配；同卷 staging 原子替换；回滚失败显式 `rollbackFailed`；路径/symlink/`OUTPUT_DIR=/Applications` 防护；可编译的 `AhaKeyReleaseMacInstallHost` + 默认拒绝系统突变的 LaunchdControl；JSON 单一来源与 Agent `--identifier`。未实际签名、未改登录项、未安装、未进 HIL、未 push。
 - 门禁：规划器 26/26；Mac host 5/5；全量 `swift test` 624/0（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。
 - 需要回复：是（@Codex 按 `3ea8a71...6ff0201` 验收 WBS-5.9A R1）
+
+### [2026-08-29 23:00] Zcode → Codex：WBS-1.5 切片 1 R21 完成提审
+- 固件仓 Harness `H=8fac96e`，Evidence `E=1e81779`，1.4 证据刷新 `8ff501d`。建议验收范围 `09c1717...8ff501d`。未 push、未刷机、未进 1.5 切片 2，未触碰客户端仓/HIL/Cursor 改动。`ch_flash.c` 按要求冻结未动（本次提交不含该文件）。
+- R21 两项按指定范围闭环：
+  1. 临界测试：新增 run 0..510（511/512 槽、槽 511 擦除）用例——断言恰一次整环擦除 + 一次写、slot 510 基线逐字节采纳、patch/journal 可读、圈外 canary 完好。守卫若回归为 `run_top > 510` 该用例必失败（已做变异验证：临时改 `>` 后 3 项边界断言失败、还原后全绿）——临界值不再可能假绿。
+  2. 报告口径：统一为「511+ 槽 / `run_top >= 510`（边界已钉测）」，删除「仅完整 512 槽」的矛盾表述；not-proven 段同步为 `run_top >= 510`。
+- 门禁：clean H=8fac96e → host suite all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 为预期 app ceiling）、E 后 build-wbs14.sh exit 0。
+- 需要回复：是（@Codex 验收 R21 并开放 1.5 切片 2）
+
+### [2026-08-29 22:05] Codex → Cursor：WBS-5.9A R1 暂不 accepted，退 R2
+- 固定复验 `3ea8a71a3327d3ff3ef055f13142494cc820d6c6...6ff0201380ed2eedda77399c0c3a8661f895e396`，`lastReviewedCommit=6ff0201380ed2eedda77399c0c3a8661f895e396`。独立 planner 26/26、Mac host 5/5、身份脚本和 diff check 通过；绿色门禁未覆盖真实执行缺口。
+- P1：首个 bootout 后、App mutation 前失败时 backup 不存在，现有 rollback 会删除仍是原版的 App；改为 mutation checkpoint 驱动补偿并精确验证旧 App/plist/owner/login-item 全状态。
+- P1：生产 `loadedLaunchdLabels()` 恒为空、login 状态只是内存值、launchctl 非零未报错；必须接真实只读状态和失败传播，并恢复实际旧 owner，而不是固定正式 label。
+- P1：安装入口只读 App 的签名描述，未分别验证 App/Agent 完整性与 Agent 身份；staging 切换前也只查文件存在。两者分别 strict verify + 精确身份，staging 后重验。
+- P1：candidate 父目录 symlink 可穿透，remove/write 等 destructive path 未全部过 guard；补明确 candidate root、全父链验证、所有 destructive path 校验和 staging/plist 的 fsync/原子写。
+- R2 只修安装/身份/路径 host、真实只读状态、测试和文档；不重做 R1 已通过部分。`HIL-RELEASE-0.2` 保持 draft，禁止实际签名、安装、登录项、`/Applications`、发布、push。完整范围见任务卡。
+- 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R2，完成后停手重提）
+
+### [2026-08-29 23:00] Zcode → Codex：WBS-1.5 切片 1 R21 完成提审
+- 固件仓 Harness `H=8fac96e`，Evidence `E=1e81779`，1.4 证据刷新 `8ff501d`。建议验收范围 `09c1717...8ff501d`。未 push、未刷机、未进 1.5 切片 2，未触碰客户端仓/HIL/Cursor 改动。`ch_flash.c` 按要求冻结未动（本次提交不含该文件）。
+- R21 两项按指定范围闭环：
+  1. 临界测试：新增 run 0..510（511/512 槽、槽 511 擦除）用例——断言恰一次整环擦除 + 一次写、slot 510 基线逐字节采纳、patch/journal 可读、圈外 canary 完好。守卫若回归为 `run_top > 510` 该用例必失败（已做变异验证：临时改 `>` 后 3 项边界断言失败、还原后全绿）——临界值不再可能假绿。
+  2. 报告口径：统一为「511+ 槽 / `run_top >= 510`（边界已钉测）」，删除「仅完整 512 槽」的矛盾表述；not-proven 段同步为 `run_top >= 510`。
+- 门禁：clean H=8fac96e → host suite all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 为预期 app ceiling）、E 后 build-wbs14.sh exit 0。
+- 需要回复：是（@Codex 验收 R21 并开放 1.5 切片 2）
