@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>lab.jawa.ahakeyconfig.agent</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent</string>
+		<string>--socket</string>
+		<string>SOCKET_PATH_PLACEHOLDER</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>MachServices</key>
+	<dict>
+		<key>lab.jawa.ahakeyconfig.runtime</key>
+		<true/>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>LOG_PATH_PLACEHOLDER</string>
+	<key>StandardErrorPath</key>
+	<string>LOG_PATH_PLACEHOLDER</string>
+</dict>
+</plist>

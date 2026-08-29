@@ -1,0 +1,17 @@
+{
+  "channel": "v0.2",
+  "productVersion": "0.2.0",
+  "bundleIdentifier": "lab.jawa.ahakeyconfig",
+  "signingIdentifier": "lab.jawa.ahakeyconfig",
+  "teamIdentifier": "P2VFVRZK7P",
+  "appDisplayName": "AhaKey Studio",
+  "appBundleFileName": "AhaKey Studio.app",
+  "executableName": "AhaKeyConfig",
+  "agentBinaryName": "ahakeyconfig-agent",
+  "agentLaunchdLabel": "lab.jawa.ahakeyconfig.agent",
+  "hilLaunchdLabel": "lab.jawa.ahakeyconfig.agent.hil",
+  "machServiceName": "lab.jawa.ahakeyconfig.runtime",
+  "minimumDarwinMajor": 22,
+  "minimumMacOSVersion": "13.0",
+  "developerIDRequirement": "anchor apple generic and certificate leaf[subject.OU] = \"P2VFVRZK7P\" and (identifier \"lab.jawa.ahakeyconfig\")"
+}

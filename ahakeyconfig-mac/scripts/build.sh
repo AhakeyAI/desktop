@@ -25,6 +25,7 @@ LAUNCH_AFTER_INSTALL="${LAUNCH_AFTER_INSTALL:-0}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
 SIGNING_IDENTITY_HINT="${SIGNING_IDENTITY_HINT:-}"
 REQUIRE_DEVELOPER_ID="${REQUIRE_DEVELOPER_ID:-0}"
+FORCE_ADHOC_SIGN="${FORCE_ADHOC_SIGN:-0}"
 DEST_APP="$INSTALL_DIR/$APP_BUNDLE_NAME.app"
 
 echo "📦 Building $APP_DISPLAY_NAME..."
@@ -178,12 +179,21 @@ find_apple_development() {
   fi
 }
 
-if [[ -z "$SIGNING_IDENTITY" ]]; then
-  SIGNING_IDENTITY="$(find_developer_id)"
-fi
+if [[ "$FORCE_ADHOC_SIGN" == "1" ]]; then
+  if [[ "$REQUIRE_DEVELOPER_ID" == "1" ]]; then
+    echo "❌ FORCE_ADHOC_SIGN=1 cannot be combined with REQUIRE_DEVELOPER_ID=1."
+    exit 1
+  fi
+  SIGNING_IDENTITY=""
+  echo "🧪 FORCE_ADHOC_SIGN=1: skipping Developer ID lookup (unsigned v0.2 candidate)."
+else
+  if [[ -z "$SIGNING_IDENTITY" ]]; then
+    SIGNING_IDENTITY="$(find_developer_id)"
+  fi
 
-if [[ -z "$SIGNING_IDENTITY" && "$REQUIRE_DEVELOPER_ID" != "1" ]]; then
-  SIGNING_IDENTITY="$(find_apple_development)"
+  if [[ -z "$SIGNING_IDENTITY" && "$REQUIRE_DEVELOPER_ID" != "1" ]]; then
+    SIGNING_IDENTITY="$(find_apple_development)"
+  fi
 fi
 
 if [[ "$REQUIRE_DEVELOPER_ID" == "1" && -z "$SIGNING_IDENTITY" ]]; then
