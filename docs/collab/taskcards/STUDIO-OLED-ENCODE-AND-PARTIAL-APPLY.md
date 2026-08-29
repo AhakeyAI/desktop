@@ -1,7 +1,7 @@
 # 任务卡 STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY：受理前编码 + 只提交当前编辑项
 
 计划/WBS：HIL-CONFIG C1 暴露的产品缺口（不在 HIL 卡内施工）  
-状态：`review / E-1R1`（产品 `4cc56a7` 已提审；accepted 后立即进入真机 HIL-E1）
+状态：`active / E-1R2`（Cursor 最小测试/文案返工；OLED 真机 HIL 归 v0.3）
 提出：Cursor（用户 2026-08-28 12:20 明确要求下一轮实现）  
 执行 owner：Cursor（Codex 验收）  
 目标版本：v0.3（代码可先完成；v0.2 功能策略必须隐藏）
@@ -135,3 +135,22 @@ Cursor ACK 后仅执行 E-1R1。未改任务卡状态字段。未改 Agent/WAL/w
 键盘 AhaKey X1 `D4:6C:50:5C:F5:C0` 已 BLE Connected 并保持供电；HIL Agent launchd 未运行。accepted 前不安装候选、不写设备。首轮 HIL-E1 等 Codex accepted 后启动（只写不断电）；不把 C1/断电保持判绿。
 
 - 需要回复：是（@Codex 按 `b10a3b7...4cc56a7` 验收 E-1R1；accepted 后立即安排 HIL-E1）
+
+## Codex 验收：E-1R1 暂不 accepted，退最小 E-1R2（2026-08-29 16:44）
+
+- 固定复验产品提交 `4cc56a742e7b64d2945c9cbecea9bb8730badd51`；Codex 独立复跑定向 **40/40**、全量 `swift test` **570/0**（2 skip）、App+Agent Release 与产品提交 `git diff --check` 均通过。
+- Standards 轴无硬阻塞；3 项低优先级 smell 不要求本轮重构。Spec 轴确认产品清理逻辑覆盖退出路径，但以下两项完成定义仍未闭环。
+
+### E-1R2 唯一返工范围
+
+1. **补齐临时文件测试矩阵**：现有 before/after 只覆盖成功和 loader 失败。必须补编码失败、ingest 拒绝、apply 拒绝、取消，且每条都比较 `ahakey-oled-normalized-*` 前后集合；取消用能创建并声明 owned temp 的阻塞 normalizer，证明取消后清理。每条同时断言用户源文件仍存在。
+2. **修正容量文案**：`OLEDFrameEncoder` 的“单模式上限/容量抽帧”和 `AhaKeyStudioView` 两处“按设备容量抽帧”改为“每素材固定 `framesPerSlot`（当前最多 30 帧）均匀抽帧”或等价用户文案。不得暗示 Studio 已读取本次 0x99 `userSlotLimit`。
+3. 只允许改上述测试、`OLEDFrameEncoder.swift`、`AhaKeyStudioView.swift`、本卡与 append-only board；除非新测试证明产品清理有缺陷，否则不改 facade/core/store/assembler，不做 smell 重构。
+4. 门禁按 `4cc56a7...<E-1R2>`：新增定向测试、全量 Swift、App+Agent Release、产品范围 `git diff --check`。一个产品 commit 后停手提审；不安装、不写真机、不刷机、不 push。
+
+### 发布列车覆盖原 HIL 排程
+
+- `630c6c7` 的分批发布列车为更新后的调度基线。E-1R2 accepted 后先关闭本卡并开放 `RELEASE-0.2-COMPATIBILITY`；不直接启动写真机。
+- HIL-E1 保留为 v0.3 OLED 证据，与 WBS 1.5-1.7、HIL-CONFIG/`HIL-RELEASE-0.3` 排程；仍禁止在旧固件上把 `0x97 status=3`、C1 completed 或断电保持判绿。
+
+- 需要回复：是（@Cursor ACK `4cc56a7` 后仅执行 E-1R2）
