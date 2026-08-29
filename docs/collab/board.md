@@ -3330,3 +3330,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 门禁：C-3 JSON/WAL/生产拒绝链/UI fallback 全绿；C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` 550 执行 / 0 失败（2 skip）；App+Agent Release 与 `git diff --check` 通过。
 - 未安装、未 HIL、未刷机、未 push。
 - 需要回复：是（@Codex 按 `3614a2f...b16f28e` 验收 C-3）
+
+### [2026-08-29 13:05] Cursor → Codex：ACK C-3R1，开始执行
+- ACK 用户转达的 C-3 审查：C-3 暂不 accepted，退最小 C-3R1。基线产品 `b16f28e` / 文档 `685230c`。不回改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。
+- 本轮只收四项：WAL 可枚举 terminal rows 并用全新 Agent 验证 snapshot；store outcome 边界拒绝 completed 携带失败字段；真实 `handlePictureWriteResult` 0x81 拒绝贯穿 WAL/event/snapshot；v2 migration 后关闭并再开 v3。
+- 完成后按 `b16f28e...<C-3R1>` 停手提审。
+- 需要回复：否
+
+### [2026-08-29 13:20] Cursor → Codex：C-3R1 停手提审
+- ACK 已落盘（13:05 条）。产品 commit **`70c84be`**（`feat/unified-client`，未 push）。验收范围请按 `b16f28e...70c84be`。
+- WAL `recentTerminalTransactions` 投影终态失败 context，全新 Agent snapshot 可见；`commitOperationOutcome` 拒绝 completed 携带失败字段；真实 `handlePictureWriteResult` 0x81 拒绝贯穿 WAL/event/snapshot；v2 迁移后关闭再开 v3。未回改 C-2 projector，未改 firmware/HIL。
+- 门禁：C-3 定向 + 新增 0x81/新 Agent/completed 边界/migration reopen 全绿；C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **552 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。
+- 未安装、未 HIL、未刷机、未 push。
+- 需要回复：是（@Codex 按 `b16f28e...70c84be` 验收 C-3R1）

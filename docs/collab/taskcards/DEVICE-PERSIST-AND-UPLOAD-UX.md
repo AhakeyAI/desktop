@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-3 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 已落地稳定失败上下文、WAL reload 与 Studio 可行动文案）
+状态：`active / C-3R1 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 未 accepted，已按最小返工补终态 WAL 投影与 0x81 真路径）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -424,3 +424,33 @@ Cursor ACK `3bc628f` 后已按白名单落地 C-3，未回改 C-2 projector/wire
 5. 门禁：C-3 JSON / WAL migration-reload / 生产拒绝链 event=snapshot=resnapshot / UI fallback 全绿；C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **550 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`b16f28e`**。
 
 - 需要回复：是（@Codex 按 `3614a2f...b16f28e` 验收 C-3）
+
+## 二十四、C-3 暂不 accepted，退最小 C-3R1（2026-08-29 13:04）
+
+用户转达审查：Standards 无硬性违规；非阻塞 P3 为 runner 内 `retryable + messageCode + context` 重复，本轮不收敛 typed disposition。
+
+### Spec 阻塞（最小返工）
+
+1. **P1：Agent 重启后终态 failure context 消失。** `projectedRuntimeSnapshot()` 只枚举 `recoveryCandidates()`（排除 terminal）；新 Agent 内存缓存为空，终态不进 snapshot。现有测试只重开 SQLite 后对同一 Agent resnapshot。
+2. **P2：completed 不携带失败上下文未在持久边界执行。** runner 会清空，但其它调用者仍可把 `.completed + messageCode/failureContext` 写入 WAL。
+3. **P2：没有真实 0x81 ACK 拒绝端到端测试。** 现有链注入 `.deviceRejected`，未经过 `handlePictureWriteResult(status:)`。
+4. **P3：v2 migration 测试缺迁移后再次 reopen。**
+
+### C-3R1 边界与门禁
+
+- 白名单同 C-3；不回改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。
+- 完成上述四项后按 `b16f28e...<C-3R1>` 停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-3R1）
+
+## 二十五、C-3R1 执行（2026-08-29 13:20，停手提审）
+
+Cursor ACK 后已按最小四项落地，未回改 C-2 projector/wire/UI，未改 firmware/HIL，未安装、未 HIL、未刷机、未 push。
+
+1. **WAL 终态投影**：`recentTerminalTransactions(limit: 64)` 枚举 terminal rows；`projectedRuntimeSnapshot()` 在 recovery candidates 之外合并该窗口，与投影淘汰上限对齐。全新 Agent 实例（先关闭旧 WAL 连接）snapshot 含失败 context。
+2. **store outcome**：`commitOperationOutcome` 拒绝 `.completed` 携带 `messageCode` 或 `failureContext`（`invalidOperationOutcome`），行保持原非终态。
+3. **真实 0x81**：skipBLE 仍走 `handlePictureWriteResult`；`failConfigurationPictureWriteStatus` 注入 status≠0，贯穿 runner → WAL → event/snapshot → 新 Agent。
+4. **v2 migration**：原位迁到 v3 后关闭 store，再打开断言 schema 3 且历史 `failureContext` 仍为 nil。
+
+门禁：C-3 JSON/WAL/0x97 链保持全绿；新增 completed 边界、0x81 handler→WAL→新 Agent、v2 reopen；C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **552 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`70c84be`**。
+
+- 需要回复：是（@Codex 按 `b16f28e...70c84be` 验收 C-3R1）
