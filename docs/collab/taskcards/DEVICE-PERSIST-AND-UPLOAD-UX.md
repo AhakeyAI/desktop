@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-3`（Cursor 执行；C-1/C-2 accepted；C-3 仅补稳定失败上下文、WAL reload 与 Studio 可行动文案）
+状态：`active / C-3 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 已落地稳定失败上下文、WAL reload 与 Studio 可行动文案）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -412,3 +412,15 @@ Cursor ACK 后已按最小 R3 落地，未重做 C-2 wire/UI/projector/WAL，未
 - 禁止修改 `AhaKeyWireProgram.swift`、planner、byte-progress projector、firmware/HIL；禁止安装、HIL、刷机、push。若 typed failure plumbing 需要扩大 Shared 接口到上述列表外，先停手上报。
 - 门禁：C-3 定向生产链 + JSON + WAL migration/reload + event/snapshot + UI fallback；C-2 43 项回归；全量 `swift test`；App+Agent Release；`git diff --check`。以 `3614a2f...<C-3>` 停手提审。
 - 需要回复：是（@Cursor ACK 后执行 C-3；完成即停手提审）
+
+## 二十三、C-3 执行（2026-08-29 12:32，停手提审）
+
+Cursor ACK `3bc628f` 后已按白名单落地 C-3，未回改 C-2 projector/wire/UI，未改 firmware/HIL，未安装、未 HIL、未刷机、未 push。
+
+1. **wire**：`AhaKeyRuntimeOperationSummary` 增加 optional `failureContext`（`failedStepID` / opcode / device status）；interface 仍 v1.1；缺键解码为 nil，nil 编码省略。
+2. **生产捕获**：`AhaKeyAgentCommandError.deviceRejected(opcode:status:)` 在命令 ACK 与 0x81 拒绝点抛出；`AhaKeyConfigurationStepResult.failure` 把 step/opcode/status/`messageCode` 送到 runner 提交。无进程全局 last-error。稳定大类区分 device-rejected / timeout / disconnected / resource / encoding / plan / malformed-frame。旧 `.permanentFailure` / `.retryableFailure` 仍可用。
+3. **WAL v2→v3**：additive `failure_context` 列；旧 v2 原位打开，历史行读为 nil；terminal / resumable failure 重启后与 snapshot 一致。成功与 `running` 推进清除陈旧 context。
+4. **Studio**：完整 context 显示步骤 + `0x97` + `status=3`；仅 messageCode 显示稳定大类；全 nil 保留「—」通用文案。本地化只在 UI 层。
+5. 门禁：C-3 JSON / WAL migration-reload / 生产拒绝链 event=snapshot=resnapshot / UI fallback 全绿；C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **550 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`b16f28e`**。
+
+- 需要回复：是（@Codex 按 `3614a2f...b16f28e` 验收 C-3）
