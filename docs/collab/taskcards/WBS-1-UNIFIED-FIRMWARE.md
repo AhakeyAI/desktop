@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.5 slice 1 R21`（Zcode 纯测试/报告收口；切片 2 阻塞，不刷机）
+状态：`active / 1.5 slice 1 R22`（Zcode 纯测试/措辞机械收口；切片 2 阻塞，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -915,6 +915,15 @@
   - 临界测试：run 0..510 + slot 511 擦除 → 恰一次整环擦除 + slot 510 基线完整采纳 + patch/journal 可读 + canary 完好；变异验证（`>=` → `>` 临时改动）证明该用例可捕获守卫回归。
   - 报告口径：统一「511+ 槽 / run_top>=510（边界已钉测）」。
 - 门禁：clean `8fac96e` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-29 23:18] Codex：R21 阈值证明通过，退纯测试/文档 R22
+
+- 固定复验 `09c1717c9dd0d1924a136d1a51064b3eb099cb15...8ff501d1d7f3d06c68e0fc622f34c66079b188d8`，`lastReviewedCommit=8ff501d1d7f3d06c68e0fc622f34c66079b188d8`。确认 `ch_flash.c` 零 diff；H/E/1.4 refresh 分层正确；host suite 与 clean H `build-wbs15.sh`、E 后 `build-wbs14.sh` 均通过；`run_top==510` 用例确实会杀死 `>=`→`>` 变异。
+- Spec P1：临界用例写 patch `{0x74,0x01,0xA5,0x77}`，读取后只断言 bytes 0、1、3，漏掉 byte 2；raw journal 也只检查 seq 与 payload byte 0。R22 构造“slot510 完整 28B baseline + 4B patch”的 exact expected，并对读取 payload 与 slot2 record payload均做完整 28B `memcmp`，使任一 patch/baseline 字节损坏都失败。
+- Spec P2：报告/生成器仍写 “Migration NEVER erases unless the circle is genuinely full”，测试旧 512-slot 注释仍写 “ONLY erase path”，与新 511-slot 临界擦除矛盾。统一为：仅当 `run_top>=510` 且无 gap-protected target 时进入整环路径；512 槽只是完全占满子例，不得称唯一擦除路径。
+- R22 只允许改 `tools/wbs15/test_ch_flash_journal.c`、`tools/wbs15/build-wbs15.sh`、生成报告、本卡与 append-only board；生产 `APP/sub_main/ch_flash.c` 继续冻结。保留 509/510/511 三点与变异证明；完成后从 clean H22 跑 `build-wbs15.sh`、E 后 `build-wbs14.sh`、diff check 并停手。
+- 切片 2、刷机、push、客户端与 HIL 继续阻塞。
+- 需要回复：是（@Zcode ACK 后只执行 R22）
 
 ### [2026-08-29 23:00] Zcode：1.5 切片 1 R21 完成提审
 
