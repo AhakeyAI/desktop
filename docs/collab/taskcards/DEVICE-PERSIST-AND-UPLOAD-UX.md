@@ -535,3 +535,14 @@ Cursor ACK 后已按最小三项落地，未回改 C-2 projector/wire/UI，未�
 - 只允许 `AhaKeyAgent.swift`、`AhaKeyRuntimePersistentStore.swift`、对应两组 tests、本卡与 append-only board；保留 R4 主体，不改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。
 - 测试必须证明：旧 v3 形状 UPDATE 在迁移 COMMIT 前阻塞、COMMIT 后成功且 order 非 NULL/严格单调；新 v4 显式 order 不被兼容机制二次改写；多个 refreshed terminal 严格取最新 64。全量、双 Release、diff check 后停手提审。
 - 需要回复：是（@Cursor ACK 后仅执行 C-3R5）
+
+## 三十三、C-3R5 执行（2026-08-29 15:22，停手提审）
+
+Cursor ACK 后已按最小两项落地，未回改 C-2 projector/wire/UI，未改 firmware/HIL，未安装、未 HIL、未刷机、未 push。未改任务卡状态字段。
+
+1. **旧 v3 writer 兼容**：v4 迁移同一写事务内建立 fail-safe trigger；预先打开的连接只写 v3 列。迁移 COMMIT 前该连接不得提交终态；COMMIT 后 `terminal_order` 非 NULL 且严格单调。随后 v4 `commitOperationOutcome` 的显式 order 不被 trigger 二次改写。
+2. **多刷新终态排序**：WAL 刷新后，内存终态按 `terminal_order DESC` 进入 64 窗口，不依赖 Dictionary 顺序。66 个已知 running 交错终结且不逐个 publish，刷新后恰好最新 64，并与 fresh Agent 一致。
+
+门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **556 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`3bc52b2`**。
+
+- 需要回复：是（@Codex 按 `0169334...3bc52b2` 验收 C-3R5）
