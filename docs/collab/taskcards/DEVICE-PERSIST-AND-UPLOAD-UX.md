@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-3R2 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 未 accepted，已按 terminal-transition order 修终态窗口）
+状态：`active / C-3R3 停手提审`（Cursor 执行；C-1/C-2 accepted；C-3 未 accepted，已收 64 窗口膨胀与 v4 非原子迁移）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -476,3 +476,25 @@ Cursor ACK 后已按最小三项落地，未回改 C-2 projector/wire/UI，未�
 门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **554 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`609ab60`**。
 
 - 需要回复：是（@Codex 按 `70c84be...609ab60` 验收 C-3R2）
+
+## 二十八、C-3R2 暂不 accepted，退最小 C-3R3（2026-08-29 14:01）
+
+用户转达审查：Standards 无硬性违规（nullable `terminal_order`、重复 65 条 fixture 为非阻塞，本轮不收）。Spec 两项 P1：同进程 snapshot 合并内存 64 + WAL 64 可膨胀到 65；v3→v4 ALTER/回填/`user_version` 非同一写事务。`shutdown()` 已正确，不改。
+
+### C-3R3 边界与门禁
+
+- 白名单同 C-3；不回改 C-2 projector/wire/UI，不改 firmware/HIL，不安装、不 HIL、不刷机、不 push。不封装 typed `terminal_order`，不合并重复 fixture。
+- 完成：snapshot 以内存终态优先再按 WAL terminal order 补足到 64，重放后恰好 64；乱序测试必须让同一 Agent 接收终态事件形成缓存后再比新 Agent；v4 ALTER/回填/`user_version` 同一 SQLite 写事务，并补并发迁移/终态提交回归。按 `609ab60...<C-3R3>` 停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行 C-3R3）
+
+## 二十九、C-3R3 执行（2026-08-29 14:16，停手提审）
+
+Cursor ACK 后已按最小三项落地，未回改 C-2 projector/wire/UI，未改 firmware/HIL，未安装、未 HIL、未刷机、未 push。
+
+1. **有界 snapshot**：内存终态优先（含淘汰后重放），再按 WAL `terminal_order` 从最新补足到 64；不裁剪缓存。淘汰重放后 snapshot 终态恰好 64，不得把被缓存淘汰的下一项从 WAL 补回。
+2. **乱序/同进程缓存**：`testOutOfOrderTerminalWindowMatchesInProcessAndFreshAgent` 改为同一 Agent 经 apply 接收 65 条终态后再重放最旧项，并与关闭 WAL 后的新 Agent 比较。Store 级反序终态测试保留。
+3. **原子 v4 迁移**：ALTER、回填、`PRAGMA user_version` 包进同一个 `BEGIN IMMEDIATE`；并发 `BEGIN IMMEDIATE` 在 COMMIT 前不得取得写锁；回填历史终态与迁移后 outcome 提交均有 `terminal_order`。
+
+门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **555 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`320e7c8`**。
+
+- 需要回复：是（@Codex 按 `609ab60...320e7c8` 验收 C-3R3）
