@@ -16,6 +16,7 @@ public enum AhaKeyOLEDFrameEncoderCore {
         case noFrames
         case cannotCreateContext
         case sourceFileTooLarge(fileSize: Int, maxBytes: Int)
+        case sourceSizeUnavailable
         case tooManyFrames(count: Int, max: Int)
     }
 
@@ -59,6 +60,9 @@ public enum AhaKeyOLEDFrameEncoderCore {
     }
 
     public static func sourceFileByteCount(at url: URL) -> Int? {
+        if let override = testingSourceByteCountOverride {
+            return override(url)
+        }
         if let v = try? url.resourceValues(forKeys: [.fileSizeKey]), let n = v.fileSize { return n }
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
            let n = attrs[.size] as? Int {
@@ -67,7 +71,45 @@ public enum AhaKeyOLEDFrameEncoderCore {
         return nil
     }
 
-    /// 均匀抽帧下标：与 Agent 二次编码使用同一公式，不得按源文件元数据直接截断。
+    /// 测试 seam：强制“大小不可得”或注入字节数。生产路径必须保持 nil。
+    public static var testingSourceByteCountOverride: ((URL) -> Int?)?
+
+    /// 源文件必须能证明不超过输入上限：已知大小直接比较；元数据不可得则有界读取，再失败则 fail-closed。
+    public static func enforceSourceSizeLimit(at url: URL, maxSourceFileBytes: Int) throws {
+        if let n = sourceFileByteCount(at: url) {
+            if n > maxSourceFileBytes {
+                throw EncodingError.sourceFileTooLarge(fileSize: n, maxBytes: maxSourceFileBytes)
+            }
+            return
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            var total = 0
+            while true {
+                try Task.checkCancellation()
+                if total > maxSourceFileBytes {
+                    throw EncodingError.sourceFileTooLarge(fileSize: total, maxBytes: maxSourceFileBytes)
+                }
+                let chunk = handle.readData(ofLength: min(64 * 1024, maxSourceFileBytes + 1 - total))
+                if chunk.isEmpty { break }
+                total += chunk.count
+            }
+            if total > maxSourceFileBytes {
+                throw EncodingError.sourceFileTooLarge(fileSize: total, maxBytes: maxSourceFileBytes)
+            }
+        } catch let error as EncodingError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw EncodingError.sourceSizeUnavailable
+        }
+    }
+
+    /// 均匀抽帧下标：与 Agent 二次编码使用同一公式。`maxFrames` 是每素材固定 `framesPerSlot`（当前 30），
+    /// 不是本次 0x99 的 `userSlotLimit`；设备总容量仍由 Agent 用协商能力做最终 planner 门禁。
     public static func sampledFrameIndexes(sourceCount: Int, maxFrames: Int) -> [Int] {
         guard sourceCount > 0 else { return [] }
         let cappedCount = max(1, maxFrames)
@@ -136,9 +178,7 @@ public enum AhaKeyOLEDFrameEncoderCore {
         maxFrames: Int,
         maxSourceFileBytes: Int
     ) throws -> [RasterizedFrame] {
-        if let n = sourceFileByteCount(at: url), n > maxSourceFileBytes {
-            throw EncodingError.sourceFileTooLarge(fileSize: n, maxBytes: maxSourceFileBytes)
-        }
+        try enforceSourceSizeLimit(at: url, maxSourceFileBytes: maxSourceFileBytes)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw EncodingError.cannotCreateImageSource
         }
@@ -149,6 +189,7 @@ public enum AhaKeyOLEDFrameEncoderCore {
         var frames: [RasterizedFrame] = []
         frames.reserveCapacity(indexes.count)
         for index in indexes {
+            try Task.checkCancellation()
             guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
             frames.append(try encodeFrame(image))
         }

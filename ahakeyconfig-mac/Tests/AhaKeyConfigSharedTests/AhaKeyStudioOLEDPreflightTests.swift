@@ -406,12 +406,119 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         XCTAssertTrue(transport.requestLog.isEmpty)
     }
 
-    func testSampledIndexesMatchUniformFormula() {
+    func testSampledIndexesMatchUniformFramesPerSlotFormula() {
         XCTAssertEqual(
             AhaKeyOLEDFrameEncoderCore.sampledFrameIndexes(sourceCount: 120, maxFrames: 30).count,
             30
         )
         XCTAssertEqual(AhaKeyOLEDFrameEncoderCore.sampledFrameIndexes(sourceCount: 120, maxFrames: 30).first, 0)
         XCTAssertEqual(AhaKeyOLEDFrameEncoderCore.sampledFrameIndexes(sourceCount: 120, maxFrames: 30).last, 119)
+    }
+
+    func testUnknownSourceSizeUsesBoundedReadAndStillEnforcesLimit() async throws {
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let small = root.appendingPathComponent("small.png")
+        try writePNG(width: 160, height: 80, to: small)
+        AhaKeyOLEDFrameEncoderCore.testingSourceByteCountOverride = { _ in nil }
+        defer { AhaKeyOLEDFrameEncoderCore.testingSourceByteCountOverride = nil }
+
+        let transport = FakeTransport()
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0
+        )
+        _ = try await facade.apply(
+            modes: [modeInput(slot: 0, url: small, frames: 1, width: 160, height: 80)],
+            scope: .init(modeSlot: 0),
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+            baseRevision: .init(0)
+        )
+        XCTAssertEqual(transport.requestLog, ["ingest(1)", "apply"])
+
+        let huge = root.appendingPathComponent("huge.gif")
+        XCTAssertTrue(FileManager.default.createFile(atPath: huge.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: huge)
+        try handle.truncate(atOffset: UInt64(AhaKeyOLEDFrameEncoderCore.studioMaxSourceFileBytes + 1))
+        try handle.close()
+        let failTransport = FakeTransport()
+        let failFacade = AhaKeyStudioRuntimeFacade(
+            transport: failTransport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0
+        )
+        do {
+            _ = try await failFacade.apply(
+                modes: [modeInput(slot: 0, url: huge)],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("大小不可得时仍须执行有界读取并拒绝超限源")
+        } catch let error as AhaKeyStudioApplyError {
+            guard case .sourceFileTooLarge = error else {
+                return XCTFail("应为 sourceFileTooLarge，实际 \(error)")
+            }
+        }
+        XCTAssertTrue(failTransport.requestLog.isEmpty)
+    }
+
+    func testOwnedTemporaryGIFRemovedOnSuccessAndFailure() async throws {
+        let before = normalizedTempGIFPaths()
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let png = root.appendingPathComponent("still.png")
+        try writePNG(width: 160, height: 80, to: png)
+
+        let okTransport = FakeTransport()
+        let okFacade = AhaKeyStudioRuntimeFacade(
+            transport: okTransport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0
+        )
+        _ = try await okFacade.apply(
+            modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
+            scope: .init(modeSlot: 0),
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+            baseRevision: .init(0)
+        )
+        XCTAssertEqual(normalizedTempGIFPaths().subtracting(before), [])
+
+        struct ThrowingLoader: AhaKeyStudioResourceLoader {
+            func load(from url: URL) throws -> AhaKeyStudioLoadedResource {
+                throw AhaKeyStudioGIFResourceLoader.LoadError.notAnImage
+            }
+        }
+        let failTransport = FakeTransport()
+        let failFacade = AhaKeyStudioRuntimeFacade(
+            transport: failTransport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0,
+            resourceLoader: ThrowingLoader()
+        )
+        do {
+            _ = try await failFacade.apply(
+                modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("loader 失败必须抛错")
+        } catch is AhaKeyStudioApplyError {
+        }
+        XCTAssertTrue(failTransport.requestLog.isEmpty)
+        XCTAssertEqual(normalizedTempGIFPaths().subtracting(before), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: png.path), "不得删除用户源文件")
+    }
+
+    private func normalizedTempGIFPaths() -> Set<String> {
+        let dir = FileManager.default.temporaryDirectory
+        let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+        return Set(items.filter { $0.lastPathComponent.hasPrefix("ahakey-oled-normalized-") }.map(\.path))
     }
 }

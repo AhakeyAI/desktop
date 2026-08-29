@@ -2410,15 +2410,16 @@ struct AhaKeyStudioView: View {
         lastTaskUploadFailures = []
         syncStatusMessage = NSLocalizedString("正在提交配置到 Runtime…", comment: "")
         let returnAgent = returnToKeyboardControlWhenDone
+        let submittedWrite = AhaKeyStudioSubmittedWrite.capturing(
+            selectedMode: selectedMode,
+            draft: studioDraft
+        )
 
         deviceWriteTask?.cancel()
         deviceWriteTask = Task { @MainActor in
             defer { self.deviceWriteTask = nil }
             do {
-                let operationID = try await self.runtimeStore.applyDraft(
-                    self.studioDraft,
-                    scope: AhaKeyStudioApplyScope(modeSlot: UInt8(self.selectedMode.rawValue))
-                )
+                let operationID = try await self.runtimeStore.applyDraft(submittedWrite)
                 self.runtimeStore.appendCommLogLine("配置包已提交 Runtime，operation=\(operationID.rawValue.uuidString)")
                 let writeStartedAt = Date()
                 // 进度跟随 Runtime 快照中的 operation 摘要，直到终态。
@@ -2439,10 +2440,7 @@ struct AhaKeyStudioView: View {
                     }
                     switch operation.state {
                     case .completed:
-                        self.lastSyncedDraft = AhaKeyStudioRuntimeStore.mergingSubmittedMode(
-                            self.studioDraft.draft(for: self.selectedMode),
-                            into: self.lastSyncedDraft
-                        )
+                        self.lastSyncedDraft = submittedWrite.merging(into: self.lastSyncedDraft)
                         self.saveCurrentDeviceSyncBaseline()
                         self.lastSyncDate = Date()
                         self.isSyncing = false

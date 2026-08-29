@@ -274,6 +274,11 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         )
     }
 
+    /// 使用点击写入时冻结的模式快照提交，避免长上传期间的后续编辑进入包内。
+    func applyDraft(_ submission: AhaKeyStudioSubmittedWrite) async throws -> AhaKeyRuntimeOperationID {
+        try await applyDraft(AhaKeyStudioDraft(modes: [submission.modeDraft]), scope: submission.scope)
+    }
+
     /// 成功写入后只把已提交模式合并进同步基线，其它模式草稿保持未同步。
     nonisolated static func mergingSubmittedMode(
         _ submitted: AhaKeyModeDraft,
@@ -492,6 +497,27 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         }
         scheduleIDEStateExpiry(at: expiryDeadlines.min())
         clearOptimisticSwitchOverrideIfMatched()
+    }
+}
+
+/// 点击「写入键盘」瞬间冻结的当前模式。apply 与成功 baseline 只使用这份快照。
+struct AhaKeyStudioSubmittedWrite: Equatable {
+    let modeSlot: AhaKeyModeSlot
+    let modeDraft: AhaKeyModeDraft
+
+    var scope: AhaKeyStudioApplyScope {
+        AhaKeyStudioApplyScope(modeSlot: UInt8(modeSlot.rawValue))
+    }
+
+    static func capturing(selectedMode: AhaKeyModeSlot, draft: AhaKeyStudioDraft) -> AhaKeyStudioSubmittedWrite {
+        AhaKeyStudioSubmittedWrite(
+            modeSlot: selectedMode,
+            modeDraft: draft.draft(for: selectedMode)
+        )
+    }
+
+    func merging(into baseline: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
+        AhaKeyStudioRuntimeStore.mergingSubmittedMode(modeDraft, into: baseline)
     }
 }
 

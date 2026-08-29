@@ -556,4 +556,82 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertEqual(transport.requestLog, ["apply"])
         XCTAssertNil(transport.ingestedItems)
     }
+
+    private final class GateImageNormalizer: AhaKeyStudioImageNormalizer, @unchecked Sendable {
+        let started = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+
+        func normalize(
+            from url: URL,
+            maxFrames: Int,
+            maxSourceFileBytes: Int
+        ) throws -> AhaKeyStudioNormalizedImage {
+            started.signal()
+            release.wait()
+            try Task.checkCancellation()
+            return AhaKeyStudioNormalizedImage(
+                fileURL: url,
+                frameCount: 6,
+                pixelWidth: 160,
+                pixelHeight: 80,
+                encodedByteCount: 6 * AhaKeyOLEDFrameEncoderCore.encodedFrameBytes
+            )
+        }
+    }
+
+    func testBlockingNormalizerDoesNotHoldActor() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let gate = GateImageNormalizer()
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: gate
+        )
+        let applyTask = Task {
+            _ = try await facade.apply(
+                modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+        }
+        XCTAssertEqual(gate.started.wait(timeout: .now() + 2), .success)
+        let state = await facade.currentState()
+        XCTAssertEqual(state.connection, .offline)
+        await facade.stop()
+        let stopped = await facade.currentState()
+        XCTAssertEqual(stopped.connection, .offline)
+        gate.release.signal()
+        _ = try await applyTask.value
+    }
+
+    func testNormalizeCancellationIsPropagated() async throws {
+        let loader = FakeResourceLoader(data: Data([1]), frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let gate = GateImageNormalizer()
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: gate
+        )
+        let applyTask = Task {
+            try await facade.apply(
+                modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+        }
+        XCTAssertEqual(gate.started.wait(timeout: .now() + 2), .success)
+        applyTask.cancel()
+        gate.release.signal()
+        do {
+            _ = try await applyTask.value
+            XCTFail("取消后必须抛出 CancellationError")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("应为 CancellationError，实际 \(error)")
+        }
+        XCTAssertTrue(transport.requestLog.isEmpty)
+    }
 }

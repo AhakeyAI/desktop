@@ -307,8 +307,8 @@ public actor AhaKeyStudioRuntimeFacade {
 // MARK: - WBS 5.7 切片 2：apply 入口（ingestResources → apply）与取消
 
 /// facade apply 的资源加载结果：GIF 源图字节 + 内容摘要 + 申报复核所需的帧数/尺寸。
-/// CAS 仍保存 GIF；申报帧数/尺寸必须来自受理前同源编码预检（160×80 + 容量抽帧），
-/// 不能抄源文件元数据。Agent 二次编码必须与预检帧数/输出预算一致。
+/// CAS 仍保存 GIF；申报帧数/尺寸必须来自受理前同源编码预检（160×80 + 每素材 framesPerSlot 抽帧），
+/// 不能抄源文件元数据。Agent 二次编码必须与预检帧数/输出预算一致。设备总容量仍由 Agent 用 0x99 协商能力做最终门禁。
 public struct AhaKeyStudioLoadedResource: Equatable, Sendable {
     public let data: Data
     public let sha256: AhaKeySHA256Digest
@@ -388,19 +388,23 @@ public struct AhaKeyStudioNormalizedImage: Equatable, Sendable {
     public let pixelWidth: Int
     public let pixelHeight: Int
     public let encodedByteCount: Int
+    /// 生产规范化器写出的临时 GIF，apply 必须在读入内存后/所有退出路径删除；用户源文件为 false。
+    public let isOwnedTemporaryFile: Bool
 
     public init(
         fileURL: URL,
         frameCount: Int,
         pixelWidth: Int,
         pixelHeight: Int,
-        encodedByteCount: Int
+        encodedByteCount: Int,
+        isOwnedTemporaryFile: Bool = false
     ) {
         self.fileURL = fileURL
         self.frameCount = frameCount
         self.pixelWidth = pixelWidth
         self.pixelHeight = pixelHeight
         self.encodedByteCount = encodedByteCount
+        self.isOwnedTemporaryFile = isOwnedTemporaryFile
     }
 }
 
@@ -423,19 +427,25 @@ public struct AhaKeyStudioOLEDImageNormalizer: AhaKeyStudioImageNormalizer {
     ) throws -> AhaKeyStudioNormalizedImage {
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent("ahakey-oled-normalized-\(UUID().uuidString).gif")
-        let result = try AhaKeyOLEDFrameEncoderCore.normalize(
-            fromImageAt: url,
-            maxFrames: maxFrames,
-            maxSourceFileBytes: maxSourceFileBytes,
-            writingGIFTo: destination
-        )
-        return AhaKeyStudioNormalizedImage(
-            fileURL: result.normalizedGIFURL,
-            frameCount: result.frameCount,
-            pixelWidth: result.pixelWidth,
-            pixelHeight: result.pixelHeight,
-            encodedByteCount: result.encodedByteCount
-        )
+        do {
+            let result = try AhaKeyOLEDFrameEncoderCore.normalize(
+                fromImageAt: url,
+                maxFrames: maxFrames,
+                maxSourceFileBytes: maxSourceFileBytes,
+                writingGIFTo: destination
+            )
+            return AhaKeyStudioNormalizedImage(
+                fileURL: result.normalizedGIFURL,
+                frameCount: result.frameCount,
+                pixelWidth: result.pixelWidth,
+                pixelHeight: result.pixelHeight,
+                encodedByteCount: result.encodedByteCount,
+                isOwnedTemporaryFile: true
+            )
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
     }
 }
 
@@ -449,6 +459,8 @@ public enum AhaKeyStudioApplyError: Error, Equatable {
     case encodingFailed(identifier: String, path: String, reason: String)
     /// 源文件超过 Studio 20 MiB 输入上限。
     case sourceFileTooLarge(identifier: String, fileSize: Int, maxBytes: Int)
+    /// 源文件大小不可读取，拒绝绕过 20 MiB 上限。
+    case sourceSizeUnavailable(identifier: String, path: String)
     /// 申报元数据（帧数/宽高）与实际文件不符。
     case resourceMetadataMismatch(identifier: String)
     /// Runtime 拒绝 ingest（附 failure code）。
@@ -472,6 +484,8 @@ extension AhaKeyStudioApplyError: LocalizedError {
             return "图片无法规范化为 160×80（\(path)）：\(reason)"
         case .sourceFileTooLarge(_, let fileSize, let maxBytes):
             return "图片源文件 \(fileSize) 字节，超过输入上限 \(maxBytes) 字节。"
+        case .sourceSizeUnavailable(_, let path):
+            return "无法确认图片文件大小（\(path)），拒绝绕过输入上限。"
         case .resourceMetadataMismatch(let identifier):
             return "图片 \(identifier) 的申报尺寸/帧数与预检结果不符。"
         case .ingestRejected(let code):
@@ -487,8 +501,9 @@ extension AhaKeyStudioApplyError: LocalizedError {
 }
 
 extension AhaKeyStudioRuntimeFacade {
-    /// Studio 提交入口：显式 scope → 同源编码预检 → 组装 → 读规范化 GIF → ingest → apply。
+    /// Studio 提交入口：显式 scope → 锁外同源编码预检 → 组装 → 读规范化 GIF → ingest → apply。
     /// 空范围 fail-closed；其它模式的文件不会被打开。
+    /// `maxFrames` 为每素材固定 `framesPerSlot`（当前 30），不是本次 0x99 的 `userSlotLimit`。
     public func apply(
         modes: [AhaKeyStudioModeInput],
         scope: AhaKeyStudioApplyScope,
@@ -500,18 +515,26 @@ extension AhaKeyStudioRuntimeFacade {
         guard let slot = scope.modeSlot else {
             throw AhaKeyStudioApplyError.emptyApplyScope
         }
-        var scoped = modes.filter { $0.slot == slot }
+        let scoped = modes.filter { $0.slot == slot }
         guard scoped.count == 1 else {
             throw AhaKeyStudioApplyError.emptyApplyScope
         }
-        try normalizeOLEDAssets(
-            in: &scoped,
+        let normalizer = imageNormalizer
+        var ownedTemps: [URL] = []
+        defer { Self.removeOwnedTemporaryFiles(ownedTemps) }
+        let result = try await Self.normalizeOLEDAssets(
+            scoped,
             maxFrames: maxFrames,
-            maxSourceFileBytes: maxSourceFileBytes
+            maxSourceFileBytes: maxSourceFileBytes,
+            normalizer: normalizer
         )
-        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: scoped)
+        let normalizedModes = result.modes
+        ownedTemps = result.ownedTemps
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(modes: normalizedModes)
         // 文件读取与摘要在 actor 锁外做（nonisolated），不阻塞状态发布。
         let prepared = try await prepareResources(assembled.resources)
+        Self.removeOwnedTemporaryFiles(ownedTemps)
+        ownedTemps = []
         let gifMediaType = try AhaKeyMediaType("gif")
         let packageResources = prepared.map {
             AhaKeyConfigurationResource(
@@ -604,51 +627,72 @@ extension AhaKeyStudioRuntimeFacade {
         return prepared
     }
 
-    /// 只规范化范围内已引用的文件；同一源路径只跑一次编码核心。
-    private func normalizeOLEDAssets(
-        in modes: inout [AhaKeyStudioModeInput],
+    /// 锁外规范化：CPU 解码/缩放/抽帧不占用 facade actor，帧循环尊重取消。
+    private nonisolated static func normalizeOLEDAssets(
+        _ modes: [AhaKeyStudioModeInput],
         maxFrames: Int,
-        maxSourceFileBytes: Int
-    ) throws {
+        maxSourceFileBytes: Int,
+        normalizer: any AhaKeyStudioImageNormalizer
+    ) async throws -> (modes: [AhaKeyStudioModeInput], ownedTemps: [URL]) {
+        var modes = modes
         var cache: [String: AhaKeyStudioNormalizedImage] = [:]
-        for modeIndex in modes.indices {
-            for setIndex in modes[modeIndex].oled.taskSets.indices {
-                for assetIndex in modes[modeIndex].oled.taskSets[setIndex].assets.indices {
-                    guard let url = modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].localFileURL else {
-                        continue
-                    }
-                    let key = url.standardizedFileURL.path
-                    let normalized: AhaKeyStudioNormalizedImage
-                    if let cached = cache[key] {
-                        normalized = cached
-                    } else {
-                        do {
-                            normalized = try imageNormalizer.normalize(
-                                from: url,
-                                maxFrames: maxFrames,
-                                maxSourceFileBytes: maxSourceFileBytes
-                            )
-                            cache[key] = normalized
-                        } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
-                            throw mapEncodingError(error, path: url.path)
-                        } catch {
-                            throw AhaKeyStudioApplyError.encodingFailed(
-                                identifier: url.lastPathComponent,
-                                path: url.path,
-                                reason: String(describing: error)
-                            )
+        var ownedTemps: [URL] = []
+        do {
+            for modeIndex in modes.indices {
+                for setIndex in modes[modeIndex].oled.taskSets.indices {
+                    for assetIndex in modes[modeIndex].oled.taskSets[setIndex].assets.indices {
+                        guard let url = modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].localFileURL else {
+                            continue
                         }
+                        try Task.checkCancellation()
+                        let key = url.standardizedFileURL.path
+                        let normalized: AhaKeyStudioNormalizedImage
+                        if let cached = cache[key] {
+                            normalized = cached
+                        } else {
+                            do {
+                                normalized = try normalizer.normalize(
+                                    from: url,
+                                    maxFrames: maxFrames,
+                                    maxSourceFileBytes: maxSourceFileBytes
+                                )
+                                cache[key] = normalized
+                                if normalized.isOwnedTemporaryFile {
+                                    ownedTemps.append(normalized.fileURL)
+                                }
+                            } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
+                                throw mapEncodingError(error, path: url.path)
+                            } catch is CancellationError {
+                                throw CancellationError()
+                            } catch {
+                                throw AhaKeyStudioApplyError.encodingFailed(
+                                    identifier: url.lastPathComponent,
+                                    path: url.path,
+                                    reason: String(describing: error)
+                                )
+                            }
+                        }
+                        modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].localFileURL = normalized.fileURL
+                        modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].declaredFrameCount = normalized.frameCount
+                        modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].pixelWidth = normalized.pixelWidth
+                        modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].pixelHeight = normalized.pixelHeight
                     }
-                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].localFileURL = normalized.fileURL
-                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].declaredFrameCount = normalized.frameCount
-                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].pixelWidth = normalized.pixelWidth
-                    modes[modeIndex].oled.taskSets[setIndex].assets[assetIndex].pixelHeight = normalized.pixelHeight
                 }
             }
+            return (modes, ownedTemps)
+        } catch {
+            removeOwnedTemporaryFiles(ownedTemps)
+            throw error
         }
     }
 
-    private func mapEncodingError(
+    private nonisolated static func removeOwnedTemporaryFiles(_ urls: [URL]) {
+        for url in urls {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private nonisolated static func mapEncodingError(
         _ error: AhaKeyOLEDFrameEncoderCore.EncodingError,
         path: String
     ) -> AhaKeyStudioApplyError {
@@ -658,6 +702,11 @@ extension AhaKeyStudioRuntimeFacade {
                 identifier: URL(fileURLWithPath: path).lastPathComponent,
                 fileSize: fileSize,
                 maxBytes: maxBytes
+            )
+        case .sourceSizeUnavailable:
+            return .sourceSizeUnavailable(
+                identifier: URL(fileURLWithPath: path).lastPathComponent,
+                path: path
             )
         case .noFrames, .cannotCreateImageSource, .cannotCreateContext, .tooManyFrames:
             return .encodingFailed(

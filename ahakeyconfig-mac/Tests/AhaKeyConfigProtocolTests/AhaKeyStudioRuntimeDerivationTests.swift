@@ -218,4 +218,28 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
             baseline.draft(for: .mode2).oled.taskGIFSets[0].assets[3].localAssetPath
         )
     }
+
+    func testFrozenSubmissionIgnoresModeSwitchAndLaterEdits() {
+        let baseline = AhaKeyStudioDraft.default
+        var live = baseline
+        var mode1 = live.draft(for: .mode1)
+        mode1.oled.statusLine = "submitted-cursor"
+        live.updateMode(mode1)
+        let submitted = AhaKeyStudioSubmittedWrite.capturing(selectedMode: .mode1, draft: live)
+
+        var switched = live.draft(for: .mode0)
+        switched.oled.statusLine = "edited-after-submit-mode0"
+        live.updateMode(switched)
+        var continued = submitted.modeDraft
+        continued.oled.statusLine = "edited-after-submit-same-mode"
+        live.updateMode(continued)
+
+        let merged = submitted.merging(into: baseline)
+        XCTAssertEqual(merged.draft(for: .mode1).oled.statusLine, "submitted-cursor")
+        XCTAssertEqual(
+            merged.draft(for: .mode0).oled.statusLine,
+            baseline.draft(for: .mode0).oled.statusLine
+        )
+        XCTAssertNotEqual(live.draft(for: .mode1).oled.statusLine, merged.draft(for: .mode1).oled.statusLine)
+    }
 }

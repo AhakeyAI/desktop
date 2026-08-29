@@ -9,8 +9,9 @@ enum OLEDFrameEncodingError: LocalizedError {
     case cannotCreateImageSource
     case noFrames
     case cannotCreateContext
-    case sourceFileTooLarge(fileSize: Int, maxBytes: Int)
-    case tooManyFrames(count: Int, max: Int)
+        case sourceFileTooLarge(fileSize: Int, maxBytes: Int)
+        case sourceSizeUnavailable
+        case tooManyFrames(count: Int, max: Int)
 
     var errorDescription: String? {
         switch self {
@@ -27,6 +28,8 @@ enum OLEDFrameEncodingError: LocalizedError {
             let a = f.string(fromByteCount: Int64(fileSize))
             let b = f.string(fromByteCount: Int64(maxBytes))
             return String(format: NSLocalizedString("图片源文件约 %@，超过单文件上限 %@。请压缩分辨率、减少帧数或缩短图片后再试。", comment: ""), a, b)
+        case .sourceSizeUnavailable:
+            return NSLocalizedString("无法确认图片文件大小，拒绝绕过 20 MB 输入上限。", comment: "")
         case .tooManyFrames(let count, let max):
             return String(format: NSLocalizedString("当前图片共有 %d 帧，超过单模式上限 %d 帧。请减少帧数或缩短图片后再试。", comment: ""), count, max)
         }
@@ -39,6 +42,7 @@ enum OLEDFrameEncodingError: LocalizedError {
         case .noFrames: self = .noFrames
         case .cannotCreateContext: self = .cannotCreateContext
         case .sourceFileTooLarge(let s, let m): self = .sourceFileTooLarge(fileSize: s, maxBytes: m)
+        case .sourceSizeUnavailable: self = .sourceSizeUnavailable
         case .tooManyFrames(let c, let m): self = .tooManyFrames(count: c, max: m)
         }
     }
@@ -55,10 +59,15 @@ enum OLEDFrameEncoder {
     }
 
     /// 若超过 `AhaKeyCommand.oledMaxSourceFileBytes` 则抛出 `sourceFileTooLarge`。
+    /// 文件大小不可读取时 fail-closed，不得跳过上限。
     static func validateSourceFileSize(at url: URL) throws {
-        guard let n = sourceFileByteCount(at: url) else { return }
-        guard n <= AhaKeyCommand.oledMaxSourceFileBytes else {
-            throw OLEDFrameEncodingError.sourceFileTooLarge(fileSize: n, maxBytes: AhaKeyCommand.oledMaxSourceFileBytes)
+        do {
+            try AhaKeyOLEDFrameEncoderCore.enforceSourceSizeLimit(
+                at: url,
+                maxSourceFileBytes: AhaKeyCommand.oledMaxSourceFileBytes
+            )
+        } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
+            throw OLEDFrameEncodingError(error)
         }
     }
 
