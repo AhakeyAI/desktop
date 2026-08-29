@@ -212,6 +212,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var byteProgressByOperation: [AhaKeyRuntimeOperationID: AhaKeyByteProgressProjector] = [:]
     /// 最近一次真正发出的 operationChanged（完整 summary 去重）。仅 main 队列。
     private var lastPublishedOperationSummaries: [AhaKeyRuntimeOperationID: AhaKeyRuntimeOperationSummary] = [:]
+    /// 最近一次 running operationChanged 的单调 tick（所有 running 事件共享 ≤4Hz）。仅 main 队列。
+    private var lastRunningPublishAtNanos: [AhaKeyRuntimeOperationID: UInt64] = [:]
     /// C-2R1 测试：skip-BLE 路径上已成功 0x81 ACK 的 chunk 数。仅 main 队列。
     private var configurationChunkAckCount = 0
     /// 终态 operation 插入序（投影终态缓存上限 64，超出淘汰最老；WAL 仍持久）。
@@ -878,6 +880,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 default:
                     return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
                 }
+            }
+            // durable 已终态：幂等受理不得合成 accepted、不得重建 projector；立即投影真实终态。
+            if let record = try? await store.transaction(package.operationID), record.state.isTerminal {
+                await publishOperationProgress(operationID: package.operationID)
+                return .operationAccepted(package.operationID)
             }
             // durable acceptance 成功：投影立即发布 accepted，执行交给串行协调器排空 WAL。
             await beginByteProgressIfNeeded(for: package)
@@ -2184,7 +2191,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// durable accept 后立即投影 accepted 并发布事件（执行进度/终态另行发布）。
     /// 幂等重放不得把已在跑的 operation 打回 accepted，也不得重置字节进度。
+    /// WAL 已终态时不得合成 accepted（终态缓存淘汰后内存为空，必须以 durable record 为准）。
     private func noteOperationAccepted(_ package: AhaKeyConfigurationPackage) async {
+        if let store = try? await makeRuntimeStore(),
+           let record = try? await store.transaction(package.operationID),
+           record.state.isTerminal {
+            return
+        }
         let skip = await MainActor.run { () -> Bool in
             if let existing = self.projectionOperations[package.operationID],
                existing.state != .accepted {
@@ -2304,6 +2317,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if lastPublishedOperationSummaries[summary.id] == summary {
             return
         }
+        if summary.state == .running {
+            let now = progressNowNanos()
+            if let last = lastRunningPublishAtNanos[summary.id],
+               now &- last < AhaKeyByteProgressProjector.minimumPublishIntervalNanoseconds {
+                return
+            }
+            lastRunningPublishAtNanos[summary.id] = now
+        }
         lastPublishedOperationSummaries[summary.id] = summary
         publishRuntimeEvent(.operationChanged(summary), context: .init(
             operationID: summary.id, deviceID: summary.targetDeviceID
@@ -2327,6 +2348,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     projectionOperations.removeValue(forKey: evicted)
                     byteProgressByOperation.removeValue(forKey: evicted)
                     lastPublishedOperationSummaries.removeValue(forKey: evicted)
+                    lastRunningPublishAtNanos.removeValue(forKey: evicted)
                 }
             }
         case .diagnostic, .security:
@@ -2826,7 +2848,9 @@ private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTr
     }
 
     func isCancellationRequested() async -> Bool {
-        await agent.programTransportIsDisconnected()
+        if await agent.programTransportIsDisconnected() { return true }
+        guard let record = try? await store.transaction(operationID) else { return false }
+        return record.state == .cancellationRequested
     }
 
     func abortActiveSession() async {

@@ -55,7 +55,13 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let summary = try await snapshotOperation(agent, id: package.operationID)
         XCTAssertEqual(summary?.completedBytes, 12_288, "节流只限制发布，确认块仍必须进入权威 snapshot")
         XCTAssertEqual(summary?.state, .failedWithoutWrites)
-        let runningBytes = try await operationSummaries(agent, operationID: package.operationID)
+        let summaries = try await operationSummaries(agent, operationID: package.operationID)
+        let running = summaries.filter { $0.state == .running }
+        XCTAssertLessThanOrEqual(
+            running.count, 1,
+            "冻结 tick 时 250ms 内 running operationChanged 必须共享门控（含 step-end），实际 \(running.map(\.completedSteps))"
+        )
+        let runningBytes = summaries
             .filter { !$0.state.isTerminal }
             .compactMap(\.completedBytes)
         let distinctPositive = Set(runningBytes.filter { $0 > 0 })
@@ -138,10 +144,6 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             guard step.rawValue.hasPrefix("resource:") else { return }
             let count = await probe.appendResourceStep(step)
             guard count == 2 else { return }
-            var next = agent.executionTestHooks
-            next?.failNextConfigurationChunk = true
-            next?.failConfigurationChunkWith = .cancelled
-            agent.executionTestHooks = next
             _ = try? await agent.handleRuntimeXPCRequest(.requestCancellation(package.operationID))
             if let summary = try? await self.snapshotOperation(agent, id: package.operationID) {
                 await probe.setSecondEnter(summary)
@@ -156,6 +158,17 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let summary = try await snapshotOperation(agent, id: package.operationID)
         XCTAssertEqual(summary?.completedBytes, 25_600)
         XCTAssertLessThanOrEqual(summary?.completedBytes ?? .max, 25_600)
+        let states = try await operationSummaries(agent, operationID: package.operationID).map(\.state)
+        XCTAssertTrue(
+            states.contains(.cancellationRequested),
+            "真实 requestCancellation 必须发布 cancellationRequested，实际 \(states)"
+        )
+        XCTAssertTrue(
+            states.contains(.resumablePartial) || states.contains(.failedWithoutWrites) || states.contains(.paused),
+            "取消后必须进入结算态，实际 \(states)"
+        )
+        XCTAssertNotEqual(summary?.state, .running)
+        XCTAssertNotEqual(summary?.state, .accepted)
     }
 
     func testDisconnectReconnectKeepsSameProcessSnapshotFromRollingBack() async throws {
@@ -227,8 +240,11 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         await agent.simulateDeviceForTesting(simulatedDevice())
         let assembled = try makeAssembledResources(fileCount: 1)
         try await ingest(agent, assembled: assembled)
-        for _ in 0..<65 {
+        var firstPackage: AhaKeyConfigurationPackage?
+        var firstTerminal: AhaKeyRuntimeOperationState?
+        for index in 0..<65 {
             let package = try makePackage(from: assembled)
+            if index == 0 { firstPackage = package }
             let response = try await agent.handleRuntimeXPCRequest(.apply(package))
             guard case .operationAccepted = response else {
                 return XCTFail("apply 必须受理，实际 \(response)")
@@ -236,9 +252,30 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             try await waitUntil {
                 (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
             }
+            if index == 0 {
+                firstTerminal = try await snapshotOperation(agent, id: package.operationID)?.state
+            }
         }
         let count = await MainActor.run { agent.byteProgressCacheCountForTesting() }
         XCTAssertLessThanOrEqual(count, 64)
+        let evicted = try XCTUnwrap(firstPackage)
+        let durable = try XCTUnwrap(firstTerminal)
+        XCTAssertTrue(durable.isTerminal)
+        let beforeReplay = try await latestEventSequence(agent)
+        let replay = try await agent.handleRuntimeXPCRequest(.apply(evicted))
+        guard case .operationAccepted = replay else {
+            return XCTFail("终态幂等 apply 仍须受理，实际 \(replay)")
+        }
+        let after = try await snapshotOperation(agent, id: evicted.operationID)
+        XCTAssertEqual(after?.state, durable, "淘汰后重放必须投影 durable 终态，不得合成 accepted")
+        XCTAssertNotEqual(after?.state, .accepted)
+        XCTAssertNil(after?.completedBytes, "终态重放不得重建 0 字节 projector")
+        let replayed = try await operationSummaries(agent, operationID: evicted.operationID, after: beforeReplay)
+        XCTAssertFalse(
+            replayed.contains { $0.state == .accepted },
+            "终态淘汰后重放不得再发 accepted，实际 \(replayed.map(\.state))"
+        )
+        XCTAssertEqual(replayed.last?.state, durable)
     }
 
     // MARK: - Helpers
@@ -419,15 +456,24 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
 
     private func operationSummaries(
         _ agent: AhaKeyAgent,
-        operationID: AhaKeyRuntimeOperationID
+        operationID: AhaKeyRuntimeOperationID,
+        after sequence: AhaKeyRuntimeEventSequence = .init(0)
     ) async throws -> [AhaKeyRuntimeOperationSummary] {
-        let response = try await agent.handleRuntimeXPCRequest(.events(after: .init(0)))
+        let response = try await agent.handleRuntimeXPCRequest(.events(after: sequence))
         guard case .eventReplay(.events(let events)) = response else { return [] }
         return events.compactMap { event in
             guard case .operationChanged(let summary) = event.payload,
                   summary.id == operationID else { return nil }
             return summary
         }
+    }
+
+    private func latestEventSequence(_ agent: AhaKeyAgent) async throws -> AhaKeyRuntimeEventSequence {
+        let response = try await agent.handleRuntimeXPCRequest(.snapshot)
+        guard case .snapshot(let snapshot) = response else {
+            return AhaKeyRuntimeEventSequence(0)
+        }
+        return snapshot.latestEventSequence
     }
 
     private func waitUntil(
