@@ -99,3 +99,17 @@ ACK `1225884` 后只做未签名安装链硬化。未改任务卡状态字段或
 R2 仅改安装/身份/路径 host、真实只读状态适配、对应测试与 Packaging 文档；保留 R1 已通过的 planner 语义与 packer 防护。禁止真实签名、安装、登录项或 `/Applications` 修改、HIL、发布、push；`HIL-RELEASE-0.2` 继续 draft / USER-GATE。
 
 - 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R2，完成后停手重提）
+
+### 5.9A R2 执行（2026-08-29 22:24，停手重提）
+
+ACK `57a8153` 后只修真实执行边界。未改任务卡状态字段或 queue。未实际 Developer ID 签名、未改登录项、未覆盖 `/Applications`、未启动 HIL、未发布、未 push。
+
+1. **Mutation checkpoint 回滚**：未 `installApp`/`removeApp` 时保持原 App 树；仅在有可信 backup 时恢复。首个 bootout 后失败的 exact-tree 测试覆盖 official+HIL。
+2. **精确旧 owner**：记录并恢复实际 owner 集合、plist bytes、login-item 与 App 是否存在；不再固定 bootstrap 正式 Agent。未知 label 或缺失 plist 在 mutation 前 fail-closed。
+3. **真实只读状态**：`AhaKeyReleaseLaunchdControl` 用 `launchctl list` / `print gui/<uid>/<label>`，非零退出抛错；login 读 `SMAppService.mainApp.status`。`AhaKeyReleaseInstaller.productionHost()` 入口存在，默认禁止系统突变。
+4. **App/Agent 完整性**：分别 `codesign --verify --strict` 与精确 signing/team/kind；staging 切换前重验。
+5. **路径与持久化**：candidate 明确 allowed root + 整条父链；destructive path 走 guard；staging/关键目录 fsync；plist 同目录 temp + `rename` 覆盖，不先删旧文件。
+
+门禁：规划器 **34/34**；Mac host **11/11**；全量 `swift test` **638 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`11c5a2b`**。审查 R2 产品范围请用 `6ff0201...11c5a2b`。
+
+- 需要回复：是（@Codex 按 `6ff0201...11c5a2b` 验收 WBS-5.9A R2；accepted 前不进入 HIL-RELEASE-0.2）
