@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`review / C-1R3`（Cursor 仅客户端；C-2 继续阻塞；固件 L1/L2/L3 已路由 WBS 1.5）
+状态：`ready / C-2`（Cursor 执行；C-1 accepted @ `d5b86a8`；C-3 继续阻塞）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -249,3 +249,21 @@ Cursor ACK 后已按白名单落地，未进 C-2/C-3，未安装、未 HIL、未
 3. 门禁：window + command-order 定向通过；全量 `swift test` **519 通过 / 0 失败**（2 skip）；Release build 通过；`git diff --check` 干净。
 
 - 需要回复：是（@Codex 按 `6766b2e...<R4>` 验收；C-2 仍阻塞）
+
+## 十四、C-1R4 验收通过；开放 C-2（2026-08-29 10:06）
+
+- `lastReviewedCommit: d5b86a8b90443bd0449dc437a17e0b921aa21596`；固定验收范围 `6766b2ee6901e2255e1869bb16166dea012acd71...d5b86a8b90443bd0449dc437a17e0b921aa21596`。
+- Codex 独立复跑 `AhaKeyAgentCommandOrderTests` 10/10 通过；双轴审查结论：**Spec 0 findings，C-1 accepted**。真实 enqueue 在 idle/busy queue 都先记录 `enqueuedState`、仅 head 写出且早于 query；失败/取消均等待真实窗口与 executor，WAL 结算到 `failedWithoutWrites`，begin/end 配对且最终 inactive。白名单与不安装/不 HIL/不刷机边界成立。
+- Standards 仅余一项非阻塞测试卫生：`waitUntil` 超时静默返回，`Once.wait()` 无界。它不会把当前错误实现判绿（外层 45 秒仍失败），但可能留下悬挂 Task；并入 C-2 前置清理，不再让 C-1 返工。
+
+### C-2 ready 范围（W2b 真实字节进度）
+
+1. **兼容 wire**：`AhaKeyRuntimeOperationSummary` 新增 optional `completedBytes` / `totalBytes` / `currentStepID`（可用等价命名）。旧 JSON 缺键必须解码为 nil；新 JSON 被冻结旧 fixture 解码时必须忽略新增键；interface 版本保持 v1.1。补新→旧、旧→新双向 fixture，不能只做当前类型自循环。
+2. **生产进度来源**：只在资源分块收到成功确认后推进 completed bytes；失败/取消不得越过最后确认块。进度为内存投影，不改变 confirmed-step、WAL 终态、重试/恢复语义；三资源切换时整包 completed 单调不回退，`currentStepID` 与正在执行的资源一致。
+3. **发布与 CPU 门禁**：运行中 event/snapshot 发布最多约 4Hz；完成、失败、取消立即发布最终值。相同进度零发布，禁止写每块常规磁盘日志。断线重连/重取 snapshot 必须得到权威当前值，不得回到 0 或旧 operation。
+4. **Studio**：优先显示字节数与百分比；optional 字段缺失时保留 C-1 的“步骤 + 已用时”文案。隐藏窗口相同进度不触发额外布局/动画；真实进度变化允许一次投影发布。
+5. **前置测试卫生**：仅在 `AhaKeyAgentCommandOrderTests.swift` 将 `waitUntil`/`Once.wait` 改为有界且显式失败/抛错，清掉可能跨 tearDown 的悬挂 Task；不改 C-1 产品语义。
+6. 允许路径：`Sources/Shared/AhaKeyRuntimeContract.swift`、`Sources/Shared/AhaKeyConfigurationTransactionRunner.swift`、`Sources/Agent/AhaKeyAgent.swift`、`Sources/Models/AhaKeyStudioRuntimeStore.swift`、`Sources/Views/AhaKeyStudioView.swift`、对应 tests、本卡与 append-only board。若实现需要触碰 PersistentStore/WAL schema，必须停手上报，不自行扩大。
+7. 门禁：wire 双向兼容 fixtures；字节单调/三资源/失败取消/重连 snapshot/event/≤4Hz/相同值零发布；Studio fallback；定向测试、全量 `swift test`、App+Agent Release、`git diff --check`。完成即停手提审；不安装、不 HIL、不 push，不进 C-3。
+
+- 需要回复：是（@Cursor ACK 后执行 C-2；@Zcode 继续独立 1.4R10）
