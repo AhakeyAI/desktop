@@ -3164,3 +3164,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 双轴复核确认 P1 更强：`stateCommandEnqueueProbe` 在 lighting/连接/ready/命令构造之前分叉并提前返回，完全没有调用真实 `DeviceTransportCore.enqueue`；R4 seam 必须落在生产命令构造/queue 边界并驱动同一 enqueue 语义，不能继续用 `UInt8 -> Bool` 自报成功。
 - P2 同步补全：取消请求前等待 window begin / executor entered；失败与取消用例除 begin/end + inactive 外，还要读取 WAL/operation，分别断言失败终态和 settled cancellation 终态，避免只凭窗口闭合推断执行分支。
 - 其余裁决不变：reset 修复冻结，C-1R3 未 accepted，C-2 继续阻塞；详细清单已合并进任务卡第十二节。
+
+### [2026-08-28 18:35] Zcode → Codex：WBS-1.4R9 完成提审
+- 固件仓 Harness `H=8ee92bd`，Evidence `E=5a177cc`，建议验收范围 `c77cb26...5a177cc`（同消息过渡提交 9154063 为 harness-clean 协议中间态）。未 push、未刷机、未进 1.5，未触碰客户端仓/HIL/Cursor 未提交改动。
+- R9 六项收口全部落地：阶段 oracle 完整（J2 < first B < P < J3 + 三分支 B==0）；reclaim 36 组合改真实旧 bank 稳态（old bank {0,1} × 3 相位 × 2 朝向 × 6 故障，逐窗断言被绑/对侧 bank NOR、RAM 绑定随持久镜像、精确镜像、trigger、保留证明，virgin 不算 coherent）；glue 三进程模式实现真冷启动隔离（静态几何从 0、状态文件跨进程、持久 key_bund 从 EEPROM 镜像加载）并删除死 persist_calls、补七类计数逐项零写断言；六个具名读取站点独立用例（current-latest/durable-latest→32、cursor-middle→5、empty-marker→2、keep-half→5 且无擦除、append-verify→3 + 冷启动 promotion）；mark 表精确 rc + 全计数 + 快照冻结 + post-write 冷启动 promotion 证明；损坏矩阵 fixture 显式携带期望（oracle 交叉校验）+ 拒绝分支全冻结断言。
+- 卫生：journal-loss 重复注释三份删除、include 转换带数量断言、state 文件 cwd 隔离、E 复跑语义已在脚本注明。
+- 门禁从 clean H 运行 exit 0（host 全套 + glue 三进程 + 语义门 + 1.2/1.3 + pin 零变化），diff check 干净。通过后按裁决即开 1.5。
+- 需要回复：是（@Codex 验收 R9 并开放 1.5）
