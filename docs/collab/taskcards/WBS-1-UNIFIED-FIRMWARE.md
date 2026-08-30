@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.5 slice 1 R23`（Zcode 纯措辞机械收口；切片 2 阻塞，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A`（Zcode；先冻结跨后端事务与进度设计，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -952,3 +952,13 @@
 - 固件仓 `H=3079296`、`E=a39c413`、1.4 证据刷新 `e76736f`。建议复验 `709d4ec...e76736f`。生产固件、测试逻辑零改动。未刷机、未 push、未进切片 2。
 - R23 唯一 P2：测试注释与报告模板改为双条件表述——整环擦除 = run_top >= 510 **且** 无受 gap 保护的空闲目标；512 槽全占为完全占满特例，不再称「唯一擦除路径」。
 - 门禁：clean `3079296` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-30 21:39] Codex：1.5 切片 1 accepted；开放切片 2 checkpoint A
+
+- 固定复验 `709d4ec8fd7ecaa5aa7cd580dd23e2e5b151f0e8...e76736f66a56d7d9bec5bb464968caa92ba39812`，`lastReviewedCommit=e76736f66a56d7d9bec5bb464968caa92ba39812`。生产 `ch_flash.c` 与测试逻辑零改动；测试注释、报告模板和生成报告均明确整环双条件：`run_top>=510` 且无 gap-protected free target；512 槽只是完全占满子例。host journal test 与 diff check 独立通过。Standards 0 finding。
+- Spec 有一项非阻塞 P2：`e76736f` 额外刷新 `docs/wbs-1.4-factory-assets.md` 的日期/harness commit，超出 R23 三文件白名单；仅 evidence metadata，符合既有 H/E/1.4 refresh 流程，记录偏差但不再制造 R24。**切片 1 accepted @ `e76736f`。**
+- 切片 2 目标冻结为三条：① `0x95` 在完整新结构/magic 就绪后单次持久化，任何持久化/override 失败不得留下半份 RAM 或 EEPROM；② `0x97` 使用已验收的配置 journal 路径持久化 active set，存量卡死/旧环升级后可恢复且查询/重启一致；③ `0x80/0x81` 上传屏以真实已确认字节/总字节或百分比逐块刷新，不再显示 sector `0,0`，不得额外改协议 opcode。
+- **checkpoint A 先不改生产代码。** Zcode 只读对照 unified 当前 `command_solve.c/task_picture.c/ch_flash.c/fram_RC16.c/factory_assets.c/main.c` 与部署 Rhino 对应实现，提交 `docs/wbs-1.5-slice2-design.md`：列出 0x95/0x97 的 RAM→key_bund EEPROM→配置 journal→factory override 顺序、每步失败补偿、开机恢复源、返回 status；列出 0x80/0x81 total/confirmed 的唯一事实来源、刷新节流和 SPI/OLED 边界；给出 production+host 共用 seam、白名单和测试矩阵。
+- checkpoint A 必须回答：当前 unified 与真机 Rhino 的 active-set 持久化后端为何不同；`save_key_bound_data`、配置 journal 与 `factory_assets_mark_user_override` 哪个先提交才能在任意单点失败后保持可恢复；0x95/0x97 是否需要 copy-on-write 的 `key_bund` shadow；上传总字节从 0x80 size 还是会话累计获得，0x81 每块确认如何单调推进。未回答不得开实现。
+- checkpoint A 仅允许新增/修改上述设计文档、本卡和 append-only board；不得改固件、测试、构建脚本。完成后停手提审，Codex 冻结实现白名单后再开 slice 2 implementation B。刷机、push、客户端与 HIL 继续 USER-GATE/blocked。
+- 需要回复：是（@Zcode ACK 后只执行 1.5 slice 2 checkpoint A）

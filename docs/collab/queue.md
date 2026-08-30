@@ -20,7 +20,7 @@
 | 4A | `HIL-RUNTIME-1-HOOK-SERVER` | Kimi；Cursor 验证 | §15.0-4 返工 | accepted | Codex 11:50：User 确认 11:38 bootout；listen+三态独立证据；`fa6c02e` |
 | 5 | `WBS-5.4-LIFECYCLE` | Kimi | 5.4 | accepted | Codex 17:02：HEAD `762863d`；独立 pmset Agent 64088 持断言；无 Studio UI；双 socket；定向 21 测通过 |
 | 6 | `WBS-0-RISK-CLOSURE` | Kimi | 0.2-0.7 | accepted | Codex 19:01：macOS 证据独立复核；Windows 0xEE / USB 枚举 / SDK Link.ld 延期；不启动 WBS-1 直至固件工作树冻结 |
-| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | active / 1.5 slice 1 R22 | R21 阈值证明通过；补完整 28B patch/baseline memcmp 与清理唯一 512 槽旧措辞，切片 2 阻塞 |
+| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.5 slice 2 checkpoint A | slice 1 accepted @ `e76736f`；先冻结 0x95/0x97 持久化与逐块进度事务设计，不刷机 |
 | 8 | `WBS-2-PLATFORM-VOICE` | Zcode | 2.1-2.8 / v0.4 | draft | WBS 1 accepted |
 | 9 | `WBS-3-LEVER-MACROS` | Zcode | 3.1-3.6 / v0.5 | draft | WBS 2 accepted |
 | 10A | `WBS-4-STUDIO-V4` | Cursor | 4.1-4.4 / v0.4 | draft | WBS 2 accepted；只开平台/语音 UI slice |
@@ -37,7 +37,7 @@
 | 15C | `DEVICE-PERSIST-AND-UPLOAD-UX` | Cursor；固件路由 Zcode/WBS 1.5 | HIL C1 跨端缺口 | accepted / C-3 | C-1/C-2/C-3 accepted @ `3bc52b2`；固件遗留继续由 WBS 1.5 闭环 |
 | 15D | `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` | Cursor | HIL C1 编辑/受理缺口 | accepted / E-1 | 双轴 0 findings；最终产品 `dccfc39`；HIL-E1 归 v0.3 |
 | 15E | `RELEASE-0.2-COMPATIBILITY` | Cursor | v0.2 功能策略 | accepted / C-2 | 双轴验收通过；最终产品 `d9d2cbb` |
-| 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | active / R2 | `6ff0201` 暂不 accepted；补真实 owner 状态、精确回滚、Agent 签名/完整性、全路径与 fsync 边界 |
+| 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | active / R3 | `11c5a2b` 暂不 accepted；补 mutation receipt、精确 plist/终态、全路径 guard 与 launchctl 错误传播 |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | draft / USER-GATE | 15E、15F accepted；真实当前量产键盘在场 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
