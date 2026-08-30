@@ -1,0 +1,224 @@
+===== TIME =====
+Sun Aug 30 23:12:18 +08 2026
+===== WHOAMI / UID =====
+uid=501(heartline) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),79(_appserverusr),80(admin),81(_appserveradm),701(com.apple.sharepoint.group.1),33(_appstore),98(_lpadmin),100(_lpoperator),204(_developer),250(_analyticsusers),395(com.apple.access_ftp),398(com.apple.access_screensharing),399(com.apple.access_ssh),400(com.apple.access_remote_ae)
+===== DEVELOPER ID IDENTITIES =====
+  1) 9E44F53DE4B97D256AC7DA1F5DA893DEED48B270 "Developer ID Application: Xinyang Zhang (P2VFVRZK7P)"
+===== KEYCHAIN TEAM P2VFVRZK7P =====
+  1) 9E44F53DE4B97D256AC7DA1F5DA893DEED48B270 "Developer ID Application: Xinyang Zhang (P2VFVRZK7P)"
+  2) 6E433F853764B6F93ACBD4F7D4DDCCBC51B311FD "3rd Party Mac Developer Application: Xinyang Zhang (P2VFVRZK7P)"
+===== NOTARY PROFILES (names only) =====
+===== APPLICATIONS APP =====
+drwxr-xr-x@ 3 heartline  admin  96 Aug 21 14:58 /Applications/AhaKey Studio.app
+0.1.0
+70
+lab.jawa.ahakeyconfig
+Executable=/Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+Identifier=lab.jawa.ahakeyconfig
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=18817 flags=0x10000(runtime) hashes=577+7 location=embedded
+VersionPlatform=1
+VersionMin=786432
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e
+CandidateCDHashFull sha256=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e739a514e036225f42684ca52
+Hash choices=sha256
+CMSDigest=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e739a514e036225f42684ca52
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=2654208
+Executable Segment flags=0x1
+Page size=16384
+CDHash=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e
+Signature size=9047
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Aug 21, 2026 at 14:58:25
+Info.plist entries=16
+TeamIdentifier=P2VFVRZK7P
+Runtime Version=26.4.0
+Sealed Resources version=2 rules=13 files=8
+Internal requirements count=1 size=184
+--- agent ---
+Executable=/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+Identifier=ahakeyconfig-agent-555549441d6f64469a91355fabdbeb1c3bab6890
+Format=Mach-O thin (arm64)
+CodeDirectory v=20400 size=6804 flags=0x2(adhoc) hashes=206+2 location=embedded
+VersionPlatform=1
+VersionMin=786432
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=296765c1ca45e8e84a68c76f0f822f794218c0d2
+CandidateCDHashFull sha256=296765c1ca45e8e84a68c76f0f822f794218c0d2d0b97815845df7d402c562fc
+Hash choices=sha256
+CMSDigest=296765c1ca45e8e84a68c76f0f822f794218c0d2d0b97815845df7d402c562fc
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=1064960
+Executable Segment flags=0x1
+Page size=16384
+CDHash=296765c1ca45e8e84a68c76f0f822f794218c0d2
+Signature=adhoc
+Info.plist=not bound
+TeamIdentifier=not set
+Sealed Resources=none
+Internal requirements count=0 size=12
+===== LOGIN ITEMS / SMAPPSERVICE =====
+                 Name: AhaKey Studio
+       Developer Name: (null)
+                 Type: legacy agent (0x10008)
+                Flags: [ legacy ] (0x1)
+          Disposition: [enabled, allowed, notified] (0xb)
+           Identifier: 8.lab.jawa.ahakeyconfig.agent
+                  URL: file:///Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+      Executable Path: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+           Generation: 1
+    Parent Identifier: Unknown Developer
+
+ #3:
+                 UUID: 39464DBA-44C4-494A-8EAE-5B1306F7ACB4
+                 Name: ahakeyconfig-agent
+       Developer Name: (null)
+                 Type: legacy agent (0x10008)
+                Flags: [ legacy ] (0x1)
+          Disposition: [enabled, allowed, notified] (0xb)
+           Identifier: 8.lab.jawa.ahakeyconfig.agent.hil
+                  URL: file:///Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+      Executable Path: /tmp/ahakey-hil-bin/ahakeyconfig-agent
+           Generation: 2
+    Parent Identifier: Unknown Developer
+
+ #4:
+                 UUID: FE53FED0-E335-4D9F-A9CA-284BFC059A55
+                 Name: Baidu (China) Co., Ltd
+       Developer Name: Baidu (China) Co., Ltd
+                 Type: developer (0x20)
+                Flags: [  ] (0)
+          Disposition: [disabled, allowed, not notified] (0x2)
+           Identifier: Baidu (China) Co., Ltd
+                  URL: (null)
+           Generation: 1
+
+ #5:
+                 UUID: A417A70D-5839-4BE6-A478-B15C53C1FFD5
+                 Name: 百度网盘
+       Developer Name: Baidu (China) Co., Ltd
+      Team Identifier: 738UU3Y57V
+                 Type: legacy agent (0x10008)
+===== LAUNCHCTL DOMAIN =====
+		       0      - 	lab.jawa.ahakeyconfig.agent.hil
+		       0    M   D   lab.jawa.ahakeyconfig.runtime
+		"lab.jawa.ahakeyconfig.agent" => disabled
+===== LAUNCHCTL PRINT OFFICIAL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent" in domain for user gui: 501
+===== LAUNCHCTL PRINT HIL =====
+gui/501/lab.jawa.ahakeyconfig.agent.hil = {
+	active count = 0
+	path = /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /tmp/ahakey-hil-bin/ahakeyconfig-agent
+	arguments = {
+		/tmp/ahakey-hil-bin/ahakeyconfig-agent
+		--socket
+		/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+	}
+
+	working directory = /tmp/ahakey-hil-bin
+
+	stdout path = /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/agent-hil.log
+	stderr path = /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/agent-hil.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.dX9pAChkNa/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		NSUnbufferedIO => YES
+		XPC_SERVICE_NAME => lab.jawa.ahakeyconfig.agent.hil
+	}
+
+	domain = gui/501 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 0
+	last exit code = (never exited)
+
+	endpoints = {
+		"lab.jawa.ahakeyconfig.runtime" = {
+===== PLISTS =====
+-rw-r--r--@ 1 heartline  staff  1120 Aug 27 20:47 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+-rw-r--r--@ 1 heartline  staff   874 Aug 26 19:45 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+===== PROCESSES =====
+heartline        38086   1.9  0.9 1892343344 156000   ??  S     9:22PM   1:11.85 Cursor Helper (Plugin): extension-host ahakeyconfig-main [1-6]                      
+heartline        57707   1.0  0.0 435308816   1904   ??  Ss   11:12PM   0:00.02 /bin/zsh -c builtin export PATH="/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"; snap=$(command cat <&3); builtin unsetopt aliases 2>/dev/null; builtin unalias -m '*' 2>/dev/null || true; builtin eval "$snap" && { builtin unsetopt nounset 2>/dev/null || true; builtin eval "${__CURSOR_SANDBOX_ENV_RESTORE:-}" 2>/dev/null; builtin export PWD="$(builtin pwd)"; builtin setopt aliases 2>/dev/null; builtin eval "$1" < /dev/null; }; COMMAND_EXIT_CODE=$?; dump_zsh_state >&4; builtin exit $COMMAND_EXIT_CODE -- EVIDENCE="/Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-RELEASE-0.2-20260830"\012mkdir -p "$EVIDENCE/raw"\012{\012  echo "===== TIME ====="\012  date\012  echo "===== WHOAMI / UID ====="\012  id\012  echo "===== DEVELOPER ID IDENTITIES ====="\012  security find-identity -v -p codesigning 2>&1 | grep -E 'Developer ID Application|Apple Development' || true\012  echo "===== KEYCHAIN TEAM P2VFVRZK7P ====="\012  security find-identity -v -p codesigning 2>&1 | grep -F 'P2VFVRZK7P' || echo "NO_IDENTITY_FOR_P2VFVRZK7P"\012  echo "===== NOTARY PROFILES (names only) ====="\012  ls -1 ~/Library/Application\ Support/xcode.notarytool 2>/dev/null || true\012  defaults read ~/.notarytool 2>/dev/null | head -n 20 || true\012  echo "===== APPLICATIONS APP ====="\012  APP="/Applications/AhaKey Studio.app"\012  if [[ -d "$APP" ]]; then\012    ls -ld "$APP"\012    defaults read "$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null || true\012    defaults read "$APP/Contents/Info" CFBundleVersion 2>/dev/null || true\012    defaults read "$APP/Contents/Info" CFBundleIdentifier 2>/dev/null || true\012    codesign -dv --verbose=4 "$APP" 2>&1 | sed -n '1,40p'\012    echo "--- agent ---"\012    codesign -dv --verbose=4 "$APP/Contents/MacOS/ahakeyconfig-agent" 2>&1 | sed -n '1,30p'\012  else\012    echo "APP_MISSING"\012  fi\012  echo "===== LOGIN ITEMS / SMAPPSERVICE ====="\012  sfltool dumpbtm 2>/dev/null | grep -A 20 -i 'ahakey\|lab.jawa' || echo "sfltool_no_ahakey_or_unavailable"\012  echo "===== LAUNCHCTL DOMAIN ====="\012  launchctl print "gui/$(id -u)" 2>/dev/null | grep -i 'ahakey\|lab.jawa' || echo "no_ahakey_in_gui_domain_summary"\012  echo "===== LAUNCHCTL PRINT OFFICIAL ====="\012  launchctl print "gui/$(id -u)/lab.jawa.ahakeyconfig.agent" 2>&1 | sed -n '1,80p'\012  echo "===== LAUNCHCTL PRINT HIL ====="\012  launchctl print "gui/$(id -u)/lab.jawa.ahakeyconfig.agent.hil" 2>&1 | sed -n '1,40p'\012  echo "===== PLISTS ====="\012  ls -la ~/Library/LaunchAgents/lab.jawa.ahakeyconfig* 2>&1 || true\012  echo "===== PROCESSES ====="\012  ps auxww | grep -i '[Aa]ha[Kk]ey\|ahakeyconfig' || echo "no_ahakey_processes"\012  echo "===== BLUETOOTH ====="\012  system_profiler SPBluetoothDataType 2>/dev/null\012} > "$EVIDENCE/raw/gate0-preflight.txt" 2>&1\012echo "wrote $EVIDENCE/raw/gate0-preflight.txt"\012wc -l "$EVIDENCE/raw/gate0-preflight.txt"
+heartline        57856   0.0  0.0 410059936    176   ??  R    11:13PM   0:00.00 grep -i [Aa]ha[Kk]ey\|ahakeyconfig
+===== BLUETOOTH =====
+Bluetooth:
+
+      Bluetooth Controller:
+          Address: B8:E6:0C:27:74:51
+          State: On
+          Chipset: BCM_4387
+          Discoverable: Off
+          Firmware Version: 23.1.623.4110
+          Product ID: 0x4A06
+          Supported services: 0x392039 < HFP AVRCP A2DP HID Braille LEA AACP GATT SerialPort >
+          Transport: PCIe
+          Vendor ID: 0x004C (Apple)
+      Connected:
+          AhaKey 515C:
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+              Services: 0x400000 < BLE >
+      Not Connected:
+          AhaKey 507C:
+              Address: D4:6C:50:7C:C9:BC
+          AhaKey X1:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Product ID: 0x501A
+              Minor Type: Keyboard
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+          DJI Mic Mini-6D4A62:
+              Address: 88:29:85:6D:4A:62
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+          iKF-Fly Pro:
+              Address: F9:2D:6B:D7:44:FF
+              Firmware Version: 0.0.0
+              Minor Type: Headset
+          Keyboard K380:
+              Address: F4:73:35:AB:7C:32
+              Vendor ID: 0x046D
+              Product ID: 0xB342
+              Firmware Version: 66.0.1
+              Minor Type: Keyboard
+          LOGI M240 B:
+              Address: DF:C3:DA:87:ED:D0
+              Minor Type: Mouse
+          qu的MacBook Pro:
+              Address: EF:9F:01:09:73:A5
+          “尹朔”的鼠标:
+              Address: 10:94:BB:9F:36:3E
+              Vendor ID: 0x004C
+              Product ID: 0x0269
+              Firmware Version: 3.1.1
+              Minor Type: Mouse
+

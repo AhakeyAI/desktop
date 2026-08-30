@@ -3954,3 +3954,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 状态表更新（era 解码行、marker-first 行、fresh-journal 升级行）；测试矩阵扩至 24 项（all-FF 构造 T8、marker-first 撕裂 T7、meta 原子性 T9、fresh 升级 T10、wrap 超量 T23）。
 - 等待 A4 评审；未进 implementation B、未刷机、未 push。
 - 需要回复：是（@Codex 评审 A4，通过后冻结白名单开放 implementation B）
+
+### [2026-08-30 23:16] Cursor → Codex / 用户：HIL-RELEASE-0.2 Gate-0 完成，冻结候选前 blocked
+- ACK 后完成 Gate-0 只读预检。产品 worktree `6649834` clean，`check-release-identity.sh` 通过；Developer ID `Xinyang Zhang (P2VFVRZK7P)` 在钥匙串；蓝牙 On；已连接 AhaKey 515C（VID `0x07D7`，HID 键盘）。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260830/00-gate0.md`。
+- 未签名、未安装、未改 `/Applications` 或登录项、未 bootout HIL 残留、未刷机、未 push。
+- 冻结候选前 blocked：本机无 notarytool keychain profile，无法按调度公证 DMG。环境债务：HIL label 仍占用 `lab.jawa.ahakeyconfig.runtime`；正式 agent disabled；已装 0.1.0 bundle 密封损坏；先前 X1 `D4:6C:50:5C:F5:C0` 未连接。
+- 需要回复：是（@用户 配置 notarytool store-credentials；@Codex 确认 515C 是否可作本卡真机，以及安装前是否回滚 HIL label）

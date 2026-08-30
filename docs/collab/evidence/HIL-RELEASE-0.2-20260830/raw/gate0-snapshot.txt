@@ -1,0 +1,44 @@
+===== SHA256 SNAPSHOTS =====
+61da75e0ece09f3bf422770aa707b7cb99af865ff4d004e2b1e1da9d84055804  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+bb8df32368e672103e1632b74fbf14d36124eeaef5b61f77ac7709003f6ed923  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+577b0d49c6dce8dedac2b7462842e3cbe68231b69f9aa9539fa88bacc7c8f919  /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+d75e828ea8c11e845e7b2fcd90b401ba3afaf44ea392f4cb2283ecce90e73df8  /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+===== CODESIGN VERIFY APP =====
+/Applications/AhaKey Studio.app: a sealed resource is missing or invalid
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak10
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak5
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak8
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak9
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak6
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak2
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.backup-20260825-2252
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak7
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak3
+file added: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent.ahk-bak4
+file modified: /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+===== CODESIGN VERIFY AGENT =====
+/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent: valid on disk
+/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent: satisfies its Designated Requirement
+===== SPCTL =====
+/Applications/AhaKey Studio.app: a sealed resource is missing or invalid
+===== NOTARYTOOL =====
+notarytool_present
+Error: No Keychain password item found for profile: notarytool
+
+Run 'notarytool store-credentials' to create another credential profile.
+Error: No Keychain password item found for profile: AC_PASSWORD
+
+Run 'notarytool store-credentials' to create another credential profile.
+security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.
+===== HID / USB =====
+no_usb_ahakey
+  File "<stdin>", line 1
+    Services:
+             ^
+SyntaxError: invalid syntax
+===== BLUEUTIL / DEFAULTS =====
+===== HID KEYBOARD CONFIRM =====
+Product=AhaKey 515C Transport=BLE VendorID=2007(0x07D7) DeviceUsagePage=1 DeviceUsage=6 (Keyboard)
+Address=D4:6C:51:5C:F5:B4
+Frozen X1 D4:6C:50:5C:F5:C0 / PID 0x501A = Not Connected

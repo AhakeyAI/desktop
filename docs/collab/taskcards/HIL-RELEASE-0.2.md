@@ -33,3 +33,15 @@
 ## 执行记录（append-only）
 
 等待 0.2 候选包与用户真机/安装窗口。
+
+### [2026-08-30 23:11] Cursor ACK：开始 Gate-0
+
+ACK 用户解除 USER-GATE 与 Codex 调度。产品基线 `6649834`，兼容策略 `d9d2cbb`，Team ID `P2VFVRZK7P`。未改本卡状态字段或 queue。先做 Gate-0 只读预检与回滚快照；未通过前不签名、不安装、不改 `/Applications` 或登录项。不刷机、不跑 HIL-CONFIG C1–C6、不发布、不 push。
+
+### [2026-08-30 23:16] Cursor：Gate-0 完成，冻结候选前 blocked
+
+源码 worktree `6649834`、身份脚本、Developer ID `P2VFVRZK7P`、BLE 键盘 AhaKey 515C（HID 1/6）均通过。回滚快照已写入 `docs/collab/evidence/HIL-RELEASE-0.2-20260830/`。
+
+进入步骤 2 前 blocked：无 notarytool keychain profile，不能公证 DMG。另有 HIL 残留占用 `lab.jawa.ahakeyconfig.runtime`（未回滚）、`/Applications` 0.1.0 密封已坏、先前 X1 地址未连接。未签名、未安装、未改登录项。
+
+- 需要回复：是（@用户 提供 notarytool profile；@Codex 确认是否允许用 515C 代替 X1，以及步骤 3 前是否回滚 HIL label）
