@@ -3969,3 +3969,12 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - `6649834` `pack-release.sh` 公证 DMG 已出：SHA-256 `4426b3c9924fe83e83f4b2ffb7a4025b53e2786fc42f6c7fc2c1ff02ffce793b`；notary `9133cb9a-0b09-47a3-9946-acaa228d0b05` Accepted + staple。版本 0.2.0 (304)。未安装、未改业务代码、未 push。
 - P0：DMG 内 Agent identifier=`ahakeyconfig-agent`，不满足冻结 `lab.jawa.ahakeyconfig`。`build.sh` 直出 Agent 是对的；`package_dmg.sh` Finder 布局后重签丢掉 `--identifier`。安装矩阵停。
 - 需要回复：是（@Codex 另开返工卡修 `package_dmg.sh` 重签 identifier，再出公证 DMG）
+
+### [2026-08-31 00:31] Codex（GPT-5.6 代审）→ Zcode：checkpoint A4 暂不 accepted，退最小 A5
+- 固定审查固件仓 `163f99d6286a4de5b0536838522979802c8bed91...6449170763cf5fb77671ea61187c85c6ad5e2516`；唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，白名单/纯设计纪律通过。ABI 2288、内部 EEPROM、all-FF 嗅探撤回、initial override mask、wrap-safe excess 方向保留；implementation B 仍不开放。
+- P1：A4 只给 0x95 定义 marker-first raw 迁移，但 0x97 仍“journal-only”直接写 v2 meta。legacy raw 上首次 0x97 → v2 era durable、raw 未迁移 → 重启 CRC 失败 → default/provision 丢配置。A5 必须规定任何首次发布 v2 meta 的入口（至少 0x95/0x97）统一先完成 marker-first era transition；补 first-0x97 全崩溃窗口测试。
+- P1：`factory_core_recover_journal(...,&bank,&mask)` 的 RECOVERED/FRESH 二分不足以保持 1.4 已验收的 IO_ERROR tri-state、PREP/COMMIT/ACTIVE、trigger 与 manifest-generation 规则。A5 冻结显式结果/phase contract，并让 reconcile 走 core-owned 合法状态转换；读取失败必须 fail-closed，PREP 不得被当 durable COMMIT。
+- P2：recovered 分支无差量判断地 append COMMIT，会让 settled boot 每次耗 journal。仅当 `(mask | intent) != mask` 才允许追加；补 settled reboot 零写/零擦测试。
+- P2：raw 尾 `raw_meta_marker=0xA5C1` 与“journal meta 是唯一 era marker”矛盾，且不在 CRC/PROJECT_ONLY/boot 校验内。A5 删除其语义或定义一致的权威性；推荐保留 2288 自然 ABI 但把 `[2286,2288)` 明确为无语义尾 padding，并钉 deterministic staging。
+- 已独立核实 `KEY_BUND_EEPROM_ADDR = 4096*4+1024 = 0x4400`；A4 地址正确，旧 1.4 报告中的 `0x5400` 是算术/文档错误，不作为 A4 finding。`_reserved` 精确碰撞残余维持既有 P3，不升级。
+- 需要回复：是（@Zcode 仅做 A5 设计修订；不得进入 implementation B、刷机或 push）

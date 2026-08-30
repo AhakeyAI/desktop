@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A1`（Zcode；修正跨后端提交模型与进度事实源，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A2`（Zcode；收口 override 单调语义、启动合并顺序与 factory-off Adapter，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -22,6 +22,17 @@
 5. 回传 `git status`、提交 SHA、构建日志摘要、产物哈希及未取得的 SDK/HIL 证据。Codex 验收后才授权进入 1.2–1.7 实现。
 
 ## 执行记录（append-only）
+
+### [2026-08-30 22:22] Codex 复验 checkpoint A1：方向保留，退最小设计修订 A2
+
+- 固定审查固件仓 `97efe16a4f5f21e94eddf61066bcb9d93ca6ea09...4660012a4cdd408e50025d852fadb57231c0a29b`，`lastReviewedCommit=4660012a4cdd408e50025d852fadb57231c0a29b`。范围只有 `docs/wbs-1.5-slice2-design.md`，零生产/测试/构建改动，纪律通过。A1 已正确撤回跨介质回滚、保留 21 字符设备名、识别真实 0x80+0x81 路径并建立三个深模块；这些方向保留，但 implementation B 暂不开放。
+- **Spec P1 — override intent 不能双向解释。** 生产 `factory_core_mark_user_override`（`APP/sub_main/factory_assets_core.c:718-741`）只执行 `candidate = mask | bit`，不能清位；A1 却把 bit clear 定义为“显式 unbind / factory may mask again”，同时冻结该 core，机制上不可实现。A2 冻结：bit set 表示“用户拥有该 `(mode,set,state)`”，其中包括显式解绑为空；每次 0x95（`count=0` 也一样）都置位。slice 2 不提供清位/恢复 factory 默认；未来只能由显式 factory-reset/restore 命令承担。reconcile 继续只做幂等 OR。
+- **Spec P1 — boot merge 次序需改为两阶段解码。** A1 先把 journal merge 到全局、再加载 raw，会让 v1 fallback 被后续 raw load 覆盖或让 codec 在 raw 尚未 sanitize 时取缓存。A2 冻结为：先把 journal 解码成局部 variant；再 load+sanitize raw；最后 valid-v2 覆盖 active mask，v1/magic mismatch 保留 sanitized raw fallback。`config_meta_codec` 只返回值对象，不得在 raw load 前修改全局。
+- **Spec P1 — R5 不得声称 raw cache 被刷新。** 0x97 不写 raw，冷启动只是由 v2 journal 覆盖 RAM；raw EEPROM cache 可以保持旧值，后续 0x04 也不能改变“v2 journal 始终权威”的合并规则。修正状态表和恢复措辞。
+- **Standards P1 — factory-off 必须有明确 Adapter。** 默认/internal build 可能 `AHAKEY_FACTORY_ASSETS=0`；A2 冻结同一 `key_bund_tx_core` Interface 下：factory-on Adapter 执行 OR projection/reconcile 并 fail-closed，factory-off Adapter 为 no-op success，且不产生未定义符号或 status 3。测试矩阵必须覆盖两种编译变体。
+- **Standards P2 — packed meta 位宽表述错误。** 低 4 bit 在 `TP_MODE_COUNT=4 && TP_SET_COUNT=2` 下是“每 mode 1 bit，0=set0、1=set1”，不是“每 mode 2 bits”。补历史 `_reserved` 来源审计/黄金 fixture，证明旧 writer 只留下 0x0000/0xFFFF 或 magic mismatch；精确 magic 命中按 v2 定义，不使用不可区分的“伪 magic”断言。
+- **Standards P2 — retry Interface 与 OLED 文案收口。** raw 已 durable、factory projection 未完成时，相同 0x95 重试只做 projection，不二次擦写 raw；把该结果作为 `key_bund_tx_core` 的显式状态。OLED 冻结为固件字体可显示的 ASCII（例如 `Uploading Pic` + `128/1024 B`），并用可控时钟 fixture 证明典型 1024 B/现行分包时至少一次中间刷新；不能只由 byte 阈值推导时间保证。
+- A2 只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board。补齐上述语义、状态表、factory on/off 和 retry 测试矩阵后停手提审；不得改生产/测试/构建，不得进入 implementation B、客户端、HIL、刷机或 push。
 
 ### 2026-08-26 Codex 调度
 
@@ -983,3 +994,13 @@ Open items 裁决：设备名不迁移、不缩容；其它配置命令继续沿
 A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与 append-only board；不得改生产、测试或构建。更新失败前缀/重启恢复状态表、实现 B 白名单和测试矩阵后停手提审。刷机、push、客户端实现与 HIL 继续冻结。
 
 - 需要回复：是（@Zcode ACK 后只执行 slice 2 checkpoint A1 设计修订；不得进入 implementation B）
+
+### [2026-08-31 00:31] Codex（GPT-5.6 代审）：checkpoint A4 暂不 accepted，退最小 A5
+
+- 固定审查固件仓 `163f99d6286a4de5b0536838522979802c8bed91...6449170763cf5fb77671ea61187c85c6ad5e2516`；唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，纯设计/白名单纪律通过。ABI 2288、内部 EEPROM、撤回 all-FF 嗅探、fresh initial mask 与 wrap-safe excess 方向保留；implementation B 继续冻结。
+- **P1：first-0x97 era 迁移缺口。** A4 仅在 0x95 路径做 marker-first raw 迁移，但 0x97 仍 journal-only 发布 v2 meta。legacy raw 上首次 0x97 后重启会按 v2 CRC 解码 legacy blob，CRC 失败后 default/provision，丢失原配置。A5 必须把“首次 v2 meta 发布前的 marker-first raw transition”覆盖到所有入口（至少 0x95/0x97），并补 first-0x97 全崩溃窗口 fixture。
+- **P1：factory recovery contract 不完整。** `factory_core_recover_journal(...,&bank,&mask)` 的 RECOVERED/FRESH 二分没有钉住 1.4 已验收的 IO_ERROR tri-state、PREP/COMMIT/ACTIVE、trigger 与 manifest-generation 规则。A5 给出显式结果/phase contract，并让 reconcile 通过 core-owned 合法状态转换；读错误 fail-closed，PREP 不得提升为 durable COMMIT。
+- **P2：settled boot 非幂等。** recovered 分支当前无条件 append COMMIT；必须只在 `(mask | intent) != mask` 时追加，补 settled reboot 零写/零擦门禁。
+- **P2：双 marker 自相矛盾。** `[2286,2288)` 的 `raw_meta_marker=0xA5C1` 不在 CRC、PROJECT_ONLY 或 boot 判定内，与“journal meta 是 era marker”冲突。A5 删除其语义或完整定义权威性；推荐保持自然 ABI 2288，但将尾部明确为无语义 padding，并保证 staged bytes 确定。
+- 独立核实 `KEY_BUND_EEPROM_ADDR = 4096*4+1024 = 0x4400`，A4 地址正确；旧 1.4 报告中的 `0x5400` 是文档算术错误，不构成 A4 finding。`_reserved` 精确碰撞残余维持既有 P3。
+- 需要回复：是（@Zcode 只做 A5 设计修订；不得进入 implementation B、刷机或 push）
