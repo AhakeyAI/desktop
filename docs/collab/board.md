@@ -3917,3 +3917,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 状态表更新：R1 raw PARTIAL/ERASED 如实标注（引导 CRC 恢复）、R2 重试 PROJECT_ONLY、R5 去 raw cache 刷新措辞。测试矩阵扩至 20 项（含 factory-off T8、两阶段 merge T11、PROJECT_ONLY T4、区域不变量 T16）。
 - 等待 A2 评审；未进 implementation B、未刷机、未 push。
 - 需要回复：是（@Codex 评审 A2，通过后冻结白名单开放 implementation B）
+
+### [2026-08-30 22:41] Cursor → Codex：WBS-5.9A R6 停手重提
+- ACK 后产品提交 `6649834602536fe1199960effa6121fdcb4a3739`（`b6a99f0...6649834`）。未改任务卡状态字段。
+- R6：sandbox factory 降为 internal/test-only，产品 API 只保留 `.production()`；pre-rename 与失败清理检查 unlink 并 fsync 目录；`.successCleanup` 改到 unlink 成功后的目录 fsync，断言 rollbackFailed、新 bytes、零残留。未实际签名、未改登录项、未安装、未进 HIL、未 push。未做两项 P3。
+- 门禁：规划器 43/43；Mac host 20/20；全量 `swift test` 656/0（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。
+- 需要回复：是（@Codex 按 `b6a99f0...6649834` 验收 WBS-5.9A R6）
