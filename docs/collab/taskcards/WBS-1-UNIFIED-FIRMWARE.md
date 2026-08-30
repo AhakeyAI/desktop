@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A`（Zcode；先冻结跨后端事务与进度设计，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A1`（Zcode；修正跨后端提交模型与进度事实源，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -962,3 +962,24 @@
 - checkpoint A 必须回答：当前 unified 与真机 Rhino 的 active-set 持久化后端为何不同；`save_key_bound_data`、配置 journal 与 `factory_assets_mark_user_override` 哪个先提交才能在任意单点失败后保持可恢复；0x95/0x97 是否需要 copy-on-write 的 `key_bund` shadow；上传总字节从 0x80 size 还是会话累计获得，0x81 每块确认如何单调推进。未回答不得开实现。
 - checkpoint A 仅允许新增/修改上述设计文档、本卡和 append-only board；不得改固件、测试、构建脚本。完成后停手提审，Codex 冻结实现白名单后再开 slice 2 implementation B。刷机、push、客户端与 HIL 继续 USER-GATE/blocked。
 - 需要回复：是（@Zcode ACK 后只执行 1.5 slice 2 checkpoint A）
+
+### [2026-08-30 22:08] Codex：checkpoint A 暂不通过，退设计修订 A1
+
+固定审查 `e76736f66a56d7d9bec5bb464968caa92ba39812...97efe16`；确认固件仓只新增 `docs/wbs-1.5-slice2-design.md`、零生产/测试/构建改动且 diff check 通过。Rhino/unified 后端差异、0x80 size 作为单窗口 total、写后游标单调等调查结论可保留，但 implementation B 暂不开放，设计必须先闭合以下 P1：
+
+1. **COW shadow 不能回滚跨介质持久化。** A 文档的 `raw save → journal → override` 顺序中，raw 成功后 journal/override 失败时 EEPROM 已是 staged、全局 RAM 仍是旧值；这与“RAM==EEPROM”“raw untouched”及 T3/T4 明显矛盾。A1 改为可恢复的单调提交，不再承诺不存在的回滚：
+   - `0x95` 只把 binding、set magic 与一个新增的 **raw authoritative user-override-intent mask** 一起写入 staged `key_bund`，经 `persist_write_verify` 成功后才提交全局 RAM；随后把同一 intent 幂等投影到 factory journal。factory mark 失败返回 status 3，但 raw+RAM 已一致且 intent 仍在，重试/开机可继续投影。
+   - boot 在 `factory_assets_provision_if_needed` 前先按 raw intent reconcile factory mask；reconcile 失败必须 fail-closed，禁止 factory provision 覆盖用户 binding。显式 unbind 也由 intent bit 表达，不能通过“槽位是否为空”猜测。
+   - `0x97` 不写 raw blob：从当前 meta 构造 journal payload，journal append 成功后再更新 RAM active set；append 失败 RAM/EEPROM 都不变。raw active 字段仅为 v1 fallback/兼容缓存，v2 journal 永远优先。
+   - 新增 raw tail 字段必须证明旧 key_bund offsets 不变、0xFF tail sanitize、EEPROM 上限和 factory journal/trigger 无重叠。
+2. **28B v2 不需要迁移 device_name。** `TP_MODE_COUNT=4`、`TP_SET_COUNT=2` 时 active set 只需 4 bits。A1 冻结 `_reserved[2]` 为 16-bit packed meta：高 12 bits 固定 magic/version（提案 `0xA5C`），低 4 bits 为四模式 active mask；用 compile-time assert 锁定 4×2。其它偏移、`GAP_APPEARE` 与 21 字符设备名保持逐字节不变，删除“迁出 raw key_bund”及文档中仍保留 `device_name[17]` 的自相矛盾。v1/v2 decode/encode 收进一个纯 codec module，调用方不得直接解释 reserved bytes；补 v1 00/FF、合法 v2、伪 magic、四模式、重启与首次迁移 fixture。
+3. **status 3 当前在客户端是永久拒绝，不是 retry-safe。** 固件可保留 status 3 表示“持久化/投影未完成”，但 A1 必须把客户端依赖写成硬门禁：在 0x95/0x97 上 status 3 映射为 retryable/resumable partial，并保留 opcode/status 证据；在该客户端小切片 accepted 前不得跑 HIL C1。其它 opcode 的 status 3 不得被泛化为可重试。
+4. **进度设计漏掉当前传输形态与典型窗口。** A1 明确当前 advertised capability 下实际走 0x80 还是 0x9B，并列出 0x9A/0x9B 的兼容边界；不能只审 0x80 却宣称覆盖 current 客户端。设备显示只能称“本窗口已同步提交字节”，不能宣称介质读回确认（`W25QXX_Write_NoCheck` 无状态）。节流必须保证典型 1024B 窗口至少有一次中间刷新，现提案 `max(4096,total/16)` 对 1024B 只在完成时刷新，不满足逐块可见。冻结 `lwrb_skip(write_len)`/超量数据 fail-closed，禁止 `read_len > remain` 时跳过未提交字节。
+
+架构裁决：保留两个 deep modules，但调整接口——`config_meta_codec` 负责 28B v1/v2 编解码；`key_bund_tx_core` 只暴露 stage/commit/reconcile 结果，不把 raw/journal/override 的顺序知识泄漏给 `command_solve`；`upload_progress_core` 接受 window base/total/committed cursor，返回展示快照与 redraw 决策。删除 A 中“journal/raw/override 三步都属于 0x95 原子事务”的接口口径。
+
+Open items 裁决：设备名不迁移、不缩容；其它配置命令继续沿用现有 deferred + 0x04 路径，不扩大 slice 2；status 3 有条件接受，但必须配套上述 opcode 定向客户端 retry 语义。
+
+A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与 append-only board；不得改生产、测试或构建。更新失败前缀/重启恢复状态表、实现 B 白名单和测试矩阵后停手提审。刷机、push、客户端实现与 HIL 继续冻结。
+
+- 需要回复：是（@Zcode ACK 后只执行 slice 2 checkpoint A1 设计修订；不得进入 implementation B）
