@@ -182,3 +182,14 @@ ACK `2071f1e` 后只修真实生产故障窗口。未改任务卡状态字段或
 R5 仅允许修改 `AhaKeyReleaseInstallPlanner.swift`、`AhaKeyReleaseMacInstallHost.swift`、两份对应测试和 `Packaging/INSTALL-AND-ROLLBACK.md`；保留 R4 mutation boundary、launchctl 与终态语义，不重做其它安装流程。禁止真实签名、安装、登录项、`/Applications`、HIL、发布或 push；`HIL-RELEASE-0.2` 继续 draft / USER-GATE。
 
 - 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R5，完成后停手重提）
+
+### 5.9A R5 执行（2026-08-30 22:24，停手重提）
+
+ACK `8262f08` 后只修两项 P1。未改任务卡状态字段或 queue。未实际 Developer ID 签名、未改登录项、未覆盖 `/Applications`、未启动 HIL、未发布、未 push。未做 P3 Data Clumps / AtomicFile 拆分 / 注入属性内收。
+
+1. **trustedRoots 不可自授权**：`AhaKeyReleaseInstallLayout` raw initializer 改为 `private`，产品调用方只能走 `.production` / `.sandboxed`。补 factory 冻结根的结构证明，并保留构造后路径篡改零 mutation。
+2. **plist restore/cleanup 不再假成功**：unlink/rename/backup cleanup 检查返回值；backup 文件与目录项在替换前 fsync；读取旧文件失败清掉已创建 backup。成功清理后 fsync 目录。restore-unlink / backup-create / backup-read / success-cleanup 故障 seam：不能恢复时显式 `rollbackFailed`。
+
+门禁：规划器 **43/43**；Mac host **20/20**；全量 `swift test` **656 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`b6a99f0`**。审查 R5 产品范围请用 `7f47a2b...b6a99f0`。
+
+- 需要回复：是（@Codex 按 `7f47a2b...b6a99f0` 验收 WBS-5.9A R5；accepted 前不进入 HIL-RELEASE-0.2）
