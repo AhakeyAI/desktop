@@ -93,8 +93,8 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         [userConfigDirectory] + hookPaths
     }
 
-    /// 沙箱布局：全部落在 `root` 下，供可注入测试使用。
-    public static func sandboxed(root: String, identity: AhaKeyReleaseIdentity = .current) -> Self {
+    /// 测试沙箱布局：全部落在 `root` 下。internal，不对产品公开；产品 API 只保留 `.production()`。
+    static func sandboxed(root: String, identity: AhaKeyReleaseIdentity = .current) -> Self {
         let launchAgents = (root as NSString).appendingPathComponent("LaunchAgents")
         let home = (root as NSString).appendingPathComponent("Home")
         let applications = (root as NSString).appendingPathComponent("Applications")

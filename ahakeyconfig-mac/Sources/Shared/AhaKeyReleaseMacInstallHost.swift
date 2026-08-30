@@ -378,17 +378,27 @@ public enum AhaKeyReleaseAtomicFile {
             throw AhaKeyReleaseInstallError.hostFailure("exclusive temp create exhausted")
         }
 
-        func abandonTemp() {
+        func abandonTemp() throws {
             if fd >= 0 {
                 close(fd)
                 fd = -1
             }
-            unlink(temp)
+            try unlinkAndFsyncDirectory(temp, directory: directory, context: "abandon-temp")
+        }
+
+        func abandonThenThrow(_ error: Error) throws -> Never {
+            do {
+                try abandonTemp()
+            } catch let cleanup {
+                throw AhaKeyReleaseInstallError.rollbackFailed(
+                    "pre-rename failed (\(error)); temp cleanup failed (\(cleanup))"
+                )
+            }
+            throw error
         }
 
         if failAt == .afterExclusiveCreate {
-            abandonTemp()
-            throw AhaKeyReleaseInstallError.hostFailure("injected afterExclusiveCreate")
+            try abandonThenThrow(AhaKeyReleaseInstallError.hostFailure("injected afterExclusiveCreate"))
         }
 
         let written: Int = data.withUnsafeBytes { raw in
@@ -396,20 +406,16 @@ public enum AhaKeyReleaseAtomicFile {
             return Darwin.write(fd, base, data.count)
         }
         if written != data.count {
-            abandonTemp()
-            throw AhaKeyReleaseInstallError.hostFailure("short write to \(temp)")
+            try abandonThenThrow(AhaKeyReleaseInstallError.hostFailure("short write to \(temp)"))
         }
         if failAt == .afterWrite {
-            abandonTemp()
-            throw AhaKeyReleaseInstallError.hostFailure("injected afterWrite")
+            try abandonThenThrow(AhaKeyReleaseInstallError.hostFailure("injected afterWrite"))
         }
         if fcntl(fd, F_FULLFSYNC) == -1, fsync(fd) != 0 {
-            abandonTemp()
-            throw AhaKeyReleaseInstallError.hostFailure("fsync temp failed: \(temp)")
+            try abandonThenThrow(AhaKeyReleaseInstallError.hostFailure("fsync temp failed: \(temp)"))
         }
         if failAt == .afterFsync {
-            abandonTemp()
-            throw AhaKeyReleaseInstallError.hostFailure("injected afterFsync")
+            try abandonThenThrow(AhaKeyReleaseInstallError.hostFailure("injected afterFsync"))
         }
         close(fd)
         fd = -1
@@ -427,7 +433,7 @@ public enum AhaKeyReleaseAtomicFile {
                 )
             } catch {
                 do {
-                    try unlinkOrThrow(temp, context: "abandon-temp-after-preserve")
+                    try unlinkAndFsyncDirectory(temp, directory: directory, context: "abandon-temp-after-preserve")
                 } catch let cleanup {
                     throw AhaKeyReleaseInstallError.rollbackFailed(
                         "preserve failed (\(error)); temp cleanup failed (\(cleanup))"
@@ -440,9 +446,9 @@ public enum AhaKeyReleaseAtomicFile {
         if rename(temp, path) != 0 {
             let saved = errno
             do {
-                try unlinkOrThrow(temp, context: "abandon-temp-after-rename")
+                try unlinkAndFsyncDirectory(temp, directory: directory, context: "abandon-temp-after-rename")
                 if let previousBackup {
-                    try unlinkOrThrow(previousBackup, context: "abandon-backup-after-rename")
+                    try unlinkAndFsyncDirectory(previousBackup, directory: directory, context: "abandon-backup-after-rename")
                 }
             } catch {
                 throw AhaKeyReleaseInstallError.rollbackFailed(
@@ -480,11 +486,11 @@ public enum AhaKeyReleaseAtomicFile {
             throw error
         }
         if let previousBackup {
-            if failAt == .successCleanup {
-                throw AhaKeyReleaseInstallError.rollbackFailed("injected successCleanup")
-            }
             do {
                 try unlinkOrThrow(previousBackup, context: "success-cleanup")
+                if failAt == .successCleanup {
+                    throw AhaKeyReleaseInstallError.hostFailure("injected successCleanup")
+                }
                 try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
             } catch {
                 throw AhaKeyReleaseInstallError.rollbackFailed(
@@ -498,6 +504,11 @@ public enum AhaKeyReleaseAtomicFile {
         if unlink(path) == 0 { return }
         if errno == ENOENT { return }
         throw AhaKeyReleaseInstallError.hostFailure("\(context) unlink \(path) errno=\(errno)")
+    }
+
+    private static func unlinkAndFsyncDirectory(_ path: String, directory: String, context: String) throws {
+        try unlinkOrThrow(path, context: context)
+        try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
     }
 
     private static func preserveExistingFile(
@@ -518,7 +529,7 @@ public enum AhaKeyReleaseAtomicFile {
                 close(fd)
                 fd = -1
             }
-            try unlinkOrThrow(backup, context: "preserve-fail")
+            try unlinkAndFsyncDirectory(backup, directory: directory, context: "preserve-fail")
         }
         do {
             if failAt == .backupRead {

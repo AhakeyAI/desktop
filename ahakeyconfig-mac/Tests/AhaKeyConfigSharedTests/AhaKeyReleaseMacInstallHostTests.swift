@@ -483,7 +483,7 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
             failAt: .successCleanup,
             expectedContents: Data("new-bytes".utf8),
             expectRollbackFailed: true,
-            expectLeftovers: true
+            expectLeftovers: false
         )
     }
 

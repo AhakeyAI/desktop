@@ -741,13 +741,12 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertTrue(production.trustedRoots.contains("/Applications"))
         XCTAssertFalse(production.trustedRoots.contains("/tmp"))
         XCTAssertFalse(production.trustedRoots.contains("/"))
-        // Structural proof: product API only exposes these factories; raw init is private
+        // Structural proof: product-facing API only exposes `.production()`.
+        // `.sandboxed` is internal/test-only (`@testable`); raw init is private
         // and cannot take caller-supplied trustedRoots (trustedRoots = ["/tmp"] is not expressible).
-        let factories: [() -> AhaKeyReleaseInstallLayout] = [
-            { .sandboxed(root: "/sandbox") },
-            { .production() },
-        ]
-        XCTAssertEqual(factories.count, 2)
+        let productFactory: () -> AhaKeyReleaseInstallLayout = { .production() }
+        XCTAssertTrue(productFactory().permitsSystemApplicationsInstall)
+        XCTAssertFalse(sandbox.permitsSystemApplicationsInstall)
     }
 
     func testMaliciousLayoutPathsAreRejectedWithZeroMutation() throws {
