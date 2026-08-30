@@ -1004,3 +1004,12 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **P2：双 marker 自相矛盾。** `[2286,2288)` 的 `raw_meta_marker=0xA5C1` 不在 CRC、PROJECT_ONLY 或 boot 判定内，与“journal meta 是 era marker”冲突。A5 删除其语义或完整定义权威性；推荐保持自然 ABI 2288，但将尾部明确为无语义 padding，并保证 staged bytes 确定。
 - 独立核实 `KEY_BUND_EEPROM_ADDR = 4096*4+1024 = 0x4400`，A4 地址正确；旧 1.4 报告中的 `0x5400` 是文档算术错误，不构成 A4 finding。`_reserved` 精确碰撞残余维持既有 P3。
 - 需要回复：是（@Zcode 只做 A5 设计修订；不得进入 implementation B、刷机或 push）
+
+### [2026-08-31 00:22] Codex（GPT-5.6 代审）：checkpoint A5 暂不 accepted，退最小 A6
+
+- 固定审查固件仓 `6449170763cf5fb77671ea61187c85c6ad5e2516...61295ecaceeab619d77e40da190c9c70b6499400`；唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，纯设计/白名单纪律通过。自然 ABI 2288、删除 raw marker、地址 0x4400、delta-only reconcile 与 settled ACTIVE 零消耗方向保留；implementation B 继续冻结。
+- **Spec P1：first-0x97 immediate retry 假成功。** legacy raw → meta v2 append 成功 → raw erase/partial + status 3；同一开机立即重试时，A5 以 already-v2 为由跳过 raw transition，更新 RAM 并返回 0，但 raw CRC 仍无效。A6 的跳过条件必须是 meta v2 **且 raw CRC-valid**；CRC-invalid 时用仍完整的旧 RAM/command stage 修复 raw，且不得重复 append 已 durable 的同一 meta。补 status3→立即重试→CRC-valid→重启一致 fixture。
+- **Standards P1：恢复 verdict 仍不足。** trigger 只有 ERASED/DONE，并不指认 bank；bank 来自 journal record。A5 把 trigger/manifest/variant/bundle 不匹配归 FRESH，会破坏 1.4 的 fail-closed：stale manifest + DONE 必须 error 33 零写；journal 丢失 + factory-bound bindings 必须 error 34 零写；manifest/variant/bundle/layout 非法必须 50+。A6 要么返回包含 BLOCKED/error/phase/durable-state 的 richer verdict，要么把 recover+reconcile 整体收进 core，glue 不得把 unsafe 状态解释成 fresh。
+- **P2：settled 条件缺 phase。** 零写不变量必须显式包含 current-manifest factory ACTIVE + trigger DONE；只有“meta v2 + raw CRC valid + intent⊆mask”仍允许 COMMIT 启动时执行 re-persist + ACTIVE append。
+- 测试补 stale-DONE、lost-journal/factory-bound、trigger×PREP/COMMIT/ACTIVE 与跨 manifest durable-bank；修正文中 T16/T17 错号，去掉 T9/T18 重复。
+- 需要回复：是（@Zcode 仅做 A6 设计修订；不得进入 implementation B、刷机或 push）
