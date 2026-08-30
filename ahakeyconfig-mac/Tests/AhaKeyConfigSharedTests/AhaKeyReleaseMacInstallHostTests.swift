@@ -456,6 +456,74 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         XCTAssertTrue(leftovers.isEmpty, "\(failAt) leftover=\(leftovers) oldPresent=\(oldPresent)")
     }
 
+    func testPlistBackupAndCleanupFailuresDoNotFalselySucceed() throws {
+        try assertPlistSeam(
+            oldPresent: true,
+            failAt: .backupCreate,
+            expectedContents: Data("original-bytes".utf8),
+            expectRollbackFailed: false,
+            expectLeftovers: false
+        )
+        try assertPlistSeam(
+            oldPresent: true,
+            failAt: .backupRead,
+            expectedContents: Data("original-bytes".utf8),
+            expectRollbackFailed: false,
+            expectLeftovers: false
+        )
+        try assertPlistSeam(
+            oldPresent: false,
+            failAt: .restoreUnlink,
+            expectedContents: Data("new-bytes".utf8),
+            expectRollbackFailed: true,
+            expectLeftovers: false
+        )
+        try assertPlistSeam(
+            oldPresent: true,
+            failAt: .successCleanup,
+            expectedContents: Data("new-bytes".utf8),
+            expectRollbackFailed: true,
+            expectLeftovers: true
+        )
+    }
+
+    private func assertPlistSeam(
+        oldPresent: Bool,
+        failAt: AhaKeyReleaseWriteFailurePoint,
+        expectedContents: Data?,
+        expectRollbackFailed: Bool,
+        expectLeftovers: Bool
+    ) throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let path = (root as NSString).appendingPathComponent("LaunchAgents/lab.jawa.ahakeyconfig.agent.plist")
+        let directory = (path as NSString).deletingLastPathComponent
+        let host = AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseRecordingSystemControl())
+        if oldPresent {
+            try host.writeFile(at: path, data: Data("original-bytes".utf8))
+        }
+        host.injectedWriteFailure = failAt
+        XCTAssertThrowsError(try host.writeFile(at: path, data: Data("new-bytes".utf8))) { error in
+            if expectRollbackFailed {
+                guard case .rollbackFailed = error as? AhaKeyReleaseInstallError else {
+                    return XCTFail("\(failAt) expected rollbackFailed, got \(error)")
+                }
+            } else {
+                guard case .hostFailure = error as? AhaKeyReleaseInstallError else {
+                    return XCTFail("\(failAt) expected hostFailure, got \(error)")
+                }
+            }
+        }
+        XCTAssertEqual(host.readFile(at: path), expectedContents, "\(failAt)")
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: directory)
+            .filter { $0.hasPrefix(".ahakey-") && $0.hasSuffix(".tmp") }
+        if expectLeftovers {
+            XCTAssertFalse(leftovers.isEmpty, "\(failAt) expected leftover backup")
+        } else {
+            XCTAssertTrue(leftovers.isEmpty, "\(failAt) leftover=\(leftovers)")
+        }
+    }
+
     private struct AppFixture {
         var app: String
         var parent: String

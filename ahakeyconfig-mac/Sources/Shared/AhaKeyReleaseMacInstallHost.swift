@@ -342,6 +342,10 @@ public enum AhaKeyReleaseWriteFailurePoint: Equatable, Sendable {
     case afterRename
     case afterDirectoryFsync
     case afterFinalFsync
+    case backupCreate
+    case backupRead
+    case restoreUnlink
+    case successCleanup
 }
 
 public enum AhaKeyReleaseAtomicFile {
@@ -415,22 +419,41 @@ public enum AhaKeyReleaseAtomicFile {
         if destExisted {
             previousBackup = (directory as NSString).appendingPathComponent(".ahakey-prev-\(UUID().uuidString).tmp")
             do {
-                try preserveExistingFile(at: path, to: previousBackup!)
+                try preserveExistingFile(
+                    at: path,
+                    to: previousBackup!,
+                    directory: directory,
+                    failAt: failAt
+                )
             } catch {
-                unlink(temp)
+                do {
+                    try unlinkOrThrow(temp, context: "abandon-temp-after-preserve")
+                } catch let cleanup {
+                    throw AhaKeyReleaseInstallError.rollbackFailed(
+                        "preserve failed (\(error)); temp cleanup failed (\(cleanup))"
+                    )
+                }
                 throw error
             }
         }
 
         if rename(temp, path) != 0 {
             let saved = errno
-            unlink(temp)
-            if let previousBackup { unlink(previousBackup) }
+            do {
+                try unlinkOrThrow(temp, context: "abandon-temp-after-rename")
+                if let previousBackup {
+                    try unlinkOrThrow(previousBackup, context: "abandon-backup-after-rename")
+                }
+            } catch {
+                throw AhaKeyReleaseInstallError.rollbackFailed(
+                    "rename \(temp) → \(path) errno=\(saved); cleanup failed (\(error))"
+                )
+            }
             throw AhaKeyReleaseInstallError.hostFailure("rename \(temp) → \(path) errno=\(saved)")
         }
 
         do {
-            if failAt == .afterRename {
+            if failAt == .afterRename || failAt == .restoreUnlink {
                 throw AhaKeyReleaseInstallError.hostFailure("injected afterRename")
             }
             try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
@@ -443,7 +466,12 @@ public enum AhaKeyReleaseAtomicFile {
             }
         } catch {
             do {
-                try restorePreviousFile(at: path, previousBackup: previousBackup, directory: directory)
+                try restorePreviousFile(
+                    at: path,
+                    previousBackup: previousBackup,
+                    directory: directory,
+                    failAt: failAt
+                )
             } catch {
                 throw AhaKeyReleaseInstallError.rollbackFailed(
                     "plist post-rename restore failed: \(error)"
@@ -452,32 +480,82 @@ public enum AhaKeyReleaseAtomicFile {
             throw error
         }
         if let previousBackup {
-            unlink(previousBackup)
+            if failAt == .successCleanup {
+                throw AhaKeyReleaseInstallError.rollbackFailed("injected successCleanup")
+            }
+            do {
+                try unlinkOrThrow(previousBackup, context: "success-cleanup")
+                try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
+            } catch {
+                throw AhaKeyReleaseInstallError.rollbackFailed(
+                    "plist success cleanup failed: \(error)"
+                )
+            }
         }
     }
 
-    private static func preserveExistingFile(at path: String, to backup: String) throws {
-        let fd = open(backup, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o644)
+    private static func unlinkOrThrow(_ path: String, context: String) throws {
+        if unlink(path) == 0 { return }
+        if errno == ENOENT { return }
+        throw AhaKeyReleaseInstallError.hostFailure("\(context) unlink \(path) errno=\(errno)")
+    }
+
+    private static func preserveExistingFile(
+        at path: String,
+        to backup: String,
+        directory: String,
+        failAt: AhaKeyReleaseWriteFailurePoint?
+    ) throws {
+        if failAt == .backupCreate {
+            throw AhaKeyReleaseInstallError.hostFailure("injected backupCreate")
+        }
+        var fd: Int32 = open(backup, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o644)
         guard fd >= 0 else {
             throw AhaKeyReleaseInstallError.hostFailure("exclusive previous backup failed errno=\(errno)")
         }
-        defer { close(fd) }
-        let data = try Data(contentsOf: URL(fileURLWithPath: path), options: [.mappedIfSafe])
-        let written: Int = data.withUnsafeBytes { raw in
-            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return -1 }
-            return Darwin.write(fd, base, data.count)
+        func abandonBackup() throws {
+            if fd >= 0 {
+                close(fd)
+                fd = -1
+            }
+            try unlinkOrThrow(backup, context: "preserve-fail")
         }
-        if written != data.count {
-            unlink(backup)
-            throw AhaKeyReleaseInstallError.hostFailure("short write preserving \(path)")
-        }
-        if fcntl(fd, F_FULLFSYNC) == -1, fsync(fd) != 0 {
-            unlink(backup)
-            throw AhaKeyReleaseInstallError.hostFailure("fsync previous backup failed")
+        do {
+            if failAt == .backupRead {
+                throw AhaKeyReleaseInstallError.hostFailure("injected backupRead")
+            }
+            let data = try Data(contentsOf: URL(fileURLWithPath: path), options: [.mappedIfSafe])
+            let written: Int = data.withUnsafeBytes { raw in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return -1 }
+                return Darwin.write(fd, base, data.count)
+            }
+            if written != data.count {
+                throw AhaKeyReleaseInstallError.hostFailure("short write preserving \(path)")
+            }
+            if fcntl(fd, F_FULLFSYNC) == -1, fsync(fd) != 0 {
+                throw AhaKeyReleaseInstallError.hostFailure("fsync previous backup failed")
+            }
+            close(fd)
+            fd = -1
+            try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
+        } catch {
+            do {
+                try abandonBackup()
+            } catch let cleanup {
+                throw AhaKeyReleaseInstallError.rollbackFailed(
+                    "preserve failed (\(error)); backup leftover cleanup failed (\(cleanup))"
+                )
+            }
+            throw error
         }
     }
 
-    private static func restorePreviousFile(at path: String, previousBackup: String?, directory: String) throws {
+    private static func restorePreviousFile(
+        at path: String,
+        previousBackup: String?,
+        directory: String,
+        failAt: AhaKeyReleaseWriteFailurePoint?
+    ) throws {
         if let previousBackup {
             if rename(previousBackup, path) != 0 {
                 let saved = errno
@@ -487,7 +565,15 @@ public enum AhaKeyReleaseAtomicFile {
             try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
             return
         }
-        unlink(path)
+        if failAt == .restoreUnlink {
+            throw AhaKeyReleaseInstallError.hostFailure("injected restoreUnlink")
+        }
+        if unlink(path) != 0 {
+            let saved = errno
+            if saved != ENOENT {
+                throw AhaKeyReleaseInstallError.hostFailure("restore unlink errno=\(saved)")
+            }
+        }
         try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
     }
 }

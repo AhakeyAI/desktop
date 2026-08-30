@@ -13,12 +13,14 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
     public var hookPaths: [String]
     public var permitsSystemApplicationsInstall: Bool
     public var candidateAllowedRoots: [String]
-    /// 由 `.sandboxed` / `.production` 冻结，不得从 backup/staging 等可变字段反推。
+    /// 由 `.sandboxed` / `.production` 冻结，不得从 backup/staging 等可变字段反推，
+    /// 也不得由调用方传入自授权根。
     public let trustedRoots: [String]
     public var stagingAppPath: String
     public var rollbackScratchAppPath: String
 
-    public init(
+    /// 产品调用方不能传入任意 `trustedRoots`；只允许下面两个 factory。
+    private init(
         applicationsAppPath: String,
         backupAppPath: String,
         launchAgentsDirectory: String,
