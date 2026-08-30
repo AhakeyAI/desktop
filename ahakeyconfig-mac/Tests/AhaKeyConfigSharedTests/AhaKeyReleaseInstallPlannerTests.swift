@@ -295,6 +295,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertTrue(outcome.loadedLaunchdLabels.isEmpty)
         XCTAssertFalse(host.loginItemRegistered)
         XCTAssertNil(host.files[layout.launchAgentPlistPath])
+        XCTAssertNil(host.files[layout.hilLaunchAgentPlistPath])
         XCTAssertNil(host.trees[layout.applicationsAppPath])
         XCTAssertNil(host.trees[layout.backupAppPath])
         XCTAssertEqual(host.preserved["/sandbox/Home/Library/Application Support/AhaKeyConfig"], "keep-store")
@@ -319,6 +320,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertEqual(host.trees[layout.applicationsAppPath], ["installed"])
         XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
         XCTAssertTrue(host.loginItemRegistered)
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], Data("plist".utf8))
     }
 
     func testMissingAgentBinaryRejectedBeforeAnyInstallStep() throws {
@@ -552,6 +554,168 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         }
     }
 
+    func testGuardedRemoveDoesNotSelfAuthorizeParent() throws {
+        XCTAssertThrowsError(
+            try AhaKeyReleasePathGuard.validateDestructive(
+                "/sandbox/evil/outside.app",
+                allowedRoots: ["/sandbox/Applications"],
+                permitsApplicationsDestination: false,
+                resolve: { $0 },
+                isSymlink: { _ in false }
+            )
+        ) { error in
+            guard case .pathEscapesAllowedRoot = error as? AhaKeyReleasePathViolation else {
+                return XCTFail("\(error)")
+            }
+        }
+        XCTAssertNoThrow(
+            try AhaKeyReleasePathGuard.validateDestructive(
+                "/sandbox/Applications/AhaKey Studio.app",
+                allowedRoots: ["/sandbox/Applications"],
+                permitsApplicationsDestination: false,
+                resolve: { $0 },
+                isSymlink: { _ in false }
+            )
+        )
+    }
+
+    func testFsyncAfterReplaceRestoresExactAppTree() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        let exactTree: Set<String> = ["old-binary", "keep-me"]
+        host.trees[layout.applicationsAppPath] = exactTree
+        host.loaded = [identity.agentLaunchdLabel]
+        let previousPlist = Data("previous".utf8)
+        host.files[layout.launchAgentPlistPath] = previousPlist
+        host.failAfterCommittedReplace = true
+        let outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: candidatePath()),
+            host: host,
+            layout: layout
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], exactTree)
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], previousPlist)
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
+        XCTAssertNil(host.trees[layout.backupAppPath])
+    }
+
+    func testFsyncAfterUninstallMoveRestoresExactAppTree() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        let exactTree: Set<String> = ["installed", "keep"]
+        host.trees[layout.applicationsAppPath] = exactTree
+        host.loaded = [identity.agentLaunchdLabel]
+        host.loginItemRegistered = true
+        let previousPlist = Data("plist".utf8)
+        host.files[layout.launchAgentPlistPath] = previousPlist
+        host.failAfterCommittedMove = true
+        let outcome = try AhaKeyReleaseInstaller.run(request: .uninstall, host: host, layout: layout)
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], exactTree)
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], previousPlist)
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
+        XCTAssertTrue(host.loginItemRegistered)
+    }
+
+    func testHilOnlyWithoutOfficialPlistDoesNotLeaveNewOfficialPlist() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        let exactTree: Set<String> = ["old-binary"]
+        host.trees[layout.applicationsAppPath] = exactTree
+        host.loaded = [identity.hilLaunchdLabel]
+        let hilPlist = Data("hil-only".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = hilPlist
+        XCTAssertNil(host.files[layout.launchAgentPlistPath])
+        let outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: candidatePath()),
+            host: host,
+            layout: layout,
+            injectFailureAt: .writeLaunchAgent
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], exactTree)
+        XCTAssertNil(host.files[layout.launchAgentPlistPath])
+        XCTAssertEqual(host.files[layout.hilLaunchAgentPlistPath], hilPlist)
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.hilLaunchdLabel])
+    }
+
+    func testOfficialOnlyAndDualOwnerPlistSnapshotsRestore() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old"]
+        host.loaded = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("official-only".utf8)
+        var outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: candidatePath()),
+            host: host,
+            layout: layout,
+            injectFailureAt: .registerLoginItem
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], Data("official-only".utf8))
+        XCTAssertNil(host.files[layout.hilLaunchAgentPlistPath])
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
+
+        host.loaded = [identity.agentLaunchdLabel, identity.hilLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("official-dual".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("hil-dual".utf8)
+        host.trees[layout.applicationsAppPath] = ["old"]
+        host.loginItemRegistered = false
+        outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: candidatePath()),
+            host: host,
+            layout: layout,
+            injectFailureAt: .bootstrap(label: identity.agentLaunchdLabel)
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], Data("official-dual".utf8))
+        XCTAssertEqual(host.files[layout.hilLaunchAgentPlistPath], Data("hil-dual".utf8))
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel, identity.hilLaunchdLabel])
+    }
+
+    func testHostFalseSuccessWithoutPlistIsRejected() throws {
+        let host = preparedHost()
+        host.ignoreWrites = true
+        let layout = self.layout(root: "/sandbox")
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .install(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .terminalStateMismatch("official plist mismatch after install")
+            )
+        }
+        XCTAssertNil(host.files[layout.launchAgentPlistPath])
+        XCTAssertNil(host.trees[layout.applicationsAppPath])
+    }
+
+    func testRestoreReplacementRequiresPathGuard() throws {
+        XCTAssertThrowsError(
+            try AhaKeyReleasePathGuard.validateReplacement(
+                source: "/outside/backup.app",
+                destination: "/sandbox/Applications/AhaKey Studio.app",
+                backup: "/sandbox/Applications/AhaKey Studio.app.ahakey-rollback-scratch",
+                staging: "/sandbox/Applications/AhaKey Studio.app.ahakey-staging",
+                allowedRoots: ["/sandbox/Applications"],
+                candidateRoots: ["/sandbox/Candidates"],
+                sourceIsCandidate: false,
+                permitsApplicationsDestination: false,
+                itemExists: { _ in false },
+                resolve: { $0 },
+                isSymlink: { _ in false }
+            )
+        ) { error in
+            guard case .pathEscapesAllowedRoot = error as? AhaKeyReleasePathViolation else {
+                return XCTFail("\(error)")
+            }
+        }
+    }
+
     private func layout(root: String) -> AhaKeyReleaseInstallLayout {
         .sandboxed(root: root, identity: identity)
     }
@@ -607,6 +771,9 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     var candidateReport: AhaKeyReleaseCandidateReport?
     var failReplaceAfterSuccesses = Int.max
     var replaceSuccesses = 0
+    var failAfterCommittedReplace = false
+    var failAfterCommittedMove = false
+    var ignoreWrites = false
     var symlinks: [String: String] = [:]
 
     func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
@@ -666,6 +833,10 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         trees[to] = incoming
         trees[staging] = nil
+        if failAfterCommittedReplace {
+            failAfterCommittedReplace = false
+            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after replace")
+        }
     }
 
     func moveDirectoryAtomically(from: String, to: String) throws {
@@ -677,6 +848,10 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         trees[to] = incoming
         trees[from] = nil
+        if failAfterCommittedMove {
+            failAfterCommittedMove = false
+            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after move")
+        }
     }
 
     func removeTree(_ path: String) throws {
@@ -685,8 +860,9 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     }
 
     func writeFile(at path: String, data: Data) throws {
-        files[path] = data
         writes.append(path)
+        if ignoreWrites { return }
+        files[path] = data
     }
 
     func readFile(at path: String) -> Data? {

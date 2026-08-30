@@ -197,9 +197,27 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
             )
             if printResult.status == 0 {
                 loaded.insert(label)
+                continue
             }
+            if Self.isServiceNotFound(status: printResult.status, output: printResult.output) {
+                continue
+            }
+            throw AhaKeyReleaseInstallError.hostFailure(
+                "launchctl print \(guiTarget(label)) exit \(printResult.status): \(printResult.output)"
+            )
         }
         return loaded
+    }
+
+    public static func isServiceNotFound(status: Int32, output: String) -> Bool {
+        if status == 0 { return false }
+        let text = output.lowercased()
+        if text.contains("could not find service")
+            || text.contains("could not find specified service")
+            || text.contains("no such process") {
+            return true
+        }
+        return false
     }
 
     public func bootout(label: String) throws {
@@ -318,6 +336,91 @@ public enum AhaKeyReleaseCodesignInspector {
     }
 }
 
+public enum AhaKeyReleaseWriteFailurePoint: Equatable, Sendable {
+    case afterExclusiveCreate
+    case afterWrite
+    case afterFsync
+    case afterRename
+}
+
+public enum AhaKeyReleaseAtomicFile {
+    public static func write(
+        to path: String,
+        data: Data,
+        isSymlink: (String) -> Bool,
+        failAt: AhaKeyReleaseWriteFailurePoint? = nil
+    ) throws {
+        if isSymlink(path) {
+            throw AhaKeyReleaseInstallError.pathViolation(.pathContainsSymlink(path))
+        }
+        let directory = (path as NSString).deletingLastPathComponent
+        if isSymlink(directory) {
+            throw AhaKeyReleaseInstallError.pathViolation(.pathContainsSymlink(directory))
+        }
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+
+        var fd: Int32 = -1
+        var temp = ""
+        for _ in 0..<8 {
+            temp = (directory as NSString).appendingPathComponent(".ahakey-\(UUID().uuidString).tmp")
+            fd = open(temp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o644)
+            if fd >= 0 { break }
+            if errno != EEXIST {
+                throw AhaKeyReleaseInstallError.hostFailure("exclusive create failed errno=\(errno)")
+            }
+        }
+        guard fd >= 0 else {
+            throw AhaKeyReleaseInstallError.hostFailure("exclusive temp create exhausted")
+        }
+
+        func abandonTemp() {
+            if fd >= 0 {
+                close(fd)
+                fd = -1
+            }
+            unlink(temp)
+        }
+
+        if failAt == .afterExclusiveCreate {
+            abandonTemp()
+            throw AhaKeyReleaseInstallError.hostFailure("injected afterExclusiveCreate")
+        }
+
+        let written: Int = data.withUnsafeBytes { raw in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return -1 }
+            return Darwin.write(fd, base, data.count)
+        }
+        if written != data.count {
+            abandonTemp()
+            throw AhaKeyReleaseInstallError.hostFailure("short write to \(temp)")
+        }
+        if failAt == .afterWrite {
+            abandonTemp()
+            throw AhaKeyReleaseInstallError.hostFailure("injected afterWrite")
+        }
+        if fcntl(fd, F_FULLFSYNC) == -1, fsync(fd) != 0 {
+            abandonTemp()
+            throw AhaKeyReleaseInstallError.hostFailure("fsync temp failed: \(temp)")
+        }
+        if failAt == .afterFsync {
+            abandonTemp()
+            throw AhaKeyReleaseInstallError.hostFailure("injected afterFsync")
+        }
+        close(fd)
+        fd = -1
+        if rename(temp, path) != 0 {
+            let saved = errno
+            unlink(temp)
+            throw AhaKeyReleaseInstallError.hostFailure("rename \(temp) → \(path) errno=\(saved)")
+        }
+        if failAt == .afterRename {
+            throw AhaKeyReleaseInstallError.hostFailure("injected afterRename")
+        }
+        try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
+        try AhaKeyReleaseDiskSync.fsyncItem(at: path)
+    }
+}
+
 public enum AhaKeyReleaseDiskSync {
     public static func fsyncItem(at path: String) throws {
         let fd = open(path, O_RDONLY)
@@ -342,6 +445,8 @@ public enum AhaKeyReleaseDiskSync {
 public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     private let fileManager: FileManager
     private let system: AhaKeyReleaseSystemControl
+    public var failFsyncAfterDirectoryCommit = false
+    public var injectedWriteFailure: AhaKeyReleaseWriteFailurePoint?
 
     public init(fileManager: FileManager = .default, system: AhaKeyReleaseSystemControl) {
         self.fileManager = fileManager
@@ -460,6 +565,10 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         } else {
             try renameAtomically(from: staging, to: to)
         }
+        if failFsyncAfterDirectoryCommit {
+            failFsyncAfterDirectoryCommit = false
+            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after directory commit")
+        }
         try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
         if fileManager.fileExists(atPath: staging) {
             try fileManager.removeItem(atPath: staging)
@@ -473,6 +582,10 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         let destParent = (to as NSString).deletingLastPathComponent
         try fileManager.createDirectory(atPath: destParent, withIntermediateDirectories: true)
         try renameAtomically(from: from, to: to)
+        if failFsyncAfterDirectoryCommit {
+            failFsyncAfterDirectoryCommit = false
+            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after directory commit")
+        }
         try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
     }
 
@@ -485,16 +598,14 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     }
 
     public func writeFile(at path: String, data: Data) throws {
-        let directory = (path as NSString).deletingLastPathComponent
-        try fileManager.createDirectory(atPath: directory, withIntermediateDirectories: true)
-        let temp = (directory as NSString).appendingPathComponent(
-            "." + (path as NSString).lastPathComponent + ".ahakey-tmp"
+        let failAt = injectedWriteFailure
+        injectedWriteFailure = nil
+        try AhaKeyReleaseAtomicFile.write(
+            to: path,
+            data: data,
+            isSymlink: isSymlink,
+            failAt: failAt
         )
-        try data.write(to: URL(fileURLWithPath: temp), options: [])
-        try AhaKeyReleaseDiskSync.fsyncItem(at: temp)
-        try renameAtomically(from: temp, to: path)
-        try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
-        try AhaKeyReleaseDiskSync.fsyncItem(at: path)
     }
 
     public func readFile(at path: String) -> Data? {

@@ -179,9 +179,32 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         -\t0\tcom.apple.accountsd
         """
         process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 0
-        process.statusByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] = 1
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] = 113
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] =
+            "Could not find service \"\(identity.hilLaunchdLabel)\" in domain for id \(uid)"
         let control = AhaKeyReleaseLaunchdControl(allowSystemMutation: false, process: process)
         XCTAssertEqual(try control.loadedLaunchdLabels(), [identity.agentLaunchdLabel])
+    }
+
+    func testLaunchdControlPrintUnexpectedNonZeroIsNotSwallowed() throws {
+        let process = AhaKeyReleaseRecordingProcessRunner()
+        let uid = getuid()
+        process.outputByJoinedArguments["list"] = """
+        PID\tStatus\tLabel
+        -\t0\tcom.apple.accountsd
+        """
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 1
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = "Permission denied"
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] = 113
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] =
+            "Could not find service \"\(identity.hilLaunchdLabel)\" in domain for id \(uid)"
+        let control = AhaKeyReleaseLaunchdControl(allowSystemMutation: false, process: process)
+        XCTAssertThrowsError(try control.loadedLaunchdLabels()) { error in
+            guard case .hostFailure(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("unexpected print 非零必须传播，got \(error)")
+            }
+            XCTAssertTrue(message.contains("Permission denied"), message)
+        }
     }
 
     func testProductionHostFactoryIsWiredAndRefusesMutation() {
@@ -209,6 +232,85 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         let temp = ((path as NSString).deletingLastPathComponent as NSString)
             .appendingPathComponent(".lab.jawa.ahakeyconfig.agent.plist.ahakey-tmp")
         XCTAssertFalse(FileManager.default.fileExists(atPath: temp))
+    }
+
+    func testPlistWriteRefusesDestinationSymlinkAndPreservesTarget() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let directory = (root as NSString).appendingPathComponent("LaunchAgents")
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        let outside = (root as NSString).appendingPathComponent("outside.plist")
+        try Data("secret".utf8).write(to: URL(fileURLWithPath: outside))
+        let dest = (directory as NSString).appendingPathComponent("lab.jawa.ahakeyconfig.agent.plist")
+        try FileManager.default.createSymbolicLink(atPath: dest, withDestinationPath: outside)
+        let host = AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseRecordingSystemControl())
+        XCTAssertThrowsError(try host.writeFile(at: dest, data: Data("owned".utf8))) { error in
+            guard case .pathViolation(.pathContainsSymlink) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("\(error)")
+            }
+        }
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: outside)), Data("secret".utf8))
+        XCTAssertEqual(
+            try FileManager.default.destinationOfSymbolicLink(atPath: dest),
+            outside
+        )
+    }
+
+    func testPlistWriteFailureBeforeRenameLeavesExistingPlist() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let path = (root as NSString).appendingPathComponent("LaunchAgents/lab.jawa.ahakeyconfig.agent.plist")
+        let host = AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseRecordingSystemControl())
+        try host.writeFile(at: path, data: Data("keep-me".utf8))
+        host.injectedWriteFailure = .afterFsync
+        XCTAssertThrowsError(try host.writeFile(at: path, data: Data("new".utf8)))
+        XCTAssertEqual(host.readFile(at: path), Data("keep-me".utf8))
+        let leftovers = try FileManager.default.contentsOfDirectory(
+            atPath: (path as NSString).deletingLastPathComponent
+        ).filter { $0.hasPrefix(".ahakey-") && $0.hasSuffix(".tmp") }
+        XCTAssertTrue(leftovers.isEmpty, "失败后不得留下临时文件: \(leftovers)")
+    }
+
+    func testExclusiveCreateDoesNotFollowSymlink() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let outside = (root as NSString).appendingPathComponent("outside")
+        try Data("secret".utf8).write(to: URL(fileURLWithPath: outside))
+        let link = (root as NSString).appendingPathComponent(".ahakey-collision.tmp")
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: outside)
+        let fd = open(link, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o644)
+        XCTAssertTrue(fd < 0, "预置 symlink 不得被独占打开")
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: outside)), Data("secret".utf8))
+    }
+
+    func testReplaceFsyncFailureAfterCommitReportsMutation() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let installed = try makeAppFixture(in: root, name: "installed.app", marker: "old")
+        try FileManager.default.moveItem(atPath: installed.app, toPath: layout.applicationsAppPath)
+        let candidate = try makeAppFixture(in: root, name: "candidate.app", marker: "new")
+        let system = AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true)
+        let host = AhaKeyReleaseMacInstallHost(system: system)
+        host.failFsyncAfterDirectoryCommit = true
+        XCTAssertThrowsError(
+            try host.replaceDirectoryAtomically(
+                from: candidate.app,
+                to: layout.applicationsAppPath,
+                backup: layout.backupAppPath,
+                staging: layout.stagingAppPath
+            )
+        ) { error in
+            guard case .failedAfterAppMutation = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("切换后 fsync 失败必须带 mutation receipt，got \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: layout.applicationsAppPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: layout.backupAppPath))
     }
 
     func testStagingReverifyRejectsTamperedAgentBeforeSwap() throws {

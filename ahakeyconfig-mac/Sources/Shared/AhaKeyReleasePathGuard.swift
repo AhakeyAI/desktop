@@ -110,6 +110,7 @@ public enum AhaKeyReleasePathGuard {
         staging: String,
         allowedRoots: [String],
         candidateRoots: [String],
+        sourceIsCandidate: Bool = true,
         permitsApplicationsDestination: Bool,
         itemExists: (String) -> Bool,
         resolve: (String) -> String?,
@@ -122,7 +123,17 @@ public enum AhaKeyReleasePathGuard {
         if src == dest || src == bak || dest == bak || src == stage || dest == stage {
             throw AhaKeyReleasePathViolation.sourceEqualsDestination
         }
-        try validateCandidateSource(src, candidateRoots: candidateRoots, isSymlink: isSymlink)
+        if sourceIsCandidate {
+            try validateCandidateSource(src, candidateRoots: candidateRoots, isSymlink: isSymlink)
+        } else {
+            _ = try requireAllowed(src, roots: allowedRoots)
+            try rejectSymlinkInsideAllowedRoots(
+                src,
+                roots: allowedRoots,
+                resolve: resolve,
+                isSymlink: isSymlink
+            )
+        }
         if !permitsApplicationsDestination {
             try refuseApplicationsOutput(dest)
             try refuseApplicationsOutput(bak)
