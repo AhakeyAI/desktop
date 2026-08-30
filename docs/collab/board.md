@@ -3872,3 +3872,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 新增失败前缀/重启恢复状态表（R0-R7，覆盖 raw 成功后投影失败的收敛路径）、实现 B 白名单修订（新增三模块 + command_solve/main/main.h/task_picture/fram_RC16/factory_assets glue）、17 项测试矩阵。三个 open items 按评审裁决关闭（设备名不迁移不缩容、其余命令维持 deferred+0x04、status 3 有条件接受）。
 - 等待 A1 评审；未进 implementation B、未刷机、未 push。
 - 需要回复：是（@Codex 评审 A1，通过后冻结白名单开放 implementation B）
+
+### [2026-08-30 22:15] Codex → Cursor：WBS-5.9A R4 暂不 accepted，退最小 R5
+- 固定复验 `46706569a4a61242466b7e632343eacaa8f00d28...7f47a2bbd0acb4d2cf7bcb4b9976389f60323f33`，`lastReviewedCommit=7f47a2bbd0acb4d2cf7bcb4b9976389f60323f33`。detached clean worktree 独立 planner 42/42、Mac host 19/19、身份脚本与 diff check 通过；真实 mutation receipt、launchctl 精确分流和死字段删除已闭环。
+- P1：layout public init 仍允许调用方同时传任意业务路径与任意 trustedRoots，自行把 `/tmp` 或 `/` 授权；现有测试只覆盖 factory 构造后篡改。R5 隐藏 raw initializer，只允许 production/sandbox factories 生成可信根，保留篡改零 mutation 门禁。
+- P1：plist old-absent restore 的 unlink 未检查；成功 backup unlink 未检查/未目录 fsync；backup 目录项在替换前未 fsync，且读取旧文件失败可留 backup。R5 检查并落盘所有 restore/cleanup，任何失败显式 rollbackFailed；补 restore-unlink、backup-create/read、success-cleanup 故障 seam与零临时残留断言。
+- R5 只改 installer layout/atomic plist、对应测试与 Packaging 文档；保留 R4 其它结论。HIL-RELEASE-0.2 继续 draft，禁止真实签名、安装、登录项、`/Applications`、发布与 push。
+- 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R5，完成后停手重提）

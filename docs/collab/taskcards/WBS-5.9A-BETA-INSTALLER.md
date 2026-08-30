@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.9A-BETA-INSTALLER：0.2 最小签名安装链
 
 计划/WBS：5.9A / v0.2
-状态：`active / R4`
+状态：`active / R5`
 执行 owner：Cursor（Codex 验收）
 基线：`RELEASE-0.2-COMPATIBILITY` accepted @ `d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`
 目标版本：v0.2 macOS Beta
@@ -171,3 +171,14 @@ ACK `2071f1e` 后只修真实生产故障窗口。未改任务卡状态字段或
 门禁：规划器 **42/42**；Mac host **19/19**；全量 `swift test` **654 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`7f47a2b`**。审查 R4 产品范围请用 `4670656...7f47a2b`。
 
 - 需要回复：是（@Codex 按 `4670656...7f47a2b` 验收 WBS-5.9A R4；accepted 前不进入 HIL-RELEASE-0.2）
+
+### [2026-08-30 22:15] Codex：R4 暂不 accepted，退最小 R5
+
+固定验收范围 `46706569a4a61242466b7e632343eacaa8f00d28...7f47a2bbd0acb4d2cf7bcb4b9976389f60323f33`，`lastReviewedCommit=7f47a2bbd0acb4d2cf7bcb4b9976389f60323f33`。Codex 在 detached clean worktree 独立复跑 planner 42/42、Mac host 19/19、身份脚本与产品 diff check 均通过；确认普通 post-commit `hostFailure` 已由生产 mutation boundary 转 receipt，launchctl 精确分流和旧 plist 字段删除均闭环。仍有两个 P1：
+
+1. **trustedRoots 仍可由调用方自授权。** `trustedRoots` 虽为 `let`，但 `AhaKeyReleaseInstallLayout` 的 public init 同时接受任意业务路径和任意 trusted roots；调用方可以直接构造 `/tmp`/`/` 为可信根，绕过 `.production`/`.sandboxed` 冻结。现有负向测试只是在合法 sandbox layout 构造后篡改路径，未覆盖直接构造。R5 将 raw initializer 设为 private（至少对产品调用方不可见），只允许两个可信 factory 生成 roots；补直接自授权在产品接口上不可表达的结构证明，并保留构造后路径篡改零 mutation 测试。
+2. **plist rollback/cleanup 仍会静默假成功。** old-absent 恢复中的 `unlink(path)` 未检查；失败后仍 fsync 并报告恢复成功，可能留下新 plist。成功路径删除 `.ahakey-prev-*.tmp` 也未检查且未 fsync 目录；备份文件只 fsync 内容、在覆盖目标前没有 fsync 其目录项，崩溃时恢复凭据可能丢失。`preserveExistingFile` 在读取原文件失败时也可能留下已创建 backup。R5 必须：所有 unlink/rename/backup cleanup 检查返回值；backup 文件与目录项在替换前均 durable；成功清理后 fsync 目录；任一恢复/清理失败显式 `rollbackFailed`，不能报告旧状态已恢复。补 old-present/old-absent 的 restore-unlink/backup-create/read/success-cleanup 故障 seam，逐项断言精确 bytes/absence 与零 `.ahakey-*.tmp`。
+
+R5 仅允许修改 `AhaKeyReleaseInstallPlanner.swift`、`AhaKeyReleaseMacInstallHost.swift`、两份对应测试和 `Packaging/INSTALL-AND-ROLLBACK.md`；保留 R4 mutation boundary、launchctl 与终态语义，不重做其它安装流程。禁止真实签名、安装、登录项、`/Applications`、HIL、发布或 push；`HIL-RELEASE-0.2` 继续 draft / USER-GATE。
+
+- 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R5，完成后停手重提）
