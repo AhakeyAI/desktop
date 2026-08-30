@@ -23,6 +23,17 @@
 
 `launchctl` bootout/bootstrap 非零退出码必须抛错。`launchctl print` 仅在退出码 `113` 且输出行前缀为 `Could not find service "<label>"` 时视为未加载。权限、domain、command、泛化 `no such process` 以及其他非零必须传播。
 
+## 签名 DMG 内容（HIL-RELEASE-0.2-PACKAGING-REWORK）
+
+正式 `package_dmg.sh` / `pack-release.sh` 产出必须同时满足：
+
+- App 与内嵌 Agent 在 Finder 布局后的二次签名都使用 `Packaging/ReleaseIdentity.json` 的 `signingIdentifier`，不得回落为 Agent 文件名。
+- DMG 根目录与 App 同级携带 `LaunchAgent.plist`（label / Mach service / ProgramArguments 中的 Agent 路径精确匹配冻结值），供 `inspectCandidate` 读取。不得用 App 内 `AgentManager` 路径替代 5.9A 安装链。
+- `scripts/verify-release-dmg.sh` 在 UDZO 之后、公证前与 staple 后各以只读方式挂载校验一次。`hdiutil verify`、notary `Accepted`、staple、`spctl accepted` 不得替代该产品门禁。
+
+SHA-256 `4426b3c9924fe83e83f4b2ffb7a4025b53e2786fc42f6c7fc2c1ff02ffce793b` 为 nonconforming 冻结候选，不得安装。
+
+
 ## 卸载
 
 先把现有 App 原子搬到备份，再删除全部受管 plist（官方与 HIL）和登录项。中途失败必须从备份恢复，并恢复卸载前记录的 owner 集合与 plist 快照。成功终态：App 不存在、login-item 未注册、受管 plist 均不存在、零 owner。成功后才删备份。

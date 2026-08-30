@@ -4,13 +4,29 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+IDENTITY_JSON="$APP_ROOT/Packaging/ReleaseIdentity.json"
+eval "$(python3 - "$IDENTITY_JSON" <<'PY'
+import json, pathlib, shlex, sys
+identity = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print("SIGNING_IDENTIFIER=" + shlex.quote(identity["signingIdentifier"]))
+print("BUNDLE_IDENTIFIER=" + shlex.quote(identity["bundleIdentifier"]))
+print("TEAM_IDENTIFIER=" + shlex.quote(identity["teamIdentifier"]))
+print("DEFAULT_APP_BUNDLE_NAME=" + shlex.quote(identity["appDisplayName"]))
+print("APP_BUNDLE_FILE_NAME=" + shlex.quote(identity["appBundleFileName"]))
+print("AGENT_BINARY_NAME=" + shlex.quote(identity["agentBinaryName"]))
+print("PRODUCT_VERSION=" + shlex.quote(identity["productVersion"]))
+print("MACH_SERVICE_NAME=" + shlex.quote(identity["machServiceName"]))
+print("AGENT_LAUNCHD_LABEL=" + shlex.quote(identity["agentLaunchdLabel"]))
+print("DEVELOPER_ID_REQUIREMENT=" + shlex.quote(identity["developerIDRequirement"]))
+PY
+)"
 
 if [[ -f "$SCRIPT_DIR/build.local.env" ]]; then
   source "$SCRIPT_DIR/build.local.env"
 fi
 
-APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AhaKey Studio}"
-APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AhaKey Studio}"
+APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-$DEFAULT_APP_BUNDLE_NAME}"
+APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-$DEFAULT_APP_BUNDLE_NAME}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
 DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-AhaKey Installer}"
 DMG_BASENAME="${DMG_BASENAME:-AhaKey-Studio-macOS-prod-$(date +%Y%m%d%H%M%S)}"
@@ -18,7 +34,8 @@ DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME.dmg"
 DMG_STAGING_DIR="$OUTPUT_DIR/.dmg-staging"
 RW_DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME-rw.dmg"
 DMG_MOUNTPOINT="/Volumes/$DMG_VOLUME_NAME"
-APP_BUNDLE_PATH="$OUTPUT_DIR/$APP_BUNDLE_NAME.app"
+APP_BUNDLE_PATH="$OUTPUT_DIR/$APP_BUNDLE_FILE_NAME"
+LAUNCH_AGENT_PLIST="$APP_ROOT/Packaging/LaunchAgent.plist"
 BACKGROUND_DIR="$DMG_STAGING_DIR/.background"
 BACKGROUND_IMAGE="$BACKGROUND_DIR/InstallerBackground.png"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
@@ -52,7 +69,8 @@ rm -rf "$DMG_STAGING_DIR"
 mkdir -p "$DMG_STAGING_DIR"
 
 echo "🧱 Preparing DMG staging folder..."
-ditto "$APP_BUNDLE_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE_NAME.app"
+ditto "$APP_BUNDLE_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE_FILE_NAME"
+cp "$LAUNCH_AGENT_PLIST" "$DMG_STAGING_DIR/LaunchAgent.plist"
 ln -s /Applications "$DMG_STAGING_DIR/Applications"
 mkdir -p "$BACKGROUND_DIR"
 swift "$APP_ROOT/scripts/generate_dmg_background.swift" "$BACKGROUND_IMAGE"
@@ -85,7 +103,8 @@ echo "🪟 Applying drag-to-install layout..."
 hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
 
 # 把文件拷进挂载好的卷（避免 -srcfolder 的 EPERM 限制）
-ditto "$APP_BUNDLE_PATH" "$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
+ditto "$APP_BUNDLE_PATH" "$DMG_MOUNTPOINT/$APP_BUNDLE_FILE_NAME"
+cp "$LAUNCH_AGENT_PLIST" "$DMG_MOUNTPOINT/LaunchAgent.plist"
 ln -sf /Applications "$DMG_MOUNTPOINT/Applications"
 mkdir -p "$DMG_MOUNTPOINT/.background"
 cp "$BACKGROUND_IMAGE" "$DMG_MOUNTPOINT/.background/InstallerBackground.png"
@@ -128,7 +147,7 @@ tell application "Finder"
       log "background-picture error: " & errMsg
     end try
     try
-      set position of item "$APP_BUNDLE_NAME.app" of container window to {200, 240}
+      set position of item "$APP_BUNDLE_FILE_NAME" of container window to {200, 240}
     end try
     try
       set position of item "Applications" of container window to {660, 240}
@@ -151,15 +170,15 @@ echo "(osascript exit=$ASCRIPT_RC)"
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
   echo "🔏 Re-signing mounted app after Finder layout with: $SIGNING_IDENTITY"
-  MOUNTED_APP="$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
-  MOUNTED_AGENT="$MOUNTED_APP/Contents/MacOS/ahakeyconfig-agent"
+  MOUNTED_APP="$DMG_MOUNTPOINT/$APP_BUNDLE_FILE_NAME"
+  MOUNTED_AGENT="$MOUNTED_APP/Contents/MacOS/$AGENT_BINARY_NAME"
   ENTITLEMENTS="$APP_ROOT/.build/AhaKeyConfig.entitlements"
   xattr -cr "$MOUNTED_APP" 2>/dev/null || true
-  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$MOUNTED_AGENT"
+  codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" --identifier "$SIGNING_IDENTIFIER" "$MOUNTED_AGENT"
   if [[ -f "$ENTITLEMENTS" ]]; then
-    codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" --entitlements "$ENTITLEMENTS" "$MOUNTED_APP"
+    codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" --entitlements "$ENTITLEMENTS" --identifier "$SIGNING_IDENTIFIER" "$MOUNTED_APP"
   else
-    codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$MOUNTED_APP"
+    codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" --identifier "$SIGNING_IDENTIFIER" "$MOUNTED_APP"
     echo "⚠️  Entitlements file not found at $ENTITLEMENTS — signed without entitlements."
   fi
   codesign --verify --deep --strict --verbose=2 "$MOUNTED_APP"
@@ -185,10 +204,19 @@ if [[ -n "$SIGNING_IDENTITY" ]]; then
   codesign --force --timestamp --sign "$SIGNING_IDENTITY" "$DMG_PATH"
 fi
 
+VERIFY_ARGS=()
+if [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
+  VERIFY_ARGS+=(--expect-developer-id)
+fi
+echo "🔎 Product identity gate (pre-notarization)..."
+zsh "$SCRIPT_DIR/verify-release-dmg.sh" "${VERIFY_ARGS[@]}" "$DMG_PATH"
+
+STAPLED=0
 if [[ -n "$NOTARY_PROFILE" ]]; then
   echo "🧾 Notarizing DMG with profile: $NOTARY_PROFILE"
   xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG_PATH"
+  STAPLED=1
 elif [[ -n "$NOTARY_APPLE_ID" && -n "$NOTARY_TEAM_ID" && -n "$NOTARY_PASSWORD" ]]; then
   echo "🧾 Notarizing DMG with Apple ID: $NOTARY_APPLE_ID"
   xcrun notarytool submit "$DMG_PATH" \
@@ -197,6 +225,7 @@ elif [[ -n "$NOTARY_APPLE_ID" && -n "$NOTARY_TEAM_ID" && -n "$NOTARY_PASSWORD" ]
     --password "$NOTARY_PASSWORD" \
     --wait
   xcrun stapler staple "$DMG_PATH"
+  STAPLED=1
 elif [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
   echo "❌ RELEASE_DISTRIBUTION=1 requires notarization credentials."
   echo "   Option A: set NOTARY_PROFILE to a keychain profile created with:"
@@ -205,7 +234,13 @@ elif [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
   exit 1
 fi
 
-echo "🔎 Verifying DMG..."
+if [[ "$STAPLED" == "1" ]]; then
+  echo "🔎 Product identity gate (post-staple)..."
+  zsh "$SCRIPT_DIR/verify-release-dmg.sh" "${VERIFY_ARGS[@]}" "$DMG_PATH"
+fi
+
+# hdiutil/spctl do not replace the product identity gate above.
+echo "🔎 Verifying DMG container..."
 hdiutil verify "$DMG_PATH"
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then

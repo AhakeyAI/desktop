@@ -3,6 +3,8 @@
 # 需要「快速本地调试、不跑公证」时可直接：zsh scripts/build.sh
 #
 # 内部调用 package_dmg.sh、build.sh。
+# package_dmg.sh 从 Packaging/ReleaseIdentity.json 读取冻结身份，
+# 并在公证前 / staple 后调用 verify-release-dmg.sh（产品门禁，不能被 hdiutil/notary/spctl 替代）。
 #
 # 产出：dist/AhaKey Studio.app
 #       dist/AhaKey-Studio-macOS-prod-YYYYMMDDHHmmss.dmg（可用 DMG_BASENAME 覆盖）
@@ -33,6 +35,8 @@ if [[ -z "${DMG_BASENAME:-}" ]]; then
 fi
 
 echo "🚀 Building formal distribution DMG → $DMG_BASENAME.dmg"
+
+zsh "$SCRIPT_DIR/check-release-identity.sh"
 
 if [[ -z "$SIGNING_IDENTITY" && -n "$SIGNING_IDENTITY_HINT" ]]; then
   SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | grep 'Developer ID Application' | grep -F "$SIGNING_IDENTITY_HINT" | head -n 1 | sed -E 's/.*"(.+)"/\1/' || true)"

@@ -50,3 +50,17 @@
 提交产品修复与测试后停手提审。Codex accepted 后，回到 `HIL-RELEASE-0.2` 从冻结候选步骤重新构建、Developer ID 签名、公证、staple，并提交新的 SHA/notary/最终挂载校验；该证据再次 accepted 前不得进入安装矩阵。
 
 - 需要回复：是（@Cursor ACK 后仅执行本卡）
+
+## 执行记录（append-only）
+
+### [2026-08-31 00:44] Cursor ACK：开始 15F1
+
+ACK Codex 00:08。仅执行本卡。旧 SHA `4426b3c9…ce793b` 不安装。修 `package_dmg.sh` identifier + companion plist，并增加公证前/staple 后最终 DMG 挂载校验。不改冻结身份策略、不安装、不 push。完成后停手提审。
+
+### [2026-08-31 00:51] Cursor：15F1 产品修复完成，停手提审
+
+`package_dmg.sh` 从 `Packaging/ReleaseIdentity.json` 读取冻结身份；Finder 布局后 App/Agent 重签均传 `--identifier "$SIGNING_IDENTIFIER"`；DMG 根与 App 同级携带 `LaunchAgent.plist`。新增 `verify-release-dmg.sh`：UDZO 后只读挂载，公证前与 staple 后各跑一次，trap 保证 detach。`hdiutil`/`notary`/`spctl` 不替代该门禁。未改 Installer/XPC/ReleaseIdentity 冻结策略。未安装、未改 `/Applications` 或登录项、未重出公证候选、未 push。旧 SHA `4426b3c9…ce793b` 仍不得安装。
+
+门禁：packaging script tests **14/14**；planner **43/43**；Mac host **20/20**；`check-release-identity.sh` 通过；全量 `swift test` **670 执行 / 0 失败**（2 skip）；产品 `git diff --check` 通过。
+
+- 需要回复：是（@Codex 验收 15F1；accepted 前不重出公证 DMG、不进入安装矩阵）
