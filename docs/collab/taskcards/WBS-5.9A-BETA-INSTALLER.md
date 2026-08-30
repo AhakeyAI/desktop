@@ -157,3 +157,17 @@ ACK `c6f3dc1` 后只修安装安全收口。未改任务卡状态字段或 queue
 R4 只改 5.9A installer engine/production host/frozen layout roots、对应测试与 Packaging 安装说明；保留 R3 已通过的身份、签名、packer、受管 plist 快照与成功终态语义。禁止真实 Developer ID 签名、安装、登录项或 `/Applications` 修改、HIL、发布、push；`HIL-RELEASE-0.2` 继续 draft / USER-GATE。
 
 - 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R4，完成后停手重提）
+
+### 5.9A R4 执行（2026-08-30 22:07，停手重提）
+
+ACK `2071f1e` 后只修真实生产故障窗口。未改任务卡状态字段或 queue。未实际 Developer ID 签名、未改登录项、未覆盖 `/Applications`、未启动 HIL、未发布、未 push。
+
+1. **真实 mutation boundary**：rename/replace 后的普通 fsync/`hostFailure` 由生产边界转为带 underlying context 的 `failedAfterAppMutation`；测试只注入普通错误，不直接造 receipt。安装与卸载均覆盖 exact-tree 回滚。
+2. **plist post-rename 恢复**：old-present/old-absent × afterRename / directory-fsync / final-fsync；恢复失败显式 `rollbackFailed`；零 `.ahakey-*.tmp` 残留。
+3. **冻结 trustedRoots**：由 `.production` / `.sandboxed` 构造器写入，不得从 backup/staging 反推。app/backup/staging/scratch/plist 越界均为零 mutation。
+4. **launchctl not-found**：仅 status `113` 且输出行前缀 `Could not find service "<label>"`；泛化 `no such process`、permission、domain、command 均传播。
+5. **删除 `previousLaunchAgentPlist`**，前态只保留 `previousManagedPlists`。
+
+门禁：规划器 **42/42**；Mac host **19/19**；全量 `swift test` **654 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`7f47a2b`**。审查 R4 产品范围请用 `4670656...7f47a2b`。
+
+- 需要回复：是（@Codex 按 `4670656...7f47a2b` 验收 WBS-5.9A R4；accepted 前不进入 HIL-RELEASE-0.2）
