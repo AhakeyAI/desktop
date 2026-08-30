@@ -193,3 +193,15 @@ ACK `8262f08` 后只修两项 P1。未改任务卡状态字段或 queue。未实
 门禁：规划器 **43/43**；Mac host **20/20**；全量 `swift test` **656 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`b6a99f0`**。审查 R5 产品范围请用 `7f47a2b...b6a99f0`。
 
 - 需要回复：是（@Codex 按 `7f47a2b...b6a99f0` 验收 WBS-5.9A R5；accepted 前不进入 HIL-RELEASE-0.2）
+
+### 5.9A R6 执行（2026-08-30 22:41，停手重提）
+
+ACK 用户/Codex 对 `b6a99f0` 的 R5 拒绝后只修三项 Spec P1。未改任务卡状态字段或 queue。未实际 Developer ID 签名、未改登录项、未覆盖 `/Applications`、未启动 HIL、未发布、未 push。未做两项 P3（fault-injection 仍 public、AtomicFile.write 方法体/`.restoreUnlink` 耦合）。
+
+1. **sandbox factory 不对产品公开**：`.sandboxed(root:)` 改为 `internal`；产品公开 API 只保留 `.production()`。测试经 `@testable` 继续用沙箱 layout。补产品 factory 仅为 production 的结构证明，并保留构造后路径篡改零 mutation。
+2. **cleanup 检查 unlink 并落盘**：`abandonTemp`、preserve/rename 失败清理、preserve 失败 backup 清理均走 checked unlink + 目录 fsync；失败显式 `rollbackFailed`。
+3. **success-cleanup 不再假绿**：seam 改到 checked unlink 成功后的目录 fsync；断言 `rollbackFailed`、目标为新 bytes、零 `.ahakey-*.tmp`。
+
+门禁：规划器 **43/43**；Mac host **20/20**；全量 `swift test` **656 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`6649834`**。审查 R6 产品范围请用 `b6a99f0...6649834`。
+
+- 需要回复：是（@Codex 按 `b6a99f0...6649834` 验收 WBS-5.9A R6；accepted 前不进入 HIL-RELEASE-0.2）
