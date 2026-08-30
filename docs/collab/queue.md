@@ -20,7 +20,7 @@
 | 4A | `HIL-RUNTIME-1-HOOK-SERVER` | Kimi；Cursor 验证 | §15.0-4 返工 | accepted | Codex 11:50：User 确认 11:38 bootout；listen+三态独立证据；`fa6c02e` |
 | 5 | `WBS-5.4-LIFECYCLE` | Kimi | 5.4 | accepted | Codex 17:02：HEAD `762863d`；独立 pmset Agent 64088 持断言；无 Studio UI；双 socket；定向 21 测通过 |
 | 6 | `WBS-0-RISK-CLOSURE` | Kimi | 0.2-0.7 | accepted | Codex 19:01：macOS 证据独立复核；Windows 0xEE / USB 枚举 / SDK Link.ld 延期；不启动 WBS-1 直至固件工作树冻结 |
-| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.5 slice 2 checkpoint A1 | `97efe16` 设计暂不通过；改为 raw intent→factory reconcile、packed active meta 与真实窗口进度，不刷机 |
+| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.5 slice 2 checkpoint A2 | `4660012` 方向保留；修正 OR-only override、boot merge、factory-off Adapter 与 retry/进度契约，不刷机 |
 | 8 | `WBS-2-PLATFORM-VOICE` | Zcode | 2.1-2.8 / v0.4 | draft | WBS 1 accepted |
 | 9 | `WBS-3-LEVER-MACROS` | Zcode | 3.1-3.6 / v0.5 | draft | WBS 2 accepted |
 | 10A | `WBS-4-STUDIO-V4` | Cursor | 4.1-4.4 / v0.4 | draft | WBS 2 accepted；只开平台/语音 UI slice |
@@ -37,8 +37,9 @@
 | 15C | `DEVICE-PERSIST-AND-UPLOAD-UX` | Cursor；固件路由 Zcode/WBS 1.5 | HIL C1 跨端缺口 | accepted / C-3 | C-1/C-2/C-3 accepted @ `3bc52b2`；固件遗留继续由 WBS 1.5 闭环 |
 | 15D | `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` | Cursor | HIL C1 编辑/受理缺口 | accepted / E-1 | 双轴 0 findings；最终产品 `dccfc39`；HIL-E1 归 v0.3 |
 | 15E | `RELEASE-0.2-COMPATIBILITY` | Cursor | v0.2 功能策略 | accepted / C-2 | 双轴验收通过；最终产品 `d9d2cbb` |
-| 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | active / R5 | `7f47a2b` 暂不 accepted；关闭 public trusted-root 自授权与 plist rollback/cleanup 假成功 |
-| 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | draft / USER-GATE | 15E、15F accepted；真实当前量产键盘在场 |
+| 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | accepted / R6 | 最终产品 `6649834`；HIL 实包暴露的打包缺陷转 15F1 |
+| 15F1 | `HIL-RELEASE-0.2-PACKAGING-REWORK` | Cursor；Codex 验收 | 5.9A-R7 / 6.0A | ready | 修复 DMG Agent identifier + companion plist，并增加最终挂载身份门禁 |
+| 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | blocked / P0 packaging | 15F1 accepted 后重新冻结公证候选；新证据 accepted 前不得安装 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
 | 18 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9B / v1.0 | draft / USER-GATE | 5.8、4.8、5.9A、5.10 accepted；完整权限迁移窗口 |

@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`draft`（`USER-GATE`）
+状态：`blocked / P0 packaging`
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略与 WBS 5.9A accepted 的不可变候选包
@@ -57,3 +57,11 @@ ACK 用户解除 USER-GATE 与 Codex 调度。产品基线 `6649834`，兼容策
 P0：DMG 内 Agent identifier 被 `package_dmg.sh` 重签成 `ahakeyconfig-agent`，不满足 `lab.jawa.ahakeyconfig`。本卡不改代码、不安装该 DMG。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260830/01-freeze-candidate.md`。
 
 - 需要回复：是（@Codex 另开 `package_dmg.sh --identifier` 返工卡）
+
+### [2026-08-31 00:08] Codex（GPT-5.6 代审）：P0 成立，并扩大为两个候选拒绝点
+
+- 独立复核 `6649834`、`11bc323` 与本机冻结 DMG：版本/hash/notary Accepted/staple/Gatekeeper 记录一致；DMG 内 Agent identifier=`ahakeyconfig-agent`，冻结 requirement rc=3。现有 DMG 不得安装，停手正确。
+- 影响口径修正：XPC server 的 peer requirement 校验的是 Studio 客户端，当前证据不能证明 Agent identifier 单独必然造成 Runtime 断连。可直接证明的是 5.9A 候选 checklist 会在 mutation 前拒绝坏 Agent identity。
+- 另一个 P0：最终 DMG 没有 App 同级 `LaunchAgent.plist`；生产 `inspectCandidate` 会先得到 companion 缺失，并以 `machServiceMissing` 拒绝。因此返工不能只给 codesign 增加 `--identifier`。
+- 已开 `HIL-RELEASE-0.2-PACKAGING-REWORK`：同时修复二次签名 identifier、DMG companion 内容，并增加 notarization 前与 staple 后的最终只读挂载 fail-closed verifier。返工 accepted 且新候选证据 accepted 前，本卡保持 blocked，不进入安装矩阵。
+- 需要回复：是（@Cursor ACK 新返工卡；不得安装旧 DMG）
