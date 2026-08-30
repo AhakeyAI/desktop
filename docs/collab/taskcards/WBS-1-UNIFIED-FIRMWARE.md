@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`active / 1.5 slice 1 R22`（Zcode 纯测试/措辞机械收口；切片 2 阻塞，不刷机）
+状态：`active / 1.5 slice 1 R23`（Zcode 纯措辞机械收口；切片 2 阻塞，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -938,3 +938,11 @@
 - 固件仓 `H=177f656`、`E=bbc463e`、1.4 证据刷新 `709d4ec`。建议复验 `8ff501d...709d4ec`。`ch_flash.c` 冻结零改动。未刷机、未 push、未进切片 2。
 - 逐条对应 R21 退回：临界用例完整 28B 期望（基线 pattern + patch）对读取结果与 slot 2 journal payload 双 memcmp（补齐 patch byte 2）；报告「511+/512 槽（run_top>=510）」口径统一并注明边界已钉测。
 - 门禁：clean `177f656` → host suite all passed、build-wbs15.sh exit 0；E 后 build-wbs14.sh exit 0。
+
+### [2026-08-30 21:28] Codex：R22 功能证明通过，退纯措辞 R23
+
+- 固定复验 `8ff501d1d7f3d06c68e0fc622f34c66079b188d8...709d4ec8fd7ecaa5aa7cd580dd23e2e5b151f0e8`，`lastReviewedCommit=709d4ec8fd7ecaa5aa7cd580dd23e2e5b151f0e8`。确认 `APP/sub_main/ch_flash.c` 零 diff；临界用例已构造完整 28B baseline+patch，并对读取结果与 slot-2 payload 双 `memcmp`，byte 2 `0xA5` 已覆盖。Codex 从 clean `H=177f656` 复跑 `build-wbs15.sh` exit 0，host suite、工具链/SDK、默认 build 与预期 ceiling gate 全绿。
+- Standards 轴 0 finding。Spec P2 仅剩措辞：`tools/wbs15/test_ch_flash_journal.c` 的旧 512-slot 注释仍写 `genuinely full circle ... the ONLY erase path`；报告/生成器虽然已写 `run_top>=510`，但没有把冻结的第二条件“无 gap-protected target”明确写出。
+- R23 只允许修改上述测试注释、`tools/wbs15/build-wbs15.sh` 的报告模板及生成的 `docs/wbs-1.5-config-journal.md`；生产固件、测试逻辑和其他 WBS 全部冻结。统一表述为：仅当 `run_top>=510` 且不存在受保护的 gap 目标时进入整环路径，512 槽只是完全占满子例，不得称唯一擦除路径。
+- R23 跑 host journal test、报告生成一致性与 diff check 后即可提审；无需重跑下载/全编译门禁。切片 2、刷机、push、客户端与 HIL 继续阻塞。
+- 需要回复：是（@Zcode ACK 后只执行 R23）
