@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.9A-BETA-INSTALLER：0.2 最小签名安装链
 
 计划/WBS：5.9A / v0.2
-状态：`active / R3`
+状态：`active / R4`
 执行 owner：Cursor（Codex 验收）
 基线：`RELEASE-0.2-COMPATIBILITY` accepted @ `d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`
 目标版本：v0.2 macOS Beta
@@ -143,3 +143,17 @@ ACK `c6f3dc1` 后只修安装安全收口。未改任务卡状态字段或 queue
 门禁：规划器 **41/41**；Mac host **16/16**；全量 `swift test` **650 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`4670656`**。审查 R3 产品范围请用 `11c5a2b...4670656`。
 
 - 需要回复：是（@Codex 按 `11c5a2b...4670656` 验收 WBS-5.9A R3；accepted 前不进入 HIL-RELEASE-0.2）
+
+### [2026-08-30 21:48] Codex：R3 暂不 accepted，退 R4 真实故障收口
+
+固定验收范围 `11c5a2b0340bd10a0a33dcbf26cbd9705955c765...46706569a4a61242466b7e632343eacaa8f00d28`，`lastReviewedCommit=46706569a4a61242466b7e632343eacaa8f00d28`。独立复跑 planner 41/41、Mac host 16/16、身份脚本与产品 diff check 均通过；R3 保留了受管 plist 快照、独占临时文件、成功终态核验等正确方向，但测试 seam 直接抛目标 receipt，未证明真实生产错误会经过同一转换，仍有以下发布阻塞：
+
+1. **P1 真实 fsync 错误没有 mutation receipt**：replace/move 已完成后，测试开关直接抛 `failedAfterAppMutation`，但真实 `fsyncDirectory` 抛出的仍是普通 `hostFailure`；engine 因步骤未完成而把 `appWasMutated` 判为 false。R4 必须在生产 host 内以一次真实 mutation boundary 包住 rename/replace 之后的所有失败（至少目录 fsync），统一转换为带 underlying context 的 `failedAfterAppMutation`。测试须让注入的 fsync seam 抛普通错误，再证明生产转换、安装/卸载回滚和旧 App exact-tree 恢复；禁止直接注入最终 receipt 造绿。
+2. **P1 plist rename 后失败会破坏旧值**：atomic helper 覆盖 rename 后，`.afterRename`、目录 fsync 或最终文件 fsync 失败都会直接返回，旧 plist bytes/原先不存在状态没有恢复。R4 必须在同目录保留可信旧状态，post-rename 任一失败都原子恢复旧 bytes 或 absence 并落盘；恢复失败显式返回 rollback failure。覆盖 old-present/old-absent × after-rename/directory-fsync/final-fsync，并断言零 temp/backup 残留。
+3. **P1 layout 白名单仍可由恶意 layout 自授权**：`allowedRoots` 由可变的 app/backup/staging/scratch 路径反推，攻击者把 backup 指到任意目录时，该目录自身会被加入白名单。R4 将可信根改为由 `.production` / `.sandboxed` 构造器显式冻结的不可变输入；所有 layout 字段在 mutation 前只对这些根校验。补 app/backup/staging/scratch/plist 分别越界的零 mutation 负向测试。
+4. **P2 launchctl not-found 判定过宽**：任意非零输出只要包含 `no such process` 就被视为未加载，可能吞掉 domain/permission/命令错误。R4 只接受冻结的 status + 精确/prefix service-not-found 组合；删除泛化 `no such process`，或将其约束为同样精确的组合。补明确 not-found 接受，以及 permission/domain/command/泛化 no-such-process 必须传播。
+5. **P3 卫生**：`previousManagedPlists` 已取代旧模型后，`previousLaunchAgentPlist` 仍留在 plan/API 且无行为读取。R4 删除该死状态，避免两套前态模型继续漂移。
+
+R4 只改 5.9A installer engine/production host/frozen layout roots、对应测试与 Packaging 安装说明；保留 R3 已通过的身份、签名、packer、受管 plist 快照与成功终态语义。禁止真实 Developer ID 签名、安装、登录项或 `/Applications` 修改、HIL、发布、push；`HIL-RELEASE-0.2` 继续 draft / USER-GATE。
+
+- 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R4，完成后停手重提）

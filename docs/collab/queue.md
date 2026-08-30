@@ -37,7 +37,7 @@
 | 15C | `DEVICE-PERSIST-AND-UPLOAD-UX` | Cursor；固件路由 Zcode/WBS 1.5 | HIL C1 跨端缺口 | accepted / C-3 | C-1/C-2/C-3 accepted @ `3bc52b2`；固件遗留继续由 WBS 1.5 闭环 |
 | 15D | `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` | Cursor | HIL C1 编辑/受理缺口 | accepted / E-1 | 双轴 0 findings；最终产品 `dccfc39`；HIL-E1 归 v0.3 |
 | 15E | `RELEASE-0.2-COMPATIBILITY` | Cursor | v0.2 功能策略 | accepted / C-2 | 双轴验收通过；最终产品 `d9d2cbb` |
-| 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | active / R3 | `11c5a2b` 暂不 accepted；补 mutation receipt、精确 plist/终态、全路径 guard 与 launchctl 错误传播 |
+| 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | active / R4 | `4670656` 暂不 accepted；补真实 fsync receipt 转换、plist post-rename 恢复、冻结可信根与精确 not-found |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | draft / USER-GATE | 15E、15F accepted；真实当前量产键盘在场 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
