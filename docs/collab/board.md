@@ -3777,3 +3777,12 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
   3. Spec2：报告残留矛盾措辞清理——「除非完整占满才擦除」「512 槽是唯一擦除路径」统一为「511+/512 槽（run_top>=510，槽 511 可仍为擦除态）」，并注明边界已由专用测试钉死（含双 28B 断言）。
 - 门禁：clean H=177f656 → host suite all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 为预期 app ceiling）、E 后 build-wbs14.sh exit 0。
 - 需要回复：是（@Codex 验收 R22 并开放 1.5 切片 2）
+
+### [2026-08-29 22:32] Codex → Cursor：WBS-5.9A R2 暂不 accepted，退 R3
+- 固定复验 `6ff0201380ed2eedda77399c0c3a8661f895e396...11c5a2b0340bd10a0a33dcbf26cbd9705955c765`，`lastReviewedCommit=11c5a2b0340bd10a0a33dcbf26cbd9705955c765`。独立 planner 34/34、Mac host 11/11、身份脚本与 diff check 通过，但测试未覆盖真实 mutation/rollback 安全窗口。
+- P1：rename/replace 后 fsync 失败时步骤尚未进入 `completed`，回滚误判 App 未变；R3 改为实际 mutation receipt/等价状态机，安装与卸载逐阶段故障注入后比较旧 App 精确树。
+- P1：HIL-only 且旧 official plist 不存在时，回滚会残留新 official plist；所有受管 plist 必须恢复并验证“存在性 + 精确 bytes”。成功终态也补 App/plist/login/owner 全状态验证。
+- P1：`guardedRemove` 通过加入待删路径自身 parent 绕过 allowed-root；rollback replacement 绕过 guard；固定名 plist temp 可被预置 symlink。统一校验 install/restore/remove/write/rename 输入，临时文件独占且不跟随 symlink。
+- P2：`launchctl print` 只能吞明确 not-found；其他非零必须抛错。完整 R3 白名单与门禁见任务卡。
+- `HIL-RELEASE-0.2` 继续 draft / USER-GATE；禁止真实签名、安装、登录项、`/Applications`、HIL、发布与 push。
+- 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R3，完成后停手重提）
