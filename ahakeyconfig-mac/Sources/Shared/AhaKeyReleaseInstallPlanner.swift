@@ -13,6 +13,10 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
     public var hookPaths: [String]
     public var permitsSystemApplicationsInstall: Bool
     public var candidateAllowedRoots: [String]
+    /// 由 `.sandboxed` / `.production` 冻结，不得从 backup/staging 等可变字段反推。
+    public let trustedRoots: [String]
+    public var stagingAppPath: String
+    public var rollbackScratchAppPath: String
 
     public init(
         applicationsAppPath: String,
@@ -24,7 +28,10 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         userConfigDirectory: String,
         hookPaths: [String],
         permitsSystemApplicationsInstall: Bool = false,
-        candidateAllowedRoots: [String] = []
+        candidateAllowedRoots: [String] = [],
+        trustedRoots: [String],
+        stagingAppPath: String,
+        rollbackScratchAppPath: String
     ) {
         self.applicationsAppPath = applicationsAppPath
         self.backupAppPath = backupAppPath
@@ -36,14 +43,9 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         self.hookPaths = hookPaths
         self.permitsSystemApplicationsInstall = permitsSystemApplicationsInstall
         self.candidateAllowedRoots = candidateAllowedRoots
-    }
-
-    public var stagingAppPath: String {
-        applicationsAppPath + ".ahakey-staging"
-    }
-
-    public var rollbackScratchAppPath: String {
-        applicationsAppPath + ".ahakey-rollback-scratch"
+        self.trustedRoots = trustedRoots
+        self.stagingAppPath = stagingAppPath
+        self.rollbackScratchAppPath = rollbackScratchAppPath
     }
 
     public var hilLaunchAgentPlistPath: String {
@@ -63,22 +65,26 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         [launchAgentPlistPath, hilLaunchAgentPlistPath]
     }
 
-    /// 冻结白名单：仅 layout 声明的根，不得按待删路径临时扩权。
-    public var allowedRoots: [String] {
-        let destParent = (applicationsAppPath as NSString).deletingLastPathComponent
-        let backupParent = (backupAppPath as NSString).deletingLastPathComponent
-        let stagingParent = (stagingAppPath as NSString).deletingLastPathComponent
-        let scratchParent = (rollbackScratchAppPath as NSString).deletingLastPathComponent
-        let configParent = (userConfigDirectory as NSString).deletingLastPathComponent
-        return Array(Set([
-            destParent,
-            backupParent,
-            stagingParent,
-            scratchParent,
+    /// 冻结白名单：构造器写入的可信根，不随 backup/staging 改写而扩大。
+    public var allowedRoots: [String] { trustedRoots }
+
+    public func validateTrustedPaths() throws {
+        let paths = [
+            applicationsAppPath,
+            backupAppPath,
+            stagingAppPath,
+            rollbackScratchAppPath,
             launchAgentsDirectory,
-            configParent,
-            userConfigDirectory,
-        ]))
+            launchAgentPlistPath,
+            hilLaunchAgentPlistPath,
+        ]
+        for path in paths {
+            do {
+                _ = try AhaKeyReleasePathGuard.requireAllowed(path, roots: trustedRoots)
+            } catch {
+                throw AhaKeyReleasePathViolation.pathEscapesAllowedRoot(path)
+            }
+        }
     }
 
     public var preservedPaths: [String] {
@@ -89,14 +95,16 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
     public static func sandboxed(root: String, identity: AhaKeyReleaseIdentity = .current) -> Self {
         let launchAgents = (root as NSString).appendingPathComponent("LaunchAgents")
         let home = (root as NSString).appendingPathComponent("Home")
+        let applications = (root as NSString).appendingPathComponent("Applications")
+        let userConfig = (home as NSString).appendingPathComponent("Library/Application Support/AhaKeyConfig")
         return Self(
-            applicationsAppPath: (root as NSString).appendingPathComponent("Applications/\(identity.appBundleFileName)"),
-            backupAppPath: (root as NSString).appendingPathComponent("Applications/\(identity.appBundleFileName).ahakey-backup"),
+            applicationsAppPath: (applications as NSString).appendingPathComponent(identity.appBundleFileName),
+            backupAppPath: (applications as NSString).appendingPathComponent("\(identity.appBundleFileName).ahakey-backup"),
             launchAgentsDirectory: launchAgents,
             launchAgentPlistPath: (launchAgents as NSString).appendingPathComponent("\(identity.agentLaunchdLabel).plist"),
             logPath: (home as NSString).appendingPathComponent("Library/Logs/ahakeyconfig-agent.log"),
             socketPath: (home as NSString).appendingPathComponent("Library/Application Support/AhaKeyConfig/ahakey.sock"),
-            userConfigDirectory: (home as NSString).appendingPathComponent("Library/Application Support/AhaKeyConfig"),
+            userConfigDirectory: userConfig,
             hookPaths: [
                 (home as NSString).appendingPathComponent(".claude/settings.json"),
                 (home as NSString).appendingPathComponent(".cursor/hooks.json"),
@@ -104,7 +112,15 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
                 (home as NSString).appendingPathComponent(".kimi/config.toml"),
             ],
             permitsSystemApplicationsInstall: false,
-            candidateAllowedRoots: [(root as NSString).appendingPathComponent("Candidates")]
+            candidateAllowedRoots: [(root as NSString).appendingPathComponent("Candidates")],
+            trustedRoots: [
+                applications,
+                launchAgents,
+                userConfig,
+                (userConfig as NSString).deletingLastPathComponent,
+            ],
+            stagingAppPath: (applications as NSString).appendingPathComponent("\(identity.appBundleFileName).ahakey-staging"),
+            rollbackScratchAppPath: (applications as NSString).appendingPathComponent("\(identity.appBundleFileName).ahakey-rollback-scratch")
         )
     }
 
@@ -130,7 +146,15 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
             candidateAllowedRoots: [
                 FileManager.default.temporaryDirectory.path,
                 (home as NSString).appendingPathComponent("Downloads"),
-            ]
+            ],
+            trustedRoots: [
+                "/Applications",
+                launchAgents,
+                (home as NSString).appendingPathComponent("Library/Application Support/AhaKeyConfig"),
+                (home as NSString).appendingPathComponent("Library/Application Support"),
+            ],
+            stagingAppPath: "/Applications/\(identity.appBundleFileName).ahakey-staging",
+            rollbackScratchAppPath: "/Applications/\(identity.appBundleFileName).ahakey-rollback-scratch"
         )
     }
 }
@@ -225,7 +249,6 @@ public struct AhaKeyReleaseInstallPlan: Equatable, Sendable {
     public let preservedPaths: [String]
     public let launchAgentPlist: Data
     public let candidateAppPath: String?
-    public let previousLaunchAgentPlist: Data?
     public let previousOwnerLabels: Set<String>
     public let previousOwnerRecords: [AhaKeyReleaseOwnerRecord]
     public let previousManagedPlists: [AhaKeyReleasePlistSnapshot]
@@ -285,7 +308,6 @@ public enum AhaKeyReleaseInstallPlanner {
         layout: AhaKeyReleaseInstallLayout,
         identity: AhaKeyReleaseIdentity = .current,
         candidate: AhaKeyReleaseCandidateReport? = nil,
-        previousLaunchAgentPlist: Data? = nil,
         previousOwnerRecords: [AhaKeyReleaseOwnerRecord] = [],
         previousManagedPlists: [AhaKeyReleasePlistSnapshot] = [],
         safety: AhaKeyReleaseInstallSafety = .sandboxOnly
@@ -326,7 +348,6 @@ public enum AhaKeyReleaseInstallPlanner {
                 preservedPaths: preserved,
                 launchAgentPlist: Data(),
                 candidateAppPath: nil,
-                previousLaunchAgentPlist: previousLaunchAgentPlist,
                 previousOwnerLabels: previousOwners,
                 previousOwnerRecords: previousOwnerRecords,
                 previousManagedPlists: previousManagedPlists,
@@ -368,7 +389,6 @@ public enum AhaKeyReleaseInstallPlanner {
                 preservedPaths: preserved,
                 launchAgentPlist: plist,
                 candidateAppPath: candidatePath,
-                previousLaunchAgentPlist: previousLaunchAgentPlist,
                 previousOwnerLabels: previousOwners,
                 previousOwnerRecords: previousOwnerRecords,
                 previousManagedPlists: previousManagedPlists,
@@ -389,9 +409,13 @@ public enum AhaKeyReleaseInstaller {
         safety: AhaKeyReleaseInstallSafety = .sandboxOnly,
         injectFailureAt: AhaKeyReleaseInstallStep? = nil
     ) throws -> AhaKeyReleaseInstallOutcome {
+        do {
+            try layout.validateTrustedPaths()
+        } catch let violation as AhaKeyReleasePathViolation {
+            throw AhaKeyReleaseInstallError.pathViolation(violation)
+        }
         let snapshot = try host.snapshot(layout: layout)
         var inspected: AhaKeyReleaseCandidateReport?
-        let previousPlist = host.readFile(at: layout.launchAgentPlistPath)
         let owners = AhaKeyReleaseInstallPlanner.competingLabels(
             in: snapshot.loadedLaunchdLabels,
             identity: identity
@@ -423,7 +447,6 @@ public enum AhaKeyReleaseInstaller {
             layout: layout,
             identity: identity,
             candidate: inspected,
-            previousLaunchAgentPlist: previousPlist,
             previousOwnerRecords: records,
             previousManagedPlists: managedPlists,
             safety: safety
@@ -453,6 +476,11 @@ public enum AhaKeyReleaseInstallEngine {
         safety: AhaKeyReleaseInstallSafety = .sandboxOnly,
         injectFailureAt: AhaKeyReleaseInstallStep? = nil
     ) throws -> AhaKeyReleaseInstallOutcome {
+        do {
+            try layout.validateTrustedPaths()
+        } catch let violation as AhaKeyReleasePathViolation {
+            throw AhaKeyReleaseInstallError.pathViolation(violation)
+        }
         if layout.permitsSystemApplicationsInstall && !safety.allowSystemMutation {
             throw AhaKeyReleaseInstallError.rejected(.systemMutationNotAllowed)
         }

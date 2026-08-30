@@ -716,6 +716,51 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         }
     }
 
+    func testMaliciousLayoutPathsAreRejectedWithZeroMutation() throws {
+        struct Case {
+            var name: String
+            var mutate: (inout AhaKeyReleaseInstallLayout) -> Void
+        }
+        let cases: [Case] = [
+            .init(name: "app") { $0.applicationsAppPath = "/tmp/ahakey-evil.app" },
+            .init(name: "backup") { $0.backupAppPath = "/tmp/ahakey-evil-backup" },
+            .init(name: "staging") { $0.stagingAppPath = "/tmp/ahakey-evil-staging" },
+            .init(name: "scratch") { $0.rollbackScratchAppPath = "/tmp/ahakey-evil-scratch" },
+            .init(name: "plist") { $0.launchAgentPlistPath = "/tmp/ahakey-evil.plist" },
+        ]
+        for item in cases {
+            let host = preparedHost()
+            var layout = self.layout(root: "/sandbox")
+            host.trees[layout.applicationsAppPath] = ["do-not-touch"]
+            host.loaded = [identity.agentLaunchdLabel]
+            host.files[layout.launchAgentPlistPath] = Data("official".utf8)
+            let exactTree = host.trees[layout.applicationsAppPath]
+            let exactLoaded = host.loaded
+            let exactPlist = host.files[layout.launchAgentPlistPath]
+            item.mutate(&layout)
+            XCTAssertThrowsError(
+                try AhaKeyReleaseInstaller.run(
+                    request: .upgrade(candidateAppPath: candidatePath()),
+                    host: host,
+                    layout: layout
+                ),
+                item.name
+            ) { error in
+                guard case .pathViolation(.pathEscapesAllowedRoot) = error as? AhaKeyReleaseInstallError else {
+                    return XCTFail("\(item.name): \(error)")
+                }
+            }
+            XCTAssertEqual(host.trees["/sandbox/Applications/AhaKey Studio.app"], exactTree, item.name)
+            XCTAssertEqual(host.loaded, exactLoaded, item.name)
+            XCTAssertEqual(
+                host.files["/sandbox/LaunchAgents/\(identity.agentLaunchdLabel).plist"],
+                exactPlist,
+                item.name
+            )
+            XCTAssertTrue(host.writes.isEmpty, item.name)
+        }
+    }
+
     private func layout(root: String) -> AhaKeyReleaseInstallLayout {
         .sandboxed(root: root, identity: identity)
     }
@@ -833,9 +878,11 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         trees[to] = incoming
         trees[staging] = nil
-        if failAfterCommittedReplace {
-            failAfterCommittedReplace = false
-            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after replace")
+        try AhaKeyReleaseMutationBoundary.afterCommit {
+            if failAfterCommittedReplace {
+                failAfterCommittedReplace = false
+                throw AhaKeyReleaseInstallError.hostFailure("injected fsync")
+            }
         }
     }
 
@@ -848,9 +895,11 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         trees[to] = incoming
         trees[from] = nil
-        if failAfterCommittedMove {
-            failAfterCommittedMove = false
-            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after move")
+        try AhaKeyReleaseMutationBoundary.afterCommit {
+            if failAfterCommittedMove {
+                failAfterCommittedMove = false
+                throw AhaKeyReleaseInstallError.hostFailure("injected fsync")
+            }
         }
     }
 

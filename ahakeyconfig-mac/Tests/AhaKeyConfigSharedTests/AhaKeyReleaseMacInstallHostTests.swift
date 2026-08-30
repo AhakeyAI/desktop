@@ -296,7 +296,7 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         let candidate = try makeAppFixture(in: root, name: "candidate.app", marker: "new")
         let system = AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true)
         let host = AhaKeyReleaseMacInstallHost(system: system)
-        host.failFsyncAfterDirectoryCommit = true
+        host.injectedDirectoryFsyncError = .hostFailure("injected fsync")
         XCTAssertThrowsError(
             try host.replaceDirectoryAtomically(
                 from: candidate.app,
@@ -305,9 +305,10 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
                 staging: layout.stagingAppPath
             )
         ) { error in
-            guard case .failedAfterAppMutation = error as? AhaKeyReleaseInstallError else {
-                return XCTFail("切换后 fsync 失败必须带 mutation receipt，got \(error)")
+            guard case .failedAfterAppMutation(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("真实 fsync hostFailure 必须转换为 mutation receipt，got \(error)")
             }
+            XCTAssertTrue(message.contains("injected fsync"), message)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: layout.applicationsAppPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: layout.backupAppPath))
@@ -370,6 +371,89 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
                 return XCTFail("\(error)")
             }
         }
+    }
+
+    func testLaunchdControlGenericNoSuchProcessIsNotTreatedAsNotFound() throws {
+        let process = AhaKeyReleaseRecordingProcessRunner()
+        let uid = getuid()
+        process.outputByJoinedArguments["list"] = "PID\tStatus\tLabel\n"
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 113
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = "no such process"
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] = 113
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] =
+            "Could not find service \"\(identity.hilLaunchdLabel)\" in domain for id \(uid)"
+        let control = AhaKeyReleaseLaunchdControl(allowSystemMutation: false, process: process)
+        XCTAssertThrowsError(try control.loadedLaunchdLabels()) { error in
+            guard case .hostFailure(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("泛化 no such process 必须传播，got \(error)")
+            }
+            XCTAssertTrue(message.contains("no such process"), message)
+        }
+    }
+
+    func testLaunchdControlWrongStatusOrDomainErrorIsPropagated() throws {
+        let process = AhaKeyReleaseRecordingProcessRunner()
+        let uid = getuid()
+        process.outputByJoinedArguments["list"] = "PID\tStatus\tLabel\n"
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 1
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] =
+            "Could not find service \"\(identity.agentLaunchdLabel)\" in domain for id \(uid)"
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] = 113
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.hilLaunchdLabel)"] =
+            "Could not find service \"\(identity.hilLaunchdLabel)\" in domain for id \(uid)"
+        let control = AhaKeyReleaseLaunchdControl(allowSystemMutation: false, process: process)
+        XCTAssertThrowsError(try control.loadedLaunchdLabels())
+
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 113
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = "Could not find domain"
+        XCTAssertThrowsError(try control.loadedLaunchdLabels()) { error in
+            guard case .hostFailure(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("domain 错误必须传播，got \(error)")
+            }
+            XCTAssertTrue(message.contains("Could not find domain"), message)
+        }
+
+        process.statusByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] = 127
+        process.outputByJoinedArguments["print gui/\(uid)/\(identity.agentLaunchdLabel)"] =
+            "launchctl: command not found"
+        XCTAssertThrowsError(try control.loadedLaunchdLabels()) { error in
+            guard case .hostFailure(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("command 错误必须传播，got \(error)")
+            }
+            XCTAssertTrue(message.contains("command not found"), message)
+        }
+    }
+
+    func testPlistPostRenameFailuresRestoreOldPresentAndOldAbsent() throws {
+        let phases: [AhaKeyReleaseWriteFailurePoint] = [
+            .afterRename, .afterDirectoryFsync, .afterFinalFsync,
+        ]
+        for phase in phases {
+            try assertPlistRestored(oldPresent: true, failAt: phase)
+            try assertPlistRestored(oldPresent: false, failAt: phase)
+        }
+    }
+
+    private func assertPlistRestored(oldPresent: Bool, failAt: AhaKeyReleaseWriteFailurePoint) throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let path = (root as NSString).appendingPathComponent("LaunchAgents/lab.jawa.ahakeyconfig.agent.plist")
+        let host = AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseRecordingSystemControl())
+        if oldPresent {
+            try host.writeFile(at: path, data: Data("original-bytes".utf8))
+        }
+        host.injectedWriteFailure = failAt
+        XCTAssertThrowsError(try host.writeFile(at: path, data: Data("new-bytes".utf8)))
+        if oldPresent {
+            XCTAssertEqual(host.readFile(at: path), Data("original-bytes".utf8))
+        } else {
+            XCTAssertNil(host.readFile(at: path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+        }
+        let leftovers = try FileManager.default.contentsOfDirectory(
+            atPath: (path as NSString).deletingLastPathComponent
+        ).filter { $0.hasPrefix(".ahakey-") && $0.hasSuffix(".tmp") }
+        XCTAssertTrue(leftovers.isEmpty, "\(failAt) leftover=\(leftovers) oldPresent=\(oldPresent)")
     }
 
     private struct AppFixture {

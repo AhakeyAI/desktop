@@ -199,7 +199,7 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
                 loaded.insert(label)
                 continue
             }
-            if Self.isServiceNotFound(status: printResult.status, output: printResult.output) {
+            if Self.isServiceNotFound(status: printResult.status, output: printResult.output, label: label) {
                 continue
             }
             throw AhaKeyReleaseInstallError.hostFailure(
@@ -209,15 +209,14 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
         return loaded
     }
 
-    public static func isServiceNotFound(status: Int32, output: String) -> Bool {
-        if status == 0 { return false }
-        let text = output.lowercased()
-        if text.contains("could not find service")
-            || text.contains("could not find specified service")
-            || text.contains("no such process") {
-            return true
+    public static let serviceNotFoundStatus: Int32 = 113
+
+    public static func isServiceNotFound(status: Int32, output: String, label: String) -> Bool {
+        guard status == serviceNotFoundStatus else { return false }
+        let needle = "Could not find service \"\(label)\""
+        return output.split(whereSeparator: \.isNewline).contains { line in
+            line.trimmingCharacters(in: .whitespaces).hasPrefix(needle)
         }
-        return false
     }
 
     public func bootout(label: String) throws {
@@ -341,6 +340,8 @@ public enum AhaKeyReleaseWriteFailurePoint: Equatable, Sendable {
     case afterWrite
     case afterFsync
     case afterRename
+    case afterDirectoryFsync
+    case afterFinalFsync
 }
 
 public enum AhaKeyReleaseAtomicFile {
@@ -408,16 +409,86 @@ public enum AhaKeyReleaseAtomicFile {
         }
         close(fd)
         fd = -1
+
+        var previousBackup: String?
+        let destExisted = FileManager.default.fileExists(atPath: path) && !isSymlink(path)
+        if destExisted {
+            previousBackup = (directory as NSString).appendingPathComponent(".ahakey-prev-\(UUID().uuidString).tmp")
+            do {
+                try preserveExistingFile(at: path, to: previousBackup!)
+            } catch {
+                unlink(temp)
+                throw error
+            }
+        }
+
         if rename(temp, path) != 0 {
             let saved = errno
             unlink(temp)
+            if let previousBackup { unlink(previousBackup) }
             throw AhaKeyReleaseInstallError.hostFailure("rename \(temp) → \(path) errno=\(saved)")
         }
-        if failAt == .afterRename {
-            throw AhaKeyReleaseInstallError.hostFailure("injected afterRename")
+
+        do {
+            if failAt == .afterRename {
+                throw AhaKeyReleaseInstallError.hostFailure("injected afterRename")
+            }
+            try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
+            if failAt == .afterDirectoryFsync {
+                throw AhaKeyReleaseInstallError.hostFailure("injected afterDirectoryFsync")
+            }
+            try AhaKeyReleaseDiskSync.fsyncItem(at: path)
+            if failAt == .afterFinalFsync {
+                throw AhaKeyReleaseInstallError.hostFailure("injected afterFinalFsync")
+            }
+        } catch {
+            do {
+                try restorePreviousFile(at: path, previousBackup: previousBackup, directory: directory)
+            } catch {
+                throw AhaKeyReleaseInstallError.rollbackFailed(
+                    "plist post-rename restore failed: \(error)"
+                )
+            }
+            throw error
         }
+        if let previousBackup {
+            unlink(previousBackup)
+        }
+    }
+
+    private static func preserveExistingFile(at path: String, to backup: String) throws {
+        let fd = open(backup, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o644)
+        guard fd >= 0 else {
+            throw AhaKeyReleaseInstallError.hostFailure("exclusive previous backup failed errno=\(errno)")
+        }
+        defer { close(fd) }
+        let data = try Data(contentsOf: URL(fileURLWithPath: path), options: [.mappedIfSafe])
+        let written: Int = data.withUnsafeBytes { raw in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return -1 }
+            return Darwin.write(fd, base, data.count)
+        }
+        if written != data.count {
+            unlink(backup)
+            throw AhaKeyReleaseInstallError.hostFailure("short write preserving \(path)")
+        }
+        if fcntl(fd, F_FULLFSYNC) == -1, fsync(fd) != 0 {
+            unlink(backup)
+            throw AhaKeyReleaseInstallError.hostFailure("fsync previous backup failed")
+        }
+    }
+
+    private static func restorePreviousFile(at path: String, previousBackup: String?, directory: String) throws {
+        if let previousBackup {
+            if rename(previousBackup, path) != 0 {
+                let saved = errno
+                throw AhaKeyReleaseInstallError.hostFailure("restore rename errno=\(saved)")
+            }
+            try AhaKeyReleaseDiskSync.fsyncItem(at: path)
+            try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
+            return
+        }
+        unlink(path)
         try AhaKeyReleaseDiskSync.fsyncDirectory(at: directory)
-        try AhaKeyReleaseDiskSync.fsyncItem(at: path)
     }
 }
 
@@ -440,12 +511,26 @@ public enum AhaKeyReleaseDiskSync {
     }
 }
 
+/// rename/replace 已提交后，将真实 fsync/清理错误统一转为 mutation receipt。
+public enum AhaKeyReleaseMutationBoundary {
+    public static func afterCommit(_ work: () throws -> Void) throws {
+        do {
+            try work()
+        } catch {
+            if case .failedAfterAppMutation = error as? AhaKeyReleaseInstallError {
+                throw error
+            }
+            throw AhaKeyReleaseInstallError.failedAfterAppMutation(String(describing: error))
+        }
+    }
+}
+
 /// 生产安装 host：真实文件原子替换 + 可注入的 launchd/登录项。
 /// 本卡只允许沙箱 layout + Recording 系统控制；不得对 `/Applications` 或真实 LaunchAgents 调用。
 public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     private let fileManager: FileManager
     private let system: AhaKeyReleaseSystemControl
-    public var failFsyncAfterDirectoryCommit = false
+    public var injectedDirectoryFsyncError: AhaKeyReleaseInstallError?
     public var injectedWriteFailure: AhaKeyReleaseWriteFailurePoint?
 
     public init(fileManager: FileManager = .default, system: AhaKeyReleaseSystemControl) {
@@ -565,13 +650,15 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         } else {
             try renameAtomically(from: staging, to: to)
         }
-        if failFsyncAfterDirectoryCommit {
-            failFsyncAfterDirectoryCommit = false
-            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after directory commit")
-        }
-        try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
-        if fileManager.fileExists(atPath: staging) {
-            try fileManager.removeItem(atPath: staging)
+        try AhaKeyReleaseMutationBoundary.afterCommit {
+            if let injected = injectedDirectoryFsyncError {
+                injectedDirectoryFsyncError = nil
+                throw injected
+            }
+            try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
+            if fileManager.fileExists(atPath: staging) {
+                try fileManager.removeItem(atPath: staging)
+            }
         }
     }
 
@@ -582,11 +669,13 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         let destParent = (to as NSString).deletingLastPathComponent
         try fileManager.createDirectory(atPath: destParent, withIntermediateDirectories: true)
         try renameAtomically(from: from, to: to)
-        if failFsyncAfterDirectoryCommit {
-            failFsyncAfterDirectoryCommit = false
-            throw AhaKeyReleaseInstallError.failedAfterAppMutation("fsync after directory commit")
+        try AhaKeyReleaseMutationBoundary.afterCommit {
+            if let injected = injectedDirectoryFsyncError {
+                injectedDirectoryFsyncError = nil
+                throw injected
+            }
+            try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
         }
-        try AhaKeyReleaseDiskSync.fsyncDirectory(at: destParent)
     }
 
     public func removeTree(_ path: String) throws {
