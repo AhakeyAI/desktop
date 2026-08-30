@@ -1,0 +1,170 @@
+===== FREEZE CANDIDATE 2026-08-30 23:52:52 +0800 =====
+source_commit=6649834602536fe1199960effa6121fdcb4a3739
+compat_policy=d9d2cbb
+team=P2VFVRZK7P
+notary_profile=AhaKeyNotary
+notary_id=9133cb9a-0b09-47a3-9946-acaa228d0b05
+
+===== PATHS =====
+dmg=/tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-6649834.dmg
+dist_app=/tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey Studio.app
+mounted_app=/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app
+
+===== VERSION =====
+dist CFBundleShortVersionString=0.2.0
+dist CFBundleVersion=304
+dist CFBundleIdentifier=lab.jawa.ahakeyconfig
+dmg  CFBundleShortVersionString=0.2.0
+dmg  CFBundleVersion=304
+dmg  CFBundleIdentifier=lab.jawa.ahakeyconfig
+
+===== SHA-256 =====
+4426b3c9924fe83e83f4b2ffb7a4025b53e2786fc42f6c7fc2c1ff02ffce793b  /tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-6649834.dmg
+b63c09769233f2a4321acfc522bacd2e1b23663dac0b606dce4fa17eff5db935  /tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+ce0670919b26de47a9e0d3f4c7ce362c144394627fcb27c209fede9255dfd2c0  /tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+6ebd9f2f317134eef067899f61cd9315eb5a7f870314f3b92eb60261a9c30d96  /tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+44d00e1514fb179fa2dcf5cc002f883c77906c0ea309e29e8c12975def1809ac  /tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+
+===== DMG codesign =====
+Executable=/private/tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-6649834.dmg
+Identifier=AhaKey-Studio-0.2.0-HIL-RELEASE-02-6649834
+Format=disk image
+CodeDirectory v=20200 size=330 flags=0x0(none) hashes=1+6 location=embedded
+Hash type=sha256 size=32
+CandidateCDHash sha256=02a2785045d927869dfcb470f6d607a714c4975c
+CandidateCDHashFull sha256=02a2785045d927869dfcb470f6d607a714c4975c78d027f4a2bd59e35049377c
+Hash choices=sha256
+CMSDigest=02a2785045d927869dfcb470f6d607a714c4975c78d027f4a2bd59e35049377c
+CMSDigestType=2
+Page size=none
+CDHash=02a2785045d927869dfcb470f6d607a714c4975c
+Signature size=9046
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Aug 30, 2026 at 23:46:48
+Notarization Ticket=stapled
+Info.plist=not bound
+TeamIdentifier=P2VFVRZK7P
+Sealed Resources=none
+Internal requirements count=1 size=204
+
+===== DMG app codesign =====
+Executable=/private/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+Identifier=lab.jawa.ahakeyconfig
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=23809 flags=0x10000(runtime) hashes=733+7 location=embedded
+VersionPlatform=1
+VersionMin=786432
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=9ff7747a6561199f0a8e40eeb7670b26819a59ce
+CandidateCDHashFull sha256=9ff7747a6561199f0a8e40eeb7670b26819a59ceb45d162b29b9f93d206a079b
+Hash choices=sha256
+CMSDigest=9ff7747a6561199f0a8e40eeb7670b26819a59ceb45d162b29b9f93d206a079b
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=3375104
+Executable Segment flags=0x1
+Page size=16384
+CDHash=9ff7747a6561199f0a8e40eeb7670b26819a59ce
+Signature size=9047
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Aug 30, 2026 at 23:46:39
+Info.plist entries=16
+TeamIdentifier=P2VFVRZK7P
+Runtime Version=26.4.0
+Sealed Resources version=2 rules=13 files=8
+Internal requirements count=1 size=184
+
+===== DMG agent codesign =====
+Executable=/private/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+Identifier=ahakeyconfig-agent
+Format=Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=10622 flags=0x10000(runtime) hashes=326+2 location=embedded
+VersionPlatform=1
+VersionMin=786432
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=5485fc6b08ed23d2dba19236ba6698b814f9f2ca
+CandidateCDHashFull sha256=5485fc6b08ed23d2dba19236ba6698b814f9f2caeb3b5e9a9cad4bf93cfe71f0
+Hash choices=sha256
+CMSDigest=5485fc6b08ed23d2dba19236ba6698b814f9f2caeb3b5e9a9cad4bf93cfe71f0
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=1867776
+Executable Segment flags=0x1
+Page size=16384
+CDHash=5485fc6b08ed23d2dba19236ba6698b814f9f2ca
+Signature size=9046
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Aug 30, 2026 at 23:46:39
+Info.plist=not bound
+TeamIdentifier=P2VFVRZK7P
+Runtime Version=26.4.0
+Sealed Resources=none
+Internal requirements count=1 size=180
+
+===== DMG app requirement =====
+Executable=/private/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+designated => identifier "lab.jawa.ahakeyconfig" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = P2VFVRZK7P
+
+===== DMG agent requirement =====
+Executable=/private/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+designated => identifier "ahakeyconfig-agent" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = P2VFVRZK7P
+
+===== verify/spctl =====
+--prepared:/private/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+--validated:/private/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app: valid on disk
+/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app: satisfies its Designated Requirement
+/tmp/ahakey-hil-release-02-dmg-inspect/AhaKey Studio.app: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+/tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-6649834.dmg: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Processing: /tmp/ahakey-hil-release-02-6649834/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-6649834.dmg
+The validate action worked!
+
+===== stapler/notary =====
+Successfully received submission info
+  createdDate: 2026-08-30T15:46:51.161Z
+  id: 9133cb9a-0b09-47a3-9946-acaa228d0b05
+  name: AhaKey-Studio-0.2.0-HIL-RELEASE-02-6649834.dmg
+  status: Accepted
+===== DIST agent identifier =====
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Aug 30, 2026 at 23:44:14
+TeamIdentifier=P2VFVRZK7P
+
+===== FROZEN REQUIREMENT CHECK =====
+req=anchor apple generic and certificate leaf[subject.OU] = "P2VFVRZK7P" and (identifier "lab.jawa.ahakeyconfig")
+-- dist app --
+anchor apple generic and certificate leaf[subject.OU] = "P2VFVRZK7P" and (identifier "lab.jawa.ahakeyconfig"): No such file or directory
+invalid requirement specification
+-- dist agent --
+anchor apple generic and certificate leaf[subject.OU] = "P2VFVRZK7P" and (identifier "lab.jawa.ahakeyconfig"): No such file or directory
+invalid requirement specification
+-- dmg app --
+anchor apple generic and certificate leaf[subject.OU] = "P2VFVRZK7P" and (identifier "lab.jawa.ahakeyconfig"): No such file or directory
+invalid requirement specification
+-- dmg agent --
+anchor apple generic and certificate leaf[subject.OU] = "P2VFVRZK7P" and (identifier "lab.jawa.ahakeyconfig"): No such file or directory
+invalid requirement specification
+===== FROZEN REQUIREMENT CHECK (path-safe) =====
+-- dist app --
+dist_app_rc=0
+-- dist agent --
+dist_agent_rc=0
+-- dmg app --
+dmg_app_rc=0
+-- dmg agent --
+dmg_agent_rc=3

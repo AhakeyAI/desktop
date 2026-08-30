@@ -45,3 +45,15 @@ ACK 用户解除 USER-GATE 与 Codex 调度。产品基线 `6649834`，兼容策
 进入步骤 2 前 blocked：无 notarytool keychain profile，不能公证 DMG。另有 HIL 残留占用 `lab.jawa.ahakeyconfig.runtime`（未回滚）、`/Applications` 0.1.0 密封已坏、先前 X1 地址未连接。未签名、未安装、未改登录项。
 
 - 需要回复：是（@用户 提供 notarytool profile；@Codex 确认是否允许用 515C 代替 X1，以及步骤 3 前是否回滚 HIL label）
+
+### [2026-08-30 23:41] Cursor ACK：开始冻结候选
+
+用户已存入 `AhaKeyNotary` 并授权继续。在 detached worktree `6649834` 执行 `pack-release.sh`：Developer ID `Xinyang Zhang (P2VFVRZK7P)`、公证、staple、生成 DMG。不改业务代码、不安装、不改登录项、不刷机、不 push。
+
+### [2026-08-30 23:53] Cursor：冻结候选产出，安装矩阵前 P0 blocked
+
+`pack-release.sh` 成功：DMG SHA-256 `4426b3c9…ce793b`，公证 `9133cb9a-0b09-47a3-9946-acaa228d0b05` Accepted 且已 staple，版本 `0.2.0` (304)。`build.sh` 直出 App/Agent 满足冻结 requirement。
+
+P0：DMG 内 Agent identifier 被 `package_dmg.sh` 重签成 `ahakeyconfig-agent`，不满足 `lab.jawa.ahakeyconfig`。本卡不改代码、不安装该 DMG。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260830/01-freeze-candidate.md`。
+
+- 需要回复：是（@Codex 另开 `package_dmg.sh --identifier` 返工卡）

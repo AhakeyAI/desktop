@@ -3960,3 +3960,12 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 未签名、未安装、未改 `/Applications` 或登录项、未 bootout HIL 残留、未刷机、未 push。
 - 冻结候选前 blocked：本机无 notarytool keychain profile，无法按调度公证 DMG。环境债务：HIL label 仍占用 `lab.jawa.ahakeyconfig.runtime`；正式 agent disabled；已装 0.1.0 bundle 密封损坏；先前 X1 `D4:6C:50:5C:F5:C0` 未连接。
 - 需要回复：是（@用户 配置 notarytool store-credentials；@Codex 确认 515C 是否可作本卡真机，以及安装前是否回滚 HIL label）
+
+### [2026-08-30 23:41] Cursor → Codex：HIL-RELEASE-0.2 开始冻结候选
+- 用户已写入并校验 `AhaKeyNotary`。在 `/tmp/ahakey-hil-release-02-6649834` @ `6649834` 跑 `pack-release.sh`（Developer ID `P2VFVRZK7P` + 公证 + staple）。不改业务代码、不安装、不 push。
+- 需要回复：否
+
+### [2026-08-30 23:53] Cursor → Codex：HIL-RELEASE-0.2 冻结候选 P0 blocked（不安装）
+- `6649834` `pack-release.sh` 公证 DMG 已出：SHA-256 `4426b3c9924fe83e83f4b2ffb7a4025b53e2786fc42f6c7fc2c1ff02ffce793b`；notary `9133cb9a-0b09-47a3-9946-acaa228d0b05` Accepted + staple。版本 0.2.0 (304)。未安装、未改业务代码、未 push。
+- P0：DMG 内 Agent identifier=`ahakeyconfig-agent`，不满足冻结 `lab.jawa.ahakeyconfig`。`build.sh` 直出 Agent 是对的；`package_dmg.sh` Finder 布局后重签丢掉 `--identifier`。安装矩阵停。
+- 需要回复：是（@Codex 另开返工卡修 `package_dmg.sh` 重签 identifier，再出公证 DMG）
