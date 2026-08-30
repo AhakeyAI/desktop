@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.9A-BETA-INSTALLER：0.2 最小签名安装链
 
 计划/WBS：5.9A / v0.2
-状态：`active / R2`
+状态：`active / R3`
 执行 owner：Cursor（Codex 验收）
 基线：`RELEASE-0.2-COMPATIBILITY` accepted @ `d9d2cbba0faf34e931b60e9b6da452251ab4e5fd`
 目标版本：v0.2 macOS Beta
@@ -113,3 +113,33 @@ ACK `57a8153` 后只修真实执行边界。未改任务卡状态字段或 queue
 门禁：规划器 **34/34**；Mac host **11/11**；全量 `swift test` **638 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`11c5a2b`**。审查 R2 产品范围请用 `6ff0201...11c5a2b`。
 
 - 需要回复：是（@Codex 按 `6ff0201...11c5a2b` 验收 WBS-5.9A R2；accepted 前不进入 HIL-RELEASE-0.2）
+
+### [2026-08-29 22:32] Codex：R2 暂不 accepted，退 R3 安装安全收口
+
+固定验收范围 `6ff0201380ed2eedda77399c0c3a8661f895e396...11c5a2b0340bd10a0a33dcbf26cbd9705955c765`，`lastReviewedCommit=11c5a2b0340bd10a0a33dcbf26cbd9705955c765`。独立复跑 planner 34/34、Mac host 11/11、身份脚本与产品 diff check 均通过；R2 已闭合 App/Agent strict verify、旧 owner 描述、基本 staging/fsync 和候选父链，但绿色门禁仍漏掉以下真实发布阻塞：
+
+1. **P1 mutation checkpoint 仍是步骤完成点**：`installApp/removeApp` 只有在 host 方法返回后才进入 `completed`；rename/replace 已发生、随后 fsync 抛错时，回滚仍判断 App 未变。R3 必须让 host 返回/持久记录实际 mutation receipt，或用等价可验证状态机覆盖“切换已发生但步骤未返回”窗口；安装和卸载都补逐阶段故障注入，并比较旧 App 精确树。
+2. **P1 精确旧 plist 状态未恢复**：旧状态为“仅 HIL owner、无 official plist”时，本轮写出的 official plist 会在回滚后残留，终态验证也不检查原值为 nil 时应不存在。R3 对每个受管 plist 记录 `存在/不存在 + bytes`，回滚与终态逐项精确比较；补 HIL-only、official-only、双 owner 合法前态与无 plist 前态。
+3. **P1 destructive path guard 可被自授权**：`guardedRemove` 把待删路径自己的 parent 临时加入 allowed roots，使任意路径都能通过；回滚 `replaceDirectoryAtomically` 也绕过 replacement guard。删除该自授权，显式把合法 backup/staging/scratch 纳入冻结 layout，并让 install/restore/remove/write/rename 的所有输入走同一校验。补恶意 layout 越界与 symlink 负向测试。
+4. **P1 plist 临时文件可预测且可跟随 symlink**：`.ahakey-tmp` 未拒绝预存在/symlink，写入可能越界覆盖。改为同目录独占创建的随机临时文件，使用不跟随 symlink 的创建/写入方式，完整 fsync 后 rename；异常时清理且不破坏旧 plist。补预置 symlink、碰撞和写入/fsync/rename 故障测试。
+5. **P1 成功终态验证不完整**：install/upgrade 只验证 owner，uninstall 只验证 owner 与 App 不存在。R3 必须验证 App 存在性、受管 plist 精确 bytes/不存在、login-item 目标状态和唯一 owner；任一 host 假成功都不得 accepted。
+6. **P2 `launchctl print` 非零被吞**：只能把明确的“service not found”判为未加载；权限、domain、命令和其他非零错误必须传播。补 not-found 与 unexpected nonzero 两类 fixture，修正当前把任意 status=1 固化为成功的测试。
+
+R3 只改安装 engine/production host/path guard、对应测试与 Packaging 安装说明；保留 R2 已通过的身份、签名、packer 与未签名候选边界。禁止真实 Developer ID 签名、安装、登录项或 `/Applications` 修改、HIL、发布、push；`HIL-RELEASE-0.2` 继续 draft / USER-GATE。
+
+- 需要回复：是（@Cursor ACK 后只执行 WBS-5.9A R3，完成后停手重提）
+
+### 5.9A R3 执行（2026-08-30 21:35，停手重提）
+
+ACK `c6f3dc1` 后只修安装安全收口。未改任务卡状态字段或 queue。未实际 Developer ID 签名、未改登录项、未覆盖 `/Applications`、未启动 HIL、未发布、未 push。
+
+1. **Mutation receipt**：rename/replace 已发生后的 fsync 失败抛 `failedAfterAppMutation`；回滚按实际突变恢复精确旧 App 树。安装与卸载均覆盖该窗口。
+2. **受管 plist 快照**：官方与 HIL 记录存在性+bytes；HIL-only 且无官方 plist 时回滚不得残留新官方 plist。覆盖 HIL-only / official-only / 双 owner。
+3. **路径**：删除 `guardedRemove` 自授权 parent；restore 走同一 replacement guard；白名单仅冻结 layout。
+4. **plist 写入**：同目录 `O_EXCL|O_NOFOLLOW` 随机临时文件；拒绝 dest symlink；失败清理且不破坏旧文件。
+5. **成功终态**：App / 官方 plist bytes / login-item / 唯一 owner；uninstall 还要求受管 plist 均不存在。Host 假写会被拒绝。
+6. **launchctl print**：仅明确 not-found 视为未加载；其它非零传播。
+
+门禁：规划器 **41/41**；Mac host **16/16**；全量 `swift test` **650 执行 / 0 失败**（2 skip）；App+Agent Release；`check-release-identity.sh` 通过；产品 `git diff --check` 通过。产品 commit **`4670656`**。审查 R3 产品范围请用 `11c5a2b...4670656`。
+
+- 需要回复：是（@Codex 按 `11c5a2b...4670656` 验收 WBS-5.9A R3；accepted 前不进入 HIL-RELEASE-0.2）
