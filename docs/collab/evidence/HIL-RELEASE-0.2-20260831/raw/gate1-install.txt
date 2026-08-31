@@ -1,0 +1,5 @@
+===== INSTALL START Mon Aug 31 12:35:57 +08 2026 =====
+INSPECT: signedIdentityMatches
+PRE: app=true login=false owners=["lab.jawa.ahakeyconfig.agent.hil"]
+INSTALL_ERROR: rollbackFailed("rejected(AhaKeyConfigShared.AhaKeyReleaseInstallRejection.identityRejected(AhaKeyConfigShared.AhaKeyReleaseSigningRejection.appIntegrityFailed))")
+===== INSTALL EXIT=1 Mon Aug 31 12:36:01 +08 2026 =====

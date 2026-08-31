@@ -1,0 +1,160 @@
+===== TIME =====
+Mon Aug 31 12:30:25 +08 2026
+===== WHOAMI =====
+uid=501(heartline) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),79(_appserverusr),80(admin),81(_appserveradm),701(com.apple.sharepoint.group.1),33(_appstore),98(_lpadmin),100(_lpoperator),204(_developer),250(_analyticsusers),395(com.apple.access_ftp),398(com.apple.access_screensharing),399(com.apple.access_ssh),400(com.apple.access_remote_ae)
+===== DMG SHA =====
+0c3ec9a6f5031e2497be786d32a4d5ba4d02bd474e5b7e124f04201b92f33618  /tmp/ahakey-hil-release-02-3b287be/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-3b287be.dmg
+===== hdiutil verify (quick) =====
+-rw-r--r--@ 1 heartline  staff  13556729 Aug 31 12:14 /tmp/ahakey-hil-release-02-3b287be/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-3b287be.dmg
+===== APP TREE =====
+total 0
+drwxr-xr-x@  3 heartline  admin    96 Aug 21 14:58 .
+drwxrwxr-x  47 root       admin  1504 Aug 29 09:49 ..
+drwxr-xr-x@  6 heartline  admin   192 Aug 21 14:58 Contents
+0.1.0
+70
+lab.jawa.ahakeyconfig
+===== CODESIGN APP =====
+Executable=/Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+Identifier=lab.jawa.ahakeyconfig
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=18817 flags=0x10000(runtime) hashes=577+7 location=embedded
+VersionPlatform=1
+VersionMin=786432
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e
+CandidateCDHashFull sha256=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e739a514e036225f42684ca52
+Hash choices=sha256
+CMSDigest=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e739a514e036225f42684ca52
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=2654208
+Executable Segment flags=0x1
+Page size=16384
+CDHash=e5d629ec647e4ef90eb4e940f6ea3e3dec67b12e
+Signature size=9047
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Aug 21, 2026 at 14:58:25
+Info.plist entries=16
+TeamIdentifier=P2VFVRZK7P
+Runtime Version=26.4.0
+Sealed Resources version=2 rules=13 files=8
+Internal requirements count=1 size=184
+===== CODESIGN VERIFY APP =====
+/Applications/AhaKey Studio.app: a sealed resource is missing or invalid
+===== CODESIGN AGENT =====
+Executable=/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+Identifier=ahakeyconfig-agent-555549441d6f64469a91355fabdbeb1c3bab6890
+Format=Mach-O thin (arm64)
+CodeDirectory v=20400 size=6804 flags=0x2(adhoc) hashes=206+2 location=embedded
+VersionPlatform=1
+VersionMin=786432
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=296765c1ca45e8e84a68c76f0f822f794218c0d2
+CandidateCDHashFull sha256=296765c1ca45e8e84a68c76f0f822f794218c0d2d0b97815845df7d402c562fc
+Hash choices=sha256
+CMSDigest=296765c1ca45e8e84a68c76f0f822f794218c0d2d0b97815845df7d402c562fc
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=1064960
+Executable Segment flags=0x1
+Page size=16384
+CDHash=296765c1ca45e8e84a68c76f0f822f794218c0d2
+Signature=adhoc
+Info.plist=not bound
+TeamIdentifier=not set
+Sealed Resources=none
+Internal requirements count=0 size=12
+===== SPCTL =====
+/Applications/AhaKey Studio.app: a sealed resource is missing or invalid
+===== SHA256 SNAPSHOTS =====
+61da75e0ece09f3bf422770aa707b7cb99af865ff4d004e2b1e1da9d84055804  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+bb8df32368e672103e1632b74fbf14d36124eeaef5b61f77ac7709003f6ed923  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+577b0d49c6dce8dedac2b7462842e3cbe68231b69f9aa9539fa88bacc7c8f919  /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+d75e828ea8c11e845e7b2fcd90b401ba3afaf44ea392f4cb2283ecce90e73df8  /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+===== PLIST LS =====
+-rw-r--r--@ 1 heartline  staff  1120 Aug 27 20:47 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+-rw-r--r--@ 1 heartline  staff   874 Aug 26 19:45 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+===== LAUNCHCTL LIST AHAKEY =====
+-	0	lab.jawa.ahakeyconfig.agent.hil
+===== LAUNCHCTL PRINT OFFICIAL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent" in domain for user gui: 501
+===== LAUNCHCTL PRINT HIL =====
+gui/501/lab.jawa.ahakeyconfig.agent.hil = {
+	active count = 0
+	path = /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /tmp/ahakey-hil-bin/ahakeyconfig-agent
+	arguments = {
+		/tmp/ahakey-hil-bin/ahakeyconfig-agent
+		--socket
+		/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+	}
+
+	working directory = /tmp/ahakey-hil-bin
+
+	stdout path = /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/agent-hil.log
+	stderr path = /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/agent-hil.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.dX9pAChkNa/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		NSUnbufferedIO => YES
+		XPC_SERVICE_NAME => lab.jawa.ahakeyconfig.agent.hil
+	}
+
+	domain = gui/501 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 0
+	last exit code = (never exited)
+
+	endpoints = {
+		"lab.jawa.ahakeyconfig.runtime" = {
+			port = 0x0
+			active = 0
+			managed = 1
+			reset = 0
+			hide = 0
+			watching = 1
+		}
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = inferred program | needs LWCR update | managed LWCR
+}
+===== SFLTOOL DUMPBTM AHAKEY =====
+===== SFLTOOL DUMPBTM AHAKEY (timeout 20s) =====
+sflTOOL_TIMEOUT
+sfltool_timeout_or_fail
+===== OSascript LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app
+===== PROCESSES =====
+heartline        92302   1.5  0.8 1892322160 137616   ??  S    11:52AM   0:39.19 Cursor Helper (Plugin): extension-host ahakeyconfig-main [1-12]                      
+heartline          861   0.0  0.0 410059936    192   ??  R    12:33PM   0:00.00 grep -i [a]hakey\|[A]haKeyConfig\|ahakeyconfig
+heartline          820   0.0  0.0 435308080   2112   ??  Ss   12:32PM   0:00.01 /bin/zsh -c builtin export PATH="/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"; snap=$(command cat <&3); builtin unsetopt aliases 2>/dev/null; builtin unalias -m '*' 2>/dev/null || true; builtin eval "$snap" && { builtin unsetopt nounset 2>/dev/null || true; builtin eval "${__CURSOR_SANDBOX_ENV_RESTORE:-}" 2>/dev/null; builtin export PWD="$(builtin pwd)"; builtin setopt aliases 2>/dev/null; builtin eval "$1" < /dev/null; }; COMMAND_EXIT_CODE=$?; dump_zsh_state >&4; builtin exit $COMMAND_EXIT_CODE -- set -euo pipefail\012RAW="/Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-RELEASE-0.2-20260831/raw"\012SNAP_DIR="/tmp/ahakey-hil-gate1-rollback"\012mkdir -p "$RAW" "$SNAP_DIR"\012\012{\012  echo "===== SFLTOOL DUMPBTM AHAKEY (timeout 20s) ====="\012  python3 - <<'PY' || echo "sfltool_timeout_or_fail"\012import subprocess, sys\012try:\012    p = subprocess.run(["sfltool","dumpbtm"], capture_output=True, text=True, timeout=20)\012    text = (p.stdout or "") + (p.stderr or "")\012    lines = text.split("\n")\012    keep=False\012    buf=[]\012    blocks=[]\012    for line in lines:\012        if line.startswith(" #") and ":" in line[:6]:\012            if keep and buf: blocks.append("\n".join(buf))\012            buf=[line]; keep=False\012            continue\012        buf.append(line)\012        low=line.lower()\012        if "ahakey" in low or "jawa" in low:\012            keep=True\012    if keep and buf: blocks.append("\n".join(buf))\012    print("\n---\n".join(blocks) if blocks else "no_ahakey_btm_items")\012    print("sfltool_exit", p.returncode)\012except subprocess.TimeoutExpired:\012    print("sflTOOL_TIMEOUT")\012    sys.exit(1)\012PY\012  echo "===== OSascript LOGIN ITEMS ====="\012  osascript -e 'tell application "System Events" to get the path of every login item' 2>&1 || true\012  echo "===== PROCESSES ====="\012  ps aux | grep -i '[a]hakey\|[A]haKeyConfig\|ahakeyconfig' || true\012  echo "===== HID KEYBOARD ====="\012  ioreg -r -c IOHIDDevice -l 2>/dev/null | python3 -c '\012import sys,re\012text=sys.stdin.read()\012chunks=text.split("+-o ")\012found=False\012for ch in chunks:\012    if "AhaKey" in ch or "VendorID\" = 2007" in ch:\012        found=True\012        name=re.search(r"Product\" = \"(.*?)\"", ch)\012        addr=re.search(r"DeviceAddress\" = \"(.*?)\"", ch)\012        vid=re.search(r"VendorID\" = (\d+)", ch)\012        usage=re.search(r"DeviceUsage\" = (\d+)", ch)\012        page=re.search(r"DeviceUsagePage\" = (\d+)", ch)\012        transport=re.search(r"Transport\" = \"(.*?)\"", ch)\012        print("Product", name.group(1) if name else "?")\012        print("Address", addr.group(1) if addr else "?")\012        print("VID", vid.group(1) if vid else "?")\012        print("UsagePage", page.group(1) if page else "?", "Usage", usage.group(1) if usage else "?")\012        print("Transport", transport.group(1) if transport else "?")\012        print("---")\012if not found:\012    print("no_ahakey_hid")\012'\012  echo "===== BLUEUTIL ====="\012  blueutil --connected 2>/dev/null || echo "blueutil_unavailable"\012} >> "$RAW/gate1-pre-snapshot.txt"\012\012cp "/Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist" "$RAW/gate1-official-agent.plist"\012cp "/Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist" "$RAW/gate1-hil-agent.plist"\012\012echo "zipping app..."\012ditto -c -k --keepParent "/Applications/AhaKey Studio.app" "$SNAP_DIR/AhaKey-Studio-pre-gate1.zip"\012ls -lh "$SNAP_DIR/AhaKey-Studio-pre-gate1.zip"\012shasum -a 256 "$SNAP_DIR/AhaKey-Studio-pre-gate1.zip" | tee "$RAW/gate1-app-zip.sha256"\012echo "snapshot lines:" $(wc -l < "$RAW/gate1-pre-snapshot.txt")\012
+===== HID KEYBOARD =====
+no_ahakey_hid
+===== BLUEUTIL =====
+blueutil_unavailable

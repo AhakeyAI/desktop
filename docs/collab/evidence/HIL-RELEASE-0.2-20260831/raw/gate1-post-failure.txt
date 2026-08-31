@@ -1,0 +1,81 @@
+===== TIME AFTER FAILED INSTALL Mon Aug 31 12:36:32 +08 2026 =====
+===== APP EXISTS =====
+total 0
+drwxr-xr-x@  3 heartline  admin    96 Aug 31 12:13 .
+drwxrwxr-x  48 root       admin  1536 Aug 31 12:36 ..
+drwxr-xr-x@  6 heartline  staff   192 Aug 31 12:13 Contents
+total 0
+drwxr-xr-x@  3 heartline  admin    96 Aug 21 14:58 .
+drwxrwxr-x  48 root       admin  1536 Aug 31 12:36 ..
+drwxr-xr-x@  6 heartline  admin   192 Aug 21 14:58 Contents
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+no_staging
+/Applications/AhaKey Studio.app
+/Applications/AhaKey Studio.app.ahakey-backup
+/Applications/AhaKey Studio.app.backup-20260510-micfix
+===== VERSION =====
+0.2.0
+323
+===== SHA =====
+caf12acca6783ba422a17b883e6a49c3ce6a22b708f1fab2b1ac13a4de1d12ee  /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+c7f39ba9dfd62fbfa42b3eb49c6a57581aa3a156a81d378540d970b872a4b0ed  /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+231d3ca155ad9888b5b2876f539aada5e8605666b16270473c109236a95c50f5  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+bb8df32368e672103e1632b74fbf14d36124eeaef5b61f77ac7709003f6ed923  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+===== CODESIGN APP =====
+===== CODESIGN AGENT =====
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== TMP FILES =====
+no_tmp_plists
+===== LAUNCHCTL =====
+===== PRINT OFFICIAL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent" in domain for user gui: 501
+===== PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+===== PLIST HEAD =====
+{
+  "KeepAlive" => true
+  "Label" => "lab.jawa.ahakeyconfig.agent"
+  "MachServices" => {
+    "lab.jawa.ahakeyconfig.runtime" => true
+  }
+  "ProgramArguments" => [
+    0 => "/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent"
+    1 => "--socket"
+    2 => "/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/heartline/Library/Logs/ahakeyconfig-agent.log"
+  "StandardOutPath" => "/Users/heartline/Library/Logs/ahakeyconfig-agent.log"
+}
+===== LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app
+===== BACKUP APP VERSION =====
+0.1.0
+70
+/Applications/AhaKey Studio.app.ahakey-backup: a sealed resource is missing or invalid
+===== INSTALLED APP AGENT ID =====
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== INSTALLED APP VERIFY =====
+--prepared:/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+--validated:/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+/Applications/AhaKey Studio.app: valid on disk
+/Applications/AhaKey Studio.app: satisfies its Designated Requirement
+===== AGENT LOG TAIL =====
+tail: /Users/heartline/Library/Logs/ahakeyconfig-agent.log: No such file or directory
+===== PRE vs POST PLIST SHA =====
+pre official 61da75e0ece09f3bf422770aa707b7cb99af865ff4d004e2b1e1da9d84055804
+pre hil      bb8df32368e672103e1632b74fbf14d36124eeaef5b61f77ac7709003f6ed923
+pre app exe  577b0d49c6dce8dedac2b7462842e3cbe68231b69f9aa9539fa88bacc7c8f919
+===== CANDIDATE EXE SHA =====
+caf12acca6783ba422a17b883e6a49c3ce6a22b708f1fab2b1ac13a4de1d12ee  /var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/ahakey-gate1-candidate/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+c7f39ba9dfd62fbfa42b3eb49c6a57581aa3a156a81d378540d970b872a4b0ed  /var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/ahakey-gate1-candidate/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
