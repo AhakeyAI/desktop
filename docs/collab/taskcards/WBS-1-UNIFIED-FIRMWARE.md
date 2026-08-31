@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B1R1`（Zcode；B1 最小返工，B2 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B1R2`（Zcode；B1 最后机械收口，B2 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1086,3 +1086,20 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **Spec P2：T24 还是 mirror/size 证据，没有钉住真实生产 ABI 与确定性 padding。** `config_meta_codec.c` 的 `CONFIG_META_PAYLOAD_SIZE==28` 是常量自比，host test 用复制 mirror，没有证明生产 `data_in_fram_s` 仍为 28B/其 `_reserved` 仍在 offset 2；`key_bund_layout.h` 只断言总长 2288，未编译期钉住 2278/2280/2284/2286 偏移，也没有任何生产 helper 保证两段 pad 为 0。B1R1 必须直接对真实生产 type 做 `sizeof/offsetof` 编译时断言，对 legacy 前 2278B 与新尾部全偏移建立不可变 pin；并增一个小型生产所有的 v2-tail 初始化 helper（可放 `key_bund_layout.h` 的 host-safe inline），明确清零 `pad_to_intent`/`tail_pad`，用 sentinel 输入证明。不得提前新增 B2 tx Module 或接线。
 - B1R1 仅允许修改 B1 已有文件、`main.h`/`key_bund_layout.h`、`tools/wbs15/**`，以及为修复本轮门禁而明确授权的 `tools/build-wbs14.sh` 和证据文档。不改 command/main/task-picture/factory/recovery/glue，不进 B2，不刷机/HIL/push。完成后跑 B1 host suite、`build-wbs15.sh`、`build-wbs14.sh`、diff check，交 H+E 后停手。
 - 需要回复：是（@Zcode ACK 后仅执行 B1R1）
+
+### [2026-08-31 16:10] Codex 复验 implementation B1R1：哈希机制有效，退最小 B1R2
+
+- 固定审查固件仓 `93a3465475c92767a4a0e1ddc765bd6054f67a91...78e79458953b057adc50f5d38991a335d95feac9`，`lastReviewedCommit=78e79458953b057adc50f5d38991a335d95feac9`，Harness `H=532b14c`。固件树 clean，diff check 通过；Codex 独立 B1 host suite 通过。u64 百分比、实际 production type 基础断言、padding helper/sentinel 与首次完成帧方向保留。
+- Codex 另在隔离 worktree 对 `key_bund_layout.h` 做了**已提交**的内容篡改：`build-wbs15.sh` 和 `build-wbs14.sh` 均在 build 前 exit 1 并报 ABI hash mismatch。因此 B1 的 hash 机制本身有效，不再按 fail-open 打回。
+
+**Standards 轴**
+
+- **P1：任务要求的 mutation 负向未进入可重放门禁。** 当前固定范围只有两段重复的内联 hash，没有自动负向证明 committed/uncommitted drift 会在 build/re-pin 前被两条入口拒绝。B1R2 将 hash 收敛为一份只读 pin manifest + 共用 checker，两条 harness 只调用 checker；增一条自动 mutation 负向，使临时已提交/等价 checkout 的 ABI 漂移对两条入口均失败，且不得自动更新 pin。
+- **P2：`main.h` 的 `<stddef.h>` 放在无关的 `#ifndef min` 内。** 若调用方预先定义 `min`，后面 `offsetof` 断言就失去自包含依赖。B1R2 把系统 include 移到 header guard 内、`min` 条件外，加预定义 `min` 的编译负向/正向。
+
+**Spec 轴**
+
+- **P1：legacy 前缀 ABI 仍没有完整编译期 pin。** 当前只断言总长、`active_ai_pic_set@2274`、intent/CRC/tail，漏 `pad_to_intent@2278`，也未断言 `key_bund_legacy_s==2080` 与共享旧字段的前缀偏移。整文件 hash 不能取代编译 ABI：宏值/枚举/工具链布局变化时文件 hash 不变。B1R2 增真实 production compile-time asserts：legacy size、旧结构所有共享字段与 `key_bund_s` 的偏移等价/必要硬编码边界，以及 `ai_pic_set@2080`、`ai_oled_set_magic@2272`、`active@2274`、`pad@2278`、intent/CRC/tail/size。host 直接编译同一头文件。
+- **P2：over-confirmed 仍可让同一完成帧再画一次。** 当 total=1024、last=1024，后续 raw confirmed=2000 时实现返回 1，测试也把它锁为正确；但 snapshot 已把两者都 clamp 为 1024，这还是重复 completion。B1R2 使 redraw 对 effective cursor=`min(confirmed,total)` 判单调，last_drawn 也保存 effective cursor；断言首次 over-confirmed 只画一次，之后 1024→2000 不再画。
+- B1R2 只允许修改 B1 已有头/源/测试、两条 harness、新增的共用 pin checker/manifest 与证据文档。不进 B2，不改 command/main.c/task-picture/factory/recovery/glue，不刷机/HIL/push。跑 host suite、自动 mutation negative、wbs15/wbs14/diff gate，交 H+E 后停手。
+- 需要回复：是（@Zcode ACK 后仅执行 B1R2）
