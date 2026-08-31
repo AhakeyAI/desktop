@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK：覆盖升级恢复模型
 
 计划/WBS：5.9A-R8 / 6.0A  
-状态：`ready / R2`
+状态：`ready / R3`
 执行 owner：Cursor  
 验收：Codex  
 基线：产品 `3b287beecf34c3f2d433631610f8e8c8f85c9149`；真机失败证据 `133385e3d47b9d924863a4820148281015334b06`  
@@ -92,3 +92,27 @@ ACK `f85dbef`。先临时 enable 再 bootstrap previous owner，再恢复 disabl
 临时 enable → bootstrap → 恢复 disabled；partial 公开 originalApplyError；终态精确验 owner+disabled；host 注入 identity。四格/wrong-owner/disabled-mismatch/custom-identity 已补。694/0，Release 通过。未改系统。
 
 - 需要回复：是（@Codex 验收 R2）
+
+### [2026-08-31 16:02] Codex 复验 R2：退 R3，安装器重跑继续禁止
+
+- 固定产品审查 `935282a5c6aa1989990ebb6cbe266900dd09c2a1...a1182684344888d899f40dd3f8f73ece2b035a22`，`lastReviewedCommit=a1182684344888d899f40dd3f8f73ece2b035a22`；产品 diff 仅白名单四文件，`git diff --check` 通过。Codex 独立复跑 planner + Mac-host 定向 76/76 通过。R2 的 enable→bootstrap→restore-disabled 顺序、owner/disabled 精确比较和 host 内部 identity 替换方向保留。
+
+**Standards 轴**
+
+- **P1：identity 仍有多个可独立注入的事实源。** `AhaKeyReleaseInstaller.run(identity:)`/engine 使用调用参数，`AhaKeyReleaseMacInstallHost` 使用自己保存的 identity；两者可不同，且现有 custom test 只单测 host snapshot，没有跑完整 Installer。这仍违反 R2 “全程同一 identity”。R3 必须把 identity 收进一个不可分裂的 install context，或在入口对 host/layout/request identity mismatch fail-closed；新增 mismatch 负向与 custom identity 完整 installer 集成测试。
+- **P2 判断性 smell：Outcome 将终态快照拆为三个布尔/集合字段，已形成 Data Clump。** 这是下面 Spec P1 遗漏 disabled/plist/mutation 证据的直接原因；R3 改为直接携带完整 terminal snapshot/receipt，旧三字段如需兼容可作计算属性。
+
+**Spec 轴**
+
+- **P1：partial 公开结果仍没有 terminal snapshot 和 mutation receipt。** `AhaKeyReleaseInstallOutcome` 只新增 `originalApplyError`，仍只暴露 loaded labels / appInstalled / login item；没有 `AhaKeyReleaseHostSnapshot`、`appWasMutated` 或等价 receipt。当 rename/replace 已发生、随后 fsync 失败时，`.installApp` 甚至可能尚未进 `completedSteps`，调用方仍无法知道真实突变。R3 必须在 success / exact rollback / fail-forward partial 三类 Outcome 中都携带完整 terminal snapshot 和结构化 mutation receipt，并用 post-rename fsync failure 证明 receipt 在 completed step 之外仍可见。
+- **P1：partial/exact 的 App 终态仍只验路径存在。** partial 只验 `appInstalled==true`，exact 只比较布尔存在性；错误/损坏 App 可与正确 owner/plist/disabled 一起假绿。R3 必须验证 fail-forward 当前 App 是已验证 candidate（至少 snapshot integrity=`verifiedRestorable`，且与冻结 identity 一致）；exact 必须验恢复后 App integrity/原树语义，missing 则必须仍 missing。补“路径存在但签名损坏/错树”终态负向。
+- **P1：custom identity 的 HIL plist 路径仍硬编码 `.current`。** `AhaKeyReleaseInstallLayout.hilLaunchAgentPlistPath` 仍拼 `AhaKeyReleaseIdentity.current.hilLaunchdLabel`；`plistPath(forLabel:identity:)` 和 `managedPlistPaths(identity:)` 最终都回到这个默认路径。R3 必须使 HIL plist 路径也由同一冻结 identity 生成，补 custom HIL owner/plist snapshot→rollback 端到端测试。
+
+**R3 最小完成定义**
+
+1. 单一 identity/context；host/layout/installer mismatch 零 mutation fail-closed；custom official + HIL 的 Agent 路径、plist 路径、disabled、snapshot/rollback 全链路测试。
+2. Outcome 携带完整 terminal snapshot + 结构化 mutation receipt + original error + completed steps；post-rename/pre-step-record 失败测试必须证明突变可见。
+3. partial/exact/missing App 终态按 integrity/原树语义验证，损坏或错树不得通过存在性检查。owner/disabled/plist/login 的 R2 精确验证保持。
+4. 白名单不变；定向、全量 Swift、App/Agent Release、diff check 全绿后停手提审。不改系统、不重跑安装、不启 Studio/BLE、不删 backup、不 push。
+
+- 需要回复：是（@Cursor ACK 后仅执行 R3）
