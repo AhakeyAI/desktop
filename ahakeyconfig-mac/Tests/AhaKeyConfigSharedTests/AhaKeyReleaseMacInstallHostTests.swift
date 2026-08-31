@@ -97,6 +97,111 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
             )
         }
         XCTAssertThrowsError(try control.registerLoginItem())
+        XCTAssertThrowsError(try control.setLaunchdDisabled(label: identity.agentLaunchdLabel, disabled: false)) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.systemMutationNotAllowed)
+            )
+        }
+    }
+
+    func testLaunchdControlPrintDisabledAndEnableKeepCommandStatusOutput() throws {
+        let process = AhaKeyReleaseRecordingProcessRunner()
+        let uid = getuid()
+        process.outputByJoinedArguments["print-disabled gui/\(uid)"] = """
+        disabled = {
+                "com.apple.Safari" => disabled
+                "\(identity.agentLaunchdLabel)" => disabled
+                "\(identity.hilLaunchdLabel)" => enabled
+        }
+        """
+        let control = AhaKeyReleaseLaunchdControl(allowSystemMutation: true, process: process)
+        XCTAssertEqual(
+            try control.disabledLaunchdLabels(),
+            ["com.apple.Safari", identity.agentLaunchdLabel]
+        )
+
+        process.statusByJoinedArguments["print-disabled gui/\(uid)"] = 4
+        process.outputByJoinedArguments["print-disabled gui/\(uid)"] = "print-disabled denied"
+        XCTAssertThrowsError(try control.disabledLaunchdLabels()) { error in
+            guard case .hostFailure(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("print-disabled 非零必须保留 command/status/output，got \(error)")
+            }
+            XCTAssertTrue(message.contains("launchctl print-disabled"), message)
+            XCTAssertTrue(message.contains("exit 4"), message)
+            XCTAssertTrue(message.contains("print-disabled denied"), message)
+        }
+
+        process.statusByJoinedArguments["enable gui/\(uid)/\(identity.agentLaunchdLabel)"] = 9
+        process.outputByJoinedArguments["enable gui/\(uid)/\(identity.agentLaunchdLabel)"] =
+            "Could not enable service"
+        XCTAssertThrowsError(
+            try control.setLaunchdDisabled(label: identity.agentLaunchdLabel, disabled: false)
+        ) { error in
+            guard case .hostFailure(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("enable 非零必须保留 command/status/output，got \(error)")
+            }
+            XCTAssertTrue(message.contains("launchctl enable"), message)
+            XCTAssertTrue(message.contains("exit 9"), message)
+            XCTAssertTrue(message.contains("Could not enable service"), message)
+        }
+    }
+
+    func testMacHostSnapshotClassifiesBrokenPreviousAppAsNonRestorable() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root)
+        let previous = try makeAppFixture(in: root, name: "AhaKey Studio.app", marker: "old")
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(atPath: previous.app, toPath: layout.applicationsAppPath)
+        try tamperAppSeal(layout.applicationsAppPath)
+        let system = AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true)
+        system.disabled = [identity.agentLaunchdLabel]
+        system.loaded = [identity.hilLaunchdLabel]
+        let host = AhaKeyReleaseMacInstallHost(system: system)
+        let snapshot = try host.snapshot(layout: layout)
+        XCTAssertEqual(snapshot.previousAppIntegrity, .nonRestorable)
+        XCTAssertTrue(snapshot.disabledOverrides.officialDisabled)
+        XCTAssertEqual(snapshot.loadedLaunchdLabels, [identity.hilLaunchdLabel])
+    }
+
+    func testMacHostNonRestorableUpgradeEnablesOfficialAndKeepsForensicBackup() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root)
+        try FileManager.default.createDirectory(atPath: layout.launchAgentsDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let previous = try makeAppFixture(in: root, name: "previous.app", marker: "old")
+        try FileManager.default.copyItem(atPath: previous.app, toPath: layout.applicationsAppPath)
+        try tamperAppSeal(layout.applicationsAppPath)
+        try Data("hil-plist".utf8).write(to: URL(fileURLWithPath: layout.hilLaunchAgentPlistPath))
+        let candidates = (root as NSString).appendingPathComponent("Candidates")
+        try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
+        let fixture = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "new")
+        let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
+        system.loaded = [identity.hilLaunchdLabel]
+        system.disabled = [identity.agentLaunchdLabel]
+        system.failingVerifyIfPathContains = ".ahakey-backup"
+        let host = AhaKeyReleaseMacInstallHost(system: system)
+        let outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: fixture.app),
+            host: host,
+            layout: layout
+        )
+        XCTAssertFalse(outcome.rolledBack)
+        XCTAssertFalse(outcome.failForwardPartial)
+        XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
+        XCTAssertTrue(outcome.loginItemRegistered)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: layout.applicationsAppPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: layout.backupAppPath))
+        XCTAssertFalse(system.disabled.contains(identity.agentLaunchdLabel))
+        XCTAssertEqual(system.loaded, [identity.agentLaunchdLabel])
     }
 
     func testSymlinkOnDiskIsRejectedByPathGuard() throws {
@@ -579,5 +684,13 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         process.waitUntilExit()
         let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         XCTAssertEqual(process.terminationStatus, 0, "codesign ad-hoc failed for \(path): \(err)")
+    }
+
+    private func tamperAppSeal(_ app: String) throws {
+        let resources = (app as NSString).appendingPathComponent("Contents/Resources")
+        try FileManager.default.createDirectory(atPath: resources, withIntermediateDirectories: true)
+        try Data("tamper".utf8).write(
+            to: URL(fileURLWithPath: (resources as NSString).appendingPathComponent("broken.txt"))
+        )
     }
 }

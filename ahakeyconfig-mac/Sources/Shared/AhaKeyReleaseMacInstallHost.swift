@@ -62,9 +62,11 @@ public final class AhaKeyReleaseRecordingProcessRunner: AhaKeyReleaseProcessRunn
 public protocol AhaKeyReleaseSystemControl: AnyObject {
     func darwinMajor() -> Int
     func loadedLaunchdLabels() throws -> Set<String>
+    func disabledLaunchdLabels() throws -> Set<String>
     var loginItemRegistered: Bool { get }
     func bootout(label: String) throws
     func bootstrap(label: String, plistPath: String) throws
+    func setLaunchdDisabled(label: String, disabled: Bool) throws
     func registerLoginItem() throws
     func unregisterLoginItem() throws
     func inspectCodeSignature(at path: String) throws -> AhaKeyReleaseCodeSignature
@@ -79,6 +81,8 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
     public var useProcessCodesign: Bool
     public var bootoutError: AhaKeyReleaseInstallError?
     public var bootstrapError: AhaKeyReleaseInstallError?
+    public var enableError: AhaKeyReleaseInstallError?
+    public var disabled: Set<String> = []
     public var failingVerify: Set<String> = []
     public var failingVerifyIfPathContains: String?
 
@@ -100,6 +104,8 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
 
     public func loadedLaunchdLabels() throws -> Set<String> { loaded }
 
+    public func disabledLaunchdLabels() throws -> Set<String> { disabled }
+
     public func bootout(label: String) throws {
         if let bootoutError {
             throw bootoutError
@@ -111,8 +117,24 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
         if let bootstrapError {
             throw bootstrapError
         }
+        if disabled.contains(label) {
+            throw AhaKeyReleaseInstallError.hostFailure(
+                "launchctl bootstrap gui/\(getuid()) \(plistPath) exit 5: Bootstrap failed: service is disabled"
+            )
+        }
         _ = plistPath
         loaded.insert(label)
+    }
+
+    public func setLaunchdDisabled(label: String, disabled: Bool) throws {
+        if let enableError, !disabled {
+            throw enableError
+        }
+        if disabled {
+            self.disabled.insert(label)
+        } else {
+            self.disabled.remove(label)
+        }
     }
 
     public func registerLoginItem() throws {
@@ -219,6 +241,32 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
         }
     }
 
+    public static func parseDisabledLabels(from output: String) -> Set<String> {
+        var disabled: Set<String> = []
+        for raw in output.split(whereSeparator: \.isNewline) {
+            let text = raw.trimmingCharacters(in: .whitespaces)
+            guard let separator = text.range(of: " => ") else { continue }
+            let name = String(text[..<separator.lowerBound])
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            let state = String(text[separator.upperBound...]).trimmingCharacters(in: .whitespaces)
+            if state == "disabled", !name.isEmpty {
+                disabled.insert(name)
+            }
+        }
+        return disabled
+    }
+
+    public func disabledLaunchdLabels() throws -> Set<String> {
+        let arguments = ["print-disabled", "gui/\(getuid())"]
+        let result = try process.run(executable: "/bin/launchctl", arguments: arguments)
+        if result.status != 0 {
+            throw AhaKeyReleaseInstallError.hostFailure(
+                "launchctl \(arguments.joined(separator: " ")) exit \(result.status): \(result.output)"
+            )
+        }
+        return Self.parseDisabledLabels(from: result.output)
+    }
+
     public func bootout(label: String) throws {
         try requireMutation()
         try runLaunchctlChecked(["bootout", guiTarget(label)])
@@ -228,6 +276,11 @@ public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
         try requireMutation()
         _ = label
         try runLaunchctlChecked(["bootstrap", "gui/\(getuid())", plistPath])
+    }
+
+    public func setLaunchdDisabled(label: String, disabled: Bool) throws {
+        try requireMutation()
+        try runLaunchctlChecked([disabled ? "disable" : "enable", guiTarget(label)])
     }
 
     public func registerLoginItem() throws {
@@ -650,7 +703,9 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
             appInstalled: fileManager.fileExists(atPath: layout.applicationsAppPath),
             loadedLaunchdLabels: try system.loadedLaunchdLabels(),
             loginItemRegistered: system.loginItemRegistered,
-            preservedPathExists: exists
+            preservedPathExists: exists,
+            previousAppIntegrity: classifyInstalledApp(at: layout.applicationsAppPath),
+            disabledOverrides: disabledOverrides(from: try system.disabledLaunchdLabels())
         )
     }
 
@@ -812,6 +867,38 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
 
     public func unregisterLoginItem() throws {
         try system.unregisterLoginItem()
+    }
+
+    public func disabledLaunchdLabels() throws -> Set<String> {
+        try system.disabledLaunchdLabels()
+    }
+
+    public func setLaunchdDisabled(label: String, disabled: Bool) throws {
+        try system.setLaunchdDisabled(label: label, disabled: disabled)
+    }
+
+    private func disabledOverrides(from labels: Set<String>) -> AhaKeyReleaseDisabledOverrideSnapshot {
+        let identity = AhaKeyReleaseIdentity.current
+        return AhaKeyReleaseDisabledOverrideSnapshot(
+            officialDisabled: labels.contains(identity.agentLaunchdLabel),
+            hilDisabled: labels.contains(identity.hilLaunchdLabel)
+        )
+    }
+
+    private func classifyInstalledApp(at path: String) -> AhaKeyReleasePreviousAppIntegrity {
+        guard fileManager.fileExists(atPath: path) else { return .missing }
+        do {
+            try system.verifyCodeSignature(at: path)
+            let agent = AhaKeyReleaseIdentity.current.agentBinaryPath(inApp: path)
+            var isDir: ObjCBool = false
+            guard fileManager.fileExists(atPath: agent, isDirectory: &isDir), !isDir.boolValue else {
+                return .nonRestorable
+            }
+            try system.verifyCodeSignature(at: agent)
+            return .verifiedRestorable
+        } catch {
+            return .nonRestorable
+        }
     }
 
     private func verifyStagedApp(_ staging: String) throws {

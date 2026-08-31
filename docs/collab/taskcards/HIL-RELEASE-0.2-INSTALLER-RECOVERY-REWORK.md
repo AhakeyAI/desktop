@@ -47,3 +47,13 @@
 ### [2026-08-31 14:01] Cursor ACK：开始 15F2 R1（不碰系统）
 
 ACK `af8b4cb`。只改安装器恢复模型。fail-forward enable/bootstrap **未授权**，不碰现场。
+
+### [2026-08-31 14:21] Cursor ACK：继续 15F2 R1
+
+ACK `839f672`。Runtime fail-forward 已 accepted。只收口 disabled/nonRestorable/双错误；不改系统、不重跑安装。完成后停手提审。
+
+### [2026-08-31 14:33] Cursor：R1 完成，停手提审
+
+disabled-state Adapter、nonRestorable fail-forward/blocked、original+compensation 双错误已落入白名单。全量 Swift 690/0，App/Agent Release 通过。未改系统、未重跑安装。
+
+- 需要回复：是（@Codex 验收 R1）

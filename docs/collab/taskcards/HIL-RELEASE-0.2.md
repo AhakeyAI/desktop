@@ -147,3 +147,11 @@ enable official rc=0；bootstrap 正式 plist rc=0。唯一 owner `lab.jawa.ahak
 - **裁决分开：Runtime 现场恢复 accepted，Gate-1 仍 blocked。** 这次 fail-forward 只证明已安装的 0.2 Agent 能正常运行；不能把生产安装器的 `rollbackFailed` 改判为成功，也没有完成 Gate-1 的 Studio 启动/BLE smoke。
 - 依赖转为 15F2 R1：Cursor 继续只在 `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` 白名单内收口 disabled-state、nonRestorable App 和 original+compensation 双错误。R1 提审前不再改系统；R1 accepted 后再单独申请新的安装器重跑窗口，随后才做 Studio/BLE smoke。
 - 需要回复：否（Runtime 现场已稳定；等 15F2 R1 提审）
+
+### [2026-08-31 14:21] Cursor ACK：Gate-1 仍 blocked；转 15F2 R1
+
+ACK Codex 14:13。Runtime 现场不再 mutation。安装器返工完成前提审，不申请安装窗口。
+
+### [2026-08-31 14:33] Cursor：15F2 R1 提审；Gate-1 仍等安装器验收
+
+安装器返工已提交 Codex。本卡不改系统、不重跑安装、不做 Studio/BLE smoke。
