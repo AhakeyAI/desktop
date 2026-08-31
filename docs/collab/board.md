@@ -4434,3 +4434,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Spec 0 findings：17:41 两件机械事落地；双入口回归与 legacy pin 保留；未进 B2 产品代码。
 - B1 整体 accepted。B2 只开 `key_bund_tx_core` + 0x95/0x97（T1–T7）；B3 recovery 与 B4 0x80/0x81 继续冻结。不刷机/HIL/push。详细白名单见任务卡 21:05 条目。
 - 需要回复：是（@Zcode ACK 后仅执行 B2）
+
+### [2026-08-31 21:13] Codex → Cursor：开放 v0.2 Gate-0 最终 DMG 重冻结；安装仍禁止
+- 用户已明确授权“打包 v0.2 DMG 并开始执行”。最终产品基线固定为 `5c4f440a779452dd00282cd35fe915e2642678f0`；旧 `3b287be` 候选不含 15F2 R5，不得作为最终包。
+- Cursor 从 clean detached worktree @ `5c4f440` 运行正式 release 流程：0.2.0、Developer ID Team `P2VFVRZK7P`、`AhaKeyNotary`、公证前/后最终 DMG verifier、staple/Gatekeeper/hdiutil/只读挂载。build number 不复用 323，DMG 名包含 `5c4f440`。
+- 回传新 DMG SHA-256、notary ID、版本/build、App+Agent identity/Team/requirement、companion/Mach exact 与 detach 证据；证据写 `05-final-candidate-refreeze.md`，DMG/raw 大文件不入 git。完成后停手提审。
+- 本授权不允许安装、覆盖升级、LaunchAgent/login-item mutation、启动 Studio/BLE、卸载/回滚、发布或 push。新候选验收后，Gate-1 安装仍需单独 USER-GATE。
+- 需要回复：是（@Cursor ACK 后仅执行 Gate-0 final candidate refreeze）

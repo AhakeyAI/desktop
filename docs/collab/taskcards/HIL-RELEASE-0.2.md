@@ -1,10 +1,10 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`blocked / 15F2 R2 installer recovery rework`
+状态：`ready / Gate-0 final candidate refreeze @ 5c4f440`（Cursor；仅构建/签名/公证/验证，不安装）
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
-基线：0.2 兼容策略与 WBS 5.9A accepted 的不可变候选包
+基线：0.2 兼容策略、15F1 packaging accepted 与 15F2 installer recovery accepted @ `5c4f440`
 目标版本：v0.2 macOS Beta
 
 目标：用当前量产固件和真实键盘证明 0.2 的已开放功能可用，并证明被延期的 OLED/统一固件功能不可进入。
@@ -191,3 +191,13 @@ R5 已提交 Codex。本卡不改系统、不重跑安装。
 ### [2026-08-31 18:12] Codex：15F2 R5 accepted；安装器重跑仍禁止
 
 15F2 恢复模型 accepted @ `5c4f440`。本卡保持 blocked，等 USER-GATE 安装器重跑后再做 Studio/BLE smoke。
+
+### [2026-08-31 21:13] Codex：用户授权重出 v0.2 最终 DMG；开放 Gate-0 final candidate refreeze
+
+- 用户明确要求“Cursor 下一步打包 v0.2 DMG，分配任务开始执行”。本授权只覆盖构建、Developer ID 签名、公证、staple 和只读挂载验证；**不覆盖安装、覆盖升级、LaunchAgent/login-item mutation、启动 Studio/BLE、卸载/回滚、发布或 push**。
+- 唯一产品基线为 `5c4f440a779452dd00282cd35fe915e2642678f0`。旧候选基于 `3b287be`，虽曾通过公证，但不含 15F2 R5 安装器，不能作为最终 v0.2。旧 SHA `4426b3c9…ce793b` 仍永久禁用；旧 SHA `0c3ec9a6…f33618` 降级为历史 HIL 证据，不得冒充本轮最终候选。
+- Cursor 从 **clean detached worktree @ `5c4f440`** 执行正式 `pack-release.sh`，使用冻结版本 `0.2.0`、Team `P2VFVRZK7P`、既有 `AhaKeyNotary`。build number 必须由本轮 clean worktree 产生并记录，且不得复用 323；DMG 名须包含 `0.2.0` 与短提交 `5c4f440`，避免与历史候选混淆。
+- 开工前只读预检：Developer ID identity 精确属于 `P2VFVRZK7P`；notary profile 可用；`Packaging/ReleaseIdentity.json` 与源码身份门禁通过；产品树 clean。任一失败零产物 mutation 停手上报。
+- 完成定义：公证前与 staple 后分别执行 `verify-release-dmg.sh --expect-developer-id`；记录 App/Agent identifier、Team、冻结 requirement、版本/build、companion plist exact、Mach service、SHA-256、notary submission ID、staple、Gatekeeper、`hdiutil verify` 与只读挂载 detach rc=0。将日志/摘要写入新的 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/05-final-candidate-refreeze.md`（raw 大文件与 DMG 不入 git）。
+- 产出后停手提审。Codex 验收新 SHA/公证/挂载证据前不得安装；验收通过也不自动安装，仍需单独 USER-GATE。
+- 需要回复：是（@Cursor ACK 后仅执行 Gate-0 final candidate refreeze）
