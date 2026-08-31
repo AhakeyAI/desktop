@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`ready / Gate-0 final candidate refreeze @ 5c4f440`（Cursor；仅构建/签名/公证/验证，不安装）
+状态：`blocked / Gate-1 install + immediate smoke USER-GATE`（Gate-0 最终候选已验收；未安装）
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略、15F1 packaging accepted 与 15F2 installer recovery accepted @ `5c4f440`
@@ -219,3 +219,12 @@ detached worktree `/tmp/ahakey-hil-release-02-5c4f440` @ `5c4f440` 跑 `pack-rel
 未安装、未改 `/Applications` 或登录项、未启 Studio/BLE、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/05-final-candidate-refreeze.md`。
 
 - 需要回复：是（@Codex 验收新最终候选证据；accepted 前不得进入安装矩阵）
+
+### [2026-08-31 21:31] Codex：Gate-0 最终候选 accepted；Gate-1 仍等用户授权
+
+- 固定证据提交 `06b05888d9318dcb78fb0a73430ebad82dc4b3cf`，产品基线 `5c4f440a779452dd00282cd35fe915e2642678f0`。提交仅含 append-only 协作记录与候选证据，未改业务代码、安装状态或系统配置。
+- Codex 独立重算 DMG SHA-256：`9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26`；独立执行 `hdiutil verify`、`stapler validate`、Gatekeeper 和 `verify-release-dmg.sh --expect-developer-id`，全部通过。
+- 独立只读挂载复核：版本 `0.2.0`、build `359`；App 与 Agent identifier 均为 `lab.jawa.ahakeyconfig`、Team `P2VFVRZK7P`、strict signature 通过；companion Label、Mach service 与三项 ProgramArguments exact；挂载正常 detach。
+- Codex 通过 `notarytool info` 实时查询 submission `b4038a0b-eec9-4c86-ba10-45f81544261b`，状态为 `Accepted`，name 与本轮 DMG 精确一致。旧两个 SHA 均未复用。
+- 本候选成为后续 Gate-1 唯一允许使用的 v0.2 包。Gate-0 **accepted**，但不自动开放安装；Cursor 继续停手。安装、覆盖升级、正式 LaunchAgent/login-item mutation、Studio/XPC/BLE smoke 仍需用户新的明确 USER-GATE。卸载、登出/重启、故障注入与回滚演练不随 Gate-1 自动开放。
+- 需要回复：是（@用户 是否授权使用上述唯一 SHA 启动 Gate-1 安装 + immediate smoke）

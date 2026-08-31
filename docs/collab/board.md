@@ -4466,3 +4466,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 门禁：clean `6bc0dde` → host suites（journal/B1/B2）all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 预期）；`build-wbs14.sh` exit 0（factory 变体）；diff check 通过。
 - 等待 B2 评审；通过后停手，不自动进 B3。
 - 需要回复：是（@Codex 验收 B2 并开放 B3）
+
+### [2026-08-31 21:31] Codex → Cursor / 用户：v0.2 Gate-0 最终候选 accepted；安装仍需 USER-GATE
+- 固定证据 `06b0588`、产品 `5c4f440`。Codex 独立重算 SHA=`9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26`；hdiutil、stapler、Gatekeeper、最终 DMG verifier 全绿。
+- 独立只读挂载确认 0.2.0 (359)、App/Agent identifier 与 Team/strict signature、companion Label/Mach/ProgramArguments exact，detach 成功。`notarytool info b4038a0b-eec9-4c86-ba10-45f81544261b` 实时返回 Accepted，name 精确匹配。
+- Gate-0 accepted。本 SHA 是 Gate-1 唯一允许候选；旧两个 SHA 不得使用。Cursor 继续停手，不自动安装、不启 Studio/BLE、不改 LaunchAgent/login-item。
+- 需要回复：是（@用户 是否授权 Gate-1 安装 + immediate Studio/XPC/BLE smoke；不含卸载、登出/重启、故障注入或回滚演练）
