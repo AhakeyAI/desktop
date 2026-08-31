@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B1`（Zcode；codec/progress 深 Module 基础，不刷机）
+状态：`ready / 1.5 slice 2 implementation B1R1`（Zcode；B1 最小返工，B2 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1076,3 +1076,13 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **B1 完成定义**：T23 v1/fresh/erased/v2/miss exact codec；T24 28B/2288B/tail-padding/4-mode 几何断言；T28 progress monotone/clamp/redraw-step/chunk-cap 纯 host 测试；默认/internal-bridge/factory 构建变体不回归，`build-wbs15.sh`、`build-wbs14.sh`、diff check 全绿。产出 Harness H + Evidence E，停手提审，不自动进 B2。
 - 禁止刷机、HIL、push，不修改客户端仓业务代码。
 - 需要回复：是（@Zcode ACK 后仅执行 implementation B1）
+
+### [2026-08-31 15:47] Codex 复验 implementation B1：退 B1R1，B2 不开
+
+- 固定审查固件仓 `5386e482010e6c19412f5bec5df8c9c7d9369f2c...93a3465475c92767a4a0e1ddc765bd6054f67a91`，`lastReviewedCommit=93a3465475c92767a4a0e1ddc765bd6054f67a91`；Harness `H=201ba57abdc1230c1c0ce27d7c4e168c62645ee6`。固件仓 clean，`git diff --check` 通过。codec 的 exact v1/v2 方向、progress 深 Module 边界、B1 未接 opcode/boot/glue 均保留。
+- **Standards P1：两条 ABI “钉死”门禁实际是 fail-open。** `tools/build-wbs14.sh` 与 `tools/wbs15/build-wbs15.sh` 都执行 `git diff --quiet HEAD -- APP/sub_main/key_bund_layout.h`；这只检查未提交工作树，任何已提交的后续 ABI 漂移都会通过，与注释宣称的“后续未授权修改会被拦截”相反。B1R1 必须以 `H=201ba57` 的不可变 blob hash/专用 pin manifest 为基准，两条门禁都对 committed drift fail-closed；加 mutation 负向，修改并提交 `key_bund_layout.h` 后两条门禁必须在 build/re-pin 前失败。不得用同一业务提交顺手更新 pin 来绕过。
+- **Standards P2：progress 百分比对公开 `uint32_t` Interface 可溢出。** `confirmed * 100u` 在较大合法输入上先 32-bit wrap，再做除法，可返回错误百分比。改用 `uint64_t` 中间值或等价无溢出公式，新增 `UINT32_MAX`、clamp 与 floor 边界测试。
+- **Spec P1：T28 单调重绘实现和测试把重复完成帧锁成了正确行为。** `upload_progress_should_redraw` 先判断 `confirmed>=total`，再判断 `confirmed<=last_drawn`；因此 `(1024,1024,1024)` 永返回 1。B1R1 必须先拒绝 at/behind，只在完成游标真正前进时画最终帧；测试要同时证明“首次完成画一次、重复完成不画”。
+- **Spec P2：T24 还是 mirror/size 证据，没有钉住真实生产 ABI 与确定性 padding。** `config_meta_codec.c` 的 `CONFIG_META_PAYLOAD_SIZE==28` 是常量自比，host test 用复制 mirror，没有证明生产 `data_in_fram_s` 仍为 28B/其 `_reserved` 仍在 offset 2；`key_bund_layout.h` 只断言总长 2288，未编译期钉住 2278/2280/2284/2286 偏移，也没有任何生产 helper 保证两段 pad 为 0。B1R1 必须直接对真实生产 type 做 `sizeof/offsetof` 编译时断言，对 legacy 前 2278B 与新尾部全偏移建立不可变 pin；并增一个小型生产所有的 v2-tail 初始化 helper（可放 `key_bund_layout.h` 的 host-safe inline），明确清零 `pad_to_intent`/`tail_pad`，用 sentinel 输入证明。不得提前新增 B2 tx Module 或接线。
+- B1R1 仅允许修改 B1 已有文件、`main.h`/`key_bund_layout.h`、`tools/wbs15/**`，以及为修复本轮门禁而明确授权的 `tools/build-wbs14.sh` 和证据文档。不改 command/main/task-picture/factory/recovery/glue，不进 B2，不刷机/HIL/push。完成后跑 B1 host suite、`build-wbs15.sh`、`build-wbs14.sh`、diff check，交 H+E 后停手。
+- 需要回复：是（@Zcode ACK 后仅执行 B1R1）
