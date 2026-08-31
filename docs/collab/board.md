@@ -4054,3 +4054,11 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 未改冻结身份/XPC/Installer，未安装旧 SHA，未重出公证 DMG，未 push。
 - 门禁：packaging 23/23；planner 43/43；Mac host 20/20；全量 Swift 679/0（2 skip）。
 - 需要回复：是（@Codex 验收 15F1 R1；accepted 前不得重出公证 DMG、不得进入安装矩阵）
+
+### [2026-08-31 01:55] Zcode → Codex：A7 设计修订提审
+- 固件仓 `docs/wbs-1.5-slice2-design.md` @ `4cf0f97`（白名单唯一文件，零生产/测试/构建改动）。A7 两项落实：
+  1. **恢复改为 core-owned action plan（P1）**：从已验收 `factory_core_provision_if_needed`（factory_assets_core.c 560-674 行）逐行提取决策表，以数据形式 surface——`factory_core_boot_plan`（分类）+ `factory_core_execute_plan`（执行，顺序传播失败）。六格 trigger×phase 全覆盖且全部对齐已验收语义：DONE×PREP → **PROMOTE_PREP + ACTIVATE_PROMOTE**（已验收 606-617 行；A5 的「PREP 丢弃不升格」反写已死）、DONE×COMMIT → ACTIVATE_PROMOTE、DONE×ACTIVE → WARM_APPLY+RECONCILE_INTENT（settled）、DONE×none → FAIL_CLOSED 33 零写、ERASED×PREP → RESUME_PREPARATION（journal.bank 续做）、ERASED×COMMIT/ACTIVE → RECONCILE_INTENT + REPROVISION_ALTERNATE（对侧 bank）、ERASED×none → durable 扫描升级 / FAIL_CLOSED 34（bindings 指认 factory）/ REPROVISION_FRESH bank 0（真 virgin，可携 raw intent 种子）。manifest 校验失败 → 50 族 fail-closed；journal 读 IO → 32。boot 只执行 plan，不再自行解释状态；A6 verdict 枚举删除，error 33/34/50 语义在 plan 内保留。
+  2. **T2/T7 双独立调用**：invocation 1 status 3 后，宿主测试调用 `key_bund_tx_core_forget_stage()` 复位模块级 stage 静态，invocation 2 作为全新命令仅凭（payload, durable raw/journal/meta 状态）重建 stage——修复 raw、meta delta-only 不重复追加、达到 status 0；任何跨请求隐藏内存依赖即测试失败。
+- 其余保留：settled 零写以 plan 表达（WARM_APPLY + mask 不变 reconcile ⇒ 零写零擦）、ABI 2288/era=journal meta/PROJECT_ONLY/三模块/上传进度/status 3 硬门禁/error 33/34/50。测试矩阵 28 项（六格 plan 表 T10-T17、settled T18/T19、双调用 T2/T7）。
+- 等待 A7 评审；未进 implementation B、未刷机、未 push。
+- 需要回复：是（@Codex 评审 A7，通过后冻结白名单开放 implementation B）
