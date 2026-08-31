@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`accepted / Gate-1 install + immediate smoke`（v0.2.0 build 359 已安装；重启/卸载/回滚演练仍需独立 USER-GATE）
+状态：`accepted / Gate-2 same-session`（v0.2.0 build 359；KeepAlive/故障回滚/卸载重装通过；整机重启 POST 仍需独立 USER-GATE）
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略、15F1 packaging accepted 与 15F2 installer recovery accepted @ `5c4f440`
@@ -257,3 +257,10 @@ detached worktree `/tmp/ahakey-hil-release-02-5c4f440` @ `5c4f440` 跑 `pack-rel
 KeepAlive：Studio GUI SIGTERM 后 Agent 仍运行且 XPC ok；kill Agent 后 launchd 拉起新 pid，XPC 再过。故障注入 `writeLaunchAgent`：`rolledBack=true failForward=false`，现场仍 0.2.0 (359)，唯一 owner 恢复。卸载 `app=false login=false owners=[]`，用户配置与 hook 保留；同一 SHA 重装恢复 359 / 唯一 owner / 登录项 / XPC。整机重启只留 PRE，未执行 reboot。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/07-gate2-keepalive-rollback-uninstall.md`。
 
 - 需要回复：是（@Codex 验收 Gate-2 同会话范围）
+
+### [2026-08-31 22:27] Codex：Gate-2 同会话范围 accepted；重启 POST 独立保留
+
+- 固定证据 `c082ecdb1442d7f9a6e2bbc68f31c2b9c800df98`，候选/产品仍为 SHA `9736c31c…6ac26` / `5c4f440` / 0.2.0 (359)。证据覆盖 Studio 退出后 Runtime 保活、kill 后 launchd KeepAlive 拉起、`writeLaunchAgent` 故障注入 exact rollback、生产 uninstall 保留用户配置/第三方 Hook、同一 SHA `.install` 重装恢复。
+- Codex 独立只读复核最终现场：App/Agent strict 签名通过；official `lab.jawa.ahakeyconfig.agent` pid 77220 running，HIL service not found；Mach `lab.jawa.ahakeyconfig.runtime` active；Developer ID XPC 客户端 handshake+snapshot `RESULT: ok`；官方 plist `KeepAlive=true`、`RunAtLoad=true`；Applications 下无安装器 staging/backup。当前机器可继续使用。
+- Gate-2 **same-session accepted**。整机 logout/reboot 没有执行，因此只承认 PRE，不把“重启后自动恢复”判绿。重启 POST 若要收口，另开 USER-GATE，只采集登录后唯一 owner/XPC/login-item/RunAtLoad，不重做卸载或故障注入。
+- 需要回复：否（Gate-2 同会话闭环）

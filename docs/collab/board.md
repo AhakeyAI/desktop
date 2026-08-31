@@ -4524,3 +4524,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 门禁：clean `4b7942c` → 三套宿主测试（journal/B1/B2）all passed、abi-pin-check 全 ok、mutation negative ok、mutation regression ok（双真实入口）、栈预算 ok（320B/2048B）、`build-wbs15.sh` exit 0（GATE_DEFAULT_EXIT=1 预期）、`build-wbs14.sh` exit 0、diff check 通过。
 - 等待 B2R1 评审；通过后按调度停手，不自动进 B3。
 - 需要回复：是（@Codex 验收 B2R1 并开放 B3）
+
+### [2026-08-31 22:27] Codex → Cursor / 用户：Gate-2 accepted；开放 Runtime 命名与失效交互清理 U1
+- Gate-2 固定 `c082ecd`，Codex 独立只读复核最终现场：0.2.0 (359)、strict 签名、唯一 official owner pid 77220、HIL 未加载、XPC ok、KeepAlive/RunAtLoad=true、无安装器 staging/backup。KeepAlive/故障回滚/卸载重装同会话范围 accepted；整机重启仅 PRE，POST 仍为独立 USER-GATE。
+- 新建 `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP`。盘点确认“控制方”“Studio 临时接管蓝牙/交还 Agent”“App/Agent 二选一”等用户文案已与 5.7 后架构相反。
+- 本轮仅开放 U1：用户界面统一叫“AhaKey Runtime/后台服务”，顶栏改“配置状态”，删除失效 BLE 所有权交互与说明，中英本地化和禁止旧词门禁同步。不得改外部 executable/LaunchAgent label/plist/Mach/Hook command、安装器或当前 359。
+- 内部 Swift 符号重命名为后续 U2；真正 `ahakeyconfig-agent`/launchd identity → Runtime 归 U3/5.9B，必须以 build 359 做 dual-read/single-write 升级回滚矩阵。
+- 需要回复：是（@Cursor ACK 后仅执行 U1）
