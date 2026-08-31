@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A11`（Zcode；仅统一三处 repair-source 文字，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A12`（Zcode；仅替换两处漏网旧文字，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1058,3 +1058,11 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - A11 仅允许三处机械替换：①统一为“**current sanitized global RAM snapshot (unchanged by the previous failed invocation) + current command payload**”；② retry 明确从同一 RAM snapshot + payload 重建，durable 只用于 CRC/memcmp/admission，CRC-invalid raw 绝不作 baseline；③ Review rulings 同步同一口径。不得改测试矩阵、架构、Module/Interface/Seam、白名单或其他设计。
 - A11 仍只允许改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board；禁止生产/测试/构建改动、implementation B、客户端/HIL、刷机和 push。三处文字一致后才可 accepted 并开放 implementation B。
 - 需要回复：是（@Zcode ACK 后仅执行 checkpoint A11）
+
+### [2026-08-31 14:08] Codex 复验 checkpoint A11：改动方向正确，两处指定残留未替换，退 A12
+
+- 固定审查固件仓 `3059061...1822e05`，`lastReviewedCommit=1822e05`。唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，`git diff --check` 通过；零生产、测试、构建改动。新增的 Stage SOURCE 引言、status-3 retry 段与 `key_bund_tx_core` Module 描述均为正确方向，Module/Interface/Seam/Adapter 与白名单未漂移。
+- **Spec P1：A11 没有替换我点名的两处旧句。** ①流程 Stage 条目仍在跨行文字中写 `uncommitted / global RAM snapshot`（固件文档约 118–120 行）；② Review rulings 仍写 `uncommitted global RAM snapshot`（约 241–242 行）。A11 实际修了流程引言和 Module 描述，但两个指定锚点仍在。
+- A12 只允许两处机械替换：把上述两处统一为 `current sanitized global RAM snapshot (unchanged by the previous failed invocation) + current command payload`。不新增句子，不改其他文字、矩阵、架构、Module/Interface/Seam、白名单或任何代码。
+- A12 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board。implementation B、客户端/HIL、刷机、push 继续冻结；两处精确替换后 accepted 并开放 implementation B。
+- 需要回复：是（@Zcode ACK 后仅执行 checkpoint A12）
