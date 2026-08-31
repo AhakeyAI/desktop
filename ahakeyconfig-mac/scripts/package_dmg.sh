@@ -4,29 +4,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-IDENTITY_JSON="$APP_ROOT/Packaging/ReleaseIdentity.json"
-eval "$(python3 - "$IDENTITY_JSON" <<'PY'
-import json, pathlib, shlex, sys
-identity = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-print("SIGNING_IDENTIFIER=" + shlex.quote(identity["signingIdentifier"]))
-print("BUNDLE_IDENTIFIER=" + shlex.quote(identity["bundleIdentifier"]))
-print("TEAM_IDENTIFIER=" + shlex.quote(identity["teamIdentifier"]))
-print("DEFAULT_APP_BUNDLE_NAME=" + shlex.quote(identity["appDisplayName"]))
-print("APP_BUNDLE_FILE_NAME=" + shlex.quote(identity["appBundleFileName"]))
-print("AGENT_BINARY_NAME=" + shlex.quote(identity["agentBinaryName"]))
-print("PRODUCT_VERSION=" + shlex.quote(identity["productVersion"]))
-print("MACH_SERVICE_NAME=" + shlex.quote(identity["machServiceName"]))
-print("AGENT_LAUNCHD_LABEL=" + shlex.quote(identity["agentLaunchdLabel"]))
-print("DEVELOPER_ID_REQUIREMENT=" + shlex.quote(identity["developerIDRequirement"]))
-PY
-)"
+eval "$(python3 "$SCRIPT_DIR/release_identity.py" env "$APP_ROOT")"
 
 if [[ -f "$SCRIPT_DIR/build.local.env" ]]; then
   source "$SCRIPT_DIR/build.local.env"
 fi
 
-APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-$DEFAULT_APP_BUNDLE_NAME}"
-APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-$DEFAULT_APP_BUNDLE_NAME}"
+SIGNING_IDENTIFIER="$AHAKEY_RELEASE_SIGNING_IDENTIFIER"
+APP_BUNDLE_FILE_NAME="$AHAKEY_RELEASE_APP_BUNDLE_FILE_NAME"
+AGENT_BINARY_NAME="$AHAKEY_RELEASE_AGENT_BINARY_NAME"
+APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-$AHAKEY_RELEASE_APP_DISPLAY_NAME}"
+APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-$AHAKEY_RELEASE_APP_DISPLAY_NAME}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
 DMG_VOLUME_NAME="${DMG_VOLUME_NAME:-AhaKey Installer}"
 DMG_BASENAME="${DMG_BASENAME:-AhaKey-Studio-macOS-prod-$(date +%Y%m%d%H%M%S)}"
@@ -68,10 +56,7 @@ fi
 rm -rf "$DMG_STAGING_DIR"
 mkdir -p "$DMG_STAGING_DIR"
 
-echo "🧱 Preparing DMG staging folder..."
-ditto "$APP_BUNDLE_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE_FILE_NAME"
-cp "$LAUNCH_AGENT_PLIST" "$DMG_STAGING_DIR/LaunchAgent.plist"
-ln -s /Applications "$DMG_STAGING_DIR/Applications"
+echo "🧱 Preparing DMG background..."
 mkdir -p "$BACKGROUND_DIR"
 swift "$APP_ROOT/scripts/generate_dmg_background.swift" "$BACKGROUND_IMAGE"
 

@@ -28,8 +28,9 @@
 正式 `package_dmg.sh` / `pack-release.sh` 产出必须同时满足：
 
 - App 与内嵌 Agent 在 Finder 布局后的二次签名都使用 `Packaging/ReleaseIdentity.json` 的 `signingIdentifier`，不得回落为 Agent 文件名。
-- DMG 根目录与 App 同级携带 `LaunchAgent.plist`（label / Mach service / ProgramArguments 中的 Agent 路径精确匹配冻结值），供 `inspectCandidate` 读取。不得用 App 内 `AgentManager` 路径替代 5.9A 安装链。
-- `scripts/verify-release-dmg.sh` 在 UDZO 之后、公证前与 staple 后各以只读方式挂载校验一次。`hdiutil verify`、notary `Accepted`、staple、`spctl accepted` 不得替代该产品门禁。
+- DMG 根目录与 App 同级携带 `LaunchAgent.plist`，供 `inspectCandidate` 读取。不得用 App 内 `AgentManager` 路径替代 5.9A 安装链。companion 必须精确匹配：`Label` 为冻结 `agentLaunchdLabel`；`MachServices` 恰好 `{ lab.jawa.ahakeyconfig.runtime: true }`；`ProgramArguments` 恰好 `[ /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent, --socket, SOCKET_PATH_PLACEHOLDER ]`。额外 Mach service 或额外启动参数一律拒绝。
+- 最终挂载根必须恰好一个预期 `.app`（含隐藏项计数）。App、companion、Agent 不得为 symlink；canonical path 必须落在只读挂载根（App/companion）或 App 根（Agent）内。
+- `scripts/verify-release-dmg.sh` 在 UDZO 之后、公证前与 staple 后各以只读方式挂载校验一次。release 模式还要求 Team `P2VFVRZK7P` 与冻结 Developer ID requirement。`hdiutil verify`、notary `Accepted`、staple、`spctl accepted` 不得替代该产品门禁。
 
 SHA-256 `4426b3c9924fe83e83f4b2ffb7a4025b53e2786fc42f6c7fc2c1ff02ffce793b` 为 nonconforming 冻结候选，不得安装。
 

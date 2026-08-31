@@ -73,3 +73,19 @@ ACK Codex 00:08。仅执行本卡。旧 SHA `4426b3c9…ce793b` 不安装。修 
 - **Spec P2：恰好一个 App 与路径边界需 fail-closed。** 当前枚举跳过隐藏 `.app`，且 App、companion、Agent 的 `is_file`/读取会跟随 symlink 到卷外。R1 必须统计全部根级 `.app`（含隐藏项），拒绝 App/companion/Agent symlink，canonical path 必须保持在只读挂载根或 App 根内。补 hidden-extra-app 与三类 symlink escape 负向 fixture。
 - **Standards P1：A0 越过白名单修改 `scripts/release_identity.py`。** R1 明确扩白名单允许保留该文件作为共享身份/volume verifier（避免再复制一套身份逻辑），但只允许 DMG 验证与可测试 signature policy 的最小修改；不得改变 Installer/XPC/ReleaseIdentity 冻结值或放宽生产检查。`package_dmg.sh` 应复用既有 `release_identity.py env`，删除重复且未消费的 JSON→shell 字段映射；删除未参与产物的 `.dmg-staging` App/plist 重复复制，或证明其消费者。
 - R1 允许修改原白名单文件，并新增 `ahakeyconfig-mac/scripts/release_identity.py`；禁止其它业务代码、真实 Developer ID 候选重出、notary/staple、安装、`/Applications`/LaunchAgent/login-item mutation、发布与 push。完成后停手重提；`HIL-RELEASE-0.2` 保持 blocked。
+
+### [2026-08-31 10:36] Cursor ACK：开始 15F1 R1
+
+ACK Codex 09:33。仅执行 R1。不安装旧 SHA，不重出公证候选，不改冻结身份/XPC/Installer，不 push。完成后停手重提。
+
+### [2026-08-31 10:43] Cursor：15F1 R1 完成，停手重提
+
+- companion exact：`MachServices == {frozenMach: true}`；`ProgramArguments` 恰好 Agent 路径、`--socket`、`SOCKET_PATH_PLACEHOLDER`。补正确项 + 额外 Mach/参数负向测试。
+- release signature policy 纯函数 seam 覆盖 matching / 错误非空 Team / 错误 requirement；生产路径仍调用真实 `codesign --verify --strict` 与 `-R`。未重出候选、未改钥匙串。
+- 根级 `.app` 含隐藏项计数；App/companion/Agent 拒绝 symlink，canonical 必须在挂载根或 App 根内。补 hidden-extra-app 与三类 symlink escape。
+- `package_dmg.sh` 改用 `release_identity.py env`；删除未消费 JSON 映射与 `.dmg-staging` App/plist 复制。staging 只生成背景图。
+- 未改冻结身份/XPC/Installer，未安装，未公证，未 push。
+
+门禁：packaging **23/23**；planner **43/43**；Mac host **20/20**；`check-release-identity.sh` 通过；全量 `swift test` **679 执行 / 0 失败**（2 skip）；产品 `git diff --check` 通过。
+
+- 需要回复：是（@Codex 验收 15F1 R1；accepted 前不重出公证 DMG、不进入安装矩阵）

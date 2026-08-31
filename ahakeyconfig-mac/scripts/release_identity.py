@@ -8,6 +8,7 @@ import os
 import pathlib
 import re
 import shlex
+import subprocess
 import sys
 
 
@@ -57,8 +58,6 @@ def extract_embedded_json(swift_path: pathlib.Path) -> dict:
 
 
 def parse_codesign(path: pathlib.Path) -> dict:
-    import subprocess
-
     proc = subprocess.run(
         ["/usr/bin/codesign", "-dv", "--verbose=4", str(path)],
         capture_output=True,
@@ -74,17 +73,79 @@ def parse_codesign(path: pathlib.Path) -> dict:
     return info
 
 
+FROZEN_SOCKET_PLACEHOLDER = "SOCKET_PATH_PLACEHOLDER"
+
+
+def frozen_program_arguments(identity: dict) -> list[str]:
+    agent_path = (
+        f"/Applications/{identity['appBundleFileName']}/Contents/MacOS/{identity['agentBinaryName']}"
+    )
+    return [agent_path, "--socket", FROZEN_SOCKET_PLACEHOLDER]
+
+
+def frozen_mach_services(identity: dict) -> dict:
+    return {identity["machServiceName"]: True}
+
+
+def verify_companion_plist(plist: dict, identity: dict) -> None:
+    if plist.get("Label") != identity["agentLaunchdLabel"]:
+        raise SystemExit(
+            f"LaunchAgent Label {plist.get('Label')!r} != {identity['agentLaunchdLabel']!r}"
+        )
+    services = plist.get("MachServices")
+    expected_services = frozen_mach_services(identity)
+    if services != expected_services:
+        raise SystemExit(f"LaunchAgent MachServices {services!r} != {expected_services!r}")
+    arguments = plist.get("ProgramArguments")
+    expected_arguments = frozen_program_arguments(identity)
+    if arguments != expected_arguments:
+        raise SystemExit(
+            f"LaunchAgent ProgramArguments {arguments!r} != {expected_arguments!r}"
+        )
+
+
+def evaluate_signature_policy(
+    identity: dict,
+    *,
+    identifier: str | None,
+    team: str | None,
+    requirement_satisfied: bool,
+    expect_developer_id: bool,
+    label: str,
+) -> None:
+    if identifier != identity["signingIdentifier"]:
+        raise SystemExit(
+            f"{label} signing identifier {identifier!r} != {identity['signingIdentifier']!r}"
+        )
+    if not expect_developer_id:
+        return
+    if team != identity["teamIdentifier"]:
+        raise SystemExit(f"{label} Team ID {team!r} != {identity['teamIdentifier']!r}")
+    if requirement_satisfied is not True:
+        raise SystemExit(f"{label} frozen Developer ID requirement failed")
+
+
+def require_regular_inside(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
+    if path.is_symlink():
+        raise SystemExit(f"{label} must not be a symlink: {path}")
+    if not path.exists():
+        raise SystemExit(f"missing {label} {path}")
+    resolved = path.resolve()
+    resolved_root = root.resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError:
+        raise SystemExit(f"{label} canonical path escapes {resolved_root}: {resolved}")
+    return resolved
+
+
 def check(app_root: pathlib.Path, candidate: pathlib.Path | None) -> None:
     identity = load_identity(app_root)
     plist_path = app_root / "Packaging" / "LaunchAgent.plist"
     import plistlib
 
     plist = plistlib.loads(plist_path.read_bytes())
-    if plist.get("Label") != identity["agentLaunchdLabel"]:
-        raise SystemExit("LaunchAgent Label mismatch")
-    services = plist.get("MachServices") or {}
-    if services.get(identity["machServiceName"]) is not True:
-        raise SystemExit("LaunchAgent MachServices missing runtime endpoint")
+    verify_companion_plist(plist, identity)
 
     embedded = extract_embedded_json(
         app_root / "Sources" / "Shared" / "AhaKeyReleaseIdentity.swift"
@@ -109,8 +170,16 @@ def check(app_root: pathlib.Path, candidate: pathlib.Path | None) -> None:
     ident_token = '--identifier "$SIGNING_IDENTIFIER"'
     if package_dmg.count(ident_token) < 2:
         raise SystemExit("package_dmg.sh must re-sign App and Agent with frozen --identifier")
+    if 'release_identity.py" env' not in package_dmg and "release_identity.py env" not in package_dmg:
+        raise SystemExit("package_dmg.sh must load identity via release_identity.py env")
+    if "json.loads" in package_dmg:
+        raise SystemExit("package_dmg.sh must not duplicate JSON identity parsing")
     if 'Packaging/LaunchAgent.plist' not in package_dmg:
         raise SystemExit("package_dmg.sh must copy Packaging/LaunchAgent.plist beside the App")
+    if "$DMG_STAGING_DIR/$APP_BUNDLE_FILE_NAME" in package_dmg:
+        raise SystemExit("package_dmg.sh must not copy the App into unused .dmg-staging")
+    if '"$DMG_STAGING_DIR/LaunchAgent.plist"' in package_dmg:
+        raise SystemExit("package_dmg.sh must not copy LaunchAgent.plist into unused .dmg-staging")
     if "verify-release-dmg.sh" not in package_dmg:
         raise SystemExit("package_dmg.sh must run verify-release-dmg.sh as the product gate")
     pack_release = (app_root / "scripts" / "pack-release.sh").read_text(encoding="utf-8")
@@ -160,8 +229,6 @@ def check(app_root: pathlib.Path, candidate: pathlib.Path | None) -> None:
 
 
 def _run_codesign(args: list[str]) -> subprocess.CompletedProcess[str]:
-    import subprocess
-
     return subprocess.run(args, capture_output=True, text=True, check=False)
 
 
@@ -172,34 +239,36 @@ def verify_codesign_strict(path: pathlib.Path) -> None:
         raise SystemExit(f"codesign --verify --strict failed for {path}: {detail}")
 
 
-def verify_developer_id_requirement(path: pathlib.Path, requirement: str) -> None:
+def inspect_developer_id_requirement(path: pathlib.Path, requirement: str) -> bool:
     proc = _run_codesign(["/usr/bin/codesign", "-R", f"={requirement}", str(path)])
-    if proc.returncode != 0:
-        detail = ((proc.stdout or "") + (proc.stderr or "")).strip()
-        raise SystemExit(f"frozen Developer ID requirement failed for {path}: {detail}")
+    return proc.returncode == 0
 
 
 def verify_volume(app_root: pathlib.Path, volume: pathlib.Path, expect_developer_id: bool) -> None:
     import plistlib
 
     identity = load_identity(app_root)
-    volume = volume.resolve()
-    if not volume.is_dir():
+    if volume.is_symlink():
+        raise SystemExit(f"volume must not be a symlink: {volume}")
+    if not volume.exists() or not volume.is_dir():
         raise SystemExit(f"volume is not a directory: {volume}")
+    volume = volume.resolve()
 
-    apps = [
-        path
-        for path in volume.iterdir()
-        if path.suffix == ".app" and not path.name.startswith(".")
-    ]
+    apps = [path for path in volume.iterdir() if path.name.endswith(".app")]
     expected_app = identity["appBundleFileName"]
     if len(apps) != 1:
         raise SystemExit(f"expected exactly one app, found {[path.name for path in apps]!r}")
     app = apps[0]
     if app.name != expected_app:
         raise SystemExit(f"app name {app.name!r} != {expected_app!r}")
+    app = require_regular_inside(app, volume, "app")
+    if not app.is_dir():
+        raise SystemExit(f"app is not a directory: {app}")
 
-    info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
+    info_plist = require_regular_inside(app / "Contents" / "Info.plist", app, "Info.plist")
+    if info_plist.is_symlink() or not info_plist.is_file():
+        raise SystemExit(f"Info.plist must be a regular file: {info_plist}")
+    info = plistlib.loads(info_plist.read_bytes())
     if info.get("CFBundleIdentifier") != identity["bundleIdentifier"]:
         raise SystemExit(
             f"CFBundleIdentifier {info.get('CFBundleIdentifier')!r} != {identity['bundleIdentifier']!r}"
@@ -209,60 +278,56 @@ def verify_volume(app_root: pathlib.Path, volume: pathlib.Path, expect_developer
             f"CFBundleShortVersionString {info.get('CFBundleShortVersionString')!r} != {identity['productVersion']!r}"
         )
 
-    agent = app / "Contents" / "MacOS" / identity["agentBinaryName"]
-    if not agent.is_file():
+    agent = require_regular_inside(
+        app / "Contents" / "MacOS" / identity["agentBinaryName"],
+        app,
+        "agent",
+    )
+    if agent.is_symlink() or not agent.is_file():
         raise SystemExit(f"missing agent binary {agent}")
 
-    companion = volume / "LaunchAgent.plist"
-    if not companion.is_file():
+    companion = require_regular_inside(volume / "LaunchAgent.plist", volume, "companion")
+    if companion.is_symlink() or not companion.is_file():
         raise SystemExit("missing companion LaunchAgent.plist")
-    plist = plistlib.loads(companion.read_bytes())
-    if plist.get("Label") != identity["agentLaunchdLabel"]:
-        raise SystemExit(
-            f"LaunchAgent Label {plist.get('Label')!r} != {identity['agentLaunchdLabel']!r}"
-        )
-    services = plist.get("MachServices") or {}
-    if services.get(identity["machServiceName"]) is not True:
-        raise SystemExit("LaunchAgent MachServices missing frozen runtime endpoint")
-    expected_agent_path = (
-        f"/Applications/{identity['appBundleFileName']}/Contents/MacOS/{identity['agentBinaryName']}"
-    )
-    arguments = plist.get("ProgramArguments") or []
-    if not arguments or arguments[0] != expected_agent_path:
-        raise SystemExit(
-            f"LaunchAgent ProgramArguments[0] {arguments[:1]!r} != {expected_agent_path!r}"
-        )
+    verify_companion_plist(plistlib.loads(companion.read_bytes()), identity)
 
     for path, label in ((app, "app"), (agent, "agent")):
         verify_codesign_strict(path)
         sig = parse_codesign(path)
-        if sig.get("Identifier") != identity["signingIdentifier"]:
-            raise SystemExit(
-                f"{label} signing identifier {sig.get('Identifier')!r} != {identity['signingIdentifier']!r}"
-            )
+        requirement_ok = False
         if expect_developer_id:
-            if sig.get("TeamIdentifier") != identity["teamIdentifier"]:
-                raise SystemExit(
-                    f"{label} Team ID {sig.get('TeamIdentifier')!r} != {identity['teamIdentifier']!r}"
-                )
-            verify_developer_id_requirement(path, identity["developerIDRequirement"])
+            requirement_ok = inspect_developer_id_requirement(
+                path, identity["developerIDRequirement"]
+            )
+        evaluate_signature_policy(
+            identity,
+            identifier=sig.get("Identifier"),
+            team=sig.get("TeamIdentifier"),
+            requirement_satisfied=requirement_ok,
+            expect_developer_id=expect_developer_id,
+            label=label,
+        )
+
+
+def parse_bool_flag(raw: str) -> bool:
+    if raw in ("1", "true", "True", "yes"):
+        return True
+    if raw in ("0", "false", "False", "no"):
+        return False
+    raise SystemExit(f"expected 0 or 1, got {raw!r}")
 
 
 def main() -> int:
     argv = sys.argv[1:]
     if not argv:
         raise SystemExit(
-            "usage: release_identity.py env|check-output|check|verify-volume ROOT [CANDIDATE|VOLUME]"
+            "usage: release_identity.py env|check-output|check|verify-volume|evaluate-signature-policy ROOT ..."
         )
     command = argv[0]
     if command == "env":
         app_root = pathlib.Path(argv[1]).resolve()
         identity = load_identity(app_root)
         for key, value in identity.items():
-            env_key = "AHAKEY_RELEASE_" + "".join(
-                "_" + ch.lower() if ch.isupper() else ch for ch in key
-            ).lstrip("_").upper()
-            # Keep camelCase mapped predictably:
             env_key = "AHAKEY_RELEASE_" + re.sub(r"([A-Z])", r"_\1", key).upper().lstrip("_")
             print(f"export {env_key}={shlex.quote(str(value))}")
         return 0
@@ -280,10 +345,46 @@ def main() -> int:
             raise SystemExit("usage: release_identity.py verify-volume ROOT VOLUME [--expect-developer-id]")
         verify_volume(
             pathlib.Path(rest[0]).resolve(),
-            pathlib.Path(rest[1]).resolve(),
+            pathlib.Path(rest[1]),
             "--expect-developer-id" in argv[1:],
         )
         print("release volume ok")
+        return 0
+    if command == "evaluate-signature-policy":
+        rest = [item for item in argv[1:] if item != "--expect-developer-id"]
+        if len(rest) < 1:
+            raise SystemExit(
+                "usage: release_identity.py evaluate-signature-policy ROOT "
+                "--identifier ID --team TEAM --requirement-ok 0|1 [--expect-developer-id] [--label app]"
+            )
+        app_root = pathlib.Path(rest[0]).resolve()
+        identity = load_identity(app_root)
+        identifier = None
+        team = None
+        requirement_ok = False
+        label = "artifact"
+        args = rest[1:]
+        while args:
+            flag = args.pop(0)
+            if flag == "--identifier":
+                identifier = args.pop(0) if args else None
+            elif flag == "--team":
+                team = args.pop(0) if args else None
+            elif flag == "--requirement-ok":
+                requirement_ok = parse_bool_flag(args.pop(0) if args else "")
+            elif flag == "--label":
+                label = args.pop(0) if args else label
+            else:
+                raise SystemExit(f"unknown evaluate-signature-policy flag {flag}")
+        evaluate_signature_policy(
+            identity,
+            identifier=identifier,
+            team=team,
+            requirement_satisfied=requirement_ok,
+            expect_developer_id="--expect-developer-id" in argv[1:],
+            label=label,
+        )
+        print("signature policy ok")
         return 0
     raise SystemExit(f"unknown command {command}")
 

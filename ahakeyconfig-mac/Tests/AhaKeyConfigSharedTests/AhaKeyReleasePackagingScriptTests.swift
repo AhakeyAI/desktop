@@ -12,6 +12,11 @@ final class AhaKeyReleasePackagingScriptTests: XCTestCase {
             script.components(separatedBy: "--identifier \"$SIGNING_IDENTIFIER\"").count - 1,
             2
         )
+        XCTAssertTrue(script.contains("release_identity.py"))
+        XCTAssertTrue(script.contains(" env "))
+        XCTAssertFalse(script.contains("json.loads"))
+        XCTAssertFalse(script.contains("$DMG_STAGING_DIR/$APP_BUNDLE_FILE_NAME"))
+        XCTAssertFalse(script.contains("\"$DMG_STAGING_DIR/LaunchAgent.plist\""))
         XCTAssertTrue(script.contains("Packaging/LaunchAgent.plist"))
         XCTAssertTrue(script.contains("LaunchAgent.plist"))
         XCTAssertTrue(script.contains("verify-release-dmg.sh"))
@@ -92,18 +97,128 @@ final class AhaKeyReleasePackagingScriptTests: XCTestCase {
     func testWrongMachServiceFailsClosed() throws {
         let root = try makeMatchingVolume()
         defer { try? fileManager.removeItem(atPath: root) }
-        let plistURL = URL(fileURLWithPath: root).appendingPathComponent("LaunchAgent.plist")
-        var plist = try PropertyListSerialization.propertyList(
-            from: Data(contentsOf: plistURL),
-            options: [],
-            format: nil
-        ) as? [String: Any] ?? [:]
-        plist["MachServices"] = ["lab.jawa.ahakeyconfig.wrong": true]
-        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-        try data.write(to: plistURL)
+        try mutateCompanion(in: root) { plist in
+            plist["MachServices"] = ["lab.jawa.ahakeyconfig.wrong": true]
+        }
         let result = try runVerifier(root: root, expectDeveloperID: false)
         XCTAssertNotEqual(result.status, 0, result.output)
         XCTAssertTrue(result.output.contains("MachServices"), result.output)
+    }
+
+    func testAdditiveExtraMachServiceFailsClosed() throws {
+        let root = try makeMatchingVolume()
+        defer { try? fileManager.removeItem(atPath: root) }
+        try mutateCompanion(in: root) { plist in
+            var services = plist["MachServices"] as? [String: Any] ?? [:]
+            services["lab.jawa.ahakeyconfig.extra"] = true
+            plist["MachServices"] = services
+        }
+        let result = try runVerifier(root: root, expectDeveloperID: false)
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("MachServices"), result.output)
+    }
+
+    func testAdditiveExtraProgramArgumentsFailsClosed() throws {
+        let root = try makeMatchingVolume()
+        defer { try? fileManager.removeItem(atPath: root) }
+        try mutateCompanion(in: root) { plist in
+            var arguments = plist["ProgramArguments"] as? [String] ?? []
+            arguments.append("--evil")
+            plist["ProgramArguments"] = arguments
+        }
+        let result = try runVerifier(root: root, expectDeveloperID: false)
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("ProgramArguments"), result.output)
+    }
+
+    func testReleaseSignaturePolicyMatchingPasses() throws {
+        let result = try runSignaturePolicy(
+            identifier: identity.signingIdentifier,
+            team: identity.teamIdentifier,
+            requirementOK: true,
+            expectDeveloperID: true
+        )
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("signature policy ok"), result.output)
+    }
+
+    func testReleaseSignaturePolicyWrongTeamFailsClosed() throws {
+        let result = try runSignaturePolicy(
+            identifier: identity.signingIdentifier,
+            team: "ABCDEFGHIJ",
+            requirementOK: true,
+            expectDeveloperID: true
+        )
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("Team ID"), result.output)
+    }
+
+    func testReleaseSignaturePolicyWrongRequirementFailsClosed() throws {
+        let result = try runSignaturePolicy(
+            identifier: identity.signingIdentifier,
+            team: identity.teamIdentifier,
+            requirementOK: false,
+            expectDeveloperID: true
+        )
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("requirement"), result.output)
+    }
+
+    func testHiddenExtraAppFailsClosed() throws {
+        let root = try makeMatchingVolume()
+        defer { try? fileManager.removeItem(atPath: root) }
+        try fileManager.createDirectory(
+            atPath: (root as NSString).appendingPathComponent(".Hidden.app"),
+            withIntermediateDirectories: true
+        )
+        let result = try runVerifier(root: root, expectDeveloperID: false)
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("exactly one app"), result.output)
+    }
+
+    func testAppSymlinkEscapeFailsClosed() throws {
+        let root = try makeMatchingVolume()
+        defer { try? fileManager.removeItem(atPath: root) }
+        let app = appPath(in: root)
+        let outside = fileManager.temporaryDirectory
+            .appendingPathComponent("ahakey-escape-app-\(UUID().uuidString).app")
+            .path
+        try fileManager.moveItem(atPath: app, toPath: outside)
+        defer { try? fileManager.removeItem(atPath: outside) }
+        try fileManager.createSymbolicLink(atPath: app, withDestinationPath: outside)
+        let result = try runVerifier(root: root, expectDeveloperID: false)
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("symlink"), result.output)
+    }
+
+    func testCompanionSymlinkEscapeFailsClosed() throws {
+        let root = try makeMatchingVolume()
+        defer { try? fileManager.removeItem(atPath: root) }
+        let companion = (root as NSString).appendingPathComponent("LaunchAgent.plist")
+        let outside = fileManager.temporaryDirectory
+            .appendingPathComponent("ahakey-escape-plist-\(UUID().uuidString).plist")
+            .path
+        try fileManager.moveItem(atPath: companion, toPath: outside)
+        defer { try? fileManager.removeItem(atPath: outside) }
+        try fileManager.createSymbolicLink(atPath: companion, withDestinationPath: outside)
+        let result = try runVerifier(root: root, expectDeveloperID: false)
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("symlink"), result.output)
+    }
+
+    func testAgentSymlinkEscapeFailsClosed() throws {
+        let root = try makeMatchingVolume()
+        defer { try? fileManager.removeItem(atPath: root) }
+        let agent = identity.agentBinaryPath(inApp: appPath(in: root))
+        let outside = fileManager.temporaryDirectory
+            .appendingPathComponent("ahakey-escape-agent-\(UUID().uuidString)")
+            .path
+        try fileManager.moveItem(atPath: agent, toPath: outside)
+        defer { try? fileManager.removeItem(atPath: outside) }
+        try fileManager.createSymbolicLink(atPath: agent, withDestinationPath: outside)
+        let result = try runVerifier(root: root, expectDeveloperID: false)
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("symlink"), result.output)
     }
 
     func testBrokenSignatureFailsClosed() throws {
@@ -215,6 +330,38 @@ final class AhaKeyReleasePackagingScriptTests: XCTestCase {
             to: URL(fileURLWithPath: root).appendingPathComponent("LaunchAgent.plist")
         )
         return root
+    }
+
+    private func mutateCompanion(in root: String, _ mutate: (inout [String: Any]) -> Void) throws {
+        let plistURL = URL(fileURLWithPath: root).appendingPathComponent("LaunchAgent.plist")
+        var plist = try PropertyListSerialization.propertyList(
+            from: Data(contentsOf: plistURL),
+            options: [],
+            format: nil
+        ) as? [String: Any] ?? [:]
+        mutate(&plist)
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: plistURL)
+    }
+
+    private func runSignaturePolicy(
+        identifier: String,
+        team: String,
+        requirementOK: Bool,
+        expectDeveloperID: Bool
+    ) throws -> (status: Int32, output: String) {
+        var arguments = [
+            appRootURL().appendingPathComponent("scripts/release_identity.py").path,
+            "evaluate-signature-policy",
+            appRootURL().path,
+            "--identifier", identifier,
+            "--team", team,
+            "--requirement-ok", requirementOK ? "1" : "0",
+        ]
+        if expectDeveloperID {
+            arguments.append("--expect-developer-id")
+        }
+        return try run("/usr/bin/env", ["python3"] + arguments)
     }
 
     private func writeInfoPlist(inApp app: String, version: String) throws {
