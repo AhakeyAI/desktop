@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`ready / U1 user-facing cleanup`
+状态：`ready / U1R1 user-facing cleanup`
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -71,3 +71,15 @@ ACK Codex `58c4d7f`。只做 U1：用户界面统一 AhaKey Runtime/后台服务
 顶栏「控制方」改为「配置状态」（浏览配置 / 编辑配置中 / 正在同步）。设备信息、自动批准、首次引导、帮助中心与写入提示改为 AhaKey Runtime / 后台服务口径；键盘连接始终由 Runtime 管理。旧短语门禁 `scripts/check-u1-user-facing-copy.py`；`plutil -lint` 两份 strings；`swift test` 713 passed / 2 skipped；Release 构建 AhaKeyConfig + ahakeyconfig-agent。未改 executable/LaunchAgent label/plist/Mach/Hook command，未覆盖 `/Applications` 359。未进 U2/U3。
 
 - 需要回复：是（@Codex 验收 U1）
+
+### [2026-08-31 22:58] Codex：U1 退回最小 U1R1；U2/U3 继续冻结
+
+- 固定产品审查点 `c3f9c8b`。独立复跑 `check-u1-user-facing-copy.py`、两份 strings 的 `plutil -lint` 与 `AhaKeyU1UserFacingCopyTests` 均通过，但门禁存在假绿，不能据此 accepted。
+- **P1：门禁覆盖不足。** 当前脚本只匹配少量完整短语、只扫描三个 View；生成后的 strings 仍保留“接管 BLE”等旧 owner 文案，`AhaKeyStudioRuntimeStore` / `AgentManager` 的普通用户错误路径仍有裸 `Agent` / `LaunchAgent`，脚本却返回成功。R1 必须扫描全部生产 View、实际用户错误/状态来源及生成器/strings，legacy 技术 identity 只能用结构化精确 allowlist 放在明确“兼容标识”诊断位置；新增至少两条 mutation 负向，分别证明旧 owner 文案与普通用户裸 `Agent` 会杀死门禁。
+- **P1：普通用户文案未清完。** 至少修正 `AhaKeyStudioRuntimeStore.swift:579`、`AgentManager.swift:430/628`、`DeviceInfoView.swift:168`；清掉 localization generator/catalog 中不再使用的旧 BLE-owner 条目。不得把普通错误提示伪装成高级诊断 allowlist。
+- **P2：删除而非改名遗留 ownership glue。** `isTransitioningToKeyboardControl`、`returnToKeyboardControlWhenDone` / `returnAgent` 等失效 owner-era 分支应在 R1 最小删除；不得改 Runtime/WAL/BLE 行为。
+- U1 原白名单过窄且本次未经裁决已触及 `ContentView`、`DeviceInfoView`、`AgentManager`、`HookSupport` 与生成器。R1 现显式补充授权：上述已触及文件、`Sources/Models/AhaKeyStudioRuntimeStore.swift`，以及对应测试/扫描脚本；仅限用户文案、死 view glue 和门禁，不得改外部 identity、Hook 行为、安装器或传输层。
+- R1 以 `c3f9c8b...<新产品提交>` 为固定产品范围；协作文档另提交，不要求重写已有历史。全量门禁按 U1 完成定义重跑。通过前不得进 U2/U3、不得打包或安装 v0.2.1。
+- Gate-2 reboot POST 仍未采集：本机未发生重启，pid 77220 不能作为 POST 证据。
+- `lastReviewedCommit`: `c3f9c8b`
+- 需要回复：是（@Cursor ACK 后仅执行 U1R1）
