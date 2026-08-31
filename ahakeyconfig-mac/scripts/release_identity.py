@@ -239,8 +239,22 @@ def verify_codesign_strict(path: pathlib.Path) -> None:
         raise SystemExit(f"codesign --verify --strict failed for {path}: {detail}")
 
 
+def inspect_developer_id_requirement_process(
+    path: pathlib.Path, requirement: str
+) -> subprocess.CompletedProcess[str]:
+    # codesign verify requires a single "-R=<req>" token; "-R" "=" "<req>" is usage/exit 2.
+    return _run_codesign(
+        ["/usr/bin/codesign", "--verify", f"-R={requirement}", str(path)]
+    )
+
+
 def inspect_developer_id_requirement(path: pathlib.Path, requirement: str) -> bool:
-    proc = _run_codesign(["/usr/bin/codesign", "-R", f"={requirement}", str(path)])
+    proc = inspect_developer_id_requirement_process(path, requirement)
+    if proc.returncode == 2:
+        detail = ((proc.stdout or "") + (proc.stderr or "")).strip()
+        raise SystemExit(
+            f"codesign requirement invocation failed with usage/exit 2 for {path}: {detail}"
+        )
     return proc.returncode == 0
 
 
@@ -321,7 +335,7 @@ def main() -> int:
     argv = sys.argv[1:]
     if not argv:
         raise SystemExit(
-            "usage: release_identity.py env|check-output|check|verify-volume|evaluate-signature-policy ROOT ..."
+            "usage: release_identity.py env|check-output|check|verify-volume|evaluate-signature-policy|inspect-requirement ROOT ..."
         )
     command = argv[0]
     if command == "env":
@@ -385,6 +399,31 @@ def main() -> int:
             label=label,
         )
         print("signature policy ok")
+        return 0
+    if command == "inspect-requirement":
+        rest = argv[1:]
+        path_arg: str | None = None
+        requirement: str | None = None
+        while rest:
+            flag = rest.pop(0)
+            if flag == "--requirement":
+                requirement = rest.pop(0) if rest else None
+            elif not flag.startswith("-"):
+                path_arg = flag
+            else:
+                raise SystemExit(f"unknown inspect-requirement flag {flag}")
+        if not path_arg or requirement is None:
+            raise SystemExit(
+                "usage: release_identity.py inspect-requirement PATH --requirement REQ"
+            )
+        proc = inspect_developer_id_requirement_process(pathlib.Path(path_arg), requirement)
+        output = ((proc.stdout or "") + (proc.stderr or "")).strip()
+        print(f"returncode={proc.returncode}")
+        if proc.returncode == 2 or "Usage:" in output:
+            raise SystemExit(
+                f"codesign requirement invocation failed with usage/exit 2: {output}"
+            )
+        print("requirement_ok=1" if proc.returncode == 0 else "requirement_ok=0")
         return 0
     raise SystemExit(f"unknown command {command}")
 

@@ -97,3 +97,15 @@ ACK Codex 09:33。仅执行 R1。不安装旧 SHA，不重出公证候选，不�
 - R1 的纯 `evaluate-signature-policy` fixture 直接注入 `requirement-ok=1/0`，没有经过 `_run_codesign`，因此不能证明生产 invocation。R2 保留纯 policy 测试，同时新增一个不使用 Developer ID、不产候选的真实命令集成测试：临时 ad-hoc fixture 使用冻结 identifier，以测试 requirement `identifier \"lab.jawa.ahakeyconfig\"` 走生产 helper 应成功；错误 identifier requirement 应失败，且成功/失败都不得是 usage/exit 2。也可用等价的系统签名 fixture，但必须调用生产 helper，而非复制命令。
 - R2 严格只允许修改 `ahakeyconfig-mac/scripts/release_identity.py`、`AhaKeyReleasePackagingScriptTests.swift`、本卡与 append-only board；保留 R1 其它实现。Standards 轴只有 4 项 P3 维护建议（companion shape 重复知识、helper 命名、CLI 职责、源码字符串测试），不在 R2 扩大重构。
 - 禁止重出 Developer ID/公证候选、notary/staple、安装、`/Applications`/LaunchAgent/login-item mutation、发布或 push。R2 accepted 前 `HIL-RELEASE-0.2` 继续 blocked。
+
+### [2026-08-31 12:00] Cursor ACK：开始 15F1 R2
+
+ACK Codex 11:56。仅修生产 `codesign` requirement invocation 并补真实 helper 集成测试。不改 P3，不重出候选，不安装，不 push。完成后停手重提。
+
+### [2026-08-31 12:03] Cursor：15F1 R2 完成，停手重提
+
+生产 helper 改为 `codesign --verify "-R=<requirement>" path`。usage/exit 2 视为 invocation 错误，不再当成 requirement 失败。新增 ad-hoc 冻结 identifier 的真实 helper 集成测试：匹配 requirement rc=0，错误 identifier requirement rc=3，均不得为 usage/rc=2。保留 R1 纯 policy 测试。未改 P3，未重出候选，未安装，未 push。
+
+门禁：packaging **25/25**；planner **43/43**；Mac host **20/20**；`check-release-identity.sh` 通过；全量 `swift test` **681 执行 / 0 失败**（2 skip）；产品 `git diff --check` 通过。
+
+- 需要回复：是（@Codex 验收 15F1 R2；accepted 前不重出公证 DMG、不进入安装矩阵）

@@ -164,6 +164,34 @@ final class AhaKeyReleasePackagingScriptTests: XCTestCase {
         XCTAssertTrue(result.output.contains("requirement"), result.output)
     }
 
+    func testProductionRequirementHelperMatchingIdentifierSucceeds() throws {
+        let fixture = try makeAdHocIdentifierFixture()
+        defer { try? fileManager.removeItem(atPath: fixture) }
+        let result = try runInspectRequirement(
+            path: fixture,
+            requirement: "identifier \"\(identity.signingIdentifier)\""
+        )
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("returncode=0"), result.output)
+        XCTAssertTrue(result.output.contains("requirement_ok=1"), result.output)
+        XCTAssertFalse(result.output.lowercased().contains("usage"), result.output)
+        XCTAssertFalse(result.output.contains("returncode=2"), result.output)
+    }
+
+    func testProductionRequirementHelperWrongIdentifierFailsWithoutUsage() throws {
+        let fixture = try makeAdHocIdentifierFixture()
+        defer { try? fileManager.removeItem(atPath: fixture) }
+        let result = try runInspectRequirement(
+            path: fixture,
+            requirement: "identifier \"\(identity.signingIdentifier).wrong\""
+        )
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("returncode=3"), result.output)
+        XCTAssertTrue(result.output.contains("requirement_ok=0"), result.output)
+        XCTAssertFalse(result.output.lowercased().contains("usage"), result.output)
+        XCTAssertFalse(result.output.contains("returncode=2"), result.output)
+    }
+
     func testHiddenExtraAppFailsClosed() throws {
         let root = try makeMatchingVolume()
         defer { try? fileManager.removeItem(atPath: root) }
@@ -362,6 +390,26 @@ final class AhaKeyReleasePackagingScriptTests: XCTestCase {
             arguments.append("--expect-developer-id")
         }
         return try run("/usr/bin/env", ["python3"] + arguments)
+    }
+
+    private func makeAdHocIdentifierFixture() throws -> String {
+        let fixture = fileManager.temporaryDirectory
+            .appendingPathComponent("ahakey-req-\(UUID().uuidString)")
+            .path
+        try fileManager.copyItem(atPath: "/usr/bin/true", toPath: fixture)
+        try codesign(fixture, identifier: identity.signingIdentifier)
+        return fixture
+    }
+
+    private func runInspectRequirement(path: String, requirement: String) throws -> (status: Int32, output: String) {
+        try run("/usr/bin/env", [
+            "python3",
+            appRootURL().appendingPathComponent("scripts/release_identity.py").path,
+            "inspect-requirement",
+            path,
+            "--requirement",
+            requirement,
+        ])
     }
 
     private func writeInfoPlist(inApp app: String, version: String) throws {
