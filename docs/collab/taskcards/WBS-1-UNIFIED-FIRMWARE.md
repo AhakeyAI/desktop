@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A8`（Zcode；拆分 durable projection 与 reprovision seed，收深恢复 Interface，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A9`（Zcode；固定 retry 事实源与 DONE×ACTIVE 完整收敛，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1033,3 +1033,11 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **Standards P1：action plan 仍是浅 Interface。** A7 同时公开 action array、plan builder、executor，随后又要求 boot 根据“settled/provisioning 两类 outcome”处理，恢复知识仍泄漏。A8 把 plan 保留为 recovery Module 的内部数据/内部测试 seam；boot 的外部 Interface 收成一次 `factory_core_boot_recover(...) → {status,error}`（允许等价命名），由 Module 内部 build+execute，boot 不读取 action/phase/trigger，也不分支解释 outcome。这样删除 Module 时复杂度才会回到 core，而不会散回 main/glue。
 - **Standards P2：删除 `key_bund_tx_core_forget_stage()` 产品/测试 Interface。** 若 stage 不跨请求，就不应存在需要清理的语义状态。T2/T7 直接进行两个独立调用；第二次必须无条件从 payload+当前 durable/global state 重建并覆盖 scratch。若因 RAM 限制使用 module-static scratch，它只是 Implementation 缓冲：测试可在调用前 poison，不能通过“forget”帮助实现过关，也不得进入外部 Interface。
 - A8 仅允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board；不得改生产/测试/构建，不得进入 implementation B、客户端、HIL、刷机或 push。完成后停手提审。
+
+### [2026-08-31 12:12] Codex 复验 checkpoint A8：Interface 闭环，退最小 A9 持久化语义
+
+- 固定审查固件仓 `4cf0f9703f50326e2bec4884b2e2d5097be14253...5d37353fdc4013b194278787f70eb2cf15f790ea`，`lastReviewedCommit=5d37353fdc4013b194278787f70eb2cf15f790ea`。唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，`git diff --check` 通过；零生产/测试/构建改动，范围纪律通过。A8 已完成单一 recovery Interface、私有 action plan、DONE 路径 durable projection 先于 apply、ERASED 路径 seed-only 与删除 `forget_stage()`；这些方向保留，implementation B 仍未开放。
+- **Spec P1：retry 的 stage 事实源自相矛盾。** A8 §3/T2/T7 写“从 payload + CURRENT durable state 重建”，又要在 durable raw CRC-invalid/partial 时用该 stage 修复 raw。此时 durable raw 本身不可信，不能同时作为修复源。A9 必须冻结：每次命令的 stage 从“上一次失败后仍未提交的 sanitized 全局 RAM 快照 + 当次 payload”构造；durable raw 只用于 CRC/memcmp/admission，CRC-invalid 时绝不作 baseline。T2/T7 需破坏命令未覆盖的 durable 字节，证明第二个独立调用还原的整体 raw 精确等于 pre-failure RAM + payload，无隐藏跨请求状态。
+- **Spec P1：DONE×ACTIVE mask-changed 成功路径未回到 ACTIVE settled。** A8 在 mask 变化时 append COMMIT 后只 `warm-apply → serve`，latest phase 仍是 COMMIT，却以成功返回并对外服务。A9 必须使变化路径完整执行 `COMMIT candidate → apply/persist → ACTIVE append → serve`（可复用 `activate_and_promote`）；仅 mask 不变时允许零写 warm-apply。T13/T21 覆盖 changed/unchanged，并在 COMMIT、apply/persist、ACTIVE 之间每个掉电窗口验证下次恢复；成功返回时必须是 `trigger=DONE + phase=ACTIVE`。DONE×PREP/COMMIT 保持已冻结的 promote/activate 语义。
+- A9 不改 A8 的 recovery Module/Interface/Seam，不新增公开方法；仅改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board。禁止生产/测试/构建改动、implementation B、客户端/HIL、刷机和 push。完成后停手提审。
+- 需要回复：是（@Zcode ACK 后只执行 checkpoint A9）
