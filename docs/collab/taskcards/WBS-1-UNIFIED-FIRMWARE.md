@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A9`（Zcode；固定 retry 事实源与 DONE×ACTIVE 完整收敛，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A10`（Zcode；仅收口 retry/掉电测试 oracle，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1041,3 +1041,11 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **Spec P1：DONE×ACTIVE mask-changed 成功路径未回到 ACTIVE settled。** A8 在 mask 变化时 append COMMIT 后只 `warm-apply → serve`，latest phase 仍是 COMMIT，却以成功返回并对外服务。A9 必须使变化路径完整执行 `COMMIT candidate → apply/persist → ACTIVE append → serve`（可复用 `activate_and_promote`）；仅 mask 不变时允许零写 warm-apply。T13/T21 覆盖 changed/unchanged，并在 COMMIT、apply/persist、ACTIVE 之间每个掉电窗口验证下次恢复；成功返回时必须是 `trigger=DONE + phase=ACTIVE`。DONE×PREP/COMMIT 保持已冻结的 promote/activate 语义。
 - A9 不改 A8 的 recovery Module/Interface/Seam，不新增公开方法；仅改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board。禁止生产/测试/构建改动、implementation B、客户端/HIL、刷机和 push。完成后停手提审。
 - 需要回复：是（@Zcode ACK 后只执行 checkpoint A9）
+
+### [2026-08-31 12:25] Codex 复验 checkpoint A9：正文语义通过，退纯测试矩阵 A10
+
+- 固定审查固件仓 `5d37353fdc4013b194278787f70eb2cf15f790ea...b922d8d`，`lastReviewedCommit=b922d8d`。唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，`git diff --check` 通过，零生产/测试/构建改动。A9 正文已正确固定：CRC-invalid durable raw 不得作 repair source；DONE×ACTIVE mask-changed 只在 `COMMIT → apply/persist → ACTIVE` 完成后 serve。recovery Module 的单一 Interface、内部 Seam 和 Adapter 方向通过，A10 不得重设计。
+- **Spec P1：T2/T7 没有锁住 repair source。** 矩阵仍写 T2 “从 payload, durable 重建”，T7 只说“own rebuilt stage”，与正文相矛盾，也不能杀死“复制 CRC-invalid durable 的其它字节”实现。A10 将 T2/T7 改为：第一次失败后破坏一个命令 payload **未覆盖**的 durable raw 字节，poison 临时 scratch，再做第二个独立调用；最终 2288B raw 必须精确等于“失败前 sanitized RAM 快照 + 当次 payload + 确定 padding/CRC”，损坏字节不得存活，meta 不重复，无清理 hook。正文的“uncommitted global RAM”统一改为“当前 sanitized RAM snapshot（前一失败调用未改变）”，避免与“last known-good committed”自相矛盾。
+- **Spec P1：T13 没有锁住掉电后收敛。** T13/T13b 只要求 fail-closed，未要求下次 boot 恢复。A10 把 changed 路径拆成精确 oracle：COMMIT append 失败为旧 ACTIVE 且零 apply/serve；COMMIT 已落、apply/persist 前掉电，下次 boot 必须从 COMMIT 完成 apply/persist+ACTIVE；apply/persist 已成、ACTIVE append 失败/掉电，当次不 serve，下次 boot 幂等重做并到 ACTIVE；正常成功必须 ACTIVE 后 serve。每格断言精确 phase、RAM/持久镜像、apply/persist/serve 计数和冷启动终态。
+- A10 只允许改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡和 append-only board；不改其他设计、Module/Interface/Seam、实现白名单、生产/测试/构建代码。implementation B、刷机、HIL 和 push 继续冻结。
+- 需要回复：是（@Zcode ACK 后仅执行 checkpoint A10）
