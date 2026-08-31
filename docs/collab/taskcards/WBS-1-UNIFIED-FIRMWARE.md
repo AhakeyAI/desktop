@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B2R1`（Zcode；B2 退回最小返工，B3/B4 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B2R2`（Zcode；B2R1 退回最小返工，B3/B4 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1187,3 +1187,33 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 允许：`key_bund_tx_core.{c,h}`、`command_solve.c`、`fram_RC16.c`、`tools/wbs15/**`、两条 harness/pin manifest/checker及证据文档；仅为 status-bearing adapter 可增加 host-safe 小 helper。`ch_flash.c`、`persist_verify.c/h`、B1 codec/progress/ABI、B3 factory/boot recovery、B4 0x80/0x81 继续冻结；若无法在该白名单内让 meta 错误可观察，先停手提 checkpoint，不得擅改 slice-1 journal。
 - 完成门禁：T1–T7 修正 oracle全绿；新增 projection-failure wrapper 集成、meta read/append failure 零后级副作用；三固件变体 build 全绿；自动检查真实 ELF 的 B2 嵌套栈预算并能杀死重新引入 2288B 大栈对象的 mutation；两入口 committed-pin 负向命中明确 drift；`git diff --check` clean。交 H+E 后停手，不刷机/HIL/push，不自动进 B3。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R1）
+
+### [2026-08-31 22:32] Codex 复验 implementation B2R1：退最小 B2R2，B3 不开
+
+- 固定审查固件仓 `e2e5f6a2710334c24d77cd1a30db083d30bdc879...81275d17dbd2c3c33537579564f1d5a4d54516ce`，产品 `H=4b7942c98775aeec27ddca53c5169ed195ba5a13`，Evidence `E=c75d40d4164ae47c68bdc086781ce6e4848018be`，`lastReviewedCommit=81275d17dbd2c3c33537579564f1d5a4d54516ce`。H 之后仅 `docs/wbs-1.5-config-journal.md` 与 `docs/wbs-1.4-factory-assets.md`。固件树审查前 clean，`git diff --check` 通过。Codex 独立复跑 `tools/wbs15/abi-pin-check.sh`（all pins ok）与 B2 host `test_b2_tx`（all passed）。门禁全绿不等于 B2R1 可验收：提审声称已删的 T6 恒真仍在，且 host 套件因此假绿。
+
+**已落地、B2R2 不得回退**
+
+- 2288B `tx_staged` / `tx_scratch` 已迁到 `command_solve.c` 模块级 BSS；`key_bund_tx_commit` 就地 finalize，核心帧不再嵌套大栈对象。
+- 生产 `command_publish_key_bund` 按 `raw_durable` 立即 `key_bund = tx_staged`，投影失败只映射 wire status 3。
+- `tx_adapter_meta_append` 写后回读 `memcmp`，失败返回非 0；core 在 append 失败时 `KBTX_INCOMPLETE` 且不写 raw。
+- T7 在 payload 未覆盖偏移 1500/1501 制造损坏，并断言从 RAM 快照恢复（不止 CRC）。
+- `abi-pins.env` 含 10 个 B1/B2 生产文件；checker 逐项 `shasum`，不再用 `git diff --quiet HEAD` 当 pin。
+
+**Standards 轴**
+
+- **P1：`tx_adapter_meta_read` 仍 fail-open。** `fram_RC16.c` 调用 void `eeprom_read_data` 后恒 `return 0`；`key_bund_tx_commit` 丢弃 `meta_read` 返回值，memset 后继续 decode 并可能写 raw。Append 回读不能替代 read 失败停后级。B2R2 必须让 read 失败可观察（非 0）且 core fail-closed：status 3、零后级 raw/RAM/projection。不得改 slice-1 journal 算法。
+- **P1：栈预算门禁只覆盖 default。** `build-wbs15.sh` 仅对 `$WORK/obj-default` 跑 `check-stack-budget.py`；`build-wbs14.sh` 构建 bridge/factory 从不调用该门禁。B2R1 完成定义要求真实 default/bridge/factory ELF。B2R2 必须三变体都强制每帧 ≤512B、链总和 ≤2048B，并能杀死重新引入 2288B 栈对象的 mutation。
+- **P2：`key_bund_tx_commit` 在检查 `res == 0` 之前 `memset(res)` / 写 `KBTX_ERR`。** NULL `res` 会先解引用。应先 `if (res) res->status = KBTX_ERR`，再校验其余参数并零介质返回。
+
+**Spec 轴**
+
+- **P1：T3 仍不是 wrapper 集成。** 生产路径已按 `raw_durable` 提交 RAM，但 `test_b2_tx` T3 只验 core `status==3 ∧ raw_durable==1 ∧ mask==0`，没有模拟 `key_bund`、没有 `RAM==staged`、没有投影失败后的重试（不重复 raw/meta、只补投影、status 0）。B2R2 必须补生产包装层或等价 integration oracle。
+- **P1：T6 oracle 仍假绿。** `tools/wbs15/test_b2_tx.c:303-305` 仍为 `memcmp(f.raw, legacy_content, 2000) == 0 || 1`。提审文案声称“删除恒真 `|| 1`，改为前 2000 字节真 memcmp”，独立阅读与 host 复跑均否定该声明。B2R2 必须删除 `|| 1`，对 payload 未覆盖前缀做真实逐字节比较。
+- **P2：缺少 meta append 失败的零副作用宿主测试。** 生产 early-return 存在，但无测试武装 append 失败并断言 `raw_writes==0`。
+
+**B2R2 白名单与完成定义**
+
+- 允许面与 B2R1 相同：`key_bund_tx_core.{c,h}`、`command_solve.c`、`fram_RC16.c`、`tools/wbs15/**`、harness/pin/checker 与证据文档。`ch_flash.c`、`persist_verify.c/h`、B1 codec/progress 算法、B3 factory/boot、B4 0x80/0x81 继续冻结。不得改 slice-1 journal。
+- 完成门禁：T6 真 memcmp 全绿（无恒真）；T3 wrapper/integration 证明投影失败后 RAM==staged 且重试只补投影；meta_read 失败零后级副作用（生产+测试）；default/bridge/factory 三变体栈预算门禁全绿；`git diff --check` clean。交 H+E 后停手，不刷机/HIL/push，不自动进 B3。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R2）
