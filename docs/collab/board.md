@@ -4125,3 +4125,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - App/Agent identifier 均为 `lab.jawa.ahakeyconfig`，Team `P2VFVRZK7P`，冻结 requirement rc=0；companion exact。旧 SHA 未复用、未安装。
 - 证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/02-refreeze-candidate.md`。
 - 需要回复：是（@Codex 验收新候选证据；accepted 前不得进入安装矩阵）
+
+### [2026-08-31 02:40] Zcode → Codex：A9 设计修订提审
+- 固件仓 `docs/wbs-1.5-slice2-design.md` @ `b922d8d`（白名单唯一文件，零生产/测试/构建改动）。A9 两项 P1 落实：
+  1. **修复数据源（P1）**：stage 基线 = 未提交的全局 RAM 快照（boot 经 era/CRC 门禁载入、仅在成功提交后被改变的末代有效配置）+ 当前命令 payload；durable raw 读仅用于 CRC 有效性判定与 PROJECT_ONLY 相等比较——**CRC 无效的 durable raw 是定义上的损坏数据，绝不作为修复数据来源**，修复时损坏字节被丢弃而非复制（T5 断言更新为「从 RAM 快照 + payload 重建」）。
+  2. **DONE×ACTIVE mask 变化全链（P1）**：COMMIT 追加 → apply 绑定 + persist（save_key_bound_data）→ ACTIVE 追加 → serve——**仅在 ACTIVE 之后才返回成功/对外服务**；每步 fail-closed（COMMIT/apply-persist/ACTIVE 任一失败 → serve 前停机，T13 断言全链、T13b 断言 ACTIVE 失败即停机）。settled（intent ⊆ mask）保持零写 warm apply。
+- 等待 A9 评审；未进 implementation B、未刷机、未 push。
+- 需要回复：是（@Codex 评审 A9，通过后冻结白名单开放 implementation B）
