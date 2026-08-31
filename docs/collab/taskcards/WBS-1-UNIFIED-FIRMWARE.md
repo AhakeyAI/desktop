@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A7`（Zcode；恢复完整 trigger×phase action matrix，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A8`（Zcode；拆分 durable projection 与 reprovision seed，收深恢复 Interface，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1023,3 +1023,13 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - A7 把 trigger×{PREP,COMMIT,ACTIVE} 六格测试写成**精确 action + 精确写序列**：DONE/PREP=`append COMMIT → bind/persist → ACTIVE`；DONE/COMMIT=`bind/persist → ACTIVE`；DONE/ACTIVE=read-only settled；ERASED/PREP=`same-bank prepare → trigger → COMMIT → bind/persist → ACTIVE`；ERASED/COMMIT 与 ERASED/ACTIVE=`opposite-bank reprovision`。另保留 33/34/50 零写矩阵。
 - **P2：立即重试的 stage 生命周期需明确。** status 3 返回后局部 stage 已销毁；A7 必须说明新一次 0x95/0x97 调用从“未提交的全局 RAM + 同一命令 payload”重新构造相同 stage，不依赖跨请求隐藏内存。T2/T7 用两个独立调用（可重建 tx core）证明 meta 不重复、raw 被修复、CRC 有效、重启一致。
 - A7 只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board；不得修改生产/测试/构建，不得进入 implementation B、客户端、HIL、刷机或 push。完成后停手提审。
+
+### [2026-08-31 12:00] Codex 复验 checkpoint A7：六格闭环，intent 顺序与 Interface 退最小 A8
+
+- 固定审查固件仓 `ef3ba24cc5e0696d62fc1a7ab04f16a0c917ccc6...4cf0f9703f50326e2bec4884b2e2d5097be14253`，`lastReviewedCommit=4cf0f9703f50326e2bec4884b2e2d5097be14253`。唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，范围纪律通过。A7 的六格 trigger×phase、33/34/50、DONE×PREP 升格、ERASED 对侧重建与双调用方向成立；implementation B 仍未开放。
+- **Spec P1：settled 路径 intent 顺序会先覆盖用户绑定。** A7 的 `DONE×ACTIVE = WARM_APPLY → RECONCILE_INTENT` 会先用旧 factory mask 执行 factory bindings，再把 raw intent 投影；raw 中尚未投影的用户 binding 可能已被 factory 值覆盖。A8 必须先计算 `candidateMask = durableMask | rawIntent`：不变时才直接 WARM_APPLY；变化时先 durable COMMIT candidate，成功后用 candidate WARM_APPLY/保持用户 binding，再落到 ACTIVE settled。任何 projection 失败必须在 apply/serve 前 fail-closed。
+- **Spec P1：reprovision 路径不能在 PREP/trigger 前 append reconcile COMMIT。** A7 对 `ERASED×COMMIT/ACTIVE` 排 `RECONCILE_INTENT → REPROVISION_ALTERNATE`，而其统一定义会在 mask 变化时 append COMMIT，破坏已验收的 `prepare → PREP → trigger → COMMIT → bind/persist → ACTIVE` 顺序。A8 拆成两个不同 action：`PROJECT_DURABLE_INTENT` 只用于 DONE 的已提交设备；`MERGE_INTENT_INTO_SEED` 是纯计算、用于 ERASED/fresh/reprovision，把 candidate mask 交给后续事务，绝不预写 journal。
+- 六格矩阵相应冻结：DONE×ACTIVE = `PROJECT_DURABLE_INTENT (before apply) → WARM_APPLY/ACTIVE settle`；ERASED×PREP/COMMIT/ACTIVE/none 的 provision action 只携带 `initial_override_mask = recoveredMask | rawIntent`，之后严格走 1.4 事务次序。补 mask-changed 和 mask-unchanged 两种 DONE×ACTIVE fixture，以及 ERASED 重建“首个 journal 写必须 PREP、COMMIT 必须在 trigger 后”的顺序断言。
+- **Standards P1：action plan 仍是浅 Interface。** A7 同时公开 action array、plan builder、executor，随后又要求 boot 根据“settled/provisioning 两类 outcome”处理，恢复知识仍泄漏。A8 把 plan 保留为 recovery Module 的内部数据/内部测试 seam；boot 的外部 Interface 收成一次 `factory_core_boot_recover(...) → {status,error}`（允许等价命名），由 Module 内部 build+execute，boot 不读取 action/phase/trigger，也不分支解释 outcome。这样删除 Module 时复杂度才会回到 core，而不会散回 main/glue。
+- **Standards P2：删除 `key_bund_tx_core_forget_stage()` 产品/测试 Interface。** 若 stage 不跨请求，就不应存在需要清理的语义状态。T2/T7 直接进行两个独立调用；第二次必须无条件从 payload+当前 durable/global state 重建并覆盖 scratch。若因 RAM 限制使用 module-static scratch，它只是 Implementation 缓冲：测试可在调用前 poison，不能通过“forget”帮助实现过关，也不得进入外部 Interface。
+- A8 仅允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board；不得改生产/测试/构建，不得进入 implementation B、客户端、HIL、刷机或 push。完成后停手提审。
