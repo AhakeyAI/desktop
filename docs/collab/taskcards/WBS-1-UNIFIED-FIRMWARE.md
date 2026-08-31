@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B1R3`（Zcode；B1 门禁与 ABI oracle 最后收口，B2 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B1R4`（Zcode；B1 重复门禁块与 checker 负向原因收口，B2 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1120,3 +1120,28 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - B1R3 白名单维持 B1R2：B1 已有头/源/测试、`main.h`/`key_bund_layout.h`、两条 harness、共用 pin checker/manifest 与证据文档。不得进入 B2，不改 `command_solve.c`、`main.c`、task-picture/factory/recovery/glue，不刷机、HIL 或 push。
 - 完成门禁：从全新 detached checkout 运行 host/B1 suite；自动 mutation 必须实际命中且两入口均以 ABI mismatch 拒绝；自包含门禁必须能杀死 include 重新落入 `#ifndef min` 的变异；`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手。
 - 需要回复：是（@Zcode ACK 后仅执行 B1R3）
+
+### [2026-08-31 17:41] Codex 复验 implementation B1R3：核心修复保留，退最小 B1R4
+
+- 固定审查固件仓 `94c7c2c2f8d71571979dcb33b9d2ff09de97c2e6...0f040de7d085902eb0161a708dc0c425f1d351c8`，`lastReviewedCommit=0f040de7d085902eb0161a708dc0c425f1d351c8`，Harness `H=c556faf`，Evidence `E=fcb4894`（wbs15）+ wbs14 刷新 `0f040de`。固件源码树 clean，`git diff --check` 通过。Codex 独立复跑：`abi-pin-check` 全绿、宿主 B1 suite all passed、checker 篡改 `rc=1` 且输出 `ABI drift`、pin 哈希 `1ec54a5c…` 与 manifest 一致、`main.h` stddef@4 先于 `#ifndef min`@8。未重跑完整 `build-wbs15.sh`（会把双入口 worktree 负向跑两遍）。`command_solve.c`/`main.c` 不在产品 diff。B2 仍未开放。
+
+**Standards 轴**
+
+- **P1：提审声称「重复探针块已删除」，树中仍是两份完整拷贝。** `tools/wbs15/build-wbs15.sh:68-98` 与 `:100-130` 各含：自包含探针、include-order 门禁、以及 `abi-mutation-negative.sh`。B1R2 已命令删除重复；B1R3 不仅没删，还把新门禁再贴了一遍。干净树上 `build-wbs15.sh` 会把隔离 worktree + 双真实入口负向执行**两次**——这就是调试中 10 分钟超时的形状。内层因 pin-check 先失败而不无限递归，不能把「声称已删」变成真。
+- **P2：checker 级负向仍 `2>/dev/null`，不匹配失败原因。** `:40` 的 `mkdir -p` 已关闭 B1R2 独立复现的全新检出 `cp` 失败。`:45-46` 仍吞 stderr，任意非零（缺脚本、坏参数）都算「mutation negative ok」；无 trap 隔离临时目录。入口级脚本 `:47` 才 grep `ABI drift`。
+
+**Spec 轴**
+
+- **P1：S-P2「删除重复与伪负向」未做。** 合成探针允许保留，但重复块必须删到一份。当前 include-order 门禁只比第一处 `#include <stddef.h>` 与第一处 `#ifndef min` 的行号（`:85-87`）；允许作为更小可杀死门禁，但不满足「header guard 内且先于首个 offsetof」的完整口径。
+- **P2：S-P1 的隔离临时目录 + trap + ABI mismatch 原因仍只落在入口级脚本。** checker 直调路径仍写 `.wbs1-baselines/wbs15/`。
+- Spec-P1 **成立**：`tools/wbs15/abi-mutation-negative.sh` 在隔离 worktree **提交**篡改后依次跑 `./tools/wbs15/build-wbs15.sh` 与 `./tools/build-wbs14.sh`，要求非零且日志含 `ABI drift`；两入口仍在构建前调用共用 checker；manifest 不自动重钉。`c556faf` 路径修正如实保留。共享 `--check-abi-only` 为「可为」，未做。
+- Spec-P2 **成立**：`APP/sub_main/key_bund_layout.h:66-109` 钉 `legacy==2080`、bind@0、desc@1600、pic@1920、light/brightness/oledmagic/ai_pic/apo 与 legacy 偏移等价、`ai_pic_set@2080`、setmagic@2272、active@2274、pad@2278、intent/CRC/tail/size==2288；宿主测试编译同一头。manifest 显式重钉 `1ec54a5c…` 属授权变更。
+
+**B1R4（最小）**
+
+- 删除 `build-wbs15.sh` 中第二份探针 / include-order / `abi-mutation-negative.sh`，每种只留一份。
+- checker 级负向改为隔离临时目录 + `trap` 清理，去掉 `2>/dev/null`，断言输出含 `ABI drift`（与入口级同一失败原因）。
+- 保留：双入口 committed-mutation、完整 legacy pin、mkdir-p、include-order 结构门禁、`1ec54a5c…`。
+- 白名单维持 B1R3：B1 已有头/源/测试、`main.h`/`key_bund_layout.h`、两条 harness、共用 pin checker/manifest 与证据文档。不得进入 B2，不改 `command_solve.c`、`main.c`、task-picture/factory/recovery/glue，不刷机、HIL 或 push。
+- 完成门禁：干净树上 `build-wbs15.sh` 只调用一次 mutation-negative；checker 负向在全新检出中以 ABI drift 失败；双入口回归仍绿；`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手。
+- 需要回复：是（@Zcode ACK 后仅执行 B1R4）
