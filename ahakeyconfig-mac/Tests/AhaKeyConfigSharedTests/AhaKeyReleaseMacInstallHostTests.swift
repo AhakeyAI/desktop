@@ -362,6 +362,22 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
             }
             XCTAssertTrue(message.contains("unreadable"), message)
         }
+
+        let collideA = (root as NSString).appendingPathComponent("collide-a")
+        let collideB = (root as NSString).appendingPathComponent("collide-b")
+        try FileManager.default.createDirectory(atPath: collideA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: collideB, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            atPath: (collideA as NSString).appendingPathComponent("link"),
+            withDestinationPath: "a"
+        )
+        try Data("x".utf8).write(to: URL(fileURLWithPath: (collideA as NSString).appendingPathComponent("bc")))
+        try FileManager.default.createSymbolicLink(
+            atPath: (collideB as NSString).appendingPathComponent("link"),
+            withDestinationPath: "ab"
+        )
+        try Data("x".utf8).write(to: URL(fileURLWithPath: (collideB as NSString).appendingPathComponent("c")))
+        XCTAssertNotEqual(try host.appFingerprint(at: collideA), try host.appFingerprint(at: collideB))
     }
 
     func testMacHostExactRollbackRejectsWrongTreeWithSameExecutableNames() throws {
@@ -383,8 +399,8 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         XCTAssertEqual(try macosNames(in: previous.app), try macosNames(in: wrong.app))
         let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
         system.loaded = [identity.agentLaunchdLabel]
-        let host = AhaKeyReleaseMacInstallHost(system: system)
-        host.terminalFingerprintPathOverride = wrong.app
+        let inner = AhaKeyReleaseMacInstallHost(system: system)
+        let host = TerminalTreeMutatingHost(inner: inner, wrongTreePath: wrong.app)
         XCTAssertThrowsError(
             try AhaKeyReleaseInstaller.run(
                 request: .upgrade(candidateAppPath: candidate.app),
@@ -401,7 +417,8 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
             XCTAssertEqual(original, .injectedFailure(.writeLaunchAgent))
             XCTAssertNotNil(compensation)
             XCTAssertTrue(mutated)
-            XCTAssertEqual(snap.installedAppFingerprint, try? host.appFingerprint(at: wrong.app))
+            XCTAssertEqual(snap.installedAppFingerprint, try? inner.appFingerprint(at: layout.applicationsAppPath))
+            XCTAssertEqual(try? inner.appFingerprint(at: layout.applicationsAppPath), try? inner.appFingerprint(at: wrong.app))
             XCTAssertTrue(reason.lowercased().contains("integrity") || reason.lowercased().contains("tree"), reason)
         }
     }
@@ -432,8 +449,8 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         system.bootstrapError = .hostFailure(
             "launchctl bootstrap gui/501 \(layout.launchAgentPlistPath) exit 5: Bootstrap failed: 5: Input/output error"
         )
-        let host = AhaKeyReleaseMacInstallHost(system: system)
-        host.terminalFingerprintPathOverride = wrong.app
+        let inner = AhaKeyReleaseMacInstallHost(system: system)
+        let host = TerminalTreeMutatingHost(inner: inner, wrongTreePath: wrong.app)
         XCTAssertThrowsError(
             try AhaKeyReleaseInstaller.run(
                 request: .upgrade(candidateAppPath: candidate.app),
@@ -452,7 +469,8 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
             XCTAssertTrue(message.contains("launchctl bootstrap"), message)
             XCTAssertNotNil(compensation)
             XCTAssertTrue(mutated)
-            XCTAssertEqual(snap.installedAppFingerprint, try? host.appFingerprint(at: wrong.app))
+            XCTAssertEqual(snap.installedAppFingerprint, try? inner.appFingerprint(at: layout.applicationsAppPath))
+            XCTAssertEqual(try? inner.appFingerprint(at: layout.applicationsAppPath), try? inner.appFingerprint(at: wrong.app))
             XCTAssertTrue(
                 reason.lowercased().contains("integrity")
                     || reason.lowercased().contains("tree")
@@ -1022,5 +1040,67 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         try Data("tamper".utf8).write(
             to: URL(fileURLWithPath: (resources as NSString).appendingPathComponent("broken.txt"))
         )
+    }
+}
+
+/// 测试专用：在终态 snapshot 前把**实际安装路径**替换为错树。生产 Host 无此 seam。
+private final class TerminalTreeMutatingHost: AhaKeyReleaseInstallHost {
+    let inner: AhaKeyReleaseMacInstallHost
+    let wrongTreePath: String
+    private var snapshotCount = 0
+
+    init(inner: AhaKeyReleaseMacInstallHost, wrongTreePath: String) {
+        self.inner = inner
+        self.wrongTreePath = wrongTreePath
+    }
+
+    var identity: AhaKeyReleaseIdentity { inner.identity }
+
+    func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
+        snapshotCount += 1
+        if snapshotCount > 1 {
+            try replaceInstallTree(layout.applicationsAppPath)
+        }
+        return try inner.snapshot(layout: layout)
+    }
+
+    func inspectCandidate(at appPath: String, identity: AhaKeyReleaseIdentity) throws -> AhaKeyReleaseCandidateReport {
+        try inner.inspectCandidate(at: appPath, identity: identity)
+    }
+
+    func appFingerprint(at path: String) throws -> String {
+        try inner.appFingerprint(at: path)
+    }
+
+    func itemExists(at path: String) -> Bool { inner.itemExists(at: path) }
+    func isSymlink(_ path: String) -> Bool { inner.isSymlink(path) }
+    func resolvedPath(_ path: String) -> String? { inner.resolvedPath(path) }
+
+    func replaceDirectoryAtomically(from: String, to: String, backup: String, staging: String) throws {
+        try inner.replaceDirectoryAtomically(from: from, to: to, backup: backup, staging: staging)
+    }
+
+    func moveDirectoryAtomically(from: String, to: String) throws {
+        try inner.moveDirectoryAtomically(from: from, to: to)
+    }
+
+    func removeTree(_ path: String) throws { try inner.removeTree(path) }
+    func writeFile(at path: String, data: Data) throws { try inner.writeFile(at: path, data: data) }
+    func readFile(at path: String) -> Data? { inner.readFile(at: path) }
+    func bootout(label: String) throws { try inner.bootout(label: label) }
+    func bootstrap(label: String, plistPath: String) throws { try inner.bootstrap(label: label, plistPath: plistPath) }
+    func registerLoginItem() throws { try inner.registerLoginItem() }
+    func unregisterLoginItem() throws { try inner.unregisterLoginItem() }
+    func disabledLaunchdLabels() throws -> Set<String> { try inner.disabledLaunchdLabels() }
+    func setLaunchdDisabled(label: String, disabled: Bool) throws {
+        try inner.setLaunchdDisabled(label: label, disabled: disabled)
+    }
+
+    private func replaceInstallTree(_ destination: String) throws {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: destination) {
+            try fm.removeItem(atPath: destination)
+        }
+        try fm.copyItem(atPath: wrongTreePath, toPath: destination)
     }
 }

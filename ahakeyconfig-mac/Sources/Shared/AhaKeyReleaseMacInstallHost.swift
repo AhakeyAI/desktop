@@ -59,6 +59,7 @@ public final class AhaKeyReleaseRecordingProcessRunner: AhaKeyReleaseProcessRunn
 }
 
 /// launchd / 登录项 / codesign 检查缝。生产适配器会改系统；测试注入 Recording 适配器。
+/// `identity` 在适配器构造时冻结，之后不可变；Host 只读取，不得另存可改副本。
 public protocol AhaKeyReleaseSystemControl: AnyObject {
     var identity: AhaKeyReleaseIdentity { get }
     func darwinMajor() -> Int
@@ -75,7 +76,7 @@ public protocol AhaKeyReleaseSystemControl: AnyObject {
 }
 
 public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemControl {
-    public var identity: AhaKeyReleaseIdentity
+    public let identity: AhaKeyReleaseIdentity
     public var darwinMajorValue: Int
     public var loaded: Set<String>
     public var loginItemRegistered: Bool
@@ -693,8 +694,6 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     public let identity: AhaKeyReleaseIdentity
     public var injectedDirectoryFsyncError: AhaKeyReleaseInstallError?
     public var injectedWriteFailure: AhaKeyReleaseWriteFailurePoint?
-    public var terminalFingerprintPathOverride: String?
-    private var snapshotCount = 0
 
     public init(
         fileManager: FileManager = .default,
@@ -728,19 +727,12 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     }
 
     public func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
-        snapshotCount += 1
         var exists: [String: Bool] = [:]
         for path in layout.preservedPaths {
             exists[path] = fileManager.fileExists(atPath: path)
         }
         let installed = fileManager.fileExists(atPath: layout.applicationsAppPath)
-        let fingerprintPath: String
-        if snapshotCount > 1, let override = terminalFingerprintPathOverride {
-            fingerprintPath = override
-        } else {
-            fingerprintPath = layout.applicationsAppPath
-        }
-        let fingerprint = installed ? try appFingerprint(at: fingerprintPath) : ""
+        let fingerprint = installed ? try appFingerprint(at: layout.applicationsAppPath) : ""
         return AhaKeyReleaseHostSnapshot(
             darwinMajor: system.darwinMajor(),
             appInstalled: installed,

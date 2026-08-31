@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK：覆盖升级恢复模型
 
 计划/WBS：5.9A-R8 / 6.0A  
-状态：`ready / R4`
+状态：`ready / R5`
 执行 owner：Cursor  
 验收：Codex  
 基线：产品 `3b287beecf34c3f2d433631610f8e8c8f85c9149`；真机失败证据 `133385e3d47b9d924863a4820148281015334b06`  
@@ -159,3 +159,41 @@ ACK `d17e92c`。System/Host 同一 identity；强 tree digest 替换文件名指
 System/Host 同一 identity；强 tree digest 替换文件名指纹；同名 executable 真 fixture 的 exact/partial 错树均 blocked。定向 89/0，全量 707/0，Release 通过。未改系统、未重跑安装。
 
 - 需要回复：是（@Codex 验收 R4）
+
+### [2026-08-31 17:45] Codex 复验 R4：退最小 R5，安装器重跑继续禁止
+
+- 固定产品审查 `6d64727^...6d64727`，`lastReviewedCommit=6d64727265479e861307d6aa703abda94621d0c5`。产品源码之后未变化，`git diff --check` 通过。R4 的 System→Host 派生 identity 与抛错 digest 方向保留。
+
+**Standards 轴**
+
+- **P1：tree digest 编码可碰撞。** `AhaKeyReleaseInstallPlanner.swift` 未给 symlink target 加长度或终止符。`target="a"` + nextPath=`"bc"` 与 `target="ab"` + nextPath=`"c"` 可生成相同哈希输入。所有字段必须长度前缀化。
+- **P1：生产 Host 暴露绕过终态校验的公开 seam。** `terminalFingerprintPathOverride` 可让终态 hash 任意外部树；`snapshotCount` 使结果依赖调用顺序。该 seam 不应存在于生产 Host。
+- **P2：digest 将整个 App 全量读入内存。** 先构造包含所有 `Data` 的数组再 hash。宜流式 hash。
+- **P2：补偿证据仍吞掉 digest 错误。** `try? ... ?? ""` 无法区分 missing 与 unreadable。
+
+**Spec 轴**
+
+- **P1：identity 仍可再次分裂。** `AhaKeyReleaseRecordingSystemControl.identity` 是公开 `var`，Host 只在构造时复制。应改为不可变 `let`，协议明确冻结语义。
+- **P1：exact/partial 的真实错树测试依赖上述生产绕过 seam。** 测试没有让实际安装路径变成错树。
+- **P2：Fake 仍不是生产全树语义。** `Set<String>` 同时解释为路径与内容，无法表达资源内容、Agent、类型或 symlink 差异。
+
+**R5 最小完成定义**
+
+1. 长度前缀的流式 tree digest；symlink/path/kind/length 均不可拼接碰撞；磁盘路径流式读入，不把整树 `Data` 先收入数组。
+2. 删除生产 Host 的 `terminalFingerprintPathOverride` / `snapshotCount` 指纹分流。
+3. System identity 冻结为 `let`；协议写明构造后不可变。
+4. exact/partial 错树：用测试文件内的受控文件系统 seam，在终态校验前把**实际安装路径上的树**替换为同 executable 名的真错树；生产 Host 只 hash 该路径。Fake 用完整 entry（路径/类型/内容/symlink）编码，不再把名字当内容。
+5. 补偿路径不得把 unreadable digest 吞成空串。白名单不变。定向、全量 Swift、App/Agent Release、diff check 全绿后停手提审。不改系统、不重跑安装、不启 Studio/BLE、不删 backup、不 push。
+
+- 需要回复：是（@Cursor ACK 后仅执行 R5）
+
+### [2026-08-31 17:46] Cursor ACK：开始 15F2 R5
+
+ACK 用户转达的 Codex 17:45。长度前缀流式 digest；删除生产 override；冻结 System identity；实际安装树错树终态。不改系统、不重跑安装。
+
+### [2026-08-31 17:58] Cursor：R5 完成，停手提审
+
+长度前缀流式 digest；生产 Host 已删除 fingerprint override；Recording System identity 为 `let`；exact/partial 在终态校验前把实际安装树换成同名 executable 真错树。定向 planner+Mac-host 93/0；全量 Swift 711 tests / 2 skipped / 0 failures；App/Agent Release 通过；`git diff --check` 干净。未改系统、未重跑安装。
+
+- 需要回复：是（@Codex 验收 R5）
+

@@ -1138,8 +1138,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
 
     func testHostIdentityMismatchFailsClosedWithZeroMutation() throws {
         let custom = customTestIdentity()
-        let host = preparedHost()
-        host.identity = custom
+        let host = preparedHost(identity: custom)
         let layout = self.layout(root: "/sandbox")
         host.trees[layout.applicationsAppPath] = ["old-binary"]
         host.loaded = [identity.agentLaunchdLabel]
@@ -1237,7 +1236,15 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         host.installedAppIntegrity = .verifiedRestorable
         host.loaded = [identity.agentLaunchdLabel]
         host.files[layout.launchAgentPlistPath] = Data("previous".utf8)
-        host.terminalFingerprintOverride = "wrong-tree"
+        host.terminalTreeEntries = [
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "old-binary",
+                kind: .file,
+                byteCount: 4,
+                bytes: Data("nope".utf8)
+            )
+        ]
+        let wrongDigest = AhaKeyReleaseAppTreeDigest.hex(entries: host.terminalTreeEntries ?? [])
         XCTAssertThrowsError(
             try AhaKeyReleaseInstaller.run(
                 request: .upgrade(candidateAppPath: candidatePath()),
@@ -1254,8 +1261,175 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
             XCTAssertEqual(original, .injectedFailure(.writeLaunchAgent))
             XCTAssertNotNil(compensation)
             XCTAssertTrue(mutated)
-            XCTAssertEqual(snap.installedAppFingerprint, "wrong-tree")
+            XCTAssertEqual(snap.installedAppFingerprint, wrongDigest)
             XCTAssertTrue(reason.lowercased().contains("integrity") || reason.lowercased().contains("tree"), reason)
+        }
+    }
+
+    func testFailForwardWrongTreeIsBlocked() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-broken"]
+        host.installedAppIntegrity = .nonRestorable
+        host.loaded = [identity.hilLaunchdLabel]
+        host.disabled = [identity.agentLaunchdLabel]
+        host.rejectReplaceFromBackup = true
+        host.failingBootstrapLabels = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("old-official".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("hil-plist".utf8)
+        host.terminalTreeEntries = [
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "new-binary",
+                kind: .file,
+                byteCount: 4,
+                bytes: Data("nope".utf8)
+            )
+        ]
+        let wrongDigest = AhaKeyReleaseAppTreeDigest.hex(entries: host.terminalTreeEntries ?? [])
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, _, let mutated, let snap, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("fail-forward 错树必须 blocked，got \(error)")
+            }
+            guard case .hostFailure(let message) = original else {
+                return XCTFail("必须保留 bootstrap 原错，got \(String(describing: original))")
+            }
+            XCTAssertTrue(message.contains("launchctl bootstrap"), message)
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(mutated)
+            XCTAssertEqual(snap.installedAppFingerprint, wrongDigest)
+            XCTAssertTrue(
+                reason.lowercased().contains("integrity")
+                    || reason.lowercased().contains("tree")
+                    || reason.lowercased().contains("verified"),
+                reason
+            )
+        }
+    }
+
+    func testTreeDigestLengthPrefixSeparatesSymlinkTargetFromNextPath() {
+        let collidingOldA = [
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "link",
+                kind: .symlink,
+                byteCount: 0,
+                symlinkTarget: "a"
+            ),
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "bc",
+                kind: .file,
+                byteCount: 1,
+                bytes: Data("x".utf8)
+            ),
+        ]
+        let collidingOldB = [
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "link",
+                kind: .symlink,
+                byteCount: 0,
+                symlinkTarget: "ab"
+            ),
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "c",
+                kind: .file,
+                byteCount: 1,
+                bytes: Data("x".utf8)
+            ),
+        ]
+        XCTAssertNotEqual(
+            AhaKeyReleaseAppTreeDigest.hex(entries: collidingOldA),
+            AhaKeyReleaseAppTreeDigest.hex(entries: collidingOldB)
+        )
+    }
+
+    func testFakeDigestDistinguishesResourceAgentTypeAndSymlink() throws {
+        let host = FakeInstallHost()
+        let app = "/sandbox/Applications/AhaKey Studio.app"
+        host.trees[app] = ["Contents/MacOS/AhaKey Studio", "Contents/Resources/marker"]
+        host.treeEntries[app] = [
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "Contents/MacOS/AhaKey Studio",
+                kind: .file,
+                byteCount: 3,
+                bytes: Data("exe".utf8)
+            ),
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "Contents/MacOS/ahakeyconfig-agent",
+                kind: .file,
+                byteCount: 5,
+                bytes: Data("agent".utf8)
+            ),
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "Contents/Resources/marker",
+                kind: .file,
+                byteCount: 3,
+                bytes: Data("old".utf8)
+            ),
+        ]
+        let resourceChanged = host.treeEntries[app]!.map { entry -> AhaKeyReleaseAppTreeEntry in
+            if entry.relativePath.hasSuffix("marker") {
+                return AhaKeyReleaseAppTreeEntry(
+                    relativePath: entry.relativePath,
+                    kind: .file,
+                    byteCount: 3,
+                    bytes: Data("new".utf8)
+                )
+            }
+            return entry
+        }
+        let symlinkInsteadOfFile = [
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: "Contents/MacOS/AhaKey Studio",
+                kind: .symlink,
+                byteCount: 0,
+                symlinkTarget: "exe"
+            )
+        ]
+        let first = try host.appFingerprint(at: app)
+        host.treeEntries[app] = resourceChanged
+        let second = try host.appFingerprint(at: app)
+        host.treeEntries[app] = symlinkInsteadOfFile
+        let third = try host.appFingerprint(at: app)
+        XCTAssertNotEqual(first, second)
+        XCTAssertNotEqual(first, third)
+        XCTAssertNotEqual(second, third)
+    }
+
+    func testCompensationUnreadableTreeIsNotSwallowedAsMissing() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-binary"]
+        host.installedAppIntegrity = .verifiedRestorable
+        host.loaded = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("previous".utf8)
+        host.failFingerprintOnSnapshotAfter = 1
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout,
+                injectFailureAt: .writeLaunchAgent
+            )
+        ) { error in
+            guard case .compensationFailed(let original, let compensation, _, let mutated, let snap) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("unreadable 必须作为 compensation 错误，got \(error)")
+            }
+            XCTAssertEqual(original, .injectedFailure(.writeLaunchAgent))
+            guard case .hostFailure(let message) = compensation else {
+                return XCTFail("必须保留 unreadable digest 错误，got \(String(describing: compensation))")
+            }
+            XCTAssertTrue(message.contains("unreadable"), message)
+            XCTAssertTrue(mutated)
+            XCTAssertTrue(snap.appInstalled)
         }
     }
 
@@ -1320,9 +1494,8 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
     }
 
     private func preparedHost(identity: AhaKeyReleaseIdentity? = nil) -> FakeInstallHost {
-        let host = FakeInstallHost()
         let id = identity ?? self.identity
-        host.identity = id
+        let host = FakeInstallHost(identity: id)
         host.darwinMajor = 22
         host.candidateReport = try? validCandidate(identity: id)
         host.trees[candidatePath()] = ["new-binary"]
@@ -1367,12 +1540,13 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
 }
 
 private final class FakeInstallHost: AhaKeyReleaseInstallHost {
-    var identity = AhaKeyReleaseIdentity.current
+    let identity: AhaKeyReleaseIdentity
     var darwinMajor = 22
     var loaded: Set<String> = []
     var loginItemRegistered = false
     var files: [String: Data] = [:]
     var trees: [String: Set<String>] = [:]
+    var treeEntries: [String: [AhaKeyReleaseAppTreeEntry]] = [:]
     var preserved: [String: String] = [:]
     var writes: [String] = []
     var candidateReport: AhaKeyReleaseCandidateReport?
@@ -1397,10 +1571,24 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     var dropDisabledRestores = false
     var snapshotCount = 0
     var terminalIntegrityOverride: AhaKeyReleasePreviousAppIntegrity?
-    var terminalFingerprintOverride: String?
+    var terminalTreeEntries: [AhaKeyReleaseAppTreeEntry]?
+    var failFingerprintOnSnapshotAfter = Int.max
+
+    init(identity: AhaKeyReleaseIdentity = .current) {
+        self.identity = identity
+    }
 
     func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
         snapshotCount += 1
+        if snapshotCount > 1, let entries = terminalTreeEntries {
+            trees[layout.applicationsAppPath] = Set(entries.map(\.relativePath))
+            treeEntries[layout.applicationsAppPath] = entries
+        }
+        if snapshotCount > failFingerprintOnSnapshotAfter {
+            throw AhaKeyReleaseInstallError.hostFailure(
+                "app tree unreadable at \(layout.applicationsAppPath)"
+            )
+        }
         var exists: [String: Bool] = [:]
         for path in layout.preservedPaths {
             exists[path] = preserved[path] != nil
@@ -1413,9 +1601,6 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         if snapshotCount > 1 {
             if let terminalIntegrityOverride {
                 integrity = terminalIntegrityOverride
-            }
-            if let terminalFingerprintOverride {
-                fingerprint = terminalFingerprintOverride
             }
         }
         return AhaKeyReleaseHostSnapshot(
@@ -1434,6 +1619,9 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     }
 
     func appFingerprint(at path: String) throws -> String {
+        if let entries = treeEntries[path] {
+            return AhaKeyReleaseAppTreeDigest.hex(entries: entries)
+        }
         guard let names = trees[path] else {
             throw AhaKeyReleaseInstallError.hostFailure("app tree unreadable at \(path)")
         }
@@ -1491,10 +1679,13 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         if let existing = trees[to] {
             trees[backup] = existing
             integrityByPath[backup] = integrityByPath[to] ?? installedAppIntegrity
+            treeEntries[backup] = treeEntries[to]
         }
         trees[to] = incoming
         integrityByPath[to] = integrityByPath[from] ?? .verifiedRestorable
+        treeEntries[to] = treeEntries[from]
         trees[staging] = nil
+        treeEntries[staging] = nil
         try AhaKeyReleaseMutationBoundary.afterCommit {
             if failAfterCommittedReplace {
                 failAfterCommittedReplace = false
@@ -1512,6 +1703,8 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         trees[to] = incoming
         trees[from] = nil
+        treeEntries[to] = treeEntries[from]
+        treeEntries[from] = nil
         integrityByPath[to] = integrityByPath[from] ?? installedAppIntegrity
         integrityByPath[from] = nil
         try AhaKeyReleaseMutationBoundary.afterCommit {
@@ -1524,6 +1717,7 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
 
     func removeTree(_ path: String) throws {
         trees[path] = nil
+        treeEntries[path] = nil
         files[path] = nil
         integrityByPath[path] = nil
     }

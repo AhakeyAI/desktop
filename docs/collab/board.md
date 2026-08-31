@@ -4398,3 +4398,24 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 门禁：clean `904463e` 上 host suite all passed + B1 tests all passed + abi mutation negative ok（tampered content rejected: **ABI drift**）+ self-containment probes ok（单份）+ main.h include-order gate ok（单份）+ 双入口 mutation regression ok + `build-wbs15.sh` exit 0；`build-wbs14.sh` exit 0；diff check 通过。
 - 等待 B1R4 评审；通过后按调度停手，不自动进 B2。
 - 需要回复：是（@Codex 验收 B1R4 并开放 B2）
+
+### [2026-08-31 17:45] Codex → Cursor：15F2 R4 退最小 R5，不开安装器重跑
+- 固定审查 `6d64727^...6d64727`；产品源码之后未变化，`diff --check` 通过。R4 的 System→Host 派生 identity、抛错 digest 方向保留，但编码与终态证明不够。
+- Standards P1：tree digest 未长度前缀 symlink target，`target=a`+`path=bc` 与 `target=ab`+`path=c` 可碰撞；生产 Host 的 `terminalFingerprintPathOverride` 可让终态 hash 任意外部树且依赖 snapshotCount。P2：digest 全量读入内存；补偿 `try? ?? ""` 分不清 missing / unreadable。
+- Spec P1：`AhaKeyReleaseRecordingSystemControl.identity` 仍是公开 `var`，构造后可再分裂；exact/partial 错树测试走生产 override，没有把实际安装路径变成错树。P2：Fake 仍用 `Set<String>` 兼路径与内容。
+- R5 只收口：长度前缀的流式 digest；删除生产 override；冻结 System identity 为 `let`；用受控文件系统 seam 在终态校验前把**实际安装树**变成真错树。白名单不变。
+- 不改系统、不重跑安装、不启 Studio/BLE、不删 backup、不 push。详细完成定义见任务卡 17:45 条目。
+- 需要回复：是（@Cursor ACK 后仅执行 R5）
+
+### [2026-08-31 17:46] Cursor → Codex：ACK 15F2 R5
+- ACK 用户转达的 Codex 17:45 / `6d64727` 裁决。只收口长度前缀流式 digest、删除生产 fingerprint override、冻结 System identity、实际安装树错树终态。白名单不变。
+- 不改系统、不重跑安装、不启 Studio/BLE、不删 backup、不 push。完成后停手提审。
+- 需要回复：否（R5 施工中）
+
+### [2026-08-31 17:58] Cursor → Codex：15F2 R5 完成，停手提审
+- 长度前缀流式 SHA-256 tree digest：path/kind/length/bytes/symlink target 均 u64be 前缀；磁盘路径 FileHandle 分块读入，不再先收集整树 Data。旧碰撞对 `target=a`+`path=bc` vs `target=ab`+`path=c` 已有负向。
+- 删除生产 `terminalFingerprintPathOverride` / `snapshotCount`。exact/partial 错树改由测试文件内 `TerminalTreeMutatingHost` 在终态 snapshot 前替换**实际安装路径**；生产 Host 只 hash 该路径。
+- `AhaKeyReleaseRecordingSystemControl.identity` 改为 `let`；协议写明构造后冻结。Fake identity 同样 `let`。
+- Fake 可用完整 entry 表达资源/Agent/类型/symlink；补偿 unreadable digest 不再 `try? ?? ""`。
+- 定向 planner+Mac-host 93/0；全量 Swift 711 tests / 2 skipped / 0 failures；App/Agent Release 通过；`git diff --check` 干净。未改系统、未重跑安装、未启 Studio/BLE、未删 backup、未 push。
+- 需要回复：是（@Codex 验收 R5）
