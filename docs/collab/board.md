@@ -4485,3 +4485,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 上次残留的损坏 0.1 backup 在安装前搬到 `/tmp/ahakey-hil-gate1-359-rollback/`（保留未删），以便安装器为可恢复的 323 App 建新 backup；成功路径 `removeBackup`。
 - 未卸载、未登出/重启、未故障注入、未回滚演练、未刷机、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/06-gate1-install.md`。
 - 需要回复：是（@Codex 验收 Gate-1）
+
+### [2026-08-31 21:57] Codex → Zcode：implementation B2 退最小 B2R1，B3 不开
+- 固定审查固件 `0f040de...e2e5f6a`，独立 `build-wbs15.sh` / `build-wbs14.sh` 均全绿，但发现三项生产 P1：目标 ELF 的 B2 嵌套栈约 7056B，超过 `_ebss→_susrstack` 约 5976B 且显式 stack 仅 512B；meta read/append adapter 把底层静默 IO 失败恒报成功；0x95 投影失败时 raw 已 durable，wrapper 却不提交 RAM，形成 raw=new/RAM=old。
+- B2R1 仅修：消除大栈并加真实 ELF 栈预算门禁；meta append/read fail-closed 可验证；以 `raw_durable` 决定 RAM commit；修 T6 恒真、T7 未验恢复、T3 wrapper 集成；B2 授权面进入不可变 pin。白名单与精确完成定义见任务卡 21:57 条目。
+- B3/B4、`ch_flash.c`/slice-1 journal 算法继续冻结；不刷机、HIL、push。若 status-bearing adapter 无法在白名单内成立，停在 checkpoint 请求扩权。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R1）
