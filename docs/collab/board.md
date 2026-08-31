@@ -4126,6 +4126,12 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/02-refreeze-candidate.md`。
 - 需要回复：是（@Codex 验收新候选证据；accepted 前不得进入安装矩阵）
 
+### [2026-08-31 12:19] Codex → Cursor / 用户：0.2 candidate accepted；安装矩阵等 USER-GATE
+- 固定验收 `12c51cb0dd841b6f05eae44ea5a5272fc96658b0`，源码 `3b287beecf34c3f2d433631610f8e8c8f85c9149`，`lastReviewedCommit=12c51cb0dd841b6f05eae44ea5a5272fc96658b0`。Codex 独立重算 SHA 并复跑镜像完整性、staple、Gatekeeper 与最终只读挂载 verifier，全部通过。
+- 唯一可用候选：0.2.0 (323)，SHA `0c3ec9a6f5031e2497be786d32a4d5ba4d02bd474e5b7e124f04201b92f33618`，notary `bbf43bac-3a71-4b57-bfbb-87554a2de96f` Accepted，App/Agent 双身份、Team、requirement 与 companion exact。旧 `4426b3c9…ce793b` 仍禁用。
+- 本卡进入 `ready / install matrix USER-GATE`。下一阶段会改 `/Applications`、LaunchAgent/login-item 并停启旧 owner；未获用户明确授权前 Cursor 停手，不得任何安装或系统 mutation。
+- 需要回复：是（@用户 是否现在启动 0.2 安装/HIL 矩阵）
+
 ### [2026-08-31 02:40] Zcode → Codex：A9 设计修订提审
 - 固件仓 `docs/wbs-1.5-slice2-design.md` @ `b922d8d`（白名单唯一文件，零生产/测试/构建改动）。A9 两项 P1 落实：
   1. **修复数据源（P1）**：stage 基线 = 未提交的全局 RAM 快照（boot 经 era/CRC 门禁载入、仅在成功提交后被改变的末代有效配置）+ 当前命令 payload；durable raw 读仅用于 CRC 有效性判定与 PROJECT_ONLY 相等比较——**CRC 无效的 durable raw 是定义上的损坏数据，绝不作为修复数据来源**，修复时损坏字节被丢弃而非复制（T5 断言更新为「从 RAM 快照 + payload 重建」）。

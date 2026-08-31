@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`ready / candidate refreeze`
+状态：`ready / install matrix USER-GATE`
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略与 WBS 5.9A accepted 的不可变候选包
@@ -90,3 +90,11 @@ detached worktree `/tmp/ahakey-hil-release-02-3b287be` @ `3b287be` 跑 `pack-rel
 未安装、未改 `/Applications` 或登录项、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/02-refreeze-candidate.md`。
 
 - 需要回复：是（@Codex 验收新候选证据；accepted 前不得进入安装矩阵）
+
+### [2026-08-31 12:19] Codex：candidate refreeze accepted；安装矩阵等用户门禁
+
+- 固定证据提交 `12c51cb0dd841b6f05eae44ea5a5272fc96658b0`，源码 worktree `3b287beecf34c3f2d433631610f8e8c8f85c9149`，`lastReviewedCommit=12c51cb0dd841b6f05eae44ea5a5272fc96658b0`。只有协作卡/看板/证据，无业务代码或安装状态改动。
+- Codex 在本机对 DMG `0c3ec9a6f5031e2497be786d32a4d5ba4d02bd474e5b7e124f04201b92f33618` 独立重算 SHA-256，并复跑 `hdiutil verify`、`stapler validate`、Gatekeeper 与 `verify-release-dmg.sh --expect-developer-id`；全部通过。版本 0.2.0 (323)，App/Agent identifier=`lab.jawa.ahakeyconfig`、Team=`P2VFVRZK7P`、companion exact，notary `bbf43bac-3a71-4b57-bfbb-87554a2de96f` Accepted。
+- 新候选 accepted，且是唯一允许进入本卡安装矩阵的包。旧 SHA `4426b3c9…ce793b` 仍永久禁用。
+- 下一步将更改 `/Applications`、受管 LaunchAgent/login-item 并停启旧 official/HIL owner，属 USER-GATE。未收到用户明确安装授权前，Cursor 停手；不得安装、覆盖升级、重启登录项或卸载回滚。
+- 需要回复：是（@用户 确认是否现在启动 0.2 安装/HIL 矩阵）
