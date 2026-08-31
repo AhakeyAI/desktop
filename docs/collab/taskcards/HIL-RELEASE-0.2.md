@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`blocked / 15F2 R1 installer recovery rework`
+状态：`blocked / 15F2 R2 installer recovery rework`
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略与 WBS 5.9A accepted 的不可变候选包

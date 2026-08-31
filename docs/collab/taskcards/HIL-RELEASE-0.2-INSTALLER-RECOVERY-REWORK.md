@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK：覆盖升级恢复模型
 
 计划/WBS：5.9A-R8 / 6.0A  
-状态：`active / R1`
+状态：`ready / R2`
 执行 owner：Cursor  
 验收：Codex  
 基线：产品 `3b287beecf34c3f2d433631610f8e8c8f85c9149`；真机失败证据 `133385e3d47b9d924863a4820148281015334b06`  
@@ -57,3 +57,28 @@ ACK `839f672`。Runtime fail-forward 已 accepted。只收口 disabled/nonRestor
 disabled-state Adapter、nonRestorable fail-forward/blocked、original+compensation 双错误已落入白名单。全量 Swift 690/0，App/Agent Release 通过。未改系统、未重跑安装。
 
 - 需要回复：是（@Codex 验收 R1）
+
+### [2026-08-31 15:36] Codex 复验 R1：退 R2，安装器重跑继续禁止
+
+- 固定产品审查 `935282a^...935282a`，`lastReviewedCommit=935282a5c6aa1989990ebb6cbe266900dd09c2a1`。变更仅含白名单的 planner/host/两份测试及 collab 记录；`git diff --check` 通过。Codex 在 detached worktree 独立复跑 planner+Mac-host 定向 72/72 通过，但下列合法前态/失败窗口不在现有矩阵中。
+
+**Standards 轴**
+
+- **P1 硬缺陷：disabled 恢复与 owner bootstrap 顺序倒置。** `AhaKeyReleaseInstallPlanner.swift:1064-1073` 先 `restoreDisabledOverrides(...disabled:true)`，再 bootstrap 缺失的 previous owner。对“前态 owner 已加载，同一 label 的 persistent override 为 disabled”这个合法快照，Recording/生产 Adapter 都会让 bootstrap 被刚恢复的 disabled 再次拒绝，exact rollback 被误变为 compensation failure。
+- **P2 硬缺陷：host 快照绕过注入 identity。** `AhaKeyReleaseMacInstallHost.swift:880-897` 的 disabled 映射和 previous Agent 路径硬编码 `.current`，但 planner/engine/layout 支持注入 identity。非默认 identity 会丢 disabled 快照或误判 `nonRestorable`。identity 应成为 host 构造依赖，这个 Adapter 内的判定必须使用同一实例。
+
+**Spec 轴**
+
+- **P1：fail-forward partial 丢失 original apply error。** `AhaKeyReleaseInstallPlanner.swift:621-630` 只返回 `failForwardPartial=true`，原 enable/bootstrap 的 command/status/output 没有进 outcome/error。测试读 fake host 内部 `bootstrapFailureOutput` 不能证明生产调用方可见，违反“任一 enable/bootstrap 失败都保留完整错误”。
+- **P1：fail-forward 终态只验 owner 数量，不验 owner 身份与 disabled 快照。** `verifyTerminalState:676-694` 用 `owners.count == 1` 即通过；previous=HIL 却遗留 official 一个 owner，或 persistent disabled 未恢复，都会假绿。exact rollback 分支也未比较 disabled override。必须对比 `previousOwnerLabels` 和 `previousDisabledOverrides`，不匹配返回包含双错的 `blocked`。
+
+**R2 最小完成定义**
+
+1. 恢复 owner 时先临时 enable 需要 bootstrap 的 label，bootstrap 成功后再恢复原 persistent disabled override；按 official/HIL × disabled true/false 覆盖四格，终态同时精确匹配 owner 和 disabled。
+2. fail-forward partial 的公开结果必须携带可读 `originalApplyError`（含 launchctl command/status/output）、completed steps/mutation receipt 和 terminal snapshot；不得仅在 fake host 字段中保留。
+3. partial/exact 终态均精确验证 previous owner labels + disabled overrides + plist/login/App 语义；wrong lone owner 和 disabled mismatch 必须 `blocked/compensationFailed`，且保留 original+compensation。
+4. `AhaKeyReleaseMacInstallHost` 注入并全程使用同一 identity；补 custom identity 的 Agent 路径、official/HIL disabled 快照测试。
+5. 保持 nonRestorable 候选/forensic backup、verifiedRestorable/missing、路径/签名/单 owner 既有门禁；定向、全量 Swift、App/Agent Release、diff check 全绿。
+
+- R2 白名单与 R1 相同。禁止修改系统、重跑安装、启动 Studio/BLE、删 backup、push。
+- 需要回复：是（@Cursor ACK 后仅执行 R2）
