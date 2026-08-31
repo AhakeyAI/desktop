@@ -1,0 +1,63 @@
+===== REFREEZE CANDIDATE 2026-08-31 12:15:24 +0800 =====
+source_commit=3b287beecf34c3f2d433631610f8e8c8f85c9149
+compat_policy=d9d2cbb
+team=P2VFVRZK7P
+notary_profile=AhaKeyNotary
+notary_id=bbf43bac-3a71-4b57-bfbb-87554a2de96f
+
+===== PATHS =====
+dmg=/tmp/ahakey-hil-release-02-3b287be/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-3b287be.dmg
+dist_app=/tmp/ahakey-hil-release-02-3b287be/ahakeyconfig-mac/dist/AhaKey Studio.app
+worktree=/tmp/ahakey-hil-release-02-3b287be
+
+===== SHA-256 =====
+0c3ec9a6f5031e2497be786d32a4d5ba4d02bd474e5b7e124f04201b92f33618  AhaKey-Studio-0.2.0-HIL-RELEASE-02-3b287be.dmg
+old_nonconforming=4426b3c9924fe83e83f4b2ffb7a4025b53e2786fc42f6c7fc2c1ff02ffce793b
+
+===== VERSION =====
+CFBundleShortVersionString=0.2.0
+CFBundleVersion=323
+CFBundleIdentifier=lab.jawa.ahakeyconfig
+
+===== NOTARY / STAPLE / GATEKEEPER =====
+notary_id=bbf43bac-3a71-4b57-bfbb-87554a2de96f
+notary_status=Accepted
+stapler=The validate action worked!
+spctl=accepted source=Notarized Developer ID origin=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Notarization Ticket=stapled
+
+===== PRODUCT IDENTITY GATE =====
+pre_notarization=release dmg ok
+post_staple=release dmg ok
+post_inspect_root=release dmg volume ok
+hdiutil_verify=VALID
+
+===== MOUNTED ROOT =====
+AhaKey Studio.app
+Applications -> /Applications
+LaunchAgent.plist
+.app_count=1
+LaunchAgent.plist_symlink=false
+AhaKey Studio.app_symlink=false
+
+===== COMPANION EXACT =====
+Label=lab.jawa.ahakeyconfig.agent
+MachServices={lab.jawa.ahakeyconfig.runtime: true}
+ProgramArguments=[/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent, --socket, SOCKET_PATH_PLACEHOLDER]
+
+===== APP =====
+Identifier=lab.jawa.ahakeyconfig
+TeamIdentifier=P2VFVRZK7P
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+codesign --verify --strict rc=0
+inspect-requirement frozen Developer ID rc=0 requirement_ok=1
+
+===== AGENT =====
+Identifier=lab.jawa.ahakeyconfig
+TeamIdentifier=P2VFVRZK7P
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+codesign --verify --strict rc=0
+inspect-requirement frozen Developer ID rc=0 requirement_ok=1
+
+===== DETACH =====
+hdiutil detach rc=0
