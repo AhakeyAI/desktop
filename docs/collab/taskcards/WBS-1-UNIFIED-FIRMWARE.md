@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B1R4`（Zcode；B1 重复门禁块与 checker 负向原因收口，B2 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B2`（Zcode；B1 accepted，开 `key_bund_tx_core` + 0x95/0x97，B3/B4 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1145,3 +1145,23 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 白名单维持 B1R3：B1 已有头/源/测试、`main.h`/`key_bund_layout.h`、两条 harness、共用 pin checker/manifest 与证据文档。不得进入 B2，不改 `command_solve.c`、`main.c`、task-picture/factory/recovery/glue，不刷机、HIL 或 push。
 - 完成门禁：干净树上 `build-wbs15.sh` 只调用一次 mutation-negative；checker 负向在全新检出中以 ABI drift 失败；双入口回归仍绿；`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手。
 - 需要回复：是（@Zcode ACK 后仅执行 B1R4）
+
+### [2026-08-31 21:05] Codex 复验 implementation B1R4：accepted，开放 B2
+
+- 固定审查固件仓 `0f040de7d085902eb0161a708dc0c425f1d351c8...fa43bab4d74cb7a7345e30c5146edb8a82188e2c`，`lastReviewedCommit=fa43bab4d74cb7a7345e30c5146edb8a82188e2c`，Harness `H=904463e`，Evidence `E=0260e50`（wbs15）+ wbs14 刷新 `fa43bab`。产品 diff 仅 `tools/wbs15/build-wbs15.sh` + 两份证据文档；`command_solve.c`/`main.c` 不在 diff。`git diff --check` 通过。Codex 独立复跑：`abi-pin-check` 全绿、宿主 B1 suite all passed、checker 篡改 `rc=1` 且 stderr 含 `ABI drift`、`main.h` stddef@4 先于 `#ifndef min`@8。脚本计数：`probe_min_predef`/`include-order`/`abi-mutation-negative.sh` 各 1。未重跑完整 `build-wbs15.sh`（固件变体构建；mutation-negative 调用点已是单次）。B1 门禁与 ABI oracle **accepted**。
+
+**Standards 轴**
+
+- 0 P1 / 0 P2。B1R3 命令删除的第二份探针/include-order/mutation-negative 已不在树上。checker 级负向为 `mktemp -d` + `trap` + `2>checker.err` + `grep ABI drift`（`:41-56`）；任意非 ABI 失败不再算通过。残留 `2>/dev/null` 在 `:16`（diff --check 回退）与 `:77`（探针预期编译失败），不是 checker 路径。
+
+**Spec 轴**
+
+- 0 P1 / 0 P2。两件机械事均按 17:41 完成定义落地。双入口 committed-mutation、legacy 全字段 pin、`1ec54a5c…` 保留。无 B2/glue 范围蔓延。
+
+**B2（本轮新开）**
+
+- 范围：`key_bund_tx_core` + 0x95/0x97 统一 publish（设计文档 §3 / T1–T7、T4/T5）。新增 `APP/sub_main/key_bund_tx_core.{c,h}`；仅为接线修改 `command_solve.c` / 必要的 `main.c`/`main.h`；配套 `tools/wbs15/**` host 测试与证据文档。
+- 冻结：B1 已验收的 codec/progress/ABI pin（改 `key_bund_layout.h` 必须显式重钉并过评）；`ch_flash.c`、`persist_verify.c/h`；factory/boot recovery（B3：T8–T22）；0x80/0x81 进度接线（B4：T29–T30）；task-picture 行为除 0x95 绑定投影所必需外不改。
+- 完成定义：host 覆盖 T1–T7（含 raw 失败后第二次调用从 RAM+payload 修复、PROJECT_ONLY、0x97 首次发布与 CRC 重试/delta-only meta）；0x95/0x97 不经 durable 损坏字节修复；status 3 仅表示 retryable/incomplete。`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手，不自动进 B3。
+- 禁止刷机、HIL、push，不修改客户端仓业务代码。
+- 需要回复：是（@Zcode ACK 后仅执行 implementation B2）

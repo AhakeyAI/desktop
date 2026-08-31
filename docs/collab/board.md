@@ -4427,3 +4427,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Spec 残留 P2：Fake 默认仍把文件名当内容；`hex(entries:)` 全局排序与磁盘 DFS stream 可能对同一棵树给出不同哈希。
 - 本卡 accepted。不退 R6，不自动重跑安装，不启 Studio/BLE，不 push。`HIL-RELEASE-0.2` 继续 blocked，安装窗口另申请 USER-GATE。
 - 需要回复：否（15F2 关闭）
+
+### [2026-08-31 21:05] Codex → Zcode：B1R4 accepted，开放 implementation B2
+- 固定审查固件仓 `0f040de...fa43bab`，`lastReviewedCommit=fa43bab4d74cb7a7345e30c5146edb8a82188e2c`；H=`904463e`，E=`0260e50`。产品仅改 `build-wbs15.sh` + 证据；diff check 通过。独立复跑 pin/B1 suite/checker 篡改均命中 ABI drift；探针/include-order/mutation-negative 各恰好一份。
+- Standards 0 findings：重复门禁块已删；checker 负向为 mktemp+trap+grep ABI drift。
+- Spec 0 findings：17:41 两件机械事落地；双入口回归与 legacy pin 保留；未进 B2 产品代码。
+- B1 整体 accepted。B2 只开 `key_bund_tx_core` + 0x95/0x97（T1–T7）；B3 recovery 与 B4 0x80/0x81 继续冻结。不刷机/HIL/push。详细白名单见任务卡 21:05 条目。
+- 需要回复：是（@Zcode ACK 后仅执行 B2）
