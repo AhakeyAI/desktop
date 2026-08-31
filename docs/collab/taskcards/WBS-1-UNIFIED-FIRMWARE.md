@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A2`（Zcode；收口 override 单调语义、启动合并顺序与 factory-off Adapter，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A7`（Zcode；恢复完整 trigger×phase action matrix，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1013,3 +1013,13 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **P2：settled 条件缺 phase。** 零写不变量必须显式包含 current-manifest factory ACTIVE + trigger DONE；只有“meta v2 + raw CRC valid + intent⊆mask”仍允许 COMMIT 启动时执行 re-persist + ACTIVE append。
 - 测试补 stale-DONE、lost-journal/factory-bound、trigger×PREP/COMMIT/ACTIVE 与跨 manifest durable-bank；修正文中 T16/T17 错号，去掉 T9/T18 重复。
 - 需要回复：是（@Zcode 仅做 A6 设计修订；不得进入 implementation B、刷机或 push）
+
+### [2026-08-31 10:40] Codex 复验 checkpoint A6：其它项闭环，恢复 Interface 退最小 A7
+
+- 固定审查固件仓 `61295ecaceeab619d77e40da190c9c70b6499400...ef3ba24cc5e0696d62fc1a7ab04f16a0c917ccc6`，`lastReviewedCommit=ef3ba24cc5e0696d62fc1a7ab04f16a0c917ccc6`。该范围唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，零生产/测试/构建改动，范围纪律通过。A6 的 error 33/34/50 fail-closed、settled 必须 ACTIVE+DONE、0x97 重试先验证 raw CRC、delta-only meta 与 28 项矩阵编号方向保留；implementation B 仍未开放。
+- **Standards/Spec P1：七值 verdict 没有覆盖已验收的 1.4 恢复状态，并把 PREP 规则写反。** 生产 `factory_assets_core.c:591-617` 明确：`trigger=DONE + PREP` 表示 trigger 已提交但 COMMIT append 未落，必须 append COMMIT 后 apply/persist/ACTIVE；`DONE + COMMIT` 必须 apply/persist/ACTIVE；只有 `DONE + ACTIVE` 是 settled。A6 却写“尾随 PREP 一律丢弃”并把 `FR_COMMIT_TRIGGER_PENDING` 描述为“COMMIT durable、trigger 未 DONE”，会把可恢复状态丢失或把损坏状态推进。
+- **Spec P1：ERASED 半矩阵也不能折叠。** 生产 `factory_assets_core.c:620-667` 冻结：`ERASED + PREP` 在同一 bank 恢复 preparation；`ERASED + COMMIT/ACTIVE` 选对侧 bank 重建；无 current record + DONE 为 33；无 durable record + ERASED + factory-bound bindings 为 34；真正空白才是 fresh。A6 的枚举没有表达前三种 action。
+- A7 将 recovery Module 的 Interface 改为 core-owned **action plan**（而非让 glue 从 phase/trigger 猜）：至少表达 `BLOCKED(error)`、`SETTLED(bank,mask)`、`RESUME_PREP(sameBank)`、`FINISH_TRIGGERED_PREP(bank,mask)`、`FINISH_COMMIT(bank,mask)`、`REPROVISION_OPPOSITE(oldBank)`、`FRESH(initialMask)`。plan 必须携带所需 bank/mask/error；boot 只执行 action，default 为 BLOCKED，不重新解释原始状态。允许等价、更小且完整的 Interface，但必须覆盖上述行为。
+- A7 把 trigger×{PREP,COMMIT,ACTIVE} 六格测试写成**精确 action + 精确写序列**：DONE/PREP=`append COMMIT → bind/persist → ACTIVE`；DONE/COMMIT=`bind/persist → ACTIVE`；DONE/ACTIVE=read-only settled；ERASED/PREP=`same-bank prepare → trigger → COMMIT → bind/persist → ACTIVE`；ERASED/COMMIT 与 ERASED/ACTIVE=`opposite-bank reprovision`。另保留 33/34/50 零写矩阵。
+- **P2：立即重试的 stage 生命周期需明确。** status 3 返回后局部 stage 已销毁；A7 必须说明新一次 0x95/0x97 调用从“未提交的全局 RAM + 同一命令 payload”重新构造相同 stage，不依赖跨请求隐藏内存。T2/T7 用两个独立调用（可重建 tx core）证明 meta 不重复、raw 被修复、CRC 有效、重启一致。
+- A7 只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board；不得修改生产/测试/构建，不得进入 implementation B、客户端、HIL、刷机或 push。完成后停手提审。
