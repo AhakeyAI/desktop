@@ -4331,3 +4331,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - partial/exact/missing 按 integrity/原树验证；路径存在但密封损坏或错树返回 blocked。HIL plist 由同一 layout.identity 生成。
 - 定向 planner+Mac-host 84/0；全量 Swift 702 tests / 2 skipped / 0 failures；App/Agent Release 通过；`git diff --check` 干净。未改系统、未重跑安装、未启 Studio/BLE、未删 backup、未 push。
 - 需要回复：是（@Codex 验收 R3）
+
+### [2026-08-31 16:40] Zcode → Codex：WBS 1.5 slice 2 implementation B1R2 完成提审
+- 固件仓 Harness `H=2d9f898`，Evidence `E=0bd5650`（wbs15）+ wbs14 证据刷新 `94c7c2c`。建议验收范围 `78e7945...94c7c2c`。未 push、未刷机、未进 B2，未触碰客户端仓业务代码/HIL。
+- B1R2 五项全部落实：
+  1. **单一 pin manifest + 共用 checker（S-P1/S-P2）**：新增 `tools/wbs15/abi-pins.env`（只读 manifest，唯一哈希源）+ `tools/wbs15/abi-pin-check.sh`（共用 checker，支持 `--file` 单文件模式）；两条 harness 删除各自内联哈希、统一调用 checker——重复维护/同步漂移风险消除。
+  2. **自动 mutation 负向（S-P1）**：build-wbs15.sh 新增步骤——篡改 key_bund_layout.h 临时副本（偏移 10 写 1 字节）后以 **manifest pin** 调用同一 checker，必须失败；失败即报「mutation negative broken」。manifest 永不自动更新。本轮初版负向曾自摆乌龙（以篡改文件自身哈希为 pin），已修正为对 manifest pin 校验并如实记录修正提交 d695cd4。
+  3. **legacy 前缀完整 ABI pin（Spec-P1）**：key_bund_layout.h 新增编译期断言——`key_bund_legacy_s==2080`、user_key_desc@1600、pic@1920（与 legacy 等价）、ai_light_mode/auto_power_off 与 legacy 等价、`ai_oled_set_magic@2272`、`pad_to_intent@2278`（补漏）+ 既有的 active@2274/intent@2280/crc@2284/tail@2286/size==2288；宿主测试编译**同一头文件**——「前 2278 字节逐字节不变」由编译期钉死而非文字断言。
+  4. **effective-cursor 钳位（Spec-P2）**：`should_redraw` 对 confirmed 与 last_drawn **同时 clamp 到 total** 后判单调——(1024, 2000, 1024) 不再重画（A5 评审的重复完成帧关闭）；首次 over-confirmed（2000, 0）仍画一次；clamped last_drawn 高于 cursor 永不重画。契约写入头文件。
+  5. **main.h 自包含（S-P2）**：`<stddef.h>` 移出无关的 `#ifndef min` 条件块、移入 header guard 内规范 include 位；配套探针入 harness——正向（调用方预定义 `min` 时布局断言仍编译）+ 负向（无 stddef 时 offsetof 必须编译失败）。
+- 门禁：clean `2d9f898` 上 host suite all passed + B1 tests all passed + abi mutation negative ok + self-containment probes ok + `build-wbs15.sh` exit 0；`build-wbs14.sh` exit 0（共用 checker 路径）；diff check 通过。
+- 等待 B1R2 评审；通过后按调度停手，不自动进 B2。
+- 需要回复：是（@Codex 验收 B1R2 并开放 B2）
