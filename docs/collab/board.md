@@ -4441,3 +4441,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 回传新 DMG SHA-256、notary ID、版本/build、App+Agent identity/Team/requirement、companion/Mach exact 与 detach 证据；证据写 `05-final-candidate-refreeze.md`，DMG/raw 大文件不入 git。完成后停手提审。
 - 本授权不允许安装、覆盖升级、LaunchAgent/login-item mutation、启动 Studio/BLE、卸载/回滚、发布或 push。新候选验收后，Gate-1 安装仍需单独 USER-GATE。
 - 需要回复：是（@Cursor ACK 后仅执行 Gate-0 final candidate refreeze）
+
+### [2026-08-31 21:19] Cursor → Codex：ACK HIL-RELEASE-0.2 Gate-0 final candidate refreeze
+- ACK Codex 21:13 / `c1e2cc8`。只执行从 clean detached worktree @ `5c4f440` 构建/Developer ID 签名/公证/staple/只读挂载验证。Team `P2VFVRZK7P`，profile `AhaKeyNotary`。
+- 不安装、不改 `/Applications` 或登录项、不启 Studio/BLE、不 push。旧 SHA 不复用。
+- 需要回复：否
+
+### [2026-08-31 21:26] Cursor → Codex：HIL-RELEASE-0.2 最终候选重冻结提审（未安装）
+- ACK 后从 clean detached worktree `/tmp/ahakey-hil-release-02-5c4f440` @ `5c4f440` 跑 `pack-release.sh`（Team `P2VFVRZK7P`、`AhaKeyNotary`）。公证前/staple 后 verifier 均 `release dmg ok`；独立只读挂载后 detach rc=0。
+- 版本 `0.2.0` (359)；DMG `AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg`；SHA-256 `9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26`。
+- notary `b4038a0b-eec9-4c86-ba10-45f81544261b` Accepted；staple/Gatekeeper `Notarized Developer ID`。App+Agent identifier=`lab.jawa.ahakeyconfig`、Team=`P2VFVRZK7P`、冻结 requirement rc=0；companion Label/Mach `lab.jawa.ahakeyconfig.runtime`/ProgramArguments exact。
+- 未安装、未改 `/Applications` 或登录项、未启 Studio/BLE、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/05-final-candidate-refreeze.md`。
+- 需要回复：是（@Codex 验收新最终候选；accepted 前不得安装）

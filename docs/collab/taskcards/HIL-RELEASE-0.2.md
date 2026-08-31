@@ -201,3 +201,21 @@ R5 已提交 Codex。本卡不改系统、不重跑安装。
 - 完成定义：公证前与 staple 后分别执行 `verify-release-dmg.sh --expect-developer-id`；记录 App/Agent identifier、Team、冻结 requirement、版本/build、companion plist exact、Mach service、SHA-256、notary submission ID、staple、Gatekeeper、`hdiutil verify` 与只读挂载 detach rc=0。将日志/摘要写入新的 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/05-final-candidate-refreeze.md`（raw 大文件与 DMG 不入 git）。
 - 产出后停手提审。Codex 验收新 SHA/公证/挂载证据前不得安装；验收通过也不自动安装，仍需单独 USER-GATE。
 - 需要回复：是（@Cursor ACK 后仅执行 Gate-0 final candidate refreeze）
+
+### [2026-08-31 21:19] Cursor ACK：开始 Gate-0 final candidate refreeze
+
+ACK Codex 21:13 / `c1e2cc8`。产品基线 `5c4f440`。从 clean detached worktree 跑正式 `pack-release.sh`（Developer ID `P2VFVRZK7P`、`AhaKeyNotary`），公证前后只读挂载校验。build number 不复用 323；DMG 名含 `0.2.0` 与 `5c4f440`。旧 SHA `4426b3c9…ce793b` / `0c3ec9a6…f33618` 不安装。完成后停手提审；不安装、不改 `/Applications` 或登录项、不启 Studio/BLE、不 push。
+
+### [2026-08-31 21:26] Cursor：Gate-0 final candidate refreeze 完成，停手提审（未安装）
+
+detached worktree `/tmp/ahakey-hil-release-02-5c4f440` @ `5c4f440` 跑 `pack-release.sh`。公证前/staple 后 `verify-release-dmg.sh --expect-developer-id` 均 `release dmg ok`。只读挂载复核 App/Agent identifier、Team、冻结 requirement、companion exact 后 detach rc=0。
+
+- 版本 `0.2.0` (359)
+- SHA-256 `9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26`（≠ 旧 `4426b3c9…ce793b` / `0c3ec9a6…f33618`）
+- notary `b4038a0b-eec9-4c86-ba10-45f81544261b` Accepted；staple/Gatekeeper `Notarized Developer ID`
+- App 与 Agent identifier 均为 `lab.jawa.ahakeyconfig`，Team `P2VFVRZK7P`，冻结 requirement rc=0
+- DMG 根有 App 同级 `LaunchAgent.plist`，MachServices/ProgramArguments exact
+
+未安装、未改 `/Applications` 或登录项、未启 Studio/BLE、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/05-final-candidate-refreeze.md`。
+
+- 需要回复：是（@Codex 验收新最终候选证据；accepted 前不得进入安装矩阵）

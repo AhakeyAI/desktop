@@ -1,0 +1,76 @@
+===== FINAL CANDIDATE REFREEZE 2026-08-31 21:25:12 +0800 =====
+source_commit=5c4f440a779452dd00282cd35fe915e2642678f0
+worktree_status=0 dirty_lines
+team=P2VFVRZK7P
+notary_profile=AhaKeyNotary
+notary_id=b4038a0b-eec9-4c86-ba10-45f81544261b
+
+===== PATHS =====
+dmg=/tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg
+dist_app=/tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey Studio.app
+worktree=/tmp/ahakey-hil-release-02-5c4f440
+
+===== SHA-256 =====
+9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26  /tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg
+old_nonconforming=4426b3c9924fe83e83f4b2ffb7a4025b53e2786fc42f6c7fc2c1ff02ffce793b
+old_historical_3b287be=0c3ec9a6f5031e2497be786d32a4d5ba4d02bd474e5b7e124f04201b92f33618
+
+===== STAPLE / GATEKEEPER / HDIUTIL =====
+stapler=Processing: /tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg
+The validate action worked!
+spctl:
+/tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+hdiutil_verify=VALID
+hdiutil: verify: checksum of "/tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg" is VALID
+
+===== PRODUCT IDENTITY GATE (independent remount) =====
+release volume ok
+release dmg ok: /tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg
+===== MOUNT READ-ONLY =====
+预计CRC32 $50F8AC8D
+/dev/disk19         	GUID_partition_scheme          	
+/dev/disk19s1       	Apple_HFS                      	/private/tmp/ahakey-final-dmg.WqQhul
+
+===== MOUNTED ROOT =====
+AhaKey Studio.app
+Applications
+LaunchAgent.plist
+.app_count=1
+LaunchAgent.plist_symlink=false
+AhaKey Studio.app_symlink=false
+
+===== VERSION =====
+CFBundleShortVersionString=0.2.0
+CFBundleVersion=359
+CFBundleIdentifier=lab.jawa.ahakeyconfig
+
+===== COMPANION EXACT =====
+Label=lab.jawa.ahakeyconfig.agent
+MachServices={'lab.jawa.ahakeyconfig.runtime': True}
+ProgramArguments=['/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent', '--socket', 'SOCKET_PATH_PLACEHOLDER']
+
+===== APP =====
+Identifier=lab.jawa.ahakeyconfig
+Format=app bundle with Mach-O universal (x86_64 arm64)
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+codesign --verify --strict rc=0
+inspect-requirement frozen Developer ID returncode=0
+requirement_ok=1
+
+===== AGENT =====
+Identifier=lab.jawa.ahakeyconfig
+Format=Mach-O universal (x86_64 arm64)
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+codesign --verify --strict rc=0
+inspect-requirement frozen Developer ID returncode=0
+requirement_ok=1
+===== DETACH =====
+hdiutil detach rc=0
