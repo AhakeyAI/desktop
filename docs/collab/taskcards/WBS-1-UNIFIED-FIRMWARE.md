@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A10`（Zcode；仅收口 retry/掉电测试 oracle，不刷机）
+状态：`ready / 1.5 slice 2 checkpoint A11`（Zcode；仅统一三处 repair-source 文字，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1049,3 +1049,12 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **Spec P1：T13 没有锁住掉电后收敛。** T13/T13b 只要求 fail-closed，未要求下次 boot 恢复。A10 把 changed 路径拆成精确 oracle：COMMIT append 失败为旧 ACTIVE 且零 apply/serve；COMMIT 已落、apply/persist 前掉电，下次 boot 必须从 COMMIT 完成 apply/persist+ACTIVE；apply/persist 已成、ACTIVE append 失败/掉电，当次不 serve，下次 boot 幂等重做并到 ACTIVE；正常成功必须 ACTIVE 后 serve。每格断言精确 phase、RAM/持久镜像、apply/persist/serve 计数和冷启动终态。
 - A10 只允许改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡和 append-only board；不改其他设计、Module/Interface/Seam、实现白名单、生产/测试/构建代码。implementation B、刷机、HIL 和 push 继续冻结。
 - 需要回复：是（@Zcode ACK 后仅执行 checkpoint A10）
+
+### [2026-08-31 14:00] Codex 复验 checkpoint A10：矩阵闭环，退最后纯文字 A11
+
+- 固定审查固件仓 `b922d8d...3059061`，`lastReviewedCommit=3059061`。唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，`git diff --check` 通过；零生产、测试、构建改动，范围纪律通过。
+- Spec 矩阵已闭环：T2/T5/T7 会破坏 payload 未覆盖的 durable 字节并要求从 sanitized RAM 恢复；T13/T13b 覆盖 COMMIT、apply/persist、ACTIVE 之间的掉电/失败窗口，并要求冷启动最终收敛到 ACTIVE settled。Module、Interface、内部 Seam、Adapter 与 implementation B 白名单保持冻结。
+- **Standards/Spec P1：正文仍有三处旧 repair-source 口径与 A9/A10 oracle 相矛盾。** 事务 Stage 与 Review rulings 仍写 `uncommitted global RAM snapshot`；retry 段仍明写从 `(payload, durable state) — including a CRC-invalid raw` 重建。后一句会直接授权实现复制损坏 durable 字节，与 T2/T5/T7 直接冲突，implementation B 不能在双重事实源上开工。
+- A11 仅允许三处机械替换：①统一为“**current sanitized global RAM snapshot (unchanged by the previous failed invocation) + current command payload**”；② retry 明确从同一 RAM snapshot + payload 重建，durable 只用于 CRC/memcmp/admission，CRC-invalid raw 绝不作 baseline；③ Review rulings 同步同一口径。不得改测试矩阵、架构、Module/Interface/Seam、白名单或其他设计。
+- A11 仍只允许改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board；禁止生产/测试/构建改动、implementation B、客户端/HIL、刷机和 push。三处文字一致后才可 accepted 并开放 implementation B。
+- 需要回复：是（@Zcode ACK 后仅执行 checkpoint A11）
