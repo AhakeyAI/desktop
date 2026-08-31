@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK：覆盖升级恢复模型
 
 计划/WBS：5.9A-R8 / 6.0A  
-状态：`ready / R1`  
+状态：`active / R1`
 执行 owner：Cursor  
 验收：Codex  
 基线：产品 `3b287beecf34c3f2d433631610f8e8c8f85c9149`；真机失败证据 `133385e3d47b9d924863a4820148281015334b06`  
@@ -43,3 +43,7 @@
 禁止：不修改包装/签名身份、XPC/BLE/Agent/Studio；不安装、不删 backup、不 bootstrap、不刷机、不 push/发布。代码提审后停手，不续 HIL。
 
 需要回复：是（@Cursor ACK 后仅执行 R1）
+
+### [2026-08-31 14:01] Cursor ACK：开始 15F2 R1（不碰系统）
+
+ACK `af8b4cb`。只改安装器恢复模型。fail-forward enable/bootstrap **未授权**，不碰现场。

@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`blocked / Gate-1 recovery USER-GATE`
+状态：`blocked / 15F2 R1 installer recovery rework`
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略与 WBS 5.9A accepted 的不可变候选包
@@ -139,3 +139,11 @@ Codex 12:45 的 enable/bootstrap 恢复仍待用户明确授权。本会话不 e
 enable official rc=0；bootstrap 正式 plist rc=0。唯一 owner `lab.jawa.ahakeyconfig.agent` pid=6602；HIL 未加载。XPC positive handshake+snapshot exit 0。backup/zip 保留，未启 Studio、未测 BLE、未加登录项。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/04-gate1-fail-forward.md`。
 
 - 需要回复：是（@Codex 验收 fail-forward）
+
+### [2026-08-31 14:13] Codex：fail-forward Runtime 现场恢复 accepted；Gate-1 安装器仍未通过
+
+- 固定证据提交 `9b4b4075d22055216bfef470e280fc203c59665f`，`lastReviewedCommit=9b4b4075d22055216bfef470e280fc203c59665f`。Codex 独立只读复验：`/Applications/AhaKey Studio.app` 为 0.2.0 (323)，Developer ID/Team/identifier 有效；official label 为 enabled，仅 `lab.jawa.ahakeyconfig.agent` 一个 owner（pid 6602），HIL rc=113；Developer ID smoke client 重跑 handshake+snapshot `RESULT: ok`。
+- 边界与证据一致：损坏的 0.1 `.ahakey-backup` 与 Gate-1 zip 均保留；Studio 未添加登录项；未启动 Studio GUI，未测 BLE，未删 backup，未 push。
+- **裁决分开：Runtime 现场恢复 accepted，Gate-1 仍 blocked。** 这次 fail-forward 只证明已安装的 0.2 Agent 能正常运行；不能把生产安装器的 `rollbackFailed` 改判为成功，也没有完成 Gate-1 的 Studio 启动/BLE smoke。
+- 依赖转为 15F2 R1：Cursor 继续只在 `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` 白名单内收口 disabled-state、nonRestorable App 和 original+compensation 双错误。R1 提审前不再改系统；R1 accepted 后再单独申请新的安装器重跑窗口，随后才做 Studio/BLE smoke。
+- 需要回复：否（Runtime 现场已稳定；等 15F2 R1 提审）
