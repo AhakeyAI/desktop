@@ -887,7 +887,13 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertTrue(host.disabled.contains(identity.agentLaunchdLabel))
         XCTAssertEqual(host.files[layout.hilLaunchAgentPlistPath], Data("hil-plist".utf8))
         XCTAssertFalse(outcome.loginItemRegistered)
-        XCTAssertTrue(host.bootstrapFailureOutput.contains("exit 5"))
+        guard case .hostFailure(let visible) = outcome.originalApplyError else {
+            return XCTFail("partial 必须公开 originalApplyError，got \(String(describing: outcome.originalApplyError))")
+        }
+        XCTAssertTrue(visible.contains("launchctl bootstrap"), visible)
+        XCTAssertTrue(visible.contains("exit 5"), visible)
+        XCTAssertTrue(outcome.completedSteps.contains(.enable(label: identity.agentLaunchdLabel)))
+        XCTAssertTrue(outcome.appInstalled)
     }
 
     func testNonRestorableCompensationWithoutUniqueOwnerIsBlockedWithBothErrors() throws {
@@ -978,6 +984,115 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
     }
 
+    func testOwnerDisabledFourCellsExactRollbackRestoresLoadedAndDisabled() throws {
+        let cells: [(owner: String, disabled: Bool, name: String)] = [
+            (identity.agentLaunchdLabel, false, "official-enabled"),
+            (identity.agentLaunchdLabel, true, "official-disabled"),
+            (identity.hilLaunchdLabel, false, "hil-enabled"),
+            (identity.hilLaunchdLabel, true, "hil-disabled"),
+        ]
+        for cell in cells {
+            let host = preparedHost()
+            let layout = self.layout(root: "/sandbox")
+            host.trees[layout.applicationsAppPath] = ["old-binary"]
+            host.installedAppIntegrity = .verifiedRestorable
+            host.loaded = [cell.owner]
+            host.disabled = cell.disabled ? [cell.owner] : []
+            host.files[layout.plistPath(forLabel: cell.owner)] = Data("previous-\(cell.name)".utf8)
+            let outcome = try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout,
+                injectFailureAt: .writeLaunchAgent
+            )
+            XCTAssertTrue(outcome.rolledBack, cell.name)
+            XCTAssertFalse(outcome.failForwardPartial, cell.name)
+            XCTAssertEqual(host.loaded, [cell.owner], cell.name)
+            XCTAssertEqual(host.disabled.contains(cell.owner), cell.disabled, cell.name)
+            let snap = try host.snapshot(layout: layout)
+            XCTAssertEqual(
+                snap.disabledOverrides,
+                AhaKeyReleaseDisabledOverrideSnapshot(
+                    officialDisabled: cell.owner == identity.agentLaunchdLabel && cell.disabled,
+                    hilDisabled: cell.owner == identity.hilLaunchdLabel && cell.disabled
+                ),
+                cell.name
+            )
+            XCTAssertEqual(host.trees[layout.applicationsAppPath], ["old-binary"], cell.name)
+        }
+    }
+
+    func testFailForwardWrongLoneOwnerIsBlockedWithBothErrors() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-broken"]
+        host.installedAppIntegrity = .nonRestorable
+        host.loaded = [identity.hilLaunchdLabel]
+        host.disabled = [identity.agentLaunchdLabel]
+        host.rejectReplaceFromBackup = true
+        host.ignoredBootoutLabels = [identity.agentLaunchdLabel]
+        host.skippedBootstrapLabels = [identity.hilLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("old-official".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("hil-plist".utf8)
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout,
+                injectFailureAt: .bootstrap(label: identity.agentLaunchdLabel)
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, let steps, let mutated, _, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("wrong lone owner 必须 blocked，got \(error)")
+            }
+            XCTAssertEqual(original, .injectedFailure(.bootstrap(label: identity.agentLaunchdLabel)))
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(steps.contains(.installApp))
+            XCTAssertTrue(mutated)
+            XCTAssertTrue(reason.contains("owner"), reason)
+            XCTAssertEqual(host.loaded, [identity.agentLaunchdLabel])
+        }
+    }
+
+    func testFailForwardDisabledMismatchIsBlockedWithBothErrors() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-broken"]
+        host.installedAppIntegrity = .nonRestorable
+        host.loaded = [identity.hilLaunchdLabel]
+        host.disabled = [identity.agentLaunchdLabel]
+        host.rejectReplaceFromBackup = true
+        host.failingBootstrapLabels = [identity.agentLaunchdLabel]
+        host.dropDisabledRestores = true
+        host.files[layout.launchAgentPlistPath] = Data("old-official".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("hil-plist".utf8)
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, let steps, let mutated, let snap, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("disabled mismatch 必须 blocked，got \(error)")
+            }
+            guard case .hostFailure(let message) = original else {
+                return XCTFail("必须保留 bootstrap 原错，got \(String(describing: original))")
+            }
+            XCTAssertTrue(message.contains("launchctl bootstrap"), message)
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(steps.contains(.installApp))
+            XCTAssertTrue(mutated)
+            XCTAssertTrue(reason.lowercased().contains("disabled"), reason)
+            XCTAssertFalse(snap.disabledOverrides.officialDisabled)
+            XCTAssertEqual(host.loaded, [identity.hilLaunchdLabel])
+        }
+    }
+
     private func layout(root: String) -> AhaKeyReleaseInstallLayout {
         .sandboxed(root: root, identity: identity)
     }
@@ -1046,6 +1161,9 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     var bootstrapCalls: [String] = []
     var bootstrapFailureOutput = ""
     var completedEnableBeforeBootstrap = false
+    var ignoredBootoutLabels: Set<String> = []
+    var skippedBootstrapLabels: Set<String> = []
+    var dropDisabledRestores = false
 
     func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
         var exists: [String: Bool] = [:]
@@ -1154,11 +1272,13 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     }
 
     func bootout(label: String) throws {
+        if ignoredBootoutLabels.contains(label) { return }
         loaded.remove(label)
     }
 
     func bootstrap(label: String, plistPath: String) throws {
         bootstrapCalls.append(label)
+        if skippedBootstrapLabels.contains(label) { return }
         if enableCalls.contains(AhaKeyReleaseIdentity.current.agentLaunchdLabel),
            label == AhaKeyReleaseIdentity.current.agentLaunchdLabel {
             completedEnableBeforeBootstrap = true
@@ -1192,6 +1312,9 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         if let enableError, !disabled {
             throw enableError
+        }
+        if dropDisabledRestores, disabled {
+            return
         }
         if disabled {
             self.disabled.insert(label)

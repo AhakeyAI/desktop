@@ -168,6 +168,48 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         XCTAssertEqual(snapshot.loadedLaunchdLabels, [identity.hilLaunchdLabel])
     }
 
+    func testMacHostSnapshotUsesInjectedIdentityForAgentPathAndDisabledLabels() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let current = identity
+        let custom = AhaKeyReleaseIdentity(
+            channel: current.channel,
+            productVersion: current.productVersion,
+            bundleIdentifier: current.bundleIdentifier,
+            signingIdentifier: current.signingIdentifier,
+            teamIdentifier: current.teamIdentifier,
+            appDisplayName: current.appDisplayName,
+            appBundleFileName: current.appBundleFileName,
+            executableName: current.executableName,
+            agentBinaryName: "custom-agent",
+            agentLaunchdLabel: "lab.test.custom.agent",
+            hilLaunchdLabel: "lab.test.custom.agent.hil",
+            machServiceName: current.machServiceName,
+            minimumDarwinMajor: current.minimumDarwinMajor,
+            minimumMacOSVersion: current.minimumMacOSVersion
+        )
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root, identity: custom)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let fixture = try makeAppFixture(in: root, name: "AhaKey Studio.app", marker: "custom", identity: custom)
+        try FileManager.default.copyItem(atPath: fixture.app, toPath: layout.applicationsAppPath)
+        let system = AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true)
+        system.disabled = [custom.agentLaunchdLabel, custom.hilLaunchdLabel]
+        let customHost = AhaKeyReleaseMacInstallHost(system: system, identity: custom)
+        let customSnap = try customHost.snapshot(layout: layout)
+        XCTAssertEqual(customSnap.previousAppIntegrity, .verifiedRestorable)
+        XCTAssertTrue(customSnap.disabledOverrides.officialDisabled)
+        XCTAssertTrue(customSnap.disabledOverrides.hilDisabled)
+
+        let defaultHost = AhaKeyReleaseMacInstallHost(system: system, identity: .current)
+        let defaultSnap = try defaultHost.snapshot(layout: layout)
+        XCTAssertEqual(defaultSnap.previousAppIntegrity, .nonRestorable)
+        XCTAssertFalse(defaultSnap.disabledOverrides.officialDisabled)
+        XCTAssertFalse(defaultSnap.disabledOverrides.hilDisabled)
+    }
+
     func testMacHostNonRestorableUpgradeEnablesOfficialAndKeepsForensicBackup() throws {
         let root = try makeTempRoot()
         defer { try? FileManager.default.removeItem(atPath: root) }
@@ -640,7 +682,13 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         return url.path
     }
 
-    private func makeAppFixture(in root: String, name: String, marker: String) throws -> AppFixture {
+    private func makeAppFixture(
+        in root: String,
+        name: String,
+        marker: String,
+        identity: AhaKeyReleaseIdentity? = nil
+    ) throws -> AppFixture {
+        let identity = identity ?? self.identity
         let parent = (root as NSString).appendingPathComponent("pack-\(UUID().uuidString)")
         try FileManager.default.createDirectory(atPath: parent, withIntermediateDirectories: true)
         let app = (parent as NSString).appendingPathComponent(name)

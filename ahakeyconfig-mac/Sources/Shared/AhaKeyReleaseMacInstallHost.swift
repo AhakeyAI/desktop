@@ -680,17 +680,29 @@ public enum AhaKeyReleaseMutationBoundary {
 public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     private let fileManager: FileManager
     private let system: AhaKeyReleaseSystemControl
+    private let identity: AhaKeyReleaseIdentity
     public var injectedDirectoryFsyncError: AhaKeyReleaseInstallError?
     public var injectedWriteFailure: AhaKeyReleaseWriteFailurePoint?
 
-    public init(fileManager: FileManager = .default, system: AhaKeyReleaseSystemControl) {
+    public init(
+        fileManager: FileManager = .default,
+        system: AhaKeyReleaseSystemControl,
+        identity: AhaKeyReleaseIdentity = .current
+    ) {
         self.fileManager = fileManager
         self.system = system
+        self.identity = identity
     }
 
     /// HIL 可调用的生产 host。默认禁止系统突变。
-    public static func production(allowSystemMutation: Bool = false) -> AhaKeyReleaseMacInstallHost {
-        AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseLaunchdControl(allowSystemMutation: allowSystemMutation))
+    public static func production(
+        allowSystemMutation: Bool = false,
+        identity: AhaKeyReleaseIdentity = .current
+    ) -> AhaKeyReleaseMacInstallHost {
+        AhaKeyReleaseMacInstallHost(
+            system: AhaKeyReleaseLaunchdControl(allowSystemMutation: allowSystemMutation, identity: identity),
+            identity: identity
+        )
     }
 
     public func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
@@ -878,8 +890,7 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     }
 
     private func disabledOverrides(from labels: Set<String>) -> AhaKeyReleaseDisabledOverrideSnapshot {
-        let identity = AhaKeyReleaseIdentity.current
-        return AhaKeyReleaseDisabledOverrideSnapshot(
+        AhaKeyReleaseDisabledOverrideSnapshot(
             officialDisabled: labels.contains(identity.agentLaunchdLabel),
             hilDisabled: labels.contains(identity.hilLaunchdLabel)
         )
@@ -889,7 +900,7 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         guard fileManager.fileExists(atPath: path) else { return .missing }
         do {
             try system.verifyCodeSignature(at: path)
-            let agent = AhaKeyReleaseIdentity.current.agentBinaryPath(inApp: path)
+            let agent = identity.agentBinaryPath(inApp: path)
             var isDir: ObjCBool = false
             guard fileManager.fileExists(atPath: agent, isDirectory: &isDir), !isDir.boolValue else {
                 return .nonRestorable
@@ -902,7 +913,6 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     }
 
     private func verifyStagedApp(_ staging: String) throws {
-        let identity = AhaKeyReleaseIdentity.current
         let info = URL(fileURLWithPath: staging).appendingPathComponent("Contents/Info.plist")
         let infoData = try Data(contentsOf: info)
         let plist = try PropertyListSerialization.propertyList(from: infoData, options: [], format: nil)
@@ -969,7 +979,10 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
 
 extension AhaKeyReleaseInstaller {
     /// 产品/HIL 入口：生产 host + 生产布局。本卡不得把 `allowSystemMutation` 打开。
-    public static func productionHost(allowSystemMutation: Bool = false) -> AhaKeyReleaseMacInstallHost {
-        .production(allowSystemMutation: allowSystemMutation)
+    public static func productionHost(
+        allowSystemMutation: Bool = false,
+        identity: AhaKeyReleaseIdentity = .current
+    ) -> AhaKeyReleaseMacInstallHost {
+        .production(allowSystemMutation: allowSystemMutation, identity: identity)
     }
 }

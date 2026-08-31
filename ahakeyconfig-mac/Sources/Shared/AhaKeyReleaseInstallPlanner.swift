@@ -293,6 +293,7 @@ public struct AhaKeyReleaseInstallOutcome: Equatable, Sendable {
     public let completedSteps: [AhaKeyReleaseInstallStep]
     public let rolledBack: Bool
     public let failForwardPartial: Bool
+    public let originalApplyError: AhaKeyReleaseInstallError?
     public let loadedLaunchdLabels: Set<String>
     public let appInstalled: Bool
     public let loginItemRegistered: Bool
@@ -569,6 +570,7 @@ public enum AhaKeyReleaseInstallEngine {
                 completedSteps: completed,
                 rolledBack: false,
                 failForwardPartial: false,
+                originalApplyError: nil,
                 loadedLaunchdLabels: snap.loadedLaunchdLabels,
                 appInstalled: snap.appInstalled,
                 loginItemRegistered: snap.loginItemRegistered,
@@ -623,6 +625,7 @@ public enum AhaKeyReleaseInstallEngine {
                     completedSteps: completed,
                     rolledBack: false,
                     failForwardPartial: true,
+                    originalApplyError: originalError,
                     loadedLaunchdLabels: snap.loadedLaunchdLabels,
                     appInstalled: snap.appInstalled,
                     loginItemRegistered: snap.loginItemRegistered,
@@ -634,6 +637,7 @@ public enum AhaKeyReleaseInstallEngine {
                     completedSteps: completed,
                     rolledBack: true,
                     failForwardPartial: false,
+                    originalApplyError: originalError,
                     loadedLaunchdLabels: snap.loadedLaunchdLabels,
                     appInstalled: snap.appInstalled,
                     loginItemRegistered: snap.loginItemRegistered,
@@ -680,16 +684,12 @@ public enum AhaKeyReleaseInstallEngine {
             if snapshot.loginItemRegistered != plan.previousLoginItemRegistered {
                 throw AhaKeyReleaseInstallError.terminalStateMismatch("loginItem mismatch")
             }
-            if owners.count != 1 {
-                throw AhaKeyReleaseInstallError.blocked(
-                    originalApplyError: nil,
-                    compensationError: .dualOwnerRemaining(owners),
-                    completedSteps: [],
-                    appWasMutated: true,
-                    snapshot: snapshot,
-                    reason: "nonRestorable compensation cannot restore a unique owner"
-                )
-            }
+            try verifyCompensationOwnersAndDisabled(
+                plan: plan,
+                snapshot: snapshot,
+                owners: owners,
+                requireUniqueOwner: true
+            )
             try verifyManagedPlists(plan.previousManagedPlists, host: host, asRollback: true)
             return
         }
@@ -700,9 +700,12 @@ public enum AhaKeyReleaseInstallEngine {
             if snapshot.loginItemRegistered != plan.previousLoginItemRegistered {
                 throw AhaKeyReleaseInstallError.rollbackFailed("loginItem mismatch")
             }
-            if owners != plan.previousOwnerLabels {
-                throw AhaKeyReleaseInstallError.dualOwnerRemaining(owners)
-            }
+            try verifyCompensationOwnersAndDisabled(
+                plan: plan,
+                snapshot: snapshot,
+                owners: owners,
+                requireUniqueOwner: false
+            )
             try verifyManagedPlists(plan.previousManagedPlists, host: host, asRollback: true)
             return
         }
@@ -1062,14 +1065,15 @@ public enum AhaKeyReleaseInstallEngine {
         }
 
         try restoreManagedPlists(plan: plan, host: host, layout: layout)
-        try restoreDisabledOverrides(plan: plan, host: host, identity: identity)
-        let ownersAfterRestore = AhaKeyReleaseInstallPlanner.competingLabels(
+        var ownersAfterRestore = AhaKeyReleaseInstallPlanner.competingLabels(
             in: try host.snapshot(layout: layout).loadedLaunchdLabels,
             identity: identity
         )
         for record in plan.previousOwnerRecords {
             if !ownersAfterRestore.contains(record.label) {
+                try host.setLaunchdDisabled(label: record.label, disabled: false)
                 try host.bootstrap(label: record.label, plistPath: record.plistPath)
+                ownersAfterRestore.insert(record.label)
             }
         }
 
@@ -1079,6 +1083,7 @@ public enum AhaKeyReleaseInstallEngine {
         ).subtracting(plan.previousOwnerLabels) {
             try host.bootout(label: leftover)
         }
+        try restoreDisabledOverrides(plan: plan, host: host, identity: identity)
 
         if !plan.hadPreviousApp, appWasMutated {
             if host.itemExists(at: layout.applicationsAppPath) {
@@ -1096,23 +1101,58 @@ public enum AhaKeyReleaseInstallEngine {
         }
 
         if plan.previousAppIntegrity == .nonRestorable, plan.hadPreviousApp {
+            let snap = try host.snapshot(layout: layout)
             let owners = AhaKeyReleaseInstallPlanner.competingLabels(
-                in: try host.snapshot(layout: layout).loadedLaunchdLabels,
+                in: snap.loadedLaunchdLabels,
                 identity: identity
             )
-            if owners.count == 1 {
-                return .failForwardPartial
-            }
+            try verifyCompensationOwnersAndDisabled(
+                plan: plan,
+                snapshot: snap,
+                owners: owners,
+                requireUniqueOwner: true
+            )
+            return .failForwardPartial
+        }
+        return .exactRollback
+    }
+
+    private static func verifyCompensationOwnersAndDisabled(
+        plan: AhaKeyReleaseInstallPlan,
+        snapshot: AhaKeyReleaseHostSnapshot,
+        owners: Set<String>,
+        requireUniqueOwner: Bool
+    ) throws {
+        if requireUniqueOwner, owners.count != 1 {
             throw AhaKeyReleaseInstallError.blocked(
                 originalApplyError: nil,
                 compensationError: .dualOwnerRemaining(owners),
-                completedSteps: completed,
-                appWasMutated: appWasMutated,
-                snapshot: try host.snapshot(layout: layout),
+                completedSteps: [],
+                appWasMutated: true,
+                snapshot: snapshot,
                 reason: "nonRestorable compensation cannot restore a unique owner"
             )
         }
-        return .exactRollback
+        if owners != plan.previousOwnerLabels {
+            throw AhaKeyReleaseInstallError.blocked(
+                originalApplyError: nil,
+                compensationError: .dualOwnerRemaining(owners),
+                completedSteps: [],
+                appWasMutated: true,
+                snapshot: snapshot,
+                reason: "compensation owner mismatch"
+            )
+        }
+        if snapshot.disabledOverrides != plan.previousDisabledOverrides {
+            throw AhaKeyReleaseInstallError.blocked(
+                originalApplyError: nil,
+                compensationError: .terminalStateMismatch("disabled override mismatch"),
+                completedSteps: [],
+                appWasMutated: true,
+                snapshot: snapshot,
+                reason: "compensation disabled override mismatch"
+            )
+        }
     }
 
     private static func restoreDisabledOverrides(
