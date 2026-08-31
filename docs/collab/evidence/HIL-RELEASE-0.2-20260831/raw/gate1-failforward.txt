@@ -1,0 +1,164 @@
+===== FAIL-FORWARD START Mon Aug 31 14:04:39 +08 2026 =====
+===== PRE APP =====
+0.2.0
+323
+app_verify_rc=0
+backup_verify_rc=1
+===== PRE BACKUP EXISTS =====
+drwxr-xr-x@ 3 heartline  admin  96 Aug 31 12:13 /Applications/AhaKey Studio.app
+drwxr-xr-x@ 3 heartline  admin  96 Aug 21 14:58 /Applications/AhaKey Studio.app.ahakey-backup
+===== PRE DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => disabled
+===== PRE PRINT OFFICIAL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent" in domain for user gui: 501
+official_print_rc=113
+===== PRE PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+hil_print_rc=113
+===== PRE LIST =====
+no_loaded_ahakey
+===== PRE PLIST =====
+{
+  "KeepAlive" => true
+  "Label" => "lab.jawa.ahakeyconfig.agent"
+  "MachServices" => {
+    "lab.jawa.ahakeyconfig.runtime" => true
+  }
+  "ProgramArguments" => [
+    0 => "/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent"
+    1 => "--socket"
+    2 => "/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/heartline/Library/Logs/ahakeyconfig-agent.log"
+  "StandardOutPath" => "/Users/heartline/Library/Logs/ahakeyconfig-agent.log"
+}
+===== PRE LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app
+===== ENABLE Mon Aug 31 14:04:58 +08 2026 =====
+CMD: launchctl enable gui/501/lab.jawa.ahakeyconfig.agent
+enable_rc=0
+===== DISABLED AFTER ENABLE =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+===== BOOTSTRAP Mon Aug 31 14:04:58 +08 2026 =====
+CMD: launchctl bootstrap gui/501 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+bootstrap_rc=0
+===== POST PRINT OFFICIAL =====
+gui/501/lab.jawa.ahakeyconfig.agent = {
+	active count = 1
+	path = /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+	type = LaunchAgent
+	state = xpcproxy
+
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	arguments = {
+		/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+		--socket
+		/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+	}
+
+	stdout path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	stderr path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.dX9pAChkNa/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		XPC_SERVICE_NAME => lab.jawa.ahakeyconfig.agent
+	}
+
+	domain = gui/501 [100022]
+	asid = 100022
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 1
+	pid = 6602
+	immediate reason = speculative
+	forks = 0
+	execs = 0
+	initialized = 1
+	trampolined = 0
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 0)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last exit code = (never exited)
+
+	endpoints = {
+		"lab.jawa.ahakeyconfig.runtime" = {
+			port = 0x10665f
+			active = 0
+			managed = 1
+			reset = 0
+			hide = 0
+			watching = 0
+		}
+	}
+
+	resource coalition = {
+		ID = 28576
+		type = resource
+official_print_rc=0
+===== POST PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+hil_print_rc=0
+===== POST LIST =====
+6602	0	lab.jawa.ahakeyconfig.agent
+===== POST DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+===== POST APP/BACKUP UNCHANGED =====
+0.2.0
+323
+drwxr-xr-x@ 3 heartline  admin  96 Aug 31 12:13 /Applications/AhaKey Studio.app
+drwxr-xr-x@ 3 heartline  admin  96 Aug 21 14:58 /Applications/AhaKey Studio.app.ahakey-backup
+===== POST LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app
+===== XPC CLIENT SIGNATURE =====
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+client_verify_rc=0
+===== XPC POSITIVE Mon Aug 31 14:05:21 +08 2026 =====
+CMD: /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/RuntimeXPCSmokeClient lab.jawa.ahakeyconfig.runtime positive
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_positive_rc=0
+===== UNIQUE OWNER CONFIRM Mon Aug 31 14:05:54 +08 2026 =====
+--- launchctl list ahaKey/jawa ---
+6602	0	lab.jawa.ahakeyconfig.agent
+--- print official rc ---
+official_print_rc=0
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 6602
+		"lab.jawa.ahakeyconfig.runtime" = {
+	job state = running
+--- print hil rc ---
+hil_print_rc=113
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+--- other lab.jawa.ahakeyconfig labels ---
+		    6602      - 	lab.jawa.ahakeyconfig.agent
+		0x10665f    M   A   lab.jawa.ahakeyconfig.runtime
+		"lab.jawa.ahakeyconfig.agent" => enabled
+--- studio processes ---
+6602 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+6602 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+6817 tee -a /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-RELEASE-0.2-20260831/raw/gate1-failforward.txt
+--- backup still present ---
+backup_present=yes
+zip_present=yes
+--- login items ---
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app
+===== FAIL-FORWARD END Mon Aug 31 14:05:54 +08 2026 =====

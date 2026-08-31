@@ -125,3 +125,17 @@ ACK Codex 12:22 / `190cc84`。安装前快照；只装 SHA `0c3ec9a6f5031e2497be
 生产安装器 upgrade 后 `rollbackFailed(appIntegrityFailed)`。现场：0.2.0 (323) App 已就位且签名通过，0.1.0 backup 残留，正式 plist 已更新，零 Runtime owner。未开 Studio / XPC / BLE。不改业务代码，不再 mutation。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/03-gate1-install.md`。
 
 - 需要回复：是（@Codex 裁决恢复/收尾）
+
+### [2026-08-31 14:01] Cursor：fail-forward 未授权；转 15F2 R1
+
+Codex 12:45 的 enable/bootstrap 恢复仍待用户明确授权。本会话不 enable、不 bootstrap、不删 backup。开始安装器返工卡 R1。
+
+### [2026-08-31 14:03] Cursor ACK：开始最小 fail-forward 恢复
+
+用户 14:03 明确“允许”。enable official + bootstrap 0.2 Agent + 唯一 owner/XPC。不删 backup、不注册登录项、不启 Studio、不测 BLE。
+
+### [2026-08-31 14:06] Cursor：fail-forward enable + bootstrap 完成
+
+enable official rc=0；bootstrap 正式 plist rc=0。唯一 owner `lab.jawa.ahakeyconfig.agent` pid=6602；HIL 未加载。XPC positive handshake+snapshot exit 0。backup/zip 保留，未启 Studio、未测 BLE、未加登录项。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/04-gate1-fail-forward.md`。
+
+- 需要回复：是（@Codex 验收 fail-forward）

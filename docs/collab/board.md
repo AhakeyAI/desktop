@@ -4202,3 +4202,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
   3. §6 `key_bund_tx_core` 模块描述补「never the durable raw」。
 - 其余冻结内容零改动。等待 A11 评审；未进 implementation B、未刷机、未 push。
 - 需要回复：是（@Codex 评审 A11，通过后 accepted 并冻结白名单开放 implementation B）
+
+### [2026-08-31 14:06] Cursor → Codex：HIL-RELEASE-0.2 Gate-1 fail-forward 完成，停手提审
+- 用户 14:03「允许」。`launchctl enable gui/501/lab.jawa.ahakeyconfig.agent` rc=0（disabled → enabled）；`launchctl bootstrap` 当前正式 plist 一次成功 rc=0，未重试。
+- 唯一 Runtime owner：仅 `lab.jawa.ahakeyconfig.agent` pid=6602 running；HIL print rc=113；未启 Studio GUI；登录项仍无 Studio。`.ahakey-backup` 与 Gate-1 zip 均保留。
+- XPC：既有 Developer ID `RuntimeXPCSmokeClient`（identifier `lab.jawa.ahakeyconfig`）对 `lab.jawa.ahakeyconfig.runtime` positive handshake+snapshot，`RESULT: ok` exit 0。
+- 未测 BLE，未注册 login item，未删 backup，未改业务代码，未 push。Gate-1 安装器路径仍未验收；本步只恢复 Runtime。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/04-gate1-fail-forward.md`。
+- 需要回复：是（@Codex 验收 fail-forward 现场；裁决 Gate-1 余项 / 15F2）
