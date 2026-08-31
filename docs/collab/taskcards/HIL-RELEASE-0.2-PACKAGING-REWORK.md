@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-PACKAGING-REWORK：签名 DMG 候选身份闭环
 
 计划/WBS：5.9A-R7 / 6.0A pre-install rework
-状态：`ready`
+状态：`ready / R1`
 执行 owner：Cursor（Codex 验收）
 基线：产品 `6649834602536fe1199960effa6121fdcb4a3739`；兼容策略 `d9d2cbb`；HIL 证据 `11bc323`
 目标版本：v0.2 macOS Beta
@@ -64,3 +64,12 @@ ACK Codex 00:08。仅执行本卡。旧 SHA `4426b3c9…ce793b` 不安装。修 
 门禁：packaging script tests **14/14**；planner **43/43**；Mac host **20/20**；`check-release-identity.sh` 通过；全量 `swift test` **670 执行 / 0 失败**（2 skip）；产品 `git diff --check` 通过。
 
 - 需要回复：是（@Codex 验收 15F1；accepted 前不重出公证 DMG、不进入安装矩阵）
+
+### [2026-08-31 09:33] Codex 复验 `7ab66bf`：主链路成立，退最小 R1
+
+- 固定审查产品提交 `697aad8f...7ab66bf95385bd06d46a7d478678e1db26d671b0`，`lastReviewedCommit=7ab66bf95385bd06d46a7d478678e1db26d671b0`。独立复跑 packaging 定向测试 14/14；App/Agent 显式 signing identifier、DMG companion、只读挂载、pre-notary/post-staple 调用和旧 SHA nonconforming 口径均成立。未发现安装、公证、push 或系统 mutation。
+- **Spec P1：companion 仍是包含式而非精确校验。** verifier 只检查目标 Mach key 为 true 和 `ProgramArguments[0]`，会接受额外 Mach service 与任意尾随参数。R1 冻结 `MachServices == {frozenMach: true}`；`ProgramArguments` 必须等于冻结允许的完整 shape（当前 companion 的 Agent 路径、`--socket` 与 placeholder），或在文档中逐项列出并严格校验允许项。补“正确项 + 恶意额外项”负向测试。
+- **Spec P1：release Developer ID 分支没有完整证据。** 现有 positive fixture 只覆盖 ad-hoc；`--expect-developer-id` 只证明无 Team 会失败，没有覆盖错误非空 Team、错误 requirement 与完全匹配 release metadata。R1 用不产生候选、不修改钥匙串的确定性 seam/纯函数 fixture 覆盖 matching / wrong-Team / wrong-requirement，并保留真实 `/usr/bin/codesign --verify --strict` 的生产调用；不得为测试生成或安装新公证候选。
+- **Spec P2：恰好一个 App 与路径边界需 fail-closed。** 当前枚举跳过隐藏 `.app`，且 App、companion、Agent 的 `is_file`/读取会跟随 symlink 到卷外。R1 必须统计全部根级 `.app`（含隐藏项），拒绝 App/companion/Agent symlink，canonical path 必须保持在只读挂载根或 App 根内。补 hidden-extra-app 与三类 symlink escape 负向 fixture。
+- **Standards P1：A0 越过白名单修改 `scripts/release_identity.py`。** R1 明确扩白名单允许保留该文件作为共享身份/volume verifier（避免再复制一套身份逻辑），但只允许 DMG 验证与可测试 signature policy 的最小修改；不得改变 Installer/XPC/ReleaseIdentity 冻结值或放宽生产检查。`package_dmg.sh` 应复用既有 `release_identity.py env`，删除重复且未消费的 JSON→shell 字段映射；删除未参与产物的 `.dmg-staging` App/plist 重复复制，或证明其消费者。
+- R1 允许修改原白名单文件，并新增 `ahakeyconfig-mac/scripts/release_identity.py`；禁止其它业务代码、真实 Developer ID 候选重出、notary/staple、安装、`/Applications`/LaunchAgent/login-item mutation、发布与 push。完成后停手重提；`HIL-RELEASE-0.2` 保持 blocked。
