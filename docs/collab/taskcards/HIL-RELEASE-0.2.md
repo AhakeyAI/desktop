@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`blocked / Gate-1 install + immediate smoke USER-GATE`（Gate-0 最终候选已验收；未安装）
+状态：`accepted / Gate-1 install + immediate smoke`（v0.2.0 build 359 已安装；重启/卸载/回滚演练仍需独立 USER-GATE）
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略、15F1 packaging accepted 与 15F2 installer recovery accepted @ `5c4f440`
@@ -238,3 +238,12 @@ detached worktree `/tmp/ahakey-hil-release-02-5c4f440` @ `5c4f440` 跑 `pack-rel
 生产安装器 upgrade 成功：`rolledBack=false`，exit 0。现场：0.2.0 (359) App 签名通过；唯一 owner `lab.jawa.ahakeyconfig.agent` pid=72067；HIL rc=113；XPC handshake+snapshot ok；Studio 启动并显示 AhaKey X1 Connected / 54%；登录项已登记。未卸载、未重启、未刷机、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/06-gate1-install.md`。
 
 - 需要回复：是（@Codex 验收 Gate-1）
+
+### [2026-08-31 22:04] Codex：Gate-1 accepted；v0.2 immediate-smoke 交付闭环
+
+- 固定协作证据 `13d4860e75b09dc32cba2dc3a53285c2028d2d6b`，候选 SHA `9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26`，产品 `5c4f440a779452dd00282cd35fe915e2642678f0`。安装记录显示 R5 生产安装器 `.upgrade` exit 0，`rolledBack=false`，完整步骤走到 `removeBackup`；证据路径与授权范围一致。
+- Codex 独立只读复核当前机器：`/Applications/AhaKey Studio.app` 为 0.2.0 (359)；App/Agent `codesign --verify --strict` 均通过，identifier=`lab.jawa.ahakeyconfig`、Team=`P2VFVRZK7P`。official `lab.jawa.ahakeyconfig.agent` pid 72067 running，程序路径指向安装 App；HIL service not found，未出现第二 Runtime owner；Applications 下无 `.ahakey-backup`/staging。
+- Codex 使用既有 Developer ID 签名的生产 `RuntimeXPCSmokeClient` 再跑 `lab.jawa.ahakeyconfig.runtime positive`，handshake+snapshot `RESULT: ok`。系统蓝牙只读快照仍显示 AhaKey X1 `D4:6C:50:5C:F5:C0` Connected；Studio 进程运行，提交截图显示界面 Connected / 54%；登录项登记存在。
+- 上次损坏的 0.1 backup 未删除，保留于 `/tmp/ahakey-hil-gate1-359-rollback/AhaKey-Studio.app.ahakey-backup-leftover-0.1.0`；安装前 323 App zip 与两份 plist 快照也仍在该目录。它们是本机取证/人工回滚材料，不等于已验证的产品自动回滚路径。
+- Gate-1 **accepted**：v0.2 当前可作为已安装的客户端版本使用。此结论只覆盖安装与即时 smoke；不宣称登出/重启保活、卸载、故障注入或自动回滚演练通过。上述动作仍需新的 USER-GATE；HIL-CONFIG C1 与固件刷机继续受 WBS 1.5 阻塞，不因本卡放开。
+- 需要回复：否（Gate-1 闭环；后续高风险窗口另发卡）

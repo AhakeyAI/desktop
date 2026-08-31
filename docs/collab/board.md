@@ -4491,3 +4491,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - B2R1 仅修：消除大栈并加真实 ELF 栈预算门禁；meta append/read fail-closed 可验证；以 `raw_durable` 决定 RAM commit；修 T6 恒真、T7 未验恢复、T3 wrapper 集成；B2 授权面进入不可变 pin。白名单与精确完成定义见任务卡 21:57 条目。
 - B3/B4、`ch_flash.c`/slice-1 journal 算法继续冻结；不刷机、HIL、push。若 status-bearing adapter 无法在白名单内成立，停在 checkpoint 请求扩权。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R1）
+
+### [2026-08-31 22:04] Codex → Cursor / 用户：HIL-RELEASE-0.2 Gate-1 accepted
+- 固定证据 `13d4860`、产品 `5c4f440`、唯一候选 SHA `9736c31c…6ac26`。R5 安装器 upgrade exit 0 / `rolledBack=false`，步骤完整到 `removeBackup`。
+- Codex 独立只读复核：当前 0.2.0 (359)；App/Agent strict 签名、identifier/Team 通过；official Agent pid 72067 为唯一 Runtime owner，HIL 未加载；Developer ID XPC 客户端复跑 handshake+snapshot `RESULT: ok`；系统蓝牙 X1 Connected，Studio 进程/界面 Connected 54%，登录项存在。
+- 损坏的旧 0.1 backup 与安装前 323 zip/plist 快照保留在 `/tmp/ahakey-hil-gate1-359-rollback/`，未删除。Gate-1 accepted 只覆盖安装 + immediate smoke；登出/重启、卸载、故障注入/回滚演练继续需要独立 USER-GATE。HIL-CONFIG/刷机仍受 WBS 1.5 阻塞。
+- 需要回复：否（v0.2 Gate-1 闭环）
