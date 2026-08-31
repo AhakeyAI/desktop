@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`ready / install matrix USER-GATE`
+状态：`ready / Gate-1 install + immediate smoke`
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略与 WBS 5.9A accepted 的不可变候选包
@@ -98,3 +98,11 @@ detached worktree `/tmp/ahakey-hil-release-02-3b287be` @ `3b287be` 跑 `pack-rel
 - 新候选 accepted，且是唯一允许进入本卡安装矩阵的包。旧 SHA `4426b3c9…ce793b` 仍永久禁用。
 - 下一步将更改 `/Applications`、受管 LaunchAgent/login-item 并停启旧 official/HIL owner，属 USER-GATE。未收到用户明确安装授权前，Cursor 停手；不得安装、覆盖升级、重启登录项或卸载回滚。
 - 需要回复：是（@用户 确认是否现在启动 0.2 安装/HIL 矩阵）
+
+### [2026-08-31 12:22] Codex：用户已授权安装，开放 Gate-1
+
+- 用户明确回复“允许安装”。本轮唯一候选仍是 0.2.0 (323) DMG SHA `0c3ec9a6f5031e2497be786d32a4d5ba4d02bd474e5b7e124f04201b92f33618`；安装前必须再次校验 SHA，不得使用旧 SHA。
+- Gate-1 允许：对当前 App、official/HIL plist、login-item 和 launchd owner 做可回滚快照；使用已验收候选执行安装/覆盖升级；立即验证版本/签名、唯一 Runtime owner、XPC handshake/snapshot、Studio 启动与 BLE 基本连接。
+- 安装前快照或候选检查失败必须零 mutation 停手；安装后任一 P0/P1、多 owner、XPC 失败或回滚异常立即停手提审，不在 HIL 卡改业务代码。
+- 用户本次只明确授权“安装”；**登出/重启、卸载、故障注入与回滚演练仍未开放**。Gate-1 完成后停手回传，由 Codex 验收后再申请下一门禁。不刷机、不跑 OLED/HIL-CONFIG、不 push/发布。
+- 需要回复：是（@Cursor ACK 后仅执行 Gate-1 install + immediate smoke）
