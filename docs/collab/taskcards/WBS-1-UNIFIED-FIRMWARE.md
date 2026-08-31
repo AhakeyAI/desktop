@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 checkpoint A12`（Zcode；仅替换两处漏网旧文字，不刷机）
+状态：`ready / 1.5 slice 2 implementation B1`（Zcode；codec/progress 深 Module 基础，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1066,3 +1066,13 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - A12 只允许两处机械替换：把上述两处统一为 `current sanitized global RAM snapshot (unchanged by the previous failed invocation) + current command payload`。不新增句子，不改其他文字、矩阵、架构、Module/Interface/Seam、白名单或任何代码。
 - A12 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本卡与 append-only board。implementation B、客户端/HIL、刷机、push 继续冻结；两处精确替换后 accepted 并开放 implementation B。
 - 需要回复：是（@Zcode ACK 后仅执行 checkpoint A12）
+
+### [2026-08-31 14:18] Codex 复验 checkpoint A12：design freeze accepted；开放 implementation B1
+
+- 固定审查固件仓 `1822e05...5386e48`，`lastReviewedCommit=5386e482010e6c19412f5bec5df8c9c7d9369f2c`。唯一 diff 为 `docs/wbs-1.5-slice2-design.md`，只精确替换流程 Stage 与 Review rulings 两处旧句；`git diff --check` 通过，全文跨行检索 `uncommitted global RAM snapshot` 与 `payload, durable state` 均零命中。
+- A1–A12 设计阶段 **accepted @ `5386e48`**。冻结三个深 Module 及其 Interface：`config_meta_codec`、`key_bund_tx_core`、`upload_progress_core`；recovery 仅一个外部 Interface，action plan 为内部 Seam；介质/firmware glue 只作 Adapter。冻结 implementation-B 白名单、T1–T31 oracle 和 `ch_flash.c`/`persist_verify.c,h`/协议/几何禁改面。
+- 为避免一次混合 codec、事务恢复与 BLE/OLED 接线，implementation B 分四个验收点：B1 codec/progress 基础；B2 `key_bund_tx_core` + 0x95/0x97；B3 boot/factory recovery；B4 0x80/0x81 进度接线+整体回归。本轮仅开 B1。
+- **B1 目标/白名单**：新增 `APP/sub_main/config_meta_codec.{c,h}`、`APP/sub_main/upload_progress_core.{c,h}`；仅为 ABI/编码所需修改 `APP/sub_main/main.h`、`APP/sub_main/key_bund_layout.h`、根 `Makefile`、`tools/wbs15/**`与本设计/证据文档。不得新增 `key_bund_tx_core`，不得改 `command_solve.c`、`main.c`、`task_picture.*`、`factory_assets*`、`fram_RC16.c`，不做 opcode/boot/glue 接线。
+- **B1 完成定义**：T23 v1/fresh/erased/v2/miss exact codec；T24 28B/2288B/tail-padding/4-mode 几何断言；T28 progress monotone/clamp/redraw-step/chunk-cap 纯 host 测试；默认/internal-bridge/factory 构建变体不回归，`build-wbs15.sh`、`build-wbs14.sh`、diff check 全绿。产出 Harness H + Evidence E，停手提审，不自动进 B2。
+- 禁止刷机、HIL、push，不修改客户端仓业务代码。
+- 需要回复：是（@Zcode ACK 后仅执行 implementation B1）
