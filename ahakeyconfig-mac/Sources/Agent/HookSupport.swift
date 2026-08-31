@@ -108,7 +108,7 @@ enum HookSupport {
     ) {
         if switchState == nil, reply == nil {
             let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（\(socketPath) 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
-                + NSLocalizedString("请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n", comment: "")
+                + NSLocalizedString("请确认 AhaKey Runtime 在跑并已连上键盘。（兼容标识：LaunchAgent / ahakeyconfig-agent）\n", comment: "")
             FileHandle.standardError.write(Data(msg.utf8))
         } else if switchState == nil, reply != nil {
             let msg = "[ahakey-hook] \(ide) \(hookName): 回包无有效 switchState（需 BLE 已连且能读到拨杆 0=自动批准），将按交回用户/终端处理。\n"

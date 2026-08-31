@@ -90,7 +90,7 @@ struct DeviceInfoView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .help(NSLocalizedString("从 launchd 加载并启动/卸载停止 Agent 进程。", comment: ""))
+                        .help(NSLocalizedString("启动或停止 AhaKey Runtime 后台服务。", comment: ""))
 
                         Button(NSLocalizedString("卸载", comment: ""), role: .destructive) {
                             agentManager.uninstall()
@@ -199,7 +199,7 @@ struct DeviceInfoView: View {
                                 let b = agentManager.mergeUserCursorPermissionsJsonForAgentTUI()
                                 agentManager.agentUserAlert = a + "\n\n——\n\n" + b
                             }
-                            .help(NSLocalizedString("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Agent TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。", comment: ""))
+                            .help(NSLocalizedString("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Cursor TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。", comment: ""))
                         }
                         Spacer()
                     }
@@ -265,7 +265,7 @@ struct DeviceInfoView: View {
             }
         }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
-        .alert("Agent", isPresented: Binding(
+        .alert(NSLocalizedString("AhaKey Runtime", comment: ""), isPresented: Binding(
             get: { agentManager.agentUserAlert != nil },
             set: { if !$0 { agentManager.agentUserAlert = nil } }
         )) {
@@ -323,7 +323,7 @@ struct DeviceInfoView: View {
         if agentManager.isRunning && agentManager.isAgentBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
         if agentManager.isRunning { return NSLocalizedString("BLE 未连接", comment: "") }
         if agentManager.isInstalled { return NSLocalizedString("未运行", comment: "") }
-        return NSLocalizedString("未装 Agent", comment: "")
+        return NSLocalizedString("未装后台服务", comment: "")
     }
 
     private func workModeName(_ mode: Int) -> String {

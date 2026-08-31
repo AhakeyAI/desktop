@@ -60,7 +60,7 @@ struct ContentView: View {
     private var onboardingPermissionState: AhaKeyOnboardingPermissionState {
         AhaKeyOnboardingPermissionState(
             // Studio 不再直接持有蓝牙：权限与连接由 Runtime/Agent 管理；
-            // 该行语义改为「Runtime/Agent 在线」（离线时引导用户安装/启动 Agent）。
+            // 该行语义改为 Runtime 在线（离线时引导用户修复后台服务）。
             bluetoothPermissionGranted: true,
             bluetoothPoweredOn: runtimeStore.isOnline,
             inputMonitoringGranted: voiceRelay.inputMonitoringGranted,
@@ -134,10 +134,10 @@ private func requestSingleOnboardingPermission(
 
     switch kind {
     case .bluetooth:
-        // Studio 不再直连蓝牙：键盘连接由 Runtime/Agent 管理。离线时引导安装/启动 Agent。
+        // Studio 不再直连蓝牙：键盘连接由 AhaKey Runtime 管理。离线时引导修复后台服务。
         if !runtimeStore.isOnline {
             AgentManager.shared.refresh()
-            AgentManager.shared.agentUserAlert = NSLocalizedString("键盘连接由后台 Agent 管理。请在主界面「更多 → 设备信息 · Agent」里安装并启动 Agent；Agent 运行后会自动连接键盘。", comment: "")
+            AgentManager.shared.agentUserAlert = NSLocalizedString("键盘连接由 AhaKey Runtime 管理。请在主界面「更多 → 设备与后台服务」里修复并启动后台服务；运行后会自动连接键盘。", comment: "")
         }
 
     case .inputMonitoring:

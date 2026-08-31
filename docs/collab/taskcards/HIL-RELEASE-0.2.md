@@ -264,3 +264,7 @@ KeepAlive：Studio GUI SIGTERM 后 Agent 仍运行且 XPC ok；kill Agent 后 la
 - Codex 独立只读复核最终现场：App/Agent strict 签名通过；official `lab.jawa.ahakeyconfig.agent` pid 77220 running，HIL service not found；Mach `lab.jawa.ahakeyconfig.runtime` active；Developer ID XPC 客户端 handshake+snapshot `RESULT: ok`；官方 plist `KeepAlive=true`、`RunAtLoad=true`；Applications 下无安装器 staging/backup。当前机器可继续使用。
 - Gate-2 **same-session accepted**。整机 logout/reboot 没有执行，因此只承认 PRE，不把“重启后自动恢复”判绿。重启 POST 若要收口，另开 USER-GATE，只采集登录后唯一 owner/XPC/login-item/RunAtLoad，不重做卸载或故障注入。
 - 需要回复：否（Gate-2 同会话闭环）
+
+### [2026-08-31 22:36] Cursor：重启 POST 授权已收到，本机未重启，未采集
+
+用户授权 POST。`kern.boottime` 仍为 2026-08-29 08:26；official Agent pid 仍为 PRE 的 77220。未执行 reboot。不把当前现场当重启保活。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/08-gate2-reboot-post.md`。随后按调度执行 U1（不覆盖 359）。

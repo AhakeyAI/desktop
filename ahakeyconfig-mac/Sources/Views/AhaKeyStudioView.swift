@@ -33,7 +33,7 @@ struct AhaKeyStudioView: View {
     /// 最近一次设备写入中失败的任务图描述。非空表示部分成功：键位/灯效已保存，仅这些图需重试。
     @State private var lastTaskUploadFailures: [String] = []
     @State private var deviceWriteTask: Task<Void, Never>?
-    // AhaKeyStudio 交还蓝牙给 Agent 的过渡期：保持"已连接"显示，直到 Agent 接管或超时。
+    // 过渡期：保持「已连接」显示，直到 Runtime 快照对齐或超时。
     @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
     @State private var oledPlaybackPreviewPath: String?
@@ -181,7 +181,7 @@ struct AhaKeyStudioView: View {
         .onChange(of: nativeSpeech.dictationEnabled) { _ in
             refreshStartupPermissionOnboarding()
         }
-        .alert("Agent", isPresented: Binding(
+        .alert(NSLocalizedString("AhaKey Runtime", comment: ""), isPresented: Binding(
             get: { agentManager.agentUserAlert != nil },
             set: { if !$0 { agentManager.agentUserAlert = nil } }
         )) {
@@ -261,11 +261,11 @@ struct AhaKeyStudioView: View {
 
             if !runtimeStore.isConnected {
                 Button(NSLocalizedString("连接设备…", comment: "")) {
-                    // Studio 不直接扫描/连接：键盘由 Agent（Runtime）持有，引导用户去设备信息管理。
+                    // Studio 不直接扫描/连接：键盘由 AhaKey Runtime 持有，引导用户去设备与后台服务。
                     showsDeviceInfo = true
                 }
                 .buttonStyle(.bordered)
-                .help(NSLocalizedString("键盘连接由后台 Agent 管理。点此打开「设备信息 · Agent」查看连接状态或安装/启动 Agent。", comment: ""))
+                .help(NSLocalizedString("键盘连接由 AhaKey Runtime 管理。点此打开「设备与后台服务」查看连接状态或修复后台服务。", comment: ""))
             }
 
             if shouldShowTopBarInstallStartButton {
@@ -274,7 +274,7 @@ struct AhaKeyStudioView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(agentManager.isAgentOperationInProgress)
-                .help(NSLocalizedString("安装/修复 Agent 与 Hook，并启动 Agent 控制键盘。", comment: ""))
+                .help(NSLocalizedString("安装/修复后台服务与 IDE 集成，并启动 AhaKey Runtime。", comment: ""))
             }
 
             ahaTypeModeStatus
@@ -300,7 +300,7 @@ struct AhaKeyStudioView: View {
                     ahaType.refreshFromDisk()
                 }
                 Divider()
-                Button(NSLocalizedString("设备信息 · Agent…", comment: "")) {
+                Button(NSLocalizedString("设备与后台服务…", comment: "")) {
                     showsDeviceInfo = true
                 }
                 Button(NSLocalizedString("合盖运行设置…", comment: "")) {
@@ -324,14 +324,18 @@ struct AhaKeyStudioView: View {
             showsDeviceInfo = true
         } label: {
             infoPill(
-                title: NSLocalizedString("控制方", comment: ""),
-                subtitle: isEditingConfiguration ? NSLocalizedString("编辑配置中", comment: "") : NSLocalizedString("键盘控制中", comment: ""),
+                title: NSLocalizedString("配置状态", comment: ""),
+                subtitle: isSyncing
+                    ? NSLocalizedString("正在同步", comment: "")
+                    : (isEditingConfiguration
+                       ? NSLocalizedString("编辑配置中", comment: "")
+                       : NSLocalizedString("浏览配置", comment: "")),
                 accent: isEditingConfiguration ? .blue : .green,
                 width: 100
             )
         }
         .buttonStyle(.plain)
-        .help(NSLocalizedString("日常使用由 Agent 控制键盘；需要改键、LCD 或同步时，进入编辑配置后由 AhaKey Studio 临时接管蓝牙。", comment: ""))
+        .help(NSLocalizedString("键盘连接始终由 AhaKey Runtime 管理。Studio 的编辑保存在本地，写入时通过 Runtime 提交。", comment: ""))
     }
 
     private var ahaTypeModeStatus: some View {
@@ -1004,7 +1008,7 @@ struct AhaKeyStudioView: View {
         let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
         summaryRow(NSLocalizedString("当前档位", comment: ""), value: currentSwitchTitle,
                    dot: currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? .green : .indigo)
-        summaryRow("Agent", value: agentReady ? NSLocalizedString("就绪", comment: "") : NSLocalizedString("未就绪", comment: ""),
+        summaryRow(NSLocalizedString("后台服务", comment: ""), value: agentReady ? NSLocalizedString("就绪", comment: "") : NSLocalizedString("未就绪", comment: ""),
                    dot: agentReady ? .green : .orange)
         summaryRow(NSLocalizedString("作用范围", comment: ""), value: "Claude · Cursor · Codex · Kimi")
     }
@@ -1754,10 +1758,10 @@ struct AhaKeyStudioView: View {
             if liveKeyboardSwitchState == 0 {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label(NSLocalizedString("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", comment: ""), systemImage: "exclamationmark.triangle.fill")
+                        Label(NSLocalizedString("自动批准依赖 AhaKey Runtime 与 IDE 集成", comment: ""), systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.callout.weight(.semibold))
-                        Text(NSLocalizedString("Claude：PermissionRequest allow。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。", comment: ""))
+                        Text(NSLocalizedString("Claude：PermissionRequest allow。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。AhaKey Runtime 须在跑。", comment: ""))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -1766,7 +1770,7 @@ struct AhaKeyStudioView: View {
 
             GroupBox(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(NSLocalizedString("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。", comment: ""))
+                    Text(NSLocalizedString("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。AhaKey Runtime 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。", comment: ""))
                     Divider()
                     Text(NSLocalizedString("自动批准：**Claude / Codex PermissionRequest**，**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。", comment: ""))
                     Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
@@ -1788,36 +1792,36 @@ struct AhaKeyStudioView: View {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
                     Text(agentReady
-                         ? NSLocalizedString("Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。", comment: "")
-                         : NSLocalizedString("拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。", comment: ""))
+                         ? NSLocalizedString("AhaKey Runtime 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。", comment: "")
+                         : NSLocalizedString("拨杆在 IDE 中生效需先安装 AhaKey Runtime 与 IDE 集成；否则仅为状态显示。", comment: ""))
                         .font(.callout)
                 }
 
                 if hasAnyMissing {
                     VStack(alignment: .leading, spacing: 4) {
-                        agentChecklistRow(label: NSLocalizedString("LaunchAgent 已安装", comment: ""), ok: agentManager.isInstalled)
-                        agentChecklistRow(label: NSLocalizedString("Agent 已连接蓝牙", comment: ""), ok: agentManager.isRunning)
+                        agentChecklistRow(label: NSLocalizedString("后台服务已安装", comment: ""), ok: agentManager.isInstalled)
+                        agentChecklistRow(label: NSLocalizedString("后台服务已连接键盘", comment: ""), ok: agentManager.isRunning)
                         agentChecklistRow(label: NSLocalizedString("Claude / Cursor / Codex / Kimi Hook 已配置", comment: ""), ok: agentManager.hooksInstalled)
                     }
                     .padding(.leading, 4)
 
                     HStack(spacing: 8) {
                         if !agentManager.isInstalled {
-                            Button(NSLocalizedString("安装 Agent + Hook", comment: "")) {
+                            Button(NSLocalizedString("修复后台服务与 IDE 集成", comment: "")) {
                                 agentManager.install()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
                         } else if !agentManager.isRunning {
-                            // 与「设备信息 · Agent」相同：在 launchd 中 load + start 守护进程。
-                            Button(NSLocalizedString("启动 Agent", comment: "")) {
+                            // 与「设备与后台服务」相同：在 launchd 中 load + start 守护进程。
+                            Button(NSLocalizedString("启动后台服务", comment: "")) {
                                 agentManager.start()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .help(NSLocalizedString("与「设备信息 · Agent」中的启动相同，由 launchd 加载并执行 ahakeyconfig-agent。键盘连接始终由 Agent 持有。", comment: ""))
+                            .help(NSLocalizedString("与「设备与后台服务」中的启动相同。键盘连接始终由 AhaKey Runtime 管理。", comment: ""))
                         }
-                        Button(NSLocalizedString("设备信息（蓝牙 / 启停 Agent）…", comment: "")) {
+                        Button(NSLocalizedString("设备与后台服务…", comment: "")) {
                             showsDeviceInfo = true
                         }
                         .buttonStyle(.bordered)
@@ -2010,12 +2014,12 @@ struct AhaKeyStudioView: View {
             return NSLocalizedString("Runtime 在线，等待键盘连接", comment: "")
         }
         if agentManager.isRunning {
-            return NSLocalizedString("Agent 运行中，正在建立 Runtime 连接", comment: "")
+            return NSLocalizedString("后台服务运行中，正在建立 Runtime 连接", comment: "")
         }
         if agentManager.isInstalled {
-            return NSLocalizedString("Agent 已安装，正在准备控制", comment: "")
+            return NSLocalizedString("后台服务已安装，正在准备", comment: "")
         }
-        return NSLocalizedString("需要安装 Agent 后才能控制键盘", comment: "")
+        return NSLocalizedString("需要安装后台服务后才能连接键盘", comment: "")
     }
 
     private var configurationModeButtonTitle: String {
@@ -2031,11 +2035,11 @@ struct AhaKeyStudioView: View {
     private var configurationModeButtonHelp: String {
         if isEditingConfiguration {
             if hasUnsyncedChanges {
-                return NSLocalizedString("将当前草稿同步到键盘，然后把蓝牙交还给 Agent。", comment: "")
+                return NSLocalizedString("将当前草稿通过 AhaKey Runtime 同步到键盘。", comment: "")
             }
-            return NSLocalizedString("没有未同步改动，直接把蓝牙交还给 Agent。", comment: "")
+            return NSLocalizedString("没有未同步改动，结束编辑并继续浏览配置。", comment: "")
         }
-        return NSLocalizedString("临时由 AhaKey Studio 接管蓝牙，用于改键、LCD、同步和本机灯效测试。", comment: "")
+        return NSLocalizedString("进入编辑：改动保存在本地，写入时通过 AhaKey Runtime 提交。", comment: "")
     }
 
     private var voicePresetDetail: String {
@@ -2412,7 +2416,7 @@ struct AhaKeyStudioView: View {
         if runtimeStore.isConnected {
             performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: true, showResultAlert: false)
         } else {
-            syncStatusMessage = NSLocalizedString("Runtime 尚未识别到已连接的键盘；请在「设备信息 · Agent」确认 Agent 已连接后重试。", comment: "")
+            syncStatusMessage = NSLocalizedString("Runtime 尚未识别到已连接的键盘；请在「设备与后台服务」确认后台服务已连接键盘后重试。", comment: "")
         }
     }
 
@@ -2431,7 +2435,7 @@ struct AhaKeyStudioView: View {
     /// 键盘连接始终由 Agent（Runtime）持有；这里只收尾本地编辑态文案。
     private func returnToKeyboardControl() {
         isTransitioningToKeyboardControl = false
-        syncStatusMessage = NSLocalizedString("键盘控制由 Agent 持续持有。", comment: "")
+        syncStatusMessage = NSLocalizedString("键盘连接始终由 AhaKey Runtime 管理。", comment: "")
     }
 
     /// 保存路径（WBS 5.7 切片 3）：draft → facade.apply（ingestResources → apply），
@@ -2439,7 +2443,7 @@ struct AhaKeyStudioView: View {
     private func performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: Bool, showResultAlert: Bool) {
         guard runtimeStore.isOnline, runtimeStore.isConnected else {
             let message = showResultAlert
-                ? NSLocalizedString("设备未连接：请确认 Agent 已运行并连接键盘后重试。", comment: "")
+                ? NSLocalizedString("设备未连接：请确认 AhaKey Runtime 已运行并连接键盘后重试。", comment: "")
                 : NSLocalizedString("Runtime 离线或设备未连接，当前只保存本地草稿。", comment: "")
             syncStatusMessage = message
             if showResultAlert {
@@ -2842,12 +2846,12 @@ private struct VoicePermissionOnboardingSheet: View {
             Text(NSLocalizedString("新手权限引导", comment: ""))
                 .font(.system(size: 24, weight: .semibold))
 
-            Text(NSLocalizedString("AhaKey Studio 首次使用需要完成几项系统授权：后台接管语音键需要输入监控与辅助功能，macOS 原生语音需要麦克风、语音转写、Siri 与听写；键盘连接由后台 Agent 自动管理。", comment: ""))
+            Text(NSLocalizedString("AhaKey Studio 首次使用需要完成几项系统授权：后台接管语音键需要输入监控与辅助功能，macOS 原生语音需要麦克风、语音转写、Siri 与听写；键盘连接由 AhaKey Runtime 自动管理。", comment: ""))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 10) {
-                permissionRow(title: NSLocalizedString("键盘连接", comment: ""), granted: runtimeStore.isOnline, detail: NSLocalizedString("键盘连接由后台 Agent 管理，无需蓝牙授权；确保 Agent 已安装并运行。", comment: ""))
+                permissionRow(title: NSLocalizedString("键盘连接", comment: ""), granted: runtimeStore.isOnline, detail: NSLocalizedString("键盘连接由 AhaKey Runtime 管理，无需为 Studio 单独授权蓝牙；确保后台服务已安装并运行。", comment: ""))
                 permissionRow(title: NSLocalizedString("麦克风", comment: ""), granted: nativeSpeech.microphoneGranted, detail: NSLocalizedString("允许 AhaKey Studio 使用苹果原生语音采集。", comment: ""))
                 permissionRow(title: NSLocalizedString("语音转写", comment: ""), granted: nativeSpeech.speechRecognitionGranted, detail: NSLocalizedString("允许 AhaKey Studio 使用苹果原生语音识别。", comment: ""))
                 permissionRow(title: "Siri", granted: nativeSpeech.siriEnabled, detail: NSLocalizedString("在「系统设置 > Siri 与聚焦」里开启 Siri，供 macOS 原生语音能力使用。", comment: ""))
@@ -4269,7 +4273,7 @@ private struct DeviceInfoSheetContainer: View {
     private var deviceInfoTitleChrome: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
-                Text(NSLocalizedString("设备信息 · Agent", comment: ""))
+                Text(NSLocalizedString("设备与后台服务", comment: ""))
                     .font(.headline)
                 Spacer(minLength: 0)
                 Button {
@@ -4976,18 +4980,18 @@ private struct OverviewTopicView: View {
                 title: NSLocalizedString("三件套是怎么协同的", comment: ""),
                 body: NSLocalizedString("""
                 • 主 App（你正在用的）— 看配置、改键位、上传 LCD 图片、查诊断
-                • Agent 守护进程 — 后台常驻；监听 IDE 的 Hook（Claude / Cursor / Codex / Kimi），并在 BLE 上向键盘转发当前任务状态
+                • AhaKey Runtime（后台服务）— 常驻；监听 IDE 的 Hook（Claude / Cursor / Codex / Kimi），并在 BLE 上向键盘转发当前任务状态
                 • 键盘固件 — 收到 BLE 状态后驱动灯条颜色、LCD 显示、按键映射
                 """, comment: "")
             )
 
             HelpSection(
-                title: NSLocalizedString("BLE 占用是一道单行道", comment: ""),
+                title: NSLocalizedString("键盘连接由 Runtime 管理", comment: ""),
                 body: NSLocalizedString("""
-                同一时刻只有一个进程能持有键盘的 BLE 连接：
-                • 默认 Agent 占用 → Hook 状态实时上键盘、自动批准链可用
-                • 你在画布点「修改」时 → 主 App 临时接管，能上传 LCD 图片、改键位、读图片元信息
-                • 点「返回」 → 主 App 释放，Agent 自动接回
+                键盘连接始终由 AhaKey Runtime 管理；Studio 不扫描、不临时占用蓝牙。
+                • Runtime 持有连接 → Hook 状态实时上键盘、自动批准链可用
+                • 你在 Studio 编辑配置时 → 改动先保存在本地
+                • 点「写入键盘」 → 通过 Runtime 提交到设备
                 """, comment: "")
             )
 
@@ -5081,7 +5085,7 @@ private struct CanvasTopicView: View {
             }
 
             HelpNote("hand.point.up.left", tint: .accentColor, body: NSLocalizedString("""
-                点完元件 → Inspector 显示「修改」按钮。点「修改」会接管 BLE 进入编辑态；改完点「写入键盘」写入配置，点「返回」退出编辑。
+                点完元件 → Inspector 显示编辑项。改动先保存在本地；点「写入键盘」经 AhaKey Runtime 提交，点「返回」结束编辑。
                 """, comment: ""))
         }
     }
@@ -5129,8 +5133,8 @@ private struct ToggleSwitchTopicView: View {
                 )
                 triggerRow(
                     num: "2",
-                    title: NSLocalizedString("通知 Agent 设置 userSwitchOverride", comment: ""),
-                    desc: NSLocalizedString("Hook 的 auto-approve 立即切换到你选的档位。持久化到 UserDefaults，agent 重启仍生效", comment: ""),
+                    title: NSLocalizedString("通知 AhaKey Runtime 设置软件拨杆覆盖", comment: ""),
+                    desc: NSLocalizedString("Hook 的 auto-approve 立即切换到你选的档位。持久化到 UserDefaults，后台服务重启后仍生效", comment: ""),
                     works: true
                 )
                 triggerRow(
@@ -5147,7 +5151,7 @@ private struct ToggleSwitchTopicView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(NSLocalizedString("现状一览", comment: "")).font(.subheadline.weight(.medium))
                 stateRow(NSLocalizedString("当前生效值", comment: ""), "\(runtimeStore.agentSwitchState ?? runtimeStore.switchState)")
-                stateRow(NSLocalizedString("Agent 端覆盖", comment: ""), runtimeStore.agentSwitchState != nil ? String(format: NSLocalizedString("%d（覆盖中）", comment: ""), runtimeStore.agentSwitchState!) : NSLocalizedString("未设置（用键盘真实值）", comment: ""))
+                stateRow(NSLocalizedString("后台服务覆盖", comment: ""), runtimeStore.agentSwitchState != nil ? String(format: NSLocalizedString("%d（覆盖中）", comment: ""), runtimeStore.agentSwitchState!) : NSLocalizedString("未设置（用键盘真实值）", comment: ""))
                 stateRow(NSLocalizedString("乐观显示中", comment: ""), runtimeStore.optimisticSwitchOverride != nil ? NSLocalizedString("是（等待对齐）", comment: "") : NSLocalizedString("否", comment: ""))
             }
             .padding(12)
@@ -5209,16 +5213,16 @@ private struct OLEDTopicView: View {
                 """, comment: ""))
 
             HelpSection(title: NSLocalizedString("替换成自己的图片", comment: ""), body: NSLocalizedString("""
-                1. 画布点 LCD 屏幕 → Inspector 显示「修改」
-                2. 点「修改」进入编辑态（接管 BLE）
+                1. 画布点 LCD 屏幕 → Inspector 显示编辑项
+                2. 进入编辑：改动先保存在本地
                 3. 选择你的图片（源文件 ≤20 MB，客户端会自动缩放并按每素材固定槽帧数（当前最多 30 帧）均匀抽帧），可先在虚拟屏幕里预览
-                4. 确认后点底部「写入键盘」统一写入设备
+                4. 确认后点底部「写入键盘」经 AhaKey Runtime 写入设备
                 """, comment: ""))
 
             HelpSection(title: NSLocalizedString("LCD 角标的含义", comment: ""), body: NSLocalizedString("""
                 • 绿色「✓ 已上传 N 帧」：键盘 flash 真有 N 帧（你或自动同步推的）
                 • 灰色「未上传」：键盘 flash 空，正显示固件默认或留空
-                • 没有徽章：还没自占 BLE 查到（点过一次「修改」就有了）
+                • 没有徽章：Runtime 尚未查到（键盘连接后画布角标会出现）
                 """, comment: ""))
 
             VStack(alignment: .leading, spacing: 6) {
@@ -5322,10 +5326,10 @@ private struct DiagnosticsTopicView: View {
                 • Siri 与听写（macOS 13+）：原生转写依赖项
                 """, comment: ""))
 
-            HelpSection(title: NSLocalizedString("Agent 健康检查", comment: ""), body: NSLocalizedString("""
-                打开「权限诊断」可以看到 Agent 自检结果：
-                • LaunchAgent 已注册：login item 装好
-                • 进程在跑：launchd 拉起了 ahakeyconfig-agent
+            HelpSection(title: NSLocalizedString("后台服务健康检查", comment: ""), body: NSLocalizedString("""
+                打开「权限诊断」可以看到后台服务自检结果。兼容标识：LaunchAgent label 仍为 lab.jawa.ahakeyconfig.agent，可执行文件仍为 ahakeyconfig-agent。
+                • 后台服务已注册：login item 装好
+                • 进程在跑：launchd 已拉起后台服务
                 • Hook 已配置：Claude/Cursor/Codex/Kimi 的 .json / settings 都加好了 ahakey-hook 引用
                 """, comment: ""))
 
@@ -5347,8 +5351,8 @@ private struct FAQTopicView: View {
                 q: NSLocalizedString("Hook 拦不住，还是会停下来问我", comment: ""),
                 a: NSLocalizedString("""
                 按这顺序排查：
-                1. Agent 在跑吗？打开「权限诊断」看
-                2. Agent 是否占着蓝牙？画布顶部应显示已连接，且不在编辑态
+                1. AhaKey Runtime 在跑吗？打开「权限诊断」看
+                2. 画布顶部是否显示键盘已连接？
                 3. 拨杆在 auto 档？看顶部状态栏；不是的话点画布拨杆切到 auto
                 4. IDE 的 Hook 文件配了吗？「权限诊断」会列出 Claude/Cursor/Codex/Kimi 各自的 Hook 安装状态
                 5. 装完后是否重启过 IDE？尤其 Kimi 安装/升级后必须完全关闭再重开
@@ -5368,8 +5372,8 @@ private struct FAQTopicView: View {
             faq(
                 q: NSLocalizedString("LCD 自动同步没触发", comment: ""),
                 a: NSLocalizedString("""
-                自动同步只在主 App 自占 BLE 时才查图片元信息。流程：
-                1. 至少点一次「修改」让主 App 接管 BLE
+                自动同步由 AhaKey Runtime 在已连接键盘时查询图片元信息。流程：
+                1. 确认顶部显示键盘已连接
                 2. 四个 Mode 的 0x83 查询完成后才会触发
                 3. 只对 flash 为空（picLength=0）的 Mode 生效
                 4. 如果你曾经手动改过 Inspector 里的「上传图片」路径，自动同步会跳过那个 Mode（不覆盖你的选择）

@@ -4537,3 +4537,14 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 已落地、本轮保留：staged/scratch 迁到 command_solve BSS；`key_bund_tx_commit` 就地 finalize；生产 wrapper 按 `raw_durable` 提交 RAM；meta append 回读比对失败停 raw；T7 1500/1501 快照恢复；B1/B2 文件进 pin manifest。
 - **P1 仍在：** T6 仍是 `memcmp(...) == 0 || 1` 恒真（提审声称已删）；`tx_adapter_meta_read` 仍 void+return 0，core 丢弃读状态；栈预算门禁只跑 default `.su`，bridge/factory 未测；T3 仍停在 core flag，没有 wrapper 层 RAM==staged 与投影失败重试。B3/B4 继续冻结。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R2）
+
+### [2026-08-31 22:36] Cursor → Codex：ACK 重启 POST 授权；本机未重启，POST 未采集；ACK U1 开工
+- 用户授权 Gate-2 重启 POST，随后开放 U1。本机 `kern.boottime` 仍为 2026-08-29 08:26，official Agent pid 仍为 PRE 的 77220，`runs=1`。未执行 reboot/logout。重启 POST **未采集、不判绿**。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/08-gate2-reboot-post.md`。
+- ACK `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` U1 @ `58c4d7f`。只改用户可见文案与失效 BLE 所有权交互；不改 `ahakeyconfig-agent`/LaunchAgent label/plist/Mach/Hook、不签名、不覆盖 359、不进 U2/U3、不 push。
+- 需要回复：否（POST 仍等用户真机重启；U1 本轮施工）
+
+### [2026-08-31 22:49] Cursor → Codex：RUNTIME-NAMING U1 完成，停手提审
+- 用户可见文案改为 AhaKey Runtime / 后台服务；顶栏「配置状态」= 浏览配置 / 编辑配置中 / 正在同步。删除 Studio 接管/交还蓝牙与「控制方」口径。帮助中心诊断段用「兼容标识」保留 LaunchAgent / ahakeyconfig-agent。
+- 门禁 `ahakeyconfig-mac/scripts/check-u1-user-facing-copy.py`；zh/en `plutil -lint` OK；`swift test` 713 passed / 2 skipped；Release 构建 AhaKeyConfig 与 ahakeyconfig-agent。未改外部 identity，未覆盖 359，未进 U2/U3，未 push。
+- 重启 POST 仍未采集（本机自 8/29 未 reboot，pid 仍 77220）。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/08-gate2-reboot-post.md`。
+- 需要回复：是（@Codex 验收 U1）

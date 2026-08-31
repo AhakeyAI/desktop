@@ -442,7 +442,7 @@ final class AgentManager: ObservableObject {
             self.isAgentOperationInProgress = false
             self.refresh()
             if !self.isRunning {
-                var m = String(format: NSLocalizedString("已执行 launchctl load / start，但尚未检测到 Agent 在运行（未出现 %@）。\n\n", comment: ""), socketPath)
+                var m = String(format: NSLocalizedString("已执行启动，但尚未检测到后台服务在运行（未出现 %@）。\n\n", comment: ""), socketPath)
                 if !loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput) {
                     m += "load：\n\(loadRes.mergedOutput.isEmpty ? "（无输出）" : loadRes.mergedOutput)\n\n"
                 }
@@ -452,7 +452,7 @@ final class AgentManager: ObservableObject {
                 m += String(format: NSLocalizedString("请点「查看日志」检查 %@；并确认系统「隐私与安全性」中已允许本应用使用蓝牙；若通过 LaunchAgent 拉起 agent 子进程，也需为同一签名的二进制授权。", comment: ""), String(self.logFilePath))
                 self.agentUserAlert = m
             } else if (!loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput)) || !startRes.ok {
-                self.agentUserAlert = String(format: NSLocalizedString("Agent 已运行。附注：launchctl 输出 — load：%@ start：%@", comment: ""), String(loadRes.mergedOutput), String(startRes.mergedOutput))
+                self.agentUserAlert = String(format: NSLocalizedString("AhaKey Runtime 已运行。附注：launchctl 输出 — load：%@ start：%@", comment: ""), String(loadRes.mergedOutput), String(startRes.mergedOutput))
             }
         }
     }
@@ -680,7 +680,7 @@ final class AgentManager: ObservableObject {
     /// 只读；由 `ahakeyconfig-agent` 在 `PermissionRequest` 与 Cursor 批准类 hook 中写入。
     func readPermissionRequestLog() -> String {
         (try? String(contentsOfFile: permissionRequestLogPath, encoding: .utf8))
-            ?? NSLocalizedString("尚无记录。在 Claude 中触发 PermissionRequest，在 Cursor 中让 Agent 调工具/Shell/MCP，或在 Kimi Code CLI 中触发工具调用后，会在此追加带 `ide` / `hookEvent` 的 JSON 行。若始终为空，请确认已安装 Agent、Hooks、蓝牙由 Agent 占用，且 `~/Library/.../AhaKeyConfig/diagnostics/` 可写。", comment: "")
+            ?? NSLocalizedString("尚无记录。在 Claude 中触发 PermissionRequest，在 Cursor 中让模型调工具/Shell/MCP，或在 Kimi Code CLI 中触发工具调用后，会在此追加带 `ide` / `hookEvent` 的 JSON 行。若始终为空，请确认已安装 AhaKey Runtime、IDE 集成，且 `~/Library/.../AhaKeyConfig/diagnostics/` 可写。", comment: "")
     }
 
     /// 只读；由 `ahakeyconfig-agent hook Codex*` 子进程写入，用于判断 Codex 客户端/终端是否真的触发了 hook。
