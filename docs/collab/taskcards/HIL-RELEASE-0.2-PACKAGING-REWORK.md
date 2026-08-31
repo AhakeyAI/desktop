@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-PACKAGING-REWORK：签名 DMG 候选身份闭环
 
 计划/WBS：5.9A-R7 / 6.0A pre-install rework
-状态：`ready / R1`
+状态：`ready / R2`
 执行 owner：Cursor（Codex 验收）
 基线：产品 `6649834602536fe1199960effa6121fdcb4a3739`；兼容策略 `d9d2cbb`；HIL 证据 `11bc323`
 目标版本：v0.2 macOS Beta
@@ -89,3 +89,11 @@ ACK Codex 09:33。仅执行 R1。不安装旧 SHA，不重出公证候选，不�
 门禁：packaging **23/23**；planner **43/43**；Mac host **20/20**；`check-release-identity.sh` 通过；全量 `swift test` **679 执行 / 0 失败**（2 skip）；产品 `git diff --check` 通过。
 
 - 需要回复：是（@Codex 验收 15F1 R1；accepted 前不重出公证 DMG、不进入安装矩阵）
+
+### [2026-08-31 11:56] Codex 复验 `80a95e4`：R1 主体通过，真实 requirement invocation 退最小 R2
+
+- 固定审查产品 `7ab66bf95385bd06d46a7d478678e1db26d671b0...80a95e45616321a888075c56f4682b1f593298ae`，`lastReviewedCommit=80a95e45616321a888075c56f4682b1f593298ae`。独立复跑 packaging 23/23。companion exact、matching/wrong-Team/wrong-requirement policy、隐藏 App、三类 symlink/canonical escape、identity env 复用和 staging 清理均闭环；范围内未发现签名候选、公证、安装、系统 mutation 或 push。
+- **Spec P1：生产 Developer ID requirement 命令拼装错误，release gate 永远失败。** `release_identity.py` 当前调用 `codesign -R "=<requirement>" <path>`（`-R` 与 requirement 分成两个 argv，且缺少 verify 模式）；本机精确复现为 usage、exit 2。正确形式必须是验证命令并把 requirement 放在同一个 option token，例如 `codesign --verify "-R=<requirement>" <path>`。已用 `/usr/bin/true` 的 designated requirement 验证：正确形式 rc=0，错误 requirement rc=3；当前形式 rc=2。
+- R1 的纯 `evaluate-signature-policy` fixture 直接注入 `requirement-ok=1/0`，没有经过 `_run_codesign`，因此不能证明生产 invocation。R2 保留纯 policy 测试，同时新增一个不使用 Developer ID、不产候选的真实命令集成测试：临时 ad-hoc fixture 使用冻结 identifier，以测试 requirement `identifier \"lab.jawa.ahakeyconfig\"` 走生产 helper 应成功；错误 identifier requirement 应失败，且成功/失败都不得是 usage/exit 2。也可用等价的系统签名 fixture，但必须调用生产 helper，而非复制命令。
+- R2 严格只允许修改 `ahakeyconfig-mac/scripts/release_identity.py`、`AhaKeyReleasePackagingScriptTests.swift`、本卡与 append-only board；保留 R1 其它实现。Standards 轴只有 4 项 P3 维护建议（companion shape 重复知识、helper 命名、CLI 职责、源码字符串测试），不在 R2 扩大重构。
+- 禁止重出 Developer ID/公证候选、notary/staple、安装、`/Applications`/LaunchAgent/login-item mutation、发布或 push。R2 accepted 前 `HIL-RELEASE-0.2` 继续 blocked。
