@@ -86,6 +86,10 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
         XCTAssertTrue(FileManager.default.fileExists(atPath: layout.applicationsAppPath))
         XCTAssertFalse(FileManager.default.fileExists(atPath: layout.backupAppPath))
+        XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
+        XCTAssertFalse(outcome.snapshot.installedAppFingerprint.isEmpty)
+        XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
+        XCTAssertTrue(outcome.mutationReceipt.completedSteps.contains(.installApp))
     }
 
     func testLaunchdControlRefusesSystemMutationByDefault() {
@@ -208,6 +212,88 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         XCTAssertEqual(defaultSnap.previousAppIntegrity, .nonRestorable)
         XCTAssertFalse(defaultSnap.disabledOverrides.officialDisabled)
         XCTAssertFalse(defaultSnap.disabledOverrides.hilDisabled)
+    }
+
+    func testMacHostCustomIdentityInstallerRollsBackHilPlistAndOwner() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let custom = customTestIdentity()
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root, identity: custom)
+        XCTAssertTrue(layout.hilLaunchAgentPlistPath.hasSuffix("\(custom.hilLaunchdLabel).plist"))
+        XCTAssertNotEqual(
+            layout.hilLaunchAgentPlistPath,
+            AhaKeyReleaseInstallLayout.sandboxed(root: root).hilLaunchAgentPlistPath
+        )
+        try FileManager.default.createDirectory(atPath: layout.launchAgentsDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let previous = try makeAppFixture(in: root, name: "previous.app", marker: "old", identity: custom)
+        try FileManager.default.copyItem(atPath: previous.app, toPath: layout.applicationsAppPath)
+        try Data("custom-hil".utf8).write(to: URL(fileURLWithPath: layout.hilLaunchAgentPlistPath))
+        let candidates = (root as NSString).appendingPathComponent("Candidates")
+        try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
+        let fixture = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "new", identity: custom)
+        let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
+        system.loaded = [custom.hilLaunchdLabel]
+        system.disabled = [custom.agentLaunchdLabel]
+        let host = AhaKeyReleaseMacInstallHost(system: system, identity: custom)
+        XCTAssertEqual(host.identity, custom)
+        let outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: fixture.app),
+            host: host,
+            layout: layout,
+            identity: custom,
+            injectFailureAt: .writeLaunchAgent
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertFalse(outcome.failForwardPartial)
+        XCTAssertEqual(outcome.snapshot.loadedLaunchdLabels, [custom.hilLaunchdLabel])
+        XCTAssertTrue(outcome.snapshot.disabledOverrides.officialDisabled)
+        XCTAssertFalse(outcome.snapshot.disabledOverrides.hilDisabled)
+        XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
+        XCTAssertEqual(
+            try Data(contentsOf: URL(fileURLWithPath: layout.hilLaunchAgentPlistPath)),
+            Data("custom-hil".utf8)
+        )
+        XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
+        XCTAssertEqual(system.loaded, [custom.hilLaunchdLabel])
+        XCTAssertTrue(system.disabled.contains(custom.agentLaunchdLabel))
+    }
+
+    func testMacHostIdentityMismatchFailsClosedWithoutReplacingApp() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let custom = customTestIdentity()
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root, identity: custom)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let previous = try makeAppFixture(in: root, name: "previous.app", marker: "old")
+        try FileManager.default.copyItem(atPath: previous.app, toPath: layout.applicationsAppPath)
+        let candidates = (root as NSString).appendingPathComponent("Candidates")
+        try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
+        let fixture = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "new")
+        let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
+        let host = AhaKeyReleaseMacInstallHost(system: system, identity: .current)
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: fixture.app),
+                host: host,
+                layout: layout,
+                identity: custom
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.identityContextMismatch)
+            )
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: layout.applicationsAppPath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: layout.backupAppPath))
+        XCTAssertTrue(system.loaded.isEmpty)
     }
 
     func testMacHostNonRestorableUpgradeEnablesOfficialAndKeepsForensicBackup() throws {
@@ -680,6 +766,26 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("ahakey-5.9a-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url.path
+    }
+
+    private func customTestIdentity() -> AhaKeyReleaseIdentity {
+        let current = identity
+        return AhaKeyReleaseIdentity(
+            channel: current.channel,
+            productVersion: current.productVersion,
+            bundleIdentifier: current.bundleIdentifier,
+            signingIdentifier: current.signingIdentifier,
+            teamIdentifier: current.teamIdentifier,
+            appDisplayName: current.appDisplayName,
+            appBundleFileName: current.appBundleFileName,
+            executableName: current.executableName,
+            agentBinaryName: "custom-agent",
+            agentLaunchdLabel: "lab.test.custom.agent",
+            hilLaunchdLabel: "lab.test.custom.agent.hil",
+            machServiceName: current.machServiceName,
+            minimumDarwinMajor: current.minimumDarwinMajor,
+            minimumMacOSVersion: current.minimumMacOSVersion
+        )
     }
 
     private func makeAppFixture(

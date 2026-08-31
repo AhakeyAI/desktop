@@ -236,6 +236,10 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertTrue(outcome.loadedLaunchdLabels.isEmpty)
         XCTAssertEqual(host.preserved["/sandbox/Home/.claude/settings.json"], "hooks")
         XCTAssertNil(host.files[layout.launchAgentPlistPath])
+        XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .missing)
+        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, "")
+        XCTAssertFalse(outcome.snapshot.appInstalled)
+        XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
     }
 
     func testInjectedFailureDuringUpgradeRestoresPreviousOwner() throws {
@@ -608,6 +612,11 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertEqual(host.files[layout.launchAgentPlistPath], previousPlist)
         XCTAssertEqual(outcome.loadedLaunchdLabels, [identity.agentLaunchdLabel])
         XCTAssertNil(host.trees[layout.backupAppPath])
+        XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
+        XCTAssertFalse(outcome.completedSteps.contains(.installApp))
+        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, exactTree.sorted().joined(separator: ","))
+        XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
+        XCTAssertEqual(outcome.snapshot.loadedLaunchdLabels, [identity.agentLaunchdLabel])
     }
 
     func testFsyncAfterUninstallMoveRestoresExactAppTree() throws {
@@ -894,6 +903,12 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertTrue(visible.contains("exit 5"), visible)
         XCTAssertTrue(outcome.completedSteps.contains(.enable(label: identity.agentLaunchdLabel)))
         XCTAssertTrue(outcome.appInstalled)
+        XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
+        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, "new-binary")
+        XCTAssertEqual(outcome.snapshot.loadedLaunchdLabels, [identity.hilLaunchdLabel])
+        XCTAssertTrue(outcome.snapshot.disabledOverrides.officialDisabled)
+        XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
+        XCTAssertTrue(outcome.mutationReceipt.completedSteps.contains(.installApp))
     }
 
     func testNonRestorableCompensationWithoutUniqueOwnerIsBlockedWithBothErrors() throws {
@@ -1093,14 +1108,223 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         }
     }
 
+    func testIdentityMismatchFailsClosedWithZeroMutation() throws {
+        let custom = customTestIdentity()
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-binary"]
+        host.loaded = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("previous".utf8)
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout,
+                identity: custom
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.identityContextMismatch)
+            )
+        }
+        XCTAssertTrue(host.writes.isEmpty)
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], ["old-binary"])
+        XCTAssertEqual(host.loaded, [identity.agentLaunchdLabel])
+        XCTAssertTrue(host.enableCalls.isEmpty)
+        XCTAssertTrue(host.bootstrapCalls.isEmpty)
+        XCTAssertEqual(host.snapshotCount, 0)
+    }
+
+    func testHostIdentityMismatchFailsClosedWithZeroMutation() throws {
+        let custom = customTestIdentity()
+        let host = preparedHost()
+        host.identity = custom
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-binary"]
+        host.loaded = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("previous".utf8)
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.identityContextMismatch)
+            )
+        }
+        XCTAssertTrue(host.writes.isEmpty)
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], ["old-binary"])
+        XCTAssertEqual(host.loaded, [identity.agentLaunchdLabel])
+    }
+
+    func testCustomIdentityInstallerRollsBackOfficialAndHilPlistPaths() throws {
+        let custom = customTestIdentity()
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: "/sandbox", identity: custom)
+        XCTAssertTrue(layout.hilLaunchAgentPlistPath.hasSuffix("\(custom.hilLaunchdLabel).plist"))
+        XCTAssertFalse(layout.hilLaunchAgentPlistPath.contains(identity.hilLaunchdLabel))
+        XCTAssertEqual(layout.identity, custom)
+
+        let host = preparedHost(identity: custom)
+        host.trees[layout.applicationsAppPath] = ["old-binary"]
+        host.installedAppIntegrity = .verifiedRestorable
+        host.loaded = [custom.hilLaunchdLabel]
+        host.disabled = [custom.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("custom-official".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("custom-hil".utf8)
+
+        let outcome = try AhaKeyReleaseInstaller.run(
+            request: .upgrade(candidateAppPath: candidatePath()),
+            host: host,
+            layout: layout,
+            identity: custom,
+            injectFailureAt: .writeLaunchAgent
+        )
+        XCTAssertTrue(outcome.rolledBack)
+        XCTAssertFalse(outcome.failForwardPartial)
+        XCTAssertEqual(host.loaded, [custom.hilLaunchdLabel])
+        XCTAssertTrue(host.disabled.contains(custom.agentLaunchdLabel))
+        XCTAssertEqual(host.files[layout.hilLaunchAgentPlistPath], Data("custom-hil".utf8))
+        XCTAssertEqual(host.files[layout.launchAgentPlistPath], Data("custom-official".utf8))
+        XCTAssertEqual(host.trees[layout.applicationsAppPath], ["old-binary"])
+        XCTAssertEqual(outcome.snapshot.loadedLaunchdLabels, [custom.hilLaunchdLabel])
+        XCTAssertTrue(outcome.snapshot.disabledOverrides.officialDisabled)
+        XCTAssertFalse(outcome.snapshot.disabledOverrides.hilDisabled)
+        XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
+        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, "old-binary")
+        XCTAssertEqual(outcome.snapshot.loginItemRegistered, false)
+        XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
+    }
+
+    func testExactRollbackBrokenSealIsBlocked() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-binary"]
+        host.installedAppIntegrity = .verifiedRestorable
+        host.loaded = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("previous".utf8)
+        host.terminalIntegrityOverride = .nonRestorable
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout,
+                injectFailureAt: .writeLaunchAgent
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, let steps, let mutated, let snap, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("损坏密封必须 blocked，got \(error)")
+            }
+            XCTAssertEqual(original, .injectedFailure(.writeLaunchAgent))
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(mutated)
+            XCTAssertTrue(snap.appInstalled)
+            XCTAssertEqual(snap.previousAppIntegrity, .nonRestorable)
+            XCTAssertTrue(reason.lowercased().contains("integrity") || reason.lowercased().contains("tree"), reason)
+            XCTAssertFalse(steps.contains(.installApp) && !mutated)
+        }
+    }
+
+    func testExactRollbackWrongTreeIsBlocked() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-binary"]
+        host.installedAppIntegrity = .verifiedRestorable
+        host.loaded = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("previous".utf8)
+        host.terminalFingerprintOverride = "wrong-tree"
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout,
+                injectFailureAt: .writeLaunchAgent
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, _, let mutated, let snap, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("错树必须 blocked，got \(error)")
+            }
+            XCTAssertEqual(original, .injectedFailure(.writeLaunchAgent))
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(mutated)
+            XCTAssertEqual(snap.installedAppFingerprint, "wrong-tree")
+            XCTAssertTrue(reason.lowercased().contains("integrity") || reason.lowercased().contains("tree"), reason)
+        }
+    }
+
+    func testFailForwardBrokenCandidateSealIsBlocked() throws {
+        let host = preparedHost()
+        let layout = self.layout(root: "/sandbox")
+        host.trees[layout.applicationsAppPath] = ["old-broken"]
+        host.installedAppIntegrity = .nonRestorable
+        host.loaded = [identity.hilLaunchdLabel]
+        host.disabled = [identity.agentLaunchdLabel]
+        host.rejectReplaceFromBackup = true
+        host.failingBootstrapLabels = [identity.agentLaunchdLabel]
+        host.files[layout.launchAgentPlistPath] = Data("old-official".utf8)
+        host.files[layout.hilLaunchAgentPlistPath] = Data("hil-plist".utf8)
+        host.terminalIntegrityOverride = .nonRestorable
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidatePath()),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, _, let mutated, let snap, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("fail-forward 损坏候选必须 blocked，got \(error)")
+            }
+            guard case .hostFailure(let message) = original else {
+                return XCTFail("必须保留 bootstrap 原错，got \(String(describing: original))")
+            }
+            XCTAssertTrue(message.contains("launchctl bootstrap"), message)
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(mutated)
+            XCTAssertTrue(snap.appInstalled)
+            XCTAssertEqual(snap.previousAppIntegrity, .nonRestorable)
+            XCTAssertTrue(reason.lowercased().contains("integrity") || reason.lowercased().contains("verified"), reason)
+        }
+    }
+
     private func layout(root: String) -> AhaKeyReleaseInstallLayout {
         .sandboxed(root: root, identity: identity)
     }
 
-    private func preparedHost() -> FakeInstallHost {
+    private func customTestIdentity() -> AhaKeyReleaseIdentity {
+        let current = identity
+        return AhaKeyReleaseIdentity(
+            channel: current.channel,
+            productVersion: current.productVersion,
+            bundleIdentifier: current.bundleIdentifier,
+            signingIdentifier: current.signingIdentifier,
+            teamIdentifier: current.teamIdentifier,
+            appDisplayName: current.appDisplayName,
+            appBundleFileName: current.appBundleFileName,
+            executableName: current.executableName,
+            agentBinaryName: "custom-agent",
+            agentLaunchdLabel: "lab.test.custom.agent",
+            hilLaunchdLabel: "lab.test.custom.agent.hil",
+            machServiceName: current.machServiceName,
+            minimumDarwinMajor: current.minimumDarwinMajor,
+            minimumMacOSVersion: current.minimumMacOSVersion
+        )
+    }
+
+    private func preparedHost(identity: AhaKeyReleaseIdentity? = nil) -> FakeInstallHost {
         let host = FakeInstallHost()
+        let id = identity ?? self.identity
+        host.identity = id
         host.darwinMajor = 22
-        host.candidateReport = try? validCandidate()
+        host.candidateReport = try? validCandidate(identity: id)
         host.trees[candidatePath()] = ["new-binary"]
         return host
     }
@@ -1109,9 +1333,10 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         (root as NSString).appendingPathComponent("Candidates/candidate.app")
     }
 
-    private func validCandidate() throws -> AhaKeyReleaseCandidateReport {
+    private func validCandidate(identity: AhaKeyReleaseIdentity? = nil) throws -> AhaKeyReleaseCandidateReport {
+        let identity = identity ?? self.identity
         let plist = try identity.launchAgentPlist(
-            agentBinaryPath: "/candidate.app/Contents/MacOS/ahakeyconfig-agent",
+            agentBinaryPath: "/candidate.app/Contents/MacOS/\(identity.agentBinaryName)",
             socketPath: "/s",
             logPath: "/l"
         )
@@ -1138,6 +1363,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
 }
 
 private final class FakeInstallHost: AhaKeyReleaseInstallHost {
+    var identity = AhaKeyReleaseIdentity.current
     var darwinMajor = 22
     var loaded: Set<String> = []
     var loginItemRegistered = false
@@ -1153,6 +1379,7 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     var ignoreWrites = false
     var symlinks: [String: String] = [:]
     var installedAppIntegrity: AhaKeyReleasePreviousAppIntegrity = .verifiedRestorable
+    var integrityByPath: [String: AhaKeyReleasePreviousAppIntegrity] = [:]
     var disabled: Set<String> = []
     var enableError: AhaKeyReleaseInstallError?
     var failingBootstrapLabels: Set<String> = []
@@ -1164,25 +1391,49 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     var ignoredBootoutLabels: Set<String> = []
     var skippedBootstrapLabels: Set<String> = []
     var dropDisabledRestores = false
+    var snapshotCount = 0
+    var terminalIntegrityOverride: AhaKeyReleasePreviousAppIntegrity?
+    var terminalFingerprintOverride: String?
 
     func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
+        snapshotCount += 1
         var exists: [String: Bool] = [:]
         for path in layout.preservedPaths {
             exists[path] = preserved[path] != nil
         }
-        let identity = AhaKeyReleaseIdentity.current
+        var integrity = integrityAt(layout.applicationsAppPath)
+        var fingerprint = appFingerprint(at: layout.applicationsAppPath)
+        if snapshotCount > 1 {
+            if let terminalIntegrityOverride {
+                integrity = terminalIntegrityOverride
+            }
+            if let terminalFingerprintOverride {
+                fingerprint = terminalFingerprintOverride
+            }
+        }
         return AhaKeyReleaseHostSnapshot(
             darwinMajor: darwinMajor,
             appInstalled: itemExists(at: layout.applicationsAppPath),
             loadedLaunchdLabels: loaded,
             loginItemRegistered: loginItemRegistered,
             preservedPathExists: exists,
-            previousAppIntegrity: itemExists(at: layout.applicationsAppPath) ? installedAppIntegrity : .missing,
+            previousAppIntegrity: integrity,
             disabledOverrides: AhaKeyReleaseDisabledOverrideSnapshot(
                 officialDisabled: disabled.contains(identity.agentLaunchdLabel),
                 hilDisabled: disabled.contains(identity.hilLaunchdLabel)
-            )
+            ),
+            installedAppFingerprint: fingerprint
         )
+    }
+
+    func appFingerprint(at path: String) -> String {
+        guard let names = trees[path] else { return "" }
+        return names.sorted().joined(separator: ",")
+    }
+
+    private func integrityAt(_ path: String) -> AhaKeyReleasePreviousAppIntegrity {
+        guard itemExists(at: path) else { return .missing }
+        return integrityByPath[path] ?? installedAppIntegrity
     }
 
     func inspectCandidate(at appPath: String, identity: AhaKeyReleaseIdentity) throws -> AhaKeyReleaseCandidateReport {
@@ -1228,8 +1479,10 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         if let existing = trees[to] {
             trees[backup] = existing
+            integrityByPath[backup] = integrityByPath[to] ?? installedAppIntegrity
         }
         trees[to] = incoming
+        integrityByPath[to] = integrityByPath[from] ?? .verifiedRestorable
         trees[staging] = nil
         try AhaKeyReleaseMutationBoundary.afterCommit {
             if failAfterCommittedReplace {
@@ -1248,6 +1501,8 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         }
         trees[to] = incoming
         trees[from] = nil
+        integrityByPath[to] = integrityByPath[from] ?? installedAppIntegrity
+        integrityByPath[from] = nil
         try AhaKeyReleaseMutationBoundary.afterCommit {
             if failAfterCommittedMove {
                 failAfterCommittedMove = false
@@ -1259,6 +1514,7 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     func removeTree(_ path: String) throws {
         trees[path] = nil
         files[path] = nil
+        integrityByPath[path] = nil
     }
 
     func writeFile(at path: String, data: Data) throws {
@@ -1279,8 +1535,8 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
     func bootstrap(label: String, plistPath: String) throws {
         bootstrapCalls.append(label)
         if skippedBootstrapLabels.contains(label) { return }
-        if enableCalls.contains(AhaKeyReleaseIdentity.current.agentLaunchdLabel),
-           label == AhaKeyReleaseIdentity.current.agentLaunchdLabel {
+        if enableCalls.contains(identity.agentLaunchdLabel),
+           label == identity.agentLaunchdLabel {
             completedEnableBeforeBootstrap = true
         }
         if failingBootstrapLabels.contains(label) {

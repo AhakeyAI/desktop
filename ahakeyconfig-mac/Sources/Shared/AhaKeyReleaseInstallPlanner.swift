@@ -18,6 +18,8 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
     public let trustedRoots: [String]
     public var stagingAppPath: String
     public var rollbackScratchAppPath: String
+    /// 与 host / installer 入口同一份冻结 identity；HIL plist 路径必须由此生成。
+    public let identity: AhaKeyReleaseIdentity
 
     /// 产品调用方不能传入任意 `trustedRoots`；只允许下面两个 factory。
     private init(
@@ -33,7 +35,8 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         candidateAllowedRoots: [String] = [],
         trustedRoots: [String],
         stagingAppPath: String,
-        rollbackScratchAppPath: String
+        rollbackScratchAppPath: String,
+        identity: AhaKeyReleaseIdentity
     ) {
         self.applicationsAppPath = applicationsAppPath
         self.backupAppPath = backupAppPath
@@ -48,22 +51,23 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
         self.trustedRoots = trustedRoots
         self.stagingAppPath = stagingAppPath
         self.rollbackScratchAppPath = rollbackScratchAppPath
+        self.identity = identity
     }
 
     public var hilLaunchAgentPlistPath: String {
         (launchAgentsDirectory as NSString).appendingPathComponent(
-            "\(AhaKeyReleaseIdentity.current.hilLaunchdLabel).plist"
+            "\(identity.hilLaunchdLabel).plist"
         )
     }
 
-    public func plistPath(forLabel label: String, identity: AhaKeyReleaseIdentity = .current) -> String {
+    public func plistPath(forLabel label: String) -> String {
         if label == identity.hilLaunchdLabel {
             return hilLaunchAgentPlistPath
         }
         return launchAgentPlistPath
     }
 
-    public func managedPlistPaths(identity: AhaKeyReleaseIdentity = .current) -> [String] {
+    public func managedPlistPaths() -> [String] {
         [launchAgentPlistPath, hilLaunchAgentPlistPath]
     }
 
@@ -122,7 +126,8 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
                 (userConfig as NSString).deletingLastPathComponent,
             ],
             stagingAppPath: (applications as NSString).appendingPathComponent("\(identity.appBundleFileName).ahakey-staging"),
-            rollbackScratchAppPath: (applications as NSString).appendingPathComponent("\(identity.appBundleFileName).ahakey-rollback-scratch")
+            rollbackScratchAppPath: (applications as NSString).appendingPathComponent("\(identity.appBundleFileName).ahakey-rollback-scratch"),
+            identity: identity
         )
     }
 
@@ -156,7 +161,8 @@ public struct AhaKeyReleaseInstallLayout: Equatable, Sendable {
                 (home as NSString).appendingPathComponent("Library/Application Support"),
             ],
             stagingAppPath: "/Applications/\(identity.appBundleFileName).ahakey-staging",
-            rollbackScratchAppPath: "/Applications/\(identity.appBundleFileName).ahakey-rollback-scratch"
+            rollbackScratchAppPath: "/Applications/\(identity.appBundleFileName).ahakey-rollback-scratch",
+            identity: identity
         )
     }
 }
@@ -201,6 +207,7 @@ public struct AhaKeyReleaseHostSnapshot: Equatable, Sendable {
     public var preservedPathExists: [String: Bool]
     public var previousAppIntegrity: AhaKeyReleasePreviousAppIntegrity
     public var disabledOverrides: AhaKeyReleaseDisabledOverrideSnapshot
+    public var installedAppFingerprint: String
 
     public init(
         darwinMajor: Int,
@@ -209,7 +216,8 @@ public struct AhaKeyReleaseHostSnapshot: Equatable, Sendable {
         loginItemRegistered: Bool = false,
         preservedPathExists: [String: Bool] = [:],
         previousAppIntegrity: AhaKeyReleasePreviousAppIntegrity = .missing,
-        disabledOverrides: AhaKeyReleaseDisabledOverrideSnapshot = AhaKeyReleaseDisabledOverrideSnapshot()
+        disabledOverrides: AhaKeyReleaseDisabledOverrideSnapshot = AhaKeyReleaseDisabledOverrideSnapshot(),
+        installedAppFingerprint: String = ""
     ) {
         self.darwinMajor = darwinMajor
         self.appInstalled = appInstalled
@@ -218,6 +226,7 @@ public struct AhaKeyReleaseHostSnapshot: Equatable, Sendable {
         self.preservedPathExists = preservedPathExists
         self.previousAppIntegrity = appInstalled ? previousAppIntegrity : .missing
         self.disabledOverrides = disabledOverrides
+        self.installedAppFingerprint = appInstalled ? installedAppFingerprint : ""
     }
 }
 
@@ -233,6 +242,7 @@ public enum AhaKeyReleaseInstallRejection: Equatable, Error, Sendable {
     case identityRejected(AhaKeyReleaseSigningRejection)
     case systemMutationNotAllowed
     case ambiguousPreviousOwners(Set<String>)
+    case identityContextMismatch
 }
 
 public enum AhaKeyReleaseInstallStep: Equatable, Sendable {
@@ -287,17 +297,48 @@ public struct AhaKeyReleaseInstallPlan: Equatable, Sendable {
     public let hadPreviousApp: Bool
     public let previousAppIntegrity: AhaKeyReleasePreviousAppIntegrity
     public let previousDisabledOverrides: AhaKeyReleaseDisabledOverrideSnapshot
+    public let previousAppFingerprint: String
+    public let candidateAppFingerprint: String
+}
+
+public struct AhaKeyReleaseMutationReceipt: Equatable, Sendable {
+    public var appWasMutated: Bool
+    public var completedSteps: [AhaKeyReleaseInstallStep]
+
+    public init(appWasMutated: Bool, completedSteps: [AhaKeyReleaseInstallStep]) {
+        self.appWasMutated = appWasMutated
+        self.completedSteps = completedSteps
+    }
 }
 
 public struct AhaKeyReleaseInstallOutcome: Equatable, Sendable {
-    public let completedSteps: [AhaKeyReleaseInstallStep]
     public let rolledBack: Bool
     public let failForwardPartial: Bool
     public let originalApplyError: AhaKeyReleaseInstallError?
-    public let loadedLaunchdLabels: Set<String>
-    public let appInstalled: Bool
-    public let loginItemRegistered: Bool
+    public let snapshot: AhaKeyReleaseHostSnapshot
+    public let mutationReceipt: AhaKeyReleaseMutationReceipt
     public let preservedPaths: [String]
+
+    public var completedSteps: [AhaKeyReleaseInstallStep] { mutationReceipt.completedSteps }
+    public var loadedLaunchdLabels: Set<String> { snapshot.loadedLaunchdLabels }
+    public var appInstalled: Bool { snapshot.appInstalled }
+    public var loginItemRegistered: Bool { snapshot.loginItemRegistered }
+
+    public init(
+        rolledBack: Bool,
+        failForwardPartial: Bool,
+        originalApplyError: AhaKeyReleaseInstallError?,
+        snapshot: AhaKeyReleaseHostSnapshot,
+        mutationReceipt: AhaKeyReleaseMutationReceipt,
+        preservedPaths: [String]
+    ) {
+        self.rolledBack = rolledBack
+        self.failForwardPartial = failForwardPartial
+        self.originalApplyError = originalApplyError
+        self.snapshot = snapshot
+        self.mutationReceipt = mutationReceipt
+        self.preservedPaths = preservedPaths
+    }
 }
 
 public indirect enum AhaKeyReleaseInstallError: Error, Equatable {
@@ -328,8 +369,10 @@ public indirect enum AhaKeyReleaseInstallError: Error, Equatable {
 
 /// 安装器与测试共用的 host 缝：真实实现走文件原子替换 + 可注入 launchd；测试可完全内存化。
 public protocol AhaKeyReleaseInstallHost: AnyObject {
+    var identity: AhaKeyReleaseIdentity { get }
     func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot
     func inspectCandidate(at appPath: String, identity: AhaKeyReleaseIdentity) throws -> AhaKeyReleaseCandidateReport
+    func appFingerprint(at path: String) -> String
     func itemExists(at path: String) -> Bool
     func isSymlink(_ path: String) -> Bool
     func resolvedPath(_ path: String) -> String?
@@ -362,8 +405,12 @@ public enum AhaKeyReleaseInstallPlanner {
         candidate: AhaKeyReleaseCandidateReport? = nil,
         previousOwnerRecords: [AhaKeyReleaseOwnerRecord] = [],
         previousManagedPlists: [AhaKeyReleasePlistSnapshot] = [],
-        safety: AhaKeyReleaseInstallSafety = .sandboxOnly
+        safety: AhaKeyReleaseInstallSafety = .sandboxOnly,
+        candidateAppFingerprint: String = ""
     ) -> Result<AhaKeyReleaseInstallPlan, AhaKeyReleaseInstallRejection> {
+        if layout.identity != identity {
+            return .failure(.identityContextMismatch)
+        }
         if snapshot.darwinMajor < identity.minimumDarwinMajor {
             return .failure(.unsupportedMacOS(darwinMajor: snapshot.darwinMajor))
         }
@@ -406,7 +453,9 @@ public enum AhaKeyReleaseInstallPlanner {
                 previousLoginItemRegistered: snapshot.loginItemRegistered,
                 hadPreviousApp: snapshot.appInstalled,
                 previousAppIntegrity: snapshot.previousAppIntegrity,
-                previousDisabledOverrides: snapshot.disabledOverrides
+                previousDisabledOverrides: snapshot.disabledOverrides,
+                previousAppFingerprint: snapshot.installedAppFingerprint,
+                candidateAppFingerprint: ""
             ))
 
         case .install(let candidatePath), .upgrade(let candidatePath):
@@ -450,7 +499,9 @@ public enum AhaKeyReleaseInstallPlanner {
                 previousLoginItemRegistered: snapshot.loginItemRegistered,
                 hadPreviousApp: snapshot.appInstalled,
                 previousAppIntegrity: snapshot.previousAppIntegrity,
-                previousDisabledOverrides: snapshot.disabledOverrides
+                previousDisabledOverrides: snapshot.disabledOverrides,
+                previousAppFingerprint: snapshot.installedAppFingerprint,
+                candidateAppFingerprint: candidateAppFingerprint
             ))
         }
     }
@@ -466,6 +517,7 @@ public enum AhaKeyReleaseInstaller {
         safety: AhaKeyReleaseInstallSafety = .sandboxOnly,
         injectFailureAt: AhaKeyReleaseInstallStep? = nil
     ) throws -> AhaKeyReleaseInstallOutcome {
+        try requireUnifiedIdentity(host: host, layout: layout, identity: identity)
         do {
             try layout.validateTrustedPaths()
         } catch let violation as AhaKeyReleasePathViolation {
@@ -479,15 +531,16 @@ public enum AhaKeyReleaseInstaller {
         )
         var records: [AhaKeyReleaseOwnerRecord] = []
         for label in owners.sorted() {
-            let path = layout.plistPath(forLabel: label, identity: identity)
+            let path = layout.plistPath(forLabel: label)
             guard let data = host.readFile(at: path) else {
                 throw AhaKeyReleaseInstallError.rejected(.ambiguousPreviousOwners(owners))
             }
             records.append(AhaKeyReleaseOwnerRecord(label: label, plistPath: path, plist: data))
         }
-        let managedPlists = layout.managedPlistPaths(identity: identity).map { path in
+        let managedPlists = layout.managedPlistPaths().map { path in
             AhaKeyReleasePlistSnapshot(path: path, data: host.readFile(at: path))
         }
+        var candidateAppFingerprint = ""
         switch request {
         case .install(let path), .upgrade(let path):
             do {
@@ -495,6 +548,7 @@ public enum AhaKeyReleaseInstaller {
             } catch {
                 throw AhaKeyReleaseInstallError.rejected(.identityRejected(.candidateNotInspected))
             }
+            candidateAppFingerprint = host.appFingerprint(at: path)
         case .uninstall:
             break
         }
@@ -506,7 +560,8 @@ public enum AhaKeyReleaseInstaller {
             candidate: inspected,
             previousOwnerRecords: records,
             previousManagedPlists: managedPlists,
-            safety: safety
+            safety: safety,
+            candidateAppFingerprint: candidateAppFingerprint
         )
         switch planned {
         case .failure(let rejection):
@@ -524,6 +579,38 @@ public enum AhaKeyReleaseInstaller {
     }
 }
 
+private func requireUnifiedIdentity(
+    host: AhaKeyReleaseInstallHost,
+    layout: AhaKeyReleaseInstallLayout,
+    identity: AhaKeyReleaseIdentity
+) throws {
+    if host.identity != identity || layout.identity != identity {
+        throw AhaKeyReleaseInstallError.rejected(.identityContextMismatch)
+    }
+}
+
+private func makeInstallOutcome(
+    rolledBack: Bool,
+    failForwardPartial: Bool,
+    originalApplyError: AhaKeyReleaseInstallError?,
+    snapshot: AhaKeyReleaseHostSnapshot,
+    appWasMutated: Bool,
+    completedSteps: [AhaKeyReleaseInstallStep],
+    preservedPaths: [String]
+) -> AhaKeyReleaseInstallOutcome {
+    AhaKeyReleaseInstallOutcome(
+        rolledBack: rolledBack,
+        failForwardPartial: failForwardPartial,
+        originalApplyError: originalApplyError,
+        snapshot: snapshot,
+        mutationReceipt: AhaKeyReleaseMutationReceipt(
+            appWasMutated: appWasMutated,
+            completedSteps: completedSteps
+        ),
+        preservedPaths: preservedPaths
+    )
+}
+
 public enum AhaKeyReleaseInstallEngine {
     public static func apply(
         plan: AhaKeyReleaseInstallPlan,
@@ -533,6 +620,7 @@ public enum AhaKeyReleaseInstallEngine {
         safety: AhaKeyReleaseInstallSafety = .sandboxOnly,
         injectFailureAt: AhaKeyReleaseInstallStep? = nil
     ) throws -> AhaKeyReleaseInstallOutcome {
+        try requireUnifiedIdentity(host: host, layout: layout, identity: identity)
         do {
             try layout.validateTrustedPaths()
         } catch let violation as AhaKeyReleasePathViolation {
@@ -564,16 +652,18 @@ public enum AhaKeyReleaseInstallEngine {
                 host: host,
                 layout: layout,
                 identity: identity,
-                rolledBack: false
+                rolledBack: false,
+                originalApplyError: nil,
+                completed: completed,
+                appWasMutated: completed.contains(.installApp) || completed.contains(.removeApp)
             )
-            return AhaKeyReleaseInstallOutcome(
-                completedSteps: completed,
+            return makeInstallOutcome(
                 rolledBack: false,
                 failForwardPartial: false,
                 originalApplyError: nil,
-                loadedLaunchdLabels: snap.loadedLaunchdLabels,
-                appInstalled: snap.appInstalled,
-                loginItemRegistered: snap.loginItemRegistered,
+                snapshot: snap,
+                appWasMutated: completed.contains(.installApp) || completed.contains(.removeApp),
+                completedSteps: completed,
                 preservedPaths: plan.preservedPaths
             )
         } catch {
@@ -587,7 +677,8 @@ public enum AhaKeyReleaseInstallEngine {
                     host: host,
                     layout: layout,
                     identity: identity,
-                    appWasMutated: appWasMutated
+                    appWasMutated: appWasMutated,
+                    originalApplyError: originalError
                 )
             } catch let compensationError {
                 throw wrapCompensationFailure(
@@ -608,7 +699,10 @@ public enum AhaKeyReleaseInstallEngine {
                     layout: layout,
                     identity: identity,
                     rolledBack: compensationKind == .exactRollback,
-                    failForwardPartial: compensationKind == .failForwardPartial
+                    failForwardPartial: compensationKind == .failForwardPartial,
+                    originalApplyError: originalError,
+                    completed: completed,
+                    appWasMutated: appWasMutated
                 )
             } catch let verifyError {
                 throw wrapCompensationFailure(
@@ -621,26 +715,24 @@ public enum AhaKeyReleaseInstallEngine {
                 )
             }
             if compensationKind == .failForwardPartial {
-                return AhaKeyReleaseInstallOutcome(
-                    completedSteps: completed,
+                return makeInstallOutcome(
                     rolledBack: false,
                     failForwardPartial: true,
                     originalApplyError: originalError,
-                    loadedLaunchdLabels: snap.loadedLaunchdLabels,
-                    appInstalled: snap.appInstalled,
-                    loginItemRegistered: snap.loginItemRegistered,
+                    snapshot: snap,
+                    appWasMutated: appWasMutated,
+                    completedSteps: completed,
                     preservedPaths: plan.preservedPaths
                 )
             }
             if injectFailureAt != nil || isRecoverableMutationFailure(originalError) {
-                return AhaKeyReleaseInstallOutcome(
-                    completedSteps: completed,
+                return makeInstallOutcome(
                     rolledBack: true,
                     failForwardPartial: false,
                     originalApplyError: originalError,
-                    loadedLaunchdLabels: snap.loadedLaunchdLabels,
-                    appInstalled: snap.appInstalled,
-                    loginItemRegistered: snap.loginItemRegistered,
+                    snapshot: snap,
+                    appWasMutated: appWasMutated,
+                    completedSteps: completed,
                     preservedPaths: plan.preservedPaths
                 )
             }
@@ -671,7 +763,46 @@ public enum AhaKeyReleaseInstallEngine {
         layout: AhaKeyReleaseInstallLayout,
         identity: AhaKeyReleaseIdentity,
         rolledBack: Bool,
-        failForwardPartial: Bool = false
+        failForwardPartial: Bool = false,
+        originalApplyError: AhaKeyReleaseInstallError?,
+        completed: [AhaKeyReleaseInstallStep],
+        appWasMutated: Bool
+    ) throws {
+        do {
+            try verifyTerminalStateUnwrapped(
+                plan: plan,
+                snapshot: snapshot,
+                host: host,
+                layout: layout,
+                identity: identity,
+                rolledBack: rolledBack,
+                failForwardPartial: failForwardPartial,
+                originalApplyError: originalApplyError,
+                completed: completed,
+                appWasMutated: appWasMutated
+            )
+        } catch {
+            throw completeCompensationMismatch(
+                original: originalApplyError,
+                compensation: error,
+                completed: completed,
+                appWasMutated: appWasMutated,
+                snapshot: snapshot
+            )
+        }
+    }
+
+    private static func verifyTerminalStateUnwrapped(
+        plan: AhaKeyReleaseInstallPlan,
+        snapshot: AhaKeyReleaseHostSnapshot,
+        host: AhaKeyReleaseInstallHost,
+        layout: AhaKeyReleaseInstallLayout,
+        identity: AhaKeyReleaseIdentity,
+        rolledBack: Bool,
+        failForwardPartial: Bool,
+        originalApplyError: AhaKeyReleaseInstallError?,
+        completed: [AhaKeyReleaseInstallStep],
+        appWasMutated: Bool
     ) throws {
         let owners = AhaKeyReleaseInstallPlanner.competingLabels(
             in: snapshot.loadedLaunchdLabels,
@@ -684,11 +815,20 @@ public enum AhaKeyReleaseInstallEngine {
             if snapshot.loginItemRegistered != plan.previousLoginItemRegistered {
                 throw AhaKeyReleaseInstallError.terminalStateMismatch("loginItem mismatch")
             }
+            try verifyAppTerminal(
+                plan: plan,
+                snapshot: snapshot,
+                failForwardPartial: true,
+                rolledBack: false
+            )
             try verifyCompensationOwnersAndDisabled(
                 plan: plan,
                 snapshot: snapshot,
                 owners: owners,
-                requireUniqueOwner: true
+                requireUniqueOwner: true,
+                originalApplyError: originalApplyError,
+                completed: completed,
+                appWasMutated: appWasMutated
             )
             try verifyManagedPlists(plan.previousManagedPlists, host: host, asRollback: true)
             return
@@ -700,11 +840,20 @@ public enum AhaKeyReleaseInstallEngine {
             if snapshot.loginItemRegistered != plan.previousLoginItemRegistered {
                 throw AhaKeyReleaseInstallError.rollbackFailed("loginItem mismatch")
             }
+            try verifyAppTerminal(
+                plan: plan,
+                snapshot: snapshot,
+                failForwardPartial: false,
+                rolledBack: true
+            )
             try verifyCompensationOwnersAndDisabled(
                 plan: plan,
                 snapshot: snapshot,
                 owners: owners,
-                requireUniqueOwner: false
+                requireUniqueOwner: false,
+                originalApplyError: originalApplyError,
+                completed: completed,
+                appWasMutated: appWasMutated
             )
             try verifyManagedPlists(plan.previousManagedPlists, host: host, asRollback: true)
             return
@@ -720,7 +869,10 @@ public enum AhaKeyReleaseInstallEngine {
             if snapshot.loginItemRegistered {
                 throw AhaKeyReleaseInstallError.terminalStateMismatch("login item still registered after uninstall")
             }
-            for path in layout.managedPlistPaths(identity: identity) {
+            if snapshot.previousAppIntegrity != .missing || !snapshot.installedAppFingerprint.isEmpty {
+                throw AhaKeyReleaseInstallError.terminalStateMismatch("uninstall left a restorable or unidentified app tree")
+            }
+            for path in layout.managedPlistPaths() {
                 if host.readFile(at: path) != nil {
                     throw AhaKeyReleaseInstallError.terminalStateMismatch("managed plist remains at \(path)")
                 }
@@ -738,6 +890,98 @@ public enum AhaKeyReleaseInstallEngine {
             if host.readFile(at: layout.launchAgentPlistPath) != plan.launchAgentPlist {
                 throw AhaKeyReleaseInstallError.terminalStateMismatch("official plist mismatch after install")
             }
+            try verifyAppTerminal(
+                plan: plan,
+                snapshot: snapshot,
+                failForwardPartial: false,
+                rolledBack: false
+            )
+        }
+    }
+
+    private static func verifyAppTerminal(
+        plan: AhaKeyReleaseInstallPlan,
+        snapshot: AhaKeyReleaseHostSnapshot,
+        failForwardPartial: Bool,
+        rolledBack: Bool
+    ) throws {
+        if failForwardPartial {
+            if snapshot.previousAppIntegrity != .verifiedRestorable {
+                throw AhaKeyReleaseInstallError.terminalStateMismatch("fail-forward app is not a verified candidate")
+            }
+            if snapshot.installedAppFingerprint != plan.candidateAppFingerprint {
+                throw AhaKeyReleaseInstallError.terminalStateMismatch("fail-forward app tree mismatch")
+            }
+            return
+        }
+        if rolledBack {
+            if !plan.hadPreviousApp {
+                if snapshot.appInstalled
+                    || snapshot.previousAppIntegrity != .missing
+                    || !snapshot.installedAppFingerprint.isEmpty {
+                    throw AhaKeyReleaseInstallError.rollbackFailed("clean install rollback left an app")
+                }
+                return
+            }
+            if plan.previousAppIntegrity == .verifiedRestorable {
+                if snapshot.previousAppIntegrity != .verifiedRestorable {
+                    throw AhaKeyReleaseInstallError.rollbackFailed("restored app integrity failed")
+                }
+                if snapshot.installedAppFingerprint != plan.previousAppFingerprint {
+                    throw AhaKeyReleaseInstallError.rollbackFailed("restored app tree mismatch")
+                }
+            }
+            return
+        }
+        if snapshot.previousAppIntegrity != .verifiedRestorable {
+            throw AhaKeyReleaseInstallError.terminalStateMismatch("installed app integrity failed")
+        }
+        if snapshot.installedAppFingerprint != plan.candidateAppFingerprint {
+            throw AhaKeyReleaseInstallError.terminalStateMismatch("installed app tree mismatch")
+        }
+    }
+
+    private static func completeCompensationMismatch(
+        original: AhaKeyReleaseInstallError?,
+        compensation: Error,
+        completed: [AhaKeyReleaseInstallStep],
+        appWasMutated: Bool,
+        snapshot: AhaKeyReleaseHostSnapshot
+    ) -> AhaKeyReleaseInstallError {
+        let compensationError = asInstallError(compensation)
+        if case .blocked = compensationError {
+            return compensationError
+        }
+        guard let original else {
+            return compensationError
+        }
+        return .blocked(
+            originalApplyError: original,
+            compensationError: compensationError,
+            completedSteps: completed,
+            appWasMutated: appWasMutated,
+            snapshot: snapshot,
+            reason: compensationReason(compensationError)
+        )
+    }
+
+    private static func compensationReason(_ error: AhaKeyReleaseInstallError) -> String {
+        switch error {
+        case .dualOwnerRemaining:
+            return "compensation owner mismatch"
+        case .terminalStateMismatch(let message), .rollbackFailed(let message):
+            if message.lowercased().contains("disabled") {
+                return "compensation disabled override mismatch"
+            }
+            if message.lowercased().contains("unique owner") {
+                return "nonRestorable compensation cannot restore a unique owner"
+            }
+            if message.lowercased().contains("integrity") || message.lowercased().contains("tree") {
+                return "compensation app integrity mismatch"
+            }
+            return message
+        default:
+            return String(describing: error)
         }
     }
 
@@ -778,7 +1022,7 @@ public enum AhaKeyReleaseInstallEngine {
         case .restorePreviousLaunchAgent:
             try restoreManagedPlists(plan: plan, host: host, layout: layout)
         case .removeLaunchAgent:
-            for path in layout.managedPlistPaths(identity: identity) {
+            for path in layout.managedPlistPaths() {
                 if host.itemExists(at: path) {
                     try guardedRemove(path, host: host, layout: layout)
                 }
@@ -803,7 +1047,10 @@ public enum AhaKeyReleaseInstallEngine {
                 host: host,
                 layout: layout,
                 identity: identity,
-                rolledBack: false
+                rolledBack: false,
+                originalApplyError: nil,
+                completed: [],
+                appWasMutated: false
             )
         }
     }
@@ -1005,7 +1252,8 @@ public enum AhaKeyReleaseInstallEngine {
         let snap = (try? host.snapshot(layout: layout)) ?? AhaKeyReleaseHostSnapshot(
             darwinMajor: 0,
             appInstalled: host.itemExists(at: layout.applicationsAppPath),
-            loadedLaunchdLabels: []
+            loadedLaunchdLabels: [],
+            installedAppFingerprint: host.appFingerprint(at: layout.applicationsAppPath)
         )
         let compensationError = asInstallError(compensation)
         if case .blocked(let orig, let nested, _, _, let blockedSnap, let reason) = compensationError {
@@ -1041,9 +1289,9 @@ public enum AhaKeyReleaseInstallEngine {
         host: AhaKeyReleaseInstallHost,
         layout: AhaKeyReleaseInstallLayout,
         identity: AhaKeyReleaseIdentity,
-        appWasMutated: Bool
+        appWasMutated: Bool,
+        originalApplyError: AhaKeyReleaseInstallError
     ) throws -> CompensationKind {
-        _ = completed
         if try host.snapshot(layout: layout).loginItemRegistered != plan.previousLoginItemRegistered {
             if plan.previousLoginItemRegistered {
                 try host.registerLoginItem()
@@ -1110,7 +1358,10 @@ public enum AhaKeyReleaseInstallEngine {
                 plan: plan,
                 snapshot: snap,
                 owners: owners,
-                requireUniqueOwner: true
+                requireUniqueOwner: true,
+                originalApplyError: originalApplyError,
+                completed: completed,
+                appWasMutated: appWasMutated
             )
             return .failForwardPartial
         }
@@ -1121,38 +1372,62 @@ public enum AhaKeyReleaseInstallEngine {
         plan: AhaKeyReleaseInstallPlan,
         snapshot: AhaKeyReleaseHostSnapshot,
         owners: Set<String>,
-        requireUniqueOwner: Bool
+        requireUniqueOwner: Bool,
+        originalApplyError: AhaKeyReleaseInstallError?,
+        completed: [AhaKeyReleaseInstallStep],
+        appWasMutated: Bool
     ) throws {
         if requireUniqueOwner, owners.count != 1 {
-            throw AhaKeyReleaseInstallError.blocked(
-                originalApplyError: nil,
-                compensationError: .dualOwnerRemaining(owners),
-                completedSteps: [],
-                appWasMutated: true,
+            throw compensationMismatch(
+                original: originalApplyError,
+                compensation: .dualOwnerRemaining(owners),
+                completed: completed,
+                appWasMutated: appWasMutated,
                 snapshot: snapshot,
                 reason: "nonRestorable compensation cannot restore a unique owner"
             )
         }
         if owners != plan.previousOwnerLabels {
-            throw AhaKeyReleaseInstallError.blocked(
-                originalApplyError: nil,
-                compensationError: .dualOwnerRemaining(owners),
-                completedSteps: [],
-                appWasMutated: true,
+            throw compensationMismatch(
+                original: originalApplyError,
+                compensation: .dualOwnerRemaining(owners),
+                completed: completed,
+                appWasMutated: appWasMutated,
                 snapshot: snapshot,
                 reason: "compensation owner mismatch"
             )
         }
         if snapshot.disabledOverrides != plan.previousDisabledOverrides {
-            throw AhaKeyReleaseInstallError.blocked(
-                originalApplyError: nil,
-                compensationError: .terminalStateMismatch("disabled override mismatch"),
-                completedSteps: [],
-                appWasMutated: true,
+            throw compensationMismatch(
+                original: originalApplyError,
+                compensation: .terminalStateMismatch("disabled override mismatch"),
+                completed: completed,
+                appWasMutated: appWasMutated,
                 snapshot: snapshot,
                 reason: "compensation disabled override mismatch"
             )
         }
+    }
+
+    private static func compensationMismatch(
+        original: AhaKeyReleaseInstallError?,
+        compensation: AhaKeyReleaseInstallError,
+        completed: [AhaKeyReleaseInstallStep],
+        appWasMutated: Bool,
+        snapshot: AhaKeyReleaseHostSnapshot,
+        reason: String
+    ) -> AhaKeyReleaseInstallError {
+        if let original {
+            return .blocked(
+                originalApplyError: original,
+                compensationError: compensation,
+                completedSteps: completed,
+                appWasMutated: appWasMutated,
+                snapshot: snapshot,
+                reason: reason
+            )
+        }
+        return compensation
     }
 
     private static func restoreDisabledOverrides(

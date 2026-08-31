@@ -680,7 +680,7 @@ public enum AhaKeyReleaseMutationBoundary {
 public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     private let fileManager: FileManager
     private let system: AhaKeyReleaseSystemControl
-    private let identity: AhaKeyReleaseIdentity
+    public let identity: AhaKeyReleaseIdentity
     public var injectedDirectoryFsyncError: AhaKeyReleaseInstallError?
     public var injectedWriteFailure: AhaKeyReleaseWriteFailurePoint?
 
@@ -717,8 +717,16 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
             loginItemRegistered: system.loginItemRegistered,
             preservedPathExists: exists,
             previousAppIntegrity: classifyInstalledApp(at: layout.applicationsAppPath),
-            disabledOverrides: disabledOverrides(from: try system.disabledLaunchdLabels())
+            disabledOverrides: disabledOverrides(from: try system.disabledLaunchdLabels()),
+            installedAppFingerprint: appFingerprint(at: layout.applicationsAppPath)
         )
+    }
+
+    public func appFingerprint(at path: String) -> String {
+        guard fileManager.fileExists(atPath: path) else { return "" }
+        let macos = (path as NSString).appendingPathComponent("Contents/MacOS")
+        let names = (try? fileManager.contentsOfDirectory(atPath: macos))?.sorted() ?? []
+        return names.joined(separator: ",")
     }
 
     public func inspectCandidate(at appPath: String, identity: AhaKeyReleaseIdentity) throws -> AhaKeyReleaseCandidateReport {
