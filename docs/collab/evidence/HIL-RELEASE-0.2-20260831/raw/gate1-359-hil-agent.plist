@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>lab.jawa.ahakeyconfig.agent.hil</string>
+	<key>WorkingDirectory</key>
+	<string>/tmp/ahakey-hil-bin</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>NSUnbufferedIO</key>
+		<string>YES</string>
+	</dict>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/tmp/ahakey-hil-bin/ahakeyconfig-agent</string>
+		<string>--socket</string>
+		<string>/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock</string>
+	</array>
+	<key>MachServices</key>
+	<dict>
+		<key>lab.jawa.ahakeyconfig.runtime</key>
+		<true/>
+	</dict>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>KeepAlive</key>
+	<false/>
+	<key>StandardOutPath</key>
+	<string>/Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/agent-hil.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/agent-hil.log</string>
+</dict>
+</plist>

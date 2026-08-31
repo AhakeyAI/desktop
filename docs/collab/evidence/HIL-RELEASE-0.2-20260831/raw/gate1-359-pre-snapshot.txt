@@ -1,0 +1,117 @@
+===== TIME =====
+Mon Aug 31 21:50:17 +08 2026
+===== WHOAMI =====
+uid=501(heartline) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),79(_appserverusr),80(admin),81(_appserveradm),701(com.apple.sharepoint.group.1),33(_appstore),98(_lpadmin),100(_lpoperator),204(_developer),250(_analyticsusers),395(com.apple.access_ftp),398(com.apple.access_screensharing),399(com.apple.access_ssh),400(com.apple.access_remote_ae)
+===== DMG SHA =====
+9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26  /tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg
+expect=9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26
+sha_match=1
+-rw-r--r--@ 1 heartline  staff  13707354 Aug 31 21:24 /tmp/ahakey-hil-release-02-5c4f440/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.0-HIL-RELEASE-02-5c4f440.dmg
+===== APP TREE =====
+total 0
+drwxr-xr-x@  3 heartline  admin    96 Aug 31 12:13 .
+drwxrwxr-x  48 root       admin  1536 Aug 31 12:36 ..
+drwxr-xr-x@  6 heartline  staff   192 Aug 31 12:13 Contents
+0.2.0
+323
+lab.jawa.ahakeyconfig
+===== CODESIGN VERIFY APP =====
+app_verify_rc=0
+===== CODESIGN VERIFY AGENT =====
+agent_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== LEFTOVER BACKUP =====
+backup_exists=1
+drwxr-xr-x@ 3 heartline  admin  96 Aug 21 14:58 /Applications/AhaKey Studio.app.ahakey-backup
+0.1.0
+70
+===== LEFTOVER BACKUP VERIFY =====
+/Applications/AhaKey Studio.app.ahakey-backup: a sealed resource is missing or invalid
+backup_verify_rc=1
+===== STAGING/SCRATCH =====
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+staging_absent
+ls: /Applications/AhaKey Studio.app.ahakey-rollback-scratch: No such file or directory
+scratch_absent
+===== PLISTS =====
+-rw-r--r--@ 1 heartline  staff  1120 Aug 27 20:47 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+-rw-r--r--@ 1 heartline  staff   859 Aug 31 12:36 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+231d3ca155ad9888b5b2876f539aada5e8605666b16270473c109236a95c50f5  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+bb8df32368e672103e1632b74fbf14d36124eeaef5b61f77ac7709003f6ed923  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist
+===== LAUNCHCTL LIST =====
+6602	0	lab.jawa.ahakeyconfig.agent
+32442	0	application.lab.jawa.ahakeyconfig.52932056.52932062
+===== PRINT DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+===== PRINT OFFICIAL =====
+official_print_rc=0
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 6602
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+===== PRINT HIL =====
+hil_print_rc=113
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+===== LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app
+===== BLUETOOTH =====
+          AhaKey X1:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Product ID: 0x501A
+              Minor Type: Keyboard
+              Services: 0x400000 < BLE >
+          Keyboard K380:
+              Address: F4:73:35:AB:7C:32
+              Vendor ID: 0x046D
+              Product ID: 0xB342
+              Firmware Version: 66.0.1
+              Minor Type: Keyboard
+              Services: 0x800020 < HID ACL >
+          “尹朔”的鼠标:
+              Address: 10:94:BB:9F:36:3E
+              Vendor ID: 0x004C
+              Product ID: 0x0269
+              Firmware Version: 3.1.1
+              Minor Type: Mouse
+              Services: 0x800020 < HID ACL >
+      Not Connected:
+          AhaKey 507C:
+              Address: D4:6C:50:7C:C9:BC
+          AhaKey 515C:
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+          DJI Mic Mini-6D4A62:
+              Address: 88:29:85:6D:4A:62
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+          iKF-Fly Pro:
+              Address: F9:2D:6B:D7:44:FF
+              Firmware Version: 0.0.0
+              Minor Type: Headset
+          LOGI M240 B:
+              Address: DF:C3:DA:87:ED:D0
+              Minor Type: Mouse
+          qu的MacBook Pro:
+              Address: EF:9F:01:09:73:A5
+

@@ -1,0 +1,55 @@
+===== POST INSTALL Mon Aug 31 21:54:18 +08 2026 =====
+===== VERSION =====
+0.2.0
+359
+lab.jawa.ahakeyconfig
+===== CODESIGN =====
+app_verify_rc=0
+agent_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== BACKUP/STAGING =====
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+backup_removed
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+staging_absent
+===== LAUNCHCTL LIST =====
+72067	0	lab.jawa.ahakeyconfig.agent
+===== PRINT DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+===== PRINT OFFICIAL =====
+official_print_rc=0
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 72067
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+===== PRINT HIL =====
+hil_print_rc=113
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+===== PROCESSES =====
+72067 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+72173 tee /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-RELEASE-0.2-20260831/raw/gate1-359-post-install.txt
+===== LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app
+===== XPC CLIENT IDENTITY =====
+xpc_client_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== XPC POSITIVE =====
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_positive_rc=0

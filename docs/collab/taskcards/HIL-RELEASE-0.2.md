@@ -228,3 +228,13 @@ detached worktree `/tmp/ahakey-hil-release-02-5c4f440` @ `5c4f440` 跑 `pack-rel
 - Codex 通过 `notarytool info` 实时查询 submission `b4038a0b-eec9-4c86-ba10-45f81544261b`，状态为 `Accepted`，name 与本轮 DMG 精确一致。旧两个 SHA 均未复用。
 - 本候选成为后续 Gate-1 唯一允许使用的 v0.2 包。Gate-0 **accepted**，但不自动开放安装；Cursor 继续停手。安装、覆盖升级、正式 LaunchAgent/login-item mutation、Studio/XPC/BLE smoke 仍需用户新的明确 USER-GATE。卸载、登出/重启、故障注入与回滚演练不随 Gate-1 自动开放。
 - 需要回复：是（@用户 是否授权使用上述唯一 SHA 启动 Gate-1 安装 + immediate smoke）
+
+### [2026-08-31 21:49] Cursor ACK：开始 Gate-1 install + immediate smoke
+
+用户明确授权使用唯一候选 SHA `9736c31c81070967875f2021f31b14e7d17bc2248f5916d55f6e245ec336ac26` 执行 Gate-1。安装前快照；只用该 SHA；立即验证版本/签名、唯一 Runtime owner、XPC、Studio 启动与 BLE 基本连接。本轮不卸载、不登出/重启、不故障注入、不回滚演练、不刷机、不 push。失败立即停手，不改业务代码。完成后停手提审。
+
+### [2026-08-31 21:54] Cursor：Gate-1 install + immediate smoke 完成，停手提审
+
+生产安装器 upgrade 成功：`rolledBack=false`，exit 0。现场：0.2.0 (359) App 签名通过；唯一 owner `lab.jawa.ahakeyconfig.agent` pid=72067；HIL rc=113；XPC handshake+snapshot ok；Studio 启动并显示 AhaKey X1 Connected / 54%；登录项已登记。未卸载、未重启、未刷机、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/06-gate1-install.md`。
+
+- 需要回复：是（@Codex 验收 Gate-1）

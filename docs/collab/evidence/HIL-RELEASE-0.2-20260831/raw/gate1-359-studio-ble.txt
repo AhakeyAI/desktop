@@ -1,0 +1,105 @@
+===== STUDIO LAUNCH Mon Aug 31 21:54:41 +08 2026 =====
+72303 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+AhaKeyConfig
+AhaKey Studio, 212, 482, 1180, 712
+window_id=none
+===== BLE AFTER STUDIO Mon Aug 31 21:54:48 +08 2026 =====
+--- raw ahaKey/07D7 lines with 8 lines context ---
+          Transport: PCIe
+          Vendor ID: 0x004C (Apple)
+      Connected:
+          AhaKey X1:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Product ID: 0x501A
+              Minor Type: Keyboard
+              Services: 0x400000 < BLE >
+          Keyboard K380:
+              Address: F4:73:35:AB:7C:32
+---
+          Vendor ID: 0x004C (Apple)
+      Connected:
+          AhaKey X1:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Product ID: 0x501A
+              Minor Type: Keyboard
+              Services: 0x400000 < BLE >
+          Keyboard K380:
+              Address: F4:73:35:AB:7C:32
+              Vendor ID: 0x046D
+---
+      Connected:
+          AhaKey X1:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Product ID: 0x501A
+              Minor Type: Keyboard
+              Services: 0x400000 < BLE >
+          Keyboard K380:
+              Address: F4:73:35:AB:7C:32
+              Vendor ID: 0x046D
+              Product ID: 0xB342
+---
+              Minor Type: Mouse
+              Services: 0x800020 < HID ACL >
+      Not Connected:
+          AhaKey 507C:
+              Address: D4:6C:50:7C:C9:BC
+          AhaKey 515C:
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+---
+              Services: 0x800020 < HID ACL >
+      Not Connected:
+          AhaKey 507C:
+              Address: D4:6C:50:7C:C9:BC
+          AhaKey 515C:
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+---
+      Not Connected:
+          AhaKey 507C:
+              Address: D4:6C:50:7C:C9:BC
+          AhaKey 515C:
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+---
+          AhaKey 507C:
+              Address: D4:6C:50:7C:C9:BC
+          AhaKey 515C:
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+---
+              Address: D4:6C:50:7C:C9:BC
+          AhaKey 515C:
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+          DJI Mic Mini-6D4A62:
+---
+===== HID KEYBOARD =====
+no_usb_ahakey

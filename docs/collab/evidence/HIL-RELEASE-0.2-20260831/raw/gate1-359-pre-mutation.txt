@@ -1,0 +1,11 @@
+===== PRE-INSTALL PATH CLEAR Mon Aug 31 21:53:43 +08 2026 =====
+Relocate leftover 0.1.0 .ahakey-backup so R5 installer can snapshot current restorable 323 App.
+Preserve leftover; do not delete.
+relocated_to=/tmp/ahakey-hil-gate1-359-rollback/AhaKey-Studio.app.ahakey-backup-leftover-0.1.0
+drwxr-xr-x@ 3 heartline  admin  96 Aug 21 14:58 /tmp/ahakey-hil-gate1-359-rollback/AhaKey-Studio.app.ahakey-backup-leftover-0.1.0
+backup_path_clear=1
+===== QUIT STUDIO GUI =====
+studio_not_running
+studio_quit=1
+agent_still:
+6602 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
