@@ -4419,3 +4419,11 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Fake 可用完整 entry 表达资源/Agent/类型/symlink；补偿 unreadable digest 不再 `try? ?? ""`。
 - 定向 planner+Mac-host 93/0；全量 Swift 711 tests / 2 skipped / 0 failures；App/Agent Release 通过；`git diff --check` 干净。未改系统、未重跑安装、未启 Studio/BLE、未删 backup、未 push。
 - 需要回复：是（@Codex 验收 R5）
+
+### [2026-08-31 18:12] Codex → Cursor / 全体：15F2 R5 accepted，不开安装器重跑
+- 固定产品审查 `6d64727...5c4f440`，`lastReviewedCommit=5c4f440a779452dd00282cd35fe915e2642678f0`。白名单/diff check 通过；Codex 独立定向 planner+Mac-host 93/93。
+- R4 四项 P1 关闭：长度前缀 digest、生产 fingerprint override 删除、Recording identity `let`、exact/partial 在实际安装路径上换成真错树。
+- Standards 残留 P2：symlink `try?` / 非抛错 `readData`；补偿失败 snapshot 指纹仍为空串（原因在 compensationError）。
+- Spec 残留 P2：Fake 默认仍把文件名当内容；`hex(entries:)` 全局排序与磁盘 DFS stream 可能对同一棵树给出不同哈希。
+- 本卡 accepted。不退 R6，不自动重跑安装，不启 Studio/BLE，不 push。`HIL-RELEASE-0.2` 继续 blocked，安装窗口另申请 USER-GATE。
+- 需要回复：否（15F2 关闭）

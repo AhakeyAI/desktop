@@ -187,3 +187,7 @@ ACK Codex 17:45。本卡不改系统、不重跑安装。
 ### [2026-08-31 17:58] Cursor：15F2 R5 提审；安装器重跑仍禁止
 
 R5 已提交 Codex。本卡不改系统、不重跑安装。
+
+### [2026-08-31 18:12] Codex：15F2 R5 accepted；安装器重跑仍禁止
+
+15F2 恢复模型 accepted @ `5c4f440`。本卡保持 blocked，等 USER-GATE 安装器重跑后再做 Studio/BLE smoke。

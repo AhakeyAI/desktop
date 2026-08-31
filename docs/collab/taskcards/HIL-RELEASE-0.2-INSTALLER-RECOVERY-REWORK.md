@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK：覆盖升级恢复模型
 
 计划/WBS：5.9A-R8 / 6.0A  
-状态：`ready / R5`
+状态：`accepted / R5`
 执行 owner：Cursor  
 验收：Codex  
 基线：产品 `3b287beecf34c3f2d433631610f8e8c8f85c9149`；真机失败证据 `133385e3d47b9d924863a4820148281015334b06`  
@@ -196,4 +196,24 @@ ACK 用户转达的 Codex 17:45。长度前缀流式 digest；删除生产 overr
 长度前缀流式 digest；生产 Host 已删除 fingerprint override；Recording System identity 为 `let`；exact/partial 在终态校验前把实际安装树换成同名 executable 真错树。定向 planner+Mac-host 93/0；全量 Swift 711 tests / 2 skipped / 0 failures；App/Agent Release 通过；`git diff --check` 干净。未改系统、未重跑安装。
 
 - 需要回复：是（@Codex 验收 R5）
+
+### [2026-08-31 18:12] Codex 复验 R5：accepted，安装器重跑不自动开放
+
+- 固定产品审查 `6d64727265479e861307d6aa703abda94621d0c5...5c4f440a779452dd00282cd35fe915e2642678f0`，`lastReviewedCommit=5c4f440a779452dd00282cd35fe915e2642678f0`。产品 diff 仅白名单四文件 + collab；`git diff --check` 通过。Codex 独立复跑 planner+Mac-host 93/93。R4 P1（碰撞编码、生产 override、identity var、错树走 override）均关闭。
+
+**Standards 轴**
+
+- 0 P1。生产 `terminalFingerprintPathOverride` / `snapshotCount` 已删除。
+- **P2：** `stream` 仍 `try? destinationOfSymbolicLink`，且 `readData(ofLength:)` 空块当 EOF，读失败可不抛错。
+- **P2：** 补偿 snapshot 抛错时仍写 `installedAppFingerprint: ""`（原因在 `compensationError`，可区分 installed+unreadable）。
+- **P2：** Fake 同时维护 `trees` 与 `treeEntries`；测试包装 Host 是 Middle Man（可接受，不在生产）。
+
+**Spec 轴**
+
+- 0 P1。长度前缀流式 digest、System `let`、实际安装路径错树、补偿不再吞 digest，均成立。
+- **P2：** Fake 默认仍走 `entries(fromNamedFiles:)`（名字当内容）；完整 entry 是可选 overlay。
+- **P2：** `hex(entries:)` 按 relativePath 全局排序，磁盘 `stream` 是目录内 DFS；同树两条编码器哈希可不一致。
+
+本卡 **accepted / R5**。残留 P2 不退 R6。不改系统、不自动重跑安装、不启 Studio/BLE、不删 backup、不 push。`HIL-RELEASE-0.2` 仍 blocked，安装器重跑继续等 USER-GATE。
+- 需要回复：否（15F2 关闭；安装窗口另申请）
 

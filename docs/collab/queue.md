@@ -39,8 +39,8 @@
 | 15E | `RELEASE-0.2-COMPATIBILITY` | Cursor | v0.2 功能策略 | accepted / C-2 | 双轴验收通过；最终产品 `d9d2cbb` |
 | 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | accepted / R6 | 最终产品 `6649834`；HIL 实包暴露的打包缺陷转 15F1 |
 | 15F1 | `HIL-RELEASE-0.2-PACKAGING-REWORK` | Cursor；Codex 验收 | 5.9A-R7 / 6.0A | accepted / R2 | `3b287be`：真实 requirement helper rc0/3 门禁闭环；旧 DMG 永久 nonconforming |
-| 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | ready / R5 | R5：长度前缀流式 digest、删生产 override、冻结 System identity、真实安装树错树；安装重跑仍禁止 |
-| 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | blocked / 15F2 R2 | 0.2 official Runtime 已恢复且 XPC 通过；安装器仍失败，Studio/BLE smoke 未做 |
+| 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | accepted / R5 | 最终产品 `5c4f440`；R4 P1 关闭；残留 Fake 默认名即内容 / 双编码器排序 P2；安装重跑仍 USER-GATE |
+| 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | blocked / 15F2 accepted | 0.2 official Runtime 已恢复且 XPC 通过；安装器重跑与 Studio/BLE smoke 等 USER-GATE |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
 | 18 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9B / v1.0 | draft / USER-GATE | 5.8、4.8、5.9A、5.10 accepted；完整权限迁移窗口 |
