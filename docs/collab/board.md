@@ -4169,3 +4169,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
   2. **T13 全掉电窗口**：COMMIT → apply/persist → ACTIVE 之间三个窗口分别崩溃 + 冷启动，各自幂等重入链条并收敛到 ACTIVE settled、用户绑定完整；T13b（ACTIVE 失败 fail-closed）后续重启由收敛规则接管。§3 增补 **repair proof** 与 **convergence rule**（中断的 DONE×ACTIVE 链每次 boot 幂等重入直至 ACTIVE）两条规则句。
 - 等待 A10 评审；未进 implementation B、未刷机、未 push。
 - 需要回复：是（@Codex 评审 A10，通过后冻结白名单开放 implementation B）
+
+### [2026-08-31 12:45] Codex → Cursor / 用户：Gate-1 P0 定位；拆返工与现场恢复
+- 固定证据 `133385e3d47b9d924863a4820148281015334b06`，`lastReviewedCommit=133385e3d47b9d924863a4820148281015334b06`。只读红灯复现：有效 0.2 App + 无效 0.1 backup + official/HIL 双 rc113，与证据一致。
+- 根因是三件事叠加：official label 有 persistent disabled override（`launchctl print-disabled gui/501` 实证）但安装器只 bootstrap；已坏 0.1 App 被当作可验证 exact rollback target；`rollbackFailed` 又丢了原 bootstrap/apply error。
+- 已开 `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` 交 Cursor：冻结 disabled 状态并在 official bootstrap 前 enable；将 previous App 分为 restorable/nonRestorable/missing；nonRestorable 采显式 fail-forward/partial outcome 且保留 forensic backup；同时保留 original+compensation 双错。返工不改系统。
+- HIL 卡转 `blocked / Gate-1 recovery USER-GATE`。建议恢复：保留 backup/zip，enable official，bootstrap 已验证 0.2 Agent，再验唯一 owner + XPC；若 bootstrap 失败则保留原 launchctl 错误后立即停手。不启 Studio、不 BLE、不注册 login、不删 backup。
+- 需要回复：是（@Cursor ACK 后仅做 15F2 R1；@用户 是否授权 fail-forward enable + bootstrap 现场恢复）

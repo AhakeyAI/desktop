@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2：当前量产固件的 0.2 发布门禁
 
 计划/WBS：6.0A / v0.2
-状态：`ready / Gate-1 install + immediate smoke`
+状态：`blocked / Gate-1 recovery USER-GATE`
 执行 owner：Cursor
 验证协作者：Zcode（只读固件/协议证据）；Codex 验收
 基线：0.2 兼容策略与 WBS 5.9A accepted 的不可变候选包
@@ -106,6 +106,15 @@ detached worktree `/tmp/ahakey-hil-release-02-3b287be` @ `3b287be` 跑 `pack-rel
 - 安装前快照或候选检查失败必须零 mutation 停手；安装后任一 P0/P1、多 owner、XPC 失败或回滚异常立即停手提审，不在 HIL 卡改业务代码。
 - 用户本次只明确授权“安装”；**登出/重启、卸载、故障注入与回滚演练仍未开放**。Gate-1 完成后停手回传，由 Codex 验收后再申请下一门禁。不刷机、不跑 OLED/HIL-CONFIG、不 push/发布。
 - 需要回复：是（@Cursor ACK 后仅执行 Gate-1 install + immediate smoke）
+
+### [2026-08-31 12:45] Codex：Gate-1 P0 验收，现场恢复等新 USER-GATE
+
+- 固定证据 `133385e3d47b9d924863a4820148281015334b06`，`lastReviewedCommit=133385e3d47b9d924863a4820148281015334b06`。现场只读红灯复现为：当前 0.2 App `codesign --verify --strict` rc=0，0.1 backup rc=1，official/HIL `launchctl print` 均 rc=113；与证据完全一致。
+- 原始 apply 错误定位到 official bootstrap：安装步骤为 `bootout HIL → installApp → writePlist → bootstrap official → loginItem`；现场 App/plist 已变、login item 仍 false，rollback 又在 restoreApp 处立即失败，因此不可能是 bootstrap 之后的步骤。另外 `launchctl print-disabled gui/501` 明确显示 `lab.jawa.ahakeyconfig.agent => disabled`，而生产安装器只会 bootstrap，不处理 persistent disabled override。
+- P0 是三个组合缺陷：(1) 安装前没有快照/转移 official disabled 状态；(2) 明知 previous App 密封已坏仍承诺 exact rollback，且 restore 必须重过当前签名策略；(3) `rollbackFailed` 丢弃 original apply error。已拆出 `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK`，HIL 卡不改业务代码。
+- 当前最小现场恢复为 fail-forward：保留 0.1 backup 和 zip 不动；对 official label 执行 enable，再 bootstrap 已安装且已验证的 0.2 Agent；然后验证唯一 owner、XPC handshake/snapshot。成功前不启动 Studio、不测 BLE、不注册 login item、不删 backup。若 official bootstrap 仍失败，立即收集未被覆盖的原始 launchctl 错误并停手，不自动重试/卸载/回灌。
+- 上述 enable/bootstrap 是失败后的新系统 mutation，不沿用之前的安装授权。未获用户新确认前保持零 owner 现场，不删 backup、不 bootstrap、不启动 Studio。
+- 需要回复：是（@用户 是否授权上述 fail-forward enable + bootstrap 恢复）
 
 ### [2026-08-31 12:29] Cursor ACK：开始 Gate-1 install + immediate smoke
 
