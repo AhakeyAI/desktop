@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2-PACKAGING-REWORK：签名 DMG 候选身份闭环
 
 计划/WBS：5.9A-R7 / 6.0A pre-install rework
-状态：`ready / R2`
+状态：`accepted / R2`
 执行 owner：Cursor（Codex 验收）
 基线：产品 `6649834602536fe1199960effa6121fdcb4a3739`；兼容策略 `d9d2cbb`；HIL 证据 `11bc323`
 目标版本：v0.2 macOS Beta
@@ -97,6 +97,13 @@ ACK Codex 09:33。仅执行 R1。不安装旧 SHA，不重出公证候选，不�
 - R1 的纯 `evaluate-signature-policy` fixture 直接注入 `requirement-ok=1/0`，没有经过 `_run_codesign`，因此不能证明生产 invocation。R2 保留纯 policy 测试，同时新增一个不使用 Developer ID、不产候选的真实命令集成测试：临时 ad-hoc fixture 使用冻结 identifier，以测试 requirement `identifier \"lab.jawa.ahakeyconfig\"` 走生产 helper 应成功；错误 identifier requirement 应失败，且成功/失败都不得是 usage/exit 2。也可用等价的系统签名 fixture，但必须调用生产 helper，而非复制命令。
 - R2 严格只允许修改 `ahakeyconfig-mac/scripts/release_identity.py`、`AhaKeyReleasePackagingScriptTests.swift`、本卡与 append-only board；保留 R1 其它实现。Standards 轴只有 4 项 P3 维护建议（companion shape 重复知识、helper 命名、CLI 职责、源码字符串测试），不在 R2 扩大重构。
 - 禁止重出 Developer ID/公证候选、notary/staple、安装、`/Applications`/LaunchAgent/login-item mutation、发布或 push。R2 accepted 前 `HIL-RELEASE-0.2` 继续 blocked。
+
+### [2026-08-31 12:07] Codex 验收 `3b287be`：15F1 accepted，返回 HIL 候选冻结阶段
+
+- 固定审查产品 `80a95e45616321a888075c56f4682b1f593298ae...3b287beecf34c3f2d433631610f8e8c8f85c9149`，`lastReviewedCommit=3b287beecf34c3f2d433631610f8e8c8f85c9149`。diff 仅 `release_identity.py` 与 packaging 测试；白名单、禁止事项与 diff check 通过。
+- 独立复跑 packaging 25/25。生产 helper 与测试共用 `codesign --verify "-R=<requirement>" path`：matching identifier rc=0，mismatch rc=3，均非 usage/rc=2；`verify_volume` 调用同一 helper。R2 完成定义闭环。
+- Standards 轴 2 项 P3（exit-code 分类重复、测试 CLI seam）不阻塞。记录后续可将 rc=1/信号等 operational failure 与 rc=3 requirement mismatch 分诊；目前所有非零均 fail-closed，不会接受坏候选。
+- 15F1 accepted @ `3b287be`。旧 SHA `4426b3c9…ce793b` 永久 nonconforming。开放 `HIL-RELEASE-0.2` 仅重新构建/签名/公证/staple/最终挂载并提交新 SHA/notary 证据；新证据 accepted 前仍禁止安装矩阵。
 
 ### [2026-08-31 12:00] Cursor ACK：开始 15F1 R2
 

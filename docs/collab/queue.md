@@ -38,8 +38,8 @@
 | 15D | `STUDIO-OLED-ENCODE-AND-PARTIAL-APPLY` | Cursor | HIL C1 编辑/受理缺口 | accepted / E-1 | 双轴 0 findings；最终产品 `dccfc39`；HIL-E1 归 v0.3 |
 | 15E | `RELEASE-0.2-COMPATIBILITY` | Cursor | v0.2 功能策略 | accepted / C-2 | 双轴验收通过；最终产品 `d9d2cbb` |
 | 15F | `WBS-5.9A-BETA-INSTALLER` | Cursor | 5.9A / v0.2 | accepted / R6 | 最终产品 `6649834`；HIL 实包暴露的打包缺陷转 15F1 |
-| 15F1 | `HIL-RELEASE-0.2-PACKAGING-REWORK` | Cursor；Codex 验收 | 5.9A-R7 / 6.0A | ready / R2 | `80a95e4` R1 主体通过；修正真实 codesign requirement invocation 并补生产 helper 集成测试 |
-| 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | blocked / P0 packaging | 15F1 accepted 后重新冻结公证候选；新证据 accepted 前不得安装 |
+| 15F1 | `HIL-RELEASE-0.2-PACKAGING-REWORK` | Cursor；Codex 验收 | 5.9A-R7 / 6.0A | accepted / R2 | `3b287be`：真实 requirement helper rc0/3 门禁闭环；旧 DMG 永久 nonconforming |
+| 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | ready / candidate refreeze | 基于 `3b287be` 重出签名公证候选并提新 SHA/notary/挂载证据；accepted 前不安装 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
 | 18 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9B / v1.0 | draft / USER-GATE | 5.8、4.8、5.9A、5.10 accepted；完整权限迁移窗口 |
