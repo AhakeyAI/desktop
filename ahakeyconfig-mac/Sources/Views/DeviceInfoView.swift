@@ -165,7 +165,7 @@ struct DeviceInfoView: View {
                 Text(NSLocalizedString("LED 状态同步 · Hook 联动", comment: ""))
             } footer: {
                 if !agentManager.isAgentBinaryPresentInBundle {
-                    Text(NSLocalizedString("发版包内未包含 ahakeyconfig-agent，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。", comment: ""))
+                    Text(NSLocalizedString("发版包内未包含后台服务可执行文件，无法使用 AhaKey Runtime。请用完整「AhaKey Studio.app」或联系开发者。", comment: ""))
                         .foregroundStyle(.orange)
                 }
             }
@@ -178,7 +178,7 @@ struct DeviceInfoView: View {
                         Button(NSLocalizedString("关闭", comment: "")) { showAgentLog = false }
                     }
                     Picker(NSLocalizedString("内容", comment: ""), selection: $agentLogPanel) {
-                        Text(NSLocalizedString("ahakeyconfig-agent 主日志", comment: "")).tag(0)
+                        Text(NSLocalizedString("AhaKey Runtime 主日志（兼容标识：ahakeyconfig-agent）", comment: "")).tag(0)
                         Text(NSLocalizedString("工具批准（permission-request.log）", comment: "")).tag(1)
                         Text("~/.cursor/hooks.json").tag(2)
                         Text("~/.cursor/cli-config.json").tag(3)

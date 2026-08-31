@@ -1139,7 +1139,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 if let s = body["switchState"] as? Int, s != 0 {
                     self.emit(NSLocalizedString("（拨杆非 0：PermissionRequest 将交回终端手动确认）", comment: ""))
                 } else if body["switchState"] is NSNull {
-                    self.emit(NSLocalizedString("（switchState 缺省：批准链可能仍交回手动；请把「蓝牙」交给 Agent 并连上键盘。）", comment: ""))
+                    self.emit(NSLocalizedString("（switchState 缺省：批准链可能仍交回手动；请确认 AhaKey Runtime 已连接键盘。）", comment: ""))
                 }
                 Self.replyAndClose(clientFd, body)
             }

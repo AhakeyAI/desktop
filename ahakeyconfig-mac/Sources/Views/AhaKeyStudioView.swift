@@ -33,8 +33,6 @@ struct AhaKeyStudioView: View {
     /// 最近一次设备写入中失败的任务图描述。非空表示部分成功：键位/灯效已保存，仅这些图需重试。
     @State private var lastTaskUploadFailures: [String] = []
     @State private var deviceWriteTask: Task<Void, Never>?
-    // 过渡期：保持「已连接」显示，直到 Runtime 快照对齐或超时。
-    @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
     @State private var oledPlaybackPreviewPath: String?
     @State private var selectedOLEDGIFSet = 0
@@ -50,7 +48,7 @@ struct AhaKeyStudioView: View {
     @State private var showsDiagnostics = false
     @State private var showsKeyHelp = false
     @State private var selectedTriggerTab: Int = 0
-    /// 每次主 App 自占 BLE 连接成功只跑一次默认 LCD 自动同步。
+    /// 每次 Runtime 连接成功只跑一次默认 LCD 自动同步。
     /// .onChange(of: isConnected) 在断开时重置；下次重连时再触发一次。
     @State private var oledAutoSyncDoneForConnection: Bool = false
     @State private var showsHelpCenter = false
@@ -1994,9 +1992,9 @@ struct AhaKeyStudioView: View {
         runtimeStore.isConfigurationReady
     }
 
-    // Runtime 快照里设备已连接即视为已连接（BLE/USB 均由 Runtime/Agent 持有）。
+    // Runtime 快照里设备已连接即视为已连接（BLE/USB 均由 Runtime 持有）。
     private var isEffectivelyConnected: Bool {
-        runtimeStore.isConnected || isTransitioningToKeyboardControl
+        runtimeStore.isConnected
     }
 
     private var shouldShowTopBarInstallStartButton: Bool {
@@ -2403,25 +2401,11 @@ struct AhaKeyStudioView: View {
 
     /// Runtime 架构下「进入编辑」不再伴随蓝牙接管：草稿改动保存在本地，写入经 Runtime apply。
     private func enterEditingConfiguration() {
-        isTransitioningToKeyboardControl = false
         syncStatusMessage = NSLocalizedString("已进入编辑：改动先保存在本地，点「写入键盘」经 Runtime 同步。", comment: "")
     }
 
-    private func finishEditingConfiguration() {
-        guard hasUnsyncedChanges else {
-            returnToKeyboardControl()
-            return
-        }
-
-        if runtimeStore.isConnected {
-            performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: true, showResultAlert: false)
-        } else {
-            syncStatusMessage = NSLocalizedString("Runtime 尚未识别到已连接的键盘；请在「设备与后台服务」确认后台服务已连接键盘后重试。", comment: "")
-        }
-    }
-
     private func writeToKeyboard() {
-        performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
+        performUnifiedDeviceWrite(showResultAlert: true)
     }
 
     private func completeEditingAfterWriteResult() {
@@ -2432,15 +2416,14 @@ struct AhaKeyStudioView: View {
         returnToKeyboardControl()
     }
 
-    /// 键盘连接始终由 Agent（Runtime）持有；这里只收尾本地编辑态文案。
+    /// 结束本地编辑态文案；键盘连接始终由 AhaKey Runtime 持有。
     private func returnToKeyboardControl() {
-        isTransitioningToKeyboardControl = false
         syncStatusMessage = NSLocalizedString("键盘连接始终由 AhaKey Runtime 管理。", comment: "")
     }
 
     /// 保存路径（WBS 5.7 切片 3）：draft → facade.apply（ingestResources → apply），
     /// 进度由 Runtime snapshot.operations 驱动；取消走 requestCancellation。
-    private func performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: Bool, showResultAlert: Bool) {
+    private func performUnifiedDeviceWrite(showResultAlert: Bool) {
         guard runtimeStore.isOnline, runtimeStore.isConnected else {
             let message = showResultAlert
                 ? NSLocalizedString("设备未连接：请确认 AhaKey Runtime 已运行并连接键盘后重试。", comment: "")
@@ -2460,7 +2443,6 @@ struct AhaKeyStudioView: View {
         lastDefaultPictureUploadFailures = []
         lastTaskUploadFailures = []
         syncStatusMessage = NSLocalizedString("正在提交配置到 Runtime…", comment: "")
-        let returnAgent = returnToKeyboardControlWhenDone
         let submittedWrite = AhaKeyStudioSubmittedWrite.capturing(
             selectedMode: selectedMode,
             draft: studioDraft
@@ -2511,7 +2493,6 @@ struct AhaKeyStudioView: View {
                                 : NSLocalizedString("键位和灯效已成功写入键盘。", comment: "")
                             self.showsWriteResultAlert = true
                         }
-                        if returnAgent { self.returnToKeyboardControl() }
                         return
                     case .resumablePartial, .failedWithPartialCommit:
                         self.isSyncing = false
@@ -2522,7 +2503,6 @@ struct AhaKeyStudioView: View {
                             self.writeResultAlertMessage = message
                             self.showsWriteResultAlert = true
                         }
-                        if returnAgent { self.returnToKeyboardControl() }
                         return
                     case .failedWithoutWrites:
                         throw AhaKeyStudioViewWriteError.operationFailed(

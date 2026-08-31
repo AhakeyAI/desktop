@@ -339,7 +339,7 @@ final class AgentManager: ObservableObject {
             return true
         } catch {
             log.error("LaunchAgent 安装失败: \(error)")
-            agentUserAlert = String(format: NSLocalizedString("无法写入 LaunchAgent 配置文件：%@\n\n将写入：%@\n已尝试创建目录：%@\n若仍失败，请检查对「~/Library」是否有写权限，或本机管理策略是否禁止用户 LaunchAgents。", comment: ""), String(error.localizedDescription), String(plistPath), String(launchAgentsDirectoryURL.path))
+            agentUserAlert = String(format: NSLocalizedString("无法写入后台服务配置文件：%@\n\n将写入：%@\n已尝试创建目录：%@\n若仍失败，请检查对「~/Library」是否有写权限，或本机管理策略是否禁止用户登录项。", comment: ""), String(error.localizedDescription), String(plistPath), String(launchAgentsDirectoryURL.path))
             return false
         }
     }
@@ -359,7 +359,7 @@ final class AgentManager: ObservableObject {
         defer { isAgentOperationInProgress = false }
 
         guard isAgentBinaryPresentInBundle else {
-            agentUserAlert = NSLocalizedString("应用包内没有可执行的 ahakeyconfig-agent（路径：…/Contents/MacOS/ahakeyconfig-agent）。请确认发版脚本已把该二进制一并打进 .app；仅有主程序时无法安装守护进程。", comment: "")
+            agentUserAlert = NSLocalizedString("应用包内没有后台服务可执行文件，无法安装 AhaKey Runtime。请使用完整「AhaKey Studio.app」或联系开发者。", comment: "")
             return
         }
 
@@ -374,7 +374,7 @@ final class AgentManager: ObservableObject {
             loadFailed = true
             log.error("launchctl load failed: \(load.mergedOutput)")
             let out = load.mergedOutput.isEmpty ? NSLocalizedString("（无输出，退出非 0）", comment: "") : load.mergedOutput
-            agentUserAlert = String(format: NSLocalizedString("LaunchAgent 的 plist 已保存，但 launchctl load 失败，守护进程未载入。\n\nlaunchctl 输出：\n%@\n\n常见原因：同一 Label 已存在、plist 无效、对 ~/Library/LaunchAgents 无写权限。可先点「卸载」再装，或在「控制台」搜索 %@。", comment: ""), String(out), String(label))
+            agentUserAlert = String(format: NSLocalizedString("后台服务配置已保存，但系统未能载入后台服务。\n\n系统输出：\n%@\n\n常见原因：同一服务已存在、配置无效、对登录项目录无写权限。可先点「卸载」再装，或在「控制台」搜索 %@。", comment: ""), String(out), String(label))
         }
 
         // 3. 安装 Claude / Cursor / Codex / Kimi hooks（直接指向 agent 二进制 hook 子命令）
@@ -427,7 +427,7 @@ final class AgentManager: ObservableObject {
     /// 启动 Agent 守护进程（先确保 Job 已 load，再 start；适合「已安装但未运行」）。
     func start() {
         guard isInstalled else {
-            agentUserAlert = NSLocalizedString("尚未安装 LaunchAgent。请先点「安装并启用」。", comment: "")
+            agentUserAlert = NSLocalizedString("尚未安装后台服务。请先点「安装并启用」。", comment: "")
             return
         }
         if launchAgentNeedsRewrite() {
@@ -449,7 +449,7 @@ final class AgentManager: ObservableObject {
                 if !startRes.ok {
                     m += "start：\n\(startRes.mergedOutput.isEmpty ? "（无输出）" : startRes.mergedOutput)\n\n"
                 }
-                m += String(format: NSLocalizedString("请点「查看日志」检查 %@；并确认系统「隐私与安全性」中已允许本应用使用蓝牙；若通过 LaunchAgent 拉起 agent 子进程，也需为同一签名的二进制授权。", comment: ""), String(self.logFilePath))
+                m += String(format: NSLocalizedString("请点「查看日志」检查 %@；并确认系统「隐私与安全性」中已允许本应用使用蓝牙；若通过登录项拉起后台服务，也需为同一签名的二进制授权。", comment: ""), String(self.logFilePath))
                 self.agentUserAlert = m
             } else if (!loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput)) || !startRes.ok {
                 self.agentUserAlert = String(format: NSLocalizedString("AhaKey Runtime 已运行。附注：launchctl 输出 — load：%@ start：%@", comment: ""), String(loadRes.mergedOutput), String(startRes.mergedOutput))
@@ -625,7 +625,7 @@ final class AgentManager: ObservableObject {
             return String(format: NSLocalizedString("无法写回：%@", comment: ""), String(path))
         }
         log.info("permissions.json: merged terminalAllowlist at \(path)")
-        return String(format: NSLocalizedString("已写回：%@（备份为 %@.ahakey.bak）\n\n本次在 terminalAllowlist 中新增合并 %@ 条前缀；用于 Agent 内「Not in allowlist」层，与 cli-config 的 Shell(...) 是两套。文档：\nhttps://cursor.com/docs/reference/permissions", comment: ""), String(path), String(path), String(n))
+        return String(format: NSLocalizedString("已写回：%@（备份为 %@.ahakey.bak）\n\n本次在 terminalAllowlist 中新增合并 %@ 条前缀；用于 Cursor 终端内「Not in allowlist」层，与 cli-config 的 Shell(...) 是两套。文档：\nhttps://cursor.com/docs/reference/permissions", comment: ""), String(path), String(path), String(n))
     }
 
     private func loadCursorPermissionsJson() -> [String: Any]? {
@@ -1573,7 +1573,7 @@ final class AgentManager: ObservableObject {
         }
 
         if removedCount == 0 {
-            return String(format: NSLocalizedString("在 %@ 中**未发现**包含 `ahakeyconfig-agent` 或 `ahakey-state` 的 `command`。\n\n若 Hook 在**项目级** `.cursor/hooks.json`，请在该仓库内手动删除；本按钮只改用户级 `~/.cursor/hooks.json`。", comment: ""), String(path))
+            return String(format: NSLocalizedString("在 %@ 中**未发现** AhaKey Runtime 相关 `command`。\n\n若 Hook 在**项目级** `.cursor/hooks.json`，请在该仓库内手动删除；本按钮只改用户级 `~/.cursor/hooks.json`。", comment: ""), String(path))
         }
 
         if hooks.isEmpty {

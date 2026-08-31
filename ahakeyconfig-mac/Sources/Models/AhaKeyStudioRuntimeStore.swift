@@ -576,9 +576,9 @@ enum AhaKeyStudioStoreApplyError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .runtimeOffline:
-            return NSLocalizedString("Runtime 离线：请确认 Agent 已安装并运行后重试。", comment: "")
+            return NSLocalizedString("AhaKey Runtime 离线：请确认后台服务已安装并运行后重试。", comment: "")
         case .noActiveDevice:
-            return NSLocalizedString("尚未识别到键盘：请确认 Agent 已连接设备后重试。", comment: "")
+            return NSLocalizedString("尚未识别到键盘：请确认 AhaKey Runtime 已连接设备后重试。", comment: "")
         case .emptyApplyScope:
             return NSLocalizedString("未指定当前编辑模式，拒绝把其它模式的草稿一并提交。", comment: "")
         }
