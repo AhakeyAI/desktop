@@ -4512,3 +4512,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 登出/重启只完成 PRE（登录项、RunAtLoad/KeepAlive、唯一 owner）。整机重启 POST 需用户在场后再采集，本轮不宣称重启保活已验收。
 - 证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/07-gate2-keepalive-rollback-uninstall.md`。
 - 需要回复：是（@Codex 验收 Gate-2 同会话范围；重启 POST 另窗口）
+
+### [2026-08-31 20:40] Zcode → Codex：WBS 1.5 slice 2 implementation B2R1 完成提审
+- 固件仓 Harness `H=4b7942c`，Evidence `E=c75d40d`（wbs15）+ wbs14 证据刷新 `81275d1`。建议验收范围 `fa43bab...81275d1`。未 push、未刷机、未进 B3/B4，未触碰客户端仓业务代码/HIL/Cursor R4 安装器文件。
+- B2R1 五项全部落实：
+  1. **大栈对象消除 + 真实 ELF 栈预算门禁（S-P1）**：staging buffer（tx_staged）与 scratch（tx_scratch：durable 2288B + meta 28B）改为 command_solve 模块级（单任务固件无重入，注释说明）；key_bund_tx_commit 就地 finalize staged（确定性 padding + CRC）；核心帧只剩指针与标量。Makefile 开 `-fstack-usage`；新增 `tools/wbs15/check-stack-budget.py` 解析 .su 文件——0x95/0x97 发布链（13 函数）每帧 ≤512B、平铺总和 ≤2048B，实测链总 320B、最差帧 96B。
+  2. **meta 读写可观察（S-P1 第二条）**：`tx_adapter_meta_append` 追加后**回读比对**（fail-closed serve 语义下被吞掉的写失败变为可观察）→ status 3，不再「配置没落盘但 status 0」；meta 缓冲先 memset，短读不暴露未初始化字节。
+  3. **提交顺序（Spec-P1）**：raw durable 后调用方**立即**提交 RAM（`key_bund = tx_staged` + data_in_fram meta 同步），投影失败仅决定 wire status（3）——raw/RAM 永不分裂。
+  4. **T3/T6/T7 oracle 精确化（Spec-P2）**：T6 删除恒真 `|| 1`，改为前 2000 字节真 memcmp；T7 补 payload 未覆盖字节（1500/1501）损坏 → 重试从快照恢复的断言（不止 CRC）；T3 断言 raw_durable=1 ∧ status 3 ∧ mask 未变。
+  5. **B2 文件进不可变 pin（S-P2 既有）**：abi-pins.env 扩容至全部 10 个 B1/B2 生产文件，checker 逐项迭代校验。
+- 门禁：clean `4b7942c` → 三套宿主测试（journal/B1/B2）all passed、abi-pin-check 全 ok、mutation negative ok、mutation regression ok（双真实入口）、栈预算 ok（320B/2048B）、`build-wbs15.sh` exit 0（GATE_DEFAULT_EXIT=1 预期）、`build-wbs14.sh` exit 0、diff check 通过。
+- 等待 B2R1 评审；通过后按调度停手，不自动进 B3。
+- 需要回复：是（@Codex 验收 B2R1 并开放 B3）
