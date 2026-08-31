@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// 安装器操作的文件系统/launchd 布局。生产指向 `/Applications` 与用户 LaunchAgents；
@@ -367,12 +368,148 @@ public indirect enum AhaKeyReleaseInstallError: Error, Equatable {
     )
 }
 
+public enum AhaKeyReleaseAppTreeKind: String, Equatable, Sendable {
+    case file
+    case directory
+    case symlink
+}
+
+public struct AhaKeyReleaseAppTreeEntry: Equatable, Sendable {
+    public var relativePath: String
+    public var kind: AhaKeyReleaseAppTreeKind
+    public var byteCount: UInt64
+    public var bytes: Data
+    public var symlinkTarget: String
+
+    public init(
+        relativePath: String,
+        kind: AhaKeyReleaseAppTreeKind,
+        byteCount: UInt64,
+        bytes: Data = Data(),
+        symlinkTarget: String = ""
+    ) {
+        self.relativePath = relativePath
+        self.kind = kind
+        self.byteCount = byteCount
+        self.bytes = bytes
+        self.symlinkTarget = symlinkTarget
+    }
+}
+
+/// 全树 relative path + type + length + bytes 的 SHA-256。读取失败必须抛错，不得返空串继续。
+public enum AhaKeyReleaseAppTreeDigest {
+    public static func hex(entries: [AhaKeyReleaseAppTreeEntry]) -> String {
+        var hasher = SHA256()
+        for entry in entries.sorted(by: { $0.relativePath < $1.relativePath }) {
+            hasher.update(data: Data("\(entry.relativePath)\0\(entry.kind.rawValue)\0\(entry.byteCount)\0".utf8))
+            switch entry.kind {
+            case .file:
+                hasher.update(data: entry.bytes)
+            case .symlink:
+                hasher.update(data: Data(entry.symlinkTarget.utf8))
+            case .directory:
+                break
+            }
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    public static func hex(at directory: String, fileManager: FileManager = .default) throws -> String {
+        var isDir: ObjCBool = false
+        guard fileManager.fileExists(atPath: directory, isDirectory: &isDir), isDir.boolValue else {
+            throw AhaKeyReleaseInstallError.hostFailure("app tree unreadable at \(directory)")
+        }
+        return hex(entries: try collect(at: directory, relative: "", fileManager: fileManager))
+    }
+
+    public static func entries(fromNamedFiles names: Set<String>) -> [AhaKeyReleaseAppTreeEntry] {
+        names.sorted().map { name in
+            let data = Data(name.utf8)
+            return AhaKeyReleaseAppTreeEntry(
+                relativePath: name,
+                kind: .file,
+                byteCount: UInt64(data.count),
+                bytes: data
+            )
+        }
+    }
+
+    private static func collect(
+        at path: String,
+        relative: String,
+        fileManager: FileManager
+    ) throws -> [AhaKeyReleaseAppTreeEntry] {
+        if relative.isEmpty {
+            let names: [String]
+            do {
+                names = try fileManager.contentsOfDirectory(atPath: path).sorted()
+            } catch {
+                throw AhaKeyReleaseInstallError.hostFailure("app tree unreadable at \(path): \(error)")
+            }
+            return try names.flatMap { name in
+                try collect(
+                    at: (path as NSString).appendingPathComponent(name),
+                    relative: name,
+                    fileManager: fileManager
+                )
+            }
+        }
+        if let target = try? fileManager.destinationOfSymbolicLink(atPath: path) {
+            return [
+                AhaKeyReleaseAppTreeEntry(
+                    relativePath: relative,
+                    kind: .symlink,
+                    byteCount: 0,
+                    symlinkTarget: target
+                )
+            ]
+        }
+        var isDir: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDir) else {
+            throw AhaKeyReleaseInstallError.hostFailure("app tree unreadable at \(path)")
+        }
+        if isDir.boolValue {
+            let names: [String]
+            do {
+                names = try fileManager.contentsOfDirectory(atPath: path).sorted()
+            } catch {
+                throw AhaKeyReleaseInstallError.hostFailure("app tree unreadable at \(path): \(error)")
+            }
+            var entries = [
+                AhaKeyReleaseAppTreeEntry(relativePath: relative, kind: .directory, byteCount: 0)
+            ]
+            for name in names {
+                entries += try collect(
+                    at: (path as NSString).appendingPathComponent(name),
+                    relative: relative + "/" + name,
+                    fileManager: fileManager
+                )
+            }
+            return entries
+        }
+        let data: Data
+        do {
+            data = try Data(contentsOf: URL(fileURLWithPath: path))
+        } catch {
+            throw AhaKeyReleaseInstallError.hostFailure("app tree unreadable at \(path): \(error)")
+        }
+        return [
+            AhaKeyReleaseAppTreeEntry(
+                relativePath: relative,
+                kind: .file,
+                byteCount: UInt64(data.count),
+                bytes: data
+            )
+        ]
+    }
+}
+
 /// 安装器与测试共用的 host 缝：真实实现走文件原子替换 + 可注入 launchd；测试可完全内存化。
 public protocol AhaKeyReleaseInstallHost: AnyObject {
     var identity: AhaKeyReleaseIdentity { get }
     func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot
     func inspectCandidate(at appPath: String, identity: AhaKeyReleaseIdentity) throws -> AhaKeyReleaseCandidateReport
-    func appFingerprint(at path: String) -> String
+    func appFingerprint(at path: String) throws -> String
     func itemExists(at path: String) -> Bool
     func isSymlink(_ path: String) -> Bool
     func resolvedPath(_ path: String) -> String?
@@ -548,7 +685,7 @@ public enum AhaKeyReleaseInstaller {
             } catch {
                 throw AhaKeyReleaseInstallError.rejected(.identityRejected(.candidateNotInspected))
             }
-            candidateAppFingerprint = host.appFingerprint(at: path)
+            candidateAppFingerprint = try host.appFingerprint(at: path)
         case .uninstall:
             break
         }
@@ -1253,7 +1390,7 @@ public enum AhaKeyReleaseInstallEngine {
             darwinMajor: 0,
             appInstalled: host.itemExists(at: layout.applicationsAppPath),
             loadedLaunchdLabels: [],
-            installedAppFingerprint: host.appFingerprint(at: layout.applicationsAppPath)
+            installedAppFingerprint: (try? host.appFingerprint(at: layout.applicationsAppPath)) ?? ""
         )
         let compensationError = asInstallError(compensation)
         if case .blocked(let orig, let nested, _, _, let blockedSnap, let reason) = compensationError {

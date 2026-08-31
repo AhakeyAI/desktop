@@ -199,16 +199,20 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         )
         let fixture = try makeAppFixture(in: root, name: "AhaKey Studio.app", marker: "custom", identity: custom)
         try FileManager.default.copyItem(atPath: fixture.app, toPath: layout.applicationsAppPath)
-        let system = AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true)
-        system.disabled = [custom.agentLaunchdLabel, custom.hilLaunchdLabel]
-        let customHost = AhaKeyReleaseMacInstallHost(system: system, identity: custom)
+        let customSystem = AhaKeyReleaseRecordingSystemControl(identity: custom, useProcessCodesign: true)
+        customSystem.disabled = [custom.agentLaunchdLabel, custom.hilLaunchdLabel]
+        let customHost = AhaKeyReleaseMacInstallHost(system: customSystem)
         let customSnap = try customHost.snapshot(layout: layout)
+        XCTAssertEqual(customHost.identity, custom)
         XCTAssertEqual(customSnap.previousAppIntegrity, .verifiedRestorable)
         XCTAssertTrue(customSnap.disabledOverrides.officialDisabled)
         XCTAssertTrue(customSnap.disabledOverrides.hilDisabled)
 
-        let defaultHost = AhaKeyReleaseMacInstallHost(system: system, identity: .current)
+        let defaultSystem = AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true)
+        defaultSystem.disabled = [custom.agentLaunchdLabel, custom.hilLaunchdLabel]
+        let defaultHost = AhaKeyReleaseMacInstallHost(system: defaultSystem)
         let defaultSnap = try defaultHost.snapshot(layout: layout)
+        XCTAssertEqual(defaultHost.identity, .current)
         XCTAssertEqual(defaultSnap.previousAppIntegrity, .nonRestorable)
         XCTAssertFalse(defaultSnap.disabledOverrides.officialDisabled)
         XCTAssertFalse(defaultSnap.disabledOverrides.hilDisabled)
@@ -235,10 +239,14 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         let candidates = (root as NSString).appendingPathComponent("Candidates")
         try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
         let fixture = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "new", identity: custom)
-        let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
+        let system = AhaKeyReleaseRecordingSystemControl(
+            identity: custom,
+            darwinMajorValue: 22,
+            useProcessCodesign: true
+        )
         system.loaded = [custom.hilLaunchdLabel]
         system.disabled = [custom.agentLaunchdLabel]
-        let host = AhaKeyReleaseMacInstallHost(system: system, identity: custom)
+        let host = AhaKeyReleaseMacInstallHost(system: system)
         XCTAssertEqual(host.identity, custom)
         let outcome = try AhaKeyReleaseInstaller.run(
             request: .upgrade(candidateAppPath: fixture.app),
@@ -277,7 +285,7 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
         let fixture = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "new")
         let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
-        let host = AhaKeyReleaseMacInstallHost(system: system, identity: .current)
+        let host = AhaKeyReleaseMacInstallHost(system: system)
         XCTAssertThrowsError(
             try AhaKeyReleaseInstaller.run(
                 request: .upgrade(candidateAppPath: fixture.app),
@@ -294,6 +302,164 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: layout.applicationsAppPath))
         XCTAssertFalse(FileManager.default.fileExists(atPath: layout.backupAppPath))
         XCTAssertTrue(system.loaded.isEmpty)
+    }
+
+    func testMacHostInitRejectsSystemIdentityMismatch() {
+        let custom = customTestIdentity()
+        let system = AhaKeyReleaseRecordingSystemControl()
+        XCTAssertEqual(system.identity, .current)
+        XCTAssertThrowsError(
+            try AhaKeyReleaseMacInstallHost(system: system, identity: custom)
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyReleaseInstallError,
+                .rejected(.identityContextMismatch)
+            )
+        }
+    }
+
+    func testLaunchdControlCustomIdentityQueriesCustomLabels() throws {
+        let custom = customTestIdentity()
+        let process = AhaKeyReleaseRecordingProcessRunner()
+        let uid = getuid()
+        process.outputByJoinedArguments["list"] = """
+        PID\tStatus\tLabel
+        -\t0\t\(custom.agentLaunchdLabel)
+        """
+        process.statusByJoinedArguments["print gui/\(uid)/\(custom.agentLaunchdLabel)"] = 0
+        process.statusByJoinedArguments["print gui/\(uid)/\(custom.hilLaunchdLabel)"] = 113
+        process.outputByJoinedArguments["print gui/\(uid)/\(custom.hilLaunchdLabel)"] =
+            "Could not find service \"\(custom.hilLaunchdLabel)\" in domain for id \(uid)"
+        let control = AhaKeyReleaseLaunchdControl(
+            allowSystemMutation: false,
+            process: process,
+            identity: custom
+        )
+        XCTAssertEqual(control.identity, custom)
+        XCTAssertEqual(try control.loadedLaunchdLabels(), [custom.agentLaunchdLabel])
+        let joined = process.calls.map { $0.joined(separator: " ") }
+        XCTAssertTrue(joined.contains { $0.contains(custom.agentLaunchdLabel) })
+        XCTAssertTrue(joined.contains { $0.contains(custom.hilLaunchdLabel) })
+        XCTAssertFalse(joined.contains { $0.contains(identity.agentLaunchdLabel) })
+        XCTAssertFalse(joined.contains { $0.contains(identity.hilLaunchdLabel) })
+    }
+
+    func testMacHostTreeDigestDistinguishesSameExecutableNamesWithDifferentContent() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let oldApp = try makeAppFixture(in: root, name: "old.app", marker: "old-payload")
+        let newApp = try makeAppFixture(in: root, name: "new.app", marker: "new-payload")
+        XCTAssertEqual(try macosNames(in: oldApp.app), try macosNames(in: newApp.app))
+        XCTAssertEqual(try macosNames(in: oldApp.app).sorted(), [identity.agentBinaryName, identity.executableName].sorted())
+        let host = AhaKeyReleaseMacInstallHost(system: AhaKeyReleaseRecordingSystemControl(useProcessCodesign: true))
+        let oldDigest = try host.appFingerprint(at: oldApp.app)
+        let newDigest = try host.appFingerprint(at: newApp.app)
+        XCTAssertNotEqual(oldDigest, newDigest)
+        XCTAssertFalse(oldDigest.isEmpty)
+        XCTAssertThrowsError(try host.appFingerprint(at: (root as NSString).appendingPathComponent("missing.app"))) { error in
+            guard case .hostFailure(let message) = error as? AhaKeyReleaseInstallError else {
+                return XCTFail("不可读树必须抛错，got \(error)")
+            }
+            XCTAssertTrue(message.contains("unreadable"), message)
+        }
+    }
+
+    func testMacHostExactRollbackRejectsWrongTreeWithSameExecutableNames() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root)
+        try FileManager.default.createDirectory(atPath: layout.launchAgentsDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let previous = try makeAppFixture(in: root, name: "previous.app", marker: "old-payload")
+        try FileManager.default.copyItem(atPath: previous.app, toPath: layout.applicationsAppPath)
+        try Data("previous".utf8).write(to: URL(fileURLWithPath: layout.launchAgentPlistPath))
+        let candidates = (root as NSString).appendingPathComponent("Candidates")
+        try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
+        let candidate = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "new-payload")
+        let wrong = try makeAppFixture(in: root, name: "wrong.app", marker: "wrong-payload")
+        XCTAssertEqual(try macosNames(in: previous.app), try macosNames(in: wrong.app))
+        let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
+        system.loaded = [identity.agentLaunchdLabel]
+        let host = AhaKeyReleaseMacInstallHost(system: system)
+        host.terminalFingerprintPathOverride = wrong.app
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidate.app),
+                host: host,
+                layout: layout,
+                injectFailureAt: .writeLaunchAgent
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, _, let mutated, let snap, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("错树必须 blocked，got \(error)")
+            }
+            XCTAssertEqual(original, .injectedFailure(.writeLaunchAgent))
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(mutated)
+            XCTAssertEqual(snap.installedAppFingerprint, try? host.appFingerprint(at: wrong.app))
+            XCTAssertTrue(reason.lowercased().contains("integrity") || reason.lowercased().contains("tree"), reason)
+        }
+    }
+
+    func testMacHostFailForwardRejectsWrongTreeWithSameExecutableNames() throws {
+        let root = try makeTempRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let layout = AhaKeyReleaseInstallLayout.sandboxed(root: root)
+        try FileManager.default.createDirectory(atPath: layout.launchAgentsDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: (layout.applicationsAppPath as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let previous = try makeAppFixture(in: root, name: "previous.app", marker: "old-broken")
+        try FileManager.default.copyItem(atPath: previous.app, toPath: layout.applicationsAppPath)
+        try tamperAppSeal(layout.applicationsAppPath)
+        try Data("hil-plist".utf8).write(to: URL(fileURLWithPath: layout.hilLaunchAgentPlistPath))
+        let candidates = (root as NSString).appendingPathComponent("Candidates")
+        try FileManager.default.createDirectory(atPath: candidates, withIntermediateDirectories: true)
+        let candidate = try makeAppFixture(in: candidates, name: "AhaKey Studio.app", marker: "new-payload")
+        let wrong = try makeAppFixture(in: root, name: "wrong.app", marker: "wrong-payload")
+        XCTAssertEqual(try macosNames(in: candidate.app), try macosNames(in: wrong.app))
+        let system = AhaKeyReleaseRecordingSystemControl(darwinMajorValue: 22, useProcessCodesign: true)
+        system.loaded = [identity.hilLaunchdLabel]
+        system.disabled = [identity.agentLaunchdLabel]
+        system.failingVerifyIfPathContains = ".ahakey-backup"
+        system.failingBootstrapLabels = [identity.agentLaunchdLabel]
+        system.bootstrapError = .hostFailure(
+            "launchctl bootstrap gui/501 \(layout.launchAgentPlistPath) exit 5: Bootstrap failed: 5: Input/output error"
+        )
+        let host = AhaKeyReleaseMacInstallHost(system: system)
+        host.terminalFingerprintPathOverride = wrong.app
+        XCTAssertThrowsError(
+            try AhaKeyReleaseInstaller.run(
+                request: .upgrade(candidateAppPath: candidate.app),
+                host: host,
+                layout: layout
+            )
+        ) { error in
+            guard case .blocked(let original, let compensation, _, let mutated, let snap, let reason) =
+                error as? AhaKeyReleaseInstallError
+            else {
+                return XCTFail("fail-forward 错树必须 blocked，got \(error)")
+            }
+            guard case .hostFailure(let message) = original else {
+                return XCTFail("必须保留 bootstrap 原错，got \(String(describing: original))")
+            }
+            XCTAssertTrue(message.contains("launchctl bootstrap"), message)
+            XCTAssertNotNil(compensation)
+            XCTAssertTrue(mutated)
+            XCTAssertEqual(snap.installedAppFingerprint, try? host.appFingerprint(at: wrong.app))
+            XCTAssertTrue(
+                reason.lowercased().contains("integrity")
+                    || reason.lowercased().contains("tree")
+                    || reason.lowercased().contains("verified"),
+                reason
+            )
+        }
     }
 
     func testMacHostNonRestorableUpgradeEnablesOfficialAndKeepsForensicBackup() throws {
@@ -788,6 +954,12 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         )
     }
 
+    private func macosNames(in app: String) throws -> [String] {
+        try FileManager.default.contentsOfDirectory(
+            atPath: (app as NSString).appendingPathComponent("Contents/MacOS")
+        ).sorted()
+    }
+
     private func makeAppFixture(
         in root: String,
         name: String,
@@ -812,7 +984,11 @@ final class AhaKeyReleaseMacInstallHostTests: XCTestCase {
         let trueBin = "/usr/bin/true"
         try FileManager.default.copyItem(atPath: trueBin, toPath: agent)
         try FileManager.default.copyItem(atPath: trueBin, toPath: executable)
-        _ = marker
+        let resources = (app as NSString).appendingPathComponent("Contents/Resources")
+        try FileManager.default.createDirectory(atPath: resources, withIntermediateDirectories: true)
+        try Data(marker.utf8).write(
+            to: URL(fileURLWithPath: (resources as NSString).appendingPathComponent("ahakey-tree-marker"))
+        )
         try codesignAdHoc(agent)
         try codesignAdHoc(executable)
         try codesignAdHoc(app)

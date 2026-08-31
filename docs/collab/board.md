@@ -4363,3 +4363,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Spec P1：自动负向只直调 checker，未证明 wbs15/wbs14 两实际入口仍调用 checker；legacy ABI 仍漏共享字段 offset 等价和显式 `ai_pic_set@2080`。
 - B1R3 仅修：临时目录/cleanup + 明确 ABI mismatch；两入口级 mutation 回归；能杀死 `main.h` include 回退的单一门禁；完整 legacy/shared offsets。白名单不变，不进 B2，不刷机/HIL/push。详细完成定义见任务卡 16:53 条目。
 - 需要回复：是（@Zcode ACK 后仅执行 B1R3）
+
+### [2026-08-31 16:58] Cursor → Codex：15F2 R4 完成，停手提审
+- System identity 进入 `AhaKeyReleaseSystemControl`；Host 只从 system 派生，显式 mismatch 构造期 fail-closed。custom LaunchdControl 只查询 custom labels。
+- `appFingerprint` 改为抛错的全树 SHA-256 digest（path+type+length+bytes）；Production/Fake 共用同一编码器。不可读树不得返空串。
+- 真实 fixture：同名 executable，资源内容不同则 digest 不同；exact rollback 与 fail-forward 均拒绝错树。
+- 定向 planner+Mac-host 89/0；全量 Swift 707 tests / 2 skipped / 0 failures；App/Agent Release 通过；`git diff --check` 干净。未改系统、未重跑安装、未启 Studio/BLE、未删 backup、未 push。
+- 需要回复：是（@Codex 验收 R4）

@@ -60,6 +60,7 @@ public final class AhaKeyReleaseRecordingProcessRunner: AhaKeyReleaseProcessRunn
 
 /// launchd / 登录项 / codesign 检查缝。生产适配器会改系统；测试注入 Recording 适配器。
 public protocol AhaKeyReleaseSystemControl: AnyObject {
+    var identity: AhaKeyReleaseIdentity { get }
     func darwinMajor() -> Int
     func loadedLaunchdLabels() throws -> Set<String>
     func disabledLaunchdLabels() throws -> Set<String>
@@ -74,6 +75,7 @@ public protocol AhaKeyReleaseSystemControl: AnyObject {
 }
 
 public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemControl {
+    public var identity: AhaKeyReleaseIdentity
     public var darwinMajorValue: Int
     public var loaded: Set<String>
     public var loginItemRegistered: Bool
@@ -85,14 +87,17 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
     public var disabled: Set<String> = []
     public var failingVerify: Set<String> = []
     public var failingVerifyIfPathContains: String?
+    public var failingBootstrapLabels: Set<String> = []
 
     public init(
+        identity: AhaKeyReleaseIdentity = .current,
         darwinMajorValue: Int = 22,
         loaded: Set<String> = [],
         loginItemRegistered: Bool = false,
         signatures: [String: AhaKeyReleaseCodeSignature] = [:],
         useProcessCodesign: Bool = false
     ) {
+        self.identity = identity
         self.darwinMajorValue = darwinMajorValue
         self.loaded = loaded
         self.loginItemRegistered = loginItemRegistered
@@ -114,7 +119,12 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
     }
 
     public func bootstrap(label: String, plistPath: String) throws {
-        if let bootstrapError {
+        if failingBootstrapLabels.contains(label) {
+            throw bootstrapError ?? AhaKeyReleaseInstallError.hostFailure(
+                "launchctl bootstrap gui/\(getuid()) \(plistPath) exit 5: Bootstrap failed: 5: Input/output error"
+            )
+        }
+        if let bootstrapError, failingBootstrapLabels.isEmpty {
             throw bootstrapError
         }
         if disabled.contains(label) {
@@ -177,7 +187,7 @@ public final class AhaKeyReleaseRecordingSystemControl: AhaKeyReleaseSystemContr
 public final class AhaKeyReleaseLaunchdControl: AhaKeyReleaseSystemControl {
     public var allowSystemMutation: Bool
     private let process: AhaKeyReleaseProcessRunning
-    private let identity: AhaKeyReleaseIdentity
+    public let identity: AhaKeyReleaseIdentity
 
     public init(
         allowSystemMutation: Bool = false,
@@ -683,15 +693,28 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
     public let identity: AhaKeyReleaseIdentity
     public var injectedDirectoryFsyncError: AhaKeyReleaseInstallError?
     public var injectedWriteFailure: AhaKeyReleaseWriteFailurePoint?
+    public var terminalFingerprintPathOverride: String?
+    private var snapshotCount = 0
 
     public init(
         fileManager: FileManager = .default,
-        system: AhaKeyReleaseSystemControl,
-        identity: AhaKeyReleaseIdentity = .current
+        system: AhaKeyReleaseSystemControl
     ) {
         self.fileManager = fileManager
         self.system = system
-        self.identity = identity
+        self.identity = system.identity
+    }
+
+    /// 显式 identity 必须与 system 同源；构造期 mismatch 即 fail-closed。
+    public convenience init(
+        fileManager: FileManager = .default,
+        system: AhaKeyReleaseSystemControl,
+        identity: AhaKeyReleaseIdentity
+    ) throws {
+        if identity != system.identity {
+            throw AhaKeyReleaseInstallError.rejected(.identityContextMismatch)
+        }
+        self.init(fileManager: fileManager, system: system)
     }
 
     /// HIL 可调用的生产 host。默认禁止系统突变。
@@ -700,33 +723,38 @@ public final class AhaKeyReleaseMacInstallHost: AhaKeyReleaseInstallHost {
         identity: AhaKeyReleaseIdentity = .current
     ) -> AhaKeyReleaseMacInstallHost {
         AhaKeyReleaseMacInstallHost(
-            system: AhaKeyReleaseLaunchdControl(allowSystemMutation: allowSystemMutation, identity: identity),
-            identity: identity
+            system: AhaKeyReleaseLaunchdControl(allowSystemMutation: allowSystemMutation, identity: identity)
         )
     }
 
     public func snapshot(layout: AhaKeyReleaseInstallLayout) throws -> AhaKeyReleaseHostSnapshot {
+        snapshotCount += 1
         var exists: [String: Bool] = [:]
         for path in layout.preservedPaths {
             exists[path] = fileManager.fileExists(atPath: path)
         }
+        let installed = fileManager.fileExists(atPath: layout.applicationsAppPath)
+        let fingerprintPath: String
+        if snapshotCount > 1, let override = terminalFingerprintPathOverride {
+            fingerprintPath = override
+        } else {
+            fingerprintPath = layout.applicationsAppPath
+        }
+        let fingerprint = installed ? try appFingerprint(at: fingerprintPath) : ""
         return AhaKeyReleaseHostSnapshot(
             darwinMajor: system.darwinMajor(),
-            appInstalled: fileManager.fileExists(atPath: layout.applicationsAppPath),
+            appInstalled: installed,
             loadedLaunchdLabels: try system.loadedLaunchdLabels(),
             loginItemRegistered: system.loginItemRegistered,
             preservedPathExists: exists,
             previousAppIntegrity: classifyInstalledApp(at: layout.applicationsAppPath),
             disabledOverrides: disabledOverrides(from: try system.disabledLaunchdLabels()),
-            installedAppFingerprint: appFingerprint(at: layout.applicationsAppPath)
+            installedAppFingerprint: fingerprint
         )
     }
 
-    public func appFingerprint(at path: String) -> String {
-        guard fileManager.fileExists(atPath: path) else { return "" }
-        let macos = (path as NSString).appendingPathComponent("Contents/MacOS")
-        let names = (try? fileManager.contentsOfDirectory(atPath: macos))?.sorted() ?? []
-        return names.joined(separator: ",")
+    public func appFingerprint(at path: String) throws -> String {
+        try AhaKeyReleaseAppTreeDigest.hex(at: path, fileManager: fileManager)
     }
 
     public func inspectCandidate(at appPath: String, identity: AhaKeyReleaseIdentity) throws -> AhaKeyReleaseCandidateReport {

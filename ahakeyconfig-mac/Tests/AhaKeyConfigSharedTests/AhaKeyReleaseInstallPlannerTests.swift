@@ -614,7 +614,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertNil(host.trees[layout.backupAppPath])
         XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
         XCTAssertFalse(outcome.completedSteps.contains(.installApp))
-        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, exactTree.sorted().joined(separator: ","))
+        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, fakeDigest(exactTree))
         XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
         XCTAssertEqual(outcome.snapshot.loadedLaunchdLabels, [identity.agentLaunchdLabel])
     }
@@ -904,7 +904,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertTrue(outcome.completedSteps.contains(.enable(label: identity.agentLaunchdLabel)))
         XCTAssertTrue(outcome.appInstalled)
         XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
-        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, "new-binary")
+        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, fakeDigest(["new-binary"]))
         XCTAssertEqual(outcome.snapshot.loadedLaunchdLabels, [identity.hilLaunchdLabel])
         XCTAssertTrue(outcome.snapshot.disabledOverrides.officialDisabled)
         XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
@@ -1194,7 +1194,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertTrue(outcome.snapshot.disabledOverrides.officialDisabled)
         XCTAssertFalse(outcome.snapshot.disabledOverrides.hilDisabled)
         XCTAssertEqual(outcome.snapshot.previousAppIntegrity, .verifiedRestorable)
-        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, "old-binary")
+        XCTAssertEqual(outcome.snapshot.installedAppFingerprint, fakeDigest(["old-binary"]))
         XCTAssertEqual(outcome.snapshot.loginItemRegistered, false)
         XCTAssertTrue(outcome.mutationReceipt.appWasMutated)
     }
@@ -1353,6 +1353,10 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         )
     }
 
+    private func fakeDigest(_ names: Set<String>) -> String {
+        AhaKeyReleaseAppTreeDigest.hex(entries: AhaKeyReleaseAppTreeDigest.entries(fromNamedFiles: names))
+    }
+
     private func packagingIdentityURL() -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -1402,7 +1406,10 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
             exists[path] = preserved[path] != nil
         }
         var integrity = integrityAt(layout.applicationsAppPath)
-        var fingerprint = appFingerprint(at: layout.applicationsAppPath)
+        var fingerprint = ""
+        if itemExists(at: layout.applicationsAppPath) {
+            fingerprint = try appFingerprint(at: layout.applicationsAppPath)
+        }
         if snapshotCount > 1 {
             if let terminalIntegrityOverride {
                 integrity = terminalIntegrityOverride
@@ -1426,9 +1433,13 @@ private final class FakeInstallHost: AhaKeyReleaseInstallHost {
         )
     }
 
-    func appFingerprint(at path: String) -> String {
-        guard let names = trees[path] else { return "" }
-        return names.sorted().joined(separator: ",")
+    func appFingerprint(at path: String) throws -> String {
+        guard let names = trees[path] else {
+            throw AhaKeyReleaseInstallError.hostFailure("app tree unreadable at \(path)")
+        }
+        return AhaKeyReleaseAppTreeDigest.hex(
+            entries: AhaKeyReleaseAppTreeDigest.entries(fromNamedFiles: names)
+        )
     }
 
     private func integrityAt(_ path: String) -> AhaKeyReleasePreviousAppIntegrity {
