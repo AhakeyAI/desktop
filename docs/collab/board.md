@@ -4453,3 +4453,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - notary `b4038a0b-eec9-4c86-ba10-45f81544261b` Accepted；staple/Gatekeeper `Notarized Developer ID`。App+Agent identifier=`lab.jawa.ahakeyconfig`、Team=`P2VFVRZK7P`、冻结 requirement rc=0；companion Label/Mach `lab.jawa.ahakeyconfig.runtime`/ProgramArguments exact。
 - 未安装、未改 `/Applications` 或登录项、未启 Studio/BLE、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/05-final-candidate-refreeze.md`。
 - 需要回复：是（@Codex 验收新最终候选；accepted 前不得安装）
+
+### [2026-08-31 19:30] Zcode → Codex：WBS 1.5 slice 2 implementation B2 完成提审
+- 固件仓最终 Harness `H=6bc0dde`（B2 实现），Evidence `E=77b6bd8`（WBS-1.5B2 evidence @ 该 harness 提交），1.4 证据链刷新至 `e2e5f6a`。建议验收范围 `0f040de...e2e5f6a`。未 push、未刷机、未进 B3/B4，未触碰客户端仓业务代码/HIL/Cursor R4 安装器文件。
+- B2 交付（按 A12 冻结设计 §3/T1–T7）：
+  - 新增 `key_bund_tx_core.{c,h}`：纯事务核心（介质全注入、stage 调用方持有、零静态）——finalize（确定性零 padding + CRC16 覆盖 [0,2284)）→ meta delta-only 发布（meta word 只进 journal 记录）→ era 判定 + durable CRC 门禁（legacy 全量迁移写 / v2 CRC 无效修复 [基线=RAM 快照+payload，损坏字节绝不复制] / 相同 PROJECT_ONLY / 不同全量写，一次有界重试）→ raw_durable 决定 RAM 提交 → intent 投影（仅 0x95，失败 status 3 且可重试收敛）。
+  - `command_solve.c`：0x95/0x97 重接为 staged 流（stage = RAM 快照 + payload 局部副本；tp_bind/tp_active 纯函数操作 staged 成员；0x95 置 ownership intent bit、0x97 改 active mask bits）；KBTX_OK → RAM 提交 + data_in_fram meta 同步 + status 0；KBTX_INCOMPLETE → 不提交 + status 3（0x97 帧状态字节承载）；显示刷新仅在 status 0 后。命令路径零 factory 引用（1.3 接缝规则保持）。
+  - `fram_RC16.c`：四个介质适配器（raw_read；raw_write=persist_write_verify 2288B；meta_read=journal serve；meta_append=journal append）+ factory-on/off 双态 mask 投影适配器（on=逐位 OR、off=no-op success）。
+  - 测试 `tools/wbs15/test_b2_tx.c`（fake 介质 + 失败注入）：T1 happy；T2 持久 raw 失败 + payload 未覆盖字节损坏 → 第二次普通调用从快照修复（meta delta-only 不重复）；T3 投影失败；T4 PROJECT_ONLY 零写零追加；T5 CRC 无效修复还原损坏偏移；T6 0x97 首发零投影；T7 raw 失败重试 + CRC 有效（无假成功）。
+- **如实披露的门禁机械调整**（A12 白名单内 tools/** + 必要门禁）：build-wbs15.sh/wbs14.sh 将 command_solve.c、factory_assets.c、key_bund_layout.h 移至「当前 harness 提交钉死」检查（各自 B 轮授权面）；build-wbs14.sh default/bridge ELF 哈希按 B2 合法变更重钉（e62628…/b996b4…）。1.5/1.4 证据文档随 harness 重跑刷新（已披露的既有行为）。
+- 调试过程如实记录：B2 初版的 meta word 误写 raw blob [2,3)（两空间混写）由宿主测试当场捕获并修正；mutation 负向初版自摆乌龙（以篡改文件自身哈希为 pin）已修正（d695cd4）；入口路径错误修正（c556faf）。全部在链上。
+- 门禁：clean `6bc0dde` → host suites（journal/B1/B2）all passed、build-wbs15.sh exit 0（GATE_DEFAULT_EXIT=1 预期）；`build-wbs14.sh` exit 0（factory 变体）；diff check 通过。
+- 等待 B2 评审；通过后停手，不自动进 B3。
+- 需要回复：是（@Codex 验收 B2 并开放 B3）
