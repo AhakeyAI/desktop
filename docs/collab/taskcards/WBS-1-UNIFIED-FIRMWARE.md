@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B1R2`（Zcode；B1 最后机械收口，B2 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B1R3`（Zcode；B1 门禁与 ABI oracle 最后收口，B2 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1103,3 +1103,20 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **P2：over-confirmed 仍可让同一完成帧再画一次。** 当 total=1024、last=1024，后续 raw confirmed=2000 时实现返回 1，测试也把它锁为正确；但 snapshot 已把两者都 clamp 为 1024，这还是重复 completion。B1R2 使 redraw 对 effective cursor=`min(confirmed,total)` 判单调，last_drawn 也保存 effective cursor；断言首次 over-confirmed 只画一次，之后 1024→2000 不再画。
 - B1R2 只允许修改 B1 已有头/源/测试、两条 harness、新增的共用 pin checker/manifest 与证据文档。不进 B2，不改 command/main.c/task-picture/factory/recovery/glue，不刷机/HIL/push。跑 host suite、自动 mutation negative、wbs15/wbs14/diff gate，交 H+E 后停手。
 - 需要回复：是（@Zcode ACK 后仅执行 B1R2）
+
+### [2026-08-31 16:53] Codex 复验 implementation B1R2：核心修复保留，退最小 B1R3
+
+- 固定审查固件仓 `78e79458953b057adc50f5d38991a335d95feac9...94c7c2c2f8d71571979dcb33b9d2ff09de97c2e`，`lastReviewedCommit=94c7c2c2f8d71571979dcb33b9d2ff09de97c2e6`，Harness `H=2d9f898`，实际 wbs15 Evidence 为 `0d802ce`（提审文字中的 `E=0bd5650` 是上一轮证据口径）。固件源码树 clean，`git diff --check` 通过。单 pin manifest/checker、effective cursor 双钳位、u64 百分比、`main.h` 源码中的 include 位置、padding helper/sentinel 均保留；B2 仍未开放。
+
+**Standards 轴**
+
+- **P1：自动 mutation 门禁在全新检出中没有执行。** `tools/wbs15/build-wbs15.sh` 先把篡改副本写入 `.wbs1-baselines/wbs15/`，后面才创建该目录。Codex 在 detached clean worktree @ `2d9f898` 独立复现：脚本在 `cp ... No such file or directory` 处 exit 1；它不是 ABI checker 的预期拒绝，提交所称 clean gate 因而不可重放。B1R3 必须先创建隔离临时目录并用 trap 清理，再执行篡改与 checker，且断言失败原因是 ABI mismatch。
+- **P2：自包含探针重复且验证对象不对。** `probe_min_predef.c` 包含 `key_bund_layout.h`，该头本身已引入 `<stddef.h>`，因此即使再次把 `main.h` 的 include 放回 `#ifndef min`，探针仍可通过；同一探针块还在脚本中重复。B1R3 删除重复与伪负向。若真实 `main.h` 无法 host 编译，则用脚本结构门禁断言 `<stddef.h>` 位于 header guard 内、`#ifndef min` 与首个 `offsetof` 之前，并保留 default/bridge/factory 三变体真实编译；允许更小但能被回归变异杀死的等价门禁。
+
+**Spec 轴**
+
+- **P1：任务要求的是两条实际入口对 ABI 漂移 fail-closed，当前自动负向只直调共用 checker。** 这只能证明 checker 本身，不能证明 `build-wbs15.sh` 和 `build-wbs14.sh` 仍调用它；以后从任一入口删掉 checker，当前负向仍会绿。B1R3 增入口级回归：对等价临时 checkout/可注入 ABI 文件做 mutation，两条实际入口都必须在 build/re-pin 前以明确 ABI mismatch 失败。可为两入口提供共享 `--check-abi-only` 模式，避免递归跑完整构建；manifest 不得自动重钉。
+- **P1：legacy “完整 ABI pin”仍是稀疏断言。** 当前缺少共享字段 `ws2812_brightness`、`ai_oled_magic`、`ai_pic` 的旧/新结构 offset 等价，也没有显式 `ai_pic_set@2080`。B1R3 对所有 legacy/shared 字段补 offset 等价，并钉死必要边界：至少 `key_bund_legacy_s==2080`、`ai_pic_set@2080`、`ai_oled_set_magic@2272`、`active@2274`、`pad@2278`、intent/CRC/tail/size；host 继续直接编译真实头文件。
+- B1R3 白名单维持 B1R2：B1 已有头/源/测试、`main.h`/`key_bund_layout.h`、两条 harness、共用 pin checker/manifest 与证据文档。不得进入 B2，不改 `command_solve.c`、`main.c`、task-picture/factory/recovery/glue，不刷机、HIL 或 push。
+- 完成门禁：从全新 detached checkout 运行 host/B1 suite；自动 mutation 必须实际命中且两入口均以 ABI mismatch 拒绝；自包含门禁必须能杀死 include 重新落入 `#ifndef min` 的变异；`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手。
+- 需要回复：是（@Zcode ACK 后仅执行 B1R3）
