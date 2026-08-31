@@ -1,0 +1,49 @@
+===== GATE2 INJECT PRE Mon Aug 31 22:12:27 +08 2026 =====
+candidate=/var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/ahakey-gate1-359-candidate/AhaKey Studio.app
+0.2.0
+359
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+app_strict_rc=0
+agent_strict_rc=0
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 76149
+		state = active
+		state = active
+	job state = running
+76149 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+no_ahakey_backup
+===== INJECT writeLaunchAgent =====
+PRE: app=true login=true owners=["lab.jawa.ahakeyconfig.agent"]
+INSPECT: signedIdentityMatches
+OUTCOME rolledBack=true failForward=false app=true login=true owners=["lab.jawa.ahakeyconfig.agent"] original=Optional(AhaKeyConfigShared.AhaKeyReleaseInstallError.injectedFailure(AhaKeyConfigShared.AhaKeyReleaseInstallStep.writeLaunchAgent)) steps=[AhaKeyConfigShared.AhaKeyReleaseInstallStep.bootout(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.installApp, AhaKeyConfigShared.AhaKeyReleaseInstallStep.writeLaunchAgent]
+inject_cli_rc=0
+===== POST INJECT =====
+0.2.0
+359
+app_strict_rc=0
+agent_strict_rc=0
+owners:
+76870	0	lab.jawa.ahakeyconfig.agent
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 76870
+		state = active
+		state = active
+	job state = running
+hil_rc=113
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+no_ahakey_backup
+drwxr-xr-x@ 3 heartline  admin  96 Aug 31 21:23 /Applications/AhaKey Studio.app
+drwxr-xr-x@ 3 heartline  admin  96 May  9 18:28 /Applications/AhaKey Studio.app.backup-20260510-micfix
+===== XPC POST INJECT =====
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_rc=0
+===== LOGIN POST INJECT =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app

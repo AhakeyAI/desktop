@@ -1,0 +1,65 @@
+===== GATE2 REBOOT PRE Mon Aug 31 22:15:06 +08 2026 =====
+NOTE: this session will NOT reboot/shutdown/logout. POST remains after user reboot.
+===== VERSION =====
+0.2.0
+359
+app_strict_rc=0
+agent_strict_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== PLIST =====
+231d3ca155ad9888b5b2876f539aada5e8605666b16270473c109236a95c50f5  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+true
+true
+lab.jawa.ahakeyconfig.agent
+===== LAUNCHCTL =====
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	runs = 1
+	pid = 77220
+	last exit code = (never exited)
+		state = active
+		state = active
+	job state = running
+===== UNIQUE OWNER =====
+77220	0	lab.jawa.ahakeyconfig.agent
+77220 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+hil_rc=113
+===== LOGIN ITEM =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app
+===== RESIDUAL =====
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+ls: /Applications/AhaKey Studio.app.ahakey-rollback-scratch: No such file or directory
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+no_installer_residue
+===== PMSET AGENT =====
+   pid 77220(ahakeyconfig-agent): [0x00023fa00001a206] 00:01:30 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+===== BLE =====
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Address: F4:73:35:AB:7C:32
+              Vendor ID: 0x046D
+              Address: 10:94:BB:9F:36:3E
+              Vendor ID: 0x004C
+      Not Connected:
+              Address: D4:6C:50:7C:C9:BC
+              Address: D4:6C:51:5C:F5:B4
+              Vendor ID: 0x07D7
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Address: 88:29:85:6D:4A:62
+              Vendor ID: 0x0001
+              Address: F9:2D:6B:D7:44:FF
+              Address: DF:C3:DA:87:ED:D0
+              Address: EF:9F:01:09:73:A5
+
+===== BLE X1 =====
+AhaKey X1:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Product ID: 0x501A
+              Minor Type: Keyboard
+              Services: 0x400000 < BLE >

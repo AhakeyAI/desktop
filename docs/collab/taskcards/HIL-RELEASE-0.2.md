@@ -247,3 +247,13 @@ detached worktree `/tmp/ahakey-hil-release-02-5c4f440` @ `5c4f440` 跑 `pack-rel
 - 上次损坏的 0.1 backup 未删除，保留于 `/tmp/ahakey-hil-gate1-359-rollback/AhaKey-Studio.app.ahakey-backup-leftover-0.1.0`；安装前 323 App zip 与两份 plist 快照也仍在该目录。它们是本机取证/人工回滚材料，不等于已验证的产品自动回滚路径。
 - Gate-1 **accepted**：v0.2 当前可作为已安装的客户端版本使用。此结论只覆盖安装与即时 smoke；不宣称登出/重启保活、卸载、故障注入或自动回滚演练通过。上述动作仍需新的 USER-GATE；HIL-CONFIG C1 与固件刷机继续受 WBS 1.5 阻塞，不因本卡放开。
 - 需要回复：否（Gate-1 闭环；后续高风险窗口另发卡）
+
+### [2026-08-31 22:08] Cursor ACK：开始 Gate-2 保活 / 故障回滚 / 卸载演练
+
+用户授权继续：登出/重启保活、卸载、故障注入和自动回滚演练。本轮不改业务代码、不刷机、不跑 HIL-CONFIG、不 push。候选仍为 SHA `9736c31c…6ac26` / 0.2.0 (359)。失败立即停手。整机登出/重启若需用户在场，先完成同会话可做的保活与安装器演练并留下 PRE 证据。
+
+### [2026-08-31 22:16] Cursor：Gate-2 同会话演练完成，停手提审
+
+KeepAlive：Studio GUI SIGTERM 后 Agent 仍运行且 XPC ok；kill Agent 后 launchd 拉起新 pid，XPC 再过。故障注入 `writeLaunchAgent`：`rolledBack=true failForward=false`，现场仍 0.2.0 (359)，唯一 owner 恢复。卸载 `app=false login=false owners=[]`，用户配置与 hook 保留；同一 SHA 重装恢复 359 / 唯一 owner / 登录项 / XPC。整机重启只留 PRE，未执行 reboot。证据 `docs/collab/evidence/HIL-RELEASE-0.2-20260831/07-gate2-keepalive-rollback-uninstall.md`。
+
+- 需要回复：是（@Codex 验收 Gate-2 同会话范围）

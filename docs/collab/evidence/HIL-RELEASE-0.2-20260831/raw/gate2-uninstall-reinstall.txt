@@ -1,0 +1,125 @@
+===== GATE2 UNINSTALL PRE Mon Aug 31 22:13:29 +08 2026 =====
+===== CONFIG CHECKSUMS PRE =====
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/.dat.nosync6EAC.ANk2jN
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+962b20a261ac049570384ae052d24ce27edf1d198ea214cd42acba279b61fb44  /Users/heartline/Library/Application Support/AhaKeyConfig/ble-owner.lock
+75ab22dd35214ec70dd2aebf15a62c33bc45008d48a932cc7062c45303d3551f  /Users/heartline/Library/Application Support/AhaKeyConfig/current-ide-state.json
+29e86f6a23dbe886f1af4ff4c0d81e99ba78b0c8d5e9385379f33e7661387f6a  /Users/heartline/Library/Application Support/AhaKeyConfig/device-identity.json
+55cecbff9e0029435a96dc0572d1a478ea6e760099807825a642e7b01cfc8c1c  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent-hil.log
+54626bd79270fae5716e2ac53d5b362dad98a97b68ddee294d2f61dc362f2c68  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent.log
+ae726ff086a3ca022c02624db52a756706f685930131ea869799bff80a3256c7  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/ble-comm.log
+866b56400b791ce789d1a97460f9527c0c3d652c49b233f5704bf037360bc398  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/codex-hook.log
+540a8b4707617096fd19f4e9a7e95aa3688fdaf586d9c682d6ba0792b51e4d3e  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/cursor-hook-health.jsonl
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/cursor-hook-health.jsonl.lock
+9038d72958cde70559d862e2d0f4c5946e89cdf79b8fe6676728d94b5c758b25  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/native-speech.log
+9635c3229e908b28d1d8bdf5a8ca0e9f0700b9036c35bb60512196bcc1e0482d  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/permission-request.log
+a3db613ef990199d3a44379d10b1b494488b9a60c39ff5b2f4d5cdfb91c60c77  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/power-protection.log
+b730c58ead323ab76df644fedc907df786bb9d20db1344834281ba978dac3063  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/voice-relay.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock.lock
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/.runtime-store.lock
+1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b
+3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf
+68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5
+a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c
+d4a6161599ac24a5e3afbd5c567c8ca613d7ac698ea28508360b4d5e7441be7d  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3
+52916924f7c836eb739013935fd9323cd381bb73d133046291ebf6a751162ca0  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-shm
+6b5e504901abb548294f1c38541e64337347e807c37f9de86e9ce30631ac6bfd  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-wal
+===== HOOKS PRE =====
+e7800d2c15441b2a1969070fe9af5f36e72ab46d67e999b21382171ff75ae6d7  /Users/heartline/.claude/settings.json
+1501612c0a5a2d53fc52fcb6987f20cb04ebc36d4fd81bbf331a233bff90cfe5  /Users/heartline/.cursor/hooks.json
+3b3d2373fccf9a6ad16aa41aadd3fc1ce0648c35ea6ee7e59b7393a01185c202  /Users/heartline/.codex/config.toml
+fb9f66d93391644eda146d64188e59ecee4879178b39d4b07f753b90512351d2  /Users/heartline/.kimi/config.toml
+===== PLIST PRE =====
+-rw-r--r--@ 1 heartline  staff  859 Aug 31 22:12 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+===== UNINSTALL =====
+PRE: app=true login=true owners=["lab.jawa.ahakeyconfig.agent"]
+OUTCOME rolledBack=false failForward=false app=false login=false owners=[] original=nil steps=[AhaKeyConfigShared.AhaKeyReleaseInstallStep.bootout(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.unregisterLoginItem, AhaKeyConfigShared.AhaKeyReleaseInstallStep.removeLaunchAgent, AhaKeyConfigShared.AhaKeyReleaseInstallStep.removeApp, AhaKeyConfigShared.AhaKeyReleaseInstallStep.verifyCleanUninstall, AhaKeyConfigShared.AhaKeyReleaseInstallStep.removeBackup]
+uninstall_cli_rc=0
+===== POST UNINSTALL =====
+app_gone=1
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+ls: /Applications/AhaKey Studio.app.ahakey-rollback-scratch: No such file or directory
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+ls: /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist: No such file or directory
+official_plist_gone=1
+ls: /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist: No such file or directory
+hil_plist_gone=1
+owners:
+no_ahakey_launchd
+official_print_rc=113
+hil_print_rc=113
+login_items:
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app
+===== CONFIG POST UNINSTALL =====
+config_dir_preserved=1
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/.dat.nosync6EAC.ANk2jN
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+962b20a261ac049570384ae052d24ce27edf1d198ea214cd42acba279b61fb44  /Users/heartline/Library/Application Support/AhaKeyConfig/ble-owner.lock
+75ab22dd35214ec70dd2aebf15a62c33bc45008d48a932cc7062c45303d3551f  /Users/heartline/Library/Application Support/AhaKeyConfig/current-ide-state.json
+29e86f6a23dbe886f1af4ff4c0d81e99ba78b0c8d5e9385379f33e7661387f6a  /Users/heartline/Library/Application Support/AhaKeyConfig/device-identity.json
+55cecbff9e0029435a96dc0572d1a478ea6e760099807825a642e7b01cfc8c1c  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent-hil.log
+54626bd79270fae5716e2ac53d5b362dad98a97b68ddee294d2f61dc362f2c68  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent.log
+ae726ff086a3ca022c02624db52a756706f685930131ea869799bff80a3256c7  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/ble-comm.log
+866b56400b791ce789d1a97460f9527c0c3d652c49b233f5704bf037360bc398  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/codex-hook.log
+540a8b4707617096fd19f4e9a7e95aa3688fdaf586d9c682d6ba0792b51e4d3e  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/cursor-hook-health.jsonl
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/cursor-hook-health.jsonl.lock
+9038d72958cde70559d862e2d0f4c5946e89cdf79b8fe6676728d94b5c758b25  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/native-speech.log
+9635c3229e908b28d1d8bdf5a8ca0e9f0700b9036c35bb60512196bcc1e0482d  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/permission-request.log
+84937e63358e30f2fcb9281974625932ea6fe3d3d3e78f1883e13f2baddf8cfa  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/power-protection.log
+b730c58ead323ab76df644fedc907df786bb9d20db1344834281ba978dac3063  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/voice-relay.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock.lock
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/.runtime-store.lock
+1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b
+3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf
+68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5
+a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c
+d4a6161599ac24a5e3afbd5c567c8ca613d7ac698ea28508360b4d5e7441be7d  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3
+52916924f7c836eb739013935fd9323cd381bb73d133046291ebf6a751162ca0  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-shm
+6b5e504901abb548294f1c38541e64337347e807c37f9de86e9ce30631ac6bfd  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-wal
+===== HOOKS POST UNINSTALL =====
+e7800d2c15441b2a1969070fe9af5f36e72ab46d67e999b21382171ff75ae6d7  /Users/heartline/.claude/settings.json
+1501612c0a5a2d53fc52fcb6987f20cb04ebc36d4fd81bbf331a233bff90cfe5  /Users/heartline/.cursor/hooks.json
+3b3d2373fccf9a6ad16aa41aadd3fc1ce0648c35ea6ee7e59b7393a01185c202  /Users/heartline/.codex/config.toml
+fb9f66d93391644eda146d64188e59ecee4879178b39d4b07f753b90512351d2  /Users/heartline/.kimi/config.toml
+===== REINSTALL =====
+PRE: app=false login=false owners=[]
+INSPECT: signedIdentityMatches
+OUTCOME rolledBack=false failForward=false app=true login=true owners=["lab.jawa.ahakeyconfig.agent"] original=nil steps=[AhaKeyConfigShared.AhaKeyReleaseInstallStep.installApp, AhaKeyConfigShared.AhaKeyReleaseInstallStep.writeLaunchAgent, AhaKeyConfigShared.AhaKeyReleaseInstallStep.enable(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.bootstrap(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.registerLoginItem, AhaKeyConfigShared.AhaKeyReleaseInstallStep.verifySingleOwner]
+===== POST REINSTALL Mon Aug 31 22:13:59 +08 2026 =====
+app_present=1
+0.2.0
+359
+app_strict_rc=0
+agent_strict_rc=0
+Identifier=lab.jawa.ahakeyconfig
+TeamIdentifier=P2VFVRZK7P
+Identifier=lab.jawa.ahakeyconfig
+TeamIdentifier=P2VFVRZK7P
+owners:
+77220	0	lab.jawa.ahakeyconfig.agent
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 77220
+		state = active
+		state = active
+	job state = running
+hil_rc=113
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+ls: /Applications/AhaKey Studio.app.ahakey-rollback-scratch: No such file or directory
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+no_staging_or_backup
+-rw-r--r--@ 1 heartline  staff  859 Aug 31 22:13 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+login_items:
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_rc=0
+===== USER JSON POST REINSTALL =====
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+29e86f6a23dbe886f1af4ff4c0d81e99ba78b0c8d5e9385379f33e7661387f6a  /Users/heartline/Library/Application Support/AhaKeyConfig/device-identity.json
+700c82050f8c32f93fcea18f15afaa1e3d1a1465107767cf8c10ecda3bdb18ea  /Users/heartline/Library/Application Support/AhaKeyConfig/current-ide-state.json
+===== HOOKS POST REINSTALL =====
+e7800d2c15441b2a1969070fe9af5f36e72ab46d67e999b21382171ff75ae6d7  /Users/heartline/.claude/settings.json
+1501612c0a5a2d53fc52fcb6987f20cb04ebc36d4fd81bbf331a233bff90cfe5  /Users/heartline/.cursor/hooks.json
+3b3d2373fccf9a6ad16aa41aadd3fc1ce0648c35ea6ee7e59b7393a01185c202  /Users/heartline/.codex/config.toml
+fb9f66d93391644eda146d64188e59ecee4879178b39d4b07f753b90512351d2  /Users/heartline/.kimi/config.toml

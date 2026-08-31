@@ -1,0 +1,55 @@
+===== GATE2 KEEPALIVE Mon Aug 31 22:10:35 +08 2026 =====
+===== PRE ZIP 359 =====
+359
+9c511dae276138867f7de8739928bd2d31c27e0d4245ec23fc6c732bc8b4fa07  /tmp/ahakey-hil-gate2-rollback/AhaKey-Studio-359-pre-gate2.zip
+===== PRE AGENT =====
+72067 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+75352 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 72067
+		state = active
+		state = active
+	job state = running
+===== PRE PMSET =====
+   pid 1603(UURemote): [0x000000b9000181a0] 60:20:19 PreventUserIdleSystemSleep named: "UURemote Disable Idle System Sleep"  
+   pid 659(sharingd): [0x00023e100001a1ce] 00:03:40 PreventUserIdleSystemSleep named: "Handoff"  
+   pid 664(Cursor): [0x00023e230001a1d1] 00:03:20 NoIdleSleepAssertion named: "Electron"  
+   pid 422(WindowServer): [0x000236f30009a0c9] 00:00:00 UserIsActive named: ""  
+   pid 414(bluetoothd): [0x00023b070001a170] 00:16:36 PreventUserIdleSystemSleep named: "com.apple.BTStack"  
+   pid 362(powerd): [0x000236f30001a0cb] 00:34:00 PreventUserIdleSystemSleep named: "Powerd - Prevent sleep while display is on"  
+   pid 72067(ahakeyconfig-agent): [0x00023b0b0001a174] 00:16:33 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+   pid 75352(AhaKeyConfig): [0x00023eaf0001a1e3] 00:01:00 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+===== QUIT STUDIO =====
+36:40: execution error: “AhaKey Studio”遇到一个错误：用户已取消。 (-128)
+STUDIO_STILL_RUNNING
+72067 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+75352 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+===== QUIT STUDIO via SIGTERM Mon Aug 31 22:11:11 +08 2026 =====
+gui_pid=75352
+studio_quit=1
+===== AGENT AFTER STUDIO QUIT =====
+72067 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 72067
+		state = active
+		state = active
+	job state = running
+hil_rc=113
+===== XPC AFTER STUDIO QUIT =====
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_after_quit_rc=0
+===== PMSET AFTER STUDIO QUIT =====
+   pid 72067(ahakeyconfig-agent): [0x00023b0b0001a174] 00:17:09 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+===== KILL AGENT FOR KEEPALIVE =====
+old_pid=72067
+keepalive_restarted new_pid=76149 after=.5s
+final_pid=76149
+===== XPC AFTER KEEPALIVE =====
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_after_keepalive_rc=0
+===== UNIQUE OWNER =====
+76149	0	lab.jawa.ahakeyconfig.agent
