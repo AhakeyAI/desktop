@@ -22,6 +22,7 @@ APP_BUNDLE_PATH="$OUTPUT_DIR/$APP_BUNDLE_NAME.app"
 BACKGROUND_DIR="$DMG_STAGING_DIR/.background"
 BACKGROUND_IMAGE="$BACKGROUND_DIR/InstallerBackground.png"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
+NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
 SIGNING_IDENTITY_HINT="${SIGNING_IDENTITY_HINT:-}"
 RELEASE_DISTRIBUTION="${RELEASE_DISTRIBUTION:-0}"
@@ -185,7 +186,11 @@ fi
 
 if [[ -n "$NOTARY_PROFILE" ]]; then
   echo "🧾 Notarizing DMG with profile: $NOTARY_PROFILE"
-  xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+  NOTARY_AUTH_ARGS=(--keychain-profile "$NOTARY_PROFILE")
+  if [[ -n "$NOTARY_KEYCHAIN" ]]; then
+    NOTARY_AUTH_ARGS+=(--keychain "$NOTARY_KEYCHAIN")
+  fi
+  xcrun notarytool submit "$DMG_PATH" "${NOTARY_AUTH_ARGS[@]}" --wait
   xcrun stapler staple "$DMG_PATH"
 elif [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
   echo "❌ RELEASE_DISTRIBUTION=1 requires NOTARY_PROFILE."

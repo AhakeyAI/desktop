@@ -11,7 +11,7 @@
 #   zsh scripts/pack-release.sh
 #   zsh /path/to/ahakeyconfig/scripts/pack-release.sh
 #
-# 可选环境变量：NOTARY_PROFILE、SIGNING_IDENTITY、SIGNING_IDENTITY_HINT、OUTPUT_DIR、DMG_BASENAME
+# 可选环境变量：NOTARY_PROFILE、NOTARY_KEYCHAIN、SIGNING_IDENTITY、SIGNING_IDENTITY_HINT、OUTPUT_DIR、DMG_BASENAME
 
 set -euo pipefail
 
@@ -25,6 +25,7 @@ if [[ -f "$SCRIPT_DIR/build.local.env" ]]; then
 fi
 
 NOTARY_PROFILE="${NOTARY_PROFILE:-AhaKeyNotary}"
+NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
 SIGNING_IDENTITY_HINT="${SIGNING_IDENTITY_HINT:-}"
 OUTPUT_DIR="${OUTPUT_DIR:-$APP_ROOT/dist}"
@@ -48,7 +49,12 @@ if [[ -z "$SIGNING_IDENTITY" ]]; then
   exit 1
 fi
 
-if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+NOTARY_AUTH_ARGS=(--keychain-profile "$NOTARY_PROFILE")
+if [[ -n "$NOTARY_KEYCHAIN" ]]; then
+  NOTARY_AUTH_ARGS+=(--keychain "$NOTARY_KEYCHAIN")
+fi
+
+if ! xcrun notarytool history "${NOTARY_AUTH_ARGS[@]}" >/dev/null 2>&1; then
   echo "❌ Notary profile '$NOTARY_PROFILE' is not available."
   echo "   Create it first with:"
   echo "   xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <apple-id> --team-id <team-id> --password <app-specific-password>"
@@ -59,6 +65,7 @@ RELEASE_DISTRIBUTION=1 \
 SIGNING_IDENTITY="$SIGNING_IDENTITY" \
 SIGNING_IDENTITY_HINT="$SIGNING_IDENTITY_HINT" \
 NOTARY_PROFILE="$NOTARY_PROFILE" \
+NOTARY_KEYCHAIN="$NOTARY_KEYCHAIN" \
 OUTPUT_DIR="$OUTPUT_DIR" \
 DMG_BASENAME="$DMG_BASENAME" \
 zsh "$SCRIPT_DIR/package_dmg.sh"

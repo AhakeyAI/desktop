@@ -85,6 +85,16 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   mkdir -p "$APP_BUNDLE/Contents/Resources/DefaultOLED"
   ditto "$APP_ROOT/Resources/DefaultOLED" "$APP_BUNDLE/Contents/Resources/DefaultOLED"
 fi
+if [[ -d "$APP_ROOT/Resources/FirmwareFlasher" ]]; then
+  FLASHER_RESOURCES="$APP_BUNDLE/Contents/Resources/FirmwareFlasher"
+  mkdir -p "$FLASHER_RESOURCES"
+  ditto "$APP_ROOT/Resources/FirmwareFlasher" "$FLASHER_RESOURCES"
+  (
+    cd "$FLASHER_RESOURCES"
+    shasum -a 256 -c SOURCE_SHA256SUMS
+  )
+  chmod +x "$FLASHER_RESOURCES/tools/arm64/wchisp" "$FLASHER_RESOURCES/tools/x86_64/wchisp"
+fi
 
 BUILD_NUMBER="$(git -C "$APP_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
 # 版本号：缺省 0.1.0（本地开发），release.yml 打 tag(vX.Y.Z) 时经 APP_VERSION 注入真实版本，
@@ -189,6 +199,10 @@ if [[ -n "${SIGNING_IDENTITY}" ]]; then
   fi
 
   xattr -cr "$APP_BUNDLE" 2>/dev/null || true
+  if [[ -n "${FLASHER_RESOURCES:-}" ]]; then
+    codesign "${SIGN_ARGS[@]}" "$FLASHER_RESOURCES/tools/arm64/wchisp"
+    codesign "${SIGN_ARGS[@]}" "$FLASHER_RESOURCES/tools/x86_64/wchisp"
+  fi
   codesign "${SIGN_ARGS[@]}" "$AGENT_EXECUTABLE"
   codesign "${APP_SIGN_ARGS[@]}" "$APP_BUNDLE"
 else
@@ -198,6 +212,10 @@ else
   fi
   echo "🧪 No signing identity found, using ad-hoc signature for local testing"
   xattr -cr "$APP_BUNDLE" 2>/dev/null || true
+  if [[ -n "${FLASHER_RESOURCES:-}" ]]; then
+    codesign --force --sign - "$FLASHER_RESOURCES/tools/arm64/wchisp"
+    codesign --force --sign - "$FLASHER_RESOURCES/tools/x86_64/wchisp"
+  fi
   codesign --force --sign - "$AGENT_EXECUTABLE"
   codesign --force --sign - "$APP_BUNDLE"
 fi

@@ -74,6 +74,26 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   fi
 fi
 
+# 内置 USB ISP 烧录资源：固件、双架构 wchisp、校验清单和 GPL 许可证。
+if [[ -d "$APP_ROOT/Resources/FirmwareFlasher" ]]; then
+  FLASHER_RESOURCES="$APP_BUNDLE/Contents/Resources/FirmwareFlasher"
+  mkdir -p "$FLASHER_RESOURCES"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete \
+      --exclude='.DS_Store' --exclude='._*' --exclude='.*.swp' \
+      "$APP_ROOT/Resources/FirmwareFlasher/" \
+      "$FLASHER_RESOURCES/"
+  else
+    rm -rf "$FLASHER_RESOURCES"
+    ditto "$APP_ROOT/Resources/FirmwareFlasher" "$FLASHER_RESOURCES"
+  fi
+  (
+    cd "$FLASHER_RESOURCES"
+    shasum -a 256 -c SOURCE_SHA256SUMS
+  )
+  chmod +x "$FLASHER_RESOURCES/tools/arm64/wchisp" "$FLASHER_RESOURCES/tools/x86_64/wchisp"
+fi
+
 # icon：只在缺失时生成，避免每次 Run 都跑一遍 iconutil
 if [[ ! -f "$APP_BUNDLE/Contents/Resources/AhaKeyConfig.icns" ]]; then
   echo "🎨 Generating app icon (first run)..."
@@ -158,11 +178,19 @@ if [[ -n "$SIGNING_IDENTITY" ]]; then
   else
     echo "🔏 Debug signing with: $SIGNING_IDENTITY"
   fi
+  if [[ -n "${FLASHER_RESOURCES:-}" ]]; then
+    codesign --force --sign "$SIGNING_IDENTITY" "$FLASHER_RESOURCES/tools/arm64/wchisp"
+    codesign --force --sign "$SIGNING_IDENTITY" "$FLASHER_RESOURCES/tools/x86_64/wchisp"
+  fi
   codesign --force --sign "$SIGNING_IDENTITY" --entitlements "$ENTITLEMENTS" "$APP_EXECUTABLE"
   codesign --force --sign "$SIGNING_IDENTITY" "$AGENT_EXECUTABLE"
   codesign --force --sign "$SIGNING_IDENTITY" --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"
 else
   echo "🧪 Ad-hoc signing (TCC may need re-grant after code changes)."
+  if [[ -n "${FLASHER_RESOURCES:-}" ]]; then
+    codesign --force --sign - "$FLASHER_RESOURCES/tools/arm64/wchisp"
+    codesign --force --sign - "$FLASHER_RESOURCES/tools/x86_64/wchisp"
+  fi
   codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP_EXECUTABLE"
   codesign --force --sign - "$AGENT_EXECUTABLE"
   codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"

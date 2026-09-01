@@ -23,6 +23,10 @@ struct AhaKeyConfigApp: App {
                 }
         }
         .windowStyle(.titleBar)
+        .commands {
+            // 主程序只有一个工作区，禁用 Command-N，避免 WindowGroup 累积多个完整视图树。
+            CommandGroup(replacing: .newItem) { }
+        }
 
         if #available(macOS 13.0, *) {
             MenuBarExtra("AhaKey", systemImage: "keyboard") {
@@ -41,6 +45,20 @@ struct AhaKeyConfigApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard FirmwareFlashActivity.shared.preventsApplicationTermination else {
+            return .terminateNow
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "固件正在擦除或写入"
+        alert.informativeText = "此时退出可能导致键盘无法启动。请等待烧录完成或明确失败后再退出 AhaKey Studio。"
+        alert.addButton(withTitle: "继续烧录")
+        alert.runModal()
+        return .terminateCancel
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }

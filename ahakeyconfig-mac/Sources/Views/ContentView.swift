@@ -9,10 +9,6 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            mainWorkspace
-                .allowsHitTesting(!shouldShowUnifiedOnboarding)
-                .accessibilityHidden(shouldShowUnifiedOnboarding)
-
             if shouldShowUnifiedOnboarding {
                 UnifiedAhaKeyOnboardingView(
                     permissionState: onboardingPermissionState,
@@ -23,6 +19,9 @@ struct ContentView: View {
                 }
                 .transition(.opacity)
                 .zIndex(20)
+            } else {
+                // 引导期间不创建完整工作区，避免提前启动 BLE、GIF 和其它后台预览工作。
+                mainWorkspace
             }
         }
         .onAppear {
