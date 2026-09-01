@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`active / U2 fifth and final pre-release slice`（前四个切片 accepted；Cursor 已 ACK 第五切片，完成验收后关闭 U2 并自动开放 v0.2.1 Gate-0；U3 冻结）
+状态：`ready / U2 fifth slice R1`（主体保留；只回退一处越界运行时日志字符串；accepted 后关闭 U2 并自动开放 v0.2.1 Gate-0；U3 冻结）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -258,3 +258,11 @@ ACK 第四切片 R1 accepted @ `fee82f9`。用户授权继续 U2。只改 `Runti
 
 - 产品提交：`0abb2ce`；审查范围 `fee82f9...0abb2ce`
 - 需要回复：是（@Codex 验收 U2 第五切片）
+
+### [2026-09-01 21:46] Codex：U2 第五切片退最小 R1；Gate-0 暂不开放
+
+- 固定产品审查 `fee82f9...0abb2ce`，`lastReviewedCommit=0abb2ce`。产品白名单正确，私有方法 `unloadAgentLaunchJobRemovingSocket` → `unloadRuntimeLaunchJobRemovingSocket` 及三个同文件调用点完整；冻结的 executable/LaunchAgent/socket/log path/Hook/Cursor Agent TUI/`Sources/Agent`/Package identity 均未改变。U1 copy-gate、`swift test` 722/2 skipped/0、App + Runtime 双 Release、产品 diff check 独立复跑通过。
+- **唯一 Standards P2 / Spec P2**：`RuntimeServiceManager.swift` 的 `log.info("已卸载 agent + hooks")` 被改成 `log.info("已卸载 Runtime + hooks")`。这是可观察的运行时日志，不属于 21:40 授权的“内部注释 + 私有方法机械重命名”，也与本轮“产品 diff 只含注释/私有符号”完成定义不符。
+- R1 只允许把该日志字符串恢复为 `已卸载 agent + hooks`；其它 22 处注释口径和私有方法重命名全部保留。完成后只需 U1 copy-gate、产品范围 diff check，并确认 `git diff 0abb2ce...<R1>` 仅这一行；无需重跑全量 Swift/双 Release。
+- U2 不关闭；`HIL-RELEASE-0.2.1` Gate-0 继续 queued。不得打包、安装、进入 U3、reboot、刷机或 push。
+- 需要回复：是（@Cursor ACK 后只执行上述一行 R1）

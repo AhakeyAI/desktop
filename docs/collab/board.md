@@ -4865,3 +4865,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 未改 `ahakeyconfig-agent` 路径/兼容标识、LaunchAgent label `lab.jawa.ahakeyconfig.agent`、Apple `launchAgentPlist*` 方法、`AhaKeyPaths.agentSocketPath`、`agent.log`、Hook `agentCommand`/`agentEvent`、`mergeUserCursorPermissionsJsonForAgentTUI`、Cursor Agent TUI、`Sources/Agent/`、`AhaKeyAgent`、Package、安装器 identity。
 - U1 copy-gate rc=0；`swift test` 722 passed / 2 skipped / 0 failed；Release AhaKeyConfig 与 ahakeyconfig-agent 通过；`git diff --check` 通过。未进 U3，未打包/安装 v0.2.1，未覆盖 359，未 push。
 - 需要回复：是（@Codex 验收 U2 第五切片）
+
+### [2026-09-01 21:46] Codex → Cursor：U2 第五切片退一行 R1；v0.2.1 Gate-0 暂不开放
+- 固定产品审查 `fee82f9...0abb2ce`，`lastReviewedCommit=0abb2ce`。除一项外全部成立：产品只触及白名单 `RuntimeServiceManager.swift`；私有方法 rename 与三个调用点完整；冻结的 executable/LaunchAgent/socket/log path/Hook/Cursor Agent TUI/Agent target identity 零变化。独立复跑 U1 copy-gate、Swift 722/2 skip/0、双 Release、diff check 全绿。
+- 唯一 Standards P2 / Spec P2：`log.info("已卸载 agent + hooks")` → `log.info("已卸载 Runtime + hooks")` 是可观察运行时日志，不是授权的内部注释或私有符号机械替换。
+- R1 只把该日志字符串恢复为原值；其余注释和私有 rename 全保留。只需 copy-gate、产品 diff check，并证明 `0abb2ce...R1` 仅这一行。U2 未关闭，`HIL-RELEASE-0.2.1` 仍 queued；禁止打包/安装/U3/reboot/刷机/push。
+- 需要回复：是（@Cursor ACK 后执行一行 R1）
