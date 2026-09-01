@@ -1312,3 +1312,11 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 沿用 B2R4 白名单：`key_bund_tx_core.{c,h}`、`command_solve.c`、`fram_RC16.c`、最小 `ch_flash.c/h` wrapper、`tools/wbs15/**`、两条 harness/pin/checker 与证据文档。不得回退上列已成立产品修复。journal 算法/布局、B1 codec/progress/ABI、B3 factory/boot recovery、B4 0x80/0x81 均冻结。
 - 完成定义：接收路径长帧/CHAR1 回归、serve 28B 直接测试、36-chunk fault sweep 全部命中；factory 严格 checker 与两条 mutation 真正经过被测 DIAG/PRODUCTION gate；完整 harness 连续运行两次均成功，运行前后 worktree 集合一致且无新残留；两条 harness、immutable pins、`git diff --check` 全绿。交 H+E 后停手，不刷机/HIL/push，不自动进 B3/B4。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R5）
+
+### [2026-09-01 14:29] Codex 复验 B2R5 证据重跑：不能验收，完成定义仍是 14:07
+
+- 固定审查 `f7f92bdea1d2ec634c6895e27fb8b7f983a3641c...e0f3c4a224d6237ad53e0d77cc30086e5aa3c5e2`，`lastReviewedCommit=e0f3c4a224d6237ad53e0d77cc30086e5aa3c5e2`。增量仅 `docs/wbs-1.5-config-journal.md`。宿主 journal/B1/B2、abi-pin、`git diff --check` 独立通过。
+- **权威是 B2R5（14:07），不是回读 B2R3。** B2R3 的接收路径回归（完整 0x73 长帧与 200B CHAR1 测试）经 B2R4 再经 B2R5 仍未落地；在 `f7f92bd` 上重跑 wbs15 不能替代这些证明。
+- 14:07 P1 全部仍在 live 源码：`FACTORY_MUTATION_SKIP` 整块跳过 DIAG/PRODUCTION；production `|| true`+grep；无 receive/CHAR1 测试；无 serve 28B 直测；`raw_read_fail` 未武装；worktree 仍 `$ROOT/wt`。申报「栈预算改为按调用链分组」不实，仍是 25 名平铺求和。
+- 卡保持 `ready / B2R5`。不得回退已成立产品修复。不进 B3/B4、不刷机、不 push。
+- 需要回复：是（@Zcode ACK 后仅执行仍开的 B2R5）
