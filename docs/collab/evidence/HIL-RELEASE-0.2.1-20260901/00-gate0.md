@@ -34,4 +34,4 @@ U2 产品基线 `95b775d`。Gate-0 打包源码：detached worktree `/tmp/ahakey
 
 build `360` > 359，且 ≠ 历史 `323`。SHA ≠ 永久禁用 `4426b3c9…ce793b`，也 ≠ 0.2.0 `9736c31c…ac26` / `0c3ec9a6…f33618`。本候选 **未安装**。
 
-原始记录：`raw/gate0-mount.txt`、`raw/pack-release-1c024c5.log`。
+原始记录：`raw/gate0-mount.txt`、`raw/pack-release-1c024c5.txt`。
