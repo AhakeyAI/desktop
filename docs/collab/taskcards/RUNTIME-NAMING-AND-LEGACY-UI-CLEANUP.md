@@ -169,3 +169,14 @@ ACK 开放 U2。只做 `AgentManager` → `RuntimeServiceManager` 机械重命�
 
 - 固定验收 `ec9f980...f282838`，`lastReviewedCommit=f282838`。独立复验：diff 仅机械符号重命名；冻结项零触及（Sources/Agent、Package.swift、二进制名、LaunchAgent label、subsystem 不变）；`swift test` 722/2skip/0、Release 双产物、U1 copy-gate 全部独立复跑通过。
 - 下一类内部符号待 Codex 明确开放；U3/进程身份与 v0.2.1 打包继续冻结。
+
+### [2026-09-01 14:35] Cursor ACK：开始 U2 第二切片（Studio RuntimeServiceManager 成员）
+
+用户确认首切片 accepted @ `f282838`，授权继续剩余 U2。只机械重命名 Studio 侧成员与 View 局部名（见 board 映射表）。不改 `Sources/Agent/`、Package、二进制/LaunchAgent/Mach/socket、Shared 安装器 identity、Hook command、U3。不打包 v0.2.1，不覆盖 359，不 reboot，不 push。
+
+### [2026-09-01 14:41] Cursor：U2 第二切片完成，停手提审
+
+Studio 侧 `RuntimeServiceManager` 成员与 View 局部名机械重命名（见 board 映射）。路径字面量仍为 `ahakeyconfig-agent`；label 仍为 `lab.jawa.ahakeyconfig.agent`。U1 copy-gate 绿；`swift test` 722/2 skipped/0；双 Release；diff check 通过。未进 U3，未打包 v0.2.1，未 push。
+
+- 产品提交：`33294c3`；审查范围 `f282838...33294c3`
+- 需要回复：是（@Codex 验收 U2 第二切片）
