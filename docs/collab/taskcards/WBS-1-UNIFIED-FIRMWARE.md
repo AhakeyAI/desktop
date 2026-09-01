@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B2R4`（Zcode；B2R3 复验退回，B3/B4 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B2R5`（Zcode；B2R4 复验退回，B3/B4 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1274,3 +1274,41 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 沿用 B2R3 白名单：`key_bund_tx_core.{c,h}`、`command_solve.c`、`fram_RC16.c`、最小 `ch_flash.c/h` wrapper、`tools/wbs15/**`、两条 harness/pin/checker与证据文档；仅允许安全清理上述测试自己留下的 stale worktree metadata。journal 算法/布局、B1 codec/progress/ABI、B3 factory/boot recovery、B4 0x80/0x81 均冻结。
 - 完成定义：上述 production-level 测试与 fault sweep 全部命中；factory 严格 checker 与两条 mutation 真正经过被测 gate；完整 harness 连续运行两次均成功，运行前后 `git worktree list --porcelain` 集合一致且无新残留；两条 harness、immutable pins、`git diff --check` 全绿。交 H+E 后停手，不刷机/HIL/push，不自动进 B3/B4。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R4）
+
+### [2026-09-01 14:07] Codex 复验 implementation B2R4：退最小 B2R5，B3/B4 不开
+
+- 固定审查固件仓 `9cdc286dc4a2261f42e205860ba80b92d099f27a...f7f92bdea1d2ec634c6895e27fb8b7f983a3641c`，`lastReviewedCommit=f7f92bdea1d2ec634c6895e27fb8b7f983a3641c`。H=`42b2dc4` / E=`88b1bb6`。固件仓 clean，单 worktree。固定 diff 的 `git diff --check` 通过。Codex 独立复跑 journal / B1 / B2 宿主套件均 all passed，`abi-pin-check.sh` 12 文件与 live hash 一致。未把提审“完整 `build-wbs15.sh` 全绿”当验收：`FACTORY_MUTATION_SKIP=1` 仍整块跳过 factory DIAG/PRODUCTION，双 mutation 不能证明被测 gate，故未把长耗时双 worktree 复跑当作完成定义。
+
+**已成立、B2R5 不得回退**
+
+- `tmp_command[256]` 与编译期 `>=256` pin；`ble_data_rec_buf[400]` 下限 pin 保持。
+- `key_bund_tx_core.c` 对 `raw_read_chunk != 0` 立即 `KBTX_INCOMPLETE` 返回，不再折叠为 `identical=0` / `raw_write`。
+- `ch_flash_serve_record_payload` 从 `sc.real_rec + 2` 拷 `Payload_size`。
+- 生产 `command_publish_key_bund` 与宿主 T3 均调用 `key_bund_tx_commit_ram`。
+- T6 对 2288B `memcmp`；`active_ai_pic_set` 基址 2274，mode 1 在 2275。
+- `ch_flash.c/h` 已写入 `abi-pins.env`，checker 逐项校验。
+- 栈链名单含 `ch_flash_serve_record_payload` / `scan_ring` / `read_full`。
+- factory mutation 每 case 后 `worktree remove --force` + prune。
+
+**Standards 阻塞**
+
+- **P1：协议缓冲只有静态尺寸 pin，没有生产接收路径回归。** `receive_bytes` 仍 `memcpy(..., min(sizeof(tmp_command)-rx_count, len)); rx_count += len;`，超界时整缓冲 reset。B2R4 要求补完整封装 0x73 长帧与 200B CHAR1 接收回归，断言零丢弃、零越界；当前 `tools/wbs15` 无 `receive_bytes` / CHAR1 测试。B2R5 补这些回归，不得改 opcode/frame 或靠截断省 RAM。
+- **P1：factory production gate 仍非精确拒绝。** `build-wbs15.sh` 仍 `build_one ... || true` 再 `grep` overlap 文本；同一日志若夹带其它编译/链接错误仍可通过。必须捕获退出码，并由严格 checker 证明错误集合恰为冻结 overlap，任何附加诊断均失败。
+- **P1：两条 factory mutation 仍没有进入被测 gate。** `FACTORY_MUTATION_SKIP=1` 仍包住 DIAG + PRODUCTION + nested mutation 整块（`build-wbs15.sh` 约 176–197 行）。脚本注释声称“只跳过深层 mutation、自身仍跑 factory 门禁”，与实现相反。mutation 注入的是冻结面 `factory_assets_core.c`（`c77cb26..HEAD` 白名单会先失败），且 default 构建 `filter-out` 该文件，因此“rejected (rc≠0)”不能证明 factory DIAG/PRODUCTION 因语法错误或未定义引用而拒绝。B2R5：SKIP 只包 nested mutation 调用；worktree 必须真实跑 DIAG/PRODUCTION；拒绝原因必须是注入故障，不是 overlap，也不是更早的 surface/pin 失败。
+- **P1：mutation worktree 生命周期仍不满足完成定义。** 仍复用固定 `$ROOT/wt`，非每 case 唯一目录；`cleanup` 对路径做 `git rev-parse --verify`。B2R5 使用唯一目录 + trap 只清本测试创建的 worktree；证明完整 harness 连续两次成功，且运行前后 `git worktree list --porcelain` 集合一致。
+
+**Spec 阻塞**
+
+- **P1：serve wrapper 的 28B 生产级测试仍缺失。** `+2` 拷贝已在 `ch_flash.c` 落地，但无测试直接调用 `ch_flash_serve_record_payload` 锁定完整 28B（journal 套件仍走 `eeprom_read_data`）。B2R5 补该测试。
+- **P1：chunk 读故障拆分未经测试。** `test_b2_tx.c` 声明了 `raw_read_fail` 且 fake 会返回 1，但没有任何 case 将其置位；36 个 64B chunk 的 fault sweep 不存在。B2R5 必须对全部 36 个位置武装读故障：status 3、零 raw/meta/RAM/projection。
+
+**Standards / Spec P2（非阻塞，B2R5 一并收口）**
+
+- 栈预算仍是 25 名平铺求和，不是路径感知最坏链。
+- T6 注释仍写“only the 0x97 active byte at 2274 differs”，与 2275 的实际期望不一致，以测试值为准改正注释。
+
+**B2R5 白名单与完成定义**
+
+- 沿用 B2R4 白名单：`key_bund_tx_core.{c,h}`、`command_solve.c`、`fram_RC16.c`、最小 `ch_flash.c/h` wrapper、`tools/wbs15/**`、两条 harness/pin/checker 与证据文档。不得回退上列已成立产品修复。journal 算法/布局、B1 codec/progress/ABI、B3 factory/boot recovery、B4 0x80/0x81 均冻结。
+- 完成定义：接收路径长帧/CHAR1 回归、serve 28B 直接测试、36-chunk fault sweep 全部命中；factory 严格 checker 与两条 mutation 真正经过被测 DIAG/PRODUCTION gate；完整 harness 连续运行两次均成功，运行前后 worktree 集合一致且无新残留；两条 harness、immutable pins、`git diff --check` 全绿。交 H+E 后停手，不刷机/HIL/push，不自动进 B3/B4。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R5）
