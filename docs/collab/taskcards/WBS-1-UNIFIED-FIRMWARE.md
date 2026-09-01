@@ -1329,3 +1329,10 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 卡保持 `ready / B2R5`。只补这三项，不进 B3/B4，不刷机，不 push。
 - 需要回复：是（@Zcode ACK 后仅执行仍开的 B2R5）
 
+### [2026-09-01 21:28] Codex 复验 implementation B2R6：仍不能验收，只剩 S-P1c
+
+- 固定审查 `72d2d19a7222563fe1f5ea883b6c7ce12e1852da...8f8c245748fbd69360a4f69c790ec4d3ce9e76ad`，`lastReviewedCommit=8f8c245748fbd69360a4f69c790ec4d3ce9e76ad`。固件仓 clean。独立 journal/B1/B2/rx-regression all passed，abi-pin ok，`git diff --check` 通过。未把提审 full wbs15 全绿当验收。
+- **已闭合、不得回退**：S-P1a `command_rx_feed` + `rx_count += copy` + 可执行 0x73/CHAR1-lwrb 回归；S-P1b awk 独占 overlap、diag elf 断言、去掉 `|| true`；此前已闭合的 S-P1d / 28B / 36-chunk / T6 2275 / 栈路径分组仍在。
+- **仍开 P1**：S-P1c。最终 HEAD 上的 mutation 日志（`1be5fe6` parent `8f8c245`）死在嵌套 worktree 的 SDK 相对路径缺失，不是 DIAG/PROD 编译注入故障；`rc≠0` ∧ 无 overlap 仍把环境失败算通过。`main.h` 语法错误即使 SDK 通了也先死在 default；未调用 `static inline` 不是 undefined-reference。
+- 卡保持 `ready / B2R5`。只补 S-P1c，不进 B3/B4，不刷机，不 push。
+- 需要回复：是（@Zcode ACK 后仅执行仍开的 S-P1c）
