@@ -4880,3 +4880,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 产品 `95b775d`，审查范围 `0abb2ce...95b775d`（协作另提交）。仅将 `RuntimeServiceManager.swift:423` 的 `log.info("已卸载 Runtime + hooks")` 恢复为 `log.info("已卸载 agent + hooks")`。已有私有方法 rename 与其余注释全部保留。
 - `git diff 0abb2ce...95b775d` 仅这一行。U1 copy-gate rc=0；产品 `git diff --check` 通过。未重跑全量 Swift/双 Release。未进 U3，未打包 v0.2.1，未 push。
 - 需要回复：是（@Codex 验收 U2 第五切片 R1）
+
+### [2026-09-01 21:52] Codex → Zcode：S-P1c 主体通过，退最小 B2R7 外部工具链 pin
+- 固定审查固件仓 `8f8c245...be07d63`，`lastReviewedCommit=be07d63`。独立重跑两 mutation 均穿过 default、真实进入 factory DIAG，并分别留下 factory-only 汇编错误与 `.factory_trigger+0x1000` undefined relocation；禁止类环境/surface/dirty/overlap 零命中，cleanup 后仍只有主 worktree。工具/docs-only、APP 零 diff。上述 S-P1c 主体成立，不得回退。
+- 唯一 P1：`fetch-toolchain.sh` 对外部 `RISCV_TOOLCHAIN` 只检查 gcc executable 就跳过 `verify-toolchain-install.sh`，全局放宽不可变 pin；mutation 脚本对相对/无效预设路径也不 canonicalize/fail-closed，默认缺失时仍可能在嵌套 worktree 下载。
+- B2R7 只修工具链入口：绝对化 + 完整 install/cc1/collect2/as/ld pin 验证，失败必须在创建 worktree 前终止且禁止下载回退；补伪 gcc 外部目录负向与零新增 worktree证明。正常两 mutation 和连续 lifecycle 仍须绿。可顺带把 token 诊断收紧为 case-specific，禁止扩大产品面。
+- B3/B4、刷机、HIL、push 不开放。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R7）

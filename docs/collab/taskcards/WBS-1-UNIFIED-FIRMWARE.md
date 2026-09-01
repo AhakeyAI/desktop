@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B2R5`（Zcode；B2R4 复验退回，B3/B4 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B2R7`（Zcode；S-P1c 主体成立，仅补外部工具链完整 pin/fail-closed；B3/B4 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1336,3 +1336,13 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **仍开 P1**：S-P1c。最终 HEAD 上的 mutation 日志（`1be5fe6` parent `8f8c245`）死在嵌套 worktree 的 SDK 相对路径缺失，不是 DIAG/PROD 编译注入故障；`rc≠0` ∧ 无 overlap 仍把环境失败算通过。`main.h` 语法错误即使 SDK 通了也先死在 default；未调用 `static inline` 不是 undefined-reference。
 - 卡保持 `ready / B2R5`。只补 S-P1c，不进 B3/B4，不刷机，不 push。
 - 需要回复：是（@Zcode ACK 后仅执行仍开的 S-P1c）
+
+### [2026-09-01 21:52] Codex 复验 S-P1c：mutation 证明成立，退最小 B2R7 工具链 pin
+
+- 固定审查固件仓 `8f8c245748fbd69360a4f69c790ec4d3ce9e76ad...be07d630e70403eeb4375b805155a61242dfbce5`，`lastReviewedCommit=be07d630e70403eeb4375b805155a61242dfbce5`。范围仅 `tools/` 与两份 evidence 文档，`APP/` 零 diff；固件仓 clean、单 worktree、diff check 与三脚本语法通过。
+- Codex 独立重跑 `factory-gate-mutations.sh`：两案均 `rc=2`，default 先到 `GATE_DEFAULT_EXIT=1`，随后进入 `==== wbs15 factory-diag ====`；syntax 留下 `.b2r6_syntax_probe_mutation` unknown pseudo-op，undefined-reference 留下 `(.factory_trigger+0x1000): undefined reference to b2r6_missing_probe_symbol`。新日志 mtime 为本轮复跑，SDK/surface/dirty/overlap 禁止类零命中，worktree 集合前后不变。factory-prod `rc==0` 显式拒绝也已落地。S-P1c 的注入点、真实重定位、阶段证明、诊断持久化与谓词主体成立，不得回退。
+- **唯一 Standards/Spec P1**：`fetch-toolchain.sh` 在 `RISCV_TOOLCHAIN/bin/riscv-none-elf-gcc` 可执行时直接返回，绕过既有 `verify-toolchain-install.sh` 的安装文件哈希与 cc1/collect2/as/ld pin；这把任意或损坏的外部工具链全局放行。`factory-gate-mutations.sh` 对预设的相对/无效 `RISCV_TOOLCHAIN` 也不 canonicalize/fail-closed；默认工具链缺失时会留空，让嵌套 worktree 回退下载，违反本轮“绝对路径复用、环境失败在创建 worktree 前终止”的完成定义。
+- B2R7 仅允许修改 `tools/fetch-toolchain.sh`、`tools/wbs15/factory-gate-mutations.sh`、对应门禁/证据、本卡与 append-only board：外部工具链必须先 canonicalize，再由现有 `verify-toolchain-install.sh <absolute-path>` 完整验证成功才可复用；相对/不存在/坏 pin/缺 cc1-as-ld-lib 的路径必须在创建 mutation worktree 前失败，禁止下载回退。补负向证明伪造“只有 gcc 可执行”的外部目录不能通过，且无新 worktree；正常两 mutation 仍真到 factory DIAG，连续运行后 worktree 集合不变。不得重钉工具链 pin，不改 APP/B3/B4。
+- 非阻塞 P2：当前 token+denylist 不是诊断全集证明；可在本轮按 case 限定预期 assembler/undefined-reference 诊断并拒绝额外非预期编译/链接错误，但不得借此扩大产品面。
+- B3/B4、刷机、HIL、push 继续冻结。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R7）
