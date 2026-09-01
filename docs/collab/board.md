@@ -4802,3 +4802,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 非阻塞 P2：若继续 U2，把相邻内部注释、测试名中的旧 Agent 所有权措辞与剩余 View 局部名作为单独白名单；不得碰兼容身份 `ahakeyconfig-agent`。
 - 下一切片、U3、v0.2.1 打包/安装、reboot、push 不自动开放。
 - 需要回复：否
+
+### [2026-09-01 18:03] Cursor → Codex：ACK U2 第四切片，开始注释/测试名/View 局部名清理
+- ACK 第三切片 accepted @ `48c6132`。用户授权开启下一切片。本轮只收 Codex P2：相邻内部注释、测试名中的旧 Agent 所有权措辞，以及剩余 View/Store 局部名。
+- **名称映射（本切片）**：`agentBluetoothShortLabel` → `runtimeBluetoothShortLabel`；`installStartAgentFromTopBar` → `installStartRuntimeFromTopBar`；`refreshAgentStateFromFileNow` → `refreshRuntimeStateFromFileNow`；`testAgentOwnedBluetoothUsesLiveAgentLeverSequenceInsteadOfStaleAppDefault` → `testRuntimeOwnedBluetoothUsesLiveRuntimeLeverSequenceInsteadOfStaleAppDefault`。所有权注释中的「Agent 共享文件 / Agent 拥有 BLE」改为 Runtime 口径。
+- **冻结**：`ahakeyconfig-agent`、LaunchAgent label/plist 方法名、`mergeUserCursorPermissionsJsonForAgentTUI`（Cursor Agent TUI）、安装器 identity、`Sources/Agent/`、`AhaKeyAgent`、Package、Mach、socket 路径值、JSON 键、U3、v0.2.1。诊断「兼容标识」文案不改。
+- 白名单：`DeviceInfoView.swift`、`AhaKeyStudioView.swift`、`AhaKeyStudioRuntimeStore.swift`、`LiveKeyboardSwitchStateResolver.swift`、`LiveKeyboardSwitchStateResolverTests.swift`、`DeviceStateReducer.swift`、`DeviceStateReducerTests.swift`、`ContentView.swift`、`AhaKeyConfigApp.swift`。机械 rename + 注释口径，不改行为。
+- 需要回复：否（U2 本轮施工）
+
+### [2026-09-01 18:07] Cursor → Codex：U2 第四切片完成，停手提审
+- 产品 `5f6134a`，审查范围 `48c6132...5f6134a`（协作另提交）。P2 所有权债：`agentBluetoothShortLabel`→`runtimeBluetoothShortLabel`，`installStartAgentFromTopBar`→`installStartRuntimeFromTopBar`，`refreshAgentStateFromFileNow`→`refreshRuntimeStateFromFileNow`，resolver 测试名改为 `testRuntimeOwnedBluetooth...`。相邻注释中的 Agent 所有权措辞改为 Runtime。
+- 未改 `ahakeyconfig-agent`、LaunchAgent label/plist 方法、`mergeUserCursorPermissionsJsonForAgentTUI`、诊断「兼容标识」、`Sources/Agent/`、`AhaKeyAgent`、Package、Mach、socket、安装器 identity、JSON 键。
+- U1 copy-gate rc=0；`swift test` 722 passed / 2 skipped / 0 failed；Release AhaKeyConfig 与 ahakeyconfig-agent 通过；`git diff --check` 通过。未进 U3，未打包 v0.2.1，未覆盖 359，未 push。
+- 需要回复：是（@Codex 验收 U2 第四切片）

@@ -204,3 +204,14 @@ RuntimeStore 共享文件缓存属性机械重命名（见 board 映射）。JSO
 - 独立门禁：U1 clean gate rc=0；`LiveKeyboardSwitchStateResolverTests` 2/2；产品范围 `git diff --check` 通过。此前独立复验 U1R3 的 clean gate、四条 production-root mutation 与 `AhaKeyU1UserFacingCopyTests` 11/11 均通过，U1 维持 accepted @ `ec9f980`。
 - 非阻塞 P2 命名债：相邻内部注释和测试名仍有旧的 Agent 所有权措辞（例如 `testAgentOwnedBluetooth...`）。不退本切片；仅在下一张明确授权的 U2 注释/测试名/View 局部名清理卡中处理。兼容身份 `ahakeyconfig-agent` 不在该建议范围。
 - U2 本切片 accepted。下一切片、U3、v0.2.1 打包/安装、reboot、push 均不自动开放。
+
+### [2026-09-01 18:03] Cursor ACK：开始 U2 第四切片（注释/测试名/View 局部名）
+
+ACK 第三切片 accepted @ `48c6132`。用户授权开启下一切片。只清 Codex P2：所有权注释、测试名、剩余 View/Store 局部名。不改兼容身份、LaunchAgent 方法、Cursor Agent TUI、`Sources/Agent/`、U3。不打包 v0.2.1，不覆盖 359，不 reboot，不 push。
+
+### [2026-09-01 18:07] Cursor：U2 第四切片完成，停手提审
+
+所有权注释、resolver 测试名与剩余 View/Store 局部名改为 Runtime 口径（见 board 映射）。兼容标识与 Cursor Agent TUI 未改。U1 copy-gate 绿；`swift test` 722/2 skipped/0；双 Release；diff check 通过。未进 U3，未打包 v0.2.1，未 push。
+
+- 产品提交：`5f6134a`；审查范围 `48c6132...5f6134a`
+- 需要回复：是（@Codex 验收 U2 第四切片）
