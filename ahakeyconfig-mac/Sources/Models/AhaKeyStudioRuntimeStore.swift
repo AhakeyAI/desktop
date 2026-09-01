@@ -161,7 +161,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     /// Studio 侧诊断日志（仅诊断窗口展示；不含任何设备 TX/RX——那是 Runtime/Agent 的边界）。
     let logStore = BLELogStore()
 
-    /// Agent 活性判定由 AgentManager 注入（socket status 心跳为准）。
+    /// 后台服务活性判定由 RuntimeServiceManager 注入（socket status 心跳为准）。
     var agentBLEConnectedProvider: () -> Bool = { false }
 
     private let facade: AhaKeyStudioRuntimeFacade

@@ -102,7 +102,7 @@ SWIFT_RELATIVE = [
     "Sources/Views",
     "Sources/Models/AhaKeyStudioRuntimeStore.swift",
     "Sources/Models/AhaKeyStudioModels.swift",
-    "Sources/Utilities/AgentManager.swift",
+    "Sources/Utilities/RuntimeServiceManager.swift",
     "Sources/Agent/HookSupport.swift",
     "Sources/Agent/AhaKeyAgent.swift",
 ]

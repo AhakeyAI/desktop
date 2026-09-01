@@ -3,7 +3,7 @@ import SwiftUI
 
 struct DeviceInfoView: View {
     @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
-    @StateObject private var agentManager = AgentManager.shared
+    @StateObject private var runtimeServiceManager = RuntimeServiceManager.shared
     @State private var showAgentLog = false
     @State private var agentLogPanel = 0
     @State private var logPanelContentTick = 0
@@ -65,27 +65,27 @@ struct DeviceInfoView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(agentManager.isRunning ? Color.green : Color.gray.opacity(0.4))
+                                .fill(runtimeServiceManager.isRunning ? Color.green : Color.gray.opacity(0.4))
                                 .frame(width: 8, height: 8)
                             Text(NSLocalizedString("LED 跟随 IDE 状态", comment: ""))
                             Text(agentBluetoothShortLabel())
                                 .foregroundStyle(.secondary)
                         }
                         HStack(spacing: 10) {
-                            hookBadge("Claude", installed: agentManager.claudeHooksInstalled)
-                            hookBadge("Cursor", installed: agentManager.cursorHooksInstalled)
-                            hookBadge("Codex", installed: agentManager.codexHooksInstalled)
-                            hookBadge("Kimi", installed: agentManager.kimiHooksInstalled)
+                            hookBadge("Claude", installed: runtimeServiceManager.claudeHooksInstalled)
+                            hookBadge("Cursor", installed: runtimeServiceManager.cursorHooksInstalled)
+                            hookBadge("Codex", installed: runtimeServiceManager.codexHooksInstalled)
+                            hookBadge("Kimi", installed: runtimeServiceManager.kimiHooksInstalled)
                         }
                         .font(.caption)
                     }
                     Spacer()
-                    if agentManager.isInstalled {
-                        Button(agentManager.isRunning ? NSLocalizedString("停止", comment: "") : NSLocalizedString("启动", comment: "")) {
-                            if agentManager.isRunning {
-                                agentManager.stop()
+                    if runtimeServiceManager.isInstalled {
+                        Button(runtimeServiceManager.isRunning ? NSLocalizedString("停止", comment: "") : NSLocalizedString("启动", comment: "")) {
+                            if runtimeServiceManager.isRunning {
+                                runtimeServiceManager.stop()
                             } else {
-                                agentManager.start()
+                                runtimeServiceManager.start()
                             }
                         }
                         .buttonStyle(.bordered)
@@ -93,27 +93,27 @@ struct DeviceInfoView: View {
                         .help(NSLocalizedString("启动或停止 AhaKey Runtime 后台服务。", comment: ""))
 
                         Button(NSLocalizedString("卸载", comment: ""), role: .destructive) {
-                            agentManager.uninstall()
+                            runtimeServiceManager.uninstall()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     } else {
                         HStack(spacing: 8) {
-                            if agentManager.isAgentOperationInProgress {
+                            if runtimeServiceManager.isAgentOperationInProgress {
                                 ProgressView()
                                     .controlSize(.small)
                             }
                             Button(NSLocalizedString("安装并启用", comment: "")) {
-                                agentManager.install()
+                                runtimeServiceManager.install()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .disabled(agentManager.isAgentOperationInProgress)
+                            .disabled(runtimeServiceManager.isAgentOperationInProgress)
                         }
                     }
                 }
 
-                if agentManager.isInstalled {
+                if runtimeServiceManager.isInstalled {
                     HStack(spacing: 10) {
                         Button(NSLocalizedString("查看日志", comment: "")) {
                             showAgentLog.toggle()
@@ -123,39 +123,39 @@ struct DeviceInfoView: View {
 
                         Spacer()
 
-                        if agentManager.claudeHooksInstalled {
-                            Button(NSLocalizedString("移除 Claude Hooks", comment: "")) { agentManager.removeClaudeHooksOnly() }
+                        if runtimeServiceManager.claudeHooksInstalled {
+                            Button(NSLocalizedString("移除 Claude Hooks", comment: "")) { runtimeServiceManager.removeClaudeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button(NSLocalizedString("安装 Claude Hooks", comment: "")) { agentManager.installClaudeHooksOnly() }
+                            Button(NSLocalizedString("安装 Claude Hooks", comment: "")) { runtimeServiceManager.installClaudeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
-                        if agentManager.cursorHooksInstalled {
-                            Button(NSLocalizedString("移除 Cursor Hooks", comment: "")) { agentManager.removeCursorHooksOnly() }
+                        if runtimeServiceManager.cursorHooksInstalled {
+                            Button(NSLocalizedString("移除 Cursor Hooks", comment: "")) { runtimeServiceManager.removeCursorHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button(NSLocalizedString("安装 Cursor Hooks", comment: "")) { agentManager.installCursorHooksOnly() }
+                            Button(NSLocalizedString("安装 Cursor Hooks", comment: "")) { runtimeServiceManager.installCursorHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
-                        if agentManager.codexHooksInstalled {
-                            Button(NSLocalizedString("移除 Codex Hooks", comment: "")) { agentManager.removeCodexHooksOnly() }
+                        if runtimeServiceManager.codexHooksInstalled {
+                            Button(NSLocalizedString("移除 Codex Hooks", comment: "")) { runtimeServiceManager.removeCodexHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button(NSLocalizedString("安装 Codex Hooks", comment: "")) { agentManager.installCodexHooksOnly() }
+                            Button(NSLocalizedString("安装 Codex Hooks", comment: "")) { runtimeServiceManager.installCodexHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
-                        if agentManager.kimiHooksInstalled {
-                            Button(NSLocalizedString("移除 Kimi Hooks", comment: "")) { agentManager.removeKimiHooksOnly() }
+                        if runtimeServiceManager.kimiHooksInstalled {
+                            Button(NSLocalizedString("移除 Kimi Hooks", comment: "")) { runtimeServiceManager.removeKimiHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button(NSLocalizedString("安装 Kimi Hooks", comment: "")) { agentManager.installKimiHooksOnly() }
+                            Button(NSLocalizedString("安装 Kimi Hooks", comment: "")) { runtimeServiceManager.installKimiHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
@@ -164,7 +164,7 @@ struct DeviceInfoView: View {
             } header: {
                 Text(NSLocalizedString("LED 状态同步 · Hook 联动", comment: ""))
             } footer: {
-                if !agentManager.isAgentBinaryPresentInBundle {
+                if !runtimeServiceManager.isAgentBinaryPresentInBundle {
                     Text(NSLocalizedString("发版包内未包含后台服务可执行文件，无法使用 AhaKey Runtime。请用完整「AhaKey Studio.app」或联系开发者。", comment: ""))
                         .foregroundStyle(.orange)
                 }
@@ -191,13 +191,13 @@ struct DeviceInfoView: View {
                     HStack {
                         Button(NSLocalizedString("刷新本页", comment: "")) {
                             logPanelContentTick += 1
-                            agentManager.refresh()
+                            runtimeServiceManager.refresh()
                         }
                         if agentLogPanel == 3 {
                             Button(NSLocalizedString("合并 CLI + IDE 终端白名单", comment: "")) {
-                                let a = agentManager.mergeUserCursorCliConfigForShellAutoApprove()
-                                let b = agentManager.mergeUserCursorPermissionsJsonForAgentTUI()
-                                agentManager.agentUserAlert = a + "\n\n——\n\n" + b
+                                let a = runtimeServiceManager.mergeUserCursorCliConfigForShellAutoApprove()
+                                let b = runtimeServiceManager.mergeUserCursorPermissionsJsonForAgentTUI()
+                                runtimeServiceManager.agentUserAlert = a + "\n\n——\n\n" + b
                             }
                             .help(NSLocalizedString("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Cursor TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。", comment: ""))
                         }
@@ -218,7 +218,7 @@ struct DeviceInfoView: View {
 
             // MARK: - 实时控制当前前台 Kimi（实验）
             Section {
-                Toggle(isOn: $agentManager.kimiTUIAdapterEnabled) {
+                Toggle(isOn: $runtimeServiceManager.kimiTUIAdapterEnabled) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(NSLocalizedString("实时控制当前前台 Kimi", comment: ""))
                         Text(NSLocalizedString("拨杆切换时，自动向前台 Terminal.app / iTerm2 的 Kimi tab 发送 /yolo on/off。默认关闭。", comment: ""))
@@ -243,7 +243,7 @@ struct DeviceInfoView: View {
                 CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill((runtimeStore.isConnected || agentManager.isAgentBLEConnected) ? Color.green : Color.orange)
+                            .fill((runtimeStore.isConnected || runtimeServiceManager.isAgentBLEConnected) ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
                         Text(connectionStatusText())
                     }
@@ -266,14 +266,14 @@ struct DeviceInfoView: View {
         }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
         .alert(NSLocalizedString("AhaKey Runtime", comment: ""), isPresented: Binding(
-            get: { agentManager.agentUserAlert != nil },
-            set: { if !$0 { agentManager.agentUserAlert = nil } }
+            get: { runtimeServiceManager.agentUserAlert != nil },
+            set: { if !$0 { runtimeServiceManager.agentUserAlert = nil } }
         )) {
             Button(NSLocalizedString("好", comment: ""), role: .cancel) {
-                agentManager.agentUserAlert = nil
+                runtimeServiceManager.agentUserAlert = nil
             }
         } message: {
-            Text(agentManager.agentUserAlert ?? "")
+            Text(runtimeServiceManager.agentUserAlert ?? "")
         }
     }
 
@@ -320,9 +320,9 @@ struct DeviceInfoView: View {
     }
 
     private func agentBluetoothShortLabel() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
-        if agentManager.isRunning { return NSLocalizedString("BLE 未连接", comment: "") }
-        if agentManager.isInstalled { return NSLocalizedString("未运行", comment: "") }
+        if runtimeServiceManager.isRunning && runtimeServiceManager.isAgentBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
+        if runtimeServiceManager.isRunning { return NSLocalizedString("BLE 未连接", comment: "") }
+        if runtimeServiceManager.isInstalled { return NSLocalizedString("未运行", comment: "") }
         return NSLocalizedString("未装后台服务", comment: "")
     }
 
@@ -359,19 +359,19 @@ struct DeviceInfoView: View {
     private var logPanelContent: some View {
         switch agentLogPanel {
         case 0:
-            Text(agentManager.readLog())
+            Text(runtimeServiceManager.readLog())
         case 1:
-            Text(agentManager.readPermissionRequestLog())
+            Text(runtimeServiceManager.readPermissionRequestLog())
         case 2:
-            Text(agentManager.readUserCursorHooksJsonForDisplay())
+            Text(runtimeServiceManager.readUserCursorHooksJsonForDisplay())
         case 3:
-            Text(agentManager.readUserCursorCliConfigForDisplay())
+            Text(runtimeServiceManager.readUserCursorCliConfigForDisplay())
         case 4:
-            Text(agentManager.readUserCodexConfigForDisplay())
+            Text(runtimeServiceManager.readUserCodexConfigForDisplay())
         case 5:
-            Text(agentManager.readCodexHookLog())
+            Text(runtimeServiceManager.readCodexHookLog())
         case 6:
-            Text(agentManager.readUserKimiConfigForDisplay())
+            Text(runtimeServiceManager.readUserKimiConfigForDisplay())
         default:
             Text("")
         }

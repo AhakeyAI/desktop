@@ -12,7 +12,7 @@ struct AhaKeyStudioView: View {
     @StateObject private var nativeSpeech = NativeSpeechTranscriptionService.shared
     @StateObject private var ahaType = AhaTypeTextOptimizer.shared
     @StateObject private var cloudAccount = CloudAccountManager.shared
-    @StateObject private var agentManager = AgentManager.shared
+    @StateObject private var runtimeServiceManager = RuntimeServiceManager.shared
     @StateObject private var powerProtection = PowerProtectionManager.shared
     @StateObject private var powerProcessDetector = ProcessDetector.shared
 
@@ -180,14 +180,14 @@ struct AhaKeyStudioView: View {
             refreshStartupPermissionOnboarding()
         }
         .alert(NSLocalizedString("AhaKey Runtime", comment: ""), isPresented: Binding(
-            get: { agentManager.agentUserAlert != nil },
-            set: { if !$0 { agentManager.agentUserAlert = nil } }
+            get: { runtimeServiceManager.agentUserAlert != nil },
+            set: { if !$0 { runtimeServiceManager.agentUserAlert = nil } }
         )) {
             Button(NSLocalizedString("好", comment: ""), role: .cancel) {
-                agentManager.agentUserAlert = nil
+                runtimeServiceManager.agentUserAlert = nil
             }
         } message: {
-            Text(agentManager.agentUserAlert ?? "")
+            Text(runtimeServiceManager.agentUserAlert ?? "")
         }
         .alert(NSLocalizedString("AhaType 未注册登录", comment: ""), isPresented: $showsAhaTypeLoginRequiredToast) {
             Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
@@ -271,7 +271,7 @@ struct AhaKeyStudioView: View {
                     installStartAgentFromTopBar()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(agentManager.isAgentOperationInProgress)
+                .disabled(runtimeServiceManager.isAgentOperationInProgress)
                 .help(NSLocalizedString("安装/修复后台服务与 IDE 集成，并启动 AhaKey Runtime。", comment: ""))
             }
 
@@ -1003,7 +1003,7 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var switchSummary: some View {
-        let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
+        let agentReady = runtimeServiceManager.isInstalled && runtimeServiceManager.isRunning && runtimeServiceManager.hooksInstalled
         summaryRow(NSLocalizedString("当前档位", comment: ""), value: currentSwitchTitle,
                    dot: currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? .green : .indigo)
         summaryRow(NSLocalizedString("后台服务", comment: ""), value: agentReady ? NSLocalizedString("就绪", comment: "") : NSLocalizedString("未就绪", comment: ""),
@@ -1782,8 +1782,8 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var switchEffectivenessBox: some View {
-        let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
-        let hasAnyMissing = !agentManager.isInstalled || !agentManager.isRunning || !agentManager.hooksInstalled
+        let agentReady = runtimeServiceManager.isInstalled && runtimeServiceManager.isRunning && runtimeServiceManager.hooksInstalled
+        let hasAnyMissing = !runtimeServiceManager.isInstalled || !runtimeServiceManager.isRunning || !runtimeServiceManager.hooksInstalled
         GroupBox(agentReady ? NSLocalizedString("已生效", comment: "") : NSLocalizedString("未生效", comment: "")) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
@@ -1797,23 +1797,23 @@ struct AhaKeyStudioView: View {
 
                 if hasAnyMissing {
                     VStack(alignment: .leading, spacing: 4) {
-                        agentChecklistRow(label: NSLocalizedString("后台服务已安装", comment: ""), ok: agentManager.isInstalled)
-                        agentChecklistRow(label: NSLocalizedString("后台服务已连接键盘", comment: ""), ok: agentManager.isRunning)
-                        agentChecklistRow(label: NSLocalizedString("Claude / Cursor / Codex / Kimi Hook 已配置", comment: ""), ok: agentManager.hooksInstalled)
+                        agentChecklistRow(label: NSLocalizedString("后台服务已安装", comment: ""), ok: runtimeServiceManager.isInstalled)
+                        agentChecklistRow(label: NSLocalizedString("后台服务已连接键盘", comment: ""), ok: runtimeServiceManager.isRunning)
+                        agentChecklistRow(label: NSLocalizedString("Claude / Cursor / Codex / Kimi Hook 已配置", comment: ""), ok: runtimeServiceManager.hooksInstalled)
                     }
                     .padding(.leading, 4)
 
                     HStack(spacing: 8) {
-                        if !agentManager.isInstalled {
+                        if !runtimeServiceManager.isInstalled {
                             Button(NSLocalizedString("修复后台服务与 IDE 集成", comment: "")) {
-                                agentManager.install()
+                                runtimeServiceManager.install()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                        } else if !agentManager.isRunning {
+                        } else if !runtimeServiceManager.isRunning {
                             // 与「设备与后台服务」相同：在 launchd 中 load + start 守护进程。
                             Button(NSLocalizedString("启动后台服务", comment: "")) {
-                                agentManager.start()
+                                runtimeServiceManager.start()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -1959,7 +1959,7 @@ struct AhaKeyStudioView: View {
         // 1) 立刻设乐观值 → 画布按钮即时翻转
         runtimeStore.applyOptimisticSwitchOverride(next)
         // 2) 让 Agent 设置软覆盖
-        AgentManager.shared.sendSwitchOverride(next)
+        RuntimeServiceManager.shared.sendSwitchOverride(next)
         // 3) 短延迟后强制重读共享文件，确认真实值已对齐（agent 写文件通常 < 100ms）
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak runtimeStore] in
             runtimeStore?.refreshAgentStateFromFileNow()
@@ -1998,7 +1998,7 @@ struct AhaKeyStudioView: View {
     }
 
     private var shouldShowTopBarInstallStartButton: Bool {
-        !agentManager.isInstalled || !agentManager.hooksInstalled
+        !runtimeServiceManager.isInstalled || !runtimeServiceManager.hooksInstalled
     }
 
     private var configurationModeDetail: String {
@@ -2011,10 +2011,10 @@ struct AhaKeyStudioView: View {
         if runtimeStore.isOnline {
             return NSLocalizedString("Runtime 在线，等待键盘连接", comment: "")
         }
-        if agentManager.isRunning {
+        if runtimeServiceManager.isRunning {
             return NSLocalizedString("后台服务运行中，正在建立 Runtime 连接", comment: "")
         }
-        if agentManager.isInstalled {
+        if runtimeServiceManager.isInstalled {
             return NSLocalizedString("后台服务已安装，正在准备", comment: "")
         }
         return NSLocalizedString("需要安装后台服务后才能连接键盘", comment: "")
@@ -2392,10 +2392,10 @@ struct AhaKeyStudioView: View {
     }
 
     private func installStartAgentFromTopBar() {
-        if !agentManager.isInstalled || !agentManager.hooksInstalled {
-            agentManager.install()
+        if !runtimeServiceManager.isInstalled || !runtimeServiceManager.hooksInstalled {
+            runtimeServiceManager.install()
         } else {
-            agentManager.start()
+            runtimeServiceManager.start()
         }
     }
 

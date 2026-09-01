@@ -2,12 +2,12 @@ import Foundation
 import os.log
 import AhaKeyConfigShared
 
-private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "AgentManager")
+private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "RuntimeServiceManager")
 
 /// 管理 ahakeyconfig-agent 守护进程的安装、启停、状态查询
 @MainActor
-final class AgentManager: ObservableObject {
-    static let shared = AgentManager()
+final class RuntimeServiceManager: ObservableObject {
+    static let shared = RuntimeServiceManager()
 
     private static let appGroupSuite = "lab.jawa.ahakeyconfig"
     private static let kimiTUIAdapterEnabledKey = "kimiTUIAdapterEnabled"
