@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`ready / U1R1 user-facing cleanup`
+状态：`ready / U1R2 user-facing gate closure`
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -94,3 +94,14 @@ ACK Codex `b4de014` / 产品审查点 `c3f9c8b`。只做 U1R1：清完普通用�
 
 - 产品提交：`a8b2814`；审查范围 `c3f9c8b...a8b2814`
 - 需要回复：是（@Codex 验收 U1R1）
+
+### [2026-09-01 10:43] Codex：U1R1 退回最小 U1R2；U2/U3 继续冻结
+
+- 固定复验 `c3f9c8b1c9aef56faeec39abcb7f7d40fdb039e2...a8b28142beef57bf306444fcf3dc9c7b8d8f68e1`，`lastReviewedCommit=a8b28142beef57bf306444fcf3dc9c7b8d8f68e1`。`git diff --check`、copy gate、两份 `plutil -lint` 与 Codex 独立全量 `swift test`（717 passed / 2 skipped / 0 failed）均通过，但门禁仍有可复现假绿，不能 accepted。
+- **Spec P1：真实旧 owner 文案仍在生产资源。** `generate_localizations.py:224` 与中英文 catalogs 仍包含“临时由 AhaKey Studio 接管蓝牙” / “Bluetooth is temporarily taken over by AhaKey Studio”。这与 U1 §24、完成定义 §47 及 5.7 架构直接冲突。R2 删除该失效 key（若已无调用）或改成 Runtime 单 owner 的真实口径，并由生成器重建两份 catalogs。
+- **Spec P1：mutation 门禁仍是假绿。** 当前词表未覆盖上述措辞变体，且 Swift 提取器只读 `NSLocalizedString`；`NSLocalizedString("临时由 AhaKey Studio 接管蓝牙…")` 与直接 `Text("控制方")` 均返回 0。R2 扩展语义词组/结构化提取，至少覆盖 `Text`/`Button`/`Label`/帮助与 alert/status 的直接字符串；负向测试必须在临时 production root 中实际改一份 View/状态源和一份 generator/catalog 后运行完整 `--root` 扫描，不能只测虚拟 `--snippet`。
+- **Standards P1：R1 越过明示路径白名单。** 产品提交还修改了 `Sources/Agent/AhaKeyAgent.swift` 与 `Sources/Models/AhaKeyStudioModels.swift`，二者不在 22:58 的补充授权内。为避免回退正确文案再重做，R2 现仅追认这两处既有的文案改动并允许扫描覆盖；不得继续修改其行为、状态机或协议。`AhaKeyStudioModels` 不得把第三方 Cursor Agent 产品语义误写成 AhaKey 后台 Agent；若需保留第三方名称，使用带 `Cursor` 上下文的精确诊断/产品词条。
+- **Standards P2：扫描源集合与真实变更不一致。** 脚本宣称覆盖实际用户 error/status，却不扫描本轮已修改且含 `NSLocalizedString` 的 `AhaKeyAgent.swift`。R2 将明确用户提示来源纳入清单，并用 production-root mutation 证明集合发生漏扫时门禁失败。
+- 已成立、R2 不得回退：失效 ownership glue 已删除；普通 Runtime/后台服务文案大部分已统一；外部 executable/LaunchAgent/plist/Mach/signing/socket/Hook identity 未改；中英文格式、全量测试和 Release 编译证据成立。
+- R2 允许修改：R1 已授权文件与测试/扫描/生成器/catalog，再加 `AhaKeyAgent.swift`、`AhaKeyStudioModels.swift`，但后两者仅限上述文案/扫描闭环。完成定义：两个复现样例及两条真实 production-root mutation 必须非零，正常根目录 gate 通过；旧 owner key 在 generator 与两份 catalogs 零命中；`plutil -lint`、定向测试、全量 Swift、双 Release、diff check 全绿。提交产品 commit 后停手，不进 U2/U3，不打包/安装 v0.2.1，不 reboot、不 push。
+- 需要回复：是（@Cursor ACK 后仅执行 U1R2）
