@@ -7,31 +7,52 @@ final class AhaKeyU1UserFacingCopyTests: XCTestCase {
         XCTAssertTrue(output.text.contains("U1 user-facing copy gate ok"), output.text)
     }
 
-    func testDirectTextControllerMutationFailsFullRootScan() throws {
-        let output = try runCopyGate(mutation: "view-text-controller")
-        XCTAssertEqual(output.exitCode, 0, output.text)
-        XCTAssertTrue(output.text.contains("view-text-controller"), output.text)
+    func testTextVerbatimSnippetFailsGate() throws {
+        let output = try runCopyGate(snippet: #"Text(verbatim: "控制方")"#)
+        XCTAssertNotEqual(output.exitCode, 0, output.text)
         XCTAssertTrue(output.text.contains("控制方"), output.text)
+    }
+
+    func testStatusMessageAssignmentSnippetFailsGate() throws {
+        let output = try runCopyGate(snippet: #"syncStatusMessage = "控制方""#)
+        XCTAssertNotEqual(output.exitCode, 0, output.text)
+        XCTAssertTrue(output.text.contains("控制方"), output.text)
+    }
+
+    func testTextVerbatimMutationFailsFullRootScan() throws {
+        let output = try runCopyGate(mutation: "view-text-verbatim")
+        XCTAssertEqual(output.exitCode, 0, output.text)
+        XCTAssertTrue(output.text.contains("target: Sources/Views/DeviceInfoView.swift"), output.text)
+        XCTAssertTrue(output.text.contains("phrase: 控制方"), output.text)
+        XCTAssertTrue(output.text.contains("DeviceInfoView.swift"), output.text)
+        XCTAssertTrue(output.text.contains("forbidden phrase '控制方'"), output.text)
+    }
+
+    func testStatusMessageMutationFailsFullRootScan() throws {
+        let output = try runCopyGate(mutation: "status-message")
+        XCTAssertEqual(output.exitCode, 0, output.text)
+        XCTAssertTrue(output.text.contains("target: Sources/Views/AhaKeyStudioView.swift"), output.text)
+        XCTAssertTrue(output.text.contains("phrase: 控制方"), output.text)
+        XCTAssertTrue(output.text.contains("AhaKeyStudioView.swift"), output.text)
+        XCTAssertTrue(output.text.contains("forbidden phrase '控制方'"), output.text)
     }
 
     func testCatalogStudioTakeoverMutationFailsFullRootScan() throws {
         let output = try runCopyGate(mutation: "catalog-studio-takeover")
         XCTAssertEqual(output.exitCode, 0, output.text)
-        XCTAssertTrue(output.text.contains("catalog-studio-takeover"), output.text)
-        XCTAssertTrue(
-            output.text.contains("接管蓝牙") || output.text.contains("taken over by AhaKey Studio"),
-            output.text
-        )
+        XCTAssertTrue(output.text.contains("target: scripts/generate_localizations.py"), output.text)
+        XCTAssertTrue(output.text.contains("phrase: 接管蓝牙"), output.text)
+        XCTAssertTrue(output.text.contains("generate_localizations.py"), output.text)
+        XCTAssertTrue(output.text.contains("forbidden phrase '接管蓝牙'"), output.text)
     }
 
     func testAgentSourceMutationFailsFullRootScan() throws {
         let output = try runCopyGate(mutation: "agent-status")
         XCTAssertEqual(output.exitCode, 0, output.text)
-        XCTAssertTrue(output.text.contains("agent-status"), output.text)
-        XCTAssertTrue(
-            output.text.contains("AhaKeyAgent.swift") || output.text.contains("接管蓝牙"),
-            output.text
-        )
+        XCTAssertTrue(output.text.contains("target: Sources/Agent/AhaKeyAgent.swift"), output.text)
+        XCTAssertTrue(output.text.contains("phrase: 接管蓝牙"), output.text)
+        XCTAssertTrue(output.text.contains("AhaKeyAgent.swift"), output.text)
+        XCTAssertTrue(output.text.contains("forbidden phrase '接管蓝牙'"), output.text)
     }
 
     func testCompatibilityMarkerDoesNotBlanketAllowOwnerCopy() throws {

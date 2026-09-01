@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""U1/U1R2 gate: user-facing copy must not keep BLE-owner phrasing or bare Agent.
+"""U1/U1R3 gate: user-facing copy must not keep BLE-owner phrasing or bare Agent.
 
 Scans production Views, actual user error/status sources (including
 AhaKeyAgent.swift), the localization generator, and both .strings catalogs.
@@ -84,8 +84,13 @@ NSLOCALIZED_RE = re.compile(
 )
 
 UI_LITERAL_RE = re.compile(
-    r"(?:Text|Button|Label|Toggle|Section)\(\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\]|\\.)*)\")"
+    r"(?:(?:SwiftUI\.)?(?:Text|Button|Label|Toggle|Section))\(\s*(?:verbatim:\s*)?(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\]|\\.)*)\")"
     r"|\.(?:help|alert|navigationTitle|confirmationDialog)\(\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\]|\\.)*)\")",
+    re.DOTALL,
+)
+
+PROMPT_ASSIGN_RE = re.compile(
+    r"\b\w*(?:Status|Alert|Message)\w*\s*=\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\]|\\.)*)\")",
     re.DOTALL,
 )
 
@@ -109,21 +114,32 @@ SCAN_RELATIVE_FILES = [
 ]
 
 MUTATIONS = {
-    "view-text-controller": {
+    "view-text-verbatim": {
         "rel": "Sources/Views/DeviceInfoView.swift",
-        "append": '\nText("控制方")\n',
+        "old": 'Text(NSLocalizedString("诊断日志", comment: ""))',
+        "new": 'Text(verbatim: "控制方")',
+        "phrase": "控制方",
+    },
+    "status-message": {
+        "rel": "Sources/Views/AhaKeyStudioView.swift",
+        "old": 'syncStatusMessage = NSLocalizedString("键盘连接始终由 AhaKey Runtime 管理。", comment: "")',
+        "new": 'syncStatusMessage = "控制方"',
+        "phrase": "控制方",
     },
     "catalog-studio-takeover": {
         "rel": "scripts/generate_localizations.py",
-        "insert_after": "TRANSLATIONS = {\n",
-        "text": (
+        "old": '    "主键": "Main Key",\n',
+        "new": (
             '    "临时由 AhaKey Studio 接管蓝牙，用于改键、LCD、同步和本机灯效测试。": '
             '"Bluetooth is temporarily taken over by AhaKey Studio.",\n'
         ),
+        "phrase": "接管蓝牙",
     },
     "agent-status": {
         "rel": "Sources/Agent/AhaKeyAgent.swift",
-        "append": '\nNSLocalizedString("临时由 AhaKey Studio 接管蓝牙", comment: "")\n',
+        "old": 'emit(NSLocalizedString("蓝牙就绪", comment: ""))',
+        "new": 'emit(NSLocalizedString("临时由 AhaKey Studio 接管蓝牙", comment: ""))',
+        "phrase": "接管蓝牙",
     },
 }
 
@@ -162,6 +178,12 @@ def iter_swift_user_strings(text: str) -> list[str]:
             if group is None:
                 continue
             found.append(group if '"""' in match.group(0) else unescape_swift_or_c(group))
+    for match in PROMPT_ASSIGN_RE.finditer(text):
+        triple, quoted = match.group(1), match.group(2)
+        if triple is not None:
+            found.append(triple)
+        elif quoted is not None:
+            found.append(unescape_swift_or_c(quoted))
     return found
 
 
@@ -265,32 +287,45 @@ def apply_mutation(root: Path, kind: str) -> Path:
     spec = MUTATIONS[kind]
     path = root / spec["rel"]
     original = path.read_text(encoding="utf-8")
-    if "append" in spec:
-        path.write_text(original + spec["append"], encoding="utf-8")
-    else:
-        token = spec["insert_after"]
-        if token not in original:
-            raise RuntimeError(f"mutation {kind} could not find insert point in {spec['rel']}")
-        path.write_text(original.replace(token, token + spec["text"], 1), encoding="utf-8")
+    old, new = spec["old"], spec["new"]
+    count = original.count(old)
+    if count != 1:
+        raise RuntimeError(
+            f"mutation {kind} expected unique snippet in {spec['rel']}, found {count}"
+        )
+    path.write_text(original.replace(old, new, 1), encoding="utf-8")
     return path
+
+
+def targeted_hits(hits: list[str], rel: str, phrase: str) -> list[str]:
+    marker = f"forbidden phrase {phrase!r}"
+    return [hit for hit in hits if rel in hit and marker in hit]
 
 
 def run_mutation(src_root: Path, kind: str) -> int:
     if kind not in MUTATIONS:
         raise SystemExit(f"unknown mutation {kind!r}; choose from {sorted(MUTATIONS)}")
+    spec = MUTATIONS[kind]
+    rel = spec["rel"]
+    phrase = spec["phrase"]
     with tempfile.TemporaryDirectory(prefix="u1-copy-gate-") as tmp:
         dest = Path(tmp)
         copy_production_tree(src_root, dest)
-        mutated = apply_mutation(dest, kind)
+        apply_mutation(dest, kind)
         hits = scan_root(dest)
-        if not hits:
+        matched = targeted_hits(hits, rel, phrase)
+        if not matched:
             print(
-                f"U1 user-facing copy gate false-green: mutation {kind} in {mutated.relative_to(dest)} was not detected",
+                f"U1 user-facing copy gate false-green: mutation {kind} did not hit {rel} with {phrase!r}",
                 file=sys.stderr,
             )
+            for hit in hits:
+                print(f"  {hit}", file=sys.stderr)
             return 1
         print(f"U1 user-facing copy gate mutation {kind} detected:")
-        for hit in hits[:8]:
+        print(f"  target: {rel}")
+        print(f"  phrase: {phrase}")
+        for hit in matched:
             print(f"  {hit}")
         return 0
 
