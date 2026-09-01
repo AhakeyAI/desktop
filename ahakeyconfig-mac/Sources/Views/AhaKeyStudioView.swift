@@ -1921,19 +1921,19 @@ struct AhaKeyStudioView: View {
     /// - 两者都没有 → nil（画布回落到模拟）
     private var liveKeyboardLightMode: Int? {
         if runtimeStore.isConnected { return runtimeStore.lightMode }
-        return runtimeStore.agentLightMode
+        return runtimeStore.runtimeLightMode
     }
     private var liveKeyboardSwitchState: Int {
         LiveKeyboardSwitchStateResolver.resolve(
             optimisticOverride: runtimeStore.optimisticSwitchOverride,
             appIsConnected: runtimeStore.isConnected,
             appState: runtimeStore.currentConnectionSwitchState,
-            agentState: runtimeStore.agentSwitchState
+            runtimeState: runtimeStore.runtimeSwitchState
         ) ?? 1
     }
     private var liveKeyboardWorkMode: Int? {
         if runtimeStore.isConnected { return runtimeStore.workMode }
-        return runtimeStore.agentWorkMode
+        return runtimeStore.runtimeWorkMode
     }
     private var liveCanvasLightMode: Int? {
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
@@ -5130,8 +5130,8 @@ private struct ToggleSwitchTopicView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(NSLocalizedString("现状一览", comment: "")).font(.subheadline.weight(.medium))
-                stateRow(NSLocalizedString("当前生效值", comment: ""), "\(runtimeStore.agentSwitchState ?? runtimeStore.switchState)")
-                stateRow(NSLocalizedString("后台服务覆盖", comment: ""), runtimeStore.agentSwitchState != nil ? String(format: NSLocalizedString("%d（覆盖中）", comment: ""), runtimeStore.agentSwitchState!) : NSLocalizedString("未设置（用键盘真实值）", comment: ""))
+                stateRow(NSLocalizedString("当前生效值", comment: ""), "\(runtimeStore.runtimeSwitchState ?? runtimeStore.switchState)")
+                stateRow(NSLocalizedString("后台服务覆盖", comment: ""), runtimeStore.runtimeSwitchState != nil ? String(format: NSLocalizedString("%d（覆盖中）", comment: ""), runtimeStore.runtimeSwitchState!) : NSLocalizedString("未设置（用键盘真实值）", comment: ""))
                 stateRow(NSLocalizedString("乐观显示中", comment: ""), runtimeStore.optimisticSwitchOverride != nil ? NSLocalizedString("是（等待对齐）", comment: "") : NSLocalizedString("否", comment: ""))
             }
             .padding(12)

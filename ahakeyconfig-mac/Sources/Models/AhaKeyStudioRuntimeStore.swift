@@ -152,9 +152,9 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），画布 LED 实时还原用。
     @Published private(set) var liveIDEStateValue: Int?
     /// Agent 端 BLE 轮询缓存的 lightMode/switchState/workMode（Studio 不直连设备时经共享文件对齐）。
-    @Published private(set) var agentLightMode: Int?
-    @Published private(set) var agentSwitchState: Int?
-    @Published private(set) var agentWorkMode: Int?
+    @Published private(set) var runtimeLightMode: Int?
+    @Published private(set) var runtimeSwitchState: Int?
+    @Published private(set) var runtimeWorkMode: Int?
     /// 用户点虚拟拨杆后的乐观值；Agent 共享文件回读一致后确认清除，3s 超时回退。
     @Published private(set) var optimisticSwitchOverride: Int?
 
@@ -352,7 +352,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     private func clearOptimisticSwitchOverrideIfMatched() {
         guard let opt = optimisticSwitchOverride else { return }
         // Agent 共享文件轮询确认：值对齐才清除；Runtime 快照回包的一致性由 presentation 对齐负责。
-        if agentSwitchState == opt || (presentation.isConnected && presentation.currentConnectionSwitchState == opt) {
+        if runtimeSwitchState == opt || (presentation.isConnected && presentation.currentConnectionSwitchState == opt) {
             optimisticSwitchOverride = nil
             switchOverrideTimeoutTask?.cancel()
             switchOverrideTimeoutTask = nil
@@ -462,9 +462,9 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             scheduleIDEStateExpiry(at: nil)
             if liveIDEStateValue != nil { liveIDEStateValue = nil }
-            if agentLightMode != nil { agentLightMode = nil }
-            if agentSwitchState != nil { agentSwitchState = nil }
-            if agentWorkMode != nil { agentWorkMode = nil }
+            if runtimeLightMode != nil { runtimeLightMode = nil }
+            if runtimeSwitchState != nil { runtimeSwitchState = nil }
+            if runtimeWorkMode != nil { runtimeWorkMode = nil }
             return
         }
         let now = Date().timeIntervalSince1970
@@ -485,27 +485,27 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         // Agent 活性以 socket status 心跳为准：Agent 持有 BLE 连接时不因文件老化作废，120s 后复查；
         // Agent 不在/未连接时按 mtime 超过 120s 过期清理。
         let fileMtime = ((try? FileManager.default.attributesOfItem(atPath: ideStateFileURL.path))?[.modificationDate] as? Date)?.timeIntervalSince1970
-        let agentStateFresh: Bool
+        let runtimeStateFresh: Bool
         if runtimeBLEConnectedProvider() {
-            agentStateFresh = true
+            runtimeStateFresh = true
             expiryDeadlines.append(now + 120)
         } else if let mtime = fileMtime, now < mtime + 120 {
-            agentStateFresh = true
+            runtimeStateFresh = true
             expiryDeadlines.append(mtime + 120)
         } else {
-            agentStateFresh = false
+            runtimeStateFresh = false
         }
-        if agentStateFresh {
+        if runtimeStateFresh {
             let lightMode = obj["lightMode"] as? Int
             let switchState = obj["switchState"] as? Int
             let workMode = obj["workMode"] as? Int
-            if agentLightMode != lightMode { agentLightMode = lightMode }
-            if agentSwitchState != switchState { agentSwitchState = switchState }
-            if agentWorkMode != workMode { agentWorkMode = workMode }
+            if runtimeLightMode != lightMode { runtimeLightMode = lightMode }
+            if runtimeSwitchState != switchState { runtimeSwitchState = switchState }
+            if runtimeWorkMode != workMode { runtimeWorkMode = workMode }
         } else {
-            if agentLightMode != nil { agentLightMode = nil }
-            if agentSwitchState != nil { agentSwitchState = nil }
-            if agentWorkMode != nil { agentWorkMode = nil }
+            if runtimeLightMode != nil { runtimeLightMode = nil }
+            if runtimeSwitchState != nil { runtimeSwitchState = nil }
+            if runtimeWorkMode != nil { runtimeWorkMode = nil }
         }
         scheduleIDEStateExpiry(at: expiryDeadlines.min())
         clearOptimisticSwitchOverrideIfMatched()
@@ -592,7 +592,7 @@ final class SwitchStateNotifier: ObservableObject {
 
     private weak var store: AhaKeyStudioRuntimeClient?
     private var switchStateCancellable: AnyCancellable?
-    private var agentSwitchStateCancellable: AnyCancellable?
+    private var runtimeSwitchStateCancellable: AnyCancellable?
     private var lastObservedState: Int?
     private var lastNotificationAt: Date?
     private var hasInitialState = false
@@ -602,7 +602,7 @@ final class SwitchStateNotifier: ObservableObject {
 
     @MainActor
     func bind(to store: AhaKeyStudioRuntimeClient) {
-        if self.store === store, switchStateCancellable != nil, agentSwitchStateCancellable != nil { return }
+        if self.store === store, switchStateCancellable != nil, runtimeSwitchStateCancellable != nil { return }
 
         self.store = store
         lastObservedState = nil
@@ -616,7 +616,7 @@ final class SwitchStateNotifier: ObservableObject {
             .sink { [weak self] newState in
                 self?.handleStateChange(newState)
             }
-        agentSwitchStateCancellable = store.$agentSwitchState
+        runtimeSwitchStateCancellable = store.$runtimeSwitchState
             .compactMap { $0 }
             .removeDuplicates()
             .receive(on: RunLoop.main)

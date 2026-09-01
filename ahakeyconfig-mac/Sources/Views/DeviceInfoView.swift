@@ -308,7 +308,7 @@ struct DeviceInfoView: View {
             optimisticOverride: runtimeStore.optimisticSwitchOverride,
             appIsConnected: runtimeStore.isConnected,
             appState: runtimeStore.currentConnectionSwitchState,
-            agentState: runtimeStore.agentSwitchState
+            runtimeState: runtimeStore.runtimeSwitchState
         )
     }
 

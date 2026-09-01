@@ -5,10 +5,10 @@ public enum LiveKeyboardSwitchStateResolver {
         optimisticOverride: Int?,
         appIsConnected: Bool,
         appState: Int?,
-        agentState: Int?
+        runtimeState: Int?
     ) -> Int? {
         if let optimisticOverride { return optimisticOverride }
         if appIsConnected { return appState }
-        return agentState
+        return runtimeState
     }
 }
