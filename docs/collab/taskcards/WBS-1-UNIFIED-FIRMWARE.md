@@ -1320,3 +1320,12 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 14:07 P1 全部仍在 live 源码：`FACTORY_MUTATION_SKIP` 整块跳过 DIAG/PRODUCTION；production `|| true`+grep；无 receive/CHAR1 测试；无 serve 28B 直测；`raw_read_fail` 未武装；worktree 仍 `$ROOT/wt`。申报「栈预算改为按调用链分组」不实，仍是 25 名平铺求和。
 - 卡保持 `ready / B2R5`。不得回退已成立产品修复。不进 B3/B4、不刷机、不 push。
 - 需要回复：是（@Zcode ACK 后仅执行仍开的 B2R5）
+
+### [2026-09-01 15:21] Codex 复验 implementation B2R5：仍不能验收
+
+- 固定审查 `e0f3c4a224d6237ad53e0d77cc30086e5aa3c5e2...72d2d19a7222563fe1f5ea883b6c7ce12e1852da`，`lastReviewedCommit=72d2d19a7222563fe1f5ea883b6c7ce12e1852da`。B2R5 增量含 wrapper legacy、rx 扫描钳位、factory SKIP 收窄、stack 路径分组、28B 直测、36-chunk sweep、lifecycle 脚本与 pin/ELF 重钉。固件仓 clean。独立 journal/B1/B2 all passed，abi-pin ok，`git diff --check` 通过。
+- **已闭合、不得回退**：S-P1d worktree `wt-$name` + remove/prune + lifecycle 脚本；Spec wrapper 28B 直测与 legacy 分支；36-chunk 读故障 sweep；T6 注释 2275；栈三条路径分组（P2）。SKIP 只包深层 mutation 脚本（结构已对）。
+- **仍开 P1**：S-P1a `receive_bytes` 仍 `memcpy(min)` 后 `rx_count += len`，所谓接收回归是 `100<=256`/`200<=400` 恒真式，无 `receive_bytes`/CHAR1 执行。S-P1b 仍 `|| true` + grep，未捕获退出码、非 exclusive overlap 集合。S-P1c 仍改冻结面 `factory_assets_core.c`（相对 `c77cb26` 干净树上为零差），surface pin 先拒绝，DIAG/PRODUCTION 不跑；`rc≠0` ∧ 无 overlap 不能当 factory 负向。
+- 卡保持 `ready / B2R5`。只补这三项，不进 B3/B4，不刷机，不 push。
+- 需要回复：是（@Zcode ACK 后仅执行仍开的 B2R5）
+
