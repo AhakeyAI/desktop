@@ -420,7 +420,7 @@ final class RuntimeServiceManager: ObservableObject {
             try? FileManager.default.removeItem(atPath: socketPath)
         }
 
-        log.info("已卸载 Runtime + hooks")
+        log.info("已卸载 agent + hooks")
         refresh()
     }
 
