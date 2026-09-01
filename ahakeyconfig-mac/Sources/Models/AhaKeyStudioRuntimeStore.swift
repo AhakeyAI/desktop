@@ -15,8 +15,8 @@ extension NSNotification.Name {
 // 原则：
 // - 设备事实（连接/协议/电量/模式/拨杆/任务图套图/固件版本）全部从 Runtime snapshot 派生，本地不复制；
 // - 保存路径只走 facade.apply（ingestResources → apply），进度由 snapshot.operations 驱动；
-// - Studio 不再扫描/连接/写设备：BLE/USB 由 Runtime（Agent 进程）独占；
-// - Agent 共享文件（current-ide-state.json）的观察与 BLE 无关，原样迁移到本 store；
+// - Studio 不再扫描/连接/写设备：BLE/USB 由 Runtime 进程独占；
+// - Runtime 共享文件（current-ide-state.json）的观察与 BLE 无关，原样迁移到本 store；
 // - 诊断日志保留在 BLELogStore（仅 Studio 侧事件，不含设备 TX/RX）。
 
 /// 从 Runtime view state 派生的设备展示投影。纯值类型，方便 reducer 级单测。
@@ -147,18 +147,18 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     /// 由 viewState 派生的设备投影（reducer 级纯函数，见 `AhaKeyStudioRuntimeDerivation`）。
     @Published private(set) var presentation = AhaKeyStudioDevicePresentation()
 
-    // MARK: - Agent 共享文件状态（与 BLE 无关，自 BLEManager 原样迁移）
+    // MARK: - Runtime 共享文件状态（与 BLE 无关，自 BLEManager 原样迁移）
 
     /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），画布 LED 实时还原用。
     @Published private(set) var liveIDEStateValue: Int?
-    /// Agent 端 BLE 轮询缓存的 lightMode/switchState/workMode（Studio 不直连设备时经共享文件对齐）。
+    /// Runtime 端 BLE 轮询缓存的 lightMode/switchState/workMode（Studio 不直连设备时经共享文件对齐）。
     @Published private(set) var runtimeLightMode: Int?
     @Published private(set) var runtimeSwitchState: Int?
     @Published private(set) var runtimeWorkMode: Int?
-    /// 用户点虚拟拨杆后的乐观值；Agent 共享文件回读一致后确认清除，3s 超时回退。
+    /// 用户点虚拟拨杆后的乐观值；Runtime 共享文件回读一致后确认清除，3s 超时回退。
     @Published private(set) var optimisticSwitchOverride: Int?
 
-    /// Studio 侧诊断日志（仅诊断窗口展示；不含任何设备 TX/RX——那是 Runtime/Agent 的边界）。
+    /// Studio 侧诊断日志（仅诊断窗口展示；不含任何设备 TX/RX——那是 Runtime 的边界）。
     let logStore = BLELogStore()
 
     /// 后台服务活性判定由 RuntimeServiceManager 注入（socket status 心跳为准）。
@@ -320,13 +320,13 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         try await facade.apply(package)
     }
 
-    // MARK: - 诊断日志（Studio 侧事件；设备协议日志归 Runtime/Agent 诊断边界）
+    // MARK: - 诊断日志（Studio 侧事件；设备协议日志归 Runtime 诊断边界）
 
     func appendCommLogLine(_ message: String, isError: Bool = false) {
         logStore.append(BLELogEntry(timestamp: Date(), message: message, isError: isError))
     }
 
-    // MARK: - 虚拟拨杆乐观覆盖（软件覆盖经 Agent socket，与 BLE 无关）
+    // MARK: - 虚拟拨杆乐观覆盖（软件覆盖经 Runtime socket，与 BLE 无关）
 
     func applyOptimisticSwitchOverride(_ value: UInt8) {
         optimisticSwitchOverride = Int(value)
@@ -345,13 +345,13 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     }
 
     /// 主动触发一次共享文件读取（用户点击虚拟拨杆后立即调用，避免等下一次定时 poll）。
-    func refreshAgentStateFromFileNow() {
+    func refreshRuntimeStateFromFileNow() {
         pollIDEStateFile()
     }
 
     private func clearOptimisticSwitchOverrideIfMatched() {
         guard let opt = optimisticSwitchOverride else { return }
-        // Agent 共享文件轮询确认：值对齐才清除；Runtime 快照回包的一致性由 presentation 对齐负责。
+        // Runtime 共享文件轮询确认：值对齐才清除；Runtime 快照回包的一致性由 presentation 对齐负责。
         if runtimeSwitchState == opt || (presentation.isConnected && presentation.currentConnectionSwitchState == opt) {
             optimisticSwitchOverride = nil
             switchOverrideTimeoutTask?.cancel()
@@ -359,7 +359,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         }
     }
 
-    // MARK: - Agent IDE 状态共享文件观察（目录监听 + 过期调度 + 兼容回退轮询）
+    // MARK: - Runtime IDE 状态共享文件观察（目录监听 + 过期调度 + 兼容回退轮询）
 
     private var ideStateDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -376,7 +376,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     private var ideStateExpiryTimer: Timer?
     private var ideStateFallbackTimer: Timer?
 
-    /// Agent 通常以临时文件 + rename 的方式更新状态，因此监听目录而不是单个文件。
+    /// Runtime 通常以临时文件 + rename 的方式更新状态，因此监听目录而不是单个文件。
     /// 仅在真实文件变化时解析 JSON；一次性 timer 在 30s/120s 的准确过期点刷新状态。
     private func startIDEStateMonitoring() {
         stopIDEStateMonitoring()
@@ -470,8 +470,8 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         let now = Date().timeIntervalSince1970
         var expiryDeadlines: [TimeInterval] = []
         // stateValue 是瞬时态（hook 触发的事件时间戳），30s 过期；超时则置空，固件 LED 也会回到无 state 默认。
-        // 注意它故意仍按内容里的 stateTs 判断，不随 mtime：Agent 的 30s touch 会刷新 mtime，
-        // 若按 mtime 判断，瞬时态会被 Agent 保活永不落空。
+        // 注意它故意仍按内容里的 stateTs 判断，不随 mtime：Runtime 的 30s touch 会刷新 mtime，
+        // 若按 mtime 判断，瞬时态会被 Runtime 保活永不落空。
         if let value = obj["stateValue"] as? Int,
            let stateTs = (obj["stateTs"] as? Double) ?? (obj["ts"] as? Double),
            now < stateTs + 30 {
@@ -480,10 +480,10 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         } else {
             if liveIDEStateValue != nil { liveIDEStateValue = nil }
         }
-        // lightMode/switchState/workMode 来自 Agent 的 BLE 轮询。过期判断统一按文件 mtime 语义：
-        // mtime = 「状态最后确认时间」（Agent 无变化时每 30s touch 一次）。
-        // Agent 活性以 socket status 心跳为准：Agent 持有 BLE 连接时不因文件老化作废，120s 后复查；
-        // Agent 不在/未连接时按 mtime 超过 120s 过期清理。
+        // lightMode/switchState/workMode 来自 Runtime 的 BLE 轮询。过期判断统一按文件 mtime 语义：
+        // mtime = 「状态最后确认时间」（Runtime 无变化时每 30s touch 一次）。
+        // Runtime 活性以 socket status 心跳为准：Runtime 持有 BLE 连接时不因文件老化作废，120s 后复查；
+        // Runtime 不在/未连接时按 mtime 超过 120s 过期清理。
         let fileMtime = ((try? FileManager.default.attributesOfItem(atPath: ideStateFileURL.path))?[.modificationDate] as? Date)?.timeIntervalSince1970
         let runtimeStateFresh: Bool
         if runtimeBLEConnectedProvider() {

@@ -236,7 +236,7 @@ final class DeviceStateReducerTests: XCTestCase {
         XCTAssertEqual(result.effect, .none)
     }
 
-    /// 外部确认（Agent 共享文件轮询）：值一致清除 pending 并入库；不一致忽略。
+    /// 外部确认（Runtime 共享文件轮询）：值一致清除 pending 并入库；不一致忽略。
     func testSwitchOverrideConfirmedSemantics() {
         let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
         let pending = DeviceStateReducer.apply(.userSetSwitch(1), core: base.core, diagnostics: base.diagnostics)

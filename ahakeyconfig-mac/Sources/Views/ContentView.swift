@@ -59,7 +59,7 @@ struct ContentView: View {
 
     private var onboardingPermissionState: AhaKeyOnboardingPermissionState {
         AhaKeyOnboardingPermissionState(
-            // Studio 不再直接持有蓝牙：权限与连接由 Runtime/Agent 管理；
+            // Studio 不再直接持有蓝牙：权限与连接由 Runtime 管理；
             // 该行语义改为 Runtime 在线（离线时引导用户修复后台服务）。
             bluetoothPermissionGranted: true,
             bluetoothPoweredOn: runtimeStore.isOnline,

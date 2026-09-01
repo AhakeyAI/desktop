@@ -9,7 +9,7 @@ import UserNotifications
 @main
 struct AhaKeyConfigApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    /// Studio 唯一设备事实源：Runtime facade（XPC）→ store。BLE/USB 由 Runtime（Agent）独占。
+    /// Studio 唯一设备事实源：Runtime facade（XPC）→ store。BLE/USB 由 Runtime 独占。
     @StateObject private var runtimeStore: AhaKeyStudioRuntimeClient
 
     init() {

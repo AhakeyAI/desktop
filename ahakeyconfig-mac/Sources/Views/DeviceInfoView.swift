@@ -68,7 +68,7 @@ struct DeviceInfoView: View {
                                 .fill(runtimeServiceManager.isRunning ? Color.green : Color.gray.opacity(0.4))
                                 .frame(width: 8, height: 8)
                             Text(NSLocalizedString("LED 跟随 IDE 状态", comment: ""))
-                            Text(agentBluetoothShortLabel())
+                            Text(runtimeBluetoothShortLabel())
                                 .foregroundStyle(.secondary)
                         }
                         HStack(spacing: 10) {
@@ -312,14 +312,14 @@ struct DeviceInfoView: View {
         )
     }
 
-    /// 连接状态的用户视角表述：Runtime 在线 + Agent 连接组合。
+    /// 连接状态的用户视角表述：Runtime 在线 + 后台服务蓝牙连接组合。
     private func connectionStatusText() -> String {
         if runtimeStore.isConnected { return NSLocalizedString("已连接键盘（Runtime 在线）", comment: "") }
         if runtimeStore.isOnline { return NSLocalizedString("Runtime 在线 · 未连接键盘", comment: "") }
         return NSLocalizedString("Runtime 离线（未连接）", comment: "")
     }
 
-    private func agentBluetoothShortLabel() -> String {
+    private func runtimeBluetoothShortLabel() -> String {
         if runtimeServiceManager.isRunning && runtimeServiceManager.isRuntimeBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
         if runtimeServiceManager.isRunning { return NSLocalizedString("BLE 未连接", comment: "") }
         if runtimeServiceManager.isInstalled { return NSLocalizedString("未运行", comment: "") }

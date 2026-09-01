@@ -1,5 +1,5 @@
-/// Resolves the keyboard lever value from whichever process currently owns BLE.
-/// The main app's cached value must not mask the Agent's live value while the Agent owns the connection.
+/// Resolves the keyboard lever value from the Runtime process that currently owns BLE.
+/// The main app's cached value must not mask Runtime's live value while Runtime owns the connection.
 public enum LiveKeyboardSwitchStateResolver {
     public static func resolve(
         optimisticOverride: Int?,

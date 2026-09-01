@@ -73,7 +73,7 @@ public enum DeviceStateEvent: Equatable {
     case disconnected
     /// 用户点击虚拟拨杆：设置乐观 pending 值（发布一次），等待轮询回包确认。
     case userSetSwitch(Int)
-    /// BLE 之外的来源（Agent 共享文件轮询）确认拨杆已到达该值：清除 pending、确认值入库。
+    /// BLE 之外的来源（Runtime 共享文件轮询）确认拨杆已到达该值：清除 pending、确认值入库。
     /// 与 pending 不一致时忽略（在途旧帧）。BLE 轮询回包的一致性确认在 fullStatus 分支内完成。
     case switchOverrideConfirmed(Int)
     /// pending 超过约两个轮询周期（3s）未获确认：清除 pending、回退到最后确认值，

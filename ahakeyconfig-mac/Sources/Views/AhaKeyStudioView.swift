@@ -268,7 +268,7 @@ struct AhaKeyStudioView: View {
 
             if shouldShowTopBarInstallStartButton {
                 Button(NSLocalizedString("安装启动", comment: "")) {
-                    installStartAgentFromTopBar()
+                    installStartRuntimeFromTopBar()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(runtimeServiceManager.isRuntimeOperationInProgress)
@@ -1911,13 +1911,13 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentSwitchTitle: String {
-        // 统一的 liveKeyboardSwitchState：Runtime 快照拨杆优先，否则取 Agent 共享文件里的值（含用户拨杆覆盖）。
+        // 统一的 liveKeyboardSwitchState：Runtime 快照拨杆优先，否则取 Runtime 共享文件里的值（含用户拨杆覆盖）。
         liveKeyboardSwitchState == 0 ? NSLocalizedString("自动批准", comment: "") : NSLocalizedString("手动批准", comment: "")
     }
 
     /// 取键盘当前实时状态 (lightMode/switchState/workMode)：
     /// - Runtime 快照里设备已连接 → 用 Runtime 事实（device.state）
-    /// - 快照未连接，但 Agent 仍在写共享文件 → 读 Agent 发布的缓存
+    /// - 快照未连接，但 Runtime 仍在写共享文件 → 读 Runtime 发布的缓存
     /// - 两者都没有 → nil（画布回落到模拟）
     private var liveKeyboardLightMode: Int? {
         if runtimeStore.isConnected { return runtimeStore.lightMode }
@@ -1952,17 +1952,17 @@ struct AhaKeyStudioView: View {
     }
 
     /// 用户点击虚拟拨杆：在当前 effective switchState 基础上 0↔1 翻转，
-    /// 只设置软件覆盖（经 Agent socket）；Studio 不直接向键盘发命令。
+    /// 只设置软件覆盖（经 Runtime socket）；Studio 不直接向键盘发命令。
     private func toggleVirtualSwitch() {
         let current = liveKeyboardSwitchState
         let next: UInt8 = current == 0 ? 1 : 0
         // 1) 立刻设乐观值 → 画布按钮即时翻转
         runtimeStore.applyOptimisticSwitchOverride(next)
-        // 2) 让 Agent 设置软覆盖
+        // 2) 让 Runtime 设置软覆盖
         RuntimeServiceManager.shared.sendSwitchOverride(next)
         // 3) 短延迟后强制重读共享文件，确认真实值已对齐（agent 写文件通常 < 100ms）
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak runtimeStore] in
-            runtimeStore?.refreshAgentStateFromFileNow()
+            runtimeStore?.refreshRuntimeStateFromFileNow()
         }
         syncStatusMessage = next == 0
             ? NSLocalizedString("虚拟拨杆 → 自动批准（hook 自动放行）", comment: "")
@@ -2391,7 +2391,7 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    private func installStartAgentFromTopBar() {
+    private func installStartRuntimeFromTopBar() {
         if !runtimeServiceManager.isInstalled || !runtimeServiceManager.hooksInstalled {
             runtimeServiceManager.install()
         } else {

@@ -11,7 +11,7 @@ final class LiveKeyboardSwitchStateResolverTests: XCTestCase {
         ))
     }
 
-    func testAgentOwnedBluetoothUsesLiveAgentLeverSequenceInsteadOfStaleAppDefault() {
+    func testRuntimeOwnedBluetoothUsesLiveRuntimeLeverSequenceInsteadOfStaleAppDefault() {
         let reportedStates = [0, 1, 2, 0].map { runtimeState in
             LiveKeyboardSwitchStateResolver.resolve(
                 optimisticOverride: nil,
