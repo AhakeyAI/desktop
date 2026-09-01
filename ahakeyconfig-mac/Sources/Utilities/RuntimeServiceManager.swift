@@ -4,7 +4,7 @@ import AhaKeyConfigShared
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "RuntimeServiceManager")
 
-/// 管理 ahakeyconfig-agent 守护进程的安装、启停、状态查询
+/// 管理 AhaKey Runtime 守护进程的安装、启停、状态查询（兼容标识：ahakeyconfig-agent）
 @MainActor
 final class RuntimeServiceManager: ObservableObject {
     static let shared = RuntimeServiceManager()
@@ -14,7 +14,7 @@ final class RuntimeServiceManager: ObservableObject {
 
     @Published private(set) var isInstalled = false
     @Published private(set) var isRunning = false
-    @Published private(set) var isRuntimeBLEConnected = false   // agent 的 BLE 是否真正连上键盘
+    @Published private(set) var isRuntimeBLEConnected = false   // Runtime 的 BLE 是否真正连上键盘
     @Published private(set) var hooksInstalled = false        // Claude / Cursor / Codex / Kimi hooks 是否装了任何一个
     @Published private(set) var claudeHooksInstalled = false
     @Published private(set) var cursorHooksInstalled = false
@@ -24,14 +24,14 @@ final class RuntimeServiceManager: ObservableObject {
     /// 实验性「实时控制当前前台 Kimi」开关。
     /// 开启后，拨杆切到自动/手动时会尝试向前台 Terminal.app / iTerm2 的当前 Kimi tab
     /// 发送 `/yolo on` 或 `/yolo off`。
-    /// 使用 app group suite，保证主 App 与 agent 进程读写同一个值。
+    /// 使用 app group suite，保证主 App 与 Runtime 进程读写同一个值。
     @Published var kimiTUIAdapterEnabled: Bool = false {
         didSet {
             UserDefaults(suiteName: Self.appGroupSuite)?.set(kimiTUIAdapterEnabled, forKey: Self.kimiTUIAdapterEnabledKey)
         }
     }
 
-    /// 安装 / 启停 Agent、写 Hooks 等操作的结果说明；关闭弹窗后由 UI 置 `nil`。
+    /// 安装 / 启停 Runtime、写 Hooks 等操作的结果说明；关闭弹窗后由 UI 置 `nil`。
     @Published var runtimeUserAlert: String?
 
     /// 正在执行安装或 launchctl 启停，用于界面显示进度，避免「点了没反应」。
@@ -55,17 +55,17 @@ final class RuntimeServiceManager: ObservableObject {
     }
 
     private var runtimeBinaryPath: String {
-        // agent 安装到 app bundle 内部（发版须将 ahakeyconfig-agent 与主程序一并复制到 Contents/MacOS/）
+        // Runtime 安装到 app bundle 内部（发版须将 ahakeyconfig-agent 与主程序一并复制到 Contents/MacOS/）
         let appPath = Bundle.main.bundlePath
         return "\(appPath)/Contents/MacOS/ahakeyconfig-agent"
     }
 
-    /// 供界面判断：包内是否带有 agent 可执行文件（发版缺拷贝时 LaunchAgent 无法真正运行）。
+    /// 供界面判断：包内是否带有 Runtime 可执行文件（发版缺拷贝时 LaunchAgent 无法真正运行）。
     var isRuntimeBinaryPresentInBundle: Bool {
         FileManager.default.isExecutableFile(atPath: runtimeBinaryPath)
     }
 
-    /// 兼容性：老版本通过 shell 脚本转发；现在直接调用 agent 二进制。保留路径用于卸载时清理。
+    /// 兼容性：老版本通过 shell 脚本转发；现在直接调用 Runtime 二进制。保留路径用于卸载时清理。
     private var legacyHookScriptPath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".claude/hooks/ahakey-state.sh").path
@@ -147,7 +147,7 @@ final class RuntimeServiceManager: ObservableObject {
         }
     }
 
-    /// 通知 agent 设置/清除虚拟拨杆覆盖。fire-and-forget；agent 会:
+    /// 通知 Runtime 设置/清除虚拟拨杆覆盖。fire-and-forget；Runtime 会:
     /// 1) 落进 UserDefaults 持久化
     /// 2) 写入共享文件让主 App 立即看到
     /// 3) 不再发送旧 0x91；最新固件 0x91 用于灯效预览
@@ -181,11 +181,11 @@ final class RuntimeServiceManager: ObservableObject {
                 return write(fd, base, ptr.count)
             }
             var buf = [UInt8](repeating: 0, count: 256)
-            _ = read(fd, &buf, buf.count) // 等回包再关 fd，避免 agent 还没处理就被 reset
+            _ = read(fd, &buf, buf.count) // 等回包再关 fd，避免 Runtime 还没处理就被 reset
         }
     }
 
-    /// 向 agent socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
+    /// 向 Runtime socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
     /// 同步执行，需在后台线程调用。
     nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -227,8 +227,8 @@ final class RuntimeServiceManager: ObservableObject {
         return !(json["switchState"] is NSNull) && json["switchState"] != nil
     }
 
-    /// 从 launchd 卸载 Agent（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
-    private func unloadAgentLaunchJobRemovingSocket() {
+    /// 从 launchd 卸载 Runtime（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
+    private func unloadRuntimeLaunchJobRemovingSocket() {
         guard FileManager.default.fileExists(atPath: plistPath) else {
             removeStaleSocketIfNeeded()
             return
@@ -296,7 +296,7 @@ final class RuntimeServiceManager: ObservableObject {
     }
 
     private func checkRunning() -> Bool {
-        // 检查 socket 是否存在（agent 运行时会创建）
+        // 检查 socket 是否存在（Runtime 运行时会创建）
         var statBuf = stat()
         return stat(socketPath, &statBuf) == 0 && (statBuf.st_mode & S_IFSOCK) != 0
     }
@@ -346,8 +346,8 @@ final class RuntimeServiceManager: ObservableObject {
 
     private func launchAgentNeedsRewrite() -> Bool {
         // 必须比较完整 ProgramArguments：旧版本 plist 的 --socket 参数指向 /tmp/ahakey.sock，
-        // 只比二进制路径会在同路径覆盖安装后保留旧 socket 路径，导致 Agent 在 /tmp 绑定而 GUI 在
-        // Application Support 等待，表现为"已 load/start 但未检测到 Agent 在运行"。
+        // 只比二进制路径会在同路径覆盖安装后保留旧 socket 路径，导致 Runtime 在 /tmp 绑定而 GUI 在
+        // Application Support 等待，表现为"已 load/start 但未检测到 Runtime 在运行"。
         guard let plist = NSDictionary(contentsOfFile: plistPath),
               let args = plist["ProgramArguments"] as? [String] else { return true }
         return args != [runtimeBinaryPath, "--socket", socketPath]
@@ -364,10 +364,10 @@ final class RuntimeServiceManager: ObservableObject {
         }
 
         // 1. 先卸载旧 job，再写入 plist。否则同 Label 已加载时 launchd 可能继续持有旧 ProgramArguments。
-        unloadAgentLaunchJobRemovingSocket()
+        unloadRuntimeLaunchJobRemovingSocket()
         guard writeLaunchAgentPlist() else { return }
 
-        // 2. 载入并启动 Agent LaunchJob
+        // 2. 载入并启动 Runtime LaunchJob
         var loadFailed = false
         let load = runLaunchctlDetailed(["load", plistPath])
         if !load.ok && !isBenignLaunchctlLoadMessage(load.mergedOutput) {
@@ -377,7 +377,7 @@ final class RuntimeServiceManager: ObservableObject {
             runtimeUserAlert = String(format: NSLocalizedString("后台服务配置已保存，但系统未能载入后台服务。\n\n系统输出：\n%@\n\n常见原因：同一服务已存在、配置无效、对登录项目录无写权限。可先点「卸载」再装，或在「控制台」搜索 %@。", comment: ""), String(out), String(label))
         }
 
-        // 3. 安装 Claude / Cursor / Codex / Kimi hooks（直接指向 agent 二进制 hook 子命令）
+        // 3. 安装 Claude / Cursor / Codex / Kimi hooks（直接指向 Runtime 二进制 hook 子命令）
         let claudeLine = installClaudeHooks()
         let cursorLine = installCursorHooks()
         let codexLine = installCodexHooks()
@@ -420,18 +420,18 @@ final class RuntimeServiceManager: ObservableObject {
             try? FileManager.default.removeItem(atPath: socketPath)
         }
 
-        log.info("已卸载 agent + hooks")
+        log.info("已卸载 Runtime + hooks")
         refresh()
     }
 
-    /// 启动 Agent 守护进程（先确保 Job 已 load，再 start；适合「已安装但未运行」）。
+    /// 启动 Runtime 守护进程（先确保 Job 已 load，再 start；适合「已安装但未运行」）。
     func start() {
         guard isInstalled else {
             runtimeUserAlert = NSLocalizedString("尚未安装后台服务。请先点「安装并启用」。", comment: "")
             return
         }
         if launchAgentNeedsRewrite() {
-            unloadAgentLaunchJobRemovingSocket()
+            unloadRuntimeLaunchJobRemovingSocket()
             guard writeLaunchAgentPlist() else { return }
         }
         isRuntimeOperationInProgress = true
@@ -457,9 +457,9 @@ final class RuntimeServiceManager: ObservableObject {
         }
     }
 
-    /// 停止 Agent 并 **unload** 出 launchd，否则 `KeepAlive` 会让进程立刻重启并继续占蓝牙。
+    /// 停止 Runtime 并 **unload** 出 launchd，否则 `KeepAlive` 会让进程立刻重启并继续占蓝牙。
     func stop() {
-        unloadAgentLaunchJobRemovingSocket()
+        unloadRuntimeLaunchJobRemovingSocket()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
             self?.refresh()
         }
