@@ -1,0 +1,82 @@
+=== shasum ===
+9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3  /tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg
+=== stapler validate ===
+Processing: /tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg
+The validate action worked!
+=== spctl assess dmg ===
+/tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg: accepted
+source=Notarized Developer ID
+=== hdiutil verify ===
+正在检查“Protective Master Boot Record（MBR：0）”的校验和…
+Protective Master Boot Record（MBR：0）：已验证CRC32 $CFB442A8
+正在检查“GPT Header（Primary GPT Header：1）”的校验和…
+    GPT Header（Primary GPT Header：1）：已验证CRC32 $27B4360A
+正在检查“GPT Partition Data（Primary GPT Table：2）”的校验和…
+GPT Partition Data（Primary GPT Table：已验证CRC32 $048468A0
+正在检查“（Apple_Free：3）”的校验和…
+                      （Apple_Free：3）：已验证CRC32 $00000000
+正在检查“disk image（Apple_HFS：4）”的校验和…
+             disk image（Apple_HFS：4）：已验证CRC32 $21F950AA
+正在检查“（Apple_Free：5）”的校验和…
+                      （Apple_Free：5）：已验证CRC32 $00000000
+正在检查“GPT Partition Data（Backup GPT Table：6）”的校验和…
+GPT Partition Data（Backup GPT Table：：已验证CRC32 $048468A0
+正在检查“GPT Header（Backup GPT Header：7）”的校验和…
+     GPT Header（Backup GPT Header：7）：已验证CRC32 $91D261FF
+已验证CRC32 $6E514BCF
+=== mount ===
+预计CRC32 $6E514BCF
+/dev/disk37         	GUID_partition_scheme          	
+/dev/disk37s1       	Apple_HFS                      	/private/tmp/ahakey-021-gate0-mnt.7BTYEv
+MNT=/tmp/ahakey-021-gate0-mnt.7BTYEv
+=== volume listing ===
+total 40
+drwxr-xr-x    8 heartline  staff    340 Sep  1 22:03 .
+drwxrwxrwt  374 root       wheel  11968 Sep  1 22:05 ..
+-rw-r--r--@   1 heartline  staff  10244 Sep  1 22:04 .DS_Store
+drwxr-xr-x@   3 heartline  staff    102 Sep  1 22:03 .background
+drwx------+   5 heartline  staff    170 Sep  1 22:04 .fseventsd
+drwxr-xr-x@   3 heartline  staff    102 Sep  1 22:03 AhaKey Studio.app
+lrwxr-xr-x@   1 heartline  staff     13 Sep  1 22:03 Applications -> /Applications
+-rw-r--r--@   1 heartline  staff    749 Sep  1 22:03 LaunchAgent.plist
+=== Info.plist version ===
+0.2.1
+360
+lab.jawa.ahakeyconfig
+=== app codesign ===
+Identifier=lab.jawa.ahakeyconfig
+Format=app bundle with Mach-O universal (x86_64 arm64)
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+app strict rc=0
+app requirement rc=0
+=== agent codesign ===
+Identifier=lab.jawa.ahakeyconfig
+Format=Mach-O universal (x86_64 arm64)
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+agent strict rc=0
+agent requirement rc=0
+=== companion plist ===
+{
+  "KeepAlive" => true
+  "Label" => "lab.jawa.ahakeyconfig.agent"
+  "MachServices" => {
+    "lab.jawa.ahakeyconfig.runtime" => true
+  }
+  "ProgramArguments" => [
+    0 => "/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent"
+    1 => "--socket"
+    2 => "SOCKET_PATH_PLACEHOLDER"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "LOG_PATH_PLACEHOLDER"
+  "StandardOutPath" => "LOG_PATH_PLACEHOLDER"
+}
+=== detach ===
+"disk37" ejected.
+detach rc=0

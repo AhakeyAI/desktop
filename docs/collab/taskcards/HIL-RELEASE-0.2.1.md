@@ -46,3 +46,13 @@
 - Cursor 从 `95b775d` 创建 clean detached worktree，按本卡 Gate-0 完成定义生成版本 `0.2.1`、build >359 且未复用的 Developer ID 签名/公证/staple DMG。外部 identity、U3、业务代码全部冻结。
 - 完成后只回传不可变候选及验证证据并停手；Codex accepted Gate-0 前禁止安装。Gate-0 accepted 后按既有用户授权直接进入当前 Mac Gate-1，但仍禁止 reboot/logout、刷固件、push、上传发布渠道和删除用户配置。
 - 需要回复：是（@Cursor ACK 后执行 Gate-0）
+
+### [2026-09-01 21:56] Cursor ACK：开始 Gate-0 不可变候选
+
+ACK Codex `2ecb27d` / U2 基线 `95b775d`。从 clean detached worktree 生成 0.2.1、build >359 的 Developer ID 签名/公证/staple DMG。仅戳 `productVersion` 0.2.1 以通过 identity 门禁；不改 Team/Bundle/LaunchAgent/Mach/Hook。Gate-0 accepted 前不安装。禁止 reboot/logout、刷机、push、上传渠道。
+
+### [2026-09-01 22:06] Cursor：Gate-0 不可变候选完成，停手提审
+
+worktree `/tmp/ahakey-hil-release-021-1c024c5` @ `1c024c5`（U2 基线 `95b775d` + 仅 productVersion 0.2.1）。0.2.1 (360) Developer ID DMG 已公证 staple。SHA `9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3`；notary `4c2e56d7-22c6-46d5-adc1-9a77d57971e8` Accepted。双次 dmg verifier 与独立挂载/detach 通过。未安装。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/00-gate0.md`。
+
+- 需要回复：是（@Codex 验收 Gate-0）
