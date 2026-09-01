@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B2R8`（Zcode；B2R7 工具链校验方向保留，仅补真实入口 fail-closed 与 relative/symlink 拒绝；B3/B4 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B3`（Zcode；B2 accepted @ `f1aed78`；仅开 boot/factory recovery T8–T22；B4 冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1356,3 +1356,27 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 非阻塞 P2：工具链解析/校验在两个脚本重复，建议收敛为单一 helper/真实入口以避免再次出现“一个入口检查、另一个入口未检查”；不强制架构重写。
 - B3/B4、刷机、HIL、push 继续冻结。这是 B2 最后一个入口控制切片；完成定义之外不再追加清理。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R8）
+
+### [2026-09-01 22:19] Codex 复验 B2R8：accepted，关闭 B2 并开放 B3
+
+- 固定审查固件仓 `30ff1134881b42c736c1846eeabfe92821608c7c...f1aed7867da24e2cb36a8ff53632eeffaf8042af`，`lastReviewedCommit=f1aed7867da24e2cb36a8ff53632eeffaf8042af`，Harness `H=ea9b6cc98e782e7346ecd5f2e58fd20a1ea09a8b`，Evidence `E=c35d5c22a042e1afccaa812d495058487ac4ef2a`（wbs15）+ wbs14 刷新 `f1aed78`。范围仅 `tools/fetch-toolchain.sh`、`tools/wbs15/factory-gate-mutations.sh`、`tools/wbs15/build-wbs15.sh` 与两份 evidence；`APP/`、pin manifest、B3/B4 零 diff。固件树审查前 clean、单 worktree、`git diff --check 30ff113...HEAD` 通过。审查后独立复跑生成的 evidence 行已恢复到提交态，最终固件树 clean。
+
+**Standards 轴**
+
+- 0 P1。`factory-gate-mutations.sh` 现为 `set -euo pipefail`；gcc 缺失时的 fetch 与随后的 `verify-toolchain-install.sh` 均 `if ! ...; then exit 1; fi`。独立用绝对路径伪 gcc 走真实入口：完整 pin 失败后脚本打印 `toolchain failed the full install verification` 并退出，`git worktree list --porcelain` 与运行前字节相同。
+- 0 P1。override 在任何 `pwd -P` 之前先要求绝对路径且 `[[ -L ]]` 拒绝；随后把**未解析**路径交给 verifier。独立复现：`RISCV_TOOLCHAIN=.toolchain/xpack-...`（相对且指向真实工具链）rc=1（`must be an ABSOLUTE path`）；指向真实有效工具链的 symlink rc=1（`refuse symlink toolchain`）；B2R7 的 fetch 相对路径复现同样 rc=1。两入口均无 `download`。
+- 非阻塞 P2（不另开 B2R9，遵循 a9d1316「完成定义之外不再追加清理」）：harness 负向把 stdout/stderr 丢到 `/dev/null`，未断言 `download` 缺席或拒绝原文；相对案用 resolvable stub 而非相对真实工具链（同一 `/*` 分支）。Codex 已独立补跑上述缺口，不构成退回。
+
+**Spec 轴**
+
+- 0 P1。负向已接入 `factory-gate-mutations.sh` 正门：相对路径、symlink-to-valid、绝对 stub-gcc；本轮 `build-wbs15.sh` 打印 `mutation preflight negatives ok: relative/symlink/stub refused before any worktree`。正常两 mutation 独立全量复跑仍 `rc=2`，日志到达 `==== wbs15 factory-diag ====`，syntax 留下 `.b2r6_syntax_probe_mutation` unknown pseudo-op，undefined-reference 留下 `(.factory_trigger+0x1000): undefined reference to b2r6_missing_probe_symbol`。`GATE_DEFAULT_EXIT=1`。cleanup 后仅主 worktree。
+- 0 P1。独立 `zsh tools/wbs15/build-wbs15.sh` 与 `zsh tools/build-wbs14.sh` 均 exit 0；default/bridge ELF pin 未动；S-P1a/S-P1b/S-P1c 与既有产品修复无回退。
+
+**B2 关闭 / B3（本轮新开）**
+
+- B2（含 B2R1–B2R8 入口控制）accepted @ `f1aed78`。不得回退：完整 install pin、真实入口 fail-closed、相对/symlink 拒绝、DIAG 阶段 mutation、receive-path、factory-prod overlap checker。
+- **B3 范围**：boot/factory recovery，设计文档 §1–§2 / T8–T22、T13b、T21、T25。新增唯一公开入口 `factory_core_recover_and_apply`（`factory_assets_core.c`）；provision 仅允许 `initial_override_mask` seed；`factory_assets.c` 胶水；`main.c` 按 §2 接线（journal 解码为局部值对象 → raw load+sanitize → recover_and_apply → valid-v2 最后覆盖 mask）。配套 `tools/wbs15/**` host 测试与两条 harness/证据文档。
+- **冻结**：`ch_flash.c`、`persist_verify.c/h`；B1 codec/progress/ABI pin（改 `key_bund_layout.h` 必须显式重钉并过评）；B2 `key_bund_tx_core` 与 0x95/0x97 生产路径；B4 0x80/0x81（T29–T30）；opcodes/frames/EEPROM 几何。禁止公开 `factory_core_boot_plan` / execute_plan / plan struct。
+- **完成定义**：host 覆盖 T8–T22 + T13b + T21 零写 settled reboot + T25 两阶段次序。DONE 路径 `PROJECT_DURABLE_INTENT` 在 apply 之前 fail-closed；ERASED 路径 `MERGE_INTENT_INTO_SEED` 且保持 `PREP → trigger → COMMIT`；32/33/34/50-class 零写 fail-closed；DONE×ACTIVE mask-change 全链及全部掉电窗口收敛到 ACTIVE settled。`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手，不自动进 B4。
+- 禁止刷机、HIL、push，不修改客户端仓业务代码。
+- 需要回复：是（@Zcode ACK 后仅执行 implementation B3）
