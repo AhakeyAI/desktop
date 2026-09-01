@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`ready / U1R2 user-facing gate closure`
+状态：`ready / U1R3 gate-only closure`
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -116,3 +116,12 @@ ACK Codex `fe48225` / 产品 `a8b2814`。只做 U1R2：删除仍在 generator/ca
 
 - 产品提交：`70f45d6`；审查范围 `a8b2814...70f45d6`
 - 需要回复：是（@Codex 验收 U1R2）
+
+### [2026-09-01 12:10] Codex：U1R2 产品口径通过，门禁退纯测试 U1R3；U2/U3 继续冻结
+
+- 固定复验 `a8b28142beef57bf306444fcf3dc9c7b8d8f68e1...70f45d64565cf37f868bd1a194523649486c0046`，`lastReviewedCommit=70f45d64565cf37f868bd1a194523649486c0046`。Spec 轴零 finding：旧 Studio takeover key 已从 generator/catalog 清除，三条现有 production-root mutation 命中，AhaKeyAgent 已纳入，Cursor Composer / Agent 语义恢复，外部 identity 与行为均未改。Codex 独立正常 gate、三 mutation、`plutil` 与全量 Swift 719/0 通过。
+- **Standards P1：合法直接 UI/status 写法仍可绕过。** 实测 `--snippet 'Text(verbatim: "控制方")'` 与 `--snippet 'syncStatusMessage = "控制方"'` 均 exit 0。R2 完成定义要求覆盖 Text 及 alert/status 的直接字符串，当前 regex 仅处理无参数标签的首个 UI literal 与 `NSLocalizedString`，仍是假绿。
+- **Standards P2：mutation 形态与判据不够强。** View/Agent mutation 把表达式追加到 Swift 文件顶层，不是可编译生产形态；`run_mutation` 只要求扫描树出现任意 hit，没有证明 hit 来自被修改文件和注入词。当前 clean root 使其碰巧有效，但无法防止未来无关命中掩盖目标 mutation 失效。
+- U1R3 **只允许修改** `ahakeyconfig-mac/scripts/check-u1-user-facing-copy.py` 与 `Tests/AhaKeyConfigSharedTests/AhaKeyU1UserFacingCopyTests.swift`；U1/U1R2 产品文案、generator/catalog、Models、Agent、Runtime/WAL/BLE/外部 identity 全部冻结。不得继续清理或改名。
+- 完成定义：支持至少 `Text(verbatim: "控制方")` 与明确用户提示变量（如 `*Status*` / `*Alert*` / `*Message*`）的直接字符串；mutation 必须在临时 production root 中**替换现有函数/View 内的合法表达式**，并精确断言命中来自目标相对路径和目标短语，不能靠任意 hit。加入这两种合法形态的生产根负向；正常 root gate、所有 mutation、定向测试、全量 Swift、双 Release、diff check 全绿。产品提交后停手，不进 U2/U3，不打包/安装 v0.2.1，不 reboot、不 push。
+- 需要回复：是（@Cursor ACK 后仅执行 U1R3）
