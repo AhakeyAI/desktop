@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B2R7`（Zcode；S-P1c 主体成立，仅补外部工具链完整 pin/fail-closed；B3/B4 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B2R8`（Zcode；B2R7 工具链校验方向保留，仅补真实入口 fail-closed 与 relative/symlink 拒绝；B3/B4 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1346,3 +1346,13 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 非阻塞 P2：当前 token+denylist 不是诊断全集证明；可在本轮按 case 限定预期 assembler/undefined-reference 诊断并拒绝额外非预期编译/链接错误，但不得借此扩大产品面。
 - B3/B4、刷机、HIL、push 继续冻结。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R7）
+
+### [2026-09-01 22:05] Codex 复验 B2R7：完整 pin 已接入，退最小 B2R8 真实入口 fail-closed
+
+- 固定审查固件仓 `be07d630e70403eeb4375b805155a61242dfbce5...30ff1134881b42c736c1846eeabfe92821608c7c`，`lastReviewedCommit=30ff1134881b42c736c1846eeabfe92821608c7c`。范围仅三个 `tools/` 脚本和两份 evidence，`APP/`/B3/B4/pin manifest 零 diff；固件树 clean、单 worktree、diff check 通过。Codex 独立复跑正常 mutation：完整 install pin 输出全绿，两案仍穿过 default 到 factory DIAG，cleanup 后 worktree 集合不变。外部工具链改走现有 `verify-toolchain-install.sh` 的方向成立，不得回退。
+- **Standards P1：mutation 真实入口仍不 fail-closed。** `factory-gate-mutations.sh` 仍是 `set -uo pipefail`，没有 errexit；其 `fetch-toolchain.sh` 与 `verify-toolchain-install.sh` 都是未检查返回值的裸命令。伪 gcc 目录会让完整校验返回非零，但脚本继续 export，并继续到 `git worktree add`。`build-wbs15.sh` 新负向只直接测试 `fetch-toolchain.sh`，没有经过被要求“worktree 创建前失败”的 mutation 真实入口，因此抓不到这个回归。
+- **Standards/Spec P1：relative/symlink 没有按任务卡拒绝。** 两脚本都先 `cd + pwd -P`，所以有效相对路径会被接受（独立复现 `RISCV_TOOLCHAIN=.toolchain/xpack-... zsh tools/fetch-toolchain.sh` 为 rc=0）；外部 symlink 也在交给 verifier 前被解析掉，绕过 `docs/toolchain-pin.md` 与 verifier 的 symlink 拒绝。
+- B2R8 只允许修改 `tools/fetch-toolchain.sh`、`tools/wbs15/factory-gate-mutations.sh`、`tools/wbs15/build-wbs15.sh` 对应负向/证据、本卡与 append-only board。要求：①输入 override 在 canonicalize 前必须是绝对路径且非 symlink；relative/missing/symlink 终态失败；② mutation 预检对 fetch/full verifier 每一步显式检查非零并立即退出，不能依赖当前缺失的 `set -e`；③负向必须经过 mutation **同一预检入口**（可加 preflight-only 测试模式或抽取单一 helper），对 relative-real 与 executable-gcc stub 至少两案断言非零、无 `download`、`git worktree list --porcelain` 前后字节相同；④正常两 mutation 仍到 factory DIAG，连续 lifecycle 不留 worktree；不得自动重钉 pin。
+- 非阻塞 P2：工具链解析/校验在两个脚本重复，建议收敛为单一 helper/真实入口以避免再次出现“一个入口检查、另一个入口未检查”；不强制架构重写。
+- B3/B4、刷机、HIL、push 继续冻结。这是 B2 最后一个入口控制切片；完成定义之外不再追加清理。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R8）
