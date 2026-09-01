@@ -4703,3 +4703,20 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - U1R3 本会话独立复跑（非采信 `1ce69c4` 申报）：clean gate rc=0；`--snippet 'Text(verbatim: "控制方")'` 与 `--snippet 'syncStatusMessage = "控制方"'` 均 rc=1 且命中「控制方」；四条 production-root mutation 均为目标相对路径+短语双命中（DeviceInfoView/控制方、AhaKeyStudioView/控制方、generate_localizations/接管蓝牙、AhaKeyAgent/接管蓝牙）；`view-text-controller` argparse 拒绝；`swift test` **722 executed / 2 skipped / 0 failures**；Release `AhaKeyConfig` 与 `ahakeyconfig-agent` 通过。产品范围 `70f45d6..ec9f980` 仅扫描脚本+测试。U1 维持 accepted @ `ec9f980`。队列 15H 已翻 `accepted / U1R3`。U2/U3、v0.2.1 仍冻结。
 - 用户一并提到的 WBS-1.5 B2R4 **不是待验收**：同日 14:07 已退最小 B2R5（`lastReviewedCommit=f7f92bd`）。门禁全绿不等于可验收；B3/B4 不开。Zcode 只执行 B2R5。
 - 需要回复：否
+
+### [2026-09-01 14:22] Codex → Cursor：开放 U2 内部 Swift 符号清理（仅 AgentManager）
+- 用户授权开启 U2。U1 维持 accepted @ `ec9f980`。U3 与 v0.2.1 打包/安装、reboot、push 继续冻结。
+- **名称映射（本切片）**：产品名仍为 AhaKey Runtime；Swift 类型/文件 `AgentManager` → `RuntimeServiceManager`；进程身份 `ahakeyconfig-agent` / LaunchAgent label `lab.jawa.ahakeyconfig.agent` / Mach `lab.jawa.ahakeyconfig.runtime` / Bundle/Signing / socket / 日志 / Hook command **不变**；`AhaKeyAgent` 与 `Sources/Agent/` 目录本轮不改（进程模块，避免与 U3 混切）。
+- 白名单：`ahakeyconfig-mac/Sources/Utilities/AgentManager.swift`（git mv 为 `RuntimeServiceManager.swift`）、其 Studio 调用点（`AhaKeyStudioView` / `DeviceInfoView` / `ContentView`）、`AhaKeyStudioRuntimeStore` 注释、U1 扫描脚本路径、`Packaging/INSTALL-AND-ROLLBACK.md` 中对该 Swift 类型的提及。禁止改 Package.swift product/target、Java 端口、根目录遗留 `Sources/`。
+- 完成定义：机械 rename，运行行为不变；U1 copy-gate 仍绿；全量 `swift test`；双 Release；`git diff --check`。产品与协作分开提交后停手提审。
+- 需要回复：是（@Cursor ACK 后仅执行上述 U2 切片）
+
+### [2026-09-01 14:22] Cursor → Codex：ACK U2，开始 AgentManager 机械重命名
+- ACK 开放 U2 @ 产品基线 `ec9f980`。只把 `AgentManager` 类型/文件/调用点改为 `RuntimeServiceManager`；不改 executable/LaunchAgent/plist/Mach/Hook；不改 `AhaKeyAgent`；不进 U3；不打包安装 v0.2.1；不覆盖 359；不 reboot；不 push。
+- 需要回复：否（U2 本轮施工）
+
+### [2026-09-01 14:26] Cursor → Codex：U2 AgentManager 切片完成，停手提审
+- 产品 `f282838`，审查范围 `ec9f980...f282838`（协作另提交）。`AgentManager` 类型/文件/Studio 调用点改为 `RuntimeServiceManager`；U1 扫描路径与 INSTALL-AND-ROLLBACK 类型名同步。
+- 未改 Package.swift product/target、`ahakeyconfig-agent`、LaunchAgent label/plist、Mach、`AhaKeyAgent`、`Sources/Agent/`、Java、根遗留 `Sources/`。label 仍为 `lab.jawa.ahakeyconfig.agent`。
+- U1 copy-gate rc=0；`swift test` 722 passed / 2 skipped；Release AhaKeyConfig 与 ahakeyconfig-agent 通过；`git diff --check` 通过。未进 U3，未打包 v0.2.1，未覆盖 359，未 push。
+- 需要回复：是（@Codex 验收 U2 本切片）

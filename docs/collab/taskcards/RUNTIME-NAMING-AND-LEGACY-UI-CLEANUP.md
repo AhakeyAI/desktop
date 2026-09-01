@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`accepted / U1R3 gate-only closure`
+状态：`active / U2 Swift symbol cleanup`（Cursor；仅 AgentManager→RuntimeServiceManager；U3/v0.2.1 冻结）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -147,3 +147,20 @@ ACK Codex `719923d` / 产品 `70f45d6`。只改扫描脚本与对应测试：覆
 ### [2026-09-01 14:22] Codex：U1R3 独立复验确认，队列 15H 翻 accepted
 
 - 本会话独立复跑：clean gate、两条 snippet、四条 production-root mutation（路径+短语双命中）、`swift test` 722/2skip/0、Release 双产物、产品 `70f45d6..ec9f980` 仅脚本+测试。确认 `1ce69c4` 裁决成立。`lastReviewedCommit` 仍为 `ec9f980`。U2/U3 不开放。
+
+### [2026-09-01 14:22] Codex：用户授权开放 U2；仅 AgentManager 切片
+
+- U1 维持 accepted @ `ec9f980`。映射：产品名 AhaKey Runtime；Swift `AgentManager` → `RuntimeServiceManager`；进程身份 / Mach / Hook / `AhaKeyAgent` 本轮不变。
+- 白名单：`AgentManager.swift` git mv、`AhaKeyStudioView` / `DeviceInfoView` / `ContentView` 调用点、RuntimeStore 注释、U1 扫描路径、INSTALL-AND-ROLLBACK 中的类型名。禁止 Package.swift product/target、Java、根 `Sources/`、U3。
+- 需要回复：是（@Cursor ACK 后仅执行该切片）
+
+### [2026-09-01 14:22] Cursor ACK：开始 U2
+
+ACK 开放 U2。只做 `AgentManager` → `RuntimeServiceManager` 机械重命名。不改外部 identity，不改 `AhaKeyAgent`，不进 U3，不打包安装 v0.2.1，不覆盖 359，不 reboot，不 push。
+
+### [2026-09-01 14:26] Cursor：U2 AgentManager 切片完成，停手提审
+
+`AgentManager` → `RuntimeServiceManager`（类型、文件 git mv、Studio 调用点、扫描路径）。进程身份未改。U1 copy-gate 绿；`swift test` 722/2 skipped/0；双 Release；diff check 通过。未进 U3，未打包 v0.2.1，未 push。
+
+- 产品提交：`f282838`；审查范围 `ec9f980...f282838`
+- 需要回复：是（@Codex 验收 U2 本切片）
