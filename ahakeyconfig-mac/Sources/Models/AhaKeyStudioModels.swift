@@ -48,7 +48,7 @@ enum AhaKeyModeSlot: Int, CaseIterable, Codable, Identifiable {
         case .mode0:
             NSLocalizedString("针对 Claude Code 终端权限菜单：Key2 直接输入 Y（同意），Key3 直接输入 N（拒绝）。", comment: "")
         case .mode1:
-            NSLocalizedString("针对 Cursor Composer / 模型：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。", comment: "")
+            NSLocalizedString("针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。", comment: "")
         case .mode2:
             NSLocalizedString("针对 Codex 终端审批：Key2 发送 ↵ 确认，Key3 发送 Esc 取消。", comment: "")
         case .mode3:

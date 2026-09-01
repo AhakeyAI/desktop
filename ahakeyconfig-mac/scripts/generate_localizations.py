@@ -221,7 +221,6 @@ TRANSLATIONS = {
     "中间停住": "Stop in Center",
     "中间最亮，两侧渐弱，适合停住提示。": "Brightest in the center, fading to the sides; good for stop indication.",
     "中间那个像键盘的图就是你的小键盘 1:1 镜像，所有元件可点": "The keyboard-like image in the center is a 1:1 mirror of your mini keyboard; all components are tappable",
-    "临时由 AhaKey Studio 接管蓝牙，用于改键、LCD、同步和本机灯效测试。": "Bluetooth is temporarily taken over by AhaKey Studio for key remapping, LCD, syncing, and local lighting tests.",
     "主键": "Main Key",
     "乐观显示中": "Optimistic Display",
     "乐观更新画布": "Optimistic Canvas Update",
@@ -1166,7 +1165,7 @@ TRANSLATIONS = {
     "AhaKey Runtime 主日志（兼容标识：ahakeyconfig-agent）": "AhaKey Runtime main log (Compatibility IDs: ahakeyconfig-agent)",
     "在 %@ 中**未发现** AhaKey Runtime 相关 `command`。\n\n若 Hook 在**项目级** `.cursor/hooks.json`，请在该仓库内手动删除；本按钮只改用户级 `~/.cursor/hooks.json`。": "No AhaKey Runtime-related `command` was found in %@.\n\nIf the hook is in a project-level `.cursor/hooks.json`, delete it manually in that repo; this button only modifies user-level ~/.cursor/hooks.json.",
     "（switchState 缺省：批准链可能仍交回手动；请确认 AhaKey Runtime 已连接键盘。）": "(switchState default: approval chain may still return to manual; confirm AhaKey Runtime is connected to the keyboard.)",
-    "针对 Cursor Composer / 模型：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。": "For Cursor Composer / model: Key2 sends ↵, Key3 sends ⌫ (same as the bare keys).",
+    "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。": "For Cursor Composer / Agent: Key2 sends ↵, Key3 sends ⌫ (same as the bare keys).",
 }
 ZH_OVERRIDES = {
     "Breathing": "呼吸",

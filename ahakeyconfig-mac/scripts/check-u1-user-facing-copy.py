@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
-"""U1/U1R1 gate: user-facing copy must not keep BLE-owner phrasing or bare Agent.
+"""U1/U1R2 gate: user-facing copy must not keep BLE-owner phrasing or bare Agent.
 
-Scans production Views, actual user error/status sources, the localization
-generator, and both .strings catalogs. Legacy technical identity may appear
-only as an exact allowlisted diagnostic string that already contains
-「兼容标识」 / "Compatibility IDs". A compatibility marker on any other line
-does not blanket-allow forbidden copy.
+Scans production Views, actual user error/status sources (including
+AhaKeyAgent.swift), the localization generator, and both .strings catalogs.
+Legacy technical identity may appear only as an exact allowlisted diagnostic
+string that already contains 「兼容标识」 / "Compatibility IDs". Third-party
+Cursor Agent product names with explicit Cursor context are not treated as
+AhaKey Runtime identity.
 """
 from __future__ import annotations
 
 import argparse
 import ast
-import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
+import re
 
 FORBIDDEN_PHRASES = [
     "控制方",
     "临时接管蓝牙",
+    "接管蓝牙",
     "接管 BLE",
     "自占 BLE",
+    "临时由 AhaKey Studio",
     "交还给 Agent",
     "由 Agent 占用",
     "设备信息 · Agent",
@@ -32,6 +37,8 @@ FORBIDDEN_PHRASES = [
     "Device info · Agent",
     "taking over BLE",
     "takes over BLE",
+    "taken over by AhaKey Studio",
+    "temporarily taken over",
     "hand Bluetooth back",
     "Occupied by Agent",
     "Used by Agent",
@@ -66,8 +73,19 @@ IDENTITY_RE = re.compile(
     r"|lab\.jawa\.ahakeyconfig\.agent"
 )
 
+# Cursor's own product surface, not AhaKey Runtime.
+CURSOR_PRODUCT_IDENTITY_RE = re.compile(
+    r"Cursor(?:\s+Composer)?\s*/\s*Agent|Cursor Agent"
+)
+
 NSLOCALIZED_RE = re.compile(
     r"NSLocalizedString\(\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\]|\\.)*)\")",
+    re.DOTALL,
+)
+
+UI_LITERAL_RE = re.compile(
+    r"(?:Text|Button|Label|Toggle|Section)\(\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\]|\\.)*)\")"
+    r"|\.(?:help|alert|navigationTitle|confirmationDialog)\(\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\]|\\.)*)\")",
     re.DOTALL,
 )
 
@@ -81,7 +99,33 @@ SWIFT_RELATIVE = [
     "Sources/Models/AhaKeyStudioModels.swift",
     "Sources/Utilities/AgentManager.swift",
     "Sources/Agent/HookSupport.swift",
+    "Sources/Agent/AhaKeyAgent.swift",
 ]
+
+SCAN_RELATIVE_FILES = [
+    "scripts/generate_localizations.py",
+    "Resources/zh-Hans.lproj/Localizable.strings",
+    "Resources/en.lproj/Localizable.strings",
+]
+
+MUTATIONS = {
+    "view-text-controller": {
+        "rel": "Sources/Views/DeviceInfoView.swift",
+        "append": '\nText("控制方")\n',
+    },
+    "catalog-studio-takeover": {
+        "rel": "scripts/generate_localizations.py",
+        "insert_after": "TRANSLATIONS = {\n",
+        "text": (
+            '    "临时由 AhaKey Studio 接管蓝牙，用于改键、LCD、同步和本机灯效测试。": '
+            '"Bluetooth is temporarily taken over by AhaKey Studio.",\n'
+        ),
+    },
+    "agent-status": {
+        "rel": "Sources/Agent/AhaKeyAgent.swift",
+        "append": '\nNSLocalizedString("临时由 AhaKey Studio 接管蓝牙", comment: "")\n',
+    },
+}
 
 
 def unescape_swift_or_c(raw: str) -> str:
@@ -113,6 +157,11 @@ def iter_swift_user_strings(text: str) -> list[str]:
             found.append(triple)
         elif quoted is not None:
             found.append(unescape_swift_or_c(quoted))
+    for match in UI_LITERAL_RE.finditer(text):
+        for group in match.groups():
+            if group is None:
+                continue
+            found.append(group if '"""' in match.group(0) else unescape_swift_or_c(group))
     return found
 
 
@@ -142,13 +191,17 @@ def iter_strings_file(path: Path) -> list[str]:
     return found
 
 
+def masked_identity_text(text: str) -> str:
+    return CURSOR_PRODUCT_IDENTITY_RE.sub("", text)
+
+
 def check_text(origin: str, text: str, hits: list[str]) -> None:
     if is_allowed(text):
         return
     for phrase in FORBIDDEN_PHRASES:
         if phrase in text:
             hits.append(f"{origin}: forbidden phrase {phrase!r}")
-    identity = IDENTITY_RE.search(text)
+    identity = IDENTITY_RE.search(masked_identity_text(text))
     if identity:
         hits.append(f"{origin}: bare identity {identity.group(0)!r}")
 
@@ -169,7 +222,7 @@ def scan_root(root: Path) -> list[str]:
     for path in collect_swift_files(root):
         rel = path.relative_to(root).as_posix()
         for index, extracted in enumerate(iter_swift_user_strings(decode_path(path)), 1):
-            check_text(f"{rel} NSLocalizedString#{index}", extracted, hits)
+            check_text(f"{rel} userString#{index}", extracted, hits)
     generator = root / "scripts/generate_localizations.py"
     for index, extracted in enumerate(iter_translations(generator), 1):
         check_text(f"scripts/generate_localizations.py TRANSLATIONS#{index}", extracted, hits)
@@ -180,6 +233,66 @@ def scan_root(root: Path) -> list[str]:
         for index, extracted in enumerate(iter_strings_file(root / rel), 1):
             check_text(f"{rel}#{index}", extracted, hits)
     return hits
+
+
+def report(hits: list[str]) -> int:
+    if hits:
+        print("U1 user-facing copy gate failed:", file=sys.stderr)
+        for hit in hits:
+            print(f"  {hit}", file=sys.stderr)
+        return 1
+    print("U1 user-facing copy gate ok")
+    return 0
+
+
+def copy_production_tree(src_root: Path, dest_root: Path) -> None:
+    for rel in SWIFT_RELATIVE:
+        src = src_root / rel
+        dest = dest_root / rel
+        if src.is_dir():
+            shutil.copytree(src, dest)
+        else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+    for rel in SCAN_RELATIVE_FILES:
+        src = src_root / rel
+        dest = dest_root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+
+
+def apply_mutation(root: Path, kind: str) -> Path:
+    spec = MUTATIONS[kind]
+    path = root / spec["rel"]
+    original = path.read_text(encoding="utf-8")
+    if "append" in spec:
+        path.write_text(original + spec["append"], encoding="utf-8")
+    else:
+        token = spec["insert_after"]
+        if token not in original:
+            raise RuntimeError(f"mutation {kind} could not find insert point in {spec['rel']}")
+        path.write_text(original.replace(token, token + spec["text"], 1), encoding="utf-8")
+    return path
+
+
+def run_mutation(src_root: Path, kind: str) -> int:
+    if kind not in MUTATIONS:
+        raise SystemExit(f"unknown mutation {kind!r}; choose from {sorted(MUTATIONS)}")
+    with tempfile.TemporaryDirectory(prefix="u1-copy-gate-") as tmp:
+        dest = Path(tmp)
+        copy_production_tree(src_root, dest)
+        mutated = apply_mutation(dest, kind)
+        hits = scan_root(dest)
+        if not hits:
+            print(
+                f"U1 user-facing copy gate false-green: mutation {kind} in {mutated.relative_to(dest)} was not detected",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"U1 user-facing copy gate mutation {kind} detected:")
+        for hit in hits[:8]:
+            print(f"  {hit}")
+        return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -194,29 +307,24 @@ def main(argv: list[str] | None = None) -> int:
         "--snippet",
         help="scan a virtual Swift fragment instead of the production tree",
     )
+    parser.add_argument(
+        "--mutation",
+        choices=sorted(MUTATIONS),
+        help="copy the production scan tree, apply a known-bad mutation, and require the full --root scan to fail",
+    )
     args = parser.parse_args(argv)
+    src_root = args.root.resolve() if args.root else Path(__file__).resolve().parents[1]
+
+    if args.mutation:
+        return run_mutation(src_root, args.mutation)
 
     if args.snippet is not None:
         hits: list[str] = []
         for index, extracted in enumerate(iter_swift_user_strings(args.snippet), 1):
-            check_text(f"<snippet> NSLocalizedString#{index}", extracted, hits)
-        if hits:
-            print("U1 user-facing copy gate failed:", file=sys.stderr)
-            for hit in hits:
-                print(f"  {hit}", file=sys.stderr)
-            return 1
-        print("U1 user-facing copy gate ok")
-        return 0
+            check_text(f"<snippet> userString#{index}", extracted, hits)
+        return report(hits)
 
-    root = args.root.resolve() if args.root else Path(__file__).resolve().parents[1]
-    hits = scan_root(root)
-    if hits:
-        print("U1 user-facing copy gate failed:", file=sys.stderr)
-        for hit in hits:
-            print(f"  {hit}", file=sys.stderr)
-        return 1
-    print("U1 user-facing copy gate ok")
-    return 0
+    return report(scan_root(src_root))
 
 
 if __name__ == "__main__":
