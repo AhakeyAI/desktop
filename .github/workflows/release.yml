@@ -20,14 +20,85 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build & Package DMG (ad-hoc signed)
+      - name: Check release secrets
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in \
+            MACOS_CERTIFICATE_P12_BASE64 \
+            MACOS_CERTIFICATE_PASSWORD \
+            APPLE_ID \
+            APPLE_TEAM_ID \
+            APPLE_APP_SPECIFIC_PASSWORD
+          do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing GitHub Actions secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Install Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          certificate_path="$RUNNER_TEMP/developer-id-application.p12"
+          keychain_path="$RUNNER_TEMP/ahakey-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+
+          printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" \
+            "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -d user -s "$keychain_path"
+
+          echo "MACOS_CI_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+          echo "NOTARY_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+          security find-identity -v -p codesigning "$keychain_path"
+
+      - name: Configure Apple notarization
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool store-credentials "AhaKeyNotaryCI" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --keychain "$MACOS_CI_KEYCHAIN" \
+            --validate
+
+      - name: Build, sign, notarize, and package DMG
         working-directory: ahakeyconfig-mac
         env:
-          DMG_BASENAME: AhaKey-Studio-macOS                  # 固定产物名,与下方上传路径一致(否则默认带时间戳后缀)
-          APP_VERSION: ${{ steps.version.outputs.version }}   # tag vX.Y.Z → 写进 app 的 CFBundleShortVersionString
+          DMG_BASENAME: AhaKey-Studio-macOS
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          SIGNING_IDENTITY_HINT: P2VFVRZK7P
+          NOTARY_PROFILE: AhaKeyNotaryCI
         run: |
-          chmod +x scripts/build.sh scripts/package_dmg.sh
-          scripts/package_dmg.sh
+          chmod +x scripts/build.sh scripts/package_dmg.sh scripts/pack-release.sh
+          zsh scripts/pack-release.sh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -38,3 +109,10 @@ jobs:
           generate_release_notes: true
           files: |
             ahakeyconfig-mac/dist/AhaKey-Studio-macOS.dmg
+
+      - name: Remove temporary signing keychain
+        if: always()
+        run: |
+          if [[ -n "${MACOS_CI_KEYCHAIN:-}" && -f "$MACOS_CI_KEYCHAIN" ]]; then
+            security delete-keychain "$MACOS_CI_KEYCHAIN" || true
+          fi
