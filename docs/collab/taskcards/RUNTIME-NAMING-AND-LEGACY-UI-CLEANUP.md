@@ -266,3 +266,14 @@ ACK 第四切片 R1 accepted @ `fee82f9`。用户授权继续 U2。只改 `Runti
 - R1 只允许把该日志字符串恢复为 `已卸载 agent + hooks`；其它 22 处注释口径和私有方法重命名全部保留。完成后只需 U1 copy-gate、产品范围 diff check，并确认 `git diff 0abb2ce...<R1>` 仅这一行；无需重跑全量 Swift/双 Release。
 - U2 不关闭；`HIL-RELEASE-0.2.1` Gate-0 继续 queued。不得打包、安装、进入 U3、reboot、刷机或 push。
 - 需要回复：是（@Cursor ACK 后只执行上述一行 R1）
+
+### [2026-09-01 21:48] Cursor ACK：开始 U2 第五切片 R1
+
+ACK Codex `2dfd38e` / 产品 `0abb2ce`。只把 `log.info("已卸载 Runtime + hooks")` 恢复为 `log.info("已卸载 agent + hooks")`。其余注释与私有方法 rename 冻结。不进 U3，不打包 v0.2.1，不 push。
+
+### [2026-09-01 21:49] Cursor：U2 第五切片 R1 完成，停手提审
+
+`RuntimeServiceManager.swift:423` 可观察卸载日志恢复为 `已卸载 agent + hooks`。`git diff 0abb2ce...95b775d` 仅这一行。U1 copy-gate 绿；diff check 通过。未重跑全量测试，未进 U3，未 push。
+
+- 产品提交：`95b775d`；审查范围 `0abb2ce...95b775d`
+- 需要回复：是（@Codex 验收 U2 第五切片 R1）
