@@ -1960,7 +1960,7 @@ struct AhaKeyStudioView: View {
         runtimeStore.applyOptimisticSwitchOverride(next)
         // 2) 让 Runtime 设置软覆盖
         RuntimeServiceManager.shared.sendSwitchOverride(next)
-        // 3) 短延迟后强制重读共享文件，确认真实值已对齐（agent 写文件通常 < 100ms）
+        // 3) 短延迟后强制重读共享文件，确认真实值已对齐（Runtime 写文件通常 < 100ms）
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak runtimeStore] in
             runtimeStore?.refreshRuntimeStateFromFileNow()
         }
