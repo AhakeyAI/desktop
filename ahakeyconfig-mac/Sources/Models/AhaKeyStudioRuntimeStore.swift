@@ -162,7 +162,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     let logStore = BLELogStore()
 
     /// 后台服务活性判定由 RuntimeServiceManager 注入（socket status 心跳为准）。
-    var agentBLEConnectedProvider: () -> Bool = { false }
+    var runtimeBLEConnectedProvider: () -> Bool = { false }
 
     private let facade: AhaKeyStudioRuntimeFacade
     private var followTask: Task<Void, Never>?
@@ -486,7 +486,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         // Agent 不在/未连接时按 mtime 超过 120s 过期清理。
         let fileMtime = ((try? FileManager.default.attributesOfItem(atPath: ideStateFileURL.path))?[.modificationDate] as? Date)?.timeIntervalSince1970
         let agentStateFresh: Bool
-        if agentBLEConnectedProvider() {
+        if runtimeBLEConnectedProvider() {
             agentStateFresh = true
             expiryDeadlines.append(now + 120)
         } else if let mtime = fileMtime, now < mtime + 120 {

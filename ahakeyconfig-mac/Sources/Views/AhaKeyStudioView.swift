@@ -180,14 +180,14 @@ struct AhaKeyStudioView: View {
             refreshStartupPermissionOnboarding()
         }
         .alert(NSLocalizedString("AhaKey Runtime", comment: ""), isPresented: Binding(
-            get: { runtimeServiceManager.agentUserAlert != nil },
-            set: { if !$0 { runtimeServiceManager.agentUserAlert = nil } }
+            get: { runtimeServiceManager.runtimeUserAlert != nil },
+            set: { if !$0 { runtimeServiceManager.runtimeUserAlert = nil } }
         )) {
             Button(NSLocalizedString("好", comment: ""), role: .cancel) {
-                runtimeServiceManager.agentUserAlert = nil
+                runtimeServiceManager.runtimeUserAlert = nil
             }
         } message: {
-            Text(runtimeServiceManager.agentUserAlert ?? "")
+            Text(runtimeServiceManager.runtimeUserAlert ?? "")
         }
         .alert(NSLocalizedString("AhaType 未注册登录", comment: ""), isPresented: $showsAhaTypeLoginRequiredToast) {
             Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
@@ -271,7 +271,7 @@ struct AhaKeyStudioView: View {
                     installStartAgentFromTopBar()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(runtimeServiceManager.isAgentOperationInProgress)
+                .disabled(runtimeServiceManager.isRuntimeOperationInProgress)
                 .help(NSLocalizedString("安装/修复后台服务与 IDE 集成，并启动 AhaKey Runtime。", comment: ""))
             }
 
@@ -1003,11 +1003,11 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var switchSummary: some View {
-        let agentReady = runtimeServiceManager.isInstalled && runtimeServiceManager.isRunning && runtimeServiceManager.hooksInstalled
+        let runtimeReady = runtimeServiceManager.isInstalled && runtimeServiceManager.isRunning && runtimeServiceManager.hooksInstalled
         summaryRow(NSLocalizedString("当前档位", comment: ""), value: currentSwitchTitle,
                    dot: currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? .green : .indigo)
-        summaryRow(NSLocalizedString("后台服务", comment: ""), value: agentReady ? NSLocalizedString("就绪", comment: "") : NSLocalizedString("未就绪", comment: ""),
-                   dot: agentReady ? .green : .orange)
+        summaryRow(NSLocalizedString("后台服务", comment: ""), value: runtimeReady ? NSLocalizedString("就绪", comment: "") : NSLocalizedString("未就绪", comment: ""),
+                   dot: runtimeReady ? .green : .orange)
         summaryRow(NSLocalizedString("作用范围", comment: ""), value: "Claude · Cursor · Codex · Kimi")
     }
 
@@ -1782,14 +1782,14 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var switchEffectivenessBox: some View {
-        let agentReady = runtimeServiceManager.isInstalled && runtimeServiceManager.isRunning && runtimeServiceManager.hooksInstalled
+        let runtimeReady = runtimeServiceManager.isInstalled && runtimeServiceManager.isRunning && runtimeServiceManager.hooksInstalled
         let hasAnyMissing = !runtimeServiceManager.isInstalled || !runtimeServiceManager.isRunning || !runtimeServiceManager.hooksInstalled
-        GroupBox(agentReady ? NSLocalizedString("已生效", comment: "") : NSLocalizedString("未生效", comment: "")) {
+        GroupBox(runtimeReady ? NSLocalizedString("已生效", comment: "") : NSLocalizedString("未生效", comment: "")) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
-                        .foregroundStyle(agentReady ? .green : .orange)
-                    Text(agentReady
+                    Image(systemName: runtimeReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
+                        .foregroundStyle(runtimeReady ? .green : .orange)
+                    Text(runtimeReady
                          ? NSLocalizedString("AhaKey Runtime 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。", comment: "")
                          : NSLocalizedString("拨杆在 IDE 中生效需先安装 AhaKey Runtime 与 IDE 集成；否则仅为状态显示。", comment: ""))
                         .font(.callout)
@@ -1797,9 +1797,9 @@ struct AhaKeyStudioView: View {
 
                 if hasAnyMissing {
                     VStack(alignment: .leading, spacing: 4) {
-                        agentChecklistRow(label: NSLocalizedString("后台服务已安装", comment: ""), ok: runtimeServiceManager.isInstalled)
-                        agentChecklistRow(label: NSLocalizedString("后台服务已连接键盘", comment: ""), ok: runtimeServiceManager.isRunning)
-                        agentChecklistRow(label: NSLocalizedString("Claude / Cursor / Codex / Kimi Hook 已配置", comment: ""), ok: runtimeServiceManager.hooksInstalled)
+                        runtimeChecklistRow(label: NSLocalizedString("后台服务已安装", comment: ""), ok: runtimeServiceManager.isInstalled)
+                        runtimeChecklistRow(label: NSLocalizedString("后台服务已连接键盘", comment: ""), ok: runtimeServiceManager.isRunning)
+                        runtimeChecklistRow(label: NSLocalizedString("Claude / Cursor / Codex / Kimi Hook 已配置", comment: ""), ok: runtimeServiceManager.hooksInstalled)
                     }
                     .padding(.leading, 4)
 
@@ -1831,7 +1831,7 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    private func agentChecklistRow(label: String, ok: Bool) -> some View {
+    private func runtimeChecklistRow(label: String, ok: Bool) -> some View {
         HStack(spacing: 6) {
             Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle")
                 .foregroundStyle(ok ? .green : .secondary)

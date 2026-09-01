@@ -14,7 +14,7 @@ final class RuntimeServiceManager: ObservableObject {
 
     @Published private(set) var isInstalled = false
     @Published private(set) var isRunning = false
-    @Published private(set) var isAgentBLEConnected = false   // agent 的 BLE 是否真正连上键盘
+    @Published private(set) var isRuntimeBLEConnected = false   // agent 的 BLE 是否真正连上键盘
     @Published private(set) var hooksInstalled = false        // Claude / Cursor / Codex / Kimi hooks 是否装了任何一个
     @Published private(set) var claudeHooksInstalled = false
     @Published private(set) var cursorHooksInstalled = false
@@ -32,10 +32,10 @@ final class RuntimeServiceManager: ObservableObject {
     }
 
     /// 安装 / 启停 Agent、写 Hooks 等操作的结果说明；关闭弹窗后由 UI 置 `nil`。
-    @Published var agentUserAlert: String?
+    @Published var runtimeUserAlert: String?
 
     /// 正在执行安装或 launchctl 启停，用于界面显示进度，避免「点了没反应」。
-    @Published private(set) var isAgentOperationInProgress = false
+    @Published private(set) var isRuntimeOperationInProgress = false
 
     private let label = "lab.jawa.ahakeyconfig.agent"
     private let socketPath = AhaKeyPaths.agentSocketPath
@@ -54,15 +54,15 @@ final class RuntimeServiceManager: ObservableObject {
         try FileManager.default.createDirectory(at: launchAgentsDirectoryURL, withIntermediateDirectories: true, attributes: nil)
     }
 
-    private var agentBinaryPath: String {
+    private var runtimeBinaryPath: String {
         // agent 安装到 app bundle 内部（发版须将 ahakeyconfig-agent 与主程序一并复制到 Contents/MacOS/）
         let appPath = Bundle.main.bundlePath
         return "\(appPath)/Contents/MacOS/ahakeyconfig-agent"
     }
 
     /// 供界面判断：包内是否带有 agent 可执行文件（发版缺拷贝时 LaunchAgent 无法真正运行）。
-    var isAgentBinaryPresentInBundle: Bool {
-        FileManager.default.isExecutableFile(atPath: agentBinaryPath)
+    var isRuntimeBinaryPresentInBundle: Bool {
+        FileManager.default.isExecutableFile(atPath: runtimeBinaryPath)
     }
 
     /// 兼容性：老版本通过 shell 脚本转发；现在直接调用 agent 二进制。保留路径用于卸载时清理。
@@ -140,10 +140,10 @@ final class RuntimeServiceManager: ObservableObject {
             let socketPath = socketPath
             DispatchQueue.global(qos: .utility).async { [weak self, socketPath] in
                 let bleConnected = Self.querySocketBLEConnected(socketPath: socketPath)
-                DispatchQueue.main.async { self?.isAgentBLEConnected = bleConnected }
+                DispatchQueue.main.async { self?.isRuntimeBLEConnected = bleConnected }
             }
         } else {
-            isAgentBLEConnected = false
+            isRuntimeBLEConnected = false
         }
     }
 
@@ -313,7 +313,7 @@ final class RuntimeServiceManager: ObservableObject {
             <string>\(label)</string>
             <key>ProgramArguments</key>
             <array>
-                <string>\(agentBinaryPath)</string>
+                <string>\(runtimeBinaryPath)</string>
                 <string>--socket</string>
                 <string>\(socketPath)</string>
             </array>
@@ -339,7 +339,7 @@ final class RuntimeServiceManager: ObservableObject {
             return true
         } catch {
             log.error("LaunchAgent 安装失败: \(error)")
-            agentUserAlert = String(format: NSLocalizedString("无法写入后台服务配置文件：%@\n\n将写入：%@\n已尝试创建目录：%@\n若仍失败，请检查对「~/Library」是否有写权限，或本机管理策略是否禁止用户登录项。", comment: ""), String(error.localizedDescription), String(plistPath), String(launchAgentsDirectoryURL.path))
+            runtimeUserAlert = String(format: NSLocalizedString("无法写入后台服务配置文件：%@\n\n将写入：%@\n已尝试创建目录：%@\n若仍失败，请检查对「~/Library」是否有写权限，或本机管理策略是否禁止用户登录项。", comment: ""), String(error.localizedDescription), String(plistPath), String(launchAgentsDirectoryURL.path))
             return false
         }
     }
@@ -350,16 +350,16 @@ final class RuntimeServiceManager: ObservableObject {
         // Application Support 等待，表现为"已 load/start 但未检测到 Agent 在运行"。
         guard let plist = NSDictionary(contentsOfFile: plistPath),
               let args = plist["ProgramArguments"] as? [String] else { return true }
-        return args != [agentBinaryPath, "--socket", socketPath]
+        return args != [runtimeBinaryPath, "--socket", socketPath]
     }
 
     func install() {
-        agentUserAlert = nil
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
+        runtimeUserAlert = nil
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
 
-        guard isAgentBinaryPresentInBundle else {
-            agentUserAlert = NSLocalizedString("应用包内没有后台服务可执行文件，无法安装 AhaKey Runtime。请使用完整「AhaKey Studio.app」或联系开发者。", comment: "")
+        guard isRuntimeBinaryPresentInBundle else {
+            runtimeUserAlert = NSLocalizedString("应用包内没有后台服务可执行文件，无法安装 AhaKey Runtime。请使用完整「AhaKey Studio.app」或联系开发者。", comment: "")
             return
         }
 
@@ -374,7 +374,7 @@ final class RuntimeServiceManager: ObservableObject {
             loadFailed = true
             log.error("launchctl load failed: \(load.mergedOutput)")
             let out = load.mergedOutput.isEmpty ? NSLocalizedString("（无输出，退出非 0）", comment: "") : load.mergedOutput
-            agentUserAlert = String(format: NSLocalizedString("后台服务配置已保存，但系统未能载入后台服务。\n\n系统输出：\n%@\n\n常见原因：同一服务已存在、配置无效、对登录项目录无写权限。可先点「卸载」再装，或在「控制台」搜索 %@。", comment: ""), String(out), String(label))
+            runtimeUserAlert = String(format: NSLocalizedString("后台服务配置已保存，但系统未能载入后台服务。\n\n系统输出：\n%@\n\n常见原因：同一服务已存在、配置无效、对登录项目录无写权限。可先点「卸载」再装，或在「控制台」搜索 %@。", comment: ""), String(out), String(label))
         }
 
         // 3. 安装 Claude / Cursor / Codex / Kimi hooks（直接指向 agent 二进制 hook 子命令）
@@ -394,10 +394,10 @@ final class RuntimeServiceManager: ObservableObject {
         if !codexLine.isEmpty { lines.append(codexLine) }
         if !kimiLine.isEmpty { lines.append(kimiLine) }
         let tail = lines.joined(separator: "\n\n")
-        if let err = agentUserAlert {
-            agentUserAlert = err + (tail.isEmpty ? "" : "\n\n——\n\n" + tail)
+        if let err = runtimeUserAlert {
+            runtimeUserAlert = err + (tail.isEmpty ? "" : "\n\n——\n\n" + tail)
         } else {
-            agentUserAlert = tail.isEmpty ? NSLocalizedString("安装完成。", comment: "") : tail
+            runtimeUserAlert = tail.isEmpty ? NSLocalizedString("安装完成。", comment: "") : tail
         }
     }
 
@@ -427,19 +427,19 @@ final class RuntimeServiceManager: ObservableObject {
     /// 启动 Agent 守护进程（先确保 Job 已 load，再 start；适合「已安装但未运行」）。
     func start() {
         guard isInstalled else {
-            agentUserAlert = NSLocalizedString("尚未安装后台服务。请先点「安装并启用」。", comment: "")
+            runtimeUserAlert = NSLocalizedString("尚未安装后台服务。请先点「安装并启用」。", comment: "")
             return
         }
         if launchAgentNeedsRewrite() {
             unloadAgentLaunchJobRemovingSocket()
             guard writeLaunchAgentPlist() else { return }
         }
-        isAgentOperationInProgress = true
+        isRuntimeOperationInProgress = true
         let loadRes = runLaunchctlDetailed(["load", plistPath])
         let startRes = runLaunchctlDetailed(["start", label])
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self] in
             guard let self else { return }
-            self.isAgentOperationInProgress = false
+            self.isRuntimeOperationInProgress = false
             self.refresh()
             if !self.isRunning {
                 var m = String(format: NSLocalizedString("已执行启动，但尚未检测到后台服务在运行（未出现 %@）。\n\n", comment: ""), socketPath)
@@ -450,9 +450,9 @@ final class RuntimeServiceManager: ObservableObject {
                     m += "start：\n\(startRes.mergedOutput.isEmpty ? "（无输出）" : startRes.mergedOutput)\n\n"
                 }
                 m += String(format: NSLocalizedString("请点「查看日志」检查 %@；并确认系统「隐私与安全性」中已允许本应用使用蓝牙；若通过登录项拉起后台服务，也需为同一签名的二进制授权。", comment: ""), String(self.logFilePath))
-                self.agentUserAlert = m
+                self.runtimeUserAlert = m
             } else if (!loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput)) || !startRes.ok {
-                self.agentUserAlert = String(format: NSLocalizedString("AhaKey Runtime 已运行。附注：launchctl 输出 — load：%@ start：%@", comment: ""), String(loadRes.mergedOutput), String(startRes.mergedOutput))
+                self.runtimeUserAlert = String(format: NSLocalizedString("AhaKey Runtime 已运行。附注：launchctl 输出 — load：%@ start：%@", comment: ""), String(loadRes.mergedOutput), String(startRes.mergedOutput))
             }
         }
     }
@@ -718,7 +718,7 @@ final class RuntimeServiceManager: ObservableObject {
         }
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
 
-        let binQuoted = shellQuote(agentBinaryPath)
+        let binQuoted = shellQuote(runtimeBinaryPath)
 
         for event in hookEvents {
             let ahakeyCmd = "\(binQuoted) hook \(event)"
@@ -828,10 +828,10 @@ final class RuntimeServiceManager: ObservableObject {
 
     /// 单独安装 Claude hooks
     func installClaudeHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
         let s = installClaudeHooks()
-        agentUserAlert = s.isEmpty ? NSLocalizedString("Claude Hooks 已写入 ~/.claude/settings.json。", comment: "") : s
+        runtimeUserAlert = s.isEmpty ? NSLocalizedString("Claude Hooks 已写入 ~/.claude/settings.json。", comment: "") : s
         refresh()
     }
 
@@ -843,44 +843,44 @@ final class RuntimeServiceManager: ObservableObject {
 
     /// 单独安装 Cursor hooks（公开给 UI 用，例如只想补装 Cursor 时调用）
     func installCursorHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
         let s = installCursorHooks()
-        agentUserAlert = s.isEmpty ? NSLocalizedString("Cursor Hooks 已写入 ~/.cursor/hooks.json。", comment: "") : s
+        runtimeUserAlert = s.isEmpty ? NSLocalizedString("Cursor Hooks 已写入 ~/.cursor/hooks.json。", comment: "") : s
         refresh()
     }
 
     /// 单独安装 Codex hooks（Codex 0.125 为 inline TOML）。
     func installCodexHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
         let s = installCodexHooks()
-        agentUserAlert = s.isEmpty ? NSLocalizedString("Codex Hooks 已写入 ~/.codex/config.toml。\n\n安装完成。请重启 Codex 终端或客户端后再使用。", comment: "") : s
+        runtimeUserAlert = s.isEmpty ? NSLocalizedString("Codex Hooks 已写入 ~/.codex/config.toml。\n\n安装完成。请重启 Codex 终端或客户端后再使用。", comment: "") : s
         refresh()
     }
 
     /// 单独移除 Cursor hooks
     func removeCursorHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        agentUserAlert = performRemoveCursorHooksUserMessage()
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
+        runtimeUserAlert = performRemoveCursorHooksUserMessage()
         refresh()
     }
 
     /// 单独移除 Codex hooks。
     func removeCodexHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        agentUserAlert = removeCodexHooks()
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
+        runtimeUserAlert = removeCodexHooks()
         refresh()
     }
 
     /// 单独安装 Kimi Code CLI hooks（`~/.kimi/config.toml`，Beta）。
     func installKimiHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
         let s = installKimiHooks()
-        agentUserAlert = s.isEmpty
+        runtimeUserAlert = s.isEmpty
             ? NSLocalizedString("""
             Kimi Hooks 已写入 ~/.kimi/config.toml。
 
@@ -899,9 +899,9 @@ final class RuntimeServiceManager: ObservableObject {
 
     /// 单独移除 Kimi Hooks 标记块。
     func removeKimiHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        agentUserAlert = removeKimiHooks()
+        isRuntimeOperationInProgress = true
+        defer { isRuntimeOperationInProgress = false }
+        runtimeUserAlert = removeKimiHooks()
         refresh()
     }
 
@@ -916,7 +916,7 @@ final class RuntimeServiceManager: ObservableObject {
 
         let settings = CursorHookInstaller.install(
             in: loadCursorSettings() ?? [:],
-            agentCommand: shellQuote(agentBinaryPath)
+            agentCommand: shellQuote(runtimeBinaryPath)
         )
         if saveCursorSettings(settings) {
             log.info("Cursor hooks v1 已写入（单一 preToolUse 决策入口）")
@@ -1049,7 +1049,7 @@ final class RuntimeServiceManager: ObservableObject {
     }
 
     private func buildCodexHookBlock() -> String {
-        let binQuoted = shellQuote(agentBinaryPath)
+        let binQuoted = shellQuote(runtimeBinaryPath)
         var lines: [String] = [
             codexHookBlockStart,
             "# Managed by AhaKey Studio. Codex 0.125 uses inline TOML hooks; each command hook needs type = \"command\".",
@@ -1072,7 +1072,7 @@ final class RuntimeServiceManager: ObservableObject {
     /// 与 buildCodexHookBlock 写入内容一一对应的 [hooks.state] 信任条目。
     /// command 取 TOML 反转义后的原始值（与 codex 解析后参与哈希的值一致）。
     private func codexHookTrustEntries() -> [(key: String, hash: String)] {
-        let binQuoted = shellQuote(agentBinaryPath)
+        let binQuoted = shellQuote(runtimeBinaryPath)
         return codexHookEvents.compactMap { item in
             let command = "/bin/zsh -lc \(shellQuote("\(binQuoted) hook \(item.agentEvent)"))"
             guard let key = CodexHookTrust.stateKey(configPath: codexConfigPath, event: item.event),
@@ -1472,7 +1472,7 @@ final class RuntimeServiceManager: ObservableObject {
     }
 
     private func buildKimiHookBlock() -> String {
-        let binQuoted = shellQuote(agentBinaryPath)
+        let binQuoted = shellQuote(runtimeBinaryPath)
         var lines: [String] = [
             kimiHookBlockStart,
             "# Managed by AhaKey Studio. Kimi CLI (Beta): multiple [[hooks]] entries; each runs with JSON on stdin.",

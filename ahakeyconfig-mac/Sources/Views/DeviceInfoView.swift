@@ -4,8 +4,8 @@ import SwiftUI
 struct DeviceInfoView: View {
     @ObservedObject var runtimeStore: AhaKeyStudioRuntimeClient
     @StateObject private var runtimeServiceManager = RuntimeServiceManager.shared
-    @State private var showAgentLog = false
-    @State private var agentLogPanel = 0
+    @State private var showRuntimeLog = false
+    @State private var runtimeLogPanel = 0
     @State private var logPanelContentTick = 0
 
     var body: some View {
@@ -99,7 +99,7 @@ struct DeviceInfoView: View {
                         .controlSize(.small)
                     } else {
                         HStack(spacing: 8) {
-                            if runtimeServiceManager.isAgentOperationInProgress {
+                            if runtimeServiceManager.isRuntimeOperationInProgress {
                                 ProgressView()
                                     .controlSize(.small)
                             }
@@ -108,7 +108,7 @@ struct DeviceInfoView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .disabled(runtimeServiceManager.isAgentOperationInProgress)
+                            .disabled(runtimeServiceManager.isRuntimeOperationInProgress)
                         }
                     }
                 }
@@ -116,7 +116,7 @@ struct DeviceInfoView: View {
                 if runtimeServiceManager.isInstalled {
                     HStack(spacing: 10) {
                         Button(NSLocalizedString("查看日志", comment: "")) {
-                            showAgentLog.toggle()
+                            showRuntimeLog.toggle()
                         }
                         .buttonStyle(.borderless)
                         .font(.caption)
@@ -164,20 +164,20 @@ struct DeviceInfoView: View {
             } header: {
                 Text(NSLocalizedString("LED 状态同步 · Hook 联动", comment: ""))
             } footer: {
-                if !runtimeServiceManager.isAgentBinaryPresentInBundle {
+                if !runtimeServiceManager.isRuntimeBinaryPresentInBundle {
                     Text(NSLocalizedString("发版包内未包含后台服务可执行文件，无法使用 AhaKey Runtime。请用完整「AhaKey Studio.app」或联系开发者。", comment: ""))
                         .foregroundStyle(.orange)
                 }
             }
-            .sheet(isPresented: $showAgentLog) {
+            .sheet(isPresented: $showRuntimeLog) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text(NSLocalizedString("诊断日志", comment: ""))
                             .font(.headline)
                         Spacer()
-                        Button(NSLocalizedString("关闭", comment: "")) { showAgentLog = false }
+                        Button(NSLocalizedString("关闭", comment: "")) { showRuntimeLog = false }
                     }
-                    Picker(NSLocalizedString("内容", comment: ""), selection: $agentLogPanel) {
+                    Picker(NSLocalizedString("内容", comment: ""), selection: $runtimeLogPanel) {
                         Text(NSLocalizedString("AhaKey Runtime 主日志（兼容标识：ahakeyconfig-agent）", comment: "")).tag(0)
                         Text(NSLocalizedString("工具批准（permission-request.log）", comment: "")).tag(1)
                         Text("~/.cursor/hooks.json").tag(2)
@@ -193,11 +193,11 @@ struct DeviceInfoView: View {
                             logPanelContentTick += 1
                             runtimeServiceManager.refresh()
                         }
-                        if agentLogPanel == 3 {
+                        if runtimeLogPanel == 3 {
                             Button(NSLocalizedString("合并 CLI + IDE 终端白名单", comment: "")) {
                                 let a = runtimeServiceManager.mergeUserCursorCliConfigForShellAutoApprove()
                                 let b = runtimeServiceManager.mergeUserCursorPermissionsJsonForAgentTUI()
-                                runtimeServiceManager.agentUserAlert = a + "\n\n——\n\n" + b
+                                runtimeServiceManager.runtimeUserAlert = a + "\n\n——\n\n" + b
                             }
                             .help(NSLocalizedString("写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Cursor TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。", comment: ""))
                         }
@@ -243,7 +243,7 @@ struct DeviceInfoView: View {
                 CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill((runtimeStore.isConnected || runtimeServiceManager.isAgentBLEConnected) ? Color.green : Color.orange)
+                            .fill((runtimeStore.isConnected || runtimeServiceManager.isRuntimeBLEConnected) ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
                         Text(connectionStatusText())
                     }
@@ -266,14 +266,14 @@ struct DeviceInfoView: View {
         }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
         .alert(NSLocalizedString("AhaKey Runtime", comment: ""), isPresented: Binding(
-            get: { runtimeServiceManager.agentUserAlert != nil },
-            set: { if !$0 { runtimeServiceManager.agentUserAlert = nil } }
+            get: { runtimeServiceManager.runtimeUserAlert != nil },
+            set: { if !$0 { runtimeServiceManager.runtimeUserAlert = nil } }
         )) {
             Button(NSLocalizedString("好", comment: ""), role: .cancel) {
-                runtimeServiceManager.agentUserAlert = nil
+                runtimeServiceManager.runtimeUserAlert = nil
             }
         } message: {
-            Text(runtimeServiceManager.agentUserAlert ?? "")
+            Text(runtimeServiceManager.runtimeUserAlert ?? "")
         }
     }
 
@@ -320,7 +320,7 @@ struct DeviceInfoView: View {
     }
 
     private func agentBluetoothShortLabel() -> String {
-        if runtimeServiceManager.isRunning && runtimeServiceManager.isAgentBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
+        if runtimeServiceManager.isRunning && runtimeServiceManager.isRuntimeBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
         if runtimeServiceManager.isRunning { return NSLocalizedString("BLE 未连接", comment: "") }
         if runtimeServiceManager.isInstalled { return NSLocalizedString("未运行", comment: "") }
         return NSLocalizedString("未装后台服务", comment: "")
@@ -357,7 +357,7 @@ struct DeviceInfoView: View {
 
     @ViewBuilder
     private var logPanelContent: some View {
-        switch agentLogPanel {
+        switch runtimeLogPanel {
         case 0:
             Text(runtimeServiceManager.readLog())
         case 1:
