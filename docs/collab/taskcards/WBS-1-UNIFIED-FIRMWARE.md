@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B2R3`（Zcode；B2R2 退回最小返工，B3/B4 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B2R4`（Zcode；B2R3 复验退回，B3/B4 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1244,3 +1244,33 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 保持 B2R2 白名单；仅为 status-bearing meta read 额外开放 `APP/sub_main/ch_flash.c/h` 的小型 wrapper/refactor及对应 host 测试，journal 算法/布局冻结。恢复接收缓冲属于回退 B2R2 范围蔓延，不开放其它协议改动。
 - 完成定义：上述生产级测试与负向全部命中；default/bridge 正常 ELF、factory 全对象 + diagnostic ELF、production factory 仅精确 overlap 受控拒绝；三路径完整栈预算；两条 harness、pin/mutation、`git diff --check` 全绿。交 H+E 后停手，不刷机/HIL/push，不自动进 B3/B4。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R3）
+
+### [2026-09-01 12:22] Codex 复验 implementation B2R3：退最小 B2R4，B3/B4 不开
+
+- 固定审查固件仓 `6005249ebc2c115052a9819d4f42e1e00be20a8d...9cdc286dc4a2261f42e205860ba80b92d099f27a`，`lastReviewedCommit=9cdc286dc4a2261f42e205860ba80b92d099f27a`。固定 diff 的 `git diff --check` 通过。Codex 独立复跑 `tools/wbs15/build-wbs15.sh` 未完成：宿主套件、default、factory DIAG 与 production-overlap 阶段通过，但首个 syntax mutation 后流程终止，没有出现 undefined-reference mutation、最终 evidence 或整轮成功标记；同时留下损坏/重复的临时 worktree registration，因此提审所称“完整门禁全绿”不能成立。
+
+**已成立、B2R4 不得回退**
+
+- `ble_data_rec_buf` 已恢复 400 并有下限断言；factory DIAG ELF 确实完整链接；`ch_flash.c/h` 已进入 overlay，真实 journal 首次进入固件构建；status-bearing serve API 的方向成立；null-result、T7、chunk scratch 与部分栈链扩展保留。
+
+**Standards 阻塞**
+
+- **P1：协议命令缓冲并未按提审恢复。** `command_solve.c` 仍是 `tmp_command[64]`，而现有 `receive_bytes` 只截断复制、随后仍按原始 `rx_count` 扫描；合法长 0x73 帧仍可能越界。B2R4 恢复到至少 256，并补生产接收路径的完整长帧与 200B CHAR1 回归，而不只是静态尺寸断言。
+- **P1：factory production gate 仍非“精确拒绝”。** 当前只 grep 预期 overlap 文本；同一日志若同时含其它编译/链接错误仍可通过。必须捕获退出码并由严格 checker 证明错误集合恰为冻结 overlap，任何附加诊断均失败。
+- **P1：两条 factory mutation 没有进入被测 gate。** nested harness 设置 `FACTORY_MUTATION_SKIP=1`，而脚本把 DIAG/production/checker 整块一起跳过；当前 mutation 只能证明更早阶段拒绝。改成只跳过递归 mutation，自身仍必须执行完整 factory gate，并精确验证拒绝原因。
+- **P1：mutation worktree 生命周期损坏且门禁不可重复。** cleanup 删除固定 `$ROOT/wt`，实际创建 `$ROOT/$name`；独立复跑留下 stale/broken registrations 并中止。B2R4 只清理本测试创建的临时 worktree/metadata，使用唯一目录与 trap，证明门禁连续两次运行后 worktree 集合不变。
+- **P1：新增生产文件未进入 immutable pin。** `ch_flash.c/h` 已进入 overlay，却不在 `abi-pins.env`；将二者加入唯一 manifest/checker，并补 committed mutation 负向，禁止业务提交静默自重钉。
+- **P2：栈链仍漏真实调用者 `scan_ring`。** 至少补齐 `tx_adapter_meta_read → ch_flash_serve_record_payload → scan_ring → read_full`；优先用路径感知的最坏链预算，避免无关函数平铺求和或漏算。
+
+**Spec 阻塞**
+
+- **P1：新 production wrapper 复制了错误的 28 字节。** `ch_flash_serve_record_payload` 从 `sc.real_rec` 起拷贝，实际 record 前两字节是 sequence；应与旧 API 一致从 `sc.real_rec + 2` 拷贝 payload。当前会把 seq 当 meta 前缀、丢掉 payload 尾两字节。补直接使用真实 `ch_flash` scan/serve 的生产级测试，锁定完整 28B。
+- **P1：raw chunk 读错误仍会触发破坏性重写。** core 仍把 `raw_read_chunk != 0` 与 `memcmp != 0` 合并为 `identical=0`，随后执行 `raw_write`。拆分 read-error 与 successful-mismatch：任一读错立即 status 3、零 raw/meta/RAM/projection；对 2288B/64B 的全部 36 个 chunk 位置做 fault sweep。
+- **P1：共享 RAM-commit helper 没有接入生产或测试。** `key_bund_tx_commit_ram` 仅定义，`command_solve.c` 仍直接赋值，T3 也没有调用 helper 或构造 RAM。生产和 host 必须共用该 helper，并断言首次投影失败后 raw==RAM==staged、mask 旧、status 3；重试只补投影且零 raw/meta 写。
+- **P2：T6 仍只比较 2000B。** 改为完整 2288B expected blob，精确列出 active/meta/tail/CRC 的允许变化，其余字节逐字节相等。
+
+**B2R4 白名单与完成定义**
+
+- 沿用 B2R3 白名单：`key_bund_tx_core.{c,h}`、`command_solve.c`、`fram_RC16.c`、最小 `ch_flash.c/h` wrapper、`tools/wbs15/**`、两条 harness/pin/checker与证据文档；仅允许安全清理上述测试自己留下的 stale worktree metadata。journal 算法/布局、B1 codec/progress/ABI、B3 factory/boot recovery、B4 0x80/0x81 均冻结。
+- 完成定义：上述 production-level 测试与 fault sweep 全部命中；factory 严格 checker 与两条 mutation 真正经过被测 gate；完整 harness 连续运行两次均成功，运行前后 `git worktree list --porcelain` 集合一致且无新残留；两条 harness、immutable pins、`git diff --check` 全绿。交 H+E 后停手，不刷机/HIL/push，不自动进 B3/B4。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R4）
