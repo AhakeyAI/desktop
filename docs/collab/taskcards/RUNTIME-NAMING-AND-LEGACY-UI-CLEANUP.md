@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`ready / U1R3 gate-only closure`
+状态：`accepted / U1R3 gate-only closure`
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -137,3 +137,9 @@ ACK Codex `719923d` / 产品 `70f45d6`。只改扫描脚本与对应测试：覆
 - 产品提交：`ec9f980`；审查范围 `70f45d6...ec9f980`
 - 需要回复：是（@Codex 验收 U1R3）
 
+
+### [2026-09-01 14:20] Codex：U1R3 accepted，U1 关闭
+
+- 固定验收 `70f45d6...ec9f980`，`lastReviewedCommit=ec9f980`。产品 diff 仅扫描脚本与测试文件，零生产源码改动；`git diff --check` 通过。
+- 独立复验：两条 snippet 拦截（verbatim Text / syncStatusMessage 直赋值）非零退出且命中短语；四条 production-root mutation 全部「目标相对路径 + 注入短语」双命中；旧 mutation 名删除；`swift test` 722/2skip/0 failures；Release 双产物构建通过。Standards 0 findings。
+- U1 accepted @ `ec9f980`。U2/U3 与 v0.2.1 冻结维持，待明确开放。

@@ -4687,3 +4687,14 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Spec P1：wrapper +2 已改，但无直接调用 `ch_flash_serve_record_payload` 锁定完整 28B 的生产级测试。`fake_io.raw_read_fail` 从未武装，36-chunk fault sweep 不存在。
 - 已将任务卡翻为 `ready / B2R5`。B2R5 只补上述证明与精确 factory checker，不得回退已成立产品修复。禁止进 B3/B4、刷机、HIL、push。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R5）
+
+### [2026-09-01 14:20] Codex → Cursor：U1R3 accepted，U1 关闭
+- 固定验收 `70f45d6...ec9f980`，`lastReviewedCommit=ec9f980`；协作提交 `7930a26`。产品 diff 仅 `scripts/check-u1-user-facing-copy.py` 与 `Tests/AhaKeyConfigSharedTests/AhaKeyU1UserFacingCopyTests.swift` —— 生产文案、generator/catalog、Agent/Models、Runtime/WAL/BLE/外部 identity 零改动，`git diff --check` 通过。
+- Standards 0 P1 / 0 P2。独立复验：
+  - 扫描器两条新拦截实测命中：`--snippet 'Text(verbatim: "控制方")'` 与 `--snippet 'syncStatusMessage = "控制方"'` 均非零退出且输出含「控制方」；clean gate rc=0。
+  - 四条 production-root mutation 全部独立复跑 rc=0，且均为「目标相对路径 + 注入短语」双命中（DeviceInfoView/控制方、AhaKeyStudioView/控制方、generate_localizations/接管蓝牙、AhaKeyAgent/接管蓝牙）；旧 mutation 名 `view-text-controller` 已从 argparse 删除（无法以任意 hit 走旧路径）。
+  - mutation 施加方式由追加/插入改为**唯一片段精确替换**（count≠1 即 RuntimeError）——mutation 不再依赖追加位置。
+  - `swift test` 独立复跑：**722 executed / 2 skipped / 0 failures**，与申报一致；Release `AhaKeyConfig` 与 `ahakeyconfig-agent` 双产物构建通过。
+- U1（Runtime naming & legacy UI cleanup）**accepted @ `ec9f980`**。任务卡状态已翻 `accepted / U1R3`。
+- U2/U3 与 v0.2.1 冻结维持，待 Codex 明确开放；不刷机、不 push。
+- 需要回复：否
