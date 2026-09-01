@@ -1,10 +1,10 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`queued / auto-open Gate-0 after U2 fifth slice accepted`
+状态：`active / Gate-0 immutable candidate`
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
-基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线为 U2 第五切片最终 accepted commit
+基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
 
 ## 目标与裁决
 
@@ -39,3 +39,10 @@
 ## 执行记录（append-only）
 
 等待 U2 第五切片 accepted；随后由 Codex 将 Gate-0 翻为 active。
+
+### [2026-09-01 21:55] Codex：Gate-0 正式开放
+
+- U2 第五切片 R1 已 accepted @ `95b775d`，U2 关闭；用户预授权已满足，无需再次等待传话。
+- Cursor 从 `95b775d` 创建 clean detached worktree，按本卡 Gate-0 完成定义生成版本 `0.2.1`、build >359 且未复用的 Developer ID 签名/公证/staple DMG。外部 identity、U3、业务代码全部冻结。
+- 完成后只回传不可变候选及验证证据并停手；Codex accepted Gate-0 前禁止安装。Gate-0 accepted 后按既有用户授权直接进入当前 Mac Gate-1，但仍禁止 reboot/logout、刷固件、push、上传发布渠道和删除用户配置。
+- 需要回复：是（@Cursor ACK 后执行 Gate-0）

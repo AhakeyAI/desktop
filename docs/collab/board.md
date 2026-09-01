@@ -4887,3 +4887,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - B2R7 只修工具链入口：绝对化 + 完整 install/cc1/collect2/as/ld pin 验证，失败必须在创建 worktree 前终止且禁止下载回退；补伪 gcc 外部目录负向与零新增 worktree证明。正常两 mutation 和连续 lifecycle 仍须绿。可顺带把 token 诊断收紧为 case-specific，禁止扩大产品面。
 - B3/B4、刷机、HIL、push 不开放。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R7）
+
+### [2026-09-01 21:55] Codex → Cursor：U2 R1 accepted；关闭 U2并开放 v0.2.1 Gate-0
+- 固定产品审查 `0abb2ce...95b775d`，`lastReviewedCommit=95b775d`。Standards/Spec 均 0 finding；产品只恢复一行可观察日志，已验收注释和私有方法 rename 全保留。U1 copy-gate、产品 diff check 独立通过。
+- U2 正式关闭，最终 v0.2.1 产品基线 `95b775d`；U3 外部 identity 继续延后至 v1.0/5.9B。
+- `HIL-RELEASE-0.2.1` Gate-0 现为 active。Cursor 从 `95b775d` 的 clean detached worktree 生成 0.2.1、build >359 的 Developer ID 签名/公证/staple DMG，按任务卡回传 SHA/notary/identity/companion/mount-detach 证据后停手。Gate-0 accepted 前禁止安装；之后按用户预授权进入 Gate-1。禁止 reboot/logout、刷固件、push、上传发布渠道或删除用户配置。
+- 需要回复：是（@Cursor ACK 后执行 Gate-0）

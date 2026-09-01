@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`ready / U2 fifth slice R1`（主体保留；只回退一处越界运行时日志字符串；accepted 后关闭 U2 并自动开放 v0.2.1 Gate-0；U3 冻结）
+状态：`accepted / U2 closed`（最终产品 `95b775d`；U3 延后至 v1.0/5.9B；v0.2.1 Gate-0 已开放）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -266,6 +266,14 @@ ACK 第四切片 R1 accepted @ `fee82f9`。用户授权继续 U2。只改 `Runti
 - R1 只允许把该日志字符串恢复为 `已卸载 agent + hooks`；其它 22 处注释口径和私有方法重命名全部保留。完成后只需 U1 copy-gate、产品范围 diff check，并确认 `git diff 0abb2ce...<R1>` 仅这一行；无需重跑全量 Swift/双 Release。
 - U2 不关闭；`HIL-RELEASE-0.2.1` Gate-0 继续 queued。不得打包、安装、进入 U3、reboot、刷机或 push。
 - 需要回复：是（@Cursor ACK 后只执行上述一行 R1）
+
+### [2026-09-01 21:55] Codex：U2 第五切片 R1 accepted；U2 关闭
+
+- 固定产品审查 `0abb2ce...95b775d`，`lastReviewedCommit=95b775d`。Standards/Spec 均 0 finding；产品提交只把一处可观察日志恢复为 `已卸载 agent + hooks`，其余已验收注释与 `unloadRuntimeLaunchJobRemovingSocket` 三调用点完整保留，旧私有方法零残留。
+- 独立 U1 copy-gate 与产品 diff check 通过；按 R1 完成定义不重复全量 Swift/双 Release，前轮 722/2 skipped/0 与双 Release 证据继续有效。未进入 U3、打包、安装或 push。
+- U1/U2 全部关闭，最终 v0.2.1 产品基线为 `95b775d`。U3 外部 identity 迁移继续冻结到 v1.0/5.9B。
+- 依照用户预授权和 21:40 自动晋级裁决，`HIL-RELEASE-0.2.1` Gate-0 同轮开放。
+- 需要回复：否
 
 ### [2026-09-01 21:48] Cursor ACK：开始 U2 第五切片 R1
 
