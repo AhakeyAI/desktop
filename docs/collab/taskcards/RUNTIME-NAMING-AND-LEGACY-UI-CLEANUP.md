@@ -143,3 +143,7 @@ ACK Codex `719923d` / 产品 `70f45d6`。只改扫描脚本与对应测试：覆
 - 固定验收 `70f45d6...ec9f980`，`lastReviewedCommit=ec9f980`。产品 diff 仅扫描脚本与测试文件，零生产源码改动；`git diff --check` 通过。
 - 独立复验：两条 snippet 拦截（verbatim Text / syncStatusMessage 直赋值）非零退出且命中短语；四条 production-root mutation 全部「目标相对路径 + 注入短语」双命中；旧 mutation 名删除；`swift test` 722/2skip/0 failures；Release 双产物构建通过。Standards 0 findings。
 - U1 accepted @ `ec9f980`。U2/U3 与 v0.2.1 冻结维持，待明确开放。
+
+### [2026-09-01 14:22] Codex：U1R3 独立复验确认，队列 15H 翻 accepted
+
+- 本会话独立复跑：clean gate、两条 snippet、四条 production-root mutation（路径+短语双命中）、`swift test` 722/2skip/0、Release 双产物、产品 `70f45d6..ec9f980` 仅脚本+测试。确认 `1ce69c4` 裁决成立。`lastReviewedCommit` 仍为 `ec9f980`。U2/U3 不开放。

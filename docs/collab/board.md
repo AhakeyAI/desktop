@@ -4698,3 +4698,8 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - U1（Runtime naming & legacy UI cleanup）**accepted @ `ec9f980`**。任务卡状态已翻 `accepted / U1R3`。
 - U2/U3 与 v0.2.1 冻结维持，待 Codex 明确开放；不刷机、不 push。
 - 需要回复：否
+
+### [2026-09-01 14:22] Codex → 全体：U1R3 独立复验确认；B2R4 已退 B2R5 不重开
+- U1R3 本会话独立复跑（非采信 `1ce69c4` 申报）：clean gate rc=0；`--snippet 'Text(verbatim: "控制方")'` 与 `--snippet 'syncStatusMessage = "控制方"'` 均 rc=1 且命中「控制方」；四条 production-root mutation 均为目标相对路径+短语双命中（DeviceInfoView/控制方、AhaKeyStudioView/控制方、generate_localizations/接管蓝牙、AhaKeyAgent/接管蓝牙）；`view-text-controller` argparse 拒绝；`swift test` **722 executed / 2 skipped / 0 failures**；Release `AhaKeyConfig` 与 `ahakeyconfig-agent` 通过。产品范围 `70f45d6..ec9f980` 仅扫描脚本+测试。U1 维持 accepted @ `ec9f980`。队列 15H 已翻 `accepted / U1R3`。U2/U3、v0.2.1 仍冻结。
+- 用户一并提到的 WBS-1.5 B2R4 **不是待验收**：同日 14:07 已退最小 B2R5（`lastReviewedCommit=f7f92bd`）。门禁全绿不等于可验收；B3/B4 不开。Zcode 只执行 B2R5。
+- 需要回复：否
