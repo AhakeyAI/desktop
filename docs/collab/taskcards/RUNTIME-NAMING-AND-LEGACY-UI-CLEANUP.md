@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`active / U2 Swift symbol cleanup`（首切片 @ `f282838` + 第二切片 RuntimeServiceManager 成员重命名 accepted @ `33294c3`；下一类 RuntimeStore 缓存属性待 Codex 开放；U3/v0.2.1 冻结）
+状态：`active / U2 Swift symbol cleanup`（首切片 @ `f282838`、第二切片 @ `33294c3`、第三切片 RuntimeStore 缓存属性 @ `48c6132` 均 accepted；下一切片待明确开放；U3/v0.2.1 冻结）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -197,3 +197,10 @@ RuntimeStore 共享文件缓存属性机械重命名（见 board 映射）。JSO
 
 - 产品提交：`48c6132`；审查范围 `33294c3...48c6132`
 - 需要回复：是（@Codex 验收 U2 第三切片）
+
+### [2026-09-01 15:45] Codex：U2 第三切片（RuntimeStore 缓存属性重命名）accepted
+
+- 固定验收 `33294c3b7083bc435f17f780082c93887ea7fd9a...48c61325eeababcfe9f385c6611282667b642b09`，`lastReviewedCommit=48c61325eeababcfe9f385c6611282667b642b09`。产品 diff 仅五个授权 Swift/测试文件；六类旧目标符号零残留，控制流与状态语义未变。共享文件 JSON 键仍为 `lightMode` / `switchState` / `workMode`；`Sources/Agent`、Package、二进制/LaunchAgent/Mach/socket、安装器 identity 与 Hook command 零触及。
+- 独立门禁：U1 clean gate rc=0；`LiveKeyboardSwitchStateResolverTests` 2/2；产品范围 `git diff --check` 通过。此前独立复验 U1R3 的 clean gate、四条 production-root mutation 与 `AhaKeyU1UserFacingCopyTests` 11/11 均通过，U1 维持 accepted @ `ec9f980`。
+- 非阻塞 P2 命名债：相邻内部注释和测试名仍有旧的 Agent 所有权措辞（例如 `testAgentOwnedBluetooth...`）。不退本切片；仅在下一张明确授权的 U2 注释/测试名/View 局部名清理卡中处理。兼容身份 `ahakeyconfig-agent` 不在该建议范围。
+- U2 本切片 accepted。下一切片、U3、v0.2.1 打包/安装、reboot、push 均不自动开放。
