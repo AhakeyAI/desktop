@@ -12,7 +12,7 @@ final class AhaKeyReleaseInstallPlannerTests: XCTestCase {
         XCTAssertEqual(identity.machServiceName, "lab.jawa.ahakeyconfig.runtime")
         XCTAssertEqual(identity.agentLaunchdLabel, "lab.jawa.ahakeyconfig.agent")
         XCTAssertEqual(identity.minimumDarwinMajor, 22)
-        XCTAssertEqual(identity.productVersion, "0.2.0")
+        XCTAssertEqual(identity.productVersion, "0.2.1")
         XCTAssertTrue(identity.developerIDRequirement.contains(identity.teamIdentifier))
         XCTAssertTrue(identity.developerIDRequirement.contains(identity.signingIdentifier))
 

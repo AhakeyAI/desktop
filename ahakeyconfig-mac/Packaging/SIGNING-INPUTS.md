@@ -4,7 +4,7 @@
 
 | 字段 | 冻结值 |
 |---|---|
-| 产品版本 | `0.2.0` |
+| 产品版本 | `0.2.1` |
 | Bundle ID | `lab.jawa.ahakeyconfig` |
 | Signing ID | `lab.jawa.ahakeyconfig` |
 | Team ID | `P2VFVRZK7P` |

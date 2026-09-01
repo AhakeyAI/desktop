@@ -177,7 +177,7 @@ enum AhaKeyReleaseIdentityDocument {
     static let json = #"""
 {
   "channel": "v0.2",
-  "productVersion": "0.2.0",
+  "productVersion": "0.2.1",
   "bundleIdentifier": "lab.jawa.ahakeyconfig",
   "signingIdentifier": "lab.jawa.ahakeyconfig",
   "teamIdentifier": "P2VFVRZK7P",
