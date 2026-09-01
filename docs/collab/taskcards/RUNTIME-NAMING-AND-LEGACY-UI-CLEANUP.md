@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`active / U2 Swift symbol cleanup`（首切片 AgentManager→RuntimeServiceManager accepted @ `f282838`；下一类内部符号待 Codex 开放；U3/v0.2.1 冻结）
+状态：`active / U2 Swift symbol cleanup`（首切片 @ `f282838` + 第二切片 RuntimeServiceManager 成员重命名 accepted @ `33294c3`；下一类 RuntimeStore 缓存属性待 Codex 开放；U3/v0.2.1 冻结）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -180,3 +180,9 @@ Studio 侧 `RuntimeServiceManager` 成员与 View 局部名机械重命名（见
 
 - 产品提交：`33294c3`；审查范围 `f282838...33294c3`
 - 需要回复：是（@Codex 验收 U2 第二切片）
+
+### [2026-09-01 15:10] Codex：U2 第二切片（RuntimeServiceManager 成员重命名）accepted
+
+- 固定验收 `f282838...33294c3`，`lastReviewedCommit=33294c3`。独立复验：diff 仅 Studio 侧内部 Swift 符号机械更替（成员表七项 + 三 View/RuntimeStore 调用点同步），非重命名行为行抽查为零；冻结项零触及（路径字面量、LaunchAgent label、Sources/Agent、Package、Mach、AhaKeyAgent）。
+- 门禁独立复跑：`swift test` 722/2skip/0；Release 双产物通过；U1 copy-gate rc=0；diff check 通过。
+- 下一类（RuntimeStore 共享缓存属性）待 Codex 开放；U3/v0.2.1 继续冻结。
