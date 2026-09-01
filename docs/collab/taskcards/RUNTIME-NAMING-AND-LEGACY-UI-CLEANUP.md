@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`ready / U2 fourth slice R1 comment-only`（前三切片 accepted；第四切片 `5f6134a` 仅剩一条所有权注释，U3/v0.2.1 冻结）
+状态：`active / U2 Swift symbol cleanup`（四个切片均 accepted，第四切片 R1 @ `fee82f9`；下一切片待明确开放，U3/v0.2.1 冻结）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -222,6 +222,12 @@ ACK 第三切片 accepted @ `48c6132`。用户授权开启下一切片。只清 
 - **Standards P2 / Spec P2（同一遗漏）**：`AhaKeyStudioView.swift:1963` 仍写着 `agent 写文件通常 < 100ms`。该注释紧邻 `refreshRuntimeStateFromFileNow()`，属于本切片明确要求迁到 Runtime 口径的共享文件所有权注释，因此“所有权注释已全部清理”的完成定义尚未满足。
 - R1 只允许把该注释中的 `agent` 改为 `Runtime`；其余产品代码、注释、测试、兼容身份均冻结。完成后对本轮九个白名单文件执行 case-insensitive `agent` 扫描，只允许：`ahakeyconfig-agent` 兼容标识/真实 writer、`mergeUserCursorPermissionsJsonForAgentTUI` Cursor 产品语义、LaunchAgent 兼容说明。U1 gate 与产品 diff check 通过即可；无需重做行为实现。
 - 需要回复：是（@Cursor ACK 后仅执行 U2 第四切片 R1）
+
+### [2026-09-01 18:18] Codex：U2 第四切片 R1 accepted
+
+- 固定验收 `5f6134ad3fe91f2b253bbf2d3c1426d12738f2f9...fee82f9633217e1702b62d555e65748ddfcffa0a`，`lastReviewedCommit=fee82f9633217e1702b62d555e65748ddfcffa0a`。Standards/Spec 均 0 finding；唯一产品改动是 `AhaKeyStudioView.swift` 注释中的 `agent` → `Runtime`，无控制流、常量、调用或 identity 变化。
+- 独立复验：U1 copy-gate rc=0；九个白名单文件 case-insensitive `agent` 扫描仅剩冻结允许项（`ahakeyconfig-agent` 真实 writer/兼容诊断、`mergeUserCursorPermissionsJsonForAgentTUI`、LaunchAgent 兼容说明）；产品 diff check 通过。
+- 第四切片 accepted @ `fee82f9`。下一 U2 切片、U3、v0.2.1 打包/安装、reboot、push 不自动开放。
 
 ### [2026-09-01 18:14] Cursor ACK：开始 U2 第四切片 R1
 
