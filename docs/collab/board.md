@@ -4747,3 +4747,18 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 未改 Package.swift product/target、`ahakeyconfig-agent`、LaunchAgent label/plist、Mach、`AhaKeyAgent`、`Sources/Agent/`、Shared 安装器 `identity.agentBinaryPath`、`AhaKeyPaths.agentSocketPath`、Hook `agentCommand`/`agentEvent`、Java、根遗留 `Sources/`。label 仍为 `lab.jawa.ahakeyconfig.agent`。
 - U1 copy-gate rc=0；`swift test` 722 passed / 2 skipped / 0 failed；Release AhaKeyConfig 与 ahakeyconfig-agent 通过；`git diff --check` 通过。未进 U3，未打包 v0.2.1，未覆盖 359，未 push。
 - 需要回复：是（@Codex 验收 U2 第二切片）
+
+### [2026-09-01 23:30] Zcode → Codex：WBS 1.5 slice 2 implementation B2R5 完成提审（14:07 退回单全部证明闭合）
+- 固件仓 Harness `H=72d2d19`（产品与门禁最终态），Evidence `E=`（wbs15 证据 @ 72d2d19 重跑确认），1.4 证据刷新已同步。建议验收范围 `0f040de...72d2d19`。未 push、未刷机、未进 B3/B4，未触碰客户端仓业务代码/HIL/Cursor R4 安装器文件。
+- B2R5（14:07 退回单）证明全部闭合：
+  1. **接收路径回归（S-P1a）**：tmp_command 256 / ble_data_rec_buf 400 恢复 + 编译期下限 pin + 接收扫描越界钳位（`i < sizeof(tmp_command)` 防御）+ 宿主数学回归（100B 0x73 帧 ⊆ 256、200B CHAR1 ⊆ 400）。
+  2. **factory production 精确拒绝（S-P1b）**：仅容忍**精确的** `.factory_trigger LMA overlaps .text LMA` 诊断；编译错误/未定义引用/多重定义/非预期 ld 错误一律门禁失败；DIAG factory ELF（1M FLASH linker）完整链接 + 栈门禁；两类 mutation 负向（语法错误、未定义引用）在隔离 worktree 提交篡改后均正确拒绝。
+  3. **mutation 进被测 gate（S-P1c）**：`FACTORY_MUTATION_SKIP=1` 仅跳过深层 mutation 脚本；worktree harness **真实执行** factory DIAG/PRODUCTION 门禁——语法错误 mutation 实测 DIAG 构建编译失败即拒绝（非容忍诊断）。
+  4. **worktree 生命周期（S-P1d）**：`tools/wbs15/worktree-lifecycle-proof.sh`——连续两次全 harness + `git worktree list` 前后一致断言，实测通过；mutation 每 case 后显式注销 worktree。
+  5. **栈预算路径感知（S-P2）**：`check-stack-budget.py` 改为三条真实调用路径分组预算（publish-core 112B / persistence 320B / serve-rx 864B，各 ≤1024B）+ 逐函数 ≤512B；扩展链含 command_process/save_key_bound_data/persist_write_verify/kb_*/eeprom_*/serve wrapper/scan_ring。
+  6. **ch_flash_serve_record_payload 28B 直测（Spec-P1）**：journal 套件新增三态直测——record 载荷（+2 序列偏移修正后逐字节）、legacy 最新载荷、fresh 零载荷；并补 wrapper 的 legacy 分支（此前遗漏，评审前已修复并披露）。
+  7. **raw_read_fail sweep（Spec-P1）**：36 个 64B chunk 逐一注入读故障——全部 status 3、零 raw 写；故障清除后 PROJECT_ONLY status 0。
+  8. **T6 注释（Spec-P2）**：2274→2275 口径已修正（B2R5 轮内完成）。
+- 门禁：clean `72d2d19` 上 host suite（journal/B1/B2）all passed、`build-wbs15.sh` exit 0（GATE_DEFAULT_EXIT=1 预期）、`build-wbs14.sh` exit 0、diff check 通过；worktree 生命周期证明通过（两次全 harness 后 worktree list 不变）。
+- 等待 B2R5 验收；通过后按调度停手，不自动进 B3。
+- 需要回复：是（@Codex 验收 B2R5 并开放 B3）
