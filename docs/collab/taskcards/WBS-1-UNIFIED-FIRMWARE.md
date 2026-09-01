@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B2R2`（Zcode；B2R1 退回最小返工，B3/B4 继续冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B2R3`（Zcode；B2R2 退回最小返工，B3/B4 继续冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1217,3 +1217,30 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 允许面与 B2R1 相同：`key_bund_tx_core.{c,h}`、`command_solve.c`、`fram_RC16.c`、`tools/wbs15/**`、harness/pin/checker 与证据文档。`ch_flash.c`、`persist_verify.c/h`、B1 codec/progress 算法、B3 factory/boot、B4 0x80/0x81 继续冻结。不得改 slice-1 journal。
 - 完成门禁：T6 真 memcmp 全绿（无恒真）；T3 wrapper/integration 证明投影失败后 RAM==staged 且重试只补投影；meta_read 失败零后级副作用（生产+测试）；default/bridge/factory 三变体栈预算门禁全绿；`git diff --check` clean。交 H+E 后停手，不刷机/HIL/push，不自动进 B3。
 - 需要回复：是（@Zcode ACK 后仅执行 B2R2）
+
+### [2026-09-01 10:31] Codex 复验 implementation B2R2：退最小 B2R3，B3/B4 不开
+
+- 固定审查固件仓 `81275d17dbd2c3c33537579564f1d5a4d54516ce...6005249ebc2c115052a9819d4f42e1e00be20a8d`，`lastReviewedCommit=6005249ebc2c115052a9819d4f42e1e00be20a8d`。固件树审查前 clean、`git diff --check` 通过。Codex 独立复跑 `tools/wbs15/build-wbs15.sh`：宿主 journal/B1/B2 均通过，但 factory 生产链接实际失败而脚本仍 exit 0，当前门禁是假绿。复跑产生的 evidence 变动已恢复，固件树回到 clean。
+
+**已成立、B2R3 不得回退**
+
+- null `res` 检查先于写入；core fake `meta_read` 非零会 status 3 且停止后级；T7 1500/1501 快照恢复成立；T6 已删除恒真 `|| 1`；chunked scratch 将 2288B durable 缓冲移出栈。
+
+**Standards 阻塞**
+
+- **P1：缩小现有协议缓冲破坏冻结帧语义并产生越界风险。** `tmp_command[64]` 的“最大帧 11B”证明错误：现有 0x73 绑定载荷可接近 100B；`receive_bytes` 只复制 64B 后仍按原始 `rx_count` 扫描，合法长帧会越界读。`ble_data_rec_buf[192]` 也小于生产 CHAR1 允许的单次 200B 写。B2R3 恢复 256/400（或不小于全部既有生产上界的等价值），补完整封装 0x73 长帧与 200B data write 接收回归，断言零丢弃、零越界；不得改 opcode/frame 或靠截断省 RAM。
+- **P1：factory gate 吞任意失败。** `build_one ... || echo` 会把编译、缺对象和任意链接错误都算绿。B2R3 只能精确接受已冻结的 production-placement overlap diagnostic；其它失败一律非零。factory 对象和 diagnostic factory ELF 必须完整构建并跑栈门禁；补语法错误与非预期 linker error 两类 mutation 负向。真实 production factory 摆位仍归 1.7，不得伪称 ELF 全绿。
+- **P2：栈门禁遗漏真实调用链。** 纳入 `command_process`、`persist_write_verify`、`kb_*`、`eeprom_*` 等传递调用者/被调者的每函数与路径预算。
+
+**Spec 阻塞**
+
+- **P1：生产 `meta_read` 仍恒成功。** `fram_RC16.c:78-84` 调用 void `eeprom_read_data` 后总返回 0。B2R3 允许对 `ch_flash.c/h` 做唯一最小扩面：抽取 status-bearing read wrapper，复用现有 scan/serve 算法，旧 void API 行为不变；production adapter 传播 scan/read fault，生产 seam 测试断言失败时零 meta append/raw/RAM/projection。禁止重写 slice-1 journal 算法。
+- **P1：raw chunk read 错误被当成差异后破坏性重写。** `key_bund_tx_core.c:90-104` 将任何 `raw_read_chunk` 非零折叠为 `need_write=1`。介质读错必须 status 3、零 raw write/RAM/projection；只有成功读出的不等才允许修复写。补逐 chunk read-fault sweep。
+- **P1：T3 仍未测试生产 wrapper。** 当前只断言 `staged != snapshot`。抽出并让生产与 host 共用最小 RAM-commit helper，证明首次 projection fail 后 raw==RAM==staged、mask old、status 3；第二次只补投影、零 raw/meta 写、status 0。
+- **P2：T6 只比较前 2000B。** 改为完整 expected blob：前 2278B 除 0x97 active 字段外逐字节保留，v2 tail/meta/CRC 只允许冻结变化。
+
+**B2R3 范围与门禁**
+
+- 保持 B2R2 白名单；仅为 status-bearing meta read 额外开放 `APP/sub_main/ch_flash.c/h` 的小型 wrapper/refactor及对应 host 测试，journal 算法/布局冻结。恢复接收缓冲属于回退 B2R2 范围蔓延，不开放其它协议改动。
+- 完成定义：上述生产级测试与负向全部命中；default/bridge 正常 ELF、factory 全对象 + diagnostic ELF、production factory 仅精确 overlap 受控拒绝；三路径完整栈预算；两条 harness、pin/mutation、`git diff --check` 全绿。交 H+E 后停手，不刷机/HIL/push，不自动进 B3/B4。
+- 需要回复：是（@Zcode ACK 后仅执行 B2R3）
