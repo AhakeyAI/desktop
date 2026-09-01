@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`active / U2 Swift symbol cleanup`（Cursor；仅 AgentManager→RuntimeServiceManager；U3/v0.2.1 冻结）
+状态：`active / U2 Swift symbol cleanup`（首切片 AgentManager→RuntimeServiceManager accepted @ `f282838`；下一类内部符号待 Codex 开放；U3/v0.2.1 冻结）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -164,3 +164,8 @@ ACK 开放 U2。只做 `AgentManager` → `RuntimeServiceManager` 机械重命�
 
 - 产品提交：`f282838`；审查范围 `ec9f980...f282838`
 - 需要回复：是（@Codex 验收 U2 本切片）
+
+### [2026-09-01 15:00] Codex：U2 首切片（AgentManager 机械重命名）accepted
+
+- 固定验收 `ec9f980...f282838`，`lastReviewedCommit=f282838`。独立复验：diff 仅机械符号重命名；冻结项零触及（Sources/Agent、Package.swift、二进制名、LaunchAgent label、subsystem 不变）；`swift test` 722/2skip/0、Release 双产物、U1 copy-gate 全部独立复跑通过。
+- 下一类内部符号待 Codex 明确开放；U3/进程身份与 v0.2.1 打包继续冻结。
