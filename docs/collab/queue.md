@@ -6,7 +6,7 @@
 
 本文件只定义正式任务卡的执行顺序、依赖和用户门禁。产品范围以 `docs/unified-firmware-runtime-implementation-plan.md` 为准；执行细节以对应任务卡为准。
 
-规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 active 卡是 WBS 5.9A 未签名安装链；Zcode 只写独立固件仓 WBS 1.5 R20。实际签名、安装、HIL 和刷机均未开放。Codex 接受当前卡后，在同一轮检查同通道下一张依赖；遇到 `USER-GATE` 时暂停并向用户确认。
+规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 active 卡是 U2 第五切片（v0.2.1 封版前最后一刀）；Zcode 继续只写独立固件仓 WBS 1.5。用户已预授权 v0.2.1 Gate-0 签名/公证以及候选 accepted 后在当前 Mac 安装真机测试；刷机、reboot/logout、push 和量产切换仍未开放。Codex 接受当前卡后，在同一轮检查同通道下一张依赖。
 
 | 顺序 | 任务卡 | Owner | 覆盖 WBS | 当前状态 | 晋级条件 |
 |---:|---|---|---|---|---|
@@ -41,7 +41,8 @@
 | 15F1 | `HIL-RELEASE-0.2-PACKAGING-REWORK` | Cursor；Codex 验收 | 5.9A-R7 / 6.0A | accepted / R2 | `3b287be`：真实 requirement helper rc0/3 门禁闭环；旧 DMG 永久 nonconforming |
 | 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | accepted / R5 | 最终产品 `5c4f440`；R4 P1 关闭；残留 Fake 默认名即内容 / 双编码器排序 P2；安装重跑仍 USER-GATE |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | accepted / Gate-2 same-session | build 359；KeepAlive/故障回滚/卸载重装全绿；整机重启 POST 仍为独立 USER-GATE |
-| 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | active / U2 Swift symbol cleanup | U1 accepted @ `ec9f980`；本轮仅 AgentManager→RuntimeServiceManager；U3 冻结 |
+| 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | active / U2 fifth final slice | 前四切片 accepted；第五切片只改 RuntimeServiceManager 内部注释/私有名；accepted 后关闭 U2 |
+| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | queued / auto-open Gate-0 | U2 第五切片 accepted 后立即开放签名/公证；候选 accepted 后按用户授权安装当前 Mac，禁止 reboot/刷机/push |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
 | 18 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9B / v1.0 | draft / USER-GATE | 5.8、4.8、5.9A、5.10 accepted；完整权限迁移窗口 |

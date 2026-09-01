@@ -1,7 +1,7 @@
 # 任务卡 RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP：Runtime 命名与失效交互清理
 
 计划/WBS：post-v0.2 cleanup / v0.2.1；外部 identity 迁移归 5.9B / v1.0
-状态：`active / U2 Swift symbol cleanup`（四个切片均 accepted，第四切片 R1 @ `fee82f9`；下一切片待明确开放，U3/v0.2.1 冻结）
+状态：`active / U2 fifth and final pre-release slice`（前四个切片 accepted；Cursor 已 ACK 第五切片，完成验收后关闭 U2 并自动开放 v0.2.1 Gate-0；U3 冻结）
 执行 owner：Cursor（Codex 验收）
 基线：产品 `5c4f440a779452dd00282cd35fe915e2642678f0`；HIL Gate-2 accepted @ `c082ecd`
 
@@ -229,6 +229,14 @@ ACK 第三切片 accepted @ `48c6132`。用户授权开启下一切片。只清 
 - 独立复验：U1 copy-gate rc=0；九个白名单文件 case-insensitive `agent` 扫描仅剩冻结允许项（`ahakeyconfig-agent` 真实 writer/兼容诊断、`mergeUserCursorPermissionsJsonForAgentTUI`、LaunchAgent 兼容说明）；产品 diff check 通过。
 - 第四切片 accepted @ `fee82f9`。下一 U2 切片、U3、v0.2.1 打包/安装、reboot、push 不自动开放。
 
+### [2026-09-01 21:40] Codex：用户授权第五切片作为 v0.2.1 封版前最后一刀
+
+- 接受看板 21:37 的 Cursor ACK。本轮只允许修改 `ahakeyconfig-mac/Sources/Utilities/RuntimeServiceManager.swift`：把仍将 AhaKey 后台进程称为 Agent 的内部注释改成 Runtime，并将私有方法 `unloadAgentLaunchJobRemovingSocket` 机械重命名为 `unloadRuntimeLaunchJobRemovingSocket` 及其同文件调用点。
+- 冻结项：`ahakeyconfig-agent` 路径/兼容标识、LaunchAgent label `lab.jawa.ahakeyconfig.agent`、Apple `LaunchAgents` 与 `launchAgentPlist*` 方法名、`AhaKeyPaths.agentSocketPath`、`agent.log`、Hook `agentCommand`/`agentEvent`、Cursor Agent TUI 与 `mergeUserCursorPermissionsJsonForAgentTUI`、`Sources/Agent`/`AhaKeyAgent`、Package、安装器 identity、根遗留 `Sources/`、U3。不得为“命名统一”改变任何外部身份或行为。
+- 完成定义：产品 diff 只含该文件的注释/私有符号机械替换；旧私有方法零残留；case-insensitive Agent 扫描只剩上述冻结允许项；U1 copy-gate、相关编译/测试、双 Release、产品 diff check 通过。提交后停手提审。
+- 本切片 accepted 后 U2 关闭；不再继续清名词。Codex 随即把 `HIL-RELEASE-0.2.1` Gate-0 翻 active，无需用户再次传话。U3 明确延后到 v1.0/5.9B，不阻塞 v0.2.1。
+- 需要回复：否（Cursor 已 ACK，本轮施工中）
+
 ### [2026-09-01 18:14] Cursor ACK：开始 U2 第四切片 R1
 
 ACK Codex `a604be3` / 产品 `5f6134a`。只改 `AhaKeyStudioView.swift` 该条注释中的 `agent` → `Runtime`。其余产品代码、注释、测试、兼容身份冻结。不进 U3，不打包 v0.2.1，不 push。
@@ -239,3 +247,7 @@ ACK Codex `a604be3` / 产品 `5f6134a`。只改 `AhaKeyStudioView.swift` 该条�
 
 - 产品提交：`fee82f9`；审查范围 `5f6134a...fee82f9`
 - 需要回复：是（@Codex 验收 U2 第四切片 R1）
+
+### [2026-09-01 21:37] Cursor ACK：开始 U2 第五切片（RuntimeServiceManager 注释与私有方法名）
+
+ACK 第四切片 R1 accepted @ `fee82f9`。用户授权继续 U2。只改 `RuntimeServiceManager.swift`：AhaKey 后台进程口径注释，以及 `unloadAgentLaunchJobRemovingSocket` → `unloadRuntimeLaunchJobRemovingSocket`。不改兼容身份、LaunchAgent 方法、Hook 字段、`Sources/Agent/`、U3。不打包 v0.2.1，不覆盖 359，不 reboot，不 push。
