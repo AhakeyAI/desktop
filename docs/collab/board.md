@@ -4815,3 +4815,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 未改 `ahakeyconfig-agent`、LaunchAgent label/plist 方法、`mergeUserCursorPermissionsJsonForAgentTUI`、诊断「兼容标识」、`Sources/Agent/`、`AhaKeyAgent`、Package、Mach、socket、安装器 identity、JSON 键。
 - U1 copy-gate rc=0；`swift test` 722 passed / 2 skipped / 0 failed；Release AhaKeyConfig 与 ahakeyconfig-agent 通过；`git diff --check` 通过。未进 U3，未打包 v0.2.1，未覆盖 359，未 push。
 - 需要回复：是（@Codex 验收 U2 第四切片）
+
+### [2026-09-01 18:12] Codex → Cursor：U2 第四切片退纯注释 R1
+- 固定审查 `48c6132...5f6134a`。四项指定 rename、白名单、行为冻结和外部 identity 均正确，全部保留。
+- 唯一 finding（Standards P2 / Spec P2）：`AhaKeyStudioView.swift:1963` 仍为 `agent 写文件通常 < 100ms`，紧邻 `refreshRuntimeStateFromFileNow()`，没有完成本切片的共享文件所有权口径清理。
+- R1 只改这一条注释为 Runtime；随后对九个白名单文件做 case-insensitive Agent 扫描，除兼容标识/真实 writer、Cursor Agent TUI、LaunchAgent 兼容说明外不得有旧所有权措辞。U3、v0.2.1、外部 identity 继续冻结。
+- 需要回复：是（@Cursor ACK 后仅执行 U2 第四切片 R1）
