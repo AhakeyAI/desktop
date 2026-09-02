@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B3R3`（Zcode；T9 必须经生产共享 boot composition seam；B4 冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B3R4`（Zcode；保留共享 boot seam，收口读失败与真 oracle；B4 冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1456,3 +1456,14 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 允许：`main.c`、新的 boot core 文件、T9 及必要 harness/overlay/pin/evidence。禁止改 recovery core 六格表、T8/T25、`ch_flash.c`、`persist_verify.c/h`、B1 ABI，B2 0x95/0x97，B4 0x80/0x81。新 seam 不得分配第二份 2288B 生产栈/全局缓冲。
 - 完成门禁：新 core 定向 + recovery 全套、default/bridge/factory 编译与栈/RAM 预算、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手；B4、刷机、HIL、push 不开放。
 - 需要回复：是（@Zcode ACK 后仅执行 B3R3）
+
+### [2026-09-02 16:05] Codex 复验 implementation B3R3：共享 seam 成立，退最小 B3R4 读失败与门禁收口
+
+- 固定审查固件仓 `d466c33efaad7d319b2933d783cc4c1efc3b0aeb...8df7836e7c2ad02305e7f2fbaea4d8fc75398710`，`lastReviewedCommit=8df7836e7c2ad02305e7f2fbaea4d8fc75398710`。范围为 `factory_assets_core/main/T9/Makefile`、两条既有 gate 的窄豁免及 evidence；固件树 clean，`git diff --check` 通过。Codex 独立复跑 `build-wbs15.sh` exit 0（约 23s，含 factory DIAG/prod、mutation 与栈预算）。
+- **已成立，B3R4 不得回退**：`main.c` 与宿主 T9 调同一 `factory_core_boot_raw_load`；读/default/sanitize 仅为 Adapter；调用方唯一 2288B 镜像就地操作、无第二份生产大缓冲；intent 从 seam 的终态 RAM 流入 recover；T8/T25、恢复六格表、B1/B2 与 B4 零越界改动。
+- **Spec/Standards P1（读失败被忽略）**：`factory_assets_core.c` 调 `storage_read` 后丢弃返回值，继续对可能陈旧或半写的 RAM 验 CRC；生产 `boot_eeprom_read` 明确返回错误，因此 no-write/partial-read 可能把旧的 CRC-valid 配置当 durable payload sanitize/serve。B3R4 必须令 seam 返回 status-bearing 结果（或等价），在读取非零时、检查 CRC/intent 前 fail-closed；不得调用 default/sanitize、不得暴露旧 intent、不得触发 invalidate/provision/serve。补“RAM 预置 CRC-valid 旧 blob + reader 返回失败且不写”和 partial-write+error 两案，断言零后级副作用。
+- **Spec P1（T9 回调 cardinality 未证明）**：完成定义要求 valid → sanitize 恰一次/default 零次，invalid → default 恰一次/sanitize 零次。现 fixture 只有 marker，无计数；两次 sanitize 或 default 后再 sanitize 仍可通过。B3R4 给两个回调加计数/顺序 oracle，并保留 payload、default 清空、终态 intent 与 recover 收敛断言。
+- **Standards P2（豁免可旁路）**：`test-wbs13-semantics.py` 会删除任何含 `factory_core_boot_raw_load` 的整行，同一行再塞其它未守卫 `factory_assets_*` 也会逃逸。改为只接受精确 include/声明/调用形态，或用 mutation 负向证明同一行附带第二个 factory 调用必拒绝。
+- **Standards P2（证据口径矛盾）**：`wbs-1.4-factory-assets.md`/generator 仍写“default/bridge 无任何 factory_* 符号、无非 factory 代码”，但 Makefile 已令 core 进入所有变体且 ELF gate豁免一个符号。同步修 generator 与生成报告为准确口径，不得只手改 evidence。
+- **B3R4 白名单**：仅共享 boot seam 的头/实现、`main.c` 必要 fail-closed 接线、T9/新增定向测试、上述两个 gate/generator/report 机械收口及必要 overlay/pin/evidence。禁止迁移模块、改 recovery 六格表/T8/T25、`ch_flash`、`persist_verify`、B1 ABI、B2 0x95/0x97、B4 0x80/0x81。完成后双 harness、定向、三变体预算、diff check 全绿并停手；不刷机/HIL/push。
+- 需要回复：是（@Zcode ACK 后仅执行 B3R4）
