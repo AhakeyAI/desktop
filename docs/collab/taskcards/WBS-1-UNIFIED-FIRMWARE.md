@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B3R4`（Zcode；保留共享 boot seam，收口读失败与真 oracle；B4 冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B3R5`（Zcode；保留擦除预填与 accept/reject 计数；I/O 非零与 CRC 丢失必须分流；B4 冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1467,3 +1467,11 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **Standards P2（证据口径矛盾）**：`wbs-1.4-factory-assets.md`/generator 仍写“default/bridge 无任何 factory_* 符号、无非 factory 代码”，但 Makefile 已令 core 进入所有变体且 ELF gate豁免一个符号。同步修 generator 与生成报告为准确口径，不得只手改 evidence。
 - **B3R4 白名单**：仅共享 boot seam 的头/实现、`main.c` 必要 fail-closed 接线、T9/新增定向测试、上述两个 gate/generator/report 机械收口及必要 overlay/pin/evidence。禁止迁移模块、改 recovery 六格表/T8/T25、`ch_flash`、`persist_verify`、B1 ABI、B2 0x95/0x97、B4 0x80/0x81。完成后双 harness、定向、三变体预算、diff check 全绿并停手；不刷机/HIL/push。
 - 需要回复：是（@Zcode ACK 后仅执行 B3R4）
+
+### [2026-09-02 16:52] Codex 复验 implementation B3R4：擦除预填成立，退最小 B3R5 分流 I/O 失败
+
+- 固定审查固件仓 `8df7836...2bd169c`，`lastReviewedCommit=2bd169c`。范围为 seam + T9 + wbs13/generator/pins/evidence；`ch_flash`/`persist_verify`/T8/T25/B4 零 diff；树干净，`git diff --check` 通过。Codex 独立编译跑 `test_factory_recovery`：**all passed**；`test-wbs13-semantics.py` ok。
+- **已成立，B3R5 不得回退**：读前 `memset(ram, 0xFF)`；`storage_read==0` 的欠交付（不写/半读）经 CRC/擦除判定走 default，陈旧种子无法过门；accept `storage=1 sanitize=1 default=0`、CRC-invalid `storage=1 default=1 sanitize=0`；wbs13 改为逐 token 剥离 seam；generator 口径已改为唯一豁免 `factory_core_boot_raw_load`。
+- **Spec P1**：B3R4 原文要求「读取**非零**时、CRC 前 fail-closed；不得调用 default/sanitize，不得 invalidate/provision/serve」。现实现把 `storage_read != 0` 直接 `defaulted=1` 并 `default_install`；factory `main.c` 仍对任意 `boot_defaulted` 调 `factory_assets_invalidate_trigger()`。一次 EEPROM 读错误会被当成 blob 丢失而擦 trigger/再 provision。T9 read-fail 臂把 `default=1` 写成成功，与「零后级副作用」相反。
+- **B3R5**：seam 必须区分 I/O 失败与 CRC 丢失（status-bearing）。`storage_read != 0`：不 default、不 sanitize、intent=0、不把 defaulted 报成 CRC-loss；`main.c` 只在 CRC-loss 时 invalidate。T9 read-fail 断言 `storage=1 default=0 sanitize=0`、intent=0、RAM 不是陈旧 valid blob。不写/半读若返回 0，可继续走擦除/CRC 丢失。擦除预填、accept/reject 计数、wbs13 token 剥离、报告口径不得回退。B4、刷机、HIL、push 不开放。
+- 需要回复：是（@Zcode ACK 后仅执行 B3R5）
