@@ -31,7 +31,16 @@ final class DeviceTransportCoreTests: XCTestCase {
         var c = makeCore()
         _ = c.handle(.bluetoothPoweredOn, now: now)
         let actions = c.handle(.lockAcquired, now: now)
-        XCTAssertEqual(actions, [.scan])
+        XCTAssertEqual(
+            actions,
+            [
+                .scan,
+                .scheduleSystemAttachedProbe(
+                    after: DeviceTransportCore.systemAttachedProbeInterval,
+                    token: 1
+                ),
+            ]
+        )
         guard case .scanning = c.phase else { return XCTFail() }
     }
 
@@ -50,7 +59,9 @@ final class DeviceTransportCoreTests: XCTestCase {
         _ = c.handle(.lockAcquired, now: now)
         // 扫描期间发现系统已连接设备
         let actions = c.handle(.systemAttachedDeviceFound(uuid: "UUID-S"), now: now)
-        XCTAssertEqual(actions, [.connectSystemAttached])
+        XCTAssertEqual(actions, [.cancelSystemAttachedProbe, .connectSystemAttached])
+        let second = c.handle(.systemAttachedDeviceFound(uuid: "UUID-S"), now: now)
+        XCTAssertEqual(second, [], "已离开 scanning 后不得再 connectSystemAttached")
     }
 
     func testCurrentOnly_legacyDoesNotBecomeReady() {
@@ -169,5 +180,54 @@ extension DeviceTransportCoreTests {
         _ = c.handle(.negotiationFinished(uuid: "U", mode: .legacy), now: now)
         _ = c.handle(.deviceIdentified(deviceID: "507C"), now: now)
         XCTAssertFalse(c.isReady, "legacy 协商结果不因身份补齐而放行")
+    }
+}
+
+extension DeviceTransportCoreTests {
+    func testScanning_emptyProbe_reschedulesOnce() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        XCTAssertEqual(
+            c.handle(.systemAttachedProbeFired(token: 1), now: now),
+            [.probeSystemAttached]
+        )
+        XCTAssertEqual(
+            c.handle(.systemAttachedProbeEmpty, now: now),
+            [
+                .scheduleSystemAttachedProbe(
+                    after: DeviceTransportCore.systemAttachedProbeInterval,
+                    token: 2
+                ),
+            ]
+        )
+        guard case .scanning = c.phase else { return XCTFail("空 probe 必须留在 scanning") }
+    }
+
+    func testScanning_staleProbe_isNoOp() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        _ = c.handle(.systemAttachedDeviceFound(uuid: "UUID-S"), now: now)
+        XCTAssertEqual(
+            c.handle(.systemAttachedProbeFired(token: 1), now: now),
+            [],
+            "过期 probe 在非 scanning 必须 no-op"
+        )
+        XCTAssertEqual(c.handle(.systemAttachedProbeEmpty, now: now), [])
+    }
+
+    func testBluetoothUnavailable_invalidatesProbe() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        let actions = c.handle(.bluetoothUnavailable, now: now)
+        XCTAssertTrue(actions.contains(.cancelSystemAttachedProbe))
+        guard case .idle = c.phase else { return XCTFail() }
+        XCTAssertEqual(
+            c.handle(.systemAttachedProbeFired(token: 1), now: now),
+            [],
+            "蓝牙不可用后过期 probe 不得再连"
+        )
     }
 }

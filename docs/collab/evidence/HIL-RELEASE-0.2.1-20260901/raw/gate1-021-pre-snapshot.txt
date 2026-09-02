@@ -100,7 +100,7 @@ d4a6161599ac24a5e3afbd5c567c8ca613d7ac698ea28508360b4d5e7441be7d  /Users/heartli
 52916924f7c836eb739013935fd9323cd381bb73d133046291ebf6a751162ca0  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-shm
 6b5e504901abb548294f1c38541e64337347e807c37f9de86e9ce30631ac6bfd  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-wal
 ===== PROCESSES =====
-heartline        44806   2.7  1.0 1892336976 168384   ??  S    10:50AM   0:14.06 Cursor Helper (Plugin): extension-host ahakeyconfig-main [1-6]                      
+heartline        44806   2.7  1.0 1892336976 168384   ??  S    10:50AM   0:14.06 Cursor Helper (Plugin): extension-host ahakeyconfig-main [1-6]
 heartline        86769   0.0  0.2 435762112  25168   ??  S    Mon10PM  95:20.91 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
 heartline        77220   0.0  0.1 435367040  14080   ??  S    Mon10PM  11:01.35 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
 heartline        47878   0.0  0.0 435299952   1152   ??  S    11:04AM   0:00.00 tee /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/raw/gate1-021-pre-snapshot.txt

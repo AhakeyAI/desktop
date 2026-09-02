@@ -26,7 +26,7 @@ GPT Partition Data（Backup GPT Table：：已验证CRC32 $048468A0
 已验证CRC32 $6E514BCF
 === mount ===
 预计CRC32 $6E514BCF
-/dev/disk37         	GUID_partition_scheme          	
+/dev/disk37         	GUID_partition_scheme
 /dev/disk37s1       	Apple_HFS                      	/private/tmp/ahakey-021-gate0-mnt.7BTYEv
 MNT=/tmp/ahakey-021-gate0-mnt.7BTYEv
 === volume listing ===

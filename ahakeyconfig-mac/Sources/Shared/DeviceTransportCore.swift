@@ -34,6 +34,12 @@ public enum DeviceTransportAction: Equatable {
     case disconnect(uuid: String)
     /// 到点重连（由调度层在 after 之后回调 `reconnectTimerFired`）。
     case scheduleReconnectTimer(after: TimeInterval)
+    /// 扫描期低频重查系统已连 HID（适配层到点回调 `systemAttachedProbeFired`）。
+    case scheduleSystemAttachedProbe(after: TimeInterval, token: UInt64)
+    /// 作废适配层尚未触发的 probe timer。
+    case cancelSystemAttachedProbe
+    /// 适配层此刻调用 `retrieveConnectedPeripherals`；空结果回 `systemAttachedProbeEmpty`。
+    case probeSystemAttached
 }
 
 /// 注入核心的事件。
@@ -53,6 +59,10 @@ public enum DeviceTransportEvent {
     case deviceIdentified(deviceID: String)
     case disconnected(uuid: String)
     case reconnectTimerFired
+    /// 适配层 probe timer 到点。token 过期或非 scanning 必须 no-op。
+    case systemAttachedProbeFired(token: UInt64)
+    /// `retrieveConnectedPeripherals` 空结果。scanning 期只重排一次下一发 probe。
+    case systemAttachedProbeEmpty
 }
 
 public struct DeviceTransportCore {
@@ -69,6 +79,9 @@ public struct DeviceTransportCore {
     private var transportGeneration: UInt64 = 0
     /// 协商完成但身份未识别时暂存 mode，等 deviceIdentified 补齐后落 ready。
     private var pendingNegotiatedMode: AhaKeyProtocolMode? = nil
+    /// 扫描期 system-attached probe 代际；离开 scanning / 蓝牙不可用时递增，过期 timer 不得再连。
+    public private(set) var systemAttachedProbeToken: UInt64 = 0
+    public static let systemAttachedProbeInterval: TimeInterval = 1.5
 
     public init(sessionGeneration: UInt64, backoff: BackoffSchedule = BackoffSchedule()) {
         self.sessionGeneration = sessionGeneration
@@ -94,9 +107,10 @@ public struct DeviceTransportCore {
             return [.acquireConnectionLock]
 
         case .bluetoothUnavailable:
-            let invalidated = invalidateTransport()
+            var actions = invalidateTransport()
+            actions.append(contentsOf: invalidateSystemAttachedProbe())
             phase = .idle
-            return invalidated
+            return actions
 
         case .lockAcquired:
             guard case .awaitingLock = phase else { return [] }
@@ -108,17 +122,25 @@ public struct DeviceTransportCore {
             return []
 
         case let .knownDeviceFound(uuid):
+            guard case .scanning = phase else { return [] }
+            var actions = invalidateSystemAttachedProbe()
             phase = .connecting(uuid: uuid)
-            return [.connectKnown(uuid: uuid)]
+            actions.append(.connectKnown(uuid: uuid))
+            return actions
 
         case let .systemAttachedDeviceFound(uuid):
+            guard case .scanning = phase else { return [] }
+            var actions = invalidateSystemAttachedProbe()
             phase = .connecting(uuid: uuid)
-            return [.connectSystemAttached]
+            actions.append(.connectSystemAttached)
+            return actions
 
         case let .discovered(uuid, deviceID):
             if let deviceID { stableDeviceID = deviceID }
+            var actions = invalidateSystemAttachedProbe()
             phase = .connecting(uuid: uuid)
-            return [.connectKnown(uuid: uuid)]
+            actions.append(.connectKnown(uuid: uuid))
+            return actions
 
         case let .connected(uuid):
             transportGeneration &+= 1
@@ -167,6 +189,14 @@ public struct DeviceTransportCore {
             guard case .backoffReconnect = phase else { return [] }
             phase = .awaitingLock
             return [.acquireConnectionLock]
+
+        case let .systemAttachedProbeFired(token):
+            guard token == systemAttachedProbeToken, case .scanning = phase else { return [] }
+            return [.probeSystemAttached]
+
+        case .systemAttachedProbeEmpty:
+            guard case .scanning = phase else { return [] }
+            return [armSystemAttachedProbe()]
         }
     }
 
@@ -177,7 +207,20 @@ public struct DeviceTransportCore {
             return [.connectKnown(uuid: uuid)]
         }
         phase = .scanning
-        return [.scan]
+        return [.scan, armSystemAttachedProbe()]
+    }
+
+    private mutating func armSystemAttachedProbe() -> DeviceTransportAction {
+        systemAttachedProbeToken &+= 1
+        return .scheduleSystemAttachedProbe(
+            after: Self.systemAttachedProbeInterval,
+            token: systemAttachedProbeToken
+        )
+    }
+
+    private mutating func invalidateSystemAttachedProbe() -> [DeviceTransportAction] {
+        systemAttachedProbeToken &+= 1
+        return [.cancelSystemAttachedProbe]
     }
 
     /// 断连/失效公共收尾：强败全部 waiter（含当前代际）、清队列。

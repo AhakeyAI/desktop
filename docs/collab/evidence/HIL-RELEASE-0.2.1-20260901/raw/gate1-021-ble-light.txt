@@ -56,5 +56,5 @@ tool=Read rc=0 deny=0 stdout='{"permission":"allow"}\n'
           Keyboard K380:
               Address: F4:73:35:AB:7C:32
 ===== PMSET =====
-   pid 50849(ahakeyconfig-agent): [0x000437fd00018e74] 00:00:30 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
-   pid 50496(AhaKeyConfig): [0x0004379f00018e67] 00:02:05 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+   pid 50849(ahakeyconfig-agent): [0x000437fd00018e74] 00:00:30 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"
+   pid 50496(AhaKeyConfig): [0x0004379f00018e67] 00:02:05 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"

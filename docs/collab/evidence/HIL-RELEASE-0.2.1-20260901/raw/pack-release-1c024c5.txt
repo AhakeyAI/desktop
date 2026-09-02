@@ -29,7 +29,7 @@ Foundation.NSLock.lock:2:11: note: 'lock()' declared here
 1 | class NSLock {
 2 | open func lock()}
   |           `- note: 'lock()' declared here
-3 | 
+3 |
 
 /private/tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:154:18: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
 152 |         lock.lock()
@@ -43,21 +43,21 @@ Foundation.NSLock.unlock:2:11: note: 'unlock()' declared here
 1 | class NSLock {
 2 | open func unlock()}
   |           `- note: 'unlock()' declared here
-3 | 
+3 |
 
 /private/tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:158:14: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
 156 |         }
 157 |         let capturedGeneration = generation
 158 |         lock.unlock()
     |              `- warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
-159 | 
+159 |
 160 |         let encoder = JSONEncoder()
 
 Foundation.NSLock.unlock:2:11: note: 'unlock()' declared here
 1 | class NSLock {
 2 | open func unlock()}
   |           `- note: 'unlock()' declared here
-3 | 
+3 |
 
 /private/tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:189:27: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
 187 |             let response = try decoder.decode(AhaKeyRuntimeXPCResponse.self, from: responseData)
@@ -71,7 +71,7 @@ Foundation.NSLock.lock:2:11: note: 'lock()' declared here
 1 | class NSLock {
 2 | open func lock()}
   |           `- note: 'lock()' declared here
-3 | 
+3 |
 
 /private/tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:193:27: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
 191 |                     self.handshakeAccepted = true
@@ -85,7 +85,7 @@ Foundation.NSLock.unlock:2:11: note: 'unlock()' declared here
 1 | class NSLock {
 2 | open func unlock()}
   |           `- note: 'unlock()' declared here
-3 | 
+3 |
 
 /private/tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/Sources/Shared/AhaKeyStudioRuntimeFacade.swift:625:30: warning: no 'async' operations occur within 'await' expression
 623 |             let loaded: AhaKeyStudioLoadedResource
@@ -160,7 +160,7 @@ Building for production...
  505 |                 return
 
 /private/tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift:2737:31: warning: capture of 'self' with non-Sendable type 'AhaKeyAgent?' in a '@Sendable' closure [#SendableClosureCaptures]
-  77 | 
+  77 |
   78 | /// 轻量 BLE 守护进程：维持连接 + 接收 Unix socket 命令 → 发送 LED 状态 / 回传拨杆状态
   79 | final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
      |             `- note: class 'AhaKeyAgent' does not conform to the 'Sendable' protocol
@@ -195,7 +195,7 @@ Wrote 1159 strings to en.lproj and zh-Hans.lproj
 💽 Creating writable HFS+ DMG...
 created: /tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5-rw.dmg
 🪟 Applying drag-to-install layout...
-/dev/disk37         	GUID_partition_scheme          	
+/dev/disk37         	GUID_partition_scheme
 /dev/disk37s1       	Apple_HFS                      	/Volumes/AhaKey Installer
 
 (osascript exit=0)

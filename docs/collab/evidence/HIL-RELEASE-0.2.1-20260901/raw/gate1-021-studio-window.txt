@@ -76,9 +76,9 @@ AhaKeyConfig
 ===== PMSET =====
    PreventUserIdleDisplaySleep    0
    PreventUserIdleSystemSleep     1
-   pid 1603(UURemote): [0x000000b9000181a0] 97:18:58 PreventUserIdleSystemSleep named: "UURemote Disable Idle System Sleep"  
-   pid 48579(ahakeyconfig-agent): [0x000433ca00018de1] 00:03:18 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
-   pid 48980(AhaKeyConfig): [0x0004345d00018df3] 00:00:50 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+   pid 1603(UURemote): [0x000000b9000181a0] 97:18:58 PreventUserIdleSystemSleep named: "UURemote Disable Idle System Sleep"
+   pid 48579(ahakeyconfig-agent): [0x000433ca00018de1] 00:03:18 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"
+   pid 48980(AhaKeyConfig): [0x0004345d00018df3] 00:00:50 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"
 ===== BT SNAP =====
       Connected:
       Not Connected:
