@@ -59,7 +59,7 @@ final class DeviceTransportCoreTests: XCTestCase {
         _ = c.handle(.lockAcquired, now: now)
         // 扫描期间发现系统已连接设备
         let actions = c.handle(.systemAttachedDeviceFound(uuid: "UUID-S"), now: now)
-        XCTAssertEqual(actions, [.cancelSystemAttachedProbe, .connectSystemAttached])
+        XCTAssertEqual(actions, [.cancelSystemAttachedProbe, .connectSystemAttached(uuid: "UUID-S")])
         let second = c.handle(.systemAttachedDeviceFound(uuid: "UUID-S"), now: now)
         XCTAssertEqual(second, [], "已离开 scanning 后不得再 connectSystemAttached")
     }
@@ -229,5 +229,43 @@ extension DeviceTransportCoreTests {
             [],
             "蓝牙不可用后过期 probe 不得再连"
         )
+    }
+
+    func testShutdown_invalidatesProbeAndIdles() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        let token = c.systemAttachedProbeToken
+        let actions = c.handle(.shutdown, now: now)
+        XCTAssertTrue(actions.contains(.cancelSystemAttachedProbe))
+        guard case .idle = c.phase else { return XCTFail("shutdown 必须 idle") }
+        XCTAssertNotEqual(c.systemAttachedProbeToken, token)
+        XCTAssertEqual(
+            c.handle(.systemAttachedProbeFired(token: token), now: now),
+            [],
+            "shutdown 后过期 probe 不得 retrieve/connect"
+        )
+        XCTAssertEqual(c.handle(.systemAttachedProbeEmpty, now: now), [])
+        XCTAssertEqual(c.handle(.lookupOrConnectFailed, now: now), [])
+    }
+
+    func testLookupOrConnectFailed_returnsToScanning_andRearmsOnce() {
+        var c = makeCore()
+        _ = c.handle(.bluetoothPoweredOn, now: now)
+        _ = c.handle(.lockAcquired, now: now)
+        _ = c.handle(.systemAttachedDeviceFound(uuid: "UUID-S"), now: now)
+        guard case .connecting = c.phase else { return XCTFail() }
+        let actions = c.handle(.lookupOrConnectFailed, now: now)
+        XCTAssertEqual(
+            actions,
+            [
+                .resumeScanning,
+                .scheduleSystemAttachedProbe(
+                    after: DeviceTransportCore.systemAttachedProbeInterval,
+                    token: c.systemAttachedProbeToken
+                ),
+            ]
+        )
+        guard case .scanning = c.phase else { return XCTFail("失败必须回 scanning，不得留在 connecting") }
     }
 }

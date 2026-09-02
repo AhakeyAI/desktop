@@ -52,7 +52,7 @@ final class AhaKeySystemAttachedProbeTests: XCTestCase {
         _ = core.handle(.lockAcquired, now: now)
         XCTAssertEqual(
             core.handle(.systemAttachedDeviceFound(uuid: uuid), now: now),
-            [.cancelSystemAttachedProbe, .connectSystemAttached]
+            [.cancelSystemAttachedProbe, .connectSystemAttached(uuid: uuid)]
         )
         XCTAssertEqual(
             core.handle(.systemAttachedDeviceFound(uuid: uuid), now: now),

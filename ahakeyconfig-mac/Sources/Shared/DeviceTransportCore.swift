@@ -27,8 +27,10 @@ public enum DeviceTransportPhase: Equatable {
 public enum DeviceTransportAction: Equatable {
     case acquireConnectionLock
     case scan
+    /// 连接失败后继续 BLE 扫描，不再立刻 retrieve（避免同栈对同一快照死循环）。
+    case resumeScanning
     case connectKnown(uuid: String)
-    case connectSystemAttached
+    case connectSystemAttached(uuid: String)
     case discoverServices(uuid: String)
     case sendCapabilityNegotiation(uuid: String)
     case disconnect(uuid: String)
@@ -63,6 +65,11 @@ public enum DeviceTransportEvent {
     case systemAttachedProbeFired(token: UInt64)
     /// `retrieveConnectedPeripherals` 空结果。scanning 期只重排一次下一发 probe。
     case systemAttachedProbeEmpty
+    /// 进程/适配器关闭：作废 waiter、probe token，phase → idle。过期 timer 不得再连。
+    case shutdown
+    /// 携带的 system-attached 外设在 connect 前消失，或 `connect` 未能启动。
+    /// connecting 必须回到 scanning 并恰重排一次 probe。
+    case lookupOrConnectFailed
 }
 
 public struct DeviceTransportCore {
@@ -132,7 +139,7 @@ public struct DeviceTransportCore {
             guard case .scanning = phase else { return [] }
             var actions = invalidateSystemAttachedProbe()
             phase = .connecting(uuid: uuid)
-            actions.append(.connectSystemAttached)
+            actions.append(.connectSystemAttached(uuid: uuid))
             return actions
 
         case let .discovered(uuid, deviceID):
@@ -197,6 +204,17 @@ public struct DeviceTransportCore {
         case .systemAttachedProbeEmpty:
             guard case .scanning = phase else { return [] }
             return [armSystemAttachedProbe()]
+
+        case .shutdown:
+            var actions = invalidateTransport()
+            actions.append(contentsOf: invalidateSystemAttachedProbe())
+            phase = .idle
+            return actions
+
+        case .lookupOrConnectFailed:
+            guard case .connecting = phase else { return [] }
+            phase = .scanning
+            return [.resumeScanning, armSystemAttachedProbe()]
         }
     }
 

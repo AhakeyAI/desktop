@@ -7,38 +7,6 @@ import RuntimeXPCServer
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig.agent", category: "BLE")
 
-/// 扫描期 `retrieveConnectedPeripherals` 判定。空结果不得产生常规日志。
-enum AhaKeySystemAttachedProbe {
-    struct PeripheralRef: Equatable {
-        var name: String?
-        var uuid: String
-    }
-
-    enum Decision: Equatable {
-        case miss
-        case hit(name: String, uuid: String)
-    }
-
-    static func decide(attached: [PeripheralRef], namePrefix: String) -> Decision {
-        let prefix = namePrefix.lowercased()
-        guard let match = attached.first(where: {
-            ($0.name ?? "").lowercased().hasPrefix(prefix)
-        }) else {
-            return .miss
-        }
-        return .hit(name: match.name ?? "?", uuid: match.uuid)
-    }
-
-    static func logMessage(for decision: Decision) -> String? {
-        switch decision {
-        case .miss:
-            return nil
-        case .hit(let name, _):
-            return "系统已连接: \(name)"
-        }
-    }
-}
-
 /// 配置事务期间暂缓 0x90 的协调器。隔离由 `@MainActor` 表达；begin/end 必须配对。
 @MainActor
 final class AhaKeyConfigurationTransportWindow {
@@ -162,7 +130,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: 设备 transport 核心（WBS-5.5 切片 3）
     /// 生命周期/代际/waiter 归属的唯一决策点；本类只做 CoreBluetooth 适配与动作落地。
     /// fileprivate：程序执行 transport（本文件内）需读 isReady 做取消检查点。
-    fileprivate var transportCore = DeviceTransportCore(sessionGeneration: 1)
+    private let bleLifecycle = AhaKeyBLELifecycleAdapter()
+    fileprivate var transportCore: DeviceTransportCore {
+        get { bleLifecycle.core }
+        set { bleLifecycle.core = newValue }
+    }
+    /// 同一次 `retrieveConnectedPeripherals` 得到的外设；connect 不得再查。
+    private var retrievedSystemAttached: [CBPeripheral] = []
     /// 0x99 协商进度
     private var negotiationAttempts = 0
     private var awaitingCapabilityResponse = false
@@ -301,6 +275,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 旧版会持久化虚拟拨杆覆盖，导致真实硬件档位永远无法回写。迁移时清除它。
         UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
         super.init()
+        bleLifecycle.host = self
         central = CBCentralManager(delegate: self, queue: nil)
         Self.clearLiveSwitchState()
         self.configurationCoordinator = AhaKeyConfigurationExecutionCoordinator(
@@ -369,8 +344,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         Task { await orchestrator.stopAll() }
         lockRetryItem?.cancel()
         lockRetryItem = nil
-        systemAttachedProbeItem?.cancel()
-        systemAttachedProbeItem = nil
+        AhaKeyBLELifecycleSeam.run { [weak self] in
+            self?.bleLifecycle.shutdown(now: Date())
+        }
         connectionLock.release()
         // R1：events long-poll 挂起 waiter 收尾（进程退出路径，绝不泄漏 continuation）。
         let flushWaiters = { [weak self] in
@@ -1286,150 +1262,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var didLogLockBusy = false
     /// 抢锁失败后的 15s 重试项
     private var lockRetryItem: DispatchWorkItem?
-    /// 扫描期 system-attached 低频 probe；单实例，过期 token 丢弃。
-    private var systemAttachedProbeItem: DispatchWorkItem?
 
     /// 连接入口：全部决策交给 DeviceTransportCore，本类只落地动作。
     private func connectAutomatically() {
-        performTransportActions(transportCore.handle(.bluetoothPoweredOn, now: Date()))
+        bleLifecycle.handle(.bluetoothPoweredOn, now: Date())
     }
 
-    /// transport 核心动作 → CoreBluetooth 落地。
+    /// transport 核心动作 → 生产 Adapter 落地（同一 main 生命周期边界）。
     private func performTransportActions(_ actions: [DeviceTransportAction]) {
-        for action in actions {
-            switch action {
-            case .acquireConnectionLock:
-                if acquireConnectionLock() {
-                    performTransportActions(transportCore.handle(.lockAcquired, now: Date()))
-                } else {
-                    _ = transportCore.handle(.lockBusy, now: Date())
-                }
-            case .scan:
-                // 先查系统已连接（macOS HID 持有链路时外设不再广播，纯扫描永远找不到）——
-                // HIL-RUNTIME-2 实证：agent 重启后 lastUUID 丢失，必须保留这一跳。
-                applySystemAttachedDecision(
-                    AhaKeySystemAttachedProbe.decide(
-                        attached: systemAttachedRefs(),
-                        namePrefix: deviceNamePrefix
-                    ),
-                    startScanOnMiss: true
-                )
-            case .connectKnown(let uuidString):
-                guard let uuid = UUID(uuidString: uuidString) else { break }
-                if let p = peripheral, p.identifier == uuid {
-                    p.delegate = self
-                    central.connect(p, options: nil)
-                } else if let p = central.retrievePeripherals(withIdentifiers: [uuid]).first {
-                    emit("直连已知设备: \(uuidString.prefix(8))…")
-                    peripheral = p
-                    p.delegate = self
-                    central.connect(p, options: nil)
-                } else {
-                    // 已知 UUID 已不可达：回退扫描
-                    emit(NSLocalizedString("开始扫描…", comment: ""))
-                    central.scanForPeripherals(withServices: [serviceUUID], options: nil)
-                }
-            case .connectSystemAttached:
-                applySystemAttachedDecision(
-                    AhaKeySystemAttachedProbe.decide(
-                        attached: systemAttachedRefs(),
-                        namePrefix: deviceNamePrefix
-                    ),
-                    startScanOnMiss: false
-                )
-            case .discoverServices:
-                peripheral?.discoverServices([serviceUUID, deviceInfoServiceUUID])
-            case .sendCapabilityNegotiation:
-                sendNegotiationQuery()
-            case .disconnect:
-                if let peripheral { central.cancelPeripheralConnection(peripheral) }
-            case .scheduleReconnectTimer(let after):
-                emit(String(format: NSLocalizedString("已断开，%.0fs 后重连", comment: ""), after))
-                DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in
-                    guard let self else { return }
-                    self.performTransportActions(self.transportCore.handle(.reconnectTimerFired, now: Date()))
-                }
-            case .scheduleSystemAttachedProbe(let after, let token):
-                guard token == transportCore.systemAttachedProbeToken,
-                      case .scanning = transportCore.phase else { break }
-                systemAttachedProbeItem?.cancel()
-                let item = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    self.systemAttachedProbeItem = nil
-                    self.performTransportActions(
-                        self.transportCore.handle(.systemAttachedProbeFired(token: token), now: Date())
-                    )
-                }
-                systemAttachedProbeItem = item
-                DispatchQueue.main.asyncAfter(deadline: .now() + after, execute: item)
-            case .cancelSystemAttachedProbe:
-                systemAttachedProbeItem?.cancel()
-                systemAttachedProbeItem = nil
-            case .probeSystemAttached:
-                let decision = AhaKeySystemAttachedProbe.decide(
-                    attached: systemAttachedRefs(),
-                    namePrefix: deviceNamePrefix
-                )
-                switch decision {
-                case .miss:
-                    performTransportActions(transportCore.handle(.systemAttachedProbeEmpty, now: Date()))
-                case .hit:
-                    applySystemAttachedDecision(decision, startScanOnMiss: false)
-                }
-            }
-        }
-    }
-
-    private func systemAttachedRefs() -> [AhaKeySystemAttachedProbe.PeripheralRef] {
-        central.retrieveConnectedPeripherals(withServices: [serviceUUID]).map {
-            AhaKeySystemAttachedProbe.PeripheralRef(name: $0.name, uuid: $0.identifier.uuidString)
-        }
-    }
-
-    private func peripheralMatching(uuid: String) -> CBPeripheral? {
-        central.retrieveConnectedPeripherals(withServices: [serviceUUID])
-            .first(where: { $0.identifier.uuidString == uuid })
-    }
-
-    /// 命中走生产 `systemAttachedDeviceFound` → `connectSystemAttached` 链；空 probe 不 emit。
-    private func applySystemAttachedDecision(
-        _ decision: AhaKeySystemAttachedProbe.Decision,
-        startScanOnMiss: Bool
-    ) {
-        switch decision {
-        case .miss:
-            if startScanOnMiss {
-                emit(NSLocalizedString("开始扫描…", comment: ""))
-                central.scanForPeripherals(withServices: [serviceUUID], options: nil)
-            }
-        case .hit(_, let uuid):
-            if let message = AhaKeySystemAttachedProbe.logMessage(for: decision) {
-                emit(message)
-            }
-            guard let p = peripheralMatching(uuid: uuid) else {
-                if startScanOnMiss {
-                    emit(NSLocalizedString("开始扫描…", comment: ""))
-                    central.scanForPeripherals(withServices: [serviceUUID], options: nil)
-                } else if case .scanning = transportCore.phase {
-                    performTransportActions(transportCore.handle(.systemAttachedProbeEmpty, now: Date()))
-                }
-                return
-            }
-            peripheral = p
-            p.delegate = self
-            central.stopScan()
-            if case .scanning = transportCore.phase {
-                performTransportActions(
-                    transportCore.handle(.systemAttachedDeviceFound(uuid: uuid), now: Date())
-                )
-            } else {
-                central.connect(p, options: nil)
-            }
-        }
+        bleLifecycle.perform(actions, now: Date())
     }
 
     /// 发起连接前必须持有跨进程连接锁；被 GUI 持有时不 attach，15s 后重试（不刷日志）。
-    private func acquireConnectionLock() -> Bool {
+    func acquireConnectionLock() -> Bool {
         guard !connectionLock.holdsLock else { return true }
         if connectionLock.acquire() {
             if didLogLockBusy {
@@ -1460,11 +1305,77 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: item)
     }
 
-    private func emit(_ msg: String) {
+    func emit(_ msg: String) {
         log.info("\(msg)")
         onLog?(msg)
     }
+}
 
+extension AhaKeyAgent: AhaKeyBLELifecycleAdapter.Host {
+    func retrieveSystemAttached() -> [AhaKeySystemAttachedProbe.PeripheralRef] {
+        AhaKeyBLELifecycleSeam.assertIsolated()
+        let list = central.retrieveConnectedPeripherals(withServices: [serviceUUID])
+        retrievedSystemAttached = list
+        return list.map { AhaKeySystemAttachedProbe.PeripheralRef(name: $0.name, uuid: $0.identifier.uuidString) }
+    }
+
+    func connectRetrieved(uuid: String) -> Bool {
+        AhaKeyBLELifecycleSeam.assertIsolated()
+        guard let p = retrievedSystemAttached.first(where: { $0.identifier.uuidString == uuid }) else {
+            return false
+        }
+        peripheral = p
+        p.delegate = self
+        central.connect(p, options: nil)
+        return true
+    }
+
+    func connectKnown(uuid uuidString: String) {
+        guard let uuid = UUID(uuidString: uuidString) else { return }
+        if let p = peripheral, p.identifier == uuid {
+            p.delegate = self
+            central.connect(p, options: nil)
+        } else if let p = central.retrievePeripherals(withIdentifiers: [uuid]).first {
+            emit("直连已知设备: \(uuidString.prefix(8))…")
+            peripheral = p
+            p.delegate = self
+            central.connect(p, options: nil)
+        } else {
+            emit(NSLocalizedString("开始扫描…", comment: ""))
+            central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+        }
+    }
+
+    func startScan() {
+        central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+    }
+
+    func stopScan() {
+        central.stopScan()
+    }
+
+    func discoverServices(uuid: String) {
+        peripheral?.discoverServices([serviceUUID, deviceInfoServiceUUID])
+    }
+
+    func sendCapabilityNegotiation(uuid: String) {
+        sendNegotiationQuery()
+    }
+
+    func disconnect(uuid: String) {
+        if let peripheral { central.cancelPeripheralConnection(peripheral) }
+    }
+
+    func scheduleReconnect(after: TimeInterval) {
+        emit(String(format: NSLocalizedString("已断开，%.0fs 后重连", comment: ""), after))
+        DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in
+            guard let self else { return }
+            self.bleLifecycle.handle(.reconnectTimerFired, now: Date())
+        }
+    }
+}
+
+extension AhaKeyAgent {
     // MARK: - CBCentralManagerDelegate
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -1537,6 +1448,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         performTransportActions(actions)
         publishDeviceChangedIfNeeded()
+    }
+
+    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        emit("连接失败: \(error?.localizedDescription ?? "?")")
+        bleLifecycle.handle(.lookupOrConnectFailed, now: Date())
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
