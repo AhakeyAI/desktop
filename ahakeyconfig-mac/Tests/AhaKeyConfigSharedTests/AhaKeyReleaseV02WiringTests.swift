@@ -94,9 +94,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: try keysAndLightDesired(),
             resources: [],
-            capabilities: capabilities,
-            protocolMode: .current,
-            release: release
+            context: .parsed(capabilities), release: release
         )
         guard case .success(let plan) = result else {
             return XCTFail("空 OLED 键位/灯效应规划成功: \(result)")
@@ -110,9 +108,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: try picturedDesired(),
             resources: [meta("img-a")],
-            capabilities: try caps14(),
-            protocolMode: .current,
-            release: try v0_2CurrentProjection()
+            context: .parsed(try caps14()), release: try v0_2CurrentProjection()
         )
         XCTAssertEqual(result, .failure(.releaseResourcePackageNotAllowed))
     }
@@ -122,9 +118,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
         let result = AhaKeyConfigurationPlanner.plan(
             desired: try keysAndLightDesired(),
             resources: [],
-            capabilities: try caps14(),
-            protocolMode: .current,
-            release: release
+            context: .parsed(try caps14()), release: release
         )
         XCTAssertEqual(result, .failure(.releaseWriteNotAllowed))
     }
@@ -136,8 +130,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
             mode: mode,
             desired: desired,
             plan: .init(transactions: [], slotAssignments: [:]),
-            capabilities: try caps14(),
-            release: try v0_2CurrentProjection()
+            context: .parsed(try caps14()), release: try v0_2CurrentProjection()
         ))
         XCTAssertFalse(steps.contains { if case .bindTaskPicture = $0 { return true }; return false })
         XCTAssertFalse(steps.contains { if case .setActiveTaskPictureSet = $0 { return true }; return false })
@@ -154,8 +147,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
             mode: desired.modes[0],
             desired: desired,
             plan: .init(transactions: [], slotAssignments: [:]),
-            capabilities: try caps14(),
-            release: try v0_2CurrentProjection()
+            context: .parsed(try caps14()), release: try v0_2CurrentProjection()
         ))
         var opcodes: [UInt8] = []
         for step in steps {
@@ -182,8 +174,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
                 desired: desired,
                 plan: plan,
                 resources: [meta("img-a")],
-                capabilities: try caps14(),
-                release: try v0_2CurrentProjection()
+                context: .parsed(try caps14()), release: try v0_2CurrentProjection()
             )
         )
     }

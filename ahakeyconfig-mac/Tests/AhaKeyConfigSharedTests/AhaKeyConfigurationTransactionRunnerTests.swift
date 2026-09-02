@@ -24,10 +24,12 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         super.tearDown()
     }
 
-    private func capabilities() -> AhaKeyFirmwareCapabilities {
+    private func capabilities(
+        modeCount: Int = 4, setCount: Int = 2, stateCount: Int = 4, userSlotLimit: Int = 288
+    ) -> AhaKeyFirmwareCapabilities {
         AhaKeyFirmwareCapabilities(
-            protocolVersion: 3, modeCount: 4, setCount: 2, stateCount: 4,
-            flags: 0, maxPacketSize: 200, userSlotLimit: 288, factorySlotBase: 8,
+            protocolVersion: 3, modeCount: modeCount, setCount: setCount, stateCount: stateCount,
+            flags: 0, maxPacketSize: 200, userSlotLimit: userSlotLimit, factorySlotBase: 8,
             factoryBundleVersion: 0, factoryManifestCRC: 0, factoryStatus: 0, factoryError: 0,
             reclaimSlotBase: 0, reclaimSlotLimit: 0
         )
@@ -103,7 +105,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         var executed: [String] = []
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities()), release: .picturesUnrestrictedForTests
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -125,7 +127,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         let (package, files) = try makePackage()
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .legacy, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities(userSlotLimit: 1)), release: .picturesUnrestrictedForTests
         ) { _ in .success }
         XCTAssertEqual(state, .failedWithoutWrites)
         let noBaseline = try await store.syncBaseline(for: package.targetDeviceID)
@@ -135,13 +137,37 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         XCTAssertNil(record?.failureContext)
     }
 
+    func testUnsupportedContextDoesNotTouchCASOrWAL() async throws {
+        let (package, files) = try makePackage()
+        let resourcesBefore = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("resources"), includingPropertiesForKeys: nil
+        )
+        do {
+            _ = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+                package: package, resourceFiles: files,
+                context: .make(.malformedResponse), release: .picturesUnrestrictedForTests
+            ) { _ in .success }
+            XCTFail("unsupported 必须在 accept 前抛错")
+        } catch AhaKeyConfigurationPreflightError.unsupportedProtocol {
+            // expected
+        }
+        let record = try await store.transaction(package.operationID)
+        XCTAssertNil(record)
+        let baseline = try await store.syncBaseline(for: package.targetDeviceID)
+        XCTAssertNil(baseline)
+        let resourcesAfter = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("resources"), includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(Set(resourcesAfter.map(\.lastPathComponent)), Set(resourcesBefore.map(\.lastPathComponent)))
+    }
+
     // MARK: 永久失败：有写入 → failedWithPartialCommit
 
     func testPermanentFailureAfterWriteKeepsPartialCommit() async throws {
         let (package, files) = try makePackage(modeCount: 2)
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities()), release: .picturesUnrestrictedForTests
         ) { step in
             step.rawValue == "base:mode:1" ? .permanentFailure : .success
         }
@@ -167,7 +193,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         )
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities()), release: .picturesUnrestrictedForTests
         ) { current in
             if current == step {
                 return .failure(.init(
@@ -201,7 +227,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
         let state1 = try await runner.run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities()), release: .picturesUnrestrictedForTests
         ) { step in
             if firstRun && step.rawValue == "base:mode:0" { return .retryableFailure }
             return .success
@@ -216,7 +242,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         var executed: [String] = []
         let state2 = try await runner.run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities()), release: .picturesUnrestrictedForTests
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -257,7 +283,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         var executed: [String] = []
         let settled = try await runner.run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities()), release: .picturesUnrestrictedForTests
         ) { step in executed.append(step.rawValue); return .success }
         XCTAssertEqual(settled, .resumablePartial)
         XCTAssertTrue(executed.isEmpty, "取消结算后不得再执行任何步骤")
@@ -267,7 +293,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         // 显式重跑 = 用户恢复意图：跳过已确认步并完成
         let after = try await runner.run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests
+            context: .parsed(capabilities()), release: .picturesUnrestrictedForTests
         ) { _ in .success }
         XCTAssertEqual(after, .completed)
     }
@@ -278,7 +304,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         let (package1, files) = try makePackage()
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
         _ = try await runner.run(package: package1, resourceFiles: files,
-                           capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests) { _ in .success }
+                           context: .parsed(capabilities()), release: .picturesUnrestrictedForTests) { _ in .success }
         var package2 = package1
         package2 = try AhaKeyConfigurationPackage(
             operationID: .init(),
@@ -288,7 +314,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
             resources: package1.resources
         )
         let state = try await runner.run(package: package2, resourceFiles: files,
-                                   capabilities: capabilities(), protocolMode: .current, release: .picturesUnrestrictedForTests) { _ in .success }
+                                   context: .parsed(capabilities()), release: .picturesUnrestrictedForTests) { _ in .success }
         XCTAssertEqual(state, .completed)
         let secondBaseline = try await store.syncBaseline(for: package1.targetDeviceID)
         XCTAssertEqual(secondBaseline?.revision.rawValue, 2)
@@ -324,7 +350,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         let release = AhaKeyReleaseFeaturePolicy.current.projection(.parsed(capabilities()))
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: files,
-            capabilities: capabilities(), protocolMode: .current, release: release
+            context: .parsed(capabilities()), release: release
         ) { _ in .success }
         XCTAssertEqual(state, .failedWithoutWrites)
         let noBaseline = try await store.syncBaseline(for: package.targetDeviceID)
@@ -339,7 +365,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         var executed: [String] = []
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: [:],
-            capabilities: capabilities(), protocolMode: .current, release: release
+            context: .parsed(capabilities()), release: release
         ) { step in
             executed.append(step.rawValue)
             return .success

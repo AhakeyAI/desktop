@@ -109,7 +109,7 @@ final class AhaKeyCaps14CrossContractTests: XCTestCase {
         let desiredConfig = try AhaKeyDesiredConfiguration(modes: [mode0, mode1])
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desiredConfig, resources: ids.map(meta),
-            capabilities: caps14(), protocolMode: .current, release: .picturesUnrestrictedForTests)
+            context: .parsed(caps14()), release: .picturesUnrestrictedForTests)
         guard case .success(let plan) = result else {
             return XCTFail("caps14 下 9 槽必须规划成功: \(result)")
         }
@@ -132,7 +132,7 @@ final class AhaKeyCaps14CrossContractTests: XCTestCase {
         let desiredConfig = try AhaKeyDesiredConfiguration(modes: [mode0, mode1])
         let result = AhaKeyConfigurationPlanner.plan(
             desired: desiredConfig, resources: ids.map(meta),
-            capabilities: caps14(), protocolMode: .current, release: .picturesUnrestrictedForTests)
+            context: .parsed(caps14()), release: .picturesUnrestrictedForTests)
         XCTAssertEqual(
             result,
             .failure(.deviceCapacityExceeded(slotsNeeded: 300, slotLimit: 288)),

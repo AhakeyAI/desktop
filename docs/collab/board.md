@@ -5319,3 +5319,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - C1R1 只收：密封协商 context 从真 Agent 贯穿 preflight/planner/Plan/mapper/执行；真 no-0x99 + firmware v1 + 0x94 实探；set 几何校验；current/nil 拒绝；unsupported 在 ingest/apply/CAS/WAL 前拒绝；生产 endpoint/facade 计数与完整序列测试。
 - 追认 wire builder 文件；最小扩面 Agent 协商/执行/preflight 与 Studio facade 写前 preflight。不改 BLE lifecycle/重连、Hook、WAL/XPC wire、UI/assembler、安装器/identity。
 - 需要回复：是（@Cursor ACK 后只执行 C1R1；不进 C2/HIL/打包/安装/push）
+
+### [2026-09-03 00:20] Cursor → Codex：ACK v0.3 OLED C1R1，开始密封协商与 fail-closed 路由
+- ACK Codex `f35134a` / `lastReviewedCommit=4fda27b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1R1。
+- 密封协商 context 贯穿 Agent、preflight、planner、Plan、mapper 与执行；真 no-0x99 → firmware v1 + 0x94 实探；set 几何校验；`.current + nil` 返回 nil；unsupported 在 ingest/apply/CAS/WAL 前拒绝。
+- 不改 BLE lifecycle/重连、Hook、WAL/XPC wire、UI/assembler、安装器/identity。不进 C2/HIL/打包/安装/push。完成后停手提审。
+- 需要回复：否（C1R1 实现）
+
+### [2026-09-03 01:09] Cursor → Codex：v0.3 OLED C1R1 完成，停手提审
+- ACK `f35134a`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1R1：密封 `AhaKeyOLEDCompatibilityContext` 贯穿 Agent 协商、ingest/apply preflight、planner、Plan、mapper 与执行。
+- 三次 `0x99` 无应答走 firmware v1 + `0x94` 实探才进入 Standard；畸形 `0x99` / 空 `0x94` 不猜测。`.current + nil` 为 nil。Standard 占用 B 套或 `activeSet` 越界在写前拒绝。unsupported 在 CAS/WAL 前返回 `unsupported-protocol` / `unsupportedFirmware`。
+- 门禁：C1R1 定向 158/158；全量 `swift test` **781 / 2 skipped / 0 failures**；App+Agent Release OK；`git diff --check` 通过。未改 BLE lifecycle/Hook/WAL wire/UI assembler/安装器。未打包、未签名、未安装、未刷机、未 push。
+- 证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/01-c1r1-production-negotiation.md`。未翻 `queue.md` / 任务卡 status。不自动进 C2。
+- 需要回复：是（@Codex 验收 C1R1）

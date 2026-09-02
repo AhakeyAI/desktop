@@ -85,14 +85,14 @@ public enum AhaKeyConfigurationStepMapper {
         slotIndex: Int,
         encodedFrameCount: Int,
         usesSessionUpload: Bool,
-        capabilities: AhaKeyFirmwareCapabilities,
+        userSlotLimit: Int,
         layout: AhaKeyDeviceLayoutPolicy = .init()
     ) -> [AhaKeyDeviceProgramStep]? {
         let startFrame = layout.startFrameIndex(slot: slotIndex, userRegionBase: 0)
         let start = Int(startFrame)
-        guard start < capabilities.userSlotLimit else { return nil }
+        guard start < userSlotLimit else { return nil }
         let requested = min(encodedFrameCount, layout.framesPerSlot)
-        let remaining = capabilities.userSlotLimit - start
+        let remaining = userSlotLimit - start
         // 完整请求必须落在 primary 0..<userSlotLimit；越界不得静默截短。
         guard requested > 0, requested <= remaining else { return nil }
         let frameBytes = layout.encodedFrameBytes
@@ -126,10 +126,9 @@ public enum AhaKeyConfigurationStepMapper {
         mode: AhaKeyDesiredConfiguration.Mode,
         desired: AhaKeyDesiredConfiguration,
         plan: AhaKeyConfigurationPlanner.Plan,
-        capabilities: AhaKeyFirmwareCapabilities,
+        context: AhaKeyOLEDCompatibilityContext,
         layout: AhaKeyDeviceLayoutPolicy = .init(),
-        release: AhaKeyReleaseFeatureProjection,
-        profile: AhaKeyOLEDCompatibilityProfile? = nil
+        release: AhaKeyReleaseFeatureProjection
     ) -> [AhaKeyDeviceProgramStep]? {
         struct BindSpec {
             let setIndex: Int
@@ -139,7 +138,9 @@ public enum AhaKeyConfigurationStepMapper {
             let intervalMs: UInt16
         }
         var binds: [BindSpec] = []
-        for (setIndex, set) in mode.oled.taskSets.enumerated() {
+        let slotBudget = context.layout.userSlotLimit
+        let allowedSetCount = context.layout.setCount
+        for (setIndex, set) in mode.oled.taskSets.enumerated() where setIndex < allowedSetCount {
             for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
                 let asset = effectiveAsset(
                     in: set, for: state,
@@ -152,8 +153,8 @@ public enum AhaKeyConfigurationStepMapper {
                       let frames = asset.declaredFrameCount, frames > 0 else { continue }
                 let startFrame = layout.startFrameIndex(slot: slot, userRegionBase: 0)
                 let start = Int(startFrame)
-                let remaining = capabilities.userSlotLimit - start
-                guard start < capabilities.userSlotLimit, frames <= remaining else { return nil }
+                let remaining = slotBudget - start
+                guard start < slotBudget, frames <= remaining else { return nil }
                 let interval = max(layout.defaultFrameIntervalFloor, UInt16(1000 / asset.framesPerSecond))
                 binds.append(BindSpec(
                     setIndex: setIndex, state: state.rawValue,
@@ -188,9 +189,7 @@ public enum AhaKeyConfigurationStepMapper {
         steps.append(.setLightMapping(mode: mode.slot, effects: effects))
         steps.append(.setBrightness(UInt8(mode.lightBar.brightness)))
 
-        let resolvedProfile = profile ?? AhaKeyOLEDCompatibilityProfile.resolve(
-            protocolMode: .current, capabilities: capabilities
-        )
+        let resolvedProfile = context.profile
         guard resolvedProfile.allowsConfigurationPlan else { return nil }
         let pictureOpcodes = resolvedProfile.pictureOpcodes
         let allowsPictureWrites = release.allowsPictureWrites
@@ -202,6 +201,7 @@ public enum AhaKeyConfigurationStepMapper {
                         startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
                     ))
                 } else if pictureOpcodes.allowsBindLegacyTaskPicture, bind.state != 0 {
+                    // Standard 没有 idle 任务槽；模式切换后的默认动画由 0x82 承担。
                     steps.append(.bindLegacyTaskPicture(
                         mode: mode.slot, state: bind.state,
                         startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
@@ -229,7 +229,8 @@ public enum AhaKeyConfigurationStepMapper {
         // desired.activeSet >= 0 就必须发 0x97。纯 mapper 读不到设备当前套图，
         // 不得用 binds.isEmpty 猜测「设备已经在目标套」而省略。
         // 发布通道关闭图片面时不得发 0x95/0x97。
-        if allowsPictureWrites, pictureOpcodes.allowsSetActiveSet, mode.oled.activeSet >= 0 {
+        if allowsPictureWrites, pictureOpcodes.allowsSetActiveSet,
+           mode.oled.activeSet >= 0, mode.oled.activeSet < allowedSetCount {
             steps.append(.setActiveTaskPictureSet(mode: mode.slot, set: UInt8(mode.oled.activeSet)))
         }
         return steps
@@ -243,14 +244,11 @@ public enum AhaKeyConfigurationStepMapper {
         desired: AhaKeyDesiredConfiguration,
         plan: AhaKeyConfigurationPlanner.Plan,
         resources: [AhaKeyConfigurationResource],
-        capabilities: AhaKeyFirmwareCapabilities,
+        context: AhaKeyOLEDCompatibilityContext,
         layout: AhaKeyDeviceLayoutPolicy = .init(),
-        release: AhaKeyReleaseFeatureProjection,
-        profile: AhaKeyOLEDCompatibilityProfile? = nil
+        release: AhaKeyReleaseFeatureProjection
     ) -> [AhaKeyDeviceProgramStep]? {
-        let resolvedProfile = profile ?? AhaKeyOLEDCompatibilityProfile.resolve(
-            protocolMode: .current, capabilities: capabilities
-        )
+        let resolvedProfile = context.profile
         guard resolvedProfile.allowsConfigurationPlan else { return nil }
         let raw = stepID.rawValue
         if raw.hasPrefix("resource:") {
@@ -266,15 +264,14 @@ public enum AhaKeyConfigurationStepMapper {
                 digest: meta.sha256, slotIndex: slot,
                 encodedFrameCount: frames,
                 usesSessionUpload: usesSessionUpload,
-                capabilities: capabilities, layout: layout
+                userSlotLimit: context.layout.userSlotLimit, layout: layout
             )
         }
         if raw.hasPrefix("base:mode:"), let slot = UInt8(raw.dropFirst("base:mode:".count)),
            let mode = desired.modes.first(where: { $0.slot == slot }) {
             return baseConfigurationProgram(
                 mode: mode, desired: desired, plan: plan,
-                capabilities: capabilities, layout: layout, release: release,
-                profile: resolvedProfile
+                context: context, layout: layout, release: release
             )
         }
         return nil

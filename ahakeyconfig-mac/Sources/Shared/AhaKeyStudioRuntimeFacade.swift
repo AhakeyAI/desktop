@@ -97,9 +97,21 @@ public actor AhaKeyStudioRuntimeFacade {
     /// 用于确定性断言瞬态（如 resyncing/offline），不依赖 AsyncStream 订阅时序。
     private var publishHookForTesting: (@Sendable (AhaKeyStudioRuntimeViewState) -> Void)?
 
+    /// 测试 seam：注入快照供写前 preflight（生产走 handshake/events）。
+    /// 只写入 snapshot，不改 connection：写前 preflight 与在线态是两件事实。
+    func installSnapshotForTesting(_ snapshot: AhaKeyRuntimeSnapshot) {
+        update { $0.snapshot = snapshot }
+    }
+
     /// 测试 seam 注入（跨 actor 写入经方法完成）。
     func setPublishHookForTesting(_ hook: (@Sendable (AhaKeyStudioRuntimeViewState) -> Void)?) {
         publishHookForTesting = hook
+    }
+
+    private func rejectUnsupportedOLEDWrites() throws {
+        guard AhaKeyOLEDWritePreflight.allowsIngestAndApply(snapshot: state.snapshot) else {
+            throw AhaKeyStudioApplyError.unsupportedFirmware
+        }
     }
 
     public init(
@@ -161,6 +173,7 @@ public actor AhaKeyStudioRuntimeFacade {
 
     /// 预上传资源到 Runtime Store（XPC `ingestResources`）。
     public func ingestResources(_ items: [AhaKeyXPCResourceIngestionItem]) async throws {
+        try rejectUnsupportedOLEDWrites()
         let response = try await transport.exchange(.ingestResources(items))
         guard case .resourcesIngested = response else {
             throw AhaKeyRuntimeXPCTransportError.invalidResponse
@@ -169,6 +182,7 @@ public actor AhaKeyStudioRuntimeFacade {
 
     /// 提交配置包并返回 operation ID。调用方应先 `ingestResources` 再 `apply`。
     public func apply(_ package: AhaKeyConfigurationPackage) async throws -> AhaKeyRuntimeOperationID {
+        try rejectUnsupportedOLEDWrites()
         let response = try await transport.exchange(.apply(package))
         guard case .operationAccepted(let operationID) = response else {
             throw AhaKeyRuntimeXPCTransportError.invalidResponse
@@ -476,6 +490,8 @@ public enum AhaKeyStudioApplyError: Error, Equatable {
     case cancellationRejected(AhaKeyRuntimeEventCode)
     /// Runtime 返回了与请求不匹配的响应。
     case unexpectedResponse
+    /// 未知/不支持的固件，禁止 ingest/apply。
+    case unsupportedFirmware
 }
 
 extension AhaKeyStudioApplyError: LocalizedError {
@@ -501,6 +517,8 @@ extension AhaKeyStudioApplyError: LocalizedError {
             return "Runtime 拒绝取消请求（\(code.rawValue)）。"
         case .unexpectedResponse:
             return "Runtime 返回了无法识别的响应。"
+        case .unsupportedFirmware:
+            return "当前固件不支持图片写入，已拒绝提交。"
         }
     }
 }
@@ -524,6 +542,7 @@ extension AhaKeyStudioRuntimeFacade {
         guard scoped.count == 1 else {
             throw AhaKeyStudioApplyError.emptyApplyScope
         }
+        try rejectUnsupportedOLEDWrites()
         // 生产 v0.2 关闭图片面；测试可打开以覆盖编码/ingest。
         let includePictureResources = allowsPictureResources
         let normalizer = imageNormalizer

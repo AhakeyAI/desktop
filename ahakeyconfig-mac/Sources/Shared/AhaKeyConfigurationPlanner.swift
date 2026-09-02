@@ -140,10 +140,14 @@ public enum AhaKeyConfigurationPlanner {
     // MARK: 拒绝原因（planner 校验，全部 fail-fast 在写入前）
 
     public enum Rejection: Error, Equatable, Sendable {
-        /// 非 current 协议：current-only 计划拒绝。
+        /// 未知/畸形/不支持的 OLED 兼容剖面。
         case unsupportedProtocol
         /// 模式槽位超出设备 modeCount。
         case modeSlotExceedsDevice(slot: UInt8, deviceModeCount: Int)
+        /// 任务套图数量超出设备 setCount。
+        case taskSetCountExceedsDevice(count: Int, deviceSetCount: Int)
+        /// activeSet 超出设备 setCount。
+        case activeSetExceedsDevice(set: Int, deviceSetCount: Int)
         /// 任务状态超出设备 stateCount。
         case taskStateUnsupported(state: UInt8, deviceStateCount: Int)
         /// 配置引用了 resources 数组里不存在的资源。
@@ -210,17 +214,13 @@ public enum AhaKeyConfigurationPlanner {
     public static func plan(
         desired: AhaKeyDesiredConfiguration,
         resources: [AhaKeyConfigurationResource],
-        capabilities: AhaKeyFirmwareCapabilities,
-        protocolMode: AhaKeyProtocolMode,
+        context: AhaKeyOLEDCompatibilityContext,
         policy: Policy = .currentDefault,
         release: AhaKeyReleaseFeatureProjection
     ) -> Result<Plan, Rejection> {
-        // 1. OLED 兼容剖面：未知/畸形/模式与 0x99 事实不一致 → 写入前拒绝。
-        let profile = AhaKeyOLEDCompatibilityProfile.resolve(
-            protocolMode: protocolMode,
-            capabilities: capabilities
-        )
-        guard profile.allowsConfigurationPlan else { return .failure(.unsupportedProtocol) }
+        // 1. 密封 OLED 兼容事实：未知/畸形在写入前拒绝。
+        guard context.allowsIngestAndApply else { return .failure(.unsupportedProtocol) }
+        let layout = context.layout
         guard release.allowsBasicConfigurationWrite else {
             return .failure(.releaseWriteNotAllowed)
         }
@@ -229,16 +229,26 @@ public enum AhaKeyConfigurationPlanner {
             return .failure(.releaseResourcePackageNotAllowed)
         }
 
-        // 2. 结构对账：模式槽位 / 套图数 / 任务状态在设备能力内
+        // 2. 结构对账：模式槽位 / 套图数 / activeSet / 任务状态在设备能力内
         for mode in desired.modes {
-            guard Int(mode.slot) < capabilities.modeCount else {
-                return .failure(.modeSlotExceedsDevice(slot: mode.slot, deviceModeCount: capabilities.modeCount))
+            guard Int(mode.slot) < layout.modeCount else {
+                return .failure(.modeSlotExceedsDevice(slot: mode.slot, deviceModeCount: layout.modeCount))
+            }
+            // DesiredConfiguration 冻结恒 2 套 JSON。超出设备 setCount 的槽必须全空，
+            // 否则 Standard 会把 B 套无索引 0x93 覆盖 A，或 current 单套会发 set=1。
+            let occupiedSetCount = occupiedTaskSetCount(mode.oled.taskSets)
+            guard occupiedSetCount <= layout.setCount else {
+                return .failure(.taskSetCountExceedsDevice(
+                    count: occupiedSetCount, deviceSetCount: layout.setCount))
+            }
+            if mode.oled.activeSet >= 0, mode.oled.activeSet >= layout.setCount {
+                return .failure(.activeSetExceedsDevice(set: mode.oled.activeSet, deviceSetCount: layout.setCount))
             }
             for set in mode.oled.taskSets {
                 for asset in set.assets {
-                    guard Int(asset.state.rawValue) < capabilities.stateCount else {
+                    guard Int(asset.state.rawValue) < layout.stateCount else {
                         return .failure(.taskStateUnsupported(
-                            state: asset.state.rawValue, deviceStateCount: capabilities.stateCount))
+                            state: asset.state.rawValue, deviceStateCount: layout.stateCount))
                     }
                 }
             }
@@ -318,9 +328,9 @@ public enum AhaKeyConfigurationPlanner {
             nextSlot += Int(ceil(Double(frames) / Double(framesPerSlot)))
         }
         let occupiedFrames = nextSlot * framesPerSlot
-        guard occupiedFrames <= capabilities.userSlotLimit else {
+        guard occupiedFrames <= layout.userSlotLimit else {
             return .failure(.deviceCapacityExceeded(
-                slotsNeeded: occupiedFrames, slotLimit: capabilities.userSlotLimit))
+                slotsNeeded: occupiedFrames, slotLimit: layout.userSlotLimit))
         }
 
         // 6. 槽位分配 + 事务序列（槽位跨度 = 该资源实际占用的槽数）
@@ -341,6 +351,19 @@ public enum AhaKeyConfigurationPlanner {
         let otherSlots = desired.modes.filter { !Self.modeReferencesPictures($0) }.map(\.slot).sorted()
         transactions.append(.base(modeSlots: pictureSlots + otherSlots))
         return .success(Plan(transactions: transactions, slotAssignments: assignments))
+    }
+
+    /// 有资源的最高套图下标 + 1。冻结 JSON 恒 2 套，空 B 套不计入设备 setCount。
+    private static func occupiedTaskSetCount(
+        _ sets: [AhaKeyDesiredConfiguration.TaskSet]
+    ) -> Int {
+        var occupied = 0
+        for (index, set) in sets.enumerated() {
+            if set.assets.contains(where: { $0.resource != nil }) {
+                occupied = index + 1
+            }
+        }
+        return occupied
     }
 
     /// 模式是否引用了任意图片资源（default 或任务槽）。

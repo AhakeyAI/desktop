@@ -100,25 +100,6 @@ public enum AhaKeyOLEDCompatibilityProfile: Equatable, Sendable {
         }
     }
 
-    /// planner/mapper 兼容入口。`protocolMode` 必须与能力事实一致：`.legacy` 不得携带 v3 0x99 帧。
-    public static func resolve(
-        protocolMode: AhaKeyProtocolMode,
-        capabilities: AhaKeyFirmwareCapabilities?
-    ) -> AhaKeyOLEDCompatibilityProfile {
-        switch protocolMode {
-        case .negotiating, .restrictedUnknown, .legacyBaseOnly:
-            return .unsupported
-        case .legacy:
-            if let capabilities, capabilities.protocolVersion == 3 {
-                return .unsupported
-            }
-            return .legacyStandard
-        case .current:
-            guard let capabilities else { return .unsupported }
-            return resolveParsed(capabilities)
-        }
-    }
-
     /// protocol v3 已解析帧：Rhino = 双套（setCount≥2）；current = 明确广告 session 且非 Rhino 双套。
     /// 缺少双套且未广告 session 的 v3 帧不得猜测。
     public static func resolveParsed(
@@ -140,5 +121,154 @@ public enum AhaKeyOLEDCompatibilityProfile: Equatable, Sendable {
             return .currentSessionCapable
         }
         return .unsupported
+    }
+}
+
+/// 密封生产兼容事实：只能从协商状态构造，禁止把 protocolMode / capabilities / profile 拼起来。
+public struct AhaKeyOLEDCompatibilityContext: Equatable, Sendable {
+    public let negotiation: AhaKeyReleaseNegotiationState
+    public let profile: AhaKeyOLEDCompatibilityProfile
+
+    /// GitHub Standard 1.x 用户槽：总槽约 74、出厂保留 10。这是已登记固件族的布局事实，不是伪 0x99 帧。
+    public static let standardUserSlotLimit = 64
+    public static let standardModeCount = 4
+    public static let standardSetCount = 1
+    public static let standardStateCount = 4
+
+    public struct Layout: Equatable, Sendable {
+        public let modeCount: Int
+        public let setCount: Int
+        public let stateCount: Int
+        public let userSlotLimit: Int
+    }
+
+    public static func make(_ negotiation: AhaKeyReleaseNegotiationState) -> AhaKeyOLEDCompatibilityContext {
+        AhaKeyOLEDCompatibilityContext(
+            negotiation: negotiation,
+            profile: AhaKeyOLEDCompatibilityProfile.resolve(negotiation)
+        )
+    }
+
+    /// 已解析的真 0x99 帧。不得用于伪造 v1 Standard。
+    public static func parsed(_ capabilities: AhaKeyFirmwareCapabilities) -> AhaKeyOLEDCompatibilityContext {
+        make(.parsed(capabilities))
+    }
+
+    /// 真 no-0x99 + 固件 1.x + 0x94 实探通过。不是伪 capability 帧。
+    public static let standard = AhaKeyOLEDCompatibilityContext.make(
+        .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: true)
+    )
+
+    public var protocolMode: AhaKeyProtocolMode {
+        switch negotiation {
+        case .negotiating:
+            return .negotiating
+        case .malformedResponse:
+            return .restrictedUnknown
+        case .noResponse(let firmwareMainVersion, let supportsLegacyTaskPictures):
+            guard let firmwareMainVersion else { return .restrictedUnknown }
+            return AhaKeyProtocolNegotiation.fallbackMode(
+                firmwareMainVersion: firmwareMainVersion,
+                supportsLegacyTaskPictures: supportsLegacyTaskPictures
+            )
+        case .parsed(let capabilities):
+            return AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities)
+        }
+    }
+
+    /// 仅 `.parsed` 携带真 0x99 帧。Standard 不得合成 v1 capability。
+    public var capabilities: AhaKeyFirmwareCapabilities? {
+        if case .parsed(let capabilities) = negotiation { return capabilities }
+        return nil
+    }
+
+    public var layout: Layout {
+        switch profile {
+        case .legacyStandard:
+            return Layout(
+                modeCount: Self.standardModeCount,
+                setCount: Self.standardSetCount,
+                stateCount: Self.standardStateCount,
+                userSlotLimit: Self.standardUserSlotLimit
+            )
+        case .rhinoDualSet, .currentSessionCapable:
+            if let capabilities {
+                return Layout(
+                    modeCount: capabilities.modeCount,
+                    setCount: capabilities.setCount,
+                    stateCount: capabilities.stateCount,
+                    userSlotLimit: capabilities.userSlotLimit
+                )
+            }
+            return Layout(modeCount: 0, setCount: 0, stateCount: 0, userSlotLimit: 0)
+        case .unsupported:
+            return Layout(modeCount: 0, setCount: 0, stateCount: 0, userSlotLimit: 0)
+        }
+    }
+
+    public var allowsIngestAndApply: Bool { profile.allowsConfigurationPlan }
+}
+
+/// 0x94 实探：真任务图应答 vs 未知命令通用空包。不得把空包当成 Standard。
+public enum AhaKeyLegacyTaskPictureProbe: Equatable, Sendable {
+    case supportsTaskPictures
+    case genericUnknownCommandAck
+    case malformed
+
+    /// `frame` 为完整 AA BB 94 … CC DD。
+    public static func classify(frame: Data) -> AhaKeyLegacyTaskPictureProbe {
+        guard frame.count >= 6,
+              frame[0] == 0xAA, frame[1] == 0xBB, frame[2] == 0x94,
+              frame[frame.count - 2] == 0xCC, frame[frame.count - 1] == 0xDD else {
+            return .malformed
+        }
+        let status = frame[3]
+        let payload = frame.dropFirst(4).dropLast(2)
+        if payload.isEmpty, status == 0 {
+            return .genericUnknownCommandAck
+        }
+        guard payload.count >= 10 else { return .malformed }
+        return .supportsTaskPictures
+    }
+}
+
+/// 无 0x99 之后的 firmware v1 + 0x94 实探结论。禁止用版本字符串猜协议。
+public enum AhaKeyOLEDLegacyProbe {
+    public static func negotiationState(
+        firmwareMainVersion: Int?,
+        taskPicture: AhaKeyLegacyTaskPictureProbe?
+    ) -> AhaKeyReleaseNegotiationState {
+        guard firmwareMainVersion == 1 else {
+            return .noResponse(
+                firmwareMainVersion: firmwareMainVersion,
+                supportsLegacyTaskPictures: false
+            )
+        }
+        guard let taskPicture else {
+            return .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: false)
+        }
+        switch taskPicture {
+        case .supportsTaskPictures:
+            return .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: true)
+        case .genericUnknownCommandAck, .malformed:
+            return .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: false)
+        }
+    }
+}
+
+/// ingest/apply 前的唯一写前门。unsupported / 协商中不得碰 CAS/WAL。
+public enum AhaKeyOLEDWritePreflight {
+    public static let routingCapability = AhaKeyRuntimeDeviceCapability(rawValue: "oled-picture-routing")
+
+    public static func allowsIngestAndApply(_ context: AhaKeyOLEDCompatibilityContext) -> Bool {
+        context.allowsIngestAndApply
+    }
+
+    public static func allowsIngestAndApply(snapshot: AhaKeyRuntimeSnapshot?) -> Bool {
+        guard let snapshot, let id = snapshot.activeDeviceID,
+              let device = snapshot.devices.first(where: { $0.id == id }) else {
+            return false
+        }
+        return device.capabilities.contains(routingCapability)
     }
 }

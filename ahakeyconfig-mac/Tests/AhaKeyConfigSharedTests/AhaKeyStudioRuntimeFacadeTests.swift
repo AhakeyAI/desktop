@@ -142,6 +142,30 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         )
     }
 
+    private func routingSnapshot(deviceID: String = "DEVICE-1") -> AhaKeyRuntimeSnapshot {
+        let id = try! AhaKeyRuntimeDeviceID(deviceID)
+        let device = AhaKeyRuntimeDeviceSnapshot(
+            id: id,
+            displayName: "Test AhaKey",
+            protocolState: .currentReady,
+            preferredTransport: .bluetooth,
+            usbAttached: false,
+            bluetoothConnected: true,
+            capabilities: [AhaKeyOLEDWritePreflight.routingCapability]
+        )
+        return AhaKeyRuntimeSnapshot(
+            lifecycleState: .running,
+            devices: [device],
+            activeDeviceID: id,
+            configurationRevision: .init(0),
+            operations: [],
+            policy: .init(),
+            permissions: .init(states: [:]),
+            keepAliveReasons: [],
+            latestEventSequence: .init(0)
+        )
+    }
+
     private func waitUntil(
         timeout: TimeInterval = 5,
         _ predicate: @escaping @Sendable () async -> Bool
@@ -396,6 +420,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             allowsPictureResources: true
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(routingSnapshot())
         let operationID = try await facade.apply(
             modes: [applyModeInput()],
             scope: .init(modeSlot: 0),
@@ -437,6 +462,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -461,6 +487,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -485,6 +512,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -512,6 +540,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -552,6 +581,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         ])
         var mode = applyModeInput()
         mode.oled.taskSets = [emptySet, emptySet]
+        await facade.installSnapshotForTesting(routingSnapshot())
         _ = try await facade.apply(
             modes: [mode],
             scope: .init(modeSlot: 0),
@@ -595,6 +625,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             allowsPictureResources: true
         )
         let applyTask = Task {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -622,6 +653,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             allowsPictureResources: true
         )
         let applyTask = Task {
+            await facade.installSnapshotForTesting(routingSnapshot())
             try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -651,6 +683,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(routingSnapshot())
         let operationID = try await facade.apply(
             modes: [applyModeInput()],
             scope: .init(modeSlot: 0),
@@ -696,6 +729,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             activeSet: 0
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(routingSnapshot())
         let operationID = try await facade.apply(
             modes: [mode],
             scope: .init(modeSlot: 0),
@@ -719,6 +753,33 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertEqual(desired.modes[0].keys.count, 1)
         XCTAssertEqual(desired.modes[0].keys[0].description, "Accept")
         XCTAssertEqual(desired.modes[0].lightBar.brightness, 35)
+        await facade.stop()
+    }
+
+    func testUnsupportedFirmwareRejectsBeforeIngestAndApply() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
+            allowsPictureResources: true
+        )
+        await facade.installSnapshotForTesting(makeSnapshot(sequence: 0))
+        do {
+            _ = try await facade.apply(
+                modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: try AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(7)
+            )
+            XCTFail("无 oled-picture-routing 必须拒绝")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
+            // expected
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
         await facade.stop()
     }
 }

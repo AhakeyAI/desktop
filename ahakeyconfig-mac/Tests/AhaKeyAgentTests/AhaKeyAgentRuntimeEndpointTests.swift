@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import AhaKeyConfigAgent
 @testable import AhaKeyConfigShared
@@ -526,6 +527,10 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
     func testFailedAcceptanceReturnsFailureNotAccepted() {
         runEndpointTest { [self] in
         let agent = makeAgent()
+        var hooks = agent.executionTestHooks
+        hooks?.isReady = true
+        hooks?.capabilities = testCapabilities()
+        agent.executionTestHooks = hooks
         let client = EndpointClient(agent: agent)
         try await client.handshake()
 
@@ -1056,6 +1061,75 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             try await assertZeroZeroThreeFrameDedup(agent, client1, round: round)
             agent.shutdown()
         }
+        }
+    }
+
+    func testUnsupportedOLEDContextRejectsIngestAndApplyBeforeCASOrWAL() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.oledContext = .make(.malformedResponse)
+            hooks?.isReady = true
+            hooks?.release = .picturesUnrestrictedForTests
+            agent.executionTestHooks = hooks
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let resourcesDir = storeDir.appendingPathComponent("resources")
+            func resourceNames() -> Set<String> {
+                Set((try? FileManager.default.contentsOfDirectory(atPath: resourcesDir.path)) ?? [])
+            }
+            let beforeResources = resourceNames()
+            let beforeDB = try? Data(contentsOf: storeDir.appendingPathComponent("runtime.sqlite3"))
+
+            let payload = Data([0x01, 0x02, 0x03, 0x04])
+            var hasher = SHA256()
+            hasher.update(data: payload)
+            let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+            let item = AhaKeyXPCResourceIngestionItem(
+                logicalIdentifier: try AhaKeyResourceIdentifier("img-a"),
+                sha256: try AhaKeySHA256Digest(digest),
+                byteCount: UInt64(payload.count),
+                data: payload
+            )
+            let ingest = try await agent.handleRuntimeXPCRequest(.ingestResources([item]))
+            guard case .failure(let ingestCode) = ingest else {
+                return XCTFail("unsupported ingest 必须失败，实际 \(ingest)")
+            }
+            XCTAssertEqual(ingestCode.rawValue, "unsupported-protocol")
+
+            let package = try makePackage(deviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"))
+            let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .failure(let applyCode) = apply else {
+                return XCTFail("unsupported apply 必须失败，实际 \(apply)")
+            }
+            XCTAssertEqual(applyCode.rawValue, "unsupported-protocol")
+            XCTAssertEqual(resourceNames(), beforeResources)
+            let afterDB = try? Data(contentsOf: storeDir.appendingPathComponent("runtime.sqlite3"))
+            XCTAssertEqual(afterDB, beforeDB)
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+            )
+            let wal = try await store.transaction(package.operationID)
+            XCTAssertNil(wal)
+        }
+    }
+
+    func testLegacyProbeFirmwareV1AndTaskPictureFrameYieldsStandardContext() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let firmware = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
+            await MainActor.run { agent.handleLegacyFirmwareProbeFrameForTesting(firmware) }
+            let taskPicture = Data([
+                0xAA, 0xBB, 0x94, 0x00,
+                2, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
+                0xCC, 0xDD,
+            ])
+            await MainActor.run { agent.handleLegacyTaskPictureProbeFrameForTesting(taskPicture) }
+            let context = await MainActor.run { agent.negotiatedOLEDContextForTesting() }
+            XCTAssertEqual(context?.profile, .legacyStandard)
+            XCTAssertNil(context?.capabilities)
+            XCTAssertTrue(context?.allowsIngestAndApply == true)
         }
     }
 }

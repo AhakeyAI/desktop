@@ -143,36 +143,33 @@ final class AhaKeyOLEDCompatibilityProfileTests: XCTestCase {
         )
     }
 
-    func testLegacyProtocolModeRejectsV3CapabilityMismatch() {
+    func testLegacyProtocolModeRejectsIndependentCapabilityMixing() {
         XCTAssertEqual(
-            AhaKeyOLEDCompatibilityProfile.resolve(
-                protocolMode: .legacy, capabilities: caps(protocolVersion: 3)
-            ),
-            .unsupported
+            AhaKeyOLEDCompatibilityProfile.resolve(.parsed(caps(protocolVersion: 3))),
+            .rhinoDualSet(sessionUploadAdvertised: false)
         )
         XCTAssertEqual(
-            AhaKeyOLEDCompatibilityProfile.resolve(
-                protocolMode: .legacy, capabilities: caps(protocolVersion: 1, setCount: 1, flags: 0)
-            ),
+            AhaKeyOLEDCompatibilityContext.standard.profile,
             .legacyStandard
         )
+        XCTAssertNil(AhaKeyOLEDCompatibilityContext.standard.capabilities)
     }
 
     func testCurrentWithoutAdvertisedCapabilitiesIsUnsupported() {
         XCTAssertEqual(
-            AhaKeyOLEDCompatibilityProfile.resolve(protocolMode: .current, capabilities: nil),
+            AhaKeyOLEDCompatibilityContext.make(.noResponse(
+                firmwareMainVersion: 1, supportsLegacyTaskPictures: false
+            )).profile,
             .unsupported
         )
         XCTAssertEqual(
             AhaKeyOLEDCompatibilityProfile.resolve(
-                protocolMode: .legacyBaseOnly, capabilities: caps(protocolVersion: 1)
+                .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: false)
             ),
             .unsupported
         )
         XCTAssertEqual(
-            AhaKeyOLEDCompatibilityProfile.resolve(
-                protocolMode: .restrictedUnknown, capabilities: caps()
-            ),
+            AhaKeyOLEDCompatibilityProfile.resolve(.parsed(caps(setCount: 1, flags: 0))),
             .unsupported
         )
     }
@@ -223,5 +220,40 @@ final class AhaKeyOLEDCompatibilityProfileTests: XCTestCase {
         XCTAssertEqual(AhaKeyOLEDCompatibilityProfile.unsupported.pictureOpcodes, .none)
         XCTAssertFalse(AhaKeyOLEDCompatibilityProfile.unsupported.allowsConfigurationPlan)
         XCTAssertTrue(AhaKeyOLEDCompatibilityProfile.legacyStandard.allowsConfigurationPlan)
+    }
+
+    func testLegacyTaskPictureProbeClassifiesRealPayloadAndEmptyAck() {
+        let real = Data([
+            0xAA, 0xBB, 0x94, 0x00,
+            2, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
+            0xCC, 0xDD,
+        ])
+        XCTAssertEqual(AhaKeyLegacyTaskPictureProbe.classify(frame: real), .supportsTaskPictures)
+        XCTAssertEqual(
+            AhaKeyLegacyTaskPictureProbe.classify(frame: Data([0xAA, 0xBB, 0x94, 0x00, 0xCC, 0xDD])),
+            .genericUnknownCommandAck
+        )
+        XCTAssertEqual(
+            AhaKeyLegacyTaskPictureProbe.classify(frame: Data([0xAA, 0xBB, 0x94, 0x00, 1, 2, 0xCC, 0xDD])),
+            .malformed
+        )
+        XCTAssertEqual(
+            AhaKeyOLEDLegacyProbe.negotiationState(
+                firmwareMainVersion: 1, taskPicture: .supportsTaskPictures
+            ),
+            .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: true)
+        )
+        XCTAssertEqual(
+            AhaKeyOLEDLegacyProbe.negotiationState(
+                firmwareMainVersion: 1, taskPicture: .genericUnknownCommandAck
+            ),
+            .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: false)
+        )
+        XCTAssertEqual(
+            AhaKeyOLEDCompatibilityContext.make(
+                AhaKeyOLEDLegacyProbe.negotiationState(firmwareMainVersion: 2, taskPicture: .supportsTaskPictures)
+            ).profile,
+            .unsupported
+        )
     }
 }

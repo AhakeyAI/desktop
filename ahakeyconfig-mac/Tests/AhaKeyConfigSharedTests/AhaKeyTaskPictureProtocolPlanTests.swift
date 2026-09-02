@@ -206,6 +206,12 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
         XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .negotiating, capabilities: nil))
         XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .legacyBaseOnly, capabilities: nil))
         XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .restrictedUnknown, capabilities: nil))
+        XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .current, capabilities: nil))
+        XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(.make(.malformedResponse)))
+        XCTAssertEqual(
+            AhaKeyTaskPictureProtocolPlan.make(.standard)?.metadataFormat,
+            .legacySingleSet
+        )
     }
 
     func testSessionPacketizerPrefixesEveryPacketAndKeepsNegotiatedLimit() {

@@ -241,9 +241,7 @@ final class AhaKeyFirmwareCapabilitiesTests: XCTestCase {
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(repeating: 0, count: 13)))
         XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(14))))
         XCTAssertEqual(AhaKeyOLEDCompatibilityProfile.resolve(.malformedResponse), .unsupported)
-        XCTAssertEqual(
-            AhaKeyOLEDCompatibilityProfile.resolve(protocolMode: .current, capabilities: nil),
-            .unsupported
-        )
+        XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(mode: .current, capabilities: nil))
+        XCTAssertFalse(AhaKeyOLEDCompatibilityContext.make(.malformedResponse).allowsIngestAndApply)
     }
 }

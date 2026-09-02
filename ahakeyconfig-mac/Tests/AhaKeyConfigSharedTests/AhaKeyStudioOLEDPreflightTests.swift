@@ -199,6 +199,30 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         )
     }
 
+    private func routingSnapshot(deviceID: String = "DEVICE-1") -> AhaKeyRuntimeSnapshot {
+        let id = try! AhaKeyRuntimeDeviceID(deviceID)
+        let device = AhaKeyRuntimeDeviceSnapshot(
+            id: id,
+            displayName: "Test AhaKey",
+            protocolState: .currentReady,
+            preferredTransport: .bluetooth,
+            usbAttached: false,
+            bluetoothConnected: true,
+            capabilities: [AhaKeyOLEDWritePreflight.routingCapability]
+        )
+        return AhaKeyRuntimeSnapshot(
+            lifecycleState: .running,
+            devices: [device],
+            activeDeviceID: id,
+            configurationRevision: .init(0),
+            operations: [],
+            policy: .init(),
+            permissions: .init(states: [:]),
+            keepAliveReasons: [],
+            latestEventSequence: .init(0)
+        )
+    }
+
     func testLargeGIFPreflightIs160x80WithinCapacityAndMatchesAgentReencode() async throws {
         let root = try temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -217,6 +241,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             resourceLoader: loader,
             allowsPictureResources: true
         )
+        await facade.installSnapshotForTesting(routingSnapshot())
         _ = try await facade.apply(
             modes: [modeInput(slot: 0, url: source)],
             scope: .init(modeSlot: 0),
@@ -273,6 +298,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
                 idlePollInterval: 0,
                 allowsPictureResources: true
             )
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [modeInput(slot: slot, url: url, frames: 1, width: 800, height: 400)],
                 scope: .init(modeSlot: slot),
@@ -311,6 +337,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             imageNormalizer: normalizer,
             allowsPictureResources: true
         )
+        await facade.installSnapshotForTesting(routingSnapshot())
         _ = try await facade.apply(
             modes: [
                 modeInput(slot: 1, url: current, frames: 2, width: 160, height: 80),
@@ -341,6 +368,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [modeInput(slot: 2, url: missing)],
                 scope: .init(modeSlot: 2),
@@ -366,6 +394,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [modeInput(slot: 0, url: nil)],
                 scope: .empty,
@@ -397,6 +426,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
                 modes: [modeInput(slot: 0, url: url)],
                 scope: .init(modeSlot: 0),
@@ -439,6 +469,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             idlePollInterval: 0,
             allowsPictureResources: true
         )
+        await facade.installSnapshotForTesting(routingSnapshot())
         _ = try await facade.apply(
             modes: [modeInput(slot: 0, url: small, frames: 1, width: 160, height: 80)],
             scope: .init(modeSlot: 0),
@@ -461,6 +492,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await failFacade.installSnapshotForTesting(routingSnapshot())
             _ = try await failFacade.apply(
                 modes: [modeInput(slot: 0, url: huge)],
                 scope: .init(modeSlot: 0),
@@ -491,6 +523,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             idlePollInterval: 0,
             allowsPictureResources: true
         )
+        await okFacade.installSnapshotForTesting(routingSnapshot())
         _ = try await okFacade.apply(
             modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
             scope: .init(modeSlot: 0),
@@ -514,6 +547,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             allowsPictureResources: true
         )
         do {
+            await failFacade.installSnapshotForTesting(routingSnapshot())
             _ = try await failFacade.apply(
                 modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
                 scope: .init(modeSlot: 0),
@@ -540,7 +574,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         try Data("not-an-image".utf8).write(to: bogus)
         let encodeBefore = normalizedTempGIFPaths()
         do {
-            _ = try await makeFacade().apply(
+            let _oledFacade = await makeFacade()
+            _ = try await _oledFacade.apply(
                 modes: [modeInput(slot: 0, url: bogus, frames: 1, width: 160, height: 80)],
                 scope: .init(modeSlot: 0),
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
@@ -556,7 +591,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         ingestTransport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
         let ingestBefore = normalizedTempGIFPaths()
         do {
-            _ = try await makeFacade(transport: ingestTransport).apply(
+            let _oledFacade = await makeFacade(transport: ingestTransport)
+            _ = try await _oledFacade.apply(
                 modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
                 scope: .init(modeSlot: 0),
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
@@ -574,7 +610,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         applyTransport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
         let applyBefore = normalizedTempGIFPaths()
         do {
-            _ = try await makeFacade(transport: applyTransport).apply(
+            let _oledFacade = await makeFacade(transport: applyTransport)
+            _ = try await _oledFacade.apply(
                 modes: [modeInput(slot: 0, url: png, frames: 1, width: 160, height: 80)],
                 scope: .init(modeSlot: 0),
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
@@ -600,6 +637,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
         )
         let cancelBefore = normalizedTempGIFPaths()
         let applyTask = Task {
+            await cancelFacade.installSnapshotForTesting(routingSnapshot())
             _ = try await cancelFacade.apply(
                 modes: [modeInput(slot: 0, urls: [png, second])],
                 scope: .init(modeSlot: 0),
@@ -659,14 +697,16 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
 
     private func makeFacade(
         transport: FakeTransport = FakeTransport()
-    ) -> AhaKeyStudioRuntimeFacade {
-        AhaKeyStudioRuntimeFacade(
+    ) async -> AhaKeyStudioRuntimeFacade {
+        let facade = AhaKeyStudioRuntimeFacade(
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
             allowsPictureResources: true
         )
+        await facade.installSnapshotForTesting(routingSnapshot())
+        return facade
     }
 
     private func modeInput(slot: UInt8, urls: [URL]) -> AhaKeyStudioModeInput {

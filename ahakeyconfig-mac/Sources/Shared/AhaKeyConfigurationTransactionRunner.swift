@@ -37,6 +37,11 @@ public enum AhaKeyConfigurationStepResult: Equatable, Sendable {
     case failure(AhaKeyConfigurationStepFailure)
 }
 
+public enum AhaKeyConfigurationPreflightError: Error, Equatable, Sendable {
+    /// 未知/不支持的 OLED 兼容剖面，禁止碰 CAS/WAL。
+    case unsupportedProtocol
+}
+
 public struct AhaKeyConfigurationTransactionRunner {
 
     /// transport seam：执行一个步骤（resource upload / base config）。
@@ -55,15 +60,18 @@ public struct AhaKeyConfigurationTransactionRunner {
     public func run(
         package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL],
-        capabilities: AhaKeyFirmwareCapabilities,
-        protocolMode: AhaKeyProtocolMode,
+        context: AhaKeyOLEDCompatibilityContext,
         release: AhaKeyReleaseFeatureProjection,
         execute: StepExecutor
     ) async throws -> AhaKeyRuntimeOperationState {
+        guard context.allowsIngestAndApply else {
+            throw AhaKeyConfigurationPreflightError.unsupportedProtocol
+        }
+
         // 1. 受理（WAL accept：CAS 落资源 + 事务记录，幂等）
         try await store.accept(package, resourceFiles: resourceFiles)
 
-        // 2. planner（current-only + 容量校验）；拒绝即永久失败终态
+        // 2. planner（密封 context + 容量校验）；拒绝即永久失败终态
         guard let desired = try? package.decodedConfigurationModel() else {
             return try await finishTerminal(
                 package: package,
@@ -74,8 +82,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         let planning = AhaKeyConfigurationPlanner.plan(
             desired: desired,
             resources: package.resources,
-            capabilities: capabilities,
-            protocolMode: protocolMode,
+            context: context,
             release: release
         )
         guard case .success(let plan) = planning else {

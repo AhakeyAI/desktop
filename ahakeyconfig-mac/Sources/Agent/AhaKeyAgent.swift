@@ -167,6 +167,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var negotiationTimeoutItem: DispatchWorkItem?
     /// 协商出的固件能力（配置事务 planner 输入，WBS-5.6）
     private var negotiatedCapabilities: AhaKeyFirmwareCapabilities?
+    /// 密封 OLED 兼容事实。只能从 0x99 解析或 no-0x99 + v1 + 0x94 实探得到。
+    private var negotiatedOLEDContext: AhaKeyOLEDCompatibilityContext?
+    /// 收到过无法解析的 0x99：不得再走 Standard 回退。
+    private var sawMalformedCapabilityFrame = false
+    private enum OLEDLegacyProbePhase {
+        case idle
+        case awaitingFirmwareVersion
+        case awaitingTaskPicture
+    }
+    private var oledLegacyProbePhase: OLEDLegacyProbePhase = .idle
+    private var legacyProbeFirmwareMainVersion: Int?
 
     // MARK: 配置事务（WBS-5.6）：sequencer 命令 waiter + 0x81 数据写 waiter + 恢复接线
     /// 配置类命令走 DeviceTransportCore 串行队列 + 五元 waiter（与状态查询同一纪律）；
@@ -1048,6 +1059,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func handleRuntimeXPCRequest(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse {
         switch request {
         case .apply(let package):
+            let context = resolvedOLEDContext()
+            guard AhaKeyOLEDWritePreflight.allowsIngestAndApply(context) else {
+                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+            }
             // 生产路径：资源必须已入 CAS（由 Studio 预上传或先前恢复）；不接受 staging/ 裸读。
             let store = try await makeRuntimeStore()
             do {
@@ -1085,6 +1100,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return .operationAccepted(package.operationID)
 
         case .ingestResources(let items):
+            let context = resolvedOLEDContext()
+            guard AhaKeyOLEDWritePreflight.allowsIngestAndApply(context) else {
+                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+            }
             let store = try await makeRuntimeStore()
             do {
                 try await store.ingestResources(items)
@@ -1798,10 +1817,12 @@ extension AhaKeyAgent {
         if negotiationAttempts < 3 {
             emit("0x99 超时，重试")
             sendNegotiationQuery()
+        } else if sawMalformedCapabilityFrame {
+            emit("0x99 畸形应答：拒绝猜测协议，保持只读")
+            finishOLEDNegotiation(.malformedResponse)
         } else {
-            emit("0x99 三次无应答：固件非 current 协议，本连接不接管业务写入")
-            _ = transportCore.handle(.negotiationFinished(
-                uuid: peripheral?.identifier.uuidString ?? "", mode: .restrictedUnknown), now: Date())
+            emit("0x99 三次无应答：探测 firmware v1 与 0x94 任务图能力")
+            beginLegacyOLEDProbe()
         }
     }
 
@@ -1815,11 +1836,18 @@ extension AhaKeyAgent {
         let payload = data.dropFirst(4).dropLast(2)
         emit("← 0x99 原始应答: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         guard let caps = AhaKeyFirmwareCapabilities.parse(Data(payload)) else {
-            negotiationTimedOut()
+            sawMalformedCapabilityFrame = true
+            emit("0x99 应答无法解析，不按 Standard 回退")
+            if negotiationAttempts < 3 {
+                sendNegotiationQuery()
+            } else {
+                finishOLEDNegotiation(.malformedResponse)
+            }
             return
         }
         let mode = AhaKeyProtocolNegotiation.mode(forCapabilities: caps)
         negotiatedCapabilities = caps
+        negotiatedOLEDContext = .parsed(caps)
         emit("← 0x99 能力帧：protocol v\(caps.protocolVersion)，mode=\(mode)")
         if caps.flags & AhaKeyFirmwareCapabilities.factoryAssetsFlag != 0, payload.count == 14 {
             emit("← 0x99 compact factory：primary 0..<\(caps.userSlotLimit)，factory reserved \(caps.factorySlotBase)，reclaim \(caps.reclaimSlotBase)..<\(caps.reclaimSlotLimit)")
@@ -1836,6 +1864,110 @@ extension AhaKeyAgent {
             emit("协议 v3 已确认，等待稳定设备身份（广播编号或 2A25 序列号）…")
         } else {
             emit("协议 mode=\(mode) 非 current，保持连接但不做业务写入")
+        }
+    }
+
+    private func sendDirectCommandFrame(_ opcode: UInt8, payload: [UInt8] = []) {
+        guard let commandChar, let peripheral else { return }
+        let frame = Data(header + [opcode] + payload + trailer)
+        let writeType: CBCharacteristicWriteType =
+            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(frame, for: commandChar, type: writeType)
+    }
+
+    private func beginLegacyOLEDProbe() {
+        oledLegacyProbePhase = .awaitingFirmwareVersion
+        legacyProbeFirmwareMainVersion = nil
+        sendDirectCommandFrame(0x00)
+        emit("→ 0x00 固件版本探测（no-0x99 Standard 路径）")
+        negotiationTimeoutItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.legacyOLEDProbeTimedOut()
+        }
+        negotiationTimeoutItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+    }
+
+    private func legacyOLEDProbeTimedOut() {
+        switch oledLegacyProbePhase {
+        case .idle:
+            return
+        case .awaitingFirmwareVersion:
+            emit("0x00 探测超时：未知固件，拒绝写入")
+            finishOLEDNegotiation(
+                AhaKeyOLEDLegacyProbe.negotiationState(firmwareMainVersion: nil, taskPicture: nil)
+            )
+        case .awaitingTaskPicture:
+            emit("0x94 探测超时：拒绝把未知命令当成 Standard")
+            finishOLEDNegotiation(
+                AhaKeyOLEDLegacyProbe.negotiationState(
+                    firmwareMainVersion: legacyProbeFirmwareMainVersion,
+                    taskPicture: nil
+                )
+            )
+        }
+    }
+
+    private func handleLegacyFirmwareProbeResponse(_ data: Data) {
+        guard oledLegacyProbePhase == .awaitingFirmwareVersion else { return }
+        negotiationTimeoutItem?.cancel()
+        negotiationTimeoutItem = nil
+        let status = Self.parseDeviceStatus(data)
+        let main = status?.firmwareMain
+        legacyProbeFirmwareMainVersion = main
+        emit("← 0x00 探测 firmwareMain=\(main.map(String.init) ?? "nil")")
+        guard main == 1 else {
+            finishOLEDNegotiation(
+                AhaKeyOLEDLegacyProbe.negotiationState(firmwareMainVersion: main, taskPicture: nil)
+            )
+            return
+        }
+        oledLegacyProbePhase = .awaitingTaskPicture
+        sendDirectCommandFrame(0x94, payload: [0, 3])
+        emit("→ 0x94 任务图实探（mode=0 state=done）")
+        let item = DispatchWorkItem { [weak self] in
+            self?.legacyOLEDProbeTimedOut()
+        }
+        negotiationTimeoutItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+    }
+
+    private func handleLegacyTaskPictureProbeResponse(_ data: Data) {
+        guard oledLegacyProbePhase == .awaitingTaskPicture else { return }
+        negotiationTimeoutItem?.cancel()
+        negotiationTimeoutItem = nil
+        let classified = AhaKeyLegacyTaskPictureProbe.classify(frame: data)
+        emit("← 0x94 实探结果 \(String(describing: classified))")
+        finishOLEDNegotiation(
+            AhaKeyOLEDLegacyProbe.negotiationState(
+                firmwareMainVersion: legacyProbeFirmwareMainVersion,
+                taskPicture: classified
+            )
+        )
+    }
+
+    private func finishOLEDNegotiation(_ state: AhaKeyReleaseNegotiationState) {
+        oledLegacyProbePhase = .idle
+        awaitingCapabilityResponse = false
+        negotiationTimeoutItem?.cancel()
+        negotiationTimeoutItem = nil
+        let context = AhaKeyOLEDCompatibilityContext.make(state)
+        negotiatedOLEDContext = context
+        let mode = context.protocolMode
+        // DeviceTransportCore 仍 current-only ready；Standard 不得伪装 .current。
+        _ = transportCore.handle(.negotiationFinished(
+            uuid: peripheral?.identifier.uuidString ?? "", mode: mode
+        ), now: Date())
+        publishDeviceChangedIfNeeded()
+        if transportCore.isReady {
+            emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
+            requestDeviceStatus()
+            startStatusPolling()
+            scheduleConfigurationRecovery()
+        } else if context.allowsIngestAndApply {
+            emit("OLED 兼容路径 \(String(describing: context.profile)) 已确认；transport 保持非 current ready")
+        } else {
+            emit("OLED 兼容路径 unsupported，保持连接但不做图片写入")
         }
     }
 
@@ -1866,6 +1998,16 @@ extension AhaKeyAgent {
         // 0x99 能力应答优先于状态/ACK 解析
         if data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x99 {
             handleCapabilityResponse(data)
+            return
+        }
+        if oledLegacyProbePhase == .awaitingTaskPicture,
+           data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x94 {
+            handleLegacyTaskPictureProbeResponse(data)
+            return
+        }
+        if oledLegacyProbePhase == .awaitingFirmwareVersion,
+           data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x00 {
+            handleLegacyFirmwareProbeResponse(data)
             return
         }
         // 0x81 图片写入确认（数据通道收尾；session 必须匹配当前在途会话）
@@ -2019,6 +2161,16 @@ extension AhaKeyAgent {
 
     // MARK: 生产受理 / 取消入口（WBS-5.6 R7；WBS-5.7 R1 改为 durable accept + 异步执行）
 
+    private func resolvedOLEDContext() -> AhaKeyOLEDCompatibilityContext {
+        if let override = executionTestHooks?.oledContext {
+            return override
+        }
+        if let capabilities = executionTestHooks?.capabilities {
+            return .parsed(capabilities)
+        }
+        return negotiatedOLEDContext ?? .make(.negotiating)
+    }
+
     /// Store 构造：默认生产目录；测试经 executionTestHooks.storeDirectory 重定向到临时目录。
     /// 缓存收敛进 AhaKeyAgentRuntimeStoreCache（actor）：同一目录复用单实例，
     /// 多 XPC session 并发访问由 actor 隔离（R2-2）。
@@ -2034,16 +2186,17 @@ extension AhaKeyAgent {
         _ package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL]
     ) async throws -> AhaKeyRuntimeOperationState {
-        let (caps, ready) = await MainActor.run { () -> (AhaKeyFirmwareCapabilities?, Bool) in
-            (self.executionTestHooks?.capabilities ?? self.negotiatedCapabilities,
+        let (context, ready) = await MainActor.run { () -> (AhaKeyOLEDCompatibilityContext, Bool) in
+            (self.resolvedOLEDContext(),
              self.executionTestHooks?.isReady ?? self.transportCore.isReady)
         }
-        guard let caps = caps, ready else {
+        let allowWithoutCurrentReady = context.profile == .legacyStandard
+        guard context.allowsIngestAndApply, (ready || allowWithoutCurrentReady) else {
             throw AhaKeyAgentCommandError.disconnected
         }
         let store = try await makeRuntimeStore()
         let state = try await runConfigurationTransaction(
-            package: package, resourceFiles: resourceFiles, store: store, capabilities: caps
+            package: package, resourceFiles: resourceFiles, store: store, context: context
         )
         emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 受理结果：\(state.rawValue)")
         return state
@@ -2088,13 +2241,13 @@ extension AhaKeyAgent {
         package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL],
         store: AhaKeyRuntimePersistentStore,
-        capabilities: AhaKeyFirmwareCapabilities
+        context: AhaKeyOLEDCompatibilityContext
     ) async throws -> AhaKeyRuntimeOperationState {
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
         return try await withConfigurationTransportWindow {
             try await self.runConfigurationProgram(
                 runner: runner, package: package, resourceFiles: resourceFiles,
-                store: store, capabilities: capabilities
+                store: store, context: context
             )
         }
     }
@@ -2141,14 +2294,13 @@ extension AhaKeyAgent {
         package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL],
         store: AhaKeyRuntimePersistentStore,
-        capabilities: AhaKeyFirmwareCapabilities
+        context: AhaKeyOLEDCompatibilityContext
     ) async throws -> AhaKeyRuntimeOperationState {
         try await runner.run(
             package: package,
             resourceFiles: resourceFiles,
-            capabilities: capabilities,
-            protocolMode: .current,
-            release: releaseProjection(for: capabilities)
+            context: context,
+            release: releaseProjection(for: context)
         ) { [weak self] step in
             guard let self else { return .retryableFailure }
             await MainActor.run {
@@ -2163,7 +2315,7 @@ extension AhaKeyAgent {
                 result = await override(step)
             } else {
                 result = await self.executeConfigurationStep(
-                    step, package: package, store: store, capabilities: capabilities
+                    step, package: package, store: store, context: context
                 )
             }
             // 每步后从 WAL 读进度并发布 operationChanged（终态由外层再发布一次）。
@@ -2173,10 +2325,10 @@ extension AhaKeyAgent {
     }
 
     private func releaseProjection(
-        for capabilities: AhaKeyFirmwareCapabilities
+        for context: AhaKeyOLEDCompatibilityContext
     ) -> AhaKeyReleaseFeatureProjection {
         executionTestHooks?.release
-            ?? AhaKeyReleaseFeaturePolicy.current.projection(.parsed(capabilities))
+            ?? AhaKeyReleaseFeaturePolicy.current.projection(context.negotiation)
     }
 
     /// 执行单个 WAL 步骤：映射为线协议程序并经 BLE 执行。
@@ -2184,7 +2336,7 @@ extension AhaKeyAgent {
         _ step: AhaKeyRuntimeStepIdentifier,
         package: AhaKeyConfigurationPackage,
         store: AhaKeyRuntimePersistentStore,
-        capabilities: AhaKeyFirmwareCapabilities
+        context: AhaKeyOLEDCompatibilityContext
     ) async -> AhaKeyConfigurationStepResult {
         let bleReady = await MainActor.run { self.configurationTransportIsReady() }
         guard bleReady else {
@@ -2201,15 +2353,15 @@ extension AhaKeyAgent {
                 context: .init(failedStepID: step)
             ))
         }
-        let release = releaseProjection(for: capabilities)
+        let release = releaseProjection(for: context)
         let planning = AhaKeyConfigurationPlanner.plan(
             desired: desired, resources: package.resources,
-            capabilities: capabilities, protocolMode: .current, release: release
+            context: context, release: release
         )
         guard case .success(let plan) = planning,
               let program = AhaKeyConfigurationStepMapper.program(
                   for: step, desired: desired, plan: plan,
-                  resources: package.resources, capabilities: capabilities,
+                  resources: package.resources, context: context,
                   release: release
               ) else {
             return .failure(.init(
@@ -2610,15 +2762,15 @@ extension AhaKeyAgent {
 
     @MainActor
     private func resourceByteTotal(for package: AhaKeyConfigurationPackage) -> UInt64 {
-        let capabilities = executionTestHooks?.capabilities ?? negotiatedCapabilities
-        guard let capabilities,
+        let context = resolvedOLEDContext()
+        guard context.allowsIngestAndApply,
               let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
             return 0
         }
-        let release = releaseProjection(for: capabilities)
+        let release = releaseProjection(for: context)
         let planning = AhaKeyConfigurationPlanner.plan(
             desired: desired, resources: package.resources,
-            capabilities: capabilities, protocolMode: .current, release: release
+            context: context, release: release
         )
         guard case .success(let plan) = planning else { return 0 }
         var total: UInt64 = 0
@@ -2626,7 +2778,7 @@ extension AhaKeyAgent {
             guard step.rawValue.hasPrefix("resource:"),
                   let program = AhaKeyConfigurationStepMapper.program(
                     for: step, desired: desired, plan: plan,
-                    resources: package.resources, capabilities: capabilities,
+                    resources: package.resources, context: context,
                     release: release
                   ) else { continue }
             for item in program {
@@ -2764,6 +2916,9 @@ extension AhaKeyAgent {
         }
         var capabilities: Set<AhaKeyRuntimeDeviceCapability> = []
         if negotiatedCapabilities != nil { capabilities.insert(.configurationV4) }
+        if resolvedOLEDContext().allowsIngestAndApply {
+            capabilities.insert(AhaKeyOLEDWritePreflight.routingCapability)
+        }
         let generations = transportCore.currentGenerations
         return AhaKeyRuntimeDeviceSnapshot(
             id: deviceID,
@@ -3156,6 +3311,28 @@ extension AhaKeyAgent {
     func publishOperationProgressForTesting(_ operationID: AhaKeyRuntimeOperationID) async {
         await publishOperationProgress(operationID: operationID)
     }
+
+    func negotiatedOLEDContextForTesting() -> AhaKeyOLEDCompatibilityContext? {
+        negotiatedOLEDContext
+    }
+
+    func resolvedOLEDContextForTesting() -> AhaKeyOLEDCompatibilityContext {
+        resolvedOLEDContext()
+    }
+
+    func finishOLEDNegotiationForTesting(_ state: AhaKeyReleaseNegotiationState) {
+        finishOLEDNegotiation(state)
+    }
+
+    func handleLegacyFirmwareProbeFrameForTesting(_ data: Data) {
+        oledLegacyProbePhase = .awaitingFirmwareVersion
+        handleLegacyFirmwareProbeResponse(data)
+    }
+
+    func handleLegacyTaskPictureProbeFrameForTesting(_ data: Data) {
+        oledLegacyProbePhase = .awaitingTaskPicture
+        handleLegacyTaskPictureProbeResponse(data)
+    }
 }
 
 /// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
@@ -3201,6 +3378,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var isReady: Bool?
     /// 非 nil 时覆盖协商能力（planner 输入）。
     var capabilities: AhaKeyFirmwareCapabilities?
+    /// 非 nil 时覆盖密封 OLED 兼容 context；优先于 capabilities 推导。
+    var oledContext: AhaKeyOLEDCompatibilityContext?
     /// 非 nil 时覆盖发布功能投影（OLED 事务测试打开图片面；生产恒 nil）。
     var release: AhaKeyReleaseFeatureProjection?
     /// 非 nil 时替代 BLE 步骤执行（可观察 WAL 取消态、注入延迟）。

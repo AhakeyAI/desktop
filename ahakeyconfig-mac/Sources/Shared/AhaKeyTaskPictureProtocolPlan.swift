@@ -192,6 +192,7 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
     ) -> AhaKeyTaskPictureProtocolPlan? {
         switch mode {
         case .legacy:
+            guard capabilities == nil else { return nil }
             return AhaKeyTaskPictureProtocolPlan(
                 metadataFormat: .legacySingleSet,
                 setIndices: [0],
@@ -201,31 +202,40 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
                 usesSessionUpload: false
             )
         case .current:
-            if capabilities == nil {
-                return AhaKeyTaskPictureProtocolPlan(
-                    metadataFormat: .currentSetAware,
-                    setIndices: [0, 1],
-                    states: AhaKeyTaskDisplayState.allCases,
-                    finishesRawUpload: true,
-                    supportsActiveSet: true,
-                    usesSessionUpload: false
-                )
-            }
-            let profile = AhaKeyOLEDCompatibilityProfile.resolve(
-                protocolMode: .current, capabilities: capabilities
+            guard let capabilities else { return nil }
+            return make(AhaKeyOLEDCompatibilityContext.make(.parsed(capabilities)))
+        case .negotiating, .legacyBaseOnly, .restrictedUnknown:
+            return nil
+        }
+    }
+
+    public static func make(
+        _ context: AhaKeyOLEDCompatibilityContext
+    ) -> AhaKeyTaskPictureProtocolPlan? {
+        guard context.allowsIngestAndApply else { return nil }
+        switch context.profile {
+        case .legacyStandard:
+            return AhaKeyTaskPictureProtocolPlan(
+                metadataFormat: .legacySingleSet,
+                setIndices: [0],
+                states: AhaKeyTaskDisplayState.legacyStates,
+                finishesRawUpload: false,
+                supportsActiveSet: false,
+                usesSessionUpload: false
             )
-            guard profile.allowsConfigurationPlan else { return nil }
-            let setCount = min(2, max(1, capabilities?.setCount ?? 2))
-            let supportsIdle = capabilities?.supportsIdleTaskPicture ?? true
+        case .rhinoDualSet, .currentSessionCapable:
+            let layout = context.layout
+            let setCount = min(2, max(1, layout.setCount))
+            let supportsIdle = context.capabilities?.supportsIdleTaskPicture ?? (layout.stateCount >= 4)
             return AhaKeyTaskPictureProtocolPlan(
                 metadataFormat: .currentSetAware,
                 setIndices: Array(0 ..< setCount),
                 states: supportsIdle ? AhaKeyTaskDisplayState.allCases : AhaKeyTaskDisplayState.legacyStates,
                 finishesRawUpload: true,
                 supportsActiveSet: setCount > 1,
-                usesSessionUpload: profile.pictureOpcodes.allowsSessionPrepare
+                usesSessionUpload: context.profile.pictureOpcodes.allowsSessionPrepare
             )
-        case .negotiating, .legacyBaseOnly, .restrictedUnknown:
+        case .unsupported:
             return nil
         }
     }
