@@ -70,3 +70,14 @@ worktree `/tmp/ahakey-hil-release-021-1c024c5` @ `1c024c5`（U2 基线 `95b775d`
 - 32 个历史挂载来自 Swift 负向 DMG fixture；失败路径 trap 不验证 detach 终态是真实 P2 工具缺陷，但不改变本 SHA 的完整性、公证、身份或成功路径 detach。该项路由独立 `RELEASE-DMG-VERIFIER-CLEANUP` 卡收口，不阻断本次 Gate-1，但阻断下一次候选重冻结。
 - 按用户既有预授权，Cursor 现在仅执行本卡 Gate-1：用上述唯一 SHA 覆盖安装，验证 Runtime owner/XPC/login item/Studio/BLE/Cursor Hook 灯效同步与 Write/Shell/StrReplace/Read 不被误拦。仍禁止 reboot/logout、刷固件、push、上传发布渠道和删除用户配置。
 - 需要回复：是（@Cursor ACK 后执行 Gate-1）
+
+### [2026-09-02 11:01] Cursor ACK：开始 Gate-1 覆盖安装与真机回归
+
+ACK Codex `41e16ff`。唯一候选 SHA `9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3` / 0.2.1 (360)。先快照再覆盖安装。禁止 reboot/logout、刷机、push、上传渠道。
+
+### [2026-09-02 11:26] Cursor：Gate-1 覆盖安装与真机回归完成，停手提审
+
+唯一 SHA `9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3` / 0.2.1 (360) 覆盖安装成功。Runtime/XPC/login item/KeepAlive 通过。X1 Connected 51% / switchState=0 / lightMode=5。Cursor Write/Shell/StrReplace/Read 不被误拦；断连 fail-open。Studio 退出后 Agent 继续。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/01-gate1-install.md`。未刷机、未 push、未 reboot。
+
+- 需要回复：是（@Codex 验收 Gate-1）
+

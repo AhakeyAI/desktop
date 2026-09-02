@@ -1,0 +1,106 @@
+===== TIME =====
+Wed Sep  2 11:04:01 +08 2026
+===== WHOAMI =====
+uid=501(heartline) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),79(_appserverusr),80(admin),81(_appserveradm),701(com.apple.sharepoint.group.1),33(_appstore),98(_lpadmin),100(_lpoperator),204(_developer),250(_analyticsusers),395(com.apple.access_ftp),398(com.apple.access_screensharing),399(com.apple.access_ssh),400(com.apple.access_remote_ae)
+===== DMG SHA =====
+9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3  /tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg
+expect=9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3
+sha_match=1
+-rw-r--r--@ 1 heartline  staff  13702057 Sep  1 22:05 /tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg
+===== APP TREE =====
+total 0
+drwxr-xr-x@  3 heartline  staff    96 Aug 31 21:23 .
+drwxrwxr-x  47 root       admin  1504 Sep  1 21:52 ..
+drwxr-xr-x@  6 heartline  staff   192 Aug 31 21:23 Contents
+0.2.0
+359
+lab.jawa.ahakeyconfig
+===== CODESIGN VERIFY APP =====
+app_verify_rc=0
+===== CODESIGN VERIFY AGENT =====
+agent_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== LEFTOVER BACKUP =====
+backup_exists=0
+===== STAGING/SCRATCH =====
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+staging_absent
+ls: /Applications/AhaKey Studio.app.ahakey-rollback-scratch: No such file or directory
+scratch_absent
+===== PLISTS =====
+ls: /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist: No such file or directory
+-rw-r--r--@ 1 heartline  staff  859 Aug 31 22:13 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+231d3ca155ad9888b5b2876f539aada5e8605666b16270473c109236a95c50f5  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+shasum: /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.hil.plist: No such file or directory
+===== LAUNCHCTL LIST =====
+77220	0	lab.jawa.ahakeyconfig.agent
+86769	0	application.lab.jawa.ahakeyconfig.53129735.53129741
+===== PRINT DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+		"lab.jawa.ahakeyconfig.agent.hil" => enabled
+===== PRINT OFFICIAL =====
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 77220
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+official_print_rc=0
+===== PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+hil_print_rc=113
+===== LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app
+===== BLUETOOTH =====
+      Connected:
+          Keyboard K380:
+      Not Connected:
+          AhaKey 507C:
+          AhaKey 515C:
+          AhaKey X1:
+===== HOOKS =====
+f94297db87a29e4a0f819fdf973be0ed9ecfe6c9ce8858b279ea921f0945de0e  /Users/heartline/.cursor/hooks.json
+e7800d2c15441b2a1969070fe9af5f36e72ab46d67e999b21382171ff75ae6d7  /Users/heartline/.claude/settings.json
+0acc71e1281f08403aab20b7db959b87be2ef83bae8f9a4e677e9967f3676b5f  /Users/heartline/.codex/config.toml
+fb9f66d93391644eda146d64188e59ecee4879178b39d4b07f753b90512351d2  /Users/heartline/.kimi/config.toml
+===== USER CONFIG =====
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/.dat.nosync6EAC.ANk2jN
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+1d74e5b6af86f8730003bc026e1e6da0a642ca4d229fdcd86f102ac30f26d3e7  /Users/heartline/Library/Application Support/AhaKeyConfig/ble-owner.lock
+7c37647f27c9f9383df66f384bc04e97c28e2b82801e2f24db9a31747854284a  /Users/heartline/Library/Application Support/AhaKeyConfig/current-ide-state.json
+29e86f6a23dbe886f1af4ff4c0d81e99ba78b0c8d5e9385379f33e7661387f6a  /Users/heartline/Library/Application Support/AhaKeyConfig/device-identity.json
+55cecbff9e0029435a96dc0572d1a478ea6e760099807825a642e7b01cfc8c1c  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent-hil.log
+54626bd79270fae5716e2ac53d5b362dad98a97b68ddee294d2f61dc362f2c68  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/agent.log
+ae726ff086a3ca022c02624db52a756706f685930131ea869799bff80a3256c7  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/ble-comm.log
+e530e47e318cf71f7f1d481ca9cbf9557e07832f9ab181798635a0ea372499f3  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/codex-hook.log
+9715f43d4b001b784e1c334f91a83afbd56c03c03c214147659aa47518b8e9e6  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/cursor-hook-health.jsonl
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/cursor-hook-health.jsonl.lock
+fb26d28f488b7f8cb0b40a931e79752e575f56b421b9dad7edd1db09be8ed610  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/native-speech.log
+9635c3229e908b28d1d8bdf5a8ca0e9f0700b9036c35bb60512196bcc1e0482d  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/permission-request.log
+1da5f2053f9bbcbbab08354b5314328cc901d2c01910ae18f6f220624d779e15  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/power-protection.log
+9b50ad42b2d233d8d7131fa6021ae1640736223c1f623111f55a58e9a36c77ff  /Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics/voice-relay.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock.lock
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/.runtime-store.lock
+1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b
+3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf
+68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5
+a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources/a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c
+d4a6161599ac24a5e3afbd5c567c8ca613d7ac698ea28508360b4d5e7441be7d  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3
+52916924f7c836eb739013935fd9323cd381bb73d133046291ebf6a751162ca0  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-shm
+6b5e504901abb548294f1c38541e64337347e807c37f9de86e9ce30631ac6bfd  /Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/runtime.sqlite3-wal
+===== PROCESSES =====
+heartline        44806   2.7  1.0 1892336976 168384   ??  S    10:50AM   0:14.06 Cursor Helper (Plugin): extension-host ahakeyconfig-main [1-6]                      
+heartline        86769   0.0  0.2 435762112  25168   ??  S    Mon10PM  95:20.91 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+heartline        77220   0.0  0.1 435367040  14080   ??  S    Mon10PM  11:01.35 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+heartline        47878   0.0  0.0 435299952   1152   ??  S    11:04AM   0:00.00 tee /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/raw/gate1-021-pre-snapshot.txt

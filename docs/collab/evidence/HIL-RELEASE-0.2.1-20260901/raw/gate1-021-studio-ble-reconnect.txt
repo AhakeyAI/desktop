@@ -1,0 +1,32 @@
+===== SINGLE STUDIO LAUNCH Wed Sep  2 11:22:16 +08 2026 =====
+50496 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+t=0 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=1 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=2 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=3 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=4 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=5 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=6 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=7 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=8 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=9 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=10 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=11 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=12 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=13 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=14 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=15 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=16 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=17 x1=connected status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=18 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=19 x1=connected status={"lightMode":null,"switchState":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+===== PROCESSES =====
+48579 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+50496 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+===== WINDOWS =====
+on_screen=5
+ALL pid=50496 owner=AhaKey Studio name=AhaKey Studio num=12741 bounds={
+ALL pid=50496 owner=AhaKey Studio name= num=12740 bounds={
+ALL pid=50496 owner=AhaKey Studio name= num=12739 bounds={
+ALL pid=50496 owner=AhaKey Studio name= num=12738 bounds={
+ALL pid=50496 owner=AhaKey Studio name= num=12737 bounds={

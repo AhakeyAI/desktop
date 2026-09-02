@@ -1,0 +1,11 @@
+===== QUIT STUDIO PRE-INSTALL Wed Sep  2 11:05:42 +08 2026 =====
+77220 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+86769 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+waiting_studio_quit_1
+studio_quit_after_2s
+77220 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+===== INSTALL START Wed Sep  2 11:05:52 +08 2026 =====
+PRE: app=true login=true owners=["lab.jawa.ahakeyconfig.agent"]
+INSPECT: signedIdentityMatches
+OUTCOME rolledBack=false failForward=false app=true login=true owners=["lab.jawa.ahakeyconfig.agent"] original=nil steps=[AhaKeyConfigShared.AhaKeyReleaseInstallStep.bootout(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.installApp, AhaKeyConfigShared.AhaKeyReleaseInstallStep.writeLaunchAgent, AhaKeyConfigShared.AhaKeyReleaseInstallStep.enable(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.bootstrap(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.registerLoginItem, AhaKeyConfigShared.AhaKeyReleaseInstallStep.verifySingleOwner, AhaKeyConfigShared.AhaKeyReleaseInstallStep.removeBackup]
+===== INSTALL EXIT=0 Wed Sep  2 11:05:57 +08 2026 =====

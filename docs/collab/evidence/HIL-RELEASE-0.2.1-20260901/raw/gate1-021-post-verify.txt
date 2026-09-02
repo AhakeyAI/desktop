@@ -1,0 +1,72 @@
+===== POST VERIFY Wed Sep  2 11:06:13 +08 2026 =====
+===== VERSION =====
+0.2.1
+360
+===== CODESIGN APP =====
+app_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== CODESIGN AGENT =====
+agent_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== BACKUP/STAGING =====
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+backup_absent
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+staging_absent
+===== PLIST =====
+-rw-r--r--@ 1 heartline  staff  859 Sep  2 11:05 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+231d3ca155ad9888b5b2876f539aada5e8605666b16270473c109236a95c50f5  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+lab.jawa.ahakeyconfig.agent
+true
+true
+Dict {
+    lab.jawa.ahakeyconfig.runtime = true
+}
+Array {
+    /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+    --socket
+    /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+}
+===== LAUNCHCTL =====
+48579	0	lab.jawa.ahakeyconfig.agent
+===== PRINT DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+		"lab.jawa.ahakeyconfig.agent.hil" => enabled
+===== PRINT OFFICIAL =====
+	path = /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	stdout path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	stderr path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	pid = 48579
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+official_print_rc=0
+===== PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+hil_print_rc=113
+===== LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app
+===== PROCESSES =====
+heartline        48579   0.1  0.1 435363664  17872   ??  S    11:05AM   0:00.17 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+===== XPC =====
+-rwxr-xr-x@ 1 heartline  staff  5309792 Aug 27 20:43 /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/RuntimeXPCSmokeClient
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_rc=0

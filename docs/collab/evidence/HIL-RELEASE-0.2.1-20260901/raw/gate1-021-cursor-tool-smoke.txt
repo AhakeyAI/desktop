@@ -1,0 +1,5 @@
+Gate-1 Cursor live tool smoke
+version_target=0.2.1 (360)
+sha=9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3
+write_ok=1
+strreplace_ok=1

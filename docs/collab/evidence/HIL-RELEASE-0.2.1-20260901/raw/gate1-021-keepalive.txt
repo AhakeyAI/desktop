@@ -1,0 +1,40 @@
+===== LED AFTER WRITE Wed Sep  2 11:25:31 +08 2026 =====
+[2026-09-02T03:24:49Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:24:51Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:24:52Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:24:54Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:24:55Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:24:57Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:24:58Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:00Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:01Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:03Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:04Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:06Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:07Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:09Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:25:10Z] ← LED/OLED 状态 BLE 写入�
+===== QUIT STUDIO =====
+studio_gone_after_2s
+STUDIO_GONE
+===== AGENT =====
+50849 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	pid = 50849
+		state = active
+		state = active
+	job state = running
+===== XPC =====
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+===== STATUS =====
+{"lightMode":5,"switchState":0}
+
+===== PMSET =====
+   pid 50849(ahakeyconfig-agent): [0x000437fd00018e74] 00:01:40 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+===== HOOK =====
+{"permission":"allow"}
+===== SHAS =====
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+f94297db87a29e4a0f819fdf973be0ed9ecfe6c9ce8858b279ea921f0945de0e  /Users/heartline/.cursor/hooks.json

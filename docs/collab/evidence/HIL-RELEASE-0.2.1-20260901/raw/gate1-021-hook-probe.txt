@@ -1,0 +1,27 @@
+===== HOOK PROBE Wed Sep  2 11:12:11 +08 2026 =====
+agent=/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+agent_verify_rc=0
+===== SOCKET STATUS =====
+{"switchState":null,"lightMode":null}
+
+hook.sock connect OK
+===== PRETOOLUSE TOOLS =====
+tool=Write rc=0 deny=0 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+tool=Shell rc=0 deny=0 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+tool=StrReplace rc=0 deny=0 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+tool=Read rc=0 deny=0 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+===== MALFORMED FAIL-OPEN =====
+malformed rc=0 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+===== HOOKS JSON SHA =====
+f94297db87a29e4a0f819fdf973be0ed9ecfe6c9ce8858b279ea921f0945de0e  /Users/heartline/.cursor/hooks.json
+===== AHATYPE SHA =====
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+===== HEALTH TAIL =====
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}

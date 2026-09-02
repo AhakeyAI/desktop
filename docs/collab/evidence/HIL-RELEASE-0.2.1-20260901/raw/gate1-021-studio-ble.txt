@@ -1,0 +1,15 @@
+===== LAUNCH STUDIO Wed Sep  2 11:08:22 +08 2026 =====
+48980 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+===== STATUS POLL START =====
+t=0 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=1 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=2 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=3 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=4 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=5 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=6 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=7 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=8 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=9 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=10 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}
+t=11 x1=not hook=OK status={"switchState":null,"lightMode":null} ide={"ts":1788318357.366951,"lightModeTs":1788271224.0756779,"stateValue":5,"stateTs":1788244921.9885402,"workMode":0,"lightMode":2}

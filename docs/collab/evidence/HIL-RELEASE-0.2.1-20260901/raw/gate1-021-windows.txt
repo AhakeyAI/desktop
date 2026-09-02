@@ -1,0 +1,32 @@
+on_screen=5
+all=572
+ALL pid=50496 owner=AhaKey Studio name=AhaKey Studio num=12741 bounds={
+    Height = 712;
+    Width = 1180;
+    X = 212;
+    Y = 482;
+} layer=0
+ALL pid=50496 owner=AhaKey Studio name= num=12740 bounds={
+    Height = 30;
+    Width = 2560;
+    X = 0;
+    Y = 0;
+} layer=0
+ALL pid=50496 owner=AhaKey Studio name= num=12739 bounds={
+    Height = 30;
+    Width = 2560;
+    X = 0;
+    Y = 0;
+} layer=0
+ALL pid=50496 owner=AhaKey Studio name= num=12738 bounds={
+    Height = 30;
+    Width = 2560;
+    X = 0;
+    Y = 0;
+} layer=0
+ALL pid=50496 owner=AhaKey Studio name= num=12737 bounds={
+    Height = 30;
+    Width = 2560;
+    X = 0;
+    Y = 0;
+} layer=0

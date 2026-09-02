@@ -1,0 +1,60 @@
+===== BLE LIGHT Wed Sep  2 11:24:22 +08 2026 =====
+status1 {"switchState":0,"lightMode":5}
+status2 {"lightMode":5,"switchState":0}
+ide {"switchState":0,"stateTs":1788319446.7687521,"ts":1788319446.7687521,"lightMode":5,"workMode":1,"lightModeTs":1788319435.604322,"stateValue":2}
+ide_mtime 11:24:06
+===== AGENT LOG CONNECT =====
+[2026-08-31T14:29:16Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-08-31T14:29:16Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-01T06:09:24Z] 已连接: AhaKey X1
+[2026-09-01T06:09:24Z] → 0x99 能力查询（第 1 次）
+[2026-09-01T06:09:25Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 1C 01 24 01 CC DD
+[2026-09-01T06:09:25Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-09-01T06:09:25Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-01T06:18:37Z] 已连接: AhaKey X1
+[2026-09-01T06:18:37Z] → 0x99 能力查询（第 1 次）
+[2026-09-01T06:18:37Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 1C 01 24 01 CC DD
+[2026-09-01T06:18:37Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-09-01T06:18:37Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-01T06:30:24Z] 已连接: AhaKey X1
+[2026-09-01T06:30:24Z] → 0x99 能力查询（第 1 次）
+[2026-09-01T06:30:24Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 1C 01 24 01 CC DD
+[2026-09-01T06:30:24Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-09-01T06:30:24Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-01T06:31:31Z] 已连接: AhaKey X1
+[2026-09-01T06:31:31Z] → 0x99 能力查询（第 1 次）
+[2026-09-01T06:31:31Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 1C 01 24 01 CC DD
+[2026-09-01T06:31:31Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-09-01T06:31:31Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-01T08:56:27Z] 蓝牙就绪
+[2026-09-01T09:11:55Z] 蓝牙就绪
+[2026-09-01T09:28:18Z] 蓝牙就绪
+[2026-09-01T09:31:17Z] 蓝牙就绪
+[2026-09-01T09:45:00Z] 蓝牙就绪
+[2026-09-01T09:59:28Z] 蓝牙就绪
+[2026-09-02T03:05:57Z] 蓝牙就绪
+[2026-09-02T03:05:57Z] 开始扫描…
+===== LIVE PRETOOLUSE AFTER CONNECT =====
+tool=Write rc=0 deny=0 stdout='{"permission":"allow"}\n'
+tool=Shell rc=0 deny=0 stdout='{"permission":"allow"}\n'
+tool=StrReplace rc=0 deny=0 stdout='{"permission":"allow"}\n'
+tool=Read rc=0 deny=0 stdout='{"permission":"allow"}\n'
+===== HEALTH TAIL =====
+{"decision":"allow","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"allow","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"allow","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"allow","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"allow","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"allow","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+===== BT =====
+          AhaKey X1:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+              Product ID: 0x501A
+              Minor Type: Keyboard
+              Services: 0x400000 < BLE >
+          Keyboard K380:
+              Address: F4:73:35:AB:7C:32
+===== PMSET =====
+   pid 50849(ahakeyconfig-agent): [0x000437fd00018e74] 00:00:30 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+   pid 50496(AhaKeyConfig): [0x0004379f00018e67] 00:02:05 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
