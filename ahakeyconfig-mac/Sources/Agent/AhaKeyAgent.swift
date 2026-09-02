@@ -104,14 +104,29 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let deviceNamePrefix = "AhaKey"
     private let socketPath: String
     private let legacySocketLock = NSLock()
-    private var legacyListenFD: Int32 = -1
     private var legacyListenGeneration: UInt64 = 0
-    private var legacyAcceptWorkerDone: DispatchSemaphore?
-    private var legacyOwnedSocketPath: String?
+    private var legacySession: LegacyListenSession?
     private var legacyOwnerUnlinkCount = 0
     private var legacyLastAcceptWorkerExited = true
+    /// Test-only: replace `listen(2)`. Production nil.
+    var legacyListenHookForTesting: ((Int32) -> Int32)?
     /// Test-only reply-before-write barrier for `status` / `permission`. Production nil.
     var legacyReplyBeforeWriteGate: AhaKeyRuntimeLegacyReplyGate?
+
+    /// One listen generation: listener fd, accept worker, and in-flight accepted clients.
+    private final class LegacyListenSession {
+        let generation: UInt64
+        var listenFD: Int32
+        let socketPath: String
+        let workers = DispatchGroup()
+        var clientFDs: Set<Int32> = []
+
+        init(generation: UInt64, listenFD: Int32, socketPath: String) {
+            self.generation = generation
+            self.listenFD = listenFD
+            self.socketPath = socketPath
+        }
+    }
 
     private let header: [UInt8] = [0xAA, 0xBB]
     private let trailer: [UInt8] = [0xCC, 0xDD]
@@ -820,29 +835,43 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         guard bindResult == 0 else { emit("bind() 失败: \(errno)"); Darwin.close(fd); return }
 
-        chmod(socketPath, 0o600)
+        guard chmod(socketPath, 0o600) == 0 else {
+            emit("chmod() 失败: \(errno)")
+            Darwin.close(fd)
+            unlink(socketPath)
+            return
+        }
 
-        listen(fd, 5)
-        let workerDone = DispatchSemaphore(value: 0)
-        let capturedGeneration: UInt64
+        let listenRC = legacyListenHookForTesting?(fd) ?? Darwin.listen(fd, 5)
+        guard listenRC == 0 else {
+            emit("listen() 失败: \(errno)")
+            Darwin.close(fd)
+            unlink(socketPath)
+            return
+        }
+
+        let session: LegacyListenSession
         legacySocketLock.lock()
         legacyListenGeneration &+= 1
-        capturedGeneration = legacyListenGeneration
-        legacyListenFD = fd
-        legacyAcceptWorkerDone = workerDone
-        legacyOwnedSocketPath = socketPath
+        session = LegacyListenSession(
+            generation: legacyListenGeneration,
+            listenFD: fd,
+            socketPath: socketPath
+        )
+        session.workers.enter()
+        legacySession = session
         legacyLastAcceptWorkerExited = false
         legacySocketLock.unlock()
         emit("监听 Unix socket: \(socketPath)")
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let capturedFD = fd
-            defer { workerDone.signal() }
+            defer { session.workers.leave() }
             while true {
                 guard let self else { return }
                 self.legacySocketLock.lock()
-                let live = self.legacyListenGeneration == capturedGeneration
-                    && self.legacyListenFD == capturedFD
+                let live = self.legacyListenGeneration == session.generation
+                    && session.listenFD == capturedFD
                     && capturedFD >= 0
                 self.legacySocketLock.unlock()
                 guard live else { return }
@@ -852,60 +881,87 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     return
                 }
                 self.legacySocketLock.lock()
-                let stillLive = self.legacyListenGeneration == capturedGeneration
+                let stillLive = self.legacyListenGeneration == session.generation
+                if stillLive {
+                    session.clientFDs.insert(clientFd)
+                    session.workers.enter()
+                }
                 self.legacySocketLock.unlock()
                 if !stillLive {
                     Darwin.close(clientFd)
                     return
                 }
                 guard AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(clientFd) else {
-                    Darwin.close(clientFd)
+                    self.releaseLegacyClient(clientFd, session: session)
                     continue
                 }
-                self.handleClient(clientFd)
+                DispatchQueue.global(qos: .utility).async { [weak self] in
+                    guard let self else {
+                        session.workers.leave()
+                        return
+                    }
+                    self.handleClient(clientFd, session: session)
+                }
             }
         }
     }
 
-    /// 失效当前代际、关闭自有 listen fd、等待 accept worker、仅 owner unlink。
-    /// 返回 worker 是否在时限内退出；未启动过时为 true。
+    /// 失效当前代际、关闭 listener 与该代 active clients、等待 accept+handler。
+    /// 超时不得丢掉仍需回收的 owner；未启动过时为 true。
     @discardableResult
     private func stopLegacySocketListener(waitTimeout: TimeInterval = 2) -> Bool {
         legacySocketLock.lock()
         legacyListenGeneration &+= 1
-        var fd = legacyListenFD
-        legacyListenFD = -1
-        let worker = legacyAcceptWorkerDone
-        legacyAcceptWorkerDone = nil
-        let ownedPath = legacyOwnedSocketPath
-        legacyOwnedSocketPath = nil
+        guard let session = legacySession else {
+            legacyLastAcceptWorkerExited = true
+            legacySocketLock.unlock()
+            return true
+        }
+        var listenFD = session.listenFD
+        session.listenFD = -1
+        let clients = Array(session.clientFDs)
+        session.clientFDs.removeAll()
+        let path = session.socketPath
         legacySocketLock.unlock()
 
-        if fd >= 0 {
-            Darwin.shutdown(fd, SHUT_RDWR)
-            AhaKeyRuntimeLegacySocketIO.closeOnce(&fd)
+        if listenFD >= 0 {
+            Darwin.shutdown(listenFD, SHUT_RDWR)
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&listenFD)
+        }
+        for var clientFD in clients {
+            Darwin.shutdown(clientFD, SHUT_RDWR)
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&clientFD)
         }
 
-        let exited: Bool
-        if let worker {
-            exited = worker.wait(timeout: .now() + waitTimeout) == .success
-        } else {
-            exited = true
-        }
+        let deadline = DispatchTime.now() + waitTimeout
+        let exited = session.workers.wait(timeout: deadline) == .success
+
         legacySocketLock.lock()
         legacyLastAcceptWorkerExited = exited
-        if let ownedPath {
-            unlink(ownedPath)
+        if exited, legacySession === session {
+            unlink(path)
             legacyOwnerUnlinkCount += 1
+            legacySession = nil
         }
         legacySocketLock.unlock()
         return exited
     }
 
+    private func releaseLegacyClient(_ fd: Int32, session: LegacyListenSession) {
+        legacySocketLock.lock()
+        let owned = session.clientFDs.remove(fd) != nil
+        legacySocketLock.unlock()
+        if owned {
+            var clientFD = fd
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&clientFD)
+        }
+        session.workers.leave()
+    }
+
     var legacyListenFDForTesting: Int32 {
         legacySocketLock.lock()
         defer { legacySocketLock.unlock() }
-        return legacyListenFD
+        return legacySession?.listenFD ?? -1
     }
 
     var legacyListenGenerationForTesting: UInt64 {
@@ -924,6 +980,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         legacySocketLock.lock()
         defer { legacySocketLock.unlock() }
         return legacyLastAcceptWorkerExited
+    }
+
+    var legacyActiveClientCountForTesting: Int {
+        legacySocketLock.lock()
+        defer { legacySocketLock.unlock() }
+        return legacySession?.clientFDs.count ?? 0
     }
 
     func stopLegacySocketListenerForTesting() -> Bool {
@@ -1190,37 +1252,36 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 协议：
     /// - JSON 一行：`{"cmd":"state","value":3}` / `{"cmd":"permission","value":1}` / `{"cmd":"status"}`
     /// - 纯数字（兼容旧 `ahakey-state.sh`）：`3` → sendState(3)，不回包
-    private func handleClient(_ clientFd: Int32) {
+    private func handleClient(_ clientFd: Int32, session: LegacyListenSession) {
         // 校验对端 UID，拒绝其他用户连接
         var peerUid: uid_t = 0
         var peerGid: gid_t = 0
         if getpeereid(clientFd, &peerUid, &peerGid) != 0 || peerUid != getuid() {
             emit("拒绝非当前用户的 socket 连接 (uid=\(peerUid))")
-            close(clientFd)
+            releaseLegacyClient(clientFd, session: session)
             return
         }
 
-        switch AhaKeyRuntimeLegacySocketIO.waitForReadable(clientFd, timeout: 5) {
-        case .completed:
-            break
-        case .peerClosed, .failed:
-            Darwin.close(clientFd)
+        let line: String
+        switch AhaKeyRuntimeLegacySocketIO.readLine(clientFd, timeout: 5) {
+        case .line(let data):
+            line = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        case .peerClosed, .overflow, .failed:
+            releaseLegacyClient(clientFd, session: session)
             return
         }
-
-        var buf = [UInt8](repeating: 0, count: 1024)
-        let n = read(clientFd, &buf, buf.count)
-        guard n > 0 else { close(clientFd); return }
-
-        let line = String(bytes: buf[0 ..< Int(n)], encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         // JSON 请求
         if let lineData = line.data(using: .utf8),
            let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
            let cmd = obj["cmd"] as? String {
             Task { @MainActor [weak self] in
-                self?.handleJsonCommand(cmd: cmd, obj: obj, clientFd: clientFd)
+                guard let self else {
+                    session.workers.leave()
+                    return
+                }
+                self.handleJsonCommand(cmd: cmd, obj: obj, clientFd: clientFd, session: session)
             }
             return // fd 在命令 handler 里最终关闭
         }
@@ -1229,12 +1290,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if let state = UInt8(line) {
             sendStateHoppingToMain(state)
         }
-        close(clientFd)
+        releaseLegacyClient(clientFd, session: session)
     }
 
     /// 在 MainActor 上执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
     @MainActor
-    private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
+    private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32, session: LegacyListenSession?) {
         switch cmd {
         case "state":
             if let v = obj["value"] as? Int {
@@ -1242,7 +1303,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 didLogWatchdogHold = false
                 sendState(UInt8(clamping: v))
             }
-            Self.replyAndClose(clientFd, ["ok": true])
+            replyAndClose(clientFd, ["ok": true], session: session)
 
         case "state_with_reset":
             let stateValue = obj["value"] as? Int ?? 0
@@ -1254,7 +1315,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 afterMs: delayMs,
                 reason: "temporary state \(stateValue) -> reset \(resetValue)"
             )
-            Self.replyAndClose(clientFd, ["ok": true])
+            replyAndClose(clientFd, ["ok": true], session: session)
 
         case "permission":
             // 发 PermissionRequest 对应的 state（默认 1），同时主动查询拨杆
@@ -1270,7 +1331,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 } else if body["switchState"] is NSNull {
                     self.emit(NSLocalizedString("（switchState 缺省：批准链可能仍交回手动；请确认 AhaKey Runtime 已连接键盘。）", comment: ""))
                 }
-                self.replyAfterLegacyHold(clientFd, body)
+                self.replyAfterLegacyHold(clientFd, body, session: session)
             }
 
         case "status":
@@ -1278,14 +1339,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             querySwitchState(timeout: 1.5) { status in
                 self.replyAfterLegacyHold(
                     clientFd,
-                    Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
+                    Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode),
+                    session: session
                 )
             }
 
         case "approval_status":
             // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
             querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
+                self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode), session: session)
             }
 
         case "set_switch_override":
@@ -1297,22 +1359,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             } else if let v = obj["value"] as? Int {
                 setSwitchOverride(UInt8(clamping: v))
             }
-            Self.replyAndClose(clientFd, [
+            replyAndClose(clientFd, [
                 "ok": true,
                 "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
                 "override": userSwitchOverride.map { Int($0) } ?? NSNull(),
-            ])
+            ], session: session)
 
         case "apply_config":
             // R1: ahakey.sock 拒绝配置命令；生产入口走 XPC (AhaKeyRuntimeXPCRequest.apply)
-            Self.replyAndClose(clientFd, ["error": "apply_config rejected: configuration commands must use XPC (AhaKeyRuntimeXPCRequest.apply)"])
+            replyAndClose(clientFd, ["error": "apply_config rejected: configuration commands must use XPC (AhaKeyRuntimeXPCRequest.apply)"], session: session)
 
         case "cancel_config":
             // R1: ahakey.sock 拒绝配置命令；生产入口走 XPC (AhaKeyRuntimeXPCRequest.requestCancellation)
-            Self.replyAndClose(clientFd, ["error": "cancel_config rejected: configuration commands must use XPC (AhaKeyRuntimeXPCRequest.requestCancellation)"])
+            replyAndClose(clientFd, ["error": "cancel_config rejected: configuration commands must use XPC (AhaKeyRuntimeXPCRequest.requestCancellation)"], session: session)
 
         default:
-            Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
+            replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"], session: session)
         }
     }
 
@@ -1361,33 +1423,49 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         emit("自动回落灯态：\(reason)")
     }
 
-    private func replyAfterLegacyHold(_ fd: Int32, _ dict: [String: Any]) {
+    private func replyAfterLegacyHold(_ fd: Int32, _ dict: [String: Any], session: LegacyListenSession?) {
         if let gate = legacyReplyBeforeWriteGate {
             DispatchQueue.global(qos: .utility).async {
                 gate.markAcceptedAndWaitForRelease()
-                Self.replyAndCloseNow(fd, dict)
+                self.replyAndCloseNow(fd, dict, session: session)
                 gate.markWriteFinished()
             }
             return
         }
-        Self.replyAndClose(fd, dict)
+        replyAndClose(fd, dict, session: session)
     }
 
-    private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {
-        guard fd >= 0 else { return }
+    private func replyAndClose(_ fd: Int32, _ dict: [String: Any], session: LegacyListenSession?) {
+        guard let session else {
+            guard fd >= 0 else { return }
+            DispatchQueue.global(qos: .utility).async {
+                self.replyAndCloseNow(fd, dict, session: nil)
+            }
+            return
+        }
+        guard fd >= 0 else {
+            releaseLegacyClient(fd, session: session)
+            return
+        }
         DispatchQueue.global(qos: .utility).async {
-            Self.replyAndCloseNow(fd, dict)
+            self.replyAndCloseNow(fd, dict, session: session)
         }
     }
 
-    private static func replyAndCloseNow(_ fd: Int32, _ dict: [String: Any]) {
-        var clientFd = fd
-        defer { AhaKeyRuntimeLegacySocketIO.closeOnce(&clientFd) }
+    private func replyAndCloseNow(_ fd: Int32, _ dict: [String: Any], session: LegacyListenSession?) {
+        defer {
+            if let session {
+                releaseLegacyClient(fd, session: session)
+            } else if fd >= 0 {
+                var clientFD = fd
+                AhaKeyRuntimeLegacySocketIO.closeOnce(&clientFD)
+            }
+        }
         guard fd >= 0 else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: dict, options: []) else { return }
         var out = data
         out.append(0x0A) // \n 作为消息边界
-        switch AhaKeyRuntimeLegacySocketIO.writeAll(out, to: clientFd) {
+        switch AhaKeyRuntimeLegacySocketIO.writeAll(out, to: fd) {
         case .completed, .peerClosed:
             break
         case .failed(let code):
@@ -3001,7 +3079,7 @@ extension AhaKeyAgent {
     /// 测试 seam：走生产 `handleJsonCommand`，不经 Unix socket。
     @MainActor
     func handleJsonCommandForTesting(cmd: String, obj: [String: Any]) {
-        handleJsonCommand(cmd: cmd, obj: obj, clientFd: -1)
+        handleJsonCommand(cmd: cmd, obj: obj, clientFd: -1, session: nil)
     }
 
     @MainActor

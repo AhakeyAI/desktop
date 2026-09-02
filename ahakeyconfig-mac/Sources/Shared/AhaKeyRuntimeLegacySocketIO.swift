@@ -5,12 +5,21 @@ import Foundation
 ///
 /// Restricted `hook.sock` already uses `SO_NOSIGPIPE` + write-all. This type is the
 /// matching seam for accepted legacy clients so a closed peer cannot deliver SIGPIPE
-/// to the Runtime process. Accepted fds are nonblocking; `writeAll` is bounded by a
-/// monotonic deadline covering write, poll, and EINTR.
+/// to the Runtime process. Accepted fds are nonblocking; `writeAll` / `readLine`
+/// are bounded by a monotonic deadline covering write/read, poll, and EINTR.
 public enum AhaKeyRuntimeLegacySocketIO {
+    public static let maxRequestLineBytes = 1024
+
     public enum WriteResult: Equatable, Sendable {
         case completed
         case peerClosed
+        case failed(Int32)
+    }
+
+    public enum ReadLineResult: Equatable, Sendable {
+        case line(Data)
+        case peerClosed
+        case overflow
         case failed(Int32)
     }
 
@@ -96,6 +105,60 @@ public enum AhaKeyRuntimeLegacySocketIO {
         }
     }
 
+    /// Read until newline or fail-closed. Unix streams may deliver the JSON line
+    /// in fragments; a single nonblocking `read` is not a complete request.
+    public static func readLine(
+        _ fd: Int32,
+        timeout: TimeInterval = 5
+    ) -> ReadLineResult {
+        guard fd >= 0 else { return .failed(EBADF) }
+        let deadline = DispatchTime.now() + max(0, timeout)
+        var accumulated = Data()
+        var chunk = [UInt8](repeating: 0, count: 256)
+        while true {
+            if remainingMillis(until: deadline) == nil {
+                return .failed(ETIMEDOUT)
+            }
+            let n = Darwin.read(fd, &chunk, chunk.count)
+            if n > 0 {
+                let bytes = chunk.prefix(n)
+                if let newline = bytes.firstIndex(of: 0x0A) {
+                    let leading = bytes[..<newline]
+                    if accumulated.count + leading.count > maxRequestLineBytes {
+                        return .overflow
+                    }
+                    accumulated.append(contentsOf: leading)
+                    return .line(accumulated)
+                }
+                if accumulated.count + bytes.count > maxRequestLineBytes {
+                    return .overflow
+                }
+                accumulated.append(contentsOf: bytes)
+                continue
+            }
+            if n == 0 {
+                return .peerClosed
+            }
+            if errno == EINTR {
+                continue
+            }
+            if errno == EAGAIN || errno == EWOULDBLOCK {
+                switch waitFor(fd, events: Int16(POLLIN), until: deadline) {
+                case .ready:
+                    continue
+                case .peerClosed:
+                    return .peerClosed
+                case .failed(let code):
+                    return .failed(code)
+                }
+            }
+            if errno == EPIPE || errno == ECONNRESET {
+                return .peerClosed
+            }
+            return .failed(errno)
+        }
+    }
+
     public static func closeOnce(_ fd: inout Int32) {
         guard fd >= 0 else { return }
         Darwin.close(fd)
@@ -124,10 +187,11 @@ public enum AhaKeyRuntimeLegacySocketIO {
             guard let ms = remainingMillis(until: deadline) else {
                 return .failed(ETIMEDOUT)
             }
+            let slice = min(ms, 50)
             var pfd = pollfd(fd: fd, events: events, revents: 0)
-            let prc = poll(&pfd, 1, ms)
+            let prc = poll(&pfd, 1, slice)
             if prc == 0 {
-                return .failed(ETIMEDOUT)
+                continue
             }
             if prc < 0 {
                 if errno == EINTR { continue }

@@ -123,6 +123,143 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
         XCTAssertLessThan(elapsedNs, 1_000_000_000)
     }
 
+    func testReadLineAssemblesFragmentedJSONUntilNewline() {
+        guard let pair = AhaKeyRuntimeLegacySocketIO.makeUnixStreamPair() else {
+            return XCTFail("socketpair")
+        }
+        defer {
+            Darwin.close(pair.0)
+            Darwin.close(pair.1)
+        }
+        XCTAssertTrue(AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(pair.0))
+        let first = Data("{\"cmd\":\"".utf8)
+        let second = Data("status\"}\n".utf8)
+        let done = expectation(description: "line-assembled")
+        var result: AhaKeyRuntimeLegacySocketIO.ReadLineResult?
+        DispatchQueue.global(qos: .userInitiated).async {
+            result = AhaKeyRuntimeLegacySocketIO.readLine(pair.0, timeout: 2)
+            done.fulfill()
+        }
+        XCTAssertEqual(first.withUnsafeBytes { Darwin.write(pair.1, $0.baseAddress!, $0.count) }, first.count)
+        usleep(30_000)
+        XCTAssertEqual(second.withUnsafeBytes { Darwin.write(pair.1, $0.baseAddress!, $0.count) }, second.count)
+        wait(for: [done], timeout: 3)
+        XCTAssertEqual(result, .line(Data("{\"cmd\":\"status\"}".utf8)))
+    }
+
+    func testReadLineFailsClosedOnOverflowAndEOFBeforeNewline() {
+        guard let overflowPair = AhaKeyRuntimeLegacySocketIO.makeUnixStreamPair() else {
+            return XCTFail("socketpair")
+        }
+        defer {
+            Darwin.close(overflowPair.0)
+            Darwin.close(overflowPair.1)
+        }
+        XCTAssertTrue(AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(overflowPair.0))
+        let blob = Data(repeating: 0x41, count: AhaKeyRuntimeLegacySocketIO.maxRequestLineBytes + 1)
+        XCTAssertEqual(blob.withUnsafeBytes { Darwin.write(overflowPair.1, $0.baseAddress!, $0.count) }, blob.count)
+        XCTAssertEqual(
+            AhaKeyRuntimeLegacySocketIO.readLine(overflowPair.0, timeout: 1),
+            .overflow
+        )
+
+        guard let eofPair = AhaKeyRuntimeLegacySocketIO.makeUnixStreamPair() else {
+            return XCTFail("socketpair")
+        }
+        defer { Darwin.close(eofPair.0) }
+        XCTAssertTrue(AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(eofPair.0))
+        let partial = Data("{\"cmd\"".utf8)
+        XCTAssertEqual(partial.withUnsafeBytes { Darwin.write(eofPair.1, $0.baseAddress!, $0.count) }, partial.count)
+        Darwin.close(eofPair.1)
+        XCTAssertEqual(
+            AhaKeyRuntimeLegacySocketIO.readLine(eofPair.0, timeout: 1),
+            .peerClosed
+        )
+    }
+
+    func testFragmentedStatusAndPermissionReachProductionHandler() throws {
+        let agent = makeAgent()
+        agent.startSocketListener()
+        try waitForSocket(socketPath)
+        let path = try XCTUnwrap(socketPath)
+
+        for cmd in ["status", "permission"] {
+            replyGate = AhaKeyRuntimeLegacyReplyGate()
+            agent.legacyReplyBeforeWriteGate = replyGate
+            let line = "{\"cmd\":\"\(cmd)\"}\n"
+            let bytes = Array(line.utf8)
+            let split = 8
+            let reply = try sendFragmentedJSON(
+                path: path,
+                fragments: [Data(bytes[..<split]), Data(bytes[split...])]
+            )
+            XCTAssertTrue(reply.contains("switchState"), "\(cmd): \(reply)")
+        }
+
+        replyGate = AhaKeyRuntimeLegacyReplyGate()
+        agent.legacyReplyBeforeWriteGate = replyGate
+        let followUp = try sendJSON(path: path, object: ["cmd": "status"], behavior: .readReply)
+        XCTAssertTrue(followUp.contains("switchState"), followUp)
+        assertListenerStillOwned(agent)
+    }
+
+    func testIdleAcceptedClientShutdownCompletesAndAllowsRestart() throws {
+        let agent = makeAgent()
+        for round in 0..<10 {
+            agent.startSocketListener()
+            try waitForSocket(socketPath)
+            let client = try unixConnect(try XCTUnwrap(socketPath))
+            let acceptedDeadline = Date().addingTimeInterval(1)
+            while agent.legacyActiveClientCountForTesting == 0 && Date() < acceptedDeadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+            }
+            XCTAssertGreaterThan(agent.legacyActiveClientCountForTesting, 0, "round \(round) never accepted")
+            let started = DispatchTime.now()
+            XCTAssertTrue(agent.stopLegacySocketListenerForTesting(), "round \(round)")
+            let elapsedNs = DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds
+            XCTAssertLessThan(elapsedNs, 1_000_000_000, "round \(round) shutdown \(elapsedNs)ns")
+            XCTAssertTrue(agent.legacyLastAcceptWorkerExitedForTesting)
+            XCTAssertEqual(agent.legacyListenFDForTesting, -1)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(socketPath)))
+            Darwin.close(client)
+        }
+        XCTAssertEqual(agent.legacyOwnerUnlinkCountForTesting, 10)
+
+        agent.startSocketListener()
+        try waitForSocket(socketPath)
+        replyGate = AhaKeyRuntimeLegacyReplyGate()
+        agent.legacyReplyBeforeWriteGate = replyGate
+        let reply = try sendJSON(
+            path: try XCTUnwrap(socketPath),
+            object: ["cmd": "status"],
+            behavior: .readReply
+        )
+        XCTAssertTrue(reply.contains("switchState"), reply)
+        assertListenerStillOwned(agent)
+    }
+
+    func testListenFailureDoesNotPublishOwner() throws {
+        let agent = makeAgent()
+        agent.legacyListenHookForTesting = { _ in
+            errno = EINVAL
+            return -1
+        }
+        agent.startSocketListener()
+        XCTAssertEqual(agent.legacyListenFDForTesting, -1)
+        XCTAssertEqual(agent.legacyOwnerUnlinkCountForTesting, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(socketPath)))
+        XCTAssertThrowsError(try unixConnect(try XCTUnwrap(socketPath)))
+
+        agent.legacyListenHookForTesting = nil
+        agent.startSocketListener()
+        try waitForSocket(socketPath)
+        XCTAssertGreaterThanOrEqual(agent.legacyListenFDForTesting, 0)
+        XCTAssertTrue(agent.stopLegacySocketListenerForTesting())
+        XCTAssertEqual(agent.legacyOwnerUnlinkCountForTesting, 1)
+        XCTAssertEqual(agent.legacyListenFDForTesting, -1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(socketPath)))
+    }
+
     func testShutdownClosesListenerAndUnlinksPath() throws {
         let agent = makeAgent()
         agent.startSocketListener()
@@ -357,13 +494,70 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
         let payload = try JSONSerialization.data(withJSONObject: object, options: [])
         var line = payload
         line.append(0x0A)
+        try writeAll(line, to: fd)
+    }
+
+    private func sendFragmentedJSON(path: String, fragments: [Data]) throws -> String {
+        let box = LockedClientIO()
+        let connected = expectation(description: "legacy-fragment-written")
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let fd = try self.unixConnect(path)
+                box.store(fd: fd)
+                for (index, part) in fragments.enumerated() {
+                    try self.writeAll(part, to: fd)
+                    if index + 1 < fragments.count {
+                        usleep(30_000)
+                    }
+                }
+            } catch {
+                box.setError(error)
+            }
+            connected.fulfill()
+        }
+        wait(for: [connected], timeout: 3)
+        if let error = box.snapshot().error { throw error }
+
+        guard replyGate.waitUntilAccepted(timeout: 3) else {
+            replyGate.releaseWrite()
+            var leftover = box.takeFD()
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&leftover)
+            struct HandlerDidNotAccept: Error {}
+            throw HandlerDidNotAccept()
+        }
+
+        replyGate.releaseWrite()
+        let finished = expectation(description: "legacy-fragment-read")
+        DispatchQueue.global(qos: .userInitiated).async {
+            var fd = box.peekFD()
+            var buf = [UInt8](repeating: 0, count: 1_024)
+            var timeout = timeval(tv_sec: 3, tv_usec: 0)
+            _ = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+            let n = Darwin.read(fd, &buf, buf.count)
+            if n > 0 {
+                box.setReply(String(bytes: buf.prefix(Int(n)), encoding: .utf8) ?? "")
+            } else {
+                box.setError(POSIXError(.ETIMEDOUT))
+            }
+            fd = box.takeFD()
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&fd)
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: 5)
+        XCTAssertTrue(replyGate.waitUntilWriteFinished(timeout: 3))
+        let snapshot = box.snapshot()
+        if let error = snapshot.error { throw error }
+        return snapshot.reply
+    }
+
+    private func writeAll(_ data: Data, to fd: Int32) throws {
         var timeout = timeval(tv_sec: 3, tv_usec: 0)
         _ = setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-        let wrote = line.withUnsafeBytes { ptr -> Int in
+        let wrote = data.withUnsafeBytes { ptr -> Int in
             guard let base = ptr.baseAddress else { return -1 }
             return Darwin.write(fd, base, ptr.count)
         }
-        if wrote != line.count {
+        if wrote != data.count {
             throw POSIXError(.EIO)
         }
     }
