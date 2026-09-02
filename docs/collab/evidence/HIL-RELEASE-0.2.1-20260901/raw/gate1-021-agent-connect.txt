@@ -1,0 +1,31 @@
+[2026-09-02T03:23:52Z] 监听 Unix socket: /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+[2026-09-02T03:23:52Z] 监听 Hook socket: /Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock
+[2026-09-02T03:23:52Z] 监听 XPC service: lab.jawa.ahakeyconfig.runtime
+[2026-09-02T03:23:52Z] 蓝牙就绪
+[2026-09-02T03:23:52Z] 系统已连接: AhaKey X1
+[2026-09-02T03:23:52Z] 系统已连接: AhaKey X1
+[2026-09-02T03:23:52Z] 已连接: AhaKey X1
+[2026-09-02T03:23:52Z] 数据通道就绪
+[2026-09-02T03:23:52Z] 命令通道就绪
+[2026-09-02T03:23:52Z] 通知通道已订阅
+[2026-09-02T03:23:52Z] → 0x99 能力查询（第 1 次）
+[2026-09-02T03:23:52Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:23:52Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 1C 01 24 01 CC DD
+[2026-09-02T03:23:52Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-09-02T03:23:52Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-02T03:23:52Z] current 协议协商完成，开始状态轮询
+[2026-09-02T03:23:52Z] ← 2A25 序列号 Serial Number 非编号格式，启用 UUID 兜底身份
+[2026-09-02T03:23:52Z] 无广播编号/有效序列号：使用 UUID 兜底身份 4F3E
+[2026-09-02T03:23:52Z] current 协议协商完成，开始状态轮询
+[2026-09-02T03:23:52Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:23:53Z] ← status battery=51 light=0 switch=0
+[2026-09-02T03:23:53Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:23:54Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:23:54Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T03:23:55Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:23:55Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T03:23:55Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T03:23:55Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:23:55Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T03:23:55Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T03:23:55Z] ← status battery=51 light=5 switch=0
