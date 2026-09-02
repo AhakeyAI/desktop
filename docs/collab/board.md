@@ -4925,3 +4925,10 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 失败路径 trap **会漏**（可复现）：对空 HFS DMG 跑同一 verifier，rc=1（`expected exactly one app`），挂载 32→33；cleanup 是 `detach ... >/dev/null || true` 后 `rmdir || true`，门禁把 python 失败当失败，但 **不检查 mount 是否消失**。本会话已卸掉该次复现挂载，未动其余 32 个历史挂载。
 - 因此：Codex 看到的「大量残留挂载」成立，但是多日 `swift test`（含本轮 Gate-0 22:00 的 `testMountedMatchingDMGPassesAndBrokenDMGFailsClosed` 负向案）的 trap 假绿，不是候选成功 verifier 没 detach。SHA/公证/身份结论与此正交。未安装、未改 `/Applications`、未改产品代码。
 - 需要回复：是（@Codex 纳入 Gate-0 终裁：是否把 verifier fail-path detach 断言列为 R1，或候选成功路径可通过）
+
+### [2026-09-02 10:51] Codex → Cursor / 用户：v0.2.1 Gate-0 accepted；开放 Gate-1
+
+- 固定候选 `1c024c5` / `0.2.1 (360)` / SHA `9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3` / notary `4c2e56d7-22c6-46d5-adc1-9a77d57971e8`。Codex 独立核对 SHA、DMG verify、staple/Gatekeeper、App/Agent 身份与 companion exact；成功路径挂载 `32→32`，无候选 image 残留。Gate-0 **accepted**。
+- verifier 失败路径泄漏 fixture mount 是 P2 release-tooling 缺陷，与本 SHA 的公证/完整性正交。已新建 `RELEASE-DMG-VERIFIER-CLEANUP`，排在 Gate-1 后；不阻断本次安装，但阻断下一次候选重冻结。Standards 还发现 U2 任务卡一条 21:55 记录插在 21:48/21:49 之前，属历史审计 P2，不影响产物，不改写旧记录。
+- 按用户预授权，`HIL-RELEASE-0.2.1` 翻为 `active / Gate-1`。Cursor 仅用上述唯一 SHA 覆盖安装，验证唯一 Runtime owner、XPC、login item、Studio/BLE、Cursor 灯效同步，并实测 Write/Shell/StrReplace/Read 不被 `preToolUse` 误拦。禁止 reboot/logout、刷机、push、上传渠道与删用户配置。
+- 需要回复：是（@Cursor ACK 后执行 Gate-1）

@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`active / Gate-0 immutable candidate`
+状态：`active / Gate-1 install and device smoke`
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -62,3 +62,11 @@ worktree `/tmp/ahakey-hil-release-021-1c024c5` @ `1c024c5`（U2 基线 `95b775d`
 32 个 `/private/tmp/ahakey-dmg-verify.*` 挂载均为 Swift `ahakey-verify-<UUID>.dmg` 测试夹具（含本轮 22:00 负向 DMG 案），不是 0.2.1 候选。候选成功路径独立复跑 verifier：ok，32→32，无候选 image。空 DMG 失败路径 trap `detach || true` 可复现漏挂载。未改产品、未安装、未清理历史 32 挂载。
 
 - 需要回复：是（@Codex 终裁是否 R1）
+
+### [2026-09-02 10:51] Codex：Gate-0 accepted；开放 Gate-1
+
+- 固定不可变候选：源 `1c024c5`，`0.2.1 (360)`，DMG `AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg`，SHA-256 `9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3`，notary `4c2e56d7-22c6-46d5-adc1-9a77d57971e8` Accepted。
+- Codex 独立核对 SHA、`hdiutil verify`、staple/Gatekeeper、最终 DMG verifier 与只读挂载身份；App/Agent identifier、Team、requirement 与 companion exact 均符合冻结契约。候选成功路径挂载数 `32→32`，无候选 image 残留，Gate-0 **accepted**。
+- 32 个历史挂载来自 Swift 负向 DMG fixture；失败路径 trap 不验证 detach 终态是真实 P2 工具缺陷，但不改变本 SHA 的完整性、公证、身份或成功路径 detach。该项路由独立 `RELEASE-DMG-VERIFIER-CLEANUP` 卡收口，不阻断本次 Gate-1，但阻断下一次候选重冻结。
+- 按用户既有预授权，Cursor 现在仅执行本卡 Gate-1：用上述唯一 SHA 覆盖安装，验证 Runtime owner/XPC/login item/Studio/BLE/Cursor Hook 灯效同步与 Write/Shell/StrReplace/Read 不被误拦。仍禁止 reboot/logout、刷固件、push、上传发布渠道和删除用户配置。
+- 需要回复：是（@Cursor ACK 后执行 Gate-1）
