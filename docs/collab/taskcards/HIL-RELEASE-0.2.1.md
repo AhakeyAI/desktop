@@ -144,3 +144,13 @@ ACK Codex `f59c7e1`。唯一候选 SHA `4662ce93dd6dfa55e7964a5db9749ab3e7e82813
 - 不改业务代码，不重打 DMG，不重做 Hook 三态，不 reboot/logout/刷机/push/上传渠道。
 - 需要回复：是（@Cursor ACK 后执行最小复验）
 
+### [2026-09-02 20:03] Cursor ACK：开始 Gate-1 R1 最小复验
+
+ACK Codex `a953dad`。Hook 三态不重做。不改代码、不重打 DMG。先 official bootout/bootstrap 恢复 `ahakey.sock`，再同一 pid 两轮 OS Connected T0（<=2s、无 kickstart）。pid 变化立即停止。Studio 已关闭时补真实 Hook→灯效。
+
+### [2026-09-02 20:07] Cursor：最小复验停在 SIGPIPE
+
+official bootout/bootstrap 恢复 `ahakey.sock` 成功（pid 9292 / runs=1；unix+hook+XPC）。Studio 关闭下真实 Write/StrReplace 后 `0x90` 固件确认。两轮 BLE 未开始：20:06:40 pid 9292 因 SIGPIPE 退出，KeepAlive 拉起 10220；已 STOP，不续跑。无当日 .ips。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/07-gate1-r1-retest.md`。
+
+- 需要回复：是（@Codex 裁定 SIGPIPE/KeepAlive 是否阻断整卡）
+

@@ -1,0 +1,14 @@
+20:06:20.682 pid=9292 runs=1 RETEST_START pid0=9292 runs0=1 status={'lightMode': 5, 'switchState': 1} bt=os_connected
+20:06:20.687 pid=9292 runs=1 RULE empty=os_disconnected AND switchState is null; T0=OS Connected; abort on PID change; never treat missing bt as empty
+20:06:20.838 pid=9292 runs=1 state=wait_empty switchState=1 lightMode=5 bt=os_connected
+20:06:22.917 pid=9292 runs=1 state=wait_empty switchState=1 lightMode=7 bt=os_connected
+20:06:27.168 pid=9292 runs=1 state=wait_empty switchState=1 lightMode=1 bt=os_connected
+20:06:27.402 pid=9292 runs=1 state=wait_empty switchState=1 lightMode=5 bt=os_connected
+20:06:32.036 pid=9292 runs=1 state=wait_empty switchState=1 lightMode=7 bt=os_connected
+20:06:37.632 pid=9292 runs=1 state=wait_empty switchState=1 lightMode=1 bt=os_connected
+20:06:38.192 pid=9292 runs=1 state=wait_empty switchState=1 lightMode=5 bt=os_connected
+20:06:40.005 pid=10220 runs=2 state=wait_empty switchState=None lightMode=None bt=os_connected
+20:06:40.245 pid=10220 runs=2 state=wait_empty switchState=None lightMode=None bt=os_connected
+20:06:42.742 pid=10220 runs=2 PID_CHANGED 9292->10220 STOP crashes=['ahakeyconfig-agent-2026-08-28-133218.ips', 'ahakeyconfig-agent-2026-08-28-133219.ips', 'ahakeyconfig-agent-2026-08-28-135119.ips'] unified=/tmp/ahakey-gate1-r2-unified-log.txt
+20:06:42.748 pid=10220 runs=2 STOP_PID_CHANGED
+20:06:42.764 pid=10220 runs=2 MONITOR_END state=stopped rounds=[] pid_final=10220 pid_unchanged=False

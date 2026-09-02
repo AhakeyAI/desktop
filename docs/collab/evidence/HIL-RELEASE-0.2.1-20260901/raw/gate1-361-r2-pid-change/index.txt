@@ -1,0 +1,41 @@
+===== PID CHANGE STOP Wed Sep  2 20:07:01 +08 2026 =====
+pid0=9292 pid_now=10220
+runs=2
+----- DiagnosticReports mtime last 2h -----
+----- newest 20 reports -----
+total 616
+-rw-------@ 1 heartline  _analyticsusers  16031 Aug 31 14:30 swift-frontend-2026-08-31-143003.ips
+-rw-------@ 1 heartline  _analyticsusers  25591 Aug 30 12:02 IOUIAgent-2026-08-30-120223.ips
+-rw-------@ 1 heartline  _analyticsusers  38518 Aug 29 19:01 xctest-2026-08-29-190101.ips
+-rw-------@ 1 heartline  _analyticsusers  28261 Aug 29 09:50 WiFiAgent-2026-08-29-095036.ips
+-rw-------@ 1 heartline  _analyticsusers   5155 Aug 28 13:51 ahakeyconfig-agent-2026-08-28-135119.ips
+-rw-------@ 1 heartline  _analyticsusers  21561 Aug 28 13:32 ahakeyconfig-agent-2026-08-28-133219.ips
+-rw-------@ 1 heartline  _analyticsusers   5155 Aug 28 13:32 ahakeyconfig-agent-2026-08-28-133218.ips
+-rw-------@ 1 heartline  _analyticsusers  38385 Aug 28 10:35 rapportd-2026-08-28-103528.ips
+-rw-------@ 1 heartline  _analyticsusers  28375 Aug 28 10:35 rapportd-2026-08-28-103509.ips
+-rw-------@ 1 heartline  _analyticsusers   6405 Aug 27 23:03 t14d-2026-08-27-230358.ips
+-rw-------@ 1 heartline  _analyticsusers   6525 Aug 27 23:00 wbs14-fa-test-2026-08-27-230008.ips
+-rw-------@ 1 heartline  _analyticsusers   6536 Aug 27 23:00 wbs14-fa-test-2026-08-27-230004.ips
+-rw-------@ 1 heartline  _analyticsusers   6554 Aug 27 22:58 wbs14-fa-test-2026-08-27-225843.ips
+-rw-------@ 1 heartline  _analyticsusers  18784 Aug 27 22:14 swift-frontend-2026-08-27-221447.ips
+-rw-------@ 1 heartline  _analyticsusers  35590 Aug 26 20:53 xctest-2026-08-26-205329.ips
+drwxrwx---  2 heartline  _analyticsusers     64 May 14 00:35 Retired
+----- /Library newest -----
+total 14632
+-rw-rw----@ 1 root  _analyticsusers    10353 Sep  2 18:26 Autoupdate_2026-09-02-182600_heartlinedeMacBook-Pro.diag
+-rw-rw----@ 1 root  _analyticsusers    18010 Sep  2 18:00 Cursor_2026-09-01-212138_heartlinedeMacBook-Pro.diag
+-rw-rw----@ 1 root  _analyticsusers    13874 Sep  2 18:00 Codex (Service)_2026-09-02-040314_heartlinedeMacBook-Pro.diag
+-rw-rw----@ 1 root  _analyticsusers    64168 Sep  2 18:00 curl_2026-09-01-185953_heartlinedeMacBook-Pro.diag
+-rw-rw----@ 1 root  _analyticsusers    32784 Sep  2 18:00 logioptionsplus_updater_2026-09-02-103954_heartlinedeMacBook-Pro.diag
+-rw-rw----@ 1 root  _analyticsusers    13059 Sep  2 18:00 ZCode Helper_2026-09-01-214457_heartlinedeMacBook-Pro.diag
+-rw-rw----@ 1 root  _analyticsusers    39564 Sep  2 18:00 Cursor_2026-09-02-034141_heartlinedeMacBook-Pro.diag
+-rw-rw----@ 1 root  _analyticsusers    31551 Sep  2 12:44 signpost_reporter_2026-09-02-124457_heartlinedeMacBook-Pro.cpu_resource.diag
+-rw-rw----@ 1 root  _analyticsusers   103634 Sep  2 05:13 knowledgeconstructiond_2026-09-02-051319_heartlinedeMacBook-Pro.cpu_resource.diag
+===== AFTER STOP Wed Sep  2 20:07:26 +08 2026 =====
+	state = running
+	runs = 2
+	pid = 10220
+		state = active
+		state = active
+	job state = running
+note=KeepAlive successor pid 10220 is running; BLE retest STOPPED and will not use this pid as a substitute round

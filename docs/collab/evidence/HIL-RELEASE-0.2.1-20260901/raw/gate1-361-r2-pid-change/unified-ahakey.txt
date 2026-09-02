@@ -1,0 +1,451 @@
+2026-09-02 20:03:55.502 A  ahakeyconfig-agent[8974:4fc888] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:03:55.511 A  ahakeyconfig-agent[8974:4fc88b] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:03:55.513 Df ahakeyconfig-agent[8974:4fc88b] [com.apple.xpc:connection] [0x105b45f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:03:55.513 Df ahakeyconfig-agent[8974:4fc88f] [com.apple.xpc:connection] [0x105b466f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:03:55.516 A  ahakeyconfig-agent[8974:4fc88b] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:03:55.602 A  ahakeyconfig-agent[8976:4fc894] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:03:55.604 Df ahakeyconfig-agent[8976:4fc894] [com.apple.xpc:connection] [0x101d21f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:03:55.604 Df ahakeyconfig-agent[8976:4fc896] [com.apple.xpc:connection] [0x101d226f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:03:55.608 A  ahakeyconfig-agent[8976:4fc894] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:03:55.640 A  ahakeyconfig-agent[8980:4fc89f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:03:55.640 A  ahakeyconfig-agent[8978:4fc89d] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:03:55.640 A  ahakeyconfig-agent[8981:4fc8a0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:03:55.640 A  ahakeyconfig-agent[8979:4fc89e] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.782 A  ahakeyconfig-agent[8985:4fc8e8] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.782 A  ahakeyconfig-agent[8986:4fc8e9] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.783 A  ahakeyconfig-agent[8987:4fc8ea] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.783 A  ahakeyconfig-agent[8988:4fc8eb] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.783 A  ahakeyconfig-agent[8989:4fc8ec] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.784 A  ahakeyconfig-agent[8990:4fc8ed] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.800 A  ahakeyconfig-agent[8989:4fc8f2] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.800 A  ahakeyconfig-agent[8988:4fc8f3] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.800 A  ahakeyconfig-agent[8986:4fc8f0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.802 Df ahakeyconfig-agent[8989:4fc8f2] [com.apple.xpc:connection] [0x1053a1f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:00.802 Df ahakeyconfig-agent[8988:4fc8f3] [com.apple.xpc:connection] [0x103ba5fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:00.802 Df ahakeyconfig-agent[8986:4fc8f0] [com.apple.xpc:connection] [0x1017c9f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:00.802 Df ahakeyconfig-agent[8989:4fc8f7] [com.apple.xpc:connection] [0x1053a26f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:00.802 Df ahakeyconfig-agent[8988:4fc8f8] [com.apple.xpc:connection] [0x103ba6770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:00.802 Df ahakeyconfig-agent[8986:4fc8f9] [com.apple.xpc:connection] [0x1017ca6f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:00.805 A  ahakeyconfig-agent[8989:4fc8f2] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:00.806 A  ahakeyconfig-agent[8986:4fc8f0] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:00.808 A  ahakeyconfig-agent[8988:4fc8f3] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:00.818 A  ahakeyconfig-agent[8995:4fc903] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.818 A  ahakeyconfig-agent[8996:4fc904] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.827 A  ahakeyconfig-agent[8995:4fc908] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.827 A  ahakeyconfig-agent[8993:4fc905] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.827 A  ahakeyconfig-agent[8996:4fc907] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.827 A  ahakeyconfig-agent[8994:4fc906] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.849 A  ahakeyconfig-agent[8998:4fc918] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:00.849 A  ahakeyconfig-agent[8997:4fc919] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:01.150 A  ahakeyconfig-agent[8999:4fc920] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:01.151 Df ahakeyconfig-agent[8999:4fc920] [com.apple.xpc:connection] [0x102da9f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:01.152 Df ahakeyconfig-agent[8999:4fc922] [com.apple.xpc:connection] [0x102daa6f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:01.155 A  ahakeyconfig-agent[8999:4fc920] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:01.175 A  ahakeyconfig-agent[9002:4fc928] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:01.175 A  ahakeyconfig-agent[9001:4fc927] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.509 A  ahakeyconfig-agent[9009:4fc953] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.510 A  ahakeyconfig-agent[9007:4fc955] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.510 Df ahakeyconfig-agent[9009:4fc953] [com.apple.xpc:connection] [0x1015a5f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:04.511 Df ahakeyconfig-agent[9009:4fc957] [com.apple.xpc:connection] [0x1015a66f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:04.511 Df ahakeyconfig-agent[9007:4fc955] [com.apple.xpc:connection] [0x102cb9ed0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:04.511 Df ahakeyconfig-agent[9007:4fc959] [com.apple.xpc:connection] [0x102cba670] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:04.514 A  ahakeyconfig-agent[9009:4fc953] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:04.515 A  ahakeyconfig-agent[9007:4fc955] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:04.636 A  ahakeyconfig-agent[9011:4fc95d] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.636 A  ahakeyconfig-agent[9012:4fc95e] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.636 A  ahakeyconfig-agent[9013:4fc95f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.636 A  ahakeyconfig-agent[9014:4fc960] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.646 A  ahakeyconfig-agent[9012:4fc962] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.647 A  ahakeyconfig-agent[9011:4fc961] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.649 A  ahakeyconfig-agent[9013:4fc963] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:04.649 A  ahakeyconfig-agent[9014:4fc964] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.425 A  ahakeyconfig-agent[9077:4fca55] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.426 Df ahakeyconfig-agent[9077:4fca55] [com.apple.xpc:connection] [0x104f25f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:11.426 Df ahakeyconfig-agent[9077:4fca57] [com.apple.xpc:connection] [0x104f266f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:11.430 A  ahakeyconfig-agent[9077:4fca55] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:11.448 A  ahakeyconfig-agent[9079:4fca5b] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.448 A  ahakeyconfig-agent[9080:4fca5c] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.857 A  ahakeyconfig-agent[9087:4fca74] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.859 Df ahakeyconfig-agent[9087:4fca74] [com.apple.xpc:connection] [0x101381fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:11.859 Df ahakeyconfig-agent[9087:4fca75] [com.apple.xpc:connection] [0x101382770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:11.862 A  ahakeyconfig-agent[9087:4fca74] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:11.893 A  ahakeyconfig-agent[9092:4fca84] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.893 A  ahakeyconfig-agent[9093:4fca85] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.903 A  ahakeyconfig-agent[9092:4fca86] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:11.903 A  ahakeyconfig-agent[9093:4fca87] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.585 A  ahakeyconfig-agent[9098:4fca9d] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.593 A  ahakeyconfig-agent[9097:4fcaa0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.593 A  ahakeyconfig-agent[9095:4fca9f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.594 Df ahakeyconfig-agent[9095:4fca9f] [com.apple.xpc:connection] [0x101905f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:12.594 Df ahakeyconfig-agent[9097:4fcaa0] [com.apple.xpc:connection] [0x1039c9fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:12.594 Df ahakeyconfig-agent[9095:4fcaa2] [com.apple.xpc:connection] [0x1019066f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:12.594 Df ahakeyconfig-agent[9097:4fcaa3] [com.apple.xpc:connection] [0x1039ca770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:12.597 A  ahakeyconfig-agent[9095:4fca9f] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:12.599 A  ahakeyconfig-agent[9097:4fcaa0] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:12.619 A  ahakeyconfig-agent[9100:4fcaac] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.619 A  ahakeyconfig-agent[9099:4fcaab] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.623 A  ahakeyconfig-agent[9103:4fcaaf] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.631 A  ahakeyconfig-agent[9102:4fcab0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:12.631 A  ahakeyconfig-agent[9103:4fcab1] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.225 A  ahakeyconfig-agent[9130:4fcbcf] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.225 A  ahakeyconfig-agent[9131:4fcbd0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.225 A  ahakeyconfig-agent[9128:4fcbcd] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.236 A  ahakeyconfig-agent[9128:4fcbd5] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.236 A  ahakeyconfig-agent[9130:4fcbd4] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.238 Df ahakeyconfig-agent[9128:4fcbd5] [com.apple.xpc:connection] [0x10514df50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:25.238 Df ahakeyconfig-agent[9130:4fcbd4] [com.apple.xpc:connection] [0x1058aa1d0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:25.238 Df ahakeyconfig-agent[9128:4fcbd7] [com.apple.xpc:connection] [0x10514e6f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:25.238 Df ahakeyconfig-agent[9130:4fcbd8] [com.apple.xpc:connection] [0x1058aa970] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:25.241 A  ahakeyconfig-agent[9130:4fcbd4] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:25.242 A  ahakeyconfig-agent[9128:4fcbd5] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:25.275 A  ahakeyconfig-agent[9135:4fcbe7] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.275 A  ahakeyconfig-agent[9136:4fcbe8] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.419 A  ahakeyconfig-agent[9159:4fcc13] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.427 A  ahakeyconfig-agent[9158:4fcc14] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:25.427 A  ahakeyconfig-agent[9159:4fcc15] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:26.084 A  ahakeyconfig-agent[9162:4fcc20] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:26.085 Df ahakeyconfig-agent[9162:4fcc20] [com.apple.xpc:connection] [0x105ad5bd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:26.085 Df ahakeyconfig-agent[9162:4fcc22] [com.apple.xpc:connection] [0x105ad6370] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:26.088 A  ahakeyconfig-agent[9162:4fcc20] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:26.161 A  ahakeyconfig-agent[9165:4fcc26] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:26.161 A  ahakeyconfig-agent[9164:4fcc27] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:26.758 A  ahakeyconfig-agent[9173:4fcc49] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:26.819 A  ahakeyconfig-agent[9176:4fcc53] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:43.872 A  ahakeyconfig-agent[9216:4fcdaf] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:43.877 Df ahakeyconfig-agent[9216:4fcdaf] [com.apple.xpc:connection] [0x102faafd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:43.877 Df ahakeyconfig-agent[9216:4fcdb1] [com.apple.xpc:connection] [0x102fab770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:43.880 A  ahakeyconfig-agent[9216:4fcdaf] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:44.018 A  ahakeyconfig-agent[9232:4fcde0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:44.018 A  ahakeyconfig-agent[9233:4fcddf] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:44.018 A  ahakeyconfig-agent[9231:4fcde1] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:44.097 A  ahakeyconfig-agent[9254:4fce1e] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:44.153 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] bootout initiated by: launchctl[9261]<-zsh[9218]<-Cursor Helper ([65117]<-Cursor[17674]
+2026-09-02 20:04:44.153 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] signaled service: Terminated: 15
+2026-09-02 20:04:44.153 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] service state: SIGTERMed
+2026-09-02 20:04:44.153 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] scheduling cleanup in 5 sec after sending Terminated: 15
+2026-09-02 20:04:44.153 Df ahakeyconfig-agent[89889:4fc085] [com.apple.CoreAnalytics:client] Entering exit handler.
+2026-09-02 20:04:44.153 Df ahakeyconfig-agent[89889:4fc085] [com.apple.CoreAnalytics:client] Queueing exit procedure onto XPC queue. Any further messages sent will be discarded. activeSendTransactions=0
+2026-09-02 20:04:44.153 Df ahakeyconfig-agent[89889:4fb37f] [com.apple.CoreAnalytics:client] Cancelling XPC connection. Any further reply handler invocations will not retry messages
+2026-09-02 20:04:44.153 Df ahakeyconfig-agent[89889:4fb37f] [com.apple.xpc:connection] [0xb1d4f4500] invalidated because the current process cancelled the connection by calling xpc_connection_cancel()
+2026-09-02 20:04:44.155 Df ahakeyconfig-agent[89889:4fb37f] [com.apple.CoreAnalytics:client] XPC connection invalidated (daemon unloaded/disabled)
+2026-09-02 20:04:44.155 Df ahakeyconfig-agent[89889:4fc085] [com.apple.CoreAnalytics:client] Exiting exit handler.
+2026-09-02 20:04:44.160 Df ahakeyconfig-agent[89889:4ec94e] [com.apple.CoreAnalytics:client] Entering exit handler.
+2026-09-02 20:04:44.160 Df ahakeyconfig-agent[89889:4ec94e] [com.apple.CoreAnalytics:client] Queueing exit procedure onto XPC queue. Any further messages sent will be discarded. activeSendTransactions=0
+2026-09-02 20:04:44.160 Df ahakeyconfig-agent[89889:4ec94e] [com.apple.CoreAnalytics:client] Exiting exit handler.
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] exited due to exit(0), ran for 1456648ms
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] service state: exited
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] internal event: EXITED, code = 0
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] job state = exited
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501 [100022]:] service inactive: lab.jawa.ahakeyconfig.agent
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501 [100022]:] removing service: lab.jawa.ahakeyconfig.agent
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] internal event: PETRIFIED, code = 0
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] job state = removed
+2026-09-02 20:04:44.163 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [89889]:] service state: not running
+2026-09-02 20:04:44.165 A  ahakeyconfig-agent[9265:4fce3a] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:44.175 A  ahakeyconfig-agent[9265:4fce3f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:44.215 A  ahakeyconfig-agent[9268:4fce46] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [lab.jawa.ahakeyconfig.agent:] This service is defined to be constantly running and is inherently inefficient.
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent:] internal event: WILL_SPAWN, code = 0
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent:] service state: spawn scheduled
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent:] service state: spawning
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent:] launching: speculative
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] xpcproxy spawned with pid 9292
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] internal event: SPAWNED, code = 0
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] service state: xpcproxy
+2026-09-02 20:04:45.290 Df launchd[1:4fcd06] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] internal event: SOURCE_ATTACH, code = 0
+2026-09-02 20:04:45.306 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] service state: running
+2026-09-02 20:04:45.306 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] internal event: INIT, code = 0
+2026-09-02 20:04:45.306 Df launchd[1:4fcc5a] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] Successfully spawned ahakeyconfig-agent[9292] because speculative
+2026-09-02 20:04:45.317 A  ahakeyconfig-agent[9292:4fce7f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:45.322 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.xpc:connection] [0x10140fdf0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:45.322 Df ahakeyconfig-agent[9292:4fce80] [com.apple.xpc:connection] [0x1014104f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:45.325 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.xpc:connection] [0x101416760] activating connection: mach=true listener=false peer=false name=com.apple.server.bluetooth.le.att.xpc
+2026-09-02 20:04:45.332 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.xpc:connection] [0x85f4cc140] activating connection: mach=true listener=true peer=false name=lab.jawa.ahakeyconfig.runtime
+2026-09-02 20:04:45.335 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.bluetooth:CoreBluetooth] TCC available 1, req 1 complete 0
+2026-09-02 20:04:45.335 A  ahakeyconfig-agent[9292:4fce7f] (TCC) TCCAccessRequest() IPC
+2026-09-02 20:04:45.335 Df ahakeyconfig-agent[9292:4fce80] [com.apple.xpc:connection] [0x85f4cc000] activating connection: mach=true listener=false peer=false name=com.apple.tccd
+2026-09-02 20:04:45.336 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.xpc:connection] [0x85f4cc280] activating connection: mach=true listener=false peer=false name=com.apple.coreservices.launchservicesd
+2026-09-02 20:04:45.336 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.xpc:connection] [0x85f4cc3c0] activating connection: mach=false listener=true peer=false name=(anonymous)
+2026-09-02 20:04:45.336 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.xpc:connection] [0x85f4cc3c0] Connection returned listener port: 0x3a03
+2026-09-02 20:04:45.336 Df ahakeyconfig-agent[9292:4fce84] [com.apple.xpc:connection] [0x10141f0b0] activating connection: mach=false listener=false peer=true name=com.apple.xpc.anonymous.0x85f4cc3c0.peer[392].0x10141f0b0
+2026-09-02 20:04:45.336 Df ahakeyconfig-agent[9292:4fce7f] [com.apple.xpc:connection] [0x85f4cc3c0] Connection returned listener port: 0x3a03
+2026-09-02 20:04:45.350 Df launchd[1:4fcae1] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] job state = running
+2026-09-02 20:04:45.354 E  ahakeyconfig-agent[9292:4fce80] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:04:45.355 Df ahakeyconfig-agent[9292:4fce8a] [com.apple.xpc:connection] [0x85f4cc000] invalidated after the last release of the connection object
+2026-09-02 20:04:45.356 E  ahakeyconfig-agent[9292:4fce80] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:04:45.372 A  ahakeyconfig-agent[9292:4fce7f] (TCC) TCCAccessRequest() IPC
+2026-09-02 20:04:45.464 A  ahakeyconfig-agent[9292:4fce83] (libsystem_info.dylib) Membership API: translate identifier
+2026-09-02 20:04:45.505 Df ahakeyconfig-agent[9292:4fce7f] (Foundation) Using your own bundle identifier as an NSUserDefaults suite name does not make sense and will not work. Break on _NSUserDefaults_Log_Nonsensical_Suites to find this
+2026-09-02 20:04:47.553 Df ahakeyconfig-agent[9292:4fce83] (libxpc.dylib) Code-signing requirement (anchor apple generic and certificate leaf[subject.OU] = "P2VFVRZK7P" and (identifier "lab.jawa.ahakeyconfig")) set on connection
+2026-09-02 20:04:47.553 Df ahakeyconfig-agent[9292:4fce83] [com.apple.xpc:connection] [0x85e968000] activating connection: mach=false listener=false peer=true name=lab.jawa.ahakeyconfig.runtime.peer[9328].0x85e968000
+2026-09-02 20:04:47.553 E  ahakeyconfig-agent[9292:4fce8a] [com.apple.libsqlite3:logging-persist] cannot open file at line 51044 of [f0ca7bba1c]
+2026-09-02 20:04:47.553 E  ahakeyconfig-agent[9292:4fce8a] [com.apple.libsqlite3:logging-persist] os_unix.c:51044: (2) open(/private/var/db/DetachedSignatures) - No such file or directory
+2026-09-02 20:04:47.553 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecKeyVerifySignature
+2026-09-02 20:04:47.554 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecKeyVerifySignature
+2026-09-02 20:04:47.554 Df ahakeyconfig-agent[9292:4fce8a] [com.apple.xpc:connection] [0x85f4cc000] activating connection: mach=true listener=false peer=false name=com.apple.analyticsd
+2026-09-02 20:04:47.554 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecTrustEvaluateIfNecessary
+2026-09-02 20:04:47.554 Df ahakeyconfig-agent[9292:4fce8a] [com.apple.securityd:keychain] Enabling System Keychain Always due to platform
+2026-09-02 20:04:47.554 Df ahakeyconfig-agent[9292:4fce8a] [com.apple.xpc:connection] [0x85f4cc500] activating connection: mach=true listener=false peer=false name=com.apple.trustd.agent
+2026-09-02 20:04:47.554 Df ahakeyconfig-agent[9292:4fce80] [com.apple.CoreAnalytics:client] Received configuration update from daemon (initial)
+2026-09-02 20:04:47.555 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecTrustSettingsXPCRead
+2026-09-02 20:04:47.555 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecKeychainAddCallback
+2026-09-02 20:04:47.557 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecTrustSettingsXPCRead
+2026-09-02 20:04:47.560 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecKeyVerifySignature
+2026-09-02 20:04:47.561 A  ahakeyconfig-agent[9292:4fce8a] (Security) SecTrustEvaluateIfNecessary
+2026-09-02 20:04:47.562 Df ahakeyconfig-agent[9292:4fce8a] [com.apple.xpc:connection] [0x85f4cc640] activating connection: mach=false listener=false peer=false name=com.apple.CodeSigningHelper
+2026-09-02 20:04:47.565 Df ahakeyconfig-agent[9292:4fce8a] [com.apple.xpc:connection] [0x85f4cc640] invalidated after the last release of the connection object
+2026-09-02 20:04:47.569 Df ahakeyconfig-agent[9292:4fce8a] [com.apple.xpc:connection] [0x85e968000] invalidated because the client process (pid 9328) either cancelled the connection or exited
+2026-09-02 20:04:47.634 A  ahakeyconfig-agent[9352:4fcf1c] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:47.634 A  ahakeyconfig-agent[9351:4fcf1b] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:47.639 E  ahakeyconfig-agent[9292:4fce83] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:04:47.639 E  ahakeyconfig-agent[9292:4fce83] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:04:47.641 E  ahakeyconfig-agent[9292:4fce83] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:04:47.641 E  ahakeyconfig-agent[9292:4fce83] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:04:57.833 A  ahakeyconfig-agent[9390:4fd0e3] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:57.833 A  ahakeyconfig-agent[9392:4fd0e4] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:57.835 Df ahakeyconfig-agent[9390:4fd0e3] [com.apple.xpc:connection] [0x104c8df50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:57.835 Df ahakeyconfig-agent[9392:4fd0e4] [com.apple.xpc:connection] [0x103929fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:57.835 Df ahakeyconfig-agent[9390:4fd0e8] [com.apple.xpc:connection] [0x104c8e6f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:57.835 Df ahakeyconfig-agent[9392:4fd0e7] [com.apple.xpc:connection] [0x10392a770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:57.840 A  ahakeyconfig-agent[9392:4fd0e4] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:57.842 A  ahakeyconfig-agent[9390:4fd0e3] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:57.864 A  ahakeyconfig-agent[9395:4fd0ee] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:57.864 A  ahakeyconfig-agent[9396:4fd0f9] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:57.883 A  ahakeyconfig-agent[9398:4fd0fd] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:57.883 A  ahakeyconfig-agent[9397:4fd0fc] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:59.148 A  ahakeyconfig-agent[9401:4fd10b] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:59.150 Df ahakeyconfig-agent[9401:4fd10b] [com.apple.xpc:connection] [0x1014ee050] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:04:59.150 Df ahakeyconfig-agent[9401:4fd10d] [com.apple.xpc:connection] [0x1014ee7f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:04:59.153 A  ahakeyconfig-agent[9401:4fd10b] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:04:59.245 A  ahakeyconfig-agent[9426:4fd13a] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:04:59.245 A  ahakeyconfig-agent[9425:4fd139] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.011 A  ahakeyconfig-agent[9430:4fd172] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.012 Df ahakeyconfig-agent[9430:4fd172] [com.apple.xpc:connection] [0x1050c5f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:02.012 Df ahakeyconfig-agent[9430:4fd174] [com.apple.xpc:connection] [0x1050c66f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:02.015 A  ahakeyconfig-agent[9430:4fd172] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:02.032 A  ahakeyconfig-agent[9432:4fd179] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.033 Df ahakeyconfig-agent[9432:4fd179] [com.apple.xpc:connection] [0x100d05f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:02.033 Df ahakeyconfig-agent[9432:4fd17b] [com.apple.xpc:connection] [0x100d066f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:02.036 A  ahakeyconfig-agent[9432:4fd179] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:02.202 A  ahakeyconfig-agent[9436:4fd183] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.202 A  ahakeyconfig-agent[9435:4fd182] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.243 A  ahakeyconfig-agent[9438:4fd196] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.243 A  ahakeyconfig-agent[9440:4fd194] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.243 A  ahakeyconfig-agent[9439:4fd195] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.323 A  ahakeyconfig-agent[9451:4fd1bb] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.358 A  ahakeyconfig-agent[9454:4fd1c6] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:02.670 A  ahakeyconfig-agent[9486:4fd206] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:06.727 A  ahakeyconfig-agent[9491:4fd238] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:06.729 Df ahakeyconfig-agent[9491:4fd238] [com.apple.xpc:connection] [0x105ac5ed0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:06.729 Df ahakeyconfig-agent[9491:4fd23a] [com.apple.xpc:connection] [0x105ac6670] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:06.732 A  ahakeyconfig-agent[9491:4fd238] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:06.809 A  ahakeyconfig-agent[9493:4fd23c] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:06.824 A  ahakeyconfig-agent[9493:4fd23e] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:06.826 Df ahakeyconfig-agent[9493:4fd23e] [com.apple.xpc:connection] [0x105bd9f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:06.826 Df ahakeyconfig-agent[9493:4fd240] [com.apple.xpc:connection] [0x105bda6f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:06.829 A  ahakeyconfig-agent[9493:4fd23e] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:07.023 A  ahakeyconfig-agent[9495:4fd245] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:07.023 A  ahakeyconfig-agent[9496:4fd244] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:07.568 A  ahakeyconfig-agent[9497:4fd24f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:07.570 Df ahakeyconfig-agent[9497:4fd24f] [com.apple.xpc:connection] [0x1035b9fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:07.570 Df ahakeyconfig-agent[9497:4fd250] [com.apple.xpc:connection] [0x1035ba770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:07.573 A  ahakeyconfig-agent[9497:4fd24f] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:07.757 A  ahakeyconfig-agent[9500:4fd259] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:07.759 A  ahakeyconfig-agent[9499:4fd258] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:14.673 A  ahakeyconfig-agent[9524:4fd2e5] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:14.764 A  ahakeyconfig-agent[9532:4fd301] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:14.765 Df ahakeyconfig-agent[9532:4fd301] [com.apple.xpc:connection] [0x1034f5fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:14.765 Df ahakeyconfig-agent[9532:4fd306] [com.apple.xpc:connection] [0x1034f6770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:14.767 A  ahakeyconfig-agent[9531:4fd305] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:14.768 A  ahakeyconfig-agent[9532:4fd301] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:14.794 A  ahakeyconfig-agent[9536:4fd316] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:14.794 A  ahakeyconfig-agent[9537:4fd317] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:15.286 A  ahakeyconfig-agent[9538:4fd31f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:15.289 Df ahakeyconfig-agent[9538:4fd31f] [com.apple.xpc:connection] [0x1034adfd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:15.289 Df ahakeyconfig-agent[9538:4fd321] [com.apple.xpc:connection] [0x1034ae770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:15.293 A  ahakeyconfig-agent[9538:4fd31f] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:15.311 A  ahakeyconfig-agent[9542:4fd331] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:15.314 Df ahakeyconfig-agent[9542:4fd331] [com.apple.xpc:connection] [0x10112a050] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:15.314 Df ahakeyconfig-agent[9542:4fd335] [com.apple.xpc:connection] [0x10112a7f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:15.317 A  ahakeyconfig-agent[9542:4fd331] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:15.322 A  ahakeyconfig-agent[9544:4fd338] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:15.322 A  ahakeyconfig-agent[9543:4fd337] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:15.398 A  ahakeyconfig-agent[9568:4fd366] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:15.398 A  ahakeyconfig-agent[9570:4fd367] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:21.436 A  ahakeyconfig-agent[9576:4fd3c2] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:21.437 Df ahakeyconfig-agent[9576:4fd3c2] [com.apple.xpc:connection] [0x102e31f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:21.438 Df ahakeyconfig-agent[9576:4fd3c3] [com.apple.xpc:connection] [0x102e326f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:21.440 A  ahakeyconfig-agent[9576:4fd3c2] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:21.457 A  ahakeyconfig-agent[9578:4fd3c7] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:21.457 A  ahakeyconfig-agent[9579:4fd3c8] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:21.987 A  ahakeyconfig-agent[9580:4fd3cd] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:21.990 Df ahakeyconfig-agent[9580:4fd3cd] [com.apple.xpc:connection] [0x101575f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:21.990 Df ahakeyconfig-agent[9580:4fd3cf] [com.apple.xpc:connection] [0x1015766f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:21.993 A  ahakeyconfig-agent[9580:4fd3cd] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:22.016 A  ahakeyconfig-agent[9582:4fd3d3] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:22.016 A  ahakeyconfig-agent[9583:4fd3d4] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:22.331 A  ahakeyconfig-agent[9584:4fd3d9] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:22.333 Df ahakeyconfig-agent[9584:4fd3d9] [com.apple.xpc:connection] [0x100f81fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:22.333 Df ahakeyconfig-agent[9584:4fd3da] [com.apple.xpc:connection] [0x100f82770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:22.337 A  ahakeyconfig-agent[9584:4fd3d9] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:22.367 A  ahakeyconfig-agent[9587:4fd3ea] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:22.367 A  ahakeyconfig-agent[9588:4fd3eb] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.420 A  ahakeyconfig-agent[9594:4fd471] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.423 Df ahakeyconfig-agent[9594:4fd471] [com.apple.xpc:connection] [0x104ca27d0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:25.423 Df ahakeyconfig-agent[9594:4fd473] [com.apple.xpc:connection] [0x104ca2f70] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:25.428 A  ahakeyconfig-agent[9594:4fd471] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:25.506 A  ahakeyconfig-agent[9605:4fd48a] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.507 A  ahakeyconfig-agent[9603:4fd48c] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.508 Df ahakeyconfig-agent[9603:4fd48c] [com.apple.xpc:connection] [0x10120dfd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:25.508 Df ahakeyconfig-agent[9605:4fd48a] [com.apple.xpc:connection] [0x100f75f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:25.508 Df ahakeyconfig-agent[9603:4fd48d] [com.apple.xpc:connection] [0x10120e770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:25.508 Df ahakeyconfig-agent[9605:4fd48e] [com.apple.xpc:connection] [0x100f766f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:25.511 A  ahakeyconfig-agent[9603:4fd48c] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:25.512 A  ahakeyconfig-agent[9605:4fd48a] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:25.529 A  ahakeyconfig-agent[9607:4fd49a] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.529 A  ahakeyconfig-agent[9608:4fd49b] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.581 A  ahakeyconfig-agent[9610:4fd4a7] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.581 A  ahakeyconfig-agent[9611:4fd4a8] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.595 A  ahakeyconfig-agent[9612:4fd4aa] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.596 Df ahakeyconfig-agent[9612:4fd4aa] [com.apple.xpc:connection] [0x101375f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:25.597 Df ahakeyconfig-agent[9612:4fd4ad] [com.apple.xpc:connection] [0x1013766f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:25.599 A  ahakeyconfig-agent[9612:4fd4aa] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:25.618 A  ahakeyconfig-agent[9614:4fd4b2] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.618 A  ahakeyconfig-agent[9615:4fd4b3] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:25.802 A  ahakeyconfig-agent[9616:4fd4c1] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:26.000 A  ahakeyconfig-agent[9630:4fd52f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:27.081 A  ahakeyconfig-agent[9663:4fd5a9] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:27.081 A  ahakeyconfig-agent[9662:4fd5a8] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:27.092 A  ahakeyconfig-agent[9663:4fd5ab] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:27.092 A  ahakeyconfig-agent[9662:4fd5ac] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:38.208 A  ahakeyconfig-agent[9686:4fd626] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:38.210 Df ahakeyconfig-agent[9686:4fd626] [com.apple.xpc:connection] [0x10152e1d0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:38.210 Df ahakeyconfig-agent[9686:4fd628] [com.apple.xpc:connection] [0x10152e4d0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:38.213 A  ahakeyconfig-agent[9686:4fd626] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:38.457 A  ahakeyconfig-agent[9718:4fd6cc] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:38.457 A  ahakeyconfig-agent[9717:4fd6cb] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.777 A  ahakeyconfig-agent[9720:4fd6e5] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.778 A  ahakeyconfig-agent[9723:4fd6e8] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.786 A  ahakeyconfig-agent[9720:4fd6eb] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.786 A  ahakeyconfig-agent[9722:4fd6ec] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.788 Df ahakeyconfig-agent[9720:4fd6eb] [com.apple.xpc:connection] [0x103de1fd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:39.788 Df ahakeyconfig-agent[9722:4fd6ec] [com.apple.xpc:connection] [0x1058d5f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:39.788 Df ahakeyconfig-agent[9720:4fd6ee] [com.apple.xpc:connection] [0x103de2770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:39.788 Df ahakeyconfig-agent[9722:4fd6ef] [com.apple.xpc:connection] [0x1058d66f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:39.791 A  ahakeyconfig-agent[9722:4fd6ec] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:39.793 A  ahakeyconfig-agent[9720:4fd6eb] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:39.811 A  ahakeyconfig-agent[9725:4fd6f5] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.811 A  ahakeyconfig-agent[9726:4fd6f6] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.814 A  ahakeyconfig-agent[9728:4fd6f8] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.823 A  ahakeyconfig-agent[9727:4fd6f9] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:39.823 A  ahakeyconfig-agent[9728:4fd6fa] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:40.018 A  ahakeyconfig-agent[9729:4fd6ff] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:40.020 Df ahakeyconfig-agent[9729:4fd6ff] [com.apple.xpc:connection] [0x10195dfd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:40.020 Df ahakeyconfig-agent[9729:4fd700] [com.apple.xpc:connection] [0x10195e770] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:40.023 A  ahakeyconfig-agent[9729:4fd6ff] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:40.051 A  ahakeyconfig-agent[9733:4fd711] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:40.051 A  ahakeyconfig-agent[9732:4fd710] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:46.760 A  ahakeyconfig-agent[9743:4fd78d] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:46.762 Df ahakeyconfig-agent[9743:4fd78d] [com.apple.xpc:connection] [0x100e320d0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:05:46.762 Df ahakeyconfig-agent[9743:4fd78f] [com.apple.xpc:connection] [0x100e32870] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:05:46.766 A  ahakeyconfig-agent[9743:4fd78d] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:05:48.427 A  ahakeyconfig-agent[9772:4fd7cf] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:48.427 A  ahakeyconfig-agent[9771:4fd7d0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:51.708 A  ahakeyconfig-agent[9782:4fd846] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:05:57.165 A  ahakeyconfig-agent[9827:4fd901] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:09.579 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:09.579 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:09.581 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:09.581 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:11.722 A  ahakeyconfig-agent[9844:4fd9a3] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:11.723 Df ahakeyconfig-agent[9844:4fd9a3] [com.apple.xpc:connection] [0x1009d5ed0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:06:11.723 Df ahakeyconfig-agent[9844:4fd9a7] [com.apple.xpc:connection] [0x1009d6670] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:06:11.726 A  ahakeyconfig-agent[9844:4fd9a3] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:06:14.805 A  ahakeyconfig-agent[9851:4fd9d7] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:14.807 Df ahakeyconfig-agent[9851:4fd9d7] [com.apple.xpc:connection] [0x10184f7d0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:06:14.807 Df ahakeyconfig-agent[9851:4fd9da] [com.apple.xpc:connection] [0x10184ff70] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:06:14.810 A  ahakeyconfig-agent[9851:4fd9d7] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:06:14.839 A  ahakeyconfig-agent[9855:4fd9e1] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:14.839 A  ahakeyconfig-agent[9854:4fd9e0] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:14.847 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:14.847 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:14.849 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:14.849 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:20.348 A  ahakeyconfig-agent[9878:4fda8a] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:20.350 Df ahakeyconfig-agent[9878:4fda8a] [com.apple.xpc:connection] [0x1012a1ed0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:06:20.350 Df ahakeyconfig-agent[9878:4fda8c] [com.apple.xpc:connection] [0x1012a2670] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:06:20.352 A  ahakeyconfig-agent[9878:4fda8a] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:06:22.614 A  ahakeyconfig-agent[9939:4fdc10] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:22.617 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:22.618 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:22.623 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:22.623 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:26.788 A  ahakeyconfig-agent[10004:4fde4f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:26.791 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:26.791 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:26.793 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:26.793 E  ahakeyconfig-agent[9292:4fce8a] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:26.971 A  ahakeyconfig-agent[10016:4fde73] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:31.685 A  ahakeyconfig-agent[10087:4fe0e6] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:31.690 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:31.690 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:31.693 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:31.693 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:37.340 A  ahakeyconfig-agent[10170:4fe3f9] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:37.346 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:37.346 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:37.350 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:37.350 E  ahakeyconfig-agent[9292:4fce8b] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:37.745 A  ahakeyconfig-agent[10180:4fe433] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.402 A  ahakeyconfig-agent[10208:4fe510] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.402 A  ahakeyconfig-agent[10210:4fe512] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.404 Df ahakeyconfig-agent[10208:4fe510] [com.apple.xpc:connection] [0x101589f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:06:39.405 Df ahakeyconfig-agent[10208:4fe514] [com.apple.xpc:connection] [0x10158a6f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:06:39.406 Df ahakeyconfig-agent[10210:4fe512] [com.apple.xpc:connection] [0x1030b1f50] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:06:39.406 Df ahakeyconfig-agent[10210:4fe516] [com.apple.xpc:connection] [0x1030b26f0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:06:39.410 A  ahakeyconfig-agent[10208:4fe510] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:06:39.411 A  ahakeyconfig-agent[10210:4fe512] (libsystem_info.dylib) Retrieve Group by ID
+2026-09-02 20:06:39.419 A  ahakeyconfig-agent[10213:4fe51a] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.419 A  ahakeyconfig-agent[10214:4fe51b] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.420 A  ahakeyconfig-agent[10215:4fe51c] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.428 A  ahakeyconfig-agent[10213:4fe51e] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.428 A  ahakeyconfig-agent[10215:4fe520] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.428 A  ahakeyconfig-agent[10214:4fe51f] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.428 A  ahakeyconfig-agent[10212:4fe51d] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] exited due to SIGPIPE | sent by ahakeyconfig-agent[9292], ran for 114694ms
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] service state: exited
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] internal event: EXITED, code = 0
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] job state = exited
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501 [100022]:] service inactive: lab.jawa.ahakeyconfig.agent
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [9292]:] service state: not running
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent:] internal event: WILL_SPAWN, code = 0
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent:] service state: spawn scheduled
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent:] service state: spawning
+2026-09-02 20:06:39.989 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent:] launching: inefficient
+2026-09-02 20:06:39.991 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] xpcproxy spawned with pid 10220
+2026-09-02 20:06:39.991 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] internal event: SPAWNED, code = 0
+2026-09-02 20:06:39.991 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] service state: xpcproxy
+2026-09-02 20:06:39.991 Df launchd[1:4fe53b] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] internal event: SOURCE_ATTACH, code = 0
+2026-09-02 20:06:40.007 Df launchd[1:4fd812] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] service state: running
+2026-09-02 20:06:40.007 Df launchd[1:4fd812] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] internal event: INIT, code = 0
+2026-09-02 20:06:40.007 Df launchd[1:4fd812] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] job state = running
+2026-09-02 20:06:40.007 Df launchd[1:4fd812] [gui/501/lab.jawa.ahakeyconfig.agent [10220]:] Successfully spawned ahakeyconfig-agent[10220] because inefficient
+2026-09-02 20:06:40.020 A  ahakeyconfig-agent[10220:4fe565] (libsystem_info.dylib) Retrieve User by ID
+2026-09-02 20:06:40.025 Df ahakeyconfig-agent[10220:4fe565] [com.apple.xpc:connection] [0x1018f3dd0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-09-02 20:06:40.025 Df ahakeyconfig-agent[10220:4fe568] [com.apple.xpc:connection] [0x1018f44d0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-09-02 20:06:40.028 Df ahakeyconfig-agent[10220:4fe565] [com.apple.xpc:connection] [0x1018faa00] activating connection: mach=true listener=false peer=false name=com.apple.server.bluetooth.le.att.xpc
+2026-09-02 20:06:40.036 Df ahakeyconfig-agent[10220:4fe565] [com.apple.xpc:connection] [0xc094c4140] activating connection: mach=true listener=true peer=false name=lab.jawa.ahakeyconfig.runtime
+2026-09-02 20:06:40.036 Df ahakeyconfig-agent[10220:4fe565] [com.apple.bluetooth:CoreBluetooth] TCC available 1, req 1 complete 0
+2026-09-02 20:06:40.036 A  ahakeyconfig-agent[10220:4fe565] (TCC) TCCAccessRequest() IPC
+2026-09-02 20:06:40.036 Df ahakeyconfig-agent[10220:4fe568] [com.apple.xpc:connection] [0xc094c4000] activating connection: mach=true listener=false peer=false name=com.apple.tccd
+2026-09-02 20:06:40.036 Df ahakeyconfig-agent[10220:4fe565] [com.apple.xpc:connection] [0xc094c4280] activating connection: mach=true listener=false peer=false name=com.apple.coreservices.launchservicesd
+2026-09-02 20:06:40.037 Df ahakeyconfig-agent[10220:4fe565] [com.apple.xpc:connection] [0xc094c43c0] activating connection: mach=false listener=true peer=false name=(anonymous)
+2026-09-02 20:06:40.037 Df ahakeyconfig-agent[10220:4fe565] [com.apple.xpc:connection] [0xc094c43c0] Connection returned listener port: 0x3803
+2026-09-02 20:06:40.037 Df ahakeyconfig-agent[10220:4fe568] [com.apple.xpc:connection] [0x101909fa0] activating connection: mach=false listener=false peer=true name=com.apple.xpc.anonymous.0xc094c43c0.peer[392].0x101909fa0
+2026-09-02 20:06:40.037 Df ahakeyconfig-agent[10220:4fe565] [com.apple.xpc:connection] [0xc094c43c0] Connection returned listener port: 0x3803
+2026-09-02 20:06:40.059 E  ahakeyconfig-agent[10220:4fe56c] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:40.060 E  ahakeyconfig-agent[10220:4fe56c] [lab.jawa.ahakeyconfig:PowerProtection] Failed to activate <private>: <private>
+2026-09-02 20:06:40.065 Df ahakeyconfig-agent[10220:4fe56c] [com.apple.xpc:connection] [0xc094c4000] invalidated after the last release of the connection object
+2026-09-02 20:06:40.086 A  ahakeyconfig-agent[10220:4fe565] (TCC) TCCAccessRequest() IPC
+2026-09-02 20:06:40.156 A  ahakeyconfig-agent[10220:4fe568] (libsystem_info.dylib) Membership API: translate identifier
+2026-09-02 20:06:40.209 Df ahakeyconfig-agent[10220:4fe565] (Foundation) Using your own bundle identifier as an NSUserDefaults suite name does not make sense and will not work. Break on _NSUserDefaults_Log_Nonsensical_Suites to find this

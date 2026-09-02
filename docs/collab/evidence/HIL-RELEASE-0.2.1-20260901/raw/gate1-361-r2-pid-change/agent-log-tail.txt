@@ -1,0 +1,80 @@
+[2026-09-02T12:06:37Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:37Z] → LED 状态 3: AA BB 90 03 CC DD
+[2026-09-02T12:06:37Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:37Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:37Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:37Z] ← status battery=3 light=1 switch=1
+[2026-09-02T12:06:37Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:37Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:37Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:37Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:38Z] ← status battery=3 light=5 switch=1
+[2026-09-02T12:06:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:39Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:39Z] → LED 状态 2:2026-09-02 20:06:40.211 ahakeyconfig-agent[10220:5236069] Using your own bundle identifier as an NSUserDefaults suite name does not make sense and will not work. Break on _NSUserDefaults_Log_Nonsensical_Suites to find this
+[2026-09-02T12:06:40Z] 监听 Unix socket: /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+[2026-09-02T12:06:40Z] 监听 Hook socket: /Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock
+[2026-09-02T12:06:40Z] 监听 XPC service: lab.jawa.ahakeyconfig.runtime
+[2026-09-02T12:06:40Z] 蓝牙就绪
+[2026-09-02T12:06:40Z] 系统已连接: AhaKey X1
+[2026-09-02T12:06:40Z] 已连接: AhaKey X1
+[2026-09-02T12:06:40Z] 数据通道就绪
+[2026-09-02T12:06:40Z] 命令通道就绪
+[2026-09-02T12:06:40Z] 通知通道已订阅
+[2026-09-02T12:06:40Z] → 0x99 能力查询（第 1 次）
+[2026-09-02T12:06:40Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:40Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 1C 01 24 01 CC DD
+[2026-09-02T12:06:40Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-09-02T12:06:40Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-02T12:06:40Z] current 协议协商完成，开始状态轮询
+[2026-09-02T12:06:40Z] ← 2A25 序列号 Serial Number 非编号格式，启用 UUID 兜底身份
+[2026-09-02T12:06:40Z] 无广播编号/有效序列号：使用 UUID 兜底身份 4F3E
+[2026-09-02T12:06:40Z] current 协议协商完成，开始状态轮询
+[2026-09-02T12:06:40Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:40Z] ← status battery=3 light=5 switch=1
+[2026-09-02T12:06:40Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:41Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:42Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:42Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:42Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:42Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:42Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:43Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:43Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:43Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:43Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:43Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:43Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:43Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:43Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:43Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:43Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:43Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:43Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:43Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:43Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:44Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:45Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:48Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:49Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:49Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:49Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:49Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:49Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:49Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:50Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:51Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:53Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:54Z] → LED 状态 3: AA BB 90 03 CC DD
+[2026-09-02T12:06:54Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:54Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:54Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:06:54Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:54Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:06:54Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:06:56Z] ← LED/OLED 状态 BLE 写入已�

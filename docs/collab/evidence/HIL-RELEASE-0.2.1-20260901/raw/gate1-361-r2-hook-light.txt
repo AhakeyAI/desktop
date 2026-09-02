@@ -1,0 +1,24 @@
+Gate-1 R1 retest Studio-closed real Cursor hook event
+pid_target=9292
+studio=ABSENT
+write_ok=1 20:05
+strreplace_ok=1 20:05
+
+post_real_write 2026-09-02 20:05:25.894936
+pid=9292 runs=1 studio=ABSENT
+status {"switchState":1,"lightMode":5}
+----- recent firmware/LED -----
+[2026-09-02T12:05:15Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:05:15Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:05:15Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:05:15Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:05:15Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:05:15Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:05:15Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:05:15Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:05:15Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T12:05:15Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T12:05:15Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T12:05:15Z] → LED 状态 2: AA BB 90 02 CC DD
+----- crash reports baseline -----
+['ahakeyconfig-agent-2026-08-28-133218.ips', 'ahakeyconfig-agent-2026-08-28-133219.ips', 'ahakeyconfig-agent-2026-08-28-135119.ips']
