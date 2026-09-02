@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B3R1`（Zcode；B3 入口/六格表方向保留，仅补 T8/T9/T25 生产组合与真 oracle；B4 冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B3R2`（Zcode；T8 生产与 T25 组合已收口，仅补 T9 payload→RAM 真组合；B4 冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1418,3 +1418,30 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 既有 T12/T14/T15/T17–T22/T13a/b 零写与收敛不得回退。`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手，不自动进 B4。
 - 禁止刷机、HIL、push，不修改客户端仓业务代码。
 - 需要回复：是（@Zcode ACK 后仅执行 B3R1）
+
+### [2026-09-02 12:10] Codex 复验 implementation B3R1：退最小 B3R2，B4 不开
+
+- 固定审查固件仓 `b4f94d96aaecf190345d6e474e1cd0f31df5467b...27a8d909962bfabe9377a18dfe119c2ad6040890`，`lastReviewedCommit=27a8d909962bfabe9377a18dfe119c2ad6040890`，Harness `H=4ae451e…a771d4c`，Evidence `E=66ac178`（wbs15）+ `27a8d90`（wbs14）。固件树审查前 clean、单 worktree、`git diff --check b4f94d9...HEAD` 通过。范围落在 `main.c` / `factory_assets.c` / `factory_assets.h` / `test_factory_recovery.c` / abi-pins / 两条证据文档；`factory_assets_core.c`、`ch_flash.c`/`persist_verify.c/h`、B1 ABI、`key_bund_layout.h`、B2 `key_bund_tx_core`/0x95/0x97、B4 对 `b4f94d9` 零 diff。无公开 plan struct。Codex 独立编译并跑 `test_factory_recovery`：**65/65 passed**。门禁全绿不等于 B3R1 可验收。
+
+**已落地、B3R2 不得回退**
+
+- T8 生产：CRC-miss → `init_default_key_bund()` + `factory_assets_invalidate_trigger()` 写 ERASED；下一次 `factory_core_recover_and_apply` 分类 ERASED，走 T16-class opposite-bank `PREP → trigger → COMMIT`（journal mask 作 seed），不再可能 T12 热应用。wipe 失败 `boot_recovery_fatal`，不启动 `MCT_PIC_DISPLAY`。
+- T8 宿主：settled DONE×ACTIVE + 损坏 blob 被生产 CRC 门拒绝 + 种植 ERASED + `recover(0)`；`header_bank==1`（T12 会留在 bank 0）、journal seed 保留、`J<T<J` 相位次序。
+- T25：`io_reset_active_set` 清零共享 `active_sets[]`。override-first 后 recover 把 1,0,1,0 打成全 0；recovery-then-LAST 写回 1,0,1,0。两序终态可区分，禁止硬编码 0。
+- 文件作用域 `boot_recovery_fatal` 跨 `sub_main_1`/`sub_main` 交接；core 六格表未改。
+
+**Standards 轴**
+
+- 0 P1。既有 P2 文件作用域 boot 交接仍在，并多了 `boot_recovery_fatal`；B3R2 不强制改架构。
+
+**Spec 轴**
+
+- **P1：T9 仍不是「journaled raw 无损失」。** B3R1 完成定义：有效 CRC blob 的 **payload 字节进入 RAM 副本**且不被 default install 清掉。现宿主种了 `blob[i]=i*7+3` 特征内容，但从未断言这些字节；CRC 门只证明覆盖区敏感。随后把同一 blob 的 intent 改成 0x4 并重算 CRC，再 `arrange_settled(0x4)+recover(0x2)` → mask `0x6`。这是 T13 mask-change；`recover(0x2)` 是改完 blob 之后的字面常量，不是从已加载 RAM 副本流出。没有 `EEPROM_READ`/sanitize 后的 RAM 镜像，杀不死 default install 清掉 payload。
+
+**B3R2 白名单与完成定义**
+
+- 允许：`tools/wbs15/test_factory_recovery.c` 的 T9 真组合；仅当需要把 blob 载入 RAM 的测试夹具/helpers。禁止再改 core 六格表、T8 生产 invalidate 接线、T25 共享数组 oracle。禁止改 `ch_flash.c`、`persist_verify.c/h`、B1 ABI、B2 0x95/0x97、B4。不得公开 plan struct。
+- T9 必须：CRC-valid blob 的特征 payload 字节出现在 RAM 副本（与 `main.c` 的 `EEPROM_READ`+sanitize 同形）；断言这些字节在 recover 前后仍在，且路径**没有** `init_default_key_bund`；流入 recover 的 intent 必须从该 RAM 副本的 blob tail 读出，禁止再写 `recover(0x2)` 字面量凑出 0x6。T8/T25 既有断言不得回退。
+- `build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手，不自动进 B4。
+- 禁止刷机、HIL、push，不修改客户端仓业务代码。
+- 需要回复：是（@Zcode ACK 后仅执行 B3R2）
