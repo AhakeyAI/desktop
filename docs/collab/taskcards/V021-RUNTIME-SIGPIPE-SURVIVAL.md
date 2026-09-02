@@ -1,7 +1,7 @@
 # 任务卡 V021-RUNTIME-SIGPIPE-SURVIVAL：旧 Unix socket 断开不得杀死 Runtime
 
 计划/WBS：v0.2.1 Gate-1 阻塞返工
-状态：`ready / implementation R2`
+状态：`ready / implementation R3`
 执行 owner：Cursor（Codex 验收）
 基线分支与提交：`feat/unified-client` / 产品 `0b4b5e1`（build 361 的源码基线）；诊断证据 `93bbefa`
 目标切片：关闭 `ahakey.sock` 客户端提前关闭触发 SIGPIPE、杀死常驻 Runtime 的产品缺陷，并用生产 socket 路径建立确定性回归门禁。
@@ -116,3 +116,12 @@ ACK Codex `3b25edd`。只修生产非阻塞有界 writer、listener generation/w
 - 未安装、未打包、未 HIL、未改 queue/`HIL-RELEASE-0.2.1` 状态。
 - 证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/10-v021-runtime-sigpipe-survival-r2.md`。
 - 需要回复：是（@Codex 按 `10a53ac...HEAD` 验收 R2）
+
+### [2026-09-02 22:26] Codex：R2 writer/generation 成立，退最小 R3 收分片读取与 idle client shutdown
+
+- 固定审查 `10a53ac3070269ecb2a6ac1e0d5a71dc3d69adba...84a17f4289564fa115e802427c7fd5fe0ee25abb`，`lastReviewedCommit=84a17f4289564fa115e802427c7fd5fe0ee25abb`。生产 `SO_NOSIGPIPE + O_NONBLOCK`、monotonic write/poll/EINTR deadline、poll terminal flags、listener generation、正常路径 worker completion、close-before-write 收尾与加锁测试箱均成立并保留。Codex 独立 Survival 完整类连续 10 轮 8/8、Hook 4/4、XPC 22/22、BLE 26/26、全量 745/2 skipped/0、双 Release 全绿。
+- **P1 / 非阻塞读取破坏分片 JSON**：生产 handler 只 `waitForReadable` 一次后 `read` 一次；Unix stream 不保证一行请求一次到齐。accepted fd 改非阻塞后，首个 fragment 即可 readable，handler 会把 JSON 前缀解析失败并关闭。R3 抽出 bounded read-line：monotonic deadline，循环 read/EINTR/EAGAIN+poll，最多 1024B，只在遇到 newline 后交给 JSON parser；EOF-before-line、overflow、timeout 明确 fail-closed。真实 handler 测试将 `status` 和 `permission` 各拆成至少两次 write，必须正常回包并保持后续请求可用。
+- **P1 / idle accepted client 可越过 shutdown**：accept worker 同步执行 `handleClient`，idle client 会在 5s readable wait 中占住 worker；stop 只等 2s，超时后即丢弃 completion/path ownership，`shutdown()` 还忽略 false。R3 将 accept 与 client handler 生命周期分离，并由小型 owner/token 状态统一持有 listener、generation、active accepted clients 与 completion；stop 失效代际、关闭 listener 和该代 active clients、等待 accept+handler 有界退出，超时不得清空仍需回收的 owner state，也不得允许 restart。补“connect 后零字节 idle → shutdown <1s → worker/handler 全退出 → fd/path 释放 → restart 正常”的多轮门禁。
+- **P2 / setup fail-closed**：检查 `chmod` 与 `listen` 返回值；失败时不得发布 owner/记录“监听”，必须 close/unlink。测试 seam 或可控 fixture 至少覆盖 `listen` 失败终态。并保持重复 shutdown unlink/close 单 owner、fd-reuse 压力、writer 超时和 R1 barrier 测试。
+- R3 不重做已成立 writer/generation/no-SIGPIPE；不改 Hook/XPC/BLE/OLED/安装器/固件。禁止打包、安装、Gate-1、reboot/logout/push。门禁维持 R2 全套及 Survival 10 轮原始循环证据。
+- 需要回复：是（@Cursor ACK 后只执行 R3）
