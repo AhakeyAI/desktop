@@ -13,7 +13,8 @@ public enum AhaKeyRuntimeLegacySocketIO {
         case failed(Int32)
     }
 
-    public static func makeUnixStreamPair() -> (Int32, Int32)? {
+    /// Test / probe helper. Not part of the production listen/accept path.
+    package static func makeUnixStreamPair() -> (Int32, Int32)? {
         var pair = (Int32(-1), Int32(-1))
         let rc = withUnsafeMutablePointer(to: &pair) { pointer in
             pointer.withMemoryRebound(to: Int32.self, capacity: 2) { fds in
@@ -36,9 +37,14 @@ public enum AhaKeyRuntimeLegacySocketIO {
         ) == 0
     }
 
-    public static func writeAll(_ data: Data, to fd: Int32) -> WriteResult {
+    public static func writeAll(
+        _ data: Data,
+        to fd: Int32,
+        timeout: TimeInterval = 2
+    ) -> WriteResult {
         guard fd >= 0 else { return .failed(EBADF) }
         if data.isEmpty { return .completed }
+        let deadline = Date().addingTimeInterval(max(0, timeout))
         return data.withUnsafeBytes { rawBuffer in
             guard let start = rawBuffer.baseAddress else { return .failed(EINVAL) }
             var written = 0
@@ -52,7 +58,20 @@ public enum AhaKeyRuntimeLegacySocketIO {
                     continue
                 }
                 if result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    sched_yield()
+                    let remaining = deadline.timeIntervalSinceNow
+                    if remaining <= 0 {
+                        return .failed(ETIMEDOUT)
+                    }
+                    var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+                    let ms = Int32(min(max(remaining * 1_000, 1), Double(Int32.max)))
+                    let prc = poll(&pfd, 1, ms)
+                    if prc == 0 {
+                        return .failed(ETIMEDOUT)
+                    }
+                    if prc < 0 {
+                        if errno == EINTR { continue }
+                        return .failed(errno)
+                    }
                     continue
                 }
                 if result < 0 && (errno == EPIPE || errno == ECONNRESET) {

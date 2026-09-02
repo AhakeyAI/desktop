@@ -103,6 +103,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let serialNumberCharUUID = CBUUID(string: "2A25")
     private let deviceNamePrefix = "AhaKey"
     private let socketPath: String
+    private let legacySocketLock = NSLock()
+    private var legacyListenFD: Int32 = -1
+    /// Test-only reply-before-write barrier for `status` / `permission`. Production nil.
+    var legacyReplyBeforeWriteGate: AhaKeyRuntimeLegacyReplyGate?
 
     private let header: [UInt8] = [0xAA, 0xBB]
     private let trailer: [UInt8] = [0xCC, 0xDD]
@@ -336,6 +340,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     func shutdown() {
+        stopLegacySocketListener()
         hookServer?.stop()
         hookServer = nil
         processDetector.stop()
@@ -774,6 +779,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // socket 传输与命令分发保持原位，wire 协议逐字不变。
         // AI 集成模块已在 registerModules() 中注册，启停由 orchestrator 策略驱动。
 
+        stopLegacySocketListener()
+
         // 确保 socket 所在目录仅当前用户可访问
         do {
             try AhaKeyPaths.ensureApplicationSupportDirectory()
@@ -782,7 +789,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
 
-        // 清理旧 socket
         unlink(socketPath)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -802,25 +808,54 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 Darwin.bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return }
+        guard bindResult == 0 else { emit("bind() 失败: \(errno)"); Darwin.close(fd); return }
 
-        // 限制 socket 文件仅当前用户可读写
         chmod(socketPath, 0o600)
 
         listen(fd, 5)
+        legacySocketLock.lock()
+        legacyListenFD = fd
+        legacySocketLock.unlock()
         emit("监听 Unix socket: \(socketPath)")
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
+            let captured = fd
             while true {
-                let clientFd = accept(fd, nil, nil)
-                guard clientFd >= 0 else { continue }
+                guard let self else { return }
+                self.legacySocketLock.lock()
+                let current = self.legacyListenFD
+                self.legacySocketLock.unlock()
+                guard current == captured, captured >= 0 else { return }
+                let clientFd = accept(captured, nil, nil)
+                if clientFd < 0 {
+                    if errno == EINTR { continue }
+                    return
+                }
                 guard AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(clientFd) else {
                     Darwin.close(clientFd)
                     continue
                 }
-                self?.handleClient(clientFd)
+                self.handleClient(clientFd)
             }
         }
+    }
+
+    private func stopLegacySocketListener() {
+        legacySocketLock.lock()
+        var fd = legacyListenFD
+        legacyListenFD = -1
+        legacySocketLock.unlock()
+        if fd >= 0 {
+            Darwin.shutdown(fd, SHUT_RDWR)
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&fd)
+        }
+        unlink(socketPath)
+    }
+
+    var legacyListenFDForTesting: Int32 {
+        legacySocketLock.lock()
+        defer { legacySocketLock.unlock() }
+        return legacyListenFD
     }
 
     // MARK: - Hook Socket Server
@@ -1155,13 +1190,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 } else if body["switchState"] is NSNull {
                     self.emit(NSLocalizedString("（switchState 缺省：批准链可能仍交回手动；请确认 AhaKey Runtime 已连接键盘。）", comment: ""))
                 }
-                Self.replyAndClose(clientFd, body)
+                self.replyAfterLegacyHold(clientFd, body)
             }
 
         case "status":
             // 每次都请求真实 GPIO 状态，不能因旧缓存或虚拟模拟而返回过期档位。
             querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
+                self.replyAfterLegacyHold(
+                    clientFd,
+                    Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
+                )
             }
 
         case "approval_status":
@@ -1241,6 +1279,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         pendingStateResetTask = nil
         sendState(state)
         emit("自动回落灯态：\(reason)")
+    }
+
+    private func replyAfterLegacyHold(_ fd: Int32, _ dict: [String: Any]) {
+        if let gate = legacyReplyBeforeWriteGate {
+            DispatchQueue.global(qos: .utility).async {
+                gate.markAcceptedAndWaitForRelease()
+                Self.replyAndClose(fd, dict)
+            }
+            return
+        }
+        Self.replyAndClose(fd, dict)
     }
 
     private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {
