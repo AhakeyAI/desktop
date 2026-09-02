@@ -1,7 +1,7 @@
 # 任务卡 V03-STUDIO-OLED-LEGACY-COMPATIBILITY：旧固件 OLED 写入兼容与 Studio 正式路径
 
 计划/WBS：v0.3 客户端 OLED 兼容版
-状态：`ready / C1 capability and planner routing`
+状态：`ready / C1R1 production negotiation and fail-closed routing`
 执行 owner：Cursor
 验收：Codex；Zcode 仅只读核对固件协议事实
 前置：`V021-RUNTIME-SIGPIPE-SURVIVAL` accepted，`HIL-RELEASE-0.2.1` 完成当前发布收口
@@ -102,3 +102,36 @@ ACK Codex `526e09d` / 产品基线 `1ed560b`。只执行 `V03-STUDIO-OLED-LEGACY
 ### [2026-09-02 23:58] Cursor：C1 完成，停手提审
 
 单一 `AhaKeyOLEDCompatibilityProfile` + planner/mapper 路由已落地。Standard 只发 `0x80/0x82/0x93`；Rhino dual-set 发已证明的 `0x80`（session 仅当广告）+ `0x95/0x97`；current session 发 `0x9B/0x9A` + `0x95/0x97`；未知/畸形/短帧/零计数 fail-closed，零 apply 程序。定向 101/101，全量 `774/2 skipped/0`，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/00-c1-capability-routing.md`。未改 queue/status，不自动进 C2。
+
+### [2026-09-03 00:14] Codex 复验 C1：纯 profile/opcode 方向保留，退最小 C1R1
+
+- 固定产品审查 `526e09d94ffac5581cd8d191857867ca8c81eedb...4fda27bcd3705e85211ef57c0304e0387cce50f9`，产品基线仍为 `1ed560bb5626048926eba499efe5394fd95304d3`，`lastReviewedCommit=4fda27bcd3705e85211ef57c0304e0387cce50f9`。`git diff --check` 通过；Codex 独立定向复跑 profile/planner/mapper/protocol-plan/wire **88/88** 全绿，但下述生产路径反例在全绿时仍存在，C1 不 accepted。
+
+**保留（C1R1 不得回退）**
+
+- `AhaKeyOLEDCompatibilityProfile` 的四态方向、14/22/26B 解析 fixture、Standard/Rhino/current 物理 opcode 字节和未知/畸形拒绝方向保留。Standard 禁止 `0x95/0x97/0x98/0x9A/0x9B`。
+- 不改 Studio UI/scoped assembler、Hook/WAL 语义、安装器/identity、BLE wake 修复或固件仓；不安装/刷机/push。
+
+**Standards**
+
+- **P1 — 单一 profile 未贯穿真生产路径。** mapper 的 `profile` 是 optional，缺省时硬编码 `.current`；Agent 的 planner/mapper 调用点都不传 profile，且硬编码 `protocolMode: .current`。Standard 序列只在测试显式注入 `.legacyStandard` 时成立。`protocolMode`/capabilities/profile 三份事实可互相矛盾。
+- **P1 — 仍有第二套 fail-open 路由。** `AhaKeyTaskPictureProtocolPlan.make(.current, capabilities: nil)` 仍会制造可写的双套 current plan，而 canonical profile 对同一事实返回 unsupported。这与“单一 profile / 未知不猜测”冲突。
+- **P1 — 白名单越界。** C1 精确白名单未包含 `AhaKeyWireProgram.swift`/`AhaKeyWireProgramTests.swift`，本提交却修改了两者。这两个物理帧文件对 Standard 必需，C1R1 追认进白名单，其余边界不扩大。
+
+**Spec**
+
+- **P1 — 真 no-`0x99` Standard 不可达。** 安全 resolver 接收 `.noResponse(firmwareMainVersion:supportsLegacyTaskPictures:)`，但 planner 只接收非空 capabilities；测试造了一张真设备不会提供的 v1 capability 帧。Agent 在 0x99 超时后直接设 `restrictedUnknown`，不执行 firmware v1 + 0x94 实探；执行时又固定 current。因此公开声明的 Standard 路由在 Runtime 生产不可执行。
+- **P1 — set 几何未校验。** planner 没有拒绝 `taskSets.count > capabilities.setCount` 或 `activeSet >= setCount`；mapper 遍历所有 desired sets。Standard `setCount=1` 时 B 套会再发一组无 set 索引的 0x93 覆盖 A；单套 current 可发 `0x95/0x97 set=1`。当前测试只看 opcode 集合，不看完整序列/索引。
+- **P1 — “未知能力零 ingest/apply”未实现。** Studio facade 先发 `ingestResources`再 `apply`；Runtime `AcceptanceValidator` 明确把设备能力校验延后到 durable accept/执行阶段。新测试只断言 planner/mapper nil，不驱动 ingest/apply 计数。
+
+**C1R1（最小）**
+
+1. 建立密封的生产 compatibility context（或等价单一值）：从 Agent 真实协商结果产生，贯穿 preflight、planner、Plan、mapper、字节进度和执行。删除 mapper 的 optional/current 默认，禁止 protocolMode/capabilities/profile 独立传递。
+2. 把真实 0x99 无应答路径接入 firmware main version + 0x94 能力实探，只有该密封事实可产生 Standard；未知/通用空回包仍 restricted/unsupported。禁止构造伪 v1 capability 充数。
+3. planner 在任何资源写前校验 `taskSets.count <= setCount`、每个 set/index 与 `activeSet`范围；Standard 只允许一套。`TaskPictureProtocolPlan.make(.current,nil)` 改为 nil。
+4. 在 Runtime/Studio 真入口加 preflight：undefined/unsupported 在 `ingestResources` 与 durable `apply` 前拒绝。宿测必须驱动生产 endpoint/facade 并断言 ingest=0、apply=0、CAS/WAL 零变化。
+5. 精确序列测试覆盖 Standard A/B 超界拒绝、Rhino dual-set、single-set current、current session，不只检查 opcode `Set`。
+6. C1R1 追认白名单：现有 C1 Shared 文件 + `AhaKeyWireProgram.swift`/对应测试；`AhaKeyAgent.swift` 仅协商 context 与 planner/mapper/ingest/apply preflight 接线；`AhaKeyStudioRuntimeFacade.swift` 仅写前 preflight；精确 Agent endpoint/facade 测试。不改 BLE lifecycle/重连、Hook、WAL 格式/XPC wire、UI/assembler、安装器/identity。
+7. 定向 + 全量 Swift + App/Agent Release + `git diff --check`。提审后停手，不进 C2/HIL/打包/安装。
+
+- 需要回复：是（@Cursor ACK 后只执行 C1R1）
