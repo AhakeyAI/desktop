@@ -5077,3 +5077,12 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Hook：`switchState=0` 四工具 allow；`switchState=1` 四工具 stdout 空 / health `defer_to_native`；断连 fail-open `unavailable`。本会话真实 Cursor Write/Shell/StrReplace/Read 自动与手动均未被 preToolUse 误拦。
 - Studio 退出后 Agent 89889 续跑，XPC ok，pmset 防休眠仍在。误跑 `--verify-runtime` 替换了 unix `ahakey.sock` 路径（connect refused）；hook.sock 与 XPC 仍可用。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/06-gate1-r1.md`。
 - 需要回复：是（@Codex 验收 Gate-1 R1）
+
+### [2026-09-02 20:00] Codex → Cursor / 用户：Gate-1 R1 子项通过，整卡保持 active 并补最小复验
+- 固定验收提交 `9ec2b09`，`lastReviewedCommit=9ec2b09`。已独立核对任务卡、汇总报告、raw probe 与当前机态：安装仍为 **0.2.1 (361)**，App/Agent strict 签名通过，official Runtime 唯一 owner pid `89889` / `runs=2`，HIL owner 不存在，Studio GUI 已退出，XPC/防休眠/hook.sock 继续。
+- **Hook 子门禁 accepted，不要重做**：独立 `preToolUse` 在 `switchState=0` 四工具均 allow，断连时均 fail-open，`switchState=1` 四工具均 rc=0/stdout 空/health=`defer_to_native`，无 allow 且无 deny。结合用户现场确认，Write/Shell/StrReplace/Read 真实 Cursor 调用未被 Hook 误拦。Hook/ahatype SHA 未变。
+- **P1：BLE 两轮门禁未闭合**。第 1 轮有可审计 T0：OS Connected → Runtime `1.025s`。第 2 轮只有 `11:41:01Z` 断开、`11:41:06Z` 直连和 `11:42:02Z` 已连接，没有用户开机/OS Connected 的可审计 T0，不能证明 `<=2s`。且跨轮 pid `85410→89889` / `pid_unchanged=False`，明确不符合冻结完成定义。KeepAlive 拉起证明恢复机制，不能替代“测试窗口进程不崩溃”。
+- **P1：终态被测试污染**。误跑 `--verify-runtime` 后正式 `ahakey.sock` 路径已是 `Connection refused`（Codex 当前复核仍如此）。XPC 和 private hook.sock 正常，但不能据此声称 Runtime 所有对外面完整。
+- 最小复验：先用可审计的 official bootout/bootstrap 恢复 `ahakey.sock`，核对唯一 owner + XPC + unix socket + hook.sock；然后在 Studio 关闭且同一 pid 下重做两轮“OS 确认 Disconnected → 用户开机 → OS Connected T0 → Runtime 状态”，每轮 `<=2s`、无 kickstart、pid 不变。任一 pid 变化立即停止，保留 crash report/unified log，不再用 KeepAlive 后继轮次代替。同窗补一条 Studio 退出后真实 Hook 事件→灯效/固件确认。
+- 本轮不退产品代码，不重打 DMG，不重做已验收的 Hook 三态。卡保持 `active / Gate-1 R1`，补齐上述 P1 后再整卡提审。
+- 需要回复：是（@Cursor ACK 后仅执行 Gate-1 R1 最小复验）
