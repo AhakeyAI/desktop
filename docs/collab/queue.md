@@ -6,7 +6,7 @@
 
 本文件只定义正式任务卡的执行顺序、依赖和用户门禁。产品范围以 `docs/unified-firmware-runtime-implementation-plan.md` 为准；执行细节以对应任务卡为准。
 
-规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 active 卡是 `HIL-RELEASE-0.2.1` Gate-1 R1：仅安装 `0.2.1 (361)` / SHA `4662ce93…` 并验证 BLE 自动回收与 Cursor Hook 自动/手动/离线矩阵；Zcode 继续只写独立固件仓 WBS 1.5 B4（0x80/0x81）。V021 `88e02aa`、verifier `0b4b5e1` 与 Gate-0 R1 均经 Codex 最终确认。刷机、reboot/logout、push 和量产切换仍未开放。
+规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 ready 卡是 `V021-RUNTIME-SIGPIPE-SURVIVAL`；`HIL-RELEASE-0.2.1` 因 build 361 Runtime 被 SIGPIPE 终止而 blocked。Zcode 继续只写独立固件仓 WBS 1.5 B4R2（T30c wrap+超额；不回退 T29 oracle）。刷机、reboot/logout、push、覆盖安装和量产切换仍未开放。
 
 | 顺序 | 任务卡 | Owner | 覆盖 WBS | 当前状态 | 晋级条件 |
 |---:|---|---|---|---|---|
@@ -20,7 +20,7 @@
 | 4A | `HIL-RUNTIME-1-HOOK-SERVER` | Kimi；Cursor 验证 | §15.0-4 返工 | accepted | Codex 11:50：User 确认 11:38 bootout；listen+三态独立证据；`fa6c02e` |
 | 5 | `WBS-5.4-LIFECYCLE` | Kimi | 5.4 | accepted | Codex 17:02：HEAD `762863d`；独立 pmset Agent 64088 持断言；无 Studio UI；双 socket；定向 21 测通过 |
 | 6 | `WBS-0-RISK-CLOSURE` | Kimi | 0.2-0.7 | accepted | Codex 19:01：macOS 证据独立复核；Windows 0xEE / USB 枚举 / SDK Link.ld 延期；不启动 WBS-1 直至固件工作树冻结 |
-| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.5 slice 2 implementation B4 | B3 accepted @ `0b23d87`；三态 boot load 不得回退；B4 只接 0x80/0x81；不刷机 |
+| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.5 slice 2 implementation B4R2 | B4R1 T29 成立 @ `4aaf0d4`；T30c 超额臂仍线性；不刷机 |
 | 8 | `WBS-2-PLATFORM-VOICE` | Zcode | 2.1-2.8 / v0.4 | draft | WBS 1 accepted |
 | 9 | `WBS-3-LEVER-MACROS` | Zcode | 3.1-3.6 / v0.5 | draft | WBS 2 accepted |
 | 10A | `WBS-4-STUDIO-V4` | Cursor | 4.1-4.4 / v0.4 | draft | WBS 2 accepted；只开平台/语音 UI slice |
@@ -42,8 +42,9 @@
 | 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | accepted / R5 | 最终产品 `5c4f440`；R4 P1 关闭；残留 Fake 默认名即内容 / 双编码器排序 P2；安装重跑仍 USER-GATE |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | accepted / Gate-2 same-session | build 359；KeepAlive/故障回滚/卸载重装全绿；整机重启 POST 仍为独立 USER-GATE |
 | 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | accepted / U2 closed | 最终产品 `95b775d`；U3 延后 v1.0/5.9B |
-| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | active / Gate-1 R1 | Gate-0 R1 accepted；仅装 build 361 SHA `4662ce93…`，验证 `<=2s` BLE 回收与 Hook 三态四工具 |
+| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | blocked / Gate-1 R1 SIGPIPE | build 361 已安装；等 15I-R2 accepted 后重冻结 build >361，再续同一 pid 两轮 BLE |
 | 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | accepted / R1 product | `88e02aa`；P2 残留不阻断；HIL 归新候选 |
+| 15I-R2 | `V021-RUNTIME-SIGPIPE-SURVIVAL` | Cursor；Codex 验收 | v0.2.1 Runtime 稳定性 | ready / implementation | `93bbefa` 证明 legacy Unix socket 异步回包可杀死 Runtime；先红测试再修复，禁止安装/HIL |
 | 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | accepted / product | `0b4b5e1`；失败路径 detach 收口；不再阻断重冻结 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |

@@ -5103,3 +5103,11 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 两轮 BLE 未开始：监控在 wait_empty（键盘仍 Connected）于 20:06:40 见 pid 9292→10220。launchd：`exited due to SIGPIPE | sent by ahakeyconfig-agent[9292]`，KeepAlive 拉起 10220。无当日 .ips。已按完成定义 STOP，不用后继 pid 代替第二轮。
 - 证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/07-gate1-r1-retest.md`。
 - 需要回复：是（@Codex 裁定 SIGPIPE 是否阻断，是否另开产品修复）
+
+### [2026-09-02 20:18] Codex → Cursor / 用户：SIGPIPE 产品缺陷成立；Gate-1 阻塞，开放最小修复卡
+- 固定验收 `93bbefa` / `lastReviewedCommit=93bbefa`。Cursor 在 pid `9292→10220` 后立即停测正确；两轮 BLE 尚未开始，键盘仍 Connected，无需用户关机。
+- 证据与源码闭环：launchd 明确记录 pid 9292 `exited due to SIGPIPE`；daemon 入口未忽略 SIGPIPE；legacy `ahakey.sock` 的 `replyAndClose` 对异步回包直接 `write()`，未使用 no-SIGPIPE；restricted `hook.sock` 已使用 `SO_NOSIGPIPE`。客户端在状态查询完成前超时/关闭即可杀死常驻 Runtime。KeepAlive 不是判绿替代物。
+- 已通过且冻结：official socket/XPC/hook.sock 恢复、Studio 退出后真实 Hook→固件 `0x90`、Hook 自动/手动/离线三态。当前 build 361 / pid 10220 的 unix socket、XPC、防休眠仍可用，但 build 361 不具备发布资格。
+- `HIL-RELEASE-0.2.1` 翻 `blocked / Gate-1 R1 SIGPIPE`；新卡 `V021-RUNTIME-SIGPIPE-SURVIVAL` 为 Cursor 当前唯一 ready 客户端卡。要求先建客户端提前关闭的红测试，再做 accepted-fd no-SIGPIPE + EPIPE/partial-write 收口；accepted 后重冻结 build >361，才续同一 pid 两轮 BLE。
+- 禁止继续 HIL、覆盖安装、重打 DMG、刷机、reboot/logout、push。Zcode 固件 B4R2 路径隔离，可继续。
+- 需要回复：是（@Cursor ACK 后只执行 `V021-RUNTIME-SIGPIPE-SURVIVAL`）

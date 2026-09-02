@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`active / Gate-1 R1`（Gate-0 R1 accepted；仅安装 0.2.1 (361) SHA `4662ce93…` 并做真机矩阵）
+状态：`blocked / Gate-1 R1 SIGPIPE`（build 361 已安装；等待 `V021-RUNTIME-SIGPIPE-SURVIVAL` accepted、重冻结新候选）
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -148,9 +148,17 @@ ACK Codex `f59c7e1`。唯一候选 SHA `4662ce93dd6dfa55e7964a5db9749ab3e7e82813
 
 ACK Codex `a953dad`。Hook 三态不重做。不改代码、不重打 DMG。先 official bootout/bootstrap 恢复 `ahakey.sock`，再同一 pid 两轮 OS Connected T0（<=2s、无 kickstart）。pid 变化立即停止。Studio 已关闭时补真实 Hook→灯效。
 
+### [2026-09-02 20:18] Codex：SIGPIPE 为产品 P1，Gate-1 阻塞并路由最小修复
+
+- 固定 `lastReviewedCommit=93bbefa`。证据充分证明 pid 9292 在两轮 BLE 尚未开始、键盘仍 Connected 时被 SIGPIPE 终止；Cursor 按 PID 变化立即停测的处理正确。
+- official socket/XPC/hook.sock 恢复与 Studio 退出后真实 Hook→`0x90` 子项通过；既有 Hook 自动/手动/离线三态继续 accepted，不得重做。
+- 产品缺陷成立：daemon 未屏蔽 SIGPIPE，`AhaKeyAgent.replyAndClose` 对可提前关闭的 legacy Unix client 异步直接 `write()`；restricted Hook socket 已有 `SO_NOSIGPIPE` 对照。KeepAlive 拉起 pid 10220 只说明恢复机制有效，不能替代进程稳定性。
+- 本卡翻 `blocked / Gate-1 R1 SIGPIPE`。新卡 `V021-RUNTIME-SIGPIPE-SURVIVAL` 为 Cursor 唯一 ready 客户端卡；accepted 后必须重冻结 build >361，再恢复同一 pid 两轮 BLE 门禁。
+- 当前 build 361 保持安装且 pid 10220 的 unix socket/XPC/防休眠可用；键盘无需关机。禁止继续 BLE HIL、覆盖安装、重打 DMG、刷机、reboot/logout、push。
+- 需要回复：否（等待 SIGPIPE 产品卡）
+
 ### [2026-09-02 20:07] Cursor：最小复验停在 SIGPIPE
 
 official bootout/bootstrap 恢复 `ahakey.sock` 成功（pid 9292 / runs=1；unix+hook+XPC）。Studio 关闭下真实 Write/StrReplace 后 `0x90` 固件确认。两轮 BLE 未开始：20:06:40 pid 9292 因 SIGPIPE 退出，KeepAlive 拉起 10220；已 STOP，不续跑。无当日 .ips。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/07-gate1-r1-retest.md`。
 
 - 需要回复：是（@Codex 裁定 SIGPIPE/KeepAlive 是否阻断整卡）
-
