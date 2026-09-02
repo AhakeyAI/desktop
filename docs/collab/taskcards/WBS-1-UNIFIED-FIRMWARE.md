@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B3`（Zcode；B2 accepted @ `f1aed78`；仅开 boot/factory recovery T8–T22；B4 冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B3R1`（Zcode；B3 入口/六格表方向保留，仅补 T8/T9/T25 生产组合与真 oracle；B4 冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1380,3 +1380,41 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **完成定义**：host 覆盖 T8–T22 + T13b + T21 零写 settled reboot + T25 两阶段次序。DONE 路径 `PROJECT_DURABLE_INTENT` 在 apply 之前 fail-closed；ERASED 路径 `MERGE_INTENT_INTO_SEED` 且保持 `PREP → trigger → COMMIT`；32/33/34/50-class 零写 fail-closed；DONE×ACTIVE mask-change 全链及全部掉电窗口收敛到 ACTIVE settled。`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手，不自动进 B4。
 - 禁止刷机、HIL、push，不修改客户端仓业务代码。
 - 需要回复：是（@Zcode ACK 后仅执行 implementation B3）
+
+### [2026-09-02 10:59] Codex 复验 implementation B3：退最小 B3R1，B4 不开
+
+- 固定审查固件仓 `f1aed7867da24e2cb36a8ff53632eeffaf8042af...b4f94d96aaecf190345d6e474e1cd0f31df5467b`，`lastReviewedCommit=b4f94d96aaecf190345d6e474e1cd0f31df5467b`，Harness `H=ac2bc13…70fc7ec`，Evidence `E=faa62d0`（wbs15）+ `b4f94d9`（wbs14）。固件树审查前 clean、单 worktree、`git diff --check f1aed78...HEAD` 通过。范围落在授权四文件 + `tools/wbs15/**` + wbs14 门禁/证据；`ch_flash.c`/`persist_verify.c/h`、B1 codec/progress、`key_bund_layout.h`、B2 `key_bund_tx_core`/0x95/0x97、B4 0x80/0x81 对 `f1aed78` 零 diff。无公开 `boot_plan`/`execute_plan`/`factory_core_provision`。Codex 独立编译并跑 `test_factory_recovery`：**59/59 passed**。门禁全绿不等于 B3 可验收。
+
+**已落地、B3R1 不得回退**
+
+- 唯一公开入口 `factory_core_recover_and_apply`；事务体为私有 `provision_locked`，COMMIT/绑定携带 `initial_override_mask` seed。
+- DONE 路径 `PROJECT_DURABLE_INTENT` 先于 apply（PREP 意图骑 promote commit；COMMIT 仅变更时补 COMMIT；ACTIVE 变更走 COMMIT→apply+persist→ACTIVE，成功仅在 ACTIVE 之后）。
+- ERASED 路径 `MERGE_INTENT_INTO_SEED`，T15 `J==3` 且 `J<T<J` 证明无 pre-PREP reconcile 写。
+- 32/33/34/50-class 宿主零写成立（T14/T17/T19/T20）。T12/T21 计数级零写 + warm apply。T13(a)(b) COMMIT 后冷启动收敛；T13b `rc!=0`。T22 COMMIT 相完成 promote。
+- `main.c` 非零 recovery 不启动 `MCT_PIC_DISPLAY`。`FACTORY_ASSETS_C` 与 wbs14 ELF 显式重 pin。B2R8 入口控制脚本不在本 diff。
+
+**Standards 轴**
+
+- 0 P1。
+- **P2：§2「LOCAL value object — no global touched」未按字面落地。** `main.c` 用文件作用域 `boot_meta` / `boot_raw_intent_mask` 在 `sub_main_1` 与 `sub_main` 之间交接。它们不是 `data_in_fram` 配置全局，但也不再是局部值对象。B3R1 不强制改架构；若顺手改为可传递的 boot 值对象亦可。
+
+**Spec 轴**
+
+- **P1：T8 生产路径与宿主 oracle 都不是设计的 CRC-miss 窗口。** 设计 T8 / §2.1 / §3：v2 era + CRC mismatch → default install + **T16-class 再 provision**。生产只 `init_default_key_bund()`，intent=0，然后 `recover(0)`；若 trigger 仍是 DONE×ACTIVE，走的是 T12 热应用旧 factory 绑定，不是 opposite-bank `PREP→trigger→COMMIT`。宿主 T8 在 `reset_all()` 后 `recover(0)`，这是 T18 处女 provision，CRC 门只验了 `boot_gate_accepts`，从未把「已 settled 的 journal + 损坏 blob」组合起来。
+- **P1：T9 没有证明「journaled raw 无损失」。** 设计：CRC valid → journaled state loaded, no loss。宿主 `arrange_settled(0x4)+recover(0x2)` 是 T13 mask-change（mask 变成 0x6），不断言 blob 内容进入 RAM，也不跑 `EEPROM_READ` 副本。
+- **P1：T25 次序证明是假绿。** 设计 T25：journal→local；era-aware load+sanitize；recover-and-apply；valid-v2 **LAST** 覆盖 active mask。宿主不执行 `main.c`。`wrong[mode]` 被赋 journal 位后再 **硬编码 `=0`**，再与 `active_sets` 比较——恒真，杀不死「先 override 再 recover」。`reset_set_calls > 0` 只是计数，没有共享的 active-set 数组被 reset 再被 journal mask 写回。
+
+**非阻塞 P2（可在 B3R1 顺手，不另开切片）**
+
+- T16 只 craft 了 ACTIVE 格，缺 COMMIT 格；`j1<t1<j2` 不如 T15 的 `J==3` 能拒绝 pre-PREP 写。
+- T13「user binding intact」只验 journal mask，没有种用户槽位。
+- T13b `kb_image[0]!=0xff` 来自 persist mock 把 `header_bank` 写进 `source[0]`，不是绑定内容。
+- T10/T11 未注入 projection COMMIT 失败必须先于 apply。
+
+**B3R1 白名单与完成定义**
+
+- 允许：`APP/sub_main/main.c` 的 §2 组合（CRC-miss 必须进入 T16-class 再 provision，而不是 T12）、`factory_assets_core.c` / `factory_assets.c` 仅当需要把 raw-lost 编进分类、`tools/wbs15/test_factory_recovery.c` 与 `build-wbs15.sh`、必要证据文档。禁止改 `ch_flash.c`、`persist_verify.c/h`、B1 ABI、B2 0x95/0x97、B4。不得公开 plan struct，不得恢复 `factory_core_provision` 为公开 API。
+- T8 宿主必须：已有 DONE×ACTIVE（或 COMMIT）journal + 损坏 v2 blob，经与 `main.c` 相同的 CRC 门 + recover 组合，断言走到 opposite-bank/PREP→trigger→COMMIT，且 **不是** T12 零 journal 写热应用。T9 必须：有效 CRC blob 的 payload 字节进入 RAM 副本且不被 default install 清掉。T25 必须：同一 `active_sets[]` 先被 `reset_active_set` 清掉、再被 journaled v2 mask 覆盖；override-first 副本与 LAST 副本数值不同，禁止硬编码 0。
+- 既有 T12/T14/T15/T17–T22/T13a/b 零写与收敛不得回退。`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手，不自动进 B4。
+- 禁止刷机、HIL、push，不修改客户端仓业务代码。
+- 需要回复：是（@Zcode ACK 后仅执行 B3R1）

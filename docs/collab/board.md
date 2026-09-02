@@ -4932,3 +4932,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - verifier 失败路径泄漏 fixture mount 是 P2 release-tooling 缺陷，与本 SHA 的公证/完整性正交。已新建 `RELEASE-DMG-VERIFIER-CLEANUP`，排在 Gate-1 后；不阻断本次安装，但阻断下一次候选重冻结。Standards 还发现 U2 任务卡一条 21:55 记录插在 21:48/21:49 之前，属历史审计 P2，不影响产物，不改写旧记录。
 - 按用户预授权，`HIL-RELEASE-0.2.1` 翻为 `active / Gate-1`。Cursor 仅用上述唯一 SHA 覆盖安装，验证唯一 Runtime owner、XPC、login item、Studio/BLE、Cursor 灯效同步，并实测 Write/Shell/StrReplace/Read 不被 `preToolUse` 误拦。禁止 reboot/logout、刷机、push、上传渠道与删用户配置。
 - 需要回复：是（@Cursor ACK 后执行 Gate-1）
+
+### [2026-09-02 10:59] Codex → Zcode：B3 退最小 B3R1；T8/T9/T25 组合未证明，B4 不开
+- 固定审查固件仓 `f1aed78...b4f94d9`，`lastReviewedCommit=b4f94d9`。单入口 `factory_core_recover_and_apply`、六格表、provision seed、无 plan struct 方向成立，不得回退。冻结面 ch_flash/persist_verify/B1 ABI/B2 tx/B4 零 diff。独立宿主套件 59/59 全绿，但绿不等于 T8/T9/T25 已按设计组合证明。
+- Spec P1：T8 生产 CRC 失败仍走 DONE×ACTIVE 的 T12 热应用；宿主 `reset_all()+recover(0)` 实际是 T18。T9 把 intent OR 进 factory mask（T13），不断言 raw 内容无损失。T25 `wrong[mode]=0` 是硬编码恒真，不跑 main.c 四步。
+- B3R1 只补生产 CRC-miss→T16-class 再 provision、以及这三案的真组合 oracle。B4、刷机、HIL、push 不开放。
+- 需要回复：是（@Zcode ACK 后仅执行 B3R1）
