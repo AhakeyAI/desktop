@@ -1,12 +1,12 @@
 # AhaKey 顺序执行队列
 
 状态：生效  
-更新：2026-08-29（发布列车拆分）
+更新：2026-09-02（v0.3 OLED 客户端与统一固件解耦）
 调度 owner：Codex
 
 本文件只定义正式任务卡的执行顺序、依赖和用户门禁。产品范围以 `docs/unified-firmware-runtime-implementation-plan.md` 为准；执行细节以对应任务卡为准。
 
-规则：每个写入域默认仅一张卡可处于 `ready/active/review`。客户端域由 Cursor 执行 `V021-RUNTIME-SIGPIPE-SURVIVAL`；`HIL-RELEASE-0.2.1` 因 build 361 Runtime 被 SIGPIPE 终止而 blocked。独立固件域由 Zcode 执行 WBS 1.6 checkpoint A；WBS 1.5 implementation accepted @ `b678137`，HIL 等 1.7 后刷机窗口。刷机、reboot/logout、push、覆盖安装和量产切换仍未开放。
+规则：每个写入域默认仅一张卡可处于 `ready/active/review`。客户端域由 Cursor 先完成 `V021-RUNTIME-SIGPIPE-SURVIVAL` 与 v0.2.1 收口，随后才开放 v0.3 OLED 客户端兼容卡；独立固件域由 Zcode 执行 WBS 1.6 checkpoint A3。WBS 1 不再阻塞 v0.3 客户端 OLED 发布，但仍是后续 v0.4 平台快捷键固件的前置。刷机、reboot/logout、push、覆盖安装和量产切换仍未开放。
 
 | 顺序 | 任务卡 | Owner | 覆盖 WBS | 当前状态 | 晋级条件 |
 |---:|---|---|---|---|---|
@@ -42,23 +42,25 @@
 | 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | accepted / R5 | 最终产品 `5c4f440`；R4 P1 关闭；残留 Fake 默认名即内容 / 双编码器排序 P2；安装重跑仍 USER-GATE |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | accepted / Gate-2 same-session | build 359；KeepAlive/故障回滚/卸载重装全绿；整机重启 POST 仍为独立 USER-GATE |
 | 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | accepted / U2 closed | 最终产品 `95b775d`；U3 延后 v1.0/5.9B |
-| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | blocked / Gate-1 R1 SIGPIPE | build 361 已安装；等 15I-R2 accepted 后重冻结 build >361，再续同一 pid 两轮 BLE |
+| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | blocked / waits SIGPIPE R3 review | build 361 已安装；15I-R2 已提审，accepted 后重冻结 build >361，再续同一 pid 两轮 BLE |
 | 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | accepted / R1 product | `88e02aa`；P2 残留不阻断；HIL 归新候选 |
-| 15I-R2 | `V021-RUNTIME-SIGPIPE-SURVIVAL` | Cursor；Codex 验收 | v0.2.1 Runtime 稳定性 | ready / implementation R3 | `84a17f4` writer/generation 成立；补分片 read-line、idle accepted client shutdown 与 setup fail-closed |
+| 15I-R2 | `V021-RUNTIME-SIGPIPE-SURVIVAL` | Cursor；Codex 验收 | v0.2.1 Runtime 稳定性 | review / R3 | 产品 `1ed560b` 已提审；等待 Codex 验收分片 read-line、idle client shutdown 与 setup fail-closed |
 | 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | accepted / product | `0b4b5e1`；失败路径 detach 收口；不再阻断重冻结 |
+| 15K | `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` | Cursor；Codex 验收 | v0.3 客户端 OLED | draft / waits v0.2.1 close | v0.2.1 最终 accepted 后开放 C1；正式 UI 兼容 GitHub Standard/Gitee Rhino/Local Rhino，不依赖刷统一固件 |
+| 15L | `HIL-V03-STUDIO-OLED-COMPATIBILITY` | Cursor；Zcode 只读验证；Codex 验收 | v0.3 OLED HIL | draft / USER-GATE | 15K accepted；正式 Studio UI 三类旧固件矩阵，不得以专用 HIL 驱动替代 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
 | 18 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9B / v1.0 | draft / USER-GATE | 5.8、4.8、5.9A、5.10 accepted；完整权限迁移窗口 |
 | 19 | `WBS-5A-SESSION-ROUTING` | Zcode | 5A.1-5A.11 / v1.1 | draft | v1.0 / 5.9B accepted；不反向阻塞基础发布 |
-| 19A | `HIL-RELEASE-0.3` | Cursor；Zcode 验证 | 6.0B / v0.3 | draft / USER-GATE | WBS 1 + OLED E 系列 accepted；刷机/真机窗口 |
+| 19A | `HIL-RELEASE-0.3` | Cursor；Zcode 验证 | 6.0B / v0.3 | draft / USER-GATE | 最终 v0.2.1 + 15K + 15L accepted；客户端签名/安装窗口，不刷固件 |
 | 19B | `HIL-RELEASE-0.4` | Cursor；Zcode 验证 | 6.0B / v0.4 | draft / USER-GATE | WBS 2 + 4.1-4.4 + 5.8 accepted |
 | 19C | `HIL-RELEASE-0.5` | Cursor；Zcode 验证 | 6.0B / v0.5 | draft / USER-GATE | WBS 3 + 4.5 accepted |
 | 20 | `WBS-6-QUALIFICATION` | Zcode；Cursor 验证 | 6.1-6.4 / v1.0 | draft / USER-GATE | WBS 1-5.10/5.9B accepted |
 | 21 | `WBS-6-BETA-RELEASE` | Cursor；Zcode 验证 | 6.5-6.7 / v1.0 | draft / USER-GATE | v1.0 的 6.1-6.4 accepted；不重复承担 v0.2 Beta |
 | 22 | `HIL-RELEASE-1.1` | Cursor；Zcode 验证 | 6.4A / v1.1 | draft / USER-GATE | WBS 5A accepted；不反向阻塞 v1.0 |
 
-队列不是一般并行许可。Cursor 当前唯一 active 卡是 `WBS-5.9A-BETA-INSTALLER`，只开发/验证未签名安装链；实际签名、安装、登录项修改与 v0.2 HIL 均未开放。Zcode 继续独立固件仓 WBS 1.5 R20，不与客户端安装链混提。OLED HIL-E1 归 v0.3，不在本轮启动。HIL-CONFIG 继续 blocked，待 WBS 1.5 + 刷机门禁后归 v0.3；WBS 2/3/5.8/5A/6 不能反向阻塞 v0.2。刷机、安装、远端 push 和量产切换仍需 USER-GATE。
+队列不是一般并行许可。Cursor 当前只执行 `V021-RUNTIME-SIGPIPE-SURVIVAL` R3；accepted 后完成 v0.2.1 候选重冻结与 Gate-1 收口，再由 Codex 开放 15K。Zcode 继续独立固件仓 WBS 1.6 A3，后续 1.7/WBS 2 不与客户端 OLED 混提。`HIL-CONFIG` C1-C6 继续作为统一固件资格门禁，但不再阻塞 v0.3；15L 是 v0.3 唯一 OLED 真机兼容门禁。刷机、安装、固件切换、EEPROM 擦除、远端 push 和量产切换仍需 USER-GATE。
 
-发布列车：`v0.2 = 15E → 15F → 15G`；`v0.3 = WBS 1.5-1.7 + OLED E 系列 + HIL-CONFIG → 19A`；`v0.4 = WBS 2 + WBS 4.1-4.4 + 5.8 → 19B`；`v0.5 = WBS 3 + WBS 4.5 → 19C`；`v1.0 = WBS 4.6-4.8 + 5.10 → 5.9B → WBS 6`；`v1.1 = WBS 5A → 22`。
+发布列车：`v0.2/v0.2.1 = 15E → 15F → 15G → 15H → 15I`；`v0.3 = 15K → 15L → 19A`（客户端 OLED，独立于固件）；`v0.4 = WBS 1 → WBS 2 + WBS 4.1-4.4 + 5.8 → 19B`（统一固件与平台快捷键）；`v0.5 = WBS 3 + WBS 4.5 → 19C`；`v1.0 = WBS 4.6-4.8 + 5.10 → 5.9B → WBS 6`；`v1.1 = WBS 5A → 22`。
 
 并行例外：用户于 2026-08-23 19:20 明确要求提前启动下一张 Kimi 卡。Codex 证明 WBS-0 静态预研只写 `docs/research/wbs-0-static-preflight.md`、基线文档指定追加段、本卡与 board，不触碰 5.3-C Hook 文件；因此允许该静态子阶段与 5.3-C 并行。WBS-0 实机部分、WBS-1 及正式队列依赖不随之放开。

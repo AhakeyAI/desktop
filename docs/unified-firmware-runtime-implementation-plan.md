@@ -37,7 +37,7 @@
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
 | WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md)；2026-08-26 确认 GitHub **`master@71b11676` 与 `dev@3e7f900` 源码树相同** |
 | WBS 1 统一固件 | 进行中 | 1.1-1.4 已验收；1.5 implementation accepted @ `b678137`，真机 HIL 延后到 1.7 可刷镜像；当前 Zcode 执行 1.6 checkpoint A，1.7 未开放。**产品源仍为 GitHub master/dev 同树**，不换到 `eternal-dev`。 |
-| OLED 编辑/局部提交 | 进行中 | Cursor 执行 E-1R1；该能力归 0.3，不进入 0.2 的可见功能面 |
+| OLED 编辑/局部提交 | 客户端底层已通过差分 HIL，正式 UI 待验 | Gitee Rhino 上 Runtime 专用驱动已完成 B-only `5/5`、`102400/102400`、A 保留与 A/B 断电保持；v0.3 改为独立客户端兼容列车，不等待统一固件 |
 | WBS 0.2 行为/协议/Flash 矩阵 | 部分完成 | 行为与协议入口已静态比较；Flash 地址、大小、占用和 HIL 仍开放 |
 
 ### 0.1 产品版本列车（2026-08-29 冻结）
@@ -46,14 +46,14 @@
 
 | 版本 | 面向用户的交付 | 必须完成 | 明确不包含 |
 |---|---|---|---|
-| **v0.2 可用客户端 Beta** | macOS Studio + 轻量 Runtime；AI Hook 自动/手动批准、后台设备检测、防休眠、连接状态；经兼容门控验证后的基础键位/灯效配置；正式签名 DMG | 已验收 Runtime 主链；`RELEASE-0.2-COMPATIBILITY`；WBS 5.9A；`HIL-RELEASE-0.2` | OLED/任务图写入、统一固件、跨平台语音、拨杆宏、Windows、会话定向 |
-| **v0.3 统一固件与 OLED** | 统一固件、可靠图片上传/持久化/进度、Standard/Rhino 两个 pack、配置事务 C1-C6 | WBS 1.5-1.7、OLED E 系列、HIL-CONFIG、`HIL-RELEASE-0.3` | 平台语音、拨杆宏、Windows、会话定向 |
-| **v0.4 纯硬件语音** | macOS F5、Windows Win+H、Typeless/Fn/Globe/F19 fallback、平台学习；基础语音无需 Runtime | WBS 2、WBS 4.1-4.4、WBS 5.8、`HIL-RELEASE-0.4` | 拨杆自定义宏、Windows Studio 完整对齐、会话定向 |
+| **v0.2/v0.2.1 可用客户端 Beta** | macOS Studio + 轻量 Runtime；AI Hook 自动/手动批准、后台设备检测、防休眠、连接状态；经兼容门控验证后的基础键位/灯效配置；正式签名 DMG；v0.2.1 收口 BLE 唤醒与 legacy socket 生存性 | 已验收 Runtime 主链；`RELEASE-0.2-COMPATIBILITY`；WBS 5.9A；`HIL-RELEASE-0.2`；`HIL-RELEASE-0.2.1` | OLED/任务图写入、统一固件、跨平台语音、拨杆宏、Windows、会话定向 |
+| **v0.3 客户端 OLED 兼容版** | 对外发布的重构后 macOS 客户端；正式 Studio UI 经 Runtime 写入图片；兼容已登记的 GitHub Standard、Gitee Rhino、Local Rhino 旧固件；按固件能力选择协议；字节进度与 A/B scoped 写入 | 最终 v0.2.1；`V03-STUDIO-OLED-LEGACY-COMPATIBILITY`；`HIL-V03-STUDIO-OLED-COMPATIBILITY`；`HIL-RELEASE-0.3` | 统一固件刷写、键盘端旧固件进度修复、平台语音、拨杆宏、Windows、会话定向 |
+| **v0.4 统一固件与平台快捷键** | 完成统一固件基线，并按 macOS/Windows/已学习平台发送不同系统语音快捷键；基础语音无需 Runtime | WBS 1、WBS 2、WBS 4.1-4.4、WBS 5.8、`HIL-RELEASE-0.4` | 拨杆自定义宏、Windows Studio 完整对齐、会话定向 |
 | **v0.5 拨杆快捷键/宏** | 三档自定义快捷键、宏、互锁与 Runtime 状态正交 | WBS 3、WBS 4.5、`HIL-RELEASE-0.5` | Windows 正式客户端、完整量产资格、会话定向 |
 | **v1.0 正式统一版** | macOS/Windows 对齐、完整迁移/升级/降级、性能与量产门禁、正式包 | WBS 4.6-4.8、5.10、5.9B、WBS 6.1-6.7（不含 6.4A） | 最近待操作会话定向 |
 | **v1.1 会话定向** | Codex App 精确会话唤起、TargetLease、安全草稿、首批 Terminal Adapter | WBS 5A、`HIL-RELEASE-1.1` | 可选 PTY wrapper 等后续增强 |
 
-发布纪律：每个版本都维护自己的功能开关、兼容矩阵、HIL 证据、安装/回滚包和已知限制；禁止在 v0.2 包中暴露 v0.3 的 OLED 写入口，也禁止为了赶 v0.2 恢复 Studio 直连 BLE。
+发布纪律：每个版本都维护自己的功能开关、兼容矩阵、HIL 证据、安装/回滚包和已知限制；禁止在 v0.2/v0.2.1 包中暴露 v0.3 的 OLED 写入口，也禁止为了赶版本恢复 Studio 直连 BLE。v0.3 的“兼容全部旧固件”限定为已登记并有冻结 SHA/HEX 的历史固件族；未知固件只读或明确拒绝。统一固件和平台快捷键不得反向阻塞 v0.3 客户端发布。
 
 已解决的跨方案冲突：
 
@@ -893,7 +893,7 @@ AhaType
 
 调度更新（2026-08-26）：真机回归证明当前 Studio 保存仍走旧直接 BLE 路径，不会触发 5.6 的 Runtime Store/operation。用户因此裁决将 5.7 从 Cursor 转交 Kimi，并将顺序从“HIL-CONFIG→5.7”改为“5.7 Studio Runtime 客户端化→HIL-CONFIG C1–C6”。旧路径配置/图片上屏成功只记兼容回归，不记配置事务 HIL 通过。
 
-退出条件按版本分段：0.2 只要求 Runtime 为唯一设备 owner、Studio 退出后已启用后台能力继续、兼容功能面 fail-closed、最小安装/回滚和 0.2 HIL 通过；0.3-0.5 逐步加入固件/OLED/语音/拨杆；1.0 才要求完整权限迁移、Windows 和量产矩阵。
+退出条件按版本分段：0.2/0.2.1 只要求 Runtime 为唯一设备 owner、Studio 退出后后台能力继续、兼容功能面 fail-closed、安装/回滚和对应 HIL 通过；0.3 独立加入旧固件 OLED 客户端兼容；0.4 起再加入统一固件、平台快捷键、语音与后续拨杆；1.0 才要求完整权限迁移、Windows 和量产矩阵。
 
 ### WBS 5A：最近待操作会话定向（18-29 人日）
 
@@ -945,13 +945,15 @@ AhaType
 5. 用户批准 `HIL-RELEASE-0.2`：实际签名候选，用当前量产固件 + 真实键盘验证安装、连接、基础配置、Hook 拨杆自动/手动、防休眠、Studio 退出、重启和 CPU/RSS。
 6. 无 P0/P1 后交付 v0.2 Beta；不等待 WBS 1.5、HIL-CONFIG C1-C6、WBS 2/3/5A。
 
-### 14.2 v0.3：统一固件与 OLED
+### 14.2 v0.3：客户端 OLED 兼容版
 
-Zcode 完成 WBS 1.5-1.7；Cursor 完成 OLED E 系列剩余切片。用户批准刷机后先跑 HIL-E1，再跑 HIL-CONFIG C1-C6。验收必须覆盖图片上传逐块进度、0x97 持久成功、关机后 active set 保留、取消/断连/断电恢复和 Standard/Rhino pack。通过后把 OLED 从 `ReleaseFeaturePolicy` 中开放，并发布 v0.3 增量包。
+Cursor 在 v0.2.1 收口后执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY`：建立旧固件能力 profile、按 Standard/Rhino/current 选择真实协议，并让正式 Studio scoped assembler 能表达“只写 A 或 B、保留另一套”。随后用户批准 `HIL-V03-STUDIO-OLED-COMPATIBILITY`，在 GitHub Standard `3e7f900`、Gitee Rhino `53cd0a97`、Local Rhino `00eb7efc` 上逐项验证正式 UI 写入、显示、切换、断电保持与自动重连。通过后才从 `ReleaseFeaturePolicy` 开放 OLED，并由 `HIL-RELEASE-0.3` 生成/安装客户端 DMG。
 
-### 14.3 v0.4：纯硬件语音
+2026-09-02 的 Gitee Rhino 差分证据已证明 Runtime 底层链路可以完成 B-only `5/5`、`102400/102400` 且 A/B 断电保持；尚缺的是正式 Studio UI 等价路径。旧 Rhino 键盘端 `0,0` 是固件上传页显示缺陷，不代表 Runtime 写入失败。v0.3 不刷统一固件，也不以 WBS 1.6/1.7 或 `HIL-CONFIG` C1-C6 为发布依赖。
 
-完成 WBS 2、WBS 4.1-4.4 与 WBS 5.8。重点验收“Studio 和 Runtime 均退出时，系统/第三方语音仍由固件快捷键工作”；只有 AhaType 需要 Runtime。
+### 14.3 v0.4：统一固件与平台快捷键
+
+Zcode 先关闭 WBS 1.6/1.7，再完成 WBS 2；Cursor 完成 WBS 4.1-4.4 与 WBS 5.8。重点验收同一固件按 macOS、Windows 与已学习平台发送不同系统语音快捷键，并验证“Studio 和 Runtime 均退出时，系统/第三方语音仍由固件工作”；只有 AhaType 需要 Runtime。统一固件的 `HIL-CONFIG` C1-C6、键盘端逐块进度和 Standard/Rhino pack 在该固件列车中独立验收，不回绑 v0.3。
 
 ### 14.4 v0.5：拨杆快捷键与宏
 
@@ -985,8 +987,8 @@ Zcode 完成 WBS 1.5-1.7；Cursor 完成 OLED E 系列剩余切片。用户批�
 | 版本 | 必须通过的最小门禁 | 失败时处理 |
 |---|---|---|
 | v0.2 | 当前量产固件兼容矩阵；功能策略 fail-closed；基础配置无 OLED/0x97 副作用；Hook/防休眠/退出 Studio；30 分钟真实键盘 CPU/RSS；签名安装/升级/卸载/回滚 | 不发布 v0.2；不得临时显示 OLED 或恢复直连 BLE |
-| v0.3 | WBS 1.5-1.7；刷机 USER-GATE；HIL-E1；HIL-CONFIG C1-C6；关机持久化与逐块进度 | 保持 v0.2 功能策略，OLED 继续隐藏 |
-| v0.4 | Mac/Windows × USB/BLE 平台学习与系统/第三方语音；Studio/Runtime 均退出 | 保持 v0.3，不把 AhaType 冒充纯硬件语音 |
+| v0.3 | 正式 Studio UI；GitHub Standard/Gitee Rhino/Local Rhino 已登记旧固件矩阵；A/B scoped 写入与保留；断电保持；Runtime 字节进度；未知能力 fail-closed；签名 DMG 升级/回滚 | 保持 v0.2.1 功能策略，OLED 继续隐藏；不以刷统一固件绕过旧固件兼容 |
+| v0.4 | WBS 1 统一固件基线；Mac/Windows × USB/BLE 平台学习与系统/第三方语音；Studio/Runtime 均退出；统一固件配置事务 HIL | 保持 v0.3，不把 AhaType 冒充纯硬件语音，不回退旧固件兼容 |
 | v0.5 | 拨杆 500 次/档、快速越档、宏重入、release-all 与升级互锁 | 保持 v0.4，拨杆自定义 UI 不开放 |
 | v1.0 | WBS 6.1-6.7 完整资格、灰度与量产；Windows 对齐；完整迁移 | 不切正式渠道或工厂 |
 | v1.1 | WBS 6.4A 多会话错误目标注入与 Adapter 升级回归 | 只回退会话定向，不影响 v1.0 基础能力 |

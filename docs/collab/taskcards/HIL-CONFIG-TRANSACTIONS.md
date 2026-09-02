@@ -148,3 +148,10 @@
 - 客户端已修：mapper `saveConfig` 提到 `0x97` 之前（对症关机丢图）；Agent 事务窗口内暂缓 0x90（对症上传屏被覆盖 + 抢 SPI）。`swift test` 499 通过 0 失败。HIL Agent PID **41299** sha256 `6764470839362795cb99c513eaf6cc3eee9f95b4f6b76820b7bc1dc9821cbdda`，正式 label 仍 disabled。
 - 完整根因/遗留 → 新草稿卡 `DEVICE-PERSIST-AND-UPLOAD-UX`（L1 journal 环、L2 0x95 magic 顺序、L3 上传进度、L4 0x97 契约、L5 失败文案、L6 慢、L7 0x99 漂移、L8 C1 判据）。
 - 仍未刷机、未 push、未动固件仓；C4/C5 未提示。
+
+### [2026-09-02] 产品列车解耦：本卡不再阻塞 v0.3 客户端 OLED
+
+- Gitee Rhino `53cd0a97` 差分复验在清洁 EEPROM 上完成 Runtime B-only `5/5`、`102400/102400`，A 未覆盖，A/B 断电保持且自动重连；证据见 `docs/collab/evidence/RHINO-FLASH-20260902/runtime-oled-differential.md`。因此 2026-08-28 现场的 0x97/关机丢图不能继续作为“所有旧固件上 Runtime 必败”的充分证据。
+- 本卡仍保留为**统一固件配置事务** C1-C6 资格门禁，后续随 WBS 1.7 可刷产物验证取消、断连、断电与恢复；不删除历史、不修改原用例判据。
+- v0.3 对外客户端的 OLED 路径改由 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` 与 `HIL-V03-STUDIO-OLED-COMPATIBILITY` 验收，不依赖本卡、不要求刷统一固件。
+- 需要回复：否（调度口径修正；本卡继续 blocked，等待统一固件 HIL）

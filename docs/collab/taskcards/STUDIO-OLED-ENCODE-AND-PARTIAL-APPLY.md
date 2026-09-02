@@ -199,3 +199,11 @@ Cursor ACK 后仅执行 E-1R3。未改任务卡状态字段。未改 View/facade
 - E-1 代码能力归 v0.3；不在当前旧固件上启动 HIL-E1。下一张 Cursor 卡按 `630c6c7` 发布列车进入 `RELEASE-0.2-COMPATIBILITY`，确保 v0.2 隐藏 OLED/任务图写入。
 
 - 需要回复：否
+
+## 2026-09-02 差分证据与发布依赖修正（append-only）
+
+- 新证据 [`runtime-oled-differential.md`](../evidence/RHINO-FLASH-20260902/runtime-oled-differential.md) 在 Gitee Rhino `53cd0a97` + 清洁 EEPROM 上证明：新 Runtime 专用 HIL 驱动完成 B-only `5/5`、`102400/102400`，A 未覆盖，A/B 断电后保留，自动重连正常，未出现 `0x97 status=3`。
+- 因此本卡历史记录中“旧固件必然导致 0x97 失败/必须等待 WBS 1.5 刷机才能验证 OLED”的口径不再作为 v0.3 发布前置；当时现象受 EEPROM 初态和正式 Studio 组包形状影响，不能归为单一固件根因。
+- 底层 Runtime 链路已经通过，但专用 HIL desired configuration 绕过了 Studio 高层 assembler 的 idle/defaultAnimation 镜像限制。正式 UI 等价路径转入 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY`，真机矩阵转入 `HIL-V03-STUDIO-OLED-COMPATIBILITY`。
+- 旧 Rhino 键盘端 `0,0` 是其上传页显示缺陷；v0.3 使用 Runtime 字节进度作为用户事实源并披露该限制，不要求刷统一固件。
+- 本卡保持 accepted，不重写历史；后续 v0.3 不再以 WBS 1.6/1.7 或 `HIL-CONFIG` C1-C6 为依赖。
