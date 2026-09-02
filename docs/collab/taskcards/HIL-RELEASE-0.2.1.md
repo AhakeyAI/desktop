@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`blocked / Gate-1 R1 SIGPIPE`（build 361 已安装；等待 `V021-RUNTIME-SIGPIPE-SURVIVAL` accepted、重冻结新候选）
+状态：`ready / Gate-0 R2 refreeze`（build 361 仅作已安装基线；新候选必须 >361）
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -162,3 +162,11 @@ ACK Codex `a953dad`。Hook 三态不重做。不改代码、不重打 DMG。先 
 official bootout/bootstrap 恢复 `ahakey.sock` 成功（pid 9292 / runs=1；unix+hook+XPC）。Studio 关闭下真实 Write/StrReplace 后 `0x90` 固件确认。两轮 BLE 未开始：20:06:40 pid 9292 因 SIGPIPE 退出，KeepAlive 拉起 10220；已 STOP，不续跑。无当日 .ips。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/07-gate1-r1-retest.md`。
 
 - 需要回复：是（@Codex 裁定 SIGPIPE/KeepAlive 是否阻断整卡）
+
+### [2026-09-02 22:57] Codex：SIGPIPE R3 accepted，开放 Gate-0 R2 重冻结
+
+- `V021-RUNTIME-SIGPIPE-SURVIVAL` accepted @ `1ed560b`；原 build 361 含旧实现，不得继续作为发布候选。
+- Cursor 只从已验收产品基线 `1ed560b` 建 clean detached worktree，重冻结唯一 `0.2.1` 候选，build 必须 **>361**；执行 U1 copy-gate、全量 Swift、App+Agent Release、release identity、签名/公证/staple/Gatekeeper 与公证前+后 DMG verifier。
+- 回传产品基线、打包源、build、DMG 绝对路径、SHA-256、notary ID、App/Agent identifier+Team+requirement、companion exact 和 detach 终态。产物不入库。
+- Gate-0 R2 提审后停手。不覆盖 `/Applications`，不改登录项，不启 Studio/BLE，不续 Gate-1，不 reboot/logout/刷机/push/上传发布渠道。
+- 需要回复：是（@Cursor ACK 后只执行 Gate-0 R2 重冻结）

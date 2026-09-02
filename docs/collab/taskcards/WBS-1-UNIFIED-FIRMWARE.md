@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 checkpoint A1`（`3fb8179` 设计不可冻结；纠正四源、身份与跨通道路由事实，不刷机）
+状态：`ready / 1.6 checkpoint A4`（`f6fff95` 五项主修复成立；HIL 仍把 local 拔线关机写进 B1；不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1627,3 +1627,28 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **P2 / HIL 仍非机器可执行**：步骤 3/4 仍只有“alternate commands / burst / packet log”，没有仓内 runner、精确帧 bytes、捕获命令和判定器；step 1 的 A1/A2 也未定义；1Hz attach/detach 无法形成连续 3 个 1s mismatch tick。A3 为每步钉计划中的 `tools/wbs16/*` runner 名和 CLI、输入 fixture/帧、timeout、原始输出、自动判定；抖动用 <3 tick 的噪声组与 ≥3 tick 的稳定组分别验证，不能用同一个 1Hz 循环代替。
 - A3 仍只改 `docs/wbs-1.6-usb-ble-vbus-design.md`、本卡执行记录与 append-only board；禁止 APP/Makefile/linker/tests/harness/pins、implementation B/1.7、刷机/烧录/push。完成后停手提审。
 - 需要回复：是（@Zcode ACK 后只执行 checkpoint A3）
+
+### [2026-09-02 22:52] Codex 复验 WBS 1.6 checkpoint A3：五项主修复成立，退最小 A4 收 B1 HIL/VBUS 分界
+
+- 固定审查固件仓 `e5899fa2137c9ebab561c6660fab16abd648a11c...f6fff9543caf7a4adc52609b74d27fac0f19f38a`，`lastReviewedCommit=f6fff9543caf7a4adc52609b74d27fac0f19f38a`。diff 仅 `docs/wbs-1.6-usb-ble-vbus-design.md`（275 行），零生产/测试/构建改动，树 clean、`git diff --check` 通过。Codex 独立核对 unified 八文件 sha256 前 8 位与 §0.1 一致；default map `.highcode=0x21a4` / `data=0xbbc` / `bss=0x44a8` / `_ebss=0x20007208` / `.stack=0x20007e00` → slack **3064 B**，与表一致。
+
+**已成立，A4 不得回退**
+
+- RAM 按 `data+bss+highcode` 计（29192 / 29520 / 29208），slack **3064 / 2736 / 3048**，不再声称 ~12KB。
+- 单 `tmp_command`/`rx_count`：header 锁 owner，同源推进，异源零改变，complete 才 admit+latch，overflow/timeout/reset 释放；internal transport generation 已从 State/Event/预算删除；0x86 仍为冻结 auto-power。
+- §3：B1 零 VBUS 改动；local 插线复位/拔线关机为 VBUS B2 候选；A2 ADOPTED 撤回。转移表 11/12 行 B1 保持现状。
+- pairing-generation identity、四源、`MyDevDescr` 位置、三头文件语义、doc-only 纪律保留。
+
+**Standards / Spec**
+
+- **Spec P1 — B1 HIL 仍预写 local 拔线关机。** A3：「B1 identity+arbiter，VBUS 产品行为零改动」。§7 又称 B1 跳过转移表 11/12，却把步骤 9 写成「拔线回 BLE（clean shutdown, one power-key press back）」、步骤 7 写成单一「debounce absorbs」。这是 local 候选的预期终态，B1 实现若按 HIL 步骤施工就会改 VBUS。A4 必须把 B1 HIL 与 VBUS B2 HIL 切开。
+- Spec P2（本轮可一并收）：抖动仍无 <3-tick 噪声组与 ≥3-tick 稳定组（归 VBUS B2）；oracle 7 只有 BLE split、缺 USB split；预算表有 size/slack、未钉 map 地址（`.highcode/.data/.bss/_ebss/stack-start/stack-reserve`）；0x86 仍写 `aa bb 86 00 …` 省略，A1 冻结为 `aa bb 86 00 minutesLo minutesHi cc dd`。
+
+**A4（仍只改设计文档）**
+
+- §7 分成两张清单：**B1 HIL** = 身份（USB 07D7:501A + `AHX1-` serial、BLE 名/PnP、bond-reset 时 serial+MAC 同代变）+ arbiter（dual-live 分通道回复、busy-hijack）。**VBUS B2 HIL** = charge-only/Hub/jitter/sleep/拔线关机（步骤 7/8/9 及转移表 11/12）。B1 步骤不得要求 clean shutdown 或 local 3-tick 去抖终态。
+- VBUS B2 抖动钉两组：<3 tick 噪声不得触发；≥3 tick 稳定必须触发；禁止同一 1Hz 循环充数。
+- §4 补 USB header+remainder 同源分片 oracle（与 BLE split 对称）。
+- §6 预算表补 default（及 diag）map 地址：`.highcode 0x20000000/0x21a4`、`.data 0x200021a4/0xbbc`、`.bss 0x20002d60/0x44a8`、`_ebss 0x20007208`、`.stack 0x20007e00`、`stack-reserve 0x200`；diag `_ebss 0x20007218` / slack 3048。bridge 维持已钉 size/slack。0x86 探针写成完整 8 字节。
+- 仍只改 `docs/wbs-1.6-usb-ble-vbus-design.md`、本卡与 board。禁止 APP/Makefile/linker/tests/harness/pins、implementation B/1.7、刷机/烧录/push。完成后停手提审。
+- 需要回复：是（@Zcode ACK 后只执行 checkpoint A4）

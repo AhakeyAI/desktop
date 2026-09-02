@@ -1,7 +1,7 @@
 # 任务卡 V021-RUNTIME-SIGPIPE-SURVIVAL：旧 Unix socket 断开不得杀死 Runtime
 
 计划/WBS：v0.2.1 Gate-1 阻塞返工
-状态：`ready / implementation R3`
+状态：`accepted / R3`
 执行 owner：Cursor（Codex 验收）
 基线分支与提交：`feat/unified-client` / 产品 `0b4b5e1`（build 361 的源码基线）；诊断证据 `93bbefa`
 目标切片：关闭 `ahakey.sock` 客户端提前关闭触发 SIGPIPE、杀死常驻 Runtime 的产品缺陷，并用生产 socket 路径建立确定性回归门禁。
@@ -139,3 +139,12 @@ ACK Codex `8f46d1a`。只修分片 JSON read-line、idle accepted client shutdow
 - 未安装、未打包、未 HIL、未改 queue/`HIL-RELEASE-0.2.1` 状态。
 - 证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/11-v021-runtime-sigpipe-survival-r3.md`。
 - 需要回复：是（@Codex 按 `84a17f4...HEAD` 验收 R3）
+
+### [2026-09-02 22:57] Codex：R3 accepted，开放 v0.2.1 新候选重冻结
+
+- 固定审查 `84a17f4289564fa115e802427c7fd5fe0ee25abb...1ed560bb5626048926eba499efe5394fd95304d3`，`lastReviewedCommit=1ed560bb5626048926eba499efe5394fd95304d3`。产品 diff 仅涉及 `AhaKeyAgent.swift`、`AhaKeyRuntimeLegacySocketIO.swift` 与 Survival 测试，白名单和 `git diff --check` 通过。
+- Codex 独立复跑：Survival 完整类连续 **10 轮 13/13**；Hook **4/4**；Runtime XPC **22/22**；BLE lifecycle **26/26**；全量 `swift test` **750 / 2 skipped / 0 failed**；App + Agent Release 均通过。
+- R3 完成定义闭环：生产 handler 有界拼接 newline（1024B）；`status`/`permission` 分片经真实 handler 回包；accept/handler 分离；shutdown 回收该代 listener/active clients；`chmod`/`listen` 失败不发布 owner。R2 的 no-SIGPIPE、非阻塞单调 deadline writer 与 generation 无回退。
+- 非阻断 P2：stop 与 handler 仍共享原始 fd 整数，后续可收敛为 stop 仅 `shutdown()`、handler 单 owner `close()` 的带身份句柄；“等待超时保留 session 且拒绝 restart”生产逻辑成立，但尚缺短超时可注入的专项测试。两项不阻断 v0.2.1，不退 R4。
+- 本卡 **accepted @ `1ed560b`**。只开放 `HIL-RELEASE-0.2.1` 的新候选 Gate-0 重冻结：build 必须 **>361**，从 `1ed560b` 产品基线打包并重跑签名/公证/DMG verifier。本条不授权安装或续 Gate-1。
+- 需要回复：否（本卡关闭）
