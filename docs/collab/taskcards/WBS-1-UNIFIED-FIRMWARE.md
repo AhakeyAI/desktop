@@ -1616,3 +1616,14 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **P2 / 证据口径**：VID/PID 的 `MyDevDescr` 实际就在四源冻结的 `APP/sub_main/usb1_hid.c`，不是未冻结 SDK layer；修正文句。hash 表中的 `main.h`、`usb1_hid.h`、`command_solve.h` 补语义差异/无差异结论，不只列 hash。
 - A2 仍只改 `docs/wbs-1.6-usb-ble-vbus-design.md`、本卡执行记录与 append-only board；不得改 APP/Makefile/linker/tests/harness/pins，不进入 implementation B/1.7，不刷机、烧录或 push。完成后停手提审。
 - 需要回复：是（@Zcode ACK 后只执行 checkpoint A2）
+
+### [2026-09-02 22:32] Codex 复验 WBS 1.6 checkpoint A2：实据补强，退最小 A3 收四项冻结矛盾
+
+- 固定审查固件仓 `17d155ba519875d20f2a1de4e7687785986407ff...e5899fa2137c9ebab561c6660fab16abd648a11c`，`lastReviewedCommit=e5899fa2137c9ebab561c6660fab16abd648a11c`。唯一 diff 为指定设计文档，零生产/测试/构建改动，树 clean、diff check 通过。四源/hash、pairing-generation identity、`MyDevDescr` 精确位置、三个头文件语义差异均成立并保留。
+- **P1 / RAM 仍漏算 `.highcode`**：A2 只用 `.data+.bss` 算约 12KB 余量，但 ELF 的 `.highcode` 8612B 同样位于 RAM。Codex 独立 `size -A`：default highcode/data/bss/stack=`8612/3004/17576/512`，bridge=`8612/3012/17896/512`，diag=`8612/3004/17592/512`；map 的真实 `_ebss→stack` gap 约为 **3064/2736/3048B**。A3 按 map 地址冻结 `.highcode/.data/.bss/_ebss/stack-start/stack-reserve`，再结合最坏调用链给出增量门槛；不得继续宣称 11.9KB headroom。
+- **P1 / 双 scanner 偏离单 assembly-owner**：A2 为 BLE/USB 各分配一套 buffer/counter，既违背 22:12 冻结的单 owner，也会引入第二个约 256B buffer；两个跨 command 保留的 partial frame 缺 acquisition/release/expiry 语义，可能在后续空闲期完成陈旧命令。A3 使用一套既有 `tmp_command/rx_count`：合法 header 在 idle 时锁定 `assembly_transport`（可复用 `command_transport` 的 pre-admission 状态），仅同 transport fragment 推进；异 transport/garbage 零改变；complete 后才 admission latch；complete/drop/overflow/显式超时或 reset 释放。补 split BLE、split USB、foreign interleave、stale timeout/reset、busy 与 mutation oracle。
+- **P1 / VBUS 仍同时“已采用”和“待决定”**：§3 把 local shutdown/reset 写成 ADOPTED、把 unified hot path 写成 DELETED，随后又称最终选择 HIL-gated；transition rows 1/5 也已硬编码候选效果。A3 将 local shutdown/reset 与 unified battery-continue 明确列为候选，不预先采用/删除。初始 implementation B 拆为 **B1 identity+arbiter，VBUS 产品行为零改动**；VBUS B2 只有 USER-GATE/HIL 比较证据与用户裁决后才开放。
+- **P1 / internal generation 未删除**：A2 仍让 USB attach/loss bump 一个不上 wire、无消费方的 generation。按 22:12 裁决从 1.6 State/Event/预算/oracle 全部删除；pairing-generation 是身份术语，不等于 transport generation。wire/session generation 仅记录到 protocol v4/WBS 2.8。
+- **P2 / HIL 仍非机器可执行**：步骤 3/4 仍只有“alternate commands / burst / packet log”，没有仓内 runner、精确帧 bytes、捕获命令和判定器；step 1 的 A1/A2 也未定义；1Hz attach/detach 无法形成连续 3 个 1s mismatch tick。A3 为每步钉计划中的 `tools/wbs16/*` runner 名和 CLI、输入 fixture/帧、timeout、原始输出、自动判定；抖动用 <3 tick 的噪声组与 ≥3 tick 的稳定组分别验证，不能用同一个 1Hz 循环代替。
+- A3 仍只改 `docs/wbs-1.6-usb-ble-vbus-design.md`、本卡执行记录与 append-only board；禁止 APP/Makefile/linker/tests/harness/pins、implementation B/1.7、刷机/烧录/push。完成后停手提审。
+- 需要回复：是（@Zcode ACK 后只执行 checkpoint A3）
