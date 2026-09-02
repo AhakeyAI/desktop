@@ -1,0 +1,170 @@
+23:26:13.321 pid=65466 MONITOR_START pid0=65466 runs=1 status={"lightMode": 4, "switchState": 0} bt=os_connected names=['AhaKey 505C']
+23:26:13.687 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.280s
+23:26:14.443 pid=65466 state=wait_empty1 status={"lightMode": 4, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.045s
+23:26:15.313 pid=65466 state=wait_empty1 status={"lightMode": 4, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.156s
+23:26:16.017 pid=65466 state=wait_empty1 status={"lightMode": 4, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.066s
+23:26:16.726 pid=65466 state=wait_empty1 status={"lightMode": 4, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.079s
+23:26:17.442 pid=65466 state=wait_empty1 status={"lightMode": 4, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.048s
+23:26:18.176 pid=65466 state=wait_empty1 status={"lightMode": 4, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.094s
+23:26:19.183 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.106s
+23:26:20.008 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.141s
+23:26:20.759 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.043s
+23:26:21.658 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.043s
+23:26:22.363 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.021s
+23:26:23.068 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.046s
+23:26:23.773 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.056s
+23:26:24.478 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.082s
+23:26:25.336 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.048s
+23:26:26.091 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.277s
+23:26:26.968 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.027s
+23:26:27.751 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.073s
+23:26:28.469 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.002s
+23:26:29.217 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.119s
+23:26:29.924 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.064s
+23:26:30.673 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.025s
+23:26:31.393 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.063s
+23:26:32.235 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.099s
+23:26:32.968 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.028s
+23:26:33.673 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.010s
+23:26:34.543 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.068s
+23:26:35.267 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.039s
+23:26:35.968 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.059s
+23:26:36.693 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.004s
+23:26:37.573 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.150s
+23:26:38.308 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.087s
+23:26:39.134 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.017s
+23:26:39.913 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.088s
+23:26:40.648 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.049s
+23:26:41.414 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.086s
+23:26:42.171 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.172s
+23:26:42.979 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.056s
+23:26:43.813 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.082s
+23:26:44.527 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.158s
+23:26:45.229 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.132s
+23:26:46.048 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.197s
+23:26:46.835 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.110s
+23:26:47.668 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.191s
+23:26:48.403 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.175s
+23:26:49.230 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.023s
+23:26:49.993 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.139s
+23:26:50.837 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.092s
+23:26:51.592 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.054s
+23:26:52.393 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.248s
+23:26:53.162 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.063s
+23:26:53.998 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.116s
+23:26:54.703 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.073s
+23:26:55.408 pid=65466 state=wait_empty1 status={"switchState": 0, "lightMode": 4} bt=os_connected names=['AhaKey 505C'] bt_age=0.036s
+23:26:56.113 pid=65466 state=wait_empty1 status={"lightMode": 255, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.049s
+23:26:57.053 pid=65466 state=wait_empty1 status={"lightMode": null, "switchState": null} bt=os_connected names=['AhaKey 505C'] bt_age=0.049s
+23:26:57.331 pid=65466 state=wait_empty1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.120s
+23:26:57.338 pid=65466 EMPTY_SCAN_CONFIRMED round=1
+23:26:58.104 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.217s
+23:26:58.899 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.009s
+23:26:59.684 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.148s
+23:27:00.508 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.118s
+23:27:01.304 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.075s
+23:27:02.108 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.118s
+23:27:02.899 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.046s
+23:27:03.673 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.080s
+23:27:04.456 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.073s
+23:27:05.240 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.124s
+23:27:06.033 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.105s
+23:27:06.824 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.047s
+23:27:07.621 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.008s
+23:27:08.345 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.228s
+23:27:09.161 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.119s
+23:27:09.946 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.061s
+23:27:10.736 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.032s
+23:27:11.512 pid=65466 state=wait_wake1 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.137s
+23:27:12.333 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.120s
+23:27:13.110 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.004s
+23:27:13.894 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.084s
+23:27:14.680 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.065s
+23:27:15.465 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.029s
+23:27:16.249 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.149s
+23:27:17.064 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.145s
+23:27:17.780 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.025s
+23:27:18.570 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.010s
+23:27:19.362 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.011s
+23:27:20.161 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.082s
+23:27:20.958 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.024s
+23:27:21.756 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.008s
+23:27:22.549 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.009s
+23:27:23.296 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.066s
+23:27:24.097 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.002s
+23:27:24.889 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.072s
+23:27:25.683 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.069s
+23:27:26.472 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.048s
+23:27:27.256 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.143s
+23:27:28.049 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.057s
+23:27:28.834 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.148s
+23:27:29.623 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.135s
+23:27:30.421 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.025s
+23:27:31.156 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.181s
+23:27:31.882 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.036s
+23:27:32.426 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_connected names=['AhaKey 505C'] bt_age=0.014s
+23:27:32.431 pid=65466 T0_OS_CONNECTED round=1 names=['AhaKey 505C'] t0_src=profiler_finish profiler_s=0.154s
+23:27:33.224 pid=65466 state=wait_wake1 status={"switchState": null, "lightMode": null} bt=os_connected names=['AhaKey 505C'] bt_age=0.096s
+23:27:33.739 pid=65466 ROUND1_OK dt=1.321s pid=65466 runs=1 status={"switchState": 0, "lightMode": 0} names=['AhaKey 505C']
+23:27:33.932 pid=65466 state=wait_empty2 status={"lightMode": 255, "switchState": 0} bt=os_connected names=['AhaKey 505C'] bt_age=0.140s
+23:27:35.194 pid=65466 state=wait_empty2 status={"lightMode": null, "switchState": null} bt=os_connected names=['AhaKey 505C'] bt_age=0.078s
+23:27:35.470 pid=65466 state=wait_empty2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.018s
+23:27:35.475 pid=65466 EMPTY_SCAN_CONFIRMED_R2 round=2
+23:27:36.265 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.063s
+23:27:37.057 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.071s
+23:27:37.855 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.033s
+23:27:38.672 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.152s
+23:27:39.469 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.008s
+23:27:40.258 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.060s
+23:27:41.066 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.069s
+23:27:41.861 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.129s
+23:27:42.647 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.025s
+23:27:43.434 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.006s
+23:27:44.228 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.002s
+23:27:45.029 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.035s
+23:27:45.731 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.062s
+23:27:46.529 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.025s
+23:27:47.311 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.003s
+23:27:48.105 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.090s
+23:27:48.894 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.117s
+23:27:49.639 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.051s
+23:27:50.440 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.115s
+23:27:51.250 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.035s
+23:27:52.043 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.024s
+23:27:52.831 pid=65466 state=wait_wake2 status={"lightMode": null, "switchState": null} bt=os_disconnected names=[] bt_age=0.008s
+23:27:53.632 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.050s
+23:27:54.414 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.144s
+23:27:55.207 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.099s
+23:27:55.999 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.093s
+23:27:56.786 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.007s
+23:27:57.584 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.141s
+23:27:58.372 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.042s
+23:27:59.158 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.056s
+23:27:59.947 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.112s
+23:28:00.730 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.067s
+23:28:01.519 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.009s
+23:28:02.308 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.065s
+23:28:03.093 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.007s
+23:28:03.881 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.075s
+23:28:04.676 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.001s
+23:28:05.465 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.007s
+23:28:06.255 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.004s
+23:28:07.038 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.046s
+23:28:07.745 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.117s
+23:28:08.564 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.087s
+23:28:09.373 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.085s
+23:28:10.164 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.026s
+23:28:10.954 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.160s
+23:28:11.735 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.090s
+23:28:12.520 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.148s
+23:28:13.304 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.049s
+23:28:14.086 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.001s
+23:28:14.897 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.026s
+23:28:15.702 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.005s
+23:28:16.450 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.497s
+23:28:17.234 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_disconnected names=[] bt_age=0.082s
+23:28:17.371 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_connected names=['AhaKey 505C'] bt_age=0.066s
+23:28:17.377 pid=65466 T0_OS_CONNECTED round=2 names=['AhaKey 505C'] t0_src=profiler_finish profiler_s=0.153s
+23:28:18.165 pid=65466 state=wait_wake2 status={"switchState": null, "lightMode": null} bt=os_connected names=['AhaKey 505C'] bt_age=0.086s
+23:28:18.558 pid=65466 ROUND2_OK dt=1.249s pid=65466 runs=1 status={"switchState": 0, "lightMode": 0} names=['AhaKey 505C']
+23:28:18.565 pid=65466 BOTH_ROUNDS_OK

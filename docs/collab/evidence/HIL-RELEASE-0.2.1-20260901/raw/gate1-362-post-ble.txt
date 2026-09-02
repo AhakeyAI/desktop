@@ -1,0 +1,44 @@
+===== POST BLE Wed Sep  2 23:28:51 +08 2026 =====
+===== PID/RUNS =====
+	path = /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	stdout path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	stderr path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	runs = 1
+	pid = 65466
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+===== PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+hil_print_rc=113
+===== STUDIO GUI =====
+studio_gui_absent
+===== PROCESSES =====
+heartline        65466   1.4  0.1 435359232  16528   ??  S    11:22PM   0:03.12 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+===== VERSION =====
+0.2.1
+362
+===== XPC =====
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_rc=0
+===== STATUS SOCKET =====
+{"lightMode":4,"switchState":0}
+ahakey.sock=OK
+===== HOOK SOCKET =====
+hook.sock connect OK
+===== PMSET =====
+14:   pid 65466(ahakeyconfig-agent): [0x0004cd600001866d] 00:06:05 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+15-   pid 362(powerd): [0x0004c7ed000184fd] 00:29:20 PreventUserIdleSystemSleep named: "Powerd - Prevent sleep while display is on"  
+===== HOOKS/AHATYPE SHA =====
+f94297db87a29e4a0f819fdf973be0ed9ecfe6c9ce8858b279ea921f0945de0e  /Users/heartline/.cursor/hooks.json
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+===== BT =====
+      Connected:
+          AhaKey 505C:
+              Services: 0x400000 < BLE >
+      Not Connected:

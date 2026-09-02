@@ -1,0 +1,5 @@
+Gate-1 R2 Studio-closed Hook lighting probe
+time: 2026-09-02 23:28:51 +08
+pid: 65466
+note: real Cursor Write + StrReplace while Studio GUI absent; expect firmware 0x90 / LED write in agent log
+strreplace: 2026-09-02 23:29:40 +08

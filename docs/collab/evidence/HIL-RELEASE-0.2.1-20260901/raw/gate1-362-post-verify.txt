@@ -1,0 +1,131 @@
+===== POST VERIFY Wed Sep  2 23:23:15 +08 2026 =====
+===== VERSION =====
+0.2.1
+362
+1ed560bb5626048926eba499efe5394fd95304d3
+===== CODESIGN APP =====
+app_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== CODESIGN AGENT =====
+agent_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== BACKUP/STAGING =====
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+backup_absent
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+staging_absent
+===== PLIST =====
+-rw-r--r--@ 1 heartline  staff  859 Sep  2 23:22 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+231d3ca155ad9888b5b2876f539aada5e8605666b16270473c109236a95c50f5  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+lab.jawa.ahakeyconfig.agent
+true
+true
+Dict {
+    lab.jawa.ahakeyconfig.runtime = true
+}
+Array {
+    /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+    --socket
+    /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+}
+===== LAUNCHCTL =====
+65466	0	lab.jawa.ahakeyconfig.agent
+===== PRINT DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+		"lab.jawa.ahakeyconfig.agent.hil" => enabled
+===== PRINT OFFICIAL =====
+	path = /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	stdout path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	stderr path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	runs = 1
+	pid = 65466
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+official_print_rc=0
+===== PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+hil_print_rc=113
+===== LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app
+===== PROCESSES =====
+heartline        65466   0.1  0.1 435359040  16272   ??  R    11:22PM   0:00.30 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+===== STUDIO GUI =====
+studio_gui_absent
+===== HOOKS SHA =====
+f94297db87a29e4a0f819fdf973be0ed9ecfe6c9ce8858b279ea921f0945de0e  /Users/heartline/.cursor/hooks.json
+===== AHATYPE SHA =====
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+===== XPC =====
+-rwxr-xr-x@ 1 heartline  staff  5309792 Aug 27 20:43 /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/RuntimeXPCSmokeClient
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+xpc_rc=64
+===== STATUS SOCKET =====
+{"switchState":0,"lightMode":4}
+ahakey.sock=OK
+===== HOOK SOCKET =====
+hook.sock connect OK
+srw-------@ 1 heartline  staff  0 Sep  2 23:22 /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+srw-------@ 1 heartline  staff  0 Sep  2 23:22 /Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock
+===== PMSET =====
+   PreventUserIdleDisplaySleep    0
+   SoftwareUpdateTask             0
+   PreventSystemSleep             0
+--
+   PreventUserIdleSystemSleep     1
+   NetworkClientActive            0
+Listed by owning process:
+   pid 1603(UURemote): [0x000000b9000181a0] 109:32:59 PreventUserIdleSystemSleep named: "UURemote Disable Idle System Sleep"  
+   pid 17674(Cursor): [0x0004cc06000185f2] 00:06:15 NoIdleSleepAssertion named: "Electron"  
+   pid 65466(ahakeyconfig-agent): [0x0004cd600001866d] 00:00:30 PreventUserIdleSystemSleep named: "AhaKey Studio: Preventing idle sleep during coding tasks"  
+   pid 362(powerd): [0x0004c7ed000184fd] 00:23:45 PreventUserIdleSystemSleep named: "Powerd - Prevent sleep while display is on"  
+   pid 414(bluetoothd): [0x0004c15c000183fc] 00:51:46 PreventUserIdleSystemSleep named: "com.apple.BTStack"  
+   pid 422(WindowServer): [0x0004cc8200098611] 00:00:08 UserIsActive named: "com.apple.iohideventsystem.queue.tickle serviceID:100029a19 service:AppleMultitouchDevice product:Apple Internal Keyboard / Trackpad eventType:11"  
+	Timeout will fire in 592 secs Action=TimeoutActionRelease
+===== AGENT LOG TAIL =====
+[2026-09-02T15:22:09Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:11Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:12Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:14Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:15Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:16Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T15:22:17Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:17Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T15:22:17Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T15:22:17Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:17Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T15:22:17Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:18Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:20Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:21Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:23Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:24Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:26Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:27Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:29Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:30Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:32Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:33Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:35Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:36Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:39Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:41Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T15:22:42Z] ← LED/OLED 状态 BLE 写入已确认
+2026-09-02 23:22:46.103 ahakeyconfig-agent[65466:5577736] Using your own bundle identifier as an NSUserDefaults suite name does not make sense and will not work. Break on _NSUserDefaults_Log_Nonsensical_Suites to find this
