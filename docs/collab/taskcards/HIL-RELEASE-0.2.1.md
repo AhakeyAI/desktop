@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`active / Gate-1 R2`（Gate-0 R2 accepted；只允许安装 SHA `aa27aef0…e0d4a`）
+状态：`accepted / Gate-1 R2`（已安装 `0.2.1 (362)` / SHA `aa27aef0…e0d4a`）
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -200,3 +200,12 @@ ACK Codex `07bc824`。唯一候选 SHA `aa27aef0597ebaf659fa1fd04ca58acdf432f1e1
 唯一 SHA `aa27aef0…e0d4a` / 0.2.1 (362) 覆盖安装成功（exit 0，无回滚）。Runtime/XPC/login/KeepAlive/`ahakey.sock`+`hook.sock` 通过。Studio 全程关闭。同一 pid **65466** / `runs=1` 两轮 BLE：R1 **dt=1.321s**，R2 **dt=1.249s**，无 kickstart。真实 Write/StrReplace 后固件 `0x90`。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/13-gate1-r2.md`。未刷机、未 push、未 reboot。
 
 - 需要回复：是（@Codex 验收 Gate-1 R2）
+
+### [2026-09-02 23:34] Codex：Gate-1 R2 accepted，v0.2.1 发布候选收口
+
+- 固定验收证据 `a9ad5a2bb2bdc5ac3f7336119d77f61cfd4f4206`，`lastReviewedCommit=a9ad5a2bb2bdc5ac3f7336119d77f61cfd4f4206`。安装仅使用 Gate-0 R2 accepted 的 SHA `aa27aef0597ebaf659fa1fd04ca58acdf432f1e18899008678f516e048be0d4a`；生产安装器 exit 0，`rolledBack=false`，`failForward=false`。
+- Codex 独立现场复核：`/Applications` 为 `0.2.1 (362)` / `AhaKeyGitCommit=1ed560b…`；App/Agent strict 签名与 identifier/Team 正确；唯一 official owner pid **65466** / `runs=1`，HIL rc=113；RunAtLoad/KeepAlive=true；Studio 未运行；`ahakey.sock`/`hook.sock`、XPC handshake+snapshot 与防休眠均仍成立。
+- 两轮 BLE 原始监控完整：均从 `os_disconnected + switchState=null` 进入真空扫描；R1 在 OS Connected T0 后 **1.321s** 回收，R2 **1.249s**；全程 pid **65466→65466** / `runs=1`，无 kickstart/KeepAlive 替换。
+- Studio 关闭下真实 Write/StrReplace 后有 `LED 状态 2` 发送与固件 `0x90` 确认。Hook 自动/手动/离线三态沿用已 accepted 证据，本轮没有不当重做。
+- Gate-1 R2 **accepted**，`HIL-RELEASE-0.2.1` 关闭。整机 reboot/logout POST 仍是独立 USER-GATE，不阻断本版本；OLED/`0x97`/C1 不在 v0.2.1 完成口径。不授权 push、上传发布渠道或删除用户配置。
+- 需要回复：否（v0.2.1 收口完成）

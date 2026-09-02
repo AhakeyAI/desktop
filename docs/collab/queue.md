@@ -6,7 +6,7 @@
 
 本文件只定义正式任务卡的执行顺序、依赖和用户门禁。产品范围以 `docs/unified-firmware-runtime-implementation-plan.md` 为准；执行细节以对应任务卡为准。
 
-规则：每个写入域默认仅一张卡可处于 `ready/active/review`。客户端域由 Cursor 先完成 `V021-RUNTIME-SIGPIPE-SURVIVAL` 与 v0.2.1 收口，随后才开放 v0.3 OLED 客户端兼容卡；独立固件域由 Zcode 执行 WBS 1.6 implementation B1。WBS 1 不再阻塞 v0.3 客户端 OLED 发布，但仍是后续 v0.4 平台快捷键固件的前置。刷机、reboot/logout、push、覆盖安装和量产切换仍未开放。
+规则：每个写入域默认仅一张卡可处于 `ready/active/review`。v0.2.1 已收口；客户端域由 Cursor 执行 v0.3 OLED 兼容 C1；独立固件域由 Zcode 执行 WBS 1.6 implementation B1。WBS 1 不再阻塞 v0.3 客户端 OLED 发布，但仍是后续 v0.4 平台快捷键固件的前置。刷机、reboot/logout、push、其他覆盖安装和量产切换仍未开放。
 
 | 顺序 | 任务卡 | Owner | 覆盖 WBS | 当前状态 | 晋级条件 |
 |---:|---|---|---|---|---|
@@ -42,11 +42,11 @@
 | 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | accepted / R5 | 最终产品 `5c4f440`；R4 P1 关闭；残留 Fake 默认名即内容 / 双编码器排序 P2；安装重跑仍 USER-GATE |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | accepted / Gate-2 same-session | build 359；KeepAlive/故障回滚/卸载重装全绿；整机重启 POST 仍为独立 USER-GATE |
 | 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | accepted / U2 closed | 最终产品 `95b775d`；U3 延后 v1.0/5.9B |
-| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | active / Gate-1 R2 | Gate-0 R2 accepted；只安装 build 362 / SHA `aa27aef0…e0d4a`，收口同 pid 两轮 BLE |
+| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | accepted / Gate-1 R2 | build 362；同 pid 65466 两轮 BLE 1.321s/1.249s；XPC/socket/Hook→灯效全绿 |
 | 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | accepted / R1 product | `88e02aa`；P2 残留不阻断；HIL 归新候选 |
 | 15I-R2 | `V021-RUNTIME-SIGPIPE-SURVIVAL` | Cursor；Codex 验收 | v0.2.1 Runtime 稳定性 | accepted / R3 | `1ed560b`；独立 Survival 10×13/13、Hook 4/4、XPC 22/22、BLE 26/26、全量 750/0、双 Release |
 | 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | accepted / product | `0b4b5e1`；失败路径 detach 收口；不再阻断重冻结 |
-| 15K | `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` | Cursor；Codex 验收 | v0.3 客户端 OLED | draft / waits v0.2.1 close | v0.2.1 最终 accepted 后开放 C1；正式 UI 兼容 GitHub Standard/Gitee Rhino/Local Rhino，不依赖刷统一固件 |
+| 15K | `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` | Cursor；Codex 验收 | v0.3 客户端 OLED | ready / C1 | 能力 profile + planner/opcode 路由；正式 UI 兼容 GitHub Standard/Gitee Rhino/Local Rhino，不依赖刷统一固件 |
 | 15L | `HIL-V03-STUDIO-OLED-COMPATIBILITY` | Cursor；Zcode 只读验证；Codex 验收 | v0.3 OLED HIL | draft / USER-GATE | 15K accepted；正式 Studio UI 三类旧固件矩阵，不得以专用 HIL 驱动替代 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
@@ -59,7 +59,7 @@
 | 21 | `WBS-6-BETA-RELEASE` | Cursor；Zcode 验证 | 6.5-6.7 / v1.0 | draft / USER-GATE | v1.0 的 6.1-6.4 accepted；不重复承担 v0.2 Beta |
 | 22 | `HIL-RELEASE-1.1` | Cursor；Zcode 验证 | 6.4A / v1.1 | draft / USER-GATE | WBS 5A accepted；不反向阻塞 v1.0 |
 
-队列不是一般并行许可。Cursor 当前只执行 `HIL-RELEASE-0.2.1` Gate-1 R2：用唯一 build 362 / SHA `aa27aef0…e0d4a` 覆盖安装，收口同 pid 两轮 BLE 与 Studio 退出后 Hook→灯效；完成或任一 stop condition 后停手提审。v0.2.1 最终 accepted 后再由 Codex 开放 15K。Zcode 继续独立固件仓 WBS 1.6 B1，后续 1.7/WBS 2 不与客户端 OLED 混提。`HIL-CONFIG` C1-C6 继续作为统一固件资格门禁，但不再阻塞 v0.3；15L 是 v0.3 唯一 OLED 真机兼容门禁。本次唯一 SHA 覆盖安装已由用户既有授权覆盖；其他安装、固件切换、EEPROM 擦除、远端 push 和量产切换仍需 USER-GATE。
+队列不是一般并行许可。Cursor 当前只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1：能力识别和 planner/opcode 路由；完成后停手提审，不自动进 C2/HIL/打包。Zcode 继续独立固件仓 WBS 1.6 B1，后续 1.7/WBS 2 不与客户端 OLED 混提。`HIL-CONFIG` C1-C6 继续作为统一固件资格门禁，但不再阻塞 v0.3；15L 是 v0.3 唯一 OLED 真机兼容门禁。刷机、安装、固件切换、EEPROM 擦除、远端 push 和量产切换仍需 USER-GATE。
 
 发布列车：`v0.2/v0.2.1 = 15E → 15F → 15G → 15H → 15I`；`v0.3 = 15K → 15L → 19A`（客户端 OLED，独立于固件）；`v0.4 = WBS 1 → WBS 2 + WBS 4.1-4.4 + 5.8 → 19B`（统一固件与平台快捷键）；`v0.5 = WBS 3 + WBS 4.5 → 19C`；`v1.0 = WBS 4.6-4.8 + 5.10 → 5.9B → WBS 6`；`v1.1 = WBS 5A → 22`。
 

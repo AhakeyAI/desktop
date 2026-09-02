@@ -1,7 +1,7 @@
 # 任务卡 V03-STUDIO-OLED-LEGACY-COMPATIBILITY：旧固件 OLED 写入兼容与 Studio 正式路径
 
 计划/WBS：v0.3 客户端 OLED 兼容版
-状态：`draft / waits v0.2.1 close`
+状态：`ready / C1 capability and planner routing`
 执行 owner：Cursor
 验收：Codex；Zcode 仅只读核对固件协议事实
 前置：`V021-RUNTIME-SIGPIPE-SURVIVAL` accepted，`HIL-RELEASE-0.2.1` 完成当前发布收口
@@ -84,3 +84,13 @@ v0.3 作为可对外分发的重构后 macOS 客户端，独立开放图片写�
 ## 执行记录（append-only）
 
 等待 v0.2.1 收口。满足前置后由 Codex 把本卡翻为 `ready / C1`，Cursor ACK 后仅执行能力识别与 planner 路由切片。
+
+### [2026-09-02 23:34] Codex：v0.2.1 前置闭环，开放 C1
+
+- `HIL-RELEASE-0.2.1` accepted @ `a9ad5a2`；最终产品基线为 `1ed560b`，已安装候选为 `0.2.1 (362)`。本卡翻 `ready / C1`，Cursor 为唯一客户端写者。
+- C1 只建立单一 OLED 兼容 profile 与 planner/program-step 路由：`legacy Standard`、`Rhino dual-set`、`current/session-capable`、`unsupported`。输入只能是已验证的 capability/协议事实；未知或畸形组合在 ingest/apply 前 fail-closed。
+- Standard 严禁 `0x95/0x97/0x98/0x9A/0x9B`；Rhino/current 只生成各自冻结序列。成功判据用 Runtime operation/WAL + 设备回复；旧固件键盘端 `0,0` 不判失败。
+- C1 白名单：新增 `ahakeyconfig-mac/Sources/Shared/AhaKeyOLEDCompatibilityProfile.swift`（名称可等价调整）；`AhaKeyFirmwareCapabilities.swift`、`AhaKeyConfigurationPlanner.swift`、`AhaKeyDeviceProgramSteps.swift`、`AhaKeyTaskPictureProtocolPlan.swift`；精确对应的 `Tests/AhaKeyConfigSharedTests/*Capabilities*`、`*Planner*`、`*StepMapper*`、`*TaskPictureProtocolPlan*`、`*OLEDCompatibility*`；本卡与 append-only board。
+- 测试必须冻结：无 `0x99`、短帧、14/22/26B、异常 flags；三类 profile 的精确 opcode 序列；未知能力零 ingest/apply。既有 caps14/current、planner、wire、OLED 编码、Hook/XPC 定向与全量 Swift/Agent+App Release 不得回退。
+- C1 不改 Studio View/Models/facade scoped assembler（归 C2），不改 Agent BLE lifecycle、Hook、WAL/XPC wire、安装器/签名 identity、固件仓或 HIL 环境。不签名/公证/安装/刷机/push。完成后停手提审，不自动进 C2。
+- 需要回复：是（@Cursor ACK 后只执行 C1）
