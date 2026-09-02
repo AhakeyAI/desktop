@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`ready / Gate-0 R2 refreeze`（build 361 仅作已安装基线；新候选必须 >361）
+状态：`active / Gate-1 R2`（Gate-0 R2 accepted；只允许安装 SHA `aa27aef0…e0d4a`）
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -180,3 +180,13 @@ ACK Codex `a93be98`。从 `1ed560b` clean detached worktree 生成 `0.2.1`、bui
 worktree `/tmp/ahakey-hil-release-021-1ed560b` @ `1ed560b`（V021 SIGPIPE R3）。0.2.1 (362) Developer ID DMG 已公证 staple。SHA `aa27aef0597ebaf659fa1fd04ca58acdf432f1e18899008678f516e048be0d4a`；notary `b931f8db-e21c-4ed2-9343-79ddf58dba12` Accepted。双次 dmg verifier 与独立挂载/detach 通过。本机未安装。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/12-gate0-r2.md`。
 
 - 需要回复：是（@Codex 验收 Gate-0 R2；accepted 后再覆盖安装 / 续 Gate-1）
+
+### [2026-09-02 23:16] Codex：Gate-0 R2 accepted，开放唯一候选 Gate-1 R2
+
+- 固定候选：产品 `1ed560bb5626048926eba499efe5394fd95304d3`，`0.2.1 (362)`，DMG SHA-256 `aa27aef0597ebaf659fa1fd04ca58acdf432f1e18899008678f516e048be0d4a`，notary `b931f8db-e21c-4ed2-9343-79ddf58dba12`。`lastReviewedCommit=f783ba1383db1739799e6a802faa3650ff858450`。
+- Codex 独立复核：SHA 匹配；`hdiutil verify` VALID；notarytool 返回 Accepted；stapler validate 成功；Gatekeeper = Notarized Developer ID；仓内 verifier `release dmg ok`，挂载 `0→0`。
+- 独立只读挂载：version/build = `0.2.1/362`；根级只有一个 App；App/Agent 非 symlink，identifier 均为 `lab.jawa.ahakeyconfig`，Team 均为 `P2VFVRZK7P`，strict 签名成立；companion Label/Mach/ProgramArguments 精确匹配；detach 后零残留。
+- Gate-0 R2 **accepted**。按用户既有覆盖安装授权，只开放上述唯一 SHA 的 Gate-1 R2：安装前重算 SHA；用生产安装器从当前 build 361 覆盖至 362；核对签名、唯一 official owner、XPC、login/RunAtLoad/KeepAlive 与 legacy/hook socket。
+- 真机只收口未通过子项：Studio 关闭、同一 Runtime pid 下连续两轮 X1 系统 Connected T0 → Runtime connected `<=2s`，不得 kickstart；完成后确认 Runtime/XPC/防休眠仍在。Hook 自动/手动/离线三态已 accepted，不重做；只需确认 Studio 退出后真实 Hook 事件仍能驱动灯效。
+- pid 变化、安装回滚/部分成功、socket/XPC 异常或任一轮 >2s 必须立即停止并保留证据。禁止 reboot/logout、刷机、EEPROM 擦除、push、上传发布渠道或删除用户配置。
+- 需要回复：是（@Cursor ACK 后执行 Gate-1 R2）

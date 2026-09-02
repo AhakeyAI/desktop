@@ -6,7 +6,7 @@
 
 本文件只定义正式任务卡的执行顺序、依赖和用户门禁。产品范围以 `docs/unified-firmware-runtime-implementation-plan.md` 为准；执行细节以对应任务卡为准。
 
-规则：每个写入域默认仅一张卡可处于 `ready/active/review`。客户端域由 Cursor 先完成 `V021-RUNTIME-SIGPIPE-SURVIVAL` 与 v0.2.1 收口，随后才开放 v0.3 OLED 客户端兼容卡；独立固件域由 Zcode 执行 WBS 1.6 checkpoint A4。WBS 1 不再阻塞 v0.3 客户端 OLED 发布，但仍是后续 v0.4 平台快捷键固件的前置。刷机、reboot/logout、push、覆盖安装和量产切换仍未开放。
+规则：每个写入域默认仅一张卡可处于 `ready/active/review`。客户端域由 Cursor 先完成 `V021-RUNTIME-SIGPIPE-SURVIVAL` 与 v0.2.1 收口，随后才开放 v0.3 OLED 客户端兼容卡；独立固件域由 Zcode 执行 WBS 1.6 implementation B1。WBS 1 不再阻塞 v0.3 客户端 OLED 发布，但仍是后续 v0.4 平台快捷键固件的前置。刷机、reboot/logout、push、覆盖安装和量产切换仍未开放。
 
 | 顺序 | 任务卡 | Owner | 覆盖 WBS | 当前状态 | 晋级条件 |
 |---:|---|---|---|---|---|
@@ -20,7 +20,7 @@
 | 4A | `HIL-RUNTIME-1-HOOK-SERVER` | Kimi；Cursor 验证 | §15.0-4 返工 | accepted | Codex 11:50：User 确认 11:38 bootout；listen+三态独立证据；`fa6c02e` |
 | 5 | `WBS-5.4-LIFECYCLE` | Kimi | 5.4 | accepted | Codex 17:02：HEAD `762863d`；独立 pmset Agent 64088 持断言；无 Studio UI；双 socket；定向 21 测通过 |
 | 6 | `WBS-0-RISK-CLOSURE` | Kimi | 0.2-0.7 | accepted | Codex 19:01：macOS 证据独立复核；Windows 0xEE / USB 枚举 / SDK Link.ld 延期；不启动 WBS-1 直至固件工作树冻结 |
-| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.6 checkpoint A4 | `f6fff95` highcode/单 owner/generation/VBUS 分期成立；B1 HIL 不得含 local 拔线关机 |
+| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.6 implementation B1 | `486b84c` A4 accepted；identity+arbiter only，零 VBUS/刷机 |
 | 8 | `WBS-2-PLATFORM-VOICE` | Zcode | 2.1-2.8 / v0.4 | draft | WBS 1 accepted |
 | 9 | `WBS-3-LEVER-MACROS` | Zcode | 3.1-3.6 / v0.5 | draft | WBS 2 accepted |
 | 10A | `WBS-4-STUDIO-V4` | Cursor | 4.1-4.4 / v0.4 | draft | WBS 2 accepted；只开平台/语音 UI slice |
@@ -42,7 +42,7 @@
 | 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | accepted / R5 | 最终产品 `5c4f440`；R4 P1 关闭；残留 Fake 默认名即内容 / 双编码器排序 P2；安装重跑仍 USER-GATE |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | accepted / Gate-2 same-session | build 359；KeepAlive/故障回滚/卸载重装全绿；整机重启 POST 仍为独立 USER-GATE |
 | 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | accepted / U2 closed | 最终产品 `95b775d`；U3 延后 v1.0/5.9B |
-| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | ready / Gate-0 R2 refreeze | 从 `1ed560b` 重冻结 build >361；本轮只打包/签名/公证/verifier，不安装 |
+| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | active / Gate-1 R2 | Gate-0 R2 accepted；只安装 build 362 / SHA `aa27aef0…e0d4a`，收口同 pid 两轮 BLE |
 | 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | accepted / R1 product | `88e02aa`；P2 残留不阻断；HIL 归新候选 |
 | 15I-R2 | `V021-RUNTIME-SIGPIPE-SURVIVAL` | Cursor；Codex 验收 | v0.2.1 Runtime 稳定性 | accepted / R3 | `1ed560b`；独立 Survival 10×13/13、Hook 4/4、XPC 22/22、BLE 26/26、全量 750/0、双 Release |
 | 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | accepted / product | `0b4b5e1`；失败路径 detach 收口；不再阻断重冻结 |
@@ -59,7 +59,7 @@
 | 21 | `WBS-6-BETA-RELEASE` | Cursor；Zcode 验证 | 6.5-6.7 / v1.0 | draft / USER-GATE | v1.0 的 6.1-6.4 accepted；不重复承担 v0.2 Beta |
 | 22 | `HIL-RELEASE-1.1` | Cursor；Zcode 验证 | 6.4A / v1.1 | draft / USER-GATE | WBS 5A accepted；不反向阻塞 v1.0 |
 
-队列不是一般并行许可。Cursor 当前只执行 `HIL-RELEASE-0.2.1` Gate-0 R2 候选重冻结；候选提审后停手，安装/Gate-1 不自动开放。v0.2.1 最终 accepted 后再由 Codex 开放 15K。Zcode 继续独立固件仓 WBS 1.6 A4，后续 1.7/WBS 2 不与客户端 OLED 混提。`HIL-CONFIG` C1-C6 继续作为统一固件资格门禁，但不再阻塞 v0.3；15L 是 v0.3 唯一 OLED 真机兼容门禁。刷机、安装、固件切换、EEPROM 擦除、远端 push 和量产切换仍需 USER-GATE。
+队列不是一般并行许可。Cursor 当前只执行 `HIL-RELEASE-0.2.1` Gate-1 R2：用唯一 build 362 / SHA `aa27aef0…e0d4a` 覆盖安装，收口同 pid 两轮 BLE 与 Studio 退出后 Hook→灯效；完成或任一 stop condition 后停手提审。v0.2.1 最终 accepted 后再由 Codex 开放 15K。Zcode 继续独立固件仓 WBS 1.6 B1，后续 1.7/WBS 2 不与客户端 OLED 混提。`HIL-CONFIG` C1-C6 继续作为统一固件资格门禁，但不再阻塞 v0.3；15L 是 v0.3 唯一 OLED 真机兼容门禁。本次唯一 SHA 覆盖安装已由用户既有授权覆盖；其他安装、固件切换、EEPROM 擦除、远端 push 和量产切换仍需 USER-GATE。
 
 发布列车：`v0.2/v0.2.1 = 15E → 15F → 15G → 15H → 15I`；`v0.3 = 15K → 15L → 19A`（客户端 OLED，独立于固件）；`v0.4 = WBS 1 → WBS 2 + WBS 4.1-4.4 + 5.8 → 19B`（统一固件与平台快捷键）；`v0.5 = WBS 3 + WBS 4.5 → 19C`；`v1.0 = WBS 4.6-4.8 + 5.10 → 5.9B → WBS 6`；`v1.1 = WBS 5A → 22`。
 

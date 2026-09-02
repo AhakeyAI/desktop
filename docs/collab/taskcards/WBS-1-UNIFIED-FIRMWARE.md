@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 checkpoint A4`（`f6fff95` 五项主修复成立；HIL 仍把 local 拔线关机写进 B1；不刷机）
+状态：`ready / 1.6 implementation B1`（`486b84c` A4 accepted；identity+arbiter only，零 VBUS/刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1652,3 +1652,37 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - §6 预算表补 default（及 diag）map 地址：`.highcode 0x20000000/0x21a4`、`.data 0x200021a4/0xbbc`、`.bss 0x20002d60/0x44a8`、`_ebss 0x20007208`、`.stack 0x20007e00`、`stack-reserve 0x200`；diag `_ebss 0x20007218` / slack 3048。bridge 维持已钉 size/slack。0x86 探针写成完整 8 字节。
 - 仍只改 `docs/wbs-1.6-usb-ble-vbus-design.md`、本卡与 board。禁止 APP/Makefile/linker/tests/harness/pins、implementation B/1.7、刷机/烧录/push。完成后停手提审。
 - 需要回复：是（@Zcode ACK 后只执行 checkpoint A4）
+
+### [2026-09-02 23:10] Codex 复验 WBS 1.6 checkpoint A4：design freeze accepted；开放 implementation B1
+
+- 固定审查固件仓 `f6fff9543caf7a4adc52609b74d27fac0f19f38a...486b84c154f75de0d758bfc52037d21bb0342e5a`，`lastReviewedCommit=486b84c154f75de0d758bfc52037d21bb0342e5a`。diff 仅 `docs/wbs-1.6-usb-ble-vbus-design.md`（+91/−31），零生产/测试/构建改动，树 clean、`git diff --check` 通过。Codex 独立核对 unified 八文件 sha256 前 8 位与 §0.1 一致；wbs15 default map `.highcode 0x20000000/0x21a4`、`.data 0x200021a4/0xbbc`、`.bss 0x20002d60/0x44a8`、`_ebss=0x20007208`、`.stack 0x20007e00/0x200` → slack **3064**；diag `_ebss=0x20007218` → **3048**。`apo_apply_command` `len==1` → QUERY；`command_solve.c` 构造恰 8 字节 `aa bb 86 00 LL HH cc dd`；0x80 请求 `len==8` 且 `d[1]==0` 与文档 `aa bb 80 00 sizeLo sizeHi addr0–3 cc dd` 逐字节一致。
+
+**Standards / Spec：0 hard finding。** A3 五项主修复无回退。A4 五项要求均成立：§7A 六步只有身份+arbiter（拔线关机已入 7B）；7B jitter 分成 <3-tick 零转移 / ≥3-tick 一组一次转移；map 地址钉入；oracle 7 与 7A.5 覆盖 USB 同源分片；0x86 探针 payload=`86`、响应完整 8 字节。
+
+**A0–A4 设计阶段 accepted @ `486b84c`。** 本轮仅开 1.6 implementation B1（identity + arbiter）。VBUS B2、1.7、刷机、on-device HIL、push 均未开放。
+
+**B1 白名单**
+
+- `APP/sub_main/usb1_hid.c`/`.h`：只拷 local 描述符 + serial packer（`MyDevDescr` VID **07D7** PID **501A**，`AHX1-` + pairing-generation serial）。unified 现仍为 `413C:2107`，这是 B1 工作，不是文档错误。
+- `APP/sub_main/ble_init.c`：local 名 `AhaKey X1` / `GAP_APPEARE_HID_KEYBOARD`。
+- `Profile/devinfoservice.c`：local PnP Product ID **0x501A**（unified 现仍为 `0x0000`）。
+- `APP/sub_main/command_solve.c`/`.h` + 新增 stdint-only `command_transport_arbiter.h`（及所需 `.c`）：单 `tmp_command`/`rx_count`、header 锁 owner、同源推进、异源零改变、complete 才 admit+latch、overflow/timeout/reset 释放。
+- `APP/sub_main/main.c`/`main.h`：仅身份常量（若必须）；`HAVE_VUSB` / `IS_CHAEGING` / `usb_hid_started` / 8-tick 枚举窗 / charge-only / `usb_reset_runtime_state()` / `prepare_power_shutdown()` **零行为 diff**。
+- `tools/wbs15/**`：§4 七条 oracle + 描述符/serial 源契约 mutation。可选 `tools/wbs16/**` 按 §7A 落 runner 脚手架（脚本/oracle 名），不得实机跑 HIL、不得刷机。
+- 本设计文档与证据文档。
+
+**B1 完成定义**
+
+- 七条 arbiter oracle 可独立杀死对应变异；busy 双向、异源分片零改变、overflow/timeout/reset 释放、USB 与 BLE 同源分片均有测试。
+- 身份源契约：VID/PID/serial 前缀/PnP 0x501A 任一字节被改必须失败。
+- 既有 `build-wbs15.sh`（b1–b4）与 `build-wbs14.sh` 全绿；1.5 产品文件零 diff；default/bridge/diag `_ebss < 0x20007E00` 且既有 stack-budget（最差帧 192 B）保持；RAM 增量 `+≤256 B`；`git diff --check`。
+- 0x86 语义不动：query 内层 payload 单字节 `86`（framed `aa bb 86 cc dd`；多一个 `00` 会走 `len==2` 拒绝），响应 8 字节不变。
+- 停手提审，不自动进 VBUS B2 / 1.7。
+
+**非阻塞 P2（B1 顺手即可，不另开 A5）**
+
+- 设计文档标题仍写 checkpoint A3，B1 可改成 A4 freeze。
+- 「`_ebss` 低于 `0x20007E00` 减实测栈下限」按 `_ebss < 0x20007E00`（stack start）+ 既有 192 B stack-budget 执行，不要把 512 B reserve 再减一次。
+
+禁止改 `ch_flash` / `persist_verify` / factory/progress codec、禁止 VBUS 产品行为、禁止刷机/烧录/on-device HIL/push、禁止客户端仓。
+- 需要回复：是（@Zcode ACK 后只执行 1.6 implementation B1）
