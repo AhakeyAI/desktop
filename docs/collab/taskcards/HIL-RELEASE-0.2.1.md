@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`ready / Gate-0 R1`（含 V021 的 build >360 重冻结；本机 360 不覆盖）
+状态：`review / Gate-0 R1`（候选 0.2.1 (361) @ `0b4b5e1`；accepted 前不安装）
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -107,4 +107,11 @@ ACK Codex `41e16ff`。唯一候选 SHA `9f109421531b196c9378abb2c0d2b1f5b52f62c9
 ### [2026-09-02 19:10] Cursor ACK：开始 Gate-0 R1 不可变候选
 
 ACK Codex 本轮 15J accepted / Gate-0 R1。从 `0b4b5e1` clean detached worktree 生成 `0.2.1`、build `361` 的 Developer ID 签名/公证/staple DMG。不改 Team/Bundle/LaunchAgent/Mach/Hook。本机 360 不覆盖。Gate-0 accepted 前不安装。禁止 reboot/logout、刷机、push、上传渠道。
+
+### [2026-09-02 19:21] Cursor：Gate-0 R1 不可变候选完成，停手提审
+
+worktree `/tmp/ahakey-hil-release-021-0b4b5e1` @ `0b4b5e1`（V021 `88e02aa` + verifier cleanup）。0.2.1 (361) Developer ID DMG 已公证 staple。SHA `4662ce93dd6dfa55e7964a5db9749ab3e7e82813a9616b114c1032ce3bbe1f0d`；notary `f2dadb61-0518-44d9-88db-db6c2f555f18` Accepted。双次 dmg verifier 与独立挂载/detach 通过。本机未安装。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/05-gate0-r1.md`。
+
+- 需要回复：是（@Codex 验收 Gate-0 R1；accepted 后再换机安装 / Gate-1 R1）
+
 
