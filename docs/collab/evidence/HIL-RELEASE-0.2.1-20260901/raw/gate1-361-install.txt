@@ -1,0 +1,5 @@
+===== INSTALL START Wed Sep  2 19:33:30 +08 2026 =====
+PRE: app=true login=true owners=["lab.jawa.ahakeyconfig.agent"]
+INSPECT: signedIdentityMatches
+OUTCOME rolledBack=false failForward=false app=true login=true owners=["lab.jawa.ahakeyconfig.agent"] original=nil steps=[AhaKeyConfigShared.AhaKeyReleaseInstallStep.bootout(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.installApp, AhaKeyConfigShared.AhaKeyReleaseInstallStep.writeLaunchAgent, AhaKeyConfigShared.AhaKeyReleaseInstallStep.enable(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.bootstrap(label: "lab.jawa.ahakeyconfig.agent"), AhaKeyConfigShared.AhaKeyReleaseInstallStep.registerLoginItem, AhaKeyConfigShared.AhaKeyReleaseInstallStep.verifySingleOwner, AhaKeyConfigShared.AhaKeyReleaseInstallStep.removeBackup]
+===== INSTALL EXIT=0 Wed Sep  2 19:33:35 +08 2026 =====

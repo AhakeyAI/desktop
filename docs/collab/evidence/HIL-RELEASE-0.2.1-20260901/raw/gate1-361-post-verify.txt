@@ -1,0 +1,121 @@
+===== POST VERIFY Wed Sep  2 19:34:07 +08 2026 =====
+===== VERSION =====
+0.2.1
+361
+0b4b5e148ff822454d5ff4316e624c1e1aae1c96
+===== CODESIGN APP =====
+app_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== CODESIGN AGENT =====
+agent_verify_rc=0
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+===== BACKUP/STAGING =====
+ls: /Applications/AhaKey Studio.app.ahakey-backup: No such file or directory
+backup_absent
+ls: /Applications/AhaKey Studio.app.ahakey-staging: No such file or directory
+staging_absent
+===== PLIST =====
+-rw-r--r--@ 1 heartline  staff  859 Sep  2 19:33 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+231d3ca155ad9888b5b2876f539aada5e8605666b16270473c109236a95c50f5  /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+lab.jawa.ahakeyconfig.agent
+true
+true
+Dict {
+    lab.jawa.ahakeyconfig.runtime = true
+}
+Array {
+    /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+    --socket
+    /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+}
+===== LAUNCHCTL =====
+85410	0	lab.jawa.ahakeyconfig.agent
+===== PRINT DISABLED =====
+		"lab.jawa.ahakeyconfig.agent" => enabled
+		"lab.jawa.ahakeyconfig.agent.hil" => enabled
+===== PRINT OFFICIAL =====
+	path = /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+	state = running
+	program = /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+	stdout path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	stderr path = /Users/heartline/Library/Logs/ahakeyconfig-agent.log
+	pid = 85410
+		"lab.jawa.ahakeyconfig.runtime" = {
+		state = active
+		state = active
+	job state = running
+official_print_rc=0
+===== PRINT HIL =====
+Bad request.
+Could not find service "lab.jawa.ahakeyconfig.agent.hil" in domain for user gui: 501
+hil_print_rc=113
+===== LOGIN ITEMS =====
+/Applications/Typeless.app, /Applications/QoderWork.app, /Applications/BaiduNetdisk_mac.app, /Applications/AhaKey Studio.app
+===== PROCESSES =====
+heartline        85410   0.0  0.1 435358752  16400   ??  R     7:33PM   0:00.37 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+===== HOOKS SHA =====
+f94297db87a29e4a0f819fdf973be0ed9ecfe6c9ce8858b279ea921f0945de0e  /Users/heartline/.cursor/hooks.json
+===== AHATYPE SHA =====
+a5cd44a05f58132980f71dab1d549ef2f4c941eec4c3d30eb5ffbdb84a4df971  /Users/heartline/Library/Application Support/AhaKeyConfig/ahatype.json
+===== XPC =====
+-rwxr-xr-x@ 1 heartline  staff  5309792 Aug 27 20:43 /Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-CONFIG-20260827/raw/RuntimeXPCSmokeClient
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+HANDSHAKE: runtime=AhaKeyRuntimeVersion(major: 0, minor: 1, patch: 0, buildMetadata: Optional("development")) interface=AhaKeyRuntimeInterfaceVersion(major: 1, minor: 1) schema=[1] capabilities=["configuration", "diagnostics", "event-replay", "snapshot"]
+RESULT: ok
+xpc_rc=0
+===== STATUS SOCKET =====
+{"lightMode":5,"switchState":0}
+
+===== AGENT LOG TAIL =====
+[2026-09-02T11:33:42Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:44Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:45Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:47Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:33:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:47Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:33:47Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:33:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:47Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:33:47Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:33:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:47Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:33:47Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:33:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:47Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:33:47Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:33:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:47Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:33:47Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:33:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:47Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:33:47Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:48Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:50Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:51Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:53Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:54Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:56Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:57Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:59Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:34:00Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:34:02Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:34:02Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:34:02Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:34:02Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:34:02Z] → LED 状态 2: AA BB 90 02 CC DD
+[2026-09-02T11:34:02Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:34:02Z] ← 固件已应用 LED/OLED 状态命令 0x90
+[2026-09-02T11:34:03Z] → LED 状态 2: AA BB 90 02 CC DD
+[202

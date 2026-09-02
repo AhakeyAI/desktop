@@ -1,0 +1,40 @@
+{
+  "hooks" : {
+    "postToolUse" : [
+      {
+        "command" : "'\/Applications\/AhaKey Studio.app\/Contents\/MacOS\/ahakeyconfig-agent' hook postToolUse --ahakey-cursor-hook-v1",
+        "failClosed" : false,
+        "timeout" : 10
+      }
+    ],
+    "preToolUse" : [
+      {
+        "command" : "'\/Applications\/AhaKey Studio.app\/Contents\/MacOS\/ahakeyconfig-agent' hook preToolUse --ahakey-cursor-hook-v1",
+        "failClosed" : false,
+        "timeout" : 20
+      }
+    ],
+    "sessionEnd" : [
+      {
+        "command" : "'\/Applications\/AhaKey Studio.app\/Contents\/MacOS\/ahakeyconfig-agent' hook sessionEnd --ahakey-cursor-hook-v1",
+        "failClosed" : false,
+        "timeout" : 10
+      }
+    ],
+    "sessionStart" : [
+      {
+        "command" : "'\/Applications\/AhaKey Studio.app\/Contents\/MacOS\/ahakeyconfig-agent' hook sessionStart --ahakey-cursor-hook-v1",
+        "failClosed" : false,
+        "timeout" : 10
+      }
+    ],
+    "stop" : [
+      {
+        "command" : "'\/Applications\/AhaKey Studio.app\/Contents\/MacOS\/ahakeyconfig-agent' hook stop --ahakey-cursor-hook-v1",
+        "failClosed" : false,
+        "timeout" : 10
+      }
+    ]
+  },
+  "version" : 1
+}

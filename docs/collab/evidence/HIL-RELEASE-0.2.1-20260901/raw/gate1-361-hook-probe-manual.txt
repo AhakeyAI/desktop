@@ -1,0 +1,20 @@
+===== HOOK PROBE MANUAL switchState=1 Wed Sep 02 19:50:05  2026 =====
+agent=/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent pid=89889 runs=2
+note=no --verify-runtime; python subprocess timeout 8s; Cursor hook client talks to private/hook.sock
+===== PRE-PROBE SNAPSHOT =====
+socket_status_at_19:47:53 {"lightMode":5,"switchState":1} pid=89889 runs=2
+unix_status_now=REFUSED ConnectionRefusedError
+private_hook_sock=OK
+current-ide-state={"workMode":0,"ts":1788349778.173223,"switchState":1,"lightMode":0,"lightModeTs":1788349778.173223,"stateTs":1788349717.6358209,"stateValue":5}
+===== PRETOOLUSE TOOLS =====
+tool=Write rc=0 deny=0 allow=0 empty_stdout=1 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+tool=Shell rc=0 deny=0 allow=0 empty_stdout=1 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+tool=StrReplace rc=0 deny=0 allow=0 empty_stdout=1 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+tool=Read rc=0 deny=0 allow=0 empty_stdout=1 stdout='' stderr="[ahakey-hook] DEBUG: received event: 'preToolUse'\n"
+===== HEALTH TAIL (new since 3220) =====
+{"decision":"defer_to_native","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"defer_to_native","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"defer_to_native","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"defer_to_native","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+===== PASS CRITERIA =====
+PROBE_PASS=True HEALTH_DEFER=True health_new_lines=4

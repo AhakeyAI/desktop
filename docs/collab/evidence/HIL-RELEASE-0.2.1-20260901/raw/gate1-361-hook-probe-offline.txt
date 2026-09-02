@@ -1,0 +1,15 @@
+===== HOOK PROBE OFFLINE switchState=null Wed Sep  2 19:37:38 +08 2026 =====
+pid=85410
+STATUS {"lightMode":null,"switchState":null}
+
+tool=Write rc=0 deny=0 allow=0 stdout=''
+tool=Shell rc=0 deny=0 allow=0 stdout=''
+tool=StrReplace rc=0 deny=0 allow=0 stdout=''
+tool=Read rc=0 deny=0 allow=0 stdout=''
+===== HEALTH TAIL =====
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}
+{"decision":"unavailable","eventCategory":"tool_permission","hookVersion":"cursor-0.2.1","latencyBucket":"under_50ms","offlineCount":0,"runtimeProtocolVersion":"1.1","timeoutCount":0}

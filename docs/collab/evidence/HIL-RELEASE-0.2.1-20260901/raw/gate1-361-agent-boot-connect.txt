@@ -1,0 +1,26 @@
+[2026-09-02T11:33:32Z] ← LED/OLED 状态 BLE 写入已确认
+2026-09-02 19:33:38.885 ahakeyconfig-agent[85410:5131674] Using your own bundle identifier as an NSUserDefaults suite name does not make sense and will not work. Break on _NSUserDefaults_Log_Nonsensical_Suites to find this
+[2026-09-02T11:33:38Z] 监听 Unix socket: /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+[2026-09-02T11:33:38Z] 监听 Hook socket: /Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock
+[2026-09-02T11:33:38Z] 监听 XPC service: lab.jawa.ahakeyconfig.runtime
+[2026-09-02T11:33:38Z] 蓝牙就绪
+[2026-09-02T11:33:38Z] 系统已连接: AhaKey X1
+[2026-09-02T11:33:38Z] 已连接: AhaKey X1
+[2026-09-02T11:33:38Z] 数据通道就绪
+[2026-09-02T11:33:38Z] 命令通道就绪
+[2026-09-02T11:33:38Z] 通知通道已订阅
+[2026-09-02T11:33:38Z] → 0x99 能力查询（第 1 次）
+[2026-09-02T11:33:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:38Z] ← 0x99 原始应答: AA BB 99 00 03 04 02 04 3F 00 C8 00 14 01 1C 01 24 01 CC DD
+[2026-09-02T11:33:38Z] ← 0x99 能力帧：protocol v3，mode=current
+[2026-09-02T11:33:38Z] ← 0x99 compact factory：primary 0..<276，factory reserved 276，reclaim 284..<292
+[2026-09-02T11:33:38Z] current 协议协商完成，开始状态轮询
+[2026-09-02T11:33:38Z] ← 2A25 序列号 Serial Number 非编号格式，启用 UUID 兜底身份
+[2026-09-02T11:33:38Z] 无广播编号/有效序列号：使用 UUID 兜底身份 4F3E
+[2026-09-02T11:33:38Z] current 协议协商完成，开始状态轮询
+[2026-09-02T11:33:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:38Z] ← status battery=22 light=5 switch=0
+[2026-09-02T11:33:38Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:39Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:41Z] ← LED/OLED 状态 BLE 写入已确认
+[2026-09-02T11:33:42Z] ← LED/OLED 状态 BLE 写入已确认

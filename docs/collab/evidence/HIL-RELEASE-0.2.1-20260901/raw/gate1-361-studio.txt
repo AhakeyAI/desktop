@@ -1,0 +1,4 @@
+===== LAUNCH STUDIO Wed Sep  2 19:44:10 +08 2026 =====
+agent_before=89889
+heartline        91892  14.3  0.8 435839488 141520   ??  S     7:44PM   0:01.61 /private/var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/AppTranslocation/0B79E14B-0E4F-451A-84BA-9D13CCA77E32/d/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+status {"switchState":0,"lightMode":5}

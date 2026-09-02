@@ -1,0 +1,13 @@
+Gate-1 R1 Cursor live tool smoke
+version_target=0.2.1 (361)
+sha=4662ce93dd6dfa55e7964a5db9749ab3e7e82813a9616b114c1032ce3bbe1f0d
+write_ok=1
+strreplace_ok=1
+read_ok=1
+shell_ok=0
+shell_ok=1 19:35:43
+offline_shell_ok=1 19:37:47
+manual_write_ok=1 19:50
+manual_strreplace_ok=1 19:50
+manual_read_ok=1 19:50
+manual_shell_ok=1 19:50:46

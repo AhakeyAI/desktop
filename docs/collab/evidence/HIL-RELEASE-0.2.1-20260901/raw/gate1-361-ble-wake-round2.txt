@@ -1,0 +1,5 @@
+19:42:05.732 pid=89889 ROUND2_START pid0=89889 status={'switchState': 0, 'lightMode': 5} bt=os_connected
+19:42:05.968 pid=89889 state=wait_empty switchState=0 lightMode=5 bt=os_connected
+19:42:11.429 pid=89889 AGENT_LOG ['[2026-09-02T11:42:02Z] 已连接: AhaKey X1']
+19:42:30.289 pid=89889 state=wait_empty switchState=0 lightMode=2 bt=os_connected
+19:42:38.021 pid=89889 state=wait_empty switchState=0 lightMode=5 bt=os_connected
