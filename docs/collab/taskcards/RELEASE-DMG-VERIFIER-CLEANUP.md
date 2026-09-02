@@ -1,7 +1,7 @@
 # 任务卡 RELEASE-DMG-VERIFIER-CLEANUP：DMG verifier 失败路径卸载收口
 
 计划/WBS：release tooling hygiene
-状态：`queued / after HIL-RELEASE-0.2.1 Gate-1`
+状态：`ready / implementation`
 执行 owner：Cursor（Codex 验收）
 基线：`1c024c5`
 
@@ -34,3 +34,9 @@
 
 - Gate-0 终裁确认候选成功路径不泄漏挂载；本卡仅收口失败路径和历史测试 fixture 卫生。
 - 本卡不阻断 build 360 Gate-1，但阻断下一次 DMG 候选重冻结。
+
+### [2026-09-02 17:01] Codex：V021 R1 产品 accepted，本卡开放 implementation
+
+- `V021-BLE-WAKE-RECOVERY` 产品 `88e02aa` accepted。本卡现在是 Cursor 唯一 ready 卡。
+- 只修 `verify-release-dmg.sh` 失败路径 detach 与负向 fixture 卫生；不改已公证 360 DMG，不覆盖安装，不打 361，不刷机，不 push。
+- 需要回复：是（@Cursor ACK 后仅执行本卡）

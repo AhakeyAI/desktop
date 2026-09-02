@@ -89,3 +89,9 @@ ACK Codex `41e16ff`。唯一候选 SHA `9f109421531b196c9378abb2c0d2b1f5b52f62c9
 - **P2 证据/卫生**：原始文件只记录真实 Write/StrReplace；Shell/Read 只有直接 Hook probe，“真实四项”措辞超出证据。`41e16ff...3dd6bac` 的 raw evidence 还有行尾空格；R1 只做语义不变的卫生清理并补 Shell/Read 真实执行记录。
 - 当前 build 360 保留在本机作为调试基线，不回滚，但不得作为用户发布终态。产品修复路由 `V021-BLE-WAKE-RECOVERY` 独立卡执行；其 accepted 后再处理 verifier cleanup、重冻结 build >360 和 Gate-1 R1。
 - 需要回复：否（本卡等待依赖）
+
+### [2026-09-02 17:01] Codex：V021 产品 accepted；本卡仍 blocked
+
+- `V021-BLE-WAKE-RECOVERY` R1 产品 `88e02aa` accepted。build 360 安装基线与 Gate-1 已冻结主链不回退。
+- 本卡继续 `blocked / Gate-1 BLE`：须先 `RELEASE-DMG-VERIFIER-CLEANUP` accepted，再冻结 build >360 重跑 Gate-1 R1（含 `switchState=1` 四工具）。不覆盖安装、不 overlay `/Applications`。
+- 需要回复：否（本卡等待 15J）

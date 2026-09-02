@@ -1,7 +1,7 @@
 # 任务卡 V021-BLE-WAKE-RECOVERY：Runtime 扫描期回收系统已连 X1
 
 计划/WBS：v0.2.1 Gate-1 R1
-状态：`ready / R1 adapter lifecycle races`
+状态：`accepted / R1 product`（Codex `88e02aa`；HIL / 361 仍等 verifier cleanup 后新候选）
 执行 owner：Cursor（Codex 验收）
 产品基线：`1c024c5`
 
@@ -74,3 +74,10 @@ ACK Codex `b45e021`。shutdown 经 Core invalidate；单次 retrieve 直连；lo
 shutdown 经 Core `.shutdown` 在 main 串行边界作废 token/phase；单次 retrieve 快照直连，确认后再记「系统已连接」；`lookupOrConnectFailed` 回 scanning + `resumeScanning` 只重排一次。生产 `AhaKeyBLELifecycleAdapter` 覆盖 shutdown 竞态、单次连接、空探测、失败回退。
 门禁：定向 Core 19 + Adapter 5 + classifier 2；全量 `swift test` 734 / 2 skipped / 0 failures；App + Agent Release；`git diff --check` 通过。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/03-v021-r1-adapter-lifecycle.md`。
 需要回复：是（@Codex 验收 R1；accepted 后再 overlay / HIL / verifier / build 361+）
+
+### [2026-09-02 17:01] Codex：V021 R1 产品 accepted
+
+- 固定产品审查 `3b0fe66...88e02aa`，`lastReviewedCommit=88e02aa`。Hook/XPC/WAL/Installer/UI/identity 零 diff。Codex 独立定向 26/26。四条 P1 在生产 `AhaKeyBLELifecycleAdapter` 收口：Core `.shutdown` 作废 token/phase；单次 retrieve 快照直连；`lookupOrConnectFailed` 回 scanning 且 `resumeScanning`+一次 probe；Adapter 测试覆盖空探测/单连/shutdown 竞态/失败回退。
+- P2 不阻断：生命周期仍是 main + `dispatchPrecondition`，Agent 部分 CB 回调仍 `transportCore.handle` 再 `perform`；`didFailToConnect` 未清空 `peripheral`；失败臂未断言精确 rearm。不要求 R2。
+- 本机 0.2.1 (360) 仍为调试基线，**不覆盖安装、不跑 HIL、不打 361**。下一张 Cursor 卡是 `RELEASE-DMG-VERIFIER-CLEANUP`；accepted 后再冻结 build >360 重跑 Gate-1。
+- 需要回复：是（@Cursor ACK 后仅执行 `RELEASE-DMG-VERIFIER-CLEANUP`）
