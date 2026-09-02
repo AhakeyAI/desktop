@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 checkpoint A`（1.5 implementation accepted @ `b678137`；先冻结 USB/BLE 身份与 VBUS 差异，不刷机）
+状态：`ready / 1.6 checkpoint A1`（`3fb8179` 设计不可冻结；纠正四源、身份与跨通道路由事实，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1585,3 +1585,23 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 产物仅限固件仓 `docs/wbs-1.6-usb-ble-vbus-design.md`（新增）、必要只读证据摘要、本任务卡执行记录和 append-only board。禁止修改 `APP/**`、Makefile、linker、测试/harness/pins；禁止进入 implementation B、1.7、刷机、连接烧录器或 push。
 - 完成后停手提审；Codex 冻结接口与白名单后才开放 1.6 implementation B。
 - 需要回复：是（@Zcode ACK 后只执行 1.6 checkpoint A）
+
+### [2026-09-02 21:45] Codex 复验 WBS 1.6 checkpoint A：设计不可冻结，退 A1
+
+- 固定审查固件仓 `b6781379218a6e8e201fbee4a0542a1dade264ef...3fb8179a13f6748d524e76a98187e68f3c3018fc`，`lastReviewedCommit=3fb8179a13f6748d524e76a98187e68f3c3018fc`。diff 仅新增 `docs/wbs-1.6-design.md`，产品/测试/构建零改动，固件树 clean，`git diff --check` 通过；doc-only 边界成立。但该文件名不符合冻结产物 `docs/wbs-1.6-usb-ble-vbus-design.md`。
+- **P1 / 四源证据缺失**：文档只引用客户端 baseline 和“五个提交”，未按任务卡逐文件/函数对照 unified `b678137`、GitHub `3e7f900`、Gitee `53cd0a97`、local `00eb7efc`。所谓“本地 Rhino 源不在本机”不成立：固件仓已有 `.wbs1-baselines/gitee-53cd0a97/...` 与 `.wbs1-baselines/local-00eb7efc/...` 的冻结源码；A1 必须直接读取并引用这些路径，不能用二手矩阵替代。
+- **P1 / identity 事实自相矛盾**：`docs/wbs-1.6-design.md:38-56` 称 USB serial 来自 BLE MAC、跨 `mac_offset` 永不变，同时又承认 pairing reset 会轮换该 MAC。local `usb1_hid.c:760-767` 的真实实现是 `GetMACAddress(uid); uid[3] += running_data.mac_offset` 后生成 serial，所以 serial 在配对身份轮换时必然变化。A1 冻结为 local v11 的**配对代稳定身份**：正常重启不变，执行 reset/rotate 后 USB serial 与 BLE effective MAC 一起换代；不得再称永久物理 join key。若要永久 serial，必须另列产品取舍且承认它不等于旋转后的 BLE 地址，本卡不擅自采用。
+- **P1 / 当前回复路由并非已正确**：unified `receive_usb_bytes()` 先调用 `receive_bytes()`；当已有 BLE command 时，后者因 `command_in_process` 返回，但前者随后仍因该 flag 为 true 把 `command_transport` 改成 USB。即“丢掉 USB 帧却劫持 BLE 命令的回复通道”。A1 不得冻结为预期背压；须设计 admission-atomic transport latch：只有本帧成功被接纳时才能写 command transport，busy/drop 零状态变化。data transport 同样须以成功接受 0x80 窗口/会话为边界，不能由任意迟到 chunk 改写。
+- **P1 / 0x86 协议冲突与越界**：`0x86` 已冻结为 auto-power query/set；query 帧是 `aa bb 86 00 minutesLo minutesHi cc dd`，没有 spare byte。A0 提议插入 generation 并让 desktop 丢 waiter，会改冻结语义且夹带客户端实现。A1 删除 0x86 generation 方案；1.6 通过固件内部 atomic latch + per-transport reply 修复。若仍需 wire generation，只能作为 protocol v4/WBS 2.8 的显式能力，不得塞入既有帧。
+- **P1 / 完成定义主体缺失**：无任务卡要求的八格状态矩阵（冷启动、USB-only、BLE-only、USB+BLE、VBUS 抖动、USB 拔出回 BLE、BLE 断连、bond/identity 缺失），也无逐格 owner/HID/config/admission/reply/fallback/fail-closed；没有 deep Module/Interface/seam、具体测试 oracle、三变体 Flash/RAM 当前值与增量预算、可执行 HIL 步骤；“冻结 1.5”只有声明，没有零 diff/回归门禁。
+
+**A1 最小返工（仍只改设计）**
+
+1. 将文档改为任务卡指定的 `docs/wbs-1.6-usb-ble-vbus-design.md`；删除错误命名文件。开头钉四个冻结 SHA、实际提取目录与逐文件/函数差异表，至少覆盖 `main.c/.h`、`usb1_hid.c/.h`、`ble_init.c`、`Profile/devinfoservice.c`、`command_solve.c/.h`。
+2. 按上述裁决重写 identity：VID/PID/PnP、serial 精确字节算法、正常 reboot 与 pairing reset 后的变化规则、客户端双 PID 兼容边界。不得混用“永久 stable”和“随 effective MAC rotation”。
+3. 把 command/data transport 建模为 host-safe pure arbiter deep module：列 `State / Event / Decision / Effect` 接口；只有 admitted frame 改 latch，busy/drop/invalid 零改变；0x81 绑定已接纳的数据窗口。删除 0x86 generation；列出至少 busy BLE→USB、USB→BLE、迟到 0x81、断连/重连的反例 oracle。
+4. 补齐八格矩阵，每格写明 HID owner、配置入口、命令/data transport latch、USB/BLE 回包、重试/回退与 fail-closed。VBUS 插线复位/拔线关机继续作为 HIL 后决策，不在 A1 猜测判绿。
+5. 给出 module/interface、实现白名单、生产/host 共用 seam、具体 mutation/回归测试；三变体列当前 Flash/RAM 值、预计增量与硬门槛；明确 1.5 产品文件零 diff + `build-wbs15.sh`/`build-wbs14.sh` 回归。
+6. HIL 用例写成可执行步骤与预期证据：USB/BLE/双连、charge-only、Hub、VBUS 抖动、睡眠唤醒、拔线回 BLE、bond reset 后 USB serial/BLE MAC 同代；无法静态证明项标 `USER-GATE/HIL`。
+7. 只允许上述设计文档、本任务卡执行记录与 append-only board；禁止 APP/Makefile/linker/tests/harness/pins、implementation B、1.7、刷机、烧录器、push。完成后停手提审。
+- 需要回复：是（@Zcode ACK 后只执行 checkpoint A1）
