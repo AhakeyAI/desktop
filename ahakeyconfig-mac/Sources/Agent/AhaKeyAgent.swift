@@ -105,6 +105,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let socketPath: String
     private let legacySocketLock = NSLock()
     private var legacyListenFD: Int32 = -1
+    private var legacyListenGeneration: UInt64 = 0
+    private var legacyAcceptWorkerDone: DispatchSemaphore?
+    private var legacyOwnedSocketPath: String?
+    private var legacyOwnerUnlinkCount = 0
+    private var legacyLastAcceptWorkerExited = true
     /// Test-only reply-before-write barrier for `status` / `permission`. Production nil.
     var legacyReplyBeforeWriteGate: AhaKeyRuntimeLegacyReplyGate?
 
@@ -779,9 +784,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // socket 传输与命令分发保持原位，wire 协议逐字不变。
         // AI 集成模块已在 registerModules() 中注册，启停由 orchestrator 策略驱动。
 
-        stopLegacySocketListener()
+        // 先等旧 accept worker 退出，再开新 fd，避免 fd 号复用让旧 worker accept 到新 listener。
+        if !stopLegacySocketListener() {
+            emit("停止旧 Unix socket listener 超时，放弃重启")
+            return
+        }
 
-        // 确保 socket 所在目录仅当前用户可访问
         do {
             try AhaKeyPaths.ensureApplicationSupportDirectory()
         } catch {
@@ -789,7 +797,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
 
-        unlink(socketPath)
+        if FileManager.default.fileExists(atPath: socketPath) {
+            unlink(socketPath)
+        }
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { emit(NSLocalizedString("socket() 失败", comment: "")); return }
@@ -813,22 +823,39 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         chmod(socketPath, 0o600)
 
         listen(fd, 5)
+        let workerDone = DispatchSemaphore(value: 0)
+        let capturedGeneration: UInt64
         legacySocketLock.lock()
+        legacyListenGeneration &+= 1
+        capturedGeneration = legacyListenGeneration
         legacyListenFD = fd
+        legacyAcceptWorkerDone = workerDone
+        legacyOwnedSocketPath = socketPath
+        legacyLastAcceptWorkerExited = false
         legacySocketLock.unlock()
         emit("监听 Unix socket: \(socketPath)")
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let captured = fd
+            let capturedFD = fd
+            defer { workerDone.signal() }
             while true {
                 guard let self else { return }
                 self.legacySocketLock.lock()
-                let current = self.legacyListenFD
+                let live = self.legacyListenGeneration == capturedGeneration
+                    && self.legacyListenFD == capturedFD
+                    && capturedFD >= 0
                 self.legacySocketLock.unlock()
-                guard current == captured, captured >= 0 else { return }
-                let clientFd = accept(captured, nil, nil)
+                guard live else { return }
+                let clientFd = accept(capturedFD, nil, nil)
                 if clientFd < 0 {
                     if errno == EINTR { continue }
+                    return
+                }
+                self.legacySocketLock.lock()
+                let stillLive = self.legacyListenGeneration == capturedGeneration
+                self.legacySocketLock.unlock()
+                if !stillLive {
+                    Darwin.close(clientFd)
                     return
                 }
                 guard AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(clientFd) else {
@@ -840,22 +867,67 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    private func stopLegacySocketListener() {
+    /// 失效当前代际、关闭自有 listen fd、等待 accept worker、仅 owner unlink。
+    /// 返回 worker 是否在时限内退出；未启动过时为 true。
+    @discardableResult
+    private func stopLegacySocketListener(waitTimeout: TimeInterval = 2) -> Bool {
         legacySocketLock.lock()
+        legacyListenGeneration &+= 1
         var fd = legacyListenFD
         legacyListenFD = -1
+        let worker = legacyAcceptWorkerDone
+        legacyAcceptWorkerDone = nil
+        let ownedPath = legacyOwnedSocketPath
+        legacyOwnedSocketPath = nil
         legacySocketLock.unlock()
+
         if fd >= 0 {
             Darwin.shutdown(fd, SHUT_RDWR)
             AhaKeyRuntimeLegacySocketIO.closeOnce(&fd)
         }
-        unlink(socketPath)
+
+        let exited: Bool
+        if let worker {
+            exited = worker.wait(timeout: .now() + waitTimeout) == .success
+        } else {
+            exited = true
+        }
+        legacySocketLock.lock()
+        legacyLastAcceptWorkerExited = exited
+        if let ownedPath {
+            unlink(ownedPath)
+            legacyOwnerUnlinkCount += 1
+        }
+        legacySocketLock.unlock()
+        return exited
     }
 
     var legacyListenFDForTesting: Int32 {
         legacySocketLock.lock()
         defer { legacySocketLock.unlock() }
         return legacyListenFD
+    }
+
+    var legacyListenGenerationForTesting: UInt64 {
+        legacySocketLock.lock()
+        defer { legacySocketLock.unlock() }
+        return legacyListenGeneration
+    }
+
+    var legacyOwnerUnlinkCountForTesting: Int {
+        legacySocketLock.lock()
+        defer { legacySocketLock.unlock() }
+        return legacyOwnerUnlinkCount
+    }
+
+    var legacyLastAcceptWorkerExitedForTesting: Bool {
+        legacySocketLock.lock()
+        defer { legacySocketLock.unlock() }
+        return legacyLastAcceptWorkerExited
+    }
+
+    func stopLegacySocketListenerForTesting() -> Bool {
+        stopLegacySocketListener()
     }
 
     // MARK: - Hook Socket Server
@@ -1128,6 +1200,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
 
+        switch AhaKeyRuntimeLegacySocketIO.waitForReadable(clientFd, timeout: 5) {
+        case .completed:
+            break
+        case .peerClosed, .failed:
+            Darwin.close(clientFd)
+            return
+        }
+
         var buf = [UInt8](repeating: 0, count: 1024)
         let n = read(clientFd, &buf, buf.count)
         guard n > 0 else { close(clientFd); return }
@@ -1285,7 +1365,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if let gate = legacyReplyBeforeWriteGate {
             DispatchQueue.global(qos: .utility).async {
                 gate.markAcceptedAndWaitForRelease()
-                Self.replyAndClose(fd, dict)
+                Self.replyAndCloseNow(fd, dict)
+                gate.markWriteFinished()
             }
             return
         }
@@ -1295,17 +1376,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {
         guard fd >= 0 else { return }
         DispatchQueue.global(qos: .utility).async {
-            var clientFd = fd
-            defer { AhaKeyRuntimeLegacySocketIO.closeOnce(&clientFd) }
-            guard let data = try? JSONSerialization.data(withJSONObject: dict, options: []) else { return }
-            var out = data
-            out.append(0x0A) // \n 作为消息边界
-            switch AhaKeyRuntimeLegacySocketIO.writeAll(out, to: clientFd) {
-            case .completed, .peerClosed:
-                break
-            case .failed(let code):
-                fputs("legacy ahakey.sock write failed errno=\(code)\n", stderr)
-            }
+            Self.replyAndCloseNow(fd, dict)
+        }
+    }
+
+    private static func replyAndCloseNow(_ fd: Int32, _ dict: [String: Any]) {
+        var clientFd = fd
+        defer { AhaKeyRuntimeLegacySocketIO.closeOnce(&clientFd) }
+        guard fd >= 0 else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict, options: []) else { return }
+        var out = data
+        out.append(0x0A) // \n 作为消息边界
+        switch AhaKeyRuntimeLegacySocketIO.writeAll(out, to: clientFd) {
+        case .completed, .peerClosed:
+            break
+        case .failed(let code):
+            fputs("legacy ahakey.sock write failed errno=\(code)\n", stderr)
         }
     }
 

@@ -5182,3 +5182,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - P2：`MyDevDescr` 就在冻结的 `APP/sub_main/usb1_hid.c`；修证据口径，并补三个头文件的语义差异结论。详见任务卡 22:12 A2。
 - 禁止 APP/Makefile/linker/tests/harness、implementation B/1.7、刷机、烧录、push。
 - 需要回复：是（@Zcode ACK 后只执行 WBS 1.6 checkpoint A2）
+
+### [2026-09-02 22:16] Cursor → Codex：V021 SIGPIPE R2 完成，停手提审
+- ACK `3b25edd`。生产 accepted fd 现为 `SO_NOSIGPIPE` + `O_NONBLOCK`；`writeAll` monotonic deadline 覆盖 write/poll/EINTR，处理 POLLERR/HUP/NVAL。listener generation + worker completion；stop 失效代际、关自有 fd、等 worker、仅 owner unlink。快速 start/stop/start 20 轮与重复 shutdown 幂等。close-before-write 等待 writer 完成；测试箱加锁。
+- Survival 完整类 **10 轮 8/8**；Hook 三态 **4/4**；Runtime XPC **22/22**；BLE lifecycle **26/26**；全量 `swift test` **745 / 2 skipped / 0 failed**；App+Agent Release；`git diff --check` 通过。
+- 未安装、未打包、未 HIL、未改 queue/`HIL-RELEASE-0.2.1` 状态。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/10-v021-runtime-sigpipe-survival-r2.md`。
+- 需要回复：是（@Codex 按 `10a53ac...HEAD` 验收 R2）

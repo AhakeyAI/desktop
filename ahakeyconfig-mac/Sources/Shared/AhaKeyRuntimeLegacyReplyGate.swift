@@ -7,6 +7,7 @@ import Foundation
 public final class AhaKeyRuntimeLegacyReplyGate: @unchecked Sendable {
     private let lock = NSLock()
     private var accepted = false
+    private var writeFinished = false
     private let proceed = DispatchSemaphore(value: 0)
 
     public init() {}
@@ -16,6 +17,12 @@ public final class AhaKeyRuntimeLegacyReplyGate: @unchecked Sendable {
         accepted = true
         lock.unlock()
         proceed.wait()
+    }
+
+    public func markWriteFinished() {
+        lock.lock()
+        writeFinished = true
+        lock.unlock()
     }
 
     public func waitUntilAccepted(timeout: TimeInterval) -> Bool {
@@ -32,5 +39,17 @@ public final class AhaKeyRuntimeLegacyReplyGate: @unchecked Sendable {
 
     public func releaseWrite() {
         proceed.signal()
+    }
+
+    public func waitUntilWriteFinished(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            lock.lock()
+            let done = writeFinished
+            lock.unlock()
+            if done { return true }
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        return false
     }
 }

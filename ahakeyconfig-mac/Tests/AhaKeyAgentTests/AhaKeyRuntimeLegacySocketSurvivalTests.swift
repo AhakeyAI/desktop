@@ -21,9 +21,10 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
     }
 
     override func tearDown() {
-        for agent in agents { agent.shutdown() }
+        for agent in agents { _ = agent.stopLegacySocketListenerForTesting(); agent.shutdown() }
         for agent in agents {
             XCTAssertEqual(agent.legacyListenFDForTesting, -1)
+            XCTAssertTrue(agent.legacyLastAcceptWorkerExitedForTesting)
         }
         if let socketPath {
             XCTAssertFalse(FileManager.default.fileExists(atPath: socketPath))
@@ -52,6 +53,9 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
             return XCTFail("socketpair")
         }
         XCTAssertTrue(AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(pair.0))
+        let flags = fcntl(pair.0, F_GETFL)
+        XCTAssertGreaterThanOrEqual(flags, 0)
+        XCTAssertNotEqual(flags & O_NONBLOCK, 0)
         Darwin.close(pair.1)
         let result = AhaKeyRuntimeLegacySocketIO.writeAll(Data("{\"cmd\":\"status\"}\n".utf8), to: pair.0)
         XCTAssertEqual(result, .peerClosed)
@@ -70,9 +74,6 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
             Darwin.close(pair.1)
         }
         XCTAssertTrue(AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(pair.0))
-        let flags = fcntl(pair.0, F_GETFL)
-        XCTAssertGreaterThanOrEqual(flags, 0)
-        XCTAssertEqual(fcntl(pair.0, F_SETFL, flags | O_NONBLOCK), 0)
         let payload = Data(repeating: 0x61, count: 128 * 1024)
         let lock = NSLock()
         var collected = Data()
@@ -114,15 +115,12 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
             Darwin.close(pair.1)
         }
         XCTAssertTrue(AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(pair.0))
-        let flags = fcntl(pair.0, F_GETFL)
-        XCTAssertGreaterThanOrEqual(flags, 0)
-        XCTAssertEqual(fcntl(pair.0, F_SETFL, flags | O_NONBLOCK), 0)
         let payload = Data(repeating: 0x62, count: 256 * 1024)
-        let started = Date()
+        let started = DispatchTime.now()
         let result = AhaKeyRuntimeLegacySocketIO.writeAll(payload, to: pair.0, timeout: 0.2)
-        let elapsed = Date().timeIntervalSince(started)
+        let elapsedNs = DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds
         XCTAssertEqual(result, .failed(ETIMEDOUT))
-        XCTAssertLessThan(elapsed, 1.0)
+        XCTAssertLessThan(elapsedNs, 1_000_000_000)
     }
 
     func testShutdownClosesListenerAndUnlinksPath() throws {
@@ -132,8 +130,40 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(agent.legacyListenFDForTesting, 0)
         agent.shutdown()
         XCTAssertEqual(agent.legacyListenFDForTesting, -1)
+        XCTAssertTrue(agent.legacyLastAcceptWorkerExitedForTesting)
+        XCTAssertEqual(agent.legacyOwnerUnlinkCountForTesting, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(socketPath)))
         XCTAssertThrowsError(try unixConnect(try XCTUnwrap(socketPath)))
+        agent.shutdown()
+        XCTAssertEqual(agent.legacyOwnerUnlinkCountForTesting, 1)
+        XCTAssertTrue(agent.legacyLastAcceptWorkerExitedForTesting)
+        XCTAssertEqual(agent.legacyListenFDForTesting, -1)
+    }
+
+    func testRapidListenerRestartRejectsStaleAcceptWorker() throws {
+        let agent = makeAgent()
+        var previousGeneration: UInt64 = 0
+        for _ in 0..<20 {
+            agent.startSocketListener()
+            try waitForSocket(socketPath)
+            let generation = agent.legacyListenGenerationForTesting
+            XCTAssertNotEqual(generation, previousGeneration)
+            previousGeneration = generation
+            XCTAssertGreaterThanOrEqual(agent.legacyListenFDForTesting, 0)
+            replyGate = AhaKeyRuntimeLegacyReplyGate()
+            agent.legacyReplyBeforeWriteGate = replyGate
+            let reply = try sendJSON(
+                path: try XCTUnwrap(socketPath),
+                object: ["cmd": "status"],
+                behavior: .readReply
+            )
+            XCTAssertTrue(reply.contains("switchState"), reply)
+            XCTAssertTrue(agent.stopLegacySocketListenerForTesting())
+            XCTAssertTrue(agent.legacyLastAcceptWorkerExitedForTesting)
+            XCTAssertEqual(agent.legacyListenFDForTesting, -1)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(socketPath)))
+        }
+        XCTAssertEqual(agent.legacyOwnerUnlinkCountForTesting, 20)
     }
 
     func testStatusClientDisconnectDoesNotBlockLaterRequest() throws {
@@ -213,63 +243,113 @@ final class AhaKeyRuntimeLegacySocketSurvivalTests: XCTestCase {
         throw MissingSocket()
     }
 
-    private final class SendBox: @unchecked Sendable {
-        var fd: Int32 = -1
-        var reply = ""
-        var error: Error?
+    private final class LockedClientIO: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fd: Int32 = -1
+        private var reply = ""
+        private var error: Error?
+
+        func store(fd: Int32) {
+            lock.lock()
+            self.fd = fd
+            lock.unlock()
+        }
+
+        func takeFD() -> Int32 {
+            lock.lock()
+            defer { lock.unlock() }
+            let value = fd
+            fd = -1
+            return value
+        }
+
+        func peekFD() -> Int32 {
+            lock.lock()
+            defer { lock.unlock() }
+            return fd
+        }
+
+        func setReply(_ value: String) {
+            lock.lock()
+            reply = value
+            lock.unlock()
+        }
+
+        func setError(_ error: Error) {
+            lock.lock()
+            self.error = error
+            lock.unlock()
+        }
+
+        func snapshot() -> (reply: String, error: Error?) {
+            lock.lock()
+            defer { lock.unlock() }
+            return (reply, error)
+        }
     }
 
     @discardableResult
     private func sendJSON(path: String, object: [String: Any], behavior: ClientBehavior) throws -> String {
-        let box = SendBox()
+        let box = LockedClientIO()
         let connected = expectation(description: "legacy-client-written")
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                box.fd = try self.unixConnect(path)
-                try self.writeJSONLine(box.fd, object: object)
+                let fd = try self.unixConnect(path)
+                try self.writeJSONLine(fd, object: object)
+                box.store(fd: fd)
             } catch {
-                box.error = error
+                box.setError(error)
             }
             connected.fulfill()
         }
         wait(for: [connected], timeout: 3)
-        if let error = box.error { throw error }
+        if let error = box.snapshot().error { throw error }
 
         guard replyGate.waitUntilAccepted(timeout: 3) else {
             replyGate.releaseWrite()
+            var leftover = box.takeFD()
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&leftover)
             struct HandlerDidNotAccept: Error {}
             throw HandlerDidNotAccept()
         }
 
         switch behavior {
         case .closeImmediately:
-            AhaKeyRuntimeLegacySocketIO.closeOnce(&box.fd)
+            var fd = box.takeFD()
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&fd)
             replyGate.releaseWrite()
+            XCTAssertTrue(replyGate.waitUntilWriteFinished(timeout: 3))
             return ""
         case .closeAfter(let milliseconds):
             usleep(useconds_t(milliseconds * 1_000))
-            AhaKeyRuntimeLegacySocketIO.closeOnce(&box.fd)
+            var fd = box.takeFD()
+            AhaKeyRuntimeLegacySocketIO.closeOnce(&fd)
             replyGate.releaseWrite()
+            XCTAssertTrue(replyGate.waitUntilWriteFinished(timeout: 3))
             return ""
         case .readReply:
             replyGate.releaseWrite()
             let finished = expectation(description: "legacy-client-read")
             DispatchQueue.global(qos: .userInitiated).async {
+                var fd = box.peekFD()
                 var buf = [UInt8](repeating: 0, count: 1_024)
                 var timeout = timeval(tv_sec: 3, tv_usec: 0)
-                _ = setsockopt(box.fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-                let n = Darwin.read(box.fd, &buf, buf.count)
+                _ = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+                let n = Darwin.read(fd, &buf, buf.count)
                 if n > 0 {
-                    box.reply = String(bytes: buf.prefix(Int(n)), encoding: .utf8) ?? ""
+                    box.setReply(String(bytes: buf.prefix(Int(n)), encoding: .utf8) ?? "")
                 } else {
-                    box.error = POSIXError(.ETIMEDOUT)
+                    box.setError(POSIXError(.ETIMEDOUT))
                 }
-                AhaKeyRuntimeLegacySocketIO.closeOnce(&box.fd)
+                fd = box.takeFD()
+                AhaKeyRuntimeLegacySocketIO.closeOnce(&fd)
                 finished.fulfill()
             }
             wait(for: [finished], timeout: 5)
-            if let error = box.error { throw error }
-            return box.reply
+            XCTAssertTrue(replyGate.waitUntilWriteFinished(timeout: 3))
+            let snapshot = box.snapshot()
+            if let error = snapshot.error { throw error }
+            return snapshot.reply
         }
     }
 
