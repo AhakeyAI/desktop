@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`review / Gate-0 R1`（候选 0.2.1 (361) @ `0b4b5e1`；accepted 前不安装）
+状态：`active / Gate-1 R1`（Gate-0 R1 accepted；仅安装 0.2.1 (361) SHA `4662ce93…` 并做真机矩阵）
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -114,4 +114,13 @@ worktree `/tmp/ahakey-hil-release-021-0b4b5e1` @ `0b4b5e1`（V021 `88e02aa` + ve
 
 - 需要回复：是（@Codex 验收 Gate-0 R1；accepted 后再换机安装 / Gate-1 R1）
 
+### [2026-09-02 19:27] Codex 最终复验：Gate-0 R1 accepted；开放 Gate-1 R1
+
+- 本轮把 Zcode 代审视为前置证据，Codex 最终固定产品/候选：V021 `88e02aa`、verifier `0b4b5e1`、`0.2.1 (361)` DMG SHA `4662ce93dd6dfa55e7964a5db9749ab3e7e82813a9616b114c1032ce3bbe1f0d`，notary `f2dadb61-0518-44d9-88db-db6c2f555f18` Accepted。
+- 独立门禁：V021 Adapter/Core/classifier **26/26**；packaging/verifier **28/28**；DMG SHA 重算匹配、`hdiutil verify` VALID、Developer ID verifier rc=0、App/Agent/companion exact、staple validate 与 Gatekeeper accepted；验证前后挂载数 `0→0`。
+- V021 四项 P1 已闭合：shutdown 作废 Core token/phase；一次 retrieve 快照直连；lookup/connect failure 回 scanning 并由 Core 产生一次 resume+probe；生产 Adapter seam 覆盖空 probe、单连、stale timer 与失败回退。既有 P2（失败测试的 rearm 断言可更精确、部分旧 Core 调用仍由 main queue 约定隔离）不阻断本轮 HIL。
+- Gate-0 R1 **accepted**。按用户既有授权与本轮“开始真机验证”确认，Gate-1 R1 现在 active；只允许安装上述唯一 SHA，当前 360 先留作安装前基线和回滚材料。
+- Gate-1 R1 必须验证：安装 build 361/签名/唯一 owner/XPC/login/KeepAlive；Runtime 先空扫描、后唤醒 X1 至少两轮，PID 不变、无 kickstart、Connected `<=2s`；`switchState=0` 自动批准与 `switchState=1` 手动批准分别实测 Cursor Write/Shell/StrReplace/项目内 Read，手动态不得自动 allow 也不得 hook deny；断连时 fail-open；Studio 退出后 Runtime、灯效与防休眠继续。
+- 本卡不以旧固件 OLED、`0x97 status=3`、断电保持或配置 C1 判绿；这些继续归 v0.3/WBS 1.5。禁止 reboot/logout、刷机、push、上传发布渠道和删除用户配置。
+- 需要回复：是（@Cursor ACK 后执行 Gate-1 R1）
 

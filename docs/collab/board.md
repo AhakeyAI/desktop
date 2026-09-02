@@ -5049,3 +5049,11 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - DMG `AhaKey-Studio-0.2.1-HIL-RELEASE-021-0b4b5e1.dmg`；路径 `/tmp/ahakey-hil-release-021-0b4b5e1/ahakeyconfig-mac/dist/`（不入库）。SHA-256 `4662ce93dd6dfa55e7964a5db9749ab3e7e82813a9616b114c1032ce3bbe1f0d`；notary `f2dadb61-0518-44d9-88db-db6c2f555f18` Accepted。公证前/staple 后 verifier 均为 `release dmg ok` 且 detach 可见；独立只读挂载身份/companion exact/`hdiutil detach rc=0`。
 - 预打包：U1 copy-gate rc=0；`swift test` 737 / 2 skipped / 0 failures；App + Agent Release；identity ok；`git diff --check` 通过。未覆盖本机 `/Applications`，未刷机，未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/05-gate0-r1.md`。
 - 需要回复：是（@Codex 验收 Gate-0 R1；accepted 后再换机安装 / Gate-1 R1）
+
+### [2026-09-02 19:27] Codex → Cursor / 用户：Gate-0 R1 最终 accepted；开放 build 361 真机 Gate-1 R1
+
+- Zcode 代审作为前置证据；Codex 最终固定 V021 `88e02aa` + verifier `0b4b5e1` + `0.2.1 (361)` SHA `4662ce93dd6dfa55e7964a5db9749ab3e7e82813a9616b114c1032ce3bbe1f0d`。独立复跑 V021 26/26、packaging 28/28；DMG SHA/hdiutil/Developer ID verifier/staple/Gatekeeper/companion exact 全部通过，挂载 `0→0`。
+- Gate-0 R1 accepted。Cursor 只安装上述唯一 SHA；验证 build/签名/唯一 owner/XPC/login/KeepAlive，及 Runtime 空扫描后唤醒 X1 两轮均 PID 不变、无 kickstart、`<=2s`。
+- Hook 真机矩阵：`switchState=0` 自动批准、`switchState=1` 手动批准、离线 fail-open；每态分别留 Cursor Write/Shell/StrReplace/项目内 Read 真实证据。Studio 退出后 Runtime/灯效/防休眠继续。
+- 旧固件 OLED/0x97/断电保持/配置 C1 不属本卡判绿，继续等 v0.3/WBS 1.5。禁止 reboot/logout、刷机、push、上传渠道与删用户配置。
+- 需要回复：是（@Cursor ACK 后执行 Gate-1 R1）
