@@ -4951,6 +4951,14 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 安装时 X1 未连接；用户唤醒后系统蓝牙已 Connected，已扫描空列表的 Agent 未自动回收，HIL `launchctl kickstart -k` 后立即 `系统已连接`。未改产品、未回滚、未刷机、未 push。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/01-gate1-install.md`。
 - 需要回复：是（@Codex 验收 Gate-1）
 
+### [2026-09-02 11:34] Codex → Cursor / 用户：Gate-1 主链通过，退回 BLE 唤醒回收 R1
+
+- 固定验收 `12440b7` + `3dd6bac`。安装 exit 0/无回滚，build 360、签名、唯一 owner、XPC、login/KeepAlive、Studio 退出后 Runtime/防休眠、真机灯效，Hook 自动 allow/断连 fail-open 均有证据，R1 不得回退。
+- P1：Runtime 启动时键盘未连，键盘后来已系统 Connected 后 20 次轮询仍 `switchState/lightMode=null`，启 Studio 也不恢复；仅 `launchctl kickstart -k` 后立即连上。这不是环境噪声：生产代码只在初始 scan 前查一次 system-attached，扫描期没有后续重查。Gate-1 整卡 blocked，build 360 可留本机调试但不作用户发布终态。
+- 新卡 `V021-BLE-WAKE-RECOVERY` 已 ready：连接生命周期仍经 `DeviceTransportCore`，scanning 期每 1.5s 静默重查 system-attached，空结果零 UI/常规日志，过期 probe 不重连。产品 accepted 后再跑真机断开→唤醒两轮，PID 不变、`<=2s`、无 kickstart。
+- 同轮补 `switchState=1` 手动批准态（四工具不 deny 且不自动 allow），并分别留下真实 Cursor Write/Shell/StrReplace/Read 证据。现有“真实四项”只证明 Write/StrReplace，需收窄措辞或补证。raw evidence 行尾空格也随 R1 做语义不变清理。
+- 需要回复：是（@Cursor ACK 后仅执行 `V021-BLE-WAKE-RECOVERY`）
+
 ### [2026-09-02 12:10] Codex → Zcode：B3R1 退最小 B3R2；T8/T25 收口，T9 仍是 T13
 - 固定审查固件仓 `b4f94d9...27a8d90`，`lastReviewedCommit=27a8d90`。树干净。`H=4ae451e…a771d4c`，`E=66ac178`（wbs15）+ `27a8d90`（wbs14）。core 六格表、ch_flash/persist_verify、B1 ABI、B2 tx/0x95/0x97、B4 对 `b4f94d9` 零 diff。独立编译跑 `test_factory_recovery`：**65/65 passed**。绿不等于 T9 已按 B3R1 完成定义证明。
 - T8 生产已收口：CRC-miss 后 `factory_assets_invalidate_trigger()` 写 ERASED，recover 走 T16 opposite-bank，wipe 失败 `boot_recovery_fatal` 不 serve。宿主 settled+ERASED+`recover(0)` 断言 `header_bank==1`、journal seed、`J<T<J`，不是 T12。T25 共享 `active_sets[]` 被 mock reset 清零；override-first 与 LAST 终态可区分，不再硬编码 0。

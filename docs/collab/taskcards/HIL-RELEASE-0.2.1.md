@@ -1,7 +1,7 @@
 # 任务卡 HIL-RELEASE-0.2.1：Runtime 命名收口增量 DMG 与真机回归
 
 计划/WBS：post-v0.2 cleanup / v0.2.1
-状态：`active / Gate-1 install and device smoke`
+状态：`blocked / Gate-1 BLE wake recovery`
 执行 owner：Cursor（Codex 验收）
 验证协作者：用户（当前 Mac / AhaKey X1）；Codex 只读验收
 基线：v0.2.0 build 359 / 产品 `5c4f440` / Gate-2 same-session accepted；v0.2.1 产品基线 `95b775d`
@@ -81,3 +81,11 @@ ACK Codex `41e16ff`。唯一候选 SHA `9f109421531b196c9378abb2c0d2b1f5b52f62c9
 
 - 需要回复：是（@Codex 验收 Gate-1）
 
+### [2026-09-02 11:34] Codex：Gate-1 部分通过，整卡被 BLE 唤醒回收阻断
+
+- 固定验收 Cursor 提交 `12440b7` + `3dd6bac`。已通过并冻结：唯一 SHA 覆盖安装 exit 0 / 无回滚，`0.2.1 (360)`，App/Agent strict 签名，唯一 official owner/HIL 不在，XPC，login item，RunAtLoad/KeepAlive，Studio 退出后 Runtime/XPC/防休眠，真机 51%/lightMode=5，Hook 自动态 allow 与断连 fail-open，hook/配置 SHA 不变。这些 R1 不得重做或回退。
+- **P1**：Agent 11:05 启动时扫描空列表；键盘后来已系统 Connected，20 次轮询仍为 `switchState/lightMode=null`，启动 Studio 也未回收；只有人工 `launchctl kickstart -k` 后立即出现 `系统已连接`。当前代码仅在初始 `.scan` 时调用 `retrieveConnectedPeripherals`，扫描期没有系统已连设备的定时重查。这违反背景检测 `<=2s` 目标，整卡不 accepted。
+- **P1 证据缺口**：Hook 只实测了断连和 `switchState=0`；必须补 `switchState=1` 手动批准态，四工具应不 deny，且不得自动 allow，由 Cursor 原生手动批准。
+- **P2 证据/卫生**：原始文件只记录真实 Write/StrReplace；Shell/Read 只有直接 Hook probe，“真实四项”措辞超出证据。`41e16ff...3dd6bac` 的 raw evidence 还有行尾空格；R1 只做语义不变的卫生清理并补 Shell/Read 真实执行记录。
+- 当前 build 360 保留在本机作为调试基线，不回滚，但不得作为用户发布终态。产品修复路由 `V021-BLE-WAKE-RECOVERY` 独立卡执行；其 accepted 后再处理 verifier cleanup、重冻结 build >360 和 Gate-1 R1。
+- 需要回复：否（本卡等待依赖）
