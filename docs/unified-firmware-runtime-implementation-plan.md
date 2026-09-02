@@ -36,7 +36,7 @@
 | Runtime 设备独占、Studio 纯客户端化 | WBS 5.5/5.7 静态与自动门禁完成 | 主链已 accepted；0.2 先经兼容策略、最小安装链与独立 HIL 发布，不再等待全部新功能 |
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
 | WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md)；2026-08-26 确认 GitHub **`master@71b11676` 与 `dev@3e7f900` 源码树相同** |
-| WBS 1 统一固件 | 进行中 | 1.1-1.4 已验收（1.4 @ `97f0ae8`）；当前 Zcode 只执行 1.5 slice 1 R16，1.6-1.7 未开放。**产品源仍为 GitHub master/dev 同树**，不换到 `eternal-dev`。 |
+| WBS 1 统一固件 | 进行中 | 1.1-1.4 已验收；1.5 implementation accepted @ `b678137`，真机 HIL 延后到 1.7 可刷镜像；当前 Zcode 执行 1.6 checkpoint A，1.7 未开放。**产品源仍为 GitHub master/dev 同树**，不换到 `eternal-dev`。 |
 | OLED 编辑/局部提交 | 进行中 | Cursor 执行 E-1R1；该能力归 0.3，不进入 0.2 的可见功能面 |
 | WBS 0.2 行为/协议/Flash 矩阵 | 部分完成 | 行为与协议入口已静态比较；Flash 地址、大小、占用和 HIL 仍开放 |
 
@@ -825,8 +825,8 @@ AhaType
 | 1.2 | **已验收 @ `105250c`**：保留 GitHub master 的 SDK bridge / `0x86`（internal enable + 共用 policy） | 生产 policy 与六路调用链门禁 | 1.1 |
 | 1.3 | **已验收 @ `9135183`**：Rhino 四状态/双套任务图、caps14 交叉契约、interval 与持久化迁移 | 统一 OLED 状态机 | 1.2 accepted |
 | 1.4 | **已验收 @ `97f0ae8`**：事务化 factory assets 与断电恢复门禁 | 资源模块 | 1.2、1.3 accepted |
-| 1.5 | **进行中 / slice 1 R16**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与真实逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
-| 1.6 | 合并 USB/BLE 身份与 VBUS 修复 | 传输回归报告 | 1.2 |
+| 1.5 | **实现已验收 @ `b678137`；HIL 待 1.7 后刷机**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
+| 1.6 | **进行中 / checkpoint A**：合并 USB/BLE 身份与 VBUS 修复 | 传输回归报告 | 1.2 |
 | 1.7 | 建立 Standard/Rhino 两份资源 pack | 两个量产产物 | 1.4 |
 
 退出条件：同一源码在两种资源变体上通过现有功能回归，除资源外行为一致。
