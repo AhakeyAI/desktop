@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B3R5`（Zcode；保留擦除预填与 accept/reject 计数；I/O 非零与 CRC 丢失必须分流；B4 冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B4`（Zcode；B3 含 B3R5 三态 boot load accepted；B3 recovery/seam 冻结；不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1475,3 +1475,28 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - **Spec P1**：B3R4 原文要求「读取**非零**时、CRC 前 fail-closed；不得调用 default/sanitize，不得 invalidate/provision/serve」。现实现把 `storage_read != 0` 直接 `defaulted=1` 并 `default_install`；factory `main.c` 仍对任意 `boot_defaulted` 调 `factory_assets_invalidate_trigger()`。一次 EEPROM 读错误会被当成 blob 丢失而擦 trigger/再 provision。T9 read-fail 臂把 `default=1` 写成成功，与「零后级副作用」相反。
 - **B3R5**：seam 必须区分 I/O 失败与 CRC 丢失（status-bearing）。`storage_read != 0`：不 default、不 sanitize、intent=0、不把 defaulted 报成 CRC-loss；`main.c` 只在 CRC-loss 时 invalidate。T9 read-fail 断言 `storage=1 default=0 sanitize=0`、intent=0、RAM 不是陈旧 valid blob。不写/半读若返回 0，可继续走擦除/CRC 丢失。擦除预填、accept/reject 计数、wbs13 token 剥离、报告口径不得回退。B4、刷机、HIL、push 不开放。
 - 需要回复：是（@Zcode ACK 后仅执行 B3R5）
+
+### [2026-09-02 18:17] Codex 复验 implementation B3R5：accepted，开放 B4
+
+- 固定审查固件仓 `2bd169c...0b23d87`，`lastReviewedCommit=0b23d87`。产品 `87e2191`，ELF re-pin `2b17f14`，证据 `4822cc4`/`0b23d87`。树干净、单 worktree、`git diff --check` 通过。范围仅 7 文件且全在授权内：seam 头/实现、`main.c`、T9、wbs14 双 ELF pin、两份 evidence。`ch_flash`/`persist_verify`/`key_bund_layout`/`command_solve`/codec/tx/progress 对 `2bd169c` 零 diff。六格表（`recover_and_apply`/`provision_locked`/journal 魔数）零触碰。测试 diff 全部位于 T9（行 800–929）；T8/T25 零 diff。
+- Codex 独立编译跑 recovery：**all passed**（T9 22 检查，含 IO_FAIL `storage=1 default=0 sanitize=0` 且 `ram[3]==0xFF`）。`test-wbs13-semantics.py` / `test-wbs14-semantics.py` ok。**`build-wbs15.sh` 与 `build-wbs14.sh` 均在 `0b23d87` 上 exit 0**：wbs15 含 factory DIAG 双 mutation、入口 committed mutation、preflight relative/symlink/stub；wbs14 callchain 三边 + 双 ELF pin `56d1cf58…`/`5e865e2d…` 与活构建一致。复跑生成的 evidence 已恢复提交态，最终树 clean。
+
+**已成立，B4 不得回退**
+
+- `storage_read != 0` 立即 `FACTORY_BOOT_RAW_IO_FAIL`、intent=0，不经 CRC、不 default、不 sanitize；RAM 保留 erase 预填。
+- `main.c` 仅 `CRC_LOST` 调 `factory_assets_invalidate_trigger()`；`IO_FAIL` 置 `boot_recovery_fatal` 且 recovery/serve 被 `boot_recovery_fatal == 0` 门控。
+- T9 三态：accept `storage=1 sanitize=1 default=0`；CRC-loss（damaged/no-write/partial）`storage=1 default=1 sanitize=0`；I/O-fail `storage=1 default=0 sanitize=0`。擦除预填与 accept/reject 计数未回退。
+
+**Standards / Spec**
+
+- 0 P1。B3R4 的 I/O≠CRC-loss 与 T9 fail-closed 臂均闭合。
+- 非阻塞 P2：`FACTORY_BOOT_RAW_*` 仍是头文件宏而非 enum；`factory_assets_core.c` 函数前注释仍写「failing storage_read forces the default branch」，与现控制流不符。不另开 B3R6。
+
+**B3 关闭 / B4（本轮新开）**
+
+- B3（含 B3R1–B3R5）accepted @ `0b23d87`。不得回退：六格表、T8 wipe→ERASED→opposite-bank、三态 boot load、erase 预填、wbs13 token 剥离。
+- **B4 范围**：0x80/0x81 进度接线 + T29/T30 + T31 回归。total=0x80 size；confirmed=同步写后游标；1024 B 窗口至少一次中间重绘；excess 用 `lwrb_get_full()` wrap-safe，skip=`write_len`。
+- **允许**：`command_solve.c` / `task_picture.{c,h}` / `upload_progress_core.{c,h}` 的 0x80/0x81 接线、必要 `main.c`/`main.h` glue、`tools/wbs15/**` 的 T29/T30/T31 与 harness/evidence。不得改 B3 recovery 六格表、boot seam 三态、`ch_flash`、`persist_verify`、B1 ABI（改 `key_bund_layout.h` 必须显式重钉）、B2 0x95/0x97 生产路径。
+- **完成定义**：T29 1024 B 窗口 ≥1 中间刷新且完成帧可见；T30 excess abort 且 skip 精确；T31 slice-1 journal + wbs14 仍绿。`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手。不刷机、HIL、push。
+- 需要回复：是（@Zcode ACK 后仅执行 implementation B4）
+
