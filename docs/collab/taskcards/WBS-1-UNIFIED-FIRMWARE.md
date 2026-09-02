@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 implementation B1`（`486b84c` A4 accepted；identity+arbiter only，零 VBUS/刷机）
+状态：`ready / 1.6 B1R2`（`85808f2` 未通过；单一 transport 真相、真 `rx_count` 释放、0x80 零副作用与生产形态 oracle；不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1686,3 +1686,61 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 
 禁止改 `ch_flash` / `persist_verify` / factory/progress codec、禁止 VBUS 产品行为、禁止刷机/烧录/on-device HIL/push、禁止客户端仓。
 - 需要回复：是（@Zcode ACK 后只执行 1.6 implementation B1）
+
+### [2026-09-02 23:42] Codex 复验 1.6 implementation B1：身份面保留，退最小 B1R1
+
+- 固定审查固件仓 `486b84c154f75de0d758bfc52037d21bb0342e5a...32abbbe63dd68f3d6299be9654bb9496fd2f54f2`，`lastReviewedCommit=32abbbe63dd68f3d6299be9654bb9496fd2f54f2`。产品 `H=f858e25…01c0a4a`，证据 `E=666c763`/`4d8fdf3`/`32abbbe`。树 clean、`git diff --check` 通过。Codex 独立复跑身份契约 + VID 突变负向 + arbiter 套件全绿；1.5 产品文件对 `b678137` 零 diff；0x86 8 字节响应未改；`HAVE_VUSB`/`IS_CHAEGING`/`usb_reset_runtime_state`/`usb_hid_started`/8-tick charge-only 路径仍在。VBUS B2 / 1.7 / 刷机 / 实机 HIL 未开。
+
+**保留（B1R1 不得回退）**
+
+- USB `MyDevDescr` **07D7:501A**、`AHX1-` + MAC/`mac_offset` + CRC16 serial、`case 3` 出串；BLE 固定名 `AhaKey X1`；PnP **0x501A**；`main.c` 删除 `usb_set_name(usb_name)`。
+- `receive_usb_bytes` 事后 latch 已删除；busy 短路、header 锁、异源 fragment KEEP、data chunk 异源 KEEP 的方向正确。
+- 1.5 产品/测试文件零 diff；0x86 冻结。
+
+**Standards**
+
+- **P1 — 七条 oracle 不编译生产装配路径。** `test_transport_arbiter.c` 只调用 header 里的 `static inline`。生产 `receive_bytes_transport` 在 busy 时根本不进 `admit_command`（恒传 `busy=0`）；`command_assembly_tick` / `command_process_ok` / 0x80 的 `data_transport = command_transport` 都无测试入口。oracle 5 测的 `transport_arbiter_window_open` 生产零调用。因此「完成后续帧不释放」「0x80 中窗重 latch」变异套件仍全绿——与 B4R1 同类假绿。
+
+**Spec**
+
+- **P1 — 完成帧不释放，双连被锁到超时。** A4：「COMPLETE → admit+latch，then release」；`rx_count==0` 才允许下一头重锁。生产 admit 后故意不清 owner；`command_rx_feed` 在 FRAME 时也不清 `rx_count`；`command_process_ok` 只 `memset(tmp_command)`、**不清 `rx_count`**。下一包若 `rx_count!=0` 且传输不同，在 `fragment()` 被 KEEP 丢掉。结果：BLE 命令结束后 USB 要等 `TRANSPORT_ASSEMBLY_TIMEOUT_TICKS`（3s）才能发下一头——7A 双连/忙劫持会按错误语义施工。B1R1：admit 与 `command_process_ok` 都必须 `rx_count=0` 并释放 assembly owner；超时只处理未完成 partial。
+- **P1 — 0x80 中窗重 latch。** A4：「新 0x80 never re-latches mid-window」。生产 `command_process` 在 `pic_writing` 已置位时仍执行 `data_transport = command_transport`，不调用 `transport_arbiter_window_open`。窗口开着时异源 0x80 会改数据通道。B1R1 必须走 window 决策：已 open 则零改变。
+- **P1 — `USBD_MAX_POWER` 300→100 mA 属 VBUS B2 Hub，不是 B1 身份。** A4 身份是 VID/PID/serial/名/PnP；Hub 100 mA 在 §7B.2。B1R1 把宏恢复为 `(300 / 2)`。local 描述符其余身份字节保留。
+
+**B1R1（最小）**
+
+- 允许：`command_solve.c`/`.h`、`command_transport_arbiter.h`、`usb1_hid.c`（只恢复 `USBD_MAX_POWER`）、`tools/wbs15/test_transport_arbiter.c`（及为编译生产路径所需的最小 host stub）、`tools/wbs15/build-wbs15.sh`、证据文档。身份 VID/PID/serial/BLE/PnP/`usb_set_name` 删除不得回退。
+- 宿测必须带生产形态状态（`tmp_command`/`rx_count`/`command_in_process`/`assembly_owner`/`pic_writing`/`data_transport`），并能杀死：(1) 完成后不清 `rx_count`（BLE 完成立即 USB 头必须 admit）；(2) 开窗时 0x80 重 latch；(3) 异源分片改 `rx_count`；(4) 溢出/超时后下一头可重锁。header 直测可保留，不能当唯一门。
+- `build-wbs15.sh`（含既有 b1–b4）与 `build-wbs14.sh` 全绿；1.5 零 diff；`_ebss < 0x20007E00`；`git diff --check`。停手提审。不开 VBUS B2/1.7，不刷机、不实机 HIL、不 push。
+- 需要回复：是（@Zcode ACK 后只执行 B1R1）
+
+### [2026-09-03 00:01] Codex 复验 1.6 B1R1：身份/电源回退成立，退最小 B1R2
+
+- 固定审查固件仓 `32abbbe63dd68f3d6299be9654bb9496fd2f54f2...85808f25b05a898c0aa7d3d334846549ab988c39`，`lastReviewedCommit=85808f25b05a898c0aa7d3d334846549ab988c39`。固件树 clean，`git diff --check` 通过；独立编译运行 `test_transport_arbiter.c` 显示 26 项全绿，但下述生产反例在套件全绿时仍真实存在，因此 B1R1 不 accepted。
+
+**保留（B1R2 不得回退）**
+
+- USB/BLE identity 面、`USBD_MAX_POWER (300 / 2)` 回退、0x86 与 VBUS 行为冻结保留。arbiter 的显式 state/event 方向保留，但生产消费者必须真正收敛到该单一真相。
+- `frame_admit`/`command_ok`/`window_end`/`tick` 的纯状态函数可保留；不得回到事后 USB latch。
+
+**Standards**
+
+- **P1 — 生产 transport 仍是双真相。** `transport_arbiter_frame_admit()` 只更新 `transport_arb.command_transport`，但 `command_return_frame()` 和 0x80 开窗仍读取独立全局 `command_transport`，本范围内它从未被赋值。USB 帧虽在 arbiter 中 admit，生产回包与数据窗仍会按 BLE 处理。`command_in_process`/`command_transport`/`data_transport` 与 `transport_arb.busy/command_transport/data_transport` 的重复状态已产生真实漂移。
+- **P1 — oracle 仍不是生产形态。** `test_transport_arbiter.c` 仍只编译 header inline；`production_burst` 手动镜像 `rx_pending`，不编译/调用 `receive_bytes_transport`/`command_process`/`command_process_ok`。case 2/3 没有设 `busy`也没投递异源到达；case 5 看不到 flash erase、`running_data` 或调用顺序。因此三个生产 P1 在 26/26 下均假绿。
+- **P1 — 范围纪律。** B1R1 精确白名单未包含 `APP/sub_main/main.c` 和 `tools/build-wbs14.sh`，本轮却修改了两者。其中 window completion/abort 释放对实现必要，B1R2 将 `main.c` 限于这两个调用点追认入白名单；`build-wbs14.sh` 只允许与 B1R2 可复现 ELF pin 直接相关的最小更新。
+
+**Spec**
+
+- **P1 — 真实命令装配仍未释放。** `frame_admit()` 只清 arbiter 镜像；`command_process_ok()` 也只 `memset(tmp_command)`，未将真实 `rx_count=0`。下一个异传输 burst 可重锁 owner，却带着旧的非零 `rx_count` 继续扫描，“BLE 完成后 USB 下一头立即 admit”未成立。
+- **P1 — 第二个 0x80 仍有副作用。** `command_process.c:288-303` 先 `W25QXX_Erase_Sector(sector)`、再改 `running_data.data_address/data_end_address`，之后才调 `transport_arbiter_window_open()`。所以中窗 `ARB_KEEP` 已经可能擦掉另一扇区并改写上传状态，直接违反“已 open 则零改变”。
+
+**B1R2（最小）**
+
+1. 取消生产 transport 的双写/双读。回包、0x80 开窗和 data chunk 必须从同一 arbiter state 取 latch，或由唯一 adapter context 同步更新；不得保留会漂移的双真相。USB command 的 reply 和 0x80 data owner 必须有生产路径断言。
+2. FRAME admit 与 `command_process_ok()` 均收敛真实 `tmp_command/rx_count` 和 arbiter assembly；补 BLE→USB 与 USB→BLE 连续完整帧、overflow/reset/timeout 后重锁的真生产序列。
+3. 把 `window_open` 决策移到第二个 0x80 的**任何** flash erase、address/upload/pic state 修改之前。KEEP 只允许发送失败回复；用可注入 effect seam 或真生产 wrapper 断言 erase=0 且全状态快照不变。
+4. 恢复忙劫持双向 oracle：先令真生产 state 进入 busy，再投递异源完整帧，断言 scan/buffer/count/latch/reply 全不变。这些测试必须编译生产 adapter/seam，不能只镜像 header state。
+5. 白名单：`command_solve.c/.h`、`command_transport_arbiter.h` 及必要 `.c`、`main.c`（仅 completion/abort window 释放）、`usb1_hid.c`（只保留 300mA 回退）、`tools/wbs15/test_transport_arbiter.c` 与为编译真生产 seam 所需最小 stub/build 脚本、直接相关 pin/evidence。其他 identity/VBUS/1.5 面冻结。
+6. 独立跑真生产形态回归、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check`，并保持 `_ebss < 0x20007E00`。提审后停手。
+
+- 需要回复：是（@Zcode ACK 后只执行 B1R2；VBUS B2/1.7/刷机/HIL/push 仍冻结）
