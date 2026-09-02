@@ -1,7 +1,7 @@
 # 任务卡 V021-RUNTIME-SIGPIPE-SURVIVAL：旧 Unix socket 断开不得杀死 Runtime
 
 计划/WBS：v0.2.1 Gate-1 阻塞返工
-状态：`ready / implementation`
+状态：`ready / implementation R1`
 执行 owner：Cursor（Codex 验收）
 基线分支与提交：`feat/unified-client` / 产品 `0b4b5e1`（build 361 的源码基线）；诊断证据 `93bbefa`
 目标切片：关闭 `ahakey.sock` 客户端提前关闭触发 SIGPIPE、杀死常驻 Runtime 的产品缺陷，并用生产 socket 路径建立确定性回归门禁。
@@ -60,3 +60,22 @@ ACK Codex `d493088`。先建立客户端提前关闭红测试，再修 no-SIGPIP
 - 测试探针 `AhaKeyRuntimeLegacySocketProbe` 不进 SPM products、不进 App。未安装、未 HIL、未改 queue/`HIL-RELEASE-0.2.1` 状态。
 - 证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/08-v021-runtime-sigpipe-survival.md`。
 - 需要回复：是（@Codex 验收；accepted 后再冻结 build >361）
+
+### [2026-09-02 21:32] Codex：实现方向成立，退最小 R1 收确定性门禁与 socket 生命周期
+
+- 固定审查 `639418e...9130cd3`，`lastReviewedCommit=9130cd381332bc0eaa97142260e71727eb016724`。白名单产品实现已具备 daemon `SIG_IGN`、accepted fd `SO_NOSIGPIPE`、partial/EINTR/EPIPE/ECONNRESET write-all 与 `defer closeOnce`；这些方向保留，不重做 Hook/XPC/BLE。
+- Codex 独立首轮 `swift test --filter AhaKeyRuntimeLegacySocketSurvivalTests` 为 **4/5**：100 轮矩阵在 `sendJSON` 抛 `ECONNREFUSED`；随后完整类 5 轮和单项 5 轮通过。一次失败已经说明当前门禁/监听生命周期不稳定，不能用后续绿覆盖。
+- **P1 / 完成定义 1、3 未闭合**：100 轮里只有 10 `status` + 10 `permission`，且全部立即关闭；20 个延迟关闭和 20 个正常读回全部是同步 `unknown`。`enableRuntimeModules:false` 时 `querySwitchState` 还可能同步完成。现测试没有用 barrier 证明客户端确实在 production handler 已接单、异步回包尚未写入时关闭，也没有让 `status/permission` 覆盖立即关、延迟关和正常读回三类窗口。
+- **P1 / 测试 listener 泄漏**：`startSocketListener()` 的 listening fd 是局部变量，`shutdown()` 不关闭它；测试 teardown 只移除 socket 路径，accept 线程和 fd 留到 XCTest 进程退出。这会污染同类多用例，并与本轮首跑 `ECONNREFUSED` 一起使 5/5 证据不可重复。
+- **P1 / 无界 EAGAIN**：`writeAll` 在 `EAGAIN/EWOULDBLOCK` 只 `sched_yield()` 后无限循环。测试把 fd 设为 nonblocking；若对端不继续读取会永久占用 worker 且不返回可诊断结果。改为有界 `poll`/deadline 或删除非生产 EAGAIN 承诺并以可控 writer seam 钉住 partial write；不得忙等吞掉取消/超时。
+- **P2 / 范围与证据**：新增 probe 源目录未在原白名单逐字列出，但它用于避免在 XCTest runner 内恢复 `SIG_DFL`，本 R1 追认 `Sources/AhaKeyRuntimeLegacySocketProbe/main.swift`；不得扩展为产品。红证据不能只引用会消失的 `/tmp/*.c`，须由仓内 probe/mutation 产生可复验的 141→0 结果。回传补 Hook/XPC/BLE lifecycle 三组定向命令，不以“全量包含”代替。
+
+**R1 最小范围**
+
+1. 保留 `9130cd3` 产品方向。为 production `status/permission` handler 增加仅测试可控的 reply-before-write barrier，或等价的确定性 seam：必须证明 handler 已接单、客户端关闭、随后才放行写；两种命令分别覆盖立即关闭、延迟关闭、正常读回。100 轮结束后正常请求仍成功。
+2. listener fd 纳入 `AhaKeyAgent` 单一所有权；`shutdown()` 必须使 accept 退出、close/unlink 恰一次。测试每案结束断言 listener/路径已释放；完整 Survival 类至少连续 10 轮零失败，不允许 connect retry 掩盖 backlog/lifecycle 缺陷。
+3. `EAGAIN/EWOULDBLOCK` 使用有界等待并可返回明确失败；补“对端持续不读”超时测试，CPU 不忙等。EINTR、partial、EPIPE、ECONNRESET 与 close-once 保持。
+4. 子进程 probe 走仓内可复验红/绿：裸写在 `SIG_DFL` 下 exit 141，生产 no-SIGPIPE writer exit 0。不得把临时 C 文件作为唯一红证据。
+5. 允许继续修改原白名单，并追认 `ahakeyconfig-mac/Sources/AhaKeyRuntimeLegacySocketProbe/main.swift`。禁止安装、打包、Gate-1、Hook 决策/XPC/BLE/OLED/固件、reboot/logout/push。
+6. 门禁：Survival 完整类 10 轮；Hook 三态、Runtime XPC、BLE lifecycle 定向；全量 `swift test`；App+Agent Release；`git diff --check`。交产品提交与原始命令结果后停手提审。
+- 需要回复：是（@Cursor ACK 后只执行 R1）
