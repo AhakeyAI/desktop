@@ -1,0 +1,91 @@
+=== SHA-256 ===
+aa27aef0597ebaf659fa1fd04ca58acdf432f1e18899008678f516e048be0d4a  /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+=== ls ===
+-rw-r--r--@ 1 heartline  staff    15M Sep  2 23:09 /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+=== stapler validate ===
+Processing: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+The validate action worked!
+=== spctl ===
+/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg: accepted
+source=Notarized Developer ID
+=== hdiutil verify ===
+正在检查“Protective Master Boot Record（MBR：0）”的校验和…
+Protective Master Boot Record（MBR：0）：已验证CRC32 $8F93CC22
+正在检查“GPT Header（Primary GPT Header：1）”的校验和…
+    GPT Header（Primary GPT Header：1）：已验证CRC32 $29A5C23F
+正在检查“GPT Partition Data（Primary GPT Table：2）”的校验和…
+GPT Partition Data（Primary GPT Table：已验证CRC32 $4736BDD2
+正在检查“（Apple_Free：3）”的校验和…
+                      （Apple_Free：3）：已验证CRC32 $00000000
+正在检查“disk image（Apple_HFS：4）”的校验和…
+             disk image（Apple_HFS：4）：已验证CRC32 $5492FD88
+正在检查“（Apple_Free：5）”的校验和…
+                      （Apple_Free：5）：已验证CRC32 $00000000
+正在检查“GPT Partition Data（Backup GPT Table：6）”的校验和…
+GPT Partition Data（Backup GPT Table：：已验证CRC32 $4736BDD2
+正在检查“GPT Header（Backup GPT Header：7）”的校验和…
+     GPT Header（Backup GPT Header：7）：已验证CRC32 $9078271A
+已验证CRC32 $CE511F33
+hdiutil: verify: checksum of "/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg" is VALID
+=== independent readonly mount ===
+mnt=/tmp/ahakey-gate0-r2-mnt.V6praV
+预计CRC32 $CE511F33
+/dev/disk4          	GUID_partition_scheme          	
+/dev/disk4s1        	Apple_HFS                      	/private/tmp/ahakey-gate0-r2-mnt.V6praV
+=== root listing ===
+total 40
+drwxr-xr-x    8 heartline  staff    340 Sep  2 23:07 .
+drwxrwxrwt  544 root       wheel  17408 Sep  2 23:09 ..
+-rw-r--r--@   1 heartline  staff  10244 Sep  2 23:08 .DS_Store
+drwxr-xr-x@   3 heartline  staff    102 Sep  2 23:07 .background
+drwx------+   5 heartline  staff    170 Sep  2 23:08 .fseventsd
+drwxr-xr-x@   3 heartline  staff    102 Sep  2 23:07 AhaKey Studio.app
+lrwxr-xr-x@   1 heartline  staff     13 Sep  2 23:07 Applications -> /Applications
+-rw-r--r--@   1 heartline  staff    749 Sep  2 23:07 LaunchAgent.plist
+=== Info.plist version ===
+0.2.1
+362
+=== codesign app ===
+--prepared:/private/tmp/ahakey-gate0-r2-mnt.V6praV/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+--validated:/private/tmp/ahakey-gate0-r2-mnt.V6praV/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+/tmp/ahakey-gate0-r2-mnt.V6praV/AhaKey Studio.app: valid on disk
+/tmp/ahakey-gate0-r2-mnt.V6praV/AhaKey Studio.app: satisfies its Designated Requirement
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+=== codesign agent ===
+/tmp/ahakey-gate0-r2-mnt.V6praV/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent: valid on disk
+/tmp/ahakey-gate0-r2-mnt.V6praV/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent: satisfies its Designated Requirement
+Identifier=lab.jawa.ahakeyconfig
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+=== requirement app ===
+app req rc=0
+=== requirement agent ===
+agent req rc=0
+=== companion plist ===
+{
+  "KeepAlive" => true
+  "Label" => "lab.jawa.ahakeyconfig.agent"
+  "MachServices" => {
+    "lab.jawa.ahakeyconfig.runtime" => true
+  }
+  "ProgramArguments" => [
+    0 => "/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent"
+    1 => "--socket"
+    2 => "SOCKET_PATH_PLACEHOLDER"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "LOG_PATH_PLACEHOLDER"
+  "StandardOutPath" => "LOG_PATH_PLACEHOLDER"
+}
+=== detach ===
+"disk4" ejected.
+detach rc=0
+=== leftover mounts ===
+0
+0

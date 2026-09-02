@@ -1,0 +1,286 @@
+🚀 Building formal distribution DMG → AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+release identity ok
+📦 Packaging AhaKey Studio DMG...
+📦 Building AhaKey Studio...
+🔨 Building arm64 for macOS 13.0...
+[0/1] Planning build
+Building for production...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'AhaKeyConfig' complete! (0.29s)
+Building for production...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'ahakeyconfig-agent' complete! (0.16s)
+🔨 Building x86_64 for macOS 13.0...
+Building for production...
+[0/7] Write sources
+[2/7] Write swift-version--58304C5D6DBC2206.txt
+[3/7] Compiling CLibXPC shim.c
+[4/7] Compiling AhaKeyVirtualDisplayBridge AhaKeyVirtualDisplay.m
+[6/8] Compiling AhaKeyConfigShared AIIntegrationRuntimeModule.swift
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:152:14: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+150 |         cancelCurrent: @escaping () -> Void
+151 |     ) async throws -> AhaKeyRuntimeXPCResponse {
+152 |         lock.lock()
+    |              `- warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+153 |         if token.isCancelled || Task.isCancelled {
+154 |             lock.unlock()
+
+Foundation.NSLock.lock:2:11: note: 'lock()' declared here
+1 | class NSLock {
+2 | open func lock()}
+  |           `- note: 'lock()' declared here
+3 | 
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:154:18: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+152 |         lock.lock()
+153 |         if token.isCancelled || Task.isCancelled {
+154 |             lock.unlock()
+    |                  `- warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+155 |             throw CancellationError()
+156 |         }
+
+Foundation.NSLock.unlock:2:11: note: 'unlock()' declared here
+1 | class NSLock {
+2 | open func unlock()}
+  |           `- note: 'unlock()' declared here
+3 | 
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:158:14: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+156 |         }
+157 |         let capturedGeneration = generation
+158 |         lock.unlock()
+    |              `- warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+159 | 
+160 |         let encoder = JSONEncoder()
+
+Foundation.NSLock.unlock:2:11: note: 'unlock()' declared here
+1 | class NSLock {
+2 | open func unlock()}
+  |           `- note: 'unlock()' declared here
+3 | 
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:189:27: warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+187 |             let response = try decoder.decode(AhaKeyRuntimeXPCResponse.self, from: responseData)
+188 |             if isHandshake, case .handshakeAccepted = response {
+189 |                 self.lock.lock()
+    |                           `- warning: instance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+190 |                 if self.generation == capturedGeneration {
+191 |                     self.handshakeAccepted = true
+
+Foundation.NSLock.lock:2:11: note: 'lock()' declared here
+1 | class NSLock {
+2 | open func lock()}
+  |           `- note: 'lock()' declared here
+3 | 
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeXPCLibXPCClient.swift:193:27: warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+191 |                     self.handshakeAccepted = true
+192 |                 }
+193 |                 self.lock.unlock()
+    |                           `- warning: instance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead; this is an error in the Swift 6 language mode
+194 |             }
+195 |             return response
+
+Foundation.NSLock.unlock:2:11: note: 'unlock()' declared here
+1 | class NSLock {
+2 | open func unlock()}
+  |           `- note: 'unlock()' declared here
+3 | 
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/AhaKeyStudioRuntimeFacade.swift:625:30: warning: no 'async' operations occur within 'await' expression
+623 |             let loaded: AhaKeyStudioLoadedResource
+624 |             do {
+625 |                 loaded = try await resourceLoader.load(from: input.fileURL)
+    |                              `- warning: no 'async' operations occur within 'await' expression
+626 |             } catch {
+627 |                 throw AhaKeyStudioApplyError.resourceLoadFailed(
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/RuntimeModuleRegistry.swift:27:38: warning: no 'async' operations occur within 'await' expression
+ 25 |     /// 注销模块。若模块正在运行，先 stop。
+ 26 |     public func unregister(_ id: RuntimeModuleID) async {
+ 27 |         if let module = modules[id], await module.status == .running {
+    |                                      `- warning: no 'async' operations occur within 'await' expression
+ 28 |             await module.stop()
+ 29 |         }
+[7/9] Compiling AhaKeyConfig AhaKeyConfigApp.swift
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/BLE/BLELogStore.swift:109:13: warning: result of 'try?' is unused [#no-usage]
+107 |     func writeVerboseLine(_ line: String) {
+108 |         verboseQueue.async { [verboseLogWriter] in
+109 |             try? verboseLogWriter.append(line)
+    |             `- warning: result of 'try?' is unused [#no-usage]
+110 |         }
+111 |     }
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/BLE/BLELogStore.swift:109:18: warning: capture of 'verboseLogWriter' with non-Sendable type 'RotatingLogFile' in a '@Sendable' closure [#SendableClosureCaptures]
+107 |     func writeVerboseLine(_ line: String) {
+108 |         verboseQueue.async { [verboseLogWriter] in
+109 |             try? verboseLogWriter.append(line)
+    |                  `- warning: capture of 'verboseLogWriter' with non-Sendable type 'RotatingLogFile' in a '@Sendable' closure [#SendableClosureCaptures]
+110 |         }
+111 |     }
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Shared/RotatingLogFile.swift:6:20: note: class 'RotatingLogFile' does not conform to the 'Sendable' protocol
+ 4 | ///（如 ble-verbose.log → ble-verbose.log.1 → ble-verbose.log.2，最旧的被删除）。
+ 5 | /// 与 UI/actor 无关；调用方负责串行访问（GUI 进程用专用串行 DispatchQueue，测试单线程调用）。
+ 6 | public final class RotatingLogFile {
+   |                    `- note: class 'RotatingLogFile' does not conform to the 'Sendable' protocol
+ 7 |     public let fileURL: URL
+ 8 |     public let maxFileSize: Int
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/BLE/BLELogStore.swift:1:1: warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'AhaKeyConfigShared'
+  1 | import AhaKeyConfigShared
+    | `- warning: add '@preconcurrency' to suppress 'Sendable'-related warnings from module 'AhaKeyConfigShared'
+  2 | import Combine
+  3 | import Foundation
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+[7/9] Write Objects.LinkFileList
+[8/9] Linking AhaKeyConfig
+Build of product 'AhaKeyConfig' complete! (53.50s)
+[0/1] Planning build
+Building for production...
+[0/4] Write sources
+[2/5] Write swift-version--58304C5D6DBC2206.txt
+[4/6] Compiling RuntimeXPCServer AhaKeyRuntimeXPCLibXPCServer.swift
+[5/7] Compiling AhaKeyConfigAgent AhaKeyAgent.swift
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift:538:23: warning: immutable value 'commandChar' was never used; consider replacing with '_' or removing it [#no-usage]
+ 536 |                 return
+ 537 |             }
+ 538 |             guard let commandChar, let peripheral else {
+     |                       `- warning: immutable value 'commandChar' was never used; consider replacing with '_' or removing it [#no-usage]
+ 539 |                 emit("LED 状态 \(state): 未连接")
+ 540 |                 return
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift:538:40: warning: immutable value 'peripheral' was never used; consider replacing with '_' or removing it [#no-usage]
+ 536 |                 return
+ 537 |             }
+ 538 |             guard let commandChar, let peripheral else {
+     |                                        `- warning: immutable value 'peripheral' was never used; consider replacing with '_' or removing it [#no-usage]
+ 539 |                 emit("LED 状态 \(state): 未连接")
+ 540 |                 return
+
+/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift:2980:31: warning: capture of 'self' with non-Sendable type 'AhaKeyAgent?' in a '@Sendable' closure [#SendableClosureCaptures]
+  77 | 
+  78 | /// 轻量 BLE 守护进程：维持连接 + 接收 Unix socket 命令 → 发送 LED 状态 / 回传拨杆状态
+  79 | final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+     |             `- note: class 'AhaKeyAgent' does not conform to the 'Sendable' protocol
+  80 |     /// 兼容默认策略：保持现有生产行为（AI Hook + 动态灯效 + 防休眠开启），
+  81 |     /// 其余模块按策略显式启停。随策略化装配成熟后可改为全部关闭。
+     :
+2978 |             await withCheckedContinuation { (continuation: CheckedContinuation<AhaKeyRuntimeEventReplayVerdict?, Never>) in
+2979 |                 DispatchQueue.main.async { [weak self] in
+2980 |                     guard let self else {
+     |                               `- warning: capture of 'self' with non-Sendable type 'AhaKeyAgent?' in a '@Sendable' closure [#SendableClosureCaptures]
+2981 |                         continuation.resume(returning: nil)
+2982 |                         return
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+[5/7] Write Objects.LinkFileList
+[6/7] Linking ahakeyconfig-agent
+Build of product 'ahakeyconfig-agent' complete! (10.51s)
+🧱 Creating app bundle...
+🎨 Generating app icon...
+🌐 Generating localization strings...
+Wrote 1159 strings to en.lproj and zh-Hans.lproj
+🔏 Signing with: Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent: replacing existing signature
+/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey Studio.app: replacing existing signature
+🔎 Verifying app signature...
+--prepared:/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+--validated:/private/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey Studio.app: valid on disk
+/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey Studio.app: satisfies its Designated Requirement
+✅ Build complete: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey Studio.app
+🧱 Preparing DMG background...
+💽 Creating writable HFS+ DMG...
+created: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b-rw.dmg
+🪟 Applying drag-to-install layout...
+/dev/disk4          	GUID_partition_scheme          	
+/dev/disk4s1        	Apple_HFS                      	/Volumes/AhaKey Installer
+
+(osascript exit=0)
+🔏 Re-signing mounted app after Finder layout with: Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+/Volumes/AhaKey Installer/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent: replacing existing signature
+/Volumes/AhaKey Installer/AhaKey Studio.app: replacing existing signature
+--prepared:/Volumes/AhaKey Installer/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+--validated:/Volumes/AhaKey Installer/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+/Volumes/AhaKey Installer/AhaKey Studio.app: valid on disk
+/Volumes/AhaKey Installer/AhaKey Studio.app: satisfies its Designated Requirement
+✅ .DS_Store written (10244 bytes) — installer layout will persist.
+"disk4" ejected.
+🗜️ Converting DMG...
+正在准备映像引擎…
+正在读取Protective Master Boot Record（MBR：0）…
+   (CRC32 $8F93CC22：Protective Master Boot Record（MBR：0）)
+正在读取GPT Header（Primary GPT Header：1）…
+   (CRC32 $29A5C23F：GPT Header（Primary GPT Header：1）)
+正在读取GPT Partition Data（Primary GPT Table：2）…
+   (CRC32 $4736BDD2：GPT Partition Data（Primary GPT Table：2）)
+正在读取（Apple_Free：3）…
+   (CRC32 $00000000：（Apple_Free：3）)
+正在读取disk image（Apple_HFS：4）…
+   (CRC32 $5492FD88：disk image（Apple_HFS：4）)
+正在读取（Apple_Free：5）…
+   (CRC32 $00000000：（Apple_Free：5）)
+正在读取GPT Partition Data（Backup GPT Table：6）…
+   (CRC32 $4736BDD2：GPT Partition Data（Backup GPT Table：6）)
+正在读取GPT Header（Backup GPT Header：7）…
+   (CRC32 $9078271A：GPT Header（Backup GPT Header：7）)
+正在添加资源…
+已耗时： 3.805s
+文件大小：15332097字节，校验和：CRC32 $CE511F33
+已处理扇区：344064，已压缩89980
+速度：11.5MB/秒
+节省：91.3%
+created: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+🔏 Signing DMG with: Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+🔎 Product identity gate (pre-notarization)...
+release volume ok
+"disk4" ejected.
+detached mountpoint: /tmp/ahakey-dmg-verify.BSxu8A
+release dmg ok: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+🧾 Notarizing DMG with profile: AhaKeyNotary
+Conducting pre-submission checks for AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg and initiating connection to the Apple notary service...
+Submission ID received
+  id: b931f8db-e21c-4ed2-9343-79ddf58dba12
+Successfully uploaded file
+  id: b931f8db-e21c-4ed2-9343-79ddf58dba12
+  path: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+Waiting for processing to complete.
+Current status: In Progress...Current status: In Progress....Current status: Accepted.....Processing complete
+  id: b931f8db-e21c-4ed2-9343-79ddf58dba12
+  status: Accepted
+
+Processing: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+Processing: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+The staple and validate action worked!
+🔎 Product identity gate (post-staple)...
+release volume ok
+"disk4" ejected.
+detached mountpoint: /tmp/ahakey-dmg-verify.idryxi
+release dmg ok: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+🔎 Verifying DMG container...
+正在检查“Protective Master Boot Record（MBR：0）”的校验和…
+Protective Master Boot Record（MBR：0）：已验证CRC32 $8F93CC22
+正在检查“GPT Header（Primary GPT Header：1）”的校验和…
+    GPT Header（Primary GPT Header：1）：已验证CRC32 $29A5C23F
+正在检查“GPT Partition Data（Primary GPT Table：2）”的校验和…
+GPT Partition Data（Primary GPT Table：已验证CRC32 $4736BDD2
+正在检查“（Apple_Free：3）”的校验和…
+                      （Apple_Free：3）：已验证CRC32 $00000000
+正在检查“disk image（Apple_HFS：4）”的校验和…
+             disk image（Apple_HFS：4）：已验证CRC32 $5492FD88
+正在检查“（Apple_Free：5）”的校验和…
+                      （Apple_Free：5）：已验证CRC32 $00000000
+正在检查“GPT Partition Data（Backup GPT Table：6）”的校验和…
+GPT Partition Data（Backup GPT Table：：已验证CRC32 $4736BDD2
+正在检查“GPT Header（Backup GPT Header：7）”的校验和…
+     GPT Header（Backup GPT Header：7）：已验证CRC32 $9078271A
+已验证CRC32 $CE511F33
+hdiutil: verify: checksum of "/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg" is VALID
+🔎 Assessing signed artifacts...
+/tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+✅ DMG ready: /tmp/ahakey-hil-release-021-1ed560b/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1ed560b.dmg
+✅ Formal distribution package complete.
