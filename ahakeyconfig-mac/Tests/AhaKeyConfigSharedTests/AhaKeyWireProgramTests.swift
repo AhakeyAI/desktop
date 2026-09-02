@@ -45,6 +45,21 @@ final class AhaKeyWireProgramTests: XCTestCase {
         )
     }
 
+    func testLegacyStandardPictureBindBytes() {
+        XCTAssertEqual(
+            Builder.commandFrame(for: .bindDefaultPicture(
+                mode: 1, startIndex: 10, frameCount: 8, intervalMs: 100
+            )),
+            Data([0xAA, 0xBB, 0x82, 1, 10, 0, 8, 0, 100, 0, 0xCC, 0xDD])
+        )
+        XCTAssertEqual(
+            Builder.commandFrame(for: .bindLegacyTaskPicture(
+                mode: 2, state: 3, startIndex: 40, frameCount: 12, intervalMs: 100
+            )),
+            Data([0xAA, 0xBB, 0x93, 2, 3, 40, 0, 12, 0, 100, 0, 0xCC, 0xDD])
+        )
+    }
+
     func testMiscFrames() {
         XCTAssertEqual(Builder.commandFrame(for: .setActiveTaskPictureSet(mode: 0, set: 1)),
                        Data([0xAA, 0xBB, 0x97, 0, 1, 0xCC, 0xDD]))

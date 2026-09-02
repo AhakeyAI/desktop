@@ -6,7 +6,7 @@ import ImageIO
 // 纯函数：把 `AhaKeyDesiredConfiguration` + 资源元数据 + 0x99 能力 + 协议模式
 // 规划为「资源事务 + 基础配置事务」的声明式计划。输出只含语义步骤与槽位分配，
 // 不含物理 opcode——opcode 映射归 device transport 层。
-// current-only：非 current 协议直接拒绝（旧固件计划不在本卡范围）。
+// OLED 兼容剖面（Standard / Rhino dual-set / current session / unsupported）在写入前 fail-closed。
 
 public enum AhaKeyConfigurationPlanner {
 
@@ -215,8 +215,12 @@ public enum AhaKeyConfigurationPlanner {
         policy: Policy = .currentDefault,
         release: AhaKeyReleaseFeatureProjection
     ) -> Result<Plan, Rejection> {
-        // 1. current-only
-        guard protocolMode == .current else { return .failure(.unsupportedProtocol) }
+        // 1. OLED 兼容剖面：未知/畸形/模式与 0x99 事实不一致 → 写入前拒绝。
+        let profile = AhaKeyOLEDCompatibilityProfile.resolve(
+            protocolMode: protocolMode,
+            capabilities: capabilities
+        )
+        guard profile.allowsConfigurationPlan else { return .failure(.unsupportedProtocol) }
         guard release.allowsBasicConfigurationWrite else {
             return .failure(.releaseWriteNotAllowed)
         }

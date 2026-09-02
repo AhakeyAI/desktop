@@ -186,12 +186,20 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
 
     func testCurrentHonorsReducedCapabilityCounts() {
         let capabilities = makeCapabilities(setCount: 1, stateCount: 3, flags: 0)
-        let plan = AhaKeyTaskPictureProtocolPlan.make(mode: .current, capabilities: capabilities)
+        XCTAssertNil(
+            AhaKeyTaskPictureProtocolPlan.make(mode: .current, capabilities: capabilities),
+            "v3 单套且未广告 session 不得猜测可写协议"
+        )
+    }
 
+    func testCurrentSessionCapableSingleSetPlan() {
+        let capabilities = makeCapabilities(
+            setCount: 1, stateCount: 4, flags: AhaKeyFirmwareCapabilities.sessionUploadFlag
+        )
+        let plan = AhaKeyTaskPictureProtocolPlan.make(mode: .current, capabilities: capabilities)
         XCTAssertEqual(plan?.setIndices, [0])
-        XCTAssertEqual(plan?.states, [.working, .waiting, .done])
         XCTAssertEqual(plan?.supportsActiveSet, false)
-        XCTAssertEqual(plan?.usesSessionUpload, false)
+        XCTAssertEqual(plan?.usesSessionUpload, true)
     }
 
     func testUnknownModesDoNotProduceWritablePlan() {

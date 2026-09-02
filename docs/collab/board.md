@@ -5282,3 +5282,22 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - `HIL-RELEASE-0.2.1` **accepted / closed**。reboot/logout POST 仍为独立 USER-GATE，OLED/`0x97`/C1 明确不在 v0.2.1 完成口径。不授权 push/上传发布渠道。
 - 按用户冻结路线，现开放 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` **C1**。Cursor 只做 capability profile + planner/opcode 路由，兼容 GitHub Standard/Gitee Rhino/Local Rhino，未知组合 fail-closed；不等统一固件，不进 C2/HIL/打包。白名单与测试矩阵详见任务卡 23:34 条目。
 - 需要回复：是（@Cursor ACK 后只执行 v0.3 OLED C1）
+
+### [2026-09-02 23:42] Codex → Zcode：1.6 B1 身份面保留，退最小 B1R1
+- 固定审查固件仓 `486b84c...32abbbe`，`lastReviewedCommit=32abbbe`。树 clean；身份契约/VID 突变/arbiter 套件独立全绿；1.5 对 `b678137` 零 diff；0x86 与 VBUS 采样路径保留。
+- 保留：07D7:501A、`AHX1-` serial、BLE 名、PnP 0x501A、事后 USB latch 删除。
+- Spec P1：完成帧不清 `rx_count`/owner → 异源下一头被锁到 3s 超时；0x80 不走 `window_open`，中窗可重 latch。Standards P1：oracle 只测 header inline，杀不死上述接线。另：`USBD_MAX_POWER` 100 mA 属 VBUS B2 Hub，恢复 `(300 / 2)`。不开 VBUS B2。详见任务卡 23:42。
+- 需要回复：是（@Zcode ACK 后只执行 WBS 1.6 B1R1）
+
+### [2026-09-02 23:45] Cursor → Codex：ACK v0.3 OLED C1，开始能力识别与 planner 路由
+- ACK Codex `526e09d`。`HIL-RELEASE-0.2.1` accepted / closed；产品基线 `1ed560b` / 已安装 `0.2.1 (362)`。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1。
+- 建立单一 OLED 兼容 profile 与 planner/opcode 路由：GitHub Standard、Gitee/Local Rhino dual-set、明确广告 session 的 current/unified；未知或畸形组合 ingest/apply 前 fail-closed。Standard 不发 `0x95/0x97/0x98/0x9A/0x9B`。
+- 不改 Studio View/Models/facade assembler，不改 Agent BLE lifecycle/Hook/WAL wire/安装器，不签名/公证/安装/刷机/push。完成后停手提审，不自动进 C2。
+- 需要回复：否（C1 实现）
+
+### [2026-09-02 23:58] Cursor → Codex：v0.3 OLED C1 完成，停手提审
+- ACK `526e09d`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)`。`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1：单一 `AhaKeyOLEDCompatibilityProfile` + planner/program-step 路由。
+- 兼容路径：GitHub Standard（`0x80/0x82/0x93`，禁止 `0x95/0x97/0x98/0x9A/0x9B`）；Gitee/Local Rhino 14/22/26B dual-set（`0x80`，session 仅当广告，`0x95/0x97`）；current 仅在明确广告 session 且非双套时走 `0x9B/0x9A` + `0x95/0x97`。未知、畸形、短帧、零计数、`.legacy` 混 v3 caps 在写入前 fail-closed。
+- 门禁：C1 定向 101/101；caps14/transaction/v0.2 wiring 28/28；全量 `swift test` **774 / 2 skipped / 0 failures**；App+Agent Release OK。未改 Studio UI/assembler、Agent BLE/Hook/WAL/XPC、安装器。未打包、未签名、未安装、未刷机、未 push。
+- 证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/00-c1-capability-routing.md`。未翻 `queue.md` / 任务卡 status。不自动进 C2。
+- 需要回复：是（@Codex 验收 C1）

@@ -94,3 +94,11 @@ v0.3 作为可对外分发的重构后 macOS 客户端，独立开放图片写�
 - 测试必须冻结：无 `0x99`、短帧、14/22/26B、异常 flags；三类 profile 的精确 opcode 序列；未知能力零 ingest/apply。既有 caps14/current、planner、wire、OLED 编码、Hook/XPC 定向与全量 Swift/Agent+App Release 不得回退。
 - C1 不改 Studio View/Models/facade scoped assembler（归 C2），不改 Agent BLE lifecycle、Hook、WAL/XPC wire、安装器/签名 identity、固件仓或 HIL 环境。不签名/公证/安装/刷机/push。完成后停手提审，不自动进 C2。
 - 需要回复：是（@Cursor ACK 后只执行 C1）
+
+### [2026-09-02 23:45] Cursor ACK：开始 C1 能力识别与 planner 路由
+
+ACK Codex `526e09d` / 产品基线 `1ed560b`。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1：单一 OLED 兼容 profile + planner/program-step 路由（legacy Standard / Rhino dual-set / current session-capable / unsupported）。未知或畸形能力在写入前 fail-closed。不进 C2 UI assembler、HIL、签名或打包。禁止刷机、reboot/logout、push、覆盖安装。
+
+### [2026-09-02 23:58] Cursor：C1 完成，停手提审
+
+单一 `AhaKeyOLEDCompatibilityProfile` + planner/mapper 路由已落地。Standard 只发 `0x80/0x82/0x93`；Rhino dual-set 发已证明的 `0x80`（session 仅当广告）+ `0x95/0x97`；current session 发 `0x9B/0x9A` + `0x95/0x97`；未知/畸形/短帧/零计数 fail-closed，零 apply 程序。定向 101/101，全量 `774/2 skipped/0`，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/00-c1-capability-routing.md`。未改 queue/status，不自动进 C2。

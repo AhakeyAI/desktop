@@ -201,6 +201,20 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
                 usesSessionUpload: false
             )
         case .current:
+            if capabilities == nil {
+                return AhaKeyTaskPictureProtocolPlan(
+                    metadataFormat: .currentSetAware,
+                    setIndices: [0, 1],
+                    states: AhaKeyTaskDisplayState.allCases,
+                    finishesRawUpload: true,
+                    supportsActiveSet: true,
+                    usesSessionUpload: false
+                )
+            }
+            let profile = AhaKeyOLEDCompatibilityProfile.resolve(
+                protocolMode: .current, capabilities: capabilities
+            )
+            guard profile.allowsConfigurationPlan else { return nil }
             let setCount = min(2, max(1, capabilities?.setCount ?? 2))
             let supportsIdle = capabilities?.supportsIdleTaskPicture ?? true
             return AhaKeyTaskPictureProtocolPlan(
@@ -209,7 +223,7 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
                 states: supportsIdle ? AhaKeyTaskDisplayState.allCases : AhaKeyTaskDisplayState.legacyStates,
                 finishesRawUpload: true,
                 supportsActiveSet: setCount > 1,
-                usesSessionUpload: capabilities?.supportsSessionUpload == true
+                usesSessionUpload: profile.pictureOpcodes.allowsSessionPrepare
             )
         case .negotiating, .legacyBaseOnly, .restrictedUnknown:
             return nil

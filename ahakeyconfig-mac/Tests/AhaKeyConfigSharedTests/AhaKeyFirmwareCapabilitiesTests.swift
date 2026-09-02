@@ -215,4 +215,35 @@ final class AhaKeyFirmwareCapabilitiesTests: XCTestCase {
         XCTAssertFalse(AhaKeyProtocolMode.negotiating.allowsTaskPictureConfiguration)
         XCTAssertFalse(AhaKeyProtocolMode.restrictedUnknown.allowsTaskPictureConfiguration)
     }
+
+    // MARK: - OLED 兼容剖面（C1：解析帧不得猜测）
+
+    func testParsed14_22_26ByteFramesResolveToRhinoDualSet() {
+        let compact14 = Data([
+            0x03, 0x04, 0x02, 0x04,
+            0x3F, 0x00,
+            0xC8, 0x00,
+            0x14, 0x01,
+            0x14, 0x01,
+            0x1C, 0x01,
+        ])
+        for payload in [compact14, Data(rhino26Payload.prefix(22)), rhino26Payload] {
+            let capabilities = AhaKeyFirmwareCapabilities.parse(payload)!
+            XCTAssertEqual(
+                AhaKeyOLEDCompatibilityProfile.resolve(.parsed(capabilities)),
+                .rhinoDualSet(sessionUploadAdvertised: true),
+                "payload length \(payload.count)"
+            )
+        }
+    }
+
+    func testRejectedShortFramesCannotBeUsedAsStandardFallback() {
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(repeating: 0, count: 13)))
+        XCTAssertNil(AhaKeyFirmwareCapabilities.parse(Data(rhino26Payload.prefix(14))))
+        XCTAssertEqual(AhaKeyOLEDCompatibilityProfile.resolve(.malformedResponse), .unsupported)
+        XCTAssertEqual(
+            AhaKeyOLEDCompatibilityProfile.resolve(protocolMode: .current, capabilities: nil),
+            .unsupported
+        )
+    }
 }

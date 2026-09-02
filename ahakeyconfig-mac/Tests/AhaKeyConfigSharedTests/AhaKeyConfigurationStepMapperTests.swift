@@ -442,4 +442,123 @@ final class AhaKeyConfigurationStepMapperTests: XCTestCase {
         XCTAssertTrue(binds.allSatisfy { Int($0.0) + Int($0.1) <= 276 })
         XCTAssertFalse(binds.contains(where: { $0.0 >= 276 }))
     }
+
+    // MARK: OLED 兼容剖面 opcode 序列
+
+    private func commandOpcodes(_ steps: [AhaKeyDeviceProgramStep]) -> [UInt8] {
+        steps.compactMap { AhaKeyWireFrameBuilder.commandFrame(for: $0).map { $0[2] } }
+    }
+
+    func testStandardProgramOmitsRhinoAndSessionOpcodes() throws {
+        let (desired, plan) = try modeWithEverything()
+        let standardCaps = capabilities(sessionUpload: false)
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
+            mode: desired.modes[0], desired: desired, plan: plan,
+            capabilities: standardCaps, release: .picturesUnrestrictedForTests,
+            profile: .legacyStandard
+        ))
+        let opcodes = commandOpcodes(steps)
+        XCTAssertTrue(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdateTaskPic))
+        XCTAssertTrue(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdatePic))
+        let forbidden: Set<UInt8> = [
+            AhaKeyWireFrameBuilder.cmdUpdateTaskPicSet,
+            AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet,
+            AhaKeyWireFrameBuilder.cmdFinishTaskPicWrite,
+            AhaKeyWireFrameBuilder.cmdAbortPictureWrite,
+            AhaKeyWireFrameBuilder.cmdPrepareSessionWrite,
+        ]
+        XCTAssertTrue(forbidden.isDisjoint(with: Set(opcodes)))
+        let resource = try XCTUnwrap(Mapper.program(
+            for: try! .init("resource:img-a"), desired: desired, plan: plan,
+            resources: [
+                try! AhaKeyConfigurationResource(
+                    logicalIdentifier: "img-a",
+                    sha256: String(repeating: "a", count: 64), byteCount: 12 * 25_600, mediaType: "gif"
+                ),
+            ],
+            capabilities: standardCaps, release: .picturesUnrestrictedForTests,
+            profile: .legacyStandard
+        ))
+        let prepare = commandOpcodes(resource)
+        XCTAssertEqual(Set(prepare), [AhaKeyWireFrameBuilder.cmdPrepareWrite])
+        XCTAssertFalse(prepare.contains(AhaKeyWireFrameBuilder.cmdPrepareSessionWrite))
+    }
+
+    func testRhinoDualSetProgramUsesProvenBindAndActivation() throws {
+        let (desired, plan) = try modeWithEverything()
+        let rhinoCaps = capabilities(sessionUpload: false)
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
+            mode: desired.modes[0], desired: desired, plan: plan,
+            capabilities: rhinoCaps, release: .picturesUnrestrictedForTests,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        ))
+        let opcodes = commandOpcodes(steps)
+        XCTAssertTrue(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdateTaskPicSet))
+        XCTAssertTrue(opcodes.contains(AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdFinishTaskPicWrite))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdatePic))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdateTaskPic))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdPrepareSessionWrite))
+        let resource = try XCTUnwrap(Mapper.program(
+            for: try! .init("resource:img-a"), desired: desired, plan: plan,
+            resources: [
+                try! AhaKeyConfigurationResource(
+                    logicalIdentifier: "img-a",
+                    sha256: String(repeating: "a", count: 64), byteCount: 12 * 25_600, mediaType: "gif"
+                ),
+            ],
+            capabilities: rhinoCaps, release: .picturesUnrestrictedForTests,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        ))
+        XCTAssertEqual(Set(commandOpcodes(resource)), [AhaKeyWireFrameBuilder.cmdPrepareWrite])
+    }
+
+    func testCurrentSessionProgramUsesSessionPrepareAndOmitsBareWrite() throws {
+        let (desired, plan) = try modeWithEverything()
+        let sessionCaps = capabilities(sessionUpload: true)
+        let resource = try XCTUnwrap(Mapper.program(
+            for: try! .init("resource:img-a"), desired: desired, plan: plan,
+            resources: [
+                try! AhaKeyConfigurationResource(
+                    logicalIdentifier: "img-a",
+                    sha256: String(repeating: "a", count: 64), byteCount: 12 * 25_600, mediaType: "gif"
+                ),
+            ],
+            capabilities: sessionCaps, release: .picturesUnrestrictedForTests,
+            profile: .currentSessionCapable
+        ))
+        let prepare = commandOpcodes(resource)
+        XCTAssertEqual(Set(prepare), [AhaKeyWireFrameBuilder.cmdPrepareSessionWrite])
+        XCTAssertFalse(prepare.contains(AhaKeyWireFrameBuilder.cmdPrepareWrite))
+        let steps = try XCTUnwrap(Mapper.baseConfigurationProgram(
+            mode: desired.modes[0], desired: desired, plan: plan,
+            capabilities: sessionCaps, release: .picturesUnrestrictedForTests,
+            profile: .currentSessionCapable
+        ))
+        let opcodes = commandOpcodes(steps)
+        XCTAssertTrue(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdateTaskPicSet))
+        XCTAssertTrue(opcodes.contains(AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdFinishTaskPicWrite))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdatePic))
+    }
+
+    func testUnsupportedProfileEmitsNoApplyProgram() throws {
+        let (desired, plan) = try modeWithEverything()
+        XCTAssertNil(Mapper.program(
+            for: try! .init("resource:img-a"), desired: desired, plan: plan,
+            resources: [
+                try! AhaKeyConfigurationResource(
+                    logicalIdentifier: "img-a",
+                    sha256: String(repeating: "a", count: 64), byteCount: 12 * 25_600, mediaType: "gif"
+                ),
+            ],
+            capabilities: capabilities(), release: .picturesUnrestrictedForTests,
+            profile: .unsupported
+        ))
+        XCTAssertNil(Mapper.baseConfigurationProgram(
+            mode: desired.modes[0], desired: desired, plan: plan,
+            capabilities: capabilities(), release: .picturesUnrestrictedForTests,
+            profile: .unsupported
+        ))
+    }
 }

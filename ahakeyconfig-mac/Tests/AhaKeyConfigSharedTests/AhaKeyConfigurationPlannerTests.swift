@@ -93,7 +93,7 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
         XCTAssertEqual(plan.transactions[0].uploads.count, 1)
     }
 
-    // MARK: current-only
+    // MARK: current-only / OLED profile
 
     func testRejectsNonCurrentProtocols() {
         for mode in [AhaKeyProtocolMode.legacy, .legacyBaseOnly, .negotiating, .restrictedUnknown] {
@@ -102,6 +102,50 @@ final class AhaKeyConfigurationPlannerTests: XCTestCase {
                 capabilities: capabilities(), protocolMode: mode, release: .picturesUnrestrictedForTests)
             XCTAssertEqual(result, .failure(.unsupportedProtocol), "\(mode) 应拒绝")
         }
+    }
+
+    func testAcceptsLegacyStandardWhenCapabilityFactsMatch() {
+        let standardCaps = AhaKeyFirmwareCapabilities(
+            protocolVersion: 1, modeCount: 4, setCount: 1, stateCount: 4,
+            flags: 0, maxPacketSize: 200, userSlotLimit: 64, factorySlotBase: 0,
+            factoryBundleVersion: 0, factoryManifestCRC: 0, factoryStatus: 0, factoryError: 0,
+            reclaimSlotBase: 0, reclaimSlotLimit: 0
+        )
+        let result = AhaKeyConfigurationPlanner.plan(
+            desired: desired(), resources: [meta("img-a")],
+            capabilities: standardCaps, protocolMode: .legacy, release: .picturesUnrestrictedForTests)
+        guard case .success(let plan) = result else {
+            return XCTFail("Standard 已验证事实应规划成功: \(result)")
+        }
+        XCTAssertFalse(plan.slotAssignments.isEmpty)
+    }
+
+    func testRejectsCurrentWithoutDualSetOrSessionAdvertisement() {
+        let unknown = capabilities(setCount: 1)
+        XCTAssertEqual(
+            AhaKeyConfigurationPlanner.plan(
+                desired: desired(), resources: [meta("img-a")],
+                capabilities: unknown, protocolMode: .current, release: .picturesUnrestrictedForTests
+            ),
+            .failure(.unsupportedProtocol)
+        )
+    }
+
+    func testAcceptsCurrentWhenSessionAdvertisedWithoutDualSet() {
+        let sessionCaps = AhaKeyFirmwareCapabilities(
+            protocolVersion: 3, modeCount: 4, setCount: 1, stateCount: 4,
+            flags: AhaKeyFirmwareCapabilities.sessionUploadFlag,
+            maxPacketSize: 200, userSlotLimit: 64, factorySlotBase: 0,
+            factoryBundleVersion: 0, factoryManifestCRC: 0, factoryStatus: 0, factoryError: 0,
+            reclaimSlotBase: 0, reclaimSlotLimit: 0
+        )
+        let result = AhaKeyConfigurationPlanner.plan(
+            desired: desired(), resources: [meta("img-a")],
+            capabilities: sessionCaps, protocolMode: .current, release: .picturesUnrestrictedForTests)
+        guard case .success(let plan) = result else {
+            return XCTFail("明确广告 session 的 current 应规划成功: \(result)")
+        }
+        XCTAssertFalse(plan.slotAssignments.isEmpty)
     }
 
     // MARK: 结构对账

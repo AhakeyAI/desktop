@@ -21,6 +21,10 @@ public enum AhaKeyDeviceProgramStep: Equatable, Sendable {
     case setActiveTaskPictureSet(mode: UInt8, set: UInt8)
     /// 0x98 结束任务图写入（不替换每模式默认动画绑定）。
     case finishTaskPictureWrite
+    /// 0x82 绑定每模式默认动画（GitHub Standard / legacy 1.x）。current/Rhino 禁止。
+    case bindDefaultPicture(mode: UInt8, startIndex: UInt16, frameCount: UInt16, intervalMs: UInt16)
+    /// 0x93 绑定单套任务图状态（GitHub Standard，无 set 索引）。Rhino/current 走 0x95。
+    case bindLegacyTaskPicture(mode: UInt8, state: UInt8, startIndex: UInt16, frameCount: UInt16, intervalMs: UInt16)
     /// 0x73/0x73 键位映射（shortcut）。
     case setKeyShortcut(mode: UInt8, keyIndex: UInt8, hidCodes: [UInt8])
     /// 0x73/0x74 固件宏。
@@ -124,7 +128,8 @@ public enum AhaKeyConfigurationStepMapper {
         plan: AhaKeyConfigurationPlanner.Plan,
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init(),
-        release: AhaKeyReleaseFeatureProjection
+        release: AhaKeyReleaseFeatureProjection,
+        profile: AhaKeyOLEDCompatibilityProfile? = nil
     ) -> [AhaKeyDeviceProgramStep]? {
         struct BindSpec {
             let setIndex: Int
@@ -183,13 +188,34 @@ public enum AhaKeyConfigurationStepMapper {
         steps.append(.setLightMapping(mode: mode.slot, effects: effects))
         steps.append(.setBrightness(UInt8(mode.lightBar.brightness)))
 
+        let resolvedProfile = profile ?? AhaKeyOLEDCompatibilityProfile.resolve(
+            protocolMode: .current, capabilities: capabilities
+        )
+        guard resolvedProfile.allowsConfigurationPlan else { return nil }
+        let pictureOpcodes = resolvedProfile.pictureOpcodes
         let allowsPictureWrites = release.allowsPictureWrites
         if allowsPictureWrites {
             for bind in binds {
-                steps.append(.bindTaskPicture(
-                    mode: mode.slot, set: UInt8(bind.setIndex), state: bind.state,
-                    startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
-                ))
+                if pictureOpcodes.allowsBindTaskPicture {
+                    steps.append(.bindTaskPicture(
+                        mode: mode.slot, set: UInt8(bind.setIndex), state: bind.state,
+                        startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
+                    ))
+                } else if pictureOpcodes.allowsBindLegacyTaskPicture, bind.state != 0 {
+                    steps.append(.bindLegacyTaskPicture(
+                        mode: mode.slot, state: bind.state,
+                        startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
+                    ))
+                }
+            }
+            if pictureOpcodes.allowsBindDefaultPicture {
+                let defaultBind = binds.first(where: { $0.state == 3 }) ?? binds.first
+                if let bind = defaultBind {
+                    steps.append(.bindDefaultPicture(
+                        mode: mode.slot,
+                        startIndex: bind.startFrame, frameCount: bind.frameCount, intervalMs: bind.intervalMs
+                    ))
+                }
             }
         }
 
@@ -203,7 +229,7 @@ public enum AhaKeyConfigurationStepMapper {
         // desired.activeSet >= 0 就必须发 0x97。纯 mapper 读不到设备当前套图，
         // 不得用 binds.isEmpty 猜测「设备已经在目标套」而省略。
         // 发布通道关闭图片面时不得发 0x95/0x97。
-        if allowsPictureWrites, mode.oled.activeSet >= 0 {
+        if allowsPictureWrites, pictureOpcodes.allowsSetActiveSet, mode.oled.activeSet >= 0 {
             steps.append(.setActiveTaskPictureSet(mode: mode.slot, set: UInt8(mode.oled.activeSet)))
         }
         return steps
@@ -219,8 +245,13 @@ public enum AhaKeyConfigurationStepMapper {
         resources: [AhaKeyConfigurationResource],
         capabilities: AhaKeyFirmwareCapabilities,
         layout: AhaKeyDeviceLayoutPolicy = .init(),
-        release: AhaKeyReleaseFeatureProjection
+        release: AhaKeyReleaseFeatureProjection,
+        profile: AhaKeyOLEDCompatibilityProfile? = nil
     ) -> [AhaKeyDeviceProgramStep]? {
+        let resolvedProfile = profile ?? AhaKeyOLEDCompatibilityProfile.resolve(
+            protocolMode: .current, capabilities: capabilities
+        )
+        guard resolvedProfile.allowsConfigurationPlan else { return nil }
         let raw = stepID.rawValue
         if raw.hasPrefix("resource:") {
             if !release.allowsResourcePackage { return nil }
@@ -228,12 +259,13 @@ public enum AhaKeyConfigurationStepMapper {
             guard let slot = plan.slotAssignments.first(where: { $0.key.rawValue == identifier })?.value,
                   let meta = resources.first(where: { $0.logicalIdentifier.rawValue == identifier }),
                   let frames = declaredFrames(for: identifier, in: desired) else { return nil }
-            // 帧数取声明值（容量/上限由 planner 校验，实际值由受理校验核对 CAS），
-            // 编码长度由 layout 固定；meta.byteCount 是 CAS 源（GIF）大小，不参与分块。
+            let opcodes = resolvedProfile.pictureOpcodes
+            let usesSessionUpload = opcodes.allowsSessionPrepare
+            guard usesSessionUpload || opcodes.allowsPrepareWrite else { return nil }
             return resourceUploadProgram(
                 digest: meta.sha256, slotIndex: slot,
                 encodedFrameCount: frames,
-                usesSessionUpload: capabilities.supportsSessionUpload,
+                usesSessionUpload: usesSessionUpload,
                 capabilities: capabilities, layout: layout
             )
         }
@@ -241,7 +273,8 @@ public enum AhaKeyConfigurationStepMapper {
            let mode = desired.modes.first(where: { $0.slot == slot }) {
             return baseConfigurationProgram(
                 mode: mode, desired: desired, plan: plan,
-                capabilities: capabilities, layout: layout, release: release
+                capabilities: capabilities, layout: layout, release: release,
+                profile: resolvedProfile
             )
         }
         return nil
