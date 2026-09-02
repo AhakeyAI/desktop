@@ -6,7 +6,7 @@
 
 本文件只定义正式任务卡的执行顺序、依赖和用户门禁。产品范围以 `docs/unified-firmware-runtime-implementation-plan.md` 为准；执行细节以对应任务卡为准。
 
-规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 ready 卡是 `V021-BLE-WAKE-RECOVERY`；Zcode 继续只写独立固件仓 WBS 1.5 B3R2。v0.2.1 build 360 已安装且主链通过，但 Gate-1 被“Runtime 启动空扫描后无法自动回收后唤醒键盘”阻断。产品修复 accepted 后再执行 DMG verifier cleanup，随后重冻结 build >360 并重跑 Gate-1 R1。刷机、reboot/logout、push 和量产切换仍未开放。
+规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 ready 卡是 `V021-BLE-WAKE-RECOVERY`；Zcode 继续只写独立固件仓 WBS 1.5 B3R3。v0.2.1 build 360 已安装且主链通过，但 Gate-1 被“Runtime 启动空扫描后无法自动回收后唤醒键盘”阻断。产品修复 accepted 后再执行 DMG verifier cleanup，随后重冻结 build >360 并重跑 Gate-1 R1。刷机、reboot/logout、push 和量产切换仍未开放。
 
 | 顺序 | 任务卡 | Owner | 覆盖 WBS | 当前状态 | 晋级条件 |
 |---:|---|---|---|---|---|
@@ -20,7 +20,7 @@
 | 4A | `HIL-RUNTIME-1-HOOK-SERVER` | Kimi；Cursor 验证 | §15.0-4 返工 | accepted | Codex 11:50：User 确认 11:38 bootout；listen+三态独立证据；`fa6c02e` |
 | 5 | `WBS-5.4-LIFECYCLE` | Kimi | 5.4 | accepted | Codex 17:02：HEAD `762863d`；独立 pmset Agent 64088 持断言；无 Studio UI；双 socket；定向 21 测通过 |
 | 6 | `WBS-0-RISK-CLOSURE` | Kimi | 0.2-0.7 | accepted | Codex 19:01：macOS 证据独立复核；Windows 0xEE / USB 枚举 / SDK Link.ld 延期；不启动 WBS-1 直至固件工作树冻结 |
-| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.5 slice 2 implementation B3R2 | `27a8d90` T8/T25 收口；只补 T9 payload→RAM 真组合；B4 冻结；不刷机 |
+| 7 | `WBS-1-UNIFIED-FIRMWARE` | Zcode | 1.1-1.7 | ready / 1.5 slice 2 implementation B3R3 | `d466c33` intent 读 RAM 已收口；只提取生产共享 boot composition seam；B4 冻结；不刷机 |
 | 8 | `WBS-2-PLATFORM-VOICE` | Zcode | 2.1-2.8 / v0.4 | draft | WBS 1 accepted |
 | 9 | `WBS-3-LEVER-MACROS` | Zcode | 3.1-3.6 / v0.5 | draft | WBS 2 accepted |
 | 10A | `WBS-4-STUDIO-V4` | Cursor | 4.1-4.4 / v0.4 | draft | WBS 2 accepted；只开平台/语音 UI slice |

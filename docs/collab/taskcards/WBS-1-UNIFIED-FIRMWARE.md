@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.5 slice 2 implementation B3R2`（Zcode；T8 生产与 T25 组合已收口，仅补 T9 payload→RAM 真组合；B4 冻结，不刷机）
+状态：`ready / 1.5 slice 2 implementation B3R3`（Zcode；T9 必须经生产共享 boot composition seam；B4 冻结，不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1445,3 +1445,14 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - `build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手，不自动进 B4。
 - 禁止刷机、HIL、push，不修改客户端仓业务代码。
 - 需要回复：是（@Zcode ACK 后仅执行 B3R2）
+
+### [2026-09-02 12:27] Codex 复验 implementation B3R2：intent 已收口，退最小 B3R3 生产 boot seam
+
+- 固定审查固件仓 `27a8d909962bfabe9377a18dfe119c2ad6040890...d466c33efaad7d319b2933d783cc4c1efc3b0aeb`，`lastReviewedCommit=d466c33efaad7d319b2933d783cc4c1efc3b0aeb`。范围只有 `tools/wbs15/test_factory_recovery.c` 和两份 evidence；`APP/`、T8/T25、core 六格表、B4 零 diff，树 clean，单 worktree，diff check 通过。Codex 独立编译并运行 recovery suite，全绿。
+- 已收口：`recover(ram_intent)` 的 intent 真从 RAM tail 读出，不再是字面量；接受/拒绝两分支在测试中都执行；T8/T25 无回退。
+- **Spec P1**：T9 仍由测试自己 `memcpy(ram, blob)` 后立即 `memcmp(ram, blob)` 自证“生产 payload 进 RAM”。生产 `main.c` 的 v2 路径在 `EEPROM_READ` 后还会调用 `sanitize_key_bund_data()`，而现测试既不调同源 composition，也不调 sanitize；特征 blob 的任意 `i*7+3` 字节中有很多会被生产 sanitize 合法修改。即使生产 valid-v2 分支回归为 `init_default_key_bund()`，当前 T9 仍全绿。B3 不 accepted。
+- **B3R3 只允许最小生产共享 seam**：将 v2 boot 的“读入完整 blob → CRC gate → valid 调 sanitize / invalid 调 default → 从终态 RAM 取 intent/raw-lost”组合提取到 host-safe `key_bund_boot_core.{c,h}`（或等价单一深 seam）。读/sanitize/default 以 Adapter 回调注入；`main.c` 和 host T9 必须调同一个 composition 入口，不得再各自写 if/memcpy 镜像。
+- T9 必须断言：valid blob 调 sanitize 恰一次、零 default，payload 在 sanitize 边界前真进入输出 RAM，并在 recover 前后保持所有不应被 sanitize 修改的特征字节；CRC-invalid 调 default 恰一次、零 sanitize，无 durable payload 被服务；intent 仍从 seam 产出的终态 RAM 读取后传入 recover。用会被 sanitize 修改的字节时，断言必须区分“合法 sanitize”与“default 清空”，不得要求全 2288B 无条件相等。
+- 允许：`main.c`、新的 boot core 文件、T9 及必要 harness/overlay/pin/evidence。禁止改 recovery core 六格表、T8/T25、`ch_flash.c`、`persist_verify.c/h`、B1 ABI，B2 0x95/0x97，B4 0x80/0x81。新 seam 不得分配第二份 2288B 生产栈/全局缓冲。
+- 完成门禁：新 core 定向 + recovery 全套、default/bridge/factory 编译与栈/RAM 预算、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。交 H+E 后停手；B4、刷机、HIL、push 不开放。
+- 需要回复：是（@Zcode ACK 后仅执行 B3R3）
