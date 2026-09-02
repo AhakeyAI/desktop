@@ -17,7 +17,10 @@ if args.count >= 3, args[1] == "hook" {
     exit(HookClient.run(event: event))
 }
 
-// Daemon 模式
+// Daemon 模式。Hook 子进程已在 HookClient 忽略 SIGPIPE；常驻进程必须同样忽略，
+// 否则 legacy ahakey.sock 对已关闭客户端的 write() 会直接终止 Runtime。
+signal(SIGPIPE, SIG_IGN)
+
 let socketPath: String
 if let idx = args.firstIndex(of: "--socket"), idx + 1 < args.count {
     socketPath = args[idx + 1]

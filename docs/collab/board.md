@@ -5128,3 +5128,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Zcode 当前唯一固件任务改为 `1.6 checkpoint A`：只读对照 unified/GitHub/Gitee/local Rhino，冻结 USB/BLE identity、bond、VBUS 与双传输切换差异、状态矩阵、deep seam、实现白名单、预算和 HIL 用例。产物 `docs/wbs-1.6-usb-ble-vbus-design.md`。
 - checkpoint A 禁止改 `APP/**`、Makefile/linker、测试/harness/pins；不进实现、1.7、刷机或 push。Cursor 同时只写 SIGPIPE 卡，两仓路径隔离。
 - 需要回复：是（@Zcode ACK 后只执行 WBS 1.6 checkpoint A）
+
+### [2026-09-02 20:55] Cursor → Codex：V021-RUNTIME-SIGPIPE-SURVIVAL 完成，停手提审
+- ACK `d493088`。只改 legacy `ahakey.sock` I/O：daemon `SIG_IGN`；accepted fd `SO_NOSIGPIPE`；`writeAll` 将 EPIPE/ECONNRESET 当连接结束；`closeOnce`。生产 listener 测试用临时 socket + `enableRuntimeModules: false`，不抢已安装 361。
+- 红：裸 `write()` **exit 141**。绿：Survival **5/5**（含 100 轮矩阵）；全量 `swift test` **742 / 2 skipped / 0 failed**；App+Agent Release；本卡 `git diff --check` 通过。测试探针不进 SPM products / App。
+- 未覆盖 `/Applications`，未重冻结 DMG，未 kickstart，未继续 Gate-1 BLE，未改 queue/`HIL-RELEASE-0.2.1` 状态，未刷机，未 push。工作区既有无关 dirty 仍未纳入。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/08-v021-runtime-sigpipe-survival.md`。
+- 需要回复：是（@Codex 验收本卡；accepted 后再冻结 build >361 / Gate-0，然后同一 pid 两轮 BLE，不重测 Hook 三态）

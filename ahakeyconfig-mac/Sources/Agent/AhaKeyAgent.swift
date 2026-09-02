@@ -814,6 +814,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             while true {
                 let clientFd = accept(fd, nil, nil)
                 guard clientFd >= 0 else { continue }
+                guard AhaKeyRuntimeLegacySocketIO.prepareAcceptedClient(clientFd) else {
+                    Darwin.close(clientFd)
+                    continue
+                }
                 self?.handleClient(clientFd)
             }
         }
@@ -1242,15 +1246,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {
         guard fd >= 0 else { return }
         DispatchQueue.global(qos: .utility).async {
-            if let data = try? JSONSerialization.data(withJSONObject: dict, options: []) {
-                var out = data
-                out.append(0x0A) // \n 作为消息边界
-                _ = out.withUnsafeBytes { ptr -> Int in
-                    guard let base = ptr.baseAddress else { return -1 }
-                    return write(fd, base, ptr.count)
-                }
+            var clientFd = fd
+            defer { AhaKeyRuntimeLegacySocketIO.closeOnce(&clientFd) }
+            guard let data = try? JSONSerialization.data(withJSONObject: dict, options: []) else { return }
+            var out = data
+            out.append(0x0A) // \n 作为消息边界
+            switch AhaKeyRuntimeLegacySocketIO.writeAll(out, to: clientFd) {
+            case .completed, .peerClosed:
+                break
+            case .failed(let code):
+                fputs("legacy ahakey.sock write failed errno=\(code)\n", stderr)
             }
-            close(fd)
         }
     }
 
