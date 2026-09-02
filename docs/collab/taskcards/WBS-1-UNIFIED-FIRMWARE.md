@@ -1605,3 +1605,14 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 6. HIL 用例写成可执行步骤与预期证据：USB/BLE/双连、charge-only、Hub、VBUS 抖动、睡眠唤醒、拔线回 BLE、bond reset 后 USB serial/BLE MAC 同代；无法静态证明项标 `USER-GATE/HIL`。
 7. 只允许上述设计文档、本任务卡执行记录与 append-only board；禁止 APP/Makefile/linker/tests/harness/pins、implementation B、1.7、刷机、烧录器、push。完成后停手提审。
 - 需要回复：是（@Zcode ACK 后只执行 checkpoint A1）
+
+### [2026-09-02 22:12] Codex 复验 WBS 1.6 checkpoint A1：四源与 identity 成立，退最小 A2
+
+- 固定审查固件仓 `3fb8179a13f6748d524e76a98187e68f3c3018fc...17d155ba519875d20f2a1de4e7687785986407ff`，`lastReviewedCommit=17d155ba519875d20f2a1de4e7687785986407ff`。范围仅删除错误命名文档并新增指定产物，产品/测试/构建零改动，固件树 clean，`git diff --check` 通过。Codex 独立重算 8 文件四源 hash 全部匹配；local serial 的 pairing-generation 算法、三源 reply latch 缺陷、0x86 不可承载 generation 均成立并保留。
+- **P1 / arbiter 会破坏合法分片帧**：A1 把所有 `CMD_BYTE(partial/garbage)` 定义为 DROP 且 buffer 不变，但生产 `command_rx_feed` 必须跨调用累积 `COMMAND_RX_FEED` 才能形成完整帧。A2 将“组帧 owner”和“完整帧 admission”分层：空闲 scanner 见合法 header 时锁定 assembly transport；同 transport 后续 fragment 可推进 buffer、异 transport fragment/garbage 零改变；完整帧且 command idle 才原子提交 reply latch；完成/overflow/reset 释放 assembly owner。补 BLE/USB 分片、交错异通道、busy、garbage/overflow 与 latch mutation 反例。
+- **P1 / VBUS 八格表自相矛盾**：正文采用 USB 拔出后关机、按键重启 BLE，USB-only 格却写 loss 后 BLE 继续广播；cold-start 格禁止 advertise+enum 同时存在，dual-live 格又要求双活；§4 只让 USB attach/loss 变 generation，BLE-loss 格却称 loss bump。A2 用一张 transition table 统一 source state/event/side effects/latch invalidation/terminal state。按 A1 裁决，插线复位与拔线关机只能列为 local candidate + USER-GATE/HIL 后决策，不得预先写成已 ADOPT。1.6 删除无消费方且无 wire 的 generation state；若未来需要，归 protocol v4/WBS 2.8。
+- **P1 / RAM 门禁依据错误**：报告的 32768 B/100% 是 linker 把 `.stack` 固定到 RAM 顶端后的最高地址跨度，不是静态数据真实占满；当前 `size` 为 data 3004 + bss 18088，map 中 bss 末端到 stack 起点仍约 5.6 KiB。A2 从 map 固定 `.data/.bss/heap-or-gap/stack-reserve` 与现有 stack-usage gate，给出真实 headroom 和 delta gate；若仍要求零净增，必须指明复用哪个既有字段（推荐 `command_transport` 同时承担 assembly→admitted owner、`pic_writing`/既有 data state表达 window），不能由 100% 误读推出。
+- **P1 / HIL 尚不可执行**：十条只有场景描述，缺 macOS 可用的精确命令/脚本、fixture、前置状态、采证路径、超时与 pass/fail；`lsusb`、A1/A2、sniff log、badge、inject burst 未定义。A2 为每格指定仓内 runner/参数（可声明 implementation B 新增脚本名）、macOS 枚举命令、协议 fixture、原始证据文件、时间界限与停止条件。硬件动作继续标 USER-GATE。
+- **P2 / 证据口径**：VID/PID 的 `MyDevDescr` 实际就在四源冻结的 `APP/sub_main/usb1_hid.c`，不是未冻结 SDK layer；修正文句。hash 表中的 `main.h`、`usb1_hid.h`、`command_solve.h` 补语义差异/无差异结论，不只列 hash。
+- A2 仍只改 `docs/wbs-1.6-usb-ble-vbus-design.md`、本卡执行记录与 append-only board；不得改 APP/Makefile/linker/tests/harness/pins，不进入 implementation B/1.7，不刷机、烧录或 push。完成后停手提审。
+- 需要回复：是（@Zcode ACK 后只执行 checkpoint A2）
