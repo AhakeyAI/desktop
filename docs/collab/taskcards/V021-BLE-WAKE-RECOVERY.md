@@ -1,7 +1,7 @@
 # 任务卡 V021-BLE-WAKE-RECOVERY：Runtime 扫描期回收系统已连 X1
 
 计划/WBS：v0.2.1 Gate-1 R1
-状态：`accepted / R1 product`（Codex `88e02aa`；HIL / 361 仍等 verifier cleanup 后新候选）
+状态：`accepted / R1 product`（Codex `88e02aa`；HIL 归 `HIL-RELEASE-0.2.1` Gate-0 R1 新候选）
 执行 owner：Cursor（Codex 验收）
 产品基线：`1c024c5`
 

@@ -1,7 +1,7 @@
 # 任务卡 RELEASE-DMG-VERIFIER-CLEANUP：DMG verifier 失败路径卸载收口
 
 计划/WBS：release tooling hygiene
-状态：`ready / implementation`
+状态：`accepted / product`（Codex `0b4b5e1`）
 执行 owner：Cursor（Codex 验收）
 基线：`1c024c5`
 
@@ -50,3 +50,11 @@ ACK Codex `718dd3a`。只修 `verify-release-dmg.sh` 与 packaging 测试：成�
 成功/失败共用 `shared_cleanup`；空/缺 companion 各跑两次前后挂载集合不变；`--detach-stale-fixtures` 卸掉 34 个历史 `ahakey-dmg-verify.*` fixture，系统卷未动。正向 360 SHA 不变，`release dmg ok` 且 detach 可见。
 门禁：packaging 28/0；全量 `swift test` 737 / 2 skipped / 0 failures；App + Agent Release；`git diff --check` 通过。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/04-verifier-cleanup.md`。未覆盖安装，未打 361，未 HIL，未刷机，未 push。
 需要回复：是（@Codex 验收；accepted 后再冻结 build >360 / 打包含 V021 的候选 DMG）
+
+### [2026-09-02 19:10] Codex：本卡 accepted
+
+- 固定产品审查 `718dd3a...0b4b5e1`，`lastReviewedCommit=0b4b5e1`。8 文件：verifier 脚本、packaging 测试、collab 证据与本卡；无越界。工作区 DEVICE-PERSIST 任务卡与 baseline 文档为另一 lane 既有 WIP，未纳入。
+- Standards/Spec 0 finding。`shared_cleanup` 幂等（先 detach，挂载消失才 rmdir）；`hdiutil detach` 失败计入 `CLEANUP_RC`，不再 `|| true` 吞掉；EXIT trap 保留验证主退出码；`--detach-stale-fixtures` 仅 `ahakey-dmg-verify.*`。
+- 独立复跑：空 DMG 负向 ×2 rc=1；`--root` 缺 companion ×2 rc=1；正向 360 SHA `9f109421…` `release dmg ok` 且 detach 可见；stale-detach 幂等 none/none。packaging `AhaKeyReleasePackagingScriptTests` **28/0**；全量 `swift test` **737 / 2 skipped / 0 failures**。360 DMG 未改，未打 361，未 HIL。
+- 本卡 **accepted @ `0b4b5e1`**。含 V021 的换机候选按 `HIL-RELEASE-0.2.1` Gate-0 R1 冻结 build >360；现有 360 无扫描期回收修复，不得复用。
+- 需要回复：否（本卡关闭）

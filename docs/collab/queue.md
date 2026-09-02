@@ -6,7 +6,7 @@
 
 本文件只定义正式任务卡的执行顺序、依赖和用户门禁。产品范围以 `docs/unified-firmware-runtime-implementation-plan.md` 为准；执行细节以对应任务卡为准。
 
-规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 ready 卡是 `RELEASE-DMG-VERIFIER-CLEANUP`；Zcode 继续只写独立固件仓 WBS 1.5 B4（0x80/0x81）。v0.2.1 build 360 已安装且主链通过；V021 产品 accepted，须先修 DMG verifier 失败路径 detach，再冻结 build >360 重跑 Gate-1。刷机、reboot/logout、push 和量产切换仍未开放。
+规则：每个写入域默认仅一张卡可处于 `ready/active/review`。当前 Cursor 唯一 ready 卡是 `HIL-RELEASE-0.2.1` Gate-0 R1（含 V021 的 build >360 重冻结）；Zcode 继续只写独立固件仓 WBS 1.5 B4（0x80/0x81）。`RELEASE-DMG-VERIFIER-CLEANUP` accepted @ `0b4b5e1`。本机 0.2.1 (360) 仍为调试基线，Gate-0 R1 accepted 前不覆盖安装。刷机、reboot/logout、push 和量产切换仍未开放。
 
 | 顺序 | 任务卡 | Owner | 覆盖 WBS | 当前状态 | 晋级条件 |
 |---:|---|---|---|---|---|
@@ -42,9 +42,9 @@
 | 15F2 | `HIL-RELEASE-0.2-INSTALLER-RECOVERY-REWORK` | Cursor；Codex 验收 | 5.9A-R8 / 6.0A | accepted / R5 | 最终产品 `5c4f440`；R4 P1 关闭；残留 Fake 默认名即内容 / 双编码器排序 P2；安装重跑仍 USER-GATE |
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | accepted / Gate-2 same-session | build 359；KeepAlive/故障回滚/卸载重装全绿；整机重启 POST 仍为独立 USER-GATE |
 | 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | accepted / U2 closed | 最终产品 `95b775d`；U3 延后 v1.0/5.9B |
-| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | blocked / Gate-1 BLE | 360 调试基线；等 15J + build >360 重跑 Gate-1 |
+| 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | ready / Gate-0 R1 | 15J accepted @ `0b4b5e1`；冻结含 V021 的 build >360；accepted 前不安装 |
 | 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | accepted / R1 product | `88e02aa`；P2 残留不阻断；HIL 归新候选 |
-| 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | ready / implementation | 失败路径必须 detach；阻断下一次候选重冻结 |
+| 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | accepted / product | `0b4b5e1`；失败路径 detach 收口；不再阻断重冻结 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
 | 18 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9B / v1.0 | draft / USER-GATE | 5.8、4.8、5.9A、5.10 accepted；完整权限迁移窗口 |
