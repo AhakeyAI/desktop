@@ -1,0 +1,13 @@
+=== 360 Developer ID verifier 2026-09-02 18:05:19 ===
+SHA-256 expected 9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3
+9f109421531b196c9378abb2c0d2b1f5b52f62c902d6796ae37ee720610b46c3  /tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg
+--- mounts before ---
+(no fixture mounts)
+--- verifier ---
+release volume ok
+"disk4" ejected.
+detached mountpoint: /tmp/ahakey-dmg-verify.qWzIIQ
+release dmg ok: /tmp/ahakey-hil-release-021-1c024c5/ahakeyconfig-mac/dist/AhaKey-Studio-0.2.1-HIL-RELEASE-021-1c024c5.dmg
+rc=0
+--- mounts after ---
+(no fixture mounts)

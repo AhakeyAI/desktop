@@ -1,0 +1,14 @@
+=== AFTER accidental-then-intentional stale detach 2026-09-02 18:03:20 ===
+--- fixture mounts ---
+--- /sbin/mount ---
+/dev/disk3s3s1 on / (apfs, sealed, local, read-only, journaled)
+devfs on /dev (devfs, local, nobrowse)
+/dev/disk3s6 on /System/Volumes/VM (apfs, local, noexec, journaled, noatime, nobrowse)
+/dev/disk3s4 on /System/Volumes/Preboot (apfs, local, journaled, nobrowse)
+/dev/disk3s2 on /System/Volumes/Update (apfs, local, journaled, nobrowse)
+/dev/disk1s2 on /System/Volumes/xarts (apfs, local, noexec, journaled, noatime, nobrowse)
+/dev/disk1s1 on /System/Volumes/iSCPreboot (apfs, local, journaled, nobrowse)
+/dev/disk1s3 on /System/Volumes/Hardware (apfs, local, journaled, nobrowse)
+/dev/disk3s1 on /System/Volumes/Data (apfs, local, journaled, nobrowse, protect, root data)
+map auto_home on /System/Volumes/Data/home (autofs, automounted, nobrowse)
+/dev/disk3s3 on /System/Volumes/Update/mnt1 (apfs, sealed, local, journaled, nobrowse)

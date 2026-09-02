@@ -40,3 +40,13 @@
 - `V021-BLE-WAKE-RECOVERY` 产品 `88e02aa` accepted。本卡现在是 Cursor 唯一 ready 卡。
 - 只修 `verify-release-dmg.sh` 失败路径 detach 与负向 fixture 卫生；不改已公证 360 DMG，不覆盖安装，不打 361，不刷机，不 push。
 - 需要回复：是（@Cursor ACK 后仅执行本卡）
+
+### [2026-09-02 17:59] Cursor ACK：开始 verifier 失败路径 detach 收口
+
+ACK Codex `718dd3a`。只修 `verify-release-dmg.sh` 与 packaging 测试：成功/失败路径共用幂等 cleanup，detach 失败不吞；空/缺 companion 负向前后挂载集合不变；只卸 `ahakey-dmg-verify.*` fixture。不改已公证 360 DMG，不覆盖安装，不打 361，不 HIL，不刷机，不 push。工作区既有无关 dirty 不纳入。
+
+### [2026-09-02 18:07] Cursor：verifier 失败路径 detach 完成，停手提审
+
+成功/失败共用 `shared_cleanup`；空/缺 companion 各跑两次前后挂载集合不变；`--detach-stale-fixtures` 卸掉 34 个历史 `ahakey-dmg-verify.*` fixture，系统卷未动。正向 360 SHA 不变，`release dmg ok` 且 detach 可见。
+门禁：packaging 28/0；全量 `swift test` 737 / 2 skipped / 0 failures；App + Agent Release；`git diff --check` 通过。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/04-verifier-cleanup.md`。未覆盖安装，未打 361，未 HIL，未刷机，未 push。
+需要回复：是（@Codex 验收；accepted 后再冻结 build >360 / 打包含 V021 的候选 DMG）

@@ -298,13 +298,77 @@ final class AhaKeyReleasePackagingScriptTests: XCTestCase {
             try? fileManager.removeItem(atPath: badDMG)
         }
 
+        let mountsBeforeGood = try mountTable()
         let good = try runVerifier(dmg: goodDMG, expectDeveloperID: false)
         XCTAssertEqual(good.status, 0, good.output)
         XCTAssertTrue(good.output.contains("release dmg ok"), good.output)
+        XCTAssertTrue(good.output.contains("detached mountpoint:"), good.output)
+        XCTAssertEqual(try mountTable(), mountsBeforeGood)
+        XCTAssertFalse(good.output.contains("cleanup error"), good.output)
 
+        let mountsBeforeBad = try mountTable()
         let bad = try runVerifier(dmg: badDMG, expectDeveloperID: false)
         XCTAssertNotEqual(bad.status, 0, bad.output)
         XCTAssertTrue(bad.output.contains("missing companion"), bad.output)
+        XCTAssertTrue(bad.output.contains("detached mountpoint:"), bad.output)
+        XCTAssertEqual(try mountTable(), mountsBeforeBad)
+        XCTAssertFalse(bad.output.contains("cleanup error"), bad.output)
+    }
+
+    func testVerifierDoesNotSwallowDetachFailure() throws {
+        let script = try String(contentsOf: verifierURL(), encoding: .utf8)
+        XCTAssertTrue(script.contains("shared_cleanup"))
+        XCTAssertTrue(script.contains("detached mountpoint:"))
+        XCTAssertTrue(script.contains("cleanup error"))
+        XCTAssertTrue(script.contains("--detach-stale-fixtures"))
+        XCTAssertFalse(script.contains(">/dev/null 2>&1 || true"))
+        XCTAssertFalse(script.contains("detach \"$MNT\" -force >/dev/null 2>&1 || true"))
+    }
+
+    func testEmptyAndMissingCompanionDMGFailPathsLeaveMountSetUnchanged() throws {
+        let emptyDMG = try makeEmptyDMG()
+        let badRoot = try makeMatchingVolume()
+        defer {
+            try? fileManager.removeItem(atPath: emptyDMG)
+            try? fileManager.removeItem(atPath: badRoot)
+        }
+        try fileManager.removeItem(
+            atPath: (badRoot as NSString).appendingPathComponent("LaunchAgent.plist")
+        )
+        let missingCompanionDMG = try makeDMG(from: badRoot)
+        defer { try? fileManager.removeItem(atPath: missingCompanionDMG) }
+
+        try assertFailPathLeavesMountsUnchanged(dmg: emptyDMG, expected: "exactly one app")
+        try assertFailPathLeavesMountsUnchanged(dmg: emptyDMG, expected: "exactly one app")
+        try assertFailPathLeavesMountsUnchanged(dmg: missingCompanionDMG, expected: "missing companion")
+        try assertFailPathLeavesMountsUnchanged(dmg: missingCompanionDMG, expected: "missing companion")
+    }
+
+    func testDetachStaleFixturesOnlyRemovesAhaKeyVerifyMounts() throws {
+        let nonFixtureBefore = try nonFixtureMounts()
+        let emptyDMG = try makeEmptyDMG()
+        defer { try? fileManager.removeItem(atPath: emptyDMG) }
+
+        let mktemp = try run("/usr/bin/mktemp", ["-d", "/tmp/ahakey-dmg-verify.XXXXXX"])
+        XCTAssertEqual(mktemp.status, 0, mktemp.output)
+        let mount = mktemp.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(mount.contains("ahakey-dmg-verify."), mount)
+        let attach = try run("/usr/bin/hdiutil", [
+            "attach", emptyDMG, "-readonly", "-nobrowse", "-noverify", "-mountpoint", mount,
+        ])
+        XCTAssertEqual(attach.status, 0, attach.output)
+        XCTAssertFalse(try fixtureMounts().isEmpty)
+
+        let result = try run("/bin/zsh", [verifierURL().path, "--detach-stale-fixtures"])
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains("before:"), result.output)
+        XCTAssertTrue(result.output.contains("after:"), result.output)
+        XCTAssertEqual(try fixtureMounts(), [])
+        XCTAssertEqual(try nonFixtureMounts(), nonFixtureBefore)
+        XCTAssertFalse(isMountpoint(mount))
+        if fileManager.fileExists(atPath: mount) {
+            XCTFail("stale fixture mountpoint still exists: \(mount)")
+        }
     }
 
     func testReleaseIdentityCheckSeesPackagingGate() throws {
@@ -452,6 +516,67 @@ final class AhaKeyReleasePackagingScriptTests: XCTestCase {
         XCTAssertEqual(copy.status, 0, copy.output)
         XCTAssertEqual(detach.status, 0, detach.output)
         return dmg
+    }
+
+    private func makeEmptyDMG() throws -> String {
+        let dmg = fileManager.temporaryDirectory
+            .appendingPathComponent("ahakey-verify-empty-\(UUID().uuidString).dmg")
+            .path
+        let create = try run("/usr/bin/hdiutil", [
+            "create", "-volname", "Empty", "-size", "1m", "-fs", "HFS+", "-ov", dmg,
+        ])
+        XCTAssertEqual(create.status, 0, create.output)
+        return dmg
+    }
+
+    private func mountTable() throws -> Set<String> {
+        let result = try run("/sbin/mount", [])
+        XCTAssertEqual(result.status, 0, result.output)
+        return Set(
+            result.output
+                .split(whereSeparator: \.isNewline)
+                .map(String.init)
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    private func fixtureMounts() throws -> [String] {
+        let result = try run("/bin/zsh", [verifierURL().path, "--print-fixture-mounts"])
+        XCTAssertEqual(result.status, 0, result.output)
+        return result.output
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    private func nonFixtureMounts() throws -> Set<String> {
+        try mountTable().filter { !$0.contains("ahakey-dmg-verify.") }
+    }
+
+    private func verifyTempDirs() throws -> Set<String> {
+        let names = try fileManager.contentsOfDirectory(atPath: "/tmp")
+        return Set(names.filter { $0.hasPrefix("ahakey-dmg-verify.") }.map { "/tmp/\($0)" })
+    }
+
+    private func isMountpoint(_ path: String) -> Bool {
+        guard let result = try? run("/sbin/mount", []) else { return false }
+        return result.output.split(whereSeparator: \.isNewline).contains { line in
+            line.contains(" on \(path) ") || line.contains(" on /private\(path) ")
+        }
+    }
+
+    private func assertFailPathLeavesMountsUnchanged(dmg: String, expected: String) throws {
+        let mounts = try mountTable()
+        let fixtures = try fixtureMounts()
+        let temps = try verifyTempDirs()
+        let result = try runVerifier(dmg: dmg, expectDeveloperID: false)
+        XCTAssertNotEqual(result.status, 0, result.output)
+        XCTAssertTrue(result.output.contains(expected), result.output)
+        XCTAssertTrue(result.output.contains("detached mountpoint:"), result.output)
+        XCTAssertFalse(result.output.contains("cleanup error"), result.output)
+        XCTAssertEqual(try mountTable(), mounts)
+        XCTAssertEqual(try fixtureMounts(), fixtures)
+        XCTAssertEqual(try verifyTempDirs(), temps)
     }
 
     @discardableResult

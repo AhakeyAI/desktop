@@ -1,0 +1,38 @@
+# 2026-09-02 18:03 leftover ahakey-dmg-verify fixture mounts (34)
+# Captured from /sbin/mount + --print-fixture-mounts immediately before
+# `verify-release-dmg.sh --detach-stale-fixtures`. Image-path of sampled
+# leftovers is Swift `ahakey-verify-<UUID>.dmg`, not the 0.2.1 (360) candidate.
+/private/tmp/ahakey-dmg-verify.Y8FqSh
+/private/tmp/ahakey-dmg-verify.037Pbb
+/private/tmp/ahakey-dmg-verify.Krx2c1
+/private/tmp/ahakey-dmg-verify.KLyYgs
+/private/tmp/ahakey-dmg-verify.LKZP8K
+/private/tmp/ahakey-dmg-verify.It7dAr
+/private/tmp/ahakey-dmg-verify.DFNai8
+/private/tmp/ahakey-dmg-verify.e1zX1d
+/private/tmp/ahakey-dmg-verify.xVMaKL
+/private/tmp/ahakey-dmg-verify.0IYmaq
+/private/tmp/ahakey-dmg-verify.DT7pMr
+/private/tmp/ahakey-dmg-verify.0sXKY9
+/private/tmp/ahakey-dmg-verify.vhEBYM
+/private/tmp/ahakey-dmg-verify.ncutdT
+/private/tmp/ahakey-dmg-verify.gJArW6
+/private/tmp/ahakey-dmg-verify.N8wedU
+/private/tmp/ahakey-dmg-verify.qC9dAs
+/private/tmp/ahakey-dmg-verify.WbLQqh
+/private/tmp/ahakey-dmg-verify.BkiEYh
+/private/tmp/ahakey-dmg-verify.CDIKZM
+/private/tmp/ahakey-dmg-verify.pwg8nB
+/private/tmp/ahakey-dmg-verify.SEe9tZ
+/private/tmp/ahakey-dmg-verify.fy1GgV
+/private/tmp/ahakey-dmg-verify.B1fNhI
+/private/tmp/ahakey-dmg-verify.Y333ds
+/private/tmp/ahakey-dmg-verify.5ioqpG
+/private/tmp/ahakey-dmg-verify.vQMIxB
+/private/tmp/ahakey-dmg-verify.pCrfPS
+/private/tmp/ahakey-dmg-verify.b6KlCO
+/private/tmp/ahakey-dmg-verify.0M03Y6
+/private/tmp/ahakey-dmg-verify.CYovgK
+/private/tmp/ahakey-dmg-verify.5YMTtr
+/private/tmp/ahakey-dmg-verify.cV6jDM
+/private/tmp/ahakey-dmg-verify.EuTmH0
