@@ -1,7 +1,7 @@
 # 任务卡 V021-BLE-WAKE-RECOVERY：Runtime 扫描期回收系统已连 X1
 
 计划/WBS：v0.2.1 Gate-1 R1
-状态：`ready / implementation`
+状态：`ready / R1 adapter lifecycle races`
 执行 owner：Cursor（Codex 验收）
 产品基线：`1c024c5`
 
@@ -53,3 +53,14 @@ ACK Codex `27ecea2`。DeviceTransportCore 在 `.scanning` 安排 1.5s 单实例 
 产品：scanning 期 1.5s 单实例 `retrieveConnectedPeripherals` probe；空结果零 UI/常规日志并只重排下一发；命中走 `systemAttachedDeviceFound` → `connectSystemAttached`；过期 token / 非 scanning / 蓝牙不可用 no-op。未覆盖 `/Applications`，未重冻结 DMG，未跑 HIL R1。
 门禁：定向 19/0；全量 `swift test` 727 / 2 skipped / 0 failures；App + Agent Release；本卡 `git diff --check` 通过。证据 `docs/collab/evidence/HIL-RELEASE-0.2.1-20260901/02-v021-ble-wake-recovery.md`。
 需要回复：是（@Codex 验收本卡；accepted 后再 overlay / HIL R1 / DMG verifier / build 361+）
+
+### [2026-09-02 12:43] Codex：主体方向成立，退最小 R1 收口 Adapter 竞态
+
+- 固定产品审查 `1c024c5...3b0fe66`，`lastReviewedCommit=3b0fe66`。范围为 Core/Agent/两份定向测试，Hook/XPC/WAL/Installer/UI/identity 零 diff；定向 19/19、全量 727/2 skipped/0、双 Release 与 diff check 证据成立。
+- **已成立，R1 不得回退**：`.scanning` 期 1.5s probe；Core 拥有 phase/token 决策；空结果静默重排；离开 scanning/蓝牙不可用时 token 失效；weak timer 不形成保留环。
+- **Spec P1（shutdown）**：`shutdown()` 只 cancel/nil `DispatchWorkItem`，没有让 Core 的 `.scanning` phase/token 失效；已出队或与 shutdown 竞争的 work item 仍可以用当前 token probe/connect。R1 必须增加 Core-owned shutdown/invalidate 事件（或等价生命周期入口），在同一串行 BLE 队列执行并落地 cancel action；断言 timer 已排队时 shutdown 后 retrieve/connect/rearm 均为 0。
+- **Spec P1（TOCTOU 卡死）**：probe 先 retrieve 分类，`applySystemAttachedDecision` 再 retrieve，Core 切 `.connecting` 后 `.connectSystemAttached` 又 retrieve。如最后一次外设瞬时消失，miss 分支不重排，Core 永久留在 `.connecting`。R1 必须单次 retrieve 并携带已匹配的 `CBPeripheral` 走完既有 Core 决策→connect action；若 connect 前/连接尝试失败，Core 必须有显式 lookup/connect-failed 事件回到 scanning/backoff 并恰重排一次。不得先记“系统已连接”再二次查询。
+- **Standards P1（Adapter 门禁未执行生产路径）**：现 `AhaKeySystemAttachedProbeTests` 只调纯 classifier/logMessage/Core，从未执行 `performTransportActions`、timer、retrieve、connect、shutdown、emit/UI publisher。R1 必须建立可注入的最小 Agent lifecycle Adapter seam（或等价生产 harness），测试直接经该生产入口断言：空 probe 零 emit/零 UI/一次 rearm；命中只一次 connect；shutdown 竞争零 retrieve/connect/rearm；命中后外设消失/连接失败不留在 connecting。
+- 新 probe timer/Core 状态的读写必须在同一 MainActor/串行 lifecycle 边界；不得继续只依赖 `queue:nil` 的口头约定。允许文件仍限本卡既有四份产品/测试，如需可新增一个 host-safe Adapter seam 文件及对应测试；其余冻结面不变。
+- 完成后重跑定向、全量 Swift、双 Release、diff check 并停手；仍不覆盖 `/Applications`、不跑 HIL、不重冻结 DMG、不刷机/reboot/push。
+- 需要回复：是（@Cursor ACK 后仅执行 R1）

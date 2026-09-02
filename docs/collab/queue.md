@@ -43,7 +43,7 @@
 | 15G | `HIL-RELEASE-0.2` | Cursor 执行；Zcode 只读验证 | 6.0A / v0.2 | accepted / Gate-2 same-session | build 359；KeepAlive/故障回滚/卸载重装全绿；整机重启 POST 仍为独立 USER-GATE |
 | 15H | `RUNTIME-NAMING-AND-LEGACY-UI-CLEANUP` | Cursor；Codex 验收 | post-v0.2 / v0.2.1 | accepted / U2 closed | 最终产品 `95b775d`；U3 延后 v1.0/5.9B |
 | 15I | `HIL-RELEASE-0.2.1` | Cursor；Codex 验收 | v0.2.1 增量发布 | blocked / Gate-1 BLE | build 360 已安装；主链通过，等 15I-R1 自动回收修复、新候选与 HIL R1 |
-| 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | ready / implementation | 1.5s system-attached probe；空状态零 UI/日志；产品 accepted 后转 15J |
+| 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | ready / R1 adapter races | 1.5s 主体保留；收口 shutdown 失效、单次 retrieve/连接失败回退与真 Adapter 门禁 |
 | 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | queued | 15I-R1 accepted 后修复失败路径 detach；下一次候选重冻结前必须 accepted |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
