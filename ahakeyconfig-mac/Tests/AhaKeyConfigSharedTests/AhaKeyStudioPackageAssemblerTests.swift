@@ -306,4 +306,187 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         XCTAssertEqual(assembled.configuration.modes[0].keys.count, 4)
         XCTAssertEqual(assembled.configuration.modes[0].lightBar.brightness, 35)
     }
+
+    func testScopedAssemblerIgnoresOtherPageFieldsAndNoOpsWhenScreenUnchanged() {
+        let screen = AhaKeyStudioFrozenField(
+            id: .screenStatusLine(modeSlot: 0),
+            value: .text("ok"),
+            isDirty: true,
+            baseline: .init(trust: .verified, value: .text("ok"))
+        )
+        let otherPage = AhaKeyStudioFrozenField(
+            id: .keyAction(modeSlot: 0, role: .voice),
+            value: .text("changed-key"),
+            isDirty: true,
+            baseline: .init(trust: .verified, value: .text("old-key"))
+        )
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                fields: [screen, otherPage]
+            )
+        )
+        XCTAssertEqual(assembly, .noOp)
+    }
+
+    func testScopedAssemblerWritesDirtySetBOnlyAndActivatesSelectedSetWithoutMirroringIdle() {
+        let doneB = AhaKeyStudioFrozenField(
+            id: .screenTaskAsset(modeSlot: 0, setIndex: 1, state: .done),
+            value: .asset(
+                path: "/tmp/b-done.gif", framesPerSecond: 12, declaredFrameCount: 6,
+                pixelWidth: 160, pixelHeight: 80
+            ),
+            isDirty: true,
+            baseline: .init(trust: .verified, value: .asset(
+                path: "/tmp/old.gif", framesPerSecond: 12, declaredFrameCount: 6,
+                pixelWidth: 160, pixelHeight: 80
+            ))
+        )
+        let idleA = AhaKeyStudioFrozenField(
+            id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .idle),
+            value: .asset(
+                path: "/tmp/a-idle.gif", framesPerSecond: 12, declaredFrameCount: 2,
+                pixelWidth: 160, pixelHeight: 80
+            ),
+            isDirty: false,
+            baseline: .init(trust: .verified, value: .asset(
+                path: "/tmp/a-idle.gif", framesPerSecond: 12, declaredFrameCount: 2,
+                pixelWidth: 160, pixelHeight: 80
+            ))
+        )
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                selectedTaskSet: 1,
+                fields: [doneB, idleA]
+            )
+        )
+        guard case .write(let plan) = assembly else {
+            return XCTFail("应写出套图 B dirty")
+        }
+        XCTAssertFalse(plan.writeTaskSetA)
+        XCTAssertTrue(plan.writeTaskSetB)
+        XCTAssertEqual(plan.activateTaskSet, 1)
+        XCTAssertTrue(plan.emitsSetActiveSetOpcode)
+        XCTAssertFalse(plan.bindsDefaultAnimation)
+        XCTAssertFalse(plan.fieldMask.contains(.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .idle)))
+        XCTAssertEqual(plan.resources.count, 1)
+        XCTAssertEqual(plan.resources[0].logicalIdentifier.rawValue, "mode0-set1-done")
+    }
+
+    func testScopedAssemblerWritesBothSetsWhenBothDirtyAndDoesNotForgeStandardActivationOpcode() {
+        func dirtyDone(set: Int, path: String) -> AhaKeyStudioFrozenField {
+            AhaKeyStudioFrozenField(
+                id: .screenTaskAsset(modeSlot: 0, setIndex: set, state: .done),
+                value: .asset(
+                    path: path, framesPerSecond: 12, declaredFrameCount: 4,
+                    pixelWidth: 160, pixelHeight: 80
+                ),
+                isDirty: true,
+                baseline: .init(trust: .writeConfirmed, value: .asset(
+                    path: path + ".old", framesPerSecond: 12, declaredFrameCount: 4,
+                    pixelWidth: 160, pixelHeight: 80
+                ))
+            )
+        }
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .legacyStandard,
+                selectedTaskSet: 0,
+                overwriteConfirmed: true,
+                fields: [
+                    dirtyDone(set: 0, path: "/tmp/a.gif"),
+                    dirtyDone(set: 1, path: "/tmp/b.gif"),
+                    AhaKeyStudioFrozenField(
+                        id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working),
+                        value: .text("cached"),
+                        isDirty: false,
+                        baseline: .init(trust: .writeConfirmed, value: .text("cached"))
+                    ),
+                ]
+            )
+        )
+        guard case .write(let plan) = assembly else {
+            return XCTFail("两套 dirty 应都写")
+        }
+        XCTAssertTrue(plan.writeTaskSetA)
+        XCTAssertTrue(plan.writeTaskSetB)
+        XCTAssertEqual(plan.activateTaskSet, 0)
+        XCTAssertFalse(plan.emitsSetActiveSetOpcode)
+        XCTAssertTrue(plan.overwriteSemantic)
+    }
+
+    func testStandardUnknownBaselineRequiresOverwriteConfirmation() {
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .legacyStandard,
+                overwriteConfirmed: false,
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done),
+                        value: .asset(
+                            path: "/tmp/new.gif", framesPerSecond: 12, declaredFrameCount: 3,
+                            pixelWidth: 160, pixelHeight: 80
+                        ),
+                        isDirty: true,
+                        baseline: .unknown
+                    ),
+                ]
+            )
+        )
+        XCTAssertEqual(assembly, .requiresOverwriteConfirmation)
+    }
+
+    func testStandardMissingTrustedCacheFailClosed() {
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .legacyStandard,
+                overwriteConfirmed: false,
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done),
+                        value: .asset(
+                            path: "/tmp/new.gif", framesPerSecond: 12, declaredFrameCount: 3,
+                            pixelWidth: 160, pixelHeight: 80
+                        ),
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: .asset(
+                            path: "/tmp/old.gif", framesPerSecond: 12, declaredFrameCount: 3,
+                            pixelWidth: 160, pixelHeight: 80
+                        ))
+                    ),
+                    AhaKeyStudioFrozenField(
+                        id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working),
+                        value: .text("guess"),
+                        isDirty: false,
+                        baseline: .unknown
+                    ),
+                ]
+            )
+        )
+        XCTAssertEqual(assembly, .missingTrustedPageCache)
+    }
+
+    func testUnsupportedProfileDoesNotAssembleWrite() {
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .unsupported,
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: .screenStatusLine(modeSlot: 0),
+                        value: .text("x"),
+                        isDirty: true,
+                        baseline: .unknown
+                    ),
+                ]
+            )
+        )
+        XCTAssertEqual(assembly, .unsupportedProfile)
+    }
 }

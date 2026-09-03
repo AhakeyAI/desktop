@@ -94,4 +94,31 @@ final class AhaKeyOLEDSyncPlanTests: XCTestCase {
             deviceDefault: nil
         ))
     }
+
+    func testScopedActivationDoesNotForgeStandardOpcodeAndUsesSelectedSet() {
+        let standard = AhaKeyOLEDSyncPlan.scopedScreenActivation(
+            profile: .legacyStandard,
+            selectedTaskSet: 1,
+            writesAnyTaskSet: true,
+            activeSetIsDirty: false
+        )
+        XCTAssertEqual(standard?.selectedSet, 1)
+        XCTAssertEqual(standard?.emitsSetActiveSetOpcode, false)
+
+        let rhino = AhaKeyOLEDSyncPlan.scopedScreenActivation(
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 1,
+            writesAnyTaskSet: true,
+            activeSetIsDirty: false
+        )
+        XCTAssertEqual(rhino?.selectedSet, 1)
+        XCTAssertEqual(rhino?.emitsSetActiveSetOpcode, true)
+
+        XCTAssertNil(AhaKeyOLEDSyncPlan.scopedScreenActivation(
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            writesAnyTaskSet: false,
+            activeSetIsDirty: false
+        ))
+    }
 }

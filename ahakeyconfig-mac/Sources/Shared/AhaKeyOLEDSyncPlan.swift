@@ -59,4 +59,36 @@ public enum AhaKeyOLEDSyncPlan {
             deviceDefault: deviceDefault
         )
     }
+
+    /// C2 屏幕页激活：只激活用户选中套。Standard 不伪造 `0x97`。
+    public struct ScopedScreenActivation: Equatable, Sendable {
+        public var selectedSet: Int
+        public var emitsSetActiveSetOpcode: Bool
+
+        public init(selectedSet: Int, emitsSetActiveSetOpcode: Bool) {
+            self.selectedSet = selectedSet
+            self.emitsSetActiveSetOpcode = emitsSetActiveSetOpcode
+        }
+    }
+
+    public static func scopedScreenActivation(
+        profile: AhaKeyOLEDCompatibilityProfile,
+        selectedTaskSet: Int,
+        writesAnyTaskSet: Bool,
+        activeSetIsDirty: Bool
+    ) -> ScopedScreenActivation? {
+        guard writesAnyTaskSet || activeSetIsDirty else { return nil }
+        let selected = min(1, max(0, selectedTaskSet))
+        switch profile {
+        case .legacyStandard:
+            return ScopedScreenActivation(selectedSet: selected, emitsSetActiveSetOpcode: false)
+        case .rhinoDualSet, .currentSessionCapable:
+            return ScopedScreenActivation(
+                selectedSet: selected,
+                emitsSetActiveSetOpcode: profile.pictureOpcodes.allowsSetActiveSet
+            )
+        case .unsupported:
+            return nil
+        }
+    }
 }

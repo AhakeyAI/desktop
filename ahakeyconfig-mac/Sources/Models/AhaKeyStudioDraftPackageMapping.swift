@@ -110,3 +110,115 @@ enum AhaKeyStudioAssetMetadataProbe {
         return (url, frameCount, first.width, first.height)
     }
 }
+
+// MARK: - C2：单页冻结快照（纯映射，不组包）
+
+extension AhaKeyStudioDraft {
+    /// 只冻结 `pageID` 上的字段。其它页即使 dirty 也不会进入快照。
+    func frozenPageSnapshot(
+        pageID: AhaKeyStudioPageID,
+        lastSyncedDraft: AhaKeyStudioDraft?,
+        fieldTrust: [AhaKeyStudioFieldID: AhaKeyStudioBaselineTrust] = [:],
+        profile: AhaKeyOLEDCompatibilityProfile,
+        selectedTaskSet: Int? = nil,
+        overwriteConfirmed: Bool = false
+    ) -> AhaKeyStudioPageSnapshot {
+        let currentFields = ownedFields(on: pageID)
+        let baselineDraft = lastSyncedDraft ?? self
+        let baselineFields = Dictionary(
+            uniqueKeysWithValues: baselineDraft.ownedFields(on: pageID).map { ($0.id, $0.value) }
+        )
+        let frozen = currentFields.map { field -> AhaKeyStudioFrozenField in
+            let baselineValue = baselineFields[field.id]
+            let trust = fieldTrust[field.id] ?? .unknown
+            let dirty = baselineValue != field.value
+            return AhaKeyStudioFrozenField(
+                id: field.id,
+                value: field.value,
+                isDirty: dirty,
+                baseline: AhaKeyStudioFieldBaseline(trust: trust, value: baselineValue)
+            )
+        }
+        let selected: Int
+        if case .screen(let slot) = pageID {
+            selected = selectedTaskSet ?? modeDraft(slot: slot)?.oled.activeGIFSet ?? 0
+        } else {
+            selected = selectedTaskSet ?? 0
+        }
+        return AhaKeyStudioPageSnapshot(
+            pageID: pageID,
+            profile: profile,
+            selectedTaskSet: selected,
+            overwriteConfirmed: overwriteConfirmed,
+            fields: frozen
+        )
+    }
+
+    fileprivate func ownedFields(on pageID: AhaKeyStudioPageID) -> [(id: AhaKeyStudioFieldID, value: AhaKeyStudioFieldValue)] {
+        switch pageID {
+        case .key(let slot, let role):
+            guard let mode = modeDraft(slot: slot),
+                  let key = mode.keys.first(where: { $0.role.rawValue == Int(role.rawValue) }) else {
+                return []
+            }
+            return [
+                (.keyAction(modeSlot: slot, role: role), .text(key.actionFingerprint)),
+                (.keyDescription(modeSlot: slot, role: role), .text(key.description)),
+                (.keyVoicePreset(modeSlot: slot, role: role), .optionalText(key.voicePreset?.rawValue)),
+            ]
+        case .lights(let slot):
+            guard let mode = modeDraft(slot: slot) else { return [] }
+            var fields: [(AhaKeyStudioFieldID, AhaKeyStudioFieldValue)] = [
+                (.lightBrightness(modeSlot: slot), .number(mode.lightBar.brightness)),
+            ]
+            for mapping in mode.lightBar.stateMappings {
+                fields.append((
+                    .lightMapping(modeSlot: slot, state: mapping.state.rawValue),
+                    .text(mapping.effect.rawValue)
+                ))
+            }
+            return fields
+        case .screen(let slot):
+            guard let mode = modeDraft(slot: slot) else { return [] }
+            var fields: [(AhaKeyStudioFieldID, AhaKeyStudioFieldValue)] = [
+                (.screenStatusLine(modeSlot: slot), .text(mode.oled.statusLine)),
+                (.screenFramesPerSecond(modeSlot: slot), .number(mode.oled.framesPerSecond)),
+                (.screenActiveSet(modeSlot: slot), .number(mode.oled.activeGIFSet)),
+            ]
+            for (setIndex, set) in mode.oled.taskGIFSets.prefix(2).enumerated() {
+                for asset in set.assets {
+                    guard let state = AhaKeyDesiredConfiguration.TaskDisplayState(rawValue: UInt8(asset.state.rawValue)) else {
+                        continue
+                    }
+                    let metadata = AhaKeyStudioAssetMetadataProbe.probe(asset.localAssetPath)
+                    fields.append((
+                        .screenTaskAsset(modeSlot: slot, setIndex: setIndex, state: state),
+                        .asset(
+                            path: asset.localAssetPath,
+                            framesPerSecond: asset.framesPerSecond,
+                            declaredFrameCount: metadata.frameCount,
+                            pixelWidth: metadata.pixelWidth,
+                            pixelHeight: metadata.pixelHeight
+                        )
+                    ))
+                }
+            }
+            return fields
+        case .lever, .power:
+            return []
+        }
+    }
+
+    fileprivate func modeDraft(slot: UInt8) -> AhaKeyModeDraft? {
+        modes.first { $0.mode.rawValue == Int(slot) }
+    }
+}
+
+private extension AhaKeyKeyDraft {
+    var actionFingerprint: String {
+        if usesMacro {
+            return "macro:" + macro.map { "\($0.action.rawValue):\($0.param)" }.joined(separator: ",")
+        }
+        return "shortcut:\(shortcut.orderedModifiers.map(\.rawValue).joined(separator: "+")):\(shortcut.keyCode)"
+    }
+}

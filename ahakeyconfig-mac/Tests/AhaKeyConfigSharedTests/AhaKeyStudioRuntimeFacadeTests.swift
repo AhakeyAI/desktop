@@ -782,4 +782,64 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertNil(transport.appliedPackage)
         await facade.stop()
     }
+
+    func testSubmitFrozenPageZeroDiffDoesNotCallIngestOrApply() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        let snapshot = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("same"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("same"))
+                ),
+            ]
+        )
+        let result = try await facade.submitFrozenPage(snapshot)
+        XCTAssertEqual(result, .noOp)
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testSubmitFrozenPageWritePlanDoesNotCreateRuntimeOperation() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        let snapshot = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("new"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("old"))
+                ),
+            ]
+        )
+        let result = try await facade.submitFrozenPage(snapshot)
+        guard case .write(let plan) = result else {
+            return XCTFail("dirty 屏幕属性应得到 write plan")
+        }
+        XCTAssertEqual(plan.statusLine, "new")
+        XCTAssertFalse(plan.writeTaskSetA)
+        XCTAssertFalse(plan.writeTaskSetB)
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        await facade.stop()
+    }
 }

@@ -103,6 +103,14 @@ public actor AhaKeyStudioRuntimeFacade {
         update { $0.snapshot = snapshot }
     }
 
+    /// C2 recording：page submit 路径的 ingest/apply 次数。零差异必须保持 0。
+    private var pageSubmitIngestCalls = 0
+    private var pageSubmitApplyCalls = 0
+
+    func pageSubmitRecordingCountsForTesting() -> (ingest: Int, apply: Int) {
+        (pageSubmitIngestCalls, pageSubmitApplyCalls)
+    }
+
     /// 测试 seam 注入（跨 actor 写入经方法完成）。
     func setPublishHookForTesting(_ hook: (@Sendable (AhaKeyStudioRuntimeViewState) -> Void)?) {
         publishHookForTesting = hook
@@ -615,6 +623,14 @@ extension AhaKeyStudioRuntimeFacade {
         default:
             throw AhaKeyStudioApplyError.unexpectedResponse
         }
+    }
+
+    /// C2：单页冻结快照提交预检。零差异与 fail-closed 不得调用 ingest/apply。
+    /// 本切片不创建 Runtime operation；`.write` 只返回 scoped plan。
+    public func submitFrozenPage(
+        _ snapshot: AhaKeyStudioPageSnapshot
+    ) async throws -> AhaKeyStudioPageAssembly {
+        return AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot)
     }
 
     /// 取消已受理的 operation：透传 .requestCancellation。

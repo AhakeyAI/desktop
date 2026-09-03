@@ -386,4 +386,153 @@ public enum AhaKeyStudioPackageAssembler {
             pixelHeight: height
         )
     }
+
+    /// C2：只组装单一页面冻结快照中的 dirty 字段。其它页字段直接丢弃。
+    public static func assembleScopedPage(
+        _ snapshot: AhaKeyStudioPageSnapshot
+    ) -> AhaKeyStudioPageAssembly {
+        if case .unsupported = snapshot.profile {
+            return .unsupportedProfile
+        }
+
+        let owned = snapshot.fields.filter {
+            AhaKeyStudioFieldOwnership.page(for: $0.id) == snapshot.pageID
+        }
+        let dirty = owned.filter(\.isDirty)
+        guard !dirty.isEmpty else { return .noOp }
+        if dirty.allSatisfy(AhaKeyStudioPageDiffer.isStrictNoOp) {
+            return .noOp
+        }
+
+        let wholeGroup = AhaKeyStudioPageDiffer.requiresWholeGroupWrite(
+            pageID: snapshot.pageID,
+            profile: snapshot.profile
+        )
+        let unresolvedUnknown = dirty.contains {
+            $0.baseline.trust == .unknown && !AhaKeyStudioPageDiffer.isStrictNoOp($0)
+        }
+        if wholeGroup, unresolvedUnknown, !snapshot.overwriteConfirmed {
+            return .requiresOverwriteConfirmation
+        }
+
+        if wholeGroup {
+            let siblings = owned.filter { field in
+                guard case .screenTaskAsset = field.id else { return false }
+                return true
+            }
+            let missingCache = siblings.contains { !AhaKeyStudioPageDiffer.hasTrustedCache($0) && !$0.isDirty }
+            if missingCache, !snapshot.overwriteConfirmed {
+                return .missingTrustedPageCache
+            }
+        }
+
+        var mask = Set(dirty.map(\.id))
+        if wholeGroup, snapshot.overwriteConfirmed {
+            for field in owned {
+                if case .screenTaskAsset = field.id {
+                    mask.insert(field.id)
+                }
+            }
+        }
+
+        var writeSetA = false
+        var writeSetB = false
+        var statusLine: String?
+        var framesPerSecond: Int?
+        var activeSetDirty = false
+        var resources: [AhaKeyStudioResourceInput] = []
+
+        for field in owned where mask.contains(field.id) {
+            switch field.id {
+            case .screenTaskAsset(_, let setIndex, let state):
+                if setIndex == 0 { writeSetA = true }
+                if setIndex == 1 { writeSetB = true }
+                if let url = field.value.resourceURL,
+                   let parsed = parseAssetFingerprint(field.value.fingerprint) {
+                    let identifier = (try? AhaKeyResourceIdentifier(
+                        taskAssetIdentifier(
+                            mode: modeSlot(of: snapshot.pageID) ?? 0,
+                            set: setIndex,
+                            state: state
+                        )
+                    ))
+                    if let identifier {
+                        resources.append(
+                            AhaKeyStudioResourceInput(
+                                logicalIdentifier: identifier,
+                                fileURL: url,
+                                declaredFrameCount: parsed.frames,
+                                pixelWidth: parsed.width,
+                                pixelHeight: parsed.height
+                            )
+                        )
+                    }
+                }
+            case .screenStatusLine:
+                statusLine = text(from: field.value.fingerprint)
+            case .screenFramesPerSecond:
+                framesPerSecond = int(from: field.value.fingerprint)
+            case .screenActiveSet:
+                activeSetDirty = true
+            default:
+                break
+            }
+        }
+
+        let activation = AhaKeyOLEDSyncPlan.scopedScreenActivation(
+            profile: snapshot.profile,
+            selectedTaskSet: snapshot.selectedTaskSet,
+            writesAnyTaskSet: writeSetA || writeSetB,
+            activeSetIsDirty: activeSetDirty
+        )
+
+        return .write(
+            AhaKeyStudioScopedWritePlan(
+                pageID: snapshot.pageID,
+                fieldMask: mask,
+                overwriteSemantic: snapshot.overwriteConfirmed && wholeGroup,
+                writeTaskSetA: writeSetA,
+                writeTaskSetB: writeSetB,
+                activateTaskSet: activation?.selectedSet,
+                emitsSetActiveSetOpcode: activation?.emitsSetActiveSetOpcode ?? false,
+                bindsDefaultAnimation: false,
+                resources: resources.sorted { $0.logicalIdentifier.rawValue < $1.logicalIdentifier.rawValue },
+                statusLine: statusLine,
+                framesPerSecond: framesPerSecond
+            )
+        )
+    }
+
+    private static func modeSlot(of page: AhaKeyStudioPageID) -> UInt8? {
+        switch page {
+        case .key(let slot, _), .lights(let slot), .screen(let slot):
+            return slot
+        case .lever, .power:
+            return nil
+        }
+    }
+
+    private static func parseAssetFingerprint(
+        _ fingerprint: String
+    ) -> (frames: Int, width: Int, height: Int)? {
+        // asset:path|fps|frames|w|h
+        let parts = fingerprint.split(separator: "|", omittingEmptySubsequences: false)
+        guard parts.count >= 4,
+              let frames = Int(parts[parts.count - 3]), frames > 0,
+              let width = Int(parts[parts.count - 2]), width > 0,
+              let height = Int(parts[parts.count - 1]), height > 0 else {
+            return nil
+        }
+        return (frames, width, height)
+    }
+
+    private static func text(from fingerprint: String) -> String? {
+        guard fingerprint.hasPrefix("text:") else { return nil }
+        return String(fingerprint.dropFirst(5))
+    }
+
+    private static func int(from fingerprint: String) -> Int? {
+        guard fingerprint.hasPrefix("int:") else { return nil }
+        return Int(fingerprint.dropFirst(4))
+    }
 }

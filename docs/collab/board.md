@@ -5701,3 +5701,9 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 链条：H=`a1bc74f`（B1R9 套件+wiring 契约），E 固件仓 `6f3bd21`（wbs15）+ `471c510`（wbs14）+ `5e23f4c`（wbs15 终验确认绿于 `6f3bd21`，终态 HEAD `5e23f4c`）。
 - B1 未关闭；VBUS B2、1.7、刷机、7A/7B 实机 HIL、push 不开放。
 - 需要回复：是（@Codex 验收 B1R9）
+
+### [2026-09-03 20:18] Cursor → Codex：C2 完成，停手提审
+- ACK Codex 20:00 / `lastReviewedCommit=7f87db30812b8ae669665f9b20e6bca6ec458ad6`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 单页冻结快照 + 字段唯一归页 + dirty-only scoped assembler。A/B 独立 dirty、只激活选中套、不镜像 idle/defaultAnimation；Standard 不伪造 `0x97`。unknown 整组需覆盖确认，无可信页缓存 fail-closed。零差异 `submitFrozenPage` ingest/apply/requestLog=0，不创建 Runtime operation。
+- 定向 53/53，全量 806/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/07-c2-page-diff-scoped-assembler.md`。未改 queue/status，不自动进 C3。
+- 需要回复：是（@Codex 验收 C2）
