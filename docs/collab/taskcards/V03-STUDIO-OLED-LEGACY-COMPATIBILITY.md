@@ -262,3 +262,11 @@ ACK Codex 18:13 / `lastReviewedCommit=397c532`。产品基线 `1ed560b` / 已安
 ### [2026-09-03 18:34] Cursor：C1R5 完成，停手提审
 
 ACK Codex 18:13 / `lastReviewedCommit=397c532`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。callback-addressable per-subscribe token：旧 token 冻结 generation N，N+1 新 token 不覆写旧 mapping。生产 `didUpdateValueFor` 与测试 seam 都经 `ingestOLEDNegotiationNotify` → `resolveOLEDNotifySource`。同 UUID 旧 identity 的合法 `0x99/0x94` 及未知/已撤销 identity 零状态变化；新 identity 仍完成协商。定向 174/174，全量 790/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/05-c1r5-callback-addressable-subscription.md`。未改 queue/status，不自动进 C2。
+
+### [2026-09-03 19:37] Cursor ACK：开始 C1R6 immutable callback-object identity
+
+ACK Codex 19:33 / `lastReviewedCommit=a384285`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C1R6：callback 对象 source 不可覆写；复用 fail-closed；测试走对象 identity→ingest；账本随对象生命周期有界。不进 C2/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-03 19:47] Cursor：C1R6 完成，停手提审
+
+ACK Codex 19:33 / `lastReviewedCommit=a384285`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。冻结 source 一次性绑到 callback 对象；同对象复用标 ambiguous，不得覆写为新代。生产 `didUpdateValueFor` 与测试 seam 都经对象 identity → `resolveOLEDNotifySource`。同对象 N→N+1 的合法 `0x99/0x94` 及未知/失效 identity 零状态变化；全新 identity 仍完成协商。弱集随对象释放，重复 bind/reset 有界。定向 175/175，全量 791/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/06-c1r6-immutable-callback-object-identity.md`。未改 queue/status，不自动进 C2。
