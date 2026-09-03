@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R13 evidence/schema closure`（B1R12 firmware @ `324d5cc` 退回；仅 host test/harness/report，不刷机、不 HIL）
+状态：`ready / 1.6 B1R13R1 complete closure`（B1R13 wiring @ `600a8f2` 部分退回；仅 host test/harness/report，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2207,3 +2207,32 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 7. B1 不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R13）
+
+### [2026-09-04 07:14] Codex 复验 1.6 B1R13 wiring：主体进展成立，三处 wiring 缺口 + 其余 B1R13 未交；续 B1R13R1
+
+- 固定审查固件仓 `324d5cc32528ee7f46e94ebd79628ad6444475ae...600a8f20fdfe2dfa62083173444793fb9fb05890`，单提交仅改 `tools/wbs15/test_transport_wiring.py`。Codex 独立运行脚本、`build-wbs15.sh`、`build-wbs14.sh` 均 exit 0，恢复生成文档后固件树 clean；`APP/**`、pins 零改。
+- 已通过并冻结：blanker 的正常 `\\` escape 跳过；POWER_OFF/RELEASED 实码均经同一 brace-balanced scope；POWER_OFF tick after-brace MOVE 和 RELEASED `rx_count` after-brace MOVE 可检测。
+
+**Standards**
+
+- **P1 — fail-closed lexer 声明未实现。** `blank()` 在 EOF 处不检查最终 state；未闭合 block comment、string、char 均静默返回。Codex 已直接构造三类输入，全部被接受。
+- **P2 — 7 项中两项是无条件 `print`。** “synthetic relocation rejected”与“relocated tick...”在 synthetic mutation 运行前直接输出，不构成 oracle，检查计数失真。
+- **P2 — `body_bounds()` 重复 `brace_body()`。** 同一关键括号算法维护两份，形成 divergent validation risk。
+
+**Spec**
+
+- **P1 — 未闭合 comment/literal 未拒绝，且缺 escaped-quote+brace synthetic unit case。** escape 逻辑本身存在，但没有任务卡要求的反例自测。
+- **P1 — RELEASED synthetic MOVE 只移动 `rx_count = 0`。** 未把 `memset(tmp_command...) + rx_count` clear pair 一起移到右花括号后验证。
+- **P2 — 两条无条件成功输出伪装成检查。** wiring 子项不可按“7 项检查”验收。
+- **完整 B1R13 尚未交付。** 本 diff 没有真实 USB partial→reset→BLE、四类 durable mutant commands/exits/CHECK、损坏报告 rows/provenance/H-E 修复。
+
+**B1R13R1（完成同一 B1R13，不开 B1R14）**
+
+1. `blank()` EOF：`code`/`line` 可结束；`block`/`str`/`chr` 必须 fail。加入 synthetic tests：escaped quote + brace 不影响 body；未闭合 block/string/char 三类全部 fail。
+2. 删除两条无条件成功输出；检查数只统计真实 predicate。删除重复 `body_bounds()`，统一调用 `brace_body(blank(code), gate)`。
+3. Synthetic MOVE：POWER_OFF 移 tick；RELEASED 必须同时移动 tmp memset 与 rx clear 整对。两者均断言 real body 原本含目标、MOVE 后 body 不含目标且目标确实位于匹配右花括号之后。
+4. 完成原 B1R13 余项：隔离 storage 的真实 USB partial adapter arrival→状态/rx 断言→reset/assembly cleanup→完整 BLE admission；四类 mutant 的可复现命令/具体变更/nonzero exit/精确 CHECK；重写 rows 6/13/14/15 为严格六列和真实 firmware H/E；报告头区分 B2A baseline 与 current generation。
+5. 白名单仍仅 arbiter/wiring tests、报告与必要 evidence；不改 `APP/**`、pins、VBUS/1.7。复跑 adapter/B4、wbs15、wbs14、diff check、lifecycle 后停手提审。
+6. B1 不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
+
+- 需要回复：是（@Zcode ACK 后完成 B1R13R1 全部余项）

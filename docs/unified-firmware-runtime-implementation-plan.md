@@ -826,7 +826,7 @@ AhaType
 | 1.3 | **已验收 @ `9135183`**：Rhino 四状态/双套任务图、caps14 交叉契约、interval 与持久化迁移 | 统一 OLED 状态机 | 1.2 accepted |
 | 1.4 | **已验收 @ `97f0ae8`**：事务化 factory assets 与断电恢复门禁 | 资源模块 | 1.2、1.3 accepted |
 | 1.5 | **实现已验收 @ `b678137`；HIL 待 1.7 后刷机**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
-| 1.6 | **B2A accepted @ `4fb65a8`；B1R12 firmware @ `324d5cc` 退 B1R13**：真实 USB partial→reset→BLE re-admit、escape-safe brace parser+self-tests、四 mutant 可复现证据、损坏 rows 13/14 与 provenance/H-E 收口；实机 7A/7B 与 VBUS 行为切换仍待 USER-GATE | 传输回归报告 | 1.2 |
+| 1.6 | **B2A accepted @ `4fb65a8`；B1R13 wiring @ `600a8f2` 续 B1R13R1**：补 EOF fail-closed/真实 synthetic checks/clear-pair MOVE，并完成真实 USB partial、四 mutant durable evidence、损坏 rows 13/14 与 provenance/H-E；实机 7A/7B 与 VBUS 行为切换仍待 USER-GATE | 传输回归报告 | 1.2 |
 | 1.7 | 建立 Standard/Rhino 两份资源 pack | 两个量产产物 | 1.4 |
 
 退出条件：同一源码在两种资源变体上通过现有功能回归，除资源外行为一致。
