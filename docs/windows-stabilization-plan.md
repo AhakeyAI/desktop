@@ -183,6 +183,10 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 结果以下一节以实际命令输出为准。当前工作区外层 `C:\aha\ahakey-windows\windows-stabilization-plan.md`
 不存在，无法伪造同步；本文件仍是 `desktop` 工程唯一可用事实源。
 
+提交边界：`5801b0d` HV-005 discovery、`b478ebd` BLE bridge 生命周期、`a05914b`
+HV-002 WCHISP、`d9bea69` 首页导航、`e8af234` 当前资源预览、`29f5bd4` 文档，另有
+`2900806` 发布清单 fixture 和 `91c264a` WCHISP 隐私哈希门禁测试。
+
 ## 8. 验证记录维护
 
 每次交付追加实际命令和精确结果：
@@ -208,6 +212,16 @@ USB/BLE/GIF/OLED/语音设备均属于外部依赖；firmware 1.4.7 HEX/provenan
 `C:\Program Files\AhaKeyStudio\app` 发布基线；`build-installer.ps1 -PrepareOnly`
 已确认允许省略 FirmwareHex，但因同一基线缺少 `AhaKeyStudio.ico` 退出。
 以上不替代正式 overlay、签名安装包或真机验证。
+
+本轮复核结果（2026-09-04）：`mvn clean test` 通过（168/0/0/0），`mvn clean package`
+通过（168/0/0/0），并由 package 内置及独立 `Test-ReleaseArtifactContents.ps1` 验证
+本地 JAR 含 BLE/审批/状态/模式类、`ScreenAnimationAssetStore`、WCHISP 脱敏资源和
+`firmware-capabilities.properties`。五个 PowerShell 脚本解析通过；WCHISP privacy fixture
+返回 `WCHISP_RELEASE_PRIVACY=OK`。使用本地构造的基线 JAR 做 overlay smoke test 返回
+`OVERLAY_VALIDATION=OK`；正式 `C:\Program Files\AhaKeyStudio` 基线仍缺失，因此正式
+overlay 和签名安装包未宣称完成。MSBuild 未在当前环境 PATH/常见 VS 路径发现；bridge
+Release EXE 已存在于 `BLE_tcp_bridge\\bin\\Release\\BLE_tcp_driver.exe`，其此前重建结果
+为 0 warning/0 error。USB/BLE、WCHISP、GIF/OLED、语音、Hook 和 Windows UI 真机仍待验证。
 
 ## 9. 历史记录
 
