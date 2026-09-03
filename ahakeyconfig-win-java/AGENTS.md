@@ -142,7 +142,7 @@ UI 组件：
 
 - `CanvasController.java` — 键盘画布控制器
 - `CanvasPane.java` — 键盘画布面板
-- `TopBar.java` — 顶部工具栏（含 BLE 驱动按钮，支持长按杀进程）
+- `TopBar.java` — 顶部工具栏（BLE 驱动按钮仅管理精确路径的自有/接管实例）
 - `StatusBar.java` — 状态栏
 - `InspectorPane.java` — 属性检查面板
 - `FloatingVoiceNotification.java` — 语音输入浮动通知
@@ -203,12 +203,12 @@ UI 组件：
 
 ### BLE 驱动按钮功能
 
-- **短按**：启动/重启 `BLE_tcp_driver.exe`（BLE 桥接工具）
-- **长按5秒**：强制杀死所有 `BLE_tcp_driver.exe` 进程（包括挂起的卡死进程）
+- **短按**：启动可见的 `BLE_tcp_driver.exe`；若已有同一路径实例则接管并置前
+- **长按5秒**：停止当前精确可执行路径的自有/接管实例，不影响其他用户进程
 
 ### BLE 进程清理
 
-- 应用退出时（点击托盘 Exit）：自动停止 `BLE_tcp_driver.exe` 进程
+- 应用退出时（点击托盘 Exit）：只停止当前实例拥有或接管的精确 `BLE_tcp_driver.exe`
 - 连接断开时：停止定时轮询，保持 BLE 连接不断开
 
 ## 构建产物
@@ -243,4 +243,4 @@ target/
 1. 检查 BLE 适配器是否启用
 2. 检查设备是否在蓝牙范围内
 3. 检查 `BLE_tcp_driver.exe` 是否正常运行（BLE 桥接工具）
-4. 如果 BLE 进程卡死，长按 BLE 驱动按钮5秒强制杀死
+4. 如果 BLE 进程卡死，长按 BLE 驱动按钮5秒停止当前精确路径实例

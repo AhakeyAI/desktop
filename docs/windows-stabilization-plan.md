@@ -152,14 +152,38 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 
 1. WIN-025：把 expected publisher 绑定到正式 release/jpackage 配置，并将 signer
    subject 升级为 canonical exact identity；补齐完整签名流水线。
-2. TopBar 维护入口仍有全局 `BLE_tcp_driver.exe` 长按终止逻辑，需另行收口为当前实例
-   owner；本轮不改变生命周期行为。
+2. BLE bridge 生命周期的精确路径 owner 已在本轮收口；仍需 Windows 手工验证启动、置前、
+   Studio 退出和手动断开不重连边界。
 3. 固件 EEPROM journal 的连续保存风险属于固件端跨项目待办，本轮不修改固件。
 4. GIF 优化原因 UI 仍可能泛化显示尺寸/分辨率/帧数，而不是实际触发项；需补 P1 UX
    细化。默认 GIF 的视觉和体积也需产品验收。
 5. 若任务文本要求离线持久化，需另行确认当前实现是内存态还是持久化态，避免误报。
 
-## 7. 验证记录维护
+## 7. 本轮交付登记（2026-09-04）
+
+本轮基于只读 Firmware `firmware-stable-rebase-79` 稳定基线（runtime commit
+`79ecabad3c8fd013aba7a6e12a13b5836fbc8924`，文档 commit
+`26c03afe9dd2cbfe95fbcac9f6f1b79458dfbd20`）收口 Windows 代码。固件仓库未修改。
+
+* HV-005 GATT discovery race 已在 `5801b0d` 固化修复：发现线程同步分类并形成最终
+  snapshot，UI `BeginInvoke` 只负责显示；此前真机诊断曾观察到 0x7340/7341/7343/7344
+  均由 Windows 返回，当前状态仍标为“Fixed in Code / Pending Hardware Regression”。
+* BLE bridge 生命周期已在 `b478ebd` 收口：稳定窗口标题、single-instance/adopt、
+  精确 executable-path owner；Studio 退出不再按进程名全局终止。Windows 手工验证待执行。
+* HV-002 WCHISP 已在 `a05914b` 使用仓库内固定哈希的 3.6.1 五槽脱敏 baseline，按已知
+  layout 只 patch CH582 槽；发布阶段拒绝 `.excluded` 和开发者绝对路径。代码/自动测试完成，
+  WCHISP ISP 检测和真实烧录待真机验证。
+* 首页 OLED 入口已在 `d9bea69` 改为“配置屏幕动画”，只导航到现有设置对话框，不再从首页
+  直接上传。
+* 当前资源预览已在 `e8af234` 增加受控 managed cache 与 profile×state 元数据；只有设备
+  上传回调成功后才复制并保存 metadata，重启从 `StudioStore` 恢复，预览不读取设备 GIF 数据。
+  自动测试完成，GIF/OLED 真机和 UI 手工验证待执行。
+
+本轮自动测试新增 17 个定向测试（WCHISP 13、managed screen asset 4）；完整 Maven
+结果以下一节以实际命令输出为准。当前工作区外层 `C:\aha\ahakey-windows\windows-stabilization-plan.md`
+不存在，无法伪造同步；本文件仍是 `desktop` 工程唯一可用事实源。
+
+## 8. 验证记录维护
 
 每次交付追加实际命令和精确结果：
 
@@ -185,7 +209,7 @@ USB/BLE/GIF/OLED/语音设备均属于外部依赖；firmware 1.4.7 HEX/provenan
 已确认允许省略 FirmwareHex，但因同一基线缺少 `AhaKeyStudio.ico` 退出。
 以上不替代正式 overlay、签名安装包或真机验证。
 
-## 8. 历史记录
+## 9. 历史记录
 
 早期 132/148 tests、旧 `0x9D` capability 说法和 1.4.3 bundled 结论均为历史记录，
 不再代表当前合同。历史 patch 可追溯，但不得覆盖本文件上述当前事实。
