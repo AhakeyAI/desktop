@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R10 oracle truthfulness closure`（B1R9 @ `5e23f4c` 退回；仅 host test/harness/report，不刷机、不 HIL）
+状态：`ready / 1.6 B1R11 false-green closure`（B1R10 @ `7be9716` 退回；仅 host test/harness/report，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2111,3 +2111,35 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 7. B1 不关闭；VBUS B2、1.7、刷机、7A/7B 实机 HIL、push 仍不开放。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R10）
+
+### [2026-09-03 20:38] Codex 复验 1.6 B1R10：基础门禁绿，但新增 oracle 仍假绿；退 B1R11
+
+- 固定审查固件仓 `5e23f4c140e1a4085d690387c50c634a8b29014a...7be9716d18fd94a8553aed9da78db9aba8f20d6b`。白名单成立，`APP/**` 与 pins 零改；Codex 独立复跑 adapter 67、`build-wbs15.sh`、`build-wbs14.sh` 均绿。构建生成文档已恢复，固件树 clean。
+- Codex 以内存 relocation 反例复验当前 wiring 谓词：把 tick call 移到 POWER_OFF 右花括号之后、或把 clear pair 移到 RELEASED 右花括号之后，两个谓词仍分别输出 `True`，因此当前“作用域化”并未闭合。
+
+**Standards**
+
+- **P1 — block 10 的 before/after oracle 是恒真比较。** 被拒 BLE arrival 已在前执行，随后才复制 `snap10` 并立即与同一 `tmp_cmd` 比较；拒绝路径写坏 buffer 的 mutant 仍全绿。
+- **P1 — wiring 区域仍跨目标花括号。** main 区域从 POWER_OFF 条件一直延伸到更后的 COMMAND_TODO，包含多个其它事件；RELEASED 区域从条件一直延伸到 EOF。两者均接受“移到目标块之后”的错误接线。
+- **P2 — fixture 隔离未实现。** `reset_fixture()` 仍未清 `tmp_cmd`，与 handoff 的“增清 tmp_cmd”不符。
+
+**Spec**
+
+- **P1 — block 10 未在调用前快照。** 未杀死 B1R10 指定的 reject-write mutant。
+- **P1 — reset 重接纳方向错误。** reset 前 owner/latches 被置为 USB，reset 后仍用 USB admission，却标成 opposite；任务卡要求旧 owner 的另一 transport。
+- **P1 — wiring 的 call/clear 两个真正块外 relocation 均假绿。** 当前只自检事件之前的 call；未提供 clear relocation 非零证据。
+- **P1 — 必需 mutant 证据不完整。** 未发现 block10 reject-write、reset latch/re-admit、clear-after-branch 的 durable 非零输出。
+- **P1 — 报告提交链和表格仍错。** rows 13–15 引用客户端调度提交 `e1e0f46`，不是固件 B1R10 H/E `48ab663`/`7be9716`；row 15 仍只有五列；row 6 的 byte-exact oracle 首见于 B1R10，却只绑 B1R9。
+- **P1 — fixture 未按任务卡显式清 byte-exact 依赖状态。** `tmp_cmd` 仍继承前块内容。
+
+**B1R11（只修上述机械缺口）**
+
+1. Block 10 必须在 BLE drop 调用**之前**复制 `tmp_cmd`，调用后再全 512B `memcmp`；实测“busy reject 仍写 tmp” mutant 非零。
+2. `reset_fixture()` 显式 `memset(tmp_cmd, 0, sizeof(tmp_cmd))`；凡参与 byte-exact 判断的其它夹具状态也须确定性初始化。
+3. Block 14 保留全 state 与 init 的对照，但旧 owner 若 seed 为 USB，reset 后必须用 BLE 完整 command 经真实 adapter admission；建议使用局部 tmp/rx counter，避免全局夹具污染。实测 reset 漏清 latch 或 opposite re-admit 被拒 mutant 非零。
+4. Wiring test 使用 brace-balanced（且能跳过注释/字符串）或等价的精确语句块提取；region 只能包含目标 `{...}` body。实测 tick call 移到 POWER_OFF 右花括号后、clear pair 移到 RELEASED 右花括号后，两类 mutant 均非零；不得以“移到事件之前”替代第一类。
+5. 把上述 mutant 的命令、预期与非零结果写入 committed evidence/report。报告 row 6 绑定 B1R10；rows 13–15 使用固件 H=`48ab663` 与相应 E/最终 HEAD，不得引用客户端 `e1e0f46`；row 15 补 production entry，严格六列。
+6. 白名单仍仅 transport arbiter/wiring tests、报告和必要 evidence；不得改 `APP/**`、pins、VBUS/1.7 行为。复跑 adapter/B4、wbs15、wbs14、diff check 与 lifecycle；完成后停手提审。
+7. B1 不关闭；VBUS B2、1.7、刷机、7A/7B 实机 HIL、push 继续冻结。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R11）
