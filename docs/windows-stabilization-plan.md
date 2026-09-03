@@ -182,7 +182,7 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
   上传回调成功后才复制并保存 metadata，重启从 `StudioStore` 恢复，预览不读取设备 GIF 数据。
   自动测试完成，GIF/OLED 真机和 UI 手工验证待执行。
 
-本轮自动测试新增 17 个定向测试（WCHISP 13、managed screen asset 4）；完整 Maven
+本轮自动测试新增 20 个定向测试（WCHISP 13、managed screen asset 7）；完整 Maven
 结果以下一节以实际命令输出为准。当前工作区外层 `C:\aha\ahakey-windows\windows-stabilization-plan.md`
 不存在，无法伪造同步；本文件仍是 `desktop` 工程唯一可用事实源。
 
@@ -216,8 +216,8 @@ USB/BLE/GIF/OLED/语音设备均属于外部依赖；firmware 1.4.7 HEX/provenan
 已确认允许省略 FirmwareHex，但因同一基线缺少 `AhaKeyStudio.ico` 退出。
 以上不替代正式 overlay、签名安装包或真机验证。
 
-本轮复核结果（2026-09-04）：`mvn clean test` 通过（168/0/0/0），`mvn clean package`
-通过（168/0/0/0），并由 package 内置及独立 `Test-ReleaseArtifactContents.ps1` 验证
+本轮复核结果（2026-09-04）：`mvn clean test` 通过（171/0/0/0），`mvn clean package`
+通过（171/0/0/0），并由 package 内置及独立 `Test-ReleaseArtifactContents.ps1` 验证
 本地 JAR 含 BLE/审批/状态/模式类、`ScreenAnimationAssetStore`、WCHISP 脱敏资源和
 `firmware-capabilities.properties`。五个 PowerShell 脚本解析通过；WCHISP privacy fixture
 返回 `WCHISP_RELEASE_PRIVACY=OK`。使用本地构造的基线 JAR 做 overlay smoke test 返回
