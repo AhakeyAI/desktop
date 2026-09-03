@@ -17,7 +17,8 @@ $required = @(
     (Join-Path $baselineApp "models\decoder.int8.onnx"),
     (Join-Path $baselineApp "models\silero_vad.onnx"),
     (Join-Path $baselineApp "models\tokens.txt"),
-    (Join-Path $WchIspBundleDir "WCHISPTool_CH57x-59x.exe")
+    (Join-Path $WchIspBundleDir "WCHISPTool_CH57x-59x.exe"),
+    $sanitizedConfig
 )
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path)) {
@@ -40,6 +41,7 @@ New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
 $baselineZip = Join-Path $resolvedOutput "AhaKeyStudio-voice-baseline.zip"
 $wchIspZip = Join-Path $resolvedOutput "WCHISPTool-CH57x-59x.zip"
 $wchIspStage = Join-Path $resolvedOutput "wchisp-sanitized"
+$sanitizedConfig = Join-Path $PSScriptRoot "src\main\resources\wchisp\CONFIG_CH57X59X-3.6.1-sanitized.WCH"
 foreach ($archive in @($baselineZip, $wchIspZip)) {
     if (Test-Path -LiteralPath $archive) {
         Remove-Item -LiteralPath $archive -Force
@@ -50,8 +52,14 @@ if (Test-Path -LiteralPath $wchIspStage) {
 }
 New-Item -ItemType Directory -Force -Path $wchIspStage | Out-Null
 Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
-    Where-Object { $_.Name -ne "CONFIG_CH57X59X.WCH" } |
+    Where-Object {
+        $_.Name -notin @("CONFIG_CH57X59X.WCH", "CONFIG_CH57X59X.WCH.excluded")
+    } |
     Copy-Item -Destination $wchIspStage -Recurse
+Copy-Item -LiteralPath $sanitizedConfig -Destination `
+    (Join-Path $wchIspStage "CONFIG_CH57X59X.WCH")
+. (Join-Path $PSScriptRoot "Test-WchIspReleasePrivacy.ps1")
+Assert-WchIspReleasePrivacy -RootPath $wchIspStage
 
 Compress-Archive `
     -LiteralPath $BaselineInstallDir `

@@ -8,8 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -17,6 +19,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class WindowsWchIspFlasher implements FirmwareFlasher {
+    static final String SANITIZED_CONFIG_RESOURCE =
+        "/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH";
+    static final int WCH_CONFIG_LENGTH = 66841;
+    static final int WCH_PATH_SLOT_BYTES = 520;
+    static final int[] WCH_PATH_SLOT_OFFSETS = {
+        36486, 37006, 37526, 63172, 63692
+    };
+    static final int CH582_SLOT_INDEX = 0;
+    static final String SANITIZED_LAYOUT_SHA256 =
+        "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8";
     private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(5);
     private static final Pattern STATUS_PATTERN = Pattern.compile(
         "\"Status\"\\s*:\\s*\"(Finished|Fail)\""
@@ -56,10 +68,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             "CH343PT.DLL", directory.resolve("CH343PT.DLL"));
         ready &= check(checks, Files.isRegularFile(directory.resolve("WCH55xISPDLL.dll")),
             "WCH55xISPDLL.dll", directory.resolve("WCH55xISPDLL.dll"));
-        Path raw = directory.resolve("CONFIG_CH57X59X.WCH");
-        Path excluded = directory.resolve("CONFIG_CH57X59X.WCH.excluded");
-        ready &= check(checks, Files.isRegularFile(raw) || Files.isRegularFile(excluded),
-            "CH57x-59x 基础配置", Files.isRegularFile(raw) ? raw : excluded);
+        ready &= check(checks, bundledSanitizedConfigAvailable(),
+            "受控脱敏 CH57x-59x 基础配置", Path.of(SANITIZED_CONFIG_RESOURCE.substring(1)));
         try {
             Path probe = Files.createTempFile("ahakey-wchisp-write-test-", ".tmp");
             Files.deleteIfExists(probe);
@@ -737,15 +747,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
 
         Path preparedExecutable = destination.resolve(executable.getFileName());
         Path defaultConfig = destination.resolve("CONFIG_CH57X59X.WCH");
-        Path excludedConfig = destination.resolve("CONFIG_CH57X59X.WCH.excluded");
-        if (!Files.isRegularFile(defaultConfig) && Files.isRegularFile(excludedConfig)) {
-            Files.copy(excludedConfig, defaultConfig, StandardCopyOption.REPLACE_EXISTING);
-        }
-        if (!Files.isRegularFile(defaultConfig)) {
-            throw new IOException(
-                "WCHISP 工具包缺少必需的 CONFIG_CH57X59X.WCH 基础配置"
-            );
-        }
+        // The mutable machine CONFIG is deliberately excluded. Every invocation
+        // starts from the repository-controlled, fingerprinted sanitized baseline.
+        copyBundledSanitizedConfig(defaultConfig);
         patchCh582FirmwarePath(defaultConfig, firmwareHex);
         if (!Files.isRegularFile(defaultConfig) || Files.size(defaultConfig) < 1024) {
             throw new IOException("WCHISP 临时基础配置生成失败或文件不完整");
@@ -756,6 +760,11 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     private void copyDirectory(Path source, Path destination) throws IOException {
         try (var paths = Files.walk(source)) {
             for (Path path : paths.toList()) {
+                if (Files.isRegularFile(path)
+                    && (path.getFileName().toString().equalsIgnoreCase("CONFIG_CH57X59X.WCH")
+                        || path.getFileName().toString().equalsIgnoreCase("CONFIG_CH57X59X.WCH.excluded"))) {
+                    continue;
+                }
                 Path target = destination.resolve(source.relativize(path));
                 if (Files.isDirectory(path)) {
                     Files.createDirectories(target);
@@ -768,55 +777,116 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         }
     }
 
+    private static boolean bundledSanitizedConfigAvailable() {
+        try (InputStream stream = WindowsWchIspFlasher.class
+            .getResourceAsStream(SANITIZED_CONFIG_RESOURCE)) {
+            return stream != null;
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
+    private static void copyBundledSanitizedConfig(Path destination) throws IOException {
+        try (InputStream stream = WindowsWchIspFlasher.class
+            .getResourceAsStream(SANITIZED_CONFIG_RESOURCE)) {
+            if (stream == null) {
+                throw new IOException("缺少受控脱敏 WCHISP 基础配置资源");
+            }
+            Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
+        }
+        byte[] bytes = Files.readAllBytes(destination);
+        if (!SANITIZED_LAYOUT_SHA256.equals(layoutFingerprint(bytes))) {
+            throw new IOException("受控脱敏 WCHISP 基础配置指纹不匹配");
+        }
+    }
+
     static void patchCh582FirmwarePath(Path config, Path firmwareHex)
         throws IOException {
         byte[] bytes = Files.readAllBytes(config);
-        List<Utf16Path> paths = findFirmwarePaths(bytes);
-        if (paths.size() != 1) {
-            throw new IOException(
-                "WCHISP 基础配置中的固件路径数量异常：" + paths.size()
-            );
-        }
-
-        Utf16Path existing = paths.get(0);
+        WchConfigLayout layout = inspectLayout(bytes);
         byte[] replacement = firmwareHex.toAbsolutePath().normalize()
-            .toString()
-            .getBytes(StandardCharsets.UTF_16LE);
-        int fieldBytes = 520;
-        if (replacement.length + 2 > fieldBytes
-            || existing.offset() + fieldBytes > bytes.length) {
+            .toString().getBytes(StandardCharsets.UTF_16BE);
+        if (replacement.length + 2 > WCH_PATH_SLOT_BYTES) {
             throw new IOException("固件路径过长，WCHISP 配置无法保存");
         }
-        for (int index = existing.offset();
-             index < existing.offset() + fieldBytes;
-             index++) {
-            bytes[index] = 0;
-        }
-        System.arraycopy(replacement, 0, bytes, existing.offset(), replacement.length);
+        int targetOffset = layout.slotOffsets()[CH582_SLOT_INDEX];
+        Arrays.fill(bytes, targetOffset, targetOffset + WCH_PATH_SLOT_BYTES, (byte) 0);
+        System.arraycopy(replacement, 0, bytes, targetOffset, replacement.length);
         Files.write(config, bytes);
     }
 
-    private static List<Utf16Path> findFirmwarePaths(byte[] bytes) {
-        List<Utf16Path> paths = new ArrayList<>();
-        int index = 0;
-        while (index + 1 < bytes.length) {
-            int start = index;
-            StringBuilder value = new StringBuilder();
-            while (index + 1 < bytes.length
-                && bytes[index + 1] == 0
-                && bytes[index] >= 0x20
-                && bytes[index] <= 0x7E) {
-                value.append((char) bytes[index]);
-                index += 2;
-            }
-            String text = value.toString().toLowerCase(Locale.ROOT);
-            if (value.length() >= 4
-                && (text.endsWith(".hex") || text.endsWith(".bin"))) {
-                paths.add(new Utf16Path(start));
-            }
-            index = Math.max(index + 1, start + 1);
+    static WchConfigLayout inspectLayout(byte[] bytes) throws IOException {
+        if (bytes == null || bytes.length != WCH_CONFIG_LENGTH) {
+            throw unsupportedLayout("配置长度不匹配");
         }
-        return paths;
+        if (!SANITIZED_LAYOUT_SHA256.equals(layoutFingerprint(bytes))) {
+            throw unsupportedLayout("layout fingerprint 不匹配");
+        }
+        String[] slots = new String[WCH_PATH_SLOT_OFFSETS.length];
+        for (int index = 0; index < WCH_PATH_SLOT_OFFSETS.length; index++) {
+            slots[index] = decodePathSlot(bytes, WCH_PATH_SLOT_OFFSETS[index]);
+            if (!slots[index].isBlank()
+                && !slots[index].toLowerCase(Locale.ROOT).endsWith(".hex")
+                && !slots[index].toLowerCase(Locale.ROOT).endsWith(".bin")) {
+                throw unsupportedLayout("path slot " + index + " 不是合法 .hex/.bin UTF-16BE 字段");
+            }
+        }
+        String target = slots[CH582_SLOT_INDEX].toLowerCase(Locale.ROOT);
+        if (!target.isBlank() && !target.contains("ch582")) {
+            throw unsupportedLayout("CH582 target slot 当前值无效");
+        }
+        return new WchConfigLayout(Arrays.copyOf(WCH_PATH_SLOT_OFFSETS,
+            WCH_PATH_SLOT_OFFSETS.length), slots);
+    }
+
+    private static String decodePathSlot(byte[] bytes, int offset) throws IOException {
+        if ((offset & 1) != 0 || offset < 0
+            || offset + WCH_PATH_SLOT_BYTES > bytes.length) {
+            throw unsupportedLayout("path slot 边界无效");
+        }
+        StringBuilder value = new StringBuilder();
+        boolean terminated = false;
+        for (int index = offset; index < offset + WCH_PATH_SLOT_BYTES; index += 2) {
+            int codeUnit = ((bytes[index] & 0xFF) << 8) | (bytes[index + 1] & 0xFF);
+            if (codeUnit == 0) {
+                terminated = true;
+                for (int rest = index + 2; rest < offset + WCH_PATH_SLOT_BYTES; rest++) {
+                    if (bytes[rest] != 0) throw unsupportedLayout("path slot 尾部不是零填充");
+                }
+                break;
+            }
+            if (codeUnit < 0x20 || codeUnit > 0x7E) {
+                throw unsupportedLayout("path slot 含非法 UTF-16 字符");
+            }
+            value.append((char) codeUnit);
+        }
+        if (!terminated) throw unsupportedLayout("path slot 缺少 UTF-16 NUL 终止符");
+        return value.toString();
+    }
+
+    static String layoutFingerprint(byte[] bytes) throws IOException {
+        if (bytes == null || bytes.length != WCH_CONFIG_LENGTH) {
+            throw unsupportedLayout("配置长度不匹配");
+        }
+        byte[] normalized = Arrays.copyOf(bytes, bytes.length);
+        for (int offset : WCH_PATH_SLOT_OFFSETS) {
+            if (offset < 0 || offset + WCH_PATH_SLOT_BYTES > normalized.length) {
+                throw unsupportedLayout("path slot 边界无效");
+            }
+            Arrays.fill(normalized, offset, offset + WCH_PATH_SLOT_BYTES, (byte) 0);
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalized);
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte value : digest) hex.append(String.format("%02x", value & 0xFF));
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IOException("JVM 缺少 SHA-256", impossible);
+        }
+    }
+
+    private static IOException unsupportedLayout(String detail) {
+        return new IOException("Unsupported WCHISP configuration layout: " + detail);
     }
 
     private static void copy(InputStream input, ByteArrayOutputStream output) {
@@ -881,7 +951,13 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         }
     }
 
+    record WchConfigLayout(int[] slotOffsets, String[] slotValues) {
+        WchConfigLayout {
+            slotOffsets = Arrays.copyOf(slotOffsets, slotOffsets.length);
+            slotValues = Arrays.copyOf(slotValues, slotValues.length);
+        }
+    }
+
     private record CommandResult(int exitCode, String output) {}
-    private record Utf16Path(int offset) {}
     public record EnvironmentReport(boolean ready, List<String> checks) {}
 }

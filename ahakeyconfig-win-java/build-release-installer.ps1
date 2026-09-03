@@ -167,23 +167,22 @@ if ($IncludeLicensedWchIsp) {
     $wchDir = Join-Path $inputDir "tools\wchisp"
     New-Item -ItemType Directory -Force -Path $wchDir | Out-Null
     Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
-        Where-Object { $_.Name -ne "CONFIG_CH57X59X.WCH" } |
+        Where-Object {
+            $_.Name -notin @("CONFIG_CH57X59X.WCH", "CONFIG_CH57X59X.WCH.excluded")
+        } |
         Copy-Item -Destination $wchDir -Recurse
-    $wchConfig = Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH"
-    $excludedConfig = Join-Path $wchDir "CONFIG_CH57X59X.WCH.excluded"
-    if (Test-Path -LiteralPath $wchConfig -PathType Leaf) {
-        Copy-Item -LiteralPath $wchConfig -Destination $excludedConfig
+    $sanitizedConfig = Join-Path $projectDir "src\main\resources\wchisp\CONFIG_CH57X59X-3.6.1-sanitized.WCH"
+    if (-not (Test-Path -LiteralPath $sanitizedConfig -PathType Leaf)) {
+        throw "Repository-controlled sanitized WCHISP configuration is missing."
     }
+    Copy-Item -LiteralPath $sanitizedConfig -Destination `
+        (Join-Path $wchDir "CONFIG_CH57X59X.WCH")
     if (-not (Test-Path -LiteralPath `
         (Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"))) {
         throw "WCHISP bundle does not contain WCHISPTool_CH57x-59x.exe at its root."
     }
-    if (Test-Path -LiteralPath (Join-Path $wchDir "CONFIG_CH57X59X.WCH")) {
-        throw "Mutable WCHISP UI state must not be bundled into the release."
-    }
-    if (-not (Test-Path -LiteralPath $excludedConfig -PathType Leaf)) {
-        throw "WCHISP bundle is missing CONFIG_CH57X59X.WCH.excluded."
-    }
+    . (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1")
+    Assert-WchIspReleasePrivacy -RootPath $wchDir
 }
 
 $requiredModels = @(

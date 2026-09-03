@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WindowsWchIspFlasherTest {
@@ -50,9 +52,6 @@ class WindowsWchIspFlasherTest {
         Files.write(tool, new byte[]{1});
         Files.write(temporaryDirectory.resolve("CH343PT.DLL"), new byte[]{1});
         Files.write(temporaryDirectory.resolve("WCH55xISPDLL.dll"), new byte[]{1});
-        Files.write(temporaryDirectory.resolve("CONFIG_CH57X59X.WCH.excluded"),
-            new byte[2048]);
-
         var report = new WindowsWchIspFlasher(tool).diagnoseEnvironment();
 
         assertTrue(report.ready());
@@ -61,13 +60,29 @@ class WindowsWchIspFlasherTest {
     }
 
     @Test
-    void patchesSingleFirmwarePathInBinaryWchConfig() throws Exception {
+    void supportedLayoutContainsMultipleFixedPathSlots() throws Exception {
+        byte[] bytes = baseline();
+        for (int index = 0; index < WindowsWchIspFlasher.WCH_PATH_SLOT_OFFSETS.length; index++) {
+            writeSlot(bytes, index, index == 0
+                ? "C:\\firmware\\AhaKey-X1-firmware-1.4.7-ch582.hex"
+                : "C:\\history\\slot-" + index + ".bin");
+        }
+        WindowsWchIspFlasher.WchConfigLayout layout =
+            WindowsWchIspFlasher.inspectLayout(bytes);
+        assertEquals(5, layout.slotValues().length);
+        assertTrue(layout.slotValues()[0].contains("ch582"));
+    }
+
+    @Test
+    void patchesOnlyCh582SlotAndPreservesAllOtherBytes() throws Exception {
         Path config = temporaryDirectory.resolve("CONFIG_CH57X59X.WCH");
-        byte[] bytes = new byte[700];
-        Arrays.fill(bytes, (byte) 0);
-        int fieldOffset = 17;
-        byte[] oldPath = "C:\\old\\firmware.hex".getBytes(StandardCharsets.UTF_16LE);
-        System.arraycopy(oldPath, 0, bytes, fieldOffset, oldPath.length);
+        byte[] bytes = baseline();
+        for (int index = 0; index < WindowsWchIspFlasher.WCH_PATH_SLOT_OFFSETS.length; index++) {
+            writeSlot(bytes, index, index == 0
+                ? "C:\\old\\AhaKey-ch582.hex"
+                : "C:\\history\\slot-" + index + ".bin");
+        }
+        byte[] before = Arrays.copyOf(bytes, bytes.length);
         Files.write(config, bytes);
 
         Path firmware = temporaryDirectory.resolve("new-firmware.hex");
@@ -75,11 +90,50 @@ class WindowsWchIspFlasherTest {
 
         byte[] updated = Files.readAllBytes(config);
         byte[] expected = firmware.toAbsolutePath().normalize()
-            .toString()
-            .getBytes(StandardCharsets.UTF_16LE);
-        assertTrue(indexOf(updated, expected) == fieldOffset);
-        assertEquals(0, updated[fieldOffset + expected.length]);
-        assertEquals(0, updated[fieldOffset + expected.length + 1]);
+            .toString().getBytes(StandardCharsets.UTF_16BE);
+        int target = WindowsWchIspFlasher.WCH_PATH_SLOT_OFFSETS[0];
+        assertTrue(indexOf(updated, expected) == target);
+        for (int i = 0; i < updated.length; i++) {
+            if (i < target || i >= target + WindowsWchIspFlasher.WCH_PATH_SLOT_BYTES) {
+                assertEquals(before[i], updated[i], "unexpected byte change at " + i);
+            }
+        }
+    }
+
+    @Test
+    void unknownLayoutFailsClosed() throws Exception {
+        byte[] bytes = baseline();
+        bytes[123] ^= 0x01;
+        Path config = temporaryDirectory.resolve("unknown.WCH");
+        Files.write(config, bytes);
+        IOException failure = assertThrows(IOException.class, () ->
+            WindowsWchIspFlasher.patchCh582FirmwarePath(config,
+                temporaryDirectory.resolve("firmware.hex")));
+        assertTrue(failure.getMessage().contains("Unsupported WCHISP configuration layout"));
+    }
+
+    @Test
+    void pathOverCapacityFailsClosed() throws Exception {
+        Path config = temporaryDirectory.resolve("CONFIG_CH57X59X.WCH");
+        Files.write(config, baseline());
+        Path longPath = temporaryDirectory.resolve("x".repeat(400) + ".hex");
+        IOException failure = assertThrows(IOException.class, () ->
+            WindowsWchIspFlasher.patchCh582FirmwarePath(config, longPath));
+        assertTrue(failure.getMessage().contains("固件路径过长"));
+    }
+
+    @Test
+    void malformedUtf16SlotFailsClosed() throws Exception {
+        byte[] bytes = baseline();
+        int offset = WindowsWchIspFlasher.WCH_PATH_SLOT_OFFSETS[0];
+        bytes[offset] = 0x01;
+        bytes[offset + 1] = 0x02;
+        Path config = temporaryDirectory.resolve("malformed.WCH");
+        Files.write(config, bytes);
+        IOException failure = assertThrows(IOException.class, () ->
+            WindowsWchIspFlasher.patchCh582FirmwarePath(config,
+                temporaryDirectory.resolve("firmware.hex")));
+        assertTrue(failure.getMessage().contains("Unsupported WCHISP configuration layout"));
     }
 
     @Test
@@ -234,5 +288,22 @@ class WindowsWchIspFlasherTest {
             return index;
         }
         return -1;
+    }
+
+    private byte[] baseline() throws Exception {
+        try (var stream = WindowsWchIspFlasherTest.class.getResourceAsStream(
+            WindowsWchIspFlasher.SANITIZED_CONFIG_RESOURCE)) {
+            assertTrue(stream != null, "sanitized WCHISP fixture missing");
+            return stream.readAllBytes();
+        }
+    }
+
+    private void writeSlot(byte[] bytes, int slot, String value) {
+        int offset = WindowsWchIspFlasher.WCH_PATH_SLOT_OFFSETS[slot];
+        byte[] encoded = value.getBytes(StandardCharsets.UTF_16BE);
+        assertTrue(encoded.length + 2 <= WindowsWchIspFlasher.WCH_PATH_SLOT_BYTES);
+        Arrays.fill(bytes, offset,
+            offset + WindowsWchIspFlasher.WCH_PATH_SLOT_BYTES, (byte) 0);
+        System.arraycopy(encoded, 0, bytes, offset, encoded.length);
     }
 }
