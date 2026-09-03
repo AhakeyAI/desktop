@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R11 false-green closure`（B1R10 @ `7be9716` 退回；仅 host test/harness/report，不刷机、不 HIL）
+状态：`ready / 1.6 B1R12 exact-oracle closure`（B1R11 @ `3971ce2` 退回；仅 host test/harness/report，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2143,3 +2143,35 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 7. B1 不关闭；VBUS B2、1.7、刷机、7A/7B 实机 HIL、push 继续冻结。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R11）
+
+### [2026-09-03 21:03] Codex 复验 1.6 B1R11：部分修复成立，handoff 错轮次；退 B1R12
+
+- 固定审查固件仓 `7be9716d18fd94a8553aed9da78db9aba8f20d6b...3971ce204179ef7cb4a260cb7c44a7129761f288`。实际提交为 B1R11 test/wiring/report/evidence，不是 handoff 所写的 B2AR4 三处字面修正；row 20 SHA、row 19 绑定、§4.1 标题在本轮 diff 中均未变化。白名单成立，`APP/**`、pins/build 零改；Codex 独立复跑 adapter、wbs15、wbs14 均绿，恢复生成文档后固件树 clean。
+- 已通过并冻结：`reset_fixture()` 现确实清 `tmp_cmd`；RELEASED 分支已使用括号平衡区域，clear-after-branch 不再落入目标 region；reset 全 state 与 init 的 memcmp 保留。
+
+**Standards**
+
+- **P1 — block 10 仍先执行一次 drop 再快照。** 新代码没有移动旧调用，而是在快照后又复制了一次相同调用；确定性的 reject-write 可在两次写相同坏值而假绿，且套件出现两个同名 `busy BLE frame dropped`。
+- **P1 — POWER_OFF 仍非 brace-precise。** `tick_event` 仍从 POWER_OFF 条件延伸至后面的 COMMAND_TODO，包含多个其它事件；把 tick call 移到 POWER_OFF 右花括号后仍通过，Codex 已复现 `call-after-POWER_OFF-brace accepted=True`。
+- **P2 — 报告头与本轮事实冲突。** 报告仍称 docs-only、无 tests/harness change、HEAD=`b03433e`，但本轮实际修改 C/Python 测试并止于 `3971ce2`；reject-write 段只列 block 11 failures，不能支持 row 6/block 10。
+
+**Spec**
+
+- **P1 — block 10 指定 oracle/mutant 未闭合。** 必须是一次“snapshot → 单次 rejected arrival → memcmp”；当前两次 arrival 结构不满足。
+- **P1 — reset opposite transport 仍错误。** 旧 owner/latches seed 为 USB，reset 后仍 admission USB；应改 BLE。
+- **P1 — POWER_OFF after-brace relocation 仍假绿。** 只有 RELEASED 使用 brace scan，且该扫描器尚未跳过注释/字符串。
+- **P1 — mutant evidence 不完整。** 缺 tick-after-POWER_OFF 非零证据；没有可复现命令与明确退出码；reject-write 实际由 block 11 报错，而非 block 10。
+- **P1 — 报告 H/E 与六列仍未修。** row 6 仍只绑 B1R9；rows 13–15 仍引用客户端 `e1e0f46`；row 15 仍只有五列。
+- **P2 — 本次 handoff 内容属于已完成的 B2AR4，不描述 `3971ce2` 实际 diff。** 后续 handoff 必须逐项对账当前 B1R12。
+
+**B1R12（机械收口，不再扩项）**
+
+1. Block 10 删除快照前的旧 BLE drop，只保留 `snapshot → 一次 BLE drop → memcmp`；reject-write mutant 必须由 block 10 byte-exact CHECK 明确报错。
+2. Block 14 若 seed USB，则 reset 后用 BLE 完整命令经真实 adapter admission，并断言 BLE latch/busy；不要再把 USB→USB 写成 opposite。
+3. 抽取一个能跳过 C 注释/字符串的 brace-balanced body helper，同时用于 POWER_OFF 与 RELEASED；实测 tick call 移到 POWER_OFF 右花括号后和 clear pair 移到 RELEASED 右花括号后均非零。
+4. Committed evidence 写出四类 mutant 的可复现命令/变更、实际非零 exit 与命中的精确 CHECK：block10 reject-write、reset latch/opposite admission、tick-after-POWER_OFF、clear-after-RELEASED。
+5. 报告 row 6 绑定 B1R10/B1R12；rows 13–15 改用真实固件 H/E（不得用客户端 `e1e0f46`），row 15 补 production entry 成六列；报告头区分 B2A 采集基线与当前 B1R12 test/harness 更新，不再声称整份报告仍 docs-only。
+6. 白名单仍仅 arbiter/wiring tests、报告与必要 evidence；不改 `APP/**`、pins、VBUS/1.7。复跑 adapter/B4、wbs15、wbs14、diff check、lifecycle 后停手提审。
+7. B1 不关闭；VBUS B2、1.7、刷机、7A/7B 实机 HIL、push 继续冻结。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R12）
