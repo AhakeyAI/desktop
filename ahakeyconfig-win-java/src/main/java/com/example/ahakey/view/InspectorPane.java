@@ -963,36 +963,13 @@ public class InspectorPane extends ScrollPane {
             asset.setWrapText(true);
 
             HBox actions = new HBox(8);
-            Button pick = new Button(languageManager.getString("inspector.oled-select"));
-            pick.getStyleClass().add("button-prominent");
-            pick.setMinWidth(80);
-            pick.setOnAction(e -> {
+            Button configure = new Button("配置屏幕动画");
+            configure.getStyleClass().add("button-prominent");
+            configure.setOnAction(e -> {
                 Window w = getScene() != null ? getScene().getWindow() : null;
-                controller.selectOledGif(w);
-                rebuild();
+                ScreenAnimationDialog.show(w, controller, studioState.getSelectedMode());
             });
-            Button upload = new Button(languageManager.getString("inspector.oled-upload"));
-            upload.getStyleClass().add("button-prominent");
-            upload.setMinWidth(90);
-            upload.disableProperty().bind(Bindings.createBooleanBinding(
-                () -> !deviceStatus.isConnected() || studioState.uploadingOledProperty().get()
-                    || draft.getLocalAssetPath() == null,
-                deviceStatus.isConnectedProperty(),
-                studioState.uploadingOledProperty(),
-                draft.localAssetPathProperty()
-            ));
-            upload.textProperty().bind(Bindings.createStringBinding(
-                () -> studioState.uploadingOledProperty().get() ? languageManager.getString("inspector.oled-uploading") : languageManager.getString("inspector.oled-upload"),
-                studioState.uploadingOledProperty()
-            ));
-            upload.setOnAction(e -> controller.uploadCurrentOledToDevice());
-            Button clear = new Button(languageManager.getString("inspector.clear"));
-            clear.setMinWidth(60);
-            clear.setOnAction(e -> {
-                studioState.clearOledPreview();
-                rebuild();
-            });
-            actions.getChildren().addAll(pick, upload, clear);
+            actions.getChildren().add(configure);
 
             Label progress = new Label();
             progress.textProperty().bind(studioState.oledUploadDetailProperty());
