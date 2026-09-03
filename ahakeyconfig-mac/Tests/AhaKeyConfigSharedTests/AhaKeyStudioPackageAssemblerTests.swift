@@ -864,6 +864,128 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         )
     }
 
+    func testStandardWholeGroupRequiresConfirmationEvenWhenVerified() {
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .legacyStandard,
+                selectedTaskSet: 0,
+                overwriteConfirmed: false,
+                fields: standardCompleteSet(logicalSet: 0, prefix: "/tmp/verified")
+            )
+        )
+        XCTAssertEqual(assembly, .requiresOverwriteConfirmation)
+    }
+
+    func testStandardUnknownSiblingsRequireConfirmationThenOverwrite() {
+        let fields = standardCompleteSet(logicalSet: 0, prefix: "/tmp/mix").map { field -> AhaKeyStudioFrozenField in
+            if case .screenTaskAsset(_, _, .done) = field.id {
+                return AhaKeyStudioFrozenField(
+                    id: field.id,
+                    value: field.value,
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: field.baseline.value)
+                )
+            }
+            return AhaKeyStudioFrozenField(
+                id: field.id,
+                value: field.value,
+                isDirty: false,
+                baseline: .unknown
+            )
+        }
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    profile: .legacyStandard,
+                    selectedTaskSet: 0,
+                    overwriteConfirmed: false,
+                    fields: fields
+                )
+            ),
+            .requiresOverwriteConfirmation
+        )
+        guard case .write(let plan) = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .legacyStandard,
+                selectedTaskSet: 0,
+                overwriteConfirmed: true,
+                fields: fields
+            )
+        ) else {
+            return XCTFail("确认后应覆盖写入整组")
+        }
+        XCTAssertTrue(plan.overwriteSemantic)
+        XCTAssertEqual(plan.fieldMask, Set(plan.values.keys))
+        XCTAssertEqual(plan.values.count, AhaKeyTaskDisplayState.legacyStates.count)
+    }
+
+    func testInvalidFrozenSelectionFailsClosedBeforePictureOrActivation() {
+        let pictures = standardCompleteSet(logicalSet: 0, prefix: "/tmp/sel")
+        let activeSet = AhaKeyStudioFrozenField(
+            id: .screenActiveSet(modeSlot: 0),
+            value: .integer(1),
+            isDirty: true,
+            baseline: .init(trust: .verified, value: .integer(0))
+        )
+        for selected in [-1, 2] {
+            for profile in [
+                AhaKeyOLEDCompatibilityProfile.legacyStandard,
+                .rhinoDualSet(sessionUploadAdvertised: false),
+                .currentSessionCapable,
+            ] {
+                XCTAssertEqual(
+                    AhaKeyStudioPackageAssembler.assembleScopedPage(
+                        AhaKeyStudioPageSnapshot(
+                            pageID: .screen(modeSlot: 0),
+                            profile: profile,
+                            selectedTaskSet: selected,
+                            overwriteConfirmed: true,
+                            fields: pictures
+                        )
+                    ),
+                    .missingTrustedPageCache,
+                    "picture selected=\(selected) \(profile)"
+                )
+                XCTAssertEqual(
+                    AhaKeyStudioPackageAssembler.assembleScopedPage(
+                        AhaKeyStudioPageSnapshot(
+                            pageID: .screen(modeSlot: 0),
+                            profile: profile,
+                            selectedTaskSet: selected,
+                            fields: [activeSet]
+                        )
+                    ),
+                    .missingTrustedPageCache,
+                    "activeSet selected=\(selected) \(profile)"
+                )
+            }
+        }
+    }
+
+    func testStandardMalformedActiveSetFailsClosedInsteadOfNoOp() {
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    profile: .legacyStandard,
+                    selectedTaskSet: 1,
+                    fields: [
+                        AhaKeyStudioFrozenField(
+                            id: .screenActiveSet(modeSlot: 0),
+                            value: .text("1"),
+                            isDirty: true,
+                            baseline: .init(trust: .verified, value: .integer(0))
+                        ),
+                    ]
+                )
+            ),
+            .missingTrustedPageCache
+        )
+    }
+
     func testUnsupportedProfileDoesNotAssembleWrite() {
         let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
             AhaKeyStudioPageSnapshot(

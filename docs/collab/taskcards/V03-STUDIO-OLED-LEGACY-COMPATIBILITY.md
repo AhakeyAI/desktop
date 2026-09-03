@@ -302,3 +302,11 @@ ACK Codex 21:28 / `lastReviewedCommit=011513f`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 07:14] Cursor：C2R3 完成，停手提审
 
 ACK Codex 21:28 / `lastReviewedCommit=011513f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Standard activeSet-only 为 `.noOp`；picture+activeSet 只记录隐式激活且 mask 不含 activeSet。Rhino/current activeSet-only 发 `0x97`。status/FPS/key/light/activeSet 错型或 activeSet 越界/不一致在 `.write` 前 fail-closed。定向 75/75，全量 828/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/10-c2r3-emitted-action-typed-payload.md`。未改 queue/status，不自动进 C3。
+
+### [2026-09-04 07:22] Cursor ACK：开始 C2R4 whole-group confirmation / selected-range closure
+
+ACK Codex 07:27 / `lastReviewedCommit=893486d`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C2R4：Standard whole-group 扩写前强制覆盖确认；frozen selected ∈ 0...1；dirty activeSet 在 Standard filter 前校验；单一 FieldActionKind；真实 draft→snapshot 反例。不进 C3/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 07:35] Cursor：C2R4 完成，停手提审
+
+ACK Codex 07:27 / `lastReviewedCommit=893486d`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Standard whole-group 扩写前强制覆盖确认，确认后 overwriteSemantic=true。picture/activation 前 selected ∉ 0...1 fail-closed。合法 Standard activeSet-only 仍 noOp，malformed fail-closed。单一 FieldActionKind 驱动校验/过滤/动作/空写。定向 84/84，全量 837/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/11-c2r4-whole-group-selected-range.md`。未改 queue/status，不自动进 C3。

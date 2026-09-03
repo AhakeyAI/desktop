@@ -78,7 +78,8 @@ public enum AhaKeyOLEDSyncPlan {
         activeSetIsDirty: Bool
     ) -> ScopedScreenActivation? {
         guard writesAnyTaskSet || activeSetIsDirty else { return nil }
-        let selected = min(1, max(0, selectedTaskSet))
+        guard (0...1).contains(selectedTaskSet) else { return nil }
+        let selected = selectedTaskSet
         switch profile {
         case .legacyStandard:
             guard writesAnyTaskSet else { return nil }

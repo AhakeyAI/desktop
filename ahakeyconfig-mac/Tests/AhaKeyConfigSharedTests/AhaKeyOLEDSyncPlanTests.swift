@@ -132,6 +132,18 @@ final class AhaKeyOLEDSyncPlanTests: XCTestCase {
 
         XCTAssertNil(AhaKeyOLEDSyncPlan.scopedScreenActivation(
             profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 2,
+            writesAnyTaskSet: true,
+            activeSetIsDirty: true
+        ))
+        XCTAssertNil(AhaKeyOLEDSyncPlan.scopedScreenActivation(
+            profile: .legacyStandard,
+            selectedTaskSet: -1,
+            writesAnyTaskSet: true,
+            activeSetIsDirty: false
+        ))
+        XCTAssertNil(AhaKeyOLEDSyncPlan.scopedScreenActivation(
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
             selectedTaskSet: 0,
             writesAnyTaskSet: false,
             activeSetIsDirty: false
