@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B2AR3 report correction`（B2AR2 @ `2efb0a2` 未验收；补齐实际遗漏字段后再补 B1R9 host oracle；不刷机、不 HIL）
+状态：`ready / 1.6 B2AR4 evidence literal correction`（B2AR3 @ `b34a407` 未验收；仅纠正 ELF/stack 世代与标题后再补 B1R9；不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2018,3 +2018,25 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 5. 白名单仍仅报告、本卡与 append-only board。B1R9、VBUS B2、1.7、刷机、7A/7B HIL、push 均不开放；B2AR3 accepted 后先进入 B1R9，而不是直接进入 1.7/VBUS B2。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B2AR3 docs-only）
+
+### [2026-09-03 19:39] Codex 复验 1.6 B2AR3：主体通过，退 B2AR4 纠正三处证据字面值
+
+- 固定审查固件仓 `2efb0a2cc3ab17dcea7e200b794168bf84717779...b34a40773551c8bd396803de6e0ee69715316c22`。单提交仅改报告，`git diff --check` 通过，固件树 clean。Rows 16–20 六列、三变体 stack 数值、冻结路径、VBUS row 11、§7B command/timeout/TBD 与完整 raw path 均成立。
+
+**Standards**
+
+- **P2 — §4.1 标题仍残留 B1R7。** 正文已改为 B1R8，但标题仍写 `B2A/B1R7 修正后`，造成同节内部证据世代矛盾。硬性违规 0，判断项 1，最严重 P2。
+
+**Spec**
+
+- **P1 — row 20 的 ELF SHA 与仓内 pin/实物不符。** `tools/build-wbs14.sh:269-270`、`158e91d` 提交态与当前缓存 ELF 独立 SHA-256 均为 default `7d51364361a82a630e890676f4944690810db63fcad2501f96dcc0d543de2a05`、bridge `49f517765b078a2482706a1d815b6908faa08372b60f0415426dcf4a0cdbdcbc`；报告写的 `2b5df611…/3d3decbf…` 不存在。E=`82cf9c4` / harness=`a34ef77` 部分正确。
+- **P2 — row 19 stack 数值正确，但 evidence 仍停在 B1R7。** `8ea2ce4` 不是最近 B1R8 证据，且三变体绑定被压缩。需显式写 default=`112/320/816`、diag=`112/320/832`、bridge=`112/320/816`；default/diag 最近 wbs15 final E=`b03433e`、report harness=`82cf9c4`，bridge 最近 wbs14 E=`82cf9c4`、report harness=`a34ef77`。
+
+**B2AR4（仅三处字面替换）**
+
+1. Row 20 恢复上述 `7d513643…` / `49f51776…` 两个真实 EXPECT_SHA，保留正确的 B1R8 E/harness。
+2. Row 19 显式展开 default/diag/bridge 三组 stack totals，并换成上述最新 B1R8 wbs15/wbs14 evidence chain。
+3. §4.1 标题由 B1R7 改 B1R8；正文链保持不变。其余已通过内容不得改动。
+4. 白名单仍仅报告、本卡与 append-only board。B1R9、VBUS B2、1.7、刷机、7A/7B HIL、push 均不开放；B2AR4 accepted 后先进入 B1R9。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B2AR4 docs-only）
