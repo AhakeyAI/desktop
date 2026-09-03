@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B2AR4 evidence literal correction`（B2AR3 @ `b34a407` 未验收；仅纠正 ELF/stack 世代与标题后再补 B1R9；不刷机、不 HIL）
+状态：`ready / 1.6 B1R9 pending-oracle closure`（B2A accepted @ `4fb65a8`；仅 host test/harness/report，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2040,3 +2040,29 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 4. 白名单仍仅报告、本卡与 append-only board。B1R9、VBUS B2、1.7、刷机、7A/7B HIL、push 均不开放；B2AR4 accepted 后先进入 B1R9。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B2AR4 docs-only）
+
+### [2026-09-03 19:51] Codex 复验 1.6 B2AR4：accepted，关闭 B2A；开放 B1R9 pending-oracle 收口
+
+- 固定审查固件仓 `b34a40773551c8bd396803de6e0ee69715316c22...4fb65a8f6f55c01143da917c186dda25d76b2e32`。单提交仅三处报告字面替换，`git diff --check` 通过，固件树 clean。ELF SHA 与 `tools/build-wbs14.sh:269-270`、`158e91d` 提交态及缓存 ELF 实测三方逐位一致；stack 三变体独立重跑全绿；B1R8 H/E 绑定与标题一致。
+
+**Standards**
+
+- 0 finding。三处修改符合 B2AR4 白名单，六列表格与术语内部一致；硬性违规 0、判断项 0。
+
+**Spec**
+
+- **P2（非阻断澄清）— row 19 仍使用压缩写法。** 数值本身正确且证据链正确，但未逐字展开三组 tuple。本验收 durable 固定其唯一解释：default=`112/320/816`、diag=`112/320/832`、bridge=`112/320/816`；三者 path budget 均 1024 B、worst frame 192 B、per-function budget 512 B。该表述缺陷不再开 B2AR5。
+- 其余 0 finding：真实 ELF pins、最新 B1R8 wbs15/wbs14 E+harness、§4.1 标题均满足 B2AR4。
+
+**B2A 关闭 / B1R9（补报告已标 pending 的 current host oracle）**
+
+1. 在生产 adapter 宿测补 **busy USB→BLE 反向**：USB frame admitted/busy 后 BLE 完整帧必须 zero-change drop，reply owner 仍 USB；`command_ok` 后 BLE 可重新 admission。保留既有 BLE→USB 臂。
+2. 补 **same-source split 两通道 + foreign fragment**：BLE header+BLE remainder、USB header+USB remainder 均跨 arrival admission 到各自 owner；每组中间插入异源 fragment，断言 buffer/rx_count/owner 全部零变化。必须使用真实 `command_transport_command_arrival`。
+3. 补 **overflow release→clean re-lock**：先形成真实 partial owner，再送使 `rx_count+len>cap` 的 burst；断言 tmp/rx_count/owned/rx_pending/idle_ticks 清零，随后另一 transport 的完整 frame 可 admission。杀死“overflow 不 release” mutant。
+4. 补 **活动 timeout 3-tick release**：真实 partial arrival 后，前 2 tick 不释放，第 3 tick 精确释放；断言下一 transport 可 clean re-lock。宿测需覆盖 production wiring 静态契约：`main.c` 1 s 事件调用 `command_assembly_tick()`，而 `command_assembly_tick()` 在 `ARB_RELEASED` 时清 tmp buffer 与 `rx_count`；可用独立 source-contract test，不得伪称仅测 inline helper即覆盖生产序列。
+5. 补 **reset release**：把 arbiter 全字段置为非初值（含 busy/window/latches/partial/ticks），直接调用 `transport_arbiter_reset()` 后逐字段等于 init，并证明另一 transport 可重新 admission。报告继续明确该 helper 当前无生产调用方；pairing reset 走硬重启，本轮不新增生产 reset 接线。
+6. 白名单：`tools/wbs15/test_transport_arbiter.c`、必要的新 `tools/wbs15/test_transport_wiring.py` 与 `tools/wbs15/build-wbs15.sh` 调用行、`docs/wbs-1.6-transport-regression.md` pending→green 更新、必要生成 evidence；禁止 `APP/**`、ABI/ELF pins、VBUS/1.7 行为。若无需新 Python 测试，不得为形式创建。
+7. 复跑 adapter/B4、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check`；附 timeout off-by-one、overflow-no-release、owner/busy 对称性中至少三类定向 mutant 的非零证据。完成后停手提审。
+8. VBUS B2、1.7、刷机、7A/7B 实机 HIL、push 仍不开放；B1R9 accepted 后才由 Codex决定下一调度片。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R9）
