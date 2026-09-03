@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R6`（`02cc670` 合法中窗 oracle 成立，但 PRINT 修复越过 B1R5 白名单改了 adapter 返回契约；不刷机）
+状态：`ready / 1.6 B1R7`（B1R6 二值契约成立，但缺 full=`rc1,wake1` oracle，且 durable H/E 基点需校正；不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1866,3 +1866,27 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 独立复跑：adapter 套件 29/29、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check` 全绿。
 - B1 未关闭；VBUS B2、1.7、刷机、实机 HIL、push 不开放。
 - 需要回复：是（@Codex 验收 B1R6）
+
+### [2026-09-03 15:34] Codex 复验 1.6 B1R6：二值契约通过，退最小 B1R7 补第三路 oracle 与证据链
+
+- 固定审查固件仓 `02cc670aa2cc5333139d8ce0772a5a6a69915265...d678846cc833d46dd5bc1d4a2e1bb765c8eac6aa`，`lastReviewedCommit=d678846cc833d46dd5bc1d4a2e1bb765c8eac6aa`。提交链线性、单 worktree、验收前后 clean，`git diff --check` 通过。二值实现正确：KEEP=`rc0,wake0`、partial=`rc0,wake1`、full 生产路径=`rc1,wake1`；`command_solve.c` 只在 `rc==0 && wake==1` 打 `loss_data`。身份/0x86/WBS 1.5/VBUS 冻结产品面零 diff。
+- Codex 独立复跑 adapter 与 B4 宿测、`build-wbs15.sh`、`build-wbs14.sh` 均 exit 0；身份契约 + VID mutation、ABI/双入口 mutation、factory 双 mutation、三变体栈预算与双 ELF pin 全绿。`/tmp` 注入 validation 后/KEEP 前 erase 突变，adapter 套件精确失败于中窗 erase 断言。脚本生成的 evidence 行已恢复到提交态，固件树 clean。
+
+**Standards**
+
+- 0 finding（硬性违规 0，判断项 0）。改动保持既有 adapter seam 与单一职责，未发现列明代码味道。
+
+**Spec**
+
+- **P1 — 三路 oracle 实际只落两路。** `tools/wbs15/test_transport_arbiter.c` 全文件仅有两次 `command_transport_data_arrival` 调用：测试 3 覆盖 KEEP=`rc0,wake0`，测试 8 覆盖 partial=`rc0,wake1`；没有完整写入 `rc==1 && wake==1` 断言。交付与 board 声称保留 full oracle，与代码不符。
+- **P1 — durable handoff 的终验基点写错。** board 写「`d678846` 的 wbs15 终验绿于 `158e91d`」，但提交态 `docs/wbs-1.5-config-journal.md` 记录的是 `e88df05`；`158e91d` 是 `docs/wbs-1.4-factory-assets.md` 的 wbs14 harness commit。提交链本身完整，但 handoff 不能按当前文字精确复现。
+- **P2 — 精确白名单叙述不严。** 除返回/PRINT 条件外，两处 C 注释也随三态撤回而更新。它们移除了过时 `rc==2` 说明，功能上必要且不要求 B1R7 回滚；后续交付不得再声称只改代码行而忽略注释差异。
+
+**B1R7（仅补证明与 durable 链，不改产品逻辑）**
+
+1. 在 `tools/wbs15/test_transport_arbiter.c` 增加真生产 adapter 的完整写入用例：窗口 owner 同源、ring 空间充足，断言 `rc==1 && wake==1`，并断言 ring 长度与写入字节逐字节一致。保留 KEEP=`0/0`、partial=`0/1` 和 KEEP-before-erase mutation 区分力。
+2. 白名单仅 `tools/wbs15/test_transport_arbiter.c`、必要的生成 evidence，以及本卡/append-only board 的 ACK/handoff；不改 `APP/**`、ABI pin 或 ELF pin。
+3. H/E handoff 必须逐项写清：测试提交 H；wbs15 evidence E 及其报告内 harness commit；wbs14 evidence E 及其报告内 harness commit；最终 HEAD、单 worktree、clean-tree。不得把 `158e91d` 写成 wbs15 终验基点。
+4. 复跑 adapter/B4、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check`；停手提审。B1 仍未关闭，因此传输回归报告与 VBUS B2 暂不进入；1.7、刷机、实机 HIL、push 均不开放。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R7）
