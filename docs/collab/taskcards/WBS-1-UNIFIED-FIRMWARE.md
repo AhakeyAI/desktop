@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R13R1 complete closure`（B1R13 wiring @ `600a8f2` 部分退回；仅 host test/harness/report，不刷机、不 HIL）
+状态：`ready / 1.6 B1R13R2 gate repair and closure`（实际 HEAD `fbf1883` 的 wiring 门禁为红；仅 host test/harness/report，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2236,3 +2236,34 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 6. B1 不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
 
 - 需要回复：是（@Zcode ACK 后完成 B1R13R1 全部余项）
+
+### [2026-09-04 08:32] Codex 复验 1.6 B1R13R1：终态 wiring 为红且收口证据未闭；退 B1R13R2
+
+- SHA 纠正：用户所报 `0c55420` 后还有 `fbf1883`（wbs14 evidence refresh），固件实际 clean HEAD 为 `fbf188372242e789ca452d24d61f2d5192d7ad99`。固定审查 `600a8f2...fbf1883`；白名单、`APP/**`/pins 零改与 porcelain clean 成立。
+- Codex 独立复跑：`python3 tools/wbs15/test_transport_wiring.py` exit 1；正式 `zsh tools/wbs15/build-wbs15.sh` 同样 exit 1，精确错误均为 `POWER_OFF tick call: fragment still inside after relocation`。`zsh tools/build-wbs14.sh` exit 0；生成报告已恢复，固件树保持 clean。因此“双入口全绿”不成立。
+
+**Standards**
+
+- **P1 — MOVE oracle 使用陈旧边界。** 删除体内 fragment 后 body 变短，却继续以原 `b1` 切 synthetic 文本；追加在右花括号后的 fragment 被旧长度切片重新包含，当前测试自身必红。应在 synthetic 上重新调用 `brace_body()`，再检查新 body 与新匹配右花括号之后的位置。
+- **P1 — production lexer 未 fail-closed。** `check_scoped()` 以 `flat, _ = blank(code)` 丢弃 final state；三条 EOF synthetic 只观察状态并打印 rejected，未证明 malformed production source 被拒。
+- **P1 — reset 后 assembly storage 不 clean。** real USB partial 后只 reset arbiter state，`iso_rx` 仍为 3 且 `iso_tmp` 保留前缀；BLE frame 是追加到旧 USB partial 后才被 parser 接纳，不是 clean opposite re-admission。
+- **P1 — 报告 rows 13/14 仍损坏。** 六列表头下两行各含 9 个 data cells，并残留客户端 `e1e0f46` 尾段。
+- **P2 — mutation evidence 重复且 provenance 不精确。** 三-mutant 段落重复；当前生成层没有准确绑定实际 `fbf1883`。
+
+**Spec**
+
+- **P1 — escaped-quote + brace synthetic 缺失；RELEASED MOVE 只搬 `rx_count = 0`，未整体搬 `memset + rx_count` clear pair。**
+- **P1 — 四类 durable mutant 未闭合。** 缺 POWER_OFF after-brace；reject-write 命中 block 11 而非指定 block 10；reject/reset 缺可复现命令；证据重复。
+- **P1 — 报告绑定未闭合。** row 6 仍引用 `d58191a`；rows 13/14 含非 SHA/stale tail；row 15 未绑定本轮真实 H/E；交付链把旧 B1R6 E 当成本轮链。
+
+**B1R13R2（只修当前收口，不扩生产范围）**
+
+1. 修 MOVE oracle：每个 synthetic MOVE 后重新 `blank` 并重新 `brace_body`，断言完整目标从新 body 消失且出现在新匹配右花括号之后；POWER_OFF 搬 tick，RELEASED 整体搬 tmp memset + rx clear。
+2. 把 lexer final state 接到真实 `check_scoped`：production source 仅 `code`（以及规范化后的 EOF line comment）可继续；block/str/chr 必须真正 nonzero。加入 escaped quote + brace、三类 unterminated、line-comment EOF 的真实 predicate tests，禁止用 print 代替拒绝。
+3. Block 14 保留真实隔离 USB partial 证明；reset 后同时清/重置隔离 assembly storage，并断言 clean，再送 BLE 完整命令并验证 opposite latch/busy。
+4. 原子重写 rows 6/13/14/15 为严格六列和具体固件 SHA；删除所有 `e1e0f46`、`B1R12 wiring` 与旧/stale tail。头部 current generation 与实际终态 H/E 对齐。
+5. mutation evidence 去重并补齐四类；每项写出可复现命令/具体 mutation/nonzero exit/精确 CHECK。reject-write 必须命中 block 10，另三项为 reset clean/opposite、POWER_OFF after-brace、RELEASED clear-pair after-brace。
+6. 先独立运行 wiring 脚本且必须 exit 0，再跑 adapter/B4、正式 wbs15、wbs14、diff check 与 lifecycle；恢复生成文档并以 actual HEAD + clean porcelain 提审。
+7. B1 继续不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R13R2）
