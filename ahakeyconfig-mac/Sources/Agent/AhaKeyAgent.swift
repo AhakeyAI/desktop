@@ -180,12 +180,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var legacyProbeFirmwareMainVersion: Int?
     /// OLED 协商归属的连接代际。新连接/断连递增；过期 timeout/response 必须零状态变化。
     private var oledConnectionGeneration: UInt64 = 0
-    /// 当前在途 `0x99/0x00/0x94` 请求身份。response 必须同时匹配 generation 与发起时的 peripheral。
-    private var oledInFlightRequest: OLEDInFlightRequest?
+    /// 建立 notify subscription 时冻结的回调身份。真实 notify 必须用它，不得用当前请求/global generation 反推。
+    private var oledNotifySubscription: OLEDNotifySource?
+    /// 当前在途 `0x99/0x00/0x94` 请求身份。response 必须同时匹配 source generation 与 peripheral。
+    private var oledInFlightRequest: OLEDNotifySource?
 
-    private struct OLEDInFlightRequest: Equatable {
-        var generation: UInt64
-        var peripheralID: UUID
+    private struct OLEDNotifySource: Equatable {
+        let generation: UInt64
+        let peripheralID: UUID
     }
 
     // MARK: 配置事务（WBS-5.6）：sequencer 命令 waiter + 0x81 数据写 waiter + 恢复接线
@@ -1784,6 +1786,7 @@ extension AhaKeyAgent {
                 emit(NSLocalizedString("命令通道就绪", comment: ""))
             } else if char.uuid == notifyCharUUID {
                 notifyChar = char
+                bindOLEDNotifySubscription(peripheralID: peripheral.identifier)
                 peripheral.setNotifyValue(true, for: char)
                 emit(NSLocalizedString("通知通道已订阅", comment: ""))
             } else if char.uuid == dataCharUUID {
@@ -1810,6 +1813,7 @@ extension AhaKeyAgent {
         negotiationAttempts = 0
         awaitingCapabilityResponse = false
         oledInFlightRequest = nil
+        oledNotifySubscription = nil
         negotiationTimeoutItem?.cancel()
         negotiationTimeoutItem = nil
         emit("OLED 协商已随连接代际撤销（\(reason)，gen=\(oledConnectionGeneration)）")
@@ -1819,20 +1823,29 @@ extension AhaKeyAgent {
         executionTestHooks?.oledNotifyPeripheralID ?? peripheral?.identifier
     }
 
-    private func noteOLEDInFlight() {
-        guard let peripheralID = currentOLEDPeripheralID() else { return }
-        oledInFlightRequest = OLEDInFlightRequest(
+    /// 在 `setNotifyValue` / 测试订阅时冻结；之后 notify 只读这份关联。
+    private func bindOLEDNotifySubscription(peripheralID: UUID) {
+        oledNotifySubscription = OLEDNotifySource(
             generation: oledConnectionGeneration,
             peripheralID: peripheralID
         )
     }
 
-    /// 解析或改协商状态之前：拒绝过期 generation / 非当前 peripheral / 非本请求发起者。
-    private func shouldAcceptOLEDResponse(from source: UUID) -> Bool {
+    private func noteOLEDInFlight() {
+        guard let peripheralID = currentOLEDPeripheralID() else { return }
+        oledInFlightRequest = OLEDNotifySource(
+            generation: oledConnectionGeneration,
+            peripheralID: peripheralID
+        )
+    }
+
+    /// 解析或改协商状态之前：source 必须来自回调自身的 generation/peripheral，不得用当前请求反推。
+    private func shouldAcceptOLEDResponse(source: OLEDNotifySource) -> Bool {
         guard let inFlight = oledInFlightRequest else { return false }
-        guard isCurrentOLEDGeneration(inFlight.generation) else { return false }
-        guard inFlight.peripheralID == source else { return false }
-        guard let current = currentOLEDPeripheralID(), current == source else { return false }
+        guard source.generation == inFlight.generation else { return false }
+        guard source.peripheralID == inFlight.peripheralID else { return false }
+        guard isCurrentOLEDGeneration(source.generation) else { return false }
+        guard let current = currentOLEDPeripheralID(), current == source.peripheralID else { return false }
         return true
     }
 
@@ -1881,8 +1894,8 @@ extension AhaKeyAgent {
     }
 
     /// 0x99 应答帧：AA BB 99 [payload≥14B] CC DD
-    private func handleCapabilityResponse(_ data: Data, from source: UUID) {
-        guard shouldAcceptOLEDResponse(from: source) else { return }
+    private func handleCapabilityResponse(_ data: Data, source: OLEDNotifySource) {
+        guard shouldAcceptOLEDResponse(source: source) else { return }
         guard awaitingCapabilityResponse else { return }
         oledInFlightRequest = nil
         awaitingCapabilityResponse = false
@@ -1960,8 +1973,8 @@ extension AhaKeyAgent {
         }
     }
 
-    private func handleLegacyFirmwareProbeResponse(_ data: Data, from source: UUID) {
-        guard shouldAcceptOLEDResponse(from: source) else { return }
+    private func handleLegacyFirmwareProbeResponse(_ data: Data, source: OLEDNotifySource) {
+        guard shouldAcceptOLEDResponse(source: source) else { return }
         guard oledLegacyProbePhase == .awaitingFirmwareVersion else { return }
         oledInFlightRequest = nil
         negotiationTimeoutItem?.cancel()
@@ -1985,8 +1998,8 @@ extension AhaKeyAgent {
         scheduleOLEDNegotiationTimeout { $0.legacyOLEDProbeTimedOut() }
     }
 
-    private func handleLegacyTaskPictureProbeResponse(_ data: Data, from source: UUID) {
-        guard shouldAcceptOLEDResponse(from: source) else { return }
+    private func handleLegacyTaskPictureProbeResponse(_ data: Data, source: OLEDNotifySource) {
+        guard shouldAcceptOLEDResponse(source: source) else { return }
         guard oledLegacyProbePhase == .awaitingTaskPicture else { return }
         oledInFlightRequest = nil
         negotiationTimeoutItem?.cancel()
@@ -2028,23 +2041,31 @@ extension AhaKeyAgent {
         }
     }
 
-    /// 生产 notify 与测试 seam 共用：先校验 generation/peripheral，再按 opcode/phase 分发。
+    /// 生产 notify 与测试 seam 共用：source 必须是订阅时冻结的身份，再按 opcode/phase 分发。
     @discardableResult
-    private func consumeOLEDNegotiationNotify(_ data: Data, from source: UUID) -> Bool {
+    private func consumeOLEDNegotiationNotify(_ data: Data, source: OLEDNotifySource) -> Bool {
         if data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x99 {
-            handleCapabilityResponse(data, from: source)
+            handleCapabilityResponse(data, source: source)
             return true
         }
         if oledLegacyProbePhase == .awaitingTaskPicture,
            data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x94 {
-            handleLegacyTaskPictureProbeResponse(data, from: source)
+            handleLegacyTaskPictureProbeResponse(data, source: source)
             return true
         }
         if oledLegacyProbePhase == .awaitingFirmwareVersion,
            data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x00 {
-            handleLegacyFirmwareProbeResponse(data, from: source)
+            handleLegacyFirmwareProbeResponse(data, source: source)
             return true
         }
+        return false
+    }
+
+    private func isOLEDNegotiationNotifyFrame(_ data: Data) -> Bool {
+        guard data.count >= 5, data[0] == 0xAA, data[1] == 0xBB else { return false }
+        if data[2] == 0x99 { return true }
+        if oledLegacyProbePhase == .awaitingTaskPicture, data[2] == 0x94 { return true }
+        if oledLegacyProbePhase == .awaitingFirmwareVersion, data[2] == 0x00 { return true }
         return false
     }
 
@@ -2072,7 +2093,11 @@ extension AhaKeyAgent {
         }
         guard characteristic.uuid == commandCharUUID || characteristic.uuid == notifyCharUUID,
               let data = characteristic.value else { return }
-        if consumeOLEDNegotiationNotify(data, from: peripheral.identifier) {
+        if isOLEDNegotiationNotifyFrame(data) {
+            // 回调身份来自订阅时冻结的关联，不得用当前 peripheral 的 generation 反推。
+            guard let source = oledNotifySubscription,
+                  source.peripheralID == peripheral.identifier else { return }
+            _ = consumeOLEDNegotiationNotify(data, source: source)
             return
         }
         // 0x81 图片写入确认（数据通道收尾；session 必须匹配当前在途会话）
@@ -3465,30 +3490,39 @@ extension AhaKeyAgent {
 
     func armOLEDAwaitingCapabilityResponseForTesting(peripheralID: UUID) {
         _ = applyOLEDNotifyPeripheralIDForTesting(peripheralID)
+        bindOLEDNotifySubscription(peripheralID: peripheralID)
         awaitingCapabilityResponse = true
         oledLegacyProbePhase = .idle
         noteOLEDInFlight()
     }
 
-    func armOLEDAwaitingTaskPictureForTesting(peripheralID: UUID) {
+    func armOLEDAwaitingTaskPictureForTesting(peripheralID: UUID, firmwareMainVersion: Int? = nil) {
         _ = applyOLEDNotifyPeripheralIDForTesting(peripheralID)
+        bindOLEDNotifySubscription(peripheralID: peripheralID)
         awaitingCapabilityResponse = false
         oledLegacyProbePhase = .awaitingTaskPicture
+        if let firmwareMainVersion {
+            legacyProbeFirmwareMainVersion = firmwareMainVersion
+        }
         noteOLEDInFlight()
     }
 
     func handleLegacyFirmwareProbeFrameForTesting(_ data: Data) {
-        let source = ensureTestOLEDPeripheralID()
+        let sourceID = ensureTestOLEDPeripheralID()
+        bindOLEDNotifySubscription(peripheralID: sourceID)
         oledLegacyProbePhase = .awaitingFirmwareVersion
         noteOLEDInFlight()
-        handleLegacyFirmwareProbeResponse(data, from: source)
+        guard let source = oledNotifySubscription else { return }
+        handleLegacyFirmwareProbeResponse(data, source: source)
     }
 
     func handleLegacyTaskPictureProbeFrameForTesting(_ data: Data) {
-        let source = ensureTestOLEDPeripheralID()
+        let sourceID = ensureTestOLEDPeripheralID()
+        bindOLEDNotifySubscription(peripheralID: sourceID)
         oledLegacyProbePhase = .awaitingTaskPicture
         noteOLEDInFlight()
-        handleLegacyTaskPictureProbeResponse(data, from: source)
+        guard let source = oledNotifySubscription else { return }
+        handleLegacyTaskPictureProbeResponse(data, source: source)
     }
 
     /// 测试 seam：与 didDisconnect/didConnect 同一套 OLED 代际清场。
@@ -3507,11 +3541,19 @@ extension AhaKeyAgent {
         }
     }
 
-    /// 测试 seam：走生产 notify 分发（含 generation/peripheral 门），不强制改 probe phase。
-    func handleOLEDNotifyFrameForTesting(_ data: Data, from source: UUID? = nil) {
-        let sourceID = source ?? currentOLEDPeripheralID()
-        guard let sourceID else { return }
-        _ = consumeOLEDNegotiationNotify(data, from: sourceID)
+    /// 测试 seam：走生产 notify 分发。`generation` 模拟订阅时冻结的 source generation；缺省用当前 subscription，不得用 global 反推。
+    func handleOLEDNotifyFrameForTesting(
+        _ data: Data,
+        from source: UUID? = nil,
+        generation: UInt64? = nil
+    ) {
+        let sourceID = source ?? oledNotifySubscription?.peripheralID ?? currentOLEDPeripheralID()
+        let sourceGen = generation ?? oledNotifySubscription?.generation
+        guard let sourceID, let sourceGen else { return }
+        _ = consumeOLEDNegotiationNotify(
+            data,
+            source: OLEDNotifySource(generation: sourceGen, peripheralID: sourceID)
+        )
     }
 
     @MainActor

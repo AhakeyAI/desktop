@@ -1279,6 +1279,65 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    func testSameUUIDStaleGenerationNotifyDoesNotSealReconnectedAwaitingPhase() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let uuid = UUID()
+
+            await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: uuid) }
+            let stale99Generation = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+            await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: uuid) }
+            let live99Generation = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+            XCTAssertNotEqual(live99Generation, stale99Generation)
+            let before99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertTrue(before99.awaitingCapability)
+            await MainActor.run {
+                agent.handleOLEDNotifyFrameForTesting(
+                    Self.validCurrentCapabilityFrame(), from: uuid, generation: stale99Generation
+                )
+            }
+            let afterStale99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterStale99, before99)
+            XCTAssertNil(afterStale99.contextProfile)
+            XCTAssertFalse(afterStale99.hasCapabilities)
+            XCTAssertFalse(afterStale99.malformed)
+            XCTAssertNil(afterStale99.firmwareMain)
+            XCTAssertEqual(afterStale99.routingProfile, .unsupported)
+
+            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validCurrentCapabilityFrame(), from: uuid) }
+            let afterLive99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterLive99.contextProfile, .rhinoDualSet(sessionUploadAdvertised: false))
+            XCTAssertTrue(afterLive99.hasCapabilities)
+            XCTAssertEqual(afterLive99.routingProfile, .rhinoDualSet(sessionUploadAdvertised: false))
+
+            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+            await MainActor.run { agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: uuid, firmwareMainVersion: 1) }
+            let stale94Generation = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+            await MainActor.run { agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: uuid, firmwareMainVersion: 1) }
+            let before94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(before94.phase, "awaitingTaskPicture")
+            XCTAssertEqual(before94.firmwareMain, 1)
+            await MainActor.run {
+                agent.handleOLEDNotifyFrameForTesting(
+                    Self.validLegacyTaskPictureFrame(), from: uuid, generation: stale94Generation
+                )
+            }
+            let afterStale94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterStale94, before94)
+            XCTAssertNil(afterStale94.contextProfile)
+            XCTAssertEqual(afterStale94.routingProfile, .unsupported)
+
+            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validLegacyTaskPictureFrame(), from: uuid) }
+            let afterLive94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterLive94.contextProfile, .legacyStandard)
+            XCTAssertEqual(afterLive94.routingProfile, .legacyStandard)
+            XCTAssertEqual(afterLive94.phase, "idle")
+            XCTAssertEqual(afterLive94.firmwareMain, 1)
+        }
+    }
+
     func testStandardMissingCharacteristicRejectsIngestApplyWithZeroCASWALChange() {
         runEndpointTest { [self] in
             let missing: [(String, AhaKeyConfigurationCharacteristicPresence)] = [
