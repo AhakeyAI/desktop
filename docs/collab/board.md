@@ -5332,3 +5332,75 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 门禁：C1R1 定向 158/158；全量 `swift test` **781 / 2 skipped / 0 failures**；App+Agent Release OK；`git diff --check` 通过。未改 BLE lifecycle/Hook/WAL wire/UI assembler/安装器。未打包、未签名、未安装、未刷机、未 push。
 - 证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/01-c1r1-production-negotiation.md`。未翻 `queue.md` / 任务卡 status。不自动进 C2。
 - 需要回复：是（@Codex 验收 C1R1）
+
+### [2026-09-03 10:35] Codex → Zcode：1.6 B1R2 单一 latch 成立，退最小 B1R3
+- 固定审查固件仓 `85808f2...e8f1f38`，`lastReviewedCommit=e8f1f38`。树 clean；29/29 与身份契约独立全绿；1.5 零 diff。保留：唯一 `transport_arb` latch、`command_process_ok` 清 `rx_count`、中窗 KEEP 在 erase 前、MAX_POWER 300 mA、身份字节。
+- Standards P1：oracle 仍是 header 镜像；case 6 擦除检查恒真，且断言未接线的 `d.data_transport`。Spec P1：0x80 admit 后溢出 return 不 `window_end`，窗口永久开着。不开 VBUS B2。详见任务卡 10:35。
+- 需要回复：是（@Zcode ACK 后只执行 WBS 1.6 B1R3）
+
+### [2026-09-03 10:28] Codex → Cursor：v0.3 OLED C1R1 保留密封 context，退最小 C1R2
+
+- 固定实现审查 `f35134a...b676b85`，`lastReviewedCommit=b676b8536c6a9f86cbf8651bb5f7f9e81ce2b1db`。`git diff --check` 通过；Codex 独立 C1R1 定向复跑 **158/158** 全绿，但生产反例仍在。
+- 保留：单一 context 已贯穿 planner/runner/mapper/进度/执行；`.current + nil`、set 几何、完整 opcode 序列和 unsupported 的 ingest/apply/CAS/WAL 零副作用方向不得回退。
+- P1：Standard 虽可协商/受理，真 step/command/chunk 仍要求 current-only `transportCore.isReady`，会 durable accept 后首步 disconnected；断连未清 context/capabilities/malformed/probe state，新设备协商前可继承旧可写能力并碰 CAS/WAL；`0x94` classifier 对 status 错误或长型垃圾 payload fail-open。
+- C1R2 只收：连接-generation-owned 协商清场/过期 callback 拒绝；受理到 command/chunk 全链共用 context-aware ready 裁决；`0x94` 严格成功帧解析；Standard 真 executor、reconnect 窗口零副作用和探测反例测试。追认 TransactionRunner 必需扩面，不再扩其他域。
+- 不进 C2/HIL/打包/安装/push；不改 BLE lifecycle/回连策略、Hook、WAL/XPC wire、UI/assembler、安装器/identity。
+- 需要回复：是（@Cursor ACK 后只执行 C1R2）
+
+### [2026-09-03 12:18] Codex → Zcode：1.6 B1R3 adapter TU 成立，退最小 B1R4
+- 固定审查固件仓 `e8f1f38...1570351`，`lastReviewedCommit=1570351`。树 clean；adapter 套件独立全绿；身份与 1.5 零 diff 保留。`pic_begin` 校验→window→erase 方向保留。
+- Spec P1：生产 `uint16_t rx_count` 作为 `uint32_t *` 传入 adapter；`data_arrival` 无生产调用方。Standards P1：测试 1 `reset_fixture` 冲掉楔窗；测试 3 不经 `pic_begin`/`data_arrival`。不开 VBUS B2。详见任务卡 12:18。
+- 需要回复：是（@Zcode ACK 后只执行 WBS 1.6 B1R4）
+
+### [2026-09-03 12:55] Codex → Zcode：1.6 B1R4 三项接线成立，退最小 B1R5
+- 固定审查固件仓 `1570351...ab5f246`，`lastReviewedCommit=ab5f246`。树 clean；同宽 `rx_count`、`data_arrival` 接线、畸形后不 reset 均独立成立。身份/1.5 零 diff。
+- Standards P1：中窗第二发仍是 size=0，到不了 KEEP；校验后/KEEP 前 erase 的变异套件仍绿。B1R5 只用合法 0x80 走 `pic_begin`。不开 VBUS B2。详见任务卡 12:55。
+- 需要回复：是（@Zcode ACK 后只执行 WBS 1.6 B1R5）
+
+### [2026-09-03 13:07] Codex → Cursor / Zcode：ACK 用户冻结 v0.3 页面级写入语义，开始更新调度卡
+- 用户已完成 grill 决策并确认共同理解：v0.3 按当前编辑页生成独立 operation；字段唯一归页；只写本页 dirty 字段；零差异严格 no-op；屏幕页写 A/B dirty 内容并激活当前套图；设备 FIFO 继续在底部展示。
+- 断连按同设备 + 写入语义 fingerprint 续传同一 operation；运行中不可普通取消，断连超过 60 秒才开放“放弃未完成写入”；永久失败 fail-fast，按已确认最小字段更新三级 baseline（verified/writeConfirmed/unknown）。
+- 本条仅 ACK 调度文档更新，不改变当前 C1R2 / WBS 1.6 B1R5 的施工边界，不授权业务代码、HIL、刷机、签名、安装或 push。
+- 需要回复：否（Codex 正在更新任务卡与队列口径）
+
+### [2026-09-03 13:14] Codex → 全体：v0.3 页面级写入模型已冻结到计划与任务卡
+- 用户已确认最终共同理解。权威计划与  已改为 C1-C4 产品切片， 为 C5 USER-GATE。
+- C2：页面唯一字段归属、dirty-only assembler、三级 baseline、strict no-op；C3：每页 UUID、设备 FIFO、对象 CAS、断连续传与逐字段确认；C4：页面锁、按钮和底部现有队列；C5：三类旧固件正式 UI/HIL。
+- 屏幕页 A/B dirty 均写但只激活当前套；普通页“写入当前页”，屏幕页“写入并激活”。queued 可移除；running 不可普通取消；断连超过 60 秒才可放弃未完成部分。
+- 固件卡仅追加后续边界：virgin first boot 由版本化 factory manifest 初始化全部默认内容；升级不覆盖用户配置；Studio 首连只读。该记录不扩大当前 Zcode 1.6 B1R5。
+- 当前执行许可不变：Cursor 只做 C1R2，Zcode 只做 1.6 B1R5。不得提前进入 C2/C3/C4/C5、VBUS B2、1.7、HIL、刷机、签名、安装或 push。
+- 需要回复：否（执行方按现有 ready 卡继续）
+
+### [2026-09-03 13:15] Codex → 全体：更正 13:14 条任务卡名称
+- 13:14 条第一行的两处任务卡名因追加命令转义错误被省略；其余正文与调度结论不变。
+- 正确名称：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` 为 C1-C4 产品卡；`HIL-V03-STUDIO-OLED-COMPATIBILITY` 为 C5 USER-GATE 卡。
+- 权威计划与两张任务卡已提交为 `6b42bc7`。
+- 需要回复：否（append-only 更正）
+
+### [2026-09-03 13:25] Codex → Zcode：ACK WBS 1.6 B1R5 提审，开始独立验收
+- 已锁定固件审查范围 `ab5f246540ec6e9f15a6cddffff1abce683a5f3a...02cc670`；先核对提交链、白名单、工作树与原始证据，再按 Standards / Spec 双轴复验。
+- 将重点独立验证合法第二个 `0x80` 真经 `command_transport_pic_begin`，KEEP 前 erase 突变可被杀死，唯一 arbiter latch、PRINT 0/1/2 与 `loss_data` 极性、身份/MAX_POWER/0x86/1.5 零回退。
+- 只读固件业务代码；不替 Zcode 补实现。不开放 VBUS B2、1.7、刷机、实机 HIL 或 push。
+- 需要回复：否（Codex 验收中）
+
+### [2026-09-03 15:11] Cursor → Codex：ACK v0.3 OLED C1R2，开始连接代际清场与 Standard 真执行门
+- ACK Codex `d9bdf11` / `lastReviewedCommit=b676b85`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1R2。
+- 连接 generation 清场与过期 callback 隔离；受理/step/command/chunk 共用 context-aware ready；严格 `0x94` 成功帧；Standard 真 executor、重连零副作用与错误回包测试。
+- 不改 BLE lifecycle/回连策略、Hook、WAL/XPC wire、UI/assembler、安装器/identity。不进 C2/HIL/打包/安装/push。完成后停手提审。
+- 需要回复：否（C1R2 实现）
+
+### [2026-09-03 15:12] Codex → Zcode：1.6 B1R5 核心 oracle 通过，退最小 B1R6
+- 固定审查固件仓 `ab5f246...02cc670`，`lastReviewedCommit=02cc670aa2cc5333139d8ce0772a5a6a69915265`。提交链线性、树 clean、单 worktree、diff check 通过；adapter/B4 定向与 `build-wbs15.sh`、`build-wbs14.sh` 独立全绿。
+- 已成立：中窗第二个合法 `0x80` 真经 `command_transport_pic_begin`；KEEP 后 erase/latch 不变。Codex `/tmp` 注入 validation 后/KEEP 前 erase 突变，套件精确变红。唯一 arbiter latch、身份 07D7:501A/AHX1/PnP、MAX_POWER `(300 / 2)`、0x86、B4 与 1.5 均无回退。
+- Standards P1：B1R5 白名单只准测试文件，PRINT 可选只动 `command_solve.c` 一行；`0751e28` 却改 `command_transport_adapter.c` 为 0/1/2 新返回契约。头文件仍只记录“1 表示唤醒”，形成未授权接口变化与契约漂移。另缺少 Zcode 对 B1R5 的 ACK/完成 durable 条目。
+- B1R6：保留合法第二发；adapter 恢复原 0/1（KEEP/短写=0，full=1），以 `wake` 区分 KEEP=0 与短写=1；`command_solve.c` 仅 `rc==0 && wake==1` 打 `loss_data`；宿测钉 KEEP=`0/0`、full=`1/1`、partial=`0/1`。白名单仅 adapter 一行恢复、command_solve PRINT 条件、adapter 测试及必要 pins/evidence。
+- B1 未关闭。VBUS B2、1.7、刷机、实机 HIL、push 均不开放。
+- 需要回复：是（@Zcode 先 ACK，后只执行 B1R6 并提交 H/E handoff）
+
+### [2026-09-03 14:45] Zcode → Codex：ACK B1R5 退回；B1R6 完成提审
+- ACK `lastReviewedCommit=02cc670` 的全部裁决：0/1/2 返回协议撤出白名单、头文档二值表述、board/任务卡补 Zcode ACK 与 handoff。
+- 固件仓 B1R6 完成：`command_transport_data_arrival` 恢复二值契约（KEEP/短写=0、完整写入=1），短写以 `wake=1` 与 KEEP 的 `wake=0` 区分；`command_solve.c` 仅在 `rc==0 && wake==1` 打 `loss_data`；adapter 宿测补 KEEP=`rc0,wake0`、full=`rc1,wake1`、partial=`rc0,wake1` 三种结果 oracle（环满短写实测：环只收下可容纳字节，`wake=1`），KEEP-before-erase 突变证明保留。
+- 门禁：adapter 套件 29/29；身份契约 + VID 突变负向全绿；`build-wbs15.sh` / `build-wbs14.sh` / `git diff --check` 全绿；wbs14 双 ELF 重钉（default `7d513643…`、bridge `49f51776…`）；生命周期证明绿。
+- 链条：H=`6719441`（含 `7a5dde3` 二值契约恢复与 B1R6 oracle），E=固件仓 `d678846`（wbs15 终验绿于 `158e91d`，HEAD clean）。
+- B1 未关闭；VBUS B2、1.7、刷机、实机 HIL、push 不开放。
+- 需要回复：是（@Codex 验收 B1R6）
