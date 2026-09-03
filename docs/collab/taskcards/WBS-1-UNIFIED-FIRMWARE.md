@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R12 exact-oracle closure`（B1R11 @ `3971ce2` 退回；仅 host test/harness/report，不刷机、不 HIL）
+状态：`ready / 1.6 B1R13 evidence/schema closure`（B1R12 firmware @ `324d5cc` 退回；仅 host test/harness/report，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2175,3 +2175,35 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 7. B1 不关闭；VBUS B2、1.7、刷机、7A/7B 实机 HIL、push 继续冻结。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R12）
+
+### [2026-09-03 21:25] Codex 复验 1.6 B1R12：核心两项通过，reset/evidence/report 仍不成立；退 B1R13
+
+- SHA 纠正：固件终态是 `324d5cc32528ee7f46e94ebd79628ad6444475ae`，固件 H=`3070013`、wbs15 E=`94d97de`、wbs14/final E=`324d5cc`；`b14742a` 是客户端 board handoff，不是固件 HEAD。固定审查 `3971ce2...324d5cc`。白名单成立，`APP/**`、pins/build 零改；Codex 独立复跑 adapter、wbs15、wbs14 均绿，恢复生成文档后固件树 clean。
+- 已通过并冻结：block 10 已为严格 `snapshot → 单次 rejected arrival → memcmp`；POWER_OFF 与 RELEASED 均共用 `brace_body` 且当前 after-brace 代码不会落入 body；fixture 清 `tmp_cmd` 保持。
+
+**Standards**
+
+- **P1 — 报告 rows 13/14 结构损坏。** 六列表头下两行各有 9 个 data cells，尾部仍残留旧 `e1e0f46` 文本；`git diff --check` 不会发现这种 Markdown schema 损坏。
+- **P1 — 报告 provenance 自相矛盾。** 头部仍声明整份报告 docs-only、未改 tests/harness、HEAD=`b03433e`，而 B1R12 实际修改 C/Python 测试并止于 `324d5cc`。
+- **P2 — reset 测试仍依赖全局 tmp/rx。** `command_arrival_state` 只隔离了 arb，却继续使用 file-scope `tmp_cmd/rx_count`；block 14 未 reset fixture 或使用局部 storage，顺序耦合仍在。
+- **P2 — C blanker 未处理反斜杠转义。** 遇到 `\"`/`\\` 时可能提前结束 literal 并错误计入 brace；docstring 所称 self-check 也未在脚本内执行 synthetic mutants。
+
+**Spec**
+
+- **P1 — block 14 没有真实 USB partial arrival。** 代码只是手工赋 `owner/owned/rx_pending` 后立即 reset；未调用 adapter、未产生/断言 rx bytes。BLE opposite admission 本身通过，但前置生产路径不成立。
+- **P1 — 四类 committed mutant 证据未闭合。** 报告仍只有 B1R11 三项；reject-write 命中 block 11 而非 block 10；缺 tick-after-POWER_OFF；缺可复现命令、明确非零 exit 与对应精确 CHECK。
+- **P1 — 报告 rows 未按要求绑定。** row 6 仍是 `48ab663/d58191a`，缺 B1R12 `3070013`；rows 13/14 超列且含客户端 `e1e0f46` 残片；`B1R12 wiring` 不是 commit。
+- **P1 — 报告头未区分 B2A 采集基线与当前状态。** 必须保留历史基线同时明确 current test/harness generation，不能继续整体称 docs-only。
+- **P2 — comment/string blanker 只部分实现任务卡要求。** 未正确跳过 escaped quotes。
+
+**B1R13（仅剩余机械收口）**
+
+1. Block 14 使用隔离的 local tmp/local rx（或等价无顺序耦合 fixture）：通过真实 `command_transport_command_arrival` 送 USB partial，断言 owner=USB、owned/rx_pending、rx>0；reset state 与 assembly fixture 后，再由 BLE 完整 command admission 并断言 BLE latch/busy。不得用手工字段赋值冒充 partial arrival。
+2. `strip_comments_and_strings` 正确处理 C 字符串/字符中的反斜杠转义、未闭合 comment/literal；为 brace helper 加 synthetic unit self-check，至少覆盖 escaped quote + brace、POWER_OFF after-brace、RELEASED clear-after-brace。
+3. Committed evidence 明列四类 mutant 的可复现命令或脚本入口、具体 mutation、实际非零 exit、命中的精确 CHECK：block10 reject-write 必须命中 block 10；reset 必须命中真实 partial/opposite admission；另外两项为 POWER_OFF after-brace 与 RELEASED after-brace。
+4. 重写（不是拼接）rows 6/13/14/15：每行严格六列；row 6 绑定 `48ab663` + `3070013`；rows 13–15 使用真实固件 H/E（`3070013`、`94d97de`、`324d5cc`，按 oracle/证据语义分别标注），不得保留 `e1e0f46` 或非 SHA 的 `B1R12 wiring`。row 12 若未在 B1R12 变化，不得伪称 B1R12 新增。
+5. 报告头明确两层：B2A 原始产品采集基线 `b03433e` 与当前 B1R13 test/harness/report HEAD；生产 `APP/**` 仍零改、HIL 未跑，但整份报告不再称 tests/harness 零改。
+6. 白名单仍仅 arbiter/wiring tests、报告与必要 evidence；不改 `APP/**`、pins、VBUS/1.7。复跑 adapter/B4、wbs15、wbs14、diff check、lifecycle 后停手提审。
+7. B1 不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R13）
