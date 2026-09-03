@@ -272,71 +272,72 @@ public enum AhaKeyStudioPageAssembly: Equatable, Sendable {
     case write(AhaKeyStudioScopedWritePlan)
 }
 
-/// 单一归属表：page lookup、可写集、required fields、mapping 字段清单。
+/// 单一归属表：一份 descriptor registry 派生 page lookup、可写集、fieldIDs 与 required。
 public enum AhaKeyStudioFieldOwnership {
     /// 灯条 IDE 状态 raw（0...8），与 BLE `IDEState` 对齐。
     public static let lightMappingStates: [UInt8] = Array(0...8)
 
-    public static func isWritable(_ page: AhaKeyStudioPageID) -> Bool {
-        switch page {
-        case .key, .lights, .screen:
-            return true
-        case .lever, .power:
-            return false
+    private struct Descriptor: Equatable, Sendable {
+        var id: AhaKeyStudioFieldID
+        var page: AhaKeyStudioPageID
+        var writable: Bool
+    }
+
+    private static let descriptors: [Descriptor] = makeDescriptors()
+
+    private static func makeDescriptors() -> [Descriptor] {
+        var items: [Descriptor] = [
+            Descriptor(id: .leverMacro, page: .lever, writable: false),
+            Descriptor(id: .powerAction, page: .power, writable: false),
+        ]
+        for slot in UInt8(0)...UInt8(3) {
+            for role in AhaKeyDesiredConfiguration.KeyRole.allCases {
+                let page = AhaKeyStudioPageID.key(modeSlot: slot, role: role)
+                items.append(Descriptor(id: .keyAction(modeSlot: slot, role: role), page: page, writable: true))
+                items.append(Descriptor(id: .keyDescription(modeSlot: slot, role: role), page: page, writable: true))
+                items.append(Descriptor(id: .keyVoicePreset(modeSlot: slot, role: role), page: page, writable: true))
+            }
+            let lights = AhaKeyStudioPageID.lights(modeSlot: slot)
+            items.append(Descriptor(id: .lightBrightness(modeSlot: slot), page: lights, writable: true))
+            for state in lightMappingStates {
+                items.append(Descriptor(id: .lightMapping(modeSlot: slot, state: state), page: lights, writable: true))
+            }
+            let screen = AhaKeyStudioPageID.screen(modeSlot: slot)
+            items.append(Descriptor(id: .screenStatusLine(modeSlot: slot), page: screen, writable: true))
+            items.append(Descriptor(id: .screenFramesPerSecond(modeSlot: slot), page: screen, writable: true))
+            items.append(Descriptor(id: .screenActiveSet(modeSlot: slot), page: screen, writable: true))
+            for setIndex in 0...1 {
+                for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
+                    items.append(
+                        Descriptor(
+                            id: .screenTaskAsset(modeSlot: slot, setIndex: setIndex, state: state),
+                            page: screen,
+                            writable: true
+                        )
+                    )
+                }
+            }
         }
+        return items
+    }
+
+    public static func isWritable(_ page: AhaKeyStudioPageID) -> Bool {
+        descriptors.contains { $0.page == page && $0.writable }
     }
 
     public static func page(for field: AhaKeyStudioFieldID) -> AhaKeyStudioPageID {
-        switch field {
-        case .keyAction(let slot, let role),
-             .keyDescription(let slot, let role),
-             .keyVoicePreset(let slot, let role):
-            return .key(modeSlot: slot, role: role)
-        case .lightBrightness(let slot), .lightMapping(let slot, _):
-            return .lights(modeSlot: slot)
-        case .screenStatusLine(let slot),
-             .screenFramesPerSecond(let slot),
-             .screenTaskAsset(let slot, _, _),
-             .screenActiveSet(let slot):
-            return .screen(modeSlot: slot)
-        case .leverMacro:
-            return .lever
-        case .powerAction:
-            return .power
+        guard let descriptor = descriptors.first(where: { $0.id == field }) else {
+            preconditionFailure("unowned field \(field)")
         }
+        return descriptor.page
     }
 
     /// mapping 与 assembler 共用：当前草稿能表达的字段。lever/power 为空。
     public static func fieldIDs(on page: AhaKeyStudioPageID) -> [AhaKeyStudioFieldID] {
-        switch page {
-        case .key(let slot, let role):
-            return [
-                .keyAction(modeSlot: slot, role: role),
-                .keyDescription(modeSlot: slot, role: role),
-                .keyVoicePreset(modeSlot: slot, role: role),
-            ]
-        case .lights(let slot):
-            return [.lightBrightness(modeSlot: slot)] + lightMappingStates.map {
-                .lightMapping(modeSlot: slot, state: $0)
-            }
-        case .screen(let slot):
-            var fields: [AhaKeyStudioFieldID] = [
-                .screenStatusLine(modeSlot: slot),
-                .screenFramesPerSecond(modeSlot: slot),
-                .screenActiveSet(modeSlot: slot),
-            ]
-            for setIndex in 0...1 {
-                for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
-                    fields.append(.screenTaskAsset(modeSlot: slot, setIndex: setIndex, state: state))
-                }
-            }
-            return fields
-        case .lever, .power:
-            return []
-        }
+        descriptors.filter { $0.page == page && $0.writable }.map(\.id)
     }
 
-    /// Standard 屏幕整组：选中逻辑套的全部任务状态。确认后仍缺则 fail-closed。
+    /// Standard 屏幕整组：C1 protocol plan 的 legacy states，不含 idle。
     public static func requiredFields(
         on page: AhaKeyStudioPageID,
         profile: AhaKeyOLEDCompatibilityProfile,
@@ -345,24 +346,19 @@ public enum AhaKeyStudioFieldOwnership {
         guard isWritable(page) else { return [] }
         guard case .screen(let slot) = page else { return [] }
         guard case .legacyStandard = profile else { return [] }
+        guard let plan = AhaKeyTaskPictureProtocolPlan.make(.standard) else { return [] }
         let logical = min(1, max(0, selectedTaskSet))
-        return AhaKeyDesiredConfiguration.TaskDisplayState.allCases.map {
-            .screenTaskAsset(modeSlot: slot, setIndex: logical, state: $0)
+        return plan.states.compactMap { protocolState in
+            guard let state = AhaKeyDesiredConfiguration.TaskDisplayState(rawValue: UInt8(protocolState.rawValue)) else {
+                return nil
+            }
+            return .screenTaskAsset(modeSlot: slot, setIndex: logical, state: state)
         }
     }
 
     /// 每个字段只出现在一个页面；用于回归唯一归属。
     public static func allOwnedFields() -> [AhaKeyStudioFieldID] {
-        var fields: [AhaKeyStudioFieldID] = [.leverMacro, .powerAction]
-        for slot in UInt8(0)...UInt8(3) {
-            fields.append(contentsOf: fieldIDs(on: .key(modeSlot: slot, role: .voice)))
-            for role in AhaKeyDesiredConfiguration.KeyRole.allCases where role != .voice {
-                fields.append(contentsOf: fieldIDs(on: .key(modeSlot: slot, role: role)))
-            }
-            fields.append(contentsOf: fieldIDs(on: .lights(modeSlot: slot)))
-            fields.append(contentsOf: fieldIDs(on: .screen(modeSlot: slot)))
-        }
-        return fields
+        descriptors.map(\.id)
     }
 }
 

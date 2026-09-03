@@ -5,7 +5,7 @@ import AhaKeyConfigShared
 final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
     func testFrozenScreenSnapshotExcludesDirtyKeysOnOtherPages() {
         var current = AhaKeyStudioDraft.default
-        var synced = current
+        let synced = current
         var mode = current.draft(for: .mode0)
         mode.oled.statusLine = "screen-dirty"
         mode.updateKey(AhaKeyKeyDraft(
@@ -120,5 +120,37 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
             AhaKeyStudioPackageAssembler.assembleScopedPage(lever),
             .unsupportedPage
         )
+    }
+
+    func testMappingStatusOnlyDirtyDoesNotCarryUneditedUnknownFields() {
+        var current = AhaKeyStudioDraft.default
+        let synced = current
+        var mode = current.draft(for: .mode0)
+        mode.oled.statusLine = "only-status"
+        current.updateMode(mode)
+
+        let pending = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(pending),
+            .requiresOverwriteConfirmation
+        )
+
+        let confirmed = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            overwriteConfirmed: true
+        )
+        guard case .write(let plan) = AhaKeyStudioPackageAssembler.assembleScopedPage(confirmed) else {
+            return XCTFail("确认后应只写 status")
+        }
+        XCTAssertEqual(plan.fieldMask, [.screenStatusLine(modeSlot: 0)])
+        XCTAssertEqual(Set(plan.values.keys), plan.fieldMask)
+        XCTAssertEqual(plan.statusLine, "only-status")
+        XCTAssertTrue(confirmed.fields.contains { !$0.isDirty && $0.baseline.trust == .unknown })
     }
 }

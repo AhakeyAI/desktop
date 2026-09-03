@@ -387,7 +387,7 @@ public enum AhaKeyStudioPackageAssembler {
         )
     }
 
-    /// C2R1：只组装单一页面冻结快照。其它页字段直接丢弃。no-op 必须逐字段证明设备 baseline。
+    /// C2R2：accepted set = dirty-only（Standard 整组仅扩选中逻辑套的 C1 legacy states）。
     public static func assembleScopedPage(
         _ snapshot: AhaKeyStudioPageSnapshot
     ) -> AhaKeyStudioPageAssembly {
@@ -401,18 +401,22 @@ public enum AhaKeyStudioPackageAssembler {
         let owned = snapshot.fields.filter {
             AhaKeyStudioFieldOwnership.page(for: $0.id) == snapshot.pageID
         }
-        if owned.isEmpty {
-            return .noOp
-        }
-        if owned.allSatisfy(AhaKeyStudioPageDiffer.isStrictNoOp) {
+        let byID = Dictionary(uniqueKeysWithValues: owned.map { ($0.id, $0) })
+        let dirtyAccepted = owned.filter { $0.isDirty && !AhaKeyStudioPageDiffer.isStrictNoOp($0) }
+        if dirtyAccepted.isEmpty {
             return .noOp
         }
 
-        let unresolvedUnknown = owned.contains { $0.baseline.trust == .unknown }
-        if unresolvedUnknown, !snapshot.overwriteConfirmed {
+        let dirtyUnknown = dirtyAccepted.contains { $0.baseline.trust == .unknown }
+        if dirtyUnknown, !snapshot.overwriteConfirmed {
             return .requiresOverwriteConfirmation
         }
 
+        var acceptedIDs = Set(dirtyAccepted.map(\.id))
+        let writingPictures = acceptedIDs.contains { id in
+            if case .screenTaskAsset = id { return true }
+            return false
+        }
         let wholeGroup = AhaKeyStudioPageDiffer.requiresWholeGroupWrite(
             pageID: snapshot.pageID,
             profile: snapshot.profile
@@ -422,75 +426,52 @@ public enum AhaKeyStudioPackageAssembler {
             profile: snapshot.profile,
             selectedTaskSet: snapshot.selectedTaskSet
         )
-        let byID = Dictionary(uniqueKeysWithValues: owned.map { ($0.id, $0) })
-        for fieldID in required {
-            guard byID[fieldID] != nil else {
-                return .missingTrustedPageCache
+        if writingPictures, wholeGroup {
+            for fieldID in required {
+                guard let field = byID[fieldID],
+                      consumableResource(for: field, snapshot: snapshot) != nil else {
+                    return .missingTrustedPageCache
+                }
+                acceptedIDs.insert(fieldID)
             }
         }
 
-        var mask = Set(owned.filter { !AhaKeyStudioPageDiffer.isStrictNoOp($0) }.map(\.id))
-        if wholeGroup, snapshot.overwriteConfirmed {
-            for fieldID in required {
-                mask.insert(fieldID)
-            }
+        acceptedIDs = Set(acceptedIDs.filter { id in
+            isEmittedLogicalField(id, snapshot: snapshot, acceptedIDs: acceptedIDs)
+        })
+        if writingPictures, wholeGroup {
+            acceptedIDs.formUnion(required)
+        }
+        if acceptedIDs.isEmpty {
+            return .noOp
         }
 
         var values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue] = [:]
-        for field in owned where mask.contains(field.id) {
-            values[field.id] = field.value
-        }
-
+        var resources: [AhaKeyStudioResourceInput] = []
         var writeSetA = false
         var writeSetB = false
         var statusLine: String?
         var framesPerSecond: Int?
         var activeSetDirty = false
-        var resources: [AhaKeyStudioResourceInput] = []
-        let dirtyLogicalSets = Set(mask.compactMap { id -> Int? in
-            if case .screenTaskAsset(_, let setIndex, _) = id { return setIndex }
-            return nil
-        })
 
-        for field in owned where mask.contains(field.id) {
+        for fieldID in acceptedIDs {
+            guard let field = byID[fieldID] else { return .missingTrustedPageCache }
+            values[fieldID] = field.value
             switch field.id {
-            case .screenTaskAsset(_, let logicalSet, let state):
-                guard AhaKeyOLEDSyncPlan.shouldWriteLogicalTaskSet(
-                    profile: snapshot.profile,
-                    logicalSet: logicalSet,
-                    selectedTaskSet: snapshot.selectedTaskSet,
-                    dirtyLogicalSets: dirtyLogicalSets
-                ) else { continue }
+            case .screenTaskAsset(_, let logicalSet, _):
+                if case .legacyStandard = snapshot.profile, logicalSet != min(1, max(0, snapshot.selectedTaskSet)) {
+                    return .missingTrustedPageCache
+                }
+                guard let resource = consumableResource(for: field, snapshot: snapshot) else {
+                    return .missingTrustedPageCache
+                }
                 let physical = AhaKeyOLEDSyncPlan.physicalTaskSetIndex(
                     profile: snapshot.profile,
                     logicalSet: logicalSet
                 )
                 if physical == 0 { writeSetA = true }
                 if physical == 1 { writeSetB = true }
-                if let asset = field.value.taskAssetValue,
-                   let url = asset.fileURL,
-                   let frames = asset.declaredFrameCount, frames > 0,
-                   let width = asset.pixelWidth, width > 0,
-                   let height = asset.pixelHeight, height > 0 {
-                    let identifier = (try? AhaKeyResourceIdentifier(
-                        taskAssetIdentifier(
-                            mode: modeSlot(of: snapshot.pageID) ?? 0,
-                            set: physical,
-                            state: state
-                        )
-                    ))
-                    if let identifier {
-                        resources.append(
-                            AhaKeyStudioResourceInput(
-                                logicalIdentifier: identifier,
-                                fileURL: url,
-                                declaredFrameCount: frames,
-                                pixelWidth: width,
-                                pixelHeight: height
-                            )
-                        )
-                    }
-                }
+                resources.append(resource)
             case .screenStatusLine:
                 statusLine = field.value.textValue
             case .screenFramesPerSecond:
@@ -502,6 +483,9 @@ public enum AhaKeyStudioPackageAssembler {
             }
         }
 
+        let fieldMask = Set(values.keys)
+        guard fieldMask == acceptedIDs else { return .missingTrustedPageCache }
+
         let activation = AhaKeyOLEDSyncPlan.scopedScreenActivation(
             profile: snapshot.profile,
             selectedTaskSet: snapshot.selectedTaskSet,
@@ -512,9 +496,9 @@ public enum AhaKeyStudioPackageAssembler {
         return .write(
             AhaKeyStudioScopedWritePlan(
                 pageID: snapshot.pageID,
-                fieldMask: mask,
+                fieldMask: fieldMask,
                 values: values,
-                overwriteSemantic: snapshot.overwriteConfirmed && (wholeGroup || unresolvedUnknown),
+                overwriteSemantic: snapshot.overwriteConfirmed && (wholeGroup || dirtyUnknown),
                 writeTaskSetA: writeSetA,
                 writeTaskSetB: writeSetB,
                 activateTaskSet: activation?.selectedSet,
@@ -524,6 +508,70 @@ public enum AhaKeyStudioPackageAssembler {
                 statusLine: statusLine,
                 framesPerSecond: framesPerSecond
             )
+        )
+    }
+
+    private static func isEmittedLogicalField(
+        _ id: AhaKeyStudioFieldID,
+        snapshot: AhaKeyStudioPageSnapshot,
+        acceptedIDs: Set<AhaKeyStudioFieldID>
+    ) -> Bool {
+        guard case .screenTaskAsset(_, let logicalSet, _) = id else { return true }
+        if case .legacyStandard = snapshot.profile {
+            let selected = min(1, max(0, snapshot.selectedTaskSet))
+            let required = AhaKeyStudioFieldOwnership.requiredFields(
+                on: snapshot.pageID,
+                profile: snapshot.profile,
+                selectedTaskSet: snapshot.selectedTaskSet
+            )
+            return logicalSet == selected && required.contains(id)
+        }
+        let dirtyLogicalSets = Set(acceptedIDs.compactMap { fieldID -> Int? in
+            if case .screenTaskAsset(_, let setIndex, _) = fieldID { return setIndex }
+            return nil
+        })
+        return AhaKeyOLEDSyncPlan.shouldWriteLogicalTaskSet(
+            profile: snapshot.profile,
+            logicalSet: logicalSet,
+            selectedTaskSet: snapshot.selectedTaskSet,
+            dirtyLogicalSets: dirtyLogicalSets
+        )
+    }
+
+    private static func consumableResource(
+        for field: AhaKeyStudioFrozenField,
+        snapshot: AhaKeyStudioPageSnapshot
+    ) -> AhaKeyStudioResourceInput? {
+        guard case .screenTaskAsset(_, let logicalSet, let state) = field.id else { return nil }
+        if case .legacyStandard = snapshot.profile, case .idle = state {
+            return nil
+        }
+        guard let asset = field.value.taskAssetValue,
+              let url = asset.fileURL,
+              let frames = asset.declaredFrameCount, frames > 0,
+              asset.pixelWidth == 160,
+              asset.pixelHeight == 80 else {
+            return nil
+        }
+        let physical = AhaKeyOLEDSyncPlan.physicalTaskSetIndex(
+            profile: snapshot.profile,
+            logicalSet: logicalSet
+        )
+        guard let identifier = try? AhaKeyResourceIdentifier(
+            taskAssetIdentifier(
+                mode: modeSlot(of: snapshot.pageID) ?? 0,
+                set: physical,
+                state: state
+            )
+        ) else {
+            return nil
+        }
+        return AhaKeyStudioResourceInput(
+            logicalIdentifier: identifier,
+            fileURL: url,
+            declaredFrameCount: frames,
+            pixelWidth: 160,
+            pixelHeight: 80
         )
     }
 

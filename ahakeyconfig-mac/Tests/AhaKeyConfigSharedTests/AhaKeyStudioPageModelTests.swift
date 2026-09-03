@@ -91,7 +91,11 @@ final class AhaKeyStudioPageModelTests: XCTestCase {
             profile: .legacyStandard,
             selectedTaskSet: 1
         )
-        XCTAssertEqual(required.count, AhaKeyDesiredConfiguration.TaskDisplayState.allCases.count)
+        XCTAssertEqual(required.count, AhaKeyTaskDisplayState.legacyStates.count)
+        XCTAssertFalse(required.contains { id in
+            if case .screenTaskAsset(_, _, .idle) = id { return true }
+            return false
+        })
         XCTAssertTrue(required.allSatisfy {
             if case .screenTaskAsset(_, 1, _) = $0 { return true }
             return false
