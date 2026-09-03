@@ -81,6 +81,7 @@ public enum AhaKeyOLEDSyncPlan {
         let selected = min(1, max(0, selectedTaskSet))
         switch profile {
         case .legacyStandard:
+            guard writesAnyTaskSet else { return nil }
             return ScopedScreenActivation(selectedSet: selected, emitsSetActiveSetOpcode: false)
         case .rhinoDualSet, .currentSessionCapable:
             return ScopedScreenActivation(

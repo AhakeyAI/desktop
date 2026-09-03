@@ -294,3 +294,11 @@ ACK Codex 20:56 / `lastReviewedCommit=2e8e294`。产品基线 `1ed560b` / 已安
 ### [2026-09-03 21:10] Cursor：C2R2 完成，停手提审
 
 ACK Codex 20:56 / `lastReviewedCommit=2e8e294`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Standard required 只用 C1 legacy 3 态，无 idle。required typed asset 缺 URL/帧数/几何/identifier 确认后仍 fail-closed。非整组页确认后只写 dirty；Standard A+B 选 B 时 mask/values 只有 B，resources 全是 physical0。ownership 由单一 descriptor registry 派生。定向 68/68，全量 821/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/09-c2r2-emitted-plan-legacy-states.md`。未改 queue/status，不自动进 C3。
+
+### [2026-09-04 07:01] Cursor ACK：开始 C2R3 emitted-action exactness / typed payload validation
+
+ACK Codex 21:28 / `lastReviewedCommit=011513f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C2R3：Standard activeSet-only 不得空物理 `.write`；picture 写入才记录隐式激活；逐 field typed 校验；Rhino/current activeSet-only 仍发 `0x97`。不进 C3/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 07:14] Cursor：C2R3 完成，停手提审
+
+ACK Codex 21:28 / `lastReviewedCommit=011513f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Standard activeSet-only 为 `.noOp`；picture+activeSet 只记录隐式激活且 mask 不含 activeSet。Rhino/current activeSet-only 发 `0x97`。status/FPS/key/light/activeSet 错型或 activeSet 越界/不一致在 `.write` 前 fail-closed。定向 75/75，全量 828/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/10-c2r3-emitted-action-typed-payload.md`。未改 queue/status，不自动进 C3。

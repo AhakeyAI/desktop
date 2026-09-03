@@ -674,6 +674,196 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         XCTAssertFalse(plan.resources.contains { $0.logicalIdentifier.rawValue.contains("idle") })
     }
 
+    func testStandardActiveSetOnlyIsNoOp() {
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .legacyStandard,
+                selectedTaskSet: 1,
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: .screenActiveSet(modeSlot: 0),
+                        value: .integer(1),
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: .integer(0))
+                    ),
+                ]
+            )
+        )
+        XCTAssertEqual(assembly, .noOp)
+    }
+
+    func testStandardPictureWriteRecordsImplicitActivationWithoutActiveSetField() {
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .legacyStandard,
+                selectedTaskSet: 1,
+                overwriteConfirmed: true,
+                fields: standardCompleteSet(logicalSet: 1, prefix: "/tmp/b") + [
+                    AhaKeyStudioFrozenField(
+                        id: .screenActiveSet(modeSlot: 0),
+                        value: .integer(1),
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: .integer(0))
+                    ),
+                ]
+            )
+        )
+        guard case .write(let plan) = assembly else {
+            return XCTFail("picture 写入应带协议内隐式激活")
+        }
+        XCTAssertFalse(plan.fieldMask.contains(.screenActiveSet(modeSlot: 0)))
+        XCTAssertEqual(plan.fieldMask, Set(plan.values.keys))
+        XCTAssertEqual(plan.activateTaskSet, 1)
+        XCTAssertFalse(plan.emitsSetActiveSetOpcode)
+        XCTAssertEqual(plan.resources.count, AhaKeyTaskDisplayState.legacyStates.count)
+        XCTAssertTrue(plan.resources.allSatisfy { $0.logicalIdentifier.rawValue.contains("-set0-") })
+    }
+
+    func testRhinoAndCurrentActiveSetOnlyEmitSetActiveSetOpcode() {
+        for profile in [
+            AhaKeyOLEDCompatibilityProfile.rhinoDualSet(sessionUploadAdvertised: false),
+            .currentSessionCapable,
+        ] {
+            let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    profile: profile,
+                    selectedTaskSet: 1,
+                    fields: [
+                        AhaKeyStudioFrozenField(
+                            id: .screenActiveSet(modeSlot: 0),
+                            value: .integer(1),
+                            isDirty: true,
+                            baseline: .init(trust: .verified, value: .integer(0))
+                        ),
+                    ]
+                )
+            )
+            guard case .write(let plan) = assembly else {
+                return XCTFail("Rhino/current activeSet-only 应发 0x97")
+            }
+            XCTAssertEqual(plan.fieldMask, [.screenActiveSet(modeSlot: 0)])
+            XCTAssertEqual(Set(plan.values.keys), plan.fieldMask)
+            XCTAssertEqual(plan.values[.screenActiveSet(modeSlot: 0)]?.integerValue, 1)
+            XCTAssertEqual(plan.activateTaskSet, 1)
+            XCTAssertTrue(plan.emitsSetActiveSetOpcode)
+            XCTAssertFalse(plan.writeTaskSetA)
+            XCTAssertFalse(plan.writeTaskSetB)
+            XCTAssertTrue(plan.resources.isEmpty)
+            XCTAssertNil(plan.statusLine)
+            XCTAssertNil(plan.framesPerSecond)
+        }
+    }
+
+    func testMalformedTypedValuesFailClosedBeforeWrite() throws {
+        let cases: [(AhaKeyStudioPageID, AhaKeyStudioFrozenField)] = [
+            (
+                .screen(modeSlot: 0),
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .integer(1),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("old"))
+                )
+            ),
+            (
+                .screen(modeSlot: 0),
+                AhaKeyStudioFrozenField(
+                    id: .screenFramesPerSecond(modeSlot: 0),
+                    value: .text("12"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .integer(12))
+                )
+            ),
+            (
+                .screen(modeSlot: 0),
+                AhaKeyStudioFrozenField(
+                    id: .screenActiveSet(modeSlot: 0),
+                    value: .text("1"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .integer(0))
+                )
+            ),
+            (
+                .key(modeSlot: 0, role: .approve),
+                AhaKeyStudioFrozenField(
+                    id: .keyAction(modeSlot: 0, role: .approve),
+                    value: .text("x"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .keyAction(try sampleKeyAction()))
+                )
+            ),
+            (
+                .lights(modeSlot: 0),
+                AhaKeyStudioFrozenField(
+                    id: .lightBrightness(modeSlot: 0),
+                    value: .text("80"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .integer(35))
+                )
+            ),
+            (
+                .lights(modeSlot: 0),
+                AhaKeyStudioFrozenField(
+                    id: .lightMapping(modeSlot: 0, state: 1),
+                    value: .integer(1),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("off"))
+                )
+            ),
+        ]
+        for (page, field) in cases {
+            let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: page,
+                    profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                    selectedTaskSet: 1,
+                    fields: [field]
+                )
+            )
+            XCTAssertEqual(assembly, .missingTrustedPageCache, "\(field.id)")
+        }
+
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                    selectedTaskSet: 1,
+                    fields: [
+                        AhaKeyStudioFrozenField(
+                            id: .screenActiveSet(modeSlot: 0),
+                            value: .integer(0),
+                            isDirty: true,
+                            baseline: .init(trust: .verified, value: .integer(1))
+                        ),
+                    ]
+                )
+            ),
+            .missingTrustedPageCache
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                    selectedTaskSet: 0,
+                    fields: [
+                        AhaKeyStudioFrozenField(
+                            id: .screenActiveSet(modeSlot: 0),
+                            value: .integer(2),
+                            isDirty: true,
+                            baseline: .init(trust: .verified, value: .integer(0))
+                        ),
+                    ]
+                )
+            ),
+            .missingTrustedPageCache
+        )
+    }
+
     func testUnsupportedProfileDoesNotAssembleWrite() {
         let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
             AhaKeyStudioPageSnapshot(

@@ -153,4 +153,58 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         XCTAssertEqual(plan.statusLine, "only-status")
         XCTAssertTrue(confirmed.fields.contains { !$0.isDirty && $0.baseline.trust == .unknown })
     }
+
+    func testMappingStandardActiveSetOnlyDoesNotCreateAWrite() {
+        var current = AhaKeyStudioDraft.default
+        let synced = current
+        var mode = current.draft(for: .mode0)
+        mode.oled.activeGIFSet = 1
+        current.updateMode(mode)
+
+        let snapshot = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: [
+                .screenActiveSet(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                    value: .integer(0),
+                    trust: .verified,
+                    provenance: .deviceReadback
+                ),
+            ],
+            profile: .legacyStandard
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot),
+            .noOp
+        )
+    }
+
+    func testMappingRhinoActiveSetOnlyEmitsSetActiveSet() {
+        var current = AhaKeyStudioDraft.default
+        let synced = current
+        var mode = current.draft(for: .mode0)
+        mode.oled.activeGIFSet = 1
+        current.updateMode(mode)
+
+        let snapshot = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: [
+                .screenActiveSet(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                    value: .integer(0),
+                    trust: .verified,
+                    provenance: .deviceReadback
+                ),
+            ],
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        guard case .write(let plan) = AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot) else {
+            return XCTFail("Rhino activeSet dirty 应发 0x97")
+        }
+        XCTAssertEqual(plan.fieldMask, [.screenActiveSet(modeSlot: 0)])
+        XCTAssertEqual(Set(plan.values.keys), plan.fieldMask)
+        XCTAssertEqual(plan.activateTaskSet, 1)
+        XCTAssertTrue(plan.emitsSetActiveSetOpcode)
+        XCTAssertTrue(plan.resources.isEmpty)
+    }
 }

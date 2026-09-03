@@ -842,4 +842,33 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertEqual(transport.requestLog, [])
         await facade.stop()
     }
+
+    func testSubmitFrozenPageStandardActiveSetOnlyDoesNotCallIngestOrApply() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        let snapshot = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .legacyStandard,
+            selectedTaskSet: 1,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenActiveSet(modeSlot: 0),
+                    value: .integer(1),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .integer(0))
+                ),
+            ]
+        )
+        let result = try await facade.submitFrozenPage(snapshot)
+        XCTAssertEqual(result, .noOp)
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
 }
