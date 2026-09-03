@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
@@ -960,6 +961,31 @@ namespace BLE_tcp_driver
 
     internal static class Program
     {
+        private const string DriverWindowTitle = "AhaKey BLE TCP Driver";
+        private static Mutex singleInstanceMutex;
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr FindWindow(string className, string windowName);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern bool BringWindowToTop(IntPtr window);
+
+        private const int SW_RESTORE = 9;
+
+        private static void ActivateExistingWindow()
+        {
+            IntPtr window = FindWindow(null, DriverWindowTitle);
+            if (window == IntPtr.Zero) return;
+            ShowWindow(window, SW_RESTORE);
+            BringWindowToTop(window);
+            SetForegroundWindow(window);
+        }
 
         /// <summary>
         /// 应用程序的主入口点。
@@ -967,6 +993,13 @@ namespace BLE_tcp_driver
         [STAThread]
         static void Main()
         {
+            bool created;
+            singleInstanceMutex = new Mutex(true, "Global\\AhaKey.BLETcpDriver", out created);
+            if (!created)
+            {
+                ActivateExistingWindow();
+                return;
+            }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());

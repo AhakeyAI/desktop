@@ -6,6 +6,7 @@ import com.example.ahakey.model.StudioState;
 import com.example.ahakey.service.AgentManager;
 import com.example.ahakey.service.HookDispatchServer;
 import com.example.ahakey.service.HookInstaller;
+import com.example.ahakey.service.BleBridgeProcessOwner;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.util.Icons;
 import com.example.ahakey.util.LanguageManager;
@@ -34,10 +35,6 @@ import java.time.format.DateTimeFormatter;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import java.util.Optional;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.File;
@@ -395,11 +392,7 @@ public class TopBar extends VBox {
         getChildren().add(scrollWrapper);
     }
     
-    /**
-     * 处理 BLE 驱动按钮点击
-     * - 如果 BLE_tcp_driver.exe 已运行，弹窗提示
-     * - 否则启动同级目录下的 BLE_tcp_driver.exe
-     */
+    /** BLE bridge process/window lifecycle is owned by BleBridgeProcessOwner. */
     private volatile boolean bleButtonProcessing = false;
     private volatile long lastBleButtonClickTime = 0;
     private static final long BLE_BUTTON_CLICK_DELAY_MS = 2000;
@@ -420,35 +413,19 @@ public class TopBar extends VBox {
         
         new Thread(() -> {
             try {
-                boolean running = isBleDriverRunning();
-                
-                if (!running) {
-                    launchBleDriver();
+                Path executable = resolveBleDriverExecutable();
+                if (executable == null) {
+                    Platform.runLater(() -> showAlert(
+                        languageManager.getString("dialog.ble-driver-title"),
+                        languageManager.getString("dialog.ble-not-found")));
                     return;
                 }
-                
-                boolean reachable = isBleBridgeReachable();
-                
-                if (reachable) {
-                    Platform.runLater(() -> {
-                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                        alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
-                        alert.setHeaderText(null);
-                        alert.setContentText(languageManager.getString("dialog.ble-running"));
-                        alert.showAndWait();
-                    });
-                } else {
-                    Thread.sleep(1500);
-                    reachable = isBleBridgeReachable();
-                    
-                    if (!reachable) {
-                        stopBleDriverProcess();
-                        Thread.sleep(500);
-                        launchBleDriver();
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+
+                // Adopt an exact path match before starting anything. This makes the
+                // second click a pure foreground operation and avoids a second 9000
+                // listener. It also adopts a manually started bridge for shutdown.
+                if (BleBridgeProcessOwner.activateOrAdopt(executable)) return;
+                launchBleDriver(executable);
             } finally {
                 bleButtonProcessing = false;
             }
@@ -456,9 +433,8 @@ public class TopBar extends VBox {
     }
 
     /**
-     * 设置 BLE 按钮长按功能
-     * 长按5秒：强制关闭所有 BLE_tcp_driver 进程（包括挂起的）
-     * 短按：正常的 BLE 驱动启动/重启逻辑
+     * 设置 BLE 按钮长按功能。长按只停止当前精确匹配且已拥有/收养的实例，
+     * 不再按进程名全局 taskkill。
      */
     private void setupBleButtonLongPress(Button bleButton) {
         bleButton.setOnMousePressed(event -> {
@@ -470,9 +446,7 @@ public class TopBar extends VBox {
                     Thread.sleep(5000);
                     if (bleButtonPressed && !bleLongPressTriggered) {
                         bleLongPressTriggered = true;
-                        Platform.runLater(() -> {
-                            forceKillAllBleProcesses();
-                        });
+                        stopManagedBleDriver();
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -504,310 +478,84 @@ public class TopBar extends VBox {
         });
     }
     
-    /**
-     * 强制杀死所有 BLE_tcp_driver 进程（包括挂起的）
-     */
-    private void forceKillAllBleProcesses() {
+    private void stopManagedBleDriver() {
         new Thread(() -> {
-            int initialCount = countBleProcesses();
-            if (initialCount == 0) {
-                Platform.runLater(() -> showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-no-process")));
+            Path executable = resolveBleDriverExecutable();
+            if (executable == null
+                || (!BleBridgeProcessOwner.activateOrAdopt(executable)
+                    && !BleBridgeProcessOwner.findExactPid(executable).isPresent())) {
+                Platform.runLater(() -> showAlert(
+                    languageManager.getString("dialog.ble-driver-title"),
+                    languageManager.getString("dialog.ble-no-process")));
                 return;
             }
-            
-            boolean success = killProcessesWithMultipleMethods();
-            
-            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-            
-            int remainingCount = countBleProcesses();
-            
+            boolean stopped = BleBridgeProcessOwner.stopOwned();
             Platform.runLater(() -> {
-                if (remainingCount == 0) {
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
-                    alert.setHeaderText(null);
-                    alert.setContentText(languageManager.getString("dialog.ble-kill-success"));
-                    alert.showAndWait();
-                } else {
-                    Alert alert = new Alert(Alert.AlertType.WARNING);
-                    alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
-                    alert.setHeaderText(null);
-                    alert.setContentText(String.format(languageManager.getString("dialog.ble-kill-fail"), remainingCount));
-                    alert.showAndWait();
-                }
+                String message = stopped
+                    ? languageManager.getString("dialog.ble-kill-success")
+                    : languageManager.getString("dialog.ble-kill-fail").replace("%d", "1");
+                showAlert(languageManager.getString("dialog.ble-driver-title"), message);
             });
-        }, "ble-kill").start();
-    }
-    
-    private boolean killProcessesWithMultipleMethods() {
-        boolean success = false;
-        
-        success = sendShutdownCommand();
-        
-        if (!success) {
-            success |= executeKillCommand("taskkill", "/F", "/IM", "BLE_tcp_driver.exe");
-        }
-        
-        if (!success) {
-            success |= executeKillCommand("taskkill", "/F", "/T", "/IM", "BLE_tcp_driver.exe");
-        }
-        
-        if (!success) {
-            success |= executeKillCommand("powershell", "-Command", "Stop-Process -Name BLE_tcp_driver -Force -ErrorAction SilentlyContinue");
-        }
-        
-        if (!success) {
-            success |= executeKillCommand("powershell", "-Command", "Get-Process -Name BLE_tcp_driver -ErrorAction SilentlyContinue | Stop-Process -Force");
-        }
-        
-        if (!success) {
-            success |= executeKillCommand("wmic", "process", "where", "name='BLE_tcp_driver.exe'", "call", "terminate");
-        }
-        
-        if (!success) {
-            success |= executeKillCommand("powershell", "-Command", "Get-WmiObject Win32_Process -Filter \"Name='BLE_tcp_driver.exe'\" | ForEach-Object { $_.Terminate() }");
-        }
-        
-        if (!success) {
-            success |= executeKillCommand("powershell", "-Command", "$pids = (Get-CimInstance Win32_Process -Filter 'Name=''BLE_tcp_driver.exe''').ProcessId; if($pids) { taskkill /F /PID $pids -ErrorAction SilentlyContinue }");
-        }
-        
-        if (!success) {
-            success |= executeKillCommand("powershell", "-Command", "Get-CimInstance Win32_Process -Filter 'Name=''BLE_tcp_driver.exe''' | Invoke-CimMethod -MethodName Terminate");
-        }
-        
-        if (!success) {
-            success |= killProcessByPidList();
-        }
-        
-        return success;
-    }
-    
-    private boolean killProcessByPidList() {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH", "/FO", "CSV");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
-                        String[] parts = line.split(",");
-                        if (parts.length >= 2) {
-                            String pidStr = parts[1].replace("\"", "").trim();
-                            try {
-                                int pid = Integer.parseInt(pidStr);
-                                new ProcessBuilder("taskkill", "/F", "/PID", String.valueOf(pid)).redirectErrorStream(true).start().waitFor();
-                            } catch (NumberFormatException e) {
-                                // ignore
-                            }
-                        }
-                    }
-                }
-            }
-            p.waitFor();
-            
-            Thread.sleep(500);
-            return countBleProcesses() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    private boolean sendShutdownCommand() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("127.0.0.1", 9000), 1000);
-            
-            byte[] shutdownPacket = new byte[3];
-            shutdownPacket[0] = 0x05;
-            shutdownPacket[1] = 0x00;
-            shutdownPacket[2] = 0x00;
-            
-            socket.getOutputStream().write(shutdownPacket);
-            socket.getOutputStream().flush();
-            
-            Thread.sleep(500);
-            
-            return countBleProcesses() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    private boolean executeKillCommand(String... command) {
-        try {
-            ProcessBuilder pb = new ProcessBuilder(command);
-            pb.redirectErrorStream(true);
-            pb.directory(new File(System.getProperty("user.dir")));
-            Process p = pb.start();
-            int exitCode = p.waitFor();
-            
-            try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(p.getInputStream()))) {
-                StringBuilder output = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-            }
-            
-            Thread.sleep(300);
-            
-            return countBleProcesses() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    /**
-     * 统计 BLE_tcp_driver 进程数量
-     */
-    private int countBleProcesses() {
-        int count = 0;
-        try {
-            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
-                        count++;
-                    }
-                }
-            }
-            p.waitFor();
-        } catch (Exception e) {
-            // 统计失败，返回0
-        }
-        return count;
+        }, "ble-driver-stop").start();
     }
 
-    private boolean isBleBridgeReachable() {
-        int maxRetries = 3;
-        int delayMs = 300;
-        
-        for (int i = 0; i < maxRetries; i++) {
-            try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress("127.0.0.1", 9000), 500);
-                return true;
-            } catch (Exception e) {
-                if (i < maxRetries - 1) {
-                    try {
-                        Thread.sleep(delayMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    private void stopBleDriverProcess() {
-        com.example.ahakey.service.BleBridgeProcessOwner.stopOwned();
-    }
-    
-    /**
-     * 检查 BLE_tcp_driver.exe 是否正在运行
-     */
-    private boolean isBleDriverRunning() {
+    private Path resolveBleDriverExecutable() {
         try {
-            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
-                        return true;
-                    }
-                }
-            }
-            p.waitFor();
-        } catch (Exception e) {
-            // 检查失败，假定未运行
-        }
-        return false;
-    }
-    
-    /**
-     * 启动同级目录下的 BLE_tcp_driver.exe
-     */
-    private void launchBleDriver() {
-        try {
-            // 获取应用所在目录
             String appDir = System.getProperty("user.dir");
-            
-            // 尝试从 JAR 所在目录获取（打包后的情况）
-            try {
-                Path jarPath = Paths.get(getClass().getProtectionDomain().getCodeSource().getLocation().toURI());
-                if (jarPath.toString().endsWith(".jar")) {
-                    appDir = jarPath.getParent().toString();
-                }
-            } catch (Exception ignored) {}
-            
-            File bleExe = null;
-            File appDirFile = new File(appDir);
-            
-            // 依次查找多个可能的位置
+            Path codeSource = Paths.get(getClass().getProtectionDomain()
+                .getCodeSource().getLocation().toURI());
+            if (codeSource.toString().toLowerCase(java.util.Locale.ROOT).endsWith(".jar")) {
+                appDir = codeSource.getParent().toString();
+            }
+            File base = new File(appDir);
+            File parent = base.getParentFile();
             File[] candidates = {
-                new File(appDir, "BLE_tcp_driver.exe"),                                  // JAR 同级目录 (app/)
-                appDirFile.getParentFile() != null 
-                    ? new File(appDirFile.getParentFile(), "BLE_tcp_driver.exe") : null, // 父目录（jpackage 结构）
-                new File(System.getProperty("user.dir"), "BLE_tcp_driver.exe"),          // user.dir
-                new File(appDir, "app/BLE_tcp_driver.exe")                               // app 子目录
+                new File(base, "BLE_tcp_driver.exe"),
+                parent == null ? null : new File(parent, "BLE_tcp_driver.exe"),
+                new File(System.getProperty("user.dir"), "BLE_tcp_driver.exe"),
+                new File(base, "app/BLE_tcp_driver.exe")
             };
-            
             for (File candidate : candidates) {
-                if (candidate != null && candidate.exists()) {
-                    bleExe = candidate;
-                    break;
+                if (candidate != null && candidate.isFile()) {
+                    return candidate.toPath().toAbsolutePath().normalize();
                 }
             }
-            
-            if (bleExe != null) {
-                final File finalBleExe = bleExe;
-                ProcessBuilder pb = new ProcessBuilder(finalBleExe.getAbsolutePath());
-                pb.directory(finalBleExe.getParentFile());
-                
-                pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-                pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-                
-                Process process = pb.start();
-                com.example.ahakey.service.BleBridgeProcessOwner.register(process);
-                
-                new Thread(() -> {
-                    try {
-                        int exitCode = process.waitFor();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+        } catch (Exception ignored) {
+            // The caller reports a deterministic not-found/start failure.
+        }
+        return null;
+    }
+
+    private void launchBleDriver(Path executable) {
+        try {
+            ProcessBuilder builder = new ProcessBuilder(executable.toString(), "--show");
+            builder.directory(executable.getParent().toFile());
+            builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            builder.redirectError(ProcessBuilder.Redirect.INHERIT);
+            Process process = builder.start();
+            BleBridgeProcessOwner.register(process, executable);
+
+            new Thread(() -> {
+                try {
+                    // Bounded readiness/foreground retry; the bridge owns BLE discovery.
+                    for (int i = 0; i < 30 && process.isAlive(); i++) {
+                        if (BleBridgeProcessOwner.activateOwnedWindow()) return;
+                        Thread.sleep(100);
                     }
-                }, "ble-driver-monitor").start();
-                
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(1000);
-                        Platform.runLater(() -> {
-                            if (isBleDriverRunning()) {
-                            } else {
-                                showAlert(languageManager.getString("dialog.ble-driver-title"), String.format(languageManager.getString("dialog.ble-start-fail"), finalBleExe.getAbsolutePath()));
-                            }
-                        });
-                    } catch (Exception ignored) {}
-                }).start();
-            } else {
-                showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-not-found") + "\n" 
-                    + new File(appDir, "BLE_tcp_driver.exe").getAbsolutePath() + "\n"
-                    + (appDirFile.getParentFile() != null ? new File(appDirFile.getParentFile(), "BLE_tcp_driver.exe").getAbsolutePath() : "") + "\n"
-                    + new File(System.getProperty("user.dir"), "BLE_tcp_driver.exe").getAbsolutePath());
-            }
-        } catch (Exception e) {
-            showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-start-fail").replace("%s", "") + e.getMessage());
+                    if (!process.isAlive()) {
+                        Platform.runLater(() -> showAlert(
+                            languageManager.getString("dialog.ble-driver-title"),
+                            String.format(languageManager.getString("dialog.ble-start-fail"), executable)));
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }, "ble-driver-foreground").start();
+        } catch (Exception exception) {
+            Platform.runLater(() -> showAlert(
+                languageManager.getString("dialog.ble-driver-title"),
+                String.format(languageManager.getString("dialog.ble-start-fail"),
+                    executable + ": " + exception.getMessage())));
         }
     }
     

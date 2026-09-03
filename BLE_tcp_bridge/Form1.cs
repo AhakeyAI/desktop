@@ -26,10 +26,15 @@ namespace BLE_tcp_driver
         public Form1()
         {
             InitializeComponent();
+            // Stable title used by Studio to restore/adopt this exact bridge window.
+            Text = "AhaKey BLE TCP Driver";
             config = AppConfig.Load();
             bool launchMinimized = Environment.GetCommandLineArgs()
                 .Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase));
-            _suppressInitialShow = config.StartMinimized || launchMinimized;
+            bool forceVisible = Environment.GetCommandLineArgs()
+                .Any(arg => string.Equals(arg, "--show", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(arg, "--foreground", StringComparison.OrdinalIgnoreCase));
+            _suppressInitialShow = !forceVisible && (config.StartMinimized || launchMinimized);
         }
 
         protected override void SetVisibleCore(bool value)
