@@ -120,5 +120,33 @@ final class AhaKeyOLEDSyncPlanTests: XCTestCase {
             writesAnyTaskSet: false,
             activeSetIsDirty: false
         ))
+
+        XCTAssertEqual(
+            AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: .legacyStandard, logicalSet: 1),
+            0
+        )
+        XCTAssertEqual(
+            AhaKeyOLEDSyncPlan.physicalTaskSetIndex(
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                logicalSet: 1
+            ),
+            1
+        )
+        XCTAssertFalse(
+            AhaKeyOLEDSyncPlan.shouldWriteLogicalTaskSet(
+                profile: .legacyStandard,
+                logicalSet: 1,
+                selectedTaskSet: 0,
+                dirtyLogicalSets: [0, 1]
+            )
+        )
+        XCTAssertTrue(
+            AhaKeyOLEDSyncPlan.shouldWriteLogicalTaskSet(
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                logicalSet: 1,
+                selectedTaskSet: 0,
+                dirtyLogicalSets: [0, 1]
+            )
+        )
     }
 }

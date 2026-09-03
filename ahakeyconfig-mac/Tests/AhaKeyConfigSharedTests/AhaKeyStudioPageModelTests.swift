@@ -51,4 +51,57 @@ final class AhaKeyStudioPageModelTests: XCTestCase {
         )
         XCTAssertFalse(AhaKeyStudioPageDiffer.isStrictNoOp(field))
     }
+
+    func testUnknownNeverStrictNoOpEvenWhenMarkedClean() {
+        let field = AhaKeyStudioFrozenField(
+            id: .screenStatusLine(modeSlot: 0),
+            value: .text("x"),
+            isDirty: false,
+            baseline: .unknown
+        )
+        XCTAssertFalse(AhaKeyStudioPageDiffer.isStrictNoOp(field))
+    }
+
+    func testLocalCacheProvenanceCannotBecomeVerified() {
+        let authority = AhaKeyStudioFieldAuthority(
+            value: .text("cached"),
+            trust: .verified,
+            provenance: .absent
+        )
+        XCTAssertEqual(authority.resolvedBaseline(), .unknown)
+        let writeOnly = AhaKeyStudioFieldAuthority(
+            value: .text("wrote"),
+            trust: .verified,
+            provenance: .writeConfirmation
+        )
+        XCTAssertEqual(writeOnly.resolvedBaseline().trust, .writeConfirmed)
+        XCTAssertNotEqual(writeOnly.resolvedBaseline().trust, .verified)
+    }
+
+    func testLeverAndPowerAreNotWritable() {
+        XCTAssertFalse(AhaKeyStudioFieldOwnership.isWritable(.lever))
+        XCTAssertFalse(AhaKeyStudioFieldOwnership.isWritable(.power))
+        XCTAssertTrue(AhaKeyStudioFieldOwnership.fieldIDs(on: .lever).isEmpty)
+        XCTAssertTrue(AhaKeyStudioFieldOwnership.fieldIDs(on: .power).isEmpty)
+    }
+
+    func testStandardRequiredFieldsUseSelectedLogicalSet() {
+        let required = AhaKeyStudioFieldOwnership.requiredFields(
+            on: .screen(modeSlot: 0),
+            profile: .legacyStandard,
+            selectedTaskSet: 1
+        )
+        XCTAssertEqual(required.count, AhaKeyDesiredConfiguration.TaskDisplayState.allCases.count)
+        XCTAssertTrue(required.allSatisfy {
+            if case .screenTaskAsset(_, 1, _) = $0 { return true }
+            return false
+        })
+        XCTAssertTrue(
+            AhaKeyStudioFieldOwnership.requiredFields(
+                on: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                selectedTaskSet: 1
+            ).isEmpty
+        )
+    }
 }

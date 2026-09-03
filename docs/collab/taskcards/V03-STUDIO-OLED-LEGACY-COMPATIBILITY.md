@@ -278,3 +278,11 @@ ACK Codex 20:00 / `lastReviewedCommit=7f87db3`。产品基线 `1ed560b` / 已安
 ### [2026-09-03 20:18] Cursor：C2 完成，停手提审
 
 ACK Codex 20:00 / `lastReviewedCommit=7f87db3`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。单页冻结快照与字段唯一归页；scoped assembler 只组本页 dirty。A/B 独立 dirty、只激活选中套、不镜像 idle；Standard 不伪造 `0x97`。unknown 整组需覆盖确认，无可信页缓存 fail-closed。零差异 ingest/apply=0，不创建 Runtime operation。定向 53/53，全量 806/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/07-c2-page-diff-scoped-assembler.md`。未改 queue/status，不自动进 C3。
+
+### [2026-09-03 20:32] Cursor ACK：开始 C2R1 authoritative baseline / complete scoped payload
+
+ACK Codex 20:28 / `lastReviewedCommit=2fc0523`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C2R1：用户 dirty 与设备权威 baseline 分离；unknown 不得 no-op；legacy unknown/整组完整性；typed value + 单一 ownership；scoped payload；Standard 单套映射。不进 C3/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-03 20:45] Cursor：C2R1 完成，停手提审
+
+ACK Codex 20:28 / `lastReviewedCommit=2fc0523`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。权威 baseline 经 provenance 传入，nil lastSynced 不得 fallback 到 self。unknown 即使标 clean 也不是 no-op；Rhino/Standard 需覆盖确认；整组缺 required 确认后仍 fail-closed。typed field value 与单一 ownership；key/light 带 typed payload；lever/power fail-closed；Standard 不产生 physical set-1。定向 64/64，全量 817/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/08-c2r1-authoritative-baseline-scoped-payload.md`。未改 queue/status，不自动进 C3。

@@ -19,8 +19,12 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         let snapshot = current.frozenPageSnapshot(
             pageID: .screen(modeSlot: 0),
             lastSyncedDraft: synced,
-            fieldTrust: [
-                .screenStatusLine(modeSlot: 0): .verified,
+            fieldAuthorities: [
+                .screenStatusLine(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                    value: .text(""),
+                    trust: .verified,
+                    provenance: .deviceReadback
+                ),
             ],
             profile: .rhinoDualSet(sessionUploadAdvertised: false)
         )
@@ -49,5 +53,72 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         })
         XCTAssertTrue(snapshot.fields.contains { $0.id == .keyAction(modeSlot: 0, role: .approve) })
         XCTAssertFalse(snapshot.fields.contains { $0.id == .screenStatusLine(modeSlot: 0) })
+    }
+
+    func testNilLastSyncedDraftDoesNotTreatUnknownCurrentAsClean() {
+        let draft = AhaKeyStudioDraft.default
+        let snapshot = draft.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: nil,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        XCTAssertTrue(snapshot.fields.contains { $0.isDirty })
+        XCTAssertTrue(snapshot.fields.allSatisfy { $0.baseline.trust == .unknown })
+        XCTAssertNotEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot),
+            .noOp
+        )
+    }
+
+    func testDeviceBaselineWinsWhenLocalCacheDiverges() {
+        var current = AhaKeyStudioDraft.default
+        var synced = current
+        var mode = current.draft(for: .mode0)
+        mode.oled.statusLine = "from-device"
+        current.updateMode(mode)
+        var syncedMode = synced.draft(for: .mode0)
+        syncedMode.oled.statusLine = "stale-cache"
+        synced.updateMode(syncedMode)
+
+        let snapshot = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: [
+                .screenStatusLine(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                    value: .text("from-device"),
+                    trust: .verified,
+                    provenance: .deviceReadback
+                ),
+            ],
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        let status = snapshot.fields.first { $0.id == .screenStatusLine(modeSlot: 0) }
+        XCTAssertEqual(status?.isDirty, true)
+        XCTAssertEqual(status?.baseline.trust, .verified)
+        XCTAssertEqual(status?.baseline.value, .text("from-device"))
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                    fields: [status!]
+                )
+            ),
+            .noOp
+        )
+    }
+
+    func testLeverAndPowerMappingYieldsNoFields() {
+        let draft = AhaKeyStudioDraft.default
+        let lever = draft.frozenPageSnapshot(
+            pageID: .lever,
+            lastSyncedDraft: draft,
+            profile: .legacyStandard
+        )
+        XCTAssertTrue(lever.fields.isEmpty)
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(lever),
+            .unsupportedPage
+        )
     }
 }

@@ -9,7 +9,7 @@ public enum AhaKeyStudioPageID: Equatable, Hashable, Sendable {
     case power
 }
 
-/// 可写入字段。归属由 `AhaKeyStudioFieldOwnership.page(for:)` 唯一决定。
+/// 可写入字段。归属由 `AhaKeyStudioFieldOwnership` 唯一决定。
 public enum AhaKeyStudioFieldID: Equatable, Hashable, Sendable {
     case keyAction(modeSlot: UInt8, role: AhaKeyDesiredConfiguration.KeyRole)
     case keyDescription(modeSlot: UInt8, role: AhaKeyDesiredConfiguration.KeyRole)
@@ -38,26 +38,82 @@ public enum AhaKeyStudioBaselineTrust: Equatable, Sendable {
     case unknown
 }
 
-/// 冻结字段值：用 canonical fingerprint 比较，避免把草稿对象泄漏进 Shared 组装器。
-public struct AhaKeyStudioFieldValue: Equatable, Sendable {
-    public var fingerprint: String
-    public var resourceURL: URL?
+/// 权威 baseline 从哪来。local cache 不能经此升格为 verified。
+public enum AhaKeyStudioBaselineProvenance: Equatable, Sendable {
+    case deviceReadback
+    case writeConfirmation
+    case absent
+}
 
-    public init(fingerprint: String, resourceURL: URL? = nil) {
-        self.fingerprint = fingerprint
-        self.resourceURL = resourceURL
+/// 单字段设备权威事实。缺失时不得用当前草稿填补。
+public struct AhaKeyStudioFieldAuthority: Equatable, Sendable {
+    public var value: AhaKeyStudioFieldValue?
+    public var trust: AhaKeyStudioBaselineTrust
+    public var provenance: AhaKeyStudioBaselineProvenance
+
+    public init(
+        value: AhaKeyStudioFieldValue?,
+        trust: AhaKeyStudioBaselineTrust,
+        provenance: AhaKeyStudioBaselineProvenance
+    ) {
+        self.value = value
+        self.trust = trust
+        self.provenance = provenance
     }
 
-    public static func text(_ value: String) -> AhaKeyStudioFieldValue {
-        AhaKeyStudioFieldValue(fingerprint: "text:\(value)")
+    public static let unknown = AhaKeyStudioFieldAuthority(
+        value: nil,
+        trust: .unknown,
+        provenance: .absent
+    )
+
+    /// local cache / 空 provenance 不得变成 verified。
+    public func resolvedBaseline() -> AhaKeyStudioFieldBaseline {
+        switch provenance {
+        case .deviceReadback:
+            guard trust == .verified, let value else { return .unknown }
+            return AhaKeyStudioFieldBaseline(trust: .verified, value: value)
+        case .writeConfirmation:
+            guard let value else { return .unknown }
+            return AhaKeyStudioFieldBaseline(trust: .writeConfirmed, value: value)
+        case .absent:
+            return .unknown
+        }
     }
+}
+
+public struct AhaKeyStudioTaskAssetDescriptor: Equatable, Sendable {
+    public var fileURL: URL?
+    public var framesPerSecond: Int
+    public var declaredFrameCount: Int?
+    public var pixelWidth: Int?
+    public var pixelHeight: Int?
+
+    public init(
+        fileURL: URL? = nil,
+        framesPerSecond: Int,
+        declaredFrameCount: Int? = nil,
+        pixelWidth: Int? = nil,
+        pixelHeight: Int? = nil
+    ) {
+        self.fileURL = fileURL
+        self.framesPerSecond = framesPerSecond
+        self.declaredFrameCount = declaredFrameCount
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+    }
+}
+
+/// 冻结字段值：单一 typed 边界，禁止跨文件拼/拆 fingerprint。
+public enum AhaKeyStudioFieldValue: Equatable, Sendable {
+    case keyAction(AhaKeyDesiredConfiguration.KeyAction)
+    case text(String)
+    case optionalText(String?)
+    case integer(Int)
+    case taskAsset(AhaKeyStudioTaskAssetDescriptor)
 
     public static func number(_ value: Int) -> AhaKeyStudioFieldValue {
-        AhaKeyStudioFieldValue(fingerprint: "int:\(value)")
-    }
-
-    public static func optionalText(_ value: String?) -> AhaKeyStudioFieldValue {
-        AhaKeyStudioFieldValue(fingerprint: "opt:\(value ?? "")")
+        .integer(value)
     }
 
     public static func asset(
@@ -68,10 +124,35 @@ public struct AhaKeyStudioFieldValue: Equatable, Sendable {
         pixelHeight: Int?
     ) -> AhaKeyStudioFieldValue {
         let url = path.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
-        return AhaKeyStudioFieldValue(
-            fingerprint: "asset:\(path ?? "")|\(framesPerSecond)|\(declaredFrameCount ?? -1)|\(pixelWidth ?? -1)|\(pixelHeight ?? -1)",
-            resourceURL: url
+        return .taskAsset(
+            AhaKeyStudioTaskAssetDescriptor(
+                fileURL: url,
+                framesPerSecond: framesPerSecond,
+                declaredFrameCount: declaredFrameCount,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight
+            )
         )
+    }
+
+    public var textValue: String? {
+        if case .text(let value) = self { return value }
+        return nil
+    }
+
+    public var integerValue: Int? {
+        if case .integer(let value) = self { return value }
+        return nil
+    }
+
+    public var keyActionValue: AhaKeyDesiredConfiguration.KeyAction? {
+        if case .keyAction(let value) = self { return value }
+        return nil
+    }
+
+    public var taskAssetValue: AhaKeyStudioTaskAssetDescriptor? {
+        if case .taskAsset(let value) = self { return value }
+        return nil
     }
 }
 
@@ -90,6 +171,7 @@ public struct AhaKeyStudioFieldBaseline: Equatable, Sendable {
 public struct AhaKeyStudioFrozenField: Equatable, Sendable {
     public var id: AhaKeyStudioFieldID
     public var value: AhaKeyStudioFieldValue
+    /// 相对 local lastSyncedDraft 的用户编辑；nil cache 时为 true。不得单独决定 no-op。
     public var isDirty: Bool
     public var baseline: AhaKeyStudioFieldBaseline
 
@@ -134,6 +216,8 @@ public struct AhaKeyStudioPageSnapshot: Equatable, Sendable {
 public struct AhaKeyStudioScopedWritePlan: Equatable, Sendable {
     public var pageID: AhaKeyStudioPageID
     public var fieldMask: Set<AhaKeyStudioFieldID>
+    /// 每个被写入字段的 typed 值。key/light/screen 都必须可消费。
+    public var values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue]
     public var overwriteSemantic: Bool
     public var writeTaskSetA: Bool
     public var writeTaskSetB: Bool
@@ -149,6 +233,7 @@ public struct AhaKeyStudioScopedWritePlan: Equatable, Sendable {
     public init(
         pageID: AhaKeyStudioPageID,
         fieldMask: Set<AhaKeyStudioFieldID>,
+        values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue],
         overwriteSemantic: Bool,
         writeTaskSetA: Bool,
         writeTaskSetB: Bool,
@@ -161,6 +246,7 @@ public struct AhaKeyStudioScopedWritePlan: Equatable, Sendable {
     ) {
         self.pageID = pageID
         self.fieldMask = fieldMask
+        self.values = values
         self.overwriteSemantic = overwriteSemantic
         self.writeTaskSetA = writeTaskSetA
         self.writeTaskSetB = writeTaskSetB
@@ -178,13 +264,28 @@ public enum AhaKeyStudioPageAssembly: Equatable, Sendable {
     case noOp
     /// 整组协议或 unknown baseline 需要用户确认覆盖。
     case requiresOverwriteConfirmation
-    /// 无可信页缓存，不得静默补齐。
+    /// 无可信页缓存或缺必需字段，不得静默猜测。
     case missingTrustedPageCache
     case unsupportedProfile
+    /// 当前草稿不能表达该页（lever/power）。
+    case unsupportedPage
     case write(AhaKeyStudioScopedWritePlan)
 }
 
+/// 单一归属表：page lookup、可写集、required fields、mapping 字段清单。
 public enum AhaKeyStudioFieldOwnership {
+    /// 灯条 IDE 状态 raw（0...8），与 BLE `IDEState` 对齐。
+    public static let lightMappingStates: [UInt8] = Array(0...8)
+
+    public static func isWritable(_ page: AhaKeyStudioPageID) -> Bool {
+        switch page {
+        case .key, .lights, .screen:
+            return true
+        case .lever, .power:
+            return false
+        }
+    }
+
     public static func page(for field: AhaKeyStudioFieldID) -> AhaKeyStudioPageID {
         switch field {
         case .keyAction(let slot, let role),
@@ -205,25 +306,61 @@ public enum AhaKeyStudioFieldOwnership {
         }
     }
 
-    /// 每个字段只出现在一个页面；用于回归唯一归属。
-    public static func allOwnedFields() -> [AhaKeyStudioFieldID] {
-        var fields: [AhaKeyStudioFieldID] = [.leverMacro, .powerAction]
-        for slot in UInt8(0)...UInt8(3) {
-            for role in AhaKeyDesiredConfiguration.KeyRole.allCases {
-                fields.append(.keyAction(modeSlot: slot, role: role))
-                fields.append(.keyDescription(modeSlot: slot, role: role))
-                fields.append(.keyVoicePreset(modeSlot: slot, role: role))
+    /// mapping 与 assembler 共用：当前草稿能表达的字段。lever/power 为空。
+    public static func fieldIDs(on page: AhaKeyStudioPageID) -> [AhaKeyStudioFieldID] {
+        switch page {
+        case .key(let slot, let role):
+            return [
+                .keyAction(modeSlot: slot, role: role),
+                .keyDescription(modeSlot: slot, role: role),
+                .keyVoicePreset(modeSlot: slot, role: role),
+            ]
+        case .lights(let slot):
+            return [.lightBrightness(modeSlot: slot)] + lightMappingStates.map {
+                .lightMapping(modeSlot: slot, state: $0)
             }
-            fields.append(.lightBrightness(modeSlot: slot))
-            fields.append(.lightMapping(modeSlot: slot, state: 0))
-            fields.append(.screenStatusLine(modeSlot: slot))
-            fields.append(.screenFramesPerSecond(modeSlot: slot))
-            fields.append(.screenActiveSet(modeSlot: slot))
+        case .screen(let slot):
+            var fields: [AhaKeyStudioFieldID] = [
+                .screenStatusLine(modeSlot: slot),
+                .screenFramesPerSecond(modeSlot: slot),
+                .screenActiveSet(modeSlot: slot),
+            ]
             for setIndex in 0...1 {
                 for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
                     fields.append(.screenTaskAsset(modeSlot: slot, setIndex: setIndex, state: state))
                 }
             }
+            return fields
+        case .lever, .power:
+            return []
+        }
+    }
+
+    /// Standard 屏幕整组：选中逻辑套的全部任务状态。确认后仍缺则 fail-closed。
+    public static func requiredFields(
+        on page: AhaKeyStudioPageID,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        selectedTaskSet: Int
+    ) -> [AhaKeyStudioFieldID] {
+        guard isWritable(page) else { return [] }
+        guard case .screen(let slot) = page else { return [] }
+        guard case .legacyStandard = profile else { return [] }
+        let logical = min(1, max(0, selectedTaskSet))
+        return AhaKeyDesiredConfiguration.TaskDisplayState.allCases.map {
+            .screenTaskAsset(modeSlot: slot, setIndex: logical, state: $0)
+        }
+    }
+
+    /// 每个字段只出现在一个页面；用于回归唯一归属。
+    public static func allOwnedFields() -> [AhaKeyStudioFieldID] {
+        var fields: [AhaKeyStudioFieldID] = [.leverMacro, .powerAction]
+        for slot in UInt8(0)...UInt8(3) {
+            fields.append(contentsOf: fieldIDs(on: .key(modeSlot: slot, role: .voice)))
+            for role in AhaKeyDesiredConfiguration.KeyRole.allCases where role != .voice {
+                fields.append(contentsOf: fieldIDs(on: .key(modeSlot: slot, role: role)))
+            }
+            fields.append(contentsOf: fieldIDs(on: .lights(modeSlot: slot)))
+            fields.append(contentsOf: fieldIDs(on: .screen(modeSlot: slot)))
         }
         return fields
     }
@@ -231,8 +368,8 @@ public enum AhaKeyStudioFieldOwnership {
 
 public enum AhaKeyStudioPageDiffer {
     /// 严格 no-op 只能基于 verified，或与同一次成功写入内容精确相同的 writeConfirmed。
+    /// unknown 与缺失 baseline 永远不是 no-op；`isDirty` 不得绕过。
     public static func isStrictNoOp(_ field: AhaKeyStudioFrozenField) -> Bool {
-        guard field.isDirty else { return true }
         switch field.baseline.trust {
         case .verified:
             return field.baseline.value == field.value
@@ -246,9 +383,7 @@ public enum AhaKeyStudioPageDiffer {
 
     public static func hasTrustedCache(_ field: AhaKeyStudioFrozenField) -> Bool {
         switch field.baseline.trust {
-        case .verified:
-            return field.baseline.value != nil
-        case .writeConfirmed:
+        case .verified, .writeConfirmed:
             return field.baseline.value != nil
         case .unknown:
             return false

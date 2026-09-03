@@ -111,32 +111,42 @@ enum AhaKeyStudioAssetMetadataProbe {
     }
 }
 
-// MARK: - C2：单页冻结快照（纯映射，不组包）
+// MARK: - C2R1：单页冻结快照（纯映射，不组包）
 
 extension AhaKeyStudioDraft {
     /// 只冻结 `pageID` 上的字段。其它页即使 dirty 也不会进入快照。
+    /// 设备权威 baseline 必须经 `fieldAuthorities` 传入；`lastSyncedDraft` 只做用户 dirty 比较，缺失不得 fallback 到 `self`。
     func frozenPageSnapshot(
         pageID: AhaKeyStudioPageID,
         lastSyncedDraft: AhaKeyStudioDraft?,
-        fieldTrust: [AhaKeyStudioFieldID: AhaKeyStudioBaselineTrust] = [:],
+        fieldAuthorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [:],
         profile: AhaKeyOLEDCompatibilityProfile,
         selectedTaskSet: Int? = nil,
         overwriteConfirmed: Bool = false
     ) -> AhaKeyStudioPageSnapshot {
         let currentFields = ownedFields(on: pageID)
-        let baselineDraft = lastSyncedDraft ?? self
-        let baselineFields = Dictionary(
-            uniqueKeysWithValues: baselineDraft.ownedFields(on: pageID).map { ($0.id, $0.value) }
-        )
+        let cachedFields: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue]
+        if let lastSyncedDraft {
+            cachedFields = Dictionary(
+                uniqueKeysWithValues: lastSyncedDraft.ownedFields(on: pageID).map { ($0.id, $0.value) }
+            )
+        } else {
+            cachedFields = [:]
+        }
         let frozen = currentFields.map { field -> AhaKeyStudioFrozenField in
-            let baselineValue = baselineFields[field.id]
-            let trust = fieldTrust[field.id] ?? .unknown
-            let dirty = baselineValue != field.value
+            let authority = fieldAuthorities[field.id] ?? .unknown
+            let baseline = authority.resolvedBaseline()
+            let userDirty: Bool
+            if lastSyncedDraft == nil {
+                userDirty = true
+            } else {
+                userDirty = cachedFields[field.id] != field.value
+            }
             return AhaKeyStudioFrozenField(
                 id: field.id,
                 value: field.value,
-                isDirty: dirty,
-                baseline: AhaKeyStudioFieldBaseline(trust: trust, value: baselineValue)
+                isDirty: userDirty,
+                baseline: baseline
             )
         }
         let selected: Int
@@ -154,71 +164,59 @@ extension AhaKeyStudioDraft {
         )
     }
 
+    /// 字段清单由 Shared ownership 驱动；本层只按 field ID 取值。
     fileprivate func ownedFields(on pageID: AhaKeyStudioPageID) -> [(id: AhaKeyStudioFieldID, value: AhaKeyStudioFieldValue)] {
-        switch pageID {
-        case .key(let slot, let role):
+        AhaKeyStudioFieldOwnership.fieldIDs(on: pageID).compactMap { id in
+            guard let value = value(for: id) else { return nil }
+            return (id, value)
+        }
+    }
+
+    fileprivate func value(for id: AhaKeyStudioFieldID) -> AhaKeyStudioFieldValue? {
+        switch id {
+        case .keyAction(let slot, let role):
+            return keyDraft(slot: slot, role: role).map { .keyAction($0.packageInput().action) }
+        case .keyDescription(let slot, let role):
+            return keyDraft(slot: slot, role: role).map { .text($0.description) }
+        case .keyVoicePreset(let slot, let role):
+            return keyDraft(slot: slot, role: role).map { .optionalText($0.voicePreset?.rawValue) }
+        case .lightBrightness(let slot):
+            return modeDraft(slot: slot).map { .integer($0.lightBar.brightness) }
+        case .lightMapping(let slot, let state):
+            guard let mapping = modeDraft(slot: slot)?.lightBar.stateMappings.first(where: {
+                $0.state.rawValue == state
+            }) else { return nil }
+            return .text(mapping.effect.rawValue)
+        case .screenStatusLine(let slot):
+            return modeDraft(slot: slot).map { .text($0.oled.statusLine) }
+        case .screenFramesPerSecond(let slot):
+            return modeDraft(slot: slot).map { .integer($0.oled.framesPerSecond) }
+        case .screenActiveSet(let slot):
+            return modeDraft(slot: slot).map { .integer($0.oled.activeGIFSet) }
+        case .screenTaskAsset(let slot, let setIndex, let state):
             guard let mode = modeDraft(slot: slot),
-                  let key = mode.keys.first(where: { $0.role.rawValue == Int(role.rawValue) }) else {
-                return []
-            }
-            return [
-                (.keyAction(modeSlot: slot, role: role), .text(key.actionFingerprint)),
-                (.keyDescription(modeSlot: slot, role: role), .text(key.description)),
-                (.keyVoicePreset(modeSlot: slot, role: role), .optionalText(key.voicePreset?.rawValue)),
-            ]
-        case .lights(let slot):
-            guard let mode = modeDraft(slot: slot) else { return [] }
-            var fields: [(AhaKeyStudioFieldID, AhaKeyStudioFieldValue)] = [
-                (.lightBrightness(modeSlot: slot), .number(mode.lightBar.brightness)),
-            ]
-            for mapping in mode.lightBar.stateMappings {
-                fields.append((
-                    .lightMapping(modeSlot: slot, state: mapping.state.rawValue),
-                    .text(mapping.effect.rawValue)
-                ))
-            }
-            return fields
-        case .screen(let slot):
-            guard let mode = modeDraft(slot: slot) else { return [] }
-            var fields: [(AhaKeyStudioFieldID, AhaKeyStudioFieldValue)] = [
-                (.screenStatusLine(modeSlot: slot), .text(mode.oled.statusLine)),
-                (.screenFramesPerSecond(modeSlot: slot), .number(mode.oled.framesPerSecond)),
-                (.screenActiveSet(modeSlot: slot), .number(mode.oled.activeGIFSet)),
-            ]
-            for (setIndex, set) in mode.oled.taskGIFSets.prefix(2).enumerated() {
-                for asset in set.assets {
-                    guard let state = AhaKeyDesiredConfiguration.TaskDisplayState(rawValue: UInt8(asset.state.rawValue)) else {
-                        continue
-                    }
-                    let metadata = AhaKeyStudioAssetMetadataProbe.probe(asset.localAssetPath)
-                    fields.append((
-                        .screenTaskAsset(modeSlot: slot, setIndex: setIndex, state: state),
-                        .asset(
-                            path: asset.localAssetPath,
-                            framesPerSecond: asset.framesPerSecond,
-                            declaredFrameCount: metadata.frameCount,
-                            pixelWidth: metadata.pixelWidth,
-                            pixelHeight: metadata.pixelHeight
-                        )
-                    ))
-                }
-            }
-            return fields
-        case .lever, .power:
-            return []
+                  mode.oled.taskGIFSets.indices.contains(setIndex) else { return nil }
+            guard let asset = mode.oled.taskGIFSets[setIndex].assets.first(where: {
+                $0.state.rawValue == Int(state.rawValue)
+            }) else { return nil }
+            let metadata = AhaKeyStudioAssetMetadataProbe.probe(asset.localAssetPath)
+            return .asset(
+                path: asset.localAssetPath,
+                framesPerSecond: asset.framesPerSecond,
+                declaredFrameCount: metadata.frameCount,
+                pixelWidth: metadata.pixelWidth,
+                pixelHeight: metadata.pixelHeight
+            )
+        case .leverMacro, .powerAction:
+            return nil
         }
     }
 
     fileprivate func modeDraft(slot: UInt8) -> AhaKeyModeDraft? {
         modes.first { $0.mode.rawValue == Int(slot) }
     }
-}
 
-private extension AhaKeyKeyDraft {
-    var actionFingerprint: String {
-        if usesMacro {
-            return "macro:" + macro.map { "\($0.action.rawValue):\($0.param)" }.joined(separator: ",")
-        }
-        return "shortcut:\(shortcut.orderedModifiers.map(\.rawValue).joined(separator: "+")):\(shortcut.keyCode)"
+    fileprivate func keyDraft(slot: UInt8, role: AhaKeyDesiredConfiguration.KeyRole) -> AhaKeyKeyDraft? {
+        modeDraft(slot: slot)?.keys.first { $0.role.rawValue == Int(role.rawValue) }
     }
 }

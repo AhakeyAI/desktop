@@ -91,4 +91,36 @@ public enum AhaKeyOLEDSyncPlan {
             return nil
         }
     }
+
+    /// Standard 只有一套物理槽（set 0）。逻辑 A/B 都映射到它，禁止产生 set-1 资源。
+    public static func physicalTaskSetIndex(
+        profile: AhaKeyOLEDCompatibilityProfile,
+        logicalSet: Int
+    ) -> Int {
+        let logical = min(1, max(0, logicalSet))
+        switch profile {
+        case .legacyStandard:
+            return 0
+        case .rhinoDualSet, .currentSessionCapable, .unsupported:
+            return logical
+        }
+    }
+
+    public static func shouldWriteLogicalTaskSet(
+        profile: AhaKeyOLEDCompatibilityProfile,
+        logicalSet: Int,
+        selectedTaskSet: Int,
+        dirtyLogicalSets: Set<Int>
+    ) -> Bool {
+        let logical = min(1, max(0, logicalSet))
+        let selected = min(1, max(0, selectedTaskSet))
+        switch profile {
+        case .legacyStandard:
+            return dirtyLogicalSets.contains(selected) && logical == selected
+        case .rhinoDualSet, .currentSessionCapable:
+            return dirtyLogicalSets.contains(logical)
+        case .unsupported:
+            return false
+        }
+    }
 }

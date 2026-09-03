@@ -316,9 +316,9 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         )
         let otherPage = AhaKeyStudioFrozenField(
             id: .keyAction(modeSlot: 0, role: .voice),
-            value: .text("changed-key"),
+            value: .keyAction(try! sampleKeyAction()),
             isDirty: true,
-            baseline: .init(trust: .verified, value: .text("old-key"))
+            baseline: .init(trust: .verified, value: .keyAction(try! sampleKeyAction(keyCode: 5)))
         )
         let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
             AhaKeyStudioPageSnapshot(
@@ -374,49 +374,67 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         XCTAssertFalse(plan.fieldMask.contains(.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .idle)))
         XCTAssertEqual(plan.resources.count, 1)
         XCTAssertEqual(plan.resources[0].logicalIdentifier.rawValue, "mode0-set1-done")
+        XCTAssertNotNil(plan.values[.screenTaskAsset(modeSlot: 0, setIndex: 1, state: .done)])
     }
 
-    func testScopedAssemblerWritesBothSetsWhenBothDirtyAndDoesNotForgeStandardActivationOpcode() {
-        func dirtyDone(set: Int, path: String) -> AhaKeyStudioFrozenField {
-            AhaKeyStudioFrozenField(
-                id: .screenTaskAsset(modeSlot: 0, setIndex: set, state: .done),
-                value: .asset(
-                    path: path, framesPerSecond: 12, declaredFrameCount: 4,
-                    pixelWidth: 160, pixelHeight: 80
-                ),
-                isDirty: true,
-                baseline: .init(trust: .writeConfirmed, value: .asset(
-                    path: path + ".old", framesPerSecond: 12, declaredFrameCount: 4,
-                    pixelWidth: 160, pixelHeight: 80
-                ))
-            )
-        }
+    func testStandardDoesNotEmitPhysicalSetBForLogicalBOrBothDirty() {
         let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
             AhaKeyStudioPageSnapshot(
                 pageID: .screen(modeSlot: 0),
                 profile: .legacyStandard,
-                selectedTaskSet: 0,
+                selectedTaskSet: 1,
                 overwriteConfirmed: true,
+                fields: standardCompleteSet(logicalSet: 0, prefix: "/tmp/a")
+                    + standardCompleteSet(logicalSet: 1, prefix: "/tmp/b")
+            )
+        )
+        guard case .write(let plan) = assembly else {
+            return XCTFail("选中逻辑 B 应映射到物理套 0")
+        }
+        XCTAssertTrue(plan.writeTaskSetA)
+        XCTAssertFalse(plan.writeTaskSetB)
+        XCTAssertFalse(plan.emitsSetActiveSetOpcode)
+        XCTAssertEqual(plan.activateTaskSet, 1)
+        XCTAssertTrue(plan.resources.allSatisfy { $0.logicalIdentifier.rawValue.contains("-set0-") })
+        XCTAssertFalse(plan.resources.contains { $0.logicalIdentifier.rawValue.contains("-set1-") })
+    }
+
+    func testUnknownDirtyIsNeverNoOpEvenWhenMarkedClean() {
+        let field = AhaKeyStudioFrozenField(
+            id: .screenStatusLine(modeSlot: 0),
+            value: .text("current"),
+            isDirty: false,
+            baseline: .unknown
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                    fields: [field]
+                )
+            ),
+            .requiresOverwriteConfirmation
+        )
+    }
+
+    func testRhinoUnknownDirtyRequiresOverwriteConfirmation() {
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                overwriteConfirmed: false,
                 fields: [
-                    dirtyDone(set: 0, path: "/tmp/a.gif"),
-                    dirtyDone(set: 1, path: "/tmp/b.gif"),
                     AhaKeyStudioFrozenField(
-                        id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working),
-                        value: .text("cached"),
-                        isDirty: false,
-                        baseline: .init(trust: .writeConfirmed, value: .text("cached"))
+                        id: .screenStatusLine(modeSlot: 0),
+                        value: .text("new"),
+                        isDirty: true,
+                        baseline: .unknown
                     ),
                 ]
             )
         )
-        guard case .write(let plan) = assembly else {
-            return XCTFail("两套 dirty 应都写")
-        }
-        XCTAssertTrue(plan.writeTaskSetA)
-        XCTAssertTrue(plan.writeTaskSetB)
-        XCTAssertEqual(plan.activateTaskSet, 0)
-        XCTAssertFalse(plan.emitsSetActiveSetOpcode)
-        XCTAssertTrue(plan.overwriteSemantic)
+        XCTAssertEqual(assembly, .requiresOverwriteConfirmation)
     }
 
     func testStandardUnknownBaselineRequiresOverwriteConfirmation() {
@@ -441,12 +459,12 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         XCTAssertEqual(assembly, .requiresOverwriteConfirmation)
     }
 
-    func testStandardMissingTrustedCacheFailClosed() {
+    func testStandardMissingRequiredFieldFailClosedAfterConfirmation() {
         let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
             AhaKeyStudioPageSnapshot(
                 pageID: .screen(modeSlot: 0),
                 profile: .legacyStandard,
-                overwriteConfirmed: false,
+                overwriteConfirmed: true,
                 fields: [
                     AhaKeyStudioFrozenField(
                         id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done),
@@ -455,21 +473,87 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
                             pixelWidth: 160, pixelHeight: 80
                         ),
                         isDirty: true,
-                        baseline: .init(trust: .verified, value: .asset(
-                            path: "/tmp/old.gif", framesPerSecond: 12, declaredFrameCount: 3,
-                            pixelWidth: 160, pixelHeight: 80
-                        ))
-                    ),
-                    AhaKeyStudioFrozenField(
-                        id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working),
-                        value: .text("guess"),
-                        isDirty: false,
                         baseline: .unknown
                     ),
                 ]
             )
         )
         XCTAssertEqual(assembly, .missingTrustedPageCache)
+    }
+
+    func testKeyAndLightPlansCarryTypedValues() throws {
+        let action = try sampleKeyAction()
+        let keyAssembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .key(modeSlot: 0, role: .approve),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: .keyAction(modeSlot: 0, role: .approve),
+                        value: .keyAction(action),
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: .keyAction(try sampleKeyAction(keyCode: 9)))
+                    ),
+                    AhaKeyStudioFrozenField(
+                        id: .keyDescription(modeSlot: 0, role: .approve),
+                        value: .text("ok"),
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: .text("old"))
+                    ),
+                ]
+            )
+        )
+        guard case .write(let keyPlan) = keyAssembly else {
+            return XCTFail("key dirty 应有 typed payload")
+        }
+        XCTAssertEqual(keyPlan.values[.keyAction(modeSlot: 0, role: .approve)]?.keyActionValue, action)
+        XCTAssertEqual(keyPlan.values[.keyDescription(modeSlot: 0, role: .approve)]?.textValue, "ok")
+
+        let lightAssembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .lights(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: .lightBrightness(modeSlot: 0),
+                        value: .integer(80),
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: .integer(35))
+                    ),
+                    AhaKeyStudioFrozenField(
+                        id: .lightMapping(modeSlot: 0, state: 1),
+                        value: .text("pulse"),
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: .text("off"))
+                    ),
+                ]
+            )
+        )
+        guard case .write(let lightPlan) = lightAssembly else {
+            return XCTFail("light dirty 应有 typed payload")
+        }
+        XCTAssertEqual(lightPlan.values[.lightBrightness(modeSlot: 0)]?.integerValue, 80)
+        XCTAssertEqual(lightPlan.values[.lightMapping(modeSlot: 0, state: 1)]?.textValue, "pulse")
+    }
+
+    func testLeverAndPowerPagesFailClosed() {
+        for page in [AhaKeyStudioPageID.lever, .power] {
+            let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+                AhaKeyStudioPageSnapshot(
+                    pageID: page,
+                    profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                    fields: [
+                        AhaKeyStudioFrozenField(
+                            id: page == .lever ? .leverMacro : .powerAction,
+                            value: .text("x"),
+                            isDirty: true,
+                            baseline: .unknown
+                        ),
+                    ]
+                )
+            )
+            XCTAssertEqual(assembly, .unsupportedPage)
+        }
     }
 
     func testUnsupportedProfileDoesNotAssembleWrite() {
@@ -488,5 +572,36 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
             )
         )
         XCTAssertEqual(assembly, .unsupportedProfile)
+    }
+
+    private func standardCompleteSet(logicalSet: Int, prefix: String) -> [AhaKeyStudioFrozenField] {
+        AhaKeyDesiredConfiguration.TaskDisplayState.allCases.map { state in
+            let value = AhaKeyStudioFieldValue.asset(
+                path: "\(prefix)-\(state.rawValue).gif",
+                framesPerSecond: 12,
+                declaredFrameCount: 3,
+                pixelWidth: 160,
+                pixelHeight: 80
+            )
+            return AhaKeyStudioFrozenField(
+                id: .screenTaskAsset(modeSlot: 0, setIndex: logicalSet, state: state),
+                value: value,
+                isDirty: true,
+                baseline: .init(
+                    trust: .writeConfirmed,
+                    value: .asset(
+                        path: "\(prefix)-old.gif",
+                        framesPerSecond: 12,
+                        declaredFrameCount: 3,
+                        pixelWidth: 160,
+                        pixelHeight: 80
+                    )
+                )
+            )
+        }
+    }
+
+    private func sampleKeyAction(keyCode: UInt8 = 4) throws -> AhaKeyDesiredConfiguration.KeyAction {
+        .shortcut(try AhaKeyDesiredConfiguration.Shortcut(modifiers: ["command"], keyCode: keyCode))
     }
 }

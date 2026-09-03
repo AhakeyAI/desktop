@@ -387,52 +387,58 @@ public enum AhaKeyStudioPackageAssembler {
         )
     }
 
-    /// C2：只组装单一页面冻结快照中的 dirty 字段。其它页字段直接丢弃。
+    /// C2R1：只组装单一页面冻结快照。其它页字段直接丢弃。no-op 必须逐字段证明设备 baseline。
     public static func assembleScopedPage(
         _ snapshot: AhaKeyStudioPageSnapshot
     ) -> AhaKeyStudioPageAssembly {
         if case .unsupported = snapshot.profile {
             return .unsupportedProfile
         }
+        guard AhaKeyStudioFieldOwnership.isWritable(snapshot.pageID) else {
+            return .unsupportedPage
+        }
 
         let owned = snapshot.fields.filter {
             AhaKeyStudioFieldOwnership.page(for: $0.id) == snapshot.pageID
         }
-        let dirty = owned.filter(\.isDirty)
-        guard !dirty.isEmpty else { return .noOp }
-        if dirty.allSatisfy(AhaKeyStudioPageDiffer.isStrictNoOp) {
+        if owned.isEmpty {
             return .noOp
+        }
+        if owned.allSatisfy(AhaKeyStudioPageDiffer.isStrictNoOp) {
+            return .noOp
+        }
+
+        let unresolvedUnknown = owned.contains { $0.baseline.trust == .unknown }
+        if unresolvedUnknown, !snapshot.overwriteConfirmed {
+            return .requiresOverwriteConfirmation
         }
 
         let wholeGroup = AhaKeyStudioPageDiffer.requiresWholeGroupWrite(
             pageID: snapshot.pageID,
             profile: snapshot.profile
         )
-        let unresolvedUnknown = dirty.contains {
-            $0.baseline.trust == .unknown && !AhaKeyStudioPageDiffer.isStrictNoOp($0)
-        }
-        if wholeGroup, unresolvedUnknown, !snapshot.overwriteConfirmed {
-            return .requiresOverwriteConfirmation
-        }
-
-        if wholeGroup {
-            let siblings = owned.filter { field in
-                guard case .screenTaskAsset = field.id else { return false }
-                return true
-            }
-            let missingCache = siblings.contains { !AhaKeyStudioPageDiffer.hasTrustedCache($0) && !$0.isDirty }
-            if missingCache, !snapshot.overwriteConfirmed {
+        let required = AhaKeyStudioFieldOwnership.requiredFields(
+            on: snapshot.pageID,
+            profile: snapshot.profile,
+            selectedTaskSet: snapshot.selectedTaskSet
+        )
+        let byID = Dictionary(uniqueKeysWithValues: owned.map { ($0.id, $0) })
+        for fieldID in required {
+            guard byID[fieldID] != nil else {
                 return .missingTrustedPageCache
             }
         }
 
-        var mask = Set(dirty.map(\.id))
+        var mask = Set(owned.filter { !AhaKeyStudioPageDiffer.isStrictNoOp($0) }.map(\.id))
         if wholeGroup, snapshot.overwriteConfirmed {
-            for field in owned {
-                if case .screenTaskAsset = field.id {
-                    mask.insert(field.id)
-                }
+            for fieldID in required {
+                mask.insert(fieldID)
             }
+        }
+
+        var values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue] = [:]
+        for field in owned where mask.contains(field.id) {
+            values[field.id] = field.value
         }
 
         var writeSetA = false
@@ -441,18 +447,35 @@ public enum AhaKeyStudioPackageAssembler {
         var framesPerSecond: Int?
         var activeSetDirty = false
         var resources: [AhaKeyStudioResourceInput] = []
+        let dirtyLogicalSets = Set(mask.compactMap { id -> Int? in
+            if case .screenTaskAsset(_, let setIndex, _) = id { return setIndex }
+            return nil
+        })
 
         for field in owned where mask.contains(field.id) {
             switch field.id {
-            case .screenTaskAsset(_, let setIndex, let state):
-                if setIndex == 0 { writeSetA = true }
-                if setIndex == 1 { writeSetB = true }
-                if let url = field.value.resourceURL,
-                   let parsed = parseAssetFingerprint(field.value.fingerprint) {
+            case .screenTaskAsset(_, let logicalSet, let state):
+                guard AhaKeyOLEDSyncPlan.shouldWriteLogicalTaskSet(
+                    profile: snapshot.profile,
+                    logicalSet: logicalSet,
+                    selectedTaskSet: snapshot.selectedTaskSet,
+                    dirtyLogicalSets: dirtyLogicalSets
+                ) else { continue }
+                let physical = AhaKeyOLEDSyncPlan.physicalTaskSetIndex(
+                    profile: snapshot.profile,
+                    logicalSet: logicalSet
+                )
+                if physical == 0 { writeSetA = true }
+                if physical == 1 { writeSetB = true }
+                if let asset = field.value.taskAssetValue,
+                   let url = asset.fileURL,
+                   let frames = asset.declaredFrameCount, frames > 0,
+                   let width = asset.pixelWidth, width > 0,
+                   let height = asset.pixelHeight, height > 0 {
                     let identifier = (try? AhaKeyResourceIdentifier(
                         taskAssetIdentifier(
                             mode: modeSlot(of: snapshot.pageID) ?? 0,
-                            set: setIndex,
+                            set: physical,
                             state: state
                         )
                     ))
@@ -461,17 +484,17 @@ public enum AhaKeyStudioPackageAssembler {
                             AhaKeyStudioResourceInput(
                                 logicalIdentifier: identifier,
                                 fileURL: url,
-                                declaredFrameCount: parsed.frames,
-                                pixelWidth: parsed.width,
-                                pixelHeight: parsed.height
+                                declaredFrameCount: frames,
+                                pixelWidth: width,
+                                pixelHeight: height
                             )
                         )
                     }
                 }
             case .screenStatusLine:
-                statusLine = text(from: field.value.fingerprint)
+                statusLine = field.value.textValue
             case .screenFramesPerSecond:
-                framesPerSecond = int(from: field.value.fingerprint)
+                framesPerSecond = field.value.integerValue
             case .screenActiveSet:
                 activeSetDirty = true
             default:
@@ -490,7 +513,8 @@ public enum AhaKeyStudioPackageAssembler {
             AhaKeyStudioScopedWritePlan(
                 pageID: snapshot.pageID,
                 fieldMask: mask,
-                overwriteSemantic: snapshot.overwriteConfirmed && wholeGroup,
+                values: values,
+                overwriteSemantic: snapshot.overwriteConfirmed && (wholeGroup || unresolvedUnknown),
                 writeTaskSetA: writeSetA,
                 writeTaskSetB: writeSetB,
                 activateTaskSet: activation?.selectedSet,
@@ -510,29 +534,5 @@ public enum AhaKeyStudioPackageAssembler {
         case .lever, .power:
             return nil
         }
-    }
-
-    private static func parseAssetFingerprint(
-        _ fingerprint: String
-    ) -> (frames: Int, width: Int, height: Int)? {
-        // asset:path|fps|frames|w|h
-        let parts = fingerprint.split(separator: "|", omittingEmptySubsequences: false)
-        guard parts.count >= 4,
-              let frames = Int(parts[parts.count - 3]), frames > 0,
-              let width = Int(parts[parts.count - 2]), width > 0,
-              let height = Int(parts[parts.count - 1]), height > 0 else {
-            return nil
-        }
-        return (frames, width, height)
-    }
-
-    private static func text(from fingerprint: String) -> String? {
-        guard fingerprint.hasPrefix("text:") else { return nil }
-        return String(fingerprint.dropFirst(5))
-    }
-
-    private static func int(from fingerprint: String) -> Int? {
-        guard fingerprint.hasPrefix("int:") else { return nil }
-        return Int(fingerprint.dropFirst(4))
     }
 }
