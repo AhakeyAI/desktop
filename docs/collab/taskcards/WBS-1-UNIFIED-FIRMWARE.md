@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R8`（B1R7 补出 full 返回臂，但 byte-exact oracle 与 durable H/E 基点仍未闭合；不刷机）
+状态：`ready / 1.6 B2A transport report + VBUS decision prep`（B1 accepted @ `b03433e`；仅文档/静态准备，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1915,3 +1915,26 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 5. 复跑 adapter/B4、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check`，并附上述 wrong-bytes mutant 非零证据；停手提审。B1 仍未关闭，传输回归报告/VBUS B2、1.7、刷机、实机 HIL、push 均不开放。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R8）
+
+### [2026-09-03 17:36] Codex 复验 1.6 B1R8：accepted，关闭 B1；开放 B2A 传输报告与 VBUS 决策准备
+
+- 固定审查固件仓 `e40d947cf37935ea56a2bf0d6b5de54fa917989b...b03433efec4dc2f58de04f3beaa004253c89f192`，`lastReviewedCommit=b03433efec4dc2f58de04f3beaa004253c89f192`。四提交线性、单 worktree，业务增量仅 `tools/wbs15/test_transport_arbiter.c`；另两份为生成 evidence。`APP/**`、ABI/ELF pins、build scripts、B3/B4、身份/0x86/VBUS 均零 diff，验收前后树 clean，`git diff --check` 通过。
+- Codex 独立复跑 adapter **37 检查**、B4、`build-wbs15.sh`、`build-wbs14.sh` 均 exit 0。`d+1` wrong-bytes mutant 精确失败两臂：full readback `memcmp` 与 partial ring-tail `memcmp`，exit 1；还原后全绿。full 读回实际为 **16B**（`readback` 容量 32B），partial 全排水 4095B，4091B filler + 4B chunk tail 均逐字节成立。
+
+**Standards**
+
+- 0 finding。`own_chunk` 恢复同源 data 语义，范围与提交拆分符合白名单；硬性违规 0、判断项 0。
+
+**Spec**
+
+- 初审发现 **P1**：Zcode handoff 未逐项写报告内 harness commit，且称最终 wbs15 绿于 `a34ef77`；提交态真值为：H=`b5ca9cf`；wbs15 E=`a34ef77`、报告 harness=`b5ca9cf`；wbs14 E=`82cf9c4`、报告 harness=`a34ef77`；最终 wbs15 E/HEAD=`b03433e`、报告 harness=`82cf9c4`。本 Codex append-only 验收条目已 durable 更正，因此不再要求无代码 B1R9。
+- 初审 **P2**：handoff 写「`lwrb_read` 32B」，实际是 32B 缓冲区、读取 `sizeof(own_chunk)`=16B；本条同步更正。测试实现本身 0 finding。
+
+**B1 关闭 / B2A（本轮新开：传输回归报告 + VBUS 决策准备，docs-only）**
+
+1. 新增 `docs/wbs-1.6-transport-regression.md`：逐项汇总 B1 身份、单 owner assembly、data-window、KEEP/full/partial、overflow/timeout/reset、B4、0x86、WBS 1.5 冻结面、RAM/stack/双 ELF 与 mutation 证据；每项写生产入口、host oracle、最近通过 commit。明确区分「host/static 已绿」与「7A/7B 实机未跑」，不得把报告写成 HIL 通过。
+2. 在同一报告形成 VBUS B2 决策包：并列当前 unified hot-init/battery-continue 与 local 插线 reset/拔线 shutdown 候选，列出转移表 11/12、charge-only/Hub/<3 tick/≥3 tick/sleep/unplug 六组 7B 证据需求、预期风险及待用户裁决项。不得预写 ADOPTED/DELETED，不改生产行为。
+3. 核对 `docs/wbs-1.6-usb-ble-vbus-design.md` §3/§7 与报告一致；若只需更正文档矛盾可同提交修改该设计文档。不得创建伪 HIL 结果；`tools/wbs16/**` 实机 runner、刷机、设备操作仍待独立 USER-GATE。
+4. 白名单仅上述两份固件文档、必要的只读命令输出摘要、本任务卡与 append-only board；禁止 `APP/**`、tests、harness、pins、Makefile/linker、1.7、刷机、实机 HIL、push。交 docs H 后停手提审。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B2A docs-only）
