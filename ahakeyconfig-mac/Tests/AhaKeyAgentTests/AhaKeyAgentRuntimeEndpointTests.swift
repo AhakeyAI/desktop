@@ -1251,13 +1251,17 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             let stalePeripheral = UUID()
             let livePeripheral = UUID()
 
-            await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: stalePeripheral) }
+            let stale99Token = await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: stalePeripheral) }
             await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
             await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: livePeripheral) }
             let before99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertTrue(before99.awaitingCapability)
             XCTAssertEqual(before99.phase, "idle")
-            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validCurrentCapabilityFrame(), from: stalePeripheral) }
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validCurrentCapabilityFrame(), callbackToken: stale99Token
+                )
+            }
             let after99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertEqual(after99, before99)
             XCTAssertNil(after99.contextProfile)
@@ -1266,11 +1270,18 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             XCTAssertNil(after99.firmwareMain)
             XCTAssertEqual(after99.routingProfile, .unsupported)
 
+            let stale94Token = await MainActor.run {
+                agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: stalePeripheral)
+            }
             await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
             await MainActor.run { agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: livePeripheral) }
             let before94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertEqual(before94.phase, "awaitingTaskPicture")
-            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validLegacyTaskPictureFrame(), from: stalePeripheral) }
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validLegacyTaskPictureFrame(), callbackToken: stale94Token
+                )
+            }
             let after94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertEqual(after94, before94)
             XCTAssertNil(after94.contextProfile)
@@ -1279,22 +1290,20 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
-    func testSameUUIDStaleGenerationNotifyDoesNotSealReconnectedAwaitingPhase() {
+    func testSameUUIDStaleCallbackIdentityDoesNotSealReconnectedAwaitingPhase() {
         runEndpointTest { [self] in
             let agent = makeAgent()
             let uuid = UUID()
 
-            await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: uuid) }
-            let stale99Generation = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+            let stale99Token = await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: uuid) }
             await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
-            await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: uuid) }
-            let live99Generation = await MainActor.run { agent.oledConnectionGenerationForTesting() }
-            XCTAssertNotEqual(live99Generation, stale99Generation)
+            let live99Token = await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: uuid) }
+            XCTAssertNotEqual(live99Token, stale99Token)
             let before99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertTrue(before99.awaitingCapability)
             await MainActor.run {
-                agent.handleOLEDNotifyFrameForTesting(
-                    Self.validCurrentCapabilityFrame(), from: uuid, generation: stale99Generation
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validCurrentCapabilityFrame(), callbackToken: stale99Token
                 )
             }
             let afterStale99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
@@ -1305,23 +1314,46 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             XCTAssertNil(afterStale99.firmwareMain)
             XCTAssertEqual(afterStale99.routingProfile, .unsupported)
 
-            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validCurrentCapabilityFrame(), from: uuid) }
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validCurrentCapabilityFrame(), callbackToken: UUID()
+                )
+            }
+            let afterUnknown99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterUnknown99, before99)
+
+            await MainActor.run { agent.revokeOLEDNotifyCallbackTokenForTesting(stale99Token) }
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validCurrentCapabilityFrame(), callbackToken: stale99Token
+                )
+            }
+            let afterRevoked99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterRevoked99, before99)
+
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validCurrentCapabilityFrame(), callbackToken: live99Token
+                )
+            }
             let afterLive99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertEqual(afterLive99.contextProfile, .rhinoDualSet(sessionUploadAdvertised: false))
             XCTAssertTrue(afterLive99.hasCapabilities)
             XCTAssertEqual(afterLive99.routingProfile, .rhinoDualSet(sessionUploadAdvertised: false))
 
+            let stale94Token = await MainActor.run {
+                agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: uuid, firmwareMainVersion: 1)
+            }
             await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
-            await MainActor.run { agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: uuid, firmwareMainVersion: 1) }
-            let stale94Generation = await MainActor.run { agent.oledConnectionGenerationForTesting() }
-            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
-            await MainActor.run { agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: uuid, firmwareMainVersion: 1) }
+            let live94Token = await MainActor.run {
+                agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: uuid, firmwareMainVersion: 1)
+            }
             let before94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertEqual(before94.phase, "awaitingTaskPicture")
             XCTAssertEqual(before94.firmwareMain, 1)
             await MainActor.run {
-                agent.handleOLEDNotifyFrameForTesting(
-                    Self.validLegacyTaskPictureFrame(), from: uuid, generation: stale94Generation
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validLegacyTaskPictureFrame(), callbackToken: stale94Token
                 )
             }
             let afterStale94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
@@ -1329,7 +1361,28 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             XCTAssertNil(afterStale94.contextProfile)
             XCTAssertEqual(afterStale94.routingProfile, .unsupported)
 
-            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validLegacyTaskPictureFrame(), from: uuid) }
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validLegacyTaskPictureFrame(), callbackToken: UUID()
+                )
+            }
+            let afterUnknown94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterUnknown94, before94)
+
+            await MainActor.run { agent.revokeOLEDNotifyCallbackTokenForTesting(stale94Token) }
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validLegacyTaskPictureFrame(), callbackToken: stale94Token
+                )
+            }
+            let afterRevoked94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(afterRevoked94, before94)
+
+            await MainActor.run {
+                agent.ingestOLEDNegotiationNotifyForTesting(
+                    Self.validLegacyTaskPictureFrame(), callbackToken: live94Token
+                )
+            }
             let afterLive94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
             XCTAssertEqual(afterLive94.contextProfile, .legacyStandard)
             XCTAssertEqual(afterLive94.routingProfile, .legacyStandard)

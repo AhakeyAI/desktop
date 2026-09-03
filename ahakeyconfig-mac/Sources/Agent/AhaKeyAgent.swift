@@ -1,11 +1,14 @@
 import Combine
 import CoreBluetooth
 import Foundation
+import ObjectiveC
 import os.log
 import AhaKeyConfigShared
 import RuntimeXPCServer
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig.agent", category: "BLE")
+/// `CBPeripheral` / `CBCharacteristic` 上的订阅 token；不得按 UUID 或当前全局槽反推。
+private var oledNotifyCallbackTokenAssociationKey: UInt8 = 0
 
 /// 配置事务期间暂缓 0x90 的协调器。隔离由 `@MainActor` 表达；begin/end 必须配对。
 @MainActor
@@ -180,8 +183,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var legacyProbeFirmwareMainVersion: Int?
     /// OLED 协商归属的连接代际。新连接/断连递增；过期 timeout/response 必须零状态变化。
     private var oledConnectionGeneration: UInt64 = 0
-    /// 建立 notify subscription 时冻结的回调身份。真实 notify 必须用它，不得用当前请求/global generation 反推。
-    private var oledNotifySubscription: OLEDNotifySource?
+    /// 每条订阅一个不可复用 token → 冻结的 source。旧 token 不得被新订阅改写成新代。
+    private var oledNotifySourcesByToken: [UUID: OLEDNotifySource] = [:]
+    /// 已撤销的 callback identity；resolver 必须拒绝，且不得回收为新代。
+    private var oledRevokedNotifyTokens: Set<UUID> = []
     /// 当前在途 `0x99/0x00/0x94` 请求身份。response 必须同时匹配 source generation 与 peripheral。
     private var oledInFlightRequest: OLEDNotifySource?
 
@@ -1780,18 +1785,29 @@ extension AhaKeyAgent {
             }
             return
         }
+        var boundNotifyToken: UUID?
         for char in service.characteristics ?? [] {
             if char.uuid == commandCharUUID {
                 commandChar = char
                 emit(NSLocalizedString("命令通道就绪", comment: ""))
             } else if char.uuid == notifyCharUUID {
                 notifyChar = char
-                bindOLEDNotifySubscription(peripheralID: peripheral.identifier)
+                boundNotifyToken = bindOLEDNotifySubscription(peripheralID: peripheral.identifier)
                 peripheral.setNotifyValue(true, for: char)
                 emit(NSLocalizedString("通知通道已订阅", comment: ""))
             } else if char.uuid == dataCharUUID {
                 dataChar = char
                 emit(NSLocalizedString("数据通道就绪", comment: ""))
+            }
+        }
+        let attachToken = boundNotifyToken ?? oledNotifyCallbackToken(attachedTo: peripheral)
+        if let attachToken {
+            attachOLEDNotifyCallbackToken(attachToken, to: peripheral)
+            if let notifyChar {
+                attachOLEDNotifyCallbackToken(attachToken, to: notifyChar)
+            }
+            if let commandChar {
+                attachOLEDNotifyCallbackToken(attachToken, to: commandChar)
             }
         }
         // 两个特征都就绪 → transport 核心推进到协商（current-only：协商成功才允许业务写入与轮询）
@@ -1813,7 +1829,6 @@ extension AhaKeyAgent {
         negotiationAttempts = 0
         awaitingCapabilityResponse = false
         oledInFlightRequest = nil
-        oledNotifySubscription = nil
         negotiationTimeoutItem?.cancel()
         negotiationTimeoutItem = nil
         emit("OLED 协商已随连接代际撤销（\(reason)，gen=\(oledConnectionGeneration)）")
@@ -1823,12 +1838,50 @@ extension AhaKeyAgent {
         executionTestHooks?.oledNotifyPeripheralID ?? peripheral?.identifier
     }
 
-    /// 在 `setNotifyValue` / 测试订阅时冻结；之后 notify 只读这份关联。
-    private func bindOLEDNotifySubscription(peripheralID: UUID) {
-        oledNotifySubscription = OLEDNotifySource(
+    /// 建立订阅时铸造新 token 并冻结 source。不得覆写已有 token 的 generation。
+    @discardableResult
+    private func bindOLEDNotifySubscription(peripheralID: UUID) -> UUID {
+        let token = UUID()
+        oledNotifySourcesByToken[token] = OLEDNotifySource(
             generation: oledConnectionGeneration,
             peripheralID: peripheralID
         )
+        return token
+    }
+
+    private func revokeOLEDNotifyCallbackToken(_ token: UUID) {
+        oledRevokedNotifyTokens.insert(token)
+    }
+
+    /// 按 callback 自身的 token 取订阅时冻结的 source；未知或已撤销为 nil。
+    private func resolveOLEDNotifySource(token: UUID) -> OLEDNotifySource? {
+        guard !oledRevokedNotifyTokens.contains(token) else { return nil }
+        return oledNotifySourcesByToken[token]
+    }
+
+    private func oledNotifyCallbackToken(attachedTo object: AnyObject) -> UUID? {
+        objc_getAssociatedObject(object, &oledNotifyCallbackTokenAssociationKey) as? UUID
+    }
+
+    /// 把 token 附到本次 callback 可定址的对象上。若对象被复用，撤销旧 token，不把它改写成新代。
+    private func attachOLEDNotifyCallbackToken(_ token: UUID, to object: AnyObject) {
+        if let previous = oledNotifyCallbackToken(attachedTo: object), previous != token {
+            revokeOLEDNotifyCallbackToken(previous)
+        }
+        objc_setAssociatedObject(
+            object,
+            &oledNotifyCallbackTokenAssociationKey,
+            token,
+            .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+        )
+    }
+
+    private func oledNotifyCallbackToken(
+        for characteristic: CBCharacteristic,
+        peripheral: CBPeripheral
+    ) -> UUID? {
+        oledNotifyCallbackToken(attachedTo: characteristic)
+            ?? oledNotifyCallbackToken(attachedTo: peripheral)
     }
 
     private func noteOLEDInFlight() {
@@ -2041,6 +2094,12 @@ extension AhaKeyAgent {
         }
     }
 
+    /// 生产 notify 与测试 seam 共用：先按 callback token 解析订阅时冻结的 source，再分发。
+    private func ingestOLEDNegotiationNotify(_ data: Data, callbackToken: UUID) {
+        guard let source = resolveOLEDNotifySource(token: callbackToken) else { return }
+        _ = consumeOLEDNegotiationNotify(data, source: source)
+    }
+
     /// 生产 notify 与测试 seam 共用：source 必须是订阅时冻结的身份，再按 opcode/phase 分发。
     @discardableResult
     private func consumeOLEDNegotiationNotify(_ data: Data, source: OLEDNotifySource) -> Bool {
@@ -2094,10 +2153,9 @@ extension AhaKeyAgent {
         guard characteristic.uuid == commandCharUUID || characteristic.uuid == notifyCharUUID,
               let data = characteristic.value else { return }
         if isOLEDNegotiationNotifyFrame(data) {
-            // 回调身份来自订阅时冻结的关联，不得用当前 peripheral 的 generation 反推。
-            guard let source = oledNotifySubscription,
-                  source.peripheralID == peripheral.identifier else { return }
-            _ = consumeOLEDNegotiationNotify(data, source: source)
+            // 身份来自本次 callback 对象上的 token，不得读当前全局订阅槽。
+            guard let token = oledNotifyCallbackToken(for: characteristic, peripheral: peripheral) else { return }
+            ingestOLEDNegotiationNotify(data, callbackToken: token)
             return
         }
         // 0x81 图片写入确认（数据通道收尾；session 必须匹配当前在途会话）
@@ -3488,41 +3546,51 @@ extension AhaKeyAgent {
         return applyOLEDNotifyPeripheralIDForTesting(UUID())
     }
 
-    func armOLEDAwaitingCapabilityResponseForTesting(peripheralID: UUID) {
+    @discardableResult
+    func armOLEDAwaitingCapabilityResponseForTesting(peripheralID: UUID) -> UUID {
         _ = applyOLEDNotifyPeripheralIDForTesting(peripheralID)
-        bindOLEDNotifySubscription(peripheralID: peripheralID)
+        let token = bindOLEDNotifySubscription(peripheralID: peripheralID)
         awaitingCapabilityResponse = true
         oledLegacyProbePhase = .idle
         noteOLEDInFlight()
+        return token
     }
 
-    func armOLEDAwaitingTaskPictureForTesting(peripheralID: UUID, firmwareMainVersion: Int? = nil) {
+    @discardableResult
+    func armOLEDAwaitingTaskPictureForTesting(peripheralID: UUID, firmwareMainVersion: Int? = nil) -> UUID {
         _ = applyOLEDNotifyPeripheralIDForTesting(peripheralID)
-        bindOLEDNotifySubscription(peripheralID: peripheralID)
+        let token = bindOLEDNotifySubscription(peripheralID: peripheralID)
         awaitingCapabilityResponse = false
         oledLegacyProbePhase = .awaitingTaskPicture
         if let firmwareMainVersion {
             legacyProbeFirmwareMainVersion = firmwareMainVersion
         }
         noteOLEDInFlight()
+        return token
     }
 
     func handleLegacyFirmwareProbeFrameForTesting(_ data: Data) {
         let sourceID = ensureTestOLEDPeripheralID()
-        bindOLEDNotifySubscription(peripheralID: sourceID)
+        let token = bindOLEDNotifySubscription(peripheralID: sourceID)
         oledLegacyProbePhase = .awaitingFirmwareVersion
         noteOLEDInFlight()
-        guard let source = oledNotifySubscription else { return }
-        handleLegacyFirmwareProbeResponse(data, source: source)
+        ingestOLEDNegotiationNotify(data, callbackToken: token)
     }
 
     func handleLegacyTaskPictureProbeFrameForTesting(_ data: Data) {
         let sourceID = ensureTestOLEDPeripheralID()
-        bindOLEDNotifySubscription(peripheralID: sourceID)
+        let token = bindOLEDNotifySubscription(peripheralID: sourceID)
         oledLegacyProbePhase = .awaitingTaskPicture
         noteOLEDInFlight()
-        guard let source = oledNotifySubscription else { return }
-        handleLegacyTaskPictureProbeResponse(data, source: source)
+        ingestOLEDNegotiationNotify(data, callbackToken: token)
+    }
+
+    func revokeOLEDNotifyCallbackTokenForTesting(_ token: UUID) {
+        revokeOLEDNotifyCallbackToken(token)
+    }
+
+    func ingestOLEDNegotiationNotifyForTesting(_ data: Data, callbackToken: UUID) {
+        ingestOLEDNegotiationNotify(data, callbackToken: callbackToken)
     }
 
     /// 测试 seam：与 didDisconnect/didConnect 同一套 OLED 代际清场。
@@ -3541,19 +3609,10 @@ extension AhaKeyAgent {
         }
     }
 
-    /// 测试 seam：走生产 notify 分发。`generation` 模拟订阅时冻结的 source generation；缺省用当前 subscription，不得用 global 反推。
-    func handleOLEDNotifyFrameForTesting(
-        _ data: Data,
-        from source: UUID? = nil,
-        generation: UInt64? = nil
-    ) {
-        let sourceID = source ?? oledNotifySubscription?.peripheralID ?? currentOLEDPeripheralID()
-        let sourceGen = generation ?? oledNotifySubscription?.generation
-        guard let sourceID, let sourceGen else { return }
-        _ = consumeOLEDNegotiationNotify(
-            data,
-            source: OLEDNotifySource(generation: sourceGen, peripheralID: sourceID)
-        )
+    /// 测试 seam：无 callback token 时与生产 `didUpdateValueFor` 一样直接拒绝，不得反推当前订阅。
+    func handleOLEDNotifyFrameForTesting(_ data: Data, callbackToken: UUID? = nil) {
+        guard let callbackToken else { return }
+        ingestOLEDNegotiationNotify(data, callbackToken: callbackToken)
     }
 
     @MainActor
