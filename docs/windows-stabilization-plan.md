@@ -164,6 +164,9 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 本轮基于只读 Firmware `firmware-stable-rebase-79` 稳定基线（runtime commit
 `79ecabad3c8fd013aba7a6e12a13b5836fbc8924`，文档 commit
 `26c03afe9dd2cbfe95fbcac9f6f1b79458dfbd20`）收口 Windows 代码。固件仓库未修改。
+交叉审计结论保留为：`79 = confirmed GOOD`、`a103 = confirmed first BAD`、
+`4d465af = historical BAD stabilization line / HV-003 evidence`；后两者不是本轮
+生产固件输入，也不应被 cherry-pick 到软件工作区。
 
 * HV-005 GATT discovery race 已在 `5801b0d` 固化修复：发现线程同步分类并形成最终
   snapshot，UI `BeginInvoke` 只负责显示；此前真机诊断曾观察到 0x7340/7341/7343/7344
