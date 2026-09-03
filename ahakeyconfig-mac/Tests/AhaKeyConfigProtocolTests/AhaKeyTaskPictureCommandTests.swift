@@ -92,6 +92,13 @@ final class AhaKeyTaskPictureCommandTests: XCTestCase {
         XCTAssertEqual(legacy?.set, 0)
         XCTAssertEqual(legacy?.state, 3)
         XCTAssertEqual(legacy?.startIndex, 0x1234)
+        XCTAssertEqual(legacy?.picLength, 5)
+        XCTAssertEqual(legacy?.frameInterval, 83)
+        XCTAssertEqual(legacy?.allModeMaxPic, 0x0124)
+        XCTAssertEqual(legacy?.activeSet, 0)
+        XCTAssertNil(AhaKeyResponseParser.parseTaskPictureStateResponse(Data([
+            2, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01, 0xFF,
+        ])))
 
         let current = AhaKeyResponseParser.parseTaskPictureSetResponse(Data([
             2, 1, 3, 0x34, 0x12, 5, 0, 83, 0, 0x20, 0x01, 1,

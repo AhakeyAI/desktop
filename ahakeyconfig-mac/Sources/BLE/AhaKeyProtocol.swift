@@ -1,4 +1,5 @@
 import Foundation
+import AhaKeyConfigShared
 
 /// AhaKey-X1 BLE 协议编解码
 ///
@@ -394,13 +395,14 @@ enum AhaKeyResponseParser {
     }
 
     static func parseTaskPictureStateResponse(_ payload: Data) -> AhaKeyTaskPictureState? {
-        guard payload.count >= 10 else { return nil }
+        guard let parsed = AhaKeyLegacyTaskPicturePayload.parse(payload) else { return nil }
         return AhaKeyTaskPictureState(
-            mode: Int(payload[0]), set: 0, state: Int(payload[1]),
-            startIndex: Int(UInt16(payload[2]) | (UInt16(payload[3]) << 8)),
-            picLength: Int(UInt16(payload[4]) | (UInt16(payload[5]) << 8)),
-            frameInterval: Int(UInt16(payload[6]) | (UInt16(payload[7]) << 8)),
-            allModeMaxPic: Int(UInt16(payload[8]) | (UInt16(payload[9]) << 8)), activeSet: 0
+            mode: Int(parsed.mode), set: 0, state: Int(parsed.state),
+            startIndex: Int(parsed.startIndex),
+            picLength: Int(parsed.frameCount),
+            frameInterval: Int(parsed.intervalMs),
+            allModeMaxPic: Int(parsed.allModeMaxPic),
+            activeSet: 0
         )
     }
 

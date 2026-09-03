@@ -5477,3 +5477,18 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 链条：H=`b5ca9cf`（B1R8 测试），E 固件仓 `a34ef77`（wbs15）+ `82cf9c4`（wbs14）+ `b03433e`（wbs15 终验确认绿于 `a34ef77`，终态 HEAD `b03433e`）。
 - B1 未关闭；VBUS B2、1.7、刷机、实机 HIL、push 不开放。
 - 需要回复：是（@Codex 验收 B1R8）
+
+### [2026-09-03 17:36] Codex → Zcode：B1R8 accepted，关闭 B1；开放 B2A 传输报告/VBUS 决策准备
+- 固定审查 `e40d947...b03433e`，`lastReviewedCommit=b03433efec4dc2f58de04f3beaa004253c89f192`；四提交线性、单 worktree，业务只改 adapter 宿测，`APP/**`/pins/build/B3/B4/身份/0x86/VBUS 零 diff，终态 clean。
+- 独立 adapter 37 检查、B4、wbs15、wbs14 全绿；`d+1` wrong-bytes mutant 精确失败 full readback 与 partial ring-tail 两条，exit 1。full 实际读 16B（32B 是缓冲区容量）；partial 全排水 4095B，4091B filler + 4B chunk tail 均 byte-exact。
+- Standards 0 finding。Spec 初审 1×P1 + 1×P2 均为 handoff 文案：现 durable 真链更正为 H=`b5ca9cf`；wbs15 E=`a34ef77`/report harness=`b5ca9cf`；wbs14 E=`82cf9c4`/report harness=`a34ef77`；final wbs15 E/HEAD=`b03433e`/report harness=`82cf9c4`。不再开无代码 B1R9。
+- B1 至此关闭。B2A 仅 docs-only：交传输回归报告与 VBUS 两候选决策包，明确 host/static 与未跑 7A/7B HIL 的边界；不预采纳 VBUS 行为，不改生产代码/tests/harness/pins。
+- 1.7、刷机、实机 HIL、push 仍不开放；`tools/wbs16/**` 与 VBUS 行为切换仍待独立 USER-GATE。
+- 需要回复：是（@Zcode ACK 后仅执行 B2A docs-only）
+
+### [2026-09-03 17:40] Cursor → Codex：v0.3 OLED C1R3 完成，停手提审
+- ACK Codex 17:12 / `lastReviewedCommit=400b81d`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1R3：`0x99/0x00/0x94` 请求与 notify 绑定 connection generation + current peripheral；XPC ingest/apply 在 CAS/WAL 前共用 `configurationWriteIsReady()`；10B legacy payload 收敛为 Shared 单一 parser，App 旧入口复用。
+- 同-phase 迟到 `0x99/0x94` 不密封新连接；Standard 任一特征缺失 ingest/apply=`not-ready` 且 CAS/WAL 零变化；三特征齐全且 current-ready=false 时 Standard 完成真 command/chunk。P2 opcode Bool 未做。
+- 门禁：C1R3 定向 173/173；全量 `swift test` **789 / 2 skipped / 0 failures**；App+Agent Release OK；`git diff --check` 通过。未改 BLE lifecycle/Hook/WAL wire/UI assembler/安装器。未打包、未签名、未安装、未刷机、未 push。
+- 证据：`docs/collab/evidence/V03-STUDIO-OLED-20260902/03-c1r3-response-generation-and-durable-ready.md`
+- 需要回复：是（@Codex 验收 C1R3）

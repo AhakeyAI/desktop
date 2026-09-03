@@ -209,6 +209,31 @@ public struct AhaKeyOLEDCompatibilityContext: Equatable, Sendable {
     public var allowsIngestAndApply: Bool { profile.allowsConfigurationPlan }
 }
 
+/// 精确 10B little-endian legacy `0x94` payload。Agent 分类器与 App `AhaKeyResponseParser` 共用此入口。
+public struct AhaKeyLegacyTaskPicturePayload: Equatable, Sendable {
+    public static let byteCount = 10
+
+    public let mode: UInt8
+    public let state: UInt8
+    public let startIndex: UInt16
+    public let frameCount: UInt16
+    public let intervalMs: UInt16
+    public let allModeMaxPic: UInt16
+
+    public static func parse(_ payload: Data) -> Self? {
+        guard payload.count == byteCount else { return nil }
+        let bytes = Array(payload)
+        return Self(
+            mode: bytes[0],
+            state: bytes[1],
+            startIndex: UInt16(bytes[2]) | (UInt16(bytes[3]) << 8),
+            frameCount: UInt16(bytes[4]) | (UInt16(bytes[5]) << 8),
+            intervalMs: UInt16(bytes[6]) | (UInt16(bytes[7]) << 8),
+            allModeMaxPic: UInt16(bytes[8]) | (UInt16(bytes[9]) << 8)
+        )
+    }
+}
+
 /// 0x94 实探：真任务图应答 vs 未知命令通用空包。不得把空包当成 Standard。
 public enum AhaKeyLegacyTaskPictureProbe: Equatable, Sendable {
     case supportsTaskPictures
@@ -218,29 +243,13 @@ public enum AhaKeyLegacyTaskPictureProbe: Equatable, Sendable {
     /// Agent 实探固定查询：mode=0、state=done。成功帧必须原样回显。
     public static let probeMode: UInt8 = 0
     public static let probeState: UInt8 = 3
-    public static let legacyPayloadByteCount = 10
+    public static let legacyPayloadByteCount = AhaKeyLegacyTaskPicturePayload.byteCount
 
-    public struct LegacyPayload: Equatable, Sendable {
-        public let mode: UInt8
-        public let state: UInt8
-        public let startIndex: UInt16
-        public let frameCount: UInt16
-        public let intervalMs: UInt16
-        public let allModeMaxPic: UInt16
-    }
+    public typealias LegacyPayload = AhaKeyLegacyTaskPicturePayload
 
-    /// 精确 10B legacy 0x94 payload（与 `AhaKeyResponseParser.parseTaskPictureStateResponse` 同布局）。
-    public static func parseLegacyPayload(_ payload: Data) -> LegacyPayload? {
-        guard payload.count == legacyPayloadByteCount else { return nil }
-        let bytes = Array(payload)
-        return LegacyPayload(
-            mode: bytes[0],
-            state: bytes[1],
-            startIndex: UInt16(bytes[2]) | (UInt16(bytes[3]) << 8),
-            frameCount: UInt16(bytes[4]) | (UInt16(bytes[5]) << 8),
-            intervalMs: UInt16(bytes[6]) | (UInt16(bytes[7]) << 8),
-            allModeMaxPic: UInt16(bytes[8]) | (UInt16(bytes[9]) << 8)
-        )
+    /// 精确 10B legacy 0x94 payload。唯一字节布局入口。
+    public static func parseLegacyPayload(_ payload: Data) -> AhaKeyLegacyTaskPicturePayload? {
+        AhaKeyLegacyTaskPicturePayload.parse(payload)
     }
 
     /// `frame` 为完整 AA BB 94 … CC DD。只接受 status=0、精确 10B、mode/state echo。

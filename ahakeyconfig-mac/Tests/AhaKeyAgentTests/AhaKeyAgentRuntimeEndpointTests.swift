@@ -1154,6 +1154,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             var hooks = agent.executionTestHooks
             hooks?.skipConfigurationBLEWriteGates = true
             hooks?.isReady = false
+            hooks?.configurationCharacteristics = .allPresent
             hooks?.release = .picturesUnrestrictedForTests
             agent.executionTestHooks = hooks
             await sealStandardViaLegacyProbe(agent)
@@ -1244,6 +1245,97 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    func testSamePhaseStaleNotifyFromPreviousPeripheralDoesNotSealNewGeneration() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let stalePeripheral = UUID()
+            let livePeripheral = UUID()
+
+            await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: stalePeripheral) }
+            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+            await MainActor.run { agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: livePeripheral) }
+            let before99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertTrue(before99.awaitingCapability)
+            XCTAssertEqual(before99.phase, "idle")
+            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validCurrentCapabilityFrame(), from: stalePeripheral) }
+            let after99 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(after99, before99)
+            XCTAssertNil(after99.contextProfile)
+            XCTAssertFalse(after99.hasCapabilities)
+            XCTAssertFalse(after99.malformed)
+            XCTAssertNil(after99.firmwareMain)
+            XCTAssertEqual(after99.routingProfile, .unsupported)
+
+            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+            await MainActor.run { agent.armOLEDAwaitingTaskPictureForTesting(peripheralID: livePeripheral) }
+            let before94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(before94.phase, "awaitingTaskPicture")
+            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validLegacyTaskPictureFrame(), from: stalePeripheral) }
+            let after94 = await MainActor.run { agent.oledNegotiationSnapshotForTesting() }
+            XCTAssertEqual(after94, before94)
+            XCTAssertNil(after94.contextProfile)
+            XCTAssertFalse(after94.hasCapabilities)
+            XCTAssertEqual(after94.routingProfile, .unsupported)
+        }
+    }
+
+    func testStandardMissingCharacteristicRejectsIngestApplyWithZeroCASWALChange() {
+        runEndpointTest { [self] in
+            let missing: [(String, AhaKeyConfigurationCharacteristicPresence)] = [
+                ("peripheral", .init(peripheral: false, command: true, data: true)),
+                ("command", .init(peripheral: true, command: false, data: true)),
+                ("data", .init(peripheral: true, command: true, data: false)),
+            ]
+            for (label, presence) in missing {
+                let agent = makeAgent()
+                var hooks = agent.executionTestHooks
+                hooks?.skipConfigurationBLEWriteGates = true
+                hooks?.isReady = false
+                hooks?.configurationCharacteristics = presence
+                hooks?.release = .picturesUnrestrictedForTests
+                agent.executionTestHooks = hooks
+                await sealStandardViaLegacyProbe(agent)
+                let writeReady = await MainActor.run { agent.configurationWriteIsReadyForTesting() }
+                XCTAssertFalse(writeReady, "\(label) 缺失时 Standard 不得 ready")
+                try? await Task.sleep(nanoseconds: 80_000_000)
+
+                let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+                let resourcesDir = storeDir.appendingPathComponent("resources")
+                func resourceNames() -> Set<String> {
+                    Set((try? FileManager.default.contentsOfDirectory(atPath: resourcesDir.path)) ?? [])
+                }
+                let beforeResources = resourceNames()
+                let sqlite = storeDir.appendingPathComponent("runtime.sqlite3")
+                let beforeDB = try? Data(contentsOf: sqlite)
+
+                let assembled = try makeStandardPictureAssembly()
+                let items = try ingestItems(assembled)
+                let package = try makePackage(from: assembled)
+                let ingest = try await agent.handleRuntimeXPCRequest(.ingestResources(items))
+                guard case .failure(let ingestCode) = ingest else {
+                    return XCTFail("\(label) 缺失时 ingest 必须失败，实际 \(ingest)")
+                }
+                XCTAssertEqual(ingestCode.rawValue, "not-ready", label)
+                let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+                guard case .failure(let applyCode) = apply else {
+                    return XCTFail("\(label) 缺失时 apply 必须失败，实际 \(apply)")
+                }
+                XCTAssertEqual(applyCode.rawValue, "not-ready", label)
+                XCTAssertEqual(resourceNames(), beforeResources, label)
+                let afterDB = try? Data(contentsOf: sqlite)
+                XCTAssertEqual(afterDB, beforeDB, label)
+                if FileManager.default.fileExists(atPath: sqlite.path) {
+                    let store = try AhaKeyRuntimePersistentStore(
+                        rootDirectory: storeDir,
+                        acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+                    )
+                    let wal = try await store.transaction(package.operationID)
+                    XCTAssertNil(wal, label)
+                }
+            }
+        }
+    }
+
     func testLegacyTaskPictureErrorFrameDoesNotYieldStandard() {
         runEndpointTest { [self] in
             let agent = makeAgent()
@@ -1265,6 +1357,18 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         Data([
             0xAA, 0xBB, 0x94, 0x00,
             0, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
+            0xCC, 0xDD,
+        ])
+    }
+
+    private static func validCurrentCapabilityFrame() -> Data {
+        Data([
+            0xAA, 0xBB, 0x99, 0x00,
+            3, 4, 2, 4,
+            0, 0,
+            200, 0,
+            8, 0,
+            0, 0, 0, 0,
             0xCC, 0xDD,
         ])
     }

@@ -283,4 +283,19 @@ final class AhaKeyOLEDCompatibilityProfileTests: XCTestCase {
             .unsupported
         )
     }
+
+    func testLegacyTaskPicturePayloadParserIsTheSingleExactTenByteLayout() {
+        let exact: [UInt8] = [0, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01]
+        let parsed = AhaKeyLegacyTaskPicturePayload.parse(Data(exact))
+        XCTAssertEqual(parsed?.mode, 0)
+        XCTAssertEqual(parsed?.state, 3)
+        XCTAssertEqual(parsed?.startIndex, 0x1234)
+        XCTAssertEqual(parsed?.frameCount, 5)
+        XCTAssertEqual(parsed?.intervalMs, 83)
+        XCTAssertEqual(parsed?.allModeMaxPic, 0x0124)
+        XCTAssertEqual(AhaKeyLegacyTaskPictureProbe.parseLegacyPayload(Data(exact)), parsed)
+        XCTAssertNil(AhaKeyLegacyTaskPicturePayload.parse(Data(exact + [0xFF])))
+        XCTAssertNil(AhaKeyLegacyTaskPicturePayload.parse(Data(exact.dropLast())))
+        XCTAssertNil(AhaKeyLegacyTaskPicturePayload.parse(Data()))
+    }
 }
