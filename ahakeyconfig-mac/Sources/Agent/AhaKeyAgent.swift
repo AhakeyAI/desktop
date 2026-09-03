@@ -178,6 +178,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
     private var oledLegacyProbePhase: OLEDLegacyProbePhase = .idle
     private var legacyProbeFirmwareMainVersion: Int?
+    /// OLED 协商归属的连接代际。新连接/断连递增；过期 timeout/response 必须零状态变化。
+    private var oledConnectionGeneration: UInt64 = 0
 
     // MARK: 配置事务（WBS-5.6）：sequencer 命令 waiter + 0x81 数据写 waiter + 恢复接线
     /// 配置类命令走 DeviceTransportCore 串行队列 + 五元 waiter（与状态查询同一纪律）；
@@ -1671,6 +1673,7 @@ extension AhaKeyAgent {
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        resetOLEDNegotiationState(reason: "didConnect")
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
         let r = DeviceStateReducer.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString),
@@ -1697,13 +1700,11 @@ extension AhaKeyAgent {
         stopStatusPolling()
         commandChar = nil
         notifyChar = nil
+        dataChar = nil
         self.peripheral = nil
         cachedSwitchState = nil
         cachedLightMode = nil
-        negotiationAttempts = 0
-        awaitingCapabilityResponse = false
-        negotiationTimeoutItem?.cancel()
-        negotiationTimeoutItem = nil
+        resetOLEDNegotiationState(reason: "didDisconnect")
         let r = DeviceStateReducer.apply(.disconnected, core: coreSnapshot, diagnostics: diagnosticsSnapshot)
         coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
         // 断连：核心强败全部 waiter（含当前代际），回调以 nil 收尾，队列清空
@@ -1793,6 +1794,36 @@ extension AhaKeyAgent {
 
     // MARK: - 0x99 能力协商（current-only）
 
+    /// 新连接/断连原子撤销 OLED 协商事实，使下一连接在密封前不可写。
+    private func resetOLEDNegotiationState(reason: String) {
+        oledConnectionGeneration &+= 1
+        negotiatedOLEDContext = nil
+        negotiatedCapabilities = nil
+        sawMalformedCapabilityFrame = false
+        oledLegacyProbePhase = .idle
+        legacyProbeFirmwareMainVersion = nil
+        negotiationAttempts = 0
+        awaitingCapabilityResponse = false
+        negotiationTimeoutItem?.cancel()
+        negotiationTimeoutItem = nil
+        emit("OLED 协商已随连接代际撤销（\(reason)，gen=\(oledConnectionGeneration)）")
+    }
+
+    private func isCurrentOLEDGeneration(_ generation: UInt64) -> Bool {
+        generation == oledConnectionGeneration
+    }
+
+    private func scheduleOLEDNegotiationTimeout(_ handler: @escaping (AhaKeyAgent) -> Void) {
+        let generation = oledConnectionGeneration
+        negotiationTimeoutItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.isCurrentOLEDGeneration(generation) else { return }
+            handler(self)
+        }
+        negotiationTimeoutItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+    }
+
     /// 发送 0x99 能力查询；最多 3 次，每次 2s 超时（对齐 Shared/AhaKeyProtocolNegotiation）。
     private func sendNegotiationQuery() {
         guard let commandChar, let peripheral else { return }
@@ -1803,12 +1834,7 @@ extension AhaKeyAgent {
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(frame, for: commandChar, type: wt)
         emit("→ 0x99 能力查询（第 \(negotiationAttempts) 次）")
-        negotiationTimeoutItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            self?.negotiationTimedOut()
-        }
-        negotiationTimeoutItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+        scheduleOLEDNegotiationTimeout { $0.negotiationTimedOut() }
     }
 
     private func negotiationTimedOut() {
@@ -1880,12 +1906,7 @@ extension AhaKeyAgent {
         legacyProbeFirmwareMainVersion = nil
         sendDirectCommandFrame(0x00)
         emit("→ 0x00 固件版本探测（no-0x99 Standard 路径）")
-        negotiationTimeoutItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            self?.legacyOLEDProbeTimedOut()
-        }
-        negotiationTimeoutItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+        scheduleOLEDNegotiationTimeout { $0.legacyOLEDProbeTimedOut() }
     }
 
     private func legacyOLEDProbeTimedOut() {
@@ -1923,13 +1944,12 @@ extension AhaKeyAgent {
             return
         }
         oledLegacyProbePhase = .awaitingTaskPicture
-        sendDirectCommandFrame(0x94, payload: [0, 3])
+        sendDirectCommandFrame(0x94, payload: [
+            AhaKeyLegacyTaskPictureProbe.probeMode,
+            AhaKeyLegacyTaskPictureProbe.probeState,
+        ])
         emit("→ 0x94 任务图实探（mode=0 state=done）")
-        let item = DispatchWorkItem { [weak self] in
-            self?.legacyOLEDProbeTimedOut()
-        }
-        negotiationTimeoutItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+        scheduleOLEDNegotiationTimeout { $0.legacyOLEDProbeTimedOut() }
     }
 
     private func handleLegacyTaskPictureProbeResponse(_ data: Data) {
@@ -1966,6 +1986,7 @@ extension AhaKeyAgent {
             scheduleConfigurationRecovery()
         } else if context.allowsIngestAndApply {
             emit("OLED 兼容路径 \(String(describing: context.profile)) 已确认；transport 保持非 current ready")
+            scheduleConfigurationRecovery()
         } else {
             emit("OLED 兼容路径 unsupported，保持连接但不做图片写入")
         }
@@ -2187,11 +2208,9 @@ extension AhaKeyAgent {
         resourceFiles: [AhaKeyResourceIdentifier: URL]
     ) async throws -> AhaKeyRuntimeOperationState {
         let (context, ready) = await MainActor.run { () -> (AhaKeyOLEDCompatibilityContext, Bool) in
-            (self.resolvedOLEDContext(),
-             self.executionTestHooks?.isReady ?? self.transportCore.isReady)
+            (self.resolvedOLEDContext(), self.configurationWriteIsReady())
         }
-        let allowWithoutCurrentReady = context.profile == .legacyStandard
-        guard context.allowsIngestAndApply, (ready || allowWithoutCurrentReady) else {
+        guard context.allowsIngestAndApply, ready else {
             throw AhaKeyAgentCommandError.disconnected
         }
         let store = try await makeRuntimeStore()
@@ -2338,7 +2357,7 @@ extension AhaKeyAgent {
         store: AhaKeyRuntimePersistentStore,
         context: AhaKeyOLEDCompatibilityContext
     ) async -> AhaKeyConfigurationStepResult {
-        let bleReady = await MainActor.run { self.configurationTransportIsReady() }
+        let bleReady = await MainActor.run { self.configurationWriteIsReady() }
         guard bleReady else {
             return .failure(.init(
                 retryable: true,
@@ -2449,15 +2468,36 @@ extension AhaKeyAgent {
 
     @MainActor
     fileprivate func programTransportIsDisconnected() -> Bool {
-        !configurationTransportIsReady()
+        !configurationWriteIsReady()
     }
 
+    /// 受理、step、command、chunk 共用：current 仍要 current-ready；Standard 要本代际已密封且特征可用。
     @MainActor
-    private func configurationTransportIsReady() -> Bool {
-        if executionTestHooks?.skipConfigurationBLEWriteGates == true {
-            return executionTestHooks?.isReady ?? transportCore.isReady
+    private func configurationWriteIsReady() -> Bool {
+        let context = resolvedOLEDContext()
+        guard context.allowsIngestAndApply else { return false }
+        if let override = executionTestHooks?.isReady {
+            switch context.profile {
+            case .legacyStandard:
+                return true
+            case .rhinoDualSet, .currentSessionCapable:
+                return override
+            case .unsupported:
+                return false
+            }
         }
-        return transportCore.isReady && peripheral != nil && commandChar != nil
+        if executionTestHooks?.skipConfigurationBLEWriteGates == true {
+            return context.profile == .legacyStandard
+        }
+        let characteristicsReady = peripheral != nil && commandChar != nil && dataChar != nil
+        switch context.profile {
+        case .legacyStandard:
+            return characteristicsReady
+        case .rhinoDualSet, .currentSessionCapable:
+            return transportCore.isReady && characteristicsReady
+        case .unsupported:
+            return false
+        }
     }
 
     @MainActor
@@ -2471,7 +2511,7 @@ extension AhaKeyAgent {
     @MainActor
     fileprivate func sendConfigurationCommand(_ frame: Data, expectingAck ack: UInt8) async throws {
         if executionTestHooks?.skipConfigurationBLEWriteGates == true {
-            guard configurationTransportIsReady() else {
+            guard configurationWriteIsReady() else {
                 throw AhaKeyAgentCommandError.disconnected
             }
             guard frame.count >= 5, frame[2] == ack else { throw AhaKeyAgentCommandError.malformedFrame }
@@ -2481,7 +2521,7 @@ extension AhaKeyAgent {
             )
             return
         }
-        guard transportCore.isReady, commandChar != nil, peripheral != nil else {
+        guard configurationWriteIsReady(), commandChar != nil, peripheral != nil else {
             throw AhaKeyAgentCommandError.disconnected
         }
         // frame = AA BB [cmd] [payload…] CC DD
@@ -2538,12 +2578,11 @@ extension AhaKeyAgent {
         store: AhaKeyRuntimePersistentStore
     ) async throws {
         let skipBLE = executionTestHooks?.skipConfigurationBLEWriteGates == true
-        if skipBLE {
-            guard configurationTransportIsReady() else {
-                throw AhaKeyAgentCommandError.disconnected
-            }
-        } else {
-            guard transportCore.isReady, dataChar != nil, peripheral != nil else {
+        guard configurationWriteIsReady() else {
+            throw AhaKeyAgentCommandError.disconnected
+        }
+        if !skipBLE {
+            guard dataChar != nil, peripheral != nil else {
                 throw AhaKeyAgentCommandError.disconnected
             }
         }
@@ -2602,7 +2641,7 @@ extension AhaKeyAgent {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 for packet in packets {
-                    guard self.transportCore.isReady, self.dataWriteContinuation != nil else { return }
+                    guard self.configurationWriteIsReady(), self.dataWriteContinuation != nil else { return }
                     peripheral.writeValue(packet, for: dataChar, type: writeType)
                     try? await Task.sleep(nanoseconds: 12_000_000)
                 }
@@ -3320,6 +3359,10 @@ extension AhaKeyAgent {
         resolvedOLEDContext()
     }
 
+    func oledConnectionGenerationForTesting() -> UInt64 {
+        oledConnectionGeneration
+    }
+
     func finishOLEDNegotiationForTesting(_ state: AhaKeyReleaseNegotiationState) {
         finishOLEDNegotiation(state)
     }
@@ -3332,6 +3375,44 @@ extension AhaKeyAgent {
     func handleLegacyTaskPictureProbeFrameForTesting(_ data: Data) {
         oledLegacyProbePhase = .awaitingTaskPicture
         handleLegacyTaskPictureProbeResponse(data)
+    }
+
+    /// 测试 seam：与 didDisconnect/didConnect 同一套 OLED 代际清场。
+    func simulateOLEDConnectionResetForTesting() {
+        resetOLEDNegotiationState(reason: "test-reset")
+        publishDeviceChangedIfNeeded()
+    }
+
+    /// 测试 seam：模拟过期 timeout 回调；代际不匹配时必须零状态变化。
+    func fireOLEDNegotiationTimeoutForTesting(generation: UInt64) {
+        guard isCurrentOLEDGeneration(generation) else { return }
+        if awaitingCapabilityResponse {
+            negotiationTimedOut()
+        } else {
+            legacyOLEDProbeTimedOut()
+        }
+    }
+
+    /// 测试 seam：走生产 notify 分发（含代际/phase 门），不强制改 probe phase。
+    func handleOLEDNotifyFrameForTesting(_ data: Data) {
+        if data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x99 {
+            handleCapabilityResponse(data)
+            return
+        }
+        if oledLegacyProbePhase == .awaitingTaskPicture,
+           data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x94 {
+            handleLegacyTaskPictureProbeResponse(data)
+            return
+        }
+        if oledLegacyProbePhase == .awaitingFirmwareVersion,
+           data.count >= 5, data[0] == 0xAA, data[1] == 0xBB, data[2] == 0x00 {
+            handleLegacyFirmwareProbeResponse(data)
+        }
+    }
+
+    @MainActor
+    func configurationWriteIsReadyForTesting() -> Bool {
+        configurationWriteIsReady()
     }
 }
 

@@ -212,3 +212,11 @@ ACK `f35134a` / `lastReviewedCommit=4fda27b`。产品基线 `1ed560b` / 已安�
 - 当前仍只允许 Cursor 执行既有 C1R2；本条不扩大其白名单，不允许提前实现 C2-C4，也不授权 HIL、签名、公证、安装、刷机或 push。
 - 固件 virgin factory manifest 与首次开箱默认内容继续归 WBS 1 独立实现；Studio 首次连接只读。统一固件与平台快捷键不反向阻塞 v0.3。
 - 需要回复：否（Cursor 按现有 C1R2 卡继续；完成后提审）
+
+### [2026-09-03 15:11] Cursor ACK：开始 C1R2 连接代际清场与 Standard 真执行门
+
+ACK Codex `d9bdf11` / `lastReviewedCommit=b676b85`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C1R2：连接 generation 清场与过期 callback 隔离；context-aware 写入就绪；严格 `0x94`；Standard 真 executor / 重连零副作用 / 错误回包测试。不进 C2/HIL/打包/安装/push。
+
+### [2026-09-03 15:50] Cursor：C1R2 完成，停手提审
+
+ACK `d9bdf11` / `lastReviewedCommit=b676b85`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。连接 generation 清场与过期 callback 隔离；context-aware 写入就绪；严格 `0x94`；Standard 真 executor / 重连零副作用 / 错误回包测试已覆盖。定向 163/163，全量 786/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/02-c1r2-generation-ready-and-strict-0x94.md`。未改 queue/status，不自动进 C2。

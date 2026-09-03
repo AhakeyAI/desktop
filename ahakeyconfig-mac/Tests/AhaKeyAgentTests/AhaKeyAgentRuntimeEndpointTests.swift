@@ -1,4 +1,6 @@
+import CoreGraphics
 import CryptoKit
+import ImageIO
 import XCTest
 @testable import AhaKeyConfigAgent
 @testable import AhaKeyConfigShared
@@ -213,6 +215,23 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let state = try? await client.snapshot().operations.first(where: { $0.id == operationID })?.state,
+               state.isTerminal {
+                return state
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return nil
+    }
+
+    private func awaitAgentTerminalState(
+        _ agent: AhaKeyAgent,
+        operationID: AhaKeyRuntimeOperationID,
+        timeout: TimeInterval = 15
+    ) async -> AhaKeyRuntimeOperationState? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if case .snapshot(let snapshot) = try? await agent.handleRuntimeXPCRequest(.snapshot),
+               let state = snapshot.operations.first(where: { $0.id == operationID })?.state,
                state.isTerminal {
                 return state
             }
@@ -1120,16 +1139,256 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             let agent = makeAgent()
             let firmware = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
             await MainActor.run { agent.handleLegacyFirmwareProbeFrameForTesting(firmware) }
-            let taskPicture = Data([
-                0xAA, 0xBB, 0x94, 0x00,
-                2, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
-                0xCC, 0xDD,
-            ])
+            let taskPicture = Self.validLegacyTaskPictureFrame()
             await MainActor.run { agent.handleLegacyTaskPictureProbeFrameForTesting(taskPicture) }
             let context = await MainActor.run { agent.negotiatedOLEDContextForTesting() }
             XCTAssertEqual(context?.profile, .legacyStandard)
             XCTAssertNil(context?.capabilities)
             XCTAssertTrue(context?.allowsIngestAndApply == true)
         }
+    }
+
+    func testStandardSealedContextExecutesCommandsAndChunksWithoutCurrentReady() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.isReady = false
+            hooks?.release = .picturesUnrestrictedForTests
+            agent.executionTestHooks = hooks
+            await sealStandardViaLegacyProbe(agent)
+            let writeReady = await MainActor.run { agent.configurationWriteIsReadyForTesting() }
+            XCTAssertTrue(writeReady)
+
+            let assembled = try makeStandardPictureAssembly()
+            try await ingest(agent, assembled: assembled)
+            let package = try makePackage(from: assembled)
+            let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .operationAccepted(let operationID) = apply else {
+                return XCTFail("Standard apply 必须受理，实际 \(apply)")
+            }
+            let terminal = await awaitAgentTerminalState(agent, operationID: operationID)
+            XCTAssertEqual(terminal, .completed)
+            let chunks = await MainActor.run { agent.configurationChunkAckCountForTesting() }
+            XCTAssertGreaterThan(chunks, 0)
+        }
+    }
+
+    func testDisconnectClearsOLEDContextAndRejectsIngestApplyWithZeroCASWALChange() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.release = .picturesUnrestrictedForTests
+            agent.executionTestHooks = hooks
+            await sealStandardViaLegacyProbe(agent)
+            let gen = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+
+            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            let cleared = await MainActor.run { agent.negotiatedOLEDContextForTesting() }
+            let newGen = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+            let writeReady = await MainActor.run { agent.configurationWriteIsReadyForTesting() }
+            XCTAssertNil(cleared)
+            XCTAssertNotEqual(newGen, gen)
+            XCTAssertFalse(writeReady)
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let resourcesDir = storeDir.appendingPathComponent("resources")
+            func resourceNames() -> Set<String> {
+                Set((try? FileManager.default.contentsOfDirectory(atPath: resourcesDir.path)) ?? [])
+            }
+            let beforeResources = resourceNames()
+            let beforeDB = try? Data(contentsOf: storeDir.appendingPathComponent("runtime.sqlite3"))
+
+            let assembled = try makeStandardPictureAssembly()
+            let items = try ingestItems(assembled)
+            let package = try makePackage(from: assembled)
+            let ingest = try await agent.handleRuntimeXPCRequest(.ingestResources(items))
+            guard case .failure(let ingestCode) = ingest else {
+                return XCTFail("协商窗口 ingest 必须失败，实际 \(ingest)")
+            }
+            XCTAssertEqual(ingestCode.rawValue, "unsupported-protocol")
+            let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .failure(let applyCode) = apply else {
+                return XCTFail("协商窗口 apply 必须失败，实际 \(apply)")
+            }
+            XCTAssertEqual(applyCode.rawValue, "unsupported-protocol")
+            XCTAssertEqual(resourceNames(), beforeResources)
+            let afterDB = try? Data(contentsOf: storeDir.appendingPathComponent("runtime.sqlite3"))
+            XCTAssertEqual(afterDB, beforeDB)
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+            )
+            let wal = try await store.transaction(package.operationID)
+            XCTAssertNil(wal)
+        }
+    }
+
+    func testStaleOLEDTimeoutAndNotifyDoNotResealPreviousProfile() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            await sealStandardViaLegacyProbe(agent)
+            let staleGeneration = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+            await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+            let afterReset = await MainActor.run { agent.negotiatedOLEDContextForTesting() }
+            XCTAssertNil(afterReset)
+
+            await MainActor.run { agent.fireOLEDNegotiationTimeoutForTesting(generation: staleGeneration) }
+            await MainActor.run { agent.handleOLEDNotifyFrameForTesting(Self.validLegacyTaskPictureFrame()) }
+            let afterStale = await MainActor.run { agent.negotiatedOLEDContextForTesting() }
+            let profile = await MainActor.run { agent.resolvedOLEDContextForTesting().profile }
+            XCTAssertNil(afterStale)
+            XCTAssertEqual(profile, .unsupported)
+        }
+    }
+
+    func testLegacyTaskPictureErrorFrameDoesNotYieldStandard() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let firmware = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
+            await MainActor.run { agent.handleLegacyFirmwareProbeFrameForTesting(firmware) }
+            let errorFrame = Data([
+                0xAA, 0xBB, 0x94, 0x01,
+                0, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
+                0xCC, 0xDD,
+            ])
+            await MainActor.run { agent.handleLegacyTaskPictureProbeFrameForTesting(errorFrame) }
+            let context = await MainActor.run { agent.negotiatedOLEDContextForTesting() }
+            XCTAssertEqual(context?.profile, .unsupported)
+            XCTAssertFalse(context?.allowsIngestAndApply == true)
+        }
+    }
+
+    private static func validLegacyTaskPictureFrame() -> Data {
+        Data([
+            0xAA, 0xBB, 0x94, 0x00,
+            0, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
+            0xCC, 0xDD,
+        ])
+    }
+
+    private func sealStandardViaLegacyProbe(_ agent: AhaKeyAgent) async {
+        let firmware = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD])
+        await MainActor.run { agent.handleLegacyFirmwareProbeFrameForTesting(firmware) }
+        await MainActor.run { agent.handleLegacyTaskPictureProbeFrameForTesting(Self.validLegacyTaskPictureFrame()) }
+        let context = await MainActor.run { agent.negotiatedOLEDContextForTesting() }
+        XCTAssertEqual(context?.profile, .legacyStandard)
+    }
+
+    private func makeStandardPictureAssembly() throws -> AhaKeyStudioAssembledConfiguration {
+        let gifURL = testRoot.appendingPathComponent("done.gif")
+        try makeGIFData().write(to: gifURL)
+        func asset(
+            _ state: AhaKeyDesiredConfiguration.TaskDisplayState,
+            url: URL?
+        ) -> AhaKeyStudioTaskAssetInput {
+            AhaKeyStudioTaskAssetInput(
+                state: state,
+                localFileURL: url,
+                framesPerSecond: 12,
+                declaredFrameCount: url == nil ? nil : 1,
+                pixelWidth: url == nil ? nil : 160,
+                pixelHeight: url == nil ? nil : 80
+            )
+        }
+        let setA = AhaKeyStudioTaskSetInput(assets: [
+            asset(.idle, url: nil),
+            asset(.working, url: nil),
+            asset(.waiting, url: nil),
+            asset(.done, url: gifURL),
+        ])
+        let emptySet = AhaKeyStudioTaskSetInput(assets: [
+            asset(.idle, url: nil),
+            asset(.working, url: nil),
+            asset(.waiting, url: nil),
+            asset(.done, url: nil),
+        ])
+        let mode = AhaKeyStudioModeInput(
+            slot: 0,
+            keys: [
+                AhaKeyStudioKeyInput(
+                    role: .approve,
+                    action: .shortcut(try .init(modifiers: [], keyCode: 0x28)),
+                    description: "Accept"
+                ),
+            ],
+            oled: AhaKeyStudioOLEDInput(
+                statusLine: "s", framesPerSecond: 12, taskSets: [setA, emptySet], activeSet: 0
+            ),
+            lightBar: AhaKeyStudioLightBarInput(
+                stateMappings: [AhaKeyStudioLightMappingInput(state: 3, effect: "singleMove")],
+                brightness: 35
+            )
+        )
+        return try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
+    }
+
+    private func ingestItems(
+        _ assembled: AhaKeyStudioAssembledConfiguration
+    ) throws -> [AhaKeyXPCResourceIngestionItem] {
+        try assembled.resources.map { input in
+            let data = try Data(contentsOf: input.fileURL)
+            let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            return AhaKeyXPCResourceIngestionItem(
+                logicalIdentifier: input.logicalIdentifier,
+                sha256: try AhaKeySHA256Digest(digest),
+                byteCount: UInt64(data.count),
+                data: data
+            )
+        }
+    }
+
+    private func ingest(
+        _ agent: AhaKeyAgent,
+        assembled: AhaKeyStudioAssembledConfiguration
+    ) async throws {
+        let ingested = try await agent.handleRuntimeXPCRequest(.ingestResources(try ingestItems(assembled)))
+        guard case .resourcesIngested = ingested else {
+            throw NSError(
+                domain: "c1r2",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "\(ingested)"]
+            )
+        }
+    }
+
+    private func makePackage(
+        from assembled: AhaKeyStudioAssembledConfiguration
+    ) throws -> AhaKeyConfigurationPackage {
+        let gif = try AhaKeyMediaType("gif")
+        let resources: [AhaKeyConfigurationResource] = try assembled.resources.map { input in
+            let data = try Data(contentsOf: input.fileURL)
+            let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            return AhaKeyConfigurationResource(
+                logicalIdentifier: input.logicalIdentifier,
+                sha256: try AhaKeySHA256Digest(digest),
+                byteCount: UInt64(data.count),
+                mediaType: gif
+            )
+        }
+        return try AhaKeyConfigurationPackage(
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            baseRevision: .init(0),
+            desiredConfiguration: assembled.configuration.canonicalData(),
+            resources: resources
+        )
+    }
+
+    private func makeGIFData(width: Int = 160, height: Int = 80, fill: UInt8 = 120) -> Data {
+        let buffer = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(
+            buffer, "com.compuserve.gif" as CFString, 1, nil
+        )!
+        var rgba = [UInt8](repeating: fill, count: width * height * 4)
+        let context = CGContext(
+            data: &rgba, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+        CGImageDestinationFinalize(destination)
+        return buffer as Data
     }
 }

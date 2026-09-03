@@ -215,19 +215,56 @@ public enum AhaKeyLegacyTaskPictureProbe: Equatable, Sendable {
     case genericUnknownCommandAck
     case malformed
 
-    /// `frame` 为完整 AA BB 94 … CC DD。
-    public static func classify(frame: Data) -> AhaKeyLegacyTaskPictureProbe {
+    /// Agent 实探固定查询：mode=0、state=done。成功帧必须原样回显。
+    public static let probeMode: UInt8 = 0
+    public static let probeState: UInt8 = 3
+    public static let legacyPayloadByteCount = 10
+
+    public struct LegacyPayload: Equatable, Sendable {
+        public let mode: UInt8
+        public let state: UInt8
+        public let startIndex: UInt16
+        public let frameCount: UInt16
+        public let intervalMs: UInt16
+        public let allModeMaxPic: UInt16
+    }
+
+    /// 精确 10B legacy 0x94 payload（与 `AhaKeyResponseParser.parseTaskPictureStateResponse` 同布局）。
+    public static func parseLegacyPayload(_ payload: Data) -> LegacyPayload? {
+        guard payload.count == legacyPayloadByteCount else { return nil }
+        let bytes = Array(payload)
+        return LegacyPayload(
+            mode: bytes[0],
+            state: bytes[1],
+            startIndex: UInt16(bytes[2]) | (UInt16(bytes[3]) << 8),
+            frameCount: UInt16(bytes[4]) | (UInt16(bytes[5]) << 8),
+            intervalMs: UInt16(bytes[6]) | (UInt16(bytes[7]) << 8),
+            allModeMaxPic: UInt16(bytes[8]) | (UInt16(bytes[9]) << 8)
+        )
+    }
+
+    /// `frame` 为完整 AA BB 94 … CC DD。只接受 status=0、精确 10B、mode/state echo。
+    public static func classify(
+        frame: Data,
+        expectedMode: UInt8 = probeMode,
+        expectedState: UInt8 = probeState
+    ) -> AhaKeyLegacyTaskPictureProbe {
         guard frame.count >= 6,
               frame[0] == 0xAA, frame[1] == 0xBB, frame[2] == 0x94,
               frame[frame.count - 2] == 0xCC, frame[frame.count - 1] == 0xDD else {
             return .malformed
         }
         let status = frame[3]
-        let payload = frame.dropFirst(4).dropLast(2)
+        let payload = Data(frame.dropFirst(4).dropLast(2))
         if payload.isEmpty, status == 0 {
             return .genericUnknownCommandAck
         }
-        guard payload.count >= 10 else { return .malformed }
+        guard status == 0 else { return .malformed }
+        guard let parsed = parseLegacyPayload(payload),
+              parsed.mode == expectedMode,
+              parsed.state == expectedState else {
+            return .malformed
+        }
         return .supportsTaskPictures
     }
 }

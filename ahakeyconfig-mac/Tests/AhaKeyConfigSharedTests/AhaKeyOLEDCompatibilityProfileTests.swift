@@ -225,7 +225,7 @@ final class AhaKeyOLEDCompatibilityProfileTests: XCTestCase {
     func testLegacyTaskPictureProbeClassifiesRealPayloadAndEmptyAck() {
         let real = Data([
             0xAA, 0xBB, 0x94, 0x00,
-            2, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
+            0, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01,
             0xCC, 0xDD,
         ])
         XCTAssertEqual(AhaKeyLegacyTaskPictureProbe.classify(frame: real), .supportsTaskPictures)
@@ -235,6 +235,33 @@ final class AhaKeyOLEDCompatibilityProfileTests: XCTestCase {
         )
         XCTAssertEqual(
             AhaKeyLegacyTaskPictureProbe.classify(frame: Data([0xAA, 0xBB, 0x94, 0x00, 1, 2, 0xCC, 0xDD])),
+            .malformed
+        )
+    }
+
+    func testLegacyTaskPictureProbeRejectsStatusErrorWrongEchoAndOverlongPayload() {
+        let validPayload: [UInt8] = [0, 3, 0x34, 0x12, 5, 0, 83, 0, 0x24, 0x01]
+        func frame(_ status: UInt8, _ payload: [UInt8]) -> Data {
+            Data([0xAA, 0xBB, 0x94, status] + payload + [0xCC, 0xDD])
+        }
+        XCTAssertEqual(
+            AhaKeyLegacyTaskPictureProbe.classify(frame: frame(1, validPayload)),
+            .malformed
+        )
+        XCTAssertEqual(
+            AhaKeyLegacyTaskPictureProbe.classify(frame: frame(0, [2, 3] + Array(validPayload.dropFirst(2)))),
+            .malformed
+        )
+        XCTAssertEqual(
+            AhaKeyLegacyTaskPictureProbe.classify(frame: frame(0, [0, 1] + Array(validPayload.dropFirst(2)))),
+            .malformed
+        )
+        XCTAssertEqual(
+            AhaKeyLegacyTaskPictureProbe.classify(frame: frame(0, validPayload + [0xFF, 0xEE])),
+            .malformed
+        )
+        XCTAssertEqual(
+            AhaKeyLegacyTaskPictureProbe.classify(frame: frame(0, Array(repeating: 0xAA, count: 20))),
             .malformed
         )
         XCTAssertEqual(
