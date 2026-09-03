@@ -647,6 +647,14 @@ $storeMarker
 "@
 $storeReplacementValue = $storeReplacement.TrimEnd().Replace("`r", "")
 $storeSource = Replace-ExactlyOnce $storeSource $storeMarker $storeReplacementValue "voice-key draft migration"
+$assetStoreMarker = "                    if (savedMode.aiLightEffectIds != null) {"
+$assetStoreReplacement = @"
+                    if (savedMode.screenAssets != null) {
+                        defaultMode.screenAssets = savedMode.screenAssets;
+                    }
+"@
+$storeSource = Replace-ExactlyOnce $storeSource $assetStoreMarker `
+    $assetStoreReplacement.TrimEnd().Replace("`r", "") "screen asset metadata migration"
 $generatedStore = Join-Path $generatedSourceDir "com\example\ahakey\util\StudioStore.java"
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $generatedStore) | Out-Null
 [IO.File]::WriteAllText(
@@ -689,6 +697,7 @@ $sources = @(
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\BundledGifLibrary.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\GifUploadRules.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\GifSelectionHistory.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\ScreenAnimationAssetStore.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\BleBridgeProcessOwner.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\SpeechService.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\KeyboardInjector.java"),
@@ -732,7 +741,7 @@ Copy-Item -LiteralPath $baselineJar -Destination $previewJar
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$allowedEntryPattern = "^(com/example/ahakey/(App|SingleInstanceChecker).*\.class|com/example/ahakey/protocol/AhaKeyProtocol\.class|com/example/ahakey/protocol/AhaKeyResponseParser.*\.class|com/example/ahakey/model/(DeviceStatus|VoicePreset|StudioState).*\.class|com/example/ahakey/app/(StudioController|WorkModeSynchronizer|ManualApprovalGate|StatusRefreshScheduler|ApplicationLifecycle).*\.class|com/example/ahakey/util/(StudioStore|FirstRunState|LanguageManager|OLEDFrameEncoder).*\.class|com/example/ahakey/service/(BleManager|UsbHidTransport|DeviceSyncService|HookInstaller|HookDispatchServer|ApprovalService|ApprovalSnapshot|ApprovalState|PhysicalStatusFreshness|KimiAhaKeyBridge|TaskActivityService|LightOperationCoordinator|OledUploadService|BundledGifLibrary|GifUploadRules|GifSelectionHistory|BleBridgeProcessOwner|SpeechService|KeyboardInjector).*\.class|com/example/ahakey/platform/VoiceRelayPlatform\.class|com/example/ahakey/platform/windows/(WindowsVoiceRelayService|VoiceKeyPressState).*\.class|com/example/ahakey/view/(TopBar|CanvasPane|InspectorPane|StandbySettingsPane|DeviceMaintenancePane|SupportPane|BluetoothPairingGuide|ScreenAnimationDialog).*\.class|com/example/ahakey/firmware/.*\.class|com/example/ahakey/update/.*\.class|firmware-capabilities\.properties|default-gifs/(claude|cursor|codex|mode4)/(default|running|waiting-error|completed)\.gif|fxml/CanvasLayout\.fxml|images/support-service-qr\.png|messages_(zh|en)\.properties|style\.css)$"
+$allowedEntryPattern = "^(com/example/ahakey/(App|SingleInstanceChecker).*\.class|com/example/ahakey/protocol/AhaKeyProtocol\.class|com/example/ahakey/protocol/AhaKeyResponseParser.*\.class|com/example/ahakey/model/(DeviceStatus|VoicePreset|StudioState).*\.class|com/example/ahakey/app/(StudioController|WorkModeSynchronizer|ManualApprovalGate|StatusRefreshScheduler|ApplicationLifecycle).*\.class|com/example/ahakey/util/(StudioStore|FirstRunState|LanguageManager|OLEDFrameEncoder).*\.class|com/example/ahakey/service/(BleManager|UsbHidTransport|DeviceSyncService|HookInstaller|HookDispatchServer|ApprovalService|ApprovalSnapshot|ApprovalState|PhysicalStatusFreshness|KimiAhaKeyBridge|TaskActivityService|LightOperationCoordinator|OledUploadService|BundledGifLibrary|GifUploadRules|GifSelectionHistory|ScreenAnimationAssetStore|BleBridgeProcessOwner|SpeechService|KeyboardInjector).*\.class|com/example/ahakey/platform/VoiceRelayPlatform\.class|com/example/ahakey/platform/windows/(WindowsVoiceRelayService|VoiceKeyPressState).*\.class|com/example/ahakey/view/(TopBar|CanvasPane|InspectorPane|StandbySettingsPane|DeviceMaintenancePane|SupportPane|BluetoothPairingGuide|ScreenAnimationDialog).*\.class|com/example/ahakey/firmware/.*\.class|com/example/ahakey/update/.*\.class|firmware-capabilities\.properties|wchisp/(CONFIG_CH57X59X-3\.6\.1-sanitized\.WCH|baseline\.properties)|default-gifs/(claude|cursor|codex|mode4)/(default|running|waiting-error|completed)\.gif|fxml/CanvasLayout\.fxml|images/support-service-qr\.png|messages_(zh|en)\.properties|style\.css)$"
 
 $zip = [IO.Compression.ZipFile]::Open(
     $previewJar,
@@ -904,7 +913,29 @@ try {
         $firmwareCapabilitiesInput.CopyTo($firmwareCapabilitiesOutput)
     } finally {
         $firmwareCapabilitiesOutput.Dispose()
-        $firmwareCapabilitiesInput.Dispose()
+    $firmwareCapabilitiesInput.Dispose()
+    }
+
+    foreach ($wchispResourceName in @(
+        "CONFIG_CH57X59X-3.6.1-sanitized.WCH",
+        "baseline.properties"
+    )) {
+        $wchispResource = Join-Path $projectDir "src\main\resources\wchisp\$wchispResourceName"
+        if (-not (Test-Path -LiteralPath $wchispResource -PathType Leaf)) {
+            throw "WCHISP resource is missing: $wchispResource"
+        }
+        $wchispEntryName = "wchisp/$wchispResourceName"
+        $existingWchisp = $zip.GetEntry($wchispEntryName)
+        if ($existingWchisp) { $existingWchisp.Delete() }
+        $wchispEntry = $zip.CreateEntry($wchispEntryName,
+            [IO.Compression.CompressionLevel]::Optimal)
+        $wchispInput = [IO.File]::OpenRead($wchispResource)
+        $wchispOutput = $wchispEntry.Open()
+        try { $wchispInput.CopyTo($wchispOutput) }
+        finally {
+            $wchispOutput.Dispose()
+            $wchispInput.Dispose()
+        }
     }
 } finally {
     $zip.Dispose()

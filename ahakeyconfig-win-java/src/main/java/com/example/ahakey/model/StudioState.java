@@ -38,6 +38,8 @@ public class StudioState {
     private final Map<ModeSlot, StringProperty> oledSummaries = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, StringProperty> oledCaptions = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, OledModeDraft> oledDrafts = new EnumMap<>(ModeSlot.class);
+    private final Map<ModeSlot, PersistedDraft.ScreenAssetMetadata[]> screenAssets =
+        new EnumMap<>(ModeSlot.class);
     private final BooleanProperty uploadingOled = new SimpleBooleanProperty(false);
     private final StringProperty oledUploadDetail = new SimpleStringProperty("");
     private final Map<ModeSlot, StringProperty> lightBarSummaries = new EnumMap<>(ModeSlot.class);
@@ -91,6 +93,7 @@ public class StudioState {
     private void resetModeDefaults(ModeSlot mode) {
         EnumMap<StudioPart, KeyConfig> map = keyConfigs.get(mode);
         oledDrafts.putIfAbsent(mode, new OledModeDraft());
+        screenAssets.putIfAbsent(mode, new PersistedDraft.ScreenAssetMetadata[4]);
         if (mode == ModeSlot.MODE0) {
             map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
             map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Yes"));
@@ -284,6 +287,25 @@ public class StudioState {
         return getOledDraft(getSelectedMode());
     }
 
+    public PersistedDraft.ScreenAssetMetadata getScreenAssetMetadata(ModeSlot mode, int asset) {
+        if (mode == null || asset < 0 || asset >= 4) return null;
+        PersistedDraft.ScreenAssetMetadata[] values = screenAssets.computeIfAbsent(
+            mode, ignored -> new PersistedDraft.ScreenAssetMetadata[4]);
+        return values[asset];
+    }
+
+    public void setScreenAssetMetadata(ModeSlot mode, int asset,
+                                       PersistedDraft.ScreenAssetMetadata metadata) {
+        if (mode == null || asset < 0 || asset >= 4) return;
+        PersistedDraft.ScreenAssetMetadata[] values = screenAssets.computeIfAbsent(
+            mode, ignored -> new PersistedDraft.ScreenAssetMetadata[4]);
+        values[asset] = metadata;
+    }
+
+    public void clearScreenAssetMetadata(ModeSlot mode, int asset) {
+        setScreenAssetMetadata(mode, asset, null);
+    }
+
     public BooleanProperty uploadingOledProperty() {
         return uploadingOled;
     }
@@ -444,6 +466,14 @@ public class StudioState {
             od.setFrameCount(md.oledFrameCount);
             od.setStatusLine(md.oledSummary);
             od.setCaptionLine(md.oledCaption);
+            PersistedDraft.ScreenAssetMetadata[] persistedAssets = md.screenAssets;
+            PersistedDraft.ScreenAssetMetadata[] stateAssets = screenAssets.computeIfAbsent(
+                mode, ignored -> new PersistedDraft.ScreenAssetMetadata[4]);
+            if (persistedAssets != null) {
+                for (int asset = 0; asset < Math.min(4, persistedAssets.length); asset++) {
+                    stateAssets[asset] = persistedAssets[asset];
+                }
+            }
             if (md.voicePresetId != null) {
                 try {
                     k1.setVoicePreset(VoicePreset.valueOf(md.voicePresetId));
@@ -502,6 +532,9 @@ public class StudioState {
             OledModeDraft od = getOledDraft(mode);
             md.oledGifPath = od.getLocalAssetPath();
             md.oledFrameCount = od.getFrameCount();
+            PersistedDraft.ScreenAssetMetadata[] assets = screenAssets.computeIfAbsent(
+                mode, ignored -> new PersistedDraft.ScreenAssetMetadata[4]);
+            md.screenAssets = java.util.Arrays.copyOf(assets, assets.length);
             md.voicePresetId = getKeyConfig(mode, StudioPart.KEY1).getVoicePreset().name();
             md.aiLightEffectIds = new String[IDEState.values().length];
             for (IDEState state : IDEState.values()) {
@@ -548,6 +581,21 @@ public class StudioState {
             public int oledFrameCount;
             public String voicePresetId = VoicePreset.CUSTOM.name();
             public String[] aiLightEffectIds;
+            /** Metadata for managed local copies; payloads are never stored in settings. */
+            public ScreenAssetMetadata[] screenAssets = new ScreenAssetMetadata[4];
+        }
+
+        public static class ScreenAssetMetadata {
+            public String originalFileName;
+            public String originalSourcePath;
+            public String managedCachePath;
+            public String mediaType;
+            public int frameCount;
+            public int width;
+            public int height;
+            public long fileSize;
+            public String sha256;
+            public String updatedAt;
         }
     }
 }

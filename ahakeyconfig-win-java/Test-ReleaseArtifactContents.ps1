@@ -28,12 +28,15 @@ $requiredEntries = @(
     "com/example/ahakey/service/GifUploadRules.class",
     "com/example/ahakey/service/LightOperationCoordinator.class",
     "com/example/ahakey/service/BleBridgeProcessOwner.class",
+    "com/example/ahakey/service/ScreenAnimationAssetStore.class",
     "com/example/ahakey/app/ApplicationLifecycle.class",
     "com/example/ahakey/SingleInstanceChecker.class",
     "com/example/ahakey/firmware/IntelHexValidator.class",
     "com/example/ahakey/update/WindowsUpdateInstaller.class",
     "com/example/ahakey/platform/windows/VoiceKeyPressState.class",
-    "firmware-capabilities.properties"
+    "firmware-capabilities.properties",
+    "wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH",
+    "wchisp/baseline.properties"
 )
 
 $archive = [IO.Compression.ZipFile]::OpenRead($resolvedJar)

@@ -58,7 +58,11 @@ public final class StudioStore {
     }
 
     public static StudioState.PersistedDraft loadOrDefault() {
-        File file = DRAFT_PATH.toFile();
+        return load(DRAFT_PATH);
+    }
+
+    static StudioState.PersistedDraft load(Path source) {
+        File file = source.toFile();
         if (!file.exists()) {
             return StudioState.PersistedDraft.defaults();
         }
@@ -100,6 +104,9 @@ public final class StudioStore {
                     }
                     if (savedMode.aiLightEffectIds != null) {
                         defaultMode.aiLightEffectIds = savedMode.aiLightEffectIds;
+                    }
+                    if (savedMode.screenAssets != null) {
+                        defaultMode.screenAssets = savedMode.screenAssets;
                     }
                 }
             }

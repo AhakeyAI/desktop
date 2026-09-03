@@ -3,11 +3,14 @@ package com.example.ahakey.view;
 import com.example.ahakey.app.StudioController;
 import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.model.ModeSlot;
+import com.example.ahakey.model.StudioState;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.service.BundledGifLibrary;
 import com.example.ahakey.service.OledUploadService;
 import com.example.ahakey.service.GifUploadRules;
 import com.example.ahakey.service.GifSelectionHistory;
+import com.example.ahakey.service.ScreenAnimationAssetStore;
+import com.example.ahakey.util.StudioStore;
 import com.example.ahakey.util.OLEDFrameEncoder;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -34,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 public final class ScreenAnimationDialog {
     private static final String[] ASSETS = {"默认", "运行中", "等待/错误", "已完成"};
     private static final long JOB_TIMEOUT_MINUTES = 5;
+    private static final ScreenAnimationAssetStore ASSET_STORE = new ScreenAnimationAssetStore();
 
     private ScreenAnimationDialog() {}
 
@@ -174,6 +178,22 @@ public final class ScreenAnimationDialog {
             status.setText("内置动画不可用：" + e.getMessage());
         }
 
+        StudioState.PersistedDraft.ScreenAssetMetadata current =
+            controller.getStudioState().getScreenAssetMetadata(mode, asset);
+        if (ScreenAnimationAssetStore.isUsable(current)) {
+            try {
+                preview.setImage(new Image(Path.of(current.managedCachePath).toUri().toString(),
+                    160, 80, true, true));
+                fileName.setText(current.originalFileName == null
+                    ? "当前本地资源" : current.originalFileName);
+                status.setText("当前本地资源（设备状态仅用于校验，不作为预览来源）");
+            } catch (RuntimeException ignored) {
+                status.setText("当前本地资源不可读，将显示内置动画");
+            }
+        } else {
+            status.setText("尚未记录当前本地资源，显示内置动画");
+        }
+
         Job defaultJob = bundled == null ? null : new Job(mode, asset, bundled, status, () -> {});
         if (defaultJob != null) {
             modeDefaults.add(defaultJob);
@@ -309,6 +329,13 @@ public final class ScreenAnimationDialog {
                     failure = error.get();
                     break;
                 }
+                try {
+                    persistSuccessfulAsset(controller, job);
+                } catch (Exception persistFailure) {
+                    failure = "设备已确认写入，但本地资源缓存保存失败："
+                        + errorMessage(persistFailure);
+                    break;
+                }
                 if (job.onCommitted() != null) job.onCommitted().run();
             }
             String finalFailure = failure;
@@ -353,8 +380,17 @@ public final class ScreenAnimationDialog {
             String text;
             try {
                 var state = OledUploadService.readAssetState(controller.getBleManager(), mode, asset);
-                text = "设备当前：" + state.frameCount() + " 帧，起始帧 " + state.startIndex()
+                text = "设备当前参数：" + state.frameCount() + " 帧，起始帧 " + state.startIndex()
                     + (state.frameCount() > 0 ? "，帧间隔 " + state.frameInterval() + " ms" : "");
+                StudioState.PersistedDraft.ScreenAssetMetadata metadata =
+                    controller.getStudioState().getScreenAssetMetadata(mode, asset);
+                if (ScreenAnimationAssetStore.isUsable(metadata)) {
+                    text = "当前本地资源："
+                        + (metadata.originalFileName == null ? "已管理文件" : metadata.originalFileName)
+                        + "；" + text;
+                } else {
+                    text = "尚未记录当前本地资源；" + text;
+                }
             } catch (Exception e) {
                 text = "设备配置读取失败：" + errorMessage(e);
             }
@@ -368,6 +404,19 @@ public final class ScreenAnimationDialog {
     private static boolean confirm(String message) {
         return new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL)
             .showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+    }
+
+    private static void persistSuccessfulAsset(StudioController controller, Job job)
+        throws Exception {
+        GifUploadRules.Preflight preflight = OLEDFrameEncoder.preflight(job.path(), job.asset());
+        ScreenAnimationAssetStore.StoredAsset stored = ASSET_STORE.store(
+            job.path(), job.mode(), job.asset(), preflight.sourceFrames(),
+            preflight.width(), preflight.height());
+        controller.getStudioState().setScreenAssetMetadata(
+            job.mode(), job.asset(), stored.metadata());
+        if (!StudioStore.save(controller.getStudioState().toPersisted())) {
+            throw new java.io.IOException("本地配置保存失败");
+        }
     }
 
     private static File lastSelectedGif() {
