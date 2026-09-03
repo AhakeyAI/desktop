@@ -79,6 +79,16 @@ function Assert-WchIspReleasePrivacy {
     if (Test-Path -LiteralPath (Join-Path $resolved "CONFIG_CH57X59X.WCH.excluded")) {
         throw "WCHISP release contains forbidden CONFIG_CH57X59X.WCH.excluded"
     }
+    $excludedFiles = @($files | Where-Object {
+        $_.Name -ieq "CONFIG_CH57X59X.WCH.excluded"
+    })
+    if ($excludedFiles.Count -gt 0) {
+        throw "WCHISP release contains forbidden excluded CONFIG files"
+    }
+    $configHash = (Get-FileHash -LiteralPath $config -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($configHash -ne "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8") {
+        throw "WCHISP release CONFIG_CH57X59X.WCH is not the repository baseline"
+    }
     if ($violations.Count -gt 0) {
         throw "WCHISP release privacy validation failed: $($violations -join '; ')"
     }
