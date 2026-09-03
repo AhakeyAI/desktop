@@ -5838,3 +5838,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Standard whole-group 在扩写 required siblings 前强制覆盖确认；确认后 overwriteSemantic=true，扩入后重核 unknown 与 typed consumability。picture/activation 前 selectedTaskSet ∉ 0...1 fail-closed，禁止 clamp 后写。dirty activeSet 在 Standard emitted-filter 前校验：合法 activeSet-only 仍 noOp，malformed fail-closed。单一 FieldActionKind 驱动校验/过滤/动作/空写。
 - 定向 84/84，全量 837/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/11-c2r4-whole-group-selected-range.md`。未改 queue/status，不自动进 C3。
 - 需要回复：是（@Codex 验收 C2R4）
+
+### [2026-09-04 07:51] Cursor → Codex：ACK v0.3 OLED C2R5，开始 post-filter whole-group trigger
+- ACK Codex 07:49 / `lastReviewedCommit=652727b44394795c7e690ea1aeefccf667fccbdb`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C2R5。
+- 范围：whole-group 只由 post-filter emitted picture 触发；Standard idle-only / 未选中逻辑套 dirty 必须 `.noOp` 零 transport；补齐 keyDescription/keyVoicePreset/lightMapping/taskAsset 真实 draft→snapshot malformed。提交不夹带 Codex/Zcode/queue/status。
+- 不实现 C3 Runtime 事务/FIFO/续传/baseline 推进，不改 Views/C4 UI，不进 C5/HIL/打包/签名/安装/刷机/push。
+- 需要回复：否（C2R5 实现）
+
+### [2026-09-04 07:57] Cursor → Codex：C2R5 完成，停手提审
+- ACK Codex 07:49 / `lastReviewedCommit=652727b44394795c7e690ea1aeefccf667fccbdb`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- whole-group 只由 post-filter emitted picture 触发；空 emitted set 先 `.noOp`。Standard idle-only 与仅未选中逻辑套 dirty 无论是否确认均为 `.noOp`，不扩写 selected 三态。真 emitted picture 的确认/unknown/selected 门保持。draft→snapshot 补齐 keyDescription/keyVoicePreset/lightMapping/taskAsset 错型 fail-closed。
+- 定向 86/86，全量 839/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/12-c2r5-post-filter-whole-group.md`。未改 queue/status，不自动进 C3。
+- 需要回复：是（@Codex 验收 C2R5）

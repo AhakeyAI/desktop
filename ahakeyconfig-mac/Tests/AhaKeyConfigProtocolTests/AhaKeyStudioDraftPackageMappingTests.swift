@@ -276,28 +276,48 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         XCTAssertTrue(plan.overwriteSemantic)
     }
 
-    func testMappingMalformedTypedValuesFromDraftSnapshotFailClosed() {
+    func testMappingMalformedTypedValuesFromDraftSnapshotFailClosed() throws {
+        let gif = try writeTestGIF()
         var current = AhaKeyStudioDraft.default
         let synced = current
         var mode = current.draft(for: .mode0)
         mode.oled.statusLine = "dirty-status"
         mode.oled.framesPerSecond = 15
         mode.oled.activeGIFSet = 1
+        mode.oled.updateTaskAsset(
+            set: 0,
+            asset: AhaKeyTaskGIFAssetDraft(
+                state: .working,
+                localAssetPath: gif.path,
+                framesPerSecond: 12
+            )
+        )
         mode.updateKey(AhaKeyKeyDraft(
             role: .approve,
             shortcut: mode.key(for: .approve).shortcut,
-            description: mode.key(for: .approve).description,
+            description: "dirty-desc",
             voicePreset: mode.key(for: .approve).voicePreset
         ))
+        var voice = mode.key(for: .voice)
+        voice.voicePreset = voice.voicePreset == .macOSNative ? .typeless : .macOSNative
+        mode.updateKey(voice)
         mode.lightBar.brightness = 80
+        if let index = mode.lightBar.stateMappings.firstIndex(where: { $0.state.rawValue == 1 }) {
+            mode.lightBar.stateMappings[index].effect =
+                mode.lightBar.stateMappings[index].effect == .off ? .singleMove : .off
+        }
         current.updateMode(mode)
 
         let mutations: [(AhaKeyStudioPageID, AhaKeyOLEDCompatibilityProfile, AhaKeyStudioFieldID, AhaKeyStudioFieldValue)] = [
             (.screen(modeSlot: 0), .rhinoDualSet(sessionUploadAdvertised: false), .screenStatusLine(modeSlot: 0), .integer(1)),
             (.screen(modeSlot: 0), .rhinoDualSet(sessionUploadAdvertised: false), .screenFramesPerSecond(modeSlot: 0), .text("15")),
             (.screen(modeSlot: 0), .rhinoDualSet(sessionUploadAdvertised: false), .screenActiveSet(modeSlot: 0), .text("1")),
+            (.screen(modeSlot: 0), .rhinoDualSet(sessionUploadAdvertised: false), .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working), .text("not-an-asset")),
             (.key(modeSlot: 0, role: .approve), .rhinoDualSet(sessionUploadAdvertised: false), .keyAction(modeSlot: 0, role: .approve), .text("x")),
+            (.key(modeSlot: 0, role: .approve), .rhinoDualSet(sessionUploadAdvertised: false), .keyDescription(modeSlot: 0, role: .approve), .integer(1)),
+            (.key(modeSlot: 0, role: .voice), .rhinoDualSet(sessionUploadAdvertised: false), .keyVoicePreset(modeSlot: 0, role: .voice), .integer(1)),
             (.lights(modeSlot: 0), .rhinoDualSet(sessionUploadAdvertised: false), .lightBrightness(modeSlot: 0), .text("80")),
+            (.lights(modeSlot: 0), .rhinoDualSet(sessionUploadAdvertised: false), .lightMapping(modeSlot: 0, state: 1), .integer(1)),
         ]
         for (page, profile, fieldID, badValue) in mutations {
             let syncedSnapshot = synced.frozenPageSnapshot(
@@ -419,6 +439,63 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         XCTAssertTrue(plan.overwriteSemantic)
         XCTAssertEqual(plan.values.count, AhaKeyTaskDisplayState.legacyStates.count)
         XCTAssertEqual(plan.fieldMask, Set(plan.values.keys))
+    }
+
+    func testMappingStandardNonEmittedPicturesAreZeroOperation() throws {
+        let gif = try writeTestGIF()
+        var current = AhaKeyStudioDraft.default
+        let synced = current
+        var idleMode = current.draft(for: .mode0)
+        idleMode.oled.updateTaskAsset(
+            set: 0,
+            asset: AhaKeyTaskGIFAssetDraft(
+                state: .idle,
+                localAssetPath: gif.path,
+                framesPerSecond: 12
+            )
+        )
+        current.updateMode(idleMode)
+        for overwriteConfirmed in [false, true] {
+            let snapshot = current.frozenPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                lastSyncedDraft: synced,
+                profile: .legacyStandard,
+                overwriteConfirmed: overwriteConfirmed
+            )
+            XCTAssertEqual(
+                AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot),
+                .noOp,
+                "idle-only confirmed=\(overwriteConfirmed)"
+            )
+        }
+
+        current = AhaKeyStudioDraft.default
+        var unselectedMode = current.draft(for: .mode0)
+        for state in AhaKeyTaskDisplayState.legacyStates {
+            unselectedMode.oled.updateTaskAsset(
+                set: 1,
+                asset: AhaKeyTaskGIFAssetDraft(
+                    state: state,
+                    localAssetPath: gif.path,
+                    framesPerSecond: 12
+                )
+            )
+        }
+        current.updateMode(unselectedMode)
+        for overwriteConfirmed in [false, true] {
+            let snapshot = current.frozenPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                lastSyncedDraft: synced,
+                profile: .legacyStandard,
+                selectedTaskSet: 0,
+                overwriteConfirmed: overwriteConfirmed
+            )
+            XCTAssertEqual(
+                AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot),
+                .noOp,
+                "unselected-set confirmed=\(overwriteConfirmed)"
+            )
+        }
     }
 
     private func pictureAuthorities(

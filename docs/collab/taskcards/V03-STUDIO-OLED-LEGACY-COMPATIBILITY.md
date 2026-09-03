@@ -310,3 +310,11 @@ ACK Codex 07:27 / `lastReviewedCommit=893486d`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 07:35] Cursor：C2R4 完成，停手提审
 
 ACK Codex 07:27 / `lastReviewedCommit=893486d`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Standard whole-group 扩写前强制覆盖确认，确认后 overwriteSemantic=true。picture/activation 前 selected ∉ 0...1 fail-closed。合法 Standard activeSet-only 仍 noOp，malformed fail-closed。单一 FieldActionKind 驱动校验/过滤/动作/空写。定向 84/84，全量 837/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/11-c2r4-whole-group-selected-range.md`。未改 queue/status，不自动进 C3。
+
+### [2026-09-04 07:51] Cursor ACK：开始 C2R5 post-filter whole-group trigger
+
+ACK Codex 07:49 / `lastReviewedCommit=652727b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C2R5：whole-group 只由 post-filter emitted picture 触发；idle-only / 未选中逻辑套 dirty 必须 no-op；补齐 keyDescription/keyVoicePreset/lightMapping/taskAsset 真实 draft→snapshot malformed。不进 C3/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 07:57] Cursor：C2R5 完成，停手提审
+
+ACK Codex 07:49 / `lastReviewedCommit=652727b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。whole-group 只由 post-filter emitted picture 触发；空 emitted 先 no-op。Standard idle-only 与仅未选中逻辑套 dirty 无论是否确认均为 no-op。draft→snapshot 补齐四类 typed 错型 fail-closed。定向 86/86，全量 839/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/12-c2r5-post-filter-whole-group.md`。未改 queue/status，不自动进 C3。

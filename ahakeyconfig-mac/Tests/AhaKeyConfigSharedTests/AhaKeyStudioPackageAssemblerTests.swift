@@ -674,6 +674,55 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         XCTAssertFalse(plan.resources.contains { $0.logicalIdentifier.rawValue.contains("idle") })
     }
 
+    func testStandardNonEmittedPicturesDoNotTriggerWholeGroupWrite() {
+        let idleOnly = [
+            AhaKeyStudioFrozenField(
+                id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .idle),
+                value: .asset(
+                    path: "/tmp/idle-only.gif", framesPerSecond: 12, declaredFrameCount: 3,
+                    pixelWidth: 160, pixelHeight: 80
+                ),
+                isDirty: true,
+                baseline: .init(
+                    trust: .writeConfirmed,
+                    value: .asset(
+                        path: "/tmp/idle-old.gif", framesPerSecond: 12, declaredFrameCount: 3,
+                        pixelWidth: 160, pixelHeight: 80
+                    )
+                )
+            ),
+        ]
+        let unselected = standardCompleteSet(logicalSet: 1, prefix: "/tmp/unselected")
+        for overwriteConfirmed in [false, true] {
+            XCTAssertEqual(
+                AhaKeyStudioPackageAssembler.assembleScopedPage(
+                    AhaKeyStudioPageSnapshot(
+                        pageID: .screen(modeSlot: 0),
+                        profile: .legacyStandard,
+                        selectedTaskSet: 0,
+                        overwriteConfirmed: overwriteConfirmed,
+                        fields: idleOnly
+                    )
+                ),
+                .noOp,
+                "idle-only confirmed=\(overwriteConfirmed)"
+            )
+            XCTAssertEqual(
+                AhaKeyStudioPackageAssembler.assembleScopedPage(
+                    AhaKeyStudioPageSnapshot(
+                        pageID: .screen(modeSlot: 0),
+                        profile: .legacyStandard,
+                        selectedTaskSet: 0,
+                        overwriteConfirmed: overwriteConfirmed,
+                        fields: unselected
+                    )
+                ),
+                .noOp,
+                "unselected-set confirmed=\(overwriteConfirmed)"
+            )
+        }
+    }
+
     func testStandardActiveSetOnlyIsNoOp() {
         let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
             AhaKeyStudioPageSnapshot(
@@ -796,6 +845,24 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
                 )
             ),
             (
+                .key(modeSlot: 0, role: .approve),
+                AhaKeyStudioFrozenField(
+                    id: .keyDescription(modeSlot: 0, role: .approve),
+                    value: .integer(1),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("ok"))
+                )
+            ),
+            (
+                .key(modeSlot: 0, role: .approve),
+                AhaKeyStudioFrozenField(
+                    id: .keyVoicePreset(modeSlot: 0, role: .approve),
+                    value: .text("macOSNative"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .optionalText(nil))
+                )
+            ),
+            (
                 .lights(modeSlot: 0),
                 AhaKeyStudioFrozenField(
                     id: .lightBrightness(modeSlot: 0),
@@ -811,6 +878,21 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
                     value: .integer(1),
                     isDirty: true,
                     baseline: .init(trust: .verified, value: .text("off"))
+                )
+            ),
+            (
+                .screen(modeSlot: 0),
+                AhaKeyStudioFrozenField(
+                    id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working),
+                    value: .text("not-an-asset"),
+                    isDirty: true,
+                    baseline: .init(
+                        trust: .verified,
+                        value: .asset(
+                            path: "/tmp/old.gif", framesPerSecond: 12, declaredFrameCount: 3,
+                            pixelWidth: 160, pixelHeight: 80
+                        )
+                    )
                 )
             ),
         ]

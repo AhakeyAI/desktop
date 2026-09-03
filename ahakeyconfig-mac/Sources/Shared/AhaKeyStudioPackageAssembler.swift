@@ -387,7 +387,8 @@ public enum AhaKeyStudioPackageAssembler {
         )
     }
 
-    /// C2R4：单一 field action kind 驱动校验、emitted 过滤、动作生成与空动作判断。
+    /// C2R5：单一 field action kind 驱动校验、emitted 过滤、动作生成与空动作判断。
+    /// whole-group 只由 post-filter emitted picture 触发。
     public static func assembleScopedPage(
         _ snapshot: AhaKeyStudioPageSnapshot
     ) -> AhaKeyStudioPageAssembly {
@@ -417,7 +418,6 @@ public enum AhaKeyStudioPackageAssembler {
             }
         }
 
-        let writingPictures = dirtyIDs.contains { actionKind(of: $0) == .taskAsset }
         let wholeGroup = AhaKeyStudioPageDiffer.requiresWholeGroupWrite(
             pageID: snapshot.pageID,
             profile: snapshot.profile
@@ -430,6 +430,10 @@ public enum AhaKeyStudioPackageAssembler {
         var acceptedIDs = Set(dirtyIDs.filter { id in
             isEmittedLogicalField(id, snapshot: snapshot, acceptedIDs: dirtyIDs)
         })
+        if acceptedIDs.isEmpty {
+            return .noOp
+        }
+        let writingPictures = acceptedIDs.contains { actionKind(of: $0) == .taskAsset }
         if writingPictures, wholeGroup, !snapshot.overwriteConfirmed {
             return .requiresOverwriteConfirmation
         }
@@ -441,9 +445,6 @@ public enum AhaKeyStudioPackageAssembler {
                 }
                 acceptedIDs.insert(fieldID)
             }
-        }
-        if acceptedIDs.isEmpty {
-            return .noOp
         }
 
         let acceptedUnknown = acceptedIDs.contains { id in
