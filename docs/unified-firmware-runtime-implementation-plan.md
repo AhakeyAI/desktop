@@ -47,7 +47,7 @@
 | 版本 | 面向用户的交付 | 必须完成 | 明确不包含 |
 |---|---|---|---|
 | **v0.2/v0.2.1 可用客户端 Beta** | macOS Studio + 轻量 Runtime；AI Hook 自动/手动批准、后台设备检测、防休眠、连接状态；经兼容门控验证后的基础键位/灯效配置；正式签名 DMG；v0.2.1 收口 BLE 唤醒与 legacy socket 生存性 | 已验收 Runtime 主链；`RELEASE-0.2-COMPATIBILITY`；WBS 5.9A；`HIL-RELEASE-0.2`；`HIL-RELEASE-0.2.1` | OLED/任务图写入、统一固件、跨平台语音、拨杆宏、Windows、会话定向 |
-| **v0.3 客户端 OLED 兼容版** | 对外发布的重构后 macOS 客户端；正式 Studio UI 经 Runtime 写入图片；兼容已登记的 GitHub Standard、Gitee Rhino、Local Rhino 旧固件；按固件能力选择协议；字节进度与 A/B scoped 写入 | 最终 v0.2.1；`V03-STUDIO-OLED-LEGACY-COMPATIBILITY`；`HIL-V03-STUDIO-OLED-COMPATIBILITY`；`HIL-RELEASE-0.3` | 统一固件刷写、键盘端旧固件进度修复、平台语音、拨杆宏、Windows、会话定向 |
+| **v0.3 客户端 OLED 兼容版** | 对外发布的重构后 macOS 客户端；正式 Studio UI 经 Runtime 按当前编辑页 dirty-only 写入；每页独立 operation/FIFO/断连续传/三级 baseline；兼容已登记的 GitHub Standard、Gitee Rhino、Local Rhino 旧固件；字节进度与 A/B 写入并激活 | 最终 v0.2.1；`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1-C4；`HIL-V03-STUDIO-OLED-COMPATIBILITY` C5；`HIL-RELEASE-0.3` | 统一固件刷写、客户端自动补齐出厂默认、键盘端旧固件进度修复、平台语音、拨杆宏、Windows、会话定向 |
 | **v0.4 统一固件与平台快捷键** | 完成统一固件基线，并按 macOS/Windows/已学习平台发送不同系统语音快捷键；基础语音无需 Runtime | WBS 1、WBS 2、WBS 4.1-4.4、WBS 5.8、`HIL-RELEASE-0.4` | 拨杆自定义宏、Windows Studio 完整对齐、会话定向 |
 | **v0.5 拨杆快捷键/宏** | 三档自定义快捷键、宏、互锁与 Runtime 状态正交 | WBS 3、WBS 4.5、`HIL-RELEASE-0.5` | Windows 正式客户端、完整量产资格、会话定向 |
 | **v1.0 正式统一版** | macOS/Windows 对齐、完整迁移/升级/降级、性能与量产门禁、正式包 | WBS 4.6-4.8、5.10、5.9B、WBS 6.1-6.7（不含 6.4A） | 最近待操作会话定向 |
@@ -947,9 +947,15 @@ AhaType
 
 ### 14.2 v0.3：客户端 OLED 兼容版
 
-Cursor 在 v0.2.1 收口后执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY`：建立旧固件能力 profile、按 Standard/Rhino/current 选择真实协议，并让正式 Studio scoped assembler 能表达“只写 A 或 B、保留另一套”。随后用户批准 `HIL-V03-STUDIO-OLED-COMPATIBILITY`，在 GitHub Standard `3e7f900`、Gitee Rhino `53cd0a97`、Local Rhino `00eb7efc` 上逐项验证正式 UI 写入、显示、切换、断电保持与自动重连。通过后才从 `ReleaseFeaturePolicy` 开放 OLED，并由 `HIL-RELEASE-0.3` 生成/安装客户端 DMG。
+Cursor 在 v0.2.1 收口后顺序执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` 的四个产品切片：C1 建立旧固件能力 profile 与 Standard/Rhino/current 真协议路由；C2 建立页面唯一字段归属、dirty-only assembler 与三级 baseline；C3 建立每页独立 Runtime operation、设备 FIFO、对象 CAS、断连续传和逐字段确认；C4 完成 Studio 页面锁、按钮与底部队列。随后用户批准 C5 `HIL-V03-STUDIO-OLED-COMPATIBILITY`，在 GitHub Standard `3e7f900`、Gitee Rhino `53cd0a97`、Local Rhino `00eb7efc` 上逐项验证正式 UI 写入、显示、切换、断电保持与自动重连。通过后才从 `ReleaseFeaturePolicy` 开放 OLED，并由 `HIL-RELEASE-0.3` 生成/安装客户端 DMG。
 
-2026-09-02 的 Gitee Rhino 差分证据已证明 Runtime 底层链路可以完成 B-only `5/5`、`102400/102400` 且 A/B 断电保持；尚缺的是正式 Studio UI 等价路径。旧 Rhino 键盘端 `0,0` 是固件上传页显示缺陷，不代表 Runtime 写入失败。v0.3 不刷统一固件，也不以 WBS 1.6/1.7 或 `HIL-CONFIG` C1-C6 为发布依赖。
+v0.3 写入契约冻结如下：每个按键、灯条、屏幕、拨杆、电源键等编辑页是独立 scope，每个字段只能归属一个页面；点击时只冻结并写当前页 dirty 字段，其他页面即使已修改也不得进入本 operation。零差异必须在 operation/CAS/WAL 之前 strict no-op。屏幕页若 A/B 都 dirty 则两套均写，但只激活当前套；普通页按钮为“写入当前页”，屏幕页为“写入并激活”。每页 operation 使用独立 UUID，同设备 Runtime 严格 FIFO 并沿用 Studio 底部队列；当前页排队即锁定，其他页仍可编辑。queued 可移除，running 不可普通取消；断连超过 60 秒才提供不回滚已确认内容的“放弃未完成写入”。
+
+断连续传只在 stable device ID 与写入语义 compatibility fingerprint 均一致时沿用原 UUID，并从已确认的最小字段/资源块继续；fingerprint 不包含电量、当前通道等动态事实。永久失败 fail-fast，已确认字段推进 baseline，剩余字段保持 dirty，重试只生成剩余差异。baseline 分为 `verified`、`writeConfirmed`、`unknown`：设备读回/fingerprint 是权威，本地同步稿只作缓存；旧固件不可读回且协议要求整组写时，必须显式“覆盖写入此页”，不得静默猜测或扩大到其他页。
+
+Studio 首次连接永远只读，不自动补齐出厂配置。新统一固件的完整快捷键、灯效与图片由版本化 factory manifest 在真正 virgin first boot 初始化；固件升级不得自动覆盖用户配置，新默认只通过用户明确确认的恢复出厂生效。旧固件沿用其既有出厂内容；客户端不能以 baselineUnknown 为理由自动写设备。
+
+2026-09-02 的 Gitee Rhino 差分证据已证明 Runtime 底层链路可以完成 B-only `5/5`、`102400/102400` 且 A/B 断电保持；尚缺的是正式 Studio UI 等价路径和上述页面事务语义。旧 Rhino 键盘端 `0,0` 是固件上传页显示缺陷，不代表 Runtime 写入失败。v0.3 不刷统一固件，也不以 WBS 1.6/1.7 或 `HIL-CONFIG` C1-C6 为发布依赖。
 
 ### 14.3 v0.4：统一固件与平台快捷键
 

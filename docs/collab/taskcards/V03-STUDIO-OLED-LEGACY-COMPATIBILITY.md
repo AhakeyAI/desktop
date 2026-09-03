@@ -33,6 +33,25 @@ v0.3 作为可对外分发的重构后 macOS 客户端，独立开放图片写�
 
 “全部旧固件”指上述已登记、可取得且曾发布/冻结的固件族。发现新的历史固件时先登记 SHA/HEX 与能力事实，再加入矩阵；不得用未知固件成功猜测扩大公开承诺。
 
+## 用户冻结的页面级写入模型（2026-09-03）
+
+以下规则是 v0.3 产品契约，后续切片不得自行简化为“整模式/全局配置批量写入”：
+
+1. **页面是最小用户写入对象。** 每个可选择的编辑页是一套独立对象：每个按键、灯条、屏幕、拨杆、电源键等。每个可写字段只能归属一个页面；跨页展示只能只读引用。恢复出厂是唯一允许跨页的全局操作。
+2. **只写当前页 dirty 字段。** 点击写入时冻结当前页快照，只比较该页字段与设备权威基线；其他页面即使存在修改也不得读取、组包或写入。零差异是严格 no-op：不创建 operation ID、不写 WAL、不 ingest CAS、不发设备命令。
+3. **屏幕页语义。** A dirty 则写 A，B dirty 则写 B，两者均 dirty 则都写；只激活用户当前选中的套图。屏幕页其他属性只在 dirty 时写入。按钮固定为“写入并激活”；Standard 单套图固件的激活是协议内隐式结果，不伪造 `0x97`。
+4. **每页独立 operation。** 每次页面提交生成唯一 operation UUID，记录 scope/page ID、冻结字段 mask、设备 stable ID、compatibility fingerprint 与逐字段/逐资源确认结果。同一设备由 Runtime 串行 FIFO；暂停/可续传队首不得被后续页面越过。底部沿用现有设备级队列位置，页面内显示本页状态。
+5. **编辑锁。** 页面一旦排队即锁定，不能继续编辑或重复提交；其他页面仍可编辑并建立独立排队任务。未开始的 queued operation 可以移出队列；开始写入后不允许普通取消。
+6. **断连续传。** 断连清除本连接的协商事实，但保留 operation/WAL。重连后只有 stable device ID 与写入语义 fingerprint 均一致才续传同一 operation ID，并从已确认的最小步骤继续；不得重传已确认字节。fingerprint 只含协议族、opcode、套图/槽位几何、session 与绑定/激活语义，不含电量、通道或动态用量。
+7. **断连逃生门。** 断连 60 秒内只自动等待；超过 60 秒显示“放弃未完成写入”。放弃不回滚已写设备内容：已确认字段更新基线，未完成字段保持 dirty，页面解锁。用户不放弃时，任务跨 Studio/Runtime 重启继续等待。
+8. **失败策略。** 设备断连/超时是 resumable，不是永久失败。确定性协议拒绝、范围错误或介质失败采用 fail-fast：立即停止本 operation；已确认字段更新基线，未执行字段保持 dirty；重试创建新 operation 且只包含剩余差异。
+9. **三级基线。** 设备读回/fingerprint 是权威；Studio 的 `lastSyncedDraft` 只作缓存。字段状态为 `verified`（设备验证一致）、`writeConfirmed`（设备确认写入但旧固件不可读回）或 `unknown`。严格 no-op 仅可基于 verified，或与同一次成功写入内容精确相同的 writeConfirmed。部分成功按最小已确认字段更新，不等待整包终态。
+10. **旧固件不可读回。** 可独立写的字段只写用户本次实际编辑字段；协议要求整组写入时，使用当前页缓存补齐并将动作标为“覆盖写入此页”。没有可信页缓存时必须二次确认，不得静默猜测；成功后尽可能读回升级为 verified，否则保持 writeConfirmed。
+11. **对象级 CAS。** queued operation 保存目标页面的 base fingerprint；真正开始前重检，外部变化则以 conflict 零写终止。开始且已有确认写入后，只再校验设备 identity/profile，不用内容 CAS 阻断恢复。
+12. **首次连接只读。** Studio 不自动补齐出厂配置。统一固件在真正 virgin first boot 按版本化 factory manifest 初始化完整快捷键、灯效与图片；固件升级不得覆盖用户配置。旧固件沿用既有出厂状态；只有用户显式写当前页或执行二次确认的恢复出厂才写设备。
+
+页面状态固定为：`有修改`、`排队中`、`写入中`、`等待重连`、`部分完成`、`已写入待验证`、`已同步`、`冲突`、`失败`。普通页按钮为“写入当前页”；屏幕页为“写入并激活”；零差异显示“无修改”并禁用；旧固件不可读回且需整页覆盖时显示“覆盖写入此页”。operation UUID 只在详情/诊断中展示。
+
 ## 实现切片
 
 ### C1：能力识别与 planner 路由
@@ -42,18 +61,35 @@ v0.3 作为可对外分发的重构后 macOS 客户端，独立开放图片写�
 3. 短帧、缺失 `0x99`、14/22/26B capability 和异常 flag 均须有冻结 fixture。未知组合 fail-closed，不允许以 firmware version 字符串猜测。
 4. 每条路径分别定义成功：以 Runtime operation/WAL、设备回复及必要的回读/目视为准；键盘旧上传页的 `0,0` 不参与失败判定。
 
-### C2：正式 Studio scoped assembler
+### C2：页面差异模型与 scoped assembler
 
-1. 正式 UI 必须能表达“只写当前模式、只写 A 或 B、保留未选择套图”，不得自动镜像 idle/defaultAnimation 或把另一套图塞进 package。
-2. 复用已验收的 160×80 编码、抽帧、临时文件清理、字节级进度和 scoped baseline；不得恢复 Studio 直连 BLE。
-3. 写入前给出固件兼容路径和影响范围；不支持的组合在 ingest/apply 前失败。
-4. 成功后仅更新实际提交范围的同步基线；失败/取消保留可理解的 operation、opcode/status 和恢复建议。
+1. 建立唯一字段归属表、page/object ID、冻结字段 mask 与三级 baseline；设备读回/fingerprint 优先，local baseline 仅作缓存。
+2. assembler 输入必须是单一页面冻结快照，只生成该页 dirty 字段；零差异在 operation/CAS/WAL 之前严格 no-op。
+3. 屏幕页实现 A/B 各自 dirty、两套同时 dirty、当前套激活与其他屏幕属性 dirty-only；不得自动镜像 idle/defaultAnimation，不得夹带其他页面。
+4. 旧固件 baselineUnknown/整组协议执行显式覆盖规则；没有可信页缓存时 fail-closed 等待用户确认。
+5. 复用已验收的 160×80 编码、抽帧、临时文件清理和字节级进度；不得恢复 Studio 直连 BLE。
 
-### C3：兼容回归与公开产品收口
+### C3：Runtime 页面事务、续传与基线推进
 
-1. host 测试冻结三类旧固件的命令序列，覆盖 A-only、B-only、覆盖当前套、保留另一套、取消/重连、超限与未知能力。
-2. 全量 Swift、App+Runtime Release、签名 XPC、Hook 三态、安装器升级/回滚不得回退。
-3. 形成公开兼容清单与已知限制；HIL driver 不进入 App、Runtime、DMG 或用户文档。
+1. Package/WAL 持久化 page scope、field mask、stable device ID、语义 compatibility fingerprint 与最小确认粒度；每页独立 UUID，同设备严格 FIFO。
+2. queued 可移除；running 不可普通取消。断连保留原 operation 并在同设备/同语义 fingerprint 下从已确认步骤自动续传；暂停队首不得被绕过。
+3. 断连超过 60 秒提供受限“放弃未完成写入”；确认部分不回滚、未完成字段继续 dirty。Runtime/Studio 重启不得丢任务。
+4. 开始前执行对象级 CAS；永久失败 fail-fast；逐字段/逐资源确认后立即推进 `verified/writeConfirmed/unknown` baseline，重试只包含剩余 dirty 字段。
+5. 兼容旧 wire JSON：新字段 optional、旧 Runtime/Studio fail-closed 或降级只读；不得破坏既有已 accepted WAL 迁移与 XPC 生命周期。
+
+### C4：Studio 页面交互与底部队列
+
+1. 普通页“写入当前页”，屏幕页“写入并激活”，baselineUnknown 整组覆盖显示“覆盖写入此页”；零差异按钮禁用并显示“无修改”。
+2. 排队即锁当前页；其他页仍可编辑/提交。页面展示冻结状态集，设备级 FIFO 继续使用底部现有队列位置，显示当前页与后续数量。
+3. operation UUID 隐藏在详情/诊断；状态文案必须区分等待重连、部分完成、待验证、冲突与永久失败，并给出只重试剩余内容的入口。
+4. host/UI 测试覆盖多页面并发编辑、同页禁止重复提交、queued 移除、running 不可取消、60 秒逃生门、A/B 双 dirty 只激活当前套与严格 no-op。
+
+### C5：兼容 HIL 与公开产品收口（独立 USER-GATE 卡）
+
+1. 由 `HIL-V03-STUDIO-OLED-COMPATIBILITY` 使用正式 Studio/Runtime 验证三类旧固件；不得用专用 HIL driver 代替 UI。
+2. host/HIL 覆盖 A-only、B-only、A+B dirty、覆盖当前套、保留另一套、断连续传、60 秒放弃、超限、未知能力与 old-firmware writeConfirmed。
+3. 全量 Swift、App+Runtime Release、签名 XPC、Hook 三态、安装器升级/回滚不得回退。
+4. 形成公开兼容清单与已知限制；HIL driver 不进入 App、Runtime、DMG 或用户文档。
 
 ## 路径白名单（C1 开工前由 Codex 按最终 v0.2.1 基线细化）
 
@@ -66,6 +102,10 @@ v0.3 作为可对外分发的重构后 macOS 客户端，独立开放图片写�
 
 ## 完成定义
 
+- 字段唯一归页；普通提交只冻结并写当前页 dirty 字段。其他页 dirty 不进入本 operation；零差异时 operation/CAS/WAL/设备命令计数全部为 0。
+- 每页 operation UUID、设备 FIFO、页面锁、queued 移除、running 不可取消、断连 60 秒逃生门、同设备/同语义 fingerprint 续传与对象级 CAS 均有确定性测试。
+- 三级 baseline 可区分设备已验证、仅写入确认和未知；部分成功只推进已确认字段，永久失败后新任务只包含剩余 dirty 字段。
+- 屏幕页 A/B 均 dirty 时两套均写入但只激活当前套；无变化属性不发命令。Standard 单套图不得伪造 Rhino/current 激活命令。
 - 正式 Studio UI（不是专用 HIL 驱动）在三类已登记旧固件上走正确协议，真机矩阵全部通过。
 - Gitee Rhino 上复现 B-only：`5/5`、完整字节进度、A 保留、A/B 断电后保留、自动重连。
 - Standard 上图片写入、显示和断电保持通过，且日志证明未发送不支持的 Rhino/current opcode。
@@ -73,6 +113,7 @@ v0.3 作为可对外分发的重构后 macOS 客户端，独立开放图片写�
 - 未知/畸形 capability 在写入前 fail-closed；不覆盖现存图、不产生部分写入。
 - 旧固件键盘端 `0,0` 明确列为固件 UI 限制；Studio 的 Runtime 字节进度必须正确且单调。
 - 产出可签名、可公证候选所需的代码与兼容文档；签名/安装仍由 `HIL-RELEASE-0.3` USER-GATE 执行。
+- Studio 首次连接为只读且零写；本卡不以客户端隐式补齐代替固件 virgin factory manifest。
 
 ## 禁止事项
 
@@ -163,3 +204,11 @@ ACK `f35134a` / `lastReviewedCommit=4fda27b`。产品基线 `1ed560b` / 已安�
 6. 定向 + 全量 Swift + App/Agent Release + `git diff --check`。提审后停手，不进 C2/HIL/打包/安装/push。P2 opcode Bool 收敛留后续，不阻断 C1R2。
 
 - 需要回复：是（@Cursor ACK 后只执行 C1R2）
+
+### [2026-09-03 13:07] Codex：用户冻结 v0.3 页面级写入模型；C1R2 边界不变
+
+- 用户已完成逐项 grill 并确认共同理解。正式产品写入单位从“整模式/全局配置”收敛为**当前编辑页**；每字段唯一归页，其他页 dirty 不得被当前 operation 读取或写入。零差异严格 no-op。
+- 后续顺序冻结为 C2 页面差异模型与 scoped assembler → C3 Runtime 页面事务/续传/三级 baseline → C4 Studio 页面锁与底部队列 → C5 独立 USER-GATE HIL。每个切片必须 accepted 后才开放下一片。
+- 当前仍只允许 Cursor 执行既有 C1R2；本条不扩大其白名单，不允许提前实现 C2-C4，也不授权 HIL、签名、公证、安装、刷机或 push。
+- 固件 virgin factory manifest 与首次开箱默认内容继续归 WBS 1 独立实现；Studio 首次连接只读。统一固件与平台快捷键不反向阻塞 v0.3。
+- 需要回复：否（Cursor 按现有 C1R2 卡继续；完成后提审）
