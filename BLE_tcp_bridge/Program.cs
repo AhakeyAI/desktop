@@ -23,7 +23,11 @@ namespace BLE_tcp_driver
         static DeviceWatcher watcher;
 
         private bool asyncLock = false;
+        private readonly object _discoverySync = new object();
         private int _pendingServiceCount = 0;
+        private int _discoveryGeneration = 0;
+        private bool _discoveryFinalized;
+        private bool _targetServiceFound;
 
         /// <summary>
         /// 当前连接的服务
@@ -38,17 +42,40 @@ namespace BLE_tcp_driver
         /// <summary>
         /// 写特征对象 (命令 0x7343)
         /// </summary>
-        public GattCharacteristic CurrentWriteCharacteristic { get; set; }
+        public GattCharacteristic CurrentWriteCharacteristic { get; private set; }
 
         /// <summary>
         /// 数据写特征对象 (数据 0x7341)
         /// </summary>
-        public GattCharacteristic CurrentDataCharacteristic { get; set; }
+        public GattCharacteristic CurrentDataCharacteristic { get; private set; }
 
         /// <summary>
         /// 通知特征对象 (通知 0x7344)
         /// </summary>
-        public GattCharacteristic CurrentNotifyCharacteristic { get; set; }
+        public GattCharacteristic CurrentNotifyCharacteristic { get; private set; }
+
+        /// <summary>
+        /// 由发现线程同步维护的目标服务/特征结果。UI 不参与分类，避免 BeginInvoke
+        /// 尚未执行时 AllCharacteristicsDiscovered 已经读取到 null 的竞态。
+        /// </summary>
+        public bool TargetServiceFound
+        {
+            get { lock (_discoverySync) return _targetServiceFound; }
+        }
+
+        public bool HasCompleteTargetCharacteristics
+        {
+            get
+            {
+                lock (_discoverySync)
+                {
+                    return _targetServiceFound
+                        && CurrentDataCharacteristic != null
+                        && CurrentWriteCharacteristic != null
+                        && CurrentNotifyCharacteristic != null;
+                }
+            }
+        }
 
         /// <summary>
         /// 存储检测到的特征
@@ -115,6 +142,11 @@ namespace BLE_tcp_driver
         public event Action AllCharacteristicsDiscovered;
 
         /// <summary>
+        /// 发现诊断日志。事件可能从 WinRT 发现线程触发，UI 层只能将其排队显示。
+        /// </summary>
+        public event Action<string> DiscoveryDiagnostic;
+
+        /// <summary>
         /// 当前连接的蓝牙Mac
         /// </summary>
         private string CurrentDeviceMAC { get; set; }
@@ -123,6 +155,201 @@ namespace BLE_tcp_driver
         public BleCore()
         {
             CharacteristicList = new List<GattCharacteristic>();
+        }
+
+        private void LogDiscovery(string message)
+        {
+            string line = "[GATT] " + message;
+            Console.WriteLine(line);
+            try
+            {
+                DiscoveryDiagnostic?.Invoke(message);
+            }
+            catch (Exception ex)
+            {
+                // 诊断日志不能让 WinRT discovery callback 失败。
+                Console.WriteLine("[GATT] diagnostic sink failed: " + ex.Message);
+            }
+        }
+
+        private static string FormatProtocolError(object protocolError)
+        {
+            return protocolError == null ? "<none>" : protocolError.ToString();
+        }
+
+        private static string GetAttributeHandle(object winRtObject)
+        {
+            if (winRtObject == null) return "<unavailable>";
+            try
+            {
+                // AttributeHandle 并非所有目标 Windows SDK 投影都提供；诊断版使用
+                // reflection，既不改变运行时兼容性，也能在可用时打印真实 handle。
+                var property = winRtObject.GetType().GetProperty("AttributeHandle");
+                object value = property?.GetValue(winRtObject, null);
+                return value == null ? "<unavailable>" : value.ToString();
+            }
+            catch (Exception ex)
+            {
+                return "<unavailable: " + ex.GetType().Name + ">";
+            }
+        }
+
+        private static ushort GetShortUuid(Guid uuid)
+        {
+            return Utilities.ConvertUuidToShortId(uuid);
+        }
+
+        private int BeginDiscovery(BluetoothLEDevice device)
+        {
+            int generation = Interlocked.Increment(ref _discoveryGeneration);
+            lock (_discoverySync)
+            {
+                _pendingServiceCount = 0;
+                _discoveryFinalized = false;
+                _targetServiceFound = false;
+                CharacteristicList.Clear();
+                CurrentService = null;
+                CurrentWriteCharacteristic = null;
+                CurrentDataCharacteristic = null;
+                CurrentNotifyCharacteristic = null;
+            }
+
+            LogDiscovery("DISCOVERY START generation=" + generation +
+                ", device=" + (device?.Name ?? "<unknown>"));
+            return generation;
+        }
+
+        private bool IsCurrentDiscovery(int generation)
+        {
+            return Interlocked.CompareExchange(ref _discoveryGeneration, 0, 0) == generation;
+        }
+
+        private void FinishDiscoveryIfReady(int generation)
+        {
+            if (!IsCurrentDiscovery(generation)) return;
+
+            bool shouldNotify = false;
+            bool serviceFound;
+            bool dataFound;
+            bool writeFound;
+            bool notifyFound;
+            lock (_discoverySync)
+            {
+                if (!IsCurrentDiscovery(generation) || _discoveryFinalized || _pendingServiceCount != 0) return;
+                _discoveryFinalized = true;
+                serviceFound = _targetServiceFound;
+                dataFound = CurrentDataCharacteristic != null;
+                writeFound = CurrentWriteCharacteristic != null;
+                notifyFound = CurrentNotifyCharacteristic != null;
+                shouldNotify = true;
+            }
+
+            if (!shouldNotify) return;
+
+            LogDiscovery("TARGET SUMMARY:");
+            LogDiscovery("7340 service = " + (serviceFound ? "YES" : "NO"));
+            LogDiscovery("7341 = " + (dataFound ? "YES" : "NO"));
+            LogDiscovery("7343 = " + (writeFound ? "YES" : "NO"));
+            LogDiscovery("7344 = " + (notifyFound ? "YES" : "NO"));
+            // 额外输出机器可读的诊断结果，便于从 UI 日志直接复制给 HV-005 调查。
+            LogDiscovery("SERVICE_7340_FOUND=" + (serviceFound ? "YES" : "NO"));
+            LogDiscovery("CHAR_7341_FOUND=" + (dataFound ? "YES" : "NO"));
+            LogDiscovery("CHAR_7343_FOUND=" + (writeFound ? "YES" : "NO"));
+            LogDiscovery("CHAR_7344_FOUND=" + (notifyFound ? "YES" : "NO"));
+
+            // 初始查询也在 discovery 线程发出，避免依赖 CharacteristicAdded 的 UI
+            // BeginInvoke 顺序。Form1 只负责保存配置及更新显示。
+            if (serviceFound && dataFound && writeFound && notifyFound)
+            {
+                GattCharacteristic writeCharacteristic;
+                lock (_discoverySync) writeCharacteristic = CurrentWriteCharacteristic;
+                LogDiscovery("TARGET DISCOVERY COMPLETE; sending initial status query");
+                WriteDataToCharacterstuc(writeCharacteristic, ProtocolHelper.DeviceStatusQueryCommand);
+                if (ProtocolHelper.LastClaudeState != null)
+                {
+                    WriteDataToCharacterstuc(writeCharacteristic, ProtocolHelper.LastClaudeState);
+                }
+            }
+
+            AllCharacteristicsDiscovered?.Invoke();
+        }
+
+        private void CompleteDiscoveryWithFailure(int generation, string operation, string detail)
+        {
+            if (!IsCurrentDiscovery(generation)) return;
+            LogDiscovery(operation + " failed: " + detail);
+            lock (_discoverySync)
+            {
+                if (!IsCurrentDiscovery(generation)) return;
+                _pendingServiceCount = 0;
+            }
+            if (operation == "GetGattServicesAsync")
+            {
+                LogDiscovery("SERVICE 0x7340 NOT FOUND (service enumeration failed)");
+            }
+            FinishDiscoveryIfReady(generation);
+        }
+
+        private void RecordCharacteristic(GattDeviceService service,
+            GattCharacteristic characteristic, int generation)
+        {
+            if (!IsCurrentDiscovery(generation))
+            {
+                LogDiscovery("Ignoring characteristic from stale discovery generation " + generation);
+                return;
+            }
+
+            ushort serviceShortId = GetShortUuid(service.Uuid);
+            ushort shortId = GetShortUuid(characteristic.Uuid);
+            bool isTargetService = serviceShortId == 0x7340;
+            bool isTarget = false;
+            bool enableNotifications = false;
+
+            lock (_discoverySync)
+            {
+                if (!IsCurrentDiscovery(generation)) return;
+                CharacteristicList.Add(characteristic);
+                if (isTargetService)
+                {
+                    switch (shortId)
+                    {
+                        case 0x7341:
+                            if (CurrentDataCharacteristic == null) CurrentDataCharacteristic = characteristic;
+                            isTarget = true;
+                            break;
+                        case 0x7343:
+                            if (CurrentWriteCharacteristic == null) CurrentWriteCharacteristic = characteristic;
+                            isTarget = true;
+                            break;
+                        case 0x7344:
+                            if (CurrentNotifyCharacteristic == null)
+                            {
+                                CurrentNotifyCharacteristic = characteristic;
+                                enableNotifications = true;
+                            }
+                            isTarget = true;
+                            break;
+                    }
+                }
+            }
+
+            LogDiscovery("CHARACTERISTIC service=" + service.Uuid.ToString() +
+                " short=0x" + serviceShortId.ToString("X4") +
+                " uuid=" + characteristic.Uuid.ToString() +
+                " short=0x" + shortId.ToString("X4") +
+                " handle=" + GetAttributeHandle(characteristic));
+
+            if (isTarget)
+            {
+                LogDiscovery("TARGET 0x" + shortId.ToString("X4") + " FOUND");
+                if (enableNotifications)
+                {
+                    EnableNotifications(characteristic);
+                }
+            }
+
+            // 只有在引用已经同步保存后才把事件交给 Form1；UI 事件不再承担分类职责。
+            CharacteristicAdded?.Invoke(characteristic);
         }
         /// <summary>
         /// 获取发现的蓝牙设备
@@ -223,6 +450,8 @@ namespace BLE_tcp_driver
         /// <returns></returns>
         public void Dispose()
         {
+            // 使尚未完成的 WinRT discovery callback 失效，避免断开后回调污染下一次连接。
+            Interlocked.Increment(ref _discoveryGeneration);
             CurrentDeviceMAC = null;
             if (CurrentDevice != null)
                 CurrentDevice.ConnectionStatusChanged -= CurrentDevice_ConnectionStatusChanged;
@@ -230,9 +459,16 @@ namespace BLE_tcp_driver
             CurrentDevice?.Dispose();
             CurrentDevice = null;
             CurrentService = null;
-            CurrentWriteCharacteristic = null;
-            CurrentDataCharacteristic = null;
-            CurrentNotifyCharacteristic = null;
+            lock (_discoverySync)
+            {
+                _pendingServiceCount = 0;
+                _discoveryFinalized = true;
+                _targetServiceFound = false;
+                CurrentWriteCharacteristic = null;
+                CurrentDataCharacteristic = null;
+                CurrentNotifyCharacteristic = null;
+                CharacteristicList.Clear();
+            }
             Console.WriteLine("主动断开连接");
         }
 
@@ -325,42 +561,100 @@ namespace BLE_tcp_driver
         /// </summary>
         public void FindService(BluetoothLEDevice dev)
         {
-            if (dev != null)
+            if (dev == null)
+            {
+                Console.WriteLine("当前没有打开设备");
+                return;
+            }
+
+            int generation = BeginDiscovery(dev);
+            try
             {
                 dev.GetGattServicesAsync(BluetoothCacheMode.Uncached).Completed = (asyncInfo, asyncStatus) =>
                 {
-                    if (asyncStatus == AsyncStatus.Completed)
+                    LogDiscovery("GetGattServicesAsync: AsyncStatus=" + asyncStatus);
+                    if (asyncStatus != AsyncStatus.Completed)
                     {
-                        var services = asyncInfo.GetResults().Services;
-                        Console.WriteLine("GattServices size=" + services.Count);
-                        CharacteristicList.Clear();
+                        CompleteDiscoveryWithFailure(generation, "GetGattServicesAsync",
+                            "AsyncStatus=" + asyncStatus +
+                            ", GattCommunicationStatus=<not available>, ProtocolError=<not available>, service count=0");
+                        return;
+                    }
 
-                        for (int i = 0; i < services.Count; i++)
+                    try
+                    {
+                        var result = asyncInfo.GetResults();
+                        var services = result.Services;
+                        int serviceCount = services == null ? 0 : services.Count;
+                        LogDiscovery("GetGattServicesAsync: AsyncStatus=" + asyncStatus +
+                            ", GattCommunicationStatus=" + result.Status +
+                            ", ProtocolError=" + FormatProtocolError(result.ProtocolError) +
+                            ", service count=" + serviceCount);
+
+                        if (result.Status != GattCommunicationStatus.Success)
                         {
-                            Console.WriteLine($"#{i:00}: {services[i].Uuid.ToString()}");
+                            CompleteDiscoveryWithFailure(generation, "GetGattServicesAsync",
+                                "GattCommunicationStatus=" + result.Status +
+                                ", ProtocolError=" + FormatProtocolError(result.ProtocolError) +
+                                ", service count=" + serviceCount);
+                            return;
                         }
 
-                        _pendingServiceCount = services.Count;
-                        if (_pendingServiceCount == 0)
+                        lock (_discoverySync)
                         {
-                            AllCharacteristicsDiscovered?.Invoke();
+                            _pendingServiceCount = serviceCount;
+                        }
+
+                        bool targetServiceFound = false;
+                        if (services != null)
+                        {
+                            for (int i = 0; i < services.Count; i++)
+                            {
+                                GattDeviceService service = services[i];
+                                ushort shortId = GetShortUuid(service.Uuid);
+                                bool isTarget = shortId == 0x7340;
+                                targetServiceFound |= isTarget;
+                                LogDiscovery("SERVICE " + service.Uuid.ToString() +
+                                    " short=0x" + shortId.ToString("X4") +
+                                    " handle=" + GetAttributeHandle(service) +
+                                    (isTarget ? " FOUND" : ""));
+                                if (isTarget)
+                                {
+                                    LogDiscovery("SERVICE 0x7340 FOUND");
+                                }
+                            }
+                        }
+                        lock (_discoverySync) _targetServiceFound = targetServiceFound;
+                        if (!targetServiceFound)
+                        {
+                            LogDiscovery("SERVICE 0x7340 NOT FOUND");
+                        }
+
+                        if (serviceCount == 0)
+                        {
+                            FinishDiscoveryIfReady(generation);
                         }
                         else
                         {
-                            foreach (GattDeviceService ser in services)
+                            foreach (GattDeviceService service in services)
                             {
-                                FindCharacteristic(ser);
+                                FindCharacteristic(service, generation);
                             }
                         }
-                        CharacteristicFinish?.Invoke(services.Count);
+                        CharacteristicFinish?.Invoke(serviceCount);
+                    }
+                    catch (Exception ex)
+                    {
+                        CompleteDiscoveryWithFailure(generation, "GetGattServicesAsync",
+                            "GetResults exception=" + ex.GetType().Name + ": " + ex.Message);
                     }
                 };
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("当前没有打开设备");
+                CompleteDiscoveryWithFailure(generation, "GetGattServicesAsync",
+                    "start exception=" + ex.GetType().Name + ": " + ex.Message);
             }
-
         }
 
         /// <summary>
@@ -451,24 +745,86 @@ namespace BLE_tcp_driver
         /// <summary>
         /// 获取特性
         /// </summary>
-        private void FindCharacteristic(GattDeviceService gattDeviceService)
+        private void FindCharacteristic(GattDeviceService gattDeviceService, int generation)
         {
-            this.CurrentService = gattDeviceService;
-            this.CurrentService.GetCharacteristicsAsync(BluetoothCacheMode.Uncached).Completed = (asyncInfo, asyncStatus) =>
-            {
-                if (asyncStatus == AsyncStatus.Completed)
-                {
-                    var characteristics = asyncInfo.GetResults().Characteristics;
-                    foreach (var c in characteristics)
-                    {
-                        CharacteristicList.Add(c);
-                        this.CharacteristicAdded?.Invoke(c);
-                    }
-                }
+            if (!IsCurrentDiscovery(generation)) return;
 
-                if (Interlocked.Decrement(ref _pendingServiceCount) == 0)
-                    AllCharacteristicsDiscovered?.Invoke();
-            };
+            // 不再把并发 service 查询写入共享 CurrentService；每个 callback 只使用
+            // 自己捕获的 service，旧 discovery generation 也不会触碰新结果。
+            try
+            {
+                gattDeviceService.GetCharacteristicsAsync(BluetoothCacheMode.Uncached).Completed =
+                    (asyncInfo, asyncStatus) =>
+                    {
+                        try
+                        {
+                            LogDiscovery("GetCharacteristicsAsync service=" +
+                                gattDeviceService.Uuid.ToString() +
+                                " short=0x" + GetShortUuid(gattDeviceService.Uuid).ToString("X4") +
+                                ": AsyncStatus=" + asyncStatus);
+
+                            if (asyncStatus != AsyncStatus.Completed)
+                            {
+                                LogDiscovery("GetCharacteristicsAsync service=" +
+                                    gattDeviceService.Uuid.ToString() +
+                                    ": GattCommunicationStatus=<not available>, ProtocolError=<not available>, characteristic count=0");
+                                return;
+                            }
+
+                            var result = asyncInfo.GetResults();
+                            var characteristics = result.Characteristics;
+                            int characteristicCount = characteristics == null ? 0 : characteristics.Count;
+                            LogDiscovery("GetCharacteristicsAsync service=" +
+                                gattDeviceService.Uuid.ToString() +
+                                ": GattCommunicationStatus=" + result.Status +
+                                ", ProtocolError=" + FormatProtocolError(result.ProtocolError) +
+                                ", characteristic count=" + characteristicCount);
+
+                            if (result.Status != GattCommunicationStatus.Success)
+                            {
+                                // 保留真实 GATT 失败状态；不要把 Unreachable、ProtocolError
+                                // 或 AccessDenied 伪装为空 characteristic 集合。
+                                LogDiscovery("GetCharacteristicsAsync service=" +
+                                    gattDeviceService.Uuid.ToString() +
+                                    " FAILED; preserving GATT status=" + result.Status +
+                                    ", ProtocolError=" + FormatProtocolError(result.ProtocolError));
+                                return;
+                            }
+
+                            if (characteristics != null)
+                            {
+                                foreach (GattCharacteristic characteristic in characteristics)
+                                {
+                                    RecordCharacteristic(gattDeviceService, characteristic, generation);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            LogDiscovery("GetCharacteristicsAsync service=" +
+                                gattDeviceService.Uuid.ToString() +
+                                " FAILED; exception=" + ex.GetType().Name + ": " + ex.Message);
+                        }
+                        finally
+                        {
+                            if (IsCurrentDiscovery(generation) &&
+                                Interlocked.Decrement(ref _pendingServiceCount) == 0)
+                            {
+                                FinishDiscoveryIfReady(generation);
+                            }
+                        }
+                    };
+            }
+            catch (Exception ex)
+            {
+                LogDiscovery("GetCharacteristicsAsync service=" + gattDeviceService.Uuid.ToString() +
+                    " FAILED; start exception=" + ex.GetType().Name + ": " + ex.Message);
+                if (IsCurrentDiscovery(generation) &&
+                    Interlocked.Decrement(ref _pendingServiceCount) == 0)
+                {
+                    FinishDiscoveryIfReady(generation);
+                }
+            }
         }
 
         /// <summary>

@@ -80,6 +80,7 @@ namespace BLE_tcp_driver
             bleCore.DeviceDisconnected += DeviceDisconnected;
             bleCore.CharacteristicAdded += CharacteristicAdded;
             bleCore.ReceiveNotifyData += ReceiveNotifyData;
+            bleCore.DiscoveryDiagnostic += message => log(Color.DarkCyan, message);
             //bleCore.WriteDataSuccess += WriteDataSuccess;
             bleCore.AllCharacteristicsDiscovered += OnAllCharacteristicsDiscovered;
             BindRichTextBoxContextMenu(rtbMsg);
@@ -214,48 +215,6 @@ namespace BLE_tcp_driver
                 ushort shortId = Utilities.ConvertUuidToShortId(gattCharacteristic.Uuid);
                 log(Color.Black, "Chara:0x" + shortId.ToString("X") +
                     ", des:" + gattCharacteristic.UserDescription);
-
-                if (shortId == 0x7341)
-                {
-                    bleCore.CurrentDataCharacteristic = gattCharacteristic;
-                    log(Color.Green, "  → 数据特征(0x7341)已就绪");
-                }
-                if (shortId == 0x7343)
-                {
-                    bleCore.CurrentWriteCharacteristic = gattCharacteristic;
-                    log(Color.Green, "  → 命令特征(0x7343)已就绪");
-                }
-                if (shortId == 0x7344)
-                {
-                    bleCore.CurrentNotifyCharacteristic = gattCharacteristic;
-                    bleCore.EnableNotifications(gattCharacteristic);
-                    log(Color.Green, "  → 通知特征(0x7344)已就绪");
-                }
-
-                // 所有目标特征就绪 → 确认为目标设备, 保存配置 (仅触发一次)
-                if (!targetConfirmed
-                    && bleCore.CurrentDataCharacteristic != null
-                    && bleCore.CurrentWriteCharacteristic != null
-                    && bleCore.CurrentNotifyCharacteristic != null)
-                {
-                    targetConfirmed = true;
-                    log(Color.Blue, "目标设备已确认, 所有特征就绪");
-                    SaveCurrentDeviceToConfig();
-
-                    // 自动向命令特征写入设备状态查询指令
-                    bleCore.WriteDataToCharacterstuc(
-                        bleCore.CurrentWriteCharacteristic,
-                        ProtocolHelper.DeviceStatusQueryCommand);
-                    log(Color.Blue, "已发送设备状态查询指令");
-
-                    if (ProtocolHelper.LastClaudeState !=  null)
-                    {
-                        bleCore.WriteDataToCharacterstuc(
-                            bleCore.CurrentWriteCharacteristic,
-                            ProtocolHelper.LastClaudeState);
-                        log(Color.Blue, "已发送设置claude状态指令");
-                    }
-                }
             }));
         }
 
@@ -268,9 +227,9 @@ namespace BLE_tcp_driver
             {
                 if (targetConfirmed) return; // 已确认, 无需处理
 
-                bool allFound = bleCore.CurrentDataCharacteristic != null
-                             && bleCore.CurrentWriteCharacteristic != null
-                             && bleCore.CurrentNotifyCharacteristic != null;
+                // 结果已经由 BleCore 在 discovery callback 中同步分类并保存；这里
+                // 只读取完成快照，不等待或依赖 CharacteristicAdded 的 UI callback。
+                bool allFound = bleCore.HasCompleteTargetCharacteristics;
 
                 if (!allFound)
                 {
@@ -284,6 +243,12 @@ namespace BLE_tcp_driver
                         log(Color.Gray, "将继续尝试查找目标设备...");
                         retryTimer.Start();
                     }
+                }
+                else
+                {
+                    targetConfirmed = true;
+                    log(Color.Blue, "目标设备已确认, 所有特征就绪");
+                    SaveCurrentDeviceToConfig();
                 }
             }));
         }
