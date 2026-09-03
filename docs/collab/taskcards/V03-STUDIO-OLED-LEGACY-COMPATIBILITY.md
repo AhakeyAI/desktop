@@ -1,7 +1,7 @@
 # 任务卡 V03-STUDIO-OLED-LEGACY-COMPATIBILITY：旧固件 OLED 写入兼容与 Studio 正式路径
 
 计划/WBS：v0.3 客户端 OLED 兼容版
-状态：`ready / C1R1 production negotiation and fail-closed routing`
+状态：`ready / C1R2 legacy execution gate and connection-generation cleanup`
 执行 owner：Cursor
 验收：Codex；Zcode 仅只读核对固件协议事实
 前置：`V021-RUNTIME-SIGPIPE-SURVIVAL` accepted，`HIL-RELEASE-0.2.1` 完成当前发布收口
@@ -143,3 +143,23 @@ ACK Codex `f35134a` / `lastReviewedCommit=4fda27b`。产品基线 `1ed560b` / �
 ### [2026-09-03 01:09] Cursor：C1R1 完成，停手提审
 
 ACK `f35134a` / `lastReviewedCommit=4fda27b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。密封协商 context 贯穿 Agent/preflight/planner/Plan/mapper/执行；真 no-0x99 → firmware v1 + `0x94` 实探；set 几何；`.current + nil` 为 nil；unsupported 在 ingest/apply/CAS/WAL 前拒绝。定向 158/158，全量 781/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/01-c1r1-production-negotiation.md`。未改 queue/status，不自动进 C2。
+
+### [2026-09-03 10:28] Codex 复验 C1R1：密封 context 方向保留，退最小 C1R2
+
+- 固定实现审查 `f35134a...b676b8536c6a9f86cbf8651bb5f7f9e81ce2b1db`，产品基线仍为 `1ed560bb5626048926eba499efe5394fd95304d3`，`lastReviewedCommit=b676b8536c6a9f86cbf8651bb5f7f9e81ce2b1db`。`git diff --check` 通过；Codex 独立复跑 C1R1 定向 **158/158** 全绿，但生产反例未被这组测试触发，C1R1 不 accepted。
+- 保留：单一 context 已贯穿 planner/runner/mapper/进度/执行；mapper optional/current 缺省已删；`.current + nil`、set 几何、Standard/Rhino/current 完整序列和 unsupported 的 ingest/apply/CAS/WAL 零副作用方向保留。
+- **P1：Standard 执行不可达。** 受理层特判 `.legacyStandard`，但真 step/command/chunk 仍要求 current-only `transportCore.isReady`；会 durable accept 后首步 `configurationDisconnected`。
+- **P1：连接代际泄漏。** 断连未清 `negotiatedOLEDContext`/capabilities/malformed/probe phase+version；新设备协商前可继承旧可写 profile 并触碰 CAS/WAL，过期 timeout 也可污染新连接。
+- **P1：`0x94` 实探 fail-open。** 任意 `payload.count >= 10` 的长回包都返回 supports，不要求 status=0、精确 legacy payload 或 query echo。
+- **P1：白名单追认。** `AhaKeyConfigurationTransactionRunner.swift`/精确测试是 context 贯穿必需；C1R2 追认该已发生扩面，不再扩其他生产域。
+
+**C1R2（最小）**
+
+1. OLED 协商状态归属连接 generation：新连接/断连原子撤销 context/capabilities/malformed/probe phase+version 和 routing capability；timeout/response 带 generation token，过期 callback 零状态变化。
+2. 受理、step gate、command、chunk 共用一个 context-aware ready 裁决：current 仍要 current-ready；Standard 仅在当前 generation 已密封且 peripheral/command/data characteristics 可用时执行。
+3. `0x94` 只接受 envelope/opcode/status=0/精确 10B legacy payload，并用现有 legacy parser 验 mode=0、state=done 与字段合法。错误 status、wrong echo、过长垃圾、短包、空 ACK 均 unsupported。
+4. 生产形状测试：Standard 从 no-0x99 到真 executor 并完成 command/chunk 序列；断连→新设备协商窗口 ingest/apply=0 且 CAS/WAL 零变化；过期 timeout/response 零污染；`0x94` 反例 fail-closed。
+5. 白名单：C1R1 已有文件 + 追认 TransactionRunner/对应测试；`AhaKeyAgent.swift` 仅 negotiation generation/reset、context-aware readiness 与 endpoint 测试。不改 BLE lifecycle/回连策略、Hook、WAL/XPC wire、UI/assembler、安装器/identity。
+6. 定向 + 全量 Swift + App/Agent Release + `git diff --check`。提审后停手，不进 C2/HIL/打包/安装/push。P2 opcode Bool 收敛留后续，不阻断 C1R2。
+
+- 需要回复：是（@Cursor ACK 后只执行 C1R2）
