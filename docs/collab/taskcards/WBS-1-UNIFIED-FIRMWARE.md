@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R7`（B1R6 二值契约成立，但缺 full=`rc1,wake1` oracle，且 durable H/E 基点需校正；不刷机）
+状态：`ready / 1.6 B1R8`（B1R7 补出 full 返回臂，但 byte-exact oracle 与 durable H/E 基点仍未闭合；不刷机）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1890,3 +1890,28 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 4. 复跑 adapter/B4、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check`；停手提审。B1 仍未关闭，因此传输回归报告与 VBUS B2 暂不进入；1.7、刷机、实机 HIL、push 均不开放。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R7）
+
+### [2026-09-03 17:15] Codex 复验 1.6 B1R7：full 返回臂成立，退最小 B1R8 收 byte-exact 与 H/E
+
+- 固定审查固件仓 `d678846cc833d46dd5bc1d4a2e1bb765c8eac6aa...e40d947cf37935ea56a2bf0d6b5de54fa917989b`，`lastReviewedCommit=e40d947cf37935ea56a2bf0d6b5de54fa917989b`。提交链线性、单 worktree、范围仅 adapter 宿测与两份生成 evidence；`APP/**`、ABI/ELF pins、B3/B4、身份/0x86/VBUS 均零 diff。验收前后树 clean，`git diff --check` 通过。
+- Codex 独立复跑 adapter 33 检查、B4、`build-wbs15.sh`、`build-wbs14.sh` 均 exit 0；脚本生成的 evidence 行已恢复提交态。全绿不等于 byte-exact：在 `/tmp` 把生产 adapter 的 `lwrb_write(ring, d, len)` 突变为 `lwrb_write(ring, d + 1, len)`，长度与 `rc/wake` 不变、写入字节错位，adapter 套件仍全绿（mutant exit 0）。
+
+**Standards**
+
+- **P3（判断项）— Mysterious Name。** full 用例把 `foreign_frame` 当同源 data payload；该场景既不 foreign 也不测试 command frame。B1R8 使用独立 `full_chunk`/`data_chunk` fixture，避免 oracle 名称与语义相反。硬性违规 0；判断项 1，最严重 P3。
+
+**Spec**
+
+- **P1 — full oracle 未做 byte-exact。** 8 号块仅断言 `rc1/wake1` 与 ring 长度；没有读回或 `memcmp`，违反 B1R7「ring 长度与写入字节逐字节一致」。上述 `d+1` mutant 实证该缺口。
+- **P1 — partial 所谓 byte-exact 没有触及新写入的 4 字节。** 9 号块先写 4091B `0x77` filler；短写接收的 4B `0x09` 位于环尾，但测试只从环头读 4B，且只检查 `probe[0]`。既未逐字节核对 filler，也完全未验证 chunk 的可容纳前 4B。
+- **P1 — durable handoff 的终验基点再次写错。** handoff 称 `e40d947`「wbs15 终验确认绿于 `8ea2ce4`」，但终态 `docs/wbs-1.5-config-journal.md` 记录 harness commit 为 `7aa3955`；`8ea2ce4` 是 wbs14 报告所记录的 harness commit。提交链本身完整，文字不能精确复现。
+
+**B1R8（test-only，最后收口 byte-exact）**
+
+1. full：使用语义正确的独立 `full_chunk`，同源窗口、空间充足；断言 `rc==1 && wake==1`、ring 长度；读回全部 `sizeof(full_chunk)`，逐字节 `memcmp` 等于输入，并断言无额外字节。
+2. partial：一次读回全部 4095B；断言 `[0,4091)` 全为 filler `0x77`，`[4091,4095)` 逐字节等于 `chunk[0..4)`，并断言没有第 5 个 chunk 字节进入。该套件必须能杀死 `d+1`（或等价写错内容但长度/rc/wake不变）mutant。
+3. 白名单仅 `tools/wbs15/test_transport_arbiter.c`、必要生成 evidence、本卡与 append-only board；不改 `APP/**`、ABI/ELF pin 或 build 脚本。
+4. H/E handoff 逐项列出：测试提交 H；wbs15 E 与其报告内 harness commit；wbs14 E 与其报告内 harness commit；最终 wbs15 E、其报告内 harness commit、最终 HEAD、单 worktree、clean-tree。文字必须与两份提交态报告一致。
+5. 复跑 adapter/B4、`build-wbs15.sh`、`build-wbs14.sh`、`git diff --check`，并附上述 wrong-bytes mutant 非零证据；停手提审。B1 仍未关闭，传输回归报告/VBUS B2、1.7、刷机、实机 HIL、push 均不开放。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R8）
