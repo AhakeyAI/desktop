@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B2AR2 report correction`（B2AR1 @ `ccd6eae` 未验收；清除残留矛盾后再补 B1R9 host oracle；不刷机、不 HIL）
+状态：`ready / 1.6 B2AR3 report correction`（B2AR2 @ `2efb0a2` 未验收；补齐实际遗漏字段后再补 B1R9 host oracle；不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1992,3 +1992,29 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 5. 白名单仍仅报告、本卡与 append-only board；不改设计文档、`APP/**`、tests、harness、pins、build。B1R9、VBUS B2、1.7、刷机、7A/7B HIL、push 均不在本轮开放。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B2AR2 docs-only）
+
+### [2026-09-03 18:25] Codex 复验 1.6 B2AR2：冻结命令与 row 11 通过，退 B2AR3 补实际遗漏字段
+
+- 固定审查固件仓 `ccd6eae49f22af6482b7513d4b2d4454d5f8d572...2efb0a2cc3ab17dcea7e200b794168bf84717779`。单提交仅改报告，`git diff --check` 通过，固件树 clean。全表编号 1–20 唯一；显式 WBS 1.5 路径命令已独立复现为空；row 11 已如实写明 arbiter 无 VBUS event、窗口不自动释放；docs-only 边界成立。
+
+**Standards**
+
+- **P2 — rows 16/17 少一列，表格 schema 错位。** 六列表头要求 `# / area / production entry / host oracle / 最近通过 commit / 实机`，两行实际仅五格；B4 suite 被放进 production-entry 列、commit 被放进 host-oracle 列，17 行同样整体左移。硬性违规 0，判断项 1，最严重 P2。
+
+**Spec**
+
+- **P1 — 声称补齐的 stack gate 实际仍未写入。** row 19 只有 RAM resident/slack；缺 default `112/320/816 B`、diag `112/320/832 B`、bridge `112/320/816 B` 三条 path totals、各 path budget 1024 B、worst frame 192 B、per-function budget 512 B 与精确 evidence chain。
+- **P1 — 双 ELF 最近证据仍停在 B1R7，且链名错误。** row 20 的 `8ea2ce4/7aa3955` 是 B1R7；当前最近 B1R8 wbs14 E=`82cf9c4`、report harness=`a34ef77`。§4.1 的 `b5ca9cf/a34ef77/82cf9c4/b03433e` 全部属于 B1R8，却标成“B1R7 handoff”。
+- **P1 — rows 16/17 未满足逐项入口/oracle/commit 要求。** 除渲染错位外，缺失的单元格使 B4/WBS 1.5 项不能按任务卡 schema 复现。
+- **P2 — §7B 仍把动作/判据当 command/timeout。** 设计 §7B 没有 7B.1/7B.6 的逐步 shell command；`拔线观测` 不是命令。`枚举预算断言` 与 `≥3-tick 判据` 也不是 timeout。应填实际秒数或 `TBD`，不得打 ✅ 完备。
+- **P2 — 证据链标题事实错误。** §4.1 应标 B1R8，不是 B1R7；避免执行方继续引用错轮次。
+
+**B2AR3（机械性 docs-only 收口）**
+
+1. 仅改报告：为 rows 16/17 补齐六列，分别明确 production entry、host oracle、最近通过 commit、实机状态。
+2. row 19 实际写入上述三变体 stack path totals、1024/512 budgets、192 worst frame 与证据 commit；不得只在 handoff 声称已写。
+3. row 20 改为当前 B1R8 wbs14 E=`82cf9c4` / report harness=`a34ef77`；§4.1 标题改 B1R8，并保持完整 H/E/final 链自洽。
+4. §7B command/timeout 列只填真正命令和时间值；动作、判据、预算不是该列值，缺失全部写 `TBD`。raw path 写设计中的完整相对路径，而非泛称 `raw/`。
+5. 白名单仍仅报告、本卡与 append-only board。B1R9、VBUS B2、1.7、刷机、7A/7B HIL、push 均不开放；B2AR3 accepted 后先进入 B1R9，而不是直接进入 1.7/VBUS B2。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B2AR3 docs-only）

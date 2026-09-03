@@ -826,7 +826,7 @@ AhaType
 | 1.3 | **已验收 @ `9135183`**：Rhino 四状态/双套任务图、caps14 交叉契约、interval 与持久化迁移 | 统一 OLED 状态机 | 1.2 accepted |
 | 1.4 | **已验收 @ `97f0ae8`**：事务化 factory assets 与断电恢复门禁 | 资源模块 | 1.2、1.3 accepted |
 | 1.5 | **实现已验收 @ `b678137`；HIL 待 1.7 后刷机**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
-| 1.6 | **B2AR1 @ `ccd6eae` 未验收，B2AR2 docs-only 纠证中**：清除残留旧行，修正冻结命令、VBUS row 11、三变体 stack 与逐组 7B 字段；其后另开 B1R9 test-only，实机 7A/7B 与行为切换仍待 USER-GATE | 传输回归报告 | 1.2 |
+| 1.6 | **B2AR2 @ `2efb0a2` 未验收，B2AR3 docs-only 纠证中**：补 rows 16/17 schema、实际 stack gate、B1R8 ELF 链与逐组 7B 真 command/timeout；其后另开 B1R9 test-only，实机 7A/7B 与行为切换仍待 USER-GATE | 传输回归报告 | 1.2 |
 | 1.7 | 建立 Standard/Rhino 两份资源 pack | 两个量产产物 | 1.4 |
 
 退出条件：同一源码在两种资源变体上通过现有功能回归，除资源外行为一致。
