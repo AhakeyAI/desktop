@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B2A transport report + VBUS decision prep`（B1 accepted @ `b03433e`；仅文档/静态准备，不刷机、不 HIL）
+状态：`ready / 1.6 B2AR1 report correction`（B2A @ `9cb9611` 未验收；先纠正证据真值，再补 B1R9 host oracle；不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1938,3 +1938,31 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 4. 白名单仅上述两份固件文档、必要的只读命令输出摘要、本任务卡与 append-only board；禁止 `APP/**`、tests、harness、pins、Makefile/linker、1.7、刷机、实机 HIL、push。交 docs H 后停手提审。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B2A docs-only）
+
+### [2026-09-03 17:52] Codex 复验 1.6 B2A：报告存在假绿与错误基线，退 B2AR1 docs-only
+
+- 固定审查固件仓 `b03433efec4dc2f58de04f3beaa004253c89f192...9cb96114d509ad819d7386864b2e900fcc86459f`。单提交、单 worktree，实际新增 `docs/wbs-1.6-transport-regression.md` **97 行**；未改生产、测试、harness、pins 或 build，`git diff --check` 通过，验收前后树 clean。范围纪律成立。
+
+**Standards**
+
+- 0 finding（硬性违规 0，判断项 0）。文档组织与 docs-only 白名单符合仓库惯例。
+
+**Spec**
+
+- **P1 — 多项 current host oracle 被虚报为已绿。** 当前 `test_transport_arbiter.c` 只有 1/2/3/4/8/9 六块：没有报告所称 5/6/7，没有 USB→BLE 反向 busy，亦没有活动 assembly 的 overflow/3-tick timeout/reset-release oracle；`transport_arbiter_reset()` 仅有 inline 定义、无生产或测试调用。报告 5/6/11/12 行不得继续标 host green，也不得用 pairing reset 代替 arbiter reset。
+- **P1 — VBUS 转移表 11/12 缺失。** 四维候选比较表不是任务卡要求的两条 `state/event/next-state/effect` 转移行；必须显式列 USB_BOOT+VBUS loss 与 BLE_BOOT+VBUS attach。
+- **P1 — 证据计数和最近提交错误。** B4 可执行当前输出为 **58 条 `ok`**，37 是 adapter 套件；双 ELF pin 最近生产变更为 `158e91d`，B1R8 wbs14 evidence 为 `82cf9c4`、其报告 harness 为 `a34ef77`，不是 `ea21d6c`。
+- **P1 — WBS 1.5 `b678137..HEAD` 冻结面零 diff 为假。** 该范围实际包含 `command_solve.c/.h`、`main.c`、`usb1_hid.c`、`ble_init.c`、wbs14/build/ABI 等 1.6 合法改动。必须列出精确冻结路径与正确比较基点，只陈述命令可复现的零 diff。
+- **P2 — RAM/stack 证据不完整。** 报告只列 default `_ebss` gap；需补 default/diag-or-factory/bridge 三变体的 `_ebss→0x20007E00` 余量，以及已有 stack budget/最大 frame 数值与最近 evidence commit。
+- **P2 — 7B 证据契约表述过度。** 设计 §7B 并非六组每步都各有 macOS 命令和逐步 timeout；报告应逐项引用实际 command/timeout/raw 路径，缺失处明确 TBD，不得概括为全部具备。
+- **P2 — 0x80 与 7A.5 映射错误。** 设计 7A.5 是 split-frame，不能作为 0x80 validation/erase 的实机映射；应改为真实步骤或明确 host-only/未编排。
+
+**B2AR1（仍为 docs-only）**
+
+1. 仅修 `docs/wbs-1.6-transport-regression.md`：逐项改正上述 oracle、计数、commit、冻结基线、RAM/stack、7A/7B 映射；缺证据必须标红/待补，禁止把历史已存在但当前已删除的测试当 current green。
+2. 增加 VBUS 转移表 11/12；保持 unified/local 两候选并列，无 ADOPTED/DELETED、无生产行为预写。
+3. 在报告明确：反向 busy、双向 split、overflow、活动 timeout/reset-release 缺 current host oracle，阻断 1.7；B2AR1 验收后由 Codex 另开 B1R9 test-only 补证，不得在本轮改测试。
+4. 白名单仍仅上述报告、本卡执行记录与 append-only board；不改 `APP/**`、tests、harness、pins、build、设计文档。交 docs H 后停手提审。
+5. 1.7、生产 VBUS、刷机、7A/7B HIL、push 均不开放；本条也不是任何设备操作授权。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B2AR1 docs-only）
