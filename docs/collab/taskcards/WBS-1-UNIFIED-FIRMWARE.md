@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B2AR1 report correction`（B2A @ `9cb9611` 未验收；先纠正证据真值，再补 B1R9 host oracle；不刷机、不 HIL）
+状态：`ready / 1.6 B2AR2 report correction`（B2AR1 @ `ccd6eae` 未验收；清除残留矛盾后再补 B1R9 host oracle；不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -1966,3 +1966,29 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 5. 1.7、生产 VBUS、刷机、7A/7B HIL、push 均不开放；本条也不是任何设备操作授权。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B2AR1 docs-only）
+
+### [2026-09-03 18:12] Codex 复验 1.6 B2AR1：主体方向正确，但残留旧行仍制造假绿；退 B2AR2 docs-only
+
+- 固定审查固件仓 `9cb96114d509ad819d7386864b2e900fcc86459f...ccd6eae49f22af6482b7513d4b2d4454d5f8d572`。单提交仅改 `docs/wbs-1.6-transport-regression.md`（+62/-20），`git diff --check` 通过，固件树 clean；oracle pending 披露、VBUS rows 11/12 的形式、0x80 移出 7A.5 与 docs-only 范围方向成立。
+
+**Standards**
+
+- **P2（判断项）— inventory 标号不唯一。** 新 13/14/15 后仍接旧 13/14/14b/15/16；这些编号还被 cross-reference 使用，不能唯一定位证据。需全表顺序重编号并同步引用。硬性违规 0，判断项 1，最严重 P2。
+
+**Spec**
+
+- **P1 — 三条旧假绿仍原样留在清单。** 当前行仍写 B4=37、`b678137..HEAD` 冻结面零 diff、双 ELF=`ea21d6c`；应分别为 B4=58、仅显式路径冻结、以及当前 pin/evidence 链（pins `158e91d`；B1R8 wbs14 E=`82cf9c4`、report harness=`a34ef77`）。后文更正不能抵消表内相反结论。
+- **P1 — 所谓可复现冻结命令并非空输出。** 显式清单包含在 1.6 新增的 `tools/wbs15/test_device_identity.py`；实际命令输出 `A tools/wbs15/test_device_identity.py`。“identity 部分”也不能让 path-level Git diff 变空。移出清单，或另设可执行的内容级 oracle。
+- **P1 — VBUS row 11 发明不存在的 data-window 收尾。** VBUS loss 只清 USB runtime；arbiter 明确无 VBUS event，data window 也没有 timeout。行 11 应诚实写明已打开的 USB-owned 0x80 window 可能保持 latch，直到后续 completion/abort；不得说按自身 timeout 收尾。
+- **P2 — 只补 RAM，未补 host stack gate。** 需列三变体当前实测：default `112/320/816 B`、diag `112/320/832 B`、bridge `112/320/816 B` 三条 path totals；各 path budget 1024 B，worst frame 192 B、per-function budget 512 B，并写对应最新 evidence commit。`实机栈深未测` 不能替代 host stack-budget 证据。
+- **P2 — §7B 仍过度声称每步均有 command/timeout。** 设计 7B.1-.5 没有逐步 macOS command，逐步 timeout 也未全部给出（只有全局值，7B.6 有 shutdown timeout）。应按六组逐项列 command/timeout/raw path，缺项明确 `TBD`。
+
+**B2AR2（最后一轮文档纠真）**
+
+1. 仅改 `docs/wbs-1.6-transport-regression.md`：删除/改正三条残留旧行，全表唯一重编号并同步 cross-reference；不得保留互相矛盾的真值。
+2. 冻结清单的原样复现命令必须确实空输出；将 `test_device_identity.py` 移出 path-level 零 diff，identity 另写其真实 1.6 状态。
+3. row 11 明写 arbiter 无 VBUS event、开放窗口不会因 VBUS loss 自动 timeout/release；只陈述当前生产行为。
+4. 补齐上述三变体 stack totals/budgets/worst frame 与精确 evidence chain；§7B 六组逐项列 command/timeout/raw path，缺失项写 `TBD`。
+5. 白名单仍仅报告、本卡与 append-only board；不改设计文档、`APP/**`、tests、harness、pins、build。B1R9、VBUS B2、1.7、刷机、7A/7B HIL、push 均不在本轮开放。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B2AR2 docs-only）
