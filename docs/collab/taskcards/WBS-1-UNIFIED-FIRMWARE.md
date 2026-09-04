@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 VBUS B2 policy-core R3`（R2 core 已闭合，但 schema fail-verdict、long-jitter 关联与文档时间口径仍未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
+状态：`ready / 1.6 VBUS B2 policy-core R4`（R3 主体成立，但 artifact 解码护栏、schema 单一来源、long-jitter 语义/收尾与 95s 硬门未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2433,3 +2433,35 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 6. policy core 与 R1/R2 已通过语义冻结；不改生产接线/pins，不执行 HIL/刷机/1.7/WBS2/EEPROM/push。新 H+E clean 后复跑 wbs16/wbs15/wbs14/lifecycle/diff，停手提审。
 
 - 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core R3；生产接线/HIL 仍冻结）
+
+### [2026-09-04 22:55] Codex 复验 VBUS B2 policy-core R3：主体成立，退最小 R4
+
+- 固定审查固件仓 `580449df5250ac34ef4f23e1e4bdb16df3c13a23...48c4fddfcc292404a1d674e3f3a21d3e890756b2`。实际 clean HEAD=`48c4fdd`，H=`7cae370`、E=`48c4fdd`；`APP/**`/pins 对基线零 diff，策略核确认冻结，HIL 未执行。
+- Codex 独立实测 wbs16/wbs15/wbs14 均 exit 0，lifecycle 连续两次 wbs15 后 exit 0；恢复复跑生成文档后树 clean，diff-check clean。
+- 已通过并冻结：坏 JSON 语法/缺 events 的 fail verdict 主路；真实 step 身份传递；b2-04 三边方向 + 2.5s 基础结构；b2-01 ±1.5s 时序主体；报告旧 `<0.5s`/`≥1s` 主体已清。
+
+**Standards**
+
+- **P1 — 非 UTF-8 artifact 仍绕过 fail verdict。** `_parse_run_json()`/`events()` 的 `Path.read_text()` 只对 `JSONDecodeError` 有护栏；单字节 `0xff` run.json 实测 traceback、exit 1、无 verdict。events 读取同样暴露。
+- **P1 — b2-04 只绑时间索引，不绑转移语义。** 三条 transition 的 detail 全为 `WRONG/banana`，且均在 2.5s hold 开始后 0.1s 发生的反例仍 PASS；未证明 plug→USB attempt、unplug→battery、replug→USB attempt，也未证明去抖时限。
+- **P1 — “终插后 15s”实际未执行。** b2-04 的 15s capture loop 在 t0 后立即开始，操作者尚在执行三次 ≥2.5s hold；终插完成后最多只剩约 7.5s，与 step/报告的 15s 声明相反。
+- **P2 — verdict “schema 自检”仍为不完整手写副本。** assertion 可选 `desc/detail` 类型未校验；实测 `desc=123` 仍写出 PASS verdict。`observed_until_s` 又未进 `evidence-schema.json`，不是单一事实源。
+- **P2 — 报告 b2-04 时间仍自相矛盾。** 动作列写 ≥2.5s，超时列仍写“每态 ≥5s、终插后 15s”，runner 两者都未真正实施。
+
+**Spec**
+
+- **P1 — R3 schema/verdict 单一来源未闭合。** self-test 无 verdict-field corruption 与 wrong optional `phase/hub_model` 反例；`_verdict()` 只手查部分字段，未执行 schema 全量定义；`observed_until_s` 未在 schema 定义。
+- **P1 — R3 long-jitter 的方向/语义/时间界限未闭合。** 现有仅校验 `edge_i < transition_i < edge_{i+1}`，未校验 transition detail 和相对去抖窗；终插后 15s 也无单独起点/止点证据。
+- **P1 — 7B.1 没有实施任务卡的 ≥95s 硬门。** oracle 只要求 `observed_until_s>=90`；完整时序 + `observed_until_s=90` 的定向证据实测 PASS，设计/报告也同步成了错误的 ≥90s。
+- **P2 — malformed 护栏只覆盖文本 JSON。** R3 要求 artifact parse 失败均进 fail-verdict path；当前无非 UTF-8/I/O 反例，也无此类 fail verdict。
+
+**VBUS B2 policy-core R4（只收 oracle/runner/schema/docs）**
+
+1. 将 run/events artifact 的 open/read/decode/JSON 全过程纳入统一护栏，捕获 `OSError/UnicodeDecodeError/JSONDecodeError`并生成真实 step 的 schema-valid fail verdict；加非 UTF-8 run/events durable 反例。
+2. 更新 `evidence-schema.json` 正式定义 `observed_until_s` 非负 number；用 Draft-07 验证或一个递归 schema-driven validator 完整验证 run/event/verdict，包括所有 assertion 字段。加 wrong `phase/hub_model`、verdict id/desc/detail/type/required 破坏反例，并断言失败 verdict 的 step/结构。
+3. b2-04 严格校验三组语义：plug→`usb_attempt`、unplug→`battery`、replug→`usb_attempt`（或文档冻结的同义唯一枚举）；transition 须落在由 1 Hz 两样本及 `dur` 导出的相对窗内，早于去抖窗、错方向、额外/缺失均必红。
+4. b2-04 在终插操作完成后单独盖 `final_replug_s`（或等价证据），再开始完整 15s capture；oracle 校验 observation end ≥ final replug +15s。报告与 step 不再混写未执行的每态 5s。
+5. b2-01 改为 `observed_until_s>=95`，建议在 95 次 capture 完成后立即盖止点再进入人工编辑；oracle/self-test 加 94s 必红和末次+10s 必红。
+6. 策略核、生产接线/pins 冻结；不执行 HIL/刷机/1.7/WBS2/EEPROM/push。原子同步 schema/runner/设计/报告，新 H+E clean 后复跑 wbs16/wbs15/wbs14/lifecycle/diff，停手提审。
+
+- 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core R4；生产接线/HIL 仍冻结）
