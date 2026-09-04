@@ -10,6 +10,7 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
     public let baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint
     public let compatibilityFingerprint: AhaKeyRuntimeCompatibilityFingerprint
     public let confirmationLedger: AhaKeyRuntimeConfirmationLedger
+    public let resourceBindings: [AhaKeyRuntimeFieldResourceBinding]
 
     public init(
         pageScope: AhaKeyStudioPageID,
@@ -18,6 +19,7 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
         baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint,
         compatibilityFingerprint: AhaKeyRuntimeCompatibilityFingerprint,
         confirmationLedger: AhaKeyRuntimeConfirmationLedger,
+        resourceBindings: [AhaKeyRuntimeFieldResourceBinding] = [],
         resources: [AhaKeyConfigurationResource] = []
     ) throws {
         try Self.validate(
@@ -25,6 +27,7 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
             fieldMask: fieldMask,
             targetDeviceID: targetDeviceID,
             confirmationLedger: confirmationLedger,
+            resourceBindings: resourceBindings,
             resources: resources
         )
         self.pageScope = pageScope
@@ -33,6 +36,7 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
         self.baseObjectFingerprint = baseObjectFingerprint
         self.compatibilityFingerprint = compatibilityFingerprint
         self.confirmationLedger = confirmationLedger
+        self.resourceBindings = resourceBindings
     }
 
     public func validate(
@@ -47,6 +51,7 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
             fieldMask: fieldMask,
             targetDeviceID: targetDeviceID,
             confirmationLedger: confirmationLedger,
+            resourceBindings: resourceBindings,
             resources: resources
         )
     }
@@ -56,6 +61,7 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
         fieldMask: Set<AhaKeyStudioFieldID>,
         targetDeviceID: AhaKeyRuntimeDeviceID,
         confirmationLedger: AhaKeyRuntimeConfirmationLedger,
+        resourceBindings: [AhaKeyRuntimeFieldResourceBinding],
         resources: [AhaKeyConfigurationResource]
     ) throws {
         guard !fieldMask.isEmpty else {
@@ -66,6 +72,45 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
         }
         _ = targetDeviceID
         try confirmationLedger.validate(fieldMask: fieldMask, resources: resources)
+        try validateBindings(resourceBindings, fieldMask: fieldMask, resources: resources)
+    }
+
+    private static func validateBindings(
+        _ bindings: [AhaKeyRuntimeFieldResourceBinding],
+        fieldMask: Set<AhaKeyStudioFieldID>,
+        resources: [AhaKeyConfigurationResource]
+    ) throws {
+        let assetFields = Set(fieldMask.filter {
+            if case .screenTaskAsset = $0 { return true }
+            return false
+        })
+        let boundFields = bindings.map(\.fieldID)
+        guard boundFields.count == Set(boundFields).count, Set(boundFields) == assetFields else {
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
+        }
+        let boundIdentities = bindings.map(\.resourceIdentity)
+        guard boundIdentities.count == Set(boundIdentities).count else {
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
+        }
+        let resourceIdentities = Set(
+            resources.map { AhaKeyRuntimeConfirmationLedger.Entry.ResourceIdentity(
+                logicalID: $0.logicalIdentifier,
+                sha256: $0.sha256
+            ) }
+        )
+        guard Set(boundIdentities) == resourceIdentities else {
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
+        }
+        for binding in bindings {
+            guard let resource = resources.first(where: { $0.logicalIdentifier == binding.logicalID }) else {
+                throw AhaKeyRuntimeContractError.pageOperationIncomplete
+            }
+            guard resource.sha256 == binding.sha256,
+                  resource.byteCount == binding.byteCount,
+                  resource.mediaType == binding.mediaType else {
+                throw AhaKeyRuntimeContractError.pageOperationIncomplete
+            }
+        }
     }
 
     /// 由 C2 scoped plan 组装。资源摘要必须已验证；base fingerprint 由调用方提供。
@@ -87,6 +132,11 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
         guard Set(verifiedIDs).count == verifiedIDs.count else {
             throw AhaKeyRuntimeContractError.duplicateResourceIdentifier
         }
+        let bindings = try AhaKeyRuntimePageSemantic.bindings(
+            plan: plan,
+            profile: profile,
+            verifiedResources: verifiedResources
+        )
         let ledger = try AhaKeyRuntimeConfirmationLedger.pending(
             fieldMask: plan.fieldMask,
             resources: verifiedResources
@@ -98,6 +148,7 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
             baseObjectFingerprint: baseObjectFingerprint,
             compatibilityFingerprint: .make(plan: plan, profile: profile),
             confirmationLedger: ledger,
+            resourceBindings: bindings,
             resources: verifiedResources
         )
     }
@@ -110,7 +161,6 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
         contract: AhaKeyRuntimePageOperationContract,
         resources: [AhaKeyConfigurationResource]
     ) throws -> Data {
-        let byID = Dictionary(uniqueKeysWithValues: resources.map { ($0.logicalIdentifier, $0) })
         let payload = Payload(
             contract: contract,
             overwriteSemantic: plan.overwriteSemantic,
@@ -124,10 +174,15 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
             resources: resources
                 .sorted { $0.logicalIdentifier.rawValue < $1.logicalIdentifier.rawValue }
                 .map(ResourceDigest.init),
+            bindings: contract.resourceBindings,
             values: try plan.fieldMask.sorted().map { field in
                 FieldValue(
                     id: WireFieldID(field),
-                    value: try CanonicalValue(plan.values[field], resourcesByID: byID, plan: plan)
+                    value: try CanonicalValue(
+                        plan.values[field],
+                        field: field,
+                        bindings: contract.resourceBindings
+                    )
                 )
             }
         )
@@ -147,6 +202,7 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
         var statusLine: String?
         var framesPerSecond: Int?
         var resources: [ResourceDigest]
+        var bindings: [AhaKeyRuntimeFieldResourceBinding]
         var values: [FieldValue]
     }
 
@@ -186,8 +242,8 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
 
         init(
             _ value: AhaKeyStudioFieldValue?,
-            resourcesByID: [AhaKeyResourceIdentifier: AhaKeyConfigurationResource],
-            plan: AhaKeyStudioScopedWritePlan
+            field: AhaKeyStudioFieldID,
+            bindings: [AhaKeyRuntimeFieldResourceBinding]
         ) throws {
             switch value {
             case .text(let text):
@@ -199,7 +255,9 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
             case .keyAction(let action):
                 self = .keyAction(action)
             case .taskAsset(let asset):
-                let match = try Self.matchingResource(for: asset, plan: plan, resourcesByID: resourcesByID)
+                guard let match = bindings.first(where: { $0.fieldID == field }) else {
+                    throw AhaKeyRuntimeContractError.pageOperationIncomplete
+                }
                 self = .taskAsset(
                     sha256: match.sha256.rawValue,
                     byteCount: match.byteCount,
@@ -212,24 +270,6 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
             case nil:
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }
-        }
-
-        private static func matchingResource(
-            for asset: AhaKeyStudioTaskAssetDescriptor,
-            plan: AhaKeyStudioScopedWritePlan,
-            resourcesByID: [AhaKeyResourceIdentifier: AhaKeyConfigurationResource]
-        ) throws -> AhaKeyConfigurationResource {
-            let matches = plan.resources.compactMap { input -> AhaKeyConfigurationResource? in
-                guard let resource = resourcesByID[input.logicalIdentifier] else { return nil }
-                if let width = asset.pixelWidth, width != input.pixelWidth { return nil }
-                if let height = asset.pixelHeight, height != input.pixelHeight { return nil }
-                if let frames = asset.declaredFrameCount, frames != input.declaredFrameCount { return nil }
-                return resource
-            }
-            guard matches.count == 1 else {
-                throw AhaKeyRuntimeContractError.pageOperationIncomplete
-            }
-            return matches[0]
         }
     }
 }
@@ -301,7 +341,7 @@ public struct AhaKeyRuntimeObjectFingerprint: Codable, Equatable, Hashable, Send
     }
 }
 
-/// 兼容语义 fingerprint：由本次 plan 的实际 opcode、槽映射、160×80 几何、session 与激活语义构成。
+/// 兼容语义 fingerprint：canonical typed emitted-action 列表，保留 logical→physical 映射。
 public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashable, Sendable {
     public static let forbiddenKeys: Set<String> = [
         "battery", "batteryLevel", "rssi", "channel", "transport",
@@ -309,10 +349,7 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
     ]
 
     public let family: Family
-    public let emittedOpcodes: [UInt8]
-    public let physicalSlots: [UInt8]
-    public let geometry: Geometry
-    public let activation: Activation
+    public let actions: [AhaKeyRuntimeEmittedAction]
 
     public enum Family: Equatable, Hashable, Sendable {
         case legacyStandard
@@ -333,54 +370,20 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
 
     public init(
         family: Family,
-        emittedOpcodes: [UInt8],
-        physicalSlots: [UInt8],
-        geometry: Geometry,
-        activation: Activation
+        actions: [AhaKeyRuntimeEmittedAction]
     ) throws {
-        let opcodes = Array(Set(emittedOpcodes)).sorted()
-        let slots = Array(Set(physicalSlots)).sorted()
-        try Self.validate(
-            family: family,
-            emittedOpcodes: opcodes,
-            physicalSlots: slots,
-            geometry: geometry,
-            activation: activation
-        )
+        try Self.validate(family: family, actions: actions)
         self.family = family
-        self.emittedOpcodes = opcodes
-        self.physicalSlots = slots
-        self.geometry = geometry
-        self.activation = activation
+        self.actions = actions
     }
 
     public static func make(
         plan: AhaKeyStudioScopedWritePlan,
         profile: AhaKeyOLEDCompatibilityProfile
     ) throws -> AhaKeyRuntimeCompatibilityFingerprint {
-        let family = try Family.make(profile)
-        let writingPictures = writesPictures(plan)
-        let opcodes = emittedOpcodes(plan: plan, profile: profile, writingPictures: writingPictures)
-        let slots = physicalSlots(plan: plan, profile: profile, writingPictures: writingPictures)
-        let geometry: Geometry = writingPictures ? .oled160x80 : .none
-        if writingPictures {
-            for resource in plan.resources {
-                guard resource.pixelWidth == 160, resource.pixelHeight == 80 else {
-                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-                }
-            }
-        }
-        let activation = activationSemantic(
-            profile: profile,
-            writingPictures: writingPictures,
-            emitsSetActiveSet: plan.emitsSetActiveSetOpcode
-        )
-        return try AhaKeyRuntimeCompatibilityFingerprint(
-            family: family,
-            emittedOpcodes: opcodes,
-            physicalSlots: slots,
-            geometry: geometry,
-            activation: activation
+        try AhaKeyRuntimeCompatibilityFingerprint(
+            family: try Family.make(profile),
+            actions: try AhaKeyRuntimePageSemantic.actions(plan: plan, profile: profile)
         )
     }
 
@@ -390,129 +393,105 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
         return try encoder.encode(self)
     }
 
-    private static func writesPictures(_ plan: AhaKeyStudioScopedWritePlan) -> Bool {
-        if plan.writeTaskSetA || plan.writeTaskSetB || !plan.resources.isEmpty {
-            return true
+    private static func validate(
+        family: Family,
+        actions: [AhaKeyRuntimeEmittedAction]
+    ) throws {
+        guard !actions.isEmpty else {
+            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
         }
-        return plan.values.values.contains { value in
-            if case .taskAsset = value { return true }
-            return false
-        }
-    }
-
-    private static func emittedOpcodes(
-        plan: AhaKeyStudioScopedWritePlan,
-        profile: AhaKeyOLEDCompatibilityProfile,
-        writingPictures: Bool
-    ) -> [UInt8] {
-        let policy = profile.pictureOpcodes
-        var codes: [UInt8] = []
-        if writingPictures {
-            if policy.allowsPrepareWrite { codes.append(0x80) }
-            if policy.allowsSessionPrepare { codes.append(0x9B) }
-            if policy.allowsBindLegacyTaskPicture { codes.append(0x82) }
-            if policy.allowsBindTaskPicture { codes.append(0x95) }
-            if plan.bindsDefaultAnimation, policy.allowsBindDefaultPicture { codes.append(0x93) }
-            if policy.allowsFinishTaskPicture { codes.append(0x98) }
-        }
-        if plan.emitsSetActiveSetOpcode, policy.allowsSetActiveSet {
-            codes.append(0x97)
-        }
-        return Array(Set(codes)).sorted()
-    }
-
-    private static func physicalSlots(
-        plan: AhaKeyStudioScopedWritePlan,
-        profile: AhaKeyOLEDCompatibilityProfile,
-        writingPictures: Bool
-    ) -> [UInt8] {
-        guard writingPictures else { return [] }
-        var slots: [UInt8] = []
-        if plan.writeTaskSetA {
-            slots.append(UInt8(AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: profile, logicalSet: 0)))
-        }
-        if plan.writeTaskSetB {
-            slots.append(UInt8(AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: profile, logicalSet: 1)))
-        }
-        return Array(Set(slots)).sorted()
-    }
-
-    private static func activationSemantic(
-        profile: AhaKeyOLEDCompatibilityProfile,
-        writingPictures: Bool,
-        emitsSetActiveSet: Bool
-    ) -> Activation {
-        switch profile {
-        case .legacyStandard:
-            return writingPictures ? .implicit : .none
-        case .rhinoDualSet, .currentSessionCapable:
-            if emitsSetActiveSet { return .setActiveSetOpcode }
-            return .none
-        case .unsupported:
-            return .none
+        for action in actions {
+            try AhaKeyRuntimeEmittedAction.validate(action)
+            try validate(action, in: family)
         }
     }
 
     private static func validate(
-        family: Family,
-        emittedOpcodes: [UInt8],
-        physicalSlots: [UInt8],
-        geometry: Geometry,
-        activation: Activation
+        _ action: AhaKeyRuntimeEmittedAction,
+        in family: Family
     ) throws {
-        let opcodeSet = Set(emittedOpcodes)
-        switch family {
-        case .legacyStandard:
-            if opcodeSet.contains(where: { [UInt8(0x95), 0x97, 0x9A, 0x9B].contains($0) }) {
-                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-            }
-            if activation == .setActiveSetOpcode {
-                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-            }
-            if physicalSlots.contains(where: { $0 != 0 }) {
-                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-            }
-        case .rhinoDualSet(let sessionUpload):
-            if !sessionUpload, opcodeSet.contains(where: { [UInt8(0x9A), 0x9B].contains($0) }) {
-                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-            }
-            if activation == .implicit {
-                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-            }
-        case .currentSession:
-            if activation == .implicit {
-                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+        let expectedPhysical: (UInt8) -> UInt8 = { logical in
+            switch family {
+            case .legacyStandard:
+                return 0
+            case .rhinoDualSet, .currentSession:
+                return logical
             }
         }
-        if activation == .setActiveSetOpcode, !opcodeSet.contains(0x97) {
-            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-        }
-        if activation == .implicit, opcodeSet.contains(0x97) {
-            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-        }
-        let writingPictures = opcodeSet.contains(where: { [UInt8(0x80), 0x82, 0x93, 0x95, 0x98, 0x9B].contains($0) })
-        if writingPictures, geometry != .oled160x80 {
-            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-        }
-        if !writingPictures, geometry == .oled160x80 {
-            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+        switch action.command {
+        case .picture(let picture):
+            guard let logicalSet = action.logicalSet, let physicalSlot = action.physicalSlot else {
+                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+            }
+            guard physicalSlot == expectedPhysical(logicalSet), physicalSlot <= 1 else {
+                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+            }
+            switch family {
+            case .legacyStandard:
+                guard picture.prepareOpcode == 0x80,
+                      picture.bindOpcode == 0x93,
+                      action.binding == .legacyTask,
+                      action.session == .prepareWrite,
+                      action.activation == .implicit,
+                      physicalSlot == 0 else {
+                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                }
+                if let defaultBind = picture.defaultBindOpcode, defaultBind != 0x82 {
+                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                }
+            case .rhinoDualSet(let sessionUpload):
+                guard picture.bindOpcode == 0x95,
+                      picture.defaultBindOpcode == nil,
+                      action.binding == .taskSet,
+                      action.activation == .none else {
+                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                }
+                if sessionUpload {
+                    guard picture.prepareOpcode == 0x9B, action.session == .sessionPrepare else {
+                        throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                    }
+                } else {
+                    guard picture.prepareOpcode == 0x80, action.session == .prepareWrite else {
+                        throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                    }
+                }
+            case .currentSession:
+                guard picture.prepareOpcode == 0x9B,
+                      picture.bindOpcode == 0x95,
+                      picture.defaultBindOpcode == nil,
+                      action.binding == .taskSet,
+                      action.session == .sessionPrepare,
+                      action.activation == .none else {
+                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                }
+            }
+        case .setActiveSet:
+            switch family {
+            case .legacyStandard:
+                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+            case .rhinoDualSet, .currentSession:
+                guard let logicalSet = action.logicalSet, let physicalSlot = action.physicalSlot else {
+                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                }
+                guard physicalSlot == expectedPhysical(logicalSet) else {
+                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                }
+            }
+        default:
+            break
         }
     }
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case family, sessionUpload, emittedOpcodes, physicalSlots, geometry, activation
+        case family, sessionUpload, actions
     }
 
     public init(from decoder: Decoder) throws {
-        let dynamic = try decoder.container(keyedBy: ForbiddenAwareKey.self)
-        let names = Set(dynamic.allKeys.map(\.stringValue))
-        if !names.isDisjoint(with: Self.forbiddenKeys) {
-            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-        }
-        let allowed = Set(CodingKeys.allCases.map(\.rawValue))
-        if !names.subtracting(allowed).isEmpty {
-            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
-        }
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .invalidCompatibilityFingerprint
+        )
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let familyWire = try container.decode(String.self, forKey: .family)
         let sessionUpload = try container.decodeIfPresent(Bool.self, forKey: .sessionUpload)
@@ -538,10 +517,7 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
         }
         try self.init(
             family: family,
-            emittedOpcodes: container.decode([UInt8].self, forKey: .emittedOpcodes),
-            physicalSlots: container.decode([UInt8].self, forKey: .physicalSlots),
-            geometry: container.decode(Geometry.self, forKey: .geometry),
-            activation: container.decode(Activation.self, forKey: .activation)
+            actions: container.decode([AhaKeyRuntimeEmittedAction].self, forKey: .actions)
         )
     }
 
@@ -556,25 +532,7 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
         case .currentSession:
             try container.encode("current-session", forKey: .family)
         }
-        try container.encode(emittedOpcodes, forKey: .emittedOpcodes)
-        try container.encode(physicalSlots, forKey: .physicalSlots)
-        try container.encode(geometry, forKey: .geometry)
-        try container.encode(activation, forKey: .activation)
-    }
-
-    private struct ForbiddenAwareKey: CodingKey {
-        var stringValue: String
-        var intValue: Int?
-
-        init?(stringValue: String) {
-            self.stringValue = stringValue
-            intValue = nil
-        }
-
-        init?(intValue: Int) {
-            self.intValue = intValue
-            stringValue = String(intValue)
-        }
+        try container.encode(actions, forKey: .actions)
     }
 }
 
@@ -628,23 +586,18 @@ public struct AhaKeyRuntimeConfirmationLedger: Codable, Equatable, Sendable {
         guard fieldEntries.count == Set(fieldEntries).count else {
             throw AhaKeyRuntimeContractError.pageOperationIncomplete
         }
-        var seenResources = Set<String>()
-        for identity in resourceEntries {
-            let key = "\(identity.logicalID.rawValue)|\(identity.sha256.rawValue)"
-            guard seenResources.insert(key).inserted else {
-                throw AhaKeyRuntimeContractError.pageOperationIncomplete
-            }
+        guard resourceEntries.count == Set(resourceEntries).count else {
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
         }
         guard Set(fieldEntries) == fieldMask else {
             throw AhaKeyRuntimeContractError.pageOperationIncomplete
         }
-        let expectedResources: [String] = resources.map { resource in
-            "\(resource.logicalIdentifier.rawValue)|\(resource.sha256.rawValue)"
-        }.sorted()
-        let actualResources: [String] = resourceEntries.map {
-            "\($0.logicalID.rawValue)|\($0.sha256.rawValue)"
-        }.sorted()
-        guard actualResources == expectedResources else {
+        let expectedResources = Set(
+            resources.map {
+                Entry.ResourceIdentity(logicalID: $0.logicalIdentifier, sha256: $0.sha256)
+            }
+        )
+        guard Set(resourceEntries) == expectedResources else {
             throw AhaKeyRuntimeContractError.pageOperationIncomplete
         }
         guard entries.count == fieldMask.count + resources.count else {
@@ -692,13 +645,15 @@ public struct AhaKeyRuntimeConfirmationLedger: Codable, Equatable, Sendable {
         }
 
         public init(from decoder: Decoder) throws {
-            let dynamic = try decoder.container(keyedBy: DynamicKey.self)
-            let names = Set(dynamic.allKeys.map(\.stringValue))
-            let allowed = Set(CodingKeys.allCases.map(\.rawValue))
-            guard names.count == 1, names.isSubset(of: allowed) else {
+            try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+                in: decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+                error: .pageOperationIncomplete
+            )
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            guard container.contains(.pendingField) != container.contains(.pendingResource) else {
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }
-            let container = try decoder.container(keyedBy: CodingKeys.self)
             if container.contains(.pendingField) {
                 self = .pendingField(try container.decode(AhaKeyStudioFieldID.self, forKey: .pendingField))
             } else {
@@ -723,21 +678,6 @@ public struct AhaKeyRuntimeConfirmationLedger: Codable, Equatable, Sendable {
         private struct ResourcePayload: Codable {
             var logicalID: AhaKeyResourceIdentifier
             var sha256: AhaKeySHA256Digest
-        }
-
-        private struct DynamicKey: CodingKey {
-            var stringValue: String
-            var intValue: Int?
-
-            init?(stringValue: String) {
-                self.stringValue = stringValue
-                intValue = nil
-            }
-
-            init?(intValue: Int) {
-                self.intValue = intValue
-                stringValue = String(intValue)
-            }
         }
     }
 }
