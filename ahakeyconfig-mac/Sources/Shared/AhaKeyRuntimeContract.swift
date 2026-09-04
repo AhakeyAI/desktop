@@ -542,6 +542,7 @@ public struct AhaKeyConfigurationResource: Codable, Equatable, Hashable, Sendabl
 
 public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
     public static let currentSchemaVersion: UInt16 = 1
+    public static let pageScopedSchemaVersion: UInt16 = 2
 
     public let schemaVersion: UInt16
     public let operationID: AhaKeyRuntimeOperationID
@@ -551,6 +552,8 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
     /// It is decoded and planned by Runtime; callers never send transport commands or physical slots.
     public let desiredConfiguration: Data
     public let resources: [AhaKeyConfigurationResource]
+    /// C3A：页面写的稳定 contract。旧 schema=1 记录必须为 nil；schema=2 必须完整。
+    public let pageOperation: AhaKeyRuntimePageOperationContract?
 
     public init(
         schemaVersion: UInt16 = Self.currentSchemaVersion,
@@ -558,27 +561,42 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
         targetDeviceID: AhaKeyRuntimeDeviceID,
         baseRevision: AhaKeyConfigurationRevision,
         desiredConfiguration: Data,
-        resources: [AhaKeyConfigurationResource]
+        resources: [AhaKeyConfigurationResource],
+        pageOperation: AhaKeyRuntimePageOperationContract? = nil
     ) throws {
-        guard schemaVersion > 0 else {
-            throw AhaKeyRuntimeContractError.invalidSchemaVersion
-        }
         guard !desiredConfiguration.isEmpty else {
             throw AhaKeyRuntimeContractError.emptyDesiredConfiguration
         }
         guard Set(resources.map(\.logicalIdentifier)).count == resources.count else {
             throw AhaKeyRuntimeContractError.duplicateResourceIdentifier
         }
-        self.schemaVersion = schemaVersion
+        let resolvedSchema: UInt16
+        if let pageOperation {
+            resolvedSchema = Self.pageScopedSchemaVersion
+            try pageOperation.validate(matchingDevice: targetDeviceID)
+        } else {
+            guard schemaVersion != Self.pageScopedSchemaVersion else {
+                throw AhaKeyRuntimeContractError.pageOperationIncomplete
+            }
+            guard schemaVersion > 0, schemaVersion < Self.pageScopedSchemaVersion else {
+                throw AhaKeyRuntimeContractError.unsupportedConfigurationSchema(schemaVersion)
+            }
+            resolvedSchema = schemaVersion
+        }
+        self.schemaVersion = resolvedSchema
         self.operationID = operationID
         self.targetDeviceID = targetDeviceID
         self.baseRevision = baseRevision
         self.desiredConfiguration = desiredConfiguration
         self.resources = resources
+        self.pageOperation = pageOperation
     }
+
+    public var isPageScoped: Bool { pageOperation != nil }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, operationID, targetDeviceID, baseRevision, desiredConfiguration, resources
+        case pageOperation
     }
 
     public init(from decoder: Decoder) throws {
@@ -589,8 +607,20 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
             targetDeviceID: container.decode(AhaKeyRuntimeDeviceID.self, forKey: .targetDeviceID),
             baseRevision: container.decode(AhaKeyConfigurationRevision.self, forKey: .baseRevision),
             desiredConfiguration: container.decode(Data.self, forKey: .desiredConfiguration),
-            resources: container.decode([AhaKeyConfigurationResource].self, forKey: .resources)
+            resources: container.decode([AhaKeyConfigurationResource].self, forKey: .resources),
+            pageOperation: container.decodeIfPresent(AhaKeyRuntimePageOperationContract.self, forKey: .pageOperation)
         )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(operationID, forKey: .operationID)
+        try container.encode(targetDeviceID, forKey: .targetDeviceID)
+        try container.encode(baseRevision, forKey: .baseRevision)
+        try container.encode(desiredConfiguration, forKey: .desiredConfiguration)
+        try container.encode(resources, forKey: .resources)
+        try container.encodeIfPresent(pageOperation, forKey: .pageOperation)
     }
 }
 
@@ -991,4 +1021,9 @@ public enum AhaKeyRuntimeContractError: Error, Equatable, Sendable {
     case operationIdentifierConflict
     case invalidPercentage(Int)
     case invalidEventCode
+    case pageOperationIncomplete
+    case pageOperationDeviceMismatch
+    case invalidCompatibilityFingerprint
+    case invalidObjectFingerprint
+    case unsupportedPeerForPageOperation
 }

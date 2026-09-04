@@ -426,7 +426,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         do {
             let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
             let health = try await store.health()
-            XCTAssertEqual(health.schemaVersion, 4)
+            XCTAssertEqual(health.schemaVersion, 5)
             let record = try await store.transaction(package.operationID)
             XCTAssertEqual(record?.state, .failedWithoutWrites)
             XCTAssertNil(record?.messageCode)
@@ -435,7 +435,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
         let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let reopenedHealth = try await reopened.health()
-        XCTAssertEqual(reopenedHealth.schemaVersion, 4)
+        XCTAssertEqual(reopenedHealth.schemaVersion, 5)
         let reopenedRecord = try await reopened.transaction(package.operationID)
         XCTAssertEqual(reopenedRecord?.state, .failedWithoutWrites)
         XCTAssertNil(reopenedRecord?.messageCode)
@@ -677,7 +677,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(gate.updateResult, SQLITE_DONE)
 
         let health = try await store.health()
-        XCTAssertEqual(health.schemaVersion, 4)
+        XCTAssertEqual(health.schemaVersion, 5)
         XCTAssertTrue(try terminalOrderTriggerExists(root: root))
         let historicalOrder = try XCTUnwrap(try terminalOrder(root: root, operationID: historical.operationID))
         let migratedLegacyOrder = try XCTUnwrap(try terminalOrder(root: root, operationID: accepted.operationID))
@@ -1283,6 +1283,151 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(usage, 0)
     }
 
+    func testV4StoreMigratesQueueOrderAndRestoresLegacyPackages() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let first = try makePackage()
+        let second = try makePackage()
+        try seedV4Transactions(
+            root: root,
+            rows: [
+                (first, "accepted"),
+                (second, "accepted"),
+            ]
+        )
+
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let health = try await store.health()
+        XCTAssertEqual(health.schemaVersion, 5)
+        XCTAssertEqual(try queueOrder(root: root, operationID: first.operationID), 1)
+        XCTAssertEqual(try queueOrder(root: root, operationID: second.operationID), 2)
+
+        let queue = try await store.durableDeviceQueue(first.targetDeviceID)
+        XCTAssertEqual(queue.items.map(\.operationID), [first.operationID, second.operationID])
+        XCTAssertNil(queue.items[0].package.pageOperation)
+        XCTAssertEqual(queue.items[0].package.schemaVersion, 1)
+    }
+
+    func testPageScopedAcceptRejectsSameOperationIDWithDifferentContent() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let operationID = AhaKeyRuntimeOperationID()
+        let first = try makePageScopedPackage(operationID: operationID, statusLine: "one")
+        let conflicting = try makePageScopedPackage(operationID: operationID, statusLine: "two")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(first, resourceFiles: [:])
+        do {
+            _ = try await store.accept(conflicting, resourceFiles: [:])
+            XCTFail("Expected operation identifier conflict")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .operationIdentifierConflict)
+        }
+        let replayed = try await store.accept(first, resourceFiles: [:])
+        XCTAssertEqual(replayed, first.operationID)
+    }
+
+    func testTwoDevicesHaveIndependentDurableQueues() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let deviceA = "DEVICE-A"
+        let deviceB = "DEVICE-B"
+        let a1 = try makePageScopedPackage(targetDeviceID: deviceA, statusLine: "a1")
+        let a2 = try makePageScopedPackage(targetDeviceID: deviceA, statusLine: "a2")
+        let b1 = try makePageScopedPackage(targetDeviceID: deviceB, statusLine: "b1")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(a1, resourceFiles: [:])
+        _ = try await store.accept(b1, resourceFiles: [:])
+        _ = try await store.accept(a2, resourceFiles: [:])
+
+        let queueA = try await store.durableDeviceQueue(a1.targetDeviceID)
+        let queueB = try await store.durableDeviceQueue(b1.targetDeviceID)
+        XCTAssertEqual(queueA.items.map(\.operationID), [a1.operationID, a2.operationID])
+        XCTAssertEqual(queueB.items.map(\.operationID), [b1.operationID])
+
+        try await store.updateOperation(
+            .init(
+                id: a1.operationID,
+                targetDeviceID: a1.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        do {
+            try await store.updateOperation(
+                .init(
+                    id: a2.operationID,
+                    targetDeviceID: a2.targetDeviceID,
+                    state: .running,
+                    completedSteps: 0,
+                    totalSteps: 1
+                )
+            )
+            XCTFail("paused head 不得被后项越过")
+        } catch {
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePersistenceError,
+                .blockedByQueueHead(a1.operationID)
+            )
+        }
+
+        try await store.updateOperation(
+            .init(
+                id: b1.operationID,
+                targetDeviceID: b1.targetDeviceID,
+                state: .running,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let runningB = try await store.transaction(b1.operationID)
+        XCTAssertEqual(runningB?.state, .running)
+    }
+
+    func testPausedHeadStillBlocksAfterCrashReopen() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try makePageScopedPackage(statusLine: "head")
+        let second = try makePageScopedPackage(statusLine: "next")
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            _ = try await store.accept(first, resourceFiles: [:])
+            _ = try await store.accept(second, resourceFiles: [:])
+            try await store.updateOperation(
+                .init(
+                    id: first.operationID,
+                    targetDeviceID: first.targetDeviceID,
+                    state: .paused,
+                    completedSteps: 0,
+                    totalSteps: 1
+                )
+            )
+        }
+
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let queue = try await reopened.durableDeviceQueue(first.targetDeviceID)
+        XCTAssertEqual(queue.items.map(\.operationID), [first.operationID, second.operationID])
+        XCTAssertEqual(queue.items.first?.state, .paused)
+        do {
+            try await reopened.updateOperation(
+                .init(
+                    id: second.operationID,
+                    targetDeviceID: second.targetDeviceID,
+                    state: .running,
+                    completedSteps: 0,
+                    totalSteps: 1
+                )
+            )
+            XCTFail("崩溃重开后 FIFO 顺序与 head-blocking 必须保持")
+        } catch {
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePersistenceError,
+                .blockedByQueueHead(first.operationID)
+            )
+        }
+    }
+
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("AhaKeyRuntimePersistentStoreTests-\(UUID().uuidString)", isDirectory: true)
@@ -1425,15 +1570,128 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
     private func makePackage(
         operationID: AhaKeyRuntimeOperationID = .init(),
+        targetDeviceID: String = "TEST-DEVICE",
         resources: [AhaKeyConfigurationResource] = []
     ) throws -> AhaKeyConfigurationPackage {
         try AhaKeyConfigurationPackage(
             operationID: operationID,
-            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            targetDeviceID: AhaKeyRuntimeDeviceID(targetDeviceID),
             baseRevision: .init(7),
             desiredConfiguration: Data("configuration-v1".utf8),
             resources: resources
         )
+    }
+
+    private func makePageScopedPackage(
+        operationID: AhaKeyRuntimeOperationID = .init(),
+        targetDeviceID: String = "TEST-DEVICE",
+        statusLine: String
+    ) throws -> AhaKeyConfigurationPackage {
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let plan = AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [field],
+            values: [field: .text(statusLine)],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: nil,
+            emitsSetActiveSetOpcode: false,
+            statusLine: statusLine
+        )
+        return try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: plan,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID(targetDeviceID),
+            baseRevision: .init(7),
+            operationID: operationID
+        )
+    }
+
+    private func seedV4Transactions(
+        root: URL,
+        rows: [(AhaKeyConfigurationPackage, String)]
+    ) throws {
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        let sql = """
+        PRAGMA user_version=4;
+        CREATE TABLE runtime_transactions (
+            operation_id TEXT PRIMARY KEY NOT NULL,
+            package BLOB NOT NULL,
+            state TEXT NOT NULL,
+            completed_steps INTEGER NOT NULL,
+            total_steps INTEGER NOT NULL,
+            message_code TEXT,
+            failure_context TEXT,
+            terminal_order INTEGER
+        );
+        """
+        XCTAssertEqual(sqlite3_exec(database, sql, nil, nil, nil), SQLITE_OK)
+        let encoder = JSONEncoder()
+        for (package, state) in rows {
+            let packageData = try encoder.encode(package)
+            var statement: OpaquePointer?
+            XCTAssertEqual(
+                sqlite3_prepare_v2(
+                    database,
+                    "INSERT INTO runtime_transactions (operation_id, package, state, completed_steps, total_steps, message_code) VALUES (?, ?, ?, 0, 2, NULL)",
+                    -1,
+                    &statement,
+                    nil
+                ),
+                SQLITE_OK
+            )
+            let operationID = package.operationID.rawValue.uuidString
+            operationID.withCString {
+                sqlite3_bind_text(statement, 1, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+            packageData.withUnsafeBytes { bytes in
+                _ = sqlite3_bind_blob(
+                    statement,
+                    2,
+                    bytes.baseAddress,
+                    Int32(packageData.count),
+                    unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+                )
+            }
+            state.withCString {
+                sqlite3_bind_text(statement, 3, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+            XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    private func queueOrder(
+        root: URL,
+        operationID: AhaKeyRuntimeOperationID
+    ) throws -> Int64? {
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        var statement: OpaquePointer?
+        XCTAssertEqual(
+            sqlite3_prepare_v2(
+                database,
+                "SELECT queue_order FROM runtime_transactions WHERE operation_id = ?",
+                -1,
+                &statement,
+                nil
+            ),
+            SQLITE_OK
+        )
+        defer { sqlite3_finalize(statement) }
+        let raw = operationID.rawValue.uuidString
+        raw.withCString {
+            sqlite3_bind_text(statement, 1, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+        if sqlite3_column_type(statement, 0) == SQLITE_NULL { return nil }
+        return sqlite3_column_int64(statement, 0)
     }
 
     private func resource(

@@ -120,8 +120,12 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         }
     }
 
-    private func makeSnapshot(sequence: UInt64) -> AhaKeyRuntimeSnapshot {
+    private func makeSnapshot(
+        sequence: UInt64,
+        supportedSchemaVersions: Set<UInt16> = [AhaKeyConfigurationPackage.currentSchemaVersion]
+    ) -> AhaKeyRuntimeSnapshot {
         AhaKeyRuntimeSnapshot(
+            supportedConfigurationSchemaVersions: supportedSchemaVersions,
             lifecycleState: .running,
             devices: [],
             activeDeviceID: nil,
@@ -870,5 +874,99 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertNil(transport.ingestedItems)
         XCTAssertNil(transport.appliedPackage)
         await facade.stop()
+    }
+
+    func testAssemblePageScopedPackageFailsClosedOnLegacyPeer() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(makeSnapshot(sequence: 0))
+        do {
+            _ = try await facade.assemblePageScopedPackage(
+                plan: screenStatusPlan(),
+                profile: .legacyStandard,
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+                baseRevision: .init(0)
+            )
+            XCTFail("旧 peer 未广告 schema=2 必须 fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyStudioApplyError, .unsupportedPeerForPageOperation)
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testAssemblePageScopedPackageSucceedsWhenPeerAdvertisesSchema2WithoutTransport() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(
+            makeSnapshot(sequence: 0, supportedSchemaVersions: [1, 2])
+        )
+        let package = try await facade.assemblePageScopedPackage(
+            plan: screenStatusPlan(statusLine: "scoped"),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
+            baseRevision: .init(3)
+        )
+        XCTAssertEqual(package.schemaVersion, 2)
+        XCTAssertEqual(package.pageOperation?.pageScope, .screen(modeSlot: 0))
+        XCTAssertEqual(package.pageOperation?.fieldMask, [.screenStatusLine(modeSlot: 0)])
+        XCTAssertEqual(package.pageOperation?.targetDeviceID, package.targetDeviceID)
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testSubmitFrozenPageWritePlanStillDoesNotIngestAfterPageContractSeam() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(
+            makeSnapshot(sequence: 0, supportedSchemaVersions: [1, 2])
+        )
+        let snapshot = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("new"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("old"))
+                ),
+            ]
+        )
+        let result = try await facade.submitFrozenPage(snapshot)
+        guard case .write = result else {
+            return XCTFail("dirty 屏幕属性应得到 write plan")
+        }
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        await facade.stop()
+    }
+
+    private func screenStatusPlan(statusLine: String = "hello") -> AhaKeyStudioScopedWritePlan {
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        return AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [field],
+            values: [field: .text(statusLine)],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: nil,
+            emitsSetActiveSetOpcode: false,
+            statusLine: statusLine
+        )
     }
 }

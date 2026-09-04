@@ -500,6 +500,10 @@ public enum AhaKeyStudioApplyError: Error, Equatable {
     case unexpectedResponse
     /// 未知/不支持的固件，禁止 ingest/apply。
     case unsupportedFirmware
+    /// 对端未广告 page-scoped schema=2，禁止静默降级。
+    case unsupportedPeerForPageOperation
+    /// 页面 operation 缺少 scope/mask/device/fingerprint 证明。
+    case pageOperationIncomplete
 }
 
 extension AhaKeyStudioApplyError: LocalizedError {
@@ -527,6 +531,10 @@ extension AhaKeyStudioApplyError: LocalizedError {
             return "Runtime 返回了无法识别的响应。"
         case .unsupportedFirmware:
             return "当前固件不支持图片写入，已拒绝提交。"
+        case .unsupportedPeerForPageOperation:
+            return "当前 Runtime 不支持页面级写入契约，已拒绝提交。"
+        case .pageOperationIncomplete:
+            return "页面写入缺少 page scope、field mask 或 fingerprint，已拒绝提交。"
         }
     }
 }
@@ -631,6 +639,38 @@ extension AhaKeyStudioRuntimeFacade {
         _ snapshot: AhaKeyStudioPageSnapshot
     ) async throws -> AhaKeyStudioPageAssembly {
         return AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot)
+    }
+
+    /// C3A：只组装 page-scoped package，不 ingest/apply/BLE。旧 peer 未广告 schema=2 时 fail-closed。
+    public func assemblePageScopedPackage(
+        plan: AhaKeyStudioScopedWritePlan,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        baseRevision: AhaKeyConfigurationRevision,
+        operationID: AhaKeyRuntimeOperationID = .init()
+    ) throws -> AhaKeyConfigurationPackage {
+        let supported = state.snapshot?.supportedConfigurationSchemaVersions
+            ?? [AhaKeyConfigurationPackage.currentSchemaVersion]
+        guard supported.contains(AhaKeyConfigurationPackage.pageScopedSchemaVersion) else {
+            throw AhaKeyStudioApplyError.unsupportedPeerForPageOperation
+        }
+        do {
+            return try AhaKeyConfigurationPackage.assemblePageScoped(
+                plan: plan,
+                profile: profile,
+                targetDeviceID: targetDeviceID,
+                baseRevision: baseRevision,
+                operationID: operationID
+            )
+        } catch let error as AhaKeyRuntimeContractError {
+            switch error {
+            case .pageOperationIncomplete, .pageOperationDeviceMismatch,
+                 .invalidCompatibilityFingerprint, .invalidObjectFingerprint:
+                throw AhaKeyStudioApplyError.pageOperationIncomplete
+            default:
+                throw error
+            }
+        }
     }
 
     /// 取消已受理的 operation：透传 .requestCancellation。

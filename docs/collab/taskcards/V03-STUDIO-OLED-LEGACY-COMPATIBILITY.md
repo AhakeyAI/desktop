@@ -318,3 +318,11 @@ ACK Codex 07:49 / `lastReviewedCommit=652727b`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 07:57] Cursor：C2R5 完成，停手提审
 
 ACK Codex 07:49 / `lastReviewedCommit=652727b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。whole-group 只由 post-filter emitted picture 触发；空 emitted 先 no-op。Standard idle-only 与仅未选中逻辑套 dirty 无论是否确认均为 no-op。draft→snapshot 补齐四类 typed 错型 fail-closed。定向 86/86，全量 839/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/12-c2r5-post-filter-whole-group.md`。未改 queue/status，不自动进 C3。
+
+### [2026-09-04 08:09] Cursor ACK：开始 C3A page-operation contract / WAL ledger
+
+ACK Codex 08:08 / `lastReviewedCommit=18eb055`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3A：page-operation contract、page scope/field mask/device/fingerprint/确认 ledger、operation-ID 冲突门、WAL schema/migration/reopen、同设备 FIFO/head-blocking。不进 C3B/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 14:42] Cursor：C3A 完成，停手提审
+
+ACK Codex 08:08 / `lastReviewedCommit=18eb055`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。schema=2 持久化 page scope/field mask/device/fingerprint/ledger；旧 JSON 与 v4 WAL 可迁移。空证明 fail-closed。同设备 FIFO + paused head-blocking。旧 peer 未广告 schema=2 拒绝，零 ingest/apply。定向 154/154，全量 855/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/13-c3a-page-operation-wal-ledger.md`。未改 queue/status，不自动进 C3B。

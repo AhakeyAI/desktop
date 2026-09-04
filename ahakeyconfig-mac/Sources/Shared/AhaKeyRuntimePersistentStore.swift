@@ -160,6 +160,7 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case invalidOutcomeBaseline
     /// 申报元数据与 CAS 实际图片不一致（帧数/尺寸），或图片无法解码。
     case resourceMetadataMismatch(String)
+    case blockedByQueueHead(AhaKeyRuntimeOperationID)
 }
 
 /// Store 测试 seam：资源临界区的可控交错钩子。仅在 @testable 测试中注入。
@@ -207,7 +208,7 @@ enum AhaKeyRuntimeStoreSchemaMigrationTestingHooks {
 }
 
 public actor AhaKeyRuntimePersistentStore {
-    public static let schemaVersion: Int32 = 4
+    public static let schemaVersion: Int32 = 5
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
     public static let snapshotProjectionTerminalLimit = 64
     /// 旧 v3 writer 只更新既有列、不写 `terminal_order`。迁移后该 trigger 仅在
@@ -323,7 +324,8 @@ public actor AhaKeyRuntimePersistentStore {
                     state TEXT NOT NULL,
                     completed_steps INTEGER NOT NULL,
                     total_steps INTEGER NOT NULL,
-                    message_code TEXT
+                    message_code TEXT,
+                    queue_order INTEGER
                 )
                 """,
                 on: handle
@@ -450,6 +452,22 @@ public actor AhaKeyRuntimePersistentStore {
                         )
                         try Self.execute("DROP TABLE terminal_order_backfill", on: handle)
                         try Self.execute(Self.terminalOrderCompatibilityTriggerSQL, on: handle)
+                    }
+                    if existingSchemaVersion < 5 {
+                        if try !Self.table(handle, "runtime_transactions", hasColumn: "queue_order") {
+                            try Self.execute(
+                                "ALTER TABLE runtime_transactions ADD COLUMN queue_order INTEGER",
+                                on: handle
+                            )
+                        }
+                        try Self.execute(
+                            """
+                            UPDATE runtime_transactions
+                            SET queue_order = rowid
+                            WHERE queue_order IS NULL
+                            """,
+                            on: handle
+                        )
                     }
                     try Self.execute("PRAGMA user_version=\(Self.schemaVersion)", on: handle)
                     AhaKeyRuntimeStoreSchemaMigrationTestingHooks.insideWriteTransaction?()
@@ -977,6 +995,12 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
         }
         try validateProgress(summary)
+        if summary.state == .running, existing.package.isPageScoped {
+            let queue = try durableDeviceQueue(existing.package.targetDeviceID)
+            if queue.isBlocked(summary.id), let head = queue.head {
+                throw AhaKeyRuntimePersistenceError.blockedByQueueHead(head.operationID)
+            }
+        }
         try updateOperationRow(summary)
     }
 
@@ -1097,7 +1121,7 @@ public actor AhaKeyRuntimePersistentStore {
         let statement = try prepare(
             """
             SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context
-            FROM runtime_transactions ORDER BY rowid
+            FROM runtime_transactions ORDER BY COALESCE(queue_order, rowid), rowid
             """
         )
         defer { sqlite3_finalize(statement) }
@@ -1121,6 +1145,14 @@ public actor AhaKeyRuntimePersistentStore {
         }
         guard result == SQLITE_DONE else { throw databaseError() }
         return candidates
+    }
+
+    /// C3A：同设备非终态 FIFO。顺序由 durable `queue_order` 决定，崩溃重开不变。
+    public func durableDeviceQueue(
+        _ deviceID: AhaKeyRuntimeDeviceID
+    ) throws -> AhaKeyRuntimeDeviceQueue {
+        let items = try recoveryCandidates().filter { $0.package.targetDeviceID == deviceID }
+        return AhaKeyRuntimeDeviceQueue(deviceID: deviceID, items: items)
     }
 
     /// 投影入口：枚举最近终态行。`recoveryCandidates()` 排除 terminal，Agent 重启后
@@ -1232,18 +1264,33 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     private func insertTransaction(_ package: AhaKeyConfigurationPackage) throws {
+        let queueOrder = try allocateQueueOrder()
         let statement = try prepare(
             """
             INSERT INTO runtime_transactions
-                (operation_id, package, state, completed_steps, total_steps, message_code)
-            VALUES (?, ?, ?, 0, 0, NULL)
+                (operation_id, package, state, completed_steps, total_steps, message_code, queue_order)
+            VALUES (?, ?, ?, 0, 0, NULL, ?)
             """
         )
         defer { sqlite3_finalize(statement) }
         try bind(package.operationID.rawValue.uuidString, at: 1, to: statement)
         try bind(encoder.encode(package), at: 2, to: statement)
         try bind(AhaKeyRuntimeOperationState.accepted.compatibleRawValue, at: 3, to: statement)
+        try bind(queueOrder, at: 4, to: statement)
         try stepDone(statement)
+    }
+
+    private func allocateQueueOrder() throws -> UInt64 {
+        let statement = try prepare(
+            "SELECT COALESCE(MAX(queue_order), 0) FROM runtime_transactions"
+        )
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { throw databaseError() }
+        let current = sqlite3_column_int64(statement, 0)
+        guard current >= 0, current < Int64.max else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure("queue order exhausted")
+        }
+        return UInt64(current) + 1
     }
 
     private func insertResource(_ resource: AhaKeyConfigurationResource) throws {

@@ -407,6 +407,104 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         )
     }
 
+    func testLegacyPackageJSONOmitsPageOperationAndRoundTrips() throws {
+        let original = try package()
+        let encoded = try JSONEncoder().encode(original)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertNil(object["pageOperation"])
+        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        let decoded = try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: encoded)
+        XCTAssertEqual(decoded, original)
+        XCTAssertNil(decoded.pageOperation)
+        XCTAssertEqual(decoded.schemaVersion, AhaKeyConfigurationPackage.currentSchemaVersion)
+    }
+
+    func testPageScopedPackageRoundTripsAndRejectsIncompleteSchema2() throws {
+        let assembled = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: screenStatusPlan(),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+            baseRevision: .init(0)
+        )
+        XCTAssertEqual(assembled.schemaVersion, AhaKeyConfigurationPackage.pageScopedSchemaVersion)
+        XCTAssertNotNil(assembled.pageOperation)
+        let encoded = try JSONEncoder().encode(assembled)
+        let decoded = try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: encoded)
+        XCTAssertEqual(decoded, assembled)
+        XCTAssertEqual(decoded.pageOperation?.pageScope, .screen(modeSlot: 0))
+        XCTAssertEqual(
+            decoded.pageOperation?.fieldMask,
+            [.screenStatusLine(modeSlot: 0)]
+        )
+
+        XCTAssertThrowsError(
+            try AhaKeyConfigurationPackage(
+                schemaVersion: AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+                targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+                baseRevision: .init(0),
+                desiredConfiguration: Data("configuration".utf8),
+                resources: []
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .pageOperationIncomplete)
+        }
+    }
+
+    func testPageScopedPackageRejectsDeviceMismatch() throws {
+        let contract = try AhaKeyRuntimePageOperationContract.assemble(
+            plan: screenStatusPlan(),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-A")
+        )
+        XCTAssertThrowsError(
+            try AhaKeyConfigurationPackage(
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-B"),
+                baseRevision: .init(0),
+                desiredConfiguration: Data("configuration".utf8),
+                resources: [],
+                pageOperation: contract
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .pageOperationDeviceMismatch)
+        }
+    }
+
+    func testSameOperationIDDifferentPageContentIsNotEqual() throws {
+        let operationID = AhaKeyRuntimeOperationID()
+        let first = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: screenStatusPlan(statusLine: "one"),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+            baseRevision: .init(0),
+            operationID: operationID
+        )
+        let second = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: screenStatusPlan(statusLine: "two"),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+            baseRevision: .init(0),
+            operationID: operationID
+        )
+        XCTAssertEqual(first.operationID, second.operationID)
+        XCTAssertNotEqual(first, second)
+        XCTAssertNotEqual(first.desiredConfiguration, second.desiredConfiguration)
+    }
+
+    private func screenStatusPlan(statusLine: String = "hello") -> AhaKeyStudioScopedWritePlan {
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        return AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [field],
+            values: [field: .text(statusLine)],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: nil,
+            emitsSetActiveSetOpcode: false,
+            statusLine: statusLine
+        )
+    }
+
     private func package(
         operationID: AhaKeyRuntimeOperationID = .init(),
         targetDeviceID: String = "505C",
