@@ -2510,7 +2510,11 @@ extension AhaKeyAgent {
             return nil
         }
         guard let deviceID else { return nil }
-        guard let live = try? await store.sealedObjectFingerprint(for: deviceID) else {
+        let confirmed = (try? await store.confirmedSteps(for: package.operationID)) ?? []
+        let plan = pagePlanForWriteFact(package: package, userSlotLimit: context.layout.userSlotLimit)
+        let hasDeviceWrites = AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan)
+        let live = try? await store.authoritativeObjectFingerprint(for: deviceID)
+        if !hasDeviceWrites, live == nil {
             return nil
         }
         return AhaKeyRuntimePageExecutionPreconditions(
@@ -2520,12 +2524,29 @@ extension AhaKeyAgent {
         )
     }
 
-    func sealLiveObjectFingerprint(
-        _ fingerprint: AhaKeyRuntimeObjectFingerprint,
+    private func pagePlanForWriteFact(
+        package: AhaKeyConfigurationPackage,
+        userSlotLimit: Int
+    ) -> AhaKeyRuntimePageExecutionPlan? {
+        if let plan = try? AhaKeyRuntimePageSemantic.executionPlan(
+            package: package,
+            userSlotLimit: userSlotLimit
+        ) {
+            return plan
+        }
+        return try? AhaKeyRuntimePageSemantic.executionPlan(
+            package: package,
+            userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
+        )
+    }
+
+    /// 生产入口：把设备读回 / 权威 snapshot 的 canonical content 密封为 live CAS。
+    func recordAuthoritativeObject(
+        _ canonicalContent: Data,
         for deviceID: AhaKeyRuntimeDeviceID
     ) async throws {
         let store = try await makeRuntimeStore()
-        try await store.sealObjectFingerprint(fingerprint, for: deviceID)
+        try await store.recordAuthoritativeObject(canonicalContent, for: deviceID)
     }
 
     private func releaseProjection(

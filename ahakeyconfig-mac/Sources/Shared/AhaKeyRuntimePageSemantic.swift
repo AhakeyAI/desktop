@@ -915,6 +915,9 @@ public struct AhaKeyRuntimePageExecutionStep: Equatable, Sendable {
     public let program: [AhaKeyDeviceProgramStep]
     public let fieldID: AhaKeyStudioFieldID?
     public let resourceID: AhaKeyResourceIdentifier?
+
+    /// 冻结 program 非空即设备写；local 步 program 为空，不以 identity 字符串判定。
+    public var writesDevice: Bool { !program.isEmpty }
 }
 
 /// 只从冻结 fieldMask/actions/bindings/prepareStrategy 生成的本页程序。禁止 `base:mode:*`。
@@ -933,12 +936,12 @@ public struct AhaKeyRuntimePageExecutionPlan: Equatable, Sendable {
 public struct AhaKeyRuntimePageExecutionPreconditions: Equatable, Sendable {
     public let deviceID: AhaKeyRuntimeDeviceID
     public let profile: AhaKeyOLEDCompatibilityProfile
-    public let baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint
+    public let baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?
 
     public init(
         deviceID: AhaKeyRuntimeDeviceID,
         profile: AhaKeyOLEDCompatibilityProfile,
-        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint
+        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?
     ) {
         self.deviceID = deviceID
         self.profile = profile
@@ -1076,7 +1079,7 @@ extension AhaKeyRuntimePageSemantic {
     public static func evaluatePreflight(
         package: AhaKeyConfigurationPackage,
         preconditions: AhaKeyRuntimePageExecutionPreconditions?,
-        hasDeviceConfirmation: Bool
+        hasDeviceWrites: Bool
     ) throws {
         guard let contract = package.pageOperation,
               package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
@@ -1093,16 +1096,23 @@ extension AhaKeyRuntimePageSemantic {
         guard liveFamily == contract.compatibilityFingerprint.family else {
             throw AhaKeyRuntimePageExecutionPreflightError.compatibilityMismatch
         }
-        if !hasDeviceConfirmation,
-           preconditions.baseObjectFingerprint != contract.baseObjectFingerprint {
-            throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
+        if !hasDeviceWrites {
+            guard let live = preconditions.baseObjectFingerprint else {
+                throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
+            }
+            guard live == contract.baseObjectFingerprint else {
+                throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
+            }
         }
     }
 
-    public static func hasDeviceConfirmation(
-        _ confirmed: [AhaKeyRuntimeStepIdentifier]
+    /// WAL 已确认步骤里是否包含冻结 plan 中的设备写。local 空 program 不算。
+    public static func hasDeviceWrites(
+        confirmed: [AhaKeyRuntimeStepIdentifier],
+        plan: AhaKeyRuntimePageExecutionPlan?
     ) -> Bool {
-        confirmed.contains { !$0.rawValue.hasPrefix("page:local:") }
+        guard let plan else { return false }
+        return confirmed.contains { plan.step(for: $0)?.writesDevice == true }
     }
 
     static func lightMappingRows(

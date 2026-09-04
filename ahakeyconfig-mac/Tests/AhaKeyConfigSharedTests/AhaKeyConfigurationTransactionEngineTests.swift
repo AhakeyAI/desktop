@@ -139,10 +139,21 @@ final class AhaKeyConfigurationTransactionEngineTests: XCTestCase {
             [.none]
         )
         // 结算：有写入 → resumablePartial；无写入 → failedWithoutWrites
-        XCTAssertEqual(Engine.settleCancellation(confirmedSteps: [step("resource:img-a")]),
-                       .persistState(.resumablePartial))
-        XCTAssertEqual(Engine.settleCancellation(confirmedSteps: []),
-                       .commitTerminal(.failedWithoutWrites))
+        XCTAssertEqual(
+            Engine.settleCancellation(confirmedSteps: [step("resource:img-a")]),
+            .persistState(.resumablePartial)
+        )
+        XCTAssertEqual(
+            Engine.settleCancellation(confirmedSteps: []),
+            .commitTerminal(.failedWithoutWrites)
+        )
+        XCTAssertEqual(
+            Engine.settleCancellation(
+                confirmedSteps: [step("page:local:screenStatusLine:0")],
+                hasWrites: false
+            ),
+            .commitTerminal(.failedWithoutWrites)
+        )
     }
 
     func testTerminalStateIgnoresEverything() {

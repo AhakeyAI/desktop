@@ -847,25 +847,45 @@ public actor AhaKeyRuntimePersistentStore {
         return try decoder.decode(AhaKeyRuntimePolicy.self, from: data)
     }
 
-    /// 当前权威对象的密封 CAS。生产 preflight 只读这里，禁止回退到 package/contract 自身。
-    public func sealedObjectFingerprint(
+    /// 权威对象 canonical content 的 live CAS。只从生产投影入口读写，禁止测试直接密封 digest。
+    public func authoritativeObjectFingerprint(
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws -> AhaKeyRuntimeObjectFingerprint? {
-        guard let data = try metadataValue(for: Self.sealedObjectKey(deviceID)),
-              let hex = String(data: data, encoding: .utf8) else {
+        guard let content = try metadataValue(for: Self.authoritativeObjectKey(deviceID)) else {
             return nil
         }
-        return try AhaKeyRuntimeObjectFingerprint(hex)
+        return try AhaKeyRuntimeObjectFingerprint.hashing(content)
     }
 
-    public func sealObjectFingerprint(
-        _ fingerprint: AhaKeyRuntimeObjectFingerprint,
+    /// 生产入口：设备读回 / 权威 snapshot / schema=1 baseline 换代时原子密封。
+    public func recordAuthoritativeObject(
+        _ canonicalContent: Data,
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws {
+        try Self.execute("BEGIN IMMEDIATE", on: database)
+        do {
+            try persistAuthoritativeObjectUnlocked(canonicalContent, for: deviceID)
+            try Self.execute("COMMIT", on: database)
+        } catch {
+            try? Self.execute("ROLLBACK", on: database)
+            throw error
+        }
+    }
+
+    private func persistAuthoritativeObjectUnlocked(
+        _ canonicalContent: Data,
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws {
+        let fingerprint = try AhaKeyRuntimeObjectFingerprint.hashing(canonicalContent)
+        try upsertMetadata(key: Self.authoritativeObjectKey(deviceID), value: canonicalContent)
         try upsertMetadata(
             key: Self.sealedObjectKey(deviceID),
             value: Data(fingerprint.rawValue.utf8)
         )
+    }
+
+    private static func authoritativeObjectKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
+        "authoritative-object:\(deviceID.rawValue)"
     }
 
     private static func sealedObjectKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
@@ -1060,7 +1080,15 @@ public actor AhaKeyRuntimePersistentStore {
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
             try updateOperationRow(summary, terminalOrder: try allocateTerminalOrder())
-            if let syncBaseline { try upsertSyncBaseline(syncBaseline) }
+            if let syncBaseline {
+                try upsertSyncBaseline(syncBaseline)
+                if existing.package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+                    try persistAuthoritativeObjectUnlocked(
+                        syncBaseline.confirmedConfiguration,
+                        for: syncBaseline.deviceID
+                    )
+                }
+            }
             try Self.execute("COMMIT", on: database)
         } catch {
             try? Self.execute("ROLLBACK", on: database)

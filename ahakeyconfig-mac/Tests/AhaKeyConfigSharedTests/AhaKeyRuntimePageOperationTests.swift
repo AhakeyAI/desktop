@@ -558,6 +558,44 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         }
     }
 
+    func testLightMappingRejectsUnregisteredFirmwareEffectIndex() async throws {
+        XCTAssertThrowsError(
+            try AhaKeyRuntimeLightMappingRow(mode: 0, effects: Array(repeating: 0xff, count: 9))
+        )
+        var illegal = lightMappingPlan()
+        illegal.lightMappingRows = [0: Array(repeating: 0xff, count: 9)]
+        XCTAssertThrowsError(
+            try AhaKeyRuntimeCompatibilityFingerprint.make(plan: illegal, profile: .legacyStandard)
+        )
+
+        let package = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: lightMappingPlan(),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: []
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(package)) as? [String: Any]
+        )
+        try mutateFingerprint(in: &object) { fingerprint in
+            var rows = try XCTUnwrap(fingerprint["lightMappingRows"] as? [[String: Any]])
+            rows[0]["effects"] = Array(repeating: 255, count: 9)
+            fingerprint["lightMappingRows"] = rows
+        }
+        let tampered = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertThrowsError(try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: tampered))
+
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: [:]) { root in
+            try mutateFingerprint(in: &root) { fingerprint in
+                var rows = try XCTUnwrap(fingerprint["lightMappingRows"] as? [[String: Any]])
+                rows[0]["effects"] = Array(repeating: 255, count: 9)
+                fingerprint["lightMappingRows"] = rows
+            }
+        }
+    }
+
     func testConfirmationLedgerRejectsIllegalCombinationsAndRequiresPendingExactness() throws {
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         let resource = try verifiedGIF(Data("gif".utf8))

@@ -394,6 +394,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         )
         let keyExec = try AhaKeyRuntimePageSemantic.executionPlan(package: keyPackage, userSlotLimit: 64)
         XCTAssertEqual(keyExec.identities.count, 1)
+        XCTAssertTrue(keyExec.steps[0].writesDevice)
         guard case .setKeyShortcut(_, _, let codes) = keyExec.steps[0].program.first else {
             return XCTFail("key page 必须映射 shortcut 程序")
         }
@@ -403,6 +404,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let local = try AhaKeyRuntimePageSemantic.executionPlan(package: status, userSlotLimit: 64)
         XCTAssertEqual(local.steps.count, 1)
         XCTAssertEqual(local.steps[0].program, [])
+        XCTAssertFalse(local.steps[0].writesDevice)
         XCTAssertTrue(local.steps[0].identity.rawValue.hasPrefix("page:local:"))
     }
 
@@ -475,11 +477,12 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
             }
             return .retryableFailure
         }
-        XCTAssertEqual(paused, .resumablePartial)
+        XCTAssertEqual(paused, .paused)
         let confirmed = try await store.confirmedSteps(for: package.operationID)
         XCTAssertEqual(confirmed.count, 1)
         XCTAssertTrue(confirmed[0].rawValue.hasPrefix("page:local:"))
-        XCTAssertFalse(AhaKeyRuntimePageSemantic.hasDeviceConfirmation(confirmed))
+        let execPlan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        XCTAssertFalse(AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: execPlan))
 
         var resumed: [String] = []
         let conflicted = try await runPage(
@@ -494,7 +497,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
             resumed.append(step.rawValue)
             return .success
         }
-        XCTAssertEqual(conflicted, .failedWithPartialCommit)
+        XCTAssertEqual(conflicted, .failedWithoutWrites)
         XCTAssertEqual(resumed, [])
     }
 
@@ -544,6 +547,187 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         }
         XCTAssertEqual(conflicted, .failedWithoutWrites)
         XCTAssertEqual(resumed, [])
+    }
+
+    func testDeviceConfirmedResumeAllowsMissingLiveCAS() async throws {
+        let fixture = try pictureFixture(frames: 1)
+        let package = try assemble(fixture, profile: .legacyStandard, device: "DEV-A")
+        let files = try writeResources(fixture)
+        var first = true
+        let paused = try await runPage(
+            package,
+            files: files,
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
+        ) { _ in
+            if first {
+                first = false
+                return .success
+            }
+            return .retryableFailure
+        }
+        XCTAssertEqual(paused, .resumablePartial)
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        XCTAssertEqual(confirmed.count, 1)
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        XCTAssertTrue(AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan))
+
+        var resumed: [String] = []
+        let completed = try await runPage(
+            package,
+            files: files,
+            context: .standard,
+            preconditions: AhaKeyRuntimePageExecutionPreconditions(
+                deviceID: package.targetDeviceID,
+                profile: .legacyStandard,
+                baseObjectFingerprint: nil
+            )
+        ) { step in
+            resumed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(completed, .completed)
+        XCTAssertFalse(resumed.contains(confirmed[0].rawValue))
+    }
+
+    func testMappingRejectAndPermanentFailureClassifyByDeviceWrites() async throws {
+        let zeroSlot = AhaKeyOLEDCompatibilityContext(
+            negotiation: .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: true),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        XCTAssertEqual(zeroSlot.layout.userSlotLimit, 0)
+
+        var executed: [String] = []
+        let zeroWriteMap = try statusPackage(device: "DEV-MAP", operation: .init(), seed: "map-zero")
+        let mapped = try await runPage(
+            zeroWriteMap,
+            context: zeroSlot,
+            preconditions: matchingPreconditions(zeroWriteMap, profile: .legacyStandard)
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(mapped, .failedWithoutWrites)
+        XCTAssertEqual(executed, [])
+        let zeroRecord = try await store.transaction(zeroWriteMap.operationID)
+        XCTAssertEqual(zeroRecord?.messageCode, .configurationPlanRejected)
+
+        let fixture = try pictureFixture(frames: 1)
+        let hasWritePackage = try assemble(fixture, profile: .legacyStandard, device: "DEV-MAP-W")
+        let files = try writeResources(fixture)
+        var first = true
+        let paused = try await runPage(
+            hasWritePackage,
+            files: files,
+            context: .standard,
+            preconditions: matchingPreconditions(hasWritePackage, profile: .legacyStandard)
+        ) { _ in
+            if first {
+                first = false
+                return .success
+            }
+            return .retryableFailure
+        }
+        XCTAssertEqual(paused, .resumablePartial)
+        executed.removeAll()
+        let mappedWithWrites = try await runPage(
+            hasWritePackage,
+            files: files,
+            context: zeroSlot,
+            preconditions: matchingPreconditions(hasWritePackage, profile: .legacyStandard)
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(mappedWithWrites, .failedWithPartialCommit)
+        XCTAssertEqual(executed, [])
+        let writeRecord = try await store.transaction(hasWritePackage.operationID)
+        XCTAssertEqual(writeRecord?.messageCode, .configurationPlanRejected)
+
+        executed.removeAll()
+        let localFail = try statusPackage(device: "DEV-PERM", operation: .init(), seed: "perm-local")
+        let localPermanent = try await runPage(
+            localFail,
+            context: .standard,
+            preconditions: matchingPreconditions(localFail, profile: .legacyStandard)
+        ) { step in
+            executed.append(step.rawValue)
+            return .permanentFailure
+        }
+        XCTAssertEqual(localPermanent, .failedWithoutWrites)
+        XCTAssertEqual(executed.count, 1)
+        let localConfirmed = try await store.confirmedSteps(for: localFail.operationID)
+        XCTAssertEqual(localConfirmed, [])
+
+        let fps = AhaKeyStudioFieldID.screenFramesPerSecond(modeSlot: 0)
+        let status = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let localPlan = AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [fps, status],
+            values: [fps: .integer(12), status: .text("hello")],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: nil,
+            emitsSetActiveSetOpcode: false,
+            statusLine: "hello",
+            framesPerSecond: 12
+        )
+        let localThenFail = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: localPlan,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV-PERM-2"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: []
+        )
+        var seenLocal = 0
+        let localThenPermanent = try await runPage(
+            localThenFail,
+            context: .standard,
+            preconditions: matchingPreconditions(localThenFail, profile: .legacyStandard)
+        ) { _ in
+            seenLocal += 1
+            if seenLocal == 1 { return .success }
+            return .permanentFailure
+        }
+        XCTAssertEqual(localThenPermanent, .failedWithoutWrites)
+        let afterLocal = try await store.confirmedSteps(for: localThenFail.operationID)
+        XCTAssertEqual(afterLocal.count, 1)
+        XCTAssertFalse(
+            AhaKeyRuntimePageSemantic.hasDeviceWrites(
+                confirmed: afterLocal,
+                plan: try AhaKeyRuntimePageSemantic.executionPlan(
+                    package: localThenFail,
+                    userSlotLimit: 64
+                )
+            )
+        )
+    }
+
+    func testCancelClassifiesLocalConfirmAsZeroDeviceWrites() async throws {
+        let package = try statusPackage(device: "DEV-CANCEL", seed: "queued-local")
+        try await store.accept(package, resourceFiles: [:])
+        let runner = AhaKeyConfigurationTransactionRunner(store: store)
+        try await runner.requestCancel(operationID: package.operationID)
+        let settled = try await runner.settleCancellation(operationID: package.operationID)
+        XCTAssertEqual(settled, .failedWithoutWrites)
+
+        let localID = try AhaKeyRuntimeStepIdentifier("page:local:screenStatusLine:0")
+        XCTAssertEqual(
+            AhaKeyConfigurationTransactionEngine.settleCancellation(
+                confirmedSteps: [localID],
+                hasWrites: false
+            ),
+            .commitTerminal(.failedWithoutWrites)
+        )
+        XCTAssertEqual(
+            AhaKeyConfigurationTransactionEngine.settleCancellation(
+                confirmedSteps: [try AhaKeyRuntimeStepIdentifier("page:chunk:0")],
+                hasWrites: true
+            ),
+            .persistState(.resumablePartial)
+        )
     }
 
     // MARK: - helpers

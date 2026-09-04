@@ -134,23 +134,6 @@ public struct AhaKeyConfigurationTransactionRunner {
         execute: StepExecutor
     ) async throws -> AhaKeyRuntimeOperationState {
         let confirmed = try await store.confirmedSteps(for: package.operationID)
-        do {
-            try AhaKeyRuntimePageSemantic.evaluatePreflight(
-                package: package,
-                preconditions: pagePreconditions,
-                hasDeviceConfirmation: AhaKeyRuntimePageSemantic.hasDeviceConfirmation(confirmed)
-            )
-        } catch {
-            return try await finishTerminal(
-                package: package,
-                hasWrites: !confirmed.isEmpty,
-                messageCode: .configurationPreflightConflict
-            )
-        }
-        let queue = try await store.durableDeviceQueue(package.targetDeviceID)
-        if queue.isBlocked(package.operationID) {
-            return try await store.transaction(package.operationID)?.state ?? .accepted
-        }
         let pagePlan: AhaKeyRuntimePageExecutionPlan
         do {
             pagePlan = try AhaKeyRuntimePageSemantic.executionPlan(
@@ -160,13 +143,35 @@ public struct AhaKeyConfigurationTransactionRunner {
         } catch {
             return try await finishTerminal(
                 package: package,
-                hasWrites: !confirmed.isEmpty,
+                hasWrites: pageDeviceWrites(package: package, confirmed: confirmed),
                 messageCode: .configurationPlanRejected
             )
+        }
+        let hasDeviceWrites = AhaKeyRuntimePageSemantic.hasDeviceWrites(
+            confirmed: confirmed,
+            plan: pagePlan
+        )
+        do {
+            try AhaKeyRuntimePageSemantic.evaluatePreflight(
+                package: package,
+                preconditions: pagePreconditions,
+                hasDeviceWrites: hasDeviceWrites
+            )
+        } catch {
+            return try await finishTerminal(
+                package: package,
+                hasWrites: hasDeviceWrites,
+                messageCode: .configurationPreflightConflict
+            )
+        }
+        let queue = try await store.durableDeviceQueue(package.targetDeviceID)
+        if queue.isBlocked(package.operationID) {
+            return try await store.transaction(package.operationID)?.state ?? .accepted
         }
         return try await runResolved(
             package: package,
             allSteps: pagePlan.identities,
+            pagePlan: pagePlan,
             execute: execute
         )
     }
@@ -174,9 +179,16 @@ public struct AhaKeyConfigurationTransactionRunner {
     private func runResolved(
         package: AhaKeyConfigurationPackage,
         allSteps: [AhaKeyRuntimeStepIdentifier],
+        pagePlan: AhaKeyRuntimePageExecutionPlan? = nil,
         execute: StepExecutor
     ) async throws -> AhaKeyRuntimeOperationState {
         var confirmed = try await store.confirmedSteps(for: package.operationID)
+        func hasWrites() -> Bool {
+            if let pagePlan {
+                return AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: pagePlan)
+            }
+            return !confirmed.isEmpty
+        }
         let totalSteps = UInt32(allSteps.count)
         var capturedMessageCode: AhaKeyRuntimeEventCode?
         var capturedContext: AhaKeyRuntimeOperationFailureContext?
@@ -184,7 +196,8 @@ public struct AhaKeyConfigurationTransactionRunner {
             event: .start,
             record: try await store.transaction(package.operationID),
             confirmedSteps: confirmed,
-            allSteps: allSteps
+            allSteps: allSteps,
+            hasWrites: hasWrites()
         )
         while true {
             if let settled = try await settleCancellation(operationID: package.operationID) {
@@ -218,7 +231,8 @@ public struct AhaKeyConfigurationTransactionRunner {
                         event: .stepSucceeded(step),
                         record: try await store.transaction(package.operationID),
                         confirmedSteps: confirmed,
-                        allSteps: allSteps
+                        allSteps: allSteps,
+                        hasWrites: hasWrites()
                     )
                 } else {
                     capturedMessageCode = report.messageCode
@@ -227,7 +241,8 @@ public struct AhaKeyConfigurationTransactionRunner {
                         event: report.retryable ? .stepFailedRetryable(step) : .stepFailedPermanent(step),
                         record: try await store.transaction(package.operationID),
                         confirmedSteps: confirmed,
-                        allSteps: allSteps
+                        allSteps: allSteps,
+                        hasWrites: hasWrites()
                     )
                 }
             case .commitCompleted:
@@ -264,7 +279,16 @@ public struct AhaKeyConfigurationTransactionRunner {
         guard let record = try await store.transaction(operationID),
               record.state == .cancellationRequested else { return nil }
         let confirmed = try await store.confirmedSteps(for: operationID)
-        switch AhaKeyConfigurationTransactionEngine.settleCancellation(confirmedSteps: confirmed) {
+        let hasWrites: Bool
+        if record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+            hasWrites = pageDeviceWrites(package: record.package, confirmed: confirmed)
+        } else {
+            hasWrites = !confirmed.isEmpty
+        }
+        switch AhaKeyConfigurationTransactionEngine.settleCancellation(
+            confirmedSteps: confirmed,
+            hasWrites: hasWrites
+        ) {
         case .commitTerminal(let state):
             try await store.commitOperationOutcome(
                 AhaKeyRuntimeOperationSummary(
@@ -363,6 +387,17 @@ public struct AhaKeyConfigurationTransactionRunner {
                 failureContext: failureContext
             )
         )
+    }
+
+    private func pageDeviceWrites(
+        package: AhaKeyConfigurationPackage,
+        confirmed: [AhaKeyRuntimeStepIdentifier]
+    ) -> Bool {
+        let plan = try? AhaKeyRuntimePageSemantic.executionPlan(
+            package: package,
+            userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
+        )
+        return AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan)
     }
 
     private func finishTerminal(

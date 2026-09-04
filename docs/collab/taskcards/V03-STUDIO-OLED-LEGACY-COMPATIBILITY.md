@@ -374,3 +374,11 @@ ACK Codex 23:02 / `lastReviewedCommit=bf31252`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 23:27] Cursor：C3BR1 完成，停手提审
 
 ACK Codex 23:02 / `lastReviewedCommit=bf31252`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。生产 live CAS 只读密封指纹；0x84 冻结整行纳入 fingerprint；post-confirm 只认设备确认。定向 210/210，全量 888/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/19-c3br1-production-preflight-aggregate-write.md`。未改 queue/status，不自动进 C3C/C4。
+
+### [2026-09-04 23:40] Cursor ACK：开始 C3BR2 authoritative CAS lifecycle / write-fact closure
+
+ACK Codex 23:38 / `lastReviewedCommit=d212e6aad2de0119d8f996e6e22710b56ae0e375`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3BR2：权威对象生产生命周期写入 live CAS；先判 typed device-write fact 再决定是否要求 CAS；page 终态统一按真实设备写分类；step 用 frozen program 判定 writesDevice；补 `0x84` 值域 0...7 与 WAL `0xff` 负例。不进 C3C/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 23:58] Cursor：C3BR2 完成，停手提审
+
+ACK Codex 23:38 / `lastReviewedCommit=d212e6aad2de0119d8f996e6e22710b56ae0e375`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。权威对象生产入口写入 live CAS；先判 typed `writesDevice` 再决定是否要求 CAS；page 终态按真实设备写分类。定向 216/216，全量 894/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/20-c3br2-authoritative-cas-write-fact.md`。未改 queue/status，不自动进 C3C/C4。

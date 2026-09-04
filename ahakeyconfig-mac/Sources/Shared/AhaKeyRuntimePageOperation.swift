@@ -451,8 +451,12 @@ public struct AhaKeyRuntimeLightMappingRow: Codable, Equatable, Hashable, Sendab
     public let mode: UInt8
     public let effects: [UInt8]
 
+    /// 固件 0x84 已登记 effect index：0=off … 7=middleLight。
+    public static let registeredFirmwareEffectIndices: ClosedRange<UInt8> = 0...7
+
     public init(mode: UInt8, effects: [UInt8]) throws {
-        guard effects.count == 9 else {
+        guard effects.count == 9,
+              effects.allSatisfy({ Self.registeredFirmwareEffectIndices.contains($0) }) else {
             throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
         }
         self.mode = mode

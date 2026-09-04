@@ -84,11 +84,13 @@ public enum AhaKeyConfigurationTransactionEngine {
     }
 
     /// schema=2 页面执行：步骤全集来自冻结 page plan，禁止再经 planner 展开 `base:mode:*`。
+    /// `hasWrites` 由调用方按 typed device-write fact 传入；缺省回退到任意已确认步骤（schema=1）。
     public static func decide(
         event: Event,
         record: AhaKeyRuntimePersistedTransaction?,
         confirmedSteps: [AhaKeyRuntimeStepIdentifier],
-        allSteps: [AhaKeyRuntimeStepIdentifier]
+        allSteps: [AhaKeyRuntimeStepIdentifier],
+        hasWrites: Bool? = nil
     ) -> [Action] {
         guard let record else { return [.none] }
         // 终态不再响应任何事件
@@ -96,7 +98,7 @@ public enum AhaKeyConfigurationTransactionEngine {
 
         let confirmed = Set(confirmedSteps)
         let nextStep = allSteps.first(where: { !confirmed.contains($0) })
-        let hasWrites = !confirmed.isEmpty
+        let hasWrites = hasWrites ?? !confirmedSteps.isEmpty
 
         switch event {
         case .start:
@@ -132,8 +134,11 @@ public enum AhaKeyConfigurationTransactionEngine {
     /// 取消请求的终态结算：执行器在「当前步收尾后」调用。
     /// 无写入 → failedWithoutWrites；有写入 → resumablePartial（保可恢复，不强制失败）。
     public static func settleCancellation(
-        confirmedSteps: [AhaKeyRuntimeStepIdentifier]
+        confirmedSteps: [AhaKeyRuntimeStepIdentifier],
+        hasWrites: Bool? = nil
     ) -> Action {
-        confirmedSteps.isEmpty ? .commitTerminal(.failedWithoutWrites) : .persistState(.resumablePartial)
+        (hasWrites ?? !confirmedSteps.isEmpty)
+            ? .persistState(.resumablePartial)
+            : .commitTerminal(.failedWithoutWrites)
     }
 }

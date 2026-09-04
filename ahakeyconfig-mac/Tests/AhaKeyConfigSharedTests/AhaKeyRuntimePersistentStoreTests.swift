@@ -1328,6 +1328,88 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(replayed, first.operationID)
     }
 
+    func testAuthoritativeObjectFingerprintFollowsProductionProjection() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let first = Data("authoritative-v1".utf8)
+        try await store.recordAuthoritativeObject(first, for: device)
+        let sealed = try await store.authoritativeObjectFingerprint(for: device)
+        XCTAssertEqual(sealed, try AhaKeyRuntimeObjectFingerprint.hashing(first))
+
+        let second = Data("authoritative-v2".utf8)
+        try await store.recordAuthoritativeObject(second, for: device)
+        let updated = try await store.authoritativeObjectFingerprint(for: device)
+        XCTAssertEqual(updated, try AhaKeyRuntimeObjectFingerprint.hashing(second))
+        XCTAssertNotEqual(updated, sealed)
+
+        let schema1 = try makePackage()
+        _ = try await store.accept(schema1, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: schema1.operationID,
+                targetDeviceID: schema1.targetDeviceID,
+                state: .running,
+                completedSteps: 1,
+                totalSteps: 1
+            )
+        )
+        try await store.commitOperationOutcome(
+            .init(
+                id: schema1.operationID,
+                targetDeviceID: schema1.targetDeviceID,
+                state: .completed,
+                completedSteps: 1,
+                totalSteps: 1
+            ),
+            syncBaseline: try .init(
+                deviceID: schema1.targetDeviceID,
+                revision: .init(schema1.baseRevision.rawValue + 1),
+                confirmedConfiguration: schema1.desiredConfiguration
+            )
+        )
+        let fromBaseline = try await store.authoritativeObjectFingerprint(for: schema1.targetDeviceID)
+        XCTAssertEqual(
+            fromBaseline,
+            try AhaKeyRuntimeObjectFingerprint.hashing(schema1.desiredConfiguration)
+        )
+
+        try await store.recordAuthoritativeObject(Data("keep-across-page".utf8), for: device)
+        let beforePage = try await store.authoritativeObjectFingerprint(for: device)
+        let page = try makePageScopedPackage(statusLine: "page-write")
+        _ = try await store.accept(page, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: page.operationID,
+                targetDeviceID: page.targetDeviceID,
+                state: .running,
+                completedSteps: 1,
+                totalSteps: 1
+            )
+        )
+        try await store.commitOperationOutcome(
+            .init(
+                id: page.operationID,
+                targetDeviceID: page.targetDeviceID,
+                state: .completed,
+                completedSteps: 1,
+                totalSteps: 1
+            ),
+            syncBaseline: try .init(
+                deviceID: page.targetDeviceID,
+                revision: .init(page.baseRevision.rawValue + 1),
+                confirmedConfiguration: page.desiredConfiguration
+            )
+        )
+        let afterPage = try await store.authoritativeObjectFingerprint(for: device)
+        XCTAssertEqual(afterPage, beforePage)
+        XCTAssertNotEqual(
+            afterPage,
+            try AhaKeyRuntimeObjectFingerprint.hashing(page.desiredConfiguration)
+        )
+    }
+
     func testTwoDevicesHaveIndependentDurableQueues() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
