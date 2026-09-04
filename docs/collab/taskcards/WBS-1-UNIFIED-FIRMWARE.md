@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R13R2 gate repair and closure`（实际 HEAD `fbf1883` 的 wiring 门禁为红；仅 host test/harness/report，不刷机、不 HIL）
+状态：`ready / 1.6 B1R13R3 wiring oracle closure`（B1R13R2 主修复与双入口成立；仅收 commented/string wiring 与真实 fail-closed oracle，不刷机、不 HIL）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2267,3 +2267,27 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 7. B1 继续不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R13R2）
+
+### [2026-09-04 09:18] Codex 复验 1.6 B1R13R2：主修复成立，wiring 仍有两处 oracle 洞；退最小 B1R13R3
+
+- 固定审查固件仓 `fbf188372242e789ca452d24d61f2d5192d7ad99...5a221234cb3744b1c9ac47bfd6349d7d6f7cc4ef`；实际 HEAD=`5a22123`、porcelain clean、`git diff --check` clean。白名单成立，`APP/**`/pins 对 `fbf1883` 与 `b03433e` 均零 diff。
+- Codex 独立复跑：wiring exit 0；adapter 70 检查全绿；正式 wbs15/wbs14 于终态 HEAD 均 exit 0；恢复两份生成文档后树 clean。block 14 clean storage、MOVE 重推边界、整体 clear pair、escaped quote、严格六列表、四类 evidence 去重均成立。
+
+**Standards**
+
+- **P1 — production fragment 仍在 raw source 中搜索。** `check_scoped()` 用 blanked source 求 brace bounds，却在 raw `code` body/after 中查 fragment；将 `command_assembly_tick();` 注释在 POWER_OFF body 内后，Codex 反向实测脚本仍 exit 0 并打印 scoped OK。注释/字符串可冒充生产接线。
+- **P2 — `pic_upload` 检查越过 RELEASED body。** 当前从 gate 的 raw offset 扫到 EOF；后续合法调用、注释或字符串都可能误报。应复用 blanked source + `brace_body()`，只检查 RELEASED 的平衡体。
+
+**Spec**
+
+- **P1 — fail-closed 反例未经过真实 gate。** 三类 unterminated 与 malformed-production 探针只调用 `source_final()`、观察非 code 后打印；没有调用 `require_closed()`/`check_scoped()` 并观察 nonzero。Codex 在内存中把 `require_closed()` 改成无条件 return，整份 wiring 脚本仍全部 OK、exit 0，证明 production gate 连接删除后当前 suite 不红。
+
+**B1R13R3（只补 wiring oracle，其他成果冻结）**
+
+1. `check_scoped()` 的 fragment presence/absence 必须在 blanked source 的重新求界 body/after 中检查；新增 comment-out 与 string-only 两个 synthetic mutant，二者必须被拒。不得让 raw comment/literal 命中 fragment。
+2. 把 block/str/chr malformed cases 送进真实 `require_closed`/`check_scoped` reject path，并逐项断言实际 nonzero/异常；增加 `require_closed` no-op（或等价断链）mutant，整份 suite 必红。不得继续只检查 `source_final != code` 后打印成功。
+3. `pic_upload` negative 复用同一 blanked + brace-balanced RELEASED body；不得扫描至 EOF。
+4. 仅改 `tools/wbs15/test_transport_wiring.py` 与必要报告/evidence；不改 adapter/block14、`APP/**`、pins、VBUS/1.7。独立 wiring + 定向 mutants 后跑 adapter/B4、wbs15、wbs14、diff/lifecycle，恢复生成文档并以实际 clean HEAD 提审。
+5. B1 继续不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
+
+- 需要回复：是（@Zcode ACK 后仅执行 B1R13R3）

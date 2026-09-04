@@ -826,7 +826,7 @@ AhaType
 | 1.3 | **已验收 @ `9135183`**：Rhino 四状态/双套任务图、caps14 交叉契约、interval 与持久化迁移 | 统一 OLED 状态机 | 1.2 accepted |
 | 1.4 | **已验收 @ `97f0ae8`**：事务化 factory assets 与断电恢复门禁 | 资源模块 | 1.2、1.3 accepted |
 | 1.5 | **实现已验收 @ `b678137`；HIL 待 1.7 后刷机**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
-| 1.6 | **B2A accepted @ `4fb65a8`；B1R13R1 实际 HEAD `fbf1883` 的 wiring 门禁为红，退 B1R13R2**：修 stale-bound MOVE、接通 lexer EOF fail-closed、reset 后 clean assembly、clear-pair MOVE、四 mutant durable evidence及严格六列/provenance/H-E；实机 7A/7B 与 VBUS 行为切换仍待 USER-GATE | 传输回归报告 | 1.2 |
+| 1.6 | **B2A accepted @ `4fb65a8`；B1R13R2 @ `5a22123` 主修复/双入口成立，退最小 B1R13R3**：wiring fragment 改在 blanked scoped body 检查并杀死 comment/string 假接线；unterminated cases 必须走真实 gate reject，补 require_closed 断链 mutant；实机 7A/7B 与 VBUS 行为切换仍待 USER-GATE | 传输回归报告 | 1.2 |
 | 1.7 | 建立 Standard/Rhino 两份资源 pack | 两个量产产物 | 1.4 |
 
 退出条件：同一源码在两种资源变体上通过现有功能回归，除资源外行为一致。
