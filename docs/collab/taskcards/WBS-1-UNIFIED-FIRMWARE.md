@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1 accepted; VBUS B2 decision USER-GATE`（B1 host/static 与报告收口已关闭；生产 VBUS/HIL/刷机/1.7 仍未授权）
+状态：`ready / 1.6 VBUS B2 policy-core implementation`（B1 accepted；用户已冻结 B2 混合策略并开放纯策略核、host oracle、runner 与证据计划；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2313,3 +2313,33 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 1.7、刷机、7A/7B 实机 HIL、push 仍冻结；本 ACK 不构成这些动作的授权。
 
 - 需要回复：是（@用户裁决 VBUS B2 三项策略；Zcode 在裁决前停手）
+
+### [2026-09-04] 用户裁决 VBUS B2：采用 battery-continue / USB hot-init 混合策略；开放 policy-core 实施
+
+**已冻结的产品策略**
+
+1. 拔线后继续电池工作，不自动关机。VBUS loss 必须立即终止 USB attempt，清理 USB owner、command/data latch、打开的 data window 与对应 waiter；BLE 会话保持。
+2. USB attempt 中断不等于用户 operation 终结：同一 operation 进入 `resumablePartial`，保持同一 operation ID；BLE 恢复并重新协商后，从当前对象起点重写，禁止跨通道字节级续传，禁止后续设备任务越过。
+3. 插线、主机唤醒与重新枚举只重置 USB 外设，不自动 `SYS_ResetExecute()`；失败时保持 charge-only + BLE。整机复位仅作为显式恢复手段。
+4. `HAVE_VUSB` 只表示外部供电；只有 `DevConfig != 0` 且 USB 未 suspend 才是可用有线连接。8 秒未枚举进入“仅外部供电”，不得误称已连接或识别为充电器。
+5. charge-only 后，USB bus reset/resume 立即重试；无事件时按 5 s / 15 s / 30 s 有界退避三次，之后静默等待新事件或重新插拔。每次失败完整清理 USB 外设状态，不影响 BLE owner。
+6. 采用 boot 首 tick 稳定采样与 VBUS 去抖；目标稳定窗口 150–300 ms。若当前只能使用 1 Hz tick，暂用连续 2 tick；bus reset 不受 VBUS 去抖延迟。
+7. USB 插线不抢占正在执行的 BLE 配置事务；普通 HID 可立即使用。新 operation 开始时选择一次 transport：稳定枚举 USB 优先，否则 BLE；attempt 执行期间锁定 transport，失败后才允许重新选择。
+8. Studio 后续呈现三态：“USB 已连接”“正在尝试 USB”“仅外部供电 · 配置经蓝牙”。BLE 正常时 charge-only 不报错；仅 USB/BLE 均不可用时提示检查数据线或接口。
+9. 不整体采纳 local 策略：仅选择性采纳首 tick 采样与去抖；拒绝拔线关机与插线硬复位。只有 7B 真机证明 battery-continue 或 USB hot-init 存在稳定、不可恢复的硬件挂死，才重新裁决降级策略。
+
+**本轮开放：VBUS B2 policy-core / host oracle / runner**
+
+- Owner：Zcode；固件仓唯一写者。
+- 可实现纯 `State × Event → Decision/Effect` 策略核与 host 测试，覆盖 VBUS stable attach/loss、8 秒枚举窗、bus reset/resume、5/15/30 秒退避、BLE transaction 不抢占、USB attempt fail/cleanup、同 operation 重试决策。
+- 可补 `tools/wbs16/**` 自动 oracle、7B.1–7B.6 runner、fixture/evidence schema，并同步 `docs/wbs-1.6-usb-ble-vbus-design.md`、`docs/wbs-1.6-transport-regression.md`。
+- runner 必须把物理动作、Hub 型号、睡眠/唤醒命令、时间起点、超时、raw evidence path 和停止条件写实；无法自动执行的项标 `TBD/USER-GATE`，不得预写通过。
+- host oracle 至少钉死：短抖动零转移、稳定边沿恰一次转移；charge-only 退避次数/时间；bus reset 即时恢复；BLE-owned operation 不被 attach 抢占；USB loss 清完整 owner/latch/window；同 operation ID 从对象起点重试；USB/BLE 都不可用才上报用户错误。
+
+**继续冻结**
+
+- `APP/sub_main/main.c`、`usb1_hid.c` 等生产 VBUS 接线本轮不改；policy-core 通过复验后另开 integration slice。
+- 不刷机、不执行 7B 真机动作、不 reboot/logout、不连接量产烧录器、不清 EEPROM、不 push；1.7/WBS 2 继续关闭。
+- 本轮结束必须停手提审，不得以 host 绿色代替 7B 实机结论。
+
+- 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core / host oracle / runner；生产接线与 HIL 仍冻结）
