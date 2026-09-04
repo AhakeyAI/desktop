@@ -826,7 +826,7 @@ AhaType
 | 1.3 | **已验收 @ `9135183`**：Rhino 四状态/双套任务图、caps14 交叉契约、interval 与持久化迁移 | 统一 OLED 状态机 | 1.2 accepted |
 | 1.4 | **已验收 @ `97f0ae8`**：事务化 factory assets 与断电恢复门禁 | 资源模块 | 1.2、1.3 accepted |
 | 1.5 | **实现已验收 @ `b678137`；HIL 待 1.7 后刷机**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
-| 1.6 | **B1 accepted；VBUS B2 policy-core @ `3c6ea80` 退 R2**：R1 已闭合 callback、USB interruption、BLE-only UI、7B.6 与 STEP 白名单；仍需关闭 suspend 裸清 flag 旁路、schema 实例/fail-verdict、7B.1 5/15/30 可观测时序、short/long jitter 真实时间证据与设计/报告 150 mA 原子同步；生产接线、7B HIL、刷机与 1.7 仍未授权 | 传输回归报告 | 1.2 |
+| 1.6 | **B1 accepted；VBUS B2 policy-core @ `580449d` 退 R3**：R2 core/suspend no-op 已通过；仍需闭合 malformed run fail-verdict 与 schema 单一来源、long-jitter 三边沿↔转移关联 + margin、7B.1 收紧时序/静默证据，并清除文档旧 20s/0.5s/1s 口径；生产接线、7B HIL、刷机与 1.7 仍未授权 | 传输回归报告 | 1.2 |
 | 1.7 | 建立 Standard/Rhino 两份资源 pack | 两个量产产物 | 1.4 |
 
 退出条件：同一源码在两种资源变体上通过现有功能回归，除资源外行为一致。

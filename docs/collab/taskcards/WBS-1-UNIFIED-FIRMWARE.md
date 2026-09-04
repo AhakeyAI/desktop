@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 VBUS B2 policy-core R2`（R1 主方向成立，但 suspend 旁路、schema/7B 时间证据与文档同步未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
+状态：`ready / 1.6 VBUS B2 policy-core R3`（R2 core 已闭合，但 schema fail-verdict、long-jitter 关联与文档时间口径仍未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2402,3 +2402,34 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 6. 保留 R1 已通过部分；不改 `main.c`/`usb1_hid.c`/pins，不执行 HIL/刷机/1.7/WBS2/EEPROM/push。新 H+E clean 后复跑 wbs16/wbs15/wbs14/lifecycle/diff，停手提审。
 
 - 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core R2；生产接线与 HIL 仍冻结）
+
+### [2026-09-04 22:10] Codex 复验 VBUS B2 policy-core R2：core 通过，oracle contract 退最小 R3
+
+- 固定审查固件仓 `3c6ea805b9411ad3f8a3ac0bf80a1101e47201ad...580449df5250ac34ef4f23e1e4bdb16df3c13a23`。实际 clean HEAD=`580449d`，H=`08b5c35`、E=`580449d`；范围为 policy header + `tools/wbs16/**` + 报告/设计/生成证据，生产接线/pins 零改，HIL 未执行。
+- Codex 独立实测 wbs16/wbs15/wbs14 均 exit 0，lifecycle 连续两次 wbs15 后 exit 0；恢复复跑生成文档后固件树 clean，diff-check clean。
+- 已通过并冻结：`vbus_suspend(s,0)` no-op + 专用 resume 热重启；60 项 policy 套件；short `<0.3s` + strict offset 主体；Hub 150 mA 设计/step 主体；R1 既有 callback/interruption/UI/7B.6/白名单成果。
+
+**Standards**
+
+- **P1 — fail-closed 仍有 traceback 与 verdict 错位。** `run()` 在 try 外解析 run.json，`{bad json` 实测 exit 1 但无 verdict。`events()`/`_require_run_json()` 又以两个参数调用三参 `fail(step, assertion, detail)`，缺 operator 时实际写成 `verdict.step="run.json carries the required fields"`，而非 b2 step。
+- **P1 — long-jitter “每边沿一次转移”仍是计数假证明。** oracle 只查 `len(trans)==len(edges)`；两次 transition 都发生在两条 held edge 之前的反例仍 PASS，且 step 实际是 plug/unplug/replug 三条边沿，oracle 仅要求至少两条。
+- **P2 — schema 手写副本仍漂移。** event 的可选 `phase:string` 与 run 的 `hub_model:string` 未按 schema 校验；`phase=123` 实测可 PASS，生成 verdict 后也未校验 verdict schema。
+- **P2 — 可执行文案仍陈旧。** b2-01 头注释仍写 20 s，实际循环 95 s；回归报告仍写 short `<0.5s`、long `≥1s`，与 oracle/step 的 `<0.3s`/`≥2s` 冲突。
+
+**Spec**
+
+- **P1 — malformed run.json 与完整 schema/verdict 要求未闭合。** R2.2 要求所有 parse/缺失/类型/enum 失败均有合法 fail verdict，且校验 run/events/verdict；当前 self-test 只破坏 events JSON，不破坏 run JSON，也不验 verdict 全结构/真实 step。
+- **P1 — long-jitter 未闭合一一对应与 margin。** R2.4 要求 duration 与转移一一对应且 hold `≥2 ticks + margin`；当前接受恰好 2.0 s，无 margin，不记录边沿方向，不校验转移时序/方向。
+- **P1 — 文档未原子同步。** R2.5 要求文档/step/oracle 阈值完全一致；报告 rows 214–215 仍保留 `<0.5s`/`≥1s`，b2-01 注释仍 20 s。
+- **P2 — 7B.1 “精确”时序窗过宽且未证明 95 s 收尾。** `±3s` 会让错误间隔 2/5/12/5/27/5 全部 PASS；oracle 也不要求 95 份 capture 或 observation-end，不能证明第三次后的静默窗。
+
+**VBUS B2 policy-core R3（仅 oracle/runner/docs 机械收口）**
+
+1. 将 run.json 读取/解析纳入统一受保护入口；所有 validation 失败都显式携带真实 `step, assertion, detail`，verdict.step 必须等于目标 b2 step。补 malformed run JSON、missing events、wrong optional type 和 verdict-field 破坏反例，逐个断言 exit 1 + schema-valid fail verdict。
+2. 用 schema 单一来源覆盖 run/events/verdict 的所有 properties/required/type/enum（包括 `hub_model`、`phase`、`failed_assertion`）；不保留会再漂移的部分手写副本。
+3. b2-04 固定三条边沿 plug→unplug→replug，证据必须编码 direction + duration；每条 edge 后只能有对应的唯一 transition，校验顺序/方向/时间界限。hold 阈值必须是 `2 ticks + 明确 margin`，恰好 2.0 s、少边沿、转移风暴/错位均必红。
+4. 7B.1 将 tolerance 收紧到有 1 Hz 取样依据且不能接受 5→2 s 类偏差；增加 observation-end 或等价完整 capture 证据，明确证明第三次失败后静默至 ≥95 s。
+5. 原子修正 b2-01 头注释、回归报告 rows 214–215 与相关设计/step/oracle 文案；全局检索不得再有旧 20 s/`<0.5s`/`≥1s` 口径。
+6. policy core 与 R1/R2 已通过语义冻结；不改生产接线/pins，不执行 HIL/刷机/1.7/WBS2/EEPROM/push。新 H+E clean 后复跑 wbs16/wbs15/wbs14/lifecycle/diff，停手提审。
+
+- 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core R3；生产接线/HIL 仍冻结）
