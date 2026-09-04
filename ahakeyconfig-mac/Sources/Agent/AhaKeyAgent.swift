@@ -290,6 +290,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var projectionDiagnosticEvents: [AhaKeyRuntimeEvent] = []
     /// 最近发布的设备投影（内容不变不重复发 deviceChanged）。
     private var lastPublishedDeviceSnapshot: AhaKeyRuntimeDeviceSnapshot?
+    /// deviceChanged 触发的 live CAS 持久化；测试 seam 等待该任务完成。
+    private var authoritativeObjectPersistTask: Task<Void, Never>?
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
     /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
@@ -2540,15 +2542,6 @@ extension AhaKeyAgent {
         )
     }
 
-    /// 生产入口：把设备读回 / 权威 snapshot 的 canonical content 密封为 live CAS。
-    func recordAuthoritativeObject(
-        _ canonicalContent: Data,
-        for deviceID: AhaKeyRuntimeDeviceID
-    ) async throws {
-        let store = try await makeRuntimeStore()
-        try await store.recordAuthoritativeObject(canonicalContent, for: deviceID)
-    }
-
     private func releaseProjection(
         for context: AhaKeyOLEDCompatibilityContext
     ) -> AhaKeyReleaseFeatureProjection {
@@ -3192,6 +3185,17 @@ extension AhaKeyAgent {
             sessionGeneration: device.sessionGeneration,
             transportGeneration: device.transportGeneration
         ))
+        let persistTask = Task { await self.persistAuthoritativeObject(from: device) }
+        authoritativeObjectPersistTask = persistTask
+    }
+
+    /// 把 `deviceChanged` 快照上的 canonical object 持久化为 live CAS。
+    private func persistAuthoritativeObject(from device: AhaKeyRuntimeDeviceSnapshot?) async {
+        guard let device,
+              let content = device.authoritativeObject,
+              !content.isEmpty else { return }
+        guard let store = try? await makeRuntimeStore() else { return }
+        try? await store.persistProjectedAuthoritativeObject(content, for: device.id)
     }
 
     /// 当前 BLE 设备状态 → 投影设备快照（无已知设备返回 nil）。仅 main 队列调用。
@@ -3516,9 +3520,11 @@ extension AhaKeyAgent {
     /// 测试 seam：设置模拟设备投影并立即发布 deviceChanged（等效 BLE 连接/断开驱动）。
     /// 配合 executionTestHooks.isReady/capabilities/stepExecutor 可免 BLE 驱动执行路径。
     func simulateDeviceForTesting(_ device: AhaKeyRuntimeDeviceSnapshot?) async {
-        await MainActor.run {
+        let pending = await MainActor.run { () -> Task<Void, Never>? in
             self.setSimulatedDeviceOnMainForTesting(device)
+            return self.authoritativeObjectPersistTask
         }
+        await pending?.value
     }
 
     /// 测试 seam：MainActor 上同步更换模拟设备投影并立即发布 deviceChanged。

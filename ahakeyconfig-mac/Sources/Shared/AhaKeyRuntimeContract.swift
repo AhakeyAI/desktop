@@ -219,6 +219,8 @@ public struct AhaKeyRuntimeDeviceSnapshot: Codable, Equatable, Sendable {
     public let sessionGeneration: AhaKeyRuntimeSessionGeneration
     public let transportGeneration: AhaKeyRuntimeTransportGeneration
     public let state: AhaKeyRuntimeDeviceState
+    /// 设备读回 / 权威对象快照的 canonical content。缺省 nil；换代时带新字节。
+    public let authoritativeObject: Data?
 
     public init(
         id: AhaKeyRuntimeDeviceID,
@@ -230,7 +232,8 @@ public struct AhaKeyRuntimeDeviceSnapshot: Codable, Equatable, Sendable {
         capabilities: Set<AhaKeyRuntimeDeviceCapability> = [],
         sessionGeneration: AhaKeyRuntimeSessionGeneration = .init(0),
         transportGeneration: AhaKeyRuntimeTransportGeneration = .init(0),
-        state: AhaKeyRuntimeDeviceState = .init()
+        state: AhaKeyRuntimeDeviceState = .init(),
+        authoritativeObject: Data? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -242,6 +245,7 @@ public struct AhaKeyRuntimeDeviceSnapshot: Codable, Equatable, Sendable {
         self.sessionGeneration = sessionGeneration
         self.transportGeneration = transportGeneration
         self.state = state
+        self.authoritativeObject = authoritativeObject
     }
 }
 

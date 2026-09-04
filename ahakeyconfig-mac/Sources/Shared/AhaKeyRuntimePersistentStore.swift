@@ -847,7 +847,7 @@ public actor AhaKeyRuntimePersistentStore {
         return try decoder.decode(AhaKeyRuntimePolicy.self, from: data)
     }
 
-    /// 权威对象 canonical content 的 live CAS。只从生产投影入口读写，禁止测试直接密封 digest。
+    /// 权威对象 canonical content 的 live CAS。只从 deviceChanged / schema=1 baseline 投影读写。
     public func authoritativeObjectFingerprint(
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws -> AhaKeyRuntimeObjectFingerprint? {
@@ -857,8 +857,8 @@ public actor AhaKeyRuntimePersistentStore {
         return try AhaKeyRuntimeObjectFingerprint.hashing(content)
     }
 
-    /// 生产入口：设备读回 / 权威 snapshot / schema=1 baseline 换代时原子密封。
-    public func recordAuthoritativeObject(
+    /// `deviceChanged` 权威快照投影：首次取得与后续换代都原子更新 canonical content。
+    public func persistProjectedAuthoritativeObject(
         _ canonicalContent: Data,
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws {
@@ -876,20 +876,11 @@ public actor AhaKeyRuntimePersistentStore {
         _ canonicalContent: Data,
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws {
-        let fingerprint = try AhaKeyRuntimeObjectFingerprint.hashing(canonicalContent)
         try upsertMetadata(key: Self.authoritativeObjectKey(deviceID), value: canonicalContent)
-        try upsertMetadata(
-            key: Self.sealedObjectKey(deviceID),
-            value: Data(fingerprint.rawValue.utf8)
-        )
     }
 
     private static func authoritativeObjectKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
         "authoritative-object:\(deviceID.rawValue)"
-    }
-
-    private static func sealedObjectKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
-        "sealed-object:\(deviceID.rawValue)"
     }
 
     public func reserveEventSequence() throws -> AhaKeyRuntimeEventSequence {

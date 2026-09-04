@@ -1332,51 +1332,19 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
-        let first = Data("authoritative-v1".utf8)
-        try await store.recordAuthoritativeObject(first, for: device)
-        let sealed = try await store.authoritativeObjectFingerprint(for: device)
-        XCTAssertEqual(sealed, try AhaKeyRuntimeObjectFingerprint.hashing(first))
 
-        let second = Data("authoritative-v2".utf8)
-        try await store.recordAuthoritativeObject(second, for: device)
-        let updated = try await store.authoritativeObjectFingerprint(for: device)
-        XCTAssertEqual(updated, try AhaKeyRuntimeObjectFingerprint.hashing(second))
+        let first = try makePackage(desiredConfiguration: Data("configuration-v1".utf8), baseRevision: 7)
+        try await completeSchema1(store, first, nextRevision: 8)
+        let sealed = try await store.authoritativeObjectFingerprint(for: first.targetDeviceID)
+        XCTAssertEqual(sealed, try AhaKeyRuntimeObjectFingerprint.hashing(first.desiredConfiguration))
+
+        let second = try makePackage(desiredConfiguration: Data("configuration-v2".utf8), baseRevision: 8)
+        try await completeSchema1(store, second, nextRevision: 9)
+        let updated = try await store.authoritativeObjectFingerprint(for: second.targetDeviceID)
+        XCTAssertEqual(updated, try AhaKeyRuntimeObjectFingerprint.hashing(second.desiredConfiguration))
         XCTAssertNotEqual(updated, sealed)
 
-        let schema1 = try makePackage()
-        _ = try await store.accept(schema1, resourceFiles: [:])
-        try await store.updateOperation(
-            .init(
-                id: schema1.operationID,
-                targetDeviceID: schema1.targetDeviceID,
-                state: .running,
-                completedSteps: 1,
-                totalSteps: 1
-            )
-        )
-        try await store.commitOperationOutcome(
-            .init(
-                id: schema1.operationID,
-                targetDeviceID: schema1.targetDeviceID,
-                state: .completed,
-                completedSteps: 1,
-                totalSteps: 1
-            ),
-            syncBaseline: try .init(
-                deviceID: schema1.targetDeviceID,
-                revision: .init(schema1.baseRevision.rawValue + 1),
-                confirmedConfiguration: schema1.desiredConfiguration
-            )
-        )
-        let fromBaseline = try await store.authoritativeObjectFingerprint(for: schema1.targetDeviceID)
-        XCTAssertEqual(
-            fromBaseline,
-            try AhaKeyRuntimeObjectFingerprint.hashing(schema1.desiredConfiguration)
-        )
-
-        try await store.recordAuthoritativeObject(Data("keep-across-page".utf8), for: device)
-        let beforePage = try await store.authoritativeObjectFingerprint(for: device)
+        let beforePage = updated
         let page = try makePageScopedPackage(statusLine: "page-write")
         _ = try await store.accept(page, resourceFiles: [:])
         try await store.updateOperation(
@@ -1402,7 +1370,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 confirmedConfiguration: page.desiredConfiguration
             )
         )
-        let afterPage = try await store.authoritativeObjectFingerprint(for: device)
+        let afterPage = try await store.authoritativeObjectFingerprint(for: first.targetDeviceID)
         XCTAssertEqual(afterPage, beforePage)
         XCTAssertNotEqual(
             afterPage,
@@ -1783,14 +1751,47 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
     private func makePackage(
         operationID: AhaKeyRuntimeOperationID = .init(),
         targetDeviceID: String = "TEST-DEVICE",
-        resources: [AhaKeyConfigurationResource] = []
+        resources: [AhaKeyConfigurationResource] = [],
+        desiredConfiguration: Data = Data("configuration-v1".utf8),
+        baseRevision: UInt64 = 7
     ) throws -> AhaKeyConfigurationPackage {
         try AhaKeyConfigurationPackage(
             operationID: operationID,
             targetDeviceID: AhaKeyRuntimeDeviceID(targetDeviceID),
-            baseRevision: .init(7),
-            desiredConfiguration: Data("configuration-v1".utf8),
+            baseRevision: .init(baseRevision),
+            desiredConfiguration: desiredConfiguration,
             resources: resources
+        )
+    }
+
+    private func completeSchema1(
+        _ store: AhaKeyRuntimePersistentStore,
+        _ package: AhaKeyConfigurationPackage,
+        nextRevision: UInt64
+    ) async throws {
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .running,
+                completedSteps: 1,
+                totalSteps: 1
+            )
+        )
+        try await store.commitOperationOutcome(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .completed,
+                completedSteps: 1,
+                totalSteps: 1
+            ),
+            syncBaseline: try .init(
+                deviceID: package.targetDeviceID,
+                revision: .init(nextRevision),
+                confirmedConfiguration: package.desiredConfiguration
+            )
         )
     }
 
