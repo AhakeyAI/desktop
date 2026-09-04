@@ -337,6 +337,48 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
     }
 }
 
+/// 冻结页面写的可执行值：只从 canonical payload 解码，禁止回读草稿路径。
+public struct AhaKeyRuntimeFrozenPageValues: Equatable, Sendable {
+    public let framesPerSecond: Int?
+    public let statusLine: String?
+    public let fieldValues: [AhaKeyStudioFieldID: Value]
+
+    public enum Value: Equatable, Sendable {
+        case text(String)
+        case optionalText(String?)
+        case integer(Int)
+        case keyAction(AhaKeyDesiredConfiguration.KeyAction)
+        case taskAsset(framesPerSecond: Int, declaredFrameCount: Int?)
+    }
+}
+
+extension AhaKeyRuntimeCanonicalPageWrite {
+    public static func frozenValues(from desiredConfiguration: Data) throws -> AhaKeyRuntimeFrozenPageValues {
+        let payload = try JSONDecoder().decode(Payload.self, from: desiredConfiguration)
+        var fieldValues: [AhaKeyStudioFieldID: AhaKeyRuntimeFrozenPageValues.Value] = [:]
+        for item in payload.values {
+            let field = try item.id.fieldID
+            switch item.value {
+            case .text(let text):
+                fieldValues[field] = .text(text)
+            case .optionalText(let text):
+                fieldValues[field] = .optionalText(text)
+            case .integer(let number):
+                fieldValues[field] = .integer(number)
+            case .keyAction(let action):
+                fieldValues[field] = .keyAction(action)
+            case .taskAsset(_, _, _, let fps, let frames, _, _):
+                fieldValues[field] = .taskAsset(framesPerSecond: fps, declaredFrameCount: frames)
+            }
+        }
+        return AhaKeyRuntimeFrozenPageValues(
+            framesPerSecond: payload.framesPerSecond,
+            statusLine: payload.statusLine,
+            fieldValues: fieldValues
+        )
+    }
+}
+
 extension AhaKeyConfigurationPackage {
     public static func assemblePageScoped(
         plan: AhaKeyStudioScopedWritePlan,
@@ -874,6 +916,8 @@ extension AhaKeyStudioPageID: Codable {
 }
 
 extension AhaKeyStudioFieldID: Codable {
+    public var canonicalToken: String { WireFieldID(self).rawValue }
+
     public init(from decoder: Decoder) throws {
         self = try WireFieldID(from: decoder).fieldID
     }
@@ -1047,5 +1091,40 @@ private struct WireFieldID: Codable, Equatable {
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }
         }
+    }
+}
+
+/// schema=1 仍走 planner 受理；schema=2 只校验冻结 page contract 与 CAS digest，禁止解码整机 DesiredConfiguration。
+public struct AhaKeyRuntimeSchemaAwareAcceptanceValidator: AhaKeyRuntimePackageAcceptanceValidator {
+    private let schema1: any AhaKeyRuntimePackageAcceptanceValidator
+
+    public init(schema1: any AhaKeyRuntimePackageAcceptanceValidator = AhaKeyConfigurationPlanner.AcceptanceValidator()) {
+        self.schema1 = schema1
+    }
+
+    public func validate(
+        package: AhaKeyConfigurationPackage,
+        resources: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
+    ) throws {
+        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+            guard let page = package.pageOperation else {
+                throw AhaKeyRuntimeContractError.pageOperationIncomplete
+            }
+            try page.validate(matchingDevice: package.targetDeviceID, resources: package.resources)
+            for resource in package.resources {
+                guard let input = resources[resource.logicalIdentifier] else { continue }
+                let digest = SHA256.hash(data: input.contents)
+                    .map { String(format: "%02x", $0) }
+                    .joined()
+                guard digest == resource.sha256.rawValue else {
+                    throw AhaKeyRuntimePersistenceError.resourceDigestMismatch(resource.logicalIdentifier)
+                }
+                guard input.contents.count == resource.byteCount else {
+                    throw AhaKeyRuntimePersistenceError.resourceByteCountMismatch(resource.logicalIdentifier)
+                }
+            }
+            return
+        }
+        try schema1.validate(package: package, resources: resources)
     }
 }

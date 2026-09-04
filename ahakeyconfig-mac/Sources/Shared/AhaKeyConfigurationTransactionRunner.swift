@@ -62,6 +62,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         resourceFiles: [AhaKeyResourceIdentifier: URL],
         context: AhaKeyOLEDCompatibilityContext,
         release: AhaKeyReleaseFeatureProjection,
+        pagePreconditions: AhaKeyRuntimePageExecutionPreconditions? = nil,
         execute: StepExecutor
     ) async throws -> AhaKeyRuntimeOperationState {
         guard context.allowsIngestAndApply else {
@@ -70,6 +71,15 @@ public struct AhaKeyConfigurationTransactionRunner {
 
         // 1. 受理（WAL accept：CAS 落资源 + 事务记录，幂等）
         try await store.accept(package, resourceFiles: resourceFiles)
+
+        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+            return try await runPageScoped(
+                package: package,
+                context: context,
+                pagePreconditions: pagePreconditions,
+                execute: execute
+            )
+        }
 
         // 2. planner（密封 context + 容量校验）；拒绝即永久失败终态
         guard let desired = try? package.decodedConfigurationModel() else {
@@ -92,21 +102,91 @@ public struct AhaKeyConfigurationTransactionRunner {
                 messageCode: .configurationPlanRejected
             )
         }
+        return try await runResolved(
+            package: package,
+            allSteps: AhaKeyConfigurationTransactionEngine.stepIdentifiers(for: plan),
+            execute: execute
+        )
+    }
 
-        // 3. 决策-执行循环
+    /// 用户取消：schema=1 与 queued schema=2 落 cancellationRequested；
+    /// running/paused/resumable 的 schema=2 page operation 拒绝普通取消。
+    public func requestCancel(operationID: AhaKeyRuntimeOperationID) async throws {
+        guard let record = try await store.transaction(operationID), !record.state.isTerminal else { return }
+        if record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+            switch record.state {
+            case .running, .paused, .resumablePartial:
+                throw AhaKeyConfigurationCancelError.refusedWhileActive
+            case .accepted, .cancellationRequested:
+                break
+            case .completed, .failedWithoutWrites, .failedWithPartialCommit:
+                return
+            }
+        }
+        try await persistNonTerminal(.cancellationRequested, package: record.package,
+                               completed: record.completedSteps, total: record.totalSteps)
+    }
+
+    private func runPageScoped(
+        package: AhaKeyConfigurationPackage,
+        context: AhaKeyOLEDCompatibilityContext,
+        pagePreconditions: AhaKeyRuntimePageExecutionPreconditions?,
+        execute: StepExecutor
+    ) async throws -> AhaKeyRuntimeOperationState {
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        do {
+            try AhaKeyRuntimePageSemantic.evaluatePreflight(
+                package: package,
+                preconditions: pagePreconditions,
+                confirmedCount: confirmed.count
+            )
+        } catch {
+            return try await finishTerminal(
+                package: package,
+                hasWrites: !confirmed.isEmpty,
+                messageCode: .configurationPreflightConflict
+            )
+        }
+        let queue = try await store.durableDeviceQueue(package.targetDeviceID)
+        if queue.isBlocked(package.operationID) {
+            return try await store.transaction(package.operationID)?.state ?? .accepted
+        }
+        let pagePlan: AhaKeyRuntimePageExecutionPlan
+        do {
+            pagePlan = try AhaKeyRuntimePageSemantic.executionPlan(
+                package: package,
+                userSlotLimit: context.layout.userSlotLimit
+            )
+        } catch {
+            return try await finishTerminal(
+                package: package,
+                hasWrites: !confirmed.isEmpty,
+                messageCode: .configurationPlanRejected
+            )
+        }
+        return try await runResolved(
+            package: package,
+            allSteps: pagePlan.identities,
+            execute: execute
+        )
+    }
+
+    private func runResolved(
+        package: AhaKeyConfigurationPackage,
+        allSteps: [AhaKeyRuntimeStepIdentifier],
+        execute: StepExecutor
+    ) async throws -> AhaKeyRuntimeOperationState {
         var confirmed = try await store.confirmedSteps(for: package.operationID)
-        let totalSteps = UInt32(AhaKeyConfigurationTransactionEngine.stepIdentifiers(for: plan).count)
+        let totalSteps = UInt32(allSteps.count)
         var capturedMessageCode: AhaKeyRuntimeEventCode?
         var capturedContext: AhaKeyRuntimeOperationFailureContext?
         var actions = AhaKeyConfigurationTransactionEngine.decide(
             event: .start,
             record: try await store.transaction(package.operationID),
             confirmedSteps: confirmed,
-            plan: plan
+            allSteps: allSteps
         )
         while true {
-            // 步间安全点：用户取消在当前步完成后生效——重读 WAL 取消态，
-            // 已有 cancellationRequested 时立即转入取消结算，绝不继续下一步。
             if let settled = try await settleCancellation(operationID: package.operationID) {
                 return settled
             }
@@ -132,20 +212,23 @@ public struct AhaKeyConfigurationTransactionRunner {
                 if report.success {
                     capturedMessageCode = nil
                     capturedContext = nil
-                    // 先落 WAL 再决策（崩溃即恢复点）
                     try await store.confirmStep(step, for: package.operationID)
                     confirmed = try await store.confirmedSteps(for: package.operationID)
                     actions = AhaKeyConfigurationTransactionEngine.decide(
                         event: .stepSucceeded(step),
                         record: try await store.transaction(package.operationID),
-                        confirmedSteps: confirmed, plan: plan)
+                        confirmedSteps: confirmed,
+                        allSteps: allSteps
+                    )
                 } else {
                     capturedMessageCode = report.messageCode
                     capturedContext = report.context
                     actions = AhaKeyConfigurationTransactionEngine.decide(
                         event: report.retryable ? .stepFailedRetryable(step) : .stepFailedPermanent(step),
                         record: try await store.transaction(package.operationID),
-                        confirmedSteps: confirmed, plan: plan)
+                        confirmedSteps: confirmed,
+                        allSteps: allSteps
+                    )
                 }
             case .commitCompleted:
                 let baseline = try AhaKeyRuntimeSyncBaseline(
@@ -174,13 +257,6 @@ public struct AhaKeyConfigurationTransactionRunner {
                 return state
             }
         }
-    }
-
-    /// 用户取消：落 cancellationRequested；当前步收尾后由调用方结算。
-    public func requestCancel(operationID: AhaKeyRuntimeOperationID) async throws {
-        guard let record = try await store.transaction(operationID), !record.state.isTerminal else { return }
-        try await persistNonTerminal(.cancellationRequested, package: record.package,
-                               completed: record.completedSteps, total: record.totalSteps)
     }
 
     /// 取消结算（执行器在步间安全点调用）。

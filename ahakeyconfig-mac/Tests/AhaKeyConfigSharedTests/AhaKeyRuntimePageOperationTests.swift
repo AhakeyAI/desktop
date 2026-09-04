@@ -137,6 +137,15 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             try AhaKeyRuntimePageSemantic.picturePrepareCount(encodedFrameCount: 1)
         )
         XCTAssertEqual(try AhaKeyRuntimePageSemantic.picturePrepareCount(encodedFrameCount: 1), 7)
+        XCTAssertEqual(
+            try AhaKeyRuntimePageSemantic.physicalSlot(profile: .legacyStandard, logicalSet: 1),
+            0
+        )
+        XCTAssertEqual(
+            try AhaKeyRuntimeCompatibilityFingerprint.Family.make(.legacyStandard)
+                .physicalSlot(forLogicalSet: 1),
+            0
+        )
         XCTAssertNil(pictureA.defaultBindOpcode)
         XCTAssertEqual(
             pictureA.actions[0].resourceIdentity,
@@ -183,6 +192,58 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 AhaKeyRuntimeCompatibilityFingerprint.self,
                 from: try JSONSerialization.data(withJSONObject: object)
             )
+        )
+    }
+
+    func testPrepareStrategyMatchesProductionUploadForTwoFramesAndTwoResources() throws {
+        try assertPrepareIsomorphism(
+            profile: .legacyStandard,
+            expectedOpcode: AhaKeyWireFrameBuilder.cmdPrepareWrite,
+            usesSession: false,
+            specs: [
+                (bytes: Data("gif-a".utf8), logicalSet: 0, state: .working, frames: 2),
+                (bytes: Data("gif-b".utf8), logicalSet: 0, state: .waiting, frames: 2),
+            ]
+        )
+        try assertPrepareIsomorphism(
+            profile: .rhinoDualSet(sessionUploadAdvertised: true),
+            expectedOpcode: AhaKeyWireFrameBuilder.cmdPrepareSessionWrite,
+            usesSession: true,
+            specs: [
+                (bytes: Data("gif-a".utf8), logicalSet: 0, state: .working, frames: 2),
+                (bytes: Data("gif-b".utf8), logicalSet: 1, state: .working, frames: 2),
+            ]
+        )
+        try assertPrepareIsomorphism(
+            profile: .currentSessionCapable,
+            expectedOpcode: AhaKeyWireFrameBuilder.cmdPrepareSessionWrite,
+            usesSession: true,
+            specs: [
+                (bytes: Data("gif-a".utf8), logicalSet: 0, state: .working, frames: 2),
+                (bytes: Data("gif-b".utf8), logicalSet: 1, state: .working, frames: 2),
+            ]
+        )
+    }
+
+    func testPhysicalSlotGenerationAndValidationShareFamilyDescriptor() throws {
+        XCTAssertEqual(
+            try AhaKeyRuntimePageSemantic.physicalSlot(profile: .legacyStandard, logicalSet: 1),
+            try AhaKeyRuntimeCompatibilityFingerprint.Family.make(.legacyStandard)
+                .physicalSlot(forLogicalSet: 1)
+        )
+        XCTAssertEqual(
+            try AhaKeyRuntimePageSemantic.physicalSlot(
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                logicalSet: 1
+            ),
+            try AhaKeyRuntimeCompatibilityFingerprint.Family.make(
+                .rhinoDualSet(sessionUploadAdvertised: false)
+            ).physicalSlot(forLogicalSet: 1)
+        )
+        XCTAssertEqual(
+            try AhaKeyRuntimePageSemantic.physicalSlot(profile: .currentSessionCapable, logicalSet: 1),
+            try AhaKeyRuntimeCompatibilityFingerprint.Family.make(.currentSessionCapable)
+                .physicalSlot(forLogicalSet: 1)
         )
     }
 
@@ -714,12 +775,153 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         let sourceBytes: [AhaKeyResourceIdentifier: Data]
     }
 
+    private func assertPrepareIsomorphism(
+        profile: AhaKeyOLEDCompatibilityProfile,
+        expectedOpcode: UInt8,
+        usesSession: Bool,
+        specs: [(bytes: Data, logicalSet: Int, state: AhaKeyDesiredConfiguration.TaskDisplayState, frames: Int)]
+    ) throws {
+        let fixture = try multiPicturePlan(profile: profile, specs: specs)
+        let fingerprint = try AhaKeyRuntimeCompatibilityFingerprint.make(
+            plan: fixture.plan,
+            profile: profile,
+            verifiedResources: fixture.resources
+        )
+        let strategy = try XCTUnwrap(fingerprint.prepareStrategy)
+        XCTAssertEqual(strategy.opcode, expectedOpcode)
+        XCTAssertEqual(strategy.perChunk, true)
+        let package = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: fixture.plan,
+            profile: profile,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: fixture.resources
+        )
+        let pagePlan = try AhaKeyRuntimePageSemantic.executionPlan(
+            package: package,
+            userSlotLimit: 288
+        )
+        XCTAssertFalse(pagePlan.identities.contains { $0.rawValue.hasPrefix("base:mode:") })
+        var expectedTotal = 0
+        var productionPrepares: [(length: Int, address: UInt32, session: Bool)] = []
+        var planPrepares: [(length: Int, address: UInt32, session: Bool)] = []
+        for (index, binding) in package.pageOperation!.resourceBindings.sorted(by: {
+            $0.fieldID < $1.fieldID
+        }).enumerated() {
+            let frames = Int(binding.encodedFrameCount)
+            XCTAssertGreaterThanOrEqual(frames, 2)
+            let count = try strategy.prepareCount(encodedFrameCount: frames)
+            expectedTotal += count
+            let production = try XCTUnwrap(
+                AhaKeyConfigurationStepMapper.resourceUploadProgram(
+                    digest: binding.sha256,
+                    slotIndex: index,
+                    encodedFrameCount: frames,
+                    usesSessionUpload: usesSession,
+                    userSlotLimit: 288
+                )
+            )
+            productionPrepares.append(contentsOf: prepareSignatures(production, usesSession: usesSession))
+            let chunkSteps = pagePlan.steps.filter {
+                $0.resourceID == binding.logicalID && $0.identity.rawValue.hasPrefix("page:chunk:")
+            }
+            XCTAssertEqual(chunkSteps.count, count)
+            planPrepares.append(contentsOf: prepareSignatures(
+                chunkSteps.flatMap(\.program),
+                usesSession: usesSession
+            ))
+        }
+        XCTAssertEqual(expectedTotal, 28)
+        XCTAssertEqual(productionPrepares.count, 28)
+        XCTAssertEqual(planPrepares.count, productionPrepares.count)
+        for (planStep, productionStep) in zip(planPrepares, productionPrepares) {
+            XCTAssertEqual(planStep.length, productionStep.length)
+            XCTAssertEqual(planStep.address, productionStep.address)
+            XCTAssertEqual(planStep.session, productionStep.session)
+        }
+        XCTAssertEqual(strategy.opcode == AhaKeyWireFrameBuilder.cmdPrepareWrite, !usesSession)
+        XCTAssertEqual(strategy.opcode == AhaKeyWireFrameBuilder.cmdPrepareSessionWrite, usesSession)
+    }
+
+    private func prepareSignatures(
+        _ steps: [AhaKeyDeviceProgramStep],
+        usesSession: Bool
+    ) -> [(length: Int, address: UInt32, session: Bool)] {
+        steps.compactMap { step in
+            guard case .prepareWrite(let sessionID, let length, let address) = step else { return nil }
+            XCTAssertEqual(sessionID != nil, usesSession)
+            return (length: length, address: address, session: sessionID != nil)
+        }
+    }
+
+    private func multiPicturePlan(
+        profile: AhaKeyOLEDCompatibilityProfile,
+        specs: [(bytes: Data, logicalSet: Int, state: AhaKeyDesiredConfiguration.TaskDisplayState, frames: Int)]
+    ) throws -> PageFixture {
+        var values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue] = [:]
+        var resources: [AhaKeyConfigurationResource] = []
+        var inputs: [AhaKeyStudioResourceInput] = []
+        var sourceBytes: [AhaKeyResourceIdentifier: Data] = [:]
+        var writeA = false
+        var writeB = false
+        for spec in specs {
+            let physical = Int(try AhaKeyRuntimePageSemantic.physicalSlot(
+                profile: profile,
+                logicalSet: spec.logicalSet
+            ))
+            if spec.logicalSet == 0 { writeA = true }
+            if spec.logicalSet == 1 && physical == 1 { writeB = true }
+            let field = AhaKeyStudioFieldID.screenTaskAsset(
+                modeSlot: 0,
+                setIndex: spec.logicalSet,
+                state: spec.state
+            )
+            values[field] = .asset(
+                path: nil,
+                framesPerSecond: 10,
+                declaredFrameCount: spec.frames,
+                pixelWidth: 160,
+                pixelHeight: 80
+            )
+            let identifier = AhaKeyStudioPackageAssembler.taskAssetIdentifier(
+                mode: 0,
+                set: physical,
+                state: spec.state
+            )
+            let resource = try verifiedGIF(spec.bytes, identifier: identifier)
+            resources.append(resource)
+            sourceBytes[resource.logicalIdentifier] = spec.bytes
+            inputs.append(
+                AhaKeyStudioResourceInput(
+                    logicalIdentifier: resource.logicalIdentifier,
+                    fileURL: URL(fileURLWithPath: "/tmp/\(identifier).gif"),
+                    declaredFrameCount: spec.frames,
+                    pixelWidth: 160,
+                    pixelHeight: 80
+                )
+            )
+        }
+        let plan = AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: Set(values.keys),
+            values: values,
+            overwriteSemantic: false,
+            writeTaskSetA: writeA,
+            writeTaskSetB: writeB,
+            activateTaskSet: 0,
+            emitsSetActiveSetOpcode: false,
+            resources: inputs
+        )
+        return PageFixture(plan: plan, resources: resources, sourceBytes: sourceBytes)
+    }
+
     private func pictureWritePlan(
         bytes: Data,
         identifier: String? = nil,
         logicalSet: Int = 0
     ) throws -> PageFixture {
-        let physical = AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: .legacyStandard, logicalSet: logicalSet)
+        let physical = Int(try AhaKeyRuntimePageSemantic.physicalSlot(profile: .legacyStandard, logicalSet: logicalSet))
         let resolvedID = identifier ?? AhaKeyStudioPackageAssembler.taskAssetIdentifier(
             mode: 0,
             set: physical,

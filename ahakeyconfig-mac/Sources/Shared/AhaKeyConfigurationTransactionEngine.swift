@@ -75,11 +75,25 @@ public enum AhaKeyConfigurationTransactionEngine {
         confirmedSteps: [AhaKeyRuntimeStepIdentifier],
         plan: AhaKeyConfigurationPlanner.Plan
     ) -> [Action] {
+        decide(
+            event: event,
+            record: record,
+            confirmedSteps: confirmedSteps,
+            allSteps: stepIdentifiers(for: plan)
+        )
+    }
+
+    /// schema=2 页面执行：步骤全集来自冻结 page plan，禁止再经 planner 展开 `base:mode:*`。
+    public static func decide(
+        event: Event,
+        record: AhaKeyRuntimePersistedTransaction?,
+        confirmedSteps: [AhaKeyRuntimeStepIdentifier],
+        allSteps: [AhaKeyRuntimeStepIdentifier]
+    ) -> [Action] {
         guard let record else { return [.none] }
         // 终态不再响应任何事件
         guard !record.state.isTerminal else { return [.none] }
 
-        let allSteps = stepIdentifiers(for: plan)
         let confirmed = Set(confirmedSteps)
         let nextStep = allSteps.first(where: { !confirmed.contains($0) })
         let hasWrites = !confirmed.isEmpty

@@ -628,8 +628,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
         XCTAssertEqual(
             handshake.supportedConfigurationSchemaVersions,
-            [AhaKeyConfigurationPackage.currentSchemaVersion],
-            "schema 广告必须以 AhaKeyConfigurationPackage.currentSchemaVersion 为单一来源"
+            [
+                AhaKeyConfigurationPackage.currentSchemaVersion,
+                AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+            ],
+            "schema 广告必须以 package schema 常量为单一来源，含 schema=1 与 page-scoped schema=2"
         )
         // 实际提交包的 schemaVersion 必须被广告覆盖。
         let package = try makePackage(deviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"))

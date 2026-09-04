@@ -5910,3 +5910,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - picture action 与同 field binding 共享 typed resource identity（logicalID/digest/byteCount/mediaType）及 encodedFrameCount，canonical taskAssetIdentifier 闭合，coordinated swap fail-closed。prepare 持久化为 per-chunk strategy（25600/4096，1 帧 7 次）；default bind 仍至多一次。WAL 负例补 Standard/Rhino identity swap、key wrong subtype、prepare strategy 伪造；fixture 直写 source bytes。
 - 定向 162/162，全量 863/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/17-c3ar4-resource-identity-prepare-multiplicity.md`。未改 queue/status，不自动进 C3B。
 - 需要回复：是（@Codex 验收 C3AR4）
+
+### [2026-09-04 22:15] Cursor → Codex：ACK v0.3 OLED C3B，开始 page execution / durable resume
+- ACK Codex 22:10 / `lastReviewedCommit=c78c8656a4bf12ad11a6fbaac80b629a550ec3f7`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C3B。
+- 范围：先补多帧多资源 prepare↔生产步骤同构与 physical-slot 单一 mapping；再做 schema=2 page-only execution、开始前 device/profile/base CAS、FIFO head、断连 durable resume、confirmed chunk 零重发、queued/running 取消与 fail-fast。提交不夹带 Codex/Zcode/queue/status。
+- 不实现 60 秒 abandon、baseline projection、C4 UI；不进 C3C/C4/C5/HIL/打包/签名/安装/刷机/push。
+- 需要回复：否（C3B 实现）
+
+### [2026-09-04 22:48] Cursor → Codex：C3B 完成，停手提审
+- ACK Codex 22:10 / `lastReviewedCommit=c78c8656a4bf12ad11a6fbaac80b629a550ec3f7`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- physical-slot 生成/校验共用 `Family.physicalSlot`。2 帧×2 资源 prepare 与生产 `resourceUploadProgram` 同构（Standard `0x80` / Rhino-current `0x9B`）。schema=2 page-only 步骤 identity；开始前 device/profile/base CAS 零写 fail-closed；同设备 FIFO head；断连 durable resume 与 store reopen 已确认 chunk 零重发；queued 可无写移除，running/paused/resumable 取消 `.refused`。
+- 定向 204/204，全量 882/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/18-c3b-page-execution-durable-resume.md`。未改 queue/status，不自动进 C3C/C4。
+- 需要回复：是（@Codex 验收 C3B）

@@ -27,7 +27,7 @@ public enum AhaKeyRuntimePageSemantic {
             guard case .taskAsset(let asset) = plan.values[field] else {
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }
-            let physical = AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: profile, logicalSet: logicalSet)
+            let physical = Int(try physicalSlot(profile: profile, logicalSet: logicalSet))
             let expectedID = try AhaKeyResourceIdentifier(
                 AhaKeyStudioPackageAssembler.taskAssetIdentifier(mode: slot, set: physical, state: state)
             )
@@ -108,9 +108,7 @@ public enum AhaKeyRuntimePageSemantic {
             guard case .integer(let logicalSet) = value, (0...1).contains(logicalSet) else {
                 throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
             }
-            let physical = UInt8(
-                AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: profile, logicalSet: logicalSet)
-            )
+            let physical = try physicalSlot(profile: profile, logicalSet: logicalSet)
             return try AhaKeyRuntimeEmittedAction(
                 fieldID: field,
                 command: .setActiveSet,
@@ -148,8 +146,8 @@ public enum AhaKeyRuntimePageSemantic {
         binding: AhaKeyRuntimeFieldResourceBinding
     ) throws -> AhaKeyRuntimeEmittedAction {
         let policy = profile.pictureOpcodes
-        let physical = UInt8(AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: profile, logicalSet: logicalSet))
         let family = try AhaKeyRuntimeCompatibilityFingerprint.Family.make(profile)
+        let physical = family.physicalSlot(forLogicalSet: clampedLogicalSet(logicalSet))
         let wire = family.pictureWire()
         switch family {
         case .legacyStandard:
@@ -210,6 +208,19 @@ public enum AhaKeyRuntimePageSemantic {
         try AhaKeyRuntimePicturePrepareStrategy.production(
             opcode: AhaKeyWireFrameBuilder.cmdPrepareWrite
         ).prepareCount(encodedFrameCount: encodedFrameCount, layout: layout)
+    }
+
+    /// 生成与校验共用 `Family.physicalSlot`，禁止再走 `AhaKeyOLEDSyncPlan.physicalTaskSetIndex`。
+    public static func physicalSlot(
+        profile: AhaKeyOLEDCompatibilityProfile,
+        logicalSet: Int
+    ) throws -> UInt8 {
+        let family = try AhaKeyRuntimeCompatibilityFingerprint.Family.make(profile)
+        return family.physicalSlot(forLogicalSet: clampedLogicalSet(logicalSet))
+    }
+
+    static func clampedLogicalSet(_ logicalSet: Int) -> UInt8 {
+        UInt8(min(1, max(0, logicalSet)))
     }
 
     static func defaultBindOpcode(
@@ -894,6 +905,414 @@ struct AhaKeyRuntimeStrictCodingKey: CodingKey {
         }
         if !names.subtracting(allowed).isEmpty {
             throw error
+        }
+    }
+}
+
+/// schema=2 页面执行的最小步骤：一个 identity 对应一组可持久化、可关联 ledger 的命令。
+public struct AhaKeyRuntimePageExecutionStep: Equatable, Sendable {
+    public let identity: AhaKeyRuntimeStepIdentifier
+    public let program: [AhaKeyDeviceProgramStep]
+    public let fieldID: AhaKeyStudioFieldID?
+    public let resourceID: AhaKeyResourceIdentifier?
+}
+
+/// 只从冻结 fieldMask/actions/bindings/prepareStrategy 生成的本页程序。禁止 `base:mode:*`。
+public struct AhaKeyRuntimePageExecutionPlan: Equatable, Sendable {
+    public let steps: [AhaKeyRuntimePageExecutionStep]
+
+    public var identities: [AhaKeyRuntimeStepIdentifier] {
+        steps.map(\.identity)
+    }
+
+    public func step(for identity: AhaKeyRuntimeStepIdentifier) -> AhaKeyRuntimePageExecutionStep? {
+        steps.first { $0.identity == identity }
+    }
+}
+
+public struct AhaKeyRuntimePageExecutionPreconditions: Equatable, Sendable {
+    public let deviceID: AhaKeyRuntimeDeviceID
+    public let profile: AhaKeyOLEDCompatibilityProfile
+    public let baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint
+
+    public init(
+        deviceID: AhaKeyRuntimeDeviceID,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint
+    ) {
+        self.deviceID = deviceID
+        self.profile = profile
+        self.baseObjectFingerprint = baseObjectFingerprint
+    }
+}
+
+public enum AhaKeyRuntimePageExecutionPreflightError: Error, Equatable, Sendable {
+    case missingPreconditions
+    case deviceMismatch
+    case compatibilityMismatch
+    case baseObjectConflict
+    case notQueueHead
+    case mappingRejected
+}
+
+public enum AhaKeyConfigurationCancelError: Error, Equatable, Sendable {
+    case refusedWhileActive
+}
+
+extension AhaKeyRuntimePageSemantic {
+    /// C3B：本页步骤的唯一事实源。chunk / bind / default-bind / activation / 本地字段均有稳定 identity。
+    public static func executionPlan(
+        package: AhaKeyConfigurationPackage,
+        layout: AhaKeyDeviceLayoutPolicy = .init(),
+        userSlotLimit: Int
+    ) throws -> AhaKeyRuntimePageExecutionPlan {
+        guard package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+              let contract = package.pageOperation else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        try contract.validate(matchingDevice: package.targetDeviceID, resources: package.resources)
+        guard userSlotLimit > 0 else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        let frozen = try AhaKeyRuntimeCanonicalPageWrite.frozenValues(
+            from: package.desiredConfiguration
+        )
+        let fingerprint = contract.compatibilityFingerprint
+        let bindingsByField = Dictionary(
+            uniqueKeysWithValues: contract.resourceBindings.map { ($0.fieldID, $0) }
+        )
+        var pictureBindings: [AhaKeyRuntimeFieldResourceBinding] = []
+        var seenPictureFields = Set<AhaKeyStudioFieldID>()
+        for action in fingerprint.actions {
+            if case .picture = action.command {
+                guard seenPictureFields.insert(action.fieldID).inserted,
+                      let binding = bindingsByField[action.fieldID] else {
+                    throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+                }
+                pictureBindings.append(binding)
+            }
+        }
+        var flashSlotByLogicalID: [AhaKeyResourceIdentifier: Int] = [:]
+        for (index, binding) in pictureBindings.enumerated() {
+            guard flashSlotByLogicalID[binding.logicalID] == nil else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            flashSlotByLogicalID[binding.logicalID] = index
+        }
+
+        var steps: [AhaKeyRuntimePageExecutionStep] = []
+        for action in fingerprint.actions {
+            guard case .picture = action.command,
+                  let binding = bindingsByField[action.fieldID],
+                  let flashSlot = flashSlotByLogicalID[binding.logicalID] else {
+                continue
+            }
+            steps.append(contentsOf: try pictureSteps(
+                action: action,
+                binding: binding,
+                fingerprint: fingerprint,
+                frozen: frozen,
+                layout: layout,
+                userSlotLimit: userSlotLimit,
+                flashSlot: flashSlot
+            ))
+        }
+
+        if let defaultOpcode = fingerprint.defaultBindOpcode {
+            guard defaultOpcode == AhaKeyWireFrameBuilder.cmdUpdatePic,
+                  let first = pictureBindings.first,
+                  let flashSlot = flashSlotByLogicalID[first.logicalID] else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            let frames = Int(first.encodedFrameCount)
+            steps.append(
+                AhaKeyRuntimePageExecutionStep(
+                    identity: try AhaKeyRuntimeStepIdentifier("page:defaultBind"),
+                    program: [
+                        .bindDefaultPicture(
+                            mode: modeSlot(of: first.fieldID),
+                            startIndex: layout.startFrameIndex(slot: flashSlot, userRegionBase: 0),
+                            frameCount: UInt16(frames),
+                            intervalMs: intervalMs(field: first.fieldID, frozen: frozen, layout: layout)
+                        ),
+                    ],
+                    fieldID: first.fieldID,
+                    resourceID: first.logicalID
+                )
+            )
+        }
+
+        for action in fingerprint.actions {
+            switch action.command {
+            case .picture:
+                continue
+            case .setActiveSet:
+                steps.append(try activationStep(action: action))
+            case .keyShortcut, .keyMacro, .keyDescription, .lightMapping, .lightBrightness:
+                steps.append(try wireFieldStep(action: action, frozen: frozen))
+            case .keyVoicePreset, .screenStatus, .screenFramesPerSecond:
+                steps.append(try localFieldStep(action: action))
+            }
+        }
+
+        let identities = steps.map(\.identity)
+        guard Set(identities).count == identities.count,
+              identities.allSatisfy({ !$0.rawValue.hasPrefix("base:mode:") }),
+              identities.allSatisfy({ !$0.rawValue.hasPrefix("resource:") }) else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        return AhaKeyRuntimePageExecutionPlan(steps: steps)
+    }
+
+    public static func evaluatePreflight(
+        package: AhaKeyConfigurationPackage,
+        preconditions: AhaKeyRuntimePageExecutionPreconditions?,
+        confirmedCount: Int
+    ) throws {
+        guard let contract = package.pageOperation,
+              package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        guard let preconditions else {
+            throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
+        }
+        guard preconditions.deviceID == package.targetDeviceID,
+              preconditions.deviceID == contract.targetDeviceID else {
+            throw AhaKeyRuntimePageExecutionPreflightError.deviceMismatch
+        }
+        let liveFamily = try AhaKeyRuntimeCompatibilityFingerprint.Family.make(preconditions.profile)
+        guard liveFamily == contract.compatibilityFingerprint.family else {
+            throw AhaKeyRuntimePageExecutionPreflightError.compatibilityMismatch
+        }
+        if confirmedCount == 0,
+           preconditions.baseObjectFingerprint != contract.baseObjectFingerprint {
+            throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
+        }
+    }
+
+    private static func pictureSteps(
+        action: AhaKeyRuntimeEmittedAction,
+        binding: AhaKeyRuntimeFieldResourceBinding,
+        fingerprint: AhaKeyRuntimeCompatibilityFingerprint,
+        frozen: AhaKeyRuntimeFrozenPageValues,
+        layout: AhaKeyDeviceLayoutPolicy,
+        userSlotLimit: Int,
+        flashSlot: Int
+    ) throws -> [AhaKeyRuntimePageExecutionStep] {
+        guard let strategy = fingerprint.prepareStrategy,
+              let frames = action.encodedFrameCount.map(Int.init),
+              frames == Int(binding.encodedFrameCount) else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        let expectedPrepares = try strategy.prepareCount(encodedFrameCount: frames, layout: layout)
+        let usesSession = strategy.opcode == AhaKeyWireFrameBuilder.cmdPrepareSessionWrite
+        guard strategy.opcode == AhaKeyWireFrameBuilder.cmdPrepareWrite
+                || strategy.opcode == AhaKeyWireFrameBuilder.cmdPrepareSessionWrite,
+              let upload = AhaKeyConfigurationStepMapper.resourceUploadProgram(
+                digest: binding.sha256,
+                slotIndex: flashSlot,
+                encodedFrameCount: frames,
+                usesSessionUpload: usesSession,
+                userSlotLimit: userSlotLimit,
+                layout: layout
+              ),
+              upload.count == expectedPrepares * 2 else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        var chunkSteps: [AhaKeyRuntimePageExecutionStep] = []
+        for index in 0..<expectedPrepares {
+            let pair = Array(upload[(index * 2)..<(index * 2 + 2)])
+            guard case .prepareWrite(let sessionID, _, _) = pair[0],
+                  case .writeResourceChunk = pair[1],
+                  (sessionID != nil) == usesSession else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            chunkSteps.append(
+                AhaKeyRuntimePageExecutionStep(
+                    identity: try AhaKeyRuntimeStepIdentifier(
+                        "page:chunk:\(binding.logicalID.rawValue):\(index)"
+                    ),
+                    program: pair,
+                    fieldID: action.fieldID,
+                    resourceID: binding.logicalID
+                )
+            )
+        }
+        chunkSteps.append(try bindStep(
+            action: action,
+            binding: binding,
+            frozen: frozen,
+            layout: layout,
+            flashSlot: flashSlot
+        ))
+        return chunkSteps
+    }
+
+    private static func bindStep(
+        action: AhaKeyRuntimeEmittedAction,
+        binding: AhaKeyRuntimeFieldResourceBinding,
+        frozen: AhaKeyRuntimeFrozenPageValues,
+        layout: AhaKeyDeviceLayoutPolicy,
+        flashSlot: Int
+    ) throws -> AhaKeyRuntimePageExecutionStep {
+        guard let frames = action.encodedFrameCount,
+              let physical = action.physicalSlot,
+              case .screenTaskAsset(let mode, _, let state) = action.fieldID else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        let start = layout.startFrameIndex(slot: flashSlot, userRegionBase: 0)
+        let interval = intervalMs(field: action.fieldID, frozen: frozen, layout: layout)
+        let program: [AhaKeyDeviceProgramStep]
+        switch action.binding {
+        case .legacyTask:
+            program = [
+                .bindLegacyTaskPicture(
+                    mode: mode,
+                    state: state.rawValue,
+                    startIndex: start,
+                    frameCount: frames,
+                    intervalMs: interval
+                ),
+            ]
+        case .taskSet:
+            program = [
+                .bindTaskPicture(
+                    mode: mode,
+                    set: physical,
+                    state: state.rawValue,
+                    startIndex: start,
+                    frameCount: frames,
+                    intervalMs: interval
+                ),
+            ]
+        default:
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        return AhaKeyRuntimePageExecutionStep(
+            identity: try AhaKeyRuntimeStepIdentifier("page:bind:\(action.fieldID.canonicalToken)"),
+            program: program,
+            fieldID: action.fieldID,
+            resourceID: binding.logicalID
+        )
+    }
+
+    private static func activationStep(
+        action: AhaKeyRuntimeEmittedAction
+    ) throws -> AhaKeyRuntimePageExecutionStep {
+        guard action.opcode == AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet,
+              let physical = action.physicalSlot,
+              case .screenActiveSet(let mode) = action.fieldID else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        return AhaKeyRuntimePageExecutionStep(
+            identity: try AhaKeyRuntimeStepIdentifier("page:activate:\(action.fieldID.canonicalToken)"),
+            program: [.setActiveTaskPictureSet(mode: mode, set: physical)],
+            fieldID: action.fieldID,
+            resourceID: nil
+        )
+    }
+
+    private static func wireFieldStep(
+        action: AhaKeyRuntimeEmittedAction,
+        frozen: AhaKeyRuntimeFrozenPageValues
+    ) throws -> AhaKeyRuntimePageExecutionStep {
+        let program: [AhaKeyDeviceProgramStep]
+        switch (action.command, action.fieldID) {
+        case (.keyShortcut, .keyAction(let mode, let role)):
+            guard case .keyAction(.shortcut(let shortcut)) = frozen.fieldValues[action.fieldID] else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            program = [
+                .setKeyShortcut(
+                    mode: mode,
+                    keyIndex: role.rawValue,
+                    hidCodes: AhaKeyConfigurationStepMapper.shortcutHidCodes(shortcut)
+                ),
+            ]
+        case (.keyMacro, .keyAction(let mode, let role)):
+            guard case .keyAction(.macro(let macroSteps)) = frozen.fieldValues[action.fieldID] else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            program = [
+                .setKeyMacro(
+                    mode: mode,
+                    keyIndex: role.rawValue,
+                    pairs: macroSteps.flatMap { [$0.action, $0.param] }
+                ),
+            ]
+        case (.keyDescription, .keyDescription(let mode, let role)):
+            guard case .text(let text) = frozen.fieldValues[action.fieldID] else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            program = [.setKeyDescription(mode: mode, keyIndex: role.rawValue, text: text)]
+        case (.lightBrightness, .lightBrightness(let mode)):
+            guard case .integer(let brightness) = frozen.fieldValues[action.fieldID],
+                  (1...100).contains(brightness) else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            _ = mode
+            program = [.setBrightness(UInt8(brightness))]
+        case (.lightMapping, .lightMapping(let mode, let state)):
+            guard case .text(let effect) = frozen.fieldValues[action.fieldID], state < 9 else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            var effects = [UInt8](repeating: 0, count: 9)
+            effects[Int(state)] = AhaKeyConfigurationStepMapper.firmwareEffectIndex(effect)
+            program = [.setLightMapping(mode: mode, effects: effects)]
+        default:
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        return AhaKeyRuntimePageExecutionStep(
+            identity: try AhaKeyRuntimeStepIdentifier("page:field:\(action.fieldID.canonicalToken)"),
+            program: program,
+            fieldID: action.fieldID,
+            resourceID: nil
+        )
+    }
+
+    private static func localFieldStep(
+        action: AhaKeyRuntimeEmittedAction
+    ) throws -> AhaKeyRuntimePageExecutionStep {
+        guard action.opcode == nil, action.subtype == nil else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        return AhaKeyRuntimePageExecutionStep(
+            identity: try AhaKeyRuntimeStepIdentifier("page:local:\(action.fieldID.canonicalToken)"),
+            program: [],
+            fieldID: action.fieldID,
+            resourceID: nil
+        )
+    }
+
+    private static func intervalMs(
+        field: AhaKeyStudioFieldID,
+        frozen: AhaKeyRuntimeFrozenPageValues,
+        layout: AhaKeyDeviceLayoutPolicy
+    ) -> UInt16 {
+        let fps: Int?
+        if case .taskAsset(let assetFPS, _) = frozen.fieldValues[field] {
+            fps = assetFPS
+        } else {
+            fps = frozen.framesPerSecond
+        }
+        guard let fps, fps > 0 else { return layout.defaultFrameIntervalFloor }
+        return max(layout.defaultFrameIntervalFloor, UInt16(1000 / fps))
+    }
+
+    private static func modeSlot(of field: AhaKeyStudioFieldID) -> UInt8 {
+        switch field {
+        case .screenTaskAsset(let slot, _, _),
+             .screenActiveSet(let slot),
+             .screenStatusLine(let slot),
+             .screenFramesPerSecond(let slot),
+             .keyAction(let slot, _),
+             .keyDescription(let slot, _),
+             .keyVoicePreset(let slot, _),
+             .lightBrightness(let slot),
+             .lightMapping(let slot, _):
+            return slot
+        case .leverMacro, .powerAction:
+            return 0
         }
     }
 }

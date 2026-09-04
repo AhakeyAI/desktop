@@ -356,7 +356,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     if let store = try? await self.makeRuntimeStore(),
                        let record = try? await store.transaction(package.operationID) {
                         if record.state == .paused || record.state == .resumablePartial {
-                            return false
+                            let ready = await MainActor.run { self.configurationWriteIsReady() }
+                            let isPage = record.package.schemaVersion
+                                == AhaKeyConfigurationPackage.pageScopedSchemaVersion
+                            if !isPage || !ready {
+                                return false
+                            }
                         }
                         if record.state.isTerminal { return true }
                     }
@@ -1042,7 +1047,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             runtimeVersion: .development,
             interfaceVersion: .current,
             // R2-3：schema 广告以包 schema 为单一来源（与 AhaKeyRuntimeSnapshot 默认一致），不写裸常量。
-            supportedConfigurationSchemaVersions: [AhaKeyConfigurationPackage.currentSchemaVersion],
+            supportedConfigurationSchemaVersions: [
+                AhaKeyConfigurationPackage.currentSchemaVersion,
+                AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+            ],
             capabilities: [.configuration, .snapshot, .eventReplay, .diagnostics]
         )
     }
@@ -2367,11 +2375,14 @@ extension AhaKeyAgent {
             let store = try await makeRuntimeStore()
             guard let record = try await store.transaction(operationID) else { return .notFound }
             guard !record.state.isTerminal else { return .alreadyFinished }
-            try await AhaKeyConfigurationTransactionRunner(store: store).requestCancel(operationID: operationID)
+            do {
+                try await AhaKeyConfigurationTransactionRunner(store: store).requestCancel(operationID: operationID)
+            } catch AhaKeyConfigurationCancelError.refusedWhileActive {
+                emit("配置事务 \(operationID.rawValue.uuidString.prefix(8))… 拒绝取消（page operation 仍可恢复）")
+                return .refused
+            }
             emit("配置事务 \(operationID.rawValue.uuidString.prefix(8))… 已请求取消")
-            // 取消受理本身即可观察（cancellationRequested 进入投影/事件）。
             await publishOperationProgress(operationID: operationID)
-            // 排队取消必须 kick worker，否则可能永远等不到 settleCancellation。
             await configurationCoordinator.kick()
             return .requested
         } catch {
@@ -2457,7 +2468,8 @@ extension AhaKeyAgent {
             package: package,
             resourceFiles: resourceFiles,
             context: context,
-            release: releaseProjection(for: context)
+            release: releaseProjection(for: context),
+            pagePreconditions: await pageExecutionPreconditions(package: package, context: context)
         ) { [weak self] step in
             guard let self else { return .retryableFailure }
             await MainActor.run {
@@ -2481,6 +2493,31 @@ extension AhaKeyAgent {
         }
     }
 
+    private func pageExecutionPreconditions(
+        package: AhaKeyConfigurationPackage,
+        context: AhaKeyOLEDCompatibilityContext
+    ) async -> AhaKeyRuntimePageExecutionPreconditions? {
+        guard package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+              let contract = package.pageOperation else { return nil }
+        let deviceID = await MainActor.run { () -> AhaKeyRuntimeDeviceID? in
+            if let simulated = self.executionTestHooks?.simulatedDevice?.id {
+                return simulated
+            }
+            if let stable = self.executionTestHooks?.stableDeviceID ?? self.transportCore.stableDeviceID,
+               let parsed = try? AhaKeyRuntimeDeviceID(stable) {
+                return parsed
+            }
+            return nil
+        }
+        guard let deviceID else { return nil }
+        return AhaKeyRuntimePageExecutionPreconditions(
+            deviceID: deviceID,
+            profile: context.profile,
+            baseObjectFingerprint: executionTestHooks?.sealedObjectFingerprint
+                ?? contract.baseObjectFingerprint
+        )
+    }
+
     private func releaseProjection(
         for context: AhaKeyOLEDCompatibilityContext
     ) -> AhaKeyReleaseFeatureProjection {
@@ -2502,6 +2539,11 @@ extension AhaKeyAgent {
                 messageCode: .configurationDisconnected,
                 context: .init(failedStepID: step)
             ))
+        }
+        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+            return await executePageScopedStep(
+                step, package: package, store: store, context: context
+            )
         }
         guard let desired = try? AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration) else {
             return .failure(.init(
@@ -2530,6 +2572,49 @@ extension AhaKeyAgent {
         let transport = AgentProgramTransport(
             agent: self, store: store, operationID: package.operationID, stepID: step
         )
+        return await executeDeviceProgram(program, step: step, transport: transport)
+    }
+
+    private func executePageScopedStep(
+        _ step: AhaKeyRuntimeStepIdentifier,
+        package: AhaKeyConfigurationPackage,
+        store: AhaKeyRuntimePersistentStore,
+        context: AhaKeyOLEDCompatibilityContext
+    ) async -> AhaKeyConfigurationStepResult {
+        let pagePlan: AhaKeyRuntimePageExecutionPlan
+        do {
+            pagePlan = try AhaKeyRuntimePageSemantic.executionPlan(
+                package: package,
+                userSlotLimit: context.layout.userSlotLimit
+            )
+        } catch {
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationPlanRejected,
+                context: .init(failedStepID: step)
+            ))
+        }
+        guard let mapped = pagePlan.step(for: step) else {
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationPlanRejected,
+                context: .init(failedStepID: step)
+            ))
+        }
+        if mapped.program.isEmpty {
+            return .success
+        }
+        let transport = AgentProgramTransport(
+            agent: self, store: store, operationID: package.operationID, stepID: step
+        )
+        return await executeDeviceProgram(mapped.program, step: step, transport: transport)
+    }
+
+    private func executeDeviceProgram(
+        _ program: [AhaKeyDeviceProgramStep],
+        step: AhaKeyRuntimeStepIdentifier,
+        transport: AgentProgramTransport
+    ) async -> AhaKeyConfigurationStepResult {
         do {
             try await AhaKeyDeviceProgramExecutor.execute(program, over: transport)
             return .success
@@ -3242,6 +3327,10 @@ extension AhaKeyAgent {
             }
         }
         return AhaKeyRuntimeSnapshot(
+            supportedConfigurationSchemaVersions: [
+                AhaKeyConfigurationPackage.currentSchemaVersion,
+                AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+            ],
             lifecycleState: .running,
             devices: main.devices,
             activeDeviceID: main.activeDeviceID,
@@ -3652,7 +3741,7 @@ private actor AhaKeyAgentRuntimeStoreCache {
         }
         let store = try AhaKeyRuntimePersistentStore(
             rootDirectory: directory,
-            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+            acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
         )
         cached = (directory, store)
         return store
@@ -3707,6 +3796,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var oledContext: AhaKeyOLEDCompatibilityContext?
     /// 非 nil 时覆盖发布功能投影（OLED 事务测试打开图片面；生产恒 nil）。
     var release: AhaKeyReleaseFeatureProjection?
+    /// 非 nil 时覆盖开始前密封对象 CAS（schema=2 preflight）。
+    var sealedObjectFingerprint: AhaKeyRuntimeObjectFingerprint?
     /// 非 nil 时替代 BLE 步骤执行（可观察 WAL 取消态、注入延迟）。
     var stepExecutor: (@Sendable (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult)?
     /// 非 nil 时重定向 Runtime Store 到临时目录（测试隔离生产 WAL）。

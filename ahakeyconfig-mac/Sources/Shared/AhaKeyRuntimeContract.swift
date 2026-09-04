@@ -639,6 +639,8 @@ public struct AhaKeyRuntimeEventCode: Codable, Equatable, Hashable, Sendable {
     public static let configurationEncodingFailed = must("configuration.encoding-failed")
     /// planner / 步骤映射拒绝。
     public static let configurationPlanRejected = must("configuration.plan-rejected")
+    /// schema=2 开始前 device / compatibility / base CAS 冲突，零写入 fail-closed。
+    public static let configurationPreflightConflict = must("configuration.preflight-conflict")
     /// 线协议帧格式错误。
     public static let configurationMalformedFrame = must("configuration.malformed-frame")
 
@@ -996,6 +998,8 @@ public enum AhaKeyRuntimeCancellationDisposition: String, Codable, Equatable, Se
     case requested
     case alreadyFinished
     case notFound
+    /// schema=2 running/paused/resumable 拒绝普通取消；queued 仍可无写入移除。
+    case refused
 }
 
 public protocol AhaKeyRuntimeClient: Sendable {

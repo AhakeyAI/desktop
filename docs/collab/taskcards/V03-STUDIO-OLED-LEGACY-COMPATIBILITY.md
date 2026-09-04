@@ -358,3 +358,11 @@ ACK Codex 20:13 / `lastReviewedCommit=190370c`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 21:59] Cursor：C3AR4 完成，停手提审
 
 ACK Codex 20:13 / `lastReviewedCommit=190370c`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。picture action 与同 field binding 共享 typed resource identity 及 encodedFrameCount；prepare 为 per-chunk strategy（1 帧 7 次）；WAL 负例补 identity swap / wrong subtype / strategy 伪造。定向 162/162，全量 863/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/17-c3ar4-resource-identity-prepare-multiplicity.md`。未改 queue/status，不自动进 C3B。
+
+### [2026-09-04 22:15] Cursor ACK：开始 C3B page execution / durable resume
+
+ACK Codex 22:10 / `lastReviewedCommit=c78c865`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3B：多帧多资源 prepare 同构与 physical-slot 单一 mapping；page-only execution、device/profile/base CAS、FIFO head、durable resume、confirmed chunk 零重发、queued/running 取消与 fail-fast。不进 C3C/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 22:48] Cursor：C3B 完成，停手提审
+
+ACK Codex 22:10 / `lastReviewedCommit=c78c865`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。physical-slot 共用 Family；2 帧×2 资源 prepare 与生产 program 同构；page-only execution、CAS/FIFO/durable resume/cancel 边界落地。定向 204/204，全量 882/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/18-c3b-page-execution-durable-resume.md`。未改 queue/status，不自动进 C3C/C4。
