@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 VBUS B2 policy-core implementation`（B1 accepted；用户已冻结 B2 混合策略并开放纯策略核、host oracle、runner 与证据计划；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
+状态：`ready / 1.6 VBUS B2 policy-core R1`（首轮 core/runner 退回：USB interruption、resume 与 7B oracle contract 未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2343,3 +2343,36 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 - 本轮结束必须停手提审，不得以 host 绿色代替 7B 实机结论。
 
 - 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core / host oracle / runner；生产接线与 HIL 仍冻结）
+
+### [2026-09-04 19:12] Codex 复验 VBUS B2 policy-core：范围成立但 core/runner 有阻断缺口；退 R1
+
+- 固定审查固件仓 `278f56ead39162b0ba55eb90c4b0e356a30dc57f...e69e1037b995a53eaf64a6867f54faee369c1447`。实际 HEAD=`e69e103`，H=`4cd7e64`、E=`e69e103`；新增生产面仅未接线 `APP/sub_main/vbus_policy_core.h`，`main.c`/`usb1_hid.c`/pins 零改，未执行 HIL。
+- Codex 独立复跑 wbs16/wbs15/wbs14 均 exit 0，恢复生成文档后树 clean；但 wbs16 只配对文件名并解析 schema 文件本身，没有执行任一 oracle，因而掩盖下述 runner 阻断。
+
+**Standards**
+
+- **P1 — USB operation 可被 DevConfig loss / bus reset 卡死。** 两条路径中断或重启 USB，却保留 `op_active=1, op_transport=USB, resumable_partial=0`；`vbus_op_resume_request()` 随后永久 BUSY。应抽取统一 USB-interruption 决策并钉死同 ID/对象起点/不越队语义。
+- **P1 — BATTERY+BLE 被标成 `EXT_POWER_BLE`。** `vbus_stable==0` 时 UI 仍声称“仅外部供电”，与电池继续及 `HAVE_VUSB` 才代表外部供电矛盾。用既有 BLE-only 呈现或明确内部 BLE_ONLY/not-applicable，不得伪报外部供电。
+- **P1 — schema 只 parse、不校验实例。** run/events/verdict 的 required/type/enum 未执行；缺时间戳/detail 的证据仍可进入 PASS 路径。
+- **P1 — jitter 时间证据无效。** short/long 都在动作完成后才写声称属于首边沿的 t0；long 的 ≥1 s 也不能保证覆盖两个 1 Hz 样本。
+
+**Spec**
+
+- **P1 — 六个 7B oracle 实际均不可成功执行。** `_common.run()` 在 `_common.py` 自身 globals 查 `ORACLE`，调用模块定义不可见；结构正确证据实测得到 `NameError("name 'ORACLE' is not defined")`。`build-wbs16.sh` 因不 smoke-run oracle 而假绿。
+- **P1 — resume 未实现/未测。** `vbus_suspend(s,0)` 只清 suspended 并返回 0，不 teardown/hot-init、不重启 8 s 界限；host 的“reset/resume”臂只调用 bus reset。
+- **P1 — 7B.6 可绕过核心证明。** `upload_started` 缺失时 SAME-ID 断言整条省略；不要求 `ble_reconnect`、事件顺序、≤15 s 恢复与≤60 s 重写。直接调用 ORACLE 证明仅 `latch_cleanup + resume_from_start(op=fake) + upload_complete` 即全 PASS。
+- **P1 — 7B.1 与冻结退避相反。** oracle 要求 `policy_transition` 为空，但 20 s 观察窗内按冻结策略应出现 8 s 超时后的 5 s retry；既不能证明 5/15/30，也会拒绝诚实 transition 记录。
+- **P1 — 报告同步仍陈旧。** §4 仍写 7B.1=15 s、Hub timeout TBD、`<3/≥3 tick`、`unplug-shutdown`、旧 `raw/b2-06-unplug/` 与 5 s 关机判据；与新 runner/battery-continue 裁决冲突。设计/Hub 文案另称 100 mA，而冻结描述符仍为 `(300/2)`=150 mA。
+- **P2 — runner step 选择未限制到六项白名单。** `hil_run.sh` 只检查拼接路径存在，带 `../` 的 STEP 可越过 `steps/` 执行其它 `.sh`；USER-GATE 后必须按 `STEPS` 精确 membership 拒绝 traversal。
+
+**VBUS B2 policy-core R1（仍不开放生产接线/HIL）**
+
+1. 修 oracle 调度为显式 callback（如 `run(STEP, ORACLE)`），并让 wbs16 用最小 pass/fail fixtures smoke-run 六个 oracle，保证能到达各自判定逻辑且 missing/malformed 默认 FAIL 并写 verdict。
+2. 对 run.json/events.jsonl/verdict 执行 schema 等价的 required/type/enum 校验；malformed run.json 也必须生成 fail verdict，不得 traceback 后无 verdict。
+3. 统一 USB interruption 状态机：覆盖 VBUS loss、DevConfig loss、bus reset 与 suspend→resume；活跃 USB operation 不得 stranded，保持同 ID、对象起点重试、transport lock/FIFO，不抢占 BLE。明确 bus reset 的即时 USB retry与 VBUS-loss BLE fallback差别，补逐路径 oracle/mutant。
+4. 修 BATTERY+BLE 呈现，不新增虚假“外部供电”；保持冻结的三个 USB/VBUS 展示文案与既有 BLE-only 状态职责分界。
+5. 强化 7B runner：b2-06 必须要求 start/reconnect/resume/complete，校验 same ID、顺序与 15/60 s；b2-01 对 5/15/30 retry 给出可观察证据而非要求零 transition；jitter 在动作前落 t0，记录实际 edge 时刻/持续时间，long hold ≥2 ticks + margin；STEP 严格六项白名单。
+6. 原子同步设计/报告 §7B：使用实际 step 名、timeout、raw path 与 battery-continue/unplug-recovery；Hub 预算与当前 150 mA descriptor 一致或明确列为待 integration 裁决，不得写未实现的 100 mA。
+7. 保持 `main.c`/`usb1_hid.c`、刷机、7B HIL、1.7、WBS2、EEPROM、push 冻结。复跑 oracle fixtures、wbs16/wbs15/wbs14/lifecycle/diff 后停手提审。
+
+- 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core R1；生产接线与 HIL 仍冻结）
