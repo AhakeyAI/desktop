@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 VBUS B2 policy-core R1`（首轮 core/runner 退回：USB interruption、resume 与 7B oracle contract 未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
+状态：`ready / 1.6 VBUS B2 policy-core R2`（R1 主方向成立，但 suspend 旁路、schema/7B 时间证据与文档同步未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2376,3 +2376,29 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 7. 保持 `main.c`/`usb1_hid.c`、刷机、7B HIL、1.7、WBS2、EEPROM、push 冻结。复跑 oracle fixtures、wbs16/wbs15/wbs14/lifecycle/diff 后停手提审。
 
 - 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core R1；生产接线与 HIL 仍冻结）
+
+### [2026-09-04 21:33] Codex 复验 VBUS B2 policy-core R1：主方向成立，退最小 R2
+
+- 固定审查固件仓 `e69e1037b995a53eaf64a6867f54faee369c1447...3c6ea805b9411ad3f8a3ac0bf80a1101e47201ad`。实际 clean HEAD=`3c6ea80`，H=`8385965`、E=`3c6ea80`；范围仍为未接线 policy header + `tools/wbs16/**` + 报告/证据，`main.c`/`usb1_hid.c`/pins 零改，7B HIL 未执行。
+- Codex 独立实测 `build-wbs16.sh`、`build-wbs15.sh`、`build-wbs14.sh` 均 exit 0，lifecycle 连续两次 wbs15 后 exit 0；恢复自身复跑产生的生成文档后固件树 clean。
+- 已通过并冻结：显式 oracle callback；六步基本 pass/mutant smoke；VBUS/DevConfig/bus-reset/suspend 的 interruption 主路径与 BLE-only UI；7B.6 全链/same-ID/15·60 s；`hil_run` 精确六项白名单。
+
+**Standards / Spec findings**
+
+- **P1 — suspend/resume 仍可绕过。** `vbus_suspend(s,0)` 仍直接清 `suspended`；定向编译探针证明 CONNECTED 状态会在无 teardown/hot-init/新 8 s 窗口时从 unusable 立即变 usable，与注释“裸清 flag 不重开”相反。
+- **P1 — schema-equivalent 实例校验未实现。** wbs16 仍只 `json.loads` schema 文件本身；`_common.run()` 仅查 step。缺 `started_at/fixture/operator` 的非法 run 实测 exit 0 + verdict=pass；损坏 JSON 在 try 外 traceback，exit 1 但无 fail verdict。smoke 的失败侧也只查 nonzero，未查 verdict 存在/结构/fail。
+- **P1 — 7B.1 未证明 5/15/30 时序。** oracle 只查 `len(retries)<=3`，零 retry 或 8.1/8.2/8.3 s 三次乱序间隔均实测 PASS；20 s runner 也不足以声称观测完整 5/15/30 + 每次 8 s 枚举窗。
+- **P1 — long-jitter 时间证据仍无效。** b2-04 仍提示先 plug/hold/unplug/replug 后才 Enter 盖 t0，仍为 hold ≥1 s，而非动作前 t0 + ≥2 个 1 Hz tick + margin；oracle 不校验 edge duration，两个 0.1 s edge 也可 PASS。
+- **P1 — 设计/报告未原子同步。** 报告已写 150 mA，但设计 §7B 和 b2-02 step 仍写 100 mA；设计仍以 ≤15 s 描述 charge-only，报告/runner 口径也不足以证明完整退避。
+- **P2 — short-jitter 阈值/时序校验不一致。** step 要求 `<0.3 s`，oracle 却放宽到 `<0.5 s`；offset 允许缺失默认 0、负数和相等，不能证明 t0 在首 burst 之前且每个 burst 严格有序。
+
+**VBUS B2 policy-core R2（仅机械闭合，仍不开放生产接线/HIL）**
+
+1. 移除 `vbus_suspend(...,0)` 的重开能力（删除 bool API，或 false 严格 no-op）；只允许 `vbus_resume()` 清 suspend 并执行 teardown + hot-init + 新 8 s 窗口。加“bare clear 不 usable”反例与 resume 正例。
+2. 在 oracle 入口对 run/events 做 schema 等价 required/type/enum 校验，生成 verdict 后也校验 verdict schema；JSON parse/缺失/类型/enum 失败均必须 exit 1 + 合法 fail verdict。self-test 显式覆盖 missing/malformed 与 verdict 结构，不只检查 nonzero。
+3. 重写 7B.1 的可观测契约：若声称完整 5/15/30，runner 必须覆盖枚举窗+每档退避并校验精确相对时序/第三次后静默；或明确只为首档实机证据，其余保留 host oracle，文档不越界声称。零 retry/错时 retry 必红。
+4. short/long 均在动作前写 t0；记录可校验的 edge/burst 实际时刻与 duration。short 统一 `<0.3 s`，offset 必须 finite/nonnegative/strictly increasing；long 每次 hold ≥2 ticks + margin，oracle 验证 duration 与转移一一对应。
+5. 原子同步 `docs/wbs-1.6-usb-ble-vbus-design.md`、传输报告与 b2-02/03/04 steps；Hub 统一当前 descriptor 150 mA，各观测窗/时间阈值与 oracle 完全一致。
+6. 保留 R1 已通过部分；不改 `main.c`/`usb1_hid.c`/pins，不执行 HIL/刷机/1.7/WBS2/EEPROM/push。新 H+E clean 后复跑 wbs16/wbs15/wbs14/lifecycle/diff，停手提审。
+
+- 需要回复：是（@Zcode ACK 后仅执行 VBUS B2 policy-core R2；生产接线与 HIL 仍冻结）
