@@ -1,8 +1,16 @@
 import CryptoKit
+import Foundation
+import SQLite3
 import XCTest
 @testable import AhaKeyConfigShared
 
 final class AhaKeyRuntimePageOperationTests: XCTestCase {
+    private struct AllowingResourceValidator: AhaKeyRuntimePackageAcceptanceValidator {
+        func validate(
+            package: AhaKeyConfigurationPackage,
+            resources: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
+        ) throws {}
+    }
     func testAssembleRejectsEmptyOrCrossPageFieldMask() throws {
         let empty = AhaKeyStudioScopedWritePlan(
             pageID: .screen(modeSlot: 0),
@@ -101,14 +109,27 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         )
         XCTAssertEqual(status.family, .legacyStandard)
         XCTAssertEqual(status.actions.map(\.command), [.screenStatus])
+        XCTAssertNil(status.actions[0].opcode)
+        XCTAssertNil(status.actions[0].subtype)
+        XCTAssertNil(status.sessionOpcode)
         XCTAssertEqual(fps.actions.map(\.command), [.screenFramesPerSecond])
         XCTAssertEqual(key.actions.map(\.command), [.keyShortcut])
+        XCTAssertEqual(key.actions[0].opcode, 0x73)
+        XCTAssertEqual(key.actions[0].subtype, 0x73)
         XCTAssertEqual(description.actions.map(\.command), [.keyDescription])
+        XCTAssertEqual(description.actions[0].opcode, 0x73)
+        XCTAssertEqual(description.actions[0].subtype, 0x75)
         XCTAssertEqual(brightness.actions.map(\.command), [.lightBrightness])
+        XCTAssertEqual(brightness.actions[0].opcode, 0x85)
+        XCTAssertNil(brightness.actions[0].subtype)
         XCTAssertEqual(mapping.actions.map(\.command), [.lightMapping])
+        XCTAssertEqual(mapping.actions[0].opcode, 0x84)
         XCTAssertEqual(active.actions.map(\.command), [.setActiveSet])
+        XCTAssertEqual(active.actions[0].opcode, 0x97)
         XCTAssertEqual(pictureA.actions[0].logicalSet, 0)
         XCTAssertEqual(pictureA.actions[0].physicalSlot, 0)
+        XCTAssertEqual(pictureA.sessionOpcode, 0x80)
+        XCTAssertNil(pictureA.defaultBindOpcode)
         XCTAssertEqual(pictureB.actions[0].logicalSet, 1)
         XCTAssertEqual(pictureB.actions[0].physicalSlot, 0)
         XCTAssertNotEqual(pictureA, pictureB)
@@ -118,8 +139,8 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         XCTAssertNotEqual(status, pictureA)
         XCTAssertNotEqual(status, active)
         if case .picture(let semantics) = pictureA.actions[0].command {
-            XCTAssertEqual(semantics.prepareOpcode, 0x80)
             XCTAssertEqual(semantics.bindOpcode, 0x93)
+            XCTAssertEqual(pictureA.actions[0].opcode, 0x93)
         } else {
             XCTFail("picture-write 必须编码 bind opcode")
         }
@@ -168,6 +189,12 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         let desired = String(decoding: package.desiredConfiguration, as: UTF8.self)
         XCTAssertFalse(desired.contains("/tmp/"))
         XCTAssertEqual(package.pageOperation?.compatibilityFingerprint.actions.count, 3)
+        XCTAssertEqual(package.pageOperation?.compatibilityFingerprint.sessionOpcode, 0x80)
+        XCTAssertNil(package.pageOperation?.compatibilityFingerprint.defaultBindOpcode)
+        XCTAssertEqual(
+            Set(package.pageOperation?.compatibilityFingerprint.actions.compactMap(\.opcode) ?? []),
+            [0x93]
+        )
     }
 
     func testRhinoABReuseSameDigestDifferentLogicalIDs() throws {
@@ -245,7 +272,7 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         )
     }
 
-    func testFingerprintDecoderRejectsImpossibleSemanticsAndWALReopen() throws {
+    func testFingerprintDecoderRejectsImpossibleSemanticsAndWALReopen() async throws {
         let (plan, resources) = try pictureWritePlan(bytes: Data("gif".utf8), logicalSet: 0)
         let valid = try AhaKeyRuntimeCompatibilityFingerprint.make(
             plan: plan,
@@ -260,6 +287,9 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 from: try JSONSerialization.data(withJSONObject: object)
             )
         }
+        XCTAssertThrowsError(try decodeMutating { root in
+            root["sessionOpcode"] = 255
+        })
         XCTAssertThrowsError(try decodeMutating { root in
             var actions = try XCTUnwrap(root["actions"] as? [[String: Any]])
             var command = try XCTUnwrap(actions[0]["command"] as? [String: Any])
@@ -308,31 +338,68 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             baseObjectFingerprint: try baseFingerprint(),
             verifiedResources: resources
         )
-        var packageObject = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: try JSONEncoder().encode(package)) as? [String: Any]
-        )
-        var pageOperation = try XCTUnwrap(packageObject["pageOperation"] as? [String: Any])
-        var fingerprint = try XCTUnwrap(pageOperation["compatibilityFingerprint"] as? [String: Any])
-        var actions = try XCTUnwrap(fingerprint["actions"] as? [[String: Any]])
-        var command = try XCTUnwrap(actions[0]["command"] as? [String: Any])
-        var picture = try XCTUnwrap(command["picture"] as? [String: Any])
-        picture["bindOpcode"] = 255
-        command["picture"] = picture
-        actions[0]["command"] = command
-        fingerprint["actions"] = actions
-        pageOperation["compatibilityFingerprint"] = fingerprint
-        packageObject["pageOperation"] = pageOperation
-        XCTAssertThrowsError(
-            try JSONDecoder().decode(
-                AhaKeyConfigurationPackage.self,
-                from: try JSONSerialization.data(withJSONObject: packageObject)
-            )
-        )
+        XCTAssertEqual(package.schemaVersion, AhaKeyConfigurationPackage.pageScopedSchemaVersion)
         let roundTrip = try JSONDecoder().decode(
             AhaKeyConfigurationPackage.self,
             from: try JSONEncoder().encode(package)
         )
         XCTAssertEqual(roundTrip, package)
+
+        let statusAction = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(status.actions[0])) as? [String: Any]
+        )
+        let (threeStatePlan, threeStateResources) = try standardThreeStatePlan()
+        let threeState = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: threeStatePlan,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: threeStateResources
+        )
+        let keyPackage = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: try keyActionPlan(),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: []
+        )
+
+        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+            try mutateFingerprintActions(in: &root) { actions in
+                var command = try XCTUnwrap(actions[0]["command"] as? [String: Any])
+                var picture = try XCTUnwrap(command["picture"] as? [String: Any])
+                picture["bindOpcode"] = 255
+                command["picture"] = picture
+                actions[0]["command"] = command
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+            try mutateFingerprintActions(in: &root) { actions in
+                actions[0] = statusAction
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+            try mutateFingerprintActions(in: &root) { actions in
+                actions.append(actions[0])
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: threeState, resources: threeStateResources) { root in
+            try mutateFingerprintActions(in: &root) { actions in
+                actions.reverse()
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: keyPackage, resources: []) { root in
+            try mutateFingerprintActions(in: &root) { actions in
+                actions[0]["opcode"] = 0x84
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+            try mutateFingerprintActions(in: &root) { actions in
+                actions[0]["logicalSet"] = 1
+            }
+        }
     }
 
     func testConfirmationLedgerRejectsIllegalCombinationsAndRequiresPendingExactness() throws {
@@ -686,5 +753,141 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             resources: inputs
         )
         return (plan, resources)
+    }
+
+    private func mutateFingerprintActions(
+        in root: inout [String: Any],
+        _ body: (inout [[String: Any]]) throws -> Void
+    ) throws {
+        var pageOperation = try XCTUnwrap(root["pageOperation"] as? [String: Any])
+        var fingerprint = try XCTUnwrap(pageOperation["compatibilityFingerprint"] as? [String: Any])
+        var actions = try XCTUnwrap(fingerprint["actions"] as? [[String: Any]])
+        try body(&actions)
+        fingerprint["actions"] = actions
+        pageOperation["compatibilityFingerprint"] = fingerprint
+        root["pageOperation"] = pageOperation
+    }
+
+    private func assertSchema2WALReopenFailsClosed(
+        package: AhaKeyConfigurationPackage,
+        resources: [AhaKeyConfigurationResource],
+        mutate: (inout [String: Any]) throws -> Void
+    ) async throws {
+        XCTAssertEqual(package.schemaVersion, AhaKeyConfigurationPackage.pageScopedSchemaVersion)
+        let storeRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c3ar3-wal-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storeRoot) }
+        try FileManager.default.createDirectory(at: storeRoot, withIntermediateDirectories: true)
+        var resourceFiles: [AhaKeyResourceIdentifier: URL] = [:]
+        for (index, resource) in resources.enumerated() {
+            let file = storeRoot.appendingPathComponent("res-\(index).bin")
+            try reconstructedResourceBytes(resource).write(to: file)
+            resourceFiles[resource.logicalIdentifier] = file
+        }
+        do {
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeRoot,
+                acceptanceValidator: AllowingResourceValidator()
+            )
+            _ = try await store.accept(package, resourceFiles: resourceFiles)
+            let queue = try await store.durableDeviceQueue(package.targetDeviceID)
+            XCTAssertEqual(queue.items.count, 1)
+            XCTAssertEqual(queue.items.first?.package.schemaVersion, 2)
+        }
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(package)) as? [String: Any]
+        )
+        try mutate(&object)
+        let tampered = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertThrowsError(try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: tampered))
+        try replacePackageBlob(root: storeRoot, operationID: package.operationID, blob: tampered)
+        let reopened = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeRoot,
+            acceptanceValidator: AllowingResourceValidator()
+        )
+        let health = try await reopened.health()
+        XCTAssertEqual(health.journalMode, "wal")
+        do {
+            _ = try await reopened.recoveryCandidates()
+            XCTFail("篡改后的 schema=2 WAL 重开必须 fail-closed")
+        } catch {
+            XCTAssertNotNil(error)
+        }
+        do {
+            _ = try await reopened.durableDeviceQueue(package.targetDeviceID)
+            XCTFail("篡改 WAL 不得投影出队列项")
+        } catch {
+            XCTAssertNotNil(error)
+        }
+        do {
+            _ = try await reopened.transaction(package.operationID)
+            XCTFail("篡改 WAL 不得读出伪造 transaction")
+        } catch {
+            XCTAssertNotNil(error)
+        }
+    }
+
+    private func reconstructedResourceBytes(_ resource: AhaKeyConfigurationResource) throws -> Data {
+        let candidates = [
+            Data("gif".utf8),
+            Data("gif-a".utf8),
+            Data("gif-1".utf8),
+            Data("gif-2".utf8),
+            Data("gif-3".utf8),
+            Data("shared-gif".utf8),
+        ] + (1...3).map { Data("gif-\($0)".utf8) }
+        for bytes in candidates {
+            let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+            if digest == resource.sha256.rawValue, UInt64(bytes.count) == resource.byteCount {
+                return bytes
+            }
+        }
+        // standardThreeStatePlan 用 "gif-\(state.rawValue)"
+        for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
+            let bytes = Data("gif-\(state.rawValue)".utf8)
+            let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+            if digest == resource.sha256.rawValue, UInt64(bytes.count) == resource.byteCount {
+                return bytes
+            }
+        }
+        throw XCTSkip("无法重建资源字节")
+    }
+
+    private func replacePackageBlob(
+        root: URL,
+        operationID: AhaKeyRuntimeOperationID,
+        blob: Data
+    ) throws {
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        var statement: OpaquePointer?
+        XCTAssertEqual(
+            sqlite3_prepare_v2(
+                database,
+                "UPDATE runtime_transactions SET package = ? WHERE operation_id = ?",
+                -1,
+                &statement,
+                nil
+            ),
+            SQLITE_OK
+        )
+        defer { sqlite3_finalize(statement) }
+        blob.withUnsafeBytes { bytes in
+            _ = sqlite3_bind_blob(
+                statement,
+                1,
+                bytes.baseAddress,
+                Int32(blob.count),
+                unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            )
+        }
+        let operationIDText = operationID.rawValue.uuidString
+        _ = operationIDText.withCString {
+            sqlite3_bind_text(statement, 2, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
+        XCTAssertEqual(sqlite3_changes(database), 1)
     }
 }

@@ -342,3 +342,11 @@ ACK Codex 17:42 / `lastReviewedCommit=0f1f73a`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 18:03] Cursor：C3AR2 完成，停手提审
 
 ACK Codex 17:42 / `lastReviewedCommit=0f1f73a`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。显式 field→resource binding；Standard 三态同几何可组包；fingerprint 为 typed emitted-action 列表；decoder 拒绝不可能语义。定向 162/162，全量 863/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/15-c3ar2-explicit-binding-semantic-fingerprint.md`。未改 queue/status，不自动进 C3B。
+
+### [2026-09-04 18:46] Cursor ACK：开始 C3AR3 fingerprint-contract / WAL reopen closure
+
+ACK Codex 18:10 / `lastReviewedCommit=1eeef9b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3AR3：fingerprint actions 与 fieldMask/resource binding 精确双射与 canonical 顺序；显式持久化实际 wire opcode/必要 subtype 与 operation-wide cardinality；真实 persistent-store schema=2 WAL 污染/reopen。不进 C3B/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 19:08] Cursor：C3AR3 完成，停手提审
+
+ACK Codex 18:10 / `lastReviewedCommit=1eeef9b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。fingerprint↔fieldMask 双射与 canonical 顺序；picture×binding 交叉闭合；非图片显式 opcode/subtype；prepare/defaultBind 为 operation-wide。真实 schema=2 WAL 污染/reopen fail-closed。定向 162/162，全量 863/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/16-c3ar3-fingerprint-contract-wal-reopen.md`。未改 queue/status，不自动进 C3B。
