@@ -535,6 +535,32 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
                         isDirty: true,
                         baseline: .init(trust: .verified, value: .integer(35))
                     ),
+                ] + trustedLightSiblings(dirtyState: 1, dirtyEffect: "pulse")
+            )
+        )
+        guard case .write(let lightPlan) = lightAssembly else {
+            return XCTFail("light dirty 应有 typed payload")
+        }
+        XCTAssertEqual(lightPlan.values[.lightBrightness(modeSlot: 0)]?.integerValue, 80)
+        XCTAssertEqual(lightPlan.values[.lightMapping(modeSlot: 0, state: 1)]?.textValue, "pulse")
+        XCTAssertEqual(lightPlan.fieldMask, Set([
+            .lightBrightness(modeSlot: 0),
+            .lightMapping(modeSlot: 0, state: 1),
+        ]))
+        XCTAssertEqual(lightPlan.lightMappingRows[0]?.count, 9)
+        XCTAssertEqual(lightPlan.lightMappingRows[0]?[1], 0)
+        XCTAssertEqual(
+            lightPlan.lightMappingRows[0]?.enumerated().filter { $0.offset != 1 }.map(\.element),
+            Array(repeating: UInt8(1), count: 8)
+        )
+    }
+
+    func testLightMappingMissingSiblingFailsClosed() {
+        let missing = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .lights(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                fields: [
                     AhaKeyStudioFrozenField(
                         id: .lightMapping(modeSlot: 0, state: 1),
                         value: .text("pulse"),
@@ -544,11 +570,16 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
                 ]
             )
         )
-        guard case .write(let lightPlan) = lightAssembly else {
-            return XCTFail("light dirty 应有 typed payload")
-        }
-        XCTAssertEqual(lightPlan.values[.lightBrightness(modeSlot: 0)]?.integerValue, 80)
-        XCTAssertEqual(lightPlan.values[.lightMapping(modeSlot: 0, state: 1)]?.textValue, "pulse")
+        XCTAssertEqual(missing, .missingTrustedPageCache)
+
+        let unknown = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .lights(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                fields: trustedLightSiblings(dirtyState: 1, dirtyEffect: "pulse", siblingTrust: .unknown)
+            )
+        )
+        XCTAssertEqual(unknown, .requiresOverwriteConfirmation)
     }
 
     func testLeverAndPowerPagesFailClosed() {
@@ -1117,5 +1148,28 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
 
     private func sampleKeyAction(keyCode: UInt8 = 4) throws -> AhaKeyDesiredConfiguration.KeyAction {
         .shortcut(try AhaKeyDesiredConfiguration.Shortcut(modifiers: ["command"], keyCode: keyCode))
+    }
+
+    private func trustedLightSiblings(
+        dirtyState: UInt8,
+        dirtyEffect: String,
+        siblingTrust: AhaKeyStudioBaselineTrust = .verified
+    ) -> [AhaKeyStudioFrozenField] {
+        (UInt8(0)...8).map { state in
+            if state == dirtyState {
+                return AhaKeyStudioFrozenField(
+                    id: .lightMapping(modeSlot: 0, state: state),
+                    value: .text(dirtyEffect),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("off"))
+                )
+            }
+            return AhaKeyStudioFrozenField(
+                id: .lightMapping(modeSlot: 0, state: state),
+                value: .text("singleMove"),
+                isDirty: false,
+                baseline: .init(trust: siblingTrust, value: siblingTrust == .unknown ? nil : .text("singleMove"))
+            )
+        }
     }
 }

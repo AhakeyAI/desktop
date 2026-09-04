@@ -84,6 +84,10 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 snapshot.supportedConfigurationSchemaVersions,
                 handshake.supportedConfigurationSchemaVersions
             )
+            XCTAssertEqual(
+                handshake.supportedConfigurationSchemaVersions,
+                AhaKeyConfigurationPackage.advertisedSchemaVersions
+            )
         }
     }
 
@@ -104,6 +108,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
             let head = try statusPackage(device: "TEST-DEVICE", seed: "one")
             let queued = try statusPackage(device: "TEST-DEVICE", seed: "two")
+            try await sealLive(agent, head)
             guard case .operationAccepted = try await client.exchange(.apply(head)) else {
                 return XCTFail("head apply")
             }
@@ -129,6 +134,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             try await client.handshake()
             let queued = try statusPackage(device: "TEST-DEVICE", seed: "queued")
             let running = try statusPackage(device: "TEST-DEVICE", seed: "running")
+            try await sealLive(agent, running)
             let gate = StepGate()
             var hooks = agent.executionTestHooks
             hooks?.stepExecutor = { _ in
@@ -167,6 +173,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             try await client.handshake()
             let fixture = try picturePackage()
             try await ingest(agent, fixture)
+            try await sealLive(agent, fixture.package)
             let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
             var seen: [String] = []
             var hooks = agent.executionTestHooks
@@ -222,8 +229,11 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 executed.append(step.rawValue)
                 return .success
             }
-            hooks?.sealedObjectFingerprint = try baseFingerprint("live-mismatch")
             agent.executionTestHooks = hooks
+            try await agent.sealLiveObjectFingerprint(
+                try baseFingerprint("live-mismatch"),
+                for: AhaKeyRuntimeDeviceID("TEST-DEVICE")
+            )
             let package = try statusPackage(device: "TEST-DEVICE")
             guard case .operationAccepted = try await client.exchange(.apply(package)) else {
                 return XCTFail("apply")
@@ -234,13 +244,13 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             executed.removeAll()
             await agent.simulateDeviceForTesting(simulatedDevice(id: "OTHER-DEVICE"))
             var deviceHooks = agent.executionTestHooks
-            deviceHooks?.sealedObjectFingerprint = nil
             deviceHooks?.stepExecutor = { step in
                 executed.append(step.rawValue)
                 return .success
             }
             agent.executionTestHooks = deviceHooks
             let mismatched = try statusPackage(device: "TEST-DEVICE", seed: "device-mismatch")
+            try await sealLive(agent, mismatched)
             guard case .operationAccepted = try await client.exchange(.apply(mismatched)) else {
                 return XCTFail("device mismatch apply")
             }
@@ -269,11 +279,79 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             }
             agent.executionTestHooks = hooks
             let package = try statusPackage(device: "TEST-DEVICE")
+            try await sealLive(agent, package)
             guard case .operationAccepted = try await client.exchange(.apply(package)) else {
                 return XCTFail("apply")
             }
             await expectTerminal(agent, package.operationID, .failedWithoutWrites)
             XCTAssertEqual(executed.count, 1)
+        }
+    }
+
+    func testProductionLiveCASRefusesAfterAcceptAndAcrossReopen() {
+        runTest { [self] in
+            let agent = await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let package = try statusPackage(device: "TEST-DEVICE")
+            await agent.closeRuntimeStoreForTesting()
+            let confirmedBefore: [AhaKeyRuntimeStepIdentifier]
+            do {
+                let store = try AhaKeyRuntimePersistentStore(
+                    rootDirectory: storeDir,
+                    acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+                )
+                try await store.sealObjectFingerprint(
+                    try XCTUnwrap(package.pageOperation?.baseObjectFingerprint),
+                    for: package.targetDeviceID
+                )
+                try await store.accept(package, resourceFiles: [:])
+                try await store.sealObjectFingerprint(
+                    try baseFingerprint("changed-after-accept"),
+                    for: package.targetDeviceID
+                )
+                confirmedBefore = try await store.confirmedSteps(for: package.operationID)
+            }
+            XCTAssertEqual(confirmedBefore, [])
+
+            var executed: [String] = []
+            let resumed = await makeReadyAgent(storeDirectory: storeDir)
+            var hooks = resumed.executionTestHooks
+            hooks?.stepExecutor = { step in
+                executed.append(step.rawValue)
+                return .success
+            }
+            resumed.executionTestHooks = hooks
+            let client = EndpointClient(agent: resumed)
+            try await client.handshake()
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("reopen apply")
+            }
+            await expectTerminal(resumed, package.operationID, .failedWithoutWrites)
+            XCTAssertEqual(executed, [])
+            await resumed.closeRuntimeStoreForTesting()
+            let confirmedAfter = try await confirmedSteps(storeDir, package.operationID)
+            XCTAssertEqual(confirmedAfter, [])
+        }
+    }
+
+    func testMissingLiveObjectFingerprintFailsClosed() {
+        runTest { [self] in
+            let agent = await makeReadyAgent()
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var executed: [String] = []
+            var hooks = agent.executionTestHooks
+            hooks?.stepExecutor = { step in
+                executed.append(step.rawValue)
+                return .success
+            }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await expectTerminal(agent, package.operationID, .failedWithoutWrites)
+            XCTAssertEqual(executed, [])
         }
     }
 
@@ -335,7 +413,8 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     private func statusPackage(
         device: String,
-        seed: String = "base-object"
+        seed: String = "status-text",
+        objectSeed: String = "base-object"
     ) throws -> AhaKeyConfigurationPackage {
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         let plan = AhaKeyStudioScopedWritePlan(
@@ -354,8 +433,18 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID(device),
             baseRevision: .init(1),
-            baseObjectFingerprint: try baseFingerprint(seed),
+            baseObjectFingerprint: try baseFingerprint(objectSeed),
             verifiedResources: []
+        )
+    }
+
+    private func sealLive(
+        _ agent: AhaKeyAgent,
+        _ package: AhaKeyConfigurationPackage
+    ) async throws {
+        try await agent.sealLiveObjectFingerprint(
+            try XCTUnwrap(package.pageOperation?.baseObjectFingerprint),
+            for: package.targetDeviceID
         )
     }
 

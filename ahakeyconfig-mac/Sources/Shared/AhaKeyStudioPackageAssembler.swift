@@ -479,6 +479,20 @@ public enum AhaKeyStudioPackageAssembler {
 
         let fieldMask = Set(values.keys)
         guard fieldMask == acceptedIDs else { return .missingTrustedPageCache }
+        let lightRows: [UInt8: [UInt8]]
+        switch frozenLightMappingRows(
+            acceptedIDs: acceptedIDs,
+            values: values,
+            snapshot: snapshot,
+            byID: byID
+        ) {
+        case .rows(let rows):
+            lightRows = rows
+        case .requiresOverwriteConfirmation:
+            return .requiresOverwriteConfirmation
+        case .missingTrustedPageCache:
+            return .missingTrustedPageCache
+        }
         let hasEmittedAction = acceptedIDs.contains {
             hasPhysicalAction(kind: actionKind(of: $0), profile: snapshot.profile)
         }
@@ -508,7 +522,8 @@ public enum AhaKeyStudioPackageAssembler {
                     $0.logicalIdentifier.rawValue < $1.logicalIdentifier.rawValue
                 },
                 statusLine: action.statusLine,
-                framesPerSecond: action.framesPerSecond
+                framesPerSecond: action.framesPerSecond,
+                lightMappingRows: lightRows
             )
         )
     }
@@ -621,6 +636,62 @@ public enum AhaKeyStudioPackageAssembler {
         case .unsupported:
             return false
         }
+    }
+
+    private enum LightMappingRowBuild: Equatable {
+        case rows([UInt8: [UInt8]])
+        case requiresOverwriteConfirmation
+        case missingTrustedPageCache
+    }
+
+    /// 0x84 是 9 状态整行。dirty accepted set 不变；行由 trusted siblings + dirty overlay 冻结。
+    private static func frozenLightMappingRows(
+        acceptedIDs: Set<AhaKeyStudioFieldID>,
+        values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue],
+        snapshot: AhaKeyStudioPageSnapshot,
+        byID: [AhaKeyStudioFieldID: AhaKeyStudioFrozenField]
+    ) -> LightMappingRowBuild {
+        let modes = Set(acceptedIDs.compactMap { id -> UInt8? in
+            if case .lightMapping(let mode, _) = id { return mode }
+            return nil
+        })
+        guard !modes.isEmpty else { return .rows([:]) }
+        var rows: [UInt8: [UInt8]] = [:]
+        for mode in modes.sorted() {
+            var effects: [UInt8?] = Array(repeating: nil, count: 9)
+            for state in UInt8(0)...8 {
+                let fieldID = AhaKeyStudioFieldID.lightMapping(modeSlot: mode, state: state)
+                if acceptedIDs.contains(fieldID),
+                   case .text(let effect) = values[fieldID] {
+                    effects[Int(state)] = AhaKeyConfigurationStepMapper.firmwareEffectIndex(effect)
+                    continue
+                }
+                guard let field = byID[fieldID] else {
+                    return .missingTrustedPageCache
+                }
+                switch field.baseline.trust {
+                case .verified, .writeConfirmed:
+                    guard let baselineValue = field.baseline.value,
+                          case .text(let effect) = baselineValue else {
+                        return .missingTrustedPageCache
+                    }
+                    effects[Int(state)] = AhaKeyConfigurationStepMapper.firmwareEffectIndex(effect)
+                case .unknown:
+                    guard snapshot.overwriteConfirmed,
+                          let consumable = consumableTypedValue(for: field, snapshot: snapshot),
+                          case .text(let effect) = consumable else {
+                        return snapshot.overwriteConfirmed
+                            ? .missingTrustedPageCache
+                            : .requiresOverwriteConfirmation
+                    }
+                    effects[Int(state)] = AhaKeyConfigurationStepMapper.firmwareEffectIndex(effect)
+                }
+            }
+            let frozen = effects.compactMap { $0 }
+            guard frozen.count == 9 else { return .missingTrustedPageCache }
+            rows[mode] = frozen
+        }
+        return .rows(rows)
     }
 
     private static func isEmittedLogicalField(

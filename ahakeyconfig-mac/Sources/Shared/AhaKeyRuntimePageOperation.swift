@@ -446,6 +446,43 @@ public struct AhaKeyRuntimeObjectFingerprint: Codable, Equatable, Hashable, Send
     }
 }
 
+/// 冻结的 0x84 9-state 行。恢复只重放这一份，禁止临场补零。
+public struct AhaKeyRuntimeLightMappingRow: Codable, Equatable, Hashable, Sendable {
+    public let mode: UInt8
+    public let effects: [UInt8]
+
+    public init(mode: UInt8, effects: [UInt8]) throws {
+        guard effects.count == 9 else {
+            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+        }
+        self.mode = mode
+        self.effects = effects
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case mode, effects
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .invalidCompatibilityFingerprint
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            mode: try container.decode(UInt8.self, forKey: .mode),
+            effects: try container.decode([UInt8].self, forKey: .effects)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mode, forKey: .mode)
+        try container.encode(effects, forKey: .effects)
+    }
+}
+
 /// 兼容语义 fingerprint：canonical typed emitted-action 列表，保留 logical→physical 映射。
 /// prepare 是 per-chunk strategy（与生产 resourceUploadProgram 同构）；defaultBind 至多一次。
 public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashable, Sendable {
@@ -458,6 +495,8 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
     public let prepareStrategy: AhaKeyRuntimePicturePrepareStrategy?
     public let defaultBindOpcode: UInt8?
     public let actions: [AhaKeyRuntimeEmittedAction]
+    /// 冻结的 0x84 完整 9-state 行，纳入 fingerprint identity；恢复只重放这一份。
+    public let lightMappingRows: [AhaKeyRuntimeLightMappingRow]
 
     public enum Family: Equatable, Hashable, Sendable {
         case legacyStandard
@@ -480,18 +519,21 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
         family: Family,
         actions: [AhaKeyRuntimeEmittedAction],
         prepareStrategy: AhaKeyRuntimePicturePrepareStrategy? = nil,
-        defaultBindOpcode: UInt8? = nil
+        defaultBindOpcode: UInt8? = nil,
+        lightMappingRows: [AhaKeyRuntimeLightMappingRow] = []
     ) throws {
         try Self.validate(
             family: family,
             actions: actions,
             prepareStrategy: prepareStrategy,
-            defaultBindOpcode: defaultBindOpcode
+            defaultBindOpcode: defaultBindOpcode,
+            lightMappingRows: lightMappingRows
         )
         self.family = family
         self.prepareStrategy = prepareStrategy
         self.defaultBindOpcode = defaultBindOpcode
         self.actions = actions
+        self.lightMappingRows = lightMappingRows
     }
 
     public static func make(
@@ -512,11 +554,13 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
             profile: profile,
             bindings: resolvedBindings
         )
+        let lightMappingRows = try AhaKeyRuntimePageSemantic.lightMappingRows(from: plan)
         return try AhaKeyRuntimeCompatibilityFingerprint(
             family: try Family.make(profile),
             actions: actions,
             prepareStrategy: try AhaKeyRuntimePageSemantic.prepareStrategy(for: actions, profile: profile),
-            defaultBindOpcode: try AhaKeyRuntimePageSemantic.defaultBindOpcode(plan: plan, profile: profile)
+            defaultBindOpcode: try AhaKeyRuntimePageSemantic.defaultBindOpcode(plan: plan, profile: profile),
+            lightMappingRows: lightMappingRows
         )
     }
 
@@ -530,7 +574,8 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
         family: Family,
         actions: [AhaKeyRuntimeEmittedAction],
         prepareStrategy: AhaKeyRuntimePicturePrepareStrategy?,
-        defaultBindOpcode: UInt8?
+        defaultBindOpcode: UInt8?,
+        lightMappingRows: [AhaKeyRuntimeLightMappingRow]
     ) throws {
         guard !actions.isEmpty else {
             throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
@@ -572,6 +617,29 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
         for action in actions {
             try AhaKeyRuntimeEmittedAction.validate(action)
             try validate(action, in: family, prepareStrategy: prepareStrategy, defaultBindOpcode: defaultBindOpcode)
+        }
+        try validateLightMappingRows(lightMappingRows, actions: actions)
+    }
+
+    private static func validateLightMappingRows(
+        _ rows: [AhaKeyRuntimeLightMappingRow],
+        actions: [AhaKeyRuntimeEmittedAction]
+    ) throws {
+        let mappingModes = Set(actions.compactMap { action -> UInt8? in
+            guard case .lightMapping = action.command,
+                  case .lightMapping(let mode, _) = action.fieldID else { return nil }
+            return mode
+        })
+        let rowModes = rows.map(\.mode)
+        guard rowModes.count == Set(rowModes).count,
+              rowModes == rowModes.sorted(),
+              Set(rowModes) == mappingModes else {
+            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+        }
+        for row in rows {
+            guard row.effects.count == 9 else {
+                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+            }
         }
     }
 
@@ -631,7 +699,7 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
     }
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case family, sessionUpload, prepareStrategy, defaultBindOpcode, actions
+        case family, sessionUpload, prepareStrategy, defaultBindOpcode, actions, lightMappingRows
     }
 
     public init(from decoder: Decoder) throws {
@@ -670,7 +738,11 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
                 AhaKeyRuntimePicturePrepareStrategy.self,
                 forKey: .prepareStrategy
             ),
-            defaultBindOpcode: container.decodeIfPresent(UInt8.self, forKey: .defaultBindOpcode)
+            defaultBindOpcode: container.decodeIfPresent(UInt8.self, forKey: .defaultBindOpcode),
+            lightMappingRows: container.decodeIfPresent(
+                [AhaKeyRuntimeLightMappingRow].self,
+                forKey: .lightMappingRows
+            ) ?? []
         )
     }
 
@@ -688,6 +760,9 @@ public struct AhaKeyRuntimeCompatibilityFingerprint: Codable, Equatable, Hashabl
         try container.encodeIfPresent(prepareStrategy, forKey: .prepareStrategy)
         try container.encodeIfPresent(defaultBindOpcode, forKey: .defaultBindOpcode)
         try container.encode(actions, forKey: .actions)
+        if !lightMappingRows.isEmpty {
+            try container.encode(lightMappingRows, forKey: .lightMappingRows)
+        }
     }
 }
 

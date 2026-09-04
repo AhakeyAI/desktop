@@ -126,6 +126,11 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         XCTAssertNil(brightness.actions[0].subtype)
         XCTAssertEqual(mapping.actions.map(\.command), [.lightMapping])
         XCTAssertEqual(mapping.actions[0].opcode, 0x84)
+        XCTAssertEqual(mapping.lightMappingRows.count, 1)
+        XCTAssertEqual(mapping.lightMappingRows[0].mode, 0)
+        XCTAssertEqual(mapping.lightMappingRows[0].effects.count, 9)
+        XCTAssertEqual(mapping.lightMappingRows[0].effects[1], 0)
+        XCTAssertEqual(mapping.lightMappingRows[0].effects.filter { $0 != 0 }.count, 8)
         XCTAssertEqual(active.actions.map(\.command), [.setActiveSet])
         XCTAssertEqual(active.actions[0].opcode, 0x97)
         XCTAssertEqual(pictureA.actions[0].logicalSet, 0)
@@ -741,7 +746,8 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             writeTaskSetA: false,
             writeTaskSetB: false,
             activateTaskSet: nil,
-            emitsSetActiveSetOpcode: false
+            emitsSetActiveSetOpcode: false,
+            lightMappingRows: [0: [1, 0, 2, 3, 4, 5, 6, 7, 1]]
         )
     }
 

@@ -406,6 +406,146 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         XCTAssertTrue(local.steps[0].identity.rawValue.hasPrefix("page:local:"))
     }
 
+    func testLightMappingReplaysFrozenNineStateRow() throws {
+        let field = AhaKeyStudioFieldID.lightMapping(modeSlot: 0, state: 1)
+        let row: [UInt8] = [1, 4, 2, 3, 5, 6, 7, 1, 2]
+        let plan = AhaKeyStudioScopedWritePlan(
+            pageID: .lights(modeSlot: 0),
+            fieldMask: [field],
+            values: [field: .text("approvalWait")],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: nil,
+            emitsSetActiveSetOpcode: false,
+            lightMappingRows: [0: row]
+        )
+        let package = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: plan,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: []
+        )
+        let exec = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        XCTAssertEqual(exec.steps.count, 1)
+        XCTAssertEqual(exec.steps[0].identity.rawValue, "page:field:lightMapping:0")
+        guard case .setLightMapping(let mode, let effects) = exec.steps[0].program.first else {
+            return XCTFail("必须发出冻结的 0x84 整行")
+        }
+        XCTAssertEqual(mode, 0)
+        XCTAssertEqual(effects, row)
+        XCTAssertEqual(effects[1], 4)
+        XCTAssertNotEqual(effects.filter { $0 == 0 }.count, 8)
+    }
+
+    func testLocalConfirmDoesNotRelaxBaseCAS() async throws {
+        let fps = AhaKeyStudioFieldID.screenFramesPerSecond(modeSlot: 0)
+        let status = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let plan = AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [fps, status],
+            values: [fps: .integer(12), status: .text("hello")],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: nil,
+            emitsSetActiveSetOpcode: false,
+            statusLine: "hello",
+            framesPerSecond: 12
+        )
+        let package = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: plan,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV-A"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: []
+        )
+        var first = true
+        let paused = try await runPage(
+            package,
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
+        ) { _ in
+            if first {
+                first = false
+                return .success
+            }
+            return .retryableFailure
+        }
+        XCTAssertEqual(paused, .resumablePartial)
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        XCTAssertEqual(confirmed.count, 1)
+        XCTAssertTrue(confirmed[0].rawValue.hasPrefix("page:local:"))
+        XCTAssertFalse(AhaKeyRuntimePageSemantic.hasDeviceConfirmation(confirmed))
+
+        var resumed: [String] = []
+        let conflicted = try await runPage(
+            package,
+            context: .standard,
+            preconditions: AhaKeyRuntimePageExecutionPreconditions(
+                deviceID: package.targetDeviceID,
+                profile: .legacyStandard,
+                baseObjectFingerprint: try baseFingerprint("mutated-after-local")
+            )
+        ) { step in
+            resumed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(conflicted, .failedWithPartialCommit)
+        XCTAssertEqual(resumed, [])
+    }
+
+    func testLocalPlusWireKeepsCASUntilDeviceConfirm() async throws {
+        var fixture = try pictureFixture(frames: 1)
+        let status = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        fixture.plan.fieldMask.insert(status)
+        fixture.plan.values[status] = .text("hello")
+        fixture.plan.statusLine = "hello"
+        let package = try assemble(fixture, profile: .legacyStandard, device: "DEV-A")
+        let files = try writeResources(fixture)
+        let identities = try AhaKeyRuntimePageSemantic.executionPlan(
+            package: package,
+            userSlotLimit: 64
+        ).identities
+        XCTAssertTrue(identities.contains { $0.rawValue.hasPrefix("page:local:") })
+        XCTAssertTrue(identities.contains { $0.rawValue.hasPrefix("page:chunk:") })
+
+        var seen: [String] = []
+        let paused = try await runPage(
+            package,
+            files: files,
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
+        ) { step in
+            seen.append(step.rawValue)
+            return .retryableFailure
+        }
+        XCTAssertEqual(paused, .paused)
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        XCTAssertEqual(confirmed, [])
+        XCTAssertTrue(seen[0].hasPrefix("page:chunk:"))
+
+        var resumed: [String] = []
+        let conflicted = try await runPage(
+            package,
+            files: files,
+            context: .standard,
+            preconditions: AhaKeyRuntimePageExecutionPreconditions(
+                deviceID: package.targetDeviceID,
+                profile: .legacyStandard,
+                baseObjectFingerprint: try baseFingerprint("mutated-before-wire")
+            )
+        ) { step in
+            resumed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(conflicted, .failedWithoutWrites)
+        XCTAssertEqual(resumed, [])
+    }
+
     // MARK: - helpers
 
     private struct PageFixtureBox {

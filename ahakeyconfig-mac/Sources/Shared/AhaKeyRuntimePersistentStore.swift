@@ -847,6 +847,31 @@ public actor AhaKeyRuntimePersistentStore {
         return try decoder.decode(AhaKeyRuntimePolicy.self, from: data)
     }
 
+    /// 当前权威对象的密封 CAS。生产 preflight 只读这里，禁止回退到 package/contract 自身。
+    public func sealedObjectFingerprint(
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws -> AhaKeyRuntimeObjectFingerprint? {
+        guard let data = try metadataValue(for: Self.sealedObjectKey(deviceID)),
+              let hex = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return try AhaKeyRuntimeObjectFingerprint(hex)
+    }
+
+    public func sealObjectFingerprint(
+        _ fingerprint: AhaKeyRuntimeObjectFingerprint,
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws {
+        try upsertMetadata(
+            key: Self.sealedObjectKey(deviceID),
+            value: Data(fingerprint.rawValue.utf8)
+        )
+    }
+
+    private static func sealedObjectKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
+        "sealed-object:\(deviceID.rawValue)"
+    }
+
     public func reserveEventSequence() throws -> AhaKeyRuntimeEventSequence {
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {

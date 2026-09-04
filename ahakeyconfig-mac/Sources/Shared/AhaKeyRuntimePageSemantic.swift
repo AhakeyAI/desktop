@@ -951,7 +951,6 @@ public enum AhaKeyRuntimePageExecutionPreflightError: Error, Equatable, Sendable
     case deviceMismatch
     case compatibilityMismatch
     case baseObjectConflict
-    case notQueueHead
     case mappingRejected
 }
 
@@ -1048,8 +1047,18 @@ extension AhaKeyRuntimePageSemantic {
                 continue
             case .setActiveSet:
                 steps.append(try activationStep(action: action))
-            case .keyShortcut, .keyMacro, .keyDescription, .lightMapping, .lightBrightness:
+            case .keyShortcut, .keyMacro, .keyDescription, .lightBrightness:
                 steps.append(try wireFieldStep(action: action, frozen: frozen))
+            case .lightMapping:
+                guard case .lightMapping(let mode, _) = action.fieldID else {
+                    throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+                }
+                if steps.contains(where: {
+                    $0.identity.rawValue == "page:field:lightMapping:\(mode)"
+                }) {
+                    continue
+                }
+                steps.append(try lightMappingStep(mode: mode, fingerprint: fingerprint, fieldID: action.fieldID))
             case .keyVoicePreset, .screenStatus, .screenFramesPerSecond:
                 steps.append(try localFieldStep(action: action))
             }
@@ -1067,7 +1076,7 @@ extension AhaKeyRuntimePageSemantic {
     public static func evaluatePreflight(
         package: AhaKeyConfigurationPackage,
         preconditions: AhaKeyRuntimePageExecutionPreconditions?,
-        confirmedCount: Int
+        hasDeviceConfirmation: Bool
     ) throws {
         guard let contract = package.pageOperation,
               package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
@@ -1084,9 +1093,43 @@ extension AhaKeyRuntimePageSemantic {
         guard liveFamily == contract.compatibilityFingerprint.family else {
             throw AhaKeyRuntimePageExecutionPreflightError.compatibilityMismatch
         }
-        if confirmedCount == 0,
+        if !hasDeviceConfirmation,
            preconditions.baseObjectFingerprint != contract.baseObjectFingerprint {
             throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
+        }
+    }
+
+    public static func hasDeviceConfirmation(
+        _ confirmed: [AhaKeyRuntimeStepIdentifier]
+    ) -> Bool {
+        confirmed.contains { !$0.rawValue.hasPrefix("page:local:") }
+    }
+
+    static func lightMappingRows(
+        from plan: AhaKeyStudioScopedWritePlan
+    ) throws -> [AhaKeyRuntimeLightMappingRow] {
+        let modes = Set(plan.fieldMask.compactMap { id -> UInt8? in
+            if case .lightMapping(let mode, _) = id { return mode }
+            return nil
+        })
+        guard modes == Set(plan.lightMappingRows.keys) else {
+            throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+        }
+        return try modes.sorted().map { mode in
+            guard let effects = plan.lightMappingRows[mode], effects.count == 9 else {
+                throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+            }
+            for fieldID in plan.fieldMask {
+                guard case .lightMapping(let fieldMode, let state) = fieldID, fieldMode == mode else {
+                    continue
+                }
+                guard Int(state) < 9,
+                      case .text(let effect) = plan.values[fieldID],
+                      effects[Int(state)] == AhaKeyConfigurationStepMapper.firmwareEffectIndex(effect) else {
+                    throw AhaKeyRuntimeContractError.invalidCompatibilityFingerprint
+                }
+            }
+            return try AhaKeyRuntimeLightMappingRow(mode: mode, effects: effects)
         }
     }
 
@@ -1252,13 +1295,6 @@ extension AhaKeyRuntimePageSemantic {
             }
             _ = mode
             program = [.setBrightness(UInt8(brightness))]
-        case (.lightMapping, .lightMapping(let mode, let state)):
-            guard case .text(let effect) = frozen.fieldValues[action.fieldID], state < 9 else {
-                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
-            }
-            var effects = [UInt8](repeating: 0, count: 9)
-            effects[Int(state)] = AhaKeyConfigurationStepMapper.firmwareEffectIndex(effect)
-            program = [.setLightMapping(mode: mode, effects: effects)]
         default:
             throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
         }
@@ -1266,6 +1302,23 @@ extension AhaKeyRuntimePageSemantic {
             identity: try AhaKeyRuntimeStepIdentifier("page:field:\(action.fieldID.canonicalToken)"),
             program: program,
             fieldID: action.fieldID,
+            resourceID: nil
+        )
+    }
+
+    private static func lightMappingStep(
+        mode: UInt8,
+        fingerprint: AhaKeyRuntimeCompatibilityFingerprint,
+        fieldID: AhaKeyStudioFieldID
+    ) throws -> AhaKeyRuntimePageExecutionStep {
+        guard let row = fingerprint.lightMappingRows.first(where: { $0.mode == mode }),
+              row.effects.count == 9 else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        return AhaKeyRuntimePageExecutionStep(
+            identity: try AhaKeyRuntimeStepIdentifier("page:field:lightMapping:\(mode)"),
+            program: [.setLightMapping(mode: mode, effects: row.effects)],
+            fieldID: fieldID,
             resourceID: nil
         )
     }

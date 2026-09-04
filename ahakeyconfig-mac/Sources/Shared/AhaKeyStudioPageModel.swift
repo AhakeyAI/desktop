@@ -229,6 +229,8 @@ public struct AhaKeyStudioScopedWritePlan: Equatable, Sendable {
     public var resources: [AhaKeyStudioResourceInput]
     public var statusLine: String?
     public var framesPerSecond: Int?
+    /// 按 mode 冻结的 0x84 完整 9-state 行。不进入 fieldMask；只支撑整行重放。
+    public var lightMappingRows: [UInt8: [UInt8]]
 
     public init(
         pageID: AhaKeyStudioPageID,
@@ -242,7 +244,8 @@ public struct AhaKeyStudioScopedWritePlan: Equatable, Sendable {
         bindsDefaultAnimation: Bool = false,
         resources: [AhaKeyStudioResourceInput] = [],
         statusLine: String? = nil,
-        framesPerSecond: Int? = nil
+        framesPerSecond: Int? = nil,
+        lightMappingRows: [UInt8: [UInt8]] = [:]
     ) {
         self.pageID = pageID
         self.fieldMask = fieldMask
@@ -256,6 +259,7 @@ public struct AhaKeyStudioScopedWritePlan: Equatable, Sendable {
         self.resources = resources
         self.statusLine = statusLine
         self.framesPerSecond = framesPerSecond
+        self.lightMappingRows = lightMappingRows
     }
 }
 

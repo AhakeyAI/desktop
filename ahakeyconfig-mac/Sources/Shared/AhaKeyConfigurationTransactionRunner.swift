@@ -138,7 +138,7 @@ public struct AhaKeyConfigurationTransactionRunner {
             try AhaKeyRuntimePageSemantic.evaluatePreflight(
                 package: package,
                 preconditions: pagePreconditions,
-                confirmedCount: confirmed.count
+                hasDeviceConfirmation: AhaKeyRuntimePageSemantic.hasDeviceConfirmation(confirmed)
             )
         } catch {
             return try await finishTerminal(

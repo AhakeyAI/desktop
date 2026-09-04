@@ -628,10 +628,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
         XCTAssertEqual(
             handshake.supportedConfigurationSchemaVersions,
-            [
-                AhaKeyConfigurationPackage.currentSchemaVersion,
-                AhaKeyConfigurationPackage.pageScopedSchemaVersion,
-            ],
+            AhaKeyConfigurationPackage.advertisedSchemaVersions,
             "schema 广告必须以 package schema 常量为单一来源，含 schema=1 与 page-scoped schema=2"
         )
         // 实际提交包的 schemaVersion 必须被广告覆盖。

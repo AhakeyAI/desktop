@@ -543,6 +543,11 @@ public struct AhaKeyConfigurationResource: Codable, Equatable, Hashable, Sendabl
 public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
     public static let currentSchemaVersion: UInt16 = 1
     public static let pageScopedSchemaVersion: UInt16 = 2
+    /// handshake 与 snapshot 共用的 schema 广告，禁止两处各写一份字面量。
+    public static let advertisedSchemaVersions: Set<UInt16> = [
+        currentSchemaVersion,
+        pageScopedSchemaVersion,
+    ]
 
     public let schemaVersion: UInt16
     public let operationID: AhaKeyRuntimeOperationID
