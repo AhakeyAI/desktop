@@ -647,6 +647,8 @@ extension AhaKeyStudioRuntimeFacade {
         profile: AhaKeyOLEDCompatibilityProfile,
         targetDeviceID: AhaKeyRuntimeDeviceID,
         baseRevision: AhaKeyConfigurationRevision,
+        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint,
+        verifiedResources: [AhaKeyConfigurationResource] = [],
         operationID: AhaKeyRuntimeOperationID = .init()
     ) throws -> AhaKeyConfigurationPackage {
         let supported = state.snapshot?.supportedConfigurationSchemaVersions
@@ -660,12 +662,15 @@ extension AhaKeyStudioRuntimeFacade {
                 profile: profile,
                 targetDeviceID: targetDeviceID,
                 baseRevision: baseRevision,
+                baseObjectFingerprint: baseObjectFingerprint,
+                verifiedResources: verifiedResources,
                 operationID: operationID
             )
         } catch let error as AhaKeyRuntimeContractError {
             switch error {
             case .pageOperationIncomplete, .pageOperationDeviceMismatch,
-                 .invalidCompatibilityFingerprint, .invalidObjectFingerprint:
+                 .invalidCompatibilityFingerprint, .invalidObjectFingerprint,
+                 .invalidSchemaVersion:
                 throw AhaKeyStudioApplyError.pageOperationIncomplete
             default:
                 throw error

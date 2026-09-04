@@ -82,14 +82,6 @@ struct AhaKeyStudioDevicePresentation: Equatable {
 
 /// 纯派生函数：Runtime view state → 设备展示投影。视图与单测共用同一入口。
 enum AhaKeyStudioRuntimeDerivation {
-    /// C3A：page-operation 只读投影，不含 UI 锁或续传按钮。
-    static func pageOperationProjection(
-        package: AhaKeyConfigurationPackage,
-        queue: AhaKeyRuntimeDeviceQueue
-    ) -> AhaKeyRuntimePageOperationProjection? {
-        AhaKeyRuntimePageOperationProjection(package: package, queue: queue)
-    }
-
     static func presentation(
         for viewState: AhaKeyStudioRuntimeViewState
     ) -> AhaKeyStudioDevicePresentation {

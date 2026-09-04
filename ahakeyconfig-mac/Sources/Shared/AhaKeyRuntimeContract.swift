@@ -570,20 +570,20 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
         guard Set(resources.map(\.logicalIdentifier)).count == resources.count else {
             throw AhaKeyRuntimeContractError.duplicateResourceIdentifier
         }
-        let resolvedSchema: UInt16
-        if let pageOperation {
-            resolvedSchema = Self.pageScopedSchemaVersion
-            try pageOperation.validate(matchingDevice: targetDeviceID)
-        } else {
-            guard schemaVersion != Self.pageScopedSchemaVersion else {
+        switch schemaVersion {
+        case Self.pageScopedSchemaVersion:
+            guard let pageOperation else {
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }
-            guard schemaVersion > 0, schemaVersion < Self.pageScopedSchemaVersion else {
-                throw AhaKeyRuntimeContractError.unsupportedConfigurationSchema(schemaVersion)
+            try pageOperation.validate(matchingDevice: targetDeviceID, resources: resources)
+        case Self.currentSchemaVersion:
+            guard pageOperation == nil else {
+                throw AhaKeyRuntimeContractError.invalidSchemaVersion
             }
-            resolvedSchema = schemaVersion
+        default:
+            throw AhaKeyRuntimeContractError.unsupportedConfigurationSchema(schemaVersion)
         }
-        self.schemaVersion = resolvedSchema
+        self.schemaVersion = schemaVersion
         self.operationID = operationID
         self.targetDeviceID = targetDeviceID
         self.baseRevision = baseRevision

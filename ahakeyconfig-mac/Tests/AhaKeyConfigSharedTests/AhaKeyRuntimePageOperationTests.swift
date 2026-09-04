@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import AhaKeyConfigShared
 
@@ -17,7 +18,9 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             try AhaKeyRuntimePageOperationContract.assemble(
                 plan: empty,
                 profile: .legacyStandard,
-                targetDeviceID: AhaKeyRuntimeDeviceID("DEV")
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+                baseObjectFingerprint: try baseFingerprint(),
+                verifiedResources: []
             )
         ) { error in
             XCTAssertEqual(error as? AhaKeyRuntimeContractError, .pageOperationIncomplete)
@@ -38,139 +41,150 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             try AhaKeyRuntimePageOperationContract.assemble(
                 plan: mixed,
                 profile: .legacyStandard,
-                targetDeviceID: AhaKeyRuntimeDeviceID("DEV")
+                targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+                baseObjectFingerprint: try baseFingerprint(),
+                verifiedResources: []
             )
         ) { error in
             XCTAssertEqual(error as? AhaKeyRuntimeContractError, .pageOperationIncomplete)
         }
     }
 
-    func testCompatibilityFingerprintIsCanonicalAndRejectsForbiddenKeys() throws {
-        let first = try AhaKeyRuntimeCompatibilityFingerprint.make(profile: .legacyStandard)
-        let second = try AhaKeyRuntimeCompatibilityFingerprint.make(profile: .legacyStandard)
-        XCTAssertEqual(first, second)
-        XCTAssertEqual(try first.canonicalData(), try second.canonicalData())
-        XCTAssertFalse(first.opcodes.isEmpty)
-        XCTAssertEqual(first.protocolFamily, "legacy-standard")
-        XCTAssertEqual(first.physicalSetCount, 1)
-        XCTAssertTrue(first.mapsLogicalBToPhysical0)
-        XCTAssertFalse(first.sessionUpload)
+    func testBaseObjectFingerprintRequiresCallerDigestAndRejectsEmpty() throws {
+        XCTAssertThrowsError(try AhaKeyRuntimeObjectFingerprint.hashing(Data())) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .invalidObjectFingerprint)
+        }
+        let first = try AhaKeyRuntimeObjectFingerprint.hashing(Data("object-a".utf8))
+        let second = try AhaKeyRuntimeObjectFingerprint.hashing(Data("object-b".utf8))
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(first, try AhaKeyRuntimeObjectFingerprint.hashing(Data("object-a".utf8)))
+    }
 
-        let rhino = try AhaKeyRuntimeCompatibilityFingerprint.make(
-            profile: .rhinoDualSet(sessionUploadAdvertised: true)
+    func testCompatibilityFingerprintDistinguishesActualActionsAndRejectsForbiddenKeys() throws {
+        let status = try AhaKeyRuntimeCompatibilityFingerprint.make(
+            plan: screenStatusPlan(),
+            profile: .legacyStandard
         )
-        XCTAssertNotEqual(first, rhino)
-        XCTAssertEqual(rhino.physicalSetCount, 2)
-        XCTAssertTrue(rhino.sessionUpload)
+        let active = try AhaKeyRuntimeCompatibilityFingerprint.make(
+            plan: rhinoActiveOnlyPlan(),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        let (picturePlan, _) = try pictureWritePlan(bytes: Data("gif-a".utf8))
+        let picture = try AhaKeyRuntimeCompatibilityFingerprint.make(
+            plan: picturePlan,
+            profile: .legacyStandard
+        )
+        XCTAssertEqual(status.family, .legacyStandard)
+        XCTAssertEqual(status.emittedOpcodes, [])
+        XCTAssertEqual(status.geometry, .none)
+        XCTAssertEqual(status.activation, .none)
+        XCTAssertEqual(active.emittedOpcodes, [0x97])
+        XCTAssertEqual(active.activation, .setActiveSetOpcode)
+        XCTAssertEqual(active.geometry, .none)
+        XCTAssertTrue(picture.emittedOpcodes.contains(0x80))
+        XCTAssertTrue(picture.emittedOpcodes.contains(0x82))
+        XCTAssertEqual(picture.geometry, .oled160x80)
+        XCTAssertEqual(picture.physicalSlots, [0])
+        XCTAssertNotEqual(status, picture)
+        XCTAssertNotEqual(status, active)
+        XCTAssertNotEqual(picture, active)
+        XCTAssertEqual(try status.canonicalData(), try AhaKeyRuntimeCompatibilityFingerprint.make(
+            plan: screenStatusPlan(),
+            profile: .legacyStandard
+        ).canonicalData())
 
-        let encoded = try JSONEncoder().encode(first)
+        let encoded = try JSONEncoder().encode(status)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         object["battery"] = 80
-        let withBattery = try JSONSerialization.data(withJSONObject: object)
         XCTAssertThrowsError(
-            try JSONDecoder().decode(AhaKeyRuntimeCompatibilityFingerprint.self, from: withBattery)
+            try JSONDecoder().decode(
+                AhaKeyRuntimeCompatibilityFingerprint.self,
+                from: try JSONSerialization.data(withJSONObject: object)
+            )
         )
         object.removeValue(forKey: "battery")
-        object["rssi"] = -40
-        let withRSSI = try JSONSerialization.data(withJSONObject: object)
+        object["sessionUpload"] = true
         XCTAssertThrowsError(
-            try JSONDecoder().decode(AhaKeyRuntimeCompatibilityFingerprint.self, from: withRSSI)
-        )
-        object.removeValue(forKey: "rssi")
-        object["localPath"] = "/tmp/picture.gif"
-        let withPath = try JSONSerialization.data(withJSONObject: object)
-        XCTAssertThrowsError(
-            try JSONDecoder().decode(AhaKeyRuntimeCompatibilityFingerprint.self, from: withPath)
+            try JSONDecoder().decode(
+                AhaKeyRuntimeCompatibilityFingerprint.self,
+                from: try JSONSerialization.data(withJSONObject: object)
+            )
         )
     }
 
-    func testObjectFingerprintDependsOnPageFieldsAndFamilyOnly() throws {
-        let mask: Set<AhaKeyStudioFieldID> = [
-            .screenStatusLine(modeSlot: 0),
-            .screenFramesPerSecond(modeSlot: 0),
-        ]
-        let first = try AhaKeyRuntimeObjectFingerprint.make(
-            pageScope: .screen(modeSlot: 0),
-            fieldMask: mask,
-            profile: .legacyStandard
-        )
-        let reversed = try AhaKeyRuntimeObjectFingerprint.make(
-            pageScope: .screen(modeSlot: 0),
-            fieldMask: [
-                .screenFramesPerSecond(modeSlot: 0),
-                .screenStatusLine(modeSlot: 0),
-            ],
-            profile: .legacyStandard
-        )
-        XCTAssertEqual(first, reversed)
-
-        let otherPage = try AhaKeyRuntimeObjectFingerprint.make(
-            pageScope: .screen(modeSlot: 1),
-            fieldMask: [.screenStatusLine(modeSlot: 1)],
-            profile: .legacyStandard
-        )
-        XCTAssertNotEqual(first, otherPage)
-
-        let otherFamily = try AhaKeyRuntimeObjectFingerprint.make(
-            pageScope: .screen(modeSlot: 0),
-            fieldMask: mask,
-            profile: .currentSessionCapable
-        )
-        XCTAssertNotEqual(first, otherFamily)
-    }
-
-    func testConfirmationLedgerCoversFieldMaskWithoutLocalPaths() throws {
+    func testConfirmationLedgerRejectsIllegalCombinationsAndRequiresPendingExactness() throws {
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
-        let plan = AhaKeyStudioScopedWritePlan(
-            pageID: .screen(modeSlot: 0),
-            fieldMask: [field],
-            values: [field: .text("hello")],
-            overwriteSemantic: false,
-            writeTaskSetA: false,
-            writeTaskSetB: false,
-            activateTaskSet: nil,
-            emitsSetActiveSetOpcode: false,
-            resources: [
-                AhaKeyStudioResourceInput(
-                    logicalIdentifier: try AhaKeyResourceIdentifier("mode0-set0-working"),
-                    fileURL: URL(fileURLWithPath: "/tmp/secret.gif"),
-                    declaredFrameCount: 1,
-                    pixelWidth: 160,
-                    pixelHeight: 80
-                ),
-            ],
-            statusLine: "hello"
+        let resource = try verifiedGIF(Data("gif".utf8))
+        let valid = try AhaKeyRuntimeConfirmationLedger.pending(fieldMask: [field], resources: [resource])
+        XCTAssertEqual(valid.entries.count, 2)
+
+        let illegal = Data(
+            """
+            {"entries":[{"kind":"field","fieldID":null,"resourceID":"x","confirmed":true}]}
+            """.utf8
         )
-        let contract = try AhaKeyRuntimePageOperationContract.assemble(
-            plan: plan,
-            profile: .legacyStandard,
-            targetDeviceID: AhaKeyRuntimeDeviceID("DEV")
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyRuntimeConfirmationLedger.self, from: illegal)
         )
-        XCTAssertEqual(contract.confirmationLedger.fieldIDs, [field])
-        XCTAssertEqual(
-            contract.confirmationLedger.entries.compactMap(\.resourceID),
-            ["mode0-set0-working"]
+
+        let extraField = try JSONEncoder().encode(
+            AhaKeyRuntimeConfirmationLedger(entries: [
+                .pendingField(field),
+                .pendingField(.screenFramesPerSecond(modeSlot: 0)),
+            ])
         )
-        let desired = try AhaKeyRuntimeCanonicalPageWrite.encode(plan: plan, contract: contract)
-        let desiredText = String(decoding: desired, as: UTF8.self)
-        XCTAssertFalse(desiredText.contains("/tmp/secret.gif"))
-        XCTAssertFalse(desiredText.contains("battery"))
-        XCTAssertTrue(desiredText.contains("mode0-set0-working"))
+        let decodedExtra = try JSONDecoder().decode(AhaKeyRuntimeConfirmationLedger.self, from: extraField)
+        XCTAssertThrowsError(
+            try decodedExtra.validate(fieldMask: [field], resources: [])
+        )
     }
 
-    func testPageOperationProjectionReportsQueueIndexAndHeadBlocking() throws {
+    func testSameLogicalIDDifferentBytesChangesPackageIdentity() throws {
+        let operationID = AhaKeyRuntimeOperationID()
+        let (planA, resourcesA) = try pictureWritePlan(bytes: Data("gif-one".utf8))
+        let (planB, resourcesB) = try pictureWritePlan(bytes: Data("gif-two".utf8))
+        let first = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: planA,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: resourcesA,
+            operationID: operationID
+        )
+        let second = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: planB,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: resourcesB,
+            operationID: operationID
+        )
+        XCTAssertEqual(first.operationID, second.operationID)
+        XCTAssertEqual(first.resources.first?.logicalIdentifier, second.resources.first?.logicalIdentifier)
+        XCTAssertNotEqual(first.resources.first?.sha256, second.resources.first?.sha256)
+        XCTAssertNotEqual(first, second)
+        XCTAssertFalse(String(decoding: first.desiredConfiguration, as: UTF8.self).contains("/tmp/"))
+    }
+
+    func testDeviceQueueReportsHeadBlockingWithoutProjectionWrapper() throws {
         let device = try AhaKeyRuntimeDeviceID("DEV")
         let head = try AhaKeyConfigurationPackage.assemblePageScoped(
             plan: screenStatusPlan(statusLine: "head"),
             profile: .legacyStandard,
             targetDeviceID: device,
-            baseRevision: .init(1)
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint("head"),
+            verifiedResources: []
         )
         let blocked = try AhaKeyConfigurationPackage.assemblePageScoped(
             plan: screenStatusPlan(statusLine: "blocked"),
             profile: .legacyStandard,
             targetDeviceID: device,
-            baseRevision: .init(1)
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint("blocked"),
+            verifiedResources: []
         )
         let queue = AhaKeyRuntimeDeviceQueue(
             deviceID: device,
@@ -196,23 +210,15 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         XCTAssertTrue(queue.isHead(head.operationID))
         XCTAssertTrue(queue.isBlocked(blocked.operationID))
         XCTAssertFalse(queue.isBlocked(head.operationID))
-
-        let headProjection = try XCTUnwrap(
-            AhaKeyRuntimePageOperationProjection(package: head, queue: queue)
-        )
-        XCTAssertEqual(headProjection.queueIndex, 0)
-        XCTAssertFalse(headProjection.blockedByHead)
-        XCTAssertEqual(headProjection.pageScope, .screen(modeSlot: 0))
-
-        let blockedProjection = try XCTUnwrap(
-            AhaKeyRuntimePageOperationProjection(package: blocked, queue: queue)
-        )
-        XCTAssertEqual(blockedProjection.queueIndex, 1)
-        XCTAssertTrue(blockedProjection.blockedByHead)
-        XCTAssertEqual(blockedProjection.headOperationID, head.operationID)
+        XCTAssertEqual(head.pageOperation?.pageScope, .screen(modeSlot: 0))
+        XCTAssertEqual(blocked.pageOperation?.fieldMask, [.screenStatusLine(modeSlot: 0)])
     }
 
-    private func screenStatusPlan(statusLine: String) -> AhaKeyStudioScopedWritePlan {
+    private func baseFingerprint(_ seed: String = "base-object") throws -> AhaKeyRuntimeObjectFingerprint {
+        try AhaKeyRuntimeObjectFingerprint.hashing(Data(seed.utf8))
+    }
+
+    private func screenStatusPlan(statusLine: String = "hello") -> AhaKeyStudioScopedWritePlan {
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         return AhaKeyStudioScopedWritePlan(
             pageID: .screen(modeSlot: 0),
@@ -225,5 +231,65 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             emitsSetActiveSetOpcode: false,
             statusLine: statusLine
         )
+    }
+
+    private func rhinoActiveOnlyPlan() -> AhaKeyStudioScopedWritePlan {
+        let field = AhaKeyStudioFieldID.screenActiveSet(modeSlot: 0)
+        return AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [field],
+            values: [field: .integer(1)],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: 1,
+            emitsSetActiveSetOpcode: true
+        )
+    }
+
+    private func verifiedGIF(_ bytes: Data, identifier: String = "mode0-set0-working") throws -> AhaKeyConfigurationResource {
+        let digest = SHA256.hash(data: bytes)
+        return try AhaKeyConfigurationResource(
+            logicalIdentifier: identifier,
+            sha256: digest.map { String(format: "%02x", $0) }.joined(),
+            byteCount: UInt64(bytes.count),
+            mediaType: "image/gif"
+        )
+    }
+
+    private func pictureWritePlan(
+        bytes: Data,
+        identifier: String = "mode0-set0-working"
+    ) throws -> (AhaKeyStudioScopedWritePlan, [AhaKeyConfigurationResource]) {
+        let resource = try verifiedGIF(bytes, identifier: identifier)
+        let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working)
+        let plan = AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [field],
+            values: [
+                field: .asset(
+                    path: nil,
+                    framesPerSecond: 10,
+                    declaredFrameCount: 1,
+                    pixelWidth: 160,
+                    pixelHeight: 80
+                ),
+            ],
+            overwriteSemantic: false,
+            writeTaskSetA: true,
+            writeTaskSetB: false,
+            activateTaskSet: 0,
+            emitsSetActiveSetOpcode: false,
+            resources: [
+                AhaKeyStudioResourceInput(
+                    logicalIdentifier: resource.logicalIdentifier,
+                    fileURL: URL(fileURLWithPath: "/tmp/not-persisted.gif"),
+                    declaredFrameCount: 1,
+                    pixelWidth: 160,
+                    pixelHeight: 80
+                ),
+            ]
+        )
+        return (plan, [resource])
     }
 }

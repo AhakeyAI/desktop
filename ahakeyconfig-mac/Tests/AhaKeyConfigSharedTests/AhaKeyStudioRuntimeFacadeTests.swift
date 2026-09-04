@@ -887,7 +887,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
                 plan: screenStatusPlan(),
                 profile: .legacyStandard,
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
-                baseRevision: .init(0)
+                baseRevision: .init(0),
+                baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base".utf8))
             )
             XCTFail("旧 peer 未广告 schema=2 必须 fail-closed")
         } catch {
@@ -911,7 +912,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             plan: screenStatusPlan(statusLine: "scoped"),
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-1"),
-            baseRevision: .init(3)
+            baseRevision: .init(3),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base".utf8))
         )
         XCTAssertEqual(package.schemaVersion, 2)
         XCTAssertEqual(package.pageOperation?.pageScope, .screen(modeSlot: 0))

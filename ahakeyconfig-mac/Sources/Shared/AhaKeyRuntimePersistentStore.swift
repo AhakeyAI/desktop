@@ -995,12 +995,7 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
         }
         try validateProgress(summary)
-        if summary.state == .running, existing.package.isPageScoped {
-            let queue = try durableDeviceQueue(existing.package.targetDeviceID)
-            if queue.isBlocked(summary.id), let head = queue.head {
-                throw AhaKeyRuntimePersistenceError.blockedByQueueHead(head.operationID)
-            }
-        }
+        try enforceDeviceFIFO(existing, nextState: summary.state)
         try updateOperationRow(summary)
     }
 
@@ -1022,6 +1017,7 @@ public actor AhaKeyRuntimePersistentStore {
         }
         try validateProgress(summary)
         try validateCompletedClearsFailure(summary)
+        try enforceDeviceFIFO(existing, nextState: summary.state)
 
         if summary.state == .completed {
             let expectedRevision = existing.package.baseRevision.rawValue.addingReportingOverflow(1)
@@ -1153,6 +1149,24 @@ public actor AhaKeyRuntimePersistentStore {
     ) throws -> AhaKeyRuntimeDeviceQueue {
         let items = try recoveryCandidates().filter { $0.package.targetDeviceID == deviceID }
         return AhaKeyRuntimeDeviceQueue(deviceID: deviceID, items: items)
+    }
+
+    /// 同设备 FIFO：非 head 不得开始执行或提交“已写入”终态。
+    /// 排队项仍可 `cancellationRequested` / `failedWithoutWrites` 离队，不得越过队首 running/paused/resumable/completed/partial-commit。
+    private func enforceDeviceFIFO(
+        _ existing: AhaKeyRuntimePersistedTransaction,
+        nextState: AhaKeyRuntimeOperationState
+    ) throws {
+        switch nextState {
+        case .accepted, .cancellationRequested, .failedWithoutWrites:
+            return
+        case .running, .paused, .resumablePartial, .completed, .failedWithPartialCommit:
+            break
+        }
+        let queue = try durableDeviceQueue(existing.package.targetDeviceID)
+        if queue.isBlocked(existing.operationID), let head = queue.head {
+            throw AhaKeyRuntimePersistenceError.blockedByQueueHead(head.operationID)
+        }
     }
 
     /// 投影入口：枚举最近终态行。`recoveryCandidates()` 排除 terminal，Agent 重启后

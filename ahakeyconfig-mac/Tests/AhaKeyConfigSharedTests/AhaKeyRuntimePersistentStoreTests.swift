@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SQLite3
 import XCTest
@@ -529,8 +530,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let window = AhaKeyRuntimePersistentStore.snapshotProjectionTerminalLimit
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         var packages: [AhaKeyConfigurationPackage] = []
-        for _ in 0..<(window + 1) {
-            let package = try makePackage()
+        for index in 0..<(window + 1) {
+            let package = try makePackage(targetDeviceID: "DEV-\(index)")
             _ = try await store.accept(package, resourceFiles: [:])
             packages.append(package)
         }
@@ -1428,6 +1429,135 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         }
     }
 
+    func testNonHeadCannotEnterPausedResumableTerminalOrLegacyRunning() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let head = try makePageScopedPackage(statusLine: "head")
+        let next = try makePageScopedPackage(statusLine: "next")
+        let legacy = try makePackage()
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(head, resourceFiles: [:])
+        _ = try await store.accept(next, resourceFiles: [:])
+        _ = try await store.accept(legacy, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: head.operationID,
+                targetDeviceID: head.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+
+        for state in [AhaKeyRuntimeOperationState.paused, .resumablePartial] {
+            do {
+                try await store.updateOperation(
+                    .init(
+                        id: next.operationID,
+                        targetDeviceID: next.targetDeviceID,
+                        state: state,
+                        completedSteps: 0,
+                        totalSteps: 1
+                    )
+                )
+                XCTFail("非 head 不得进入 \(state)")
+            } catch {
+                XCTAssertEqual(
+                    error as? AhaKeyRuntimePersistenceError,
+                    .blockedByQueueHead(head.operationID)
+                )
+            }
+        }
+
+        do {
+            try await store.commitOperationOutcome(
+                .init(
+                    id: next.operationID,
+                    targetDeviceID: next.targetDeviceID,
+                    state: .failedWithPartialCommit,
+                    completedSteps: 0,
+                    totalSteps: 1
+                ),
+                syncBaseline: nil
+            )
+            XCTFail("非 head 不得提交已开始/部分写入终态")
+        } catch {
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePersistenceError,
+                .blockedByQueueHead(head.operationID)
+            )
+        }
+
+        do {
+            try await store.updateOperation(
+                .init(
+                    id: legacy.operationID,
+                    targetDeviceID: legacy.targetDeviceID,
+                    state: .running,
+                    completedSteps: 0,
+                    totalSteps: 1
+                )
+            )
+            XCTFail("schema=1 也不得越过同设备 head")
+        } catch {
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePersistenceError,
+                .blockedByQueueHead(head.operationID)
+            )
+        }
+
+        try await store.updateOperation(
+            .init(
+                id: next.operationID,
+                targetDeviceID: next.targetDeviceID,
+                state: .cancellationRequested,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        try await store.commitOperationOutcome(
+            .init(
+                id: next.operationID,
+                targetDeviceID: next.targetDeviceID,
+                state: .failedWithoutWrites,
+                completedSteps: 0,
+                totalSteps: 1
+            ),
+            syncBaseline: nil
+        )
+        let abandoned = try await store.transaction(next.operationID)
+        XCTAssertEqual(abandoned?.state, .failedWithoutWrites)
+    }
+
+    func testAcceptRejectsSameOperationIDWhenResourceBytesDiffer() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileA = root.appendingPathComponent("a.gif")
+        let fileB = root.appendingPathComponent("b.gif")
+        let bytesA = Data("gif-one".utf8)
+        let bytesB = Data("gif-two".utf8)
+        try bytesA.write(to: fileA)
+        try bytesB.write(to: fileB)
+        let operationID = AhaKeyRuntimeOperationID()
+        let first = try makePicturePackage(operationID: operationID, bytes: bytesA, fileURL: fileA)
+        let conflicting = try makePicturePackage(operationID: operationID, bytes: bytesB, fileURL: fileB)
+        let store = try resourceStore(rootDirectory: root)
+        _ = try await store.accept(
+            first,
+            resourceFiles: [first.resources[0].logicalIdentifier: fileA]
+        )
+        do {
+            _ = try await store.accept(
+                conflicting,
+                resourceFiles: [conflicting.resources[0].logicalIdentifier: fileB]
+            )
+            XCTFail("不同图片字节必须冲突")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .operationIdentifierConflict)
+        }
+    }
+
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("AhaKeyRuntimePersistentStoreTests-\(UUID().uuidString)", isDirectory: true)
@@ -1604,6 +1734,60 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID(targetDeviceID),
             baseRevision: .init(7),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data(statusLine.utf8)),
+            verifiedResources: [],
+            operationID: operationID
+        )
+    }
+
+    private func makePicturePackage(
+        operationID: AhaKeyRuntimeOperationID,
+        bytes: Data,
+        fileURL: URL,
+        targetDeviceID: String = "TEST-DEVICE"
+    ) throws -> AhaKeyConfigurationPackage {
+        let digest = SHA256.hash(data: bytes)
+        let resource = try AhaKeyConfigurationResource(
+            logicalIdentifier: "mode0-set0-working",
+            sha256: digest.map { String(format: "%02x", $0) }.joined(),
+            byteCount: UInt64(bytes.count),
+            mediaType: "image/gif"
+        )
+        let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working)
+        let plan = AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [field],
+            values: [
+                field: .asset(
+                    path: nil,
+                    framesPerSecond: 10,
+                    declaredFrameCount: 1,
+                    pixelWidth: 160,
+                    pixelHeight: 80
+                ),
+            ],
+            overwriteSemantic: false,
+            writeTaskSetA: true,
+            writeTaskSetB: false,
+            activateTaskSet: 0,
+            emitsSetActiveSetOpcode: false,
+            resources: [
+                AhaKeyStudioResourceInput(
+                    logicalIdentifier: resource.logicalIdentifier,
+                    fileURL: fileURL,
+                    declaredFrameCount: 1,
+                    pixelWidth: 160,
+                    pixelHeight: 80
+                ),
+            ]
+        )
+        return try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: plan,
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID(targetDeviceID),
+            baseRevision: .init(7),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("picture-base".utf8)),
+            verifiedResources: [resource],
             operationID: operationID
         )
     }

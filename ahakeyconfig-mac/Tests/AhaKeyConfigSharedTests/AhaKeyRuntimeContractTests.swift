@@ -424,7 +424,9 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             plan: screenStatusPlan(),
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
-            baseRevision: .init(0)
+            baseRevision: .init(0),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base".utf8)),
+            verifiedResources: []
         )
         XCTAssertEqual(assembled.schemaVersion, AhaKeyConfigurationPackage.pageScopedSchemaVersion)
         XCTAssertNotNil(assembled.pageOperation)
@@ -450,14 +452,63 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         }
     }
 
+    func testPageOperationDoesNotRewriteMismatchedSchema() throws {
+        let contract = try AhaKeyRuntimePageOperationContract.assemble(
+            plan: screenStatusPlan(),
+            profile: .legacyStandard,
+            targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base".utf8)),
+            verifiedResources: []
+        )
+        XCTAssertThrowsError(
+            try AhaKeyConfigurationPackage(
+                schemaVersion: 0,
+                targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+                baseRevision: .init(0),
+                desiredConfiguration: Data("configuration".utf8),
+                resources: [],
+                pageOperation: contract
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .unsupportedConfigurationSchema(0))
+        }
+        XCTAssertThrowsError(
+            try AhaKeyConfigurationPackage(
+                schemaVersion: 1,
+                targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+                baseRevision: .init(0),
+                desiredConfiguration: Data("configuration".utf8),
+                resources: [],
+                pageOperation: contract
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .invalidSchemaVersion)
+        }
+        XCTAssertThrowsError(
+            try AhaKeyConfigurationPackage(
+                schemaVersion: 999,
+                targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
+                baseRevision: .init(0),
+                desiredConfiguration: Data("configuration".utf8),
+                resources: [],
+                pageOperation: contract
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .unsupportedConfigurationSchema(999))
+        }
+    }
+
     func testPageScopedPackageRejectsDeviceMismatch() throws {
         let contract = try AhaKeyRuntimePageOperationContract.assemble(
             plan: screenStatusPlan(),
             profile: .legacyStandard,
-            targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-A")
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-A"),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base".utf8)),
+            verifiedResources: []
         )
         XCTAssertThrowsError(
             try AhaKeyConfigurationPackage(
+                schemaVersion: AhaKeyConfigurationPackage.pageScopedSchemaVersion,
                 targetDeviceID: AhaKeyRuntimeDeviceID("DEVICE-B"),
                 baseRevision: .init(0),
                 desiredConfiguration: Data("configuration".utf8),
@@ -476,6 +527,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
             baseRevision: .init(0),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base".utf8)),
+            verifiedResources: [],
             operationID: operationID
         )
         let second = try AhaKeyConfigurationPackage.assemblePageScoped(
@@ -483,6 +536,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("505C"),
             baseRevision: .init(0),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base".utf8)),
+            verifiedResources: [],
             operationID: operationID
         )
         XCTAssertEqual(first.operationID, second.operationID)

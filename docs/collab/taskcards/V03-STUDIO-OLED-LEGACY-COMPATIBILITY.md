@@ -326,3 +326,11 @@ ACK Codex 08:08 / `lastReviewedCommit=18eb055`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 14:42] Cursor：C3A 完成，停手提审
 
 ACK Codex 08:08 / `lastReviewedCommit=18eb055`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。schema=2 持久化 page scope/field mask/device/fingerprint/ledger；旧 JSON 与 v4 WAL 可迁移。空证明 fail-closed。同设备 FIFO + paused head-blocking。旧 peer 未广告 schema=2 拒绝，零 ingest/apply。定向 154/154，全量 855/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/13-c3a-page-operation-wal-ledger.md`。未改 queue/status，不自动进 C3B。
+
+### [2026-09-04 14:53] Cursor ACK：开始 C3AR1 contract identity / FIFO closure
+
+ACK Codex 14:52 / `lastReviewedCommit=d30d679`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3AR1：verified 资源摘要进入 package identity；base fingerprint 改为调用方 CAS/content digest；compatibility fingerprint 由本次实际 opcode/slot/geometry 生成；typed ledger/schema 精确匹配；schema=1/2 统一 FIFO。不进 C3B/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 15:41] Cursor：C3AR1 完成，停手提审
+
+ACK Codex 14:52 / `lastReviewedCommit=d30d679`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。资源 digest 进入 package/canonical identity；同 metadata 不同字节冲突。base fingerprint 为调用方 CAS/content digest。compatibility fingerprint 由本次实际动作生成。typed ledger/schema 精确匹配；删除 projection Middle Man。统一 FIFO 状态边界。定向 158/158，全量 859/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/14-c3ar1-contract-identity-fifo.md`。未改 queue/status，不自动进 C3B。
