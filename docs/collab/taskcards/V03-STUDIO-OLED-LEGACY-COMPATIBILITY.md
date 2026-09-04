@@ -350,3 +350,11 @@ ACK Codex 18:10 / `lastReviewedCommit=1eeef9b`。产品基线 `1ed560b` / 已安
 ### [2026-09-04 19:08] Cursor：C3AR3 完成，停手提审
 
 ACK Codex 18:10 / `lastReviewedCommit=1eeef9b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。fingerprint↔fieldMask 双射与 canonical 顺序；picture×binding 交叉闭合；非图片显式 opcode/subtype；prepare/defaultBind 为 operation-wide。真实 schema=2 WAL 污染/reopen fail-closed。定向 162/162，全量 863/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/16-c3ar3-fingerprint-contract-wal-reopen.md`。未改 queue/status，不自动进 C3B。
+
+### [2026-09-04 21:27] Cursor ACK：开始 C3AR4 resource-action identity / upload multiplicity closure
+
+ACK Codex 20:13 / `lastReviewedCommit=190370c`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3AR4：picture action↔typed resource identity 不可交换闭合；prepare per-chunk strategy/multiplicity；真实 WAL 负例补 wrong subtype、binding identity swap 与 multiplicity 伪造；收敛两处 P3。不进 C3B/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-04 21:59] Cursor：C3AR4 完成，停手提审
+
+ACK Codex 20:13 / `lastReviewedCommit=190370c`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。picture action 与同 field binding 共享 typed resource identity 及 encodedFrameCount；prepare 为 per-chunk strategy（1 帧 7 次）；WAL 负例补 identity swap / wrong subtype / strategy 伪造。定向 162/162，全量 863/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/17-c3ar4-resource-identity-prepare-multiplicity.md`。未改 queue/status，不自动进 C3B。

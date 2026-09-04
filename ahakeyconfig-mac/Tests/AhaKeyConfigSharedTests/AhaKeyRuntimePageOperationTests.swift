@@ -97,21 +97,23 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             plan: rhinoActiveOnlyPlan(),
             profile: .rhinoDualSet(sessionUploadAdvertised: false)
         )
-        let (picturePlan, _) = try pictureWritePlan(bytes: Data("gif-a".utf8), logicalSet: 0)
+        let pictureAFixture = try pictureWritePlan(bytes: Data("gif-a".utf8), logicalSet: 0)
         let pictureA = try AhaKeyRuntimeCompatibilityFingerprint.make(
-            plan: picturePlan,
-            profile: .legacyStandard
+            plan: pictureAFixture.plan,
+            profile: .legacyStandard,
+            verifiedResources: pictureAFixture.resources
         )
-        let (pictureBPlan, _) = try pictureWritePlan(bytes: Data("gif-a".utf8), logicalSet: 1)
+        let pictureBFixture = try pictureWritePlan(bytes: Data("gif-a".utf8), logicalSet: 1)
         let pictureB = try AhaKeyRuntimeCompatibilityFingerprint.make(
-            plan: pictureBPlan,
-            profile: .legacyStandard
+            plan: pictureBFixture.plan,
+            profile: .legacyStandard,
+            verifiedResources: pictureBFixture.resources
         )
         XCTAssertEqual(status.family, .legacyStandard)
         XCTAssertEqual(status.actions.map(\.command), [.screenStatus])
         XCTAssertNil(status.actions[0].opcode)
         XCTAssertNil(status.actions[0].subtype)
-        XCTAssertNil(status.sessionOpcode)
+        XCTAssertNil(status.prepareStrategy)
         XCTAssertEqual(fps.actions.map(\.command), [.screenFramesPerSecond])
         XCTAssertEqual(key.actions.map(\.command), [.keyShortcut])
         XCTAssertEqual(key.actions[0].opcode, 0x73)
@@ -128,8 +130,24 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         XCTAssertEqual(active.actions[0].opcode, 0x97)
         XCTAssertEqual(pictureA.actions[0].logicalSet, 0)
         XCTAssertEqual(pictureA.actions[0].physicalSlot, 0)
-        XCTAssertEqual(pictureA.sessionOpcode, 0x80)
+        XCTAssertEqual(pictureA.prepareStrategy?.opcode, 0x80)
+        XCTAssertEqual(pictureA.prepareStrategy?.perChunk, true)
+        XCTAssertEqual(
+            try XCTUnwrap(pictureA.prepareStrategy).prepareCount(encodedFrameCount: 1),
+            try AhaKeyRuntimePageSemantic.picturePrepareCount(encodedFrameCount: 1)
+        )
+        XCTAssertEqual(try AhaKeyRuntimePageSemantic.picturePrepareCount(encodedFrameCount: 1), 7)
         XCTAssertNil(pictureA.defaultBindOpcode)
+        XCTAssertEqual(
+            pictureA.actions[0].resourceIdentity,
+            AhaKeyRuntimePictureResourceIdentity(
+                logicalID: pictureAFixture.resources[0].logicalIdentifier,
+                sha256: pictureAFixture.resources[0].sha256,
+                byteCount: pictureAFixture.resources[0].byteCount,
+                mediaType: pictureAFixture.resources[0].mediaType
+            )
+        )
+        XCTAssertEqual(pictureA.actions[0].encodedFrameCount, 1)
         XCTAssertEqual(pictureB.actions[0].logicalSet, 1)
         XCTAssertEqual(pictureB.actions[0].physicalSlot, 0)
         XCTAssertNotEqual(pictureA, pictureB)
@@ -169,14 +187,14 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
     }
 
     func testStandardThreeStateSameGeometryBindsEachFieldOnce() throws {
-        let (plan, resources) = try standardThreeStatePlan()
+        let fixture = try standardThreeStatePlan()
         let package = try AhaKeyConfigurationPackage.assemblePageScoped(
-            plan: plan,
+            plan: fixture.plan,
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
             baseRevision: .init(1),
             baseObjectFingerprint: try baseFingerprint(),
-            verifiedResources: resources
+            verifiedResources: fixture.resources
         )
         let bindings = try XCTUnwrap(package.pageOperation?.resourceBindings)
         XCTAssertEqual(bindings.count, 3)
@@ -188,37 +206,48 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         )
         let desired = String(decoding: package.desiredConfiguration, as: UTF8.self)
         XCTAssertFalse(desired.contains("/tmp/"))
-        XCTAssertEqual(package.pageOperation?.compatibilityFingerprint.actions.count, 3)
-        XCTAssertEqual(package.pageOperation?.compatibilityFingerprint.sessionOpcode, 0x80)
-        XCTAssertNil(package.pageOperation?.compatibilityFingerprint.defaultBindOpcode)
-        XCTAssertEqual(
-            Set(package.pageOperation?.compatibilityFingerprint.actions.compactMap(\.opcode) ?? []),
-            [0x93]
-        )
+        let fingerprint = try XCTUnwrap(package.pageOperation?.compatibilityFingerprint)
+        XCTAssertEqual(fingerprint.actions.count, 3)
+        XCTAssertEqual(fingerprint.prepareStrategy?.opcode, 0x80)
+        XCTAssertEqual(fingerprint.prepareStrategy?.perChunk, true)
+        XCTAssertEqual(try XCTUnwrap(fingerprint.prepareStrategy).prepareCount(encodedFrameCount: 1), 7)
+        XCTAssertNil(fingerprint.defaultBindOpcode)
+        XCTAssertEqual(Set(fingerprint.actions.compactMap(\.opcode)), [0x93])
+        for action in fingerprint.actions {
+            let binding = try XCTUnwrap(bindings.first { $0.fieldID == action.fieldID })
+            XCTAssertEqual(action.resourceIdentity, binding.pictureIdentity)
+            XCTAssertEqual(action.encodedFrameCount, binding.encodedFrameCount)
+        }
     }
 
     func testRhinoABReuseSameDigestDifferentLogicalIDs() throws {
         let bytes = Data("shared-gif".utf8)
-        let (plan, resources) = try rhinoABReusePlan(bytes: bytes)
-        XCTAssertEqual(resources[0].sha256, resources[1].sha256)
-        XCTAssertNotEqual(resources[0].logicalIdentifier, resources[1].logicalIdentifier)
+        let fixture = try rhinoABReusePlan(bytes: bytes)
+        XCTAssertEqual(fixture.resources[0].sha256, fixture.resources[1].sha256)
+        XCTAssertNotEqual(fixture.resources[0].logicalIdentifier, fixture.resources[1].logicalIdentifier)
         let package = try AhaKeyConfigurationPackage.assemblePageScoped(
-            plan: plan,
+            plan: fixture.plan,
             profile: .rhinoDualSet(sessionUploadAdvertised: false),
             targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
             baseRevision: .init(1),
             baseObjectFingerprint: try baseFingerprint(),
-            verifiedResources: resources
+            verifiedResources: fixture.resources
         )
         let actions = try XCTUnwrap(package.pageOperation?.compatibilityFingerprint.actions)
+        let bindings = try XCTUnwrap(package.pageOperation?.resourceBindings)
         XCTAssertEqual(actions.map(\.logicalSet), [0, 1])
         XCTAssertEqual(actions.map(\.physicalSlot), [0, 1])
         XCTAssertNotEqual(actions[0], actions[1])
+        XCTAssertNotEqual(actions[0].resourceIdentity, actions[1].resourceIdentity)
+        for action in actions {
+            let binding = try XCTUnwrap(bindings.first { $0.fieldID == action.fieldID })
+            XCTAssertEqual(action.resourceIdentity, binding.pictureIdentity)
+        }
     }
 
     func testBindingRejectsMissingDuplicateAndWrongField() throws {
-        let (plan, resources) = try pictureWritePlan(bytes: Data("gif".utf8), logicalSet: 0)
-        var missing = plan
+        let fixture = try pictureWritePlan(bytes: Data("gif".utf8), logicalSet: 0)
+        var missing = fixture.plan
         missing.resources = []
         XCTAssertThrowsError(
             try AhaKeyRuntimePageOperationContract.assemble(
@@ -229,15 +258,15 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 verifiedResources: []
             )
         )
-        var wrong = plan
+        var wrong = fixture.plan
         let wrongID = try AhaKeyResourceIdentifier("mode0-set1-working")
         wrong.resources[0].logicalIdentifier = wrongID
-        var wrongResources = resources
+        var wrongResources = fixture.resources
         wrongResources[0] = try AhaKeyConfigurationResource(
             logicalIdentifier: wrongID.rawValue,
-            sha256: resources[0].sha256.rawValue,
-            byteCount: resources[0].byteCount,
-            mediaType: resources[0].mediaType.rawValue
+            sha256: fixture.resources[0].sha256.rawValue,
+            byteCount: fixture.resources[0].byteCount,
+            mediaType: fixture.resources[0].mediaType.rawValue
         )
         XCTAssertThrowsError(
             try AhaKeyRuntimePageOperationContract.assemble(
@@ -248,10 +277,10 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 verifiedResources: wrongResources
             )
         )
-        let extra = resources + [
+        let extra = fixture.resources + [
             try verifiedGIF(Data("other".utf8), identifier: "mode0-set0-waiting"),
         ]
-        var extraPlan = plan
+        var extraPlan = fixture.plan
         extraPlan.resources.append(
             AhaKeyStudioResourceInput(
                 logicalIdentifier: extra[1].logicalIdentifier,
@@ -273,10 +302,11 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
     }
 
     func testFingerprintDecoderRejectsImpossibleSemanticsAndWALReopen() async throws {
-        let (plan, resources) = try pictureWritePlan(bytes: Data("gif".utf8), logicalSet: 0)
+        let fixture = try pictureWritePlan(bytes: Data("gif".utf8), logicalSet: 0)
         let valid = try AhaKeyRuntimeCompatibilityFingerprint.make(
-            plan: plan,
-            profile: .legacyStandard
+            plan: fixture.plan,
+            profile: .legacyStandard,
+            verifiedResources: fixture.resources
         )
         let encoded = try JSONEncoder().encode(valid)
         func decodeMutating(_ mutate: (inout [String: Any]) throws -> Void) throws {
@@ -289,6 +319,16 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         }
         XCTAssertThrowsError(try decodeMutating { root in
             root["sessionOpcode"] = 255
+        })
+        XCTAssertThrowsError(try decodeMutating { root in
+            var strategy = try XCTUnwrap(root["prepareStrategy"] as? [String: Any])
+            strategy["opcode"] = 255
+            root["prepareStrategy"] = strategy
+        })
+        XCTAssertThrowsError(try decodeMutating { root in
+            var strategy = try XCTUnwrap(root["prepareStrategy"] as? [String: Any])
+            strategy["perChunk"] = false
+            root["prepareStrategy"] = strategy
         })
         XCTAssertThrowsError(try decodeMutating { root in
             var actions = try XCTUnwrap(root["actions"] as? [[String: Any]])
@@ -331,12 +371,12 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         })
 
         let package = try AhaKeyConfigurationPackage.assemblePageScoped(
-            plan: plan,
+            plan: fixture.plan,
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
             baseRevision: .init(1),
             baseObjectFingerprint: try baseFingerprint(),
-            verifiedResources: resources
+            verifiedResources: fixture.resources
         )
         XCTAssertEqual(package.schemaVersion, AhaKeyConfigurationPackage.pageScopedSchemaVersion)
         let roundTrip = try JSONDecoder().decode(
@@ -348,14 +388,23 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         let statusAction = try XCTUnwrap(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(status.actions[0])) as? [String: Any]
         )
-        let (threeStatePlan, threeStateResources) = try standardThreeStatePlan()
-        let threeState = try AhaKeyConfigurationPackage.assemblePageScoped(
-            plan: threeStatePlan,
+        let threeState = try standardThreeStatePlan()
+        let threeStatePackage = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: threeState.plan,
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
             baseRevision: .init(1),
             baseObjectFingerprint: try baseFingerprint(),
-            verifiedResources: threeStateResources
+            verifiedResources: threeState.resources
+        )
+        let rhino = try rhinoABReusePlan(bytes: Data("shared-gif".utf8))
+        let rhinoPackage = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: rhino.plan,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try baseFingerprint(),
+            verifiedResources: rhino.resources
         )
         let keyPackage = try AhaKeyConfigurationPackage.assemblePageScoped(
             plan: try keyActionPlan(),
@@ -366,7 +415,7 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             verifiedResources: []
         )
 
-        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: fixture.sourceBytes) { root in
             try mutateFingerprintActions(in: &root) { actions in
                 var command = try XCTUnwrap(actions[0]["command"] as? [String: Any])
                 var picture = try XCTUnwrap(command["picture"] as? [String: Any])
@@ -375,29 +424,70 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 actions[0]["command"] = command
             }
         }
-        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: fixture.sourceBytes) { root in
             try mutateFingerprintActions(in: &root) { actions in
                 actions[0] = statusAction
             }
         }
-        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: fixture.sourceBytes) { root in
             try mutateFingerprintActions(in: &root) { actions in
                 actions.append(actions[0])
             }
         }
-        try await assertSchema2WALReopenFailsClosed(package: threeState, resources: threeStateResources) { root in
+        try await assertSchema2WALReopenFailsClosed(
+            package: threeStatePackage,
+            sourceBytes: threeState.sourceBytes
+        ) { root in
             try mutateFingerprintActions(in: &root) { actions in
                 actions.reverse()
             }
         }
-        try await assertSchema2WALReopenFailsClosed(package: keyPackage, resources: []) { root in
+        try await assertSchema2WALReopenFailsClosed(package: keyPackage, sourceBytes: [:]) { root in
             try mutateFingerprintActions(in: &root) { actions in
                 actions[0]["opcode"] = 0x84
             }
         }
-        try await assertSchema2WALReopenFailsClosed(package: package, resources: resources) { root in
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: fixture.sourceBytes) { root in
             try mutateFingerprintActions(in: &root) { actions in
                 actions[0]["logicalSet"] = 1
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: keyPackage, sourceBytes: [:]) { root in
+            try mutateFingerprintActions(in: &root) { actions in
+                actions[0]["subtype"] = 0x75
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(
+            package: threeStatePackage,
+            sourceBytes: threeState.sourceBytes
+        ) { root in
+            try swapCoordinatedResourceIdentities(in: &root, first: 0, second: 1)
+        }
+        try await assertSchema2WALReopenFailsClosed(
+            package: rhinoPackage,
+            sourceBytes: rhino.sourceBytes
+        ) { root in
+            try swapCoordinatedResourceIdentities(in: &root, first: 0, second: 1)
+        }
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: fixture.sourceBytes) { root in
+            try mutateFingerprint(in: &root) { fingerprint in
+                var strategy = try XCTUnwrap(fingerprint["prepareStrategy"] as? [String: Any])
+                strategy["perChunk"] = false
+                fingerprint["prepareStrategy"] = strategy
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: fixture.sourceBytes) { root in
+            try mutateFingerprint(in: &root) { fingerprint in
+                var strategy = try XCTUnwrap(fingerprint["prepareStrategy"] as? [String: Any])
+                strategy["opcode"] = 255
+                fingerprint["prepareStrategy"] = strategy
+            }
+        }
+        try await assertSchema2WALReopenFailsClosed(package: package, sourceBytes: fixture.sourceBytes) { root in
+            try mutateFingerprint(in: &root) { fingerprint in
+                var strategy = try XCTUnwrap(fingerprint["prepareStrategy"] as? [String: Any])
+                strategy["chunkBytes"] = 1
+                fingerprint["prepareStrategy"] = strategy
             }
         }
     }
@@ -431,24 +521,24 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
 
     func testSameLogicalIDDifferentBytesChangesPackageIdentity() throws {
         let operationID = AhaKeyRuntimeOperationID()
-        let (planA, resourcesA) = try pictureWritePlan(bytes: Data("gif-one".utf8))
-        let (planB, resourcesB) = try pictureWritePlan(bytes: Data("gif-two".utf8))
+        let fixtureA = try pictureWritePlan(bytes: Data("gif-one".utf8))
+        let fixtureB = try pictureWritePlan(bytes: Data("gif-two".utf8))
         let first = try AhaKeyConfigurationPackage.assemblePageScoped(
-            plan: planA,
+            plan: fixtureA.plan,
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
             baseRevision: .init(1),
             baseObjectFingerprint: try baseFingerprint(),
-            verifiedResources: resourcesA,
+            verifiedResources: fixtureA.resources,
             operationID: operationID
         )
         let second = try AhaKeyConfigurationPackage.assemblePageScoped(
-            plan: planB,
+            plan: fixtureB.plan,
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID("DEV"),
             baseRevision: .init(1),
             baseObjectFingerprint: try baseFingerprint(),
-            verifiedResources: resourcesB,
+            verifiedResources: fixtureB.resources,
             operationID: operationID
         )
         XCTAssertEqual(first.operationID, second.operationID)
@@ -618,11 +708,17 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         )
     }
 
+    private struct PageFixture {
+        let plan: AhaKeyStudioScopedWritePlan
+        let resources: [AhaKeyConfigurationResource]
+        let sourceBytes: [AhaKeyResourceIdentifier: Data]
+    }
+
     private func pictureWritePlan(
         bytes: Data,
         identifier: String? = nil,
         logicalSet: Int = 0
-    ) throws -> (AhaKeyStudioScopedWritePlan, [AhaKeyConfigurationResource]) {
+    ) throws -> PageFixture {
         let physical = AhaKeyOLEDSyncPlan.physicalTaskSetIndex(profile: .legacyStandard, logicalSet: logicalSet)
         let resolvedID = identifier ?? AhaKeyStudioPackageAssembler.taskAssetIdentifier(
             mode: 0,
@@ -658,14 +754,19 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 ),
             ]
         )
-        return (plan, [resource])
+        return PageFixture(
+            plan: plan,
+            resources: [resource],
+            sourceBytes: [resource.logicalIdentifier: bytes]
+        )
     }
 
-    private func standardThreeStatePlan() throws -> (AhaKeyStudioScopedWritePlan, [AhaKeyConfigurationResource]) {
+    private func standardThreeStatePlan() throws -> PageFixture {
         let states: [AhaKeyDesiredConfiguration.TaskDisplayState] = [.working, .waiting, .done]
         var values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue] = [:]
         var resources: [AhaKeyConfigurationResource] = []
         var inputs: [AhaKeyStudioResourceInput] = []
+        var sourceBytes: [AhaKeyResourceIdentifier: Data] = [:]
         for state in states {
             let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: 0, state: state)
             values[field] = .asset(
@@ -676,8 +777,10 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 pixelHeight: 80
             )
             let identifier = AhaKeyStudioPackageAssembler.taskAssetIdentifier(mode: 0, set: 0, state: state)
-            let resource = try verifiedGIF(Data("gif-\(state.rawValue)".utf8), identifier: identifier)
+            let bytes = Data("gif-\(state.rawValue)".utf8)
+            let resource = try verifiedGIF(bytes, identifier: identifier)
             resources.append(resource)
+            sourceBytes[resource.logicalIdentifier] = bytes
             inputs.append(
                 AhaKeyStudioResourceInput(
                     logicalIdentifier: resource.logicalIdentifier,
@@ -699,17 +802,18 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             emitsSetActiveSetOpcode: false,
             resources: inputs
         )
-        return (plan, resources)
+        return PageFixture(plan: plan, resources: resources, sourceBytes: sourceBytes)
     }
 
     private func rhinoABReusePlan(
         bytes: Data
-    ) throws -> (AhaKeyStudioScopedWritePlan, [AhaKeyConfigurationResource]) {
+    ) throws -> PageFixture {
         let digest = SHA256.hash(data: bytes)
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         var values: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue] = [:]
         var resources: [AhaKeyConfigurationResource] = []
         var inputs: [AhaKeyStudioResourceInput] = []
+        var sourceBytes: [AhaKeyResourceIdentifier: Data] = [:]
         for logicalSet in [0, 1] {
             let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: logicalSet, state: .working)
             values[field] = .asset(
@@ -731,6 +835,7 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
                 mediaType: "image/gif"
             )
             resources.append(resource)
+            sourceBytes[resource.logicalIdentifier] = bytes
             inputs.append(
                 AhaKeyStudioResourceInput(
                     logicalIdentifier: resource.logicalIdentifier,
@@ -752,37 +857,83 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
             emitsSetActiveSetOpcode: false,
             resources: inputs
         )
-        return (plan, resources)
+        return PageFixture(plan: plan, resources: resources, sourceBytes: sourceBytes)
+    }
+
+    private func mutateFingerprint(
+        in root: inout [String: Any],
+        _ body: (inout [String: Any]) throws -> Void
+    ) throws {
+        var pageOperation = try XCTUnwrap(root["pageOperation"] as? [String: Any])
+        var fingerprint = try XCTUnwrap(pageOperation["compatibilityFingerprint"] as? [String: Any])
+        try body(&fingerprint)
+        pageOperation["compatibilityFingerprint"] = fingerprint
+        root["pageOperation"] = pageOperation
     }
 
     private func mutateFingerprintActions(
         in root: inout [String: Any],
         _ body: (inout [[String: Any]]) throws -> Void
     ) throws {
+        try mutateFingerprint(in: &root) { fingerprint in
+            var actions = try XCTUnwrap(fingerprint["actions"] as? [[String: Any]])
+            try body(&actions)
+            fingerprint["actions"] = actions
+        }
+    }
+
+    private func swapCoordinatedResourceIdentities(
+        in root: inout [String: Any],
+        first: Int,
+        second: Int
+    ) throws {
         var pageOperation = try XCTUnwrap(root["pageOperation"] as? [String: Any])
+        var bindings = try XCTUnwrap(pageOperation["resourceBindings"] as? [[String: Any]])
         var fingerprint = try XCTUnwrap(pageOperation["compatibilityFingerprint"] as? [String: Any])
         var actions = try XCTUnwrap(fingerprint["actions"] as? [[String: Any]])
-        try body(&actions)
+        let firstField = try XCTUnwrap(bindings[first]["fieldID"] as? String)
+        let secondField = try XCTUnwrap(bindings[second]["fieldID"] as? String)
+        var firstBinding = bindings[first]
+        var secondBinding = bindings[second]
+        swapIdentityPayload(&firstBinding, &secondBinding)
+        bindings[first] = firstBinding
+        bindings[second] = secondBinding
+        let firstAction = try XCTUnwrap(actions.firstIndex { ($0["fieldID"] as? String) == firstField })
+        let secondAction = try XCTUnwrap(actions.firstIndex { ($0["fieldID"] as? String) == secondField })
+        var firstIdentity = try XCTUnwrap(actions[firstAction]["resourceIdentity"] as? [String: Any])
+        var secondIdentity = try XCTUnwrap(actions[secondAction]["resourceIdentity"] as? [String: Any])
+        swapIdentityPayload(&firstIdentity, &secondIdentity)
+        actions[firstAction]["resourceIdentity"] = firstIdentity
+        actions[secondAction]["resourceIdentity"] = secondIdentity
         fingerprint["actions"] = actions
+        pageOperation["resourceBindings"] = bindings
         pageOperation["compatibilityFingerprint"] = fingerprint
         root["pageOperation"] = pageOperation
     }
 
+    private func swapIdentityPayload(_ first: inout [String: Any], _ second: inout [String: Any]) {
+        for key in ["logicalID", "sha256", "byteCount", "mediaType"] {
+            let temporary = first[key]
+            first[key] = second[key]
+            second[key] = temporary
+        }
+    }
+
     private func assertSchema2WALReopenFailsClosed(
         package: AhaKeyConfigurationPackage,
-        resources: [AhaKeyConfigurationResource],
+        sourceBytes: [AhaKeyResourceIdentifier: Data],
         mutate: (inout [String: Any]) throws -> Void
     ) async throws {
         XCTAssertEqual(package.schemaVersion, AhaKeyConfigurationPackage.pageScopedSchemaVersion)
         let storeRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("c3ar3-wal-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("c3ar4-wal-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storeRoot) }
         try FileManager.default.createDirectory(at: storeRoot, withIntermediateDirectories: true)
         var resourceFiles: [AhaKeyResourceIdentifier: URL] = [:]
-        for (index, resource) in resources.enumerated() {
-            let file = storeRoot.appendingPathComponent("res-\(index).bin")
-            try reconstructedResourceBytes(resource).write(to: file)
-            resourceFiles[resource.logicalIdentifier] = file
+        for (identifier, bytes) in sourceBytes {
+            let file = storeRoot.appendingPathComponent("res-\(identifier.rawValue).bin")
+            try bytes.write(to: file)
+            resourceFiles[identifier] = file
         }
         do {
             let store = try AhaKeyRuntimePersistentStore(
@@ -825,32 +976,6 @@ final class AhaKeyRuntimePageOperationTests: XCTestCase {
         } catch {
             XCTAssertNotNil(error)
         }
-    }
-
-    private func reconstructedResourceBytes(_ resource: AhaKeyConfigurationResource) throws -> Data {
-        let candidates = [
-            Data("gif".utf8),
-            Data("gif-a".utf8),
-            Data("gif-1".utf8),
-            Data("gif-2".utf8),
-            Data("gif-3".utf8),
-            Data("shared-gif".utf8),
-        ] + (1...3).map { Data("gif-\($0)".utf8) }
-        for bytes in candidates {
-            let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-            if digest == resource.sha256.rawValue, UInt64(bytes.count) == resource.byteCount {
-                return bytes
-            }
-        }
-        // standardThreeStatePlan 用 "gif-\(state.rawValue)"
-        for state in AhaKeyDesiredConfiguration.TaskDisplayState.allCases {
-            let bytes = Data("gif-\(state.rawValue)".utf8)
-            let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-            if digest == resource.sha256.rawValue, UInt64(bytes.count) == resource.byteCount {
-                return bytes
-            }
-        }
-        throw XCTSkip("无法重建资源字节")
     }
 
     private func replacePackageBlob(
