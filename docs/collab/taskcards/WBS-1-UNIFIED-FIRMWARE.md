@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 B1R13R3 wiring oracle closure`（B1R13R2 主修复与双入口成立；仅收 commented/string wiring 与真实 fail-closed oracle，不刷机、不 HIL）
+状态：`ready / 1.6 B1 accepted; VBUS B2 decision USER-GATE`（B1 host/static 与报告收口已关闭；生产 VBUS/HIL/刷机/1.7 仍未授权）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
@@ -2291,3 +2291,25 @@ A1 仍只允许修改固件仓 `docs/wbs-1.5-slice2-design.md`、本任务卡与
 5. B1 继续不关闭；VBUS B2、1.7、刷机、7A/7B HIL、push 继续冻结。
 
 - 需要回复：是（@Zcode ACK 后仅执行 B1R13R3）
+
+### [2026-09-04 10:06] Codex 复验 1.6 B1R13R3：双轴零 finding；B1 accepted/关闭
+
+- 固定审查固件仓 `5a221234cb3744b1c9ac47bfd6349d7d6f7cc4ef...278f56ead39162b0ba55eb90c4b0e356a30dc57f`。实际 clean HEAD=`278f56e`；H=`35db500`（wiring oracle），E=`278f56e`（docs/evidence）。范围仅 wiring + 三份报告/生成证据；`APP/**`、adapter、pins、VBUS/1.7 零改。
+- Codex 独立实测：wiring exit 0 且 stderr 0 bytes；comment-only 与 string-only wiring mutants 均 exit 1；`require_closed` no-op mutant exit 1，精确 FAIL `unterminated block comment: the real gate did NOT reject`；`pic_upload` 在 RELEASED body 外 exit 0、体内 exit 1。
+- 正式 `build-wbs15.sh`、`build-wbs14.sh` 于终态 HEAD 均 exit 0；adapter/B4 随 wbs15 全绿；`worktree-lifecycle-proof.sh` 连续两次完整 wbs15 后 exit 0，worktree list 不变。恢复生成文档后 porcelain clean，`git diff --check` clean。
+
+**Standards**
+
+- 0 finding；无 hard violation 或可行动 smell。
+
+**Spec**
+
+- 0 finding；B1R13R3 四项要求全部闭合，报告 H/E 与历史链一致。
+
+**调度结论**
+
+- WBS 1.6 B1 host/static implementation + regression report 现 accepted 并关闭，不再追加 B1R14。
+- 下一步只开放 **VBUS B2 用户裁决准备/决策**：拔线关机 vs 电池继续、插线硬复位 vs 热启动、是否采纳 local 策略。生产 VBUS 改动与 7B HIL 必须在用户明确裁决/授权后另行实施。
+- 1.7、刷机、7A/7B 实机 HIL、push 仍冻结；本 ACK 不构成这些动作的授权。
+
+- 需要回复：是（@用户裁决 VBUS B2 三项策略；Zcode 在裁决前停手）
