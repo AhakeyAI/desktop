@@ -1533,22 +1533,23 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let deviceA = try AhaKeyRuntimeDeviceID("DEVICE-A")
         let deviceB = try AhaKeyRuntimeDeviceID("DEVICE-B")
         let content = Data("base-object".utf8)
-        let low = try AhaKeyRuntimeAuthoritativeWriterLease(2)
-        let high = try AhaKeyRuntimeAuthoritativeWriterLease(10)
+        let first = try await store.allocateAuthoritativeWriterLease()
         _ = try await store.persistProjectedAuthoritativeObject(
             content,
             version: try authorityVersion(
-                device: deviceA, lease: low, session: 0, transport: 0, revision: .first, content: content
+                device: deviceA, lease: first, session: 0, transport: 0, revision: .first, content: content
             )
         )
+        let second = try await store.allocateAuthoritativeWriterLease()
         _ = try await store.persistProjectedAuthoritativeObject(
             content,
             version: try authorityVersion(
-                device: deviceB, lease: high, session: 0, transport: 0, revision: .first, content: content
+                device: deviceB, lease: second, session: 0, transport: 0, revision: .first, content: content
             )
         )
         let allocated = try await store.allocateAuthoritativeWriterLease()
-        XCTAssertGreaterThan(allocated, high)
+        XCTAssertGreaterThan(second, first)
+        XCTAssertGreaterThan(allocated, second)
     }
 
     func testCorruptAuthoritativeVersionFailsClosed() async throws {
@@ -1556,9 +1557,10 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
         let content = Data("base-object".utf8)
+        let lease: AhaKeyRuntimeAuthoritativeWriterLease
         do {
             let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-            let lease = try await store.allocateAuthoritativeWriterLease()
+            lease = try await store.allocateAuthoritativeWriterLease()
             _ = try await store.persistProjectedAuthoritativeObject(
                 content,
                 version: try authorityVersion(
@@ -1566,29 +1568,11 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 )
             )
         }
-        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
-        var database: OpaquePointer?
-        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
-        let sql = "UPDATE runtime_metadata SET value = ? WHERE key = ?"
-        var statement: OpaquePointer?
-        XCTAssertEqual(sqlite3_prepare_v2(database, sql, -1, &statement, nil), SQLITE_OK)
-        let garbage = Data("1,0".utf8)
-        garbage.withUnsafeBytes { bytes in
-            _ = sqlite3_bind_blob(
-                statement,
-                1,
-                bytes.baseAddress,
-                Int32(garbage.count),
-                unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-            )
-        }
-        let key = "authoritative-version:\(device.rawValue)"
-        key.withCString {
-            sqlite3_bind_text(statement, 2, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-        }
-        XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
-        sqlite3_finalize(statement)
-        sqlite3_close(database)
+        try mutateRuntimeMetadata(
+            root: root,
+            key: "authoritative-version:\(device.rawValue)",
+            value: Data("1,0".utf8)
+        )
 
         let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         do {
@@ -1601,12 +1585,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             try await reopened.persistProjectedAuthoritativeObject(
                 content,
                 version: try authorityVersion(
-                    device: device,
-                    lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
-                    session: 0,
-                    transport: 0,
-                    revision: .first,
-                    content: content
+                    device: device, lease: lease, session: 0, transport: 0, revision: .first, content: content
                 )
             )
             XCTFail("persist over corrupt version must fail-closed")
@@ -1687,6 +1666,182 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertThrowsError(try AhaKeyRuntimeAuthoritativeSourceRevision(0)) {
             XCTAssertEqual($0 as? AhaKeyRuntimeContractError, .invalidAuthoritativeSourceRevision)
         }
+    }
+
+    func testOldWriterLeaseCannotWriteUntouchedDeviceAfterAllocate() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let deviceA = try AhaKeyRuntimeDeviceID("DEVICE-A")
+        let deviceB = try AhaKeyRuntimeDeviceID("DEVICE-B")
+        let originalA = Data("device-a-original".utf8)
+        let originalB = Data("device-b-original".utf8)
+        let staleB = Data("device-b-stale".utf8)
+        let takeoverA = Data("device-a-takeover".utf8)
+        let oldLease = try await store.allocateAuthoritativeWriterLease()
+        _ = try await store.persistProjectedAuthoritativeObject(
+            originalA,
+            version: try authorityVersion(
+                device: deviceA, lease: oldLease, session: 1, transport: 0, revision: .first, content: originalA
+            )
+        )
+        _ = try await store.persistProjectedAuthoritativeObject(
+            originalB,
+            version: try authorityVersion(
+                device: deviceB, lease: oldLease, session: 1, transport: 0, revision: .first, content: originalB
+            )
+        )
+        let newLease = try await store.allocateAuthoritativeWriterLease()
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                staleB,
+                version: try authorityVersion(
+                    device: deviceB, lease: oldLease, session: 1, transport: 0, revision: .first, content: staleB
+                )
+            )
+            XCTFail("old lease must lose all devices as soon as a new lease is allocated")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let afterAllocateB = try await store.authoritativeObjectContent(for: deviceB)
+        XCTAssertEqual(afterAllocateB, originalB)
+
+        _ = try await store.persistProjectedAuthoritativeObject(
+            takeoverA,
+            version: try authorityVersion(
+                device: deviceA,
+                lease: newLease,
+                session: 0,
+                transport: 0,
+                revision: .first.advanced(),
+                content: takeoverA
+            )
+        )
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                staleB,
+                version: try authorityVersion(
+                    device: deviceB, lease: oldLease, session: 1, transport: 0, revision: .first, content: staleB
+                )
+            )
+            XCTFail("old lease must stay revoked after new lease writes another device")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let liveA = try await store.authoritativeObjectContent(for: deviceA)
+        let liveB = try await store.authoritativeObjectContent(for: deviceB)
+        let versionB = try await store.authoritativeVersion(for: deviceB)
+        XCTAssertEqual(liveA, takeoverA)
+        XCTAssertEqual(liveB, originalB)
+        XCTAssertEqual(versionB?.writerLease, oldLease)
+    }
+
+    func testUnallocatedFutureWriterLeaseIsRejected() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let original = Data("original".utf8)
+        let forged = Data("forged".utf8)
+        let current = try await store.allocateAuthoritativeWriterLease()
+        _ = try await store.persistProjectedAuthoritativeObject(
+            original,
+            version: try authorityVersion(
+                device: device, lease: current, session: 0, transport: 0, revision: .first, content: original
+            )
+        )
+        let fake = try AhaKeyRuntimeAuthoritativeWriterLease(current.rawValue + 1)
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                forged,
+                version: try authorityVersion(
+                    device: device, lease: fake, session: 0, transport: 0, revision: .first.advanced(), content: forged
+                )
+            )
+            XCTFail("unallocated future lease must fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let live = try await store.authoritativeObjectContent(for: device)
+        let version = try await store.authoritativeVersion(for: device)
+        XCTAssertEqual(live, original)
+        XCTAssertEqual(version?.writerLease, current)
+    }
+
+    func testMissingGlobalWriterLeaseRejectsPersistWithoutMutation() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let original = Data("original".utf8)
+        let mutated = Data("mutated".utf8)
+        let lease: AhaKeyRuntimeAuthoritativeWriterLease
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            lease = try await store.allocateAuthoritativeWriterLease()
+            _ = try await store.persistProjectedAuthoritativeObject(
+                original,
+                version: try authorityVersion(
+                    device: device, lease: lease, session: 0, transport: 0, revision: .first, content: original
+                )
+            )
+        }
+        try mutateRuntimeMetadata(root: root, key: "authoritative-writer-lease", value: nil)
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        do {
+            try await reopened.persistProjectedAuthoritativeObject(
+                mutated,
+                version: try authorityVersion(
+                    device: device, lease: lease, session: 0, transport: 0, revision: .first.advanced(), content: mutated
+                )
+            )
+            XCTFail("missing global lease must fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptAuthoritativeVersion)
+        }
+        let live = try await reopened.authoritativeObjectContent(for: device)
+        let version = try await reopened.authoritativeVersion(for: device)
+        XCTAssertEqual(live, original)
+        XCTAssertEqual(version?.writerLease, lease)
+    }
+
+    func testCorruptGlobalWriterLeaseRejectsPersistWithoutMutation() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let original = Data("original".utf8)
+        let mutated = Data("mutated".utf8)
+        let lease: AhaKeyRuntimeAuthoritativeWriterLease
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            lease = try await store.allocateAuthoritativeWriterLease()
+            _ = try await store.persistProjectedAuthoritativeObject(
+                original,
+                version: try authorityVersion(
+                    device: device, lease: lease, session: 0, transport: 0, revision: .first, content: original
+                )
+            )
+        }
+        try mutateRuntimeMetadata(
+            root: root,
+            key: "authoritative-writer-lease",
+            value: Data("1,0".utf8)
+        )
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        do {
+            try await reopened.persistProjectedAuthoritativeObject(
+                mutated,
+                version: try authorityVersion(
+                    device: device, lease: lease, session: 0, transport: 0, revision: .first.advanced(), content: mutated
+                )
+            )
+            XCTFail("corrupt global lease must fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptAuthoritativeVersion)
+        }
+        let live = try await reopened.authoritativeObjectContent(for: device)
+        let version = try await reopened.authoritativeVersion(for: device)
+        XCTAssertEqual(live, original)
+        XCTAssertEqual(version?.writerLease, lease)
     }
 
     func testTwoDevicesHaveIndependentDurableQueues() async throws {
@@ -1917,6 +2072,54 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .operationIdentifierConflict)
         }
+    }
+
+    private func mutateRuntimeMetadata(root: URL, key: String, value: Data?) throws {
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        defer { sqlite3_close(database) }
+        var statement: OpaquePointer?
+        if let value {
+            XCTAssertEqual(
+                sqlite3_prepare_v2(
+                    database,
+                    "UPDATE runtime_metadata SET value = ? WHERE key = ?",
+                    -1,
+                    &statement,
+                    nil
+                ),
+                SQLITE_OK
+            )
+            value.withUnsafeBytes { bytes in
+                _ = sqlite3_bind_blob(
+                    statement,
+                    1,
+                    bytes.baseAddress,
+                    Int32(value.count),
+                    unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+                )
+            }
+            key.withCString {
+                sqlite3_bind_text(statement, 2, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+        } else {
+            XCTAssertEqual(
+                sqlite3_prepare_v2(
+                    database,
+                    "DELETE FROM runtime_metadata WHERE key = ?",
+                    -1,
+                    &statement,
+                    nil
+                ),
+                SQLITE_OK
+            )
+            key.withCString {
+                sqlite3_bind_text(statement, 1, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+        }
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
     }
 
     private func authorityVersion(

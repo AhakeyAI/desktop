@@ -567,6 +567,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             }
             agent.executionTestHooks = hooks
             await agent.simulateDeviceForTesting(simulatedDevice(displayName: "n"))
+            await gate.waitUntilEntered()
             await agent.closeRuntimeStoreForTesting()
             try await seedAuthoritativeBaseline(
                 storeDir: storeDir,
@@ -649,6 +650,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             }
             agent.executionTestHooks = hooks
             await agent.simulateDeviceForTesting(simulatedDevice(displayName: "n"))
+            await gate.waitUntilEntered()
             await agent.simulateDeviceForTesting(
                 simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
             )
@@ -706,6 +708,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             }
             agent.executionTestHooks = hooks
             await agent.simulateDeviceForTesting(simulatedDevice(displayName: "hold-a"))
+            await gate.waitUntilEntered()
             await agent.closeRuntimeStoreForTesting()
             try await seedAuthoritativeBaseline(
                 storeDir: storeDir,
@@ -750,6 +753,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             await agent.simulateDeviceForTesting(
                 simulatedDevice(displayName: "reconnect", transportGeneration: 1)
             )
+            await gate.waitUntilEntered()
             guard case .snapshot(let beforeCommit) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
                 return XCTFail("snapshot")
             }
@@ -795,6 +799,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             }
             agent.executionTestHooks = hooks
             await agent.simulateDeviceForTesting(simulatedDevice(displayName: "original"))
+            await gate.waitUntilEntered()
             await agent.simulateDeviceForTesting(simulatedDevice(id: "OTHER-DEVICE", displayName: "other"))
             guard case .snapshot(let other) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
                 return XCTFail("other snapshot")
@@ -936,18 +941,17 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             )
             try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
             let content = Data("shared-object".utf8)
-            try await seedProjectedObject(
+            let historicalA = try await seedProjectedObject(
                 storeDir: storeDir,
                 device: "DEVICE-A",
-                content: content,
-                lease: 2
+                content: content
             )
-            try await seedProjectedObject(
+            let historicalB = try await seedProjectedObject(
                 storeDir: storeDir,
                 device: "DEVICE-B",
-                content: content,
-                lease: 10
+                content: content
             )
+            XCTAssertGreaterThan(historicalB, historicalA)
             let agent = try await makePreparedAgent(storeDirectory: storeDir, objectSeed: nil)
             await agent.simulateDeviceForTesting(simulatedDevice(id: "DEVICE-A"))
             let sawA = await waitUntilAuthoritativeObject(agent, content)
@@ -965,7 +969,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             let leaseA = try XCTUnwrap(versionA?.writerLease)
             let leaseB = try XCTUnwrap(versionB?.writerLease)
             XCTAssertEqual(leaseA, leaseB)
-            XCTAssertGreaterThan(leaseA, try AhaKeyRuntimeAuthoritativeWriterLease(10))
+            XCTAssertGreaterThan(leaseA, historicalB)
         }
     }
 
@@ -978,19 +982,17 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
             let contentA = Data("device-a-object".utf8)
             let contentB = Data("device-b-object".utf8)
-            try await seedProjectedObject(
+            let historicalA = try await seedProjectedObject(
                 storeDir: storeDir,
                 device: "DEVICE-A",
                 content: contentA,
-                lease: 2,
                 session: 9,
                 transport: 9
             )
-            try await seedProjectedObject(
+            _ = try await seedProjectedObject(
                 storeDir: storeDir,
                 device: "DEVICE-B",
                 content: contentB,
-                lease: 10,
                 session: 8,
                 transport: 8
             )
@@ -1021,7 +1023,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                     contentA,
                     version: AhaKeyRuntimeAuthoritativeVersion(
                         deviceID: try AhaKeyRuntimeDeviceID("DEVICE-A"),
-                        writerLease: try AhaKeyRuntimeAuthoritativeWriterLease(2),
+                        writerLease: historicalA,
                         sessionGeneration: .init(9),
                         transportGeneration: .init(9),
                         sourceRevision: .first,
@@ -1205,27 +1207,28 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         storeDir: URL,
         device: String,
         content: Data,
-        lease: UInt64,
         session: UInt64 = 0,
         transport: UInt64 = 0,
         revision: UInt64 = 1
-    ) async throws {
+    ) async throws -> AhaKeyRuntimeAuthoritativeWriterLease {
         let store = try AhaKeyRuntimePersistentStore(
             rootDirectory: storeDir,
             acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
         )
         let deviceID = try AhaKeyRuntimeDeviceID(device)
+        let lease = try await store.allocateAuthoritativeWriterLease()
         try await store.persistProjectedAuthoritativeObject(
             content,
             version: AhaKeyRuntimeAuthoritativeVersion(
                 deviceID: deviceID,
-                writerLease: try AhaKeyRuntimeAuthoritativeWriterLease(lease),
+                writerLease: lease,
                 sessionGeneration: .init(session),
                 transportGeneration: .init(transport),
                 sourceRevision: try AhaKeyRuntimeAuthoritativeSourceRevision(revision),
                 sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
             )
         )
+        return lease
     }
 
     private func liveAuthoritativeObject(

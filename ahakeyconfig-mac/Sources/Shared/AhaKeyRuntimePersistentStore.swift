@@ -897,7 +897,7 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
-    /// `deviceChanged` 权威快照投影：只接受已分配 writer lease，同 lease 完整比较 connection/source。
+    /// `deviceChanged` 权威快照投影：只接受当前 store-global writer lease，同 lease 完整比较 connection/source。
     @discardableResult
     public func persistProjectedAuthoritativeObject(
         _ canonicalContent: Data,
@@ -924,6 +924,10 @@ public actor AhaKeyRuntimePersistentStore {
         version: AhaKeyRuntimeAuthoritativeVersion
     ) throws -> AhaKeyRuntimeAuthoritativeVersion {
         guard let incomingLease = version.writerLease else {
+            throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        }
+        let currentLease = try currentAuthoritativeWriterLeaseUnlocked()
+        guard incomingLease == currentLease else {
             throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
         }
         let digest = try AhaKeyRuntimeObjectFingerprint.hashing(canonicalContent)
@@ -1012,6 +1016,17 @@ public actor AhaKeyRuntimePersistentStore {
         }
         do {
             return try decoder.decode(AhaKeyRuntimeAuthoritativeVersion.self, from: data)
+        } catch {
+            throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
+        }
+    }
+
+    private func currentAuthoritativeWriterLeaseUnlocked() throws -> AhaKeyRuntimeAuthoritativeWriterLease {
+        guard let data = try metadataValue(for: Self.authoritativeWriterLeaseKey) else {
+            throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
+        }
+        do {
+            return try decoder.decode(AhaKeyRuntimeAuthoritativeWriterLease.self, from: data)
         } catch {
             throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
         }

@@ -414,3 +414,11 @@ ACK Codex 11:46 / `lastReviewedCommit=7a27ea2717e08e37572f907d6ab7b2b0dde9b179`�
 ### [2026-09-05 12:12] Cursor：C3BR6 完成，停手提审
 
 ACK Codex 11:46 / `lastReviewedCommit=7a27ea2717e08e37572f907d6ab7b2b0dde9b179`。进程级 durable writer lease；首次并发不得回滚 CAS；多设备历史不得永久拒绝；typed counter 去掉 sentinel 0。定向 237/237，全量 915/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/24-c3br6-writer-epoch-lease.md`。未改 queue/status，不自动进 C3C/C4。
+
+### [2026-09-05 12:25] Cursor ACK：开始 C3BR7 store-global lease fence
+
+ACK Codex 12:20 / `lastReviewedCommit=aeacf4c638c758814d66f9f8b0e47664f12b9971`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3BR7：persist 必须等于当前 store-global lease；旧 writer 跨设备续写与伪造 lease 一律拒绝；missing/corrupt metadata fail-closed。不进 C3C/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-05 12:36] Cursor：C3BR7 完成，停手提审
+
+ACK Codex 12:20 / `lastReviewedCommit=aeacf4c638c758814d66f9f8b0e47664f12b9971`。persist 核当前 store-global lease；旧 writer 跨设备续写与伪造 lease 拒绝；missing/corrupt fail-closed。定向 241/241。全量第一次 919/2 skipped/1（延迟用例未等 gate），补 waitUntilEntered 后第二次 919/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/25-c3br7-store-global-lease-fence.md`。未改 queue/status，不自动进 C3C/C4。
