@@ -139,12 +139,26 @@ Get-ChildItem -LiteralPath (Join-Path $baselineAppDir "models") |
     Copy-Item -Destination (Join-Path $inputDir "models") -Recurse
 
 $bleDriver = @(
+    (Join-Path $baselineAppDir "ble-driver\BLE_tcp_driver.exe"),
     (Join-Path $baselineAppDir "BLE_tcp_driver.exe"),
-    (Join-Path $projectDir "BLE_tcp_driver.exe")
+    (Join-Path $projectDir "BLE_tcp_driver.exe"),
+    (Join-Path $projectDir "..\BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe")
 ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-if ($bleDriver) {
-    Copy-Item -LiteralPath $bleDriver -Destination $inputDir
+if (-not $bleDriver) {
+    Write-Output "BLE_DRIVER_BUILD=FAIL"
+    throw "BLE_tcp_driver.exe is missing. Build BLE_tcp_bridge Release before packaging."
 }
+Write-Output "BLE_DRIVER_BUILD=PASS"
+$bleDriverStage = Join-Path $inputDir "ble-driver"
+New-Item -ItemType Directory -Force -Path $bleDriverStage | Out-Null
+Copy-Item -LiteralPath $bleDriver -Destination (Join-Path $bleDriverStage "BLE_tcp_driver.exe")
+if (-not (Test-Path -LiteralPath (Join-Path $bleDriverStage "BLE_tcp_driver.exe") -PathType Leaf)) {
+    Write-Output "BLE_DRIVER_PACKAGED=FAIL"
+    throw "BLE driver was not staged at the canonical app/ble-driver path."
+}
+Write-Output "BLE_DRIVER_PACKAGED=PASS"
+Write-Output "BLE_DRIVER_RELEASE_PATH=$bleDriverStage\BLE_tcp_driver.exe"
+& (Join-Path $projectDir "Test-BleDriverPackaging.ps1") -ReleaseInputDir $inputDir
 
 if (-not [string]::IsNullOrWhiteSpace($FirmwareHex)) {
     $firmwareDir = Join-Path $inputDir "firmware"

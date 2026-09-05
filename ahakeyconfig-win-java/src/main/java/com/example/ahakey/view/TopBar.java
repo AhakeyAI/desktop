@@ -7,6 +7,7 @@ import com.example.ahakey.service.AgentManager;
 import com.example.ahakey.service.HookDispatchServer;
 import com.example.ahakey.service.HookInstaller;
 import com.example.ahakey.service.BleBridgeProcessOwner;
+import com.example.ahakey.service.BleDriverLocator;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.util.Icons;
 import com.example.ahakey.util.LanguageManager;
@@ -413,11 +414,12 @@ public class TopBar extends VBox {
         
         new Thread(() -> {
             try {
-                Path executable = resolveBleDriverExecutable();
+                BleDriverLocator.Resolution resolution = BleDriverLocator.resolve();
+                Path executable = resolution.selected().orElse(null);
                 if (executable == null) {
                     Platform.runLater(() -> showAlert(
                         languageManager.getString("dialog.ble-driver-title"),
-                        languageManager.getString("dialog.ble-not-found")));
+                        resolution.diagnosticMessage()));
                     return;
                 }
 
@@ -480,13 +482,16 @@ public class TopBar extends VBox {
     
     private void stopManagedBleDriver() {
         new Thread(() -> {
-            Path executable = resolveBleDriverExecutable();
+            BleDriverLocator.Resolution resolution = BleDriverLocator.resolve();
+            Path executable = resolution.selected().orElse(null);
             if (executable == null
                 || (!BleBridgeProcessOwner.activateOrAdopt(executable)
                     && !BleBridgeProcessOwner.findExactPid(executable).isPresent())) {
                 Platform.runLater(() -> showAlert(
                     languageManager.getString("dialog.ble-driver-title"),
-                    languageManager.getString("dialog.ble-no-process")));
+                    executable == null
+                        ? resolution.diagnosticMessage()
+                        : languageManager.getString("dialog.ble-no-process")));
                 return;
             }
             boolean stopped = BleBridgeProcessOwner.stopOwned();
@@ -497,33 +502,6 @@ public class TopBar extends VBox {
                 showAlert(languageManager.getString("dialog.ble-driver-title"), message);
             });
         }, "ble-driver-stop").start();
-    }
-
-    private Path resolveBleDriverExecutable() {
-        try {
-            String appDir = System.getProperty("user.dir");
-            Path codeSource = Paths.get(getClass().getProtectionDomain()
-                .getCodeSource().getLocation().toURI());
-            if (codeSource.toString().toLowerCase(java.util.Locale.ROOT).endsWith(".jar")) {
-                appDir = codeSource.getParent().toString();
-            }
-            File base = new File(appDir);
-            File parent = base.getParentFile();
-            File[] candidates = {
-                new File(base, "BLE_tcp_driver.exe"),
-                parent == null ? null : new File(parent, "BLE_tcp_driver.exe"),
-                new File(System.getProperty("user.dir"), "BLE_tcp_driver.exe"),
-                new File(base, "app/BLE_tcp_driver.exe")
-            };
-            for (File candidate : candidates) {
-                if (candidate != null && candidate.isFile()) {
-                    return candidate.toPath().toAbsolutePath().normalize();
-                }
-            }
-        } catch (Exception ignored) {
-            // The caller reports a deterministic not-found/start failure.
-        }
-        return null;
     }
 
     private void launchBleDriver(Path executable) {

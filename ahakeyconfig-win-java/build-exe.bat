@@ -117,9 +117,9 @@ rd /s /q "%INSTALLER_DIR%" 2>nul
 mkdir "%INSTALLER_DIR%"
 
 :: 准备 BLE 驱动文件
-set "BLE_PROJECT_DIR=..\ahakeyconfig-win\BLE_tcp_bridge_for_vibe_code-master (1)\BLE_tcp_bridge_for_vibe_code-master"
-set "BLE_EXE_SOURCE=%BLE_PROJECT_DIR%\dist\BLE_tcp_driver.exe"
-set "BLE_STAGING=%TARGET_DIR%\ble_staging"
+set "BLE_PROJECT_DIR=..\BLE_tcp_bridge"
+set "BLE_EXE_SOURCE=%BLE_PROJECT_DIR%\bin\Release\BLE_tcp_driver.exe"
+set "BLE_STAGING=%TARGET_DIR%\ble-driver"
 set "BLE_EXTRA_ARG="
 
 if exist "%BLE_EXE_SOURCE%" (
@@ -129,8 +129,9 @@ if exist "%BLE_EXE_SOURCE%" (
     set "BLE_EXTRA_ARG=--app-content "%BLE_STAGING%\BLE_tcp_driver.exe""
     echo OK: BLE 驱动已准备
 ) else (
-    echo [WARNING] BLE 驱动未找到: %BLE_EXE_SOURCE%
-    echo [WARNING] 请先在 BLE 项目中运行 build-single-exe.bat
+    echo [ERROR] BLE 驱动未找到: %BLE_EXE_SOURCE%
+    echo [ERROR] 请先构建 BLE_tcp_bridge Release；不能生成缺少驱动的安装包。
+    exit /b 1
 )
 
 jpackage --type exe ^
