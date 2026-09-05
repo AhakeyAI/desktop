@@ -292,8 +292,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lastPublishedDeviceSnapshot: AhaKeyRuntimeDeviceSnapshot?
     /// 仅在 durable commit 成功后写入；绑定完整 AuthoritativeVersion，不只绑 device ID。
     private var committedAuthoritativeObject: (version: AhaKeyRuntimeAuthoritativeVersion, content: Data)?
-    /// 本进程已分配的 authority writer epoch；0 表示尚未 persist，由 store 分配。
-    private var authorityWriterEpoch: UInt64 = 0
+    /// 进程实例级 writer lease：authority task 前分配一次，生命周期内不可变。
+    private let writerLeaseGate = AhaKeyAgentWriterLeaseGate()
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
     /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
@@ -3208,9 +3208,18 @@ extension AhaKeyAgent {
     private func commitAndPublishAuthoritativeObject(
         _ connection: AhaKeyRuntimeDeviceSnapshot
     ) async {
-        let writerEpoch = await MainActor.run { self.authorityWriterEpoch }
+        let lease: AhaKeyRuntimeAuthoritativeWriterLease
+        do {
+            lease = try await writerLeaseGate.resolve {
+                let store = try await self.makeRuntimeStore()
+                return try await store.allocateAuthoritativeWriterLease()
+            }
+        } catch {
+            emit("权威对象持久化失败：\(error)")
+            return
+        }
         let content: Data
-        let sourceRevision: UInt64
+        let sourceRevision: AhaKeyRuntimeAuthoritativeSourceRevision
         do {
             let store = try await makeRuntimeStore()
             guard let loaded = try await store.authoritativeObjectContent(for: connection.id),
@@ -3218,7 +3227,8 @@ extension AhaKeyAgent {
                 return
             }
             content = loaded
-            sourceRevision = try await store.authoritativeVersion(for: connection.id)?.sourceRevision ?? 1
+            sourceRevision = try await store.authoritativeVersion(for: connection.id)?.sourceRevision
+                ?? .first
         } catch {
             emit("权威对象持久化失败：\(error)")
             return
@@ -3239,7 +3249,7 @@ extension AhaKeyAgent {
         }
         let candidate = AhaKeyRuntimeAuthoritativeVersion(
             deviceID: connection.id,
-            writerEpoch: writerEpoch,
+            writerLease: lease,
             sessionGeneration: connection.sessionGeneration,
             transportGeneration: connection.transportGeneration,
             sourceRevision: sourceRevision,
@@ -3262,17 +3272,9 @@ extension AhaKeyAgent {
         }
         await MainActor.run {
             guard let current = self.projectedConnectionSnapshot(),
-                  current.id == connection.id,
-                  current.sessionGeneration == connection.sessionGeneration,
-                  current.transportGeneration == connection.transportGeneration,
-                  committedVersion.matches(
-                    deviceID: current.id,
-                    sessionGeneration: current.sessionGeneration,
-                    transportGeneration: current.transportGeneration
-                  ) else {
+                  committedVersion.matches(current) else {
                 return
             }
-            self.authorityWriterEpoch = committedVersion.writerEpoch
             self.committedAuthoritativeObject = (committedVersion, content)
             let authoritative = current.withAuthoritativeObject(content)
             guard authoritative != self.lastPublishedDeviceSnapshot else { return }
@@ -3290,11 +3292,7 @@ extension AhaKeyAgent {
     private func projectedDeviceSnapshot() -> AhaKeyRuntimeDeviceSnapshot? {
         guard let connection = projectedConnectionSnapshot() else { return nil }
         if let committed = committedAuthoritativeObject,
-           committed.version.matches(
-            deviceID: connection.id,
-            sessionGeneration: connection.sessionGeneration,
-            transportGeneration: connection.transportGeneration
-           ) {
+           committed.version.matches(connection) {
             return connection.withAuthoritativeObject(committed.content)
         }
         return connection
@@ -3865,6 +3863,32 @@ extension AhaKeyAgent {
 
 /// events 回放判定结果（R2-5：long-poll 临界区复查/waiter 信号的载体）。
 typealias AhaKeyRuntimeEventReplayVerdict = Result<AhaKeyRuntimeEventReplayResult, AhaKeyRuntimeEventReplayError>
+
+/// 进程内只分配一次 writer lease；用 in-flight Task 避免 actor 在 await 时重入双分配。
+private actor AhaKeyAgentWriterLeaseGate {
+    private var lease: AhaKeyRuntimeAuthoritativeWriterLease?
+    private var inFlight: Task<AhaKeyRuntimeAuthoritativeWriterLease, Error>?
+
+    func resolve(
+        _ allocate: @escaping @Sendable () async throws -> AhaKeyRuntimeAuthoritativeWriterLease
+    ) async throws -> AhaKeyRuntimeAuthoritativeWriterLease {
+        if let lease { return lease }
+        if let inFlight {
+            return try await inFlight.value
+        }
+        let task = Task { try await allocate() }
+        inFlight = task
+        do {
+            let allocated = try await task.value
+            lease = allocated
+            inFlight = nil
+            return allocated
+        } catch {
+            inFlight = nil
+            throw error
+        }
+    }
+}
 
 /// Runtime Store 缓存（R2-2）：actor 隔离，多 XPC session 并发读写安全；
 /// 同一目录复用单实例（多实例对同一 root 的 flock/SQLite 连接会相互竞争）。

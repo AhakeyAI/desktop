@@ -873,8 +873,31 @@ public actor AhaKeyRuntimePersistentStore {
         try storedAuthoritativeVersion(for: deviceID)
     }
 
-    /// `deviceChanged` 权威快照投影：比较 writer epoch、connection identity 与 source revision/digest。
-    /// `version.writerEpoch == 0` 时在本事务分配下一个 epoch（Agent 重启接管）。
+    /// 为当前 Agent 进程原子分配一次 store-global writer lease，高于全部既有 device version。
+    public func allocateAuthoritativeWriterLease() throws -> AhaKeyRuntimeAuthoritativeWriterLease {
+        try Self.withExclusiveLock(lockFileDescriptor) {
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let highest = try highestStoredWriterLease()
+                let next = highest + 1
+                guard next > highest else {
+                    throw AhaKeyRuntimePersistenceError.databaseFailure("authoritative writer lease exhausted")
+                }
+                let lease = try AhaKeyRuntimeAuthoritativeWriterLease(next)
+                try upsertMetadata(
+                    key: Self.authoritativeWriterLeaseKey,
+                    value: try encoder.encode(lease)
+                )
+                try Self.execute("COMMIT", on: database)
+                return lease
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
+        }
+    }
+
+    /// `deviceChanged` 权威快照投影：只接受已分配 writer lease，同 lease 完整比较 connection/source。
     @discardableResult
     public func persistProjectedAuthoritativeObject(
         _ canonicalContent: Data,
@@ -900,31 +923,20 @@ public actor AhaKeyRuntimePersistentStore {
         _ canonicalContent: Data,
         version: AhaKeyRuntimeAuthoritativeVersion
     ) throws -> AhaKeyRuntimeAuthoritativeVersion {
+        guard let incomingLease = version.writerLease else {
+            throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        }
         let digest = try AhaKeyRuntimeObjectFingerprint.hashing(canonicalContent)
         guard digest == version.sourceDigest else {
             throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
         }
         let stored = try storedAuthoritativeVersion(for: version.deviceID)
-        let assignedEpoch: UInt64
-        if version.writerEpoch == 0 {
-            let next = (stored?.writerEpoch ?? 0) + 1
-            guard next > (stored?.writerEpoch ?? 0) else {
-                throw AhaKeyRuntimePersistenceError.databaseFailure("authoritative writer epoch exhausted")
-            }
-            assignedEpoch = next
-        } else {
-            assignedEpoch = version.writerEpoch
-        }
-        if let stored, Self.isStale(
-            incoming: version,
-            assignedEpoch: assignedEpoch,
-            stored: stored
-        ) {
+        if let stored, Self.isStale(incoming: version, incomingLease: incomingLease, stored: stored) {
             throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
         }
         let committed = AhaKeyRuntimeAuthoritativeVersion(
             deviceID: version.deviceID,
-            writerEpoch: assignedEpoch,
+            writerLease: incomingLease,
             sessionGeneration: version.sessionGeneration,
             transportGeneration: version.transportGeneration,
             sourceRevision: version.sourceRevision,
@@ -949,17 +961,13 @@ public actor AhaKeyRuntimePersistentStore {
         let digest = try AhaKeyRuntimeObjectFingerprint.hashing(canonicalContent)
         try persistAuthoritativeObjectUnlocked(canonicalContent, for: deviceID)
         if let existing = try storedAuthoritativeVersion(for: deviceID) {
-            let nextRevision = existing.sourceRevision + 1
-            guard nextRevision > existing.sourceRevision else {
-                throw AhaKeyRuntimePersistenceError.databaseFailure("authoritative source revision exhausted")
-            }
             try persistAuthoritativeVersionUnlocked(
                 AhaKeyRuntimeAuthoritativeVersion(
                     deviceID: existing.deviceID,
-                    writerEpoch: existing.writerEpoch,
+                    writerLease: existing.writerLease,
                     sessionGeneration: existing.sessionGeneration,
                     transportGeneration: existing.transportGeneration,
-                    sourceRevision: nextRevision,
+                    sourceRevision: try existing.sourceRevision.advanced(),
                     sourceDigest: digest
                 )
             )
@@ -967,10 +975,10 @@ public actor AhaKeyRuntimePersistentStore {
             try persistAuthoritativeVersionUnlocked(
                 AhaKeyRuntimeAuthoritativeVersion(
                     deviceID: deviceID,
-                    writerEpoch: 0,
+                    writerLease: nil,
                     sessionGeneration: .init(0),
                     transportGeneration: .init(0),
-                    sourceRevision: 1,
+                    sourceRevision: .first,
                     sourceDigest: digest
                 )
             )
@@ -994,6 +1002,8 @@ public actor AhaKeyRuntimePersistentStore {
         "authoritative-version:\(deviceID.rawValue)"
     }
 
+    private static let authoritativeWriterLeaseKey = "authoritative-writer-lease"
+
     private func storedAuthoritativeVersion(
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws -> AhaKeyRuntimeAuthoritativeVersion? {
@@ -1007,22 +1017,63 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
+    private func highestStoredWriterLease() throws -> UInt64 {
+        var highest: UInt64 = 0
+        if let data = try metadataValue(for: Self.authoritativeWriterLeaseKey) {
+            do {
+                let global = try decoder.decode(AhaKeyRuntimeAuthoritativeWriterLease.self, from: data)
+                highest = max(highest, global.rawValue)
+            } catch {
+                throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
+            }
+        }
+        let statement = try prepare(
+            "SELECT value FROM runtime_metadata WHERE key LIKE 'authoritative-version:%'"
+        )
+        defer { sqlite3_finalize(statement) }
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            let count = Int(sqlite3_column_bytes(statement, 0))
+            guard count > 0, let bytes = sqlite3_column_blob(statement, 0) else {
+                throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
+            }
+            let data = Data(bytes: bytes, count: count)
+            let version: AhaKeyRuntimeAuthoritativeVersion
+            do {
+                version = try decoder.decode(AhaKeyRuntimeAuthoritativeVersion.self, from: data)
+            } catch {
+                throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
+            }
+            if let lease = version.writerLease {
+                highest = max(highest, lease.rawValue)
+            }
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw databaseError() }
+        return highest
+    }
+
     private static func isStale(
         incoming: AhaKeyRuntimeAuthoritativeVersion,
-        assignedEpoch: UInt64,
+        incomingLease: AhaKeyRuntimeAuthoritativeWriterLease,
         stored: AhaKeyRuntimeAuthoritativeVersion
     ) -> Bool {
         if incoming.deviceID != stored.deviceID { return true }
-        if assignedEpoch < stored.writerEpoch { return true }
-        if assignedEpoch > stored.writerEpoch { return false }
-        if incoming.sessionGeneration < stored.sessionGeneration { return true }
-        if incoming.sessionGeneration == stored.sessionGeneration,
-           incoming.transportGeneration < stored.transportGeneration {
+        if let storedLease = stored.writerLease, incomingLease < storedLease {
             return true
         }
         if incoming.sourceRevision < stored.sourceRevision { return true }
         if incoming.sourceRevision == stored.sourceRevision,
            incoming.sourceDigest != stored.sourceDigest {
+            return true
+        }
+        // 新进程 lease（或首次写入 schema=1 seed）可接管更低 generation，但仍须通过 source 检查。
+        if stored.writerLease.map({ incomingLease > $0 }) ?? true {
+            return false
+        }
+        if incoming.sessionGeneration < stored.sessionGeneration { return true }
+        if incoming.sessionGeneration == stored.sessionGeneration,
+           incoming.transportGeneration < stored.transportGeneration {
             return true
         }
         return false

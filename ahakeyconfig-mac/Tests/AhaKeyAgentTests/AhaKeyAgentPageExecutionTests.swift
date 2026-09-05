@@ -35,11 +35,24 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     private actor StepGate {
         private var released = false
+        private var entered = false
         private var waiters: [CheckedContinuation<Void, Never>] = []
+        private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
 
         func wait() async {
+            if !entered {
+                entered = true
+                let pendingEntered = enteredWaiters
+                enteredWaiters.removeAll()
+                pendingEntered.forEach { $0.resume() }
+            }
             if released { return }
             await withCheckedContinuation { waiters.append($0) }
+        }
+
+        func waitUntilEntered() async {
+            if entered { return }
+            await withCheckedContinuation { enteredWaiters.append($0) }
         }
 
         func release() {
@@ -824,6 +837,212 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testFreshFirstCommitDelayedTaskDoesNotRollbackCAS() {
+        runTest { [self] in
+            let agent = try await makePreparedAgent(objectSeed: "object-n")
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let gate = StepGate()
+            var delayOnce = true
+            var hooks = agent.executionTestHooks
+            hooks?.beforeAuthoritativeObjectCommit = {
+                if delayOnce {
+                    delayOnce = false
+                    await gate.wait()
+                }
+            }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "n"))
+            await gate.waitUntilEntered()
+            await agent.closeRuntimeStoreForTesting()
+            try await seedAuthoritativeBaseline(
+                storeDir: storeDir,
+                content: Data("object-n-plus-1".utf8)
+            )
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
+            )
+            let sawNext = await waitUntilAuthoritativeObject(
+                agent,
+                Data("object-n-plus-1".utf8),
+                transportGeneration: 1
+            )
+            XCTAssertTrue(sawNext)
+            guard case .eventReplay(let beforeReplay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: .init(0))
+            ),
+            case .events(let beforeRelease) = beforeReplay else {
+                return XCTFail("events")
+            }
+            let cursor = beforeRelease.last?.sequence ?? .init(0)
+            await gate.release()
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let afterReplay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let afterRelease) = afterReplay else {
+                return XCTFail("tail events")
+            }
+            let staleAuthoritative = afterRelease.contains { event in
+                if case .deviceChanged(let device) = event.payload {
+                    return device.transportGeneration == .init(0)
+                        && device.authoritativeObject != nil
+                }
+                return false
+            }
+            XCTAssertFalse(staleAuthoritative)
+            await agent.closeRuntimeStoreForTesting()
+            let live = try await liveAuthoritativeObject(storeDir: storeDir)
+            XCTAssertEqual(live, Data("object-n-plus-1".utf8))
+        }
+    }
+
+    func testFreshSameGenerationSchema1ReplacementRejectsDelayedRollback() {
+        runTest { [self] in
+            let agent = try await makePreparedAgent(objectSeed: "object-a")
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let gate = StepGate()
+            var delayOnce = true
+            var hooks = agent.executionTestHooks
+            hooks?.beforeAuthoritativeObjectCommit = {
+                if delayOnce {
+                    delayOnce = false
+                    await gate.wait()
+                }
+            }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "hold-a"))
+            await gate.waitUntilEntered()
+            await agent.closeRuntimeStoreForTesting()
+            try await seedAuthoritativeBaseline(
+                storeDir: storeDir,
+                content: Data("object-b".utf8)
+            )
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "commit-b"))
+            let sawB = await waitUntilAuthoritativeObject(agent, Data("object-b".utf8))
+            XCTAssertTrue(sawB)
+            await gate.release()
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            await agent.closeRuntimeStoreForTesting()
+            let live = try await liveAuthoritativeObject(storeDir: storeDir)
+            XCTAssertEqual(live, Data("object-b".utf8))
+        }
+    }
+
+    func testFreshAgentTakesOverLowThenHighHistoricalLeaseDevices() {
+        runTest { [self] in
+            let storeDir = testRoot.appendingPathComponent(
+                "store-\(UUID().uuidString.prefix(8))",
+                isDirectory: true
+            )
+            try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+            let content = Data("shared-object".utf8)
+            try await seedProjectedObject(
+                storeDir: storeDir,
+                device: "DEVICE-A",
+                content: content,
+                lease: 2
+            )
+            try await seedProjectedObject(
+                storeDir: storeDir,
+                device: "DEVICE-B",
+                content: content,
+                lease: 10
+            )
+            let agent = try await makePreparedAgent(storeDirectory: storeDir, objectSeed: nil)
+            await agent.simulateDeviceForTesting(simulatedDevice(id: "DEVICE-A"))
+            let sawA = await waitUntilAuthoritativeObject(agent, content)
+            XCTAssertTrue(sawA)
+            await agent.simulateDeviceForTesting(simulatedDevice(id: "DEVICE-B"))
+            let sawB = await waitUntilAuthoritativeObject(agent, content)
+            XCTAssertTrue(sawB)
+            await agent.closeRuntimeStoreForTesting()
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let versionA = try await store.authoritativeVersion(for: AhaKeyRuntimeDeviceID("DEVICE-A"))
+            let versionB = try await store.authoritativeVersion(for: AhaKeyRuntimeDeviceID("DEVICE-B"))
+            let leaseA = try XCTUnwrap(versionA?.writerLease)
+            let leaseB = try XCTUnwrap(versionB?.writerLease)
+            XCTAssertEqual(leaseA, leaseB)
+            XCTAssertGreaterThan(leaseA, try AhaKeyRuntimeAuthoritativeWriterLease(10))
+        }
+    }
+
+    func testFreshReopenTakesOverMultiDeviceHighGenerationHistory() {
+        runTest { [self] in
+            let storeDir = testRoot.appendingPathComponent(
+                "store-\(UUID().uuidString.prefix(8))",
+                isDirectory: true
+            )
+            try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+            let contentA = Data("device-a-object".utf8)
+            let contentB = Data("device-b-object".utf8)
+            try await seedProjectedObject(
+                storeDir: storeDir,
+                device: "DEVICE-A",
+                content: contentA,
+                lease: 2,
+                session: 9,
+                transport: 9
+            )
+            try await seedProjectedObject(
+                storeDir: storeDir,
+                device: "DEVICE-B",
+                content: contentB,
+                lease: 10,
+                session: 8,
+                transport: 8
+            )
+            let agent = try await makePreparedAgent(storeDirectory: storeDir, objectSeed: nil)
+            await agent.simulateDeviceForTesting(simulatedDevice(id: "DEVICE-A"))
+            let sawA = await waitUntilAuthoritativeObject(
+                agent,
+                contentA,
+                sessionGeneration: 0,
+                transportGeneration: 0
+            )
+            XCTAssertTrue(sawA)
+            await agent.simulateDeviceForTesting(simulatedDevice(id: "DEVICE-B"))
+            let sawB = await waitUntilAuthoritativeObject(
+                agent,
+                contentB,
+                sessionGeneration: 0,
+                transportGeneration: 0
+            )
+            XCTAssertTrue(sawB)
+            await agent.closeRuntimeStoreForTesting()
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            do {
+                try await store.persistProjectedAuthoritativeObject(
+                    contentA,
+                    version: AhaKeyRuntimeAuthoritativeVersion(
+                        deviceID: try AhaKeyRuntimeDeviceID("DEVICE-A"),
+                        writerLease: try AhaKeyRuntimeAuthoritativeWriterLease(2),
+                        sessionGeneration: .init(9),
+                        transportGeneration: .init(9),
+                        sourceRevision: .first,
+                        sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(contentA)
+                    )
+                )
+                XCTFail("old lease must fail-closed after fresh reopen")
+            } catch {
+                XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+            }
+            let liveA = try await store.authoritativeObjectContent(
+                for: AhaKeyRuntimeDeviceID("DEVICE-A")
+            )
+            let liveB = try await store.authoritativeObjectContent(
+                for: AhaKeyRuntimeDeviceID("DEVICE-B")
+            )
+            XCTAssertEqual(liveA, contentA)
+            XCTAssertEqual(liveB, contentB)
+        }
+    }
+
     // MARK: - helpers
 
     private func runTest(_ work: @escaping () async throws -> Void) {
@@ -855,7 +1074,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         return agent
     }
 
-    private func makeReadyAgent(
+    private func makePreparedAgent(
         storeDirectory: URL? = nil,
         userSlotLimit: Int = 64,
         objectSeed: String? = "base-object"
@@ -870,6 +1089,19 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         hooks?.oledContext = .standard
         hooks?.configurationCharacteristics = .allPresent
         agent.executionTestHooks = hooks
+        return agent
+    }
+
+    private func makeReadyAgent(
+        storeDirectory: URL? = nil,
+        userSlotLimit: Int = 64,
+        objectSeed: String? = "base-object"
+    ) async throws -> AhaKeyAgent {
+        let agent = try await makePreparedAgent(
+            storeDirectory: storeDirectory,
+            userSlotLimit: userSlotLimit,
+            objectSeed: objectSeed
+        )
         await agent.simulateDeviceForTesting(simulatedDevice())
         return agent
     }
@@ -949,17 +1181,62 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         )
         let deviceID = try AhaKeyRuntimeDeviceID(device)
         let existing = try await store.authoritativeVersion(for: deviceID)
+        let lease: AhaKeyRuntimeAuthoritativeWriterLease
+        if let existingLease = existing?.writerLease {
+            lease = existingLease
+        } else {
+            lease = try await store.allocateAuthoritativeWriterLease()
+        }
+        let revision = try existing?.sourceRevision.advanced() ?? .first
         try await store.persistProjectedAuthoritativeObject(
             content,
             version: AhaKeyRuntimeAuthoritativeVersion(
                 deviceID: deviceID,
-                writerEpoch: existing?.writerEpoch ?? 0,
+                writerLease: lease,
                 sessionGeneration: .init(session),
                 transportGeneration: .init(transport),
-                sourceRevision: (existing?.sourceRevision ?? 0) + 1,
+                sourceRevision: revision,
                 sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
             )
         )
+    }
+
+    private func seedProjectedObject(
+        storeDir: URL,
+        device: String,
+        content: Data,
+        lease: UInt64,
+        session: UInt64 = 0,
+        transport: UInt64 = 0,
+        revision: UInt64 = 1
+    ) async throws {
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeDir,
+            acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+        )
+        let deviceID = try AhaKeyRuntimeDeviceID(device)
+        try await store.persistProjectedAuthoritativeObject(
+            content,
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: deviceID,
+                writerLease: try AhaKeyRuntimeAuthoritativeWriterLease(lease),
+                sessionGeneration: .init(session),
+                transportGeneration: .init(transport),
+                sourceRevision: try AhaKeyRuntimeAuthoritativeSourceRevision(revision),
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+            )
+        )
+    }
+
+    private func liveAuthoritativeObject(
+        storeDir: URL,
+        device: String = "TEST-DEVICE"
+    ) async throws -> Data? {
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeDir,
+            acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+        )
+        return try await store.authoritativeObjectContent(for: AhaKeyRuntimeDeviceID(device))
     }
 
     private func waitUntilAuthoritativeObject(

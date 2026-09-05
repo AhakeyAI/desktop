@@ -1385,38 +1385,29 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
         let n = Data("object-n".utf8)
         let n1 = Data("object-n-plus-1".utf8)
-        let first = try await store.persistProjectedAuthoritativeObject(
+        let lease = try await store.allocateAuthoritativeWriterLease()
+        _ = try await store.persistProjectedAuthoritativeObject(
             n,
-            version: AhaKeyRuntimeAuthoritativeVersion(
-                deviceID: device,
-                writerEpoch: 0,
-                sessionGeneration: .init(1),
-                transportGeneration: .init(0),
-                sourceRevision: 1,
-                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(n)
+            version: try authorityVersion(
+                device: device, lease: lease, session: 1, transport: 0, revision: .first, content: n
             )
         )
         _ = try await store.persistProjectedAuthoritativeObject(
             n1,
-            version: AhaKeyRuntimeAuthoritativeVersion(
-                deviceID: device,
-                writerEpoch: first.writerEpoch,
-                sessionGeneration: .init(1),
-                transportGeneration: .init(1),
-                sourceRevision: 2,
-                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(n1)
+            version: try authorityVersion(
+                device: device,
+                lease: lease,
+                session: 1,
+                transport: 1,
+                revision: .first.advanced(),
+                content: n1
             )
         )
         do {
             try await store.persistProjectedAuthoritativeObject(
                 n,
-                version: AhaKeyRuntimeAuthoritativeVersion(
-                    deviceID: device,
-                    writerEpoch: first.writerEpoch,
-                    sessionGeneration: .init(1),
-                    transportGeneration: .init(0),
-                    sourceRevision: 1,
-                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(n)
+                version: try authorityVersion(
+                    device: device, lease: lease, session: 1, transport: 0, revision: .first, content: n
                 )
             )
             XCTFail("stale generation must fail-closed")
@@ -1434,38 +1425,29 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
         let a = Data("object-a".utf8)
         let b = Data("object-b".utf8)
-        let first = try await store.persistProjectedAuthoritativeObject(
+        let lease = try await store.allocateAuthoritativeWriterLease()
+        _ = try await store.persistProjectedAuthoritativeObject(
             a,
-            version: AhaKeyRuntimeAuthoritativeVersion(
-                deviceID: device,
-                writerEpoch: 0,
-                sessionGeneration: .init(0),
-                transportGeneration: .init(0),
-                sourceRevision: 1,
-                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(a)
+            version: try authorityVersion(
+                device: device, lease: lease, session: 0, transport: 0, revision: .first, content: a
             )
         )
         _ = try await store.persistProjectedAuthoritativeObject(
             b,
-            version: AhaKeyRuntimeAuthoritativeVersion(
-                deviceID: device,
-                writerEpoch: first.writerEpoch,
-                sessionGeneration: .init(0),
-                transportGeneration: .init(0),
-                sourceRevision: 2,
-                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(b)
+            version: try authorityVersion(
+                device: device,
+                lease: lease,
+                session: 0,
+                transport: 0,
+                revision: .first.advanced(),
+                content: b
             )
         )
         do {
             try await store.persistProjectedAuthoritativeObject(
                 a,
-                version: AhaKeyRuntimeAuthoritativeVersion(
-                    deviceID: device,
-                    writerEpoch: first.writerEpoch,
-                    sessionGeneration: .init(0),
-                    transportGeneration: .init(0),
-                    sourceRevision: 1,
-                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(a)
+                version: try authorityVersion(
+                    device: device, lease: lease, session: 0, transport: 0, revision: .first, content: a
                 )
             )
             XCTFail("same-generation older source must fail-closed")
@@ -1476,38 +1458,97 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(rolledBack, b)
     }
 
-    func testProjectedAuthoritativeObjectRestartEpochAcceptsLowerGeneration() async throws {
+    func testProjectedAuthoritativeObjectRestartLeaseAcceptsLowerGeneration() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
         let content = Data("base-object".utf8)
+        let first = try await store.allocateAuthoritativeWriterLease()
         _ = try await store.persistProjectedAuthoritativeObject(
             content,
-            version: AhaKeyRuntimeAuthoritativeVersion(
-                deviceID: device,
-                writerEpoch: 0,
-                sessionGeneration: .init(9),
-                transportGeneration: .init(9),
-                sourceRevision: 1,
-                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+            version: try authorityVersion(
+                device: device, lease: first, session: 9, transport: 9, revision: .first, content: content
             )
         )
-        let restarted = try await store.persistProjectedAuthoritativeObject(
+        let restarted = try await store.allocateAuthoritativeWriterLease()
+        let committed = try await store.persistProjectedAuthoritativeObject(
             content,
-            version: AhaKeyRuntimeAuthoritativeVersion(
-                deviceID: device,
-                writerEpoch: 0,
-                sessionGeneration: .init(0),
-                transportGeneration: .init(0),
-                sourceRevision: 1,
-                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+            version: try authorityVersion(
+                device: device, lease: restarted, session: 0, transport: 0, revision: .first, content: content
             )
         )
-        XCTAssertGreaterThan(restarted.writerEpoch, 1)
-        XCTAssertEqual(restarted.sessionGeneration, .init(0))
+        XCTAssertGreaterThan(restarted, first)
+        XCTAssertEqual(committed.writerLease, restarted)
+        XCTAssertEqual(committed.sessionGeneration, .init(0))
         let restartedContent = try await store.authoritativeObjectContent(for: device)
         XCTAssertEqual(restartedContent, content)
+    }
+
+    func testOldWriterLeaseCannotRewriteAfterNewLease() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let original = Data("original".utf8)
+        let takeover = Data("takeover".utf8)
+        let oldLease = try await store.allocateAuthoritativeWriterLease()
+        _ = try await store.persistProjectedAuthoritativeObject(
+            original,
+            version: try authorityVersion(
+                device: device, lease: oldLease, session: 1, transport: 0, revision: .first, content: original
+            )
+        )
+        let newLease = try await store.allocateAuthoritativeWriterLease()
+        _ = try await store.persistProjectedAuthoritativeObject(
+            takeover,
+            version: try authorityVersion(
+                device: device,
+                lease: newLease,
+                session: 0,
+                transport: 0,
+                revision: .first.advanced(),
+                content: takeover
+            )
+        )
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                original,
+                version: try authorityVersion(
+                    device: device, lease: oldLease, session: 1, transport: 0, revision: .first, content: original
+                )
+            )
+            XCTFail("old lease must fail-closed after new lease")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let live = try await store.authoritativeObjectContent(for: device)
+        XCTAssertEqual(live, takeover)
+    }
+
+    func testAllocateWriterLeaseExceedsPerDeviceHistory() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let deviceA = try AhaKeyRuntimeDeviceID("DEVICE-A")
+        let deviceB = try AhaKeyRuntimeDeviceID("DEVICE-B")
+        let content = Data("base-object".utf8)
+        let low = try AhaKeyRuntimeAuthoritativeWriterLease(2)
+        let high = try AhaKeyRuntimeAuthoritativeWriterLease(10)
+        _ = try await store.persistProjectedAuthoritativeObject(
+            content,
+            version: try authorityVersion(
+                device: deviceA, lease: low, session: 0, transport: 0, revision: .first, content: content
+            )
+        )
+        _ = try await store.persistProjectedAuthoritativeObject(
+            content,
+            version: try authorityVersion(
+                device: deviceB, lease: high, session: 0, transport: 0, revision: .first, content: content
+            )
+        )
+        let allocated = try await store.allocateAuthoritativeWriterLease()
+        XCTAssertGreaterThan(allocated, high)
     }
 
     func testCorruptAuthoritativeVersionFailsClosed() async throws {
@@ -1517,15 +1558,11 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let content = Data("base-object".utf8)
         do {
             let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            let lease = try await store.allocateAuthoritativeWriterLease()
             _ = try await store.persistProjectedAuthoritativeObject(
                 content,
-                version: AhaKeyRuntimeAuthoritativeVersion(
-                    deviceID: device,
-                    writerEpoch: 0,
-                    sessionGeneration: .init(0),
-                    transportGeneration: .init(0),
-                    sourceRevision: 1,
-                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+                version: try authorityVersion(
+                    device: device, lease: lease, session: 0, transport: 0, revision: .first, content: content
                 )
             )
         }
@@ -1563,18 +1600,92 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         do {
             try await reopened.persistProjectedAuthoritativeObject(
                 content,
-                version: AhaKeyRuntimeAuthoritativeVersion(
-                    deviceID: device,
-                    writerEpoch: 0,
-                    sessionGeneration: .init(0),
-                    transportGeneration: .init(0),
-                    sourceRevision: 1,
-                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+                version: try authorityVersion(
+                    device: device,
+                    lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+                    session: 0,
+                    transport: 0,
+                    revision: .first,
+                    content: content
                 )
             )
             XCTFail("persist over corrupt version must fail-closed")
         } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptAuthoritativeVersion)
+        }
+    }
+
+    func testProjectedAuthoritativeObjectRejectsMissingWriterLease() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let content = Data("base-object".utf8)
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                content,
+                version: AhaKeyRuntimeAuthoritativeVersion(
+                    deviceID: device,
+                    writerLease: nil,
+                    sessionGeneration: .init(0),
+                    transportGeneration: .init(0),
+                    sourceRevision: .first,
+                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+                )
+            )
+            XCTFail("projection must require an allocated writer lease")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+    }
+
+    func testNewWriterLeaseCannotRollbackOlderSourceRevision() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let original = Data("object-a".utf8)
+        let updated = Data("object-b".utf8)
+        let oldLease = try await store.allocateAuthoritativeWriterLease()
+        _ = try await store.persistProjectedAuthoritativeObject(
+            original,
+            version: try authorityVersion(
+                device: device, lease: oldLease, session: 0, transport: 0, revision: .first, content: original
+            )
+        )
+        _ = try await store.persistProjectedAuthoritativeObject(
+            updated,
+            version: try authorityVersion(
+                device: device,
+                lease: oldLease,
+                session: 0,
+                transport: 0,
+                revision: .first.advanced(),
+                content: updated
+            )
+        )
+        let newLease = try await store.allocateAuthoritativeWriterLease()
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                original,
+                version: try authorityVersion(
+                    device: device, lease: newLease, session: 0, transport: 0, revision: .first, content: original
+                )
+            )
+            XCTFail("higher lease must not roll back older source revision")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let live = try await store.authoritativeObjectContent(for: device)
+        XCTAssertEqual(live, updated)
+    }
+
+    func testWriterLeaseAndSourceRevisionRejectZeroSentinel() {
+        XCTAssertThrowsError(try AhaKeyRuntimeAuthoritativeWriterLease(0)) {
+            XCTAssertEqual($0 as? AhaKeyRuntimeContractError, .invalidAuthoritativeWriterLease)
+        }
+        XCTAssertThrowsError(try AhaKeyRuntimeAuthoritativeSourceRevision(0)) {
+            XCTAssertEqual($0 as? AhaKeyRuntimeContractError, .invalidAuthoritativeSourceRevision)
         }
     }
 
@@ -1806,6 +1917,24 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .operationIdentifierConflict)
         }
+    }
+
+    private func authorityVersion(
+        device: AhaKeyRuntimeDeviceID,
+        lease: AhaKeyRuntimeAuthoritativeWriterLease,
+        session: UInt64,
+        transport: UInt64,
+        revision: AhaKeyRuntimeAuthoritativeSourceRevision,
+        content: Data
+    ) throws -> AhaKeyRuntimeAuthoritativeVersion {
+        AhaKeyRuntimeAuthoritativeVersion(
+            deviceID: device,
+            writerLease: lease,
+            sessionGeneration: .init(session),
+            transportGeneration: .init(transport),
+            sourceRevision: revision,
+            sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+        )
     }
 
     private func temporaryDirectory() -> URL {

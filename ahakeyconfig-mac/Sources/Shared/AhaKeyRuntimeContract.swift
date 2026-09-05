@@ -110,30 +110,38 @@ public struct AhaKeyRuntimeTransportGeneration: Codable, Equatable, Hashable, Co
     }
 }
 
-/// 权威对象的 typed 版本：连接 identity + 单调 canonical source + 进程 writer epoch。
-/// `writerEpoch == 0` 表示尚未分配；投影 persist 在事务内分配下一个 epoch。
+/// 权威对象的 typed 版本：连接 identity + 单调 canonical source + 进程 writer lease。
+/// `writerLease == nil` 仅表示尚未被任何进程投影写入（schema=1 seed）。
 public struct AhaKeyRuntimeAuthoritativeVersion: Codable, Equatable, Hashable, Sendable {
     public let deviceID: AhaKeyRuntimeDeviceID
-    public let writerEpoch: UInt64
+    public let writerLease: AhaKeyRuntimeAuthoritativeWriterLease?
     public let sessionGeneration: AhaKeyRuntimeSessionGeneration
     public let transportGeneration: AhaKeyRuntimeTransportGeneration
-    public let sourceRevision: UInt64
+    public let sourceRevision: AhaKeyRuntimeAuthoritativeSourceRevision
     public let sourceDigest: AhaKeyRuntimeObjectFingerprint
 
     public init(
         deviceID: AhaKeyRuntimeDeviceID,
-        writerEpoch: UInt64,
+        writerLease: AhaKeyRuntimeAuthoritativeWriterLease?,
         sessionGeneration: AhaKeyRuntimeSessionGeneration,
         transportGeneration: AhaKeyRuntimeTransportGeneration,
-        sourceRevision: UInt64,
+        sourceRevision: AhaKeyRuntimeAuthoritativeSourceRevision,
         sourceDigest: AhaKeyRuntimeObjectFingerprint
     ) {
         self.deviceID = deviceID
-        self.writerEpoch = writerEpoch
+        self.writerLease = writerLease
         self.sessionGeneration = sessionGeneration
         self.transportGeneration = transportGeneration
         self.sourceRevision = sourceRevision
         self.sourceDigest = sourceDigest
+    }
+
+    public func matches(_ connection: AhaKeyRuntimeDeviceSnapshot) -> Bool {
+        matches(
+            deviceID: connection.id,
+            sessionGeneration: connection.sessionGeneration,
+            transportGeneration: connection.transportGeneration
+        )
     }
 
     public func matches(
@@ -144,6 +152,66 @@ public struct AhaKeyRuntimeAuthoritativeVersion: Codable, Equatable, Hashable, S
         self.deviceID == deviceID
             && self.sessionGeneration == sessionGeneration
             && self.transportGeneration == transportGeneration
+    }
+}
+
+/// 进程实例级 durable writer lease。从 1 起，不允许 sentinel 0。
+public struct AhaKeyRuntimeAuthoritativeWriterLease: Codable, Equatable, Hashable, Comparable, Sendable {
+    public let rawValue: UInt64
+
+    public init(_ rawValue: UInt64) throws {
+        guard rawValue > 0 else {
+            throw AhaKeyRuntimeContractError.invalidAuthoritativeWriterLease
+        }
+        self.rawValue = rawValue
+    }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(UInt64.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    public static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+/// Canonical source 单调版本。从 1 起，不允许 sentinel 0。
+public struct AhaKeyRuntimeAuthoritativeSourceRevision: Codable, Equatable, Hashable, Comparable, Sendable {
+    public let rawValue: UInt64
+
+    public static let first = try! AhaKeyRuntimeAuthoritativeSourceRevision(1)
+
+    public init(_ rawValue: UInt64) throws {
+        guard rawValue > 0 else {
+            throw AhaKeyRuntimeContractError.invalidAuthoritativeSourceRevision
+        }
+        self.rawValue = rawValue
+    }
+
+    public init(from decoder: Decoder) throws {
+        try self.init(decoder.singleValueContainer().decode(UInt64.self))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    public static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    public func advanced() throws -> AhaKeyRuntimeAuthoritativeSourceRevision {
+        let next = rawValue + 1
+        guard next > rawValue else {
+            throw AhaKeyRuntimeContractError.invalidAuthoritativeSourceRevision
+        }
+        return try AhaKeyRuntimeAuthoritativeSourceRevision(next)
     }
 }
 
@@ -1076,4 +1144,6 @@ public enum AhaKeyRuntimeContractError: Error, Equatable, Sendable {
     case invalidCompatibilityFingerprint
     case invalidObjectFingerprint
     case unsupportedPeerForPageOperation
+    case invalidAuthoritativeWriterLease
+    case invalidAuthoritativeSourceRevision
 }
