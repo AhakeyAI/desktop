@@ -258,3 +258,14 @@ layout 均未修改。
 “Fixed in Code / End-to-End Blocked by SW-002”；SW-003 为“Fixed / Regression
 Verified”；SW-004 为“Fixed in Code / Pending UI/Device Workflow Regression”。
 这些状态均不等同于真机通过。
+
+本轮最终验证（2026-09-06）：`mvn clean test` 与 `mvn clean package` 均为
+`182/0/0/0`（failures/errors/skipped 均为 0），package 内置和独立
+`Test-ReleaseArtifactContents.ps1` 均返回 `RELEASE_ARTIFACT_CONTENTS=OK`；合成发布基线的
+`preview-part3-release-overlay.ps1` 返回 `OVERLAY_VALIDATION=OK`，正式
+`C:\Program Files\AhaKeyStudio\app` 基线不存在而未能执行正式 overlay。6 个 PowerShell
+脚本语法检查通过，BLE packaging fixture 和 WCHISP privacy fixture 分别返回
+`BLE_DRIVER_PACKAGED=PASS`、`WCHISP_RELEASE_PRIVACY_GATE=PASS`。本机没有 MSBuild，
+`dotnet build BLE_tcp_bridge` 因 .NET 9 x86 `GenerateResource` task-host 不可用失败；已有
+`BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe` 仅作为待人工复核的现存产物。外层
+`C:\aha\ahakey-windows\windows-stabilization-plan.md` 仍不存在，未创建伪权威副本。
