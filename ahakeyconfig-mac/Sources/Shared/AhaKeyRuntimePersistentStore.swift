@@ -1069,6 +1069,10 @@ public actor AhaKeyRuntimePersistentStore {
 
     private static let authoritativeWriterLeaseKey = "authoritative-writer-lease"
 
+    private static func disconnectFenceKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
+        "disconnect-generation-fence:\(deviceID.rawValue)"
+    }
+
     private func storedAuthoritativeVersion(
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws -> AhaKeyRuntimeAuthoritativeVersion? {
@@ -1266,10 +1270,15 @@ public actor AhaKeyRuntimePersistentStore {
         }
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
+            let current = try storedAuthoritativeVersion(for: deviceID)
+            if let current, version != current {
+                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+            }
             let existing = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
                 .first { $0.fieldID == fieldID }
             let next = try nextAuthoritativeBaseline(
                 existing: existing,
+                currentStoreAuthority: current,
                 deviceID: deviceID,
                 pageID: pageID,
                 fieldID: fieldID,
@@ -1288,6 +1297,7 @@ public actor AhaKeyRuntimePersistentStore {
 
     private func nextAuthoritativeBaseline(
         existing: AhaKeyRuntimeFieldBaseline?,
+        currentStoreAuthority: AhaKeyRuntimeAuthoritativeVersion?,
         deviceID: AhaKeyRuntimeDeviceID,
         pageID: AhaKeyStudioPageID,
         fieldID: AhaKeyStudioFieldID,
@@ -1327,17 +1337,28 @@ public actor AhaKeyRuntimePersistentStore {
             }
             return existing
         }
-        if version.isOlder(than: stored) {
+        guard currentStoreAuthority == version else {
             throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
         }
-        if stored.isOlder(than: version) {
-            return verified
-        }
-        throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        return verified
     }
 
     /// 仅真实 device-disconnect 铸造 epoch。旧代不得覆盖新代；同 identity 保持原 startedAt。
     public func mintDisconnectEpoch(
+        _ operationID: AhaKeyRuntimeOperationID,
+        epoch: AhaKeyRuntimeDisconnectEpoch
+    ) throws {
+        try Self.execute("BEGIN IMMEDIATE", on: database)
+        do {
+            try mintDisconnectEpochUnlocked(operationID, epoch: epoch)
+            try Self.execute("COMMIT", on: database)
+        } catch {
+            try? Self.execute("ROLLBACK", on: database)
+            throw error
+        }
+    }
+
+    private func mintDisconnectEpochUnlocked(
         _ operationID: AhaKeyRuntimeOperationID,
         epoch: AhaKeyRuntimeDisconnectEpoch
     ) throws {
@@ -1361,6 +1382,10 @@ public actor AhaKeyRuntimePersistentStore {
             if epoch.identity.isOlder(than: existing.identity) { return }
             guard existing.identity.isOlder(than: epoch.identity) else { return }
         }
+        if let fence = try disconnectFence(for: epoch.identity.deviceID),
+           epoch.identity.isOlder(than: fence) {
+            return
+        }
         let statement = try prepare(
             """
             INSERT INTO runtime_disconnect_epochs (operation_id, epoch)
@@ -1375,13 +1400,41 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     public func clearDisconnectEpochs(succeeding identity: AhaKeyRuntimeConnectionIdentity) throws {
-        for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == identity.deviceID {
-            guard let stored = try disconnectEpoch(candidate.operationID) else { continue }
-            guard stored.identity.deviceID == identity.deviceID,
-                  stored.identity.isOlder(than: identity) else {
-                continue
+        try Self.execute("BEGIN IMMEDIATE", on: database)
+        do {
+            try persistDisconnectFenceUnlocked(identity)
+            for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == identity.deviceID {
+                guard let stored = try disconnectEpoch(candidate.operationID) else { continue }
+                guard stored.identity.deviceID == identity.deviceID,
+                      stored.identity.isOlder(than: identity) else {
+                    continue
+                }
+                try deleteDisconnectEpochUnlocked(candidate.operationID)
             }
-            try deleteDisconnectEpochUnlocked(candidate.operationID)
+            try Self.execute("COMMIT", on: database)
+        } catch {
+            try? Self.execute("ROLLBACK", on: database)
+            throw error
+        }
+    }
+
+    private func persistDisconnectFenceUnlocked(_ identity: AhaKeyRuntimeConnectionIdentity) throws {
+        try upsertMetadata(
+            key: Self.disconnectFenceKey(identity.deviceID),
+            value: try encoder.encode(identity)
+        )
+    }
+
+    private func disconnectFence(
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws -> AhaKeyRuntimeConnectionIdentity? {
+        guard let data = try metadataValue(for: Self.disconnectFenceKey(deviceID)) else {
+            return nil
+        }
+        do {
+            return try decoder.decode(AhaKeyRuntimeConnectionIdentity.self, from: data)
+        } catch {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
         }
     }
 
@@ -1454,7 +1507,12 @@ public actor AhaKeyRuntimePersistentStore {
         if case .connected = connection {
             return .refused
         }
-        guard let epoch = try disconnectEpoch(operationID) else { return .refused }
+        guard case .disconnected(let observed) = connection else {
+            return .refused
+        }
+        guard let epoch = try disconnectEpoch(operationID), epoch == observed else {
+            return .refused
+        }
         guard epoch.identity.deviceID == record.package.targetDeviceID else {
             return .refused
         }
@@ -2329,7 +2387,7 @@ public actor AhaKeyRuntimePersistentStore {
         if let operationID = baseline.operationID {
             try bind(operationID.rawValue.uuidString, at: 7, to: statement)
         } else {
-            try bind("", at: 7, to: statement)
+            try bindNull(at: 7, to: statement)
         }
         if let version = baseline.authorityVersion {
             try bind(try encoder.encode(version), at: 8, to: statement)
@@ -2365,15 +2423,9 @@ public actor AhaKeyRuntimePersistentStore {
         let operationID: AhaKeyRuntimeOperationID?
         if sqlite3_column_type(statement, 6) == SQLITE_NULL {
             operationID = nil
-        } else if let operationText = sqlite3_column_text(statement, 6) {
-            let raw = String(cString: operationText)
-            if raw.isEmpty {
-                operationID = nil
-            } else if let uuid = UUID(uuidString: raw) {
-                operationID = .init(uuid)
-            } else {
-                throw AhaKeyRuntimePersistenceError.corruptTransaction
-            }
+        } else if let operationText = sqlite3_column_text(statement, 6),
+                  let uuid = UUID(uuidString: String(cString: operationText)) {
+            operationID = .init(uuid)
         } else {
             throw AhaKeyRuntimePersistenceError.corruptTransaction
         }

@@ -330,6 +330,91 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testReconnectClearsFrozenDisconnectBeforeAbandon() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "reconnect-cas")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
+            )
+            await agent.noteProductionReconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(
+                    transportGeneration: 1,
+                    protocolState: .disconnected,
+                    bluetoothConnected: false
+                )
+            )
+            var later = agent.executionTestHooks
+            later?.wallClock = { now }
+            agent.executionTestHooks = later
+            guard case .abandon(let disposition) = try await client.exchange(
+                .requestAbandon(package.operationID)
+            ) else {
+                return XCTFail("abandon response")
+            }
+            XCTAssertEqual(disposition, .refused)
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let cleared = try await store.disconnectEpoch(package.operationID)
+            XCTAssertNil(cleared)
+            let state = try await store.transaction(package.operationID)?.state
+            XCTAssertTrue(state == .paused || state == .resumablePartial)
+        }
+    }
+
+    func testDelayedDisconnectMintAfterReconnectDoesNotRecreateOldEpoch() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "delayed-mint")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let minted = try await store.disconnectEpoch(package.operationID)
+            let oldEpoch = try XCTUnwrap(minted)
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
+            )
+            await agent.noteProductionReconnectForTesting()
+            let afterReconnect = try await store.disconnectEpoch(package.operationID)
+            XCTAssertNil(afterReconnect)
+            now = now.addingTimeInterval(5)
+            await agent.noteFrozenDisconnectForTesting(identity: oldEpoch.identity, at: oldEpoch.startedAt)
+            let afterDelayedMint = try await store.disconnectEpoch(package.operationID)
+            XCTAssertNil(afterDelayedMint)
+        }
+    }
+
     func testPictureDisconnectResumesZeroResendAcrossAgentReopen() {
         runTest { [self] in
             let agent = try await makeReadyAgent(userSlotLimit: 64)

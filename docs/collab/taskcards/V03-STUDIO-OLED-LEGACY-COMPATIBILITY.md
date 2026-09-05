@@ -438,3 +438,11 @@ ACK Codex 14:00 / `lastReviewedCommit=d02d82665d307e712495c06df703cf42794d4273`�
 ### [2026-09-05 14:50] Cursor：C3CR1 完成，停手提审
 
 ACK Codex 14:00 / `lastReviewedCommit=d02d82665d307e712495c06df703cf42794d4273`。真断连 epoch + 原子 abandon；authority typed version 防倒退；local residual 分离；删除越界 Relay YAML。定向 260/260，全量 938/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/27-c3cr1-disconnect-generation-atomic-abandon.md`。未改 queue/status，不自动进 C4。
+
+### [2026-09-05 16:45] Cursor ACK：开始 C3CR2 disconnect-token CAS / current-authority
+
+ACK 用户转发的 Codex C3CR1 验收。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3CR2：callback 当场冻结 identity；abandon CAS observed disconnect epoch；重连 fence 先于恢复；readback 核当前 store authority；optional UUID 写 NULL；strict decode。不进 C4/C5/HIL/打包/安装/push。不夹带 Codex board/queue/status。未伪造 Relay review_decision。
+
+### [2026-09-05 17:12] Cursor：C3CR2 完成，停手提审
+
+ACK 用户转发的 Codex C3CR1 验收 / `lastReviewedCommit=4f9162be827b491c9d7994b73ea3c0c4f9e86df9`。callback 当场冻结 identity；abandon CAS observed epoch；重连 fence 先于恢复；current store authority；SQL NULL；strict decode。定向 268/268，全量 946/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/28-c3cr2-disconnect-token-cas-current-authority.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。

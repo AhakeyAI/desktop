@@ -747,7 +747,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let abandoned = try await runner.requestAbandon(
             operationID: package.operationID,
             now: current,
-            connection: .disconnected
+            connection: try await disconnectedPresence(package, at: current)
         )
         XCTAssertEqual(abandoned, .abandoned)
         let abandonedState = try await store.transaction(package.operationID)?.state
@@ -834,7 +834,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let tooEarly = try await runner.requestAbandon(
             operationID: head.operationID,
             now: current.addingTimeInterval(30),
-            connection: .disconnected
+            connection: try await disconnectedPresence(head, at: current)
         )
         XCTAssertEqual(tooEarly, .refused)
         current = current.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
@@ -847,13 +847,13 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let nonHead = try await runner.requestAbandon(
             operationID: queued.operationID,
             now: current,
-            connection: .disconnected
+            connection: try await disconnectedPresence(queued, at: current)
         )
         XCTAssertEqual(nonHead, .refused)
         let abandonedHead = try await runner.requestAbandon(
             operationID: head.operationID,
             now: current,
-            connection: .disconnected
+            connection: try await disconnectedPresence(head, at: current)
         )
         XCTAssertEqual(abandonedHead, .abandoned)
         let headState = try await store.transaction(head.operationID)?.state
@@ -888,7 +888,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let runningAbandon = try await runner.requestAbandon(
             operationID: package.operationID,
             now: current.addingTimeInterval(60),
-            connection: .disconnected
+            connection: try await disconnectedPresence(package, at: current)
         )
         XCTAssertEqual(runningAbandon, .refused)
         await gate.release()
@@ -912,7 +912,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let abandoned = try await runner.requestAbandon(
             operationID: package.operationID,
             now: current,
-            connection: .disconnected
+            connection: try await disconnectedPresence(package, at: current)
         )
         XCTAssertEqual(abandoned, .refused)
         let pausedState = try await store.transaction(package.operationID)?.state
@@ -1072,6 +1072,21 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
             deviceID: package.targetDeviceID,
             profile: profile,
             baseObjectFingerprint: try XCTUnwrap(package.pageOperation?.baseObjectFingerprint)
+        )
+    }
+
+    private func disconnectedPresence(
+        _ package: AhaKeyConfigurationPackage,
+        at fallback: Date
+    ) async throws -> AhaKeyRuntimeConnectionPresence {
+        if let epoch = try await store.disconnectEpoch(package.operationID) {
+            return .disconnected(epoch)
+        }
+        return .disconnected(
+            AhaKeyRuntimeDisconnectEpoch(
+                identity: connectionIdentity(package.targetDeviceID),
+                startedAt: fallback
+            )
         )
     }
 

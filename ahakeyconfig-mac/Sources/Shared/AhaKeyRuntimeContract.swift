@@ -154,48 +154,137 @@ public struct AhaKeyRuntimeAuthoritativeVersion: Codable, Equatable, Hashable, S
             && self.transportGeneration == transportGeneration
     }
 
-    public func isOlder(than other: Self) -> Bool {
-        guard deviceID == other.deviceID else { return false }
-        if sourceRevision != other.sourceRevision {
-            return sourceRevision < other.sourceRevision
-        }
-        if sessionGeneration != other.sessionGeneration {
-            return sessionGeneration < other.sessionGeneration
-        }
-        return transportGeneration < other.transportGeneration
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case deviceID, writerLease, sessionGeneration, transportGeneration, sourceRevision, sourceDigest
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .corruptRuntimeFact
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            deviceID: container.decode(AhaKeyRuntimeDeviceID.self, forKey: .deviceID),
+            writerLease: container.decodeIfPresent(
+                AhaKeyRuntimeAuthoritativeWriterLease.self,
+                forKey: .writerLease
+            ),
+            sessionGeneration: container.decode(AhaKeyRuntimeSessionGeneration.self, forKey: .sessionGeneration),
+            transportGeneration: container.decode(
+                AhaKeyRuntimeTransportGeneration.self,
+                forKey: .transportGeneration
+            ),
+            sourceRevision: container.decode(
+                AhaKeyRuntimeAuthoritativeSourceRevision.self,
+                forKey: .sourceRevision
+            ),
+            sourceDigest: container.decode(AhaKeyRuntimeObjectFingerprint.self, forKey: .sourceDigest)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(deviceID, forKey: .deviceID)
+        try container.encodeIfPresent(writerLease, forKey: .writerLease)
+        try container.encode(sessionGeneration, forKey: .sessionGeneration)
+        try container.encode(transportGeneration, forKey: .transportGeneration)
+        try container.encode(sourceRevision, forKey: .sourceRevision)
+        try container.encode(sourceDigest, forKey: .sourceDigest)
     }
 }
 
-/// 断连 epoch 冻结的连接 identity：stable device + session/transport generation。
+/// 断连 epoch 冻结的连接 identity：stable device + 进程 lease + session/transport generation。
 public struct AhaKeyRuntimeConnectionIdentity: Codable, Equatable, Hashable, Sendable {
     public let deviceID: AhaKeyRuntimeDeviceID
+    public let writerLease: AhaKeyRuntimeAuthoritativeWriterLease?
     public let sessionGeneration: AhaKeyRuntimeSessionGeneration
     public let transportGeneration: AhaKeyRuntimeTransportGeneration
 
     public init(
         deviceID: AhaKeyRuntimeDeviceID,
         sessionGeneration: AhaKeyRuntimeSessionGeneration,
-        transportGeneration: AhaKeyRuntimeTransportGeneration
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        writerLease: AhaKeyRuntimeAuthoritativeWriterLease? = nil
     ) {
         self.deviceID = deviceID
+        self.writerLease = writerLease
         self.sessionGeneration = sessionGeneration
         self.transportGeneration = transportGeneration
     }
 
-    public init(_ snapshot: AhaKeyRuntimeDeviceSnapshot) {
+    public init(
+        _ snapshot: AhaKeyRuntimeDeviceSnapshot,
+        writerLease: AhaKeyRuntimeAuthoritativeWriterLease? = nil
+    ) {
         self.init(
             deviceID: snapshot.id,
             sessionGeneration: snapshot.sessionGeneration,
-            transportGeneration: snapshot.transportGeneration
+            transportGeneration: snapshot.transportGeneration,
+            writerLease: writerLease
         )
     }
 
+    public func withWriterLease(_ lease: AhaKeyRuntimeAuthoritativeWriterLease) -> Self {
+        Self(
+            deviceID: deviceID,
+            sessionGeneration: sessionGeneration,
+            transportGeneration: transportGeneration,
+            writerLease: lease
+        )
+    }
+
+    /// 进程 lease 先于 session/transport。无 lease 的旧 identity 一律旧于已分配 lease。
     public func isOlder(than other: Self) -> Bool {
         guard deviceID == other.deviceID else { return false }
+        switch (writerLease, other.writerLease) {
+        case let (lhs?, rhs?) where lhs != rhs:
+            return lhs < rhs
+        case (nil, .some):
+            return true
+        case (.some, nil):
+            return false
+        default:
+            break
+        }
         if sessionGeneration != other.sessionGeneration {
             return sessionGeneration < other.sessionGeneration
         }
         return transportGeneration < other.transportGeneration
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case deviceID, writerLease, sessionGeneration, transportGeneration
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .corruptRuntimeFact
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            deviceID: container.decode(AhaKeyRuntimeDeviceID.self, forKey: .deviceID),
+            sessionGeneration: container.decode(AhaKeyRuntimeSessionGeneration.self, forKey: .sessionGeneration),
+            transportGeneration: container.decode(
+                AhaKeyRuntimeTransportGeneration.self,
+                forKey: .transportGeneration
+            ),
+            writerLease: container.decodeIfPresent(
+                AhaKeyRuntimeAuthoritativeWriterLease.self,
+                forKey: .writerLease
+            )
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(deviceID, forKey: .deviceID)
+        try container.encodeIfPresent(writerLease, forKey: .writerLease)
+        try container.encode(sessionGeneration, forKey: .sessionGeneration)
+        try container.encode(transportGeneration, forKey: .transportGeneration)
     }
 }
 
@@ -208,12 +297,36 @@ public struct AhaKeyRuntimeDisconnectEpoch: Codable, Equatable, Sendable {
         self.identity = identity
         self.startedAt = startedAt
     }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case identity, startedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .corruptRuntimeFact
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            identity: container.decode(AhaKeyRuntimeConnectionIdentity.self, forKey: .identity),
+            startedAt: container.decode(Date.self, forKey: .startedAt)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(identity, forKey: .identity)
+        try container.encode(startedAt, forKey: .startedAt)
+    }
 }
 
 /// abandon 重核时的当前连接事实。connected（含 not-ready）必须拒绝。
+/// disconnected 必须携带采样到的 durable epoch，供 commit CAS。
 public enum AhaKeyRuntimeConnectionPresence: Equatable, Sendable {
     case connected(AhaKeyRuntimeConnectionIdentity)
-    case disconnected
+    case disconnected(AhaKeyRuntimeDisconnectEpoch)
 }
 
 /// 进程实例级 durable writer lease。从 1 起，不允许 sentinel 0。
@@ -955,6 +1068,75 @@ public enum AhaKeyRuntimeBaselineValue: Codable, Equatable, Sendable {
         framesPerSecond: Int,
         declaredFrameCount: Int?
     )
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case text, optionalText, integer, keyAction, taskAsset
+    }
+
+    private enum TaskAssetKeys: String, CodingKey, CaseIterable {
+        case sha256, byteCount, mediaType, framesPerSecond, declaredFrameCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .corruptRuntimeFact
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let present = CodingKeys.allCases.filter { container.contains($0) }
+        guard present.count == 1, let key = present.first else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        switch key {
+        case .text:
+            self = .text(try container.decode(String.self, forKey: .text))
+        case .optionalText:
+            self = .optionalText(try container.decodeIfPresent(String.self, forKey: .optionalText))
+        case .integer:
+            self = .integer(try container.decode(Int.self, forKey: .integer))
+        case .keyAction:
+            self = .keyAction(
+                try container.decode(AhaKeyDesiredConfiguration.KeyAction.self, forKey: .keyAction)
+            )
+        case .taskAsset:
+            let nestedDecoder = try container.superDecoder(forKey: .taskAsset)
+            try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+                in: nestedDecoder,
+                allowed: Set(TaskAssetKeys.allCases.map(\.rawValue)),
+                error: .corruptRuntimeFact
+            )
+            let nested = try nestedDecoder.container(keyedBy: TaskAssetKeys.self)
+            self = .taskAsset(
+                sha256: try nested.decode(AhaKeySHA256Digest.self, forKey: .sha256),
+                byteCount: try nested.decode(UInt64.self, forKey: .byteCount),
+                mediaType: try nested.decode(AhaKeyMediaType.self, forKey: .mediaType),
+                framesPerSecond: try nested.decode(Int.self, forKey: .framesPerSecond),
+                declaredFrameCount: try nested.decodeIfPresent(Int.self, forKey: .declaredFrameCount)
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let text):
+            try container.encode(text, forKey: .text)
+        case .optionalText(let text):
+            try container.encode(text, forKey: .optionalText)
+        case .integer(let number):
+            try container.encode(number, forKey: .integer)
+        case .keyAction(let action):
+            try container.encode(action, forKey: .keyAction)
+        case .taskAsset(let sha256, let byteCount, let mediaType, let fps, let frames):
+            var nested = container.nestedContainer(keyedBy: TaskAssetKeys.self, forKey: .taskAsset)
+            try nested.encode(sha256, forKey: .sha256)
+            try nested.encode(byteCount, forKey: .byteCount)
+            try nested.encode(mediaType, forKey: .mediaType)
+            try nested.encode(fps, forKey: .framesPerSecond)
+            try nested.encodeIfPresent(frames, forKey: .declaredFrameCount)
+        }
+    }
 }
 
 /// 按 device/page/field 稳定键持久化的页面 baseline。
@@ -1336,4 +1518,5 @@ public enum AhaKeyRuntimeContractError: Error, Equatable, Sendable {
     case unsupportedPeerForPageOperation
     case invalidAuthoritativeWriterLease
     case invalidAuthoritativeSourceRevision
+    case corruptRuntimeFact
 }

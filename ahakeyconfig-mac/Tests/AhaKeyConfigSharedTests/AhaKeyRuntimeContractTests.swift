@@ -498,6 +498,73 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         }
     }
 
+    func testTypedRuntimeFactsRejectUnknownKeysAndWrongBaselineShape() throws {
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let lease = try AhaKeyRuntimeAuthoritativeWriterLease(1)
+        let version = AhaKeyRuntimeAuthoritativeVersion(
+            deviceID: device,
+            writerLease: lease,
+            sessionGeneration: .init(1),
+            transportGeneration: .init(0),
+            sourceRevision: .first,
+            sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(Data("authority".utf8))
+        )
+        try assertCorruptRuntimeFact(version, extraKey: "unexpected")
+
+        let identity = AhaKeyRuntimeConnectionIdentity(
+            deviceID: device,
+            sessionGeneration: .init(1),
+            transportGeneration: .init(0),
+            writerLease: lease
+        )
+        try assertCorruptRuntimeFact(identity, extraKey: "unexpected")
+
+        let epoch = AhaKeyRuntimeDisconnectEpoch(identity: identity, startedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        try assertCorruptRuntimeFact(epoch, extraKey: "unexpected")
+
+        try assertCorruptRuntimeFact(AhaKeyRuntimeBaselineValue.text("hello"), extraKey: "integer")
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimeBaselineValue.self,
+                from: Data("{\"text\":\"a\",\"integer\":1}".utf8)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+
+        let asset = AhaKeyRuntimeBaselineValue.taskAsset(
+            sha256: try AhaKeySHA256Digest("03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"),
+            byteCount: 4,
+            mediaType: try AhaKeyMediaType("image/gif"),
+            framesPerSecond: 10,
+            declaredFrameCount: 1
+        )
+        let encodedAsset = try JSONEncoder().encode(asset)
+        var assetObject = try XCTUnwrap(JSONSerialization.jsonObject(with: encodedAsset) as? [String: Any])
+        var nested = try XCTUnwrap(assetObject["taskAsset"] as? [String: Any])
+        nested["extra"] = "nope"
+        assetObject["taskAsset"] = nested
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimeBaselineValue.self,
+                from: try JSONSerialization.data(withJSONObject: assetObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+    }
+
+    private func assertCorruptRuntimeFact<T: Codable>(_ value: T, extraKey: String) throws {
+        let encoded = try JSONEncoder().encode(value)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object[extraKey] = true
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(T.self, from: try JSONSerialization.data(withJSONObject: object))
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+    }
+
     func testPageScopedPackageRejectsDeviceMismatch() throws {
         let contract = try AhaKeyRuntimePageOperationContract.assemble(
             plan: screenStatusPlan(),
