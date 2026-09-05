@@ -259,6 +259,10 @@ layout 均未修改。
 Verified”；SW-004 为“Fixed in Code / Pending UI/Device Workflow Regression”。
 这些状态均不等同于真机通过。
 
+本轮提交边界：`3fc1dcb` SW-001 Driver 定位/打包、`8732e0d` BLE TCP 就绪门禁、
+`c24ff2f` SW-002 runtime 合同与诊断、`b49af98`/`eeb80b3`/`6092de7` 文档记录；
+SW-001 窗口 ownership 的既有实现仍来自 `b478ebd`，SW-004 既有实现来自 `e8af234`。
+
 本轮最终验证（2026-09-06）：`mvn clean test` 与 `mvn clean package` 均为
 `182/0/0/0`（failures/errors/skipped 均为 0），package 内置和独立
 `Test-ReleaseArtifactContents.ps1` 均返回 `RELEASE_ARTIFACT_CONTENTS=OK`；合成发布基线的
