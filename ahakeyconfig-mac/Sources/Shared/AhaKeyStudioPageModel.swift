@@ -400,3 +400,439 @@ public enum AhaKeyStudioPageDiffer {
         return false
     }
 }
+
+/// C4：把 C2 assembly + C3 Runtime operation/FIFO 收成 Studio 页内交互投影。
+/// 不创建第二套 assembler/Runtime 事实源。
+public enum AhaKeyStudioPageStatus: Equatable, Sendable {
+    case dirty
+    case queued
+    case writing
+    case waitingReconnect
+    case partial
+    case writtenPendingVerify
+    case synced
+    case conflict
+    case failed
+
+    public var label: String {
+        switch self {
+        case .dirty: return "有修改"
+        case .queued: return "排队中"
+        case .writing: return "写入中"
+        case .waitingReconnect: return "等待重连"
+        case .partial: return "部分完成"
+        case .writtenPendingVerify: return "已写入待验证"
+        case .synced: return "已同步"
+        case .conflict: return "冲突"
+        case .failed: return "失败"
+        }
+    }
+}
+
+public enum AhaKeyStudioPageCommitKind: Equatable, Sendable {
+    case writeCurrentPage
+    case writeAndActivate
+    case overwritePage
+    case noModification
+
+    public var title: String {
+        switch self {
+        case .writeCurrentPage: return "写入当前页"
+        case .writeAndActivate: return "写入并激活"
+        case .overwritePage: return "覆盖写入此页"
+        case .noModification: return "无修改"
+        }
+    }
+}
+
+public struct AhaKeyStudioPageChrome: Equatable, Sendable {
+    public var status: AhaKeyStudioPageStatus
+    public var commitKind: AhaKeyStudioPageCommitKind
+    public var isLocked: Bool
+    public var canSubmit: Bool
+    public var canRemoveQueued: Bool
+    public var canCancelRunning: Bool
+    public var canAbandon: Bool
+    public var canRetryResidual: Bool
+    public var queuePosition: Int?
+    public var queuedBehindCount: Int
+    public var operationID: AhaKeyRuntimeOperationID?
+
+    public var statusLabel: String { status.label }
+    public var commitButtonTitle: String { commitKind.title }
+
+    public init(
+        status: AhaKeyStudioPageStatus,
+        commitKind: AhaKeyStudioPageCommitKind,
+        isLocked: Bool,
+        canSubmit: Bool,
+        canRemoveQueued: Bool,
+        canCancelRunning: Bool = false,
+        canAbandon: Bool,
+        canRetryResidual: Bool,
+        queuePosition: Int?,
+        queuedBehindCount: Int,
+        operationID: AhaKeyRuntimeOperationID?
+    ) {
+        self.status = status
+        self.commitKind = commitKind
+        self.isLocked = isLocked
+        self.canSubmit = canSubmit
+        self.canRemoveQueued = canRemoveQueued
+        self.canCancelRunning = canCancelRunning
+        self.canAbandon = canAbandon
+        self.canRetryResidual = canRetryResidual
+        self.queuePosition = queuePosition
+        self.queuedBehindCount = queuedBehindCount
+        self.operationID = operationID
+    }
+}
+
+public struct AhaKeyStudioPageChromeInput: Equatable, Sendable {
+    public var pageID: AhaKeyStudioPageID
+    public var assembly: AhaKeyStudioPageAssembly
+    public var operation: AhaKeyRuntimeOperationSummary?
+    public var deviceQueue: [AhaKeyRuntimeOperationSummary]
+    public var isDeviceConnected: Bool
+    public var disconnectedDuration: TimeInterval
+
+    public init(
+        pageID: AhaKeyStudioPageID,
+        assembly: AhaKeyStudioPageAssembly,
+        operation: AhaKeyRuntimeOperationSummary? = nil,
+        deviceQueue: [AhaKeyRuntimeOperationSummary] = [],
+        isDeviceConnected: Bool = true,
+        disconnectedDuration: TimeInterval = 0
+    ) {
+        self.pageID = pageID
+        self.assembly = assembly
+        self.operation = operation
+        self.deviceQueue = deviceQueue
+        self.isDeviceConnected = isDeviceConnected
+        self.disconnectedDuration = disconnectedDuration
+    }
+}
+
+public enum AhaKeyStudioPageChromeProjector {
+    public static func project(_ input: AhaKeyStudioPageChromeInput) -> AhaKeyStudioPageChrome {
+        let queueIndex = input.operation.flatMap { operation in
+            input.deviceQueue.firstIndex(where: { $0.id == operation.id })
+        }
+        let queuePosition = queueIndex.map { $0 + 1 }
+        let queuedBehindCount: Int
+        if let queueIndex {
+            queuedBehindCount = max(0, input.deviceQueue.count - queueIndex - 1)
+        } else {
+            queuedBehindCount = max(0, input.deviceQueue.count)
+        }
+
+        if let operation = input.operation, shouldProjectOperation(operation, assembly: input.assembly) {
+            return projectOperation(
+                operation,
+                pageID: input.pageID,
+                assembly: input.assembly,
+                isDeviceConnected: input.isDeviceConnected,
+                disconnectedDuration: input.disconnectedDuration,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount
+            )
+        }
+
+        return projectAssembly(
+            input.assembly,
+            pageID: input.pageID,
+            queuePosition: nil,
+            queuedBehindCount: queuedBehindCount,
+            operationID: nil
+        )
+    }
+
+    public static func deviceFIFO(
+        _ snapshot: AhaKeyRuntimeSnapshot,
+        deviceID: AhaKeyRuntimeDeviceID
+    ) -> [AhaKeyRuntimeOperationSummary] {
+        snapshot.operations.filter { $0.targetDeviceID == deviceID && !$0.state.isTerminal }
+    }
+
+    public static func overlayResidualOnly(
+        _ snapshot: AhaKeyStudioPageSnapshot,
+        residualFieldIDs: Set<AhaKeyStudioFieldID>
+    ) -> AhaKeyStudioPageSnapshot {
+        AhaKeyStudioPageSnapshot(
+            pageID: snapshot.pageID,
+            profile: snapshot.profile,
+            selectedTaskSet: snapshot.selectedTaskSet,
+            overwriteConfirmed: snapshot.overwriteConfirmed,
+            fields: snapshot.fields.map { field in
+                guard residualFieldIDs.contains(field.id) else {
+                    return AhaKeyStudioFrozenField(
+                        id: field.id,
+                        value: field.value,
+                        isDirty: false,
+                        baseline: .init(trust: .writeConfirmed, value: field.value)
+                    )
+                }
+                return field
+            }
+        )
+    }
+
+    public static func pageTitle(_ pageID: AhaKeyStudioPageID) -> String {
+        switch pageID {
+        case .key(let slot, let role):
+            return "Mode \(Int(slot) + 1) · \(keyRoleTitle(role))"
+        case .lights(let slot):
+            return "Mode \(Int(slot) + 1) · 灯条"
+        case .screen(let slot):
+            return "Mode \(Int(slot) + 1) · 屏幕"
+        case .lever:
+            return "拨杆"
+        case .power:
+            return "电源"
+        }
+    }
+
+    private static func shouldProjectOperation(
+        _ operation: AhaKeyRuntimeOperationSummary,
+        assembly: AhaKeyStudioPageAssembly
+    ) -> Bool {
+        switch operation.state {
+        case .completed:
+            return assembly == .noOp
+        case .accepted, .running, .paused, .cancellationRequested,
+             .resumablePartial, .failedWithoutWrites, .failedWithPartialCommit:
+            return true
+        }
+    }
+
+    private static func projectOperation(
+        _ operation: AhaKeyRuntimeOperationSummary,
+        pageID: AhaKeyStudioPageID,
+        assembly: AhaKeyStudioPageAssembly,
+        isDeviceConnected: Bool,
+        disconnectedDuration: TimeInterval,
+        queuePosition: Int?,
+        queuedBehindCount: Int
+    ) -> AhaKeyStudioPageChrome {
+        let residualRetry = !(operation.residual?.isEmpty ?? true)
+        switch operation.state {
+        case .accepted:
+            return lockedChrome(
+                status: .queued,
+                pageID: pageID,
+                canRemoveQueued: true,
+                canAbandon: false,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operation.id
+            )
+        case .running, .cancellationRequested:
+            return lockedChrome(
+                status: .writing,
+                pageID: pageID,
+                canRemoveQueued: false,
+                canAbandon: false,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operation.id
+            )
+        case .paused:
+            let canAbandon = !isDeviceConnected
+                && disconnectedDuration >= AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration
+            return lockedChrome(
+                status: .waitingReconnect,
+                pageID: pageID,
+                canRemoveQueued: false,
+                canAbandon: canAbandon,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operation.id
+            )
+        case .resumablePartial:
+            return unlockedTerminalChrome(
+                status: .partial,
+                pageID: pageID,
+                assembly: assembly,
+                canRetryResidual: residualRetry,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operation.id
+            )
+        case .failedWithPartialCommit:
+            return unlockedTerminalChrome(
+                status: residualRetry ? .partial : .failed,
+                pageID: pageID,
+                assembly: assembly,
+                canRetryResidual: residualRetry,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operation.id
+            )
+        case .failedWithoutWrites:
+            let conflict = operation.messageCode == .configurationPreflightConflict
+            return unlockedTerminalChrome(
+                status: conflict ? .conflict : .failed,
+                pageID: pageID,
+                assembly: assembly,
+                canRetryResidual: false,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operation.id
+            )
+        case .completed:
+            let pendingVerify = (operation.confirmedBaselines ?? []).contains {
+                $0.trust == .writeConfirmed
+            } && !(operation.confirmedBaselines ?? []).contains(where: { $0.trust == .verified })
+            return AhaKeyStudioPageChrome(
+                status: pendingVerify ? .writtenPendingVerify : .synced,
+                commitKind: .noModification,
+                isLocked: false,
+                canSubmit: false,
+                canRemoveQueued: false,
+                canCancelRunning: false,
+                canAbandon: false,
+                canRetryResidual: false,
+                queuePosition: nil,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operation.id
+            )
+        }
+    }
+
+    private static func projectAssembly(
+        _ assembly: AhaKeyStudioPageAssembly,
+        pageID: AhaKeyStudioPageID,
+        queuePosition: Int?,
+        queuedBehindCount: Int,
+        operationID: AhaKeyRuntimeOperationID?
+    ) -> AhaKeyStudioPageChrome {
+        switch assembly {
+        case .noOp:
+            return AhaKeyStudioPageChrome(
+                status: .synced,
+                commitKind: .noModification,
+                isLocked: false,
+                canSubmit: false,
+                canRemoveQueued: false,
+                canCancelRunning: false,
+                canAbandon: false,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operationID
+            )
+        case .requiresOverwriteConfirmation:
+            return AhaKeyStudioPageChrome(
+                status: .dirty,
+                commitKind: .overwritePage,
+                isLocked: false,
+                canSubmit: true,
+                canRemoveQueued: false,
+                canCancelRunning: false,
+                canAbandon: false,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operationID
+            )
+        case .write:
+            let kind: AhaKeyStudioPageCommitKind
+            if case .screen = pageID {
+                kind = .writeAndActivate
+            } else {
+                kind = .writeCurrentPage
+            }
+            return AhaKeyStudioPageChrome(
+                status: .dirty,
+                commitKind: kind,
+                isLocked: false,
+                canSubmit: true,
+                canRemoveQueued: false,
+                canCancelRunning: false,
+                canAbandon: false,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operationID
+            )
+        case .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
+            return AhaKeyStudioPageChrome(
+                status: assembly == .unsupportedPage ? .synced : .failed,
+                commitKind: .noModification,
+                isLocked: false,
+                canSubmit: false,
+                canRemoveQueued: false,
+                canCancelRunning: false,
+                canAbandon: false,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
+                queuedBehindCount: queuedBehindCount,
+                operationID: operationID
+            )
+        }
+    }
+
+    private static func lockedChrome(
+        status: AhaKeyStudioPageStatus,
+        pageID: AhaKeyStudioPageID,
+        canRemoveQueued: Bool,
+        canAbandon: Bool,
+        canRetryResidual: Bool,
+        queuePosition: Int?,
+        queuedBehindCount: Int,
+        operationID: AhaKeyRuntimeOperationID
+    ) -> AhaKeyStudioPageChrome {
+        AhaKeyStudioPageChrome(
+            status: status,
+            commitKind: .noModification,
+            isLocked: true,
+            canSubmit: false,
+            canRemoveQueued: canRemoveQueued,
+            canCancelRunning: false,
+            canAbandon: canAbandon,
+            canRetryResidual: canRetryResidual,
+            queuePosition: queuePosition,
+            queuedBehindCount: queuedBehindCount,
+            operationID: operationID
+        )
+    }
+
+    private static func unlockedTerminalChrome(
+        status: AhaKeyStudioPageStatus,
+        pageID: AhaKeyStudioPageID,
+        assembly: AhaKeyStudioPageAssembly,
+        canRetryResidual: Bool,
+        queuedBehindCount: Int,
+        operationID: AhaKeyRuntimeOperationID
+    ) -> AhaKeyStudioPageChrome {
+        let assemblyChrome = projectAssembly(
+            assembly,
+            pageID: pageID,
+            queuePosition: nil,
+            queuedBehindCount: queuedBehindCount,
+            operationID: operationID
+        )
+        return AhaKeyStudioPageChrome(
+            status: status,
+            commitKind: canRetryResidual ? assemblyChrome.commitKind : .noModification,
+            isLocked: false,
+            canSubmit: canRetryResidual && assemblyChrome.canSubmit,
+            canRemoveQueued: false,
+            canCancelRunning: false,
+            canAbandon: false,
+            canRetryResidual: canRetryResidual,
+            queuePosition: nil,
+            queuedBehindCount: queuedBehindCount,
+            operationID: operationID
+        )
+    }
+
+    private static func keyRoleTitle(_ role: AhaKeyDesiredConfiguration.KeyRole) -> String {
+        switch role {
+        case .voice: return "Key 1"
+        case .approve: return "Key 2"
+        case .reject: return "Key 3"
+        case .submit: return "Key 4"
+        }
+    }
+}

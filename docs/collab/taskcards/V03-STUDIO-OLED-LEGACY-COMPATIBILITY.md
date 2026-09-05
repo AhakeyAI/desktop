@@ -470,3 +470,11 @@ ACK 用户转发的 Codex C3CR4 手工验收。产品基线 `1ed560b` / 已安�
 ### [2026-09-05 19:21] Cursor：C3CR5 完成，停手提审
 
 ACK 用户转发的 Codex C3CR4 手工验收 / `lastReviewedCommit=5902e723c15d3adc1ce5497ddb621abdf464a57a`。lease 分配失败保持离线且 emit 可观察；成功且仍 poweredOn 才 scan/connect；成功重试复用同一进程 lease。定向 278/278，全量 956/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/31-c3cr5-lease-allocation-fail-closed.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
+
+### [2026-09-05 21:58] Cursor ACK：开始 C4 Studio 页面交互 + 设备 FIFO
+
+ACK 用户确认进入 C4，以及 Codex 19:31 开放 C4。C1–C3 accepted @ `c6e0762`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4 白名单，不改 C2 assembler 冻结语义与 C3 Runtime/WAL/BLE executor。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-05 22:25] Cursor：C4 完成，停手提审
+
+ACK 用户确认进入 C4 / Codex 19:31 开放 C4。C1–C3 accepted @ `c6e0762`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Studio 写入已收成当前页交互和设备 FIFO，只消费 C2/C3 已验收 frozen-page facade。定向 293/293，全量 971/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/32-c4-studio-page-interaction-fifo.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

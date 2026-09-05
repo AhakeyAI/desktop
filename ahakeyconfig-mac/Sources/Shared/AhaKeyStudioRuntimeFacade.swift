@@ -476,6 +476,16 @@ public struct AhaKeyStudioOLEDImageNormalizer: AhaKeyStudioImageNormalizer {
     }
 }
 
+/// C4：frozen-page 真正提交的结果。fail-closed 分支不得产生 operation。
+public enum AhaKeyStudioPageCommitResult: Equatable, Sendable {
+    case noOp
+    case requiresOverwriteConfirmation
+    case missingTrustedPageCache
+    case unsupportedProfile
+    case unsupportedPage
+    case accepted(AhaKeyRuntimeOperationID)
+}
+
 /// apply 路径错误：资源缺失 / 元数据不符 / ingest 被拒 / apply 被拒 / 取消被拒，各自可区分。
 public enum AhaKeyStudioApplyError: Error, Equatable {
     /// 未显式给出当前 modeSlot，或范围内没有恰好一个模式。
@@ -496,6 +506,8 @@ public enum AhaKeyStudioApplyError: Error, Equatable {
     case applyRejected(AhaKeyRuntimeEventCode)
     /// Runtime 拒绝取消请求（附 failure code）。
     case cancellationRejected(AhaKeyRuntimeEventCode)
+    /// Runtime 拒绝放弃请求（附 failure code）。
+    case abandonRejected(AhaKeyRuntimeEventCode)
     /// Runtime 返回了与请求不匹配的响应。
     case unexpectedResponse
     /// 未知/不支持的固件，禁止 ingest/apply。
@@ -527,6 +539,8 @@ extension AhaKeyStudioApplyError: LocalizedError {
             return "Runtime 拒绝提交配置（\(code.rawValue)）。"
         case .cancellationRejected(let code):
             return "Runtime 拒绝取消请求（\(code.rawValue)）。"
+        case .abandonRejected(let code):
+            return "Runtime 拒绝放弃未完成写入（\(code.rawValue)）。"
         case .unexpectedResponse:
             return "Runtime 返回了无法识别的响应。"
         case .unsupportedFirmware:
@@ -639,6 +653,104 @@ extension AhaKeyStudioRuntimeFacade {
         _ snapshot: AhaKeyStudioPageSnapshot
     ) async throws -> AhaKeyStudioPageAssembly {
         return AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot)
+    }
+
+    /// C4：把已验收的 frozen-page assembly 收成一次 ingest/apply。
+    /// `.noOp` / 未确认覆盖 / fail-closed 保持零 ingest/apply，且不创建 operation。
+    public func commitFrozenPage(
+        _ snapshot: AhaKeyStudioPageSnapshot
+    ) async throws -> AhaKeyStudioPageCommitResult {
+        switch AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot) {
+        case .noOp:
+            return .noOp
+        case .requiresOverwriteConfirmation:
+            return .requiresOverwriteConfirmation
+        case .missingTrustedPageCache:
+            return .missingTrustedPageCache
+        case .unsupportedProfile:
+            return .unsupportedProfile
+        case .unsupportedPage:
+            return .unsupportedPage
+        case .write(let plan):
+            return try await commitWritePlan(plan, profile: snapshot.profile)
+        }
+    }
+
+    /// C4：透传 Runtime abandon。资格窗口由 Runtime 执行；UI 用同一 60s 常量投影。
+    public func requestAbandon(
+        _ operationID: AhaKeyRuntimeOperationID
+    ) async throws -> AhaKeyRuntimeAbandonDisposition {
+        let response = try await transport.exchange(.requestAbandon(operationID))
+        switch response {
+        case .abandon(let disposition):
+            return disposition
+        case .failure(let code):
+            throw AhaKeyStudioApplyError.abandonRejected(code)
+        default:
+            throw AhaKeyStudioApplyError.unexpectedResponse
+        }
+    }
+
+    private func commitWritePlan(
+        _ plan: AhaKeyStudioScopedWritePlan,
+        profile: AhaKeyOLEDCompatibilityProfile
+    ) async throws -> AhaKeyStudioPageCommitResult {
+        try rejectUnsupportedOLEDWrites()
+        guard let runtimeSnapshot = state.snapshot,
+              let targetDeviceID = runtimeSnapshot.activeDeviceID,
+              let device = runtimeSnapshot.devices.first(where: { $0.id == targetDeviceID }),
+              let object = device.authoritativeObject, !object.isEmpty else {
+            throw AhaKeyStudioApplyError.pageOperationIncomplete
+        }
+        let prepared = try await prepareResources(plan.resources)
+        let gifMediaType = try AhaKeyMediaType("gif")
+        let verifiedResources = prepared.map {
+            AhaKeyConfigurationResource(
+                logicalIdentifier: $0.input.logicalIdentifier,
+                sha256: $0.loaded.sha256,
+                byteCount: UInt64($0.loaded.data.count),
+                mediaType: gifMediaType
+            )
+        }
+        let package = try assemblePageScopedPackage(
+            plan: plan,
+            profile: profile,
+            targetDeviceID: targetDeviceID,
+            baseRevision: runtimeSnapshot.configurationRevision,
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(object),
+            verifiedResources: verifiedResources
+        )
+        if !prepared.isEmpty {
+            pageSubmitIngestCalls += 1
+            let items = prepared.map {
+                AhaKeyXPCResourceIngestionItem(
+                    logicalIdentifier: $0.input.logicalIdentifier,
+                    sha256: $0.loaded.sha256,
+                    byteCount: UInt64($0.loaded.data.count),
+                    data: $0.loaded.data
+                )
+            }
+            let ingestResponse = try await transport.exchange(.ingestResources(items))
+            switch ingestResponse {
+            case .resourcesIngested:
+                break
+            case .failure(let code):
+                throw AhaKeyStudioApplyError.ingestRejected(code)
+            default:
+                throw AhaKeyStudioApplyError.unexpectedResponse
+            }
+        }
+        pageSubmitApplyCalls += 1
+        let applyResponse = try await transport.exchange(.apply(package))
+        switch applyResponse {
+        case .operationAccepted(let operationID):
+            update { $0.lastApplyOperationID = operationID }
+            return .accepted(operationID)
+        case .failure(let code):
+            throw AhaKeyStudioApplyError.applyRejected(code)
+        default:
+            throw AhaKeyStudioApplyError.unexpectedResponse
+        }
     }
 
     /// C3A：只组装 page-scoped package，不 ingest/apply/BLE。旧 peer 未广告 schema=2 时 fail-closed。

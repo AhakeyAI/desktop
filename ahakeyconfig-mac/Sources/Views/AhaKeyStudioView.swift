@@ -25,14 +25,14 @@ struct AhaKeyStudioView: View {
     @State private var modeCustomNames: [Int: String] = [:]
     @State private var lastSyncDate: Date?
     @State private var syncStatusMessage = NSLocalizedString("修改会先保存在本地，连接设备后再同步。", comment: "")
-    @State private var isSyncing = false
-    @State private var isCancellingDeviceWrite = false
+    @State private var isSubmittingCurrentPage = false
+    @State private var isRemovingQueuedPage = false
+    @State private var overwriteConfirmedPages: Set<AhaKeyStudioPageID> = []
     @State private var completedTaskResourceCount = 0
     /// 普通默认图片写入失败时只记录该图片，不能阻断键位与灯效。
     @State private var lastDefaultPictureUploadFailures: [String] = []
     /// 最近一次设备写入中失败的任务图描述。非空表示部分成功：键位/灯效已保存，仅这些图需重试。
     @State private var lastTaskUploadFailures: [String] = []
-    @State private var deviceWriteTask: Task<Void, Never>?
     @State private var showsOLEDPlaybackPreview = false
     @State private var oledPlaybackPreviewPath: String?
     @State private var selectedOLEDGIFSet = 0
@@ -144,6 +144,9 @@ struct AhaKeyStudioView: View {
             if !connected {
                 oledAutoSyncDoneForConnection = false
             }
+        }
+        .onChange(of: runtimeStore.viewState.snapshot?.operations) { operations in
+            mergeCompletedPageBaselines(operations ?? [])
         }
         .onChange(of: runtimeStore.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
@@ -593,6 +596,7 @@ struct AhaKeyStudioView: View {
                             case .toggleSwitch: switchInspector
                             }
                         }
+                        .disabled(isCurrentPageLocked)
 
                     } else {
                         inspectorHeader
@@ -646,27 +650,52 @@ struct AhaKeyStudioView: View {
 
                     Spacer()
 
-                    if isSyncing {
+                    Text(currentPageChrome.statusLabel)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    if currentPageChrome.canRemoveQueued {
                         Button {
-                            cancelCurrentDeviceWrite()
+                            removeQueuedCurrentPage()
                         } label: {
-                            Label(isCancellingDeviceWrite ? NSLocalizedString("正在取消…", comment: "") : NSLocalizedString("取消写入", comment: ""), systemImage: "xmark")
+                            Label(
+                                isRemovingQueuedPage ? NSLocalizedString("正在移除…", comment: "") : NSLocalizedString("移出队列", comment: ""),
+                                systemImage: "xmark"
+                            )
+                            .font(.callout.weight(.medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .disabled(isRemovingQueuedPage)
+                    }
+
+                    if currentPageChrome.canAbandon {
+                        Button {
+                            abandonCurrentPageWrite()
+                        } label: {
+                            Label(NSLocalizedString("放弃未完成写入", comment: ""), systemImage: "trash")
                                 .font(.callout.weight(.medium))
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.regular)
-                        .disabled(isCancellingDeviceWrite)
                     }
 
                     Button {
-                        writeToKeyboard()
+                        writeCurrentPage(retryResidual: currentPageChrome.canRetryResidual)
                     } label: {
-                        Label(isSyncing ? NSLocalizedString("写入中…", comment: "") : NSLocalizedString("写入键盘", comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
-                            .font(.callout.weight(.semibold))
+                        Label(
+                            isSubmittingCurrentPage ? NSLocalizedString("提交中…", comment: "") : currentPageChrome.commitButtonTitle,
+                            systemImage: currentPageChrome.canSubmit ? "square.and.arrow.down" : "checkmark"
+                        )
+                        .font(.callout.weight(.semibold))
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
-                    .disabled(isSyncing || !runtimeStore.isConnected)
+                    .disabled(
+                        isSubmittingCurrentPage
+                            || !currentPageChrome.canSubmit
+                            || !runtimeStore.isConnected
+                    )
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -703,11 +732,9 @@ struct AhaKeyStudioView: View {
                 Label(selectedPart.title, systemImage: selectedPart.systemImage)
                     .font(.system(size: 20, weight: .semibold))
                 Spacer()
-                if partIsDirty(selectedPart) {
-                    Label(NSLocalizedString("未同步", comment: ""), systemImage: "circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
+                Label(currentPageChrome.statusLabel, systemImage: "circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(partIsDirty(selectedPart) || currentPageChrome.isLocked ? .orange : .secondary)
                 if selectedPart.isKey {
                     Button {
                         showsKeyHelp.toggle()
@@ -725,7 +752,7 @@ struct AhaKeyStudioView: View {
                             Divider()
                             Text(NSLocalizedString("1. 点击虚拟键盘对应按键选中它。", comment: ""))
                             Text(NSLocalizedString("2. 语音键先选预设；其他键按需选单键或宏。", comment: ""))
-                            Text(NSLocalizedString("3. 配置完成后点「写入键盘」同步到键盘。", comment: ""))
+                            Text(NSLocalizedString("3. 配置完成后点当前页写入按钮同步到键盘。", comment: ""))
                             Text(NSLocalizedString("4. 切模式时 LCD 先显示描述，再回到该模式动图。", comment: ""))
                         }
                         .font(.callout)
@@ -751,6 +778,25 @@ struct AhaKeyStudioView: View {
                     Spacer()
                     Button(NSLocalizedString("关闭", comment: "")) { showsDiagnostics = false }
                         .buttonStyle(.bordered)
+                }
+
+                GroupBox(NSLocalizedString("页面写入", comment: "")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(String(format: NSLocalizedString("当前页：%@", comment: ""), AhaKeyStudioPageChromeProjector.pageTitle(currentPageID)))
+                            .font(.callout)
+                        Text(String(format: NSLocalizedString("页状态：%@", comment: ""), currentPageChrome.statusLabel))
+                            .font(.callout)
+                        if let operationID = currentPageChrome.operationID {
+                            Text(String(format: NSLocalizedString("operation UUID：%@", comment: ""), operationID.rawValue.uuidString))
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                        } else {
+                            Text(NSLocalizedString("当前页没有 operation UUID。", comment: ""))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
                 }
 
                 GroupBox(NSLocalizedString("后台语音桥", comment: "")) {
@@ -1857,6 +1903,14 @@ struct AhaKeyStudioView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            if !runtimeStore.deviceFIFO.isEmpty {
+                Divider()
+                    .frame(height: 14)
+                Text(deviceFIFOStatusText)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             Spacer()
             if let lastSyncDate {
                 Text(String(format: NSLocalizedString("最近同步 %@", comment: ""), Self.timeFormatter.string(from: lastSyncDate)))
@@ -1990,6 +2044,41 @@ struct AhaKeyStudioView: View {
     private var isEditingConfiguration: Bool {
         // Runtime 架构下 Studio 不再接管蓝牙：编辑态 = Runtime 在线且设备协议就绪。
         runtimeStore.isConfigurationReady
+    }
+
+    private var isSyncing: Bool {
+        isSubmittingCurrentPage || !runtimeStore.deviceFIFO.isEmpty
+    }
+
+    private var currentPageID: AhaKeyStudioPageID {
+        selectedPart.pageID(modeSlot: selectedMode)
+    }
+
+    private var currentPageSnapshot: AhaKeyStudioPageSnapshot {
+        frozenPageSnapshot(overwriteConfirmed: overwriteConfirmedPages.contains(currentPageID))
+    }
+
+    private var currentPageAssembly: AhaKeyStudioPageAssembly {
+        AhaKeyStudioPackageAssembler.assembleScopedPage(currentPageSnapshot)
+    }
+
+    private var currentPageChrome: AhaKeyStudioPageChrome {
+        runtimeStore.pageChrome(pageID: currentPageID, assembly: currentPageAssembly)
+    }
+
+    private var isCurrentPageLocked: Bool {
+        currentPageChrome.isLocked
+    }
+
+    private func frozenPageSnapshot(overwriteConfirmed: Bool) -> AhaKeyStudioPageSnapshot {
+        studioDraft.frozenPageSnapshot(
+            pageID: currentPageID,
+            lastSyncedDraft: lastSyncedDraft,
+            fieldAuthorities: runtimeStore.fieldAuthorities(),
+            profile: runtimeStore.oledProfile,
+            selectedTaskSet: selectedPart == .oledDisplay ? selectedOLEDGIFSet : nil,
+            overwriteConfirmed: overwriteConfirmed
+        )
     }
 
     // Runtime 快照里设备已连接即视为已连接（BLE/USB 均由 Runtime 持有）。
@@ -2401,11 +2490,146 @@ struct AhaKeyStudioView: View {
 
     /// Runtime 架构下「进入编辑」不再伴随蓝牙接管：草稿改动保存在本地，写入经 Runtime apply。
     private func enterEditingConfiguration() {
-        syncStatusMessage = NSLocalizedString("已进入编辑：改动先保存在本地，点「写入键盘」经 Runtime 同步。", comment: "")
+        syncStatusMessage = NSLocalizedString("已进入编辑：改动先保存在本地，点当前页写入按钮经 Runtime 同步。", comment: "")
+    }
+
+    private var deviceFIFOStatusText: String {
+        let queue = runtimeStore.deviceFIFO
+        guard let head = queue.first else { return "" }
+        let pageTitle = runtimeStore.pageOperationIDs.first(where: { $0.value == head.id }).map {
+            AhaKeyStudioPageChromeProjector.pageTitle($0.key)
+        } ?? NSLocalizedString("当前页", comment: "")
+        let behind = max(0, queue.count - 1)
+        return String(format: NSLocalizedString("队列 %@ · 后续 %d 项", comment: ""), pageTitle, behind)
     }
 
     private func writeToKeyboard() {
-        performUnifiedDeviceWrite(showResultAlert: true)
+        writeCurrentPage(retryResidual: currentPageChrome.canRetryResidual)
+    }
+
+    private func writeCurrentPage(retryResidual: Bool) {
+        guard runtimeStore.isOnline, runtimeStore.isConnected else {
+            let message = NSLocalizedString("设备未连接：请确认 AhaKey Runtime 已运行并连接键盘后重试。", comment: "")
+            syncStatusMessage = message
+            writeResultAlertMessage = message
+            showsWriteResultAlert = true
+            return
+        }
+        applyCursorRejectMacroSelfHealIfNeeded()
+        let pageID = currentPageID
+        if currentPageChrome.commitKind == .overwritePage {
+            overwriteConfirmedPages.insert(pageID)
+        }
+        let snapshot = frozenPageSnapshot(overwriteConfirmed: overwriteConfirmedPages.contains(pageID))
+        isSubmittingCurrentPage = true
+        syncStatusMessage = NSLocalizedString("正在提交当前页到 Runtime…", comment: "")
+        Task { @MainActor in
+            defer { self.isSubmittingCurrentPage = false }
+            do {
+                let result = try await self.runtimeStore.commitFrozenPage(
+                    snapshot,
+                    retryResidual: retryResidual
+                )
+                switch result {
+                case .noOp:
+                    self.syncStatusMessage = NSLocalizedString("无修改，未创建写入。", comment: "")
+                case .requiresOverwriteConfirmation:
+                    self.overwriteConfirmedPages.insert(pageID)
+                    self.syncStatusMessage = NSLocalizedString("未知基线需要覆盖写入。请再点「覆盖写入此页」。", comment: "")
+                case .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
+                    let message = NSLocalizedString("当前页不能写入：缺少可信缓存或不支持该页。", comment: "")
+                    self.syncStatusMessage = message
+                    self.writeResultAlertMessage = message
+                    self.showsWriteResultAlert = true
+                case .accepted(let operationID):
+                    self.runtimeStore.appendCommLogLine(
+                        "当前页已提交 Runtime，page=\(AhaKeyStudioPageChromeProjector.pageTitle(pageID))"
+                    )
+                    self.syncStatusMessage = String(
+                        format: NSLocalizedString("%@ 已进入设备写入队列。", comment: ""),
+                        currentPageChrome.statusLabel
+                    )
+                    _ = operationID
+                }
+            } catch {
+                let message = String(format: NSLocalizedString("写入当前页失败：%@", comment: ""), error.localizedDescription)
+                self.syncStatusMessage = message
+                self.writeResultAlertMessage = message
+                self.showsWriteResultAlert = true
+            }
+        }
+    }
+
+    private func removeQueuedCurrentPage() {
+        guard currentPageChrome.canRemoveQueued, !isRemovingQueuedPage else { return }
+        isRemovingQueuedPage = true
+        let pageID = currentPageID
+        Task { @MainActor in
+            defer { self.isRemovingQueuedPage = false }
+            do {
+                _ = try await self.runtimeStore.removeQueuedPage(pageID)
+                self.syncStatusMessage = NSLocalizedString("已从队列移除当前页。", comment: "")
+            } catch {
+                self.runtimeStore.appendCommLogLine("移除队列失败：\(error.localizedDescription)", isError: true)
+                self.syncStatusMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func abandonCurrentPageWrite() {
+        let pageID = currentPageID
+        Task { @MainActor in
+            do {
+                _ = try await self.runtimeStore.requestAbandon(of: pageID)
+                self.syncStatusMessage = NSLocalizedString("已放弃未完成写入。", comment: "")
+            } catch {
+                self.runtimeStore.appendCommLogLine("放弃写入失败：\(error.localizedDescription)", isError: true)
+                self.syncStatusMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func mergeCompletedPageBaselines(_ operations: [AhaKeyRuntimeOperationSummary]) {
+        for (pageID, operationID) in runtimeStore.pageOperationIDs {
+            guard let operation = operations.first(where: { $0.id == operationID }) else { continue }
+            switch operation.state {
+            case .completed:
+                mergePageIntoLastSynced(pageID)
+                overwriteConfirmedPages.remove(pageID)
+            case .resumablePartial, .failedWithPartialCommit, .failedWithoutWrites:
+                overwriteConfirmedPages.remove(pageID)
+            case .accepted, .running, .paused, .cancellationRequested:
+                break
+            }
+        }
+    }
+
+    private func mergePageIntoLastSynced(_ pageID: AhaKeyStudioPageID) {
+        var next = lastSyncedDraft
+        switch pageID {
+        case .key(let slot, let role):
+            guard let modeSlot = AhaKeyModeSlot(rawValue: Int(slot)),
+                  let keyRole = AhaKeyKeyRole(rawValue: Int(role.rawValue)) else { return }
+            var mode = next.draft(for: modeSlot)
+            mode.updateKey(studioDraft.draft(for: modeSlot).key(for: keyRole))
+            next.updateMode(mode)
+        case .lights(let slot):
+            guard let modeSlot = AhaKeyModeSlot(rawValue: Int(slot)) else { return }
+            var mode = next.draft(for: modeSlot)
+            mode.lightBar = studioDraft.draft(for: modeSlot).lightBar
+            next.updateMode(mode)
+        case .screen(let slot):
+            guard let modeSlot = AhaKeyModeSlot(rawValue: Int(slot)) else { return }
+            var mode = next.draft(for: modeSlot)
+            mode.oled = studioDraft.draft(for: modeSlot).oled
+            next.updateMode(mode)
+        case .lever, .power:
+            return
+        }
+        lastSyncedDraft = next
+        saveCurrentDeviceSyncBaseline()
+        lastSyncDate = Date()
+        syncStatusMessage = NSLocalizedString("当前页已写入设备并保存。", comment: "")
     }
 
     private func completeEditingAfterWriteResult() {
@@ -2421,131 +2645,6 @@ struct AhaKeyStudioView: View {
         syncStatusMessage = NSLocalizedString("键盘连接始终由 AhaKey Runtime 管理。", comment: "")
     }
 
-    /// 保存路径（WBS 5.7 切片 3）：draft → facade.apply（ingestResources → apply），
-    /// 进度由 Runtime snapshot.operations 驱动；取消走 requestCancellation。
-    private func performUnifiedDeviceWrite(showResultAlert: Bool) {
-        guard runtimeStore.isOnline, runtimeStore.isConnected else {
-            let message = showResultAlert
-                ? NSLocalizedString("设备未连接：请确认 AhaKey Runtime 已运行并连接键盘后重试。", comment: "")
-                : NSLocalizedString("Runtime 离线或设备未连接，当前只保存本地草稿。", comment: "")
-            syncStatusMessage = message
-            if showResultAlert {
-                writeResultAlertMessage = message
-                showsWriteResultAlert = true
-            }
-            return
-        }
-
-        applyCursorRejectMacroSelfHealIfNeeded()
-        isSyncing = true
-        isCancellingDeviceWrite = false
-        completedTaskResourceCount = 0
-        lastDefaultPictureUploadFailures = []
-        lastTaskUploadFailures = []
-        syncStatusMessage = NSLocalizedString("正在提交配置到 Runtime…", comment: "")
-        let submittedWrite = AhaKeyStudioSubmittedWrite.capturing(
-            selectedMode: selectedMode,
-            draft: studioDraft
-        )
-
-        deviceWriteTask?.cancel()
-        deviceWriteTask = Task { @MainActor in
-            defer { self.deviceWriteTask = nil }
-            do {
-                let operationID = try await self.runtimeStore.applyDraft(submittedWrite)
-                self.runtimeStore.appendCommLogLine("配置包已提交 Runtime，operation=\(operationID.rawValue.uuidString)")
-                let writeStartedAt = Date()
-                // 进度跟随 Runtime 快照中的 operation 摘要，直到终态。
-                while !Task.isCancelled {
-                    guard let operation = self.runtimeStore.lastApplyOperation,
-                          operation.id == operationID else {
-                        try await Task.sleep(nanoseconds: 300_000_000)
-                        continue
-                    }
-                    if operation.totalSteps > 0 {
-                        let elapsed = Int(Date().timeIntervalSince(writeStartedAt))
-                        let next = AhaKeyStudioWriteProgressText.status(
-                            for: operation, elapsedSeconds: elapsed
-                        )
-                        if next != self.syncStatusMessage {
-                            self.syncStatusMessage = next
-                        }
-                    }
-                    switch operation.state {
-                    case .completed:
-                        let includeOLED = AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(
-                            self.releaseFeatureProjection
-                        )
-                        self.lastSyncedDraft = submittedWrite.merging(
-                            into: self.lastSyncedDraft,
-                            includeOLED: includeOLED
-                        )
-                        self.saveCurrentDeviceSyncBaseline()
-                        self.lastSyncDate = Date()
-                        self.isSyncing = false
-                        self.isCancellingDeviceWrite = false
-                        self.syncStatusMessage = includeOLED
-                            ? NSLocalizedString("已全部写入设备并保存。", comment: "")
-                            : NSLocalizedString("键位和灯效已写入设备并保存。", comment: "")
-                        if showResultAlert {
-                            self.writeResultAlertMessage = includeOLED
-                                ? NSLocalizedString("配置已成功写入键盘。", comment: "")
-                                : NSLocalizedString("键位和灯效已成功写入键盘。", comment: "")
-                            self.showsWriteResultAlert = true
-                        }
-                        return
-                    case .resumablePartial, .failedWithPartialCommit:
-                        self.isSyncing = false
-                        self.isCancellingDeviceWrite = false
-                        let message = AhaKeyStudioFailureText.message(for: operation)
-                        self.syncStatusMessage = message
-                        if showResultAlert {
-                            self.writeResultAlertMessage = message
-                            self.showsWriteResultAlert = true
-                        }
-                        return
-                    case .failedWithoutWrites:
-                        throw AhaKeyStudioViewWriteError.operationFailed(
-                            message: AhaKeyStudioFailureText.message(for: operation)
-                        )
-                    case .accepted, .running, .paused, .cancellationRequested:
-                        try await Task.sleep(nanoseconds: 300_000_000)
-                    }
-                }
-                // Task 被取消（用户点了取消写入）
-                self.isSyncing = false
-                self.isCancellingDeviceWrite = false
-                self.syncStatusMessage = NSLocalizedString("已请求取消本次写入；设备侧已完成的部分会保留。", comment: "")
-            } catch is CancellationError {
-                self.isSyncing = false
-                self.isCancellingDeviceWrite = false
-                self.syncStatusMessage = NSLocalizedString("已请求取消本次写入；设备侧已完成的部分会保留。", comment: "")
-            } catch {
-                let message = String(format: NSLocalizedString("写入键盘失败：%@", comment: ""), error.localizedDescription)
-                self.isSyncing = false
-                self.isCancellingDeviceWrite = false
-                self.syncStatusMessage = message
-                if showResultAlert {
-                    self.writeResultAlertMessage = message
-                    self.showsWriteResultAlert = true
-                }
-            }
-        }
-    }
-
-    private func cancelCurrentDeviceWrite() {
-        guard isSyncing, !isCancellingDeviceWrite else { return }
-        isCancellingDeviceWrite = true
-        syncStatusMessage = NSLocalizedString("正在请求 Runtime 取消本次写入…", comment: "")
-        Task { @MainActor in
-            do {
-                _ = try await runtimeStore.cancelLastApply()
-            } catch {
-                runtimeStore.appendCommLogLine("取消请求失败：\(error.localizedDescription)", isError: true)
-            }
-            deviceWriteTask?.cancel()
-        }
-    }
 
     private func oledIsDirty(current: AhaKeyOLEDDraft, baseline: AhaKeyOLEDDraft) -> Bool {
         let defaultPictureChanged = current.localAssetPath != baseline.localAssetPath

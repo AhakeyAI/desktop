@@ -129,6 +129,18 @@ enum AhaKeyStudioRuntimeDerivation {
         }
     }
 
+    /// 只从已验证的协议态取 OLED 剖面；协商中/未知保持 unsupported，禁止用版本字符串猜测。
+    static func oledProfile(for state: AhaKeyRuntimeDeviceProtocolState) -> AhaKeyOLEDCompatibilityProfile {
+        switch state {
+        case .legacyDenied:
+            return .legacyStandard
+        case .currentReady:
+            return .rhinoDualSet(sessionUploadAdvertised: true)
+        case .disconnected, .probing, .restricted, .failed:
+            return .unsupported
+        }
+    }
+
     /// Runtime 拨杆位置 → 旧 switchState 语义（0=自动批准，1=手动批准）。
     /// middle 无对应旧值，保守按手动处理。
     static func switchState(for position: AhaKeyRuntimeLeverPosition) -> Int? {
@@ -157,6 +169,10 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     @Published private(set) var runtimeWorkMode: Int?
     /// 用户点虚拟拨杆后的乐观值；Runtime 共享文件回读一致后确认清除，3s 超时回退。
     @Published private(set) var optimisticSwitchOverride: Int?
+    /// C4：Studio 记住 page → operation。Runtime summary 不含 pageID。
+    @Published private(set) var pageOperationIDs: [AhaKeyStudioPageID: AhaKeyRuntimeOperationID] = [:]
+    /// C4：真断连起点。满 60s 才投影「放弃未完成写入」。
+    @Published private(set) var disconnectedSince: Date?
 
     /// Studio 侧诊断日志（仅诊断窗口展示；不含任何设备 TX/RX——那是 Runtime 的边界）。
     let logStore = BLELogStore()
@@ -214,6 +230,22 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
                     userInfo: ["workMode": next.workMode]
                 )
             }
+        }
+        refreshDisconnectClock(isConnected: presentation.isConnected)
+    }
+
+    private func refreshDisconnectClock(isConnected: Bool) {
+        if isConnected {
+            disconnectedSince = nil
+            return
+        }
+        let hasRecovery = deviceFIFO.contains { $0.state.isRecoveryCandidate }
+        if hasRecovery {
+            if disconnectedSince == nil {
+                disconnectedSince = Date()
+            }
+        } else {
+            disconnectedSince = nil
         }
     }
 
@@ -315,7 +347,211 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         return try await facade.requestCancellation(operationID)
     }
 
-    /// 直接提交已组装的配置包（测试/诊断用；生产视图请走 `applyDraft`）。
+    var oledProfile: AhaKeyOLEDCompatibilityProfile {
+        guard let device = activeDevice else { return .unsupported }
+        return AhaKeyStudioRuntimeDerivation.oledProfile(for: device.protocolState)
+    }
+
+    var disconnectedDuration: TimeInterval {
+        guard let disconnectedSince else { return 0 }
+        return Date().timeIntervalSince(disconnectedSince)
+    }
+
+    var deviceFIFO: [AhaKeyRuntimeOperationSummary] {
+        guard let snapshot = viewState.snapshot,
+              let deviceID = snapshot.activeDeviceID else { return [] }
+        return AhaKeyStudioPageChromeProjector.deviceFIFO(snapshot, deviceID: deviceID)
+    }
+
+    func operation(for pageID: AhaKeyStudioPageID) -> AhaKeyRuntimeOperationSummary? {
+        guard let operationID = pageOperationIDs[pageID] else { return nil }
+        return viewState.snapshot?.operations.first { $0.id == operationID }
+    }
+
+    func pageChrome(
+        pageID: AhaKeyStudioPageID,
+        assembly: AhaKeyStudioPageAssembly,
+        now: Date = Date()
+    ) -> AhaKeyStudioPageChrome {
+        let duration: TimeInterval
+        if presentation.isConnected {
+            duration = 0
+        } else if let disconnectedSince {
+            duration = now.timeIntervalSince(disconnectedSince)
+        } else {
+            duration = 0
+        }
+        return AhaKeyStudioPageChromeProjector.project(
+            AhaKeyStudioPageChromeInput(
+                pageID: pageID,
+                assembly: assembly,
+                operation: operation(for: pageID),
+                deviceQueue: deviceFIFO,
+                isDeviceConnected: presentation.isConnected,
+                disconnectedDuration: duration
+            )
+        )
+    }
+
+    func isPageLocked(_ pageID: AhaKeyStudioPageID) -> Bool {
+        guard let operation = operation(for: pageID) else { return false }
+        switch operation.state {
+        case .accepted, .running, .paused, .cancellationRequested:
+            return true
+        case .completed, .resumablePartial, .failedWithoutWrites, .failedWithPartialCommit:
+            return false
+        }
+    }
+
+    /// C4 唯一写入口：冻结页 → 已验收 facade.commitFrozenPage。同页非终态禁止重复提交。
+    func commitFrozenPage(
+        _ snapshot: AhaKeyStudioPageSnapshot,
+        retryResidual: Bool = false
+    ) async throws -> AhaKeyStudioPageCommitResult {
+        guard isOnline, viewState.snapshot != nil else {
+            throw AhaKeyStudioStoreApplyError.runtimeOffline
+        }
+        guard viewState.snapshot?.activeDeviceID != nil else {
+            throw AhaKeyStudioStoreApplyError.noActiveDevice
+        }
+        if pageOperationIDs[snapshot.pageID] != nil {
+            if let existing = operation(for: snapshot.pageID) {
+                let canRetryPartial = retryResidual && (
+                    existing.state == .resumablePartial || existing.state == .failedWithPartialCommit
+                )
+                if !existing.state.isTerminal && !canRetryPartial {
+                    throw AhaKeyStudioStoreApplyError.pageAlreadyInFlight
+                }
+            } else if !retryResidual {
+                throw AhaKeyStudioStoreApplyError.pageAlreadyInFlight
+            }
+        }
+        var frozen = snapshot
+        if retryResidual {
+            let residualIDs = Set(operation(for: snapshot.pageID)?.residual?.fieldIDs ?? [])
+            guard !residualIDs.isEmpty else {
+                throw AhaKeyStudioStoreApplyError.noResidualToRetry
+            }
+            frozen = AhaKeyStudioPageChromeProjector.overlayResidualOnly(
+                snapshot,
+                residualFieldIDs: residualIDs
+            )
+        }
+        let result = try await facade.commitFrozenPage(frozen)
+        if case .accepted(let operationID) = result {
+            pageOperationIDs[snapshot.pageID] = operationID
+        }
+        return result
+    }
+
+    @discardableResult
+    func removeQueuedPage(_ pageID: AhaKeyStudioPageID) async throws -> AhaKeyRuntimeCancellationDisposition {
+        guard let operation = operation(for: pageID) else {
+            throw AhaKeyStudioStoreApplyError.noPageOperation
+        }
+        guard operation.state == .accepted else {
+            throw AhaKeyStudioStoreApplyError.runningCannotBeCancelled
+        }
+        let disposition = try await facade.requestCancellation(operation.id)
+        if disposition == .refused {
+            throw AhaKeyStudioStoreApplyError.runningCannotBeCancelled
+        }
+        if disposition == .requested || disposition == .alreadyFinished || disposition == .notFound {
+            if disposition != .requested {
+                pageOperationIDs.removeValue(forKey: pageID)
+            }
+        }
+        if disposition == .requested {
+            pageOperationIDs.removeValue(forKey: pageID)
+        }
+        return disposition
+    }
+
+    func fieldAuthorities() -> [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] {
+        var authorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [:]
+        for operation in viewState.snapshot?.operations ?? [] {
+            for baseline in operation.confirmedBaselines ?? [] {
+                authorities[baseline.fieldID] = AhaKeyStudioFieldAuthority(
+                    value: studioFieldValue(from: baseline.value),
+                    trust: studioTrust(from: baseline.trust),
+                    provenance: studioProvenance(from: baseline.provenance)
+                )
+            }
+        }
+        return authorities
+    }
+
+    func applyViewStateForTesting(_ state: AhaKeyStudioRuntimeViewState) {
+        applyViewState(state)
+    }
+
+    func bindPageOperationForTesting(pageID: AhaKeyStudioPageID, operationID: AhaKeyRuntimeOperationID) {
+        pageOperationIDs[pageID] = operationID
+    }
+
+    func markDisconnectedForTesting(since: Date) {
+        disconnectedSince = since
+    }
+
+    private func studioTrust(from trust: AhaKeyRuntimeBaselineTrust) -> AhaKeyStudioBaselineTrust {
+        switch trust {
+        case .verified: return .verified
+        case .writeConfirmed: return .writeConfirmed
+        case .unknown: return .unknown
+        }
+    }
+
+    private func studioProvenance(
+        from provenance: AhaKeyRuntimeBaselineProvenance
+    ) -> AhaKeyStudioBaselineProvenance {
+        switch provenance {
+        case .deviceReadback: return .deviceReadback
+        case .writeConfirmation: return .writeConfirmation
+        case .absent: return .absent
+        }
+    }
+
+    private func studioFieldValue(from value: AhaKeyRuntimeBaselineValue) -> AhaKeyStudioFieldValue? {
+        switch value {
+        case .text(let text):
+            return .text(text)
+        case .optionalText(let text):
+            return .optionalText(text)
+        case .integer(let number):
+            return .integer(number)
+        case .keyAction(let action):
+            return .keyAction(action)
+        case .taskAsset(_, _, _, let framesPerSecond, let declaredFrameCount):
+            return .taskAsset(
+                AhaKeyStudioTaskAssetDescriptor(
+                    fileURL: nil,
+                    framesPerSecond: framesPerSecond,
+                    declaredFrameCount: declaredFrameCount,
+                    pixelWidth: nil,
+                    pixelHeight: nil
+                )
+            )
+        }
+    }
+
+    @discardableResult
+    func requestAbandon(of pageID: AhaKeyStudioPageID, now: Date = Date()) async throws -> AhaKeyRuntimeAbandonDisposition {
+        let chrome = pageChrome(
+            pageID: pageID,
+            assembly: .noOp,
+            now: now
+        )
+        guard chrome.canAbandon, let operationID = chrome.operationID else {
+            throw AhaKeyStudioStoreApplyError.abandonNotEligible
+        }
+        let disposition = try await facade.requestAbandon(operationID)
+        if disposition == .abandoned || disposition == .alreadyFinished || disposition == .notFound {
+            pageOperationIDs.removeValue(forKey: pageID)
+        }
+        return disposition
+    }
+
+    /// 直接提交已组装的配置包（测试/诊断用；生产视图请走 `commitFrozenPage`）。
     func apply(_ package: AhaKeyConfigurationPackage) async throws -> AhaKeyRuntimeOperationID {
         try await facade.apply(package)
     }
@@ -572,6 +808,16 @@ enum AhaKeyStudioStoreApplyError: LocalizedError {
     case noActiveDevice
     /// 未显式给出当前编辑模式。
     case emptyApplyScope
+    /// 该页已有未结束的写入，禁止重复提交。
+    case pageAlreadyInFlight
+    /// running/paused/resumable 拒绝普通取消。
+    case runningCannotBeCancelled
+    /// 真断连未满 60 秒，或当前页不是可放弃的 FIFO 队首。
+    case abandonNotEligible
+    /// 该页没有对应的 Runtime operation。
+    case noPageOperation
+    /// partial 没有 residual，拒绝整页重放。
+    case noResidualToRetry
 
     var errorDescription: String? {
         switch self {
@@ -581,6 +827,16 @@ enum AhaKeyStudioStoreApplyError: LocalizedError {
             return NSLocalizedString("尚未识别到键盘：请确认 AhaKey Runtime 已连接设备后重试。", comment: "")
         case .emptyApplyScope:
             return NSLocalizedString("未指定当前编辑模式，拒绝把其它模式的草稿一并提交。", comment: "")
+        case .pageAlreadyInFlight:
+            return NSLocalizedString("当前页已在队列中，不能重复提交。", comment: "")
+        case .runningCannotBeCancelled:
+            return NSLocalizedString("正在写入的页面不能取消，只能等待完成或在断连满 60 秒后放弃。", comment: "")
+        case .abandonNotEligible:
+            return NSLocalizedString("尚未满足放弃条件：需要真断连满 60 秒。", comment: "")
+        case .noPageOperation:
+            return NSLocalizedString("当前页没有可操作的写入任务。", comment: "")
+        case .noResidualToRetry:
+            return NSLocalizedString("没有剩余未写入内容，不能整页重试。", comment: "")
         }
     }
 }

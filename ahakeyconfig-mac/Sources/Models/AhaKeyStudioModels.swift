@@ -168,6 +168,26 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     }
 
     var isKey: Bool { keyRole != nil }
+
+    func pageID(modeSlot: AhaKeyModeSlot) -> AhaKeyStudioPageID {
+        let slot = UInt8(modeSlot.rawValue)
+        switch self {
+        case .key1:
+            return .key(modeSlot: slot, role: .voice)
+        case .key2:
+            return .key(modeSlot: slot, role: .approve)
+        case .key3:
+            return .key(modeSlot: slot, role: .reject)
+        case .key4:
+            return .key(modeSlot: slot, role: .submit)
+        case .lightBar:
+            return .lights(modeSlot: slot)
+        case .oledDisplay:
+            return .screen(modeSlot: slot)
+        case .toggleSwitch:
+            return .lever
+        }
+    }
 }
 
 enum AhaKeyKeyRole: Int, CaseIterable, Codable, Identifiable {

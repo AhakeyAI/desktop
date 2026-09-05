@@ -6078,3 +6078,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - lease 分配失败保持离线且 emit 可观察；成功且仍 poweredOn 才 scan/connect；成功重试复用同一进程 lease。
 - 定向 278/278，全量 956/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/31-c3cr5-lease-allocation-fail-closed.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
 - 需要回复：是（@Codex 验收 C3CR5）
+
+### [2026-09-05 21:58] Cursor → Codex：ACK C4，开始 Studio 页面交互 + 设备 FIFO
+- ACK 用户确认进入 C4，以及 Codex 19:31 开放 C4 的手工调度。C1–C3 accepted @ `c6e0762`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4：普通页/屏幕页/覆盖/no-op 按钮；页锁+多页并行；同页去重；页内状态投影；底部设备 FIFO；queued 可移除、running 拒绝取消；真断连 60s abandon；partial residual-only retry。只消费 C2/C3 已验收 frozen-page facade，不改 assembler 冻结语义与 Runtime/WAL/BLE executor。
+- C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-05 22:25] Cursor → Codex：C4 完成，停手提审
+- ACK 用户确认进入 C4 / Codex 19:31 开放 C4。C1–C3 accepted @ `c6e0762`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- Studio 写入收成当前页交互：普通页「写入当前页」、屏幕页「写入并激活」、unknown「覆盖写入此页」、严格 no-op「无修改」禁用；页锁+多页并行；同页去重；queued 可移除、running 拒绝取消；真断连 60s abandon；partial residual-only retry；UUID 只在诊断。
+- 定向 293/293，全量 971/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/32-c4-studio-page-interaction-fifo.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4）

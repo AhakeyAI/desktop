@@ -21,9 +21,11 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         var ingestResponse: AhaKeyRuntimeXPCResponse?
         var applyResponse: AhaKeyRuntimeXPCResponse?
         var cancellationDisposition: AhaKeyRuntimeCancellationDisposition = .requested
+        var abandonDisposition: AhaKeyRuntimeAbandonDisposition = .abandoned
         private(set) var ingestedItems: [AhaKeyXPCResourceIngestionItem]?
         private(set) var appliedPackage: AhaKeyConfigurationPackage?
         private(set) var cancelledOperation: AhaKeyRuntimeOperationID?
+        private(set) var abandonedOperation: AhaKeyRuntimeOperationID?
         private(set) var requestLog: [String] = []
         /// 已服务事件推进到的最新序号（snapshot 响应据此重建，模拟 Runtime 权威序号）。
         private var latestSequence: UInt64
@@ -95,6 +97,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
                 requestLog.append("cancel(\(operationID.rawValue.uuidString))")
                 cancelledOperation = operationID
                 return .cancellation(cancellationDisposition)
+            case .requestAbandon(let operationID):
+                requestLog.append("abandon(\(operationID.rawValue.uuidString))")
+                abandonedOperation = operationID
+                return .abandon(abandonDisposition)
             default:
                 return .failure(try! AhaKeyRuntimeEventCode("unsupported"))
             }
@@ -955,6 +961,137 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertEqual(counts.apply, 0)
         XCTAssertEqual(transport.requestLog, [])
         await facade.stop()
+    }
+
+    func testCommitFrozenPageNoOpDoesNotIngestOrApply() async throws {
+        let snapshot = pageReadySnapshot()
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let page = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("same"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("same"))
+                ),
+            ]
+        )
+        let result = try await facade.commitFrozenPage(page)
+        XCTAssertEqual(result, .noOp)
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testCommitFrozenPageOverwriteUnconfirmedDoesNotIngestOrApply() async throws {
+        let snapshot = pageReadySnapshot()
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let page = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("new"),
+                    isDirty: true,
+                    baseline: .unknown
+                ),
+            ]
+        )
+        let result = try await facade.commitFrozenPage(page)
+        XCTAssertEqual(result, .requiresOverwriteConfirmation)
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        await facade.stop()
+    }
+
+    func testCommitFrozenPageWriteAppliesWithoutIngestForStatusLine() async throws {
+        let snapshot = pageReadySnapshot()
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let page = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("new"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("old"))
+                ),
+            ]
+        )
+        let result = try await facade.commitFrozenPage(page)
+        guard case .accepted = result else {
+            return XCTFail("verified dirty 状态行应创建 operation")
+        }
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 1)
+        XCTAssertEqual(transport.requestLog, ["apply"])
+        XCTAssertEqual(transport.appliedPackage?.schemaVersion, 2)
+        XCTAssertEqual(transport.appliedPackage?.pageOperation?.pageScope, .screen(modeSlot: 0))
+        XCTAssertFalse(transport.appliedPackage?.pageOperation?.fieldMask.contains(.screenActiveSet(modeSlot: 0)) ?? true)
+        await facade.stop()
+    }
+
+    func testRequestAbandonExchangesAbandon() async throws {
+        let snapshot = pageReadySnapshot()
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        let operationID = AhaKeyRuntimeOperationID()
+        let disposition = try await facade.requestAbandon(operationID)
+        XCTAssertEqual(disposition, .abandoned)
+        XCTAssertEqual(transport.abandonedOperation, operationID)
+        XCTAssertTrue(transport.requestLog.contains { $0.hasPrefix("abandon(") })
+        await facade.stop()
+    }
+
+    private func pageReadySnapshot(deviceID: String = "DEVICE-1") -> AhaKeyRuntimeSnapshot {
+        let id = try! AhaKeyRuntimeDeviceID(deviceID)
+        let device = AhaKeyRuntimeDeviceSnapshot(
+            id: id,
+            displayName: "Test AhaKey",
+            protocolState: .currentReady,
+            preferredTransport: .bluetooth,
+            usbAttached: false,
+            bluetoothConnected: true,
+            capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
+            authoritativeObject: Data("base-object".utf8)
+        )
+        return AhaKeyRuntimeSnapshot(
+            supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
+            lifecycleState: .running,
+            devices: [device],
+            activeDeviceID: id,
+            configurationRevision: .init(0),
+            operations: [],
+            policy: .init(),
+            permissions: .init(states: [:]),
+            keepAliveReasons: [],
+            latestEventSequence: .init(0)
+        )
     }
 
     private func screenStatusPlan(statusLine: String = "hello") -> AhaKeyStudioScopedWritePlan {
