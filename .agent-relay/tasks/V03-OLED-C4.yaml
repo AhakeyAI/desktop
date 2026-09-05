@@ -3,7 +3,7 @@ revision: "1"
 lane: client
 objective: Connect the accepted page-scoped Runtime operation model to Studio so users write only changed fields on the current editing page and see the existing device-level queue at the bottom.
 completion_criteria:
-  - Each selectable editing page is one operation scope: key, light strip, screen, lever, power key, or another explicitly registered page.
+  - "Each selectable editing page is one operation scope: key, light strip, screen, lever, power key, or another explicitly registered page."
   - The action writes every changed field on the current page and no field from another page; a strict zero diff is a no-op before CAS, WAL, or device I/O.
   - If both picture sets changed on the screen page, both are written and the currently selected set is activated.
   - The screen action is named 写入并激活 and successful completion makes the chosen picture visible.
