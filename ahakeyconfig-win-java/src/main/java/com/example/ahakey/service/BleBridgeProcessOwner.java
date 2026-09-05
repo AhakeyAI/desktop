@@ -4,6 +4,8 @@ import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.platform.win32.WinUser;
 
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
@@ -58,6 +60,33 @@ public final class BleBridgeProcessOwner {
     /** Retries foreground activation after a newly started WinForms window appears. */
     public static synchronized boolean activateOwnedWindow() {
         return activateWindow();
+    }
+
+    /**
+     * Waits for the bridge control socket without an unbounded join or sleep.
+     * The bridge owns the TCP protocol; this is only a bounded readiness probe.
+     */
+    public static boolean waitForTcpPort(String host, int port, long timeoutMillis) {
+        if (host == null || host.isBlank() || port < 1 || port > 65535
+            || timeoutMillis < 0) return false;
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+        do {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(host, port), 150);
+                return true;
+            } catch (java.io.IOException ignored) {
+                // The bridge may still be starting; retry until the explicit deadline.
+            }
+            if (System.nanoTime() >= deadline) break;
+            try {
+                Thread.sleep(Math.min(50, Math.max(1,
+                    TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()))));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        } while (true);
+        return false;
     }
 
     public static synchronized Optional<Long> findExactPid(Path executable) {

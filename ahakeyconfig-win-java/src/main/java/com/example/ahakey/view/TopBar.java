@@ -397,6 +397,8 @@ public class TopBar extends VBox {
     private volatile boolean bleButtonProcessing = false;
     private volatile long lastBleButtonClickTime = 0;
     private static final long BLE_BUTTON_CLICK_DELAY_MS = 2000;
+    private static final int BLE_BRIDGE_PORT = 9000;
+    private static final long BLE_BRIDGE_READY_TIMEOUT_MS = 5000;
     
     private void handleBleButtonClick() {
         long now = System.currentTimeMillis();
@@ -515,7 +517,16 @@ public class TopBar extends VBox {
 
             new Thread(() -> {
                 try {
-                    // Bounded readiness/foreground retry; the bridge owns BLE discovery.
+                    if (!BleBridgeProcessOwner.waitForTcpPort(
+                        "127.0.0.1", BLE_BRIDGE_PORT, BLE_BRIDGE_READY_TIMEOUT_MS)) {
+                        BleBridgeProcessOwner.stopOwned();
+                        Platform.runLater(() -> showAlert(
+                            languageManager.getString("dialog.ble-driver-title"),
+                            String.format(languageManager.getString("dialog.ble-start-fail"),
+                                executable + " (TCP 9000 未在 5 秒内就绪)")));
+                        return;
+                    }
+                    // Bounded foreground retry; the bridge owns BLE discovery.
                     for (int i = 0; i < 30 && process.isAlive(); i++) {
                         if (BleBridgeProcessOwner.activateOwnedWindow()) return;
                         Thread.sleep(100);
