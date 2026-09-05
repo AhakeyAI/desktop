@@ -1383,31 +1383,199 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
-        try await store.persistProjectedAuthoritativeObject(
-            Data("object-n".utf8),
-            for: device,
-            sessionGeneration: .init(1),
-            transportGeneration: .init(0)
+        let n = Data("object-n".utf8)
+        let n1 = Data("object-n-plus-1".utf8)
+        let first = try await store.persistProjectedAuthoritativeObject(
+            n,
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: device,
+                writerEpoch: 0,
+                sessionGeneration: .init(1),
+                transportGeneration: .init(0),
+                sourceRevision: 1,
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(n)
+            )
         )
-        try await store.persistProjectedAuthoritativeObject(
-            Data("object-n-plus-1".utf8),
-            for: device,
-            sessionGeneration: .init(1),
-            transportGeneration: .init(1)
+        _ = try await store.persistProjectedAuthoritativeObject(
+            n1,
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: device,
+                writerEpoch: first.writerEpoch,
+                sessionGeneration: .init(1),
+                transportGeneration: .init(1),
+                sourceRevision: 2,
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(n1)
+            )
         )
         do {
             try await store.persistProjectedAuthoritativeObject(
-                Data("object-n".utf8),
-                for: device,
-                sessionGeneration: .init(1),
-                transportGeneration: .init(0)
+                n,
+                version: AhaKeyRuntimeAuthoritativeVersion(
+                    deviceID: device,
+                    writerEpoch: first.writerEpoch,
+                    sessionGeneration: .init(1),
+                    transportGeneration: .init(0),
+                    sourceRevision: 1,
+                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(n)
+                )
             )
             XCTFail("stale generation must fail-closed")
         } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
         }
         let live = try await store.authoritativeObjectFingerprint(for: device)
-        XCTAssertEqual(live, try AhaKeyRuntimeObjectFingerprint.hashing(Data("object-n-plus-1".utf8)))
+        XCTAssertEqual(live, try AhaKeyRuntimeObjectFingerprint.hashing(n1))
+    }
+
+    func testProjectedAuthoritativeObjectRejectsSameGenerationContentRollback() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let a = Data("object-a".utf8)
+        let b = Data("object-b".utf8)
+        let first = try await store.persistProjectedAuthoritativeObject(
+            a,
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: device,
+                writerEpoch: 0,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                sourceRevision: 1,
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(a)
+            )
+        )
+        _ = try await store.persistProjectedAuthoritativeObject(
+            b,
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: device,
+                writerEpoch: first.writerEpoch,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                sourceRevision: 2,
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(b)
+            )
+        )
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                a,
+                version: AhaKeyRuntimeAuthoritativeVersion(
+                    deviceID: device,
+                    writerEpoch: first.writerEpoch,
+                    sessionGeneration: .init(0),
+                    transportGeneration: .init(0),
+                    sourceRevision: 1,
+                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(a)
+                )
+            )
+            XCTFail("same-generation older source must fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let rolledBack = try await store.authoritativeObjectContent(for: device)
+        XCTAssertEqual(rolledBack, b)
+    }
+
+    func testProjectedAuthoritativeObjectRestartEpochAcceptsLowerGeneration() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let content = Data("base-object".utf8)
+        _ = try await store.persistProjectedAuthoritativeObject(
+            content,
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: device,
+                writerEpoch: 0,
+                sessionGeneration: .init(9),
+                transportGeneration: .init(9),
+                sourceRevision: 1,
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+            )
+        )
+        let restarted = try await store.persistProjectedAuthoritativeObject(
+            content,
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: device,
+                writerEpoch: 0,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                sourceRevision: 1,
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+            )
+        )
+        XCTAssertGreaterThan(restarted.writerEpoch, 1)
+        XCTAssertEqual(restarted.sessionGeneration, .init(0))
+        let restartedContent = try await store.authoritativeObjectContent(for: device)
+        XCTAssertEqual(restartedContent, content)
+    }
+
+    func testCorruptAuthoritativeVersionFailsClosed() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let content = Data("base-object".utf8)
+        do {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            _ = try await store.persistProjectedAuthoritativeObject(
+                content,
+                version: AhaKeyRuntimeAuthoritativeVersion(
+                    deviceID: device,
+                    writerEpoch: 0,
+                    sessionGeneration: .init(0),
+                    transportGeneration: .init(0),
+                    sourceRevision: 1,
+                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+                )
+            )
+        }
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        let sql = "UPDATE runtime_metadata SET value = ? WHERE key = ?"
+        var statement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(database, sql, -1, &statement, nil), SQLITE_OK)
+        let garbage = Data("1,0".utf8)
+        garbage.withUnsafeBytes { bytes in
+            _ = sqlite3_bind_blob(
+                statement,
+                1,
+                bytes.baseAddress,
+                Int32(garbage.count),
+                unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            )
+        }
+        let key = "authoritative-version:\(device.rawValue)"
+        key.withCString {
+            sqlite3_bind_text(statement, 2, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
+        sqlite3_finalize(statement)
+        sqlite3_close(database)
+
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        do {
+            _ = try await reopened.authoritativeVersion(for: device)
+            XCTFail("corrupt version must fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptAuthoritativeVersion)
+        }
+        do {
+            try await reopened.persistProjectedAuthoritativeObject(
+                content,
+                version: AhaKeyRuntimeAuthoritativeVersion(
+                    deviceID: device,
+                    writerEpoch: 0,
+                    sessionGeneration: .init(0),
+                    transportGeneration: .init(0),
+                    sourceRevision: 1,
+                    sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+                )
+            )
+            XCTFail("persist over corrupt version must fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptAuthoritativeVersion)
+        }
     }
 
     func testTwoDevicesHaveIndependentDurableQueues() async throws {

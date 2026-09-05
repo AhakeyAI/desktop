@@ -162,6 +162,7 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case resourceMetadataMismatch(String)
     case blockedByQueueHead(AhaKeyRuntimeOperationID)
     case staleAuthoritativeGeneration
+    case corruptAuthoritativeVersion
 }
 
 /// Store 测试 seam：资源临界区的可控交错钩子。仅在 @testable 测试中注入。
@@ -865,35 +866,73 @@ public actor AhaKeyRuntimePersistentStore {
         try metadataValue(for: Self.authoritativeObjectKey(deviceID))
     }
 
-    /// `deviceChanged` 权威快照投影：按 session/transport generation 条件提交，拒绝过期换代。
+    /// 已提交的 typed authority version。损坏 metadata fail-closed。
+    public func authoritativeVersion(
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws -> AhaKeyRuntimeAuthoritativeVersion? {
+        try storedAuthoritativeVersion(for: deviceID)
+    }
+
+    /// `deviceChanged` 权威快照投影：比较 writer epoch、connection identity 与 source revision/digest。
+    /// `version.writerEpoch == 0` 时在本事务分配下一个 epoch（Agent 重启接管）。
+    @discardableResult
     public func persistProjectedAuthoritativeObject(
         _ canonicalContent: Data,
-        for deviceID: AhaKeyRuntimeDeviceID,
-        sessionGeneration: AhaKeyRuntimeSessionGeneration,
-        transportGeneration: AhaKeyRuntimeTransportGeneration
-    ) throws {
+        version: AhaKeyRuntimeAuthoritativeVersion
+    ) throws -> AhaKeyRuntimeAuthoritativeVersion {
         try Self.withExclusiveLock(lockFileDescriptor) {
             try Self.execute("BEGIN IMMEDIATE", on: database)
             do {
-                if let stored = try storedAuthoritativeGeneration(for: deviceID),
-                   Self.isStale(
-                    incomingSession: sessionGeneration,
-                    incomingTransport: transportGeneration,
-                    stored: stored
-                   ) {
-                    throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
-                }
-                try persistAuthoritativeObjectUnlocked(canonicalContent, for: deviceID)
-                try upsertMetadata(
-                    key: Self.authoritativeGenerationKey(deviceID),
-                    value: Data("\(sessionGeneration.rawValue),\(transportGeneration.rawValue)".utf8)
+                let committed = try persistProjectedAuthoritativeObjectUnlocked(
+                    canonicalContent,
+                    version: version
                 )
                 try Self.execute("COMMIT", on: database)
+                return committed
             } catch {
                 try? Self.execute("ROLLBACK", on: database)
                 throw error
             }
         }
+    }
+
+    private func persistProjectedAuthoritativeObjectUnlocked(
+        _ canonicalContent: Data,
+        version: AhaKeyRuntimeAuthoritativeVersion
+    ) throws -> AhaKeyRuntimeAuthoritativeVersion {
+        let digest = try AhaKeyRuntimeObjectFingerprint.hashing(canonicalContent)
+        guard digest == version.sourceDigest else {
+            throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        }
+        let stored = try storedAuthoritativeVersion(for: version.deviceID)
+        let assignedEpoch: UInt64
+        if version.writerEpoch == 0 {
+            let next = (stored?.writerEpoch ?? 0) + 1
+            guard next > (stored?.writerEpoch ?? 0) else {
+                throw AhaKeyRuntimePersistenceError.databaseFailure("authoritative writer epoch exhausted")
+            }
+            assignedEpoch = next
+        } else {
+            assignedEpoch = version.writerEpoch
+        }
+        if let stored, Self.isStale(
+            incoming: version,
+            assignedEpoch: assignedEpoch,
+            stored: stored
+        ) {
+            throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        }
+        let committed = AhaKeyRuntimeAuthoritativeVersion(
+            deviceID: version.deviceID,
+            writerEpoch: assignedEpoch,
+            sessionGeneration: version.sessionGeneration,
+            transportGeneration: version.transportGeneration,
+            sourceRevision: version.sourceRevision,
+            sourceDigest: digest
+        )
+        try persistAuthoritativeObjectUnlocked(canonicalContent, for: version.deviceID)
+        try persistAuthoritativeVersionUnlocked(committed)
+        return committed
     }
 
     private func persistAuthoritativeObjectUnlocked(
@@ -903,36 +942,87 @@ public actor AhaKeyRuntimePersistentStore {
         try upsertMetadata(key: Self.authoritativeObjectKey(deviceID), value: canonicalContent)
     }
 
+    private func persistAuthoritativeSourceUnlocked(
+        _ canonicalContent: Data,
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws {
+        let digest = try AhaKeyRuntimeObjectFingerprint.hashing(canonicalContent)
+        try persistAuthoritativeObjectUnlocked(canonicalContent, for: deviceID)
+        if let existing = try storedAuthoritativeVersion(for: deviceID) {
+            let nextRevision = existing.sourceRevision + 1
+            guard nextRevision > existing.sourceRevision else {
+                throw AhaKeyRuntimePersistenceError.databaseFailure("authoritative source revision exhausted")
+            }
+            try persistAuthoritativeVersionUnlocked(
+                AhaKeyRuntimeAuthoritativeVersion(
+                    deviceID: existing.deviceID,
+                    writerEpoch: existing.writerEpoch,
+                    sessionGeneration: existing.sessionGeneration,
+                    transportGeneration: existing.transportGeneration,
+                    sourceRevision: nextRevision,
+                    sourceDigest: digest
+                )
+            )
+        } else {
+            try persistAuthoritativeVersionUnlocked(
+                AhaKeyRuntimeAuthoritativeVersion(
+                    deviceID: deviceID,
+                    writerEpoch: 0,
+                    sessionGeneration: .init(0),
+                    transportGeneration: .init(0),
+                    sourceRevision: 1,
+                    sourceDigest: digest
+                )
+            )
+        }
+    }
+
+    private func persistAuthoritativeVersionUnlocked(
+        _ version: AhaKeyRuntimeAuthoritativeVersion
+    ) throws {
+        try upsertMetadata(
+            key: Self.authoritativeVersionKey(version.deviceID),
+            value: try encoder.encode(version)
+        )
+    }
+
     private static func authoritativeObjectKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
         "authoritative-object:\(deviceID.rawValue)"
     }
 
-    private static func authoritativeGenerationKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
-        "authoritative-generation:\(deviceID.rawValue)"
+    private static func authoritativeVersionKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
+        "authoritative-version:\(deviceID.rawValue)"
     }
 
-    private func storedAuthoritativeGeneration(
+    private func storedAuthoritativeVersion(
         for deviceID: AhaKeyRuntimeDeviceID
-    ) throws -> (session: UInt64, transport: UInt64)? {
-        guard let data = try metadataValue(for: Self.authoritativeGenerationKey(deviceID)),
-              let text = String(data: data, encoding: .utf8) else {
+    ) throws -> AhaKeyRuntimeAuthoritativeVersion? {
+        guard let data = try metadataValue(for: Self.authoritativeVersionKey(deviceID)) else {
             return nil
         }
-        let parts = text.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
-        guard parts.count == 2, let session = UInt64(parts[0]), let transport = UInt64(parts[1]) else {
-            return nil
+        do {
+            return try decoder.decode(AhaKeyRuntimeAuthoritativeVersion.self, from: data)
+        } catch {
+            throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
         }
-        return (session, transport)
     }
 
     private static func isStale(
-        incomingSession: AhaKeyRuntimeSessionGeneration,
-        incomingTransport: AhaKeyRuntimeTransportGeneration,
-        stored: (session: UInt64, transport: UInt64)
+        incoming: AhaKeyRuntimeAuthoritativeVersion,
+        assignedEpoch: UInt64,
+        stored: AhaKeyRuntimeAuthoritativeVersion
     ) -> Bool {
-        if incomingSession.rawValue < stored.session { return true }
-        if incomingSession.rawValue == stored.session,
-           incomingTransport.rawValue < stored.transport {
+        if incoming.deviceID != stored.deviceID { return true }
+        if assignedEpoch < stored.writerEpoch { return true }
+        if assignedEpoch > stored.writerEpoch { return false }
+        if incoming.sessionGeneration < stored.sessionGeneration { return true }
+        if incoming.sessionGeneration == stored.sessionGeneration,
+           incoming.transportGeneration < stored.transportGeneration {
+            return true
+        }
+        if incoming.sourceRevision < stored.sourceRevision { return true }
+        if incoming.sourceRevision == stored.sourceRevision,
+           incoming.sourceDigest != stored.sourceDigest {
             return true
         }
         return false
@@ -1129,7 +1219,7 @@ public actor AhaKeyRuntimePersistentStore {
             if let syncBaseline {
                 try upsertSyncBaseline(syncBaseline)
                 if existing.package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
-                    try persistAuthoritativeObjectUnlocked(
+                    try persistAuthoritativeSourceUnlocked(
                         syncBaseline.confirmedConfiguration,
                         for: syncBaseline.deviceID
                     )

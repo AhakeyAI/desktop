@@ -290,8 +290,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var projectionDiagnosticEvents: [AhaKeyRuntimeEvent] = []
     /// 最近发布的设备投影（内容不变不重复发 deviceChanged）。
     private var lastPublishedDeviceSnapshot: AhaKeyRuntimeDeviceSnapshot?
-    /// 仅在 durable commit 成功后写入；生产投影用它填 authoritativeObject。
-    private var committedAuthoritativeObject: (deviceID: AhaKeyRuntimeDeviceID, content: Data)?
+    /// 仅在 durable commit 成功后写入；绑定完整 AuthoritativeVersion，不只绑 device ID。
+    private var committedAuthoritativeObject: (version: AhaKeyRuntimeAuthoritativeVersion, content: Data)?
+    /// 本进程已分配的 authority writer epoch；0 表示尚未 persist，由 store 分配。
+    private var authorityWriterEpoch: UInt64 = 0
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
     /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
@@ -3202,10 +3204,13 @@ extension AhaKeyAgent {
     }
 
     /// 已验证 live CAS 先 durable commit，再对外发布带 object 的 authoritative deviceChanged。
+    /// 任何 version mismatch / stale 都终止，不发布旧 connection。
     private func commitAndPublishAuthoritativeObject(
         _ connection: AhaKeyRuntimeDeviceSnapshot
     ) async {
+        let writerEpoch = await MainActor.run { self.authorityWriterEpoch }
         let content: Data
+        let sourceRevision: UInt64
         do {
             let store = try await makeRuntimeStore()
             guard let loaded = try await store.authoritativeObjectContent(for: connection.id),
@@ -3213,6 +3218,7 @@ extension AhaKeyAgent {
                 return
             }
             content = loaded
+            sourceRevision = try await store.authoritativeVersion(for: connection.id)?.sourceRevision ?? 1
         } catch {
             emit("权威对象持久化失败：\(error)")
             return
@@ -3224,30 +3230,51 @@ extension AhaKeyAgent {
             emit("权威对象持久化失败：forced-test-failure")
             return
         }
+        let digest: AhaKeyRuntimeObjectFingerprint
+        do {
+            digest = try AhaKeyRuntimeObjectFingerprint.hashing(content)
+        } catch {
+            emit("权威对象持久化失败：\(error)")
+            return
+        }
+        let candidate = AhaKeyRuntimeAuthoritativeVersion(
+            deviceID: connection.id,
+            writerEpoch: writerEpoch,
+            sessionGeneration: connection.sessionGeneration,
+            transportGeneration: connection.transportGeneration,
+            sourceRevision: sourceRevision,
+            sourceDigest: digest
+        )
+        let committedVersion: AhaKeyRuntimeAuthoritativeVersion
         do {
             let store = try await makeRuntimeStore()
-            try await store.persistProjectedAuthoritativeObject(
+            committedVersion = try await store.persistProjectedAuthoritativeObject(
                 content,
-                for: connection.id,
-                sessionGeneration: connection.sessionGeneration,
-                transportGeneration: connection.transportGeneration
+                version: candidate
             )
-        } catch AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration {
-            do {
-                let store = try await makeRuntimeStore()
-                let live = try await store.authoritativeObjectContent(for: connection.id)
-                guard live == content else { return }
-            } catch {
-                emit("权威对象持久化失败：\(error)")
-                return
-            }
+        } catch let error as AhaKeyRuntimePersistenceError
+            where error == .staleAuthoritativeGeneration || error == .corruptAuthoritativeVersion {
+            emit("权威对象版本拒绝：过期或损坏")
+            return
         } catch {
             emit("权威对象持久化失败：\(error)")
             return
         }
         await MainActor.run {
-            self.committedAuthoritativeObject = (connection.id, content)
-            let authoritative = connection.withAuthoritativeObject(content)
+            guard let current = self.projectedConnectionSnapshot(),
+                  current.id == connection.id,
+                  current.sessionGeneration == connection.sessionGeneration,
+                  current.transportGeneration == connection.transportGeneration,
+                  committedVersion.matches(
+                    deviceID: current.id,
+                    sessionGeneration: current.sessionGeneration,
+                    transportGeneration: current.transportGeneration
+                  ) else {
+                return
+            }
+            self.authorityWriterEpoch = committedVersion.writerEpoch
+            self.committedAuthoritativeObject = (committedVersion, content)
+            let authoritative = current.withAuthoritativeObject(content)
             guard authoritative != self.lastPublishedDeviceSnapshot else { return }
             self.lastPublishedDeviceSnapshot = authoritative
             self.publishRuntimeEvent(.deviceChanged(authoritative), context: .init(
@@ -3262,7 +3289,12 @@ extension AhaKeyAgent {
     @MainActor
     private func projectedDeviceSnapshot() -> AhaKeyRuntimeDeviceSnapshot? {
         guard let connection = projectedConnectionSnapshot() else { return nil }
-        if let committed = committedAuthoritativeObject, committed.deviceID == connection.id {
+        if let committed = committedAuthoritativeObject,
+           committed.version.matches(
+            deviceID: connection.id,
+            sessionGeneration: connection.sessionGeneration,
+            transportGeneration: connection.transportGeneration
+           ) {
             return connection.withAuthoritativeObject(committed.content)
         }
         return connection

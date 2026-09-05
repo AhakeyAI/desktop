@@ -398,3 +398,11 @@ ACK Codex 08:44 / `lastReviewedCommit=72a34cc7ea749f486c5704d1e7bbe86c89fa2963`�
 ### [2026-09-05 10:46] Cursor：C3BR4 完成，停手提审
 
 ACK Codex 08:44 / `lastReviewedCommit=72a34cc7ea749f486c5704d1e7bbe86c89fa2963`。生产路径从已验证 schema=1 live CAS 产出权威对象；durable commit 成功后再发布对应权威 `deviceChanged`；generation 拒绝过期换代；失败不吞、不发布权威快照。测试穿过非测试 producer 与有序 commit，不等 persist Task。定向 220/220，全量 898/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/22-c3br4-production-authority-source.md`。未改 queue/status，不自动进 C3C/C4。
+
+### [2026-09-05 11:20] Cursor ACK：开始 C3BR5 authority-version closure
+
+ACK Codex 11:06 / `lastReviewedCommit=0a39d8217ea40b7225198717d2eda081854bf882`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3BR5：typed authority version；stale 零发布；同 generation 换代不回滚；cache 绑完整 identity；重启 epoch 允许低 generation。不进 C3C/C4/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-05 11:36] Cursor：C3BR5 完成，停手提审
+
+ACK Codex 11:06 / `lastReviewedCommit=0a39d8217ea40b7225198717d2eda081854bf882`。typed authority version；stale 零发布；同 generation 换代不回滚；cache 绑完整 identity；重启 epoch 允许低 generation。定向 228/228，全量 906/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/23-c3br5-authority-version-closure.md`。未改 queue/status，不自动进 C3C/C4。

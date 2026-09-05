@@ -616,6 +616,214 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testStaleAuthoritativeTaskDoesNotPublishOlderConnection() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent(objectSeed: "base-object")
+            let sawBase = await waitUntilAuthoritativeObject(
+                agent,
+                Data("base-object".utf8),
+                transportGeneration: 0
+            )
+            XCTAssertTrue(sawBase)
+            let gate = StepGate()
+            var delayOnce = true
+            var hooks = agent.executionTestHooks
+            hooks?.beforeAuthoritativeObjectCommit = {
+                if delayOnce {
+                    delayOnce = false
+                    await gate.wait()
+                }
+            }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "n"))
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
+            )
+            let sawNext = await waitUntilAuthoritativeObject(
+                agent,
+                Data("base-object".utf8),
+                transportGeneration: 1
+            )
+            XCTAssertTrue(sawNext)
+            guard case .eventReplay(let beforeReplay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: .init(0))
+            ),
+            case .events(let beforeRelease) = beforeReplay else {
+                return XCTFail("events")
+            }
+            let cursor = beforeRelease.last?.sequence ?? .init(0)
+            await gate.release()
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let afterReplay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let afterRelease) = afterReplay else {
+                return XCTFail("tail events")
+            }
+            let staleAuthoritative = afterRelease.contains { event in
+                if case .deviceChanged(let device) = event.payload {
+                    return device.transportGeneration == .init(0)
+                        && device.authoritativeObject != nil
+                }
+                return false
+            }
+            XCTAssertFalse(staleAuthoritative)
+            guard case .snapshot(let snapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("snapshot")
+            }
+            XCTAssertEqual(snapshot.devices.first?.transportGeneration, .init(1))
+            XCTAssertEqual(snapshot.devices.first?.authoritativeObject, Data("base-object".utf8))
+        }
+    }
+
+    func testSameGenerationSchema1ReplacementRejectsDelayedRollback() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent(objectSeed: "object-a")
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let sawA = await waitUntilAuthoritativeObject(agent, Data("object-a".utf8))
+            XCTAssertTrue(sawA)
+            let gate = StepGate()
+            var delayOnce = true
+            var hooks = agent.executionTestHooks
+            hooks?.beforeAuthoritativeObjectCommit = {
+                if delayOnce {
+                    delayOnce = false
+                    await gate.wait()
+                }
+            }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "hold-a"))
+            await agent.closeRuntimeStoreForTesting()
+            try await seedAuthoritativeBaseline(
+                storeDir: storeDir,
+                content: Data("object-b".utf8)
+            )
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "commit-b"))
+            let sawB = await waitUntilAuthoritativeObject(agent, Data("object-b".utf8))
+            XCTAssertTrue(sawB)
+            await gate.release()
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            await agent.closeRuntimeStoreForTesting()
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let live = try await store.authoritativeObjectContent(
+                for: AhaKeyRuntimeDeviceID("TEST-DEVICE")
+            )
+            XCTAssertEqual(live, Data("object-b".utf8))
+        }
+    }
+
+    func testReconnectDoesNotAttachPreviousConnectionObjectBeforeCommit() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent(objectSeed: "base-object")
+            let sawBase = await waitUntilAuthoritativeObject(
+                agent,
+                Data("base-object".utf8),
+                transportGeneration: 0
+            )
+            XCTAssertTrue(sawBase)
+            let gate = StepGate()
+            var delayOnce = true
+            var hooks = agent.executionTestHooks
+            hooks?.beforeAuthoritativeObjectCommit = {
+                if delayOnce {
+                    delayOnce = false
+                    await gate.wait()
+                }
+            }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(displayName: "reconnect", transportGeneration: 1)
+            )
+            guard case .snapshot(let beforeCommit) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("snapshot")
+            }
+            XCTAssertEqual(beforeCommit.devices.first?.transportGeneration, .init(1))
+            XCTAssertNil(beforeCommit.devices.first?.authoritativeObject)
+            await gate.release()
+            let sawReconnect = await waitUntilAuthoritativeObject(
+                agent,
+                Data("base-object".utf8),
+                transportGeneration: 1
+            )
+            XCTAssertTrue(sawReconnect)
+
+            var failHooks = agent.executionTestHooks
+            failHooks?.beforeAuthoritativeObjectCommit = nil
+            failHooks?.failAuthoritativeObjectCommit = true
+            agent.executionTestHooks = failHooks
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(displayName: "failed-reconnect", transportGeneration: 2)
+            )
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard case .snapshot(let failed) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("failed snapshot")
+            }
+            XCTAssertEqual(failed.devices.first?.transportGeneration, .init(2))
+            XCTAssertNil(failed.devices.first?.authoritativeObject)
+        }
+    }
+
+    func testDelayedForeignDeviceTaskDoesNotPublish() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent(objectSeed: "base-object")
+            let sawOriginal = await waitUntilAuthoritativeObject(agent, Data("base-object".utf8))
+            XCTAssertTrue(sawOriginal)
+            let gate = StepGate()
+            var delayOnce = true
+            var hooks = agent.executionTestHooks
+            hooks?.beforeAuthoritativeObjectCommit = {
+                if delayOnce {
+                    delayOnce = false
+                    await gate.wait()
+                }
+            }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "original"))
+            await agent.simulateDeviceForTesting(simulatedDevice(id: "OTHER-DEVICE", displayName: "other"))
+            guard case .snapshot(let other) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("other snapshot")
+            }
+            XCTAssertEqual(other.devices.first?.id, try AhaKeyRuntimeDeviceID("OTHER-DEVICE"))
+            XCTAssertNil(other.devices.first?.authoritativeObject)
+            await gate.release()
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .snapshot(let stillOther) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("post-release snapshot")
+            }
+            XCTAssertEqual(stillOther.devices.first?.id, try AhaKeyRuntimeDeviceID("OTHER-DEVICE"))
+            XCTAssertNil(stillOther.devices.first?.authoritativeObject)
+        }
+    }
+
+    func testFreshAgentRestartAcceptsLowerGeneration() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent(objectSeed: "base-object")
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let sawBase = await waitUntilAuthoritativeObject(agent, Data("base-object".utf8))
+            XCTAssertTrue(sawBase)
+            await agent.closeRuntimeStoreForTesting()
+            try await replaceLiveObject(
+                storeDir: storeDir,
+                content: Data("base-object".utf8),
+                session: 9,
+                transport: 9
+            )
+            agent.shutdown()
+            let restarted = try await makeReadyAgent(storeDirectory: storeDir)
+            await restarted.simulateDeviceForTesting(simulatedDevice())
+            let sawRestart = await waitUntilAuthoritativeObject(
+                restarted,
+                Data("base-object".utf8),
+                sessionGeneration: 0,
+                transportGeneration: 0
+            )
+            XCTAssertTrue(sawRestart)
+        }
+    }
+
     // MARK: - helpers
 
     private func runTest(_ work: @escaping () async throws -> Void) {
@@ -739,24 +947,38 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             rootDirectory: storeDir,
             acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
         )
+        let deviceID = try AhaKeyRuntimeDeviceID(device)
+        let existing = try await store.authoritativeVersion(for: deviceID)
         try await store.persistProjectedAuthoritativeObject(
             content,
-            for: AhaKeyRuntimeDeviceID(device),
-            sessionGeneration: .init(session),
-            transportGeneration: .init(transport)
+            version: AhaKeyRuntimeAuthoritativeVersion(
+                deviceID: deviceID,
+                writerEpoch: existing?.writerEpoch ?? 0,
+                sessionGeneration: .init(session),
+                transportGeneration: .init(transport),
+                sourceRevision: (existing?.sourceRevision ?? 0) + 1,
+                sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+            )
         )
     }
 
     private func waitUntilAuthoritativeObject(
         _ agent: AhaKeyAgent,
         _ expected: Data,
+        sessionGeneration: UInt64? = nil,
+        transportGeneration: UInt64? = nil,
         timeout: TimeInterval = 8
     ) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if case .snapshot(let snapshot) = try? await agent.handleRuntimeXPCRequest(.snapshot),
-               snapshot.devices.first?.authoritativeObject == expected {
-                return true
+               let device = snapshot.devices.first,
+               device.authoritativeObject == expected {
+                let sessionOK = sessionGeneration.map { device.sessionGeneration == .init($0) } ?? true
+                let transportOK = transportGeneration.map { device.transportGeneration == .init($0) } ?? true
+                if sessionOK && transportOK {
+                    return true
+                }
             }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }

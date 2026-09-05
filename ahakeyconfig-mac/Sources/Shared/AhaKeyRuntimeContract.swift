@@ -110,6 +110,43 @@ public struct AhaKeyRuntimeTransportGeneration: Codable, Equatable, Hashable, Co
     }
 }
 
+/// 权威对象的 typed 版本：连接 identity + 单调 canonical source + 进程 writer epoch。
+/// `writerEpoch == 0` 表示尚未分配；投影 persist 在事务内分配下一个 epoch。
+public struct AhaKeyRuntimeAuthoritativeVersion: Codable, Equatable, Hashable, Sendable {
+    public let deviceID: AhaKeyRuntimeDeviceID
+    public let writerEpoch: UInt64
+    public let sessionGeneration: AhaKeyRuntimeSessionGeneration
+    public let transportGeneration: AhaKeyRuntimeTransportGeneration
+    public let sourceRevision: UInt64
+    public let sourceDigest: AhaKeyRuntimeObjectFingerprint
+
+    public init(
+        deviceID: AhaKeyRuntimeDeviceID,
+        writerEpoch: UInt64,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        sourceRevision: UInt64,
+        sourceDigest: AhaKeyRuntimeObjectFingerprint
+    ) {
+        self.deviceID = deviceID
+        self.writerEpoch = writerEpoch
+        self.sessionGeneration = sessionGeneration
+        self.transportGeneration = transportGeneration
+        self.sourceRevision = sourceRevision
+        self.sourceDigest = sourceDigest
+    }
+
+    public func matches(
+        deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration
+    ) -> Bool {
+        self.deviceID == deviceID
+            && self.sessionGeneration == sessionGeneration
+            && self.transportGeneration == transportGeneration
+    }
+}
+
 public enum AhaKeyRuntimeLifecycleState: String, Codable, Equatable, Sendable {
     case starting
     case running
