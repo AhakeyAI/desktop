@@ -182,7 +182,7 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
   上传回调成功后才复制并保存 metadata，重启从 `StudioStore` 恢复，预览不读取设备 GIF 数据。
   自动测试完成，GIF/OLED 真机和 UI 手工验证待执行。
 
-本轮新增 9 个定向测试（BLE driver locator 3、WCHISP runtime/error mapping/log retention 6）；完整 Maven
+本轮新增 11 个定向测试（BLE driver locator 3、BLE readiness 2、WCHISP runtime/error mapping/log retention 6）；完整 Maven
 结果以下一节以实际命令输出为准。当前工作区外层 `C:\aha\ahakey-windows\windows-stabilization-plan.md`
 不存在，无法伪造同步；本文件仍是 `desktop` 工程唯一可用事实源。
 
@@ -242,7 +242,8 @@ layout 均未修改。
   `BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe`；找不到时列出全部尝试路径。发布
   输入强制将 Driver 放入 `app/ble-driver`，并输出 `BLE_DRIVER_BUILD`、
   `BLE_DRIVER_PACKAGED` 和 canonical path 门禁。窗口启动/置前/精确进程 ownership
-  仍由 `BleBridgeProcessOwner` 管理。
+  仍由 `BleBridgeProcessOwner` 管理；启动后在后台对 TCP 9000 做 5 秒有界就绪探测，
+  端口未就绪会精确停止当前 owner 并向 UI 报告失败。
 * SW-002：新增 `wchisp-runtime.json` 运行时合同，固定 3.6.1 tool/DLL/config contract、
   CH57x/CH59x、CH582 和配置 layout fingerprint；缺少组件、混合版本或未知配置均
   fail closed。`-u get` 的 exit 100 现在区分“Windows 已枚举 WCH ISP 但 UID 读取失败”
