@@ -1270,23 +1270,12 @@ public actor AhaKeyRuntimePersistentStore {
         }
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
-            guard let leaseData = try metadataValue(for: Self.authoritativeWriterLeaseKey) else {
-                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
-            }
-            let globalLease: AhaKeyRuntimeAuthoritativeWriterLease
-            do {
-                globalLease = try decoder.decode(
-                    AhaKeyRuntimeAuthoritativeWriterLease.self,
-                    from: leaseData
-                )
-            } catch {
-                throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
-            }
+            let globalLease = try currentAuthoritativeWriterLeaseUnlocked()
             guard version.writerLease == globalLease else {
                 throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
             }
-            let current = try storedAuthoritativeVersion(for: deviceID)
-            if let current, version != current {
+            guard let current = try storedAuthoritativeVersion(for: deviceID),
+                  version == current else {
                 throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
             }
             let existing = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)

@@ -263,6 +263,123 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testFreshReopenDisconnectBeforeReadyMintsNewEpoch() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "reopen-new-epoch")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            await agent.closeRuntimeStoreForTesting()
+            let firstLease: AhaKeyRuntimeAuthoritativeWriterLease
+            do {
+                let firstStore = try AhaKeyRuntimePersistentStore(
+                    rootDirectory: storeDir,
+                    acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+                )
+                let stored = try await firstStore.disconnectEpoch(package.operationID)
+                let firstEpoch = try XCTUnwrap(stored)
+                firstLease = try XCTUnwrap(firstEpoch.identity.writerLease)
+            }
+            agent.shutdown()
+
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            let reopened = makeAgent(storeDirectory: storeDir)
+            await reopened.simulateDeviceForTesting(simulatedDevice())
+            var reopenHooks = reopened.executionTestHooks
+            reopenHooks?.isReady = false
+            reopenHooks?.wallClock = { now }
+            reopened.executionTestHooks = reopenHooks
+            try await reopened.ensureWriterLeaseForTesting()
+            let reopenedLease = try XCTUnwrap(reopened.cachedWriterLeaseForTesting())
+            XCTAssertNotEqual(reopenedLease, firstLease)
+            await reopened.noteProductionDisconnectForTesting()
+            await reopened.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            let reopenClient = EndpointClient(agent: reopened)
+            try await reopenClient.handshake()
+            guard case .abandon(let disposition) = try await reopenClient.exchange(
+                .requestAbandon(package.operationID)
+            ) else {
+                return XCTFail("reopen abandon")
+            }
+            XCTAssertEqual(disposition, .refused)
+            await reopened.closeRuntimeStoreForTesting()
+            let inspect = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let storedSecond = try await inspect.disconnectEpoch(package.operationID)
+            let secondEpoch = try XCTUnwrap(storedSecond)
+            XCTAssertEqual(secondEpoch.identity.writerLease, reopenedLease)
+            XCTAssertEqual(secondEpoch.startedAt, now)
+            let state = try await inspect.transaction(package.operationID)?.state
+            XCTAssertTrue(state == .paused || state == .resumablePartial)
+        }
+    }
+
+    func testFreshReopenConnectedWithoutLeaseRefusesOldEpochAbandon() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "connected-no-lease")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            await agent.closeRuntimeStoreForTesting()
+            agent.shutdown()
+
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            let reopened = makeAgent(storeDirectory: storeDir)
+            var reopenHooks = reopened.executionTestHooks
+            reopenHooks?.simulatedDevice = simulatedDevice(
+                protocolState: .probing,
+                bluetoothConnected: true
+            )
+            reopenHooks?.isReady = false
+            reopenHooks?.wallClock = { now }
+            reopened.executionTestHooks = reopenHooks
+            XCTAssertNil(reopened.cachedWriterLeaseForTesting())
+            let reopenClient = EndpointClient(agent: reopened)
+            try await reopenClient.handshake()
+            guard case .abandon(let disposition) = try await reopenClient.exchange(
+                .requestAbandon(package.operationID)
+            ) else {
+                return XCTFail("reopen abandon")
+            }
+            XCTAssertEqual(disposition, .refused)
+            await reopened.closeRuntimeStoreForTesting()
+            let inspect = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let remainingEpoch = try await inspect.disconnectEpoch(package.operationID)
+            XCTAssertNotNil(remainingEpoch)
+            let state = try await inspect.transaction(package.operationID)?.state
+            XCTAssertTrue(state == .paused || state == .resumablePartial)
+        }
+    }
+
     func testRetryablePauseWithoutDisconnectEventRefusesAbandon() {
         runTest { [self] in
             var now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -1359,6 +1476,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         hooks?.oledContext = .standard
         hooks?.configurationCharacteristics = .allPresent
         agent.executionTestHooks = hooks
+        try await agent.ensureWriterLeaseForTesting()
         return agent
     }
 

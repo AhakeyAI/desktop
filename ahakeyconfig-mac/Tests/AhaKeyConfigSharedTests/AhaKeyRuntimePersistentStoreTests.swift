@@ -2160,6 +2160,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             revision: .first,
             content: firstContent
         )
+        _ = try await store.persistProjectedAuthoritativeObject(firstContent, version: first)
         try await store.applyAuthoritativeFieldReadback(
             deviceID: existing.deviceID,
             pageID: existing.pageID,
@@ -2206,14 +2207,16 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         _ = try await store.accept(package, resourceFiles: [:])
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         let lease = try await store.allocateAuthoritativeWriterLease()
+        let newerContent = Data("new-authority".utf8)
         let newer = try authorityVersion(
             device: package.targetDeviceID,
             lease: lease,
             session: 1,
             transport: 1,
             revision: try AhaKeyRuntimeAuthoritativeSourceRevision(2),
-            content: Data("new-authority".utf8)
+            content: newerContent
         )
+        _ = try await store.persistProjectedAuthoritativeObject(newerContent, version: newer)
         try await store.applyAuthoritativeFieldReadback(
             deviceID: package.targetDeviceID,
             pageID: .screen(modeSlot: 0),
@@ -2667,14 +2670,16 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         _ = try await store.accept(package, resourceFiles: [:])
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         let lease = try await store.allocateAuthoritativeWriterLease()
+        let content = Data("empty-op".utf8)
         let version = try authorityVersion(
             device: package.targetDeviceID,
             lease: lease,
             session: 0,
             transport: 0,
             revision: .first,
-            content: Data("empty-op".utf8)
+            content: content
         )
+        _ = try await store.persistProjectedAuthoritativeObject(content, version: version)
         try await store.applyAuthoritativeFieldReadback(
             deviceID: package.targetDeviceID,
             pageID: .screen(modeSlot: 0),
@@ -2818,10 +2823,44 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             )
             XCTFail("未分配 global lease 时不得建立 verified")
         } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptAuthoritativeVersion)
+        }
+        let rows = try await store.pageFieldBaselines(deviceID: package.targetDeviceID)
+        XCTAssertTrue(rows.isEmpty)
+    }
+
+    func testAuthoritativeReadbackRejectsAbsentDeviceAuthorityEvenWithCurrentGlobalLease() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "no-device-authority")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let lease = try await store.allocateAuthoritativeWriterLease()
+        let fabricated = try authorityVersion(
+            device: package.targetDeviceID,
+            lease: lease,
+            session: 0,
+            transport: 0,
+            revision: .first,
+            content: Data("fabricated".utf8)
+        )
+        do {
+            try await store.applyAuthoritativeFieldReadback(
+                deviceID: package.targetDeviceID,
+                pageID: .screen(modeSlot: 0),
+                fieldID: field,
+                value: .text("forged"),
+                version: fabricated
+            )
+            XCTFail("缺少当前 per-device authority 时不得建立 verified")
+        } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
         }
         let rows = try await store.pageFieldBaselines(deviceID: package.targetDeviceID)
         XCTAssertTrue(rows.isEmpty)
+        let storedAuthority = try await store.authoritativeVersion(for: package.targetDeviceID)
+        XCTAssertNil(storedAuthority)
     }
 
     private func mutateRuntimeMetadata(root: URL, key: String, value: Data?) throws {

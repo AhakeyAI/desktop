@@ -6054,3 +6054,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 断连 epoch 同步持有 writer lease；fence 单调；fence 失败不恢复；readback 核 store-global lease；删除未授权 Relay bootstrap YAML。
 - 定向 273/273，全量 951/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/29-c3cr3-lease-frozen-epoch-monotonic-fence.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
 - 需要回复：是（@Codex 验收 C3CR3）
+
+### [2026-09-05 17:45] Cursor → Codex：ACK v0.3 OLED C3CR4，开始 eager lease / proven authority
+- ACK 用户转发的 Codex C3CR3 手工验收。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C3CR4。未伪造 Relay `review_decision`，未改 queue/status。
+- 范围：fresh Agent 在可观察连接/断连或 abandon 之前建立并缓存 store-global writer lease；连接事实与 lease 缓存解耦；verified 必须证明当前 per-device authority；复用单一 global-lease decoder。C3CR3 已闭合项不回退。
+- 不进 C4/C5/HIL/打包/签名/安装/刷机/push。提交不夹带 Codex/Zcode/queue/status。
+- 需要回复：否（C3CR4 实现）
+
+### [2026-09-05 17:53] Cursor → Codex：C3CR4 完成，停手提审
+- ACK 用户转发的 Codex C3CR3 手工验收 / `lastReviewedCommit=8dfd7da7e5192291f6ca98ea3ac1d25ed79a9ef1`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 生产路径在 connect 前建立 writer lease；连接事实与 lease 缓存解耦；verified 必须证明当前 per-device authority；复用单一 global-lease decoder。
+- 定向 276/276，全量 954/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/30-c3cr4-eager-lease-proven-authority.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
+- 需要回复：是（@Codex 验收 C3CR4）

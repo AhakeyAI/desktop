@@ -1665,7 +1665,24 @@ extension AhaKeyAgent {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
             emit(NSLocalizedString("蓝牙就绪", comment: ""))
-            connectAutomatically()
+            // 生产路径：scan/connect 前先建立进程 lease，使 ready 前断连也能铸造本次 epoch。
+            // 测试注入 storeDirectory 后自行 ensureWriterLease，避免 CB 回调抢跑生产目录。
+            if executionTestHooks != nil
+                || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+                connectAutomatically()
+                return
+            }
+            Task { [weak self] in
+                guard let self else { return }
+                do {
+                    _ = try await self.resolveCachedWriterLease()
+                } catch {
+                    self.emit("writer lease 分配失败：\(error.localizedDescription)")
+                }
+                await MainActor.run {
+                    self.connectAutomatically()
+                }
+            }
         } else {
             performTransportActions(transportCore.handle(.bluetoothUnavailable, now: Date()))
         }
@@ -3234,11 +3251,11 @@ extension AhaKeyAgent {
         }
         switch transportCore.phase {
         case .connecting, .discovering, .negotiating, .ready:
-            return freezeDisconnectIdentity() != nil
+            return true
         default:
             break
         }
-        return peripheral != nil && freezeDisconnectIdentity() != nil
+        return peripheral != nil
     }
 
     private static func operationSummary(from record: AhaKeyRuntimePersistedTransaction) -> AhaKeyRuntimeOperationSummary {
@@ -4072,6 +4089,14 @@ extension AhaKeyAgent {
     @MainActor
     func configurationWriteIsReadyForTesting() -> Bool {
         configurationWriteIsReady()
+    }
+
+    func ensureWriterLeaseForTesting() async throws {
+        _ = try await resolveCachedWriterLease()
+    }
+
+    func cachedWriterLeaseForTesting() -> AhaKeyRuntimeAuthoritativeWriterLease? {
+        cachedWriterLease
     }
 
     func noteProductionDisconnectForTesting() async {
