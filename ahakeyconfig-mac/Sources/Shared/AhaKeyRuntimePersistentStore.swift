@@ -163,6 +163,7 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     case blockedByQueueHead(AhaKeyRuntimeOperationID)
     case staleAuthoritativeGeneration
     case corruptAuthoritativeVersion
+    case clockRollback
 }
 
 /// Store 测试 seam：资源临界区的可控交错钩子。仅在 @testable 测试中注入。
@@ -210,7 +211,7 @@ enum AhaKeyRuntimeStoreSchemaMigrationTestingHooks {
 }
 
 public actor AhaKeyRuntimePersistentStore {
-    public static let schemaVersion: Int32 = 5
+    public static let schemaVersion: Int32 = 6
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
     public static let snapshotProjectionTerminalLimit = 64
     /// 旧 v3 writer 只更新既有列、不写 `terminal_order`。迁移后该 trigger 仅在
@@ -397,12 +398,55 @@ public actor AhaKeyRuntimePersistentStore {
             )
             try Self.execute(
                 """
+                CREATE TABLE IF NOT EXISTS runtime_page_field_baselines (
+                    device_id TEXT NOT NULL,
+                    page_id TEXT NOT NULL,
+                    field_id TEXT NOT NULL,
+                    value BLOB NOT NULL,
+                    trust TEXT NOT NULL,
+                    provenance TEXT NOT NULL,
+                    operation_id TEXT NOT NULL,
+                    authority_generation INTEGER,
+                    PRIMARY KEY (device_id, page_id, field_id)
+                )
+                """,
+                on: handle
+            )
+            try Self.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_disconnect_clocks (
+                    operation_id TEXT PRIMARY KEY NOT NULL
+                        REFERENCES runtime_transactions(operation_id) ON DELETE CASCADE,
+                    started_at REAL NOT NULL
+                )
+                """,
+                on: handle
+            )
+            try Self.execute("DROP TABLE IF EXISTS remapped_running", on: handle)
+            try Self.execute(
+                """
+                CREATE TEMP TABLE remapped_running AS
+                SELECT operation_id FROM runtime_transactions WHERE state = 'running'
+                """,
+                on: handle
+            )
+            try Self.execute(
+                """
                 UPDATE runtime_transactions
                 SET state = 'paused'
                 WHERE state = 'running'
                 """,
                 on: handle
             )
+            try Self.execute(
+                """
+                INSERT OR IGNORE INTO runtime_disconnect_clocks (operation_id, started_at)
+                SELECT operation_id, \(Date().timeIntervalSince1970)
+                FROM remapped_running
+                """,
+                on: handle
+            )
+            try Self.execute("DROP TABLE remapped_running", on: handle)
             // 资源目录 reconcile 与 staged prune 由外层 init 临界区覆盖，直接执行
             // （不得再嵌套 withExclusiveLock：同 fd 内层 LOCK_UN 会提前放锁）。
             try Self.reconcileResourceDirectory(resourcesDirectory, with: handle)
@@ -1125,6 +1169,200 @@ public actor AhaKeyRuntimePersistentStore {
         guard try transaction(operationID) != nil else {
             throw AhaKeyRuntimePersistenceError.operationNotFound
         }
+        try insertConfirmedStepUnlocked(step, for: operationID)
+    }
+
+    /// schema=2：step confirmation 与完整 field 的 writeConfirmed baseline 同一写事务。
+    /// chunk 不密封；不得在此写入 verified。
+    public func confirmPageStep(
+        _ step: AhaKeyRuntimeStepIdentifier,
+        package: AhaKeyConfigurationPackage,
+        plan: AhaKeyRuntimePageExecutionPlan
+    ) throws {
+        guard try transaction(package.operationID) != nil else {
+            throw AhaKeyRuntimePersistenceError.operationNotFound
+        }
+        var baseline: AhaKeyRuntimeFieldBaseline?
+        if let planned = plan.step(for: step),
+           AhaKeyRuntimePageSemantic.sealsCompleteField(planned),
+           let field = planned.fieldID,
+           let pageID = package.pageOperation?.pageScope {
+            baseline = AhaKeyRuntimeFieldBaseline(
+                deviceID: package.targetDeviceID,
+                pageID: pageID,
+                fieldID: field,
+                value: try AhaKeyRuntimePageSemantic.baselineValue(for: field, package: package),
+                trust: .writeConfirmed,
+                provenance: .writeConfirmation,
+                operationID: package.operationID
+            )
+        }
+        try Self.execute("BEGIN IMMEDIATE", on: database)
+        do {
+            try insertConfirmedStepUnlocked(step, for: package.operationID)
+            if let baseline {
+                try upsertPageFieldBaselineUnlocked(baseline)
+            }
+            try Self.execute("COMMIT", on: database)
+        } catch {
+            try? Self.execute("ROLLBACK", on: database)
+            throw error
+        }
+    }
+
+    public func pageFieldBaselines(
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID? = nil
+    ) throws -> [AhaKeyRuntimeFieldBaseline] {
+        let sql: String
+        if pageID == nil {
+            sql = """
+                SELECT device_id, page_id, field_id, value, trust, provenance, operation_id, authority_generation
+                FROM runtime_page_field_baselines
+                WHERE device_id = ?
+                ORDER BY page_id, field_id
+                """
+        } else {
+            sql = """
+                SELECT device_id, page_id, field_id, value, trust, provenance, operation_id, authority_generation
+                FROM runtime_page_field_baselines
+                WHERE device_id = ? AND page_id = ?
+                ORDER BY field_id
+                """
+        }
+        let statement = try prepare(sql)
+        defer { sqlite3_finalize(statement) }
+        try bind(deviceID.rawValue, at: 1, to: statement)
+        if let pageID {
+            try bind(try jsonString(pageID), at: 2, to: statement)
+        }
+        var rows: [AhaKeyRuntimeFieldBaseline] = []
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            rows.append(try decodeFieldBaseline(statement))
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw databaseError() }
+        return rows
+    }
+
+    public func applyAuthoritativeFieldReadback(
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        fieldID: AhaKeyStudioFieldID,
+        value: AhaKeyRuntimeBaselineValue,
+        generation: UInt64
+    ) throws {
+        try Self.execute("BEGIN IMMEDIATE", on: database)
+        do {
+            let existing = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
+                .first { $0.fieldID == fieldID }
+            guard let existing else {
+                throw AhaKeyRuntimePersistenceError.operationNotFound
+            }
+            let promoted = existing.trust == .writeConfirmed && existing.value == value
+            let next = AhaKeyRuntimeFieldBaseline(
+                deviceID: deviceID,
+                pageID: pageID,
+                fieldID: fieldID,
+                value: promoted ? existing.value : value,
+                trust: .verified,
+                provenance: .deviceReadback,
+                operationID: existing.operationID,
+                authorityGeneration: generation
+            )
+            try upsertPageFieldBaselineUnlocked(next)
+            try Self.execute("COMMIT", on: database)
+        } catch {
+            try? Self.execute("ROLLBACK", on: database)
+            throw error
+        }
+    }
+
+    public func noteDisconnectIfNeeded(
+        _ operationID: AhaKeyRuntimeOperationID,
+        at now: Date
+    ) throws {
+        guard try transaction(operationID) != nil else {
+            throw AhaKeyRuntimePersistenceError.operationNotFound
+        }
+        let statement = try prepare(
+            """
+            INSERT OR IGNORE INTO runtime_disconnect_clocks (operation_id, started_at)
+            VALUES (?, ?)
+            """
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(operationID.rawValue.uuidString, at: 1, to: statement)
+        try bind(now.timeIntervalSince1970, at: 2, to: statement)
+        try stepDone(statement)
+    }
+
+    public func clearDisconnectClock(_ operationID: AhaKeyRuntimeOperationID) throws {
+        let statement = try prepare(
+            "DELETE FROM runtime_disconnect_clocks WHERE operation_id = ?"
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(operationID.rawValue.uuidString, at: 1, to: statement)
+        try stepDone(statement)
+    }
+
+    public func clearDisconnectClocks(for deviceID: AhaKeyRuntimeDeviceID) throws {
+        for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == deviceID {
+            try clearDisconnectClock(candidate.operationID)
+        }
+    }
+
+    public func disconnectStartedAt(
+        _ operationID: AhaKeyRuntimeOperationID
+    ) throws -> Date? {
+        let statement = try prepare(
+            "SELECT started_at FROM runtime_disconnect_clocks WHERE operation_id = ?"
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(operationID.rawValue.uuidString, at: 1, to: statement)
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return nil }
+        guard result == SQLITE_ROW else { throw databaseError() }
+        return Date(timeIntervalSince1970: sqlite3_column_double(statement, 0))
+    }
+
+    /// `.abandoned` 表示资格成立，调用方再提交 fail-fast 终态。clock rollback 抛错且零变更。
+    public func evaluateAbandon(
+        operationID: AhaKeyRuntimeOperationID,
+        now: Date,
+        deviceConnected: Bool
+    ) throws -> AhaKeyRuntimeAbandonDisposition {
+        guard let record = try transaction(operationID) else { return .notFound }
+        guard !record.state.isTerminal else { return .alreadyFinished }
+        guard record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
+            return .refused
+        }
+        switch record.state {
+        case .paused, .resumablePartial:
+            break
+        default:
+            return .refused
+        }
+        if try durableDeviceQueue(record.package.targetDeviceID).isBlocked(operationID) {
+            return .refused
+        }
+        if deviceConnected { return .refused }
+        guard let started = try disconnectStartedAt(operationID) else { return .refused }
+        let elapsed = now.timeIntervalSince(started)
+        if elapsed < 0 {
+            throw AhaKeyRuntimePersistenceError.clockRollback
+        }
+        if elapsed < AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration {
+            return .refused
+        }
+        return .abandoned
+    }
+
+    private func insertConfirmedStepUnlocked(
+        _ step: AhaKeyRuntimeStepIdentifier,
+        for operationID: AhaKeyRuntimeOperationID
+    ) throws {
         let statement = try prepare(
             """
             INSERT OR IGNORE INTO runtime_confirmed_steps (operation_id, step_id)
@@ -1924,6 +2162,83 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
+    private func jsonString<T: Encodable>(_ value: T) throws -> String {
+        guard let text = String(data: try encoder.encode(value), encoding: .utf8) else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure("cannot encode json token")
+        }
+        return text
+    }
+
+    private func upsertPageFieldBaselineUnlocked(_ baseline: AhaKeyRuntimeFieldBaseline) throws {
+        let statement = try prepare(
+            """
+            INSERT INTO runtime_page_field_baselines
+                (device_id, page_id, field_id, value, trust, provenance, operation_id, authority_generation)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(device_id, page_id, field_id) DO UPDATE SET
+                value = excluded.value,
+                trust = excluded.trust,
+                provenance = excluded.provenance,
+                operation_id = excluded.operation_id,
+                authority_generation = excluded.authority_generation
+            """
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(baseline.deviceID.rawValue, at: 1, to: statement)
+        try bind(try jsonString(baseline.pageID), at: 2, to: statement)
+        try bind(try jsonString(baseline.fieldID), at: 3, to: statement)
+        try bind(try encoder.encode(baseline.value), at: 4, to: statement)
+        try bind(baseline.trust.rawValue, at: 5, to: statement)
+        try bind(baseline.provenance.rawValue, at: 6, to: statement)
+        try bind(baseline.operationID.rawValue.uuidString, at: 7, to: statement)
+        if let generation = baseline.authorityGeneration {
+            try bind(generation, at: 8, to: statement)
+        } else {
+            try bindNull(at: 8, to: statement)
+        }
+        try stepDone(statement)
+    }
+
+    private func decodeFieldBaseline(_ statement: OpaquePointer) throws -> AhaKeyRuntimeFieldBaseline {
+        guard let deviceText = sqlite3_column_text(statement, 0),
+              let pageText = sqlite3_column_text(statement, 1),
+              let fieldText = sqlite3_column_text(statement, 2),
+              let trustText = sqlite3_column_text(statement, 4),
+              let provenanceText = sqlite3_column_text(statement, 5),
+              let operationText = sqlite3_column_text(statement, 6),
+              let operationUUID = UUID(uuidString: String(cString: operationText)),
+              let trust = AhaKeyRuntimeBaselineTrust(rawValue: String(cString: trustText)),
+              let provenance = AhaKeyRuntimeBaselineProvenance(rawValue: String(cString: provenanceText)) else {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        let valueCount = Int(sqlite3_column_bytes(statement, 3))
+        guard valueCount > 0, let valueBytes = sqlite3_column_blob(statement, 3) else {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        let value = try decoder.decode(
+            AhaKeyRuntimeBaselineValue.self,
+            from: Data(bytes: valueBytes, count: valueCount)
+        )
+        let generation: UInt64?
+        if sqlite3_column_type(statement, 7) == SQLITE_NULL {
+            generation = nil
+        } else {
+            let raw = sqlite3_column_int64(statement, 7)
+            guard raw >= 0 else { throw AhaKeyRuntimePersistenceError.corruptTransaction }
+            generation = UInt64(raw)
+        }
+        return AhaKeyRuntimeFieldBaseline(
+            deviceID: try AhaKeyRuntimeDeviceID(String(cString: deviceText)),
+            pageID: try decoder.decode(AhaKeyStudioPageID.self, from: Data(String(cString: pageText).utf8)),
+            fieldID: try decoder.decode(AhaKeyStudioFieldID.self, from: Data(String(cString: fieldText).utf8)),
+            value: value,
+            trust: trust,
+            provenance: provenance,
+            operationID: .init(operationUUID),
+            authorityGeneration: generation
+        )
+    }
+
     private func prepare(_ sql: String) throws -> OpaquePointer {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
@@ -1965,6 +2280,10 @@ public actor AhaKeyRuntimePersistentStore {
 
     private func bindNull(at index: Int32, to statement: OpaquePointer) throws {
         guard sqlite3_bind_null(statement, index) == SQLITE_OK else { throw databaseError() }
+    }
+
+    private func bind(_ value: Double, at index: Int32, to statement: OpaquePointer) throws {
+        guard sqlite3_bind_double(statement, index, value) == SQLITE_OK else { throw databaseError() }
     }
 
     private func bind(_ value: String, at index: Int32, to statement: OpaquePointer) throws {

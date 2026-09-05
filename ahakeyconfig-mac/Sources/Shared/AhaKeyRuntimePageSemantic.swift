@@ -1115,6 +1115,101 @@ extension AhaKeyRuntimePageSemantic {
         return confirmed.contains { plan.step(for: $0)?.writesDevice == true }
     }
 
+    /// 完整 field 设备动作才密封；chunk 中间进度不得提前密封 picture field。
+    public static func sealsCompleteField(_ step: AhaKeyRuntimePageExecutionStep) -> Bool {
+        guard step.writesDevice, step.fieldID != nil else { return false }
+        return !step.identity.rawValue.hasPrefix("page:chunk:")
+    }
+
+    /// bind 才密封 resource；chunk 只是资源中间进度。
+    public static func sealsCompleteResource(_ step: AhaKeyRuntimePageExecutionStep) -> Bool {
+        guard step.writesDevice, step.resourceID != nil else { return false }
+        return step.identity.rawValue.hasPrefix("page:bind:")
+    }
+
+    /// 冻结 ledger/plan 是投影唯一事实源；confirmed steps 只选择已完成的完整动作。
+    public static func confirmationProjection(
+        package: AhaKeyConfigurationPackage,
+        confirmed: [AhaKeyRuntimeStepIdentifier],
+        plan: AhaKeyRuntimePageExecutionPlan
+    ) -> AhaKeyRuntimePageConfirmationProjection {
+        let confirmedSet = Set(confirmed)
+        var fields = Set<AhaKeyStudioFieldID>()
+        var resources = Set<AhaKeyRuntimeConfirmationLedger.Entry.ResourceIdentity>()
+        let bindings = package.pageOperation?.resourceBindings ?? []
+        for step in plan.steps where confirmedSet.contains(step.identity) {
+            if sealsCompleteField(step), let field = step.fieldID {
+                fields.insert(field)
+            }
+            if sealsCompleteResource(step), let logical = step.resourceID,
+               let binding = bindings.first(where: { $0.logicalID == logical }) {
+                resources.insert(
+                    AhaKeyRuntimeConfirmationLedger.Entry.ResourceIdentity(
+                        logicalID: logical,
+                        sha256: binding.sha256
+                    )
+                )
+            }
+        }
+        let ledger = package.pageOperation?.confirmationLedger
+        let residualFields = (ledger?.fieldIDs ?? []).subtracting(fields).sorted()
+        let residualResources = (ledger?.entries.compactMap(\.resourceIdentity) ?? [])
+            .filter { !resources.contains($0) }
+            .sorted { lhs, rhs in
+                if lhs.logicalID.rawValue != rhs.logicalID.rawValue {
+                    return lhs.logicalID.rawValue < rhs.logicalID.rawValue
+                }
+                return lhs.sha256.rawValue < rhs.sha256.rawValue
+            }
+        return AhaKeyRuntimePageConfirmationProjection(
+            confirmedFieldIDs: fields,
+            confirmedResources: resources,
+            residual: AhaKeyRuntimePageResidual(
+                fieldIDs: residualFields,
+                resources: residualResources
+            )
+        )
+    }
+
+    static func baselineValue(
+        for field: AhaKeyStudioFieldID,
+        package: AhaKeyConfigurationPackage
+    ) throws -> AhaKeyRuntimeBaselineValue {
+        let frozen = try AhaKeyRuntimeCanonicalPageWrite.frozenValues(
+            from: package.desiredConfiguration
+        )
+        let bindings = package.pageOperation?.resourceBindings ?? []
+        switch frozen.fieldValues[field] {
+        case .text(let text):
+            return .text(text)
+        case .optionalText(let text):
+            return .optionalText(text)
+        case .integer(let number):
+            return .integer(number)
+        case .keyAction(let action):
+            return .keyAction(action)
+        case .taskAsset(let fps, let frames):
+            guard let match = bindings.first(where: { $0.fieldID == field }) else {
+                throw AhaKeyRuntimeContractError.pageOperationIncomplete
+            }
+            return .taskAsset(
+                sha256: match.sha256.rawValue,
+                byteCount: match.byteCount,
+                mediaType: match.mediaType.rawValue,
+                framesPerSecond: fps,
+                declaredFrameCount: frames
+            )
+        case nil:
+            if case .screenStatusLine = field, let line = frozen.statusLine {
+                return .text(line)
+            }
+            if case .screenFramesPerSecond = field, let fps = frozen.framesPerSecond {
+                return .integer(fps)
+            }
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
+        }
+    }
+
     static func lightMappingRows(
         from plan: AhaKeyStudioScopedWritePlan
     ) throws -> [AhaKeyRuntimeLightMappingRow] {

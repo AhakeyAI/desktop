@@ -705,6 +705,189 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         )
     }
 
+    func testPartialWriteAbandonKeepsConfirmedBaselineAndDropsSealedFieldsFromResidual() async throws {
+        let fixture = try pictureFixture(frames: 1)
+        let package = try assemble(fixture, profile: .legacyStandard)
+        let files = try writeResources(fixture)
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        let bind = try XCTUnwrap(plan.steps.first { $0.identity.rawValue.hasPrefix("page:bind:") })
+        var current = Date(timeIntervalSince1970: 1_700_000_000)
+        let runner = AhaKeyConfigurationTransactionRunner(store: store, now: { current })
+        let paused = try await runPage(
+            package,
+            files: files,
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard),
+            runner: runner
+        ) { step in
+            if step.rawValue.hasPrefix("page:bind:") {
+                return .retryableFailure
+            }
+            return .success
+        }
+        XCTAssertEqual(paused, .resumablePartial)
+        try await store.confirmPageStep(bind.identity, package: package, plan: plan)
+        let baselines = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertEqual(baselines.map(\.trust), [.writeConfirmed])
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        let projection = AhaKeyRuntimePageSemantic.confirmationProjection(
+            package: package,
+            confirmed: confirmed,
+            plan: plan
+        )
+        XCTAssertFalse(projection.residual.fieldIDs.contains(where: { $0 == bind.fieldID }))
+        let sealedField = try XCTUnwrap(bind.fieldID)
+        XCTAssertTrue(projection.confirmedFieldIDs.contains(sealedField))
+
+        current = current.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+        let abandoned = try await runner.requestAbandon(
+            operationID: package.operationID,
+            now: current,
+            deviceConnected: false
+        )
+        XCTAssertEqual(abandoned, .abandoned)
+        let abandonedState = try await store.transaction(package.operationID)?.state
+        XCTAssertEqual(abandonedState, .failedWithPartialCommit)
+        let restoredStore = try AhaKeyRuntimePersistentStore(
+            rootDirectory: root,
+            acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator(
+                schema1: AllowingResourceValidator()
+            )
+        )
+        let restoredBaselines = try await restoredStore.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertEqual(restoredBaselines, baselines)
+        let restoredState = try await restoredStore.transaction(package.operationID)?.state
+        XCTAssertEqual(restoredState, .failedWithPartialCommit)
+    }
+
+    func testChunkProgressDoesNotSealPictureFieldOrResource() async throws {
+        let fixture = try pictureFixture(frames: 1)
+        let package = try assemble(fixture, profile: .legacyStandard)
+        let files = try writeResources(fixture)
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        var first = true
+        let paused = try await runPage(
+            package,
+            files: files,
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
+        ) { _ in
+            if first {
+                first = false
+                return .success
+            }
+            return .retryableFailure
+        }
+        XCTAssertEqual(paused, .resumablePartial)
+        let chunkBaselines = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertTrue(chunkBaselines.isEmpty)
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        let projection = AhaKeyRuntimePageSemantic.confirmationProjection(
+            package: package,
+            confirmed: confirmed,
+            plan: plan
+        )
+        XCTAssertTrue(projection.confirmedFieldIDs.isEmpty)
+        XCTAssertEqual(
+            Set(projection.residual.fieldIDs),
+            try XCTUnwrap(package.pageOperation).confirmationLedger.fieldIDs
+        )
+        XCTAssertFalse(projection.residual.resources.isEmpty)
+    }
+
+    func testNoWriteAbandonFinishesWithoutDeviceWritesAndReleasesFIFOHead() async throws {
+        let head = try statusPackage(device: "DEV-ABANDON", seed: "head-local")
+        let queued = try statusPackage(device: "DEV-ABANDON", seed: "queued-local")
+        var current = Date(timeIntervalSince1970: 1_700_000_000)
+        let runner = AhaKeyConfigurationTransactionRunner(store: store, now: { current })
+        var first = true
+        let paused = try await runPage(
+            head,
+            context: .standard,
+            preconditions: matchingPreconditions(head, profile: .legacyStandard),
+            runner: runner
+        ) { _ in
+            if first {
+                first = false
+                return .retryableFailure
+            }
+            return .success
+        }
+        XCTAssertEqual(paused, .paused)
+        try await store.accept(queued, resourceFiles: [:])
+        let tooEarly = try await runner.requestAbandon(
+            operationID: head.operationID,
+            now: current.addingTimeInterval(30),
+            deviceConnected: false
+        )
+        XCTAssertEqual(tooEarly, .refused)
+        current = current.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+        let whileConnected = try await runner.requestAbandon(
+            operationID: head.operationID,
+            now: current,
+            deviceConnected: true
+        )
+        XCTAssertEqual(whileConnected, .refused)
+        let nonHead = try await runner.requestAbandon(
+            operationID: queued.operationID,
+            now: current,
+            deviceConnected: false
+        )
+        XCTAssertEqual(nonHead, .refused)
+        let abandonedHead = try await runner.requestAbandon(
+            operationID: head.operationID,
+            now: current,
+            deviceConnected: false
+        )
+        XCTAssertEqual(abandonedHead, .abandoned)
+        let headState = try await store.transaction(head.operationID)?.state
+        XCTAssertEqual(headState, .failedWithoutWrites)
+        let queuedState = try await runPage(
+            queued,
+            context: .standard,
+            preconditions: matchingPreconditions(queued, profile: .legacyStandard),
+            runner: runner
+        ) { _ in .success }
+        XCTAssertEqual(queuedState, .completed)
+    }
+
+    func testAbandonRejectsClockRollbackAndRunningState() async throws {
+        let package = try statusPackage(device: "DEV-ROLL", seed: "running")
+        var current = Date(timeIntervalSince1970: 1_700_000_000)
+        let runner = AhaKeyConfigurationTransactionRunner(store: store, now: { current })
+        let gate = CancelGate()
+        let task = Task {
+            try await self.runPage(
+                package,
+                context: .standard,
+                preconditions: self.matchingPreconditions(package, profile: .legacyStandard),
+                runner: runner
+            ) { _ in
+                await gate.markEntered()
+                await gate.wait()
+                return .success
+            }
+        }
+        await gate.waitUntilEntered()
+        let runningAbandon = try await runner.requestAbandon(
+            operationID: package.operationID,
+            now: current.addingTimeInterval(60),
+            deviceConnected: false
+        )
+        XCTAssertEqual(runningAbandon, .refused)
+        await gate.release()
+        _ = try await task.value
+    }
+
     func testCancelClassifiesLocalConfirmAsZeroDeviceWrites() async throws {
         let package = try statusPackage(device: "DEV-CANCEL", seed: "queued-local")
         try await store.accept(package, resourceFiles: [:])

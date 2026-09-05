@@ -427,7 +427,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         do {
             let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
             let health = try await store.health()
-            XCTAssertEqual(health.schemaVersion, 5)
+            XCTAssertEqual(health.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
             let record = try await store.transaction(package.operationID)
             XCTAssertEqual(record?.state, .failedWithoutWrites)
             XCTAssertNil(record?.messageCode)
@@ -436,7 +436,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
         let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let reopenedHealth = try await reopened.health()
-        XCTAssertEqual(reopenedHealth.schemaVersion, 5)
+        XCTAssertEqual(reopenedHealth.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
         let reopenedRecord = try await reopened.transaction(package.operationID)
         XCTAssertEqual(reopenedRecord?.state, .failedWithoutWrites)
         XCTAssertNil(reopenedRecord?.messageCode)
@@ -678,7 +678,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(gate.updateResult, SQLITE_DONE)
 
         let health = try await store.health()
-        XCTAssertEqual(health.schemaVersion, 5)
+        XCTAssertEqual(health.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
         XCTAssertTrue(try terminalOrderTriggerExists(root: root))
         let historicalOrder = try XCTUnwrap(try terminalOrder(root: root, operationID: historical.operationID))
         let migratedLegacyOrder = try XCTUnwrap(try terminalOrder(root: root, operationID: accepted.operationID))
@@ -1300,7 +1300,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let health = try await store.health()
-        XCTAssertEqual(health.schemaVersion, 5)
+        XCTAssertEqual(health.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
         XCTAssertEqual(try queueOrder(root: root, operationID: first.operationID), 1)
         XCTAssertEqual(try queueOrder(root: root, operationID: second.operationID), 2)
 
@@ -2072,6 +2072,240 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .operationIdentifierConflict)
         }
+    }
+
+    func testConfirmPageStepSealsFieldOnlyOnCompleteActionAndSurvivesReopen() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let file = root.appendingPathComponent("seal.gif")
+        let bytes = Data("gif-c3c-seal".utf8)
+        try bytes.write(to: file)
+        let package = try makePicturePackage(operationID: .init(), bytes: bytes, fileURL: file)
+        let store = try resourceStore(rootDirectory: root)
+        _ = try await store.accept(
+            package,
+            resourceFiles: [package.resources[0].logicalIdentifier: file]
+        )
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        let chunk = try XCTUnwrap(plan.steps.first { $0.identity.rawValue.hasPrefix("page:chunk:") })
+        try await store.confirmPageStep(chunk.identity, package: package, plan: plan)
+        let afterChunk = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertTrue(afterChunk.isEmpty)
+        let projectionAfterChunk = AhaKeyRuntimePageSemantic.confirmationProjection(
+            package: package,
+            confirmed: try await store.confirmedSteps(for: package.operationID),
+            plan: plan
+        )
+        XCTAssertTrue(projectionAfterChunk.confirmedFieldIDs.isEmpty)
+        XCTAssertEqual(
+            Set(projectionAfterChunk.residual.fieldIDs),
+            try XCTUnwrap(package.pageOperation).confirmationLedger.fieldIDs
+        )
+
+        let bind = try XCTUnwrap(plan.steps.first { $0.identity.rawValue.hasPrefix("page:bind:") })
+        try await store.confirmPageStep(bind.identity, package: package, plan: plan)
+        let sealed = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertEqual(sealed.count, 1)
+        XCTAssertEqual(sealed[0].trust, .writeConfirmed)
+        XCTAssertEqual(sealed[0].provenance, .writeConfirmation)
+        XCTAssertEqual(sealed[0].fieldID, bind.fieldID)
+
+        let reopened = try resourceStore(rootDirectory: root)
+        let restored = try await reopened.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertEqual(restored, sealed)
+        let reopenedHealth = try await reopened.health()
+        XCTAssertEqual(reopenedHealth.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
+    }
+
+    func testAuthoritativeReadbackPromotesExactWriteConfirmedAndOverwritesMismatch() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let file = root.appendingPathComponent("promote.gif")
+        let bytes = Data("gif-c3c-promote".utf8)
+        try bytes.write(to: file)
+        let package = try makePicturePackage(operationID: .init(), bytes: bytes, fileURL: file)
+        let store = try resourceStore(rootDirectory: root)
+        _ = try await store.accept(
+            package,
+            resourceFiles: [package.resources[0].logicalIdentifier: file]
+        )
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        let bind = try XCTUnwrap(plan.steps.first { $0.identity.rawValue.hasPrefix("page:bind:") })
+        try await store.confirmPageStep(bind.identity, package: package, plan: plan)
+        let sealedRows = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        let existing = try XCTUnwrap(sealedRows.first)
+        XCTAssertEqual(existing.trust, .writeConfirmed)
+        try await store.applyAuthoritativeFieldReadback(
+            deviceID: existing.deviceID,
+            pageID: existing.pageID,
+            fieldID: existing.fieldID,
+            value: existing.value,
+            generation: 1
+        )
+        let promotedRows = try await store.pageFieldBaselines(deviceID: existing.deviceID)
+        let promoted = try XCTUnwrap(promotedRows.first)
+        XCTAssertEqual(promoted.trust, .verified)
+        XCTAssertEqual(promoted.provenance, .deviceReadback)
+        XCTAssertEqual(promoted.value, existing.value)
+        try await store.applyAuthoritativeFieldReadback(
+            deviceID: existing.deviceID,
+            pageID: existing.pageID,
+            fieldID: existing.fieldID,
+            value: .text("authority-mismatch"),
+            generation: 2
+        )
+        let overwrittenRows = try await store.pageFieldBaselines(deviceID: existing.deviceID)
+        let overwritten = try XCTUnwrap(overwrittenRows.first)
+        XCTAssertEqual(overwritten.trust, .verified)
+        XCTAssertEqual(overwritten.value, .text("authority-mismatch"))
+        XCTAssertEqual(overwritten.authorityGeneration, 2)
+        XCTAssertEqual(overwritten.provenance, .deviceReadback)
+    }
+
+    func testDisconnectClockSurvivesReopenAndRollbackFailsClosed() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "clock")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await store.noteDisconnectIfNeeded(package.operationID, at: started)
+        let early = try await store.evaluateAbandon(
+            operationID: package.operationID,
+            now: started.addingTimeInterval(59),
+            deviceConnected: false
+        )
+        XCTAssertEqual(early, .refused)
+        let eligible = try await store.evaluateAbandon(
+            operationID: package.operationID,
+            now: started.addingTimeInterval(60),
+            deviceConnected: false
+        )
+        XCTAssertEqual(eligible, .abandoned)
+        let connected = try await store.evaluateAbandon(
+            operationID: package.operationID,
+            now: started.addingTimeInterval(60),
+            deviceConnected: true
+        )
+        XCTAssertEqual(connected, .refused)
+        do {
+            _ = try await store.evaluateAbandon(
+                operationID: package.operationID,
+                now: started.addingTimeInterval(-1),
+                deviceConnected: false
+            )
+            XCTFail("clock rollback 必须 fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .clockRollback)
+        }
+        let pausedState = try await store.transaction(package.operationID)?.state
+        XCTAssertEqual(pausedState, .paused)
+
+        let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let restoredClock = try await reopened.disconnectStartedAt(package.operationID)
+        XCTAssertEqual(restoredClock, started)
+        let reopenedEligible = try await reopened.evaluateAbandon(
+            operationID: package.operationID,
+            now: started.addingTimeInterval(60),
+            deviceConnected: false
+        )
+        XCTAssertEqual(reopenedEligible, .abandoned)
+        try await reopened.clearDisconnectClock(package.operationID)
+        try await reopened.noteDisconnectIfNeeded(
+            package.operationID,
+            at: started.addingTimeInterval(120)
+        )
+        let restartedClock = try await reopened.disconnectStartedAt(package.operationID)
+        XCTAssertEqual(restartedClock, started.addingTimeInterval(120))
+    }
+
+    func testAbandonEligibilityRejectsSchema1RunningAndNonHead() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let schema1 = try makePackage(targetDeviceID: "SCHEMA1")
+        let head = try makePageScopedPackage(targetDeviceID: "PAGE-DEVICE", statusLine: "head")
+        let queued = try makePageScopedPackage(
+            operationID: .init(),
+            targetDeviceID: "PAGE-DEVICE",
+            statusLine: "queued"
+        )
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(schema1, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: schema1.operationID,
+                targetDeviceID: schema1.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 2
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await store.noteDisconnectIfNeeded(schema1.operationID, at: started)
+        let schema1Disposition = try await store.evaluateAbandon(
+            operationID: schema1.operationID,
+            now: started.addingTimeInterval(60),
+            deviceConnected: false
+        )
+        XCTAssertEqual(schema1Disposition, .refused)
+
+        _ = try await store.accept(head, resourceFiles: [:])
+        _ = try await store.accept(queued, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: head.operationID,
+                targetDeviceID: head.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        try await store.noteDisconnectIfNeeded(head.operationID, at: started)
+        try await store.noteDisconnectIfNeeded(queued.operationID, at: started)
+        let queuedDisposition = try await store.evaluateAbandon(
+            operationID: queued.operationID,
+            now: started.addingTimeInterval(60),
+            deviceConnected: false
+        )
+        XCTAssertEqual(queuedDisposition, .refused)
+        try await store.updateOperation(
+            .init(
+                id: head.operationID,
+                targetDeviceID: head.targetDeviceID,
+                state: .running,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let runningDisposition = try await store.evaluateAbandon(
+            operationID: head.operationID,
+            now: started.addingTimeInterval(60),
+            deviceConnected: false
+        )
+        XCTAssertEqual(runningDisposition, .refused)
     }
 
     private func mutateRuntimeMetadata(root: URL, key: String, value: Data?) throws {

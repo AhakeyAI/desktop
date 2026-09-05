@@ -863,6 +863,100 @@ public enum AhaKeyRuntimeOperationState: String, Codable, Equatable, Sendable {
     }
 }
 
+/// C3C：显式 abandon 资格窗口。仅 FIFO 队首 paused/resumable 且持续断连满此时长才可受理。
+public enum AhaKeyRuntimeAbandonPolicy {
+    public static let requiredDisconnectedDuration: TimeInterval = 60
+}
+
+/// Runtime 拥有的 baseline 信任；不得从 Studio cache 升格为 verified。
+public enum AhaKeyRuntimeBaselineTrust: String, Codable, Equatable, Sendable {
+    case verified
+    case writeConfirmed
+    case unknown
+}
+
+public enum AhaKeyRuntimeBaselineProvenance: String, Codable, Equatable, Sendable {
+    case deviceReadback
+    case writeConfirmation
+    case absent
+}
+
+/// 持久化的 typed 字段值。不含本地路径；图片用 CAS digest。
+public enum AhaKeyRuntimeBaselineValue: Codable, Equatable, Sendable {
+    case text(String)
+    case optionalText(String?)
+    case integer(Int)
+    case keyAction(AhaKeyDesiredConfiguration.KeyAction)
+    case taskAsset(
+        sha256: String,
+        byteCount: UInt64,
+        mediaType: String,
+        framesPerSecond: Int,
+        declaredFrameCount: Int?
+    )
+}
+
+/// 按 device/page/field 稳定键持久化的页面 baseline。
+public struct AhaKeyRuntimeFieldBaseline: Codable, Equatable, Sendable {
+    public let deviceID: AhaKeyRuntimeDeviceID
+    public let pageID: AhaKeyStudioPageID
+    public let fieldID: AhaKeyStudioFieldID
+    public let value: AhaKeyRuntimeBaselineValue
+    public let trust: AhaKeyRuntimeBaselineTrust
+    public let provenance: AhaKeyRuntimeBaselineProvenance
+    public let operationID: AhaKeyRuntimeOperationID
+    public let authorityGeneration: UInt64?
+
+    public init(
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        fieldID: AhaKeyStudioFieldID,
+        value: AhaKeyRuntimeBaselineValue,
+        trust: AhaKeyRuntimeBaselineTrust,
+        provenance: AhaKeyRuntimeBaselineProvenance,
+        operationID: AhaKeyRuntimeOperationID,
+        authorityGeneration: UInt64? = nil
+    ) {
+        self.deviceID = deviceID
+        self.pageID = pageID
+        self.fieldID = fieldID
+        self.value = value
+        self.trust = trust
+        self.provenance = provenance
+        self.operationID = operationID
+        self.authorityGeneration = authorityGeneration
+    }
+}
+
+/// 冻结 ledger 减去已密封完整 field/resource 后的精确剩余。
+public struct AhaKeyRuntimePageResidual: Codable, Equatable, Sendable {
+    public let fieldIDs: [AhaKeyStudioFieldID]
+    public let resources: [AhaKeyRuntimeConfirmationLedger.Entry.ResourceIdentity]
+
+    public init(
+        fieldIDs: [AhaKeyStudioFieldID] = [],
+        resources: [AhaKeyRuntimeConfirmationLedger.Entry.ResourceIdentity] = []
+    ) {
+        self.fieldIDs = fieldIDs
+        self.resources = resources
+    }
+
+    public var isEmpty: Bool { fieldIDs.isEmpty && resources.isEmpty }
+}
+
+public struct AhaKeyRuntimePageConfirmationProjection: Equatable, Sendable {
+    public let confirmedFieldIDs: Set<AhaKeyStudioFieldID>
+    public let confirmedResources: Set<AhaKeyRuntimeConfirmationLedger.Entry.ResourceIdentity>
+    public let residual: AhaKeyRuntimePageResidual
+}
+
+public enum AhaKeyRuntimeAbandonDisposition: Codable, Equatable, Sendable {
+    case abandoned
+    case refused
+    case notFound
+    case alreadyFinished
+}
+
 public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let id: AhaKeyRuntimeOperationID
     public let targetDeviceID: AhaKeyRuntimeDeviceID
@@ -878,6 +972,10 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let currentStepID: AhaKeyRuntimeStepIdentifier?
     /// C-3：结构化失败上下文。缺省/旧 payload 为 nil；成功 operation 必须为 nil。
     public let failureContext: AhaKeyRuntimeOperationFailureContext?
+    /// C3C：精确剩余 field/resource。缺省/旧 payload 为 nil。
+    public let residual: AhaKeyRuntimePageResidual?
+    /// C3C：本页已确认 baseline。缺省/旧 payload 为 nil。
+    public let confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?
 
     public init(
         id: AhaKeyRuntimeOperationID,
@@ -889,7 +987,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         completedBytes: UInt64? = nil,
         totalBytes: UInt64? = nil,
         currentStepID: AhaKeyRuntimeStepIdentifier? = nil,
-        failureContext: AhaKeyRuntimeOperationFailureContext? = nil
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil,
+        residual: AhaKeyRuntimePageResidual? = nil,
+        confirmedBaselines: [AhaKeyRuntimeFieldBaseline]? = nil
     ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
@@ -901,6 +1001,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.totalBytes = totalBytes
         self.currentStepID = currentStepID
         self.failureContext = failureContext.flatMap { $0.isEmpty ? nil : $0 }
+        self.residual = residual
+        self.confirmedBaselines = confirmedBaselines
     }
 
     public func withByteProgress(
@@ -918,7 +1020,29 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             completedBytes: completedBytes,
             totalBytes: totalBytes,
             currentStepID: currentStepID,
-            failureContext: failureContext
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines
+        )
+    }
+
+    public func withPageFacts(
+        residual: AhaKeyRuntimePageResidual?,
+        confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?
+    ) -> AhaKeyRuntimeOperationSummary {
+        AhaKeyRuntimeOperationSummary(
+            id: id,
+            targetDeviceID: targetDeviceID,
+            state: state,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID,
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines
         )
     }
 }
@@ -1005,6 +1129,8 @@ public struct AhaKeyRuntimeSnapshot: Codable, Equatable, Sendable {
     public let permissions: AhaKeyRuntimePermissionSnapshot
     public let keepAliveReasons: Set<AhaKeyRuntimeKeepAliveReason>
     public let latestEventSequence: AhaKeyRuntimeEventSequence
+    /// C3C：当前设备已确认页面 baseline。缺省/旧 payload 为空。
+    public let pageBaselines: [AhaKeyRuntimeFieldBaseline]
 
     public init(
         runtimeVersion: AhaKeyRuntimeVersion = .development,
@@ -1018,7 +1144,8 @@ public struct AhaKeyRuntimeSnapshot: Codable, Equatable, Sendable {
         policy: AhaKeyRuntimePolicy,
         permissions: AhaKeyRuntimePermissionSnapshot = .init(),
         keepAliveReasons: Set<AhaKeyRuntimeKeepAliveReason>? = nil,
-        latestEventSequence: AhaKeyRuntimeEventSequence
+        latestEventSequence: AhaKeyRuntimeEventSequence,
+        pageBaselines: [AhaKeyRuntimeFieldBaseline] = []
     ) {
         self.runtimeVersion = runtimeVersion
         self.interfaceVersion = interfaceVersion
@@ -1032,6 +1159,7 @@ public struct AhaKeyRuntimeSnapshot: Codable, Equatable, Sendable {
         self.permissions = permissions
         self.keepAliveReasons = keepAliveReasons ?? policy.keepAliveReasons
         self.latestEventSequence = latestEventSequence
+        self.pageBaselines = pageBaselines
     }
 }
 
@@ -1121,6 +1249,7 @@ public protocol AhaKeyRuntimeClient: Sendable {
     func events(after sequence: AhaKeyRuntimeEventSequence?) async -> AsyncThrowingStream<AhaKeyRuntimeEvent, Error>
     func apply(_ package: AhaKeyConfigurationPackage) async throws -> AhaKeyRuntimeOperationID
     func requestCancellation(of operation: AhaKeyRuntimeOperationID) async throws -> AhaKeyRuntimeCancellationDisposition
+    func requestAbandon(of operation: AhaKeyRuntimeOperationID) async throws -> AhaKeyRuntimeAbandonDisposition
     func updatePolicy(_ policy: AhaKeyRuntimePolicy) async throws
 }
 

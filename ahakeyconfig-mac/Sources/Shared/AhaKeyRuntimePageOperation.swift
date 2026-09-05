@@ -891,9 +891,14 @@ public struct AhaKeyRuntimeConfirmationLedger: Codable, Equatable, Sendable {
         case pendingField(AhaKeyStudioFieldID)
         case pendingResource(logicalID: AhaKeyResourceIdentifier, sha256: AhaKeySHA256Digest)
 
-        public struct ResourceIdentity: Equatable, Hashable, Sendable {
+        public struct ResourceIdentity: Codable, Equatable, Hashable, Sendable {
             public let logicalID: AhaKeyResourceIdentifier
             public let sha256: AhaKeySHA256Digest
+
+            public init(logicalID: AhaKeyResourceIdentifier, sha256: AhaKeySHA256Digest) {
+                self.logicalID = logicalID
+                self.sha256 = sha256
+            }
         }
 
         public var fieldID: AhaKeyStudioFieldID? {

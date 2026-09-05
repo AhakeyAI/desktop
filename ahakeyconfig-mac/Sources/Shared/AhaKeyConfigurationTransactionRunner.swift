@@ -49,9 +49,14 @@ public struct AhaKeyConfigurationTransactionRunner {
     public typealias StepExecutor = (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult
 
     public let store: AhaKeyRuntimePersistentStore
+    public let now: @Sendable () -> Date
 
-    public init(store: AhaKeyRuntimePersistentStore) {
+    public init(
+        store: AhaKeyRuntimePersistentStore,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         self.store = store
+        self.now = now
     }
 
     /// 受理或接管一个 package 并跑到「完成 / 可恢复 / 终态」。
@@ -225,7 +230,11 @@ public struct AhaKeyConfigurationTransactionRunner {
                 if report.success {
                     capturedMessageCode = nil
                     capturedContext = nil
-                    try await store.confirmStep(step, for: package.operationID)
+                    if let pagePlan {
+                        try await store.confirmPageStep(step, package: package, plan: pagePlan)
+                    } else {
+                        try await store.confirmStep(step, for: package.operationID)
+                    }
                     confirmed = try await store.confirmedSteps(for: package.operationID)
                     actions = AhaKeyConfigurationTransactionEngine.decide(
                         event: .stepSucceeded(step),
@@ -387,6 +396,48 @@ public struct AhaKeyConfigurationTransactionRunner {
                 failureContext: failureContext
             )
         )
+        switch state {
+        case .paused, .resumablePartial:
+            if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+                try await store.noteDisconnectIfNeeded(package.operationID, at: now())
+            }
+        case .running:
+            try await store.clearDisconnectClock(package.operationID)
+        default:
+            break
+        }
+    }
+
+    /// schema=2 FIFO 队首 paused/resumable 且连续断连满 60 秒才受理；与 fail-fast 共用 confirmed-ledger 终态。
+    public func requestAbandon(
+        operationID: AhaKeyRuntimeOperationID,
+        now: Date? = nil,
+        deviceConnected: Bool
+    ) async throws -> AhaKeyRuntimeAbandonDisposition {
+        let clock = now ?? self.now()
+        let disposition = try await store.evaluateAbandon(
+            operationID: operationID,
+            now: clock,
+            deviceConnected: deviceConnected
+        )
+        guard disposition == .abandoned else { return disposition }
+        guard let record = try await store.transaction(operationID) else { return .notFound }
+        let confirmed = try await store.confirmedSteps(for: operationID)
+        let hasWrites = pageDeviceWrites(package: record.package, confirmed: confirmed)
+        let state: AhaKeyRuntimeOperationState = hasWrites ? .failedWithPartialCommit : .failedWithoutWrites
+        try await store.commitOperationOutcome(
+            AhaKeyRuntimeOperationSummary(
+                id: operationID,
+                targetDeviceID: record.package.targetDeviceID,
+                state: state,
+                completedSteps: record.completedSteps,
+                totalSteps: record.totalSteps,
+                messageCode: .configurationDisconnected
+            ),
+            syncBaseline: nil
+        )
+        try await store.clearDisconnectClock(operationID)
+        return .abandoned
     }
 
     private func pageDeviceWrites(

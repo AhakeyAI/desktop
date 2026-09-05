@@ -323,6 +323,7 @@ public enum AhaKeyRuntimeXPCRequest: Codable, Equatable, Sendable {
     case events(after: AhaKeyRuntimeEventSequence?)
     case apply(AhaKeyConfigurationPackage)
     case requestCancellation(AhaKeyRuntimeOperationID)
+    case requestAbandon(AhaKeyRuntimeOperationID)
     case updatePolicy(AhaKeyRuntimePolicy)
     case diagnostics(after: AhaKeyRuntimeEventSequence?)
     case startFirmwareUpgrade(AhaKeyRuntimeFirmwareUpgradeRequest)
@@ -335,6 +336,7 @@ public enum AhaKeyRuntimeXPCResponse: Codable, Equatable, Sendable {
     case eventReplay(AhaKeyRuntimeEventReplayResult)
     case operationAccepted(AhaKeyRuntimeOperationID)
     case cancellation(AhaKeyRuntimeCancellationDisposition)
+    case abandon(AhaKeyRuntimeAbandonDisposition)
     case policyUpdated
     case diagnosticEvents([AhaKeyRuntimeEvent])
     case firmwareUpgradeAccepted(AhaKeyRuntimeOperationID)
@@ -382,7 +384,7 @@ public struct AhaKeyRuntimeXPCSession: Sendable {
             negotiatedVersion = proposed.interfaceVersion
             return .handshakeAccepted(proposed.interfaceVersion)
 
-        case .snapshot, .events, .apply, .requestCancellation, .updatePolicy,
+        case .snapshot, .events, .apply, .requestCancellation, .requestAbandon, .updatePolicy,
              .diagnostics, .startFirmwareUpgrade, .ingestResources:
             guard negotiatedVersion != nil else {
                 throw AhaKeyRuntimeXPCSessionError.handshakeRequired

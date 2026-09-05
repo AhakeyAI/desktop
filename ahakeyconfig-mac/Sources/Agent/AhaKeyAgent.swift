@@ -1156,6 +1156,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case .requestCancellation(let operationID):
             return .cancellation(await cancelConfiguration(operationID: operationID))
 
+        case .requestAbandon(let operationID):
+            return .abandon(await abandonConfiguration(operationID: operationID))
+
         case .snapshot:
             return .snapshot(await projectedRuntimeSnapshot())
 
@@ -1766,6 +1769,7 @@ extension AhaKeyAgent {
         emit(NSLocalizedString("连接断开", comment: ""))
         performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
         publishDeviceChangedIfNeeded()
+        Task { await self.noteDurableDisconnect() }
     }
 
     // MARK: - CBPeripheralDelegate
@@ -2312,7 +2316,10 @@ extension AhaKeyAgent {
     /// ready 后捞起 WAL 里未竟事务续跑（断线/重启恢复入口）。
     /// R2-2：统一走串行协调器 kick——与新受理共用同一 worker，互不插队、不并行。
     private func scheduleConfigurationRecovery() {
-        Task { await configurationCoordinator.kick() }
+        Task {
+            await self.clearDurableDisconnectClocks()
+            await configurationCoordinator.kick()
+        }
     }
 
     // MARK: 生产受理 / 取消入口（WBS-5.6 R7；WBS-5.7 R1 改为 durable accept + 异步执行）
@@ -2396,6 +2403,35 @@ extension AhaKeyAgent {
         }
     }
 
+    /// C3C：显式 abandon。资格由 WAL 断连时钟 + FIFO/schema/状态判定；不改 BLE 生命周期。
+    func abandonConfiguration(operationID: AhaKeyRuntimeOperationID) async -> AhaKeyRuntimeAbandonDisposition {
+        do {
+            let store = try await makeRuntimeStore()
+            let deviceConnected = await MainActor.run { self.configurationWriteIsReady() }
+            let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
+            let disposition = try await AhaKeyConfigurationTransactionRunner(
+                store: store,
+                now: { now }
+            ).requestAbandon(
+                operationID: operationID,
+                now: now,
+                deviceConnected: deviceConnected
+            )
+            if disposition == .abandoned {
+                emit("配置事务 \(operationID.rawValue.uuidString.prefix(8))… 已放弃")
+                await publishOperationProgress(operationID: operationID)
+                await configurationCoordinator.kick()
+            }
+            return disposition
+        } catch AhaKeyRuntimePersistenceError.clockRollback {
+            emit("配置事务 \(operationID.rawValue.uuidString.prefix(8))… abandon clock rollback，拒绝")
+            return .refused
+        } catch {
+            emit("配置事务放弃失败：\(error.localizedDescription)")
+            return .notFound
+        }
+    }
+
     /// R4：纯 WAL 取消结算。不得发 BLE，可在 paused 队首之前把排队取消推到终态。
     private func settleQueuedCancellations() async {
         guard let store = try? await makeRuntimeStore(),
@@ -2416,7 +2452,11 @@ extension AhaKeyAgent {
         store: AhaKeyRuntimePersistentStore,
         context: AhaKeyOLEDCompatibilityContext
     ) async throws -> AhaKeyRuntimeOperationState {
-        let runner = AhaKeyConfigurationTransactionRunner(store: store)
+        let wallClock = await MainActor.run { self.executionTestHooks?.wallClock }
+        let runner = AhaKeyConfigurationTransactionRunner(
+            store: store,
+            now: { wallClock?() ?? Date() }
+        )
         return try await withConfigurationTransportWindow {
             try await self.runConfigurationProgram(
                 runner: runner, package: package, resourceFiles: resourceFiles,
@@ -3020,17 +3060,89 @@ extension AhaKeyAgent {
 
     /// 用已经读到的 durable record 投影，避免二次 `try?` 把终态吞掉。
     private func publishOperationProgress(from record: AhaKeyRuntimePersistedTransaction) async {
-        let summary = await MainActor.run { () -> AhaKeyRuntimeOperationSummary in
+        await MainActor.run {
             if record.state.isTerminal {
                 _ = self.byteProgressByOperation[record.operationID]?.publishTerminal(
                     nowNanos: self.progressNowNanos()
                 )
             }
-            return self.overlayByteProgress(Self.operationSummary(from: record))
         }
+        let store = try? await makeRuntimeStore()
+        let enriched = await operationSummaryWithPageFacts(from: record, store: store)
         await MainActor.run {
-            self.publishOperationChanged(summary)
+            self.publishOperationChanged(self.overlayByteProgress(enriched))
         }
+    }
+
+    private func operationSummaryWithPageFacts(
+        from record: AhaKeyRuntimePersistedTransaction,
+        store: AhaKeyRuntimePersistentStore?
+    ) async -> AhaKeyRuntimeOperationSummary {
+        var summary = Self.operationSummary(from: record)
+        guard let store,
+              record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+              let plan = try? AhaKeyRuntimePageSemantic.executionPlan(
+                package: record.package,
+                userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
+              ) else {
+            return summary
+        }
+        let confirmed = (try? await store.confirmedSteps(for: record.operationID)) ?? []
+        let projection = AhaKeyRuntimePageSemantic.confirmationProjection(
+            package: record.package,
+            confirmed: confirmed,
+            plan: plan
+        )
+        let baselines: [AhaKeyRuntimeFieldBaseline]
+        if let pageID = record.package.pageOperation?.pageScope {
+            baselines = (try? await store.pageFieldBaselines(
+                deviceID: record.package.targetDeviceID,
+                pageID: pageID
+            )) ?? []
+        } else {
+            baselines = []
+        }
+        summary = summary.withPageFacts(
+            residual: projection.residual,
+            confirmedBaselines: baselines
+        )
+        return summary
+    }
+
+    private func noteDurableDisconnect() async {
+        let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
+        let deviceID = await MainActor.run { self.currentRuntimeDeviceID() }
+        guard let deviceID, let store = try? await makeRuntimeStore() else { return }
+        guard let candidates = try? await store.recoveryCandidates() else { return }
+        for candidate in candidates where candidate.package.targetDeviceID == deviceID {
+            guard candidate.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
+                continue
+            }
+            switch candidate.state {
+            case .paused, .resumablePartial, .running:
+                try? await store.noteDisconnectIfNeeded(candidate.operationID, at: now)
+            default:
+                continue
+            }
+        }
+    }
+
+    private func clearDurableDisconnectClocks() async {
+        let deviceID = await MainActor.run { self.currentRuntimeDeviceID() }
+        guard let deviceID, let store = try? await makeRuntimeStore() else { return }
+        try? await store.clearDisconnectClocks(for: deviceID)
+    }
+
+    @MainActor
+    private func currentRuntimeDeviceID() -> AhaKeyRuntimeDeviceID? {
+        if let simulated = executionTestHooks?.simulatedDevice?.id {
+            return simulated
+        }
+        if let stable = executionTestHooks?.stableDeviceID ?? transportCore.stableDeviceID,
+           let parsed = try? AhaKeyRuntimeDeviceID(stable) {
+            return parsed
+        }
+        return projectedDeviceSnapshot()?.id
     }
 
     private static func operationSummary(from record: AhaKeyRuntimePersistedTransaction) -> AhaKeyRuntimeOperationSummary {
@@ -3393,6 +3505,7 @@ extension AhaKeyAgent {
         }
         var operations = main.cachedOperations
         var revision = AhaKeyConfigurationRevision(0)
+        var pageBaselines: [AhaKeyRuntimeFieldBaseline] = []
         if let store = try? await makeRuntimeStore() {
             // WAL 非终态事务并入投影。
             if let candidates = try? await store.recoveryCandidates() {
@@ -3453,9 +3566,16 @@ extension AhaKeyAgent {
                 }
             }
             operations = bounded
-            if let deviceID = main.activeDeviceID,
-               let baseline = try? await store.syncBaseline(for: deviceID) {
-                revision = baseline.revision
+            if let deviceID = main.activeDeviceID {
+                if let baseline = try? await store.syncBaseline(for: deviceID) {
+                    revision = baseline.revision
+                }
+                pageBaselines = (try? await store.pageFieldBaselines(deviceID: deviceID)) ?? []
+            }
+            for id in operations.keys {
+                if let record = try? await store.transaction(id) {
+                    operations[id] = await self.operationSummaryWithPageFacts(from: record, store: store)
+                }
             }
         }
         for id in operations.keys {
@@ -3471,7 +3591,8 @@ extension AhaKeyAgent {
             configurationRevision: revision,
             operations: operations.values.sorted { $0.id.rawValue.uuidString < $1.id.rawValue.uuidString },
             policy: main.policy,
-            latestEventSequence: main.latestEventSequence
+            latestEventSequence: main.latestEventSequence,
+            pageBaselines: pageBaselines
         )
     }
 
@@ -3998,6 +4119,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var afterEnteringConfigurationStep: (@Sendable (AhaKeyRuntimeStepIdentifier) async -> Void)?
     /// 可注入单调 tick（纳秒）；nil 时用 `DispatchTime` uptime。
     var progressMonotonicNanos: (@Sendable () -> UInt64)?
+    /// C3C：可注入 wall clock（abandon 60s / 断连窗口）；nil 时用 `Date()`。
+    var wallClock: (@Sendable () -> Date)?
     /// 权威对象 durable commit 前的异步屏障（N/N+1 逆序；生产恒 nil）。
     var beforeAuthoritativeObjectCommit: (@Sendable () async -> Void)?
     /// 为 true 时权威对象 commit fail-closed，不发布带 object 的 deviceChanged。

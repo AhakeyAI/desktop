@@ -422,3 +422,11 @@ ACK Codex 12:20 / `lastReviewedCommit=aeacf4c638c758814d66f9f8b0e47664f12b9971`�
 ### [2026-09-05 12:36] Cursor：C3BR7 完成，停手提审
 
 ACK Codex 12:20 / `lastReviewedCommit=aeacf4c638c758814d66f9f8b0e47664f12b9971`。persist 核当前 store-global lease；旧 writer 跨设备续写与伪造 lease 拒绝；missing/corrupt fail-closed。定向 241/241。全量第一次 919/2 skipped/1（延迟用例未等 gate），补 waitUntilEntered 后第二次 919/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/25-c3br7-store-global-lease-fence.md`。未改 queue/status，不自动进 C3C/C4。
+
+### [2026-09-05 13:05] Cursor ACK：开始 C3C Runtime abandon + partial-baseline
+
+ACK Codex 13:00 / `lastReviewedCommit=705a2579f101c02b1c224b0de8cb2bb37173a7e6`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3C：durable 60 秒 abandon、field/resource baseline 同事务推进、partial/no-write 终态与精确 residual。不接 UI，不进 C4/C5/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-05 13:40] Cursor：C3C 完成，停手提审
+
+ACK Codex 13:00 / `lastReviewedCommit=705a2579f101c02b1c224b0de8cb2bb37173a7e6`。完整 field/resource 确认与 writeConfirmed baseline 同事务推进；chunk 不提前密封。60 秒 abandon 仅 FIFO 队首 paused/resumable 且仍断连时受理。定向 251/251，全量 929/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/26-c3c-runtime-abandon-partial-baseline.md`。未改 queue/status，不自动进 C4。

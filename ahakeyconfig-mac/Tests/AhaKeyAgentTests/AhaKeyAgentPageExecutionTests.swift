@@ -178,6 +178,87 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testXPCAbandonAfterSixtySecondDisconnectReleasesHead() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let head = try statusPackage(device: "TEST-DEVICE", seed: "abandon-head")
+            let queued = try statusPackage(device: "TEST-DEVICE", seed: "abandon-queued")
+            guard case .operationAccepted = try await client.exchange(.apply(head)) else {
+                return XCTFail("head apply")
+            }
+            await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            guard case .operationAccepted = try await client.exchange(.apply(queued)) else {
+                return XCTFail("queued apply")
+            }
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var disconnected = agent.executionTestHooks
+            disconnected?.isReady = false
+            disconnected?.configurationCharacteristics = .init(peripheral: false, command: false, data: false)
+            disconnected?.wallClock = { now }
+            agent.executionTestHooks = disconnected
+            guard case .abandon(let disposition) = try await client.exchange(.requestAbandon(head.operationID)) else {
+                return XCTFail("abandon response")
+            }
+            XCTAssertEqual(disposition, .abandoned)
+            await expectTerminal(agent, head.operationID, .failedWithoutWrites)
+
+            var resumeHooks = agent.executionTestHooks
+            resumeHooks?.isReady = true
+            resumeHooks?.configurationCharacteristics = .allPresent
+            resumeHooks?.stepExecutor = { _ in .success }
+            agent.executionTestHooks = resumeHooks
+            guard case .operationAccepted = try await client.exchange(.apply(queued)) else {
+                return XCTFail("queued resume apply")
+            }
+            await expectTerminal(agent, queued.operationID, .completed)
+        }
+    }
+
+    func testAbandonClockSurvivesAgentReopen() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "reopen-clock")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.closeRuntimeStoreForTesting()
+            agent.shutdown()
+
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            let reopened = try await makePreparedAgent(storeDirectory: storeDir)
+            var reopenHooks = reopened.executionTestHooks
+            reopenHooks?.isReady = false
+            reopenHooks?.configurationCharacteristics = .init(peripheral: false, command: false, data: false)
+            reopenHooks?.wallClock = { now }
+            reopened.executionTestHooks = reopenHooks
+            let reopenClient = EndpointClient(agent: reopened)
+            try await reopenClient.handshake()
+            guard case .abandon(let disposition) = try await reopenClient.exchange(
+                .requestAbandon(package.operationID)
+            ) else {
+                return XCTFail("reopen abandon")
+            }
+            XCTAssertEqual(disposition, .abandoned)
+            await expectTerminal(reopened, package.operationID, .failedWithoutWrites)
+        }
+    }
+
     func testPictureDisconnectResumesZeroResendAcrossAgentReopen() {
         runTest { [self] in
             let agent = try await makeReadyAgent(userSlotLimit: 64)

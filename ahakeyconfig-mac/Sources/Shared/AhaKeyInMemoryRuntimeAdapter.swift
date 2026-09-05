@@ -102,6 +102,16 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         return .requested
     }
 
+    public func requestAbandon(
+        of operation: AhaKeyRuntimeOperationID
+    ) async throws -> AhaKeyRuntimeAbandonDisposition {
+        guard let summary = currentSnapshot.operations.first(where: { $0.id == operation }) else {
+            return .notFound
+        }
+        guard !summary.state.isTerminal else { return .alreadyFinished }
+        return .refused
+    }
+
     public func updatePolicy(_ policy: AhaKeyRuntimePolicy) async throws {
         guard policy != currentSnapshot.policy else { return }
         rebuildSnapshot(policy: policy, keepAliveReasons: policy.keepAliveReasons)
@@ -226,7 +236,8 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             policy: policy ?? currentSnapshot.policy,
             permissions: permissions ?? currentSnapshot.permissions,
             keepAliveReasons: keepAliveReasons ?? currentSnapshot.keepAliveReasons,
-            latestEventSequence: latestEventSequence ?? currentSnapshot.latestEventSequence
+            latestEventSequence: latestEventSequence ?? currentSnapshot.latestEventSequence,
+            pageBaselines: currentSnapshot.pageBaselines
         )
     }
 
