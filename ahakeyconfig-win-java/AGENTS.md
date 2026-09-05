@@ -201,6 +201,10 @@ UI 组件：
 
 ## BLE 驱动管理
 
+生产 app image 的唯一运行时布局为 `app/ble-driver/BLE_tcp_driver.exe`；开发运行
+允许由应用/仓库祖先目录解析 `BLE_tcp_bridge/bin/Release/BLE_tcp_driver.exe` 作为
+受控 fallback，禁止写死开发机绝对路径。
+
 ### BLE 驱动按钮功能
 
 - **短按**：启动可见的 `BLE_tcp_driver.exe`；若已有同一路径实例则接管并置前

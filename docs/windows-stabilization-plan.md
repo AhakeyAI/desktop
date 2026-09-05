@@ -182,7 +182,7 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
   上传回调成功后才复制并保存 metadata，重启从 `StudioStore` 恢复，预览不读取设备 GIF 数据。
   自动测试完成，GIF/OLED 真机和 UI 手工验证待执行。
 
-本轮自动测试新增 20 个定向测试（WCHISP 13、managed screen asset 7）；完整 Maven
+本轮新增 9 个定向测试（BLE driver locator 3、WCHISP runtime/error mapping/log retention 6）；完整 Maven
 结果以下一节以实际命令输出为准。当前工作区外层 `C:\aha\ahakey-windows\windows-stabilization-plan.md`
 不存在，无法伪造同步；本文件仍是 `desktop` 工程唯一可用事实源。
 
@@ -230,3 +230,30 @@ Release EXE 已存在于 `BLE_tcp_bridge\\bin\\Release\\BLE_tcp_driver.exe`，�
 
 早期 132/148 tests、旧 `0x9D` capability 说法和 1.4.3 bundled 结论均为历史记录，
 不再代表当前合同。历史 patch 可追溯，但不得覆盖本文件上述当前事实。
+
+## 10. SW-001/SW-002/SW-004 交付记录（2026-09-06）
+
+本轮仍基于只读 Firmware `firmware-stable-rebase-79`（runtime origin
+`79ecabad3c8fd013aba7a6e12a13b5836fbc8924`）。固件、协议、GATT schema、GIF Flash
+layout 均未修改。
+
+* SW-001：Java 运行时优先解析 `<app-root>\ble-driver\BLE_tcp_driver.exe`，再尝试
+  兼容旧 app 布局，最后才从应用/仓库祖先目录解析开发期
+  `BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe`；找不到时列出全部尝试路径。发布
+  输入强制将 Driver 放入 `app/ble-driver`，并输出 `BLE_DRIVER_BUILD`、
+  `BLE_DRIVER_PACKAGED` 和 canonical path 门禁。窗口启动/置前/精确进程 ownership
+  仍由 `BleBridgeProcessOwner` 管理。
+* SW-002：新增 `wchisp-runtime.json` 运行时合同，固定 3.6.1 tool/DLL/config contract、
+  CH57x/CH59x、CH582 和配置 layout fingerprint；缺少组件、混合版本或未知配置均
+  fail closed。`-u get` 的 exit 100 现在区分“Windows 已枚举 WCH ISP 但 UID 读取失败”
+  与“未枚举设备”，并将 command/stdout/stderr/console/result/runtime-version/
+  config-fingerprint 持久到 `%USERPROFILE%\.ahakey\logs\wchisp-last-failure`。
+* SW-003：本轮只做回归确认，首页“配置屏幕动画”入口和无直接上传行为保持不变。
+* SW-004：当前资源仍定义为 Studio managed cache 的 profile×state 本地记录；只有
+  设备 ACK 成功后才更新 metadata，重启可恢复，不读取设备完整 GIF。
+
+当前状态：SW-001 为“Fixed in Code / Pending Hardware & Release Regression”；SW-002
+为“Fixed in Code / Pending Real WCHISP Runtime Hardware Validation”；HV-002 为
+“Fixed in Code / End-to-End Blocked by SW-002”；SW-003 为“Fixed / Regression
+Verified”；SW-004 为“Fixed in Code / Pending UI/Device Workflow Regression”。
+这些状态均不等同于真机通过。
