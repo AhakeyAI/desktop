@@ -2317,7 +2317,7 @@ extension AhaKeyAgent {
     /// R2-2：统一走串行协调器 kick——与新受理共用同一 worker，互不插队、不并行。
     private func scheduleConfigurationRecovery() {
         Task {
-            await self.clearDurableDisconnectClocks()
+            await self.clearMatchingDisconnectEpochs()
             await configurationCoordinator.kick()
         }
     }
@@ -2407,7 +2407,7 @@ extension AhaKeyAgent {
     func abandonConfiguration(operationID: AhaKeyRuntimeOperationID) async -> AhaKeyRuntimeAbandonDisposition {
         do {
             let store = try await makeRuntimeStore()
-            let deviceConnected = await MainActor.run { self.configurationWriteIsReady() }
+            let connection = await MainActor.run { self.currentConnectionPresence() }
             let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
             let disposition = try await AhaKeyConfigurationTransactionRunner(
                 store: store,
@@ -2415,7 +2415,7 @@ extension AhaKeyAgent {
             ).requestAbandon(
                 operationID: operationID,
                 now: now,
-                deviceConnected: deviceConnected
+                connection: connection
             )
             if disposition == .abandoned {
                 emit("配置事务 \(operationID.rawValue.uuidString.prefix(8))… 已放弃")
@@ -3111,26 +3111,27 @@ extension AhaKeyAgent {
 
     private func noteDurableDisconnect() async {
         let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
-        let deviceID = await MainActor.run { self.currentRuntimeDeviceID() }
-        guard let deviceID, let store = try? await makeRuntimeStore() else { return }
+        let identity = await MainActor.run { self.currentConnectionIdentity() }
+        guard let identity, let store = try? await makeRuntimeStore() else { return }
         guard let candidates = try? await store.recoveryCandidates() else { return }
-        for candidate in candidates where candidate.package.targetDeviceID == deviceID {
+        let epoch = AhaKeyRuntimeDisconnectEpoch(identity: identity, startedAt: now)
+        for candidate in candidates where candidate.package.targetDeviceID == identity.deviceID {
             guard candidate.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
                 continue
             }
             switch candidate.state {
             case .paused, .resumablePartial, .running:
-                try? await store.noteDisconnectIfNeeded(candidate.operationID, at: now)
+                try? await store.mintDisconnectEpoch(candidate.operationID, epoch: epoch)
             default:
                 continue
             }
         }
     }
 
-    private func clearDurableDisconnectClocks() async {
-        let deviceID = await MainActor.run { self.currentRuntimeDeviceID() }
-        guard let deviceID, let store = try? await makeRuntimeStore() else { return }
-        try? await store.clearDisconnectClocks(for: deviceID)
+    private func clearMatchingDisconnectEpochs() async {
+        let identity = await MainActor.run { self.currentConnectionIdentity() }
+        guard let identity, let store = try? await makeRuntimeStore() else { return }
+        try? await store.clearDisconnectEpochs(succeeding: identity)
     }
 
     @MainActor
@@ -3143,6 +3144,42 @@ extension AhaKeyAgent {
             return parsed
         }
         return projectedDeviceSnapshot()?.id
+    }
+
+    @MainActor
+    private func currentConnectionIdentity() -> AhaKeyRuntimeConnectionIdentity? {
+        if let simulated = executionTestHooks?.simulatedDevice {
+            return AhaKeyRuntimeConnectionIdentity(simulated)
+        }
+        guard let deviceID = currentRuntimeDeviceID() else { return nil }
+        let generations = transportCore.currentGenerations
+        return AhaKeyRuntimeConnectionIdentity(
+            deviceID: deviceID,
+            sessionGeneration: .init(generations.session),
+            transportGeneration: .init(generations.transport)
+        )
+    }
+
+    @MainActor
+    private func currentConnectionPresence() -> AhaKeyRuntimeConnectionPresence {
+        if let simulated = executionTestHooks?.simulatedDevice {
+            if simulated.bluetoothConnected && simulated.protocolState != .disconnected {
+                return .connected(AhaKeyRuntimeConnectionIdentity(simulated))
+            }
+            return .disconnected
+        }
+        switch transportCore.phase {
+        case .connecting, .discovering, .negotiating, .ready:
+            if let identity = currentConnectionIdentity() {
+                return .connected(identity)
+            }
+        default:
+            break
+        }
+        if peripheral != nil, let identity = currentConnectionIdentity() {
+            return .connected(identity)
+        }
+        return .disconnected
     }
 
     private static func operationSummary(from record: AhaKeyRuntimePersistedTransaction) -> AhaKeyRuntimeOperationSummary {
@@ -3979,6 +4016,14 @@ extension AhaKeyAgent {
     @MainActor
     func configurationWriteIsReadyForTesting() -> Bool {
         configurationWriteIsReady()
+    }
+
+    func noteProductionDisconnectForTesting() async {
+        await noteDurableDisconnect()
+    }
+
+    func noteProductionReconnectForTesting() async {
+        await clearMatchingDisconnectEpochs()
     }
 }
 

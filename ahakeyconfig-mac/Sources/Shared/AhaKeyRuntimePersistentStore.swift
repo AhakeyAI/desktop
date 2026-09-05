@@ -211,7 +211,7 @@ enum AhaKeyRuntimeStoreSchemaMigrationTestingHooks {
 }
 
 public actor AhaKeyRuntimePersistentStore {
-    public static let schemaVersion: Int32 = 6
+    public static let schemaVersion: Int32 = 7
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
     public static let snapshotProjectionTerminalLimit = 64
     /// 旧 v3 writer 只更新既有列、不写 `terminal_order`。迁移后该 trigger 仅在
@@ -239,7 +239,11 @@ public actor AhaKeyRuntimePersistentStore {
     /// 同一 persistence root 的跨 Store/跨进程 advisory 锁（flock）。init reconciliation/prune、
     /// ingest admission+install+journal、accept 转正都在该临界区内；进程崩溃由 OS 释放锁。
     private let lockFileDescriptor: Int32
-    private let encoder = JSONEncoder()
+    private let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }()
     private let decoder = JSONDecoder()
 
     /// 测试 seam：资源临界区内的可控交错钩子（仅 @testable；钩子在锁内执行，禁止重入 Store）。
@@ -276,6 +280,7 @@ public actor AhaKeyRuntimePersistentStore {
             at: rootDirectory,
             withIntermediateDirectories: true
         )
+        let rootDirectory = rootDirectory.standardizedFileURL.resolvingSymlinksInPath()
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rootDirectory.path)
         let resourcesDirectory = rootDirectory.appendingPathComponent("resources", isDirectory: true)
         try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
@@ -405,8 +410,9 @@ public actor AhaKeyRuntimePersistentStore {
                     value BLOB NOT NULL,
                     trust TEXT NOT NULL,
                     provenance TEXT NOT NULL,
-                    operation_id TEXT NOT NULL,
+                    operation_id TEXT,
                     authority_generation INTEGER,
+                    authority_version BLOB,
                     PRIMARY KEY (device_id, page_id, field_id)
                 )
                 """,
@@ -414,10 +420,10 @@ public actor AhaKeyRuntimePersistentStore {
             )
             try Self.execute(
                 """
-                CREATE TABLE IF NOT EXISTS runtime_disconnect_clocks (
+                CREATE TABLE IF NOT EXISTS runtime_disconnect_epochs (
                     operation_id TEXT PRIMARY KEY NOT NULL
                         REFERENCES runtime_transactions(operation_id) ON DELETE CASCADE,
-                    started_at REAL NOT NULL
+                    epoch BLOB NOT NULL
                 )
                 """,
                 on: handle
@@ -435,14 +441,6 @@ public actor AhaKeyRuntimePersistentStore {
                 UPDATE runtime_transactions
                 SET state = 'paused'
                 WHERE state = 'running'
-                """,
-                on: handle
-            )
-            try Self.execute(
-                """
-                INSERT OR IGNORE INTO runtime_disconnect_clocks (operation_id, started_at)
-                SELECT operation_id, \(Date().timeIntervalSince1970)
-                FROM remapped_running
                 """,
                 on: handle
             )
@@ -511,6 +509,25 @@ public actor AhaKeyRuntimePersistentStore {
                             UPDATE runtime_transactions
                             SET queue_order = rowid
                             WHERE queue_order IS NULL
+                            """,
+                            on: handle
+                        )
+                    }
+                    if existingSchemaVersion < 7 {
+                        if try !Self.table(handle, "runtime_page_field_baselines", hasColumn: "authority_version") {
+                            try Self.execute(
+                                "ALTER TABLE runtime_page_field_baselines ADD COLUMN authority_version BLOB",
+                                on: handle
+                            )
+                        }
+                        try Self.execute("DROP TABLE IF EXISTS runtime_disconnect_clocks", on: handle)
+                        try Self.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS runtime_disconnect_epochs (
+                                operation_id TEXT PRIMARY KEY NOT NULL
+                                    REFERENCES runtime_transactions(operation_id) ON DELETE CASCADE,
+                                epoch BLOB NOT NULL
+                            )
                             """,
                             on: handle
                         )
@@ -1214,32 +1231,23 @@ public actor AhaKeyRuntimePersistentStore {
         deviceID: AhaKeyRuntimeDeviceID,
         pageID: AhaKeyStudioPageID? = nil
     ) throws -> [AhaKeyRuntimeFieldBaseline] {
-        let sql: String
-        if pageID == nil {
-            sql = """
-                SELECT device_id, page_id, field_id, value, trust, provenance, operation_id, authority_generation
-                FROM runtime_page_field_baselines
-                WHERE device_id = ?
-                ORDER BY page_id, field_id
-                """
-        } else {
-            sql = """
-                SELECT device_id, page_id, field_id, value, trust, provenance, operation_id, authority_generation
-                FROM runtime_page_field_baselines
-                WHERE device_id = ? AND page_id = ?
-                ORDER BY field_id
-                """
-        }
-        let statement = try prepare(sql)
+        let statement = try prepare(
+            """
+            SELECT device_id, page_id, field_id, value, trust, provenance, operation_id, authority_version
+            FROM runtime_page_field_baselines
+            WHERE device_id = ?
+            ORDER BY page_id, field_id
+            """
+        )
         defer { sqlite3_finalize(statement) }
         try bind(deviceID.rawValue, at: 1, to: statement)
-        if let pageID {
-            try bind(try jsonString(pageID), at: 2, to: statement)
-        }
         var rows: [AhaKeyRuntimeFieldBaseline] = []
         var result = sqlite3_step(statement)
         while result == SQLITE_ROW {
-            rows.append(try decodeFieldBaseline(statement))
+            let baseline = try decodeFieldBaseline(statement)
+            if pageID == nil || baseline.pageID == pageID {
+                rows.append(baseline)
+            }
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw databaseError() }
@@ -1251,27 +1259,26 @@ public actor AhaKeyRuntimePersistentStore {
         pageID: AhaKeyStudioPageID,
         fieldID: AhaKeyStudioFieldID,
         value: AhaKeyRuntimeBaselineValue,
-        generation: UInt64
+        version: AhaKeyRuntimeAuthoritativeVersion
     ) throws {
+        guard version.deviceID == deviceID else {
+            throw AhaKeyRuntimePersistenceError.operationTargetMismatch
+        }
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
             let existing = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
                 .first { $0.fieldID == fieldID }
-            guard let existing else {
-                throw AhaKeyRuntimePersistenceError.operationNotFound
-            }
-            let promoted = existing.trust == .writeConfirmed && existing.value == value
-            let next = AhaKeyRuntimeFieldBaseline(
+            let next = try nextAuthoritativeBaseline(
+                existing: existing,
                 deviceID: deviceID,
                 pageID: pageID,
                 fieldID: fieldID,
-                value: promoted ? existing.value : value,
-                trust: .verified,
-                provenance: .deviceReadback,
-                operationID: existing.operationID,
-                authorityGeneration: generation
+                value: value,
+                version: version
             )
-            try upsertPageFieldBaselineUnlocked(next)
+            if next != existing {
+                try upsertPageFieldBaselineUnlocked(next)
+            }
             try Self.execute("COMMIT", on: database)
         } catch {
             try? Self.execute("ROLLBACK", on: database)
@@ -1279,59 +1286,156 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
-    public func noteDisconnectIfNeeded(
+    private func nextAuthoritativeBaseline(
+        existing: AhaKeyRuntimeFieldBaseline?,
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        fieldID: AhaKeyStudioFieldID,
+        value: AhaKeyRuntimeBaselineValue,
+        version: AhaKeyRuntimeAuthoritativeVersion
+    ) throws -> AhaKeyRuntimeFieldBaseline {
+        let verified = AhaKeyRuntimeFieldBaseline(
+            deviceID: deviceID,
+            pageID: pageID,
+            fieldID: fieldID,
+            value: value,
+            trust: .verified,
+            provenance: .deviceReadback,
+            operationID: existing?.operationID,
+            authorityVersion: version
+        )
+        guard let existing else { return verified }
+        if existing.trust == .unknown {
+            return verified
+        }
+        guard let stored = existing.authorityVersion else {
+            let promoted = existing.trust == .writeConfirmed && existing.value == value
+            return AhaKeyRuntimeFieldBaseline(
+                deviceID: deviceID,
+                pageID: pageID,
+                fieldID: fieldID,
+                value: promoted ? existing.value : value,
+                trust: .verified,
+                provenance: .deviceReadback,
+                operationID: existing.operationID,
+                authorityVersion: version
+            )
+        }
+        if version == stored {
+            guard existing.value == value, existing.trust == .verified else {
+                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+            }
+            return existing
+        }
+        if version.isOlder(than: stored) {
+            throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        }
+        if stored.isOlder(than: version) {
+            return verified
+        }
+        throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+    }
+
+    /// 仅真实 device-disconnect 铸造 epoch。旧代不得覆盖新代；同 identity 保持原 startedAt。
+    public func mintDisconnectEpoch(
         _ operationID: AhaKeyRuntimeOperationID,
-        at now: Date
+        epoch: AhaKeyRuntimeDisconnectEpoch
     ) throws {
-        guard try transaction(operationID) != nil else {
+        guard let record = try transaction(operationID) else {
             throw AhaKeyRuntimePersistenceError.operationNotFound
         }
+        guard record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
+            return
+        }
+        guard record.package.targetDeviceID == epoch.identity.deviceID else {
+            throw AhaKeyRuntimePersistenceError.operationTargetMismatch
+        }
+        switch record.state {
+        case .paused, .resumablePartial, .running:
+            break
+        default:
+            return
+        }
+        if let existing = try disconnectEpoch(operationID) {
+            if epoch.identity == existing.identity { return }
+            if epoch.identity.isOlder(than: existing.identity) { return }
+            guard existing.identity.isOlder(than: epoch.identity) else { return }
+        }
         let statement = try prepare(
             """
-            INSERT OR IGNORE INTO runtime_disconnect_clocks (operation_id, started_at)
+            INSERT INTO runtime_disconnect_epochs (operation_id, epoch)
             VALUES (?, ?)
+            ON CONFLICT(operation_id) DO UPDATE SET epoch = excluded.epoch
             """
         )
         defer { sqlite3_finalize(statement) }
         try bind(operationID.rawValue.uuidString, at: 1, to: statement)
-        try bind(now.timeIntervalSince1970, at: 2, to: statement)
+        try bind(try encoder.encode(epoch), at: 2, to: statement)
         try stepDone(statement)
     }
 
-    public func clearDisconnectClock(_ operationID: AhaKeyRuntimeOperationID) throws {
-        let statement = try prepare(
-            "DELETE FROM runtime_disconnect_clocks WHERE operation_id = ?"
-        )
-        defer { sqlite3_finalize(statement) }
-        try bind(operationID.rawValue.uuidString, at: 1, to: statement)
-        try stepDone(statement)
-    }
-
-    public func clearDisconnectClocks(for deviceID: AhaKeyRuntimeDeviceID) throws {
-        for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == deviceID {
-            try clearDisconnectClock(candidate.operationID)
+    public func clearDisconnectEpochs(succeeding identity: AhaKeyRuntimeConnectionIdentity) throws {
+        for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == identity.deviceID {
+            guard let stored = try disconnectEpoch(candidate.operationID) else { continue }
+            guard stored.identity.deviceID == identity.deviceID,
+                  stored.identity.isOlder(than: identity) else {
+                continue
+            }
+            try deleteDisconnectEpochUnlocked(candidate.operationID)
         }
     }
 
-    public func disconnectStartedAt(
+    public func disconnectEpoch(
         _ operationID: AhaKeyRuntimeOperationID
-    ) throws -> Date? {
+    ) throws -> AhaKeyRuntimeDisconnectEpoch? {
         let statement = try prepare(
-            "SELECT started_at FROM runtime_disconnect_clocks WHERE operation_id = ?"
+            "SELECT epoch FROM runtime_disconnect_epochs WHERE operation_id = ?"
         )
         defer { sqlite3_finalize(statement) }
         try bind(operationID.rawValue.uuidString, at: 1, to: statement)
         let result = sqlite3_step(statement)
         if result == SQLITE_DONE { return nil }
         guard result == SQLITE_ROW else { throw databaseError() }
-        return Date(timeIntervalSince1970: sqlite3_column_double(statement, 0))
+        let count = Int(sqlite3_column_bytes(statement, 0))
+        guard count > 0, let bytes = sqlite3_column_blob(statement, 0) else {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        do {
+            return try decoder.decode(
+                AhaKeyRuntimeDisconnectEpoch.self,
+                from: Data(bytes: bytes, count: count)
+            )
+        } catch {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
     }
 
-    /// `.abandoned` 表示资格成立，调用方再提交 fail-fast 终态。clock rollback 抛错且零变更。
-    public func evaluateAbandon(
+    /// 单事务重核资格、confirmed ledger、终态和 clock 消费，并闭合当前连接 generation。
+    public func commitAbandon(
         operationID: AhaKeyRuntimeOperationID,
         now: Date,
-        deviceConnected: Bool
+        connection: AhaKeyRuntimeConnectionPresence
+    ) throws -> AhaKeyRuntimeAbandonDisposition {
+        try Self.execute("BEGIN IMMEDIATE", on: database)
+        do {
+            let disposition = try commitAbandonUnlocked(
+                operationID: operationID,
+                now: now,
+                connection: connection
+            )
+            try Self.execute("COMMIT", on: database)
+            checkpointWal()
+            return disposition
+        } catch {
+            try? Self.execute("ROLLBACK", on: database)
+            throw error
+        }
+    }
+
+    private func commitAbandonUnlocked(
+        operationID: AhaKeyRuntimeOperationID,
+        now: Date,
+        connection: AhaKeyRuntimeConnectionPresence
     ) throws -> AhaKeyRuntimeAbandonDisposition {
         guard let record = try transaction(operationID) else { return .notFound }
         guard !record.state.isTerminal else { return .alreadyFinished }
@@ -1347,16 +1451,48 @@ public actor AhaKeyRuntimePersistentStore {
         if try durableDeviceQueue(record.package.targetDeviceID).isBlocked(operationID) {
             return .refused
         }
-        if deviceConnected { return .refused }
-        guard let started = try disconnectStartedAt(operationID) else { return .refused }
-        let elapsed = now.timeIntervalSince(started)
+        if case .connected = connection {
+            return .refused
+        }
+        guard let epoch = try disconnectEpoch(operationID) else { return .refused }
+        guard epoch.identity.deviceID == record.package.targetDeviceID else {
+            return .refused
+        }
+        let elapsed = now.timeIntervalSince(epoch.startedAt)
         if elapsed < 0 {
             throw AhaKeyRuntimePersistenceError.clockRollback
         }
         if elapsed < AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration {
             return .refused
         }
+        let confirmed = try confirmedSteps(for: operationID)
+        let plan = try? AhaKeyRuntimePageSemantic.executionPlan(
+            package: record.package,
+            userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
+        )
+        let hasWrites = AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan)
+        let summary = AhaKeyRuntimeOperationSummary(
+            id: operationID,
+            targetDeviceID: record.package.targetDeviceID,
+            state: hasWrites ? .failedWithPartialCommit : .failedWithoutWrites,
+            completedSteps: record.completedSteps,
+            totalSteps: record.totalSteps,
+            messageCode: .configurationDisconnected
+        )
+        try validateProgress(summary)
+        try enforceDeviceFIFO(record, nextState: summary.state)
+        try updateOperationRow(summary, terminalOrder: try allocateTerminalOrder())
+        try deleteDisconnectEpochUnlocked(operationID)
         return .abandoned
+    }
+
+    private func deleteDisconnectEpochUnlocked(_ operationID: AhaKeyRuntimeOperationID) throws {
+        let statement = try prepare(
+            "DELETE FROM runtime_disconnect_epochs WHERE operation_id = ?"
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(operationID.rawValue.uuidString, at: 1, to: statement)
+        try stepDone(statement)
     }
 
     private func insertConfirmedStepUnlocked(
@@ -2173,14 +2309,14 @@ public actor AhaKeyRuntimePersistentStore {
         let statement = try prepare(
             """
             INSERT INTO runtime_page_field_baselines
-                (device_id, page_id, field_id, value, trust, provenance, operation_id, authority_generation)
+                (device_id, page_id, field_id, value, trust, provenance, operation_id, authority_version)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(device_id, page_id, field_id) DO UPDATE SET
                 value = excluded.value,
                 trust = excluded.trust,
                 provenance = excluded.provenance,
                 operation_id = excluded.operation_id,
-                authority_generation = excluded.authority_generation
+                authority_version = excluded.authority_version
             """
         )
         defer { sqlite3_finalize(statement) }
@@ -2190,9 +2326,13 @@ public actor AhaKeyRuntimePersistentStore {
         try bind(try encoder.encode(baseline.value), at: 4, to: statement)
         try bind(baseline.trust.rawValue, at: 5, to: statement)
         try bind(baseline.provenance.rawValue, at: 6, to: statement)
-        try bind(baseline.operationID.rawValue.uuidString, at: 7, to: statement)
-        if let generation = baseline.authorityGeneration {
-            try bind(generation, at: 8, to: statement)
+        if let operationID = baseline.operationID {
+            try bind(operationID.rawValue.uuidString, at: 7, to: statement)
+        } else {
+            try bind("", at: 7, to: statement)
+        }
+        if let version = baseline.authorityVersion {
+            try bind(try encoder.encode(version), at: 8, to: statement)
         } else {
             try bindNull(at: 8, to: statement)
         }
@@ -2205,8 +2345,6 @@ public actor AhaKeyRuntimePersistentStore {
               let fieldText = sqlite3_column_text(statement, 2),
               let trustText = sqlite3_column_text(statement, 4),
               let provenanceText = sqlite3_column_text(statement, 5),
-              let operationText = sqlite3_column_text(statement, 6),
-              let operationUUID = UUID(uuidString: String(cString: operationText)),
               let trust = AhaKeyRuntimeBaselineTrust(rawValue: String(cString: trustText)),
               let provenance = AhaKeyRuntimeBaselineProvenance(rawValue: String(cString: provenanceText)) else {
             throw AhaKeyRuntimePersistenceError.corruptTransaction
@@ -2215,17 +2353,46 @@ public actor AhaKeyRuntimePersistentStore {
         guard valueCount > 0, let valueBytes = sqlite3_column_blob(statement, 3) else {
             throw AhaKeyRuntimePersistenceError.corruptTransaction
         }
-        let value = try decoder.decode(
-            AhaKeyRuntimeBaselineValue.self,
-            from: Data(bytes: valueBytes, count: valueCount)
-        )
-        let generation: UInt64?
-        if sqlite3_column_type(statement, 7) == SQLITE_NULL {
-            generation = nil
+        let value: AhaKeyRuntimeBaselineValue
+        do {
+            value = try decoder.decode(
+                AhaKeyRuntimeBaselineValue.self,
+                from: Data(bytes: valueBytes, count: valueCount)
+            )
+        } catch {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        let operationID: AhaKeyRuntimeOperationID?
+        if sqlite3_column_type(statement, 6) == SQLITE_NULL {
+            operationID = nil
+        } else if let operationText = sqlite3_column_text(statement, 6) {
+            let raw = String(cString: operationText)
+            if raw.isEmpty {
+                operationID = nil
+            } else if let uuid = UUID(uuidString: raw) {
+                operationID = .init(uuid)
+            } else {
+                throw AhaKeyRuntimePersistenceError.corruptTransaction
+            }
         } else {
-            let raw = sqlite3_column_int64(statement, 7)
-            guard raw >= 0 else { throw AhaKeyRuntimePersistenceError.corruptTransaction }
-            generation = UInt64(raw)
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
+        let authorityVersion: AhaKeyRuntimeAuthoritativeVersion?
+        if sqlite3_column_type(statement, 7) == SQLITE_NULL {
+            authorityVersion = nil
+        } else {
+            let count = Int(sqlite3_column_bytes(statement, 7))
+            guard count > 0, let bytes = sqlite3_column_blob(statement, 7) else {
+                throw AhaKeyRuntimePersistenceError.corruptTransaction
+            }
+            do {
+                authorityVersion = try decoder.decode(
+                    AhaKeyRuntimeAuthoritativeVersion.self,
+                    from: Data(bytes: bytes, count: count)
+                )
+            } catch {
+                throw AhaKeyRuntimePersistenceError.corruptTransaction
+            }
         }
         return AhaKeyRuntimeFieldBaseline(
             deviceID: try AhaKeyRuntimeDeviceID(String(cString: deviceText)),
@@ -2234,8 +2401,8 @@ public actor AhaKeyRuntimePersistentStore {
             value: value,
             trust: trust,
             provenance: provenance,
-            operationID: .init(operationUUID),
-            authorityGeneration: generation
+            operationID: operationID,
+            authorityVersion: authorityVersion
         )
     }
 
@@ -2308,6 +2475,10 @@ public actor AhaKeyRuntimePersistentStore {
 
     private func stepDone(_ statement: OpaquePointer) throws {
         guard sqlite3_step(statement) == SQLITE_DONE else { throw databaseError() }
+    }
+
+    private func checkpointWal() {
+        _ = sqlite3_wal_checkpoint_v2(database, nil, SQLITE_CHECKPOINT_FULL, nil, nil)
     }
 
     private func scalarText(_ sql: String) throws -> String {

@@ -396,48 +396,19 @@ public struct AhaKeyConfigurationTransactionRunner {
                 failureContext: failureContext
             )
         )
-        switch state {
-        case .paused, .resumablePartial:
-            if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
-                try await store.noteDisconnectIfNeeded(package.operationID, at: now())
-            }
-        case .running:
-            try await store.clearDisconnectClock(package.operationID)
-        default:
-            break
-        }
     }
 
-    /// schema=2 FIFO 队首 paused/resumable 且连续断连满 60 秒才受理；与 fail-fast 共用 confirmed-ledger 终态。
+    /// schema=2 FIFO 队首 paused/resumable 且连续真断连满 60 秒才受理；资格与终态同一事务。
     public func requestAbandon(
         operationID: AhaKeyRuntimeOperationID,
         now: Date? = nil,
-        deviceConnected: Bool
+        connection: AhaKeyRuntimeConnectionPresence
     ) async throws -> AhaKeyRuntimeAbandonDisposition {
-        let clock = now ?? self.now()
-        let disposition = try await store.evaluateAbandon(
+        try await store.commitAbandon(
             operationID: operationID,
-            now: clock,
-            deviceConnected: deviceConnected
+            now: now ?? self.now(),
+            connection: connection
         )
-        guard disposition == .abandoned else { return disposition }
-        guard let record = try await store.transaction(operationID) else { return .notFound }
-        let confirmed = try await store.confirmedSteps(for: operationID)
-        let hasWrites = pageDeviceWrites(package: record.package, confirmed: confirmed)
-        let state: AhaKeyRuntimeOperationState = hasWrites ? .failedWithPartialCommit : .failedWithoutWrites
-        try await store.commitOperationOutcome(
-            AhaKeyRuntimeOperationSummary(
-                id: operationID,
-                targetDeviceID: record.package.targetDeviceID,
-                state: state,
-                completedSteps: record.completedSteps,
-                totalSteps: record.totalSteps,
-                messageCode: .configurationDisconnected
-            ),
-            syncBaseline: nil
-        )
-        try await store.clearDisconnectClock(operationID)
-        return .abandoned
     }
 
     private func pageDeviceWrites(

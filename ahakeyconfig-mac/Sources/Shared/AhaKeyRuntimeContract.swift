@@ -153,6 +153,67 @@ public struct AhaKeyRuntimeAuthoritativeVersion: Codable, Equatable, Hashable, S
             && self.sessionGeneration == sessionGeneration
             && self.transportGeneration == transportGeneration
     }
+
+    public func isOlder(than other: Self) -> Bool {
+        guard deviceID == other.deviceID else { return false }
+        if sourceRevision != other.sourceRevision {
+            return sourceRevision < other.sourceRevision
+        }
+        if sessionGeneration != other.sessionGeneration {
+            return sessionGeneration < other.sessionGeneration
+        }
+        return transportGeneration < other.transportGeneration
+    }
+}
+
+/// 断连 epoch 冻结的连接 identity：stable device + session/transport generation。
+public struct AhaKeyRuntimeConnectionIdentity: Codable, Equatable, Hashable, Sendable {
+    public let deviceID: AhaKeyRuntimeDeviceID
+    public let sessionGeneration: AhaKeyRuntimeSessionGeneration
+    public let transportGeneration: AhaKeyRuntimeTransportGeneration
+
+    public init(
+        deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration
+    ) {
+        self.deviceID = deviceID
+        self.sessionGeneration = sessionGeneration
+        self.transportGeneration = transportGeneration
+    }
+
+    public init(_ snapshot: AhaKeyRuntimeDeviceSnapshot) {
+        self.init(
+            deviceID: snapshot.id,
+            sessionGeneration: snapshot.sessionGeneration,
+            transportGeneration: snapshot.transportGeneration
+        )
+    }
+
+    public func isOlder(than other: Self) -> Bool {
+        guard deviceID == other.deviceID else { return false }
+        if sessionGeneration != other.sessionGeneration {
+            return sessionGeneration < other.sessionGeneration
+        }
+        return transportGeneration < other.transportGeneration
+    }
+}
+
+/// 仅真实 device-disconnect 铸造；带冻结连接 identity 的 durable 等待窗口。
+public struct AhaKeyRuntimeDisconnectEpoch: Codable, Equatable, Sendable {
+    public let identity: AhaKeyRuntimeConnectionIdentity
+    public let startedAt: Date
+
+    public init(identity: AhaKeyRuntimeConnectionIdentity, startedAt: Date) {
+        self.identity = identity
+        self.startedAt = startedAt
+    }
+}
+
+/// abandon 重核时的当前连接事实。connected（含 not-ready）必须拒绝。
+public enum AhaKeyRuntimeConnectionPresence: Equatable, Sendable {
+    case connected(AhaKeyRuntimeConnectionIdentity)
+    case disconnected
 }
 
 /// 进程实例级 durable writer lease。从 1 起，不允许 sentinel 0。
@@ -881,16 +942,16 @@ public enum AhaKeyRuntimeBaselineProvenance: String, Codable, Equatable, Sendabl
     case absent
 }
 
-/// 持久化的 typed 字段值。不含本地路径；图片用 CAS digest。
+/// 持久化的 typed 字段值。不含本地路径；图片复用已有 digest/media identity。
 public enum AhaKeyRuntimeBaselineValue: Codable, Equatable, Sendable {
     case text(String)
     case optionalText(String?)
     case integer(Int)
     case keyAction(AhaKeyDesiredConfiguration.KeyAction)
     case taskAsset(
-        sha256: String,
+        sha256: AhaKeySHA256Digest,
         byteCount: UInt64,
-        mediaType: String,
+        mediaType: AhaKeyMediaType,
         framesPerSecond: Int,
         declaredFrameCount: Int?
     )
@@ -904,8 +965,8 @@ public struct AhaKeyRuntimeFieldBaseline: Codable, Equatable, Sendable {
     public let value: AhaKeyRuntimeBaselineValue
     public let trust: AhaKeyRuntimeBaselineTrust
     public let provenance: AhaKeyRuntimeBaselineProvenance
-    public let operationID: AhaKeyRuntimeOperationID
-    public let authorityGeneration: UInt64?
+    public let operationID: AhaKeyRuntimeOperationID?
+    public let authorityVersion: AhaKeyRuntimeAuthoritativeVersion?
 
     public init(
         deviceID: AhaKeyRuntimeDeviceID,
@@ -914,8 +975,8 @@ public struct AhaKeyRuntimeFieldBaseline: Codable, Equatable, Sendable {
         value: AhaKeyRuntimeBaselineValue,
         trust: AhaKeyRuntimeBaselineTrust,
         provenance: AhaKeyRuntimeBaselineProvenance,
-        operationID: AhaKeyRuntimeOperationID,
-        authorityGeneration: UInt64? = nil
+        operationID: AhaKeyRuntimeOperationID? = nil,
+        authorityVersion: AhaKeyRuntimeAuthoritativeVersion? = nil
     ) {
         self.deviceID = deviceID
         self.pageID = pageID
@@ -924,7 +985,7 @@ public struct AhaKeyRuntimeFieldBaseline: Codable, Equatable, Sendable {
         self.trust = trust
         self.provenance = provenance
         self.operationID = operationID
-        self.authorityGeneration = authorityGeneration
+        self.authorityVersion = authorityVersion
     }
 }
 

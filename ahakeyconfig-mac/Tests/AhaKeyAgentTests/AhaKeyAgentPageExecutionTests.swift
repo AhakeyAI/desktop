@@ -197,10 +197,12 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             guard case .operationAccepted = try await client.exchange(.apply(queued)) else {
                 return XCTFail("queued apply")
             }
+            await agent.noteProductionDisconnectForTesting()
             now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
             var disconnected = agent.executionTestHooks
-            disconnected?.isReady = false
-            disconnected?.configurationCharacteristics = .init(peripheral: false, command: false, data: false)
             disconnected?.wallClock = { now }
             agent.executionTestHooks = disconnected
             guard case .abandon(let disposition) = try await client.exchange(.requestAbandon(head.operationID)) else {
@@ -237,14 +239,16 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return XCTFail("apply")
             }
             await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
             await agent.closeRuntimeStoreForTesting()
             agent.shutdown()
 
             now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
             let reopened = try await makePreparedAgent(storeDirectory: storeDir)
+            await reopened.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
             var reopenHooks = reopened.executionTestHooks
-            reopenHooks?.isReady = false
-            reopenHooks?.configurationCharacteristics = .init(peripheral: false, command: false, data: false)
             reopenHooks?.wallClock = { now }
             reopened.executionTestHooks = reopenHooks
             let reopenClient = EndpointClient(agent: reopened)
@@ -256,6 +260,73 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             }
             XCTAssertEqual(disposition, .abandoned)
             await expectTerminal(reopened, package.operationID, .failedWithoutWrites)
+        }
+    }
+
+    func testRetryablePauseWithoutDisconnectEventRefusesAbandon() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "no-epoch")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            var later = agent.executionTestHooks
+            later?.wallClock = { now }
+            agent.executionTestHooks = later
+            guard case .abandon(let disposition) = try await client.exchange(
+                .requestAbandon(package.operationID)
+            ) else {
+                return XCTFail("abandon response")
+            }
+            XCTAssertEqual(disposition, .refused)
+            guard case .snapshot(let snapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("snapshot")
+            }
+            let state = snapshot.operations.first { $0.id == package.operationID }?.state
+            XCTAssertTrue(state == .paused || state == .resumablePartial)
+        }
+    }
+
+    func testConnectedNotReadyRefusesAbandonAfterTrueDisconnectClock() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "not-ready")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var notReady = agent.executionTestHooks
+            notReady?.isReady = false
+            notReady?.configurationCharacteristics = .init(peripheral: false, command: false, data: false)
+            notReady?.wallClock = { now }
+            agent.executionTestHooks = notReady
+            guard case .abandon(let disposition) = try await client.exchange(
+                .requestAbandon(package.operationID)
+            ) else {
+                return XCTFail("abandon response")
+            }
+            XCTAssertEqual(disposition, .refused)
         }
     }
 
@@ -1193,15 +1264,17 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         id: String = "TEST-DEVICE",
         displayName: String = "Test",
         sessionGeneration: UInt64 = 0,
-        transportGeneration: UInt64 = 0
+        transportGeneration: UInt64 = 0,
+        protocolState: AhaKeyRuntimeDeviceProtocolState = .currentReady,
+        bluetoothConnected: Bool = true
     ) -> AhaKeyRuntimeDeviceSnapshot {
         AhaKeyRuntimeDeviceSnapshot(
             id: try! AhaKeyRuntimeDeviceID(id),
             displayName: displayName,
-            protocolState: .currentReady,
+            protocolState: protocolState,
             preferredTransport: .bluetooth,
             usbAttached: false,
-            bluetoothConnected: true,
+            bluetoothConnected: bluetoothConnected,
             sessionGeneration: .init(sessionGeneration),
             transportGeneration: .init(transportGeneration)
         )

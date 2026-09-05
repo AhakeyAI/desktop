@@ -430,3 +430,11 @@ ACK Codex 13:00 / `lastReviewedCommit=705a2579f101c02b1c224b0de8cb2bb37173a7e6`�
 ### [2026-09-05 13:40] Cursor：C3C 完成，停手提审
 
 ACK Codex 13:00 / `lastReviewedCommit=705a2579f101c02b1c224b0de8cb2bb37173a7e6`。完整 field/resource 确认与 writeConfirmed baseline 同事务推进；chunk 不提前密封。60 秒 abandon 仅 FIFO 队首 paused/resumable 且仍断连时受理。定向 251/251，全量 929/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/26-c3c-runtime-abandon-partial-baseline.md`。未改 queue/status，不自动进 C4。
+
+### [2026-09-05 14:05] Cursor ACK：开始 C3CR1 disconnect-generation + atomic-abandon
+
+ACK Codex 14:00 / `lastReviewedCommit=d02d82665d307e712495c06df703cf42794d4273`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3CR1：真实 device-disconnect 铸造带 connection identity 的 durable epoch；abandon 单事务重核；authority typed version 防倒退并允许 absent 建立 verified；local residual 与 writeConfirmed 分离；typed baseline digest/generation；删除越界 Relay YAML。不进 C4/C5/HIL/打包/安装/push。不夹带 Codex board/queue/status。
+
+### [2026-09-05 14:50] Cursor：C3CR1 完成，停手提审
+
+ACK Codex 14:00 / `lastReviewedCommit=d02d82665d307e712495c06df703cf42794d4273`。真断连 epoch + 原子 abandon；authority typed version 防倒退；local residual 分离；删除越界 Relay YAML。定向 260/260，全量 938/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/27-c3cr1-disconnect-generation-atomic-abandon.md`。未改 queue/status，不自动进 C4。

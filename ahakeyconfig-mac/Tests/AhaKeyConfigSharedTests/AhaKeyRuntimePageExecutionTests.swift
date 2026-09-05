@@ -742,15 +742,21 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let sealedField = try XCTUnwrap(bind.fieldID)
         XCTAssertTrue(projection.confirmedFieldIDs.contains(sealedField))
 
+        try await mintDisconnect(package, at: current)
         current = current.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
         let abandoned = try await runner.requestAbandon(
             operationID: package.operationID,
             now: current,
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(abandoned, .abandoned)
         let abandonedState = try await store.transaction(package.operationID)?.state
         XCTAssertEqual(abandonedState, .failedWithPartialCommit)
+        let liveBaselines = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertEqual(liveBaselines, baselines)
         let restoredStore = try AhaKeyRuntimePersistentStore(
             rootDirectory: root,
             acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator(
@@ -824,29 +830,30 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         }
         XCTAssertEqual(paused, .paused)
         try await store.accept(queued, resourceFiles: [:])
+        try await mintDisconnect(head, at: current)
         let tooEarly = try await runner.requestAbandon(
             operationID: head.operationID,
             now: current.addingTimeInterval(30),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(tooEarly, .refused)
         current = current.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
         let whileConnected = try await runner.requestAbandon(
             operationID: head.operationID,
             now: current,
-            deviceConnected: true
+            connection: .connected(connectionIdentity(head.targetDeviceID))
         )
         XCTAssertEqual(whileConnected, .refused)
         let nonHead = try await runner.requestAbandon(
             operationID: queued.operationID,
             now: current,
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(nonHead, .refused)
         let abandonedHead = try await runner.requestAbandon(
             operationID: head.operationID,
             now: current,
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(abandonedHead, .abandoned)
         let headState = try await store.transaction(head.operationID)?.state
@@ -881,11 +888,99 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let runningAbandon = try await runner.requestAbandon(
             operationID: package.operationID,
             now: current.addingTimeInterval(60),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(runningAbandon, .refused)
         await gate.release()
         _ = try await task.value
+    }
+
+    func testRetryablePauseWithoutDisconnectEpochRefusesAbandon() async throws {
+        let package = try statusPackage(device: "DEV-NO-EPOCH", seed: "paused-local")
+        var current = Date(timeIntervalSince1970: 1_700_000_000)
+        let runner = AhaKeyConfigurationTransactionRunner(store: store, now: { current })
+        let paused = try await runPage(
+            package,
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard),
+            runner: runner
+        ) { _ in .retryableFailure }
+        XCTAssertEqual(paused, .paused)
+        let epoch = try await store.disconnectEpoch(package.operationID)
+        XCTAssertNil(epoch)
+        current = current.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+        let abandoned = try await runner.requestAbandon(
+            operationID: package.operationID,
+            now: current,
+            connection: .disconnected
+        )
+        XCTAssertEqual(abandoned, .refused)
+        let pausedState = try await store.transaction(package.operationID)?.state
+        XCTAssertEqual(pausedState, .paused)
+    }
+
+    func testConfirmedLocalFieldLeavesResidualEmptyWithoutWriteConfirmed() async throws {
+        let package = try statusPackage(device: "DEV-LOCAL", seed: "local-only")
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        let local = try XCTUnwrap(plan.steps.first { $0.identity.rawValue.hasPrefix("page:local:") })
+        let paused = try await runPage(
+            package,
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
+        ) { _ in .retryableFailure }
+        XCTAssertEqual(paused, .paused)
+        try await store.confirmPageStep(local.identity, package: package, plan: plan)
+        let projection = AhaKeyRuntimePageSemantic.confirmationProjection(
+            package: package,
+            confirmed: try await store.confirmedSteps(for: package.operationID),
+            plan: plan
+        )
+        XCTAssertTrue(projection.residual.isEmpty)
+        XCTAssertEqual(projection.confirmedFieldIDs, [try XCTUnwrap(local.fieldID)])
+        let baselines = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertTrue(baselines.isEmpty)
+    }
+
+    func testMixedLocalAndDevicePartialDropsOnlyConfirmedLocalFromResidual() async throws {
+        let fixture = try pictureFixture(frames: 1)
+        let status = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        var mixed = fixture
+        mixed.plan.fieldMask.insert(status)
+        mixed.plan.values[status] = .text("partial-line")
+        mixed.plan.statusLine = "partial-line"
+        mixed.plan.overwriteSemantic = true
+        let package = try assemble(mixed, profile: .legacyStandard)
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
+        let local = try XCTUnwrap(plan.steps.first { $0.identity.rawValue.hasPrefix("page:local:") })
+        let bind = try XCTUnwrap(plan.steps.first { $0.identity.rawValue.hasPrefix("page:bind:") })
+        let paused = try await runPage(
+            package,
+            files: try writeResources(mixed),
+            context: .standard,
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
+        ) { step in
+            if step.rawValue.hasPrefix("page:bind:") {
+                return .retryableFailure
+            }
+            return .success
+        }
+        XCTAssertEqual(paused, .resumablePartial)
+        try await store.confirmPageStep(local.identity, package: package, plan: plan)
+        let projection = AhaKeyRuntimePageSemantic.confirmationProjection(
+            package: package,
+            confirmed: try await store.confirmedSteps(for: package.operationID),
+            plan: plan
+        )
+        XCTAssertFalse(projection.residual.fieldIDs.contains(try XCTUnwrap(local.fieldID)))
+        XCTAssertTrue(projection.residual.fieldIDs.contains(try XCTUnwrap(bind.fieldID)))
+        let baselines = try await store.pageFieldBaselines(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0)
+        )
+        XCTAssertTrue(baselines.filter { $0.fieldID == local.fieldID }.isEmpty)
     }
 
     func testCancelClassifiesLocalConfirmAsZeroDeviceWrites() async throws {
@@ -977,6 +1072,33 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
             deviceID: package.targetDeviceID,
             profile: profile,
             baseObjectFingerprint: try XCTUnwrap(package.pageOperation?.baseObjectFingerprint)
+        )
+    }
+
+    private func connectionIdentity(
+        _ deviceID: AhaKeyRuntimeDeviceID,
+        session: UInt64 = 0,
+        transport: UInt64 = 0
+    ) -> AhaKeyRuntimeConnectionIdentity {
+        AhaKeyRuntimeConnectionIdentity(
+            deviceID: deviceID,
+            sessionGeneration: .init(session),
+            transportGeneration: .init(transport)
+        )
+    }
+
+    private func mintDisconnect(
+        _ package: AhaKeyConfigurationPackage,
+        at started: Date,
+        session: UInt64 = 0,
+        transport: UInt64 = 0
+    ) async throws {
+        try await store.mintDisconnectEpoch(
+            package.operationID,
+            epoch: AhaKeyRuntimeDisconnectEpoch(
+                identity: connectionIdentity(package.targetDeviceID, session: session, transport: transport),
+                startedAt: started
+            )
         )
     }
 

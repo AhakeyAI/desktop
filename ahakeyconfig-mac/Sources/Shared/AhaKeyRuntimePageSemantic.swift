@@ -1115,10 +1115,17 @@ extension AhaKeyRuntimePageSemantic {
         return confirmed.contains { plan.step(for: $0)?.writesDevice == true }
     }
 
-    /// 完整 field 设备动作才密封；chunk 中间进度不得提前密封 picture field。
+    /// 完整 field 设备动作才推进 writeConfirmed；chunk 不得提前密封；local 不计设备写。
     public static func sealsCompleteField(_ step: AhaKeyRuntimePageExecutionStep) -> Bool {
         guard step.writesDevice, step.fieldID != nil else { return false }
         return !step.identity.rawValue.hasPrefix("page:chunk:")
+    }
+
+    /// 已确认完整 action（含 page:local:）从 residual 移除；与 writeConfirmed 推进分开。
+    public static func completesResidualField(_ step: AhaKeyRuntimePageExecutionStep) -> Bool {
+        guard step.fieldID != nil else { return false }
+        if step.identity.rawValue.hasPrefix("page:chunk:") { return false }
+        return true
     }
 
     /// bind 才密封 resource；chunk 只是资源中间进度。
@@ -1138,7 +1145,7 @@ extension AhaKeyRuntimePageSemantic {
         var resources = Set<AhaKeyRuntimeConfirmationLedger.Entry.ResourceIdentity>()
         let bindings = package.pageOperation?.resourceBindings ?? []
         for step in plan.steps where confirmedSet.contains(step.identity) {
-            if sealsCompleteField(step), let field = step.fieldID {
+            if completesResidualField(step), let field = step.fieldID {
                 fields.insert(field)
             }
             if sealsCompleteResource(step), let logical = step.resourceID,
@@ -1193,9 +1200,9 @@ extension AhaKeyRuntimePageSemantic {
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }
             return .taskAsset(
-                sha256: match.sha256.rawValue,
+                sha256: match.sha256,
                 byteCount: match.byteCount,
-                mediaType: match.mediaType.rawValue,
+                mediaType: match.mediaType,
                 framesPerSecond: fps,
                 declaredFrameCount: frames
             )

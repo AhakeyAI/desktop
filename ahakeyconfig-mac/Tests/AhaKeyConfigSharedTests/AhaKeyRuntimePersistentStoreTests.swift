@@ -2127,6 +2127,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(reopenedHealth.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
     }
 
+
     func testAuthoritativeReadbackPromotesExactWriteConfirmedAndOverwritesMismatch() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -2149,34 +2150,113 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         )
         let existing = try XCTUnwrap(sealedRows.first)
         XCTAssertEqual(existing.trust, .writeConfirmed)
+        let first = try authorityVersion(
+            device: existing.deviceID,
+            lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+            session: 0,
+            transport: 0,
+            revision: .first,
+            content: Data("authority-1".utf8)
+        )
         try await store.applyAuthoritativeFieldReadback(
             deviceID: existing.deviceID,
             pageID: existing.pageID,
             fieldID: existing.fieldID,
             value: existing.value,
-            generation: 1
+            version: first
         )
         let promotedRows = try await store.pageFieldBaselines(deviceID: existing.deviceID)
         let promoted = try XCTUnwrap(promotedRows.first)
         XCTAssertEqual(promoted.trust, .verified)
         XCTAssertEqual(promoted.provenance, .deviceReadback)
         XCTAssertEqual(promoted.value, existing.value)
+        XCTAssertEqual(promoted.authorityVersion, first)
+        let second = try authorityVersion(
+            device: existing.deviceID,
+            lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+            session: 0,
+            transport: 0,
+            revision: try AhaKeyRuntimeAuthoritativeSourceRevision(2),
+            content: Data("authority-2".utf8)
+        )
         try await store.applyAuthoritativeFieldReadback(
             deviceID: existing.deviceID,
             pageID: existing.pageID,
             fieldID: existing.fieldID,
             value: .text("authority-mismatch"),
-            generation: 2
+            version: second
         )
         let overwrittenRows = try await store.pageFieldBaselines(deviceID: existing.deviceID)
         let overwritten = try XCTUnwrap(overwrittenRows.first)
         XCTAssertEqual(overwritten.trust, .verified)
         XCTAssertEqual(overwritten.value, .text("authority-mismatch"))
-        XCTAssertEqual(overwritten.authorityGeneration, 2)
+        XCTAssertEqual(overwritten.authorityVersion, second)
         XCTAssertEqual(overwritten.provenance, .deviceReadback)
     }
 
-    func testDisconnectClockSurvivesReopenAndRollbackFailsClosed() async throws {
+    func testAuthoritativeReadbackCreatesAbsentAndRejectsStaleGeneration() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "absent")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let newer = try authorityVersion(
+            device: package.targetDeviceID,
+            lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+            session: 1,
+            transport: 1,
+            revision: try AhaKeyRuntimeAuthoritativeSourceRevision(2),
+            content: Data("new-authority".utf8)
+        )
+        try await store.applyAuthoritativeFieldReadback(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0),
+            fieldID: field,
+            value: .text("device-read"),
+            version: newer
+        )
+        let createdRows = try await store.pageFieldBaselines(deviceID: package.targetDeviceID)
+        let created = try XCTUnwrap(createdRows.first)
+        XCTAssertEqual(created.trust, .verified)
+        XCTAssertNil(created.operationID)
+        XCTAssertEqual(created.authorityVersion, newer)
+        try await store.applyAuthoritativeFieldReadback(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0),
+            fieldID: field,
+            value: .text("device-read"),
+            version: newer
+        )
+        let idempotentRows = try await store.pageFieldBaselines(deviceID: package.targetDeviceID)
+        let idempotent = try XCTUnwrap(idempotentRows.first)
+        XCTAssertEqual(idempotent, created)
+        let older = try authorityVersion(
+            device: package.targetDeviceID,
+            lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+            session: 0,
+            transport: 0,
+            revision: .first,
+            content: Data("old-authority".utf8)
+        )
+        do {
+            try await store.applyAuthoritativeFieldReadback(
+                deviceID: package.targetDeviceID,
+                pageID: .screen(modeSlot: 0),
+                fieldID: field,
+                value: .text("stale-value"),
+                version: older
+            )
+            XCTFail("旧代必须 fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let unchangedRows = try await store.pageFieldBaselines(deviceID: package.targetDeviceID)
+        let unchanged = try XCTUnwrap(unchangedRows.first)
+        XCTAssertEqual(unchanged, created)
+    }
+
+    func testDisconnectEpochAbandonCommitsWithoutWrites() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let package = try makePageScopedPackage(statusLine: "clock")
@@ -2192,30 +2272,51 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
-        try await store.noteDisconnectIfNeeded(package.operationID, at: started)
-        let early = try await store.evaluateAbandon(
+        try await mintDisconnect(store, package, at: started)
+        let early = try await store.commitAbandon(
             operationID: package.operationID,
             now: started.addingTimeInterval(59),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(early, .refused)
-        let eligible = try await store.evaluateAbandon(
+        let eligible = try await store.commitAbandon(
             operationID: package.operationID,
             now: started.addingTimeInterval(60),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(eligible, .abandoned)
-        let connected = try await store.evaluateAbandon(
+        let abandonedState = try await store.transaction(package.operationID)?.state
+        XCTAssertEqual(abandonedState, .failedWithoutWrites)
+    }
+
+    func testDisconnectEpochReopenAndConnectedRefuseBeforeAbandon() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "clock-reopen")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await mintDisconnect(store, package, at: started)
+        let connected = try await store.commitAbandon(
             operationID: package.operationID,
             now: started.addingTimeInterval(60),
-            deviceConnected: true
+            connection: .connected(connectionIdentity(package.targetDeviceID))
         )
         XCTAssertEqual(connected, .refused)
         do {
-            _ = try await store.evaluateAbandon(
+            _ = try await store.commitAbandon(
                 operationID: package.operationID,
                 now: started.addingTimeInterval(-1),
-                deviceConnected: false
+                connection: .disconnected
             )
             XCTFail("clock rollback 必须 fail-closed")
         } catch {
@@ -2225,21 +2326,125 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(pausedState, .paused)
 
         let reopened = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        let restoredClock = try await reopened.disconnectStartedAt(package.operationID)
-        XCTAssertEqual(restoredClock, started)
-        let reopenedEligible = try await reopened.evaluateAbandon(
+        let restored = try await reopened.disconnectEpoch(package.operationID)
+        XCTAssertEqual(restored?.identity, connectionIdentity(package.targetDeviceID))
+        XCTAssertEqual(restored?.startedAt, started)
+        let reopenedEligible = try await reopened.commitAbandon(
             operationID: package.operationID,
             now: started.addingTimeInterval(60),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(reopenedEligible, .abandoned)
-        try await reopened.clearDisconnectClock(package.operationID)
-        try await reopened.noteDisconnectIfNeeded(
-            package.operationID,
-            at: started.addingTimeInterval(120)
+    }
+
+    func testOldDisconnectGenerationCannotOverwriteOrClearNewer() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "generation")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
         )
-        let restartedClock = try await reopened.disconnectStartedAt(package.operationID)
-        XCTAssertEqual(restartedClock, started.addingTimeInterval(120))
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await mintDisconnect(store, package, at: started, transport: 1)
+        try await mintDisconnect(store, package, at: started.addingTimeInterval(30), transport: 0)
+        let keptEpoch = try await store.disconnectEpoch(package.operationID)
+        let kept = try XCTUnwrap(keptEpoch)
+        XCTAssertEqual(kept.identity.transportGeneration, .init(1))
+        XCTAssertEqual(kept.startedAt, started)
+        try await store.clearDisconnectEpochs(
+            succeeding: connectionIdentity(package.targetDeviceID, transport: 0)
+        )
+        let stillKeptEpoch = try await store.disconnectEpoch(package.operationID)
+        let stillKept = try XCTUnwrap(stillKeptEpoch)
+        XCTAssertEqual(stillKept.identity.transportGeneration, .init(1))
+        try await store.clearDisconnectEpochs(
+            succeeding: connectionIdentity(package.targetDeviceID, transport: 2)
+        )
+        let cleared = try await store.disconnectEpoch(package.operationID)
+        XCTAssertNil(cleared)
+        try await mintDisconnect(store, package, at: started.addingTimeInterval(120), transport: 2)
+        let mintedEpoch = try await store.disconnectEpoch(package.operationID)
+        let minted = try XCTUnwrap(mintedEpoch)
+        XCTAssertEqual(minted.identity.transportGeneration, .init(2))
+        XCTAssertEqual(minted.startedAt, started.addingTimeInterval(120))
+    }
+
+    func testAbandonReconnectOrderingIsAtomic() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "ordering")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await mintDisconnect(store, package, at: started)
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .running,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let refused = try await store.commitAbandon(
+            operationID: package.operationID,
+            now: started.addingTimeInterval(60),
+            connection: .disconnected
+        )
+        XCTAssertEqual(refused, .refused)
+        let runningState = try await store.transaction(package.operationID)?.state
+        XCTAssertEqual(runningState, .running)
+
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let abandoned = try await store.commitAbandon(
+            operationID: package.operationID,
+            now: started.addingTimeInterval(60),
+            connection: .disconnected
+        )
+        XCTAssertEqual(abandoned, .abandoned)
+        do {
+            try await store.updateOperation(
+                .init(
+                    id: package.operationID,
+                    targetDeviceID: package.targetDeviceID,
+                    state: .running,
+                    completedSteps: 0,
+                    totalSteps: 1
+                )
+            )
+            XCTFail("终态后不得恢复 running")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .terminalOperationCannotChange)
+        }
+        let terminalState = try await store.transaction(package.operationID)?.state
+        XCTAssertEqual(terminalState, .failedWithoutWrites)
+        let consumed = try await store.disconnectEpoch(package.operationID)
+        XCTAssertNil(consumed)
     }
 
     func testAbandonEligibilityRejectsSchema1RunningAndNonHead() async throws {
@@ -2264,11 +2469,11 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
-        try await store.noteDisconnectIfNeeded(schema1.operationID, at: started)
-        let schema1Disposition = try await store.evaluateAbandon(
+        try await mintDisconnect(store, schema1, at: started)
+        let schema1Disposition = try await store.commitAbandon(
             operationID: schema1.operationID,
             now: started.addingTimeInterval(60),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(schema1Disposition, .refused)
 
@@ -2283,12 +2488,12 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 totalSteps: 1
             )
         )
-        try await store.noteDisconnectIfNeeded(head.operationID, at: started)
-        try await store.noteDisconnectIfNeeded(queued.operationID, at: started)
-        let queuedDisposition = try await store.evaluateAbandon(
+        try await mintDisconnect(store, head, at: started)
+        try await mintDisconnect(store, queued, at: started)
+        let queuedDisposition = try await store.commitAbandon(
             operationID: queued.operationID,
             now: started.addingTimeInterval(60),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(queuedDisposition, .refused)
         try await store.updateOperation(
@@ -2300,10 +2505,10 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 totalSteps: 1
             )
         )
-        let runningDisposition = try await store.evaluateAbandon(
+        let runningDisposition = try await store.commitAbandon(
             operationID: head.operationID,
             now: started.addingTimeInterval(60),
-            deviceConnected: false
+            connection: .disconnected
         )
         XCTAssertEqual(runningDisposition, .refused)
     }
@@ -2371,6 +2576,34 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             transportGeneration: .init(transport),
             sourceRevision: revision,
             sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+        )
+    }
+
+    private func connectionIdentity(
+        _ device: AhaKeyRuntimeDeviceID,
+        session: UInt64 = 0,
+        transport: UInt64 = 0
+    ) -> AhaKeyRuntimeConnectionIdentity {
+        AhaKeyRuntimeConnectionIdentity(
+            deviceID: device,
+            sessionGeneration: .init(session),
+            transportGeneration: .init(transport)
+        )
+    }
+
+    private func mintDisconnect(
+        _ store: AhaKeyRuntimePersistentStore,
+        _ package: AhaKeyConfigurationPackage,
+        at started: Date,
+        session: UInt64 = 0,
+        transport: UInt64 = 0
+    ) async throws {
+        try await store.mintDisconnectEpoch(
+            package.operationID,
+            epoch: AhaKeyRuntimeDisconnectEpoch(
+                identity: connectionIdentity(package.targetDeviceID, session: session, transport: transport),
+                startedAt: started
+            )
         )
     }
 
