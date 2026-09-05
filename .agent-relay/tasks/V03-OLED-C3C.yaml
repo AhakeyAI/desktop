@@ -1,0 +1,29 @@
+task_id: V03-OLED-C3C
+revision: "1"
+lane: client
+objective: Complete the Runtime-side 60-second disconnect abandon rule and atomically advance only confirmed page fields and resources into the durable baseline.
+completion_criteria:
+  - The schema-2 frozen ledger is the sole confirmation source; local preparation is never treated as a device write.
+  - A disconnected operation remains resumable before 60 seconds and becomes an explicit terminal partial-or-no-write result at the durable deadline.
+  - Confirmed fields, resources, and baseline advance in one transaction; residual scope contains exactly the unconfirmed facts.
+  - Completing or abandoning the FIFO head releases the next operation for the same device.
+  - The Runtime contract exposes confirmed baseline and residual facts without adding Studio UI behavior.
+  - Targeted tests, the full Swift suite, App and Runtime Release builds, and git diff checks pass.
+allowed_paths:
+  - ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift
+  - ahakeyconfig-mac/Sources/Shared/AhaKeyConfigurationTransactionRunner.swift
+  - ahakeyconfig-mac/Sources/Shared/AhaKeyInMemoryRuntimeAdapter.swift
+  - ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeContract.swift
+  - ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimePageOperation.swift
+  - ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimePageSemantic.swift
+  - ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimePersistentStore.swift
+  - ahakeyconfig-mac/Sources/Shared/AhaKeyRuntimeProductionSeam.swift
+  - ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/AhaKeyRuntimePersistentStoreTests.swift
+  - docs/collab/evidence/V03-STUDIO-OLED-20260902/**
+  - docs/collab/board.md
+  - docs/collab/taskcards/V03-STUDIO-OLED-LEGACY-COMPATIBILITY.md
+required_gates: []
+depends_on: []
+authorized_next_task: V03-OLED-C4
+auto_start: true
+user_gate: none
