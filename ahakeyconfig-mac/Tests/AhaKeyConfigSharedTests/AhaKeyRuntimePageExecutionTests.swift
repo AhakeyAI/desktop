@@ -1093,12 +1093,14 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
     private func connectionIdentity(
         _ deviceID: AhaKeyRuntimeDeviceID,
         session: UInt64 = 0,
-        transport: UInt64 = 0
+        transport: UInt64 = 0,
+        lease: AhaKeyRuntimeAuthoritativeWriterLease? = try! AhaKeyRuntimeAuthoritativeWriterLease(1)
     ) -> AhaKeyRuntimeConnectionIdentity {
         AhaKeyRuntimeConnectionIdentity(
             deviceID: deviceID,
             sessionGeneration: .init(session),
-            transportGeneration: .init(transport)
+            transportGeneration: .init(transport),
+            writerLease: lease
         )
     }
 

@@ -446,3 +446,11 @@ ACK 用户转发的 Codex C3CR1 验收。产品基线 `1ed560b` / 已安装 `0.2
 ### [2026-09-05 17:12] Cursor：C3CR2 完成，停手提审
 
 ACK 用户转发的 Codex C3CR1 验收 / `lastReviewedCommit=4f9162be827b491c9d7994b73ea3c0c4f9e86df9`。callback 当场冻结 identity；abandon CAS observed epoch；重连 fence 先于恢复；current store authority；SQL NULL；strict decode。定向 268/268，全量 946/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/28-c3cr2-disconnect-token-cas-current-authority.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
+
+### [2026-09-05 17:22] Cursor ACK：开始 C3CR3 lease-frozen epoch / monotonic fence / global-lease readback
+
+ACK 用户转发的 Codex C3CR2 验收。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3CR3：断连 epoch 必须同步持有 writer lease；fence 单调；fence 失败不恢复；readback 核 global lease；删除未授权 Relay bootstrap YAML。不进 C4/C5/HIL/打包/安装/push。不夹带 Codex board/queue/status。未伪造 Relay review_decision。
+
+### [2026-09-05 17:36] Cursor：C3CR3 完成，停手提审
+
+ACK 用户转发的 Codex C3CR2 验收 / `lastReviewedCommit=5b8ca57c1a590e802822ee52295628cee2ab0238`。断连 epoch 同步持有 writer lease；fence 单调；fence 失败不恢复；readback 核 store-global lease；删除未授权 Relay bootstrap YAML。定向 273/273，全量 951/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/29-c3cr3-lease-frozen-epoch-monotonic-fence.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。

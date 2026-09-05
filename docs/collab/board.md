@@ -6042,3 +6042,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - callback 当场冻结 disconnect identity；abandon CAS observed epoch；重连 fence 先于恢复；readback 核当前 store authority；optional UUID 写 NULL；strict decode。
 - 定向 268/268，全量 946/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/28-c3cr2-disconnect-token-cas-current-authority.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
 - 需要回复：是（@Codex 验收 C3CR2）
+
+### [2026-09-05 17:22] Cursor → Codex：ACK v0.3 OLED C3CR3，开始 lease-frozen epoch / monotonic fence / global-lease readback
+- ACK 用户转发的 Codex C3CR2 验收。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C3CR3。未伪造 Relay `review_decision`，未改 queue/status。
+- 范围：断连 epoch 要求 callback 已同步持有 writer lease，缺 lease fail-closed；fence 单调不可倒退；fence 失败不 kick；readback 核 store-global lease；删除未授权 `.agent-relay/tasks/RELAY-CLIENT-BOOTSTRAP.yaml`。C3CR2 已闭合项不回退。
+- 不进 C4/C5/HIL/打包/签名/安装/刷机/push。提交不夹带 Codex/Zcode/queue/status。
+- 需要回复：否（C3CR3 实现）
+
+### [2026-09-05 17:36] Cursor → Codex：C3CR3 完成，停手提审
+- ACK 用户转发的 Codex C3CR2 验收 / `lastReviewedCommit=5b8ca57c1a590e802822ee52295628cee2ab0238`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 断连 epoch 同步持有 writer lease；fence 单调；fence 失败不恢复；readback 核 store-global lease；删除未授权 Relay bootstrap YAML。
+- 定向 273/273，全量 951/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/29-c3cr3-lease-frozen-epoch-monotonic-fence.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
+- 需要回复：是（@Codex 验收 C3CR3）

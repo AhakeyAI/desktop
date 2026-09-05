@@ -351,7 +351,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             await agent.simulateDeviceForTesting(
                 simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
             )
-            await agent.noteProductionReconnectForTesting()
+            try await agent.noteProductionReconnectForTesting()
             await agent.simulateDeviceForTesting(
                 simulatedDevice(
                     transportGeneration: 1,
@@ -405,13 +405,44 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             await agent.simulateDeviceForTesting(
                 simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
             )
-            await agent.noteProductionReconnectForTesting()
+            try await agent.noteProductionReconnectForTesting()
             let afterReconnect = try await store.disconnectEpoch(package.operationID)
             XCTAssertNil(afterReconnect)
             now = now.addingTimeInterval(5)
             await agent.noteFrozenDisconnectForTesting(identity: oldEpoch.identity, at: oldEpoch.startedAt)
             let afterDelayedMint = try await store.disconnectEpoch(package.operationID)
             XCTAssertNil(afterDelayedMint)
+        }
+    }
+
+    func testFrozenDisconnectWithoutLeaseDoesNotMint() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "nil-lease-freeze")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            let identity = AhaKeyRuntimeConnectionIdentity(
+                deviceID: package.targetDeviceID,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0)
+            )
+            await agent.noteFrozenDisconnectForTesting(identity: identity, at: now)
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let epoch = try await store.disconnectEpoch(package.operationID)
+            XCTAssertNil(epoch)
         }
     }
 

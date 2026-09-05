@@ -1105,6 +1105,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             // 生产路径：资源必须已入 CAS（由 Studio 预上传或先前恢复）；不接受 staging/ 裸读。
             let store = try await makeRuntimeStore()
             do {
+                _ = try await resolveCachedWriterLease()
+            } catch {
+                return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
+            }
+            do {
                 _ = try await store.accept(package, resourceFiles: [:])
             } catch let error as AhaKeyRuntimePersistenceError {
                 switch error {
@@ -2325,8 +2330,12 @@ extension AhaKeyAgent {
     private func scheduleConfigurationRecovery() {
         lastFrozenDisconnectEpoch = nil
         Task {
-            await self.clearMatchingDisconnectEpochs()
-            await configurationCoordinator.kick()
+            do {
+                try await self.clearMatchingDisconnectEpochs()
+                await configurationCoordinator.kick()
+            } catch {
+                self.emit("重连 fence 失败，保持暂停：\(error.localizedDescription)")
+            }
         }
     }
 
@@ -2376,6 +2385,7 @@ extension AhaKeyAgent {
             throw AhaKeyAgentCommandError.disconnected
         }
         let store = try await makeRuntimeStore()
+        _ = try await resolveCachedWriterLease()
         let state = try await runConfigurationTransaction(
             package: package, resourceFiles: resourceFiles, store: store, context: context
         )
@@ -3139,10 +3149,8 @@ extension AhaKeyAgent {
         identity frozen: AhaKeyRuntimeConnectionIdentity?,
         at frozenAt: Date
     ) async {
-        guard var identity = frozen, let store = try? await makeRuntimeStore() else { return }
-        if let lease = try? await resolveCachedWriterLease() {
-            identity = identity.withWriterLease(lease)
-        }
+        guard let identity = frozen, identity.writerLease != nil else { return }
+        guard let store = try? await makeRuntimeStore() else { return }
         guard let candidates = try? await store.recoveryCandidates() else { return }
         let epoch = AhaKeyRuntimeDisconnectEpoch(identity: identity, startedAt: frozenAt)
         var minted: AhaKeyRuntimeDisconnectEpoch?
@@ -3165,17 +3173,18 @@ extension AhaKeyAgent {
         }
     }
 
-    private func clearMatchingDisconnectEpochs() async {
+    private func clearMatchingDisconnectEpochs() async throws {
         lastFrozenDisconnectEpoch = nil
+        let lease = try await resolveCachedWriterLease()
         let currentIdentity = await MainActor.run {
             self.currentConnectionIdentity()
         }
-        guard var identity = currentIdentity else { return }
-        if let lease = try? await resolveCachedWriterLease() {
-            identity = identity.withWriterLease(lease)
+        guard var identity = currentIdentity else {
+            throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
         }
-        guard let store = try? await makeRuntimeStore() else { return }
-        try? await store.clearDisconnectEpochs(succeeding: identity)
+        identity = identity.withWriterLease(lease)
+        let store = try await makeRuntimeStore()
+        try await store.clearDisconnectEpochs(succeeding: identity)
     }
 
     private func resolveCachedWriterLease() async throws -> AhaKeyRuntimeAuthoritativeWriterLease {
@@ -3188,8 +3197,9 @@ extension AhaKeyAgent {
     }
 
     private func freezeDisconnectIdentity() -> AhaKeyRuntimeConnectionIdentity? {
+        guard let lease = cachedWriterLease else { return nil }
         if let simulated = executionTestHooks?.simulatedDevice {
-            return AhaKeyRuntimeConnectionIdentity(simulated, writerLease: cachedWriterLease)
+            return AhaKeyRuntimeConnectionIdentity(simulated, writerLease: lease)
         }
         guard let deviceID = currentRuntimeDeviceIDUnlocked() else { return nil }
         let generations = transportCore.currentGenerations
@@ -3197,7 +3207,7 @@ extension AhaKeyAgent {
             deviceID: deviceID,
             sessionGeneration: .init(generations.session),
             transportGeneration: .init(generations.transport),
-            writerLease: cachedWriterLease
+            writerLease: lease
         )
     }
 
@@ -4077,8 +4087,8 @@ extension AhaKeyAgent {
         await noteDurableDisconnect(identity: identity, at: frozenAt)
     }
 
-    func noteProductionReconnectForTesting() async {
-        await clearMatchingDisconnectEpochs()
+    func noteProductionReconnectForTesting() async throws {
+        try await clearMatchingDisconnectEpochs()
     }
 }
 

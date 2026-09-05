@@ -2205,9 +2205,10 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         _ = try await store.accept(package, resourceFiles: [:])
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let lease = try await store.allocateAuthoritativeWriterLease()
         let newer = try authorityVersion(
             device: package.targetDeviceID,
-            lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+            lease: lease,
             session: 1,
             transport: 1,
             revision: try AhaKeyRuntimeAuthoritativeSourceRevision(2),
@@ -2665,9 +2666,10 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         _ = try await store.accept(package, resourceFiles: [:])
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let lease = try await store.allocateAuthoritativeWriterLease()
         let version = try authorityVersion(
             device: package.targetDeviceID,
-            lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+            lease: lease,
             session: 0,
             transport: 0,
             revision: .first,
@@ -2687,6 +2689,139 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptTransaction)
         }
+    }
+
+    func testMintDisconnectWithoutWriterLeaseIsNoOp() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "nil-lease")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        try await mintDisconnect(
+            store,
+            package,
+            at: Date(timeIntervalSince1970: 1_700_000_000),
+            lease: nil
+        )
+        let epoch = try await store.disconnectEpoch(package.operationID)
+        XCTAssertNil(epoch)
+    }
+
+    func testLateOlderReconnectClearDoesNotRegressFence() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "fence-mono")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await mintDisconnect(store, package, at: started, transport: 1)
+        try await store.clearDisconnectEpochs(
+            succeeding: connectionIdentity(package.targetDeviceID, transport: 2)
+        )
+        do {
+            try await store.clearDisconnectEpochs(
+                succeeding: connectionIdentity(package.targetDeviceID, transport: 1)
+            )
+            XCTFail("旧 reconnect clear 不得倒退 fence")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        try await mintDisconnect(store, package, at: started.addingTimeInterval(5), transport: 1)
+        let delayed = try await store.disconnectEpoch(package.operationID)
+        XCTAssertNil(delayed)
+    }
+
+    func testAuthoritativeReadbackRejectsOldWriterAfterNewerGlobalLease() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "old-writer")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        let lease1 = try await store.allocateAuthoritativeWriterLease()
+        let content = Data("authority-lease-1".utf8)
+        let first = try authorityVersion(
+            device: package.targetDeviceID,
+            lease: lease1,
+            session: 1,
+            transport: 0,
+            revision: .first,
+            content: content
+        )
+        _ = try await store.persistProjectedAuthoritativeObject(content, version: first)
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        try await store.applyAuthoritativeFieldReadback(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0),
+            fieldID: field,
+            value: .text("current"),
+            version: first
+        )
+        _ = try await store.allocateAuthoritativeWriterLease()
+        do {
+            try await store.applyAuthoritativeFieldReadback(
+                deviceID: package.targetDeviceID,
+                pageID: .screen(modeSlot: 0),
+                fieldID: field,
+                value: .text("old-writer"),
+                version: first
+            )
+            XCTFail("更高 global lease 后旧 writer 不得写 verified")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let unchangedRows = try await store.pageFieldBaselines(deviceID: package.targetDeviceID)
+        let unchanged = try XCTUnwrap(unchangedRows.first)
+        XCTAssertEqual(unchanged.value, .text("current"))
+        XCTAssertEqual(unchanged.authorityVersion, first)
+    }
+
+    func testAuthoritativeReadbackRejectsMissingGlobalLease() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "no-global")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let version = try authorityVersion(
+            device: package.targetDeviceID,
+            lease: try AhaKeyRuntimeAuthoritativeWriterLease(1),
+            session: 0,
+            transport: 0,
+            revision: .first,
+            content: Data("no-global".utf8)
+        )
+        do {
+            try await store.applyAuthoritativeFieldReadback(
+                deviceID: package.targetDeviceID,
+                pageID: .screen(modeSlot: 0),
+                fieldID: field,
+                value: .text("value"),
+                version: version
+            )
+            XCTFail("未分配 global lease 时不得建立 verified")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let rows = try await store.pageFieldBaselines(deviceID: package.targetDeviceID)
+        XCTAssertTrue(rows.isEmpty)
     }
 
     private func mutateRuntimeMetadata(root: URL, key: String, value: Data?) throws {
@@ -2798,7 +2933,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         _ device: AhaKeyRuntimeDeviceID,
         session: UInt64 = 0,
         transport: UInt64 = 0,
-        lease: AhaKeyRuntimeAuthoritativeWriterLease? = nil
+        lease: AhaKeyRuntimeAuthoritativeWriterLease? = try! AhaKeyRuntimeAuthoritativeWriterLease(1)
     ) -> AhaKeyRuntimeConnectionIdentity {
         AhaKeyRuntimeConnectionIdentity(
             deviceID: device,
@@ -2814,7 +2949,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         at started: Date,
         session: UInt64 = 0,
         transport: UInt64 = 0,
-        lease: AhaKeyRuntimeAuthoritativeWriterLease? = nil
+        lease: AhaKeyRuntimeAuthoritativeWriterLease? = try! AhaKeyRuntimeAuthoritativeWriterLease(1)
     ) async throws {
         try await store.mintDisconnectEpoch(
             package.operationID,

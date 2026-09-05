@@ -1270,6 +1270,21 @@ public actor AhaKeyRuntimePersistentStore {
         }
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
+            guard let leaseData = try metadataValue(for: Self.authoritativeWriterLeaseKey) else {
+                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+            }
+            let globalLease: AhaKeyRuntimeAuthoritativeWriterLease
+            do {
+                globalLease = try decoder.decode(
+                    AhaKeyRuntimeAuthoritativeWriterLease.self,
+                    from: leaseData
+                )
+            } catch {
+                throw AhaKeyRuntimePersistenceError.corruptAuthoritativeVersion
+            }
+            guard version.writerLease == globalLease else {
+                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+            }
             let current = try storedAuthoritativeVersion(for: deviceID)
             if let current, version != current {
                 throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
@@ -1371,6 +1386,9 @@ public actor AhaKeyRuntimePersistentStore {
         guard record.package.targetDeviceID == epoch.identity.deviceID else {
             throw AhaKeyRuntimePersistenceError.operationTargetMismatch
         }
+        guard epoch.identity.writerLease != nil else {
+            return
+        }
         switch record.state {
         case .paused, .resumablePartial, .running:
             break
@@ -1419,6 +1437,17 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     private func persistDisconnectFenceUnlocked(_ identity: AhaKeyRuntimeConnectionIdentity) throws {
+        guard identity.writerLease != nil else {
+            throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        }
+        if let existing = try disconnectFence(for: identity.deviceID) {
+            if identity == existing {
+                return
+            }
+            if identity.isOlder(than: existing) || !existing.isOlder(than: identity) {
+                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+            }
+        }
         try upsertMetadata(
             key: Self.disconnectFenceKey(identity.deviceID),
             value: try encoder.encode(identity)
