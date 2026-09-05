@@ -380,6 +380,102 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testProductionLeaseAllocationFailureStaysOfflineThenRetryConnectsWithSameLease() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "lease-fail-offline")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            await agent.closeRuntimeStoreForTesting()
+            let firstEpoch: AhaKeyRuntimeDisconnectEpoch
+            do {
+                let firstStore = try AhaKeyRuntimePersistentStore(
+                    rootDirectory: storeDir,
+                    acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+                )
+                let stored = try await firstStore.disconnectEpoch(package.operationID)
+                firstEpoch = try XCTUnwrap(stored)
+            }
+            agent.shutdown()
+
+            let reopened = makeAgent(storeDirectory: storeDir)
+            var logs: [String] = []
+            reopened.onLog = { logs.append($0) }
+            var reopenHooks = reopened.executionTestHooks
+            reopenHooks?.writerLeaseAllocationError = .databaseFailure("c3cr5-forced")
+            reopenHooks?.bluetoothPoweredOnForConnect = true
+            reopenHooks?.wallClock = { now }
+            reopened.executionTestHooks = reopenHooks
+            let connectBeforeFail = reopened.connectAutomaticallyCallCountForTesting()
+            let allocateBeforeFail = reopened.writerLeaseAllocateCallCountForTesting()
+            await reopened.prepareWriterLeaseThenConnectForTesting()
+            XCTAssertEqual(reopened.connectAutomaticallyCallCountForTesting(), connectBeforeFail)
+            XCTAssertEqual(reopened.writerLeaseAllocateCallCountForTesting(), allocateBeforeFail)
+            XCTAssertNil(reopened.cachedWriterLeaseForTesting())
+            XCTAssertTrue(logs.contains { $0.contains("writer lease 分配失败") })
+            await reopened.closeRuntimeStoreForTesting()
+            let afterFail: AhaKeyRuntimeDisconnectEpoch
+            let failState: AhaKeyRuntimeOperationState?
+            do {
+                let inspect = try AhaKeyRuntimePersistentStore(
+                    rootDirectory: storeDir,
+                    acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+                )
+                let stored = try await inspect.disconnectEpoch(package.operationID)
+                afterFail = try XCTUnwrap(stored)
+                failState = try await inspect.transaction(package.operationID)?.state
+            }
+            XCTAssertEqual(afterFail, firstEpoch)
+            XCTAssertTrue(failState == .paused || failState == .resumablePartial)
+
+            var retryHooks = reopened.executionTestHooks
+            retryHooks?.writerLeaseAllocationError = nil
+            retryHooks?.bluetoothPoweredOnForConnect = true
+            reopened.executionTestHooks = retryHooks
+            await reopened.prepareWriterLeaseThenConnectForTesting()
+            let lease = try XCTUnwrap(reopened.cachedWriterLeaseForTesting())
+            XCTAssertEqual(reopened.writerLeaseAllocateCallCountForTesting(), allocateBeforeFail + 1)
+            XCTAssertEqual(reopened.connectAutomaticallyCallCountForTesting(), connectBeforeFail + 1)
+            await reopened.prepareWriterLeaseThenConnectForTesting()
+            XCTAssertEqual(reopened.cachedWriterLeaseForTesting(), lease)
+            XCTAssertEqual(reopened.writerLeaseAllocateCallCountForTesting(), allocateBeforeFail + 1)
+            XCTAssertEqual(reopened.connectAutomaticallyCallCountForTesting(), connectBeforeFail + 2)
+        }
+    }
+
+    func testProductionLeaseConnectRechecksPoweredOnAfterAllocation() {
+        runTest { [self] in
+            let agent = makeAgent()
+            let gate = StepGate()
+            var hooks = agent.executionTestHooks
+            hooks?.bluetoothPoweredOnForConnect = true
+            hooks?.beforeWriterLeaseAllocation = { await gate.wait() }
+            agent.executionTestHooks = hooks
+            let connectBefore = agent.connectAutomaticallyCallCountForTesting()
+            let task = Task { await agent.prepareWriterLeaseThenConnectForTesting() }
+            await gate.waitUntilEntered()
+            var flipped = agent.executionTestHooks
+            flipped?.bluetoothPoweredOnForConnect = false
+            agent.executionTestHooks = flipped
+            await gate.release()
+            await task.value
+            XCTAssertNotNil(agent.cachedWriterLeaseForTesting())
+            XCTAssertEqual(agent.writerLeaseAllocateCallCountForTesting(), 1)
+            XCTAssertEqual(agent.connectAutomaticallyCallCountForTesting(), connectBefore)
+        }
+    }
+
     func testRetryablePauseWithoutDisconnectEventRefusesAbandon() {
         runTest { [self] in
             var now = Date(timeIntervalSince1970: 1_700_000_000)

@@ -296,6 +296,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private let writerLeaseGate = AhaKeyAgentWriterLeaseGate()
     /// `writerLeaseGate` 的同步缓存，供 CB callback 当场冻结 identity。
     private var cachedWriterLease: AhaKeyRuntimeAuthoritativeWriterLease?
+    /// Agent 级 scan/connect 入口调用次数（C3CR5：lease 失败必须保持 0 增量）。
+    private var connectAutomaticallyInvocationCount = 0
+    /// 实际进入 store.allocate 的次数；成功重试必须复用 gate 缓存。
+    private var writerLeaseAllocateInvocationCount = 0
     /// 最近一次生产断连铸造并 round-trip 后的 epoch；重连必须先清空。
     private var lastFrozenDisconnectEpoch: AhaKeyRuntimeDisconnectEpoch?
     /// 最近一次应用的策略（projection policy 字段来源）。
@@ -1549,6 +1553,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 连接入口：全部决策交给 DeviceTransportCore，本类只落地动作。
     private func connectAutomatically() {
+        connectAutomaticallyInvocationCount += 1
         bleLifecycle.handle(.bluetoothPoweredOn, now: Date())
     }
 
@@ -1665,27 +1670,40 @@ extension AhaKeyAgent {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
             emit(NSLocalizedString("蓝牙就绪", comment: ""))
-            // 生产路径：scan/connect 前先建立进程 lease，使 ready 前断连也能铸造本次 epoch。
             // 测试注入 storeDirectory 后自行 ensureWriterLease，避免 CB 回调抢跑生产目录。
+            // 生产路径与 C3CR5 测试 seam 共用 prepareWriterLeaseThenConnectIfBluetoothPoweredOn。
             if executionTestHooks != nil
                 || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
                 connectAutomatically()
                 return
             }
             Task { [weak self] in
-                guard let self else { return }
-                do {
-                    _ = try await self.resolveCachedWriterLease()
-                } catch {
-                    self.emit("writer lease 分配失败：\(error.localizedDescription)")
-                }
-                await MainActor.run {
-                    self.connectAutomatically()
-                }
+                await self?.prepareWriterLeaseThenConnectIfBluetoothPoweredOn()
             }
         } else {
             performTransportActions(transportCore.handle(.bluetoothUnavailable, now: Date()))
         }
+    }
+
+    /// 成功缓存进程 lease 且 Bluetooth 仍为 poweredOn 才允许 scan/connect；失败保持离线。
+    private func prepareWriterLeaseThenConnectIfBluetoothPoweredOn() async {
+        do {
+            _ = try await resolveCachedWriterLease()
+        } catch {
+            emit("writer lease 分配失败：\(error.localizedDescription)")
+            return
+        }
+        await MainActor.run {
+            guard self.isBluetoothPoweredOnForConnect() else { return }
+            self.connectAutomatically()
+        }
+    }
+
+    private func isBluetoothPoweredOnForConnect() -> Bool {
+        if let override = executionTestHooks?.bluetoothPoweredOnForConnect {
+            return override
+        }
+        return central.state == .poweredOn
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
@@ -3206,6 +3224,13 @@ extension AhaKeyAgent {
 
     private func resolveCachedWriterLease() async throws -> AhaKeyRuntimeAuthoritativeWriterLease {
         let lease = try await writerLeaseGate.resolve {
+            if let before = self.executionTestHooks?.beforeWriterLeaseAllocation {
+                await before()
+            }
+            if let error = self.executionTestHooks?.writerLeaseAllocationError {
+                throw error
+            }
+            self.writerLeaseAllocateInvocationCount += 1
             let store = try await self.makeRuntimeStore()
             return try await store.allocateAuthoritativeWriterLease()
         }
@@ -4099,6 +4124,18 @@ extension AhaKeyAgent {
         cachedWriterLease
     }
 
+    func prepareWriterLeaseThenConnectForTesting() async {
+        await prepareWriterLeaseThenConnectIfBluetoothPoweredOn()
+    }
+
+    func connectAutomaticallyCallCountForTesting() -> Int {
+        connectAutomaticallyInvocationCount
+    }
+
+    func writerLeaseAllocateCallCountForTesting() -> Int {
+        writerLeaseAllocateInvocationCount
+    }
+
     func noteProductionDisconnectForTesting() async {
         let identity = freezeDisconnectIdentity()
         let frozenAt = executionTestHooks?.wallClock?() ?? Date()
@@ -4260,6 +4297,12 @@ struct AhaKeyAgentExecutionTestHooks {
     var beforeAuthoritativeObjectCommit: (@Sendable () async -> Void)?
     /// 为 true 时权威对象 commit fail-closed，不发布带 object 的 deviceChanged。
     var failAuthoritativeObjectCommit: Bool = false
+    /// C3CR5：强制 writer lease 分配失败（生产恒 nil）。
+    var writerLeaseAllocationError: AhaKeyRuntimePersistenceError?
+    /// C3CR5：分配前异步屏障，用于 await 期间翻转 poweredOn。
+    var beforeWriterLeaseAllocation: (@Sendable () async -> Void)?
+    /// C3CR5：覆盖连接前 Bluetooth poweredOn 重核；nil 时读 `central.state`。
+    var bluetoothPoweredOnForConnect: Bool?
 }
 
 enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {

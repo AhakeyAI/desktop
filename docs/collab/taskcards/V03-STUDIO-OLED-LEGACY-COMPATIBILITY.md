@@ -462,3 +462,11 @@ ACK 用户转发的 Codex C3CR3 手工验收。产品基线 `1ed560b` / 已安�
 ### [2026-09-05 17:53] Cursor：C3CR4 完成，停手提审
 
 ACK 用户转发的 Codex C3CR3 手工验收 / `lastReviewedCommit=8dfd7da7e5192291f6ca98ea3ac1d25ed79a9ef1`。生产路径在 connect 前建立 writer lease；连接事实与 lease 缓存解耦；verified 必须证明当前 per-device authority；复用单一 global-lease decoder。定向 276/276，全量 954/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/30-c3cr4-eager-lease-proven-authority.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
+
+### [2026-09-05 19:14] Cursor ACK：开始 C3CR5 lease-allocation fail-closed
+
+ACK 用户转发的 Codex C3CR4 手工验收。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。只执行 C3CR5：lease 分配失败不得 scan/connect，错误可观察；成功且仍 poweredOn 才连接；成功重试复用同一进程 lease。不进 C4/C5/HIL/打包/安装/push。不夹带 Codex board/queue/status。未伪造 Relay review_decision。
+
+### [2026-09-05 19:21] Cursor：C3CR5 完成，停手提审
+
+ACK 用户转发的 Codex C3CR4 手工验收 / `lastReviewedCommit=5902e723c15d3adc1ce5497ddb621abdf464a57a`。lease 分配失败保持离线且 emit 可观察；成功且仍 poweredOn 才 scan/connect；成功重试复用同一进程 lease。定向 278/278，全量 956/2 skipped/0。App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/31-c3cr5-lease-allocation-fail-closed.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C4。
