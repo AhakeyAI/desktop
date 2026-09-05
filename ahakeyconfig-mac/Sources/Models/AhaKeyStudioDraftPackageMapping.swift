@@ -1,4 +1,5 @@
 import AhaKeyConfigShared
+import CryptoKit
 import Foundation
 import ImageIO
 
@@ -93,7 +94,7 @@ extension AhaKeyLightBarDraft {
     }
 }
 
-/// 本地素材元数据探测：帧数与首帧像素尺寸（供申报元数据；facade ingest 前复核实际值）。
+/// 本地素材元数据探测：帧数、首帧像素尺寸与内容身份（digest/byteCount/mediaType）。
 enum AhaKeyStudioAssetMetadataProbe {
     static func probe(_ path: String?) -> (url: URL?, frameCount: Int?, pixelWidth: Int?, pixelHeight: Int?) {
         guard let path, !path.isEmpty else { return (nil, nil, nil, nil) }
@@ -108,6 +109,34 @@ enum AhaKeyStudioAssetMetadataProbe {
             return (url, nil, nil, nil)
         }
         return (url, frameCount, first.width, first.height)
+    }
+
+    static func contentIdentity(
+        at url: URL?
+    ) -> (sha256: AhaKeySHA256Digest, byteCount: UInt64, mediaType: AhaKeyMediaType)? {
+        guard let url,
+              let data = try? Data(contentsOf: url),
+              !data.isEmpty,
+              let sha256 = try? AhaKeySHA256Digest(
+                SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+              ),
+              let mediaType = try? AhaKeyMediaType(mediaType(for: url)) else {
+            return nil
+        }
+        return (sha256, UInt64(data.count), mediaType)
+    }
+
+    private static func mediaType(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "gif":
+            return "gif"
+        case "png":
+            return "png"
+        case "jpg", "jpeg":
+            return "jpeg"
+        default:
+            return "application/octet-stream"
+        }
     }
 }
 
@@ -200,12 +229,16 @@ extension AhaKeyStudioDraft {
                 $0.state.rawValue == Int(state.rawValue)
             }) else { return nil }
             let metadata = AhaKeyStudioAssetMetadataProbe.probe(asset.localAssetPath)
+            let identity = AhaKeyStudioAssetMetadataProbe.contentIdentity(at: metadata.url)
             return .asset(
                 path: asset.localAssetPath,
                 framesPerSecond: asset.framesPerSecond,
                 declaredFrameCount: metadata.frameCount,
                 pixelWidth: metadata.pixelWidth,
-                pixelHeight: metadata.pixelHeight
+                pixelHeight: metadata.pixelHeight,
+                sha256: identity?.sha256,
+                byteCount: identity?.byteCount,
+                mediaType: identity?.mediaType
             )
         case .leverMacro, .powerAction:
             return nil

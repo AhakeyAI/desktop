@@ -75,7 +75,8 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         let summary = AhaKeyRuntimeOperationSummary(
             id: package.operationID,
             targetDeviceID: package.targetDeviceID,
-            state: .accepted
+            state: .accepted,
+            pageID: package.pageOperation?.pageScope
         )
         replaceOperation(summary)
         publish(.operationChanged(summary), context: eventContext(for: summary))
@@ -89,14 +90,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             return .notFound
         }
         guard !summary.state.isTerminal else { return .alreadyFinished }
-        let updated = AhaKeyRuntimeOperationSummary(
-            id: summary.id,
-            targetDeviceID: summary.targetDeviceID,
-            state: .cancellationRequested,
-            completedSteps: summary.completedSteps,
-            totalSteps: summary.totalSteps,
-            messageCode: summary.messageCode
-        )
+        let updated = summary.withState(.cancellationRequested)
         replaceOperation(updated)
         publish(.operationChanged(updated), context: eventContext(for: updated))
         return .requested
@@ -138,10 +132,8 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         guard resolvedCompletedSteps <= resolvedTotalSteps else {
             throw AhaKeyInMemoryRuntimeAdapterError.invalidStepProgress
         }
-        let updated = AhaKeyRuntimeOperationSummary(
-            id: summary.id,
-            targetDeviceID: summary.targetDeviceID,
-            state: state,
+        let updated = summary.withState(
+            state,
             completedSteps: resolvedCompletedSteps,
             totalSteps: resolvedTotalSteps,
             messageCode: messageCode
@@ -172,10 +164,8 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         guard !summary.state.isTerminal else {
             throw AhaKeyInMemoryRuntimeAdapterError.terminalOperationCannotResume
         }
-        let updated = AhaKeyRuntimeOperationSummary(
-            id: summary.id,
-            targetDeviceID: summary.targetDeviceID,
-            state: .resumablePartial,
+        let updated = summary.withState(
+            .resumablePartial,
             completedSteps: completedSteps,
             totalSteps: totalSteps,
             messageCode: messageCode

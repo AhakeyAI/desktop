@@ -478,3 +478,11 @@ ACK 用户确认进入 C4，以及 Codex 19:31 开放 C4。C1–C3 accepted @ `c
 ### [2026-09-05 22:25] Cursor：C4 完成，停手提审
 
 ACK 用户确认进入 C4 / Codex 19:31 开放 C4。C1–C3 accepted @ `c6e0762`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Studio 写入已收成当前页交互和设备 FIFO，只消费 C2/C3 已验收 frozen-page facade。定向 293/293，全量 971/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/32-c4-studio-page-interaction-fifo.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-05 22:58] Cursor ACK：开始 C4R1 canonical Runtime projection
+
+ACK 用户转发的 Codex C4 未通过与 C4R1 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R1 白名单：Agent 密封 profile/page/epoch 的 additive snapshot 投影，Studio 只消费这些 typed 事实。不改 C2 assembler 决策与 C3 WAL/事务转移/BLE executor。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-05 23:25] Cursor：C4R1 完成，停手提审
+
+ACK 用户转发的 Codex C4 未通过与 C4R1 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Agent 密封 OLED profile、typed page ownership 与 durable 60s eligibility 已投影进 Runtime snapshot；fresh Studio 只从 snapshot 重建。定向 318/318，全量 981/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/33-c4r1-canonical-runtime-projection.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

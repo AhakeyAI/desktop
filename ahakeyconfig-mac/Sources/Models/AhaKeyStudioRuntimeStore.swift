@@ -129,16 +129,9 @@ enum AhaKeyStudioRuntimeDerivation {
         }
     }
 
-    /// 只从已验证的协议态取 OLED 剖面；协商中/未知保持 unsupported，禁止用版本字符串猜测。
-    static func oledProfile(for state: AhaKeyRuntimeDeviceProtocolState) -> AhaKeyOLEDCompatibilityProfile {
-        switch state {
-        case .legacyDenied:
-            return .legacyStandard
-        case .currentReady:
-            return .rhinoDualSet(sessionUploadAdvertised: true)
-        case .disconnected, .probing, .restricted, .failed:
-            return .unsupported
-        }
+    /// 只消费 Agent 已密封的 OLED 事实；缺省 fail-closed 为 unsupported，禁止从 protocolState 猜测。
+    static func oledProfile(for device: AhaKeyRuntimeDeviceSnapshot) -> AhaKeyOLEDCompatibilityProfile {
+        device.oledCompatibility?.profile ?? .unsupported
     }
 
     /// Runtime 拨杆位置 → 旧 switchState 语义（0=自动批准，1=手动批准）。
@@ -169,10 +162,6 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     @Published private(set) var runtimeWorkMode: Int?
     /// 用户点虚拟拨杆后的乐观值；Runtime 共享文件回读一致后确认清除，3s 超时回退。
     @Published private(set) var optimisticSwitchOverride: Int?
-    /// C4：Studio 记住 page → operation。Runtime summary 不含 pageID。
-    @Published private(set) var pageOperationIDs: [AhaKeyStudioPageID: AhaKeyRuntimeOperationID] = [:]
-    /// C4：真断连起点。满 60s 才投影「放弃未完成写入」。
-    @Published private(set) var disconnectedSince: Date?
 
     /// Studio 侧诊断日志（仅诊断窗口展示；不含任何设备 TX/RX——那是 Runtime 的边界）。
     let logStore = BLELogStore()
@@ -230,22 +219,6 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
                     userInfo: ["workMode": next.workMode]
                 )
             }
-        }
-        refreshDisconnectClock(isConnected: presentation.isConnected)
-    }
-
-    private func refreshDisconnectClock(isConnected: Bool) {
-        if isConnected {
-            disconnectedSince = nil
-            return
-        }
-        let hasRecovery = deviceFIFO.contains { $0.state.isRecoveryCandidate }
-        if hasRecovery {
-            if disconnectedSince == nil {
-                disconnectedSince = Date()
-            }
-        } else {
-            disconnectedSince = nil
         }
     }
 
@@ -349,12 +322,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
 
     var oledProfile: AhaKeyOLEDCompatibilityProfile {
         guard let device = activeDevice else { return .unsupported }
-        return AhaKeyStudioRuntimeDerivation.oledProfile(for: device.protocolState)
-    }
-
-    var disconnectedDuration: TimeInterval {
-        guard let disconnectedSince else { return 0 }
-        return Date().timeIntervalSince(disconnectedSince)
+        return AhaKeyStudioRuntimeDerivation.oledProfile(for: device)
     }
 
     var deviceFIFO: [AhaKeyRuntimeOperationSummary] {
@@ -364,8 +332,11 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     }
 
     func operation(for pageID: AhaKeyStudioPageID) -> AhaKeyRuntimeOperationSummary? {
-        guard let operationID = pageOperationIDs[pageID] else { return nil }
-        return viewState.snapshot?.operations.first { $0.id == operationID }
+        let owned = activeDeviceOperations(matching: pageID)
+        if let live = owned.first(where: { !$0.state.isTerminal }) {
+            return live
+        }
+        return owned.last
     }
 
     func pageChrome(
@@ -373,14 +344,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         assembly: AhaKeyStudioPageAssembly,
         now: Date = Date()
     ) -> AhaKeyStudioPageChrome {
-        let duration: TimeInterval
-        if presentation.isConnected {
-            duration = 0
-        } else if let disconnectedSince {
-            duration = now.timeIntervalSince(disconnectedSince)
-        } else {
-            duration = 0
-        }
+        _ = now
         return AhaKeyStudioPageChromeProjector.project(
             AhaKeyStudioPageChromeInput(
                 pageID: pageID,
@@ -388,19 +352,14 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
                 operation: operation(for: pageID),
                 deviceQueue: deviceFIFO,
                 isDeviceConnected: presentation.isConnected,
-                disconnectedDuration: duration
+                pageBaselines: pageBaselines(for: pageID)
             )
         )
     }
 
     func isPageLocked(_ pageID: AhaKeyStudioPageID) -> Bool {
         guard let operation = operation(for: pageID) else { return false }
-        switch operation.state {
-        case .accepted, .running, .paused, .cancellationRequested:
-            return true
-        case .completed, .resumablePartial, .failedWithoutWrites, .failedWithPartialCommit:
-            return false
-        }
+        return !operation.state.isTerminal
     }
 
     /// C4 唯一写入口：冻结页 → 已验收 facade.commitFrozenPage。同页非终态禁止重复提交。
@@ -414,21 +373,18 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         guard viewState.snapshot?.activeDeviceID != nil else {
             throw AhaKeyStudioStoreApplyError.noActiveDevice
         }
-        if pageOperationIDs[snapshot.pageID] != nil {
-            if let existing = operation(for: snapshot.pageID) {
-                let canRetryPartial = retryResidual && (
-                    existing.state == .resumablePartial || existing.state == .failedWithPartialCommit
-                )
-                if !existing.state.isTerminal && !canRetryPartial {
-                    throw AhaKeyStudioStoreApplyError.pageAlreadyInFlight
-                }
-            } else if !retryResidual {
-                throw AhaKeyStudioStoreApplyError.pageAlreadyInFlight
-            }
+        if let existing = operation(for: snapshot.pageID), !existing.state.isTerminal {
+            throw AhaKeyStudioStoreApplyError.pageAlreadyInFlight
         }
         var frozen = snapshot
         if retryResidual {
-            let residualIDs = Set(operation(for: snapshot.pageID)?.residual?.fieldIDs ?? [])
+            guard let existing = operation(for: snapshot.pageID) else {
+                throw AhaKeyStudioStoreApplyError.noResidualToRetry
+            }
+            guard existing.state == .failedWithoutWrites || existing.state == .failedWithPartialCommit else {
+                throw AhaKeyStudioStoreApplyError.pageAlreadyInFlight
+            }
+            let residualIDs = Set(existing.residual?.fieldIDs ?? [])
             guard !residualIDs.isEmpty else {
                 throw AhaKeyStudioStoreApplyError.noResidualToRetry
             }
@@ -437,11 +393,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
                 residualFieldIDs: residualIDs
             )
         }
-        let result = try await facade.commitFrozenPage(frozen)
-        if case .accepted(let operationID) = result {
-            pageOperationIDs[snapshot.pageID] = operationID
-        }
-        return result
+        return try await facade.commitFrozenPage(frozen)
     }
 
     @discardableResult
@@ -456,27 +408,33 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         if disposition == .refused {
             throw AhaKeyStudioStoreApplyError.runningCannotBeCancelled
         }
-        if disposition == .requested || disposition == .alreadyFinished || disposition == .notFound {
-            if disposition != .requested {
-                pageOperationIDs.removeValue(forKey: pageID)
-            }
-        }
-        if disposition == .requested {
-            pageOperationIDs.removeValue(forKey: pageID)
-        }
         return disposition
     }
 
     func fieldAuthorities() -> [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] {
+        guard let snapshot = viewState.snapshot,
+              let deviceID = snapshot.activeDeviceID else { return [:] }
         var authorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [:]
-        for operation in viewState.snapshot?.operations ?? [] {
-            for baseline in operation.confirmedBaselines ?? [] {
-                authorities[baseline.fieldID] = AhaKeyStudioFieldAuthority(
-                    value: studioFieldValue(from: baseline.value),
-                    trust: studioTrust(from: baseline.trust),
-                    provenance: studioProvenance(from: baseline.provenance)
-                )
+        var versions: [AhaKeyStudioFieldID: AhaKeyRuntimeAuthoritativeSourceRevision] = [:]
+        for baseline in snapshot.pageBaselines where baseline.deviceID == deviceID {
+            if authorities[baseline.fieldID] != nil {
+                switch (versions[baseline.fieldID], baseline.authorityVersion?.sourceRevision) {
+                case let (existing?, candidate?) where candidate > existing:
+                    break
+                case (nil, .some):
+                    break
+                default:
+                    continue
+                }
             }
+            if let revision = baseline.authorityVersion?.sourceRevision {
+                versions[baseline.fieldID] = revision
+            }
+            authorities[baseline.fieldID] = AhaKeyStudioFieldAuthority(
+                value: studioFieldValue(from: baseline.value),
+                trust: studioTrust(from: baseline.trust),
+                provenance: studioProvenance(from: baseline.provenance)
+            )
         }
         return authorities
     }
@@ -485,12 +443,18 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         applyViewState(state)
     }
 
-    func bindPageOperationForTesting(pageID: AhaKeyStudioPageID, operationID: AhaKeyRuntimeOperationID) {
-        pageOperationIDs[pageID] = operationID
+    private func activeDeviceOperations(
+        matching pageID: AhaKeyStudioPageID
+    ) -> [AhaKeyRuntimeOperationSummary] {
+        guard let snapshot = viewState.snapshot,
+              let deviceID = snapshot.activeDeviceID else { return [] }
+        return snapshot.operations.filter { $0.targetDeviceID == deviceID && $0.pageID == pageID }
     }
 
-    func markDisconnectedForTesting(since: Date) {
-        disconnectedSince = since
+    private func pageBaselines(for pageID: AhaKeyStudioPageID) -> [AhaKeyRuntimeFieldBaseline] {
+        guard let snapshot = viewState.snapshot,
+              let deviceID = snapshot.activeDeviceID else { return [] }
+        return snapshot.pageBaselines.filter { $0.deviceID == deviceID && $0.pageID == pageID }
     }
 
     private func studioTrust(from trust: AhaKeyRuntimeBaselineTrust) -> AhaKeyStudioBaselineTrust {
@@ -521,14 +485,17 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
             return .integer(number)
         case .keyAction(let action):
             return .keyAction(action)
-        case .taskAsset(_, _, _, let framesPerSecond, let declaredFrameCount):
+        case .taskAsset(let sha256, let byteCount, let mediaType, let framesPerSecond, let declaredFrameCount):
             return .taskAsset(
                 AhaKeyStudioTaskAssetDescriptor(
                     fileURL: nil,
                     framesPerSecond: framesPerSecond,
                     declaredFrameCount: declaredFrameCount,
                     pixelWidth: nil,
-                    pixelHeight: nil
+                    pixelHeight: nil,
+                    sha256: sha256,
+                    byteCount: byteCount,
+                    mediaType: mediaType
                 )
             )
         }
@@ -544,11 +511,7 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         guard chrome.canAbandon, let operationID = chrome.operationID else {
             throw AhaKeyStudioStoreApplyError.abandonNotEligible
         }
-        let disposition = try await facade.requestAbandon(operationID)
-        if disposition == .abandoned || disposition == .alreadyFinished || disposition == .notFound {
-            pageOperationIDs.removeValue(forKey: pageID)
-        }
-        return disposition
+        return try await facade.requestAbandon(operationID)
     }
 
     /// 直接提交已组装的配置包（测试/诊断用；生产视图请走 `commitFrozenPage`）。

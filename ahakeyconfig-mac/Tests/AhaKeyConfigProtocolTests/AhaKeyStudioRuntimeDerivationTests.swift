@@ -16,7 +16,8 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         preferredTransport: AhaKeyRuntimeTransport = .bluetooth,
         usbAttached: Bool = false,
         bluetoothConnected: Bool = true,
-        state: AhaKeyRuntimeDeviceState = .init()
+        state: AhaKeyRuntimeDeviceState = .init(),
+        oledCompatibility: AhaKeyRuntimeOLEDCompatibilityFact? = nil
     ) -> AhaKeyRuntimeDeviceSnapshot {
         AhaKeyRuntimeDeviceSnapshot(
             id: try! AhaKeyRuntimeDeviceID(id),
@@ -25,7 +26,8 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
             preferredTransport: preferredTransport,
             usbAttached: usbAttached,
             bluetoothConnected: bluetoothConnected,
-            state: state
+            state: state,
+            oledCompatibility: oledCompatibility
         )
     }
 
@@ -145,6 +147,26 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         XCTAssertTrue(presentation.isConnected)
         XCTAssertEqual(presentation.protocolMode, .legacyBaseOnly)
         XCTAssertFalse(presentation.isConfigurationReady)
+    }
+
+    func testOLEDProfileUsesSealedFactInsteadOfProtocolState() {
+        let ready = makeDevice(protocolState: .currentReady)
+        XCTAssertEqual(AhaKeyStudioRuntimeDerivation.oledProfile(for: ready), .unsupported)
+
+        let standard = makeDevice(
+            protocolState: .currentReady,
+            oledCompatibility: .init(family: .legacyStandard)
+        )
+        XCTAssertEqual(AhaKeyStudioRuntimeDerivation.oledProfile(for: standard), .legacyStandard)
+
+        let rhino = makeDevice(
+            protocolState: .legacyDenied,
+            oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+        )
+        XCTAssertEqual(
+            AhaKeyStudioRuntimeDerivation.oledProfile(for: rhino),
+            .rhinoDualSet(sessionUploadAdvertised: false)
+        )
     }
 
     // MARK: - 拨杆映射

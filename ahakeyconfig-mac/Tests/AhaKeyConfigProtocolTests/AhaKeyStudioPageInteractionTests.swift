@@ -15,19 +15,65 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertFalse(AhaKeyStudioFieldOwnership.isWritable(.lever))
     }
 
-    func testDuplicateSubmitAndQueuedRemoveVersusRunningRefuse() async throws {
+    func testFreshStoreRebuildsQueuedRunningPausedAndResumableFromSnapshot() throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let queued = summary(
+            id: AhaKeyRuntimeOperationID(),
+            device: deviceID,
+            state: .accepted,
+            pageID: .key(modeSlot: 0, role: .voice)
+        )
+        let running = summary(
+            id: AhaKeyRuntimeOperationID(),
+            device: deviceID,
+            state: .running,
+            pageID: .lights(modeSlot: 0)
+        )
+        let paused = summary(
+            id: AhaKeyRuntimeOperationID(),
+            device: deviceID,
+            state: .paused,
+            pageID: .screen(modeSlot: 0)
+        )
+        let resumable = summary(
+            id: AhaKeyRuntimeOperationID(),
+            device: deviceID,
+            state: .resumablePartial,
+            pageID: .key(modeSlot: 0, role: .approve),
+            residual: AhaKeyRuntimePageResidual(fieldIDs: [.keyDescription(modeSlot: 0, role: .approve)])
+        )
+        let store = makeStore()
+        store.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(
+                    deviceID: deviceID,
+                    operations: [queued, running, paused, resumable]
+                )
+            )
+        )
+        XCTAssertEqual(store.operation(for: .key(modeSlot: 0, role: .voice))?.id, queued.id)
+        XCTAssertEqual(store.operation(for: .lights(modeSlot: 0))?.id, running.id)
+        XCTAssertEqual(store.operation(for: .screen(modeSlot: 0))?.id, paused.id)
+        XCTAssertEqual(store.operation(for: .key(modeSlot: 0, role: .approve))?.id, resumable.id)
+        XCTAssertTrue(store.isPageLocked(.key(modeSlot: 0, role: .voice)))
+        XCTAssertTrue(store.isPageLocked(.lights(modeSlot: 0)))
+        XCTAssertTrue(store.isPageLocked(.screen(modeSlot: 0)))
+        XCTAssertTrue(store.isPageLocked(.key(modeSlot: 0, role: .approve)))
+        XCTAssertEqual(store.deviceFIFO.count, 4)
+        XCTAssertEqual(store.deviceFIFO.first?.pageID, queued.pageID)
+    }
+
+    func testDuplicateSubmitAndQueuedRemoveKeepOwnershipUntilTerminal() async throws {
         let harness = try makeHarness()
         let keyPage = AhaKeyStudioPageID.key(modeSlot: 0, role: .voice)
         let lightsPage = AhaKeyStudioPageID.lights(modeSlot: 0)
         let queuedID = AhaKeyRuntimeOperationID()
         let runningID = AhaKeyRuntimeOperationID()
-        let queued = summary(id: queuedID, device: harness.deviceID, state: .accepted)
-        let running = summary(id: runningID, device: harness.deviceID, state: .running)
+        let queued = summary(id: queuedID, device: harness.deviceID, state: .accepted, pageID: keyPage)
+        let running = summary(id: runningID, device: harness.deviceID, state: .running, pageID: lightsPage)
         harness.store.applyViewStateForTesting(
             onlineState(snapshot: harness.snapshot(operations: [running, queued]))
         )
-        harness.store.bindPageOperationForTesting(pageID: keyPage, operationID: queuedID)
-        harness.store.bindPageOperationForTesting(pageID: lightsPage, operationID: runningID)
 
         do {
             _ = try await harness.store.commitFrozenPage(keySnapshot(text: "again"))
@@ -38,7 +84,20 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
 
         let removed = try await harness.store.removeQueuedPage(keyPage)
         XCTAssertEqual(removed, .requested)
-        XCTAssertNil(harness.store.operation(for: keyPage))
+        harness.store.applyViewStateForTesting(
+            onlineState(snapshot: harness.snapshot(operations: [
+                running,
+                queued.withState(.cancellationRequested),
+            ]))
+        )
+        XCTAssertEqual(harness.store.operation(for: keyPage)?.state, .cancellationRequested)
+        XCTAssertTrue(harness.store.isPageLocked(keyPage))
+        do {
+            _ = try await harness.store.commitFrozenPage(keySnapshot(text: "third"))
+            XCTFail("cancellationRequested 仍占用页")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyStudioStoreApplyError, .pageAlreadyInFlight)
+        }
 
         do {
             _ = try await harness.store.removeQueuedPage(lightsPage)
@@ -50,66 +109,81 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         await harness.facade.stop()
     }
 
-    func testAbandonRequiresSixtySecondDisconnect() async throws {
+    func testAbandonUsesSnapshotEligibilityNotLocalClock() async throws {
         let harness = try makeHarness()
         let page = AhaKeyStudioPageID.screen(modeSlot: 0)
         let operationID = AhaKeyRuntimeOperationID()
-        let paused = summary(id: operationID, device: harness.deviceID, state: .paused)
-        let snapshot = harness.snapshot(operations: [paused], connected: false)
-        harness.store.applyViewStateForTesting(onlineState(snapshot: snapshot))
-        harness.store.bindPageOperationForTesting(pageID: page, operationID: operationID)
-        harness.store.markDisconnectedForTesting(since: Date().addingTimeInterval(-59))
+        let epoch = Date(timeIntervalSince1970: 1_700_000_000)
+        let tooEarly = summary(
+            id: operationID,
+            device: harness.deviceID,
+            state: .paused,
+            pageID: page,
+            abandonEligibility: .init(epochStartedAt: epoch, eligible: false)
+        )
+        harness.store.applyViewStateForTesting(
+            onlineState(snapshot: harness.snapshot(operations: [tooEarly], connected: false))
+        )
         do {
             _ = try await harness.store.requestAbandon(of: page)
-            XCTFail("未满 60 秒不得放弃")
+            XCTFail("未投影 eligible 不得放弃")
         } catch {
             XCTAssertEqual(error as? AhaKeyStudioStoreApplyError, .abandonNotEligible)
         }
 
-        let readyAt = Date().addingTimeInterval(-AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
-        harness.store.markDisconnectedForTesting(since: readyAt)
-        let abandoned = try await harness.store.requestAbandon(of: page, now: Date())
+        let ready = tooEarly.withOwnership(
+            pageID: page,
+            abandonEligibility: .init(epochStartedAt: epoch, eligible: true)
+        )
+        let reopened = makeStore()
+        reopened.applyViewStateForTesting(
+            onlineState(snapshot: harness.snapshot(operations: [ready], connected: false))
+        )
+        let abandoned = try await reopened.requestAbandon(of: page)
         XCTAssertEqual(abandoned, .abandoned)
-        XCTAssertNil(harness.store.operation(for: page))
         await harness.facade.stop()
     }
 
-    func testResidualRetryUsesOverlayAndAllowsPartialRecommit() async throws {
+    func testResumablePartialCannotStartNewResidualOperation() async throws {
         let harness = try makeHarness()
-        await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
         let page = AhaKeyStudioPageID.screen(modeSlot: 0)
         let operationID = AhaKeyRuntimeOperationID()
         let partial = summary(
             id: operationID,
             device: harness.deviceID,
             state: .resumablePartial,
+            pageID: page,
             residual: AhaKeyRuntimePageResidual(fieldIDs: [.screenStatusLine(modeSlot: 0)])
         )
         harness.store.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: [partial])))
-        harness.store.bindPageOperationForTesting(pageID: page, operationID: operationID)
-        await harness.facade.installSnapshotForTesting(harness.snapshot(operations: [partial]))
+        do {
+            _ = try await harness.store.commitFrozenPage(screenSnapshot(), retryResidual: true)
+            XCTFail("resumablePartial 不得另起 residual operation")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyStudioStoreApplyError, .pageAlreadyInFlight)
+        }
+        XCTAssertTrue(harness.store.isPageLocked(page))
+        await harness.facade.stop()
+    }
 
-        let bothDirty = AhaKeyStudioPageSnapshot(
+    func testFailedWithoutWritesResidualRetryStartsNewOperation() async throws {
+        let harness = try makeHarness()
+        await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
+        let page = AhaKeyStudioPageID.screen(modeSlot: 0)
+        let failed = summary(
+            id: AhaKeyRuntimeOperationID(),
+            device: harness.deviceID,
+            state: .failedWithoutWrites,
             pageID: page,
-            profile: .rhinoDualSet(sessionUploadAdvertised: false),
-            fields: [
-                AhaKeyStudioFrozenField(
-                    id: .screenStatusLine(modeSlot: 0),
-                    value: .text("remain"),
-                    isDirty: true,
-                    baseline: .init(trust: .verified, value: .text("old"))
-                ),
-                AhaKeyStudioFrozenField(
-                    id: .screenFramesPerSecond(modeSlot: 0),
-                    value: .integer(18),
-                    isDirty: true,
-                    baseline: .init(trust: .verified, value: .integer(12))
-                ),
-            ]
+            residual: AhaKeyRuntimePageResidual(fieldIDs: [.screenStatusLine(modeSlot: 0)])
         )
+        harness.store.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: [failed])))
+        await harness.facade.installSnapshotForTesting(harness.snapshot(operations: [failed]))
+
+        let bothDirty = screenSnapshot(extraFPS: true)
         let result = try await harness.store.commitFrozenPage(bothDirty, retryResidual: true)
         guard case .accepted = result else {
-            return XCTFail("partial residual 应允许再次提交")
+            return XCTFail("failedWithoutWrites residual 应允许新 operation")
         }
         XCTAssertEqual(harness.transport.appliedPackage?.pageOperation?.fieldMask, [.screenStatusLine(modeSlot: 0)])
         XCTAssertFalse(
@@ -118,7 +192,106 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         await harness.facade.stop()
     }
 
-    func testTwoPagesCanQueueInDeviceFIFO() async throws {
+    func testDeviceSwitchIgnoresOtherDeviceOperationsAndBaselines() throws {
+        let active = try AhaKeyRuntimeDeviceID("DEVICE-A")
+        let other = try AhaKeyRuntimeDeviceID("DEVICE-B")
+        let foreignOp = summary(
+            id: AhaKeyRuntimeOperationID(),
+            device: other,
+            state: .running,
+            pageID: .screen(modeSlot: 0)
+        )
+        let foreignBaseline = AhaKeyRuntimeFieldBaseline(
+            deviceID: other,
+            pageID: .screen(modeSlot: 0),
+            fieldID: .screenStatusLine(modeSlot: 0),
+            value: .text("other"),
+            trust: .verified,
+            provenance: .deviceReadback
+        )
+        let store = makeStore()
+        store.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(
+                    deviceID: active,
+                    extraDevices: [other],
+                    operations: [foreignOp],
+                    pageBaselines: [foreignBaseline]
+                )
+            )
+        )
+        XCTAssertNil(store.operation(for: .screen(modeSlot: 0)))
+        XCTAssertFalse(store.isPageLocked(.screen(modeSlot: 0)))
+        XCTAssertTrue(store.fieldAuthorities().isEmpty)
+        XCTAssertTrue(store.deviceFIFO.isEmpty)
+    }
+
+    func testActiveDevicePageBaselinesPreserveTaskIdentity() throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let digest = try AhaKeySHA256Digest(String(repeating: "cd", count: 32))
+        let media = try AhaKeyMediaType("gif")
+        let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done)
+        let baseline = AhaKeyRuntimeFieldBaseline(
+            deviceID: deviceID,
+            pageID: .screen(modeSlot: 0),
+            fieldID: field,
+            value: .taskAsset(
+                sha256: digest,
+                byteCount: 48,
+                mediaType: media,
+                framesPerSecond: 12,
+                declaredFrameCount: 2
+            ),
+            trust: .writeConfirmed,
+            provenance: .writeConfirmation
+        )
+        let store = makeStore()
+        store.applyViewStateForTesting(
+            onlineState(snapshot: makeSnapshot(deviceID: deviceID, pageBaselines: [baseline]))
+        )
+        let authority = try XCTUnwrap(store.fieldAuthorities()[field])
+        XCTAssertEqual(authority.trust, .writeConfirmed)
+        XCTAssertEqual(authority.value?.taskAssetValue?.sha256, digest)
+        XCTAssertEqual(authority.value?.taskAssetValue?.byteCount, 48)
+        XCTAssertEqual(authority.value?.taskAssetValue?.mediaType, media)
+    }
+
+    func testOLEDProfileUsesSealedFactNotProtocolState() throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let cases: [(AhaKeyRuntimeOLEDCompatibilityFact?, AhaKeyOLEDCompatibilityProfile)] = [
+            (nil, .unsupported),
+            (.init(family: .legacyStandard), .legacyStandard),
+            (.init(family: .rhinoDualSet, sessionUploadAdvertised: false), .rhinoDualSet(sessionUploadAdvertised: false)),
+            (.init(family: .rhinoDualSet, sessionUploadAdvertised: true), .rhinoDualSet(sessionUploadAdvertised: true)),
+            (.init(family: .currentSessionCapable, sessionUploadAdvertised: true), .currentSessionCapable),
+        ]
+        for (fact, expected) in cases {
+            let store = makeStore()
+            store.applyViewStateForTesting(
+                onlineState(
+                    snapshot: makeSnapshot(
+                        deviceID: deviceID,
+                        protocolState: .currentReady,
+                        oledCompatibility: fact
+                    )
+                )
+            )
+            XCTAssertEqual(store.oledProfile, expected)
+        }
+        let denied = makeStore()
+        denied.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(
+                    deviceID: deviceID,
+                    protocolState: .legacyDenied,
+                    oledCompatibility: nil
+                )
+            )
+        )
+        XCTAssertEqual(denied.oledProfile, .unsupported)
+    }
+
+    func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
         let harness = try makeHarness()
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
         harness.store.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: [])))
@@ -141,7 +314,14 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
             return XCTFail("两页都应独立进入队列")
         }
         XCTAssertNotEqual(firstID, secondID)
-        XCTAssertEqual(harness.store.pageOperationIDs.count, 2)
+        let queued = [
+            summary(id: firstID, device: harness.deviceID, state: .accepted, pageID: .key(modeSlot: 0, role: .voice)),
+            summary(id: secondID, device: harness.deviceID, state: .accepted, pageID: .lights(modeSlot: 0)),
+        ]
+        let fresh = makeStore()
+        fresh.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: queued)))
+        XCTAssertEqual(fresh.deviceFIFO.count, 2)
+        XCTAssertEqual(fresh.deviceFIFO.map(\.pageID), queued.map(\.pageID))
         await harness.facade.stop()
     }
 
@@ -155,47 +335,28 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
             operations: [AhaKeyRuntimeOperationSummary],
             connected: Bool = true
         ) -> AhaKeyRuntimeSnapshot {
-            let device = AhaKeyRuntimeDeviceSnapshot(
-                id: deviceID,
-                displayName: "Test AhaKey",
-                protocolState: .currentReady,
-                preferredTransport: .bluetooth,
-                usbAttached: false,
-                bluetoothConnected: connected,
-                capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
-                authoritativeObject: Data("base-object".utf8)
-            )
-            return AhaKeyRuntimeSnapshot(
-                supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
-                lifecycleState: .running,
-                devices: [device],
-                activeDeviceID: deviceID,
-                configurationRevision: .init(0),
-                operations: operations,
-                policy: .init(),
-                permissions: .init(states: [:]),
-                keepAliveReasons: [],
-                latestEventSequence: .init(0)
+            makeSnapshot(
+                deviceID: deviceID,
+                connected: connected,
+                operations: operations
             )
         }
     }
 
+    private func makeStore() -> AhaKeyStudioRuntimeClient {
+        let transport = FakeTransport(snapshot: makeSnapshot(deviceID: try! AhaKeyRuntimeDeviceID("DEVICE-1")))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0
+        )
+        return AhaKeyStudioRuntimeClient(facade: facade)
+    }
+
     private func makeHarness() throws -> Harness {
         let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
-        let transport = FakeTransport(
-            snapshot: AhaKeyRuntimeSnapshot(
-                supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
-                lifecycleState: .running,
-                devices: [],
-                activeDeviceID: nil,
-                configurationRevision: .init(0),
-                operations: [],
-                policy: .init(),
-                permissions: .init(states: [:]),
-                keepAliveReasons: [],
-                latestEventSequence: .init(0)
-            )
-        )
+        let transport = FakeTransport(snapshot: makeSnapshot(deviceID: deviceID, operations: []))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport,
             clientBuildID: "test",
@@ -227,19 +388,101 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         )
     }
 
+    private func screenSnapshot(extraFPS: Bool = false) -> AhaKeyStudioPageSnapshot {
+        var fields = [
+            AhaKeyStudioFrozenField(
+                id: .screenStatusLine(modeSlot: 0),
+                value: .text("remain"),
+                isDirty: true,
+                baseline: .init(trust: .verified, value: .text("old"))
+            ),
+        ]
+        if extraFPS {
+            fields.append(
+                AhaKeyStudioFrozenField(
+                    id: .screenFramesPerSecond(modeSlot: 0),
+                    value: .integer(18),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .integer(12))
+                )
+            )
+        }
+        return AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            fields: fields
+        )
+    }
+
     private func summary(
         id: AhaKeyRuntimeOperationID,
         device: AhaKeyRuntimeDeviceID,
         state: AhaKeyRuntimeOperationState,
-        residual: AhaKeyRuntimePageResidual? = nil
+        pageID: AhaKeyStudioPageID? = nil,
+        residual: AhaKeyRuntimePageResidual? = nil,
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil
     ) -> AhaKeyRuntimeOperationSummary {
         AhaKeyRuntimeOperationSummary(
             id: id,
             targetDeviceID: device,
             state: state,
-            residual: residual
+            residual: residual,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility
         )
     }
+}
+
+private func makeSnapshot(
+    deviceID: AhaKeyRuntimeDeviceID,
+    extraDevices: [AhaKeyRuntimeDeviceID] = [],
+    connected: Bool = true,
+    protocolState: AhaKeyRuntimeDeviceProtocolState = .currentReady,
+    oledCompatibility: AhaKeyRuntimeOLEDCompatibilityFact? = .init(
+        family: .rhinoDualSet,
+        sessionUploadAdvertised: false
+    ),
+    operations: [AhaKeyRuntimeOperationSummary] = [],
+    pageBaselines: [AhaKeyRuntimeFieldBaseline] = []
+) -> AhaKeyRuntimeSnapshot {
+    var devices = [
+        AhaKeyRuntimeDeviceSnapshot(
+            id: deviceID,
+            displayName: "Test AhaKey",
+            protocolState: protocolState,
+            preferredTransport: .bluetooth,
+            usbAttached: false,
+            bluetoothConnected: connected,
+            capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
+            authoritativeObject: Data("base-object".utf8),
+            oledCompatibility: oledCompatibility
+        ),
+    ]
+    for extra in extraDevices {
+        devices.append(
+            AhaKeyRuntimeDeviceSnapshot(
+                id: extra,
+                displayName: extra.rawValue,
+                protocolState: .currentReady,
+                preferredTransport: .bluetooth,
+                usbAttached: false,
+                bluetoothConnected: true
+            )
+        )
+    }
+    return AhaKeyRuntimeSnapshot(
+        supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
+        lifecycleState: .running,
+        devices: devices,
+        activeDeviceID: deviceID,
+        configurationRevision: .init(0),
+        operations: operations,
+        policy: .init(),
+        permissions: .init(states: [:]),
+        keepAliveReasons: [],
+        latestEventSequence: .init(0),
+        pageBaselines: pageBaselines
+    )
 }
 
 private final class FakeTransport: AhaKeyStudioRuntimeTransport, @unchecked Sendable {

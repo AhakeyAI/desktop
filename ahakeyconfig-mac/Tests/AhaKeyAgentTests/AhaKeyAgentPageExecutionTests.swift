@@ -263,6 +263,43 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testSnapshotProjectsSealedOLEDPageIDAndAbandonEligibility() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r1-projection")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            guard case .snapshot(let accepted) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("accepted snapshot")
+            }
+            let acceptedOp = accepted.operations.first { $0.id == package.operationID }
+            XCTAssertEqual(acceptedOp?.pageID, .screen(modeSlot: 0))
+            let projectedProfile = await MainActor.run { agent.resolvedOLEDContextForTesting().profile }
+            XCTAssertEqual(accepted.devices.first?.oledCompatibility?.profile, projectedProfile)
+
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var disconnected = agent.executionTestHooks
+            disconnected?.wallClock = { now }
+            agent.executionTestHooks = disconnected
+            guard case .snapshot(let disconnectedSnapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("disconnected snapshot")
+            }
+            let paused = disconnectedSnapshot.operations.first { $0.id == package.operationID }
+            XCTAssertEqual(paused?.pageID, .screen(modeSlot: 0))
+            XCTAssertEqual(paused?.abandonEligibility?.eligible, true)
+        }
+    }
+
     func testFreshReopenDisconnectBeforeReadyMintsNewEpoch() {
         runTest { [self] in
             var now = Date(timeIntervalSince1970: 1_700_000_000)

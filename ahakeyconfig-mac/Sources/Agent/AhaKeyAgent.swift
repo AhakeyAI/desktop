@@ -3114,7 +3114,10 @@ extension AhaKeyAgent {
         }
         if skip { return }
         let base = AhaKeyRuntimeOperationSummary(
-            id: package.operationID, targetDeviceID: package.targetDeviceID, state: .accepted
+            id: package.operationID,
+            targetDeviceID: package.targetDeviceID,
+            state: .accepted,
+            pageID: package.pageOperation?.pageScope
         )
         let summary = await MainActor.run { self.overlayByteProgress(base) }
         await MainActor.run {
@@ -3156,7 +3159,7 @@ extension AhaKeyAgent {
                 package: record.package,
                 userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
               ) else {
-            return summary
+            return await overlayAbandonEligibility(summary, record: record, store: store)
         }
         let confirmed = (try? await store.confirmedSteps(for: record.operationID)) ?? []
         let projection = AhaKeyRuntimePageSemantic.confirmationProjection(
@@ -3177,7 +3180,7 @@ extension AhaKeyAgent {
             residual: projection.residual,
             confirmedBaselines: baselines
         )
-        return summary
+        return await overlayAbandonEligibility(summary, record: record, store: store)
     }
 
     private func noteDurableDisconnect(
@@ -3291,7 +3294,30 @@ extension AhaKeyAgent {
             completedSteps: record.completedSteps,
             totalSteps: record.totalSteps,
             messageCode: record.messageCode,
-            failureContext: record.failureContext
+            failureContext: record.failureContext,
+            pageID: record.package.pageOperation?.pageScope
+        )
+    }
+
+    private func overlayAbandonEligibility(
+        _ summary: AhaKeyRuntimeOperationSummary,
+        record: AhaKeyRuntimePersistedTransaction,
+        store: AhaKeyRuntimePersistentStore?
+    ) async -> AhaKeyRuntimeOperationSummary {
+        guard let store else { return summary }
+        switch record.state {
+        case .paused, .resumablePartial:
+            break
+        default:
+            return summary
+        }
+        guard let epoch = try? await store.disconnectEpoch(record.operationID) else {
+            return summary.withOwnership(pageID: summary.pageID, abandonEligibility: nil)
+        }
+        let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
+        return summary.withOwnership(
+            pageID: summary.pageID,
+            abandonEligibility: .projecting(epoch: epoch, now: now)
         )
     }
 
@@ -3548,8 +3574,9 @@ extension AhaKeyAgent {
     /// 连接/传输投影。不读测试传入的 authoritativeObject；权威对象只来自 durable commit。
     @MainActor
     private func projectedConnectionSnapshot() -> AhaKeyRuntimeDeviceSnapshot? {
+        let oledFact = AhaKeyRuntimeOLEDCompatibilityFact(resolvedOLEDContext())
         if let simulated = executionTestHooks?.simulatedDevice {
-            return simulated.strippingAuthoritativeObject()
+            return simulated.strippingAuthoritativeObject().withOLEDCompatibility(oledFact)
         }
         guard let deviceIDString = executionTestHooks?.stableDeviceID ?? transportCore.stableDeviceID,
               let deviceID = try? AhaKeyRuntimeDeviceID(deviceIDString) else { return nil }
@@ -3582,7 +3609,8 @@ extension AhaKeyAgent {
             capabilities: capabilities,
             sessionGeneration: .init(generations.session),
             transportGeneration: .init(generations.transport),
-            state: projectedDeviceState()
+            state: projectedDeviceState(),
+            oledCompatibility: oledFact
         )
     }
 
@@ -4371,7 +4399,27 @@ extension AhaKeyRuntimeDeviceSnapshot {
             sessionGeneration: sessionGeneration,
             transportGeneration: transportGeneration,
             state: state,
-            authoritativeObject: data
+            authoritativeObject: data,
+            oledCompatibility: oledCompatibility
+        )
+    }
+
+    fileprivate func withOLEDCompatibility(
+        _ fact: AhaKeyRuntimeOLEDCompatibilityFact?
+    ) -> AhaKeyRuntimeDeviceSnapshot {
+        AhaKeyRuntimeDeviceSnapshot(
+            id: id,
+            displayName: displayName,
+            protocolState: protocolState,
+            preferredTransport: preferredTransport,
+            usbAttached: usbAttached,
+            bluetoothConnected: bluetoothConnected,
+            capabilities: capabilities,
+            sessionGeneration: sessionGeneration,
+            transportGeneration: transportGeneration,
+            state: state,
+            authoritativeObject: authoritativeObject,
+            oledCompatibility: fact
         )
     }
 }

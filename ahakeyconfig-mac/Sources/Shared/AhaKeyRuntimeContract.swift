@@ -500,6 +500,8 @@ public struct AhaKeyRuntimeDeviceSnapshot: Codable, Equatable, Sendable {
     public let state: AhaKeyRuntimeDeviceState
     /// 设备读回 / 权威对象快照的 canonical content。缺省 nil；换代时带新字节。
     public let authoritativeObject: Data?
+    /// C4R1：Agent 已密封 OLED 兼容事实。缺省/旧 payload 为 nil；Studio 不得从 protocolState 反推。
+    public let oledCompatibility: AhaKeyRuntimeOLEDCompatibilityFact?
 
     public init(
         id: AhaKeyRuntimeDeviceID,
@@ -512,7 +514,8 @@ public struct AhaKeyRuntimeDeviceSnapshot: Codable, Equatable, Sendable {
         sessionGeneration: AhaKeyRuntimeSessionGeneration = .init(0),
         transportGeneration: AhaKeyRuntimeTransportGeneration = .init(0),
         state: AhaKeyRuntimeDeviceState = .init(),
-        authoritativeObject: Data? = nil
+        authoritativeObject: Data? = nil,
+        oledCompatibility: AhaKeyRuntimeOLEDCompatibilityFact? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -525,6 +528,55 @@ public struct AhaKeyRuntimeDeviceSnapshot: Codable, Equatable, Sendable {
         self.transportGeneration = transportGeneration
         self.state = state
         self.authoritativeObject = authoritativeObject
+        self.oledCompatibility = oledCompatibility
+    }
+}
+
+/// Agent 密封 `AhaKeyOLEDCompatibilityContext` 的 snapshot 投影。禁止 Studio 从 protocolState 猜测。
+public struct AhaKeyRuntimeOLEDCompatibilityFact: Codable, Equatable, Sendable {
+    public enum Family: String, Codable, Equatable, Sendable {
+        case legacyStandard
+        case rhinoDualSet
+        case currentSessionCapable
+        case unsupported
+    }
+
+    public let family: Family
+    public let sessionUploadAdvertised: Bool
+
+    public init(family: Family, sessionUploadAdvertised: Bool = false) {
+        self.family = family
+        self.sessionUploadAdvertised = sessionUploadAdvertised
+    }
+
+    public init(_ context: AhaKeyOLEDCompatibilityContext) {
+        switch context.profile {
+        case .legacyStandard:
+            family = .legacyStandard
+            sessionUploadAdvertised = false
+        case .rhinoDualSet(let advertised):
+            family = .rhinoDualSet
+            sessionUploadAdvertised = advertised
+        case .currentSessionCapable:
+            family = .currentSessionCapable
+            sessionUploadAdvertised = true
+        case .unsupported:
+            family = .unsupported
+            sessionUploadAdvertised = false
+        }
+    }
+
+    public var profile: AhaKeyOLEDCompatibilityProfile {
+        switch family {
+        case .legacyStandard:
+            return .legacyStandard
+        case .rhinoDualSet:
+            return .rhinoDualSet(sessionUploadAdvertised: sessionUploadAdvertised)
+        case .currentSessionCapable:
+            return .currentSessionCapable
+        case .unsupported:
+            return .unsupported
+        }
     }
 }
 
@@ -1042,6 +1094,28 @@ public enum AhaKeyRuntimeAbandonPolicy {
     public static let requiredDisconnectedDuration: TimeInterval = 60
 }
 
+/// Runtime 投影的 durable 真断连资格。Studio 只读 `eligible`，不得另起本地时钟。
+public struct AhaKeyRuntimeAbandonEligibility: Codable, Equatable, Sendable {
+    public let epochStartedAt: Date
+    public let eligible: Bool
+
+    public init(epochStartedAt: Date, eligible: Bool) {
+        self.epochStartedAt = epochStartedAt
+        self.eligible = eligible
+    }
+
+    public static func projecting(
+        epoch: AhaKeyRuntimeDisconnectEpoch,
+        now: Date
+    ) -> Self {
+        let elapsed = now.timeIntervalSince(epoch.startedAt)
+        return Self(
+            epochStartedAt: epoch.startedAt,
+            eligible: elapsed >= AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration && elapsed >= 0
+        )
+    }
+}
+
 /// Runtime 拥有的 baseline 信任；不得从 Studio cache 升格为 verified。
 public enum AhaKeyRuntimeBaselineTrust: String, Codable, Equatable, Sendable {
     case verified
@@ -1219,6 +1293,10 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let residual: AhaKeyRuntimePageResidual?
     /// C3C：本页已确认 baseline。缺省/旧 payload 为 nil。
     public let confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?
+    /// C4R1：WAL 页归属。缺省/旧 payload 为 nil；fresh Studio 只凭此重建页锁。
+    public let pageID: AhaKeyStudioPageID?
+    /// C4R1：durable 真断连 abandon 资格。缺省/旧 payload 为 nil。
+    public let abandonEligibility: AhaKeyRuntimeAbandonEligibility?
 
     public init(
         id: AhaKeyRuntimeOperationID,
@@ -1232,7 +1310,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         currentStepID: AhaKeyRuntimeStepIdentifier? = nil,
         failureContext: AhaKeyRuntimeOperationFailureContext? = nil,
         residual: AhaKeyRuntimePageResidual? = nil,
-        confirmedBaselines: [AhaKeyRuntimeFieldBaseline]? = nil
+        confirmedBaselines: [AhaKeyRuntimeFieldBaseline]? = nil,
+        pageID: AhaKeyStudioPageID? = nil,
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil
     ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
@@ -1246,6 +1326,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.failureContext = failureContext.flatMap { $0.isEmpty ? nil : $0 }
         self.residual = residual
         self.confirmedBaselines = confirmedBaselines
+        self.pageID = pageID
+        self.abandonEligibility = abandonEligibility
     }
 
     public func withByteProgress(
@@ -1265,7 +1347,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             currentStepID: currentStepID,
             failureContext: failureContext,
             residual: residual,
-            confirmedBaselines: confirmedBaselines
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility
         )
     }
 
@@ -1285,7 +1369,55 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             currentStepID: currentStepID,
             failureContext: failureContext,
             residual: residual,
-            confirmedBaselines: confirmedBaselines
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility
+        )
+    }
+
+    public func withOwnership(
+        pageID: AhaKeyStudioPageID?,
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility?
+    ) -> AhaKeyRuntimeOperationSummary {
+        AhaKeyRuntimeOperationSummary(
+            id: id,
+            targetDeviceID: targetDeviceID,
+            state: state,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID,
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility
+        )
+    }
+
+    public func withState(
+        _ nextState: AhaKeyRuntimeOperationState,
+        completedSteps: UInt32? = nil,
+        totalSteps: UInt32? = nil,
+        messageCode: AhaKeyRuntimeEventCode? = nil
+    ) -> AhaKeyRuntimeOperationSummary {
+        AhaKeyRuntimeOperationSummary(
+            id: id,
+            targetDeviceID: targetDeviceID,
+            state: nextState,
+            completedSteps: completedSteps ?? self.completedSteps,
+            totalSteps: totalSteps ?? self.totalSteps,
+            messageCode: messageCode ?? self.messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID,
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility
         )
     }
 }

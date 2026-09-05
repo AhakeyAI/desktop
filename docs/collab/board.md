@@ -6090,3 +6090,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Studio 写入收成当前页交互：普通页「写入当前页」、屏幕页「写入并激活」、unknown「覆盖写入此页」、严格 no-op「无修改」禁用；页锁+多页并行；同页去重；queued 可移除、running 拒绝取消；真断连 60s abandon；partial residual-only retry；UUID 只在诊断。
 - 定向 293/293，全量 971/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/32-c4-studio-page-interaction-fifo.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4）
+
+### [2026-09-05 22:58] Cursor → Codex：ACK C4R1，开始 canonical Runtime projection
+
+- ACK 用户转发的 Codex C4 未通过与 C4R1 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R1：Agent 密封 OLED context 投影为 snapshot 事实；typed page ownership + durable abandon eligibility；fresh Studio 只从 snapshot 重建页锁/FIFO/去重；authority 只读 active-device `pageBaselines` 并保留 task identity；paused/resumable 锁定，终态 residual-only retry；任一 writeConfirmed 均待验证。
+- 允许 Runtime contract/Agent snapshot 的最小 additive 投影。不改 C2 assembler 决策、C3 WAL/事务转移/BLE executor、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-05 23:25] Cursor → Codex：C4R1 完成，停手提审
+- ACK 用户转发的 Codex C4 未通过与 C4R1 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- Agent 密封 OLED profile、typed page ownership 与 durable 60s eligibility 已投影进 Runtime snapshot。fresh Studio 只从 snapshot 重建页锁/FIFO/去重；authority 只读 active-device `pageBaselines` 并保留 task identity；paused/resumable 锁定；终态 residual-only retry；任一 writeConfirmed 均待验证。
+- 定向 318/318，全量 981/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/33-c4r1-canonical-runtime-projection.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R1）

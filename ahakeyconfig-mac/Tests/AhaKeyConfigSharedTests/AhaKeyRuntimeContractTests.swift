@@ -353,6 +353,50 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertNil(object["messageCode"])
     }
 
+    func testOperationSummaryRoundTripsPageOwnershipAndAbandonEligibility() throws {
+        let page = AhaKeyStudioPageID.screen(modeSlot: 0)
+        let eligibility = AhaKeyRuntimeAbandonEligibility(
+            epochStartedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            eligible: true
+        )
+        let summary = AhaKeyRuntimeOperationSummary(
+            id: AhaKeyRuntimeOperationID(),
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            state: .paused,
+            pageID: page,
+            abandonEligibility: eligibility
+        )
+        let decoded = try JSONDecoder().decode(
+            AhaKeyRuntimeOperationSummary.self,
+            from: JSONEncoder().encode(summary)
+        )
+        XCTAssertEqual(decoded.pageID, page)
+        XCTAssertEqual(decoded.abandonEligibility, eligibility)
+    }
+
+    func testDeviceSnapshotRoundTripsOLEDCompatibilityFact() throws {
+        let fact = AhaKeyRuntimeOLEDCompatibilityFact(
+            family: .rhinoDualSet,
+            sessionUploadAdvertised: false
+        )
+        let device = AhaKeyRuntimeDeviceSnapshot(
+            id: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            displayName: "AhaKey",
+            protocolState: .currentReady,
+            preferredTransport: .bluetooth,
+            usbAttached: false,
+            bluetoothConnected: true,
+            oledCompatibility: fact
+        )
+        let decoded = try JSONDecoder().decode(
+            AhaKeyRuntimeDeviceSnapshot.self,
+            from: JSONEncoder().encode(device)
+        )
+        XCTAssertEqual(decoded.oledCompatibility, fact)
+        XCTAssertEqual(decoded.oledCompatibility?.profile, .rhinoDualSet(sessionUploadAdvertised: false))
+        XCTAssertEqual(AhaKeyRuntimeOLEDCompatibilityFact(.standard).profile, .legacyStandard)
+    }
+
     func testOperationSummaryOmitsNilFailureContextInnerKeys() throws {
         let summary = AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),

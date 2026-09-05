@@ -88,19 +88,49 @@ public struct AhaKeyStudioTaskAssetDescriptor: Equatable, Sendable {
     public var declaredFrameCount: Int?
     public var pixelWidth: Int?
     public var pixelHeight: Int?
+    /// Runtime 已确认的内容身份。缺省 nil；与 baseline 比较时优先用 digest。
+    public var sha256: AhaKeySHA256Digest?
+    public var byteCount: UInt64?
+    public var mediaType: AhaKeyMediaType?
 
     public init(
         fileURL: URL? = nil,
         framesPerSecond: Int,
         declaredFrameCount: Int? = nil,
         pixelWidth: Int? = nil,
-        pixelHeight: Int? = nil
+        pixelHeight: Int? = nil,
+        sha256: AhaKeySHA256Digest? = nil,
+        byteCount: UInt64? = nil,
+        mediaType: AhaKeyMediaType? = nil
     ) {
         self.fileURL = fileURL
         self.framesPerSecond = framesPerSecond
         self.declaredFrameCount = declaredFrameCount
         self.pixelWidth = pixelWidth
         self.pixelHeight = pixelHeight
+        self.sha256 = sha256
+        self.byteCount = byteCount
+        self.mediaType = mediaType
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        if let leftSHA = lhs.sha256, let rightSHA = rhs.sha256,
+           let leftBytes = lhs.byteCount, let rightBytes = rhs.byteCount,
+           let leftMedia = lhs.mediaType, let rightMedia = rhs.mediaType {
+            return leftSHA == rightSHA
+                && leftBytes == rightBytes
+                && leftMedia == rightMedia
+                && lhs.framesPerSecond == rhs.framesPerSecond
+                && lhs.declaredFrameCount == rhs.declaredFrameCount
+        }
+        return lhs.fileURL == rhs.fileURL
+            && lhs.framesPerSecond == rhs.framesPerSecond
+            && lhs.declaredFrameCount == rhs.declaredFrameCount
+            && lhs.pixelWidth == rhs.pixelWidth
+            && lhs.pixelHeight == rhs.pixelHeight
+            && lhs.sha256 == rhs.sha256
+            && lhs.byteCount == rhs.byteCount
+            && lhs.mediaType == rhs.mediaType
     }
 }
 
@@ -121,7 +151,10 @@ public enum AhaKeyStudioFieldValue: Equatable, Sendable {
         framesPerSecond: Int,
         declaredFrameCount: Int?,
         pixelWidth: Int?,
-        pixelHeight: Int?
+        pixelHeight: Int?,
+        sha256: AhaKeySHA256Digest? = nil,
+        byteCount: UInt64? = nil,
+        mediaType: AhaKeyMediaType? = nil
     ) -> AhaKeyStudioFieldValue {
         let url = path.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
         return .taskAsset(
@@ -130,7 +163,10 @@ public enum AhaKeyStudioFieldValue: Equatable, Sendable {
                 framesPerSecond: framesPerSecond,
                 declaredFrameCount: declaredFrameCount,
                 pixelWidth: pixelWidth,
-                pixelHeight: pixelHeight
+                pixelHeight: pixelHeight,
+                sha256: sha256,
+                byteCount: byteCount,
+                mediaType: mediaType
             )
         )
     }
@@ -494,7 +530,7 @@ public struct AhaKeyStudioPageChromeInput: Equatable, Sendable {
     public var operation: AhaKeyRuntimeOperationSummary?
     public var deviceQueue: [AhaKeyRuntimeOperationSummary]
     public var isDeviceConnected: Bool
-    public var disconnectedDuration: TimeInterval
+    public var pageBaselines: [AhaKeyRuntimeFieldBaseline]
 
     public init(
         pageID: AhaKeyStudioPageID,
@@ -502,14 +538,14 @@ public struct AhaKeyStudioPageChromeInput: Equatable, Sendable {
         operation: AhaKeyRuntimeOperationSummary? = nil,
         deviceQueue: [AhaKeyRuntimeOperationSummary] = [],
         isDeviceConnected: Bool = true,
-        disconnectedDuration: TimeInterval = 0
+        pageBaselines: [AhaKeyRuntimeFieldBaseline] = []
     ) {
         self.pageID = pageID
         self.assembly = assembly
         self.operation = operation
         self.deviceQueue = deviceQueue
         self.isDeviceConnected = isDeviceConnected
-        self.disconnectedDuration = disconnectedDuration
+        self.pageBaselines = pageBaselines
     }
 }
 
@@ -531,8 +567,7 @@ public enum AhaKeyStudioPageChromeProjector {
                 operation,
                 pageID: input.pageID,
                 assembly: input.assembly,
-                isDeviceConnected: input.isDeviceConnected,
-                disconnectedDuration: input.disconnectedDuration,
+                pageBaselines: input.pageBaselines,
                 queuePosition: queuePosition,
                 queuedBehindCount: queuedBehindCount
             )
@@ -609,12 +644,12 @@ public enum AhaKeyStudioPageChromeProjector {
         _ operation: AhaKeyRuntimeOperationSummary,
         pageID: AhaKeyStudioPageID,
         assembly: AhaKeyStudioPageAssembly,
-        isDeviceConnected: Bool,
-        disconnectedDuration: TimeInterval,
+        pageBaselines: [AhaKeyRuntimeFieldBaseline],
         queuePosition: Int?,
         queuedBehindCount: Int
     ) -> AhaKeyStudioPageChrome {
         let residualRetry = !(operation.residual?.isEmpty ?? true)
+        let canAbandon = operation.abandonEligibility?.eligible == true
         switch operation.state {
         case .accepted:
             return lockedChrome(
@@ -639,8 +674,6 @@ public enum AhaKeyStudioPageChromeProjector {
                 operationID: operation.id
             )
         case .paused:
-            let canAbandon = !isDeviceConnected
-                && disconnectedDuration >= AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration
             return lockedChrome(
                 status: .waitingReconnect,
                 pageID: pageID,
@@ -652,11 +685,13 @@ public enum AhaKeyStudioPageChromeProjector {
                 operationID: operation.id
             )
         case .resumablePartial:
-            return unlockedTerminalChrome(
+            return lockedChrome(
                 status: .partial,
                 pageID: pageID,
-                assembly: assembly,
-                canRetryResidual: residualRetry,
+                canRemoveQueued: false,
+                canAbandon: canAbandon,
+                canRetryResidual: false,
+                queuePosition: queuePosition,
                 queuedBehindCount: queuedBehindCount,
                 operationID: operation.id
             )
@@ -675,14 +710,12 @@ public enum AhaKeyStudioPageChromeProjector {
                 status: conflict ? .conflict : .failed,
                 pageID: pageID,
                 assembly: assembly,
-                canRetryResidual: false,
+                canRetryResidual: residualRetry,
                 queuedBehindCount: queuedBehindCount,
                 operationID: operation.id
             )
         case .completed:
-            let pendingVerify = (operation.confirmedBaselines ?? []).contains {
-                $0.trust == .writeConfirmed
-            } && !(operation.confirmedBaselines ?? []).contains(where: { $0.trust == .verified })
+            let pendingVerify = pageBaselines.contains { $0.trust == .writeConfirmed }
             return AhaKeyStudioPageChrome(
                 status: pendingVerify ? .writtenPendingVerify : .synced,
                 commitKind: .noModification,

@@ -203,10 +203,15 @@ final class AhaKeyStudioPageModelTests: XCTestCase {
             AhaKeyStudioPageChromeInput(
                 pageID: .screen(modeSlot: 0),
                 assembly: .noOp,
-                operation: paused,
+                operation: paused.withOwnership(
+                    pageID: .screen(modeSlot: 0),
+                    abandonEligibility: AhaKeyRuntimeAbandonEligibility(
+                        epochStartedAt: Date(timeIntervalSince1970: 0),
+                        eligible: false
+                    )
+                ),
                 deviceQueue: [paused],
-                isDeviceConnected: false,
-                disconnectedDuration: 59
+                isDeviceConnected: false
             )
         )
         XCTAssertEqual(tooEarly.status, .waitingReconnect)
@@ -216,10 +221,15 @@ final class AhaKeyStudioPageModelTests: XCTestCase {
             AhaKeyStudioPageChromeInput(
                 pageID: .screen(modeSlot: 0),
                 assembly: .noOp,
-                operation: paused,
+                operation: paused.withOwnership(
+                    pageID: .screen(modeSlot: 0),
+                    abandonEligibility: AhaKeyRuntimeAbandonEligibility(
+                        epochStartedAt: Date(timeIntervalSince1970: 0),
+                        eligible: true
+                    )
+                ),
                 deviceQueue: [paused],
-                isDeviceConnected: false,
-                disconnectedDuration: AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration
+                isDeviceConnected: false
             )
         )
         XCTAssertTrue(ready.canAbandon)
@@ -356,8 +366,84 @@ final class AhaKeyStudioPageModelTests: XCTestCase {
             )
         )
         XCTAssertEqual(partialChrome.status, .partial)
-        XCTAssertTrue(partialChrome.canRetryResidual)
-        XCTAssertFalse(partialChrome.isLocked)
+        XCTAssertFalse(partialChrome.canRetryResidual)
+        XCTAssertTrue(partialChrome.isLocked)
+        XCTAssertFalse(partialChrome.canAbandon)
+
+        let failedResidual = Self.summary(
+            id: .init(),
+            device: device,
+            state: .failedWithoutWrites,
+            residual: AhaKeyRuntimePageResidual(fieldIDs: [.screenStatusLine(modeSlot: 0)])
+        )
+        let failedChrome = AhaKeyStudioPageChromeProjector.project(
+            AhaKeyStudioPageChromeInput(
+                pageID: .screen(modeSlot: 0),
+                assembly: .write(Self.statusPlan()),
+                operation: failedResidual
+            )
+        )
+        XCTAssertFalse(failedChrome.isLocked)
+        XCTAssertTrue(failedChrome.canRetryResidual)
+
+        let mixed = AhaKeyRuntimeFieldBaseline(
+            deviceID: device,
+            pageID: .screen(modeSlot: 0),
+            fieldID: .screenStatusLine(modeSlot: 0),
+            value: .text("new"),
+            trust: .writeConfirmed,
+            provenance: .writeConfirmation
+        )
+        let verified = AhaKeyRuntimeFieldBaseline(
+            deviceID: device,
+            pageID: .screen(modeSlot: 0),
+            fieldID: .screenFramesPerSecond(modeSlot: 0),
+            value: .integer(12),
+            trust: .verified,
+            provenance: .deviceReadback
+        )
+        let completed = Self.summary(id: .init(), device: device, state: .completed)
+        let mixedChrome = AhaKeyStudioPageChromeProjector.project(
+            AhaKeyStudioPageChromeInput(
+                pageID: .screen(modeSlot: 0),
+                assembly: .noOp,
+                operation: completed,
+                pageBaselines: [mixed, verified]
+            )
+        )
+        XCTAssertEqual(mixedChrome.status, .writtenPendingVerify)
+    }
+
+    func testTaskAssetIdentityIgnoresLocalPath() throws {
+        let digest = try AhaKeySHA256Digest(String(repeating: "ab", count: 32))
+        let media = try AhaKeyMediaType("gif")
+        let current = AhaKeyStudioFieldValue.asset(
+            path: "/tmp/new.gif",
+            framesPerSecond: 12,
+            declaredFrameCount: 4,
+            pixelWidth: 160,
+            pixelHeight: 80,
+            sha256: digest,
+            byteCount: 24,
+            mediaType: media
+        )
+        let baseline = AhaKeyStudioFieldValue.asset(
+            path: nil,
+            framesPerSecond: 12,
+            declaredFrameCount: 4,
+            pixelWidth: nil,
+            pixelHeight: nil,
+            sha256: digest,
+            byteCount: 24,
+            mediaType: media
+        )
+        let field = AhaKeyStudioFrozenField(
+            id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done),
+            value: current,
+            isDirty: true,
+            baseline: .init(trust: .writeConfirmed, value: baseline)
+        )
+        XCTAssertTrue(AhaKeyStudioPageDiffer.isStrictNoOp(field))
     }
 
     private static func statusPlan() -> AhaKeyStudioScopedWritePlan {

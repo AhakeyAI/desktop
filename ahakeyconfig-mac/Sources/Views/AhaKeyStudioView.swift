@@ -2432,20 +2432,23 @@ struct AhaKeyStudioView: View {
     }
 
     private func partIsDirty(_ part: AhaKeyStudioPart) -> Bool {
-        let current = studioDraft.draft(for: selectedMode)
-        let baseline = lastSyncedDraft.draft(for: selectedMode)
-        switch part {
-        case .key1, .key2, .key3, .key4:
-            guard let role = part.keyRole else { return false }
-            return current.key(for: role) != baseline.key(for: role)
-        case .oledDisplay:
-            guard AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(releaseFeatureProjection) else {
-                return false
-            }
-            return oledIsDirty(current: current.oled, baseline: baseline.oled)
-        case .lightBar:
-            return current.lightBar != baseline.lightBar
-        case .toggleSwitch:
+        let pageID = part.pageID(modeSlot: selectedMode)
+        if part == .oledDisplay,
+           !AhaKeyStudioDraftDirtyPolicy.includeOLEDSurface(releaseFeatureProjection) {
+            return false
+        }
+        let snapshot = studioDraft.frozenPageSnapshot(
+            pageID: pageID,
+            lastSyncedDraft: lastSyncedDraft,
+            fieldAuthorities: runtimeStore.fieldAuthorities(),
+            profile: runtimeStore.oledProfile,
+            selectedTaskSet: part == .oledDisplay ? selectedOLEDGIFSet : nil,
+            overwriteConfirmed: overwriteConfirmedPages.contains(pageID)
+        )
+        switch AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot) {
+        case .write, .requiresOverwriteConfirmation:
+            return true
+        case .noOp, .unsupportedProfile, .unsupportedPage, .missingTrustedPageCache:
             return false
         }
     }
@@ -2496,9 +2499,8 @@ struct AhaKeyStudioView: View {
     private var deviceFIFOStatusText: String {
         let queue = runtimeStore.deviceFIFO
         guard let head = queue.first else { return "" }
-        let pageTitle = runtimeStore.pageOperationIDs.first(where: { $0.value == head.id }).map {
-            AhaKeyStudioPageChromeProjector.pageTitle($0.key)
-        } ?? NSLocalizedString("当前页", comment: "")
+        let pageTitle = head.pageID.map(AhaKeyStudioPageChromeProjector.pageTitle)
+            ?? NSLocalizedString("当前页", comment: "")
         let behind = max(0, queue.count - 1)
         return String(format: NSLocalizedString("队列 %@ · 后续 %d 项", comment: ""), pageTitle, behind)
     }
@@ -2590,46 +2592,20 @@ struct AhaKeyStudioView: View {
     }
 
     private func mergeCompletedPageBaselines(_ operations: [AhaKeyRuntimeOperationSummary]) {
-        for (pageID, operationID) in runtimeStore.pageOperationIDs {
-            guard let operation = operations.first(where: { $0.id == operationID }) else { continue }
+        guard let deviceID = runtimeStore.presentation.activeDeviceID else { return }
+        for operation in operations where operation.targetDeviceID == deviceID {
+            guard let pageID = operation.pageID else { continue }
             switch operation.state {
             case .completed:
-                mergePageIntoLastSynced(pageID)
                 overwriteConfirmedPages.remove(pageID)
+                lastSyncDate = Date()
+                syncStatusMessage = NSLocalizedString("当前页已写入设备。", comment: "")
             case .resumablePartial, .failedWithPartialCommit, .failedWithoutWrites:
                 overwriteConfirmedPages.remove(pageID)
             case .accepted, .running, .paused, .cancellationRequested:
                 break
             }
         }
-    }
-
-    private func mergePageIntoLastSynced(_ pageID: AhaKeyStudioPageID) {
-        var next = lastSyncedDraft
-        switch pageID {
-        case .key(let slot, let role):
-            guard let modeSlot = AhaKeyModeSlot(rawValue: Int(slot)),
-                  let keyRole = AhaKeyKeyRole(rawValue: Int(role.rawValue)) else { return }
-            var mode = next.draft(for: modeSlot)
-            mode.updateKey(studioDraft.draft(for: modeSlot).key(for: keyRole))
-            next.updateMode(mode)
-        case .lights(let slot):
-            guard let modeSlot = AhaKeyModeSlot(rawValue: Int(slot)) else { return }
-            var mode = next.draft(for: modeSlot)
-            mode.lightBar = studioDraft.draft(for: modeSlot).lightBar
-            next.updateMode(mode)
-        case .screen(let slot):
-            guard let modeSlot = AhaKeyModeSlot(rawValue: Int(slot)) else { return }
-            var mode = next.draft(for: modeSlot)
-            mode.oled = studioDraft.draft(for: modeSlot).oled
-            next.updateMode(mode)
-        case .lever, .power:
-            return
-        }
-        lastSyncedDraft = next
-        saveCurrentDeviceSyncBaseline()
-        lastSyncDate = Date()
-        syncStatusMessage = NSLocalizedString("当前页已写入设备并保存。", comment: "")
     }
 
     private func completeEditingAfterWriteResult() {
