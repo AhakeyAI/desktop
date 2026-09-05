@@ -1,0 +1,12 @@
+{
+  "bundleId": "wchisp-3.6.1-ch57x59x",
+  "toolVersion": "3.6.1",
+  "ispDllVersion": "3.6.1",
+  "driverDllVersion": "3.6.1",
+  "configContractVersion": "3.6.1",
+  "configLayoutFingerprint": "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8",
+  "supportedChipFamily": "CH57x/CH59x",
+  "supportedModel": "CH582",
+  "source": "AhaKey repository-controlled sanitized release candidate",
+  "provenance": "CONFIG_CH57X59X-3.6.1-sanitized.WCH; vendor runtime binaries require matching supplier metadata"
+}

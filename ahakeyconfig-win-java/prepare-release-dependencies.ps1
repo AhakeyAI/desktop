@@ -10,6 +10,8 @@ Set-StrictMode -Version Latest
 $baselineApp = Join-Path $BaselineInstallDir "app"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
 $baselineJar = Join-Path $baselineApp "ahakey-studio-1.0.0.jar"
+$sanitizedConfig = Join-Path $PSScriptRoot "src\main\resources\wchisp\CONFIG_CH57X59X-3.6.1-sanitized.WCH"
+$runtimeMetadata = Join-Path $PSScriptRoot "src\main\resources\wchisp\wchisp-runtime.json"
 $required = @(
     $baselineJar,
     $baselineRuntime,
@@ -18,7 +20,8 @@ $required = @(
     (Join-Path $baselineApp "models\silero_vad.onnx"),
     (Join-Path $baselineApp "models\tokens.txt"),
     (Join-Path $WchIspBundleDir "WCHISPTool_CH57x-59x.exe"),
-    $sanitizedConfig
+    $sanitizedConfig,
+    $runtimeMetadata
 )
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path)) {
@@ -51,6 +54,23 @@ if (Test-Path -LiteralPath $wchIspStage) {
     Remove-Item -LiteralPath $wchIspStage -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $wchIspStage | Out-Null
+foreach ($runtimeFile in @(
+    "WCHISPTool_CH57x-59x.exe",
+    "CH343PT.DLL",
+    "WCH55xISPDLL.dll",
+    "wchisp-runtime.json"
+)) {
+    if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
+        throw "WCHISP runtime bundle is missing: $runtimeFile"
+    }
+}
+$expectedRuntime = Get-Content -LiteralPath $runtimeMetadata -Raw | ConvertFrom-Json
+$sourceRuntime = Get-Content -LiteralPath (Join-Path $WchIspBundleDir "wchisp-runtime.json") -Raw | ConvertFrom-Json
+foreach ($property in @("toolVersion", "ispDllVersion", "driverDllVersion", "configContractVersion", "configLayoutFingerprint", "supportedChipFamily", "supportedModel")) {
+    if ([string]$sourceRuntime.$property -ne [string]$expectedRuntime.$property) {
+        throw "Unsupported or mixed WCHISP runtime contract: $property=$($sourceRuntime.$property)"
+    }
+}
 Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
     Where-Object {
         $_.Name -notin @("CONFIG_CH57X59X.WCH", "CONFIG_CH57X59X.WCH.excluded")
@@ -58,6 +78,8 @@ Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
     Copy-Item -Destination $wchIspStage -Recurse
 Copy-Item -LiteralPath $sanitizedConfig -Destination `
     (Join-Path $wchIspStage "CONFIG_CH57X59X.WCH")
+Copy-Item -LiteralPath $runtimeMetadata -Destination `
+    (Join-Path $wchIspStage "wchisp-runtime.json")
 . (Join-Path $PSScriptRoot "Test-WchIspReleasePrivacy.ps1")
 Assert-WchIspReleasePrivacy -RootPath $wchIspStage
 

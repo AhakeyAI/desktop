@@ -416,14 +416,22 @@ public final class DeviceMaintenancePane {
                     if (environment.ready()) {
                         var device = tool.detect();
                         ready = device.bootloaderPresent();
-                        report.append(ready
-                            ? text("[通过] 已检测到 CH582 ISP 设备\n",
-                                "[PASS] CH582 ISP device detected\n")
-                            : text("[失败] 未检测到 CH582 ISP 设备\n",
-                                "[FAIL] CH582 ISP device not detected\n"));
-                        if (device.detail() != null && !device.detail().isBlank()) {
-                            report.append(device.detail()).append('\n');
+                        report.append("WCHISP_UID_QUERY=")
+                            .append(ready ? "PASS" : "FAIL").append('\n');
+                        if (ready) {
+                            report.append(text("[通过] 已检测到 CH582 ISP 设备\n",
+                                "[PASS] CH582 ISP device detected\n"));
+                        } else {
+                            // Keep the flasher's classification (enumeration, UID
+                            // failure, timeout, etc.) instead of collapsing every
+                            // non-zero result into "device not found".
+                            report.append(text("[失败] ", "[FAIL] "))
+                                .append(device.detail()).append('\n');
                         }
+                    } else {
+                        // A runtime-contract failure happens before any UID command;
+                        // still expose a machine-readable failed UID stage.
+                        report.append("WCHISP_UID_QUERY=FAIL\n");
                     }
                 } catch (Exception exception) {
                     report.append("[失败] ").append(exception.getMessage()).append('\n');

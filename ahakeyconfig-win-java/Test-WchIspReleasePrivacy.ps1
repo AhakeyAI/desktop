@@ -29,6 +29,15 @@ function Assert-WchIspReleasePrivacy {
     if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
         throw "WCHISP release root does not exist: $resolved"
     }
+    foreach ($runtimeFile in @(
+        "WCHISPTool_CH57x-59x.exe",
+        "CH343PT.DLL",
+        "WCH55xISPDLL.dll"
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $resolved $runtimeFile) -PathType Leaf)) {
+            throw "WCHISP release is missing runtime component: $runtimeFile"
+        }
+    }
     $files = @(Get-ChildItem -LiteralPath $resolved -Recurse -File)
     $scanExtensions = @(
         ".wch", ".excluded", ".ini", ".txt", ".log", ".json", ".xml", ".zip"
@@ -89,10 +98,33 @@ function Assert-WchIspReleasePrivacy {
     if ($configHash -ne "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8") {
         throw "WCHISP release CONFIG_CH57X59X.WCH is not the repository baseline"
     }
+    $metadataPath = Join-Path $resolved "wchisp-runtime.json"
+    if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
+        throw "WCHISP release is missing wchisp-runtime.json"
+    }
+    try {
+        $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+    } catch {
+        throw "WCHISP runtime metadata is not valid JSON: $($_.Exception.Message)"
+    }
+    foreach ($property in @("toolVersion", "ispDllVersion", "driverDllVersion", "configContractVersion")) {
+        if ([string]$metadata.$property -ne "3.6.1") {
+            throw "WCHISP runtime contract mismatch: $property=$($metadata.$property)"
+        }
+    }
+    if ([string]$metadata.configLayoutFingerprint -ne
+        "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8") {
+        throw "WCHISP runtime config layout fingerprint mismatch"
+    }
+    if ([string]$metadata.supportedModel -ne "CH582" -or
+        [string]$metadata.supportedChipFamily -ne "CH57x/CH59x") {
+        throw "WCHISP runtime supported device contract mismatch"
+    }
     if ($violations.Count -gt 0) {
         throw "WCHISP release privacy validation failed: $($violations -join '; ')"
     }
     Write-Output "WCHISP_RELEASE_PRIVACY=OK"
+    Write-Output "WCHISP_RELEASE_PRIVACY_GATE=PASS"
 }
 
 if ($MyInvocation.InvocationName -ne '.') {

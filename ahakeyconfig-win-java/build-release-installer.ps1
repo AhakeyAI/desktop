@@ -178,6 +178,16 @@ if ($IncludeLicensedWchIsp) {
         -not (Test-Path -LiteralPath $WchIspBundleDir -PathType Container)) {
         throw "A licensed WCHISP CH57x-59x bundle directory is required."
     }
+    foreach ($runtimeFile in @(
+        "WCHISPTool_CH57x-59x.exe",
+        "CH343PT.DLL",
+        "WCH55xISPDLL.dll",
+        "wchisp-runtime.json"
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
+            throw "WCHISP runtime bundle is missing: $runtimeFile"
+        }
+    }
     $wchDir = Join-Path $inputDir "tools\wchisp"
     New-Item -ItemType Directory -Force -Path $wchDir | Out-Null
     Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
@@ -186,11 +196,24 @@ if ($IncludeLicensedWchIsp) {
         } |
         Copy-Item -Destination $wchDir -Recurse
     $sanitizedConfig = Join-Path $projectDir "src\main\resources\wchisp\CONFIG_CH57X59X-3.6.1-sanitized.WCH"
+    $runtimeMetadata = Join-Path $projectDir "src\main\resources\wchisp\wchisp-runtime.json"
     if (-not (Test-Path -LiteralPath $sanitizedConfig -PathType Leaf)) {
         throw "Repository-controlled sanitized WCHISP configuration is missing."
     }
+    if (-not (Test-Path -LiteralPath $runtimeMetadata -PathType Leaf)) {
+        throw "Repository-controlled WCHISP runtime metadata is missing."
+    }
+    $expectedRuntime = Get-Content -LiteralPath $runtimeMetadata -Raw | ConvertFrom-Json
+    $sourceRuntime = Get-Content -LiteralPath (Join-Path $WchIspBundleDir "wchisp-runtime.json") -Raw | ConvertFrom-Json
+    foreach ($property in @("toolVersion", "ispDllVersion", "driverDllVersion", "configContractVersion", "configLayoutFingerprint", "supportedChipFamily", "supportedModel")) {
+        if ([string]$sourceRuntime.$property -ne [string]$expectedRuntime.$property) {
+            throw "Unsupported or mixed WCHISP runtime contract: $property=$($sourceRuntime.$property)"
+        }
+    }
     Copy-Item -LiteralPath $sanitizedConfig -Destination `
         (Join-Path $wchDir "CONFIG_CH57X59X.WCH")
+    Copy-Item -LiteralPath $runtimeMetadata -Destination `
+        (Join-Path $wchDir "wchisp-runtime.json")
     if (-not (Test-Path -LiteralPath `
         (Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"))) {
         throw "WCHISP bundle does not contain WCHISPTool_CH57x-59x.exe at its root."

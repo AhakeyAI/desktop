@@ -699,6 +699,7 @@ $sources = @(
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\GifSelectionHistory.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\ScreenAnimationAssetStore.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\BleBridgeProcessOwner.java"),
+    (Join-Path $projectDir "src\main\java\com\example\ahakey\service\BleDriverLocator.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\SpeechService.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\service\KeyboardInjector.java"),
     (Join-Path $projectDir "src\main\java\com\example\ahakey\platform\VoiceRelayPlatform.java"),
@@ -741,7 +742,7 @@ Copy-Item -LiteralPath $baselineJar -Destination $previewJar
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$allowedEntryPattern = "^(com/example/ahakey/(App|SingleInstanceChecker).*\.class|com/example/ahakey/protocol/AhaKeyProtocol\.class|com/example/ahakey/protocol/AhaKeyResponseParser.*\.class|com/example/ahakey/model/(DeviceStatus|VoicePreset|StudioState).*\.class|com/example/ahakey/app/(StudioController|WorkModeSynchronizer|ManualApprovalGate|StatusRefreshScheduler|ApplicationLifecycle).*\.class|com/example/ahakey/util/(StudioStore|FirstRunState|LanguageManager|OLEDFrameEncoder).*\.class|com/example/ahakey/service/(BleManager|UsbHidTransport|DeviceSyncService|HookInstaller|HookDispatchServer|ApprovalService|ApprovalSnapshot|ApprovalState|PhysicalStatusFreshness|KimiAhaKeyBridge|TaskActivityService|LightOperationCoordinator|OledUploadService|BundledGifLibrary|GifUploadRules|GifSelectionHistory|ScreenAnimationAssetStore|BleBridgeProcessOwner|SpeechService|KeyboardInjector).*\.class|com/example/ahakey/platform/VoiceRelayPlatform\.class|com/example/ahakey/platform/windows/(WindowsVoiceRelayService|VoiceKeyPressState).*\.class|com/example/ahakey/view/(TopBar|CanvasPane|InspectorPane|StandbySettingsPane|DeviceMaintenancePane|SupportPane|BluetoothPairingGuide|ScreenAnimationDialog).*\.class|com/example/ahakey/firmware/.*\.class|com/example/ahakey/update/.*\.class|firmware-capabilities\.properties|wchisp/(CONFIG_CH57X59X-3\.6\.1-sanitized\.WCH|baseline\.properties)|default-gifs/(claude|cursor|codex|mode4)/(default|running|waiting-error|completed)\.gif|fxml/CanvasLayout\.fxml|images/support-service-qr\.png|messages_(zh|en)\.properties|style\.css)$"
+$allowedEntryPattern = "^(com/example/ahakey/(App|SingleInstanceChecker).*\.class|com/example/ahakey/protocol/AhaKeyProtocol\.class|com/example/ahakey/protocol/AhaKeyResponseParser.*\.class|com/example/ahakey/model/(DeviceStatus|VoicePreset|StudioState).*\.class|com/example/ahakey/app/(StudioController|WorkModeSynchronizer|ManualApprovalGate|StatusRefreshScheduler|ApplicationLifecycle).*\.class|com/example/ahakey/util/(StudioStore|FirstRunState|LanguageManager|OLEDFrameEncoder).*\.class|com/example/ahakey/service/(BleManager|UsbHidTransport|DeviceSyncService|HookInstaller|HookDispatchServer|ApprovalService|ApprovalSnapshot|ApprovalState|PhysicalStatusFreshness|KimiAhaKeyBridge|TaskActivityService|LightOperationCoordinator|OledUploadService|BundledGifLibrary|GifUploadRules|GifSelectionHistory|ScreenAnimationAssetStore|BleBridgeProcessOwner|BleDriverLocator|SpeechService|KeyboardInjector).*\.class|com/example/ahakey/platform/VoiceRelayPlatform\.class|com/example/ahakey/platform/windows/(WindowsVoiceRelayService|VoiceKeyPressState).*\.class|com/example/ahakey/view/(TopBar|CanvasPane|InspectorPane|StandbySettingsPane|DeviceMaintenancePane|SupportPane|BluetoothPairingGuide|ScreenAnimationDialog).*\.class|com/example/ahakey/firmware/.*\.class|com/example/ahakey/update/.*\.class|firmware-capabilities\.properties|wchisp/(CONFIG_CH57X59X-3\.6\.1-sanitized\.WCH|baseline\.properties|wchisp-runtime\.json)|default-gifs/(claude|cursor|codex|mode4)/(default|running|waiting-error|completed)\.gif|fxml/CanvasLayout\.fxml|images/support-service-qr\.png|messages_(zh|en)\.properties|style\.css)$"
 
 $zip = [IO.Compression.ZipFile]::Open(
     $previewJar,
@@ -918,7 +919,8 @@ try {
 
     foreach ($wchispResourceName in @(
         "CONFIG_CH57X59X-3.6.1-sanitized.WCH",
-        "baseline.properties"
+        "baseline.properties",
+        "wchisp-runtime.json"
     )) {
         $wchispResource = Join-Path $projectDir "src\main\resources\wchisp\$wchispResourceName"
         if (-not (Test-Path -LiteralPath $wchispResource -PathType Leaf)) {

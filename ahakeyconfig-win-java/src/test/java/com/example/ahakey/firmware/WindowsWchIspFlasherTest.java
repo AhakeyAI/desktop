@@ -52,6 +52,10 @@ class WindowsWchIspFlasherTest {
         Files.write(tool, new byte[]{1});
         Files.write(temporaryDirectory.resolve("CH343PT.DLL"), new byte[]{1});
         Files.write(temporaryDirectory.resolve("WCH55xISPDLL.dll"), new byte[]{1});
+        copyResource("/wchisp/wchisp-runtime.json",
+            temporaryDirectory.resolve("wchisp-runtime.json"));
+        copyResource("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH",
+            temporaryDirectory.resolve("CONFIG_CH57X59X.WCH"));
         var report = new WindowsWchIspFlasher(tool).diagnoseEnvironment();
 
         assertTrue(report.ready());
@@ -290,11 +294,61 @@ class WindowsWchIspFlasherTest {
         return -1;
     }
 
+    @Test
+    void exit100WithEnumeratedDeviceUsesUidFailureMessage() {
+        String detail = WindowsWchIspFlasher.detectionFailureDetail(
+            100, true, "\nraw output");
+        assertTrue(detail.contains("已检测到 WCH ISP 设备"));
+        assertTrue(detail.contains("读取设备 UID 失败"));
+        assertTrue(detail.contains("100"));
+    }
+
+    @Test
+    void exit100WithoutEnumeratedDeviceUsesNotFoundMessage() {
+        String detail = WindowsWchIspFlasher.detectionFailureDetail(100, false, "");
+        assertTrue(detail.contains("未检测到 WCH ISP 设备"));
+        assertFalse(detail.contains("读取设备 UID 失败"));
+    }
+
+    @Test
+    void nonZeroResultRetainsAllWchIspDiagnosticArtifacts() throws Exception {
+        Path runtime = temporaryDirectory.resolve("runtime");
+        Files.createDirectories(runtime);
+        Path executable = runtime.resolve("WCHISPTool_CH57x-59x.exe");
+        Files.write(executable, new byte[]{1});
+        copyResource("/wchisp/wchisp-runtime.json",
+            runtime.resolve("wchisp-runtime.json"));
+        Path config = temporaryDirectory.resolve("CONFIG_CH57X59X.WCH");
+        copyResource("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH", config);
+        Path destination = temporaryDirectory.resolve("wchisp-last-failure");
+
+        String persisted = WindowsWchIspFlasher.persistDiagnosticsForTest(
+            destination, executable, List.of("-c", config.toString(), "-u", "get"),
+            "PROCESS_EXIT:100\nUID query failed", 100);
+
+        assertEquals(destination.toString(), persisted);
+        for (String name : List.of("command.txt", "stdout.txt", "stderr.txt",
+            "console.txt", "result.txt", "runtime-version.txt", "config-fingerprint.txt")) {
+            assertTrue(Files.isRegularFile(destination.resolve(name)), name);
+        }
+        assertTrue(Files.readString(destination.resolve("result.txt")).contains("100"));
+        assertTrue(Files.readString(destination.resolve("runtime-version.txt")).contains("3.6.1"));
+        assertEquals(WchIspRuntimeContract.EXPECTED_CONFIG_FINGERPRINT,
+            Files.readString(destination.resolve("config-fingerprint.txt")).trim());
+    }
+
     private byte[] baseline() throws Exception {
         try (var stream = WindowsWchIspFlasherTest.class.getResourceAsStream(
             WindowsWchIspFlasher.SANITIZED_CONFIG_RESOURCE)) {
             assertTrue(stream != null, "sanitized WCHISP fixture missing");
             return stream.readAllBytes();
+        }
+    }
+
+    private void copyResource(String resource, Path destination) throws Exception {
+        try (var stream = WindowsWchIspFlasherTest.class.getResourceAsStream(resource)) {
+            assertTrue(stream != null, "resource missing: " + resource);
+            Files.copy(stream, destination);
         }
     }
 

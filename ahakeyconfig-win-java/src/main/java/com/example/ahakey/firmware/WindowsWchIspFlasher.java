@@ -40,13 +40,20 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         "\"Status\"\\s*:\\s*\"Programming\"\\s*,\\s*\"Progress\"\\s*:\\s*(\\d+)%"
     );
     private final Path executable;
+    private final IspDeviceProbe ispDeviceProbe;
 
     public WindowsWchIspFlasher() {
         this(locateExecutable());
     }
 
     public WindowsWchIspFlasher(Path executable) {
+        this(executable, WindowsWchIspFlasher::isIspDeviceEnumerated);
+    }
+
+    WindowsWchIspFlasher(Path executable, IspDeviceProbe ispDeviceProbe) {
         this.executable = executable;
+        this.ispDeviceProbe = ispDeviceProbe == null
+            ? WindowsWchIspFlasher::isIspDeviceEnumerated : ispDeviceProbe;
     }
 
     public Path executable() {
@@ -57,9 +64,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     public EnvironmentReport diagnoseEnvironment() {
         List<String> checks = new ArrayList<>();
         boolean ready = true;
-        Path tool = executable.toAbsolutePath().normalize();
-        Path directory = tool.getParent();
-        ready &= check(checks, Files.isRegularFile(tool), "WCHISP 主程序", tool);
+        Path tool = executable == null ? null : executable.toAbsolutePath().normalize();
+        Path directory = tool == null ? null : tool.getParent();
+        ready &= check(checks, tool != null && Files.isRegularFile(tool), "WCHISP 主程序", tool);
         if (directory == null) {
             checks.add("[失败] WCHISP 工具目录无效");
             return new EnvironmentReport(false, checks);
@@ -70,6 +77,15 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             "WCH55xISPDLL.dll", directory.resolve("WCH55xISPDLL.dll"));
         ready &= check(checks, bundledSanitizedConfigAvailable(),
             "受控脱敏 CH57x-59x 基础配置", Path.of(SANITIZED_CONFIG_RESOURCE.substring(1)));
+        WchIspRuntimeContract.Validation contract =
+            WchIspRuntimeContract.validate(directory);
+        if (contract.supported()) {
+            checks.add("[通过] WCHISP 运行环境版本合同: "
+                + WchIspRuntimeContract.EXPECTED_VERSION);
+        } else {
+            checks.add("[失败] " + contract.summary());
+            ready = false;
+        }
         try {
             Path probe = Files.createTempFile("ahakey-wchisp-write-test-", ".tmp");
             Files.deleteIfExists(probe);
@@ -123,8 +139,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 result.exitCode() == 0,
                 result.exitCode() == 0
                     ? result.output()
-                    : WchIspExitCodes.describe(result.exitCode())
-                        + outputSuffix(result)
+                    : detectionFailureDetail(result)
             );
         } finally {
             deleteQuietly(workDir);
@@ -189,6 +204,30 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         return result.output().isBlank() ? "" : "\n" + result.output().trim();
     }
 
+    private String detectionFailureDetail(CommandResult result) {
+        boolean enumerated = false;
+        try {
+            enumerated = ispDeviceProbe.isEnumerated();
+        } catch (RuntimeException ignored) {
+            // A failed enumeration probe is treated as not proven present.
+        }
+        return detectionFailureDetail(result.exitCode(), enumerated, outputSuffix(result));
+    }
+
+    static String detectionFailureDetail(int exitCode, boolean enumerated, String suffix) {
+        suffix = suffix == null ? "" : suffix;
+        if (exitCode == 100 && enumerated) {
+            return "已检测到 WCH ISP 设备，但 WCHISP 工具读取设备 UID 失败（错误码 100）"
+                + suffix;
+        }
+        if (!enumerated) {
+            return "未检测到 WCH ISP 设备（WCHISP 返回错误码 "
+                + exitCode + "）" + suffix;
+        }
+        return "已检测到 WCH ISP 设备，但 WCHISP 返回错误码 "
+            + exitCode + suffix;
+    }
+
     private CommandResult run(
         Path commandExecutable,
         List<String> arguments,
@@ -232,10 +271,12 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     }
                 }
                 reader.join(1_000);
-                return new CommandResult(
-                    terminalCode,
-                    output.toString(Charset.defaultCharset())
-                );
+                String text = output.toString(Charset.defaultCharset());
+                if (terminalCode != 0) {
+                    text = appendDiagnostics(text, persistDiagnostics(
+                        commandExecutable, arguments, text, terminalCode));
+                }
+                return new CommandResult(terminalCode, text);
             }
             if (!process.isAlive() && process.exitValue() != 0) {
                 if (nonZeroExitAt == 0) {
@@ -243,10 +284,10 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 } else if (System.nanoTime() - nonZeroExitAt
                     >= Duration.ofSeconds(2).toNanos()) {
                     reader.join(1_000);
-                    return new CommandResult(
-                        process.exitValue(),
-                        output.toString(Charset.defaultCharset())
-                    );
+                    String text = output.toString(Charset.defaultCharset());
+                    int exitCode = process.exitValue();
+                    return new CommandResult(exitCode, appendDiagnostics(text,
+                        persistDiagnostics(commandExecutable, arguments, text, exitCode)));
                 }
             }
             Thread.sleep(100);
@@ -254,8 +295,11 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         if (process.isAlive()) {
             process.destroyForcibly();
         }
+        String text = output.toString(Charset.defaultCharset());
+        String diagnostics = persistDiagnostics(commandExecutable, arguments, text, 124);
         throw new IOException(
             "WCHISP 操作超时：未收到 Finished/Code 0/Succeed 最终结果"
+                + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
         );
     }
 
@@ -487,8 +531,11 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             }
             if (process.isAlive()) {
                 process.destroyForcibly();
+                String diagnostics = persistDiagnostics(
+                    commandExecutable, arguments, wrapperOutput.toString(Charset.defaultCharset()), 124);
                 throw new IOException(
                     "WCHISP 管理员操作超时：未收到最终烧录结果"
+                        + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
                 );
             }
             reader.join(2_000);
@@ -500,16 +547,23 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 readQuietly(consoleCapture)
             );
             if (code == 1223) {
-                throw new IOException("用户取消了 WCHISP 管理员授权");
+                String diagnostics = persistDiagnostics(commandExecutable, arguments, output, code);
+                throw new IOException("用户取消了 WCHISP 管理员授权"
+                    + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics));
             }
             if (code == -1073741510) {
+                String diagnostics = persistDiagnostics(commandExecutable, arguments, output, code);
                 throw new IOException(
                     "WCHISP 管理员窗口被手动关闭，请等待窗口自动结束"
+                        + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
                 );
             }
             if (code == 124) {
+                String diagnostics = persistDiagnostics(
+                    commandExecutable, arguments, output, 124);
                 throw new IOException(
                     "WCHISP 操作超时：未收到 Finished/Code 0/Succeed 最终结果"
+                        + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
                 );
             }
             Integer terminalCode = terminalExitCode(
@@ -521,26 +575,35 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 arguments.contains("get")
             );
             if (markerCode != null) {
+                String finalOutput = joinOutput(output,
+                    markerCode == 0
+                        ? "WCHISP elevated worker confirmed the terminal result."
+                        : "WCHISP elevated worker reported failure code " + markerCode);
+                if (markerCode != 0) {
+                    finalOutput = appendDiagnostics(finalOutput, persistDiagnostics(
+                        commandExecutable, arguments, finalOutput, markerCode));
+                }
                 return new CommandResult(
                     markerCode,
-                    joinOutput(output, markerCode == 0
-                        ? "WCHISP elevated worker confirmed the terminal result."
-                        : "WCHISP elevated worker reported failure code " + markerCode)
+                    finalOutput
                 );
             }
             if (terminalCode == null) {
-                Path diagnostics = preserveDiagnostics(
-                    stdout, stderr, consoleCapture, resultMarker);
+                String diagnostics = persistDiagnostics(
+                    commandExecutable, arguments, output, code == 0 ? 100 : code);
                 return new CommandResult(
                     code == 0 ? 100 : code,
                     joinOutput(
                         output,
                         "WCHISP 未返回可确认的最终结果",
-                        diagnostics == null ? "" : "诊断日志: " + diagnostics
+                        diagnostics.isBlank() ? "" : "诊断日志: " + diagnostics
                     )
                 );
             }
-            return new CommandResult(terminalCode, output);
+            return new CommandResult(terminalCode, terminalCode == 0
+                ? output
+                : appendDiagnostics(output, persistDiagnostics(
+                    commandExecutable, arguments, output, terminalCode)));
         } finally {
             Files.deleteIfExists(wrapper);
             Files.deleteIfExists(elevatedWorker);
@@ -551,28 +614,99 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         }
     }
 
-    private Path preserveDiagnostics(Path... sources) {
+    private String persistDiagnostics(
+        Path commandExecutable,
+        List<String> arguments,
+        String output,
+        int resultCode
+    ) {
+        Path destination = Path.of(
+            System.getProperty("user.home"),
+            ".ahakey",
+            "logs",
+            "wchisp-last-failure"
+        );
+        return persistDiagnosticsAt(destination, commandExecutable, arguments, output, resultCode);
+    }
+
+    static String persistDiagnosticsForTest(
+        Path destination,
+        Path commandExecutable,
+        List<String> arguments,
+        String output,
+        int resultCode
+    ) {
+        return persistDiagnosticsAt(destination, commandExecutable, arguments, output, resultCode);
+    }
+
+    private static String persistDiagnosticsAt(
+        Path destination,
+        Path commandExecutable,
+        List<String> arguments,
+        String output,
+        int resultCode
+    ) {
         try {
-            Path destination = Path.of(
-                System.getProperty("user.home"),
-                ".ahakey",
-                "logs",
-                "wchisp-last-failure"
-            );
             Files.createDirectories(destination);
-            for (Path source : sources) {
-                if (source != null && Files.isRegularFile(source)) {
-                    Files.copy(
-                        source,
-                        destination.resolve(source.getFileName()),
-                        StandardCopyOption.REPLACE_EXISTING
-                    );
+            String command = commandExecutable == null ? "" : commandExecutable.toString();
+            if (arguments != null && !arguments.isEmpty()) {
+                command += " " + String.join(" ", arguments);
+            }
+            Files.writeString(destination.resolve("command.txt"), command,
+                StandardCharsets.UTF_8);
+            String captured = output == null ? "" : output;
+            Files.writeString(destination.resolve("stdout.txt"), captured,
+                StandardCharsets.UTF_8);
+            Files.writeString(destination.resolve("stderr.txt"), "",
+                StandardCharsets.UTF_8);
+            Files.writeString(destination.resolve("console.txt"), captured,
+                StandardCharsets.UTF_8);
+            Files.writeString(destination.resolve("result.txt"),
+                "PROCESS_EXIT:" + resultCode + System.lineSeparator(),
+                StandardCharsets.UTF_8);
+            Path runtimeDirectory = commandExecutable == null
+                ? null : commandExecutable.toAbsolutePath().normalize().getParent();
+            Path metadata = runtimeDirectory == null
+                ? null : runtimeDirectory.resolve(WchIspRuntimeContract.METADATA_FILE);
+            Files.writeString(destination.resolve("runtime-version.txt"),
+                metadata != null && Files.isRegularFile(metadata)
+                    ? Files.readString(metadata, StandardCharsets.UTF_8)
+                    : "unknown runtime metadata" + System.lineSeparator(),
+                StandardCharsets.UTF_8);
+            Path config = arguments == null ? null : configArgument(arguments);
+            String fingerprint = "unknown";
+            if (config != null && Files.isRegularFile(config)) {
+                try {
+                    fingerprint = WchIspRuntimeContract.configFingerprint(
+                        Files.readAllBytes(config));
+                } catch (IOException ignored) {
+                    fingerprint = "invalid";
                 }
             }
-            return destination;
+            Files.writeString(destination.resolve("config-fingerprint.txt"),
+                fingerprint + System.lineSeparator(), StandardCharsets.UTF_8);
+            return destination.toString();
         } catch (IOException ignored) {
-            return null;
+            return "";
         }
+    }
+
+    private String appendDiagnostics(String output, String diagnostics) {
+        if (diagnostics == null || diagnostics.isBlank()) return output;
+        return joinOutput(output, "诊断日志: " + diagnostics);
+    }
+
+    private static Path configArgument(List<String> arguments) {
+        for (int index = 0; index + 1 < arguments.size(); index++) {
+            if ("-c".equalsIgnoreCase(arguments.get(index))) {
+                try {
+                    return Path.of(arguments.get(index + 1));
+                } catch (RuntimeException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     private String readQuietly(Path path) {
@@ -706,6 +840,28 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         return null;
     }
 
+    private static boolean isIspDeviceEnumerated() {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            return false;
+        }
+        try {
+            Process process = new ProcessBuilder(
+                "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                "Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match 'VID_4348&PID_55E0' } | Select-Object -First 1 -ExpandProperty InstanceId"
+            ).redirectErrorStream(true).start();
+            if (!process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return false;
+            }
+            String output = new String(process.getInputStream().readAllBytes(),
+                Charset.defaultCharset());
+            return process.exitValue() == 0 && output.toUpperCase(Locale.ROOT)
+                .contains("VID_4348&PID_55E0");
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     static String encodeArguments(List<String> arguments) {
         String joined = String.join("\u0000", arguments);
         return Base64.getEncoder().encodeToString(
@@ -742,6 +898,11 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         Path sourceDirectory = executable.toAbsolutePath().normalize().getParent();
         if (sourceDirectory == null) {
             throw new IOException("WCHISP 工具目录无效");
+        }
+        WchIspRuntimeContract.Validation contract =
+            WchIspRuntimeContract.validate(sourceDirectory);
+        if (!contract.supported()) {
+            throw new IOException(contract.summary());
         }
         copyDirectory(sourceDirectory, destination);
 
@@ -906,6 +1067,12 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     + "-Dahakey.wchisp.path=完整路径 指定工具。"
             );
         }
+        Path directory = executable.toAbsolutePath().normalize().getParent();
+        WchIspRuntimeContract.Validation contract =
+            WchIspRuntimeContract.validate(directory);
+        if (!contract.supported()) {
+            throw new IOException(contract.summary());
+        }
     }
 
     public static Path locateExecutable() {
@@ -959,5 +1126,10 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     }
 
     private record CommandResult(int exitCode, String output) {}
+    @FunctionalInterface
+    interface IspDeviceProbe {
+        boolean isEnumerated();
+    }
+
     public record EnvironmentReport(boolean ready, List<String> checks) {}
 }
