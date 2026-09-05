@@ -1378,6 +1378,38 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         )
     }
 
+    func testProjectedAuthoritativeObjectRejectsStaleGeneration() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let device = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        try await store.persistProjectedAuthoritativeObject(
+            Data("object-n".utf8),
+            for: device,
+            sessionGeneration: .init(1),
+            transportGeneration: .init(0)
+        )
+        try await store.persistProjectedAuthoritativeObject(
+            Data("object-n-plus-1".utf8),
+            for: device,
+            sessionGeneration: .init(1),
+            transportGeneration: .init(1)
+        )
+        do {
+            try await store.persistProjectedAuthoritativeObject(
+                Data("object-n".utf8),
+                for: device,
+                sessionGeneration: .init(1),
+                transportGeneration: .init(0)
+            )
+            XCTFail("stale generation must fail-closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .staleAuthoritativeGeneration)
+        }
+        let live = try await store.authoritativeObjectFingerprint(for: device)
+        XCTAssertEqual(live, try AhaKeyRuntimeObjectFingerprint.hashing(Data("object-n-plus-1".utf8)))
+    }
+
     func testTwoDevicesHaveIndependentDurableQueues() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -290,8 +290,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var projectionDiagnosticEvents: [AhaKeyRuntimeEvent] = []
     /// 最近发布的设备投影（内容不变不重复发 deviceChanged）。
     private var lastPublishedDeviceSnapshot: AhaKeyRuntimeDeviceSnapshot?
-    /// deviceChanged 触发的 live CAS 持久化；测试 seam 等待该任务完成。
-    private var authoritativeObjectPersistTask: Task<Void, Never>?
+    /// 仅在 durable commit 成功后写入；生产投影用它填 authoritativeObject。
+    private var committedAuthoritativeObject: (deviceID: AhaKeyRuntimeDeviceID, content: Data)?
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
     /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
@@ -2362,6 +2362,10 @@ extension AhaKeyAgent {
         let state = try await runConfigurationTransaction(
             package: package, resourceFiles: resourceFiles, store: store, context: context
         )
+        if state == .completed,
+           package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+            publishDeviceChangedIfNeeded()
+        }
         emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 受理结果：\(state.rawValue)")
         return state
     }
@@ -3176,32 +3180,100 @@ extension AhaKeyAgent {
 
     @MainActor
     private func publishDeviceChangedOnMain() {
-        let device = projectedDeviceSnapshot()
-        guard device != lastPublishedDeviceSnapshot else { return }
-        lastPublishedDeviceSnapshot = device
-        guard let device else { return }
-        publishRuntimeEvent(.deviceChanged(device), context: .init(
-            deviceID: device.id,
-            sessionGeneration: device.sessionGeneration,
-            transportGeneration: device.transportGeneration
-        ))
-        let persistTask = Task { await self.persistAuthoritativeObject(from: device) }
-        authoritativeObjectPersistTask = persistTask
+        let connection = projectedConnectionSnapshot()
+        guard let connection else {
+            if lastPublishedDeviceSnapshot != nil {
+                lastPublishedDeviceSnapshot = nil
+            }
+            return
+        }
+        let connectionChanged = lastPublishedDeviceSnapshot.map {
+            $0.strippingAuthoritativeObject() != connection
+        } ?? true
+        if connectionChanged {
+            lastPublishedDeviceSnapshot = connection
+            publishRuntimeEvent(.deviceChanged(connection), context: .init(
+                deviceID: connection.id,
+                sessionGeneration: connection.sessionGeneration,
+                transportGeneration: connection.transportGeneration
+            ))
+        }
+        Task { await self.commitAndPublishAuthoritativeObject(connection) }
     }
 
-    /// 把 `deviceChanged` 快照上的 canonical object 持久化为 live CAS。
-    private func persistAuthoritativeObject(from device: AhaKeyRuntimeDeviceSnapshot?) async {
-        guard let device,
-              let content = device.authoritativeObject,
-              !content.isEmpty else { return }
-        guard let store = try? await makeRuntimeStore() else { return }
-        try? await store.persistProjectedAuthoritativeObject(content, for: device.id)
+    /// 已验证 live CAS 先 durable commit，再对外发布带 object 的 authoritative deviceChanged。
+    private func commitAndPublishAuthoritativeObject(
+        _ connection: AhaKeyRuntimeDeviceSnapshot
+    ) async {
+        let content: Data
+        do {
+            let store = try await makeRuntimeStore()
+            guard let loaded = try await store.authoritativeObjectContent(for: connection.id),
+                  !loaded.isEmpty else {
+                return
+            }
+            content = loaded
+        } catch {
+            emit("权威对象持久化失败：\(error)")
+            return
+        }
+        if let hook = executionTestHooks?.beforeAuthoritativeObjectCommit {
+            await hook()
+        }
+        if executionTestHooks?.failAuthoritativeObjectCommit == true {
+            emit("权威对象持久化失败：forced-test-failure")
+            return
+        }
+        do {
+            let store = try await makeRuntimeStore()
+            try await store.persistProjectedAuthoritativeObject(
+                content,
+                for: connection.id,
+                sessionGeneration: connection.sessionGeneration,
+                transportGeneration: connection.transportGeneration
+            )
+        } catch AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration {
+            do {
+                let store = try await makeRuntimeStore()
+                let live = try await store.authoritativeObjectContent(for: connection.id)
+                guard live == content else { return }
+            } catch {
+                emit("权威对象持久化失败：\(error)")
+                return
+            }
+        } catch {
+            emit("权威对象持久化失败：\(error)")
+            return
+        }
+        await MainActor.run {
+            self.committedAuthoritativeObject = (connection.id, content)
+            let authoritative = connection.withAuthoritativeObject(content)
+            guard authoritative != self.lastPublishedDeviceSnapshot else { return }
+            self.lastPublishedDeviceSnapshot = authoritative
+            self.publishRuntimeEvent(.deviceChanged(authoritative), context: .init(
+                deviceID: authoritative.id,
+                sessionGeneration: authoritative.sessionGeneration,
+                transportGeneration: authoritative.transportGeneration
+            ))
+        }
     }
 
     /// 当前 BLE 设备状态 → 投影设备快照（无已知设备返回 nil）。仅 main 队列调用。
     @MainActor
     private func projectedDeviceSnapshot() -> AhaKeyRuntimeDeviceSnapshot? {
-        if let simulated = executionTestHooks?.simulatedDevice { return simulated }
+        guard let connection = projectedConnectionSnapshot() else { return nil }
+        if let committed = committedAuthoritativeObject, committed.deviceID == connection.id {
+            return connection.withAuthoritativeObject(committed.content)
+        }
+        return connection
+    }
+
+    /// 连接/传输投影。不读测试传入的 authoritativeObject；权威对象只来自 durable commit。
+    @MainActor
+    private func projectedConnectionSnapshot() -> AhaKeyRuntimeDeviceSnapshot? {
+        if let simulated = executionTestHooks?.simulatedDevice {
+            return simulated.strippingAuthoritativeObject()
+        }
         guard let deviceIDString = executionTestHooks?.stableDeviceID ?? transportCore.stableDeviceID,
               let deviceID = try? AhaKeyRuntimeDeviceID(deviceIDString) else { return nil }
         let protocolState: AhaKeyRuntimeDeviceProtocolState
@@ -3520,11 +3592,9 @@ extension AhaKeyAgent {
     /// 测试 seam：设置模拟设备投影并立即发布 deviceChanged（等效 BLE 连接/断开驱动）。
     /// 配合 executionTestHooks.isReady/capabilities/stepExecutor 可免 BLE 驱动执行路径。
     func simulateDeviceForTesting(_ device: AhaKeyRuntimeDeviceSnapshot?) async {
-        let pending = await MainActor.run { () -> Task<Void, Never>? in
+        await MainActor.run {
             self.setSimulatedDeviceOnMainForTesting(device)
-            return self.authoritativeObjectPersistTask
         }
-        await pending?.value
     }
 
     /// 测试 seam：MainActor 上同步更换模拟设备投影并立即发布 deviceChanged。
@@ -3872,6 +3942,10 @@ struct AhaKeyAgentExecutionTestHooks {
     var afterEnteringConfigurationStep: (@Sendable (AhaKeyRuntimeStepIdentifier) async -> Void)?
     /// 可注入单调 tick（纳秒）；nil 时用 `DispatchTime` uptime。
     var progressMonotonicNanos: (@Sendable () -> UInt64)?
+    /// 权威对象 durable commit 前的异步屏障（N/N+1 逆序；生产恒 nil）。
+    var beforeAuthoritativeObjectCommit: (@Sendable () async -> Void)?
+    /// 为 true 时权威对象 commit fail-closed，不发布带 object 的 deviceChanged。
+    var failAuthoritativeObjectCommit: Bool = false
 }
 
 enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {
@@ -3920,5 +3994,27 @@ private struct AgentProgramTransport: @unchecked Sendable, AhaKeyDeviceProgramTr
 
     func abortActiveSession() async {
         await agent.abortConfigurationSession()
+    }
+}
+
+extension AhaKeyRuntimeDeviceSnapshot {
+    fileprivate func strippingAuthoritativeObject() -> AhaKeyRuntimeDeviceSnapshot {
+        withAuthoritativeObject(nil)
+    }
+
+    fileprivate func withAuthoritativeObject(_ data: Data?) -> AhaKeyRuntimeDeviceSnapshot {
+        AhaKeyRuntimeDeviceSnapshot(
+            id: id,
+            displayName: displayName,
+            protocolState: protocolState,
+            preferredTransport: preferredTransport,
+            usbAttached: usbAttached,
+            bluetoothConnected: bluetoothConnected,
+            capabilities: capabilities,
+            sessionGeneration: sessionGeneration,
+            transportGeneration: transportGeneration,
+            state: state,
+            authoritativeObject: data
+        )
     }
 }

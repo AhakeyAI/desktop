@@ -94,7 +94,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testSameDeviceFIFOKeepsQueuedBehindHead() {
         runTest { [self] in
-            let agent = await makeReadyAgent()
+            let agent = try await makeReadyAgent()
             let client = EndpointClient(agent: agent)
             try await client.handshake()
             let gate = StepGate()
@@ -129,7 +129,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testQueuedCancelRemovesWithoutWritesRunningCancelRefused() {
         runTest { [self] in
-            let agent = await makeReadyAgent()
+            let agent = try await makeReadyAgent()
             let client = EndpointClient(agent: agent)
             try await client.handshake()
             let queued = try statusPackage(device: "TEST-DEVICE", seed: "queued")
@@ -167,7 +167,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testPictureDisconnectResumesZeroResendAcrossAgentReopen() {
         runTest { [self] in
-            let agent = await makeReadyAgent(userSlotLimit: 64)
+            let agent = try await makeReadyAgent(userSlotLimit: 64)
             let client = EndpointClient(agent: agent)
             try await client.handshake()
             let fixture = try picturePackage()
@@ -196,7 +196,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             XCTAssertTrue(confirmed.allSatisfy { $0.rawValue.hasPrefix("page:chunk:") })
             agent.shutdown()
 
-            let resumedAgent = await makeReadyAgent(storeDirectory: storeDir, userSlotLimit: 64)
+            let resumedAgent = try await makeReadyAgent(storeDirectory: storeDir, userSlotLimit: 64)
             var resumed: [String] = []
             var resumeHooks = resumedAgent.executionTestHooks
             resumeHooks?.stepExecutor = { step in
@@ -218,7 +218,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testWrongDeviceAndCASRefuseBeforeAnyStep() {
         runTest { [self] in
-            let agent = await makeReadyAgent(objectSeed: "live-mismatch")
+            let agent = try await makeReadyAgent(objectSeed: "live-mismatch")
             let client = EndpointClient(agent: agent)
             try await client.handshake()
             var executed: [String] = []
@@ -254,7 +254,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testDeterministicRejectStopsAndKeepsMinimalConfirm() {
         runTest { [self] in
-            let agent = await makeReadyAgent()
+            let agent = try await makeReadyAgent()
             let client = EndpointClient(agent: agent)
             try await client.handshake()
             var executed: [String] = []
@@ -282,9 +282,11 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testProductionLiveCASRefusesAfterAcceptAndAcrossReopen() {
         runTest { [self] in
-            let agent = await makeReadyAgent()
+            let agent = try await makeReadyAgent()
             let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
             let package = try statusPackage(device: "TEST-DEVICE")
+            let sawBase = await waitUntilAuthoritativeObject(agent, Data("base-object".utf8))
+            XCTAssertTrue(sawBase)
             await agent.closeRuntimeStoreForTesting()
             let confirmedBefore: [AhaKeyRuntimeStepIdentifier]
             do {
@@ -296,12 +298,17 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 confirmedBefore = try await store.confirmedSteps(for: package.operationID)
             }
             XCTAssertEqual(confirmedBefore, [])
+            try await replaceLiveObject(
+                storeDir: storeDir,
+                content: Data("changed-after-accept".utf8),
+                session: 1,
+                transport: 1
+            )
             agent.shutdown()
 
             var executed: [String] = []
-            let resumed = await makeReadyAgent(
-                storeDirectory: storeDir,
-                objectSeed: "changed-after-accept"
+            let resumed = try await makeReadyAgent(
+                storeDirectory: storeDir
             )
             var resumeHooks = resumed.executionTestHooks
             resumeHooks?.stepExecutor = { step in
@@ -324,7 +331,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testMissingLiveObjectFingerprintFailsClosed() {
         runTest { [self] in
-            let agent = await makeReadyAgent(objectSeed: nil)
+            let agent = try await makeReadyAgent(objectSeed: nil)
             let client = EndpointClient(agent: agent)
             try await client.handshake()
             var executed: [String] = []
@@ -345,7 +352,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testDeviceConfirmedResumeSurvivesMissingAndChangedAuthoritativeObject() {
         runTest { [self] in
-            let agent = await makeReadyAgent(userSlotLimit: 64)
+            let agent = try await makeReadyAgent(userSlotLimit: 64)
             let client = EndpointClient(agent: agent)
             try await client.handshake()
             let fixture = try picturePackage()
@@ -375,7 +382,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             agent.shutdown()
 
             try deleteAuthoritativeObject(storeDir: storeDir, device: "TEST-DEVICE")
-            let missingAgent = await makeReadyAgent(
+            let missingAgent = try await makeReadyAgent(
                 storeDirectory: storeDir,
                 userSlotLimit: 64,
                 objectSeed: nil
@@ -398,7 +405,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             missingAgent.shutdown()
 
             let changedFixture = try picturePackage()
-            let changedAgent = await makeReadyAgent(userSlotLimit: 64)
+            let changedAgent = try await makeReadyAgent(userSlotLimit: 64)
             let changedClient = EndpointClient(agent: changedAgent)
             try await changedClient.handshake()
             try await ingest(changedAgent, changedFixture)
@@ -421,12 +428,17 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             )
             XCTAssertEqual(changedPaused, .resumablePartial)
             await changedAgent.closeRuntimeStoreForTesting()
+            try await replaceLiveObject(
+                storeDir: changedDir,
+                content: Data("mutated-after-device-write".utf8),
+                session: 1,
+                transport: 1
+            )
             changedAgent.shutdown()
 
-            let resumedChanged = await makeReadyAgent(
+            let resumedChanged = try await makeReadyAgent(
                 storeDirectory: changedDir,
-                userSlotLimit: 64,
-                objectSeed: "mutated-after-device-write"
+                userSlotLimit: 64
             )
             var changedResumed: [String] = []
             var resumeHooks = resumedChanged.executionTestHooks
@@ -447,7 +459,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
     func testDeviceChangedAuthoritativeObjectDrivesPagePreflight() {
         runTest { [self] in
-            let agent = await makeReadyAgent(objectSeed: "base-object")
+            let agent = try await makeReadyAgent(objectSeed: "base-object")
             let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
             let client = EndpointClient(agent: agent)
             try await client.handshake()
@@ -459,6 +471,9 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             }
             agent.executionTestHooks = hooks
 
+            let firstObject = Data("base-object".utf8)
+            let sawFirst = await waitUntilAuthoritativeObject(agent, firstObject)
+            XCTAssertTrue(sawFirst)
             let first = try statusPackage(device: "TEST-DEVICE", seed: "first")
             guard case .operationAccepted = try await client.exchange(.apply(first)) else {
                 return XCTFail("matching deviceChanged apply")
@@ -467,7 +482,16 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             XCTAssertFalse(executed.isEmpty)
 
             executed.removeAll()
-            await agent.simulateDeviceForTesting(simulatedDevice(objectSeed: "generation-2"))
+            await agent.closeRuntimeStoreForTesting()
+            try await seedAuthoritativeBaseline(
+                storeDir: storeDir,
+                content: Data("generation-2".utf8)
+            )
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(transportGeneration: 1)
+            )
+            let sawGeneration = await waitUntilAuthoritativeObject(agent, Data("generation-2".utf8))
+            XCTAssertTrue(sawGeneration)
             let stale = try statusPackage(device: "TEST-DEVICE", seed: "stale")
             guard case .operationAccepted = try await client.exchange(.apply(stale)) else {
                 return XCTFail("stale fingerprint apply")
@@ -489,7 +513,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             await agent.closeRuntimeStoreForTesting()
             agent.shutdown()
             executed.removeAll()
-            let reopened = await makeReadyAgent(storeDirectory: storeDir, objectSeed: nil)
+            let reopened = try await makeReadyAgent(storeDirectory: storeDir, objectSeed: nil)
             var reopenHooks = reopened.executionTestHooks
             reopenHooks?.stepExecutor = { step in
                 executed.append(step.rawValue)
@@ -498,6 +522,8 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             reopened.executionTestHooks = reopenHooks
             let reopenClient = EndpointClient(agent: reopened)
             try await reopenClient.handshake()
+            let sawReopen = await waitUntilAuthoritativeObject(reopened, Data("generation-2".utf8))
+            XCTAssertTrue(sawReopen)
             let reopenMatch = try statusPackage(
                 device: "TEST-DEVICE",
                 seed: "reopen",
@@ -507,6 +533,85 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return XCTFail("fresh Agent reopen apply")
             }
             await expectTerminal(reopened, reopenMatch.operationID, .completed)
+            XCTAssertFalse(executed.isEmpty)
+        }
+    }
+
+    func testDelayedAuthoritativeCommitDoesNotOverrideNewerGeneration() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent(objectSeed: "base-object")
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let sawBase = await waitUntilAuthoritativeObject(agent, Data("base-object".utf8))
+            XCTAssertTrue(sawBase)
+            let gate = StepGate()
+            var delayOnce = true
+            var hooks = agent.executionTestHooks
+            hooks?.beforeAuthoritativeObjectCommit = {
+                if delayOnce {
+                    delayOnce = false
+                    await gate.wait()
+                }
+            }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice(displayName: "n"))
+            await agent.closeRuntimeStoreForTesting()
+            try await seedAuthoritativeBaseline(
+                storeDir: storeDir,
+                content: Data("generation-2".utf8)
+            )
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(displayName: "n-plus-1", transportGeneration: 1)
+            )
+            let sawGeneration = await waitUntilAuthoritativeObject(agent, Data("generation-2".utf8))
+            XCTAssertTrue(sawGeneration)
+            await gate.release()
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            await agent.closeRuntimeStoreForTesting()
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+            )
+            let live = try await store.authoritativeObjectFingerprint(
+                for: AhaKeyRuntimeDeviceID("TEST-DEVICE")
+            )
+            XCTAssertEqual(live, try AhaKeyRuntimeObjectFingerprint.hashing(Data("generation-2".utf8)))
+        }
+    }
+
+    func testAuthoritativePersistFailureDoesNotPublishObject() {
+        runTest { [self] in
+            let agent = makeAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            try await seedAuthoritativeBaseline(
+                storeDir: storeDir,
+                content: Data("base-object".utf8)
+            )
+            var hooks = agent.executionTestHooks
+            hooks?.isReady = true
+            hooks?.oledContext = .standard
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.failAuthoritativeObjectCommit = true
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard case .snapshot(let snapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("snapshot")
+            }
+            XCTAssertNil(snapshot.devices.first?.authoritativeObject)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var executed: [String] = []
+            var applyHooks = agent.executionTestHooks
+            applyHooks?.stepExecutor = { step in
+                executed.append(step.rawValue)
+                return .success
+            }
+            agent.executionTestHooks = applyHooks
+            let package = try statusPackage(device: "TEST-DEVICE")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await expectTerminal(agent, package.operationID, .completed)
             XCTAssertFalse(executed.isEmpty)
         }
     }
@@ -546,30 +651,116 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         storeDirectory: URL? = nil,
         userSlotLimit: Int = 64,
         objectSeed: String? = "base-object"
-    ) async -> AhaKeyAgent {
+    ) async throws -> AhaKeyAgent {
         let agent = makeAgent(storeDirectory: storeDirectory, userSlotLimit: userSlotLimit)
+        if storeDirectory == nil, let objectSeed {
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            try await seedAuthoritativeBaseline(storeDir: storeDir, content: Data(objectSeed.utf8))
+        }
         var hooks = agent.executionTestHooks
         hooks?.isReady = true
         hooks?.oledContext = .standard
         hooks?.configurationCharacteristics = .allPresent
         agent.executionTestHooks = hooks
-        await agent.simulateDeviceForTesting(simulatedDevice(objectSeed: objectSeed))
+        await agent.simulateDeviceForTesting(simulatedDevice())
         return agent
     }
 
     private func simulatedDevice(
         id: String = "TEST-DEVICE",
-        objectSeed: String? = nil
+        displayName: String = "Test",
+        sessionGeneration: UInt64 = 0,
+        transportGeneration: UInt64 = 0
     ) -> AhaKeyRuntimeDeviceSnapshot {
         AhaKeyRuntimeDeviceSnapshot(
             id: try! AhaKeyRuntimeDeviceID(id),
-            displayName: "Test",
+            displayName: displayName,
             protocolState: .currentReady,
             preferredTransport: .bluetooth,
             usbAttached: false,
             bluetoothConnected: true,
-            authoritativeObject: objectSeed.map { Data($0.utf8) }
+            sessionGeneration: .init(sessionGeneration),
+            transportGeneration: .init(transportGeneration)
         )
+    }
+
+    private func seedAuthoritativeBaseline(
+        storeDir: URL,
+        content: Data,
+        device: String = "TEST-DEVICE"
+    ) async throws {
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeDir
+        )
+        let deviceID = try AhaKeyRuntimeDeviceID(device)
+        let current = try await store.syncBaseline(for: deviceID)
+        let baseRevision = current?.revision.rawValue ?? 7
+        let package = try AhaKeyConfigurationPackage(
+            operationID: .init(),
+            targetDeviceID: deviceID,
+            baseRevision: .init(baseRevision),
+            desiredConfiguration: content,
+            resources: []
+        )
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .running,
+                completedSteps: 1,
+                totalSteps: 1
+            )
+        )
+        try await store.commitOperationOutcome(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .completed,
+                completedSteps: 1,
+                totalSteps: 1
+            ),
+            syncBaseline: try .init(
+                deviceID: package.targetDeviceID,
+                revision: .init(baseRevision + 1),
+                confirmedConfiguration: content
+            )
+        )
+    }
+
+    private func replaceLiveObject(
+        storeDir: URL,
+        content: Data,
+        device: String = "TEST-DEVICE",
+        session: UInt64,
+        transport: UInt64
+    ) async throws {
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeDir,
+            acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+        )
+        try await store.persistProjectedAuthoritativeObject(
+            content,
+            for: AhaKeyRuntimeDeviceID(device),
+            sessionGeneration: .init(session),
+            transportGeneration: .init(transport)
+        )
+    }
+
+    private func waitUntilAuthoritativeObject(
+        _ agent: AhaKeyAgent,
+        _ expected: Data,
+        timeout: TimeInterval = 8
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if case .snapshot(let snapshot) = try? await agent.handleRuntimeXPCRequest(.snapshot),
+               snapshot.devices.first?.authoritativeObject == expected {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return false
     }
 
     private func statusPackage(

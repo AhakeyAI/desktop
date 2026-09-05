@@ -161,6 +161,7 @@ public enum AhaKeyRuntimePersistenceError: Error, Equatable, Sendable {
     /// 申报元数据与 CAS 实际图片不一致（帧数/尺寸），或图片无法解码。
     case resourceMetadataMismatch(String)
     case blockedByQueueHead(AhaKeyRuntimeOperationID)
+    case staleAuthoritativeGeneration
 }
 
 /// Store 测试 seam：资源临界区的可控交错钩子。仅在 @testable 测试中注入。
@@ -851,24 +852,47 @@ public actor AhaKeyRuntimePersistentStore {
     public func authoritativeObjectFingerprint(
         for deviceID: AhaKeyRuntimeDeviceID
     ) throws -> AhaKeyRuntimeObjectFingerprint? {
-        guard let content = try metadataValue(for: Self.authoritativeObjectKey(deviceID)) else {
+        guard let content = try authoritativeObjectContent(for: deviceID) else {
             return nil
         }
         return try AhaKeyRuntimeObjectFingerprint.hashing(content)
     }
 
-    /// `deviceChanged` 权威快照投影：首次取得与后续换代都原子更新 canonical content。
+    /// 已提交的 canonical content。生产 deviceChanged 只投影该对象，不把 page baseline 当作权威对象。
+    public func authoritativeObjectContent(
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws -> Data? {
+        try metadataValue(for: Self.authoritativeObjectKey(deviceID))
+    }
+
+    /// `deviceChanged` 权威快照投影：按 session/transport generation 条件提交，拒绝过期换代。
     public func persistProjectedAuthoritativeObject(
         _ canonicalContent: Data,
-        for deviceID: AhaKeyRuntimeDeviceID
+        for deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration
     ) throws {
-        try Self.execute("BEGIN IMMEDIATE", on: database)
-        do {
-            try persistAuthoritativeObjectUnlocked(canonicalContent, for: deviceID)
-            try Self.execute("COMMIT", on: database)
-        } catch {
-            try? Self.execute("ROLLBACK", on: database)
-            throw error
+        try Self.withExclusiveLock(lockFileDescriptor) {
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                if let stored = try storedAuthoritativeGeneration(for: deviceID),
+                   Self.isStale(
+                    incomingSession: sessionGeneration,
+                    incomingTransport: transportGeneration,
+                    stored: stored
+                   ) {
+                    throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+                }
+                try persistAuthoritativeObjectUnlocked(canonicalContent, for: deviceID)
+                try upsertMetadata(
+                    key: Self.authoritativeGenerationKey(deviceID),
+                    value: Data("\(sessionGeneration.rawValue),\(transportGeneration.rawValue)".utf8)
+                )
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
         }
     }
 
@@ -881,6 +905,37 @@ public actor AhaKeyRuntimePersistentStore {
 
     private static func authoritativeObjectKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
         "authoritative-object:\(deviceID.rawValue)"
+    }
+
+    private static func authoritativeGenerationKey(_ deviceID: AhaKeyRuntimeDeviceID) -> String {
+        "authoritative-generation:\(deviceID.rawValue)"
+    }
+
+    private func storedAuthoritativeGeneration(
+        for deviceID: AhaKeyRuntimeDeviceID
+    ) throws -> (session: UInt64, transport: UInt64)? {
+        guard let data = try metadataValue(for: Self.authoritativeGenerationKey(deviceID)),
+              let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        let parts = text.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, let session = UInt64(parts[0]), let transport = UInt64(parts[1]) else {
+            return nil
+        }
+        return (session, transport)
+    }
+
+    private static func isStale(
+        incomingSession: AhaKeyRuntimeSessionGeneration,
+        incomingTransport: AhaKeyRuntimeTransportGeneration,
+        stored: (session: UInt64, transport: UInt64)
+    ) -> Bool {
+        if incomingSession.rawValue < stored.session { return true }
+        if incomingSession.rawValue == stored.session,
+           incomingTransport.rawValue < stored.transport {
+            return true
+        }
+        return false
     }
 
     public func reserveEventSequence() throws -> AhaKeyRuntimeEventSequence {
