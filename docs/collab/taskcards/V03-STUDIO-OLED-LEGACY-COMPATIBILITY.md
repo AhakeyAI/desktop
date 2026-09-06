@@ -502,3 +502,11 @@ ACK 用户转发的 Codex C4R2 未通过与 C4R3 开放。C1–C3 accepted @ `c6
 ### [2026-09-06 10:20] Cursor：C4R3 完成，停手提审
 
 ACK 用户转发的 Codex C4R2 未通过与 C4R3 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`；C4R2 已通过项冻结 @ `63af334`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。fresh Agent 从已有 durable 队首 epoch 按原 startedAt arm；59s reopen snapshot=false，无其它事件到 60s 发布 true；已到期立即发布；已连接/非队首不 arm。WAL 同一行读出 typed state/order；summary with* 收敛到 overlaying。定向 328/328，全量 991/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/35-c4r3-reopen-deadline-wake.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-06 10:48] Cursor ACK：开始 C4R4 per-device deadline / strict order
+
+ACK 用户转发的 Codex C4R3 未通过与 C4R4 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 已通过项冻结 @ `13240bb`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R4：多设备独立队首 deadline 不得互相覆盖；strict state/order wire+WAL fail-closed；59s cursor 先等 event 再 snapshot。不改 C2 assembler 决策与 C3 WAL/CAS/事务转移/BLE executor。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-06 12:12] Cursor：C4R4 完成，停手提审
+
+ACK 用户转发的 Codex C4R3 未通过与 C4R4 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 已通过项冻结 @ `13240bb`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。单 scheduler 保留各 disconnected 队首 deadline，始终睡最早未发布项；B@90 不得取消 A@60。wire 双缺省兼容，否则恰好一个与 state 匹配的正序号；当前 WAL live 缺失/矛盾 fail-closed。59s cursor 先等 event 再 snapshot。定向 330/330，全量 993/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/36-c4r4-per-device-deadline.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

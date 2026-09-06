@@ -51,11 +51,13 @@ public struct AhaKeyRuntimePersistedTransaction: Equatable, Sendable {
         self.totalSteps = totalSteps
         self.messageCode = messageCode
         self.failureContext = failureContext.flatMap { $0.isEmpty ? nil : $0 }
-        self.durableOrdering = AhaKeyRuntimeDurableOrdering.validated(
-            state: state,
-            queueOrder: durableOrdering?.queueOrder,
-            terminalOrder: durableOrdering?.terminalOrder
-        )
+        self.durableOrdering = try? durableOrdering.flatMap { ordering in
+            try AhaKeyRuntimeDurableOrdering.parsePersisted(
+                state: state,
+                queueOrder: ordering.queueOrder,
+                terminalOrder: ordering.terminalOrder
+            )
+        }
     }
 }
 
@@ -315,6 +317,7 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.cannotOpenDatabase(message)
         }
         database = handle
+        sqlite3_busy_timeout(handle, 500)
         self.resourcesDirectory = resourcesDirectory
         self.quota = quota
         self.acceptanceValidator = acceptanceValidator
@@ -1963,6 +1966,16 @@ public actor AhaKeyRuntimePersistentStore {
             messageCode = nil
         }
         let failureContext = try decodeFailureContext(statement, column: columnOffset + 5)
+        let ordering: AhaKeyRuntimeDurableOrdering
+        do {
+            ordering = try AhaKeyRuntimeDurableOrdering.parsePersisted(
+                state: state,
+                queueOrder: optionalUInt64(statement, columnOffset + 6),
+                terminalOrder: optionalUInt64(statement, columnOffset + 7)
+            )
+        } catch {
+            throw AhaKeyRuntimePersistenceError.corruptTransaction
+        }
         return .init(
             operationID: operationID,
             package: package,
@@ -1971,11 +1984,7 @@ public actor AhaKeyRuntimePersistentStore {
             totalSteps: UInt32(totalSteps),
             messageCode: messageCode,
             failureContext: failureContext,
-            durableOrdering: AhaKeyRuntimeDurableOrdering.validated(
-                state: state,
-                queueOrder: optionalUInt64(statement, columnOffset + 6),
-                terminalOrder: optionalUInt64(statement, columnOffset + 7)
-            )
+            durableOrdering: ordering
         )
     }
 

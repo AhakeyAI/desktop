@@ -1310,6 +1310,33 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(queue.items[0].package.schemaVersion, 1)
     }
 
+    func testCurrentWALMissingLiveQueueOrderFailsClosed() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePackage()
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        let operationID = package.operationID.rawValue.uuidString
+        let databaseURL = root.appendingPathComponent("runtime.sqlite3")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(databaseURL.path, &database), SQLITE_OK)
+        let sql = "UPDATE runtime_transactions SET queue_order = NULL WHERE operation_id = ?"
+        var statement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(database, sql, -1, &statement, nil), SQLITE_OK)
+        operationID.withCString {
+            sqlite3_bind_text(statement, 1, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
+        sqlite3_finalize(statement)
+        sqlite3_close(database)
+        do {
+            _ = try await store.transaction(package.operationID)
+            XCTFail("missing live queue_order must fail closed")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .corruptTransaction)
+        }
+    }
+
     func testPageScopedAcceptRejectsSameOperationIDWithDifferentContent() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

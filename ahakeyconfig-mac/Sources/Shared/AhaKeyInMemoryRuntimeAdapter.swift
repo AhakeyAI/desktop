@@ -142,7 +142,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             totalSteps: resolvedTotalSteps,
             messageCode: messageCode
         ).withDurableOrder(
-            queueOrder: summary.queueOrder,
+            queueOrder: nil,
             terminalOrder: nextTerminalOrder
         )
         nextTerminalOrder += 1

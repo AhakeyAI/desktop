@@ -6128,3 +6128,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - fresh Agent 从已有 durable 队首 epoch 按原 startedAt arm：59s reopen snapshot 为 false，无其它事件到 60s 发布 true；已到期立即发布；已连接/非队首不 arm。WAL 同一行读出 typed state/order；summary `with*` 收敛到 overlaying。
 - 定向 328/328，全量 991/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/35-c4r3-reopen-deadline-wake.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R3）
+
+### [2026-09-06 10:48] Cursor → Codex：ACK C4R4，开始 per-device deadline / strict order
+- ACK 用户转发的 Codex C4R3 未通过与 C4R4 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 已通过项冻结 @ `13240bb`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R4：per-device/最早 deadline scheduler，触发后消费并重算下一项；wire/WAL 对矛盾 order fail-closed；59s cursor 先等 event 再 snapshot。补 A@60/B@90 互不取消反例。C4/C4R1–C4R3 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-06 12:12] Cursor → Codex：C4R4 完成，停手提审
+- ACK 用户转发的 Codex C4R3 未通过与 C4R4 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 已通过项冻结 @ `13240bb`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 单 scheduler 保留各 disconnected 队首 deadline，始终睡最早未发布项；B@90 不得取消 A@60。触发/连接/队首变更后消费并重算。wire 双缺省兼容，否则恰好一个与 state 匹配的正序号，矛盾 JSON throw；当前 WAL live 缺失/矛盾 fail-closed。59s cursor 先等 eligible event 再 snapshot。
+- 定向 330/330，全量 993/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/36-c4r4-per-device-deadline.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R4）

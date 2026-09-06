@@ -197,11 +197,15 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             guard case .operationAccepted = try await client.exchange(.apply(queued)) else {
                 return XCTFail("queued apply")
             }
-            await agent.noteProductionDisconnectForTesting()
-            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            let pausedHead = await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(pausedHead)
             await agent.simulateDeviceForTesting(
                 simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
             )
+            await agent.noteProductionDisconnectForTesting()
+            let settledHead = await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(settledHead)
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
             var disconnected = agent.executionTestHooks
             disconnected?.wallClock = { now }
             agent.executionTestHooks = disconnected
@@ -416,11 +420,18 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             guard case .operationAccepted = try await client.exchange(.apply(queued)) else {
                 return XCTFail("queued apply")
             }
-            await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            let pausedAfterQueued = await waitUntil(
+                agent, head.operationID, states: [.paused, .resumablePartial]
+            )
+            XCTAssertNotNil(pausedAfterQueued)
             await agent.noteProductionDisconnectForTesting()
             await agent.simulateDeviceForTesting(
                 simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
             )
+            let pausedAfterDisconnect = await waitUntil(
+                agent, head.operationID, states: [.paused, .resumablePartial]
+            )
+            XCTAssertNotNil(pausedAfterDisconnect)
             guard case .snapshot(let minted) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
                 return XCTFail("mint snapshot")
             }
@@ -452,13 +463,6 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             due?.wallClock = { now }
             agent.executionTestHooks = due
             try? await Task.sleep(nanoseconds: 80_000_000)
-            guard case .snapshot(let dueSnapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
-                return XCTFail("60s snapshot")
-            }
-            XCTAssertEqual(
-                dueSnapshot.operations.first { $0.id == head.operationID }?.abandonEligibility?.eligible,
-                true
-            )
             guard case .eventReplay(let at60Replay) = try await agent.handleRuntimeXPCRequest(
                 .events(after: cursor)
             ),
@@ -476,6 +480,13 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return summary.id == queued.operationID && summary.abandonEligibility?.eligible == true
             }
             XCTAssertFalse(queuedEligible)
+            guard case .snapshot(let dueSnapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("60s snapshot")
+            }
+            XCTAssertEqual(
+                dueSnapshot.operations.first { $0.id == head.operationID }?.abandonEligibility?.eligible,
+                true
+            )
         }
     }
 
@@ -536,17 +547,6 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             due?.wallClock = { now }
             reopened.executionTestHooks = due
             try? await Task.sleep(nanoseconds: 80_000_000)
-            guard case .snapshot(let at60Snapshot) = try await reopened.handleRuntimeXPCRequest(.snapshot) else {
-                return XCTFail("60s reopen snapshot")
-            }
-            XCTAssertEqual(
-                at60Snapshot.operations.first { $0.id == head.operationID }?.abandonEligibility?.eligible,
-                true
-            )
-            XCTAssertNotEqual(
-                at60Snapshot.operations.first { $0.id == queued.operationID }?.abandonEligibility?.eligible,
-                true
-            )
             guard case .eventReplay(let at60Replay) = try await reopened.handleRuntimeXPCRequest(
                 .events(after: cursor)
             ),
@@ -564,7 +564,142 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return summary.id == queued.operationID && summary.abandonEligibility?.eligible == true
             }
             XCTAssertFalse(queuedEligible)
+            guard case .snapshot(let at60Snapshot) = try await reopened.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("60s reopen snapshot")
+            }
+            XCTAssertEqual(
+                at60Snapshot.operations.first { $0.id == head.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            XCTAssertNotEqual(
+                at60Snapshot.operations.first { $0.id == queued.operationID }?.abandonEligibility?.eligible,
+                true
+            )
             await reopened.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testTwoDeviceHeadsKeepIndependentDeadlinesAtSixtyAndNinety() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+
+            let packageA = try statusPackage(device: "TEST-DEVICE", seed: "c4r4-device-a")
+            guard case .operationAccepted = try await client.exchange(.apply(packageA)) else {
+                return XCTFail("A apply")
+            }
+            let pausedA = await waitUntil(agent, packageA.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(pausedA)
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+
+            let packageB = try statusPackage(device: "DEVICE-B", seed: "c4r4-device-b")
+            let lease = try XCTUnwrap(agent.cachedWriterLeaseForTesting())
+            let store = try await agent.runtimeStoreForTesting()
+            _ = try await store.accept(packageB, resourceFiles: [:])
+            guard let acceptedB = try await store.transaction(packageB.operationID) else {
+                return XCTFail("B WAL row")
+            }
+            try await store.updateOperation(
+                AhaKeyRuntimeOperationSummary(
+                    id: acceptedB.operationID,
+                    targetDeviceID: acceptedB.package.targetDeviceID,
+                    state: .paused,
+                    completedSteps: acceptedB.completedSteps,
+                    totalSteps: max(acceptedB.totalSteps, 1)
+                )
+            )
+            try await store.mintDisconnectEpoch(
+                packageB.operationID,
+                epoch: AhaKeyRuntimeDisconnectEpoch(
+                    identity: AhaKeyRuntimeConnectionIdentity(
+                        deviceID: acceptedB.package.targetDeviceID,
+                        sessionGeneration: .init(0),
+                        transportGeneration: .init(0),
+                        writerLease: lease
+                    ),
+                    startedAt: now.addingTimeInterval(30)
+                )
+            )
+            now = Date(timeIntervalSince1970: 1_700_000_000)
+                .addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration - 1)
+            var at59Hooks = agent.executionTestHooks
+            at59Hooks?.wallClock = { now }
+            agent.executionTestHooks = at59Hooks
+            guard case .snapshot(let at59) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s snapshot")
+            }
+            XCTAssertEqual(
+                at59.operations.first { $0.id == packageA.operationID }?.abandonEligibility?.eligible,
+                false
+            )
+            XCTAssertEqual(
+                at59.operations.first { $0.id == packageB.operationID }?.abandonEligibility?.eligible,
+                false
+            )
+            let cursor = at59.latestEventSequence
+
+            now = Date(timeIntervalSince1970: 1_700_000_000)
+                .addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var at60Hooks = agent.executionTestHooks
+            at60Hooks?.wallClock = { now }
+            agent.executionTestHooks = at60Hooks
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let at60Replay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let at60) = at60Replay else {
+                return XCTFail("60s events")
+            }
+            let aEligibleAt60 = at60.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == packageA.operationID && summary.abandonEligibility?.eligible == true
+            }
+            let bEligibleAt60 = at60.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == packageB.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertTrue(aEligibleAt60)
+            XCTAssertFalse(bEligibleAt60)
+            guard case .snapshot(let at60Snapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("60s snapshot")
+            }
+            XCTAssertEqual(
+                at60Snapshot.operations.first { $0.id == packageA.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            XCTAssertEqual(
+                at60Snapshot.operations.first { $0.id == packageB.operationID }?.abandonEligibility?.eligible,
+                false
+            )
+
+            now = Date(timeIntervalSince1970: 1_700_000_000)
+                .addingTimeInterval(30 + AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var at90Hooks = agent.executionTestHooks
+            at90Hooks?.wallClock = { now }
+            agent.executionTestHooks = at90Hooks
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let at90Replay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: at60Snapshot.latestEventSequence)
+            ),
+            case .events(let at90) = at90Replay else {
+                return XCTFail("90s events")
+            }
+            let bEligibleAt90 = at90.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == packageB.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertTrue(bEligibleAt90)
+            await agent.closeRuntimeStoreForTesting()
         }
     }
 

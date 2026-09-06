@@ -1274,7 +1274,7 @@ public enum AhaKeyRuntimeAbandonDisposition: Codable, Equatable, Sendable {
     case alreadyFinished
 }
 
-/// C4R3：与 operation state 同时成立的 WAL 顺序事实。活队列只有 `queue_order`，终态只有 `terminal_order`。
+/// C4R4：与 operation state 同时成立的 WAL/wire 顺序事实。活队列只有正 `queueOrder`，终态只有正 `terminalOrder`。
 public enum AhaKeyRuntimeDurableOrdering: Equatable, Sendable {
     case live(queueOrder: UInt64)
     case terminal(terminalOrder: UInt64)
@@ -1289,16 +1289,54 @@ public enum AhaKeyRuntimeDurableOrdering: Equatable, Sendable {
         return nil
     }
 
-    public static func validated(
+    /// 线格式：双缺省保持旧 payload 兼容；任一字段出现则必须与 state 精确一致且为正。
+    public static func parseWire(
         state: AhaKeyRuntimeOperationState,
         queueOrder: UInt64?,
         terminalOrder: UInt64?
-    ) -> Self? {
+    ) throws -> Self? {
+        if queueOrder == nil, terminalOrder == nil {
+            return nil
+        }
+        return try exclusivePositiveOrder(
+            state: state,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
+        )
+    }
+
+    /// 当前 WAL 行：必须有且仅有与 state 匹配的正序号；缺失或矛盾 fail-closed。
+    public static func parsePersisted(
+        state: AhaKeyRuntimeOperationState,
+        queueOrder: UInt64?,
+        terminalOrder: UInt64?
+    ) throws -> Self {
         if state.isTerminal {
-            guard let terminalOrder else { return nil }
+            guard let terminalOrder, terminalOrder > 0 else {
+                throw AhaKeyRuntimeContractError.corruptRuntimeFact
+            }
             return .terminal(terminalOrder: terminalOrder)
         }
-        guard let queueOrder else { return nil }
+        guard let queueOrder, queueOrder > 0, terminalOrder == nil else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        return .live(queueOrder: queueOrder)
+    }
+
+    private static func exclusivePositiveOrder(
+        state: AhaKeyRuntimeOperationState,
+        queueOrder: UInt64?,
+        terminalOrder: UInt64?
+    ) throws -> Self {
+        if state.isTerminal {
+            guard queueOrder == nil, let terminalOrder, terminalOrder > 0 else {
+                throw AhaKeyRuntimeContractError.corruptRuntimeFact
+            }
+            return .terminal(terminalOrder: terminalOrder)
+        }
+        guard terminalOrder == nil, let queueOrder, queueOrder > 0 else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
         return .live(queueOrder: queueOrder)
     }
 }
@@ -1366,15 +1404,24 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.confirmedBaselines = confirmedBaselines
         self.pageID = pageID
         self.abandonEligibility = abandonEligibility
-        self.durableOrdering = AhaKeyRuntimeDurableOrdering.validated(
-            state: state,
-            queueOrder: durableOrdering?.queueOrder ?? queueOrder,
-            terminalOrder: durableOrdering?.terminalOrder ?? terminalOrder
-        )
+        do {
+            self.durableOrdering = try AhaKeyRuntimeDurableOrdering.parseWire(
+                state: state,
+                queueOrder: durableOrdering?.queueOrder ?? queueOrder,
+                terminalOrder: durableOrdering?.terminalOrder ?? terminalOrder
+            )
+        } catch {
+            self.durableOrdering = nil
+        }
     }
 
     public init(from decoder: Decoder) throws {
         let wire = try Wire(from: decoder)
+        let ordering = try AhaKeyRuntimeDurableOrdering.parseWire(
+            state: wire.state,
+            queueOrder: wire.queueOrder,
+            terminalOrder: wire.terminalOrder
+        )
         self.init(
             id: wire.id,
             targetDeviceID: wire.targetDeviceID,
@@ -1390,8 +1437,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             confirmedBaselines: wire.confirmedBaselines,
             pageID: wire.pageID,
             abandonEligibility: wire.abandonEligibility,
-            queueOrder: wire.queueOrder,
-            terminalOrder: wire.terminalOrder
+            durableOrdering: ordering
         )
     }
 
@@ -1454,11 +1500,13 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     ) -> AhaKeyRuntimeOperationSummary {
         overlaying(
             durableOrdering: .some(
-                AhaKeyRuntimeDurableOrdering.validated(
-                    state: state,
-                    queueOrder: queueOrder,
-                    terminalOrder: terminalOrder
-                )
+                {
+                    try? AhaKeyRuntimeDurableOrdering.parseWire(
+                        state: state,
+                        queueOrder: queueOrder,
+                        terminalOrder: terminalOrder
+                    )
+                }()
             )
         )
     }
@@ -1473,7 +1521,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             state: nextState,
             completedSteps: completedSteps,
             totalSteps: totalSteps,
-            messageCode: messageCode.map { .some($0) }
+            messageCode: messageCode.map { .some($0) },
+            durableOrdering: nextState.isTerminal == state.isTerminal ? nil : .some(nil)
         )
     }
 
