@@ -456,7 +456,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
             _ = try await store.accept(package, resourceFiles: [:])
             try await store.commitOperationOutcome(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
                     state: .failedWithoutWrites,
@@ -500,7 +500,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
         do {
             try await store.commitOperationOutcome(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
                     state: .completed,
@@ -537,7 +537,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         }
         for package in packages.reversed() {
             try await store.commitOperationOutcome(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
                     state: .failedWithoutWrites,
@@ -687,7 +687,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let explicit = try makePackage()
         _ = try await store.accept(explicit, resourceFiles: [:])
         try await store.commitOperationOutcome(
-            AhaKeyRuntimeOperationSummary(
+            try AhaKeyRuntimeOperationSummary(
                 id: explicit.operationID,
                 targetDeviceID: explicit.targetDeviceID,
                 state: .failedWithoutWrites,

@@ -300,7 +300,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         ) {
         case .commitTerminal(let state):
             try await store.commitOperationOutcome(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: operationID, targetDeviceID: record.package.targetDeviceID,
                     state: state, completedSteps: record.completedSteps,
                     totalSteps: record.totalSteps, messageCode: nil
@@ -367,7 +367,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         messageCode: AhaKeyRuntimeEventCode? = nil,
         failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
+        try! AhaKeyRuntimeOperationSummary(
             id: package.operationID,
             targetDeviceID: package.targetDeviceID,
             state: state,

@@ -106,7 +106,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertEqual(
             first?.payload,
             .operationChanged(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
                     state: .accepted,
@@ -345,7 +345,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     }
 
     func testOperationSummaryOmitsNilByteKeys() throws {
-        let summary = AhaKeyRuntimeOperationSummary(
+        let summary = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .accepted
@@ -364,7 +364,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             epochStartedAt: Date(timeIntervalSince1970: 1_700_000_000),
             eligible: true
         )
-        let summary = AhaKeyRuntimeOperationSummary(
+        let summary = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .paused,
@@ -382,7 +382,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     }
 
     func testOperationSummaryRoundTripsDurableQueueAndTerminalOrder() throws {
-        let live = AhaKeyRuntimeOperationSummary(
+        let live = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .accepted,
@@ -403,12 +403,12 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertNil(liveObject["terminalOrder"])
         XCTAssertTrue(
             AhaKeyRuntimeOperationSummary.durableFIFOLessThan(
-                live.withDurableOrder(queueOrder: 2, terminalOrder: nil),
-                live.withDurableOrder(queueOrder: 3, terminalOrder: nil)
+                try live.withDurableOrder(queueOrder: 2, terminalOrder: nil),
+                try live.withDurableOrder(queueOrder: 3, terminalOrder: nil)
             )
         )
 
-        let terminal = AhaKeyRuntimeOperationSummary(
+        let terminal = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .completed,
@@ -468,11 +468,27 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             )
         )
         XCTAssertThrowsError(
-            try AhaKeyRuntimeDurableOrdering.parsePersisted(
-                state: .running,
-                queueOrder: 3,
-                terminalOrder: 1
+            try AhaKeyRuntimeOperationSummary(
+                id: AhaKeyRuntimeOperationID(),
+                targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+                state: .accepted,
+                queueOrder: 0
             )
+        )
+        XCTAssertThrowsError(
+            try AhaKeyRuntimeOperationSummary(
+                id: AhaKeyRuntimeOperationID(),
+                targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+                state: .accepted,
+                queueOrder: 4,
+                terminalOrder: 11
+            )
+        )
+        XCTAssertThrowsError(
+            try live.withDurableOrder(queueOrder: 0, terminalOrder: nil)
+        )
+        XCTAssertThrowsError(
+            try live.withDurableOrder(queueOrder: 2, terminalOrder: 9)
         )
     }
 
@@ -500,7 +516,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     }
 
     func testOperationSummaryOmitsNilFailureContextInnerKeys() throws {
-        let summary = AhaKeyRuntimeOperationSummary(
+        let summary = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .failedWithoutWrites,

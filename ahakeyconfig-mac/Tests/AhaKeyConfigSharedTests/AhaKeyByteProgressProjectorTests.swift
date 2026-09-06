@@ -36,7 +36,7 @@ final class AhaKeyByteProgressProjectorTests: XCTestCase {
         XCTAssertTrue(projector.confirmChunk(stepID: step, bytes: 120, nowNanos: start))
         XCTAssertFalse(projector.publishTerminal(nowNanos: start + 1_000_000_000))
         XCTAssertEqual(projector.completedBytes, 120)
-        XCTAssertEqual(projector.overlay(AhaKeyRuntimeOperationSummary(
+        XCTAssertEqual(projector.overlay(try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .failedWithoutWrites
@@ -52,7 +52,7 @@ final class AhaKeyByteProgressProjectorTests: XCTestCase {
 
     func testOverlayLeavesSummaryUntouchedWhenTotalIsZero() throws {
         let projector = AhaKeyByteProgressProjector(totalBytes: 0)
-        let summary = AhaKeyRuntimeOperationSummary(
+        let summary = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .running,

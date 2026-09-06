@@ -510,3 +510,11 @@ ACK 用户转发的 Codex C4R3 未通过与 C4R4 开放。C1–C3 accepted @ `c6
 ### [2026-09-06 12:12] Cursor：C4R4 完成，停手提审
 
 ACK 用户转发的 Codex C4R3 未通过与 C4R4 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 已通过项冻结 @ `13240bb`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。单 scheduler 保留各 disconnected 队首 deadline，始终睡最早未发布项；B@90 不得取消 A@60。wire 双缺省兼容，否则恰好一个与 state 匹配的正序号；当前 WAL live 缺失/矛盾 fail-closed。59s cursor 先等 event 再 snapshot。定向 330/330，全量 993/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/36-c4r4-per-device-deadline.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-06 13:27] Cursor ACK：开始 C4R5 deadline publication CAS / WAL scope
+
+ACK 用户转发的 Codex C4R4 未通过与 C4R5 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 已通过项冻结 @ `b462eae`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R5：完整 epoch token publication CAS、失败有界重试、删除 busy timeout、本地 order throwing。不改 C2 assembler 决策与 C3 WAL/CAS/事务转移/BLE executor。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-06 13:52] Cursor：C4R5 完成，停手提审
+
+ACK 用户转发的 Codex C4R4 未通过与 C4R5 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 已通过项冻结 @ `b462eae`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。到期发布冻结完整 `(deviceID, epoch)` token，refresh 成功且 pending 仍精确相等才消费；失败保留并有界重试。删除全局 busy timeout。本地 summary/order throwing。定向 333/333，全量 996/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/37-c4r5-deadline-publication-cas.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

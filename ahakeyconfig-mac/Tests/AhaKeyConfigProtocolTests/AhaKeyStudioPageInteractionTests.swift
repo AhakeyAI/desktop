@@ -485,7 +485,7 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         queueOrder: UInt64? = nil,
         terminalOrder: UInt64? = nil
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
+        try! AhaKeyRuntimeOperationSummary(
             id: id,
             targetDeviceID: device,
             state: state,

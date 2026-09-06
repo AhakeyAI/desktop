@@ -317,7 +317,6 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.cannotOpenDatabase(message)
         }
         database = handle
-        sqlite3_busy_timeout(handle, 500)
         self.resourcesDirectory = resourcesDirectory
         self.quota = quota
         self.acceptanceValidator = acceptanceValidator
@@ -1558,7 +1557,7 @@ public actor AhaKeyRuntimePersistentStore {
             userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
         )
         let hasWrites = AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan)
-        let summary = AhaKeyRuntimeOperationSummary(
+        let summary = try AhaKeyRuntimeOperationSummary(
             id: operationID,
             targetDeviceID: record.package.targetDeviceID,
             state: hasWrites ? .failedWithPartialCommit : .failedWithoutWrites,

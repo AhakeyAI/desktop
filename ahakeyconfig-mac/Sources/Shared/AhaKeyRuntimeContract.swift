@@ -1389,7 +1389,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         queueOrder: UInt64? = nil,
         terminalOrder: UInt64? = nil,
         durableOrdering: AhaKeyRuntimeDurableOrdering? = nil
-    ) {
+    ) throws {
         self.id = id
         self.targetDeviceID = targetDeviceID
         self.state = state
@@ -1404,25 +1404,16 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.confirmedBaselines = confirmedBaselines
         self.pageID = pageID
         self.abandonEligibility = abandonEligibility
-        do {
-            self.durableOrdering = try AhaKeyRuntimeDurableOrdering.parseWire(
-                state: state,
-                queueOrder: durableOrdering?.queueOrder ?? queueOrder,
-                terminalOrder: durableOrdering?.terminalOrder ?? terminalOrder
-            )
-        } catch {
-            self.durableOrdering = nil
-        }
+        self.durableOrdering = try AhaKeyRuntimeDurableOrdering.parseWire(
+            state: state,
+            queueOrder: durableOrdering?.queueOrder ?? queueOrder,
+            terminalOrder: durableOrdering?.terminalOrder ?? terminalOrder
+        )
     }
 
     public init(from decoder: Decoder) throws {
         let wire = try Wire(from: decoder)
-        let ordering = try AhaKeyRuntimeDurableOrdering.parseWire(
-            state: wire.state,
-            queueOrder: wire.queueOrder,
-            terminalOrder: wire.terminalOrder
-        )
-        self.init(
+        try self.init(
             id: wire.id,
             targetDeviceID: wire.targetDeviceID,
             state: wire.state,
@@ -1437,7 +1428,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             confirmedBaselines: wire.confirmedBaselines,
             pageID: wire.pageID,
             abandonEligibility: wire.abandonEligibility,
-            durableOrdering: ordering
+            queueOrder: wire.queueOrder,
+            terminalOrder: wire.terminalOrder
         )
     }
 
@@ -1497,16 +1489,14 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public func withDurableOrder(
         queueOrder: UInt64?,
         terminalOrder: UInt64?
-    ) -> AhaKeyRuntimeOperationSummary {
+    ) throws -> AhaKeyRuntimeOperationSummary {
         overlaying(
             durableOrdering: .some(
-                {
-                    try? AhaKeyRuntimeDurableOrdering.parseWire(
-                        state: state,
-                        queueOrder: queueOrder,
-                        terminalOrder: terminalOrder
-                    )
-                }()
+                try AhaKeyRuntimeDurableOrdering.parseWire(
+                    state: state,
+                    queueOrder: queueOrder,
+                    terminalOrder: terminalOrder
+                )
             )
         )
     }
@@ -1541,7 +1531,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         abandonEligibility: AhaKeyRuntimeAbandonEligibility?? = nil,
         durableOrdering: AhaKeyRuntimeDurableOrdering?? = nil
     ) -> AhaKeyRuntimeOperationSummary {
-        return AhaKeyRuntimeOperationSummary(
+        return try! AhaKeyRuntimeOperationSummary(
             id: id,
             targetDeviceID: targetDeviceID,
             state: state ?? self.state,

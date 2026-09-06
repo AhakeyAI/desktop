@@ -85,7 +85,7 @@ final class AhaKeyStudioFailureTextTests: XCTestCase {
         messageCode: AhaKeyRuntimeEventCode? = nil,
         failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) throws -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
+        try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: state,

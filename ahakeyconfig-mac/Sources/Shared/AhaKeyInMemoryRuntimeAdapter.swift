@@ -74,7 +74,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             )
         }
         acceptedPackages[package.operationID] = package
-        let summary = AhaKeyRuntimeOperationSummary(
+        let summary = try AhaKeyRuntimeOperationSummary(
             id: package.operationID,
             targetDeviceID: package.targetDeviceID,
             state: .accepted,
@@ -136,7 +136,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         guard resolvedCompletedSteps <= resolvedTotalSteps else {
             throw AhaKeyInMemoryRuntimeAdapterError.invalidStepProgress
         }
-        let updated = summary.withState(
+        let updated = try summary.withState(
             state,
             completedSteps: resolvedCompletedSteps,
             totalSteps: resolvedTotalSteps,

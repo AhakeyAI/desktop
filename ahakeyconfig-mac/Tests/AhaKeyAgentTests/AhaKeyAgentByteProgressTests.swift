@@ -272,7 +272,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
         for package in packages.reversed().dropLast() {
             try await store.commitOperationOutcome(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
                     state: .failedWithoutWrites,
@@ -292,7 +292,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         }
 
         try await store.commitOperationOutcome(
-            AhaKeyRuntimeOperationSummary(
+            try AhaKeyRuntimeOperationSummary(
                 id: firstAccepted.operationID,
                 targetDeviceID: firstAccepted.targetDeviceID,
                 state: .failedWithoutWrites,
@@ -425,7 +425,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         XCTAssertEqual(interleaved.count, total)
         for package in interleaved {
             try await store.commitOperationOutcome(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
                     state: .failedWithoutWrites,

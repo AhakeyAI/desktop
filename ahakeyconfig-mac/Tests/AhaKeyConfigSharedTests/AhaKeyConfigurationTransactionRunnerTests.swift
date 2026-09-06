@@ -273,7 +273,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         // 跑一步就取消
         try await store.accept(package, resourceFiles: files)
         try await store.confirmStep(try! .init("resource:img-a"), for: package.operationID)
-        try await store.updateOperation(AhaKeyRuntimeOperationSummary(
+        try await store.updateOperation(try AhaKeyRuntimeOperationSummary(
             id: package.operationID, targetDeviceID: package.targetDeviceID,
             state: .running, completedSteps: 1, totalSteps: 3
         ))

@@ -4,7 +4,7 @@ import XCTest
 
 final class AhaKeyStudioWriteProgressTextTests: XCTestCase {
     func testPrefersBytePercentWhenPresent() throws {
-        let operation = AhaKeyRuntimeOperationSummary(
+        let operation = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .running,
@@ -22,7 +22,7 @@ final class AhaKeyStudioWriteProgressTextTests: XCTestCase {
     }
 
     func testFallsBackToElapsedStepsWhenBytesMissing() throws {
-        let operation = AhaKeyRuntimeOperationSummary(
+        let operation = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .running,
@@ -40,7 +40,7 @@ final class AhaKeyStudioWriteProgressTextTests: XCTestCase {
     }
 
     func testSameByteProgressYieldsIdenticalCopy() throws {
-        let operation = AhaKeyRuntimeOperationSummary(
+        let operation = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .running,

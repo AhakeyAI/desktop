@@ -468,7 +468,7 @@ final class AhaKeyStudioPageModelTests: XCTestCase {
         messageCode: AhaKeyRuntimeEventCode? = nil,
         residual: AhaKeyRuntimePageResidual? = nil
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
+        try! AhaKeyRuntimeOperationSummary(
             id: id,
             targetDeviceID: device,
             state: state,

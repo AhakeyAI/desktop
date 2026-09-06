@@ -610,7 +610,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return XCTFail("B WAL row")
             }
             try await store.updateOperation(
-                AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationSummary(
                     id: acceptedB.operationID,
                     targetDeviceID: acceptedB.package.targetDeviceID,
                     state: .paused,
@@ -699,6 +699,196 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return summary.id == packageB.operationID && summary.abandonEligibility?.eligible == true
             }
             XCTAssertTrue(bEligibleAt90)
+            await agent.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testAbandonDeadlineRetriesAfterFailedPublication() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            hooks?.abandonEligibilityRefreshFailuresRemaining = 1
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r5-retry")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            let paused = await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(paused)
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            guard case .snapshot(let at59) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s snapshot")
+            }
+            let cursor = at59.latestEventSequence
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var due = agent.executionTestHooks
+            due?.wallClock = { now }
+            agent.executionTestHooks = due
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard case .eventReplay(let replay) = try await agent.handleRuntimeXPCRequest(.events(after: cursor)),
+                  case .events(let events) = replay else {
+                return XCTFail("retry events")
+            }
+            let eligible = events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertTrue(eligible)
+            await agent.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testOldAbandonWakeDoesNotConsumeReplacementEpoch() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let t0 = now
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r5-replace")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            let paused = await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(paused)
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            let lease = try XCTUnwrap(agent.cachedWriterLeaseForTesting())
+            let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+            let replacement = AhaKeyRuntimeDisconnectEpoch(
+                identity: AhaKeyRuntimeConnectionIdentity(
+                    deviceID: deviceID,
+                    sessionGeneration: .init(1),
+                    transportGeneration: .init(0),
+                    writerLease: lease
+                ),
+                startedAt: t0.addingTimeInterval(30)
+            )
+            hooks = agent.executionTestHooks
+            hooks?.abandonEligibilityRefreshGate = {
+                do {
+                    let store = try await agent.runtimeStoreForTesting()
+                    try await store.mintDisconnectEpoch(package.operationID, epoch: replacement)
+                    agent.replacePendingAbandonDeadlineForTesting(deviceID: deviceID, epoch: replacement)
+                } catch {
+                    XCTFail("replace epoch: \(error)")
+                }
+            }
+            agent.executionTestHooks = hooks
+            guard case .snapshot(let at59) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s snapshot")
+            }
+            XCTAssertEqual(
+                at59.operations.first { $0.id == package.operationID }?.abandonEligibility?.eligible,
+                false
+            )
+            let cursor = at59.latestEventSequence
+            now = t0.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var at60 = agent.executionTestHooks
+            at60?.wallClock = { now }
+            agent.executionTestHooks = at60
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let at60Replay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let at60Events) = at60Replay else {
+                return XCTFail("60s events")
+            }
+            let eligibleAt60 = at60Events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(eligibleAt60)
+            now = t0.addingTimeInterval(30 + AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var at90 = agent.executionTestHooks
+            at90?.wallClock = { now }
+            agent.executionTestHooks = at90
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let at90Replay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: at59.latestEventSequence)
+            ),
+            case .events(let at90Events) = at90Replay else {
+                return XCTFail("90s events")
+            }
+            let eligibleAt90 = at90Events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertTrue(eligibleAt90)
+            await agent.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testFreshAgentConnectedBStillArmsDisconnectedA() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let packageA = try statusPackage(device: "TEST-DEVICE", seed: "c4r5-device-a")
+            guard case .operationAccepted = try await client.exchange(.apply(packageA)) else {
+                return XCTFail("A apply")
+            }
+            let pausedA = await waitUntil(agent, packageA.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(pausedA)
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(
+                    id: "DEVICE-B",
+                    protocolState: .currentReady,
+                    bluetoothConnected: true
+                )
+            )
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration - 1)
+            var at59Hooks = agent.executionTestHooks
+            at59Hooks?.wallClock = { now }
+            agent.executionTestHooks = at59Hooks
+            guard case .snapshot(let at59) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s snapshot")
+            }
+            XCTAssertEqual(
+                at59.operations.first { $0.id == packageA.operationID }?.abandonEligibility?.eligible,
+                false
+            )
+            let cursor = at59.latestEventSequence
+            now = Date(timeIntervalSince1970: 1_700_000_000)
+                .addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var at60Hooks = agent.executionTestHooks
+            at60Hooks?.wallClock = { now }
+            agent.executionTestHooks = at60Hooks
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let at60Replay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let at60) = at60Replay else {
+                return XCTFail("60s events")
+            }
+            let aEligible = at60.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == packageA.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertTrue(aEligible)
             await agent.closeRuntimeStoreForTesting()
         }
     }
@@ -2121,6 +2311,36 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         userSlotLimit: Int = 64,
         objectSeed: String? = "base-object"
     ) async throws -> AhaKeyAgent {
+        if storeDirectory == nil {
+            return try await makePreparedAgentOnce(
+                storeDirectory: storeDirectory,
+                userSlotLimit: userSlotLimit,
+                objectSeed: objectSeed
+            )
+        }
+        var lastError: Error?
+        for _ in 0..<30 {
+            do {
+                return try await makePreparedAgentOnce(
+                    storeDirectory: storeDirectory,
+                    userSlotLimit: userSlotLimit,
+                    objectSeed: objectSeed
+                )
+            } catch {
+                lastError = error
+                let text = String(describing: error)
+                guard text.contains("locked") || text.contains("SQLITE_BUSY") else { throw error }
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+        }
+        throw lastError!
+    }
+
+    private func makePreparedAgentOnce(
+        storeDirectory: URL?,
+        userSlotLimit: Int,
+        objectSeed: String?
+    ) async throws -> AhaKeyAgent {
         let agent = makeAgent(storeDirectory: storeDirectory, userSlotLimit: userSlotLimit)
         if storeDirectory == nil, let objectSeed {
             let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
@@ -2189,7 +2409,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         )
         _ = try await store.accept(package, resourceFiles: [:])
         try await store.updateOperation(
-            .init(
+            try .init(
                 id: package.operationID,
                 targetDeviceID: package.targetDeviceID,
                 state: .running,

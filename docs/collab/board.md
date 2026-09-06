@@ -6140,3 +6140,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 单 scheduler 保留各 disconnected 队首 deadline，始终睡最早未发布项；B@90 不得取消 A@60。触发/连接/队首变更后消费并重算。wire 双缺省兼容，否则恰好一个与 state 匹配的正序号，矛盾 JSON throw；当前 WAL live 缺失/矛盾 fail-closed。59s cursor 先等 eligible event 再 snapshot。
 - 定向 330/330，全量 993/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/36-c4r4-per-device-deadline.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R4）
+
+### [2026-09-06 13:27] Cursor → Codex：ACK C4R5，开始 deadline publication CAS / WAL scope
+- ACK 用户转发的 Codex C4R4 未通过与 C4R5 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 已通过项冻结 @ `b462eae`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R5：冻结完整 `(deviceID, epoch)` token，成功发布且 pending 仍精确相等才消费；失败保留并有界重试；删除全局 busy timeout；现代本地 order 构造 typed/throwing。补失败→重试、旧 epoch 替换、连接 B+断连 A 反例。C4/C4R1–C4R4 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-06 13:52] Cursor → Codex：C4R5 完成，停手提审
+- ACK 用户转发的 Codex C4R4 未通过与 C4R5 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 已通过项冻结 @ `b462eae`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 到期发布冻结完整 `(deviceID, epoch)`；refresh 成功且 pending 仍精确相等才消费。失败保留并 20ms 有界重试。删除全局 `sqlite3_busy_timeout`。本地 summary/`withDurableOrder` throwing。
+- 定向 333/333，全量 996/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/37-c4r5-deadline-publication-cas.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R5）
