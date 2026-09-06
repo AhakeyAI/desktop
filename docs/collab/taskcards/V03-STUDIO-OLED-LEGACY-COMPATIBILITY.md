@@ -542,3 +542,11 @@ ACK 用户转发的 Codex C4R7 未通过与 C4R8 开放。C1–C3 accepted @ `c6
 ### [2026-09-06 18:49] Cursor：C4R8 完成，停手提审
 
 ACK 用户转发的 Codex C4R7 未通过与 C4R8 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。第二次 proof 与 MainActor 发布共用 mutation fence；retry sleeper 绑 exact token/generation，cancelAllAndWait 等待全部 task。Runner 终态只提交不带 projected order 的 transition，由 store 分配真实 terminal order。定向 347/347，全量 1010/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/40-c4r8-post-proof-fence-tokenized-retry.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-06 19:07] Cursor ACK：开始 C4R9 complete shared fence / transactional terminal order
+
+ACK 用户转发的 Codex C4R8 未通过与 C4R9 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R9：补齐 facts 写前 fence；persistence-root 共享/durable fence；terminal_order 在写事务/跨 Store 锁内分配。不改 C2 assembler 决策与 C3 WAL/CAS/事务转移/BLE executor（仅紧缩性原子化）。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-06 19:32] Cursor：C4R9 完成，停手提审
+
+ACK 用户转发的 Codex C4R8 未通过与 C4R9 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。publication-facts 写入写前推进 root-shared lockfile fence；terminal_order 在写事务/跨 Store 锁内分配。定向 353/353，全量 1016/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/41-c4r9-complete-shared-fence-terminal-order.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

@@ -6188,3 +6188,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 第二次 proof 与 MainActor 发布共用 mutation fence；retry sleeper 绑 exact token/generation，cancelAllAndWait 等待全部 task。Runner 终态只提交不带 projected order 的 transition，由 store 分配真实 terminal order。
 - 定向 347/347，全量 1010/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/40-c4r8-post-proof-fence-tokenized-retry.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R8）
+
+### [2026-09-06 19:07] Cursor → Codex：ACK C4R9，开始 complete shared fence / transactional terminal order
+- ACK 用户转发的 Codex C4R8 未通过与 C4R9 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R9：所有 publication-facts 写入在写前推进同一 fence；fence/reservation 对同一 persistence root 跨 Store/进程共享或 durable CAS；`terminal_order` 在 `BEGIN IMMEDIATE`/跨 Store 独占锁内分配并写入。C4/C4R1–C4R8 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor（仅上述紧缩性 fence/order 原子化）、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-06 19:32] Cursor → Codex：C4R9 完成，停手提审
+- ACK 用户转发的 Codex C4R8 未通过与 C4R9 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- publication-facts 写入（含 confirmStep/confirmPageStep/authority readback）写前推进 root-shared lockfile fence；publishIfUnchanged 在同一把跨 Store flock 上重读世代。`terminal_order` 在 `BEGIN IMMEDIATE` + 独占锁内分配并写入。
+- 定向 353/353，全量 1016/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/41-c4r9-complete-shared-fence-terminal-order.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R9）

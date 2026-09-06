@@ -228,28 +228,128 @@ public struct AhaKeyRuntimeAbandonPublicationFacts: Equatable, Sendable {
     public let mutationGeneration: UInt64
 }
 
-/// Store mutation 与 MainActor 发布共用的世代锁：bump 先于 WAL 写入，publish 在同一把锁上核世代。
+/// Persistence-root 共享的 mutation fence：世代写在跨 Store flock 锁文件上。
+/// bump 先于 WAL 写入；publish 在同一把独占锁上重读世代后再发布。
 public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
-    private let lock = NSLock()
+    private static let registryLock = NSLock()
+    private static var fences: [String: AhaKeyRuntimeMutationFence] = [:]
+
+    private let recursive = NSRecursiveLock()
+    private let lockFileDescriptor: Int32
+    private var depth = 0
     private var generation: UInt64 = 0
 
-    public func current() -> UInt64 {
-        lock.lock()
-        defer { lock.unlock() }
-        return generation
+    public static func shared(
+        for rootDirectory: URL,
+        lockFileDescriptor: Int32
+    ) -> AhaKeyRuntimeMutationFence {
+        let key = rootDirectory.standardizedFileURL.resolvingSymlinksInPath().path
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        if let existing = fences[key] {
+            return existing
+        }
+        let duplicated = dup(lockFileDescriptor)
+        precondition(duplicated >= 0, "dup mutation fence lock fd")
+        let fence = AhaKeyRuntimeMutationFence(lockFileDescriptor: duplicated)
+        fences[key] = fence
+        return fence
     }
 
-    public func bump() {
-        lock.lock()
-        generation &+= 1
-        lock.unlock()
+    private init(lockFileDescriptor: Int32) {
+        self.lockFileDescriptor = lockFileDescriptor
+    }
+
+    public func current() -> UInt64 {
+        (try? withExclusiveAccess { generation }) ?? 0
+    }
+
+    public func bump() throws {
+        try withExclusiveAccess {
+            generation &+= 1
+            try persistGeneration()
+        }
     }
 
     public func publishIfUnchanged<T>(_ expected: UInt64, _ body: () -> T?) -> T? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard generation == expected else { return nil }
-        return body()
+        do {
+            return try withExclusiveAccess {
+                guard generation == expected else { return nil }
+                return body()
+            }
+        } catch {
+            return nil
+        }
+    }
+
+    public func withExclusiveAccess<T>(_ body: () throws -> T) throws -> T {
+        recursive.lock()
+        let isOutermost = depth == 0
+        if isOutermost {
+            guard flock(lockFileDescriptor, LOCK_EX) == 0 else {
+                recursive.unlock()
+                throw AhaKeyRuntimePersistenceError.databaseFailure(
+                    "flock LOCK_EX failed: errno=\(errno)"
+                )
+            }
+            try loadGeneration()
+        }
+        depth += 1
+        do {
+            let result = try body()
+            depth -= 1
+            if depth == 0 {
+                guard flock(lockFileDescriptor, LOCK_UN) == 0 else {
+                    recursive.unlock()
+                    throw AhaKeyRuntimePersistenceError.databaseFailure(
+                        "flock LOCK_UN failed: errno=\(errno)"
+                    )
+                }
+            }
+            recursive.unlock()
+            return result
+        } catch {
+            depth -= 1
+            if depth == 0 {
+                _ = flock(lockFileDescriptor, LOCK_UN)
+            }
+            recursive.unlock()
+            throw error
+        }
+    }
+
+    private func loadGeneration() throws {
+        var value: UInt64 = 0
+        let read = withUnsafeMutableBytes(of: &value) { buffer in
+            pread(lockFileDescriptor, buffer.baseAddress, 8, 0)
+        }
+        if read == 0 {
+            generation = 0
+            return
+        }
+        guard read == 8 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "mutation generation read failed: errno=\(errno)"
+            )
+        }
+        generation = UInt64(littleEndian: value)
+    }
+
+    private func persistGeneration() throws {
+        var value = generation.littleEndian
+        let written = withUnsafeBytes(of: &value) { buffer in
+            pwrite(lockFileDescriptor, buffer.baseAddress, 8, 0)
+        }
+        guard written == 8 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "mutation generation persist failed: errno=\(errno)"
+            )
+        }
+        guard fsync(lockFileDescriptor) == 0 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "mutation generation fsync failed: errno=\(errno)"
+            )
+        }
     }
 }
 
@@ -282,7 +382,7 @@ public actor AhaKeyRuntimePersistentStore {
     /// 同一 persistence root 的跨 Store/跨进程 advisory 锁（flock）。init reconciliation/prune、
     /// ingest admission+install+journal、accept 转正都在该临界区内；进程崩溃由 OS 释放锁。
     private let lockFileDescriptor: Int32
-    public nonisolated let mutationFence = AhaKeyRuntimeMutationFence()
+    public nonisolated let mutationFence: AhaKeyRuntimeMutationFence
     private var mutationGeneration: UInt64 = 0
     private let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -296,24 +396,6 @@ public actor AhaKeyRuntimePersistentStore {
 
     func setTestingHooks(_ hooks: AhaKeyRuntimeStoreTestingHooks) {
         testingHooks = hooks
-    }
-
-    /// 临界区辅助：flock LOCK_EX/UN 成对，返回值受校验（EINTR/EBADF 不得当作已加锁）。
-    private static func withExclusiveLock<T>(_ fd: Int32, _ body: () throws -> T) throws -> T {
-        guard flock(fd, LOCK_EX) == 0 else {
-            throw AhaKeyRuntimePersistenceError.databaseFailure("flock LOCK_EX failed: errno=\(errno)")
-        }
-        do {
-            let result = try body()
-            guard flock(fd, LOCK_UN) == 0 else {
-                throw AhaKeyRuntimePersistenceError.databaseFailure("flock LOCK_UN failed: errno=\(errno)")
-            }
-            return result
-        } catch {
-            // body 抛错时尽力解锁（失败无可恢复手段，进程退出由 OS 回收）。
-            _ = flock(fd, LOCK_UN)
-            throw error
-        }
     }
 
     public init(
@@ -355,13 +437,17 @@ public actor AhaKeyRuntimePersistentStore {
         self.resourcesDirectory = resourcesDirectory
         self.quota = quota
         self.acceptanceValidator = acceptanceValidator
+        self.mutationFence = AhaKeyRuntimeMutationFence.shared(
+            for: rootDirectory,
+            lockFileDescriptor: lockFD
+        )
         do {
             // 数据库文件权限设置纳入 do/catch：此处失败必须走统一清理（close lockFD +
             // sqlite3_close handle），不得在 handle/fd 已建立后裸抛造成泄漏。
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: databaseURL.path)
             // 整个 init 临界区（pragma/建表/reconcile/prune）都在 flock 内：与其他 Store 的
             // ingest/accept 写事务互斥，避免 schema 写入撞上 BEGIN IMMEDIATE（SQLITE_BUSY）。
-            try Self.withExclusiveLock(lockFD) {
+            try mutationFence.withExclusiveAccess {
             try Self.execute("PRAGMA journal_mode=WAL", on: handle)
             try Self.execute("PRAGMA synchronous=FULL", on: handle)
             try Self.execute("PRAGMA foreign_keys=ON", on: handle)
@@ -612,7 +698,7 @@ public actor AhaKeyRuntimePersistentStore {
         resourceFiles: [AhaKeyResourceIdentifier: URL]
     ) throws -> AhaKeyRuntimeOperationID {
         // 整个 accept（含命中已有事务的早退校验）都在资源临界区内：与 init/ingest 互斥。
-        return try Self.withExclusiveLock(lockFileDescriptor) {
+        return try mutationFence.withExclusiveAccess {
         if let existing = try transaction(package.operationID) {
             guard existing.package == package else {
                 throw AhaKeyRuntimePersistenceError.operationIdentifierConflict
@@ -834,7 +920,7 @@ public actor AhaKeyRuntimePersistentStore {
         // 安装 final + 父目录 fsync → 写 journal → COMMIT。init 的 reconcile/prune 与其他
         // Store 的 ingest/accept 都在同一把锁内，不存在「清理撞安装」窗口（14:40 #1/#2）。
         do {
-            try Self.withExclusiveLock(lockFileDescriptor) {
+            try mutationFence.withExclusiveAccess {
                 try Self.execute("BEGIN IMMEDIATE", on: database)
                 var installedFinals: [URL] = []
                 do {
@@ -981,7 +1067,7 @@ public actor AhaKeyRuntimePersistentStore {
 
     /// 为当前 Agent 进程原子分配一次 store-global writer lease，高于全部既有 device version。
     public func allocateAuthoritativeWriterLease() throws -> AhaKeyRuntimeAuthoritativeWriterLease {
-        try Self.withExclusiveLock(lockFileDescriptor) {
+        try mutationFence.withExclusiveAccess {
             try Self.execute("BEGIN IMMEDIATE", on: database)
             do {
                 let highest = try highestStoredWriterLease()
@@ -1009,7 +1095,7 @@ public actor AhaKeyRuntimePersistentStore {
         _ canonicalContent: Data,
         version: AhaKeyRuntimeAuthoritativeVersion
     ) throws -> AhaKeyRuntimeAuthoritativeVersion {
-        try Self.withExclusiveLock(lockFileDescriptor) {
+        try mutationFence.withExclusiveAccess {
             try Self.execute("BEGIN IMMEDIATE", on: database)
             do {
                 let committed = try persistProjectedAuthoritativeObjectUnlocked(
@@ -1232,10 +1318,20 @@ public actor AhaKeyRuntimePersistentStore {
         _ step: AhaKeyRuntimeStepIdentifier,
         for operationID: AhaKeyRuntimeOperationID
     ) throws {
-        guard try transaction(operationID) != nil else {
-            throw AhaKeyRuntimePersistenceError.operationNotFound
+        try mutationFence.withExclusiveAccess {
+            guard try transaction(operationID) != nil else {
+                throw AhaKeyRuntimePersistenceError.operationNotFound
+            }
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                try beginDurableMutation()
+                try insertConfirmedStepUnlocked(step, for: operationID)
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
         }
-        try insertConfirmedStepUnlocked(step, for: operationID)
     }
 
     /// schema=2：step confirmation 与完整 field 的 writeConfirmed baseline 同一写事务。
@@ -1263,16 +1359,22 @@ public actor AhaKeyRuntimePersistentStore {
                 operationID: package.operationID
             )
         }
-        try Self.execute("BEGIN IMMEDIATE", on: database)
-        do {
-            try insertConfirmedStepUnlocked(step, for: package.operationID)
-            if let baseline {
-                try upsertPageFieldBaselineUnlocked(baseline)
+        try mutationFence.withExclusiveAccess {
+            guard try transaction(package.operationID) != nil else {
+                throw AhaKeyRuntimePersistenceError.operationNotFound
             }
-            try Self.execute("COMMIT", on: database)
-        } catch {
-            try? Self.execute("ROLLBACK", on: database)
-            throw error
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                try beginDurableMutation()
+                try insertConfirmedStepUnlocked(step, for: package.operationID)
+                if let baseline {
+                    try upsertPageFieldBaselineUnlocked(baseline)
+                }
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
         }
     }
 
@@ -1313,34 +1415,37 @@ public actor AhaKeyRuntimePersistentStore {
         guard version.deviceID == deviceID else {
             throw AhaKeyRuntimePersistenceError.operationTargetMismatch
         }
-        try Self.execute("BEGIN IMMEDIATE", on: database)
-        do {
-            let globalLease = try currentAuthoritativeWriterLeaseUnlocked()
-            guard version.writerLease == globalLease else {
-                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+        try mutationFence.withExclusiveAccess {
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let globalLease = try currentAuthoritativeWriterLeaseUnlocked()
+                guard version.writerLease == globalLease else {
+                    throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+                }
+                guard let current = try storedAuthoritativeVersion(for: deviceID),
+                      version == current else {
+                    throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
+                }
+                let existing = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
+                    .first { $0.fieldID == fieldID }
+                let next = try nextAuthoritativeBaseline(
+                    existing: existing,
+                    currentStoreAuthority: current,
+                    deviceID: deviceID,
+                    pageID: pageID,
+                    fieldID: fieldID,
+                    value: value,
+                    version: version
+                )
+                if next != existing {
+                    try beginDurableMutation()
+                    try upsertPageFieldBaselineUnlocked(next)
+                }
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
-            guard let current = try storedAuthoritativeVersion(for: deviceID),
-                  version == current else {
-                throw AhaKeyRuntimePersistenceError.staleAuthoritativeGeneration
-            }
-            let existing = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
-                .first { $0.fieldID == fieldID }
-            let next = try nextAuthoritativeBaseline(
-                existing: existing,
-                currentStoreAuthority: current,
-                deviceID: deviceID,
-                pageID: pageID,
-                fieldID: fieldID,
-                value: value,
-                version: version
-            )
-            if next != existing {
-                try upsertPageFieldBaselineUnlocked(next)
-            }
-            try Self.execute("COMMIT", on: database)
-        } catch {
-            try? Self.execute("ROLLBACK", on: database)
-            throw error
         }
     }
 
@@ -1397,13 +1502,15 @@ public actor AhaKeyRuntimePersistentStore {
         _ operationID: AhaKeyRuntimeOperationID,
         epoch: AhaKeyRuntimeDisconnectEpoch
     ) throws {
-        try Self.execute("BEGIN IMMEDIATE", on: database)
-        do {
-            try mintDisconnectEpochUnlocked(operationID, epoch: epoch)
-            try Self.execute("COMMIT", on: database)
-        } catch {
-            try? Self.execute("ROLLBACK", on: database)
-            throw error
+        try mutationFence.withExclusiveAccess {
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                try mintDisconnectEpochUnlocked(operationID, epoch: epoch)
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
         }
     }
 
@@ -1438,7 +1545,7 @@ public actor AhaKeyRuntimePersistentStore {
            epoch.identity.isOlder(than: fence) {
             return
         }
-        beginDurableMutation()
+        try beginDurableMutation()
         let statement = try prepare(
             """
             INSERT INTO runtime_disconnect_epochs (operation_id, epoch)
@@ -1453,23 +1560,25 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     public func clearDisconnectEpochs(succeeding identity: AhaKeyRuntimeConnectionIdentity) throws {
-        beginDurableMutation()
-        try Self.execute("BEGIN IMMEDIATE", on: database)
-        do {
-            try persistDisconnectFenceUnlocked(identity)
-            for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == identity.deviceID {
-                guard let stored = try disconnectEpoch(candidate.operationID) else { continue }
-                guard stored.identity.deviceID == identity.deviceID,
-                      stored.identity.isOlder(than: identity)
-                        || stored.identity == identity else {
-                    continue
+        try mutationFence.withExclusiveAccess {
+            try beginDurableMutation()
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                try persistDisconnectFenceUnlocked(identity)
+                for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == identity.deviceID {
+                    guard let stored = try disconnectEpoch(candidate.operationID) else { continue }
+                    guard stored.identity.deviceID == identity.deviceID,
+                          stored.identity.isOlder(than: identity)
+                            || stored.identity == identity else {
+                        continue
+                    }
+                    try deleteDisconnectEpochUnlocked(candidate.operationID)
                 }
-                try deleteDisconnectEpochUnlocked(candidate.operationID)
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
-            try Self.execute("COMMIT", on: database)
-        } catch {
-            try? Self.execute("ROLLBACK", on: database)
-            throw error
         }
     }
 
@@ -1535,19 +1644,21 @@ public actor AhaKeyRuntimePersistentStore {
         now: Date,
         connection: AhaKeyRuntimeConnectionPresence
     ) throws -> AhaKeyRuntimeAbandonDisposition {
-        try Self.execute("BEGIN IMMEDIATE", on: database)
-        do {
-            let disposition = try commitAbandonUnlocked(
-                operationID: operationID,
-                now: now,
-                connection: connection
-            )
-            try Self.execute("COMMIT", on: database)
-            checkpointWal()
-            return disposition
-        } catch {
-            try? Self.execute("ROLLBACK", on: database)
-            throw error
+        try mutationFence.withExclusiveAccess {
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                let disposition = try commitAbandonUnlocked(
+                    operationID: operationID,
+                    now: now,
+                    connection: connection
+                )
+                try Self.execute("COMMIT", on: database)
+                checkpointWal()
+                return disposition
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
         }
     }
 
@@ -1737,24 +1848,33 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     public func updateOperation(_ summary: AhaKeyRuntimeOperationSummary) throws {
-        guard let existing = try transaction(summary.id) else {
-            throw AhaKeyRuntimePersistenceError.operationNotFound
+        try mutationFence.withExclusiveAccess {
+            guard let existing = try transaction(summary.id) else {
+                throw AhaKeyRuntimePersistenceError.operationNotFound
+            }
+            guard existing.package.targetDeviceID == summary.targetDeviceID else {
+                throw AhaKeyRuntimePersistenceError.operationTargetMismatch
+            }
+            guard !existing.state.isTerminal else {
+                throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
+            }
+            guard !summary.state.isTerminal else {
+                throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
+            }
+            try validateProgress(summary)
+            if let ordering = summary.durableOrdering {
+                try ordering.requireMatching(summary.state)
+            }
+            try enforceDeviceFIFO(existing, nextState: summary.state)
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                try updateOperationRow(summary)
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
         }
-        guard existing.package.targetDeviceID == summary.targetDeviceID else {
-            throw AhaKeyRuntimePersistenceError.operationTargetMismatch
-        }
-        guard !existing.state.isTerminal else {
-            throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
-        }
-        guard !summary.state.isTerminal else {
-            throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
-        }
-        try validateProgress(summary)
-        if let ordering = summary.durableOrdering {
-            try ordering.requireMatching(summary.state)
-        }
-        try enforceDeviceFIFO(existing, nextState: summary.state)
-        try updateOperationRow(summary)
     }
 
     public func commitOperationOutcome(
@@ -1783,60 +1903,62 @@ public actor AhaKeyRuntimePersistentStore {
         guard transition.state.isTerminal else {
             throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
         }
-        guard let existing = try transaction(transition.id) else {
-            throw AhaKeyRuntimePersistenceError.operationNotFound
-        }
-        guard existing.package.targetDeviceID == transition.targetDeviceID else {
-            throw AhaKeyRuntimePersistenceError.operationTargetMismatch
-        }
-        guard !existing.state.isTerminal else {
-            throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
-        }
-        let terminalOrder = try allocateTerminalOrder()
-        let summary = try AhaKeyRuntimeOperationSummary(
-            id: transition.id,
-            targetDeviceID: transition.targetDeviceID,
-            state: transition.state,
-            completedSteps: transition.completedSteps,
-            totalSteps: transition.totalSteps,
-            messageCode: transition.messageCode,
-            failureContext: transition.failureContext,
-            pageID: transition.pageID ?? existing.package.pageOperation?.pageScope,
-            durableOrdering: .terminal(terminalOrder: terminalOrder)
-        )
-        try validateProgress(summary)
-        try validateCompletedClearsFailure(summary)
-        try enforceDeviceFIFO(existing, nextState: summary.state)
-
-        if summary.state == .completed {
-            let expectedRevision = existing.package.baseRevision.rawValue.addingReportingOverflow(1)
-            guard !expectedRevision.overflow,
-                  let syncBaseline,
-                  syncBaseline.deviceID == existing.package.targetDeviceID,
-                  syncBaseline.revision.rawValue == expectedRevision.partialValue,
-                  syncBaseline.confirmedConfiguration == existing.package.desiredConfiguration else {
-                throw AhaKeyRuntimePersistenceError.invalidOutcomeBaseline
-            }
-        } else if syncBaseline != nil {
-            throw AhaKeyRuntimePersistenceError.invalidOutcomeBaseline
-        }
-
-        try Self.execute("BEGIN IMMEDIATE", on: database)
-        do {
-            try updateOperationRow(summary, terminalOrder: terminalOrder)
-            if let syncBaseline {
-                try upsertSyncBaseline(syncBaseline)
-                if existing.package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
-                    try persistAuthoritativeSourceUnlocked(
-                        syncBaseline.confirmedConfiguration,
-                        for: syncBaseline.deviceID
-                    )
+        try mutationFence.withExclusiveAccess {
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                guard let existing = try transaction(transition.id) else {
+                    throw AhaKeyRuntimePersistenceError.operationNotFound
                 }
+                guard existing.package.targetDeviceID == transition.targetDeviceID else {
+                    throw AhaKeyRuntimePersistenceError.operationTargetMismatch
+                }
+                guard !existing.state.isTerminal else {
+                    throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
+                }
+                let terminalOrder = try allocateTerminalOrder()
+                let summary = try AhaKeyRuntimeOperationSummary(
+                    id: transition.id,
+                    targetDeviceID: transition.targetDeviceID,
+                    state: transition.state,
+                    completedSteps: transition.completedSteps,
+                    totalSteps: transition.totalSteps,
+                    messageCode: transition.messageCode,
+                    failureContext: transition.failureContext,
+                    pageID: transition.pageID ?? existing.package.pageOperation?.pageScope,
+                    durableOrdering: .terminal(terminalOrder: terminalOrder)
+                )
+                try validateProgress(summary)
+                try validateCompletedClearsFailure(summary)
+                try enforceDeviceFIFO(existing, nextState: summary.state)
+
+                if summary.state == .completed {
+                    let expectedRevision = existing.package.baseRevision.rawValue.addingReportingOverflow(1)
+                    guard !expectedRevision.overflow,
+                          let syncBaseline,
+                          syncBaseline.deviceID == existing.package.targetDeviceID,
+                          syncBaseline.revision.rawValue == expectedRevision.partialValue,
+                          syncBaseline.confirmedConfiguration == existing.package.desiredConfiguration else {
+                        throw AhaKeyRuntimePersistenceError.invalidOutcomeBaseline
+                    }
+                } else if syncBaseline != nil {
+                    throw AhaKeyRuntimePersistenceError.invalidOutcomeBaseline
+                }
+
+                try updateOperationRow(summary, terminalOrder: terminalOrder)
+                if let syncBaseline {
+                    try upsertSyncBaseline(syncBaseline)
+                    if existing.package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+                        try persistAuthoritativeSourceUnlocked(
+                            syncBaseline.confirmedConfiguration,
+                            for: syncBaseline.deviceID
+                        )
+                    }
+                }
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
             }
-            try Self.execute("COMMIT", on: database)
-        } catch {
-            try? Self.execute("ROLLBACK", on: database)
-            throw error
         }
     }
 
@@ -1879,7 +2001,7 @@ public actor AhaKeyRuntimePersistentStore {
         _ summary: AhaKeyRuntimeOperationSummary,
         terminalOrder: UInt64? = nil
     ) throws {
-        beginDurableMutation()
+        try beginDurableMutation()
         let statement = try prepare(
             """
             UPDATE runtime_transactions
@@ -1911,8 +2033,8 @@ public actor AhaKeyRuntimePersistentStore {
         try stepDone(statement)
     }
 
-    private func beginDurableMutation() {
-        mutationFence.bump()
+    private func beginDurableMutation() throws {
+        try mutationFence.bump()
         mutationGeneration = mutationFence.current()
     }
 
@@ -1922,29 +2044,31 @@ public actor AhaKeyRuntimePersistentStore {
         operationID: AhaKeyRuntimeOperationID,
         epoch: AhaKeyRuntimeDisconnectEpoch
     ) throws -> AhaKeyRuntimeAbandonPublicationFacts? {
-        let queue = try durableDeviceQueue(deviceID)
-        guard let head = queue.head, head.operationID == operationID else { return nil }
-        switch head.state {
-        case .paused, .resumablePartial:
-            break
-        default:
-            return nil
+        try mutationFence.withExclusiveAccess {
+            let queue = try durableDeviceQueue(deviceID)
+            guard let head = queue.head, head.operationID == operationID else { return nil }
+            switch head.state {
+            case .paused, .resumablePartial:
+                break
+            default:
+                return nil
+            }
+            guard let stored = try disconnectEpoch(operationID), stored == epoch else { return nil }
+            let confirmed = try confirmedSteps(for: operationID)
+            let baselines: [AhaKeyRuntimeFieldBaseline]
+            if let pageID = head.package.pageOperation?.pageScope {
+                baselines = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
+            } else {
+                baselines = []
+            }
+            return AhaKeyRuntimeAbandonPublicationFacts(
+                head: head,
+                epoch: stored,
+                confirmed: confirmed,
+                baselines: baselines,
+                mutationGeneration: mutationFence.current()
+            )
         }
-        guard let stored = try disconnectEpoch(operationID), stored == epoch else { return nil }
-        let confirmed = try confirmedSteps(for: operationID)
-        let baselines: [AhaKeyRuntimeFieldBaseline]
-        if let pageID = head.package.pageOperation?.pageScope {
-            baselines = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
-        } else {
-            baselines = []
-        }
-        return AhaKeyRuntimeAbandonPublicationFacts(
-            head: head,
-            epoch: stored,
-            confirmed: confirmed,
-            baselines: baselines,
-            mutationGeneration: mutationFence.current()
-        )
     }
 
     public func recoveryCandidates() throws -> [AhaKeyRuntimePersistedTransaction] {
@@ -2125,7 +2249,7 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     private func insertTransaction(_ package: AhaKeyConfigurationPackage) throws {
-        beginDurableMutation()
+        try beginDurableMutation()
         let queueOrder = try allocateQueueOrder()
         let statement = try prepare(
             """

@@ -1313,6 +1313,210 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testPostProofConfirmPageStepDoesNotPublishStaleEligible() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r9-post-proof-confirm")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            let paused = await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(paused)
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            guard case .snapshot(let at59) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s snapshot")
+            }
+            let cursor = at59.latestEventSequence
+            var postProof = agent.executionTestHooks
+            postProof?.abandonEligibilityPostProofGate = {
+                do {
+                    let store = try await agent.runtimeStoreForTesting()
+                    guard let record = try await store.transaction(package.operationID) else { return }
+                    let plan = try AhaKeyRuntimePageSemantic.executionPlan(
+                        package: record.package,
+                        userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
+                    )
+                    let step = try XCTUnwrap(plan.steps.first)
+                    try await store.confirmPageStep(step.identity, package: record.package, plan: plan)
+                } catch {
+                    XCTFail("post-proof confirm: \(error)")
+                }
+            }
+            agent.executionTestHooks = postProof
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var due = agent.executionTestHooks
+            due?.wallClock = { now }
+            agent.executionTestHooks = due
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let replay) = try await agent.handleRuntimeXPCRequest(.events(after: cursor)),
+                  case .events(let events) = replay else {
+                return XCTFail("post-proof confirm events")
+            }
+            let eligible = events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(eligible)
+            await agent.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testPostProofSecondStoreMutationDoesNotPublishStaleEligible() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r9-second-store")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            let paused = await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(paused)
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            guard case .snapshot(let at59) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s snapshot")
+            }
+            let cursor = at59.latestEventSequence
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            var postProof = agent.executionTestHooks
+            postProof?.abandonEligibilityPostProofGate = {
+                do {
+                    let other = try AhaKeyRuntimePersistentStore(
+                        rootDirectory: storeDir,
+                        acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+                    )
+                    guard let record = try await other.transaction(package.operationID) else { return }
+                    try await other.commitOperationOutcome(
+                        try AhaKeyRuntimeOperationTerminalTransition(
+                            id: record.operationID,
+                            targetDeviceID: record.package.targetDeviceID,
+                            state: .failedWithoutWrites,
+                            completedSteps: record.completedSteps,
+                            totalSteps: record.totalSteps
+                        ),
+                        syncBaseline: nil
+                    )
+                } catch {
+                    XCTFail("post-proof second store: \(error)")
+                }
+            }
+            agent.executionTestHooks = postProof
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var due = agent.executionTestHooks
+            due?.wallClock = { now }
+            agent.executionTestHooks = due
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let replay) = try await agent.handleRuntimeXPCRequest(.events(after: cursor)),
+                  case .events(let events) = replay else {
+                return XCTFail("post-proof second-store events")
+            }
+            let eligible = events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(eligible)
+            await agent.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testPostProofAuthoritativeReadbackDoesNotPublishStaleEligible() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r9-post-proof-readback")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            let paused = await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            XCTAssertNotNil(paused)
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            guard case .snapshot(let at59) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s snapshot")
+            }
+            let cursor = at59.latestEventSequence
+            var postProof = agent.executionTestHooks
+            postProof?.abandonEligibilityPostProofGate = {
+                do {
+                    let store = try await agent.runtimeStoreForTesting()
+                    let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+                    let existing = try await store.authoritativeVersion(for: deviceID)
+                    let lease: AhaKeyRuntimeAuthoritativeWriterLease
+                    if let existingLease = existing?.writerLease {
+                        lease = existingLease
+                    } else {
+                        lease = try await store.allocateAuthoritativeWriterLease()
+                    }
+                    let content = Data("c4r9-readback".utf8)
+                    let revision = try existing?.sourceRevision.advanced() ?? .first
+                    let version = AhaKeyRuntimeAuthoritativeVersion(
+                        deviceID: deviceID,
+                        writerLease: lease,
+                        sessionGeneration: existing?.sessionGeneration ?? .init(0),
+                        transportGeneration: existing?.transportGeneration ?? .init(0),
+                        sourceRevision: revision,
+                        sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
+                    )
+                    _ = try await store.persistProjectedAuthoritativeObject(content, version: version)
+                    try await store.applyAuthoritativeFieldReadback(
+                        deviceID: deviceID,
+                        pageID: .screen(modeSlot: 0),
+                        fieldID: AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0),
+                        value: .text("device-read"),
+                        version: version
+                    )
+                } catch {
+                    XCTFail("post-proof readback: \(error)")
+                }
+            }
+            agent.executionTestHooks = postProof
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            var due = agent.executionTestHooks
+            due?.wallClock = { now }
+            agent.executionTestHooks = due
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let replay) = try await agent.handleRuntimeXPCRequest(.events(after: cursor)),
+                  case .events(let events) = replay else {
+                return XCTFail("post-proof readback events")
+            }
+            let eligible = events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(eligible)
+            await agent.closeRuntimeStoreForTesting()
+        }
+    }
+
     func testPostProofReconnectDoesNotPublishStaleEligible() {
         runTest { [self] in
             var now = Date(timeIntervalSince1970: 1_700_000_000)

@@ -2312,6 +2312,153 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(unchanged, created)
     }
 
+    func testSecondStoreConfirmInvalidatesSharedPublicationFence() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "shared-fence")
+        let storeA = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        XCTAssertTrue(storeA.mutationFence === storeB.mutationFence)
+        _ = try await storeA.accept(package, resourceFiles: [:])
+        try await storeA.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await mintDisconnect(storeA, package, at: started)
+        let storedEpoch = try await storeA.disconnectEpoch(package.operationID)
+        let epoch = try XCTUnwrap(storedEpoch)
+        let storedFacts = try await storeA.abandonPublicationFacts(
+            deviceID: package.targetDeviceID,
+            operationID: package.operationID,
+            epoch: epoch
+        )
+        let facts = try XCTUnwrap(storedFacts)
+        let plan = try AhaKeyRuntimePageSemantic.executionPlan(
+            package: package,
+            userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
+        )
+        let step = try XCTUnwrap(plan.steps.first)
+        try await storeB.confirmPageStep(step.identity, package: package, plan: plan)
+        let published = storeA.mutationFence.publishIfUnchanged(facts.mutationGeneration) { true }
+        XCTAssertNil(published)
+        XCTAssertGreaterThan(storeA.mutationFence.current(), facts.mutationGeneration)
+    }
+
+    func testSecondStoreAuthoritativeReadbackInvalidatesSharedPublicationFence() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "readback-fence")
+        let storeA = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await storeA.accept(package, resourceFiles: [:])
+        try await storeA.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await mintDisconnect(storeA, package, at: started)
+        let storedEpoch = try await storeA.disconnectEpoch(package.operationID)
+        let epoch = try XCTUnwrap(storedEpoch)
+        let storedFacts = try await storeA.abandonPublicationFacts(
+            deviceID: package.targetDeviceID,
+            operationID: package.operationID,
+            epoch: epoch
+        )
+        let facts = try XCTUnwrap(storedFacts)
+        let lease = try await storeB.allocateAuthoritativeWriterLease()
+        let content = Data("authority-readback".utf8)
+        let version = try authorityVersion(
+            device: package.targetDeviceID,
+            lease: lease,
+            session: 0,
+            transport: 0,
+            revision: .first,
+            content: content
+        )
+        _ = try await storeB.persistProjectedAuthoritativeObject(content, version: version)
+        try await storeB.applyAuthoritativeFieldReadback(
+            deviceID: package.targetDeviceID,
+            pageID: .screen(modeSlot: 0),
+            fieldID: AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0),
+            value: .text("device-read"),
+            version: version
+        )
+        let published = storeA.mutationFence.publishIfUnchanged(facts.mutationGeneration) { true }
+        XCTAssertNil(published)
+    }
+
+    func testConcurrentStoresAllocateUniqueMonotonicTerminalOrders() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try makePageScopedPackage(targetDeviceID: "DEVICE-A", statusLine: "terminal-a")
+        let second = try makePageScopedPackage(targetDeviceID: "DEVICE-B", statusLine: "terminal-b")
+        let storeA = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await storeA.accept(first, resourceFiles: [:])
+        _ = try await storeA.accept(second, resourceFiles: [:])
+        try await storeA.updateOperation(
+            .init(
+                id: first.operationID,
+                targetDeviceID: first.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
+            )
+        )
+        try await storeA.updateOperation(
+            .init(
+                id: second.operationID,
+                targetDeviceID: second.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
+            )
+        )
+        async let firstCommit: UInt64? = {
+            try await storeA.commitOperationOutcome(
+                try AhaKeyRuntimeOperationTerminalTransition(
+                    id: first.operationID,
+                    targetDeviceID: first.targetDeviceID,
+                    state: .failedWithoutWrites,
+                    completedSteps: 0,
+                    totalSteps: 1
+                ),
+                syncBaseline: nil
+            )
+            return try await storeA.transaction(first.operationID)?.durableOrdering?.terminalOrder
+        }()
+        async let secondCommit: UInt64? = {
+            try await storeB.commitOperationOutcome(
+                try AhaKeyRuntimeOperationTerminalTransition(
+                    id: second.operationID,
+                    targetDeviceID: second.targetDeviceID,
+                    state: .failedWithoutWrites,
+                    completedSteps: 0,
+                    totalSteps: 1
+                ),
+                syncBaseline: nil
+            )
+            return try await storeB.transaction(second.operationID)?.durableOrdering?.terminalOrder
+        }()
+        let orders = [try await firstCommit, try await secondCommit].compactMap { $0 }.sorted()
+        XCTAssertEqual(orders, [1, 2])
+    }
+
     func testDisconnectEpochAbandonCommitsWithoutWrites() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
