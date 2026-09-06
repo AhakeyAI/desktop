@@ -21,26 +21,30 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
             id: AhaKeyRuntimeOperationID(),
             device: deviceID,
             state: .accepted,
-            pageID: .key(modeSlot: 0, role: .voice)
+            pageID: .key(modeSlot: 0, role: .voice),
+            queueOrder: 1
         )
         let running = summary(
             id: AhaKeyRuntimeOperationID(),
             device: deviceID,
             state: .running,
-            pageID: .lights(modeSlot: 0)
+            pageID: .lights(modeSlot: 0),
+            queueOrder: 2
         )
         let paused = summary(
             id: AhaKeyRuntimeOperationID(),
             device: deviceID,
             state: .paused,
-            pageID: .screen(modeSlot: 0)
+            pageID: .screen(modeSlot: 0),
+            queueOrder: 3
         )
         let resumable = summary(
             id: AhaKeyRuntimeOperationID(),
             device: deviceID,
             state: .resumablePartial,
             pageID: .key(modeSlot: 0, role: .approve),
-            residual: AhaKeyRuntimePageResidual(fieldIDs: [.keyDescription(modeSlot: 0, role: .approve)])
+            residual: AhaKeyRuntimePageResidual(fieldIDs: [.keyDescription(modeSlot: 0, role: .approve)]),
+            queueOrder: 4
         )
         let store = makeStore()
         store.applyViewStateForTesting(
@@ -69,8 +73,8 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         let lightsPage = AhaKeyStudioPageID.lights(modeSlot: 0)
         let queuedID = AhaKeyRuntimeOperationID()
         let runningID = AhaKeyRuntimeOperationID()
-        let queued = summary(id: queuedID, device: harness.deviceID, state: .accepted, pageID: keyPage)
-        let running = summary(id: runningID, device: harness.deviceID, state: .running, pageID: lightsPage)
+        let queued = summary(id: queuedID, device: harness.deviceID, state: .accepted, pageID: keyPage, queueOrder: 2)
+        let running = summary(id: runningID, device: harness.deviceID, state: .running, pageID: lightsPage, queueOrder: 1)
         harness.store.applyViewStateForTesting(
             onlineState(snapshot: harness.snapshot(operations: [running, queued]))
         )
@@ -315,14 +319,71 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         }
         XCTAssertNotEqual(firstID, secondID)
         let queued = [
-            summary(id: firstID, device: harness.deviceID, state: .accepted, pageID: .key(modeSlot: 0, role: .voice)),
-            summary(id: secondID, device: harness.deviceID, state: .accepted, pageID: .lights(modeSlot: 0)),
+            summary(id: firstID, device: harness.deviceID, state: .accepted, pageID: .key(modeSlot: 0, role: .voice), queueOrder: 1),
+            summary(id: secondID, device: harness.deviceID, state: .accepted, pageID: .lights(modeSlot: 0), queueOrder: 2),
         ]
         let fresh = makeStore()
         fresh.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: queued)))
         XCTAssertEqual(fresh.deviceFIFO.count, 2)
         XCTAssertEqual(fresh.deviceFIFO.map(\.pageID), queued.map(\.pageID))
         await harness.facade.stop()
+    }
+
+    func testDeviceFIFOAndCurrentOperationFollowDurableOrderNotUUID() throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let earlierID = AhaKeyRuntimeOperationID(
+            UUID(uuidString: "FFFFFFFF-FFFF-4FFF-8FFF-FFFFFFFFFFFF")!
+        )
+        let laterID = AhaKeyRuntimeOperationID(
+            UUID(uuidString: "00000000-0000-4000-8000-0000000000AA")!
+        )
+        XCTAssertGreaterThan(earlierID.rawValue.uuidString, laterID.rawValue.uuidString)
+        let uuidOrderedLive = [
+            summary(
+                id: laterID,
+                device: deviceID,
+                state: .accepted,
+                pageID: .lights(modeSlot: 0),
+                queueOrder: 2
+            ),
+            summary(
+                id: earlierID,
+                device: deviceID,
+                state: .running,
+                pageID: .screen(modeSlot: 0),
+                queueOrder: 1
+            ),
+        ]
+        let liveStore = makeStore()
+        liveStore.applyViewStateForTesting(onlineState(snapshot: makeSnapshot(
+            deviceID: deviceID,
+            operations: uuidOrderedLive
+        )))
+        XCTAssertEqual(liveStore.deviceFIFO.map(\.id), [earlierID, laterID])
+        XCTAssertEqual(liveStore.operation(for: .screen(modeSlot: 0))?.id, earlierID)
+
+        let uuidOrderedTerminals = [
+            summary(
+                id: laterID,
+                device: deviceID,
+                state: .completed,
+                pageID: .screen(modeSlot: 0),
+                terminalOrder: 2
+            ),
+            summary(
+                id: earlierID,
+                device: deviceID,
+                state: .completed,
+                pageID: .screen(modeSlot: 0),
+                terminalOrder: 1
+            ),
+        ]
+        let terminalStore = makeStore()
+        terminalStore.applyViewStateForTesting(onlineState(snapshot: makeSnapshot(
+            deviceID: deviceID,
+            operations: uuidOrderedTerminals
+        )))
+        XCTAssertEqual(terminalStore.operation(for: .screen(modeSlot: 0))?.id, laterID)
     }
 
     private struct Harness {
@@ -420,7 +481,9 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         state: AhaKeyRuntimeOperationState,
         pageID: AhaKeyStudioPageID? = nil,
         residual: AhaKeyRuntimePageResidual? = nil,
-        abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil,
+        queueOrder: UInt64? = nil,
+        terminalOrder: UInt64? = nil
     ) -> AhaKeyRuntimeOperationSummary {
         AhaKeyRuntimeOperationSummary(
             id: id,
@@ -428,7 +491,9 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
             state: state,
             residual: residual,
             pageID: pageID,
-            abandonEligibility: abandonEligibility
+            abandonEligibility: abandonEligibility,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
         )
     }
 }

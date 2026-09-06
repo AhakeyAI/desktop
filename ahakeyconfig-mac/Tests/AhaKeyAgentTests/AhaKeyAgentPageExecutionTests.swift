@@ -287,6 +287,9 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
 
             await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
             await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
             now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
             var disconnected = agent.executionTestHooks
             disconnected?.wallClock = { now }
@@ -297,6 +300,182 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             let paused = disconnectedSnapshot.operations.first { $0.id == package.operationID }
             XCTAssertEqual(paused?.pageID, .screen(modeSlot: 0))
             XCTAssertEqual(paused?.abandonEligibility?.eligible, true)
+        }
+    }
+
+    func testSnapshotFIFOFollowsQueueOrderNotUUID() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent()
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            let gate = StepGate()
+            var hooks = agent.executionTestHooks
+            hooks?.stepExecutor = { _ in
+                await gate.wait()
+                return .success
+            }
+            agent.executionTestHooks = hooks
+            let firstID = AhaKeyRuntimeOperationID(
+                UUID(uuidString: "FFFFFFFF-FFFF-4FFF-8FFF-FFFFFFFFFFFF")!
+            )
+            let secondID = AhaKeyRuntimeOperationID(
+                UUID(uuidString: "00000000-0000-4000-8000-0000000000AA")!
+            )
+            XCTAssertGreaterThan(firstID.rawValue.uuidString, secondID.rawValue.uuidString)
+            let first = try statusPackage(device: "TEST-DEVICE", seed: "fifo-first", operationID: firstID)
+            let second = try statusPackage(device: "TEST-DEVICE", seed: "fifo-second", operationID: secondID)
+            guard case .operationAccepted = try await client.exchange(.apply(first)) else {
+                return XCTFail("first apply")
+            }
+            await waitUntil(agent, first.operationID, states: [.running, .paused, .resumablePartial])
+            guard case .operationAccepted = try await client.exchange(.apply(second)) else {
+                return XCTFail("second apply")
+            }
+            guard case .snapshot(let snapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("snapshot")
+            }
+            let live = snapshot.operations.filter { !$0.state.isTerminal }
+            XCTAssertEqual(live.map(\.id), [firstID, secondID])
+            XCTAssertLessThan(try XCTUnwrap(live[0].queueOrder), try XCTUnwrap(live[1].queueOrder))
+            XCTAssertEqual(
+                AhaKeyStudioPageChromeProjector.deviceFIFO(
+                    snapshot,
+                    deviceID: try XCTUnwrap(snapshot.activeDeviceID)
+                ).map(\.id),
+                [firstID, secondID]
+            )
+            await gate.release()
+            await expectTerminal(agent, first.operationID, .completed)
+            await expectTerminal(agent, second.operationID, .completed)
+        }
+    }
+
+    func testSamePageCurrentOperationUsesLatestTerminalOrder() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent()
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.stepExecutor = { _ in .success }
+            agent.executionTestHooks = hooks
+            let firstID = AhaKeyRuntimeOperationID(
+                UUID(uuidString: "FFFFFFFF-FFFF-4FFF-8FFF-FFFFFFFFFF01")!
+            )
+            let secondID = AhaKeyRuntimeOperationID(
+                UUID(uuidString: "00000000-0000-4000-8000-0000000000BB")!
+            )
+            XCTAssertGreaterThan(firstID.rawValue.uuidString, secondID.rawValue.uuidString)
+            let first = try statusPackage(device: "TEST-DEVICE", seed: "term-first", operationID: firstID)
+            let second = try statusPackage(device: "TEST-DEVICE", seed: "term-second", operationID: secondID)
+            guard case .operationAccepted = try await client.exchange(.apply(first)) else {
+                return XCTFail("first apply")
+            }
+            await expectTerminal(agent, first.operationID, .completed)
+            guard case .operationAccepted = try await client.exchange(.apply(second)) else {
+                return XCTFail("second apply")
+            }
+            await expectTerminal(agent, second.operationID, .completed)
+            guard case .snapshot(let snapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("snapshot")
+            }
+            let terminals = snapshot.operations.filter {
+                $0.pageID == .screen(modeSlot: 0) && $0.state.isTerminal
+            }
+            XCTAssertEqual(
+                terminals.sorted(by: AhaKeyRuntimeOperationSummary.durableTerminalLessThan).map(\.id),
+                [firstID, secondID]
+            )
+            XCTAssertEqual(
+                snapshot.operations
+                    .filter { $0.pageID == .screen(modeSlot: 0) && $0.state.isTerminal }
+                    .sorted(by: AhaKeyRuntimeOperationSummary.durableTerminalLessThan)
+                    .last?
+                    .id,
+                secondID
+            )
+        }
+    }
+
+    func testAbandonEligibilityFlipsAtSixtySecondsWithoutOtherEvents() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let head = try statusPackage(device: "TEST-DEVICE", seed: "c4r2-head")
+            let queued = try statusPackage(device: "TEST-DEVICE", seed: "c4r2-queued")
+            guard case .operationAccepted = try await client.exchange(.apply(head)) else {
+                return XCTFail("head apply")
+            }
+            await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            guard case .operationAccepted = try await client.exchange(.apply(queued)) else {
+                return XCTFail("queued apply")
+            }
+            await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            guard case .snapshot(let minted) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("mint snapshot")
+            }
+            let mintedHead = minted.operations.first { $0.id == head.operationID }
+            XCTAssertTrue(mintedHead?.state == .paused || mintedHead?.state == .resumablePartial)
+            XCTAssertEqual(mintedHead?.abandonEligibility?.eligible, false)
+            XCTAssertNotEqual(
+                minted.operations.first { $0.id == queued.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            let cursor = minted.latestEventSequence
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration - 1)
+            var stillFrozen = agent.executionTestHooks
+            stillFrozen?.wallClock = { now }
+            agent.executionTestHooks = stillFrozen
+            guard case .eventReplay(let at59Replay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let at59) = at59Replay else {
+                return XCTFail("59s events")
+            }
+            let eligibleAt59 = at59.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == head.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(eligibleAt59)
+            now = now.addingTimeInterval(1)
+            var due = agent.executionTestHooks
+            due?.wallClock = { now }
+            agent.executionTestHooks = due
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .snapshot(let dueSnapshot) = try await agent.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("60s snapshot")
+            }
+            XCTAssertEqual(
+                dueSnapshot.operations.first { $0.id == head.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            guard case .eventReplay(let at60Replay) = try await agent.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let at60) = at60Replay else {
+                return XCTFail("60s events")
+            }
+            let eligibleHead = at60.compactMap { event -> Bool? in
+                guard case .operationChanged(let summary) = event.payload,
+                      summary.id == head.operationID else { return nil }
+                return summary.abandonEligibility?.eligible
+            }
+            XCTAssertEqual(eligibleHead.last, true)
+            let queuedEligible = at60.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == queued.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(queuedEligible)
         }
     }
 
@@ -1789,7 +1968,8 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
     private func statusPackage(
         device: String,
         seed: String = "status-text",
-        objectSeed: String = "base-object"
+        objectSeed: String = "base-object",
+        operationID: AhaKeyRuntimeOperationID = .init()
     ) throws -> AhaKeyConfigurationPackage {
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         let plan = AhaKeyStudioScopedWritePlan(
@@ -1809,7 +1989,8 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             targetDeviceID: AhaKeyRuntimeDeviceID(device),
             baseRevision: .init(1),
             baseObjectFingerprint: try baseFingerprint(objectSeed),
-            verifiedResources: []
+            verifiedResources: [],
+            operationID: operationID
         )
     }
 

@@ -6103,3 +6103,16 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Agent 密封 OLED profile、typed page ownership 与 durable 60s eligibility 已投影进 Runtime snapshot。fresh Studio 只从 snapshot 重建页锁/FIFO/去重；authority 只读 active-device `pageBaselines` 并保留 task identity；paused/resumable 锁定；终态 residual-only retry；任一 writeConfirmed 均待验证。
 - 定向 318/318，全量 981/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/33-c4r1-canonical-runtime-projection.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R1）
+
+### [2026-09-06 09:02] Cursor → Codex：ACK C4R2，开始 durable FIFO / 60s 队首 / canonical asset
+
+- ACK 用户转发的 Codex C4R1 未通过与 C4R2 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R2：typed durable queue/terminal order；静默 59s→60s 且仅当前设备队首可放弃；draft/package/baseline 共用实际密封的 canonical bytes + media type。C4/C4R1 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/事务转移/BLE executor、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-06 09:42] Cursor → Codex：C4R2 完成，停手提审
+- ACK 用户转发的 Codex C4R1 未通过与 C4R2 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- Runtime snapshot 投影 WAL `queue_order`/`terminal_order`；Studio 按这些字段重建 FIFO 与同页当前 operation。disconnect mint 可观测，60s 到期无其它事件即刷新队首资格；非队首/已连接不得 `eligible == true`。draft 与 page commit 共用密封 GIF bytes + media type，PNG/JPEG 写后可精确 no-op。
+- 定向 325/325，全量 988/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/34-c4r2-durable-fifo-abandon-asset.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R2）

@@ -5,6 +5,8 @@ import Foundation
 public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
     private var currentSnapshot: AhaKeyRuntimeSnapshot
     private var acceptedPackages: [AhaKeyRuntimeOperationID: AhaKeyConfigurationPackage] = [:]
+    private var nextQueueOrder: UInt64 = 1
+    private var nextTerminalOrder: UInt64 = 1
     private var retainedEvents: [AhaKeyRuntimeEvent] = []
     private var eventContinuations: [UUID: AsyncThrowingStream<AhaKeyRuntimeEvent, Error>.Continuation] = [:]
     private let eventRetentionLimit: Int
@@ -76,8 +78,10 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             id: package.operationID,
             targetDeviceID: package.targetDeviceID,
             state: .accepted,
-            pageID: package.pageOperation?.pageScope
+            pageID: package.pageOperation?.pageScope,
+            queueOrder: nextQueueOrder
         )
+        nextQueueOrder += 1
         replaceOperation(summary)
         publish(.operationChanged(summary), context: eventContext(for: summary))
         return package.operationID
@@ -137,7 +141,11 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             completedSteps: resolvedCompletedSteps,
             totalSteps: resolvedTotalSteps,
             messageCode: messageCode
+        ).withDurableOrder(
+            queueOrder: summary.queueOrder,
+            terminalOrder: nextTerminalOrder
         )
+        nextTerminalOrder += 1
         replaceOperation(updated)
         if state == .completed {
             rebuildSnapshot(

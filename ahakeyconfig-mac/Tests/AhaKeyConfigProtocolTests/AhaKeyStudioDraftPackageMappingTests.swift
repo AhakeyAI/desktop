@@ -553,4 +553,73 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return url
     }
+
+    func testPNGDraftIdentityUsesSealedGIF() throws {
+        let png = try writeTestPNG()
+        defer { try? FileManager.default.removeItem(at: png) }
+        let sealed = try AhaKeyStudioCanonicalTaskAsset.seal(source: png)
+        defer {
+            if let temp = sealed.ownedTemporaryFile {
+                try? FileManager.default.removeItem(at: temp)
+            }
+        }
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode0)
+        mode.oled.updateTaskAsset(
+            set: 0,
+            asset: AhaKeyTaskGIFAssetDraft(
+                state: .done,
+                localAssetPath: png.path,
+                framesPerSecond: 12
+            )
+        )
+        draft.updateMode(mode)
+        let snapshot = draft.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: AhaKeyStudioDraft.default,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        let field = snapshot.fields.first {
+            $0.id == .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done)
+        }
+        XCTAssertEqual(field?.value.taskAssetValue?.mediaType, AhaKeyStudioCanonicalTaskAsset.gifMediaType)
+        XCTAssertEqual(field?.value.taskAssetValue?.sha256, sealed.sha256)
+        XCTAssertEqual(field?.value.taskAssetValue?.byteCount, sealed.byteCount)
+        XCTAssertEqual(field?.value.taskAssetValue?.pixelWidth, 160)
+        XCTAssertEqual(field?.value.taskAssetValue?.pixelHeight, 80)
+        let synced = AhaKeyStudioFrozenField(
+            id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done),
+            value: field!.value,
+            isDirty: true,
+            baseline: .init(trust: .writeConfirmed, value: field!.value)
+        )
+        XCTAssertTrue(AhaKeyStudioPageDiffer.isStrictNoOp(synced))
+    }
+
+    private func writeTestPNG() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ahakey-c4r2-\(UUID().uuidString).png")
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
+            url as CFURL,
+            "public.png" as CFString,
+            1,
+            nil
+        ))
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: 800,
+            height: 400,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 800, height: 400))
+        let image = try XCTUnwrap(context.makeImage())
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return url
+    }
 }

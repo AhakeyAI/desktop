@@ -302,6 +302,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var writerLeaseAllocateInvocationCount = 0
     /// 最近一次生产断连铸造并 round-trip 后的 epoch；重连必须先清空。
     private var lastFrozenDisconnectEpoch: AhaKeyRuntimeDisconnectEpoch?
+    /// C4R2：60s 队首资格到期唤醒；重连或新 mint 时取消。
+    private var abandonEligibilityWakeTask: Task<Void, Never>?
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
     /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
@@ -428,6 +430,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             self?.bleLifecycle.shutdown(now: Date())
         }
         connectionLock.release()
+        abandonEligibilityWakeTask?.cancel()
+        abandonEligibilityWakeTask = nil
         // R1：events long-poll 挂起 waiter 收尾（进程退出路径，绝不泄漏 continuation）。
         let flushWaiters = { [weak self] in
             guard let self else { return }
@@ -1753,6 +1757,7 @@ extension AhaKeyAgent {
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         lastFrozenDisconnectEpoch = nil
+        cancelAbandonEligibilityWake()
         resetOLEDNegotiationState(reason: "didConnect")
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
@@ -3153,6 +3158,7 @@ extension AhaKeyAgent {
         store: AhaKeyRuntimePersistentStore?
     ) async -> AhaKeyRuntimeOperationSummary {
         var summary = Self.operationSummary(from: record)
+        summary = await overlayDurableOrder(summary, store: store)
         guard let store,
               record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
               let plan = try? AhaKeyRuntimePageSemantic.executionPlan(
@@ -3208,10 +3214,13 @@ extension AhaKeyAgent {
         }
         if let minted {
             lastFrozenDisconnectEpoch = minted
+            await publishAbandonEligibilityRefresh()
+            scheduleAbandonEligibilityWake(epoch: minted)
         }
     }
 
     private func clearMatchingDisconnectEpochs() async throws {
+        cancelAbandonEligibilityWake()
         lastFrozenDisconnectEpoch = nil
         let lease = try await resolveCachedWriterLease()
         let currentIdentity = await MainActor.run {
@@ -3314,11 +3323,72 @@ extension AhaKeyAgent {
         guard let epoch = try? await store.disconnectEpoch(record.operationID) else {
             return summary.withOwnership(pageID: summary.pageID, abandonEligibility: nil)
         }
+        let connected = await MainActor.run { self.isRuntimeConnected() }
+        let isHead = ((try? await store.durableDeviceQueue(record.package.targetDeviceID))?.isHead(record.operationID)) == true
         let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
+        let clockEligible = AhaKeyRuntimeAbandonEligibility.projecting(epoch: epoch, now: now).eligible
         return summary.withOwnership(
             pageID: summary.pageID,
-            abandonEligibility: .projecting(epoch: epoch, now: now)
+            abandonEligibility: .init(
+                epochStartedAt: epoch.startedAt,
+                eligible: !connected && isHead && clockEligible
+            )
         )
+    }
+
+    private func overlayDurableOrder(
+        _ summary: AhaKeyRuntimeOperationSummary,
+        store: AhaKeyRuntimePersistentStore?
+    ) async -> AhaKeyRuntimeOperationSummary {
+        guard let store,
+              let ordering = try? await store.operationOrdering(summary.id) else {
+            return summary
+        }
+        return summary.withDurableOrder(
+            queueOrder: ordering.queueOrder,
+            terminalOrder: ordering.terminalOrder
+        )
+    }
+
+    private func cancelAbandonEligibilityWake() {
+        abandonEligibilityWakeTask?.cancel()
+        abandonEligibilityWakeTask = nil
+    }
+
+    private func scheduleAbandonEligibilityWake(epoch: AhaKeyRuntimeDisconnectEpoch) {
+        cancelAbandonEligibilityWake()
+        let fireAt = epoch.startedAt.addingTimeInterval(
+            AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration
+        )
+        let scheduledClock = executionTestHooks?.wallClock
+        abandonEligibilityWakeTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                let now = await MainActor.run {
+                    self.executionTestHooks?.wallClock?() ?? scheduledClock?() ?? Date()
+                }
+                if now >= fireAt {
+                    await self.publishAbandonEligibilityRefresh()
+                    return
+                }
+                let remaining = fireAt.timeIntervalSince(now)
+                let sleep = scheduledClock == nil ? remaining : min(0.02, max(remaining, 0.02))
+                try? await Task.sleep(nanoseconds: UInt64(sleep * 1_000_000_000))
+            }
+        }
+    }
+
+    private func publishAbandonEligibilityRefresh() async {
+        guard let store = try? await makeRuntimeStore(),
+              let candidates = try? await store.recoveryCandidates() else { return }
+        for candidate in candidates {
+            switch candidate.state {
+            case .paused, .resumablePartial, .running:
+                await publishOperationProgress(from: candidate)
+            default:
+                continue
+            }
+        }
     }
 
     @MainActor
@@ -3752,7 +3822,7 @@ extension AhaKeyAgent {
             devices: main.devices,
             activeDeviceID: main.activeDeviceID,
             configurationRevision: revision,
-            operations: operations.values.sorted { $0.id.rawValue.uuidString < $1.id.rawValue.uuidString },
+            operations: operations.values.sorted(by: AhaKeyRuntimeOperationSummary.snapshotDisplayLessThan),
             policy: main.policy,
             latestEventSequence: main.latestEventSequence,
             pageBaselines: pageBaselines
@@ -3994,6 +4064,7 @@ extension AhaKeyAgent {
 
     /// 测试 seam：释放本实例持有的 WAL 连接，模拟进程退出后再由新 Agent 打开同一 root。
     func closeRuntimeStoreForTesting() async {
+        cancelAbandonEligibilityWake()
         await runtimeStoreCache.clear()
     }
 

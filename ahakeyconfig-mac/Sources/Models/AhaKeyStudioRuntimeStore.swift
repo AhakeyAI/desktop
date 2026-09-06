@@ -333,10 +333,16 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
 
     func operation(for pageID: AhaKeyStudioPageID) -> AhaKeyRuntimeOperationSummary? {
         let owned = activeDeviceOperations(matching: pageID)
-        if let live = owned.first(where: { !$0.state.isTerminal }) {
-            return live
+        let live = owned
+            .filter { !$0.state.isTerminal }
+            .sorted(by: AhaKeyRuntimeOperationSummary.durableFIFOLessThan)
+        if let first = live.first {
+            return first
         }
-        return owned.last
+        return owned
+            .filter(\.state.isTerminal)
+            .sorted(by: AhaKeyRuntimeOperationSummary.durableTerminalLessThan)
+            .last
     }
 
     func pageChrome(

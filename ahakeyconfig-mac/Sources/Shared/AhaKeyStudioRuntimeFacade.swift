@@ -476,6 +476,48 @@ public struct AhaKeyStudioOLEDImageNormalizer: AhaKeyStudioImageNormalizer {
     }
 }
 
+/// C4R2：draft / page commit / Runtime baseline 共用的密封 GIF 身份。
+public enum AhaKeyStudioCanonicalTaskAsset {
+    public static let gifMediaType = try! AhaKeyMediaType("gif")
+
+    public struct Sealed: Equatable, Sendable {
+        public let fileURL: URL
+        public let sha256: AhaKeySHA256Digest
+        public let byteCount: UInt64
+        public let mediaType: AhaKeyMediaType
+        public let frameCount: Int
+        public let pixelWidth: Int
+        public let pixelHeight: Int
+        public let ownedTemporaryFile: URL?
+    }
+
+    public static func seal(
+        source: URL,
+        maxFrames: Int = AhaKeyDeviceLayoutPolicy().framesPerSlot,
+        maxSourceFileBytes: Int = AhaKeyOLEDFrameEncoderCore.studioMaxSourceFileBytes,
+        normalizer: any AhaKeyStudioImageNormalizer = AhaKeyStudioOLEDImageNormalizer()
+    ) throws -> Sealed {
+        let normalized = try normalizer.normalize(
+            from: source,
+            maxFrames: maxFrames,
+            maxSourceFileBytes: maxSourceFileBytes
+        )
+        let data = try Data(contentsOf: normalized.fileURL)
+        let digest = SHA256.hash(data: data)
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return Sealed(
+            fileURL: normalized.fileURL,
+            sha256: try AhaKeySHA256Digest(hex),
+            byteCount: UInt64(data.count),
+            mediaType: gifMediaType,
+            frameCount: normalized.frameCount,
+            pixelWidth: normalized.pixelWidth,
+            pixelHeight: normalized.pixelHeight,
+            ownedTemporaryFile: normalized.isOwnedTemporaryFile ? normalized.fileURL : nil
+        )
+    }
+}
+
 /// C4：frozen-page 真正提交的结果。fail-closed 分支不得产生 operation。
 public enum AhaKeyStudioPageCommitResult: Equatable, Sendable {
     case noOp
@@ -702,18 +744,45 @@ extension AhaKeyStudioRuntimeFacade {
               let object = device.authoritativeObject, !object.isEmpty else {
             throw AhaKeyStudioApplyError.pageOperationIncomplete
         }
-        let prepared = try await prepareResources(plan.resources)
-        let gifMediaType = try AhaKeyMediaType("gif")
+        var ownedTemps: [URL] = []
+        defer { Self.removeOwnedTemporaryFiles(ownedTemps) }
+        let sealedResources: [AhaKeyStudioResourceInput]
+        do {
+            sealedResources = try plan.resources.map { resource in
+                let sealed = try AhaKeyStudioCanonicalTaskAsset.seal(
+                    source: resource.fileURL,
+                    normalizer: imageNormalizer
+                )
+                if let temp = sealed.ownedTemporaryFile {
+                    ownedTemps.append(temp)
+                }
+                return AhaKeyStudioResourceInput(
+                    logicalIdentifier: resource.logicalIdentifier,
+                    fileURL: sealed.fileURL,
+                    declaredFrameCount: sealed.frameCount,
+                    pixelWidth: sealed.pixelWidth,
+                    pixelHeight: sealed.pixelHeight
+                )
+            }
+        } catch let error as AhaKeyOLEDFrameEncoderCore.EncodingError {
+            throw Self.mapEncodingError(
+                error,
+                path: plan.resources.first?.fileURL.path ?? ""
+            )
+        }
+        let prepared = try await prepareResources(sealedResources)
         let verifiedResources = prepared.map {
             AhaKeyConfigurationResource(
                 logicalIdentifier: $0.input.logicalIdentifier,
                 sha256: $0.loaded.sha256,
                 byteCount: UInt64($0.loaded.data.count),
-                mediaType: gifMediaType
+                mediaType: AhaKeyStudioCanonicalTaskAsset.gifMediaType
             )
         }
+        var sealedPlan = plan
+        sealedPlan.resources = sealedResources
         let package = try assemblePageScopedPackage(
-            plan: plan,
+            plan: sealedPlan,
             profile: profile,
             targetDeviceID: targetDeviceID,
             baseRevision: runtimeSnapshot.configurationRevision,

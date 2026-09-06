@@ -486,3 +486,11 @@ ACK 用户转发的 Codex C4 未通过与 C4R1 开放。C1–C3 accepted @ `c6e0
 ### [2026-09-05 23:25] Cursor：C4R1 完成，停手提审
 
 ACK 用户转发的 Codex C4 未通过与 C4R1 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Agent 密封 OLED profile、typed page ownership 与 durable 60s eligibility 已投影进 Runtime snapshot；fresh Studio 只从 snapshot 重建。定向 318/318，全量 981/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/33-c4r1-canonical-runtime-projection.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-06 09:02] Cursor ACK：开始 C4R2 durable FIFO / live abandon / canonical asset
+
+ACK 用户转发的 Codex C4R1 未通过与 C4R2 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R2 三项：durable queue/terminal order、无外部事件的 59s→60s 队首资格、canonical sealed asset identity。不改 C2 assembler 决策与 C3 WAL/事务转移/BLE executor。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-06 09:42] Cursor：C4R2 完成，停手提审
+
+ACK 用户转发的 Codex C4R1 未通过与 C4R2 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Runtime snapshot 按 WAL queue/terminal order 投影；Studio 显式按这些字段重建 FIFO 与同页当前 operation。disconnect mint 可观测，静默 59s→60s 仅队首可放弃。draft/page commit 共用密封 GIF 身份。定向 325/325，全量 988/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/34-c4r2-durable-fifo-abandon-asset.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

@@ -1,4 +1,6 @@
+import CoreGraphics
 import CryptoKit
+import ImageIO
 import XCTest
 @testable import AhaKeyConfigShared
 
@@ -1068,6 +1070,90 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         await facade.stop()
     }
 
+    func testPNGAndJPEGPageCommitSealsGIFIdentityForExactNoOp() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c4r2-asset-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let png = root.appendingPathComponent("still.png")
+        let jpeg = root.appendingPathComponent("still.jpg")
+        try writeStill(width: 800, height: 400, type: "public.png", to: png)
+        try writeStill(width: 640, height: 480, type: "public.jpeg", to: jpeg)
+        for source in [png, jpeg] {
+            let sealed = try AhaKeyStudioCanonicalTaskAsset.seal(source: source)
+            defer {
+                if let temp = sealed.ownedTemporaryFile {
+                    try? FileManager.default.removeItem(at: temp)
+                }
+            }
+            let snapshot = pageReadySnapshot()
+            let transport = FakeTransport(snapshot: snapshot)
+            let facade = AhaKeyStudioRuntimeFacade(
+                transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+            )
+            await facade.installSnapshotForTesting(snapshot)
+            let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done)
+            let current = AhaKeyStudioFieldValue.asset(
+                path: source.path,
+                framesPerSecond: 12,
+                declaredFrameCount: sealed.frameCount,
+                pixelWidth: 160,
+                pixelHeight: 80,
+                sha256: sealed.sha256,
+                byteCount: sealed.byteCount,
+                mediaType: sealed.mediaType
+            )
+            let stale = AhaKeyStudioFieldValue.asset(
+                path: nil,
+                framesPerSecond: 12,
+                declaredFrameCount: 1,
+                pixelWidth: 160,
+                pixelHeight: 80,
+                sha256: try AhaKeySHA256Digest(String(repeating: "ab", count: 32)),
+                byteCount: 16,
+                mediaType: AhaKeyStudioCanonicalTaskAsset.gifMediaType
+            )
+            let writePage = AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                selectedTaskSet: 0,
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: field,
+                        value: current,
+                        isDirty: true,
+                        baseline: .init(trust: .verified, value: stale)
+                    ),
+                ]
+            )
+            let result = try await facade.commitFrozenPage(writePage)
+            guard case .accepted = result else {
+                return XCTFail("PNG/JPEG 页写入应受理：\(result)")
+            }
+            let resource = try XCTUnwrap(transport.appliedPackage?.resources.first)
+            XCTAssertEqual(resource.sha256, sealed.sha256)
+            XCTAssertEqual(resource.byteCount, sealed.byteCount)
+            XCTAssertEqual(resource.mediaType, AhaKeyStudioCanonicalTaskAsset.gifMediaType)
+            let noOpPage = AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                selectedTaskSet: 0,
+                fields: [
+                    AhaKeyStudioFrozenField(
+                        id: field,
+                        value: current,
+                        isDirty: true,
+                        baseline: .init(trust: .writeConfirmed, value: current)
+                    ),
+                ]
+            )
+            XCTAssertEqual(AhaKeyStudioPackageAssembler.assembleScopedPage(noOpPage), .noOp)
+            let noOpResult = try await facade.commitFrozenPage(noOpPage)
+            XCTAssertEqual(noOpResult, .noOp)
+            await facade.stop()
+        }
+    }
+
     private func pageReadySnapshot(deviceID: String = "DEVICE-1") -> AhaKeyRuntimeSnapshot {
         let id = try! AhaKeyRuntimeDeviceID(deviceID)
         let device = AhaKeyRuntimeDeviceSnapshot(
@@ -1107,5 +1193,29 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             emitsSetActiveSetOpcode: false,
             statusLine: statusLine
         )
+    }
+
+    private func writeStill(width: Int, height: Int, type: String, to url: URL) throws {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = try XCTUnwrap(context.makeImage())
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
+            url as CFURL,
+            type as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
     }
 }

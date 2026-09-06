@@ -586,7 +586,9 @@ public enum AhaKeyStudioPageChromeProjector {
         _ snapshot: AhaKeyRuntimeSnapshot,
         deviceID: AhaKeyRuntimeDeviceID
     ) -> [AhaKeyRuntimeOperationSummary] {
-        snapshot.operations.filter { $0.targetDeviceID == deviceID && !$0.state.isTerminal }
+        snapshot.operations
+            .filter { $0.targetDeviceID == deviceID && !$0.state.isTerminal }
+            .sorted(by: AhaKeyRuntimeOperationSummary.durableFIFOLessThan)
     }
 
     public static func overlayResidualOnly(

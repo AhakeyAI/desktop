@@ -1,5 +1,4 @@
 import AhaKeyConfigShared
-import CryptoKit
 import Foundation
 import ImageIO
 
@@ -113,30 +112,31 @@ enum AhaKeyStudioAssetMetadataProbe {
 
     static func contentIdentity(
         at url: URL?
-    ) -> (sha256: AhaKeySHA256Digest, byteCount: UInt64, mediaType: AhaKeyMediaType)? {
+    ) -> (
+        sha256: AhaKeySHA256Digest,
+        byteCount: UInt64,
+        mediaType: AhaKeyMediaType,
+        frameCount: Int,
+        pixelWidth: Int,
+        pixelHeight: Int
+    )? {
         guard let url,
-              let data = try? Data(contentsOf: url),
-              !data.isEmpty,
-              let sha256 = try? AhaKeySHA256Digest(
-                SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-              ),
-              let mediaType = try? AhaKeyMediaType(mediaType(for: url)) else {
+              let sealed = try? AhaKeyStudioCanonicalTaskAsset.seal(source: url) else {
             return nil
         }
-        return (sha256, UInt64(data.count), mediaType)
-    }
-
-    private static func mediaType(for url: URL) -> String {
-        switch url.pathExtension.lowercased() {
-        case "gif":
-            return "gif"
-        case "png":
-            return "png"
-        case "jpg", "jpeg":
-            return "jpeg"
-        default:
-            return "application/octet-stream"
+        defer {
+            if let temp = sealed.ownedTemporaryFile {
+                try? FileManager.default.removeItem(at: temp)
+            }
         }
+        return (
+            sealed.sha256,
+            sealed.byteCount,
+            sealed.mediaType,
+            sealed.frameCount,
+            sealed.pixelWidth,
+            sealed.pixelHeight
+        )
     }
 }
 
@@ -233,9 +233,9 @@ extension AhaKeyStudioDraft {
             return .asset(
                 path: asset.localAssetPath,
                 framesPerSecond: asset.framesPerSecond,
-                declaredFrameCount: metadata.frameCount,
-                pixelWidth: metadata.pixelWidth,
-                pixelHeight: metadata.pixelHeight,
+                declaredFrameCount: identity?.frameCount ?? metadata.frameCount,
+                pixelWidth: identity?.pixelWidth ?? metadata.pixelWidth,
+                pixelHeight: identity?.pixelHeight ?? metadata.pixelHeight,
                 sha256: identity?.sha256,
                 byteCount: identity?.byteCount,
                 mediaType: identity?.mediaType

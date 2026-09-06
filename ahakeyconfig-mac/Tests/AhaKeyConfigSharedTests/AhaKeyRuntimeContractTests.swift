@@ -109,7 +109,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
                 AhaKeyRuntimeOperationSummary(
                     id: package.operationID,
                     targetDeviceID: package.targetDeviceID,
-                    state: .accepted
+                    state: .accepted,
+                    queueOrder: 1
                 )
             )
         )
@@ -314,6 +315,10 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertNil(decoded.totalBytes)
         XCTAssertNil(decoded.currentStepID)
         XCTAssertNil(decoded.failureContext)
+        XCTAssertNil(decoded.pageID)
+        XCTAssertNil(decoded.abandonEligibility)
+        XCTAssertNil(decoded.queueOrder)
+        XCTAssertNil(decoded.terminalOrder)
         let object = try JSONSerialization.jsonObject(with: oldJSON) as! [String: Any]
         XCTAssertNil(object["completedBytes"])
         XCTAssertNil(object["totalBytes"])
@@ -372,6 +377,30 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         )
         XCTAssertEqual(decoded.pageID, page)
         XCTAssertEqual(decoded.abandonEligibility, eligibility)
+        XCTAssertNil(decoded.queueOrder)
+        XCTAssertNil(decoded.terminalOrder)
+    }
+
+    func testOperationSummaryRoundTripsDurableQueueAndTerminalOrder() throws {
+        let summary = AhaKeyRuntimeOperationSummary(
+            id: AhaKeyRuntimeOperationID(),
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            state: .accepted,
+            queueOrder: 2,
+            terminalOrder: 9
+        )
+        let decoded = try JSONDecoder().decode(
+            AhaKeyRuntimeOperationSummary.self,
+            from: JSONEncoder().encode(summary)
+        )
+        XCTAssertEqual(decoded.queueOrder, 2)
+        XCTAssertEqual(decoded.terminalOrder, 9)
+        XCTAssertTrue(
+            AhaKeyRuntimeOperationSummary.durableFIFOLessThan(
+                summary.withDurableOrder(queueOrder: 2, terminalOrder: nil),
+                summary.withDurableOrder(queueOrder: 3, terminalOrder: nil)
+            )
+        )
     }
 
     func testDeviceSnapshotRoundTripsOLEDCompatibilityFact() throws {

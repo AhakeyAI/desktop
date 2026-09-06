@@ -1297,6 +1297,10 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let pageID: AhaKeyStudioPageID?
     /// C4R1：durable 真断连 abandon 资格。缺省/旧 payload 为 nil。
     public let abandonEligibility: AhaKeyRuntimeAbandonEligibility?
+    /// C4R2：WAL `queue_order`。缺省/旧 payload 为 nil；Studio 只凭此重建 FIFO。
+    public let queueOrder: UInt64?
+    /// C4R2：WAL `terminal_order`。缺省/旧 payload 为 nil；同页当前终态取最新。
+    public let terminalOrder: UInt64?
 
     public init(
         id: AhaKeyRuntimeOperationID,
@@ -1312,7 +1316,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         residual: AhaKeyRuntimePageResidual? = nil,
         confirmedBaselines: [AhaKeyRuntimeFieldBaseline]? = nil,
         pageID: AhaKeyStudioPageID? = nil,
-        abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil,
+        queueOrder: UInt64? = nil,
+        terminalOrder: UInt64? = nil
     ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
@@ -1328,6 +1334,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.confirmedBaselines = confirmedBaselines
         self.pageID = pageID
         self.abandonEligibility = abandonEligibility
+        self.queueOrder = queueOrder
+        self.terminalOrder = terminalOrder
     }
 
     public func withByteProgress(
@@ -1349,7 +1357,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             residual: residual,
             confirmedBaselines: confirmedBaselines,
             pageID: pageID,
-            abandonEligibility: abandonEligibility
+            abandonEligibility: abandonEligibility,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
         )
     }
 
@@ -1371,7 +1381,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             residual: residual,
             confirmedBaselines: confirmedBaselines,
             pageID: pageID,
-            abandonEligibility: abandonEligibility
+            abandonEligibility: abandonEligibility,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
         )
     }
 
@@ -1393,7 +1405,33 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             residual: residual,
             confirmedBaselines: confirmedBaselines,
             pageID: pageID,
-            abandonEligibility: abandonEligibility
+            abandonEligibility: abandonEligibility,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
+        )
+    }
+
+    public func withDurableOrder(
+        queueOrder: UInt64?,
+        terminalOrder: UInt64?
+    ) -> AhaKeyRuntimeOperationSummary {
+        AhaKeyRuntimeOperationSummary(
+            id: id,
+            targetDeviceID: targetDeviceID,
+            state: state,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID,
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
         )
     }
 
@@ -1417,8 +1455,52 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             residual: residual,
             confirmedBaselines: confirmedBaselines,
             pageID: pageID,
-            abandonEligibility: abandonEligibility
+            abandonEligibility: abandonEligibility,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
         )
+    }
+
+    /// 非终态按 WAL `queue_order` 升序；缺省才退回 UUID。
+    public static func durableFIFOLessThan(_ lhs: Self, _ rhs: Self) -> Bool {
+        switch (lhs.queueOrder, rhs.queueOrder) {
+        case let (left?, right?) where left != right:
+            return left < right
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        default:
+            return lhs.id.rawValue.uuidString < rhs.id.rawValue.uuidString
+        }
+    }
+
+    /// 终态按 WAL `terminal_order` 升序（oldest-first）；缺省才退回 UUID。
+    public static func durableTerminalLessThan(_ lhs: Self, _ rhs: Self) -> Bool {
+        switch (lhs.terminalOrder, rhs.terminalOrder) {
+        case let (left?, right?) where left != right:
+            return left < right
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        default:
+            return lhs.id.rawValue.uuidString < rhs.id.rawValue.uuidString
+        }
+    }
+
+    /// snapshot 数组：活队列在前，其后是 oldest-first 终态窗。
+    public static func snapshotDisplayLessThan(_ lhs: Self, _ rhs: Self) -> Bool {
+        switch (lhs.state.isTerminal, rhs.state.isTerminal) {
+        case (false, true):
+            return true
+        case (true, false):
+            return false
+        case (false, false):
+            return durableFIFOLessThan(lhs, rhs)
+        case (true, true):
+            return durableTerminalLessThan(lhs, rhs)
+        }
     }
 }
 

@@ -1678,6 +1678,30 @@ public actor AhaKeyRuntimePersistentStore {
         return try decodeTransaction(operationID: operationID, statement: statement)
     }
 
+    /// C4R2：只读 WAL 队列/终态序号。投影用，不改变 mint/CAS。
+    public func operationOrdering(
+        _ operationID: AhaKeyRuntimeOperationID
+    ) throws -> (queueOrder: UInt64?, terminalOrder: UInt64?) {
+        let statement = try prepare(
+            """
+            SELECT queue_order, terminal_order FROM runtime_transactions WHERE operation_id = ?
+            """
+        )
+        defer { sqlite3_finalize(statement) }
+        try bind(operationID.rawValue.uuidString, at: 1, to: statement)
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return (nil, nil) }
+        guard result == SQLITE_ROW else { throw databaseError() }
+        return (optionalUInt64(statement, 0), optionalUInt64(statement, 1))
+    }
+
+    private func optionalUInt64(_ statement: OpaquePointer, _ column: Int32) -> UInt64? {
+        if sqlite3_column_type(statement, column) == SQLITE_NULL { return nil }
+        let value = sqlite3_column_int64(statement, column)
+        guard value >= 0 else { return nil }
+        return UInt64(value)
+    }
+
     public func updateOperation(_ summary: AhaKeyRuntimeOperationSummary) throws {
         guard let existing = try transaction(summary.id) else {
             throw AhaKeyRuntimePersistenceError.operationNotFound
