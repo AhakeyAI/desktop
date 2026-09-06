@@ -275,7 +275,8 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         try await store.confirmStep(try! .init("resource:img-a"), for: package.operationID)
         try await store.updateOperation(try AhaKeyRuntimeOperationSummary(
             id: package.operationID, targetDeviceID: package.targetDeviceID,
-            state: .running, completedSteps: 1, totalSteps: 3
+            state: .running, completedSteps: 1, totalSteps: 3,
+            durableOrdering: .live(queueOrder: 1)
         ))
         try await runner.requestCancel(operationID: package.operationID)
         // R3 步间安全点：run 在循环顶部重读取消态并直接结算——

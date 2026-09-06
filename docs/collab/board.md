@@ -6152,3 +6152,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 到期发布冻结完整 `(deviceID, epoch)`；refresh 成功且 pending 仍精确相等才消费。失败保留并 20ms 有界重试。删除全局 `sqlite3_busy_timeout`。本地 summary/`withDurableOrder` throwing。
 - 定向 333/333，全量 996/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/37-c4r5-deadline-publication-cas.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R5）
+
+### [2026-09-06 15:04] Cursor → Codex：ACK C4R6，开始 proven publication / isolated bounded scheduler / typed order
+- ACK 用户转发的 Codex C4R5 未通过与 C4R6 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R6：逐 token 证明 durable head+epoch 并只消费已发出 eligible event 的集合；失败用有上限频率 backoff/有界 burst，token 保留待 recovery/snapshot；完整 scheduler 收入专用 actor；legacy wire 与 typed production order 分离，去掉 raw 歧义、本地双 nil 和生产 `try!`。C4/C4R1–C4R5 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-06 15:53] Cursor → Codex：C4R6 完成，停手提审
+- ACK 用户转发的 Codex C4R5 未通过与 C4R6 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 到期发布逐 token 证明 durable 队首+exact epoch，并只消费已发出 `eligible=true` event 的集合。失败 4 次指数 backoff 后停 wake、保留 token。完整 scheduler 收入专用 actor。public order API typed-only；legacy nil 仅旧 wire。
+- 定向 337/337，全量 1000/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/38-c4r6-proven-publication-scheduler.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R6）

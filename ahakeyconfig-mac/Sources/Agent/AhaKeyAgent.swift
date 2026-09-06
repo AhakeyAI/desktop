@@ -302,11 +302,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var writerLeaseAllocateInvocationCount = 0
     /// 最近一次生产断连铸造并 round-trip 后的 epoch；重连必须先清空。
     private var lastFrozenDisconnectEpoch: AhaKeyRuntimeDisconnectEpoch?
-    /// C4R4：各设备队首 60s 资格 deadline；触发后重算下一最早项。
-    private var pendingAbandonDeadlines: [AhaKeyRuntimeDeviceID: AhaKeyRuntimeDisconnectEpoch] = [:]
-    private var publishedAbandonDeadlines: [AhaKeyRuntimeDeviceID: AhaKeyRuntimeDisconnectEpoch] = [:]
-    private var abandonEligibilityWakeTask: Task<Void, Never>?
-    private var scheduledAbandonFireAt: Date?
+    /// C4R6：deadline 状态机整体隔离在专用 actor。
+    private let abandonScheduler = AhaKeyAbandonDeadlineScheduler()
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
     /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
@@ -433,8 +430,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             self?.bleLifecycle.shutdown(now: Date())
         }
         connectionLock.release()
-        abandonEligibilityWakeTask?.cancel()
-        abandonEligibilityWakeTask = nil
+        Task { await self.abandonScheduler.cancelAllAndWait() }
         // R1：events long-poll 挂起 waiter 收尾（进程退出路径，绝不泄漏 continuation）。
         let flushWaiters = { [weak self] in
             guard let self else { return }
@@ -1761,7 +1757,7 @@ extension AhaKeyAgent {
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         lastFrozenDisconnectEpoch = nil
         if let deviceID = currentRuntimeDeviceIDUnlocked() {
-            dropAbandonDeadline(for: deviceID)
+            Task { await self.dropAbandonDeadline(for: deviceID) }
         }
         resetOLEDNegotiationState(reason: "didConnect")
         lastUUID = peripheral.identifier
@@ -3123,12 +3119,9 @@ extension AhaKeyAgent {
             return false
         }
         if skip { return }
-        let base = try! AhaKeyRuntimeOperationSummary(
-            id: package.operationID,
-            targetDeviceID: package.targetDeviceID,
-            state: .accepted,
-            pageID: package.pageOperation?.pageScope
-        )
+        guard let store = try? await makeRuntimeStore(),
+              let record = try? await store.transaction(package.operationID) else { return }
+        let base = Self.operationSummary(from: record)
         let summary = await MainActor.run { self.overlayByteProgress(base) }
         await MainActor.run {
             self.publishOperationChanged(summary)
@@ -3202,6 +3195,7 @@ extension AhaKeyAgent {
         guard let candidates = try? await store.recoveryCandidates() else { return }
         let epoch = AhaKeyRuntimeDisconnectEpoch(identity: identity, startedAt: frozenAt)
         var minted: AhaKeyRuntimeDisconnectEpoch?
+        var mintedHead: AhaKeyRuntimeOperationID?
         for candidate in candidates where candidate.package.targetDeviceID == identity.deviceID {
             guard candidate.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
                 continue
@@ -3211,24 +3205,35 @@ extension AhaKeyAgent {
                 try? await store.mintDisconnectEpoch(candidate.operationID, epoch: epoch)
                 if let stored = try? await store.disconnectEpoch(candidate.operationID) {
                     minted = stored
+                    mintedHead = candidate.operationID
                 }
             default:
                 continue
             }
         }
-        if let minted {
-            lastFrozenDisconnectEpoch = minted
-            await publishAbandonEligibilityRefresh()
-            upsertAbandonDeadline(deviceID: identity.deviceID, epoch: minted, reschedule: false)
+        if let queue = try? await store.durableDeviceQueue(identity.deviceID),
+           let head = queue.head,
+           let stored = try? await store.disconnectEpoch(head.operationID) {
+            minted = stored
+            mintedHead = head.operationID
         }
-        rescheduleAbandonEligibilityWake()
+        if let minted, let headID = mintedHead {
+            await MainActor.run { self.lastFrozenDisconnectEpoch = minted }
+            let token = AhaKeyAbandonDeadlineToken(
+                operationID: headID,
+                deviceID: identity.deviceID,
+                epoch: minted
+            )
+            await upsertAbandonDeadline(token, reschedule: false)
+        }
+        await rescheduleAbandonEligibilityWake()
     }
 
     private func clearMatchingDisconnectEpochs() async throws {
+        await MainActor.run { self.lastFrozenDisconnectEpoch = nil }
         if let deviceID = await MainActor.run(body: { self.currentRuntimeDeviceIDUnlocked() }) {
-            dropAbandonDeadline(for: deviceID)
+            await dropAbandonDeadline(for: deviceID)
         }
-        lastFrozenDisconnectEpoch = nil
         let lease = try await resolveCachedWriterLease()
         let currentIdentity = await MainActor.run {
             self.currentConnectionIdentity()
@@ -3303,15 +3308,21 @@ extension AhaKeyAgent {
     }
 
     private static func operationSummary(from record: AhaKeyRuntimePersistedTransaction) -> AhaKeyRuntimeOperationSummary {
-        try! AhaKeyRuntimeOperationSummary(
-            id: record.operationID,
+        AhaKeyRuntimeOperationSummary(
+            storageID: record.operationID,
             targetDeviceID: record.package.targetDeviceID,
             state: record.state,
             completedSteps: record.completedSteps,
             totalSteps: record.totalSteps,
             messageCode: record.messageCode,
+            completedBytes: nil,
+            totalBytes: nil,
+            currentStepID: nil,
             failureContext: record.failureContext,
+            residual: nil,
+            confirmedBaselines: nil,
             pageID: record.package.pageOperation?.pageScope,
+            abandonEligibility: nil,
             durableOrdering: record.durableOrdering
         )
     }
@@ -3337,13 +3348,16 @@ extension AhaKeyAgent {
         let clockEligible = AhaKeyRuntimeAbandonEligibility.projecting(epoch: epoch, now: now).eligible
         if isHead {
             if !connected {
-                upsertAbandonDeadline(
-                    deviceID: record.package.targetDeviceID,
-                    epoch: epoch,
+                await upsertAbandonDeadline(
+                    AhaKeyAbandonDeadlineToken(
+                        operationID: record.operationID,
+                        deviceID: record.package.targetDeviceID,
+                        epoch: epoch
+                    ),
                     reschedule: false
                 )
             } else {
-                dropAbandonDeadline(for: record.package.targetDeviceID, reschedule: false)
+                await dropAbandonDeadline(for: record.package.targetDeviceID, reschedule: false)
             }
         }
         return summary.withOwnership(
@@ -3364,42 +3378,55 @@ extension AhaKeyAgent {
         return currentRuntimeDeviceIDUnlocked() == deviceID
     }
 
-    private func cancelAbandonEligibilityWake() {
-        abandonEligibilityWakeTask?.cancel()
-        abandonEligibilityWakeTask = nil
-        scheduledAbandonFireAt = nil
-        pendingAbandonDeadlines.removeAll()
-        publishedAbandonDeadlines.removeAll()
+    private func abandonSchedulerClock() -> @Sendable () -> Date {
+        { [weak self] in
+            self?.executionTestHooks?.wallClock?() ?? Date()
+        }
+    }
+
+    private func abandonSchedulerPublisher() -> @Sendable ([AhaKeyAbandonDeadlineToken]) async -> [AhaKeyAbandonDeadlineToken] {
+        { [weak self] tokens in
+            await self?.proveAndPublishAbandonEligibility(for: tokens) ?? []
+        }
+    }
+
+    private var usesVirtualAbandonClock: Bool {
+        executionTestHooks?.wallClock != nil
+    }
+
+    private func cancelAbandonEligibilityWake() async {
+        await abandonScheduler.cancelAllAndWait()
     }
 
     private func dropAbandonDeadline(
         for deviceID: AhaKeyRuntimeDeviceID,
         reschedule: Bool = true
-    ) {
-        pendingAbandonDeadlines.removeValue(forKey: deviceID)
-        publishedAbandonDeadlines.removeValue(forKey: deviceID)
-        if reschedule {
-            rescheduleAbandonEligibilityWake()
-        }
+    ) async {
+        await abandonScheduler.drop(
+            deviceID,
+            reschedule: reschedule,
+            virtualClock: usesVirtualAbandonClock,
+            clock: abandonSchedulerClock(),
+            publish: abandonSchedulerPublisher()
+        )
     }
 
     private func upsertAbandonDeadline(
-        deviceID: AhaKeyRuntimeDeviceID,
-        epoch: AhaKeyRuntimeDisconnectEpoch,
+        _ token: AhaKeyAbandonDeadlineToken,
         reschedule: Bool = true
-    ) {
-        pendingAbandonDeadlines[deviceID] = epoch
-        if publishedAbandonDeadlines[deviceID] != epoch {
-            publishedAbandonDeadlines.removeValue(forKey: deviceID)
-        }
-        if reschedule {
-            rescheduleAbandonEligibilityWake()
-        }
+    ) async {
+        await abandonScheduler.upsert(
+            token,
+            reschedule: reschedule,
+            virtualClock: usesVirtualAbandonClock,
+            clock: abandonSchedulerClock(),
+            publish: abandonSchedulerPublisher()
+        )
     }
 
     private func rearmAbandonEligibilityWakeFromStore(_ store: AhaKeyRuntimePersistentStore) async {
         guard let candidates = try? await store.recoveryCandidates() else { return }
-        var next: [AhaKeyRuntimeDeviceID: AhaKeyRuntimeDisconnectEpoch] = [:]
+        var next: [AhaKeyRuntimeDeviceID: AhaKeyAbandonDeadlineToken] = [:]
         for deviceID in Set(candidates.map(\.package.targetDeviceID)) {
             let connected = await MainActor.run { self.isDeviceRuntimeConnected(deviceID) }
             guard !connected else { continue }
@@ -3412,114 +3439,132 @@ extension AhaKeyAgent {
                 continue
             }
             if let epoch = try? await store.disconnectEpoch(head.operationID) {
-                next[deviceID] = epoch
+                next[deviceID] = AhaKeyAbandonDeadlineToken(
+                    operationID: head.operationID,
+                    deviceID: deviceID,
+                    epoch: epoch
+                )
             }
         }
-        let stale = Set(pendingAbandonDeadlines.keys).subtracting(next.keys)
-        for deviceID in stale {
-            pendingAbandonDeadlines.removeValue(forKey: deviceID)
-            publishedAbandonDeadlines.removeValue(forKey: deviceID)
-        }
-        for (deviceID, epoch) in next {
-            pendingAbandonDeadlines[deviceID] = epoch
-            if publishedAbandonDeadlines[deviceID] != epoch {
-                publishedAbandonDeadlines.removeValue(forKey: deviceID)
+        await abandonScheduler.replaceAll(
+            next,
+            virtualClock: usesVirtualAbandonClock,
+            clock: abandonSchedulerClock(),
+            publish: abandonSchedulerPublisher()
+        )
+    }
+
+    private func rescheduleAbandonEligibilityWake() async {
+        await abandonScheduler.noteExternalRecoveryTrigger(
+            virtualClock: usesVirtualAbandonClock,
+            clock: abandonSchedulerClock(),
+            publish: abandonSchedulerPublisher()
+        )
+    }
+
+    private func proveAndPublishAbandonEligibility(
+        for tokens: [AhaKeyAbandonDeadlineToken]
+    ) async -> [AhaKeyAbandonDeadlineToken] {
+        if var hooks = executionTestHooks {
+            hooks.abandonEligibilityRefreshAttemptCount += 1
+            if hooks.abandonEligibilityRefreshFailuresRemaining > 0 {
+                hooks.abandonEligibilityRefreshFailuresRemaining -= 1
+                executionTestHooks = hooks
+                return []
             }
-        }
-    }
-
-    private func abandonFireAt(for epoch: AhaKeyRuntimeDisconnectEpoch) -> Date {
-        epoch.startedAt.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
-    }
-
-    private func rescheduleAbandonEligibilityWake() {
-        let nextFire = pendingAbandonDeadlines.compactMap { deviceID, epoch -> Date? in
-            guard publishedAbandonDeadlines[deviceID] != epoch else { return nil }
-            return abandonFireAt(for: epoch)
-        }.min()
-        if nextFire == scheduledAbandonFireAt, abandonEligibilityWakeTask != nil {
-            return
-        }
-        abandonEligibilityWakeTask?.cancel()
-        abandonEligibilityWakeTask = nil
-        scheduledAbandonFireAt = nextFire
-        guard let fireAt = nextFire else { return }
-        let scheduledClock = executionTestHooks?.wallClock
-        abandonEligibilityWakeTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                let now = await MainActor.run {
-                    self.executionTestHooks?.wallClock?() ?? scheduledClock?() ?? Date()
-                }
-                if Task.isCancelled { return }
-                if now >= fireAt {
-                    let finished = await self.publishDueAbandonDeadlines(now: now)
-                    if finished || Task.isCancelled { return }
-                    try? await Task.sleep(nanoseconds: 20_000_000)
-                    continue
-                }
-                let remaining = fireAt.timeIntervalSince(now)
-                let sleep = scheduledClock == nil ? remaining : min(0.02, max(remaining, 0.02))
-                try? await Task.sleep(nanoseconds: UInt64(sleep * 1_000_000_000))
-            }
-        }
-    }
-
-    private func publishDueAbandonDeadlines(now: Date) async -> Bool {
-        if Task.isCancelled { return true }
-        let dueTokens = pendingAbandonDeadlines.compactMap { deviceID, epoch -> (AhaKeyRuntimeDeviceID, AhaKeyRuntimeDisconnectEpoch)? in
-            guard publishedAbandonDeadlines[deviceID] != epoch else { return nil }
-            return abandonFireAt(for: epoch) <= now ? (deviceID, epoch) : nil
-        }
-        guard !dueTokens.isEmpty else {
-            if !Task.isCancelled {
-                rescheduleAbandonEligibilityWake()
-            }
-            return true
-        }
-        let published = await publishAbandonEligibilityRefresh(for: dueTokens)
-        if Task.isCancelled { return true }
-        guard published else {
-            return false
-        }
-        for (deviceID, epoch) in dueTokens {
-            guard pendingAbandonDeadlines[deviceID] == epoch else { continue }
-            publishedAbandonDeadlines[deviceID] = epoch
-        }
-        scheduledAbandonFireAt = nil
-        abandonEligibilityWakeTask = nil
-        rescheduleAbandonEligibilityWake()
-        return true
-    }
-
-    private func publishAbandonEligibilityRefresh(
-        for tokens: [(AhaKeyRuntimeDeviceID, AhaKeyRuntimeDisconnectEpoch)] = []
-    ) async -> Bool {
-        if var hooks = executionTestHooks, hooks.abandonEligibilityRefreshFailuresRemaining > 0 {
-            hooks.abandonEligibilityRefreshFailuresRemaining -= 1
             executionTestHooks = hooks
-            return false
         }
         if let gate = executionTestHooks?.abandonEligibilityRefreshGate {
             await gate()
         }
-        guard let store = try? await makeRuntimeStore(),
-              let candidates = try? await store.recoveryCandidates() else { return false }
-        let targets: Set<AhaKeyRuntimeDeviceID>
-        if tokens.isEmpty {
-            targets = Set(candidates.map(\.package.targetDeviceID))
-        } else {
-            targets = Set(tokens.map(\.0))
-        }
-        for candidate in candidates where targets.contains(candidate.package.targetDeviceID) {
-            switch candidate.state {
-            case .paused, .resumablePartial, .running:
-                await publishOperationProgress(from: candidate)
-            default:
-                continue
+        if let fault = executionTestHooks?.abandonEligibilityProofFault {
+            switch fault {
+            case .missingCandidate, .runningHead, .projectionFailure:
+                return []
             }
         }
-        return true
+        var proven: [AhaKeyAbandonDeadlineToken] = []
+        for token in tokens {
+            if await proveAndPublishOneAbandonToken(token) {
+                proven.append(token)
+            }
+        }
+        return proven
+    }
+
+    private func proveAndPublishOneAbandonToken(_ token: AhaKeyAbandonDeadlineToken) async -> Bool {
+        guard let store = try? await makeRuntimeStore() else { return false }
+        do {
+            let queue = try await store.durableDeviceQueue(token.deviceID)
+            guard let head = queue.head, head.operationID == token.operationID else {
+                return false
+            }
+            switch head.state {
+            case .paused, .resumablePartial:
+                break
+            default:
+                return false
+            }
+            let epoch = try await store.disconnectEpoch(token.operationID)
+            guard let epoch, epoch == token.epoch else { return false }
+            let summary = try await strictAbandonEligibilitySummary(from: head, store: store, epoch: epoch)
+            guard summary.abandonEligibility?.eligible == true,
+                  summary.abandonEligibility?.epochStartedAt == epoch.startedAt else {
+                return false
+            }
+            await MainActor.run {
+                self.publishOperationChanged(self.overlayByteProgress(summary))
+            }
+            let published = await MainActor.run {
+                self.lastPublishedOperationSummaries[token.operationID]
+            }
+            return published?.id == token.operationID && published?.abandonEligibility?.eligible == true
+        } catch {
+            return false
+        }
+    }
+
+    private func strictAbandonEligibilitySummary(
+        from record: AhaKeyRuntimePersistedTransaction,
+        store: AhaKeyRuntimePersistentStore,
+        epoch: AhaKeyRuntimeDisconnectEpoch
+    ) async throws -> AhaKeyRuntimeOperationSummary {
+        var summary = Self.operationSummary(from: record)
+        if record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+            let plan = try AhaKeyRuntimePageSemantic.executionPlan(
+                package: record.package,
+                userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
+            )
+            let confirmed = try await store.confirmedSteps(for: record.operationID)
+            let projection = AhaKeyRuntimePageSemantic.confirmationProjection(
+                package: record.package,
+                confirmed: confirmed,
+                plan: plan
+            )
+            let baselines: [AhaKeyRuntimeFieldBaseline]
+            if let pageID = record.package.pageOperation?.pageScope {
+                baselines = try await store.pageFieldBaselines(
+                    deviceID: record.package.targetDeviceID,
+                    pageID: pageID
+                )
+            } else {
+                baselines = []
+            }
+            summary = summary.withPageFacts(
+                residual: projection.residual,
+                confirmedBaselines: baselines
+            )
+        }
+        let connected = await MainActor.run { self.isDeviceRuntimeConnected(record.package.targetDeviceID) }
+        let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
+        let clockEligible = AhaKeyRuntimeAbandonEligibility.projecting(epoch: epoch, now: now).eligible
+        return summary.withOwnership(
+            pageID: summary.pageID,
+            abandonEligibility: .init(
+                epochStartedAt: epoch.startedAt,
+                eligible: !connected && clockEligible
+            )
+        )
     }
 
     @MainActor
@@ -3943,9 +3988,7 @@ extension AhaKeyAgent {
                 }
             }
         }
-        if !pendingAbandonDeadlines.isEmpty {
-            rescheduleAbandonEligibilityWake()
-        }
+        await rescheduleAbandonEligibilityWake()
         for id in operations.keys {
             if let projector = main.byteProgress[id] {
                 operations[id] = projector.overlay(operations[id]!)
@@ -4199,9 +4242,7 @@ extension AhaKeyAgent {
 
     /// 测试 seam：释放本实例持有的 WAL 连接，模拟进程退出后再由新 Agent 打开同一 root。
     func closeRuntimeStoreForTesting() async {
-        let wake = abandonEligibilityWakeTask
-        cancelAbandonEligibilityWake()
-        await wake?.value
+        await cancelAbandonEligibilityWake()
         await runtimeStoreCache.clear()
     }
 
@@ -4211,10 +4252,15 @@ extension AhaKeyAgent {
     }
 
     func replacePendingAbandonDeadlineForTesting(
-        deviceID: AhaKeyRuntimeDeviceID,
-        epoch: AhaKeyRuntimeDisconnectEpoch
-    ) {
-        upsertAbandonDeadline(deviceID: deviceID, epoch: epoch, reschedule: false)
+        _ token: AhaKeyAbandonDeadlineToken
+    ) async {
+        await upsertAbandonDeadline(token, reschedule: false)
+    }
+
+    func pendingAbandonTokenForTesting(
+        _ deviceID: AhaKeyRuntimeDeviceID
+    ) async -> AhaKeyAbandonDeadlineToken? {
+        await abandonScheduler.pendingToken(for: deviceID)
     }
 
     /// 测试 seam：把 WAL 最新状态发布为 operationChanged，形成同进程投影缓存。
@@ -4555,6 +4601,16 @@ struct AhaKeyAgentExecutionTestHooks {
     var abandonEligibilityRefreshFailuresRemaining: Int = 0
     /// C4R5：refresh 已进入、尚未读 store 时的异步屏障（替换 pending epoch）。
     var abandonEligibilityRefreshGate: (@Sendable () async -> Void)?
+    /// C4R6：进入 prove/publish 的次数，用于证明 backoff 有界。
+    var abandonEligibilityRefreshAttemptCount: Int = 0
+    /// C4R6：注入缺 candidate / running / 投影读失败，证明不得消费。
+    var abandonEligibilityProofFault: AhaKeyAbandonEligibilityProofFault?
+}
+
+enum AhaKeyAbandonEligibilityProofFault: Sendable {
+    case missingCandidate
+    case runningHead
+    case projectionFailure
 }
 
 enum AhaKeyAgentCommandTraceEvent: Equatable, Sendable {

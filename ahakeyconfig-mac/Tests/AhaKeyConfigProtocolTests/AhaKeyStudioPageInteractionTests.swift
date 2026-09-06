@@ -91,7 +91,7 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         harness.store.applyViewStateForTesting(
             onlineState(snapshot: harness.snapshot(operations: [
                 running,
-                queued.withState(.cancellationRequested),
+                try queued.withState(.cancellationRequested),
             ]))
         )
         XCTAssertEqual(harness.store.operation(for: keyPage)?.state, .cancellationRequested)
@@ -492,8 +492,9 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
             residual: residual,
             pageID: pageID,
             abandonEligibility: abandonEligibility,
-            queueOrder: queueOrder,
-            terminalOrder: terminalOrder
+            durableOrdering: state.isTerminal
+                ? .terminal(terminalOrder: terminalOrder ?? 1)
+                : .live(queueOrder: queueOrder ?? 1)
         )
     }
 }

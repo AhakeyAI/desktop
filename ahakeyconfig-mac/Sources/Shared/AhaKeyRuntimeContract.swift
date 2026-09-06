@@ -1339,6 +1339,19 @@ public enum AhaKeyRuntimeDurableOrdering: Equatable, Sendable {
         }
         return .live(queueOrder: queueOrder)
     }
+
+    func requireMatching(_ state: AhaKeyRuntimeOperationState) throws {
+        switch self {
+        case .live(let queueOrder):
+            guard !state.isTerminal, queueOrder > 0 else {
+                throw AhaKeyRuntimeContractError.corruptRuntimeFact
+            }
+        case .terminal(let terminalOrder):
+            guard state.isTerminal, terminalOrder > 0 else {
+                throw AhaKeyRuntimeContractError.corruptRuntimeFact
+            }
+        }
+    }
 }
 
 public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
@@ -1371,6 +1384,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     /// C4R2 线格式：仅终态投影 `terminal_order`。
     public var terminalOrder: UInt64? { durableOrdering?.terminalOrder }
 
+    /// 现代生产构造：必须给出与 `state` 匹配的 typed order。legacy nil 只能来自旧 wire decoder。
     public init(
         id: AhaKeyRuntimeOperationID,
         targetDeviceID: AhaKeyRuntimeDeviceID,
@@ -1386,10 +1400,46 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         confirmedBaselines: [AhaKeyRuntimeFieldBaseline]? = nil,
         pageID: AhaKeyStudioPageID? = nil,
         abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil,
-        queueOrder: UInt64? = nil,
-        terminalOrder: UInt64? = nil,
-        durableOrdering: AhaKeyRuntimeDurableOrdering? = nil
+        durableOrdering: AhaKeyRuntimeDurableOrdering
     ) throws {
+        try durableOrdering.requireMatching(state)
+        self.init(
+            storageID: id,
+            targetDeviceID: targetDeviceID,
+            state: state,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID,
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility,
+            durableOrdering: durableOrdering
+        )
+    }
+
+    /// 包内拷贝/WAL 投影：不重新 parse，不把非法值收成 legacy nil。
+    package init(
+        storageID id: AhaKeyRuntimeOperationID,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        state: AhaKeyRuntimeOperationState,
+        completedSteps: UInt32,
+        totalSteps: UInt32,
+        messageCode: AhaKeyRuntimeEventCode?,
+        completedBytes: UInt64?,
+        totalBytes: UInt64?,
+        currentStepID: AhaKeyRuntimeStepIdentifier?,
+        failureContext: AhaKeyRuntimeOperationFailureContext?,
+        residual: AhaKeyRuntimePageResidual?,
+        confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?,
+        pageID: AhaKeyStudioPageID?,
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility?,
+        durableOrdering: AhaKeyRuntimeDurableOrdering?
+    ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
         self.state = state
@@ -1404,17 +1454,18 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.confirmedBaselines = confirmedBaselines
         self.pageID = pageID
         self.abandonEligibility = abandonEligibility
-        self.durableOrdering = try AhaKeyRuntimeDurableOrdering.parseWire(
-            state: state,
-            queueOrder: durableOrdering?.queueOrder ?? queueOrder,
-            terminalOrder: durableOrdering?.terminalOrder ?? terminalOrder
-        )
+        self.durableOrdering = durableOrdering
     }
 
     public init(from decoder: Decoder) throws {
         let wire = try Wire(from: decoder)
-        try self.init(
-            id: wire.id,
+        let ordering = try AhaKeyRuntimeDurableOrdering.parseWire(
+            state: wire.state,
+            queueOrder: wire.queueOrder,
+            terminalOrder: wire.terminalOrder
+        )
+        self.init(
+            storageID: wire.id,
             targetDeviceID: wire.targetDeviceID,
             state: wire.state,
             completedSteps: wire.completedSteps,
@@ -1428,8 +1479,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             confirmedBaselines: wire.confirmedBaselines,
             pageID: wire.pageID,
             abandonEligibility: wire.abandonEligibility,
-            queueOrder: wire.queueOrder,
-            terminalOrder: wire.terminalOrder
+            durableOrdering: ordering
         )
     }
 
@@ -1487,32 +1537,37 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     }
 
     public func withDurableOrder(
-        queueOrder: UInt64?,
-        terminalOrder: UInt64?
+        _ ordering: AhaKeyRuntimeDurableOrdering
     ) throws -> AhaKeyRuntimeOperationSummary {
-        overlaying(
-            durableOrdering: .some(
-                try AhaKeyRuntimeDurableOrdering.parseWire(
-                    state: state,
-                    queueOrder: queueOrder,
-                    terminalOrder: terminalOrder
-                )
-            )
-        )
+        try ordering.requireMatching(state)
+        return overlaying(durableOrdering: .some(ordering))
     }
 
     public func withState(
         _ nextState: AhaKeyRuntimeOperationState,
         completedSteps: UInt32? = nil,
         totalSteps: UInt32? = nil,
-        messageCode: AhaKeyRuntimeEventCode? = nil
-    ) -> AhaKeyRuntimeOperationSummary {
-        overlaying(
+        messageCode: AhaKeyRuntimeEventCode? = nil,
+        durableOrdering: AhaKeyRuntimeDurableOrdering? = nil
+    ) throws -> AhaKeyRuntimeOperationSummary {
+        let nextOrdering: AhaKeyRuntimeDurableOrdering?
+        if let durableOrdering {
+            try durableOrdering.requireMatching(nextState)
+            nextOrdering = durableOrdering
+        } else if nextState.isTerminal == state.isTerminal {
+            if let current = self.durableOrdering {
+                try current.requireMatching(nextState)
+            }
+            nextOrdering = self.durableOrdering
+        } else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        return overlaying(
             state: nextState,
             completedSteps: completedSteps,
             totalSteps: totalSteps,
             messageCode: messageCode.map { .some($0) },
-            durableOrdering: nextState.isTerminal == state.isTerminal ? nil : .some(nil)
+            durableOrdering: .some(nextOrdering)
         )
     }
 
@@ -1531,8 +1586,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         abandonEligibility: AhaKeyRuntimeAbandonEligibility?? = nil,
         durableOrdering: AhaKeyRuntimeDurableOrdering?? = nil
     ) -> AhaKeyRuntimeOperationSummary {
-        return try! AhaKeyRuntimeOperationSummary(
-            id: id,
+        AhaKeyRuntimeOperationSummary(
+            storageID: id,
             targetDeviceID: targetDeviceID,
             state: state ?? self.state,
             completedSteps: completedSteps ?? self.completedSteps,

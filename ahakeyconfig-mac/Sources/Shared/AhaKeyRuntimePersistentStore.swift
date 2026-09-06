@@ -1557,17 +1557,19 @@ public actor AhaKeyRuntimePersistentStore {
             userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
         )
         let hasWrites = AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan)
+        let terminalOrder = try allocateTerminalOrder()
         let summary = try AhaKeyRuntimeOperationSummary(
             id: operationID,
             targetDeviceID: record.package.targetDeviceID,
             state: hasWrites ? .failedWithPartialCommit : .failedWithoutWrites,
             completedSteps: record.completedSteps,
             totalSteps: record.totalSteps,
-            messageCode: .configurationDisconnected
+            messageCode: .configurationDisconnected,
+            durableOrdering: .terminal(terminalOrder: terminalOrder)
         )
         try validateProgress(summary)
         try enforceDeviceFIFO(record, nextState: summary.state)
-        try updateOperationRow(summary, terminalOrder: try allocateTerminalOrder())
+        try updateOperationRow(summary, terminalOrder: terminalOrder)
         try deleteDisconnectEpochUnlocked(operationID)
         return .abandoned
     }

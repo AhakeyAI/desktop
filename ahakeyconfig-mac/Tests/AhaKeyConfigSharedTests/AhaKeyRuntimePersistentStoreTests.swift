@@ -227,7 +227,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: package.targetDeviceID,
                     state: .running,
                     completedSteps: 2,
-                    totalSteps: 5
+                    totalSteps: 5,
+                    durableOrdering: .live(queueOrder: 1)
                 )
             )
         }
@@ -244,7 +245,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: package.targetDeviceID,
                     state: .completed,
                     completedSteps: 5,
-                    totalSteps: 5
+                    totalSteps: 5,
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: completedBaseline
             )
@@ -463,7 +465,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     completedSteps: 0,
                     totalSteps: 2,
                     messageCode: .configurationDeviceRejected,
-                    failureContext: context
+                    failureContext: context,
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: nil
             )
@@ -507,7 +510,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     completedSteps: 2,
                     totalSteps: 2,
                     messageCode: .configurationDeviceRejected,
-                    failureContext: context
+                    failureContext: context,
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: completedBaseline
             )
@@ -542,7 +546,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: package.targetDeviceID,
                     state: .failedWithoutWrites,
                     completedSteps: 0,
-                    totalSteps: 0
+                    totalSteps: 0,
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: nil
             )
@@ -692,7 +697,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: explicit.targetDeviceID,
                 state: .failedWithoutWrites,
                 completedSteps: 0,
-                totalSteps: 2
+                totalSteps: 2,
+                durableOrdering: .terminal(terminalOrder: 1)
             ),
             syncBaseline: nil
         )
@@ -748,7 +754,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .resumablePartial,
                 completedSteps: 2,
-                totalSteps: 5
+                totalSteps: 5,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         try await store.updateOperation(
@@ -757,7 +764,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .running,
                 completedSteps: 2,
-                totalSteps: 5
+                totalSteps: 5,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
 
@@ -1380,7 +1388,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: page.targetDeviceID,
                 state: .running,
                 completedSteps: 1,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         try await store.commitOperationOutcome(
@@ -1389,7 +1398,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: page.targetDeviceID,
                 state: .completed,
                 completedSteps: 1,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .terminal(terminalOrder: 1)
             ),
             syncBaseline: try .init(
                 deviceID: page.targetDeviceID,
@@ -1895,7 +1905,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: a1.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         do {
@@ -1905,7 +1916,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: a2.targetDeviceID,
                     state: .running,
                     completedSteps: 0,
-                    totalSteps: 1
+                    totalSteps: 1,
+                    durableOrdering: .live(queueOrder: 1)
                 )
             )
             XCTFail("paused head 不得被后项越过")
@@ -1922,7 +1934,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: b1.targetDeviceID,
                 state: .running,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let runningB = try await store.transaction(b1.operationID)
@@ -1944,7 +1957,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: first.targetDeviceID,
                     state: .paused,
                     completedSteps: 0,
-                    totalSteps: 1
+                    totalSteps: 1,
+                    durableOrdering: .live(queueOrder: 1)
                 )
             )
         }
@@ -1960,7 +1974,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: second.targetDeviceID,
                     state: .running,
                     completedSteps: 0,
-                    totalSteps: 1
+                    totalSteps: 1,
+                    durableOrdering: .live(queueOrder: 1)
                 )
             )
             XCTFail("崩溃重开后 FIFO 顺序与 head-blocking 必须保持")
@@ -1988,7 +2003,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: head.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
 
@@ -2000,7 +2016,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                         targetDeviceID: next.targetDeviceID,
                         state: state,
                         completedSteps: 0,
-                        totalSteps: 1
+                        totalSteps: 1,
+                        durableOrdering: .live(queueOrder: 1)
                     )
                 )
                 XCTFail("非 head 不得进入 \(state)")
@@ -2019,7 +2036,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: next.targetDeviceID,
                     state: .failedWithPartialCommit,
                     completedSteps: 0,
-                    totalSteps: 1
+                    totalSteps: 1,
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: nil
             )
@@ -2038,7 +2056,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: legacy.targetDeviceID,
                     state: .running,
                     completedSteps: 0,
-                    totalSteps: 1
+                    totalSteps: 1,
+                    durableOrdering: .live(queueOrder: 1)
                 )
             )
             XCTFail("schema=1 也不得越过同设备 head")
@@ -2055,7 +2074,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: next.targetDeviceID,
                 state: .cancellationRequested,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         try await store.commitOperationOutcome(
@@ -2064,7 +2084,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: next.targetDeviceID,
                 state: .failedWithoutWrites,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .terminal(terminalOrder: 1)
             ),
             syncBaseline: nil
         )
@@ -2303,7 +2324,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2336,7 +2358,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2384,7 +2407,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2424,7 +2448,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2435,7 +2460,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .running,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let refused = try await store.commitAbandon(
@@ -2453,7 +2479,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let abandoned = try await store.commitAbandon(
@@ -2469,7 +2496,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                     targetDeviceID: package.targetDeviceID,
                     state: .running,
                     completedSteps: 0,
-                    totalSteps: 1
+                    totalSteps: 1,
+                    durableOrdering: .live(queueOrder: 1)
                 )
             )
             XCTFail("终态后不得恢复 running")
@@ -2500,7 +2528,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: schema1.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 2
+                totalSteps: 2,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2520,7 +2549,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: head.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         try await mintDisconnect(store, head, at: started)
@@ -2537,7 +2567,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: head.targetDeviceID,
                 state: .running,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let runningDisposition = try await store.commitAbandon(
@@ -2560,7 +2591,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2594,7 +2626,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2619,7 +2652,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -2735,7 +2769,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         try await mintDisconnect(
@@ -2760,7 +2795,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .paused,
                 completedSteps: 0,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         let started = Date(timeIntervalSince1970: 1_700_000_000)
@@ -3199,7 +3235,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .running,
                 completedSteps: 1,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
             )
         )
         try await store.commitOperationOutcome(
@@ -3208,7 +3245,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 targetDeviceID: package.targetDeviceID,
                 state: .completed,
                 completedSteps: 1,
-                totalSteps: 1
+                totalSteps: 1,
+                durableOrdering: .terminal(terminalOrder: 1)
             ),
             syncBaseline: try .init(
                 deviceID: package.targetDeviceID,

@@ -79,7 +79,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             targetDeviceID: package.targetDeviceID,
             state: .accepted,
             pageID: package.pageOperation?.pageScope,
-            queueOrder: nextQueueOrder
+            durableOrdering: .live(queueOrder: nextQueueOrder)
         )
         nextQueueOrder += 1
         replaceOperation(summary)
@@ -94,7 +94,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             return .notFound
         }
         guard !summary.state.isTerminal else { return .alreadyFinished }
-        let updated = summary.withState(.cancellationRequested)
+        let updated = try summary.withState(.cancellationRequested)
         replaceOperation(updated)
         publish(.operationChanged(updated), context: eventContext(for: updated))
         return .requested
@@ -140,10 +140,8 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
             state,
             completedSteps: resolvedCompletedSteps,
             totalSteps: resolvedTotalSteps,
-            messageCode: messageCode
-        ).withDurableOrder(
-            queueOrder: nil,
-            terminalOrder: nextTerminalOrder
+            messageCode: messageCode,
+            durableOrdering: .terminal(terminalOrder: nextTerminalOrder)
         )
         nextTerminalOrder += 1
         replaceOperation(updated)
@@ -172,7 +170,7 @@ public actor AhaKeyInMemoryRuntimeAdapter: AhaKeyRuntimeClient {
         guard !summary.state.isTerminal else {
             throw AhaKeyInMemoryRuntimeAdapterError.terminalOperationCannotResume
         }
-        let updated = summary.withState(
+        let updated = try summary.withState(
             .resumablePartial,
             completedSteps: completedSteps,
             totalSteps: totalSteps,

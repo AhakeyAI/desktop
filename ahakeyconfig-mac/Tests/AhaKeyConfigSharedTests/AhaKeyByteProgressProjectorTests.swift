@@ -39,7 +39,8 @@ final class AhaKeyByteProgressProjectorTests: XCTestCase {
         XCTAssertEqual(projector.overlay(try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-            state: .failedWithoutWrites
+            state: .failedWithoutWrites,
+            durableOrdering: .terminal(terminalOrder: 1)
         )).completedBytes, 120)
     }
 
@@ -57,7 +58,8 @@ final class AhaKeyByteProgressProjectorTests: XCTestCase {
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .running,
             completedSteps: 0,
-            totalSteps: 7
+            totalSteps: 7,
+            durableOrdering: .live(queueOrder: 1)
         )
         XCTAssertEqual(projector.overlay(summary), summary)
     }

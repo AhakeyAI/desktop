@@ -473,7 +473,8 @@ final class AhaKeyStudioPageModelTests: XCTestCase {
             targetDeviceID: device,
             state: state,
             messageCode: messageCode,
-            residual: residual
+            residual: residual,
+            durableOrdering: state.isTerminal ? .terminal(terminalOrder: 1) : .live(queueOrder: 1)
         )
     }
 }

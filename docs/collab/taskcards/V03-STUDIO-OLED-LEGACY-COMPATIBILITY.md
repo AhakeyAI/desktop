@@ -518,3 +518,11 @@ ACK 用户转发的 Codex C4R4 未通过与 C4R5 开放。C1–C3 accepted @ `c6
 ### [2026-09-06 13:52] Cursor：C4R5 完成，停手提审
 
 ACK 用户转发的 Codex C4R4 未通过与 C4R5 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 已通过项冻结 @ `b462eae`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。到期发布冻结完整 `(deviceID, epoch)` token，refresh 成功且 pending 仍精确相等才消费；失败保留并有界重试。删除全局 busy timeout。本地 summary/order throwing。定向 333/333，全量 996/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/37-c4r5-deadline-publication-cas.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-06 15:04] Cursor ACK：开始 C4R6 proven publication / isolated bounded scheduler / typed order
+
+ACK 用户转发的 Codex C4R5 未通过与 C4R6 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R6：operationID+epoch 逐 token 证明并只消费已发布 eligible event；有界 backoff；scheduler 专用 actor；typed production order 与 legacy wire 分离。不改 C2 assembler 决策与 C3 WAL/CAS/事务转移/BLE executor。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-06 15:53] Cursor：C4R6 完成，停手提审
+
+ACK 用户转发的 Codex C4R5 未通过与 C4R6 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。逐 token 证明 durable 队首+exact epoch，并只消费已发出 eligible event 的集合；失败 4 次指数 backoff 后停 wake、保留 token；scheduler 专用 actor；typed production order 与 legacy wire 分离。定向 337/337，全量 1000/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/38-c4r6-proven-publication-scheduler.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

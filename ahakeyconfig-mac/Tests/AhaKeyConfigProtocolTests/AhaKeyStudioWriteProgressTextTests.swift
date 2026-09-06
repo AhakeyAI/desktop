@@ -12,7 +12,8 @@ final class AhaKeyStudioWriteProgressTextTests: XCTestCase {
             totalSteps: 7,
             completedBytes: 1200,
             totalBytes: 4000,
-            currentStepID: try AhaKeyRuntimeStepIdentifier("resource:a")
+            currentStepID: try AhaKeyRuntimeStepIdentifier("resource:a"),
+            durableOrdering: .live(queueOrder: 1)
         )
         let text = AhaKeyStudioWriteProgressText.status(for: operation, elapsedSeconds: 9)
         XCTAssertTrue(text.contains("1200"))
@@ -27,7 +28,8 @@ final class AhaKeyStudioWriteProgressTextTests: XCTestCase {
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .running,
             completedSteps: 0,
-            totalSteps: 7
+            totalSteps: 7,
+            durableOrdering: .live(queueOrder: 1)
         )
         let text = AhaKeyStudioWriteProgressText.status(for: operation, elapsedSeconds: 4)
         XCTAssertEqual(
@@ -47,7 +49,8 @@ final class AhaKeyStudioWriteProgressTextTests: XCTestCase {
             completedSteps: 0,
             totalSteps: 7,
             completedBytes: 50,
-            totalBytes: 100
+            totalBytes: 100,
+            durableOrdering: .live(queueOrder: 1)
         )
         XCTAssertEqual(
             AhaKeyStudioWriteProgressText.status(for: operation, elapsedSeconds: 1),

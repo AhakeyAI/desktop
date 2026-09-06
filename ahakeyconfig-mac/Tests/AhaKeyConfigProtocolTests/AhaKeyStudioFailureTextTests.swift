@@ -92,7 +92,8 @@ final class AhaKeyStudioFailureTextTests: XCTestCase {
             completedSteps: state == .failedWithoutWrites ? 0 : 3,
             totalSteps: 7,
             messageCode: messageCode,
-            failureContext: failureContext
+            failureContext: failureContext,
+            durableOrdering: state.isTerminal ? .terminal(terminalOrder: 1) : .live(queueOrder: 1)
         )
     }
 }

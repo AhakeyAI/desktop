@@ -261,14 +261,14 @@ public struct AhaKeyConfigurationTransactionRunner {
                     confirmedConfiguration: package.desiredConfiguration
                 )
                 try await store.commitOperationOutcome(
-                    summary(package: package, state: .completed,
+                    try await summary(package: package, state: .completed,
                             completed: UInt32(confirmed.count), total: UInt32(confirmed.count)),
                     syncBaseline: baseline
                 )
                 return .completed
             case .commitTerminal(let state):
                 try await store.commitOperationOutcome(
-                    summary(
+                    try await summary(
                         package: package,
                         state: state,
                         completed: UInt32(confirmed.count),
@@ -300,10 +300,22 @@ public struct AhaKeyConfigurationTransactionRunner {
         ) {
         case .commitTerminal(let state):
             try await store.commitOperationOutcome(
-                try AhaKeyRuntimeOperationSummary(
-                    id: operationID, targetDeviceID: record.package.targetDeviceID,
-                    state: state, completedSteps: record.completedSteps,
-                    totalSteps: record.totalSteps, messageCode: nil
+                AhaKeyRuntimeOperationSummary(
+                    storageID: operationID,
+                    targetDeviceID: record.package.targetDeviceID,
+                    state: state,
+                    completedSteps: record.completedSteps,
+                    totalSteps: record.totalSteps,
+                    messageCode: nil,
+                    completedBytes: nil,
+                    totalBytes: nil,
+                    currentStepID: nil,
+                    failureContext: nil,
+                    residual: nil,
+                    confirmedBaselines: nil,
+                    pageID: record.package.pageOperation?.pageScope,
+                    abandonEligibility: nil,
+                    durableOrdering: record.durableOrdering
                 ),
                 syncBaseline: nil
             )
@@ -366,15 +378,24 @@ public struct AhaKeyConfigurationTransactionRunner {
         total: UInt32,
         messageCode: AhaKeyRuntimeEventCode? = nil,
         failureContext: AhaKeyRuntimeOperationFailureContext? = nil
-    ) -> AhaKeyRuntimeOperationSummary {
-        try! AhaKeyRuntimeOperationSummary(
-            id: package.operationID,
+    ) async throws -> AhaKeyRuntimeOperationSummary {
+        let ordering = try await store.transaction(package.operationID)?.durableOrdering
+        return AhaKeyRuntimeOperationSummary(
+            storageID: package.operationID,
             targetDeviceID: package.targetDeviceID,
             state: state,
             completedSteps: completed,
             totalSteps: total,
             messageCode: state == .completed ? nil : messageCode,
-            failureContext: state == .completed ? nil : failureContext
+            completedBytes: nil,
+            totalBytes: nil,
+            currentStepID: nil,
+            failureContext: state == .completed ? nil : failureContext,
+            residual: nil,
+            confirmedBaselines: nil,
+            pageID: package.pageOperation?.pageScope,
+            abandonEligibility: nil,
+            durableOrdering: ordering
         )
     }
 
@@ -387,7 +408,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) async throws {
         try await store.updateOperation(
-            summary(
+            try await summary(
                 package: package,
                 state: state,
                 completed: completed,
@@ -429,7 +450,7 @@ public struct AhaKeyConfigurationTransactionRunner {
     ) async throws -> AhaKeyRuntimeOperationState {
         let state: AhaKeyRuntimeOperationState = hasWrites ? .failedWithPartialCommit : .failedWithoutWrites
         try await store.commitOperationOutcome(
-            summary(
+            try await summary(
                 package: package,
                 state: state,
                 completed: 0,

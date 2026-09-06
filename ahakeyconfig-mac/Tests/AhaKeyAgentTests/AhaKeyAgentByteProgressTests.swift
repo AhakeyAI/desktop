@@ -277,7 +277,8 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
                     targetDeviceID: package.targetDeviceID,
                     state: .failedWithoutWrites,
                     completedSteps: 0,
-                    totalSteps: 0
+                    totalSteps: 0,
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: nil
             )
@@ -297,7 +298,8 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
                 targetDeviceID: firstAccepted.targetDeviceID,
                 state: .failedWithoutWrites,
                 completedSteps: 0,
-                totalSteps: 0
+                totalSteps: 0,
+                durableOrdering: .terminal(terminalOrder: 1)
             ),
             syncBaseline: nil
         )
@@ -430,7 +432,8 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
                     targetDeviceID: package.targetDeviceID,
                     state: .failedWithoutWrites,
                     completedSteps: 0,
-                    totalSteps: 0
+                    totalSteps: 0,
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: nil
             )

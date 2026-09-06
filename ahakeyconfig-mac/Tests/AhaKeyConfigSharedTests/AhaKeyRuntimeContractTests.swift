@@ -348,7 +348,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         let summary = try AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-            state: .accepted
+            state: .accepted,
+            durableOrdering: .live(queueOrder: 1)
         )
         let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(summary)) as! [String: Any]
         XCTAssertNil(object["completedBytes"])
@@ -369,7 +370,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .paused,
             pageID: page,
-            abandonEligibility: eligibility
+            abandonEligibility: eligibility,
+            durableOrdering: .live(queueOrder: 1)
         )
         let decoded = try JSONDecoder().decode(
             AhaKeyRuntimeOperationSummary.self,
@@ -377,7 +379,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         )
         XCTAssertEqual(decoded.pageID, page)
         XCTAssertEqual(decoded.abandonEligibility, eligibility)
-        XCTAssertNil(decoded.queueOrder)
+        XCTAssertEqual(decoded.queueOrder, 1)
         XCTAssertNil(decoded.terminalOrder)
     }
 
@@ -386,7 +388,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .accepted,
-            queueOrder: 2
+            durableOrdering: .live(queueOrder: 2)
         )
         XCTAssertEqual(live.durableOrdering, .live(queueOrder: 2))
         XCTAssertEqual(live.queueOrder, 2)
@@ -403,8 +405,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertNil(liveObject["terminalOrder"])
         XCTAssertTrue(
             AhaKeyRuntimeOperationSummary.durableFIFOLessThan(
-                try live.withDurableOrder(queueOrder: 2, terminalOrder: nil),
-                try live.withDurableOrder(queueOrder: 3, terminalOrder: nil)
+                try live.withDurableOrder(.live(queueOrder: 2)),
+                try live.withDurableOrder(.live(queueOrder: 3))
             )
         )
 
@@ -412,7 +414,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .completed,
-            terminalOrder: 9
+            durableOrdering: .terminal(terminalOrder: 9)
         )
         XCTAssertEqual(terminal.durableOrdering, .terminal(terminalOrder: 9))
         XCTAssertNil(terminal.queueOrder)
@@ -472,7 +474,7 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
                 id: AhaKeyRuntimeOperationID(),
                 targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
                 state: .accepted,
-                queueOrder: 0
+                durableOrdering: .live(queueOrder: 0)
             )
         )
         XCTAssertThrowsError(
@@ -480,16 +482,26 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
                 id: AhaKeyRuntimeOperationID(),
                 targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
                 state: .accepted,
-                queueOrder: 4,
-                terminalOrder: 11
+                durableOrdering: .terminal(terminalOrder: 11)
             )
         )
         XCTAssertThrowsError(
-            try live.withDurableOrder(queueOrder: 0, terminalOrder: nil)
+            try live.withDurableOrder(.live(queueOrder: 0))
         )
         XCTAssertThrowsError(
-            try live.withDurableOrder(queueOrder: 2, terminalOrder: 9)
+            try live.withDurableOrder(.terminal(terminalOrder: 9))
         )
+        XCTAssertThrowsError(
+            try live.withState(.completed)
+        )
+
+        let legacyJSON = Data("""
+        {"id":{"rawValue":"00000000-0000-4000-8000-000000000005"},"targetDeviceID":"TEST-DEVICE","state":"accepted","completedSteps":0,"totalSteps":0}
+        """.utf8)
+        let legacy = try JSONDecoder().decode(AhaKeyRuntimeOperationSummary.self, from: legacyJSON)
+        XCTAssertNil(legacy.durableOrdering)
+        XCTAssertNil(legacy.queueOrder)
+        XCTAssertNil(legacy.terminalOrder)
     }
 
     func testDeviceSnapshotRoundTripsOLEDCompatibilityFact() throws {
@@ -523,7 +535,8 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
             messageCode: .configurationDeviceRejected,
             failureContext: AhaKeyRuntimeOperationFailureContext(
                 failedStepID: try AhaKeyRuntimeStepIdentifier("base:mode:0")
-            )
+            ),
+            durableOrdering: .terminal(terminalOrder: 1)
         )
         let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(summary)) as! [String: Any]
         let context = try XCTUnwrap(object["failureContext"] as? [String: Any])
