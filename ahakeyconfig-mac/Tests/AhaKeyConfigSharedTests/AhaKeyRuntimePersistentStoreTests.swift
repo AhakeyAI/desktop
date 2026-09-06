@@ -2672,6 +2672,31 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertNil(delayedLease)
     }
 
+    func testReconnectWithEqualIdentityClearsDisconnectEpoch() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "equal-identity-clear")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.updateOperation(
+            .init(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: .paused,
+                completedSteps: 0,
+                totalSteps: 1,
+                durableOrdering: .live(queueOrder: 1)
+            )
+        )
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        try await mintDisconnect(store, package, at: started)
+        let mintedEpoch = try await store.disconnectEpoch(package.operationID)
+        let minted = try XCTUnwrap(mintedEpoch)
+        try await store.clearDisconnectEpochs(succeeding: minted.identity)
+        let cleared = try await store.disconnectEpoch(package.operationID)
+        XCTAssertNil(cleared)
+    }
+
     func testAuthoritativeReadbackRejectsOldConnectionHigherRevision() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

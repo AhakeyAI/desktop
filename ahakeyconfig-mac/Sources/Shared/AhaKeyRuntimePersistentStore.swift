@@ -220,6 +220,14 @@ enum AhaKeyRuntimeStoreSchemaMigrationTestingHooks {
     }
 }
 
+public struct AhaKeyRuntimeAbandonPublicationFacts: Equatable, Sendable {
+    public let head: AhaKeyRuntimePersistedTransaction
+    public let epoch: AhaKeyRuntimeDisconnectEpoch
+    public let confirmed: [AhaKeyRuntimeStepIdentifier]
+    public let baselines: [AhaKeyRuntimeFieldBaseline]
+    public let mutationGeneration: UInt64
+}
+
 public actor AhaKeyRuntimePersistentStore {
     public static let schemaVersion: Int32 = 7
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
@@ -249,6 +257,7 @@ public actor AhaKeyRuntimePersistentStore {
     /// 同一 persistence root 的跨 Store/跨进程 advisory 锁（flock）。init reconciliation/prune、
     /// ingest admission+install+journal、accept 转正都在该临界区内；进程崩溃由 OS 释放锁。
     private let lockFileDescriptor: Int32
+    private var mutationGeneration: UInt64 = 0
     private let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -1414,6 +1423,7 @@ public actor AhaKeyRuntimePersistentStore {
         try bind(operationID.rawValue.uuidString, at: 1, to: statement)
         try bind(try encoder.encode(epoch), at: 2, to: statement)
         try stepDone(statement)
+        noteDurableMutation()
     }
 
     public func clearDisconnectEpochs(succeeding identity: AhaKeyRuntimeConnectionIdentity) throws {
@@ -1423,12 +1433,14 @@ public actor AhaKeyRuntimePersistentStore {
             for candidate in try recoveryCandidates() where candidate.package.targetDeviceID == identity.deviceID {
                 guard let stored = try disconnectEpoch(candidate.operationID) else { continue }
                 guard stored.identity.deviceID == identity.deviceID,
-                      stored.identity.isOlder(than: identity) else {
+                      stored.identity.isOlder(than: identity)
+                        || stored.identity == identity else {
                     continue
                 }
                 try deleteDisconnectEpochUnlocked(candidate.operationID)
             }
             try Self.execute("COMMIT", on: database)
+            noteDurableMutation()
         } catch {
             try? Self.execute("ROLLBACK", on: database)
             throw error
@@ -1712,6 +1724,9 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
         }
         try validateProgress(summary)
+        if let ordering = summary.durableOrdering {
+            try ordering.requireMatching(summary.state)
+        }
         try enforceDeviceFIFO(existing, nextState: summary.state)
         try updateOperationRow(summary)
     }
@@ -1734,6 +1749,9 @@ public actor AhaKeyRuntimePersistentStore {
         }
         try validateProgress(summary)
         try validateCompletedClearsFailure(summary)
+        if let ordering = summary.durableOrdering {
+            try ordering.requireMatching(summary.state)
+        }
         try enforceDeviceFIFO(existing, nextState: summary.state)
 
         if summary.state == .completed {
@@ -1836,6 +1854,42 @@ public actor AhaKeyRuntimePersistentStore {
         }
         try bind(summary.id.rawValue.uuidString, at: 7, to: statement)
         try stepDone(statement)
+        noteDurableMutation()
+    }
+
+    private func noteDurableMutation() {
+        mutationGeneration &+= 1
+    }
+
+    /// 单次 actor hop：队首、epoch、确认步与 baseline 同一 WAL 世代。
+    public func abandonPublicationFacts(
+        deviceID: AhaKeyRuntimeDeviceID,
+        operationID: AhaKeyRuntimeOperationID,
+        epoch: AhaKeyRuntimeDisconnectEpoch
+    ) throws -> AhaKeyRuntimeAbandonPublicationFacts? {
+        let queue = try durableDeviceQueue(deviceID)
+        guard let head = queue.head, head.operationID == operationID else { return nil }
+        switch head.state {
+        case .paused, .resumablePartial:
+            break
+        default:
+            return nil
+        }
+        guard let stored = try disconnectEpoch(operationID), stored == epoch else { return nil }
+        let confirmed = try confirmedSteps(for: operationID)
+        let baselines: [AhaKeyRuntimeFieldBaseline]
+        if let pageID = head.package.pageOperation?.pageScope {
+            baselines = try pageFieldBaselines(deviceID: deviceID, pageID: pageID)
+        } else {
+            baselines = []
+        }
+        return AhaKeyRuntimeAbandonPublicationFacts(
+            head: head,
+            epoch: stored,
+            confirmed: confirmed,
+            baselines: baselines,
+            mutationGeneration: mutationGeneration
+        )
     }
 
     public func recoveryCandidates() throws -> [AhaKeyRuntimePersistedTransaction] {
@@ -2030,6 +2084,7 @@ public actor AhaKeyRuntimePersistentStore {
         try bind(AhaKeyRuntimeOperationState.accepted.compatibleRawValue, at: 3, to: statement)
         try bind(queueOrder, at: 4, to: statement)
         try stepDone(statement)
+        noteDurableMutation()
     }
 
     private func allocateQueueOrder() throws -> UInt64 {

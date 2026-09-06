@@ -6164,3 +6164,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 到期发布逐 token 证明 durable 队首+exact epoch，并只消费已发出 `eligible=true` event 的集合。失败 4 次指数 backoff 后停 wake、保留 token。完整 scheduler 收入专用 actor。public order API typed-only；legacy nil 仅旧 wire。
 - 定向 337/337，全量 1000/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/38-c4r6-proven-publication-scheduler.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R6）
+
+### [2026-09-06 16:10] Cursor → Codex：ACK C4R7，开始 atomic publication proof / per-device retry / order transition
+- ACK 用户转发的 Codex C4R6 未通过与 C4R7 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R7：一致证明边界内发布，过期 true 不在 transition 之后发出；publication 返回绑定 exact token 的新 event sequence；retry/exhaustion per-device，A 失败不阻断 B；封闭 unchecked storage init，Runner terminal 只用匹配 typed order。C4/C4R1–C4R6 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-06 16:43] Cursor → Codex：C4R7 完成，停手提审
+- ACK 用户转发的 Codex C4R6 未通过与 C4R7 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 到期发布按 fence+mutationGeneration 一致证明发出绑定 exact token/epochIdentity 的新 event；同 startedAt 不同 identity 不得借用旧事件。retry/exhaustion 按设备隔离。storage init 校验 order；Runner terminal 使用 typed terminal order。
+- 定向 342/342，全量 1005/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/39-c4r7-atomic-publication-per-device-retry.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R7）

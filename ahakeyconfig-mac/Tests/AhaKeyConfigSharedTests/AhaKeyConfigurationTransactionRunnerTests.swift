@@ -252,6 +252,8 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         let completed = try await store.transaction(package.operationID)
         XCTAssertNil(completed?.failureContext)
         XCTAssertNil(completed?.messageCode)
+        XCTAssertNotNil(completed?.durableOrdering?.terminalOrder)
+        XCTAssertNil(completed?.durableOrdering?.queueOrder)
         let resumedBaseline = try await store.syncBaseline(for: package.targetDeviceID)
         XCTAssertEqual(resumedBaseline?.revision.rawValue, 1)
     }
@@ -265,6 +267,9 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         try await runner.requestCancel(operationID: package.operationID)
         let settled = try await runner.settleCancellation(operationID: package.operationID)
         XCTAssertEqual(settled, .failedWithoutWrites)
+        let terminal = try await store.transaction(package.operationID)
+        XCTAssertNotNil(terminal?.durableOrdering?.terminalOrder)
+        XCTAssertNil(terminal?.durableOrdering?.queueOrder)
     }
 
     func testCancelWithWritesSettlesAtStepBoundary() async throws {

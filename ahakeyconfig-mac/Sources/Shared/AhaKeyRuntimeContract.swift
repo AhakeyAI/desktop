@@ -1095,13 +1095,20 @@ public enum AhaKeyRuntimeAbandonPolicy {
 }
 
 /// Runtime 投影的 durable 真断连资格。Studio 只读 `eligible`，不得另起本地时钟。
+/// `epochIdentity` 区分同 `startedAt`、不同连接代的 epoch；缺省/旧 payload 为 nil。
 public struct AhaKeyRuntimeAbandonEligibility: Codable, Equatable, Sendable {
     public let epochStartedAt: Date
     public let eligible: Bool
+    public let epochIdentity: AhaKeyRuntimeConnectionIdentity?
 
-    public init(epochStartedAt: Date, eligible: Bool) {
+    public init(
+        epochStartedAt: Date,
+        eligible: Bool,
+        epochIdentity: AhaKeyRuntimeConnectionIdentity? = nil
+    ) {
         self.epochStartedAt = epochStartedAt
         self.eligible = eligible
+        self.epochIdentity = epochIdentity
     }
 
     public static func projecting(
@@ -1111,7 +1118,8 @@ public struct AhaKeyRuntimeAbandonEligibility: Codable, Equatable, Sendable {
         let elapsed = now.timeIntervalSince(epoch.startedAt)
         return Self(
             epochStartedAt: epoch.startedAt,
-            eligible: elapsed >= AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration && elapsed >= 0
+            eligible: elapsed >= AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration && elapsed >= 0,
+            epochIdentity: epoch.identity
         )
     }
 }
@@ -1404,7 +1412,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     ) throws {
         try durableOrdering.requireMatching(state)
         self.init(
-            storageID: id,
+            uncheckedID: id,
             targetDeviceID: targetDeviceID,
             state: state,
             completedSteps: completedSteps,
@@ -1422,9 +1430,49 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         )
     }
 
-    /// 包内拷贝/WAL 投影：不重新 parse，不把非法值收成 legacy nil。
+    /// 包内拷贝/WAL 投影：非 nil order 必须与 `state` 匹配；不得把非法值收成 legacy nil。
     package init(
         storageID id: AhaKeyRuntimeOperationID,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        state: AhaKeyRuntimeOperationState,
+        completedSteps: UInt32,
+        totalSteps: UInt32,
+        messageCode: AhaKeyRuntimeEventCode?,
+        completedBytes: UInt64?,
+        totalBytes: UInt64?,
+        currentStepID: AhaKeyRuntimeStepIdentifier?,
+        failureContext: AhaKeyRuntimeOperationFailureContext?,
+        residual: AhaKeyRuntimePageResidual?,
+        confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?,
+        pageID: AhaKeyStudioPageID?,
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility?,
+        durableOrdering: AhaKeyRuntimeDurableOrdering?
+    ) throws {
+        if let durableOrdering {
+            try durableOrdering.requireMatching(state)
+        }
+        self.init(
+            uncheckedID: id,
+            targetDeviceID: targetDeviceID,
+            state: state,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID,
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility,
+            durableOrdering: durableOrdering
+        )
+    }
+
+    /// 已校验副本与旧 wire 投影：不再做 state/order 交叉检查。
+    private init(
+        uncheckedID id: AhaKeyRuntimeOperationID,
         targetDeviceID: AhaKeyRuntimeDeviceID,
         state: AhaKeyRuntimeOperationState,
         completedSteps: UInt32,
@@ -1465,7 +1513,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
             terminalOrder: wire.terminalOrder
         )
         self.init(
-            storageID: wire.id,
+            uncheckedID: wire.id,
             targetDeviceID: wire.targetDeviceID,
             state: wire.state,
             completedSteps: wire.completedSteps,
@@ -1587,7 +1635,7 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         durableOrdering: AhaKeyRuntimeDurableOrdering?? = nil
     ) -> AhaKeyRuntimeOperationSummary {
         AhaKeyRuntimeOperationSummary(
-            storageID: id,
+            uncheckedID: id,
             targetDeviceID: targetDeviceID,
             state: state ?? self.state,
             completedSteps: completedSteps ?? self.completedSteps,

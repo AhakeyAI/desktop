@@ -9,6 +9,7 @@ struct AhaKeyAbandonDeadlineToken: Equatable, Sendable {
 }
 
 /// 完整 deadline 状态机：pending/published/wake/fireAt/retry 全部隔离在本 actor 内。
+/// retry/exhaustion 按 device 隔离，A 耗尽不得停掉 B。
 actor AhaKeyAbandonDeadlineScheduler {
     private static let retryDelaysNanoseconds: [UInt64] = [
         20_000_000,
@@ -21,8 +22,9 @@ actor AhaKeyAbandonDeadlineScheduler {
     private var published: [AhaKeyRuntimeDeviceID: AhaKeyAbandonDeadlineToken] = [:]
     private var wakeTask: Task<Void, Never>?
     private var scheduledFireAt: Date?
-    private var retryAttempt = 0
-    private var burstExhausted = false
+    private var retryAttemptByDevice: [AhaKeyRuntimeDeviceID: Int] = [:]
+    private var exhaustedDevices: Set<AhaKeyRuntimeDeviceID> = []
+    private var retryWaitDevices: Set<AhaKeyRuntimeDeviceID> = []
 
     func pendingToken(for deviceID: AhaKeyRuntimeDeviceID) -> AhaKeyAbandonDeadlineToken? {
         pending[deviceID]
@@ -39,8 +41,7 @@ actor AhaKeyAbandonDeadlineScheduler {
         if published[token.deviceID] != token {
             published.removeValue(forKey: token.deviceID)
         }
-        retryAttempt = 0
-        burstExhausted = false
+        resetRetry(for: token.deviceID)
         if reschedule {
             startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
         }
@@ -55,6 +56,7 @@ actor AhaKeyAbandonDeadlineScheduler {
     ) {
         pending.removeValue(forKey: deviceID)
         published.removeValue(forKey: deviceID)
+        resetRetry(for: deviceID)
         if reschedule {
             startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
         }
@@ -70,15 +72,15 @@ actor AhaKeyAbandonDeadlineScheduler {
         for deviceID in stale {
             pending.removeValue(forKey: deviceID)
             published.removeValue(forKey: deviceID)
+            resetRetry(for: deviceID)
         }
         for (deviceID, token) in next {
             pending[deviceID] = token
             if published[deviceID] != token {
                 published.removeValue(forKey: deviceID)
+                resetRetry(for: deviceID)
             }
         }
-        retryAttempt = 0
-        burstExhausted = false
         startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
     }
 
@@ -88,10 +90,9 @@ actor AhaKeyAbandonDeadlineScheduler {
         publish: @escaping @Sendable ([AhaKeyAbandonDeadlineToken]) async -> [AhaKeyAbandonDeadlineToken]
     ) {
         guard !pending.isEmpty else { return }
-        if burstExhausted {
-            retryAttempt = 0
-            burstExhausted = false
-        }
+        exhaustedDevices.removeAll()
+        retryAttemptByDevice.removeAll()
+        retryWaitDevices.removeAll()
         startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
     }
 
@@ -102,8 +103,9 @@ actor AhaKeyAbandonDeadlineScheduler {
         scheduledFireAt = nil
         pending.removeAll()
         published.removeAll()
-        retryAttempt = 0
-        burstExhausted = false
+        retryAttemptByDevice.removeAll()
+        exhaustedDevices.removeAll()
+        retryWaitDevices.removeAll()
         await wake?.value
     }
 
@@ -113,19 +115,21 @@ actor AhaKeyAbandonDeadlineScheduler {
         scheduledFireAt = nil
     }
 
+    private func resetRetry(for deviceID: AhaKeyRuntimeDeviceID) {
+        retryAttemptByDevice[deviceID] = 0
+        exhaustedDevices.remove(deviceID)
+        retryWaitDevices.remove(deviceID)
+    }
+
     private func startWakeIfNeeded(
         virtualClock: Bool,
         clock: @escaping @Sendable () -> Date,
         publish: @escaping @Sendable ([AhaKeyAbandonDeadlineToken]) async -> [AhaKeyAbandonDeadlineToken]
     ) {
-        if burstExhausted {
-            wakeTask?.cancel()
-            wakeTask = nil
-            scheduledFireAt = nil
-            return
-        }
         let nextFire = pending.values.compactMap { token -> Date? in
             guard published[token.deviceID] != token else { return nil }
+            guard !exhaustedDevices.contains(token.deviceID) else { return nil }
+            guard !retryWaitDevices.contains(token.deviceID) else { return nil }
             return Self.fireAt(for: token.epoch)
         }.min()
         if nextFire == scheduledFireAt, wakeTask != nil {
@@ -150,14 +154,13 @@ actor AhaKeyAbandonDeadlineScheduler {
             let now = clock()
             if Task.isCancelled { return }
             if now >= fireAt {
-                let finished = await publishDue(
+                await publishDue(
                     now: now,
                     virtualClock: virtualClock,
                     clock: clock,
                     publish: publish
                 )
-                if finished || Task.isCancelled { return }
-                continue
+                return
             }
             let remaining = fireAt.timeIntervalSince(now)
             let sleep = virtualClock ? min(0.02, max(remaining, 0.02)) : remaining
@@ -170,51 +173,80 @@ actor AhaKeyAbandonDeadlineScheduler {
         virtualClock: Bool,
         clock: @escaping @Sendable () -> Date,
         publish: @escaping @Sendable ([AhaKeyAbandonDeadlineToken]) async -> [AhaKeyAbandonDeadlineToken]
-    ) async -> Bool {
-        if Task.isCancelled { return true }
+    ) async {
+        if Task.isCancelled { return }
         let dueTokens = pending.values.filter { token in
-            published[token.deviceID] != token && Self.fireAt(for: token.epoch) <= now
+            published[token.deviceID] != token
+                && !exhaustedDevices.contains(token.deviceID)
+                && !retryWaitDevices.contains(token.deviceID)
+                && Self.fireAt(for: token.epoch) <= now
         }
         guard !dueTokens.isEmpty else {
             if !Task.isCancelled {
                 startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
             }
-            return true
+            return
         }
         let proven = await publish(dueTokens)
-        if Task.isCancelled { return true }
-        if proven.isEmpty {
-            return await handleFailedBurst()
+        if Task.isCancelled { return }
+        var failed: [AhaKeyRuntimeDeviceID] = []
+        for token in dueTokens {
+            if proven.contains(token), pending[token.deviceID] == token {
+                published[token.deviceID] = token
+                resetRetry(for: token.deviceID)
+            } else if pending[token.deviceID] == token, published[token.deviceID] != token {
+                failed.append(token.deviceID)
+            }
         }
-        for token in proven {
-            guard pending[token.deviceID] == token else { continue }
-            published[token.deviceID] = token
-        }
-        retryAttempt = 0
-        burstExhausted = false
-        let remainingDue = dueTokens.contains { token in
-            pending[token.deviceID] == token && published[token.deviceID] != token
-        }
-        if remainingDue {
-            return await handleFailedBurst()
+        for deviceID in failed {
+            scheduleDeviceRetry(
+                deviceID,
+                virtualClock: virtualClock,
+                clock: clock,
+                publish: publish
+            )
         }
         scheduledFireAt = nil
         wakeTask = nil
         startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
-        return true
     }
 
-    private func handleFailedBurst() async -> Bool {
-        if retryAttempt >= Self.retryDelaysNanoseconds.count {
-            burstExhausted = true
-            wakeTask = nil
-            scheduledFireAt = nil
-            return true
+    private func scheduleDeviceRetry(
+        _ deviceID: AhaKeyRuntimeDeviceID,
+        virtualClock: Bool,
+        clock: @escaping @Sendable () -> Date,
+        publish: @escaping @Sendable ([AhaKeyAbandonDeadlineToken]) async -> [AhaKeyAbandonDeadlineToken]
+    ) {
+        let attempt = retryAttemptByDevice[deviceID] ?? 0
+        if attempt >= Self.retryDelaysNanoseconds.count {
+            exhaustedDevices.insert(deviceID)
+            retryWaitDevices.remove(deviceID)
+            return
         }
-        let delay = Self.retryDelaysNanoseconds[retryAttempt]
-        retryAttempt += 1
-        try? await Task.sleep(nanoseconds: delay)
-        return Task.isCancelled
+        retryAttemptByDevice[deviceID] = attempt + 1
+        retryWaitDevices.insert(deviceID)
+        let delay = Self.retryDelaysNanoseconds[attempt]
+        Task {
+            try? await Task.sleep(nanoseconds: delay)
+            await self.finishDeviceRetry(
+                deviceID,
+                virtualClock: virtualClock,
+                clock: clock,
+                publish: publish
+            )
+        }
+    }
+
+    private func finishDeviceRetry(
+        _ deviceID: AhaKeyRuntimeDeviceID,
+        virtualClock: Bool,
+        clock: @escaping @Sendable () -> Date,
+        publish: @escaping @Sendable ([AhaKeyAbandonDeadlineToken]) async -> [AhaKeyAbandonDeadlineToken]
+    ) async {
+        retryWaitDevices.remove(deviceID)
+        guard pending[deviceID] != nil, published[deviceID] != pending[deviceID] else { return }
+        guard !exhaustedDevices.contains(deviceID) else { return }
+        startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
     }
 
     private static func fireAt(for epoch: AhaKeyRuntimeDisconnectEpoch) -> Date {

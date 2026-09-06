@@ -300,22 +300,13 @@ public struct AhaKeyConfigurationTransactionRunner {
         ) {
         case .commitTerminal(let state):
             try await store.commitOperationOutcome(
-                AhaKeyRuntimeOperationSummary(
-                    storageID: operationID,
+                try AhaKeyRuntimeOperationSummary(
+                    id: operationID,
                     targetDeviceID: record.package.targetDeviceID,
                     state: state,
                     completedSteps: record.completedSteps,
                     totalSteps: record.totalSteps,
-                    messageCode: nil,
-                    completedBytes: nil,
-                    totalBytes: nil,
-                    currentStepID: nil,
-                    failureContext: nil,
-                    residual: nil,
-                    confirmedBaselines: nil,
-                    pageID: record.package.pageOperation?.pageScope,
-                    abandonEligibility: nil,
-                    durableOrdering: record.durableOrdering
+                    durableOrdering: .terminal(terminalOrder: 1)
                 ),
                 syncBaseline: nil
             )
@@ -379,22 +370,32 @@ public struct AhaKeyConfigurationTransactionRunner {
         messageCode: AhaKeyRuntimeEventCode? = nil,
         failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) async throws -> AhaKeyRuntimeOperationSummary {
+        if state.isTerminal {
+            return try AhaKeyRuntimeOperationSummary(
+                id: package.operationID,
+                targetDeviceID: package.targetDeviceID,
+                state: state,
+                completedSteps: completed,
+                totalSteps: total,
+                messageCode: state == .completed ? nil : messageCode,
+                failureContext: state == .completed ? nil : failureContext,
+                pageID: package.pageOperation?.pageScope,
+                durableOrdering: .terminal(terminalOrder: 1)
+            )
+        }
         let ordering = try await store.transaction(package.operationID)?.durableOrdering
-        return AhaKeyRuntimeOperationSummary(
-            storageID: package.operationID,
+        guard let ordering else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        return try AhaKeyRuntimeOperationSummary(
+            id: package.operationID,
             targetDeviceID: package.targetDeviceID,
             state: state,
             completedSteps: completed,
             totalSteps: total,
             messageCode: state == .completed ? nil : messageCode,
-            completedBytes: nil,
-            totalBytes: nil,
-            currentStepID: nil,
             failureContext: state == .completed ? nil : failureContext,
-            residual: nil,
-            confirmedBaselines: nil,
             pageID: package.pageOperation?.pageScope,
-            abandonEligibility: nil,
             durableOrdering: ordering
         )
     }

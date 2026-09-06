@@ -502,6 +502,25 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         XCTAssertNil(legacy.durableOrdering)
         XCTAssertNil(legacy.queueOrder)
         XCTAssertNil(legacy.terminalOrder)
+        XCTAssertThrowsError(
+            try AhaKeyRuntimeOperationSummary(
+                storageID: AhaKeyRuntimeOperationID(),
+                targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+                state: .completed,
+                completedSteps: 1,
+                totalSteps: 1,
+                messageCode: nil,
+                completedBytes: nil,
+                totalBytes: nil,
+                currentStepID: nil,
+                failureContext: nil,
+                residual: nil,
+                confirmedBaselines: nil,
+                pageID: nil,
+                abandonEligibility: nil,
+                durableOrdering: .live(queueOrder: 1)
+            )
+        )
     }
 
     func testDeviceSnapshotRoundTripsOLEDCompatibilityFact() throws {
