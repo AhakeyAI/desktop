@@ -3552,8 +3552,16 @@ extension AhaKeyAgent {
             confirmed.head.state == facts.head.state else {
                 return nil
             }
+            if let postProof = await MainActor.run(body: {
+                self.executionTestHooks?.abandonEligibilityPostProofGate
+            }) {
+                await postProof()
+            }
+            let mutationFence = store.mutationFence
             return await MainActor.run {
-                self.publishProvenAbandonEligibility(token: token, facts: confirmed, fence: fence)
+                mutationFence.publishIfUnchanged(confirmed.mutationGeneration) {
+                    self.publishProvenAbandonEligibility(token: token, facts: confirmed, fence: fence)
+                }
             }
         } catch {
             return nil
@@ -4312,9 +4320,18 @@ extension AhaKeyAgent {
     }
 
     func replacePendingAbandonDeadlineForTesting(
-        _ token: AhaKeyAbandonDeadlineToken
+        _ token: AhaKeyAbandonDeadlineToken,
+        reschedule: Bool = false
     ) async {
-        await upsertAbandonDeadline(token, reschedule: false)
+        await upsertAbandonDeadline(token, reschedule: reschedule)
+    }
+
+    func abandonRetryTaskCountForTesting() async -> Int {
+        await abandonScheduler.retryTaskCount()
+    }
+
+    func abandonRetryWaitContainsForTesting(_ deviceID: AhaKeyRuntimeDeviceID) async -> Bool {
+        await abandonScheduler.retryWaitContains(deviceID)
     }
 
     func pendingAbandonTokenForTesting(
@@ -4665,6 +4682,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var abandonEligibilityRefreshGate: (@Sendable () async -> Void)?
     /// C4R7：证明读完成后、最终发布前的异步屏障（reconnect/head-change）。
     var abandonEligibilityPublishBoundaryGate: (@Sendable () async -> Void)?
+    /// C4R8：第二次 proof 返回后、mutation fence 发布前的异步屏障（terminal/reconnect）。
+    var abandonEligibilityPostProofGate: (@Sendable () async -> Void)?
     /// C4R6：进入 prove/publish 的次数，用于证明 backoff 有界。
     var abandonEligibilityRefreshAttemptCount: Int = 0
     /// C4R6：注入缺 candidate / running / 投影读失败，证明不得消费。

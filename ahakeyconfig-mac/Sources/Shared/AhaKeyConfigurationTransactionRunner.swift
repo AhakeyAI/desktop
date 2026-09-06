@@ -261,14 +261,18 @@ public struct AhaKeyConfigurationTransactionRunner {
                     confirmedConfiguration: package.desiredConfiguration
                 )
                 try await store.commitOperationOutcome(
-                    try await summary(package: package, state: .completed,
-                            completed: UInt32(confirmed.count), total: UInt32(confirmed.count)),
+                    try terminalTransition(
+                        package: package,
+                        state: .completed,
+                        completed: UInt32(confirmed.count),
+                        total: UInt32(confirmed.count)
+                    ),
                     syncBaseline: baseline
                 )
                 return .completed
             case .commitTerminal(let state):
                 try await store.commitOperationOutcome(
-                    try await summary(
+                    try terminalTransition(
                         package: package,
                         state: state,
                         completed: UInt32(confirmed.count),
@@ -300,13 +304,12 @@ public struct AhaKeyConfigurationTransactionRunner {
         ) {
         case .commitTerminal(let state):
             try await store.commitOperationOutcome(
-                try AhaKeyRuntimeOperationSummary(
+                try AhaKeyRuntimeOperationTerminalTransition(
                     id: operationID,
                     targetDeviceID: record.package.targetDeviceID,
                     state: state,
                     completedSteps: record.completedSteps,
-                    totalSteps: record.totalSteps,
-                    durableOrdering: .terminal(terminalOrder: 1)
+                    totalSteps: record.totalSteps
                 ),
                 syncBaseline: nil
             )
@@ -362,6 +365,26 @@ public struct AhaKeyConfigurationTransactionRunner {
         }
     }
 
+    private func terminalTransition(
+        package: AhaKeyConfigurationPackage,
+        state: AhaKeyRuntimeOperationState,
+        completed: UInt32,
+        total: UInt32,
+        messageCode: AhaKeyRuntimeEventCode? = nil,
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil
+    ) throws -> AhaKeyRuntimeOperationTerminalTransition {
+        try AhaKeyRuntimeOperationTerminalTransition(
+            id: package.operationID,
+            targetDeviceID: package.targetDeviceID,
+            state: state,
+            completedSteps: completed,
+            totalSteps: total,
+            messageCode: state == .completed ? nil : messageCode,
+            failureContext: state == .completed ? nil : failureContext,
+            pageID: package.pageOperation?.pageScope
+        )
+    }
+
     private func summary(
         package: AhaKeyConfigurationPackage,
         state: AhaKeyRuntimeOperationState,
@@ -371,17 +394,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         failureContext: AhaKeyRuntimeOperationFailureContext? = nil
     ) async throws -> AhaKeyRuntimeOperationSummary {
         if state.isTerminal {
-            return try AhaKeyRuntimeOperationSummary(
-                id: package.operationID,
-                targetDeviceID: package.targetDeviceID,
-                state: state,
-                completedSteps: completed,
-                totalSteps: total,
-                messageCode: state == .completed ? nil : messageCode,
-                failureContext: state == .completed ? nil : failureContext,
-                pageID: package.pageOperation?.pageScope,
-                durableOrdering: .terminal(terminalOrder: 1)
-            )
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
         }
         let ordering = try await store.transaction(package.operationID)?.durableOrdering
         guard let ordering else {
@@ -451,7 +464,7 @@ public struct AhaKeyConfigurationTransactionRunner {
     ) async throws -> AhaKeyRuntimeOperationState {
         let state: AhaKeyRuntimeOperationState = hasWrites ? .failedWithPartialCommit : .failedWithoutWrites
         try await store.commitOperationOutcome(
-            try await summary(
+            try terminalTransition(
                 package: package,
                 state: state,
                 completed: 0,

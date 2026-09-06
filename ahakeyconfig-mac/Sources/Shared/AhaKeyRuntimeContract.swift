@@ -1362,6 +1362,41 @@ public enum AhaKeyRuntimeDurableOrdering: Equatable, Sendable {
     }
 }
 
+/// 终态提交命令：不携带 projected order。真实 `terminal_order` 只由 store 分配。
+public struct AhaKeyRuntimeOperationTerminalTransition: Equatable, Sendable {
+    public let id: AhaKeyRuntimeOperationID
+    public let targetDeviceID: AhaKeyRuntimeDeviceID
+    public let state: AhaKeyRuntimeOperationState
+    public let completedSteps: UInt32
+    public let totalSteps: UInt32
+    public let messageCode: AhaKeyRuntimeEventCode?
+    public let failureContext: AhaKeyRuntimeOperationFailureContext?
+    public let pageID: AhaKeyStudioPageID?
+
+    public init(
+        id: AhaKeyRuntimeOperationID,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        state: AhaKeyRuntimeOperationState,
+        completedSteps: UInt32,
+        totalSteps: UInt32,
+        messageCode: AhaKeyRuntimeEventCode? = nil,
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil,
+        pageID: AhaKeyStudioPageID? = nil
+    ) throws {
+        guard state.isTerminal else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        self.id = id
+        self.targetDeviceID = targetDeviceID
+        self.state = state
+        self.completedSteps = completedSteps
+        self.totalSteps = totalSteps
+        self.messageCode = messageCode
+        self.failureContext = failureContext
+        self.pageID = pageID
+    }
+}
+
 public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let id: AhaKeyRuntimeOperationID
     public let targetDeviceID: AhaKeyRuntimeDeviceID

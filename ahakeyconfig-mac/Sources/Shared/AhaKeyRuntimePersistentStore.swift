@@ -228,6 +228,31 @@ public struct AhaKeyRuntimeAbandonPublicationFacts: Equatable, Sendable {
     public let mutationGeneration: UInt64
 }
 
+/// Store mutation 与 MainActor 发布共用的世代锁：bump 先于 WAL 写入，publish 在同一把锁上核世代。
+public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var generation: UInt64 = 0
+
+    public func current() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return generation
+    }
+
+    public func bump() {
+        lock.lock()
+        generation &+= 1
+        lock.unlock()
+    }
+
+    public func publishIfUnchanged<T>(_ expected: UInt64, _ body: () -> T?) -> T? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard generation == expected else { return nil }
+        return body()
+    }
+}
+
 public actor AhaKeyRuntimePersistentStore {
     public static let schemaVersion: Int32 = 7
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
@@ -257,6 +282,7 @@ public actor AhaKeyRuntimePersistentStore {
     /// 同一 persistence root 的跨 Store/跨进程 advisory 锁（flock）。init reconciliation/prune、
     /// ingest admission+install+journal、accept 转正都在该临界区内；进程崩溃由 OS 释放锁。
     private let lockFileDescriptor: Int32
+    public nonisolated let mutationFence = AhaKeyRuntimeMutationFence()
     private var mutationGeneration: UInt64 = 0
     private let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -1412,6 +1438,7 @@ public actor AhaKeyRuntimePersistentStore {
            epoch.identity.isOlder(than: fence) {
             return
         }
+        beginDurableMutation()
         let statement = try prepare(
             """
             INSERT INTO runtime_disconnect_epochs (operation_id, epoch)
@@ -1423,10 +1450,10 @@ public actor AhaKeyRuntimePersistentStore {
         try bind(operationID.rawValue.uuidString, at: 1, to: statement)
         try bind(try encoder.encode(epoch), at: 2, to: statement)
         try stepDone(statement)
-        noteDurableMutation()
     }
 
     public func clearDisconnectEpochs(succeeding identity: AhaKeyRuntimeConnectionIdentity) throws {
+        beginDurableMutation()
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
             try persistDisconnectFenceUnlocked(identity)
@@ -1440,7 +1467,6 @@ public actor AhaKeyRuntimePersistentStore {
                 try deleteDisconnectEpochUnlocked(candidate.operationID)
             }
             try Self.execute("COMMIT", on: database)
-            noteDurableMutation()
         } catch {
             try? Self.execute("ROLLBACK", on: database)
             throw error
@@ -1735,23 +1761,51 @@ public actor AhaKeyRuntimePersistentStore {
         _ summary: AhaKeyRuntimeOperationSummary,
         syncBaseline: AhaKeyRuntimeSyncBaseline?
     ) throws {
-        guard summary.state.isTerminal else {
+        try commitOperationOutcome(
+            try AhaKeyRuntimeOperationTerminalTransition(
+                id: summary.id,
+                targetDeviceID: summary.targetDeviceID,
+                state: summary.state,
+                completedSteps: summary.completedSteps,
+                totalSteps: summary.totalSteps,
+                messageCode: summary.messageCode,
+                failureContext: summary.failureContext,
+                pageID: summary.pageID
+            ),
+            syncBaseline: syncBaseline
+        )
+    }
+
+    public func commitOperationOutcome(
+        _ transition: AhaKeyRuntimeOperationTerminalTransition,
+        syncBaseline: AhaKeyRuntimeSyncBaseline?
+    ) throws {
+        guard transition.state.isTerminal else {
             throw AhaKeyRuntimePersistenceError.invalidOperationOutcome
         }
-        guard let existing = try transaction(summary.id) else {
+        guard let existing = try transaction(transition.id) else {
             throw AhaKeyRuntimePersistenceError.operationNotFound
         }
-        guard existing.package.targetDeviceID == summary.targetDeviceID else {
+        guard existing.package.targetDeviceID == transition.targetDeviceID else {
             throw AhaKeyRuntimePersistenceError.operationTargetMismatch
         }
         guard !existing.state.isTerminal else {
             throw AhaKeyRuntimePersistenceError.terminalOperationCannotChange
         }
+        let terminalOrder = try allocateTerminalOrder()
+        let summary = try AhaKeyRuntimeOperationSummary(
+            id: transition.id,
+            targetDeviceID: transition.targetDeviceID,
+            state: transition.state,
+            completedSteps: transition.completedSteps,
+            totalSteps: transition.totalSteps,
+            messageCode: transition.messageCode,
+            failureContext: transition.failureContext,
+            pageID: transition.pageID ?? existing.package.pageOperation?.pageScope,
+            durableOrdering: .terminal(terminalOrder: terminalOrder)
+        )
         try validateProgress(summary)
         try validateCompletedClearsFailure(summary)
-        if let ordering = summary.durableOrdering {
-            try ordering.requireMatching(summary.state)
-        }
         try enforceDeviceFIFO(existing, nextState: summary.state)
 
         if summary.state == .completed {
@@ -1769,7 +1823,7 @@ public actor AhaKeyRuntimePersistentStore {
 
         try Self.execute("BEGIN IMMEDIATE", on: database)
         do {
-            try updateOperationRow(summary, terminalOrder: try allocateTerminalOrder())
+            try updateOperationRow(summary, terminalOrder: terminalOrder)
             if let syncBaseline {
                 try upsertSyncBaseline(syncBaseline)
                 if existing.package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
@@ -1825,6 +1879,7 @@ public actor AhaKeyRuntimePersistentStore {
         _ summary: AhaKeyRuntimeOperationSummary,
         terminalOrder: UInt64? = nil
     ) throws {
+        beginDurableMutation()
         let statement = try prepare(
             """
             UPDATE runtime_transactions
@@ -1854,11 +1909,11 @@ public actor AhaKeyRuntimePersistentStore {
         }
         try bind(summary.id.rawValue.uuidString, at: 7, to: statement)
         try stepDone(statement)
-        noteDurableMutation()
     }
 
-    private func noteDurableMutation() {
-        mutationGeneration &+= 1
+    private func beginDurableMutation() {
+        mutationFence.bump()
+        mutationGeneration = mutationFence.current()
     }
 
     /// 单次 actor hop：队首、epoch、确认步与 baseline 同一 WAL 世代。
@@ -1888,7 +1943,7 @@ public actor AhaKeyRuntimePersistentStore {
             epoch: stored,
             confirmed: confirmed,
             baselines: baselines,
-            mutationGeneration: mutationGeneration
+            mutationGeneration: mutationFence.current()
         )
     }
 
@@ -2070,6 +2125,7 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     private func insertTransaction(_ package: AhaKeyConfigurationPackage) throws {
+        beginDurableMutation()
         let queueOrder = try allocateQueueOrder()
         let statement = try prepare(
             """
@@ -2084,7 +2140,6 @@ public actor AhaKeyRuntimePersistentStore {
         try bind(AhaKeyRuntimeOperationState.accepted.compatibleRawValue, at: 3, to: statement)
         try bind(queueOrder, at: 4, to: statement)
         try stepDone(statement)
-        noteDurableMutation()
     }
 
     private func allocateQueueOrder() throws -> UInt64 {

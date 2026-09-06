@@ -25,9 +25,19 @@ actor AhaKeyAbandonDeadlineScheduler {
     private var retryAttemptByDevice: [AhaKeyRuntimeDeviceID: Int] = [:]
     private var exhaustedDevices: Set<AhaKeyRuntimeDeviceID> = []
     private var retryWaitDevices: Set<AhaKeyRuntimeDeviceID> = []
+    private var retryGenerationByDevice: [AhaKeyRuntimeDeviceID: UInt64] = [:]
+    private var retryTasks: [AhaKeyRuntimeDeviceID: Task<Void, Never>] = [:]
 
     func pendingToken(for deviceID: AhaKeyRuntimeDeviceID) -> AhaKeyAbandonDeadlineToken? {
         pending[deviceID]
+    }
+
+    func retryWaitContains(_ deviceID: AhaKeyRuntimeDeviceID) -> Bool {
+        retryWaitDevices.contains(deviceID)
+    }
+
+    func retryTaskCount() -> Int {
+        retryTasks.count
     }
 
     func upsert(
@@ -93,6 +103,7 @@ actor AhaKeyAbandonDeadlineScheduler {
         exhaustedDevices.removeAll()
         retryAttemptByDevice.removeAll()
         retryWaitDevices.removeAll()
+        invalidateAllRetryTasks()
         startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
     }
 
@@ -106,7 +117,16 @@ actor AhaKeyAbandonDeadlineScheduler {
         retryAttemptByDevice.removeAll()
         exhaustedDevices.removeAll()
         retryWaitDevices.removeAll()
+        retryGenerationByDevice.removeAll()
+        let retries = Array(retryTasks.values)
+        retryTasks.removeAll()
+        for task in retries {
+            task.cancel()
+        }
         await wake?.value
+        for task in retries {
+            await task.value
+        }
     }
 
     func cancelWake() {
@@ -119,6 +139,24 @@ actor AhaKeyAbandonDeadlineScheduler {
         retryAttemptByDevice[deviceID] = 0
         exhaustedDevices.remove(deviceID)
         retryWaitDevices.remove(deviceID)
+        invalidateRetryTask(for: deviceID)
+    }
+
+    private func invalidateRetryTask(for deviceID: AhaKeyRuntimeDeviceID) {
+        retryGenerationByDevice[deviceID, default: 0] &+= 1
+        retryTasks[deviceID]?.cancel()
+        retryTasks[deviceID] = nil
+    }
+
+    private func invalidateAllRetryTasks() {
+        for deviceID in Set(retryTasks.keys).union(retryGenerationByDevice.keys) {
+            retryGenerationByDevice[deviceID, default: 0] &+= 1
+        }
+        let retries = Array(retryTasks.values)
+        retryTasks.removeAll()
+        for task in retries {
+            task.cancel()
+        }
     }
 
     private func startWakeIfNeeded(
@@ -221,31 +259,41 @@ actor AhaKeyAbandonDeadlineScheduler {
         if attempt >= Self.retryDelaysNanoseconds.count {
             exhaustedDevices.insert(deviceID)
             retryWaitDevices.remove(deviceID)
+            invalidateRetryTask(for: deviceID)
             return
         }
+        guard let token = pending[deviceID] else { return }
         retryAttemptByDevice[deviceID] = attempt + 1
         retryWaitDevices.insert(deviceID)
+        retryTasks[deviceID]?.cancel()
+        let generation = retryGenerationByDevice[deviceID, default: 0] &+ 1
+        retryGenerationByDevice[deviceID] = generation
         let delay = Self.retryDelaysNanoseconds[attempt]
-        Task {
+        let task = Task {
             try? await Task.sleep(nanoseconds: delay)
             await self.finishDeviceRetry(
-                deviceID,
+                token,
+                generation: generation,
                 virtualClock: virtualClock,
                 clock: clock,
                 publish: publish
             )
         }
+        retryTasks[deviceID] = task
     }
 
     private func finishDeviceRetry(
-        _ deviceID: AhaKeyRuntimeDeviceID,
+        _ token: AhaKeyAbandonDeadlineToken,
+        generation: UInt64,
         virtualClock: Bool,
         clock: @escaping @Sendable () -> Date,
         publish: @escaping @Sendable ([AhaKeyAbandonDeadlineToken]) async -> [AhaKeyAbandonDeadlineToken]
     ) async {
-        retryWaitDevices.remove(deviceID)
-        guard pending[deviceID] != nil, published[deviceID] != pending[deviceID] else { return }
-        guard !exhaustedDevices.contains(deviceID) else { return }
+        guard retryGenerationByDevice[token.deviceID] == generation else { return }
+        retryWaitDevices.remove(token.deviceID)
+        retryTasks[token.deviceID] = nil
+        guard pending[token.deviceID] == token, published[token.deviceID] != token else { return }
+        guard !exhaustedDevices.contains(token.deviceID) else { return }
         startWakeIfNeeded(virtualClock: virtualClock, clock: clock, publish: publish)
     }
 

@@ -523,6 +523,18 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
         )
     }
 
+    func testTerminalTransitionRejectsNonTerminalState() throws {
+        XCTAssertThrowsError(
+            try AhaKeyRuntimeOperationTerminalTransition(
+                id: AhaKeyRuntimeOperationID(),
+                targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+                state: .running,
+                completedSteps: 0,
+                totalSteps: 1
+            )
+        )
+    }
+
     func testDeviceSnapshotRoundTripsOLEDCompatibilityFact() throws {
         let fact = AhaKeyRuntimeOLEDCompatibilityFact(
             family: .rhinoDualSet,

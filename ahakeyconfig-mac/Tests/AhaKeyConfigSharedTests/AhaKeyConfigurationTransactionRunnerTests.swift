@@ -272,6 +272,33 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
         XCTAssertNil(terminal?.durableOrdering?.queueOrder)
     }
 
+    func testSecondTerminalOrderIsAllocatedByStoreNotPlaceholder() async throws {
+        let (first, firstFiles) = try makePackage()
+        try await store.accept(first, resourceFiles: firstFiles)
+        try await store.commitOperationOutcome(
+            try AhaKeyRuntimeOperationTerminalTransition(
+                id: first.operationID,
+                targetDeviceID: first.targetDeviceID,
+                state: .failedWithoutWrites,
+                completedSteps: 0,
+                totalSteps: 0
+            ),
+            syncBaseline: nil
+        )
+        let firstRow = try await store.transaction(first.operationID)
+        XCTAssertEqual(firstRow?.durableOrdering?.terminalOrder, 1)
+
+        let (second, secondFiles) = try makePackage()
+        try await store.accept(second, resourceFiles: secondFiles)
+        let runner = AhaKeyConfigurationTransactionRunner(store: store)
+        try await runner.requestCancel(operationID: second.operationID)
+        let settled = try await runner.settleCancellation(operationID: second.operationID)
+        XCTAssertEqual(settled, .failedWithoutWrites)
+        let secondRow = try await store.transaction(second.operationID)
+        XCTAssertEqual(secondRow?.durableOrdering?.terminalOrder, 2)
+        XCTAssertNil(secondRow?.durableOrdering?.queueOrder)
+    }
+
     func testCancelWithWritesSettlesAtStepBoundary() async throws {
         let (package, files) = try makePackage(modeCount: 2)
         let runner = AhaKeyConfigurationTransactionRunner(store: store)
