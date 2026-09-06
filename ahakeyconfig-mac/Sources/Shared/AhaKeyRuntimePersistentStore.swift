@@ -31,6 +31,8 @@ public struct AhaKeyRuntimePersistedTransaction: Equatable, Sendable {
     public let totalSteps: UInt32
     public let messageCode: AhaKeyRuntimeEventCode?
     public let failureContext: AhaKeyRuntimeOperationFailureContext?
+    /// C4R3：与 `state` 同一行读出的 WAL 顺序。缺省/旧列为 nil。
+    public let durableOrdering: AhaKeyRuntimeDurableOrdering?
 
     public init(
         operationID: AhaKeyRuntimeOperationID,
@@ -39,7 +41,8 @@ public struct AhaKeyRuntimePersistedTransaction: Equatable, Sendable {
         completedSteps: UInt32,
         totalSteps: UInt32,
         messageCode: AhaKeyRuntimeEventCode?,
-        failureContext: AhaKeyRuntimeOperationFailureContext? = nil
+        failureContext: AhaKeyRuntimeOperationFailureContext? = nil,
+        durableOrdering: AhaKeyRuntimeDurableOrdering? = nil
     ) {
         self.operationID = operationID
         self.package = package
@@ -48,6 +51,11 @@ public struct AhaKeyRuntimePersistedTransaction: Equatable, Sendable {
         self.totalSteps = totalSteps
         self.messageCode = messageCode
         self.failureContext = failureContext.flatMap { $0.isEmpty ? nil : $0 }
+        self.durableOrdering = AhaKeyRuntimeDurableOrdering.validated(
+            state: state,
+            queueOrder: durableOrdering?.queueOrder,
+            terminalOrder: durableOrdering?.terminalOrder
+        )
     }
 }
 
@@ -1666,7 +1674,8 @@ public actor AhaKeyRuntimePersistentStore {
     ) throws -> AhaKeyRuntimePersistedTransaction? {
         let statement = try prepare(
             """
-            SELECT package, state, completed_steps, total_steps, message_code, failure_context
+            SELECT package, state, completed_steps, total_steps, message_code, failure_context,
+                   queue_order, terminal_order
             FROM runtime_transactions WHERE operation_id = ?
             """
         )
@@ -1676,23 +1685,6 @@ public actor AhaKeyRuntimePersistentStore {
         if result == SQLITE_DONE { return nil }
         guard result == SQLITE_ROW else { throw databaseError() }
         return try decodeTransaction(operationID: operationID, statement: statement)
-    }
-
-    /// C4R2：只读 WAL 队列/终态序号。投影用，不改变 mint/CAS。
-    public func operationOrdering(
-        _ operationID: AhaKeyRuntimeOperationID
-    ) throws -> (queueOrder: UInt64?, terminalOrder: UInt64?) {
-        let statement = try prepare(
-            """
-            SELECT queue_order, terminal_order FROM runtime_transactions WHERE operation_id = ?
-            """
-        )
-        defer { sqlite3_finalize(statement) }
-        try bind(operationID.rawValue.uuidString, at: 1, to: statement)
-        let result = sqlite3_step(statement)
-        if result == SQLITE_DONE { return (nil, nil) }
-        guard result == SQLITE_ROW else { throw databaseError() }
-        return (optionalUInt64(statement, 0), optionalUInt64(statement, 1))
     }
 
     private func optionalUInt64(_ statement: OpaquePointer, _ column: Int32) -> UInt64? {
@@ -1845,7 +1837,8 @@ public actor AhaKeyRuntimePersistentStore {
     public func recoveryCandidates() throws -> [AhaKeyRuntimePersistedTransaction] {
         let statement = try prepare(
             """
-            SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context
+            SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context,
+                   queue_order, terminal_order
             FROM runtime_transactions ORDER BY COALESCE(queue_order, rowid), rowid
             """
         )
@@ -1906,7 +1899,8 @@ public actor AhaKeyRuntimePersistentStore {
         let bounded = max(0, limit)
         let statement = try prepare(
             """
-            SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context
+            SELECT operation_id, package, state, completed_steps, total_steps, message_code, failure_context,
+                   queue_order, terminal_order
             FROM runtime_transactions
             WHERE terminal_order IS NOT NULL
             ORDER BY terminal_order DESC
@@ -1976,7 +1970,12 @@ public actor AhaKeyRuntimePersistentStore {
             completedSteps: UInt32(completedSteps),
             totalSteps: UInt32(totalSteps),
             messageCode: messageCode,
-            failureContext: failureContext
+            failureContext: failureContext,
+            durableOrdering: AhaKeyRuntimeDurableOrdering.validated(
+                state: state,
+                queueOrder: optionalUInt64(statement, columnOffset + 6),
+                terminalOrder: optionalUInt64(statement, columnOffset + 7)
+            )
         )
     }
 

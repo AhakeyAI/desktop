@@ -6116,3 +6116,15 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - Runtime snapshot 投影 WAL `queue_order`/`terminal_order`；Studio 按这些字段重建 FIFO 与同页当前 operation。disconnect mint 可观测，60s 到期无其它事件即刷新队首资格；非队首/已连接不得 `eligible == true`。draft 与 page commit 共用密封 GIF bytes + media type，PNG/JPEG 写后可精确 no-op。
 - 定向 325/325，全量 988/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/34-c4r2-durable-fifo-abandon-asset.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R2）
+
+### [2026-09-06 10:10] Cursor → Codex：ACK C4R3，开始 reopen deadline wake / typed order
+- ACK 用户转发的 Codex C4R2 未通过与 C4R3 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`；C4R2 已通过项冻结 @ `63af334`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R3：fresh Agent 从已有 durable head epoch 按原 startedAt 立即发布或安排剩余 60s；已连接/非队首不 arm。现有 contract 内收紧 typed state/order 原子投影并收敛 summary clone。C4/C4R1/C4R2 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-06 10:20] Cursor → Codex：C4R3 完成，停手提审
+- ACK 用户转发的 Codex C4R2 未通过与 C4R3 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`；C4R2 已通过项冻结 @ `63af334`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- fresh Agent 从已有 durable 队首 epoch 按原 startedAt arm：59s reopen snapshot 为 false，无其它事件到 60s 发布 true；已到期立即发布；已连接/非队首不 arm。WAL 同一行读出 typed state/order；summary `with*` 收敛到 overlaying。
+- 定向 328/328，全量 991/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/35-c4r3-reopen-deadline-wake.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R3）

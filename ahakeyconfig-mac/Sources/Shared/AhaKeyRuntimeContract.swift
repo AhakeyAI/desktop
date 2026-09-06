@@ -1274,6 +1274,35 @@ public enum AhaKeyRuntimeAbandonDisposition: Codable, Equatable, Sendable {
     case alreadyFinished
 }
 
+/// C4R3：与 operation state 同时成立的 WAL 顺序事实。活队列只有 `queue_order`，终态只有 `terminal_order`。
+public enum AhaKeyRuntimeDurableOrdering: Equatable, Sendable {
+    case live(queueOrder: UInt64)
+    case terminal(terminalOrder: UInt64)
+
+    public var queueOrder: UInt64? {
+        if case .live(let order) = self { return order }
+        return nil
+    }
+
+    public var terminalOrder: UInt64? {
+        if case .terminal(let order) = self { return order }
+        return nil
+    }
+
+    public static func validated(
+        state: AhaKeyRuntimeOperationState,
+        queueOrder: UInt64?,
+        terminalOrder: UInt64?
+    ) -> Self? {
+        if state.isTerminal {
+            guard let terminalOrder else { return nil }
+            return .terminal(terminalOrder: terminalOrder)
+        }
+        guard let queueOrder else { return nil }
+        return .live(queueOrder: queueOrder)
+    }
+}
+
 public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let id: AhaKeyRuntimeOperationID
     public let targetDeviceID: AhaKeyRuntimeDeviceID
@@ -1297,10 +1326,12 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
     public let pageID: AhaKeyStudioPageID?
     /// C4R1：durable 真断连 abandon 资格。缺省/旧 payload 为 nil。
     public let abandonEligibility: AhaKeyRuntimeAbandonEligibility?
-    /// C4R2：WAL `queue_order`。缺省/旧 payload 为 nil；Studio 只凭此重建 FIFO。
-    public let queueOrder: UInt64?
-    /// C4R2：WAL `terminal_order`。缺省/旧 payload 为 nil；同页当前终态取最新。
-    public let terminalOrder: UInt64?
+    /// C4R3：与 `state` 一起校验的 WAL 顺序。缺省/旧 payload 为 nil。
+    public let durableOrdering: AhaKeyRuntimeDurableOrdering?
+    /// C4R2 线格式：仅活队列投影 `queue_order`。
+    public var queueOrder: UInt64? { durableOrdering?.queueOrder }
+    /// C4R2 线格式：仅终态投影 `terminal_order`。
+    public var terminalOrder: UInt64? { durableOrdering?.terminalOrder }
 
     public init(
         id: AhaKeyRuntimeOperationID,
@@ -1318,7 +1349,8 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         pageID: AhaKeyStudioPageID? = nil,
         abandonEligibility: AhaKeyRuntimeAbandonEligibility? = nil,
         queueOrder: UInt64? = nil,
-        terminalOrder: UInt64? = nil
+        terminalOrder: UInt64? = nil,
+        durableOrdering: AhaKeyRuntimeDurableOrdering? = nil
     ) {
         self.id = id
         self.targetDeviceID = targetDeviceID
@@ -1334,8 +1366,54 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         self.confirmedBaselines = confirmedBaselines
         self.pageID = pageID
         self.abandonEligibility = abandonEligibility
-        self.queueOrder = queueOrder
-        self.terminalOrder = terminalOrder
+        self.durableOrdering = AhaKeyRuntimeDurableOrdering.validated(
+            state: state,
+            queueOrder: durableOrdering?.queueOrder ?? queueOrder,
+            terminalOrder: durableOrdering?.terminalOrder ?? terminalOrder
+        )
+    }
+
+    public init(from decoder: Decoder) throws {
+        let wire = try Wire(from: decoder)
+        self.init(
+            id: wire.id,
+            targetDeviceID: wire.targetDeviceID,
+            state: wire.state,
+            completedSteps: wire.completedSteps,
+            totalSteps: wire.totalSteps,
+            messageCode: wire.messageCode,
+            completedBytes: wire.completedBytes,
+            totalBytes: wire.totalBytes,
+            currentStepID: wire.currentStepID,
+            failureContext: wire.failureContext,
+            residual: wire.residual,
+            confirmedBaselines: wire.confirmedBaselines,
+            pageID: wire.pageID,
+            abandonEligibility: wire.abandonEligibility,
+            queueOrder: wire.queueOrder,
+            terminalOrder: wire.terminalOrder
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try Wire(
+            id: id,
+            targetDeviceID: targetDeviceID,
+            state: state,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode,
+            completedBytes: completedBytes,
+            totalBytes: totalBytes,
+            currentStepID: currentStepID,
+            failureContext: failureContext,
+            residual: residual,
+            confirmedBaselines: confirmedBaselines,
+            pageID: pageID,
+            abandonEligibility: abandonEligibility,
+            queueOrder: queueOrder,
+            terminalOrder: terminalOrder
+        ).encode(to: encoder)
     }
 
     public func withByteProgress(
@@ -1343,23 +1421,10 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         totalBytes: UInt64?,
         currentStepID: AhaKeyRuntimeStepIdentifier?
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
-            id: id,
-            targetDeviceID: targetDeviceID,
-            state: state,
-            completedSteps: completedSteps,
-            totalSteps: totalSteps,
-            messageCode: messageCode,
-            completedBytes: completedBytes,
-            totalBytes: totalBytes,
-            currentStepID: currentStepID,
-            failureContext: failureContext,
-            residual: residual,
-            confirmedBaselines: confirmedBaselines,
-            pageID: pageID,
-            abandonEligibility: abandonEligibility,
-            queueOrder: queueOrder,
-            terminalOrder: terminalOrder
+        overlaying(
+            completedBytes: .some(completedBytes),
+            totalBytes: .some(totalBytes),
+            currentStepID: .some(currentStepID)
         )
     }
 
@@ -1367,23 +1432,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         residual: AhaKeyRuntimePageResidual?,
         confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
-            id: id,
-            targetDeviceID: targetDeviceID,
-            state: state,
-            completedSteps: completedSteps,
-            totalSteps: totalSteps,
-            messageCode: messageCode,
-            completedBytes: completedBytes,
-            totalBytes: totalBytes,
-            currentStepID: currentStepID,
-            failureContext: failureContext,
-            residual: residual,
-            confirmedBaselines: confirmedBaselines,
-            pageID: pageID,
-            abandonEligibility: abandonEligibility,
-            queueOrder: queueOrder,
-            terminalOrder: terminalOrder
+        overlaying(
+            residual: .some(residual),
+            confirmedBaselines: .some(confirmedBaselines)
         )
     }
 
@@ -1391,23 +1442,9 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         pageID: AhaKeyStudioPageID?,
         abandonEligibility: AhaKeyRuntimeAbandonEligibility?
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
-            id: id,
-            targetDeviceID: targetDeviceID,
-            state: state,
-            completedSteps: completedSteps,
-            totalSteps: totalSteps,
-            messageCode: messageCode,
-            completedBytes: completedBytes,
-            totalBytes: totalBytes,
-            currentStepID: currentStepID,
-            failureContext: failureContext,
-            residual: residual,
-            confirmedBaselines: confirmedBaselines,
-            pageID: pageID,
-            abandonEligibility: abandonEligibility,
-            queueOrder: queueOrder,
-            terminalOrder: terminalOrder
+        overlaying(
+            pageID: .some(pageID),
+            abandonEligibility: .some(abandonEligibility)
         )
     }
 
@@ -1415,23 +1452,14 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         queueOrder: UInt64?,
         terminalOrder: UInt64?
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
-            id: id,
-            targetDeviceID: targetDeviceID,
-            state: state,
-            completedSteps: completedSteps,
-            totalSteps: totalSteps,
-            messageCode: messageCode,
-            completedBytes: completedBytes,
-            totalBytes: totalBytes,
-            currentStepID: currentStepID,
-            failureContext: failureContext,
-            residual: residual,
-            confirmedBaselines: confirmedBaselines,
-            pageID: pageID,
-            abandonEligibility: abandonEligibility,
-            queueOrder: queueOrder,
-            terminalOrder: terminalOrder
+        overlaying(
+            durableOrdering: .some(
+                AhaKeyRuntimeDurableOrdering.validated(
+                    state: state,
+                    queueOrder: queueOrder,
+                    terminalOrder: terminalOrder
+                )
+            )
         )
     }
 
@@ -1441,24 +1469,74 @@ public struct AhaKeyRuntimeOperationSummary: Codable, Equatable, Sendable {
         totalSteps: UInt32? = nil,
         messageCode: AhaKeyRuntimeEventCode? = nil
     ) -> AhaKeyRuntimeOperationSummary {
-        AhaKeyRuntimeOperationSummary(
+        overlaying(
+            state: nextState,
+            completedSteps: completedSteps,
+            totalSteps: totalSteps,
+            messageCode: messageCode.map { .some($0) }
+        )
+    }
+
+    private func overlaying(
+        state: AhaKeyRuntimeOperationState? = nil,
+        completedSteps: UInt32? = nil,
+        totalSteps: UInt32? = nil,
+        messageCode: AhaKeyRuntimeEventCode?? = nil,
+        completedBytes: UInt64?? = nil,
+        totalBytes: UInt64?? = nil,
+        currentStepID: AhaKeyRuntimeStepIdentifier?? = nil,
+        failureContext: AhaKeyRuntimeOperationFailureContext?? = nil,
+        residual: AhaKeyRuntimePageResidual?? = nil,
+        confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?? = nil,
+        pageID: AhaKeyStudioPageID?? = nil,
+        abandonEligibility: AhaKeyRuntimeAbandonEligibility?? = nil,
+        durableOrdering: AhaKeyRuntimeDurableOrdering?? = nil
+    ) -> AhaKeyRuntimeOperationSummary {
+        return AhaKeyRuntimeOperationSummary(
             id: id,
             targetDeviceID: targetDeviceID,
-            state: nextState,
+            state: state ?? self.state,
             completedSteps: completedSteps ?? self.completedSteps,
             totalSteps: totalSteps ?? self.totalSteps,
-            messageCode: messageCode ?? self.messageCode,
-            completedBytes: completedBytes,
-            totalBytes: totalBytes,
-            currentStepID: currentStepID,
-            failureContext: failureContext,
-            residual: residual,
-            confirmedBaselines: confirmedBaselines,
-            pageID: pageID,
-            abandonEligibility: abandonEligibility,
-            queueOrder: queueOrder,
-            terminalOrder: terminalOrder
+            messageCode: Self.pick(messageCode, or: self.messageCode),
+            completedBytes: Self.pick(completedBytes, or: self.completedBytes),
+            totalBytes: Self.pick(totalBytes, or: self.totalBytes),
+            currentStepID: Self.pick(currentStepID, or: self.currentStepID),
+            failureContext: Self.pick(failureContext, or: self.failureContext),
+            residual: Self.pick(residual, or: self.residual),
+            confirmedBaselines: Self.pick(confirmedBaselines, or: self.confirmedBaselines),
+            pageID: Self.pick(pageID, or: self.pageID),
+            abandonEligibility: Self.pick(abandonEligibility, or: self.abandonEligibility),
+            durableOrdering: Self.pick(durableOrdering, or: self.durableOrdering)
         )
+    }
+
+    private static func pick<T>(_ override: T??, or current: T?) -> T? {
+        switch override {
+        case nil:
+            return current
+        case .some(let value):
+            return value
+        }
+    }
+
+    private struct Wire: Codable {
+        var id: AhaKeyRuntimeOperationID
+        var targetDeviceID: AhaKeyRuntimeDeviceID
+        var state: AhaKeyRuntimeOperationState
+        var completedSteps: UInt32
+        var totalSteps: UInt32
+        var messageCode: AhaKeyRuntimeEventCode?
+        var completedBytes: UInt64?
+        var totalBytes: UInt64?
+        var currentStepID: AhaKeyRuntimeStepIdentifier?
+        var failureContext: AhaKeyRuntimeOperationFailureContext?
+        var residual: AhaKeyRuntimePageResidual?
+        var confirmedBaselines: [AhaKeyRuntimeFieldBaseline]?
+        var pageID: AhaKeyStudioPageID?
+        var abandonEligibility: AhaKeyRuntimeAbandonEligibility?
+        var queueOrder: UInt64?
+        var terminalOrder: UInt64?
     }
 
     /// 非终态按 WAL `queue_order` 升序；缺省才退回 UUID。

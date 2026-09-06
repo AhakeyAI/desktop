@@ -382,25 +382,69 @@ final class AhaKeyRuntimeContractTests: XCTestCase {
     }
 
     func testOperationSummaryRoundTripsDurableQueueAndTerminalOrder() throws {
-        let summary = AhaKeyRuntimeOperationSummary(
+        let live = AhaKeyRuntimeOperationSummary(
             id: AhaKeyRuntimeOperationID(),
             targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
             state: .accepted,
             queueOrder: 2,
             terminalOrder: 9
         )
-        let decoded = try JSONDecoder().decode(
+        XCTAssertEqual(live.durableOrdering, .live(queueOrder: 2))
+        XCTAssertEqual(live.queueOrder, 2)
+        XCTAssertNil(live.terminalOrder)
+        let decodedLive = try JSONDecoder().decode(
             AhaKeyRuntimeOperationSummary.self,
-            from: JSONEncoder().encode(summary)
+            from: JSONEncoder().encode(live)
         )
-        XCTAssertEqual(decoded.queueOrder, 2)
-        XCTAssertEqual(decoded.terminalOrder, 9)
+        XCTAssertEqual(decodedLive.queueOrder, 2)
+        XCTAssertNil(decodedLive.terminalOrder)
+        let liveObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(live)) as! [String: Any]
+        XCTAssertNil(liveObject["durableOrdering"])
+        XCTAssertEqual((liveObject["queueOrder"] as? NSNumber)?.uint64Value, 2)
+        XCTAssertNil(liveObject["terminalOrder"])
         XCTAssertTrue(
             AhaKeyRuntimeOperationSummary.durableFIFOLessThan(
-                summary.withDurableOrder(queueOrder: 2, terminalOrder: nil),
-                summary.withDurableOrder(queueOrder: 3, terminalOrder: nil)
+                live.withDurableOrder(queueOrder: 2, terminalOrder: nil),
+                live.withDurableOrder(queueOrder: 3, terminalOrder: nil)
             )
         )
+
+        let terminal = AhaKeyRuntimeOperationSummary(
+            id: AhaKeyRuntimeOperationID(),
+            targetDeviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            state: .completed,
+            queueOrder: 2,
+            terminalOrder: 9
+        )
+        XCTAssertEqual(terminal.durableOrdering, .terminal(terminalOrder: 9))
+        XCTAssertNil(terminal.queueOrder)
+        XCTAssertEqual(terminal.terminalOrder, 9)
+        let decodedTerminal = try JSONDecoder().decode(
+            AhaKeyRuntimeOperationSummary.self,
+            from: JSONEncoder().encode(terminal)
+        )
+        XCTAssertNil(decodedTerminal.queueOrder)
+        XCTAssertEqual(decodedTerminal.terminalOrder, 9)
+
+        let contradictoryLiveJSON = Data("""
+        {"id":{"rawValue":"00000000-0000-4000-8000-000000000003"},"targetDeviceID":"TEST-DEVICE","state":"accepted","completedSteps":0,"totalSteps":0,"queueOrder":4,"terminalOrder":11}
+        """.utf8)
+        let decodedContradictoryLive = try JSONDecoder().decode(
+            AhaKeyRuntimeOperationSummary.self,
+            from: contradictoryLiveJSON
+        )
+        XCTAssertEqual(decodedContradictoryLive.durableOrdering, .live(queueOrder: 4))
+        XCTAssertNil(decodedContradictoryLive.terminalOrder)
+
+        let contradictoryTerminalJSON = Data("""
+        {"id":{"rawValue":"00000000-0000-4000-8000-000000000004"},"targetDeviceID":"TEST-DEVICE","state":"completed","completedSteps":1,"totalSteps":1,"queueOrder":4,"terminalOrder":11}
+        """.utf8)
+        let decodedContradictoryTerminal = try JSONDecoder().decode(
+            AhaKeyRuntimeOperationSummary.self,
+            from: contradictoryTerminalJSON
+        )
+        XCTAssertEqual(decodedContradictoryTerminal.durableOrdering, .terminal(terminalOrder: 11))
+        XCTAssertNil(decodedContradictoryTerminal.queueOrder)
     }
 
     func testDeviceSnapshotRoundTripsOLEDCompatibilityFact() throws {

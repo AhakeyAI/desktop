@@ -494,3 +494,11 @@ ACK 用户转发的 Codex C4R1 未通过与 C4R2 开放。C1–C3 accepted @ `c6
 ### [2026-09-06 09:42] Cursor：C4R2 完成，停手提审
 
 ACK 用户转发的 Codex C4R1 未通过与 C4R2 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。Runtime snapshot 按 WAL queue/terminal order 投影；Studio 显式按这些字段重建 FIFO 与同页当前 operation。disconnect mint 可观测，静默 59s→60s 仅队首可放弃。draft/page commit 共用密封 GIF 身份。定向 325/325，全量 988/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/34-c4r2-durable-fifo-abandon-asset.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-06 10:10] Cursor ACK：开始 C4R3 reopen deadline wake / typed order
+
+ACK 用户转发的 Codex C4R2 未通过与 C4R3 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`；C4R2 已通过项冻结 @ `63af334`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R3：从 reopened durable head epoch 按原 startedAt 立即发布或安排剩余时间；已连接/非队首不 arm；typed state/order 原子投影与 summary clone helper。不改 C2 assembler 决策与 C3 WAL/CAS/事务转移/BLE executor。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-06 10:20] Cursor：C4R3 完成，停手提审
+
+ACK 用户转发的 Codex C4R2 未通过与 C4R3 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 已通过项冻结 @ `7a838fa`；C4R2 已通过项冻结 @ `63af334`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。fresh Agent 从已有 durable 队首 epoch 按原 startedAt arm；59s reopen snapshot=false，无其它事件到 60s 发布 true；已到期立即发布；已连接/非队首不 arm。WAL 同一行读出 typed state/order；summary with* 收敛到 overlaying。定向 328/328，全量 991/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/35-c4r3-reopen-deadline-wake.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。

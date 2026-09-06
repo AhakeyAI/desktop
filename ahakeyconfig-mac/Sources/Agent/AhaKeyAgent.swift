@@ -304,6 +304,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lastFrozenDisconnectEpoch: AhaKeyRuntimeDisconnectEpoch?
     /// C4R2：60s 队首资格到期唤醒；重连或新 mint 时取消。
     private var abandonEligibilityWakeTask: Task<Void, Never>?
+    /// 已为该 epoch `startedAt` arm 或已触发；避免 reopen 后每次 snapshot 重复发布。
+    private var armedAbandonEligibilityEpochStartedAt: Date?
     /// 最近一次应用的策略（projection policy 字段来源）。
     private var currentPolicy: AhaKeyRuntimePolicy
     /// R2-2 / R3：串行执行协调器。init 内同步一次构造（非 lazy），避免双 XPC 竞态出两个 actor。
@@ -3158,7 +3160,6 @@ extension AhaKeyAgent {
         store: AhaKeyRuntimePersistentStore?
     ) async -> AhaKeyRuntimeOperationSummary {
         var summary = Self.operationSummary(from: record)
-        summary = await overlayDurableOrder(summary, store: store)
         guard let store,
               record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
               let plan = try? AhaKeyRuntimePageSemantic.executionPlan(
@@ -3215,7 +3216,7 @@ extension AhaKeyAgent {
         if let minted {
             lastFrozenDisconnectEpoch = minted
             await publishAbandonEligibilityRefresh()
-            scheduleAbandonEligibilityWake(epoch: minted)
+            armAbandonEligibilityWakeIfNeeded(epoch: minted)
         }
     }
 
@@ -3304,7 +3305,8 @@ extension AhaKeyAgent {
             totalSteps: record.totalSteps,
             messageCode: record.messageCode,
             failureContext: record.failureContext,
-            pageID: record.package.pageOperation?.pageScope
+            pageID: record.package.pageOperation?.pageScope,
+            durableOrdering: record.durableOrdering
         )
     }
 
@@ -3327,6 +3329,9 @@ extension AhaKeyAgent {
         let isHead = ((try? await store.durableDeviceQueue(record.package.targetDeviceID))?.isHead(record.operationID)) == true
         let now = await MainActor.run { self.executionTestHooks?.wallClock?() ?? Date() }
         let clockEligible = AhaKeyRuntimeAbandonEligibility.projecting(epoch: epoch, now: now).eligible
+        if !connected && isHead {
+            armAbandonEligibilityWakeIfNeeded(epoch: epoch)
+        }
         return summary.withOwnership(
             pageID: summary.pageID,
             abandonEligibility: .init(
@@ -3336,27 +3341,44 @@ extension AhaKeyAgent {
         )
     }
 
-    private func overlayDurableOrder(
-        _ summary: AhaKeyRuntimeOperationSummary,
-        store: AhaKeyRuntimePersistentStore?
-    ) async -> AhaKeyRuntimeOperationSummary {
-        guard let store,
-              let ordering = try? await store.operationOrdering(summary.id) else {
-            return summary
-        }
-        return summary.withDurableOrder(
-            queueOrder: ordering.queueOrder,
-            terminalOrder: ordering.terminalOrder
-        )
-    }
-
     private func cancelAbandonEligibilityWake() {
         abandonEligibilityWakeTask?.cancel()
         abandonEligibilityWakeTask = nil
+        armedAbandonEligibilityEpochStartedAt = nil
+    }
+
+    private func armAbandonEligibilityWakeIfNeeded(epoch: AhaKeyRuntimeDisconnectEpoch) {
+        if armedAbandonEligibilityEpochStartedAt == epoch.startedAt {
+            return
+        }
+        scheduleAbandonEligibilityWake(epoch: epoch)
+    }
+
+    private func rearmAbandonEligibilityWakeFromStore(_ store: AhaKeyRuntimePersistentStore) async {
+        let connected = await MainActor.run { self.isRuntimeConnected() }
+        guard !connected else { return }
+        guard let candidates = try? await store.recoveryCandidates() else { return }
+        var headEpochs: [AhaKeyRuntimeDisconnectEpoch] = []
+        for deviceID in Set(candidates.map(\.package.targetDeviceID)) {
+            guard let queue = try? await store.durableDeviceQueue(deviceID),
+                  let head = queue.head else { continue }
+            switch head.state {
+            case .paused, .resumablePartial:
+                break
+            default:
+                continue
+            }
+            if let epoch = try? await store.disconnectEpoch(head.operationID) {
+                headEpochs.append(epoch)
+            }
+        }
+        guard let epoch = headEpochs.min(by: { $0.startedAt < $1.startedAt }) else { return }
+        armAbandonEligibilityWakeIfNeeded(epoch: epoch)
     }
 
     private func scheduleAbandonEligibilityWake(epoch: AhaKeyRuntimeDisconnectEpoch) {
         cancelAbandonEligibilityWake()
+        armedAbandonEligibilityEpochStartedAt = epoch.startedAt
         let fireAt = epoch.startedAt.addingTimeInterval(
             AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration
         )
@@ -3740,6 +3762,7 @@ extension AhaKeyAgent {
         var revision = AhaKeyConfigurationRevision(0)
         var pageBaselines: [AhaKeyRuntimeFieldBaseline] = []
         if let store = try? await makeRuntimeStore() {
+            await rearmAbandonEligibilityWakeFromStore(store)
             // WAL 非终态事务并入投影。
             if let candidates = try? await store.recoveryCandidates() {
                 for candidate in candidates {

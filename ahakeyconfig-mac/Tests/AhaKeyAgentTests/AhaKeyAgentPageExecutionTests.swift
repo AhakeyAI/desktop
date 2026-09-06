@@ -479,6 +479,214 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testFreshAgentRearmsExistingEpochAtFiftyNineThenFlipsAtSixty() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            agent.runtimeEventsLongPollInterval = 0.12
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let head = try statusPackage(device: "TEST-DEVICE", seed: "c4r3-reopen-head")
+            let queued = try statusPackage(device: "TEST-DEVICE", seed: "c4r3-reopen-queued")
+            guard case .operationAccepted = try await client.exchange(.apply(head)) else {
+                return XCTFail("head apply")
+            }
+            await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            guard case .operationAccepted = try await client.exchange(.apply(queued)) else {
+                return XCTFail("queued apply")
+            }
+            await waitUntil(agent, head.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            await agent.closeRuntimeStoreForTesting()
+            agent.shutdown()
+
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration - 1)
+            let reopened = try await makePreparedAgent(storeDirectory: storeDir)
+            reopened.runtimeEventsLongPollInterval = 0.12
+            await reopened.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            var reopenHooks = reopened.executionTestHooks
+            reopenHooks?.wallClock = { now }
+            reopened.executionTestHooks = reopenHooks
+            let reopenClient = EndpointClient(agent: reopened)
+            try await reopenClient.handshake()
+            guard case .snapshot(let at59) = try await reopened.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("59s reopen snapshot")
+            }
+            XCTAssertEqual(
+                at59.operations.first { $0.id == head.operationID }?.abandonEligibility?.eligible,
+                false
+            )
+            XCTAssertNotEqual(
+                at59.operations.first { $0.id == queued.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            let cursor = at59.latestEventSequence
+            now = now.addingTimeInterval(1)
+            var due = reopened.executionTestHooks
+            due?.wallClock = { now }
+            reopened.executionTestHooks = due
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .snapshot(let at60Snapshot) = try await reopened.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("60s reopen snapshot")
+            }
+            XCTAssertEqual(
+                at60Snapshot.operations.first { $0.id == head.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            XCTAssertNotEqual(
+                at60Snapshot.operations.first { $0.id == queued.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            guard case .eventReplay(let at60Replay) = try await reopened.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let at60) = at60Replay else {
+                return XCTFail("60s reopen events")
+            }
+            let eligibleHead = at60.compactMap { event -> Bool? in
+                guard case .operationChanged(let summary) = event.payload,
+                      summary.id == head.operationID else { return nil }
+                return summary.abandonEligibility?.eligible
+            }
+            XCTAssertEqual(eligibleHead.last, true)
+            let queuedEligible = at60.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == queued.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(queuedEligible)
+            await reopened.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testFreshAgentAlreadyDueEpochPublishesWithoutNewMint() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r3-due-reopen")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            await agent.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            await agent.closeRuntimeStoreForTesting()
+            agent.shutdown()
+
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration)
+            let reopened = try await makePreparedAgent(storeDirectory: storeDir)
+            await reopened.simulateDeviceForTesting(
+                simulatedDevice(protocolState: .disconnected, bluetoothConnected: false)
+            )
+            var reopenHooks = reopened.executionTestHooks
+            reopenHooks?.wallClock = { now }
+            reopened.executionTestHooks = reopenHooks
+            let reopenClient = EndpointClient(agent: reopened)
+            try await reopenClient.handshake()
+            guard case .snapshot(let snapshot) = try await reopened.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("due snapshot")
+            }
+            XCTAssertEqual(
+                snapshot.operations.first { $0.id == package.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .eventReplay(let replay) = try await reopened.handleRuntimeXPCRequest(
+                .events(after: snapshot.latestEventSequence)
+            ),
+            case .events(let events) = replay else {
+                return XCTFail("due events")
+            }
+            let published = events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertTrue(published)
+            await reopened.closeRuntimeStoreForTesting()
+        }
+    }
+
+    func testFreshAgentConnectedDoesNotArmExistingEpoch() {
+        runTest { [self] in
+            var now = Date(timeIntervalSince1970: 1_700_000_000)
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.wallClock = { now }
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "c4r3-connected-reopen")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            await agent.noteProductionDisconnectForTesting()
+            await agent.closeRuntimeStoreForTesting()
+            agent.shutdown()
+
+            now = now.addingTimeInterval(AhaKeyRuntimeAbandonPolicy.requiredDisconnectedDuration - 1)
+            let reopened = try await makePreparedAgent(storeDirectory: storeDir)
+            await reopened.simulateDeviceForTesting(simulatedDevice())
+            var reopenHooks = reopened.executionTestHooks
+            reopenHooks?.wallClock = { now }
+            reopened.executionTestHooks = reopenHooks
+            let reopenClient = EndpointClient(agent: reopened)
+            try await reopenClient.handshake()
+            guard case .snapshot(let at59) = try await reopened.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("connected snapshot")
+            }
+            XCTAssertNotEqual(
+                at59.operations.first { $0.id == package.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            let cursor = at59.latestEventSequence
+            now = now.addingTimeInterval(1)
+            var due = reopened.executionTestHooks
+            due?.wallClock = { now }
+            reopened.executionTestHooks = due
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard case .snapshot(let at60) = try await reopened.handleRuntimeXPCRequest(.snapshot) else {
+                return XCTFail("connected 60s snapshot")
+            }
+            XCTAssertNotEqual(
+                at60.operations.first { $0.id == package.operationID }?.abandonEligibility?.eligible,
+                true
+            )
+            guard case .eventReplay(let replay) = try await reopened.handleRuntimeXPCRequest(
+                .events(after: cursor)
+            ),
+            case .events(let events) = replay else {
+                return XCTFail("connected events")
+            }
+            let published = events.contains { event in
+                guard case .operationChanged(let summary) = event.payload else { return false }
+                return summary.id == package.operationID && summary.abandonEligibility?.eligible == true
+            }
+            XCTAssertFalse(published)
+            await reopened.closeRuntimeStoreForTesting()
+        }
+    }
+
     func testFreshReopenDisconnectBeforeReadyMintsNewEpoch() {
         runTest { [self] in
             var now = Date(timeIntervalSince1970: 1_700_000_000)
