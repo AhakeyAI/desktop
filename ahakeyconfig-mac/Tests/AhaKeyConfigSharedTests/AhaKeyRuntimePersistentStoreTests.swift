@@ -2459,12 +2459,43 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertEqual(orders, [1, 2])
     }
 
-    func testTruncatedGenerationFileFailsClosedAndRootRemainsUsable() async throws {
+    func testNewLockfileInitializesVersionedZeroGeneration() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        XCTAssertEqual(try store.mutationFence.current(), 0)
+        let lockURL = root.appendingPathComponent(".runtime-store.lock")
+        let record = try Data(contentsOf: lockURL)
+        XCTAssertEqual(record.count, 16)
+        XCTAssertEqual(Array(record.prefix(4)), [0x41, 0x4B, 0x47, 0x31])
+        await store.close()
+        do {
+            _ = try await store.health()
+            XCTFail("close 后 health 必须拒绝")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("runtime store is closed"), message)
+        }
+        do {
+            _ = try store.mutationFence.current()
+            XCTFail("最后一条 lease close 后 fence 必须拒绝")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("mutation fence is closed"), message)
+        }
+    }
+
+    func testTruncatedGenerationFileFailsClosedAndDoesNotRollBackToZero() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let package = try makePageScopedPackage(statusLine: "truncated-gen")
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         _ = try await store.accept(package, resourceFiles: [:])
+        XCTAssertGreaterThan(try store.mutationFence.current(), 0)
         let lockURL = root.appendingPathComponent(".runtime-store.lock")
         try Data([0x01, 0x02, 0x03]).write(to: lockURL)
         do {
@@ -2474,16 +2505,28 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             guard case .databaseFailure(let message) = error else {
                 return XCTFail("unexpected \(error)")
             }
-            XCTAssertTrue(message.contains("mutation generation read failed"), message)
+            XCTAssertTrue(
+                message.contains("mutation generation read failed")
+                    || message.contains("mutation generation record is corrupt"),
+                message
+            )
         }
         try Data().write(to: lockURL)
-        XCTAssertEqual(try store.mutationFence.current(), 0)
-        let health = try await store.health()
-        XCTAssertEqual(health.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
+        do {
+            _ = try store.mutationFence.current()
+            XCTFail("事后空 generation 文件不得降为 0")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("mutation generation record is empty"), message)
+        }
+        XCTAssertNil(store.mutationFence.publishIfUnchanged(0) { true })
         _ = try await store.transaction(package.operationID)
+        await store.close()
     }
 
-    func testGenerationReadHookAndUnlockFailureLeaveFenceUsable() async throws {
+    func testGenerationReadHookLeavesFenceUsable() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
@@ -2499,9 +2542,16 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         }
         store.mutationFence.testingHooks = .init()
         XCTAssertEqual(try store.mutationFence.current(), 0)
-        store.mutationFence.testingHooks = .init(unlockShouldFail: true)
+        await store.close()
+    }
+
+    func testUnlockFailureQuarantinesFenceAndAllowsNewStore() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let poisoned = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        poisoned.mutationFence.testingHooks = .init(unlockShouldFail: true)
         do {
-            _ = try store.mutationFence.current()
+            _ = try poisoned.mutationFence.current()
             XCTFail("LOCK_UN 故障必须抛出")
         } catch let error as AhaKeyRuntimePersistenceError {
             guard case .databaseFailure(let message) = error else {
@@ -2509,22 +2559,47 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             }
             XCTAssertTrue(message.contains("flock LOCK_UN failed"), message)
         }
-        XCTAssertEqual(try store.mutationFence.current(), 0)
-        let health = try await store.health()
+        do {
+            _ = try poisoned.mutationFence.current()
+            XCTFail("quarantine 后不得复用 fence")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("mutation fence is quarantined"), message)
+        }
+        let replacement = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        XCTAssertFalse(poisoned.mutationFence === replacement.mutationFence)
+        XCTAssertEqual(try replacement.mutationFence.current(), 0)
+        let health = try await replacement.health()
         XCTAssertEqual(health.journalMode, "wal")
+        await poisoned.close()
+        await replacement.close()
     }
 
     func testRootDeleteRecreateDoesNotLockStaleInode() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let storeA = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        _ = try await storeA.health()
+        let lockA = root.appendingPathComponent(".runtime-store.lock")
+        try storeA.mutationFence.withExclusiveAccess {
+            XCTAssertEqual(Self.probeFlock(lockA.path), "BLOCKED")
+        }
+
         try FileManager.default.removeItem(at: root)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let storeC = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         XCTAssertFalse(storeA.mutationFence === storeB.mutationFence)
         XCTAssertTrue(storeB.mutationFence === storeC.mutationFence)
+        let lockB = root.appendingPathComponent(".runtime-store.lock")
+
+        try storeA.mutationFence.withExclusiveAccess {
+            XCTAssertEqual(Self.probeFlock(lockB.path), "GOT_LOCK", "旧 inode 不得锁新 lockfile")
+        }
+        try storeB.mutationFence.withExclusiveAccess {
+            XCTAssertEqual(Self.probeFlock(lockB.path), "BLOCKED", "新 root 必须跨进程互斥")
+        }
         _ = try await storeB.health()
         _ = try await storeC.health()
         await storeA.close()
@@ -3335,6 +3410,46 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("AhaKeyRuntimePersistentStoreTests-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    @discardableResult
+    private static func probeFlock(_ path: String) -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = [
+            "-c",
+            """
+            import ctypes, os, sys
+            libc = ctypes.CDLL(None)
+            libc.flock.argtypes = [ctypes.c_int, ctypes.c_int]
+            libc.flock.restype = ctypes.c_int
+            LOCK_EX, LOCK_NB = 2, 4
+            fd = os.open(sys.argv[1], os.O_RDWR)
+            rc = libc.flock(fd, LOCK_EX | LOCK_NB)
+            sys.stdout.write("GOT_LOCK" if rc == 0 else "BLOCKED")
+            sys.stdout.flush()
+            """,
+            path,
+        ]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            let finished = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                process.waitUntilExit()
+                finished.signal()
+            }
+            if finished.wait(timeout: .now() + 3) == .timedOut {
+                process.terminate()
+                return "TIMEOUT"
+            }
+        } catch {
+            return "SPAWN_FAILED"
+        }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8) ?? "NO_OUTPUT"
     }
 
     private func seedV3Transactions(

@@ -2043,6 +2043,32 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         }
     }
 
+    func testCacheClearDetachesBeforeCloseSoReentryGetsNewStore() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent()
+            let old = try await agent.runtimeStoreForTesting()
+            let gate = DispatchSemaphore(value: 0)
+            let resume = DispatchSemaphore(value: 0)
+            await old.setTestingHooks(
+                AhaKeyRuntimeStoreTestingHooks(closeWillStart: {
+                    gate.signal()
+                    resume.wait()
+                })
+            )
+            let closeTask = Task {
+                await agent.closeRuntimeStoreForTesting()
+            }
+            gate.wait()
+            let reopened = try await agent.runtimeStoreForTesting()
+            XCTAssertFalse(reopened === old)
+            let health = try await reopened.health()
+            XCTAssertEqual(health.journalMode, "wal")
+            resume.signal()
+            await closeTask.value
+            await agent.closeRuntimeStoreForTesting()
+        }
+    }
+
     func testFreshReopenConnectedWithoutLeaseRefusesOldEpochAbandon() {
         runTest { [self] in
             var now = Date(timeIntervalSince1970: 1_700_000_000)

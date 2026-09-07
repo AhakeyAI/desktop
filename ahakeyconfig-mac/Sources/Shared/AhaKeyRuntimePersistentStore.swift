@@ -188,15 +188,19 @@ struct AhaKeyRuntimeStoreTestingHooks {
     /// ingest：阶段 1 临时文件全部写完、进入 flock 临界区之前调用（锁外）。
     /// 用于并发测试在「双方都已生成 .staging-* 临时文件」处对齐 barrier，再放行抢锁。
     var ingestAfterPhase1Staging: (() -> Void)?
+    /// close：sqlite/lease 清理之前同步调用，供 cache 重入测试卡住窗口。
+    var closeWillStart: (() -> Void)?
 
     init(
         ingestBeforeJournalCommit: (() -> Void)? = nil,
         acceptBeforeCommit: (() -> Void)? = nil,
-        ingestAfterPhase1Staging: (() -> Void)? = nil
+        ingestAfterPhase1Staging: (() -> Void)? = nil,
+        closeWillStart: (() -> Void)? = nil
     ) {
         self.ingestBeforeJournalCommit = ingestBeforeJournalCommit
         self.acceptBeforeCommit = acceptBeforeCommit
         self.ingestAfterPhase1Staging = ingestAfterPhase1Staging
+        self.closeWillStart = closeWillStart
     }
 }
 
@@ -231,11 +235,17 @@ public struct AhaKeyRuntimeAbandonPublicationFacts: Equatable, Sendable {
 /// Persistence-root 共享的 mutation fence：世代写在跨 Store flock 锁文件上。
 /// bump 先于 WAL 写入；publish 在同一把独占锁上重读世代后再发布。
 /// 每个 Store 持有一条 lease；最后一条 lease 关闭 dup FD 并从 registry 退出。
+/// flock 只打在 fence 持有的 dup 上；Store 在 shared() 成功后关掉自己的原始 FD，
+/// 使 poison/close 足以释放 OS lock。
 public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
     private struct LockFileIdentity: Equatable {
         let device: Int64
         let inode: UInt64
     }
+
+    private static let recordMagic: [UInt8] = [0x41, 0x4B, 0x47, 0x31]
+    private static let recordVersion: UInt32 = 1
+    private static let recordByteCount = 16
 
     private static let registryLock = NSLock()
     private static var fences: [String: AhaKeyRuntimeMutationFence] = [:]
@@ -247,6 +257,8 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
     private let rootPath: String
     private var retainCount = 0
     private var descriptorClosed = false
+    private var isPoisoned = false
+    private var initializeIfEmpty = false
     private var depth = 0
     private var generation: UInt64 = 0
     private var hooks = AhaKeyRuntimeMutationFenceTestingHooks()
@@ -266,12 +278,13 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
 
     public static func shared(
         for rootDirectory: URL,
-        lockFileDescriptor: Int32
+        lockFileDescriptor: Int32,
+        initializeIfEmpty: Bool
     ) throws -> AhaKeyRuntimeMutationFence {
         let key = rootDirectory.standardizedFileURL.resolvingSymlinksInPath().path
         let identity = try lockIdentity(of: lockFileDescriptor)
         registryLock.lock()
-        if let existing = fences[key], existing.identity == identity {
+        if let existing = fences[key], existing.identity == identity, !existing.isPoisoned {
             existing.retainCount += 1
             registryLock.unlock()
             return existing
@@ -292,10 +305,11 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
         let fence = AhaKeyRuntimeMutationFence(
             lockFileDescriptor: duplicated,
             identity: identity,
-            rootPath: key
+            rootPath: key,
+            initializeIfEmpty: initializeIfEmpty
         )
         registryLock.lock()
-        if let raced = fences[key], raced.identity == identity {
+        if let raced = fences[key], raced.identity == identity, !raced.isPoisoned {
             raced.retainCount += 1
             registryLock.unlock()
             Darwin.close(duplicated)
@@ -310,11 +324,13 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
     private init(
         lockFileDescriptor: Int32,
         identity: LockFileIdentity,
-        rootPath: String
+        rootPath: String,
+        initializeIfEmpty: Bool
     ) {
         self.lockFileDescriptor = lockFileDescriptor
         self.identity = identity
         self.rootPath = rootPath
+        self.initializeIfEmpty = initializeIfEmpty
     }
 
     public func current() throws -> UInt64 {
@@ -341,6 +357,12 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
 
     public func withExclusiveAccess<T>(_ body: () throws -> T) throws -> T {
         recursive.lock()
+        if descriptorClosed || isPoisoned {
+            recursive.unlock()
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                isPoisoned ? "mutation fence is quarantined" : "mutation fence is closed"
+            )
+        }
         var holdsFileLock = false
         var entered = false
         var result: T?
@@ -366,11 +388,16 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
             depth -= 1
         }
         if holdsFileLock && depth == 0 {
-            let forceUnlockFailure = consumeUnlockFailureHook()
-            let unlocked = flock(lockFileDescriptor, LOCK_UN) == 0
-            if forceUnlockFailure || !unlocked {
+            if consumeUnlockFailureHook() {
+                poisonAndReleaseLock()
                 cleanupError = AhaKeyRuntimePersistenceError.databaseFailure(
-                    "flock LOCK_UN failed: errno=\(errno)"
+                    "flock LOCK_UN failed: injected"
+                )
+            } else if !Self.unlockIgnoringInterrupt(lockFileDescriptor) {
+                let unlockErrno = errno
+                poisonAndReleaseLock()
+                cleanupError = AhaKeyRuntimePersistenceError.databaseFailure(
+                    "flock LOCK_UN failed: errno=\(unlockErrno)"
                 )
             }
         }
@@ -397,6 +424,17 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
         }
     }
 
+    private func poisonAndReleaseLock() {
+        depth = 0
+        Self.registryLock.lock()
+        isPoisoned = true
+        if Self.fences[rootPath] === self {
+            Self.fences[rootPath] = nil
+        }
+        Self.registryLock.unlock()
+        closeDescriptor()
+    }
+
     private func closeDescriptor() {
         recursive.lock()
         defer { recursive.unlock() }
@@ -415,6 +453,18 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
         return LockFileIdentity(device: Int64(info.st_dev), inode: UInt64(info.st_ino))
     }
 
+    private static func unlockIgnoringInterrupt(_ fd: Int32) -> Bool {
+        while true {
+            if flock(fd, LOCK_UN) == 0 {
+                return true
+            }
+            if errno == EINTR {
+                continue
+            }
+            return false
+        }
+    }
+
     private func consumeUnlockFailureHook() -> Bool {
         hookLock.lock()
         defer { hookLock.unlock() }
@@ -427,28 +477,68 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
         if testingHooks.generationReadShouldFail {
             throw AhaKeyRuntimePersistenceError.databaseFailure("mutation generation read failed")
         }
-        var value: UInt64 = 0
-        let read = withUnsafeMutableBytes(of: &value) { buffer in
-            pread(lockFileDescriptor, buffer.baseAddress, 8, 0)
+        var bytes = [UInt8](repeating: 0, count: Self.recordByteCount)
+        let read = bytes.withUnsafeMutableBytes { buffer in
+            pread(lockFileDescriptor, buffer.baseAddress, Self.recordByteCount, 0)
         }
         if read == 0 {
+            guard initializeIfEmpty else {
+                throw AhaKeyRuntimePersistenceError.databaseFailure(
+                    "mutation generation record is empty"
+                )
+            }
+            initializeIfEmpty = false
             generation = 0
+            try persistGeneration()
             return
         }
-        guard read == 8 else {
+        initializeIfEmpty = false
+        guard read == Self.recordByteCount else {
             throw AhaKeyRuntimePersistenceError.databaseFailure(
                 "mutation generation read failed: errno=\(errno)"
             )
         }
-        generation = UInt64(littleEndian: value)
+        guard Array(bytes[0..<4]) == Self.recordMagic else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "mutation generation record is corrupt"
+            )
+        }
+        let version = UInt32(bytes[4])
+            | UInt32(bytes[5]) << 8
+            | UInt32(bytes[6]) << 16
+            | UInt32(bytes[7]) << 24
+        guard version == Self.recordVersion else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "mutation generation record version \(version) is unsupported"
+            )
+        }
+        generation = UInt64(bytes[8])
+            | UInt64(bytes[9]) << 8
+            | UInt64(bytes[10]) << 16
+            | UInt64(bytes[11]) << 24
+            | UInt64(bytes[12]) << 32
+            | UInt64(bytes[13]) << 40
+            | UInt64(bytes[14]) << 48
+            | UInt64(bytes[15]) << 56
     }
 
     private func persistGeneration() throws {
-        var value = generation.littleEndian
-        let written = withUnsafeBytes(of: &value) { buffer in
-            pwrite(lockFileDescriptor, buffer.baseAddress, 8, 0)
+        var bytes = [UInt8](repeating: 0, count: Self.recordByteCount)
+        bytes.replaceSubrange(0..<4, with: Self.recordMagic)
+        let version = Self.recordVersion
+        bytes[4] = UInt8(truncatingIfNeeded: version)
+        bytes[5] = UInt8(truncatingIfNeeded: version >> 8)
+        bytes[6] = UInt8(truncatingIfNeeded: version >> 16)
+        bytes[7] = UInt8(truncatingIfNeeded: version >> 24)
+        var value = generation
+        for index in 0..<8 {
+            bytes[8 + index] = UInt8(truncatingIfNeeded: value)
+            value >>= 8
         }
-        guard written == 8 else {
+        let written = bytes.withUnsafeBytes { buffer in
+            pwrite(lockFileDescriptor, buffer.baseAddress, Self.recordByteCount, 0)
+        }
+        guard written == Self.recordByteCount else {
             throw AhaKeyRuntimePersistenceError.databaseFailure(
                 "mutation generation persist failed: errno=\(errno)"
             )
@@ -492,9 +582,8 @@ public actor AhaKeyRuntimePersistentStore {
     private let resourcesDirectory: URL
     private let quota: AhaKeyRuntimeResourceQuota
     private let acceptanceValidator: any AhaKeyRuntimePackageAcceptanceValidator
-    /// 同一 persistence root 的跨 Store/跨进程 advisory 锁（flock）。init reconciliation/prune、
-    /// ingest admission+install+journal、accept 转正都在该临界区内；进程崩溃由 OS 释放锁。
-    private let lockFileDescriptor: Int32
+    /// 同一 persistence root 的跨 Store/跨进程 advisory 锁（flock）由 fence 持有的 dup FD 承担。
+    /// Store 在 shared() 成功后关闭原始 lock FD，使 poison/close 足以释放 OS lock。
     public nonisolated let mutationFence: AhaKeyRuntimeMutationFence
     private var mutationGeneration: UInt64 = 0
     private let closeBox: CloseBox
@@ -507,19 +596,22 @@ public actor AhaKeyRuntimePersistentStore {
 
     private final class CloseBox: @unchecked Sendable {
         let database: OpaquePointer
-        let lockFileDescriptor: Int32
         let mutationFence: AhaKeyRuntimeMutationFence
         private let lock = NSLock()
         private var isClosed = false
 
         init(
             database: OpaquePointer,
-            lockFileDescriptor: Int32,
             mutationFence: AhaKeyRuntimeMutationFence
         ) {
             self.database = database
-            self.lockFileDescriptor = lockFileDescriptor
             self.mutationFence = mutationFence
+        }
+
+        var hasClosed: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return isClosed
         }
 
         func closeIfNeeded() {
@@ -531,7 +623,6 @@ public actor AhaKeyRuntimePersistentStore {
                 sqlite3_close_v2(database)
             }
             mutationFence.releaseLease()
-            Darwin.close(lockFileDescriptor)
         }
     }
 
@@ -559,11 +650,11 @@ public actor AhaKeyRuntimePersistentStore {
         let databaseURL = rootDirectory.appendingPathComponent("runtime.sqlite3", isDirectory: false)
         // 先拿锁文件：init 的 reconciliation/prune 必须与其他 Store 的 ingest/accept 互斥。
         let lockURL = rootDirectory.appendingPathComponent(".runtime-store.lock", isDirectory: false)
+        let lockExisted = FileManager.default.fileExists(atPath: lockURL.path)
         let lockFD = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
         guard lockFD >= 0 else {
             throw AhaKeyRuntimePersistenceError.databaseFailure("cannot open store lock file: errno=\(errno)")
         }
-        lockFileDescriptor = lockFD
         var handle: OpaquePointer?
         let openResult = sqlite3_open_v2(
             databaseURL.path,
@@ -584,11 +675,12 @@ public actor AhaKeyRuntimePersistentStore {
         do {
             self.mutationFence = try AhaKeyRuntimeMutationFence.shared(
                 for: rootDirectory,
-                lockFileDescriptor: lockFD
+                lockFileDescriptor: lockFD,
+                initializeIfEmpty: !lockExisted
             )
+            Darwin.close(lockFD)
             self.closeBox = CloseBox(
                 database: handle,
-                lockFileDescriptor: lockFD,
                 mutationFence: self.mutationFence
             )
         } catch {
@@ -837,6 +929,7 @@ public actor AhaKeyRuntimePersistentStore {
 
     /// 显式关闭 WAL 连接与 fence lease，避免仅依赖 deinit 与下一 Store 抢 SQLITE_BUSY。
     public func close() {
+        testingHooks.closeWillStart?()
         closeBox.closeIfNeeded()
     }
 
@@ -844,7 +937,14 @@ public actor AhaKeyRuntimePersistentStore {
         closeBox.closeIfNeeded()
     }
 
+    private func ensureOpen() throws {
+        guard !closeBox.hasClosed else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure("runtime store is closed")
+        }
+    }
+
     public func health() throws -> AhaKeyRuntimePersistenceHealth {
+        try ensureOpen()
         let journalMode = try scalarText("PRAGMA journal_mode")
         let schema = try scalarInt32("PRAGMA user_version")
         return .init(schemaVersion: schema, journalMode: journalMode.lowercased())
@@ -855,6 +955,7 @@ public actor AhaKeyRuntimePersistentStore {
         _ package: AhaKeyConfigurationPackage,
         resourceFiles: [AhaKeyResourceIdentifier: URL]
     ) throws -> AhaKeyRuntimeOperationID {
+        try ensureOpen()
         // 整个 accept（含命中已有事务的早退校验）都在资源临界区内：与 init/ingest 互斥。
         return try mutationFence.withExclusiveAccess {
         if let existing = try transaction(package.operationID) {
@@ -1005,6 +1106,7 @@ public actor AhaKeyRuntimePersistentStore {
     /// 将资源数据写入 CAS（managed storage），不创建事务。
     /// 用于 XPC 预上传：Studio 先 ingest，再发 apply。
     public func ingestResources(_ items: [AhaKeyXPCResourceIngestionItem]) throws {
+        try ensureOpen()
         for item in items {
             guard item.byteCount <= quota.maxSingleResourceBytes else {
                 throw AhaKeyRuntimePersistenceError.resourceTooLarge(
@@ -2902,6 +3004,7 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     private func prepare(_ sql: String) throws -> OpaquePointer {
+        try ensureOpen()
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
               let statement else {

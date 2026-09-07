@@ -558,3 +558,11 @@ ACK 用户转发的 Codex C4R9 未通过与 C4R10 开放。C1–C3 accepted @ `c
 ### [2026-09-07 10:28] Cursor：C4R10 完成，停手提审
 
 ACK 用户转发的 Codex C4R9 未通过与 C4R10 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。fence 对称 cleanup；`current()` fail-closed；registry lease/inode/FD；Store/Agent 显式 close。定向连续 5 轮 358/358，全量 1021/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/42-c4r10-fence-error-path-lifecycle.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
+
+### [2026-09-07 10:44] Cursor ACK：开始 C4R11 initialized generation / unlock quarantine / close ownership
+
+ACK 用户转发的 Codex C4R10 未通过与 C4R11 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`；C4R10 已通过项冻结 @ `b514f1f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未改 queue/status。未伪造 Relay review_decision。仅执行 C4R11：初始化 generation 记录；unlock poison/evict；cache detach-before-await；close 后 fail-closed；跨进程 root-recreate。不改 C2 assembler 决策与 C3 WAL/CAS/事务转移/BLE executor（仅锁/关闭所有权收口）。C5/HIL/打包/签名/安装/刷机/push 仍关闭。完成后停手提审，不自动进 C5。
+
+### [2026-09-07 11:21] Cursor：C4R11 完成，停手提审
+
+ACK 用户转发的 Codex C4R10 未通过与 C4R11 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`；C4R10 已通过项冻结 @ `b514f1f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。新 lockfile 写入 `AKG1` generation 记录；既有空/截断 fail-closed。`LOCK_UN` EINTR 重试，其他失败 poison/evict/关闭 fence FD。cache 先摘 cached 再 await close。Store/fence close 后入口拒绝。root 重建跨进程 `flock` 互斥。定向连续 5 轮 361/361，全量 1024/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/43-c4r11-initialized-generation-unlock-quarantine.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
