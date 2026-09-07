@@ -31,8 +31,8 @@ Signature=adhoc
 TeamIdentifier=not set
 
 ===== sqlite pictures (read-only) =====
-runtime_confirmed_steps        runtime_staged_resources     
-runtime_disconnect_epochs      runtime_sync_baselines       
+runtime_confirmed_steps        runtime_staged_resources
+runtime_disconnect_epochs      runtime_sync_baselines
 runtime_metadata               runtime_transaction_resources
-runtime_page_field_baselines   runtime_transactions         
-runtime_resources            
+runtime_page_field_baselines   runtime_transactions
+runtime_resources
