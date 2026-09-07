@@ -208,7 +208,8 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             preferredTransport: .bluetooth,
             usbAttached: false,
             bluetoothConnected: true,
-            capabilities: [AhaKeyOLEDWritePreflight.routingCapability]
+            capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
+            oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
         )
         return AhaKeyRuntimeSnapshot(
             lifecycleState: .running,
@@ -238,8 +239,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             clientBuildID: "test",
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
-            resourceLoader: loader,
-            allowsPictureResources: true
+            resourceLoader: loader
         )
         await facade.installSnapshotForTesting(routingSnapshot())
         _ = try await facade.apply(
@@ -295,8 +295,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
                 transport: transport,
                 clientBuildID: "test",
                 reconnectBackoffBase: 0,
-                idlePollInterval: 0,
-                allowsPictureResources: true
+                idlePollInterval: 0
             )
             await facade.installSnapshotForTesting(routingSnapshot())
             _ = try await facade.apply(
@@ -334,8 +333,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
             resourceLoader: loader,
-            imageNormalizer: normalizer,
-            allowsPictureResources: true
+            imageNormalizer: normalizer
         )
         await facade.installSnapshotForTesting(routingSnapshot())
         _ = try await facade.apply(
@@ -364,8 +362,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0,
-            allowsPictureResources: true
+            idlePollInterval: 0
         )
         do {
             await facade.installSnapshotForTesting(routingSnapshot())
@@ -390,8 +387,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0,
-            allowsPictureResources: true
+            idlePollInterval: 0
         )
         do {
             await facade.installSnapshotForTesting(routingSnapshot())
@@ -422,8 +418,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0,
-            allowsPictureResources: true
+            idlePollInterval: 0
         )
         do {
             await facade.installSnapshotForTesting(routingSnapshot())
@@ -466,8 +461,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0,
-            allowsPictureResources: true
+            idlePollInterval: 0
         )
         await facade.installSnapshotForTesting(routingSnapshot())
         _ = try await facade.apply(
@@ -488,8 +482,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: failTransport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0,
-            allowsPictureResources: true
+            idlePollInterval: 0
         )
         do {
             await failFacade.installSnapshotForTesting(routingSnapshot())
@@ -520,8 +513,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: okTransport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0,
-            allowsPictureResources: true
+            idlePollInterval: 0
         )
         await okFacade.installSnapshotForTesting(routingSnapshot())
         _ = try await okFacade.apply(
@@ -543,8 +535,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             clientBuildID: "test",
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
-            resourceLoader: ThrowingLoader(),
-            allowsPictureResources: true
+            resourceLoader: ThrowingLoader()
         )
         do {
             await failFacade.installSnapshotForTesting(routingSnapshot())
@@ -632,8 +623,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             clientBuildID: "test",
             reconnectBackoffBase: 0,
             idlePollInterval: 0,
-            imageNormalizer: gate,
-            allowsPictureResources: true
+            imageNormalizer: gate
         )
         let cancelBefore = normalizedTempGIFPaths()
         let applyTask = Task {
@@ -702,8 +692,7 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             transport: transport,
             clientBuildID: "test",
             reconnectBackoffBase: 0,
-            idlePollInterval: 0,
-            allowsPictureResources: true
+            idlePollInterval: 0
         )
         await facade.installSnapshotForTesting(routingSnapshot())
         return facade

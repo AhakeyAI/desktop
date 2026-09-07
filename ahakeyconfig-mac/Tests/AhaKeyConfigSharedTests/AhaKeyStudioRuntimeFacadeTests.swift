@@ -182,6 +182,13 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         )
     }
 
+    private func sealedRhinoSnapshot(deviceID: String = "DEVICE-1") -> AhaKeyRuntimeSnapshot {
+        routingSnapshot(
+            deviceID: deviceID,
+            oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+        )
+    }
+
     private func waitUntil(
         timeout: TimeInterval = 5,
         _ predicate: @escaping @Sendable () async -> Bool
@@ -432,11 +439,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
-        await facade.installSnapshotForTesting(routingSnapshot())
+        await facade.installSnapshotForTesting(sealedRhinoSnapshot())
         let operationID = try await facade.apply(
             modes: [applyModeInput()],
             scope: .init(modeSlot: 0),
@@ -474,11 +480,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         transport.ingestResponse = .failure(try AhaKeyRuntimeEventCode("resource.quota"))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
-            await facade.installSnapshotForTesting(routingSnapshot())
+            await facade.installSnapshotForTesting(sealedRhinoSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -499,11 +504,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         transport.applyResponse = .failure(try AhaKeyRuntimeEventCode("device.busy"))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
-            await facade.installSnapshotForTesting(routingSnapshot())
+            await facade.installSnapshotForTesting(sealedRhinoSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -524,11 +528,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
-            await facade.installSnapshotForTesting(routingSnapshot())
+            await facade.installSnapshotForTesting(sealedRhinoSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -552,11 +555,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         do {
-            await facade.installSnapshotForTesting(routingSnapshot())
+            await facade.installSnapshotForTesting(sealedRhinoSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -597,7 +599,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         ])
         var mode = applyModeInput()
         mode.oled.taskSets = [emptySet, emptySet]
-        await facade.installSnapshotForTesting(routingSnapshot())
+        await facade.installSnapshotForTesting(sealedRhinoSnapshot())
         _ = try await facade.apply(
             modes: [mode],
             scope: .init(modeSlot: 0),
@@ -637,11 +639,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let gate = GateImageNormalizer()
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: gate,
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: gate
         )
         let applyTask = Task {
-            await facade.installSnapshotForTesting(routingSnapshot())
+            await facade.installSnapshotForTesting(sealedRhinoSnapshot())
             _ = try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -665,11 +666,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let gate = GateImageNormalizer()
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: gate,
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: gate
         )
         let applyTask = Task {
-            await facade.installSnapshotForTesting(routingSnapshot())
+            await facade.installSnapshotForTesting(sealedRhinoSnapshot())
             try await facade.apply(
                 modes: [applyModeInput()],
                 scope: .init(modeSlot: 0),
@@ -690,7 +690,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertTrue(transport.requestLog.isEmpty)
     }
 
-    func testV02DefaultApplyStripsPictureResourcesAndSkipsIngest() async throws {
+    func testPictureApplyWithoutSealedFactCreatesNoTransport() async throws {
         let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
         let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
@@ -700,25 +700,19 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
         await facade.installSnapshotForTesting(routingSnapshot())
-        let operationID = try await facade.apply(
-            modes: [applyModeInput()],
-            scope: .init(modeSlot: 0),
-            targetDeviceID: device,
-            baseRevision: .init(7)
-        )
-        XCTAssertEqual(transport.requestLog, ["apply"])
+        do {
+            _ = try await facade.apply(
+                modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: device,
+                baseRevision: .init(7)
+            )
+            XCTFail("无密封 OLED 事实的携图请求必须拒绝")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
+        }
+        XCTAssertEqual(transport.requestLog, [])
         XCTAssertNil(transport.ingestedItems)
-        let package = try XCTUnwrap(transport.appliedPackage)
-        XCTAssertEqual(package.operationID, operationID)
-        XCTAssertTrue(package.resources.isEmpty)
-        let desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
-        XCTAssertNil(desired.modes[0].oled.defaultAnimation)
-        XCTAssertEqual(desired.modes[0].oled.activeSet, -1)
-        XCTAssertTrue(desired.modes[0].oled.taskSets.allSatisfy { set in
-            set.assets.allSatisfy { $0.resource == nil }
-        })
-        XCTAssertEqual(desired.modes[0].keys.count, 1)
-        XCTAssertEqual(desired.modes[0].lightBar.brightness, 35)
+        XCTAssertNil(transport.appliedPackage)
         await facade.stop()
     }
 
@@ -748,7 +742,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         await facade.stop()
     }
 
-    func testV03NegotiatingApplyStillStripsPictures() async throws {
+    func testMalformedPictureDraftWithoutProofCreatesNoTransport() async throws {
         let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
         let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
@@ -772,29 +766,19 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         )
         let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
         await facade.installSnapshotForTesting(routingSnapshot())
-        let operationID = try await facade.apply(
-            modes: [mode],
-            scope: .init(modeSlot: 0),
-            targetDeviceID: device,
-            baseRevision: .init(7)
-        )
-        XCTAssertEqual(transport.requestLog, ["apply"])
+        do {
+            _ = try await facade.apply(
+                modes: [mode],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: device,
+                baseRevision: .init(7)
+            )
+            XCTFail("无 proof 的畸形携图草稿必须拒绝，不得剥图后创建 WAL")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
+        }
+        XCTAssertEqual(transport.requestLog, [])
         XCTAssertNil(transport.ingestedItems)
-        let package = try XCTUnwrap(transport.appliedPackage)
-        XCTAssertEqual(package.operationID, operationID)
-        XCTAssertTrue(package.resources.isEmpty)
-        let desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
-        XCTAssertNil(desired.modes[0].oled.defaultAnimation)
-        XCTAssertEqual(desired.modes[0].oled.activeSet, -1)
-        XCTAssertEqual(desired.modes[0].oled.statusLine, "")
-        XCTAssertEqual(desired.modes[0].oled.framesPerSecond, 12)
-        XCTAssertEqual(desired.modes[0].oled.taskSets.count, 2)
-        XCTAssertTrue(desired.modes[0].oled.taskSets.allSatisfy { set in
-            set.assets.allSatisfy { $0.resource == nil }
-        })
-        XCTAssertEqual(desired.modes[0].keys.count, 1)
-        XCTAssertEqual(desired.modes[0].keys[0].description, "Accept")
-        XCTAssertEqual(desired.modes[0].lightBar.brightness, 35)
+        XCTAssertNil(transport.appliedPackage)
         await facade.stop()
     }
 
@@ -804,8 +788,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
         let facade = AhaKeyStudioRuntimeFacade(
             transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
-            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6),
-            allowsPictureResources: true
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
         )
         await facade.installSnapshotForTesting(makeSnapshot(sequence: 0))
         do {
@@ -818,6 +801,92 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             XCTFail("无 oled-picture-routing 必须拒绝")
         } catch AhaKeyStudioApplyError.unsupportedFirmware {
             // expected
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testDirectIngestResourcesRejectsWithoutSealedFact() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(routingSnapshot())
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("img-a"),
+            sha256: try AhaKeySHA256Digest(String(repeating: "ab", count: 32)),
+            byteCount: 4,
+            data: Data([0xDE, 0xAD, 0xBE, 0xEF])
+        )
+        do {
+            try await facade.ingestResources([item])
+            XCTFail("无密封事实不得 ingest")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        await facade.stop()
+    }
+
+    func testDirectApplyPackageRejectsResourcesWithoutSealedFact() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(routingSnapshot())
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(
+            modes: [applyModeInput()],
+            includePictureResources: true
+        )
+        let package = try AhaKeyConfigurationPackage(
+            targetDeviceID: device,
+            baseRevision: .init(0),
+            desiredConfiguration: assembled.configuration.canonicalData(),
+            resources: assembled.resources.map {
+                try! AhaKeyConfigurationResource(
+                    logicalIdentifier: $0.logicalIdentifier.rawValue,
+                    sha256: String(repeating: "a", count: 64),
+                    byteCount: 4,
+                    mediaType: "gif"
+                )
+            }
+        )
+        do {
+            _ = try await facade.apply(package)
+            XCTFail("无密封事实不得 apply 含 resource 的包")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testCommitFrozenPageMismatchedProfileRejectsBeforeTransport() async throws {
+        let snapshot = pageReadySnapshot()
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let page = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .legacyStandard,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("new"),
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: .text("old"))
+                ),
+            ]
+        )
+        do {
+            _ = try await facade.commitFrozenPage(page)
+            XCTFail("stale/伪造 page profile 必须在 assemble/ingest 前拒绝")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
         }
         XCTAssertEqual(transport.requestLog, [])
         XCTAssertNil(transport.ingestedItems)
@@ -1194,7 +1263,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             usbAttached: false,
             bluetoothConnected: true,
             capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
-            authoritativeObject: Data("base-object".utf8)
+            authoritativeObject: Data("base-object".utf8),
+            oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
         )
         return AhaKeyRuntimeSnapshot(
             supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,

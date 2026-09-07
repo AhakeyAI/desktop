@@ -86,8 +86,6 @@ public actor AhaKeyStudioRuntimeFacade {
     private let resourceLoader: any AhaKeyStudioResourceLoader
     /// 受理前规范化：同源 OLED 编码核心 + 写出 160×80 GIF；测试可注入。
     private let imageNormalizer: any AhaKeyStudioImageNormalizer
-    /// 测试可冻结图片资源资格；生产必须为 nil，改走 `current` 对密封 snapshot 的投影。
-    private let pictureResourceOverride: Bool?
 
     private var state = AhaKeyStudioRuntimeViewState()
     private var continuations: [UUID: AsyncStream<AhaKeyStudioRuntimeViewState>.Continuation] = [:]
@@ -128,8 +126,7 @@ public actor AhaKeyStudioRuntimeFacade {
         reconnectBackoffBase: TimeInterval = 1.0,
         idlePollInterval: TimeInterval = 0.5,
         resourceLoader: any AhaKeyStudioResourceLoader = AhaKeyStudioGIFResourceLoader(),
-        imageNormalizer: any AhaKeyStudioImageNormalizer = AhaKeyStudioOLEDImageNormalizer(),
-        allowsPictureResources: Bool? = nil
+        imageNormalizer: any AhaKeyStudioImageNormalizer = AhaKeyStudioOLEDImageNormalizer()
     ) {
         self.transport = transport
         self.clientBuildID = clientBuildID
@@ -137,34 +134,50 @@ public actor AhaKeyStudioRuntimeFacade {
         self.idlePollInterval = idlePollInterval
         self.resourceLoader = resourceLoader
         self.imageNormalizer = imageNormalizer
-        self.pictureResourceOverride = allowsPictureResources
     }
 
-    private func liveReleaseProjection() -> AhaKeyReleaseFeatureProjection {
-        let policy = AhaKeyReleaseFeaturePolicy.current
+    /// 写入口共用：active device、可选 target 绑定、Runtime 密封 OLED fact、current 投影。
+    private struct ActiveDeviceAdmission {
+        let snapshot: AhaKeyRuntimeSnapshot
+        let device: AhaKeyRuntimeDeviceSnapshot
+        let profile: AhaKeyOLEDCompatibilityProfile
+        let projection: AhaKeyReleaseFeatureProjection
+    }
+
+    private func resolvedActiveDevice(
+        boundTarget: AhaKeyRuntimeDeviceID?
+    ) throws -> ActiveDeviceAdmission {
+        try rejectUnsupportedOLEDWrites()
         guard let snapshot = state.snapshot,
-              let id = snapshot.activeDeviceID,
-              let device = snapshot.devices.first(where: { $0.id == id }) else {
-            return policy.projection(.negotiating)
+              let activeID = snapshot.activeDeviceID,
+              let device = snapshot.devices.first(where: { $0.id == activeID }) else {
+            throw AhaKeyStudioApplyError.unsupportedFirmware
         }
-        if let fact = device.oledCompatibility {
-            return policy.projection(sealedOLEDProfile: fact.profile)
+        if let boundTarget, boundTarget != activeID {
+            throw AhaKeyStudioApplyError.pageOperationIncomplete
         }
-        return policy.projection(.negotiating)
+        let profile = device.oledCompatibility?.profile ?? .unsupported
+        return ActiveDeviceAdmission(
+            snapshot: snapshot,
+            device: device,
+            profile: profile,
+            projection: AhaKeyReleaseFeaturePolicy.current.projection(sealedOLEDProfile: profile)
+        )
     }
 
-    private func pictureResourcesAllowed(
-        sealedOLEDProfile: AhaKeyOLEDCompatibilityProfile? = nil
-    ) -> Bool {
-        if let override = pictureResourceOverride {
-            return override
+    private func rejectUnprovenPictureAdmission(_ admission: ActiveDeviceAdmission) throws {
+        guard admission.device.oledCompatibility != nil,
+              admission.projection.allowsResourcePackage else {
+            throw AhaKeyStudioApplyError.unsupportedFirmware
         }
-        if let sealedOLEDProfile {
-            return AhaKeyReleaseFeaturePolicy.current.projection(
-                sealedOLEDProfile: sealedOLEDProfile
-            ).allowsResourcePackage
+    }
+
+    private static func modesAttemptPictureWrite(_ modes: [AhaKeyStudioModeInput]) -> Bool {
+        modes.contains { mode in
+            mode.oled.taskSets.contains { set in
+                set.assets.contains { $0.localFileURL != nil }
+            }
         }
-        return liveReleaseProjection().allowsResourcePackage
     }
 
     /// 当前视图状态（首屏前为 offline）。
@@ -207,7 +220,8 @@ public actor AhaKeyStudioRuntimeFacade {
 
     /// 预上传资源到 Runtime Store（XPC `ingestResources`）。
     public func ingestResources(_ items: [AhaKeyXPCResourceIngestionItem]) async throws {
-        try rejectUnsupportedOLEDWrites()
+        guard !items.isEmpty else { return }
+        try rejectUnprovenPictureAdmission(try resolvedActiveDevice(boundTarget: nil))
         let response = try await transport.exchange(.ingestResources(items))
         guard case .resourcesIngested = response else {
             throw AhaKeyRuntimeXPCTransportError.invalidResponse
@@ -216,7 +230,10 @@ public actor AhaKeyStudioRuntimeFacade {
 
     /// 提交配置包并返回 operation ID。调用方应先 `ingestResources` 再 `apply`。
     public func apply(_ package: AhaKeyConfigurationPackage) async throws -> AhaKeyRuntimeOperationID {
-        try rejectUnsupportedOLEDWrites()
+        let admission = try resolvedActiveDevice(boundTarget: package.targetDeviceID)
+        if !package.resources.isEmpty {
+            try rejectUnprovenPictureAdmission(admission)
+        }
         let response = try await transport.exchange(.apply(package))
         guard case .operationAccepted(let operationID) = response else {
             throw AhaKeyRuntimeXPCTransportError.invalidResponse
@@ -640,9 +657,12 @@ extension AhaKeyStudioRuntimeFacade {
         guard scoped.count == 1 else {
             throw AhaKeyStudioApplyError.emptyApplyScope
         }
-        try rejectUnsupportedOLEDWrites()
-        // 生产走 current 投影；关闭时不把图片打进包。测试可覆盖。
-        let includePictureResources = pictureResourcesAllowed()
+        let admission = try resolvedActiveDevice(boundTarget: targetDeviceID)
+        let pictureAttempt = Self.modesAttemptPictureWrite(scoped)
+        if pictureAttempt {
+            try rejectUnprovenPictureAdmission(admission)
+        }
+        let includePictureResources = pictureAttempt
         let normalizer = imageNormalizer
         var ownedTemps: [URL] = []
         defer { Self.removeOwnedTemporaryFiles(ownedTemps) }
@@ -728,7 +748,13 @@ extension AhaKeyStudioRuntimeFacade {
     public func commitFrozenPage(
         _ snapshot: AhaKeyStudioPageSnapshot
     ) async throws -> AhaKeyStudioPageCommitResult {
-        switch AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot) {
+        let admission = try resolvedActiveDevice(boundTarget: nil)
+        guard snapshot.profile == admission.profile else {
+            throw AhaKeyStudioApplyError.unsupportedFirmware
+        }
+        var bound = snapshot
+        bound.profile = admission.profile
+        switch AhaKeyStudioPackageAssembler.assembleScopedPage(bound) {
         case .noOp:
             return .noOp
         case .requiresOverwriteConfirmation:
@@ -740,7 +766,7 @@ extension AhaKeyStudioRuntimeFacade {
         case .unsupportedPage:
             return .unsupportedPage
         case .write(let plan):
-            return try await commitWritePlan(plan, profile: snapshot.profile)
+            return try await commitWritePlan(plan, admission: admission)
         }
     }
 
@@ -761,16 +787,15 @@ extension AhaKeyStudioRuntimeFacade {
 
     private func commitWritePlan(
         _ plan: AhaKeyStudioScopedWritePlan,
-        profile: AhaKeyOLEDCompatibilityProfile
+        admission: ActiveDeviceAdmission
     ) async throws -> AhaKeyStudioPageCommitResult {
-        try rejectUnsupportedOLEDWrites()
-        if !plan.resources.isEmpty, !pictureResourcesAllowed(sealedOLEDProfile: profile) {
-            throw AhaKeyStudioApplyError.unsupportedFirmware
+        if !plan.resources.isEmpty {
+            try rejectUnprovenPictureAdmission(admission)
         }
-        guard let runtimeSnapshot = state.snapshot,
-              let targetDeviceID = runtimeSnapshot.activeDeviceID,
-              let device = runtimeSnapshot.devices.first(where: { $0.id == targetDeviceID }),
-              let object = device.authoritativeObject, !object.isEmpty else {
+        let runtimeSnapshot = admission.snapshot
+        let targetDeviceID = admission.device.id
+        let profile = admission.profile
+        guard let object = admission.device.authoritativeObject, !object.isEmpty else {
             throw AhaKeyStudioApplyError.pageOperationIncomplete
         }
         var ownedTemps: [URL] = []
