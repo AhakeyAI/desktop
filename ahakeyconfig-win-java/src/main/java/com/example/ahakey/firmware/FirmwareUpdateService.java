@@ -148,31 +148,51 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 return DiagnosticResult.failure(FirmwareUpdateError.BUSY, "固件操作正在执行");
             }
         }
+        UUID operationId = UUID.randomUUID();
+        Path diagnosticDirectory = null;
+        RuntimeBundle runtime = null;
+        boolean present = false;
+        WchIspRunner.WchIspProcessResult processResult = null;
         try {
-            RuntimeBundle runtime = runtimeProvider.resolve();
-            boolean present = ispProbe.isPresent();
-            if (!present) return new DiagnosticResult(true, false, false, runtime,
-                "RUNTIME_READY=YES\nISP_PRESENT=NO\nUID_CONFIRMED=NO\n未检测到 CH582 ISP 设备", null);
-            try (WchIspWorkspace workspace = WchIspWorkspace.create(workspaceParent, UUID.randomUUID())) {
+            diagnosticDirectory = diagnostics.beginDiagnostic(operationId);
+            initializeDiagnosticFiles(diagnosticDirectory);
+            runtime = runtimeProvider.resolve();
+            writeRuntimeEvidence(diagnosticDirectory, runtime);
+            present = ispProbe.isPresent();
+            if (!present) {
+                String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
+                    false, null, null, "未检测到 CH582 ISP 设备");
+                writeDiagnosticResult(diagnosticDirectory, null, detail, null);
+                return new DiagnosticResult(true, false, false, runtime, detail, null,
+                    operationId, diagnosticDirectory, null);
+            }
+            try (WchIspWorkspace workspace = WchIspWorkspace.create(workspaceParent, operationId)) {
                 WchIspWorkspace.PreparedWorkspace detect = workspace.prepareForDetect(runtime);
                 WchIspRunner.WchIspCommand command = new WchIspRunner.WchIspCommand(
                     detect.executable(), workspace.toolDirectory(),
                     List.of("-c", detect.configIni().toString(), "-u", "get"), UID_TIMEOUT,
-                    UUID.randomUUID());
-                WchIspResultParser.UidQueryResult uid = WchIspResultParser.parseUid(
-                    runner.run(command, WchIspRunner.CancellationToken.NONE));
-                return new DiagnosticResult(true, true, uid.success(), runtime,
-                    "RUNTIME_READY=YES\nISP_PRESENT=YES\nUID_CONFIRMED="
-                        + (uid.success() ? "YES" : "NO") + "\n" + uid.detail(),
-                    uid.success() ? null : uid.error());
+                    operationId);
+                diagnostics.write(diagnosticDirectory, "command.txt", commandText(command));
+                processResult = runner.run(command, WchIspRunner.CancellationToken.NONE);
+                saveProcess(diagnosticDirectory, "uid", command, processResult);
+                WchIspResultParser.UidQueryResult uid = WchIspResultParser.parseUid(processResult);
+                String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
+                    true, uid, processResult, uid.detail());
+                writeDiagnosticResult(diagnosticDirectory, processResult, detail, uid.error());
+                return new DiagnosticResult(true, true, uid.success(), runtime, detail,
+                    uid.success() ? null : uid.error(), operationId, diagnosticDirectory, processResult);
             }
         } catch (Exception failure) {
-            return DiagnosticResult.failure(
-                failure.getMessage() == null ? failure.toString() : failure.getMessage(),
-                failure instanceof IOException
-                    ? (String.valueOf(failure.getMessage()).toLowerCase().contains("not found")
-                        ? FirmwareUpdateError.RUNTIME_NOT_FOUND : FirmwareUpdateError.RUNTIME_INVALID)
-                    : FirmwareUpdateError.INTERNAL_ERROR);
+            String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
+                present, null, processResult,
+                failure.getMessage() == null ? failure.toString() : failure.getMessage());
+            FirmwareUpdateError error = failure instanceof IOException
+                ? (String.valueOf(failure.getMessage()).toLowerCase().contains("not found")
+                    ? FirmwareUpdateError.RUNTIME_NOT_FOUND : FirmwareUpdateError.RUNTIME_INVALID)
+                : FirmwareUpdateError.INTERNAL_ERROR;
+            writeDiagnosticResult(diagnosticDirectory, processResult, detail, error);
+            return new DiagnosticResult(runtime != null, present, false, runtime, detail, error,
+                operationId, diagnosticDirectory, processResult);
         } finally {
             diagnosticActive.set(false);
         }
@@ -324,14 +344,123 @@ public final class FirmwareUpdateService implements AutoCloseable {
         diagnostics.write(directory, "stdout.txt", result.stdout());
         diagnostics.write(directory, "stderr.txt", result.stderr());
         diagnostics.write(directory, "console.txt", result.console());
-        diagnostics.write(directory, prefix + "-result.json",
-            "operationId=" + result.operationId() + "\npid=" + result.pid()
-                + "\nownedPids=" + result.ownedProcessIds() + "\nexitCode=" + result.exitCode()
-                + "\nreason=" + result.terminationReason() + "\n");
-        diagnostics.write(directory, "result.json",
-            "operationId=" + result.operationId() + "\npid=" + result.pid()
-                + "\nownedPids=" + result.ownedProcessIds() + "\nexitCode=" + result.exitCode()
-                + "\nreason=" + result.terminationReason() + "\n");
+        String resultJson = processResultJson(result);
+        diagnostics.write(directory, prefix + "-result.json", resultJson);
+        diagnostics.write(directory, "result.json", resultJson);
+        diagnostics.write(directory, "timing.json", "{\n"
+            + "  \"operationId\": \"" + result.operationId() + "\",\n"
+            + "  \"durationMs\": " + result.duration().toMillis() + ",\n"
+            + "  \"timedOut\": " + result.timedOut() + ",\n"
+            + "  \"cancelled\": " + result.cancelled() + "\n"
+            + "}\n");
+    }
+
+    private void initializeDiagnosticFiles(Path directory) {
+        if (directory == null) return;
+        diagnostics.write(directory, "command.txt", "UID_QUERY_NOT_STARTED\n");
+        diagnostics.write(directory, "stdout.txt", "");
+        diagnostics.write(directory, "stderr.txt", "");
+        diagnostics.write(directory, "console.txt", "");
+        diagnostics.write(directory, "runtime.json", "{\n  \"status\": \"NOT_RESOLVED\"\n}\n");
+        diagnostics.write(directory, "result.json", "{\n  \"status\": \"NOT_STARTED\"\n}\n");
+        diagnostics.write(directory, "timing.json", "{\n  \"status\": \"STARTED\"\n}\n");
+    }
+
+    private void writeRuntimeEvidence(Path directory, RuntimeBundle runtime) {
+        if (directory == null || runtime == null) return;
+        RuntimeIdentity identity = runtime.identity();
+        diagnostics.write(directory, "runtime.json", "{\n"
+            + "  \"root\": " + json(runtime.root().toString()) + ",\n"
+            + "  \"executable\": " + json(runtime.executable().toString()) + ",\n"
+            + "  \"executableFileVersion\": " + json(identity.executableFileVersion().orElse("")) + ",\n"
+            + "  \"ispDllFileVersion\": " + json(identity.ispDllFileVersion().orElse("")) + ",\n"
+            + "  \"ch343FileVersion\": " + json(identity.ch343FileVersion().orElse("")) + ",\n"
+            + "  \"validationStatus\": " + json(identity.validationStatus().name()) + ",\n"
+            + "  \"executableSha256\": " + json(identity.executableSha256()) + ",\n"
+            + "  \"ispDllSha256\": " + json(identity.ispDllSha256()) + ",\n"
+            + "  \"ch343Sha256\": " + json(identity.ch343Sha256()) + ",\n"
+            + "  \"configSha256\": " + json(identity.configSha256()) + "\n"
+            + "}\n");
+    }
+
+    private void writeDiagnosticResult(Path directory,
+                                       WchIspRunner.WchIspProcessResult processResult,
+                                       String detail, FirmwareUpdateError error) {
+        if (directory == null) return;
+        if (processResult == null) {
+            diagnostics.write(directory, "result.json", "{\n"
+                + "  \"status\": " + json(error == null ? "NO_PROCESS" : error.name()) + ",\n"
+                + "  \"detail\": " + json(detail) + "\n}\n");
+        }
+        if (processResult == null) {
+            diagnostics.write(directory, "timing.json", "{\n"
+                + "  \"status\": " + json(error == null ? "COMPLETED" : error.name()) + ",\n"
+                + "  \"operationId\": " + json(directory.getFileName().toString()) + "\n}\n");
+        }
+    }
+
+    private static String diagnosticDetail(UUID operationId, Path directory,
+                                           RuntimeBundle runtime, boolean ispPresent,
+                                           WchIspResultParser.UidQueryResult uid,
+                                           WchIspRunner.WchIspProcessResult processResult,
+                                           String summary) {
+        StringBuilder detail = new StringBuilder()
+            .append("RUNTIME_READY=").append(runtime == null ? "NO" : "YES").append('\n')
+            .append("ISP_PRESENT=").append(ispPresent ? "YES" : "NO").append('\n')
+            .append("UID_CONFIRMED=").append(uid != null && uid.success() ? "YES" : "NO").append('\n')
+            .append("OPERATION_ID=").append(operationId).append('\n')
+            .append("DIAGNOSTIC_DIRECTORY=").append(directory == null ? "" : directory).append('\n');
+        if (processResult == null) {
+            detail.append("UID_QUERY_EXIT_CODE=NOT_STARTED\n")
+                .append("UID_QUERY_DURATION_MS=NOT_STARTED\n")
+                .append("WCHISP_PID=NOT_STARTED\n")
+                .append("ELEVATION_USED=NOT_STARTED\n")
+                .append("TERMINATION_REASON=NOT_STARTED\n")
+                .append("STDOUT=\nSTDERR=\nCONSOLE=\n");
+        } else {
+            detail.append("UID_QUERY_EXIT_CODE=").append(processResult.exitCode()).append('\n')
+                .append("UID_QUERY_DURATION_MS=").append(processResult.duration().toMillis()).append('\n')
+                .append("WCHISP_PID=").append(processResult.pid()).append('\n')
+                .append("ELEVATION_USED=").append(processResult.elevationUsed() ? "YES" : "NO").append('\n')
+                .append("TERMINATION_REASON=").append(processResult.terminationReason()).append('\n')
+                .append("OWNED_PROCESS_IDS=").append(processResult.ownedProcessIds()).append('\n')
+                .append("STDOUT=").append(summarize(processResult.stdout())).append('\n')
+                .append("STDERR=").append(summarize(processResult.stderr())).append('\n')
+                .append("CONSOLE=").append(summarize(processResult.console())).append('\n');
+        }
+        detail.append(summary == null ? "" : summary);
+        return detail.toString();
+    }
+
+    private static String commandText(WchIspRunner.WchIspCommand command) {
+        return command.executable() + " " + String.join(" ", command.arguments())
+            + "\noperationId=" + command.operationId() + "\ntimeout=" + command.timeout() + "\n";
+    }
+
+    private static String processResultJson(WchIspRunner.WchIspProcessResult result) {
+        return "{\n"
+            + "  \"operationId\": " + json(result.operationId().toString()) + ",\n"
+            + "  \"pid\": " + result.pid() + ",\n"
+            + "  \"ownedProcessIds\": " + json(result.ownedProcessIds().toString()) + ",\n"
+            + "  \"exitCode\": " + result.exitCode() + ",\n"
+            + "  \"timedOut\": " + result.timedOut() + ",\n"
+            + "  \"cancelled\": " + result.cancelled() + ",\n"
+            + "  \"durationMs\": " + result.duration().toMillis() + ",\n"
+            + "  \"elevationUsed\": " + result.elevationUsed() + ",\n"
+            + "  \"terminationReason\": " + json(result.terminationReason()) + "\n"
+            + "}\n";
+    }
+
+    private static String summarize(String value) {
+        if (value == null || value.isEmpty()) return "";
+        String normalized = value.replace("\r", "").replace("\n", "\\n");
+        return normalized.length() <= 2048 ? normalized : normalized.substring(0, 2048) + "... [truncated; see console.txt]";
+    }
+
+    private static String json(String value) {
+        return "\"" + (value == null ? "" : value)
+            .replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\r", "\\r").replace("\n", "\\n") + "\"";
     }
 
     private static FirmwareUpdateError classify(Exception failure) {
@@ -417,14 +546,24 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
     public record DiagnosticResult(boolean runtimeReady, boolean ispPresent,
                                    boolean uidConfirmed, RuntimeBundle runtime,
-                                   String detail, FirmwareUpdateError error) {
+                                   String detail, FirmwareUpdateError error,
+                                   UUID operationId, Path diagnosticDirectory,
+                                   WchIspRunner.WchIspProcessResult processResult) {
         public DiagnosticResult(boolean ispPresent, RuntimeBundle runtime,
                                 String detail, FirmwareUpdateError error) {
-            this(runtime != null, ispPresent, false, runtime, detail, error);
+            this(runtime != null, ispPresent, false, runtime, detail, error,
+                null, null, null);
+        }
+        public DiagnosticResult(boolean runtimeReady, boolean ispPresent,
+                                boolean uidConfirmed, RuntimeBundle runtime,
+                                String detail, FirmwareUpdateError error) {
+            this(runtimeReady, ispPresent, uidConfirmed, runtime, detail, error,
+                null, null, null);
         }
         public boolean ready() { return runtimeReady && ispPresent && uidConfirmed && error == null; }
         static DiagnosticResult failure(FirmwareUpdateError error, String detail) {
-            return new DiagnosticResult(false, false, false, null, detail == null ? "" : detail, error);
+            return new DiagnosticResult(false, false, false, null, detail == null ? "" : detail, error,
+                null, null, null);
         }
         static DiagnosticResult failure(String detail, FirmwareUpdateError error) {
             return failure(error, detail);

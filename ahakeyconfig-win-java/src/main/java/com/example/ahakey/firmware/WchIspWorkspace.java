@@ -50,7 +50,9 @@ public final class WchIspWorkspace implements AutoCloseable {
     public PreparedWorkspace prepareForDetect(RuntimeBundle runtime) throws IOException {
         ensureOpen();
         Path placeholder = toolDirectory.resolve("unused.hex");
-        Files.writeString(placeholder, "", StandardCharsets.US_ASCII);
+        // WCHISP still parses the input path during a non-destructive UID
+        // query, so keep the placeholder a complete EOF-only Intel HEX file.
+        Files.writeString(placeholder, ":00000001FF\n", StandardCharsets.US_ASCII);
         return prepareInternal(runtime, placeholder, "detect");
     }
 

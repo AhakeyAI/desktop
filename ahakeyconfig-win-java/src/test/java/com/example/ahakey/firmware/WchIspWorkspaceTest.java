@@ -74,6 +74,7 @@ class WchIspWorkspaceTest {
             var detect = workspace.prepareForDetect(runtime);
             var flash = workspace.prepareForFlash(runtime, hex);
             assertEquals("unused.hex", detect.firmwareInput().getFileName().toString());
+            assertEquals(":00000001FF\n", Files.readString(detect.firmwareInput()));
             assertEquals(hex.toAbsolutePath().normalize(), flash.firmwareInput());
             assertTrue(Files.readString(detect.configIni()).contains("unused.hex"));
             assertTrue(Files.readString(flash.configIni()).contains("real-firmware.hex"));

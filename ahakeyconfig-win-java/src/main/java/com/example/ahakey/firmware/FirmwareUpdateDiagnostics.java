@@ -31,6 +31,19 @@ public class FirmwareUpdateDiagnostics {
         return directory;
     }
 
+    /** Creates an isolated directory for a non-flashing environment/UID diagnostic. */
+    public Path beginDiagnostic(UUID operationId) throws IOException {
+        if (operationId == null) throw new IOException("diagnostic operation id is missing");
+        Path directory = root.resolve(operationId.toString());
+        Files.createDirectories(directory);
+        write(directory, "operation.json", "{\n"
+            + "  \"operationId\": \"" + operationId + "\",\n"
+            + "  \"kind\": \"diagnostic\",\n"
+            + "  \"startedAt\": \"" + Instant.now() + "\"\n"
+            + "}\n");
+        return directory;
+    }
+
     public void write(Path directory, String name, String content) {
         if (directory == null || name == null) return;
         try {

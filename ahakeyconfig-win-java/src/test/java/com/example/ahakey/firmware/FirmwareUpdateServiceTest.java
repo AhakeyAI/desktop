@@ -7,6 +7,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -89,8 +90,8 @@ class FirmwareUpdateServiceTest {
     void diagnosticReadyRequiresUidConfirmation() throws Exception {
         WchIspRunner runner = new WchIspRunner((command, cancellation) ->
             new WchIspRunner.WchIspProcessResult(command.operationId(), true, 1, 0,
-                false, false, "Device UID:23-DF-93-5A-04-DC-BA-15", "", "",
-                Duration.ZERO, false, Map.of(), "PROCESS_EXIT"));
+                false, false, "Device UID:23-DF-93-5A-04-DC-BA-15", "stderr", "console",
+                Duration.ofMillis(37), true, Map.of(), "PROCESS_EXIT", List.of(1L, 2L)));
         FirmwareUpdateService service = service(() -> true, runner::run);
         try {
             FirmwareUpdateService.DiagnosticResult result = service.diagnose();
@@ -98,6 +99,49 @@ class FirmwareUpdateServiceTest {
             assertTrue(result.ispPresent());
             assertTrue(result.uidConfirmed());
             assertTrue(result.ready());
+            assertNotNull(result.operationId());
+            assertNotNull(result.diagnosticDirectory());
+            assertNotNull(result.processResult());
+            assertEquals(1, result.processResult().pid());
+            assertEquals(37, result.processResult().duration().toMillis());
+            assertTrue(result.processResult().elevationUsed());
+            assertEquals(List.of(1L, 2L), result.processResult().ownedProcessIds());
+            for (String name : List.of("command.txt", "stdout.txt", "stderr.txt",
+                "console.txt", "result.json", "timing.json", "runtime.json")) {
+                assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve(name)), name);
+            }
+            String report = result.detail();
+            assertTrue(report.contains("UID_QUERY_EXIT_CODE=0"));
+            assertTrue(report.contains("UID_QUERY_DURATION_MS=37"));
+            assertTrue(report.contains("WCHISP_PID=1"));
+            assertTrue(report.contains("ELEVATION_USED=YES"));
+            assertTrue(report.contains("TERMINATION_REASON=PROCESS_EXIT"));
+            assertTrue(report.contains("STDOUT=Device UID:23-DF-93-5A-04-DC-BA-15"));
+            assertTrue(report.contains("STDERR=stderr"));
+            assertTrue(report.contains("CONSOLE=console"));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void diagnosticFailureStillPersistsProcessEvidence() throws Exception {
+        WchIspRunner runner = new WchIspRunner((command, cancellation) ->
+            new WchIspRunner.WchIspProcessResult(command.operationId(), true, 9, 7,
+                false, false, "", "driver error", "driver error",
+                Duration.ofMillis(12), false, Map.of(), "PROCESS_EXIT", List.of(9L)));
+        FirmwareUpdateService service = service(() -> true, runner::run);
+        try {
+            FirmwareUpdateService.DiagnosticResult result = service.diagnose();
+            assertFalse(result.uidConfirmed());
+            assertEquals(FirmwareUpdateError.UID_QUERY_FAILED, result.error());
+            assertNotNull(result.processResult());
+            assertTrue(result.detail().contains("UID_QUERY_EXIT_CODE=7"));
+            assertTrue(result.detail().contains("STDERR=driver error"));
+            assertEquals("driver error", Files.readString(
+                result.diagnosticDirectory().resolve("stderr.txt")));
+            assertTrue(Files.readString(result.diagnosticDirectory().resolve("result.json"))
+                .contains("\"exitCode\": 7"));
         } finally {
             service.shutdown();
         }
