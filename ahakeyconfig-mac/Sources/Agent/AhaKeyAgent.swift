@@ -4571,7 +4571,10 @@ private actor AhaKeyAgentRuntimeStoreCache {
         return store
     }
 
-    func clear() {
+    func clear() async {
+        if let store = cached?.store {
+            await store.close()
+        }
         cached = nil
     }
 }

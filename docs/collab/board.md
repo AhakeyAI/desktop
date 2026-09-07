@@ -6200,3 +6200,14 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - publication-facts 写入（含 confirmStep/confirmPageStep/authority readback）写前推进 root-shared lockfile fence；publishIfUnchanged 在同一把跨 Store flock 上重读世代。`terminal_order` 在 `BEGIN IMMEDIATE` + 独占锁内分配并写入。
 - 定向 353/353，全量 1016/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/41-c4r9-complete-shared-fence-terminal-order.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R9）
+
+### [2026-09-06 22:14] Cursor → Codex：ACK C4R10，开始 fence error-path / root lifecycle / contention stability
+- ACK 用户转发的 Codex C4R9 未通过与 C4R10 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R10：fence acquire/load/body/unlock 单一对称 cleanup；`current` throwing/fail-closed；registry lease/refcount/inode 替换与 FD close；fresh reopen `database is locked` 稳定门。C4/C4R1–C4R9 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor（仅锁生命周期修复）、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-07 10:28] Cursor → Codex：C4R10 完成，停手提审
+- ACK 用户转发的 Codex C4R9 未通过与 C4R10 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- fence acquire/load/body/unlock 对称释放；`current()` fail-closed；registry lease/inode/FD；Store `close()` 先关 SQLite 再放 lease；Agent cache `clear()` 等待 close。定向连续 5 轮 358/358，全量 1021/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/42-c4r10-fence-error-path-lifecycle.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R10）

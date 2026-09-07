@@ -2348,7 +2348,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         try await storeB.confirmPageStep(step.identity, package: package, plan: plan)
         let published = storeA.mutationFence.publishIfUnchanged(facts.mutationGeneration) { true }
         XCTAssertNil(published)
-        XCTAssertGreaterThan(storeA.mutationFence.current(), facts.mutationGeneration)
+        XCTAssertGreaterThan(try storeA.mutationFence.current(), facts.mutationGeneration)
     }
 
     func testSecondStoreAuthoritativeReadbackInvalidatesSharedPublicationFence() async throws {
@@ -2457,6 +2457,99 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         }()
         let orders = [try await firstCommit, try await secondCommit].compactMap { $0 }.sorted()
         XCTAssertEqual(orders, [1, 2])
+    }
+
+    func testTruncatedGenerationFileFailsClosedAndRootRemainsUsable() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "truncated-gen")
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await store.accept(package, resourceFiles: [:])
+        let lockURL = root.appendingPathComponent(".runtime-store.lock")
+        try Data([0x01, 0x02, 0x03]).write(to: lockURL)
+        do {
+            _ = try store.mutationFence.current()
+            XCTFail("短 generation 文件必须 fail-closed")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("mutation generation read failed"), message)
+        }
+        try Data().write(to: lockURL)
+        XCTAssertEqual(try store.mutationFence.current(), 0)
+        let health = try await store.health()
+        XCTAssertEqual(health.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
+        _ = try await store.transaction(package.operationID)
+    }
+
+    func testGenerationReadHookAndUnlockFailureLeaveFenceUsable() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        store.mutationFence.testingHooks = .init(generationReadShouldFail: true)
+        do {
+            _ = try store.mutationFence.current()
+            XCTFail("pread 故障必须 fail-closed")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("mutation generation read failed"), message)
+        }
+        store.mutationFence.testingHooks = .init()
+        XCTAssertEqual(try store.mutationFence.current(), 0)
+        store.mutationFence.testingHooks = .init(unlockShouldFail: true)
+        do {
+            _ = try store.mutationFence.current()
+            XCTFail("LOCK_UN 故障必须抛出")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("flock LOCK_UN failed"), message)
+        }
+        XCTAssertEqual(try store.mutationFence.current(), 0)
+        let health = try await store.health()
+        XCTAssertEqual(health.journalMode, "wal")
+    }
+
+    func testRootDeleteRecreateDoesNotLockStaleInode() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storeA = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await storeA.health()
+        try FileManager.default.removeItem(at: root)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let storeC = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        XCTAssertFalse(storeA.mutationFence === storeB.mutationFence)
+        XCTAssertTrue(storeB.mutationFence === storeC.mutationFence)
+        _ = try await storeB.health()
+        _ = try await storeC.health()
+        await storeA.close()
+        await storeB.close()
+        await storeC.close()
+        let storeD = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await storeD.health()
+        await storeD.close()
+    }
+
+    func testExplicitCloseThenReopenSameRootIsStable() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let package = try makePageScopedPackage(statusLine: "reopen-stable")
+        let first = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        _ = try await first.accept(package, resourceFiles: [:])
+        await first.close()
+        for _ in 0..<8 {
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+            let health = try await store.health()
+            XCTAssertEqual(health.schemaVersion, AhaKeyRuntimePersistentStore.schemaVersion)
+            let stored = try await store.transaction(package.operationID)
+            XCTAssertNotNil(stored)
+            await store.close()
+        }
     }
 
     func testDisconnectEpochAbandonCommitsWithoutWrites() async throws {

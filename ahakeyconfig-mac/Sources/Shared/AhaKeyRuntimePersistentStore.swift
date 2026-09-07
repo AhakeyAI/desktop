@@ -230,38 +230,95 @@ public struct AhaKeyRuntimeAbandonPublicationFacts: Equatable, Sendable {
 
 /// Persistence-root 共享的 mutation fence：世代写在跨 Store flock 锁文件上。
 /// bump 先于 WAL 写入；publish 在同一把独占锁上重读世代后再发布。
+/// 每个 Store 持有一条 lease；最后一条 lease 关闭 dup FD 并从 registry 退出。
 public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
+    private struct LockFileIdentity: Equatable {
+        let device: Int64
+        let inode: UInt64
+    }
+
     private static let registryLock = NSLock()
     private static var fences: [String: AhaKeyRuntimeMutationFence] = [:]
 
     private let recursive = NSRecursiveLock()
+    private let hookLock = NSLock()
     private let lockFileDescriptor: Int32
+    private let identity: LockFileIdentity
+    private let rootPath: String
+    private var retainCount = 0
+    private var descriptorClosed = false
     private var depth = 0
     private var generation: UInt64 = 0
+    private var hooks = AhaKeyRuntimeMutationFenceTestingHooks()
+
+    var testingHooks: AhaKeyRuntimeMutationFenceTestingHooks {
+        get {
+            hookLock.lock()
+            defer { hookLock.unlock() }
+            return hooks
+        }
+        set {
+            hookLock.lock()
+            hooks = newValue
+            hookLock.unlock()
+        }
+    }
 
     public static func shared(
         for rootDirectory: URL,
         lockFileDescriptor: Int32
-    ) -> AhaKeyRuntimeMutationFence {
+    ) throws -> AhaKeyRuntimeMutationFence {
         let key = rootDirectory.standardizedFileURL.resolvingSymlinksInPath().path
+        let identity = try lockIdentity(of: lockFileDescriptor)
         registryLock.lock()
-        defer { registryLock.unlock() }
-        if let existing = fences[key] {
+        if let existing = fences[key], existing.identity == identity {
+            existing.retainCount += 1
+            registryLock.unlock()
             return existing
         }
+        let stale = fences[key]
+        fences[key] = nil
+        let staleOrphan = stale.map { $0.retainCount <= 0 } ?? false
+        registryLock.unlock()
+        if staleOrphan {
+            stale?.closeDescriptor()
+        }
         let duplicated = dup(lockFileDescriptor)
-        precondition(duplicated >= 0, "dup mutation fence lock fd")
-        let fence = AhaKeyRuntimeMutationFence(lockFileDescriptor: duplicated)
+        guard duplicated >= 0 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "dup mutation fence lock fd failed: errno=\(errno)"
+            )
+        }
+        let fence = AhaKeyRuntimeMutationFence(
+            lockFileDescriptor: duplicated,
+            identity: identity,
+            rootPath: key
+        )
+        registryLock.lock()
+        if let raced = fences[key], raced.identity == identity {
+            raced.retainCount += 1
+            registryLock.unlock()
+            Darwin.close(duplicated)
+            return raced
+        }
+        fence.retainCount = 1
         fences[key] = fence
+        registryLock.unlock()
         return fence
     }
 
-    private init(lockFileDescriptor: Int32) {
+    private init(
+        lockFileDescriptor: Int32,
+        identity: LockFileIdentity,
+        rootPath: String
+    ) {
         self.lockFileDescriptor = lockFileDescriptor
+        self.identity = identity
+        self.rootPath = rootPath
     }
 
-    public func current() -> UInt64 {
-        (try? withExclusiveAccess { generation }) ?? 0
+    public func current() throws -> UInt64 {
+        try withExclusiveAccess { generation }
     }
 
     public func bump() throws {
@@ -284,41 +341,92 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
 
     public func withExclusiveAccess<T>(_ body: () throws -> T) throws -> T {
         recursive.lock()
-        let isOutermost = depth == 0
-        if isOutermost {
-            guard flock(lockFileDescriptor, LOCK_EX) == 0 else {
-                recursive.unlock()
-                throw AhaKeyRuntimePersistenceError.databaseFailure(
-                    "flock LOCK_EX failed: errno=\(errno)"
-                )
-            }
-            try loadGeneration()
-        }
-        depth += 1
+        var holdsFileLock = false
+        var entered = false
+        var result: T?
+        var originalError: Error?
         do {
-            let result = try body()
-            depth -= 1
             if depth == 0 {
-                guard flock(lockFileDescriptor, LOCK_UN) == 0 else {
-                    recursive.unlock()
+                guard flock(lockFileDescriptor, LOCK_EX) == 0 else {
                     throw AhaKeyRuntimePersistenceError.databaseFailure(
-                        "flock LOCK_UN failed: errno=\(errno)"
+                        "flock LOCK_EX failed: errno=\(errno)"
                     )
                 }
+                holdsFileLock = true
+                try loadGeneration()
             }
-            recursive.unlock()
-            return result
+            depth += 1
+            entered = true
+            result = try body()
         } catch {
+            originalError = error
+        }
+        var cleanupError: Error?
+        if entered {
             depth -= 1
-            if depth == 0 {
-                _ = flock(lockFileDescriptor, LOCK_UN)
+        }
+        if holdsFileLock && depth == 0 {
+            let forceUnlockFailure = consumeUnlockFailureHook()
+            let unlocked = flock(lockFileDescriptor, LOCK_UN) == 0
+            if forceUnlockFailure || !unlocked {
+                cleanupError = AhaKeyRuntimePersistenceError.databaseFailure(
+                    "flock LOCK_UN failed: errno=\(errno)"
+                )
             }
-            recursive.unlock()
-            throw error
+        }
+        recursive.unlock()
+        if let originalError {
+            throw originalError
+        }
+        if let cleanupError {
+            throw cleanupError
+        }
+        return result!
+    }
+
+    func releaseLease() {
+        Self.registryLock.lock()
+        retainCount -= 1
+        let shouldClose = retainCount <= 0
+        if shouldClose, Self.fences[rootPath] === self {
+            Self.fences[rootPath] = nil
+        }
+        Self.registryLock.unlock()
+        if shouldClose {
+            closeDescriptor()
         }
     }
 
+    private func closeDescriptor() {
+        recursive.lock()
+        defer { recursive.unlock() }
+        guard !descriptorClosed else { return }
+        descriptorClosed = true
+        Darwin.close(lockFileDescriptor)
+    }
+
+    private static func lockIdentity(of fd: Int32) throws -> LockFileIdentity {
+        var info = stat()
+        guard fstat(fd, &info) == 0 else {
+            throw AhaKeyRuntimePersistenceError.databaseFailure(
+                "fstat lock file failed: errno=\(errno)"
+            )
+        }
+        return LockFileIdentity(device: Int64(info.st_dev), inode: UInt64(info.st_ino))
+    }
+
+    private func consumeUnlockFailureHook() -> Bool {
+        hookLock.lock()
+        defer { hookLock.unlock() }
+        let shouldFail = hooks.unlockShouldFail
+        hooks.unlockShouldFail = false
+        return shouldFail
+    }
+
     private func loadGeneration() throws {
+        if testingHooks.generationReadShouldFail {
+            throw AhaKeyRuntimePersistenceError.databaseFailure("mutation generation read failed")
+        }
         var value: UInt64 = 0
         let read = withUnsafeMutableBytes(of: &value) { buffer in
             pread(lockFileDescriptor, buffer.baseAddress, 8, 0)
@@ -353,6 +461,11 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
     }
 }
 
+struct AhaKeyRuntimeMutationFenceTestingHooks: Equatable, Sendable {
+    var unlockShouldFail = false
+    var generationReadShouldFail = false
+}
+
 public actor AhaKeyRuntimePersistentStore {
     public static let schemaVersion: Int32 = 7
     /// Snapshot 合并的终态窗口，与 Agent `projectionTerminalOrder` 64 上限对齐。
@@ -384,12 +497,43 @@ public actor AhaKeyRuntimePersistentStore {
     private let lockFileDescriptor: Int32
     public nonisolated let mutationFence: AhaKeyRuntimeMutationFence
     private var mutationGeneration: UInt64 = 0
+    private let closeBox: CloseBox
     private let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return encoder
     }()
     private let decoder = JSONDecoder()
+
+    private final class CloseBox: @unchecked Sendable {
+        let database: OpaquePointer
+        let lockFileDescriptor: Int32
+        let mutationFence: AhaKeyRuntimeMutationFence
+        private let lock = NSLock()
+        private var isClosed = false
+
+        init(
+            database: OpaquePointer,
+            lockFileDescriptor: Int32,
+            mutationFence: AhaKeyRuntimeMutationFence
+        ) {
+            self.database = database
+            self.lockFileDescriptor = lockFileDescriptor
+            self.mutationFence = mutationFence
+        }
+
+        func closeIfNeeded() {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !isClosed else { return }
+            isClosed = true
+            if sqlite3_close(database) != SQLITE_OK {
+                sqlite3_close_v2(database)
+            }
+            mutationFence.releaseLease()
+            Darwin.close(lockFileDescriptor)
+        }
+    }
 
     /// 测试 seam：资源临界区内的可控交错钩子（仅 @testable；钩子在锁内执行，禁止重入 Store）。
     var testingHooks = AhaKeyRuntimeStoreTestingHooks()
@@ -430,17 +574,28 @@ public actor AhaKeyRuntimePersistentStore {
         guard openResult == SQLITE_OK, let handle else {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown sqlite error"
             if let handle { sqlite3_close(handle) }
-            close(lockFD)
+            Darwin.close(lockFD)
             throw AhaKeyRuntimePersistenceError.cannotOpenDatabase(message)
         }
         database = handle
         self.resourcesDirectory = resourcesDirectory
         self.quota = quota
         self.acceptanceValidator = acceptanceValidator
-        self.mutationFence = AhaKeyRuntimeMutationFence.shared(
-            for: rootDirectory,
-            lockFileDescriptor: lockFD
-        )
+        do {
+            self.mutationFence = try AhaKeyRuntimeMutationFence.shared(
+                for: rootDirectory,
+                lockFileDescriptor: lockFD
+            )
+            self.closeBox = CloseBox(
+                database: handle,
+                lockFileDescriptor: lockFD,
+                mutationFence: self.mutationFence
+            )
+        } catch {
+            Darwin.close(lockFD)
+            sqlite3_close(handle)
+            throw error
+        }
         do {
             // 数据库文件权限设置纳入 do/catch：此处失败必须走统一清理（close lockFD +
             // sqlite3_close handle），不得在 handle/fd 已建立后裸抛造成泄漏。
@@ -675,15 +830,18 @@ public actor AhaKeyRuntimePersistentStore {
             }
             }
         } catch {
-            close(lockFD)
-            sqlite3_close(handle)
+            closeBox.closeIfNeeded()
             throw error
         }
     }
 
+    /// 显式关闭 WAL 连接与 fence lease，避免仅依赖 deinit 与下一 Store 抢 SQLITE_BUSY。
+    public func close() {
+        closeBox.closeIfNeeded()
+    }
+
     deinit {
-        close(lockFileDescriptor)
-        sqlite3_close(database)
+        closeBox.closeIfNeeded()
     }
 
     public func health() throws -> AhaKeyRuntimePersistenceHealth {
@@ -2035,7 +2193,7 @@ public actor AhaKeyRuntimePersistentStore {
 
     private func beginDurableMutation() throws {
         try mutationFence.bump()
-        mutationGeneration = mutationFence.current()
+        mutationGeneration = try mutationFence.current()
     }
 
     /// 单次 actor hop：队首、epoch、确认步与 baseline 同一 WAL 世代。
@@ -2066,7 +2224,7 @@ public actor AhaKeyRuntimePersistentStore {
                 epoch: stored,
                 confirmed: confirmed,
                 baselines: baselines,
-                mutationGeneration: mutationFence.current()
+                mutationGeneration: try mutationFence.current()
             )
         }
     }
@@ -2633,7 +2791,7 @@ public actor AhaKeyRuntimePersistentStore {
                 "cannot open resource directory for synchronization: \(errno)"
             )
         }
-        defer { close(descriptor) }
+        defer { Darwin.close(descriptor) }
         guard fsync(descriptor) == 0 else {
             throw AhaKeyRuntimePersistenceError.databaseFailure(
                 "cannot synchronize resource directory: \(errno)"

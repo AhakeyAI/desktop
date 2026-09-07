@@ -1965,6 +1965,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 let stored = try await firstStore.disconnectEpoch(package.operationID)
                 let firstEpoch = try XCTUnwrap(stored)
                 firstLease = try XCTUnwrap(firstEpoch.identity.writerLease)
+                await firstStore.close()
             }
             agent.shutdown()
 
@@ -2001,6 +2002,44 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             XCTAssertEqual(secondEpoch.startedAt, now)
             let state = try await inspect.transaction(package.operationID)?.state
             XCTAssertTrue(state == .paused || state == .resumablePartial)
+            await inspect.close()
+        }
+    }
+
+    func testFreshReopenAfterCloseDoesNotReportDatabaseLocked() {
+        runTest { [self] in
+            let agent = try await makeReadyAgent()
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let client = EndpointClient(agent: agent)
+            try await client.handshake()
+            var hooks = agent.executionTestHooks
+            hooks?.stepExecutor = { _ in .retryableFailure }
+            agent.executionTestHooks = hooks
+            let package = try statusPackage(device: "TEST-DEVICE", seed: "reopen-locked")
+            guard case .operationAccepted = try await client.exchange(.apply(package)) else {
+                return XCTFail("apply")
+            }
+            await waitUntil(agent, package.operationID, states: [.paused, .resumablePartial])
+            for round in 0..<5 {
+                await agent.closeRuntimeStoreForTesting()
+                do {
+                    let store = try AhaKeyRuntimePersistentStore(
+                        rootDirectory: storeDir,
+                        acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator()
+                    )
+                    let health = try await store.health()
+                    XCTAssertEqual(health.journalMode, "wal", "round \(round)")
+                    let stored = try await store.transaction(package.operationID)
+                    XCTAssertNotNil(stored, "round \(round)")
+                    await store.close()
+                    let reopened = try await agent.runtimeStoreForTesting()
+                    let reopenedStored = try await reopened.transaction(package.operationID)
+                    XCTAssertNotNil(reopenedStored, "agent round \(round)")
+                } catch {
+                    return XCTFail("round \(round): \(error)")
+                }
+            }
+            await agent.closeRuntimeStoreForTesting()
         }
     }
 
