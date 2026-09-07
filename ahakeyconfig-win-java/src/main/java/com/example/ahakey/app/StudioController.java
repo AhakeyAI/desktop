@@ -14,6 +14,7 @@ import com.example.ahakey.service.GifUploadRules;
 import com.example.ahakey.service.GifSelectionHistory;
 import com.example.ahakey.service.LightOperationCoordinator;
 import com.example.ahakey.service.TaskActivityService;
+import com.example.ahakey.firmware.FirmwareUpdateService;
 import com.example.ahakey.util.OLEDFrameEncoder;
 import com.example.ahakey.util.StudioStore;
 import com.example.ahakey.util.LanguageManager;
@@ -42,6 +43,7 @@ public class StudioController {
     private final AgentManager agentManager = new AgentManager();
     private final VoiceRelayPlatform voiceRelay = new VoiceRelayPlatform();
     private final BleManager bleManager;
+    private final FirmwareUpdateService firmwareUpdateService;
     private final boolean simulateBle;
     private final HookDispatchServer hookDispatchServer;
     private final TaskActivityService taskActivityService;
@@ -117,6 +119,7 @@ public class StudioController {
             }
         });
 
+        firmwareUpdateService = new FirmwareUpdateService(bleManager);
         voiceRelay.configure(() -> studioState, deviceStatus::getWorkMode);
         refreshVoiceRoutes();
         voiceRelay.start();
@@ -154,6 +157,10 @@ public class StudioController {
 
     public BleManager getBleManager() {
         return bleManager;
+    }
+
+    public FirmwareUpdateService getFirmwareUpdateService() {
+        return firmwareUpdateService;
     }
 
     public VoiceRelayPlatform getVoiceRelay() {
@@ -218,6 +225,7 @@ public class StudioController {
         statusRefreshScheduler.shutdown();
         hookDispatchServer.stop();
         kimiAhaKeyBridge.stop();
+        firmwareUpdateService.shutdown();
         if (!simulateBle) {
             bleManager.shutdown();
         }

@@ -273,3 +273,36 @@ SW-001 窗口 ownership 的既有实现仍来自 `b478ebd`，SW-004 既有实现
 `dotnet build BLE_tcp_bridge` 因 .NET 9 x86 `GenerateResource` task-host 不可用失败；已有
 `BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe` 仅作为待人工复核的现存产物。外层
 `C:\aha\ahakey-windows\windows-stabilization-plan.md` 仍不存在，未创建伪权威副本。
+
+## 11. Firmware flash rewrite delivery (2026-09-07)
+
+`windows-flash-rewrite` 在 `f578ba0cd1c02747327f7603f37daf14ba4bc472`（保留的
+`windows-stabilization` 基线和 `windows-sw001-sw002-sw004-code-complete` 标签）之上，
+将生产烧录入口收口到 `FirmwareUpdateService`。服务拥有单操作锁和 operation id，所有
+工作在后台单线程执行，状态严格经过 `IDLE → PREFLIGHT → WAITING_ISP → DETECTING →
+READY → FLASHING → WAITING_RECONNECT → VERIFYING → SUCCESS/FAILED/CANCELLED`；取消和
+应用 shutdown 会终止当前任务并释放锁，UI 只消费结构化状态事件。`DeviceMaintenancePane`
+不再实例化 `WindowsWchIspFlasher`，仅调用该服务；旧类保留为 legacy/test compatibility，
+`LEGACY_NOT_USED_BY_PRODUCTION=YES`。
+
+运行时边界由 `WchIspRuntimeProvider`、`RuntimeBundle/RuntimeIdentity` 和
+`WchIspRuntimeContract` 负责：解析 jpackage `tools/wchisp` 或显式开发路径，校验
+CH57x/CH59x、CH582、3.6.1 版本合同、组件 SHA-256 和脱敏配置 layout fingerprint。
+每次操作建立独立 `WchIspWorkspace`，只 patch CH582 槽，不擦除 DataFlash；
+`WchIspRunner`/`WchIspResultParser` 统一执行和区分 UID/flash exit 状态，诊断日志由
+`FirmwareUpdateDiagnostics` 保存，烧录后由 `FirmwarePostVerifier` 回读并校验
+Firmware 1.4.7、Protocol 3.2、model 1、capabilities `0x000007FF` 合同。overlay
+sources/allowlist 和 release artifact test 已覆盖新增生产类及
+`firmware-capabilities.properties`。
+
+本轮自动验证：`mvn clean test` 为 `197/0/0/0`，`mvn clean package` 为
+`197/0/0/0`；两者均通过 release artifact 内容检查，独立
+`Test-ReleaseArtifactContents.ps1` 返回 `RELEASE_ARTIFACT_CONTENTS=OK`；全部仓库
+PowerShell 脚本语法解析返回 `POWERSHELL_SYNTAX=OK`，`git diff --check` 无输出。
+当前没有 `C:\Program Files\AhaKeyStudio\app` 正式安装基线，因此正式 overlay 未运行；
+本地 JAR 清单已验证新类和资源存在。没有执行 WCHISP、UID、真实 flash 或设备回读；
+USB ISP、设备重连、固件版本/能力校验、签名安装包和 WiX 仍是外部/真机待验证项目。
+
+此状态应记录为“代码完成 + 自动测试完成，软件手工/真机验证待执行”，不得表述为
+真实烧录完成。回滚只需在工作树无冲突时执行 `git switch windows-stabilization`；
+该分支仍指向上述基线，未 merge、未 push。

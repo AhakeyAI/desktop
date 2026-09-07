@@ -21,14 +21,12 @@ import java.util.regex.Pattern;
 public final class WindowsWchIspFlasher implements FirmwareFlasher {
     static final String SANITIZED_CONFIG_RESOURCE =
         "/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH";
-    static final int WCH_CONFIG_LENGTH = 66841;
-    static final int WCH_PATH_SLOT_BYTES = 520;
-    static final int[] WCH_PATH_SLOT_OFFSETS = {
-        36486, 37006, 37526, 63172, 63692
-    };
-    static final int CH582_SLOT_INDEX = 0;
-    static final String SANITIZED_LAYOUT_SHA256 =
-        "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8";
+    /** @deprecated use {@link WchIspConfigLayout}; retained for test compatibility. */
+    @Deprecated static final int WCH_CONFIG_LENGTH = WchIspConfigLayout.CONFIG_SIZE;
+    @Deprecated static final int WCH_PATH_SLOT_BYTES = WchIspConfigLayout.SLOT_SIZE;
+    @Deprecated static final int[] WCH_PATH_SLOT_OFFSETS = WchIspConfigLayout.SLOT_OFFSETS;
+    @Deprecated static final int CH582_SLOT_INDEX = WchIspConfigLayout.CH582_SLOT_INDEX;
+    @Deprecated static final String SANITIZED_LAYOUT_SHA256 = WchIspConfigLayout.FINGERPRINT;
     private static final Duration COMMAND_TIMEOUT = Duration.ofMinutes(5);
     private static final Pattern STATUS_PATTERN = Pattern.compile(
         "\"Status\"\\s*:\\s*\"(Finished|Fail)\""
@@ -1026,23 +1024,10 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     }
 
     static String layoutFingerprint(byte[] bytes) throws IOException {
-        if (bytes == null || bytes.length != WCH_CONFIG_LENGTH) {
-            throw unsupportedLayout("配置长度不匹配");
-        }
-        byte[] normalized = Arrays.copyOf(bytes, bytes.length);
-        for (int offset : WCH_PATH_SLOT_OFFSETS) {
-            if (offset < 0 || offset + WCH_PATH_SLOT_BYTES > normalized.length) {
-                throw unsupportedLayout("path slot 边界无效");
-            }
-            Arrays.fill(normalized, offset, offset + WCH_PATH_SLOT_BYTES, (byte) 0);
-        }
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(normalized);
-            StringBuilder hex = new StringBuilder(digest.length * 2);
-            for (byte value : digest) hex.append(String.format("%02x", value & 0xFF));
-            return hex.toString();
-        } catch (java.security.NoSuchAlgorithmException impossible) {
-            throw new IOException("JVM 缺少 SHA-256", impossible);
+            return WchIspConfigLayout.fingerprint(bytes);
+        } catch (IOException failure) {
+            throw unsupportedLayout(failure.getMessage());
         }
     }
 

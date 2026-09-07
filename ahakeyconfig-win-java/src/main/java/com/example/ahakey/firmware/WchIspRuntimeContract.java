@@ -79,7 +79,7 @@ public final class WchIspRuntimeContract {
                 if (!EXPECTED_CONFIG_FINGERPRINT.equals(fingerprint)) {
                     failures.add("CONFIG_CH57X59X.WCH layout fingerprint mismatch");
                 }
-                WindowsWchIspFlasher.inspectLayout(Files.readAllBytes(config));
+                WchIspConfigLayout.inspect(Files.readAllBytes(config));
             } catch (IOException exception) {
                 failures.add("invalid WCHISP config layout: " + exception.getMessage());
             }
@@ -105,26 +105,7 @@ public final class WchIspRuntimeContract {
     }
 
     public static String configFingerprint(byte[] bytes) throws IOException {
-        if (bytes == null || bytes.length != WindowsWchIspFlasher.WCH_CONFIG_LENGTH) {
-            throw new IOException("configuration length mismatch");
-        }
-        byte[] normalized = bytes.clone();
-        for (int offset : WindowsWchIspFlasher.WCH_PATH_SLOT_OFFSETS) {
-            if (offset < 0 || offset + WindowsWchIspFlasher.WCH_PATH_SLOT_BYTES > normalized.length) {
-                throw new IOException("path slot boundary invalid");
-            }
-            java.util.Arrays.fill(normalized, offset,
-                offset + WindowsWchIspFlasher.WCH_PATH_SLOT_BYTES, (byte) 0);
-        }
-        byte[] digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256").digest(normalized);
-        } catch (java.security.NoSuchAlgorithmException impossible) {
-            throw new IOException("JVM lacks SHA-256", impossible);
-        }
-        StringBuilder result = new StringBuilder(digest.length * 2);
-        for (byte value : digest) result.append(String.format("%02x", value & 0xFF));
-        return result.toString();
+        return WchIspConfigLayout.fingerprint(bytes);
     }
 
     public record Validation(boolean supported, List<String> failures) {

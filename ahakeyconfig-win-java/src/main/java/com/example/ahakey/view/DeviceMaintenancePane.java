@@ -1,9 +1,11 @@
 package com.example.ahakey.view;
 
 import com.example.ahakey.app.StudioController;
-import com.example.ahakey.firmware.FirmwareFlasher;
 import com.example.ahakey.firmware.FirmwareCapabilities;
-import com.example.ahakey.firmware.WindowsWchIspFlasher;
+import com.example.ahakey.firmware.FirmwareOperationHandle;
+import com.example.ahakey.firmware.FirmwareUpdateRequest;
+import com.example.ahakey.firmware.FirmwareUpdateService;
+import com.example.ahakey.firmware.FirmwareUpdateState;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
@@ -39,6 +41,7 @@ public final class DeviceMaintenancePane {
     private final StudioController controller;
     private final BleManager bleManager;
     private final DeviceStatus deviceStatus;
+    private final FirmwareUpdateService firmwareUpdateService;
     private final boolean chinese =
         Locale.getDefault().getLanguage().equalsIgnoreCase("zh");
 
@@ -46,6 +49,7 @@ public final class DeviceMaintenancePane {
         this.controller = controller;
         this.bleManager = controller.getBleManager();
         this.deviceStatus = controller.getDeviceStatus();
+        this.firmwareUpdateService = controller.getFirmwareUpdateService();
     }
 
     public VBox create(Stage owner) {
@@ -335,64 +339,52 @@ public final class DeviceMaintenancePane {
             )) {
                 return;
             }
-            FirmwareFlasher flasher = new WindowsWchIspFlasher();
             expandStep(steps, 3);
             setBusy(true, progress, bundled, latest, local, flash);
             status.setText(text("正在调用 WCHISP…", "Starting WCHISP…"));
             Path selectedFirmware = firmware[0];
-            daemon("firmware-flash", () -> {
-                try {
-                    FirmwareFlasher.FlashResult result = flasher.flashAndVerify(
-                        selectedFirmware,
-                        (stage, value, detail) -> Platform.runLater(() -> {
-                            progress.setProgress(value);
-                            status.setText(detail);
-                        })
-                    );
-                    Platform.runLater(() -> {
-                        environmentReady[0] = false;
-                        setBusy(false, progress, bundled, latest, local, flash);
-                        updateFlashState.run();
-                        if (result.success()) {
-                            pendingFlashVersion[0] = targetVersion[0];
-                            controller.setPendingFirmwareVersion(targetVersion[0]);
-                            status.setText(text(
-                                "WCHISP 已确认写入成功；请正常重连并读取设备版本。",
-                                "WCHISP confirmed the write; reconnect normally and read the device version."
-                            ));
-                            show(owner, Alert.AlertType.INFORMATION,
-                                text("等待设备版本确认", "Waiting for Device Version Confirmation"),
-                                text(
-                                    "WCHISP 已返回 Finished / Code 0 / Succeed，写入和字节校验完成。"
-                                        + "请断开 USB 后正常重新连接，再点击“读取设备版本”。"
-                                        + "只有客户端读取到目标版本，才显示升级成功。",
-                                    "WCHISP returned Finished / Code 0 / Succeed, confirming the "
-                                        + "write and byte verification. "
-                                        + "Disconnect USB, reconnect normally, and click Read Device "
-                                        + "Version. Success is shown only after the app reads the target version."
-                                ));
-                        } else {
-                            expandStep(steps, 2);
-                            show(owner, Alert.AlertType.ERROR,
-                                text("固件更新失败", "Firmware Update Failed"),
-                                result.detail() + "\n\n" + text(
-                                    "请检查步骤后手动点击“重新烧录”。",
-                                    "Check the steps, then click Flash Firmware again."
-                                ));
-                        }
-                    });
-                } catch (Exception exception) {
-                    Platform.runLater(() -> {
-                        environmentReady[0] = false;
-                        setBusy(false, progress, bundled, latest, local, flash);
-                        updateFlashState.run();
-                        expandStep(steps, 2);
-                        show(owner, Alert.AlertType.ERROR,
-                            text("固件更新失败", "Firmware Update Failed"),
-                            exception.getMessage());
-                    });
+            FirmwareUpdateRequest request = new FirmwareUpdateRequest(
+                selectedFirmware, targetVersion[0], currentVersion[0],
+                allowUnknown.isSelected(), allowDowngrade.isSelected());
+            java.util.function.Consumer<com.example.ahakey.firmware.FirmwareUpdateStatus> listener = update -> {
+                Platform.runLater(() -> {
+                    progress.setProgress(update.progress());
+                    status.setText(update.detail());
+                });
+            };
+            firmwareUpdateService.addListener(listener);
+            FirmwareUpdateService.OperationStart admission = firmwareUpdateService.start(request);
+            if (!admission.accepted()) {
+                firmwareUpdateService.removeListener(listener);
+                setBusy(false, progress, bundled, latest, local, flash);
+                status.setText(admission.rejection().detail());
+                show(owner, Alert.AlertType.WARNING,
+                    text("烧录正在进行", "Firmware operation is busy"), admission.rejection().detail());
+                return;
+            }
+            FirmwareOperationHandle operation = admission.handle();
+            operation.completion().whenComplete((result, failure) -> Platform.runLater(() -> {
+                firmwareUpdateService.removeListener(listener);
+                environmentReady[0] = false;
+                setBusy(false, progress, bundled, latest, local, flash);
+                updateFlashState.run();
+                if (failure != null) {
+                    expandStep(steps, 2);
+                    show(owner, Alert.AlertType.ERROR,
+                        text("固件更新失败", "Firmware Update Failed"), failure.getMessage());
+                } else if (result.success()) {
+                    pendingFlashVersion[0] = targetVersion[0];
+                    controller.setPendingFirmwareVersion(targetVersion[0]);
+                    status.setText(text("固件已烧录并通过设备回读校验。",
+                        "Firmware flashed and verified by the reconnected device."));
+                    show(owner, Alert.AlertType.INFORMATION,
+                        text("固件升级成功", "Firmware Update Succeeded"), result.detail());
+                } else {
+                    expandStep(steps, 2);
+                    show(owner, Alert.AlertType.ERROR,
+                        text("固件更新失败", "Firmware Update Failed"), result.detail());
                 }
-            });
+            }));
         });
 
         Label ispStatus = body("");
@@ -407,37 +399,13 @@ public final class DeviceMaintenancePane {
             ispStatus.setText(text("正在检查 WCHISP 工具、配置和 CH582 ISP 设备…",
                 "Checking WCHISP tools, configuration, and the CH582 ISP device…"));
             daemon("wchisp-diagnostics", () -> {
-                WindowsWchIspFlasher tool = new WindowsWchIspFlasher();
                 StringBuilder report = new StringBuilder("AhaKey WCHISP diagnostics\n");
-                boolean ready = false;
-                try {
-                    var environment = tool.diagnoseEnvironment();
-                    environment.checks().forEach(line -> report.append(line).append('\n'));
-                    if (environment.ready()) {
-                        var device = tool.detect();
-                        ready = device.bootloaderPresent();
-                        report.append("WCHISP_UID_QUERY=")
-                            .append(ready ? "PASS" : "FAIL").append('\n');
-                        if (ready) {
-                            report.append(text("[通过] 已检测到 CH582 ISP 设备\n",
-                                "[PASS] CH582 ISP device detected\n"));
-                        } else {
-                            // Keep the flasher's classification (enumeration, UID
-                            // failure, timeout, etc.) instead of collapsing every
-                            // non-zero result into "device not found".
-                            report.append(text("[失败] ", "[FAIL] "))
-                                .append(device.detail()).append('\n');
-                        }
-                    } else {
-                        // A runtime-contract failure happens before any UID command;
-                        // still expose a machine-readable failed UID stage.
-                        report.append("WCHISP_UID_QUERY=FAIL\n");
-                    }
-                } catch (Exception exception) {
-                    report.append("[失败] ").append(exception.getMessage()).append('\n');
-                }
+                FirmwareUpdateService.DiagnosticResult result = firmwareUpdateService.diagnose();
+                report.append(result.ready() ? "ENVIRONMENT=READY\n" : "ENVIRONMENT=NOT_READY\n");
+                report.append("ISP_PRESENT=").append(result.ispPresent() ? "YES" : "NO").append('\n');
+                report.append(result.detail()).append('\n');
                 diagnosticReport[0] = report.toString();
-                boolean readyResult = ready;
+                boolean readyResult = result.ready();
                 Platform.runLater(() -> {
                     diagnose.setDisable(false);
                     exportDiagnostic.setDisable(false);
