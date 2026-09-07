@@ -9,8 +9,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -51,7 +53,7 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
             }
         }
         if (!packaged) {
-            candidates.addAll(developmentCandidates());
+            candidates.addAll(developmentCandidates(Path.of(System.getProperty("user.dir", "."))));
         }
         IOException last = null;
         for (Path candidate : candidates) {
@@ -95,15 +97,14 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
             identity(executable, ch343, ispDll, config, metadata, versionReader));
     }
 
-    private List<Path> developmentCandidates() {
+    static List<Path> developmentCandidates(Path workingDirectory) {
         List<Path> candidates = new ArrayList<>();
-        Path current = Path.of(System.getProperty("user.dir", "."))
+        Path current = (workingDirectory == null ? Path.of(".") : workingDirectory)
             .toAbsolutePath().normalize();
         for (Path cursor = current; cursor != null; cursor = cursor.getParent()) {
-            candidates.add(cursor.resolve("BLE_tcp_bridge").resolve("bin")
-                .resolve("Release"));
-            candidates.add(cursor.resolve("desktop").resolve("BLE_tcp_bridge")
-                .resolve("bin").resolve("Release"));
+            candidates.add(cursor.resolve("tools").resolve("wchisp"));
+            candidates.add(cursor.resolve("wchisp"));
+            candidates.add(cursor.resolve("WCHISPTool_CH57x-59x"));
         }
         return candidates;
     }
@@ -116,6 +117,7 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
         String ispHash = sha256(ispDll);
         String configHash = sha256(config);
         RuntimeIdentity.ValidationStatus status = RuntimeIdentity.ValidationStatus.UNKNOWN;
+        Map<String, String> expectedMetadata = new LinkedHashMap<>();
         BinaryVersion exe = versionReader.read(executable);
         BinaryVersion ch343Info = versionReader.read(ch343);
         BinaryVersion ispInfo = versionReader.read(ispDll);
@@ -129,14 +131,21 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
                 String expectedTool = text(root, "toolVersion");
                 String expectedIsp = text(root, "ispDllVersion");
                 String expectedDriver = text(root, "driverDllVersion");
+                putIfPresent(expectedMetadata, "toolVersion", expectedTool);
+                putIfPresent(expectedMetadata, "ispDllVersion", expectedIsp);
+                putIfPresent(expectedMetadata, "driverDllVersion", expectedDriver);
                 // Version resources are optional on synthetic/test bundles.  When
                 // unavailable, hashes remain authoritative evidence for review.
                 boolean hashMismatch = mismatch(root, "exeSha256", exeHash)
                     || mismatch(root, "ch343Sha256", ch343Hash)
                     || mismatch(root, "ispDllSha256", ispHash)
                     || mismatch(root, "configSha256", configHash);
-                if (hashMismatch) status = RuntimeIdentity.ValidationStatus.MISMATCH;
-                else if (exeVersion.isPresent() && ch343Version.isPresent() && ispVersion.isPresent()) {
+                boolean versionMismatch = mismatchVersion(expectedTool, exeVersion)
+                    || mismatchVersion(expectedDriver, ch343Version)
+                    || mismatchVersion(expectedIsp, ispVersion);
+                if (hashMismatch || versionMismatch) status = RuntimeIdentity.ValidationStatus.MISMATCH;
+                else if (expectedTool != null && expectedDriver != null && expectedIsp != null
+                    && exeVersion.isPresent() && ch343Version.isPresent() && ispVersion.isPresent()) {
                     status = RuntimeIdentity.ValidationStatus.KNOWN;
                 }
             } catch (Exception ignored) {
@@ -144,7 +153,15 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
             }
         }
         return new RuntimeIdentity(exeVersion, productVersion, ch343Version,
-            ispVersion, exeHash, ch343Hash, ispHash, configHash, status);
+            ispVersion, exeHash, ch343Hash, ispHash, configHash, status, expectedMetadata);
+    }
+
+    private static void putIfPresent(Map<String, String> metadata, String name, String value) {
+        if (value != null && !value.isBlank()) metadata.put(name, value);
+    }
+
+    private static boolean mismatchVersion(String expected, Optional<String> actual) {
+        return expected != null && actual.isPresent() && !expected.equalsIgnoreCase(actual.get());
     }
 
     private static String text(JsonNode root, String name) {

@@ -103,7 +103,8 @@ public class WchIspRunner {
         Duration duration,
         boolean elevationUsed,
         Map<String, Path> rawArtifacts,
-        String terminationReason
+        String terminationReason,
+        List<Long> ownedProcessIds
     ) {
         public WchIspProcessResult {
             stdout = stdout == null ? "" : stdout;
@@ -112,6 +113,19 @@ public class WchIspRunner {
             duration = duration == null ? Duration.ZERO : duration;
             rawArtifacts = rawArtifacts == null ? Map.of() : Map.copyOf(rawArtifacts);
             terminationReason = terminationReason == null ? "" : terminationReason;
+            ownedProcessIds = ownedProcessIds == null ? List.of() : ownedProcessIds.stream()
+                .filter(value -> value != null && value > 0).distinct().toList();
+        }
+
+        /** Compatibility constructor for callers that only know the primary PID. */
+        public WchIspProcessResult(UUID operationId, boolean processStarted, long pid,
+                                   int exitCode, boolean timedOut, boolean cancelled,
+                                   String stdout, String stderr, String console,
+                                   Duration duration, boolean elevationUsed,
+                                   Map<String, Path> rawArtifacts, String terminationReason) {
+            this(operationId, processStarted, pid, exitCode, timedOut, cancelled,
+                stdout, stderr, console, duration, elevationUsed, rawArtifacts,
+                terminationReason, pid > 0 ? List.of(pid) : List.of());
         }
 
         public static WchIspProcessResult startFailure(UUID operationId, Exception error) {
@@ -177,7 +191,8 @@ public class WchIspRunner {
             String err = stderr.toString(Charset.defaultCharset());
             return new WchIspProcessResult(command.operationId(), true, pid, exit,
                 timedOut, cancelled, out, err, out + System.lineSeparator() + err,
-                Duration.ofNanos(System.nanoTime() - startedAt), false, Map.of(), reason);
+                Duration.ofNanos(System.nanoTime() - startedAt), false, Map.of(), reason,
+                List.of(pid));
         }
 
         private static Thread reader(InputStream input, ByteArrayOutputStream output, String name) {
@@ -222,51 +237,109 @@ public class WchIspRunner {
             Path stderr = directory.resolve("stderr.txt");
             Path marker = directory.resolve("result.txt");
             Path pidFile = directory.resolve("pid.txt");
+            Path workerPidFile = directory.resolve("worker-pid.txt");
             java.nio.file.Files.writeString(wrapper, wrapperScript(), java.nio.charset.StandardCharsets.UTF_8);
             java.nio.file.Files.writeString(worker, workerScript(), java.nio.charset.StandardCharsets.UTF_8);
             List<String> invocation = List.of(
                 "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                 "-File", wrapper.toString(), worker.toString(), command.executable().toString(),
                 command.workingDirectory().toString(), stdout.toString(), stderr.toString(),
-                marker.toString(), pidFile.toString(), Long.toString(Math.max(1, command.timeout().toSeconds())),
+                marker.toString(), pidFile.toString(), workerPidFile.toString(),
+                Long.toString(Math.max(1, command.timeout().toSeconds())),
                 Base64.getEncoder().encodeToString(String.join("\u0000", command.arguments())
                     .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             Process elevation = new ProcessBuilder(invocation).redirectErrorStream(true).start();
             long deadline = System.nanoTime() + command.timeout().plusSeconds(5).toNanos();
             while (elevation.isAlive() && System.nanoTime() < deadline) {
                 if (cancellation.cancelled()) {
-                    elevation.destroyForcibly();
+                    long workerPid = readPid(workerPidFile);
                     long childPid = readPid(pidFile);
-                    String reason = childPid > 0 ? "UAC_CANCELLED"
-                        : "UAC_CANCELLED/PROCESS_OWNERSHIP_INCOMPLETE";
+                    terminateOwnedPids(elevation.pid(), workerPid, childPid);
+                    elevation.waitFor(2, TimeUnit.SECONDS);
+                    boolean incomplete = ownershipIncomplete(elevation.pid(), workerPid, childPid);
+                    String reason = "UAC_CANCELLED" + (incomplete ? "/PROCESS_OWNERSHIP_INCOMPLETE" : "");
                     return new WchIspProcessResult(command.operationId(), true, elevation.pid(), -1,
                         false, true, read(stdout), read(stderr), read(stdout) + read(stderr),
-                        command.timeout(), true, artifacts(stdout, stderr, marker), reason);
+                        command.timeout(), true, artifacts(stdout, stderr, marker, pidFile, workerPidFile), reason,
+                        ownedPids(elevation.pid(), workerPid, childPid));
                 }
                 elevation.waitFor(100, TimeUnit.MILLISECONDS);
             }
             boolean timedOut = elevation.isAlive();
-            if (timedOut) elevation.destroyForcibly();
+            long workerPid = readPid(workerPidFile);
+            long childPid = readPid(pidFile);
+            if (timedOut) terminateOwnedPids(elevation.pid(), workerPid, childPid);
             elevation.waitFor(2, TimeUnit.SECONDS);
             int wrapperExit = elevation.isAlive() ? -1 : elevation.exitValue();
             String markerValue = read(marker).trim();
             int exitCode = parseExitCode(markerValue, wrapperExit);
             boolean cancelled = wrapperExit == 1223 || "UAC_CANCELLED".equals(markerValue);
-            long childPid = readPid(pidFile);
-            boolean ownershipIncomplete = childPid <= 0 && (timedOut || cancelled);
+            childPid = readPid(pidFile);
+            workerPid = readPid(workerPidFile);
+            boolean ownershipIncomplete = (timedOut || cancelled)
+                && ownershipIncomplete(elevation.pid(), workerPid, childPid);
             String reason = timedOut ? "TIMEOUT" : cancelled ? "UAC_CANCELLED" : "ELEVATED_PROCESS_EXIT";
             if (ownershipIncomplete) reason += "/PROCESS_OWNERSHIP_INCOMPLETE";
-            return new WchIspProcessResult(command.operationId(), true, childPid, exitCode,
+            long primaryPid = childPid > 0 ? childPid : workerPid > 0 ? workerPid : elevation.pid();
+            return new WchIspProcessResult(command.operationId(), true, primaryPid, exitCode,
                 timedOut, cancelled, read(stdout), read(stderr), read(stdout) + read(stderr),
-                command.timeout(), true, artifacts(stdout, stderr, marker), reason);
+                command.timeout(), true, artifacts(stdout, stderr, marker, pidFile, workerPidFile), reason,
+                ownedPids(elevation.pid(), workerPid, childPid));
         }
 
-        private static Map<String, Path> artifacts(Path stdout, Path stderr, Path marker) {
+        private static Map<String, Path> artifacts(Path stdout, Path stderr, Path marker,
+                                                   Path pidFile, Path workerPidFile) {
             Map<String, Path> result = new HashMap<>();
             result.put("stdout", stdout);
             result.put("stderr", stderr);
             result.put("result", marker);
+            result.put("pid", pidFile);
+            result.put("workerPid", workerPidFile);
             return result;
+        }
+
+        private static List<Long> ownedPids(long wrapperPid, long workerPid, long childPid) {
+            return List.of(wrapperPid, workerPid, childPid).stream()
+                .filter(pid -> pid > 0).distinct().toList();
+        }
+
+        private static boolean ownershipIncomplete(long wrapperPid, long workerPid, long childPid) {
+            for (long pid : ownedPids(wrapperPid, workerPid, childPid)) {
+                try {
+                    if (ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false)) return true;
+                } catch (RuntimeException ignored) { return true; }
+            }
+            return workerPid <= 0 || childPid <= 0;
+        }
+
+        private static void terminateOwnedPids(long wrapperPid, long workerPid, long childPid) {
+            List<Long> pids = ownedPids(wrapperPid, workerPid, childPid);
+            pids.stream().filter(pid -> pid != wrapperPid).forEach(WindowsRunAsBackend::destroy);
+            destroy(wrapperPid);
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(500);
+            while (System.nanoTime() < deadline && pids.stream().anyMatch(WindowsRunAsBackend::alive)) {
+                try { Thread.sleep(20); } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            pids.stream().filter(WindowsRunAsBackend::alive).forEach(WindowsRunAsBackend::destroyForcibly);
+        }
+
+        private static boolean alive(long pid) {
+            return ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false);
+        }
+
+        private static void destroy(long pid) {
+            ProcessHandle.of(pid).ifPresent(handle -> {
+                try { handle.destroy(); } catch (RuntimeException ignored) { }
+            });
+        }
+
+        private static void destroyForcibly(long pid) {
+            ProcessHandle.of(pid).ifPresent(handle -> {
+                try { handle.destroyForcibly(); } catch (RuntimeException ignored) { }
+            });
         }
 
         private static long readPid(Path path) {
@@ -288,14 +361,15 @@ public class WchIspRunner {
         }
 
         private static String wrapperScript() {
-            return "param([string]$Worker,[string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[int]$Timeout,[string]$Args)`n"
-                + "$list=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$Worker,$Tool,$Work,$Stdout,$Stderr,$Result,$Pid,$Timeout,$Args)`n"
+            return "param([string]$Worker,[string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[int]$Timeout,[string]$Args)`n"
+                + "$list=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$Worker,$Tool,$Work,$Stdout,$Stderr,$Result,$Pid,$WorkerPid,$Timeout,$Args)`n"
                 + "$quoted=$list|ForEach-Object{\"'\"+($_ -replace \"'\",\"''\")+\"'\"}`n"
                 + "try{$p=Start-Process powershell.exe -Verb RunAs -ArgumentList ($quoted -join ' ') -Wait -PassThru;exit $p.ExitCode}catch{if($_.Exception.Message -match 'cancel|1223'){exit 1223};exit 1}`n";
         }
 
         private static String workerScript() {
-            return "param([string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[int]$Timeout,[string]$Args)`n"
+            return "param([string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[int]$Timeout,[string]$Args)`n"
+                + "$PID|Out-File -LiteralPath $WorkerPid -Encoding ascii`n"
                 + "try{$decoded=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Args));$a=if($decoded){@($decoded -split \"`0\")}else{@()};$p=Start-Process -FilePath $Tool -WorkingDirectory $Work -ArgumentList $a -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr -PassThru;$p.Id|Out-File -LiteralPath $Pid -Encoding ascii;$p.WaitForExit($Timeout*1000)|Out-Null;if(-not $p.HasExited){$p.Kill();'TIMEOUT'|Out-File -LiteralPath $Result -Encoding ascii;exit 124};(\"PROCESS_EXIT:\"+$p.ExitCode)|Out-File -LiteralPath $Result -Encoding ascii;exit $p.ExitCode}catch{($_|Out-String)|Out-File -LiteralPath $Stderr -Encoding utf8;'PROCESS_START_FAILED'|Out-File -LiteralPath $Result -Encoding ascii;exit 1}`n";
         }
     }

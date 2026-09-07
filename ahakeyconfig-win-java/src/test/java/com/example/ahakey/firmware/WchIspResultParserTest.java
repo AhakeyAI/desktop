@@ -55,6 +55,21 @@ class WchIspResultParserTest {
         assertEquals(FirmwareUpdateError.UAC_CANCELLED, uacCancelled.error());
     }
 
+    @Test
+    void timeoutOutputUidCannotOverrideLifecycleFailure() {
+        var timeout = WchIspResultParser.parseUid(raw(0, true,
+            "Device UID:23-DF-93-5A-04-DC-BA-15", ""));
+        assertFalse(timeout.success());
+        assertEquals(FirmwareUpdateError.PROCESS_TIMEOUT, timeout.error());
+    }
+
+    @Test
+    void incompleteElevatedOwnershipIsStructured() {
+        var cancelled = WchIspResultParser.parseFlash(raw(1, false, "", "", true,
+            "UAC_CANCELLED/PROCESS_OWNERSHIP_INCOMPLETE"));
+        assertEquals(FirmwareUpdateError.PROCESS_OWNERSHIP_INCOMPLETE, cancelled.error());
+    }
+
     private static WchIspRunner.WchIspProcessResult raw(int exit, boolean timedOut,
                                                           String stdout, String stderr) {
         return raw(exit, timedOut, stdout, stderr, false);

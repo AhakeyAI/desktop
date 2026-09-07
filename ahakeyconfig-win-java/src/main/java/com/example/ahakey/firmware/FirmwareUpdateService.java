@@ -39,6 +39,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private final AtomicBoolean shuttingDown = new AtomicBoolean();
     private final CopyOnWriteArrayList<java.util.function.Consumer<FirmwareUpdateStatus>> listeners =
         new CopyOnWriteArrayList<>();
+    private final Object admissionMonitor = new Object();
+    private final AtomicBoolean diagnosticActive = new AtomicBoolean();
 
     public FirmwareUpdateService(BleManager manager) {
         this(new WchIspRuntimeProvider(), IspDeviceProbe.windowsDefault(), new WchIspRunner(),
@@ -79,17 +81,20 @@ public final class FirmwareUpdateService implements AutoCloseable {
         if (request == null) {
             return OperationStart.rejected(FirmwareUpdateError.INTERNAL_ERROR, "请求为空");
         }
-        if (shuttingDown.get()) {
-            return OperationStart.rejected(FirmwareUpdateError.CANCELLED, "应用正在退出");
+        synchronized (admissionMonitor) {
+            if (shuttingDown.get()) {
+                return OperationStart.rejected(FirmwareUpdateError.CANCELLED, "应用正在退出");
+            }
+            if (diagnosticActive.get()) return OperationStart.busy();
+            UUID operationId = UUID.randomUUID();
+            AtomicBoolean cancelled = new AtomicBoolean();
+            FirmwareOperationHandle handle = new FirmwareOperationHandle(operationId, () -> cancelled.set(true));
+            if (!active.compareAndSet(null, handle)) {
+                return OperationStart.busy();
+            }
+            CompletableFuture.runAsync(() -> runOperation(handle, request, cancelled), executor);
+            return OperationStart.accepted(handle);
         }
-        UUID operationId = UUID.randomUUID();
-        AtomicBoolean cancelled = new AtomicBoolean();
-        FirmwareOperationHandle handle = new FirmwareOperationHandle(operationId, () -> cancelled.set(true));
-        if (!active.compareAndSet(null, handle)) {
-            return OperationStart.busy();
-        }
-        CompletableFuture.runAsync(() -> runOperation(handle, request, cancelled), executor);
-        return OperationStart.accepted(handle);
     }
 
     /** Convenience for callers that only need the handle; null means BUSY. */
@@ -137,19 +142,39 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
     /** Non-destructive environment/ISP report used by the maintenance UI. */
     public DiagnosticResult diagnose() {
+        synchronized (admissionMonitor) {
+            if (shuttingDown.get()) return DiagnosticResult.failure(FirmwareUpdateError.CANCELLED, "应用正在退出");
+            if (active.get() != null || !diagnosticActive.compareAndSet(false, true)) {
+                return DiagnosticResult.failure(FirmwareUpdateError.BUSY, "固件操作正在执行");
+            }
+        }
         try {
             RuntimeBundle runtime = runtimeProvider.resolve();
             boolean present = ispProbe.isPresent();
-            return new DiagnosticResult(present, runtime,
-                present ? "WCHISP 运行环境有效，已检测到 CH582 ISP 设备"
-                    : "WCHISP 运行环境有效，但未检测到 CH582 ISP 设备", null);
+            if (!present) return new DiagnosticResult(true, false, false, runtime,
+                "RUNTIME_READY=YES\nISP_PRESENT=NO\nUID_CONFIRMED=NO\n未检测到 CH582 ISP 设备", null);
+            try (WchIspWorkspace workspace = WchIspWorkspace.create(workspaceParent, UUID.randomUUID())) {
+                WchIspWorkspace.PreparedWorkspace detect = workspace.prepareForDetect(runtime);
+                WchIspRunner.WchIspCommand command = new WchIspRunner.WchIspCommand(
+                    detect.executable(), workspace.toolDirectory(),
+                    List.of("-c", detect.configIni().toString(), "-u", "get"), UID_TIMEOUT,
+                    UUID.randomUUID());
+                WchIspResultParser.UidQueryResult uid = WchIspResultParser.parseUid(
+                    runner.run(command, WchIspRunner.CancellationToken.NONE));
+                return new DiagnosticResult(true, true, uid.success(), runtime,
+                    "RUNTIME_READY=YES\nISP_PRESENT=YES\nUID_CONFIRMED="
+                        + (uid.success() ? "YES" : "NO") + "\n" + uid.detail(),
+                    uid.success() ? null : uid.error());
+            }
         } catch (Exception failure) {
-            return new DiagnosticResult(false, null,
+            return DiagnosticResult.failure(
                 failure.getMessage() == null ? failure.toString() : failure.getMessage(),
                 failure instanceof IOException
                     ? (String.valueOf(failure.getMessage()).toLowerCase().contains("not found")
                         ? FirmwareUpdateError.RUNTIME_NOT_FOUND : FirmwareUpdateError.RUNTIME_INVALID)
                     : FirmwareUpdateError.INTERNAL_ERROR);
+        } finally {
+            diagnosticActive.set(false);
         }
     }
 
@@ -171,23 +196,26 @@ public final class FirmwareUpdateService implements AutoCloseable {
             }
             checkCancelled(cancellation);
             try (WchIspWorkspace workspace = WchIspWorkspace.create(workspaceParent, handle.operationId())) {
-                WchIspWorkspace.PreparedWorkspace prepared = workspace.prepare(
+                WchIspWorkspace.PreparedWorkspace detectWorkspace = workspace.prepareForDetect(preflight.runtime());
+                WchIspWorkspace.PreparedWorkspace flashWorkspace = workspace.prepareForFlash(
                     preflight.runtime(), request.firmwareHex());
                 diagnostics.write(diagnosticDirectory, "runtime.json",
                     "{\"root\":\"" + escape(preflight.runtime().root().toString())
                         + "\",\"configSha256\":\"" + preflight.runtime().identity().configSha256() + "\"}\n");
                 diagnostics.write(diagnosticDirectory, "effective-config-hash.txt",
-                    WchIspConfigLayout.fingerprint(Files.readAllBytes(prepared.effectiveConfig())) + "\n");
+                    "detect=" + WchIspConfigLayout.fingerprint(Files.readAllBytes(detectWorkspace.effectiveConfig()))
+                        + "\nflash=" + WchIspConfigLayout.fingerprint(Files.readAllBytes(flashWorkspace.effectiveConfig())) + "\n");
                 diagnostics.write(diagnosticDirectory, "firmware-info.txt",
-                    "path=" + request.firmwareHex() + "\ntarget=" + request.targetVersion() + "\n");
+                    "detectInput=" + detectWorkspace.firmwareInput() + "\nflashInput="
+                        + flashWorkspace.firmwareInput() + "\ntarget=" + request.targetVersion() + "\n");
 
                 transition(handle, FirmwareUpdateState.WAITING_ISP,
                     "请进入 CH582 ISP 模式，正在等待设备", 0.08, diagnosticDirectory);
                 awaitIsp(cancellation);
                 transition(handle, FirmwareUpdateState.DETECTING, "正在读取设备 UID", 0.12, diagnosticDirectory);
                 WchIspRunner.WchIspCommand uidCommand = new WchIspRunner.WchIspCommand(
-                    prepared.executable(), workspace.toolDirectory(),
-                    List.of("-c", prepared.configIni().toString(), "-u", "get"), UID_TIMEOUT,
+                    detectWorkspace.executable(), workspace.toolDirectory(),
+                    List.of("-c", detectWorkspace.configIni().toString(), "-u", "get"), UID_TIMEOUT,
                     handle.operationId());
                 WchIspRunner.WchIspProcessResult uidRaw = runner.run(uidCommand, cancellation::get);
                 saveProcess(diagnosticDirectory, "uid", uidCommand, uidRaw);
@@ -203,9 +231,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 transition(handle, FirmwareUpdateState.FLASHING,
                     "正在烧录固件，请勿断开 USB", 0.20, diagnosticDirectory);
                 WchIspRunner.WchIspCommand flashCommand = new WchIspRunner.WchIspCommand(
-                    prepared.executable(), workspace.toolDirectory(),
-                    List.of("-c", prepared.configIni().toString(), "-o", "download", "-f",
-                        request.firmwareHex().toString()), FLASH_TIMEOUT, handle.operationId());
+                    flashWorkspace.executable(), workspace.toolDirectory(),
+                    List.of("-c", flashWorkspace.configIni().toString(), "-o", "download", "-f",
+                        flashWorkspace.firmwareInput().toString()), FLASH_TIMEOUT, handle.operationId());
                 WchIspRunner.WchIspProcessResult flashRaw = runner.run(flashCommand, cancellation::get);
                 saveProcess(diagnosticDirectory, "flash", flashCommand, flashRaw);
                 WchIspResultParser.FlashExecutionResult flash = WchIspResultParser.parseFlash(flashRaw);
@@ -215,21 +243,27 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 }
             }
             transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
-                "烧录完成，等待设备正常重连", 0.92, diagnosticDirectory);
+                "烧录完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
             checkCancelled(cancellation);
-            transition(handle, FirmwareUpdateState.VERIFYING,
-                "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
             if (postVerifier == null) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
                     "未配置设备回读校验器", diagnosticDirectory);
                 return;
             }
+            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
+                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
+                    "设备未在时限内正常重连", diagnosticDirectory);
+                return;
+            }
+            transition(handle, FirmwareUpdateState.VERIFYING,
+                "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
             FirmwarePostVerifier.Verification verification = postVerifier.verify(
-                request.targetVersion(), RECONNECT_TIMEOUT);
+                request.targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
             if (!verification.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, verification.error(), verification.detail(), diagnosticDirectory);
                 return;
             }
+            checkCancelled(cancellation);
             finish(handle, FirmwareUpdateState.SUCCESS, null, verification.detail(), diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
@@ -247,13 +281,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
     }
 
     private void awaitIsp(AtomicBoolean cancellation) throws Exception {
-        long deadline = System.nanoTime() + ISP_TIMEOUT.toNanos();
-        while (System.nanoTime() < deadline) {
-            checkCancelled(cancellation);
-            if (ispProbe.isPresent()) return;
-            Thread.sleep(100);
+        if (!ispProbe.awaitPresent(ISP_TIMEOUT, cancellation::get)) {
+            throw new IOException("未检测到 CH582 ISP 设备");
         }
-        throw new IOException("未检测到 CH582 ISP 设备");
     }
 
     private void transition(FirmwareOperationHandle handle, FirmwareUpdateState next,
@@ -296,10 +326,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
         diagnostics.write(directory, "console.txt", result.console());
         diagnostics.write(directory, prefix + "-result.json",
             "operationId=" + result.operationId() + "\npid=" + result.pid()
-                + "\nexitCode=" + result.exitCode() + "\nreason=" + result.terminationReason() + "\n");
+                + "\nownedPids=" + result.ownedProcessIds() + "\nexitCode=" + result.exitCode()
+                + "\nreason=" + result.terminationReason() + "\n");
         diagnostics.write(directory, "result.json",
             "operationId=" + result.operationId() + "\npid=" + result.pid()
-                + "\nexitCode=" + result.exitCode() + "\nreason=" + result.terminationReason() + "\n");
+                + "\nownedPids=" + result.ownedProcessIds() + "\nexitCode=" + result.exitCode()
+                + "\nreason=" + result.terminationReason() + "\n");
     }
 
     private static FirmwareUpdateError classify(Exception failure) {
@@ -383,8 +415,19 @@ public final class FirmwareUpdateService implements AutoCloseable {
         }
     }
 
-    public record DiagnosticResult(boolean ispPresent, RuntimeBundle runtime,
+    public record DiagnosticResult(boolean runtimeReady, boolean ispPresent,
+                                   boolean uidConfirmed, RuntimeBundle runtime,
                                    String detail, FirmwareUpdateError error) {
-        public boolean ready() { return runtime != null && ispPresent && error == null; }
+        public DiagnosticResult(boolean ispPresent, RuntimeBundle runtime,
+                                String detail, FirmwareUpdateError error) {
+            this(runtime != null, ispPresent, false, runtime, detail, error);
+        }
+        public boolean ready() { return runtimeReady && ispPresent && uidConfirmed && error == null; }
+        static DiagnosticResult failure(FirmwareUpdateError error, String detail) {
+            return new DiagnosticResult(false, false, false, null, detail == null ? "" : detail, error);
+        }
+        static DiagnosticResult failure(String detail, FirmwareUpdateError error) {
+            return failure(error, detail);
+        }
     }
 }

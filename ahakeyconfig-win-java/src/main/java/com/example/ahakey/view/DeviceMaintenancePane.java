@@ -416,7 +416,9 @@ public final class DeviceMaintenancePane {
                 StringBuilder report = new StringBuilder("AhaKey WCHISP diagnostics\n");
                 FirmwareUpdateService.DiagnosticResult result = firmwareUpdateService.diagnose();
                 report.append(result.ready() ? "ENVIRONMENT=READY\n" : "ENVIRONMENT=NOT_READY\n");
+                report.append("RUNTIME_READY=").append(result.runtimeReady() ? "YES" : "NO").append('\n');
                 report.append("ISP_PRESENT=").append(result.ispPresent() ? "YES" : "NO").append('\n');
+                report.append("UID_CONFIRMED=").append(result.uidConfirmed() ? "YES" : "NO").append('\n');
                 report.append(result.detail()).append('\n');
                 diagnosticReport[0] = report.toString();
                 boolean readyResult = result.ready();

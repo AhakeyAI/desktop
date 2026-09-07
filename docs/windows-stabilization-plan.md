@@ -311,3 +311,31 @@ USB ISP、设备重连、固件版本/能力校验、签名安装包和 WiX 仍�
 此状态应记录为“代码完成 + 自动测试完成，软件手工/真机验证待执行”，不得表述为
 真实烧录完成。回滚只需在工作树无冲突时执行 `git switch windows-stabilization`；
 该分支仍指向上述基线，未 merge、未 push。
+
+## 12. Firmware rewrite targeted correction (2026-09-07)
+
+本轮继续在 `windows-flash-rewrite` 上针对固件烧录边界收口，未修改 Firmware、BLE
+协议、BleManager、USB/BLE bridge、审批、GIF/OLED、语音或 Hook。RunAs 路径现在为每个
+操作记录 wrapper、elevated worker 和 WCHISP 子进程 PID；取消/超时只终止这些已确认的
+operation-owned PID，归属不完整时返回 `PROCESS_OWNERSHIP_INCOMPLETE`，且 runner 完成
+前不会发布终态。
+
+ISP 等待阶段使用一次可替换的低延迟 watcher，运行时校验、detect/flash workspace 和
+命令均在 `WAITING_ISP` 之前准备；UID detect 只使用独立 `unused.hex`，flash 才引用真实
+固件。烧录后严格停留在 `WAITING_RECONNECT`，等待正常连接后才进入 `VERIFYING`；回读
+过程支持取消，取消不会被后续能力读取覆盖为 SUCCESS。RuntimeIdentity 同时比较元数据
+版本和实际 FileVersion，明确区分 KNOWN/UNKNOWN/MISMATCH；UID/flash parser 先判断取消、
+超时和启动失败，再解析业务输出。诊断 UI 分别报告 `RUNTIME_READY`、`ISP_PRESENT` 和
+`UID_CONFIRMED`，只有三者均满足才允许烧录。
+
+本轮新增/扩展 10 个固件定向测试，覆盖 RunAs owned PID、短 ISP 等待、重连取消、UID/flash
+输入隔离、运行时版本 mismatch/unknown/match、生命周期优先级和诊断 UID 门禁。实际自动
+测试为 `mvn clean test` 208/0/0/0，`mvn clean package` 208/0/0/0；独立
+`Test-ReleaseArtifactContents.ps1` 与本地 JAR 清单均成功，PowerShell 语法检查成功，
+`git diff --check` 无输出。未执行真实 WCHISP、UID、烧录、设备重连或签名安装包验证；正式
+overlay 和 `build-installer.ps1 -PrepareOnly` 均因缺少
+`C:\Program Files\AhaKeyStudio` 发布基线（JAR/icon）而未运行到构建阶段。
+
+状态为“代码完成 + 自动测试完成，软件手工/真机和正式发布环境待验证”，不得宣称真实烧录
+完成。外层 `C:\aha\ahakey-windows\windows-stabilization-plan.md` 仍不存在，本文件继续
+作为 desktop 工程唯一事实源。

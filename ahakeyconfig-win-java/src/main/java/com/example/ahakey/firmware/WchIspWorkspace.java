@@ -42,22 +42,40 @@ public final class WchIspWorkspace implements AutoCloseable {
     public Path toolDirectory() { return toolDirectory; }
     public Path logsDirectory() { return logsDirectory; }
 
+    /** Legacy alias; production callers should choose detect or flash explicitly. */
     public PreparedWorkspace prepare(RuntimeBundle runtime, Path firmwareHex) throws IOException {
+        return prepareForFlash(runtime, firmwareHex);
+    }
+
+    public PreparedWorkspace prepareForDetect(RuntimeBundle runtime) throws IOException {
+        ensureOpen();
+        Path placeholder = toolDirectory.resolve("unused.hex");
+        Files.writeString(placeholder, "", StandardCharsets.US_ASCII);
+        return prepareInternal(runtime, placeholder, "detect");
+    }
+
+    public PreparedWorkspace prepareForFlash(RuntimeBundle runtime, Path firmwareHex)
+        throws IOException {
+        return prepareInternal(runtime, firmwareHex, "flash");
+    }
+
+    private PreparedWorkspace prepareInternal(RuntimeBundle runtime, Path firmwareHex,
+                                              String profile) throws IOException {
         ensureOpen();
         if (runtime == null || firmwareHex == null) throw new IOException("workspace inputs are missing");
         copyRuntime(runtime.root(), toolDirectory);
-        Path effectiveConfig = toolDirectory.resolve("CONFIG_CH57X59X.WCH");
+        Path effectiveConfig = toolDirectory.resolve("CONFIG_CH57X59X-" + profile + ".WCH");
         copySanitizedConfig(effectiveConfig);
         byte[] bytes = Files.readAllBytes(effectiveConfig);
         String firmwarePath = firmwareHex.toAbsolutePath().normalize().toString();
         Files.write(effectiveConfig, WchIspConfigLayout.patchSlot(bytes,
             WchIspConfigLayout.CH582_SLOT_INDEX, firmwarePath));
-        Path configIni = root.resolve("config.ini");
+        Path configIni = root.resolve(profile + "-config.ini");
         Files.writeString(configIni, WchIspConfig.forCh582(firmwareHex),
             StandardCharsets.UTF_8);
         Path executable = toolDirectory.resolve(runtime.executable().getFileName());
         if (!Files.isRegularFile(executable)) throw new IOException("runtime executable copy failed");
-        return new PreparedWorkspace(executable, configIni, effectiveConfig);
+        return new PreparedWorkspace(executable, configIni, effectiveConfig, firmwareHex.toAbsolutePath().normalize());
     }
 
     private void copyRuntime(Path source, Path destination) throws IOException {
@@ -65,8 +83,7 @@ public final class WchIspWorkspace implements AutoCloseable {
             for (Path sourcePath : paths.toList()) {
                 Path name = sourcePath.getFileName();
                 if (name == null) continue;
-                if (Files.isRegularFile(sourcePath)
-                    && name.toString().equalsIgnoreCase("CONFIG_CH57X59X.WCH")) {
+                if (Files.isRegularFile(sourcePath) && isConfigCopy(name.toString())) {
                     continue;
                 }
                 Path target = destination.resolve(source.relativize(sourcePath));
@@ -78,6 +95,14 @@ public final class WchIspWorkspace implements AutoCloseable {
                 }
             }
         }
+    }
+
+    private static boolean isConfigCopy(String name) {
+        String upper = name.toUpperCase(java.util.Locale.ROOT);
+        return upper.equals("CONFIG_CH57X59X.WCH")
+            || upper.equals("CONFIG_CH57X59X.WCH.EXCLUDED")
+            || upper.startsWith("CONFIG_CH57X59X.WCH.")
+            || upper.startsWith("CONFIG_CH57X59X-") && upper.endsWith(".WCH");
     }
 
     private static void copySanitizedConfig(Path destination) throws IOException {
@@ -111,5 +136,10 @@ public final class WchIspWorkspace implements AutoCloseable {
         } catch (IOException ignored) { }
     }
 
-    public record PreparedWorkspace(Path executable, Path configIni, Path effectiveConfig) { }
+    public record PreparedWorkspace(Path executable, Path configIni, Path effectiveConfig,
+                                    Path firmwareInput) {
+        public PreparedWorkspace(Path executable, Path configIni, Path effectiveConfig) {
+            this(executable, configIni, effectiveConfig, null);
+        }
+    }
 }

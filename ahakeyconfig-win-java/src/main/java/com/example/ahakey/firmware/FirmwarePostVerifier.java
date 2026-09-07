@@ -31,22 +31,46 @@ public final class FirmwarePostVerifier {
 
     public Verification verify(SemanticVersion expectedVersion, Duration timeout)
         throws Exception {
+        return verify(expectedVersion, timeout, () -> false);
+    }
+
+    /** Waits for the transport to report a post-flash reconnect before reading capabilities. */
+    public boolean awaitReconnect(Duration timeout, BooleanSupplier cancellation) throws Exception {
+        Duration effective = timeout == null || timeout.isNegative() ? Duration.ZERO : timeout;
+        BooleanSupplier stop = cancellation == null ? () -> false : cancellation;
+        long deadline = System.nanoTime() + effective.toNanos();
+        while (System.nanoTime() < deadline) {
+            if (stop.getAsBoolean()) throw new InterruptedException("reconnect wait cancelled");
+            if (connected.getAsBoolean()) return true;
+            sleep(50);
+        }
+        if (stop.getAsBoolean()) throw new InterruptedException("reconnect wait cancelled");
+        return connected.getAsBoolean();
+    }
+
+    public Verification verify(SemanticVersion expectedVersion, Duration timeout,
+                                BooleanSupplier cancellation) throws Exception {
+        BooleanSupplier stop = cancellation == null ? () -> false : cancellation;
         long deadline = System.nanoTime() + (timeout == null ? Duration.ofSeconds(30) : timeout).toNanos();
         AhaKeyResponseParser.DeviceCapabilities capabilities = null;
         Exception last = null;
         while (System.nanoTime() < deadline) {
+            if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
             if (!connected.getAsBoolean()) {
                 sleep(100);
                 continue;
             }
             try {
                 capabilities = reader.read();
+                if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
                 if (capabilities != null) break;
             } catch (Exception failure) {
+                if (failure instanceof InterruptedException) throw failure;
                 last = failure;
             }
             sleep(100);
         }
+        if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
         if (capabilities == null) {
             return Verification.failure(FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
                 last == null ? "设备未在时限内正常重连" : last.getMessage());
@@ -72,6 +96,7 @@ public final class FirmwarePostVerifier {
                 String.format("能力位 0x%X 不满足最低要求 0x%X",
                     capabilities.capabilityBits(), FirmwareCapabilities.REQUIRED_CAPABILITY_MASK));
         }
+        if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
         return new Verification(true, null, "设备已重连并通过 0x9F 合同校验", capabilities);
     }
 

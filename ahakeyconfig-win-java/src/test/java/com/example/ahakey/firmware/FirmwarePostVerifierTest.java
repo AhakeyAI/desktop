@@ -5,6 +5,7 @@ import com.example.ahakey.update.SemanticVersion;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class FirmwarePostVerifierTest {
     private static final AhaKeyResponseParser.DeviceCapabilities GOOD =
@@ -35,5 +36,24 @@ class FirmwarePostVerifierTest {
         var verifier = new FirmwarePostVerifier(() -> GOOD, () -> false, millis -> { });
         var result = verifier.verify(null, java.time.Duration.ZERO);
         assertEquals(FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED, result.error());
+    }
+
+    @Test
+    void cancellationDuringReconnectNeverReadsOrSucceeds() {
+        AtomicBoolean read = new AtomicBoolean();
+        var verifier = new FirmwarePostVerifier(() -> { read.set(true); return GOOD; },
+            () -> false, millis -> { });
+        assertThrows(InterruptedException.class, () -> verifier.awaitReconnect(
+            java.time.Duration.ofSeconds(1), () -> true));
+        assertFalse(read.get());
+    }
+
+    @Test
+    void cancellationAfterCapabilityReadCannotBecomeSuccess() {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        var verifier = new FirmwarePostVerifier(() -> { cancelled.set(true); return GOOD; },
+            () -> true, millis -> { });
+        assertThrows(InterruptedException.class, () -> verifier.verify(
+            SemanticVersion.parse("1.4.7"), java.time.Duration.ofSeconds(1), cancelled::get));
     }
 }

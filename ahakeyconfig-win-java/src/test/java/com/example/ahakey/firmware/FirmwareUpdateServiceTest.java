@@ -53,6 +53,7 @@ class FirmwareUpdateServiceTest {
     @Test
     void endToEndUsesUidAndFlashRunnerThenPostVerifier() throws Exception {
         AtomicReference<String> commandSeen = new AtomicReference<>();
+        AtomicInteger awaitCalls = new AtomicInteger();
         WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
             commandSeen.set(String.join(" ", command.arguments()));
             String output = command.arguments().contains("get")
@@ -61,7 +62,15 @@ class FirmwareUpdateServiceTest {
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 1, 0,
                 false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
         });
-        FirmwareUpdateService service = service(() -> true, runner::run);
+        IspDeviceProbe probe = new IspDeviceProbe() {
+            @Override public boolean isPresent() { return true; }
+            @Override public boolean awaitPresent(Duration timeout,
+                                                  java.util.function.BooleanSupplier cancelled) {
+                awaitCalls.incrementAndGet();
+                return true;
+            }
+        };
+        FirmwareUpdateService service = service(probe, runner::run);
         try {
             FirmwareUpdateService.OperationStart start = service.start(request());
             FirmwareUpdateResult result = start.handle().completion().get(5, TimeUnit.SECONDS);
@@ -70,6 +79,25 @@ class FirmwareUpdateServiceTest {
             assertNotNull(result.diagnosticDirectory());
             assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve("command.txt")));
             assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve("runtime.json")));
+            assertEquals(1, awaitCalls.get());
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void diagnosticReadyRequiresUidConfirmation() throws Exception {
+        WchIspRunner runner = new WchIspRunner((command, cancellation) ->
+            new WchIspRunner.WchIspProcessResult(command.operationId(), true, 1, 0,
+                false, false, "Device UID:23-DF-93-5A-04-DC-BA-15", "", "",
+                Duration.ZERO, false, Map.of(), "PROCESS_EXIT"));
+        FirmwareUpdateService service = service(() -> true, runner::run);
+        try {
+            FirmwareUpdateService.DiagnosticResult result = service.diagnose();
+            assertTrue(result.runtimeReady());
+            assertTrue(result.ispPresent());
+            assertTrue(result.uidConfirmed());
+            assertTrue(result.ready());
         } finally {
             service.shutdown();
         }

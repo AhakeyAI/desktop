@@ -24,7 +24,8 @@ class WchIspRunnerTest {
                 new IOException("CreateProcess error=740")); },
             (ignored, token) -> new WchIspRunner.WchIspProcessResult(
                 operationId, true, 17, 0, false, false, "Device UID: 01-02", "",
-                "Device UID: 01-02", Duration.ofMillis(5), true, Map.of(), "ELEVATED_PROCESS_EXIT"));
+                "Device UID: 01-02", Duration.ofMillis(5), true, Map.of(), "ELEVATED_PROCESS_EXIT",
+                List.of(17L, 18L)));
 
         WchIspRunner.WchIspProcessResult result = runner.run(command, () -> false);
 
@@ -32,5 +33,6 @@ class WchIspRunnerTest {
         assertTrue(result.elevationUsed());
         assertEquals(operationId, result.operationId());
         assertEquals(0, result.exitCode());
+        assertEquals(List.of(17L, 18L), result.ownedProcessIds());
     }
 }
