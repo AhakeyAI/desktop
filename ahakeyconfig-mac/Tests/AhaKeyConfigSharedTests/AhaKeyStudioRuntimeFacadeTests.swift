@@ -389,6 +389,31 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         }
     }
 
+    /// 在 normalize/seal 中释放 actor，供测试注入切设备/撤 proof。
+    private final class GatingImageNormalizer: AhaKeyStudioImageNormalizer, @unchecked Sendable {
+        let entered = DispatchSemaphore(value: 0)
+        let gate = DispatchSemaphore(value: 0)
+        let inner: IdentityImageNormalizer
+
+        init(frameCount: Int) {
+            inner = IdentityImageNormalizer(frameCount: frameCount)
+        }
+
+        func normalize(
+            from url: URL,
+            maxFrames: Int,
+            maxSourceFileBytes: Int
+        ) throws -> AhaKeyStudioNormalizedImage {
+            entered.signal()
+            gate.wait()
+            return try inner.normalize(
+                from: url,
+                maxFrames: maxFrames,
+                maxSourceFileBytes: maxSourceFileBytes
+            )
+        }
+    }
+
     private func gifAsset(
         _ state: AhaKeyDesiredConfiguration.TaskDisplayState,
         name: String,
@@ -821,9 +846,31 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             data: Data([0xDE, 0xAD, 0xBE, 0xEF])
         )
         do {
-            try await facade.ingestResources([item])
+            try await facade.ingestResources([item], targetDeviceID: try AhaKeyRuntimeDeviceID("DEVICE-1"))
             XCTFail("无密封事实不得 ingest")
         } catch AhaKeyStudioApplyError.unsupportedFirmware {
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        await facade.stop()
+    }
+
+    func testDirectIngestTargetMismatchRejectsBeforeTransport() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(sealedRhinoSnapshot(deviceID: "DEVICE-1"))
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("img-a"),
+            sha256: try AhaKeySHA256Digest(String(repeating: "ab", count: 32)),
+            byteCount: 4,
+            data: Data([0xDE, 0xAD, 0xBE, 0xEF])
+        )
+        do {
+            try await facade.ingestResources([item], targetDeviceID: try AhaKeyRuntimeDeviceID("DEVICE-2"))
+            XCTFail("ingest target 必须等于 active device")
+        } catch AhaKeyStudioApplyError.pageOperationIncomplete {
         }
         XCTAssertEqual(transport.requestLog, [])
         XCTAssertNil(transport.ingestedItems)
@@ -864,6 +911,35 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         await facade.stop()
     }
 
+    func testApplyPackagePictureRefsWithEmptyResourcesRejectsBeforeTransport() async throws {
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(sealedRhinoSnapshot())
+        let assembled = try AhaKeyStudioPackageAssembler.assemble(
+            modes: [applyModeInput()],
+            includePictureResources: true
+        )
+        XCTAssertFalse(assembled.configuration.referencedResources.isEmpty)
+        let package = try AhaKeyConfigurationPackage(
+            targetDeviceID: device,
+            baseRevision: .init(0),
+            desiredConfiguration: assembled.configuration.canonicalData(),
+            resources: []
+        )
+        do {
+            _ = try await facade.apply(package)
+            XCTFail("desired 引用图片但 metadata resources 为空必须 fail-closed")
+        } catch AhaKeyStudioApplyError.pageOperationIncomplete {
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
     func testCommitFrozenPageMismatchedProfileRejectsBeforeTransport() async throws {
         let snapshot = pageReadySnapshot()
         let transport = FakeTransport(snapshot: snapshot)
@@ -891,6 +967,147 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         XCTAssertEqual(transport.requestLog, [])
         XCTAssertNil(transport.ingestedItems)
         XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testPictureApplyRevokesProofDuringNormalizeCreatesNoTransport() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let gate = GatingImageNormalizer(frameCount: 6)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: gate
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(sealedRhinoSnapshot())
+        let applyTask = Task {
+            try await facade.apply(
+                modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: device,
+                baseRevision: .init(7)
+            )
+        }
+        XCTAssertEqual(gate.entered.wait(timeout: .now() + 2), .success)
+        await facade.installSnapshotForTesting(routingSnapshot())
+        gate.gate.signal()
+        do {
+            _ = try await applyTask.value
+            XCTFail("normalize 期间撤销 OLED proof 必须拒绝，不得进入 CAS")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testPictureApplySwitchDeviceDuringNormalizeCreatesNoTransport() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let gate = GatingImageNormalizer(frameCount: 6)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: gate
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(sealedRhinoSnapshot())
+        let applyTask = Task {
+            try await facade.apply(
+                modes: [applyModeInput()],
+                scope: .init(modeSlot: 0),
+                targetDeviceID: device,
+                baseRevision: .init(7)
+            )
+        }
+        XCTAssertEqual(gate.entered.wait(timeout: .now() + 2), .success)
+        await facade.installSnapshotForTesting(sealedRhinoSnapshot(deviceID: "DEVICE-2"))
+        gate.gate.signal()
+        do {
+            _ = try await applyTask.value
+            XCTFail("normalize 期间切换 active device 必须拒绝")
+        } catch AhaKeyStudioApplyError.pageOperationIncomplete {
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
+    func testCommitFrozenPageRevokesProofDuringSealCreatesNoTransport() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5pr2-seal-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let png = root.appendingPathComponent("still.png")
+        try writeStill(width: 800, height: 400, type: "public.png", to: png)
+        let sealed = try AhaKeyStudioCanonicalTaskAsset.seal(source: png)
+        defer {
+            if let temp = sealed.ownedTemporaryFile {
+                try? FileManager.default.removeItem(at: temp)
+            }
+        }
+        let snapshot = pageReadySnapshot()
+        let gate = GatingImageNormalizer(frameCount: sealed.frameCount)
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            imageNormalizer: gate
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .done)
+        let current = AhaKeyStudioFieldValue.asset(
+            path: png.path,
+            framesPerSecond: 12,
+            declaredFrameCount: sealed.frameCount,
+            pixelWidth: 160,
+            pixelHeight: 80,
+            sha256: sealed.sha256,
+            byteCount: sealed.byteCount,
+            mediaType: sealed.mediaType
+        )
+        let stale = AhaKeyStudioFieldValue.asset(
+            path: nil,
+            framesPerSecond: 12,
+            declaredFrameCount: 1,
+            pixelWidth: 160,
+            pixelHeight: 80,
+            sha256: try AhaKeySHA256Digest(String(repeating: "ab", count: 32)),
+            byteCount: 16,
+            mediaType: AhaKeyStudioCanonicalTaskAsset.gifMediaType
+        )
+        let writePage = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: field,
+                    value: current,
+                    isDirty: true,
+                    baseline: .init(trust: .verified, value: stale)
+                ),
+            ]
+        )
+        let commitTask = Task {
+            try await facade.commitFrozenPage(writePage)
+        }
+        XCTAssertEqual(gate.entered.wait(timeout: .now() + 2), .success)
+        await facade.installSnapshotForTesting(routingSnapshot())
+        gate.gate.signal()
+        do {
+            _ = try await commitTask.value
+            XCTFail("seal 期间撤销 OLED proof 必须拒绝，不得进入 CAS")
+        } catch AhaKeyStudioApplyError.unsupportedFirmware {
+        }
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.ingestedItems)
+        XCTAssertNil(transport.appliedPackage)
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
         await facade.stop()
     }
 

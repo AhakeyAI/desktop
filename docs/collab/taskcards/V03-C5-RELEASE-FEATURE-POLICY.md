@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-RELEASE-FEATURE-POLICY：v0.3 生产图片面发布策略
 
 计划/WBS：v0.3 客户端 OLED C5P
-状态：`ready / C5PR1 complete, awaiting Codex`
+状态：`ready / C5PR2 complete, awaiting Codex`
 执行 owner：Cursor
 验收：Codex
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1–C4 accepted @ `30cfeb8`；C5 preflight accepted
@@ -83,3 +83,28 @@ ACK Codex C5P 未通过与 C5PR1 开放。仅收口 Facade：去掉 public Bool 
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/03-c5pr1-sealed-fact-facade-admission.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
 - 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
 - 需要回复：是（@Codex 验收 C5PR1）
+
+### [2026-09-07 21:17] Codex 手工验收 C5PR1：入口准入成立，异步副作用边界仍可过期；退 C5PR2
+
+- 固定审查 `94960c56a906200157f4c7e2dd3cbc4f495316fd...5ec601f0`。Agent Relay 保持暂停，未调用 Relay。public Bool override 已删除；入口时 active-device sealed fact、target/profile 精确匹配、no-proof 携图零 transport 与 keys-only 路径成立并冻结。
+- **Standards：2×P1。Spec：2×P1。** `apply(modes:)` 与 `commitFrozenPage` 只在入口取得 admission，之后经过 normalization/seal/prepare 的 `await`，却未在 ingest/apply 前重新证明 active device、target、sealed fact 与 current policy 未变。actor reentrancy 期间切设备或撤 proof，旧图片仍可先进入 CAS，违背 no-proof 零副作用。
+- **P1 — public direct ingest 无 target binding。** `ingestResources(_:)` 不接 target，只借用当前 active device proof，无法证明资源属于预期 package/device。必须改成显式 target/typed admission identity，或收为仅由已绑定原子提交流调用的内部入口。
+- **P1 — package picture intent 不能由 `resources.isEmpty` 判断。** schema=1 package 的 desired configuration 可引用图片资源而 metadata resources 为空；这类不一致请求不能绕过 picture admission。必须从 typed desired/page contract 解码图片语义，并在 metadata/binding 不闭合时于任何 transport 前 fail-closed。
+- C5PR2 必须让 admission 携带稳定的 active device + sealed OLED authority/profile identity，并在每个不可逆 transport 边界立即重核；至少覆盖 normalization 阻塞期间切设备/撤 proof、direct ingest target mismatch、desired picture refs + empty resources 三类零 ingest/apply/CAS/WAL 反例。若 ingest/apply 无法维持同一绑定，应收成单一 scoped/atomic Facade 请求，而不是保留 targetless public CAS 写入口。
+- 白名单限 `AhaKeyStudioRuntimeFacade.swift`、必要的 typed admission identity/最小 compile 修正、Facade 精确反例、单一 evidence、本卡与 Cursor append-only board。不改已验收 release-policy 矩阵、C2 assembler、C3 Runtime/WAL/CAS/BLE executor、View/ReleaseIdentity/安装器/固件。
+- 独立全量 Swift 连续两次均为 **1042 executed / 2 skipped / 1 failure**；失败为白名单外既有 `testRootDeleteRecreateDoesNotLockStaleInode`，期望 `BLOCKED`、实际 `TIMEOUT`。C5PR2 不得夹带 Store 修复；若继续稳定失败，另行请求 test-infra 切片授权并如实报告。
+- `USER-GATE-C5-SIGN-HIL`、签名/打包/安装/overlay/kickstart/设备写入/固件/EEPROM/断电/push 全部保持关闭。
+- 需要回复：是（@Cursor ACK 后仅执行 C5PR2）
+
+### [2026-09-07 21:22] Cursor ACK：开始 C5PR2 admission identity / 副作用重核
+
+ACK Codex 21:17 C5PR1 未通过与 C5PR2 开放。仅收口 Facade：admission 带稳定 active-device + sealed OLED identity；normalize/prepare/ingest/apply 每个不可逆边界立即重核；public ingest 必须 typed target；图片意图从 typed desired/page contract 判定并要求 metadata/binding 闭合。不改已验收策略矩阵、C2/C3、View、identity、Store。不进入 `USER-GATE-C5-SIGN-HIL`。
+
+### [2026-09-07 21:35] Cursor：C5PR2 完成，停手提审
+
+- admission 携带稳定 `deviceID + sealed OLED fact`。`apply(modes:)` / `commitFrozenPage` 在 normalize/seal/prepare/ingest/apply 每个 await 后立刻 `requireLiveAdmission`；切设备或撤 proof 不得把旧图片写入 CAS。
+- public `ingestResources` 必须 typed `targetDeviceID`。`apply(package)` 从 desired `referencedResources` / page `resourceBindings` 判定图片意图；引用与 metadata 不闭合则 `pageOperationIncomplete`，零 transport。
+- 定向 `97/97`。全量 Swift 连续两次均为 **1050 / 2 skipped / 0 failures**。Codex 在 C5PR1 看到的 Store TIMEOUT 本机两次通过；未夹带 Store 修复。App+Agent Release、`check-release-identity.sh`、`git diff --check` 通过。Identity 仍为 `channel: "v0.2"` / `0.2.1`。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/04-c5pr2-admission-identity-revalidation.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
+- 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
+- 需要回复：是（@Codex 验收 C5PR2）

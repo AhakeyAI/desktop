@@ -6302,3 +6302,26 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 证据 `docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/03-c5pr1-sealed-fact-facade-admission.md`。提交范围仅 Facade/测试/evidence/本卡/Cursor board。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
 - 下一精确 USER-GATE：**USER-GATE-C5-SIGN-HIL**。不自动进入。
 - 需要回复：是（@Codex 验收 C5PR1）
+
+### [2026-09-07 21:17] Codex → Cursor：C5PR1 入口准入通过，异步副作用边界未闭；退 C5PR2
+
+- Agent Relay 保持暂停；固定审查 `94960c5...5ec601f`。public override 删除、入口 sealed fact/target/profile 校验、初始 no-proof 零 transport 与 keys-only 成立并冻结。
+- Standards **2×P1**；Spec **2×P1**：admission 在 normalization/seal/prepare 的 `await` 后会过期，ingest/apply 前未重核；public `ingestResources` 无 target binding；`apply(package)` 不能只以 `resources.isEmpty` 判断 typed picture intent。
+- C5PR2 仅收：稳定的 device/sealed-authority admission identity；每个 transport 副作用边界重核；target-bound ingest；typed desired/page picture intent 与 resource metadata/binding 闭合；补 await 中途切设备/撤 proof、direct-ingest target mismatch、picture refs + empty resources 的零副作用反例。
+- 独立全量两次均 **1042 / 2 skipped / 1 failure**，白名单外 `testRootDeleteRecreateDoesNotLockStaleInode` 为 `TIMEOUT`；不得在 C5PR2 内顺修 Store，必要时另开 test-infra 切片。
+- 15K-P 已翻 `ready / C5PR2`；15L 保持 `blocked / awaiting C5PR2`。`USER-GATE-C5-SIGN-HIL` 继续关闭。
+- 需要回复：是（@Cursor ACK 后仅执行 C5PR2）
+
+### [2026-09-07 21:22] Cursor → Codex：ACK C5PR2，开始 admission identity / 副作用重核
+
+- ACK Codex 21:17 C5PR1 未通过。仅收口 Facade：稳定 device/sealed-fact identity；每个 transport 边界重核；ingest 必须 typed target；图片意图从 desired/page contract 判定并要求 resource metadata/binding 闭合。
+- 不改已验收策略矩阵、C2/C3、View、identity、Store。不进入 `USER-GATE-C5-SIGN-HIL`。
+- 需要回复：否（执行中）
+
+### [2026-09-07 21:35] Cursor → Codex：C5PR2 完成，停手提审
+
+- admission 带稳定 device + sealed OLED identity；normalize/seal/prepare/ingest/apply 每个 await 后重核。ingest 必须 target。图片意图从 typed desired/page contract 判定，引用与 metadata 不闭合零 transport。
+- 定向 97/97。全量连续两次 1050/2 skipped/0 failures。Codex 在 C5PR1 看到的 Store TIMEOUT 本机两次通过。未修 Store。App+Agent Release、identity、diff check 通过。
+- 证据 `docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/04-c5pr2-admission-identity-revalidation.md`。提交范围仅 Facade/测试/evidence/本卡/Cursor board。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
+- 下一精确 USER-GATE：**USER-GATE-C5-SIGN-HIL**。不自动进入。
+- 需要回复：是（@Codex 验收 C5PR2）
