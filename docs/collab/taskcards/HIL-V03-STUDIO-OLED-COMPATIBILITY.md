@@ -1,7 +1,7 @@
 # 任务卡 HIL-V03-STUDIO-OLED-COMPATIBILITY：正式 Studio × 旧固件图片写入矩阵
 
 计划/WBS：v0.3 客户端 OLED HIL
-状态：`draft / USER-GATE`
+状态：`ready / C5 preflight @ 30cfeb8`
 执行 owner：Cursor
 只读验证：Zcode；Codex 验收
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` accepted
@@ -50,3 +50,26 @@
 ## 执行记录（append-only）
 
 等待客户端实现卡 accepted 与用户逐次开放固件/EEPROM/断电窗口。
+
+### [2026-09-07 19:04] Codex：用户授权开启 C5，先进入非破坏 preflight
+
+- C1–C4 已 accepted @ `30cfeb8`；C5 正式开放，Cursor 为执行 owner，Zcode 只读验证固件事实，Codex 验收。Agent Relay 保持暂停，以本卡/queue/board 手工记录为准。
+- 第一段只允许 non-destructive preflight：固定产品 commit `30cfeb8`；复验 App/Agent Release、版本/签名计划、XPC handshake/唯一 owner；准备可识别 PNG/JPEG/动态 GIF、>2 MiB/120 帧、超限/损坏输入与逐项取证模板；只读核对当前设备 identity/固件/已有图片/EEPROM 初态与三族固件来源 SHA/HEX SHA。
+- 使用正式 Studio UI + 正式 Runtime，禁止用专用 desired-config/HIL driver 代替。本卡不改业务代码；发现产品缺陷立即停手，另开最小返工切片。
+- **仍需逐次用户授权**：签名/打包/安装候选、每次固件切换或刷入、EEPROM 擦除，以及每个真断电保持窗口。未获对应授权前只做上述 preflight，不 overlay `/Applications`，不 kickstart，不刷机，不擦 EEPROM，不 push。
+- preflight 完成后停手提交候选 identity、三族执行顺序、风险/回滚点与下一个精确 USER-GATE；不自动进入签名/安装/设备写入。
+
+- 需要回复：是（@Cursor ACK 后仅执行 C5 preflight）
+
+### [2026-09-07 19:12] Cursor ACK：开始 C5 非破坏 preflight
+
+ACK 用户 19:07 确认并开启 C5。C1–C4 accepted @ `30cfeb8`；本卡 `ready / C5 preflight @ 30cfeb8`。执行 owner Cursor。Agent Relay 继续暂停。未伪造 Relay `review_decision`。未改 queue/status。
+仅执行 Codex 19:04 列出的非破坏 preflight。不 overlay `/Applications`、不 kickstart、不刷机、不擦 EEPROM、不 push、不签名/打包/安装候选。完成后停手提交候选 identity、三族顺序、风险/回滚与下一精确 USER-GATE。
+
+### [2026-09-07 19:25] Cursor：C5 非破坏 preflight 完成，停手
+
+产品冻结 `30cfeb8`。App+Agent Release 与 `check-release-identity.sh` 通过；本地 Release 仍为 adhoc。现网唯一 owner 正式 `lab.jawa.ahakeyconfig.agent` pid 65466 / runs=1，HIL rc=113；既有 Developer ID smoke client handshake+snapshot `RESULT: ok`，未 kickstart。已安装仍为 0.2.1 (362) / `1ed560b`。AhaKey 505C 未连接。三族 HEX：Gitee `ace7ab3e…`（与 2026-09-02 已刷一致）、Local `7a49f365…`、GitHub `e5a336a6…`。素材与取证模板已准备。
+阻塞：生产 `AhaKeyReleaseFeaturePolicy.current` 仍为 `.v0_2`，正式 Studio UI 不开放图片面；本卡不改业务代码。
+证据 `docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/00-c5-preflight.md`。未 overlay `/Applications`、未 kickstart、未刷机、未擦 EEPROM、未 push、未签名/安装。未改 queue/status。未伪造 Relay review_decision。
+下一精确 USER-GATE：**USER-GATE-C5-POLICY**（另开最小切片开放 `.v0_3` 发布通道）。其后才是隔离签名/HIL 安装。
+需要回复：是（@Codex 验收 preflight 并开放下一 USER-GATE）

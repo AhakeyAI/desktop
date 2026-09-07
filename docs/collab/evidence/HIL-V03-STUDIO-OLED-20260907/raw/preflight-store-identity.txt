@@ -1,0 +1,50 @@
+===== device-identity.json =====
+{"3A9D2D14-3720-2D36-18C5-84B776CC4F3E":"4F3E"}
+===== runtime-store =====
+total 4432
+drwx------@ 7 heartline  staff      224 Aug 26 17:57 .
+drwx------@ 5 heartline  staff      160 Sep  2 23:22 ..
+-rw-------@ 1 heartline  staff       16 Sep  7 15:31 .runtime-store.lock
+drwx------@ 6 heartline  staff      192 Aug 28 12:18 resources
+-rw-------@ 1 heartline  staff   131072 Sep  2 20:51 runtime.sqlite3
+-rw-------@ 1 heartline  staff    32768 Sep  7 18:59 runtime.sqlite3-shm
+-rw-------@ 1 heartline  staff  1746912 Sep  7 18:54 runtime.sqlite3-wal
+-- resources --
+total 4464
+drwx------@ 6 heartline  staff      192 Aug 28 12:18 .
+drwx------@ 7 heartline  staff      224 Aug 26 17:57 ..
+-rw-------@ 1 heartline  staff     4402 Aug 28 12:18 1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b
+-rw-------@ 1 heartline  staff  2148859 Aug 28 10:24 3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf
+-rw-------@ 1 heartline  staff     3872 Aug 28 10:24 68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5
+-rw-------@ 1 heartline  staff   122286 Aug 28 10:24 a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c
+resource_count=       4
+
+===== official plist =====
+{
+  "KeepAlive" => true
+  "Label" => "lab.jawa.ahakeyconfig.agent"
+  "MachServices" => {
+    "lab.jawa.ahakeyconfig.runtime" => true
+  }
+  "ProgramArguments" => [
+    0 => "/Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent"
+    1 => "--socket"
+    2 => "/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/heartline/Library/Logs/ahakeyconfig-agent.log"
+  "StandardOutPath" => "/Users/heartline/Library/Logs/ahakeyconfig-agent.log"
+}
+
+===== Mach uniqueness =====
+65466	0	lab.jawa.ahakeyconfig.agent
+58877	0	application.lab.jawa.ahakeyconfig.55879312.55879324
+
+===== existing smoke client =====
+Identifier=lab.jawa.ahakeyconfig
+Format=Mach-O thin (arm64)
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+smoke strict rc=0

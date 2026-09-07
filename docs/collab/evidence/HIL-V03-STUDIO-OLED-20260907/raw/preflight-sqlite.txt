@@ -1,0 +1,28 @@
+===== resources =====
+digest                                                            byte_count  media_type  relative_path                                                   
+----------------------------------------------------------------  ----------  ----------  ----------------------------------------------------------------
+1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b  4402        gif         1ac411d127a35bb2d287f39e3a4084ed1407884e52377a5cd9bda1a3ea7ef47b
+
+===== staged =====
+digest                                                            byte_count  media_type                logical_identifier  relative_path                                                   
+----------------------------------------------------------------  ----------  ------------------------  ------------------  ----------------------------------------------------------------
+3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf  2148859     application/octet-stream  mode0-default       3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf
+68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5  3872        application/octet-stream  mode1-default       68880206311e7cd72f41caf1efc6bd0868c6057c18fdb01badb8ab03affb53c5
+a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c  122286      application/octet-stream  mode2-default       a240725f3ffb7abbb6c15fe16d38450ffafd3b02a4ab475f0d7a2635b7ca894c
+
+===== transactions =====
+operation_id                          state                    completed_steps  total_steps  message_code  terminal_order  queue_order
+------------------------------------  -----------------------  ---------------  -----------  ------------  --------------  -----------
+49A143EC-6931-475B-AC36-FD26E8830412  failedWithPartialCommit  3                7                          1               1          
+36054230-1893-414A-A0A0-69284E427E84  failedWithPartialCommit  3                7                          2               2          
+C0040290-9BA2-4BD8-A3D7-8AFEB32D1D16  failedWithoutWrites      0                7                          3               3          
+9C1617A0-1060-4735-A8BA-A17B0A83A72C  failedWithPartialCommit  3                7                          4               4          
+88B28D2E-B1CD-434F-815C-A5E0437C046D  failedWithoutWrites      0                7                          5               5          
+E3669637-E7AD-4793-B1B7-1FE8ED3E212D  failedWithPartialCommit  3                7                          6               6          
+FC7DE8E7-BA4A-45D0-96AF-5DBF22BF30D7  failedWithPartialCommit  3                7                          7               7          
+4B91457B-6008-4CDB-B7D8-3677E43B6292  failedWithPartialCommit  3                7                          8               8          
+
+===== sync baselines =====
+
+===== page field baselines =====
+page_field_count=0

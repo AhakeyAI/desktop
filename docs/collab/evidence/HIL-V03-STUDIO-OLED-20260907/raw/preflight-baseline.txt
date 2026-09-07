@@ -1,0 +1,124 @@
+===== C5 PREFLIGHT BASELINE 2026-09-07 19:18:02 +0800 =====
+uid=501 user=heartline
+
+===== git =====
+30cfeb889bfea299a41224222f8a5b400df2de33
+30cfeb889bfea299a41224222f8a5b400df2de33 2026-09-07 18:55:51 +0800 V03 C4R14：净化审查范围，并补 MUTATING 与严格 flock 判定
+
+===== installed app =====
+0.2.1
+362
+1ed560bb5626048926eba499efe5394fd95304d3
+lab.jawa.ahakeyconfig
+drwxr-xr-x@ 3 heartline  admin  96 Sep  2 23:07 /Applications/AhaKey Studio.app
+-- app codesign --
+Identifier=lab.jawa.ahakeyconfig
+Format=app bundle with Mach-O universal (x86_64 arm64)
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+strict rc=0
+-- agent codesign --
+Identifier=lab.jawa.ahakeyconfig
+Format=Mach-O universal (x86_64 arm64)
+Authority=Developer ID Application: Xinyang Zhang (P2VFVRZK7P)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=P2VFVRZK7P
+agent strict rc=0
+-rwxr-xr-x@ 1 heartline  admin  11247440 Sep  2 23:08 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent
+
+===== launchd owners =====
+-- list --
+65466	0	lab.jawa.ahakeyconfig.agent
+58877	0	application.lab.jawa.ahakeyconfig.55879312.55879324
+-- official print --
+official print rc=0
+-- hil print --
+hil print rc=113
+-- LaunchAgents --
+-rw-r--r--@ 1 heartline  staff  859 Sep  2 23:22 /Users/heartline/Library/LaunchAgents/lab.jawa.ahakeyconfig.agent.plist
+
+===== processes =====
+heartline        65466   2.7  0.1 435363328  12976   ??  S    Wed11PM  27:21.00 /Applications/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent --socket /Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+heartline        44880   2.2  0.8 1951331424 135104   ??  S     5:34PM   1:03.56 Cursor Helper (Plugin): extension-host ahakeyconfig-main [1-16]                       
+heartline        38159   1.4  0.0 435308656   2832   ??  Ss    7:18PM   0:00.02 /bin/zsh -c builtin export PATH="/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"; snap=$(command cat <&3); builtin unsetopt aliases 2>/dev/null; builtin unalias -m '*' 2>/dev/null || true; builtin eval "$snap" && { builtin unsetopt nounset 2>/dev/null || true; builtin eval "${__CURSOR_SANDBOX_ENV_RESTORE:-}" 2>/dev/null; builtin export PWD="$(builtin pwd)"; builtin setopt aliases 2>/dev/null; builtin eval "$1" < /dev/null; }; COMMAND_EXIT_CODE=$?; dump_zsh_state >&4; builtin exit $COMMAND_EXIT_CODE -- RAW="/Users/heartline/Documents/Codex/ahakeyconfig-main/docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/raw"\012mkdir -p "$RAW"\012{\012  echo "===== C5 PREFLIGHT BASELINE $(date '+%Y-%m-%d %H:%M:%S %z') ====="\012  echo "uid=$(id -u) user=$(id -un)"\012  echo\012  echo "===== git ====="\012  git -C /Users/heartline/Documents/Codex/ahakeyconfig-main rev-parse HEAD\012  git -C /Users/heartline/Documents/Codex/ahakeyconfig-main log -1 --format='%H %ci %s'\012  echo\012  echo "===== installed app ====="\012  APP="/Applications/AhaKey Studio.app"\012  if [ -d "$APP" ]; then\012    defaults read "$APP/Contents/Info" CFBundleShortVersionString\012    defaults read "$APP/Contents/Info" CFBundleVersion\012    defaults read "$APP/Contents/Info" AhaKeyGitCommit 2>/dev/null || echo "AhaKeyGitCommit=missing"\012    defaults read "$APP/Contents/Info" CFBundleIdentifier\012    ls -ld "$APP"\012    echo "-- app codesign --"\012    codesign -dv --verbose=4 "$APP" 2>&1 | grep -E 'Identifier|Format|TeamIdentifier|Authority|Signature Size|Info.plist='\012    echo "strict rc=$(codesign --verify --strict "$APP"; echo $?)"\012    AGENT="$APP/Contents/MacOS/ahakeyconfig-agent"\012    echo "-- agent codesign --"\012    if [ -x "$AGENT" ]; then\012      codesign -dv --verbose=4 "$AGENT" 2>&1 | grep -E 'Identifier|Format|TeamIdentifier|Authority'\012      echo "agent strict rc=$(codesign --verify --strict "$AGENT"; echo $?)"\012      ls -l "$AGENT"\012    else\012      echo "NO_AGENT"\012    fi\012  else\012    echo "NO_INSTALLED_APP"\012  fi\012  echo\012  echo "===== launchd owners ====="\012  echo "-- list --"\012  launchctl list | grep -i ahakey || true\012  echo "-- official print --"\012  launchctl print "gui/$(id -u)/lab.jawa.ahakeyconfig.agent" > "$RAW/official-agent-print.txt" 2>&1\012  echo "official print rc=$?"\012  echo "-- hil print --"\012  launchctl print "gui/$(id -u)/lab.jawa.ahakeyconfig.agent.hil" > "$RAW/hil-agent-print.txt" 2>&1\012  echo "hil print rc=$?"\012  echo "-- LaunchAgents --"\012  ls -l ~/Library/LaunchAgents/lab.jawa.ahakeyconfig* 2>/dev/null || echo "no matching plists"\012  echo\012  echo "===== processes ====="\012  ps aux | grep -E '[A]haKey|[a]hakeyconfig' || true\012  echo\012  echo "===== sockets / support ====="\012  ls -l "$HOME/Library/Application Support/AhaKeyConfig" 2>/dev/null | head\012  find "$HOME/Library/Application Support/AhaKeyConfig" -maxdepth 3 -type d 2>/dev/null\012  echo "-- socks --"\012  find "$HOME/Library/Application Support/AhaKeyConfig" -name '*.sock' 2>/dev/null\012  echo\012  echo "===== bluetooth (read-only) ====="\012  system_profiler SPBluetoothDataType 2>/dev/null | sed -n '1,220p'\012  echo\012  echo "===== USB keyword grep ====="\012  system_profiler SPUSBDataType 2>/dev/null | grep -i -A6 -E 'AhaKey|WCH|HID|501A|07D7' || echo "no USB AhaKey match"\012} > "$RAW/preflight-baseline.txt" 2>&1\012echo BASELINE_OK\012wc -l "$RAW/preflight-baseline.txt"\012tail -n 30 "$RAW/preflight-baseline.txt"
+heartline        58877   0.0  0.1 435789696  24848   ??  S    Fri10PM  10:00.14 /Applications/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig
+heartline        85062   0.0  0.0 436172272   3552   ??  S    Thu07PM   0:00.25 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/.tmpIvtxtj/kernel.js --session-id 4da8f0a2b765407e86910b2b556f8f51 --working-dir /Users/heartline/Documents/Codex/ahakeyconfig-main
+heartline        85061   0.0  0.1 436196832   9616   ??  S    Thu07PM   1:17.56 /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/.tmpIvtxtj/trusted-worker.js /Users/heartline/Documents/Codex/ahakeyconfig-main
+heartline        85045   0.0  0.0 435698528   4784   ??  S    Thu07PM   0:00.17 /Applications/ChatGPT.app/Contents/Resources/codex sandbox -c shell_environment_policy.inherit="all" -c default_permissions="node_repl" -c permissions.node_repl={filesystem = {"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin" = "read", "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules" = "read", "/Users/heartline/Documents/Claude/AhaStation" = "write", "/Users/heartline/Documents/Claude/AhaStation/.agents" = "read", "/Users/heartline/Documents/Claude/AhaStation/.codex" = "read", "/Users/heartline/Documents/Claude/AhaStation/.git" = "read", "/Users/heartline/Documents/Claude/aha-meet-main" = "write", "/Users/heartline/Documents/Claude/aha-meet-main/.agents" = "read", "/Users/heartline/Documents/Claude/aha-meet-main/.codex" = "read", "/Users/heartline/Documents/Claude/aha-meet-main/.git" = "read", "/Users/heartline/Documents/Codex" = "write", "/Users/heartline/Documents/Codex/.agents" = "read", "/Users/heartline/Documents/Codex/.codex" = "read", "/Users/heartline/Documents/Codex/.git" = "read", "/Users/heartline/Documents/Codex/ahakey-studio-community" = "write", "/Users/heartline/Documents/Codex/ahakey-studio-community/.agents" = "read", "/Users/heartline/Documents/Codex/ahakey-studio-community/.codex" = "read", "/Users/heartline/Documents/Codex/ahakey-studio-community/.git" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master" = "write", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master/.agents" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master/.codex" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master/.git" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-main" = "write", "/Users/heartline/Documents/Codex/ahakeyconfig-main/.agents" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-main/.codex" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-main/.git" = "read", "/Users/heartline/Documents/Codex/专利图" = "write", "/Users/heartline/Documents/Codex/专利图/.agents" = "read", "/Users/heartline/Documents/Codex/专利图/.codex" = "read", "/Users/heartline/Documents/Codex/专利图/.git" = "read", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos" = "write", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos/.agents" = "read", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos/.codex" = "read", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos/.git" = "read", "/var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/.tmpIvtxtj" = "read", ":root" = "read", ":slash_tmp" = "write", ":tmpdir" = "write"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/.tmpIvtxtj/trusted-worker.js /Users/heartline/Documents/Codex/ahakeyconfig-main
+heartline        85044   0.0  0.0 435698464   4784   ??  S    Thu07PM   0:00.21 /Applications/ChatGPT.app/Contents/Resources/codex sandbox -c shell_environment_policy.inherit="all" -c default_permissions="node_repl" -c permissions.node_repl={filesystem = {"/Applications/ChatGPT.app/Contents/Resources/cua_node/bin" = "read", "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules" = "read", "/Users/heartline/Documents/Claude/AhaStation" = "write", "/Users/heartline/Documents/Claude/AhaStation/.agents" = "read", "/Users/heartline/Documents/Claude/AhaStation/.codex" = "read", "/Users/heartline/Documents/Claude/AhaStation/.git" = "read", "/Users/heartline/Documents/Claude/aha-meet-main" = "write", "/Users/heartline/Documents/Claude/aha-meet-main/.agents" = "read", "/Users/heartline/Documents/Claude/aha-meet-main/.codex" = "read", "/Users/heartline/Documents/Claude/aha-meet-main/.git" = "read", "/Users/heartline/Documents/Codex" = "write", "/Users/heartline/Documents/Codex/.agents" = "read", "/Users/heartline/Documents/Codex/.codex" = "read", "/Users/heartline/Documents/Codex/.git" = "read", "/Users/heartline/Documents/Codex/ahakey-studio-community" = "write", "/Users/heartline/Documents/Codex/ahakey-studio-community/.agents" = "read", "/Users/heartline/Documents/Codex/ahakey-studio-community/.codex" = "read", "/Users/heartline/Documents/Codex/ahakey-studio-community/.git" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master" = "write", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master/.agents" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master/.codex" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-mac-master/.git" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-main" = "write", "/Users/heartline/Documents/Codex/ahakeyconfig-main/.agents" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-main/.codex" = "read", "/Users/heartline/Documents/Codex/ahakeyconfig-main/.git" = "read", "/Users/heartline/Documents/Codex/专利图" = "write", "/Users/heartline/Documents/Codex/专利图/.agents" = "read", "/Users/heartline/Documents/Codex/专利图/.codex" = "read", "/Users/heartline/Documents/Codex/专利图/.git" = "read", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos" = "write", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos/.agents" = "read", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos/.codex" = "read", "/Users/heartline/Documents/Codex/客户端优化/desktop/platforms/macos/.git" = "read", "/var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/.tmpIvtxtj" = "read", ":root" = "read", ":slash_tmp" = "write", ":tmpdir" = "write"}, network = {enabled = false}} -- /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node --experimental-vm-modules /var/folders/d9/v_g81yq92q1_jcxnkcfljc3c0000gn/T/.tmpIvtxtj/kernel.js --session-id 4da8f0a2b765407e86910b2b556f8f51 --working-dir /Users/heartline/Documents/Codex/ahakeyconfig-main
+
+===== sockets / support =====
+total 32
+srw-------@  1 heartline  staff    0 Sep  2 23:22 ahakey.sock
+-rw-r--r--@  1 heartline  staff  255 Jul  7 19:42 ahatype.json
+-rw-r--r--@  1 heartline  staff    6 Sep  2 23:22 ble-owner.lock
+-rw-r--r--@  1 heartline  staff  127 Sep  7 18:54 current-ide-state.json
+-rw-r--r--@  1 heartline  staff   47 Aug 25 23:27 device-identity.json
+drwxr-xr-x@ 12 heartline  staff  384 Aug 26 17:54 diagnostics
+drwx------@  5 heartline  staff  160 Sep  2 23:22 private
+/Users/heartline/Library/Application Support/AhaKeyConfig
+/Users/heartline/Library/Application Support/AhaKeyConfig/private
+/Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store
+/Users/heartline/Library/Application Support/AhaKeyConfig/private/runtime-store/resources
+/Users/heartline/Library/Application Support/AhaKeyConfig/diagnostics
+-- socks --
+/Users/heartline/Library/Application Support/AhaKeyConfig/ahakey.sock
+/Users/heartline/Library/Application Support/AhaKeyConfig/private/hook.sock
+
+===== bluetooth (read-only) =====
+Bluetooth:
+
+      Bluetooth Controller:
+          Address: B8:E6:0C:27:74:51
+          State: On
+          Chipset: BCM_4387
+          Discoverable: Off
+          Firmware Version: 23.1.623.4110
+          Product ID: 0x4A06
+          Supported services: 0x392039 < HFP AVRCP A2DP HID Braille LEA AACP GATT SerialPort >
+          Transport: PCIe
+          Vendor ID: 0x004C (Apple)
+      Not Connected:
+          AhaKey 505C:
+              Address: D4:6C:50:5C:F5:C0
+              Vendor ID: 0x07D7
+          DJI Mic Mini-186581:
+              Address: 88:29:85:18:65:81
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+          DJI Mic Mini-6D4A62:
+              Address: 88:29:85:6D:4A:62
+              Vendor ID: 0x0001
+              Product ID: 0x0001
+              Firmware Version: 0.0.1
+              Minor Type: Headset
+          iKF-Fly Pro:
+              Address: F9:2D:6B:D7:44:FF
+              Firmware Version: 0.0.0
+              Minor Type: Headset
+          Keyboard K380:
+              Address: F4:73:35:AB:7C:32
+              Vendor ID: 0x046D
+              Product ID: 0xB342
+              Firmware Version: 66.0.1
+              Minor Type: Keyboard
+          LOGI M240 B:
+              Address: DF:C3:DA:87:ED:D0
+              Minor Type: Mouse
+          qu的MacBook Pro:
+              Address: EF:9F:01:09:73:A5
+          “尹朔”的鼠标:
+              Address: 10:94:BB:9F:36:3E
+              Vendor ID: 0x004C
+              Product ID: 0x0269
+              Firmware Version: 3.1.1
+              Minor Type: Mouse
+
+
+===== USB keyword grep =====
+no USB AhaKey match

@@ -591,3 +591,12 @@ ACK 用户转发的 Codex C4R13 未通过与 C4R14 开放。C1–C3 accepted @ `
 
 ACK 用户转发的 Codex C4R13 未通过与 C4R14 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1–C4R12 已通过项冻结。C4R13 已通过项冻结。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。`ebb30e2...<new>` 净范围只含 C4R13/R14 产品/helper/测试/evidence 与 Cursor append；既有 Codex/Zcode/firmware 记录保留为工作区 diff。READY→MUTATE 增加 `MUTATING` barrier。flock 仅 would-block 为 BLOCKED，unlock 必须成功。定向连续 5 轮 369/369，全量 1032/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/46-c4r14-clean-range-mutating-flock-oracle.md`。未改 queue/status。未伪造 Relay review_decision。C5/HIL/打包/签名/安装/刷机/push 仍关闭。停手提审，不自动进 C5。
 需要回复：是（@Codex 验收 C4R14）
+
+### [2026-09-07 19:12] Cursor ACK：开始 C5 非破坏 preflight
+
+ACK 用户 19:07 确认并开启 C5。C1–C4 accepted @ `30cfeb8`。执行转 15L `HIL-V03-STUDIO-OLED-COMPATIBILITY`。Agent Relay 继续暂停。未改 queue/status。未伪造 Relay review_decision。仅执行非破坏 preflight：冻结 `30cfeb8`；复验 App/Agent Release、版本/签名计划、现网 XPC/唯一 owner；准备 PNG/JPEG/GIF、>2 MiB/120 帧、超限/损坏夹具与取证模板；只读设备 identity/固件/已有图片/EEPROM 初态与三族 SHA/HEX。正式 Studio UI + 正式 Runtime。不 overlay `/Applications`、不 kickstart、不刷机、不擦 EEPROM、不 push、不签名/打包/安装。完成后停手提交下一精确 USER-GATE。
+
+### [2026-09-07 19:25] Cursor：C5 非破坏 preflight 完成，停手
+
+ACK 用户 19:07 开启 C5。C1–C4 accepted @ `30cfeb8`。15L preflight 完成：现网唯一 owner + XPC ok，未 kickstart；三族 HEX 已登记；正式 UI 仍被 `.v0_2` 功能策略挡住。证据 `docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/00-c5-preflight.md`。未改 queue/status。未 overlay/签名/安装/刷机/push。下一门 **USER-GATE-C5-POLICY**。
+需要回复：是（@Codex 验收 15L preflight）

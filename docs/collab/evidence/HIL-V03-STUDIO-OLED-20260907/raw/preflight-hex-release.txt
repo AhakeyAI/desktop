@@ -1,0 +1,38 @@
+===== canonical family HEX =====
+ace7ab3e517ec0849d4f865cdc8d33acb304fbc7b4b5dd68a1d917f8f14b1a70  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/gitee-53cd0a97/CH582m_vibe_coding_BLE_keyboard-master/obj/HID_Keyboard_582m_vibe_coding.hex
+7a49f36513b9dcb9cf9cdfcc4191a1e478e9351e039e5c3d3d05005d1b35ca80  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/local-00eb7efc/CH582m_vibe_coding_BLE_keyboard-master/obj/HID_Keyboard_582m_vibe_coding.hex
+e5a336a656377454d8a4b798a9da9c7160780824f598b991e68e6ce87c19ffca  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900-a/obj/HID_Keyboard_582m_vibe_coding.hex
+e5a336a656377454d8a4b798a9da9c7160780824f598b991e68e6ce87c19ffca  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-out-a/HID_Keyboard_582m_vibe_coding.hex
+
+===== frozen-sha files =====
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/gitee-53cd0a97/CH582m_vibe_coding_BLE_keyboard-master/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900-a/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/local-00eb7efc-b/CH582m_vibe_coding_BLE_keyboard-master/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/gitee-53cd0a97-b/CH582m_vibe_coding_BLE_keyboard-master/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/local-00eb7efc/CH582m_vibe_coding_BLE_keyboard-master/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900-wbs12/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900-wbs15/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900-wbs14/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900-b/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/github-3e7f900-wbs13/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/local-00eb7efc-a/CH582m_vibe_coding_BLE_keyboard-master/.frozen-sha
+/Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/gitee-53cd0a97-a/CH582m_vibe_coding_BLE_keyboard-master/.frozen-sha
+
+===== release binaries (unsigned local) =====
+7c14c4b1dce7df639119f6145fbd99e7fa61d7e8a9afd38cbad1dc73298d4b97  /Users/heartline/Documents/Codex/ahakeyconfig-main/ahakeyconfig-mac/.build/release/AhaKeyConfig
+6837c6bd96477b4a9a6d650a44e0ffb48d4b62290bd9c91a6975b61477f2cbe3  /Users/heartline/Documents/Codex/ahakeyconfig-main/ahakeyconfig-mac/.build/release/ahakeyconfig-agent
+-- local release codesign --
+Identifier=AhaKeyConfig
+Signature=adhoc
+TeamIdentifier=not set
+Identifier=ahakeyconfig-agent
+Signature=adhoc
+TeamIdentifier=not set
+
+===== sqlite pictures (read-only) =====
+runtime_confirmed_steps        runtime_staged_resources     
+runtime_disconnect_epochs      runtime_sync_baselines       
+runtime_metadata               runtime_transaction_resources
+runtime_page_field_baselines   runtime_transactions         
+runtime_resources            

@@ -1,0 +1,16 @@
+===== firmware source SHA reachability =====
+REACHABLE 3e7f900ae6f5fe71d57a03da973d79356afea1b6 2026-07-18 14:41:04 +0800 Merge remote-tracking branch 'origin/dev' into codex/firmware-stability-work
+MISSING 53cd0a97e95e3b8b35cd56ed2284970d5a79d1be
+MISSING 00eb7efc235770d0a40e23a8c6e7449b2c010765
+
+===== frozen HEX SHA-256 =====
+ada63b348b55f87c0848cf0b506a90ff56508e7dedd021152c6b9506f487f830  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/frozen-hex/github-bak-previous-obj_final.hex  bytes= 1213652
+ada63b348b55f87c0848cf0b506a90ff56508e7dedd021152c6b9506f487f830  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/frozen-hex/gitee-53cd0a97-obj_final.hex  bytes= 1213652
+ada63b348b55f87c0848cf0b506a90ff56508e7dedd021152c6b9506f487f830  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/frozen-hex/local-00eb7efc-obj_final.hex  bytes= 1213652
+ada63b348b55f87c0848cf0b506a90ff56508e7dedd021152c6b9506f487f830  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/gitee-53cd0a97/CH582m_vibe_coding_BLE_keyboard-master/obj_final/HID_Keyboard_582m_vibe_coding.hex  bytes= 1213652
+ada63b348b55f87c0848cf0b506a90ff56508e7dedd021152c6b9506f487f830  /Users/heartline/Documents/Codex/AhaKey-X1-unified-firmware/.wbs1-baselines/local-00eb7efc/CH582m_vibe_coding_BLE_keyboard-master/obj_final/HID_Keyboard_582m_vibe_coding.hex  bytes= 1213652
+
+===== compare Gitee HEX to RHINO-FLASH recorded ace7ab3e =====
+gitee-frozen=ada63b348b55f87c0848cf0b506a90ff56508e7dedd021152c6b9506f487f830
+expected=ace7ab3e517ec0849d4f865cdc8d33acb304fbc7b4b5dd68a1d917f8f14b1a70
+MISMATCH_RHINO_FLASH_HEX
