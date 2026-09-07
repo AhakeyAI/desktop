@@ -24,7 +24,9 @@ public final class WchIspResultParser {
         String output = combined(result);
         Matcher uid = UID.matcher(output);
         if (uid.find()) return new UidQueryResult(true, null, uid.group(1).trim(), "UID 查询成功");
-        if (result.cancelled()) return UidQueryResult.failure(FirmwareUpdateError.CANCELLED, "UID 查询已取消");
+        if (result.cancelled()) return UidQueryResult.failure(
+            isUacCancelled(result) ? FirmwareUpdateError.UAC_CANCELLED : FirmwareUpdateError.CANCELLED,
+            isUacCancelled(result) ? "UID 查询被用户取消管理员授权" : "UID 查询已取消");
         if (result.timedOut()) return UidQueryResult.failure(FirmwareUpdateError.PROCESS_TIMEOUT, "UID 查询超时");
         if (!result.processStarted()) return UidQueryResult.failure(FirmwareUpdateError.PROCESS_START_FAILED, result.stderr());
         if (result.exitCode() == 100) return UidQueryResult.failure(FirmwareUpdateError.UID_EXIT_100, output);
@@ -35,7 +37,9 @@ public final class WchIspResultParser {
     public static FlashExecutionResult parseFlash(WchIspRunner.WchIspProcessResult result) {
         if (result == null) return FlashExecutionResult.failure(FirmwareUpdateError.INTERNAL_ERROR, "结果为空");
         String output = combined(result);
-        if (result.cancelled()) return FlashExecutionResult.failure(FirmwareUpdateError.CANCELLED, "烧录已取消");
+        if (result.cancelled()) return FlashExecutionResult.failure(
+            isUacCancelled(result) ? FirmwareUpdateError.UAC_CANCELLED : FirmwareUpdateError.CANCELLED,
+            isUacCancelled(result) ? "烧录被用户取消管理员授权" : "烧录已取消");
         if (result.timedOut()) return FlashExecutionResult.failure(FirmwareUpdateError.PROCESS_TIMEOUT, "烧录进程超时");
         if (!result.processStarted()) return FlashExecutionResult.failure(FirmwareUpdateError.PROCESS_START_FAILED, result.stderr());
         if (FINISHED.matcher(output).find() && result.exitCode() == 0) {
@@ -61,6 +65,10 @@ public final class WchIspResultParser {
         String output = result.stdout() + "\n" + result.stderr() + "\n" + result.console();
         return output.toLowerCase(Locale.ROOT).contains("device uid")
             ? output : output;
+    }
+
+    private static boolean isUacCancelled(WchIspRunner.WchIspProcessResult result) {
+        return result != null && "UAC_CANCELLED".equalsIgnoreCase(result.terminationReason());
     }
 
     public record UidQueryResult(boolean success, FirmwareUpdateError error,

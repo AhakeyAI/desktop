@@ -50,6 +50,9 @@ class WchIspResultParserTest {
         assertEquals(FirmwareUpdateError.PROCESS_TIMEOUT, timeout.error());
         var cancelled = WchIspResultParser.parseUid(raw(1, false, "", "", true));
         assertEquals(FirmwareUpdateError.CANCELLED, cancelled.error());
+        var uacCancelled = WchIspResultParser.parseFlash(raw(1223, false, "", "", true,
+            "UAC_CANCELLED"));
+        assertEquals(FirmwareUpdateError.UAC_CANCELLED, uacCancelled.error());
     }
 
     private static WchIspRunner.WchIspProcessResult raw(int exit, boolean timedOut,
@@ -60,7 +63,14 @@ class WchIspResultParserTest {
     private static WchIspRunner.WchIspProcessResult raw(int exit, boolean timedOut,
                                                           String stdout, String stderr,
                                                           boolean cancelled) {
+        return raw(exit, timedOut, stdout, stderr, cancelled, "");
+    }
+
+    private static WchIspRunner.WchIspProcessResult raw(int exit, boolean timedOut,
+                                                          String stdout, String stderr,
+                                                          boolean cancelled,
+                                                          String terminationReason) {
         return new WchIspRunner.WchIspProcessResult(ID, true, 42, exit, timedOut,
-            cancelled, stdout, stderr, stdout, Duration.ZERO, false, Map.of(), "");
+            cancelled, stdout, stderr, stdout, Duration.ZERO, false, Map.of(), terminationReason);
     }
 }

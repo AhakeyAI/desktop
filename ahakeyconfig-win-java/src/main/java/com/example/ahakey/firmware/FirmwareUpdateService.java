@@ -126,7 +126,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
         } catch (IllegalArgumentException | IOException failure) {
             String message = failure.getMessage() == null ? "" : failure.getMessage().toLowerCase();
             FirmwareUpdateError error = message.contains("runtime")
-                ? FirmwareUpdateError.RUNTIME_INVALID : FirmwareUpdateError.HEX_INVALID;
+                ? (message.contains("not found")
+                    ? FirmwareUpdateError.RUNTIME_NOT_FOUND : FirmwareUpdateError.RUNTIME_INVALID)
+                : FirmwareUpdateError.HEX_INVALID;
             return PreflightResult.failure(error, failure.getMessage());
         } catch (Exception failure) {
             return PreflightResult.failure(FirmwareUpdateError.RUNTIME_INVALID, failure.getMessage());
@@ -144,7 +146,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
         } catch (Exception failure) {
             return new DiagnosticResult(false, null,
                 failure.getMessage() == null ? failure.toString() : failure.getMessage(),
-                failure instanceof IOException ? FirmwareUpdateError.RUNTIME_INVALID
+                failure instanceof IOException
+                    ? (String.valueOf(failure.getMessage()).toLowerCase().contains("not found")
+                        ? FirmwareUpdateError.RUNTIME_NOT_FOUND : FirmwareUpdateError.RUNTIME_INVALID)
                     : FirmwareUpdateError.INTERNAL_ERROR);
         }
     }
