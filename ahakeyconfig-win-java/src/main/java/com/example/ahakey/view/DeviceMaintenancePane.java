@@ -96,6 +96,7 @@ public final class DeviceMaintenancePane {
         final boolean[] environmentReady = {false};
         final TitledPane[] steps = new TitledPane[4];
         final String[] diagnosticReport = {""};
+        final FirmwareOperationHandle[] activeOperation = {null};
 
         Button bundled = new Button(text(
             "选择内置 " + BUNDLED_FIRMWARE_VERSION,
@@ -104,6 +105,8 @@ public final class DeviceMaintenancePane {
         Button latest = new Button(text("下载最新固件", "Download Latest"));
         Button local = new Button(text("选择本地 .hex", "Choose Local .hex"));
         Button flash = new Button(text("开始烧录", "Flash Firmware"));
+        Button cancelFlash = new Button(text("取消烧录", "Cancel Flash"));
+        cancelFlash.setDisable(true);
         Button readDeviceVersion = new Button(text("读取设备版本", "Read Device Version"));
         Label detectedVersion = body(text(
             "当前设备固件：尚未读取",
@@ -363,8 +366,12 @@ public final class DeviceMaintenancePane {
                 return;
             }
             FirmwareOperationHandle operation = admission.handle();
+            activeOperation[0] = operation;
+            cancelFlash.setDisable(false);
             operation.completion().whenComplete((result, failure) -> Platform.runLater(() -> {
                 firmwareUpdateService.removeListener(listener);
+                activeOperation[0] = null;
+                cancelFlash.setDisable(true);
                 environmentReady[0] = false;
                 setBusy(false, progress, bundled, latest, local, flash);
                 updateFlashState.run();
@@ -385,6 +392,13 @@ public final class DeviceMaintenancePane {
                         text("固件更新失败", "Firmware Update Failed"), result.detail());
                 }
             }));
+        });
+        cancelFlash.setOnAction(event -> {
+            FirmwareOperationHandle operation = activeOperation[0];
+            if (operation != null && operation.cancel()) {
+                cancelFlash.setDisable(true);
+                status.setText(text("正在取消烧录…", "Cancelling firmware operation…"));
+            }
         });
 
         Label ispStatus = body("");
@@ -442,7 +456,7 @@ public final class DeviceMaintenancePane {
                 "Disconnect USB, hold the leftmost Voice Input key, reconnect USB, then run detection."
             )), new HBox(8, diagnose, exportDiagnostic), ispStatus), false);
         steps[3] = step(text("4. 烧录、校验并确认版本", "4. Flash, Verify, and Confirm"),
-            new VBox(8, flash, flashRequirement, progress, status), false);
+            new VBox(8, new HBox(8, flash, cancelFlash), flashRequirement, progress, status), false);
         card.getChildren().addAll(
             title, description, steps[0], steps[1], steps[2], steps[3]
         );
