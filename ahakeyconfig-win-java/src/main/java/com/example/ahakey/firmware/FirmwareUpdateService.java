@@ -181,11 +181,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     "请进入 CH582 ISP 模式，正在等待设备", 0.08, diagnosticDirectory);
                 awaitIsp(cancellation);
                 transition(handle, FirmwareUpdateState.DETECTING, "正在读取设备 UID", 0.12, diagnosticDirectory);
-                WchIspRunner.WchIspProcessResult uidRaw = runner.run(new WchIspRunner.WchIspCommand(
+                WchIspRunner.WchIspCommand uidCommand = new WchIspRunner.WchIspCommand(
                     prepared.executable(), workspace.toolDirectory(),
                     List.of("-c", prepared.configIni().toString(), "-u", "get"), UID_TIMEOUT,
-                    handle.operationId()), cancellation::get);
-                saveProcess(diagnosticDirectory, "uid", uidRaw);
+                    handle.operationId());
+                WchIspRunner.WchIspProcessResult uidRaw = runner.run(uidCommand, cancellation::get);
+                saveProcess(diagnosticDirectory, "uid", uidCommand, uidRaw);
                 WchIspResultParser.UidQueryResult uid = WchIspResultParser.parseUid(uidRaw);
                 if (!uid.success()) {
                     finish(handle, FirmwareUpdateState.FAILED, uid.error(), uid.detail(), diagnosticDirectory);
@@ -197,11 +198,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 checkCancelled(cancellation);
                 transition(handle, FirmwareUpdateState.FLASHING,
                     "正在烧录固件，请勿断开 USB", 0.20, diagnosticDirectory);
-                WchIspRunner.WchIspProcessResult flashRaw = runner.run(new WchIspRunner.WchIspCommand(
+                WchIspRunner.WchIspCommand flashCommand = new WchIspRunner.WchIspCommand(
                     prepared.executable(), workspace.toolDirectory(),
                     List.of("-c", prepared.configIni().toString(), "-o", "download", "-f",
-                        request.firmwareHex().toString()), FLASH_TIMEOUT, handle.operationId()), cancellation::get);
-                saveProcess(diagnosticDirectory, "flash", flashRaw);
+                        request.firmwareHex().toString()), FLASH_TIMEOUT, handle.operationId());
+                WchIspRunner.WchIspProcessResult flashRaw = runner.run(flashCommand, cancellation::get);
+                saveProcess(diagnosticDirectory, "flash", flashCommand, flashRaw);
                 WchIspResultParser.FlashExecutionResult flash = WchIspResultParser.parseFlash(flashRaw);
                 if (!flash.success()) {
                     finish(handle, FirmwareUpdateState.FAILED, flash.error(), flash.detail(), diagnosticDirectory);
@@ -273,8 +275,15 @@ public final class FirmwareUpdateService implements AutoCloseable {
         active.compareAndSet(handle, null);
     }
 
-    private void saveProcess(Path directory, String prefix, WchIspRunner.WchIspProcessResult result) {
+    private void saveProcess(Path directory, String prefix, WchIspRunner.WchIspCommand command,
+                             WchIspRunner.WchIspProcessResult result) {
         if (directory == null || result == null) return;
+        if (command != null) {
+            String commandText = command.executable() + " " + String.join(" ", command.arguments())
+                + "\noperationId=" + command.operationId() + "\ntimeout=" + command.timeout() + "\n";
+            diagnostics.write(directory, prefix + "-command.txt", commandText);
+            diagnostics.write(directory, "command.txt", commandText);
+        }
         diagnostics.write(directory, prefix + "-stdout.txt", result.stdout());
         diagnostics.write(directory, prefix + "-stderr.txt", result.stderr());
         diagnostics.write(directory, prefix + "-console.txt", result.console());

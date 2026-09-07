@@ -68,6 +68,8 @@ class FirmwareUpdateServiceTest {
             assertTrue(result.success(), result.detail());
             assertTrue(commandSeen.get().contains("download") || commandSeen.get().contains("get"));
             assertNotNull(result.diagnosticDirectory());
+            assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve("command.txt")));
+            assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve("runtime.json")));
         } finally {
             service.shutdown();
         }
