@@ -295,6 +295,11 @@ Firmware 1.4.7、Protocol 3.2、model 1、capabilities `0x000007FF` 合同。ove
 sources/allowlist 和 release artifact test 已覆盖新增生产类及
 `firmware-capabilities.properties`。
 
+`WchIspRunner` 在直接启动收到 Windows error 740 时通过可替换的 RunAs worker 进入
+同一 `WchIspProcessResult` 边界；elevated child PID 不可确认时标记
+`PROCESS_OWNERSHIP_INCOMPLETE`，不会把 UAC 取消或超时误报为成功。每个 UID/flash
+阶段及操作级 `command.txt`、stdout/stderr、终态和配置 hash 均写入独立诊断目录。
+
 本轮自动验证：`mvn clean test` 为 `197/0/0/0`，`mvn clean package` 为
 `197/0/0/0`；两者均通过 release artifact 内容检查，独立
 `Test-ReleaseArtifactContents.ps1` 返回 `RELEASE_ARTIFACT_CONTENTS=OK`；全部仓库
