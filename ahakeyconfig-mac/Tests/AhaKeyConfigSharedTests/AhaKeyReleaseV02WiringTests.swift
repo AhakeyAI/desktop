@@ -25,7 +25,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
     }
 
     private func v0_2CurrentProjection() throws -> AhaKeyReleaseFeatureProjection {
-        AhaKeyReleaseFeaturePolicy.current.projection(.parsed(try caps14()))
+        AhaKeyReleaseFeaturePolicy.v0_2.projection(.parsed(try caps14()))
     }
 
     private func resource(_ id: String) -> AhaKeyResourceIdentifier { try! AhaKeyResourceIdentifier(id) }
@@ -114,7 +114,7 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
     }
 
     func testV02NegotiatingProjectionRejectsBasicWrite() throws {
-        let release = AhaKeyReleaseFeaturePolicy.current.projection(.negotiating)
+        let release = AhaKeyReleaseFeaturePolicy.v0_2.projection(.negotiating)
         let result = AhaKeyConfigurationPlanner.plan(
             desired: try keysAndLightDesired(),
             resources: [],
@@ -177,5 +177,47 @@ final class AhaKeyReleaseV02WiringTests: XCTestCase {
                 context: .parsed(try caps14()), release: try v0_2CurrentProjection()
             )
         )
+    }
+
+    func testV03PictureResourcesArePlannedOnSealedRhino() throws {
+        let release = AhaKeyReleaseFeaturePolicy.current.projection(.parsed(try caps14()))
+        XCTAssertTrue(release.allowsResourcePackage)
+        let result = AhaKeyConfigurationPlanner.plan(
+            desired: try picturedDesired(),
+            resources: [meta("img-a")],
+            context: .parsed(try caps14()),
+            release: release
+        )
+        guard case .success(let plan) = result else {
+            return XCTFail("v0.3 密封 Rhino 应规划图片资源: \(result)")
+        }
+        XCTAssertFalse(plan.transactions.isEmpty)
+        XCTAssertTrue(plan.transactions.contains { $0.kind != .baseConfiguration || !$0.uploads.isEmpty })
+    }
+
+    func testV03StandardDoesNotEmitBindTaskPictureOpcode() throws {
+        let desired = try picturedDesired()
+        let release = AhaKeyReleaseFeaturePolicy.current.projection(
+            AhaKeyOLEDCompatibilityContext.standard.negotiation
+        )
+        XCTAssertTrue(release.allowsResourcePackage)
+        let steps = try XCTUnwrap(AhaKeyConfigurationStepMapper.baseConfigurationProgram(
+            mode: desired.modes[0],
+            desired: desired,
+            plan: .init(transactions: [], slotAssignments: [resource("img-a"): 0]),
+            context: .standard,
+            release: release
+        ))
+        XCTAssertFalse(steps.contains { if case .bindTaskPicture = $0 { return true }; return false })
+        XCTAssertFalse(steps.contains { if case .setActiveTaskPictureSet = $0 { return true }; return false })
+        var opcodes: [UInt8] = []
+        for step in steps {
+            let frame = try XCTUnwrap(AhaKeyWireFrameBuilder.commandFrame(for: step))
+            XCTAssertGreaterThan(frame.count, 2)
+            opcodes.append(frame[2])
+        }
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdUpdateTaskPicSet))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet))
+        XCTAssertFalse(opcodes.contains(AhaKeyWireFrameBuilder.cmdFinishTaskPicWrite))
     }
 }

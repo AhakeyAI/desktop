@@ -154,7 +154,10 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         )
     }
 
-    private func routingSnapshot(deviceID: String = "DEVICE-1") -> AhaKeyRuntimeSnapshot {
+    private func routingSnapshot(
+        deviceID: String = "DEVICE-1",
+        oledCompatibility: AhaKeyRuntimeOLEDCompatibilityFact? = nil
+    ) -> AhaKeyRuntimeSnapshot {
         let id = try! AhaKeyRuntimeDeviceID(deviceID)
         let device = AhaKeyRuntimeDeviceSnapshot(
             id: id,
@@ -163,7 +166,8 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             preferredTransport: .bluetooth,
             usbAttached: false,
             bluetoothConnected: true,
-            capabilities: [AhaKeyOLEDWritePreflight.routingCapability]
+            capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
+            oledCompatibility: oledCompatibility
         )
         return AhaKeyRuntimeSnapshot(
             lifecycleState: .running,
@@ -718,7 +722,33 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         await facade.stop()
     }
 
-    func testV02DefaultApplySucceedsWithMalformedOLEDDraft() async throws {
+    func testV03SealedProfileApplyIngestsWithoutTestOverride() async throws {
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
+        let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0,
+            resourceLoader: loader, imageNormalizer: IdentityImageNormalizer(frameCount: 6)
+        )
+        let device = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        await facade.installSnapshotForTesting(
+            routingSnapshot(oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false))
+        )
+        let operationID = try await facade.apply(
+            modes: [applyModeInput()],
+            scope: .init(modeSlot: 0),
+            targetDeviceID: device,
+            baseRevision: .init(7)
+        )
+        XCTAssertEqual(transport.requestLog, ["ingest(1)", "apply"])
+        XCTAssertEqual(try XCTUnwrap(transport.ingestedItems).count, 1)
+        let package = try XCTUnwrap(transport.appliedPackage)
+        XCTAssertEqual(package.operationID, operationID)
+        XCTAssertFalse(package.resources.isEmpty)
+        await facade.stop()
+    }
+
+    func testV03NegotiatingApplyStillStripsPictures() async throws {
         let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
         let loader = FakeResourceLoader(data: payload, frameCount: 6, pixelWidth: 160, pixelHeight: 80)
         let transport = FakeTransport(snapshot: makeSnapshot(sequence: 0))

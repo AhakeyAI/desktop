@@ -74,10 +74,9 @@ struct AhaKeyStudioDevicePresentation: Equatable {
         return NSLocalizedString("未连接", comment: "")
     }
 
-    /// v0.2 OLED/resource 与协商无关；视图用此关闭图片编辑并展示延后原因。
-    var releaseFeatureProjection: AhaKeyReleaseFeatureProjection {
+    /// 默认 fail-closed（协商中）。在线派生用 Agent 已密封 OLED family 覆盖。
+    var releaseFeatureProjection: AhaKeyReleaseFeatureProjection =
         AhaKeyReleaseFeaturePolicy.current.projection(.negotiating)
-    }
 }
 
 /// 纯派生函数：Runtime view state → 设备展示投影。视图与单测共用同一入口。
@@ -117,6 +116,9 @@ enum AhaKeyStudioRuntimeDerivation {
         presentation.activeTaskPictureSets = state.activeTaskPictureSets.reduce(into: [:]) { result, pair in
             result[Int(pair.key.rawValue)] = Int(pair.value.rawValue)
         }
+        presentation.releaseFeatureProjection = AhaKeyReleaseFeaturePolicy.current.projection(
+            sealedOLEDProfile: oledProfile(for: device)
+        )
         return presentation
     }
 

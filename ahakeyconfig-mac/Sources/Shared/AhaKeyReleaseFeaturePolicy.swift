@@ -1,9 +1,11 @@
 import Foundation
 
-/// 发布列车功能面。C-1 只冻结 v0.2；更高版本由后续卡扩展。
+/// 发布列车功能面。C-1 冻结 v0.2；C5P 增加 v0.3 图片面通道。
 public enum AhaKeyReleaseChannel: Equatable, Sendable {
     /// 当前量产固件兼容客户端：只开放基础键位/灯效。
     case v0_2
+    /// v0.3 客户端：对 C1 已密封的 Standard/Rhino/current 开放图片面。
+    case v0_3
 }
 
 /// 可独立授权的写入面。键位/灯效必须与图片面分离。
@@ -70,8 +72,9 @@ public struct AhaKeyReleaseFeatureProjection: Equatable, Sendable {
 /// 集中式发布功能策略。以发布通道与单一协商状态为输入，不复制 0x99 parser。
 public struct AhaKeyReleaseFeaturePolicy: Equatable, Sendable {
     public static let v0_2 = AhaKeyReleaseFeaturePolicy(channel: .v0_2)
-    /// 编译期当前发布列车。v0.2 客户端必须走该通道。
-    public static let current = v0_2
+    public static let v0_3 = AhaKeyReleaseFeaturePolicy(channel: .v0_3)
+    /// 编译期当前发布列车。C5P 起生产走 v0.3；v0.2 对象与矩阵保持可测。
+    public static let current = v0_3
 
     public let channel: AhaKeyReleaseChannel
 
@@ -107,6 +110,20 @@ public struct AhaKeyReleaseFeaturePolicy: Equatable, Sendable {
         switch channel {
         case .v0_2:
             return Self.v0_2Projection(state)
+        case .v0_3:
+            return Self.v0_3Projection(state)
+        }
+    }
+
+    /// Studio 只消费 Agent 已密封的 OLED family，禁止从 protocolState 伪造协商。
+    public func projection(
+        sealedOLEDProfile profile: AhaKeyOLEDCompatibilityProfile
+    ) -> AhaKeyReleaseFeatureProjection {
+        switch channel {
+        case .v0_2:
+            return Self.v0_2Projection(.negotiating)
+        case .v0_3:
+            return Self.v0_3Projection(profile: profile, negotiation: .negotiating)
         }
     }
 
@@ -131,6 +148,44 @@ public struct AhaKeyReleaseFeaturePolicy: Equatable, Sendable {
             allowsResourcePackage: false,
             allowsBasicConfigurationWrite: allowsBasic,
             deferredOLEDReason: .requiresFirmwareV0_3
+        )
+    }
+
+    /// v0.3：图片面只跟 C1 已密封 profile；opcode/槽位仍由 compatibility context 决定。
+    /// keys/light 资格与 v0.2 同一 `allowsBasicConfiguration`，不回退。
+    private static func v0_3Projection(
+        _ state: AhaKeyReleaseNegotiationState
+    ) -> AhaKeyReleaseFeatureProjection {
+        v0_3Projection(
+            profile: AhaKeyOLEDCompatibilityProfile.resolve(state),
+            negotiation: state
+        )
+    }
+
+    private static func v0_3Projection(
+        profile: AhaKeyOLEDCompatibilityProfile,
+        negotiation: AhaKeyReleaseNegotiationState
+    ) -> AhaKeyReleaseFeatureProjection {
+        let pictures = profile.allowsConfigurationPlan
+        // 密封可写 profile 不得只开图片面而关 keys/light；legacyBaseOnly 仍可只开 keys。
+        let allowsBasic = allowsBasicConfiguration(negotiation) || pictures
+        var surfaces: Set<AhaKeyWriteSurface> = []
+        if allowsBasic {
+            surfaces.insert(.keysAndLight)
+        }
+        if pictures {
+            surfaces.insert(.defaultPictures)
+            surfaces.insert(.taskPictures)
+        }
+        return AhaKeyReleaseFeatureProjection(
+            channel: .v0_3,
+            allowedWriteSurfaces: surfaces,
+            showsKeysAndLightEditor: allowsBasic,
+            showsDefaultPictureEditor: pictures,
+            showsTaskPictureEditor: pictures,
+            allowsResourcePackage: pictures,
+            allowsBasicConfigurationWrite: allowsBasic,
+            deferredOLEDReason: pictures ? nil : .requiresFirmwareV0_3
         )
     }
 

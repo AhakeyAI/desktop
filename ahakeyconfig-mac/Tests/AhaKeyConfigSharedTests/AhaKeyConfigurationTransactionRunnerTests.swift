@@ -380,7 +380,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
 
     func testV02PicturePackageFailsWithoutWrites() async throws {
         let (package, files) = try makePackage()
-        let release = AhaKeyReleaseFeaturePolicy.current.projection(.parsed(capabilities()))
+        let release = AhaKeyReleaseFeaturePolicy.v0_2.projection(.parsed(capabilities()))
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: files,
             context: .parsed(capabilities()), release: release
@@ -394,7 +394,7 @@ final class AhaKeyConfigurationTransactionRunnerTests: XCTestCase {
 
     func testV02KeysAndLightPackageRunsBaseOnly() async throws {
         let package = try makeKeysAndLightPackage()
-        let release = AhaKeyReleaseFeaturePolicy.current.projection(.parsed(capabilities()))
+        let release = AhaKeyReleaseFeaturePolicy.v0_2.projection(.parsed(capabilities()))
         var executed: [String] = []
         let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
             package: package, resourceFiles: [:],

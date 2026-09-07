@@ -3,7 +3,8 @@ import XCTest
 
 final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
 
-    private let policy = AhaKeyReleaseFeaturePolicy.current
+    private let v0_2Policy = AhaKeyReleaseFeaturePolicy.v0_2
+    private let currentPolicy = AhaKeyReleaseFeaturePolicy.current
 
     /// 固件 1.3 `tp_write_caps14` 精确 fixture（factory-off 14B）。
     private let caps14Payload = Data([
@@ -126,9 +127,12 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
 
     // MARK: - Channel / Sendable
 
-    func testCurrentChannelIsV0_2() {
-        XCTAssertEqual(AhaKeyReleaseFeaturePolicy.current.channel, .v0_2)
-        XCTAssertEqual(AhaKeyReleaseFeaturePolicy.current, .v0_2)
+    func testCurrentChannelIsV0_3AndIdentityStaysV0_2() {
+        XCTAssertEqual(AhaKeyReleaseFeaturePolicy.current.channel, .v0_3)
+        XCTAssertEqual(AhaKeyReleaseFeaturePolicy.current, .v0_3)
+        XCTAssertEqual(AhaKeyReleaseFeaturePolicy.v0_2.channel, .v0_2)
+        XCTAssertEqual(AhaKeyReleaseIdentity.current.channel, .v0_2)
+        XCTAssertEqual(AhaKeyReleaseIdentity.current.productVersion, "0.2.1")
     }
 
     func testPolicyValuesAreSendableAndEquatable() throws {
@@ -136,6 +140,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
             _ = value
         }
         requireSendableEquatable(AhaKeyReleaseChannel.v0_2)
+        requireSendableEquatable(AhaKeyReleaseChannel.v0_3)
         requireSendableEquatable(AhaKeyWriteSurface.keysAndLight)
         requireSendableEquatable(AhaKeyDeferredOLEDReason.requiresFirmwareV0_3)
         requireSendableEquatable(AhaKeyReleaseNegotiationState.negotiating)
@@ -150,7 +155,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         requireSendableEquatable(try parsed(caps14Payload))
         requireSendableEquatable(AhaKeyReleaseNegotiationState.parsed(try parsed(caps14Payload)))
         requireSendableEquatable(AhaKeyReleaseFeaturePolicy.current)
-        requireSendableEquatable(policy.projection(.negotiating))
+        requireSendableEquatable(currentPolicy.projection(.negotiating))
     }
 
     // MARK: - Full v0.2 matrix
@@ -163,7 +168,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
                 "\(fixture.state)"
             )
 
-            let projection = policy.projection(fixture.state)
+            let projection = v0_2Policy.projection(fixture.state)
             assertOLEDAndResourcesClosed(projection, "\(fixture.state)")
             XCTAssertEqual(
                 projection.allowsBasicConfigurationWrite,
@@ -193,7 +198,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
         XCTAssertEqual(AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities), .current)
         XCTAssertTrue(AhaKeyProtocolMode.current.allowsTaskPictureConfiguration)
 
-        let projection = policy.projection(.parsed(capabilities))
+        let projection = v0_2Policy.projection(.parsed(capabilities))
         assertOLEDAndResourcesClosed(projection, "parsed-caps14")
         XCTAssertTrue(projection.allowsBasicConfigurationWrite)
         XCTAssertEqual(projection.deferredOLEDReason, .requiresFirmwareV0_3)
@@ -232,7 +237,7 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
             AhaKeyReleaseFeaturePolicy.resolvedProtocolMode(.malformedResponse),
             .restrictedUnknown
         )
-        let projection = policy.projection(.malformedResponse)
+        let projection = v0_2Policy.projection(.malformedResponse)
         XCTAssertTrue(projection.allowedWriteSurfaces.isEmpty)
         XCTAssertFalse(projection.allowsBasicConfigurationWrite)
         assertOLEDAndResourcesClosed(projection, "malformed")
@@ -256,6 +261,93 @@ final class AhaKeyReleaseFeaturePolicyTests: XCTestCase {
             AhaKeyProtocolNegotiation.mode(forCapabilities: capabilities(protocolVersion: 2)),
             .restrictedUnknown
         )
+    }
+
+    // MARK: - Full v0.3 matrix
+
+    private func sessionCapableCurrent() -> AhaKeyFirmwareCapabilities {
+        AhaKeyFirmwareCapabilities(
+            protocolVersion: 3, modeCount: 4, setCount: 1, stateCount: 4,
+            flags: AhaKeyFirmwareCapabilities.sessionUploadFlag, maxPacketSize: 200,
+            userSlotLimit: 288, factorySlotBase: 0,
+            factoryBundleVersion: 0, factoryManifestCRC: 0,
+            factoryStatus: 0, factoryError: 0, reclaimSlotBase: 0, reclaimSlotLimit: 0
+        )
+    }
+
+    func testV0_3OpensPicturesOnlyForSealedWritableProfiles() throws {
+        let open: [(AhaKeyReleaseNegotiationState, String)] = [
+            (.noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: true), "standard-strict"),
+            (.parsed(try parsed(rhino26Payload)), "rhino-parsed"),
+            (.parsed(sessionCapableCurrent()), "current-session"),
+        ]
+        for (state, label) in open {
+            let projection = currentPolicy.projection(state)
+            XCTAssertEqual(projection.channel, .v0_3, label)
+            XCTAssertTrue(projection.showsOLEDInspector, label)
+            XCTAssertTrue(projection.allowsResourcePackage, label)
+            XCTAssertTrue(projection.allows(.defaultPictures), label)
+            XCTAssertTrue(projection.allows(.taskPictures), label)
+            XCTAssertEqual(projection.allowsResourcePackage, projection.allowsPictureWrites, label)
+            XCTAssertTrue(projection.allowsBasicConfigurationWrite, label)
+            XCTAssertNil(projection.deferredOLEDReason, label)
+        }
+    }
+
+    func testV0_3FailClosedStatesKeepPicturesClosed() throws {
+        let closed: [AhaKeyReleaseNegotiationState] = [
+            .negotiating,
+            .malformedResponse,
+            .noResponse(firmwareMainVersion: nil, supportsLegacyTaskPictures: true),
+            .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: false),
+            .noResponse(firmwareMainVersion: 3, supportsLegacyTaskPictures: true),
+            .parsed(capabilities(protocolVersion: 2)),
+            .parsed(AhaKeyFirmwareCapabilities(
+                protocolVersion: 3, modeCount: 4, setCount: 1, stateCount: 4,
+                flags: 0, maxPacketSize: 200, userSlotLimit: 288, factorySlotBase: 0,
+                factoryBundleVersion: 0, factoryManifestCRC: 0,
+                factoryStatus: 0, factoryError: 0, reclaimSlotBase: 0, reclaimSlotLimit: 0
+            )),
+        ]
+        for payload in truncatedPayloads {
+            XCTAssertNil(AhaKeyFirmwareCapabilities.parse(payload))
+        }
+        for state in closed {
+            let projection = currentPolicy.projection(state)
+            XCTAssertEqual(projection.channel, .v0_3, "\(state)")
+            XCTAssertFalse(projection.showsOLEDInspector, "\(state)")
+            XCTAssertFalse(projection.allowsResourcePackage, "\(state)")
+            XCTAssertFalse(projection.allowsPictureWrites, "\(state)")
+            XCTAssertEqual(projection.deferredOLEDReason, .requiresFirmwareV0_3, "\(state)")
+        }
+        let legacyBaseOnly = currentPolicy.projection(
+            .noResponse(firmwareMainVersion: 1, supportsLegacyTaskPictures: false)
+        )
+        XCTAssertTrue(legacyBaseOnly.allowsBasicConfigurationWrite)
+        XCTAssertEqual(legacyBaseOnly.allowedWriteSurfaces, [.keysAndLight])
+    }
+
+    func testV0_3SealedOLEDProfileMatchesNegotiationProjection() throws {
+        XCTAssertEqual(
+            currentPolicy.projection(sealedOLEDProfile: .legacyStandard).allowsResourcePackage,
+            currentPolicy.projection(AhaKeyOLEDCompatibilityContext.standard.negotiation).allowsResourcePackage
+        )
+        XCTAssertTrue(currentPolicy.projection(sealedOLEDProfile: .rhinoDualSet(sessionUploadAdvertised: false)).allowsResourcePackage)
+        XCTAssertTrue(currentPolicy.projection(sealedOLEDProfile: .currentSessionCapable).allowsResourcePackage)
+        XCTAssertFalse(currentPolicy.projection(sealedOLEDProfile: .unsupported).allowsResourcePackage)
+        XCTAssertFalse(v0_2Policy.projection(sealedOLEDProfile: .legacyStandard).allowsResourcePackage)
+    }
+
+    func testV0_2MatrixUnchangedWhenCurrentIsV0_3() throws {
+        for fixture in try projectionFixtures() {
+            let projection = v0_2Policy.projection(fixture.state)
+            XCTAssertEqual(projection.channel, .v0_2)
+            XCTAssertFalse(projection.allowsResourcePackage)
+            XCTAssertEqual(
+                projection.allowsBasicConfigurationWrite,
+                fixture.allowsBasicConfigurationWrite
+            )
+        }
     }
 
     // MARK: - Helpers

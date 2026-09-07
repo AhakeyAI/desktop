@@ -1175,6 +1175,33 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    func testV03SealedStandardAllowsPicturePackageWithoutUnrestrictedHook() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.isReady = false
+            hooks?.configurationCharacteristics = .allPresent
+            agent.executionTestHooks = hooks
+            XCTAssertNil(agent.executionTestHooks?.release)
+            await sealStandardViaLegacyProbe(agent)
+            let writeReady = await MainActor.run { agent.configurationWriteIsReadyForTesting() }
+            XCTAssertTrue(writeReady)
+
+            let assembled = try makeStandardPictureAssembly()
+            XCTAssertFalse(assembled.resources.isEmpty)
+            try await ingest(agent, assembled: assembled)
+            let package = try makePackage(from: assembled)
+            XCTAssertFalse(package.resources.isEmpty)
+            let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .operationAccepted(let operationID) = apply else {
+                return XCTFail("v0.3 密封 Standard 必须受理图片包，实际 \(apply)")
+            }
+            let terminal = await awaitAgentTerminalState(agent, operationID: operationID)
+            XCTAssertEqual(terminal, .completed)
+        }
+    }
+
     func testDisconnectClearsOLEDContextAndRejectsIngestApplyWithZeroCASWALChange() {
         runEndpointTest { [self] in
             let agent = makeAgent()

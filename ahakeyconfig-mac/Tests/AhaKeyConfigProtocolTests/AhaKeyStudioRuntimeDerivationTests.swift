@@ -336,4 +336,41 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         XCTAssertFalse(presentation.releaseFeatureProjection.allowsPictureWrites)
         XCTAssertEqual(presentation.releaseFeatureProjection.deferredOLEDReason, .requiresFirmwareV0_3)
     }
+
+    func testOnlineMissingOLEDFactKeepsInspectorClosed() {
+        let device = makeDevice(protocolState: .currentReady)
+        let snapshot = makeSnapshot(devices: [device], activeDeviceID: device.id)
+        let presentation = AhaKeyStudioRuntimeDerivation.presentation(
+            for: AhaKeyStudioRuntimeViewState(connection: .online, snapshot: snapshot)
+        )
+        XCTAssertFalse(presentation.releaseFeatureProjection.showsOLEDInspector)
+        XCTAssertFalse(presentation.releaseFeatureProjection.allowsResourcePackage)
+        XCTAssertEqual(presentation.releaseFeatureProjection.channel, .v0_3)
+        XCTAssertEqual(presentation.releaseFeatureProjection.deferredOLEDReason, .requiresFirmwareV0_3)
+    }
+
+    func testOnlineSealedProfilesOpenInspectorAndResourcePackage() {
+        let cases: [(AhaKeyRuntimeOLEDCompatibilityFact, String)] = [
+            (.init(family: .legacyStandard), "standard"),
+            (.init(family: .rhinoDualSet, sessionUploadAdvertised: false), "rhino"),
+            (.init(family: .currentSessionCapable, sessionUploadAdvertised: true), "current-session"),
+        ]
+        for (fact, label) in cases {
+            let device = makeDevice(oledCompatibility: fact)
+            let snapshot = makeSnapshot(devices: [device], activeDeviceID: device.id)
+            let presentation = AhaKeyStudioRuntimeDerivation.presentation(
+                for: AhaKeyStudioRuntimeViewState(connection: .online, snapshot: snapshot)
+            )
+            XCTAssertTrue(presentation.releaseFeatureProjection.showsOLEDInspector, label)
+            XCTAssertTrue(presentation.releaseFeatureProjection.allowsResourcePackage, label)
+            XCTAssertTrue(presentation.releaseFeatureProjection.allowsPictureWrites, label)
+            XCTAssertEqual(
+                presentation.releaseFeatureProjection.allowsResourcePackage,
+                presentation.releaseFeatureProjection.allowsPictureWrites,
+                label
+            )
+            XCTAssertNil(presentation.releaseFeatureProjection.deferredOLEDReason, label)
+            XCTAssertEqual(presentation.releaseFeatureProjection.channel, .v0_3, label)
+        }
+    }
 }

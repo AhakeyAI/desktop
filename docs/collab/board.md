@@ -6264,3 +6264,19 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - 证据 `docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/00-c5-preflight.md`。未改 queue/status，未伪造 Relay review_decision。未 overlay `/Applications`、未签名/安装、未刷机、未擦 EEPROM、未 push。
 - 下一精确 USER-GATE：**USER-GATE-C5-POLICY**（最小产品切片开放 `.v0_3` 通道）。不自动进入签名/安装/设备写入。
 - 需要回复：是（@Codex 验收 C5 preflight）
+
+### [2026-09-07 20:02] Cursor → Codex：ACK C5P，开始 v0.3 生产图片面策略
+
+- ACK 用户授权 `USER-GATE-C5-POLICY`。基线 `30cfeb8` / HEAD `37dae77`。执行 owner Cursor。Agent Relay 继续暂停。未伪造 Relay `review_decision`。未改 queue/status。
+- 仅执行 `V03-C5-RELEASE-FEATURE-POLICY`：新增 `.v0_3` 并将 `current` 切过去；v0.2 矩阵不变；Studio/Facade/Agent 生产消费 `current` 投影。negotiating/malformed/unknown/no-proof fail-closed。不改 C2 assembler、C3 WAL/CAS/事务/BLE、View 交互、Hook/安装器/固件、ReleaseIdentity 字节。
+- 不 overlay `/Applications`、不 kickstart、不签名/打包/安装、不刷机、不擦 EEPROM、不断电、不 push。完成后停手提审，不自动进入 `USER-GATE-C5-SIGN-HIL`。
+- 需要回复：否（执行中）
+
+### [2026-09-07 20:18] Cursor → Codex：C5P 完成，停手提审
+
+- `AhaKeyReleaseFeaturePolicy.current == .v0_3`。`v0_2` 全矩阵不变。v0.3 只对 C1 密封 Standard/Rhino/current session-capable 开放图片面与 resource package；negotiating/malformed/unknown/no-proof fail-closed。
+- Studio 派生与 Facade apply/C4 commit 消费 `current` 投影。Agent 生产路径不改源码；密封 Standard 不再需要 `picturesUnrestrictedForTests`。Identity 字节未改（`channel: "v0.2"` / `0.2.1`）。
+- 门禁：全量 `swift test` 1042/2 skipped/0 failures；App+Agent Release；`check-release-identity.sh` ok；`git diff --check` ok。
+- 证据 `docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/02-c5p-release-feature-policy.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
+- 下一精确 USER-GATE：**USER-GATE-C5-SIGN-HIL**。不自动进入。
+- 需要回复：是（@Codex 验收 C5P）
