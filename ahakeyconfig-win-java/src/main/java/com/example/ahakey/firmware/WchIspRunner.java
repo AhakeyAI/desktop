@@ -41,7 +41,7 @@ public class WchIspRunner {
         try {
             return backend.run(command, token);
         } catch (ElevationRequiredException elevationRequired) {
-            if (!isWindows()) {
+            if (!isWindows() && elevatedBackend instanceof WindowsRunAsBackend) {
                 return WchIspProcessResult.startFailure(command.operationId(), elevationRequired);
             }
             return elevatedBackend.run(command, token);
