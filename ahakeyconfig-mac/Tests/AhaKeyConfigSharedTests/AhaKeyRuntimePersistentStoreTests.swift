@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import SQLite3
 import XCTest
@@ -2318,7 +2319,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let package = try makePageScopedPackage(statusLine: "shared-fence")
         let storeA = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        XCTAssertTrue(storeA.mutationFence.sharesLock(with: storeB.mutationFence))
+        XCTAssertTrue(try storeA.mutationFence.sharesLock(with: storeB.mutationFence))
         _ = try await storeA.accept(package, resourceFiles: [:])
         try await storeA.updateOperation(
             .init(
@@ -2597,7 +2598,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let package = try makePageScopedPackage(statusLine: "per-store-close")
         let storeA = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        XCTAssertTrue(storeA.mutationFence.sharesLock(with: storeB.mutationFence))
+        XCTAssertTrue(try storeA.mutationFence.sharesLock(with: storeB.mutationFence))
         _ = try await storeA.accept(package, resourceFiles: [:])
         await storeA.close()
         do {
@@ -2609,6 +2610,16 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             }
             XCTAssertTrue(message.contains("mutation fence is closed"), message)
         }
+        do {
+            _ = try storeA.mutationFence.sharesLock(with: storeB.mutationFence)
+            XCTFail("关闭 A 后 sharesLock 必须拒绝")
+        } catch let error as AhaKeyRuntimePersistenceError {
+            guard case .databaseFailure(let message) = error else {
+                return XCTFail("unexpected \(error)")
+            }
+            XCTAssertTrue(message.contains("mutation fence is closed"), message)
+        }
+        XCTAssertTrue(try storeB.mutationFence.sharesLock(with: storeB.mutationFence))
         do {
             _ = try await storeA.health()
             XCTFail("关闭 A 后 A 的 health 必须拒绝")
@@ -2661,7 +2672,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             return opened
         }
         XCTAssertEqual(stores.count, 2)
-        XCTAssertTrue(stores[0].mutationFence.sharesLock(with: stores[1].mutationFence))
+        XCTAssertTrue(try stores[0].mutationFence.sharesLock(with: stores[1].mutationFence))
         XCTAssertEqual(try stores[0].mutationFence.current(), 0)
         XCTAssertEqual(try stores[1].mutationFence.current(), 0)
         let record = try Data(contentsOf: root.appendingPathComponent(".runtime-store.lock"))
@@ -2713,7 +2724,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             XCTAssertTrue(message.contains("mutation fence is quarantined"), message)
         }
         let replacement = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        XCTAssertFalse(poisoned.mutationFence.sharesLock(with: replacement.mutationFence))
+        XCTAssertFalse(try poisoned.mutationFence.sharesLock(with: replacement.mutationFence))
         XCTAssertEqual(try replacement.mutationFence.current(), 0)
         let health = try await replacement.health()
         XCTAssertEqual(health.journalMode, "wal")
@@ -2734,8 +2745,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let storeB = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         let storeC = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-        XCTAssertFalse(storeA.mutationFence.sharesLock(with: storeB.mutationFence))
-        XCTAssertTrue(storeB.mutationFence.sharesLock(with: storeC.mutationFence))
+        XCTAssertFalse(try storeA.mutationFence.sharesLock(with: storeB.mutationFence))
+        XCTAssertTrue(try storeB.mutationFence.sharesLock(with: storeC.mutationFence))
         let lockB = root.appendingPathComponent(".runtime-store.lock")
 
         try storeA.mutationFence.withExclusiveAccess {
@@ -2743,9 +2754,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         }
         try storeB.mutationFence.withExclusiveAccess {
             XCTAssertEqual(Self.probeFlock(lockB.path), "BLOCKED", "新 root 必须跨进程互斥")
-            XCTAssertEqual(Self.probeStoreWrite(root, timeout: 2.5), "BLOCKED", "新 root 必须跨进程挡住 Store/WAL 写")
         }
-        XCTAssertEqual(Self.probeStoreWrite(root, timeout: 20), "GOT_LOCK", "放锁后独立进程必须能完成 Store 写")
         _ = try await storeB.health()
         _ = try await storeC.health()
         await storeA.close()
@@ -2754,6 +2763,70 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let storeD = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         _ = try await storeD.health()
         await storeD.close()
+    }
+
+    func testCrossProcessReadyMutateSerializesConflictingWALWrites() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let parent = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let session = try StoreMutateSession.start(root: root)
+        defer { session.terminate() }
+        XCTAssertEqual(session.waitLine(timeout: 15), "READY", "child 必须先打开 Store 再竞争写")
+        try parent.mutationFence.withExclusiveAccess {
+            session.sendMutate()
+            XCTAssertEqual(
+                session.waitLine(timeout: 2.5) ?? "BLOCKED",
+                "BLOCKED",
+                "parent 持有 mutation 临界区时，已 READY 的 child accept 必须阻塞"
+            )
+        }
+        XCTAssertEqual(
+            session.waitLine(timeout: 20),
+            "GOT_LOCK",
+            "放锁后 child 必须完成真 Store/WAL 写"
+        )
+        let health = try await parent.health()
+        XCTAssertEqual(health.journalMode, "wal")
+        await parent.close()
+    }
+
+    func testProductionStoreIgnoresProcessProbeEnvironmentVariables() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        setenv("AHAKEY_C4R12_CHILD_ROOT", root.path, 1)
+        setenv("AHAKEY_C4R12_CHILD_STATUS", "must-not-write-or-exit", 1)
+        defer {
+            unsetenv("AHAKEY_C4R12_CHILD_ROOT")
+            unsetenv("AHAKEY_C4R12_CHILD_STATUS")
+        }
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
+        let health = try await store.health()
+        XCTAssertEqual(health.journalMode, "wal")
+        await store.close()
+    }
+
+    func testProductionSourcesDoNotRecognizeProcessProbeEnvironment() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sources = packageRoot.appendingPathComponent("Sources", isDirectory: true)
+        let enumerator = FileManager.default.enumerator(
+            at: sources,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        var hits: [String] = []
+        while let url = enumerator?.nextObject() as? URL {
+            guard url.pathExtension == "swift" else { continue }
+            let text = try String(contentsOf: url, encoding: .utf8)
+            if text.contains("AHAKEY_C4R12")
+                || text.contains("AhaKeyRuntimeStoreProcessWriteProbe")
+                || text.contains("AhaKeyRuntimeStoreProcessProbe") {
+                hits.append(url.path.replacingOccurrences(of: packageRoot.path + "/", with: ""))
+            }
+        }
+        XCTAssertEqual(hits, [], "生产 Sources 不得识别测试 probe：\(hits.joined(separator: ","))")
     }
 
     func testExplicitCloseThenReopenSameRootIsStable() async throws {
@@ -3560,28 +3633,15 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
     @discardableResult
     private static func probeFlock(_ path: String) -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        process.arguments = [
-            "-c",
-            """
-            import ctypes, os, sys
-            libc = ctypes.CDLL(None)
-            libc.flock.argtypes = [ctypes.c_int, ctypes.c_int]
-            libc.flock.restype = ctypes.c_int
-            LOCK_EX, LOCK_NB = 2, 4
-            fd = os.open(sys.argv[1], os.O_RDWR)
-            rc = libc.flock(fd, LOCK_EX | LOCK_NB)
-            sys.stdout.write("GOT_LOCK" if rc == 0 else "BLOCKED")
-            sys.stdout.flush()
-            """,
-            path,
-        ]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = Pipe()
-        process.standardInput = FileHandle.nullDevice
         do {
+            let helper = try locateBuiltProduct("AhaKeyRuntimeStoreProcessProbe")
+            let process = Process()
+            process.executableURL = helper
+            process.arguments = ["flock", path]
+            let output = Pipe()
+            process.standardOutput = output
+            process.standardError = Pipe()
+            process.standardInput = FileHandle.nullDevice
             try process.run()
             let finished = DispatchSemaphore(value: 0)
             DispatchQueue.global().async {
@@ -3592,49 +3652,110 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
                 process.terminate()
                 return "TIMEOUT"
             }
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "NO_OUTPUT"
         } catch {
             return "SPAWN_FAILED"
         }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8) ?? "NO_OUTPUT"
     }
 
-    @discardableResult
-    private static func probeStoreWrite(_ root: URL, timeout: TimeInterval) -> String {
-        _ = AhaKeyRuntimeStoreProcessWriteProbe.self
-        let executable = URL(fileURLWithPath: CommandLine.arguments[0])
-        let process = Process()
-        process.executableURL = executable
-        process.arguments = [Bundle(for: AhaKeyRuntimePersistentStoreTests.self).bundlePath]
-        var environment = ProcessInfo.processInfo.environment
-        environment["AHAKEY_C4R12_CHILD_ROOT"] = root.path
-        environment["AHAKEY_C4R12_CHILD_STATUS"] = "child-\(UUID().uuidString)"
-        process.environment = environment
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = output
-        process.standardInput = FileHandle.nullDevice
-        do {
-            try process.run()
-            let finished = DispatchSemaphore(value: 0)
-            DispatchQueue.global().async {
-                process.waitUntilExit()
-                finished.signal()
+    private static func locateBuiltProduct(_ name: String) throws -> URL {
+        var dir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+        for _ in 0..<12 {
+            let candidate = dir.appendingPathComponent(name)
+            if FileManager.default.isExecutableFile(atPath: candidate.path) {
+                return candidate
             }
-            if finished.wait(timeout: .now() + timeout) == .timedOut {
-                process.terminate()
-                return "BLOCKED"
-            }
-        } catch {
-            return "SPAWN_FAILED:\(error):\(executable.path)"
+            dir.deleteLastPathComponent()
         }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        let text = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if text.contains("GOT_LOCK") { return "GOT_LOCK" }
-        if text.contains("TIMEOUT") { return "BLOCKED" }
-        if text.isEmpty { return "NO_OUTPUT:\(executable.path)" }
-        return text
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0..<12 {
+            for config in ["debug", "release"] {
+                let candidate = root
+                    .appendingPathComponent(".build")
+                    .appendingPathComponent(config)
+                    .appendingPathComponent(name)
+                if FileManager.default.isExecutableFile(atPath: candidate.path) {
+                    return candidate
+                }
+            }
+            root.deleteLastPathComponent()
+        }
+        struct MissingProduct: Error {}
+        throw MissingProduct()
+    }
+
+    private final class StoreMutateSession {
+        private let process: Process
+        private let stdin: FileHandle
+        private let lock = NSLock()
+        private var lines: [String] = []
+        private let lineAvailable = DispatchSemaphore(value: 0)
+
+        static func start(root: URL) throws -> StoreMutateSession {
+            let helper = try AhaKeyRuntimePersistentStoreTests.locateBuiltProduct(
+                "AhaKeyRuntimeStoreProcessProbe"
+            )
+            let process = Process()
+            process.executableURL = helper
+            process.arguments = ["mutate", root.path]
+            let input = Pipe()
+            let output = Pipe()
+            process.standardInput = input
+            process.standardOutput = output
+            process.standardError = Pipe()
+            try process.run()
+            return StoreMutateSession(
+                process: process,
+                stdin: input.fileHandleForWriting,
+                stdout: output.fileHandleForReading
+            )
+        }
+
+        private init(process: Process, stdin: FileHandle, stdout: FileHandle) {
+            self.process = process
+            self.stdin = stdin
+            DispatchQueue.global().async { [weak self] in
+                var remainder = Data()
+                while true {
+                    let chunk = stdout.availableData
+                    if chunk.isEmpty { return }
+                    remainder.append(chunk)
+                    while let newline = remainder.firstIndex(of: 0x0A) {
+                        let lineData = remainder.subdata(in: remainder.startIndex..<newline)
+                        remainder.removeSubrange(remainder.startIndex...newline)
+                        let line = String(data: lineData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        guard let session = self else { return }
+                        session.lock.lock()
+                        session.lines.append(line)
+                        session.lock.unlock()
+                        session.lineAvailable.signal()
+                    }
+                }
+            }
+        }
+
+        func sendMutate() {
+            stdin.write(Data("MUTATE\n".utf8))
+        }
+
+        func waitLine(timeout: TimeInterval) -> String? {
+            if lineAvailable.wait(timeout: .now() + timeout) == .timedOut {
+                return nil
+            }
+            lock.lock()
+            defer { lock.unlock() }
+            guard !lines.isEmpty else { return nil }
+            return lines.removeFirst()
+        }
+
+        func terminate() {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
     }
 
     private static func deleteMetadata(root: URL, key: String) {

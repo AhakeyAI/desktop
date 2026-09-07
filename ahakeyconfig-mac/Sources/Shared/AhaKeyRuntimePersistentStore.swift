@@ -602,8 +602,8 @@ public final class AhaKeyRuntimeMutationFence: @unchecked Sendable {
         self.core = core
     }
 
-    public func sharesLock(with other: AhaKeyRuntimeMutationFence) -> Bool {
-        core === other.core
+    func sharesLock(with other: AhaKeyRuntimeMutationFence) throws -> Bool {
+        try withStoreLease { core === other.core }
     }
 
     public func current() throws -> UInt64 {
@@ -755,7 +755,6 @@ public actor AhaKeyRuntimePersistentStore {
             at: rootDirectory,
             withIntermediateDirectories: true
         )
-        AhaKeyRuntimeStoreProcessWriteProbe.install()
         let rootDirectory = rootDirectory.standardizedFileURL.resolvingSymlinksInPath()
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rootDirectory.path)
         let resourcesDirectory = rootDirectory.appendingPathComponent("resources", isDirectory: true)
@@ -3359,80 +3358,4 @@ public actor AhaKeyRuntimePersistentStore {
     }
 
     private static let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-}
-
-private let _ahaKeyRuntimeStoreProcessWriteProbe: Void = {
-    AhaKeyRuntimeStoreProcessWriteProbe.install()
-}()
-
-enum AhaKeyRuntimeStoreProcessWriteProbe {
-    private static let startLock = NSLock()
-    private static var started = false
-
-    static func install() {
-        guard ProcessInfo.processInfo.environment["AHAKEY_C4R12_CHILD_ROOT"] != nil else {
-            return
-        }
-        startLock.lock()
-        if started {
-            startLock.unlock()
-            return
-        }
-        started = true
-        startLock.unlock()
-        runAndExit()
-    }
-
-    private static func runAndExit() {
-        guard let rootPath = ProcessInfo.processInfo.environment["AHAKEY_C4R12_CHILD_ROOT"] else {
-            return
-        }
-        FileHandle.standardError.write(Data("C4R12_CHILD_START\n".utf8))
-        let finished = DispatchSemaphore(value: 0)
-        var status: Int32 = 1
-        Task {
-            defer { finished.signal() }
-            do {
-                let root = URL(fileURLWithPath: rootPath, isDirectory: true)
-                let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
-                let statusLine = ProcessInfo.processInfo.environment["AHAKEY_C4R12_CHILD_STATUS"]
-                    ?? "child-write"
-                let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
-                let plan = AhaKeyStudioScopedWritePlan(
-                    pageID: .screen(modeSlot: 0),
-                    fieldMask: [field],
-                    values: [field: .text(statusLine)],
-                    overwriteSemantic: false,
-                    writeTaskSetA: false,
-                    writeTaskSetB: false,
-                    activateTaskSet: nil,
-                    emitsSetActiveSetOpcode: false,
-                    statusLine: statusLine
-                )
-                let package = try AhaKeyConfigurationPackage.assemblePageScoped(
-                    plan: plan,
-                    profile: .legacyStandard,
-                    targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
-                    baseRevision: .init(7),
-                    baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(
-                        Data(statusLine.utf8)
-                    ),
-                    verifiedResources: [],
-                    operationID: .init()
-                )
-                _ = try await store.accept(package, resourceFiles: [:])
-                await store.close()
-                FileHandle.standardOutput.write(Data("GOT_LOCK".utf8))
-                fflush(stdout)
-                status = 0
-            } catch {
-                FileHandle.standardError.write(Data("ERROR \(error)".utf8))
-            }
-        }
-        if finished.wait(timeout: .now() + 8) == .timedOut {
-            FileHandle.standardOutput.write(Data("TIMEOUT".utf8))
-            Darwin.exit(2)
-        }
-        Darwin.exit(status)
-    }
 }

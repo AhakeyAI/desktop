@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "RuntimeXPCServer", targets: ["RuntimeXPCServer"]),
         .executable(name: "RuntimeXPCSmokeServer", targets: ["RuntimeXPCSmokeServer"]),
         .executable(name: "RuntimeXPCSmokeClient", targets: ["RuntimeXPCSmokeClient"]),
+        .executable(name: "AhaKeyRuntimeStoreProcessProbe", targets: ["AhaKeyRuntimeStoreProcessProbe"]),
     ],
     
     targets: [
@@ -90,9 +91,15 @@ let package = Package(
             dependencies: ["AhaKeyConfigShared"],
             path: "Sources/AhaKeyRuntimeLegacySocketProbe"
         ),
+        // C4R13：跨进程 Store/WAL 竞争只用测试 helper，不得编入 Shared/App/Agent。
+        .executableTarget(
+            name: "AhaKeyRuntimeStoreProcessProbe",
+            dependencies: ["AhaKeyConfigShared"],
+            path: "Tests/AhaKeyRuntimeStoreProcessProbe"
+        ),
         .testTarget(
             name: "AhaKeyConfigSharedTests",
-            dependencies: ["AhaKeyConfigShared"],
+            dependencies: ["AhaKeyConfigShared", "AhaKeyRuntimeStoreProcessProbe"],
             path: "Tests/AhaKeyConfigSharedTests",
             resources: [.copy("Fixtures")]
         ),
