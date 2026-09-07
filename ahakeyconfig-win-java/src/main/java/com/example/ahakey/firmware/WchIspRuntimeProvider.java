@@ -38,11 +38,15 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
 
     public RuntimeBundle resolve() throws IOException {
         String override = System.getProperty(EXPLICIT_PATH_PROPERTY, "").trim();
+        if (!override.isBlank()) {
+            // An explicit path is a deliberate development/test choice.  It is
+            // allowed to be metadata-light, but it must still contain every
+            // binary/config file required to execute WCHISP.  Do not fall back
+            // silently to another runtime when an explicit path is invalid.
+            return load(Path.of(override), false);
+        }
         boolean packaged = !System.getProperty("jpackage.app-path", "").isBlank();
         List<Path> candidates = new ArrayList<>();
-        if (!override.isBlank()) {
-            candidates.add(Path.of(override));
-        }
         String appPath = System.getProperty("jpackage.app-path", "").trim();
         if (!appPath.isBlank()) {
             Path launcher = Path.of(appPath).toAbsolutePath().normalize();
@@ -58,7 +62,10 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
         IOException last = null;
         for (Path candidate : candidates) {
             try {
-                return load(candidate);
+                // Only the explicit -D override opts into development
+                // admission.  Implicit candidates remain contract-checked,
+                // including IDE/working-directory discovery.
+                return load(candidate, true);
             } catch (IOException failure) {
                 last = failure;
             }
@@ -67,10 +74,10 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
     }
 
     public RuntimeBundle resolve(Path explicit) throws IOException {
-        return load(explicit);
+        return load(explicit, false);
     }
 
-    private RuntimeBundle load(Path candidate) throws IOException {
+    private RuntimeBundle load(Path candidate, boolean strictContract) throws IOException {
         if (candidate == null) {
             throw new IOException("runtime path is null");
         }
@@ -87,10 +94,12 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
             || !Files.isRegularFile(ispDll) || !Files.isRegularFile(config)) {
             throw new IOException("runtime bundle is incomplete: " + root);
         }
-        WchIspRuntimeContract.Validation validation =
-            WchIspRuntimeContract.validate(root);
-        if (!validation.supported()) {
-            throw new IOException(validation.summary());
+        if (strictContract) {
+            WchIspRuntimeContract.Validation validation =
+                WchIspRuntimeContract.validate(root);
+            if (!validation.supported()) {
+                throw new IOException(validation.summary());
+            }
         }
         return new RuntimeBundle(root, executable, ch343, ispDll, config,
             Files.isRegularFile(metadata) ? metadata : null,
@@ -118,6 +127,12 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
         String configHash = sha256(config);
         RuntimeIdentity.ValidationStatus status = RuntimeIdentity.ValidationStatus.UNKNOWN;
         Map<String, String> expectedMetadata = new LinkedHashMap<>();
+        expectedMetadata.put("METADATA_STATUS",
+            metadata != null && Files.isRegularFile(metadata) ? "PRESENT" : "MISSING");
+        // Runtime identity is evidence about the local tool bundle only.  A
+        // real device/UID check is required before hardware can be considered
+        // verified.
+        expectedMetadata.put("HARDWARE_VERIFICATION", "UNVERIFIED");
         BinaryVersion exe = versionReader.read(executable);
         BinaryVersion ch343Info = versionReader.read(ch343);
         BinaryVersion ispInfo = versionReader.read(ispDll);
