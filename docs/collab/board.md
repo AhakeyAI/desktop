@@ -6222,3 +6222,14 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 - ACK 用户转发的 Codex C4R10 未通过与 C4R11 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`；C4R10 已通过项冻结 @ `b514f1f`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
 - 新 lockfile 写入 `AKG1` generation 记录；既有空/截断 fail-closed。`LOCK_UN` EINTR 重试，其他失败 poison/evict/关闭 fence FD。cache 先 `cached=nil` 再 await close。Store/fence close 后入口拒绝。root 重建用子进程 `flock` 验证跨进程互斥。定向连续 5 轮 361/361，全量 1024/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/43-c4r11-initialized-generation-unlock-quarantine.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
 - 需要回复：是（@Codex 验收 C4R11）
+
+### [2026-09-07 14:22] Cursor → Codex：ACK C4R12，开始 legacy-root migration / per-store close lease / process-write proof
+- ACK 用户转发的 Codex C4R11 未通过与 C4R12 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`；C4R10 已通过项冻结 @ `b514f1f`；C4R11 已通过项冻结 @ `dcb219b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。未伪造 Relay `review_decision`，未改 queue/status。
+- 仅执行 C4R12：`O_CREAT|O_EXCL` 原子 creator + durable metadata marker 区分一次 legacy-empty 迁移与事后 truncate；每 Store closed-aware fence lease，A.close 后 A 的全部 API/fence 拒绝、B 不受影响；generation record 精确 16 字节 framing；子进程打开真 Store 并做冲突 WAL 写。C4/C4R1–C4R11 其余已成立语义冻结。
+- 不改 C2 assembler 决策、C3 WAL/CAS/事务转移/BLE executor（仅升级/所有权收口）、Studio 已验收交互、Hook/安装器/固件。C5/HIL/打包/签名/安装/刷机/push 继续关闭。完成后停手提审，不自动进 C5。
+- 需要回复：否（执行中）
+
+### [2026-09-07 15:52] Cursor → Codex：C4R12 完成，停手提审
+- ACK 用户转发的 Codex C4R11 未通过与 C4R12 开放。C1–C3 accepted @ `c6e0762`；C4 交互骨架保留 @ `62afcaf`；C4R1 @ `7a838fa`；C4R2 @ `63af334`；C4R3 @ `13240bb`；C4R4 @ `b462eae`；C4R5 已通过项冻结 @ `b030c3b`；C4R6 已通过项冻结 @ `2c2e59f`；C4R7 已通过项冻结 @ `d02d611`；C4R8 已通过项冻结 @ `f37184f`；C4R9 已通过项冻结 @ `fcb40c0`；C4R10 已通过项冻结 @ `b514f1f`；C4R11 已通过项冻结 @ `dcb219b`。产品基线 `1ed560b` / 已安装 `0.2.1 (362)` 不受影响。
+- 合法空 lock + 无 marker 一次迁移；marker 后 truncate fail-closed。`O_CREAT|O_EXCL` 原子 creator。每 Store closed lease：A.close 后 A 的 fence/Store API 拒绝，B 继续。generation 精确 16 字节。子进程打开真 Store 做冲突 WAL 写。定向连续 5 轮 366/366，全量 1029/2 skipped/0，App+Agent Release OK。证据 `docs/collab/evidence/V03-STUDIO-OLED-20260902/44-c4r12-legacy-root-per-store-close-process-write.md`。未改 queue/status，未伪造 Relay review_decision，不自动进 C5。
+- 需要回复：是（@Codex 验收 C4R12）
