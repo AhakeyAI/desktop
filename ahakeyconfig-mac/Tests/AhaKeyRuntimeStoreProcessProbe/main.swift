@@ -32,18 +32,28 @@ enum AhaKeyRuntimeStoreProcessProbe {
     private static func flockProbe(path: String) {
         let fd = open(path, O_RDWR)
         guard fd >= 0 else {
-            writeLine("OPEN_FAILED")
+            writeLine("OPEN_FAILED errno=\(errno)")
             Darwin.exit(1)
         }
         defer { Darwin.close(fd) }
         let rc = flock(fd, LOCK_EX | LOCK_NB)
+        let lockErrno = errno
         if rc == 0 {
-            _ = flock(fd, LOCK_UN)
+            let unlocked = flock(fd, LOCK_UN)
+            let unlockErrno = errno
+            guard unlocked == 0 else {
+                writeLine("UNLOCK_FAILED errno=\(unlockErrno)")
+                Darwin.exit(1)
+            }
             writeLine("GOT_LOCK")
             Darwin.exit(0)
         }
-        writeLine("BLOCKED")
-        Darwin.exit(0)
+        if lockErrno == EWOULDBLOCK || lockErrno == EAGAIN {
+            writeLine("BLOCKED")
+            Darwin.exit(0)
+        }
+        writeLine("FLOCK_ERROR errno=\(lockErrno)")
+        Darwin.exit(1)
     }
 
     private static func mutateProbe(rootPath: String) {
@@ -86,6 +96,7 @@ enum AhaKeyRuntimeStoreProcessProbe {
         Task.detached {
             do {
                 let package = try makePageScopedPackage(statusLine: "child-\(UUID().uuidString)")
+                writeLine("MUTATING")
                 _ = try await store.accept(package, resourceFiles: [:])
                 await store.close()
                 writeLine("GOT_LOCK")

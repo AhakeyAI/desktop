@@ -2775,9 +2775,14 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         try parent.mutationFence.withExclusiveAccess {
             session.sendMutate()
             XCTAssertEqual(
+                session.waitLine(timeout: 15),
+                "MUTATING",
+                "child 必须在进入 accept fence 前发出 MUTATING"
+            )
+            XCTAssertEqual(
                 session.waitLine(timeout: 2.5) ?? "BLOCKED",
                 "BLOCKED",
-                "parent 持有 mutation 临界区时，已 READY 的 child accept 必须阻塞"
+                "parent 持锁且 child 已 MUTATING 后，accept 必须仍阻塞"
             )
         }
         XCTAssertEqual(
@@ -3651,6 +3656,12 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             if finished.wait(timeout: .now() + 8) == .timedOut {
                 process.terminate()
                 return "TIMEOUT"
+            }
+            if process.terminationStatus != 0 {
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                let text = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "NO_OUTPUT"
+                return text.isEmpty ? "HELPER_EXIT_\(process.terminationStatus)" : text
             }
             let data = output.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8)?
