@@ -68,7 +68,8 @@ public final class WchIspResultParser {
     }
 
     private static boolean isUacCancelled(WchIspRunner.WchIspProcessResult result) {
-        return result != null && "UAC_CANCELLED".equalsIgnoreCase(result.terminationReason());
+        return result != null && result.terminationReason().toUpperCase(Locale.ROOT)
+            .contains("UAC_CANCELLED");
     }
 
     public record UidQueryResult(boolean success, FirmwareUpdateError error,

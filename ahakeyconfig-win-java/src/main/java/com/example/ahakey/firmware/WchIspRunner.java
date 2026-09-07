@@ -236,9 +236,12 @@ public class WchIspRunner {
             while (elevation.isAlive() && System.nanoTime() < deadline) {
                 if (cancellation.cancelled()) {
                     elevation.destroyForcibly();
+                    long childPid = readPid(pidFile);
+                    String reason = childPid > 0 ? "UAC_CANCELLED"
+                        : "UAC_CANCELLED/PROCESS_OWNERSHIP_INCOMPLETE";
                     return new WchIspProcessResult(command.operationId(), true, elevation.pid(), -1,
                         false, true, read(stdout), read(stderr), read(stdout) + read(stderr),
-                        command.timeout(), true, artifacts(stdout, stderr, marker), "UAC_CANCELLED");
+                        command.timeout(), true, artifacts(stdout, stderr, marker), reason);
                 }
                 elevation.waitFor(100, TimeUnit.MILLISECONDS);
             }
@@ -249,8 +252,11 @@ public class WchIspRunner {
             String markerValue = read(marker).trim();
             int exitCode = parseExitCode(markerValue, wrapperExit);
             boolean cancelled = wrapperExit == 1223 || "UAC_CANCELLED".equals(markerValue);
+            long childPid = readPid(pidFile);
+            boolean ownershipIncomplete = childPid <= 0 && (timedOut || cancelled);
             String reason = timedOut ? "TIMEOUT" : cancelled ? "UAC_CANCELLED" : "ELEVATED_PROCESS_EXIT";
-            return new WchIspProcessResult(command.operationId(), true, readPid(pidFile), exitCode,
+            if (ownershipIncomplete) reason += "/PROCESS_OWNERSHIP_INCOMPLETE";
+            return new WchIspProcessResult(command.operationId(), true, childPid, exitCode,
                 timedOut, cancelled, read(stdout), read(stderr), read(stdout) + read(stderr),
                 command.timeout(), true, artifacts(stdout, stderr, marker), reason);
         }
