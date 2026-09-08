@@ -1406,6 +1406,131 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    func testIngestMutationsAfterAdmissionReservedWriteZeroCAS() {
+        runEndpointTest { [self] in
+            enum Mutation { case bump, revoke, replace }
+            for mutation in [Mutation.bump, .revoke, .replace] {
+                let agent = makeAgent()
+                let gate = IngestCASGate()
+                var hooks = agent.executionTestHooks
+                hooks?.skipConfigurationBLEWriteGates = true
+                hooks?.configurationCharacteristics = .allPresent
+                hooks?.oledContext = .standard
+                hooks?.afterResourceAdmissionReserved = { await gate.arrive() }
+                agent.executionTestHooks = hooks
+                await agent.simulateDeviceForTesting(simulatedDevice())
+
+                let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+                let before = await waitForStoreBaseline(storeDir)
+                let items = try ingestItems(try makeStandardPictureAssembly())
+                let ingestTask = Task { try await agent.handleIngestForTesting(items) }
+                XCTAssertTrue(gate.waitUntilEntered(), "\(mutation)")
+                switch mutation {
+                case .bump:
+                    await agent.simulateDeviceForTesting(simulatedDevice(sessionGeneration: 1))
+                case .revoke:
+                    var live = agent.executionTestHooks
+                    live?.oledContext = .make(.malformedResponse)
+                    agent.executionTestHooks = live
+                    await agent.simulateDeviceForTesting(simulatedDevice())
+                case .replace:
+                    await agent.simulateDeviceForTesting(simulatedDevice(id: "OTHER-DEVICE"))
+                }
+                gate.release()
+                let ingest = try await ingestTask.value
+                guard case .failure(let code) = ingest else {
+                    return XCTFail("校验后 \(mutation) 必须失败，实际 \(ingest)")
+                }
+                XCTAssertEqual(code.rawValue, "unsupported-protocol", "\(mutation)")
+                XCTAssertEqual(casFingerprint(storeDir).names, before.names, "\(mutation)")
+                XCTAssertEqual(casFingerprint(storeDir).sqlite, before.sqlite, "\(mutation)")
+            }
+        }
+    }
+
+    func testApplyMutationsAfterAdmissionReservedWriteZeroWAL() {
+        runEndpointTest { [self] in
+            enum Mutation { case bump, revoke, replace }
+            for mutation in [Mutation.bump, .revoke, .replace] {
+                let agent = makeAgent()
+                let gate = IngestCASGate()
+                var hooks = agent.executionTestHooks
+                hooks?.skipConfigurationBLEWriteGates = true
+                hooks?.configurationCharacteristics = .allPresent
+                hooks?.oledContext = .standard
+                hooks?.afterResourceAdmissionReserved = { await gate.arrive() }
+                agent.executionTestHooks = hooks
+                await agent.simulateDeviceForTesting(simulatedDevice())
+
+                let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+                let before = await waitForStoreBaseline(storeDir)
+                let package = try makePackage(from: try makeStandardPictureAssembly())
+                let applyTask = Task { try await agent.handleApplyForTesting(package) }
+                XCTAssertTrue(gate.waitUntilEntered(), "\(mutation)")
+                switch mutation {
+                case .bump:
+                    await agent.simulateDeviceForTesting(simulatedDevice(sessionGeneration: 1))
+                case .revoke:
+                    var live = agent.executionTestHooks
+                    live?.oledContext = .make(.malformedResponse)
+                    agent.executionTestHooks = live
+                    await agent.simulateDeviceForTesting(simulatedDevice())
+                case .replace:
+                    await agent.simulateDeviceForTesting(simulatedDevice(id: "OTHER-DEVICE"))
+                }
+                gate.release()
+                let apply = try await applyTask.value
+                guard case .failure(let code) = apply else {
+                    return XCTFail("校验后 apply \(mutation) 必须失败，实际 \(apply)")
+                }
+                XCTAssertEqual(code.rawValue, "unsupported-protocol", "\(mutation)")
+                XCTAssertEqual(casFingerprint(storeDir).names, before.names, "\(mutation)")
+                let store = try AhaKeyRuntimePersistentStore(
+                    rootDirectory: storeDir,
+                    acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+                )
+                let wal = try await store.transaction(package.operationID)
+                XCTAssertNil(wal, "\(mutation)")
+            }
+        }
+    }
+
+    func testAdmissionReservationHoldsMutationUntilWriteCompletes() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let locked = WriteLockedGate()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+            agent.setAdmissionWriteLockedProbeForTesting { locked.arrive() }
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = await waitForStoreBaseline(storeDir)
+            let items = try ingestItems(try makeStandardPictureAssembly())
+            let ingestTask = Task { try await agent.handleIngestForTesting(items) }
+            XCTAssertTrue(locked.waitUntilEntered())
+            let mutated = MutationFlag()
+            let mutateTask = Task {
+                await agent.simulateDeviceForTesting(simulatedDevice(sessionGeneration: 1))
+                mutated.set()
+            }
+            try await Task.sleep(nanoseconds: 80_000_000)
+            XCTAssertFalse(mutated.get(), "写入持锁期间 mutation 必须等待")
+            locked.release()
+            let ingest = try await ingestTask.value
+            guard case .resourcesIngested = ingest else {
+                return XCTFail("reservation 先取得时必须写入，实际 \(ingest)")
+            }
+            await mutateTask.value
+            XCTAssertTrue(mutated.get())
+            XCTAssertNotEqual(casFingerprint(storeDir).names, before.names)
+            agent.setAdmissionWriteLockedProbeForTesting(nil)
+        }
+    }
+
     func testStaleOLEDTimeoutAndNotifyDoNotResealPreviousProfile() {
         runEndpointTest { [self] in
             let agent = makeAgent()
@@ -1903,6 +2028,41 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             self.waiter = nil
             lock.unlock()
             waiter?.resume()
+        }
+    }
+
+    private final class WriteLockedGate: @unchecked Sendable {
+        private let entered = DispatchSemaphore(value: 0)
+        private let go = DispatchSemaphore(value: 0)
+
+        func arrive() {
+            entered.signal()
+            go.wait()
+        }
+
+        func waitUntilEntered(timeout: TimeInterval = 2) -> Bool {
+            entered.wait(timeout: .now() + timeout) == .success
+        }
+
+        func release() {
+            go.signal()
+        }
+    }
+
+    private final class MutationFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+
+        func set() {
+            lock.lock()
+            value = true
+            lock.unlock()
+        }
+
+        func get() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
         }
     }
 

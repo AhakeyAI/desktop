@@ -1259,6 +1259,19 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
+    /// Picture-package WAL accept：admission reservation 与 Store 写处于同一线性化域。
+    /// 不改变无 reservation 的 `accept` 语义或 WAL schema。
+    public func accept(
+        _ package: AhaKeyConfigurationPackage,
+        resourceFiles: [AhaKeyResourceIdentifier: URL],
+        reservedBy reservation: AhaKeyRuntimeAdmissionReservation,
+        using fence: AhaKeyRuntimeAdmissionFence
+    ) throws -> AhaKeyRuntimeOperationID {
+        try fence.withReservedWrite(reservation) {
+            try accept(package, resourceFiles: resourceFiles)
+        }
+    }
+
     /// 将资源数据写入 CAS（managed storage），不创建事务。
     /// 用于 XPC 预上传：Studio 先 ingest，再发 apply。
     public func ingestResources(_ items: [AhaKeyXPCResourceIngestionItem]) throws {
@@ -1410,6 +1423,18 @@ public actor AhaKeyRuntimePersistentStore {
         }
         // 成功路径同样清理：幂等 skip（已 journal/已转正）的 item 可能留下 phase-1 临时文件。
         for (_, temporary) in stagingFiles { try? FileManager.default.removeItem(at: temporary) }
+    }
+
+    /// Resource CAS ingest：admission reservation 与 Store 写处于同一线性化域。
+    /// 不改变无 reservation 的 `ingestResources` 语义。
+    public func ingestResources(
+        _ items: [AhaKeyXPCResourceIngestionItem],
+        reservedBy reservation: AhaKeyRuntimeAdmissionReservation,
+        using fence: AhaKeyRuntimeAdmissionFence
+    ) throws {
+        try fence.withReservedWrite(reservation) {
+            try ingestResources(items)
+        }
     }
 
     public func resourceURL(for digest: AhaKeySHA256Digest) throws -> URL? {

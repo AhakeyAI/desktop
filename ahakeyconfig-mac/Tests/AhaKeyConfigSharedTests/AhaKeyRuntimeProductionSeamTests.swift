@@ -290,6 +290,88 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
             XCTFail("unexpected error: \(error)")
         }
     }
+
+    func testAdmissionTokenAndIngestRequestRejectUnknownKeysMissingFieldsAndWrongShape() throws {
+        let token = try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(1),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+        try assertCorruptRuntimeFact(token, extraKey: "unexpected")
+        try assertMissingFieldIsCorrupt(token, dropping: "sessionGeneration")
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(AhaKeyRuntimeResourceAdmissionToken.self, from: Data("[]".utf8))
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+
+        let request = AhaKeyXPCResourceIngestionRequest(items: [], admission: token)
+        try assertCorruptRuntimeFact(request, extraKey: "unexpected")
+        try assertMissingFieldIsCorrupt(request, dropping: "admission")
+        var requestObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try JSONEncoder().encode(request)) as? [String: Any]
+        )
+        requestObject["admission"] = "not-a-token"
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyXPCResourceIngestionRequest.self,
+                from: try JSONSerialization.data(withJSONObject: requestObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+    }
+
+    func testAdmissionFenceLinearizesReservationAgainstLiveMutation() throws {
+        let fence = AhaKeyRuntimeAdmissionFence()
+        let token = try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+        let next = AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: token.targetDeviceID,
+            sessionGeneration: .init(1),
+            transportGeneration: token.transportGeneration,
+            sealedOLEDFact: token.sealedOLEDFact
+        )
+        fence.publish(token)
+        let reservation = try XCTUnwrap(fence.reserve(token))
+        fence.publish(next)
+        XCTAssertThrowsError(try fence.withReservedWrite(reservation) { "wrote" }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+
+        let live = try XCTUnwrap(fence.reserve(next))
+        var wrote = false
+        try fence.withReservedWrite(live) { wrote = true }
+        XCTAssertTrue(wrote)
+        XCTAssertNil(fence.reserve(token))
+    }
+
+    private func assertCorruptRuntimeFact<T: Codable>(_ value: T, extraKey: String) throws {
+        let encoded = try JSONEncoder().encode(value)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object[extraKey] = true
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(T.self, from: try JSONSerialization.data(withJSONObject: object))
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+    }
+
+    private func assertMissingFieldIsCorrupt<T: Codable>(_ value: T, dropping key: String) throws {
+        let encoded = try JSONEncoder().encode(value)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: key)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(T.self, from: try JSONSerialization.data(withJSONObject: object))
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+    }
 }
 
 private final class SilentXPCService: NSObject, AhaKeyRuntimeXPCServiceProtocol {

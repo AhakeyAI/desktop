@@ -348,6 +348,51 @@ public struct AhaKeyRuntimeResourceAdmissionToken: Codable, Equatable, Sendable 
             sealedOLEDFact: fact
         )
     }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case targetDeviceID, sessionGeneration, transportGeneration, sealedOLEDFact
+    }
+
+    public init(from decoder: Decoder) throws {
+        do {
+            try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+                in: decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+                error: .corruptRuntimeFact
+            )
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            guard CodingKeys.allCases.allSatisfy({ container.contains($0) }) else {
+                throw AhaKeyRuntimeContractError.corruptRuntimeFact
+            }
+            self.init(
+                targetDeviceID: try container.decode(AhaKeyRuntimeDeviceID.self, forKey: .targetDeviceID),
+                sessionGeneration: try container.decode(
+                    AhaKeyRuntimeSessionGeneration.self,
+                    forKey: .sessionGeneration
+                ),
+                transportGeneration: try container.decode(
+                    AhaKeyRuntimeTransportGeneration.self,
+                    forKey: .transportGeneration
+                ),
+                sealedOLEDFact: try container.decode(
+                    AhaKeyRuntimeOLEDCompatibilityFact.self,
+                    forKey: .sealedOLEDFact
+                )
+            )
+        } catch is AhaKeyRuntimeContractError {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        } catch {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(targetDeviceID, forKey: .targetDeviceID)
+        try container.encode(sessionGeneration, forKey: .sessionGeneration)
+        try container.encode(transportGeneration, forKey: .transportGeneration)
+        try container.encode(sealedOLEDFact, forKey: .sealedOLEDFact)
+    }
 }
 
 public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
@@ -357,6 +402,41 @@ public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
     public init(items: [AhaKeyXPCResourceIngestionItem], admission: AhaKeyRuntimeResourceAdmissionToken) {
         self.items = items
         self.admission = admission
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case items, admission
+    }
+
+    public init(from decoder: Decoder) throws {
+        do {
+            try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+                in: decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+                error: .corruptRuntimeFact
+            )
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            guard CodingKeys.allCases.allSatisfy({ container.contains($0) }) else {
+                throw AhaKeyRuntimeContractError.corruptRuntimeFact
+            }
+            self.init(
+                items: try container.decode([AhaKeyXPCResourceIngestionItem].self, forKey: .items),
+                admission: try container.decode(
+                    AhaKeyRuntimeResourceAdmissionToken.self,
+                    forKey: .admission
+                )
+            )
+        } catch is AhaKeyRuntimeContractError {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        } catch {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(items, forKey: .items)
+        try container.encode(admission, forKey: .admission)
     }
 }
 

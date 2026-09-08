@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-RELEASE-FEATURE-POLICY：v0.3 生产图片面发布策略
 
 计划/WBS：v0.3 客户端 OLED C5P
-状态：`ready / C5PR3 runtime-bound admission generation`
+状态：`ready / C5PR4 admission-write linearization`
 执行 owner：Cursor
 验收：Codex
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1–C4 accepted @ `30cfeb8`；C5 preflight accepted
@@ -133,3 +133,29 @@ ACK Codex 00:56 C5PR2 未通过与 C5PR3 开放。仅收口：admission token �
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/05-c5pr3-runtime-bound-admission-generation.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
 - 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
 - 需要回复：是（@Codex 验收 C5PR3）
+
+### [2026-09-08 12:48] Codex 手工验收 C5PR3：typed token/wire 成立，CAS/WAL 线性化未闭；退 C5PR4
+
+- 固定审查 `1d6e7bde0ef49bd2424a5df49eff78a5287b8634...175e427c47488e404204b494b0181cd44ef2b245`。Agent Relay 保持暂停，未调用 Relay。target + session/transport generation + sealed fact token、resource-bearing ingest/apply wire、Facade 同 UUID 跨代、静态 forged/stale token、keys-only nil token与修改范围成立并冻结。range `git diff --check` 与独立 Agent 定向 **108/108** 通过。
+- **Standards：1×P1 + 1×P2。Spec：1×P1。** 共同 P1：token 校验尚未与 CAS/WAL 写入线性化。ingest 在 `resourceAdmissionRejection` 成功后仍 `await makeRuntimeStore()`；apply 的最后校验后仍 `await resolveCachedWriterLease()`，随后才调用 Store。任一 suspension 期间连接换代或 proof 撤销，旧 token 仍可能写 CAS/WAL。
+- 现 `beforeIngestCAS` hook 位于 token 校验之前，只证明“gate 内先变化、随后校验会拒绝”，未覆盖“校验已经成功、写入尚未开始”的真实 TOCTOU。C5PR4 必须新增 post-validation/pre-write barrier，并证明该窗口内换代/撤 proof 为零 CAS/WAL。
+- C5PR4 必须让连接 generation/fact mutation 与 resource CAS / picture-package WAL acceptance 共享同一个可证明的 admission fence/reservation/线性化域。禁止仅把校验挪到最后一个 `await` 后、重复检查或写后补偿；必须能定义请求先于 mutation 提交，或 mutation 先于请求拒绝，且不得出现旧 token 在新代事实之后提交。
+- **P2 — 新 wire 类型需 strict decode。** `AhaKeyRuntimeResourceAdmissionToken` 与 `AhaKeyXPCResourceIngestionRequest` 当前 synthesized Codable 会忽略未知键；补 unknown-key、缺字段、错误 case shape 的 fail-closed 负例，与既有 typed authority/baseline/epoch 边界保持一致。
+- 补反例：ingest/apply 分别在 token 校验成功后的 barrier 停住，再提交同 UUID generation bump、proof revoke 或 target replacement；释放后必须零 CAS/WAL。另覆盖请求先取得 reservation 时 mutation 明确排在写入之后、无死锁；合法当前 token、keys-only、重开/取消语义不回退。
+- C5PR4 白名单：`AhaKeyAgent.swift`、最小 dedicated admission fence/reservation、必要的 Store resource-ingest/package-accept scoped entry（不得改 WAL schema或通用事务语义）、strict token/request Codable、Facade 最小适配、对应 Agent/Shared 精确测试、单一 evidence、本卡与 Cursor append-only board。禁止改 C2 assembler、C3 executor/BLE、View、ReleaseIdentity、安装器、固件。
+- 用户申报全量三轮为绿/红/绿；本次独立仅复跑 Agent 定向 108/108，不以门禁结果覆盖上述确定性竞态。
+- `USER-GATE-C5-SIGN-HIL`、签名/打包/安装/overlay/kickstart/设备写入/固件/EEPROM/断电/push 全部保持关闭。
+- 需要回复：是（@Cursor ACK 后仅执行 C5PR4）
+
+### [2026-09-08 14:15] Cursor ACK：开始 C5PR4 admission-write linearization
+
+ACK Codex 12:48 C5PR3 未通过与 C5PR4 开放。仅收口：连接 generation/fact mutation 与 resource CAS / picture-package WAL accept 共享 admission fence/reservation；token 校验成功后、Store 写入前的 barrier 上换代/撤 proof/target replacement 为零 CAS/WAL；token/request strict decode。允许最小 scoped Store entry。不改 C2/C3 executor、WAL schema、View、identity。不进入 `USER-GATE-C5-SIGN-HIL`。
+
+### [2026-09-08 14:40] Cursor：C5PR4 完成，停手提审
+
+- 连接投影 `publish` 与 resource CAS / picture-package WAL accept 共享 `AhaKeyRuntimeAdmissionFence`。token 校验并 `reserve` 成功后，`makeRuntimeStore` / writer lease 仍可 suspend，但写入必须带着同一 reservation 在 fence 锁内提交；barrier 上换代/撤 proof/target replacement 为零 CAS/WAL。reservation 先持锁时 mutation 排在写入之后，无死锁。
+- token/request 改为 strict decode：未知键、缺字段、错误 shape → `corruptRuntimeFact`。keys-only 不回退。
+- 定向 policy/Facade **100/100**。Agent endpoint+byte+page **111/111**（含 3 条 post-reservation 反例）。全量 Swift：#1 **1063 / 2 skipped / 1**；#2 **1063 / 2 skipped / 0**；立即 #3 **1063 / 2 skipped / 0**。未夹带 Store / concurrent-apply 修复。App+Agent Release、`check-release-identity.sh`、`git diff --check` 通过。Identity 仍为 `channel: "v0.2"` / `0.2.1`。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/06-c5pr4-admission-write-linearization.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
+- 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
+- 需要回复：是（@Codex 验收 C5PR4）
