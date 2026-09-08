@@ -1814,21 +1814,23 @@ extension AhaKeyAgent {
         if let deviceID = currentRuntimeDeviceIDUnlocked() {
             Task { await self.dropAbandonDeadline(for: deviceID) }
         }
-        resetOLEDNegotiationState(reason: "didConnect")
-        lastUUID = peripheral.identifier
-        emit("已连接: \(peripheral.name ?? "?")")
-        let r = DeviceStateReducer.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString),
-                                         core: coreSnapshot, diagnostics: diagnosticsSnapshot)
-        coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
-        var actions = transportCore.handle(.connected(uuid: peripheral.identifier.uuidString), now: Date())
-        // 已知 UUID/系统已连路径无广播包：设备名后缀 → 身份缓存 → 2A25 序列号，逐级补稳定身份
-        let uuid = peripheral.identifier.uuidString
-        if let id = AhaKeyDevicePresentation.nameSuffixIdentifier(peripheral.name ?? "") {
-            actions += transportCore.handle(.deviceIdentified(deviceID: id), now: Date())
-        } else if let id = cachedIdentity(for: uuid) {
-            actions += transportCore.handle(.deviceIdentified(deviceID: id), now: Date())
+        withAdmissionIdentityMutation {
+            resetOLEDNegotiationState(reason: "didConnect")
+            lastUUID = peripheral.identifier
+            emit("已连接: \(peripheral.name ?? "?")")
+            let r = DeviceStateReducer.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString),
+                                             core: coreSnapshot, diagnostics: diagnosticsSnapshot)
+            coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
+            var actions = transportCore.handle(.connected(uuid: peripheral.identifier.uuidString), now: Date())
+            // 已知 UUID/系统已连路径无广播包：设备名后缀 → 身份缓存 → 2A25 序列号，逐级补稳定身份
+            let uuid = peripheral.identifier.uuidString
+            if let id = AhaKeyDevicePresentation.nameSuffixIdentifier(peripheral.name ?? "") {
+                actions += transportCore.handle(.deviceIdentified(deviceID: id), now: Date())
+            } else if let id = cachedIdentity(for: uuid) {
+                actions += transportCore.handle(.deviceIdentified(deviceID: id), now: Date())
+            }
+            performTransportActions(actions)
         }
-        performTransportActions(actions)
         publishDeviceChangedIfNeeded()
     }
 
@@ -1841,41 +1843,43 @@ extension AhaKeyAgent {
         let frozenIdentity = freezeDisconnectIdentity()
         let frozenAt = executionTestHooks?.wallClock?() ?? Date()
         stopStatusPolling()
-        commandChar = nil
-        notifyChar = nil
-        dataChar = nil
-        self.peripheral = nil
-        cachedSwitchState = nil
-        cachedLightMode = nil
-        resetOLEDNegotiationState(reason: "didDisconnect")
-        let r = DeviceStateReducer.apply(.disconnected, core: coreSnapshot, diagnostics: diagnosticsSnapshot)
-        coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
-        // 断连：核心强败全部 waiter（含当前代际），回调以 nil 收尾，队列清空
-        headTimeoutItem?.cancel()
-        headTimeoutItem = nil
-        if !waiterCompletions.isEmpty {
-            let completions = waiterCompletions
-            waiterCompletions.removeAll()
-            operationWaiters.removeAll()
-            for (_, c) in completions { c(nil) }
+        withAdmissionIdentityMutation {
+            commandChar = nil
+            notifyChar = nil
+            dataChar = nil
+            self.peripheral = nil
+            cachedSwitchState = nil
+            cachedLightMode = nil
+            resetOLEDNegotiationState(reason: "didDisconnect")
+            let r = DeviceStateReducer.apply(.disconnected, core: coreSnapshot, diagnostics: diagnosticsSnapshot)
+            coreSnapshot = r.core; diagnosticsSnapshot = r.diagnostics
+            // 断连：核心强败全部 waiter（含当前代际），回调以 nil 收尾，队列清空
+            headTimeoutItem?.cancel()
+            headTimeoutItem = nil
+            if !waiterCompletions.isEmpty {
+                let completions = waiterCompletions
+                waiterCompletions.removeAll()
+                operationWaiters.removeAll()
+                for (_, c) in completions { c(nil) }
+            }
+            // 配置事务 waiter 一并强败（WAL 里有恢复点，重连后 recovery 续跑）；
+            // 断连瞬间无法补 0x9A，固件侧会话靠自身超时回收。
+            activeUploadSessionID = nil
+            if !configWaiterContinuations.isEmpty {
+                let pending = configWaiterContinuations
+                configWaiterContinuations.removeAll()
+                configOperationWaiters.removeAll()
+                for (_, c) in pending { c.resume(throwing: AhaKeyAgentCommandError.disconnected) }
+            }
+            if let dataContinuation = dataWriteContinuation {
+                dataWriteContinuation = nil
+                dataWriteTimeoutItem?.cancel()
+                dataWriteTimeoutItem = nil
+                dataContinuation.resume(throwing: AhaKeyAgentCommandError.disconnected)
+            }
+            emit(NSLocalizedString("连接断开", comment: ""))
+            performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
         }
-        // 配置事务 waiter 一并强败（WAL 里有恢复点，重连后 recovery 续跑）；
-        // 断连瞬间无法补 0x9A，固件侧会话靠自身超时回收。
-        activeUploadSessionID = nil
-        if !configWaiterContinuations.isEmpty {
-            let pending = configWaiterContinuations
-            configWaiterContinuations.removeAll()
-            configOperationWaiters.removeAll()
-            for (_, c) in pending { c.resume(throwing: AhaKeyAgentCommandError.disconnected) }
-        }
-        if let dataContinuation = dataWriteContinuation {
-            dataWriteContinuation = nil
-            dataWriteTimeoutItem?.cancel()
-            dataWriteTimeoutItem = nil
-            dataContinuation.resume(throwing: AhaKeyAgentCommandError.disconnected)
-        }
-        emit(NSLocalizedString("连接断开", comment: ""))
-        performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
         publishDeviceChangedIfNeeded()
         Task { await self.noteDurableDisconnect(identity: frozenIdentity, at: frozenAt) }
     }
@@ -1900,7 +1904,9 @@ extension AhaKeyAgent {
         guard let id = AhaKeyDevicePresentation.uuidFallbackIdentifier(peripheral.identifier.uuidString) else { return }
         emit("无广播编号/有效序列号：使用 UUID 兜底身份 \(id)")
         cacheIdentity(uuid: peripheral.identifier.uuidString, deviceID: id)
-        performTransportActions(transportCore.handle(.deviceIdentified(deviceID: id), now: Date()))
+        withAdmissionIdentityMutation {
+            performTransportActions(transportCore.handle(.deviceIdentified(deviceID: id), now: Date()))
+        }
         publishDeviceChangedIfNeeded()
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
@@ -2089,14 +2095,16 @@ extension AhaKeyAgent {
             return
         }
         let mode = AhaKeyProtocolNegotiation.mode(forCapabilities: caps)
-        negotiatedCapabilities = caps
-        negotiatedOLEDContext = .parsed(caps)
-        emit("← 0x99 能力帧：protocol v\(caps.protocolVersion)，mode=\(mode)")
-        if caps.flags & AhaKeyFirmwareCapabilities.factoryAssetsFlag != 0, payload.count == 14 {
-            emit("← 0x99 compact factory：primary 0..<\(caps.userSlotLimit)，factory reserved \(caps.factorySlotBase)，reclaim \(caps.reclaimSlotBase)..<\(caps.reclaimSlotLimit)")
+        withAdmissionIdentityMutation {
+            negotiatedCapabilities = caps
+            negotiatedOLEDContext = .parsed(caps)
+            emit("← 0x99 能力帧：protocol v\(caps.protocolVersion)，mode=\(mode)")
+            if caps.flags & AhaKeyFirmwareCapabilities.factoryAssetsFlag != 0, payload.count == 14 {
+                emit("← 0x99 compact factory：primary 0..<\(caps.userSlotLimit)，factory reserved \(caps.factorySlotBase)，reclaim \(caps.reclaimSlotBase)..<\(caps.reclaimSlotLimit)")
+            }
+            let uuid = peripheral?.identifier.uuidString ?? ""
+            performTransportActions(transportCore.handle(.negotiationFinished(uuid: uuid, mode: mode), now: Date()))
         }
-        let uuid = peripheral?.identifier.uuidString ?? ""
-        performTransportActions(transportCore.handle(.negotiationFinished(uuid: uuid, mode: mode), now: Date()))
         publishDeviceChangedIfNeeded()
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
@@ -2195,12 +2203,14 @@ extension AhaKeyAgent {
         negotiationTimeoutItem?.cancel()
         negotiationTimeoutItem = nil
         let context = AhaKeyOLEDCompatibilityContext.make(state)
-        negotiatedOLEDContext = context
-        let mode = context.protocolMode
-        // DeviceTransportCore 仍 current-only ready；Standard 不得伪装 .current。
-        _ = transportCore.handle(.negotiationFinished(
-            uuid: peripheral?.identifier.uuidString ?? "", mode: mode
-        ), now: Date())
+        withAdmissionIdentityMutation {
+            negotiatedOLEDContext = context
+            let mode = context.protocolMode
+            // DeviceTransportCore 仍 current-only ready；Standard 不得伪装 .current。
+            _ = transportCore.handle(.negotiationFinished(
+                uuid: peripheral?.identifier.uuidString ?? "", mode: mode
+            ), now: Date())
+        }
         publishDeviceChangedIfNeeded()
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
@@ -2256,7 +2266,9 @@ extension AhaKeyAgent {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if let serial, let shortID = AhaKeyDevicePresentation.shortIdentifier(from: serial) {
                 emit("← 2A25 序列号 \(serial) → 设备编号 \(shortID)")
-                performTransportActions(transportCore.handle(.deviceIdentified(deviceID: shortID), now: Date()))
+                withAdmissionIdentityMutation {
+                    performTransportActions(transportCore.handle(.deviceIdentified(deviceID: shortID), now: Date()))
+                }
                 publishDeviceChangedIfNeeded()
                 if transportCore.isReady {
                     emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
@@ -3834,8 +3846,24 @@ extension AhaKeyAgent {
         }
     }
 
+    /// 真实 generation/fact/target mutation 前同步进入 admission fence；事件发布仍随后异步。
+    private func withAdmissionIdentityMutation(_ body: () -> Void) {
+        resourceAdmissionFence.beginIdentityMutation()
+        body()
+    }
+
     /// 设备投影有变化才发布 deviceChanged。可在任意队列调用（内部落到 main）。
+    /// 不在此处首次推进 fence：identity mutation 必须已经同步 `beginIdentityMutation`。
     private func publishDeviceChangedIfNeeded() {
+        if let hook = executionTestHooks?.beforeDeviceChangedPublication {
+            Task { [weak self] in
+                await hook()
+                await MainActor.run { [weak self] in
+                    self?.publishDeviceChangedOnMain()
+                }
+            }
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             self?.publishDeviceChangedOnMain()
         }
@@ -4339,6 +4367,7 @@ extension AhaKeyAgent {
     /// 供 eventsLongPollGapHook 在 lost-wakeup 交错测试中于临界区夹缝内注入事件（R2-5）。
     @MainActor
     func setSimulatedDeviceOnMainForTesting(_ device: AhaKeyRuntimeDeviceSnapshot?) {
+        resourceAdmissionFence.beginIdentityMutation()
         var hooks = self.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
         hooks.simulatedDevice = device
         self.executionTestHooks = hooks
@@ -4570,7 +4599,9 @@ extension AhaKeyAgent {
 
     /// 测试 seam：与 didDisconnect/didConnect 同一套 OLED 代际清场。
     func simulateOLEDConnectionResetForTesting() {
-        resetOLEDNegotiationState(reason: "test-reset")
+        withAdmissionIdentityMutation {
+            resetOLEDNegotiationState(reason: "test-reset")
+        }
         publishDeviceChangedIfNeeded()
     }
 
@@ -4740,6 +4771,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var beforeIngestCAS: (@Sendable () async -> Void)?
     /// 非 nil 时在 admission reservation 成功后、Store 写入前暂停（生产恒 nil）。
     var afterResourceAdmissionReserved: (@Sendable () async -> Void)?
+    /// 非 nil 时延迟生产 deviceChanged 发布，证明 fence 已在 mutation 前推进（生产恒 nil）。
+    var beforeDeviceChangedPublication: (@Sendable () async -> Void)?
     /// 非 nil 时作为投影中的设备快照（deviceChanged 事件源）。
     var simulatedDevice: AhaKeyRuntimeDeviceSnapshot?
     /// 非 nil 时覆盖 transportCore.stableDeviceID（测试 0x00 parser→reducer→event 路径）。

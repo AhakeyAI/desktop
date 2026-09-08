@@ -1514,7 +1514,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             XCTAssertTrue(locked.waitUntilEntered())
             let mutated = MutationFlag()
             let mutateTask = Task {
-                await agent.simulateDeviceForTesting(simulatedDevice(sessionGeneration: 1))
+                agent.simulateOLEDConnectionResetForTesting()
                 mutated.set()
             }
             try await Task.sleep(nanoseconds: 80_000_000)
@@ -1528,6 +1528,56 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             XCTAssertTrue(mutated.get())
             XCTAssertNotEqual(casFingerprint(storeDir).names, before.names)
             agent.setAdmissionWriteLockedProbeForTesting(nil)
+        }
+    }
+
+    func testProductionIdentityMutationWithDelayedEventPublishWritesZeroCASAndWAL() {
+        runEndpointTest { [self] in
+            for pictureApply in [false, true] {
+                let agent = makeAgent()
+                let reserved = IngestCASGate()
+                let publication = IngestCASGate()
+                var hooks = agent.executionTestHooks
+                hooks?.skipConfigurationBLEWriteGates = true
+                hooks?.configurationCharacteristics = .allPresent
+                hooks?.oledContext = .standard
+                hooks?.afterResourceAdmissionReserved = { await reserved.arrive() }
+                hooks?.beforeDeviceChangedPublication = { await publication.arrive() }
+                agent.executionTestHooks = hooks
+                await agent.simulateDeviceForTesting(simulatedDevice())
+
+                let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+                let before = await waitForStoreBaseline(storeDir)
+                let assembled = try makeStandardPictureAssembly()
+                let writeTask: Task<AhaKeyRuntimeXPCResponse, Error>
+                let operationID: AhaKeyRuntimeOperationID?
+                if pictureApply {
+                    let package = try makePackage(from: assembled)
+                    operationID = package.operationID
+                    writeTask = Task { try await agent.handleApplyForTesting(package) }
+                } else {
+                    operationID = nil
+                    writeTask = Task { try await agent.handleIngestForTesting(try ingestItems(assembled)) }
+                }
+                XCTAssertTrue(reserved.waitUntilEntered(), "\(pictureApply)")
+                agent.simulateOLEDConnectionResetForTesting()
+                reserved.release()
+                let response = try await writeTask.value
+                guard case .failure(let code) = response else {
+                    return XCTFail("生产 mutation 延迟发布时必须失败，实际 \(response)")
+                }
+                XCTAssertEqual(code.rawValue, "unsupported-protocol", "\(pictureApply)")
+                XCTAssertEqual(casFingerprint(storeDir).names, before.names, "\(pictureApply)")
+                if let operationID {
+                    let store = try AhaKeyRuntimePersistentStore(
+                        rootDirectory: storeDir,
+                        acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+                    )
+                    let wal = try await store.transaction(operationID)
+                    XCTAssertNil(wal, "\(pictureApply)")
+                }
+                publication.release()
+            }
         }
     }
 

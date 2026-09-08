@@ -374,9 +374,8 @@ public struct AhaKeyRuntimeResourceAdmissionToken: Codable, Equatable, Sendable 
                     AhaKeyRuntimeTransportGeneration.self,
                     forKey: .transportGeneration
                 ),
-                sealedOLEDFact: try container.decode(
-                    AhaKeyRuntimeOLEDCompatibilityFact.self,
-                    forKey: .sealedOLEDFact
+                sealedOLEDFact: try AhaKeyRuntimeAdmissionNestedCoding.decodeOLEDFact(
+                    from: try container.superDecoder(forKey: .sealedOLEDFact)
                 )
             )
         } catch is AhaKeyRuntimeContractError {
@@ -420,7 +419,9 @@ public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
                 throw AhaKeyRuntimeContractError.corruptRuntimeFact
             }
             self.init(
-                items: try container.decode([AhaKeyXPCResourceIngestionItem].self, forKey: .items),
+                items: try AhaKeyRuntimeAdmissionNestedCoding.decodeItems(
+                    from: try container.superDecoder(forKey: .items)
+                ),
                 admission: try container.decode(
                     AhaKeyRuntimeResourceAdmissionToken.self,
                     forKey: .admission
@@ -437,6 +438,70 @@ public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(items, forKey: .items)
         try container.encode(admission, forKey: .admission)
+    }
+}
+
+enum AhaKeyRuntimeAdmissionNestedCoding {
+    enum OLEDFactKeys: String, CodingKey, CaseIterable {
+        case family, sessionUploadAdvertised
+    }
+
+    enum ItemKeys: String, CodingKey, CaseIterable {
+        case logicalIdentifier, sha256, byteCount, data
+    }
+
+    static func decodeOLEDFact(from decoder: Decoder) throws -> AhaKeyRuntimeOLEDCompatibilityFact {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(OLEDFactKeys.allCases.map(\.rawValue)),
+            error: .corruptRuntimeFact
+        )
+        let container = try decoder.container(keyedBy: OLEDFactKeys.self)
+        guard OLEDFactKeys.allCases.allSatisfy({ container.contains($0) }) else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        return AhaKeyRuntimeOLEDCompatibilityFact(
+            family: try container.decode(
+                AhaKeyRuntimeOLEDCompatibilityFact.Family.self,
+                forKey: .family
+            ),
+            sessionUploadAdvertised: try container.decode(Bool.self, forKey: .sessionUploadAdvertised)
+        )
+    }
+
+    static func decodeItems(from decoder: Decoder) throws -> [AhaKeyXPCResourceIngestionItem] {
+        var unkeyed: UnkeyedDecodingContainer
+        do {
+            unkeyed = try decoder.unkeyedContainer()
+        } catch {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        var items: [AhaKeyXPCResourceIngestionItem] = []
+        while !unkeyed.isAtEnd {
+            items.append(try decodeItem(from: try unkeyed.superDecoder()))
+        }
+        return items
+    }
+
+    static func decodeItem(from decoder: Decoder) throws -> AhaKeyXPCResourceIngestionItem {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(ItemKeys.allCases.map(\.rawValue)),
+            error: .corruptRuntimeFact
+        )
+        let container = try decoder.container(keyedBy: ItemKeys.self)
+        guard ItemKeys.allCases.allSatisfy({ container.contains($0) }) else {
+            throw AhaKeyRuntimeContractError.corruptRuntimeFact
+        }
+        return AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try container.decode(
+                AhaKeyResourceIdentifier.self,
+                forKey: .logicalIdentifier
+            ),
+            sha256: try container.decode(AhaKeySHA256Digest.self, forKey: .sha256),
+            byteCount: try container.decode(UInt64.self, forKey: .byteCount),
+            data: try container.decode(Data.self, forKey: .data)
+        )
     }
 }
 

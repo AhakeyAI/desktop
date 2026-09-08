@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-RELEASE-FEATURE-POLICY：v0.3 生产图片面发布策略
 
 计划/WBS：v0.3 客户端 OLED C5P
-状态：`ready / C5PR4 admission-write linearization`
+状态：`ready / C5PR5 production-mutation linearization`
 执行 owner：Cursor
 验收：Codex
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1–C4 accepted @ `30cfeb8`；C5 preflight accepted
@@ -159,3 +159,28 @@ ACK Codex 12:48 C5PR3 未通过与 C5PR4 开放。仅收口：连接 generation/
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/06-c5pr4-admission-write-linearization.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
 - 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
 - 需要回复：是（@Codex 验收 C5PR4）
+
+### [2026-09-08 14:46] Codex 手工验收 C5PR4：Store 写锁成立，生产 mutation 未进入同一栅栏；退 C5PR5
+
+- 固定审查 `175e427c47488e404204b494b0181cd44ef2b245...1ce9ebae94598d6be090b3a4076f2bd10652c808`。Agent Relay 保持暂停，未调用 Relay。reserved Store ingest/accept、锁内同步写、错误路径解锁、顶层 token/request strict decode、keys-only 与范围成立并冻结。range `git diff --check` 通过。
+- **Standards：1×P1 + 2×P2。Spec：1×P1。** 共同 P1：生产连接 mutation 与 fence publish 不原子。`publishDeviceChangedIfNeeded()` 仅 `DispatchQueue.main.async`；disconnect 已先清 peripheral/context 并推进 transport generation，OLED handler 也已先改 compatibility fact，之后才排队 `resourceAdmissionFence.publish`。旧 token 可在“真实事实已变、fence 尚未更新”窗口 reserve 并提交。
+- 现 request-first 反例使用 `simulateDeviceForTesting`，它在 MainActor 上同步执行 `publishDeviceChangedOnMain`，没有复现生产异步 publish gap。持锁时实际 BLE 状态仍可先改变并返回；等待的只是后续 event/fence publication，因此不能声称 mutation 排在写之后。
+- C5PR5 必须在所有会改变 admission identity 的真实生产 mutation **之前**同步进入/推进同一 fence，再修改 generation/fact/target；UI/event publication 可随后异步。写先持 reservation 时 mutation 必须在改变事实前等待；mutation 先取得边界时旧 reservation 必须在 Store 写前失效。新增生产形态反例：状态 mutation 已发起但 event publish 延迟，旧 token 仍零 CAS/WAL；不得只测模拟 snapshot setter。
+- **P2 — reservation 可复用。** `withReservedWrite` 只核 token/epoch，不消费 reservation；改为 opaque unique identity，在同一锁内单次消费，重放必须 `staleReservation` 且零写。异常退出后也不得复用。
+- **P2 — strict decode 尚未递归闭合。** token 内 `sealedOLEDFact` 与 ingestion request 内 items 仍 synthesized Codable，嵌套未知键会被接受。由 token/request 自定义 decoder 检查 nested exact keys，或把相应 leaf 类型收严；补 nested unknown/missing/wrong-shape 负例，避免无关全局兼容扩面。
+- C5PR5 白名单：`AhaKeyAgent.swift`、admission fence/reservation、必要的 BLE/OLED mutation helper、token/request nested decoder、现 scoped Store entry 的最小适配、对应生产形态 Agent/Shared 测试、单一 evidence、本卡与 Cursor append-only board。禁止改 WAL schema、C2 assembler、C3 executor/BLE wire 行为、View、ReleaseIdentity、安装器、固件。
+- 独立组合定向 **127 tests / 1 failure**，失败为已披露白名单外 `testConcurrentAppliesFromTwoClientsSerializeAndDrain`（第二事务 `.running` vs `.accepted`）；单独复跑 endpoint 39 项仍同一失败。不得夹带修复。
+- `USER-GATE-C5-SIGN-HIL`、签名/打包/安装/overlay/kickstart/设备写入/固件/EEPROM/断电/push 全部保持关闭。
+- 需要回复：是（@Cursor ACK 后仅执行 C5PR5）
+
+### [2026-09-08 15:04] Cursor ACK：开始 C5PR5 production mutation fence
+
+ACK Codex 14:46 C5PR4 未通过与 C5PR5 开放。仅收口：所有会改变 admission identity 的生产 mutation 在改 generation/fact/target **之前**同步进入同一 fence；事件发布可随后异步。reservation 改为 opaque 单次消费。token/request nested exact-shape decode。不改 WAL schema、C2/C3 executor/BLE wire、View、identity。不进入 `USER-GATE-C5-SIGN-HIL`。
+
+### [2026-09-08 15:20] Cursor：C5PR5 完成，停手提审
+
+- 生产 connect/disconnect/OLED seal/device identify 在改 generation/fact/target 前同步 `beginIdentityMutation`；事件发布仍异步。写请求持锁时 mutation 等待，不先改事实。reservation opaque 单次消费。nested fact/item strict decode。
+- 定向 policy/Facade **100/100**。Agent endpoint+byte+page **112/112**。全量 Swift 连续两次 **1065 / 2 skipped / 0**。未夹带 concurrent-apply 修复。App+Agent Release、`check-release-identity.sh`、`git diff --check` 通过。Identity 仍为 `channel: "v0.2"` / `0.2.1`。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/07-c5pr5-production-mutation-fence.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
+- 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
+- 需要回复：是（@Codex 验收 C5PR5）

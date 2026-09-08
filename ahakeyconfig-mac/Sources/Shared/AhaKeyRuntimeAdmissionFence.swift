@@ -2,16 +2,15 @@ import Foundation
 
 /// Resource-bearing ingest/apply 与连接 generation/fact mutation 共享的线性化栅栏。
 ///
-/// `reserve` 在 token 已与 live 投影一致时取得 reservation；`withReservedWrite` 在同一把锁内
-/// 复核 reservation 仍有效后再执行 Store CAS/WAL。连接 mutation 必须经 `publish` 换代：
-/// 若 mutation 发生在 reservation 之后、写入之前，reservation 作废且不得提交；
-/// 若 mutation 与写入抢锁，写入先完成，mutation 排在提交之后。
+/// 真实 BLE/OLED identity mutation 必须先 `beginIdentityMutation()` 再改 generation/fact/target。
+/// `reserve` 签发带 opaque identity 的一次性凭证；`withReservedWrite` 在同一把锁内单次消费后再执行 Store 写。
 public enum AhaKeyRuntimeAdmissionWriteError: Error, Equatable, Sendable {
     case staleReservation
 }
 
 public struct AhaKeyRuntimeAdmissionReservation: Equatable, Sendable {
     public let token: AhaKeyRuntimeResourceAdmissionToken
+    let identity: UUID
     let epoch: UInt64
 }
 
@@ -19,11 +18,12 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
     private let lock = NSLock()
     private var live: AhaKeyRuntimeResourceAdmissionToken?
     private var epoch: UInt64 = 0
+    private var outstanding: Set<UUID> = []
     private var writeLockedProbe: (() -> Void)?
 
     public init() {}
 
-    /// 连接投影变化时发布当前可写 token；无 fact 时发布 `nil` 使既有 reservation 全部失效。
+    /// 连接投影稳定后发布当前可写 token。事件发布路径可异步调用；不得替代 mutation 前的 `beginIdentityMutation`。
     public func publish(_ token: AhaKeyRuntimeResourceAdmissionToken?) {
         lock.lock()
         defer { lock.unlock() }
@@ -33,13 +33,24 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
         }
     }
 
+    /// 真实 identity mutation 之前同步进入栅栏：作废 live token 与既有 reservation。
+    /// 若写请求正持锁，调用方在改变 generation/fact 之前等待写入完成。
+    public func beginIdentityMutation() {
+        lock.lock()
+        defer { lock.unlock() }
+        live = nil
+        epoch &+= 1
+    }
+
     public func reserve(
         _ token: AhaKeyRuntimeResourceAdmissionToken
     ) -> AhaKeyRuntimeAdmissionReservation? {
         lock.lock()
         defer { lock.unlock() }
         guard live == token else { return nil }
-        return AhaKeyRuntimeAdmissionReservation(token: token, epoch: epoch)
+        let identity = UUID()
+        outstanding.insert(identity)
+        return AhaKeyRuntimeAdmissionReservation(token: token, identity: identity, epoch: epoch)
     }
 
     public func withReservedWrite<T>(
@@ -48,6 +59,9 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
     ) throws -> T {
         lock.lock()
         defer { lock.unlock() }
+        guard outstanding.remove(reservation.identity) != nil else {
+            throw AhaKeyRuntimeAdmissionWriteError.staleReservation
+        }
         guard live == reservation.token, epoch == reservation.epoch else {
             throw AhaKeyRuntimeAdmissionWriteError.staleReservation
         }

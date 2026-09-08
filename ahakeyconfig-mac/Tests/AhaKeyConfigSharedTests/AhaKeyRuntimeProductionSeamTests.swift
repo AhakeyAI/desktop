@@ -348,7 +348,110 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         var wrote = false
         try fence.withReservedWrite(live) { wrote = true }
         XCTAssertTrue(wrote)
+        XCTAssertThrowsError(try fence.withReservedWrite(live) { wrote = false }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+        XCTAssertTrue(wrote)
         XCTAssertNil(fence.reserve(token))
+
+        fence.publish(next)
+        let once = try XCTUnwrap(fence.reserve(next))
+        struct ProbeError: Error {}
+        XCTAssertThrowsError(try fence.withReservedWrite(once) { throw ProbeError() })
+        XCTAssertThrowsError(try fence.withReservedWrite(once) { "replay" }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+
+        fence.publish(next)
+        let stale = try XCTUnwrap(fence.reserve(next))
+        fence.beginIdentityMutation()
+        XCTAssertThrowsError(try fence.withReservedWrite(stale) { "mutated" }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+        XCTAssertNil(fence.reserve(next))
+    }
+
+    func testAdmissionTokenAndIngestRequestRejectNestedUnknownKeysMissingFieldsAndWrongShape() throws {
+        let token = try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(1),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+        let encodedToken = try JSONEncoder().encode(token)
+        var tokenObject = try XCTUnwrap(JSONSerialization.jsonObject(with: encodedToken) as? [String: Any])
+        var fact = try XCTUnwrap(tokenObject["sealedOLEDFact"] as? [String: Any])
+        fact["unexpected"] = true
+        tokenObject["sealedOLEDFact"] = fact
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimeResourceAdmissionToken.self,
+                from: try JSONSerialization.data(withJSONObject: tokenObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+        fact.removeValue(forKey: "unexpected")
+        fact.removeValue(forKey: "sessionUploadAdvertised")
+        tokenObject["sealedOLEDFact"] = fact
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimeResourceAdmissionToken.self,
+                from: try JSONSerialization.data(withJSONObject: tokenObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+        tokenObject["sealedOLEDFact"] = "legacyStandard"
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimeResourceAdmissionToken.self,
+                from: try JSONSerialization.data(withJSONObject: tokenObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("task.done"),
+            sha256: try AhaKeySHA256Digest("03c9f206d1c2afd64261a5bbab141a549997e249896aeddeaf67bbc72127f6be"),
+            byteCount: 0,
+            data: Data()
+        )
+        let request = AhaKeyXPCResourceIngestionRequest(items: [item], admission: token)
+        let encodedRequest = try JSONEncoder().encode(request)
+        var requestObject = try XCTUnwrap(JSONSerialization.jsonObject(with: encodedRequest) as? [String: Any])
+        var items = try XCTUnwrap(requestObject["items"] as? [[String: Any]])
+        items[0]["unexpected"] = true
+        requestObject["items"] = items
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyXPCResourceIngestionRequest.self,
+                from: try JSONSerialization.data(withJSONObject: requestObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+        items[0].removeValue(forKey: "unexpected")
+        items[0].removeValue(forKey: "byteCount")
+        requestObject["items"] = items
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyXPCResourceIngestionRequest.self,
+                from: try JSONSerialization.data(withJSONObject: requestObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+        requestObject["items"] = ["not-an-item"]
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyXPCResourceIngestionRequest.self,
+                from: try JSONSerialization.data(withJSONObject: requestObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
     }
 
     private func assertCorruptRuntimeFact<T: Codable>(_ value: T, extraKey: String) throws {
