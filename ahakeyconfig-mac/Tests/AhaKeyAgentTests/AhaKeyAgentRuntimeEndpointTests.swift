@@ -1743,7 +1743,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                     var delayed = agent.executionTestHooks
                     delayed?.beforeDeviceChangedPublication = { await publication.arrive() }
                     agent.executionTestHooks = delayed
-                    agent.scheduleAdmissionBoundDeviceChangedForTesting()
+                    agent.simulateAdmissionIdentityMutationForTesting()
                     XCTAssertTrue(publication.waitUntilEntered(), "\(revoke) \(pictureApply)")
                     switch revoke {
                     case .unavailable:
@@ -1772,6 +1772,79 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                     }
                     guard case .failure(let code) = response else {
                         return XCTFail("迟到 publication 后必须失败，实际 \(response)")
+                    }
+                    XCTAssertEqual(code.rawValue, "unsupported-protocol", "\(revoke) \(pictureApply)")
+                    XCTAssertEqual(casFingerprint(storeDir).names, before.names, "\(revoke) \(pictureApply)")
+                    if let operationID {
+                        let store = try AhaKeyRuntimePersistentStore(
+                            rootDirectory: storeDir,
+                            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+                        )
+                        let wal = try await store.transaction(operationID)
+                        XCTAssertNil(wal, "\(revoke) \(pictureApply)")
+                    }
+                }
+            }
+        }
+    }
+
+    func testPreTicketPublicationGapAfterUnavailableOrShutdownWritesZeroCASAndWAL() {
+        runEndpointTest { [self] in
+            enum Revoke { case unavailable, shutdown }
+            for revoke in [Revoke.unavailable, .shutdown] {
+                for pictureApply in [false, true] {
+                    let agent = makeAgent()
+                    let bodyDone = WriteLockedGate()
+                    let publication = IngestCASGate()
+                    var hooks = agent.executionTestHooks
+                    hooks?.skipConfigurationBLEWriteGates = true
+                    hooks?.configurationCharacteristics = .allPresent
+                    hooks?.oledContext = .standard
+                    agent.executionTestHooks = hooks
+                    await agent.simulateDeviceForTesting(simulatedDevice())
+                    XCTAssertNotNil(agent.liveAdmissionTokenForTesting(), "\(revoke) \(pictureApply)")
+
+                    let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+                    let before = await waitForStoreBaseline(storeDir)
+                    var delayed = agent.executionTestHooks
+                    delayed?.afterAdmissionIdentityMutationBody = { bodyDone.arrive() }
+                    delayed?.beforeDeviceChangedPublication = { await publication.arrive() }
+                    agent.executionTestHooks = delayed
+                    let mutateTask = Task {
+                        agent.simulateAdmissionIdentityMutationForTesting()
+                    }
+                    XCTAssertTrue(bodyDone.waitUntilEntered(), "\(revoke) \(pictureApply)")
+                    XCTAssertNil(agent.liveAdmissionTokenForTesting(), "\(revoke) \(pictureApply)")
+                    switch revoke {
+                    case .unavailable:
+                        await MainActor.run { agent.simulateBluetoothUnavailableForTesting() }
+                    case .shutdown:
+                        agent.shutdown()
+                    }
+                    XCTAssertNil(agent.liveAdmissionTokenForTesting(), "\(revoke) \(pictureApply)")
+                    bodyDone.release()
+                    XCTAssertTrue(publication.waitUntilEntered(), "\(revoke) \(pictureApply)")
+                    publication.release()
+                    _ = await mutateTask.value
+                    try await Task.sleep(nanoseconds: 40_000_000)
+                    XCTAssertNil(
+                        agent.liveAdmissionTokenForTesting(),
+                        "pre-ticket 原 ticket 不得借用后续 revoke epoch \(revoke) \(pictureApply)"
+                    )
+
+                    let assembled = try makeStandardPictureAssembly()
+                    let response: AhaKeyRuntimeXPCResponse
+                    let operationID: AhaKeyRuntimeOperationID?
+                    if pictureApply {
+                        let package = try makePackage(from: assembled)
+                        operationID = package.operationID
+                        response = try await agent.handleApplyForTesting(package)
+                    } else {
+                        operationID = nil
+                        response = try await agent.handleIngestForTesting(try ingestItems(assembled))
+                    }
+                    guard case .failure(let code) = response else {
+                        return XCTFail("pre-ticket gap 后必须失败，实际 \(response)")
                     }
                     XCTAssertEqual(code.rawValue, "unsupported-protocol", "\(revoke) \(pictureApply)")
                     XCTAssertEqual(casFingerprint(storeDir).names, before.names, "\(revoke) \(pictureApply)")
@@ -1831,7 +1904,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             var delayed = agent.executionTestHooks
             delayed?.beforeDeviceChangedPublication = { await publication.arrive() }
             agent.executionTestHooks = delayed
-            agent.scheduleAdmissionBoundDeviceChangedForTesting()
+            agent.simulateAdmissionIdentityMutationForTesting()
             XCTAssertTrue(publication.waitUntilEntered())
             await MainActor.run { agent.simulateBluetoothUnavailableForTesting() }
             XCTAssertNil(agent.liveAdmissionTokenForTesting())
@@ -1847,6 +1920,52 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             try await Task.sleep(nanoseconds: 40_000_000)
             let afterStale = try XCTUnwrap(agent.liveAdmissionTokenForTesting())
             XCTAssertEqual(afterStale.sessionGeneration, .init(1), "旧 publication 不得覆盖新代")
+
+            let ingest = try await agent.handleIngestForTesting(
+                try ingestItems(try makeStandardPictureAssembly())
+            )
+            guard case .resourcesIngested = ingest else {
+                return XCTFail("新代 proof 必须恢复 admission，实际 \(ingest)")
+            }
+        }
+    }
+
+    func testPreTicketStalePublicationDoesNotOverwriteFreshProof() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let bodyDone = WriteLockedGate()
+            let publication = IngestCASGate()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            _ = await waitForStoreBaseline(storeDir)
+
+            var delayed = agent.executionTestHooks
+            delayed?.afterAdmissionIdentityMutationBody = { bodyDone.arrive() }
+            delayed?.beforeDeviceChangedPublication = { await publication.arrive() }
+            agent.executionTestHooks = delayed
+            let mutateTask = Task {
+                agent.simulateAdmissionIdentityMutationForTesting()
+            }
+            XCTAssertTrue(bodyDone.waitUntilEntered())
+            await MainActor.run { agent.simulateBluetoothUnavailableForTesting() }
+            XCTAssertNil(agent.liveAdmissionTokenForTesting())
+
+            await agent.simulateDeviceForTesting(simulatedDevice(sessionGeneration: 1))
+            let restored = try XCTUnwrap(agent.liveAdmissionTokenForTesting())
+            XCTAssertEqual(restored.sessionGeneration, .init(1))
+
+            bodyDone.release()
+            XCTAssertTrue(publication.waitUntilEntered())
+            publication.release()
+            _ = await mutateTask.value
+            try await Task.sleep(nanoseconds: 40_000_000)
+            let afterStale = try XCTUnwrap(agent.liveAdmissionTokenForTesting())
+            XCTAssertEqual(afterStale.sessionGeneration, .init(1), "pre-ticket 旧 ticket 不得覆盖新代")
 
             let ingest = try await agent.handleIngestForTesting(
                 try ingestItems(try makeStandardPictureAssembly())

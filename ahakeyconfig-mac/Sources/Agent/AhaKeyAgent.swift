@@ -1838,7 +1838,7 @@ extension AhaKeyAgent {
         if let deviceID = currentRuntimeDeviceIDUnlocked() {
             Task { await self.dropAbandonDeadline(for: deviceID) }
         }
-        withAdmissionIdentityMutation {
+        let ticket = withAdmissionIdentityMutation {
             resetOLEDNegotiationState(reason: "didConnect")
             lastUUID = peripheral.identifier
             emit("已连接: \(peripheral.name ?? "?")")
@@ -1855,7 +1855,7 @@ extension AhaKeyAgent {
             }
             performTransportActions(actions)
         }
-        publishAdmissionBoundDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -1867,7 +1867,7 @@ extension AhaKeyAgent {
         let frozenIdentity = freezeDisconnectIdentity()
         let frozenAt = executionTestHooks?.wallClock?() ?? Date()
         stopStatusPolling()
-        withAdmissionIdentityMutation {
+        let ticket = withAdmissionIdentityMutation {
             commandChar = nil
             notifyChar = nil
             dataChar = nil
@@ -1904,7 +1904,7 @@ extension AhaKeyAgent {
             emit(NSLocalizedString("连接断开", comment: ""))
             performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
         }
-        publishAdmissionBoundDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
         Task { await self.noteDurableDisconnect(identity: frozenIdentity, at: frozenAt) }
     }
 
@@ -1928,10 +1928,10 @@ extension AhaKeyAgent {
         guard let id = AhaKeyDevicePresentation.uuidFallbackIdentifier(peripheral.identifier.uuidString) else { return }
         emit("无广播编号/有效序列号：使用 UUID 兜底身份 \(id)")
         cacheIdentity(uuid: peripheral.identifier.uuidString, deviceID: id)
-        withAdmissionIdentityMutation {
+        let ticket = withAdmissionIdentityMutation {
             performTransportActions(transportCore.handle(.deviceIdentified(deviceID: id), now: Date()))
         }
-        publishAdmissionBoundDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
@@ -2119,7 +2119,7 @@ extension AhaKeyAgent {
             return
         }
         let mode = AhaKeyProtocolNegotiation.mode(forCapabilities: caps)
-        withAdmissionIdentityMutation {
+        let ticket = withAdmissionIdentityMutation {
             negotiatedCapabilities = caps
             negotiatedOLEDContext = .parsed(caps)
             emit("← 0x99 能力帧：protocol v\(caps.protocolVersion)，mode=\(mode)")
@@ -2129,7 +2129,7 @@ extension AhaKeyAgent {
             let uuid = peripheral?.identifier.uuidString ?? ""
             performTransportActions(transportCore.handle(.negotiationFinished(uuid: uuid, mode: mode), now: Date()))
         }
-        publishAdmissionBoundDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
@@ -2227,7 +2227,7 @@ extension AhaKeyAgent {
         negotiationTimeoutItem?.cancel()
         negotiationTimeoutItem = nil
         let context = AhaKeyOLEDCompatibilityContext.make(state)
-        withAdmissionIdentityMutation {
+        let ticket = withAdmissionIdentityMutation {
             negotiatedOLEDContext = context
             let mode = context.protocolMode
             // DeviceTransportCore 仍 current-only ready；Standard 不得伪装 .current。
@@ -2235,7 +2235,7 @@ extension AhaKeyAgent {
                 uuid: peripheral?.identifier.uuidString ?? "", mode: mode
             ), now: Date())
         }
-        publishAdmissionBoundDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
@@ -2290,10 +2290,10 @@ extension AhaKeyAgent {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if let serial, let shortID = AhaKeyDevicePresentation.shortIdentifier(from: serial) {
                 emit("← 2A25 序列号 \(serial) → 设备编号 \(shortID)")
-                withAdmissionIdentityMutation {
+                let ticket = withAdmissionIdentityMutation {
                     performTransportActions(transportCore.handle(.deviceIdentified(deviceID: shortID), now: Date()))
                 }
-                publishAdmissionBoundDeviceChangedIfNeeded()
+                publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
                 if transportCore.isReady {
                     emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
                     requestDeviceStatus()
@@ -3877,16 +3877,25 @@ extension AhaKeyAgent {
     }
 
     /// 真实 generation/fact/target mutation 前同步进入 admission fence；事件发布仍随后异步。
-    private func withAdmissionIdentityMutation(_ body: () -> Void) {
-        resourceAdmissionFence.beginIdentityMutation()
+    /// 返回 `beginIdentityMutation` 同锁签发的原始 ticket；调用方必须显式携带，禁止事后重采。
+    @discardableResult
+    private func withAdmissionIdentityMutation(_ body: () -> Void) -> AhaKeyRuntimeAdmissionPublicationTicket {
+        let ticket = resourceAdmissionFence.beginIdentityMutation()
         body()
+        if let probe = executionTestHooks?.afterAdmissionIdentityMutationBody {
+            var hooks = executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+            hooks.afterAdmissionIdentityMutationBody = nil
+            executionTestHooks = hooks
+            probe()
+        }
+        return ticket
     }
 
     /// Bluetooth 关闭 / 进程 shutdown：先撤销 admission，再改 transport phase。
     /// 不得在此处 publish live token；保持 nil 直至新连接完成已证明的 publish。
-    /// 不得依赖稍后的 didDisconnect 清场。
+    /// 不得依赖稍后的 didDisconnect 清场。丢弃本次 mutation ticket。
     private func revokeAdmissionThenMutateTransport(_ body: () -> Void) {
-        withAdmissionIdentityMutation(body)
+        _ = withAdmissionIdentityMutation(body)
     }
 
     /// 与 `centralManagerDidUpdateState` 非 poweredOn 分支同一生产路径。
@@ -3904,10 +3913,11 @@ extension AhaKeyAgent {
         enqueueDeviceChangedPublication(admissionTicket: nil)
     }
 
-    /// Identity mutation 完成后绑定当前 epoch ticket，再异步发布。
+    /// Identity mutation 完成后携带该次 mutation 同锁签发的 ticket，再异步发布。
     /// 仅 proven target + generations + sealed fact 才 publish live token；旧 ticket 遇较新 revoke no-op。
-    private func publishAdmissionBoundDeviceChangedIfNeeded() {
-        let ticket = resourceAdmissionFence.publicationTicket()
+    private func publishAdmissionBoundDeviceChangedIfNeeded(
+        ticket: AhaKeyRuntimeAdmissionPublicationTicket
+    ) {
         enqueueDeviceChangedPublication(admissionTicket: ticket)
     }
 
@@ -4442,13 +4452,12 @@ extension AhaKeyAgent {
     /// 供 eventsLongPollGapHook 在 lost-wakeup 交错测试中于临界区夹缝内注入事件（R2-5）。
     @MainActor
     func setSimulatedDeviceOnMainForTesting(_ device: AhaKeyRuntimeDeviceSnapshot?) {
-        resourceAdmissionFence.beginIdentityMutation()
-        var hooks = self.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
-        hooks.simulatedDevice = device
-        self.executionTestHooks = hooks
-        self.publishDeviceChangedOnMain(
-            admissionTicket: resourceAdmissionFence.publicationTicket()
-        )
+        let ticket = withAdmissionIdentityMutation {
+            var hooks = self.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+            hooks.simulatedDevice = device
+            self.executionTestHooks = hooks
+        }
+        self.publishDeviceChangedOnMain(admissionTicket: ticket)
     }
 
     /// 测试 seam：走生产 `handleJsonCommand`，不经 Unix socket。
@@ -4676,10 +4685,10 @@ extension AhaKeyAgent {
 
     /// 测试 seam：与 didDisconnect/didConnect 同一套 OLED 代际清场。
     func simulateOLEDConnectionResetForTesting() {
-        withAdmissionIdentityMutation {
+        let ticket = withAdmissionIdentityMutation {
             resetOLEDNegotiationState(reason: "test-reset")
         }
-        publishAdmissionBoundDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
     }
 
     /// 测试 seam：与 `centralManagerDidUpdateState` 非 poweredOn 同一生产路径。
@@ -4688,9 +4697,11 @@ extension AhaKeyAgent {
         handleBluetoothUnavailable()
     }
 
-    /// 测试 seam：生产 identity-bound deviceChanged 排队（含当前 epoch ticket）。
-    func scheduleAdmissionBoundDeviceChangedForTesting() {
-        publishAdmissionBoundDeviceChangedIfNeeded()
+    /// 测试 seam：生产 identity mutation 同锁签发 ticket 后排队 publication。
+    /// body 不改投影，残留 sealed fact 仍可读——证明 ticket 不得借用后续 revoke epoch。
+    func simulateAdmissionIdentityMutationForTesting() {
+        let ticket = withAdmissionIdentityMutation {}
+        publishAdmissionBoundDeviceChangedIfNeeded(ticket: ticket)
     }
 
     /// 测试 seam：普通 status/deviceChanged，不携带 admission ticket。
@@ -4874,6 +4885,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var afterResourceAdmissionReserved: (@Sendable () async -> Void)?
     /// 非 nil 时延迟生产 deviceChanged 发布，证明 fence 已在 mutation 前推进（生产恒 nil）。
     var beforeDeviceChangedPublication: (@Sendable () async -> Void)?
+    /// 非 nil 时在 identity mutation body 完成后、enqueue publication 前同步暂停（生产恒 nil；一次性）。
+    var afterAdmissionIdentityMutationBody: (() -> Void)?
     /// 非 nil 时作为投影中的设备快照（deviceChanged 事件源）。
     var simulatedDevice: AhaKeyRuntimeDeviceSnapshot?
     /// 非 nil 时覆盖 transportCore.stableDeviceID（测试 0x00 parser→reducer→event 路径）。

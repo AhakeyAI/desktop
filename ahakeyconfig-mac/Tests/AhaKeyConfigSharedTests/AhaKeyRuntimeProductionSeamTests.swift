@@ -379,19 +379,19 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
             transportGeneration: .init(0),
             sealedOLEDFact: .init(family: .legacyStandard)
         )
-        fence.publish(token)
+        let first = fence.beginIdentityMutation()
+        XCTAssertTrue(fence.publish(token, ticket: first))
         XCTAssertEqual(fence.liveTokenForTesting(), token)
-        let stale = fence.publicationTicket()
-        fence.beginIdentityMutation()
+
+        let revoked = fence.beginIdentityMutation()
         XCTAssertNil(fence.liveTokenForTesting())
-        XCTAssertFalse(fence.publish(token, ticket: stale))
+        XCTAssertFalse(fence.publish(token, ticket: first))
         XCTAssertNil(fence.liveTokenForTesting())
         XCTAssertNil(fence.reserve(token))
 
-        let fresh = fence.publicationTicket()
-        XCTAssertTrue(fence.publish(token, ticket: fresh))
+        XCTAssertTrue(fence.publish(token, ticket: revoked))
         XCTAssertEqual(fence.liveTokenForTesting(), token)
-        XCTAssertFalse(fence.publish(token, ticket: fresh), "同一 ticket 不得在 epoch 前进后再次写入")
+        XCTAssertFalse(fence.publish(token, ticket: revoked), "同一 ticket 不得在 epoch 前进后再次写入")
         XCTAssertEqual(fence.liveTokenForTesting(), token)
 
         let next = AhaKeyRuntimeResourceAdmissionToken(
@@ -400,12 +400,30 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
             transportGeneration: token.transportGeneration,
             sealedOLEDFact: token.sealedOLEDFact
         )
-        let superseded = fence.publicationTicket()
-        fence.beginIdentityMutation()
-        let replacement = fence.publicationTicket()
+        let superseded = fence.beginIdentityMutation()
+        let replacement = fence.beginIdentityMutation()
+        XCTAssertFalse(fence.publish(token, ticket: superseded))
         XCTAssertTrue(fence.publish(next, ticket: replacement))
         XCTAssertFalse(fence.publish(token, ticket: superseded))
         XCTAssertEqual(fence.liveTokenForTesting(), next)
+    }
+
+    func testAdjacentMutationTicketsCannotBorrowEpoch() throws {
+        let fence = AhaKeyRuntimeAdmissionFence()
+        let token = try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+        let first = fence.beginIdentityMutation()
+        let second = fence.beginIdentityMutation()
+        XCTAssertFalse(fence.publish(token, ticket: first), "旧 mutation ticket 不得借用后续 revoke epoch")
+        XCTAssertNil(fence.liveTokenForTesting())
+        XCTAssertTrue(fence.publish(token, ticket: second))
+        XCTAssertEqual(fence.liveTokenForTesting(), token)
+        XCTAssertFalse(fence.publish(token, ticket: first))
+        XCTAssertEqual(fence.liveTokenForTesting(), token)
     }
 
     func testAdmissionReservationDiscardIsIdempotentAndBoundsOutstanding() throws {

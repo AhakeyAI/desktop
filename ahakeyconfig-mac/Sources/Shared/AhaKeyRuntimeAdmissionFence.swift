@@ -15,7 +15,8 @@ public struct AhaKeyRuntimeAdmissionReservation: Equatable, Sendable {
     let epoch: UInt64
 }
 
-/// 绑定某次 identity mutation 的 publication ticket。epoch 已前进时迟到 publish 必须 no-op。
+/// 绑定某次 identity mutation 的 publication ticket。必须由 `beginIdentityMutation` 同锁签发；
+/// epoch 已前进时迟到 publish 必须 no-op。禁止事后重采当前 epoch。
 public struct AhaKeyRuntimeAdmissionPublicationTicket: Equatable, Sendable {
     let epoch: UInt64
 }
@@ -36,14 +37,7 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
         applyPublishLocked(token)
     }
 
-    /// 当前 publication epoch。必须在 identity mutation 之后、异步发布之前同步取样。
-    public func publicationTicket() -> AhaKeyRuntimeAdmissionPublicationTicket {
-        lock.lock()
-        defer { lock.unlock() }
-        return AhaKeyRuntimeAdmissionPublicationTicket(epoch: epoch)
-    }
-
-    /// CAS publish：ticket epoch 与当前不一致则 no-op，不恢复 live token。
+    /// CAS publish：ticket 必须来自签发它的那次 `beginIdentityMutation`；epoch 不一致则 no-op，不恢复 live token。
     @discardableResult
     public func publish(
         _ token: AhaKeyRuntimeResourceAdmissionToken?,
@@ -64,13 +58,16 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
     }
 
     /// 真实 identity mutation 之前同步进入栅栏：作废 live token 与既有 reservation。
+    /// 同一把锁内推进 epoch 并返回该次 mutation 的 opaque publication ticket。
     /// 若写请求正持锁，调用方在改变 generation/fact 之前等待写入完成。
-    public func beginIdentityMutation() {
+    @discardableResult
+    public func beginIdentityMutation() -> AhaKeyRuntimeAdmissionPublicationTicket {
         lock.lock()
         defer { lock.unlock() }
         live = nil
         epoch &+= 1
         outstanding.removeAll()
+        return AhaKeyRuntimeAdmissionPublicationTicket(epoch: epoch)
     }
 
     public func reserve(
