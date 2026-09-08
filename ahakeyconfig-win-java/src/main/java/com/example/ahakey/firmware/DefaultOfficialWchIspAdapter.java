@@ -75,8 +75,9 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             runtime.executable(), runtime.root(),
             List.of("-c", config.toString(), "-o", "download", "-f", normalizedHex.toString()),
             FLASH_TIMEOUT, operationId);
+        PreparedLaunchContext launchContext = runner.prepareElevatedLaunch(command);
         return new PreparedFlashSession(operationId, runtime, config, normalizedHex, command,
-            Instant.now(), true, "firmware-operation:" + operationId);
+            Instant.now(), launchContext, "firmware-operation:" + operationId);
     }
 
     @Override
@@ -106,8 +107,10 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
         WchIspRunner.WchIspCommand command = session.command();
         WchIspRunner.WchIspProcessResult process;
         try {
-            process = runner.run(command,
-                cancellation == null ? WchIspRunner.CancellationToken.NONE : cancellation);
+            PreparedLaunchContext launchContext = session.launchContext();
+            process = launchContext == null
+                ? runner.run(command, cancellation == null ? WchIspRunner.CancellationToken.NONE : cancellation)
+                : launchContext.launch(cancellation);
         } catch (Exception failure) {
             session.failLaunch();
             throw failure;

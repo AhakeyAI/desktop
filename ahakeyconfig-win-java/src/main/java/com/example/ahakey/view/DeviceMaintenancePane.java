@@ -6,6 +6,7 @@ import com.example.ahakey.firmware.FirmwareOperationHandle;
 import com.example.ahakey.firmware.FirmwareUpdateRequest;
 import com.example.ahakey.firmware.FirmwareUpdateService;
 import com.example.ahakey.firmware.FirmwareUpdateState;
+import com.example.ahakey.firmware.PreparationGeneration;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
@@ -26,6 +27,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,6 +97,7 @@ public final class DeviceMaintenancePane {
         final boolean[] unknownVersion = {false};
         final boolean[] environmentReady = {false};
         final FirmwareUpdateService.PreparedFirmwareOperation[] preparedOperation = {null};
+        final PreparationGeneration preparationGeneration = new PreparationGeneration();
         final TitledPane[] steps = new TitledPane[4];
         final String[] diagnosticReport = {""};
         final FirmwareOperationHandle[] activeOperation = {null};
@@ -158,6 +161,7 @@ public final class DeviceMaintenancePane {
             }
         };
         java.util.function.Consumer<String> prepareSelectedFirmware = ignored -> {
+            long generation = preparationGeneration.begin();
             FirmwareUpdateService.PreparedFirmwareOperation previous = preparedOperation[0];
             if (previous != null) previous.cancel();
             preparedOperation[0] = null;
@@ -172,7 +176,11 @@ public final class DeviceMaintenancePane {
                 FirmwareUpdateService.PreparationResult result =
                     firmwareUpdateService.prepareFlash(preparationRequest);
                 Platform.runLater(() -> {
-                    if (!preparationRequest.firmwareHex().equals(firmware[0])) return;
+                    if (!preparationGeneration.isCurrent(generation)
+                        || !preparationRequest.firmwareHex().equals(firmware[0])) {
+                        if (result.operation() != null) result.operation().cancel();
+                        return;
+                    }
                     if (result.prepared()) {
                         preparedOperation[0] = result.operation();
                         status.setText(text("烧录会话已准备，请进入 ISP 后检测设备。",
@@ -448,6 +456,14 @@ public final class DeviceMaintenancePane {
                 cancelFlash.setDisable(true);
                 status.setText(text("正在取消烧录…", "Cancelling firmware operation…"));
             }
+        });
+
+        owner.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> {
+            preparationGeneration.invalidate();
+            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
+            if (prepared != null) prepared.cancel();
+            FirmwareOperationHandle operation = activeOperation[0];
+            if (operation != null) operation.cancel();
         });
 
         Label ispStatus = body("");

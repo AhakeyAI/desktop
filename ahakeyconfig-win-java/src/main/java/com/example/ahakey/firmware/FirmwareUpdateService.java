@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -48,6 +49,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
         new CopyOnWriteArrayList<>();
     private final Object admissionMonitor = new Object();
     private final AtomicBoolean diagnosticActive = new AtomicBoolean();
+    private final ConcurrentHashMap<UUID, PreparedFlashSession> preparedSessions =
+        new ConcurrentHashMap<>();
 
     public FirmwareUpdateService(BleManager manager) {
         this(new InstalledRuntimeLocator(),
@@ -243,6 +246,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     "官方适配器未提供预备烧录会话", diagnosticDirectory);
             }
             writePreparedSessionEvidence(diagnosticDirectory, session);
+            preparedSessions.put(session.operationId(), session);
             return PreparationResult.success(
                 new PreparedFirmwareOperation(request, session, diagnosticDirectory));
         } catch (Exception failure) {
@@ -675,11 +679,15 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
             transition(handle, FirmwareUpdateState.FLASHING,
                 "正在立即调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
-            Instant processStartTime = Instant.now();
             OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashPrepared(
                 prepared.session(), cancellation::get);
             saveAdapterProcess(diagnosticDirectory, flash);
-            writeFlashTiming(diagnosticDirectory, flashClickTime, processStartTime, flash);
+            Instant actualProcessStartTime = flash == null || flash.processResult() == null
+                ? prepared.session().launchContext() == null
+                    ? null : prepared.session().launchContext().actualProcessStartTime()
+                : flash.processResult().actualProcessStartTime();
+            writeFlashTiming(diagnosticDirectory, flashClickTime,
+                prepared.session().launchContext(), actualProcessStartTime, flash);
             if (!flash.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.FLASH_FAILED,
                     flash.detail(), diagnosticDirectory);
@@ -724,6 +732,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
             finish(handle, FirmwareUpdateState.FAILED, classify(failure),
                 failure.getMessage() == null ? failure.toString() : failure.getMessage(),
                 diagnosticDirectory);
+        } finally {
+            preparedSessions.remove(prepared.session().operationId());
         }
     }
 
@@ -878,6 +888,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private void writePreparedSessionEvidence(Path directory, PreparedFlashSession session) {
         if (directory == null || session == null) return;
         WchIspRunner.WchIspCommand command = session.command();
+        PreparedLaunchContext launch = session.launchContext();
         diagnostics.write(directory, "command.txt", command.executable() + " "
             + String.join(" ", command.arguments()) + "\noperationId="
             + command.operationId() + "\ntimeout=" + command.timeout() + "\n");
@@ -889,21 +900,36 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "  \"createdAt\": " + json(session.createdAt().toString()) + ",\n"
             + "  \"state\": " + json(session.state().name()) + ",\n"
             + "  \"workerOwner\": " + json(session.workerOwner()) + ",\n"
-            + "  \"elevatedWorkerPrepared\": " + session.elevatedWorkerPrepared() + "\n"
+            + "  \"launchContextReady\": " + (launch != null && launch.ready()) + ",\n"
+            + "  \"workerRunning\": " + (launch != null && launch.workerRunning()) + ",\n"
+            + "  \"workerPid\": " + (launch == null ? -1 : launch.workerPid()) + ",\n"
+            + "  \"wrapperPid\": " + (launch == null ? -1 : launch.wrapperPid()) + ",\n"
+            + "  \"controlDirectory\": " + json(launch == null ? "" : launch.controlDirectory().toString()) + ",\n"
+            + "  \"nonce\": " + json(launch == null ? "" : launch.nonce()) + "\n"
             + "}\n");
     }
 
-    private void writeFlashTiming(Path directory, Instant clickTime, Instant processStartTime,
+    private void writeFlashTiming(Path directory, Instant clickTime,
+                                  PreparedLaunchContext launchContext,
+                                  Instant actualProcessStartTime,
                                   OfficialWchIspAdapter.FlashResult flash) {
         if (directory == null) return;
-        long clickToStart = clickTime == null || processStartTime == null ? -1
-            : Math.max(0, java.time.Duration.between(clickTime, processStartTime).toMillis());
+        Instant goSignalTime = launchContext == null ? null : launchContext.goSignalTime();
+        long clickToGo = clickTime == null || goSignalTime == null ? -1
+            : Math.max(0, java.time.Duration.between(clickTime, goSignalTime).toMillis());
+        long goToStart = goSignalTime == null || actualProcessStartTime == null ? -1
+            : Math.max(0, java.time.Duration.between(goSignalTime, actualProcessStartTime).toMillis());
+        long clickToStart = clickTime == null || actualProcessStartTime == null ? -1
+            : Math.max(0, java.time.Duration.between(clickTime, actualProcessStartTime).toMillis());
         long duration = flash == null || flash.processResult() == null
             ? -1 : flash.processResult().duration().toMillis();
         diagnostics.write(directory, "flash-timing.json", "{\n"
             + "  \"FLASH_CLICK_TIME\": " + json(clickTime == null ? "" : clickTime.toString()) + ",\n"
-            + "  \"WCHISP_PROCESS_START_TIME\": "
-            + json(processStartTime == null ? "" : processStartTime.toString()) + ",\n"
+            + "  \"GO_SIGNAL_TIME\": " + json(goSignalTime == null ? "" : goSignalTime.toString()) + ",\n"
+            + "  \"ACTUAL_WCHISP_PROCESS_START_TIME\": "
+            + json(actualProcessStartTime == null ? "" : actualProcessStartTime.toString()) + ",\n"
+            + "  \"CLICK_TO_GO_MS\": " + clickToGo + ",\n"
+            + "  \"GO_TO_WCHISP_START_MS\": " + goToStart + ",\n"
             + "  \"CLICK_TO_WCHISP_START_MS\": " + clickToStart + ",\n"
             + "  \"DOWNLOAD_PROCESS_DURATION_MS\": " + duration + "\n"
             + "}\n");
@@ -961,6 +987,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "  \"timedOut\": " + result.timedOut() + ",\n"
             + "  \"cancelled\": " + result.cancelled() + ",\n"
             + "  \"durationMs\": " + result.duration().toMillis() + ",\n"
+            + "  \"actualProcessStartTime\": "
+            + json(result.actualProcessStartTime() == null ? "" : result.actualProcessStartTime().toString()) + ",\n"
             + "  \"elevationUsed\": " + result.elevationUsed() + ",\n"
             + "  \"terminationReason\": " + json(result.terminationReason()) + "\n"
             + "}\n";
@@ -1033,6 +1061,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
     public void shutdown() {
         if (!shuttingDown.compareAndSet(false, true)) return;
+        preparedSessions.values().forEach(PreparedFlashSession::cancel);
+        preparedSessions.clear();
         FirmwareOperationHandle current = active.get();
         if (current != null) current.cancel();
         executor.shutdownNow();

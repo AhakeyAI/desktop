@@ -43,9 +43,11 @@
 `DefaultOfficialWchIspAdapter` 只依赖 `RuntimeLocator`、presence probe 和通用
 `WchIspRunner`。检测是用户触发的一次性 ISP presence 检查，不建立 USB 后台监听，也不
 运行 `-u get`。用户选择 HEX 后，`FirmwareUpdateService.prepareFlash()` 会在设备进入 ISP
-前完成校验、runtime resolve、`flash-config.ini` 和完整命令准备；实际烧录只在明确点击后
-执行 `-c <flash-config.ini> -o download -f <hex>`。运行时诊断、操作日志和
-`FirmwarePostVerifier` 保持在 `FirmwareUpdateService`。
+前完成校验、runtime resolve、`flash-config.ini` 和完整命令准备；Windows 下同时启动
+operation-owned elevated worker，由其写入 nonce 绑定的 READY marker 并等待 GO/CANCEL/TTL。
+实际烧录只在明确点击后向该 worker 发送 GO，再执行 `-c <flash-config.ini> -o download -f
+<hex>`。运行时诊断、操作日志和 `FirmwarePostVerifier` 保持在
+`FirmwareUpdateService`。
 
 `RuntimeProvider` 现在是兼容旧测试 seam 的 `RuntimeLocator` 子接口。旧 workspace、
 CONFIG patch 和 UID parser 类没有删除，但不在 Studio 公开生产构造器的调用链中使用。

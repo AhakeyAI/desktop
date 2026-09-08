@@ -741,6 +741,8 @@ $requiredFirmwareSources = @(
     "OfficialWchIspAdapter.java",
     "DefaultOfficialWchIspAdapter.java",
     "PreparedFlashSession.java",
+    "PreparedLaunchContext.java",
+    "PreparationGeneration.java",
     "RuntimeLocator.java",
     "InstalledRuntimeLocator.java"
 )
@@ -776,6 +778,8 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $allowedEntryPattern = "^(com/example/ahakey/(App|SingleInstanceChecker).*\.class|com/example/ahakey/protocol/AhaKeyProtocol\.class|com/example/ahakey/protocol/AhaKeyResponseParser.*\.class|com/example/ahakey/model/(DeviceStatus|VoicePreset|StudioState).*\.class|com/example/ahakey/app/(StudioController|WorkModeSynchronizer|ManualApprovalGate|StatusRefreshScheduler|ApplicationLifecycle).*\.class|com/example/ahakey/util/(StudioStore|FirstRunState|LanguageManager|OLEDFrameEncoder).*\.class|com/example/ahakey/service/(BleManager|UsbHidTransport|DeviceSyncService|HookInstaller|HookDispatchServer|ApprovalService|ApprovalSnapshot|ApprovalState|PhysicalStatusFreshness|KimiAhaKeyBridge|TaskActivityService|LightOperationCoordinator|OledUploadService|BundledGifLibrary|GifUploadRules|GifSelectionHistory|ScreenAnimationAssetStore|BleBridgeProcessOwner|BleDriverLocator|SpeechService|KeyboardInjector).*\.class|com/example/ahakey/platform/VoiceRelayPlatform\.class|com/example/ahakey/platform/windows/(WindowsVoiceRelayService|VoiceKeyPressState).*\.class|com/example/ahakey/view/(TopBar|CanvasPane|InspectorPane|StandbySettingsPane|DeviceMaintenancePane|SupportPane|BluetoothPairingGuide|ScreenAnimationDialog).*\.class|com/example/ahakey/firmware/(ChipMatched|DefaultOfficialWchIspAdapter|FirmwareCapabilities|FirmwareFlasher|IntelHexValidator|OfficialWchIspAdapter|WchIspConfig|WchIspExitCodes|WchIspRuntimeContract|WindowsWchIspFlasher|FirmwareOperationHandle|FirmwarePostVerifier|FirmwareUpdateDiagnostics|FirmwareUpdateError|FirmwareUpdateRequest|FirmwareUpdateResult|FirmwareUpdateService|FirmwareUpdateState|FirmwareUpdateStatus|IspDeviceProbe|RuntimeBundle|RuntimeIdentity|RuntimeProvider|WchIspConfigLayout|WchIspResultParser|WchIspRunner|WchIspRuntimeProvider|WchIspWorkspace).*\.class|com/example/ahakey/update/.*\.class|firmware-capabilities\.properties|wchisp/(CONFIG_CH57X59X-3\.6\.1-sanitized\.WCH|baseline\.properties|wchisp-runtime\.json)|default-gifs/(claude|cursor|codex|mode4)/(default|running|waiting-error|completed)\.gif|fxml/CanvasLayout\.fxml|images/support-service-qr\.png|messages_(zh|en)\.properties|style\.css)$"
 $additionalAllowedEntries = @(
     "com/example/ahakey/firmware/PreparedFlashSession.class",
+    "com/example/ahakey/firmware/PreparedLaunchContext.class",
+    "com/example/ahakey/firmware/PreparationGeneration.class",
     "com/example/ahakey/firmware/RuntimeLocator.class",
     "com/example/ahakey/firmware/InstalledRuntimeLocator.class"
 )

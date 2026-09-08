@@ -4,10 +4,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -20,18 +22,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class WchIspRunner {
     private final Backend backend;
     private final ElevatedBackend elevatedBackend;
+    private final boolean prestartElevation;
 
     public WchIspRunner() {
-        this(new ProcessBuilderBackend(), new WindowsRunAsBackend());
+        this(new ProcessBuilderBackend(), new WindowsRunAsBackend(), true);
     }
 
     public WchIspRunner(Backend backend) {
-        this(backend, new WindowsRunAsBackend());
+        this(backend, new WindowsRunAsBackend(), false);
     }
 
     WchIspRunner(Backend backend, ElevatedBackend elevatedBackend) {
+        this(backend, elevatedBackend, false);
+    }
+
+    WchIspRunner(Backend backend, ElevatedBackend elevatedBackend, boolean prestartElevation) {
         this.backend = backend == null ? new ProcessBuilderBackend() : backend;
         this.elevatedBackend = elevatedBackend == null ? new WindowsRunAsBackend() : elevatedBackend;
+        this.prestartElevation = prestartElevation;
     }
 
     public WchIspProcessResult run(WchIspCommand command, CancellationToken cancellation)
@@ -48,6 +56,27 @@ public class WchIspRunner {
         }
     }
 
+    /**
+     * Starts the operation-owned elevated worker before ISP.  The worker only
+     * waits for a later GO signal and therefore cannot write the device during
+     * preparation or detection.
+     */
+    public PreparedLaunchContext prepareElevatedLaunch(WchIspCommand command)
+        throws Exception {
+        if (command == null) throw new IllegalArgumentException("command is required");
+        if (prestartElevation && (isWindows() || !(elevatedBackend instanceof WindowsRunAsBackend))) {
+            PreparedLaunchContext prepared = elevatedBackend.prepare(command);
+            if (prepared != null) return prepared;
+        }
+        if (prestartElevation && isWindows()) {
+            throw new IOException("Windows elevated launch preparation is unavailable");
+        }
+        Path control = Files.createTempDirectory("ahakey-wchisp-direct-prepared-");
+        return PreparedLaunchContext.forDirect(command.operationId(), control,
+            UUID.randomUUID().toString(), Instant.now(),
+            (cancellation) -> backend.run(command, cancellation));
+    }
+
     @FunctionalInterface
     public interface Backend {
         WchIspProcessResult run(WchIspCommand command, CancellationToken cancellation)
@@ -58,6 +87,11 @@ public class WchIspRunner {
     public interface ElevatedBackend {
         WchIspProcessResult run(WchIspCommand command, CancellationToken cancellation)
             throws Exception;
+
+        /** Optional pre-start path. Null retains the legacy synchronous path. */
+        default PreparedLaunchContext prepare(WchIspCommand command) throws Exception {
+            return null;
+        }
     }
 
     /** Package-visible test hook for a fake direct backend that observes UAC 740. */
@@ -104,7 +138,8 @@ public class WchIspRunner {
         boolean elevationUsed,
         Map<String, Path> rawArtifacts,
         String terminationReason,
-        List<Long> ownedProcessIds
+        List<Long> ownedProcessIds,
+        Instant actualProcessStartTime
     ) {
         public WchIspProcessResult {
             stdout = stdout == null ? "" : stdout;
@@ -125,13 +160,24 @@ public class WchIspRunner {
                                    Map<String, Path> rawArtifacts, String terminationReason) {
             this(operationId, processStarted, pid, exitCode, timedOut, cancelled,
                 stdout, stderr, console, duration, elevationUsed, rawArtifacts,
-                terminationReason, pid > 0 ? List.of(pid) : List.of());
+                terminationReason, pid > 0 ? List.of(pid) : List.of(), null);
+        }
+
+        public WchIspProcessResult(UUID operationId, boolean processStarted, long pid,
+                                   int exitCode, boolean timedOut, boolean cancelled,
+                                   String stdout, String stderr, String console,
+                                   Duration duration, boolean elevationUsed,
+                                   Map<String, Path> rawArtifacts, String terminationReason,
+                                   List<Long> ownedProcessIds) {
+            this(operationId, processStarted, pid, exitCode, timedOut, cancelled,
+                stdout, stderr, console, duration, elevationUsed, rawArtifacts,
+                terminationReason, ownedProcessIds, null);
         }
 
         public static WchIspProcessResult startFailure(UUID operationId, Exception error) {
             return new WchIspProcessResult(operationId, false, -1, -1, false, false,
                 "", error == null ? "" : String.valueOf(error.getMessage()), "",
-                Duration.ZERO, false, Map.of(), "PROCESS_START_FAILED");
+                Duration.ZERO, false, Map.of(), "PROCESS_START_FAILED", null);
         }
     }
 
@@ -156,6 +202,7 @@ public class WchIspRunner {
                 }
                 return WchIspProcessResult.startFailure(command.operationId(), startFailure);
             }
+            Instant actualProcessStartTime = Instant.now();
             long pid = process.pid();
             ByteArrayOutputStream stdout = new ByteArrayOutputStream();
             ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -192,7 +239,7 @@ public class WchIspRunner {
             return new WchIspProcessResult(command.operationId(), true, pid, exit,
                 timedOut, cancelled, out, err, out + System.lineSeparator() + err,
                 Duration.ofNanos(System.nanoTime() - startedAt), false, Map.of(), reason,
-                List.of(pid));
+                List.of(pid), actualProcessStartTime);
         }
 
         private static Thread reader(InputStream input, ByteArrayOutputStream output, String name) {
@@ -227,6 +274,146 @@ public class WchIspRunner {
      * still owns the sole result parsing decision.
      */
     private static final class WindowsRunAsBackend implements ElevatedBackend {
+        private static final Duration PREPARE_TIMEOUT = Duration.ofSeconds(30);
+        private static final Duration WORKER_TTL = Duration.ofMinutes(2);
+
+        /** Starts RunAs and waits for a nonce-bound worker READY marker. */
+        @Override
+        public PreparedLaunchContext prepare(WchIspCommand command) throws Exception {
+            Path directory = Files.createTempDirectory("ahakey-wchisp-prepared-runas-");
+            Path wrapper = directory.resolve("runas-wrapper.ps1");
+            Path worker = directory.resolve("worker.ps1");
+            Path stdout = directory.resolve("stdout.txt");
+            Path stderr = directory.resolve("stderr.txt");
+            Path marker = directory.resolve("result.txt");
+            Path pidFile = directory.resolve("pid.txt");
+            Path workerPidFile = directory.resolve("worker-pid.txt");
+            Path readyFile = directory.resolve("ready.marker");
+            Path goFile = directory.resolve("go.signal");
+            Path cancelFile = directory.resolve("cancel.signal");
+            Path startTimeFile = directory.resolve("child-start-millis.txt");
+            String nonce = UUID.randomUUID().toString();
+            Files.writeString(wrapper, preparedWrapperScript(), StandardCharsets.UTF_8);
+            Files.writeString(worker, preparedWorkerScript(), StandardCharsets.UTF_8);
+            List<String> invocation = List.of(
+                "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                "-File", wrapper.toString(), worker.toString(), command.executable().toString(),
+                command.workingDirectory().toString(), stdout.toString(), stderr.toString(),
+                marker.toString(), pidFile.toString(), workerPidFile.toString(), readyFile.toString(),
+                goFile.toString(), cancelFile.toString(), startTimeFile.toString(), nonce,
+                Long.toString(Math.max(1, WORKER_TTL.toSeconds())),
+                Long.toString(Math.max(1, command.timeout().toSeconds())),
+                Base64.getEncoder().encodeToString(String.join("\u0000", command.arguments())
+                    .getBytes(StandardCharsets.UTF_8)));
+            Process elevation = new ProcessBuilder(invocation).redirectErrorStream(true).start();
+            PreparedWindowsLaunch launch = new PreparedWindowsLaunch(command, directory, nonce,
+                elevation, stdout, stderr, marker, pidFile, workerPidFile, readyFile, goFile,
+                cancelFile, startTimeFile);
+            if (!launch.awaitReady(PREPARE_TIMEOUT)) {
+                launch.cancel();
+                throw new IOException("UAC_CANCELLED_OR_ELEVATED_WORKER_NOT_READY");
+            }
+            return launch.context();
+        }
+
+        private static final class PreparedWindowsLaunch {
+            private final WchIspCommand command;
+            private final Path directory;
+            private final String nonce;
+            private final Process elevation;
+            private final Path stdout;
+            private final Path stderr;
+            private final Path marker;
+            private final Path pidFile;
+            private final Path workerPidFile;
+            private final Path readyFile;
+            private final Path goFile;
+            private final Path cancelFile;
+            private final Path startTimeFile;
+
+            PreparedWindowsLaunch(WchIspCommand command, Path directory, String nonce,
+                                  Process elevation, Path stdout, Path stderr, Path marker,
+                                  Path pidFile, Path workerPidFile, Path readyFile, Path goFile,
+                                  Path cancelFile, Path startTimeFile) {
+                this.command = command;
+                this.directory = directory;
+                this.nonce = nonce;
+                this.elevation = elevation;
+                this.stdout = stdout;
+                this.stderr = stderr;
+                this.marker = marker;
+                this.pidFile = pidFile;
+                this.workerPidFile = workerPidFile;
+                this.readyFile = readyFile;
+                this.goFile = goFile;
+                this.cancelFile = cancelFile;
+                this.startTimeFile = startTimeFile;
+            }
+
+            boolean awaitReady(Duration timeout) throws InterruptedException {
+                long deadline = System.nanoTime() + timeout.toNanos();
+                while (System.nanoTime() < deadline && elevation.isAlive()) {
+                    String ready = read(readyFile).trim();
+                    long workerPid = readPid(workerPidFile);
+                    if (("READY:" + nonce).equals(ready) && alive(workerPid)) return true;
+                    elevation.waitFor(25, TimeUnit.MILLISECONDS);
+                }
+                return ("READY:" + nonce).equals(read(readyFile).trim())
+                    && alive(readPid(workerPidFile));
+            }
+
+            PreparedLaunchContext context() {
+                return new PreparedLaunchContext(command.operationId(), directory, nonce,
+                    Instant.now(), elevation.pid(), readPid(workerPidFile), true,
+                    this::launch, this::cancel);
+            }
+
+            WchIspProcessResult launch(CancellationToken cancellation) throws Exception {
+                Files.writeString(goFile, nonce, StandardCharsets.US_ASCII);
+                long startedAt = System.nanoTime();
+                boolean cancelled = false;
+                long deadline = System.nanoTime() + command.timeout().plusSeconds(10).toNanos();
+                while (elevation.isAlive() && System.nanoTime() < deadline) {
+                    if (cancellation != null && cancellation.cancelled()) {
+                        cancelled = true;
+                        cancel();
+                        break;
+                    }
+                    elevation.waitFor(25, TimeUnit.MILLISECONDS);
+                }
+                boolean timedOut = elevation.isAlive();
+                if (timedOut) cancel();
+                elevation.waitFor(2, TimeUnit.SECONDS);
+                long workerPid = readPid(workerPidFile);
+                long childPid = readPid(pidFile);
+                int wrapperExit = elevation.isAlive() ? -1 : elevation.exitValue();
+                String markerValue = read(marker).trim();
+                int exitCode = parseExitCode(markerValue, wrapperExit);
+                boolean markerCancelled = markerValue.startsWith("CANCELLED")
+                    || markerValue.startsWith("UAC_CANCELLED");
+                cancelled = cancelled || wrapperExit == 1223 || markerCancelled;
+                boolean incomplete = (timedOut || cancelled)
+                    && ownershipIncomplete(elevation.pid(), workerPid, childPid);
+                String reason = timedOut ? "TIMEOUT" : cancelled ? "CANCELLED" :
+                    markerValue.startsWith("TTL_EXPIRED") ? "PREPARED_WORKER_TTL_EXPIRED" :
+                    "ELEVATED_PROCESS_EXIT";
+                if (incomplete) reason += "/PROCESS_OWNERSHIP_INCOMPLETE";
+                long primaryPid = childPid > 0 ? childPid : workerPid > 0 ? workerPid : elevation.pid();
+                return new WchIspProcessResult(command.operationId(), true, primaryPid, exitCode,
+                    timedOut, cancelled, read(stdout), read(stderr), read(stdout) + read(stderr),
+                    Duration.ofNanos(System.nanoTime() - startedAt), true,
+                    artifacts(stdout, stderr, marker, pidFile, workerPidFile, readyFile, goFile,
+                        cancelFile, startTimeFile), reason, ownedPids(elevation.pid(), workerPid, childPid),
+                    readInstant(startTimeFile));
+            }
+
+            void cancel() {
+                try { Files.writeString(cancelFile, nonce, StandardCharsets.US_ASCII); }
+                catch (IOException ignored) { }
+                terminateOwnedPids(elevation.pid(), readPid(workerPidFile), readPid(pidFile));
+            }
+        }
+
         @Override
         public WchIspProcessResult run(WchIspCommand command, CancellationToken cancellation)
             throws Exception {
@@ -298,6 +485,17 @@ public class WchIspRunner {
             return result;
         }
 
+        private static Map<String, Path> artifacts(Path stdout, Path stderr, Path marker,
+                                                   Path pidFile, Path workerPidFile, Path readyFile,
+                                                   Path goFile, Path cancelFile, Path startTimeFile) {
+            Map<String, Path> result = artifacts(stdout, stderr, marker, pidFile, workerPidFile);
+            result.put("ready", readyFile);
+            result.put("go", goFile);
+            result.put("cancel", cancelFile);
+            result.put("actualProcessStartTime", startTimeFile);
+            return result;
+        }
+
         private static List<Long> ownedPids(long wrapperPid, long workerPid, long childPid) {
             return List.of(wrapperPid, workerPid, childPid).stream()
                 .filter(pid -> pid > 0).distinct().toList();
@@ -358,6 +556,27 @@ public class WchIspRunner {
             try { return java.nio.file.Files.isRegularFile(path)
                 ? java.nio.file.Files.readString(path) : ""; }
             catch (IOException ignored) { return ""; }
+        }
+
+        private static Instant readInstant(Path path) {
+            try { return Instant.ofEpochMilli(Long.parseLong(read(path).trim())); }
+            catch (RuntimeException ignored) { return null; }
+        }
+
+        private static String preparedWrapperScript() {
+            return "param([string]$Worker,[string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[string]$Ready,[string]$Go,[string]$Cancel,[string]$StartTime,[string]$Nonce,[int]$WorkerTtl,[int]$Timeout,[string]$Args)`n"
+                + "$list=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$Worker,$Tool,$Work,$Stdout,$Stderr,$Result,$Pid,$WorkerPid,$Ready,$Go,$Cancel,$StartTime,$Nonce,$WorkerTtl,$Timeout,$Args)`n"
+                + "$quoted=$list|ForEach-Object{\"'\"+($_ -replace \"'\",\"''\")+\"'\"}`n"
+                + "try{$p=Start-Process powershell.exe -Verb RunAs -ArgumentList ($quoted -join ' ') -Wait -PassThru;exit $p.ExitCode}catch{if($_.Exception.Message -match 'cancel|1223'){exit 1223};exit 1}`n";
+        }
+
+        private static String preparedWorkerScript() {
+            return "param([string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[string]$Ready,[string]$Go,[string]$Cancel,[string]$StartTime,[string]$Nonce,[int]$WorkerTtl,[int]$Timeout,[string]$Args)`n"
+                + "$PID|Out-File -LiteralPath $WorkerPid -Encoding ascii`n"
+                + "(\"READY:\"+$Nonce)|Out-File -LiteralPath $Ready -Encoding ascii`n"
+                + "$deadline=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+($WorkerTtl*1000)`n"
+                + "while($true){if((Test-Path -LiteralPath $Cancel) -and ((Get-Content -Raw -LiteralPath $Cancel).Trim() -eq $Nonce)){\"CANCELLED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 1223};if((Test-Path -LiteralPath $Go) -and ((Get-Content -Raw -LiteralPath $Go).Trim() -eq $Nonce)){break};if([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -ge $deadline){\"TTL_EXPIRED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 124};Start-Sleep -Milliseconds 10}`n"
+                + "try{$decoded=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Args));$a=if($decoded){@($decoded -split \"`0\")}else{@()};$p=Start-Process -FilePath $Tool -WorkingDirectory $Work -ArgumentList $a -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr -PassThru;$started=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();$p.Id|Out-File -LiteralPath $Pid -Encoding ascii;$started|Out-File -LiteralPath $StartTime -Encoding ascii;$p.WaitForExit($Timeout*1000)|Out-Null;if(-not $p.HasExited){$p.Kill();\"TIMEOUT\"|Out-File -LiteralPath $Result -Encoding ascii;exit 124};(\"PROCESS_EXIT:\"+$p.ExitCode)|Out-File -LiteralPath $Result -Encoding ascii;exit $p.ExitCode}catch{($_|Out-String)|Out-File -LiteralPath $Stderr -Encoding utf8;\"PROCESS_START_FAILED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 1}`n";
         }
 
         private static String wrapperScript() {

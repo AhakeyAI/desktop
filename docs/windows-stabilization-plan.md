@@ -414,14 +414,24 @@ desktop 工程唯一可更新的稳定化事实源。
 `FirmwareUpdateService.prepareFlash()` 完成 HEX/version 校验、RuntimeLocator 解析、
 `flash-config.ini` 写入、完整 `-c <flash-config.ini> -o download -f <hex>` 命令构造和
 操作诊断目录创建。`PreparedFlashSession` 绑定 operationId、runtime、配置、HEX、命令、
-创建时间和 operation-owned worker ownership；此阶段绝不启动 WCHISP 或执行写入。
+创建时间和真实的 `PreparedLaunchContext`。Windows 下 context 会在 ISP 等待前启动
+operation-owned elevated worker，worker 写入 nonce 绑定的 READY marker 后只等待
+GO/CANCEL/TTL；它不会在准备或检测阶段启动 WCHISP，也不会执行写入。UAC 因而提前完成，
+取消或 ownership 无法确认会使准备失败。
 
-检测成功后会话才进入 ARMED。用户明确点击“开始烧录”时，`startPrepared()` 只启动已经
-准备好的命令，不重复 runtime/config/preflight/workspace 工作；下载完成后仍沿用
-`WAITING_RECONNECT -> VERIFYING -> FirmwarePostVerifier -> SUCCESS`。取消、关闭或未完成
-检测的会话不能启动 download。`flash-timing.json` 保存 FLASH_CLICK_TIME、
-WCHISP_PROCESS_START_TIME、CLICK_TO_WCHISP_START_MS 和 DOWNLOAD_PROCESS_DURATION_MS。
+检测成功后会话才进入 ARMED。用户明确点击“开始烧录”时，`startPrepared()` 仅向已运行的
+worker 发送一次 GO；worker 再启动已经保存的 WCHISP 命令，不重复 UAC、runtime/config/
+preflight/workspace 工作。下载完成后仍沿用 `WAITING_RECONNECT -> VERIFYING ->
+FirmwarePostVerifier -> SUCCESS`。取消、关闭、TTL 到期或未完成检测的会话不能启动
+download。`flash-timing.json` 保存 FLASH_CLICK_TIME、GO_SIGNAL_TIME、
+ACTUAL_WCHISP_PROCESS_START_TIME、CLICK_TO_GO_MS、GO_TO_WCHISP_START_MS、
+CLICK_TO_WCHISP_START_MS 和 DOWNLOAD_PROCESS_DURATION_MS。
+
+准备回调使用 `PreparationGeneration` 单调代际；重新选择 HEX 或改变风险选项后，旧代结果
+不能覆盖新会话，并会取消旧会话的 operation-owned worker。维护页隐藏和 Studio shutdown
+也只取消这些 operation-owned PID，不执行全局进程清理。
 
 新增定向测试覆盖：配置参数已在 ISP 前准备、检测不执行 download、检测后未点击不写入、
-单次 prepared flash、取消会话拒绝启动、worker ownership 和 post-verify 链路。自动测试
-与真实 WCHISP/USB ISP 烧录仍需以本轮命令及硬件结果为准；本轮不执行真实烧录。
+单次 prepared flash、预启动 worker READY/GO 一次性语义、UAC 取消 fail closed、取消会话
+拒绝启动、真实 child-start timestamp、准备代际保护、worker ownership 和 post-verify 链路。
+自动测试与真实 WCHISP/USB ISP 烧录仍需以本轮命令及硬件结果为准；本轮不执行真实烧录。
