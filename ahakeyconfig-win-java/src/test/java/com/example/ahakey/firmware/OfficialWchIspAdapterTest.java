@@ -89,10 +89,31 @@ class OfficialWchIspAdapterTest {
             hex.toAbsolutePath().normalize().toString()), session.command().arguments());
         assertTrue(Files.readString(session.configPath()).contains("MCUName=CH582"));
         assertFalse(runnerCalled.get(), "preparation must not launch WCHISP");
+        assertNull(session.launchContext(),
+            "production preparation must not create a resident elevated worker");
+        assertFalse(session.elevatedWorkerPrepared(),
+            "READY marker/GO worker is not part of the production path");
         assertTrue(session.markDeviceDetected());
         adapter.flashPrepared(session, WchIspRunner.CancellationToken.NONE);
         assertTrue(runnerCalled.get());
         assertEquals(PreparedFlashSession.State.COMPLETED, session.state());
+    }
+
+    @Test
+    void productionPreparationUsesHistoricalLauncherWithoutPrestartWorker() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("production-prepared.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, null);
+
+        PreparedFlashSession session = adapter.prepareFlash(hex, UUID.randomUUID(),
+            temporary.resolve("production-operation"), runtime);
+
+        assertNull(session.launchContext());
+        assertFalse(session.elevatedWorkerPrepared());
+        assertEquals(List.of("-c", session.configPath().toString(), "-o", "download", "-f",
+            hex.toAbsolutePath().normalize().toString()), session.command().arguments());
     }
 
     @Test

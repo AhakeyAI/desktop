@@ -410,6 +410,9 @@ desktop 工程唯一可更新的稳定化事实源。
 
 ## 16. Prepared official flash session (2026-09-08)
 
+> 历史记录：本节描述的长驻 worker/READY/GO 生产路径已被第 18 节取代；这些类和测试
+> 仍保留用于兼容，但不再是当前 production adapter 的启动实现。
+
 为适配 CH582 ISP 窗口较短的真实设备时序，生产 UI 在用户选择 HEX 后立即由
 `FirmwareUpdateService.prepareFlash()` 完成 HEX/version 校验、RuntimeLocator 解析、
 `flash-config.ini` 写入、完整 `-c <flash-config.ini> -o download -f <hex>` 命令构造和
@@ -451,3 +454,21 @@ worker 只等待信号，检测阶段不执行 download；没有 GO 时不会启
 真实换行与 PowerShell 解析、脚本无效分类、UAC/启动/READY 失败分类及 READY/GO 一次性语义。
 
 本轮仅完成代码与自动测试；未执行真实 UAC、WCHISP、USB ISP 或烧录验证。
+
+## 18. Restore proven WCHISP launch path (2026-09-09)
+
+针对短 ISP 窗口，本轮将生产 flash launch 从 PreparedLaunchContext 的长驻 worker
+路径收回到历史已验证的单次启动路径。`DefaultOfficialWchIspAdapter` 的默认构造不再调用
+`WchIspRunner.prepareElevatedLaunch()`；用户点击烧录后，已准备好的命令交给
+`WindowsWchIspFlasher.run()`，只有直接创建 WCHISP 返回 Windows error 740 时才进入
+`runElevated()` 的一次性 `Start-Process powershell.exe -Verb RunAs` 流程。成功/失败结果
+仍写入现有操作诊断，并继续由 `FirmwarePostVerifier` 完成重连后的最终确认。
+
+生产命令保持完整：`-c <flash-config.ini> -o download -f <selected hex>`。检测仍只做
+runtime/ISP presence，UID 是可选诊断；`PreparedFlashSession`、`PreparedLaunchContext`、
+READY marker 和 GO signal 仅保留为兼容源码与测试数据载体，默认生产 adapter 不创建或启动
+长驻 worker，也不执行 prestart UAC。测试构造器保留 fake `WchIspRunner` seam，以便在不
+启动真实 WCHISP 的情况下验证命令和状态机。
+
+本轮自动验证以实际命令结果为准；不得把历史 launcher 恢复表述为真实 USB/WCHISP 烧录
+完成。真实 UAC、短 ISP、设备重连、PostVerify 及正式发布环境仍需单独验证。

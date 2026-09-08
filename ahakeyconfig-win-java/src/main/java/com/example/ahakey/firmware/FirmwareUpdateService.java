@@ -63,7 +63,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                   FirmwareUpdateDiagnostics diagnostics,
                                   Path workspaceParent) {
         this(new DefaultOfficialWchIspAdapter(runtimeLocator, IspDeviceProbe.windowsDefault(),
-                new WchIspRunner()), runtimeLocator, postVerifier, diagnostics, workspaceParent);
+                null), runtimeLocator, postVerifier, diagnostics, workspaceParent);
     }
 
     /**

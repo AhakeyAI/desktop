@@ -232,6 +232,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         Duration timeout,
         ProgressListener listener
     ) throws Exception {
+        long startedAt = System.nanoTime();
+        java.time.Instant actualStart = java.time.Instant.now();
         List<String> command = new ArrayList<>();
         command.add(commandExecutable.toString());
         command.addAll(arguments);
@@ -274,7 +276,10 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     text = appendDiagnostics(text, persistDiagnostics(
                         commandExecutable, arguments, text, terminalCode));
                 }
-                return new CommandResult(terminalCode, text);
+                return new CommandResult(terminalCode, text, process.pid(), false,
+                    Duration.ofNanos(System.nanoTime() - startedAt),
+                    terminalCode == 0 ? "COMPLETED" : "PROCESS_EXIT",
+                    List.of(process.pid()), actualStart);
             }
             if (!process.isAlive() && process.exitValue() != 0) {
                 if (nonZeroExitAt == 0) {
@@ -285,7 +290,10 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     String text = output.toString(Charset.defaultCharset());
                     int exitCode = process.exitValue();
                     return new CommandResult(exitCode, appendDiagnostics(text,
-                        persistDiagnostics(commandExecutable, arguments, text, exitCode)));
+                        persistDiagnostics(commandExecutable, arguments, text, exitCode)),
+                        process.pid(), false,
+                        Duration.ofNanos(System.nanoTime() - startedAt),
+                        "PROCESS_EXIT", List.of(process.pid()), actualStart);
                 }
             }
             Thread.sleep(100);
@@ -508,6 +516,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             command.add(resultMarker.toString());
             command.add(Long.toString(Math.max(1, timeout.toSeconds())));
             command.add(encodeArguments(arguments));
+            java.time.Instant actualStart = java.time.Instant.now();
+            long startedAt = System.nanoTime();
             Process process = new ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start();
@@ -583,7 +593,11 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 }
                 return new CommandResult(
                     markerCode,
-                    finalOutput
+                    finalOutput,
+                    process.pid(), true,
+                    Duration.ofNanos(System.nanoTime() - startedAt),
+                    markerCode == 0 ? "COMPLETED" : "PROCESS_EXIT",
+                    List.of(process.pid()), actualStart
                 );
             }
             if (terminalCode == null) {
@@ -595,13 +609,20 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                         output,
                         "WCHISP 未返回可确认的最终结果",
                         diagnostics.isBlank() ? "" : "诊断日志: " + diagnostics
-                    )
+                    ),
+                    process.pid(), true,
+                    Duration.ofNanos(System.nanoTime() - startedAt),
+                    "TERMINAL_RESULT_MISSING", List.of(process.pid()), actualStart
                 );
             }
             return new CommandResult(terminalCode, terminalCode == 0
                 ? output
                 : appendDiagnostics(output, persistDiagnostics(
-                    commandExecutable, arguments, output, terminalCode)));
+                    commandExecutable, arguments, output, terminalCode)),
+                process.pid(), true,
+                Duration.ofNanos(System.nanoTime() - startedAt),
+                terminalCode == 0 ? "COMPLETED" : "PROCESS_EXIT",
+                List.of(process.pid()), actualStart);
         } finally {
             Files.deleteIfExists(wrapper);
             Files.deleteIfExists(elevatedWorker);
@@ -625,6 +646,42 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             "wchisp-last-failure"
         );
         return persistDiagnosticsAt(destination, commandExecutable, arguments, output, resultCode);
+    }
+
+    /**
+     * Runs an already prepared official WCHISP command through the historical
+     * direct-process/one-shot RunAs path.  The adapter owns preparation of the
+     * flash CONFIG; this method intentionally does not create a workspace or
+     * a long-lived worker.
+     */
+    WchIspRunner.WchIspProcessResult runOfficialCommand(
+        WchIspRunner.WchIspCommand command,
+        WchIspRunner.CancellationToken cancellation
+    ) throws Exception {
+        if (command == null) throw new IllegalArgumentException("command is required");
+        WchIspRunner.CancellationToken token = cancellation == null
+            ? WchIspRunner.CancellationToken.NONE : cancellation;
+        if (token.cancelled()) {
+            return new WchIspRunner.WchIspProcessResult(
+                command.operationId(), false, -1, -1, false, true,
+                "", "", "", Duration.ZERO, false, java.util.Map.of(),
+                "CANCELLED", java.util.List.of()
+            );
+        }
+        long startedAt = System.nanoTime();
+        CommandResult result = run(
+            command.executable(), command.arguments(), command.timeout(), null
+        );
+        Duration duration = Duration.ofNanos(System.nanoTime() - startedAt);
+        String reason = result.exitCode() == 0 ? "COMPLETED" : "PROCESS_EXIT";
+        return new WchIspRunner.WchIspProcessResult(
+            command.operationId(), true, result.pid(), result.exitCode(), false, false,
+            result.output(), "", result.output(),
+            result.duration().isZero() ? duration : result.duration(),
+            result.elevationUsed(), java.util.Map.of(),
+            result.terminationReason().isBlank() ? reason : result.terminationReason(),
+            result.ownedProcessIds(), result.actualProcessStartTime()
+        );
     }
 
     static String persistDiagnosticsForTest(
@@ -1110,7 +1167,20 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         }
     }
 
-    private record CommandResult(int exitCode, String output) {}
+    private record CommandResult(
+        int exitCode,
+        String output,
+        long pid,
+        boolean elevationUsed,
+        Duration duration,
+        String terminationReason,
+        List<Long> ownedProcessIds,
+        java.time.Instant actualProcessStartTime
+    ) {
+        private CommandResult(int exitCode, String output) {
+            this(exitCode, output, -1, false, Duration.ZERO, "", List.of(), null);
+        }
+    }
     @FunctionalInterface
     interface IspDeviceProbe {
         boolean isEnumerated();

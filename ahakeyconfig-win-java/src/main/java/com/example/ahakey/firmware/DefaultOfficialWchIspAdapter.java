@@ -19,10 +19,15 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
 
     private final RuntimeLocator runtimeLocator;
     private final IspDeviceProbe ispProbe;
-    private final WchIspRunner runner;
+    /**
+     * Kept as a narrow test seam for callers that provide a fake process
+     * backend.  The production constructor deliberately leaves it null and
+     * uses {@link WindowsWchIspFlasher}'s proven direct/RunAs launcher.
+     */
+    private final WchIspRunner testRunner;
 
     public DefaultOfficialWchIspAdapter() {
-        this(new InstalledRuntimeLocator(), IspDeviceProbe.windowsDefault(), new WchIspRunner());
+        this(new InstalledRuntimeLocator(), IspDeviceProbe.windowsDefault(), null);
     }
 
     DefaultOfficialWchIspAdapter(RuntimeLocator runtimeLocator,
@@ -30,7 +35,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
                                   WchIspRunner runner) {
         this.runtimeLocator = runtimeLocator == null ? new InstalledRuntimeLocator() : runtimeLocator;
         this.ispProbe = ispProbe == null ? IspDeviceProbe.windowsDefault() : ispProbe;
-        this.runner = runner == null ? new WchIspRunner() : runner;
+        this.testRunner = runner;
     }
 
     @Override
@@ -75,9 +80,8 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             runtime.executable(), runtime.root(),
             List.of("-c", config.toString(), "-o", "download", "-f", normalizedHex.toString()),
             FLASH_TIMEOUT, operationId);
-        PreparedLaunchContext launchContext = runner.prepareElevatedLaunch(command);
         return new PreparedFlashSession(operationId, runtime, config, normalizedHex, command,
-            Instant.now(), launchContext, "firmware-operation:" + operationId);
+            Instant.now(), null, "firmware-operation:" + operationId);
     }
 
     @Override
@@ -107,10 +111,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
         WchIspRunner.WchIspCommand command = session.command();
         WchIspRunner.WchIspProcessResult process;
         try {
-            PreparedLaunchContext launchContext = session.launchContext();
-            process = launchContext == null
-                ? runner.run(command, cancellation == null ? WchIspRunner.CancellationToken.NONE : cancellation)
-                : launchContext.launch(cancellation);
+            process = launch(command, cancellation);
         } catch (Exception failure) {
             session.failLaunch();
             throw failure;
@@ -124,5 +125,21 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
             + "POST_VERIFY_REQUIRED=YES";
         return new FlashResult(success, detail, process, session.runtime());
+    }
+
+    private WchIspRunner.WchIspProcessResult launch(
+        WchIspRunner.WchIspCommand command,
+        WchIspRunner.CancellationToken cancellation
+    ) throws Exception {
+        WchIspRunner.CancellationToken token = cancellation == null
+            ? WchIspRunner.CancellationToken.NONE : cancellation;
+        if (testRunner != null) {
+            return testRunner.run(command, token);
+        }
+        // Do not prepare a resident worker, READY marker, or GO signal here.
+        // The historical launcher starts WCHISP directly and only falls back
+        // to one-shot RunAs when Windows returns CreateProcess error 740.
+        return new WindowsWchIspFlasher(command.executable())
+            .runOfficialCommand(command, token);
     }
 }
