@@ -430,7 +430,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         lockRetryItem?.cancel()
         lockRetryItem = nil
         AhaKeyBLELifecycleSeam.run { [weak self] in
-            self?.bleLifecycle.shutdown(now: Date())
+            guard let self else { return }
+            self.revokeAdmissionThenMutateTransport {
+                self.bleLifecycle.shutdown(now: Date())
+            }
         }
         connectionLock.release()
         Task { await self.abandonScheduler.cancelAllAndWait() }
@@ -1109,119 +1112,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func handleRuntimeXPCRequest(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse {
         switch request {
         case .apply(let package, let admission):
-            if let rejection = await oledDurableWriteRejectionCode() {
-                return .failure(rejection)
-            }
-            let pictureAttempt: Bool
-            do {
-                pictureAttempt = try AhaKeyRuntimeResourceAdmission.packageAttemptsPictureWrite(package)
-            } catch {
-                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
-            }
-            var pictureReservation: AhaKeyRuntimeAdmissionReservation?
-            if pictureAttempt {
-                guard let admission else {
-                    return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
-                }
-                if let rejection = await resourceAdmissionRejection(admission) {
-                    return .failure(rejection)
-                }
-                guard let reserved = resourceAdmissionFence.reserve(admission) else {
-                    return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
-                }
-                pictureReservation = reserved
-                if let hook = executionTestHooks?.afterResourceAdmissionReserved {
-                    await hook()
-                }
-            }
-            // 生产路径：资源必须已入 CAS（由 Studio 预上传或先前恢复）；不接受 staging/ 裸读。
-            let store = try await makeRuntimeStore()
-            do {
-                _ = try await resolveCachedWriterLease()
-            } catch {
-                return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
-            }
-            do {
-                if let reservation = pictureReservation {
-                    _ = try await store.accept(
-                        package,
-                        resourceFiles: [:],
-                        reservedBy: reservation,
-                        using: resourceAdmissionFence
-                    )
-                } else {
-                    _ = try await store.accept(package, resourceFiles: [:])
-                }
-            } catch AhaKeyRuntimeAdmissionWriteError.staleReservation {
-                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
-            } catch let error as AhaKeyRuntimePersistenceError {
-                switch error {
-                case .missingResourceFile(let identifier):
-                    return .failure(try! AhaKeyRuntimeEventCode("missing-resource:\(identifier.rawValue)"))
-                case .resourceDigestMismatch, .resourceByteCountMismatch, .resourceMetadataMismatch:
-                    return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
-                case .resourceTooLarge, .resourceQuotaExceeded:
-                    return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
-                default:
-                    return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
-                }
-            }
-            // durable 裁决必须 fail-closed：读失败不得合成 accepted / 重建 projector。
-            let record: AhaKeyRuntimePersistedTransaction
-            do {
-                guard let existing = try await store.transaction(package.operationID) else {
-                    return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
-                }
-                record = existing
-            } catch {
-                return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
-            }
-            if record.state.isTerminal {
-                await publishOperationProgress(from: record)
-                return .operationAccepted(package.operationID)
-            }
-            // durable acceptance 成功：投影立即发布 accepted，执行交给串行协调器排空 WAL。
-            await beginByteProgressIfNeeded(for: package)
-            await noteOperationAccepted(package)
-            await configurationCoordinator.kick()
-            return .operationAccepted(package.operationID)
+            return try await handleRuntimeApply(package, admission: admission)
 
         case .ingestResources(let request):
-            if let rejection = await oledDurableWriteRejectionCode() {
-                return .failure(rejection)
-            }
-            if let hook = executionTestHooks?.beforeIngestCAS {
-                await hook()
-            }
-            if let rejection = await resourceAdmissionRejection(request.admission) {
-                return .failure(rejection)
-            }
-            guard let reservation = resourceAdmissionFence.reserve(request.admission) else {
-                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
-            }
-            if let hook = executionTestHooks?.afterResourceAdmissionReserved {
-                await hook()
-            }
-            let store = try await makeRuntimeStore()
-            do {
-                try await store.ingestResources(
-                    request.items,
-                    reservedBy: reservation,
-                    using: resourceAdmissionFence
-                )
-            } catch AhaKeyRuntimeAdmissionWriteError.staleReservation {
-                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
-            } catch let error as AhaKeyRuntimePersistenceError {
-                switch error {
-                case .resourceTooLarge, .resourceQuotaExceeded:
-                    return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
-                case .resourceDigestMismatch, .resourceByteCountMismatch:
-                    return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
-                default:
-                    return .failure(try! AhaKeyRuntimeEventCode("ingest-failed"))
-                }
-            }
-            return .resourcesIngested
+            return try await handleRuntimeIngest(request)
 
         case .requestCancellation(let operationID):
             return .cancellation(await cancelConfiguration(operationID: operationID))
@@ -1241,6 +1135,136 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         default:
             return .failure(try! AhaKeyRuntimeEventCode("unsupported-request"))
         }
+    }
+
+    private func handleRuntimeApply(
+        _ package: AhaKeyConfigurationPackage,
+        admission: AhaKeyRuntimeResourceAdmissionToken?
+    ) async throws -> AhaKeyRuntimeXPCResponse {
+        if let rejection = await oledDurableWriteRejectionCode() {
+            return .failure(rejection)
+        }
+        let pictureAttempt: Bool
+        do {
+            pictureAttempt = try AhaKeyRuntimeResourceAdmission.packageAttemptsPictureWrite(package)
+        } catch {
+            return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+        }
+        var pictureReservation: AhaKeyRuntimeAdmissionReservation?
+        defer {
+            if let pictureReservation {
+                resourceAdmissionFence.discard(pictureReservation)
+            }
+        }
+        if pictureAttempt {
+            guard let admission else {
+                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+            }
+            if let rejection = await resourceAdmissionRejection(admission) {
+                return .failure(rejection)
+            }
+            guard let reserved = resourceAdmissionFence.reserve(admission) else {
+                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+            }
+            pictureReservation = reserved
+            if let hook = executionTestHooks?.afterResourceAdmissionReserved {
+                await hook()
+            }
+            try Task.checkCancellation()
+        }
+        // 生产路径：资源必须已入 CAS（由 Studio 预上传或先前恢复）；不接受 staging/ 裸读。
+        let store = try await makeRuntimeStore()
+        do {
+            _ = try await resolveCachedWriterLease()
+        } catch {
+            return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
+        }
+        do {
+            if let reservation = pictureReservation {
+                _ = try await store.accept(
+                    package,
+                    resourceFiles: [:],
+                    reservedBy: reservation,
+                    using: resourceAdmissionFence
+                )
+            } else {
+                _ = try await store.accept(package, resourceFiles: [:])
+            }
+        } catch AhaKeyRuntimeAdmissionWriteError.staleReservation {
+            return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+        } catch let error as AhaKeyRuntimePersistenceError {
+            switch error {
+            case .missingResourceFile(let identifier):
+                return .failure(try! AhaKeyRuntimeEventCode("missing-resource:\(identifier.rawValue)"))
+            case .resourceDigestMismatch, .resourceByteCountMismatch, .resourceMetadataMismatch:
+                return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
+            case .resourceTooLarge, .resourceQuotaExceeded:
+                return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
+            default:
+                return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
+            }
+        }
+        // durable 裁决必须 fail-closed：读失败不得合成 accepted / 重建 projector。
+        let record: AhaKeyRuntimePersistedTransaction
+        do {
+            guard let existing = try await store.transaction(package.operationID) else {
+                return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
+            }
+            record = existing
+        } catch {
+            return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
+        }
+        if record.state.isTerminal {
+            await publishOperationProgress(from: record)
+            return .operationAccepted(package.operationID)
+        }
+        // durable acceptance 成功：投影立即发布 accepted，执行交给串行协调器排空 WAL。
+        await beginByteProgressIfNeeded(for: package)
+        await noteOperationAccepted(package)
+        await configurationCoordinator.kick()
+        return .operationAccepted(package.operationID)
+    }
+
+    private func handleRuntimeIngest(
+        _ request: AhaKeyXPCResourceIngestionRequest
+    ) async throws -> AhaKeyRuntimeXPCResponse {
+        if let rejection = await oledDurableWriteRejectionCode() {
+            return .failure(rejection)
+        }
+        if let hook = executionTestHooks?.beforeIngestCAS {
+            await hook()
+        }
+        if let rejection = await resourceAdmissionRejection(request.admission) {
+            return .failure(rejection)
+        }
+        guard let reservation = resourceAdmissionFence.reserve(request.admission) else {
+            return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+        }
+        defer { resourceAdmissionFence.discard(reservation) }
+        if let hook = executionTestHooks?.afterResourceAdmissionReserved {
+            await hook()
+        }
+        try Task.checkCancellation()
+        let store = try await makeRuntimeStore()
+        do {
+            try await store.ingestResources(
+                request.items,
+                reservedBy: reservation,
+                using: resourceAdmissionFence
+            )
+        } catch AhaKeyRuntimeAdmissionWriteError.staleReservation {
+            return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+        } catch let error as AhaKeyRuntimePersistenceError {
+            switch error {
+            case .resourceTooLarge, .resourceQuotaExceeded:
+                return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
+            case .resourceDigestMismatch, .resourceByteCountMismatch:
+                return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
+            default:
+                return .failure(try! AhaKeyRuntimeEventCode("ingest-failed"))
+            }
+        }
+        return .resourcesIngested
     }
 
     func startHookServer() throws {
@@ -1738,7 +1762,7 @@ extension AhaKeyAgent {
                 await self?.prepareWriterLeaseThenConnectIfBluetoothPoweredOn()
             }
         } else {
-            performTransportActions(transportCore.handle(.bluetoothUnavailable, now: Date()))
+            handleBluetoothUnavailable()
         }
     }
 
@@ -2494,6 +2518,9 @@ extension AhaKeyAgent {
     /// 缓存收敛进 AhaKeyAgentRuntimeStoreCache（actor）：同一目录复用单实例，
     /// 多 XPC session 并发访问由 actor 隔离（R2-2）。
     private func makeRuntimeStore() async throws -> AhaKeyRuntimePersistentStore {
+        if let error = executionTestHooks?.runtimeStoreConstructionError {
+            throw error
+        }
         let directory = executionTestHooks?.storeDirectory ?? AhaKeyPaths.runtimeStoreDirectory
         return try await runtimeStoreCache.store(for: directory)
     }
@@ -3347,6 +3374,9 @@ extension AhaKeyAgent {
     }
 
     private func resolveCachedWriterLease() async throws -> AhaKeyRuntimeAuthoritativeWriterLease {
+        if let error = executionTestHooks?.writerLeaseResolveError {
+            throw error
+        }
         let lease = try await writerLeaseGate.resolve {
             if let before = self.executionTestHooks?.beforeWriterLeaseAllocation {
                 await before()
@@ -3850,6 +3880,22 @@ extension AhaKeyAgent {
     private func withAdmissionIdentityMutation(_ body: () -> Void) {
         resourceAdmissionFence.beginIdentityMutation()
         body()
+    }
+
+    /// Bluetooth 关闭 / 进程 shutdown：先撤销 admission，再改 transport phase。
+    /// 不得在此处 publish live token；保持 nil 直至新连接完成已证明的 publish。
+    /// 不得依赖稍后的 didDisconnect 清场。
+    private func revokeAdmissionThenMutateTransport(_ body: () -> Void) {
+        withAdmissionIdentityMutation(body)
+    }
+
+    /// 与 `centralManagerDidUpdateState` 非 poweredOn 分支同一生产路径。
+    private func handleBluetoothUnavailable() {
+        AhaKeyBLELifecycleSeam.run {
+            self.revokeAdmissionThenMutateTransport {
+                self.performTransportActions(self.transportCore.handle(.bluetoothUnavailable, now: Date()))
+            }
+        }
     }
 
     /// 设备投影有变化才发布 deviceChanged。可在任意队列调用（内部落到 main）。
@@ -4605,6 +4651,16 @@ extension AhaKeyAgent {
         publishDeviceChangedIfNeeded()
     }
 
+    /// 测试 seam：与 `centralManagerDidUpdateState` 非 poweredOn 同一生产路径。
+    /// 不走 didDisconnect，也不发布 live token。
+    func simulateBluetoothUnavailableForTesting() {
+        handleBluetoothUnavailable()
+    }
+
+    func admissionOutstandingCountForTesting() -> Int {
+        resourceAdmissionFence.outstandingCountForTesting()
+    }
+
     /// 测试 seam：模拟过期 timeout 回调；代际不匹配时必须零状态变化。
     func fireOLEDNegotiationTimeoutForTesting(generation: UInt64) {
         guard isCurrentOLEDGeneration(generation) else { return }
@@ -4819,6 +4875,10 @@ struct AhaKeyAgentExecutionTestHooks {
     var failAuthoritativeObjectCommit: Bool = false
     /// C3CR5：强制 writer lease 分配失败（生产恒 nil）。
     var writerLeaseAllocationError: AhaKeyRuntimePersistenceError?
+    /// C5PR6：即使 lease 已缓存也在 resolve 入口失败（生产恒 nil）。
+    var writerLeaseResolveError: AhaKeyRuntimePersistenceError?
+    /// C5PR6：Store 构造入口失败，覆盖 reservation 已签发后的 pre-write 路径（生产恒 nil）。
+    var runtimeStoreConstructionError: AhaKeyRuntimePersistenceError?
     /// C3CR5：分配前异步屏障，用于 await 期间翻转 poweredOn。
     var beforeWriterLeaseAllocation: (@Sendable () async -> Void)?
     /// C3CR5：覆盖连接前 Bluetooth poweredOn 重核；nil 时读 `central.state`。

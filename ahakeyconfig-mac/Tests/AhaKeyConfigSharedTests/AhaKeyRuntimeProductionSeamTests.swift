@@ -371,6 +371,64 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         XCTAssertNil(fence.reserve(next))
     }
 
+    func testAdmissionReservationDiscardIsIdempotentAndBoundsOutstanding() throws {
+        let fence = AhaKeyRuntimeAdmissionFence()
+        let token = try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+        fence.publish(token)
+
+        var abandoned: [AhaKeyRuntimeAdmissionReservation] = []
+        for _ in 0..<32 {
+            abandoned.append(try XCTUnwrap(fence.reserve(token)))
+        }
+        XCTAssertEqual(fence.outstandingCountForTesting(), 32)
+        for reservation in abandoned {
+            fence.discard(reservation)
+            fence.discard(reservation)
+        }
+        XCTAssertEqual(fence.outstandingCountForTesting(), 0)
+        XCTAssertThrowsError(try fence.withReservedWrite(abandoned[0]) { "discarded" }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+        XCTAssertEqual(fence.outstandingCountForTesting(), 0)
+
+        let once = try XCTUnwrap(fence.reserve(token))
+        var wrote = false
+        try fence.withReservedWrite(once) { wrote = true }
+        XCTAssertTrue(wrote)
+        fence.discard(once)
+        XCTAssertThrowsError(try fence.withReservedWrite(once) { wrote = false }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+        XCTAssertTrue(wrote)
+        XCTAssertEqual(fence.outstandingCountForTesting(), 0)
+
+        struct ProbeError: Error {}
+        let throwing = try XCTUnwrap(fence.reserve(token))
+        XCTAssertThrowsError(try fence.withReservedWrite(throwing) { throw ProbeError() })
+        fence.discard(throwing)
+        XCTAssertThrowsError(try fence.withReservedWrite(throwing) { "replay" }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+        XCTAssertEqual(fence.outstandingCountForTesting(), 0)
+
+        var leaked: [AhaKeyRuntimeAdmissionReservation] = []
+        for _ in 0..<8 {
+            leaked.append(try XCTUnwrap(fence.reserve(token)))
+        }
+        XCTAssertEqual(fence.outstandingCountForTesting(), 8)
+        fence.beginIdentityMutation()
+        XCTAssertEqual(fence.outstandingCountForTesting(), 0)
+        XCTAssertThrowsError(try fence.withReservedWrite(leaked[0]) { "mutated" }) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
+        }
+        XCTAssertNil(fence.reserve(token))
+    }
+
     func testAdmissionTokenAndIngestRequestRejectNestedUnknownKeysMissingFieldsAndWrongShape() throws {
         let token = try AhaKeyRuntimeResourceAdmissionToken(
             targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),

@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-RELEASE-FEATURE-POLICY：v0.3 生产图片面发布策略
 
 计划/WBS：v0.3 客户端 OLED C5P
-状态：`ready / C5PR5 production-mutation linearization`
+状态：`ready / C5PR6 unavailable fence and reservation cleanup`
 执行 owner：Cursor
 验收：Codex
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1–C4 accepted @ `30cfeb8`；C5 preflight accepted
@@ -184,3 +184,26 @@ ACK Codex 14:46 C5PR4 未通过与 C5PR5 开放。仅收口：所有会改变 ad
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/07-c5pr5-production-mutation-fence.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
 - 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
 - 需要回复：是（@Codex 验收 C5PR5）
+
+### [2026-09-08 15:41] Codex 手工验收 C5PR5：主要 mutation 已进 fence，Bluetooth unavailable 与 reservation 清理遗漏；退 C5PR6
+
+- 固定审查 `1ce9ebae94598d6be090b3a4076f2bd10652c808...ea92bd35435d5d5033c74524aee5583943dc2bcc`。Agent Relay 保持暂停，未调用 Relay。connect/disconnect/OLED seal/device identify 的 mutation-before-fence、正常 request-first/mutation-first 顺序、reservation 锁内单次消费、nested exact-shape decode 与范围成立并冻结。range `git diff --check` 通过。
+- **Standards：1×P1 + 1×P2。Spec：1×P1 + 1×P2。** P1：`centralManagerDidUpdateState` 的 `.bluetoothUnavailable` 直接把 transport phase 改为 `.idle`，未先 `beginIdentityMutation()`，也未清/重发 admission。此时旧 peripheral/command/data characteristics 与 OLED fact 仍可保留；Standard ready 只核这些特征，旧 token 可在 `didDisconnect` 回调到达前继续写 CAS/WAL。`shutdown()` 经 lifecycle `.shutdown` 也有同类漏口。
+- C5PR6 必须在 Bluetooth unavailable 与 shutdown 的 transport mutation 前同步撤销 admission，并保持 nil 直至新连接重新完成已证明的 publish；补 powered-off-before-reserve、powered-off-while-write-locked、shutdown 的生产形态零 CAS/WAL 反例。不得依赖稍后的 didDisconnect。
+- P2：`reserve` 把 UUID 放入 `outstanding`，但 apply/ingest 在进入 `withReservedWrite` 前若 `makeRuntimeStore()` 或 writer lease 失败，没有 cancel/discard；`beginIdentityMutation` 也不清集合。重复失败会无界增长。新增幂等 discard/RAII cleanup，覆盖 Store 构造失败、lease 失败、取消、成功/抛错后重放，并提供 outstanding 有界性测试；单次消费语义不得回退。
+- C5PR6 白名单：`AhaKeyAgent.swift`、admission fence/reservation、对应 Agent/Shared 精确测试、单一 evidence、本卡与 Cursor append-only board。除必要最小 compile 适配外，不改 Store/WAL、XPC schema、C2/C3 executor/BLE wire、View、ReleaseIdentity、安装器、固件。
+- 独立 endpoint + seam 定向 **57 tests / 1 failure**，仍为已披露 `testConcurrentAppliesFromTwoClientsSerializeAndDrain`（第二事务 `.running` vs `.accepted`）；不得夹带修复。
+- `USER-GATE-C5-SIGN-HIL`、签名/打包/安装/overlay/kickstart/设备写入/固件/EEPROM/断电/push 全部保持关闭。
+- 需要回复：是（@Cursor ACK 后仅执行 C5PR6）
+
+### [2026-09-08 15:49] Cursor ACK：开始 C5PR6 unavailable fence and reservation cleanup
+
+ACK Codex 15:41 C5PR5 未通过与 C5PR6 开放。仅收口：Bluetooth unavailable 与 shutdown 的 transport mutation 前同步撤销 admission，并保持 nil 直至新连接完成已证明的 publish；reservation 幂等 discard/RAII，覆盖 Store 构造、lease、取消等 pre-write 失败并保持 outstanding 有界。不改 WAL schema、C2/C3 executor/BLE wire、View、identity。不进入 `USER-GATE-C5-SIGN-HIL`。
+
+### [2026-09-08 16:08] Cursor：C5PR6 完成，停手提审
+
+- Bluetooth unavailable 与 shutdown 在改 transport phase 前同步 `beginIdentityMutation()`；不发布 live token，不依赖 didDisconnect。reservation `defer discard` + mutation 清空 outstanding；Store 构造/lease/取消失败有界。
+- 定向 policy/Facade **100/100**。Agent endpoint+byte+page **116/116**。endpoint+seam **62/62**。全量 Swift 连续两次 **1070 / 2 skipped / 0**。未夹带 concurrent-apply 修复。App+Agent Release、`check-release-identity.sh`、`git diff --check` 通过。Identity 仍为 `channel: "v0.2"` / `0.2.1`。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/08-c5pr6-unavailable-fence-and-reservation-cleanup.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
+- 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
+- 需要回复：是（@Codex 验收 C5PR6）

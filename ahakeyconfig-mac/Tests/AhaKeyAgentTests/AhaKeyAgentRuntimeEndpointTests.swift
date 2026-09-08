@@ -1581,6 +1581,220 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    func testBluetoothUnavailableBeforeReserveWritesZeroCASAndWAL() {
+        runEndpointTest { [self] in
+            for pictureApply in [false, true] {
+                let agent = makeAgent()
+                var hooks = agent.executionTestHooks
+                hooks?.skipConfigurationBLEWriteGates = true
+                hooks?.configurationCharacteristics = .allPresent
+                hooks?.oledContext = .standard
+                agent.executionTestHooks = hooks
+                await agent.simulateDeviceForTesting(simulatedDevice())
+
+                let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+                let before = await waitForStoreBaseline(storeDir)
+                let writeReady = await MainActor.run { agent.configurationWriteIsReadyForTesting() }
+                XCTAssertTrue(writeReady, "powered-off 前 Standard 必须仍 ready，\(pictureApply)")
+                let assembled = try makeStandardPictureAssembly()
+                await MainActor.run { agent.simulateBluetoothUnavailableForTesting() }
+                XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+                let writeReadyAfter = await MainActor.run { agent.configurationWriteIsReadyForTesting() }
+                XCTAssertTrue(
+                    writeReadyAfter,
+                    "不得依赖 didDisconnect 清特征；Standard 仍可 ready，\(pictureApply)"
+                )
+
+                let response: AhaKeyRuntimeXPCResponse
+                let operationID: AhaKeyRuntimeOperationID?
+                if pictureApply {
+                    let package = try makePackage(from: assembled)
+                    operationID = package.operationID
+                    response = try await agent.handleApplyForTesting(package)
+                } else {
+                    operationID = nil
+                    response = try await agent.handleIngestForTesting(try ingestItems(assembled))
+                }
+                guard case .failure(let code) = response else {
+                    return XCTFail("powered-off 后旧 token 必须失败，实际 \(response)")
+                }
+                XCTAssertEqual(code.rawValue, "unsupported-protocol", "\(pictureApply)")
+                XCTAssertEqual(casFingerprint(storeDir).names, before.names, "\(pictureApply)")
+                if let operationID {
+                    let store = try AhaKeyRuntimePersistentStore(
+                        rootDirectory: storeDir,
+                        acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+                    )
+                    let wal = try await store.transaction(operationID)
+                    XCTAssertNil(wal, "\(pictureApply)")
+                }
+                XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+            }
+        }
+    }
+
+    func testBluetoothUnavailableWhileWriteLockedAllowsInFlightWriteThenRevokesAdmission() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let locked = WriteLockedGate()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+            agent.setAdmissionWriteLockedProbeForTesting { locked.arrive() }
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = await waitForStoreBaseline(storeDir)
+            let items = try ingestItems(try makeStandardPictureAssembly())
+            let ingestTask = Task { try await agent.handleIngestForTesting(items) }
+            XCTAssertTrue(locked.waitUntilEntered())
+            let mutated = MutationFlag()
+            let mutateTask = Task {
+                agent.simulateBluetoothUnavailableForTesting()
+                mutated.set()
+            }
+            try await Task.sleep(nanoseconds: 80_000_000)
+            XCTAssertFalse(mutated.get(), "写入持锁期间 powered-off 必须等待")
+            locked.release()
+            let ingest = try await ingestTask.value
+            guard case .resourcesIngested = ingest else {
+                return XCTFail("reservation 先取得时必须写入，实际 \(ingest)")
+            }
+            await mutateTask.value
+            XCTAssertTrue(mutated.get())
+            XCTAssertNotEqual(casFingerprint(storeDir).names, before.names)
+            XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+
+            let after = casFingerprint(storeDir)
+            let second = try await agent.handleIngestForTesting(items)
+            guard case .failure(let code) = second else {
+                return XCTFail("powered-off 后不得再写，实际 \(second)")
+            }
+            XCTAssertEqual(code.rawValue, "unsupported-protocol")
+            XCTAssertEqual(casFingerprint(storeDir).names, after.names)
+            agent.setAdmissionWriteLockedProbeForTesting(nil)
+        }
+    }
+
+    func testShutdownBeforeReserveWritesZeroCASAndWAL() {
+        runEndpointTest { [self] in
+            for pictureApply in [false, true] {
+                let agent = makeAgent()
+                var hooks = agent.executionTestHooks
+                hooks?.skipConfigurationBLEWriteGates = true
+                hooks?.configurationCharacteristics = .allPresent
+                hooks?.oledContext = .standard
+                agent.executionTestHooks = hooks
+                await agent.simulateDeviceForTesting(simulatedDevice())
+
+                let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+                let before = await waitForStoreBaseline(storeDir)
+                let assembled = try makeStandardPictureAssembly()
+                agent.shutdown()
+                XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+
+                let response: AhaKeyRuntimeXPCResponse
+                let operationID: AhaKeyRuntimeOperationID?
+                if pictureApply {
+                    let package = try makePackage(from: assembled)
+                    operationID = package.operationID
+                    response = try await agent.handleApplyForTesting(package)
+                } else {
+                    operationID = nil
+                    response = try await agent.handleIngestForTesting(try ingestItems(assembled))
+                }
+                guard case .failure(let code) = response else {
+                    return XCTFail("shutdown 后旧 token 必须失败，实际 \(response)")
+                }
+                XCTAssertEqual(code.rawValue, "unsupported-protocol", "\(pictureApply)")
+                XCTAssertEqual(casFingerprint(storeDir).names, before.names, "\(pictureApply)")
+                if let operationID {
+                    let store = try AhaKeyRuntimePersistentStore(
+                        rootDirectory: storeDir,
+                        acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+                    )
+                    let wal = try await store.transaction(operationID)
+                    XCTAssertNil(wal, "\(pictureApply)")
+                }
+                XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+            }
+        }
+    }
+
+    func testPreWriteFailuresDiscardReservationAndStayBounded() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = await waitForStoreBaseline(storeDir)
+            let items = try ingestItems(try makeStandardPictureAssembly())
+            let package = try makePackage(from: try makeStandardPictureAssembly())
+
+            for _ in 0..<8 {
+                var failing = agent.executionTestHooks
+                failing?.runtimeStoreConstructionError = .databaseFailure("c5pr6-store")
+                agent.executionTestHooks = failing
+                do {
+                    _ = try await agent.handleIngestForTesting(items)
+                    return XCTFail("Store 构造失败必须抛出")
+                } catch AhaKeyRuntimePersistenceError.databaseFailure("c5pr6-store") {
+                    XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+                }
+            }
+
+            var leaseFail = agent.executionTestHooks
+            leaseFail?.runtimeStoreConstructionError = nil
+            leaseFail?.writerLeaseResolveError = .databaseFailure("c5pr6-lease")
+            agent.executionTestHooks = leaseFail
+            for _ in 0..<8 {
+                let apply = try await agent.handleApplyForTesting(package)
+                guard case .failure(let code) = apply else {
+                    return XCTFail("lease 失败必须拒绝，实际 \(apply)")
+                }
+                XCTAssertEqual(code.rawValue, "accept-failed")
+                XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+            }
+
+            var live = agent.executionTestHooks
+            live?.writerLeaseResolveError = nil
+            live?.afterResourceAdmissionReserved = nil
+            agent.executionTestHooks = live
+            for _ in 0..<8 {
+                let gate = IngestCASGate()
+                var cancelling = agent.executionTestHooks
+                cancelling?.afterResourceAdmissionReserved = { await gate.arrive() }
+                agent.executionTestHooks = cancelling
+                let ingestTask = Task { try await agent.handleIngestForTesting(items) }
+                XCTAssertTrue(gate.waitUntilEntered())
+                ingestTask.cancel()
+                gate.release()
+                do {
+                    _ = try await ingestTask.value
+                    return XCTFail("取消必须在写入前结束")
+                } catch is CancellationError {
+                    XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+                }
+            }
+
+            XCTAssertEqual(casFingerprint(storeDir).names, before.names)
+            XCTAssertEqual(casFingerprint(storeDir).sqlite, before.sqlite)
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+            )
+            let wal = try await store.transaction(package.operationID)
+            XCTAssertNil(wal)
+            XCTAssertEqual(agent.admissionOutstandingCountForTesting(), 0)
+        }
+    }
+
     func testStaleOLEDTimeoutAndNotifyDoNotResealPreviousProfile() {
         runEndpointTest { [self] in
             let agent = makeAgent()

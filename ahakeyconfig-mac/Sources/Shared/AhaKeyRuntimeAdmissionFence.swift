@@ -4,6 +4,7 @@ import Foundation
 ///
 /// 真实 BLE/OLED identity mutation 必须先 `beginIdentityMutation()` 再改 generation/fact/target。
 /// `reserve` 签发带 opaque identity 的一次性凭证；`withReservedWrite` 在同一把锁内单次消费后再执行 Store 写。
+/// 未进入写入的 reservation 必须 `discard`（幂等）；`beginIdentityMutation` 同时清空 outstanding。
 public enum AhaKeyRuntimeAdmissionWriteError: Error, Equatable, Sendable {
     case staleReservation
 }
@@ -40,6 +41,7 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
         defer { lock.unlock() }
         live = nil
         epoch &+= 1
+        outstanding.removeAll()
     }
 
     public func reserve(
@@ -51,6 +53,13 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
         let identity = UUID()
         outstanding.insert(identity)
         return AhaKeyRuntimeAdmissionReservation(token: token, identity: identity, epoch: epoch)
+    }
+
+    /// 放弃尚未写入的 reservation。已消费或已 discard 时为幂等 no-op。
+    public func discard(_ reservation: AhaKeyRuntimeAdmissionReservation) {
+        lock.lock()
+        outstanding.remove(reservation.identity)
+        lock.unlock()
     }
 
     public func withReservedWrite<T>(
@@ -73,5 +82,11 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
         lock.lock()
         writeLockedProbe = probe
         lock.unlock()
+    }
+
+    public func outstandingCountForTesting() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return outstanding.count
     }
 }
