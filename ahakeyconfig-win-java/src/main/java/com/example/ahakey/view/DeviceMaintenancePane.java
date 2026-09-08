@@ -421,6 +421,7 @@ public final class DeviceMaintenancePane {
                 report.append("CHIP_MATCHED=").append(result.chipMatched() ? "YES" : "NO").append('\n');
                 report.append("CHIP_MATCH_STATUS=").append(result.chipMatchStatus()).append('\n');
                 report.append("CHIP_GATE_ALLOWED=").append(result.chipGateAllowed() ? "YES" : "NO").append('\n');
+                report.append("OFFICIAL_ADAPTER_READY=").append(result.officialAdapterReady() ? "YES" : "NO").append('\n');
                 report.append("UID_CONFIRMED=").append(result.uidConfirmed() ? "YES" : "NO").append('\n');
                 report.append(result.detail()).append('\n');
                 diagnosticReport[0] = report.toString();

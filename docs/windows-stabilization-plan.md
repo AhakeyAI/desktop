@@ -364,3 +364,28 @@ release 不接受该开关。未知状态在日志中保持 UNKNOWN，不伪装�
 状态：代码完成；自动测试和 package 结果必须以本轮实际命令输出为准；真实 USB ISP、
 WCHISP、设备重连、post verify、签名安装包仍待硬件/发布环境验证。不得将开发期 UNKNOWN
 override 视为生产芯片匹配，也不得将此次代码变更表述为真实烧录已完成。
+
+## 14. Official WCHISP adapter migration (2026-09-08)
+
+`windows-flash-rewrite` 的生产固件调用链已收口为
+`FirmwareUpdateService -> OfficialWchIspAdapter -> WCHISPTool_CH57x-59x.exe`。
+`DefaultOfficialWchIspAdapter` 仅负责解析已验证的官方 runtime、执行一次用户触发的
+ISP presence detection，以及以 `-o download -f <hex>` 调用官方下载工具；Studio 继续
+负责状态机、HEX preflight、诊断、日志和 `FirmwarePostVerifier` 回读。检测阶段不再启动
+`-u get`，UID 是可选的 vendor-control evidence，绝不阻止进入 `READY/FLASHING`。
+
+生产路径不再创建 `WchIspWorkspace`、不 patch `WchIspConfig`、不解析 `-u get` 输出。
+这些旧类保留用于历史兼容和单元测试，现有 package-private 测试构造器才会进入旧路径；
+`StudioController` 的公开构造器只建立官方 adapter。官方 runtime 的 release contract 仍由
+`WchIspRuntimeProvider`/`WchIspRuntimeContract` 严格校验，显式开发路径规则不影响正式包。
+
+Adapter 的 flash 结果保存 PID、exit code、duration、elevation、termination reason 及
+stdout/stderr/console 到操作诊断目录；下载命令由 adapter 直接构造，post verify 仍是
+设备实际回读成功的最终依据。新增 adapter seam 测试验证检测不调用 `-u get`、下载参数
+不包含 `-c/-u`，以及 FirmwareUpdateService 通过 adapter 完成完整状态链。
+
+本轮实际自动验证为 `mvn clean test` 221/0/0/0、`mvn clean package` 221/0/0/0，
+并通过本地 `Test-ReleaseArtifactContents.ps1`。本节状态为“代码完成 + 自动测试完成，
+软件手工、官方 WCHISP 真机烧录/重连、正式 overlay 和签名发布环境仍待验证”。外层
+`C:\aha\ahakey-windows\windows-stabilization-plan.md` 在当前工作区不存在，故本文件仍为
+desktop 工程唯一可更新的稳定化事实源。

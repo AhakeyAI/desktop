@@ -32,6 +32,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
         "ahakey.dev.allow-isp-flash-with-unknown-chip";
 
     private final RuntimeProvider runtimeProvider;
+    /** Non-null only for the production official-tool orchestration path. */
+    private final OfficialWchIspAdapter officialAdapter;
     private final IspDeviceProbe ispProbe;
     private final ChipMatched chipMatched;
     private final boolean allowUnknownChip;
@@ -48,12 +50,35 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private final AtomicBoolean diagnosticActive = new AtomicBoolean();
 
     public FirmwareUpdateService(BleManager manager) {
-        this(new WchIspRuntimeProvider(), IspDeviceProbe.windowsDefault(), new WchIspRunner(),
+        this(new DefaultOfficialWchIspAdapter(), new WchIspRuntimeProvider(),
             manager == null ? null : new FirmwarePostVerifier(manager),
-            new FirmwareUpdateDiagnostics(), Path.of(System.getProperty("java.io.tmpdir")),
-            ChipMatched.unknown(), developmentUnknownChipAllowed());
+            new FirmwareUpdateDiagnostics(), Path.of(System.getProperty("java.io.tmpdir")));
     }
 
+    /**
+     * Production/test seam for the official WCHISP adapter.  The adapter is
+     * deliberately injected so tests can prove the command boundary without
+     * copying CONFIG files or invoking a UID query.
+     */
+    FirmwareUpdateService(OfficialWchIspAdapter officialAdapter,
+                          RuntimeProvider runtimeProvider,
+                          FirmwarePostVerifier postVerifier,
+                          FirmwareUpdateDiagnostics diagnostics,
+                          Path workspaceParent) {
+        this.officialAdapter = officialAdapter == null ? new DefaultOfficialWchIspAdapter() : officialAdapter;
+        this.runtimeProvider = runtimeProvider == null ? new WchIspRuntimeProvider() : runtimeProvider;
+        this.ispProbe = IspDeviceProbe.windowsDefault();
+        this.chipMatched = ChipMatched.unknown();
+        this.allowUnknownChip = false;
+        this.runner = new WchIspRunner();
+        this.postVerifier = postVerifier;
+        this.diagnostics = diagnostics == null ? new FirmwareUpdateDiagnostics() : diagnostics;
+        this.workspaceParent = workspaceParent == null
+            ? Path.of(System.getProperty("java.io.tmpdir")) : workspaceParent;
+        this.executor = newExecutor();
+    }
+
+    /** Legacy seam retained for existing unit tests; Studio never uses it. */
     public FirmwareUpdateService(RuntimeProvider runtimeProvider,
                                  IspDeviceProbe ispProbe,
                                  WchIspRunner runner,
@@ -64,6 +89,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
             ChipMatched.unknown(), developmentUnknownChipAllowed());
     }
 
+    /** Legacy workspace/parser seam retained for compatibility tests only. */
     FirmwareUpdateService(RuntimeProvider runtimeProvider,
                           IspDeviceProbe ispProbe,
                           WchIspRunner runner,
@@ -72,6 +98,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                           Path workspaceParent,
                           ChipMatched chipMatched,
                           boolean allowUnknownChip) {
+        this.officialAdapter = null;
         this.runtimeProvider = runtimeProvider == null ? new WchIspRuntimeProvider() : runtimeProvider;
         this.ispProbe = ispProbe == null ? IspDeviceProbe.windowsDefault() : ispProbe;
         this.chipMatched = chipMatched == null ? ChipMatched.unknown() : chipMatched;
@@ -81,7 +108,11 @@ public final class FirmwareUpdateService implements AutoCloseable {
         this.diagnostics = diagnostics == null ? new FirmwareUpdateDiagnostics() : diagnostics;
         this.workspaceParent = workspaceParent == null
             ? Path.of(System.getProperty("java.io.tmpdir")) : workspaceParent;
-        this.executor = Executors.newSingleThreadExecutor(task -> {
+        this.executor = newExecutor();
+    }
+
+    private static ExecutorService newExecutor() {
+        return Executors.newSingleThreadExecutor(task -> {
             Thread thread = new Thread(task, "firmware-update");
             thread.setDaemon(true);
             return thread;
@@ -176,6 +207,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 return DiagnosticResult.failure(FirmwareUpdateError.BUSY, "固件操作正在执行");
             }
         }
+        if (officialAdapter != null) {
+            return diagnoseWithOfficialAdapter();
+        }
         UUID operationId = UUID.randomUUID();
         Path diagnosticDirectory = null;
         RuntimeBundle runtime = null;
@@ -194,7 +228,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     false, null, false, null, null, "未检测到 CH582 ISP 设备");
                 writeDiagnosticResult(diagnosticDirectory, null, detail, null);
                 return new DiagnosticResult(true, false, false, runtime, detail, null,
-                    operationId, diagnosticDirectory, null, null, false);
+                    operationId, diagnosticDirectory, null, null, false, false);
             }
             chip = inspectChip();
             chipGateAllowed = chipGateAllowed(chip);
@@ -206,7 +240,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     true, chip, chipGateAllowed, null, null, chip.detail());
                 writeDiagnosticResult(diagnosticDirectory, null, detail, chipError);
                 return new DiagnosticResult(true, true, false, runtime, detail, chipError,
-                    operationId, diagnosticDirectory, null, chip, false);
+                    operationId, diagnosticDirectory, null, chip, false, false);
             }
             try (WchIspWorkspace workspace = WchIspWorkspace.create(workspaceParent, operationId)) {
                 WchIspWorkspace.PreparedWorkspace detect = workspace.prepareForDetect(runtime);
@@ -233,7 +267,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 }
                 writeDiagnosticResult(diagnosticDirectory, processResult, detail, null);
                 return new DiagnosticResult(true, true, uid != null && uid.success(), runtime, detail,
-                    null, operationId, diagnosticDirectory, processResult, chip, chipGateAllowed);
+                    null, operationId, diagnosticDirectory, processResult, chip, chipGateAllowed, false);
             }
         } catch (Exception failure) {
             String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
@@ -245,7 +279,52 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 : FirmwareUpdateError.INTERNAL_ERROR;
             writeDiagnosticResult(diagnosticDirectory, processResult, detail, error);
             return new DiagnosticResult(runtime != null, present, false, runtime, detail, error,
-                operationId, diagnosticDirectory, processResult, chip, chipGateAllowed);
+                operationId, diagnosticDirectory, processResult, chip, chipGateAllowed, false);
+        } finally {
+            diagnosticActive.set(false);
+        }
+    }
+
+    /**
+     * Official-tool detection intentionally does not run {@code -u get}.
+     * Detection is a user initiated, one-shot presence check; UID is optional
+     * evidence supplied by the vendor control process and never a flash gate.
+     */
+    private DiagnosticResult diagnoseWithOfficialAdapter() {
+        UUID operationId = UUID.randomUUID();
+        Path diagnosticDirectory = null;
+        RuntimeBundle runtime = null;
+        try {
+            diagnosticDirectory = diagnostics.beginDiagnostic(operationId);
+            initializeDiagnosticFiles(diagnosticDirectory);
+            OfficialWchIspAdapter.DeviceDetectionResult detection = officialAdapter.detectDevice();
+            runtime = detection.runtime();
+            if (runtime != null) writeRuntimeEvidence(diagnosticDirectory, runtime);
+            String detail = "RUNTIME_READY=" + (runtime == null ? "NO" : "YES") + "\n"
+                + "ISP_PRESENT=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
+                + "OFFICIAL_ADAPTER_READY=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
+                + "UID_CONFIRMED=" + (detection.uid().isPresent() ? "YES" : "NO") + "\n"
+                + "UID_SOURCE=OPTIONAL_VENDOR_CONTROL_PROCESS\n"
+                + "OPERATION_ID=" + operationId + "\n"
+                + "DIAGNOSTIC_DIRECTORY=" + (diagnosticDirectory == null ? "" : diagnosticDirectory) + "\n"
+                + detection.detail();
+            diagnostics.write(diagnosticDirectory, "adapter-detection.txt", detail + "\n");
+            writeDiagnosticResult(diagnosticDirectory, null, detail,
+                detection.ispPresent() ? null : FirmwareUpdateError.ISP_NOT_PRESENT);
+            return new DiagnosticResult(runtime != null, detection.ispPresent(),
+                detection.uid().isPresent(), runtime, detail,
+                detection.ispPresent() ? null : FirmwareUpdateError.ISP_NOT_PRESENT,
+                operationId, diagnosticDirectory, null, null, false, detection.ispPresent());
+        } catch (Exception failure) {
+            String detail = "OFFICIAL_ADAPTER_READY=NO\n"
+                + "UID_CONFIRMED=NO\n"
+                + "OPERATION_ID=" + operationId + "\n"
+                + "DIAGNOSTIC_DIRECTORY=" + (diagnosticDirectory == null ? "" : diagnosticDirectory) + "\n"
+                + (failure.getMessage() == null ? failure.toString() : failure.getMessage());
+            writeDiagnosticResult(diagnosticDirectory, null, detail, FirmwareUpdateError.RUNTIME_INVALID);
+            return new DiagnosticResult(runtime != null, false, false, runtime, detail,
+                FirmwareUpdateError.RUNTIME_INVALID, operationId, diagnosticDirectory,
+                null, null, false, false);
         } finally {
             diagnosticActive.set(false);
         }
@@ -258,6 +337,10 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private void runOperation(FirmwareOperationHandle handle,
                               FirmwareUpdateRequest request,
                               AtomicBoolean cancellation) {
+        if (officialAdapter != null) {
+            runOfficialOperation(handle, request, cancellation);
+            return;
+        }
         Path diagnosticDirectory = null;
         try {
             diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
@@ -387,6 +470,93 @@ public final class FirmwareUpdateService implements AutoCloseable {
         }
     }
 
+    /** Production path: Studio orchestrates states while the vendor adapter
+     * performs detection and download.  No generated WCHISP workspace,
+     * patched CONFIG, or {@code -u get} query is involved. */
+    private void runOfficialOperation(FirmwareOperationHandle handle,
+                                      FirmwareUpdateRequest request,
+                                      AtomicBoolean cancellation) {
+        Path diagnosticDirectory = null;
+        try {
+            diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
+            transition(handle, FirmwareUpdateState.PREFLIGHT,
+                "正在检查固件和官方 WCHISP 运行环境", 0.02, diagnosticDirectory);
+            PreflightResult preflight = preflight(request);
+            if (!preflight.success()) {
+                finish(handle, FirmwareUpdateState.FAILED, preflight.error(), preflight.detail(), diagnosticDirectory);
+                return;
+            }
+            writeRuntimeEvidence(diagnosticDirectory, preflight.runtime());
+            checkCancelled(cancellation);
+
+            transition(handle, FirmwareUpdateState.WAITING_ISP,
+                "请进入 CH582 ISP 模式，正在等待官方工具检测", 0.08, diagnosticDirectory);
+            checkCancelled(cancellation);
+            transition(handle, FirmwareUpdateState.DETECTING,
+                "正在调用官方 WCHISP 检测设备", 0.12, diagnosticDirectory);
+            OfficialWchIspAdapter.DeviceDetectionResult detection = officialAdapter.detectDevice();
+            diagnostics.write(diagnosticDirectory, "adapter-detection.txt",
+                "ISP_PRESENT=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
+                    + "UID_CONFIRMED=" + (detection.uid().isPresent() ? "YES" : "NO") + "\n"
+                    + "UID_SOURCE=OPTIONAL_VENDOR_CONTROL_PROCESS\n"
+                    + detection.detail() + "\n");
+            if (!detection.ispPresent()) {
+                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.ISP_NOT_PRESENT,
+                    "官方 WCHISP 未检测到 ISP 设备", diagnosticDirectory);
+                return;
+            }
+            transition(handle, FirmwareUpdateState.READY,
+                "官方 WCHISP 已检测到设备（UID 仅作可选信息），准备烧录", 0.18, diagnosticDirectory);
+            checkCancelled(cancellation);
+
+            transition(handle, FirmwareUpdateState.FLASHING,
+                "正在调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
+            OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashFirmware(
+                request.firmwareHex(), cancellation::get);
+            saveAdapterProcess(diagnosticDirectory, flash);
+            if (!flash.success()) {
+                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.FLASH_FAILED,
+                    flash.detail(), diagnosticDirectory);
+                return;
+            }
+
+            transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
+                "官方 WCHISP 下载完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
+            checkCancelled(cancellation);
+            if (postVerifier == null) {
+                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
+                    "未配置设备回读校验器", diagnosticDirectory);
+                return;
+            }
+            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
+                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
+                    "设备未在时限内正常重连", diagnosticDirectory);
+                return;
+            }
+            transition(handle, FirmwareUpdateState.VERIFYING,
+                "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
+            FirmwarePostVerifier.Verification verification = postVerifier.verify(
+                request.targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
+            if (!verification.success()) {
+                finish(handle, FirmwareUpdateState.FAILED, verification.error(), verification.detail(), diagnosticDirectory);
+                return;
+            }
+            checkCancelled(cancellation);
+            finish(handle, FirmwareUpdateState.SUCCESS, null, verification.detail(), diagnosticDirectory);
+        } catch (CancelledException cancelledException) {
+            finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
+                "固件操作已取消", diagnosticDirectory);
+        } catch (Exception failure) {
+            if (cancellation.get() || failure instanceof InterruptedException) {
+                finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
+                    "固件操作已取消", diagnosticDirectory);
+                return;
+            }
+            finish(handle, FirmwareUpdateState.FAILED, classify(failure),
+                failure.getMessage() == null ? failure.toString() : failure.getMessage(), diagnosticDirectory);
+        }
+    }
+
     private void awaitIsp(AtomicBoolean cancellation) throws Exception {
         if (!ispProbe.awaitPresent(ISP_TIMEOUT, cancellation::get)) {
             throw new IOException("未检测到 CH582 ISP 设备");
@@ -466,6 +636,28 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "  \"durationMs\": " + result.duration().toMillis() + ",\n"
             + "  \"timedOut\": " + result.timedOut() + ",\n"
             + "  \"cancelled\": " + result.cancelled() + "\n"
+            + "}\n");
+    }
+
+    private void saveAdapterProcess(Path directory, OfficialWchIspAdapter.FlashResult flash) {
+        if (directory == null || flash == null) return;
+        diagnostics.write(directory, "flash-command.txt", flash.detail());
+        WchIspRunner.WchIspProcessResult result = flash.processResult();
+        if (result == null) return;
+        diagnostics.write(directory, "flash-stdout.txt", result.stdout());
+        diagnostics.write(directory, "flash-stderr.txt", result.stderr());
+        diagnostics.write(directory, "flash-console.txt", result.console());
+        diagnostics.write(directory, "stdout.txt", result.stdout());
+        diagnostics.write(directory, "stderr.txt", result.stderr());
+        diagnostics.write(directory, "console.txt", result.console());
+        String json = processResultJson(result);
+        diagnostics.write(directory, "flash-result.json", json);
+        diagnostics.write(directory, "result.json", json);
+        diagnostics.write(directory, "timing.json", "{\n"
+            + "  \"operationId\": " + json(result.operationId().toString()) + ",\n"
+            + "  \"durationMs\": " + result.duration().toMillis() + ",\n"
+            + "  \"exitCode\": " + result.exitCode() + ",\n"
+            + "  \"terminationReason\": " + json(result.terminationReason()) + "\n"
             + "}\n");
     }
 
@@ -669,26 +861,29 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                    UUID operationId, Path diagnosticDirectory,
                                    WchIspRunner.WchIspProcessResult processResult,
                                    ChipMatched.ChipMatchResult chipMatch,
-                                   boolean chipGateAllowed) {
+                                   boolean chipGateAllowed,
+                                   boolean officialAdapterReady) {
         public DiagnosticResult(boolean ispPresent, RuntimeBundle runtime,
                                 String detail, FirmwareUpdateError error) {
             this(runtime != null, ispPresent, false, runtime, detail, error,
-                null, null, null, null, false);
+                null, null, null, null, false, false);
         }
         public DiagnosticResult(boolean runtimeReady, boolean ispPresent,
                                 boolean uidConfirmed, RuntimeBundle runtime,
                                 String detail, FirmwareUpdateError error) {
             this(runtimeReady, ispPresent, uidConfirmed, runtime, detail, error,
-                null, null, null, null, false);
+                null, null, null, null, false, false);
         }
         public boolean chipMatched() { return chipMatch != null && chipMatch.matched(); }
         public String chipMatchStatus() {
             return chipMatch == null ? ChipMatched.Status.UNKNOWN.name() : chipMatch.status().name();
         }
-        public boolean ready() { return runtimeReady && ispPresent && chipGateAllowed && error == null; }
+        public boolean ready() {
+            return runtimeReady && ispPresent && (officialAdapterReady || chipGateAllowed) && error == null;
+        }
         static DiagnosticResult failure(FirmwareUpdateError error, String detail) {
             return new DiagnosticResult(false, false, false, null, detail == null ? "" : detail, error,
-                null, null, null, null, false);
+                null, null, null, null, false, false);
         }
         static DiagnosticResult failure(String detail, FirmwareUpdateError error) {
             return failure(error, detail);

@@ -52,6 +52,8 @@ $requiredEntries = @(
     "com/example/ahakey/firmware/FirmwareUpdateDiagnostics.class",
     "com/example/ahakey/firmware/FirmwarePostVerifier.class",
     "com/example/ahakey/firmware/WchIspConfigLayout.class",
+    "com/example/ahakey/firmware/OfficialWchIspAdapter.class",
+    "com/example/ahakey/firmware/DefaultOfficialWchIspAdapter.class",
     "com/example/ahakey/firmware/WchIspRuntimeContract.class",
     "com/example/ahakey/update/WindowsUpdateInstaller.class",
     "com/example/ahakey/platform/windows/VoiceKeyPressState.class",
