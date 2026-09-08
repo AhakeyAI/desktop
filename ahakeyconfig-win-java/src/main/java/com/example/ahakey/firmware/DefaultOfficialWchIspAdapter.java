@@ -15,25 +15,25 @@ import java.util.UUID;
 public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter {
     private static final Duration FLASH_TIMEOUT = Duration.ofMinutes(5);
 
-    private final RuntimeProvider runtimeProvider;
+    private final RuntimeLocator runtimeLocator;
     private final IspDeviceProbe ispProbe;
     private final WchIspRunner runner;
 
     public DefaultOfficialWchIspAdapter() {
-        this(new WchIspRuntimeProvider(), IspDeviceProbe.windowsDefault(), new WchIspRunner());
+        this(new InstalledRuntimeLocator(), IspDeviceProbe.windowsDefault(), new WchIspRunner());
     }
 
-    DefaultOfficialWchIspAdapter(RuntimeProvider runtimeProvider,
+    DefaultOfficialWchIspAdapter(RuntimeLocator runtimeLocator,
                                   IspDeviceProbe ispProbe,
                                   WchIspRunner runner) {
-        this.runtimeProvider = runtimeProvider == null ? new WchIspRuntimeProvider() : runtimeProvider;
+        this.runtimeLocator = runtimeLocator == null ? new InstalledRuntimeLocator() : runtimeLocator;
         this.ispProbe = ispProbe == null ? IspDeviceProbe.windowsDefault() : ispProbe;
         this.runner = runner == null ? new WchIspRunner() : runner;
     }
 
     @Override
     public DeviceDetectionResult detectDevice() throws Exception {
-        RuntimeBundle runtime = runtimeProvider.resolve();
+        RuntimeBundle runtime = runtimeLocator.resolve();
         boolean present = ispProbe.isPresent();
         String detail = present
             ? "OFFICIAL_WCHISP_ADAPTER=YES\nISP_PRESENT=YES\nUID=OPTIONAL_NOT_QUERIED"
@@ -55,7 +55,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             throw new IOException("固件 HEX 文件不存在: " + hex);
         }
         IntelHexValidator.validate(hex);
-        RuntimeBundle runtime = runtimeProvider.resolve();
+        RuntimeBundle runtime = runtimeLocator.resolve();
         UUID operationId = UUID.randomUUID();
         WchIspRunner.WchIspCommand command = new WchIspRunner.WchIspCommand(
             runtime.executable(), runtime.root(),

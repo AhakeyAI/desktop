@@ -77,6 +77,11 @@ public final class WchIspRuntimeProvider implements RuntimeProvider {
         return load(explicit, false);
     }
 
+    /** Resolves an installed bundle under the strict release contract. */
+    RuntimeBundle resolveInstalled(Path installedRoot) throws IOException {
+        return load(installedRoot, true);
+    }
+
     private RuntimeBundle load(Path candidate, boolean strictContract) throws IOException {
         if (candidate == null) {
             throw new IOException("runtime path is null");

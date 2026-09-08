@@ -31,7 +31,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
     public static final String DEV_ALLOW_UNKNOWN_CHIP_PROPERTY =
         "ahakey.dev.allow-isp-flash-with-unknown-chip";
 
-    private final RuntimeProvider runtimeProvider;
+    private final RuntimeLocator runtimeProvider;
     /** Non-null only for the production official-tool orchestration path. */
     private final OfficialWchIspAdapter officialAdapter;
     private final IspDeviceProbe ispProbe;
@@ -50,9 +50,17 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private final AtomicBoolean diagnosticActive = new AtomicBoolean();
 
     public FirmwareUpdateService(BleManager manager) {
-        this(new DefaultOfficialWchIspAdapter(), new WchIspRuntimeProvider(),
+        this(new InstalledRuntimeLocator(),
             manager == null ? null : new FirmwarePostVerifier(manager),
             new FirmwareUpdateDiagnostics(), Path.of(System.getProperty("java.io.tmpdir")));
+    }
+
+    private FirmwareUpdateService(RuntimeLocator runtimeLocator,
+                                  FirmwarePostVerifier postVerifier,
+                                  FirmwareUpdateDiagnostics diagnostics,
+                                  Path workspaceParent) {
+        this(new DefaultOfficialWchIspAdapter(runtimeLocator, IspDeviceProbe.windowsDefault(),
+                new WchIspRunner()), runtimeLocator, postVerifier, diagnostics, workspaceParent);
     }
 
     /**
@@ -61,12 +69,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
      * copying CONFIG files or invoking a UID query.
      */
     FirmwareUpdateService(OfficialWchIspAdapter officialAdapter,
-                          RuntimeProvider runtimeProvider,
+                          RuntimeLocator runtimeProvider,
                           FirmwarePostVerifier postVerifier,
                           FirmwareUpdateDiagnostics diagnostics,
                           Path workspaceParent) {
         this.officialAdapter = officialAdapter == null ? new DefaultOfficialWchIspAdapter() : officialAdapter;
-        this.runtimeProvider = runtimeProvider == null ? new WchIspRuntimeProvider() : runtimeProvider;
+        this.runtimeProvider = runtimeProvider == null ? new InstalledRuntimeLocator() : runtimeProvider;
         this.ispProbe = IspDeviceProbe.windowsDefault();
         this.chipMatched = ChipMatched.unknown();
         this.allowUnknownChip = false;

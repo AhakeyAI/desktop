@@ -389,3 +389,21 @@ stdout/stderr/console 到操作诊断目录；下载命令由 adapter 直接构�
 软件手工、官方 WCHISP 真机烧录/重连、正式 overlay 和签名发布环境仍待验证”。外层
 `C:\aha\ahakey-windows\windows-stabilization-plan.md` 在当前工作区不存在，故本文件仍为
 desktop 工程唯一可更新的稳定化事实源。
+
+## 15. Installed WCHISP runtime locator (2026-09-08)
+
+`InstalledRuntimeLocator` 将正式运行时解析到
+`<application-root>/wchisp`，其中 application root 优先由 jpackage launcher 或
+`app/ahakey-studio.jar` 的代码源推导。解析优先级为安装目录、
+`-Dahakey.wchisp.path`、`AHAKEY_WCHISP_PATH`，最后才是既有开发目录候选；没有写死
+`C:\app` 或 `C:\aha`，也没有新增 silent fallback。安装目录沿用
+`WchIspRuntimeContract` 严格校验；显式 JVM/环境路径沿用开发准入并保留真实
+`RuntimeIdentity`（包括 metadata 缺失时的 UNKNOWN）。
+
+`OfficialWchIspAdapter` 现在只依赖 `RuntimeLocator`，因此正式 Studio 生产调用链会
+自动使用安装目录下的官方 WCHISP，而测试仍可注入 locator。新增 locator 测试覆盖安装
+目录、JVM 参数、环境变量和缺失运行时；overlay allowlist 与 release artifact test
+已包含 `RuntimeLocator`、`InstalledRuntimeLocator`。
+
+本轮状态为“代码完成 + 自动测试完成，正式安装包复制布局、真实 WCHISP/ISP、设备回读和
+签名发布环境待验证”。外层稳定化计划文件仍不存在。
