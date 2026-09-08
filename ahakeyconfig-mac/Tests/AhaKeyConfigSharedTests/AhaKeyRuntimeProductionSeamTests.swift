@@ -337,9 +337,9 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
             transportGeneration: token.transportGeneration,
             sealedOLEDFact: token.sealedOLEDFact
         )
-        fence.publish(token)
+        XCTAssertTrue(publishLive(fence, token))
         let reservation = try XCTUnwrap(fence.reserve(token))
-        fence.publish(next)
+        XCTAssertTrue(publishLive(fence, next))
         XCTAssertThrowsError(try fence.withReservedWrite(reservation) { "wrote" }) { error in
             XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
         }
@@ -354,7 +354,7 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         XCTAssertTrue(wrote)
         XCTAssertNil(fence.reserve(token))
 
-        fence.publish(next)
+        XCTAssertTrue(publishLive(fence, next))
         let once = try XCTUnwrap(fence.reserve(next))
         struct ProbeError: Error {}
         XCTAssertThrowsError(try fence.withReservedWrite(once) { throw ProbeError() })
@@ -362,7 +362,7 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
             XCTAssertEqual(error as? AhaKeyRuntimeAdmissionWriteError, .staleReservation)
         }
 
-        fence.publish(next)
+        XCTAssertTrue(publishLive(fence, next))
         let stale = try XCTUnwrap(fence.reserve(next))
         fence.beginIdentityMutation()
         XCTAssertThrowsError(try fence.withReservedWrite(stale) { "mutated" }) { error in
@@ -426,6 +426,40 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         XCTAssertEqual(fence.liveTokenForTesting(), token)
     }
 
+    func testProductSourcesHaveNoTicketlessAdmissionPublish() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sources = packageRoot.appendingPathComponent("Sources", isDirectory: true)
+        let fenceURL = sources.appendingPathComponent("Shared/AhaKeyRuntimeAdmissionFence.swift")
+        let fenceText = try String(contentsOf: fenceURL, encoding: .utf8)
+        XCTAssertFalse(
+            fenceText.contains("func publish(_ token: AhaKeyRuntimeResourceAdmissionToken?)"),
+            "ticketless publish 不得留在 fence 公共 API"
+        )
+        XCTAssertTrue(
+            fenceText.contains("ticket: AhaKeyRuntimeAdmissionPublicationTicket"),
+            "fence 必须只保留 ticketed CAS publish"
+        )
+
+        var hits: [String] = []
+        let enumerator = FileManager.default.enumerator(
+            at: sources,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+        while let url = enumerator?.nextObject() as? URL {
+            guard url.pathExtension == "swift" else { continue }
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let relative = url.path.replacingOccurrences(of: packageRoot.path + "/", with: "")
+            for arguments in admissionPublishArgumentLists(in: text) where !arguments.contains("ticket:") {
+                hits.append(relative)
+            }
+        }
+        XCTAssertEqual(hits, [], "产品源码不得 ticketless live admission publish：\(hits.joined(separator: ","))")
+    }
+
     func testAdmissionReservationDiscardIsIdempotentAndBoundsOutstanding() throws {
         let fence = AhaKeyRuntimeAdmissionFence()
         let token = try AhaKeyRuntimeResourceAdmissionToken(
@@ -434,7 +468,7 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
             transportGeneration: .init(0),
             sealedOLEDFact: .init(family: .legacyStandard)
         )
-        fence.publish(token)
+        XCTAssertTrue(publishLive(fence, token))
 
         var abandoned: [AhaKeyRuntimeAdmissionReservation] = []
         for _ in 0..<32 {
@@ -576,6 +610,47 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         ) { error in
             XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
         }
+    }
+
+    @discardableResult
+    private func publishLive(
+        _ fence: AhaKeyRuntimeAdmissionFence,
+        _ token: AhaKeyRuntimeResourceAdmissionToken
+    ) -> Bool {
+        let ticket = fence.beginIdentityMutation()
+        return fence.publish(token, ticket: ticket)
+    }
+
+    private func admissionPublishArgumentLists(in text: String) -> [String] {
+        let needle = "resourceAdmissionFence.publish("
+        var calls: [String] = []
+        var searchStart = text.startIndex
+        while let range = text.range(of: needle, range: searchStart..<text.endIndex) {
+            let argsStart = range.upperBound
+            var depth = 1
+            var index = argsStart
+            var end = argsStart
+            while index < text.endIndex {
+                let character = text[index]
+                if character == "(" {
+                    depth += 1
+                } else if character == ")" {
+                    depth -= 1
+                    if depth == 0 {
+                        end = index
+                        break
+                    }
+                }
+                index = text.index(after: index)
+            }
+            if depth == 0 {
+                calls.append(String(text[argsStart..<end]))
+                searchStart = end
+            } else {
+                break
+            }
+        }
+        return calls
     }
 
     private func assertMissingFieldIsCorrupt<T: Codable>(_ value: T, dropping key: String) throws {

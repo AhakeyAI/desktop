@@ -30,14 +30,8 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
 
     public init() {}
 
-    /// 连接投影稳定后发布当前可写 token。同步 proven 路径使用；不得替代 mutation 前的 `beginIdentityMutation`。
-    public func publish(_ token: AhaKeyRuntimeResourceAdmissionToken?) {
-        lock.lock()
-        defer { lock.unlock() }
-        applyPublishLocked(token)
-    }
-
     /// CAS publish：ticket 必须来自签发它的那次 `beginIdentityMutation`；epoch 不一致则 no-op，不恢复 live token。
+    /// 不提供无 ticket 的 publish 入口。
     @discardableResult
     public func publish(
         _ token: AhaKeyRuntimeResourceAdmissionToken?,
