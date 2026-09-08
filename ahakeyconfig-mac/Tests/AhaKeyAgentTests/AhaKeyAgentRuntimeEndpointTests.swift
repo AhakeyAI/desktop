@@ -160,7 +160,9 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
     }
 
     private func simulatedDevice(
-        id: String = "TEST-DEVICE", name: String = "Test AhaKey", connected: Bool = true
+        id: String = "TEST-DEVICE", name: String = "Test AhaKey", connected: Bool = true,
+        sessionGeneration: UInt64 = 0,
+        transportGeneration: UInt64 = 0
     ) -> AhaKeyRuntimeDeviceSnapshot {
         AhaKeyRuntimeDeviceSnapshot(
             id: try! AhaKeyRuntimeDeviceID(id),
@@ -168,7 +170,9 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             protocolState: connected ? .currentReady : .disconnected,
             preferredTransport: .bluetooth,
             usbAttached: false,
-            bluetoothConnected: connected
+            bluetoothConnected: connected,
+            sessionGeneration: .init(sessionGeneration),
+            transportGeneration: .init(transportGeneration)
         )
     }
 
@@ -547,29 +551,20 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         runEndpointTest { [self] in
         let agent = makeAgent()
         var hooks = agent.executionTestHooks
-        hooks?.isReady = true
-        hooks?.capabilities = testCapabilities()
+        hooks?.skipConfigurationBLEWriteGates = true
+        hooks?.configurationCharacteristics = .allPresent
+        hooks?.isReady = false
         agent.executionTestHooks = hooks
+        await sealStandardViaLegacyProbe(agent)
+        await agent.simulateDeviceForTesting(simulatedDevice())
         let client = EndpointClient(agent: agent)
         try await client.handshake()
 
-        // 引用未入 CAS 的资源：受理必须失败（missing-resource），绝不伪装 accepted。
-        var package = try makePackage(deviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"))
-        package = try AhaKeyConfigurationPackage(
-            operationID: package.operationID,
-            targetDeviceID: package.targetDeviceID,
-            baseRevision: package.baseRevision,
-            desiredConfiguration: package.desiredConfiguration,
-            resources: [
-                try AhaKeyConfigurationResource(
-                    logicalIdentifier: "missing-gif",
-                    sha256: String(repeating: "b", count: 64),
-                    byteCount: 10,
-                    mediaType: "gif"
-                ),
-            ]
-        )
-        let response = try await client.exchange(.apply(package))
+        // 闭合图片包但未入 CAS：受理必须 missing-resource，绝不伪装 accepted。
+        let assembled = try makeStandardPictureAssembly()
+        let package = try makePackage(from: assembled)
+        let token = try await agent.resourceAdmissionTokenForTesting()
+        let response = try await client.exchange(.apply(package, admission: token))
         guard case .failure(let code) = response else {
             return XCTFail("受理失败必须 .failure，实际 \(response)")
         }
@@ -1110,7 +1105,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                 byteCount: UInt64(payload.count),
                 data: payload
             )
-            let ingest = try await agent.handleRuntimeXPCRequest(.ingestResources([item]))
+            let ingest = try await agent.handleIngestForTesting([item])
             guard case .failure(let ingestCode) = ingest else {
                 return XCTFail("unsupported ingest 必须失败，实际 \(ingest)")
             }
@@ -1162,9 +1157,10 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             XCTAssertTrue(writeReady)
 
             let assembled = try makeStandardPictureAssembly()
+            await agent.simulateDeviceForTesting(simulatedDevice())
             try await ingest(agent, assembled: assembled)
             let package = try makePackage(from: assembled)
-            let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+            let apply = try await agent.handleApplyForTesting(package)
             guard case .operationAccepted(let operationID) = apply else {
                 return XCTFail("Standard apply 必须受理，实际 \(apply)")
             }
@@ -1190,10 +1186,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
 
             let assembled = try makeStandardPictureAssembly()
             XCTAssertFalse(assembled.resources.isEmpty)
+            await agent.simulateDeviceForTesting(simulatedDevice())
             try await ingest(agent, assembled: assembled)
             let package = try makePackage(from: assembled)
             XCTAssertFalse(package.resources.isEmpty)
-            let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+            let apply = try await agent.handleApplyForTesting(package)
             guard case .operationAccepted(let operationID) = apply else {
                 return XCTFail("v0.3 密封 Standard 必须受理图片包，实际 \(apply)")
             }
@@ -1232,7 +1229,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             let assembled = try makeStandardPictureAssembly()
             let items = try ingestItems(assembled)
             let package = try makePackage(from: assembled)
-            let ingest = try await agent.handleRuntimeXPCRequest(.ingestResources(items))
+            let ingest = try await agent.handleIngestForTesting(items)
             guard case .failure(let ingestCode) = ingest else {
                 return XCTFail("协商窗口 ingest 必须失败，实际 \(ingest)")
             }
@@ -1251,6 +1248,161 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             )
             let wal = try await store.transaction(package.operationID)
             XCTAssertNil(wal)
+        }
+    }
+
+    func testIngestGenerationBumpDuringCASGateWritesZeroCAS() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let gate = IngestCASGate()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            hooks?.beforeIngestCAS = { await gate.arrive() }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = await waitForStoreBaseline(storeDir)
+            let items = try ingestItems(try makeStandardPictureAssembly())
+            let ingestTask = Task { try await agent.handleIngestForTesting(items) }
+            XCTAssertTrue(gate.waitUntilEntered())
+            await agent.simulateDeviceForTesting(simulatedDevice(sessionGeneration: 1))
+            gate.release()
+            let ingest = try await ingestTask.value
+            guard case .failure(let code) = ingest else {
+                return XCTFail("跨代 ingest 必须失败，实际 \(ingest)")
+            }
+            XCTAssertEqual(code.rawValue, "unsupported-protocol")
+            XCTAssertEqual(casFingerprint(storeDir).names, before.names)
+            XCTAssertEqual(casFingerprint(storeDir).sqlite, before.sqlite)
+        }
+    }
+
+    func testIngestProofRevokeDuringCASGateWritesZeroCAS() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            let gate = IngestCASGate()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            hooks?.beforeIngestCAS = { await gate.arrive() }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = await waitForStoreBaseline(storeDir)
+            let items = try ingestItems(try makeStandardPictureAssembly())
+            let ingestTask = Task { try await agent.handleIngestForTesting(items) }
+            XCTAssertTrue(gate.waitUntilEntered())
+            var live = agent.executionTestHooks
+            live?.oledContext = .make(.malformedResponse)
+            agent.executionTestHooks = live
+            gate.release()
+            let ingest = try await ingestTask.value
+            guard case .failure(let code) = ingest else {
+                return XCTFail("撤 proof ingest 必须失败，实际 \(ingest)")
+            }
+            XCTAssertEqual(code.rawValue, "unsupported-protocol")
+            XCTAssertEqual(casFingerprint(storeDir).names, before.names)
+            XCTAssertEqual(casFingerprint(storeDir).sqlite, before.sqlite)
+        }
+    }
+
+    func testForgedAndStaleAdmissionTokenWritesZeroCAS() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = await waitForStoreBaseline(storeDir)
+            let items = try ingestItems(try makeStandardPictureAssembly())
+            let liveToken = try await agent.resourceAdmissionTokenForTesting()
+            let forgedTarget = try AhaKeyRuntimeResourceAdmissionToken(
+                targetDeviceID: AhaKeyRuntimeDeviceID("OTHER-DEVICE"),
+                sessionGeneration: liveToken.sessionGeneration,
+                transportGeneration: liveToken.transportGeneration,
+                sealedOLEDFact: liveToken.sealedOLEDFact
+            )
+            let staleGeneration = AhaKeyRuntimeResourceAdmissionToken(
+                targetDeviceID: liveToken.targetDeviceID,
+                sessionGeneration: .init(9),
+                transportGeneration: liveToken.transportGeneration,
+                sealedOLEDFact: liveToken.sealedOLEDFact
+            )
+            for (label, token) in [("forged-target", forgedTarget), ("stale-generation", staleGeneration)] {
+                let ingest = try await agent.handleRuntimeXPCRequest(
+                    .ingestResources(.init(items: items, admission: token))
+                )
+                guard case .failure(let code) = ingest else {
+                    return XCTFail("\(label) 必须失败，实际 \(ingest)")
+                }
+                XCTAssertEqual(code.rawValue, "unsupported-protocol", label)
+            }
+            XCTAssertEqual(casFingerprint(storeDir).names, before.names)
+            XCTAssertEqual(casFingerprint(storeDir).sqlite, before.sqlite)
+        }
+    }
+
+    func testValidCurrentAdmissionTokenStillIngestsAndApplies() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.isReady = false
+            hooks?.configurationCharacteristics = .allPresent
+            agent.executionTestHooks = hooks
+            await sealStandardViaLegacyProbe(agent)
+            await agent.simulateDeviceForTesting(simulatedDevice())
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = casFingerprint(storeDir)
+            let assembled = try makeStandardPictureAssembly()
+            try await ingest(agent, assembled: assembled)
+            let afterIngest = casFingerprint(storeDir)
+            XCTAssertNotEqual(afterIngest.names, before.names, "合法 token 必须写入 CAS")
+            let package = try makePackage(from: assembled)
+            let apply = try await agent.handleApplyForTesting(package)
+            guard case .operationAccepted(let operationID) = apply else {
+                return XCTFail("合法当前 token 必须 apply，实际 \(apply)")
+            }
+            let terminal = await awaitAgentTerminalState(agent, operationID: operationID)
+            XCTAssertEqual(terminal, .completed)
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+            )
+            let wal = try await store.transaction(operationID)
+            XCTAssertNotNil(wal)
+        }
+    }
+
+    func testKeysOnlyApplyDoesNotRequireAdmissionToken() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            hooks?.stepExecutor = { _ in .success }
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let before = casFingerprint(storeDir)
+            let package = try makePackage(deviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"))
+            let apply = try await agent.handleRuntimeXPCRequest(.apply(package))
+            guard case .operationAccepted = apply else {
+                return XCTFail("keys-only 不得因缺 token 失败，实际 \(apply)")
+            }
+            XCTAssertEqual(casFingerprint(storeDir).names, before.names)
         }
     }
 
@@ -1576,7 +1728,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                 let assembled = try makeStandardPictureAssembly()
                 let items = try ingestItems(assembled)
                 let package = try makePackage(from: assembled)
-                let ingest = try await agent.handleRuntimeXPCRequest(.ingestResources(items))
+                let ingest = try await agent.handleIngestForTesting(items)
                 guard case .failure(let ingestCode) = ingest else {
                     return XCTFail("\(label) 缺失时 ingest 必须失败，实际 \(ingest)")
                 }
@@ -1694,6 +1846,66 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         return try AhaKeyStudioPackageAssembler.assemble(modes: [mode], includePictureResources: true)
     }
 
+    private struct CASFingerprint: Equatable {
+        var names: Set<String>
+        var sqlite: Data?
+    }
+
+    private func casFingerprint(_ storeDir: URL) -> CASFingerprint {
+        let resourcesDir = storeDir.appendingPathComponent("resources")
+        return CASFingerprint(
+            names: Set((try? FileManager.default.contentsOfDirectory(atPath: resourcesDir.path)) ?? []),
+            sqlite: try? Data(contentsOf: storeDir.appendingPathComponent("runtime.sqlite3"))
+        )
+    }
+
+    /// simulateDevice 会异步 commit 权威对象并打开 Store；零 CAS 基线必须等该副作用落地。
+    private func waitForStoreBaseline(_ storeDir: URL) async -> CASFingerprint {
+        let deadline = Date().addingTimeInterval(1)
+        while Date() < deadline {
+            if casFingerprint(storeDir).sqlite != nil {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+                return casFingerprint(storeDir)
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return casFingerprint(storeDir)
+    }
+
+    private final class IngestCASGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var waiter: CheckedContinuation<Void, Never>?
+        private var released = false
+        private let entered = DispatchSemaphore(value: 0)
+
+        func arrive() async {
+            entered.signal()
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                lock.lock()
+                if released {
+                    lock.unlock()
+                    cont.resume()
+                } else {
+                    waiter = cont
+                    lock.unlock()
+                }
+            }
+        }
+
+        func waitUntilEntered(timeout: TimeInterval = 2) -> Bool {
+            entered.wait(timeout: .now() + timeout) == .success
+        }
+
+        func release() {
+            lock.lock()
+            released = true
+            let waiter = self.waiter
+            self.waiter = nil
+            lock.unlock()
+            waiter?.resume()
+        }
+    }
+
     private func ingestItems(
         _ assembled: AhaKeyStudioAssembledConfiguration
     ) throws -> [AhaKeyXPCResourceIngestionItem] {
@@ -1713,7 +1925,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         _ agent: AhaKeyAgent,
         assembled: AhaKeyStudioAssembledConfiguration
     ) async throws {
-        let ingested = try await agent.handleRuntimeXPCRequest(.ingestResources(try ingestItems(assembled)))
+        let ingested = try await agent.handleIngestForTesting(try ingestItems(assembled))
         guard case .resourcesIngested = ingested else {
             throw NSError(
                 domain: "c1r2",

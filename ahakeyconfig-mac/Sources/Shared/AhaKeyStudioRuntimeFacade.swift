@@ -140,6 +140,8 @@ public actor AhaKeyStudioRuntimeFacade {
     private struct ActiveDeviceAdmission {
         struct Identity: Equatable {
             let deviceID: AhaKeyRuntimeDeviceID
+            let sessionGeneration: AhaKeyRuntimeSessionGeneration
+            let transportGeneration: AhaKeyRuntimeTransportGeneration
             let sealedFact: AhaKeyRuntimeOLEDCompatibilityFact?
         }
 
@@ -149,7 +151,16 @@ public actor AhaKeyStudioRuntimeFacade {
         let projection: AhaKeyReleaseFeatureProjection
 
         var identity: Identity {
-            Identity(deviceID: device.id, sealedFact: device.oledCompatibility)
+            Identity(
+                deviceID: device.id,
+                sessionGeneration: device.sessionGeneration,
+                transportGeneration: device.transportGeneration,
+                sealedFact: device.oledCompatibility
+            )
+        }
+
+        func resourceToken() throws -> AhaKeyRuntimeResourceAdmissionToken {
+            try AhaKeyRuntimeResourceAdmissionToken(device: device)
         }
     }
 
@@ -207,25 +218,7 @@ public actor AhaKeyStudioRuntimeFacade {
 
     /// 从 typed desired / page contract 判定图片语义，并要求引用与 metadata/binding 闭合。
     private static func packageAttemptsPictureWrite(_ package: AhaKeyConfigurationPackage) throws -> Bool {
-        let metadata = Set(package.resources.map(\.logicalIdentifier))
-        if package.isPageScoped {
-            let bindings = Set((package.pageOperation?.resourceBindings ?? []).map(\.logicalID))
-            guard bindings == metadata else {
-                throw AhaKeyStudioApplyError.pageOperationIncomplete
-            }
-            return !bindings.isEmpty
-        }
-        let desired: AhaKeyDesiredConfiguration
-        do {
-            desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
-        } catch {
-            throw AhaKeyStudioApplyError.unsupportedFirmware
-        }
-        let referenced = desired.referencedResources
-        guard referenced == metadata else {
-            throw AhaKeyStudioApplyError.pageOperationIncomplete
-        }
-        return !referenced.isEmpty
+        try AhaKeyRuntimeResourceAdmission.packageAttemptsPictureWrite(package)
     }
 
     /// 当前视图状态（首屏前为 offline）。
@@ -275,31 +268,38 @@ public actor AhaKeyStudioRuntimeFacade {
         guard !items.isEmpty else { return }
         let admission = try resolvedActiveDevice(boundTarget: targetDeviceID)
         try rejectUnprovenPictureAdmission(admission)
-        try await exchangeIngest(items)
+        try await exchangeIngest(items, using: admission)
     }
 
     /// 提交配置包并返回 operation ID。
     /// 图片意图由 typed desired / page contract 判定；引用与 metadata/binding 不闭合则零 transport。
     public func apply(_ package: AhaKeyConfigurationPackage) async throws -> AhaKeyRuntimeOperationID {
         let pictureAttempt = try Self.packageAttemptsPictureWrite(package)
-        var admission = try resolvedActiveDevice(boundTarget: package.targetDeviceID)
+        let admission = try resolvedActiveDevice(boundTarget: package.targetDeviceID)
         if pictureAttempt {
             try rejectUnprovenPictureAdmission(admission)
         }
-        admission = try requireLiveAdmission(
-            matching: admission,
-            boundTarget: package.targetDeviceID,
+        return try await exchangeApply(
+            package,
+            using: admission,
             pictureRequired: pictureAttempt
         )
-        let response = try await transport.exchange(.apply(package))
-        guard case .operationAccepted(let operationID) = response else {
-            throw AhaKeyRuntimeXPCTransportError.invalidResponse
-        }
-        return operationID
     }
 
-    private func exchangeIngest(_ items: [AhaKeyXPCResourceIngestionItem]) async throws {
-        let response = try await transport.exchange(.ingestResources(items))
+    /// 核当前 live token 后立刻发 ingest，中间无额外重核。
+    private func exchangeIngest(
+        _ items: [AhaKeyXPCResourceIngestionItem],
+        using expected: ActiveDeviceAdmission
+    ) async throws {
+        let live = try requireLiveAdmission(
+            matching: expected,
+            boundTarget: expected.device.id,
+            pictureRequired: true
+        )
+        let token = try live.resourceToken()
+        let response = try await transport.exchange(
+            .ingestResources(.init(items: items, admission: token))
+        )
         guard case .resourcesIngested = response else {
             switch response {
             case .failure(let code):
@@ -308,6 +308,31 @@ public actor AhaKeyStudioRuntimeFacade {
                 throw AhaKeyStudioApplyError.unexpectedResponse
             }
         }
+    }
+
+    /// 核当前 live token 后立刻发 apply。图片请求携带与 ingest 同一形状的 admission。
+    private func exchangeApply(
+        _ package: AhaKeyConfigurationPackage,
+        using expected: ActiveDeviceAdmission,
+        pictureRequired: Bool
+    ) async throws -> AhaKeyRuntimeOperationID {
+        let live = try requireLiveAdmission(
+            matching: expected,
+            boundTarget: package.targetDeviceID,
+            pictureRequired: pictureRequired
+        )
+        let token = pictureRequired ? try live.resourceToken() : nil
+        let response = try await transport.exchange(.apply(package, admission: token))
+        guard case .operationAccepted(let operationID) = response else {
+            switch response {
+            case .failure(let code):
+                throw AhaKeyStudioApplyError.applyRejected(code)
+            default:
+                throw AhaKeyStudioApplyError.unexpectedResponse
+            }
+        }
+        update { $0.lastApplyOperationID = operationID }
+        return operationID
     }
 
     /// 请求取消指定 operation。
@@ -787,11 +812,6 @@ extension AhaKeyStudioRuntimeFacade {
         }
 
         if !prepared.isEmpty {
-            admission = try requireLiveAdmission(
-                matching: admission,
-                boundTarget: targetDeviceID,
-                pictureRequired: true
-            )
             let items = prepared.map {
                 AhaKeyXPCResourceIngestionItem(
                     logicalIdentifier: $0.input.logicalIdentifier,
@@ -800,29 +820,13 @@ extension AhaKeyStudioRuntimeFacade {
                     data: $0.loaded.data
                 )
             }
-            try await exchangeIngest(items)
-            admission = try requireLiveAdmission(
-                matching: admission,
-                boundTarget: targetDeviceID,
-                pictureRequired: true
-            )
+            try await exchangeIngest(items, using: admission)
         }
-
-        admission = try requireLiveAdmission(
-            matching: admission,
-            boundTarget: targetDeviceID,
+        return try await exchangeApply(
+            package,
+            using: admission,
             pictureRequired: pictureAttempt
         )
-        let applyResponse = try await transport.exchange(.apply(package))
-        switch applyResponse {
-        case .operationAccepted(let operationID):
-            update { $0.lastApplyOperationID = operationID }
-            return operationID
-        case .failure(let code):
-            throw AhaKeyStudioApplyError.applyRejected(code)
-        default:
-            throw AhaKeyStudioApplyError.unexpectedResponse
-        }
     }
 
     /// C2：单页冻结快照提交预检。零差异与 fail-closed 不得调用 ingest/apply。
@@ -938,11 +942,6 @@ extension AhaKeyStudioRuntimeFacade {
             throw AhaKeyStudioApplyError.pageOperationIncomplete
         }
         if !prepared.isEmpty {
-            admission = try requireLiveAdmission(
-                matching: expected,
-                boundTarget: expected.device.id,
-                pictureRequired: true
-            )
             let items = prepared.map {
                 AhaKeyXPCResourceIngestionItem(
                     logicalIdentifier: $0.input.logicalIdentifier,
@@ -952,29 +951,15 @@ extension AhaKeyStudioRuntimeFacade {
                 )
             }
             pageSubmitIngestCalls += 1
-            try await exchangeIngest(items)
-            admission = try requireLiveAdmission(
-                matching: expected,
-                boundTarget: expected.device.id,
-                pictureRequired: true
-            )
+            try await exchangeIngest(items, using: admission)
         }
-        admission = try requireLiveAdmission(
-            matching: expected,
-            boundTarget: expected.device.id,
+        pageSubmitApplyCalls += 1
+        let operationID = try await exchangeApply(
+            package,
+            using: admission,
             pictureRequired: pictureAttempt
         )
-        pageSubmitApplyCalls += 1
-        let applyResponse = try await transport.exchange(.apply(package))
-        switch applyResponse {
-        case .operationAccepted(let operationID):
-            update { $0.lastApplyOperationID = operationID }
-            return .accepted(operationID)
-        case .failure(let code):
-            throw AhaKeyStudioApplyError.applyRejected(code)
-        default:
-            throw AhaKeyStudioApplyError.unexpectedResponse
-        }
+        return .accepted(operationID)
     }
 
     /// C3A：只组装 page-scoped package，不 ingest/apply/BLE。旧 peer 未广告 schema=2 时 fail-closed。

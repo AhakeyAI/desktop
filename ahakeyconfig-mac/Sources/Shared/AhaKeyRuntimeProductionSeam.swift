@@ -317,17 +317,107 @@ public struct AhaKeyXPCResourceIngestionItem: Codable, Equatable, Sendable {
     }
 }
 
+/// Studio 把图片写入资格交给 Runtime 核验的稳定 token。
+/// 必须随 resource-bearing ingest/apply 进入 wire；Agent 在 CAS/WAL 前与当前连接代际精确比对。
+public struct AhaKeyRuntimeResourceAdmissionToken: Codable, Equatable, Sendable {
+    public let targetDeviceID: AhaKeyRuntimeDeviceID
+    public let sessionGeneration: AhaKeyRuntimeSessionGeneration
+    public let transportGeneration: AhaKeyRuntimeTransportGeneration
+    public let sealedOLEDFact: AhaKeyRuntimeOLEDCompatibilityFact
+
+    public init(
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        sealedOLEDFact: AhaKeyRuntimeOLEDCompatibilityFact
+    ) {
+        self.targetDeviceID = targetDeviceID
+        self.sessionGeneration = sessionGeneration
+        self.transportGeneration = transportGeneration
+        self.sealedOLEDFact = sealedOLEDFact
+    }
+
+    public init(device: AhaKeyRuntimeDeviceSnapshot) throws {
+        guard let fact = device.oledCompatibility else {
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
+        }
+        self.init(
+            targetDeviceID: device.id,
+            sessionGeneration: device.sessionGeneration,
+            transportGeneration: device.transportGeneration,
+            sealedOLEDFact: fact
+        )
+    }
+}
+
+public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
+    public let items: [AhaKeyXPCResourceIngestionItem]
+    public let admission: AhaKeyRuntimeResourceAdmissionToken
+
+    public init(items: [AhaKeyXPCResourceIngestionItem], admission: AhaKeyRuntimeResourceAdmissionToken) {
+        self.items = items
+        self.admission = admission
+    }
+}
+
+public enum AhaKeyRuntimeResourceAdmission {
+    public static func rejectionCode(
+        token: AhaKeyRuntimeResourceAdmissionToken,
+        snapshot: AhaKeyRuntimeSnapshot?,
+        release: AhaKeyReleaseFeaturePolicy = .current
+    ) -> AhaKeyRuntimeEventCode? {
+        guard let snapshot,
+              let activeID = snapshot.activeDeviceID,
+              let device = snapshot.devices.first(where: { $0.id == activeID }),
+              device.id == token.targetDeviceID,
+              device.sessionGeneration == token.sessionGeneration,
+              device.transportGeneration == token.transportGeneration,
+              let liveFact = device.oledCompatibility,
+              liveFact == token.sealedOLEDFact
+        else {
+            return try! AhaKeyRuntimeEventCode("unsupported-protocol")
+        }
+        let projection = release.projection(sealedOLEDProfile: liveFact.profile)
+        guard projection.allowsResourcePackage else {
+            return try! AhaKeyRuntimeEventCode("unsupported-protocol")
+        }
+        return nil
+    }
+
+    public static func packageAttemptsPictureWrite(_ package: AhaKeyConfigurationPackage) throws -> Bool {
+        let metadata = Set(package.resources.map(\.logicalIdentifier))
+        if package.isPageScoped {
+            let bindings = Set((package.pageOperation?.resourceBindings ?? []).map(\.logicalID))
+            guard bindings == metadata else {
+                throw AhaKeyStudioApplyError.pageOperationIncomplete
+            }
+            return !bindings.isEmpty
+        }
+        let desired: AhaKeyDesiredConfiguration
+        do {
+            desired = try AhaKeyDesiredConfiguration.decode(from: package.desiredConfiguration)
+        } catch {
+            throw AhaKeyStudioApplyError.unsupportedFirmware
+        }
+        let referenced = desired.referencedResources
+        guard referenced == metadata else {
+            throw AhaKeyStudioApplyError.pageOperationIncomplete
+        }
+        return !referenced.isEmpty
+    }
+}
+
 public enum AhaKeyRuntimeXPCRequest: Codable, Equatable, Sendable {
     case handshake(AhaKeyRuntimeXPCHandshake)
     case snapshot
     case events(after: AhaKeyRuntimeEventSequence?)
-    case apply(AhaKeyConfigurationPackage)
+    case apply(AhaKeyConfigurationPackage, admission: AhaKeyRuntimeResourceAdmissionToken? = nil)
     case requestCancellation(AhaKeyRuntimeOperationID)
     case requestAbandon(AhaKeyRuntimeOperationID)
     case updatePolicy(AhaKeyRuntimePolicy)
     case diagnostics(after: AhaKeyRuntimeEventSequence?)
     case startFirmwareUpgrade(AhaKeyRuntimeFirmwareUpgradeRequest)
-    case ingestResources([AhaKeyXPCResourceIngestionItem])
+    case ingestResources(AhaKeyXPCResourceIngestionRequest)
 }
 
 public enum AhaKeyRuntimeXPCResponse: Codable, Equatable, Sendable {

@@ -253,7 +253,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         for _ in 0..<(window + 1) {
             let package = try makePackage(from: assembled)
             packages.append(package)
-            let response = try await agent.handleRuntimeXPCRequest(.apply(package))
+            let response = try await agent.handleApplyForTesting(package)
             guard case .operationAccepted = response else {
                 return XCTFail("apply 必须受理，实际 \(response)")
             }
@@ -342,7 +342,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             .failedWithoutWrites
         )
 
-        let replay = try await agent.handleRuntimeXPCRequest(.apply(firstTerminal))
+        let replay = try await agent.handleApplyForTesting(firstTerminal)
         guard case .operationAccepted = replay else {
             return XCTFail("终态幂等 apply 仍须受理，实际 \(replay)")
         }
@@ -404,7 +404,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         for _ in 0..<total {
             let package = try makePackage(from: assembled)
             packages.append(package)
-            let response = try await agent.handleRuntimeXPCRequest(.apply(package))
+            let response = try await agent.handleApplyForTesting(package)
             guard case .operationAccepted = response else {
                 return XCTFail("apply 必须受理，实际 \(response)")
             }
@@ -552,7 +552,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         try await waitUntil { await gate.isReady }
         let before = try await snapshotOperation(agent, id: package.operationID)
         XCTAssertEqual(before?.completedBytes, 4096)
-        let replay = try await agent.handleRuntimeXPCRequest(.apply(package))
+        let replay = try await agent.handleApplyForTesting(package)
         guard case .operationAccepted = replay else {
             await gate.allowContinue()
             return XCTFail("幂等 apply 必须再次 accepted，实际 \(replay)")
@@ -589,7 +589,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             let package = try makePackage(from: assembled)
             if index == 0 { firstPackage = package }
             if index == 1 { secondPackage = package }
-            let response = try await agent.handleRuntimeXPCRequest(.apply(package))
+            let response = try await agent.handleApplyForTesting(package)
             guard case .operationAccepted = response else {
                 return XCTFail("apply 必须受理，实际 \(response)")
             }
@@ -609,7 +609,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         let missingBeforeReplay = try await snapshotOperation(agent, id: evicted.operationID)
         XCTAssertNil(missingBeforeReplay, "replay 前第一个终态必须已从 snapshot 淘汰")
         let beforeReplay = try await latestEventSequence(agent)
-        let replay = try await agent.handleRuntimeXPCRequest(.apply(evicted))
+        let replay = try await agent.handleApplyForTesting(evicted)
         guard case .operationAccepted = replay else {
             return XCTFail("终态幂等 apply 仍须受理，实际 \(replay)")
         }
@@ -714,7 +714,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
     }
 
     private func applyPrepared(_ agent: AhaKeyAgent, package: AhaKeyConfigurationPackage) async throws {
-        let response = try await agent.handleRuntimeXPCRequest(.apply(package))
+        let response = try await agent.handleApplyForTesting(package)
         guard case .operationAccepted = response else {
             throw NSError(domain: "byte-progress", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(response)"])
         }
@@ -731,7 +731,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
                 data: data
             )
         }
-        let ingested = try await agent.handleRuntimeXPCRequest(.ingestResources(items))
+        let ingested = try await agent.handleIngestForTesting(items)
         guard case .resourcesIngested = ingested else {
             throw NSError(domain: "byte-progress", code: 2, userInfo: [NSLocalizedDescriptionKey: "\(ingested)"])
         }

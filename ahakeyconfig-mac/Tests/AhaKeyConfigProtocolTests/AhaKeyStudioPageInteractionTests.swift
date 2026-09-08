@@ -578,7 +578,7 @@ private final class FakeTransport: AhaKeyStudioRuntimeTransport, @unchecked Send
             return .eventReplay(.events([]))
         case .ingestResources:
             return .resourcesIngested
-        case .apply(let package):
+        case .apply(let package, _):
             appliedPackage = package
             return .operationAccepted(package.operationID)
         case .requestCancellation(let operationID):

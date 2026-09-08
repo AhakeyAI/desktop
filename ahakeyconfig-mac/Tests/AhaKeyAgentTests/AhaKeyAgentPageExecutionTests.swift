@@ -2415,7 +2415,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return .success
             }
             agent.executionTestHooks = hooks
-            guard case .operationAccepted = try await client.exchange(.apply(fixture.package)) else {
+            guard case .operationAccepted = try await applyPicturePackage(client, agent, fixture.package) else {
                 return XCTFail("picture apply")
             }
             let paused = await waitUntil(
@@ -2440,7 +2440,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             resumedAgent.executionTestHooks = resumeHooks
             let resumeClient = EndpointClient(agent: resumedAgent)
             try await resumeClient.handshake()
-            guard case .operationAccepted = try await resumeClient.exchange(.apply(fixture.package)) else {
+            guard case .operationAccepted = try await applyPicturePackage(resumeClient, resumedAgent, fixture.package) else {
                 return XCTFail("reopen apply must resume")
             }
             await expectTerminal(resumedAgent, fixture.package.operationID, .completed)
@@ -2600,7 +2600,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return .success
             }
             agent.executionTestHooks = hooks
-            guard case .operationAccepted = try await client.exchange(.apply(fixture.package)) else {
+            guard case .operationAccepted = try await applyPicturePackage(client, agent, fixture.package) else {
                 return XCTFail("picture apply")
             }
             let paused = await waitUntil(
@@ -2630,7 +2630,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             missingAgent.executionTestHooks = missingHooks
             let missingClient = EndpointClient(agent: missingAgent)
             try await missingClient.handshake()
-            guard case .operationAccepted = try await missingClient.exchange(.apply(fixture.package)) else {
+            guard case .operationAccepted = try await applyPicturePackage(missingClient, missingAgent, fixture.package) else {
                 return XCTFail("missing CAS reopen must resume")
             }
             await expectTerminal(missingAgent, fixture.package.operationID, .completed)
@@ -2652,7 +2652,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 return .success
             }
             changedAgent.executionTestHooks = changedHooks
-            guard case .operationAccepted = try await changedClient.exchange(.apply(changedFixture.package)) else {
+            guard case .operationAccepted = try await applyPicturePackage(changedClient, changedAgent, changedFixture.package) else {
                 return XCTFail("changed CAS apply")
             }
             let changedPaused = await waitUntil(
@@ -2683,7 +2683,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
             resumedChanged.executionTestHooks = resumeHooks
             let resumeClient = EndpointClient(agent: resumedChanged)
             try await resumeClient.handshake()
-            guard case .operationAccepted = try await resumeClient.exchange(.apply(changedFixture.package)) else {
+            guard case .operationAccepted = try await applyPicturePackage(resumeClient, resumedChanged, changedFixture.package) else {
                 return XCTFail("changed CAS reopen must resume")
             }
             await expectTerminal(resumedChanged, changedFixture.package.operationID, .completed)
@@ -3635,6 +3635,15 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
         )
     }
 
+    private func applyPicturePackage(
+        _ client: EndpointClient,
+        _ agent: AhaKeyAgent,
+        _ package: AhaKeyConfigurationPackage
+    ) async throws -> AhaKeyRuntimeXPCResponse {
+        let token = try await agent.resourceAdmissionTokenForTesting()
+        return try await client.exchange(.apply(package, admission: token))
+    }
+
     private func ingest(_ agent: AhaKeyAgent, _ fixture: PictureApply) async throws {
         let items = fixture.resources.map { resource in
             AhaKeyXPCResourceIngestionItem(
@@ -3644,7 +3653,7 @@ final class AhaKeyAgentPageExecutionTests: XCTestCase {
                 data: fixture.bytes[resource.logicalIdentifier]!
             )
         }
-        let response = try await agent.handleRuntimeXPCRequest(.ingestResources(items))
+        let response = try await agent.handleIngestForTesting(items)
         guard case .resourcesIngested = response else {
             XCTFail("ingest failed: \(response)")
             return

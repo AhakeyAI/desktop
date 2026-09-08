@@ -1106,12 +1106,30 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     ///   新事件立即唤醒，超时返回空批（客户端空闲请求率 ≤ 0.5/s）。
     func handleRuntimeXPCRequest(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse {
         switch request {
-        case .apply(let package):
+        case .apply(let package, let admission):
             if let rejection = await oledDurableWriteRejectionCode() {
                 return .failure(rejection)
             }
+            let pictureAttempt: Bool
+            do {
+                pictureAttempt = try AhaKeyRuntimeResourceAdmission.packageAttemptsPictureWrite(package)
+            } catch {
+                return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+            }
+            if pictureAttempt {
+                guard let admission else {
+                    return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
+                }
+                if let rejection = await resourceAdmissionRejection(admission) {
+                    return .failure(rejection)
+                }
+            }
             // 生产路径：资源必须已入 CAS（由 Studio 预上传或先前恢复）；不接受 staging/ 裸读。
             let store = try await makeRuntimeStore()
+            if pictureAttempt, let admission,
+               let rejection = await resourceAdmissionRejection(admission) {
+                return .failure(rejection)
+            }
             do {
                 _ = try await resolveCachedWriterLease()
             } catch {
@@ -1151,13 +1169,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             await configurationCoordinator.kick()
             return .operationAccepted(package.operationID)
 
-        case .ingestResources(let items):
+        case .ingestResources(let request):
             if let rejection = await oledDurableWriteRejectionCode() {
+                return .failure(rejection)
+            }
+            if let hook = executionTestHooks?.beforeIngestCAS {
+                await hook()
+            }
+            if let rejection = await resourceAdmissionRejection(request.admission) {
                 return .failure(rejection)
             }
             let store = try await makeRuntimeStore()
             do {
-                try await store.ingestResources(items)
+                try await store.ingestResources(request.items)
             } catch let error as AhaKeyRuntimePersistenceError {
                 switch error {
                 case .resourceTooLarge, .resourceQuotaExceeded:
@@ -2405,6 +2429,24 @@ extension AhaKeyAgent {
             return try! AhaKeyRuntimeEventCode(code)
         }
         return nil
+    }
+
+    /// CAS/WAL 前核验 Studio 携带的连接代际 token，防止同 UUID ABA 与 ingest 在途切代。
+    /// 只读 MainActor 设备投影，不得为核验而打开 Store。
+    private func resourceAdmissionRejection(
+        _ token: AhaKeyRuntimeResourceAdmissionToken
+    ) async -> AhaKeyRuntimeEventCode? {
+        let device = await MainActor.run { self.projectedDeviceSnapshot() }
+        let snapshot = AhaKeyRuntimeSnapshot(
+            lifecycleState: .running,
+            devices: device.map { [$0] } ?? [],
+            activeDeviceID: device?.id,
+            configurationRevision: .init(0),
+            operations: [],
+            policy: .init(),
+            latestEventSequence: .init(0)
+        )
+        return AhaKeyRuntimeResourceAdmission.rejectionCode(token: token, snapshot: snapshot)
     }
 
     /// Store 构造：默认生产目录；测试经 executionTestHooks.storeDirectory 重定向到临时目录。
@@ -4227,6 +4269,36 @@ extension AhaKeyAgent {
         }
     }
 
+    /// 测试 seam：从当前投影铸造 resource admission token；无 fact 时用占位以便走到前置拒绝。
+    func resourceAdmissionTokenForTesting() async throws -> AhaKeyRuntimeResourceAdmissionToken {
+        let device = await MainActor.run { self.projectedDeviceSnapshot() }
+        if let device, let token = try? AhaKeyRuntimeResourceAdmissionToken(device: device) {
+            return token
+        }
+        return try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+    }
+
+    func handleIngestForTesting(
+        _ items: [AhaKeyXPCResourceIngestionItem]
+    ) async throws -> AhaKeyRuntimeXPCResponse {
+        try await handleRuntimeXPCRequest(
+            .ingestResources(.init(items: items, admission: try await resourceAdmissionTokenForTesting()))
+        )
+    }
+
+    func handleApplyForTesting(
+        _ package: AhaKeyConfigurationPackage
+    ) async throws -> AhaKeyRuntimeXPCResponse {
+        let picture = (try? AhaKeyRuntimeResourceAdmission.packageAttemptsPictureWrite(package)) ?? false
+        let token = picture ? try await resourceAdmissionTokenForTesting() : nil
+        return try await handleRuntimeXPCRequest(.apply(package, admission: token))
+    }
+
     /// 测试 seam：MainActor 上同步更换模拟设备投影并立即发布 deviceChanged。
     /// 供 eventsLongPollGapHook 在 lost-wakeup 交错测试中于临界区夹缝内注入事件（R2-5）。
     @MainActor
@@ -4628,6 +4700,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var stepExecutor: (@Sendable (AhaKeyRuntimeStepIdentifier) async -> AhaKeyConfigurationStepResult)?
     /// 非 nil 时重定向 Runtime Store 到临时目录（测试隔离生产 WAL）。
     var storeDirectory: URL?
+    /// 非 nil 时在 ingest CAS 核验前暂停，供切代/撤 proof 反例（生产恒 nil）。
+    var beforeIngestCAS: (@Sendable () async -> Void)?
     /// 非 nil 时作为投影中的设备快照（deviceChanged 事件源）。
     var simulatedDevice: AhaKeyRuntimeDeviceSnapshot?
     /// 非 nil 时覆盖 transportCore.stableDeviceID（测试 0x00 parser→reducer→event 路径）。

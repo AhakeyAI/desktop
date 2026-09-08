@@ -19,11 +19,11 @@ final class AhaKeyStudioOLEDPreflightTests: XCTestCase {
             lock.lock()
             defer { lock.unlock() }
             switch request {
-            case .ingestResources(let items):
-                requestLog.append("ingest(\(items.count))")
-                ingestedItems = items
+            case .ingestResources(let request):
+                requestLog.append("ingest(\(request.items.count))")
+                ingestedItems = request.items
                 return ingestResponse ?? .resourcesIngested
-            case .apply(let package):
+            case .apply(let package, _):
                 requestLog.append("apply")
                 appliedPackage = package
                 return applyResponse ?? .operationAccepted(package.operationID)

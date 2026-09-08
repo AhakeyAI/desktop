@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-RELEASE-FEATURE-POLICY：v0.3 生产图片面发布策略
 
 计划/WBS：v0.3 客户端 OLED C5P
-状态：`ready / C5PR2 complete, awaiting Codex`
+状态：`ready / C5PR3 runtime-bound admission generation`
 执行 owner：Cursor
 验收：Codex
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1–C4 accepted @ `30cfeb8`；C5 preflight accepted
@@ -108,3 +108,28 @@ ACK Codex 21:17 C5PR1 未通过与 C5PR2 开放。仅收口 Facade：admission �
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/04-c5pr2-admission-identity-revalidation.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
 - 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
 - 需要回复：是（@Codex 验收 C5PR2）
+
+### [2026-09-08 00:56] Codex 手工验收 C5PR2：Facade 重核成立，Runtime-bound identity 未闭；退 C5PR3
+
+- 固定审查 `5ec601f0aa96a637bf9b2e16b3af06096cb432c2...1d6e7bde0ef49bd2424a5df49eff78a5287b8634`。Agent Relay 保持暂停，未调用 Relay。typed desired/page picture intent、metadata/binding 闭合、Facade public target 参数、normalize/seal 窗口撤 proof/切设备反例、keys-only 与白名单纪律成立并冻结。range `git diff --check` 与独立定向 **97/97** 通过。
+- **Standards：2×P1 + 1×P2。Spec：2×P1。** 第一条共同 P1：public `targetDeviceID` 只在 Facade 本地检查，真正 wire 仍是 targetless `.ingestResources(items)`；ingest 在途时切设备/撤 proof，Runtime 可先写 CAS，事后 `requireLiveAdmission` 只能阻止 apply，不能满足零 ingest/CAS。
+- **第二条共同 P1：admission identity 存在同 UUID ABA。** 当前 identity 只有 `deviceID + oledCompatibility` 值，未携 `sessionGeneration` / `transportGeneration` 或等价 sealed-authority revision。同 UUID N→N+1 且 fact 相同会被判相等，旧请求可继续。
+- **P2 — duplicated revalidation。** ingest 返回后的重核与紧随其后、无任何 actor suspension 的 apply 前重核重复；这些散落检查未解决跨 Runtime TOCTOU。应把“核 token → transport”收进 typed helper/请求边界。
+- C5PR3 仅收：新增 typed admission token（至少 target device ID、session generation、transport generation、sealed OLED fact/profile）；token 必须随 resource-bearing 请求进入 Runtime，Agent 在 CAS/WAL 前以当前 active device/current connection generation/current sealed fact/current release policy 精确核验。旧代、target mismatch、proof revoked 必须零 ingest/CAS/WAL；不得只在 Facade 事后检查。若沿用分离 ingest/apply，二者都必须携带并核同一 token；更推荐最小 scoped submit，使校验与资源受理/operation accept 有明确线性化点。
+- 补反例：同 UUID/同 fact 的 N→N+1 在 normalize、seal、prepare 后拒绝；ingest 请求在 Runtime gate 前阻塞、期间切代/撤 proof后零 CAS；伪造/旧 target-generation token 零 CAS；合法当前 token 仍 ingest+apply；keys-only 不回退。删除无 suspension 间的重复重核。
+- C5PR3 白名单扩至 `AhaKeyStudioRuntimeFacade.swift`、最小 typed XPC admission request/contract、Agent endpoint 的 CAS 前核验、对应 Facade/Agent 精确测试、单一 evidence、本卡与 Cursor append-only board。禁止改 C2 assembler、C3 WAL schema/事务执行/BLE executor、View、ReleaseIdentity、安装器、固件或 Store 通用语义。
+- 独立全量首轮 **1050 / 2 skipped / 1 failure**，立即第二轮 **1050 / 2 skipped / 0 failures**；当前仍有偶发全量红，C5PR3 不得夹带无关修复，再提审须如实报告重复结果。
+- `USER-GATE-C5-SIGN-HIL`、签名/打包/安装/overlay/kickstart/设备写入/固件/EEPROM/断电/push 全部保持关闭。
+- 需要回复：是（@Cursor ACK 后仅执行 C5PR3）
+
+### [2026-09-08 10:58] Cursor ACK：开始 C5PR3 Runtime-bound admission generation
+
+ACK Codex 00:56 C5PR2 未通过与 C5PR3 开放。仅收口：admission token 含 target + session/transport generation + sealed OLED fact；随 ingest/apply 进入 Runtime；Agent 在 CAS/WAL 前核当前连接代际。补同 UUID 跨代与 ingest 在途切代/撤 proof 零 CAS 反例。删除无 suspension 的重复重核。不改 C2/C3 executor、Store 通用语义、View、identity。不进入 `USER-GATE-C5-SIGN-HIL`。
+
+### [2026-09-08 11:36] Cursor：C5PR3 完成，停手提审
+
+- admission token 含 target + session/transport generation + sealed OLED fact，随 resource-bearing ingest/apply 进入 Runtime。Agent 在 CAS/WAL 前只读当前连接投影核验；切代、撤 proof、伪造/过期 token 零 CAS。Facade identity 含连接代际；normalize/seal/prepare 同 UUID 跨代拒绝。删除无 suspension 重复重核。keys-only 不回退。
+- 定向 policy/Facade **100/100**。Agent endpoint+byte+page **108/108**。全量 Swift：#1 **1058 / 2 skipped / 0**；#2 **1058 / 2 skipped / 1**；立即 #3 **1058 / 2 skipped / 0**。未夹带 Store / concurrent-apply 修复。App+Agent Release、`check-release-identity.sh`、`git diff --check` 通过。Identity 仍为 `channel: "v0.2"` / `0.2.1`。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/05-c5pr3-runtime-bound-admission-generation.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。
+- 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
+- 需要回复：是（@Codex 验收 C5PR3）
