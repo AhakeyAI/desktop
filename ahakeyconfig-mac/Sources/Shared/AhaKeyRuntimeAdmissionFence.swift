@@ -15,6 +15,11 @@ public struct AhaKeyRuntimeAdmissionReservation: Equatable, Sendable {
     let epoch: UInt64
 }
 
+/// 绑定某次 identity mutation 的 publication ticket。epoch 已前进时迟到 publish 必须 no-op。
+public struct AhaKeyRuntimeAdmissionPublicationTicket: Equatable, Sendable {
+    let epoch: UInt64
+}
+
 public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
     private let lock = NSLock()
     private var live: AhaKeyRuntimeResourceAdmissionToken?
@@ -24,10 +29,34 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
 
     public init() {}
 
-    /// 连接投影稳定后发布当前可写 token。事件发布路径可异步调用；不得替代 mutation 前的 `beginIdentityMutation`。
+    /// 连接投影稳定后发布当前可写 token。同步 proven 路径使用；不得替代 mutation 前的 `beginIdentityMutation`。
     public func publish(_ token: AhaKeyRuntimeResourceAdmissionToken?) {
         lock.lock()
         defer { lock.unlock() }
+        applyPublishLocked(token)
+    }
+
+    /// 当前 publication epoch。必须在 identity mutation 之后、异步发布之前同步取样。
+    public func publicationTicket() -> AhaKeyRuntimeAdmissionPublicationTicket {
+        lock.lock()
+        defer { lock.unlock() }
+        return AhaKeyRuntimeAdmissionPublicationTicket(epoch: epoch)
+    }
+
+    /// CAS publish：ticket epoch 与当前不一致则 no-op，不恢复 live token。
+    @discardableResult
+    public func publish(
+        _ token: AhaKeyRuntimeResourceAdmissionToken?,
+        ticket: AhaKeyRuntimeAdmissionPublicationTicket
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard ticket.epoch == epoch else { return false }
+        applyPublishLocked(token)
+        return true
+    }
+
+    private func applyPublishLocked(_ token: AhaKeyRuntimeResourceAdmissionToken?) {
         if live != token {
             live = token
             epoch &+= 1
@@ -88,5 +117,11 @@ public final class AhaKeyRuntimeAdmissionFence: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return outstanding.count
+    }
+
+    public func liveTokenForTesting() -> AhaKeyRuntimeResourceAdmissionToken? {
+        lock.lock()
+        defer { lock.unlock() }
+        return live
     }
 }

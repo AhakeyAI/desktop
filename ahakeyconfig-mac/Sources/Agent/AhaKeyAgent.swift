@@ -1855,7 +1855,7 @@ extension AhaKeyAgent {
             }
             performTransportActions(actions)
         }
-        publishDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded()
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -1904,7 +1904,7 @@ extension AhaKeyAgent {
             emit(NSLocalizedString("连接断开", comment: ""))
             performTransportActions(transportCore.handle(.disconnected(uuid: peripheral.identifier.uuidString), now: Date()))
         }
-        publishDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded()
         Task { await self.noteDurableDisconnect(identity: frozenIdentity, at: frozenAt) }
     }
 
@@ -1931,7 +1931,7 @@ extension AhaKeyAgent {
         withAdmissionIdentityMutation {
             performTransportActions(transportCore.handle(.deviceIdentified(deviceID: id), now: Date()))
         }
-        publishDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded()
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
@@ -2129,7 +2129,7 @@ extension AhaKeyAgent {
             let uuid = peripheral?.identifier.uuidString ?? ""
             performTransportActions(transportCore.handle(.negotiationFinished(uuid: uuid, mode: mode), now: Date()))
         }
-        publishDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded()
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
@@ -2235,7 +2235,7 @@ extension AhaKeyAgent {
                 uuid: peripheral?.identifier.uuidString ?? "", mode: mode
             ), now: Date())
         }
-        publishDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded()
         if transportCore.isReady {
             emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
             requestDeviceStatus()
@@ -2293,7 +2293,7 @@ extension AhaKeyAgent {
                 withAdmissionIdentityMutation {
                     performTransportActions(transportCore.handle(.deviceIdentified(deviceID: shortID), now: Date()))
                 }
-                publishDeviceChangedIfNeeded()
+                publishAdmissionBoundDeviceChangedIfNeeded()
                 if transportCore.isReady {
                     emit(NSLocalizedString("current 协议协商完成，开始状态轮询", comment: ""))
                     requestDeviceStatus()
@@ -3899,28 +3899,46 @@ extension AhaKeyAgent {
     }
 
     /// 设备投影有变化才发布 deviceChanged。可在任意队列调用（内部落到 main）。
-    /// 不在此处首次推进 fence：identity mutation 必须已经同步 `beginIdentityMutation`。
+    /// 不携带 admission ticket：普通 status/authoritative/deviceChanged 不得恢复 live token。
     private func publishDeviceChangedIfNeeded() {
+        enqueueDeviceChangedPublication(admissionTicket: nil)
+    }
+
+    /// Identity mutation 完成后绑定当前 epoch ticket，再异步发布。
+    /// 仅 proven target + generations + sealed fact 才 publish live token；旧 ticket 遇较新 revoke no-op。
+    private func publishAdmissionBoundDeviceChangedIfNeeded() {
+        let ticket = resourceAdmissionFence.publicationTicket()
+        enqueueDeviceChangedPublication(admissionTicket: ticket)
+    }
+
+    private func enqueueDeviceChangedPublication(
+        admissionTicket: AhaKeyRuntimeAdmissionPublicationTicket?
+    ) {
         if let hook = executionTestHooks?.beforeDeviceChangedPublication {
             Task { [weak self] in
                 await hook()
                 await MainActor.run { [weak self] in
-                    self?.publishDeviceChangedOnMain()
+                    self?.publishDeviceChangedOnMain(admissionTicket: admissionTicket)
                 }
             }
             return
         }
         DispatchQueue.main.async { [weak self] in
-            self?.publishDeviceChangedOnMain()
+            self?.publishDeviceChangedOnMain(admissionTicket: admissionTicket)
         }
     }
 
     @MainActor
-    private func publishDeviceChangedOnMain() {
+    private func publishDeviceChangedOnMain(
+        admissionTicket: AhaKeyRuntimeAdmissionPublicationTicket? = nil
+    ) {
         let connection = projectedConnectionSnapshot()
-        resourceAdmissionFence.publish(
-            connection.flatMap { try? AhaKeyRuntimeResourceAdmissionToken(device: $0) }
-        )
+        if let admissionTicket {
+            _ = resourceAdmissionFence.publish(
+                provenAdmissionToken(from: connection),
+                ticket: admissionTicket
+            )
+        }
         guard let connection else {
             if lastPublishedDeviceSnapshot != nil {
                 lastPublishedDeviceSnapshot = nil
@@ -3939,6 +3957,17 @@ extension AhaKeyAgent {
             ))
         }
         Task { await self.commitAndPublishAuthoritativeObject(connection) }
+    }
+
+    /// 只有本代已证明的 target + generations + sealed writable fact 才能成为 live token。
+    private func provenAdmissionToken(
+        from connection: AhaKeyRuntimeDeviceSnapshot?
+    ) -> AhaKeyRuntimeResourceAdmissionToken? {
+        guard let connection else { return nil }
+        guard let fact = connection.oledCompatibility, fact.family != .unsupported else {
+            return nil
+        }
+        return try? AhaKeyRuntimeResourceAdmissionToken(device: connection)
     }
 
     /// 已验证 live CAS 先 durable commit，再对外发布带 object 的 authoritative deviceChanged。
@@ -4417,7 +4446,9 @@ extension AhaKeyAgent {
         var hooks = self.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
         hooks.simulatedDevice = device
         self.executionTestHooks = hooks
-        self.publishDeviceChangedOnMain()
+        self.publishDeviceChangedOnMain(
+            admissionTicket: resourceAdmissionFence.publicationTicket()
+        )
     }
 
     /// 测试 seam：走生产 `handleJsonCommand`，不经 Unix socket。
@@ -4648,13 +4679,27 @@ extension AhaKeyAgent {
         withAdmissionIdentityMutation {
             resetOLEDNegotiationState(reason: "test-reset")
         }
-        publishDeviceChangedIfNeeded()
+        publishAdmissionBoundDeviceChangedIfNeeded()
     }
 
     /// 测试 seam：与 `centralManagerDidUpdateState` 非 poweredOn 同一生产路径。
     /// 不走 didDisconnect，也不发布 live token。
     func simulateBluetoothUnavailableForTesting() {
         handleBluetoothUnavailable()
+    }
+
+    /// 测试 seam：生产 identity-bound deviceChanged 排队（含当前 epoch ticket）。
+    func scheduleAdmissionBoundDeviceChangedForTesting() {
+        publishAdmissionBoundDeviceChangedIfNeeded()
+    }
+
+    /// 测试 seam：普通 status/deviceChanged，不携带 admission ticket。
+    func publishOrdinaryDeviceChangedForTesting() {
+        publishDeviceChangedIfNeeded()
+    }
+
+    func liveAdmissionTokenForTesting() -> AhaKeyRuntimeResourceAdmissionToken? {
+        resourceAdmissionFence.liveTokenForTesting()
     }
 
     func admissionOutstandingCountForTesting() -> Int {

@@ -371,6 +371,43 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         XCTAssertNil(fence.reserve(next))
     }
 
+    func testAdmissionPublicationTicketCASIgnoresStaleEpoch() throws {
+        let fence = AhaKeyRuntimeAdmissionFence()
+        let token = try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+        fence.publish(token)
+        XCTAssertEqual(fence.liveTokenForTesting(), token)
+        let stale = fence.publicationTicket()
+        fence.beginIdentityMutation()
+        XCTAssertNil(fence.liveTokenForTesting())
+        XCTAssertFalse(fence.publish(token, ticket: stale))
+        XCTAssertNil(fence.liveTokenForTesting())
+        XCTAssertNil(fence.reserve(token))
+
+        let fresh = fence.publicationTicket()
+        XCTAssertTrue(fence.publish(token, ticket: fresh))
+        XCTAssertEqual(fence.liveTokenForTesting(), token)
+        XCTAssertFalse(fence.publish(token, ticket: fresh), "同一 ticket 不得在 epoch 前进后再次写入")
+        XCTAssertEqual(fence.liveTokenForTesting(), token)
+
+        let next = AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: token.targetDeviceID,
+            sessionGeneration: .init(1),
+            transportGeneration: token.transportGeneration,
+            sealedOLEDFact: token.sealedOLEDFact
+        )
+        let superseded = fence.publicationTicket()
+        fence.beginIdentityMutation()
+        let replacement = fence.publicationTicket()
+        XCTAssertTrue(fence.publish(next, ticket: replacement))
+        XCTAssertFalse(fence.publish(token, ticket: superseded))
+        XCTAssertEqual(fence.liveTokenForTesting(), next)
+    }
+
     func testAdmissionReservationDiscardIsIdempotentAndBoundsOutstanding() throws {
         let fence = AhaKeyRuntimeAdmissionFence()
         let token = try AhaKeyRuntimeResourceAdmissionToken(
