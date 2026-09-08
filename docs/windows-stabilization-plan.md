@@ -435,3 +435,19 @@ CLICK_TO_WCHISP_START_MS 和 DOWNLOAD_PROCESS_DURATION_MS。
 单次 prepared flash、预启动 worker READY/GO 一次性语义、UAC 取消 fail closed、取消会话
 拒绝启动、真实 child-start timestamp、准备代际保护、worker ownership 和 post-verify 链路。
 自动测试与真实 WCHISP/USB ISP 烧录仍需以本轮命令及硬件结果为准；本轮不执行真实烧录。
+
+## 17. Prepared worker PowerShell newline and readiness evidence (2026-09-08)
+
+Prepared launch 生成的 `worker.ps1`、`runas-wrapper.ps1` 以及兼容路径脚本现在通过统一
+的 `System.lineSeparator()` 写入真实换行，不再把 `` `n `` 作为脚本文本中的换行符。写盘前
+会拒绝空脚本或再次出现该字面量；定向测试把两份生成脚本写入临时目录并调用 PowerShell
+语言解析器，要求 `PARSE_ERRORS=0`，因此可捕获同类回归而不启动 WCHISP。
+
+Prepared launch 只有同时观察到 nonce 绑定的 `ready.marker`、有效且仍存活的
+`worker-pid.txt` 对应进程才报告 READY。准备阶段失败按已有证据区分为
+`UAC_CANCELLED`、`ELEVATED_WORKER_START_FAILED`、`ELEVATED_WORKER_NOT_READY`；脚本文本
+自身无效时报告 `ELEVATED_WORKER_SCRIPT_INVALID`，不会将脚本错误误报为 UAC 取消。GO 之前
+worker 只等待信号，检测阶段不执行 download；没有 GO 时不会启动 WCHISP。自动测试覆盖
+真实换行与 PowerShell 解析、脚本无效分类、UAC/启动/READY 失败分类及 READY/GO 一次性语义。
+
+本轮仅完成代码与自动测试；未执行真实 UAC、WCHISP、USB ISP 或烧录验证。

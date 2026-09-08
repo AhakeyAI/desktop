@@ -3,12 +3,16 @@ package com.example.ahakey.firmware;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -114,6 +118,68 @@ class WchIspRunnerTest {
         assertFalse(prepared.workerRunning());
         assertThrows(IllegalStateException.class, () -> prepared.launch(() -> false));
         assertFalse(flags.launched);
+    }
+
+    @Test
+    void generatedPreparedScriptsUseRealNewlinesAndPassPowerShellParser() throws Exception {
+        Path directory = Files.createTempDirectory("wchisp-script-parse-");
+        Path worker = directory.resolve("worker.ps1");
+        Path wrapper = directory.resolve("runas-wrapper.ps1");
+        String workerText = WchIspRunner.preparedWorkerScriptForTests();
+        String wrapperText = WchIspRunner.preparedWrapperScriptForTests();
+        String literalBacktickN = String.valueOf((char) 96) + "n";
+        assertFalse(workerText.contains(literalBacktickN));
+        assertFalse(wrapperText.contains(literalBacktickN));
+        assertTrue(workerText.contains(System.lineSeparator()));
+        assertTrue(wrapperText.contains(System.lineSeparator()));
+        Files.writeString(worker, workerText, StandardCharsets.UTF_8);
+        Files.writeString(wrapper, wrapperText, StandardCharsets.UTF_8);
+        assertPowerShellParses(worker);
+        assertPowerShellParses(wrapper);
+
+        Path legacyWorker = directory.resolve("legacy-worker.ps1");
+        Path legacyWrapper = directory.resolve("legacy-wrapper.ps1");
+        String legacyWorkerText = WchIspRunner.workerScriptForTests();
+        String legacyWrapperText = WchIspRunner.wrapperScriptForTests();
+        assertFalse(legacyWorkerText.contains(literalBacktickN));
+        assertFalse(legacyWrapperText.contains(literalBacktickN));
+        Files.writeString(legacyWorker, legacyWorkerText, StandardCharsets.UTF_8);
+        Files.writeString(legacyWrapper, legacyWrapperText, StandardCharsets.UTF_8);
+        assertPowerShellParses(legacyWorker);
+        assertPowerShellParses(legacyWrapper);
+    }
+
+    @Test
+    void invalidGeneratedScriptIsRejectedWithDedicatedReason() {
+        String invalid = "param()" + String.valueOf((char) 96) + "n$broken=";
+        IOException failure = assertThrows(IOException.class,
+            () -> WchIspRunner.validateGeneratedScriptTextForTests(invalid));
+        assertEquals("ELEVATED_WORKER_SCRIPT_INVALID", failure.getMessage());
+    }
+
+    @Test
+    void preparationReadyFailureReasonsAreDistinct() {
+        assertEquals("UAC_CANCELLED",
+            WchIspRunner.preparationFailureReasonForTests(1223, false));
+        assertEquals("ELEVATED_WORKER_START_FAILED",
+            WchIspRunner.preparationFailureReasonForTests(1, false));
+        assertEquals("ELEVATED_WORKER_NOT_READY",
+            WchIspRunner.preparationFailureReasonForTests(-1, true));
+    }
+
+    private static void assertPowerShellParses(Path script) throws Exception {
+        String shell = System.getProperty("os.name", "")
+            .toLowerCase(Locale.ROOT).contains("win") ? "powershell.exe" : "pwsh";
+        String path = script.toString().replace("'", "''");
+        String command = "$tokens=$null;$errors=$null;"
+            + "[System.Management.Automation.Language.Parser]::ParseFile('"
+            + path + "',[ref]$tokens,[ref]$errors)|Out-Null;"
+            + "if($errors.Count -gt 0){$errors|ForEach-Object{$_.Message};exit 1};exit 0";
+        Process process = new ProcessBuilder(shell, "-NoProfile", "-NonInteractive",
+            "-Command", command).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(10, TimeUnit.SECONDS), "PowerShell parser timed out");
+        assertEquals(0, process.exitValue(), output);
     }
 
     private static final class AtomicFlags {

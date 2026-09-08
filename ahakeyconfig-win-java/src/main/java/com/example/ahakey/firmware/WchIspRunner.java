@@ -293,8 +293,12 @@ public class WchIspRunner {
             Path cancelFile = directory.resolve("cancel.signal");
             Path startTimeFile = directory.resolve("child-start-millis.txt");
             String nonce = UUID.randomUUID().toString();
-            Files.writeString(wrapper, preparedWrapperScript(), StandardCharsets.UTF_8);
-            Files.writeString(worker, preparedWorkerScript(), StandardCharsets.UTF_8);
+            String wrapperText = preparedWrapperScript();
+            String workerText = preparedWorkerScript();
+            validateGeneratedScriptText(wrapperText);
+            validateGeneratedScriptText(workerText);
+            Files.writeString(wrapper, wrapperText, StandardCharsets.UTF_8);
+            Files.writeString(worker, workerText, StandardCharsets.UTF_8);
             List<String> invocation = List.of(
                 "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                 "-File", wrapper.toString(), worker.toString(), command.executable().toString(),
@@ -310,8 +314,9 @@ public class WchIspRunner {
                 elevation, stdout, stderr, marker, pidFile, workerPidFile, readyFile, goFile,
                 cancelFile, startTimeFile);
             if (!launch.awaitReady(PREPARE_TIMEOUT)) {
+                int exitCode = launch.exitCodeIfExited();
                 launch.cancel();
-                throw new IOException("UAC_CANCELLED_OR_ELEVATED_WORKER_NOT_READY");
+                throw new IOException(preparationFailureReason(exitCode, launch.wrapperAlive()));
             }
             return launch.context();
         }
@@ -361,6 +366,12 @@ public class WchIspRunner {
                 return ("READY:" + nonce).equals(read(readyFile).trim())
                     && alive(readPid(workerPidFile));
             }
+
+            int exitCodeIfExited() {
+                return elevation.isAlive() ? -1 : elevation.exitValue();
+            }
+
+            boolean wrapperAlive() { return elevation.isAlive(); }
 
             PreparedLaunchContext context() {
                 return new PreparedLaunchContext(command.operationId(), directory, nonce,
@@ -425,8 +436,12 @@ public class WchIspRunner {
             Path marker = directory.resolve("result.txt");
             Path pidFile = directory.resolve("pid.txt");
             Path workerPidFile = directory.resolve("worker-pid.txt");
-            java.nio.file.Files.writeString(wrapper, wrapperScript(), java.nio.charset.StandardCharsets.UTF_8);
-            java.nio.file.Files.writeString(worker, workerScript(), java.nio.charset.StandardCharsets.UTF_8);
+            String wrapperText = wrapperScript();
+            String workerText = workerScript();
+            validateGeneratedScriptText(wrapperText);
+            validateGeneratedScriptText(workerText);
+            java.nio.file.Files.writeString(wrapper, wrapperText, java.nio.charset.StandardCharsets.UTF_8);
+            java.nio.file.Files.writeString(worker, workerText, java.nio.charset.StandardCharsets.UTF_8);
             List<String> invocation = List.of(
                 "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                 "-File", wrapper.toString(), worker.toString(), command.executable().toString(),
@@ -564,33 +579,81 @@ public class WchIspRunner {
         }
 
         private static String preparedWrapperScript() {
-            return "param([string]$Worker,[string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[string]$Ready,[string]$Go,[string]$Cancel,[string]$StartTime,[string]$Nonce,[int]$WorkerTtl,[int]$Timeout,[string]$Args)`n"
-                + "$list=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$Worker,$Tool,$Work,$Stdout,$Stderr,$Result,$Pid,$WorkerPid,$Ready,$Go,$Cancel,$StartTime,$Nonce,$WorkerTtl,$Timeout,$Args)`n"
-                + "$quoted=$list|ForEach-Object{\"'\"+($_ -replace \"'\",\"''\")+\"'\"}`n"
-                + "try{$p=Start-Process powershell.exe -Verb RunAs -ArgumentList ($quoted -join ' ') -Wait -PassThru;exit $p.ExitCode}catch{if($_.Exception.Message -match 'cancel|1223'){exit 1223};exit 1}`n";
+            return scriptLines(
+                "param([string]$Worker,[string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[string]$Ready,[string]$Go,[string]$Cancel,[string]$StartTime,[string]$Nonce,[int]$WorkerTtl,[int]$Timeout,[string]$Args)",
+                "$list=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$Worker,$Tool,$Work,$Stdout,$Stderr,$Result,$Pid,$WorkerPid,$Ready,$Go,$Cancel,$StartTime,$Nonce,$WorkerTtl,$Timeout,$Args)",
+                "$quoted=$list|ForEach-Object{\"'\"+($_ -replace \"'\",\"''\")+\"'\"}",
+                "try{$p=Start-Process powershell.exe -Verb RunAs -ArgumentList ($quoted -join ' ') -Wait -PassThru;exit $p.ExitCode}catch{if($_.Exception.Message -match 'cancel|1223'){exit 1223};exit 1}"
+            );
         }
 
         private static String preparedWorkerScript() {
-            return "param([string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[string]$Ready,[string]$Go,[string]$Cancel,[string]$StartTime,[string]$Nonce,[int]$WorkerTtl,[int]$Timeout,[string]$Args)`n"
-                + "$PID|Out-File -LiteralPath $WorkerPid -Encoding ascii`n"
-                + "(\"READY:\"+$Nonce)|Out-File -LiteralPath $Ready -Encoding ascii`n"
-                + "$deadline=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+($WorkerTtl*1000)`n"
-                + "while($true){if((Test-Path -LiteralPath $Cancel) -and ((Get-Content -Raw -LiteralPath $Cancel).Trim() -eq $Nonce)){\"CANCELLED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 1223};if((Test-Path -LiteralPath $Go) -and ((Get-Content -Raw -LiteralPath $Go).Trim() -eq $Nonce)){break};if([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -ge $deadline){\"TTL_EXPIRED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 124};Start-Sleep -Milliseconds 10}`n"
-                + "try{$decoded=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Args));$a=if($decoded){@($decoded -split \"`0\")}else{@()};$p=Start-Process -FilePath $Tool -WorkingDirectory $Work -ArgumentList $a -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr -PassThru;$started=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();$p.Id|Out-File -LiteralPath $Pid -Encoding ascii;$started|Out-File -LiteralPath $StartTime -Encoding ascii;$p.WaitForExit($Timeout*1000)|Out-Null;if(-not $p.HasExited){$p.Kill();\"TIMEOUT\"|Out-File -LiteralPath $Result -Encoding ascii;exit 124};(\"PROCESS_EXIT:\"+$p.ExitCode)|Out-File -LiteralPath $Result -Encoding ascii;exit $p.ExitCode}catch{($_|Out-String)|Out-File -LiteralPath $Stderr -Encoding utf8;\"PROCESS_START_FAILED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 1}`n";
+            return scriptLines(
+                "param([string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[string]$Ready,[string]$Go,[string]$Cancel,[string]$StartTime,[string]$Nonce,[int]$WorkerTtl,[int]$Timeout,[string]$Args)",
+                "$PID|Out-File -LiteralPath $WorkerPid -Encoding ascii",
+                "(\"READY:\"+$Nonce)|Out-File -LiteralPath $Ready -Encoding ascii",
+                "$deadline=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+($WorkerTtl*1000)",
+                "while($true){if((Test-Path -LiteralPath $Cancel) -and ((Get-Content -Raw -LiteralPath $Cancel).Trim() -eq $Nonce)){\"CANCELLED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 1223};if((Test-Path -LiteralPath $Go) -and ((Get-Content -Raw -LiteralPath $Go).Trim() -eq $Nonce)){break};if([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -ge $deadline){\"TTL_EXPIRED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 124};Start-Sleep -Milliseconds 10}",
+                "try{$decoded=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Args));$a=if($decoded){@($decoded -split \"`0\")}else{@()};$p=Start-Process -FilePath $Tool -WorkingDirectory $Work -ArgumentList $a -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr -PassThru;$started=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();$p.Id|Out-File -LiteralPath $Pid -Encoding ascii;$started|Out-File -LiteralPath $StartTime -Encoding ascii;$p.WaitForExit($Timeout*1000)|Out-Null;if(-not $p.HasExited){$p.Kill();\"TIMEOUT\"|Out-File -LiteralPath $Result -Encoding ascii;exit 124};(\"PROCESS_EXIT:\"+$p.ExitCode)|Out-File -LiteralPath $Result -Encoding ascii;exit $p.ExitCode}catch{($_|Out-String)|Out-File -LiteralPath $Stderr -Encoding utf8;\"PROCESS_START_FAILED\"|Out-File -LiteralPath $Result -Encoding ascii;exit 1}"
+            );
         }
 
         private static String wrapperScript() {
-            return "param([string]$Worker,[string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[int]$Timeout,[string]$Args)`n"
-                + "$list=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$Worker,$Tool,$Work,$Stdout,$Stderr,$Result,$Pid,$WorkerPid,$Timeout,$Args)`n"
-                + "$quoted=$list|ForEach-Object{\"'\"+($_ -replace \"'\",\"''\")+\"'\"}`n"
-                + "try{$p=Start-Process powershell.exe -Verb RunAs -ArgumentList ($quoted -join ' ') -Wait -PassThru;exit $p.ExitCode}catch{if($_.Exception.Message -match 'cancel|1223'){exit 1223};exit 1}`n";
+            return scriptLines(
+                "param([string]$Worker,[string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[int]$Timeout,[string]$Args)",
+                "$list=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$Worker,$Tool,$Work,$Stdout,$Stderr,$Result,$Pid,$WorkerPid,$Timeout,$Args)",
+                "$quoted=$list|ForEach-Object{\"'\"+($_ -replace \"'\",\"''\")+\"'\"}",
+                "try{$p=Start-Process powershell.exe -Verb RunAs -ArgumentList ($quoted -join ' ') -Wait -PassThru;exit $p.ExitCode}catch{if($_.Exception.Message -match 'cancel|1223'){exit 1223};exit 1}"
+            );
         }
 
         private static String workerScript() {
-            return "param([string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[int]$Timeout,[string]$Args)`n"
-                + "$PID|Out-File -LiteralPath $WorkerPid -Encoding ascii`n"
-                + "try{$decoded=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Args));$a=if($decoded){@($decoded -split \"`0\")}else{@()};$p=Start-Process -FilePath $Tool -WorkingDirectory $Work -ArgumentList $a -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr -PassThru;$p.Id|Out-File -LiteralPath $Pid -Encoding ascii;$p.WaitForExit($Timeout*1000)|Out-Null;if(-not $p.HasExited){$p.Kill();'TIMEOUT'|Out-File -LiteralPath $Result -Encoding ascii;exit 124};(\"PROCESS_EXIT:\"+$p.ExitCode)|Out-File -LiteralPath $Result -Encoding ascii;exit $p.ExitCode}catch{($_|Out-String)|Out-File -LiteralPath $Stderr -Encoding utf8;'PROCESS_START_FAILED'|Out-File -LiteralPath $Result -Encoding ascii;exit 1}`n";
+            return scriptLines(
+                "param([string]$Tool,[string]$Work,[string]$Stdout,[string]$Stderr,[string]$Result,[string]$Pid,[string]$WorkerPid,[int]$Timeout,[string]$Args)",
+                "$PID|Out-File -LiteralPath $WorkerPid -Encoding ascii",
+                "try{$decoded=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Args));$a=if($decoded){@($decoded -split \"`0\")}else{@()};$p=Start-Process -FilePath $Tool -WorkingDirectory $Work -ArgumentList $a -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr -PassThru;$p.Id|Out-File -LiteralPath $Pid -Encoding ascii;$p.WaitForExit($Timeout*1000)|Out-Null;if(-not $p.HasExited){$p.Kill();'TIMEOUT'|Out-File -LiteralPath $Result -Encoding ascii;exit 124};(\"PROCESS_EXIT:\"+$p.ExitCode)|Out-File -LiteralPath $Result -Encoding ascii;exit $p.ExitCode}catch{($_|Out-String)|Out-File -LiteralPath $Stderr -Encoding utf8;'PROCESS_START_FAILED'|Out-File -LiteralPath $Result -Encoding ascii;exit 1}"
+            );
         }
+
+        private static String scriptLines(String... lines) {
+            return String.join(System.lineSeparator(), lines) + System.lineSeparator();
+        }
+
+        private static void validateGeneratedScriptText(String script) throws IOException {
+            String literalBacktickN = String.valueOf((char) 96) + "n";
+            if (script == null || script.isBlank() || script.contains(literalBacktickN)) {
+                throw new IOException("ELEVATED_WORKER_SCRIPT_INVALID");
+            }
+        }
+
+        private static String preparationFailureReason(int exitCode, boolean wrapperAlive) {
+            if (exitCode == 1223) return "UAC_CANCELLED";
+            return wrapperAlive ? "ELEVATED_WORKER_NOT_READY" : "ELEVATED_WORKER_START_FAILED";
+        }
+    }
+
+    static String preparedWorkerScriptForTests() {
+        return WindowsRunAsBackend.preparedWorkerScript();
+    }
+
+    static String preparedWrapperScriptForTests() {
+        return WindowsRunAsBackend.preparedWrapperScript();
+    }
+
+    static String workerScriptForTests() {
+        return WindowsRunAsBackend.workerScript();
+    }
+
+    static String wrapperScriptForTests() {
+        return WindowsRunAsBackend.wrapperScript();
+    }
+
+    static String preparationFailureReasonForTests(int exitCode, boolean wrapperAlive) {
+        return WindowsRunAsBackend.preparationFailureReason(exitCode, wrapperAlive);
+    }
+
+    static void validateGeneratedScriptTextForTests(String script) throws IOException {
+        WindowsRunAsBackend.validateGeneratedScriptText(script);
     }
 
     private static boolean isWindows() {
