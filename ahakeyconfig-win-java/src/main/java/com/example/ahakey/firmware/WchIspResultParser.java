@@ -44,7 +44,9 @@ public final class WchIspResultParser {
                 : isUacCancelled(result) ? FirmwareUpdateError.UAC_CANCELLED : FirmwareUpdateError.CANCELLED,
             ownershipIncomplete(result) ? "烧录已取消，但 elevated 进程归属未完整确认"
                 : isUacCancelled(result) ? "烧录被用户取消管理员授权" : "烧录已取消");
-        if (result.timedOut()) return FlashExecutionResult.failure(FirmwareUpdateError.PROCESS_TIMEOUT, "烧录进程超时");
+        if (result.timedOut()) return FlashExecutionResult.failure(
+            FirmwareUpdateError.FLASH_TERMINAL_RESULT_TIMEOUT,
+            "WCHISP 未在时限内返回 Finished/Code 0/Succeed 终态");
         if (!result.processStarted()) return FlashExecutionResult.failure(FirmwareUpdateError.PROCESS_START_FAILED, result.stderr());
         if (FINISHED.matcher(output).find() && result.exitCode() == 0) {
             return new FlashExecutionResult(true, null, "烧录完成", 0);

@@ -22,7 +22,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
     /**
      * Kept as a narrow test seam for callers that provide a fake process
      * backend.  The production constructor deliberately leaves it null and
-     * uses {@link WindowsWchIspFlasher}'s proven direct/RunAs launcher.
+     * uses {@link WindowsWchIspFlasher}'s one-shot console-capture launcher.
      */
     private final WchIspRunner testRunner;
 
@@ -117,12 +117,15 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             throw failure;
         }
         session.complete(process);
-        boolean success = process != null && process.processStarted()
-            && !process.timedOut() && !process.cancelled() && process.exitCode() == 0;
+        WchIspResultParser.FlashExecutionResult parsed =
+            WchIspResultParser.parseFlash(process);
+        boolean success = parsed.success();
         String detail = "OFFICIAL_WCHISP_COMMAND=" + command.executable() + " "
             + String.join(" ", command.arguments()) + "\n"
             + "PROCESS_STARTED=" + (process != null && process.processStarted() ? "YES" : "NO") + "\n"
             + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
+            + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
+            + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
             + "POST_VERIFY_REQUIRED=YES";
         return new FlashResult(success, detail, process, session.runtime());
     }
@@ -137,8 +140,8 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             return testRunner.run(command, token);
         }
         // Do not prepare a resident worker, READY marker, or GO signal here.
-        // The historical launcher starts WCHISP directly and only falls back
-        // to one-shot RunAs when Windows returns CreateProcess error 740.
+        // One operation-scoped capture worker is launched at the explicit click;
+        // an already elevated Studio does not request RunAs a second time.
         return new WindowsWchIspFlasher(command.executable())
             .runOfficialCommand(command, token);
     }

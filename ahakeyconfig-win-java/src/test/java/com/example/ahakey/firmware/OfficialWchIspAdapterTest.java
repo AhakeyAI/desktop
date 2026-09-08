@@ -48,7 +48,9 @@ class OfficialWchIspAdapterTest {
             new WchIspRunner((command, cancellation) -> {
                 arguments.set(command.arguments());
                 return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 42, 0,
-                    false, false, "", "", "", Duration.ofMillis(8), false,
+                    false, false, "", "",
+                    "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
+                    Duration.ofMillis(8), false,
                     Map.of(), "PROCESS_EXIT", List.of(42L));
             }));
 
@@ -61,6 +63,21 @@ class OfficialWchIspAdapterTest {
             arguments.get().subList(2, arguments.get().size()));
         assertFalse(arguments.get().contains("-u"));
         assertEquals(42, result.processResult().pid());
+    }
+
+    @Test
+    void exitZeroWithoutVendorTerminalSuccessFailsClosed() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("exit-zero-only.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) ->
+                new WchIspRunner.WchIspProcessResult(command.operationId(), true, 42, 0,
+                    false, false, "", "", "", Duration.ofMillis(1), false,
+                    Map.of(), "PROCESS_EXIT", List.of(42L))));
+
+        assertFalse(adapter.flashFirmware(hex).success());
     }
 
     @Test
@@ -97,6 +114,28 @@ class OfficialWchIspAdapterTest {
         adapter.flashPrepared(session, WchIspRunner.CancellationToken.NONE);
         assertTrue(runnerCalled.get());
         assertEquals(PreparedFlashSession.State.COMPLETED, session.state());
+    }
+
+    @Test
+    void latestSelectionOwnsFinalFlashPathIncludingStableBaseline79() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path first = temporary.resolve("A.hex");
+        Path stable79 = temporary.resolve("AhaKey-X1-firmware-stable-baseline-79.hex");
+        Files.writeString(first, ":0400000001020304F2\n:00000001FF\n");
+        Files.writeString(stable79, ":0400000001020304F2\n:00000001FF\n");
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, new WchIspRunner((command, cancellation) -> {
+                throw new AssertionError("preparation must not launch WCHISP");
+            }));
+
+        adapter.prepareFlash(first, UUID.randomUUID(), temporary.resolve("first"), runtime);
+        PreparedFlashSession selected = adapter.prepareFlash(stable79, UUID.randomUUID(),
+            temporary.resolve("selected"), runtime);
+
+        int flag = selected.command().arguments().indexOf("-f");
+        assertEquals(stable79.toAbsolutePath().normalize().toString(),
+            selected.command().arguments().get(flag + 1));
+        assertEquals(stable79.toAbsolutePath().normalize(), selected.hexPath());
     }
 
     @Test

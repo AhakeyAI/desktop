@@ -235,22 +235,22 @@ class WindowsWchIspFlasherTest {
 
     @Test
     void elevatedWorkerIsValidWindowsPowerShellSyntax() throws Exception {
-        Path source = Path.of(
-            "src",
-            "main",
-            "java",
-            "com",
-            "example",
-            "ahakey",
-            "firmware",
-            "WindowsWchIspFlasher.java"
-        );
-        String javaSource = Files.readString(source, StandardCharsets.UTF_8);
+        assertPowerShellSyntax(WindowsWchIspFlasher.captureWorkerScript());
+    }
+
+    @Test
+    void runAsWrapperIsValidWindowsPowerShellSyntax() throws Exception {
+        String javaSource = Files.readString(Path.of("src", "main", "java", "com",
+            "example", "ahakey", "firmware", "WindowsWchIspFlasher.java"),
+            StandardCharsets.UTF_8);
         var matcher = Pattern.compile(
-            "String workerScript = \"\"\"\\R(?<script>[\\s\\S]*?)\\R\\s*\"\"\";"
+            "String wrapperScript = \"\"\"\\R(?<script>[\\s\\S]*?)\\R\\s*\"\"\";"
         ).matcher(javaSource);
         assertTrue(matcher.find());
-        String workerScript = matcher.group("script").replace("\\\\", "\\");
+        assertPowerShellSyntax(matcher.group("script").replace("\\\\", "\\"));
+    }
+
+    private void assertPowerShellSyntax(String workerScript) throws Exception {
         String parserCommand = """
             $source = [Console]::In.ReadToEnd()
             $tokens = $null
@@ -279,6 +279,19 @@ class WindowsWchIspFlasherTest {
         );
 
         assertEquals(0, process.waitFor(), output);
+    }
+
+    @Test
+    void adminAndNonAdminSelectTheSameCaptureWorkerWithoutWorkerRunAs() {
+        assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.DIRECT_WORKER,
+            WindowsWchIspFlasher.captureLaunchMode(true));
+        assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.RUNAS_WORKER,
+            WindowsWchIspFlasher.captureLaunchMode(false));
+        String worker = WindowsWchIspFlasher.captureWorkerScript();
+        assertTrue(worker.contains("GetBufferContents"));
+        assertTrue(worker.contains("ReadAllText($Stdout)"));
+        assertTrue(worker.contains("ReadAllText($Stderr)"));
+        assertFalse(worker.contains("-Verb RunAs"));
     }
 
     private int indexOf(byte[] haystack, byte[] needle) {

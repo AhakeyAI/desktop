@@ -39,7 +39,7 @@ public final class DeviceMaintenancePane {
     static final String BUNDLED_FIRMWARE_VERSION =
         FirmwareCapabilities.BUNDLED_VERSION.toString();
     static final String BUNDLED_FIRMWARE_NAME =
-        FirmwareCapabilities.BUNDLED_FIRMWARE_NAME;
+        FirmwareCapabilities.INSTALLED_BUNDLED_FIRMWARE_NAME;
     private final StudioController controller;
     private final BleManager bleManager;
     private final DeviceStatus deviceStatus;
@@ -87,6 +87,9 @@ public final class DeviceMaintenancePane {
         allowUnknown.setManaged(false);
 
         final Path[] firmware = {null};
+        final FirmwareUpdateRequest.Source[] firmwareSource = {
+            FirmwareUpdateRequest.Source.LOCAL
+        };
         final SemanticVersion[] targetVersion = {null};
         final SemanticVersion[] currentVersion = {
             controller.getLastKnownFirmwareVersion()
@@ -170,7 +173,7 @@ public final class DeviceMaintenancePane {
             if (firmware[0] == null) return;
             FirmwareUpdateRequest preparationRequest = new FirmwareUpdateRequest(
                 firmware[0], targetVersion[0], currentVersion[0],
-                allowUnknown.isSelected(), allowDowngrade.isSelected());
+                allowUnknown.isSelected(), allowDowngrade.isSelected(), firmwareSource[0]);
             status.setText(text("正在准备 WCHISP 烧录会话…", "Preparing WCHISP flash session…"));
             daemon("prepare-flash-session", () -> {
                 FirmwareUpdateService.PreparationResult result =
@@ -295,6 +298,7 @@ public final class DeviceMaintenancePane {
                 return;
             }
             firmware[0] = path;
+            firmwareSource[0] = FirmwareUpdateRequest.Source.BUILTIN;
             targetVersion[0] = SemanticVersion.parse(BUNDLED_FIRMWARE_VERSION);
             currentVersion[0] = controller.getLastKnownFirmwareVersion();
             unknownVersion[0] = false;
@@ -317,6 +321,7 @@ public final class DeviceMaintenancePane {
                 return;
             }
             firmware[0] = chosen.toPath();
+            firmwareSource[0] = FirmwareUpdateRequest.Source.LOCAL;
             targetVersion[0] = versionFromFilename(chosen.getName()).orElse(null);
             currentVersion[0] = controller.getLastKnownFirmwareVersion();
             unknownVersion[0] = targetVersion[0] == null;
@@ -352,6 +357,7 @@ public final class DeviceMaintenancePane {
                     );
                     Platform.runLater(() -> {
                         firmware[0] = destination;
+                        firmwareSource[0] = FirmwareUpdateRequest.Source.REMOTE;
                         targetVersion[0] = asset.version();
                         currentVersion[0] = controller.getLastKnownFirmwareVersion();
                         unknownVersion[0] = false;
@@ -394,7 +400,7 @@ public final class DeviceMaintenancePane {
             Path selectedFirmware = firmware[0];
             FirmwareUpdateRequest request = new FirmwareUpdateRequest(
                 selectedFirmware, targetVersion[0], currentVersion[0],
-                allowUnknown.isSelected(), allowDowngrade.isSelected());
+                allowUnknown.isSelected(), allowDowngrade.isSelected(), firmwareSource[0]);
             java.util.function.Consumer<com.example.ahakey.firmware.FirmwareUpdateStatus> listener = update -> {
                 Platform.runLater(() -> {
                     progress.setProgress(update.progress());
@@ -736,19 +742,26 @@ public final class DeviceMaintenancePane {
         if (!appPath.isBlank()) {
             Path parent = Path.of(appPath).toAbsolutePath().getParent();
             if (parent != null) {
+                Path installed = parent.resolve("firmware")
+                    .resolve(BUNDLED_FIRMWARE_NAME);
                 Path packaged = parent.resolve("app").resolve("firmware")
                     .resolve(BUNDLED_FIRMWARE_NAME);
-                if (Files.isRegularFile(packaged)) {
-                    return packaged;
+                Path legacyInstalled = parent.resolve("firmware")
+                    .resolve(FirmwareCapabilities.BUNDLED_FIRMWARE_NAME);
+                Path legacyPackaged = parent.resolve("app").resolve("firmware")
+                    .resolve(FirmwareCapabilities.BUNDLED_FIRMWARE_NAME);
+                for (Path candidate : new Path[] {
+                    installed, packaged, legacyInstalled, legacyPackaged
+                }) {
+                    if (Files.isRegularFile(candidate)) return candidate;
                 }
-                return parent.resolve("firmware")
-                    .resolve(BUNDLED_FIRMWARE_NAME);
+                return installed;
             }
         }
         return developmentFallback.toAbsolutePath();
     }
 
-    private Optional<SemanticVersion> versionFromFilename(String filename) {
+    static Optional<SemanticVersion> versionFromFilename(String filename) {
         String lower = filename.toLowerCase(Locale.ROOT);
         String prefix = "ahakey-x1-firmware-";
         String suffix = "-ch582.hex";

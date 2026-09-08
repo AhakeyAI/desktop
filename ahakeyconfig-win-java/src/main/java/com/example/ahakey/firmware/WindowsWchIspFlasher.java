@@ -1,5 +1,7 @@
 package com.example.ahakey.firmware;
 
+import com.sun.jna.platform.win32.Advapi32Util;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +35,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     );
     private static final Pattern CODE_PATTERN = Pattern.compile(
         "\"Code\"\\s*:\\s*(\\d+)"
+    );
+    private static final Pattern SUCCESS_MESSAGE_PATTERN = Pattern.compile(
+        "\"Message\"\\s*:\\s*\"Succeed\""
     );
     private static final Pattern PROGRESS_PATTERN = Pattern.compile(
         "\"Status\"\\s*:\\s*\"Programming\"\\s*,\\s*\"Progress\"\\s*:\\s*(\\d+)%"
@@ -321,8 +326,26 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         ProgressListener listener
     )
         throws Exception {
-        Path wrapper = Files.createTempFile("ahakey-wchisp-elevated-", ".ps1");
-        Path elevatedWorker = Files.createTempFile("ahakey-wchisp-worker-", ".ps1");
+        return runCaptureWorker(commandExecutable, commandExecutable.getParent(), arguments,
+            timeout, listener, true);
+    }
+
+    /**
+     * Runs WCHISP through one operation-scoped PowerShell worker. The worker is
+     * the single owner of the vendor child and inspects redirected streams and
+     * the Windows console buffer for the vendor terminal-result contract.
+     */
+    private CommandResult runCaptureWorker(
+        Path commandExecutable,
+        Path workingDirectory,
+        List<String> arguments,
+        Duration timeout,
+        ProgressListener listener,
+        boolean useRunAs
+    ) throws Exception {
+        Path wrapper = useRunAs
+            ? Files.createTempFile("ahakey-wchisp-elevated-", ".ps1") : null;
+        Path worker = Files.createTempFile("ahakey-wchisp-worker-", ".ps1");
         Path stdout = Files.createTempFile("ahakey-wchisp-stdout-", ".log");
         Path stderr = Files.createTempFile("ahakey-wchisp-stderr-", ".log");
         Path consoleCapture = Files.createTempFile(
@@ -330,7 +353,10 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             ".log"
         );
         Path resultMarker = Files.createTempFile("ahakey-wchisp-result-", ".txt");
-        String script = """
+        Path childPid = Files.createTempFile("ahakey-wchisp-child-pid-", ".txt");
+        Path childStarted = Files.createTempFile("ahakey-wchisp-child-start-", ".txt");
+        Path childEnded = Files.createTempFile("ahakey-wchisp-child-end-", ".txt");
+        String wrapperScript = """
             param(
                 [Parameter(Mandatory = $true)][string]$Worker,
                 [Parameter(Mandatory = $true)][string]$Tool,
@@ -339,6 +365,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 [Parameter(Mandatory = $true)][string]$Stderr,
                 [Parameter(Mandatory = $true)][string]$ConsoleCapture,
                 [Parameter(Mandatory = $true)][string]$Result,
+                [Parameter(Mandatory = $true)][string]$ChildPid,
+                [Parameter(Mandatory = $true)][string]$ChildStarted,
+                [Parameter(Mandatory = $true)][string]$ChildEnded,
                 [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
                 [Parameter(Mandatory = $true)][string]$EncodedArguments
             )
@@ -355,6 +384,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 $Stderr,
                 $ConsoleCapture,
                 $Result,
+                $ChildPid,
+                $ChildStarted,
+                $ChildEnded,
                 $TimeoutSeconds,
                 $EncodedArguments
             )
@@ -375,7 +407,122 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 exit 1
             }
             """;
-        String workerScript = """
+        String workerScript = captureWorkerScript();
+        if (wrapper != null) {
+            Files.writeString(wrapper, wrapperScript, StandardCharsets.UTF_8);
+        }
+        Files.writeString(worker, workerScript, StandardCharsets.UTF_8);
+        try {
+            List<String> workerArguments = new ArrayList<>();
+            workerArguments.add(worker.toString());
+            workerArguments.add(commandExecutable.toString());
+            workerArguments.add(workingDirectory.toString());
+            workerArguments.add(stdout.toString());
+            workerArguments.add(stderr.toString());
+            workerArguments.add(consoleCapture.toString());
+            workerArguments.add(resultMarker.toString());
+            workerArguments.add(childPid.toString());
+            workerArguments.add(childStarted.toString());
+            workerArguments.add(childEnded.toString());
+            workerArguments.add(Long.toString(Math.max(1, timeout.toSeconds())));
+            workerArguments.add(encodeArguments(arguments));
+
+            List<String> command = new ArrayList<>();
+            command.add("powershell.exe");
+            command.add("-NoProfile");
+            command.add("-NonInteractive");
+            command.add("-ExecutionPolicy");
+            command.add("Bypass");
+            command.add("-File");
+            if (useRunAs) {
+                command.add(wrapper.toString());
+            }
+            command.addAll(workerArguments);
+
+            long startedAt = System.nanoTime();
+            Process process = new ProcessBuilder(command)
+                .directory(workingDirectory.toFile())
+                .redirectErrorStream(true)
+                .start();
+            ByteArrayOutputStream wrapperOutput = new ByteArrayOutputStream();
+            Thread reader = new Thread(() -> copy(process.getInputStream(), wrapperOutput),
+                useRunAs ? "wchisp-elevated-output" : "wchisp-worker-output");
+            reader.setDaemon(true);
+            reader.start();
+            long deadline = System.nanoTime() + timeout.plusSeconds(5).toNanos();
+            int lastProgress = -1;
+            while (process.isAlive() && System.nanoTime() < deadline) {
+                lastProgress = reportProgress(joinOutput(
+                    readQuietly(stdout), readQuietly(stderr), readQuietly(consoleCapture)),
+                    lastProgress, listener);
+                Thread.sleep(200);
+            }
+            if (process.isAlive()) {
+                process.destroyForcibly();
+                terminateOwnedChild(readLongQuietly(childPid));
+            }
+            reader.join(2_000);
+
+            int wrapperCode = process.isAlive() ? 124 : process.exitValue();
+            String stdoutText = readQuietly(stdout);
+            String stderrText = joinOutput(
+                wrapperOutput.toString(Charset.defaultCharset()), readQuietly(stderr));
+            String consoleText = readQuietly(consoleCapture);
+            String marker = readQuietly(resultMarker).trim();
+            boolean allowDeviceUid = arguments.contains("get");
+            Integer markerCode = elevatedResultCode(marker, allowDeviceUid);
+            Integer terminalCode = terminalExitCode(
+                joinOutput(stdoutText, stderrText, consoleText), allowDeviceUid);
+            int finalCode = markerCode != null ? markerCode
+                : terminalCode != null ? terminalCode
+                : wrapperCode == 0 ? 100 : wrapperCode;
+            String terminalResult = terminalResult(marker, finalCode);
+            if (wrapperCode == 124 && "MISSING".equals(terminalResult)) {
+                terminalResult = "TIMEOUT";
+            }
+            String reason = switch (terminalResult) {
+                case "SUCCESS", "DEVICE_UID" -> "COMPLETED";
+                case "TIMEOUT" -> "FLASH_TERMINAL_RESULT_TIMEOUT";
+                case "CANCELLED" -> "UAC_CANCELLED";
+                case "MISSING" -> "TERMINAL_RESULT_MISSING";
+                default -> "PROCESS_EXIT";
+            };
+            java.time.Instant actualStart = readInstantQuietly(childStarted);
+            java.time.Instant actualEnd = readInstantQuietly(childEnded);
+            Duration duration = actualStart != null && actualEnd != null
+                ? Duration.between(actualStart, actualEnd)
+                : Duration.ofNanos(System.nanoTime() - startedAt);
+            long pid = readLongQuietly(childPid);
+            String combined = joinOutput(stdoutText, stderrText, consoleText,
+                "WCHISP capture worker result: " + terminalResult);
+
+            if (wrapperCode == 1223) {
+                reason = "UAC_CANCELLED";
+                finalCode = 1223;
+                terminalResult = "CANCELLED";
+            }
+            if (finalCode != 0 && finalCode != 124) {
+                combined = appendDiagnostics(combined, persistDiagnostics(
+                    commandExecutable, arguments, combined, finalCode));
+            }
+            return new CommandResult(finalCode, combined, pid, true, duration, reason,
+                pid > 0 ? List.of(pid) : List.of(), actualStart, actualEnd,
+                stdoutText, stderrText, consoleText, terminalResult);
+        } finally {
+            if (wrapper != null) Files.deleteIfExists(wrapper);
+            Files.deleteIfExists(worker);
+            Files.deleteIfExists(stdout);
+            Files.deleteIfExists(stderr);
+            Files.deleteIfExists(consoleCapture);
+            Files.deleteIfExists(resultMarker);
+            Files.deleteIfExists(childPid);
+            Files.deleteIfExists(childStarted);
+            Files.deleteIfExists(childEnded);
+        }
+    }
+
+    static String captureWorkerScript() {
+        return """
             param(
                 [Parameter(Mandatory = $true)][string]$Tool,
                 [Parameter(Mandatory = $true)][string]$Work,
@@ -383,6 +530,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 [Parameter(Mandatory = $true)][string]$Stderr,
                 [Parameter(Mandatory = $true)][string]$ConsoleCapture,
                 [Parameter(Mandatory = $true)][string]$Result,
+                [Parameter(Mandatory = $true)][string]$ChildPid,
+                [Parameter(Mandatory = $true)][string]$ChildStarted,
+                [Parameter(Mandatory = $true)][string]$ChildEnded,
                 [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
                 [Parameter(Mandatory = $true)][string]$EncodedArguments
             )
@@ -391,7 +541,13 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     $raw = $Host.UI.RawUI
                     $width = [Math]::Max(1, $raw.BufferSize.Width)
                     $bottom = [Math]::Max(0, $raw.CursorPosition.Y)
-                    $top = [Math]::Max(0, $bottom - 120)
+                    $top = if ($null -eq $script:ConsoleStartRow) {
+                        [Math]::Max(0, $bottom - 120)
+                    } elseif ($bottom -lt $script:ConsoleStartRow) {
+                        [Math]::Max(0, $bottom - 120)
+                    } else {
+                        [Math]::Max(0, $script:ConsoleStartRow)
+                    }
                     $rectangle = [System.Management.Automation.Host.Rectangle]::new(
                         0,
                         $top,
@@ -415,6 +571,14 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     return ''
                 }
             }
+            function Complete-WorkerResult {
+                param([string]$Marker, [int]$ExitCode, [string]$ConsoleText)
+                $ConsoleText | Out-File -LiteralPath $ConsoleCapture -Encoding utf8
+                $Marker | Out-File -LiteralPath $Result -Encoding ascii
+                [DateTimeOffset]::UtcNow.ToString('o') |
+                    Out-File -LiteralPath $ChildEnded -Encoding ascii
+                exit $ExitCode
+            }
             try {
                 Set-Location -LiteralPath $Work
                 $decodedArguments = [Text.Encoding]::UTF8.GetString(
@@ -428,12 +592,20 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 $quotedToolArguments = $toolArguments | ForEach-Object {
                     '"' + ($_ -replace '"', '\"') + '"'
                 }
+                try {
+                    $script:ConsoleStartRow = $Host.UI.RawUI.CursorPosition.Y
+                } catch {
+                    $script:ConsoleStartRow = $null
+                }
                 $toolProcess = Start-Process -FilePath $Tool `
                     -WorkingDirectory $Work `
                     -ArgumentList $quotedToolArguments `
                     -RedirectStandardOutput $Stdout `
                     -RedirectStandardError $Stderr `
                     -PassThru
+                $toolProcess.Id | Out-File -LiteralPath $ChildPid -Encoding ascii
+                [DateTimeOffset]::UtcNow.ToString('o') |
+                    Out-File -LiteralPath $ChildStarted -Encoding ascii
                 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
                 while ((Get-Date) -lt $deadline) {
                     try {
@@ -441,21 +613,23 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     } catch {
                         $fileText = ''
                     }
+                    try {
+                        $errorText = [System.IO.File]::ReadAllText($Stderr)
+                    } catch {
+                        $errorText = ''
+                    }
                     $consoleText = Get-ConsoleTail
-                    $text = $fileText + "`n" + $consoleText
+                    $consoleText | Out-File -LiteralPath $ConsoleCapture -Encoding utf8
+                    $text = $fileText + "`n" + $errorText + "`n" + $consoleText
                     if ($text -match '"Status"\\s*:\\s*"Fail"') {
                         if (-not $toolProcess.HasExited) {
                             Stop-Process -Id $toolProcess.Id -Force -ErrorAction SilentlyContinue
                         }
-                        $consoleText | Out-File -LiteralPath $ConsoleCapture `
-                            -Encoding utf8
                         $failureCode = 1
                         if ($text -match '"Code"\\s*:\\s*(\\d+)') {
                             $failureCode = [Math]::Min([int]$Matches[1], 255)
                         }
-                        "FAIL:$failureCode" | Out-File -LiteralPath $Result `
-                            -Encoding ascii
-                        exit $failureCode
+                        Complete-WorkerResult "FAIL:$failureCode" $failureCode $consoleText
                     }
                     if ($text -match '"Status"\\s*:\\s*"Finished"' -and
                         $text -match '"Code"\\s*:\\s*0' -and
@@ -463,174 +637,63 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                         if (-not $toolProcess.HasExited) {
                             Stop-Process -Id $toolProcess.Id -Force -ErrorAction SilentlyContinue
                         }
-                        $consoleText | Out-File -LiteralPath $ConsoleCapture `
-                            -Encoding utf8
-                        'SUCCESS' | Out-File -LiteralPath $Result -Encoding ascii
-                        exit 0
+                        Complete-WorkerResult 'SUCCESS' 0 $consoleText
                     }
                     if (($toolArguments -contains 'get') -and
                         $text -match 'Device UID\\s*:') {
                         if (-not $toolProcess.HasExited) {
                             Stop-Process -Id $toolProcess.Id -Force -ErrorAction SilentlyContinue
                         }
-                        $consoleText | Out-File -LiteralPath $ConsoleCapture `
-                            -Encoding utf8
-                        'DEVICE_UID' | Out-File -LiteralPath $Result -Encoding ascii
-                        exit 0
+                        Complete-WorkerResult 'DEVICE_UID' 0 $consoleText
                     }
                     if ($toolProcess.HasExited -and $toolProcess.ExitCode -ne 0) {
-                        "PROCESS_EXIT:$($toolProcess.ExitCode)" |
-                            Out-File -LiteralPath $Result -Encoding ascii
-                        exit $toolProcess.ExitCode
+                        Complete-WorkerResult "PROCESS_EXIT:$($toolProcess.ExitCode)" `
+                            $toolProcess.ExitCode $consoleText
                     }
                     Start-Sleep -Milliseconds 200
                 }
                 if (-not $toolProcess.HasExited) {
                     Stop-Process -Id $toolProcess.Id -Force -ErrorAction SilentlyContinue
                 }
-                'TIMEOUT' | Out-File -LiteralPath $Result -Encoding ascii
-                exit 124
+                Complete-WorkerResult 'TIMEOUT' 124 (Get-ConsoleTail)
             } catch {
                 ($_ | Out-String) | Out-File -LiteralPath $Stderr -Encoding utf8
-                'ERROR' | Out-File -LiteralPath $Result -Encoding ascii
-                exit 1
+                Complete-WorkerResult 'ERROR' 1 (Get-ConsoleTail)
             }
             """;
-        Files.writeString(wrapper, script, StandardCharsets.UTF_8);
-        Files.writeString(elevatedWorker, workerScript, StandardCharsets.UTF_8);
+    }
+
+    private static String terminalResult(String marker, int code) {
+        if (marker == null || marker.isBlank()) return "MISSING";
+        String value = marker.trim();
+        if ("SUCCESS".equals(value) || "DEVICE_UID".equals(value)
+            || "TIMEOUT".equals(value) || "ERROR".equals(value)) return value;
+        if (value.startsWith("FAIL:")) return "FAIL";
+        if (value.startsWith("PROCESS_EXIT:")) return "PROCESS_EXIT";
+        return code == 0 ? "SUCCESS" : "MISSING";
+    }
+
+    private static long readLongQuietly(Path path) {
         try {
-            List<String> command = new ArrayList<>();
-            command.add("powershell.exe");
-            command.add("-NoProfile");
-            command.add("-NonInteractive");
-            command.add("-ExecutionPolicy");
-            command.add("Bypass");
-            command.add("-File");
-            command.add(wrapper.toString());
-            command.add(elevatedWorker.toString());
-            command.add(commandExecutable.toString());
-            command.add(commandExecutable.getParent().toString());
-            command.add(stdout.toString());
-            command.add(stderr.toString());
-            command.add(consoleCapture.toString());
-            command.add(resultMarker.toString());
-            command.add(Long.toString(Math.max(1, timeout.toSeconds())));
-            command.add(encodeArguments(arguments));
-            java.time.Instant actualStart = java.time.Instant.now();
-            long startedAt = System.nanoTime();
-            Process process = new ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start();
-            ByteArrayOutputStream wrapperOutput = new ByteArrayOutputStream();
-            Thread reader = new Thread(() -> copy(process.getInputStream(), wrapperOutput),
-                "wchisp-elevated-output");
-            reader.setDaemon(true);
-            reader.start();
-            long deadline = System.nanoTime()
-                + timeout.plusSeconds(5).toNanos();
-            int lastProgress = -1;
-            while (process.isAlive() && System.nanoTime() < deadline) {
-                lastProgress = reportProgress(
-                    readQuietly(stdout),
-                    lastProgress,
-                    listener
-                );
-                Thread.sleep(200);
-            }
-            if (process.isAlive()) {
-                process.destroyForcibly();
-                String diagnostics = persistDiagnostics(
-                    commandExecutable, arguments, wrapperOutput.toString(Charset.defaultCharset()), 124);
-                throw new IOException(
-                    "WCHISP 管理员操作超时：未收到最终烧录结果"
-                        + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
-                );
-            }
-            reader.join(2_000);
-            int code = process.exitValue();
-            String output = joinOutput(
-                wrapperOutput.toString(Charset.defaultCharset()),
-                readQuietly(stdout),
-                readQuietly(stderr),
-                readQuietly(consoleCapture)
-            );
-            if (code == 1223) {
-                String diagnostics = persistDiagnostics(commandExecutable, arguments, output, code);
-                throw new IOException("用户取消了 WCHISP 管理员授权"
-                    + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics));
-            }
-            if (code == -1073741510) {
-                String diagnostics = persistDiagnostics(commandExecutable, arguments, output, code);
-                throw new IOException(
-                    "WCHISP 管理员窗口被手动关闭，请等待窗口自动结束"
-                        + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
-                );
-            }
-            if (code == 124) {
-                String diagnostics = persistDiagnostics(
-                    commandExecutable, arguments, output, 124);
-                throw new IOException(
-                    "WCHISP 操作超时：未收到 Finished/Code 0/Succeed 最终结果"
-                        + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
-                );
-            }
-            Integer terminalCode = terminalExitCode(
-                output,
-                arguments.contains("get")
-            );
-            Integer markerCode = elevatedResultCode(
-                readQuietly(resultMarker),
-                arguments.contains("get")
-            );
-            if (markerCode != null) {
-                String finalOutput = joinOutput(output,
-                    markerCode == 0
-                        ? "WCHISP elevated worker confirmed the terminal result."
-                        : "WCHISP elevated worker reported failure code " + markerCode);
-                if (markerCode != 0) {
-                    finalOutput = appendDiagnostics(finalOutput, persistDiagnostics(
-                        commandExecutable, arguments, finalOutput, markerCode));
-                }
-                return new CommandResult(
-                    markerCode,
-                    finalOutput,
-                    process.pid(), true,
-                    Duration.ofNanos(System.nanoTime() - startedAt),
-                    markerCode == 0 ? "COMPLETED" : "PROCESS_EXIT",
-                    List.of(process.pid()), actualStart
-                );
-            }
-            if (terminalCode == null) {
-                String diagnostics = persistDiagnostics(
-                    commandExecutable, arguments, output, code == 0 ? 100 : code);
-                return new CommandResult(
-                    code == 0 ? 100 : code,
-                    joinOutput(
-                        output,
-                        "WCHISP 未返回可确认的最终结果",
-                        diagnostics.isBlank() ? "" : "诊断日志: " + diagnostics
-                    ),
-                    process.pid(), true,
-                    Duration.ofNanos(System.nanoTime() - startedAt),
-                    "TERMINAL_RESULT_MISSING", List.of(process.pid()), actualStart
-                );
-            }
-            return new CommandResult(terminalCode, terminalCode == 0
-                ? output
-                : appendDiagnostics(output, persistDiagnostics(
-                    commandExecutable, arguments, output, terminalCode)),
-                process.pid(), true,
-                Duration.ofNanos(System.nanoTime() - startedAt),
-                terminalCode == 0 ? "COMPLETED" : "PROCESS_EXIT",
-                List.of(process.pid()), actualStart);
-        } finally {
-            Files.deleteIfExists(wrapper);
-            Files.deleteIfExists(elevatedWorker);
-            Files.deleteIfExists(stdout);
-            Files.deleteIfExists(stderr);
-            Files.deleteIfExists(consoleCapture);
-            Files.deleteIfExists(resultMarker);
+            String value = readQuietly(path).trim();
+            return value.isBlank() ? -1 : Long.parseLong(value);
+        } catch (RuntimeException ignored) {
+            return -1;
         }
+    }
+
+    private static java.time.Instant readInstantQuietly(Path path) {
+        try {
+            String value = readQuietly(path).trim();
+            return value.isBlank() ? null : java.time.Instant.parse(value);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static void terminateOwnedChild(long pid) {
+        if (pid <= 0) return;
+        ProcessHandle.of(pid).filter(ProcessHandle::isAlive).ifPresent(ProcessHandle::destroyForcibly);
     }
 
     private String persistDiagnostics(
@@ -648,12 +711,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         return persistDiagnosticsAt(destination, commandExecutable, arguments, output, resultCode);
     }
 
-    /**
-     * Runs an already prepared official WCHISP command through the historical
-     * direct-process/one-shot RunAs path.  The adapter owns preparation of the
-     * flash CONFIG; this method intentionally does not create a workspace or
-     * a long-lived worker.
-     */
+    /** Runs a prepared command through the shared one-shot console-capture worker. */
     WchIspRunner.WchIspProcessResult runOfficialCommand(
         WchIspRunner.WchIspCommand command,
         WchIspRunner.CancellationToken cancellation
@@ -668,20 +726,36 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 "CANCELLED", java.util.List.of()
             );
         }
-        long startedAt = System.nanoTime();
-        CommandResult result = run(
-            command.executable(), command.arguments(), command.timeout(), null
+        CaptureLaunchMode launchMode = captureLaunchMode(isCurrentProcessElevated());
+        CommandResult result = runCaptureWorker(
+            command.executable(), command.workingDirectory(), command.arguments(),
+            command.timeout(), null, launchMode == CaptureLaunchMode.RUNAS_WORKER
         );
-        Duration duration = Duration.ofNanos(System.nanoTime() - startedAt);
         String reason = result.exitCode() == 0 ? "COMPLETED" : "PROCESS_EXIT";
+        boolean timedOut = "FLASH_TERMINAL_RESULT_TIMEOUT".equals(result.terminationReason());
+        boolean cancelled = "UAC_CANCELLED".equals(result.terminationReason());
         return new WchIspRunner.WchIspProcessResult(
-            command.operationId(), true, result.pid(), result.exitCode(), false, false,
-            result.output(), "", result.output(),
-            result.duration().isZero() ? duration : result.duration(),
+            command.operationId(), result.pid() > 0, result.pid(), result.exitCode(), timedOut, cancelled,
+            result.stdout(), result.stderr(), result.console(), result.duration(),
             result.elevationUsed(), java.util.Map.of(),
             result.terminationReason().isBlank() ? reason : result.terminationReason(),
             result.ownedProcessIds(), result.actualProcessStartTime()
         );
+    }
+
+    static CaptureLaunchMode captureLaunchMode(boolean studioElevated) {
+        return studioElevated ? CaptureLaunchMode.DIRECT_WORKER : CaptureLaunchMode.RUNAS_WORKER;
+    }
+
+    private static boolean isCurrentProcessElevated() {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            return false;
+        }
+        try {
+            return Advapi32Util.isCurrentProcessElevated();
+        } catch (RuntimeException | UnsatisfiedLinkError ignored) {
+            return false;
+        }
     }
 
     static String persistDiagnosticsForTest(
@@ -764,7 +838,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         return null;
     }
 
-    private String readQuietly(Path path) {
+    private static String readQuietly(Path path) {
         try {
             return decodeOutput(Files.readAllBytes(path));
         } catch (IOException ignored) {
@@ -858,7 +932,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         if ("Fail".equals(status.group(1))) {
             return parsedCode == 0 ? 100 : parsedCode;
         }
-        if (parsedCode == 0 && output.substring(status.start()).contains("\"Message\":\"Succeed\"")) {
+        if (parsedCode == 0
+            && SUCCESS_MESSAGE_PATTERN.matcher(output.substring(status.start())).find()) {
             return 0;
         }
         return parsedCode == 0 ? 100 : parsedCode;
@@ -1175,11 +1250,31 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         Duration duration,
         String terminationReason,
         List<Long> ownedProcessIds,
-        java.time.Instant actualProcessStartTime
+        java.time.Instant actualProcessStartTime,
+        java.time.Instant actualProcessEndTime,
+        String stdout,
+        String stderr,
+        String console,
+        String terminalResult
     ) {
+        private CommandResult(int exitCode, String output, long pid,
+                              boolean elevationUsed, Duration duration,
+                              String terminationReason, List<Long> ownedProcessIds,
+                              java.time.Instant actualProcessStartTime) {
+            this(exitCode, output, pid, elevationUsed, duration, terminationReason,
+                ownedProcessIds, actualProcessStartTime,
+                actualProcessStartTime == null ? null : actualProcessStartTime.plus(duration),
+                output, "", output, exitCode == 0 ? "SUCCESS" : "PROCESS_EXIT");
+        }
+
         private CommandResult(int exitCode, String output) {
             this(exitCode, output, -1, false, Duration.ZERO, "", List.of(), null);
         }
+    }
+
+    enum CaptureLaunchMode {
+        DIRECT_WORKER,
+        RUNAS_WORKER
     }
     @FunctionalInterface
     interface IspDeviceProbe {

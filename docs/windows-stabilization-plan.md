@@ -472,3 +472,29 @@ READY marker 和 GO signal 仅保留为兼容源码与测试数据载体，默�
 
 本轮自动验证以实际命令结果为准；不得把历史 launcher 恢复表述为真实 USB/WCHISP 烧录
 完成。真实 UAC、短 ISP、设备重连、PostVerify 及正式发布环境仍需单独验证。
+
+## 19. One-shot WCHISP console terminal capture (2026-09-09)
+
+真实管理员 Studio 测试确认 WCHISP 已完成 0%–100%，Windows 控制台显示
+`Status=Finished / Code=0 / Message=Succeed`，但 direct `ProcessBuilder` 的 stdout/stderr
+均为空，导致 App 等待 300 秒并错误超时。设备随后正常重连并通过真实 0x9F 回读：
+Firmware 1.4.7、Protocol 3.2、Model 1、Capabilities 0x7FF；因此本轮只修终态捕获与既有
+PostVerify 闭环，不改变协议、固件或 OfficialWchIspAdapter 架构。
+
+正式 flash 现在统一使用同一份 operation-scoped PowerShell capture worker。管理员 Studio
+直接启动 worker，不再次 RunAs；非管理员 Studio 仍由普通 wrapper 使用一次
+`Start-Process powershell.exe -Verb RunAs` 启动同一 worker。worker 同时检查 stdout、
+stderr 和从本 operation 起点截取的 console buffer，只在 `Finished + Code 0 + Succeed`
+齐备时写 SUCCESS 并立即返回；`Status=Fail` 返回厂商错误码，无终态直到时限则返回
+`FLASH_TERMINAL_RESULT_TIMEOUT`，不得归类为 `ISP_NOT_PRESENT`。exit code 0 本身不是业务
+成功。成功后继续现有 `WAITING_RECONNECT -> VERIFYING -> FirmwarePostVerifier`。
+
+每次操作诊断保留 command/stdout/stderr/console/result/timing，记录 WCHISP child PID、起止
+时间、时长、提升状态、各通道字节数、终态与终止原因。HEX SHA-256 仅作为支持诊断信息，
+不作门禁；操作同时记录选择路径、来源与最终 `-f` 路径。安装布局支持
+`<AhaKeyStudio root>\firmware\AhaKey-X1-firmware.hex`，本地合法 Intel HEX 仍按既有格式、
+地址范围、版本与降级规则处理。`stable-baseline-79.hex` 中的 79 是实现基线，不解析为对外
+版本；设备预期仍上报 1.4.7。
+
+本轮只执行自动测试、打包和 PowerShell 语法检查；未执行真实 WCHISP、USB ISP、烧录或
+设备回读。管理员/非管理员 one-shot 路径以及完整真机重连闭环仍需受控硬件验证。

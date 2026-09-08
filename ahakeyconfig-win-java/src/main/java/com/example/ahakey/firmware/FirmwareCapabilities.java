@@ -20,6 +20,9 @@ public final class FirmwareCapabilities {
         required("expectedBundledVersion"));
     public static final String BUNDLED_FIRMWARE_NAME =
         "AhaKey-X1-firmware-" + BUNDLED_VERSION + "-ch582.hex";
+    /** Stable filename used by the installed application's firmware directory. */
+    public static final String INSTALLED_BUNDLED_FIRMWARE_NAME =
+        "AhaKey-X1-firmware.hex";
     public static final int REQUIRED_PROTOCOL_MAJOR;
     public static final int REQUIRED_PROTOCOL_MINOR;
     public static final long REQUIRED_CAPABILITY_MASK =

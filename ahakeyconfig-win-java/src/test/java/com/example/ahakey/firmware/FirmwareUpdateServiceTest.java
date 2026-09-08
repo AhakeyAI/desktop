@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -168,11 +169,27 @@ class FirmwareUpdateServiceTest {
                 .get(5, TimeUnit.SECONDS);
             assertTrue(result.success(), result.detail());
             assertTrue(states.get().contains(FirmwareUpdateState.READY));
+            assertTrue(states.get().contains(FirmwareUpdateState.WAITING_RECONNECT));
+            assertTrue(states.get().contains(FirmwareUpdateState.VERIFYING));
             assertEquals(List.of("-c", "flash", "-o", "download", "-f", "firmware"),
                 normalizeFlashArgs(flashArgs.get()));
         } finally {
             service.shutdown();
         }
+    }
+
+    @Test
+    void flashTerminalTimeoutIsNeverReportedAsIspNotPresent() {
+        UUID operationId = UUID.randomUUID();
+        var timedOut = new WchIspRunner.WchIspProcessResult(operationId, true, 99, 124,
+            true, false, "", "", "", Duration.ofMinutes(5), true,
+            Map.of(), "FLASH_TERMINAL_RESULT_TIMEOUT", List.of(99L));
+        var flash = new OfficialWchIspAdapter.FlashResult(false, "timeout", timedOut, null);
+
+        assertEquals(FirmwareUpdateError.FLASH_TERMINAL_RESULT_TIMEOUT,
+            FirmwareUpdateService.flashFailureError(flash));
+        assertNotEquals(FirmwareUpdateError.ISP_NOT_PRESENT,
+            FirmwareUpdateService.flashFailureError(flash));
     }
 
     @Test
@@ -293,7 +310,9 @@ class FirmwareUpdateServiceTest {
             runnerCalls.incrementAndGet();
             flashArguments.set(command.arguments());
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 23, 0,
-                false, false, "ok", "", "ok", Duration.ofMillis(4), false,
+                false, false, "", "",
+                "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
+                Duration.ofMillis(4), false,
                 Map.of(), "PROCESS_EXIT", List.of(23L));
         });
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(

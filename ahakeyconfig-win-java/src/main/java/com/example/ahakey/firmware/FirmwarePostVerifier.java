@@ -97,7 +97,10 @@ public final class FirmwarePostVerifier {
                     capabilities.capabilityBits(), FirmwareCapabilities.REQUIRED_CAPABILITY_MASK));
         }
         if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
-        return new Verification(true, null, "设备已重连并通过 0x9F 合同校验", capabilities);
+        return new Verification(true, null, String.format(
+            "设备已重连并通过 0x9F 合同校验%nFirmware=%s%nProtocol=%d.%d%nModel=%d%nCapabilities=0x%X",
+            actual, capabilities.protocolMajor(), capabilities.protocolMinor(),
+            capabilities.deviceModel(), capabilities.capabilityBits()), capabilities);
     }
 
     private void sleep(long millis) throws InterruptedException {

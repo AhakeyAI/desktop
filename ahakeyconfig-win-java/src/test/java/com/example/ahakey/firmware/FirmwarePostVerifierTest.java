@@ -17,6 +17,10 @@ class FirmwarePostVerifierTest {
         var verifier = new FirmwarePostVerifier(() -> GOOD, () -> true, millis -> { });
         var result = verifier.verify(SemanticVersion.parse("1.4.7"), java.time.Duration.ofSeconds(1));
         assertTrue(result.success(), result.detail());
+        assertTrue(result.detail().contains("Firmware=1.4.7"));
+        assertTrue(result.detail().contains("Protocol=3.2"));
+        assertTrue(result.detail().contains("Model=1"));
+        assertTrue(result.detail().contains("Capabilities=0x7FF"));
     }
 
     @Test

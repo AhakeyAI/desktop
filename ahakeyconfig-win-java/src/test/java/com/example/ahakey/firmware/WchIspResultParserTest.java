@@ -47,12 +47,27 @@ class WchIspResultParserTest {
     @Test
     void timeoutAndCancellationAreStructured() {
         var timeout = WchIspResultParser.parseFlash(raw(124, true, "", ""));
-        assertEquals(FirmwareUpdateError.PROCESS_TIMEOUT, timeout.error());
+        assertEquals(FirmwareUpdateError.FLASH_TERMINAL_RESULT_TIMEOUT, timeout.error());
         var cancelled = WchIspResultParser.parseUid(raw(1, false, "", "", true));
         assertEquals(FirmwareUpdateError.CANCELLED, cancelled.error());
         var uacCancelled = WchIspResultParser.parseFlash(raw(1223, false, "", "", true,
             "UAC_CANCELLED"));
         assertEquals(FirmwareUpdateError.UAC_CANCELLED, uacCancelled.error());
+    }
+
+    @Test
+    void emptyStreamsCanSucceedOrFailFromConsoleBuffer() {
+        var success = new WchIspRunner.WchIspProcessResult(ID, true, 42, 0, false,
+            false, "", "",
+            "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
+            Duration.ZERO, true, Map.of(), "COMPLETED");
+        var failure = new WchIspRunner.WchIspProcessResult(ID, true, 42, 7, false,
+            false, "", "", "{\"Status\":\"Fail\",\"Code\":7}",
+            Duration.ZERO, true, Map.of(), "PROCESS_EXIT");
+
+        assertTrue(WchIspResultParser.parseFlash(success).success());
+        assertFalse(WchIspResultParser.parseFlash(failure).success());
+        assertEquals(7, WchIspResultParser.parseFlash(failure).vendorCode());
     }
 
     @Test

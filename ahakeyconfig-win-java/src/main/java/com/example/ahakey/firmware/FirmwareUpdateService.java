@@ -618,7 +618,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 request.firmwareHex(), cancellation::get);
             saveAdapterProcess(diagnosticDirectory, flash);
             if (!flash.success()) {
-                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.FLASH_FAILED,
+                finish(handle, FirmwareUpdateState.FAILED, flashFailureError(flash),
                     flash.detail(), diagnosticDirectory);
                 return;
             }
@@ -689,7 +689,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
             writeFlashTiming(diagnosticDirectory, flashClickTime,
                 prepared.session().launchContext(), actualProcessStartTime, flash);
             if (!flash.success()) {
-                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.FLASH_FAILED,
+                finish(handle, FirmwareUpdateState.FAILED, flashFailureError(flash),
                     flash.detail(), diagnosticDirectory);
                 return;
             }
@@ -833,8 +833,27 @@ public final class FirmwareUpdateService implements AutoCloseable {
         String json = processResultJson(result);
         diagnostics.write(directory, "flash-result.json", json);
         diagnostics.write(directory, "result.json", json);
+        String terminalResult = terminalResultFor(result);
+        Instant processEnd = result.actualProcessStartTime() == null ? null
+            : result.actualProcessStartTime().plus(result.duration());
+        diagnostics.write(directory, "result.txt",
+            "WCHISP_CHILD_PID=" + result.pid() + "\n"
+                + "WCHISP_PROCESS_START_TIME="
+                + (result.actualProcessStartTime() == null ? "" : result.actualProcessStartTime()) + "\n"
+                + "WCHISP_PROCESS_END_TIME=" + (processEnd == null ? "" : processEnd) + "\n"
+                + "WCHISP_DURATION_MS=" + result.duration().toMillis() + "\n"
+                + "ELEVATION_USED=" + (result.elevationUsed() ? "YES" : "NO") + "\n"
+                + "STDOUT_BYTES=" + utf8Bytes(result.stdout()) + "\n"
+                + "STDERR_BYTES=" + utf8Bytes(result.stderr()) + "\n"
+                + "CONSOLE_BYTES=" + utf8Bytes(result.console()) + "\n"
+                + "TERMINAL_RESULT=" + terminalResult + "\n"
+                + "TERMINAL_CODE=" + result.exitCode() + "\n"
+                + "TERMINATION_REASON=" + result.terminationReason() + "\n");
         diagnostics.write(directory, "timing.json", "{\n"
             + "  \"operationId\": " + json(result.operationId().toString()) + ",\n"
+            + "  \"processStartTime\": "
+            + json(result.actualProcessStartTime() == null ? "" : result.actualProcessStartTime().toString()) + ",\n"
+            + "  \"processEndTime\": " + json(processEnd == null ? "" : processEnd.toString()) + ",\n"
             + "  \"durationMs\": " + result.duration().toMillis() + ",\n"
             + "  \"exitCode\": " + result.exitCode() + ",\n"
             + "  \"terminationReason\": " + json(result.terminationReason()) + "\n"
@@ -897,6 +916,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "  \"runtime\": " + json(session.runtime().root().toString()) + ",\n"
             + "  \"config\": " + json(session.configPath().toString()) + ",\n"
             + "  \"hex\": " + json(session.hexPath().toString()) + ",\n"
+            + "  \"SELECTED_HEX_PATH\": " + json(session.hexPath().toString()) + ",\n"
+            + "  \"FLASH_COMMAND_HEX_PATH\": " + json(flashHexPath(command)) + ",\n"
             + "  \"createdAt\": " + json(session.createdAt().toString()) + ",\n"
             + "  \"state\": " + json(session.state().name()) + ",\n"
             + "  \"workerOwner\": " + json(session.workerOwner()) + ",\n"
@@ -978,6 +999,17 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "\noperationId=" + command.operationId() + "\ntimeout=" + command.timeout() + "\n";
     }
 
+    private static String flashHexPath(WchIspRunner.WchIspCommand command) {
+        if (command == null) return "";
+        List<String> arguments = command.arguments();
+        for (int index = 0; index + 1 < arguments.size(); index++) {
+            if ("-f".equalsIgnoreCase(arguments.get(index))) {
+                return Path.of(arguments.get(index + 1)).toAbsolutePath().normalize().toString();
+            }
+        }
+        return "";
+    }
+
     private static String processResultJson(WchIspRunner.WchIspProcessResult result) {
         return "{\n"
             + "  \"operationId\": " + json(result.operationId().toString()) + ",\n"
@@ -989,9 +1021,29 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "  \"durationMs\": " + result.duration().toMillis() + ",\n"
             + "  \"actualProcessStartTime\": "
             + json(result.actualProcessStartTime() == null ? "" : result.actualProcessStartTime().toString()) + ",\n"
+            + "  \"actualProcessEndTime\": "
+            + json(result.actualProcessStartTime() == null ? ""
+                : result.actualProcessStartTime().plus(result.duration()).toString()) + ",\n"
+            + "  \"stdoutBytes\": " + utf8Bytes(result.stdout()) + ",\n"
+            + "  \"stderrBytes\": " + utf8Bytes(result.stderr()) + ",\n"
+            + "  \"consoleBytes\": " + utf8Bytes(result.console()) + ",\n"
+            + "  \"terminalResult\": "
+            + json(terminalResultFor(result)) + ",\n"
+            + "  \"terminalCode\": " + result.exitCode() + ",\n"
             + "  \"elevationUsed\": " + result.elevationUsed() + ",\n"
             + "  \"terminationReason\": " + json(result.terminationReason()) + "\n"
             + "}\n";
+    }
+
+    private static int utf8Bytes(String value) {
+        return (value == null ? "" : value).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    }
+
+    private static String terminalResultFor(WchIspRunner.WchIspProcessResult result) {
+        if (result.timedOut()) return "TIMEOUT";
+        String output = result.stdout() + "\n" + result.stderr() + "\n" + result.console();
+        if (output.contains("Device UID:")) return "DEVICE_UID";
+        return WchIspResultParser.parseFlash(result).success() ? "SUCCESS" : "FAIL";
     }
 
     private static String summarize(String value) {
@@ -1014,6 +1066,13 @@ public final class FirmwareUpdateService implements AutoCloseable {
             if (message.contains("isp")) return FirmwareUpdateError.ISP_NOT_PRESENT;
         }
         return FirmwareUpdateError.INTERNAL_ERROR;
+    }
+
+    static FirmwareUpdateError flashFailureError(OfficialWchIspAdapter.FlashResult flash) {
+        if (flash == null || flash.processResult() == null) {
+            return FirmwareUpdateError.FLASH_FAILED;
+        }
+        return WchIspResultParser.parseFlash(flash.processResult()).error();
     }
 
     private void publish(FirmwareUpdateStatus status) {

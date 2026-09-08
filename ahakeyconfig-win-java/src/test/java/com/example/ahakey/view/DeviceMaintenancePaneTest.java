@@ -15,10 +15,9 @@ class DeviceMaintenancePaneTest {
     Path temporaryDirectory;
 
     @Test
-    void locatesFirmwareInsideJpackageAppDirectory() throws Exception {
+    void locatesFirmwareInsideInstalledApplicationRoot() throws Exception {
         Path launcher = temporaryDirectory.resolve("AhaKeyStudio.exe");
-        Path firmware = temporaryDirectory.resolve("app")
-            .resolve("firmware")
+        Path firmware = temporaryDirectory.resolve("firmware")
             .resolve(DeviceMaintenancePane.BUNDLED_FIRMWARE_NAME);
         Files.createDirectories(firmware.getParent());
         Files.writeString(firmware, ":00000001FF\n");
@@ -30,6 +29,13 @@ class DeviceMaintenancePaneTest {
                 temporaryDirectory.resolve("development-fallback.hex")
             )
         );
+    }
+
+    @Test
+    void stableBaseline79IsNotMisreadAsPublicFirmwareVersion() {
+        assertEquals("AhaKey-X1-firmware.hex", DeviceMaintenancePane.BUNDLED_FIRMWARE_NAME);
+        assertTrue(DeviceMaintenancePane.versionFromFilename(
+            "AhaKey-X1-firmware-stable-baseline-79.hex").isEmpty());
     }
 
     @Test

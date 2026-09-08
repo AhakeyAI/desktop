@@ -5,6 +5,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.UUID;
 
 /** Durable per-operation diagnostics; failures are retained for support review. */
@@ -26,7 +28,10 @@ public class FirmwareUpdateDiagnostics {
         write(directory, "operation.json", "{\n"
             + "  \"operationId\": \"" + operationId + "\",\n"
             + "  \"startedAt\": \"" + Instant.now() + "\",\n"
-            + "  \"firmware\": \"" + escape(request.firmwareHex().toString()) + "\"\n"
+            + "  \"firmware\": \"" + escape(request.firmwareHex().toString()) + "\",\n"
+            + "  \"SELECTED_HEX_PATH\": \"" + escape(request.firmwareHex().toString()) + "\",\n"
+            + "  \"SELECTED_HEX_SOURCE\": \"" + request.source() + "\",\n"
+            + "  \"SELECTED_HEX_SHA256\": \"" + sha256ForDiagnostics(request.firmwareHex()) + "\"\n"
             + "}\n");
         return directory;
     }
@@ -65,6 +70,15 @@ public class FirmwareUpdateDiagnostics {
     }
 
     public Path root() { return root; }
+
+    private static String sha256ForDiagnostics(Path file) {
+        try {
+            return HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)));
+        } catch (Exception ignored) {
+            return "unavailable";
+        }
+    }
 
     private static String escape(String value) {
         return value == null ? "" : value.replace("\\", "\\\\")
