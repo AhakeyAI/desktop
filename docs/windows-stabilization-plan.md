@@ -325,8 +325,9 @@ ISP 等待阶段使用一次可替换的低延迟 watcher，运行时校验、de
 固件。烧录后严格停留在 `WAITING_RECONNECT`，等待正常连接后才进入 `VERIFYING`；回读
 过程支持取消，取消不会被后续能力读取覆盖为 SUCCESS。RuntimeIdentity 同时比较元数据
 版本和实际 FileVersion，明确区分 KNOWN/UNKNOWN/MISMATCH；UID/flash parser 先判断取消、
-超时和启动失败，再解析业务输出。诊断 UI 分别报告 `RUNTIME_READY`、`ISP_PRESENT` 和
-`UID_CONFIRMED`，只有三者均满足才允许烧录。
+超时和启动失败，再解析业务输出。诊断 UI 分别报告 `RUNTIME_READY`、`ISP_PRESENT`、
+`CHIP_MATCH_STATUS` 和 `UID_CONFIRMED`；当前版本只有 runtime、ISP 和 chip gate 满足才
+允许烧录，UID 失败只保留为诊断警告。
 
 本轮新增/扩展 10 个固件定向测试，覆盖 RunAs owned PID、短 ISP 等待、重连取消、UID/flash
 输入隔离、运行时版本 mismatch/unknown/match、生命周期优先级和诊断 UID 门禁。实际自动
@@ -339,3 +340,27 @@ overlay 和 `build-installer.ps1 -PrepareOnly` 均因缺少
 状态为“代码完成 + 自动测试完成，软件手工/真机和正式发布环境待验证”，不得宣称真实烧录
 完成。外层 `C:\aha\ahakey-windows\windows-stabilization-plan.md` 仍不存在，本文件继续
 作为 desktop 工程唯一事实源。
+
+## 13. Firmware flash readiness gate redesign (2026-09-08)
+
+基于 `windows-flash-rewrite` HEAD `409f97f9fe734557b772595b50038844b6819265` 的后续
+收口：`WCHISP -c <ini> -u get` 的 UID 输出已确认不可靠，UID 不再作为进入
+`FLASHING` 的硬门禁。`FirmwareUpdateService` 现在要求 `RuntimeValid + ISP_PRESENT +
+CHIP_MATCHED`；UID 查询仍执行并保存为可选诊断信息，空输出、失败、超时或 parser 失败
+只写入 `uid-warning.txt`，不阻止已匹配芯片继续烧录。原有 `-c <config> -o download -f
+<hex>`、HEX/DataFlash、flash parser、重连和 `FirmwarePostVerifier` 均未改动。
+
+新增 `ChipMatched` 接口和 `MATCHED/MISMATCH/UNKNOWN` 结果。当前 Windows PnP 入口只能
+证明 `VID_4348&PID_55E0`，不能证明真实 CH582 型号，因此默认 `CHIP_MATCH_STATUS=UNKNOWN`
+并 fail closed；开发期可显式使用
+`-Dahakey.dev.allow-isp-flash-with-unknown-chip=true` 进行一次硬件闭环测试，jpackage
+release 不接受该开关。未知状态在日志中保持 UNKNOWN，不伪装成 MATCHED。MISMATCH 始终
+阻止 UID/flash。
+
+新增自动测试覆盖 UID 空/失败仍可到达 READY/FLASH、runtime 失败阻止、chip mismatch
+阻止、unknown fail closed 和 flash command 结构不变。测试与真实硬件准备清单分别见
+`flash-readiness-redesign-review.md`、`hardware-flash-test-checklist.md`。
+
+状态：代码完成；自动测试和 package 结果必须以本轮实际命令输出为准；真实 USB ISP、
+WCHISP、设备重连、post verify、签名安装包仍待硬件/发布环境验证。不得将开发期 UNKNOWN
+override 视为生产芯片匹配，也不得将此次代码变更表述为真实烧录已完成。

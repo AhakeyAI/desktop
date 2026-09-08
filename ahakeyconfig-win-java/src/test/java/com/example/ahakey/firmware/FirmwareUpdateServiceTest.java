@@ -71,7 +71,7 @@ class FirmwareUpdateServiceTest {
                 return true;
             }
         };
-        FirmwareUpdateService service = service(probe, runner::run);
+        FirmwareUpdateService service = service(probe, runner::run, ChipMatched.matched(), false);
         try {
             FirmwareUpdateService.OperationStart start = service.start(request());
             FirmwareUpdateResult result = start.handle().completion().get(5, TimeUnit.SECONDS);
@@ -87,16 +87,17 @@ class FirmwareUpdateServiceTest {
     }
 
     @Test
-    void diagnosticReadyRequiresUidConfirmation() throws Exception {
+    void diagnosticReadyUsesChipMatchAndKeepsUidAsOptionalEvidence() throws Exception {
         WchIspRunner runner = new WchIspRunner((command, cancellation) ->
             new WchIspRunner.WchIspProcessResult(command.operationId(), true, 1, 0,
                 false, false, "Device UID:23-DF-93-5A-04-DC-BA-15", "stderr", "console",
                 Duration.ofMillis(37), true, Map.of(), "PROCESS_EXIT", List.of(1L, 2L)));
-        FirmwareUpdateService service = service(() -> true, runner::run);
+        FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.matched(), false);
         try {
             FirmwareUpdateService.DiagnosticResult result = service.diagnose();
             assertTrue(result.runtimeReady());
             assertTrue(result.ispPresent());
+            assertTrue(result.chipMatched());
             assertTrue(result.uidConfirmed());
             assertTrue(result.ready());
             assertNotNull(result.operationId());
@@ -130,11 +131,12 @@ class FirmwareUpdateServiceTest {
             new WchIspRunner.WchIspProcessResult(command.operationId(), true, 9, 7,
                 false, false, "", "driver error", "driver error",
                 Duration.ofMillis(12), false, Map.of(), "PROCESS_EXIT", List.of(9L)));
-        FirmwareUpdateService service = service(() -> true, runner::run);
+        FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.matched(), false);
         try {
             FirmwareUpdateService.DiagnosticResult result = service.diagnose();
             assertFalse(result.uidConfirmed());
-            assertEquals(FirmwareUpdateError.UID_QUERY_FAILED, result.error());
+            assertNull(result.error(), "UID failure is diagnostic-only when chip is matched");
+            assertTrue(result.ready());
             assertNotNull(result.processResult());
             assertTrue(result.detail().contains("UID_QUERY_EXIT_CODE=7"));
             assertTrue(result.detail().contains("STDERR=driver error"));
@@ -147,7 +149,146 @@ class FirmwareUpdateServiceTest {
         }
     }
 
+    @Test
+    void uidEmptyStillReachesReadyAndFlashes() throws Exception {
+        AtomicReference<List<String>> flashArgs = new AtomicReference<>();
+        AtomicReference<List<FirmwareUpdateState>> states = new AtomicReference<>(new java.util.ArrayList<>());
+        WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
+            if (command.arguments().contains("download")) flashArgs.set(command.arguments());
+            String output = command.arguments().contains("get")
+                ? ""
+                : "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}";
+            return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 7, 0,
+                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+        });
+        FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.matched(), false);
+        service.addListener(status -> states.get().add(status.state()));
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertTrue(result.success(), result.detail());
+            assertTrue(states.get().contains(FirmwareUpdateState.READY));
+            assertEquals(List.of("-c", "flash", "-o", "download", "-f", "firmware"),
+                normalizeFlashArgs(flashArgs.get()));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void uidQueryFailureStillAllowsFlashWithoutChangingFlashCommand() throws Exception {
+        AtomicInteger flashRuns = new AtomicInteger();
+        AtomicReference<List<String>> flashArgs = new AtomicReference<>();
+        WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
+            if (command.arguments().contains("download")) {
+                flashRuns.incrementAndGet();
+                flashArgs.set(command.arguments());
+                return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 8, 0,
+                    false, false, "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
+                    "", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+            }
+            return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 8, 1,
+                false, false, "", "no uid", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+        });
+        FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.matched(), false);
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertTrue(result.success(), result.detail());
+            assertEquals(1, flashRuns.get());
+            assertEquals(List.of("-c", "flash", "-o", "download", "-f", "firmware"),
+                normalizeFlashArgs(flashArgs.get()));
+            assertTrue(result.detail().contains("UID_QUERY_WARNING="));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void runtimeFailureBlocksBeforeIspOrFlash() throws Exception {
+        AtomicInteger runnerCalls = new AtomicInteger();
+        FirmwareUpdateService service = new FirmwareUpdateService(
+            () -> { throw new java.io.IOException("runtime invalid"); },
+            () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                runnerCalls.incrementAndGet();
+                throw new AssertionError("runtime failure must block WCHISP");
+            }),
+            null,
+            new FirmwareUpdateDiagnostics(temporary.resolve("diagnostics-runtime-failure")), temporary,
+            ChipMatched.matched(), false);
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertEquals(FirmwareUpdateState.FAILED, result.state());
+            assertTrue(result.error() == FirmwareUpdateError.RUNTIME_INVALID
+                || result.error() == FirmwareUpdateError.RUNTIME_NOT_FOUND);
+            assertEquals(0, runnerCalls.get());
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void chipMismatchBlocksBeforeUidAndFlash() throws Exception {
+        AtomicInteger runnerCalls = new AtomicInteger();
+        FirmwareUpdateService service = service(() -> true, (command, cancellation) -> {
+            runnerCalls.incrementAndGet();
+            throw new AssertionError("chip mismatch must block WCHISP");
+        }, ChipMatched.mismatched("not CH582"), false);
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertEquals(FirmwareUpdateState.FAILED, result.state());
+            assertEquals(FirmwareUpdateError.CHIP_MISMATCH, result.error());
+            assertEquals(0, runnerCalls.get());
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void unknownChipFailsClosedUnlessExplicitDevelopmentOverride() throws Exception {
+        FirmwareUpdateService blocked = service(() -> true, (command, cancellation) -> {
+            throw new AssertionError("unknown chip must fail closed");
+        }, ChipMatched.unknown(), false);
+        try {
+            FirmwareUpdateResult result = blocked.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertEquals(FirmwareUpdateError.CHIP_UNKNOWN, result.error());
+        } finally {
+            blocked.shutdown();
+        }
+    }
+
+    @Test
+    void unknownChipDevelopmentOverrideAllowsClosedLoopTestWithoutPretendingMatched() throws Exception {
+        WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
+            String output = command.arguments().contains("download")
+                ? "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}" : "";
+            return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 11, 0,
+                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+        });
+        FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.unknown(), true);
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertTrue(result.success(), result.detail());
+            String chipEvidence = Files.readString(result.diagnosticDirectory().resolve("chip-match.txt"));
+            assertTrue(chipEvidence.contains("CHIP_MATCH_STATUS=UNKNOWN"));
+            assertTrue(chipEvidence.contains("CHIP_GATE_ALLOWED=YES"));
+        } finally {
+            service.shutdown();
+        }
+    }
+
     private FirmwareUpdateService service(IspDeviceProbe probe, WchIspRunner.Backend backend)
+        throws Exception {
+        return service(probe, backend, ChipMatched.matched(), false);
+    }
+
+    private FirmwareUpdateService service(IspDeviceProbe probe, WchIspRunner.Backend backend,
+                                         ChipMatched chipMatched, boolean allowUnknownChip)
         throws Exception {
         Path runtimeRoot = temporary.resolve("runtime-" + System.nanoTime());
         Files.createDirectories(runtimeRoot);
@@ -163,7 +304,14 @@ class FirmwareUpdateServiceTest {
         return new FirmwareUpdateService(() -> bundle, probe, new WchIspRunner(backend),
             new FirmwarePostVerifier(() -> new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0,
                 FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 7, 1), () -> true, millis -> { }),
-            new FirmwareUpdateDiagnostics(temporary.resolve("diagnostics")), temporary);
+            new FirmwareUpdateDiagnostics(temporary.resolve("diagnostics")), temporary,
+            chipMatched, allowUnknownChip);
+    }
+
+    private static List<String> normalizeFlashArgs(List<String> args) {
+        if (args == null) return List.of();
+        if (args.size() != 6) return args;
+        return List.of(args.get(0), "flash", args.get(2), args.get(3), args.get(4), "firmware");
     }
 
     private FirmwareUpdateRequest request() throws Exception {

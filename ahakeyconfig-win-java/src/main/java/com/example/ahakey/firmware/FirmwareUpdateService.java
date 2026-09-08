@@ -27,9 +27,14 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private static final Duration UID_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration FLASH_TIMEOUT = Duration.ofMinutes(5);
     private static final Duration RECONNECT_TIMEOUT = Duration.ofSeconds(30);
+    /** Explicit development-only escape hatch for hardware without a chip identity API. */
+    public static final String DEV_ALLOW_UNKNOWN_CHIP_PROPERTY =
+        "ahakey.dev.allow-isp-flash-with-unknown-chip";
 
     private final RuntimeProvider runtimeProvider;
     private final IspDeviceProbe ispProbe;
+    private final ChipMatched chipMatched;
+    private final boolean allowUnknownChip;
     private final WchIspRunner runner;
     private final FirmwarePostVerifier postVerifier;
     private final FirmwareUpdateDiagnostics diagnostics;
@@ -45,7 +50,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
     public FirmwareUpdateService(BleManager manager) {
         this(new WchIspRuntimeProvider(), IspDeviceProbe.windowsDefault(), new WchIspRunner(),
             manager == null ? null : new FirmwarePostVerifier(manager),
-            new FirmwareUpdateDiagnostics(), Path.of(System.getProperty("java.io.tmpdir")));
+            new FirmwareUpdateDiagnostics(), Path.of(System.getProperty("java.io.tmpdir")),
+            ChipMatched.unknown(), developmentUnknownChipAllowed());
     }
 
     public FirmwareUpdateService(RuntimeProvider runtimeProvider,
@@ -54,8 +60,22 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                  FirmwarePostVerifier postVerifier,
                                  FirmwareUpdateDiagnostics diagnostics,
                                  Path workspaceParent) {
+        this(runtimeProvider, ispProbe, runner, postVerifier, diagnostics, workspaceParent,
+            ChipMatched.unknown(), developmentUnknownChipAllowed());
+    }
+
+    FirmwareUpdateService(RuntimeProvider runtimeProvider,
+                          IspDeviceProbe ispProbe,
+                          WchIspRunner runner,
+                          FirmwarePostVerifier postVerifier,
+                          FirmwareUpdateDiagnostics diagnostics,
+                          Path workspaceParent,
+                          ChipMatched chipMatched,
+                          boolean allowUnknownChip) {
         this.runtimeProvider = runtimeProvider == null ? new WchIspRuntimeProvider() : runtimeProvider;
         this.ispProbe = ispProbe == null ? IspDeviceProbe.windowsDefault() : ispProbe;
+        this.chipMatched = chipMatched == null ? ChipMatched.unknown() : chipMatched;
+        this.allowUnknownChip = allowUnknownChip;
         this.runner = runner == null ? new WchIspRunner() : runner;
         this.postVerifier = postVerifier;
         this.diagnostics = diagnostics == null ? new FirmwareUpdateDiagnostics() : diagnostics;
@@ -66,6 +86,14 @@ public final class FirmwareUpdateService implements AutoCloseable {
             thread.setDaemon(true);
             return thread;
         });
+    }
+
+    private static boolean developmentUnknownChipAllowed() {
+        // jpackage sets app-path for release images.  The override is never
+        // honored from a packaged application, keeping release fail-closed.
+        boolean packaged = !System.getProperty("jpackage.app-path", "").isBlank();
+        return !packaged && Boolean.parseBoolean(
+            System.getProperty(DEV_ALLOW_UNKNOWN_CHIP_PROPERTY, "false"));
     }
 
     public void addListener(java.util.function.Consumer<FirmwareUpdateStatus> listener) {
@@ -153,6 +181,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
         RuntimeBundle runtime = null;
         boolean present = false;
         WchIspRunner.WchIspProcessResult processResult = null;
+        ChipMatched.ChipMatchResult chip = null;
+        boolean chipGateAllowed = false;
         try {
             diagnosticDirectory = diagnostics.beginDiagnostic(operationId);
             initializeDiagnosticFiles(diagnosticDirectory);
@@ -161,10 +191,22 @@ public final class FirmwareUpdateService implements AutoCloseable {
             present = ispProbe.isPresent();
             if (!present) {
                 String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
-                    false, null, null, "未检测到 CH582 ISP 设备");
+                    false, null, false, null, null, "未检测到 CH582 ISP 设备");
                 writeDiagnosticResult(diagnosticDirectory, null, detail, null);
                 return new DiagnosticResult(true, false, false, runtime, detail, null,
-                    operationId, diagnosticDirectory, null);
+                    operationId, diagnosticDirectory, null, null, false);
+            }
+            chip = inspectChip();
+            chipGateAllowed = chipGateAllowed(chip);
+            writeChipEvidence(diagnosticDirectory, chip, chipGateAllowed);
+            if (!chipGateAllowed) {
+                FirmwareUpdateError chipError = chip.mismatch()
+                    ? FirmwareUpdateError.CHIP_MISMATCH : FirmwareUpdateError.CHIP_UNKNOWN;
+                String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
+                    true, chip, chipGateAllowed, null, null, chip.detail());
+                writeDiagnosticResult(diagnosticDirectory, null, detail, chipError);
+                return new DiagnosticResult(true, true, false, runtime, detail, chipError,
+                    operationId, diagnosticDirectory, null, chip, false);
             }
             try (WchIspWorkspace workspace = WchIspWorkspace.create(workspaceParent, operationId)) {
                 WchIspWorkspace.PreparedWorkspace detect = workspace.prepareForDetect(runtime);
@@ -173,18 +215,29 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     List.of("-c", detect.configIni().toString(), "-u", "get"), UID_TIMEOUT,
                     operationId);
                 diagnostics.write(diagnosticDirectory, "command.txt", commandText(command));
-                processResult = runner.run(command, WchIspRunner.CancellationToken.NONE);
-                saveProcess(diagnosticDirectory, "uid", command, processResult);
-                WchIspResultParser.UidQueryResult uid = WchIspResultParser.parseUid(processResult);
+                WchIspResultParser.UidQueryResult uid;
+                String uidWarning = "";
+                try {
+                    processResult = runner.run(command, WchIspRunner.CancellationToken.NONE);
+                    saveProcess(diagnosticDirectory, "uid", command, processResult);
+                    uid = WchIspResultParser.parseUid(processResult);
+                    if (!uid.success()) uidWarning = uid.detail();
+                } catch (Exception failure) {
+                    uid = null;
+                    uidWarning = failure.getMessage() == null ? failure.toString() : failure.getMessage();
+                }
                 String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
-                    true, uid, processResult, uid.detail());
-                writeDiagnosticResult(diagnosticDirectory, processResult, detail, uid.error());
-                return new DiagnosticResult(true, true, uid.success(), runtime, detail,
-                    uid.success() ? null : uid.error(), operationId, diagnosticDirectory, processResult);
+                    true, chip, chipGateAllowed, uid, processResult, uidWarning);
+                if (!uidWarning.isBlank()) {
+                    diagnostics.write(diagnosticDirectory, "uid-warning.txt", uidWarning);
+                }
+                writeDiagnosticResult(diagnosticDirectory, processResult, detail, null);
+                return new DiagnosticResult(true, true, uid != null && uid.success(), runtime, detail,
+                    null, operationId, diagnosticDirectory, processResult, chip, chipGateAllowed);
             }
         } catch (Exception failure) {
             String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
-                present, null, processResult,
+                present, chip, chipGateAllowed, null, processResult,
                 failure.getMessage() == null ? failure.toString() : failure.getMessage());
             FirmwareUpdateError error = failure instanceof IOException
                 ? (String.valueOf(failure.getMessage()).toLowerCase().contains("not found")
@@ -192,7 +245,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 : FirmwareUpdateError.INTERNAL_ERROR;
             writeDiagnosticResult(diagnosticDirectory, processResult, detail, error);
             return new DiagnosticResult(runtime != null, present, false, runtime, detail, error,
-                operationId, diagnosticDirectory, processResult);
+                operationId, diagnosticDirectory, processResult, chip, chipGateAllowed);
         } finally {
             diagnosticActive.set(false);
         }
@@ -232,20 +285,44 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 transition(handle, FirmwareUpdateState.WAITING_ISP,
                     "请进入 CH582 ISP 模式，正在等待设备", 0.08, diagnosticDirectory);
                 awaitIsp(cancellation);
-                transition(handle, FirmwareUpdateState.DETECTING, "正在读取设备 UID", 0.12, diagnosticDirectory);
+                transition(handle, FirmwareUpdateState.DETECTING, "正在确认 CH582 ISP 设备", 0.12, diagnosticDirectory);
+                ChipMatched.ChipMatchResult chip = inspectChip();
+                boolean chipGateAllowed = chipGateAllowed(chip);
+                writeChipEvidence(diagnosticDirectory, chip, chipGateAllowed);
+                if (!chipGateAllowed) {
+                    FirmwareUpdateError chipError = chip.mismatch()
+                        ? FirmwareUpdateError.CHIP_MISMATCH : FirmwareUpdateError.CHIP_UNKNOWN;
+                    finish(handle, FirmwareUpdateState.FAILED, chipError,
+                        "CHIP_MATCH_STATUS=" + chip.status() + "\n" + chip.detail(), diagnosticDirectory);
+                    return;
+                }
+                WchIspResultParser.UidQueryResult uid = null;
+                String uidWarning = "";
                 WchIspRunner.WchIspCommand uidCommand = new WchIspRunner.WchIspCommand(
                     detectWorkspace.executable(), workspace.toolDirectory(),
                     List.of("-c", detectWorkspace.configIni().toString(), "-u", "get"), UID_TIMEOUT,
                     handle.operationId());
-                WchIspRunner.WchIspProcessResult uidRaw = runner.run(uidCommand, cancellation::get);
-                saveProcess(diagnosticDirectory, "uid", uidCommand, uidRaw);
-                WchIspResultParser.UidQueryResult uid = WchIspResultParser.parseUid(uidRaw);
-                if (!uid.success()) {
-                    finish(handle, FirmwareUpdateState.FAILED, uid.error(), uid.detail(), diagnosticDirectory);
-                    return;
+                try {
+                    WchIspRunner.WchIspProcessResult uidRaw = runner.run(uidCommand, cancellation::get);
+                    saveProcess(diagnosticDirectory, "uid", uidCommand, uidRaw);
+                    uid = WchIspResultParser.parseUid(uidRaw);
+                    if (!uid.success()) uidWarning = uid.detail();
+                } catch (Exception failure) {
+                    if (cancellation.get()) throw new CancelledException();
+                    if (failure instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                        throw new CancelledException();
+                    }
+                    uidWarning = failure.getMessage() == null ? failure.toString() : failure.getMessage();
+                }
+                if (!uidWarning.isBlank()) {
+                    diagnostics.write(diagnosticDirectory, "uid-warning.txt", uidWarning);
                 }
                 transition(handle, FirmwareUpdateState.READY,
-                    "已检测到 CH582（UID " + uid.deviceUid() + "），准备烧录", 0.18, diagnosticDirectory);
+                    "已满足 CH582 烧录准备条件（UID "
+                        + (uid != null && uid.success() ? uid.deviceUid() : "未确认")
+                        + (uidWarning.isBlank() ? "" : "；UID 查询仅作警告：" + uidWarning)
+                        + "），准备烧录", 0.18, diagnosticDirectory);
 
                 checkCancelled(cancellation);
                 transition(handle, FirmwareUpdateState.FLASHING,
@@ -284,7 +361,17 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 return;
             }
             checkCancelled(cancellation);
-            finish(handle, FirmwareUpdateState.SUCCESS, null, verification.detail(), diagnosticDirectory);
+            String completionDetail = verification.detail();
+            Path uidWarningFile = diagnosticDirectory == null ? null : diagnosticDirectory.resolve("uid-warning.txt");
+            if (uidWarningFile != null && Files.isRegularFile(uidWarningFile)) {
+                try {
+                    completionDetail = "UID_QUERY_WARNING=" + Files.readString(uidWarningFile)
+                        + "\n" + completionDetail;
+                } catch (IOException ignored) {
+                    completionDetail = "UID_QUERY_WARNING=see diagnostic directory\n" + completionDetail;
+                }
+            }
+            finish(handle, FirmwareUpdateState.SUCCESS, null, completionDetail, diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
                 "固件操作已取消", diagnosticDirectory);
@@ -304,6 +391,33 @@ public final class FirmwareUpdateService implements AutoCloseable {
         if (!ispProbe.awaitPresent(ISP_TIMEOUT, cancellation::get)) {
             throw new IOException("未检测到 CH582 ISP 设备");
         }
+    }
+
+    private ChipMatched.ChipMatchResult inspectChip() {
+        try {
+            ChipMatched.ChipMatchResult result = chipMatched.inspect();
+            return result == null
+                ? ChipMatched.ChipMatchResult.unknown("芯片匹配器未返回结果") : result;
+        } catch (Exception failure) {
+            return ChipMatched.ChipMatchResult.unknown(
+                "芯片匹配失败：" + (failure.getMessage() == null ? failure : failure.getMessage()));
+        }
+    }
+
+    private boolean chipGateAllowed(ChipMatched.ChipMatchResult result) {
+        return result != null && (result.matched() || (result.unknown() && allowUnknownChip));
+    }
+
+    private void writeChipEvidence(Path directory,
+                                   ChipMatched.ChipMatchResult result,
+                                   boolean gateAllowed) {
+        if (directory == null) return;
+        String status = result == null ? ChipMatched.Status.UNKNOWN.name() : result.status().name();
+        String detail = result == null ? "" : result.detail();
+        diagnostics.write(directory, "chip-match.txt", "CHIP_MATCH_STATUS=" + status + "\n"
+            + "CHIP_GATE_ALLOWED=" + (gateAllowed ? "YES" : "NO") + "\n"
+            + "DEV_ALLOW_UNKNOWN_CHIP=" + (allowUnknownChip ? "YES" : "NO") + "\n"
+            + "DETAIL=" + detail + "\n");
     }
 
     private void transition(FirmwareOperationHandle handle, FirmwareUpdateState next,
@@ -401,12 +515,17 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
     private static String diagnosticDetail(UUID operationId, Path directory,
                                            RuntimeBundle runtime, boolean ispPresent,
+                                           ChipMatched.ChipMatchResult chip,
+                                           boolean chipGateAllowed,
                                            WchIspResultParser.UidQueryResult uid,
                                            WchIspRunner.WchIspProcessResult processResult,
                                            String summary) {
         StringBuilder detail = new StringBuilder()
             .append("RUNTIME_READY=").append(runtime == null ? "NO" : "YES").append('\n')
             .append("ISP_PRESENT=").append(ispPresent ? "YES" : "NO").append('\n')
+            .append("CHIP_MATCHED=").append(chip != null && chip.matched() ? "YES" : "NO").append('\n')
+            .append("CHIP_MATCH_STATUS=").append(chip == null ? ChipMatched.Status.UNKNOWN : chip.status()).append('\n')
+            .append("CHIP_GATE_ALLOWED=").append(chipGateAllowed ? "YES" : "NO").append('\n')
             .append("UID_CONFIRMED=").append(uid != null && uid.success() ? "YES" : "NO").append('\n')
             .append("OPERATION_ID=").append(operationId).append('\n')
             .append("DIAGNOSTIC_DIRECTORY=").append(directory == null ? "" : directory).append('\n');
@@ -548,22 +667,28 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                    boolean uidConfirmed, RuntimeBundle runtime,
                                    String detail, FirmwareUpdateError error,
                                    UUID operationId, Path diagnosticDirectory,
-                                   WchIspRunner.WchIspProcessResult processResult) {
+                                   WchIspRunner.WchIspProcessResult processResult,
+                                   ChipMatched.ChipMatchResult chipMatch,
+                                   boolean chipGateAllowed) {
         public DiagnosticResult(boolean ispPresent, RuntimeBundle runtime,
                                 String detail, FirmwareUpdateError error) {
             this(runtime != null, ispPresent, false, runtime, detail, error,
-                null, null, null);
+                null, null, null, null, false);
         }
         public DiagnosticResult(boolean runtimeReady, boolean ispPresent,
                                 boolean uidConfirmed, RuntimeBundle runtime,
                                 String detail, FirmwareUpdateError error) {
             this(runtimeReady, ispPresent, uidConfirmed, runtime, detail, error,
-                null, null, null);
+                null, null, null, null, false);
         }
-        public boolean ready() { return runtimeReady && ispPresent && uidConfirmed && error == null; }
+        public boolean chipMatched() { return chipMatch != null && chipMatch.matched(); }
+        public String chipMatchStatus() {
+            return chipMatch == null ? ChipMatched.Status.UNKNOWN.name() : chipMatch.status().name();
+        }
+        public boolean ready() { return runtimeReady && ispPresent && chipGateAllowed && error == null; }
         static DiagnosticResult failure(FirmwareUpdateError error, String detail) {
             return new DiagnosticResult(false, false, false, null, detail == null ? "" : detail, error,
-                null, null, null);
+                null, null, null, null, false);
         }
         static DiagnosticResult failure(String detail, FirmwareUpdateError error) {
             return failure(error, detail);

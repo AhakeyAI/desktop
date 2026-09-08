@@ -49,6 +49,7 @@ class ReleaseArtifactContentsTest {
         "com/example/ahakey/firmware/WchIspRunner.class",
         "com/example/ahakey/firmware/WchIspResultParser.class",
         "com/example/ahakey/firmware/IspDeviceProbe.class",
+        "com/example/ahakey/firmware/ChipMatched.class",
         "com/example/ahakey/firmware/FirmwareUpdateDiagnostics.class",
         "com/example/ahakey/firmware/FirmwarePostVerifier.class",
         "com/example/ahakey/firmware/WchIspConfigLayout.class",
