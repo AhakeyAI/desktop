@@ -207,8 +207,94 @@ public final class FirmwareUpdateService implements AutoCloseable {
         }
     }
 
+    /**
+     * Prepares the official-tool launch before the user is asked to enter ISP.
+     * No vendor process is started by this method.
+     */
+    public PreparationResult prepareFlash(FirmwareUpdateRequest request) {
+        if (request == null) {
+            return PreparationResult.failure(FirmwareUpdateError.INTERNAL_ERROR, "请求为空");
+        }
+        synchronized (admissionMonitor) {
+            if (shuttingDown.get()) {
+                return PreparationResult.failure(FirmwareUpdateError.CANCELLED, "应用正在退出");
+            }
+            if (active.get() != null || diagnosticActive.get()) return PreparationResult.busy();
+        }
+        if (officialAdapter == null) {
+            return PreparationResult.failure(FirmwareUpdateError.INTERNAL_ERROR,
+                "当前兼容路径不支持预备官方 WCHISP 会话");
+        }
+        UUID operationId = UUID.randomUUID();
+        Path diagnosticDirectory = null;
+        try {
+            diagnosticDirectory = diagnostics.begin(operationId, request);
+            initializeDiagnosticFiles(diagnosticDirectory);
+            PreflightResult preflight = preflight(request);
+            if (!preflight.success()) {
+                diagnostics.write(diagnosticDirectory, "preparation-error.txt", preflight.detail());
+                return PreparationResult.failure(preflight.error(), preflight.detail(), diagnosticDirectory);
+            }
+            writeRuntimeEvidence(diagnosticDirectory, preflight.runtime());
+            PreparedFlashSession session = officialAdapter.prepareFlash(
+                request.firmwareHex(), operationId, diagnosticDirectory, preflight.runtime());
+            if (session == null) {
+                return PreparationResult.failure(FirmwareUpdateError.INTERNAL_ERROR,
+                    "官方适配器未提供预备烧录会话", diagnosticDirectory);
+            }
+            writePreparedSessionEvidence(diagnosticDirectory, session);
+            return PreparationResult.success(
+                new PreparedFirmwareOperation(request, session, diagnosticDirectory));
+        } catch (Exception failure) {
+            String detail = failure.getMessage() == null ? failure.toString() : failure.getMessage();
+            if (diagnosticDirectory != null) diagnostics.write(diagnosticDirectory, "preparation-error.txt", detail);
+            return PreparationResult.failure(classify(failure), detail, diagnosticDirectory);
+        }
+    }
+
+    /**
+     * Starts an already prepared operation.  The click path only arms the
+     * session and launches the prepared command; it does not repeat preflight,
+     * runtime resolution, CONFIG generation, or workspace creation.
+     */
+    public OperationStart startPrepared(PreparedFirmwareOperation prepared) {
+        if (prepared == null || prepared.session() == null) {
+            return OperationStart.rejected(FirmwareUpdateError.INTERNAL_ERROR, "预备烧录会话缺失");
+        }
+        PreparedFlashSession session = prepared.session();
+        if (session.state() != PreparedFlashSession.State.ARMED) {
+            return OperationStart.rejected(FirmwareUpdateError.ISP_NOT_PRESENT,
+                "请先检测到当前 ISP 设备后再开始烧录");
+        }
+        synchronized (admissionMonitor) {
+            if (shuttingDown.get()) {
+                return OperationStart.rejected(FirmwareUpdateError.CANCELLED, "应用正在退出");
+            }
+            if (diagnosticActive.get()) return OperationStart.busy();
+            AtomicBoolean cancelled = new AtomicBoolean();
+            FirmwareOperationHandle handle = new FirmwareOperationHandle(
+                session.operationId(), () -> {
+                    cancelled.set(true);
+                    session.cancel();
+                });
+            if (!active.compareAndSet(null, handle)) return OperationStart.busy();
+            Instant flashClickTime = Instant.now();
+            CompletableFuture.runAsync(
+                () -> runPreparedOfficialOperation(handle, prepared, cancelled, flashClickTime), executor);
+            return OperationStart.accepted(handle);
+        }
+    }
+
     /** Non-destructive environment/ISP report used by the maintenance UI. */
     public DiagnosticResult diagnose() {
+        return diagnose(null);
+    }
+
+    /**
+     * Runs the operation-local fast probe.  When a prepared session is
+     * supplied, runtime resolution and command/config preparation are reused.
+     */
+    public DiagnosticResult diagnose(PreparedFirmwareOperation prepared) {
         synchronized (admissionMonitor) {
             if (shuttingDown.get()) return DiagnosticResult.failure(FirmwareUpdateError.CANCELLED, "应用正在退出");
             if (active.get() != null || !diagnosticActive.compareAndSet(false, true)) {
@@ -216,7 +302,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
             }
         }
         if (officialAdapter != null) {
-            return diagnoseWithOfficialAdapter();
+            return diagnoseWithOfficialAdapter(prepared);
         }
         UUID operationId = UUID.randomUUID();
         Path diagnosticDirectory = null;
@@ -298,16 +384,21 @@ public final class FirmwareUpdateService implements AutoCloseable {
      * Detection is a user initiated, one-shot presence check; UID is optional
      * evidence supplied by the vendor control process and never a flash gate.
      */
-    private DiagnosticResult diagnoseWithOfficialAdapter() {
-        UUID operationId = UUID.randomUUID();
-        Path diagnosticDirectory = null;
-        RuntimeBundle runtime = null;
+    private DiagnosticResult diagnoseWithOfficialAdapter(PreparedFirmwareOperation prepared) {
+        UUID operationId = prepared == null ? UUID.randomUUID() : prepared.session().operationId();
+        Path diagnosticDirectory = prepared == null ? null : prepared.diagnosticDirectory();
+        RuntimeBundle runtime = prepared == null ? null : prepared.session().runtime();
         try {
-            diagnosticDirectory = diagnostics.beginDiagnostic(operationId);
-            initializeDiagnosticFiles(diagnosticDirectory);
-            OfficialWchIspAdapter.DeviceDetectionResult detection = officialAdapter.detectDevice();
+            if (diagnosticDirectory == null) {
+                diagnosticDirectory = diagnostics.beginDiagnostic(operationId);
+                initializeDiagnosticFiles(diagnosticDirectory);
+            }
+            OfficialWchIspAdapter.DeviceDetectionResult detection = prepared == null
+                ? officialAdapter.detectDevice()
+                : officialAdapter.detectDevice(prepared.session());
             runtime = detection.runtime();
             if (runtime != null) writeRuntimeEvidence(diagnosticDirectory, runtime);
+            if (prepared != null && detection.ispPresent()) prepared.session().markDeviceDetected();
             String detail = "RUNTIME_READY=" + (runtime == null ? "NO" : "YES") + "\n"
                 + "ISP_PRESENT=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
                 + "OFFICIAL_ADAPTER_READY=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
@@ -565,6 +656,77 @@ public final class FirmwareUpdateService implements AutoCloseable {
         }
     }
 
+    /** Executes a session whose runtime, CONFIG and command were prepared before ISP. */
+    private void runPreparedOfficialOperation(FirmwareOperationHandle handle,
+                                              PreparedFirmwareOperation prepared,
+                                              AtomicBoolean cancellation,
+                                              Instant flashClickTime) {
+        Path diagnosticDirectory = prepared.diagnosticDirectory();
+        try {
+            checkCancelled(cancellation);
+            // Preparation and the ISP probe happened before the explicit click;
+            // publish the already reached READY state without repeating them.
+            handle.forceState(FirmwareUpdateState.READY);
+            publish(new FirmwareUpdateStatus(handle.operationId(), FirmwareUpdateState.READY,
+                null, "官方 WCHISP 会话已准备，准备烧录", 0.18, Instant.now()));
+            if (diagnosticDirectory != null) diagnostics.write(diagnosticDirectory, "timing.json",
+                "state=READY\nat=" + Instant.now() + "\n");
+            checkCancelled(cancellation);
+
+            transition(handle, FirmwareUpdateState.FLASHING,
+                "正在立即调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
+            Instant processStartTime = Instant.now();
+            OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashPrepared(
+                prepared.session(), cancellation::get);
+            saveAdapterProcess(diagnosticDirectory, flash);
+            writeFlashTiming(diagnosticDirectory, flashClickTime, processStartTime, flash);
+            if (!flash.success()) {
+                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.FLASH_FAILED,
+                    flash.detail(), diagnosticDirectory);
+                return;
+            }
+
+            transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
+                "官方 WCHISP 下载完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
+            checkCancelled(cancellation);
+            if (postVerifier == null) {
+                finish(handle, FirmwareUpdateState.FAILED,
+                    FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
+                    "未配置设备回读校验器", diagnosticDirectory);
+                return;
+            }
+            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
+                finish(handle, FirmwareUpdateState.FAILED,
+                    FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
+                    "设备未在时限内正常重连", diagnosticDirectory);
+                return;
+            }
+            transition(handle, FirmwareUpdateState.VERIFYING,
+                "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
+            FirmwarePostVerifier.Verification verification = postVerifier.verify(
+                prepared.request().targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
+            if (!verification.success()) {
+                finish(handle, FirmwareUpdateState.FAILED, verification.error(),
+                    verification.detail(), diagnosticDirectory);
+                return;
+            }
+            checkCancelled(cancellation);
+            finish(handle, FirmwareUpdateState.SUCCESS, null, verification.detail(), diagnosticDirectory);
+        } catch (CancelledException cancelledException) {
+            finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
+                "固件操作已取消", diagnosticDirectory);
+        } catch (Exception failure) {
+            if (cancellation.get() || failure instanceof InterruptedException) {
+                finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
+                    "固件操作已取消", diagnosticDirectory);
+                return;
+            }
+            finish(handle, FirmwareUpdateState.FAILED, classify(failure),
+                failure.getMessage() == null ? failure.toString() : failure.getMessage(),
+                diagnosticDirectory);
+        }
+    }
+
     private void awaitIsp(AtomicBoolean cancellation) throws Exception {
         if (!ispProbe.awaitPresent(ISP_TIMEOUT, cancellation::get)) {
             throw new IOException("未检测到 CH582 ISP 设备");
@@ -711,6 +873,40 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 + "  \"status\": " + json(error == null ? "COMPLETED" : error.name()) + ",\n"
                 + "  \"operationId\": " + json(directory.getFileName().toString()) + "\n}\n");
         }
+    }
+
+    private void writePreparedSessionEvidence(Path directory, PreparedFlashSession session) {
+        if (directory == null || session == null) return;
+        WchIspRunner.WchIspCommand command = session.command();
+        diagnostics.write(directory, "command.txt", command.executable() + " "
+            + String.join(" ", command.arguments()) + "\noperationId="
+            + command.operationId() + "\ntimeout=" + command.timeout() + "\n");
+        diagnostics.write(directory, "prepared-session.json", "{\n"
+            + "  \"operationId\": " + json(session.operationId().toString()) + ",\n"
+            + "  \"runtime\": " + json(session.runtime().root().toString()) + ",\n"
+            + "  \"config\": " + json(session.configPath().toString()) + ",\n"
+            + "  \"hex\": " + json(session.hexPath().toString()) + ",\n"
+            + "  \"createdAt\": " + json(session.createdAt().toString()) + ",\n"
+            + "  \"state\": " + json(session.state().name()) + ",\n"
+            + "  \"workerOwner\": " + json(session.workerOwner()) + ",\n"
+            + "  \"elevatedWorkerPrepared\": " + session.elevatedWorkerPrepared() + "\n"
+            + "}\n");
+    }
+
+    private void writeFlashTiming(Path directory, Instant clickTime, Instant processStartTime,
+                                  OfficialWchIspAdapter.FlashResult flash) {
+        if (directory == null) return;
+        long clickToStart = clickTime == null || processStartTime == null ? -1
+            : Math.max(0, java.time.Duration.between(clickTime, processStartTime).toMillis());
+        long duration = flash == null || flash.processResult() == null
+            ? -1 : flash.processResult().duration().toMillis();
+        diagnostics.write(directory, "flash-timing.json", "{\n"
+            + "  \"FLASH_CLICK_TIME\": " + json(clickTime == null ? "" : clickTime.toString()) + ",\n"
+            + "  \"WCHISP_PROCESS_START_TIME\": "
+            + json(processStartTime == null ? "" : processStartTime.toString()) + ",\n"
+            + "  \"CLICK_TO_WCHISP_START_MS\": " + clickToStart + ",\n"
+            + "  \"DOWNLOAD_PROCESS_DURATION_MS\": " + duration + "\n"
+            + "}\n");
     }
 
     private static String diagnosticDetail(UUID operationId, Path directory,
@@ -860,6 +1056,51 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                   String detail, RuntimeBundle runtime) {
         static PreflightResult failure(FirmwareUpdateError error, String detail) {
             return new PreflightResult(false, error, detail == null ? "" : detail, null);
+        }
+    }
+
+    public record PreparedFirmwareOperation(FirmwareUpdateRequest request,
+                                            PreparedFlashSession session,
+                                            Path diagnosticDirectory) {
+        public PreparedFirmwareOperation {
+            if (request == null || session == null) {
+                throw new IllegalArgumentException("prepared operation inputs are missing");
+            }
+            diagnosticDirectory = diagnosticDirectory == null ? null
+                : diagnosticDirectory.toAbsolutePath().normalize();
+        }
+
+        public boolean cancel() { return session.cancel(); }
+        public boolean armed() { return session.state() == PreparedFlashSession.State.ARMED; }
+    }
+
+    public record PreparationResult(boolean prepared,
+                                    FirmwareUpdateError error,
+                                    String detail,
+                                    PreparedFirmwareOperation operation,
+                                    Path diagnosticDirectory) {
+        public PreparationResult {
+            detail = detail == null ? "" : detail;
+            diagnosticDirectory = diagnosticDirectory == null ? null
+                : diagnosticDirectory.toAbsolutePath().normalize();
+        }
+
+        static PreparationResult success(PreparedFirmwareOperation operation) {
+            return new PreparationResult(true, null, "烧录会话已准备", operation,
+                operation.diagnosticDirectory());
+        }
+
+        static PreparationResult failure(FirmwareUpdateError error, String detail) {
+            return failure(error, detail, null);
+        }
+
+        static PreparationResult failure(FirmwareUpdateError error, String detail,
+                                         Path diagnosticDirectory) {
+            return new PreparationResult(false, error, detail, null, diagnosticDirectory);
+        }
+
+        static PreparationResult busy() {
+            return failure(FirmwareUpdateError.BUSY, "另一个固件操作正在执行");
         }
     }
 

@@ -370,7 +370,7 @@ override 视为生产芯片匹配，也不得将此次代码变更表述为真�
 `windows-flash-rewrite` 的生产固件调用链已收口为
 `FirmwareUpdateService -> OfficialWchIspAdapter -> WCHISPTool_CH57x-59x.exe`。
 `DefaultOfficialWchIspAdapter` 仅负责解析已验证的官方 runtime、执行一次用户触发的
-ISP presence detection，以及以 `-o download -f <hex>` 调用官方下载工具；Studio 继续
+ISP presence detection，以及以 `-c <flash-config.ini> -o download -f <hex>` 调用官方下载工具；Studio 继续
 负责状态机、HEX preflight、诊断、日志和 `FirmwarePostVerifier` 回读。检测阶段不再启动
 `-u get`，UID 是可选的 vendor-control evidence，绝不阻止进入 `READY/FLASHING`。
 
@@ -407,3 +407,21 @@ desktop 工程唯一可更新的稳定化事实源。
 
 本轮状态为“代码完成 + 自动测试完成，正式安装包复制布局、真实 WCHISP/ISP、设备回读和
 签名发布环境待验证”。外层稳定化计划文件仍不存在。
+
+## 16. Prepared official flash session (2026-09-08)
+
+为适配 CH582 ISP 窗口较短的真实设备时序，生产 UI 在用户选择 HEX 后立即由
+`FirmwareUpdateService.prepareFlash()` 完成 HEX/version 校验、RuntimeLocator 解析、
+`flash-config.ini` 写入、完整 `-c <flash-config.ini> -o download -f <hex>` 命令构造和
+操作诊断目录创建。`PreparedFlashSession` 绑定 operationId、runtime、配置、HEX、命令、
+创建时间和 operation-owned worker ownership；此阶段绝不启动 WCHISP 或执行写入。
+
+检测成功后会话才进入 ARMED。用户明确点击“开始烧录”时，`startPrepared()` 只启动已经
+准备好的命令，不重复 runtime/config/preflight/workspace 工作；下载完成后仍沿用
+`WAITING_RECONNECT -> VERIFYING -> FirmwarePostVerifier -> SUCCESS`。取消、关闭或未完成
+检测的会话不能启动 download。`flash-timing.json` 保存 FLASH_CLICK_TIME、
+WCHISP_PROCESS_START_TIME、CLICK_TO_WCHISP_START_MS 和 DOWNLOAD_PROCESS_DURATION_MS。
+
+新增定向测试覆盖：配置参数已在 ISP 前准备、检测不执行 download、检测后未点击不写入、
+单次 prepared flash、取消会话拒绝启动、worker ownership 和 post-verify 链路。自动测试
+与真实 WCHISP/USB ISP 烧录仍需以本轮命令及硬件结果为准；本轮不执行真实烧录。

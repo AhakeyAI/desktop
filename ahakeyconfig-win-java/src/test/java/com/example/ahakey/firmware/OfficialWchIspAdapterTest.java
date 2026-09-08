@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 
@@ -37,7 +38,7 @@ class OfficialWchIspAdapterTest {
     }
 
     @Test
-    void flashFirmwareUsesOfficialDownloadArgumentsWithoutWorkspaceOrUidQuery() throws Exception {
+    void flashFirmwareUsesOfficialConfigAndDownloadArgumentsWithoutUidQuery() throws Exception {
         RuntimeBundle runtime = runtime();
         Path hex = temporary.resolve("firmware.hex");
         Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
@@ -54,11 +55,65 @@ class OfficialWchIspAdapterTest {
         OfficialWchIspAdapter.FlashResult result = adapter.flashFirmware(hex);
 
         assertTrue(result.success());
+        assertEquals("-c", arguments.get().get(0));
+        assertTrue(arguments.get().get(1).endsWith("flash-config.ini"));
         assertEquals(List.of("-o", "download", "-f", hex.toAbsolutePath().normalize().toString()),
-            arguments.get());
-        assertFalse(arguments.get().contains("-c"));
+            arguments.get().subList(2, arguments.get().size()));
         assertFalse(arguments.get().contains("-u"));
         assertEquals(42, result.processResult().pid());
+    }
+
+    @Test
+    void prepareFlashCreatesConfigBeforeLaunchAndArmsOnlyAfterDetection() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("prepared.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicReference<Boolean> runnerCalled = new AtomicReference<>(false);
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                runnerCalled.set(true);
+                return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 7, 0,
+                    false, false, "", "", "", Duration.ofMillis(1), false,
+                    Map.of(), "PROCESS_EXIT", List.of(7L));
+            }));
+
+        UUID operationId = UUID.randomUUID();
+        Path operationDirectory = temporary.resolve("operation");
+        PreparedFlashSession session = adapter.prepareFlash(hex, operationId,
+            operationDirectory, runtime);
+
+        assertEquals(PreparedFlashSession.State.PREPARED, session.state());
+        assertTrue(Files.isRegularFile(session.configPath()));
+        assertEquals(List.of("-c", session.configPath().toString(), "-o", "download", "-f",
+            hex.toAbsolutePath().normalize().toString()), session.command().arguments());
+        assertTrue(Files.readString(session.configPath()).contains("MCUName=CH582"));
+        assertFalse(runnerCalled.get(), "preparation must not launch WCHISP");
+        assertTrue(session.markDeviceDetected());
+        adapter.flashPrepared(session, WchIspRunner.CancellationToken.NONE);
+        assertTrue(runnerCalled.get());
+        assertEquals(PreparedFlashSession.State.COMPLETED, session.state());
+    }
+
+    @Test
+    void cancelledPreparedSessionCannotLaunchDownload() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("cancelled.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicReference<Boolean> runnerCalled = new AtomicReference<>(false);
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                runnerCalled.set(true);
+                throw new AssertionError("cancelled session must not run");
+            }));
+        PreparedFlashSession session = adapter.prepareFlash(hex, UUID.randomUUID(),
+            temporary.resolve("cancelled-operation"), runtime);
+        session.markDeviceDetected();
+        assertTrue(session.cancel());
+        assertThrows(Exception.class, () -> adapter.flashPrepared(session,
+            WchIspRunner.CancellationToken.NONE));
+        assertFalse(runnerCalled.get());
     }
 
     @Test

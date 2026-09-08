@@ -282,6 +282,100 @@ class FirmwareUpdateServiceTest {
         }
     }
 
+    @Test
+    void preparedOfficialSessionIsCompleteBeforeIspAndClickLaunchesOnce() throws Exception {
+        RuntimeBundle runtime = runtimeBundle("prepared-official-runtime");
+        Path hex = temporary.resolve("prepared-official.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicInteger runnerCalls = new AtomicInteger();
+        AtomicReference<List<String>> flashArguments = new AtomicReference<>();
+        WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
+            runnerCalls.incrementAndGet();
+            flashArguments.set(command.arguments());
+            return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 23, 0,
+                false, false, "ok", "", "ok", Duration.ofMillis(4), false,
+                Map.of(), "PROCESS_EXIT", List.of(23L));
+        });
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, runner);
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+            verifier(), new FirmwareUpdateDiagnostics(temporary.resolve("prepared-diagnostics")), temporary);
+        try {
+            FirmwareUpdateService.PreparationResult preparation = service.prepareFlash(
+                new FirmwareUpdateRequest(hex, null, null, true, false));
+            assertTrue(preparation.prepared(), preparation.detail());
+            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparation.operation();
+            assertNotNull(prepared);
+            assertEquals(0, runnerCalls.get(), "preparation must not execute download");
+            assertTrue(Files.isRegularFile(prepared.session().configPath()));
+            assertEquals("-c", prepared.session().command().arguments().get(0));
+            assertEquals("download", prepared.session().command().arguments().get(3));
+            assertEquals("firmware-operation:" + prepared.session().operationId(),
+                prepared.session().workerOwner());
+
+            FirmwareUpdateService.DiagnosticResult detection = service.diagnose(prepared);
+            assertTrue(detection.ready(), detection.detail());
+            assertTrue(prepared.armed());
+            assertEquals(0, runnerCalls.get(), "ISP detection must not execute download");
+
+            FirmwareUpdateService.OperationStart start = service.startPrepared(prepared);
+            FirmwareUpdateResult result = start.handle().completion().get(5, TimeUnit.SECONDS);
+            assertTrue(result.success(), result.detail());
+            assertEquals(1, runnerCalls.get());
+            assertEquals(prepared.session().command().arguments(), flashArguments.get());
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void cancellingPreparedOfficialSessionDoesNotExecuteDownload() throws Exception {
+        RuntimeBundle runtime = runtimeBundle("cancelled-official-runtime");
+        Path hex = temporary.resolve("cancelled-official.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicInteger runnerCalls = new AtomicInteger();
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                runnerCalls.incrementAndGet();
+                throw new AssertionError("cancelled prepared session must not execute");
+            }));
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+            verifier(), new FirmwareUpdateDiagnostics(temporary.resolve("cancelled-diagnostics")), temporary);
+        try {
+            FirmwareUpdateService.PreparedFirmwareOperation prepared = service.prepareFlash(
+                new FirmwareUpdateRequest(hex, null, null, true, false)).operation();
+            assertTrue(service.diagnose(prepared).ispPresent());
+            assertTrue(prepared.cancel());
+            FirmwareUpdateService.OperationStart start = service.startPrepared(prepared);
+            assertFalse(start.accepted());
+            assertEquals(0, runnerCalls.get());
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    private FirmwarePostVerifier verifier() {
+        return new FirmwarePostVerifier(
+            () -> new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0,
+                FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 7, 1),
+            () -> true, millis -> { });
+    }
+
+    private RuntimeBundle runtimeBundle(String name) throws Exception {
+        Path runtimeRoot = temporary.resolve(name);
+        Files.createDirectories(runtimeRoot);
+        Path exe = runtimeRoot.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME);
+        Files.write(exe, new byte[]{1});
+        Files.write(runtimeRoot.resolve("CH343PT.DLL"), new byte[]{2});
+        Files.write(runtimeRoot.resolve("WCH55xISPDLL.dll"), new byte[]{3});
+        return new RuntimeBundle(runtimeRoot, exe,
+            runtimeRoot.resolve("CH343PT.DLL"), runtimeRoot.resolve("WCH55xISPDLL.dll"),
+            runtimeRoot.resolve("CONFIG_CH57X59X.WCH"), null,
+            new RuntimeIdentity(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                "e", "c", "i", "g", RuntimeIdentity.ValidationStatus.UNKNOWN));
+    }
+
     private FirmwareUpdateService service(IspDeviceProbe probe, WchIspRunner.Backend backend)
         throws Exception {
         return service(probe, backend, ChipMatched.matched(), false);

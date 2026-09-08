@@ -55,6 +55,7 @@ class ReleaseArtifactContentsTest {
         "com/example/ahakey/firmware/WchIspConfigLayout.class",
         "com/example/ahakey/firmware/OfficialWchIspAdapter.class",
         "com/example/ahakey/firmware/DefaultOfficialWchIspAdapter.class",
+        "com/example/ahakey/firmware/PreparedFlashSession.class",
         "com/example/ahakey/firmware/RuntimeLocator.class",
         "com/example/ahakey/firmware/InstalledRuntimeLocator.class",
         "com/example/ahakey/firmware/WchIspRuntimeContract.class",
