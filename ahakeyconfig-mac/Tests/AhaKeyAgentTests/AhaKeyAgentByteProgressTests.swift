@@ -721,6 +721,15 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
     }
 
     private func ingest(_ agent: AhaKeyAgent, assembled: AhaKeyStudioAssembledConfiguration) async throws {
+        let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeDir,
+            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+        )
+        try await store.seedAuthoritativeObjectContentForTesting(
+            deviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            content: Data("legacy-object".utf8)
+        )
         let items: [AhaKeyXPCResourceIngestionItem] = try assembled.resources.map { input in
             let data = try Data(contentsOf: input.fileURL)
             let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()

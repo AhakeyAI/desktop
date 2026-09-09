@@ -1299,8 +1299,8 @@ public actor AhaKeyRuntimePersistentStore {
     /// 用于 XPC 预上传：Studio 先 ingest，再发 apply。
     public func ingestResources(
         _ items: [AhaKeyXPCResourceIngestionItem],
-        fieldBaselineProof: AhaKeyRuntimePageFieldBaselineProof? = nil,
-        proofDeviceID: AhaKeyRuntimeDeviceID? = nil
+        scopedProof: AhaKeyRuntimeScopedResourceIngestionProof? = nil,
+        targetDeviceID: AhaKeyRuntimeDeviceID? = nil
     ) throws {
         try ensureOpen()
         for item in items {
@@ -1380,15 +1380,11 @@ public actor AhaKeyRuntimePersistentStore {
                 try Self.execute("BEGIN IMMEDIATE", on: database)
                 var installedFinals: [URL] = []
                 do {
-                    if let fieldBaselineProof {
-                        guard let proofDeviceID else {
-                            throw AhaKeyRuntimePersistenceError.pageBaseAuthorityUnreadable
-                        }
-                        try casFrozenFieldProofUnlocked(
-                            proof: fieldBaselineProof,
-                            deviceID: proofDeviceID
-                        )
-                    }
+                    try casResourceIngestUnlocked(
+                        items: items,
+                        scopedProof: scopedProof,
+                        targetDeviceID: targetDeviceID
+                    )
                     let existingBytes = try resourceStorageUsage()
                     var pendingInserts: [AhaKeyXPCResourceIngestionItem] = []
                     var newBytes: UInt64 = 0
@@ -1466,14 +1462,14 @@ public actor AhaKeyRuntimePersistentStore {
         _ items: [AhaKeyXPCResourceIngestionItem],
         reservedBy reservation: AhaKeyRuntimeAdmissionReservation,
         using fence: AhaKeyRuntimeAdmissionFence,
-        fieldBaselineProof: AhaKeyRuntimePageFieldBaselineProof? = nil,
-        proofDeviceID: AhaKeyRuntimeDeviceID? = nil
+        scopedProof: AhaKeyRuntimeScopedResourceIngestionProof? = nil,
+        targetDeviceID: AhaKeyRuntimeDeviceID? = nil
     ) throws {
         try fence.withReservedWrite(reservation) {
             try ingestResources(
                 items,
-                fieldBaselineProof: fieldBaselineProof,
-                proofDeviceID: proofDeviceID
+                scopedProof: scopedProof,
+                targetDeviceID: targetDeviceID
             )
         }
     }
@@ -1903,6 +1899,11 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
+    func stagedResourceByteCountForTesting(_ digest: AhaKeySHA256Digest) throws -> UInt64? {
+        try ensureOpen()
+        return try stagedResourceByteCount(digest)
+    }
+
     func upsertPageFieldBaselineForTesting(_ baseline: AhaKeyRuntimeFieldBaseline) throws {
         try ensureOpen()
         try mutationFence.withExclusiveAccess {
@@ -1932,6 +1933,27 @@ public actor AhaKeyRuntimePersistentStore {
             sourceDigest: try AhaKeyRuntimeObjectFingerprint.hashing(content)
         )
         _ = try persistProjectedAuthoritativeObject(content, version: version)
+    }
+
+    /// 只写入 canonical object bytes，不分配 writer lease。供 schema=1 Agent ingest 测试证明目标已有 object。
+    func seedAuthoritativeObjectContentForTesting(
+        deviceID: AhaKeyRuntimeDeviceID,
+        content: Data
+    ) throws {
+        try ensureOpen()
+        guard !content.isEmpty else {
+            throw AhaKeyRuntimePersistenceError.pageBaseAuthorityUnreadable
+        }
+        try mutationFence.withExclusiveAccess {
+            try Self.execute("BEGIN IMMEDIATE", on: database)
+            do {
+                try persistAuthoritativeObjectUnlocked(content, for: deviceID)
+                try Self.execute("COMMIT", on: database)
+            } catch {
+                try? Self.execute("ROLLBACK", on: database)
+                throw error
+            }
+        }
     }
 
     func replaceAuthoritativeObjectForTesting(
@@ -2074,6 +2096,50 @@ public actor AhaKeyRuntimePersistentStore {
         }
     }
 
+    private func casResourceIngestUnlocked(
+        items: [AhaKeyXPCResourceIngestionItem],
+        scopedProof: AhaKeyRuntimeScopedResourceIngestionProof?,
+        targetDeviceID: AhaKeyRuntimeDeviceID?
+    ) throws {
+        if let scopedProof {
+            guard let targetDeviceID else {
+                throw AhaKeyRuntimePersistenceError.pageBaseAuthorityUnreadable
+            }
+            do {
+                try scopedProof.validate(items: items, targetDeviceID: targetDeviceID)
+            } catch let error as AhaKeyRuntimePersistenceError {
+                throw error
+            } catch {
+                throw AhaKeyRuntimePersistenceError.pageFieldBaselineConflict
+            }
+            if scopedProof.schemaVersion == AhaKeyConfigurationPackage.fieldBaselineSchemaVersion {
+                let proof: AhaKeyRuntimePageFieldBaselineProof
+                do {
+                    proof = try scopedProof.requireFieldBaselines()
+                } catch {
+                    throw AhaKeyRuntimePersistenceError.pageFieldBaselineConflict
+                }
+                try casFrozenFieldProofUnlocked(
+                    proof: proof,
+                    deviceID: targetDeviceID
+                )
+            } else {
+                try requireExistingObjectUnlocked(targetDeviceID)
+            }
+            return
+        }
+        if let targetDeviceID {
+            try requireExistingObjectUnlocked(targetDeviceID)
+        }
+    }
+
+    private func requireExistingObjectUnlocked(_ deviceID: AhaKeyRuntimeDeviceID) throws {
+        let object = try authoritativeObjectContent(for: deviceID)
+        guard let object, !object.isEmpty else {
+            throw AhaKeyRuntimePersistenceError.pageBaseAuthorityUnreadable
+        }
+    }
+
     private func casFrozenFieldProofUnlocked(
         proof: AhaKeyRuntimePageFieldBaselineProof,
         deviceID: AhaKeyRuntimeDeviceID
@@ -2090,12 +2156,19 @@ public actor AhaKeyRuntimePersistentStore {
             throw AhaKeyRuntimePersistenceError.pageBaseObjectConflict
         }
         do {
+            try proof.validate(
+                pageID: proof.pageID,
+                fieldMask: proof.fieldMaskSet,
+                deviceID: deviceID
+            )
             try proof.matchLive(
                 snapshot.fieldBaselines,
                 deviceID: deviceID,
                 pageID: proof.pageID,
                 operationID: AhaKeyRuntimeOperationID()
             )
+        } catch let error as AhaKeyRuntimePersistenceError {
+            throw error
         } catch {
             throw AhaKeyRuntimePersistenceError.pageFieldBaselineConflict
         }

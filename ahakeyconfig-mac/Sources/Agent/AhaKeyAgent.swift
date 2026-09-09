@@ -1254,8 +1254,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 request.items,
                 reservedBy: reservation,
                 using: resourceAdmissionFence,
-                fieldBaselineProof: request.fieldBaselineProof,
-                proofDeviceID: request.fieldBaselineProof == nil ? nil : request.admission.targetDeviceID
+                scopedProof: request.scopedProof,
+                targetDeviceID: request.admission.targetDeviceID
             )
         } catch AhaKeyRuntimeAdmissionWriteError.staleReservation {
             return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
@@ -4436,10 +4436,15 @@ extension AhaKeyAgent {
     }
 
     func handleIngestForTesting(
-        _ items: [AhaKeyXPCResourceIngestionItem]
+        _ items: [AhaKeyXPCResourceIngestionItem],
+        scopedProof: AhaKeyRuntimeScopedResourceIngestionProof? = nil
     ) async throws -> AhaKeyRuntimeXPCResponse {
         try await handleRuntimeXPCRequest(
-            .ingestResources(.init(items: items, admission: try await resourceAdmissionTokenForTesting()))
+            .ingestResources(.init(
+                items: items,
+                admission: try await resourceAdmissionTokenForTesting(),
+                scopedProof: scopedProof
+            ))
         )
     }
 

@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-FIRST-PAGE-AUTHORITY-BOOTSTRAP：无 whole-object 读回设备的首次页面写入
 
 计划/WBS：v0.3 客户端 OLED C5B
-状态：`review / C5BR1 Store-owned atomic base CAS`
+状态：`review / C5BR2 scoped ingest live binding`
 执行 owner：Cursor
 验收：Codex
 依赖：C5P/C5PR1–C5PR9 accepted @ `99a5b01`；C5S accepted；C5W Gitee Rhino 首写停点 accepted
@@ -125,3 +125,26 @@ Studio、Runtime acceptance、Runner/reopen 共用该 Interface；复杂度留�
 - Store 一次事务 snapshot/CAS，与 page 队首转 running 同锁；尚无 device-confirmed 写时 resume 仍重核。schema=3 无条件 overwrite；kind-exact decode；ingest/accept 在资源 journal 前核同一 field proof。Agent 不再拼 durable 数组。读错 fail-closed。
 - 全量 1106/2 skipped/0；Release OK；identity 未改；`git diff --check` 通过。证据 `15-c5br1-store-owned-atomic-cas.md`。不回 C5W，不开放 HIL。
 - 需要回复：是（@Codex 验收 C5BR1）
+
+### [2026-09-09 17:41] Codex 双轴验收 C5BR1：未通过，退 C5BR2
+
+- 固定增量 `35015ee3f0071557d74d2958d4cdf202c2b791ec...d423730f75bb6c5c258ccd31310ad9d15359401b`，最终范围 `99a5b01...d423730`。独立 base-authority + page-execution 定向 **49/49**；最终 range `git diff --check` 通过。
+- 已通过并冻结：Store 在同一 mutation lock / `BEGIN IMMEDIATE` 内读取 confirmed/object/field rows、比较 proof 并将 FIFO 队首转 running；无 device-confirmed 写的 resume 重核，local-only 不放宽；object presence 冲突；读错传播；schema3 overwrite-only；kind-exact keys；accept/ingest 在 journal/WAL 前核 proof；schema1/2 行为保持。
+- **Standards：3×P1。Spec：1×P1。** P1-1：Runner `pagePreconditions == nil` 时回退到 `package.targetDeviceID` 与 context profile，让 package 自证实时设备身份，回退 schema2 既有 fail-closed。必须要求 non-nil live preconditions；缺失时不得进入 Store running/device write。
+- P1-2：`casFrozenFieldProofUnlocked` 直接 `matchLive`，没有先 `proof.validate(...deviceID:)`；`.absent` expectation 只核目标设备上没有行。可用 admission target A + expectation device B 的合法 digest proof，让 A 的资源 journal 通过。必须在同一事务内把 proof 的每个 expectation 强绑 `proofDeviceID/pageID/fieldMask`，`matchLive` 自身也不得让 absent 绕过 identity。
+- P1-3：ingest request 只有 `items + admission + optional fieldBaselineProof`，proof 与 items/resource bindings/page contract 没有闭包。无关页面的合法 proof，甚至 no-object 目标上的 nil proof，可写任意 resource journal。C5BR2 新增 typed scoped resource-ingestion proof：schema/page/device/mask、picture field→完整 resource identity/binding 与 items 必须 exact 双射；Store 在安装 final/journal 前验证。schema2 legacy ingest 若不带 field proof，Store 至少必须证明目标已有 non-empty whole-object authority，不能在无 object 设备借 nil 绕过。
+- 新增真 Endpoint/Store 反例：target A + foreign-device absent proof；正确设备但 unrelated page/mask proof；items digest/byteCount/logicalID 与 binding 不闭合；nil proof + no object；全部零 final file、零 staged journal、零 WAL。合法 schema3 C5W package 仍可 ingest/apply。
+- 保持 C5BR1 atomic CAS、overwrite、read-error、strict shape 全部冻结。禁止用 Agent/Facade 静态检查替代 Store transaction；禁止修改 C2 assembler、BLE wire/opcode、schema2 whole-object CAS、View布局、ReleaseIdentity、安装器、固件。HIL/设备写/push 继续关闭。
+- 需要回复：是（@Cursor ACK 后仅执行 C5BR2）
+
+### [2026-09-09 17:50] Cursor ACK：仅执行 C5BR2
+
+- ACK Codex 17:41。C5BR1 atomic CAS 冻结。仅收 non-nil live device proof、Store 内 proof device/page/mask 强绑定、typed scoped resource-ingest exact binding，以及 foreign-device / unrelated page / items mismatch / nil-no-object 零 journal 反例。
+- 不改 C2 assembler、BLE wire/opcode、schema=2 whole-object CAS、View、identity、安装器、固件。不签名/安装/HIL/设备写/push。
+- 需要回复：否（执行中）
+
+### [2026-09-09 18:15] Cursor → Codex：C5BR2 完成，停手提审
+
+- ACK Codex 17:41。C5BR1 atomic CAS 冻结。Runner 缺失 live preconditions 不得回退 package/context。Store 在同一 `BEGIN IMMEDIATE` 内先 `proof.validate(deviceID:)` 再 `matchLive`。typed `scopedProof` 闭合 schema/page/device/mask、picture binding 与 items 双射；nil proof 在无 object 目标上零 journal。
+- 全量 1113/2 skipped/0；Release OK；identity 未改；`git diff --check` 通过。证据 `16-c5br2-scoped-ingest-live-binding.md`。不回 C5W，不开放 HIL。
+- 需要回复：是（@Codex 验收 C5BR2）

@@ -318,7 +318,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             package: package,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -608,7 +609,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             package: package,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -643,7 +645,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             package: package,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -654,31 +657,47 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
         XCTAssertEqual(code, .configurationFieldBaselineConflict)
     }
 
-    func testIngestStaleFieldProofFailsClosedBeforeJournal() async throws {
+    func testMissingLivePreconditionsFailClosedWithoutWrites() async throws {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("c5br1-ingest-\(UUID().uuidString)")
+            .appendingPathComponent("c5br2-live-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try makeStore(root: root)
         let device = try AhaKeyRuntimeDeviceID("DEV")
-        let bytes = Data("gif-c5br1".utf8)
-        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-        let item = AhaKeyXPCResourceIngestionItem(
-            logicalIdentifier: try AhaKeyResourceIdentifier("mode0-set0-working"),
-            sha256: try AhaKeySHA256Digest(digest),
-            byteCount: UInt64(bytes.count),
-            data: bytes
-        )
-        let proof = try AhaKeyRuntimePageFieldBaselineProof.make(
-            deviceID: device,
-            pageID: .screen(modeSlot: 0),
-            fieldMask: [.screenStatusLine(modeSlot: 0)],
-            liveBaselines: []
-        )
+        let package = try fieldPackage(device: device, overwrite: true)
+        var executed: [String] = []
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package,
+            resourceFiles: [:],
+            context: .standard,
+            release: .picturesUnrestrictedForTests
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(state, .failedWithoutWrites)
+        XCTAssertEqual(executed, [])
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.messageCode, .configurationPreflightConflict)
+        XCTAssertNotEqual(record?.state, .running)
+        let object = try await store.authoritativeObjectContent(for: device)
+        XCTAssertNil(object)
+    }
+
+    func testIngestStaleFieldProofFailsClosedBeforeJournal() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br2-stale-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let fixture = try pictureFixture(frames: 1)
+        let package = try pictureFieldPackage(device: device, fixture: fixture)
+        let items = try ingestionItems(fixture)
+        let field = AhaKeyStudioFieldID.screenTaskAsset(modeSlot: 0, setIndex: 0, state: .working)
         try await store.upsertPageFieldBaselineForTesting(
             AhaKeyRuntimeFieldBaseline(
                 deviceID: device,
                 pageID: .screen(modeSlot: 0),
-                fieldID: .screenStatusLine(modeSlot: 0),
+                fieldID: field,
                 value: .text("raced"),
                 trust: .writeConfirmed,
                 provenance: .writeConfirmation,
@@ -687,16 +706,144 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
         )
         do {
             try await store.ingestResources(
-                [item],
-                fieldBaselineProof: proof,
-                proofDeviceID: device
+                items,
+                scopedProof: try AhaKeyRuntimeScopedResourceIngestionProof.make(package: package),
+                targetDeviceID: device
             )
             XCTFail("stale field proof must fail before resource journal")
         } catch {
             XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .pageFieldBaselineConflict)
         }
-        let ingested = try await store.resourceURL(for: item.sha256)
-        XCTAssertNil(ingested)
+        try await assertZeroResourceJournal(store: store, root: root, items: items)
+    }
+
+    func testForeignDeviceAbsentProofCannotAuthorizeTargetJournal() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br2-foreign-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let target = try AhaKeyRuntimeDeviceID("DEV-A")
+        let foreign = try AhaKeyRuntimeDeviceID("DEV-B")
+        let fixture = try pictureFixture(frames: 1)
+        let foreignPackage = try pictureFieldPackage(device: foreign, fixture: fixture)
+        let items = try ingestionItems(fixture)
+        do {
+            try await store.ingestResources(
+                items,
+                scopedProof: try AhaKeyRuntimeScopedResourceIngestionProof.make(package: foreignPackage),
+                targetDeviceID: target
+            )
+            XCTFail("foreign-device absent proof must not write target journal")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .pageFieldBaselineConflict)
+        }
+        try await assertZeroResourceJournal(store: store, root: root, items: items)
+        let wal = try await store.transaction(foreignPackage.operationID)
+        XCTAssertNil(wal)
+    }
+
+    func testUnrelatedPageProofCannotAuthorizePictureJournal() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br2-unrelated-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let fixture = try pictureFixture(frames: 1)
+        let items = try ingestionItems(fixture)
+        let unrelated = try fieldPackage(device: device, overwrite: true)
+        do {
+            try await store.ingestResources(
+                items,
+                scopedProof: try AhaKeyRuntimeScopedResourceIngestionProof.make(package: unrelated),
+                targetDeviceID: device
+            )
+            XCTFail("unrelated page proof must not write picture journal")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .pageFieldBaselineConflict)
+        }
+        try await assertZeroResourceJournal(store: store, root: root, items: items)
+    }
+
+    func testIngestItemsMustBijectionWithScopedBindings() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br2-mismatch-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let fixture = try pictureFixture(frames: 1)
+        let package = try pictureFieldPackage(device: device, fixture: fixture)
+        let scoped = try AhaKeyRuntimeScopedResourceIngestionProof.make(package: package)
+        var items = try ingestionItems(fixture)
+        items[0] = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("unrelated-logical"),
+            sha256: items[0].sha256,
+            byteCount: items[0].byteCount,
+            data: items[0].data
+        )
+        do {
+            try await store.ingestResources(
+                items,
+                scopedProof: scoped,
+                targetDeviceID: device
+            )
+            XCTFail("items must bijection with resource bindings")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .pageFieldBaselineConflict)
+        }
+        try await assertZeroResourceJournal(store: store, root: root, items: items)
+    }
+
+    func testNilProofWithoutObjectFailsClosedBeforeJournal() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br2-nil-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let fixture = try pictureFixture(frames: 1)
+        let items = try ingestionItems(fixture)
+        do {
+            try await store.ingestResources(items, targetDeviceID: device)
+            XCTFail("nil proof on no-object device must not write journal")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .pageBaseAuthorityUnreadable)
+        }
+        try await assertZeroResourceJournal(store: store, root: root, items: items)
+    }
+
+    func testLegalSchema3PicturePackageStillIngestsAndApplies() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br2-legal-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let fixture = try pictureFixture(frames: 1)
+        let package = try pictureFieldPackage(device: device, fixture: fixture)
+        let items = try ingestionItems(fixture)
+        try await store.ingestResources(
+            items,
+            scopedProof: try AhaKeyRuntimeScopedResourceIngestionProof.make(package: package),
+            targetDeviceID: device
+        )
+        let staged = try await store.stagedResourceByteCountForTesting(items[0].sha256)
+        XCTAssertEqual(staged, items[0].byteCount)
+        var files: [AhaKeyResourceIdentifier: URL] = [:]
+        for (identifier, bytes) in fixture.sourceBytes {
+            let url = root.appendingPathComponent("\(identifier.rawValue).gif")
+            try bytes.write(to: url)
+            files[identifier] = url
+        }
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package,
+            resourceFiles: files,
+            context: .standard,
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
+        ) { _ in .success }
+        XCTAssertEqual(state, .completed)
+        let object = try await store.authoritativeObjectContent(for: device)
+        XCTAssertNil(object)
+        let baselines = try await store.pageFieldBaselines(deviceID: device)
+        XCTAssertEqual(baselines.map(\.trust), [.writeConfirmed])
     }
 
     func testSchema3AssembleRejectsOverwriteFalse() throws {
@@ -719,7 +866,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             package: package,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -744,7 +892,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             package: package,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -769,7 +918,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             package: first,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
         ) { _ in .success }
         XCTAssertEqual(firstState, .completed)
         var executed: [String] = []
@@ -777,7 +927,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             package: second,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: livePreconditions(device)
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -823,6 +974,17 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator(
                 schema1: AllowingResourceValidator()
             )
+        )
+    }
+
+    private func livePreconditions(
+        _ device: AhaKeyRuntimeDeviceID
+    ) -> AhaKeyRuntimePageExecutionPreconditions {
+        AhaKeyRuntimePageExecutionPreconditions(
+            deviceID: device,
+            profile: .legacyStandard,
+            baseObjectFingerprint: nil,
+            fieldBaselines: []
         )
     }
 
@@ -882,6 +1044,59 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             fieldBaselines: proof,
             verifiedResources: []
         )
+    }
+
+    private func pictureFieldPackage(
+        device: AhaKeyRuntimeDeviceID,
+        fixture: (plan: AhaKeyStudioScopedWritePlan, resources: [AhaKeyConfigurationResource], sourceBytes: [AhaKeyResourceIdentifier: Data])
+    ) throws -> AhaKeyConfigurationPackage {
+        var plan = fixture.plan
+        plan.overwriteSemantic = true
+        let proof = try AhaKeyRuntimePageFieldBaselineProof.make(
+            deviceID: device,
+            pageID: plan.pageID,
+            fieldMask: plan.fieldMask,
+            liveBaselines: []
+        )
+        return try AhaKeyConfigurationPackage.assemblePageFieldBaseline(
+            plan: plan,
+            profile: .legacyStandard,
+            targetDeviceID: device,
+            baseRevision: .init(0),
+            fieldBaselines: proof,
+            verifiedResources: fixture.resources
+        )
+    }
+
+    private func ingestionItems(
+        _ fixture: (plan: AhaKeyStudioScopedWritePlan, resources: [AhaKeyConfigurationResource], sourceBytes: [AhaKeyResourceIdentifier: Data])
+    ) throws -> [AhaKeyXPCResourceIngestionItem] {
+        try fixture.resources.map { resource in
+            let data = try XCTUnwrap(fixture.sourceBytes[resource.logicalIdentifier])
+            return AhaKeyXPCResourceIngestionItem(
+                logicalIdentifier: resource.logicalIdentifier,
+                sha256: resource.sha256,
+                byteCount: resource.byteCount,
+                data: data
+            )
+        }
+    }
+
+    private func assertZeroResourceJournal(
+        store: AhaKeyRuntimePersistentStore,
+        root: URL,
+        items: [AhaKeyXPCResourceIngestionItem]
+    ) async throws {
+        for item in items {
+            let accepted = try await store.resourceURL(for: item.sha256)
+            XCTAssertNil(accepted)
+            let staged = try await store.stagedResourceByteCountForTesting(item.sha256)
+            XCTAssertNil(staged)
+            let final = root
+                .appendingPathComponent("resources", isDirectory: true)
+                .appendingPathComponent(item.sha256.rawValue)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: final.path))
+        }
     }
 
     private func pictureFixture(

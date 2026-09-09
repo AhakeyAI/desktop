@@ -290,7 +290,7 @@ public actor AhaKeyStudioRuntimeFacade {
     private func exchangeIngest(
         _ items: [AhaKeyXPCResourceIngestionItem],
         using expected: ActiveDeviceAdmission,
-        fieldBaselineProof: AhaKeyRuntimePageFieldBaselineProof? = nil
+        scopedProof: AhaKeyRuntimeScopedResourceIngestionProof? = nil
     ) async throws {
         let live = try requireLiveAdmission(
             matching: expected,
@@ -302,7 +302,7 @@ public actor AhaKeyStudioRuntimeFacade {
             .ingestResources(.init(
                 items: items,
                 admission: token,
-                fieldBaselineProof: fieldBaselineProof
+                scopedProof: scopedProof
             ))
         )
         guard case .resourcesIngested = response else {
@@ -1000,13 +1000,11 @@ extension AhaKeyStudioRuntimeFacade {
                 )
             }
             pageSubmitIngestCalls += 1
-            let proof: AhaKeyRuntimePageFieldBaselineProof?
-            if case .fieldBaselines(let fieldProof) = decision.proof {
-                proof = fieldProof
-            } else {
-                proof = nil
-            }
-            try await exchangeIngest(items, using: admission, fieldBaselineProof: proof)
+            try await exchangeIngest(
+                items,
+                using: admission,
+                scopedProof: try AhaKeyRuntimeScopedResourceIngestionProof.make(package: package)
+            )
         }
         pageSubmitApplyCalls += 1
         let operationID = try await exchangeApply(

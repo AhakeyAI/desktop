@@ -157,10 +157,9 @@ public struct AhaKeyConfigurationTransactionRunner {
             plan: pagePlan
         )
         do {
-            try AhaKeyRuntimePageBaseAuthority.evaluateLiveCompatibility(
+            try AhaKeyRuntimePageBaseAuthority.requireLiveCompatibility(
                 package: package,
-                deviceID: pagePreconditions?.deviceID ?? package.targetDeviceID,
-                profile: pagePreconditions?.profile ?? context.profile
+                preconditions: pagePreconditions
             )
         } catch let error as AhaKeyRuntimePageExecutionPreflightError {
             let code: AhaKeyRuntimeEventCode

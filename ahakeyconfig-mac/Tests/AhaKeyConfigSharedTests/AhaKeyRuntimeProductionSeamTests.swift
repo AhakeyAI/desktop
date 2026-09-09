@@ -321,6 +321,18 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         ) { error in
             XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
         }
+        requestObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try JSONEncoder().encode(request)) as? [String: Any]
+        )
+        requestObject["fieldBaselineProof"] = ["pageID": "legacy"]
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyXPCResourceIngestionRequest.self,
+                from: try JSONSerialization.data(withJSONObject: requestObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
     }
 
     func testAdmissionFenceLinearizesReservationAgainstLiveMutation() throws {

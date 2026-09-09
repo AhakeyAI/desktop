@@ -1129,6 +1129,35 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    func testNilProofIngestWithoutObjectFailsClosedBeforeJournal() {
+        runEndpointTest { [self] in
+            let agent = makeAgent()
+            var hooks = agent.executionTestHooks
+            hooks?.skipConfigurationBLEWriteGates = true
+            hooks?.configurationCharacteristics = .allPresent
+            hooks?.oledContext = .standard
+            agent.executionTestHooks = hooks
+            await agent.simulateDeviceForTesting(simulatedDevice())
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+            let items = try ingestItems(try makeStandardPictureAssembly())
+            let ingest = try await agent.handleIngestForTesting(items)
+            guard case .failure(let code) = ingest else {
+                return XCTFail("nil proof + no object must fail, actual \(ingest)")
+            }
+            XCTAssertEqual(code, .configurationPreflightConflict)
+            let store = try AhaKeyRuntimePersistentStore(
+                rootDirectory: storeDir,
+                acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+            )
+            for item in items {
+                let accepted = try await store.resourceURL(for: item.sha256)
+                XCTAssertNil(accepted)
+                let staged = try await store.stagedResourceByteCountForTesting(item.sha256)
+                XCTAssertNil(staged)
+            }
+        }
+    }
+
     func testLegacyProbeFirmwareV1AndTaskPictureFrameYieldsStandardContext() {
         runEndpointTest { [self] in
             let agent = makeAgent()
@@ -1509,6 +1538,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
 
             let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
             let before = await waitForStoreBaseline(storeDir)
+            try await seedLegacyObject(agent)
             let items = try ingestItems(try makeStandardPictureAssembly())
             let ingestTask = Task { try await agent.handleIngestForTesting(items) }
             XCTAssertTrue(locked.waitUntilEntered())
@@ -1647,6 +1677,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
 
             let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
             let before = await waitForStoreBaseline(storeDir)
+            try await seedLegacyObject(agent)
             let items = try ingestItems(try makeStandardPictureAssembly())
             let ingestTask = Task { try await agent.handleIngestForTesting(items) }
             XCTAssertTrue(locked.waitUntilEntered())
@@ -1921,6 +1952,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             let afterStale = try XCTUnwrap(agent.liveAdmissionTokenForTesting())
             XCTAssertEqual(afterStale.sessionGeneration, .init(1), "旧 publication 不得覆盖新代")
 
+            try await seedLegacyObject(agent)
             let ingest = try await agent.handleIngestForTesting(
                 try ingestItems(try makeStandardPictureAssembly())
             )
@@ -1967,6 +1999,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             let afterStale = try XCTUnwrap(agent.liveAdmissionTokenForTesting())
             XCTAssertEqual(afterStale.sessionGeneration, .init(1), "pre-ticket 旧 ticket 不得覆盖新代")
 
+            try await seedLegacyObject(agent)
             let ingest = try await agent.handleIngestForTesting(
                 try ingestItems(try makeStandardPictureAssembly())
             )
@@ -2583,6 +2616,18 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    private func seedLegacyObject(_ agent: AhaKeyAgent) async throws {
+        let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+        let store = try AhaKeyRuntimePersistentStore(
+            rootDirectory: storeDir,
+            acceptanceValidator: AhaKeyConfigurationPlanner.AcceptanceValidator()
+        )
+        try await store.seedAuthoritativeObjectContentForTesting(
+            deviceID: try AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            content: Data("legacy-object".utf8)
+        )
+    }
+
     private func ingestItems(
         _ assembled: AhaKeyStudioAssembledConfiguration
     ) throws -> [AhaKeyXPCResourceIngestionItem] {
@@ -2602,6 +2647,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         _ agent: AhaKeyAgent,
         assembled: AhaKeyStudioAssembledConfiguration
     ) async throws {
+        try await seedLegacyObject(agent)
         let ingested = try await agent.handleIngestForTesting(try ingestItems(assembled))
         guard case .resourcesIngested = ingested else {
             throw NSError(
