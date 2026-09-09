@@ -4,7 +4,6 @@ import com.example.ahakey.app.StudioController;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.service.AgentManager;
-import com.example.ahakey.service.HookDispatchServer;
 import com.example.ahakey.service.HookInstaller;
 import com.example.ahakey.service.BleBridgeProcessOwner;
 import com.example.ahakey.service.BleDriverLocator;
@@ -13,6 +12,8 @@ import com.example.ahakey.util.Icons;
 import com.example.ahakey.util.LanguageManager;
 import com.example.ahakey.util.FirstRunState;
 import javafx.animation.PauseTransition;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
@@ -173,7 +174,8 @@ public class TopBar extends VBox {
             ),
             new InfoPill(
                 Bindings.createStringBinding(() -> languageManager.getString("status.switch")),
-                Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty()),
+                Bindings.createStringBinding(deviceStatus::getSwitchTitle,
+                    deviceStatus.switchStateProperty(), deviceStatus.isConnectedProperty()),
                 Bindings.createObjectBinding(
                     () -> deviceStatus.isAutoApproval() ? AccentColor.MINT : AccentColor.INDIGO,
                     deviceStatus.switchStateProperty()
@@ -777,7 +779,8 @@ public class TopBar extends VBox {
         switchState.getStyleClass().add("dialog-text");
         switchState.textProperty().bind(Bindings.createStringBinding(() ->
             languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
-            this.deviceStatus.switchStateProperty()
+            this.deviceStatus.switchStateProperty(),
+            this.deviceStatus.isConnectedProperty()
         ));
         deviceRow2.getChildren().addAll(deviceName, switchState);
 
@@ -804,11 +807,11 @@ public class TopBar extends VBox {
         addLog("[System] Java Version: " + System.getProperty("java.version"));
         addLog("");
 
-        // Hook 安装卡片（先用空状态创建，后面异步更新）
-        VBox claudeCard = createHookCard("Claude", false);
-        VBox cursorCard = createHookCard("Cursor", false);
-        VBox codexCard = createHookCard("Codex", false);
-        VBox kimiCard = createHookCard("Kimi", false);
+        // Hook 安装卡片：配置、分发服务和最近活动是相互独立的状态。
+        HookCardControls claudeCard = createHookCard("Claude");
+        HookCardControls cursorCard = createHookCard("Cursor");
+        HookCardControls codexCard = createHookCard("Codex");
+        HookCardControls kimiCard = createHookCard("Kimi");
 
         // 日志卡片
         VBox logCard = new VBox(8);
@@ -846,10 +849,10 @@ public class TopBar extends VBox {
             maintenanceCards,
             pairingGuideCard,
             supportCard,
-            claudeCard,
-            cursorCard,
-            codexCard,
-            kimiCard,
+            claudeCard.root(),
+            cursorCard.root(),
+            codexCard.root(),
+            kimiCard.root(),
             logCard,
             actionButtons
         );
@@ -865,16 +868,15 @@ public class TopBar extends VBox {
         // 在后台线程中检测 Hook 状态
         new Thread(() -> {
             String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
-            boolean[] hookInstalled = new boolean[4];
-            VBox[] hookCards = {claudeCard, cursorCard, codexCard, kimiCard};
+            HookCardControls[] hookCards = {claudeCard, cursorCard, codexCard, kimiCard};
             
             for (int i = 0; i < hookNames.length; i++) {
                 String name = hookNames[i];
                 Path path = hookInstaller.getHookConfigPath(name);
                 File file = path.toFile();
                 
-                boolean installed = isHookInstalled(name);
-                hookInstalled[i] = installed;
+                HookInstaller.ConfigurationInspection inspection =
+                    hookInstaller.inspectInstallation(name);
                 
                 String detectionPrefix = languageManager.getString("hook.detection");
                 addLog(detectionPrefix + " === " + name + " Hook ===");
@@ -906,37 +908,64 @@ public class TopBar extends VBox {
                     }
                 }
                 
-                addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + (installed ? "Installed" : "Not Installed"));
+                addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + inspection.status());
+                if ("Codex".equals(name)) {
+                    addLog("CODEX_HOOK_CONFIGURED="
+                        + (inspection.configured() ? "YES" : "NO"));
+                }
                 addLog("");
                 
                 // 更新卡片状态
                 int finalI = i;
-                boolean finalInstalled = installed;
-                Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
+                HookInstaller.ConfigurationInspection finalInspection = inspection;
+                Platform.runLater(() -> updateHookCardStatus(
+                    hookCards[finalI], name, finalInspection));
             }
         }, "hook-detection").start();
+
+        Timeline hookRuntimeRefresh = new Timeline(new KeyFrame(
+            Duration.seconds(1), event -> {
+                refreshHookRuntime(claudeCard, "Claude");
+                refreshHookRuntime(cursorCard, "Cursor");
+                refreshHookRuntime(codexCard, "Codex");
+                refreshHookRuntime(kimiCard, "Kimi");
+            }));
+        hookRuntimeRefresh.setCycleCount(Timeline.INDEFINITE);
+        hookRuntimeRefresh.play();
+        dialog.setOnHidden(event -> hookRuntimeRefresh.stop());
     }
 
-    private void updateHookCardStatus(VBox card, String hookName, boolean isInstalled) {
-        for (var child : card.getChildren()) {
-            if (child instanceof Button button) {
-                if (isInstalled) {
-                    button.setText(languageManager.getString("hook.uninstall"));
-                    button.getStyleClass().remove("button-install");
-                    button.getStyleClass().add("button-uninstall");
-                    button.setOnAction(event -> uninstallHook(hookName));
-                } else {
-                    button.setText(languageManager.getString("hook.install"));
-                    button.getStyleClass().remove("button-uninstall");
-                    button.getStyleClass().add("button-install");
-                    button.setOnAction(event -> installHook(hookName));
-                }
-                break;
-            }
+    private record HookCardControls(
+        VBox root, Label installation, Label configured, Label enabledTrusted,
+        Label server, Label recent,
+        Button install, Button uninstall
+    ) {}
+
+    private void updateHookCardStatus(
+        HookCardControls card, String hookName,
+        HookInstaller.ConfigurationInspection inspection
+    ) {
+        HookInstaller.ConfigurationStatus status = inspection.status();
+        card.installation().setText(languageManager.getString(status.messageKey()));
+        card.installation().getStyleClass().removeAll(
+            "dialog-status-installed", "dialog-status-uninstalled");
+        card.installation().getStyleClass().add(
+            status == HookInstaller.ConfigurationStatus.INSTALLED
+                ? "dialog-status-installed" : "dialog-status-uninstalled");
+        if (status == HookInstaller.ConfigurationStatus.CHECKING) {
+            card.configured().setText(languageManager.getString("hook.checking"));
+            card.enabledTrusted().setText(languageManager.getString("hook.checking"));
+        } else {
+            card.configured().setText(yesNo(inspection.configured()));
+            card.enabledTrusted().setText(yesNo(inspection.enabledOrTrusted()));
         }
+        card.install().setDisable(status == HookInstaller.ConfigurationStatus.INSTALLED);
+        card.uninstall().setDisable(status == HookInstaller.ConfigurationStatus.NOT_INSTALLED
+            || status == HookInstaller.ConfigurationStatus.CHECKING);
+        refreshHookRuntime(card, hookName);
     }
 
-    private VBox createHookCard(String hookName, boolean isInstalled) {
+    private HookCardControls createHookCard(String hookName) {
         VBox card = new VBox(8);
         card.getStyleClass().add("dialog-card");
         card.setPadding(new Insets(12));
@@ -948,44 +977,66 @@ public class TopBar extends VBox {
         HBox.setHgrow(spacer1, Priority.ALWAYS);
         titleRow.getChildren().addAll(title, spacer1);
 
-        HBox statusRow = new HBox(8);
-        Label statusLabel = new Label(languageManager.getString("hook.installation-status") + ":");
-        statusLabel.getStyleClass().add("dialog-status-label");
-
-        Label statusValue = new Label(isInstalled ? languageManager.getString("hook.installed") : languageManager.getString("hook.not-installed"));
-        if (isInstalled) {
-            statusValue.getStyleClass().add("dialog-status-installed");
-        } else {
-            statusValue.getStyleClass().add("dialog-status-uninstalled");
-        }
-
-        Region spacer2 = new Region();
-        HBox.setHgrow(spacer2, Priority.ALWAYS);
+        Label statusValue = new Label(languageManager.getString("hook.checking"));
+        Label configuredValue = new Label(languageManager.getString("hook.checking"));
+        Label enabledTrustedValue = new Label(languageManager.getString("hook.checking"));
+        Label serverValue = new Label(languageManager.getString("hook.server-offline"));
+        Label recentValue = new Label(languageManager.getString("hook.recent-none"));
 
         Button installBtn = new Button(languageManager.getString("button.install"));
         installBtn.getStyleClass().add("button-install");
-        installBtn.setOnAction(event -> {
-            if (installHook(hookName)) {
-                statusValue.setText(languageManager.getString("hook.installed"));
-                statusValue.getStyleClass().remove("dialog-status-uninstalled");
-                statusValue.getStyleClass().add("dialog-status-installed");
-            }
-        });
 
         Button uninstallBtn = new Button(languageManager.getString("button.uninstall"));
         uninstallBtn.getStyleClass().add("button-uninstall");
-        uninstallBtn.setOnAction(event -> {
-            if (uninstallHook(hookName)) {
-                statusValue.setText(languageManager.getString("hook.not-installed"));
-                statusValue.getStyleClass().remove("dialog-status-installed");
-                statusValue.getStyleClass().add("dialog-status-uninstalled");
-            }
+        HBox actions = new HBox(8, installBtn, uninstallBtn);
+        card.getChildren().addAll(titleRow,
+            statusRow("hook.installation-status", statusValue),
+            statusRow("hook.configured", configuredValue),
+            statusRow("hook.enabled-trusted", enabledTrustedValue),
+            statusRow("hook.server-status", serverValue),
+            statusRow("hook.recent-activity", recentValue), actions);
+        HookCardControls controls = new HookCardControls(card, statusValue,
+            configuredValue, enabledTrustedValue, serverValue, recentValue,
+            installBtn, uninstallBtn);
+        installBtn.setOnAction(event -> {
+            installHook(hookName);
+            updateHookCardStatus(controls, hookName,
+                hookInstaller.inspectInstallation(hookName));
         });
+        uninstallBtn.setOnAction(event -> {
+            uninstallHook(hookName);
+            updateHookCardStatus(controls, hookName,
+                hookInstaller.inspectInstallation(hookName));
+        });
+        updateHookCardStatus(controls, hookName, new HookInstaller.ConfigurationInspection(
+            HookInstaller.ConfigurationStatus.CHECKING, false, false));
+        return controls;
+    }
 
-        statusRow.getChildren().addAll(statusLabel, statusValue, spacer2, installBtn, uninstallBtn);
+    private HBox statusRow(String labelKey, Label value) {
+        Label label = new Label(languageManager.getString(labelKey) + ":");
+        label.getStyleClass().add("dialog-status-label");
+        return new HBox(8, label, value);
+    }
 
-        card.getChildren().addAll(titleRow, statusRow);
-        return card;
+    private String yesNo(boolean value) {
+        return languageManager.getString(value ? "hook.yes" : "hook.no");
+    }
+
+    private void refreshHookRuntime(HookCardControls card, String hookName) {
+        boolean active = controller.isHookDispatchServerRunning();
+        card.server().setText(languageManager.getString(
+            active ? "hook.server-online" : "hook.server-offline"));
+        long lastRequest = controller.getLastHookRequestTimeMillis(hookName);
+        card.recent().setText(formatRecentHookActivity(lastRequest));
+    }
+
+    private String formatRecentHookActivity(long timestampMillis) {
+        if (timestampMillis <= 0) return languageManager.getString("hook.recent-none");
+        long seconds = Math.max(0L,
+            (System.currentTimeMillis() - timestampMillis) / 1_000L);
+        if (seconds < 10) return languageManager.getString("hook.recent-just-now");
+        return seconds + "s";
     }
 
     // ==================== Hook 管理（委托给 HookInstaller） ====================

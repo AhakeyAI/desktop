@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -71,6 +72,46 @@ class HookDispatchServerTest {
                 "user-confirmed"), send(server, "KimiPreToolUse"));
             assertEquals(canonical("codex", "CodexPermissionRequest", true,
                 "user-confirmed"), send(server, "CodexPermissionRequest"));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void codexOnlyOpensDialogForConnectedFreshManualState() throws Exception {
+        AtomicReference<ApprovalSnapshot> snapshot = new AtomicReference<>();
+        ApprovalService approvals = new ApprovalService(ignored -> snapshot.get(), 50);
+        BleManager ble = disconnectedBleManager();
+        HookDispatchServer server = new HookDispatchServer(
+            ble, new TaskActivityService(ble), approvals, 0);
+        AtomicInteger dialogs = new AtomicInteger();
+        server.setApprovalCallback((platform, event) -> {
+            dialogs.incrementAndGet();
+            return true;
+        });
+        server.start();
+        try {
+            snapshot.set(new ApprovalSnapshot(ApprovalState.AUTO, true, true, 1));
+            assertEquals(canonical("codex", "CodexPreToolUse", true,
+                "hardware-auto"), send(server, "CodexPreToolUse"));
+
+            snapshot.set(new ApprovalSnapshot(ApprovalState.DISCONNECTED, false, false, 2));
+            assertEquals(canonical("codex", "CodexPreToolUse", false,
+                "codex-fallback"), send(server, "CodexPreToolUse"));
+
+            snapshot.set(new ApprovalSnapshot(ApprovalState.STALE, true, false, 3));
+            assertEquals(canonical("codex", "CodexPreToolUse", false,
+                "codex-fallback"), send(server, "CodexPreToolUse"));
+
+            snapshot.set(new ApprovalSnapshot(ApprovalState.UNKNOWN, true, true, 4));
+            assertEquals(canonical("codex", "CodexPermissionRequest", false,
+                "codex-fallback"), send(server, "CodexPermissionRequest"));
+
+            snapshot.set(new ApprovalSnapshot(ApprovalState.MANUAL, true, true, 5));
+            assertEquals(canonical("codex", "CodexPermissionRequest", true,
+                "user-confirmed"), send(server, "CodexPermissionRequest"));
+            assertEquals(1, dialogs.get());
+            assertTrue(server.getLastRequestTimeMillis("Codex") > 0);
         } finally {
             server.stop();
         }

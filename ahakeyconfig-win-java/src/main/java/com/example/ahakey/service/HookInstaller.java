@@ -13,14 +13,35 @@ import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.regex.Pattern;
 
 /**
  * Hook 安装器 - 独立于 UI 的 Hook 管理服务
  * 负责所有平台（Claude、Cursor、Codex、Kimi）的 Hook 安装、卸载和脚本生成
  */
 public class HookInstaller {
+
+    public enum ConfigurationStatus {
+        CHECKING("hook.checking"),
+        INSTALLED("hook.installed"),
+        NOT_INSTALLED("hook.not-installed"),
+        INCOMPLETE("hook.incomplete");
+
+        private final String messageKey;
+
+        ConfigurationStatus(String messageKey) { this.messageKey = messageKey; }
+
+        public String messageKey() { return messageKey; }
+    }
+
+    public record ConfigurationInspection(
+        ConfigurationStatus status,
+        boolean configured,
+        boolean enabledOrTrusted
+    ) {}
 
     private final IntSupplier portSupplier;
     private final Consumer<String> logger;
@@ -130,7 +151,7 @@ public class HookInstaller {
                 return false;
             }
         }
-        return isInstalled(platform);
+        return getInstallationStatus(platform) != ConfigurationStatus.NOT_INSTALLED;
     }
 
     /**
@@ -158,25 +179,164 @@ public class HookInstaller {
      * 检查指定平台的 Hook 是否已安装
      */
     public boolean isInstalled(String platform) {
+        return getInstallationStatus(platform) == ConfigurationStatus.INSTALLED;
+    }
+
+    public ConfigurationStatus getInstallationStatus(String platform) {
         try {
             Path path = getHookConfigPath(platform);
             Path script = scriptPath(platform);
-            if (!Files.isRegularFile(path) || !Files.isRegularFile(script)) return false;
+            if ("Codex".equals(platform)) return getCodexInstallationStatus();
+            if (!Files.isRegularFile(path)) return ConfigurationStatus.NOT_INSTALLED;
             String content = Files.readString(path, StandardCharsets.UTF_8);
-            switch (platform) {
-                case "Claude": return containsManagedCommand(
+            boolean configured = switch (platform) {
+                case "Claude" -> containsManagedCommand(
                     mapper.readTree(content), CLAUDE_SCRIPT_NAME);
-                case "Cursor": return containsManagedCommand(
+                case "Cursor" -> containsManagedCommand(
                     mapper.readTree(content), CURSOR_SCRIPT_NAME);
-                case "Codex": return containsManagedCommand(
-                    mapper.readTree(content), CODEX_SCRIPT_NAME);
-                case "Kimi": return content.contains(KIMI_HOOK_BLOCK_START) && content.contains(KIMI_HOOK_BLOCK_END);
-                default: return false;
-            }
+                case "Kimi" -> content.contains(KIMI_HOOK_BLOCK_START)
+                    && content.contains(KIMI_HOOK_BLOCK_END);
+                default -> false;
+            };
+            if (!configured) return ConfigurationStatus.NOT_INSTALLED;
+            return Files.isRegularFile(script)
+                ? ConfigurationStatus.INSTALLED : ConfigurationStatus.INCOMPLETE;
         } catch (Exception e) {
             log("[错误] 检查 " + platform + " Hook 状态失败: " + e.getMessage());
-            return false;
+            return ConfigurationStatus.INCOMPLETE;
         }
+    }
+
+    public ConfigurationInspection inspectInstallation(String platform) {
+        ConfigurationStatus status = getInstallationStatus(platform);
+        if (!"Codex".equals(platform)) {
+            boolean configured = status != ConfigurationStatus.NOT_INSTALLED;
+            return new ConfigurationInspection(status, configured,
+                status == ConfigurationStatus.INSTALLED);
+        }
+        try {
+            Path hooksJson = getHookConfigPath("Codex");
+            if (!Files.isRegularFile(hooksJson)) {
+                return new ConfigurationInspection(status, false, false);
+            }
+            JsonNode parsed = mapper.readTree(hooksJson.toFile());
+            boolean configured = parsed instanceof ObjectNode root
+                && validateCodexManagedEvents(root, hooksJson,
+                    Files.isRegularFile(userHome.resolve(".codex/config.toml"))
+                        ? Files.readString(userHome.resolve(".codex/config.toml"),
+                            StandardCharsets.UTF_8) : "", false);
+            return new ConfigurationInspection(status, configured,
+                status == ConfigurationStatus.INSTALLED);
+        } catch (Exception exception) {
+            return new ConfigurationInspection(status, false, false);
+        }
+    }
+
+    private ConfigurationStatus getCodexInstallationStatus() throws Exception {
+        Path hooksJson = getHookConfigPath("Codex");
+        Path configToml = userHome.resolve(".codex").resolve("config.toml");
+        Path sidecar = userHome.resolve(".codex").resolve(CODEX_SIDECAR_NAME);
+        boolean managed = false;
+        ObjectNode root = null;
+        if (Files.isRegularFile(hooksJson)) {
+            JsonNode parsed = mapper.readTree(hooksJson.toFile());
+            if (parsed instanceof ObjectNode object) {
+                root = object;
+                managed = containsManagedCommand(root, CODEX_SCRIPT_NAME);
+            }
+        }
+        String toml = Files.isRegularFile(configToml)
+            ? Files.readString(configToml, StandardCharsets.UTF_8) : "";
+        boolean marker = toml.contains(CODEX_HOOK_BLOCK_START)
+            || toml.contains(CODEX_HOOK_BLOCK_END);
+        if (!managed && !Files.exists(sidecar) && !marker) {
+            return ConfigurationStatus.NOT_INSTALLED;
+        }
+        if (root == null || !Files.isRegularFile(scriptPath("Codex"))
+            || !Files.isRegularFile(userHome.resolve(".ahakey/hooks/" + CORE_SCRIPT_NAME))
+            || !Files.isRegularFile(configToml) || !Files.isRegularFile(sidecar)
+            || !marker || !codexHooksFeatureEnabled(toml)) {
+            return ConfigurationStatus.INCOMPLETE;
+        }
+        return validateCodexManagedEvents(root, hooksJson, toml, true)
+            ? ConfigurationStatus.INSTALLED : ConfigurationStatus.INCOMPLETE;
+    }
+
+    private boolean validateCodexManagedEvents(
+        ObjectNode root, Path hooksJson, String toml, boolean requireTrust
+    ) {
+        JsonNode hooks = root.get("hooks");
+        if (!(hooks instanceof ObjectNode hookObject)) return false;
+        for (String[] event : CODEX_EVENTS) {
+            JsonNode eventNode = hookObject.get(event[0]);
+            if (!(eventNode instanceof ArrayNode entries)) return false;
+            int managedIndex = -1;
+            for (int index = 0; index < entries.size(); index++) {
+                JsonNode entry = entries.get(index);
+                JsonNode commands = entry.get("hooks");
+                if (!(commands instanceof ArrayNode commandArray)) continue;
+                for (JsonNode command : commandArray) {
+                    if (!isManagedCommand(command, CODEX_SCRIPT_NAME)) continue;
+                    if (managedIndex >= 0 || commandArray.size() != 1
+                        || !"command".equals(command.path("type").asText())
+                        || !buildHookCommand(CODEX_SCRIPT_NAME, event[1])
+                            .equals(command.path("command").asText())
+                        || command.path("timeout").asInt(-1) != Integer.parseInt(event[2])
+                        || !validCodexMatcher(event[0], entry)) {
+                        return false;
+                    }
+                    managedIndex = index;
+                }
+            }
+            if (managedIndex < 0 || (requireTrust && !hasValidCodexTrust(
+                toml, hooksJson, event[0], managedIndex))) return false;
+        }
+        return true;
+    }
+
+    private boolean validCodexMatcher(String event, JsonNode entry) {
+        JsonNode matcher = entry.get("matcher");
+        if ("SessionStart".equals(event)) {
+            return matcher != null && "startup|resume|clear".equals(matcher.asText());
+        }
+        if ("UserPromptSubmit".equals(event) || "Stop".equals(event)) {
+            return matcher == null;
+        }
+        return matcher != null && "*".equals(matcher.asText());
+    }
+
+    private boolean hasValidCodexTrust(
+        String toml, Path hooksJson, String event, int entryIndex
+    ) {
+        String stateId = hooksJson.toAbsolutePath().normalize() + ":"
+            + camelToSnake(event) + ":" + entryIndex + ":0";
+        String header = "[hooks.state.'" + stateId + "']";
+        int start = toml.indexOf(header);
+        if (start < 0) return false;
+        int end = toml.indexOf('\n', start + header.length());
+        if (end < 0) end = toml.length();
+        int nextSection = toml.indexOf("\n[", end);
+        String section = toml.substring(end, nextSection < 0 ? toml.length() : nextSection);
+        return Pattern.compile("(?m)^\\s*trusted_hash\\s*=\\s*\"sha256:[0-9a-fA-F]{64}\"\\s*$")
+            .matcher(section).find();
+    }
+
+    private String camelToSnake(String value) {
+        return value.replaceAll("([a-z0-9])([A-Z])", "$1_$2")
+            .toLowerCase(Locale.ROOT);
+    }
+
+    private boolean codexHooksFeatureEnabled(String toml) {
+        boolean inFeatures = false;
+        for (String line : toml.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                inFeatures = "[features]".equals(trimmed);
+            } else if (inFeatures && trimmed.matches("hooks\\s*=\\s*true(?:\\s*#.*)?")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ==================== 脚本生成 ====================
@@ -198,9 +358,9 @@ public class HookInstaller {
             "    if ($parsed.platform -isnot [string] -or $parsed.platform -cne $ExpectedPlatform) { return $false }\n" +
             "    if ($parsed.event -isnot [string] -or $parsed.event -cne $ExpectedEvent) { return $false }\n" +
             "    if ($parsed.allow -isnot [bool]) { return $false }\n" +
-            "    if ($parsed.approvalSource -isnot [string] -or @('hardware-auto','user-confirmed','fail-closed') -cnotcontains $parsed.approvalSource) { return $false }\n" +
-            "    if ($parsed.allow -and $parsed.approvalSource -ceq 'fail-closed') { return $false }\n" +
-            "    if (-not $parsed.allow -and $parsed.approvalSource -cne 'fail-closed') { return $false }\n" +
+            "    if ($parsed.approvalSource -isnot [string] -or @('hardware-auto','user-confirmed','fail-closed','codex-fallback') -cnotcontains $parsed.approvalSource) { return $false }\n" +
+            "    if ($parsed.allow -and @('hardware-auto','user-confirmed') -cnotcontains $parsed.approvalSource) { return $false }\n" +
+            "    if (-not $parsed.allow -and @('fail-closed','codex-fallback') -cnotcontains $parsed.approvalSource) { return $false }\n" +
             "    return $true\n" +
             "}\n" +
             "function Test-AhaKeyCanonicalAllow([string]$Text,[string]$ExpectedPlatform,[string]$ExpectedEvent) {\n" +
@@ -209,6 +369,12 @@ public class HookInstaller {
             "    $confirmed = '{\"schemaVersion\":1,\"platform\":\"' + $ExpectedPlatform + '\",\"event\":\"' + $ExpectedEvent + '\",\"allow\":true,\"approvalSource\":\"user-confirmed\"}'\n" +
             "    return [string]::Equals($Text,$hardware,[System.StringComparison]::Ordinal) -or [string]::Equals($Text,$confirmed,[System.StringComparison]::Ordinal)\n" +
             "}\n" +
+            "function Test-AhaKeyCanonicalFallback([string]$Text,[string]$ExpectedPlatform,[string]$ExpectedEvent) {\n" +
+            "    if (-not (Test-AhaKeyCanonicalResponse $Text $ExpectedPlatform $ExpectedEvent)) { return $false }\n" +
+            "    $fallback = '{\"schemaVersion\":1,\"platform\":\"' + $ExpectedPlatform + '\",\"event\":\"' + $ExpectedEvent + '\",\"allow\":false,\"approvalSource\":\"codex-fallback\"}'\n" +
+            "    return [string]::Equals($Text,$fallback,[System.StringComparison]::Ordinal)\n" +
+            "}\n" +
+            "$AhaKeyEndpointResponded = $false\n" +
             "try {\n" +
             "    if ([Console]::IsInputRedirected) { $hookInput = [Console]::In.ReadToEnd() } else { $hookInput = '' }\n" +
             "} catch { }\n" +
@@ -227,6 +393,7 @@ public class HookInstaller {
             "    if (-not $terminated) { throw 'AhaKey response exceeded 512 bytes or was truncated' }\n" +
             "    if ($count -gt 0 -and $buffer[$count-1] -eq 13) { $count-- }\n" +
             "    $response = [System.Text.Encoding]::UTF8.GetString($buffer,0,$count)\n" +
+            "    $AhaKeyEndpointResponded = $true\n" +
             "    $tcp.Close()\n" +
             "} catch {\n" +
             "    $response = $null\n" +
@@ -265,6 +432,8 @@ public class HookInstaller {
             "if ($EventName -eq 'CodexPreToolUse') {\n" +
             "    if (Test-AhaKeyCanonicalAllow $response 'codex' 'CodexPreToolUse') {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
+            "    } elseif ((-not $AhaKeyEndpointResponded) -or (Test-AhaKeyCanonicalFallback $response 'codex' 'CodexPreToolUse')) {\n" +
+            "        [Console]::WriteLine('{}')\n" +
             "    } else {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
             "    }\n" +
@@ -274,6 +443,8 @@ public class HookInstaller {
             "if ($EventName -eq 'CodexPermissionRequest') {\n" +
             "    if (Test-AhaKeyCanonicalAllow $response 'codex' 'CodexPermissionRequest') {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
+            "    } elseif ((-not $AhaKeyEndpointResponded) -or (Test-AhaKeyCanonicalFallback $response 'codex' 'CodexPermissionRequest')) {\n" +
+            "        [Console]::WriteLine('{}')\n" +
             "    } else {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
             "    }\n" +
@@ -418,6 +589,7 @@ public class HookInstaller {
             writeTextAtomically(configToml, toml);
             log("[成功] 已更新 " + configToml + "（[features].hooks = true）");
             log("[成功] 已注册 " + CODEX_EVENTS.length + " 个 Codex hook 事件");
+            log("CODEX_HOOK_CONFIGURED=YES");
         } catch (Exception e) { log("[错误] Codex 安装失败: " + e.getMessage()); }
     }
 

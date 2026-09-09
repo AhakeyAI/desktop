@@ -90,9 +90,14 @@ public class DeviceStatus {
     }
     
     public String getSwitchTitle() {
-        return isAutoApproval() 
-            ? LanguageManager.getInstance().getString("status.auto-approval")
-            : LanguageManager.getInstance().getString("status.manual-approval");
+        if (!isConnected()) {
+            return LanguageManager.getInstance().getString("status.approval-disconnected");
+        }
+        return switch (getSwitchState()) {
+            case 0 -> LanguageManager.getInstance().getString("status.auto-approval");
+            case 1 -> LanguageManager.getInstance().getString("status.manual-approval");
+            default -> LanguageManager.getInstance().getString("status.approval-unknown");
+        };
     }
     
     public String getDisplayDeviceName() {

@@ -161,7 +161,8 @@ public class CanvasController {
         if (toggleLabel != null && deviceStatus != null) {
             toggleLabel.textProperty().bind(Bindings.createStringBinding(
                 deviceStatus::getSwitchTitle,
-                deviceStatus.switchStateProperty()
+                deviceStatus.switchStateProperty(),
+                deviceStatus.isConnectedProperty()
             ));
             deviceStatus.switchStateProperty().addListener((obs, old, value) -> refreshToggleThumb());
             refreshToggleThumb();

@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Hook 分发服务器 — 监听固定 TCP 端口，接收来自 Codex/Claude/Cursor/Kimi hook 的事件名，
@@ -58,12 +59,14 @@ public class HookDispatchServer {
     private ExecutorService executor;
     private volatile boolean running;
     private ApprovalCallback approvalCallback;
+    private final Map<Platform, Long> lastRequestTimes = new ConcurrentHashMap<>();
 
     enum Platform { CLAUDE, CODEX, KIMI, CURSOR }
 
     private static final String SOURCE_HARDWARE_AUTO = "hardware-auto";
     private static final String SOURCE_USER_CONFIRMED = "user-confirmed";
     private static final String SOURCE_FAIL_CLOSED = "fail-closed";
+    private static final String SOURCE_CODEX_FALLBACK = "codex-fallback";
 
     record EventEntry(Platform platform, IDEState state) {}
 
@@ -151,7 +154,7 @@ public class HookDispatchServer {
             serverSocket.setReuseAddress(true);
             serverSocket.bind(new InetSocketAddress("127.0.0.1", port));
             running = true;
-            logger.info("Hook 分发服务器已启动 - 127.0.0.1:{}",
+            logger.info("HOOK_SERVER_STARTED address=127.0.0.1 port={}",
                 serverSocket.getLocalPort());
         } catch (IOException failure) {
             logger.error("Hook 分发服务器固定端口 {} 启动失败: {}", port,
@@ -168,6 +171,15 @@ public class HookDispatchServer {
 
     public boolean isRunning() {
         return running;
+    }
+
+    public long getLastRequestTimeMillis(String platform) {
+        try {
+            return lastRequestTimes.getOrDefault(
+                Platform.valueOf(platform.toUpperCase()), 0L);
+        } catch (IllegalArgumentException exception) {
+            return 0L;
+        }
     }
 
     private void acceptLoop() {
@@ -204,6 +216,9 @@ public class HookDispatchServer {
                 return;
             }
             logger.debug("[{}] 收到事件: {} (原始: {})", entry.platform(), eventName, line);
+            lastRequestTimes.put(entry.platform(), System.currentTimeMillis());
+            logger.info("HOOK_REQUEST_RECEIVED platform={} event={}",
+                entry.platform(), eventName);
 
             HookMetadata metadata = parseMetadata(line);
             taskActivityService.accept(entry.platform().name(), profile(entry.platform()),
@@ -246,16 +261,27 @@ public class HookDispatchServer {
         if (needApproval) {
             ApprovalSnapshot snapshot = approvalService.refresh();
             boolean auto = snapshot.permitsAutomaticApproval();
-            logger.info("[Codex] {} approvalState={} fresh={}",
-                eventName, snapshot.state(), snapshot.fresh());
+            String decision = auto ? "HARDWARE_AUTO"
+                : isManualDialogEligible(snapshot) ? "MANUAL_DIALOG" : "CODEX_FALLBACK";
+            logger.info("APPROVAL_STATE={} CONNECTED={} FRESH={} SWITCH_STATE={} POLICY_DECISION={}",
+                snapshot.state(), snapshot.connected(), snapshot.fresh(),
+                snapshot.state(), decision);
             try { bleManager.updateState((byte) state.getCode()); }
             catch (Exception e) { logger.warn("[Codex] BLE 状态更新失败: {}", e.getMessage()); }
 
-            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
-            logger.info("[Codex] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
-            writeCanonical(writer, Platform.CODEX, eventName, approved,
-                auto ? SOURCE_HARDWARE_AUTO
-                    : approved ? SOURCE_USER_CONFIRMED : SOURCE_FAIL_CLOSED);
+            if (auto) {
+                writeCanonical(writer, Platform.CODEX, eventName, true,
+                    SOURCE_HARDWARE_AUTO);
+            } else if (isManualDialogEligible(snapshot)) {
+                boolean approved = approvalCallback != null
+                    && approvalCallback.requestApproval("Codex", eventName);
+                writeCanonical(writer, Platform.CODEX, eventName, approved,
+                    approved ? SOURCE_USER_CONFIRMED : SOURCE_FAIL_CLOSED);
+            } else {
+                logger.info("FALLBACK_REASON={}", fallbackReason(snapshot));
+                writeCanonical(writer, Platform.CODEX, eventName, false,
+                    SOURCE_CODEX_FALLBACK);
+            }
             return;
         }
         handleGeneric(writer, eventName, state, "Codex");
@@ -326,6 +352,21 @@ public class HookDispatchServer {
             writeCanonical(writer, Platform.valueOf(platform.toUpperCase()),
                 eventName, false, SOURCE_FAIL_CLOSED);
         }
+    }
+
+    private boolean isManualDialogEligible(ApprovalSnapshot snapshot) {
+        return snapshot.state() == ApprovalState.MANUAL
+            && snapshot.connected() && snapshot.fresh();
+    }
+
+    private String fallbackReason(ApprovalSnapshot snapshot) {
+        if (!snapshot.connected() || snapshot.state() == ApprovalState.DISCONNECTED) {
+            return "DISCONNECTED";
+        }
+        if (!snapshot.fresh() || snapshot.state() == ApprovalState.STALE) {
+            return "STALE";
+        }
+        return "UNKNOWN";
     }
 
     private static void writeCanonical(
@@ -405,6 +446,6 @@ public class HookDispatchServer {
             executor.shutdownNow();
         }
         taskActivityService.close();
-        logger.info("Hook 分发服务器已停止");
+        logger.info("HOOK_SERVER_STOPPED");
     }
 }

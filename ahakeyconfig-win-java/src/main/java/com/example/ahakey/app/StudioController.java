@@ -199,6 +199,14 @@ public class StudioController {
         return hookDispatchServer.getActualPort();
     }
 
+    public boolean isHookDispatchServerRunning() {
+        return hookDispatchServer.isRunning();
+    }
+
+    public long getLastHookRequestTimeMillis(String platform) {
+        return hookDispatchServer.getLastRequestTimeMillis(platform);
+    }
+
     public TaskActivityService getTaskActivityService() { return taskActivityService; }
 
     public boolean isMultiTaskDisplay() { return taskActivityService.isMultiMode(); }

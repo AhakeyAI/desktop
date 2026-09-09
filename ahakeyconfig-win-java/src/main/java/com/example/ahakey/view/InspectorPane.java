@@ -1019,11 +1019,13 @@ public class InspectorPane extends ScrollPane {
             // 绑定选中状态到 deviceStatus
             autoButton.selectedProperty().bind(Bindings.createBooleanBinding(
                 () -> deviceStatus.isAutoApproval(),
-                deviceStatus.switchStateProperty()
+                deviceStatus.switchStateProperty(),
+                deviceStatus.isConnectedProperty()
             ));
             manualButton.selectedProperty().bind(Bindings.createBooleanBinding(
-                () -> !deviceStatus.isAutoApproval(),
-                deviceStatus.switchStateProperty()
+                () -> deviceStatus.isConnected() && deviceStatus.getSwitchState() == 1,
+                deviceStatus.switchStateProperty(),
+                deviceStatus.isConnectedProperty()
             ));
 
             Label note = new Label(languageManager.getString("inspector.switch-note"));
