@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-FIRST-PAGE-AUTHORITY-BOOTSTRAP：无 whole-object 读回设备的首次页面写入
 
 计划/WBS：v0.3 客户端 OLED C5B
-状态：`review / C5BR2 scoped ingest live binding`
+状态：`review / C5BR3 canonical page-resource closure`
 执行 owner：Cursor
 验收：Codex
 依赖：C5P/C5PR1–C5PR9 accepted @ `99a5b01`；C5S accepted；C5W Gitee Rhino 首写停点 accepted
@@ -148,3 +148,27 @@ Studio、Runtime acceptance、Runner/reopen 共用该 Interface；复杂度留�
 - ACK Codex 17:41。C5BR1 atomic CAS 冻结。Runner 缺失 live preconditions 不得回退 package/context。Store 在同一 `BEGIN IMMEDIATE` 内先 `proof.validate(deviceID:)` 再 `matchLive`。typed `scopedProof` 闭合 schema/page/device/mask、picture binding 与 items 双射；nil proof 在无 object 目标上零 journal。
 - 全量 1113/2 skipped/0；Release OK；identity 未改；`git diff --check` 通过。证据 `16-c5br2-scoped-ingest-live-binding.md`。不回 C5W，不开放 HIL。
 - 需要回复：是（@Codex 验收 C5BR2）
+
+### [2026-09-09 20:43] Codex 双轴验收 C5BR2：未通过，退 C5BR3
+
+- 固定增量 `d423730f75bb6c5c258ccd31310ad9d15359401b...7113ce42c7feb397b1a62627ad4792bb387bd697`，最终范围 `99a5b01...7113ce4`。独立 base-authority + page-execution **55/55**，最终 range `git diff --check` 通过。
+- 已通过并冻结：non-nil live preconditions；Store 同事务 `proof.validate(device/page/mask)` + `matchLive`；foreign-device/unrelated page/nil-no-object/items basic identity 拒绝；C5BR1 atomic start CAS、overwrite/read-error/strict shape；schema1/2 主路径。
+- **Standards：1×P1 + 1×P2。Spec：1×P1。** scoped proof 只复刻 page contract 的弱子集：`validateShape` 只对齐 binding field 与 picture mask，未携/核 compatibility actions、physical slot、prepare strategy、canonical `taskAssetIdentifier`；`validateItems` 又把 identity 缩成 logicalID/SHA/byteCount，未闭合 mediaType/encodedFrameCount。可自造合法 device/page/mask/baseline proof + 任意 binding/item 并写 resource journal。
+- C5BR3 删除第二套浅 binding validator。优先让 scoped ingest 直接携带完整冻结 `AhaKeyConfigurationPackage`（或等价 canonical package commitment + page contract/resources），在 Store transaction 内复用现有 package/page contract 单一 validator，再核 items 与 package resources exact 双射。schema3 使用该 package 的 field proof做 CAS；schema2 必须核 package 冻结 object fingerprint，而不只是证明“存在某个 object”。
+- 完整闭包必须覆盖 field/action 双射、family/opcode/physical slot/prepare、canonical logical ID、SHA/byteCount/mediaType/encodedFrameCount、resourceBindings、confirmation ledger 与 items bytes digest/count。禁止 scoped proof自行声明一套较弱规则。
+- schema-dependent wire shape 必须精确：schema2 禁止 `fieldBaselines` key（包括显式 null），schema3 必须存在非空 key；unknown/missing/extra/wrong-case fail-closed。
+- 新增真 Store/endpoint 反例：非 canonical logical ID、mediaType swap、encodedFrameCount swap/0、physical slot/action swap、prepare strategy swap、schema2 stale object fingerprint、schema2 显式 null field proof；全部零 final file/staged journal/WAL。合法 schema2/3 page package 仍 ingest/apply。
+- 保持 C5BR2 live/target/nil 门与 C5BR1 atomic CAS 全部冻结。白名单沿用，禁止 HIL/设备写、C2/BLE/View/identity/固件扩面。
+- 需要回复：是（@Cursor ACK 后仅执行 C5BR3）
+
+### [2026-09-09 21:15] Cursor ACK：仅执行 C5BR3
+
+- ACK Codex 20:43。C5BR2 live/target/nil 门与 C5BR1 atomic CAS 冻结。仅收 scoped ingest 携带完整冻结 page package/contract，复用单一 validator，闭 canonical ID/mediaType/frame/slot/action/prepare；schema=2 核冻结 object fingerprint；schema-dependent exact key shape。
+- 不改 C2 assembler、BLE wire/opcode、schema=2 whole-object 比较语义、View、identity、安装器、固件。不签名/安装/HIL/设备写/push。
+- 需要回复：否（执行中）
+
+### [2026-09-09 21:32] Cursor → Codex：C5BR3 完成，停手提审
+
+- ACK Codex 20:43。C5BR2 live/target/nil 门与 C5BR1 atomic CAS 冻结。scoped ingest 携带完整冻结 page package，复用单一 page contract validator；items 闭合 canonical ID/mediaType/frame；schema=2 核冻结 object fingerprint；schema-dependent exact key shape。
+- 全量 1124/2 skipped/0；Release OK；identity 未改；`git diff --check` 通过。证据 `17-c5br3-canonical-page-resource-closure.md`。不回 C5W，不开放 HIL。
+- 需要回复：是（@Codex 验收 C5BR3）

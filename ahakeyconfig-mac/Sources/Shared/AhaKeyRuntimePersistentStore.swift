@@ -2112,20 +2112,35 @@ public actor AhaKeyRuntimePersistentStore {
             } catch {
                 throw AhaKeyRuntimePersistenceError.pageFieldBaselineConflict
             }
-            if scopedProof.schemaVersion == AhaKeyConfigurationPackage.fieldBaselineSchemaVersion {
-                let proof: AhaKeyRuntimePageFieldBaselineProof
-                do {
-                    proof = try scopedProof.requireFieldBaselines()
-                } catch {
-                    throw AhaKeyRuntimePersistenceError.pageFieldBaselineConflict
+            let inputs: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
+            do {
+                var mapped: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput] = [:]
+                for item in items {
+                    guard let resource = scopedProof.package.resources.first(where: {
+                        $0.logicalIdentifier == item.logicalIdentifier
+                    }) else {
+                        throw AhaKeyRuntimePersistenceError.pageFieldBaselineConflict
+                    }
+                    mapped[item.logicalIdentifier] = AhaKeyRuntimeResourceValidationInput(
+                        resource: resource,
+                        contents: item.data
+                    )
                 }
-                try casFrozenFieldProofUnlocked(
-                    proof: proof,
-                    deviceID: targetDeviceID
-                )
-            } else {
-                try requireExistingObjectUnlocked(targetDeviceID)
+                inputs = mapped
             }
+            do {
+                try acceptanceValidator.validate(package: scopedProof.package, resources: inputs)
+            } catch let error as AhaKeyRuntimePersistenceError {
+                throw error
+            } catch {
+                throw AhaKeyRuntimePersistenceError.pageFieldBaselineConflict
+            }
+            let snapshot = try pageBaseAuthoritySnapshotUnlocked(
+                deviceID: targetDeviceID,
+                pageID: scopedProof.package.pageOperation?.pageScope,
+                operationID: AhaKeyRuntimeOperationID()
+            )
+            try casFrozenPageProofUnlocked(package: scopedProof.package, snapshot: snapshot)
             return
         }
         if let targetDeviceID {

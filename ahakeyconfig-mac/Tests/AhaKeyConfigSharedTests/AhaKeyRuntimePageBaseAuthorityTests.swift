@@ -846,6 +846,151 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
         XCTAssertEqual(baselines.map(\.trust), [.writeConfirmed])
     }
 
+    func testNonCanonicalLogicalIDCannotAuthorizeJournal() async throws {
+        let fixture = try pictureFixture(frames: 1)
+        let canonical = try XCTUnwrap(fixture.resources.first?.logicalIdentifier.rawValue)
+        try await assertTamperedPictureIngestFailsClosed { object in
+            object = rewriteStringValues(object, from: canonical, to: "forged-task-asset")
+        }
+    }
+
+    func testMediaTypeSwapCannotAuthorizeJournal() async throws {
+        try await assertTamperedPictureIngestFailsClosed { object in
+            try mutateBindings(&object) { $0["mediaType"] = "image/png" }
+        }
+    }
+
+    func testEncodedFrameCountSwapCannotAuthorizeJournal() async throws {
+        try await assertTamperedPictureIngestFailsClosed { object in
+            try mutateBindings(&object) { $0["encodedFrameCount"] = 2 }
+        }
+    }
+
+    func testEncodedFrameCountZeroCannotAuthorizeJournal() async throws {
+        try await assertTamperedPictureIngestFailsClosed { object in
+            try mutateBindings(&object) { $0["encodedFrameCount"] = 0 }
+        }
+    }
+
+    func testPhysicalSlotSwapCannotAuthorizeJournal() async throws {
+        try await assertTamperedPictureIngestFailsClosed { object in
+            try mutateFirstAction(&object) { $0["physicalSlot"] = 1 }
+        }
+    }
+
+    func testActionCommandSwapCannotAuthorizeJournal() async throws {
+        try await assertTamperedPictureIngestFailsClosed { object in
+            try mutateFirstAction(&object) { action in
+                action["command"] = ["kind": "screenStatus"]
+            }
+        }
+    }
+
+    func testPrepareStrategySwapCannotAuthorizeJournal() async throws {
+        try await assertTamperedPictureIngestFailsClosed { object in
+            try mutatePage(&object) { page in
+                var fingerprint = try XCTUnwrap(page["compatibilityFingerprint"] as? [String: Any])
+                var strategy = try XCTUnwrap(fingerprint["prepareStrategy"] as? [String: Any])
+                strategy["opcode"] = Int(AhaKeyWireFrameBuilder.cmdPrepareSessionWrite)
+                fingerprint["prepareStrategy"] = strategy
+                page["compatibilityFingerprint"] = fingerprint
+            }
+        }
+    }
+
+    func testSchema2StaleObjectFingerprintCannotAuthorizeJournal() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br3-stale-fp-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let fixture = try pictureFixture(frames: 1)
+        let package = try pictureObjectPackage(
+            device: device,
+            fixture: fixture,
+            objectSeed: "base-object"
+        )
+        let items = try ingestionItems(fixture)
+        try await store.seedAuthoritativeObjectForTesting(
+            deviceID: device,
+            content: Data("stale-object".utf8)
+        )
+        do {
+            try await store.ingestResources(
+                items,
+                scopedProof: try AhaKeyRuntimeScopedResourceIngestionProof.make(package: package),
+                targetDeviceID: device
+            )
+            XCTFail("schema=2 stale object fingerprint must not write journal")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .pageBaseObjectConflict)
+        }
+        try await assertZeroResourceJournal(store: store, root: root, items: items)
+        let wal = try await store.transaction(package.operationID)
+        XCTAssertNil(wal)
+    }
+
+    func testSchema2ExplicitNullFieldProofCannotAuthorizeJournal() async throws {
+        try await assertTamperedPictureIngestFailsClosed(
+            package: { device, fixture in
+                try pictureObjectPackage(device: device, fixture: fixture, objectSeed: "base-object")
+            }
+        ) { object in
+            try mutatePage(&object) { page in
+                page["fieldBaselines"] = NSNull()
+            }
+        }
+    }
+
+    func testLegalSchema2PicturePackageStillIngestsAndApplies() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br3-schema2-legal-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let objectSeed = "base-object"
+        try await store.seedAuthoritativeObjectForTesting(
+            deviceID: device,
+            content: Data(objectSeed.utf8)
+        )
+        let fixture = try pictureFixture(frames: 1)
+        let package = try pictureObjectPackage(
+            device: device,
+            fixture: fixture,
+            objectSeed: objectSeed
+        )
+        let items = try ingestionItems(fixture)
+        try await store.ingestResources(
+            items,
+            scopedProof: try AhaKeyRuntimeScopedResourceIngestionProof.make(package: package),
+            targetDeviceID: device
+        )
+        let staged = try await store.stagedResourceByteCountForTesting(items[0].sha256)
+        XCTAssertEqual(staged, items[0].byteCount)
+        var files: [AhaKeyResourceIdentifier: URL] = [:]
+        for (identifier, bytes) in fixture.sourceBytes {
+            let url = root.appendingPathComponent("\(identifier.rawValue).gif")
+            try bytes.write(to: url)
+            files[identifier] = url
+        }
+        let fingerprint = try XCTUnwrap(package.pageOperation?.baseObjectFingerprint)
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package,
+            resourceFiles: files,
+            context: .standard,
+            release: .picturesUnrestrictedForTests,
+            pagePreconditions: AhaKeyRuntimePageExecutionPreconditions(
+                deviceID: device,
+                profile: .legacyStandard,
+                baseObjectFingerprint: fingerprint,
+                fieldBaselines: []
+            )
+        ) { _ in .success }
+        XCTAssertEqual(state, .completed)
+        let object = try await store.authoritativeObjectContent(for: device)
+        XCTAssertEqual(object, Data(objectSeed.utf8))
+    }
+
     func testSchema3AssembleRejectsOverwriteFalse() throws {
         XCTAssertThrowsError(
             try fieldPackage(device: try AhaKeyRuntimeDeviceID("DEV"), overwrite: false)
@@ -1066,6 +1211,138 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             fieldBaselines: proof,
             verifiedResources: fixture.resources
         )
+    }
+
+    private func pictureObjectPackage(
+        device: AhaKeyRuntimeDeviceID,
+        fixture: (plan: AhaKeyStudioScopedWritePlan, resources: [AhaKeyConfigurationResource], sourceBytes: [AhaKeyResourceIdentifier: Data]),
+        objectSeed: String
+    ) throws -> AhaKeyConfigurationPackage {
+        var plan = fixture.plan
+        plan.overwriteSemantic = false
+        return try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: plan,
+            profile: .legacyStandard,
+            targetDeviceID: device,
+            baseRevision: .init(1),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data(objectSeed.utf8)),
+            verifiedResources: fixture.resources
+        )
+    }
+
+    private func assertTamperedPictureIngestFailsClosed(
+        mutate: (inout [String: Any]) throws -> Void
+    ) async throws {
+        try await assertTamperedPictureIngestFailsClosed(
+            package: { device, fixture in
+                try pictureFieldPackage(device: device, fixture: fixture)
+            },
+            mutate: mutate
+        )
+    }
+
+    private func assertTamperedPictureIngestFailsClosed(
+        package makePackage: (
+            AhaKeyRuntimeDeviceID,
+            (
+                plan: AhaKeyStudioScopedWritePlan,
+                resources: [AhaKeyConfigurationResource],
+                sourceBytes: [AhaKeyResourceIdentifier: Data]
+            )
+        ) throws -> AhaKeyConfigurationPackage,
+        mutate: (inout [String: Any]) throws -> Void
+    ) async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br3-tamper-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let fixture = try pictureFixture(frames: 1)
+        let package = try makePackage(device, fixture)
+        let items = try ingestionItems(fixture)
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(package)) as? [String: Any]
+        )
+        try mutate(&object)
+        let tampered = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertThrowsError(try JSONDecoder().decode(AhaKeyConfigurationPackage.self, from: tampered))
+        do {
+            let proof = try JSONDecoder().decode(
+                AhaKeyRuntimeScopedResourceIngestionProof.self,
+                from: try JSONSerialization.data(withJSONObject: ["package": object])
+            )
+            do {
+                try await store.ingestResources(
+                    items,
+                    scopedProof: proof,
+                    targetDeviceID: device
+                )
+                XCTFail("tampered page contract must not write resource journal")
+            } catch {
+                XCTAssertNotNil(error)
+            }
+        } catch {
+            XCTAssertNotNil(error)
+        }
+        try await assertZeroResourceJournal(store: store, root: root, items: items)
+        let wal = try await store.transaction(package.operationID)
+        XCTAssertNil(wal)
+    }
+
+    private func mutatePage(
+        _ object: inout [String: Any],
+        _ body: (inout [String: Any]) throws -> Void
+    ) throws {
+        var page = try XCTUnwrap(object["pageOperation"] as? [String: Any])
+        try body(&page)
+        object["pageOperation"] = page
+    }
+
+    private func mutateBindings(
+        _ object: inout [String: Any],
+        _ body: (inout [String: Any]) throws -> Void
+    ) throws {
+        try mutatePage(&object) { page in
+            var bindings = try XCTUnwrap(page["resourceBindings"] as? [[String: Any]])
+            XCTAssertFalse(bindings.isEmpty)
+            try body(&bindings[0])
+            page["resourceBindings"] = bindings
+        }
+    }
+
+    private func mutateFirstAction(
+        _ object: inout [String: Any],
+        _ body: (inout [String: Any]) throws -> Void
+    ) throws {
+        try mutatePage(&object) { page in
+            var fingerprint = try XCTUnwrap(page["compatibilityFingerprint"] as? [String: Any])
+            var actions = try XCTUnwrap(fingerprint["actions"] as? [[String: Any]])
+            XCTAssertFalse(actions.isEmpty)
+            try body(&actions[0])
+            fingerprint["actions"] = actions
+            page["compatibilityFingerprint"] = fingerprint
+        }
+    }
+
+    private func rewriteStringValues(
+        _ value: [String: Any],
+        from old: String,
+        to new: String
+    ) -> [String: Any] {
+        rewriteJSON(value, from: old, to: new) as? [String: Any] ?? value
+    }
+
+    private func rewriteJSON(_ value: Any, from old: String, to new: String) -> Any {
+        if let text = value as? String {
+            return text == old ? new : text
+        }
+        if let dictionary = value as? [String: Any] {
+            return dictionary.mapValues { rewriteJSON($0, from: old, to: new) }
+        }
+        if let array = value as? [Any] {
+            return array.map { rewriteJSON($0, from: old, to: new) }
+        }
+        return value
     }
 
     private func ingestionItems(

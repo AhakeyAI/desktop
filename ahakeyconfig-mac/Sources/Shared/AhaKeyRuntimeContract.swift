@@ -965,8 +965,15 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let schemaVersion = try container.decode(UInt16.self, forKey: .schemaVersion)
+        if container.contains(.pageOperation) {
+            try AhaKeyRuntimePageOperationContract.validateSchemaDependentKeys(
+                schemaVersion: schemaVersion,
+                decoder: try container.superDecoder(forKey: .pageOperation)
+            )
+        }
         try self.init(
-            schemaVersion: container.decode(UInt16.self, forKey: .schemaVersion),
+            schemaVersion: schemaVersion,
             operationID: container.decode(AhaKeyRuntimeOperationID.self, forKey: .operationID),
             targetDeviceID: container.decode(AhaKeyRuntimeDeviceID.self, forKey: .targetDeviceID),
             baseRevision: container.decode(AhaKeyConfigurationRevision.self, forKey: .baseRevision),

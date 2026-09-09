@@ -588,90 +588,42 @@ public struct AhaKeyRuntimePageFieldExpectation: Codable, Equatable, Sendable {
     }
 }
 
-/// schema=3/2 页面资源 ingest 的冻结闭包：device/page/mask、picture binding 与 items 双射。
+/// 页面资源 ingest 的冻结闭包：完整 page package/contract，复用单一 validator。
 public struct AhaKeyRuntimeScopedResourceIngestionProof: Codable, Equatable, Sendable {
-    public let schemaVersion: UInt16
-    public let deviceID: AhaKeyRuntimeDeviceID
-    public let pageID: AhaKeyStudioPageID
-    public let fieldMask: [AhaKeyStudioFieldID]
-    public let fieldBaselines: AhaKeyRuntimePageFieldBaselineProof?
-    public let bindings: [AhaKeyRuntimeFieldResourceBinding]
+    public let package: AhaKeyConfigurationPackage
 
-    public var fieldMaskSet: Set<AhaKeyStudioFieldID> { Set(fieldMask) }
+    public var schemaVersion: UInt16 { package.schemaVersion }
+    public var deviceID: AhaKeyRuntimeDeviceID { package.targetDeviceID }
 
-    public init(
-        schemaVersion: UInt16,
-        deviceID: AhaKeyRuntimeDeviceID,
-        pageID: AhaKeyStudioPageID,
-        fieldMask: [AhaKeyStudioFieldID],
-        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof?,
-        bindings: [AhaKeyRuntimeFieldResourceBinding]
-    ) throws {
-        try Self.validateShape(
-            schemaVersion: schemaVersion,
-            deviceID: deviceID,
-            pageID: pageID,
-            fieldMask: fieldMask,
-            fieldBaselines: fieldBaselines,
-            bindings: bindings
-        )
-        self.schemaVersion = schemaVersion
-        self.deviceID = deviceID
-        self.pageID = pageID
-        self.fieldMask = fieldMask
-        self.fieldBaselines = fieldBaselines
-        self.bindings = bindings
+    public init(package: AhaKeyConfigurationPackage) throws {
+        try Self.validateContract(package)
+        self.package = package
     }
 
     public static func make(package: AhaKeyConfigurationPackage) throws -> Self {
-        guard let contract = package.pageOperation, package.usesPageRunner else {
-            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
-        }
-        return try Self(
-            schemaVersion: package.schemaVersion,
-            deviceID: package.targetDeviceID,
-            pageID: contract.pageScope,
-            fieldMask: contract.fieldMask.sorted(),
-            fieldBaselines: contract.fieldBaselines,
-            bindings: contract.resourceBindings
-        )
+        try Self(package: package)
     }
 
     public func validate(
         items: [AhaKeyXPCResourceIngestionItem],
         targetDeviceID: AhaKeyRuntimeDeviceID
     ) throws {
-        try Self.validateShape(
-            schemaVersion: schemaVersion,
-            deviceID: deviceID,
-            pageID: pageID,
-            fieldMask: fieldMask,
-            fieldBaselines: fieldBaselines,
-            bindings: bindings
-        )
-        guard deviceID == targetDeviceID else {
+        try Self.validateContract(package)
+        guard package.targetDeviceID == targetDeviceID else {
             throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
         }
-        try Self.validateItems(items, bindings: bindings)
-        if schemaVersion == AhaKeyConfigurationPackage.fieldBaselineSchemaVersion {
-            let proof = try requireFieldBaselines()
-            try proof.validate(
-                pageID: pageID,
-                fieldMask: fieldMaskSet,
-                deviceID: deviceID
-            )
-        }
+        try Self.validateItems(items, package: package)
     }
 
     public func requireFieldBaselines() throws -> AhaKeyRuntimePageFieldBaselineProof {
-        guard let fieldBaselines else {
+        guard let contract = package.pageOperation else {
             throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
         }
-        return fieldBaselines
+        return try contract.requireFieldBaselines()
     }
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case schemaVersion, deviceID, pageID, fieldMask, fieldBaselines, bindings
+        case package
     }
 
     public init(from decoder: Decoder) throws {
@@ -681,66 +633,27 @@ public struct AhaKeyRuntimeScopedResourceIngestionProof: Codable, Equatable, Sen
             error: .invalidFieldBaselineProof
         )
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        try self.init(
-            schemaVersion: try container.decode(UInt16.self, forKey: .schemaVersion),
-            deviceID: try container.decode(AhaKeyRuntimeDeviceID.self, forKey: .deviceID),
-            pageID: try container.decode(AhaKeyStudioPageID.self, forKey: .pageID),
-            fieldMask: try container.decode([AhaKeyStudioFieldID].self, forKey: .fieldMask),
-            fieldBaselines: try container.decodeIfPresent(
-                AhaKeyRuntimePageFieldBaselineProof.self,
-                forKey: .fieldBaselines
-            ),
-            bindings: try container.decode([AhaKeyRuntimeFieldResourceBinding].self, forKey: .bindings)
-        )
+        guard container.contains(.package) else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        try self.init(package: try container.decode(AhaKeyConfigurationPackage.self, forKey: .package))
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(schemaVersion, forKey: .schemaVersion)
-        try container.encode(deviceID, forKey: .deviceID)
-        try container.encode(pageID, forKey: .pageID)
-        try container.encode(fieldMask, forKey: .fieldMask)
-        try container.encodeIfPresent(fieldBaselines, forKey: .fieldBaselines)
-        try container.encode(bindings, forKey: .bindings)
+        try container.encode(package, forKey: .package)
     }
 
-    private static func validateShape(
-        schemaVersion: UInt16,
-        deviceID: AhaKeyRuntimeDeviceID,
-        pageID: AhaKeyStudioPageID,
-        fieldMask: [AhaKeyStudioFieldID],
-        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof?,
-        bindings: [AhaKeyRuntimeFieldResourceBinding]
-    ) throws {
-        guard AhaKeyConfigurationPackage.isPageScopedSchema(schemaVersion) else {
+    private static func validateContract(_ package: AhaKeyConfigurationPackage) throws {
+        guard package.usesPageRunner, let contract = package.pageOperation else {
             throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
         }
-        guard !fieldMask.isEmpty, fieldMask.count == Set(fieldMask).count, fieldMask == fieldMask.sorted() else {
-            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
-        }
-        guard fieldMask.allSatisfy({ AhaKeyStudioFieldOwnership.page(for: $0) == pageID }) else {
-            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
-        }
-        let pictureFields = Set(fieldMask.filter {
-            if case .screenTaskAsset = $0 { return true }
-            return false
-        })
-        let boundFields = bindings.map(\.fieldID)
-        guard boundFields.count == Set(boundFields).count, Set(boundFields) == pictureFields else {
-            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
-        }
-        switch schemaVersion {
+        try contract.validate(matchingDevice: package.targetDeviceID, resources: package.resources)
+        switch package.schemaVersion {
         case AhaKeyConfigurationPackage.fieldBaselineSchemaVersion:
-            guard let fieldBaselines else {
-                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
-            }
-            try fieldBaselines.validate(
-                pageID: pageID,
-                fieldMask: Set(fieldMask),
-                deviceID: deviceID
-            )
+            try contract.validateFieldBaselineProof(matchingDevice: package.targetDeviceID)
         case AhaKeyConfigurationPackage.pageScopedSchemaVersion:
-            guard fieldBaselines == nil else {
+            guard contract.baseObjectFingerprint != nil, contract.fieldBaselines == nil else {
                 throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
             }
         default:
@@ -750,31 +663,71 @@ public struct AhaKeyRuntimeScopedResourceIngestionProof: Codable, Equatable, Sen
 
     private static func validateItems(
         _ items: [AhaKeyXPCResourceIngestionItem],
-        bindings: [AhaKeyRuntimeFieldResourceBinding]
+        package: AhaKeyConfigurationPackage
     ) throws {
+        guard let contract = package.pageOperation else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
         struct Identity: Hashable {
             var logicalID: AhaKeyResourceIdentifier
             var sha256: AhaKeySHA256Digest
             var byteCount: UInt64
+            var mediaType: AhaKeyMediaType
+            var encodedFrameCount: UInt16
         }
         let itemIDs = items.map(\.logicalIdentifier)
         guard itemIDs.count == Set(itemIDs).count else {
             throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
         }
-        let itemIdentities = Set(items.map {
-            Identity(logicalID: $0.logicalIdentifier, sha256: $0.sha256, byteCount: $0.byteCount)
-        })
-        let boundIdentities = Set(bindings.map {
-            Identity(logicalID: $0.logicalID, sha256: $0.sha256, byteCount: $0.byteCount)
-        })
-        guard itemIdentities == boundIdentities, items.count == bindings.count else {
+        let resourcesByID = Dictionary(
+            uniqueKeysWithValues: package.resources.map { ($0.logicalIdentifier, $0) }
+        )
+        let bindingsByID = Dictionary(
+            uniqueKeysWithValues: contract.resourceBindings.map { ($0.logicalID, $0) }
+        )
+        guard items.count == package.resources.count,
+              items.count == contract.resourceBindings.count,
+              Set(itemIDs) == Set(package.resources.map(\.logicalIdentifier)),
+              Set(itemIDs) == Set(contract.resourceBindings.map(\.logicalID)) else {
             throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
         }
+        var itemIdentities = Set<Identity>()
         for item in items {
             let digest = SHA256.hash(data: item.data).map { String(format: "%02x", $0) }.joined()
             guard digest == item.sha256.rawValue, item.byteCount == UInt64(item.data.count) else {
                 throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
             }
+            guard let resource = resourcesByID[item.logicalIdentifier],
+                  let binding = bindingsByID[item.logicalIdentifier],
+                  resource.sha256 == item.sha256,
+                  resource.byteCount == item.byteCount,
+                  resource.sha256 == binding.sha256,
+                  resource.byteCount == binding.byteCount,
+                  resource.mediaType == binding.mediaType,
+                  binding.encodedFrameCount > 0 else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+            itemIdentities.insert(
+                Identity(
+                    logicalID: item.logicalIdentifier,
+                    sha256: item.sha256,
+                    byteCount: item.byteCount,
+                    mediaType: resource.mediaType,
+                    encodedFrameCount: binding.encodedFrameCount
+                )
+            )
+        }
+        let boundIdentities = Set(contract.resourceBindings.map {
+            Identity(
+                logicalID: $0.logicalID,
+                sha256: $0.sha256,
+                byteCount: $0.byteCount,
+                mediaType: $0.mediaType,
+                encodedFrameCount: $0.encodedFrameCount
+            )
+        })
+        guard itemIdentities == boundIdentities else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
         }
     }
 }

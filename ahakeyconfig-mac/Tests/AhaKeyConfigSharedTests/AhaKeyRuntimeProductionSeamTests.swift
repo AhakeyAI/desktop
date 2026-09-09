@@ -335,6 +335,88 @@ final class AhaKeyRuntimeProductionSeamTests: XCTestCase {
         }
     }
 
+    func testScopedIngestionProofRequiresPackageAndRejectsShallowBindings() throws {
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimeScopedResourceIngestionProof.self,
+                from: try JSONSerialization.data(withJSONObject: [
+                    "schemaVersion": 3,
+                    "deviceID": "DEV",
+                    "fieldBaselines": ["pageID": "legacy"],
+                    "bindings": [],
+                ] as [String: Any])
+            )
+        )
+        let token = try AhaKeyRuntimeResourceAdmissionToken(
+            targetDeviceID: AhaKeyRuntimeDeviceID("TEST-DEVICE"),
+            sessionGeneration: .init(1),
+            transportGeneration: .init(0),
+            sealedOLEDFact: .init(family: .legacyStandard)
+        )
+        var requestObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: try JSONEncoder().encode(
+                    AhaKeyXPCResourceIngestionRequest(items: [], admission: token)
+                )
+            ) as? [String: Any]
+        )
+        requestObject["scopedProof"] = [
+            "fieldBaselines": ["pageID": "legacy"],
+            "bindings": [],
+        ]
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyXPCResourceIngestionRequest.self,
+                from: try JSONSerialization.data(withJSONObject: requestObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let plan = AhaKeyStudioScopedWritePlan(
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [field],
+            values: [field: .text("hello")],
+            overwriteSemantic: false,
+            writeTaskSetA: false,
+            writeTaskSetB: false,
+            activateTaskSet: nil,
+            emitsSetActiveSetOpcode: false,
+            statusLine: "hello"
+        )
+        let package = try AhaKeyConfigurationPackage.assemblePageScoped(
+            plan: plan,
+            profile: .legacyStandard,
+            targetDeviceID: try AhaKeyRuntimeDeviceID("DEV"),
+            baseRevision: .init(1),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("base-object".utf8)),
+            verifiedResources: []
+        )
+        var packageObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(package)) as? [String: Any]
+        )
+        var page = try XCTUnwrap(packageObject["pageOperation"] as? [String: Any])
+        page["fieldBaselines"] = NSNull()
+        packageObject["pageOperation"] = page
+        requestObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: try JSONEncoder().encode(
+                    AhaKeyXPCResourceIngestionRequest(items: [], admission: token)
+                )
+            ) as? [String: Any]
+        )
+        requestObject["scopedProof"] = ["package": packageObject]
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyXPCResourceIngestionRequest.self,
+                from: try JSONSerialization.data(withJSONObject: requestObject)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AhaKeyRuntimeContractError, .corruptRuntimeFact)
+        }
+    }
+
     func testAdmissionFenceLinearizesReservationAgainstLiveMutation() throws {
         let fence = AhaKeyRuntimeAdmissionFence()
         let token = try AhaKeyRuntimeResourceAdmissionToken(

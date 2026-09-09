@@ -421,6 +421,33 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
         try container.encode(confirmationLedger, forKey: .confirmationLedger)
         try container.encode(resourceBindings, forKey: .resourceBindings)
     }
+
+    /// schema=2 禁止 `fieldBaselines`（含显式 null）；schema=3 必须存在非空 `fieldBaselines` 且禁止 object fingerprint key。
+    static func validateSchemaDependentKeys(schemaVersion: UInt16, decoder: Decoder) throws {
+        let dynamic = try decoder.container(keyedBy: AhaKeyRuntimeStrictCodingKey.self)
+        let names = Set(dynamic.allKeys.map(\.stringValue))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch schemaVersion {
+        case AhaKeyConfigurationPackage.pageScopedSchemaVersion:
+            if names.contains(CodingKeys.fieldBaselines.rawValue) {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+            guard names.contains(CodingKeys.baseObjectFingerprint.rawValue),
+                  try container.decodeNil(forKey: .baseObjectFingerprint) == false else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+        case AhaKeyConfigurationPackage.fieldBaselineSchemaVersion:
+            if names.contains(CodingKeys.baseObjectFingerprint.rawValue) {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+            guard names.contains(CodingKeys.fieldBaselines.rawValue),
+                  try container.decodeNil(forKey: .fieldBaselines) == false else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+        default:
+            break
+        }
+    }
 }
 
 /// 页面写的 canonical desired payload：含冻结值、资源摘要与 ledger，不含本地路径。
