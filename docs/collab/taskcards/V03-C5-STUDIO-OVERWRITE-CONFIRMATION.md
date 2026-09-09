@@ -1,10 +1,10 @@
 # 任务卡 V03-C5-STUDIO-OVERWRITE-CONFIRMATION：页面覆盖确认不得被历史终态误消费
 
-计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工  
-状态：`ready / C5E`  
-执行 owner：Cursor  
-验收：Codex  
-产品基线：`adfe2a62fb5a495de9c9172d7cd6fb9f096096d8`  
+计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
+状态：`ready / C5E`
+执行 owner：Cursor
+验收：Codex
+产品基线：`adfe2a62fb5a495de9c9172d7cd6fb9f096096d8`
 前置：15K-D accepted @ `adfe2a6`；C5BWR2 已证明 Gitee Rhino B-only 与 B 实物，但从 B 切回 A 的第二次覆盖确认未入队
 
 ## 现场事实
