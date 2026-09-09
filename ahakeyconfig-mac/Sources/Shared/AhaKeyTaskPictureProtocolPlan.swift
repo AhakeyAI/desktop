@@ -195,34 +195,24 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
         return make(sealedProfile: sealedFact.profile)
     }
 
-    public static func make(
+    /// Family → plan 的单一 builder。Studio 不得直接调用；公开入口只接受 sealed fact。
+    private static func make(
         sealedProfile: AhaKeyOLEDCompatibilityProfile
     ) -> AhaKeyTaskPictureProtocolPlan? {
         switch sealedProfile {
         case .legacyStandard:
-            return AhaKeyTaskPictureProtocolPlan(
-                metadataFormat: .legacySingleSet,
-                setIndices: [0],
-                states: AhaKeyTaskDisplayState.legacyStates,
-                finishesRawUpload: false,
-                supportsActiveSet: false,
-                usesSessionUpload: false
-            )
+            return legacyStandardPlan
         case .rhinoDualSet(let sessionUploadAdvertised):
-            return AhaKeyTaskPictureProtocolPlan(
-                metadataFormat: .currentSetAware,
+            return currentSetAwarePlan(
                 setIndices: [0, 1],
                 states: AhaKeyTaskDisplayState.allCases,
-                finishesRawUpload: true,
                 supportsActiveSet: true,
                 usesSessionUpload: sessionUploadAdvertised
             )
         case .currentSessionCapable:
-            return AhaKeyTaskPictureProtocolPlan(
-                metadataFormat: .currentSetAware,
+            return currentSetAwarePlan(
                 setIndices: [0],
                 states: AhaKeyTaskDisplayState.allCases,
-                finishesRawUpload: true,
                 supportsActiveSet: false,
                 usesSessionUpload: true
             )
@@ -238,14 +228,7 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
         switch mode {
         case .legacy:
             guard capabilities == nil else { return nil }
-            return AhaKeyTaskPictureProtocolPlan(
-                metadataFormat: .legacySingleSet,
-                setIndices: [0],
-                states: AhaKeyTaskDisplayState.legacyStates,
-                finishesRawUpload: false,
-                supportsActiveSet: false,
-                usesSessionUpload: false
-            )
+            return make(sealedProfile: .legacyStandard)
         case .current:
             guard let capabilities else { return nil }
             return make(AhaKeyOLEDCompatibilityContext.make(.parsed(capabilities)))
@@ -259,30 +242,44 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
     ) -> AhaKeyTaskPictureProtocolPlan? {
         guard context.allowsIngestAndApply else { return nil }
         switch context.profile {
-        case .legacyStandard:
-            return AhaKeyTaskPictureProtocolPlan(
-                metadataFormat: .legacySingleSet,
-                setIndices: [0],
-                states: AhaKeyTaskDisplayState.legacyStates,
-                finishesRawUpload: false,
-                supportsActiveSet: false,
-                usesSessionUpload: false
-            )
+        case .legacyStandard, .unsupported:
+            return make(sealedProfile: context.profile)
         case .rhinoDualSet, .currentSessionCapable:
             let layout = context.layout
             let setCount = min(2, max(1, layout.setCount))
             let supportsIdle = context.capabilities?.supportsIdleTaskPicture ?? (layout.stateCount >= 4)
-            return AhaKeyTaskPictureProtocolPlan(
-                metadataFormat: .currentSetAware,
+            return currentSetAwarePlan(
                 setIndices: Array(0 ..< setCount),
                 states: supportsIdle ? AhaKeyTaskDisplayState.allCases : AhaKeyTaskDisplayState.legacyStates,
-                finishesRawUpload: true,
                 supportsActiveSet: setCount > 1,
                 usesSessionUpload: context.profile.pictureOpcodes.allowsSessionPrepare
             )
-        case .unsupported:
-            return nil
         }
+    }
+
+    private static let legacyStandardPlan = AhaKeyTaskPictureProtocolPlan(
+        metadataFormat: .legacySingleSet,
+        setIndices: [0],
+        states: AhaKeyTaskDisplayState.legacyStates,
+        finishesRawUpload: false,
+        supportsActiveSet: false,
+        usesSessionUpload: false
+    )
+
+    private static func currentSetAwarePlan(
+        setIndices: [Int],
+        states: [AhaKeyTaskDisplayState],
+        supportsActiveSet: Bool,
+        usesSessionUpload: Bool
+    ) -> AhaKeyTaskPictureProtocolPlan {
+        AhaKeyTaskPictureProtocolPlan(
+            metadataFormat: .currentSetAware,
+            setIndices: setIndices,
+            states: states,
+            finishesRawUpload: true,
+            supportsActiveSet: supportsActiveSet,
+            usesSessionUpload: usesSessionUpload
+        )
     }
 }
 
@@ -290,8 +287,37 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
 /// 单套图协议会自然收敛到它唯一支持的索引。
 public enum AhaKeyTaskPictureSetSelection {
     public static func desiredActiveSet(editingSet: Int, supportedSetIndices: [Int]) -> Int {
-        guard let fallback = supportedSetIndices.first else { return 0 }
+        guard let fallback = supportedSetIndices.first else { return editingSet }
         return supportedSetIndices.contains(editingSet) ? editingSet : fallback
+    }
+
+    /// 进入页面 / 切 Mode：无 sealed plan 时原样保留 draft，不得写成 A。
+    public static func afterDraftRefresh(
+        draftSet: Int,
+        plan: AhaKeyTaskPictureProtocolPlan?
+    ) -> Int {
+        desiredActiveSet(editingSet: draftSet, supportedSetIndices: plan?.setIndices ?? [])
+    }
+
+    /// Runtime plan 更新。无 next plan 时保持当前选择；nil→Rhino 从 draft 恢复合法 B；
+    /// 已有 plan 的等价刷新保留仍合法的用户选择；仅新 plan 明确不支持时才收敛到安全首项。
+    public static func afterPlanChange(
+        currentSelection: Int,
+        draftSet: Int,
+        previousPlan: AhaKeyTaskPictureProtocolPlan?,
+        nextPlan: AhaKeyTaskPictureProtocolPlan?
+    ) -> Int {
+        guard let nextPlan else { return currentSelection }
+        let indices = nextPlan.setIndices
+        guard let fallback = indices.first else { return currentSelection }
+        if previousPlan == nil {
+            if indices.contains(draftSet) { return draftSet }
+            if indices.contains(currentSelection) { return currentSelection }
+            return fallback
+        }
+        if indices.contains(currentSelection) { return currentSelection }
+        if indices.contains(draftSet) { return draftSet }
+        return fallback
     }
 }
 

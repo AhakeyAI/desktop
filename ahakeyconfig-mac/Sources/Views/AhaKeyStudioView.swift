@@ -37,6 +37,7 @@ struct AhaKeyStudioView: View {
     @State private var oledPlaybackPreviewPath: String?
     @State private var selectedOLEDGIFSet = 0
     @State private var selectedOLEDTaskState: AhaKeyTaskDisplayState = .done
+    @State private var appliedTaskPictureProtocolPlan: AhaKeyTaskPictureProtocolPlan?
     @State private var showsDeviceInfo = false
     @State private var showsCloudAccount = false
     @State private var showsPowerProtectionSettings = false
@@ -149,10 +150,9 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: runtimeStore.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
-            convergeEditingTaskPictureSelectionToSealedPlan()
         }
-        .onChange(of: runtimeStore.taskPictureProtocolPlan?.setIndices) { _ in
-            convergeEditingTaskPictureSelectionToSealedPlan()
+        .onChange(of: runtimeStore.taskPictureProtocolPlan) { newPlan in
+            applyTaskPicturePlanChange(nextPlan: newPlan)
         }
         .onChange(of: voiceRelay.inputMonitoringGranted) { _ in
             refreshStartupPermissionOnboarding()
@@ -2206,19 +2206,24 @@ struct AhaKeyStudioView: View {
     }
 
     private func refreshEditingTaskPictureSetFromDraft() {
-        selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
-            editingSet: currentModeDraft.oled.activeGIFSet,
-            supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? []
+        let plan = runtimeStore.taskPictureProtocolPlan
+        selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.afterDraftRefresh(
+            draftSet: currentModeDraft.oled.activeGIFSet,
+            plan: plan
         )
+        appliedTaskPictureProtocolPlan = plan
         convergeTaskDisplayStateToSealedPlan()
     }
 
-    /// Runtime 更新只收敛非法选择；合法的套图 B 不得被设备 active-set 打回 A。
-    private func convergeEditingTaskPictureSelectionToSealedPlan() {
-        selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
-            editingSet: selectedOLEDGIFSet,
-            supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? []
+    /// Runtime 更新只收敛非法选择；无 plan 保持当前选择；nil→Rhino 从 draft 恢复合法 B。
+    private func applyTaskPicturePlanChange(nextPlan: AhaKeyTaskPictureProtocolPlan?) {
+        selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.afterPlanChange(
+            currentSelection: selectedOLEDGIFSet,
+            draftSet: currentModeDraft.oled.activeGIFSet,
+            previousPlan: appliedTaskPictureProtocolPlan,
+            nextPlan: nextPlan
         )
+        appliedTaskPictureProtocolPlan = nextPlan
         convergeTaskDisplayStateToSealedPlan()
     }
 

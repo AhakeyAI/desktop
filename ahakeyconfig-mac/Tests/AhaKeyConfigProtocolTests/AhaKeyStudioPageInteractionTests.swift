@@ -312,12 +312,51 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertTrue(store.deviceFIFO.isEmpty)
         XCTAssertNil(store.operation(for: .screen(modeSlot: 0)))
         XCTAssertEqual(
-            AhaKeyTaskPictureSetSelection.desiredActiveSet(
-                editingSet: 1,
-                supportedSetIndices: store.taskPictureProtocolPlan?.setIndices ?? []
+            AhaKeyTaskPictureSetSelection.afterPlanChange(
+                currentSelection: 0,
+                draftSet: 1,
+                previousPlan: nil,
+                nextPlan: store.taskPictureProtocolPlan
             ),
             1
         )
+    }
+
+    func testNilThenRhinoRestoresDraftBWithoutCreatingAnOperation() throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let store = makeStore()
+        store.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(deviceID: deviceID, oledCompatibility: nil)
+            )
+        )
+        XCTAssertNil(store.taskPictureProtocolPlan)
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.afterDraftRefresh(draftSet: 1, plan: store.taskPictureProtocolPlan),
+            1
+        )
+        XCTAssertTrue(store.deviceFIFO.isEmpty)
+        XCTAssertNil(store.operation(for: .screen(modeSlot: 0)))
+
+        store.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(
+                    deviceID: deviceID,
+                    oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+                )
+            )
+        )
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.afterPlanChange(
+                currentSelection: 0,
+                draftSet: 1,
+                previousPlan: nil,
+                nextPlan: store.taskPictureProtocolPlan
+            ),
+            1
+        )
+        XCTAssertTrue(store.deviceFIFO.isEmpty)
+        XCTAssertNil(store.operation(for: .screen(modeSlot: 0)))
     }
 
     func testOnlineStoreDoesNotOpenDualSetFromProtocolModeOrForeignFact() throws {
@@ -348,9 +387,9 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         )
         XCTAssertEqual(standard.taskPictureProtocolPlan?.supportsActiveSet, false)
         XCTAssertEqual(
-            AhaKeyTaskPictureSetSelection.desiredActiveSet(
-                editingSet: 1,
-                supportedSetIndices: standard.taskPictureProtocolPlan?.setIndices ?? []
+            AhaKeyTaskPictureSetSelection.afterDraftRefresh(
+                draftSet: 1,
+                plan: standard.taskPictureProtocolPlan
             ),
             0
         )

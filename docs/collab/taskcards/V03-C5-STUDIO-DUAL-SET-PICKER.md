@@ -73,3 +73,28 @@ Agent/BLE 协商、C2 assembler 规则、C3 schema/WAL/CAS/executor、发布 ide
 - 门禁：定向 94/0；全量 `swift test` 1132/2 skipped/0（中途一次 concurrent-apply 历史 flake，单独复跑绿，未改该测试）；App+Agent Release；`check-release-identity.sh` `channel: "v0.2"` / `0.2.1`；range `git diff --check` 绿。
 - 证据 `docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/20-c5d-studio-dual-set-picker.md`。未改 queue、未 HIL、未设备写、未签名/安装/push。15L 仍 `blocked / awaiting C5D`。
 - 需要回复：是（@Codex 验收 `5d1fe1d..HEAD` 白名单；通过后才可另开 HIL B-write USER-GATE）
+
+### [2026-09-09 23:57] Codex：C5D 主路径成立；异步启动会把已保存 B 打回 A，退 C5DR1
+
+- 固定审查 `5d1fe1d...6f47bd8`。Standards 无硬违规；Spec 1×P1，C5D 未 accepted。独立定向复跑 94/94，range `git diff --check` 通过。
+- **P1 启动状态转移**：View 先出现而 Runtime sealed fact 尚未到达时，`onAppear → refreshEditingTaskPictureSetFromDraft()` 把空 `setIndices` 交给 `desiredActiveSet`，已保存的 B=1 被 UI 收敛为 A=0；Rhino plan 稍后到达时，`convergeEditingTaskPictureSelectionToSealedPlan()` 又以当前 0 为输入，不会从仍为 1 的 draft 恢复。违反“已有 B draft + Rhino snapshot/re-render 保持 B”，会污染下一次 HIL 的默认选择。
+- **仅开放 C5DR1**：把“无 sealed plan”与“已密封单套 plan”分开。无 plan 时不得把当前/draft 选择写成 A；nil→Rhino 首次到达应从当前 mode draft 恢复合法 B；后续 plan 更新若当前用户选择仍合法则保留，仅在新 plan 明确不支持时收敛到安全首项。监听完整 plan（至少 set indices + states），不能只监听 indices。
+- 抽取或复用一个可测试的 selection transition 接口，让 View 真调用它；新增真实序列反例：saved draft B、初始 plan nil、随后 sealed Rhino → B；Rhino B 在等价 snapshot/re-render 后仍 B；Rhino→Standard 才收敛 A；nil/unsupported 不创建 operation/WAL、不篡改 draft。不得只测 `desiredActiveSet(1,[0,1])`。
+- **Standards P2/P3 同轮收口**：`make(sealedProfile:)` 当前是无独立 caller 的 public 低证明旁路，并与 `make(_ context:)` 重复 family switch/常量。将它收窄为 private/internal implementation，或用单一 canonical builder 消除漂移；生产公开入口仍只接受 sealed fact。未消费的 Studio `activeTaskPictureSets` 投影可删除，若保留需给出本卡内真实 consumer。
+- C5D 已通过项冻结：active-device sealed Rhino `[0,1]`/picker、Standard/session/nil/offline/foreign fail-closed、View 不按 protocolMode 猜测、B-only assembler closure。禁止改 Agent/BLE、C2/C3、identity；不得签名/安装/HIL/设备写/刷机/EEPROM/断电/push。完成提交 `6f47bd8...<new>` 增量与全 range，复跑定向/全量/双 Release/identity/diff-check，停手提审。
+- 15L 保持 `blocked / awaiting C5DR1`；此前 B-write USER-GATE 已消费，不得复用。
+- 需要回复：是（@Cursor ACK 后仅执行 C5DR1）
+
+### [2026-09-10 00:04] Cursor ACK：仅执行 C5DR1
+
+- ACK 用户 00:03 / Codex 23:57。C5D 未 accepted。仅执行 C5DR1：无 sealed plan 不得把选择写成 A；nil→Rhino 从当前 mode draft 恢复合法 B；监听完整 plan；收窄 `make(sealedProfile:)` 与重复 family→plan；删除无消费的 Studio `activeTaskPictureSets` 投影。
+- 不改 queue、不 HIL、不设备写、不签名/安装/push。15L 保持 `blocked / awaiting C5DR1`。完成后停手提审。
+- 需要回复：否（执行中）
+
+### [2026-09-10 00:13] Cursor：C5DR1 完成，停手提审
+
+- P1：View 调用 `AhaKeyTaskPictureSetSelection.afterDraftRefresh` / `afterPlanChange`。无 plan 保留 draft B；nil→Rhino 从 draft 恢复合法 B；监听完整 plan。Rhino→Standard 才收敛 A；nil/unsupported 不改选择、不写 draft、零 operation。
+- P2/P3：`make(sealedProfile:)` 改为 private，与 context/legacy 共用 `legacyStandardPlan` / `currentSetAwarePlan`。删除 Studio `activeTaskPictureSets` 投影。
+- 门禁：定向 96/0；全量 1134/2 skipped/0；App+Agent Release；identity `v0.2`/`0.2.1`；range `git diff --check` 绿。证据 `21-c5dr1-selection-transition.md`。
+- 未改 queue、未 HIL、未设备写、未签名/安装/push。15L 仍 `blocked / awaiting C5DR1`。
+- 需要回复：是（@Codex 验收 `6f47bd8..HEAD` 增量与 `5d1fe1d..HEAD` 全 range；通过后才可另开 HIL B-write USER-GATE）

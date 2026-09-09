@@ -223,7 +223,12 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
         XCTAssertEqual(plan?.supportsActiveSet, true)
         XCTAssertEqual(plan?.usesSessionUpload, false)
         XCTAssertEqual(
-            AhaKeyTaskPictureSetSelection.desiredActiveSet(editingSet: 1, supportedSetIndices: plan?.setIndices ?? []),
+            AhaKeyTaskPictureSetSelection.afterPlanChange(
+                currentSelection: 1,
+                draftSet: 1,
+                previousPlan: nil,
+                nextPlan: plan
+            ),
             1
         )
     }
@@ -242,8 +247,72 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
         XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(sealedFact: nil))
         XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(sealedFact: .init(family: .unsupported)))
         XCTAssertEqual(
-            AhaKeyTaskPictureSetSelection.desiredActiveSet(editingSet: 1, supportedSetIndices: [0]),
+            AhaKeyTaskPictureSetSelection.afterDraftRefresh(draftSet: 1, plan: standard),
             0
+        )
+    }
+
+    func testSavedDraftBSurvivesNilPlanThenSealedRhinoArrival() {
+        let rhino = AhaKeyTaskPictureProtocolPlan.make(
+            sealedFact: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+        )
+        let standard = AhaKeyTaskPictureProtocolPlan.make(sealedFact: .init(family: .legacyStandard))
+        let unsupported = AhaKeyTaskPictureProtocolPlan.make(sealedFact: .init(family: .unsupported))
+
+        let afterAppear = AhaKeyTaskPictureSetSelection.afterDraftRefresh(draftSet: 1, plan: nil)
+        XCTAssertEqual(afterAppear, 1, "无 plan 的 onAppear 不得把 saved B 写成 A")
+
+        let afterClobberedUI = AhaKeyTaskPictureSetSelection.afterPlanChange(
+            currentSelection: 0,
+            draftSet: 1,
+            previousPlan: nil,
+            nextPlan: rhino
+        )
+        XCTAssertEqual(afterClobberedUI, 1, "nil→Rhino 必须从仍为 B 的 draft 恢复")
+
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.afterPlanChange(
+                currentSelection: 1,
+                draftSet: 1,
+                previousPlan: rhino,
+                nextPlan: rhino
+            ),
+            1,
+            "等价 Rhino snapshot/re-render 保持 B"
+        )
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.afterPlanChange(
+                currentSelection: 0,
+                draftSet: 0,
+                previousPlan: rhino,
+                nextPlan: rhino
+            ),
+            0,
+            "用户已选 A 的等价刷新保持 A"
+        )
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.afterPlanChange(
+                currentSelection: 1,
+                draftSet: 1,
+                previousPlan: rhino,
+                nextPlan: standard
+            ),
+            0,
+            "Rhino→Standard 才收敛 A"
+        )
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.afterPlanChange(
+                currentSelection: 1,
+                draftSet: 1,
+                previousPlan: rhino,
+                nextPlan: unsupported
+            ),
+            1,
+            "Rhino→nil/unsupported 不得把选择写成 A"
+        )
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.desiredActiveSet(editingSet: 1, supportedSetIndices: []),
+            1
         )
     }
 

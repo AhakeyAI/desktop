@@ -110,7 +110,6 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         XCTAssertTrue(presentation.hasReportedSwitchState)
         XCTAssertEqual(presentation.brightness, 40)
         XCTAssertEqual(presentation.firmwareVersion, "1.2.3")
-        XCTAssertEqual(presentation.activeTaskPictureSets, [0: 1, 2: 3])
         XCTAssertEqual(presentation.preferredTransport, .usb)
         XCTAssertTrue(presentation.usbAttached)
         XCTAssertTrue(presentation.isUSBConfigurationActive)

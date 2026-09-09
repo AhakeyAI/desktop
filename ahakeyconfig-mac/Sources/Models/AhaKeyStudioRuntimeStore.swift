@@ -36,7 +36,6 @@ struct AhaKeyStudioDevicePresentation: Equatable {
     var hasReportedSwitchState: Bool = false
     var brightness: Int = 35
     var firmwareVersion: String? = nil
-    var activeTaskPictureSets: [Int: Int] = [:]
     var preferredTransport: AhaKeyRuntimeTransport = .none
     var usbAttached: Bool = false
     var configurationRevision: AhaKeyConfigurationRevision = .init(0)
@@ -110,9 +109,6 @@ enum AhaKeyStudioRuntimeDerivation {
         }
         if let brightness = state.brightness { presentation.brightness = Int(brightness.rawValue) }
         presentation.firmwareVersion = state.firmwareVersion
-        presentation.activeTaskPictureSets = state.activeTaskPictureSets.reduce(into: [:]) { result, pair in
-            result[Int(pair.key.rawValue)] = Int(pair.value.rawValue)
-        }
         presentation.releaseFeatureProjection = AhaKeyReleaseFeaturePolicy.current.projection(
             sealedOLEDProfile: oledProfile(for: device)
         )
@@ -248,7 +244,6 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     var currentConnectionSwitchState: Int? { presentation.currentConnectionSwitchState }
     var brightness: Int { presentation.brightness }
     var firmwareVersion: String? { presentation.firmwareVersion }
-    var activeTaskPictureSets: [Int: Int] { presentation.activeTaskPictureSets }
     var allowsTaskPictureConfiguration: Bool { presentation.allowsTaskPictureConfiguration }
     var taskPictureProtocolPlan: AhaKeyTaskPictureProtocolPlan? { presentation.taskPictureProtocolPlan }
     var supportedTaskDisplayStates: [AhaKeyTaskDisplayState] { presentation.supportedTaskDisplayStates }
