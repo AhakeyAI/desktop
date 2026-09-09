@@ -27,7 +27,7 @@ struct AhaKeyStudioView: View {
     @State private var syncStatusMessage = NSLocalizedString("修改会先保存在本地，连接设备后再同步。", comment: "")
     @State private var isSubmittingCurrentPage = false
     @State private var isRemovingQueuedPage = false
-    @State private var overwriteConfirmedPages: Set<AhaKeyStudioPageID> = []
+    @State private var overwriteConfirmationLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
     @State private var completedTaskResourceCount = 0
     /// 普通默认图片写入失败时只记录该图片，不能阻断键位与灯效。
     @State private var lastDefaultPictureUploadFailures: [String] = []
@@ -147,6 +147,10 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: runtimeStore.viewState.snapshot?.operations) { operations in
             mergeCompletedPageBaselines(operations ?? [])
+            overwriteConfirmationLedger.noteOperationsChanged(operations ?? [])
+        }
+        .onChange(of: overwriteConfirmationIdentity) { identity in
+            overwriteConfirmationLedger.observeCurrentIdentity(identity)
         }
         .onChange(of: runtimeStore.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
@@ -2045,7 +2049,17 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentPageSnapshot: AhaKeyStudioPageSnapshot {
-        frozenPageSnapshot(overwriteConfirmed: overwriteConfirmedPages.contains(currentPageID))
+        frozenPageSnapshot(overwriteConfirmed: false)
+    }
+
+    private var overwriteConfirmationIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity? {
+        guard let device = runtimeStore.activeDevice else { return nil }
+        return AhaKeyStudioPageOverwriteConfirmationLedger.identity(
+            deviceID: device.id,
+            sessionGeneration: device.sessionGeneration,
+            transportGeneration: device.transportGeneration,
+            snapshot: currentPageSnapshot
+        )
     }
 
     private var currentPageAssembly: AhaKeyStudioPageAssembly {
@@ -2053,7 +2067,10 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentPageChrome: AhaKeyStudioPageChrome {
-        runtimeStore.pageChrome(pageID: currentPageID, assembly: currentPageAssembly)
+        overwriteConfirmationLedger.applyingPendingPrompt(
+            to: runtimeStore.pageChrome(pageID: currentPageID, assembly: currentPageAssembly),
+            for: overwriteConfirmationIdentity
+        )
     }
 
     private var isCurrentPageLocked: Bool {
@@ -2456,7 +2473,7 @@ struct AhaKeyStudioView: View {
             fieldAuthorities: runtimeStore.fieldAuthorities(),
             profile: runtimeStore.oledProfile,
             selectedTaskSet: part == .oledDisplay ? selectedOLEDGIFSet : nil,
-            overwriteConfirmed: overwriteConfirmedPages.contains(pageID)
+            overwriteConfirmed: false
         )
         switch AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot) {
         case .write, .requiresOverwriteConfirmation:
@@ -2532,10 +2549,11 @@ struct AhaKeyStudioView: View {
         }
         applyCursorRejectMacroSelfHealIfNeeded()
         let pageID = currentPageID
-        if currentPageChrome.commitKind == .overwritePage {
-            overwriteConfirmedPages.insert(pageID)
-        }
-        let snapshot = frozenPageSnapshot(overwriteConfirmed: overwriteConfirmedPages.contains(pageID))
+        overwriteConfirmationLedger.observeCurrentIdentity(overwriteConfirmationIdentity)
+        let identity = overwriteConfirmationIdentity
+        let snapshot = frozenPageSnapshot(
+            overwriteConfirmed: overwriteConfirmationLedger.shouldSubmitConfirmed(for: identity)
+        )
         isSubmittingCurrentPage = true
         syncStatusMessage = NSLocalizedString("正在提交当前页到 Runtime…", comment: "")
         Task { @MainActor in
@@ -2545,11 +2563,13 @@ struct AhaKeyStudioView: View {
                     snapshot,
                     retryResidual: retryResidual
                 )
+                if let identity {
+                    self.overwriteConfirmationLedger.applyCommitResult(result, identity: identity)
+                }
                 switch result {
                 case .noOp:
                     self.syncStatusMessage = NSLocalizedString("无修改，未创建写入。", comment: "")
                 case .requiresOverwriteConfirmation:
-                    self.overwriteConfirmedPages.insert(pageID)
                     self.syncStatusMessage = NSLocalizedString("未知基线需要覆盖写入。请再点「覆盖写入此页」。", comment: "")
                 case .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
                     let message = NSLocalizedString("当前页不能写入：缺少可信缓存或不支持该页。", comment: "")
@@ -2567,6 +2587,7 @@ struct AhaKeyStudioView: View {
                     _ = operationID
                 }
             } catch {
+                self.overwriteConfirmationLedger.noteAttemptFailed()
                 let message = String(format: NSLocalizedString("写入当前页失败：%@", comment: ""), error.localizedDescription)
                 self.syncStatusMessage = message
                 self.writeResultAlertMessage = message
@@ -2607,14 +2628,13 @@ struct AhaKeyStudioView: View {
     private func mergeCompletedPageBaselines(_ operations: [AhaKeyRuntimeOperationSummary]) {
         guard let deviceID = runtimeStore.presentation.activeDeviceID else { return }
         for operation in operations where operation.targetDeviceID == deviceID {
-            guard let pageID = operation.pageID else { continue }
+            guard operation.pageID != nil else { continue }
             switch operation.state {
             case .completed:
-                overwriteConfirmedPages.remove(pageID)
                 lastSyncDate = Date()
                 syncStatusMessage = NSLocalizedString("当前页已写入设备。", comment: "")
             case .resumablePartial, .failedWithPartialCommit, .failedWithoutWrites:
-                overwriteConfirmedPages.remove(pageID)
+                break
             case .accepted, .running, .paused, .cancellationRequested:
                 break
             }

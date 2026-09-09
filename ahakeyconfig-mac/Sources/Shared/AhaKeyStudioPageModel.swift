@@ -871,3 +871,116 @@ public enum AhaKeyStudioPageChromeProjector {
         }
     }
 }
+
+/// 一次覆盖确认绑定的 frozen identity。忽略 `overwriteConfirmed` 自身。
+public struct AhaKeyStudioPageOverwriteConfirmationIdentity: Equatable, Sendable {
+    public var deviceID: AhaKeyRuntimeDeviceID
+    public var sessionGeneration: AhaKeyRuntimeSessionGeneration
+    public var transportGeneration: AhaKeyRuntimeTransportGeneration
+    public var pageID: AhaKeyStudioPageID
+    public var profile: AhaKeyOLEDCompatibilityProfile
+    public var selectedTaskSet: Int
+    public var fields: [AhaKeyStudioFrozenField]
+
+    public init(
+        deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        snapshot: AhaKeyStudioPageSnapshot
+    ) {
+        self.deviceID = deviceID
+        self.sessionGeneration = sessionGeneration
+        self.transportGeneration = transportGeneration
+        self.pageID = snapshot.pageID
+        self.profile = snapshot.profile
+        self.selectedTaskSet = snapshot.selectedTaskSet
+        self.fields = snapshot.fields
+    }
+}
+
+/// View 唯一覆盖确认 seam。Assembler 与 Facade 的 `.requiresOverwriteConfirmation` 都走这里。
+public struct AhaKeyStudioPageOverwriteConfirmationLedger: Equatable, Sendable {
+    public private(set) var pending: AhaKeyStudioPageOverwriteConfirmationIdentity?
+
+    public init(pending: AhaKeyStudioPageOverwriteConfirmationIdentity? = nil) {
+        self.pending = pending
+    }
+
+    public static func identity(
+        deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        snapshot: AhaKeyStudioPageSnapshot
+    ) -> AhaKeyStudioPageOverwriteConfirmationIdentity {
+        var normalized = snapshot
+        normalized.overwriteConfirmed = false
+        return AhaKeyStudioPageOverwriteConfirmationIdentity(
+            deviceID: deviceID,
+            sessionGeneration: sessionGeneration,
+            transportGeneration: transportGeneration,
+            snapshot: normalized
+        )
+    }
+
+    public func shouldSubmitConfirmed(
+        for identity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) -> Bool {
+        guard let identity else { return false }
+        return pending == identity
+    }
+
+    public func showsOverwritePrompt(
+        for identity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) -> Bool {
+        shouldSubmitConfirmed(for: identity)
+    }
+
+    public mutating func observeCurrentIdentity(
+        _ current: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) {
+        guard let pending else { return }
+        if current != pending {
+            self.pending = nil
+        }
+    }
+
+    /// 历史 operation 只服务 baseline / 终态展示。不得按 pageID 消费 pending。
+    public mutating func noteOperationsChanged(
+        _ operations: [AhaKeyRuntimeOperationSummary]
+    ) {
+        _ = operations
+    }
+
+    public mutating func applyCommitResult(
+        _ result: AhaKeyStudioPageCommitResult,
+        identity: AhaKeyStudioPageOverwriteConfirmationIdentity
+    ) {
+        switch result {
+        case .requiresOverwriteConfirmation:
+            pending = identity
+        case .accepted:
+            if pending == identity {
+                pending = nil
+            }
+        case .noOp, .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
+            pending = nil
+        }
+    }
+
+    public mutating func noteAttemptFailed() {
+        pending = nil
+    }
+
+    public func applyingPendingPrompt(
+        to chrome: AhaKeyStudioPageChrome,
+        for identity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) -> AhaKeyStudioPageChrome {
+        guard showsOverwritePrompt(for: identity), !chrome.isLocked else {
+            return chrome
+        }
+        var next = chrome
+        next.commitKind = .overwritePage
+        next.canSubmit = true
+        return next
+    }
+}
