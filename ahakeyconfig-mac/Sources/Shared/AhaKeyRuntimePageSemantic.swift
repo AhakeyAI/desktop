@@ -937,15 +937,18 @@ public struct AhaKeyRuntimePageExecutionPreconditions: Equatable, Sendable {
     public let deviceID: AhaKeyRuntimeDeviceID
     public let profile: AhaKeyOLEDCompatibilityProfile
     public let baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?
+    public let fieldBaselines: [AhaKeyRuntimeFieldBaseline]
 
     public init(
         deviceID: AhaKeyRuntimeDeviceID,
         profile: AhaKeyOLEDCompatibilityProfile,
-        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?
+        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?,
+        fieldBaselines: [AhaKeyRuntimeFieldBaseline] = []
     ) {
         self.deviceID = deviceID
         self.profile = profile
         self.baseObjectFingerprint = baseObjectFingerprint
+        self.fieldBaselines = fieldBaselines
     }
 }
 
@@ -954,6 +957,7 @@ public enum AhaKeyRuntimePageExecutionPreflightError: Error, Equatable, Sendable
     case deviceMismatch
     case compatibilityMismatch
     case baseObjectConflict
+    case fieldBaselineConflict
     case mappingRejected
 }
 
@@ -968,7 +972,7 @@ extension AhaKeyRuntimePageSemantic {
         layout: AhaKeyDeviceLayoutPolicy = .init(),
         userSlotLimit: Int
     ) throws -> AhaKeyRuntimePageExecutionPlan {
-        guard package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+        guard package.usesPageRunner,
               let contract = package.pageOperation else {
             throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
         }
@@ -1081,29 +1085,11 @@ extension AhaKeyRuntimePageSemantic {
         preconditions: AhaKeyRuntimePageExecutionPreconditions?,
         hasDeviceWrites: Bool
     ) throws {
-        guard let contract = package.pageOperation,
-              package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
-            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
-        }
-        guard let preconditions else {
-            throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
-        }
-        guard preconditions.deviceID == package.targetDeviceID,
-              preconditions.deviceID == contract.targetDeviceID else {
-            throw AhaKeyRuntimePageExecutionPreflightError.deviceMismatch
-        }
-        let liveFamily = try AhaKeyRuntimeCompatibilityFingerprint.Family.make(preconditions.profile)
-        guard liveFamily == contract.compatibilityFingerprint.family else {
-            throw AhaKeyRuntimePageExecutionPreflightError.compatibilityMismatch
-        }
-        if !hasDeviceWrites {
-            guard let live = preconditions.baseObjectFingerprint else {
-                throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
-            }
-            guard live == contract.baseObjectFingerprint else {
-                throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
-            }
-        }
+        try AhaKeyRuntimePageBaseAuthority.evaluatePreflight(
+            package: package,
+            preconditions: preconditions,
+            hasDeviceWrites: hasDeviceWrites
+        )
     }
 
     /// WAL 已确认步骤里是否包含冻结 plan 中的设备写。local 空 program 不算。

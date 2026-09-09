@@ -77,7 +77,7 @@ public struct AhaKeyConfigurationTransactionRunner {
         // 1. 受理（WAL accept：CAS 落资源 + 事务记录，幂等）
         try await store.accept(package, resourceFiles: resourceFiles)
 
-        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+        if package.usesPageRunner {
             return try await runPageScoped(
                 package: package,
                 context: context,
@@ -118,7 +118,7 @@ public struct AhaKeyConfigurationTransactionRunner {
     /// running/paused/resumable 的 schema=2 page operation 拒绝普通取消。
     public func requestCancel(operationID: AhaKeyRuntimeOperationID) async throws {
         guard let record = try await store.transaction(operationID), !record.state.isTerminal else { return }
-        if record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+        if record.package.usesPageRunner {
             switch record.state {
             case .running, .paused, .resumablePartial:
                 throw AhaKeyConfigurationCancelError.refusedWhileActive
@@ -162,11 +162,18 @@ public struct AhaKeyConfigurationTransactionRunner {
                 preconditions: pagePreconditions,
                 hasDeviceWrites: hasDeviceWrites
             )
-        } catch {
+        } catch let error as AhaKeyRuntimePageExecutionPreflightError {
+            let code: AhaKeyRuntimeEventCode
+            switch error {
+            case .fieldBaselineConflict:
+                code = .configurationFieldBaselineConflict
+            default:
+                code = .configurationPreflightConflict
+            }
             return try await finishTerminal(
                 package: package,
                 hasWrites: hasDeviceWrites,
-                messageCode: .configurationPreflightConflict
+                messageCode: code
             )
         }
         let queue = try await store.durableDeviceQueue(package.targetDeviceID)
@@ -293,7 +300,7 @@ public struct AhaKeyConfigurationTransactionRunner {
               record.state == .cancellationRequested else { return nil }
         let confirmed = try await store.confirmedSteps(for: operationID)
         let hasWrites: Bool
-        if record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+        if record.package.usesPageRunner {
             hasWrites = pageDeviceWrites(package: record.package, confirmed: confirmed)
         } else {
             hasWrites = !confirmed.isEmpty

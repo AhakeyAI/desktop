@@ -7,7 +7,8 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
     public let pageScope: AhaKeyStudioPageID
     public let fieldMask: Set<AhaKeyStudioFieldID>
     public let targetDeviceID: AhaKeyRuntimeDeviceID
-    public let baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint
+    public let baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?
+    public let fieldBaselines: AhaKeyRuntimePageFieldBaselineProof?
     public let compatibilityFingerprint: AhaKeyRuntimeCompatibilityFingerprint
     public let confirmationLedger: AhaKeyRuntimeConfirmationLedger
     public let resourceBindings: [AhaKeyRuntimeFieldResourceBinding]
@@ -22,6 +23,57 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
         resourceBindings: [AhaKeyRuntimeFieldResourceBinding] = [],
         resources: [AhaKeyConfigurationResource] = []
     ) throws {
+        try self.init(
+            pageScope: pageScope,
+            fieldMask: fieldMask,
+            targetDeviceID: targetDeviceID,
+            baseObjectFingerprint: baseObjectFingerprint,
+            fieldBaselines: nil,
+            compatibilityFingerprint: compatibilityFingerprint,
+            confirmationLedger: confirmationLedger,
+            resourceBindings: resourceBindings,
+            resources: resources
+        )
+    }
+
+    public init(
+        pageScope: AhaKeyStudioPageID,
+        fieldMask: Set<AhaKeyStudioFieldID>,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof,
+        compatibilityFingerprint: AhaKeyRuntimeCompatibilityFingerprint,
+        confirmationLedger: AhaKeyRuntimeConfirmationLedger,
+        resourceBindings: [AhaKeyRuntimeFieldResourceBinding] = [],
+        resources: [AhaKeyConfigurationResource] = []
+    ) throws {
+        try self.init(
+            pageScope: pageScope,
+            fieldMask: fieldMask,
+            targetDeviceID: targetDeviceID,
+            baseObjectFingerprint: nil,
+            fieldBaselines: fieldBaselines,
+            compatibilityFingerprint: compatibilityFingerprint,
+            confirmationLedger: confirmationLedger,
+            resourceBindings: resourceBindings,
+            resources: resources
+        )
+    }
+
+    private init(
+        pageScope: AhaKeyStudioPageID,
+        fieldMask: Set<AhaKeyStudioFieldID>,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?,
+        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof?,
+        compatibilityFingerprint: AhaKeyRuntimeCompatibilityFingerprint,
+        confirmationLedger: AhaKeyRuntimeConfirmationLedger,
+        resourceBindings: [AhaKeyRuntimeFieldResourceBinding],
+        resources: [AhaKeyConfigurationResource]
+    ) throws {
+        try Self.validateProof(
+            baseObjectFingerprint: baseObjectFingerprint,
+            fieldBaselines: fieldBaselines
+        )
         try Self.validate(
             pageScope: pageScope,
             fieldMask: fieldMask,
@@ -31,10 +83,18 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
             resourceBindings: resourceBindings,
             resources: resources
         )
+        if let fieldBaselines {
+            try fieldBaselines.validate(
+                pageID: pageScope,
+                fieldMask: fieldMask,
+                deviceID: targetDeviceID
+            )
+        }
         self.pageScope = pageScope
         self.fieldMask = fieldMask
         self.targetDeviceID = targetDeviceID
         self.baseObjectFingerprint = baseObjectFingerprint
+        self.fieldBaselines = fieldBaselines
         self.compatibilityFingerprint = compatibilityFingerprint
         self.confirmationLedger = confirmationLedger
         self.resourceBindings = resourceBindings
@@ -56,6 +116,29 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
             resourceBindings: resourceBindings,
             resources: resources
         )
+        try Self.validateProof(
+            baseObjectFingerprint: baseObjectFingerprint,
+            fieldBaselines: fieldBaselines
+        )
+        if let fieldBaselines {
+            try fieldBaselines.validate(
+                pageID: pageScope,
+                fieldMask: fieldMask,
+                deviceID: targetDeviceID
+            )
+        }
+    }
+
+    public func validateFieldBaselineProof(matchingDevice deviceID: AhaKeyRuntimeDeviceID) throws {
+        let proof = try requireFieldBaselines()
+        try proof.validate(pageID: pageScope, fieldMask: fieldMask, deviceID: deviceID)
+    }
+
+    public func requireFieldBaselines() throws -> AhaKeyRuntimePageFieldBaselineProof {
+        guard let fieldBaselines, baseObjectFingerprint == nil else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        return fieldBaselines
     }
 
     private static func validate(
@@ -82,6 +165,18 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
             fieldMask: fieldMask,
             resourceBindings: resourceBindings
         )
+    }
+
+    private static func validateProof(
+        baseObjectFingerprint: AhaKeyRuntimeObjectFingerprint?,
+        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof?
+    ) throws {
+        switch (baseObjectFingerprint, fieldBaselines) {
+        case (.some, .none), (.none, .some):
+            return
+        case (.some, .some), (.none, .none):
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
     }
 
     /// Fingerprint actions 与冻结 fieldMask 精确双射；同一 field 的 picture action
@@ -215,6 +310,117 @@ public struct AhaKeyRuntimePageOperationContract: Codable, Equatable, Sendable {
             resources: verifiedResources
         )
     }
+
+    public static func assemble(
+        plan: AhaKeyStudioScopedWritePlan,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof,
+        verifiedResources: [AhaKeyConfigurationResource]
+    ) throws -> AhaKeyRuntimePageOperationContract {
+        guard plan.fieldMask == Set(plan.values.keys), !plan.fieldMask.isEmpty else {
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
+        }
+        try fieldBaselines.validate(
+            pageID: plan.pageID,
+            fieldMask: plan.fieldMask,
+            deviceID: targetDeviceID
+        )
+        let planIDs = plan.resources.map(\.logicalIdentifier)
+        let verifiedIDs = verifiedResources.map(\.logicalIdentifier)
+        guard planIDs == verifiedIDs else {
+            throw AhaKeyRuntimeContractError.pageOperationIncomplete
+        }
+        guard Set(verifiedIDs).count == verifiedIDs.count else {
+            throw AhaKeyRuntimeContractError.duplicateResourceIdentifier
+        }
+        let bindings = try AhaKeyRuntimePageSemantic.bindings(
+            plan: plan,
+            profile: profile,
+            verifiedResources: verifiedResources
+        )
+        let ledger = try AhaKeyRuntimeConfirmationLedger.pending(
+            fieldMask: plan.fieldMask,
+            resources: verifiedResources
+        )
+        return try AhaKeyRuntimePageOperationContract(
+            pageScope: plan.pageID,
+            fieldMask: plan.fieldMask,
+            targetDeviceID: targetDeviceID,
+            fieldBaselines: fieldBaselines,
+            compatibilityFingerprint: .make(plan: plan, profile: profile, bindings: bindings),
+            confirmationLedger: ledger,
+            resourceBindings: bindings,
+            resources: verifiedResources
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case pageScope, fieldMask, targetDeviceID, baseObjectFingerprint, fieldBaselines
+        case compatibilityFingerprint, confirmationLedger, resourceBindings
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .invalidFieldBaselineProof
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let fingerprint = try container.decodeIfPresent(
+            AhaKeyRuntimeObjectFingerprint.self,
+            forKey: .baseObjectFingerprint
+        )
+        let fieldBaselines = try container.decodeIfPresent(
+            AhaKeyRuntimePageFieldBaselineProof.self,
+            forKey: .fieldBaselines
+        )
+        try Self.validateProof(
+            baseObjectFingerprint: fingerprint,
+            fieldBaselines: fieldBaselines
+        )
+        let resourceBindings = try container.decodeIfPresent(
+            [AhaKeyRuntimeFieldResourceBinding].self,
+            forKey: .resourceBindings
+        ) ?? []
+        let syntheticResources = resourceBindings.map {
+            AhaKeyConfigurationResource(
+                logicalIdentifier: $0.logicalID,
+                sha256: $0.sha256,
+                byteCount: $0.byteCount,
+                mediaType: $0.mediaType
+            )
+        }
+        try self.init(
+            pageScope: try container.decode(AhaKeyStudioPageID.self, forKey: .pageScope),
+            fieldMask: try container.decode(Set<AhaKeyStudioFieldID>.self, forKey: .fieldMask),
+            targetDeviceID: try container.decode(AhaKeyRuntimeDeviceID.self, forKey: .targetDeviceID),
+            baseObjectFingerprint: fingerprint,
+            fieldBaselines: fieldBaselines,
+            compatibilityFingerprint: try container.decode(
+                AhaKeyRuntimeCompatibilityFingerprint.self,
+                forKey: .compatibilityFingerprint
+            ),
+            confirmationLedger: try container.decode(
+                AhaKeyRuntimeConfirmationLedger.self,
+                forKey: .confirmationLedger
+            ),
+            resourceBindings: resourceBindings,
+            resources: syntheticResources
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(pageScope, forKey: .pageScope)
+        try container.encode(fieldMask, forKey: .fieldMask)
+        try container.encode(targetDeviceID, forKey: .targetDeviceID)
+        try container.encodeIfPresent(baseObjectFingerprint, forKey: .baseObjectFingerprint)
+        try container.encodeIfPresent(fieldBaselines, forKey: .fieldBaselines)
+        try container.encode(compatibilityFingerprint, forKey: .compatibilityFingerprint)
+        try container.encode(confirmationLedger, forKey: .confirmationLedger)
+        try container.encode(resourceBindings, forKey: .resourceBindings)
+    }
 }
 
 /// 页面写的 canonical desired payload：含冻结值、资源摘要与 ledger，不含本地路径。
@@ -252,6 +458,20 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(payload)
+    }
+
+    public static func overwriteSemantic(from desiredConfiguration: Data) throws -> Bool {
+        try JSONDecoder().decode(Payload.self, from: desiredConfiguration).overwriteSemantic
+    }
+
+    public static func validateFieldBaselineOverwrite(
+        desiredConfiguration: Data,
+        proof: AhaKeyRuntimePageFieldBaselineProof
+    ) throws {
+        let overwrite = try overwriteSemantic(from: desiredConfiguration)
+        if proof.requiresOverwriteConfirmation, !overwrite {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
     }
 
     private struct Payload: Codable {
@@ -398,6 +618,37 @@ extension AhaKeyConfigurationPackage {
         )
         return try AhaKeyConfigurationPackage(
             schemaVersion: AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+            operationID: operationID,
+            targetDeviceID: targetDeviceID,
+            baseRevision: baseRevision,
+            desiredConfiguration: AhaKeyRuntimeCanonicalPageWrite.encode(
+                plan: plan,
+                contract: contract,
+                resources: verifiedResources
+            ),
+            resources: verifiedResources,
+            pageOperation: contract
+        )
+    }
+
+    public static func assemblePageFieldBaseline(
+        plan: AhaKeyStudioScopedWritePlan,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        baseRevision: AhaKeyConfigurationRevision,
+        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof,
+        verifiedResources: [AhaKeyConfigurationResource],
+        operationID: AhaKeyRuntimeOperationID = .init()
+    ) throws -> AhaKeyConfigurationPackage {
+        let contract = try AhaKeyRuntimePageOperationContract.assemble(
+            plan: plan,
+            profile: profile,
+            targetDeviceID: targetDeviceID,
+            fieldBaselines: fieldBaselines,
+            verifiedResources: verifiedResources
+        )
+        return try AhaKeyConfigurationPackage(
+            schemaVersion: AhaKeyConfigurationPackage.fieldBaselineSchemaVersion,
             operationID: operationID,
             targetDeviceID: targetDeviceID,
             baseRevision: baseRevision,
@@ -1190,7 +1441,8 @@ public struct AhaKeyRuntimeSchemaAwareAcceptanceValidator: AhaKeyRuntimePackageA
         package: AhaKeyConfigurationPackage,
         resources: [AhaKeyResourceIdentifier: AhaKeyRuntimeResourceValidationInput]
     ) throws {
-        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion
+            || package.schemaVersion == AhaKeyConfigurationPackage.fieldBaselineSchemaVersion {
             guard let page = package.pageOperation else {
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }

@@ -325,6 +325,8 @@ public actor AhaKeyStudioRuntimeFacade {
         let response = try await transport.exchange(.apply(package, admission: token))
         guard case .operationAccepted(let operationID) = response else {
             switch response {
+            case .failure(let code) where code == .configurationFieldBaselineConflict:
+                throw AhaKeyStudioApplyError.pageFieldBaselineConflict
             case .failure(let code):
                 throw AhaKeyStudioApplyError.applyRejected(code)
             default:
@@ -693,8 +695,12 @@ public enum AhaKeyStudioApplyError: Error, Equatable {
     case unsupportedFirmware
     /// 对端未广告 page-scoped schema=2，禁止静默降级。
     case unsupportedPeerForPageOperation
+    /// 对端未广告首次页面 field-baseline schema，禁止静默降级。
+    case unsupportedPeerForFirstPageBaseline
     /// 页面 operation 缺少 scope/mask/device/fingerprint 证明。
     case pageOperationIncomplete
+    /// 设备页面 field baseline 已变化。
+    case pageFieldBaselineConflict
 }
 
 extension AhaKeyStudioApplyError: LocalizedError {
@@ -726,8 +732,12 @@ extension AhaKeyStudioApplyError: LocalizedError {
             return "当前固件不支持图片写入，已拒绝提交。"
         case .unsupportedPeerForPageOperation:
             return "当前 Runtime 不支持页面级写入契约，已拒绝提交。"
+        case .unsupportedPeerForFirstPageBaseline:
+            return "当前 Runtime 不支持首次页面基线写入"
         case .pageOperationIncomplete:
             return "页面写入缺少 page scope、field mask 或 fingerprint，已拒绝提交。"
+        case .pageFieldBaselineConflict:
+            return "设备页面基线已变化，请刷新后重试"
         }
     }
 }
@@ -916,7 +926,28 @@ extension AhaKeyStudioRuntimeFacade {
             boundTarget: expected.device.id,
             pictureRequired: pictureAttempt
         )
-        guard let object = admission.device.authoritativeObject, !object.isEmpty else {
+        let decision: AhaKeyRuntimePageBaseAuthority.Decision
+        do {
+            decision = try AhaKeyRuntimePageBaseAuthority.resolve(
+                authoritativeObject: admission.device.authoritativeObject,
+                overwriteSemantic: plan.overwriteSemantic,
+                deviceID: admission.device.id,
+                pageID: plan.pageID,
+                fieldMask: plan.fieldMask,
+                liveBaselines: admission.snapshot.pageBaselines.filter {
+                    $0.deviceID == admission.device.id && $0.pageID == plan.pageID
+                },
+                supportedSchemas: admission.snapshot.supportedConfigurationSchemaVersions
+            )
+        } catch AhaKeyRuntimePageBaseAuthorityError.overwriteConfirmationRequired {
+            return .requiresOverwriteConfirmation
+        } catch AhaKeyRuntimePageBaseAuthorityError.unsupportedPeerForFirstPageBaseline {
+            throw AhaKeyStudioApplyError.unsupportedPeerForFirstPageBaseline
+        } catch AhaKeyRuntimePageBaseAuthorityError.unsupportedPeerForPageOperation {
+            throw AhaKeyStudioApplyError.unsupportedPeerForPageOperation
+        } catch AhaKeyRuntimePageBaseAuthorityError.fieldBaselineConflict {
+            throw AhaKeyStudioApplyError.pageFieldBaselineConflict
+        } catch AhaKeyRuntimePageBaseAuthorityError.invalidFieldBaselineProof {
             throw AhaKeyStudioApplyError.pageOperationIncomplete
         }
         let verifiedResources = prepared.map {
@@ -929,14 +960,27 @@ extension AhaKeyStudioRuntimeFacade {
         }
         var sealedPlan = plan
         sealedPlan.resources = sealedResources
-        let package = try assemblePageScopedPackage(
-            plan: sealedPlan,
-            profile: admission.profile,
-            targetDeviceID: admission.device.id,
-            baseRevision: admission.snapshot.configurationRevision,
-            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(object),
-            verifiedResources: verifiedResources
-        )
+        let package: AhaKeyConfigurationPackage
+        switch decision.proof {
+        case .objectFingerprint(let fingerprint):
+            package = try assemblePageScopedPackage(
+                plan: sealedPlan,
+                profile: admission.profile,
+                targetDeviceID: admission.device.id,
+                baseRevision: admission.snapshot.configurationRevision,
+                baseObjectFingerprint: fingerprint,
+                verifiedResources: verifiedResources
+            )
+        case .fieldBaselines(let proof):
+            package = try assemblePageFieldBaselinePackage(
+                plan: sealedPlan,
+                profile: admission.profile,
+                targetDeviceID: admission.device.id,
+                baseRevision: admission.snapshot.configurationRevision,
+                fieldBaselines: proof,
+                verifiedResources: verifiedResources
+            )
+        }
         let assembledPicture = try Self.packageAttemptsPictureWrite(package)
         guard assembledPicture == pictureAttempt else {
             throw AhaKeyStudioApplyError.pageOperationIncomplete
@@ -991,7 +1035,43 @@ extension AhaKeyStudioRuntimeFacade {
             switch error {
             case .pageOperationIncomplete, .pageOperationDeviceMismatch,
                  .invalidCompatibilityFingerprint, .invalidObjectFingerprint,
-                 .invalidSchemaVersion:
+                 .invalidSchemaVersion, .invalidFieldBaselineProof:
+                throw AhaKeyStudioApplyError.pageOperationIncomplete
+            default:
+                throw error
+            }
+        }
+    }
+
+    public func assemblePageFieldBaselinePackage(
+        plan: AhaKeyStudioScopedWritePlan,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        targetDeviceID: AhaKeyRuntimeDeviceID,
+        baseRevision: AhaKeyConfigurationRevision,
+        fieldBaselines: AhaKeyRuntimePageFieldBaselineProof,
+        verifiedResources: [AhaKeyConfigurationResource] = [],
+        operationID: AhaKeyRuntimeOperationID = .init()
+    ) throws -> AhaKeyConfigurationPackage {
+        let supported = state.snapshot?.supportedConfigurationSchemaVersions
+            ?? [AhaKeyConfigurationPackage.currentSchemaVersion]
+        guard supported.contains(AhaKeyConfigurationPackage.fieldBaselineSchemaVersion) else {
+            throw AhaKeyStudioApplyError.unsupportedPeerForFirstPageBaseline
+        }
+        do {
+            return try AhaKeyConfigurationPackage.assemblePageFieldBaseline(
+                plan: plan,
+                profile: profile,
+                targetDeviceID: targetDeviceID,
+                baseRevision: baseRevision,
+                fieldBaselines: fieldBaselines,
+                verifiedResources: verifiedResources,
+                operationID: operationID
+            )
+        } catch let error as AhaKeyRuntimeContractError {
+            switch error {
+            case .pageOperationIncomplete, .pageOperationDeviceMismatch,
+                 .invalidCompatibilityFingerprint, .invalidObjectFingerprint,
+                 .invalidSchemaVersion, .invalidFieldBaselineProof:
                 throw AhaKeyStudioApplyError.pageOperationIncomplete
             default:
                 throw error

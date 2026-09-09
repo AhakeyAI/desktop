@@ -878,11 +878,17 @@ public struct AhaKeyConfigurationResource: Codable, Equatable, Hashable, Sendabl
 public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
     public static let currentSchemaVersion: UInt16 = 1
     public static let pageScopedSchemaVersion: UInt16 = 2
+    public static let fieldBaselineSchemaVersion: UInt16 = 3
     /// handshake 与 snapshot 共用的 schema 广告，禁止两处各写一份字面量。
     public static let advertisedSchemaVersions: Set<UInt16> = [
         currentSchemaVersion,
         pageScopedSchemaVersion,
+        fieldBaselineSchemaVersion,
     ]
+
+    public static func isPageScopedSchema(_ version: UInt16) -> Bool {
+        version == pageScopedSchemaVersion || version == fieldBaselineSchemaVersion
+    }
 
     public let schemaVersion: UInt16
     public let operationID: AhaKeyRuntimeOperationID
@@ -915,7 +921,23 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
             guard let pageOperation else {
                 throw AhaKeyRuntimeContractError.pageOperationIncomplete
             }
+            guard pageOperation.baseObjectFingerprint != nil, pageOperation.fieldBaselines == nil else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
             try pageOperation.validate(matchingDevice: targetDeviceID, resources: resources)
+        case Self.fieldBaselineSchemaVersion:
+            guard let pageOperation else {
+                throw AhaKeyRuntimeContractError.pageOperationIncomplete
+            }
+            guard pageOperation.baseObjectFingerprint == nil, pageOperation.fieldBaselines != nil else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+            try pageOperation.validate(matchingDevice: targetDeviceID, resources: resources)
+            try pageOperation.validateFieldBaselineProof(matchingDevice: targetDeviceID)
+            try AhaKeyRuntimeCanonicalPageWrite.validateFieldBaselineOverwrite(
+                desiredConfiguration: desiredConfiguration,
+                proof: try pageOperation.requireFieldBaselines()
+            )
         case Self.currentSchemaVersion:
             guard pageOperation == nil else {
                 throw AhaKeyRuntimeContractError.invalidSchemaVersion
@@ -933,6 +955,8 @@ public struct AhaKeyConfigurationPackage: Codable, Equatable, Sendable {
     }
 
     public var isPageScoped: Bool { pageOperation != nil }
+
+    public var usesPageRunner: Bool { Self.isPageScopedSchema(schemaVersion) }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, operationID, targetDeviceID, baseRevision, desiredConfiguration, resources
@@ -981,6 +1005,8 @@ public struct AhaKeyRuntimeEventCode: Codable, Equatable, Hashable, Sendable {
     public static let configurationPlanRejected = must("configuration.plan-rejected")
     /// schema=2 开始前 device / compatibility / base CAS 冲突，零写入 fail-closed。
     public static let configurationPreflightConflict = must("configuration.preflight-conflict")
+    /// schema=3 开始前 exact field-baseline 已变化，零写入 fail-closed。
+    public static let configurationFieldBaselineConflict = must("configuration.field-baseline-conflict")
     /// 线协议帧格式错误。
     public static let configurationMalformedFrame = must("configuration.malformed-frame")
 
@@ -1984,6 +2010,7 @@ public enum AhaKeyRuntimeContractError: Error, Equatable, Sendable {
     case pageOperationDeviceMismatch
     case invalidCompatibilityFingerprint
     case invalidObjectFingerprint
+    case invalidFieldBaselineProof
     case unsupportedPeerForPageOperation
     case invalidAuthoritativeWriterLease
     case invalidAuthoritativeSourceRevision

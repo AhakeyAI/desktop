@@ -1,0 +1,489 @@
+import CryptoKit
+import Foundation
+
+/// C5B：一次页面提交使用哪种 durable base proof。有 whole-object 时冻结 schema=2；
+/// 无 object 时只对 exact field mask 做 field-baseline CAS。禁止伪造 whole-object。
+public enum AhaKeyRuntimePageBaseAuthority {
+    public enum Proof: Equatable, Sendable {
+        case objectFingerprint(AhaKeyRuntimeObjectFingerprint)
+        case fieldBaselines(AhaKeyRuntimePageFieldBaselineProof)
+    }
+
+    public struct Decision: Equatable, Sendable {
+        public let schemaVersion: UInt16
+        public let proof: Proof
+
+        public var objectFingerprint: AhaKeyRuntimeObjectFingerprint? {
+            if case .objectFingerprint(let fingerprint) = proof { return fingerprint }
+            return nil
+        }
+
+        public var fieldBaselines: AhaKeyRuntimePageFieldBaselineProof? {
+            if case .fieldBaselines(let proof) = proof { return proof }
+            return nil
+        }
+    }
+
+    /// Studio / assemble 入口。supportedSchemas 为 nil 时不检查 peer 广告（Runtime 侧）。
+    public static func resolve(
+        authoritativeObject: Data?,
+        overwriteSemantic: Bool,
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        fieldMask: Set<AhaKeyStudioFieldID>,
+        liveBaselines: [AhaKeyRuntimeFieldBaseline],
+        supportedSchemas: Set<UInt16>? = nil
+    ) throws -> Decision {
+        if let object = authoritativeObject, !object.isEmpty {
+            if let supportedSchemas, !supportedSchemas.contains(
+                AhaKeyConfigurationPackage.pageScopedSchemaVersion
+            ) {
+                throw AhaKeyRuntimePageBaseAuthorityError.unsupportedPeerForPageOperation
+            }
+            return Decision(
+                schemaVersion: AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+                proof: .objectFingerprint(try AhaKeyRuntimeObjectFingerprint.hashing(object))
+            )
+        }
+        if let supportedSchemas, !supportedSchemas.contains(
+            AhaKeyConfigurationPackage.fieldBaselineSchemaVersion
+        ) {
+            throw AhaKeyRuntimePageBaseAuthorityError.unsupportedPeerForFirstPageBaseline
+        }
+        let proof = try AhaKeyRuntimePageFieldBaselineProof.make(
+            deviceID: deviceID,
+            pageID: pageID,
+            fieldMask: fieldMask,
+            liveBaselines: liveBaselines
+        )
+        if proof.requiresOverwriteConfirmation, !overwriteSemantic {
+            throw AhaKeyRuntimePageBaseAuthorityError.overwriteConfirmationRequired
+        }
+        return Decision(
+            schemaVersion: AhaKeyConfigurationPackage.fieldBaselineSchemaVersion,
+            proof: .fieldBaselines(proof)
+        )
+    }
+
+    public static func evaluatePreflight(
+        package: AhaKeyConfigurationPackage,
+        preconditions: AhaKeyRuntimePageExecutionPreconditions?,
+        hasDeviceWrites: Bool
+    ) throws {
+        guard let contract = package.pageOperation,
+              package.usesPageRunner else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        guard let preconditions else {
+            throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
+        }
+        guard preconditions.deviceID == package.targetDeviceID,
+              preconditions.deviceID == contract.targetDeviceID else {
+            throw AhaKeyRuntimePageExecutionPreflightError.deviceMismatch
+        }
+        let liveFamily = try AhaKeyRuntimeCompatibilityFingerprint.Family.make(preconditions.profile)
+        guard liveFamily == contract.compatibilityFingerprint.family else {
+            throw AhaKeyRuntimePageExecutionPreflightError.compatibilityMismatch
+        }
+        if hasDeviceWrites {
+            return
+        }
+        switch package.schemaVersion {
+        case AhaKeyConfigurationPackage.pageScopedSchemaVersion:
+            guard let frozen = contract.baseObjectFingerprint else {
+                throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
+            }
+            guard let live = preconditions.baseObjectFingerprint else {
+                throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
+            }
+            guard live == frozen else {
+                throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
+            }
+        case AhaKeyConfigurationPackage.fieldBaselineSchemaVersion:
+            guard let frozen = contract.fieldBaselines else {
+                throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+            }
+            try frozen.matchLive(
+                preconditions.fieldBaselines,
+                deviceID: package.targetDeviceID,
+                pageID: contract.pageScope,
+                operationID: package.operationID
+            )
+        default:
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+    }
+}
+
+public enum AhaKeyRuntimePageBaseAuthorityError: Error, Equatable, Sendable {
+    case overwriteConfirmationRequired
+    case unsupportedPeerForPageOperation
+    case unsupportedPeerForFirstPageBaseline
+    case fieldBaselineConflict
+    case invalidFieldBaselineProof
+}
+
+/// schema=3 field-baseline CAS 的冻结 proof：page + canonical mask + 有序 expectation + digest。
+public struct AhaKeyRuntimePageFieldBaselineProof: Codable, Equatable, Sendable {
+    public let pageID: AhaKeyStudioPageID
+    public let fieldMask: [AhaKeyStudioFieldID]
+    public let expectations: [AhaKeyRuntimePageFieldExpectation]
+    public let digest: AhaKeySHA256Digest
+
+    public var fieldMaskSet: Set<AhaKeyStudioFieldID> { Set(fieldMask) }
+
+    public var requiresOverwriteConfirmation: Bool {
+        expectations.contains { $0.requiresOverwriteConfirmation }
+    }
+
+    public init(
+        pageID: AhaKeyStudioPageID,
+        fieldMask: [AhaKeyStudioFieldID],
+        expectations: [AhaKeyRuntimePageFieldExpectation],
+        digest: AhaKeySHA256Digest
+    ) throws {
+        try Self.validate(
+            pageID: pageID,
+            fieldMask: fieldMask,
+            expectations: expectations,
+            digest: digest
+        )
+        self.pageID = pageID
+        self.fieldMask = fieldMask
+        self.expectations = expectations
+        self.digest = digest
+    }
+
+    public static func make(
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        fieldMask: Set<AhaKeyStudioFieldID>,
+        liveBaselines: [AhaKeyRuntimeFieldBaseline]
+    ) throws -> Self {
+        guard !fieldMask.isEmpty else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        let canonical = fieldMask.sorted()
+        let scoped = liveBaselines.filter { $0.deviceID == deviceID && $0.pageID == pageID }
+        var byField: [AhaKeyStudioFieldID: AhaKeyRuntimeFieldBaseline] = [:]
+        for row in scoped {
+            guard byField[row.fieldID] == nil else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+            byField[row.fieldID] = row
+        }
+        let expectations: [AhaKeyRuntimePageFieldExpectation] = try canonical.map { field in
+            if let row = byField[field] {
+                guard row.deviceID == deviceID, row.pageID == pageID, row.fieldID == field else {
+                    throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+                }
+                return try AhaKeyRuntimePageFieldExpectation.baseline(row)
+            }
+            return try AhaKeyRuntimePageFieldExpectation.absent(
+                deviceID: deviceID,
+                pageID: pageID,
+                fieldID: field
+            )
+        }
+        let digest = try digest(pageID: pageID, fieldMask: canonical, expectations: expectations)
+        return try Self(
+            pageID: pageID,
+            fieldMask: canonical,
+            expectations: expectations,
+            digest: digest
+        )
+    }
+
+    public func validate(
+        pageID: AhaKeyStudioPageID,
+        fieldMask: Set<AhaKeyStudioFieldID>,
+        deviceID: AhaKeyRuntimeDeviceID
+    ) throws {
+        guard self.pageID == pageID else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        guard Set(self.fieldMask) == fieldMask else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        try Self.validate(
+            pageID: self.pageID,
+            fieldMask: self.fieldMask,
+            expectations: expectations,
+            digest: digest
+        )
+        for expectation in expectations {
+            guard expectation.deviceID == deviceID, expectation.pageID == pageID else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+        }
+    }
+
+    public func matchLive(
+        _ liveBaselines: [AhaKeyRuntimeFieldBaseline],
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        operationID: AhaKeyRuntimeOperationID
+    ) throws {
+        guard self.pageID == pageID else {
+            throw AhaKeyRuntimePageExecutionPreflightError.fieldBaselineConflict
+        }
+        var liveByField: [AhaKeyStudioFieldID: AhaKeyRuntimeFieldBaseline] = [:]
+        for row in liveBaselines where row.deviceID == deviceID && row.pageID == pageID {
+            guard liveByField[row.fieldID] == nil else {
+                throw AhaKeyRuntimePageExecutionPreflightError.fieldBaselineConflict
+            }
+            liveByField[row.fieldID] = row
+        }
+        for expectation in expectations {
+            let live = liveByField[expectation.fieldID]
+            if let live, live.operationID == operationID {
+                continue
+            }
+            try expectation.match(live: live)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case pageID, fieldMask, expectations, digest
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .invalidFieldBaselineProof
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            pageID: try container.decode(AhaKeyStudioPageID.self, forKey: .pageID),
+            fieldMask: try container.decode([AhaKeyStudioFieldID].self, forKey: .fieldMask),
+            expectations: try container.decode([AhaKeyRuntimePageFieldExpectation].self, forKey: .expectations),
+            digest: try container.decode(AhaKeySHA256Digest.self, forKey: .digest)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(pageID, forKey: .pageID)
+        try container.encode(fieldMask, forKey: .fieldMask)
+        try container.encode(expectations, forKey: .expectations)
+        try container.encode(digest, forKey: .digest)
+    }
+
+    private static func validate(
+        pageID: AhaKeyStudioPageID,
+        fieldMask: [AhaKeyStudioFieldID],
+        expectations: [AhaKeyRuntimePageFieldExpectation],
+        digest: AhaKeySHA256Digest
+    ) throws {
+        guard !fieldMask.isEmpty, fieldMask.count == Set(fieldMask).count else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        guard fieldMask == fieldMask.sorted() else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        guard fieldMask.allSatisfy({ AhaKeyStudioFieldOwnership.page(for: $0) == pageID }) else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        guard expectations.count == fieldMask.count else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        for (index, expectation) in expectations.enumerated() {
+            guard expectation.pageID == pageID,
+                  expectation.fieldID == fieldMask[index] else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+        }
+        let expected = try Self.digest(
+            pageID: pageID,
+            fieldMask: fieldMask,
+            expectations: expectations
+        )
+        guard digest == expected, digest.rawValue != String(repeating: "0", count: 64) else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+    }
+
+    private static func digest(
+        pageID: AhaKeyStudioPageID,
+        fieldMask: [AhaKeyStudioFieldID],
+        expectations: [AhaKeyRuntimePageFieldExpectation]
+    ) throws -> AhaKeySHA256Digest {
+        struct Body: Encodable {
+            var pageID: AhaKeyStudioPageID
+            var fieldMask: [AhaKeyStudioFieldID]
+            var expectations: [AhaKeyRuntimePageFieldExpectation]
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(
+            Body(pageID: pageID, fieldMask: fieldMask, expectations: expectations)
+        )
+        guard !data.isEmpty else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        let hex = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard hex != String(repeating: "0", count: 64) else {
+            throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+        }
+        return try AhaKeySHA256Digest(hex)
+    }
+}
+
+/// 完整 baseline 行或显式 absent。缺失行与 `.unknown` 必须区分。
+public struct AhaKeyRuntimePageFieldExpectation: Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Equatable, Sendable {
+        case absent
+        case baseline
+    }
+
+    public let kind: Kind
+    public let deviceID: AhaKeyRuntimeDeviceID
+    public let pageID: AhaKeyStudioPageID
+    public let fieldID: AhaKeyStudioFieldID
+    public let value: AhaKeyRuntimeBaselineValue?
+    public let trust: AhaKeyRuntimeBaselineTrust?
+    public let provenance: AhaKeyRuntimeBaselineProvenance?
+    public let operationID: AhaKeyRuntimeOperationID?
+    public let authorityVersion: AhaKeyRuntimeAuthoritativeVersion?
+
+    public var requiresOverwriteConfirmation: Bool {
+        switch kind {
+        case .absent:
+            return true
+        case .baseline:
+            return trust == .unknown
+        }
+    }
+
+    public static func absent(
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        fieldID: AhaKeyStudioFieldID
+    ) throws -> Self {
+        try Self(
+            kind: .absent,
+            deviceID: deviceID,
+            pageID: pageID,
+            fieldID: fieldID,
+            value: nil,
+            trust: nil,
+            provenance: nil,
+            operationID: nil,
+            authorityVersion: nil
+        )
+    }
+
+    public static func baseline(_ row: AhaKeyRuntimeFieldBaseline) throws -> Self {
+        try Self(
+            kind: .baseline,
+            deviceID: row.deviceID,
+            pageID: row.pageID,
+            fieldID: row.fieldID,
+            value: row.value,
+            trust: row.trust,
+            provenance: row.provenance,
+            operationID: row.operationID,
+            authorityVersion: row.authorityVersion
+        )
+    }
+
+    public func match(live: AhaKeyRuntimeFieldBaseline?) throws {
+        switch kind {
+        case .absent:
+            guard live == nil else {
+                throw AhaKeyRuntimePageExecutionPreflightError.fieldBaselineConflict
+            }
+        case .baseline:
+            guard let live,
+                  live.deviceID == deviceID,
+                  live.pageID == pageID,
+                  live.fieldID == fieldID,
+                  live.value == value,
+                  live.trust == trust,
+                  live.provenance == provenance,
+                  live.operationID == operationID,
+                  live.authorityVersion == authorityVersion else {
+                throw AhaKeyRuntimePageExecutionPreflightError.fieldBaselineConflict
+            }
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case kind, deviceID, pageID, fieldID, value, trust, provenance, operationID, authorityVersion
+    }
+
+    public init(from decoder: Decoder) throws {
+        try AhaKeyRuntimeStrictCodingKey.rejectUnknown(
+            in: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.rawValue)),
+            error: .invalidFieldBaselineProof
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            kind: try container.decode(Kind.self, forKey: .kind),
+            deviceID: try container.decode(AhaKeyRuntimeDeviceID.self, forKey: .deviceID),
+            pageID: try container.decode(AhaKeyStudioPageID.self, forKey: .pageID),
+            fieldID: try container.decode(AhaKeyStudioFieldID.self, forKey: .fieldID),
+            value: try container.decodeIfPresent(AhaKeyRuntimeBaselineValue.self, forKey: .value),
+            trust: try container.decodeIfPresent(AhaKeyRuntimeBaselineTrust.self, forKey: .trust),
+            provenance: try container.decodeIfPresent(AhaKeyRuntimeBaselineProvenance.self, forKey: .provenance),
+            operationID: try container.decodeIfPresent(AhaKeyRuntimeOperationID.self, forKey: .operationID),
+            authorityVersion: try container.decodeIfPresent(
+                AhaKeyRuntimeAuthoritativeVersion.self,
+                forKey: .authorityVersion
+            )
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(deviceID, forKey: .deviceID)
+        try container.encode(pageID, forKey: .pageID)
+        try container.encode(fieldID, forKey: .fieldID)
+        switch kind {
+        case .absent:
+            break
+        case .baseline:
+            try container.encode(value, forKey: .value)
+            try container.encode(trust, forKey: .trust)
+            try container.encode(provenance, forKey: .provenance)
+            try container.encode(operationID, forKey: .operationID)
+            try container.encode(authorityVersion, forKey: .authorityVersion)
+        }
+    }
+
+    fileprivate init(
+        kind: Kind,
+        deviceID: AhaKeyRuntimeDeviceID,
+        pageID: AhaKeyStudioPageID,
+        fieldID: AhaKeyStudioFieldID,
+        value: AhaKeyRuntimeBaselineValue?,
+        trust: AhaKeyRuntimeBaselineTrust?,
+        provenance: AhaKeyRuntimeBaselineProvenance?,
+        operationID: AhaKeyRuntimeOperationID?,
+        authorityVersion: AhaKeyRuntimeAuthoritativeVersion?
+    ) throws {
+        switch kind {
+        case .absent:
+            guard value == nil, trust == nil, provenance == nil,
+                  operationID == nil, authorityVersion == nil else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+        case .baseline:
+            guard value != nil, trust != nil, provenance != nil else {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+        }
+        self.kind = kind
+        self.deviceID = deviceID
+        self.pageID = pageID
+        self.fieldID = fieldID
+        self.value = value
+        self.trust = trust
+        self.provenance = provenance
+        self.operationID = operationID
+        self.authorityVersion = authorityVersion
+    }
+}

@@ -71,7 +71,7 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
                 return .handshakeAccepted(.init(
                     runtimeVersion: .development,
                     interfaceVersion: .current,
-                    supportedConfigurationSchemaVersions: [3],
+                    supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
                     capabilities: [.snapshot, .eventReplay, .configuration]
                 ))
             case .snapshot:
@@ -1561,6 +1561,106 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
         await facade.stop()
     }
 
+    func testCommitFrozenPageWithoutObjectUnconfirmedDoesNotIngest() async throws {
+        let snapshot = pageReadySnapshot(authoritativeObject: nil)
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let page = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("new"),
+                    isDirty: true,
+                    baseline: .unknown
+                ),
+            ]
+        )
+        let result = try await facade.commitFrozenPage(page)
+        XCTAssertEqual(result, .requiresOverwriteConfirmation)
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        await facade.stop()
+    }
+
+    func testCommitFrozenPageFirstWriteWithoutObjectUsesSchema3() async throws {
+        let snapshot = pageReadySnapshot(authoritativeObject: nil)
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let page = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            overwriteConfirmed: true,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("first"),
+                    isDirty: true,
+                    baseline: .unknown
+                ),
+            ]
+        )
+        let result = try await facade.commitFrozenPage(page)
+        guard case .accepted = result else {
+            return XCTFail("确认覆盖后的首次页面写应受理：\(result)")
+        }
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 1)
+        XCTAssertEqual(transport.appliedPackage?.schemaVersion, 3)
+        XCTAssertNil(transport.appliedPackage?.pageOperation?.baseObjectFingerprint)
+        XCTAssertEqual(
+            transport.appliedPackage?.pageOperation?.fieldBaselines?.expectations.first?.kind,
+            .absent
+        )
+        await facade.stop()
+    }
+
+    func testCommitFrozenPageFirstWriteWithoutObjectOldPeerRejected() async throws {
+        let snapshot = pageReadySnapshot(
+            authoritativeObject: nil,
+            supportedSchemaVersions: [1, 2]
+        )
+        let transport = FakeTransport(snapshot: snapshot)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport, clientBuildID: "test", reconnectBackoffBase: 0, idlePollInterval: 0
+        )
+        await facade.installSnapshotForTesting(snapshot)
+        let page = AhaKeyStudioPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            overwriteConfirmed: true,
+            fields: [
+                AhaKeyStudioFrozenField(
+                    id: .screenStatusLine(modeSlot: 0),
+                    value: .text("first"),
+                    isDirty: true,
+                    baseline: .unknown
+                ),
+            ]
+        )
+        do {
+            _ = try await facade.commitFrozenPage(page)
+            XCTFail("旧 Runtime 未广告 schema=3 必须拒绝首次基线写")
+        } catch AhaKeyStudioApplyError.unsupportedPeerForFirstPageBaseline {
+        }
+        let counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertEqual(transport.requestLog, [])
+        XCTAssertNil(transport.appliedPackage)
+        await facade.stop()
+    }
+
     func testRequestAbandonExchangesAbandon() async throws {
         let snapshot = pageReadySnapshot()
         let transport = FakeTransport(snapshot: snapshot)
@@ -1662,7 +1762,9 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
     private func pageReadySnapshot(
         deviceID: String = "DEVICE-1",
         sessionGeneration: UInt64 = 0,
-        transportGeneration: UInt64 = 0
+        transportGeneration: UInt64 = 0,
+        authoritativeObject: Data? = Data("base-object".utf8),
+        supportedSchemaVersions: Set<UInt16> = AhaKeyConfigurationPackage.advertisedSchemaVersions
     ) -> AhaKeyRuntimeSnapshot {
         let id = try! AhaKeyRuntimeDeviceID(deviceID)
         let device = AhaKeyRuntimeDeviceSnapshot(
@@ -1675,11 +1777,11 @@ final class AhaKeyStudioRuntimeFacadeTests: XCTestCase {
             capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
             sessionGeneration: .init(sessionGeneration),
             transportGeneration: .init(transportGeneration),
-            authoritativeObject: Data("base-object".utf8),
+            authoritativeObject: authoritativeObject,
             oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
         )
         return AhaKeyRuntimeSnapshot(
-            supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
+            supportedConfigurationSchemaVersions: supportedSchemaVersions,
             lifecycleState: .running,
             devices: [device],
             activeDeviceID: id,

@@ -1977,7 +1977,7 @@ public actor AhaKeyRuntimePersistentStore {
         guard let record = try transaction(operationID) else {
             throw AhaKeyRuntimePersistenceError.operationNotFound
         }
-        guard record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
+        guard record.package.usesPageRunner else {
             return
         }
         guard record.package.targetDeviceID == epoch.identity.deviceID else {
@@ -2128,7 +2128,7 @@ public actor AhaKeyRuntimePersistentStore {
     ) throws -> AhaKeyRuntimeAbandonDisposition {
         guard let record = try transaction(operationID) else { return .notFound }
         guard !record.state.isTerminal else { return .alreadyFinished }
-        guard record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
+        guard record.package.usesPageRunner else {
             return .refused
         }
         switch record.state {
@@ -2412,7 +2412,7 @@ public actor AhaKeyRuntimePersistentStore {
                 try updateOperationRow(summary, terminalOrder: terminalOrder)
                 if let syncBaseline {
                     try upsertSyncBaseline(syncBaseline)
-                    if existing.package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+                    if !existing.package.usesPageRunner {
                         try persistAuthoritativeSourceUnlocked(
                             syncBaseline.confirmedConfiguration,
                             for: syncBaseline.deviceID

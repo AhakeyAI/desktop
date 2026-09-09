@@ -374,8 +374,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                        let record = try? await store.transaction(package.operationID) {
                         if record.state == .paused || record.state == .resumablePartial {
                             let ready = await MainActor.run { self.configurationWriteIsReady() }
-                            let isPage = record.package.schemaVersion
-                                == AhaKeyConfigurationPackage.pageScopedSchemaVersion
+                            let isPage = record.package.usesPageRunner
                             if !isPage || !ready {
                                 return false
                             }
@@ -2544,7 +2543,7 @@ extension AhaKeyAgent {
             package: package, resourceFiles: resourceFiles, store: store, context: context
         )
         if state == .completed,
-           package.schemaVersion != AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+           !package.usesPageRunner {
             publishDeviceChangedIfNeeded()
         }
         emit("配置事务 \(package.operationID.rawValue.uuidString.prefix(8))… 受理结果：\(state.rawValue)")
@@ -2735,7 +2734,7 @@ extension AhaKeyAgent {
         context: AhaKeyOLEDCompatibilityContext,
         store: AhaKeyRuntimePersistentStore
     ) async -> AhaKeyRuntimePageExecutionPreconditions? {
-        guard package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+        guard package.usesPageRunner,
               package.pageOperation != nil else { return nil }
         let deviceID = await MainActor.run { () -> AhaKeyRuntimeDeviceID? in
             if let simulated = self.executionTestHooks?.simulatedDevice?.id {
@@ -2752,13 +2751,20 @@ extension AhaKeyAgent {
         let plan = pagePlanForWriteFact(package: package, userSlotLimit: context.layout.userSlotLimit)
         let hasDeviceWrites = AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan)
         let live = try? await store.authoritativeObjectFingerprint(for: deviceID)
-        if !hasDeviceWrites, live == nil {
+        let liveFields = (try? await store.pageFieldBaselines(
+            deviceID: deviceID,
+            pageID: package.pageOperation?.pageScope
+        )) ?? []
+        if !hasDeviceWrites,
+           live == nil,
+           package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
             return nil
         }
         return AhaKeyRuntimePageExecutionPreconditions(
             deviceID: deviceID,
             profile: context.profile,
-            baseObjectFingerprint: live
+            baseObjectFingerprint: live,
+            fieldBaselines: liveFields
         )
     }
 
@@ -2800,7 +2806,7 @@ extension AhaKeyAgent {
                 context: .init(failedStepID: step)
             ))
         }
-        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+        if package.usesPageRunner {
             return await executePageScopedStep(
                 step, package: package, store: store, context: context
             )
@@ -3270,7 +3276,7 @@ extension AhaKeyAgent {
     ) async -> AhaKeyRuntimeOperationSummary {
         var summary = Self.operationSummary(from: record)
         guard let store,
-              record.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+              record.package.usesPageRunner,
               let plan = try? AhaKeyRuntimePageSemantic.executionPlan(
                 package: record.package,
                 userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
@@ -3310,7 +3316,7 @@ extension AhaKeyAgent {
         var minted: AhaKeyRuntimeDisconnectEpoch?
         var mintedHead: AhaKeyRuntimeOperationID?
         for candidate in candidates where candidate.package.targetDeviceID == identity.deviceID {
-            guard candidate.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion else {
+            guard candidate.package.usesPageRunner else {
                 continue
             }
             switch candidate.state {
@@ -3722,7 +3728,7 @@ extension AhaKeyAgent {
         now: Date
     ) throws -> AhaKeyRuntimeOperationSummary {
         var summary = Self.operationSummary(from: facts.head)
-        if facts.head.package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
+        if facts.head.package.usesPageRunner {
             let plan = try AhaKeyRuntimePageSemantic.executionPlan(
                 package: facts.head.package,
                 userSlotLimit: AhaKeyOLEDCompatibilityContext.standardUserSlotLimit
