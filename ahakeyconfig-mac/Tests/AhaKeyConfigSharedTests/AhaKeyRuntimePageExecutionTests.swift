@@ -128,6 +128,10 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
 
         let wrongCASPackage = try statusPackage(device: "DEV-A", operation: .init(), seed: "cas")
         executed.removeAll()
+        try await store.replaceAuthoritativeObjectForTesting(
+            deviceID: AhaKeyRuntimeDeviceID("DEV-A"),
+            content: Data("other-object".utf8)
+        )
         let wrongCAS = try await runPage(
             wrongCASPackage,
             context: .standard,
@@ -484,15 +488,15 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let execPlan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
         XCTAssertFalse(AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: execPlan))
 
+        try await store.replaceAuthoritativeObjectForTesting(
+            deviceID: package.targetDeviceID,
+            content: Data("mutated-after-local".utf8)
+        )
         var resumed: [String] = []
         let conflicted = try await runPage(
             package,
             context: .standard,
-            preconditions: AhaKeyRuntimePageExecutionPreconditions(
-                deviceID: package.targetDeviceID,
-                profile: .legacyStandard,
-                baseObjectFingerprint: try baseFingerprint("mutated-after-local")
-            )
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
         ) { step in
             resumed.append(step.rawValue)
             return .success
@@ -531,16 +535,16 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         XCTAssertEqual(confirmed, [])
         XCTAssertTrue(seen[0].hasPrefix("page:chunk:"))
 
+        try await store.replaceAuthoritativeObjectForTesting(
+            deviceID: package.targetDeviceID,
+            content: Data("mutated-before-wire".utf8)
+        )
         var resumed: [String] = []
         let conflicted = try await runPage(
             package,
             files: files,
             context: .standard,
-            preconditions: AhaKeyRuntimePageExecutionPreconditions(
-                deviceID: package.targetDeviceID,
-                profile: .legacyStandard,
-                baseObjectFingerprint: try baseFingerprint("mutated-before-wire")
-            )
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
         ) { step in
             resumed.append(step.rawValue)
             return .success
@@ -572,16 +576,13 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         let plan = try AhaKeyRuntimePageSemantic.executionPlan(package: package, userSlotLimit: 64)
         XCTAssertTrue(AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan))
 
+        try await store.deleteAuthoritativeObjectForTesting(deviceID: package.targetDeviceID)
         var resumed: [String] = []
         let completed = try await runPage(
             package,
             files: files,
             context: .standard,
-            preconditions: AhaKeyRuntimePageExecutionPreconditions(
-                deviceID: package.targetDeviceID,
-                profile: .legacyStandard,
-                baseObjectFingerprint: nil
-            )
+            preconditions: matchingPreconditions(package, profile: .legacyStandard)
         ) { step in
             resumed.append(step.rawValue)
             return .success
@@ -1054,7 +1055,15 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
         runner: AhaKeyConfigurationTransactionRunner? = nil,
         execute: AhaKeyConfigurationTransactionRunner.StepExecutor
     ) async throws -> AhaKeyRuntimeOperationState {
-        try await (runner ?? AhaKeyConfigurationTransactionRunner(store: store)).run(
+        if package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion,
+           try await store.transaction(package.operationID) == nil,
+           try await store.authoritativeObjectContent(for: package.targetDeviceID) == nil {
+            try await store.seedAuthoritativeObjectForTesting(
+                deviceID: package.targetDeviceID,
+                content: Data("base-object".utf8)
+            )
+        }
+        return try await (runner ?? AhaKeyConfigurationTransactionRunner(store: store)).run(
             package: package,
             resourceFiles: files,
             context: context,
@@ -1175,7 +1184,7 @@ final class AhaKeyRuntimePageExecutionTests: XCTestCase {
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID(device),
             baseRevision: .init(1),
-            baseObjectFingerprint: try baseFingerprint(seed),
+            baseObjectFingerprint: try baseFingerprint(),
             verifiedResources: [],
             operationID: operation
         )

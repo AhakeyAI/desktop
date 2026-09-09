@@ -397,14 +397,20 @@ public struct AhaKeyRuntimeResourceAdmissionToken: Codable, Equatable, Sendable 
 public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
     public let items: [AhaKeyXPCResourceIngestionItem]
     public let admission: AhaKeyRuntimeResourceAdmissionToken
+    public let fieldBaselineProof: AhaKeyRuntimePageFieldBaselineProof?
 
-    public init(items: [AhaKeyXPCResourceIngestionItem], admission: AhaKeyRuntimeResourceAdmissionToken) {
+    public init(
+        items: [AhaKeyXPCResourceIngestionItem],
+        admission: AhaKeyRuntimeResourceAdmissionToken,
+        fieldBaselineProof: AhaKeyRuntimePageFieldBaselineProof? = nil
+    ) {
         self.items = items
         self.admission = admission
+        self.fieldBaselineProof = fieldBaselineProof
     }
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case items, admission
+        case items, admission, fieldBaselineProof
     }
 
     public init(from decoder: Decoder) throws {
@@ -415,8 +421,14 @@ public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
                 error: .corruptRuntimeFact
             )
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            guard CodingKeys.allCases.allSatisfy({ container.contains($0) }) else {
+            guard container.contains(.items), container.contains(.admission) else {
                 throw AhaKeyRuntimeContractError.corruptRuntimeFact
+            }
+            let proof: AhaKeyRuntimePageFieldBaselineProof?
+            if container.contains(.fieldBaselineProof) {
+                proof = try container.decode(AhaKeyRuntimePageFieldBaselineProof.self, forKey: .fieldBaselineProof)
+            } else {
+                proof = nil
             }
             self.init(
                 items: try AhaKeyRuntimeAdmissionNestedCoding.decodeItems(
@@ -425,7 +437,8 @@ public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
                 admission: try container.decode(
                     AhaKeyRuntimeResourceAdmissionToken.self,
                     forKey: .admission
-                )
+                ),
+                fieldBaselineProof: proof
             )
         } catch is AhaKeyRuntimeContractError {
             throw AhaKeyRuntimeContractError.corruptRuntimeFact
@@ -438,6 +451,9 @@ public struct AhaKeyXPCResourceIngestionRequest: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(items, forKey: .items)
         try container.encode(admission, forKey: .admission)
+        if let fieldBaselineProof {
+            try container.encode(fieldBaselineProof, forKey: .fieldBaselineProof)
+        }
     }
 }
 

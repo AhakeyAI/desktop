@@ -468,10 +468,10 @@ public enum AhaKeyRuntimeCanonicalPageWrite {
         desiredConfiguration: Data,
         proof: AhaKeyRuntimePageFieldBaselineProof
     ) throws {
-        let overwrite = try overwriteSemantic(from: desiredConfiguration)
-        if proof.requiresOverwriteConfirmation, !overwrite {
+        guard try overwriteSemantic(from: desiredConfiguration) else {
             throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
         }
+        _ = proof
     }
 
     private struct Payload: Codable {

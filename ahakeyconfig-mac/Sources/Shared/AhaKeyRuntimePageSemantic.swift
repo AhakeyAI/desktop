@@ -1085,10 +1085,14 @@ extension AhaKeyRuntimePageSemantic {
         preconditions: AhaKeyRuntimePageExecutionPreconditions?,
         hasDeviceWrites: Bool
     ) throws {
-        try AhaKeyRuntimePageBaseAuthority.evaluatePreflight(
+        _ = hasDeviceWrites
+        guard let preconditions else {
+            throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
+        }
+        try AhaKeyRuntimePageBaseAuthority.evaluateLiveCompatibility(
             package: package,
-            preconditions: preconditions,
-            hasDeviceWrites: hasDeviceWrites
+            deviceID: preconditions.deviceID,
+            profile: preconditions.profile
         )
     }
 

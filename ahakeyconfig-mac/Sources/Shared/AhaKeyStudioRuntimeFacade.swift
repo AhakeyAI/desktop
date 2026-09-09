@@ -289,7 +289,8 @@ public actor AhaKeyStudioRuntimeFacade {
     /// 核当前 live token 后立刻发 ingest，中间无额外重核。
     private func exchangeIngest(
         _ items: [AhaKeyXPCResourceIngestionItem],
-        using expected: ActiveDeviceAdmission
+        using expected: ActiveDeviceAdmission,
+        fieldBaselineProof: AhaKeyRuntimePageFieldBaselineProof? = nil
     ) async throws {
         let live = try requireLiveAdmission(
             matching: expected,
@@ -298,7 +299,11 @@ public actor AhaKeyStudioRuntimeFacade {
         )
         let token = try live.resourceToken()
         let response = try await transport.exchange(
-            .ingestResources(.init(items: items, admission: token))
+            .ingestResources(.init(
+                items: items,
+                admission: token,
+                fieldBaselineProof: fieldBaselineProof
+            ))
         )
         guard case .resourcesIngested = response else {
             switch response {
@@ -995,7 +1000,13 @@ extension AhaKeyStudioRuntimeFacade {
                 )
             }
             pageSubmitIngestCalls += 1
-            try await exchangeIngest(items, using: admission)
+            let proof: AhaKeyRuntimePageFieldBaselineProof?
+            if case .fieldBaselines(let fieldProof) = decision.proof {
+                proof = fieldProof
+            } else {
+                proof = nil
+            }
+            try await exchangeIngest(items, using: admission, fieldBaselineProof: proof)
         }
         pageSubmitApplyCalls += 1
         let operationID = try await exchangeApply(

@@ -1199,6 +1199,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
             case .resourceTooLarge, .resourceQuotaExceeded:
                 return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
+            case .pageFieldBaselineConflict:
+                return .failure(.configurationFieldBaselineConflict)
+            case .pageBaseObjectConflict, .pageBaseAuthorityUnreadable:
+                return .failure(.configurationPreflightConflict)
             default:
                 return .failure(try! AhaKeyRuntimeEventCode("accept-failed"))
             }
@@ -1249,7 +1253,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             try await store.ingestResources(
                 request.items,
                 reservedBy: reservation,
-                using: resourceAdmissionFence
+                using: resourceAdmissionFence,
+                fieldBaselineProof: request.fieldBaselineProof,
+                proofDeviceID: request.fieldBaselineProof == nil ? nil : request.admission.targetDeviceID
             )
         } catch AhaKeyRuntimeAdmissionWriteError.staleReservation {
             return .failure(try! AhaKeyRuntimeEventCode("unsupported-protocol"))
@@ -1259,6 +1265,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 return .failure(try! AhaKeyRuntimeEventCode("resource-oversized"))
             case .resourceDigestMismatch, .resourceByteCountMismatch:
                 return .failure(try! AhaKeyRuntimeEventCode("resource-validation-failed"))
+            case .pageFieldBaselineConflict:
+                return .failure(.configurationFieldBaselineConflict)
+            case .pageBaseObjectConflict, .pageBaseAuthorityUnreadable:
+                return .failure(.configurationPreflightConflict)
             default:
                 return .failure(try! AhaKeyRuntimeEventCode("ingest-failed"))
             }
@@ -2747,24 +2757,11 @@ extension AhaKeyAgent {
             return nil
         }
         guard let deviceID else { return nil }
-        let confirmed = (try? await store.confirmedSteps(for: package.operationID)) ?? []
-        let plan = pagePlanForWriteFact(package: package, userSlotLimit: context.layout.userSlotLimit)
-        let hasDeviceWrites = AhaKeyRuntimePageSemantic.hasDeviceWrites(confirmed: confirmed, plan: plan)
-        let live = try? await store.authoritativeObjectFingerprint(for: deviceID)
-        let liveFields = (try? await store.pageFieldBaselines(
-            deviceID: deviceID,
-            pageID: package.pageOperation?.pageScope
-        )) ?? []
-        if !hasDeviceWrites,
-           live == nil,
-           package.schemaVersion == AhaKeyConfigurationPackage.pageScopedSchemaVersion {
-            return nil
-        }
         return AhaKeyRuntimePageExecutionPreconditions(
             deviceID: deviceID,
             profile: context.profile,
-            baseObjectFingerprint: live,
-            fieldBaselines: liveFields
+            baseObjectFingerprint: nil,
+            fieldBaselines: []
         )
     }
 

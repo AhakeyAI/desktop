@@ -50,40 +50,71 @@ public enum AhaKeyRuntimePageBaseAuthority {
         ) {
             throw AhaKeyRuntimePageBaseAuthorityError.unsupportedPeerForFirstPageBaseline
         }
+        if !overwriteSemantic {
+            throw AhaKeyRuntimePageBaseAuthorityError.overwriteConfirmationRequired
+        }
         let proof = try AhaKeyRuntimePageFieldBaselineProof.make(
             deviceID: deviceID,
             pageID: pageID,
             fieldMask: fieldMask,
             liveBaselines: liveBaselines
         )
-        if proof.requiresOverwriteConfirmation, !overwriteSemantic {
-            throw AhaKeyRuntimePageBaseAuthorityError.overwriteConfirmationRequired
-        }
         return Decision(
             schemaVersion: AhaKeyConfigurationPackage.fieldBaselineSchemaVersion,
             proof: .fieldBaselines(proof)
         )
     }
 
-    public static func evaluatePreflight(
+    /// Store 一次事务读出的 durable authority。object nil 表示缺行，空 Data 视为损坏。
+    public struct Snapshot: Equatable, Sendable {
+        public let confirmedSteps: [AhaKeyRuntimeStepIdentifier]
+        public let authoritativeObject: Data?
+        public let fieldBaselines: [AhaKeyRuntimeFieldBaseline]
+
+        public init(
+            confirmedSteps: [AhaKeyRuntimeStepIdentifier],
+            authoritativeObject: Data?,
+            fieldBaselines: [AhaKeyRuntimeFieldBaseline]
+        ) {
+            self.confirmedSteps = confirmedSteps
+            self.authoritativeObject = authoritativeObject
+            self.fieldBaselines = fieldBaselines
+        }
+
+        public var objectFingerprint: AhaKeyRuntimeObjectFingerprint? {
+            guard let authoritativeObject, !authoritativeObject.isEmpty else { return nil }
+            return try? AhaKeyRuntimeObjectFingerprint.hashing(authoritativeObject)
+        }
+    }
+
+    public static func evaluateLiveCompatibility(
         package: AhaKeyConfigurationPackage,
-        preconditions: AhaKeyRuntimePageExecutionPreconditions?,
-        hasDeviceWrites: Bool
+        deviceID: AhaKeyRuntimeDeviceID,
+        profile: AhaKeyOLEDCompatibilityProfile
     ) throws {
-        guard let contract = package.pageOperation,
-              package.usesPageRunner else {
+        guard let contract = package.pageOperation, package.usesPageRunner else {
             throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
         }
-        guard let preconditions else {
-            throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
-        }
-        guard preconditions.deviceID == package.targetDeviceID,
-              preconditions.deviceID == contract.targetDeviceID else {
+        guard deviceID == package.targetDeviceID, deviceID == contract.targetDeviceID else {
             throw AhaKeyRuntimePageExecutionPreflightError.deviceMismatch
         }
-        let liveFamily = try AhaKeyRuntimeCompatibilityFingerprint.Family.make(preconditions.profile)
+        let liveFamily = try AhaKeyRuntimeCompatibilityFingerprint.Family.make(profile)
         guard liveFamily == contract.compatibilityFingerprint.family else {
             throw AhaKeyRuntimePageExecutionPreflightError.compatibilityMismatch
+        }
+    }
+
+    /// 与 FIFO 队首转 running / schema=3 accept 共用的 durable CAS。读失败不得在此变成 absent。
+    public static func evaluateDurableCAS(
+        package: AhaKeyConfigurationPackage,
+        snapshot: Snapshot,
+        hasDeviceWrites: Bool
+    ) throws {
+        guard let contract = package.pageOperation, package.usesPageRunner else {
+            throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
+        }
+        if let object = snapshot.authoritativeObject, object.isEmpty {
+            throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
         }
         if hasDeviceWrites {
             return
@@ -93,9 +124,10 @@ public enum AhaKeyRuntimePageBaseAuthority {
             guard let frozen = contract.baseObjectFingerprint else {
                 throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
             }
-            guard let live = preconditions.baseObjectFingerprint else {
+            guard let liveObject = snapshot.authoritativeObject, !liveObject.isEmpty else {
                 throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
             }
+            let live = try AhaKeyRuntimeObjectFingerprint.hashing(liveObject)
             guard live == frozen else {
                 throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
             }
@@ -103,8 +135,11 @@ public enum AhaKeyRuntimePageBaseAuthority {
             guard let frozen = contract.fieldBaselines else {
                 throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
             }
+            if snapshot.authoritativeObject != nil {
+                throw AhaKeyRuntimePageExecutionPreflightError.baseObjectConflict
+            }
             try frozen.matchLive(
-                preconditions.fieldBaselines,
+                snapshot.fieldBaselines,
                 deviceID: package.targetDeviceID,
                 pageID: contract.pageScope,
                 operationID: package.operationID
@@ -112,6 +147,27 @@ public enum AhaKeyRuntimePageBaseAuthority {
         default:
             throw AhaKeyRuntimePageExecutionPreflightError.mappingRejected
         }
+    }
+
+    public static func evaluatePreflight(
+        package: AhaKeyConfigurationPackage,
+        preconditions: AhaKeyRuntimePageExecutionPreconditions?,
+        snapshot: Snapshot,
+        hasDeviceWrites: Bool
+    ) throws {
+        guard let preconditions else {
+            throw AhaKeyRuntimePageExecutionPreflightError.missingPreconditions
+        }
+        try evaluateLiveCompatibility(
+            package: package,
+            deviceID: preconditions.deviceID,
+            profile: preconditions.profile
+        )
+        try evaluateDurableCAS(
+            package: package,
+            snapshot: snapshot,
+            hasDeviceWrites: hasDeviceWrites
+        )
     }
 }
 
@@ -420,20 +476,47 @@ public struct AhaKeyRuntimePageFieldExpectation: Codable, Equatable, Sendable {
             error: .invalidFieldBaselineProof
         )
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        try self.init(
-            kind: try container.decode(Kind.self, forKey: .kind),
-            deviceID: try container.decode(AhaKeyRuntimeDeviceID.self, forKey: .deviceID),
-            pageID: try container.decode(AhaKeyStudioPageID.self, forKey: .pageID),
-            fieldID: try container.decode(AhaKeyStudioFieldID.self, forKey: .fieldID),
-            value: try container.decodeIfPresent(AhaKeyRuntimeBaselineValue.self, forKey: .value),
-            trust: try container.decodeIfPresent(AhaKeyRuntimeBaselineTrust.self, forKey: .trust),
-            provenance: try container.decodeIfPresent(AhaKeyRuntimeBaselineProvenance.self, forKey: .provenance),
-            operationID: try container.decodeIfPresent(AhaKeyRuntimeOperationID.self, forKey: .operationID),
-            authorityVersion: try container.decodeIfPresent(
-                AhaKeyRuntimeAuthoritativeVersion.self,
-                forKey: .authorityVersion
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        let deviceID = try container.decode(AhaKeyRuntimeDeviceID.self, forKey: .deviceID)
+        let pageID = try container.decode(AhaKeyStudioPageID.self, forKey: .pageID)
+        let fieldID = try container.decode(AhaKeyStudioFieldID.self, forKey: .fieldID)
+        let identityKeys: Set<CodingKeys> = [.kind, .deviceID, .pageID, .fieldID]
+        let baselineKeys: Set<CodingKeys> = [.value, .trust, .provenance, .operationID, .authorityVersion]
+        switch kind {
+        case .absent:
+            for key in baselineKeys where container.contains(key) {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+            try self.init(
+                kind: .absent,
+                deviceID: deviceID,
+                pageID: pageID,
+                fieldID: fieldID,
+                value: nil,
+                trust: nil,
+                provenance: nil,
+                operationID: nil,
+                authorityVersion: nil
             )
-        )
+        case .baseline:
+            for key in identityKeys.union(baselineKeys) where !container.contains(key) {
+                throw AhaKeyRuntimeContractError.invalidFieldBaselineProof
+            }
+            try self.init(
+                kind: .baseline,
+                deviceID: deviceID,
+                pageID: pageID,
+                fieldID: fieldID,
+                value: try container.decode(AhaKeyRuntimeBaselineValue.self, forKey: .value),
+                trust: try container.decode(AhaKeyRuntimeBaselineTrust.self, forKey: .trust),
+                provenance: try container.decode(AhaKeyRuntimeBaselineProvenance.self, forKey: .provenance),
+                operationID: try container.decode(AhaKeyRuntimeOperationID?.self, forKey: .operationID),
+                authorityVersion: try container.decode(
+                    AhaKeyRuntimeAuthoritativeVersion?.self,
+                    forKey: .authorityVersion
+                )
+            )
+        }
     }
 
     public func encode(to encoder: Encoder) throws {

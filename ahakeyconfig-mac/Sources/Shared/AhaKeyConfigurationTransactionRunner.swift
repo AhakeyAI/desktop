@@ -157,10 +157,10 @@ public struct AhaKeyConfigurationTransactionRunner {
             plan: pagePlan
         )
         do {
-            try AhaKeyRuntimePageSemantic.evaluatePreflight(
+            try AhaKeyRuntimePageBaseAuthority.evaluateLiveCompatibility(
                 package: package,
-                preconditions: pagePreconditions,
-                hasDeviceWrites: hasDeviceWrites
+                deviceID: pagePreconditions?.deviceID ?? package.targetDeviceID,
+                profile: pagePreconditions?.profile ?? context.profile
             )
         } catch let error as AhaKeyRuntimePageExecutionPreflightError {
             let code: AhaKeyRuntimeEventCode
@@ -223,14 +223,25 @@ public struct AhaKeyConfigurationTransactionRunner {
                 return try await store.transaction(package.operationID)?.state ?? .accepted
             case .persistState(let state):
                 let attachFailure = state == .resumablePartial || state == .paused
-                try await persistNonTerminal(
-                    state,
-                    package: package,
-                    completed: UInt32(confirmed.count),
-                    total: totalSteps,
-                    messageCode: attachFailure ? capturedMessageCode : nil,
-                    failureContext: attachFailure ? capturedContext : nil
-                )
+                do {
+                    try await persistNonTerminal(
+                        state,
+                        package: package,
+                        completed: UInt32(confirmed.count),
+                        total: totalSteps,
+                        messageCode: attachFailure ? capturedMessageCode : nil,
+                        failureContext: attachFailure ? capturedContext : nil
+                    )
+                } catch let error as AhaKeyRuntimePersistenceError {
+                    if package.usesPageRunner, state == .running {
+                        return try await finishTerminal(
+                            package: package,
+                            hasWrites: hasWrites(),
+                            messageCode: Self.pageStartFailureCode(error)
+                        )
+                    }
+                    throw error
+                }
                 actions.removeFirst()
             case .executeStep(let step):
                 let report = unpacked(await execute(step), step: step)
@@ -481,6 +492,17 @@ public struct AhaKeyConfigurationTransactionRunner {
             syncBaseline: nil
         )
         return state
+    }
+
+    private static func pageStartFailureCode(
+        _ error: AhaKeyRuntimePersistenceError
+    ) -> AhaKeyRuntimeEventCode {
+        switch error {
+        case .pageFieldBaselineConflict:
+            return .configurationFieldBaselineConflict
+        default:
+            return .configurationPreflightConflict
+        }
     }
 }
 

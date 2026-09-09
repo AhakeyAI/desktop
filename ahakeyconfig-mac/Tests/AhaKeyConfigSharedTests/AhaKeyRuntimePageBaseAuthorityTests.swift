@@ -145,7 +145,7 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
         XCTAssertTrue(proof.requiresOverwriteConfirmation)
     }
 
-    func testDurableFieldsDoNotRequireOverwrite() throws {
+    func testDurableFieldsStillRequireOverwrite() throws {
         let device = try AhaKeyRuntimeDeviceID("DEV")
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         let confirmed = AhaKeyRuntimeFieldBaseline(
@@ -157,16 +157,31 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             provenance: .writeConfirmation,
             operationID: .init()
         )
-        let decision = try AhaKeyRuntimePageBaseAuthority.resolve(
+        XCTAssertThrowsError(
+            try AhaKeyRuntimePageBaseAuthority.resolve(
+                authoritativeObject: nil,
+                overwriteSemantic: false,
+                deviceID: device,
+                pageID: .screen(modeSlot: 0),
+                fieldMask: [field],
+                liveBaselines: [confirmed]
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AhaKeyRuntimePageBaseAuthorityError,
+                .overwriteConfirmationRequired
+            )
+        }
+        let allowed = try AhaKeyRuntimePageBaseAuthority.resolve(
             authoritativeObject: nil,
-            overwriteSemantic: false,
+            overwriteSemantic: true,
             deviceID: device,
             pageID: .screen(modeSlot: 0),
             fieldMask: [field],
             liveBaselines: [confirmed]
         )
-        XCTAssertEqual(decision.schemaVersion, 3)
-        XCTAssertFalse(try XCTUnwrap(decision.fieldBaselines).requiresOverwriteConfirmation)
+        XCTAssertEqual(allowed.schemaVersion, 3)
+        XCTAssertEqual(try XCTUnwrap(allowed.fieldBaselines).expectations[0].kind, .baseline)
     }
 
     func testSchema2PackageRoundTripOmitsFieldBaselines() throws {
@@ -297,18 +312,13 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
             provenance: .writeConfirmation,
             operationID: .init()
         )
-        let raced = AhaKeyRuntimePageExecutionPreconditions(
-            deviceID: device,
-            profile: .legacyStandard,
-            baseObjectFingerprint: nil,
-            fieldBaselines: [mutated]
-        )
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.upsertPageFieldBaselineForTesting(mutated)
         let state = try await runner.run(
             package: package,
             resourceFiles: [:],
             context: .standard,
-            release: .picturesUnrestrictedForTests,
-            pagePreconditions: raced
+            release: .picturesUnrestrictedForTests
         ) { step in
             executed.append(step.rawValue)
             return .success
@@ -320,7 +330,7 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
         let object = try await store.authoritativeObjectContent(for: device)
         XCTAssertNil(object)
         let baselines = try await store.pageFieldBaselines(deviceID: device)
-        XCTAssertEqual(baselines, [])
+        XCTAssertEqual(baselines, [mutated])
     }
 
     func testSuccessfulFieldWriteDoesNotCreateAuthoritativeObject() async throws {
@@ -351,6 +361,8 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
         XCTAssertEqual(state, .completed)
         let object = try await store.authoritativeObjectContent(for: device)
         XCTAssertNil(object)
+        let baselines = try await store.pageFieldBaselines(deviceID: device)
+        XCTAssertEqual(baselines.map(\.trust), [.writeConfirmed])
         let reopened = try AhaKeyRuntimePersistentStore(
             rootDirectory: root,
             acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator(
@@ -521,6 +533,261 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
         XCTAssertEqual(reopenedRecord?.state, .completed)
     }
 
+    func testAbsentExpectationRejectsBaselineKeysEvenWhenNull() throws {
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let json: [String: Any] = [
+            "kind": "absent",
+            "deviceID": device.rawValue,
+            "pageID": try jsonObject(AhaKeyStudioPageID.screen(modeSlot: 0)),
+            "fieldID": try jsonObject(field),
+            "value": NSNull(),
+        ]
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimePageFieldExpectation.self,
+                from: try JSONSerialization.data(withJSONObject: json)
+            )
+        )
+    }
+
+    func testBaselineExpectationRequiresNullableKeys() throws {
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
+        let row = AhaKeyRuntimeFieldBaseline(
+            deviceID: device,
+            pageID: .screen(modeSlot: 0),
+            fieldID: field,
+            value: .text("kept"),
+            trust: .writeConfirmed,
+            provenance: .writeConfirmation,
+            operationID: nil
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: try JSONEncoder().encode(AhaKeyRuntimePageFieldExpectation.baseline(row))
+            ) as? [String: Any]
+        )
+        object.removeValue(forKey: "operationID")
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                AhaKeyRuntimePageFieldExpectation.self,
+                from: try JSONSerialization.data(withJSONObject: object)
+            )
+        )
+        object["operationID"] = NSNull()
+        let decoded = try JSONDecoder().decode(
+            AhaKeyRuntimePageFieldExpectation.self,
+            from: try JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertEqual(decoded.kind, .baseline)
+        XCTAssertNil(decoded.operationID)
+    }
+
+    func testAcceptThenMutateBaselineConflictsBeforeRunning() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br1-race-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let package = try fieldPackage(device: device, overwrite: true)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.upsertPageFieldBaselineForTesting(
+            AhaKeyRuntimeFieldBaseline(
+                deviceID: device,
+                pageID: .screen(modeSlot: 0),
+                fieldID: .screenStatusLine(modeSlot: 0),
+                value: .text("raced"),
+                trust: .writeConfirmed,
+                provenance: .writeConfirmation,
+                operationID: .init()
+            )
+        )
+        var executed: [String] = []
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package,
+            resourceFiles: [:],
+            context: .standard,
+            release: .picturesUnrestrictedForTests
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(state, .failedWithoutWrites)
+        XCTAssertEqual(executed, [])
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.messageCode, .configurationFieldBaselineConflict)
+        XCTAssertEqual(record?.state, .failedWithoutWrites)
+    }
+
+    func testStartSnapshotMutationConflictsBeforeRunningCommit() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br1-hook-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let package = try fieldPackage(device: device, overwrite: true)
+        _ = try await store.accept(package, resourceFiles: [:])
+        let raced = AhaKeyRuntimeFieldBaseline(
+            deviceID: device,
+            pageID: .screen(modeSlot: 0),
+            fieldID: .screenStatusLine(modeSlot: 0),
+            value: .text("hooked"),
+            trust: .writeConfirmed,
+            provenance: .writeConfirmation,
+            operationID: .init()
+        )
+        await store.setTestingHooks(.init(pageStartFieldBaseline: raced))
+        var executed: [String] = []
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package,
+            resourceFiles: [:],
+            context: .standard,
+            release: .picturesUnrestrictedForTests
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(state, .failedWithoutWrites)
+        XCTAssertEqual(executed, [])
+        let code = try await store.transaction(package.operationID)?.messageCode
+        XCTAssertEqual(code, .configurationFieldBaselineConflict)
+    }
+
+    func testIngestStaleFieldProofFailsClosedBeforeJournal() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br1-ingest-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let bytes = Data("gif-c5br1".utf8)
+        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        let item = AhaKeyXPCResourceIngestionItem(
+            logicalIdentifier: try AhaKeyResourceIdentifier("mode0-set0-working"),
+            sha256: try AhaKeySHA256Digest(digest),
+            byteCount: UInt64(bytes.count),
+            data: bytes
+        )
+        let proof = try AhaKeyRuntimePageFieldBaselineProof.make(
+            deviceID: device,
+            pageID: .screen(modeSlot: 0),
+            fieldMask: [.screenStatusLine(modeSlot: 0)],
+            liveBaselines: []
+        )
+        try await store.upsertPageFieldBaselineForTesting(
+            AhaKeyRuntimeFieldBaseline(
+                deviceID: device,
+                pageID: .screen(modeSlot: 0),
+                fieldID: .screenStatusLine(modeSlot: 0),
+                value: .text("raced"),
+                trust: .writeConfirmed,
+                provenance: .writeConfirmation,
+                operationID: .init()
+            )
+        )
+        do {
+            try await store.ingestResources(
+                [item],
+                fieldBaselineProof: proof,
+                proofDeviceID: device
+            )
+            XCTFail("stale field proof must fail before resource journal")
+        } catch {
+            XCTAssertEqual(error as? AhaKeyRuntimePersistenceError, .pageFieldBaselineConflict)
+        }
+        let ingested = try await store.resourceURL(for: item.sha256)
+        XCTAssertNil(ingested)
+    }
+
+    func testSchema3AssembleRejectsOverwriteFalse() throws {
+        XCTAssertThrowsError(
+            try fieldPackage(device: try AhaKeyRuntimeDeviceID("DEV"), overwrite: false)
+        )
+    }
+
+    func testSchema1ObjectInterleavedWithSchema3Conflicts() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br1-obj-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let package = try fieldPackage(device: device, overwrite: true)
+        _ = try await store.accept(package, resourceFiles: [:])
+        try await store.seedAuthoritativeObjectForTesting(deviceID: device, content: Data("schema1".utf8))
+        var executed: [String] = []
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package,
+            resourceFiles: [:],
+            context: .standard,
+            release: .picturesUnrestrictedForTests
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(state, .failedWithoutWrites)
+        XCTAssertEqual(executed, [])
+        let code = try await store.transaction(package.operationID)?.messageCode
+        XCTAssertEqual(code, .configurationPreflightConflict)
+    }
+
+    func testStoreBaselineReadErrorFailsClosedInsteadOfAbsent() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br1-read-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let package = try fieldPackage(device: device, overwrite: true)
+        _ = try await store.accept(package, resourceFiles: [:])
+        await store.setTestingHooks(.init(pageBaselineReadShouldFail: true))
+        var executed: [String] = []
+        let state = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: package,
+            resourceFiles: [:],
+            context: .standard,
+            release: .picturesUnrestrictedForTests
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(state, .failedWithoutWrites)
+        XCTAssertEqual(executed, [])
+        let object = try await store.authoritativeObjectContent(for: device)
+        XCTAssertNil(object)
+    }
+
+    func testOverlappingFieldMaskSecondHeadConflictsAfterFirstWrite() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c5br1-overlap-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try makeStore(root: root)
+        let device = try AhaKeyRuntimeDeviceID("DEV")
+        let first = try fieldPackage(device: device, overwrite: true, seed: "one")
+        let second = try fieldPackage(device: device, overwrite: true, seed: "two")
+        _ = try await store.accept(first, resourceFiles: [:])
+        _ = try await store.accept(second, resourceFiles: [:])
+        let firstState = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: first,
+            resourceFiles: [:],
+            context: .standard,
+            release: .picturesUnrestrictedForTests
+        ) { _ in .success }
+        XCTAssertEqual(firstState, .completed)
+        var executed: [String] = []
+        let secondState = try await AhaKeyConfigurationTransactionRunner(store: store).run(
+            package: second,
+            resourceFiles: [:],
+            context: .standard,
+            release: .picturesUnrestrictedForTests
+        ) { step in
+            executed.append(step.rawValue)
+            return .success
+        }
+        XCTAssertEqual(secondState, .failedWithoutWrites)
+        XCTAssertEqual(executed, [])
+        let code = try await store.transaction(second.operationID)?.messageCode
+        XCTAssertEqual(code, .configurationFieldBaselineConflict)
+    }
+
     func testStandardDoesNotEmitSetActiveSet() throws {
         let fixture = try pictureFixture(frames: 1)
         var plan = fixture.plan
@@ -547,6 +814,22 @@ final class AhaKeyRuntimePageBaseAuthorityTests: XCTestCase {
                 if case .setActiveSet = $0.command { return true }
                 return false
             } ?? true
+        )
+    }
+
+    private func makeStore(root: URL) throws -> AhaKeyRuntimePersistentStore {
+        try AhaKeyRuntimePersistentStore(
+            rootDirectory: root,
+            acceptanceValidator: AhaKeyRuntimeSchemaAwareAcceptanceValidator(
+                schema1: AllowingResourceValidator()
+            )
+        )
+    }
+
+    private func jsonObject<T: Encodable>(_ value: T) throws -> Any {
+        try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(value),
+            options: [.fragmentsAllowed]
         )
     }
 

@@ -1381,7 +1381,10 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         XCTAssertNotEqual(updated, sealed)
 
         let beforePage = updated
-        let page = try makePageScopedPackage(statusLine: "page-write")
+        let page = try makePageScopedPackage(
+            statusLine: "page-write",
+            objectContent: Data("configuration-v2".utf8)
+        )
         _ = try await store.accept(page, resourceFiles: [:])
         try await store.updateOperation(
             .init(
@@ -1894,6 +1897,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         _ = try await store.accept(a1, resourceFiles: [:])
         _ = try await store.accept(b1, resourceFiles: [:])
         _ = try await store.accept(a2, resourceFiles: [:])
+        try await seedPageObjectIfAbsent(store, deviceID: a1.targetDeviceID)
+        try await seedPageObjectIfAbsent(store, deviceID: b1.targetDeviceID)
 
         let queueA = try await store.durableDeviceQueue(a1.targetDeviceID)
         let queueB = try await store.durableDeviceQueue(b1.targetDeviceID)
@@ -2981,6 +2986,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
         let package = try makePageScopedPackage(statusLine: "ordering")
         let store = try AhaKeyRuntimePersistentStore(rootDirectory: root)
         _ = try await store.accept(package, resourceFiles: [:])
+        try await seedPageObjectIfAbsent(store, deviceID: package.targetDeviceID)
         try await store.updateOperation(
             .init(
                 id: package.operationID,
@@ -3082,6 +3088,7 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
 
         _ = try await store.accept(head, resourceFiles: [:])
         _ = try await store.accept(queued, resourceFiles: [:])
+        try await seedPageObjectIfAbsent(store, deviceID: head.targetDeviceID)
         try await store.updateOperation(
             .init(
                 id: head.operationID,
@@ -3970,7 +3977,8 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
     private func makePageScopedPackage(
         operationID: AhaKeyRuntimeOperationID = .init(),
         targetDeviceID: String = "TEST-DEVICE",
-        statusLine: String
+        statusLine: String,
+        objectContent: Data = Data("page-base-object".utf8)
     ) throws -> AhaKeyConfigurationPackage {
         let field = AhaKeyStudioFieldID.screenStatusLine(modeSlot: 0)
         let plan = AhaKeyStudioScopedWritePlan(
@@ -3989,10 +3997,23 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             profile: .legacyStandard,
             targetDeviceID: AhaKeyRuntimeDeviceID(targetDeviceID),
             baseRevision: .init(7),
-            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data(statusLine.utf8)),
+            baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(objectContent),
             verifiedResources: [],
             operationID: operationID
         )
+    }
+
+    private func seedPageObjectIfAbsent(
+        _ store: AhaKeyRuntimePersistentStore,
+        deviceID: AhaKeyRuntimeDeviceID,
+        content: Data = Data("page-base-object".utf8)
+    ) async throws {
+        if try await store.authoritativeObjectContent(for: deviceID) == nil {
+            try await store.seedAuthoritativeObjectForTesting(
+                deviceID: deviceID,
+                content: content
+            )
+        }
     }
 
     private func makePicturePackage(
@@ -4044,6 +4065,17 @@ final class AhaKeyRuntimePersistentStoreTests: XCTestCase {
             baseObjectFingerprint: try AhaKeyRuntimeObjectFingerprint.hashing(Data("picture-base".utf8)),
             verifiedResources: [resource],
             operationID: operationID
+        )
+    }
+
+    private func seedPictureObjectIfAbsent(
+        _ store: AhaKeyRuntimePersistentStore,
+        deviceID: AhaKeyRuntimeDeviceID
+    ) async throws {
+        try await seedPageObjectIfAbsent(
+            store,
+            deviceID: deviceID,
+            content: Data("picture-base".utf8)
         )
     }
 
