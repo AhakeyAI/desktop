@@ -8,6 +8,7 @@ import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import com.example.ahakey.platform.voice.VoiceAction;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,6 +34,12 @@ public class StudioState {
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
     private final KeyConfig voiceKeyShort = new KeyConfig(0x4000, "Typeless");
     private final KeyConfig voiceKeyLong = new KeyConfig(0x0A00, "WeChat Voice");
+    /** Desktop voice semantics; legacy HID fields above remain migration-only. */
+    private final IntegerProperty voiceThresholdMs = new SimpleIntegerProperty(350);
+    private final ObjectProperty<VoiceAction> voiceShortAction =
+        new SimpleObjectProperty<>(VoiceAction.SYSTEM_VOICE);
+    private final ObjectProperty<VoiceAction> voiceLongAction =
+        new SimpleObjectProperty<>(VoiceAction.SYSTEM_VOICE);
 
     private final Map<ModeSlot, EnumMap<StudioPart, KeyConfig>> keyConfigs = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, StringProperty> oledSummaries = new EnumMap<>(ModeSlot.class);
@@ -256,11 +263,39 @@ public class StudioState {
         return voiceKeyLong;
     }
 
+    public IntegerProperty voiceThresholdMsProperty() { return voiceThresholdMs; }
+    public int getVoiceThresholdMs() { return voiceThresholdMs.get(); }
+    public void setVoiceThresholdMs(int value) {
+        voiceThresholdMs.set(Math.max(50, Math.min(5000, value)));
+        markDirty(StudioPart.KEY1);
+    }
+    public ObjectProperty<VoiceAction> voiceShortActionProperty() { return voiceShortAction; }
+    public VoiceAction getVoiceShortAction() { return voiceShortAction.get(); }
+    public void setVoiceShortAction(VoiceAction value) {
+        voiceShortAction.set(value == null ? VoiceAction.NONE : value);
+        markDirty(StudioPart.KEY1);
+    }
+    public ObjectProperty<VoiceAction> voiceLongActionProperty() { return voiceLongAction; }
+    public VoiceAction getVoiceLongAction() { return voiceLongAction.get(); }
+    public void setVoiceLongAction(VoiceAction value) {
+        voiceLongAction.set(value == null ? VoiceAction.NONE : value);
+        markDirty(StudioPart.KEY1);
+    }
+    public void setVoiceActions(VoiceAction shortAction, VoiceAction longAction, int thresholdMs) {
+        voiceShortAction.set(shortAction == null ? VoiceAction.NONE : shortAction);
+        voiceLongAction.set(longAction == null ? VoiceAction.NONE : longAction);
+        voiceThresholdMs.set(Math.max(50, Math.min(5000, thresholdMs)));
+        markDirty(StudioPart.KEY1);
+    }
+
     public void resetVoiceKeyDefaults() {
         voiceKeyShort.setHidCode(0x4000);
         voiceKeyShort.setDescription("Typeless");
         voiceKeyLong.setHidCode(0x0A00);
         voiceKeyLong.setDescription("WeChat Voice");
+        voiceThresholdMs.set(350);
+        voiceShortAction.set(VoiceAction.SYSTEM_VOICE);
+        voiceLongAction.set(VoiceAction.SYSTEM_VOICE);
         markDirty(StudioPart.KEY1);
     }
 
@@ -443,6 +478,10 @@ public class StudioState {
     public void loadFromPersisted(PersistedDraft draft) {
         voiceKeyShort.setHidCode(draft.voiceKeyShortHid == null ? 0x4000 : draft.voiceKeyShortHid);
         voiceKeyLong.setHidCode(draft.voiceKeyLongHid == null ? 0x0A00 : draft.voiceKeyLongHid);
+        voiceThresholdMs.set(draft.voiceThresholdMs == null
+            ? 350 : Math.max(50, Math.min(5000, draft.voiceThresholdMs)));
+        voiceShortAction.set(parseVoiceAction(draft.voiceShortAction, VoiceAction.SYSTEM_VOICE));
+        voiceLongAction.set(parseVoiceAction(draft.voiceLongAction, VoiceAction.SYSTEM_VOICE));
         for (int i = 0; i < ModeSlot.values().length; i++) {
             ModeSlot mode = ModeSlot.values()[i];
             PersistedDraft.ModeDraft md = draft.modes[i];
@@ -505,6 +544,9 @@ public class StudioState {
         PersistedDraft d = new PersistedDraft();
         d.voiceKeyShortHid = voiceKeyShort.getHidCode();
         d.voiceKeyLongHid = voiceKeyLong.getHidCode();
+        d.voiceThresholdMs = voiceThresholdMs.get();
+        d.voiceShortAction = voiceShortAction.get().name();
+        d.voiceLongAction = voiceLongAction.get().name();
         d.revision = revision.get();
         d.lightBarPreviewId = lightBarPreview.get().getId();
         d.lightBrightness = lightBrightness.get();
@@ -552,6 +594,9 @@ public class StudioState {
         public int lightBrightness = 35;
         public Integer voiceKeyShortHid = 0x4000;
         public Integer voiceKeyLongHid = 0x0A00;
+        public Integer voiceThresholdMs = 350;
+        public String voiceShortAction = VoiceAction.SYSTEM_VOICE.name();
+        public String voiceLongAction = VoiceAction.SYSTEM_VOICE.name();
         public ModeDraft[] modes = new ModeDraft[ModeSlot.values().length];
 
         public static PersistedDraft defaults() {
@@ -597,6 +642,12 @@ public class StudioState {
             public String sha256;
             public String updatedAt;
         }
+    }
+
+    private static VoiceAction parseVoiceAction(String value, VoiceAction fallback) {
+        if (value == null) return fallback;
+        try { return VoiceAction.valueOf(value); }
+        catch (IllegalArgumentException ignored) { return fallback; }
     }
 }
 

@@ -498,3 +498,27 @@ stderr 和从本 operation 起点截取的 console buffer，只在 `Finished + C
 
 本轮只执行自动测试、打包和 PowerShell 语法检查；未执行真实 WCHISP、USB ISP、烧录或
 设备回读。管理员/非管理员 one-shot 路径以及完整真机重连闭环仍需受控硬件验证。
+
+## 20. Desktop F18 voice router (2026-09-09)
+
+本轮以 `1932229ae3cabc96a09a51520bd6431649343242` 为软件基线，在
+`voice-f18-software-router` 分支把语音键职责收口到桌面端。硬件固定上报 USB HID
+F18（usage `0x6D`，Windows `VK_F18=0x81`）；Windows 低级钩子只消费该 DOWN/UP，
+不再从当前工作模式的 KEY1 推导语音路由，也不把 F17 作为生产语音键。
+
+`VoiceButtonStateMachine` 使用 `System.nanoTime()` 和默认 350ms 阈值，重复 DOWN、
+孤立 UP 和 shutdown 后残留状态均被丢弃，产生 `SHORT_PRESS`、`LONG_PRESS_START`、
+`LONG_PRESS_END`。`VoiceActionRouter` 统一分派 `AHAKEY_VOICE`、`SYSTEM_VOICE`、
+`CUSTOM_SHORTCUT`、`NONE`；默认短按和长按均保持 Windows 系统语音（Win+H），以兼容
+现有无本地模型安装的行为。现有 SenseVoice 集成保持已确认的 C 型按住录音模型（长按开始、松开停止），
+不会注入 Typeless/微信 Fn；macOS 仅由平台无关动作模型预留，不宣称 Windows 实现。
+
+StudioState/StudioStore 复用现有配置存储保存 threshold/action。历史
+`voiceKeyShort`/`voiceKeyLong`、每模式 KEY1 `VoicePreset`、协议 `0x97` parser/readback
+仍保留用于读兼容和显式 legacy migration，但生产 `DeviceSyncService` 不再发送全局语音
+配置，桌面运行时也不以这些字段为语音事实源。模式切换不会改变 F18 路由。
+
+本轮新增纯单元测试覆盖 349ms/350ms 边界、重复与孤立事件、reset、统一动作路由，并将
+生产同步计划断言为不写 `CMD_VOICE_KEY_CONFIG`；显式 legacy 计划仍有兼容测试。自动测试、
+打包和静态检查完成后再记录实际结果；真实 F18 HID、麦克风、Win+H、AhaKey 模型及
+硬件长按验证仍属于软件手工/真机待验证，不得标为完成。

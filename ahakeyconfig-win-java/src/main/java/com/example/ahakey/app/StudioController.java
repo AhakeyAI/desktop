@@ -398,10 +398,8 @@ public class StudioController {
             return;
         }
 
-        boolean includeVoiceKey = false;
         try {
-            var capabilities = bleManager.requireStabilizedDeviceContract();
-            includeVoiceKey = capabilities.supports(AhaKeyProtocol.CAP_VOICE_KEY_DUAL_V1);
+            bleManager.requireStabilizedDeviceContract();
         } catch (Exception exception) {
             logger.warn("设备未满足稳定版能力合同，已阻止配置写入: {}",
                 exception.getMessage());
@@ -412,7 +410,7 @@ public class StudioController {
         int syncRevision = studioState.getRevision();
         StudioState.DirtySnapshot dirtySnapshot = studioState.captureDirtySnapshot();
         var commands = List.copyOf(DeviceSyncService.commandsForModes(
-            studioState, includeVoiceKey, ModeSlot.values()));
+            studioState, false, ModeSlot.values()));
         studioState.syncingProperty().set(true);
         studioState.syncStatusProperty().set("正在通过 " + transport + " 写入设备配置...");
         studioState.syncStatusProperty().set("正在写入设备配置...");
@@ -854,15 +852,21 @@ public class StudioController {
     public void applyVoicePreset(VoicePreset preset) {
         var key = studioState.getKeyConfig(StudioPart.KEY1);
         key.setVoicePreset(preset);
-        if (preset.locksShortcut()) {
-            if (preset == VoicePreset.MACOS_NATIVE) {
-                // macOS 原生语音始终使用 F18
-                key.setHidCode(com.example.ahakey.model.HIDUsage.F18);
-            } else if (studioState.getSelectedMode() == ModeSlot.MODE1) {
-                key.setHidCode(com.example.ahakey.model.HIDUsage.F17);
-            } else {
-                key.setHidCode(com.example.ahakey.model.HIDUsage.F18);
-            }
+        // The physical key is always F18.  Presets now select desktop
+        // semantics and never rewrite a per-mode firmware shortcut.
+        switch (preset) {
+            case WINDOWS_NATIVE -> studioState.setVoiceActions(
+                com.example.ahakey.platform.voice.VoiceAction.SYSTEM_VOICE,
+                com.example.ahakey.platform.voice.VoiceAction.SYSTEM_VOICE,
+                studioState.getVoiceThresholdMs());
+            case MACOS_NATIVE -> studioState.setVoiceActions(
+                com.example.ahakey.platform.voice.VoiceAction.CUSTOM_SHORTCUT,
+                com.example.ahakey.platform.voice.VoiceAction.CUSTOM_SHORTCUT,
+                studioState.getVoiceThresholdMs());
+            case TYPELESS, WECHAT, CUSTOM -> studioState.setVoiceActions(
+                com.example.ahakey.platform.voice.VoiceAction.CUSTOM_SHORTCUT,
+                com.example.ahakey.platform.voice.VoiceAction.CUSTOM_SHORTCUT,
+                studioState.getVoiceThresholdMs());
         }
         studioState.markDirty(StudioPart.KEY1);
         refreshVoiceRoutes();
@@ -887,7 +891,10 @@ public class StudioController {
     }
 
     private void refreshVoiceRoutes() {
-        voiceRelay.updateRoutes(studioState);
+        voiceRelay.configureVoiceActions(
+            studioState.getVoiceShortAction(),
+            studioState.getVoiceLongAction(),
+            studioState.getVoiceThresholdMs());
     }
 
     private void applyBleStatus(DeviceStatus status) {

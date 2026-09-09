@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import com.example.ahakey.platform.voice.VoiceAction;
 
 class StudioStateDirtySnapshotTest {
     @Test
@@ -46,5 +48,16 @@ class StudioStateDirtySnapshotTest {
         state.applyOledGifSelection("new.gif", 8);
         state.clearDirtyAfterSync(saved);
         assertTrue(state.isDirty(StudioPart.OLED));
+    }
+
+    @Test
+    void desktopVoiceActionsRoundTripThroughExistingDraftStoreModel() {
+        StudioState state = new StudioState();
+        state.setVoiceActions(VoiceAction.CUSTOM_SHORTCUT, VoiceAction.NONE, 351);
+        StudioState loaded = new StudioState();
+        loaded.loadFromPersisted(state.toPersisted());
+        assertEquals(351, loaded.getVoiceThresholdMs());
+        assertEquals(VoiceAction.CUSTOM_SHORTCUT, loaded.getVoiceShortAction());
+        assertEquals(VoiceAction.NONE, loaded.getVoiceLongAction());
     }
 }

@@ -5,6 +5,7 @@ import com.example.ahakey.app.ApplicationLifecycle;
 import com.example.ahakey.service.BleBridgeProcessOwner;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
+import com.example.ahakey.platform.voice.VoiceButtonEvent;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.util.LanguageManager;
 import com.example.ahakey.view.CanvasPane;
@@ -400,13 +401,16 @@ public class App extends Application {
             // 配置语音键回调：按下开始录音，释放停止录音
             if (WindowsVoiceTyping.isWindows()) {
                 WindowsVoiceRelayService relay = WindowsVoiceRelayService.getInstance();
-                relay.setOnVoiceKeyDown(() -> {
-                    if (voiceInputManager != null && voiceInputManager.isActivated()) {
+                relay.setOnVoiceAction(event -> {
+                    if (voiceInputManager == null || !voiceInputManager.isActivated()) return;
+                    // Existing SenseVoice integration is a press-to-start /
+                    // release-to-stop stream (model C).  The desktop state
+                    // machine starts it at LONG_PRESS_START and stops it at
+                    // LONG_PRESS_END; no synthetic Fn key is emitted.
+                    if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
                         voiceInputManager.startRecording();
-                    }
-                });
-                relay.setOnVoiceKeyUp(() -> {
-                    if (voiceInputManager != null && voiceInputManager.isRecording()) {
+                    } else if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_END
+                        && voiceInputManager.isRecording()) {
                         voiceInputManager.stopRecording();
                     }
                 });

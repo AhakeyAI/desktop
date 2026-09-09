@@ -18,18 +18,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeviceSyncServiceTest {
     @Test
-    void savesOneGlobalVoiceConfigAndSkipsLegacyPerModeKeyOne() {
+    void productionPlanDoesNotWriteLegacyGlobalVoiceConfig() {
         StudioState state = new StudioState();
         var commands = DeviceSyncService.commandsForModes(state, ModeSlot.values());
 
         var voiceCommands = commands.stream()
             .filter(c -> c.data()[2] == AhaKeyProtocol.CMD_VOICE_KEY_CONFIG)
             .toList();
-        assertEquals(1, voiceCommands.size());
-        assertArrayEquals(
-            AhaKeyProtocol.setVoiceKeyConfig(0x4000, 0x0A00),
-            voiceCommands.get(0).data()
-        );
+        assertTrue(voiceCommands.isEmpty());
 
         boolean writesLegacyKeyOne = commands.stream().anyMatch(c -> {
             byte[] frame = c.data();
@@ -38,6 +34,17 @@ class DeviceSyncServiceTest {
                 && frame[5] == 0;
         });
         assertFalse(writesLegacyKeyOne);
+    }
+
+    @Test
+    void explicitLegacyPlanStillSupportsGlobalVoiceConfigMigration() {
+        StudioState state = new StudioState();
+        var commands = DeviceSyncService.commandsForModes(state, true, ModeSlot.values());
+        var voiceCommands = commands.stream()
+            .filter(c -> c.data()[2] == AhaKeyProtocol.CMD_VOICE_KEY_CONFIG)
+            .toList();
+        assertEquals(1, voiceCommands.size());
+        assertArrayEquals(AhaKeyProtocol.setVoiceKeyConfig(0x4000, 0x0A00), voiceCommands.get(0).data());
     }
 
     @Test
@@ -72,7 +79,7 @@ class DeviceSyncServiceTest {
     @Test
     void waitsForEveryAckBeforeVoiceReadbackAndCompletesSave() throws Exception {
         StudioState state = new StudioState();
-        var commands = DeviceSyncService.commandsForModes(state, ModeSlot.values());
+        var commands = DeviceSyncService.commandsForModes(state, true, ModeSlot.values());
         AckingBleManager ble = new AckingBleManager();
         CountDownLatch completed = new CountDownLatch(1);
         CountDownLatch failed = new CountDownLatch(1);

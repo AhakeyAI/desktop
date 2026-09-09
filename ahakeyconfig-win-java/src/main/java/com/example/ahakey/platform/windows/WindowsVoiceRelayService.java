@@ -1,11 +1,12 @@
 package com.example.ahakey.platform.windows;
 
-import com.example.ahakey.model.HIDUsage;
 import com.example.ahakey.model.ModeSlot;
-import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.model.VoicePreset;
-import com.sun.jna.Structure;
+import com.example.ahakey.platform.voice.VoiceAction;
+import com.example.ahakey.platform.voice.VoiceActionRouter;
+import com.example.ahakey.platform.voice.VoiceButtonEvent;
+import com.example.ahakey.platform.voice.VoiceButtonStateMachine;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.LRESULT;
@@ -19,15 +20,18 @@ import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
- * 对齐 macOS {@code VoiceRelayService} 的 Windows 子集：低级别键盘钩子吞掉 F17/F18，触发 Win+H。
+ * Windows voice adapter: consumes the physical F18 HID key and routes
+ * short/long semantic events to Desktop actions.
  */
 public final class WindowsVoiceRelayService {
     /** Keys held by an in-app test; never includes the physical keyboard. */
@@ -36,14 +40,26 @@ public final class WindowsVoiceRelayService {
     private static final int WH_KEYBOARD_LL = 13;
     private static final int WM_KEYDOWN = 0x0100;
     private static final int WM_KEYUP = 0x0101;
-    private static final int VK_F17 = 0x80;
-    private static final int VK_F18 = 0x81;
+    private static final int WM_SYSKEYDOWN = 0x0104;
+    private static final int WM_SYSKEYUP = 0x0105;
+    public static final int VK_F18 = 0x81;
     private final VoiceKeyPressState pressedVoiceKeys = new VoiceKeyPressState();
     private final ExecutorService voiceCommandQueue = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "win-voice-command");
         thread.setDaemon(true);
         return thread;
     });
+    private final ScheduledExecutorService voiceThresholdScheduler =
+        Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread thread = new Thread(r, "win-voice-threshold");
+            thread.setDaemon(true);
+            return thread;
+        });
+    private final VoiceActionRouter actionRouter = new VoiceActionRouter();
+    private volatile VoiceButtonStateMachine buttonStateMachine = new VoiceButtonStateMachine();
+    private volatile int configuredThresholdMs = 350;
+    private volatile ScheduledFuture<?> thresholdTask;
+    private long pressGeneration;
 
     private static WindowsVoiceRelayService instance;
 
@@ -62,11 +78,19 @@ public final class WindowsVoiceRelayService {
     private Runnable onVoiceKeyUp;
     private Runnable onSimulateRecordStart;
     private Runnable onSimulateRecordStop;
+    private Consumer<VoiceButtonEvent> onVoiceAction;
+
+    private WindowsVoiceRelayService() {
+        actionRouter.setExecutor(VoiceAction.SYSTEM_VOICE, event -> {
+            if (event.type() == VoiceButtonEvent.Type.SHORT_PRESS
+                || event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
+                WindowsVoiceTyping.trigger();
+            }
+        });
+    }
 
     private record VoiceRoute(int vkCode, ModeSlot mode, boolean factoryFallback) {
     }
-
-    private final List<VoiceRoute> routes = new ArrayList<>();
 
     public static synchronized WindowsVoiceRelayService getInstance() {
         if (instance == null) {
@@ -124,44 +148,31 @@ public final class WindowsVoiceRelayService {
         this.onSimulateRecordStop = callback;
     }
 
+    /** Installs desktop action semantics for the physical F18 key. */
+    public synchronized void configureVoiceActions(
+        VoiceAction shortAction, VoiceAction longAction, int thresholdMs
+    ) {
+        actionRouter.setActions(shortAction, longAction);
+        buttonStateMachine = new VoiceButtonStateMachine(thresholdMs);
+        configuredThresholdMs = thresholdMs;
+        pressGeneration++;
+        cancelThresholdTask();
+        activeRouteSummary.set("固定 F18（短按=" + shortAction + "，长按=" + longAction
+            + "，阈值=" + thresholdMs + "ms）");
+        refreshStatus();
+    }
+
+    public void setOnVoiceAction(Consumer<VoiceButtonEvent> callback) {
+        this.onVoiceAction = callback;
+    }
+
     public void updateRoutes(StudioState state) {
-        routes.clear();
         if (state == null) {
             activeRouteSummary.set("未配置路由。");
             return;
         }
-        for (ModeSlot mode : ModeSlot.values()) {
-            var key = state.getKeyConfig(mode, StudioPart.KEY1);
-            VoicePreset preset = key.getVoicePreset();
-            
-            // 只处理支持的语音预设：Windows 原生、macOS 原生、自定义
-            if (preset != VoicePreset.WINDOWS_NATIVE && 
-                preset != VoicePreset.MACOS_NATIVE && 
-                preset != VoicePreset.CUSTOM) {
-                continue;
-            }
-            
-            int vk = hidToVk(key.getHidCode());
-            if (vk <= 0) {
-                continue;
-            }
-            routes.add(new VoiceRoute(vk, mode, false));
-            if (mode == ModeSlot.MODE0 && vk != VK_F18) {
-                routes.add(new VoiceRoute(VK_F18, ModeSlot.MODE0, true));
-            }
-        }
-        if (routes.isEmpty()) {
-            activeRouteSummary.set("未启用 Windows 语音路由（Key1 需选 Win+H 预设）。");
-        } else {
-            StringBuilder sb = new StringBuilder();
-            for (VoiceRoute r : routes) {
-                if (!sb.isEmpty()) {
-                    sb.append(" · ");
-                }
-                sb.append(r.mode.getShortName()).append(" VK=").append(String.format("0x%02X", r.vkCode));
-            }
-            activeRouteSummary.set(sb.toString());
-        }
+        configureVoiceActions(state.getVoiceShortAction(), state.getVoiceLongAction(),
+            state.getVoiceThresholdMs());
         refreshStatus();
     }
 
@@ -196,6 +207,11 @@ public final class WindowsVoiceRelayService {
 
     public void stop() {
         pressedVoiceKeys.clear();
+        synchronized (this) {
+            cancelThresholdTask();
+            buttonStateMachine.reset();
+            pressGeneration++;
+        }
         if (hookThreadId != 0) {
             User32.INSTANCE.PostThreadMessage(hookThreadId, WinUser.WM_QUIT, new WPARAM(0), new LPARAM(0));
         }
@@ -210,15 +226,8 @@ public final class WindowsVoiceRelayService {
     }
 
     public void simulateVoiceKeyTap(ModeSlot mode) {
-        VoiceRoute route = routes.stream().filter(r -> r.mode == mode && !r.factoryFallback).findFirst()
-            .orElse(routes.stream().filter(r -> r.mode == mode).findFirst().orElse(null));
-        if (route == null) {
-            // 检查是否是 macOS 原生语音模式（使用 F18）
-            lastSimulateHint.set("当前 Mode 没有 Win+H 语音路由。");
-            return;
-        }
         WindowsVoiceTyping.trigger();
-        lastSimulateHint.set("已模拟 Win+H（" + mode.getShortName() + "）");
+        lastSimulateHint.set("已模拟 Windows 语音（" + mode.getShortName() + "，物理 F18）");
     }
     
     /**
@@ -247,9 +256,7 @@ public final class WindowsVoiceRelayService {
                     }).start();
                     lastSimulateHint.set("已开始录音（模拟 F18，录制3秒）");
                 } else {
-                    // 如果没有设置回调，尝试模拟按键
-                    simulateF18Key();
-                    lastSimulateHint.set("已模拟 F18（" + mode.getShortName() + "）");
+                    lastSimulateHint.set("Windows 不执行 macOS 原生语音，也不会合成 F18。");
                 }
                 break;
             default:
@@ -504,13 +511,6 @@ public final class WindowsVoiceRelayService {
         };
     }
 
-    private void simulateF18Key() {
-        WinUser.INPUT[] inputs = (WinUser.INPUT[]) new WinUser.INPUT().toArray(2);
-        fillKey(inputs[0], VK_F18, false);
-        fillKey(inputs[1], VK_F18, true);
-        User32.INSTANCE.SendInput(new WinUser.DWORD(inputs.length), inputs, inputs[0].size());
-    }
-    
     /**
      * 填充按键输入结构
      */
@@ -561,21 +561,36 @@ public final class WindowsVoiceRelayService {
         if (route == null) {
             return null;
         }
-        if (message == WM_KEYUP) {
+        if (message == WM_KEYUP || message == WM_SYSKEYUP) {
             if (pressedVoiceKeys.firstKeyUp(vk)) {
                 voiceCommandQueue.execute(() -> {
-                    Runnable callback = onVoiceKeyUp;
-                    if (callback != null) callback.run();
+                    VoiceButtonEvent event = buttonStateMachine.onKeyUp(System.nanoTime());
+                    synchronized (WindowsVoiceRelayService.this) {
+                        cancelThresholdTask();
+                        pressGeneration++;
+                    }
+                    dispatchVoiceEvent(event);
                 });
             }
             return new LRESULT(1);
         }
-        if (message == WM_KEYDOWN) {
+        if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) {
             if (pressedVoiceKeys.firstKeyDown(vk)) {
                 voiceCommandQueue.execute(() -> {
-                    Runnable callback = onVoiceKeyDown;
-                    if (callback != null) callback.run();
-                    else WindowsVoiceTyping.trigger();
+                    buttonStateMachine.onKeyDown(System.nanoTime());
+                    final long generation;
+                    synchronized (WindowsVoiceRelayService.this) {
+                        generation = ++pressGeneration;
+                        cancelThresholdTask();
+                        thresholdTask = voiceThresholdScheduler.schedule(() ->
+                            voiceCommandQueue.execute(() -> {
+                                synchronized (WindowsVoiceRelayService.this) {
+                                    if (generation != pressGeneration) return;
+                                }
+                                dispatchVoiceEvent(buttonStateMachine.onThreshold(System.nanoTime()));
+                            }),
+                            buttonStateMachine.thresholdNanos(), TimeUnit.NANOSECONDS);
+                    }
                 });
             }
             // Auto-repeat is swallowed but never queued twice.
@@ -585,28 +600,31 @@ public final class WindowsVoiceRelayService {
     }
 
     private VoiceRoute matchRoute(int vkCode) {
-        int workMode = workModeSupplier.getAsInt();
-        ModeSlot active = ModeSlot.fromIndex(workMode);
-        VoiceRoute preferred = null;
-        VoiceRoute fallback = null;
-        for (VoiceRoute route : routes) {
-            if (route.vkCode != vkCode) {
-                continue;
+        // F18 is a physical transport event, independent of the selected
+        // mode and the legacy per-mode KEY1 mapping.
+        return vkCode == VK_F18 ? new VoiceRoute(VK_F18, ModeSlot.MODE0, true) : null;
+    }
+
+    private void dispatchVoiceEvent(VoiceButtonEvent event) {
+        if (event == null) return;
+        Consumer<VoiceButtonEvent> callback = onVoiceAction;
+        if (actionRouter.actionFor(event.type()) == VoiceAction.AHAKEY_VOICE) {
+            if (callback != null) callback.accept(event);
+            if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START && onVoiceKeyDown != null) {
+                onVoiceKeyDown.run();
             }
-            if (route.mode == active && !route.factoryFallback) {
-                preferred = route;
-            }
-            if (route.mode == active && route.factoryFallback) {
-                fallback = route;
+            if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_END && onVoiceKeyUp != null) {
+                onVoiceKeyUp.run();
             }
         }
-        if (preferred != null) {
-            return preferred;
+        actionRouter.route(event);
+    }
+
+    private synchronized void cancelThresholdTask() {
+        if (thresholdTask != null) {
+            thresholdTask.cancel(false);
+            thresholdTask = null;
         }
-        if (fallback != null) {
-            return fallback;
-        }
-        return routes.stream().filter(r -> r.vkCode == vkCode).findFirst().orElse(null);
     }
 
     private void refreshStatus() {
@@ -618,16 +636,8 @@ public final class WindowsVoiceRelayService {
             statusMessage.set("语音桥未运行；进入编辑配置或启动应用后会自动安装钩子。");
             return;
         }
-        statusMessage.set("正在监听 F17/F18 语音键，匹配后发送 Win+H（路由 " + routes.size() + " 条）。");
+        statusMessage.set("正在监听物理 F18；Desktop 负责短按/长按语义（阈值 "
+            + configuredThresholdMs + "ms）。");
     }
 
-    private static int hidToVk(int hid) {
-        if (hid == HIDUsage.F17) {
-            return VK_F17;
-        }
-        if (hid == HIDUsage.F18) {
-            return VK_F18;
-        }
-        return -1;
-    }
 }

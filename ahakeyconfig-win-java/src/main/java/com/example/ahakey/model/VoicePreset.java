@@ -1,6 +1,6 @@
 package com.example.ahakey.model;
 
-/** 语音键预设；Windows 版默认使用 {@link #WINDOWS_NATIVE}（Win+H）。 */
+/** Legacy display/migration preset; Desktop voice actions are the runtime source of truth. */
 public enum VoicePreset {
     CUSTOM("自定义快捷键", false),
     WINDOWS_NATIVE("Windows 语音 (Win+H)", true),

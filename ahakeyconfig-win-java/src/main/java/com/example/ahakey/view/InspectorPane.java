@@ -10,6 +10,7 @@ import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.OledModeDraft;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
+import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.util.LanguageManager;
 import javafx.scene.control.Spinner;
 import javafx.stage.Window;
@@ -38,7 +39,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public class InspectorPane extends ScrollPane {
@@ -133,63 +133,33 @@ public class InspectorPane extends ScrollPane {
         return createGroupBox("语音键：短按 / 长按", () -> {
             VBox box = new VBox(16);
             Label hint = new Label(
-                "全局配置，所有模式共用。短按会点击一次快捷键；按住超过 350ms 后，"
-                    + "长按快捷键会保持按下，松开语音键时释放。任一列表清空即可禁用对应动作。"
+                "物理语音键固定为 F18。Desktop 在 350ms 阈值上区分短按与长按；"
+                    + "动作不会写入固件，也不会模拟 Typeless/微信 Fn。"
             );
             hint.setWrapText(true);
             hint.getStyleClass().add("warning-note");
-
-            Label shortLabel = new Label("短按快捷键（默认：Right Alt，用于 Typeless）");
-            shortLabel.getStyleClass().add("field-label");
-            Label longLabel = new Label("长按快捷键（默认：Left Ctrl + Left Win，用于微信语音输入）");
-            longLabel.getStyleClass().add("field-label");
-
-            Button testShort = new Button("测试短按");
-            testShort.getStyleClass().add("button-prominent");
-            testShort.setOnAction(event -> controller.getVoiceRelay()
-                .simulateKeyByHid(studioState.getVoiceKeyShort().getHidCode()));
-
-            Button testLong = new Button("按住测试长按");
-            testLong.getStyleClass().add("button-prominent");
-            AtomicBoolean longTestPressed = new AtomicBoolean(false);
-            testLong.setOnMousePressed(event -> {
-                if (event.isPrimaryButtonDown() && longTestPressed.compareAndSet(false, true)) {
-                    controller.getVoiceRelay().pressKeyByHid(
-                        studioState.getVoiceKeyLong().getHidCode());
-                }
+            Label thresholdLabel = new Label("长按阈值（毫秒）");
+            thresholdLabel.getStyleClass().add("field-label");
+            Spinner<Integer> threshold = new Spinner<>(50, 5000, studioState.getVoiceThresholdMs(), 10);
+            threshold.getStyleClass().add("combo-box-small");
+            threshold.getValueFactory().valueProperty().addListener((obs, oldValue, value) -> {
+                if (value != null) studioState.setVoiceThresholdMs(value);
             });
-            testLong.setOnMouseReleased(event -> {
-                if (longTestPressed.compareAndSet(true, false)) {
-                    controller.getVoiceRelay().releaseKeyByHid(
-                        studioState.getVoiceKeyLong().getHidCode());
-                }
-            });
-            testLong.setOnMouseExited(event -> {
-                if (longTestPressed.compareAndSet(true, false)) {
-                    controller.getVoiceRelay().releaseKeyByHid(
-                        studioState.getVoiceKeyLong().getHidCode());
-                }
-            });
-            testLong.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
-                if (!isFocused && longTestPressed.compareAndSet(true, false)) {
-                    controller.getVoiceRelay().releaseKeyByHid(
-                        studioState.getVoiceKeyLong().getHidCode());
-                }
-            });
-            Label testHint = new Label();
-            testHint.textProperty().bind(controller.getVoiceRelay().lastSimulateHintProperty());
-            testHint.getStyleClass().add("warning-note");
-            testHint.setWrapText(true);
 
-            box.getChildren().addAll(
-                hint,
-                shortLabel,
-                createShortcutEditor(studioState.getVoiceKeyShort(), StudioPart.KEY1),
-                longLabel,
-                createShortcutEditor(studioState.getVoiceKeyLong(), StudioPart.KEY1),
-                new HBox(8, testShort, testLong),
-                testHint
-            );
+            ComboBox<VoiceAction> shortAction = new ComboBox<>();
+            shortAction.getItems().addAll(VoiceAction.values());
+            shortAction.setValue(studioState.getVoiceShortAction());
+            shortAction.valueProperty().addListener((obs, oldValue, value) -> {
+                if (value != null) studioState.setVoiceShortAction(value);
+            });
+            ComboBox<VoiceAction> longAction = new ComboBox<>();
+            longAction.getItems().addAll(VoiceAction.values());
+            longAction.setValue(studioState.getVoiceLongAction());
+            longAction.valueProperty().addListener((obs, oldValue, value) -> {
+                if (value != null) studioState.setVoiceLongAction(value);
+            });
+            box.getChildren().addAll(hint, thresholdLabel, threshold,
+                new Label("短按动作"), shortAction, new Label("长按动作"), longAction);
             return box;
         });
     }

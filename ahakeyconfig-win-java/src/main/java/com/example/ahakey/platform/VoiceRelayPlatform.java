@@ -4,6 +4,7 @@ import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.KeyConfig;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.model.VoicePreset;
+import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
 
@@ -13,7 +14,7 @@ import javafx.beans.property.StringProperty;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
-/** 跨平台语音桥门面；当前 Windows 完整实现 Win+H。 */
+/** Cross-platform voice facade; Windows consumes physical F18 and routes actions. */
 public final class VoiceRelayPlatform {
     private final WindowsVoiceRelayService windows = WindowsVoiceRelayService.getInstance();
 
@@ -27,6 +28,11 @@ public final class VoiceRelayPlatform {
 
     public void updateRoutes(StudioState state) {
         windows.updateRoutes(state);
+    }
+
+    public void configureVoiceActions(VoiceAction shortAction, VoiceAction longAction,
+                                      int thresholdMs) {
+        windows.configureVoiceActions(shortAction, longAction, thresholdMs);
     }
 
     public void start() {

@@ -26,7 +26,9 @@ public final class DeviceSyncService {
     }
 
     public static List<LabeledCommand> commandsForModes(StudioState state, ModeSlot... modes) {
-        return commandsForModes(state, true, modes);
+        // Voice timing/actions are owned by Desktop.  Keep the explicit
+        // includeVoiceKey overload for legacy firmware migration only.
+        return commandsForModes(state, false, modes);
     }
 
     /**
