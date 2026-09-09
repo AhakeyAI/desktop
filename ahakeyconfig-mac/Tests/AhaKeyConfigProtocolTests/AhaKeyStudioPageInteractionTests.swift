@@ -295,6 +295,104 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertEqual(denied.oledProfile, .unsupported)
     }
 
+    func testSealedRhinoFactOpensDualSetPlanWithoutCreatingAnOperation() throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let store = makeStore()
+        store.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(
+                    deviceID: deviceID,
+                    oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+                )
+            )
+        )
+        XCTAssertEqual(store.taskPictureProtocolPlan?.setIndices, [0, 1])
+        XCTAssertEqual(store.taskPictureProtocolPlan?.supportsActiveSet, true)
+        XCTAssertTrue(store.allowsTaskPictureConfiguration)
+        XCTAssertTrue(store.deviceFIFO.isEmpty)
+        XCTAssertNil(store.operation(for: .screen(modeSlot: 0)))
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.desiredActiveSet(
+                editingSet: 1,
+                supportedSetIndices: store.taskPictureProtocolPlan?.setIndices ?? []
+            ),
+            1
+        )
+    }
+
+    func testOnlineStoreDoesNotOpenDualSetFromProtocolModeOrForeignFact() throws {
+        let active = try AhaKeyRuntimeDeviceID("ACTIVE")
+        let other = try AhaKeyRuntimeDeviceID("OTHER")
+        let missingFact = makeStore()
+        missingFact.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(
+                    deviceID: active,
+                    protocolState: .currentReady,
+                    oledCompatibility: nil
+                )
+            )
+        )
+        XCTAssertEqual(missingFact.protocolMode, .current)
+        XCTAssertNil(missingFact.taskPictureProtocolPlan)
+        XCTAssertFalse(missingFact.allowsTaskPictureConfiguration)
+
+        let standard = makeStore()
+        standard.applyViewStateForTesting(
+            onlineState(
+                snapshot: makeSnapshot(
+                    deviceID: active,
+                    oledCompatibility: .init(family: .legacyStandard)
+                )
+            )
+        )
+        XCTAssertEqual(standard.taskPictureProtocolPlan?.supportsActiveSet, false)
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.desiredActiveSet(
+                editingSet: 1,
+                supportedSetIndices: standard.taskPictureProtocolPlan?.setIndices ?? []
+            ),
+            0
+        )
+
+        let foreignSnapshot = AhaKeyRuntimeSnapshot(
+            supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
+            lifecycleState: .running,
+            devices: [
+                AhaKeyRuntimeDeviceSnapshot(
+                    id: active,
+                    displayName: "Active",
+                    protocolState: .currentReady,
+                    preferredTransport: .bluetooth,
+                    usbAttached: false,
+                    bluetoothConnected: true
+                ),
+                AhaKeyRuntimeDeviceSnapshot(
+                    id: other,
+                    displayName: "Other",
+                    protocolState: .currentReady,
+                    preferredTransport: .bluetooth,
+                    usbAttached: false,
+                    bluetoothConnected: true,
+                    oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+                ),
+            ],
+            activeDeviceID: active,
+            configurationRevision: .init(0),
+            operations: [],
+            policy: .init(),
+            permissions: .init(states: [:]),
+            keepAliveReasons: [],
+            latestEventSequence: .init(0),
+            pageBaselines: []
+        )
+        let foreign = makeStore()
+        foreign.applyViewStateForTesting(onlineState(snapshot: foreignSnapshot))
+        XCTAssertEqual(foreign.deviceKey, "ACTIVE")
+        XCTAssertNil(foreign.taskPictureProtocolPlan)
+        XCTAssertTrue(foreign.deviceFIFO.isEmpty)
+    }
+
     func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
         let harness = try makeHarness()
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))

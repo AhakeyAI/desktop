@@ -377,6 +377,69 @@ final class AhaKeyStudioPackageAssemblerTests: XCTestCase {
         XCTAssertNotNil(plan.values[.screenTaskAsset(modeSlot: 0, setIndex: 1, state: .done)])
     }
 
+    func testRhinoBOnlyDirtyKeepsWriteConfirmedSetABaselinesOutOfPlan() {
+        func asset(_ path: String) -> AhaKeyStudioFieldValue {
+            .asset(path: path, framesPerSecond: 12, declaredFrameCount: 1, pixelWidth: 160, pixelHeight: 80)
+        }
+        func confirmedA(_ state: AhaKeyDesiredConfiguration.TaskDisplayState, path: String) -> AhaKeyStudioFrozenField {
+            AhaKeyStudioFrozenField(
+                id: .screenTaskAsset(modeSlot: 0, setIndex: 0, state: state),
+                value: asset(path),
+                isDirty: false,
+                baseline: .init(trust: .writeConfirmed, value: asset(path))
+            )
+        }
+        let aFields = [
+            confirmedA(.idle, path: "/tmp/a-idle.gif"),
+            confirmedA(.working, path: "/tmp/a-working.gif"),
+            confirmedA(.waiting, path: "/tmp/a-waiting.gif"),
+            confirmedA(.done, path: "/tmp/a-done.gif"),
+            AhaKeyStudioFrozenField(
+                id: .screenActiveSet(modeSlot: 0),
+                value: .integer(0),
+                isDirty: false,
+                baseline: .init(trust: .writeConfirmed, value: .integer(0))
+            ),
+        ]
+        let dirtyB = AhaKeyStudioFrozenField(
+            id: .screenTaskAsset(modeSlot: 0, setIndex: 1, state: .done),
+            value: asset("/tmp/b-done.gif"),
+            isDirty: true,
+            baseline: .unknown
+        )
+        let unconfirmed = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                selectedTaskSet: 1,
+                fields: aFields + [dirtyB]
+            )
+        )
+        XCTAssertEqual(unconfirmed, .requiresOverwriteConfirmation)
+
+        let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
+            AhaKeyStudioPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                selectedTaskSet: 1,
+                overwriteConfirmed: true,
+                fields: aFields + [dirtyB]
+            )
+        )
+        guard case .write(let plan) = assembly else {
+            return XCTFail("覆盖确认后应只写套图 B")
+        }
+        XCTAssertFalse(plan.writeTaskSetA)
+        XCTAssertTrue(plan.writeTaskSetB)
+        XCTAssertEqual(plan.fieldMask, Set(plan.values.keys))
+        XCTAssertEqual(plan.fieldMask, [.screenTaskAsset(modeSlot: 0, setIndex: 1, state: .done)])
+        XCTAssertTrue(plan.resources.allSatisfy { $0.logicalIdentifier.rawValue.contains("-set1-") })
+        XCTAssertFalse(plan.fieldMask.contains { id in
+            if case .screenTaskAsset(_, 0, _) = id { return true }
+            return false
+        })
+    }
+
     func testStandardDoesNotEmitPhysicalSetBForLogicalBOrBothDirty() {
         let assembly = AhaKeyStudioPackageAssembler.assembleScopedPage(
             AhaKeyStudioPageSnapshot(

@@ -47,14 +47,11 @@ struct AhaKeyStudioDevicePresentation: Equatable {
         isConnected && hasReportedSwitchState ? switchState : nil
     }
 
-    var allowsTaskPictureConfiguration: Bool {
-        protocolMode.allowsTaskPictureConfiguration
-    }
+    /// 有密封任务图计划才允许编辑/提交；不得用 `protocolMode` 假装可写。
+    var allowsTaskPictureConfiguration: Bool { taskPictureProtocolPlan != nil }
 
-    /// 任务图协议计划：Runtime 侧能力协商细节不随快照下发，current 协议按完整能力处理。
-    var taskPictureProtocolPlan: AhaKeyTaskPictureProtocolPlan? {
-        AhaKeyTaskPictureProtocolPlan.make(mode: protocolMode, capabilities: nil)
-    }
+    /// 由 `AhaKeyStudioRuntimeDerivation` 从 active-device 密封 OLED fact 写入。
+    var taskPictureProtocolPlan: AhaKeyTaskPictureProtocolPlan? = nil
 
     var supportedTaskDisplayStates: [AhaKeyTaskDisplayState] {
         taskPictureProtocolPlan?.states ?? []
@@ -118,6 +115,9 @@ enum AhaKeyStudioRuntimeDerivation {
         }
         presentation.releaseFeatureProjection = AhaKeyReleaseFeaturePolicy.current.projection(
             sealedOLEDProfile: oledProfile(for: device)
+        )
+        presentation.taskPictureProtocolPlan = AhaKeyTaskPictureProtocolPlan.make(
+            sealedFact: device.oledCompatibility
         )
         return presentation
     }

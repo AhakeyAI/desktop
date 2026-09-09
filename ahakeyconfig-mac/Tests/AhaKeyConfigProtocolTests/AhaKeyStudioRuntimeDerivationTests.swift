@@ -169,6 +169,89 @@ final class AhaKeyStudioRuntimeDerivationTests: XCTestCase {
         )
     }
 
+    func testTaskPicturePlanUsesActiveDeviceSealedFactNotProtocolMode() {
+        let rhino = makeDevice(
+            protocolState: .currentReady,
+            oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+        )
+        let rhinoPresentation = AhaKeyStudioRuntimeDerivation.presentation(
+            for: AhaKeyStudioRuntimeViewState(
+                connection: .online,
+                snapshot: makeSnapshot(devices: [rhino], activeDeviceID: rhino.id)
+            )
+        )
+        XCTAssertEqual(rhinoPresentation.taskPictureProtocolPlan?.setIndices, [0, 1])
+        XCTAssertEqual(rhinoPresentation.taskPictureProtocolPlan?.supportsActiveSet, true)
+        XCTAssertTrue(rhinoPresentation.allowsTaskPictureConfiguration)
+
+        let currentWithoutFact = makeDevice(protocolState: .currentReady)
+        let closed = AhaKeyStudioRuntimeDerivation.presentation(
+            for: AhaKeyStudioRuntimeViewState(
+                connection: .online,
+                snapshot: makeSnapshot(devices: [currentWithoutFact], activeDeviceID: currentWithoutFact.id)
+            )
+        )
+        XCTAssertNil(closed.taskPictureProtocolPlan)
+        XCTAssertFalse(closed.allowsTaskPictureConfiguration)
+        XCTAssertEqual(closed.protocolMode, .current)
+
+        let standard = makeDevice(
+            protocolState: .currentReady,
+            oledCompatibility: .init(family: .legacyStandard)
+        )
+        let standardPresentation = AhaKeyStudioRuntimeDerivation.presentation(
+            for: AhaKeyStudioRuntimeViewState(
+                connection: .online,
+                snapshot: makeSnapshot(devices: [standard], activeDeviceID: standard.id)
+            )
+        )
+        XCTAssertEqual(standardPresentation.taskPictureProtocolPlan?.supportsActiveSet, false)
+        XCTAssertEqual(standardPresentation.taskPictureProtocolPlan?.setIndices, [0])
+
+        let session = makeDevice(
+            protocolState: .currentReady,
+            oledCompatibility: .init(family: .currentSessionCapable, sessionUploadAdvertised: true)
+        )
+        let sessionPresentation = AhaKeyStudioRuntimeDerivation.presentation(
+            for: AhaKeyStudioRuntimeViewState(
+                connection: .online,
+                snapshot: makeSnapshot(devices: [session], activeDeviceID: session.id)
+            )
+        )
+        XCTAssertEqual(sessionPresentation.taskPictureProtocolPlan?.setIndices, [0])
+        XCTAssertEqual(sessionPresentation.taskPictureProtocolPlan?.supportsActiveSet, false)
+    }
+
+    func testForeignDeviceSealedRhinoFactDoesNotOpenActiveDevicePicker() throws {
+        let active = makeDevice(id: "ACTIVE", protocolState: .currentReady)
+        let other = makeDevice(
+            id: "OTHER",
+            protocolState: .currentReady,
+            oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+        )
+        let presentation = AhaKeyStudioRuntimeDerivation.presentation(
+            for: AhaKeyStudioRuntimeViewState(
+                connection: .online,
+                snapshot: makeSnapshot(devices: [active, other], activeDeviceID: active.id)
+            )
+        )
+        XCTAssertNil(presentation.taskPictureProtocolPlan)
+        XCTAssertFalse(presentation.allowsTaskPictureConfiguration)
+        XCTAssertEqual(presentation.deviceKey, "ACTIVE")
+    }
+
+    func testOfflinePresentationDoesNotKeepSealedRhinoPlan() {
+        let rhino = makeDevice(
+            oledCompatibility: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+        )
+        let snapshot = makeSnapshot(devices: [rhino], activeDeviceID: rhino.id)
+        let presentation = AhaKeyStudioRuntimeDerivation.presentation(
+            for: AhaKeyStudioRuntimeViewState(connection: .offline, snapshot: snapshot)
+        )
+        XCTAssertNil(presentation.taskPictureProtocolPlan)
+        XCTAssertFalse(presentation.allowsTaskPictureConfiguration)
+    }
+
     // MARK: - 拨杆映射
 
     func testLeverPositionMapping() {

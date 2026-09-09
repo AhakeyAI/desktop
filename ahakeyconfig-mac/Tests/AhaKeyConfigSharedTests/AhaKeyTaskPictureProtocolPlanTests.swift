@@ -214,6 +214,39 @@ final class AhaKeyTaskPictureProtocolPlanTests: XCTestCase {
         )
     }
 
+    func testSealedRhinoFactShowsDualSetWithoutSnapshotCapabilities() {
+        let plan = AhaKeyTaskPictureProtocolPlan.make(
+            sealedFact: .init(family: .rhinoDualSet, sessionUploadAdvertised: false)
+        )
+        XCTAssertEqual(plan?.setIndices, [0, 1])
+        XCTAssertEqual(plan?.states, AhaKeyTaskDisplayState.allCases)
+        XCTAssertEqual(plan?.supportsActiveSet, true)
+        XCTAssertEqual(plan?.usesSessionUpload, false)
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.desiredActiveSet(editingSet: 1, supportedSetIndices: plan?.setIndices ?? []),
+            1
+        )
+    }
+
+    func testSealedStandardAndSessionAndMissingFactsDoNotShowDualSetPicker() {
+        let standard = AhaKeyTaskPictureProtocolPlan.make(sealedFact: .init(family: .legacyStandard))
+        XCTAssertEqual(standard?.setIndices, [0])
+        XCTAssertEqual(standard?.supportsActiveSet, false)
+
+        let session = AhaKeyTaskPictureProtocolPlan.make(
+            sealedFact: .init(family: .currentSessionCapable, sessionUploadAdvertised: true)
+        )
+        XCTAssertEqual(session?.setIndices, [0])
+        XCTAssertEqual(session?.supportsActiveSet, false)
+
+        XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(sealedFact: nil))
+        XCTAssertNil(AhaKeyTaskPictureProtocolPlan.make(sealedFact: .init(family: .unsupported)))
+        XCTAssertEqual(
+            AhaKeyTaskPictureSetSelection.desiredActiveSet(editingSet: 1, supportedSetIndices: [0]),
+            0
+        )
+    }
+
     func testSessionPacketizerPrefixesEveryPacketAndKeepsNegotiatedLimit() {
         let packets = AhaKeyPictureDataPacketizer.packets(
             for: Data([0, 1, 2, 3, 4, 5, 6]),

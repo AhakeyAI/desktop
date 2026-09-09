@@ -186,6 +186,51 @@ public struct AhaKeyTaskPictureProtocolPlan: Equatable {
     public let supportsActiveSet: Bool
     public let usesSessionUpload: Bool
 
+    /// Studio 唯一生产入口：只消费 Agent 已密封的 OLED family，不读 snapshot capabilities、
+    /// 也不把 `protocolMode` 当成双套证据。缺 fact / unsupported → nil（任务图不可提交）。
+    public static func make(
+        sealedFact: AhaKeyRuntimeOLEDCompatibilityFact?
+    ) -> AhaKeyTaskPictureProtocolPlan? {
+        guard let sealedFact else { return nil }
+        return make(sealedProfile: sealedFact.profile)
+    }
+
+    public static func make(
+        sealedProfile: AhaKeyOLEDCompatibilityProfile
+    ) -> AhaKeyTaskPictureProtocolPlan? {
+        switch sealedProfile {
+        case .legacyStandard:
+            return AhaKeyTaskPictureProtocolPlan(
+                metadataFormat: .legacySingleSet,
+                setIndices: [0],
+                states: AhaKeyTaskDisplayState.legacyStates,
+                finishesRawUpload: false,
+                supportsActiveSet: false,
+                usesSessionUpload: false
+            )
+        case .rhinoDualSet(let sessionUploadAdvertised):
+            return AhaKeyTaskPictureProtocolPlan(
+                metadataFormat: .currentSetAware,
+                setIndices: [0, 1],
+                states: AhaKeyTaskDisplayState.allCases,
+                finishesRawUpload: true,
+                supportsActiveSet: true,
+                usesSessionUpload: sessionUploadAdvertised
+            )
+        case .currentSessionCapable:
+            return AhaKeyTaskPictureProtocolPlan(
+                metadataFormat: .currentSetAware,
+                setIndices: [0],
+                states: AhaKeyTaskDisplayState.allCases,
+                finishesRawUpload: true,
+                supportsActiveSet: false,
+                usesSessionUpload: true
+            )
+        case .unsupported:
+            return nil
+        }
+    }
+
     public static func make(
         mode: AhaKeyProtocolMode,
         capabilities: AhaKeyFirmwareCapabilities?

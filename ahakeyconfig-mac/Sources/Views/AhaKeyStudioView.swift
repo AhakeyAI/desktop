@@ -101,7 +101,6 @@ struct AhaKeyStudioView: View {
             voiceRelay.updateRoutes(from: studioDraft)
             SwitchStateNotifier.shared.bind(to: runtimeStore)
             loadSyncBaselineForConnectedDevice(mode: runtimeStore.protocolMode)
-            reconcileActiveTaskPictureSetsFromDevice(runtimeStore.activeTaskPictureSets)
             refreshEditingTaskPictureSetFromDraft()
             NotificationCenter.default.post(
                 name: .ahaKeyKeyboardWorkModeChanged,
@@ -150,19 +149,10 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: runtimeStore.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
-            if mode == .current {
-                // active-set 状态可能早于快照其余字段到达；baseline 就绪后主动补一次归并。
-                reconcileActiveTaskPictureSetsFromDevice(runtimeStore.activeTaskPictureSets)
-                refreshEditingTaskPictureSetFromDraft()
-            }
-            if mode != .current {
-                selectedOLEDGIFSet = 0
-                if selectedOLEDTaskState == .idle { selectedOLEDTaskState = .working }
-            }
+            convergeEditingTaskPictureSelectionToSealedPlan()
         }
-        .onChange(of: runtimeStore.activeTaskPictureSets) { activeSets in
-            reconcileActiveTaskPictureSetsFromDevice(activeSets)
-            refreshEditingTaskPictureSetFromDraft()
+        .onChange(of: runtimeStore.taskPictureProtocolPlan?.setIndices) { _ in
+            convergeEditingTaskPictureSelectionToSealedPlan()
         }
         .onChange(of: voiceRelay.inputMonitoringGranted) { _ in
             refreshStartupPermissionOnboarding()
@@ -1495,7 +1485,7 @@ struct AhaKeyStudioView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 8)
                     } else {
-                        Text(runtimeStore.protocolMode == .current
+                        Text(runtimeStore.supportedTaskDisplayStates.contains(.idle)
                              ? NSLocalizedString("状态资源：固件按 Hook 状态自动切换待机、工作中、等待授权、已完成。", comment: "")
                              : NSLocalizedString("状态资源：固件按 Hook 状态自动切换工作中、等待授权、已完成。", comment: ""))
                             .font(.caption)
@@ -2207,7 +2197,7 @@ struct AhaKeyStudioView: View {
             set: { newValue in
                 let desiredSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
                     editingSet: newValue,
-                    supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? [0]
+                    supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? []
                 )
                 selectedOLEDGIFSet = desiredSet
                 updateCurrentMode { $0.oled.activeGIFSet = desiredSet }
@@ -2218,14 +2208,32 @@ struct AhaKeyStudioView: View {
     private func refreshEditingTaskPictureSetFromDraft() {
         selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
             editingSet: currentModeDraft.oled.activeGIFSet,
-            supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? [0]
+            supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? []
         )
+        convergeTaskDisplayStateToSealedPlan()
+    }
+
+    /// Runtime 更新只收敛非法选择；合法的套图 B 不得被设备 active-set 打回 A。
+    private func convergeEditingTaskPictureSelectionToSealedPlan() {
+        selectedOLEDGIFSet = AhaKeyTaskPictureSetSelection.desiredActiveSet(
+            editingSet: selectedOLEDGIFSet,
+            supportedSetIndices: runtimeStore.taskPictureProtocolPlan?.setIndices ?? []
+        )
+        convergeTaskDisplayStateToSealedPlan()
+    }
+
+    private func convergeTaskDisplayStateToSealedPlan() {
+        let states = runtimeStore.supportedTaskDisplayStates
+        if states.isEmpty {
+            return
+        }
+        if !states.contains(selectedOLEDTaskState) {
+            selectedOLEDTaskState = states.contains(.working) ? .working : states[0]
+        }
     }
 
     private var visibleTaskDisplayStates: [AhaKeyTaskDisplayState] {
-        runtimeStore.protocolMode == .current
-            ? (runtimeStore.supportedTaskDisplayStates.isEmpty ? AhaKeyTaskDisplayState.allCases : runtimeStore.supportedTaskDisplayStates)
-            : AhaKeyTaskDisplayState.legacyStates
+        runtimeStore.supportedTaskDisplayStates
     }
 
     private var releaseFeatureProjection: AhaKeyReleaseFeatureProjection {
@@ -2631,34 +2639,6 @@ struct AhaKeyStudioView: View {
             defaultPictureChanged: defaultPictureChanged,
             completeOLEDChanged: current != baseline
         )
-    }
-
-    /// 物理双击切套后让 UI 跟随设备；若用户已在 UI 选择了另一套但尚未写入，则保留用户选择。
-    private func reconcileActiveTaskPictureSetsFromDevice(_ activeSets: [Int: Int]) {
-        guard runtimeStore.protocolMode == .current, syncBaselineDeviceKey != nil else { return }
-        var draft = studioDraft
-        var baseline = lastSyncedDraft
-        var changed = false
-
-        for mode in AhaKeyModeSlot.allCases {
-            guard let deviceSet = activeSets[mode.rawValue], (0 ... 1).contains(deviceSet) else { continue }
-            var draftMode = draft.draft(for: mode)
-            var baselineMode = baseline.draft(for: mode)
-            // -1 表示该设备尚未同步；draft != baseline 表示用户已有待写入选择。
-            guard baselineMode.oled.activeGIFSet >= 0,
-                  draftMode.oled.activeGIFSet == baselineMode.oled.activeGIFSet else { continue }
-            guard draftMode.oled.activeGIFSet != deviceSet else { continue }
-            draftMode.oled.activeGIFSet = deviceSet
-            baselineMode.oled.activeGIFSet = deviceSet
-            draft.updateMode(draftMode)
-            baseline.updateMode(baselineMode)
-            changed = true
-        }
-
-        guard changed else { return }
-        studioDraft = draft
-        lastSyncedDraft = baseline
-        saveCurrentDeviceSyncBaseline()
     }
 
     private func loadSyncBaselineForConnectedDevice(mode: AhaKeyProtocolMode) {
