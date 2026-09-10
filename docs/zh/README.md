@@ -2,11 +2,11 @@
 
 # ⌨️ AhaKey Desktop
 
-**The official cross-platform desktop suite for the AhaKey-X1 — the Vibecoding Keyboard.**
+**AhaKey-X1（Vibecoding Keyboard）官方跨平台桌面端 · 键盘控制 + 拨杆审批 + 本机语音 Agent**
 
-[**English**](README.md) &nbsp;·&nbsp; [**简体中文**](docs/zh/README.md)
+[**English**](../../README.md) &nbsp;·&nbsp; [**简体中文**](README.md)
 
-[**Documentation**](#documentation) &nbsp;·&nbsp; [**SDK**](sdks/README.md) &nbsp;·&nbsp; [**⭐ Star History**](#star-history) &nbsp;·&nbsp; [**🤝 Contributing**](#contributing)
+[**文档**](#documentation) &nbsp;·&nbsp; [**SDK**](sdk.md) &nbsp;·&nbsp; [**⭐ Star 趋势**](#star-history) &nbsp;·&nbsp; [**🤝 参与贡献**](#contributing)
 
 <br/>
 
@@ -28,27 +28,27 @@
 
 </div>
 
-## <div align="center">Overview</div>
+## <div align="center">概述</div>
 
-AhaKey Desktop is the companion suite for the **AhaKey-X1 (Vibecoding Keyboard)**, with keyboard configuration, lever-gated AI approval, and an on-device voice agent on macOS.
+AhaKey Desktop 是 **AhaKey-X1（Vibecoding Keyboard）** 的配套桌面套件，提供键盘配置、拨杆审批 AI，以及 macOS 本机语音 Agent。
 
 <a id="documentation"></a>
 
-## <div align="center">Documentation</div>
+## <div align="center">文档</div>
 
-| Resource | What you'll find |
+| 文档 | 内容 |
 |---|---|
-| [Project overview](docs/overview.md) | Features, clients, macOS highlights, build commands, and repository layout |
-| [Installation](docs/installation.md) · [Downloads](https://github.com/AhakeyAI/desktop/releases) | Build instructions and published installers |
-| [SDK overview](sdks/README.md) · [TypeScript guide](sdks/typescript/README.md) | Plugin development, API reference, and runnable examples |
-| [Architecture](docs/architecture.md) · [BLE protocol](docs/ble-protocol.md) | System design and keyboard communication |
-| [Contributing](CONTRIBUTING.md) | Bug reports, pull requests, and validation |
+| [项目概览](overview.md) | 功能介绍、各平台客户端、macOS 主要能力、构建命令和仓库结构 |
+| [安装说明](../installation.md) · [下载安装包](https://github.com/AhakeyAI/desktop/releases) | 源码构建步骤与已发布安装包 |
+| [SDK 总览](sdk.md) · [TypeScript 指南](typescript-sdk.md) | 插件开发、API 参考和可运行示例 |
+| [架构说明](../architecture.md) · [BLE 协议](../ble-protocol.md) | 系统设计与键盘通信 |
+| [参与贡献](CONTRIBUTING.md) | 问题反馈、Pull Request 和验证方式 |
 
 <a id="star-history"></a>
 
-## <div align="center">⭐ Star History</div>
+## <div align="center">⭐ Star 趋势</div>
 
-If AhaKey helps your workflow, give the project a [star on GitHub](https://github.com/AhakeyAI/desktop)! Follow our community's growth in the chart below.
+如果 AhaKey 对你的工作流有帮助，欢迎在 [GitHub 上点亮 Star](https://github.com/AhakeyAI/desktop)！下图展示项目的 Star 增长趋势。
 
 <p align="center">
   <a href="https://github.com/AhakeyAI/desktop/stargazers"><img src="https://img.shields.io/github/stars/AhakeyAI/desktop?style=social" alt="GitHub stars for AhakeyAI/desktop"></a>
@@ -59,19 +59,19 @@ If AhaKey helps your workflow, give the project a [star on GitHub](https://githu
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=AhakeyAI/desktop&amp;type=Date&amp;theme=dark">
       <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=AhakeyAI/desktop&amp;type=Date">
-      <img width="700" src="https://api.star-history.com/svg?repos=AhakeyAI/desktop&amp;type=Date" alt="Star History chart for AhakeyAI/desktop">
+      <img width="700" src="https://api.star-history.com/svg?repos=AhakeyAI/desktop&amp;type=Date" alt="AhakeyAI/desktop Star 增长趋势图">
     </picture>
   </a>
 </p>
 
 <a id="contributing"></a>
 
-## <div align="center">🤝 Contributing</div>
+## <div align="center">🤝 参与贡献</div>
 
-Help improve AhaKey through bug reports, feature ideas, documentation, translations, or code. Read the [Contributing Guide](CONTRIBUTING.md) to get started, and share feedback through [GitHub Issues](https://github.com/AhakeyAI/desktop/issues). Thanks to everyone who has contributed! 🙏
+欢迎通过问题反馈、功能建议、文档、翻译或代码改进 AhaKey。请先阅读[贡献指南](CONTRIBUTING.md)，也可以通过 [GitHub Issues](https://github.com/AhakeyAI/desktop/issues) 提交反馈。感谢每一位贡献者！🙏
 
 <p align="center">
   <a href="https://github.com/AhakeyAI/desktop/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=AhakeyAI/desktop" alt="AhaKey Desktop contributors">
+    <img src="https://contrib.rocks/image?repo=AhakeyAI/desktop" alt="AhaKey Desktop 项目贡献者">
   </a>
 </p>
