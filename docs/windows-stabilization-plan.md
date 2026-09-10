@@ -549,8 +549,10 @@ raw F18 桌面路由使用既有 `0x9F` 设备信息查询的 Firmware 版本，
 迁移接口及 parser/readback 保留。
 
 新增测试覆盖 scheduler 迟到的 `370ms`/精确 `350ms` UP 补偿、默认动作、短按 AhaKey
-归一化、`1.4.7` 禁用、`1.4.8` 启用、`1.4.9` 启用及既有重复/孤立/reset/legacy
-同步语义。2026-09-10 最终 `mvn clean test` 为 263 tests、0 failures、0 errors、0 skipped；
-`mvn clean package` 和 `git diff --check` 均成功，发布内容检查为 `RELEASE_ARTIFACT_CONTENTS=OK`。
+归一化、AhaKey 长按 PTT 的一次性 start/stop、重复 DOWN、防抖后的 delayed threshold、
+CUSTOM_SHORTCUT/AHAKEY_SHORT 的 UI 选项合同、`1.4.7` 禁用、`1.4.8` 启用、`1.4.9`
+启用，以及不同 mode/legacy KEY1 下 physical F18 路由保持不变。2026-09-10 最终
+`mvn clean test` 为 269 tests、0 failures、0 errors、0 skipped；`mvn clean package`
+和 `git diff --check` 均成功，发布内容检查为 `RELEASE_ARTIFACT_CONTENTS=OK`。
 自动测试是代码级证据；F18 HID 映射、Windows hook swallow、Win+H、麦克风、本地模型和
 旧/新固件仍需软件手工与真机验证。

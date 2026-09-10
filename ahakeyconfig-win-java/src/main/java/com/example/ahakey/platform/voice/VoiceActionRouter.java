@@ -1,6 +1,7 @@
 package com.example.ahakey.platform.voice;
 
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -14,6 +15,16 @@ public final class VoiceActionRouter {
 
     public VoiceActionRouter() {
         setActions(VoiceAction.SYSTEM_VOICE, VoiceAction.AHAKEY_VOICE);
+    }
+
+    /** Implemented one-shot actions exposed by the desktop voice UI. */
+    public static List<VoiceAction> shortActionChoices() {
+        return List.of(VoiceAction.SYSTEM_VOICE, VoiceAction.NONE);
+    }
+
+    /** Implemented push-to-talk actions exposed by the desktop voice UI. */
+    public static List<VoiceAction> longActionChoices() {
+        return List.of(VoiceAction.AHAKEY_VOICE, VoiceAction.SYSTEM_VOICE, VoiceAction.NONE);
     }
 
     public synchronized void setActions(VoiceAction shortAction, VoiceAction longAction) {

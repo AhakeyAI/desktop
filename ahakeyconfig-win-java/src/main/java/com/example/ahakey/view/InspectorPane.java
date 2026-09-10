@@ -11,6 +11,7 @@ import com.example.ahakey.model.OledModeDraft;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.platform.voice.VoiceAction;
+import com.example.ahakey.platform.voice.VoiceActionRouter;
 import com.example.ahakey.config.ModelConfig;
 import com.example.ahakey.util.LanguageManager;
 import javafx.scene.control.Spinner;
@@ -149,7 +150,7 @@ public class InspectorPane extends ScrollPane {
             });
 
             ComboBox<VoiceAction> shortAction = voiceActionCombo(
-                List.of(VoiceAction.SYSTEM_VOICE, VoiceAction.NONE),
+                VoiceActionRouter.shortActionChoices(),
                 studioState.getVoiceShortAction() == VoiceAction.NONE
                     ? VoiceAction.NONE : VoiceAction.SYSTEM_VOICE);
             shortAction.valueProperty().addListener((obs, oldValue, value) -> {
@@ -159,7 +160,7 @@ public class InspectorPane extends ScrollPane {
             VBox longActionBox = new VBox(4);
             if (localModelConfigured) {
                 ComboBox<VoiceAction> longAction = voiceActionCombo(
-                    List.of(VoiceAction.AHAKEY_VOICE, VoiceAction.SYSTEM_VOICE, VoiceAction.NONE),
+                    VoiceActionRouter.longActionChoices(),
                     studioState.getVoiceLongAction() == VoiceAction.NONE
                         ? VoiceAction.NONE : (studioState.getVoiceLongAction() == VoiceAction.SYSTEM_VOICE
                             ? VoiceAction.SYSTEM_VOICE : VoiceAction.AHAKEY_VOICE));

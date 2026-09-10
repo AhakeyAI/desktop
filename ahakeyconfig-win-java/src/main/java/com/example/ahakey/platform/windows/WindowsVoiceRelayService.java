@@ -691,6 +691,47 @@ public final class WindowsVoiceRelayService {
             ? new VoiceRoute(VK_F18, ModeSlot.MODE0, true) : null;
     }
 
+    /**
+     * Deterministic seam for the production F18 state-machine path.  Tests
+     * feed monotonic timestamps instead of sleeping or depending on the
+     * Windows hook scheduler; the returned events are the same events that
+     * the hook path dispatches.
+     */
+    java.util.List<VoiceButtonEvent> classifyPhysicalF18ForTest(
+        long downAtNanos, long upAtNanos, boolean thresholdCallbackRan
+    ) {
+        return classifyPhysicalF18ForTest(
+            downAtNanos, upAtNanos, thresholdCallbackRan, false);
+    }
+
+    /** Same seam with an optional hardware repeat DOWN before release. */
+    java.util.List<VoiceButtonEvent> classifyPhysicalF18ForTest(
+        long downAtNanos, long upAtNanos, boolean thresholdCallbackRan,
+        boolean repeatDown
+    ) {
+        if (matchRoute(VK_F18) == null) return java.util.List.of();
+        buttonStateMachine.onKeyDown(downAtNanos);
+        if (repeatDown) buttonStateMachine.onKeyDown(downAtNanos + 1);
+        java.util.List<VoiceButtonEvent> events = new java.util.ArrayList<>();
+        if (thresholdCallbackRan) {
+            VoiceButtonEvent start = buttonStateMachine.onThreshold(
+                downAtNanos + buttonStateMachine.thresholdNanos());
+            if (start != null) events.add(start);
+        }
+        events.addAll(buttonStateMachine.onKeyUp(upAtNanos));
+        return java.util.List.copyOf(events);
+    }
+
+    /** Package-private dispatch seam used by deterministic routing tests. */
+    void dispatchVoiceEventForTest(VoiceButtonEvent event) {
+        dispatchVoiceEvent(event);
+    }
+
+    /** Package-private route probe used to verify the physical F18 contract. */
+    boolean acceptsPhysicalF18ForTest() {
+        return matchRoute(VK_F18) != null;
+    }
+
     private void dispatchVoiceEvent(VoiceButtonEvent event) {
         if (event == null) return;
         actionRouter.route(event);
