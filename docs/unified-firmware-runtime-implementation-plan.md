@@ -36,7 +36,7 @@
 | Runtime 设备独占、Studio 纯客户端化 | WBS 5.5/5.7 静态与自动门禁完成 | 主链已 accepted；0.2 先经兼容策略、最小安装链与独立 HIL 发布，不再等待全部新功能 |
 | OpenMicro 会话唤起研究 | 已完成 | 延后到核心 Runtime 稳定后的 WBS 5A |
 | WBS 0.1 基线冻结 | 已完成 | 见 [`firmware-client-baseline-2026-08-22.md`](firmware-client-baseline-2026-08-22.md)；2026-08-26 确认 GitHub **`master@71b11676` 与 `dev@3e7f900` 源码树相同** |
-| WBS 1 统一固件 | 进行中 | 1.1-1.4 已验收；1.5 implementation accepted @ `b678137`，真机 HIL 延后到 1.7 可刷镜像；当前 Zcode 执行 1.6 checkpoint A，1.7 未开放。**产品源仍为 GitHub master/dev 同树**，不换到 `eternal-dev`。 |
+| WBS 1 统一固件 | 进行中 | 1.1–1.6 已验收；1.7A accepted @ `c85eae0`，1.7B 已完成资源迁出/生产布局/combined-image host 主体，当前 BR5 clean 实现提交 `9fe4d5d` 等待正式提审与验收。刷机与实机 HIL仍未开放。**产品源仍为 GitHub master/dev 同树**，不换到 `eternal-dev`。 |
 | OLED 编辑/局部提交 | 客户端底层已通过差分 HIL，正式 UI 待验 | Gitee Rhino 上 Runtime 专用驱动已完成 B-only `5/5`、`102400/102400`、A 保留与 A/B 断电保持；v0.3 改为独立客户端兼容列车，不等待统一固件 |
 | WBS 0.2 行为/协议/Flash 矩阵 | 部分完成 | 行为与协议入口已静态比较；Flash 地址、大小、占用和 HIL 仍开放 |
 
@@ -826,8 +826,8 @@ AhaType
 | 1.3 | **已验收 @ `9135183`**：Rhino 四状态/双套任务图、caps14 交叉契约、interval 与持久化迁移 | 统一 OLED 状态机 | 1.2 accepted |
 | 1.4 | **已验收 @ `97f0ae8`**：事务化 factory assets 与断电恢复门禁 | 资源模块 | 1.2、1.3 accepted |
 | 1.5 | **实现已验收 @ `b678137`；HIL 待 1.7 后刷机**：配置 EEPROM journal、0x95/0x97 持久化、图片上传恢复与逐块进度 | 上传/持久化 HIL 测试 | 1.3-1.4 |
-| 1.6 | **B1 accepted；VBUS B2 policy-core @ `48c4fdd` 退 R4**：策略核冻结，R3 JSON/step 主护栏成立；仍需闭合非 UTF-8/I/O fail verdict、schema-driven 全字段校验、b2-04 转移语义/去抖时限/终插后 15s，b2-01 硬性 ≥95s，并同步报告口径；生产接线、7B HIL、刷机与 1.7 仍未授权 | 传输回归报告 | 1.2 |
-| 1.7 | 建立 Standard/Rhino 两份资源 pack | 两个量产产物 | 1.4 |
+| 1.6 | **accepted/closed**：identity/arbiter、VBUS 混合策略、ownership reducer、pack ABI v2 与 B2C 证据链已验收；7A/7B 实机仍作为独立 USER-GATE，不反向阻塞 host implementation 收口 | 传输回归报告 | 1.2 |
+| 1.7 | **进行中 / BR5 @ `9fe4d5d` 待正式提审验收**：1.7A pack-runtime foundation 已验收；1.7B 已完成资源迁出、生产布局和 combined-image host 构建，BR1–BR5 正在收口 fail-closed verifier/publication recovery。当前产物仍是 host artifact，不得称可刷或量产通过 | 两个量产产物 | 1.4 |
 
 退出条件：同一源码在两种资源变体上通过现有功能回归，除资源外行为一致。
 

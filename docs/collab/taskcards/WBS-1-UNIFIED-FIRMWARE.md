@@ -1,7 +1,7 @@
 # 任务卡 WBS-1-UNIFIED-FIRMWARE：统一 Standard/Rhino 固件基线
 
 计划/WBS：1.1-1.7  
-状态：`ready / 1.6 VBUS B2 policy-core R4`（R3 主体成立，但 artifact 解码护栏、schema 单一来源、long-jitter 语义/收尾与 95s 硬门未闭；生产接线、刷机、7B 实机 HIL、1.7 仍未授权）
+状态：`active / 1.7BR5 @ 9fe4d5d; awaiting formal submission/review`（1.6 accepted/closed；1.7A accepted @ `c85eae0`；BR5 clean 实现提交已存在，但尚无 board 完成提审或 Codex 验收；刷机、HIL、签名、发布、push 仍未授权）
 执行 owner：Zcode
 目标版本：v0.3
 基线：GitHub `dev@3e7f900ae6f5fe71d57a03da973d79356afea1b6`；Rhino 只读来源为 Gitee `rhino@53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` 与本地 `rhino@00eb7efc235770d0a40e23a8c6e7449b2c010765`  
