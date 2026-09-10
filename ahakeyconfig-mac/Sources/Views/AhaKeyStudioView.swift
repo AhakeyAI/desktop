@@ -28,6 +28,7 @@ struct AhaKeyStudioView: View {
     @State private var isSubmittingCurrentPage = false
     @State private var isRemovingQueuedPage = false
     @State private var overwriteConfirmationLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
+    @State private var pageEditIntentLedger = AhaKeyStudioPageEditIntentLedger()
     @State private var completedTaskResourceCount = 0
     /// 普通默认图片写入失败时只记录该图片，不能阻断键位与灯效。
     @State private var lastDefaultPictureUploadFailures: [String] = []
@@ -139,6 +140,7 @@ struct AhaKeyStudioView: View {
         // Studio 不再直连设备：切换 Mode 标签只改本地编辑目标，不向键盘发模式切换命令。
         .onChange(of: selectedMode) { _ in
             refreshEditingTaskPictureSetFromDraft()
+            observePageEditIntentContext()
         }
         .onChange(of: runtimeStore.isConnected) { connected in
             if !connected {
@@ -150,12 +152,14 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: overwriteConfirmationIdentity) { identity in
             overwriteConfirmationLedger.observeCurrentIdentity(identity)
+            observePageEditIntentContext()
         }
         .onChange(of: runtimeStore.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
         }
         .onChange(of: runtimeStore.taskPictureProtocolPlan) { newPlan in
             applyTaskPicturePlanChange(nextPlan: newPlan)
+            observePageEditIntentContext()
         }
         .onChange(of: voiceRelay.inputMonitoringGranted) { _ in
             refreshStartupPermissionOnboarding()
@@ -2083,7 +2087,39 @@ struct AhaKeyStudioView: View {
             fieldAuthorities: runtimeStore.fieldAuthorities(),
             profile: runtimeStore.oledProfile,
             selectedTaskSet: selectedPart == .oledDisplay ? selectedOLEDGIFSet : nil,
-            overwriteConfirmed: overwriteConfirmed
+            overwriteConfirmed: overwriteConfirmed,
+            explicitIntentFieldIDs: explicitPageEditIntentFieldIDs()
+        )
+    }
+
+    private func currentPageEditIntentValues() -> [AhaKeyStudioFieldID: AhaKeyStudioFieldValue] {
+        guard case .screen(let slot) = currentPageID,
+              let mode = studioDraft.modes.first(where: { $0.mode.rawValue == Int(slot) }) else {
+            return [:]
+        }
+        return [.screenActiveSet(modeSlot: slot): .integer(mode.oled.activeGIFSet)]
+    }
+
+    private func observePageEditIntentContext() {
+        pageEditIntentLedger.observeContext(
+            deviceID: runtimeStore.activeDevice?.id,
+            sessionGeneration: runtimeStore.activeDevice?.sessionGeneration ?? .init(0),
+            transportGeneration: runtimeStore.activeDevice?.transportGeneration ?? .init(0),
+            pageID: currentPageID,
+            profile: runtimeStore.oledProfile,
+            currentValues: currentPageEditIntentValues()
+        )
+    }
+
+    private func explicitPageEditIntentFieldIDs() -> Set<AhaKeyStudioFieldID> {
+        guard let device = runtimeStore.activeDevice else { return [] }
+        return pageEditIntentLedger.matchingFieldIDs(
+            deviceID: device.id,
+            sessionGeneration: device.sessionGeneration,
+            transportGeneration: device.transportGeneration,
+            pageID: currentPageID,
+            profile: runtimeStore.oledProfile,
+            currentValues: currentPageEditIntentValues()
         )
     }
 
@@ -2217,6 +2253,16 @@ struct AhaKeyStudioView: View {
                 )
                 selectedOLEDGIFSet = desiredSet
                 updateCurrentMode { $0.oled.activeGIFSet = desiredSet }
+                if let device = runtimeStore.activeDevice {
+                    pageEditIntentLedger.notePickerSelection(
+                        activeSet: desiredSet,
+                        modeSlot: UInt8(selectedMode.rawValue),
+                        deviceID: device.id,
+                        sessionGeneration: device.sessionGeneration,
+                        transportGeneration: device.transportGeneration,
+                        profile: runtimeStore.oledProfile
+                    )
+                }
             }
         )
     }
@@ -2472,7 +2518,8 @@ struct AhaKeyStudioView: View {
             fieldAuthorities: runtimeStore.fieldAuthorities(),
             profile: runtimeStore.oledProfile,
             selectedTaskSet: part == .oledDisplay ? selectedOLEDGIFSet : nil,
-            overwriteConfirmed: false
+            overwriteConfirmed: false,
+            explicitIntentFieldIDs: part == .oledDisplay ? explicitPageEditIntentFieldIDs() : []
         )
         switch AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot) {
         case .write, .requiresOverwriteConfirmation:
@@ -2548,12 +2595,16 @@ struct AhaKeyStudioView: View {
         }
         applyCursorRejectMacroSelfHealIfNeeded()
         let pageID = currentPageID
+        observePageEditIntentContext()
         overwriteConfirmationLedger.observeCurrentIdentity(overwriteConfirmationIdentity)
         let identity = overwriteConfirmationIdentity
         let snapshot = frozenPageSnapshot(
             overwriteConfirmed: overwriteConfirmationLedger.shouldSubmitConfirmed(for: identity)
         )
         let attempt = identity.map { overwriteConfirmationLedger.beginAttempt(for: $0) }
+        if let attempt {
+            pageEditIntentLedger.bindAttempt(attempt, fields: explicitPageEditIntentFieldIDs())
+        }
         isSubmittingCurrentPage = true
         syncStatusMessage = NSLocalizedString("正在提交当前页到 Runtime…", comment: "")
         Task { @MainActor in
@@ -2565,6 +2616,11 @@ struct AhaKeyStudioView: View {
                 )
                 if let attempt {
                     self.overwriteConfirmationLedger.applyCommitResult(
+                        result,
+                        attempt: attempt,
+                        currentIdentity: self.overwriteConfirmationIdentity
+                    )
+                    self.pageEditIntentLedger.applyCommitResult(
                         result,
                         attempt: attempt,
                         currentIdentity: self.overwriteConfirmationIdentity
@@ -2593,6 +2649,10 @@ struct AhaKeyStudioView: View {
             } catch {
                 if let attempt {
                     self.overwriteConfirmationLedger.noteAttemptFailed(
+                        attempt: attempt,
+                        currentIdentity: self.overwriteConfirmationIdentity
+                    )
+                    self.pageEditIntentLedger.noteAttemptFailed(
                         attempt: attempt,
                         currentIdentity: self.overwriteConfirmationIdentity
                     )

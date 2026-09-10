@@ -151,7 +151,8 @@ extension AhaKeyStudioDraft {
         fieldAuthorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [:],
         profile: AhaKeyOLEDCompatibilityProfile,
         selectedTaskSet: Int? = nil,
-        overwriteConfirmed: Bool = false
+        overwriteConfirmed: Bool = false,
+        explicitIntentFieldIDs: Set<AhaKeyStudioFieldID> = []
     ) -> AhaKeyStudioPageSnapshot {
         let currentFields = ownedFields(on: pageID)
         let cachedFields: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue]
@@ -171,10 +172,11 @@ extension AhaKeyStudioDraft {
             } else {
                 userDirty = cachedFields[field.id] != field.value
             }
+            let exactExplicitIntent = explicitIntentFieldIDs.contains(field.id)
             return AhaKeyStudioFrozenField(
                 id: field.id,
                 value: field.value,
-                isDirty: userDirty,
+                isDirty: userDirty || exactExplicitIntent,
                 baseline: baseline
             )
         }

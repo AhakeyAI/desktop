@@ -432,6 +432,127 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertTrue(foreign.deviceFIFO.isEmpty)
     }
 
+    func testExplicitActiveSetUnknownBaselineTwoClickCommitGoesThroughFacade() async throws {
+        let harness = try makeHarness()
+        await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
+        harness.store.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: [])))
+
+        var ledger = AhaKeyStudioPageEditIntentLedger()
+        var confirmation = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let current = AhaKeyStudioDraft.default
+        let synced = current
+        ledger.notePickerSelection(
+            activeSet: 0,
+            modeSlot: 0,
+            deviceID: harness.deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        let intents = ledger.matchingFieldIDs(
+            deviceID: harness.deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            currentValues: [.screenActiveSet(modeSlot: 0): .integer(0)]
+        )
+        let pending = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            overwriteConfirmed: false,
+            explicitIntentFieldIDs: intents
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(pending),
+            .requiresOverwriteConfirmation
+        )
+        let identity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
+            deviceID: harness.deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            snapshot: pending
+        )
+        confirmation.observeCurrentIdentity(identity)
+        let firstAttempt = confirmation.beginAttempt(for: identity)
+        ledger.bindAttempt(firstAttempt, fields: intents)
+        let first = try await harness.store.commitFrozenPage(pending)
+        XCTAssertEqual(first, .requiresOverwriteConfirmation)
+        confirmation.applyCommitResult(
+            first,
+            attempt: firstAttempt,
+            currentIdentity: identity
+        )
+        ledger.applyCommitResult(first, attempt: firstAttempt, currentIdentity: identity)
+        var counts = await harness.facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 0)
+        XCTAssertNil(harness.transport.appliedPackage)
+
+        let completed = summary(
+            id: AhaKeyRuntimeOperationID(UUID(uuidString: "844F52E4-D601-441F-942D-682A69DBF91F")!),
+            device: harness.deviceID,
+            state: .completed,
+            pageID: .screen(modeSlot: 0),
+            terminalOrder: 10
+        )
+        harness.store.applyViewStateForTesting(
+            onlineState(snapshot: harness.snapshot(operations: [completed]))
+        )
+        XCTAssertTrue(confirmation.shouldSubmitConfirmed(for: identity))
+
+        let confirmed = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            overwriteConfirmed: true,
+            explicitIntentFieldIDs: intents
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
+                deviceID: harness.deviceID,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                snapshot: confirmed
+            ),
+            identity
+        )
+        let secondAttempt = confirmation.beginAttempt(for: identity)
+        ledger.bindAttempt(secondAttempt, fields: intents)
+        let second = try await harness.store.commitFrozenPage(confirmed)
+        guard case .accepted = second else {
+            return XCTFail("第二次相同 identity 必须进入 Facade apply：\(second)")
+        }
+        confirmation.applyCommitResult(
+            second,
+            attempt: secondAttempt,
+            currentIdentity: identity
+        )
+        ledger.applyCommitResult(second, attempt: secondAttempt, currentIdentity: identity)
+        counts = await harness.facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.ingest, 0)
+        XCTAssertEqual(counts.apply, 1)
+        XCTAssertNotNil(harness.transport.appliedPackage)
+        XCTAssertEqual(
+            harness.transport.appliedPackage?.pageOperation?.fieldMask,
+            [.screenActiveSet(modeSlot: 0)]
+        )
+        XCTAssertTrue(
+            ledger.matchingFieldIDs(
+                deviceID: harness.deviceID,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                pageID: .screen(modeSlot: 0),
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                currentValues: [.screenActiveSet(modeSlot: 0): .integer(0)]
+            ).isEmpty
+        )
+        await harness.facade.stop()
+    }
+
     func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
         let harness = try makeHarness()
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))

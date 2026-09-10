@@ -498,6 +498,145 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         }
     }
 
+    func testReturningToLocalBaselineStillEmitsAuthoritativeActiveSetDifference() throws {
+        var current = AhaKeyStudioDraft.default
+        var synced = current
+        var currentMode = current.draft(for: .mode0)
+        currentMode.oled.statusLine = "套图 B · 已完成"
+        current.updateMode(currentMode)
+        var syncedMode = synced.draft(for: .mode0)
+        syncedMode.oled.statusLine = "local-last-synced-A"
+        synced.updateMode(syncedMode)
+        XCTAssertEqual(current.draft(for: .mode0).oled.activeGIFSet, 0)
+        XCTAssertEqual(synced.draft(for: .mode0).oled.activeGIFSet, 0)
+
+        let authorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [
+            .screenActiveSet(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                value: .integer(1),
+                trust: .writeConfirmed,
+                provenance: .writeConfirmation
+            ),
+            .screenStatusLine(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                value: .text("套图 B · 已完成"),
+                trust: .writeConfirmed,
+                provenance: .writeConfirmation
+            ),
+        ]
+        let withoutIntent = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: authorities,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            overwriteConfirmed: true
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(withoutIntent),
+            .noOp,
+            "无 picker intent 时不得因 authority set1 自动回写"
+        )
+
+        let device = try AhaKeyRuntimeDeviceID("505C")
+        var ledger = AhaKeyStudioPageEditIntentLedger()
+        ledger.notePickerSelection(
+            activeSet: 0,
+            modeSlot: 0,
+            deviceID: device,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
+        )
+        let explicit = ledger.matchingFieldIDs(
+            deviceID: device,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            pageID: .screen(modeSlot: 0),
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            currentValues: [.screenActiveSet(modeSlot: 0): .integer(0)]
+        )
+        XCTAssertEqual(explicit, [.screenActiveSet(modeSlot: 0)])
+        let withIntent = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: authorities,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            overwriteConfirmed: true,
+            explicitIntentFieldIDs: explicit
+        )
+        guard case .write(let plan) = AhaKeyStudioPackageAssembler.assembleScopedPage(withIntent) else {
+            return XCTFail("device is set1, so choosing A/set0 must emit an active-set-only write")
+        }
+        XCTAssertEqual(plan.fieldMask, [.screenActiveSet(modeSlot: 0)])
+        XCTAssertEqual(Set(plan.values.keys), plan.fieldMask)
+        XCTAssertEqual(plan.values[.screenActiveSet(modeSlot: 0)]?.integerValue, 0)
+        XCTAssertEqual(plan.activateTaskSet, 0)
+        XCTAssertTrue(plan.emitsSetActiveSetOpcode)
+        XCTAssertFalse(plan.writeTaskSetA)
+        XCTAssertFalse(plan.writeTaskSetB)
+        XCTAssertTrue(plan.resources.isEmpty)
+        XCTAssertNil(plan.statusLine)
+    }
+
+    func testExplicitActiveSetThenAuthorityMatchIsNoOpAndDoesNotResurrectA() {
+        var current = AhaKeyStudioDraft.default
+        let synced = current
+        var mode = current.draft(for: .mode0)
+        mode.oled.activeGIFSet = 1
+        current.updateMode(mode)
+        let authorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [
+            .screenActiveSet(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                value: .integer(1),
+                trust: .writeConfirmed,
+                provenance: .writeConfirmation
+            ),
+        ]
+        let choseB = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: authorities,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 1,
+            overwriteConfirmed: true,
+            explicitIntentFieldIDs: [.screenActiveSet(modeSlot: 0)]
+        )
+        XCTAssertEqual(AhaKeyStudioPackageAssembler.assembleScopedPage(choseB), .noOp)
+
+        mode.oled.activeGIFSet = 0
+        current.updateMode(mode)
+        let staleAIntent = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: authorities,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            overwriteConfirmed: true,
+            explicitIntentFieldIDs: []
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(staleAIntent),
+            .noOp,
+            "切到已是 authority 的 B 后，未重新登记的 A intent 不得复活"
+        )
+
+        let choseAAgain = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            fieldAuthorities: authorities,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0,
+            overwriteConfirmed: true,
+            explicitIntentFieldIDs: [.screenActiveSet(modeSlot: 0)]
+        )
+        guard case .write(let plan) = AhaKeyStudioPackageAssembler.assembleScopedPage(choseAAgain) else {
+            return XCTFail("再次明确选 A 必须发 active-only write")
+        }
+        XCTAssertEqual(plan.fieldMask, [.screenActiveSet(modeSlot: 0)])
+        XCTAssertEqual(plan.activateTaskSet, 0)
+        XCTAssertTrue(plan.emitsSetActiveSetOpcode)
+        XCTAssertTrue(plan.resources.isEmpty)
+    }
+
     private func pictureAuthorities(
         set: Int,
         oldPath: String

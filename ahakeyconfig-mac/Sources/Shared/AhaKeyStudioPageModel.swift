@@ -207,7 +207,7 @@ public struct AhaKeyStudioFieldBaseline: Equatable, Sendable {
 public struct AhaKeyStudioFrozenField: Equatable, Sendable {
     public var id: AhaKeyStudioFieldID
     public var value: AhaKeyStudioFieldValue
-    /// 相对 local lastSyncedDraft 的用户编辑；nil cache 时为 true。不得单独决定 no-op。
+    /// 相对 local lastSyncedDraft 的用户编辑，或 exact explicit picker intent。nil cache 时为 true。不得单独决定 no-op。
     public var isDirty: Bool
     public var baseline: AhaKeyStudioFieldBaseline
 
@@ -1018,5 +1018,171 @@ public struct AhaKeyStudioPageOverwriteConfirmationLedger: Equatable, Sendable {
         guard inFlight == attempt else { return false }
         inFlight = nil
         return attempt.revision == revision && currentIdentity == attempt.identity
+    }
+}
+
+/// 用户显式编辑的 typed identity。Runtime snapshot / 页面出现 / draft reload 不得登记。
+public struct AhaKeyStudioPageEditIntent: Equatable, Sendable {
+    public var deviceID: AhaKeyRuntimeDeviceID
+    public var sessionGeneration: AhaKeyRuntimeSessionGeneration
+    public var transportGeneration: AhaKeyRuntimeTransportGeneration
+    public var pageID: AhaKeyStudioPageID
+    public var profile: AhaKeyOLEDCompatibilityProfile
+    public var fieldID: AhaKeyStudioFieldID
+    public var value: AhaKeyStudioFieldValue
+
+    public init(
+        deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        pageID: AhaKeyStudioPageID,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        fieldID: AhaKeyStudioFieldID,
+        value: AhaKeyStudioFieldValue
+    ) {
+        self.deviceID = deviceID
+        self.sessionGeneration = sessionGeneration
+        self.transportGeneration = transportGeneration
+        self.pageID = pageID
+        self.profile = profile
+        self.fieldID = fieldID
+        self.value = value
+    }
+}
+
+/// View 唯一 explicit-edit seam。消费 C5ER1 attempt token，不另造 token 类型。
+public struct AhaKeyStudioPageEditIntentLedger: Equatable, Sendable {
+    public private(set) var revision: UInt64 = 0
+
+    private var intents: [AhaKeyStudioFieldID: AhaKeyStudioPageEditIntent] = [:]
+    private var inFlight: AhaKeyStudioPageOverwriteConfirmationAttemptToken?
+    private var inFlightRevision: UInt64 = 0
+    private var inFlightFields: Set<AhaKeyStudioFieldID> = []
+
+    public init() {}
+
+    /// 套图 Picker setter 登记 `.screenActiveSet`。非法套图索引不登记。
+    public mutating func notePickerSelection(
+        activeSet: Int,
+        modeSlot: UInt8,
+        deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        profile: AhaKeyOLEDCompatibilityProfile
+    ) {
+        guard (0...1).contains(activeSet) else { return }
+        noteExplicitEdit(
+            AhaKeyStudioPageEditIntent(
+                deviceID: deviceID,
+                sessionGeneration: sessionGeneration,
+                transportGeneration: transportGeneration,
+                pageID: .screen(modeSlot: modeSlot),
+                profile: profile,
+                fieldID: .screenActiveSet(modeSlot: modeSlot),
+                value: .integer(activeSet)
+            )
+        )
+    }
+
+    public mutating func noteExplicitEdit(_ intent: AhaKeyStudioPageEditIntent) {
+        if intents[intent.fieldID] != intent {
+            bumpAndVoidInFlight()
+            intents[intent.fieldID] = intent
+        }
+    }
+
+    /// device / generation / profile / page / typed value 不匹配则作废。
+    public mutating func observeContext(
+        deviceID: AhaKeyRuntimeDeviceID?,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        pageID: AhaKeyStudioPageID,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        currentValues: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue]
+    ) {
+        let kept = intents.filter { fieldID, intent in
+            guard let deviceID else { return false }
+            return intent.deviceID == deviceID
+                && intent.sessionGeneration == sessionGeneration
+                && intent.transportGeneration == transportGeneration
+                && intent.pageID == pageID
+                && intent.profile == profile
+                && currentValues[fieldID] == intent.value
+        }
+        if kept != intents {
+            bumpAndVoidInFlight()
+            intents = kept
+        }
+    }
+
+    public func matchingFieldIDs(
+        deviceID: AhaKeyRuntimeDeviceID,
+        sessionGeneration: AhaKeyRuntimeSessionGeneration,
+        transportGeneration: AhaKeyRuntimeTransportGeneration,
+        pageID: AhaKeyStudioPageID,
+        profile: AhaKeyOLEDCompatibilityProfile,
+        currentValues: [AhaKeyStudioFieldID: AhaKeyStudioFieldValue]
+    ) -> Set<AhaKeyStudioFieldID> {
+        Set(intents.values.compactMap { intent in
+            guard intent.deviceID == deviceID,
+                  intent.sessionGeneration == sessionGeneration,
+                  intent.transportGeneration == transportGeneration,
+                  intent.pageID == pageID,
+                  intent.profile == profile,
+                  currentValues[intent.fieldID] == intent.value
+            else { return nil }
+            return intent.fieldID
+        })
+    }
+
+    public mutating func bindAttempt(
+        _ attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        fields: Set<AhaKeyStudioFieldID>
+    ) {
+        inFlight = attempt
+        inFlightRevision = revision
+        inFlightFields = fields
+    }
+
+    public mutating func applyCommitResult(
+        _ result: AhaKeyStudioPageCommitResult,
+        attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) {
+        guard consumeMatchingAttempt(attempt, currentIdentity: currentIdentity) else { return }
+        switch result {
+        case .requiresOverwriteConfirmation:
+            break
+        case .accepted, .noOp:
+            for fieldID in inFlightFields {
+                intents.removeValue(forKey: fieldID)
+            }
+        case .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
+            break
+        }
+        inFlightFields = []
+    }
+
+    public mutating func noteAttemptFailed(
+        attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) {
+        guard consumeMatchingAttempt(attempt, currentIdentity: currentIdentity) else { return }
+        inFlightFields = []
+    }
+
+    private mutating func bumpAndVoidInFlight() {
+        revision &+= 1
+        inFlight = nil
+        inFlightFields = []
+    }
+
+    private mutating func consumeMatchingAttempt(
+        _ attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) -> Bool {
+        guard inFlight == attempt else { return false }
+        inFlight = nil
+        return inFlightRevision == revision && currentIdentity == attempt.identity
     }
 }
