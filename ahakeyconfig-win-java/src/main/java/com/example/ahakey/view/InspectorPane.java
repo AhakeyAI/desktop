@@ -11,6 +11,7 @@ import com.example.ahakey.model.OledModeDraft;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.platform.voice.VoiceAction;
+import com.example.ahakey.config.ModelConfig;
 import com.example.ahakey.util.LanguageManager;
 import javafx.scene.control.Spinner;
 import javafx.stage.Window;
@@ -22,6 +23,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
@@ -146,22 +148,61 @@ public class InspectorPane extends ScrollPane {
                 if (value != null) studioState.setVoiceThresholdMs(value);
             });
 
-            ComboBox<VoiceAction> shortAction = new ComboBox<>();
-            shortAction.getItems().addAll(VoiceAction.values());
-            shortAction.setValue(studioState.getVoiceShortAction());
+            ComboBox<VoiceAction> shortAction = voiceActionCombo(
+                List.of(VoiceAction.SYSTEM_VOICE, VoiceAction.NONE),
+                studioState.getVoiceShortAction() == VoiceAction.NONE
+                    ? VoiceAction.NONE : VoiceAction.SYSTEM_VOICE);
             shortAction.valueProperty().addListener((obs, oldValue, value) -> {
                 if (value != null) studioState.setVoiceShortAction(value);
             });
-            ComboBox<VoiceAction> longAction = new ComboBox<>();
-            longAction.getItems().addAll(VoiceAction.values());
-            longAction.setValue(studioState.getVoiceLongAction());
-            longAction.valueProperty().addListener((obs, oldValue, value) -> {
-                if (value != null) studioState.setVoiceLongAction(value);
-            });
+            boolean localModelConfigured = ModelConfig.getInstance().isEnabled();
+            VBox longActionBox = new VBox(4);
+            if (localModelConfigured) {
+                ComboBox<VoiceAction> longAction = voiceActionCombo(
+                    List.of(VoiceAction.AHAKEY_VOICE, VoiceAction.SYSTEM_VOICE, VoiceAction.NONE),
+                    studioState.getVoiceLongAction() == VoiceAction.NONE
+                        ? VoiceAction.NONE : (studioState.getVoiceLongAction() == VoiceAction.SYSTEM_VOICE
+                            ? VoiceAction.SYSTEM_VOICE : VoiceAction.AHAKEY_VOICE));
+                longAction.valueProperty().addListener((obs, oldValue, value) -> {
+                    if (value != null) studioState.setVoiceLongAction(value);
+                });
+                longActionBox.getChildren().add(longAction);
+            } else {
+                Label unavailable = new Label("AhaKey 本地语音（当前不可用）");
+                unavailable.getStyleClass().add("warning-note");
+                longActionBox.getChildren().add(unavailable);
+            }
             box.getChildren().addAll(hint, thresholdLabel, threshold,
-                new Label("短按动作"), shortAction, new Label("长按动作"), longAction);
+                new Label("短按动作（一次触发）"), shortAction,
+                new Label("长按动作（按住说话）"), longActionBox);
             return box;
         });
+    }
+
+    private ComboBox<VoiceAction> voiceActionCombo(
+        List<VoiceAction> actions, VoiceAction selected
+    ) {
+        ComboBox<VoiceAction> combo = new ComboBox<>();
+        combo.getItems().addAll(actions);
+        combo.setValue(selected);
+        java.util.function.Function<ListCell<VoiceAction>, ListCell<VoiceAction>> configure = cell -> {
+            cell.itemProperty().addListener((obs, oldValue, value) ->
+                cell.setText(value == null ? "" : voiceActionLabel(value)));
+            cell.setText(cell.getItem() == null ? "" : voiceActionLabel(cell.getItem()));
+            return cell;
+        };
+        combo.setCellFactory(list -> configure.apply(new ListCell<>()));
+        combo.setButtonCell(configure.apply(new ListCell<>()));
+        return combo;
+    }
+
+    private String voiceActionLabel(VoiceAction action) {
+        return switch (action) {
+            case SYSTEM_VOICE -> "系统语音（Win+H）";
+            case AHAKEY_VOICE -> "AhaKey 本地语音（按住说话）";
+            case NONE -> "禁用";
+            case CUSTOM_SHORTCUT -> "自定义快捷键（暂未实现）";
+        };
     }
 
     private VBox createSimulateKeyGroup(StudioPart part) {

@@ -15,6 +15,9 @@ public final class FirmwareCapabilities {
         required("minimumGifVersion"));
     public static final SemanticVersion MINIMUM_STABILIZED_VERSION = SemanticVersion.parse(
         required("minimumStabilizedFirmwareVersion"));
+    /** Minimum 0x9F-reported firmware that emits raw F18 DOWN/UP events. */
+    public static final SemanticVersion MINIMUM_RAW_F18_DESKTOP_VERSION = SemanticVersion.parse(
+        required("minimumRawF18DesktopVersion"));
     /** Publisher-declared version expected when a real HEX is supplied. */
     public static final SemanticVersion BUNDLED_VERSION = SemanticVersion.parse(
         required("expectedBundledVersion"));
@@ -73,6 +76,14 @@ public final class FirmwareCapabilities {
 
     public static boolean supportsGif(SemanticVersion version) {
         return version != null && version.compareTo(MINIMUM_GIF_VERSION) >= 0;
+    }
+
+    /**
+     * The desktop F18 press/hold state machine is only safe for firmware that
+     * reports the raw F18 key. Unknown versions deliberately fail closed.
+     */
+    public static boolean supportsRawF18DesktopRouting(SemanticVersion version) {
+        return version != null && version.compareTo(MINIMUM_RAW_F18_DESKTOP_VERSION) >= 0;
     }
 
     public static void requireStabilizedContract(

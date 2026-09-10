@@ -39,7 +39,7 @@ public class StudioState {
     private final ObjectProperty<VoiceAction> voiceShortAction =
         new SimpleObjectProperty<>(VoiceAction.SYSTEM_VOICE);
     private final ObjectProperty<VoiceAction> voiceLongAction =
-        new SimpleObjectProperty<>(VoiceAction.SYSTEM_VOICE);
+        new SimpleObjectProperty<>(VoiceAction.AHAKEY_VOICE);
 
     private final Map<ModeSlot, EnumMap<StudioPart, KeyConfig>> keyConfigs = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, StringProperty> oledSummaries = new EnumMap<>(ModeSlot.class);
@@ -295,7 +295,7 @@ public class StudioState {
         voiceKeyLong.setDescription("WeChat Voice");
         voiceThresholdMs.set(350);
         voiceShortAction.set(VoiceAction.SYSTEM_VOICE);
-        voiceLongAction.set(VoiceAction.SYSTEM_VOICE);
+        voiceLongAction.set(VoiceAction.AHAKEY_VOICE);
         markDirty(StudioPart.KEY1);
     }
 
@@ -481,7 +481,7 @@ public class StudioState {
         voiceThresholdMs.set(draft.voiceThresholdMs == null
             ? 350 : Math.max(50, Math.min(5000, draft.voiceThresholdMs)));
         voiceShortAction.set(parseVoiceAction(draft.voiceShortAction, VoiceAction.SYSTEM_VOICE));
-        voiceLongAction.set(parseVoiceAction(draft.voiceLongAction, VoiceAction.SYSTEM_VOICE));
+        voiceLongAction.set(parseVoiceAction(draft.voiceLongAction, VoiceAction.AHAKEY_VOICE));
         for (int i = 0; i < ModeSlot.values().length; i++) {
             ModeSlot mode = ModeSlot.values()[i];
             PersistedDraft.ModeDraft md = draft.modes[i];
@@ -596,7 +596,7 @@ public class StudioState {
         public Integer voiceKeyLongHid = 0x0A00;
         public Integer voiceThresholdMs = 350;
         public String voiceShortAction = VoiceAction.SYSTEM_VOICE.name();
-        public String voiceLongAction = VoiceAction.SYSTEM_VOICE.name();
+        public String voiceLongAction = VoiceAction.AHAKEY_VOICE.name();
         public ModeDraft[] modes = new ModeDraft[ModeSlot.values().length];
 
         public static PersistedDraft defaults() {

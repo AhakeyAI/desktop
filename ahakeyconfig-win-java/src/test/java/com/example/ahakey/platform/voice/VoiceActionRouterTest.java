@@ -23,4 +23,23 @@ class VoiceActionRouterTest {
             VoiceButtonEvent.Type.LONG_PRESS_START,
             VoiceButtonEvent.Type.LONG_PRESS_END), events);
     }
+
+    @Test
+    void defaultsUseSystemVoiceForShortAndAhaKeyVoiceForLong() {
+        VoiceActionRouter router = new VoiceActionRouter();
+        assertEquals(VoiceAction.SYSTEM_VOICE,
+            router.actionFor(VoiceButtonEvent.Type.SHORT_PRESS));
+        assertEquals(VoiceAction.AHAKEY_VOICE,
+            router.actionFor(VoiceButtonEvent.Type.LONG_PRESS_START));
+        assertEquals(VoiceAction.AHAKEY_VOICE,
+            router.actionFor(VoiceButtonEvent.Type.LONG_PRESS_END));
+    }
+
+    @Test
+    void ahaKeyVoiceCannotBeConfiguredAsSilentShortPress() {
+        VoiceActionRouter router = new VoiceActionRouter();
+        router.setActions(VoiceAction.AHAKEY_VOICE, VoiceAction.AHAKEY_VOICE);
+        assertEquals(VoiceAction.SYSTEM_VOICE,
+            router.actionFor(VoiceButtonEvent.Type.SHORT_PRESS));
+    }
 }

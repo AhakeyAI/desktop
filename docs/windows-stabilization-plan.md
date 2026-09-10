@@ -508,10 +508,10 @@ F18（usage `0x6D`，Windows `VK_F18=0x81`）；Windows 低级钩子只消费该
 
 `VoiceButtonStateMachine` 使用 `System.nanoTime()` 和默认 350ms 阈值，重复 DOWN、
 孤立 UP 和 shutdown 后残留状态均被丢弃，产生 `SHORT_PRESS`、`LONG_PRESS_START`、
-`LONG_PRESS_END`。`VoiceActionRouter` 统一分派 `AHAKEY_VOICE`、`SYSTEM_VOICE`、
-`CUSTOM_SHORTCUT`、`NONE`；默认短按和长按均保持 Windows 系统语音（Win+H），以兼容
-现有无本地模型安装的行为。现有 SenseVoice 集成保持已确认的 C 型按住录音模型（长按开始、松开停止），
-不会注入 Typeless/微信 Fn；macOS 仅由平台无关动作模型预留，不宣称 Windows 实现。
+`LONG_PRESS_END`。当时提交的默认短按/长按均为 Windows 系统语音；该历史默认已由
+第 21 节的最终产品语义取代为短按系统语音、长按 AhaKey 本地按住说话。现有 SenseVoice
+集成保持已确认的 C 型按住录音模型（长按开始、松开停止），不会注入 Typeless/微信 Fn；
+macOS 仅由平台无关动作模型预留，不宣称 Windows 实现。
 
 StudioState/StudioStore 复用现有配置存储保存 threshold/action。历史
 `voiceKeyShort`/`voiceKeyLong`、每模式 KEY1 `VoicePreset`、协议 `0x97` parser/readback
@@ -522,3 +522,35 @@ StudioState/StudioStore 复用现有配置存储保存 threshold/action。历史
 生产同步计划断言为不写 `CMD_VOICE_KEY_CONFIG`；显式 legacy 计划仍有兼容测试。自动测试、
 打包和静态检查完成后再记录实际结果；真实 F18 HID、麦克风、Win+H、AhaKey 模型及
 硬件长按验证仍属于软件手工/真机待验证，不得标为完成。
+
+## 21. Final desktop F18 semantics and firmware gate (2026-09-10)
+
+在 `voice-f18-software-router` 的后续收口中，`VoiceButtonStateMachine` 的最终事实源是
+真实单调时钟的 press duration，而不是 scheduler 是否准时运行。UP 到达时若仍处于
+`PRESSED` 且 duration `>=350ms`，状态机会补发一次 `LONG_PRESS_START`，紧接着一次
+`LONG_PRESS_END`；若 scheduler 已先进入 `LONG_ACTIVE`，UP 只发 `LONG_PRESS_END`。重复
+DOWN 不重置起始时间，孤立 UP、reset 和 shutdown 后事件均丢弃。
+
+默认桌面动作已固定为：短按 `<350ms` 使用 `SYSTEM_VOICE`（Win+H 一次），长按
+`>=350ms` 使用 `AHAKEY_VOICE`（`LONG_PRESS_START -> startRecording()`、
+`LONG_PRESS_END -> stopRecording()`）。`AHAKEY_VOICE + SHORT_PRESS` 会被路由器归一化为
+系统语音，避免出现看似可选但没有业务语义的短按本地录音。`CUSTOM_SHORTCUT` 不在正式
+Inspector 选项中；历史配置若仍包含该值，会显示/记录不可用并安全回退系统语音，不伪造
+Typeless/微信 Fn。
+
+本地 VoiceInputManager 仅在模型成功初始化且用户在 TopBar 显式激活后标记可用。默认模型
+关闭、初始化失败或服务未激活时，长按本地动作不会静默丢失，而是更新状态并回退到 Win+H。
+
+raw F18 桌面路由使用既有 `0x9F` 设备信息查询的 Firmware 版本，不增加 capability bit：
+`Firmware >=1.4.8` 才启用 `RAW_F18_DESKTOP_ROUTING_ENABLED`；未知版本和 `1.4.7`
+及以下版本不安装 F18 消费路由，交还固件旧语义。断开会清除已知版本并再次 fail closed；
+`1.4.7` stable 79 的其他设备能力、审批、OLED/GIF、mode 和灯效功能不受影响。桌面短长
+动作仍只保存在本地 Studio 配置，生产 `DeviceSyncService` 不写 `0x97`，显式 legacy
+迁移接口及 parser/readback 保留。
+
+新增测试覆盖 scheduler 迟到的 `370ms`/精确 `350ms` UP 补偿、默认动作、短按 AhaKey
+归一化、`1.4.7` 禁用、`1.4.8` 启用、`1.4.9` 启用及既有重复/孤立/reset/legacy
+同步语义。2026-09-10 最终 `mvn clean test` 为 263 tests、0 failures、0 errors、0 skipped；
+`mvn clean package` 和 `git diff --check` 均成功，发布内容检查为 `RELEASE_ARTIFACT_CONTENTS=OK`。
+自动测试是代码级证据；F18 HID 映射、Windows hook swallow、Win+H、麦克风、本地模型和
+旧/新固件仍需软件手工与真机验证。

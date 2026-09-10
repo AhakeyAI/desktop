@@ -3,6 +3,8 @@ package com.example.ahakey.platform.windows;
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.model.VoicePreset;
+import com.example.ahakey.firmware.FirmwareCapabilities;
+import com.example.ahakey.update.SemanticVersion;
 import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.platform.voice.VoiceActionRouter;
 import com.example.ahakey.platform.voice.VoiceButtonEvent;
@@ -60,6 +62,9 @@ public final class WindowsVoiceRelayService {
     private volatile int configuredThresholdMs = 350;
     private volatile ScheduledFuture<?> thresholdTask;
     private long pressGeneration;
+    private volatile SemanticVersion firmwareVersion;
+    private volatile boolean rawF18RoutingEnabled;
+    private volatile boolean ahaKeyVoiceAvailable;
 
     private static WindowsVoiceRelayService instance;
 
@@ -84,6 +89,44 @@ public final class WindowsVoiceRelayService {
         actionRouter.setExecutor(VoiceAction.SYSTEM_VOICE, event -> {
             if (event.type() == VoiceButtonEvent.Type.SHORT_PRESS
                 || event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
+                WindowsVoiceTyping.trigger();
+            }
+        });
+        actionRouter.setExecutor(VoiceAction.AHAKEY_VOICE, event -> {
+            if (event.type() != VoiceButtonEvent.Type.LONG_PRESS_START
+                && event.type() != VoiceButtonEvent.Type.LONG_PRESS_END) {
+                return;
+            }
+            Consumer<VoiceButtonEvent> callback = onVoiceAction;
+            if (ahaKeyVoiceAvailable && callback != null) {
+                callback.accept(event);
+                // The callback can discover that the model stopped between
+                // queueing and execution.  Re-check availability before
+                // treating the event as handled; a failed START must still
+                // take the visible Windows fallback below.
+                if (ahaKeyVoiceAvailable) {
+                    if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START
+                        && onVoiceKeyDown != null) {
+                        onVoiceKeyDown.run();
+                    } else if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_END
+                        && onVoiceKeyUp != null) {
+                        onVoiceKeyUp.run();
+                    }
+                    return;
+                }
+            }
+            // A local model that is disabled, not activated, or failed to
+            // initialize must not disappear as a silent no-op.  The safe
+            // configured fallback is the one-shot Windows voice action.
+            if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
+                statusMessage.set("AhaKey 本地语音当前不可用，已回退 Windows 语音（Win+H）。");
+                WindowsVoiceTyping.trigger();
+            }
+        });
+        actionRouter.setExecutor(VoiceAction.CUSTOM_SHORTCUT, event -> {
+            if (event.type() == VoiceButtonEvent.Type.SHORT_PRESS
+                || event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
+                statusMessage.set("自定义快捷键尚未实现，已回退 Windows 语音（Win+H）。");
                 WindowsVoiceTyping.trigger();
             }
         });
@@ -164,6 +207,41 @@ public final class WindowsVoiceRelayService {
 
     public void setOnVoiceAction(Consumer<VoiceButtonEvent> callback) {
         this.onVoiceAction = callback;
+    }
+
+    /** Enables local push-to-talk only while VoiceInputManager is active. */
+    public void setAhaKeyVoiceAvailable(boolean available) {
+        this.ahaKeyVoiceAvailable = available;
+        refreshStatus();
+    }
+
+    public boolean isAhaKeyVoiceAvailable() {
+        return ahaKeyVoiceAvailable;
+    }
+
+    /**
+     * Updates the version learned from the existing 0x9F query. Unknown or
+     * older firmware leaves the raw F18 route disabled and is passed through
+     * to the firmware's legacy behavior.
+     */
+    public synchronized void setFirmwareVersion(SemanticVersion version) {
+        firmwareVersion = version;
+        rawF18RoutingEnabled = FirmwareCapabilities.supportsRawF18DesktopRouting(version);
+        if (!rawF18RoutingEnabled) {
+            pressedVoiceKeys.clear();
+            cancelThresholdTask();
+            buttonStateMachine.reset();
+            pressGeneration++;
+        }
+        refreshStatus();
+    }
+
+    public SemanticVersion getFirmwareVersion() {
+        return firmwareVersion;
+    }
+
+    public boolean isRawF18RoutingEnabled() {
+        return rawF18RoutingEnabled;
     }
 
     public void updateRoutes(StudioState state) {
@@ -564,12 +642,18 @@ public final class WindowsVoiceRelayService {
         if (message == WM_KEYUP || message == WM_SYSKEYUP) {
             if (pressedVoiceKeys.firstKeyUp(vk)) {
                 voiceCommandQueue.execute(() -> {
-                    VoiceButtonEvent event = buttonStateMachine.onKeyUp(System.nanoTime());
+                    // The firmware gate may close after the hook callback was
+                    // queued (disconnect, version refresh, or shutdown).
+                    // Drop the stale event rather than routing it under a
+                    // newer/unknown session.
+                    if (!rawF18RoutingEnabled) return;
+                    java.util.List<VoiceButtonEvent> events =
+                        buttonStateMachine.onKeyUp(System.nanoTime());
                     synchronized (WindowsVoiceRelayService.this) {
                         cancelThresholdTask();
                         pressGeneration++;
                     }
-                    dispatchVoiceEvent(event);
+                    events.forEach(WindowsVoiceRelayService.this::dispatchVoiceEvent);
                 });
             }
             return new LRESULT(1);
@@ -577,6 +661,7 @@ public final class WindowsVoiceRelayService {
         if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN) {
             if (pressedVoiceKeys.firstKeyDown(vk)) {
                 voiceCommandQueue.execute(() -> {
+                    if (!rawF18RoutingEnabled) return;
                     buttonStateMachine.onKeyDown(System.nanoTime());
                     final long generation;
                     synchronized (WindowsVoiceRelayService.this) {
@@ -602,21 +687,12 @@ public final class WindowsVoiceRelayService {
     private VoiceRoute matchRoute(int vkCode) {
         // F18 is a physical transport event, independent of the selected
         // mode and the legacy per-mode KEY1 mapping.
-        return vkCode == VK_F18 ? new VoiceRoute(VK_F18, ModeSlot.MODE0, true) : null;
+        return rawF18RoutingEnabled && vkCode == VK_F18
+            ? new VoiceRoute(VK_F18, ModeSlot.MODE0, true) : null;
     }
 
     private void dispatchVoiceEvent(VoiceButtonEvent event) {
         if (event == null) return;
-        Consumer<VoiceButtonEvent> callback = onVoiceAction;
-        if (actionRouter.actionFor(event.type()) == VoiceAction.AHAKEY_VOICE) {
-            if (callback != null) callback.accept(event);
-            if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START && onVoiceKeyDown != null) {
-                onVoiceKeyDown.run();
-            }
-            if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_END && onVoiceKeyUp != null) {
-                onVoiceKeyUp.run();
-            }
-        }
         actionRouter.route(event);
     }
 
@@ -630,6 +706,12 @@ public final class WindowsVoiceRelayService {
     private void refreshStatus() {
         if (!WindowsVoiceTyping.isWindows()) {
             statusMessage.set("非 Windows 平台。");
+            return;
+        }
+        if (!rawF18RoutingEnabled) {
+            String version = firmwareVersion == null ? "未知" : firmwareVersion.toString();
+            statusMessage.set("物理 F18 桌面语音未启用（固件 " + version
+                + "；需要 1.4.8 或更高版本）。");
             return;
         }
         if (hookHandle == null) {

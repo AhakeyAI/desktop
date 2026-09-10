@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.prefs.Preferences;
 
 /**
@@ -58,6 +59,7 @@ public class StudioController {
         new StatusRefreshScheduler();
     private volatile boolean manuallyDisconnected;
     private volatile String lastConnectionError;
+    private final AtomicLong voiceFirmwareProbeGeneration = new AtomicLong();
     /** Only one manual approval alert may be active; concurrent requests fail closed. */
     private final java.util.concurrent.locks.ReentrantLock approvalDialogLock =
         new java.util.concurrent.locks.ReentrantLock(true);
@@ -91,10 +93,13 @@ public class StudioController {
                 }
                 // 启动定时轮询（BLE通知不可靠，需要主动查询）
                 startStatusPolling();
+                refreshVoiceFirmwareGate();
             }
 
             @Override
             public void onDisconnected() {
+                voiceFirmwareProbeGeneration.incrementAndGet();
+                setLastKnownFirmwareVersion(null);
                 workModeSynchronizer.invalidateSession();
                 Platform.runLater(() -> deviceStatus.setConnected(false));
                 kimiAhaKeyBridge.stop();
@@ -121,6 +126,10 @@ public class StudioController {
 
         firmwareUpdateService = new FirmwareUpdateService(bleManager);
         voiceRelay.configure(() -> studioState, deviceStatus::getWorkMode);
+        // The relay is process-global for the Windows hook.  Start every
+        // controller with an unknown firmware generation so a prior device
+        // connection can never authorize F18 routing for a new session.
+        voiceRelay.setFirmwareVersion(null);
         refreshVoiceRoutes();
         voiceRelay.start();
 
@@ -181,6 +190,41 @@ public class StudioController {
 
     public void setLastKnownFirmwareVersion(SemanticVersion version) {
         lastKnownFirmwareVersion = version;
+        voiceRelay.setFirmwareVersion(version);
+    }
+
+    /** Reads the existing 0x9F contract once per connection for the raw-F18 gate. */
+    private void refreshVoiceFirmwareGate() {
+        if (simulateBle) {
+            setLastKnownFirmwareVersion(null);
+            return;
+        }
+        long generation = voiceFirmwareProbeGeneration.incrementAndGet();
+        Thread probe = new Thread(() -> {
+            try {
+                var capabilities = bleManager.queryDeviceCapabilities();
+                if (capabilities == null) {
+                    throw new IllegalStateException("0x9F capability response unavailable");
+                }
+                SemanticVersion version = new SemanticVersion(
+                    capabilities.firmwareMajor(), capabilities.firmwareMinor(),
+                    capabilities.firmwarePatch());
+                if (generation == voiceFirmwareProbeGeneration.get()
+                    && bleManager.isTransportSessionActive()) {
+                    setLastKnownFirmwareVersion(version);
+                    logger.info("Voice F18 firmware gate: {} -> raw routing {}",
+                        version, voiceRelay.isRawF18RoutingEnabled() ? "enabled" : "disabled");
+                }
+            } catch (Exception exception) {
+                if (generation == voiceFirmwareProbeGeneration.get()) {
+                    setLastKnownFirmwareVersion(null);
+                    logger.warn("Unable to read 0x9F firmware version for raw F18 gate: {}",
+                        exception.getMessage());
+                }
+            }
+        }, "voice-firmware-gate");
+        probe.setDaemon(true);
+        probe.start();
     }
 
     public SemanticVersion getPendingFirmwareVersion() {

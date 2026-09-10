@@ -402,7 +402,13 @@ public class App extends Application {
             if (WindowsVoiceTyping.isWindows()) {
                 WindowsVoiceRelayService relay = WindowsVoiceRelayService.getInstance();
                 relay.setOnVoiceAction(event -> {
-                    if (voiceInputManager == null || !voiceInputManager.isActivated()) return;
+                    if (voiceInputManager == null || !voiceInputManager.isActivated()) {
+                        // Keep the relay's availability bit truthful.  The
+                        // relay re-checks it after this callback and can
+                        // execute the visible Win+H fallback for this event.
+                        relay.setAhaKeyVoiceAvailable(false);
+                        return;
+                    }
                     // Existing SenseVoice integration is a press-to-start /
                     // release-to-stop stream (model C).  The desktop state
                     // machine starts it at LONG_PRESS_START and stops it at
@@ -425,6 +431,10 @@ public class App extends Application {
                         voiceInputManager.stopRecording();
                     }
                 });
+                // Availability is promoted to true only by TopBar after the
+                // user explicitly activates VoiceInputManager.  Until then
+                // the AhaKey action uses the visible Windows fallback.
+                relay.setAhaKeyVoiceAvailable(false);
             }
             
             logger.info("语音输入管理器初始化成功");
@@ -432,6 +442,9 @@ public class App extends Application {
             logger.error("语音输入管理器初始化失败: {}", e.getMessage());
             // 语音输入功能不可用，但不影响主应用运行
             voiceInputManager = null;
+            if (WindowsVoiceTyping.isWindows()) {
+                WindowsVoiceRelayService.getInstance().setAhaKeyVoiceAvailable(false);
+            }
         }
     }
     
@@ -439,6 +452,9 @@ public class App extends Application {
      * 关闭语音输入管理器
      */
     private void shutdownVoiceInputManager() {
+        if (WindowsVoiceTyping.isWindows()) {
+            WindowsVoiceRelayService.getInstance().setAhaKeyVoiceAvailable(false);
+        }
         if (voiceInputManager != null) {
             logger.info("关闭语音输入管理器...");
             voiceInputManager.shutdown();

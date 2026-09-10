@@ -60,4 +60,12 @@ class StudioStateDirtySnapshotTest {
         assertEquals(VoiceAction.CUSTOM_SHORTCUT, loaded.getVoiceShortAction());
         assertEquals(VoiceAction.NONE, loaded.getVoiceLongAction());
     }
+
+    @Test
+    void newDefaultsUseOneShotSystemShortAndPushToTalkLong() {
+        StudioState state = new StudioState();
+        assertEquals(VoiceAction.SYSTEM_VOICE, state.getVoiceShortAction());
+        assertEquals(VoiceAction.AHAKEY_VOICE, state.getVoiceLongAction());
+        assertEquals(350, state.getVoiceThresholdMs());
+    }
 }

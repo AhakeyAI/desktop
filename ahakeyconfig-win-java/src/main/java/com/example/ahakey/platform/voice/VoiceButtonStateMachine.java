@@ -1,6 +1,7 @@
 package com.example.ahakey.platform.voice;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -50,14 +51,33 @@ public final class VoiceButtonStateMachine {
         return new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_START, nowNanos);
     }
 
-    public synchronized VoiceButtonEvent onKeyUp(long nowNanos) {
-        if (state == State.IDLE) return null; // isolated key-up
-        VoiceButtonEvent event = state == State.LONG_ACTIVE
-            ? new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_END, nowNanos)
-            : new VoiceButtonEvent(VoiceButtonEvent.Type.SHORT_PRESS, nowNanos);
+    /**
+     * Completes a press using the physical up timestamp as the source of
+     * truth.  This compensates for a late scheduler callback: a held key can
+     * still become LONG_START followed by LONG_END even when the threshold
+     * task never ran before the UP event.
+     */
+    public synchronized List<VoiceButtonEvent> onKeyUp(long nowNanos) {
+        if (state == State.IDLE) return List.of(); // isolated key-up
+        long durationNanos = Math.max(0, nowNanos - pressedAtNanos);
+        List<VoiceButtonEvent> events;
+        if (state == State.LONG_ACTIVE) {
+            events = List.of(new VoiceButtonEvent(
+                VoiceButtonEvent.Type.LONG_PRESS_END, nowNanos));
+        } else if (durationNanos >= thresholdNanos) {
+            // The scheduled threshold may be late; preserve the semantic
+            // ordering required by the press-to-talk integration.
+            events = List.of(
+                new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_START, nowNanos),
+                new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_END, nowNanos));
+            state = State.LONG_ACTIVE;
+        } else {
+            events = List.of(new VoiceButtonEvent(
+                VoiceButtonEvent.Type.SHORT_PRESS, nowNanos));
+        }
         state = State.IDLE;
         pressedAtNanos = 0;
-        return event;
+        return events;
     }
 
     public synchronized void reset() {

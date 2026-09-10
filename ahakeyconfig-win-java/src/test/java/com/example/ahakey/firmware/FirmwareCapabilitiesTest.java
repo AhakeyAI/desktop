@@ -20,6 +20,8 @@ class FirmwareCapabilitiesTest {
             FirmwareCapabilities.MINIMUM_GIF_VERSION);
         assertEquals(new SemanticVersion(1, 4, 7),
             FirmwareCapabilities.MINIMUM_STABILIZED_VERSION);
+        assertEquals(new SemanticVersion(1, 4, 8),
+            FirmwareCapabilities.MINIMUM_RAW_F18_DESKTOP_VERSION);
         assertEquals(new SemanticVersion(1, 4, 7),
             FirmwareCapabilities.BUNDLED_VERSION);
         assertEquals("AhaKey-X1-firmware-1.4.7-ch582.hex",
@@ -51,6 +53,8 @@ class FirmwareCapabilitiesTest {
             values.getProperty("expectedBundledVersion")));
         assertTrue(FirmwareCapabilities.MINIMUM_STABILIZED_VERSION.toString().equals(
             values.getProperty("minimumStabilizedFirmwareVersion")));
+        assertTrue(FirmwareCapabilities.MINIMUM_RAW_F18_DESKTOP_VERSION.toString().equals(
+            values.getProperty("minimumRawF18DesktopVersion")));
         assertEquals(3, FirmwareCapabilities.REQUIRED_PROTOCOL_MAJOR);
         assertEquals(2, FirmwareCapabilities.REQUIRED_PROTOCOL_MINOR);
         assertEquals(0x7FFL, FirmwareCapabilities.REQUIRED_CAPABILITY_MASK);
@@ -59,6 +63,17 @@ class FirmwareCapabilitiesTest {
         assertEquals(1, FirmwareCapabilities.REQUIRED_DEVICE_MODEL);
         assertEquals("AhaKey-X1", FirmwareCapabilities.REQUIRED_DEVICE_MODEL_NAME);
         assertEquals(0x0006FFFFL, FirmwareCapabilities.MAX_FIRMWARE_ADDRESS);
+    }
+
+    @Test
+    void rawF18DesktopRoutingRequiresFirmware148OrNewer() {
+        assertFalse(FirmwareCapabilities.supportsRawF18DesktopRouting(null));
+        assertFalse(FirmwareCapabilities.supportsRawF18DesktopRouting(
+            new SemanticVersion(1, 4, 7)));
+        assertTrue(FirmwareCapabilities.supportsRawF18DesktopRouting(
+            new SemanticVersion(1, 4, 8)));
+        assertTrue(FirmwareCapabilities.supportsRawF18DesktopRouting(
+            new SemanticVersion(1, 4, 9)));
     }
 
     @Test

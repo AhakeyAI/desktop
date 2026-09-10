@@ -618,6 +618,15 @@ public class TopBar extends VBox {
                 voiceResultPreview.setText(partialResult);
             });
         });
+        // startVoiceInput() deliberately returns void and can fail closed
+        // when the model was not initialized.  Do not advertise a local
+        // executor until the manager confirms it is actually activated;
+        // otherwise an AhaKey long press would be swallowed as a silent no-op.
+        boolean activated = voiceInputManager.isActivated();
+        controller.getVoiceRelay().setAhaKeyVoiceAvailable(activated);
+        if (!activated) {
+            setVoiceStatus("error", "本地语音不可用，长按将回退到 Windows 语音（Win+H）。");
+        }
     }
     
     /**
@@ -637,6 +646,7 @@ public class TopBar extends VBox {
         if (voiceInputManager != null) {
             voiceInputManager.stopVoiceInput();
         }
+        controller.getVoiceRelay().setAhaKeyVoiceAvailable(false);
         
         // 延迟更新状态
         new Thread(() -> {

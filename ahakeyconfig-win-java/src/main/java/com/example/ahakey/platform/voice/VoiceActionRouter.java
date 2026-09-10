@@ -13,12 +13,17 @@ public final class VoiceActionRouter {
         new EnumMap<>(VoiceAction.class);
 
     public VoiceActionRouter() {
-        setActions(VoiceAction.SYSTEM_VOICE, VoiceAction.SYSTEM_VOICE);
+        setActions(VoiceAction.SYSTEM_VOICE, VoiceAction.AHAKEY_VOICE);
     }
 
     public synchronized void setActions(VoiceAction shortAction, VoiceAction longAction) {
+        // AhaKey local voice is a push-to-talk stream and therefore has no
+        // meaningful one-shot SHORT_PRESS operation.  Do not allow a
+        // persisted/legacy value to turn a short press into a silent no-op.
+        VoiceAction effectiveShort = shortAction == VoiceAction.AHAKEY_VOICE
+            ? VoiceAction.SYSTEM_VOICE : shortAction;
         actions.put(VoiceButtonEvent.Type.SHORT_PRESS,
-            Objects.requireNonNull(shortAction, "shortAction"));
+            Objects.requireNonNull(effectiveShort, "shortAction"));
         actions.put(VoiceButtonEvent.Type.LONG_PRESS_START,
             Objects.requireNonNull(longAction, "longAction"));
         actions.put(VoiceButtonEvent.Type.LONG_PRESS_END,

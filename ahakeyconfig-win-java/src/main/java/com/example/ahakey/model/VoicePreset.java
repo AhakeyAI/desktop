@@ -27,7 +27,7 @@ public enum VoicePreset {
     public String getDetail() {
         return switch (this) {
             case WINDOWS_NATIVE ->
-                "AhaKey Studio 在后台拦截语音键（F17/F18），并向系统发送 Win+H 打开 Windows 语音输入。请在「设置 → 时间和语言 → 语音」中启用语音输入。";
+                "AhaKey Studio 在后台拦截物理 F18；短按或显式配置的长按系统动作会发送 Win+H 打开 Windows 语音输入。请在「设置 → 时间和语言 → 语音」中启用语音输入。";
             case MACOS_NATIVE ->
                 "仅 macOS 完整支持；Windows 请改用「Windows 语音 (Win+H)」。";
             case TYPELESS, WECHAT ->

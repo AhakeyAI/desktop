@@ -7,6 +7,7 @@ import com.example.ahakey.model.VoicePreset;
 import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
+import com.example.ahakey.update.SemanticVersion;
 
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.StringProperty;
@@ -33,6 +34,22 @@ public final class VoiceRelayPlatform {
     public void configureVoiceActions(VoiceAction shortAction, VoiceAction longAction,
                                       int thresholdMs) {
         windows.configureVoiceActions(shortAction, longAction, thresholdMs);
+    }
+
+    public void setAhaKeyVoiceAvailable(boolean available) {
+        windows.setAhaKeyVoiceAvailable(available);
+    }
+
+    public boolean isAhaKeyVoiceAvailable() {
+        return windows.isAhaKeyVoiceAvailable();
+    }
+
+    public void setFirmwareVersion(SemanticVersion version) {
+        windows.setFirmwareVersion(version);
+    }
+
+    public boolean isRawF18RoutingEnabled() {
+        return windows.isRawF18RoutingEnabled();
     }
 
     public void start() {
