@@ -1,9 +1,9 @@
 # 任务卡 OPS-DSH-REARM：DSH 执行侧持久重唤闭环
 
-计划引用：协作规范 §2.3、§8.1  
-状态：`blocked / manual board handoff`  
-执行 owner：DSH  
-验收：Codex  
+计划引用：协作规范 §2.3、§8.1
+状态：`blocked / manual board handoff`
+执行 owner：DSH
+验收：Codex
 基线：DSH 接替 Cursor 的未完成及未来客户端执行卡；`OPS-CURSOR-REARM` 仅作为历史证据保留
 
 ## 目标
@@ -29,4 +29,3 @@
 ## 执行记录
 
 等待 DSH 平台唤醒接口可验证后另行开放。本卡不阻塞 DSH 在用户手工打开会话后的任务卡执行。
-
