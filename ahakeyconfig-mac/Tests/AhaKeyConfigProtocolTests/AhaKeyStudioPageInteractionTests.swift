@@ -437,19 +437,11 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
         harness.store.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: [])))
 
-        var ledger = AhaKeyStudioPageEditIntentLedger()
-        var confirmation = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = RecordingStoreCommitPort(store: harness.store)
         let current = AhaKeyStudioDraft.default
         let synced = current
-        ledger.notePickerSelection(
-            activeSet: 0,
-            modeSlot: 0,
-            deviceID: harness.deviceID,
-            sessionGeneration: .init(0),
-            transportGeneration: .init(0),
-            profile: .rhinoDualSet(sessionUploadAdvertised: false)
-        )
-        let intents = ledger.matchingFieldIDs(
+        let context = AhaKeyStudioPageEditIntentContext(
             deviceID: harness.deviceID,
             sessionGeneration: .init(0),
             transportGeneration: .init(0),
@@ -457,40 +449,55 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
             profile: .rhinoDualSet(sessionUploadAdvertised: false),
             currentValues: [.screenActiveSet(modeSlot: 0): .integer(0)]
         )
-        let pending = current.frozenPageSnapshot(
-            pageID: .screen(modeSlot: 0),
-            lastSyncedDraft: synced,
-            profile: .rhinoDualSet(sessionUploadAdvertised: false),
-            selectedTaskSet: 0,
-            overwriteConfirmed: false,
-            explicitIntentFieldIDs: intents
-        )
-        XCTAssertEqual(
-            AhaKeyStudioPackageAssembler.assembleScopedPage(pending),
-            .requiresOverwriteConfirmation
-        )
-        let identity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
+
+        coordinator.notePickerSelection(
+            activeSet: 0,
+            modeSlot: 0,
             deviceID: harness.deviceID,
             sessionGeneration: .init(0),
             transportGeneration: .init(0),
-            snapshot: pending
+            profile: .rhinoDualSet(sessionUploadAdvertised: false)
         )
-        confirmation.observeCurrentIdentity(identity)
-        let firstAttempt = confirmation.beginAttempt(for: identity)
-        ledger.bindAttempt(firstAttempt, fields: intents)
-        let first = try await harness.store.commitFrozenPage(pending)
+
+        // 与 View 一致：每次点击都从当前状态重建一次冻结输入。
+        func makeInput() -> AhaKeyStudioPageSubmissionInput {
+            let intentFieldIDs = coordinator.matchingExplicitIntentFieldIDs(context)
+            let snapshot = current.frozenPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                lastSyncedDraft: synced,
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                selectedTaskSet: 0,
+                overwriteConfirmed: false,
+                explicitIntentFieldIDs: intentFieldIDs
+            )
+            return AhaKeyStudioPageSubmissionInput(
+                deviceID: harness.deviceID,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                snapshot: snapshot,
+                explicitIntentFieldIDs: intentFieldIDs,
+                retryResidual: false
+            )
+        }
+
+        let firstInput = makeInput()
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(firstInput.snapshot),
+            .requiresOverwriteConfirmation
+        )
+        coordinator.observeIdentity(firstInput.confirmationIdentity)
+
+        let first = await coordinator.submit(firstInput, port: port)
         XCTAssertEqual(first, .requiresOverwriteConfirmation)
-        confirmation.applyCommitResult(
-            first,
-            attempt: firstAttempt,
-            currentIdentity: identity
-        )
-        ledger.applyCommitResult(first, attempt: firstAttempt, currentIdentity: identity)
+        XCTAssertEqual(port.snapshots.count, 1)
+        XCTAssertEqual(port.snapshots[0].overwriteConfirmed, false)
+        XCTAssertEqual(coordinator.pendingPrompt, firstInput.confirmationIdentity)
         var counts = await harness.facade.pageSubmitRecordingCountsForTesting()
         XCTAssertEqual(counts.ingest, 0)
         XCTAssertEqual(counts.apply, 0)
         XCTAssertNil(harness.transport.appliedPackage)
 
+        // 历史同页 completed operation 不得消费 pending。
         let completed = summary(
             id: AhaKeyRuntimeOperationID(UUID(uuidString: "844F52E4-D601-441F-942D-682A69DBF91F")!),
             device: harness.deviceID,
@@ -501,37 +508,23 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         harness.store.applyViewStateForTesting(
             onlineState(snapshot: harness.snapshot(operations: [completed]))
         )
-        XCTAssertTrue(confirmation.shouldSubmitConfirmed(for: identity))
+        XCTAssertEqual(coordinator.pendingPrompt, firstInput.confirmationIdentity)
 
-        let confirmed = current.frozenPageSnapshot(
-            pageID: .screen(modeSlot: 0),
-            lastSyncedDraft: synced,
-            profile: .rhinoDualSet(sessionUploadAdvertised: false),
-            selectedTaskSet: 0,
-            overwriteConfirmed: true,
-            explicitIntentFieldIDs: intents
-        )
-        XCTAssertEqual(
-            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-                deviceID: harness.deviceID,
-                sessionGeneration: .init(0),
-                transportGeneration: .init(0),
-                snapshot: confirmed
-            ),
-            identity
-        )
-        let secondAttempt = confirmation.beginAttempt(for: identity)
-        ledger.bindAttempt(secondAttempt, fields: intents)
-        let second = try await harness.store.commitFrozenPage(confirmed)
+        // 第二次 exact 点击：重建的冻结输入必须与第一次等价。
+        let secondInput = makeInput()
+        XCTAssertEqual(secondInput, firstInput, "第二击必须是同一份 exact 冻结输入")
+
+        let second = await coordinator.submit(secondInput, port: port)
         guard case .accepted = second else {
             return XCTFail("第二次相同 identity 必须进入 Facade apply：\(second)")
         }
-        confirmation.applyCommitResult(
-            second,
-            attempt: secondAttempt,
-            currentIdentity: identity
-        )
-        ledger.applyCommitResult(second, attempt: secondAttempt, currentIdentity: identity)
+        XCTAssertEqual(port.snapshots.count, 2)
+        XCTAssertEqual(port.snapshots[1].overwriteConfirmed, true, "第二 snapshot 必须是 confirmed")
+        XCTAssertNil(coordinator.pendingPrompt)
+        XCTAssertFalse(coordinator.isSubmitting)
+        XCTAssertEqual(coordinator.clickCount, 2)
+        XCTAssertEqual(coordinator.portCallCount, 2)
+
         counts = await harness.facade.pageSubmitRecordingCountsForTesting()
         XCTAssertEqual(counts.ingest, 0)
         XCTAssertEqual(counts.apply, 1)
@@ -540,15 +533,9 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
             harness.transport.appliedPackage?.pageOperation?.fieldMask,
             [.screenActiveSet(modeSlot: 0)]
         )
-        XCTAssertTrue(
-            ledger.matchingFieldIDs(
-                deviceID: harness.deviceID,
-                sessionGeneration: .init(0),
-                transportGeneration: .init(0),
-                pageID: .screen(modeSlot: 0),
-                profile: .rhinoDualSet(sessionUploadAdvertised: false),
-                currentValues: [.screenActiveSet(modeSlot: 0): .integer(0)]
-            ).isEmpty
+        XCTAssertEqual(
+            coordinator.matchingExplicitIntentFieldIDs(context),
+            []
         )
         await harness.facade.stop()
     }
@@ -807,6 +794,25 @@ private func makeSnapshot(
         latestEventSequence: .init(0),
         pageBaselines: pageBaselines
     )
+}
+
+/// C5G：记录每次冻结 snapshot，再转发给真实 Store→Facade 写入口。
+@MainActor
+private final class RecordingStoreCommitPort: AhaKeyStudioPageCommitPort {
+    let store: AhaKeyStudioRuntimeClient
+    private(set) var snapshots: [AhaKeyStudioPageSnapshot] = []
+
+    init(store: AhaKeyStudioRuntimeClient) {
+        self.store = store
+    }
+
+    func commitFrozenPage(
+        _ snapshot: AhaKeyStudioPageSnapshot,
+        retryResidual: Bool
+    ) async throws -> AhaKeyStudioPageCommitResult {
+        snapshots.append(snapshot)
+        return try await store.commitFrozenPage(snapshot, retryResidual: retryResidual)
+    }
 }
 
 private final class FakeTransport: AhaKeyStudioRuntimeTransport, @unchecked Sendable {

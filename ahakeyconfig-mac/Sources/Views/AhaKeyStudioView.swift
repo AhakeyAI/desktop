@@ -25,10 +25,9 @@ struct AhaKeyStudioView: View {
     @State private var modeCustomNames: [Int: String] = [:]
     @State private var lastSyncDate: Date?
     @State private var syncStatusMessage = NSLocalizedString("修改会先保存在本地，连接设备后再同步。", comment: "")
-    @State private var isSubmittingCurrentPage = false
     @State private var isRemovingQueuedPage = false
-    @State private var overwriteConfirmationLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
-    @State private var pageEditIntentLedger = AhaKeyStudioPageEditIntentLedger()
+    /// C5G：两击提交的唯一编排者。View 不再直接持有或分发两个 ledger。
+    @StateObject private var pageCommitCoordinator = AhaKeyStudioPageCommitCoordinator()
     @State private var completedTaskResourceCount = 0
     /// 普通默认图片写入失败时只记录该图片，不能阻断键位与灯效。
     @State private var lastDefaultPictureUploadFailures: [String] = []
@@ -110,6 +109,15 @@ struct AhaKeyStudioView: View {
                 userInfo: ["workMode": runtimeStore.workMode]
             )
             scheduleStartupPermissionOnboarding()
+            // C5G：typed trace 写入 Studio 现有 comm log（只含 page/序号/confirmed/类别，无敏感内容）。
+            pageCommitCoordinator.setTraceSink { [weak runtimeStore] event in
+                guard let runtimeStore else { return }
+                runtimeStore.appendCommLogLine(
+                    "页提交 trace #\(event.sequence) page=\(AhaKeyStudioPageChromeProjector.pageTitle(event.pageID))"
+                        + " phase=\(event.phase.rawValue) confirmed=\(event.confirmed)"
+                        + " port=\(event.portCalled) result=\(event.category.rawValue)"
+                )
+            }
             // 进程检测与防休眠接线已移到 App 层（AppDelegate + ProcessDetector.shared），
             // 窗口关闭后检测与防休眠继续运行。
 
@@ -151,7 +159,7 @@ struct AhaKeyStudioView: View {
             mergeCompletedPageBaselines(operations ?? [])
         }
         .onChange(of: overwriteConfirmationIdentity) { identity in
-            overwriteConfirmationLedger.observeCurrentIdentity(identity)
+            pageCommitCoordinator.observeIdentity(identity)
             observePageEditIntentContext()
         }
         .onChange(of: runtimeStore.protocolMode) { mode in
@@ -2043,6 +2051,11 @@ struct AhaKeyStudioView: View {
         runtimeStore.isConfigurationReady
     }
 
+    /// C5G：提交中状态由 coordinator 拥有，View 只做投影。
+    private var isSubmittingCurrentPage: Bool {
+        pageCommitCoordinator.isSubmitting
+    }
+
     private var isSyncing: Bool {
         isSubmittingCurrentPage || !runtimeStore.deviceFIFO.isEmpty
     }
@@ -2070,7 +2083,7 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentPageChrome: AhaKeyStudioPageChrome {
-        overwriteConfirmationLedger.applyingPendingPrompt(
+        pageCommitCoordinator.applyingPendingPrompt(
             to: runtimeStore.pageChrome(pageID: currentPageID, assembly: currentPageAssembly),
             for: overwriteConfirmationIdentity
         )
@@ -2100,8 +2113,9 @@ struct AhaKeyStudioView: View {
         return [.screenActiveSet(modeSlot: slot): .integer(mode.oled.activeGIFSet)]
     }
 
-    private func observePageEditIntentContext() {
-        pageEditIntentLedger.observeContext(
+    /// C5G：显式编辑意图的观测上下文。coordinator 不读 draft/Store，由 View 提供这一份值。
+    private func currentPageEditIntentContext() -> AhaKeyStudioPageEditIntentContext {
+        AhaKeyStudioPageEditIntentContext(
             deviceID: runtimeStore.activeDevice?.id,
             sessionGeneration: runtimeStore.activeDevice?.sessionGeneration ?? .init(0),
             transportGeneration: runtimeStore.activeDevice?.transportGeneration ?? .init(0),
@@ -2111,16 +2125,12 @@ struct AhaKeyStudioView: View {
         )
     }
 
+    private func observePageEditIntentContext() {
+        pageCommitCoordinator.observeExplicitIntentContext(currentPageEditIntentContext())
+    }
+
     private func explicitPageEditIntentFieldIDs() -> Set<AhaKeyStudioFieldID> {
-        guard let device = runtimeStore.activeDevice else { return [] }
-        return pageEditIntentLedger.matchingFieldIDs(
-            deviceID: device.id,
-            sessionGeneration: device.sessionGeneration,
-            transportGeneration: device.transportGeneration,
-            pageID: currentPageID,
-            profile: runtimeStore.oledProfile,
-            currentValues: currentPageEditIntentValues()
-        )
+        pageCommitCoordinator.matchingExplicitIntentFieldIDs(currentPageEditIntentContext())
     }
 
     // Runtime 快照里设备已连接即视为已连接（BLE/USB 均由 Runtime 持有）。
@@ -2254,7 +2264,7 @@ struct AhaKeyStudioView: View {
                 selectedOLEDGIFSet = desiredSet
                 updateCurrentMode { $0.oled.activeGIFSet = desiredSet }
                 if let device = runtimeStore.activeDevice {
-                    pageEditIntentLedger.notePickerSelection(
+                    pageCommitCoordinator.notePickerSelection(
                         activeSet: desiredSet,
                         modeSlot: UInt8(selectedMode.rawValue),
                         deviceID: device.id,
@@ -2594,74 +2604,76 @@ struct AhaKeyStudioView: View {
             return
         }
         applyCursorRejectMacroSelfHealIfNeeded()
-        let pageID = currentPageID
         observePageEditIntentContext()
-        overwriteConfirmationLedger.observeCurrentIdentity(overwriteConfirmationIdentity)
-        let identity = overwriteConfirmationIdentity
-        let snapshot = frozenPageSnapshot(
-            overwriteConfirmed: overwriteConfirmationLedger.shouldSubmitConfirmed(for: identity)
-        )
-        let attempt = identity.map { overwriteConfirmationLedger.beginAttempt(for: $0) }
-        if let attempt {
-            pageEditIntentLedger.bindAttempt(attempt, fields: explicitPageEditIntentFieldIDs())
+        // C5G：每次点击只冻结一次。identity / overwrite decision / attempt / Facade snapshot
+        // 全部来自这同一份 input，禁止在一次点击里从多个 computed property 取快照。
+        guard let input = makeSubmissionInput(retryResidual: retryResidual) else {
+            let message = NSLocalizedString("设备未连接：请确认 AhaKey Runtime 已运行并连接键盘后重试。", comment: "")
+            syncStatusMessage = message
+            writeResultAlertMessage = message
+            showsWriteResultAlert = true
+            return
         }
-        isSubmittingCurrentPage = true
         syncStatusMessage = NSLocalizedString("正在提交当前页到 Runtime…", comment: "")
         Task { @MainActor in
-            defer { self.isSubmittingCurrentPage = false }
-            do {
-                let result = try await self.runtimeStore.commitFrozenPage(
-                    snapshot,
-                    retryResidual: retryResidual
-                )
-                if let attempt {
-                    self.overwriteConfirmationLedger.applyCommitResult(
-                        result,
-                        attempt: attempt,
-                        currentIdentity: self.overwriteConfirmationIdentity
-                    )
-                    self.pageEditIntentLedger.applyCommitResult(
-                        result,
-                        attempt: attempt,
-                        currentIdentity: self.overwriteConfirmationIdentity
-                    )
-                }
-                switch result {
-                case .noOp:
-                    self.syncStatusMessage = NSLocalizedString("无修改，未创建写入。", comment: "")
-                case .requiresOverwriteConfirmation:
-                    self.syncStatusMessage = NSLocalizedString("未知基线需要覆盖写入。请再点「覆盖写入此页」。", comment: "")
-                case .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
-                    let message = NSLocalizedString("当前页不能写入：缺少可信缓存或不支持该页。", comment: "")
-                    self.syncStatusMessage = message
-                    self.writeResultAlertMessage = message
-                    self.showsWriteResultAlert = true
-                case .accepted(let operationID):
-                    self.runtimeStore.appendCommLogLine(
-                        "当前页已提交 Runtime，page=\(AhaKeyStudioPageChromeProjector.pageTitle(pageID))"
-                    )
-                    self.syncStatusMessage = String(
-                        format: NSLocalizedString("%@ 已进入设备写入队列。", comment: ""),
-                        currentPageChrome.statusLabel
-                    )
-                    _ = operationID
-                }
-            } catch {
-                if let attempt {
-                    self.overwriteConfirmationLedger.noteAttemptFailed(
-                        attempt: attempt,
-                        currentIdentity: self.overwriteConfirmationIdentity
-                    )
-                    self.pageEditIntentLedger.noteAttemptFailed(
-                        attempt: attempt,
-                        currentIdentity: self.overwriteConfirmationIdentity
-                    )
-                }
-                let message = String(format: NSLocalizedString("写入当前页失败：%@", comment: ""), error.localizedDescription)
-                self.syncStatusMessage = message
-                self.writeResultAlertMessage = message
-                self.showsWriteResultAlert = true
-            }
+            let outcome = await self.pageCommitCoordinator.submit(
+                input,
+                port: AhaKeyStudioRuntimeStoreCommitPort(store: self.runtimeStore)
+            )
+            self.applyPageCommitOutcome(outcome)
+        }
+    }
+
+    /// C5G：一次点击的唯一冻结入口。
+    private func makeSubmissionInput(retryResidual: Bool) -> AhaKeyStudioPageSubmissionInput? {
+        guard let device = runtimeStore.activeDevice else { return nil }
+        let intentFieldIDs = explicitPageEditIntentFieldIDs()
+        let snapshot = studioDraft.frozenPageSnapshot(
+            pageID: currentPageID,
+            lastSyncedDraft: lastSyncedDraft,
+            fieldAuthorities: runtimeStore.fieldAuthorities(),
+            profile: runtimeStore.oledProfile,
+            selectedTaskSet: selectedPart == .oledDisplay ? selectedOLEDGIFSet : nil,
+            overwriteConfirmed: false,
+            explicitIntentFieldIDs: intentFieldIDs
+        )
+        return AhaKeyStudioPageSubmissionInput(
+            deviceID: device.id,
+            sessionGeneration: device.sessionGeneration,
+            transportGeneration: device.transportGeneration,
+            snapshot: snapshot,
+            explicitIntentFieldIDs: intentFieldIDs,
+            retryResidual: retryResidual
+        )
+    }
+
+    /// C5G：no-op / requires / error 必须可区分，不得静默保留上一条文案。
+    private func applyPageCommitOutcome(_ outcome: AhaKeyStudioPageCommitOutcome) {
+        switch outcome {
+        case .noOp:
+            syncStatusMessage = NSLocalizedString("无修改，未创建写入。", comment: "")
+        case .requiresOverwriteConfirmation:
+            syncStatusMessage = NSLocalizedString("未知基线需要覆盖写入。请再点「覆盖写入此页」。", comment: "")
+        case .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
+            let message = NSLocalizedString("当前页不能写入：缺少可信缓存或不支持该页。", comment: "")
+            syncStatusMessage = message
+            writeResultAlertMessage = message
+            showsWriteResultAlert = true
+        case .accepted:
+            runtimeStore.appendCommLogLine(
+                "当前页已提交 Runtime，page=\(AhaKeyStudioPageChromeProjector.pageTitle(currentPageID))"
+            )
+            syncStatusMessage = String(
+                format: NSLocalizedString("%@ 已进入设备写入队列。", comment: ""),
+                currentPageChrome.statusLabel
+            )
+        case .failed(let reason):
+            let message = String(format: NSLocalizedString("写入当前页失败：%@", comment: ""), reason)
+            syncStatusMessage = message
+            writeResultAlertMessage = message
+            showsWriteResultAlert = true
+        case .ignoredInFlight:
+            break
         }
     }
 
