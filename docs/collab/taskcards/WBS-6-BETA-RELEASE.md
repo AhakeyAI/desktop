@@ -2,7 +2,7 @@
 
 计划/WBS：6.5-6.7  
 状态：`draft`（`USER-GATE`）  
-执行 owner：Cursor  
+执行 owner：DSH
 验证协作者：Zcode
 目标版本：v1.0
 基线：v1.0 的 WBS 6.1-6.4 accepted 的不可变候选版本

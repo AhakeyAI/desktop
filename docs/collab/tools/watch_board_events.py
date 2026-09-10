@@ -2,7 +2,7 @@
 """Wake the active coordinator when an execution owner requests a reply.
 
 The board remains the durable source of truth. This process only turns a
-filesystem append into a low-latency wake notification for the current Cursor
+filesystem append into a low-latency wake notification for the current dispatcher
 session. It uses macOS kqueue, so idle operation does not poll or invoke a
 model.
 """
@@ -67,11 +67,11 @@ def newest_message(text: str) -> str:
 
 
 def should_wake(message: str) -> bool:
-    if not message or not any(owner in message for owner in ("Kimi →", "Cursor →", "Zcode →")):
+    if not message or not any(owner in message for owner in ("Kimi →", "Cursor →", "Zcode →", "DSH →")):
         return False
     return (
         "需要回复：是" in message
-        and any(target in message for target in ("@Codex", "@Cursor", "@Zcode", "@Kimi"))
+        and any(target in message for target in ("@Codex", "@Cursor", "@Zcode", "@Kimi", "@DSH"))
     )
 
 

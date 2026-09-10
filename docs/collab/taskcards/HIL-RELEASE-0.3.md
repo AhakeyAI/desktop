@@ -2,7 +2,7 @@
 
 计划/WBS：6.0B / v0.3
 状态：`draft`（`USER-GATE`）
-执行 owner：Cursor
+执行 owner：DSH
 验证协作者：Zcode；Codex 验收
 基线：最终 v0.2.1 + `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` + `HIL-V03-STUDIO-OLED-COMPATIBILITY` accepted 后冻结
 

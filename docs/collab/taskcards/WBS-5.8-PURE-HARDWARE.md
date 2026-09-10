@@ -2,7 +2,7 @@
 
 计划/WBS：5.8  
 状态：`draft`  
-执行 owner：Cursor  
+执行 owner：DSH
 目标版本：v0.4
 基线：5.4、4.3、5.7 accepted 后冻结  
 目标：删除 Studio 无条件语音启动，确认系统听写/Typeless 等纯硬件路径不启动、不监听 Runtime；仅 AhaType 需要 Runtime。

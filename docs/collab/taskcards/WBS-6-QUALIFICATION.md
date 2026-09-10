@@ -3,7 +3,7 @@
 计划/WBS：6.1-6.4 / v1.0
 状态：`draft`（`USER-GATE`）  
 执行 owner：Zcode
-验证协作者：Cursor  
+验证协作者：DSH（客户端证据）；Codex 验收
 基线：v1.0 功能 WBS accepted 后冻结候选版本
 目标：完成 v1.0 reducer/日志/隐藏 UI 性能、跨平台 USB/BLE、量产一致性、升级/降级/断电/断连门禁。v0.3-v0.5 与 v1.1 各由独立 HIL 卡验收。
 

@@ -2,7 +2,7 @@
 
 计划/WBS：6.0B / v0.5
 状态：`draft`（`USER-GATE`）
-执行 owner：Cursor
+执行 owner：DSH
 验证协作者：Zcode；Codex 验收
 基线：WBS 3 与 WBS 4.5 accepted 后冻结
 

@@ -2,7 +2,7 @@
 
 计划/WBS：5.10、4.7  
 状态：`draft`  
-执行 owner：Cursor  
+执行 owner：DSH
 目标版本：v1.0
 基线：5.9A accepted 后可做只读/协议准备；5.9B 前冻结 Windows 客户端基线
 目标：抽象 macOS interface 的跨平台语义，定义并实现 Windows Adapter/Studio v4 对齐，不复制平台无关业务规则。

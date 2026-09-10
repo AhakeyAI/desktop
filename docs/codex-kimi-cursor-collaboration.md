@@ -1,4 +1,4 @@
-# Codex、Kimi、Cursor、Zcode 最终协作方案
+# Codex、Kimi、Cursor、Zcode、DSH 最终协作方案
 
 状态：生效
 日期：2026-08-23
@@ -22,8 +22,9 @@
 | Kimi | 按任务卡实现、测试、逻辑提交、交付小结；优先承接 Runtime/协议/固件核心包 | 不扩范围，不自行改总计划，不静默修前置缺陷 |
 | Cursor | 按任务卡实现、测试、逻辑提交、交付小结；优先承接 Studio/UI/安装升级/客户端 Hook 兼容包 | 不扩范围，不自行改总计划，不在没有路径白名单时开工 |
 | Zcode | 按任务卡实现、测试、逻辑提交、交付小结；当前优先承接统一固件、平台动作与拨杆宏 | 不扩范围，不与 Cursor/Kimi 双写同一仓库路径，不越过任务卡状态开工 |
+| DSH | 自 2026-09-10 起接替 Cursor 的未完成及未来客户端执行卡；按任务卡实现、测试、提交和回传 | 不改固件仓；不假装满足 Cursor IDE 专属验证；不因接手继承任何 USER-GATE |
 
-Kimi、Cursor 与 Zcode 均是执行方。“优先承接”只用于减少上下文切换，不形成永久代码领地；每个工作包仍由 Codex 指定唯一 owner。
+Kimi、Cursor、Zcode 与 DSH 均是执行方。“优先承接”只用于减少上下文切换，不形成永久代码领地；每个工作包仍由 Codex 指定唯一 owner。
 
 ### 2.2 2026-08-27 Zcode 加入与额度切换裁决
 
@@ -33,10 +34,19 @@ Kimi、Cursor 与 Zcode 均是执行方。“优先承接”只用于减少上�
 4. WBS 4、5.8–5.10、6.5–6.7 继续由 Cursor 主责；WBS 5A 与 WBS 6 资格验证预分配给 Zcode，保持 draft/USER-GATE，不在本轮提前启动。
 5. Zcode 的完成、阻塞和裁决请求必须写入同一 `docs/collab/board.md`，格式与 Kimi/Cursor 相同；Codex 负责只读验收。
 
+### 2.3 2026-09-10 DSH 加入与 Cursor 额度切换裁决
+
+1. Cursor 因额度不足停止承接新卡；其已 accepted 历史任务与提交归属保持 Cursor，不做全量 owner 改写。
+2. DSH 接管当前尚未完成及未来的客户端、Studio、安装升级与客户端 HIL 执行卡；写入域仅 `/Users/heartline/Documents/Codex/ahakeyconfig-main`，固件仓继续由 Zcode 独占。
+3. DSH 执行的业务实现由 Codex 做独立只读验收。Codex 不在同一切片中代写业务代码；Zcode 只提供固件事实验证，不承担客户端代码验收。
+4. DSH 不运行 Cursor IDE/CLI。任务若硬性要求 Cursor 进程内证据，必须保持 blocked 或另发替代验证卡，不得用命令行结果冒充。
+5. DSH 可使用命令行构建、签名、launchctl、XPC 探针及获准的 GUI/真机步骤；签名、安装、HIL owner 切换、设备写入、刷机、EEPROM、断电与 push 仍逐次 USER-GATE，旧授权不得继承。
+6. `OPS-CURSOR-REARM` 保留为 Cursor 历史 accepted 证据，不改 owner。DSH 自动重唤由 `OPS-DSH-REARM` 独立验证；accepted 前使用 board 手工交接，不声称自动续工。
+
 ### 2.1 2026-08-24 调度裁决（验证环境分工）
 
 1. Cursor 只承接验证必须发生在 Cursor IDE/CLI 进程内的卡；其余执行卡默认由 Kimi 承接。USER-GATE 仍归用户。`WBS-5.3-C-CURSOR` 不中途换手。
-2. 交叉验收不变：Cursor 执行的卡由 Kimi 独立验收；Kimi 执行的卡由 Codex 验收。调度方不得验收自己写的业务实现。
+2. 历史交叉验收保持：Cursor 执行的卡由 Kimi/Codex 验收，Kimi 执行的卡由 Codex 验收。DSH 接手后的新规则以 §2.3 为准：DSH 实现、Codex 只读验收；验收方不得同时代写该切片业务实现。
 3. Codex 统筹会话计划下线前须在 board 追加离线交接。超过 4 小时无复验时，Kimi 可发表只读复验意见；状态翻转仍须 Codex 上线确认。
 4. 并行仍是例外：须用户明确要求或 Codex 证明路径白名单隔离。`5.3-C` accepted 后下一张仍按 queue 单通道晋级 `WBS-5.3-ORCHESTRATOR`，不自动多卡 active。
 
@@ -61,7 +71,7 @@ Codex 拆分并落任务卡
 
 任务状态固定为：`draft -> ready -> active -> review -> accepted`，异常出口为 `blocked` 或 `superseded`。同一时刻只允许一张会触碰同一文件集的任务卡处于 `active`。
 
-三方异步沟通统一使用 `docs/collab/`：
+多方异步沟通统一使用 `docs/collab/`：
 
 - `docs/collab/board.md` 是 append-only 消息板，承载进展、问题、决定、回复与交接；更正旧信息只能追加新条目，不能改写历史。
 - `docs/collab/taskcards/<ID>.md` 保存正式任务卡。没有状态为 `ready` 的任务卡，不视为开工许可。
@@ -74,7 +84,7 @@ Codex 拆分并落任务卡
 任务卡 ID：
 计划/WBS 引用：
 状态：draft | ready | active | review | accepted | blocked | superseded
-执行 owner：Kimi | Cursor | Zcode
+执行 owner：Kimi | Cursor | Zcode | DSH
 基线分支与提交：
 目标切片（一句话）：
 允许修改路径（白名单）：
@@ -128,9 +138,9 @@ Codex 的验收必须逐条映射任务卡完成定义，输出可定位到文�
 ### 8.1 Codex 事件驱动调度
 
 - Codex 的主触发改为 `docs/collab/board.md` 文件事件监听，不再用固定 30 分钟模型心跳。监听器使用 macOS kqueue 阻塞等待文件变化，空闲时不轮询、不调用模型。
-- Kimi 完成、阻塞或请求裁决时，必须在 board 末尾追加 `需要回复：是（@Codex）`。监听器捕获该 durable 事件后立即唤醒当前 Cursor 统筹会话；board 仍是事实来源，通知丢失时可以从历史恢复。
+- Kimi、Cursor、Zcode 或 DSH 完成、阻塞或请求裁决时，必须在 board 末尾追加 `需要回复：是（@Codex）`。监听器捕获 durable 事件后向当前 dispatcher 输出唤醒 sentinel；board 仍是事实来源，通知丢失时可以从历史恢复。
 - 当前实现位于 `docs/collab/tools/watch_board_events.py`。它只读 board、在本地保存读取游标并输出唤醒 sentinel；不开放网络端口、不修改 Cursor Hook/权限配置。
-- 监听器与当前 Cursor 会话同生命周期；Cursor 重启或会话结束后必须重新 arm。若监听器不可用，应在 board 明确记录并临时恢复低频心跳，不得同时运行重复 watcher/heartbeat。
+- 监听器与承载它的 dispatcher 会话同生命周期；承载进程重启或会话结束后必须重新 arm。DSH 的反向唤醒须经 `OPS-DSH-REARM` 独立验证；未通过时使用 board 手工交接。若监听器不可用，应在 board 明确记录并临时恢复单一降级机制，不得同时运行重复 watcher/heartbeat。
 - 发现交付或阻塞后，先在 board 末尾追加 ACK，再只读检查任务卡基线、提交、diff 和测试证据；不得代执行方修改业务代码。
 - 每次验收记录 `lastReviewedCommit`，避免同一交付被重复处理。涉及产品取舍、实机窗口、签名/发布或高风险外部操作时升级给用户。
 - 事件监听只消费 board 事件，不负责推导或创建下一张任务卡。一个连续实施序列已经得到用户授权时，Codex 将当前卡置为 `accepted` 的同一次调度中，必须二选一：创建下一张依赖已满足的 `ready` 卡；或在 board 明确写出暂停原因、恢复条件和责任方。禁止留下“已验收、无下一卡、无显式暂停原因”的隐性空档。
@@ -142,7 +152,7 @@ Codex 的验收必须逐条映射任务卡完成定义，输出可定位到文�
 - 默认单通道执行：同一时刻只放行一张 `ready/active/review` 卡，其余预建卡保持 `draft`。当前卡 `accepted` 后，Codex 在同一次调度中检查下一卡依赖并晋级为 `ready`。
 - 标记 `USER-GATE` 的卡需要真实硬件、签名/安装、Beta/灰度或正式发布授权。它可以预建为 `draft`，但不得自动晋级；Codex 必须先取得用户对具体窗口和风险操作的确认。
 - 若当前卡被 `blocked`，后续卡默认不越过依赖执行；只有 Codex 证明路径、接口和验收夹具完全隔离后，才可将另一张卡晋级为 `ready`，并在 board 记录原因。
-- Kimi/Cursor 只执行 `ready` 或已由自己 ACK 的 `active` 卡；`draft` 是完整待办定义，不是开工许可。
+- Kimi/Cursor/Zcode/DSH 只执行 `ready` 或已由自己 ACK 的 `active` 卡；`draft` 是完整待办定义，不是开工许可。
 
 ## 9. 冲突与紧急处理
 

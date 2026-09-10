@@ -2,7 +2,7 @@
 
 计划/WBS：6.4A / v1.1
 状态：`draft`（`USER-GATE`）
-执行 owner：Cursor
+执行 owner：DSH
 验证协作者：Zcode；Codex 验收
 基线：WBS 5A accepted 的不可变候选
 

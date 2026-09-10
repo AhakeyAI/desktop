@@ -2,7 +2,7 @@
 
 计划/WBS：5.9B / v1.0
 状态：`draft`（`USER-GATE`）  
-执行 owner：Cursor  
+执行 owner：DSH
 基线：WBS 5.9A、5.8、4.8、5.10 accepted 后冻结
 目标：在 v0.2 的最小签名安装链及已冻结的 Windows 5.10 seam 上，补齐 v1.0 的完整 Keychain/TCC/权限迁移、支持版本矩阵和正式渠道升级/回滚。
 

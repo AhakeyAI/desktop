@@ -1,7 +1,7 @@
 # 任务卡 WBS-5.3-C-CURSOR：Cursor Hook 三态与安装迁移
 
 计划/WBS：5.3-C、§9.4、§15.0-3
-状态：`active`
+状态：`accepted`（历史执行 owner 仍为 Cursor）
 执行 owner：Cursor
 独立验收方：Kimi + Codex（Cursor 不自验其业务实现）
 基线：`feat/unified-client` @ `1ac1524`（WBS 5.2 accepted）
