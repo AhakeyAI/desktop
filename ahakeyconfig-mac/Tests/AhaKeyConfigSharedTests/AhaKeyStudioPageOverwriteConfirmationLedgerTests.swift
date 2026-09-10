@@ -1,9 +1,9 @@
 import XCTest
 @testable import AhaKeyConfigShared
 
-/// C5E：覆盖确认 ledger。捕获序列必须在「历史同页 completed 不得清 pending」上稳定。
+/// C5ER1：attempt token + monotonic revision。迟到结果不得复活已作废确认。
 final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
-    func testCapturedC5BWR2SequenceKeepsPendingAcrossHistoricalCompletedOperations() throws {
+    func testCapturedC5BWR2SequenceKeepsPendingWithoutOperationsSeam() throws {
         let device = try AhaKeyRuntimeDeviceID("505C")
         var ledger = AhaKeyStudioPageOverwriteConfirmationLedger()
         let unconfirmed = capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
@@ -12,19 +12,14 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
             .requiresOverwriteConfirmation
         )
 
-        let identity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-            deviceID: device,
-            sessionGeneration: .init(4),
-            transportGeneration: .init(9),
-            snapshot: unconfirmed
-        )
+        let identity = makeIdentity(device: device, snapshot: unconfirmed)
         XCTAssertFalse(ledger.shouldSubmitConfirmed(for: identity))
         XCTAssertEqual(
             ledger.applyingPendingPrompt(to: writeAndActivateChrome(), for: identity).commitKind,
             .writeAndActivate
         )
 
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
+        installPending(on: &ledger, identity: identity)
         XCTAssertTrue(ledger.showsOverwritePrompt(for: identity))
         XCTAssertTrue(ledger.shouldSubmitConfirmed(for: identity))
         XCTAssertEqual(
@@ -32,22 +27,14 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
             .overwritePage
         )
 
-        ledger.noteOperationsChanged(try capturedHistoricalOperations(device: device))
+        _ = try capturedHistoricalOperations(device: device)
         XCTAssertTrue(
             ledger.shouldSubmitConfirmed(for: identity),
-            "同页 completed B/A 不得按 pageID 清掉新 pending"
+            "历史 completed 不进入 ledger；接口不存在 operations 方法"
         )
 
         let confirmed = capturedActiveSetOnlySnapshot(overwriteConfirmed: true)
-        XCTAssertEqual(
-            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-                deviceID: device,
-                sessionGeneration: .init(4),
-                transportGeneration: .init(9),
-                snapshot: confirmed
-            ),
-            identity
-        )
+        XCTAssertEqual(makeIdentity(device: device, snapshot: confirmed), identity)
         guard case .write(let plan) = AhaKeyStudioPackageAssembler.assembleScopedPage(confirmed) else {
             return XCTFail("第二次相同提交必须进入 write")
         }
@@ -65,24 +52,209 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
         let acceptedID = AhaKeyRuntimeOperationID(
             UUID(uuidString: "A1111111-0000-4000-8000-000000000001")!
         )
-        ledger.applyCommitResult(.accepted(acceptedID), identity: identity)
+        let confirmedAttempt = ledger.beginAttempt(for: identity)
+        ledger.applyCommitResult(
+            .accepted(acceptedID),
+            attempt: confirmedAttempt,
+            currentIdentity: identity
+        )
         XCTAssertFalse(ledger.shouldSubmitConfirmed(for: identity))
         XCTAssertNil(ledger.pending)
     }
 
-    func testHistoricalTerminalsOnOtherPagesOrDevicesDoNotConsumePending() throws {
+    func testStaleRequiresAfterIdentityRoundTripDoesNotResurrectPending() throws {
+        let device = try AhaKeyRuntimeDeviceID("505C")
+        var ledger = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let snapshotA = capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
+        let identityA = makeIdentity(device: device, snapshot: snapshotA)
+        ledger.observeCurrentIdentity(identityA)
+        let staleAttempt = ledger.beginAttempt(for: identityA)
+
+        var snapshotB = snapshotA
+        snapshotB.selectedTaskSet = 1
+        let identityB = makeIdentity(device: device, snapshot: snapshotB)
+        ledger.observeCurrentIdentity(identityB)
+        ledger.observeCurrentIdentity(identityA)
+
+        ledger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: staleAttempt,
+            currentIdentity: identityA
+        )
+        XCTAssertNil(ledger.pending)
+        XCTAssertFalse(ledger.shouldSubmitConfirmed(for: identityA))
+
+        let freshAttempt = ledger.beginAttempt(for: identityA)
+        ledger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: freshAttempt,
+            currentIdentity: identityA
+        )
+        XCTAssertTrue(ledger.shouldSubmitConfirmed(for: identityA))
+
+        let confirmedAttempt = ledger.beginAttempt(for: identityA)
+        ledger.applyCommitResult(
+            .accepted(AhaKeyRuntimeOperationID()),
+            attempt: confirmedAttempt,
+            currentIdentity: identityA
+        )
+        XCTAssertNil(ledger.pending)
+    }
+
+    func testDeviceGenerationAndProfileRoundTripsVoidInFlightAttempts() throws {
+        let device = try AhaKeyRuntimeDeviceID("505C")
+        let snapshot = capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
+        let identityA = makeIdentity(device: device, snapshot: snapshot)
+
+        var deviceLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let deviceAttempt = deviceLedger.beginAttempt(for: identityA)
+        let otherDevice = makeIdentity(
+            device: try AhaKeyRuntimeDeviceID("OTHER"),
+            snapshot: snapshot
+        )
+        deviceLedger.observeCurrentIdentity(otherDevice)
+        deviceLedger.observeCurrentIdentity(identityA)
+        deviceLedger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: deviceAttempt,
+            currentIdentity: identityA
+        )
+        XCTAssertNil(deviceLedger.pending)
+
+        var sessionLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let sessionAttempt = sessionLedger.beginAttempt(for: identityA)
+        let otherSession = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
+            deviceID: device,
+            sessionGeneration: .init(5),
+            transportGeneration: .init(9),
+            snapshot: snapshot
+        )
+        sessionLedger.observeCurrentIdentity(otherSession)
+        sessionLedger.observeCurrentIdentity(identityA)
+        sessionLedger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: sessionAttempt,
+            currentIdentity: identityA
+        )
+        XCTAssertNil(sessionLedger.pending)
+
+        var transportLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let transportAttempt = transportLedger.beginAttempt(for: identityA)
+        let otherTransport = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
+            deviceID: device,
+            sessionGeneration: .init(4),
+            transportGeneration: .init(10),
+            snapshot: snapshot
+        )
+        transportLedger.observeCurrentIdentity(otherTransport)
+        transportLedger.observeCurrentIdentity(identityA)
+        transportLedger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: transportAttempt,
+            currentIdentity: identityA
+        )
+        XCTAssertNil(transportLedger.pending)
+
+        var profileLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let profileAttempt = profileLedger.beginAttempt(for: identityA)
+        var otherProfileSnapshot = snapshot
+        otherProfileSnapshot.profile = .legacyStandard
+        let otherProfile = makeIdentity(device: device, snapshot: otherProfileSnapshot)
+        profileLedger.observeCurrentIdentity(otherProfile)
+        profileLedger.observeCurrentIdentity(identityA)
+        profileLedger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: profileAttempt,
+            currentIdentity: identityA
+        )
+        XCTAssertNil(profileLedger.pending)
+    }
+
+    func testReplayAndOutOfOrderResultsCannotMintOrConsumePending() throws {
+        let device = try AhaKeyRuntimeDeviceID("505C")
+        var ledger = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let identity = makeIdentity(
+            device: device,
+            snapshot: capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
+        )
+        let first = ledger.beginAttempt(for: identity)
+        let second = ledger.beginAttempt(for: identity)
+
+        ledger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: first,
+            currentIdentity: identity
+        )
+        XCTAssertNil(ledger.pending, "被替换的旧 attempt 不得铸造 pending")
+
+        ledger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: second,
+            currentIdentity: identity
+        )
+        XCTAssertEqual(ledger.pending, identity)
+
+        ledger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: second,
+            currentIdentity: identity
+        )
+        XCTAssertEqual(ledger.pending, identity)
+
+        let confirmed = ledger.beginAttempt(for: identity)
+        ledger.applyCommitResult(
+            .accepted(AhaKeyRuntimeOperationID()),
+            attempt: first,
+            currentIdentity: identity
+        )
+        XCTAssertEqual(ledger.pending, identity, "重放旧 accepted 不得消费另一 pending")
+
+        ledger.applyCommitResult(
+            .noOp,
+            attempt: first,
+            currentIdentity: identity
+        )
+        XCTAssertEqual(ledger.pending, identity)
+
+        ledger.applyCommitResult(
+            .accepted(AhaKeyRuntimeOperationID()),
+            attempt: confirmed,
+            currentIdentity: identity
+        )
+        XCTAssertNil(ledger.pending)
+    }
+
+    func testStaleFailureDoesNotClearUnrelatedPending() throws {
+        let device = try AhaKeyRuntimeDeviceID("505C")
+        var ledger = AhaKeyStudioPageOverwriteConfirmationLedger()
+        let identity = makeIdentity(
+            device: device,
+            snapshot: capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
+        )
+        let stale = ledger.beginAttempt(for: identity)
+        ledger.observeCurrentIdentity(
+            makeIdentity(
+                device: try AhaKeyRuntimeDeviceID("OTHER"),
+                snapshot: capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
+            )
+        )
+        ledger.observeCurrentIdentity(identity)
+        installPending(on: &ledger, identity: identity)
+        ledger.noteAttemptFailed(attempt: stale, currentIdentity: identity)
+        XCTAssertEqual(ledger.pending, identity)
+    }
+
+    func testHistoricalTerminalsDoNotConsumePendingAndOnlyExactAttemptMayConsume() throws {
         let device = try AhaKeyRuntimeDeviceID("505C")
         let other = try AhaKeyRuntimeDeviceID("OTHER")
         var ledger = AhaKeyStudioPageOverwriteConfirmationLedger()
-        let identity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-            deviceID: device,
-            sessionGeneration: .init(1),
-            transportGeneration: .init(1),
+        let identity = makeIdentity(
+            device: device,
             snapshot: capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
         )
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
+        installPending(on: &ledger, identity: identity)
 
-        let terminals = try [
+        _ = try [
             summary(
                 id: AhaKeyRuntimeOperationID(UUID(uuidString: "844F52E4-D601-441F-942D-682A69DBF91F")!),
                 device: device,
@@ -120,22 +292,14 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
                 pageID: .screen(modeSlot: 0)
             ),
         ]
-        ledger.noteOperationsChanged(terminals)
         XCTAssertTrue(ledger.shouldSubmitConfirmed(for: identity))
 
-        let otherIdentity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-            deviceID: other,
-            sessionGeneration: .init(1),
-            transportGeneration: .init(1),
-            snapshot: capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
+        let consume = ledger.beginAttempt(for: identity)
+        ledger.applyCommitResult(
+            .accepted(AhaKeyRuntimeOperationID()),
+            attempt: consume,
+            currentIdentity: identity
         )
-        ledger.applyCommitResult(.accepted(AhaKeyRuntimeOperationID()), identity: otherIdentity)
-        XCTAssertTrue(
-            ledger.shouldSubmitConfirmed(for: identity),
-            "只有当前 exact confirmation identity 的结果可消费 pending"
-        )
-
-        ledger.applyCommitResult(.accepted(AhaKeyRuntimeOperationID()), identity: identity)
         XCTAssertFalse(ledger.shouldSubmitConfirmed(for: identity))
     }
 
@@ -143,22 +307,12 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
         let device = try AhaKeyRuntimeDeviceID("505C")
         var ledger = AhaKeyStudioPageOverwriteConfirmationLedger()
         let base = capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
-        let identity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-            deviceID: device,
-            sessionGeneration: .init(4),
-            transportGeneration: .init(9),
-            snapshot: base
-        )
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
+        let identity = makeIdentity(device: device, snapshot: base)
+        installPending(on: &ledger, identity: identity)
 
         var dirtyField = base
         dirtyField.fields[0].value = .integer(1)
-        let fieldIdentity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-            deviceID: device,
-            sessionGeneration: .init(4),
-            transportGeneration: .init(9),
-            snapshot: dirtyField
-        )
+        let fieldIdentity = makeIdentity(device: device, snapshot: dirtyField)
         ledger.observeCurrentIdentity(fieldIdentity)
         XCTAssertNil(ledger.pending)
         XCTAssertFalse(ledger.shouldSubmitConfirmed(for: identity))
@@ -166,74 +320,12 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
             AhaKeyStudioPackageAssembler.assembleScopedPage(dirtyField),
             .requiresOverwriteConfirmation
         )
-
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
-        var switchedSet = base
-        switchedSet.selectedTaskSet = 1
-        ledger.observeCurrentIdentity(
-            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-                deviceID: device,
-                sessionGeneration: .init(4),
-                transportGeneration: .init(9),
-                snapshot: switchedSet
-            )
-        )
-        XCTAssertNil(ledger.pending)
-
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
-        ledger.observeCurrentIdentity(
-            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-                deviceID: try AhaKeyRuntimeDeviceID("OTHER"),
-                sessionGeneration: .init(4),
-                transportGeneration: .init(9),
-                snapshot: base
-            )
-        )
-        XCTAssertNil(ledger.pending)
-
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
-        ledger.observeCurrentIdentity(
-            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-                deviceID: device,
-                sessionGeneration: .init(5),
-                transportGeneration: .init(9),
-                snapshot: base
-            )
-        )
-        XCTAssertNil(ledger.pending)
-
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
-        ledger.observeCurrentIdentity(
-            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-                deviceID: device,
-                sessionGeneration: .init(4),
-                transportGeneration: .init(10),
-                snapshot: base
-            )
-        )
-        XCTAssertNil(ledger.pending)
-
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
-        var otherProfile = base
-        otherProfile.profile = .legacyStandard
-        ledger.observeCurrentIdentity(
-            AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-                deviceID: device,
-                sessionGeneration: .init(4),
-                transportGeneration: .init(9),
-                snapshot: otherProfile
-            )
-        )
-        XCTAssertNil(ledger.pending)
-        XCTAssertFalse(ledger.shouldSubmitConfirmed(for: identity))
     }
 
-    func testFailClosedResultsDropPending() throws {
+    func testFailClosedResultsDropPendingOnlyForMatchingAttempt() throws {
         let device = try AhaKeyRuntimeDeviceID("505C")
-        let identity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-            deviceID: device,
-            sessionGeneration: .init(1),
-            transportGeneration: .init(1),
+        let identity = makeIdentity(
+            device: device,
             snapshot: capturedActiveSetOnlySnapshot(overwriteConfirmed: false)
         )
         for result in [
@@ -243,14 +335,16 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
             .unsupportedPage,
         ] {
             var ledger = AhaKeyStudioPageOverwriteConfirmationLedger()
-            ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
-            ledger.applyCommitResult(result, identity: identity)
+            installPending(on: &ledger, identity: identity)
+            let attempt = ledger.beginAttempt(for: identity)
+            ledger.applyCommitResult(result, attempt: attempt, currentIdentity: identity)
             XCTAssertNil(ledger.pending, "\(result) 必须 fail-closed 丢掉 pending")
         }
 
         var failed = AhaKeyStudioPageOverwriteConfirmationLedger()
-        failed.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
-        failed.noteAttemptFailed()
+        installPending(on: &failed, identity: identity)
+        let failedAttempt = failed.beginAttempt(for: identity)
+        failed.noteAttemptFailed(attempt: failedAttempt, currentIdentity: identity)
         XCTAssertNil(failed.pending)
     }
 
@@ -274,17 +368,40 @@ final class AhaKeyStudioPageOverwriteConfirmationLedgerTests: XCTestCase {
         guard case .write = AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot) else {
             return XCTFail("verified active-set-only 未确认时应由 page-base 而不是 assembler 要求确认")
         }
-        let identity = AhaKeyStudioPageOverwriteConfirmationLedger.identity(
-            deviceID: device,
-            sessionGeneration: .init(1),
-            transportGeneration: .init(1),
-            snapshot: snapshot
-        )
-        ledger.applyCommitResult(.requiresOverwriteConfirmation, identity: identity)
+        let identity = makeIdentity(device: device, session: 1, transport: 1, snapshot: snapshot)
+        installPending(on: &ledger, identity: identity)
         let chrome = ledger.applyingPendingPrompt(to: writeAndActivateChrome(), for: identity)
         XCTAssertEqual(chrome.commitKind, .overwritePage)
         XCTAssertEqual(chrome.commitButtonTitle, "覆盖写入此页")
         XCTAssertTrue(chrome.canSubmit)
+    }
+
+    private func installPending(
+        on ledger: inout AhaKeyStudioPageOverwriteConfirmationLedger,
+        identity: AhaKeyStudioPageOverwriteConfirmationIdentity
+    ) {
+        ledger.observeCurrentIdentity(identity)
+        let attempt = ledger.beginAttempt(for: identity)
+        ledger.applyCommitResult(
+            .requiresOverwriteConfirmation,
+            attempt: attempt,
+            currentIdentity: identity
+        )
+        XCTAssertEqual(ledger.pending, identity)
+    }
+
+    private func makeIdentity(
+        device: AhaKeyRuntimeDeviceID,
+        session: UInt64 = 4,
+        transport: UInt64 = 9,
+        snapshot: AhaKeyStudioPageSnapshot
+    ) -> AhaKeyStudioPageOverwriteConfirmationIdentity {
+        AhaKeyStudioPageOverwriteConfirmationLedger.identity(
+            deviceID: device,
+            sessionGeneration: .init(session),
+            transportGeneration: .init(transport),
+            snapshot: snapshot
+        )
     }
 
     private func capturedActiveSetOnlySnapshot(overwriteConfirmed: Bool) -> AhaKeyStudioPageSnapshot {

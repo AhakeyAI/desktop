@@ -147,7 +147,6 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: runtimeStore.viewState.snapshot?.operations) { operations in
             mergeCompletedPageBaselines(operations ?? [])
-            overwriteConfirmationLedger.noteOperationsChanged(operations ?? [])
         }
         .onChange(of: overwriteConfirmationIdentity) { identity in
             overwriteConfirmationLedger.observeCurrentIdentity(identity)
@@ -2554,6 +2553,7 @@ struct AhaKeyStudioView: View {
         let snapshot = frozenPageSnapshot(
             overwriteConfirmed: overwriteConfirmationLedger.shouldSubmitConfirmed(for: identity)
         )
+        let attempt = identity.map { overwriteConfirmationLedger.beginAttempt(for: $0) }
         isSubmittingCurrentPage = true
         syncStatusMessage = NSLocalizedString("正在提交当前页到 Runtime…", comment: "")
         Task { @MainActor in
@@ -2563,8 +2563,12 @@ struct AhaKeyStudioView: View {
                     snapshot,
                     retryResidual: retryResidual
                 )
-                if let identity {
-                    self.overwriteConfirmationLedger.applyCommitResult(result, identity: identity)
+                if let attempt {
+                    self.overwriteConfirmationLedger.applyCommitResult(
+                        result,
+                        attempt: attempt,
+                        currentIdentity: self.overwriteConfirmationIdentity
+                    )
                 }
                 switch result {
                 case .noOp:
@@ -2587,7 +2591,12 @@ struct AhaKeyStudioView: View {
                     _ = operationID
                 }
             } catch {
-                self.overwriteConfirmationLedger.noteAttemptFailed()
+                if let attempt {
+                    self.overwriteConfirmationLedger.noteAttemptFailed(
+                        attempt: attempt,
+                        currentIdentity: self.overwriteConfirmationIdentity
+                    )
+                }
                 let message = String(format: NSLocalizedString("写入当前页失败：%@", comment: ""), error.localizedDescription)
                 self.syncStatusMessage = message
                 self.writeResultAlertMessage = message

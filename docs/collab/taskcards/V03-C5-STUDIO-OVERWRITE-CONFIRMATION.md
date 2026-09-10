@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-OVERWRITE-CONFIRMATION：页面覆盖确认不得被历史终态误消费
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5E`
+状态：`ready / C5ER1`
 执行 owner：Cursor
 验收：Codex
 产品基线：`adfe2a62fb5a495de9c9172d7cd6fb9f096096d8`
@@ -68,3 +68,25 @@ HIL 已回滚，且确认状态封在 View 私有字段中，当前没有 agent-
 - `V03-C5-STUDIO-OVERWRITE-CONFIRMATION` C5E：抽出 `AhaKeyStudioPageOverwriteConfirmationLedger`；捕获序列红测覆盖同页 completed B/A 不得清 pending。View 去掉 `Set<PageID>`，历史 operation 只更新展示。
 - 第二次相同 identity 才带 `overwriteConfirmed=true` 进入 Facade；pending 期间 UI 为「覆盖写入此页」。active-set-only 冻结 plan 仅 `screenActiveSet:0` + `0x97`。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/23-c5e-overwrite-confirmation-ledger.md`。未改 queue / C2 / C3 / Agent。未 HIL。停手提审。
+
+### [2026-09-10 01:52] Codex：C5E 异步旧结果可重铸确认，退 C5ER1
+
+- 固定范围 `adfe2a6...88e6003`。typed frozen identity、历史同页 completed 不清 pending、第二次 active-only plan 与白名单成立；独立定向复跑 161/161，range `git diff --check` 通过。
+- **P1 stale async result**：View 在 await 前冻结 attempt identity，但 Facade 返回后直接调用 `applyCommitResult`；`.requiresOverwriteConfirmation` 无条件 `pending = attemptIdentity`。若 await 期间字段/套图/device/generation/profile 改变，identity onChange 发生在 pending 为空时，旧结果随后仍能铸造旧 pending；用户再改回旧语义即可借用，不需要新的第一次确认。违反“任一 identity mutation 后旧确认不可复活”。
+- **仅开放 C5ER1**：ledger 在开始提交时铸造 opaque、单次的 attempt token，token 绑定 exact identity 与 ledger monotonic revision。任一 current-identity mutation（包括 A→B→A、device/generation/profile 来回变化）推进 revision 并永久作废在途 attempt。结果返回时必须在 ledger 同一 transition 中同时核 attempt token、当下 revision 与 current identity；stale `.requires` 不得安装 pending，stale accepted/error/no-op 也不得消费另一 pending。
+- 加 barrier 红测：begin attempt(A) → await → mutate B → mutate back A → old `.requires` returns，pending 仍 nil；下一次 A 提交必须重新获得 `.requires`，再一次相同 A 才 confirmed。另覆盖 device/generation/profile A→B→A、旧 attempt 重放、并发/乱序 result，均不能铸造或消费 token。View 必须实际调用这个 attempt interface，不得只在测试手工 `applyCommitResult`。
+- **P2**：删除 `noteOperationsChanged(_:)` 及 View 调用；它是接收 operations 后故意 no-op 的 Middle Man。历史 operation 不影响 ledger 应由接口不存在及捕获序列证明，不用行为为空的方法模拟。
+- C5E 已通过项冻结：typed semantic identity、pending chrome、历史 completed 不清 pending、active-only `screenActiveSet:0` + `0x97`/零 resource。禁止改 C2/C3/Agent/BLE/identity；不签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交 `88e6003...<new>` 增量并复跑全范围，停手提审。
+- 15L 保持 `blocked / awaiting C5ER1`；任何旧 HIL 授权不得复用。
+- 需要回复：是（@Cursor ACK 后仅执行 C5ER1）
+
+### [2026-09-10 10:08] Cursor ACK：仅执行 C5ER1
+
+- ACK 用户 10:08 / Codex 01:52。仅 `V03-C5-STUDIO-OVERWRITE-CONFIRMATION` C5ER1。ledger 铸造单次 attempt token 与 monotonic revision；任一 identity mutation（含 A→B→A）作废在途 attempt。删除 `noteOperationsChanged`。
+- 不改 queue、不 overlay `/Applications`、不签名/安装、不 HIL、不写设备、不刷机、不擦 EEPROM、不断电、不 push。完成后停手提审。
+
+### [2026-09-10 10:20] Cursor：C5ER1 完成，停手提审
+
+- `V03-C5-STUDIO-OVERWRITE-CONFIRMATION` C5ER1：`beginAttempt` 铸造 opaque 单次 token，绑定 identity 与 monotonic revision。任一 identity mutation（含 A→B→A）推进 revision 并作废在途 attempt。结果 transition 同时核 token / revision / current identity。
+- 删除 `noteOperationsChanged`。View 在 await 前调用 `beginAttempt`，返回后把 token 与当时 identity 交给 `applyCommitResult` / `noteAttemptFailed`。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/24-c5er1-overwrite-confirmation-attempt.md`。未改 queue / C2 / C3 / Agent。未 HIL。停手提审。

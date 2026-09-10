@@ -898,13 +898,22 @@ public struct AhaKeyStudioPageOverwriteConfirmationIdentity: Equatable, Sendable
     }
 }
 
+/// 一次提交的 opaque 单次 token。绑定 exact identity 与当时的 ledger revision。
+public struct AhaKeyStudioPageOverwriteConfirmationAttemptToken: Equatable, Sendable {
+    let nonce: UUID
+    let identity: AhaKeyStudioPageOverwriteConfirmationIdentity
+    let revision: UInt64
+}
+
 /// View 唯一覆盖确认 seam。Assembler 与 Facade 的 `.requiresOverwriteConfirmation` 都走这里。
 public struct AhaKeyStudioPageOverwriteConfirmationLedger: Equatable, Sendable {
     public private(set) var pending: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    public private(set) var revision: UInt64 = 0
 
-    public init(pending: AhaKeyStudioPageOverwriteConfirmationIdentity? = nil) {
-        self.pending = pending
-    }
+    private var lastObservedIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    private var inFlight: AhaKeyStudioPageOverwriteConfirmationAttemptToken?
+
+    public init() {}
 
     public static func identity(
         deviceID: AhaKeyRuntimeDeviceID,
@@ -935,31 +944,45 @@ public struct AhaKeyStudioPageOverwriteConfirmationLedger: Equatable, Sendable {
         shouldSubmitConfirmed(for: identity)
     }
 
+    /// 任一 current-identity mutation（含 A→B→A）推进 revision，并永久作废在途 attempt。
     public mutating func observeCurrentIdentity(
         _ current: AhaKeyStudioPageOverwriteConfirmationIdentity?
     ) {
-        guard let pending else { return }
-        if current != pending {
+        if current != lastObservedIdentity {
+            revision &+= 1
+            inFlight = nil
+            lastObservedIdentity = current
+        }
+        if let pending, current != pending {
             self.pending = nil
         }
     }
 
-    /// 历史 operation 只服务 baseline / 终态展示。不得按 pageID 消费 pending。
-    public mutating func noteOperationsChanged(
-        _ operations: [AhaKeyRuntimeOperationSummary]
-    ) {
-        _ = operations
+    /// View 在 await 前提交时铸造。token 单次使用，绑定当时 identity 与 revision。
+    public mutating func beginAttempt(
+        for identity: AhaKeyStudioPageOverwriteConfirmationIdentity
+    ) -> AhaKeyStudioPageOverwriteConfirmationAttemptToken {
+        observeCurrentIdentity(identity)
+        let token = AhaKeyStudioPageOverwriteConfirmationAttemptToken(
+            nonce: UUID(),
+            identity: identity,
+            revision: revision
+        )
+        inFlight = token
+        return token
     }
 
     public mutating func applyCommitResult(
         _ result: AhaKeyStudioPageCommitResult,
-        identity: AhaKeyStudioPageOverwriteConfirmationIdentity
+        attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
     ) {
+        guard consumeMatchingAttempt(attempt, currentIdentity: currentIdentity) else { return }
         switch result {
         case .requiresOverwriteConfirmation:
-            pending = identity
+            pending = attempt.identity
         case .accepted:
-            if pending == identity {
+            if pending == attempt.identity {
                 pending = nil
             }
         case .noOp, .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage:
@@ -967,7 +990,11 @@ public struct AhaKeyStudioPageOverwriteConfirmationLedger: Equatable, Sendable {
         }
     }
 
-    public mutating func noteAttemptFailed() {
+    public mutating func noteAttemptFailed(
+        attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) {
+        guard consumeMatchingAttempt(attempt, currentIdentity: currentIdentity) else { return }
         pending = nil
     }
 
@@ -982,5 +1009,14 @@ public struct AhaKeyStudioPageOverwriteConfirmationLedger: Equatable, Sendable {
         next.commitKind = .overwritePage
         next.canSubmit = true
         return next
+    }
+
+    private mutating func consumeMatchingAttempt(
+        _ attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
+    ) -> Bool {
+        guard inFlight == attempt else { return false }
+        inFlight = nil
+        return attempt.revision == revision && currentIdentity == attempt.identity
     }
 }
