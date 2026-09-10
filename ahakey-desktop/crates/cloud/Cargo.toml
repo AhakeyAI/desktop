@@ -1,0 +1,28 @@
+[package]
+name = "ahakey-cloud"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[dependencies]
+flate2 = "1"
+futures-util = { version = "0.3", features = ["sink"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "sync", "time", "net", "macros"] }
+tokio-util = "0.7"
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-native-roots"] }
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+
+[dev-dependencies]
+tempfile = "3"

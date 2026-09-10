@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AhaKey Studio",
+  "version": "1.1.0",
+  "identifier": "ai.ahakey.studio",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "AhaKey Studio",
+        "width": 960,
+        "height": 680,
+        "minWidth": 680,
+        "minHeight": 560
+      },
+      {
+        "label": "caption",
+        "url": "index.html?caption=1",
+        "title": "AhaKey 字幕",
+        "width": 560,
+        "height": 106,
+        "visible": false,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "focusable": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'"
+    }
+  },
+  "bundle": { "active": false }
+}

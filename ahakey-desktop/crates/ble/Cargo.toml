@@ -1,0 +1,18 @@
+[package]
+name = "ahakey-ble"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[dependencies]
+btleplug = "0.13.0"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio-util = "0.7"
+uuid = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Devices_Enumeration", "Devices_Bluetooth", "Devices_Bluetooth_GenericAttributeProfile", "Devices_HumanInterfaceDevice", "Foundation", "Foundation_Collections", "Storage", "Storage_Streams"] }
+windows-future = "0.3.2"

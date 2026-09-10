@@ -1,0 +1,64 @@
+name: Rust client
+
+on:
+  pull_request:
+    paths:
+      - "ahakey-desktop/**"
+      - ".github/workflows/rust-client.yml"
+  push:
+    paths:
+      - "ahakey-desktop/**"
+      - ".github/workflows/rust-client.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-client-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows Rust client · tests and build
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ahakey-desktop
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: ahakey-desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Prepare pinned native speech runtime (no model download)
+        run: |
+          $runtime = & ./crates/speech/scripts/prepare-runtime.ps1
+          "SHERPA_ONNX_LIB_DIR=$runtime" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          $runtime | Out-File $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Frontend tests and production build
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Rust formatting, tests and lint
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --manifest-path src-tauri/Cargo.toml -p ahakey-desktop -p ahakey-ble
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile Windows client
+        run: cargo build --locked --release --manifest-path src-tauri/Cargo.toml --features custom-protocol

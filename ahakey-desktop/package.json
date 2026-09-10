@@ -1,0 +1,30 @@
+{
+  "name": "ahakey-desktop",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.12.3",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build --no-bundle --features custom-protocol",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  }
+}
