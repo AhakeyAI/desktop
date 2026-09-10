@@ -487,8 +487,8 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         )
         coordinator.observeIdentity(firstInput.confirmationIdentity)
 
-        let first = await coordinator.submit(firstInput, port: port)
-        XCTAssertEqual(first, .requiresOverwriteConfirmation)
+        let first = await runCoordinatorSubmit(coordinator, firstInput, port: port)
+        XCTAssertEqual(first.outcome, .requiresOverwriteConfirmation)
         XCTAssertEqual(port.snapshots.count, 1)
         XCTAssertEqual(port.snapshots[0].overwriteConfirmed, false)
         XCTAssertEqual(coordinator.pendingPrompt, firstInput.confirmationIdentity)
@@ -514,8 +514,8 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         let secondInput = makeInput()
         XCTAssertEqual(secondInput, firstInput, "第二击必须是同一份 exact 冻结输入")
 
-        let second = await coordinator.submit(secondInput, port: port)
-        guard case .accepted = second else {
+        let second = await runCoordinatorSubmit(coordinator, secondInput, port: port)
+        guard case .accepted = second.outcome else {
             return XCTFail("第二次相同 identity 必须进入 Facade apply：\(second)")
         }
         XCTAssertEqual(port.snapshots.count, 2)
@@ -854,5 +854,18 @@ private final class FakeTransport: AhaKeyStudioRuntimeTransport, @unchecked Send
         default:
             return .failure(try AhaKeyRuntimeEventCode("unsupported"))
         }
+    }
+}
+
+/// C5GR1：生产路径是同步 `start`；测试用它并等待结果。
+@MainActor
+private func runCoordinatorSubmit(
+    _ coordinator: AhaKeyStudioPageCommitCoordinator,
+    _ input: AhaKeyStudioPageSubmissionInput,
+    port: any AhaKeyStudioPageCommitPort
+) async -> AhaKeyStudioPageCommitProjection {
+    switch coordinator.start(input, port: port) {
+    case .rejected(let projection): return projection
+    case .started(let task): return await task.value
     }
 }

@@ -2615,41 +2615,45 @@ struct AhaKeyStudioView: View {
             return
         }
         syncStatusMessage = NSLocalizedString("正在提交当前页到 Runtime…", comment: "")
-        Task { @MainActor in
-            let outcome = await self.pageCommitCoordinator.submit(
-                input,
-                port: AhaKeyStudioRuntimeStoreCommitPort(store: self.runtimeStore)
-            )
-            self.applyPageCommitOutcome(outcome)
+        // C5GR1：View 以这一次冻结的 identity 作为 live 观测发布；coordinator 的 start
+        // 不再覆盖 live identity，只校验 frozen 与 live 一致。
+        pageCommitCoordinator.observeIdentity(input.confirmationIdentity)
+        // 同步进入 coordinator：`began` / `isSubmitting` / 单次 in-flight 在返回事件循环前生效，
+        // 因此 trace 缺 `began` 严格等价于「Button action 未触发」。View 不先建 Task。
+        switch pageCommitCoordinator.start(
+            input,
+            port: AhaKeyStudioRuntimeStoreCommitPort(store: runtimeStore)
+        ) {
+        case .rejected(let projection):
+            applyPageCommitProjection(projection)
+        case .started(let outcomeTask):
+            Task { @MainActor in
+                self.applyPageCommitProjection(await outcomeTask.value)
+            }
         }
     }
 
     /// C5G：一次点击的唯一冻结入口。
+    ///
+    /// 复用 `currentPageSnapshot`，使 `input.confirmationIdentity` 与 View 展示所用的
+    /// `overwriteConfirmationIdentity` 由**同一份快照 + 同一组 generation** 派生，
+    /// 避免一次点击里出现两个不同快照。
     private func makeSubmissionInput(retryResidual: Bool) -> AhaKeyStudioPageSubmissionInput? {
         guard let device = runtimeStore.activeDevice else { return nil }
-        let intentFieldIDs = explicitPageEditIntentFieldIDs()
-        let snapshot = studioDraft.frozenPageSnapshot(
-            pageID: currentPageID,
-            lastSyncedDraft: lastSyncedDraft,
-            fieldAuthorities: runtimeStore.fieldAuthorities(),
-            profile: runtimeStore.oledProfile,
-            selectedTaskSet: selectedPart == .oledDisplay ? selectedOLEDGIFSet : nil,
-            overwriteConfirmed: false,
-            explicitIntentFieldIDs: intentFieldIDs
-        )
         return AhaKeyStudioPageSubmissionInput(
             deviceID: device.id,
             sessionGeneration: device.sessionGeneration,
             transportGeneration: device.transportGeneration,
-            snapshot: snapshot,
-            explicitIntentFieldIDs: intentFieldIDs,
+            snapshot: currentPageSnapshot,
+            explicitIntentFieldIDs: explicitPageEditIntentFieldIDs(),
             retryResidual: retryResidual
         )
     }
 
-    /// C5G：no-op / requires / error 必须可区分，不得静默保留上一条文案。
-    private func applyPageCommitOutcome(_ outcome: AhaKeyStudioPageCommitOutcome) {
-        switch outcome {
+    /// C5GR1：投影只携带**冻结** pageID；禁止用 live `currentPageID`/`currentPageChrome`
+    /// 展示旧结果。no-op / requires / error 必须可区分，不得静默保留上一条文案。
+    private func applyPageCommitProjection(_ projection: AhaKeyStudioPageCommitProjection) {
+        switch projection.outcome {
         case .noOp:
             syncStatusMessage = NSLocalizedString("无修改，未创建写入。", comment: "")
         case .requiresOverwriteConfirmation:
@@ -2660,19 +2664,19 @@ struct AhaKeyStudioView: View {
             writeResultAlertMessage = message
             showsWriteResultAlert = true
         case .accepted:
-            runtimeStore.appendCommLogLine(
-                "当前页已提交 Runtime，page=\(AhaKeyStudioPageChromeProjector.pageTitle(currentPageID))"
-            )
+            let pageTitle = AhaKeyStudioPageChromeProjector.pageTitle(projection.pageID)
+            runtimeStore.appendCommLogLine("当前页已提交 Runtime，page=\(pageTitle)")
             syncStatusMessage = String(
                 format: NSLocalizedString("%@ 已进入设备写入队列。", comment: ""),
-                currentPageChrome.statusLabel
+                pageTitle
             )
         case .failed(let reason):
             let message = String(format: NSLocalizedString("写入当前页失败：%@", comment: ""), reason)
             syncStatusMessage = message
             writeResultAlertMessage = message
             showsWriteResultAlert = true
-        case .ignoredInFlight:
+        case .superseded, .ignoredInFlight:
+            // 失效结果：不得更新 toast/status，也不得用当前 pageID 展示旧结果。
             break
         }
     }
