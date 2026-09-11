@@ -437,7 +437,10 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
         harness.store.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: [])))
 
-        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: AhaKeyStudioPageCommitExecutionRegistry())
+        let coordinator = AhaKeyStudioPageCommitCoordinator(
+            registry: AhaKeyStudioPageCommitExecutionRegistry()
+        )
+        coordinator.attach()
         let port = RecordingStoreCommitPort(store: harness.store)
         let current = AhaKeyStudioDraft.default
         let synced = current
@@ -583,6 +586,7 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         store.applyViewStateForTesting(onlineState(snapshot: makeSnapshot(deviceID: deviceID, operations: [])))
 
         let coordinator = AhaKeyStudioPageCommitCoordinator(registry: store.pageCommitExecutions)
+        coordinator.attach()
         let port = AhaKeyStudioRuntimeStoreCommitPort(store: store)
         let profile = AhaKeyOLEDCompatibilityProfile.rhinoDualSet(sessionUploadAdvertised: false)
         let current = AhaKeyStudioDraft.default

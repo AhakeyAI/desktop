@@ -507,7 +507,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
         weak var weakA: AhaKeyStudioPageCommitCoordinator?
         do {
-            let a = AhaKeyStudioPageCommitCoordinator(registry: registry)
+            let a = makeAttachedCoordinator(registry)
             weakA = a
             a.observeIdentity(click.confirmationIdentity)
             _ = a.start(click, port: port)
@@ -521,7 +521,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertNotNil(registry.lease, "租约属于 app-lifetime registry，不随 A 消失")
 
         // successor B 复用同一 registry。
-        let b = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let b = makeAttachedCoordinator(registry)
         b.observeIdentity(click.confirmationIdentity)
         XCTAssertTrue(b.isSubmitting, "B 必须看到继承的在途租约")
 
@@ -621,13 +621,13 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let port = GatedCommitPort()
         let a = input(activeSet: 0)
 
-        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let owner = makeAttachedCoordinator(registry)
         owner.observeIdentity(a.confirmationIdentity)
         _ = owner.start(a, port: port)
         while !port.hasReachedPort { await Task.yield() }
 
         // 并存窗口出现：foreign 成为 active capability。
-        let foreign = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let foreign = makeAttachedCoordinator(registry)
         XCTAssertTrue(foreign.hasInheritedExecution)
 
         // 1) foreign 不得取消他人租约。
@@ -659,11 +659,11 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
 
-        let first = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let first = makeAttachedCoordinator(registry)
         first.observeIdentity(click.confirmationIdentity)
         first.detach()
 
-        let second = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let second = makeAttachedCoordinator(registry)
         second.observeIdentity(click.confirmationIdentity)
         _ = second.start(click, port: port)
         while !port.hasReachedPort { await Task.yield() }
@@ -729,7 +729,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     func testShutdownReleasesLeaseDespiteHungIgnoringCancelPort() async {
         let registry = AhaKeyStudioPageCommitExecutionRegistry()
         let port = GatedCommitPort()
-        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let coordinator = makeAttachedCoordinator(registry)
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
         _ = coordinator.start(click, port: port)
@@ -778,13 +778,13 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let a = input(activeSet: 0)
         let a2 = input(activeSet: 2)
 
-        let ownerA = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let ownerA = makeAttachedCoordinator(registry)
         ownerA.observeIdentity(a.confirmationIdentity)
         _ = ownerA.start(a, port: port)
         while !port.hasReachedPort { await Task.yield() }
 
         // 窗口 B 出现并 attach（旧模型下这会抢走 activeCapability，使 A 的 observe 被拒）。
-        let ownerB = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let ownerB = makeAttachedCoordinator(registry)
         ownerB.observeIdentity(input(activeSet: 1).confirmationIdentity)
 
         // A 仍能推进自己的 observation：其上下文变化必须使旧结果 superseded。
@@ -804,7 +804,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     func testShutdownIsOneWayAndFencesAttachAndClaim() async {
         let registry = AhaKeyStudioPageCommitExecutionRegistry()
         let click = input(activeSet: 0)
-        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let coordinator = makeAttachedCoordinator(registry)
         coordinator.observeIdentity(click.confirmationIdentity)
 
         registry.shutdown()
@@ -817,7 +817,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         )
         XCTAssertNil(registry.lease)
 
-        let late = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let late = makeAttachedCoordinator(registry)
         XCTAssertFalse(late.isAttached, "关闭后不得再 attach")
         late.observeIdentity(click.confirmationIdentity)
         XCTAssertEqual(registry.attachedObservationCount, 0, "关闭后不得再写入 observation")
@@ -834,7 +834,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let click = input(activeSet: 0)
 
         for _ in 0..<5 {
-            let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+            let coordinator = makeAttachedCoordinator(registry)
             coordinator.observeIdentity(click.confirmationIdentity)
             coordinator.detach()
         }
@@ -847,7 +847,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let registry = AhaKeyStudioPageCommitExecutionRegistry()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
-        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let owner = makeAttachedCoordinator(registry)
         owner.observeIdentity(click.confirmationIdentity)
         _ = owner.start(click, port: port)
         while !port.hasReachedPort { await Task.yield() }
@@ -865,7 +865,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let registry = AhaKeyStudioPageCommitExecutionRegistry()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
-        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let owner = makeAttachedCoordinator(registry)
         owner.observeIdentity(click.confirmationIdentity)
         _ = owner.start(click, port: port)
         while !port.hasReachedPort { await Task.yield() }
@@ -885,7 +885,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let registry = AhaKeyStudioPageCommitExecutionRegistry()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
-        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let owner = makeAttachedCoordinator(registry)
         owner.observeIdentity(click.confirmationIdentity)
         _ = owner.start(click, port: port)
         while !port.hasReachedPort { await Task.yield() }
@@ -906,7 +906,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let registry = AhaKeyStudioPageCommitExecutionRegistry()
         let port = GatedCommitPort()
         let a = input(activeSet: 0)
-        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let owner = makeAttachedCoordinator(registry)
         owner.observeIdentity(a.confirmationIdentity)
         _ = owner.start(a, port: port)
         while !port.hasReachedPort { await Task.yield() }
@@ -930,7 +930,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let registry = AhaKeyStudioPageCommitExecutionRegistry()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
-        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let owner = makeAttachedCoordinator(registry)
         owner.observeIdentity(click.confirmationIdentity)
         _ = owner.start(click, port: port)
         while !port.hasReachedPort { await Task.yield() }
@@ -938,6 +938,68 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         port.resume(with: .success(.noOp))
         while registry.lease != nil { await Task.yield() }
         XCTAssertEqual(registry.attachedObservationCount, 1)
+    }
+
+    // MARK: - 4f. C5GR8：init 不 attach，never-appeared owner 不泄漏
+
+    /// 构造后未进入 View `onAppear` 的对象不得在 app-lifetime registry 留下任何成员。
+    func testTransientCoordinatorWithoutAttachLeavesNoMembership() {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+
+        do {
+            let transient = AhaKeyStudioPageCommitCoordinator(registry: registry)
+            XCTAssertFalse(transient.isAttached, "构造不得自动 attach")
+            // 未 attach 时的 observe 必须被拒绝，不写入任何 observation。
+            transient.observeIdentity(input(activeSet: 0).confirmationIdentity)
+            XCTAssertNil(transient.currentIdentity)
+        }
+
+        XCTAssertEqual(registry.attachedOwnerCount, 0, "never-appeared owner 必须为 0")
+        XCTAssertEqual(registry.attachedObservationCount, 0, "不得留下 observation")
+        XCTAssertNil(registry.lease)
+    }
+
+    /// attach→detach 往返同样不得残留。
+    func testAttachThenDetachLeavesNoMembership() {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        XCTAssertTrue(coordinator.attach())
+        coordinator.observeIdentity(input(activeSet: 0).confirmationIdentity)
+        XCTAssertEqual(registry.attachedOwnerCount, 1)
+        XCTAssertEqual(registry.attachedObservationCount, 1)
+
+        coordinator.detach()
+        XCTAssertEqual(registry.attachedOwnerCount, 0)
+        XCTAssertEqual(registry.attachedObservationCount, 0)
+    }
+
+    /// start-before-attach 必须零 port；attach 后正常提交。
+    func testStartBeforeAttachCallsNoPortAndSucceedsAfterAttach() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let click = input(activeSet: 0)
+        let port = RecordingCommitPort(results: [.success(.noOp)])
+
+        coordinator.observeIdentity(click.confirmationIdentity)
+        XCTAssertNil(coordinator.currentIdentity, "未 attach 不得登记 observation")
+        let rejected = coordinator.start(click, port: port)
+        guard case .rejected(let projection) = rejected else {
+            return XCTFail("未 attach 时 start 必须被拒绝，实得 \(rejected)")
+        }
+        XCTAssertEqual(projection.outcome, .ignoredInFlight)
+        XCTAssertEqual(port.snapshots.count, 0, "start-before-attach 必须零 port 调用")
+        XCTAssertEqual(coordinator.portCallCount, 0)
+        XCTAssertNil(registry.lease)
+
+        // View onAppear 的路径：先 attach，再 observe。
+        XCTAssertTrue(coordinator.attach())
+        coordinator.observeIdentity(click.confirmationIdentity)
+        XCTAssertEqual(coordinator.currentIdentity, click.confirmationIdentity)
+
+        XCTAssertEqual(coordinator.start(click, port: port), .started)
+        while coordinator.inFlight != nil { await Task.yield() }
+        XCTAssertEqual(port.snapshots.count, 1, "attach 后必须正常提交")
+        XCTAssertNil(registry.lease)
     }
 
     // MARK: - 5. trace 类型完全枚举（结构性，不抽样）
@@ -1435,6 +1497,36 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         )
     }
 
+    /// C5GR8 静态门：View `onAppear` 必须先 attach 再 observe（生产 attach 的唯一入口）。
+    func testViewOnAppearAttachesBeforeObservingIdentity() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let viewURL = packageRoot.appendingPathComponent("Sources/Views/AhaKeyStudioView.swift")
+        let source = try String(contentsOf: viewURL, encoding: .utf8)
+
+        let onAppearStart = try XCTUnwrap(
+            source.range(of: ".onAppear {"),
+            "必须能定位主 body 的 .onAppear"
+        ).upperBound
+        let window = source[onAppearStart...].prefix(2000)
+
+        let attach = try XCTUnwrap(
+            window.range(of: "pageCommitCoordinator.attach()"),
+            "onAppear 必须显式 attach（构造期不再 attach）"
+        )
+        let observe = try XCTUnwrap(
+            window.range(of: "pageCommitCoordinator.observeIdentity("),
+            "onAppear 必须发布 live identity"
+        )
+        XCTAssertLessThan(
+            attach.lowerBound,
+            observe.lowerBound,
+            "onAppear 必须先 attach 再 observe，否则 observe 会被 registry 拒绝"
+        )
+    }
+
     /// 从源码里截取指定函数签名的函数体（到下一个同缩进 func 为止）。
     private static func functionBody(named signature: String, in source: String) -> String? {
         guard let start = source.range(of: signature) else { return nil }
@@ -1474,7 +1566,17 @@ private func runSubmitDetached(
 }
 
 /// C5GR4：每个测试用独立 registry（生产由 Store 持有 app-lifetime 实例）。
+/// C5GR8：生产 attach 只在 View `onAppear`，因此测试构造者必须显式 attach。
 @MainActor
 private func makeCoordinator() -> AhaKeyStudioPageCommitCoordinator {
-    AhaKeyStudioPageCommitCoordinator(registry: AhaKeyStudioPageCommitExecutionRegistry())
+    makeAttachedCoordinator(AhaKeyStudioPageCommitExecutionRegistry())
+}
+
+@MainActor
+private func makeAttachedCoordinator(
+    _ registry: AhaKeyStudioPageCommitExecutionRegistry
+) -> AhaKeyStudioPageCommitCoordinator {
+    let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+    coordinator.attach()
+    return coordinator
 }

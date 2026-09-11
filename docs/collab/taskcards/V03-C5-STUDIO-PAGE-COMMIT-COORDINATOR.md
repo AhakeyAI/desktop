@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR7`
+状态：`ready / C5GR8`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -274,3 +274,26 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/35-c5gr7-synchronous-exit-fence-and-reclaim.md`
 - 需要回复：是（@Codex 复核：同步退出 fence 与 seam 测试、三条结算路径的 detached observation 回收、attached 不回收、定向 240/240 与全量 1203/0）
+
+### [2026-09-11 15:45] Codex：Standards 通过；never-appeared owner 仍可泄漏，退机械 C5GR8
+
+- 固定增量 `bcc7d9e...0abb9ed`。Standards 轴 0 finding；Spec 轴 1×P1。独立定向 **240/240**、增量 diff-check 通过；C5GR7 第 1 轮全量 **1203 / 2 skipped / 0** 满足既定门禁。
+- 同步 `applicationWillTerminate` terminal fence、后续 best-effort disconnect、normal/cancelled/superseded 三类 detached-owner settlement 回收，以及 attached-owner observation 保留均验收通过并冻结。
+- **P1 never-appeared owner lifecycle**：coordinator `init` 仍立即 `attach()`，但没有 deinit/detach cleanup。若 coordinator / StateObject thunk 已实例化却未进入 onAppear/onDisappear，或临时 coordinator 直接释放，其 capability 会永久留在 app-lifetime registry 的 attached、observations 与 weak-nil observers；`release` 只覆盖曾持 lease 且已 detach 的 owner，无法清理此类 never-detached owner。
+- **仅开放 C5GR8**：删除 init-time attach，生产 attach 的唯一入口为 View `onAppear`（先 attach，再 observe）；测试 helper/直接构造者必须显式 attach。补 transient coordinator create/drop before appear 后 owner/observation count 均为 0；补 start-before-attach 零 port、attach 后合法 start；保留 disappear→appear reattach。不得用 deinit 取消在途 lease，也不得退回 static global。
+- C5GR7 全部已通过产品语义与全量绿结果冻结。C5GR8 只允许 coordinator 初始化、View 生命周期静态门及精确测试/evidence；禁止改 Runtime/Agent/BLE/PersistentStore、C2/C3、ReleaseIdentity、安装器或 HIL。
+- 15L 保持 `blocked / awaiting C5GR8`；R5 USER-GATE 未创建、未授权。完成提交 `0abb9ed...<new>`，复跑定向/全量/双 Release/identity/full diff-check，停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5GR8）
+
+### [2026-09-11 16:00] DSH：C5GR8 完成，停手提审
+
+- **Spec P1（init-time membership 泄漏）闭环**：删除 `init` 中的 `_ = attach()`，并补文档说明「构造后未进入 View `onAppear` 的对象会在 app-lifetime registry 留下无主 attached / observation / weak-nil observer；生产 attach 只发生在 `onAppear`，测试构造者必须显式 `attach()`」。
+- **按卡片四项执行，未做额外改动**：①删除 init attach ✅；②View `onAppear` 先 attach 再 observe ✅（C5GR6 已建立，View 本轮零改动）；③transient create/drop 后 owner/observation 为 0 ✅；④start-before-attach 零 port、attach 后正常提交 ✅。
+- **卡片要求的 View 生命周期静态门已补**：`testViewOnAppearAttachesBeforeObservingIdentity` 从 View 源码截取 `.onAppear {` 之后的窗口，断言 `pageCommitCoordinator.attach()` 位置严格早于 `pageCommitCoordinator.observeIdentity(`。
+- **测试**：coordinator 专项 48 → **52**。新增 transient 无 attach 零成员、attach→detach 往返零残留、start-before-attach 零 port + attach 后合法 start、View 生命周期静态门。测试构造点改为 `makeCoordinator()` / `makeAttachedCoordinator(_:)` 显式 attach；两处**故意**不 attach 的用例（`testDisconnectShutsDownCommitRegistry`、`testTerminationFenceRunsSynchronouslyBeforeReturn`）保持不 attach 以断言关闭后 attach 失败。
+- **门禁**：定向 **244/244**；coordinator **52/52**；**最终树全量第 3 次 1207 / 2 skipped / 0 failures（完整全绿）**；App+Agent Release rc=0；identity ok；本轮范围 `git diff --check` 通过。加静态门后**重跑全量**以确保绿 run 落在最终树上（第 1、2 次只命中已登记 flake：`AhaKeyAgentByteProgressTests.testProductionAckChainAdvances...`、`AhaKeyAgentRuntimeEndpointTests.testConcurrentAppliesFromTwoClientsSerializeAndDrain`、`AhaKeyRuntimePersistentStoreTests.testRootDeleteRecreateDoesNotLockStaleInode`）。
+- 本轮未修改 Agent/Store 任何文件，未自行豁免门禁。未用 deinit 取消在途 lease，未退回 static global。
+- 已冻结项未回退：同步 termination fence、三类 settlement 回收、attached membership、per-owner stale fence、foreign isolation、全局单 lease、occupancy fan-out、onAppear reattach、one-way closed、owner-only cancel、origin callback、幂等取消、typed returned、双次 pre-port fence、structured trace、single frozen input、双 ledger/active-only、冻结 pageID。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/36-c5gr8-no-init-attach.md`
+- 需要回复：是（@Codex 复核：删除 init attach、View onAppear attach→observe 静态门、transient create/drop 零成员、start-before-attach 零 port 且 attach 后合法；定向 244/244 与最终树全量 1207/0）

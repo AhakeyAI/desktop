@@ -809,10 +809,12 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     private var confirmationLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
     private var editIntentLedger = AhaKeyStudioPageEditIntentLedger()
 
+    /// **不在 init 中 attach**：构造后未进入 View `onAppear` 的对象会在 app-lifetime
+    /// registry 里留下无主的 attached / observation / weak-nil observer。
+    /// 生产 attach 只发生在 View `onAppear`；测试构造者必须显式 `attach()`。
     init(registry: AhaKeyStudioPageCommitExecutionRegistry) {
         self.registry = registry
         self.capability = AhaKeyStudioPageCommitOwnerCapability()
-        _ = attach()
     }
 
     /// 幂等 attach。View 每次 `onAppear` 都应调用（SwiftUI 可能复用同一 `@StateObject`，
