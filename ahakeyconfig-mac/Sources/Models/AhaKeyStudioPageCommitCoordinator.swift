@@ -328,7 +328,8 @@ enum AhaKeyStudioPageCommitStartResult: Equatable {
 
 // MARK: - Owner capability
 
-/// Coordinator 的 owner capability。注册表只认 capability，不认「最后一个 attach 的人」。
+/// Coordinator 的 owner capability。注册表按 capability 维护 attached membership，
+/// 不认「最后一个 attach 的人」。
 struct AhaKeyStudioPageCommitOwnerCapability: Hashable, Sendable {
     let id: UUID
 
@@ -405,19 +406,22 @@ protocol AhaKeyStudioPageCommitExecutionDelegate: AnyObject {
         _ execution: AhaKeyStudioPageCommitExecution,
         outcome: AhaKeyStudioPageCommitOutcome
     )
-    /// 占用变化：当前活跃 coordinator 刷新 `isSubmitting`。
+    /// 占用变化：所有 attached coordinator 刷新 `isSubmitting`。
     func executionOccupancyDidChange()
 }
 
 /// **app-lifetime** 的 port 执行租约注册表。
 ///
-/// 由 `AhaKeyStudioRuntimeClient` 持有并注入 coordinator（不是 static global，随 Store 生命周期）。
+/// 由 `AhaKeyStudioRuntimeClient` 持有并注入 coordinator（不是 static global，随 Store 生命周期；
+/// 由 `disconnect()` 触发 `shutdown()`）。
 ///
-/// 多窗口 / 迟到的 handoff 规则：
-/// - `observeIdentity` / `start` 只允许 **active capability** 操作自己；
-/// - `requestCancel` / `settleCancelBeforePort` 只允许 **lease 的 owner capability**；
-///   继任 coordinator 可以观察 inherited occupancy，但**不得取消或 supersede** 它；
-/// - completion 路由给 execution 冻结的 originating weak delegate；origin 已释放则只做 cleanup。
+/// 多窗口 / 迟到 handoff 规则：
+/// - attached membership：每个存活 owner 各自推进自己的 observation；
+///   窗口 A 不会因为窗口 B 出现而失去 stale fence；
+/// - 全局仍是**单一** lease（不按 device 分槽）；
+/// - `requestCancel` / `settleCancelBeforePort` 只允许 lease 的 owner capability；
+/// - completion 路由给 execution 冻结的 originating weak delegate，origin 已释放则只 cleanup；
+/// - `shutdown()` 是 one-way 终态 fence，关闭后不得再 attach / claim。
 @MainActor
 final class AhaKeyStudioPageCommitExecutionRegistry {
     static let traceCapacity = 64
@@ -425,6 +429,10 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
     private struct Observation {
         var identity: AhaKeyStudioPageOverwriteConfirmationIdentity?
         var revision: UInt64
+    }
+
+    private struct WeakObserver {
+        weak var delegate: (any AhaKeyStudioPageCommitExecutionDelegate)?
     }
 
     private(set) var lease: AhaKeyStudioPageCommitExecution?
@@ -436,36 +444,54 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
     /// 仅统计 **用户取消请求**次数（每次取消恰一次，重复请求幂等）。
     private(set) var cancelRequestedCount: UInt64 = 0
     private(set) var trace: [AhaKeyStudioPageCommitTraceEvent] = []
+    /// one-way：一旦 shutdown，永久拒绝新的 attach / claim。
+    private(set) var isClosed = false
 
-    private(set) var activeCapability: AhaKeyStudioPageCommitOwnerCapability?
+    private var attached: Set<AhaKeyStudioPageCommitOwnerCapability> = []
     private var observations: [AhaKeyStudioPageCommitOwnerCapability: Observation] = [:]
+    private var observers: [AhaKeyStudioPageCommitOwnerCapability: WeakObserver] = [:]
     private var revisionCounter: UInt64 = 0
     private var task: Task<Void, Never>?
-    private weak var activeOccupancyObserver: (any AhaKeyStudioPageCommitExecutionDelegate)?
     private var traceSink: ((AhaKeyStudioPageCommitTraceEvent) -> Void)?
 
     var isOccupied: Bool { lease != nil }
 
-    // MARK: Capability
+    /// 测试/诊断：现存 observation 数（detach 后应回落）。
+    var attachedObservationCount: Int { observations.count }
+    var attachedOwnerCount: Int { attached.count }
 
-    /// 注册一个 owner capability 并使其成为活跃观察者。不得退回 static global。
-    func activate(
+    // MARK: Capability membership
+
+    /// **幂等** attach。SwiftUI 可能复用同一 `@StateObject`，
+    /// 因此 View 每次 `onAppear` 都应调用它。关闭后返回 false 且不再生效。
+    @discardableResult
+    func attach(
         capability: AhaKeyStudioPageCommitOwnerCapability,
         delegate: any AhaKeyStudioPageCommitExecutionDelegate
-    ) {
-        activeCapability = capability
-        activeOccupancyObserver = delegate
+    ) -> Bool {
+        guard !isClosed else { return false }
+        attached.insert(capability)
         if observations[capability] == nil {
             revisionCounter = Self.checkedIncrement(revisionCounter)
             observations[capability] = Observation(identity: nil, revision: revisionCounter)
         }
+        observers[capability] = WeakObserver(delegate: delegate)
         delegate.executionOccupancyDidChange()
+        return true
     }
 
-    func deactivate(capability: AhaKeyStudioPageCommitOwnerCapability) {
-        guard activeCapability == capability else { return }
-        activeCapability = nil
-        activeOccupancyObserver = nil
+    /// 交还 attach。无在途租约时一并回收该 capability 的 observation，
+    /// 避免随窗口生命周期累积；有租约时保留到结算为止（否则会破坏 inherited fence）。
+    func detach(capability: AhaKeyStudioPageCommitOwnerCapability) {
+        guard attached.remove(capability) != nil else { return }
+        observers.removeValue(forKey: capability)
+        if lease?.ownerCapability != capability {
+            observations.removeValue(forKey: capability)
+        }
+    }
+
+    func isAttached(_ capability: AhaKeyStudioPageCommitOwnerCapability) -> Bool {
+        attached.contains(capability)
     }
 
     func observation(
@@ -476,12 +502,13 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
         return (observation.identity, observation.revision)
     }
 
-    /// 只有 active capability 能推进自己的 observation。
+    /// 只有 attached owner 能推进**自己**的 observation。
+    /// 多窗口下每个 owner 独立推进，互不影响。
     func observeIdentity(
         _ identity: AhaKeyStudioPageOverwriteConfirmationIdentity?,
         by capability: AhaKeyStudioPageCommitOwnerCapability
     ) {
-        guard activeCapability == capability else { return }
+        guard attached.contains(capability) else { return }
         var observation: Observation
         if let existing = observations[capability] {
             observation = existing
@@ -499,13 +526,14 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
 
     // MARK: Lease
 
-    /// 占用租约。只允许 active capability，且必须租约为空。
+    /// 占用租约。只允许 attached owner，且必须未关闭、租约为空。
     @discardableResult
     func claim(
         _ execution: AhaKeyStudioPageCommitExecution,
         by capability: AhaKeyStudioPageCommitOwnerCapability
     ) -> Bool {
-        guard activeCapability == capability else { return false }
+        guard !isClosed else { return false }
+        guard attached.contains(capability) else { return false }
         guard lease == nil else { return false }
         lease = execution
         record(.began(
@@ -514,12 +542,12 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
             confirmed: execution.confirmed
         ))
         startPortTask(execution)
-        activeOccupancyObserver?.executionOccupancyDidChange()
+        notifyOccupancy()
         return true
     }
 
-    /// 请求取消。**幂等**：已 requested 时 no-op（不重复计数、不重复 trace）；
-    /// 非 lease owner 一律 no-op。
+    /// 请求取消。**幂等**：已 requested 时 no-op；
+    /// 非 lease owner 一律 no-op（detached 的 origin 仍可取消自己的 attempt）。
     @discardableResult
     func requestCancel(
         by capability: AhaKeyStudioPageCommitOwnerCapability
@@ -538,7 +566,6 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
     }
 
     /// cancel-before-port：fence 保证旧 Task 永不调用 port，可安全立即释放租约并结算。
-    /// 只有 lease owner 能结算；重复调用因租约已释放而 no-op。
     func settleCancelBeforePort(
         _ execution: AhaKeyStudioPageCommitExecution,
         by capability: AhaKeyStudioPageCommitOwnerCapability
@@ -555,9 +582,11 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
         originator?.executionDidDiscard(execution, outcome: .cancelled)
     }
 
-    /// 显式关闭契约：fence 新请求、放弃在途租约、取消 port Task。
-    /// 供 client/registry 在释放或停机时收口，保证 hung port 不永久保留占用。
+    /// One-way 终态 fence。由 `AhaKeyStudioRuntimeClient.disconnect()` 调用。
+    /// 关闭后：不得再 attach / claim / observe，在途租约被放弃，port Task 被取消。
     func shutdown() {
+        guard !isClosed else { return }
+        isClosed = true
         task?.cancel()
         task = nil
         if let lease {
@@ -569,10 +598,10 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
             ))
             self.lease = nil
         }
-        activeCapability = nil
-        activeOccupancyObserver?.executionOccupancyDidChange()
-        activeOccupancyObserver = nil
+        attached.removeAll()
         observations.removeAll()
+        notifyOccupancy()
+        observers.removeAll()
     }
 
     func noteIdentitySuperseded() {
@@ -602,11 +631,17 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
 
     // MARK: Private pipeline
 
+    private func notifyOccupancy() {
+        for box in observers.values {
+            box.delegate?.executionOccupancyDidChange()
+        }
+    }
+
     private func release(_ execution: AhaKeyStudioPageCommitExecution) {
         guard lease === execution else { return }
         lease = nil
         task = nil
-        activeOccupancyObserver?.executionOccupancyDidChange()
+        notifyOccupancy()
     }
 
     private func startPortTask(_ execution: AhaKeyStudioPageCommitExecution) {
@@ -627,8 +662,7 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
     }
 
     /// 第二次 pre-port fence：在任何计数 / trace / port 调用之前核 Task cancellation、
-    /// exact lease、**该 attempt owner 的** observation 与 live identity。
-    /// 继任 coordinator 的 observation 不会影响 inherited execution。
+    /// exact lease、**该 attempt owner 的** observation。
     private func admitPortEntry(_ execution: AhaKeyStudioPageCommitExecution) -> Bool {
         guard lease === execution else { return false }
 
@@ -749,7 +783,7 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
 
 // MARK: - Coordinator
 
-/// 两击提交的唯一可观测编排（C5G → C5GR5）。
+/// 两击提交的唯一可观测编排（C5G → C5GR6）。
 ///
 /// View 只调用同步 `start(_:port:)`。**执行租约由 app-lifetime 注册表拥有**，
 /// coordinator 只负责自己 session 的 ledger、chrome 投影与结果发布。
@@ -757,6 +791,7 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
 final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     @Published private(set) var pendingPrompt: AhaKeyStudioPageOverwriteConfirmationIdentity?
     @Published private(set) var isSubmitting = false
+    @Published private(set) var isAttached = false
     @Published private(set) var lastOutcome: AhaKeyStudioPageCommitOutcome?
     /// 最近一次终结投影事件。View 经 `onChange(of: projectionRevision)` 消费。
     @Published private(set) var lastProjection: AhaKeyStudioPageCommitProjection?
@@ -771,16 +806,31 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     init(registry: AhaKeyStudioPageCommitExecutionRegistry) {
         self.registry = registry
         self.capability = AhaKeyStudioPageCommitOwnerCapability()
-        registry.activate(capability: capability, delegate: self)
+        _ = attach()
     }
 
-    /// 页面关闭：交还 active 观察权。迟到的调用不会影响其他 owner
-    /// （`requestCancel`/`observeIdentity` 都按 capability 校验）。
+    /// 幂等 attach。View 每次 `onAppear` 都应调用（SwiftUI 可能复用同一 `@StateObject`，
+    /// 而 `onDisappear` 已 detach）。关闭后返回 false。
+    @discardableResult
+    func attach() -> Bool {
+        let ok = registry.attach(capability: capability, delegate: self)
+        if isAttached != ok {
+            isAttached = ok
+        }
+        refreshSubmitting()
+        return ok
+    }
+
+    /// 交还 attach。迟到的调用不会影响其他 owner（所有操作都按 capability 校验）。
     func detach() {
-        registry.deactivate(capability: capability)
+        registry.detach(capability: capability)
+        if isAttached {
+            isAttached = false
+        }
+        refreshSubmitting()
     }
 
-    // 观测口径转发到 app-lifetime 注册表，保证 successor coordinator 看到同一份事实。
+    // 观测口径转发到 app-lifetime 注册表。
     var currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity? {
         registry.observation(for: capability).identity
     }
@@ -792,7 +842,8 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     var cancelRequestedCount: UInt64 { registry.cancelRequestedCount }
     var trace: [AhaKeyStudioPageCommitTraceEvent] { registry.trace }
     var inFlight: AhaKeyStudioPageCommitExecution? { registry.lease }
-    /// successor 可观察 inherited occupancy，但无权取消或 supersede 它。
+    var isRegistryClosed: Bool { registry.isClosed }
+    /// attached owner 可观察 inherited occupancy，但无权取消或 supersede 它。
     var hasInheritedExecution: Bool {
         guard let lease = registry.lease else { return false }
         return lease.ownerCapability != capability
@@ -805,7 +856,7 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
 
     // MARK: - Observation（View 驱动；Button click path 禁止调用）
 
-    /// View 发布 live identity。只允许 active capability 推进。
+    /// View 发布 live identity。只允许 attached capability 推进。
     func observeIdentity(_ identity: AhaKeyStudioPageOverwriteConfirmationIdentity?) {
         registry.observeIdentity(identity, by: capability)
         confirmationLedger.observeCurrentIdentity(identity)
@@ -868,15 +919,14 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
 
     // MARK: - Submit
 
-    /// 唯一提交入口（同步）。只允许 active capability。
+    /// 唯一提交入口（同步）。只允许 attached owner，且 registry 未关闭。
     func start(
         _ input: AhaKeyStudioPageSubmissionInput,
         port: any AhaKeyStudioPageCommitPort
     ) -> AhaKeyStudioPageCommitStartResult {
         registry.bumpClickCount()
 
-        // 非 active owner（迟到 / 已 detach）不得发起。
-        guard registry.activeCapability == capability else {
+        guard !registry.isClosed, registry.isAttached(capability) else {
             let projection = AhaKeyStudioPageCommitProjection(
                 pageID: input.pageID,
                 outcome: .ignoredInFlight
@@ -945,8 +995,7 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
         return .started
     }
 
-    /// 页面关闭 / 显式取消。只有 lease owner 能取消自己的 attempt；
-    /// 继任 coordinator 调用它不会影响 inherited execution。
+    /// 页面关闭 / 显式取消。只有 lease owner 能取消自己的 attempt。
     func cancelInFlight() {
         guard let execution = registry.requestCancel(by: capability) else {
             refreshSubmitting()

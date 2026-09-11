@@ -555,6 +555,101 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertNil(port?.store, "持有的 client 释放后 port 必须 fail-closed，而不是继续钉住它")
     }
 
+    /// C5GR6：真实关闭生命周期（applicationWillTerminate → disconnect）必须 one-way 关闭注册表。
+    func testDisconnectShutsDownCommitRegistry() {
+        let store = makeStore()
+        XCTAssertFalse(store.pageCommitExecutions.isClosed)
+
+        store.disconnect()
+
+        XCTAssertTrue(store.pageCommitExecutions.isClosed, "disconnect 必须关闭 page-commit 注册表")
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: store.pageCommitExecutions)
+        XCTAssertFalse(coordinator.isAttached, "关闭后不得再 attach")
+    }
+
+    /// C5GR6：已进入 production invocation 时，store 会被 async 调用强持有跨 await；
+    /// 这段生命周期也必须按契约收口——disconnect 是 one-way fence，迟到结果不再写 trace。
+    func testProductionInvocationInFlightSurvivesDisconnectAndSettlesItOut() async throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let transport = SuspendingApplyTransport(snapshot: makeSnapshot(deviceID: deviceID, operations: []))
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0
+        )
+        let store = AhaKeyStudioRuntimeClient(facade: facade)
+        await facade.installSnapshotForTesting(makeSnapshot(deviceID: deviceID, operations: []))
+        store.applyViewStateForTesting(onlineState(snapshot: makeSnapshot(deviceID: deviceID, operations: [])))
+
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: store.pageCommitExecutions)
+        let port = AhaKeyStudioRuntimeStoreCommitPort(store: store)
+        let profile = AhaKeyOLEDCompatibilityProfile.rhinoDualSet(sessionUploadAdvertised: false)
+        let current = AhaKeyStudioDraft.default
+        let context = AhaKeyStudioPageEditIntentContext(
+            deviceID: deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            pageID: .screen(modeSlot: 0),
+            profile: profile,
+            currentValues: [.screenActiveSet(modeSlot: 0): .integer(0)]
+        )
+        coordinator.notePickerSelection(
+            activeSet: 0,
+            modeSlot: 0,
+            deviceID: deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            profile: profile
+        )
+
+        func makeInput() -> AhaKeyStudioPageSubmissionInput {
+            let intentFieldIDs = coordinator.matchingExplicitIntentFieldIDs(context)
+            let snapshot = current.frozenPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                lastSyncedDraft: current,
+                profile: profile,
+                selectedTaskSet: 0,
+                overwriteConfirmed: false,
+                explicitIntentFieldIDs: intentFieldIDs
+            )
+            return AhaKeyStudioPageSubmissionInput(
+                deviceID: deviceID,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                snapshot: snapshot,
+                explicitIntentFieldIDs: intentFieldIDs,
+                retryResidual: false
+            )
+        }
+
+        // 第一次点击：unknown baseline → requires（不进入 port）。
+        let first = makeInput()
+        coordinator.observeIdentity(first.confirmationIdentity)
+        _ = coordinator.start(first, port: port)
+        while coordinator.inFlight != nil { await Task.yield() }
+        XCTAssertFalse(transport.reachedApply)
+
+        // 第二次点击：进入 production invocation 并挂起在 apply。
+        let second = makeInput()
+        _ = coordinator.start(second, port: port)
+        while !transport.reachedApply { await Task.yield() }
+        XCTAssertNotNil(store.pageCommitExecutions.lease, "invocation 已进入，租约必须在场")
+
+        // 真实关闭生命周期：one-way fence，放弃租约。
+        store.disconnect()
+        XCTAssertTrue(store.pageCommitExecutions.isClosed)
+        XCTAssertNil(store.pageCommitExecutions.lease, "shutdown 必须 fence 并放弃在途租约")
+        let traceAfterShutdown = coordinator.trace.count
+
+        // 迟到的 production 返回不得改动任何状态。
+        transport.releaseApply()
+        for _ in 0..<16 { await Task.yield() }
+        XCTAssertEqual(coordinator.trace.count, traceAfterShutdown, "关闭后迟到返回不得再写 trace")
+        XCTAssertNil(store.pageCommitExecutions.lease)
+        XCTAssertFalse(coordinator.isSubmitting)
+    }
+
     func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
         let harness = try makeHarness()
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
@@ -809,6 +904,47 @@ private func makeSnapshot(
         latestEventSequence: .init(0),
         pageBaselines: pageBaselines
     )
+}
+
+/// C5GR6：可控挂起 `.apply` 的 transport，用来把 production invocation 停在「已进入 port」的状态。
+private final class SuspendingApplyTransport: AhaKeyStudioRuntimeTransport, @unchecked Sendable {
+    var snapshot: AhaKeyRuntimeSnapshot
+    private(set) var reachedApply = false
+    private var applyContinuation: CheckedContinuation<Void, Never>?
+
+    init(snapshot: AhaKeyRuntimeSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    func releaseApply() {
+        let pending = applyContinuation
+        applyContinuation = nil
+        pending?.resume()
+    }
+
+    func exchange(_ request: AhaKeyRuntimeXPCRequest) async throws -> AhaKeyRuntimeXPCResponse {
+        switch request {
+        case .handshake:
+            return .handshakeAccepted(.init(
+                runtimeVersion: .development,
+                interfaceVersion: .current,
+                supportedConfigurationSchemaVersions: AhaKeyConfigurationPackage.advertisedSchemaVersions,
+                capabilities: [.snapshot, .eventReplay, .configuration]
+            ))
+        case .snapshot:
+            return .snapshot(snapshot)
+        case .events:
+            return .eventReplay(.events([]))
+        case .ingestResources:
+            return .resourcesIngested
+        case .apply(let package, _):
+            reachedApply = true
+            await withCheckedContinuation { applyContinuation = $0 }
+            return .operationAccepted(package.operationID)
+        default:
+            return .failure(try AhaKeyRuntimeEventCode("unsupported"))
+        }
+    }
 }
 
 /// C5G：记录每次冻结 snapshot，再转发给真实 Store→Facade 写入口。

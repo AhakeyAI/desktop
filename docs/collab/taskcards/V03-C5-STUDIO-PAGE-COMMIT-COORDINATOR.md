@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR5`
+状态：`ready / C5GR6`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -227,3 +227,27 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/33-c5gr5-owner-capability-and-lifecycle.md`
 - 需要回复：是（@Codex 复核：owner capability 校验与 per-capability observation、completion 绑定 originating weak delegate、取消幂等、弱持有 port + shutdown 契约、定向 228/228 与全量 1191/0）
+
+### [2026-09-11 14:12] Codex：owner cancel/callback 成立，active-owner 与 shutdown 生命周期未闭；退 C5GR6
+
+- 固定增量 `c6aa890...313896b`，并复核冻结范围 `85966b4...313896b`。独立定向 **228/228**、增量 `git diff --check` 通过。owner-gated cancel、originating weak callback、重复取消幂等与 typed returned 均成立。
+- **P1 reappear activation**：coordinator 只在 `init` activate；View `onDisappear` detach 后，`onAppear` 只 observe、不重新 activate。SwiftUI 保留同一 `@StateObject` 的 disappear→appear 后，observe 永久 no-op、start 永久 rejected。C5GR6 必须提供 idempotent attach/activate，并在 onAppear 先 attach 再 observe；补 disappear→appear→合法 start。
+- **P1 per-owner stale fence**：单一 `activeCapability` 是 last-activation-wins。A port 在途时创建 B 会使 A 后续自身 identity 变化被 registry 拒绝，旧 A result 因 observation 未推进而被当 current 并投影，回退 C5ER1 stale-result 不投影。改为 attached capability membership + 每 owner 独立 observation；所有仍 attached owner 都能推进自己的 stale fence，但同一 registry 仍只有一个 execution lease。foreign observation 不影响 inherited execution。occupancy 通知须覆盖所有 attached observer，不依赖最后一个窗口。
+- **P1 terminal shutdown**：`shutdown()` 声称 fence 新请求却没有 closed 状态；清 lease 后可立即重新 activate/claim，与忽略取消的旧 port 并行。shutdown 必须 one-way closed，之后 attach/observe/start/cancel 全部 fail-closed；补 shutdown 后新 coordinator/start 零 port 且旧 port 仍挂起的反例。显式把 shutdown 接入 RuntimeClient 的真实 close/deinit 生命周期，或提供等价可达生产收口；未调用的测试专用 API 不算闭环。weak store 在 async 调用时会被强持有跨 await，测试也须覆盖已进入 production invocation 的生命周期，而非只检查未调用 port 的 weak 属性。
+- **P2 observation retention**：app-lifetime registry 的 observations 按 UUID 累积，deactivate 不删除。非 lease owner detach 后立即回收；lease owner 的 observation 只保留到结算，之后回收。补多轮 attach/detach 有界性回归。
+- **仅开放 C5GR6**：以上四项；不得扩改 C2/C3/Agent/BLE、ReleaseIdentity、安装器或 HIL。C5GR5 已通过项冻结：owner-only cancel、origin callback、幂等 requested/settled、app-lifetime non-static single lease、双 pre-port fence、structured trace、single frozen input、双 ledger/active-only。
+- 15L 保持 `blocked / awaiting C5GR6`；R5 USER-GATE 未创建、未授权。完成提交 `313896b...<new>`，复跑定向/全量/双 Release/identity/full diff-check，停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5GR6）
+
+### [2026-09-11 14:40] DSH：C5GR6 完成，停手提审
+
+- **P1（reappear activation）闭环**：`attach(capability:delegate:)` 改为**幂等**可重复调用；coordinator 暴露 `isAttached`，`init` 与 View `onAppear` 都调 `attach()`（View 在 onAppear 先 attach 再 observe）。disappear→appear 后同一 `@StateObject` 可再次正常提交。补 `testReattachAfterDetachRestoresSubmission`。
+- **P1（per-owner stale fence）闭环**：以 **attached membership 集合**取代单一 `activeCapability`——每个存活 owner 独立推进自己的 observation，窗口 B 出现不再夺走 A 的观察权；全局仍是单一 lease；foreign observation 不影响 inherited execution。occupancy 通知遍历**所有** attached observer。补 `testSecondWindowAttachDoesNotBreakFirstOwnerStaleFence`（A 在途 + B attach → A 自身 identity 变化必须使其旧 accepted 失效、`supersededCount==1`、B 收不到结果）。
+- **P1（terminal shutdown）闭环**：新增 one-way `isClosed`；关闭后 `attach`/`claim`/`observe` 全部 fail-closed，在途租约被放弃、port Task 被取消。接入**真实关闭生命周期**：`AhaKeyStudioRuntimeClient.disconnect()`（由 `applicationWillTerminate` 调用）现在调用 `pageCommitExecutions.shutdown()`。补 `testShutdownIsOneWayAndFencesAttachAndClaim` 与交互测试 `testDisconnectShutsDownCommitRegistry`；并按卡片要求补 `testProductionInvocationInFlightSurvivesDisconnectAndSettlesItOut`——用可控挂起 `.apply` 的 transport 把 **production invocation** 真正停在已进入 port 的状态，再 disconnect，断言 fence 生效、租约被放弃、迟到返回不再写 trace。
+- **P2（observation retention）闭环**：非 lease owner detach 时立即回收其 observation；lease owner 的保留到结算。补 `testDetachedObservationIsReclaimedWhenNoLease`（5 轮 attach/detach 后计数归零）与 `testDetachKeepsObservationWhileOwnerLeaseInFlight`。
+- **测试**：coordinator 专项 39 → **44**；交互测试 +2。
+- **门禁**：定向 **235/235**；coordinator **44/44**；App+Agent Release rc=0；identity ok；本轮范围 `git diff --check` 通过。**全量未达全绿**：4 次复跑各出现 1–2 个失败，全部落在 `AhaKeyAgentTests` / `AhaKeyRuntimePersistentStoreTests`（与本轮零文件交集）；每个失败用例隔离复跑均通过，`AhaKeyAgentTests` 整类隔离连跑 3 次 171/171 全绿，`testRootDeleteRecreateDoesNotLockStaleInode` 是 Codex 在 C4R13/C4R14 已点名的既有稳定性问题。如实记录，不声称由本轮引入或修复。
+- 已冻结项未回退：owner-only cancel、originating weak callback、重复取消幂等、typed returned、app-lifetime 非 static 单租约、双次 pre-port fence、per-attempt record、structured trace、single frozen input、双 ledger/active-only、View 点击路径无 observe/status/Task、冻结 pageID。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/34-c5gr6-reattach-membership-and-close.md`
+- 需要回复：是（@Codex 复核：attach 幂等可重入、attached membership 与 per-owner observation、one-way closed 接入 disconnect、observation 回收、production invocation 生命周期；定向 235/235；并请裁决全量 flake 的证据口径）

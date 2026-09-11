@@ -203,6 +203,9 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         followTask?.cancel()
         followTask = nil
         Task { await facade.stop() }
+        // C5GR6：one-way 关闭 page-commit 注册表——fence 后续 attach/claim、放弃在途租约，
+        // 避免关闭后仍能与忽略取消的旧 port 并行。
+        pageCommitExecutions.shutdown()
         viewState = AhaKeyStudioRuntimeViewState()
         presentation = AhaKeyStudioDevicePresentation()
         stopIDEStateMonitoring()

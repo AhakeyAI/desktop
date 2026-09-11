@@ -739,12 +739,124 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         registry.shutdown()
         XCTAssertNil(registry.lease, "shutdown 必须释放租约")
         XCTAssertFalse(registry.isOccupied)
-        XCTAssertNil(registry.activeCapability, "shutdown 后不得再有 active capability")
+        XCTAssertTrue(registry.isClosed, "shutdown 必须是终态")
+        XCTAssertEqual(registry.attachedOwnerCount, 0)
 
         // 迟到的 port 返回不得改动任何状态。
         port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
         for _ in 0..<8 { await Task.yield() }
         XCTAssertNil(registry.lease)
+    }
+
+    // MARK: - 4d. C5GR6：attach 可重入 / 多 owner membership / 终态 closed
+
+    /// disappear→appear：同一 StateObject 必须能重新 attach 并再次提交。
+    func testReattachAfterDetachRestoresSubmission() async {
+        let coordinator = makeCoordinator()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        coordinator.detach()
+        coordinator.detach()
+        XCTAssertFalse(coordinator.isAttached)
+
+        // onAppear：幂等 attach 必须先于 observe。
+        XCTAssertTrue(coordinator.attach())
+        XCTAssertTrue(coordinator.attach(), "attach 必须幂等")
+        XCTAssertTrue(coordinator.isAttached)
+
+        coordinator.observeIdentity(click.confirmationIdentity)
+        let result = coordinator.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
+        XCTAssertEqual(result, .started, "重新 attach 后必须能再次提交")
+        while coordinator.inFlight != nil { await Task.yield() }
+    }
+
+    /// 窗口 B 出现不得让窗口 A 失去自己的 stale fence（原 owner 仍能推进 observation）。
+    func testSecondWindowAttachDoesNotBreakFirstOwnerStaleFence() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let a = input(activeSet: 0)
+        let a2 = input(activeSet: 2)
+
+        let ownerA = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        ownerA.observeIdentity(a.confirmationIdentity)
+        _ = ownerA.start(a, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        // 窗口 B 出现并 attach（旧模型下这会抢走 activeCapability，使 A 的 observe 被拒）。
+        let ownerB = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        ownerB.observeIdentity(input(activeSet: 1).confirmationIdentity)
+
+        // A 仍能推进自己的 observation：其上下文变化必须使旧结果 superseded。
+        ownerA.observeIdentity(a2.confirmationIdentity)
+
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        while registry.lease != nil { await Task.yield() }
+
+        XCTAssertEqual(ownerA.lastProjection?.outcome, .superseded,
+                       "原 owner 的上下文变化必须使其旧结果失效")
+        XCTAssertNil(ownerA.lastOutcome)
+        XCTAssertEqual(registry.supersededCount, 1)
+        XCTAssertNil(ownerB.lastProjection, "无关 successor 不得收到他人结果")
+    }
+
+    /// shutdown 是 one-way 终态：不得再 attach / observe / claim。
+    func testShutdownIsOneWayAndFencesAttachAndClaim() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let click = input(activeSet: 0)
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        registry.shutdown()
+        XCTAssertTrue(registry.isClosed)
+
+        // 已 attach 的 coordinator 也不得再提交；新的 coordinator 无法 attach。
+        XCTAssertEqual(
+            coordinator.start(click, port: RecordingCommitPort(results: [.success(.noOp)])),
+            .rejected(.init(pageID: click.pageID, outcome: .ignoredInFlight))
+        )
+        XCTAssertNil(registry.lease)
+
+        let late = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        XCTAssertFalse(late.isAttached, "关闭后不得再 attach")
+        late.observeIdentity(click.confirmationIdentity)
+        XCTAssertEqual(registry.attachedObservationCount, 0, "关闭后不得再写入 observation")
+        XCTAssertEqual(
+            late.start(click, port: RecordingCommitPort(results: [.success(.noOp)])),
+            .rejected(.init(pageID: click.pageID, outcome: .ignoredInFlight))
+        )
+        XCTAssertNil(registry.lease, "关闭后不得与忽略取消的旧 port 并行")
+    }
+
+    /// detached capability 的 observation 无租约时必须回收，不得随窗口生命周期累积。
+    func testDetachedObservationIsReclaimedWhenNoLease() {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let click = input(activeSet: 0)
+
+        for _ in 0..<5 {
+            let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+            coordinator.observeIdentity(click.confirmationIdentity)
+            coordinator.detach()
+        }
+        XCTAssertEqual(registry.attachedObservationCount, 0)
+        XCTAssertEqual(registry.attachedOwnerCount, 0)
+    }
+
+    /// 有在途租约时必须保留 owner 的 observation，否则 inherited fence 会被破坏。
+    func testDetachKeepsObservationWhileOwnerLeaseInFlight() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        owner.observeIdentity(click.confirmationIdentity)
+        _ = owner.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        owner.detach()
+        XCTAssertEqual(registry.attachedObservationCount, 1, "在途租约的 owner observation 必须保留")
+
+        port.resume(with: .success(.noOp))
+        while registry.lease != nil { await Task.yield() }
     }
 
     // MARK: - 5. trace 类型完全枚举（结构性，不抽样）

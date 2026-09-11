@@ -113,6 +113,9 @@ struct AhaKeyStudioView: View {
                 userInfo: ["workMode": runtimeStore.workMode]
             )
             scheduleStartupPermissionOnboarding()
+            // C5GR6：SwiftUI 可能复用同一 StateObject，而 onDisappear 已 detach；
+            // 因此 onAppear 必须先做**幂等 attach**，再发布 identity（否则 observe 会被拒绝）。
+            pageCommitCoordinator.attach()
             // live identity 只在 onAppear 与 .onChange(overwriteConfirmationIdentity) 推进；
             // 点击路径禁止 observe。此处必须在 refresh / intent context 就绪后显式 observe。
             observePageEditIntentContext()
