@@ -1,0 +1,4 @@
+{
+  "name": "AhaKey Desktop — Windows Java client",
+  "install": "bash .cursor/install.sh"
+}
