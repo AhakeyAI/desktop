@@ -857,15 +857,17 @@ private final class FakeTransport: AhaKeyStudioRuntimeTransport, @unchecked Send
     }
 }
 
-/// C5GR1：生产路径是同步 `start`；测试用它并等待结果。
+/// C5GR2：生产路径是同步 `start`；终结投影经 `projectionRevision` 事件发布。
 @MainActor
 private func runCoordinatorSubmit(
     _ coordinator: AhaKeyStudioPageCommitCoordinator,
     _ input: AhaKeyStudioPageSubmissionInput,
     port: any AhaKeyStudioPageCommitPort
 ) async -> AhaKeyStudioPageCommitProjection {
-    switch coordinator.start(input, port: port) {
-    case .rejected(let projection): return projection
-    case .started(let task): return await task.value
+    let before = coordinator.projectionRevision
+    _ = coordinator.start(input, port: port)
+    while coordinator.projectionRevision == before {
+        await Task.yield()
     }
+    return coordinator.lastProjection!
 }

@@ -152,19 +152,18 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertEqual(
             coordinator.trace,
             [
-                .init(sequence: 1, pageID: screenPage, confirmed: false, portCalled: false,
-                      category: .pending, phase: .began),
-                .init(sequence: 1, pageID: screenPage, confirmed: false, portCalled: true,
-                      category: .requiresOverwriteConfirmation, phase: .returned),
-                .init(sequence: 2, pageID: screenPage, confirmed: true, portCalled: false,
-                      category: .pending, phase: .began),
-                .init(sequence: 2, pageID: screenPage, confirmed: true, portCalled: true,
-                      category: .accepted, phase: .returned),
+                .began(sequence: 1, pageID: screenPage, confirmed: false),
+                .portInvoked(sequence: 1, pageID: screenPage, confirmed: false),
+                .returned(sequence: 1, pageID: screenPage, confirmed: false,
+                          category: .requiresOverwriteConfirmation),
+                .began(sequence: 2, pageID: screenPage, confirmed: true),
+                .portInvoked(sequence: 2, pageID: screenPage, confirmed: true),
+                .returned(sequence: 2, pageID: screenPage, confirmed: true, category: .accepted),
             ]
         )
-        // trace 必须自洽：`.began` 不能同时声称 port 已调用。
+        // `began` 只证明 Button 同步进入；`portInvoked` 才证明内部 Task 真的调用了 port。
         for event in coordinator.trace where event.phase == .began {
-            XCTAssertFalse(event.portCalled, "`.began` 时 port 尚未被调用")
+            XCTAssertFalse(event.portInvoked, "`.began` 时 port 尚未被调用")
             XCTAssertEqual(event.category, .pending)
         }
     }
@@ -185,7 +184,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertEqual(submitted1.outcome, .requiresOverwriteConfirmation)
         let second = await runSubmit(coordinator, click, port: port)
         XCTAssertEqual(second.outcome, .noOp)
-        XCTAssertEqual(second.outcome.traceCategory, .noOp)
+        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.traceCategory(for: second.outcome), .noOp)
         XCTAssertEqual(coordinator.pendingPrompt, nil, "no-op 必须消费 pending")
         XCTAssertEqual(port.snapshots[1].overwriteConfirmed, true)
         XCTAssertEqual(coordinator.trace.last?.category, .noOp)
@@ -208,8 +207,11 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertEqual(port.snapshots[0].overwriteConfirmed, false)
         XCTAssertEqual(port.snapshots[1].overwriteConfirmed, true, "第二次仍需是 confirmed 提交")
         XCTAssertEqual(coordinator.pendingPrompt, click.confirmationIdentity)
-        // 两次 requires 的 trace 必须各自成对，不能被静默合并。
-        XCTAssertEqual(coordinator.trace.map(\.phase), [.began, .returned, .began, .returned])
+        // 两次 requires 的 trace 必须各自成组（began→portInvoked→returned），不能被静默合并。
+        XCTAssertEqual(
+            coordinator.trace.map(\.phase),
+            [.began, .portInvoked, .returned, .began, .portInvoked, .returned]
+        )
         XCTAssertEqual(coordinator.attemptSequence, 2)
     }
 
@@ -228,7 +230,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
             return XCTFail("第二次 throw 必须投影为 failed，实得 \(second)")
         }
         XCTAssertEqual(reason, "commit failed for test")
-        XCTAssertEqual(second.outcome.traceCategory, .failed)
+        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.traceCategory(for: second.outcome), .failed)
         XCTAssertEqual(coordinator.trace.last?.phase, .failed)
         XCTAssertEqual(coordinator.trace.last?.category, .failed)
         XCTAssertEqual(coordinator.pendingPrompt, nil)
@@ -251,7 +253,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertEqual(port.snapshots.count, 1, "in-flight 期间不得产生第二次 port 调用")
         XCTAssertEqual(coordinator.trace.last?.category, .inFlightRejected)
         XCTAssertEqual(coordinator.trace.last?.phase, .rejected)
-        XCTAssertEqual(coordinator.trace.last?.portCalled, false)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
         XCTAssertFalse(second.outcome.isProjectable, "被拒绝的点击不得投影")
 
         port.resume(with: .success(.noOp))
@@ -275,7 +277,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.lastOutcome)
         XCTAssertEqual(coordinator.trace.last?.category, .superseded)
         XCTAssertEqual(coordinator.trace.last?.phase, .superseded)
-        XCTAssertEqual(coordinator.trace.last?.portCalled, false)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
         // live identity 未被 frozen input 覆盖。
         XCTAssertEqual(coordinator.currentIdentity, live.confirmationIdentity)
     }
@@ -376,7 +378,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let last = coordinator.trace.last
         XCTAssertEqual(last?.phase, .superseded)
         XCTAssertEqual(last?.category, .superseded)
-        XCTAssertEqual(last?.portCalled, true, "port 确已调用，但结果被作废")
+        XCTAssertEqual(last?.portInvoked, true, "port 确已调用，但结果被作废")
     }
 
     func testStaleAcceptedDuringAwaitIsSupersededAndDoesNotBecomeCurrentResult() async {
@@ -496,88 +498,212 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         )
     }
 
-    // MARK: - 5. trace 合法组合矩阵
+    // MARK: - 5. trace 类型完全枚举（结构性，不抽样）
 
-    /// 严格状态矩阵：只有这些 (phase, portCalled, category) 组合是合法的。
-    private static let legalTraceCombinations: Set<String> = [
-        "began|false|pending",
-        "returned|true|accepted",
-        "returned|true|noOp",
-        "returned|true|requiresOverwriteConfirmation",
-        "returned|true|missingTrustedPageCache",
-        "returned|true|unsupportedProfile",
-        "returned|true|unsupportedPage",
-        "failed|true|failed",
-        "superseded|false|superseded",
-        "superseded|true|superseded",
-        "rejected|false|inFlightRejected",
-    ]
+    /// 穷举 `AhaKeyStudioPageCommitTraceEvent` 的**全部** case，逐一断言派生字段。
+    /// 由于事件是 associated-case 类型，phase / portInvoked / category 无法被独立构造，
+    /// 因此这份枚举就是完整的合法矩阵，而不是对字符串样本的抽查。
+    func testTraceEventDerivedFieldsAreExhaustivelyConsistent() {
+        let table: [(event: AhaKeyStudioPageCommitTraceEvent,
+                     phase: AhaKeyStudioPageCommitTracePhase,
+                     portInvoked: Bool,
+                     category: AhaKeyStudioPageCommitTraceCategory,
+                     confirmed: Bool)] = [
+            (.began(sequence: 7, pageID: screenPage, confirmed: false),
+             .began, false, .pending, false),
+            (.portInvoked(sequence: 7, pageID: screenPage, confirmed: false),
+             .portInvoked, true, .pending, false),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: true, category: .accepted),
+             .returned, true, .accepted, true),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: false, category: .noOp),
+             .returned, true, .noOp, false),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: false,
+                       category: .requiresOverwriteConfirmation),
+             .returned, true, .requiresOverwriteConfirmation, false),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: false,
+                       category: .missingTrustedPageCache),
+             .returned, true, .missingTrustedPageCache, false),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: false,
+                       category: .unsupportedProfile),
+             .returned, true, .unsupportedProfile, false),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: false,
+                       category: .unsupportedPage),
+             .returned, true, .unsupportedPage, false),
+            (.failed(sequence: 7, pageID: screenPage, confirmed: true),
+             .failed, true, .failed, true),
+            (.superseded(sequence: 7, pageID: screenPage, confirmed: false, portInvoked: false),
+             .superseded, false, .superseded, false),
+            (.superseded(sequence: 7, pageID: screenPage, confirmed: true, portInvoked: true),
+             .superseded, true, .superseded, true),
+            (.rejected(sequence: 7, pageID: screenPage),
+             .rejected, false, .inFlightRejected, false),
+            (.cancelled(sequence: 7, pageID: screenPage, confirmed: false, portInvoked: false),
+             .cancelled, false, .cancelled, false),
+            (.cancelled(sequence: 7, pageID: screenPage, confirmed: true, portInvoked: true),
+             .cancelled, true, .cancelled, true),
+        ]
 
-    private func assertLegalTrace(
-        _ coordinator: AhaKeyStudioPageCommitCoordinator,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        for event in coordinator.trace {
-            let key = "\(event.phase.rawValue)|\(event.portCalled)|\(event.category.rawValue)"
-            XCTAssertTrue(
-                Self.legalTraceCombinations.contains(key),
-                "非法 trace 组合：\(key)",
-                file: file,
-                line: line
-            )
+        // 覆盖全部 case：事件类型目前恰有 7 个 case，上面的表必须把每个 case 都包含。
+        let phases = Set(table.map { $0.event.phase })
+        XCTAssertEqual(
+            phases,
+            [.began, .portInvoked, .returned, .failed, .superseded, .rejected, .cancelled],
+            "枚举必须覆盖全部 phase（即全部 case）"
+        )
+        XCTAssertEqual(table.count, 14, "每个 case 的确认/未确认与 port 前后分支都要覆盖")
+
+        for row in table {
+            XCTAssertEqual(row.event.phase, row.phase, "\(row.event)")
+            XCTAssertEqual(row.event.portInvoked, row.portInvoked, "\(row.event)")
+            XCTAssertEqual(row.event.category, row.category, "\(row.event)")
+            XCTAssertEqual(row.event.confirmed, row.confirmed, "\(row.event)")
+            XCTAssertEqual(row.event.sequence, 7)
+            XCTAssertEqual(row.event.pageID, screenPage)
+            XCTAssertTrue(row.event.evidenceLine.contains("phase=\(row.phase.rawValue)"))
         }
     }
 
-    func testTraceMatrixRejectsEveryCombinationProducedByKnownPaths() async {
+    /// 运行期产生的 trace 必须全部落在上面穷举出的类型集合内（不存在第 8 种 case）。
+    func testRuntimeTraceEventsStayWithinEnumeratedPhases() async {
         let coordinator = AhaKeyStudioPageCommitCoordinator()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
 
-        // 1) 前置不一致 → superseded|false
+        // 前置不一致
         _ = await runSubmit(coordinator, input(activeSet: 1), port: RecordingCommitPort(results: []))
-        // 2) requires 后 accepted → began / returned
+        // requires 后 accepted
         let port = RecordingCommitPort(results: [
             .success(.requiresOverwriteConfirmation),
             .success(.accepted(AhaKeyRuntimeOperationID())),
         ])
         _ = await runSubmit(coordinator, click, port: port)
         _ = await runSubmit(coordinator, click, port: port)
-        // 3) no-op 与失败
+        // no-op / 失败
         _ = await runSubmit(coordinator, click, port: RecordingCommitPort(results: [.success(.noOp)]))
         _ = await runSubmit(coordinator, click, port: RecordingCommitPort(results: [.failure(CommitFailure())]))
-
-        assertLegalTrace(coordinator)
-        XCTAssertTrue(
-            coordinator.trace.contains { $0.phase == .superseded && !$0.portCalled },
-            "应出现前置不一致的 superseded"
-        )
-        XCTAssertTrue(
-            coordinator.trace.contains { $0.phase == .returned && $0.category == .accepted }
-        )
-        XCTAssertTrue(
-            coordinator.trace.contains { $0.phase == .failed }
-        )
-    }
-
-    func testTraceMatrixRejectsIllegalCombinationsByConstruction() {
-        // 逐个枚举矩阵外的组合，确认判定函数确实会拒绝（防止矩阵断言写成永真）。
-        let illegal = [
-            "began|true|pending",
-            "began|false|portNotCalled",
-            "began|true|portNotCalled",
-            "returned|false|accepted",
-            "superseded|false|accepted",
-            "rejected|true|inFlightRejected",
-            "failed|false|failed",
-        ]
-        for key in illegal {
-            XCTAssertFalse(
-                Self.legalTraceCombinations.contains(key),
-                "非法组合不得进入合法矩阵：\(key)"
-            )
+        // 取消
+        let gated = GatedCommitPort()
+        let cancelTask = Task { @MainActor in
+            await runSubmit(coordinator, click, port: gated)
         }
+        while !gated.hasReachedPort { await Task.yield() }
+        coordinator.cancelInFlight()
+        gated.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        _ = await cancelTask.value
+
+        let allowed = Set([AhaKeyStudioPageCommitTracePhase.began, .portInvoked, .returned,
+                           .failed, .superseded, .rejected, .cancelled])
+        XCTAssertFalse(coordinator.trace.isEmpty)
+        for event in coordinator.trace {
+            XCTAssertTrue(allowed.contains(event.phase), "未知 phase：\(event.evidenceLine)")
+            // port 未调用时不得出现结果类别。
+            if !event.portInvoked {
+                XCTAssertTrue(
+                    event.category == .pending
+                        || event.category == .superseded
+                        || event.category == .inFlightRejected
+                        || event.category == .cancelled,
+                    "port 未调用却给出结果类别：\(event.evidenceLine)"
+                )
+            }
+        }
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .portInvoked })
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelled })
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .superseded && !$0.portInvoked })
     }
+
+    // MARK: - 5b. portInvoked 区分「内部 Task 未调度」与「port 已进入但挂起」
+
+    func testBeganWithoutPortInvokedMeansInternalTaskNotScheduled() {
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        _ = runSubmitDetached(coordinator, click, port: port)
+
+        // 同步返回后：began 在，portInvoked 还不在——这正是「Button 已进入但内部 Task 尚未调度」。
+        let events = coordinator.trace.map(\.phase)
+        XCTAssertEqual(events, [.began])
+        XCTAssertTrue(coordinator.isSubmitting)
+    }
+
+    func testPortInvokedWithoutReturnedMeansPortHung() async {
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        let task = Task { @MainActor in
+            await runSubmit(coordinator, click, port: port)
+        }
+        while !port.hasReachedPort { await Task.yield() }
+
+        // port 已实际进入但尚未返回：began + portInvoked，无 returned。
+        let phases = coordinator.trace.map(\.phase)
+        XCTAssertEqual(phases, [.began, .portInvoked])
+        XCTAssertTrue(coordinator.isSubmitting)
+
+        port.resume(with: .success(.noOp))
+        _ = await task.value
+        XCTAssertEqual(coordinator.trace.map(\.phase), [.began, .portInvoked, .returned])
+    }
+
+    // MARK: - 5c. 取消策略
+
+    func testCancelInFlightClearsSubmittingAndLateResultIsNotConsumed() async {
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        let task = Task { @MainActor in
+            await runSubmit(coordinator, click, port: port)
+        }
+        while !port.hasReachedPort { await Task.yield() }
+        XCTAssertTrue(coordinator.isSubmitting)
+
+        coordinator.cancelInFlight()
+        XCTAssertFalse(coordinator.isSubmitting, "取消后必须立即解除 submitting")
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, true)
+
+        // 迟到的 port 结果不得被消费或投影。
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        let projection = await task.value
+        XCTAssertEqual(projection.outcome, .superseded)
+        XCTAssertNil(coordinator.lastOutcome)
+        XCTAssertFalse(coordinator.isSubmitting)
+        XCTAssertEqual(
+            coordinator.trace.map(\.phase).suffix(2),
+            [.cancelled, .superseded]
+        )
+        // 取消后可以立刻开始新的 attempt（in-flight 已释放）。
+        let next = coordinator.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
+        XCTAssertEqual(next, .started)
+    }
+
+    func testCancelBeforePortInvokedAlsoReleasesSubmitting() {
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        _ = runSubmitDetached(coordinator, click, port: port)
+        XCTAssertTrue(coordinator.isSubmitting)
+        XCTAssertEqual(coordinator.trace.map(\.phase), [.began])
+
+        coordinator.cancelInFlight()
+        XCTAssertFalse(coordinator.isSubmitting)
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
+    }
+
+    func testCheckedIncrementDoesNotWrap() {
+        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.checkedIncrement(0), 1)
+        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.checkedIncrement(41), 42)
+    }
+
 
     func testStartIsSynchronousSoBeganAndSubmittingAreVisibleBeforePortReturns() async {
         let coordinator = AhaKeyStudioPageCommitCoordinator()
@@ -585,12 +711,14 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
 
+        let before = coordinator.projectionRevision
         let start = coordinator.start(click, port: port)
 
-        // 同步返回时：began 已记录、isSubmitting 已生效、port 尚未返回。
+        // 同步返回时：began 已记录、isSubmitting 已生效、port 尚未调用。
+        XCTAssertEqual(start, .started)
         XCTAssertTrue(coordinator.isSubmitting, "start 同步返回即应处于提交中")
         XCTAssertEqual(coordinator.trace.last?.phase, .began)
-        XCTAssertEqual(coordinator.trace.last?.portCalled, false)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
         XCTAssertEqual(coordinator.trace.last?.category, .pending)
 
         // 同 tick 的第二次点击：ignored，且不得新增 port 调用。
@@ -600,15 +728,18 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertEqual(rejected.outcome, .ignoredInFlight)
         XCTAssertEqual(coordinator.trace.last?.phase, .rejected)
 
+        // 被拒绝的点击本身也是一次终结投影事件，需要跨过它再等真正的终态。
+        let revisionAfterReject = coordinator.projectionRevision
+        XCTAssertGreaterThan(revisionAfterReject, before)
+        XCTAssertEqual(coordinator.lastProjection?.outcome, .ignoredInFlight)
+
         while !port.hasReachedPort { await Task.yield() }
         XCTAssertEqual(port.snapshots.count, 1, "port 只允许被调用一次")
 
-        guard case .started(let task) = start else { return XCTFail("第一次必须 started") }
         port.resume(with: .success(.noOp))
-        let projection = await task.value
-        XCTAssertEqual(projection.outcome, .noOp)
+        while coordinator.projectionRevision == revisionAfterReject { await Task.yield() }
+        XCTAssertEqual(coordinator.lastProjection?.outcome, .noOp)
         XCTAssertFalse(coordinator.isSubmitting)
-        assertLegalTrace(coordinator)
     }
 
     func testStaleRoundTripBToADuringAwaitStillSupersedes() async {
@@ -632,8 +763,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertEqual(projection.outcome, .superseded, "A→B→A 往返后旧 accepted 仍须失效")
         XCTAssertNil(coordinator.lastOutcome)
         XCTAssertEqual(coordinator.trace.last?.phase, .superseded)
-        XCTAssertEqual(coordinator.trace.last?.portCalled, true)
-        assertLegalTrace(coordinator)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, true)
     }
 
     func testAcceptedProjectionCarriesFrozenPageIDNotLivePage() async {
@@ -692,17 +822,73 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
             "结果投影必须使用冻结 pageID，而不是 live currentPageID"
         )
     }
+
+    /// C5GR2：Button click path 不得写 live observation、不得写「正在提交」、不得自建 Task。
+    func testClickPathDoesNotPublishLiveIdentityNorWriteStatusNorCreateTask() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let viewURL = packageRoot.appendingPathComponent("Sources/Views/AhaKeyStudioView.swift")
+        let source = try String(contentsOf: viewURL, encoding: .utf8)
+
+        let body = try XCTUnwrap(
+            Self.functionBody(named: "private func writeCurrentPage(retryResidual: Bool)", in: source),
+            "必须能定位 writeCurrentPage"
+        )
+
+        XCTAssertFalse(
+            body.contains("observeIdentity"),
+            "click path 禁止发布 live identity，否则 pre-port gate 恒真"
+        )
+        XCTAssertFalse(
+            body.contains("正在提交"),
+            "不得在 start 前把「正在提交」写进共享 status"
+        )
+        XCTAssertFalse(
+            body.contains("Task {") || body.contains("Task<"),
+            "异步生命周期必须归 coordinator，View 不得自建 Task"
+        )
+        XCTAssertTrue(
+            body.contains("pageCommitCoordinator.start("),
+            "click path 必须调用同步 start"
+        )
+    }
+
+    /// 从源码里截取指定函数签名的函数体（到下一个同缩进 func 为止）。
+    private static func functionBody(named signature: String, in source: String) -> String? {
+        guard let start = source.range(of: signature) else { return nil }
+        let rest = source[start.lowerBound...]
+        guard let end = rest.range(of: "\n    private func ", options: [], range: rest.index(after: rest.startIndex)..<rest.endIndex) else {
+            return String(rest)
+        }
+        return String(rest[rest.startIndex..<end.lowerBound])
+    }
 }
 
-/// C5GR1：生产路径是同步 `start`（began/isSubmitting 立即可见）。测试统一用它并等待结果。
+/// C5GR2：生产路径是同步 `start`；终结投影经 `projectionRevision` 事件发布。
+/// 测试经同一接口进入并等待该事件。
 @MainActor
 private func runSubmit(
     _ coordinator: AhaKeyStudioPageCommitCoordinator,
     _ input: AhaKeyStudioPageSubmissionInput,
     port: any AhaKeyStudioPageCommitPort
 ) async -> AhaKeyStudioPageCommitProjection {
-    switch coordinator.start(input, port: port) {
-    case .rejected(let projection): return projection
-    case .started(let task): return await task.value
+    let before = coordinator.projectionRevision
+    _ = coordinator.start(input, port: port)
+    while coordinator.projectionRevision == before {
+        await Task.yield()
     }
+    return coordinator.lastProjection!
+}
+
+/// 只同步进入 attempt、不等投影事件（用于观察 began / portInvoked 的时序窗口）。
+@MainActor
+@discardableResult
+private func runSubmitDetached(
+    _ coordinator: AhaKeyStudioPageCommitCoordinator,
+    _ input: AhaKeyStudioPageSubmissionInput,
+    port: any AhaKeyStudioPageCommitPort
+) -> AhaKeyStudioPageCommitStartResult {
+    coordinator.start(input, port: port)
 }

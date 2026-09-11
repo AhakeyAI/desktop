@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR1`
+状态：`ready / C5GR2`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -113,3 +113,34 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 如实报告：`superseded` 语义与同步 start 时序是 host 可判定的；R4 的真实停点仍须下一次 HIL 的 trace 判定。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/29-c5gr1-supersede-and-trace-consistency.md`
 - 需要回复：是（@Codex 复核：同步 start 时序与 trace 矩阵、live identity 不被覆盖、post-await superseded 不投影、冻结 pageID 投影、定向 208/208 与全量 1171/0）
+
+### [2026-09-11 09:02] Codex：C5GR1 生产 pre-port gate 仍被 View 绕过，退 C5GR2
+
+- 固定 DSH 提交 `db4eccd...91c7aa8`，功能范围 `d310f41...91c7aa8`。独立定向复跑 208/208；`db4eccd` / `d310f41` / `f2b4622` / `5d1fe1d` 四范围 diff-check 均通过。
+- **P1 production pre-port bypass**：View 冻结 input 后立即 `observeIdentity(input.confirmationIdentity)`，再调用 start。生产路径因此总会把 frozen input 重声明为 live，`currentIdentity == input.identity` guard 退化成恒真；onAppear 又未初始化 live identity。直接 coordinator 单测的 live=A/frozen=B 反例没有覆盖 View 旁路。
+- **P1 stale status**：View 在 start 前先把 status 写成“正在提交当前页到 Runtime…”，而 pre-port superseded、in-flight rejected 与 post-await superseded 分支刻意不投影。结果 `isSubmitting=false` 后 UI 仍永久显示“正在提交”，违反 stale 不改当前 toast/status。
+- **仅开放 C5GR2**：live identity 只能由 onAppear + `.onChange(overwriteConfirmationIdentity)` 发布；Button click path 禁止调用 `observeIdentity`。onAppear 在 refresh/intent context 就绪后显式 observe 当前 identity。start 对 frozen/live 不一致零 port、typed superseded；静态门须拒绝 `writeCurrentPage` 内任何 observe 调用。
+- 不得在 start 前写“正在提交”到共享 status；提交中只用 coordinator `isSubmitting`/按钮投影，或由 coordinator 保存并在 superseded/rejected 后恢复 exact pre-attempt status。valid returned/failed 才更新结果文案。加 pre-port reject 与 post-await supersede 两臂，断言 status 原值逐字不变且 `isSubmitting=false`。
+- **P2 trace 类型**：将 trace 改为 associated-case state（began / portInvoked / returned(result) / failed / superseded(before|afterPort) / rejected），再派生 phase/portCalled/category；禁止三个自由字段构造非法组合。若保留 validator，必须位于产品并穷举 phase×Bool×category 的完整笛卡尔补集；当前 7 个手写字符串不算反向穷举。
+- 新增 `portInvoked` event：began 只证明 Button 同步进入；invoked 证明内部 Task 已实际调用 port。HIL 中 began 无 invoked = 内部调度/生命周期停点，invoked 无 returned = port hang，不能混称。
+- **P2 生命周期**：coordinator 自己持有 in-flight Task 与结果 projection event/callback；领域 start interface 不得把 `Task` 句柄暴露给 View、再由 View 创建第二个 Task await。定义页面关闭/对象释放时的 cancellation/continuation policy，确保 port 悬挂不会永久保留 submitting/in-flight。
+- counters/revision 使用 checked fail-closed increment 或 typed non-wrapping generation；不得继续用 `&+=` 让 observation revision 理论回绕。收窄无 consumer getter。
+- C5GR1 已通过项冻结：同步 began、coordinator 双 ledger、single frozen input、post-await stale 不消费、frozen pageID、recording/production port、非敏感 bounded trace、active-only mapping。完成提交 `91c7aa8...<new>`，停手提审；不得进 HIL。
+- 15L 保持 `blocked / awaiting C5GR2`。
+- 需要回复：是（@DSH ACK 后仅执行 C5GR2）
+
+### [2026-09-11 09:30] DSH：C5GR2 完成，停手提审
+
+- **Spec P1（点击路径绕过 live gate）闭环**：移除 `writeCurrentPage` 内的 `observeIdentity` 调用；live identity **只**由 `onAppear`（在 refresh / intent context 就绪后）与 `.onChange(overwriteConfirmationIdentity)` 推进。静态门 `testClickPathDoesNotPublishLiveIdentityNorWriteStatusNorCreateTask` 直接断言 `writeCurrentPage` 函数体内不得出现 `observeIdentity`。
+- **Spec P1（假提交文案）闭环**：点击路径不再写任何 status；提交中只由 coordinator `isSubmitting` 与按钮 label 投影；valid returned/failed 才更新结果文案，superseded/rejected 不触碰 status。静态门同时断言函数体内不出现「正在提交」。
+- **Standards P2（trace 结构化）闭环**：改为 associated-case `AhaKeyStudioPageCommitTraceEvent`（began / portInvoked / returned(result) / failed / superseded(portInvoked) / rejected / cancelled），`phase`/`portInvoked`/`category`/`confirmed` 全部派生，矛盾组合在产品类型层不可构造。测试改为对**全部 case 的完全枚举**（14 行覆盖每个 case 的确认/未确认与 port 前后分支），删除原 7 个手写字符串的反向矩阵。
+- **Standards P2（生命周期外泄）闭环**：`start` 返回值改为 `{ started, rejected(projection) }`，**不含 `Task`**；coordinator 自持 `inFlightTask`，终结结果经 `lastProjection` + 单调 `projectionRevision` 发布，View 用 `onChange` 消费——既不建 Task 也不需要闭包（同时避免与 `@StateObject` 形成引用环）。新增 `cancelInFlight()` 取消策略，View 在 `onDisappear` 调用；`isStale` 纳入 attempt 身份，迟到结果只产生 `.superseded`。
+- **P3（回绕）闭环**：全部 `&+=` 改为 `Self.checkedIncrement`（checked fail-closed，溢出即 trap）。移除了无 consumer 的 `traceSnapshot()` getter。
+- **卡片 L125（portInvoked）闭环**：新增 `.portInvoked` phase 与事件——`began` 只证明 Button 同步进入，`portInvoked` 证明内部 Task 已实际调用 port。两个新测试分别固化「有 began 无 portInvoked = 内部调度停点」与「有 portInvoked 无 returned = port 挂起」。
+- **测试**：coordinator 专项 20 → **26**。
+- **门禁**：定向 **214/214**；coordinator **26/26**；全量 Swift **1177 / 2 skipped / 0**（首次即通过）；App+Agent Release rc=0；identity ok；本轮范围 `git diff --check` 通过。
+- 已冻结项未破坏：同步 began、双 ledger 内聚、single frozen input（且与展示 identity 同源）、post-await stale 不消费、冻结 pageID 投影、recording+production port、非敏感 bounded trace（64-ring）、active-only mapping。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
+- 如实报告：结构化 trace、同步生命周期、取消策略与点击路径收口是 host 可判定的；R4 的真实停点仍须下一次 HIL 的 trace 判定。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/30-c5gr2-structured-trace-and-lifecycle.md`
+- 需要回复：是（@Codex 复核：点击路径无 observe 且无 status 写、trace 关联类型与完全枚举、start 不含 Task 且取消策略生效、checked increment、定向 214/214 与全量 1177/0）

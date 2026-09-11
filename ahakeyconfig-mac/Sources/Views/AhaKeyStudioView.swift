@@ -109,14 +109,14 @@ struct AhaKeyStudioView: View {
                 userInfo: ["workMode": runtimeStore.workMode]
             )
             scheduleStartupPermissionOnboarding()
-            // C5G：typed trace 写入 Studio 现有 comm log（只含 page/序号/confirmed/类别，无敏感内容）。
+            // live identity 只在 onAppear 与 .onChange(overwriteConfirmationIdentity) 推进；
+            // 点击路径禁止 observe。此处必须在 refresh / intent context 就绪后显式 observe。
+            observePageEditIntentContext()
+            pageCommitCoordinator.observeIdentity(overwriteConfirmationIdentity)
+            // C5GR2：typed trace 写入 Studio 现有 comm log（结构化事件，无敏感内容）。
             pageCommitCoordinator.setTraceSink { [weak runtimeStore] event in
                 guard let runtimeStore else { return }
-                runtimeStore.appendCommLogLine(
-                    "页提交 trace #\(event.sequence) page=\(AhaKeyStudioPageChromeProjector.pageTitle(event.pageID))"
-                        + " phase=\(event.phase.rawValue) confirmed=\(event.confirmed)"
-                        + " port=\(event.portCalled) result=\(event.category.rawValue)"
-                )
+                runtimeStore.appendCommLogLine("页提交 trace \(event.evidenceLine)")
             }
             // 进程检测与防休眠接线已移到 App 层（AppDelegate + ProcessDetector.shared），
             // 窗口关闭后检测与防休眠继续运行。
@@ -125,6 +125,11 @@ struct AhaKeyStudioView: View {
                 powerProtectionFirstTimeAlertShown = true
                 showsPowerProtectionFirstTimeAlert = true
             }
+        }
+        .onDisappear {
+            // C5GR2 取消策略：页面关闭时取消在途 attempt，避免 port 悬挂永久保留
+            // submitting / in-flight；迟到的 port 结果由 coordinator 判为 stale。
+            pageCommitCoordinator.cancelInFlight()
         }
         .alert(NSLocalizedString("新增：合盖运行", comment: ""), isPresented: $showsPowerProtectionFirstTimeAlert) {
             Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
@@ -161,6 +166,10 @@ struct AhaKeyStudioView: View {
         .onChange(of: overwriteConfirmationIdentity) { identity in
             pageCommitCoordinator.observeIdentity(identity)
             observePageEditIntentContext()
+        }
+        .onChange(of: pageCommitCoordinator.projectionRevision) { _ in
+            guard let projection = pageCommitCoordinator.lastProjection else { return }
+            applyPageCommitProjection(projection)
         }
         .onChange(of: runtimeStore.protocolMode) { mode in
             loadSyncBaselineForConnectedDevice(mode: mode)
@@ -2605,8 +2614,9 @@ struct AhaKeyStudioView: View {
         }
         applyCursorRejectMacroSelfHealIfNeeded()
         observePageEditIntentContext()
-        // C5G：每次点击只冻结一次。identity / overwrite decision / attempt / Facade snapshot
-        // 全部来自这同一份 input，禁止在一次点击里从多个 computed property 取快照。
+        // C5GR2：每次点击只冻结一次。identity / overwrite decision / attempt / Facade snapshot
+        // 全部来自这同一份 input。**点击路径禁止写 live observation**：live identity 只由
+        // onAppear 与 .onChange(overwriteConfirmationIdentity) 推进，否则 pre-port gate 恒真。
         guard let input = makeSubmissionInput(retryResidual: retryResidual) else {
             let message = NSLocalizedString("设备未连接：请确认 AhaKey Runtime 已运行并连接键盘后重试。", comment: "")
             syncStatusMessage = message
@@ -2614,23 +2624,14 @@ struct AhaKeyStudioView: View {
             showsWriteResultAlert = true
             return
         }
-        syncStatusMessage = NSLocalizedString("正在提交当前页到 Runtime…", comment: "")
-        // C5GR1：View 以这一次冻结的 identity 作为 live 观测发布；coordinator 的 start
-        // 不再覆盖 live identity，只校验 frozen 与 live 一致。
-        pageCommitCoordinator.observeIdentity(input.confirmationIdentity)
-        // 同步进入 coordinator：`began` / `isSubmitting` / 单次 in-flight 在返回事件循环前生效，
-        // 因此 trace 缺 `began` 严格等价于「Button action 未触发」。View 不先建 Task。
-        switch pageCommitCoordinator.start(
+        // C5GR2：不得在 start 前改写共享 status。提交中只由 coordinator `isSubmitting`
+        // 与按钮 label 投影；valid returned/failed 才更新结果文案；superseded/rejected
+        // 不触碰 status，因此不会遗留假「提交中」。
+        // 异步生命周期归 coordinator：View 只调同步 start，结果经 projectionRevision 事件回来。
+        _ = pageCommitCoordinator.start(
             input,
             port: AhaKeyStudioRuntimeStoreCommitPort(store: runtimeStore)
-        ) {
-        case .rejected(let projection):
-            applyPageCommitProjection(projection)
-        case .started(let outcomeTask):
-            Task { @MainActor in
-                self.applyPageCommitProjection(await outcomeTask.value)
-            }
-        }
+        )
     }
 
     /// C5G：一次点击的唯一冻结入口。
@@ -2675,7 +2676,7 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = message
             writeResultAlertMessage = message
             showsWriteResultAlert = true
-        case .superseded, .ignoredInFlight:
+        case .superseded, .ignoredInFlight, .cancelled:
             // 失效结果：不得更新 toast/status，也不得用当前 pageID 展示旧结果。
             break
         }
