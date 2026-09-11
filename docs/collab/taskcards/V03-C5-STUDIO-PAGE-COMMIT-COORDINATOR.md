@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR6`
+状态：`ready / C5GR7`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -251,3 +251,26 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/34-c5gr6-reattach-membership-and-close.md`
 - 需要回复：是（@Codex 复核：attach 幂等可重入、attached membership 与 per-owner observation、one-way closed 接入 disconnect、observation 回收、production invocation 生命周期；定向 235/235；并请裁决全量 flake 的证据口径）
+
+### [2026-09-11 15:15] Codex：membership/reattach 通过，真实退出 fence 与结算回收未闭；退 C5GR7
+
+- 固定增量 `313896b...bcc7d9e`，复核冻结范围 `85966b4...bcc7d9e`。attached membership、per-owner stale fence、foreign isolation、全局单 lease、occupancy fan-out、onAppear 幂等 reattach、closed 后 attach/claim 拒绝均成立。独立定向 **235/235**，增量 diff-check 通过。
+- **P1 guaranteed production shutdown**：`AhaKeyStudioRuntimeClient.disconnect()` 内的 one-way shutdown 本身成立，但唯一生产调用 `applicationWillTerminate` 只创建一个未等待的 MainActor Task 后立即返回；进程可能在 Task 调度前退出。C5GR7 允许白名单加入 `AhaKeyConfigApp.swift`，必须在正常退出回调内同步执行 registry terminal fence（facade async stop 可另行 best-effort），并从 app-lifecycle seam 证明回调返回前 `isClosed=true`、旧 lease 已放弃、新 start 零 port。不得只在测试直接调用 disconnect。
+- **P2 detached-owner cleanup**：detach 时为 lease owner 保留 observation 正确，但统一 `release(execution)` 未在 owner 已不 attached 时删除 `observations[ownerCapability]`。normal / cancelled / superseded 三种结算后都必须回收；补 detach-during-flight 后 settlement 的 count→0 反例。coordinator `init`/临时 StateObject 未出现的 owner 也不得永久留 weak-nil observer/observation。
+- **全量门禁裁决**：本轮不接受“定向绿 + 隔离复跑”自动等价全量绿。DSH 四轮与 Codex 独立全量均复现已披露 concurrent-apply/Store flake；这支持非本轮归因，但任务卡的 full-suite gate 尚未满足。C5GR7 不得越界修改 Agent/Store flake；完成产品修复后仍须至少一轮完整 `swift test` 0 failures。若仍仅命中同一已登记 flake，则停手报告，Codex 另开独立稳定性卡并显式修改门禁后再裁决，不得自行豁免。
+- **仅开放 C5GR7**：上述 P1/P2 与精确测试；其余 C5GR6/C5GR5 已通过项冻结。白名单新增仅 `AhaKeyConfigApp.swift` 的同步 termination fence 所需最小改动，禁止改 Agent/BLE、PersistentStore、C2/C3、ReleaseIdentity、安装器或 HIL。
+- 15L 保持 `blocked / awaiting C5GR7`；R5 USER-GATE 未创建、未授权。完成提交 `bcc7d9e...<new>`，复跑定向/全量/双 Release/identity/full diff-check，停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5GR7）
+
+### [2026-09-11 15:40] DSH：C5GR7 完成，停手提审
+
+- **P1（全量门禁）达成**：本轮第 1 次全量即 **1203 tests / 2 skipped / 0 failures** 完整全绿。未修改 Agent/Store 任何文件；第 2、3 次各命中已登记 flake（`AhaKeyAgentRuntimeEndpointTests.testConcurrentAppliesFromTwoClientsSerializeAndDrain` + `AhaKeyRuntimePersistentStoreTests.testRootDeleteRecreateDoesNotLockStaleInode`），与 Codex 裁决描述一致，DSH 不自行豁免、不声称修复 flake。
+- **P2（detached owner observation 结算回收）闭环**：`release(_:)` 统一在释放租约后判断 owner 是否仍 attached，不 attached 即移除其 observation。normal / cancelled / superseded 三条路径共用 `release`，因此不再残留；attached owner 的 observation 仍保留。补三条结算路径的回收测试 + 一条「attached 不回收」防过度修复测试。
+- **P1（退出 fence 同步性）闭环**：新增同步 `AhaKeyStudioRuntimeClient.fencePageCommitExecutions()` 与可测 seam `AhaKeyAppTerminationFence.fence(store:)`；`applicationWillTerminate` 在**返回前同步**执行 terminal fence，之后才排入原有的异步 `disconnect()` best-effort（`Task` 现仅用于确需 await 的 `facade.stop()`）。补 `testTerminationFenceRunsSynchronouslyBeforeReturn`：调用 seam 后**无任何 await/yield** 即断言 `isClosed == true`、`lease == nil`、新 coordinator 无法 attach——这正是原缺陷无法被测出的原因。
+- **测试**：coordinator 专项 44 → **48**；交互测试 +1。
+- **门禁**：定向 **240/240**；coordinator **48/48**；全量第 1 次 **1203 / 2 skipped / 0**；App+Agent Release rc=0；identity ok；本轮范围 `git diff --check` 通过。
+- 白名单：仅按卡片新增 `AhaKeyConfigApp.swift` 的最小改动（findings 直接点名 162–169 行）；未触碰 Agent/BLE、PersistentStore、C2/C3、ReleaseIdentity、安装器、HIL。
+- 已冻结项未回退：attached membership、per-owner stale fence、foreign isolation、全局单 lease、occupancy fan-out、onAppear reattach、one-way closed、owner-only cancel、origin callback、幂等取消、typed returned、双次 pre-port fence、structured trace、single frozen input、双 ledger/active-only、冻结 pageID。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/35-c5gr7-synchronous-exit-fence-and-reclaim.md`
+- 需要回复：是（@Codex 复核：同步退出 fence 与 seam 测试、三条结算路径的 detached observation 回收、attached 不回收、定向 240/240 与全量 1203/0）

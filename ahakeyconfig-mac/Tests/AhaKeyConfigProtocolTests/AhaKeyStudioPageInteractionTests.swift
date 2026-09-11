@@ -650,6 +650,23 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertFalse(coordinator.isSubmitting)
     }
 
+    /// C5GR7：退出路径的 terminal fence 必须在回调返回前**同步**完成，
+    /// 不能只排一个未等待的 Task（进程可能在它获得调度前结束）。
+    func testTerminationFenceRunsSynchronouslyBeforeReturn() {
+        let store = makeStore()
+        XCTAssertFalse(store.pageCommitExecutions.isClosed)
+
+        AhaKeyAppTerminationFence.fence(store: store)
+
+        // 这里没有任何 await / yield：返回时就必须已经 closed。
+        XCTAssertTrue(store.pageCommitExecutions.isClosed, "fence 必须同步完成")
+        XCTAssertNil(store.pageCommitExecutions.lease)
+
+        // fence 之后不得再 attach 或提交。
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: store.pageCommitExecutions)
+        XCTAssertFalse(coordinator.isAttached)
+    }
+
     func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
         let harness = try makeHarness()
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))

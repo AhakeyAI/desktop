@@ -859,6 +859,87 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         while registry.lease != nil { await Task.yield() }
     }
 
+    // MARK: - 4e. C5GR7：结算后回收 detached owner observation
+
+    func testDetachedOwnerObservationReclaimedAfterNormalSettlement() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        owner.observeIdentity(click.confirmationIdentity)
+        _ = owner.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        owner.detach()
+        XCTAssertEqual(registry.attachedObservationCount, 1, "在途期间必须保留")
+
+        port.resume(with: .success(.noOp))
+        while registry.lease != nil { await Task.yield() }
+        XCTAssertEqual(
+            registry.attachedObservationCount, 0,
+            "normal 结算后必须回收 detached owner 的 observation"
+        )
+    }
+
+    func testDetachedOwnerObservationReclaimedAfterCancelSettlement() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        owner.observeIdentity(click.confirmationIdentity)
+        _ = owner.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        owner.cancelInFlight()
+        owner.detach()
+        XCTAssertEqual(registry.attachedObservationCount, 1)
+
+        port.resume(with: .success(.noOp))
+        while registry.lease != nil { await Task.yield() }
+        XCTAssertEqual(
+            registry.attachedObservationCount, 0,
+            "cancelled 结算后必须回收 detached owner 的 observation"
+        )
+    }
+
+    func testDetachedOwnerObservationReclaimedAfterSupersededSettlement() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let a = input(activeSet: 0)
+        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        owner.observeIdentity(a.confirmationIdentity)
+        _ = owner.start(a, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        // owner 自己切换上下文 → 结算必然走 superseded 分支。
+        owner.observeIdentity(input(activeSet: 2).confirmationIdentity)
+        owner.detach()
+        XCTAssertEqual(registry.attachedObservationCount, 1)
+
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        while registry.lease != nil { await Task.yield() }
+        XCTAssertEqual(registry.supersededCount, 1)
+        XCTAssertEqual(
+            registry.attachedObservationCount, 0,
+            "superseded 结算后必须回收 detached owner 的 observation"
+        )
+    }
+
+    /// attached owner 的 observation 不因结算被回收（它仍需要继续观察）。
+    func testAttachedOwnerObservationSurvivesSettlement() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        owner.observeIdentity(click.confirmationIdentity)
+        _ = owner.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        port.resume(with: .success(.noOp))
+        while registry.lease != nil { await Task.yield() }
+        XCTAssertEqual(registry.attachedObservationCount, 1)
+    }
+
     // MARK: - 5. trace 类型完全枚举（结构性，不抽样）
 
     /// 穷举 `AhaKeyStudioPageCommitTraceEvent` 的**全部** case，逐一断言派生字段。

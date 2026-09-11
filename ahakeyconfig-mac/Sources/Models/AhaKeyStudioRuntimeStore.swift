@@ -198,6 +198,12 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
         startIDEStateMonitoring()
     }
 
+    /// C5GR7：**同步** terminal fence。退出/关闭回调返回前必须已完成，
+    /// 不能只排一个未等待的 Task（进程可能在它获得调度前结束）。
+    func fencePageCommitExecutions() {
+        pageCommitExecutions.shutdown()
+    }
+
     /// 停止跟随并发布 offline；不取消 Runtime 已受理的 operation。
     func disconnect() {
         followTask?.cancel()

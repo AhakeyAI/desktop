@@ -66,6 +66,18 @@ enum StudioRuntimeStoreHolder {
     static var store: AhaKeyStudioRuntimeClient?
 }
 
+/// C5GR7：应用退出路径的**同步** terminal fence seam。
+///
+/// `applicationWillTerminate` 在返回后进程随时可能结束，因此这里必须在同一
+/// MainActor 同步间隙内完成 fence，而不是交回事件循环。抽成独立 seam 以便测试
+/// 直接验证「调用返回时已 closed」。
+@MainActor
+enum AhaKeyAppTerminationFence {
+    static func fence(store: AhaKeyStudioRuntimeClient?) {
+        store?.fencePageCommitExecutions()
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     /// 防休眠与进程检测的常驻订阅（应用级，窗口关闭不影响）。
     private var powerProtectionCancellable: AnyCancellable?
@@ -163,6 +175,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // Best-effort cleanup: SIGKILL can't be caught, but normal quit/updates
         // will release assertions and the virtual display lock.
         _ = PowerProtectionManager.shared.deactivateAll()
+        // C5GR7：terminal fence 必须在**本回调返回前同步完成**。
+        // 只排一个未等待的 MainActor Task 时，进程可能在它获得调度前就结束。
+        AhaKeyAppTerminationFence.fence(store: StudioRuntimeStoreHolder.store)
         // 停止 facade 跟随；Runtime 已受理的 operation 不受影响（不主动 cancel）。
         Task { @MainActor in
             StudioRuntimeStoreHolder.store?.disconnect()

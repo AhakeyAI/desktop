@@ -641,6 +641,12 @@ final class AhaKeyStudioPageCommitExecutionRegistry {
         guard lease === execution else { return }
         lease = nil
         task = nil
+        // C5GR7：结算后回收 **已 detach** owner 的 observation。
+        // 三条结算路径（normal / cancelled / superseded）都经此处，因此不会残留。
+        let owner = execution.ownerCapability
+        if !attached.contains(owner) {
+            observations.removeValue(forKey: owner)
+        }
         notifyOccupancy()
     }
 
