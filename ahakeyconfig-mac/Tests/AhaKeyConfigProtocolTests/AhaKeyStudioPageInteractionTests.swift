@@ -540,6 +540,21 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         await harness.facade.stop()
     }
 
+    /// C5GR5：生产 port 必须弱持有 RuntimeClient，否则
+    /// `client → registry → execution → port → client` 会形成闭环，hung port 永远钉住整条图。
+    func testProductionCommitPortDoesNotRetainRuntimeStore() {
+        weak var weakStore: AhaKeyStudioRuntimeClient?
+        var port: AhaKeyStudioRuntimeStoreCommitPort?
+        do {
+            let store = makeStore()
+            weakStore = store
+            port = AhaKeyStudioRuntimeStoreCommitPort(store: store)
+            XCTAssertNotNil(port?.store)
+        }
+        XCTAssertNil(weakStore, "生产 port 不得强持有 RuntimeClient")
+        XCTAssertNil(port?.store, "持有的 client 释放后 port 必须 fail-closed，而不是继续钉住它")
+    }
+
     func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
         let harness = try makeHarness()
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))

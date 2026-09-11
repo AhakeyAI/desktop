@@ -613,6 +613,140 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         }
     }
 
+    // MARK: - 4c. C5GR5：owner capability / 幂等取消 / shutdown
+
+    /// 并存窗口：foreign capability 既不能取消、也不能 supersede inherited execution。
+    func testForeignCapabilityCannotCancelOrSupersedeInheritedExecution() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let a = input(activeSet: 0)
+
+        let owner = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        owner.observeIdentity(a.confirmationIdentity)
+        _ = owner.start(a, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        // 并存窗口出现：foreign 成为 active capability。
+        let foreign = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        XCTAssertTrue(foreign.hasInheritedExecution)
+
+        // 1) foreign 不得取消他人租约。
+        foreign.cancelInFlight()
+        XCTAssertNotNil(registry.lease, "foreign 不得释放他人租约")
+        XCTAssertFalse(foreign.trace.contains { $0.phase == .cancelRequested })
+        XCTAssertEqual(registry.cancelRequestedCount, 0)
+
+        // 2) foreign 的 observation 不得 supersede inherited execution（即使 identity 不同）。
+        foreign.observeIdentity(input(activeSet: 1).confirmationIdentity)
+        XCTAssertNotNil(registry.lease, "foreign observation 不得推进 owner 的 revision")
+
+        // 3) owner 自己取消仍然有效（按 lease owner 校验，而非 active）。
+        owner.cancelInFlight()
+        XCTAssertEqual(registry.cancelRequestedCount, 1)
+        XCTAssertTrue(owner.trace.contains { $0.phase == .cancelRequested })
+
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        while registry.lease != nil { await Task.yield() }
+        // completion 路由给 originating delegate（owner），不交给无关 successor。
+        XCTAssertEqual(owner.lastProjection?.outcome, .cancelled)
+        XCTAssertNil(foreign.lastProjection, "foreign 不得收到他人结果")
+        XCTAssertEqual(registry.supersededCount, 0, "foreign observation 不得计为 supersede")
+    }
+
+    /// 迟到 onDisappear（已 detach 的 owner）不得取消新 owner 的执行。
+    func testLateOnDisappearFromDetachedOwnerCannotCancelOtherOwner() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+
+        let first = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        first.observeIdentity(click.confirmationIdentity)
+        first.detach()
+
+        let second = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        second.observeIdentity(click.confirmationIdentity)
+        _ = second.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        // 迟到的 onDisappear。
+        first.cancelInFlight()
+        first.detach()
+        XCTAssertNotNil(registry.lease, "迟到 onDisappear 不得取消新 owner 的租约")
+        XCTAssertEqual(registry.cancelRequestedCount, 0)
+        // 已 detach 的 owner 也不得再发起 start。
+        XCTAssertEqual(first.start(click, port: RecordingCommitPort(results: [])), .rejected(.init(
+            pageID: click.pageID,
+            outcome: .ignoredInFlight
+        )))
+
+        port.resume(with: .success(.noOp))
+        while registry.lease != nil { await Task.yield() }
+    }
+
+    /// repeat cancel-after-port：只计一次 requested、只发一条 requested / settled。
+    func testRepeatedCancelAfterPortIsIdempotent() async {
+        let coordinator = makeCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        _ = coordinator.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        coordinator.cancelInFlight()
+        coordinator.cancelInFlight()
+        coordinator.cancelInFlight()
+        XCTAssertEqual(coordinator.cancelRequestedCount, 1)
+        XCTAssertEqual(coordinator.trace.filter { $0.phase == .cancelRequested }.count, 1)
+
+        port.resume(with: .success(.noOp))
+        while coordinator.inFlight != nil { await Task.yield() }
+        XCTAssertEqual(coordinator.trace.filter { $0.phase == .cancelSettled }.count, 1)
+        XCTAssertEqual(coordinator.cancelRequestedCount, 1)
+        XCTAssertEqual(coordinator.supersededCount, 0)
+    }
+
+    /// repeat cancel-before-port：同样只计一次，且旧 Task 被 fence 保证零调用。
+    func testRepeatedCancelBeforePortIsIdempotentAndCallsNoPort() async {
+        let coordinator = makeCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        _ = runSubmitDetached(coordinator, click, port: port)
+        coordinator.cancelInFlight()
+        coordinator.cancelInFlight()
+        XCTAssertEqual(coordinator.cancelRequestedCount, 1)
+        XCTAssertEqual(coordinator.trace.filter { $0.phase == .cancelRequested }.count, 1)
+        XCTAssertEqual(coordinator.trace.filter { $0.phase == .cancelSettled }.count, 1)
+
+        for _ in 0..<8 { await Task.yield() }
+        XCTAssertEqual(port.snapshots.count, 0, "cancel-before-port 必须零调用")
+        XCTAssertEqual(coordinator.portCallCount, 0)
+    }
+
+    /// shutdown：即使 port 挂起且忽略取消，也必须 fence 并释放租约。
+    func testShutdownReleasesLeaseDespiteHungIgnoringCancelPort() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+        _ = coordinator.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+        XCTAssertNotNil(registry.lease)
+
+        registry.shutdown()
+        XCTAssertNil(registry.lease, "shutdown 必须释放租约")
+        XCTAssertFalse(registry.isOccupied)
+        XCTAssertNil(registry.activeCapability, "shutdown 后不得再有 active capability")
+
+        // 迟到的 port 返回不得改动任何状态。
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        for _ in 0..<8 { await Task.yield() }
+        XCTAssertNil(registry.lease)
+    }
+
     // MARK: - 5. trace 类型完全枚举（结构性，不抽样）
 
     /// 穷举 `AhaKeyStudioPageCommitTraceEvent` 的**全部** case，逐一断言派生字段。

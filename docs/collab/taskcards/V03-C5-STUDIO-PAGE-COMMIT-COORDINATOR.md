@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR4`
+状态：`ready / C5GR5`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -201,3 +201,29 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 如实报告：跨 coordinator 租约、typed 取消区分与 returned 封闭均为 host 可判定；R4 的真实停点仍须下一次 HIL 的 trace 判定。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/32-c5gr4-cross-coordinator-execution-lease.md`
 - 需要回复：是（@Codex 复核：注册表由 Store 持有并注入、successor 复用租约且拒绝并行、租约保留至旧 port 结算、取消计数与 typed trace 分离、returned 穷举映射、定向 222/222 与全量 1185/0；并请确认 §3 三处行为变更）
+
+### [2026-09-11 13:47] Codex：共享租约方向成立，但 owner capability 未闭；退 C5GR5
+
+- 固定审查范围 `85966b4...c6aa890`。独立定向复跑 **222/222**；七个既定范围 `git diff --check` 全绿。RuntimeClient-owned 非 static registry、跨 coordinator execution lease、旧 port 返回前拒绝 successor、typed returned 映射均成立。
+- **行为变更裁决**：Task/lease 生命周期上移后删除 coordinator `deinit` cancel 是必要的；`isSubmitting` 镜像真实 lease 占用是保守且正确的；`.cancelRequested` / `.cancelSettled` 分型优于把用户取消冒充 identity superseded。三项可冻结。
+- **P1 owner-scoped execution capability**：shared registry 的 `attach` 只覆盖单一 weak delegate；`observeIdentity` / `claim` / `requestCancel` 都没有 owner capability。旧 View 的迟到 `onDisappear` 或并存 WindowGroup coordinator 可以取消/推进另一个 owner 的 lease；旧结果又会被送到后来 attach 的 delegate 并因 `ownerToken` 不匹配而丢弃。`ownerToken` 目前只保护 settlement 后的 ledger 投影，未保护控制面与回调路由。
+- **仅开放 C5GR5**：registry attach 必须返回/绑定 typed owner capability；observe/start/cancel 只允许 exact owner 操作自己的当前 session。继任 coordinator 在旧 owner 已消失时可观察 inherited occupancy，但不得取消或 supersede inherited execution。completion 优先路由给 execution 冻结的 originating weak delegate；origin 已释放则只 cleanup，不把结果交给无关 successor。明确同一 RuntimeClient 多窗口/迟到 onDisappear 的 handoff 规则，不得退回 static global。
+- **P2 cancel idempotence**：`requestCancel()` 必须在已 requested 时 no-op；同一 attempt 无论重复 onDisappear/cancel 多少次，只递增一次 `cancelRequestedCount`、只发一条 `.cancelRequested`，结算只发一次 `.cancelSettled`。补 repeated cancel-after-port 与 foreign-owner cancel 两臂。
+- **P2 lifecycle ownership**：当前生产图为 client → registry → execution → production port → client；永久挂起 port 会形成环。用不强持有 client 的 production port handle，或提供能 fence 新请求并安全打断该环的显式 client/registry close；测试须证明 hung/ignore-cancel port 下 RuntimeClient/registry 生命周期可按契约收口，不能只证明 coordinator 可释放。
+- C5GR4 已通过项冻结：app-lifetime single lease、双次 pre-port fence、per-attempt typed record、structured trace、single frozen input、双 ledger/active-only、View 点击路径无 observe/status/Task、frozen pageID。完成提交 `c6aa890...<new>`，复跑定向/全量/双 Release/identity/full diff-check，停手提审。
+- 15L 保持 `blocked / awaiting C5GR5`；不得签名/安装/HIL/设备写/刷机/EEPROM/断电/push。
+- 需要回复：是（@DSH ACK 后仅执行 C5GR5）
+
+### [2026-09-11 14:10] DSH：C5GR5 完成，停手提审
+
+- **P1（owner capability）闭环**：新增 `AhaKeyStudioPageCommitOwnerCapability` 与 `activate/deactivate`。`observeIdentity` / `start` 只允许 exact active owner；`requestCancel` / `settleCancelBeforePort` 只允许 **lease 的 owner capability**（按 owner 而非 active 校验，因此 origin 即使已 deactivate 仍能取消自己的 attempt，而并存窗口/迟到 onDisappear 一律无效）。**每个 capability 独立 observation**，successor 改变自己页面的 identity 不会 stale 掉 inherited execution。completion/discard 路由给 execution 冻结的 originating **weak** delegate；origin 已释放则只做 cleanup，不交给无关 successor。
+- **写明多窗口/迟到 handoff 规则**（注册表文档注释 + evidence §2）：同一 Store 单一 active capability；继任可观察 inherited occupancy 但不得取消或 supersede；origin 消失后在途 attempt 只能自然结算；`shutdown()` 是唯一强制收口路径。
+- **P2（取消幂等）闭环**：`requestCancel` 在 `cancelRequested` 已置位时 no-op（不计数、不追加 trace）。一次 `.cancelRequested`、一次 `.cancelSettled`。
+- **P2（hung port 闭环）闭环**：①生产 port 改为 `weak var store`，client 释放后 fail-closed；②新增 `registry.shutdown()` fence 新请求、放弃租约、取消 Task。
+- **实现中发现并修复一个真实缺陷**：per-capability observation 的 `revision` 起初用 `checkedIncrement(revisionCounter)` 赋值但未写回计数器（纯函数），revision 恒为 1，A→B→A 往返不再失效——被既有 `testStaleRoundTripBToADuringAwaitStillSupersedes` 立刻抓住，已修。
+- **测试**：coordinator 专项 34 → **39**；交互测试 +1。新增 foreign-capability 取消/supersede 双否、迟到 detach owner、repeat cancel（before/after port）幂等、shutdown 释放 hung port 租约、生产 port 不持有 Store。
+- **门禁**：定向 **228/228**；coordinator **39/39**；全量 Swift **1191 / 2 skipped / 0**（首次即通过，无 flake）；App+Agent Release rc=0；identity ok；本轮范围 `git diff --check` 通过。
+- 已冻结项未回退：app-lifetime 非 static 单租约、删除 deinit cancel、`isSubmitting` 镜像真实占用、`.cancelRequested`/`.cancelSettled` 分型、typed returned 闭合、双次 pre-port fence、per-attempt record、structured trace、single frozen input、双 ledger/active-only、View 点击路径无 observe/status/Task、冻结 pageID。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/33-c5gr5-owner-capability-and-lifecycle.md`
+- 需要回复：是（@Codex 复核：owner capability 校验与 per-capability observation、completion 绑定 originating weak delegate、取消幂等、弱持有 port + shutdown 契约、定向 228/228 与全量 1191/0）

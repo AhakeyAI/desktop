@@ -131,9 +131,10 @@ struct AhaKeyStudioView: View {
             }
         }
         .onDisappear {
-            // C5GR2 取消策略：页面关闭时取消在途 attempt，避免 port 悬挂永久保留
-            // submitting / in-flight；迟到的 port 结果由 coordinator 判为 stale。
+            // C5GR5：只取消**本 session 自己**的 attempt（registry 按 owner capability 校验，
+            // 迟到或并存窗口不会取消/supersede 他人执行）；随后交还 active 观察权。
             pageCommitCoordinator.cancelInFlight()
+            pageCommitCoordinator.detach()
         }
         .alert(NSLocalizedString("新增：合盖运行", comment: ""), isPresented: $showsPowerProtectionFirstTimeAlert) {
             Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
