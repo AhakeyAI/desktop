@@ -164,6 +164,11 @@ final class AhaKeyStudioRuntimeClient: ObservableObject {
     /// Studio 侧诊断日志（仅诊断窗口展示；不含任何设备 TX/RX——那是 Runtime 的边界）。
     let logStore = BLELogStore()
 
+    /// C5GR4：page-commit 执行租约注册表。由 app-lifetime 的 Store 持有并注入 coordinator，
+    /// 因此 port 已进入时租约不随 View/coordinator 释放而消失，successor 无法启动并行写。
+    /// 不用 static global：生命周期跟随 Store。
+    let pageCommitExecutions = AhaKeyStudioPageCommitExecutionRegistry()
+
     /// 后台服务活性判定由 RuntimeServiceManager 注入（socket status 心跳为准）。
     var runtimeBLEConnectedProvider: () -> Bool = { false }
 

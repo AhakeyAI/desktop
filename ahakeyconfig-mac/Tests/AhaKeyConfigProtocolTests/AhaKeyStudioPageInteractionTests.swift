@@ -437,7 +437,7 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
         harness.store.applyViewStateForTesting(onlineState(snapshot: harness.snapshot(operations: [])))
 
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: AhaKeyStudioPageCommitExecutionRegistry())
         let port = RecordingStoreCommitPort(store: harness.store)
         let current = AhaKeyStudioDraft.default
         let synced = current

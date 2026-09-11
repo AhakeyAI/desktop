@@ -27,7 +27,8 @@ struct AhaKeyStudioView: View {
     @State private var syncStatusMessage = NSLocalizedString("修改会先保存在本地，连接设备后再同步。", comment: "")
     @State private var isRemovingQueuedPage = false
     /// C5G：两击提交的唯一编排者。View 不再直接持有或分发两个 ledger。
-    @StateObject private var pageCommitCoordinator = AhaKeyStudioPageCommitCoordinator()
+    /// C5GR4：注入 app-lifetime 的执行租约注册表（由 Store 持有），而不是 static global。
+    @StateObject private var pageCommitCoordinator: AhaKeyStudioPageCommitCoordinator
     @State private var completedTaskResourceCount = 0
     /// 普通默认图片写入失败时只记录该图片，不能阻断键位与灯效。
     @State private var lastDefaultPictureUploadFailures: [String] = []
@@ -79,6 +80,9 @@ struct AhaKeyStudioView: View {
         _selectedPart = State(initialValue: .key1)
         _lightBarPreview = State(initialValue: .preToolUse)
         _modeCustomNames = State(initialValue: AhaKeyModeNameStore.load())
+        _pageCommitCoordinator = StateObject(
+            wrappedValue: AhaKeyStudioPageCommitCoordinator(registry: runtimeStore.pageCommitExecutions)
+        )
     }
 
     var body: some View {

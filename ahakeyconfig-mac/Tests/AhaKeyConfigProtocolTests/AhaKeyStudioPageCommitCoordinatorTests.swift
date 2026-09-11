@@ -118,7 +118,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     // MARK: - 1. R4 回放
 
     func testR4ReplayTwoClicksCallPortTwiceWithOneFreezeEachAndExactTrace() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let acceptedID = AhaKeyRuntimeOperationID()
         let port = RecordingCommitPort(results: [
             .success(.requiresOverwriteConfirmation),
@@ -171,7 +171,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     // MARK: - 2. 第二次返回分支必须可区分
 
     func testSecondClickNoOpOutcomeAndTraceAreDistinctFromRequires() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [
             .success(.requiresOverwriteConfirmation),
             .success(.noOp),
@@ -190,7 +190,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testSecondClickRequiresAgainKeepsPendingAndIsDistinctFromFirst() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [
             .success(.requiresOverwriteConfirmation),
             .success(.requiresOverwriteConfirmation),
@@ -215,7 +215,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testSecondClickErrorOutcomeAndTraceAreNamed() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [
             .success(.requiresOverwriteConfirmation),
             .failure(CommitFailure()),
@@ -236,7 +236,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testPortNotCalledGuardRejectsConcurrentSubmitWithoutSecondPortCall() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 1)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -259,7 +259,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testSubmitBeforePortRejectsWhenFrozenIdentityDiffersFromLive() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [.success(.accepted(AhaKeyRuntimeOperationID()))])
         let live = input(activeSet: 0)
         let stale = input(activeSet: 1)
@@ -283,7 +283,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     // MARK: - 3. 上下文 mutation
 
     func testContextMutationBeforeSecondClickVoidsPendingAndDoesNotResurrect() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [
             .success(.requiresOverwriteConfirmation),
             .success(.requiresOverwriteConfirmation),
@@ -313,7 +313,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testDeviceGenerationAndProfileMutationAllVoidPending() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let requires: Result<AhaKeyStudioPageCommitResult, Error> = .success(.requiresOverwriteConfirmation)
         let port = RecordingCommitPort(results: [requires, requires, requires, requires])
         let base = input(activeSet: 0)
@@ -350,7 +350,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     // MARK: - 4. stale / replay 因果（C5ER1 不得回退）
 
     func testStaleResultDuringAwaitIsSupersededAndNeverProjected() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let a = input(activeSet: 0)
         coordinator.observeIdentity(a.confirmationIdentity)
@@ -380,7 +380,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testStaleAcceptedDuringAwaitIsSupersededAndDoesNotBecomeCurrentResult() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let a = input(activeSet: 0)
         coordinator.observeIdentity(a.confirmationIdentity)
@@ -403,7 +403,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testStaleFailureDuringAwaitIsSupersededAndDoesNotRaiseError() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let a = input(activeSet: 0)
         coordinator.observeIdentity(a.confirmationIdentity)
@@ -423,7 +423,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testProjectableOutcomeStillUpdatesLastOutcome() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [.success(.noOp)])
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -435,7 +435,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testAcceptedResultDoesNotClearNewerEditIntentRegisteredDuringAwait() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -467,7 +467,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testExplicitIntentIsConsumedByAcceptedButNotByRequires() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [
             .success(.requiresOverwriteConfirmation),
             .success(.accepted(AhaKeyRuntimeOperationID())),
@@ -494,6 +494,123 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
             coordinator.matchingExplicitIntentFieldIDs(intentContext(activeSet: 0)).contains(activeSetField),
             "accepted 必须消费对应 edit intent"
         )
+    }
+
+    // MARK: - 4b. C5GR4：跨 coordinator 的执行租约
+
+    /// 必测：A start→portInvoked→cancel→dealloc；B 复用同一 registry，B start rejected、port count 0；
+    /// 旧 port 返回后租约才释放，B 才能 start。
+    func testSuccessorCoordinatorSeesInheritedLeaseAndRejectsParallelStart() async {
+        let registry = AhaKeyStudioPageCommitExecutionRegistry()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+
+        weak var weakA: AhaKeyStudioPageCommitCoordinator?
+        do {
+            let a = AhaKeyStudioPageCommitCoordinator(registry: registry)
+            weakA = a
+            a.observeIdentity(click.confirmationIdentity)
+            _ = a.start(click, port: port)
+            while !port.hasReachedPort { await Task.yield() }
+            a.cancelInFlight()
+            XCTAssertNotNil(registry.lease, "port 已进入：取消不得释放租约")
+        }
+
+        for _ in 0..<8 { await Task.yield() }
+        XCTAssertNil(weakA, "coordinator A 必须能释放（无保留环）")
+        XCTAssertNotNil(registry.lease, "租约属于 app-lifetime registry，不随 A 消失")
+
+        // successor B 复用同一 registry。
+        let b = AhaKeyStudioPageCommitCoordinator(registry: registry)
+        b.observeIdentity(click.confirmationIdentity)
+        XCTAssertTrue(b.isSubmitting, "B 必须看到继承的在途租约")
+
+        let blocked = b.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
+        guard case .rejected = blocked else {
+            return XCTFail("继承租约未结算时 B 的 start 必须被拒绝，实得 \(blocked)")
+        }
+        XCTAssertEqual(port.snapshots.count, 1, "不得产生第二次 port 调用")
+        XCTAssertEqual(registry.portCallCount, 1)
+
+        // 旧 port 返回：租约释放，B 才可 start。
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        while registry.lease != nil { await Task.yield() }
+        XCTAssertFalse(b.isSubmitting)
+        let allowed = b.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
+        XCTAssertEqual(allowed, .started)
+    }
+
+    /// 取消只计一次 `cancelRequestedCount`，绝不冒充 identity superseded。
+    func testCancelIncrementsCancelCounterOnlyOnceAndNeverSuperseded() async {
+        let coordinator = makeCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        _ = coordinator.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+
+        coordinator.cancelInFlight()
+        XCTAssertEqual(coordinator.cancelRequestedCount, 1)
+        XCTAssertEqual(coordinator.supersededCount, 0, "取消不得计为 identity superseded")
+
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        while coordinator.inFlight != nil { await Task.yield() }
+        XCTAssertEqual(coordinator.cancelRequestedCount, 1, "结算不得再计一次取消")
+        XCTAssertEqual(coordinator.supersededCount, 0)
+    }
+
+    /// identity 变化与用户取消必须是**不同类型**的 typed trace。
+    func testCancelAndIdentitySupersedeProduceDifferentTypedEvents() async {
+        // 路径一：identity 变化 → superseded
+        let idCoordinator = makeCoordinator()
+        let idPort = GatedCommitPort()
+        let a = input(activeSet: 0)
+        idCoordinator.observeIdentity(a.confirmationIdentity)
+        _ = idCoordinator.start(a, port: idPort)
+        while !idPort.hasReachedPort { await Task.yield() }
+        idCoordinator.observeIdentity(input(activeSet: 1).confirmationIdentity)
+        idPort.resume(with: .success(.noOp))
+        while idCoordinator.inFlight != nil { await Task.yield() }
+
+        XCTAssertTrue(idCoordinator.trace.contains { $0.phase == .superseded })
+        XCTAssertFalse(idCoordinator.trace.contains { $0.phase == .cancelRequested })
+        XCTAssertFalse(idCoordinator.trace.contains { $0.phase == .cancelSettled })
+        XCTAssertEqual(idCoordinator.supersededCount, 1)
+        XCTAssertEqual(idCoordinator.cancelRequestedCount, 0)
+
+        // 路径二：用户取消 → cancelRequested / cancelSettled
+        let cancelCoordinator = makeCoordinator()
+        let cancelPort = GatedCommitPort()
+        cancelCoordinator.observeIdentity(a.confirmationIdentity)
+        _ = cancelCoordinator.start(a, port: cancelPort)
+        while !cancelPort.hasReachedPort { await Task.yield() }
+        cancelCoordinator.cancelInFlight()
+        cancelPort.resume(with: .success(.noOp))
+        while cancelCoordinator.inFlight != nil { await Task.yield() }
+
+        XCTAssertTrue(cancelCoordinator.trace.contains { $0.phase == .cancelRequested })
+        XCTAssertTrue(cancelCoordinator.trace.contains { $0.phase == .cancelSettled })
+        XCTAssertFalse(cancelCoordinator.trace.contains { $0.phase == .superseded })
+        XCTAssertEqual(cancelCoordinator.cancelRequestedCount, 1)
+        XCTAssertEqual(cancelCoordinator.supersededCount, 0)
+    }
+
+    /// returned 类型**穷举**映射全部 6 个 commit result，无宽入口、无兜底。
+    func testReturnedResultMapsEveryCommitResultWithoutFallback() {
+        let pairs: [(AhaKeyStudioPageCommitResult, AhaKeyStudioPageCommitReturnedResult)] = [
+            (.noOp, .noOp),
+            (.requiresOverwriteConfirmation, .requiresOverwriteConfirmation),
+            (.missingTrustedPageCache, .missingTrustedPageCache),
+            (.unsupportedProfile, .unsupportedProfile),
+            (.unsupportedPage, .unsupportedPage),
+            (.accepted(AhaKeyRuntimeOperationID()), .accepted),
+        ]
+        XCTAssertEqual(pairs.count, 6, "AhaKeyStudioPageCommitResult 恰有 6 个 case，映射必须穷举")
+        for (result, expected) in pairs {
+            XCTAssertEqual(AhaKeyStudioPageCommitReturnedResult(result), expected)
+            XCTAssertEqual(AhaKeyStudioPageCommitReturnedResult(result).category.rawValue, expected.rawValue)
+        }
     }
 
     // MARK: - 5. trace 类型完全枚举（结构性，不抽样）
@@ -535,20 +652,25 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
              .superseded, true, .superseded, true),
             (.rejected(sequence: 7, pageID: screenPage),
              .rejected, false, .inFlightRejected, false),
-            (.cancelled(sequence: 7, pageID: screenPage, confirmed: false, portInvoked: false),
-             .cancelled, false, .cancelled, false),
-            (.cancelled(sequence: 7, pageID: screenPage, confirmed: true, portInvoked: true),
-             .cancelled, true, .cancelled, true),
+            (.cancelRequested(sequence: 7, pageID: screenPage, confirmed: false, portInvoked: false),
+             .cancelRequested, false, .cancelRequested, false),
+            (.cancelRequested(sequence: 7, pageID: screenPage, confirmed: true, portInvoked: true),
+             .cancelRequested, true, .cancelRequested, true),
+            (.cancelSettled(sequence: 7, pageID: screenPage, confirmed: false, portInvoked: false),
+             .cancelSettled, false, .cancelSettled, false),
+            (.cancelSettled(sequence: 7, pageID: screenPage, confirmed: true, portInvoked: true),
+             .cancelSettled, true, .cancelSettled, true),
         ]
 
         // 覆盖全部 case：事件类型目前恰有 7 个 case，上面的表必须把每个 case 都包含。
         let phases = Set(table.map { $0.event.phase })
         XCTAssertEqual(
             phases,
-            [.began, .portInvoked, .returned, .failed, .superseded, .rejected, .cancelled],
+            [.began, .portInvoked, .returned, .failed, .superseded, .rejected,
+             .cancelRequested, .cancelSettled],
             "枚举必须覆盖全部 phase（即全部 case）"
         )
-        XCTAssertEqual(table.count, 14, "每个 case 的确认/未确认与 port 前后分支都要覆盖")
+        XCTAssertEqual(table.count, 16, "每个 case 的确认/未确认与 port 前后分支都要覆盖")
 
         // `.returned` 只接受 return-only 结果类型：这里证明 6 个返回结果全部被枚举，
         // 而 pending/failed/superseded/rejected/cancelled 在编译类型上根本不可传入。
@@ -576,7 +698,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
     /// 运行期产生的 trace 必须全部落在上面穷举出的类型集合内（不存在第 8 种 case）。
     func testRuntimeTraceEventsStayWithinEnumeratedPhases() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
 
@@ -603,7 +725,8 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         _ = await cancelTask.value
 
         let allowed = Set([AhaKeyStudioPageCommitTracePhase.began, .portInvoked, .returned,
-                           .failed, .superseded, .rejected, .cancelled])
+                           .failed, .superseded, .rejected,
+                           .cancelRequested, .cancelSettled])
         XCTAssertFalse(coordinator.trace.isEmpty)
         for event in coordinator.trace {
             XCTAssertTrue(allowed.contains(event.phase), "未知 phase：\(event.evidenceLine)")
@@ -613,20 +736,22 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
                     event.category == .pending
                         || event.category == .superseded
                         || event.category == .inFlightRejected
-                        || event.category == .cancelled,
+                        || event.category == .cancelRequested
+                        || event.category == .cancelSettled,
                     "port 未调用却给出结果类别：\(event.evidenceLine)"
                 )
             }
         }
         XCTAssertTrue(coordinator.trace.contains { $0.phase == .portInvoked })
-        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelled })
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelRequested })
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelSettled })
         XCTAssertTrue(coordinator.trace.contains { $0.phase == .superseded && !$0.portInvoked })
     }
 
     // MARK: - 5b. portInvoked 区分「内部 Task 未调度」与「port 已进入但挂起」
 
     func testBeganWithoutPortInvokedMeansInternalTaskNotScheduled() {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -640,7 +765,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testPortInvokedWithoutReturnedMeansPortHung() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -664,7 +789,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
     /// C5GR3：port 已进入后取消**不得**立即释放执行占用——否则新旧写会并行。
     func testCancelAfterPortInvokedKeepsSlotUntilPortReturns() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -674,9 +799,10 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordinator.isSubmitting)
 
         coordinator.cancelInFlight()
-        // UI submitting 可解除（可选），但 slot 必须保留。
-        XCTAssertFalse(coordinator.isSubmitting)
-        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
+        // C5GR4：isSubmitting 直接镜像租约占用——取消后租约仍在，因此仍显示提交中（诚实反映
+        // 「仍有未结算副作用」），但绝不会允许并行写。
+        XCTAssertTrue(coordinator.isSubmitting)
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelRequested)
         XCTAssertEqual(coordinator.trace.last?.portInvoked, true)
         XCTAssertNotNil(coordinator.inFlight, "port 仍在飞行时必须保留执行占用")
 
@@ -694,9 +820,13 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.lastOutcome)
         XCTAssertFalse(coordinator.isSubmitting)
         XCTAssertNil(coordinator.inFlight, "port 返回后才释放 slot")
-        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelled && $0.portInvoked })
-        XCTAssertEqual(coordinator.trace.last?.phase, .superseded)
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelSettled && $0.portInvoked })
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelRequested && $0.portInvoked })
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelSettled)
         XCTAssertEqual(coordinator.trace.last?.portInvoked, true)
+        // 取消只计一次，且不得伪装成 identity superseded。
+        XCTAssertEqual(coordinator.cancelRequestedCount, 1)
+        XCTAssertEqual(coordinator.supersededCount, 0)
 
         // slot 释放后可以开始新的 attempt。
         let next = coordinator.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
@@ -705,7 +835,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
     /// C5GR3：cancel-before-port 必须零 port 调用（旧 Task 即使被调度也不得触碰 Store）。
     func testCancelBeforePortInvokedCallsNoPort() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -715,7 +845,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
         coordinator.cancelInFlight()
         XCTAssertFalse(coordinator.isSubmitting)
-        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelSettled)
         XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
         XCTAssertNil(coordinator.inFlight, "port 未进入时可安全立即释放 slot")
 
@@ -727,7 +857,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
     /// C5GR3：start 与内部 Task 调度之间 identity 变化 → 第二次 pre-port fence 拦截，零写。
     func testIdentityChangeBeforeInternalTaskSchedulingCallsNoPort() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let a = input(activeSet: 0)
         let b = input(activeSet: 1)
@@ -748,7 +878,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
     /// C5GR3：取消后的旧返回不得改动新的 pending / intent / outcome。
     func testCancelledLateResultDoesNotMutatePendingOrIntent() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.notePickerSelection(
@@ -789,7 +919,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         weak var weakCoordinator: AhaKeyStudioPageCommitCoordinator?
 
         do {
-            let coordinator = AhaKeyStudioPageCommitCoordinator()
+            let coordinator = makeCoordinator()
             weakCoordinator = coordinator
             coordinator.observeIdentity(click.confirmationIdentity)
             _ = runSubmitDetached(coordinator, click, port: port)
@@ -807,7 +937,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testCancelBeforePortInvokedAlsoReleasesSubmitting() {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -818,18 +948,18 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
         coordinator.cancelInFlight()
         XCTAssertFalse(coordinator.isSubmitting)
-        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelSettled)
         XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
     }
 
     func testCheckedIncrementDoesNotWrap() {
-        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.checkedIncrement(0), 1)
-        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.checkedIncrement(41), 42)
+        XCTAssertEqual(AhaKeyStudioPageCommitExecutionRegistry.checkedIncrement(0), 1)
+        XCTAssertEqual(AhaKeyStudioPageCommitExecutionRegistry.checkedIncrement(41), 42)
     }
 
 
     func testStartIsSynchronousSoBeganAndSubmittingAreVisibleBeforePortReturns() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
         coordinator.observeIdentity(click.confirmationIdentity)
@@ -866,7 +996,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testStaleRoundTripBToADuringAwaitStillSupersedes() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = GatedCommitPort()
         let a = input(activeSet: 0)
         let b = input(activeSet: 1)
@@ -890,7 +1020,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
     }
 
     func testAcceptedProjectionCarriesFrozenPageIDNotLivePage() async {
-        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let coordinator = makeCoordinator()
         let port = RecordingCommitPort(results: [.success(.accepted(AhaKeyRuntimeOperationID()))])
         let frozenPage = AhaKeyStudioPageID.screen(modeSlot: 1)
 
@@ -1014,4 +1144,10 @@ private func runSubmitDetached(
     port: any AhaKeyStudioPageCommitPort
 ) -> AhaKeyStudioPageCommitStartResult {
     coordinator.start(input, port: port)
+}
+
+/// C5GR4：每个测试用独立 registry（生产由 Store 持有 app-lifetime 实例）。
+@MainActor
+private func makeCoordinator() -> AhaKeyStudioPageCommitCoordinator {
+    AhaKeyStudioPageCommitCoordinator(registry: AhaKeyStudioPageCommitExecutionRegistry())
 }

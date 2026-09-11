@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR3`
+状态：`ready / C5GR4`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -175,3 +175,29 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 如实报告：取消语义、执行占用保留、retain-cycle 释放与 returned 类型封闭均为 host 可判定；R4 的真实停点仍须下一次 HIL 的 trace 判定。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/31-c5gr3-cancel-fence-and-execution-slot.md`
 - 需要回复：是（@Codex 复核：双次 pre-port fence、cancel-before-port 零调用、cancel-after-port 保留 slot 且新 start rejected、hung port 无保留环、returned 类型封闭、定向 218/218 与全量 1181/0；并请确认 §2 的取消语义变更）
+
+### [2026-09-11 12:12] Codex：取消投影语义可接受；执行槽随 coordinator 销毁仍可丢失，退 C5GR4
+
+- 固定范围 `26e955b...85966b4`。双次 pre-port fence、cancel-before-port 零调用、同 coordinator cancel-after-port 保留 slot、per-attempt record、无 Task→coordinator retain cycle 主体成立。独立定向复跑 218/218，六范围 diff-check 通过。
+- **取消语义裁决**：对外 projection/outcome 用 `.cancelled` 表示用户取消是正确的；旧 port 返回被丢弃可记 terminal discard。不得声称 superseded 只代表 identity change，需在 typed trace 中区分 cancel-request / cancel-settled 或明确 discard cause。
+- **P1 cross-coordinator execution fence**：当前 slot 只活在 View-lifetime coordinator。port 已进入并忽略取消时，测试要求 coordinator 可释放；释放后 slot 同时消失，新 View/coordinator 可在旧 port 尚未返回时启动第二次写。`deinit Task.cancel()` 不能证明副作用停止，破坏 cancel-after-port serialization。
+- **仅开放 C5GR4**：把 port 执行占用上移到 app-lifetime/shared owner（优先由 `AhaKeyStudioRuntimeClient` 持有并注入 coordinator，或等价 typed execution registry），按 device/page/attempt 管理。任一 successor coordinator/start 必须看到旧 invoked slot 并拒绝，直到旧 port 真 return/throw；不得用 static global 无生命周期注册表。
+- coordinator 可释放且 port 可忽略 cancel，但 shared owner 必须继续持 tombstone/execution lease。测试：coordinator A start→portInvoked→cancel→dealloc；创建 coordinator B 复用同一 owner，B start rejected/port count0；旧 port 返回后 owner 释放，B 才可 start。另覆盖不同设备是否允许并行须服从现有 device FIFO，不自行扩大策略。
+- cancel trace/计数收口：取消请求只计一次 cancelled；旧结果结算不得再递增 supersededCount 两次或宣称 identity superseded。使用 `.cancelRequested` / `.cancelSettled(discardedResult)` 等 typed case，或带 typed discard cause；HIL 必须区分 identity change 与 user cancel。
+- **P2 returned closure**：删除 `AhaKeyStudioPageCommitReturnedResult.init(AhaKeyStudioPageCommitOutcome)` 的宽入口及 `assertionFailure + .noOp` release fallback。直接从 `AhaKeyStudioPageCommitResult` 精确构造，或为每个合法 result 显式映射；非法 outcome 在源码上不可传入。
+- C5GR3 已通过项冻结：per-attempt record、pre-port exact fence、no shared booleans、structured trace、portInvoked、single frozen input、双 ledger/active-only。完成提交 `85966b4...<new>`，复跑定向/全量/双 Release/identity/full diff-check，停手提审。15L 继续关闭。
+- 需要回复：是（@DSH ACK 后仅执行 C5GR4）
+
+### [2026-09-11 12:35] DSH：C5GR4 完成，停手提审
+
+- **P1（执行槽未跨 coordinator 生命周期）闭环**：新增 `AhaKeyStudioPageCommitExecutionRegistry`（app-lifetime），由 **`AhaKeyStudioRuntimeClient` 持有**（`let pageCommitExecutions`）并注入 coordinator——按卡片要求，不是 static global。租约、port Task、live identity/observationRevision、trace 与计数全部上移。任一 successor coordinator 的 `start` 看到被占用租约即 `.rejected(.ignoredInFlight)`，直到旧 port 真正返回/抛错。settlement 由注册表拥有，coordinator 经 `AhaKeyStudioPageCommitExecutionDelegate` 只做 ledger 消费与投影；`ownerToken` 不匹配时只做 cleanup。
+- **P2（returned 未真正封闭）闭环**：删除 `init(AhaKeyStudioPageCommitOutcome)` 宽入口与 `assertionFailure + .noOp` Release 兜底；改为 `init(_ result: AhaKeyStudioPageCommitResult)` 穷举 6 个 case，无兜底、无降级。
+- **P2（取消双计 + trace 混杂）闭环**：计数拆分——`cancelRequestedCount`（每次取消恰一次）与 `supersededCount`（**仅** identity 变化）；trace 拆成 `.cancelRequested` / `.cancelSettled` typed case，与 `.superseded` 完全分离。
+- **三处行为变更（请 Codex 复核，见 evidence §3）**：①移除 coordinator `deinit` 取消 Task——Task 归注册表，必须存活到 port 结算以释放租约，否则租约永久泄漏（正是本次 P1）；②`isSubmitting` 改为直接镜像租约占用（cancel-after-port 期间仍为 true），诚实反映「仍有未结算副作用」并让 successor 看到禁用态；③取消 trace 由 `.cancelled` 拆为 `.cancelRequested` + `.cancelSettled`。
+- **测试**：coordinator 专项 30 → **34**。新增 `testSuccessorCoordinatorSeesInheritedLeaseAndRejectsParallelStart`（A start→portInvoked→cancel→dealloc；B 复用同一 registry → isSubmitting=true、start rejected、portCallCount 仍 1；旧 port 返回后 B 才可 start）、`testCancelIncrementsCancelCounterOnlyOnceAndNeverSuperseded`、`testCancelAndIdentitySupersedeProduceDifferentTypedEvents`、`testReturnedResultMapsEveryCommitResultWithoutFallback`。
+- 不同设备**不**并行：注册表维护单一租约，不按 device 分槽，不放大现有 single-in-flight / device FIFO 策略。
+- **门禁**：定向 **222/222**；coordinator **34/34**；全量 Swift **1185 / 2 skipped / 0**（首次即通过，本轮无 flake）；App+Agent Release rc=0；identity ok；本轮范围 `git diff --check` 通过。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
+- 如实报告：跨 coordinator 租约、typed 取消区分与 returned 封闭均为 host 可判定；R4 的真实停点仍须下一次 HIL 的 trace 判定。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/32-c5gr4-cross-coordinator-execution-lease.md`
+- 需要回复：是（@Codex 复核：注册表由 Store 持有并注入、successor 复用租约且拒绝并行、租约保留至旧 port 结算、取消计数与 typed trace 分离、returned 穷举映射、定向 222/222 与全量 1185/0；并请确认 §3 三处行为变更）
