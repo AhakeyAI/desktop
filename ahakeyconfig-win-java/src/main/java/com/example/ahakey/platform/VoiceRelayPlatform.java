@@ -36,6 +36,13 @@ public final class VoiceRelayPlatform {
         windows.configureVoiceActions(shortAction, longAction, thresholdMs);
     }
 
+    public void configureVoiceActions(VoiceAction shortAction, VoiceAction longAction,
+                                      int thresholdMs, int shortCustomShortcutHid,
+                                      int longCustomShortcutHid) {
+        windows.configureVoiceActions(shortAction, longAction, thresholdMs,
+            shortCustomShortcutHid, longCustomShortcutHid);
+    }
+
     public void setAhaKeyVoiceAvailable(boolean available) {
         windows.setAhaKeyVoiceAvailable(available);
     }

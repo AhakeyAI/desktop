@@ -6,6 +6,7 @@ import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.model.HIDUsage;
 import com.example.ahakey.platform.voice.VoiceButtonEvent;
+import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.update.SemanticVersion;
 import org.junit.jupiter.api.AfterEach;
@@ -25,6 +26,7 @@ class WindowsVoiceRelayServiceTest {
     void setUp() {
         relay = WindowsVoiceRelayService.getInstance();
         relay.setOnVoiceAction(null);
+        relay.setCustomShortcutEmitterForTest(null);
         relay.setAhaKeyVoiceAvailable(false);
         relay.setFirmwareVersion(new SemanticVersion(1, 4, 8));
         relay.configureVoiceActions(
@@ -36,6 +38,7 @@ class WindowsVoiceRelayServiceTest {
     @AfterEach
     void tearDown() {
         relay.setOnVoiceAction(null);
+        relay.setCustomShortcutEmitterForTest(null);
         relay.setAhaKeyVoiceAvailable(false);
         relay.setFirmwareVersion(null);
     }
@@ -95,6 +98,55 @@ class WindowsVoiceRelayServiceTest {
     }
 
     @Test
+    void customShortcutShortAndLongStartAreOneShotAndReleaseIsNoOp() {
+        List<Integer> emitted = new java.util.ArrayList<>();
+        relay.setCustomShortcutEmitterForTest(emitted::add);
+        relay.configureVoiceActions(
+            VoiceAction.CUSTOM_SHORTCUT, VoiceAction.CUSTOM_SHORTCUT, 500,
+            VoiceActionRouterTestSupport.WIN_H,
+            VoiceActionRouterTestSupport.CTRL_ALT_A);
+
+        relay.dispatchVoiceEventForTest(
+            new VoiceButtonEvent(VoiceButtonEvent.Type.SHORT_PRESS, 1));
+        relay.dispatchVoiceEventForTest(
+            new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_START, 2));
+        relay.dispatchVoiceEventForTest(
+            new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_END, 3));
+
+        assertEquals(List.of(
+            VoiceActionRouterTestSupport.WIN_H,
+            VoiceActionRouterTestSupport.CTRL_ALT_A), emitted);
+    }
+
+    @Test
+    void unavailableAhaKeyVoiceDoesNotFallbackToWindowsVoice() {
+        List<Integer> emitted = new java.util.ArrayList<>();
+        relay.setCustomShortcutEmitterForTest(emitted::add);
+        relay.setAhaKeyVoiceAvailable(false);
+        relay.dispatchVoiceEventForTest(
+            new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_START, 1));
+        relay.dispatchVoiceEventForTest(
+            new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_END, 2));
+        assertTrue(emitted.isEmpty());
+    }
+
+    @Test
+    void persistedThresholdCannotChangeRuntime350MillisecondBoundary() {
+        relay.configureVoiceActions(
+            VoiceAction.CUSTOM_SHORTCUT, VoiceAction.NONE, 500,
+            VoiceActionRouterTestSupport.WIN_H,
+            VoiceActionRouterTestSupport.WIN_H);
+        assertEquals(List.of(VoiceButtonEvent.Type.SHORT_PRESS),
+            relay.classifyPhysicalF18ForTest(0, 349_000_000L, false)
+                .stream().map(VoiceButtonEvent::type).toList());
+        assertEquals(List.of(
+            VoiceButtonEvent.Type.LONG_PRESS_START,
+            VoiceButtonEvent.Type.LONG_PRESS_END),
+            relay.classifyPhysicalF18ForTest(1_000_000_000L, 1_350_000_000L, false)
+                .stream().map(VoiceButtonEvent::type).toList());
+    }
+
+    @Test
     void firmwareVersionGateOnlyControlsRawF18Routing() {
         relay.setFirmwareVersion(new SemanticVersion(1, 4, 7));
         assertFalse(relay.isRawF18RoutingEnabled());
@@ -151,5 +203,10 @@ class WindowsVoiceRelayServiceTest {
             stopCount++;
             recording = false;
         }
+    }
+
+    private static final class VoiceActionRouterTestSupport {
+        private static final int WIN_H = 0x800 | 0x0B;
+        private static final int CTRL_ALT_A = 0x200 | 0x400 | 0x04;
     }
 }

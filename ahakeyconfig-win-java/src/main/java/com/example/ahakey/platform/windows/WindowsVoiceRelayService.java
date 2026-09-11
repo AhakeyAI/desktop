@@ -59,12 +59,17 @@ public final class WindowsVoiceRelayService {
         });
     private final VoiceActionRouter actionRouter = new VoiceActionRouter();
     private volatile VoiceButtonStateMachine buttonStateMachine = new VoiceButtonStateMachine();
-    private volatile int configuredThresholdMs = 350;
+    /** Product threshold; persisted StudioState values are compatibility-only. */
+    public static final int VOICE_LONG_PRESS_THRESHOLD_MS = 350;
+    private volatile int configuredThresholdMs = VOICE_LONG_PRESS_THRESHOLD_MS;
     private volatile ScheduledFuture<?> thresholdTask;
     private long pressGeneration;
     private volatile SemanticVersion firmwareVersion;
     private volatile boolean rawF18RoutingEnabled;
     private volatile boolean ahaKeyVoiceAvailable;
+    private volatile int shortCustomShortcutHid = VoiceActionRouter.defaultWindowsVoiceShortcut();
+    private volatile int longCustomShortcutHid = VoiceActionRouter.defaultWindowsVoiceShortcut();
+    private Consumer<Integer> customShortcutEmitter = this::sendCustomShortcutOnce;
 
     private static WindowsVoiceRelayService instance;
 
@@ -115,19 +120,22 @@ public final class WindowsVoiceRelayService {
                     return;
                 }
             }
-            // A local model that is disabled, not activated, or failed to
-            // initialize must not disappear as a silent no-op.  The safe
-            // configured fallback is the one-shot Windows voice action.
+            // An unavailable local model must be visible and fail closed. It
+            // must not silently become the unrelated short Win+H action.
             if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
-                statusMessage.set("AhaKey 本地语音当前不可用，已回退 Windows 语音（Win+H）。");
-                WindowsVoiceTyping.trigger();
+                statusMessage.set("AhaKey 本地语音（当前不可用），未执行动作。");
             }
         });
         actionRouter.setExecutor(VoiceAction.CUSTOM_SHORTCUT, event -> {
             if (event.type() == VoiceButtonEvent.Type.SHORT_PRESS
                 || event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
-                statusMessage.set("自定义快捷键尚未实现，已回退 Windows 语音（Win+H）。");
-                WindowsVoiceTyping.trigger();
+                int hid = event.type() == VoiceButtonEvent.Type.SHORT_PRESS
+                    ? shortCustomShortcutHid : longCustomShortcutHid;
+                if (!VoiceActionRouter.isValidCustomShortcut(hid)) {
+                    statusMessage.set("自定义快捷键无效；F18 为 AhaKey 语音键保留。");
+                    return;
+                }
+                customShortcutEmitter.accept(hid);
             }
         });
     }
@@ -195,13 +203,30 @@ public final class WindowsVoiceRelayService {
     public synchronized void configureVoiceActions(
         VoiceAction shortAction, VoiceAction longAction, int thresholdMs
     ) {
+        configureVoiceActions(shortAction, longAction, thresholdMs,
+            VoiceActionRouter.defaultWindowsVoiceShortcut(),
+            VoiceActionRouter.defaultWindowsVoiceShortcut());
+    }
+
+    /**
+     * Configures desktop actions. The threshold argument remains for source
+     * compatibility with older callers but is intentionally ignored: the
+     * product threshold is always the fixed 350 ms contract.
+     */
+    public synchronized void configureVoiceActions(
+        VoiceAction shortAction, VoiceAction longAction, int ignoredThresholdMs,
+        int shortCustomShortcutHid, int longCustomShortcutHid
+    ) {
         actionRouter.setActions(shortAction, longAction);
-        buttonStateMachine = new VoiceButtonStateMachine(thresholdMs);
-        configuredThresholdMs = thresholdMs;
+        this.shortCustomShortcutHid = normalizeCustomShortcut(shortCustomShortcutHid);
+        this.longCustomShortcutHid = normalizeCustomShortcut(longCustomShortcutHid);
+        buttonStateMachine = new VoiceButtonStateMachine(VOICE_LONG_PRESS_THRESHOLD_MS);
+        configuredThresholdMs = VOICE_LONG_PRESS_THRESHOLD_MS;
         pressGeneration++;
         cancelThresholdTask();
-        activeRouteSummary.set("固定 F18（短按=" + shortAction + "，长按=" + longAction
-            + "，阈值=" + thresholdMs + "ms）");
+        activeRouteSummary.set("固定 F18（短按=" + VoiceActionRouter.migrateShortAction(shortAction)
+            + "，长按=" + VoiceActionRouter.migrateLongAction(longAction)
+            + "，阈值=" + VOICE_LONG_PRESS_THRESHOLD_MS + "ms）");
         refreshStatus();
     }
 
@@ -250,8 +275,24 @@ public final class WindowsVoiceRelayService {
             return;
         }
         configureVoiceActions(state.getVoiceShortAction(), state.getVoiceLongAction(),
-            state.getVoiceThresholdMs());
+            state.getVoiceThresholdMs(), state.getVoiceShortCustomShortcutHid(),
+            state.getVoiceLongCustomShortcutHid());
         refreshStatus();
+    }
+
+    private static int normalizeCustomShortcut(int hidCode) {
+        return VoiceActionRouter.isValidCustomShortcut(hidCode)
+            ? hidCode : VoiceActionRouter.defaultWindowsVoiceShortcut();
+    }
+
+    /** Package-private emitter seam for non-Windows action tests. */
+    void setCustomShortcutEmitterForTest(Consumer<Integer> emitter) {
+        customShortcutEmitter = emitter == null ? this::sendCustomShortcutOnce : emitter;
+    }
+
+    private boolean sendCustomShortcutOnce(int hidCode) {
+        if (!sendHidState(hidCode, true)) return false;
+        return sendHidState(hidCode, false);
     }
 
     public void start() {

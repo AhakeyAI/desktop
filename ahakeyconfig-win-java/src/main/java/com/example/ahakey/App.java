@@ -403,9 +403,9 @@ public class App extends Application {
                 WindowsVoiceRelayService relay = WindowsVoiceRelayService.getInstance();
                 relay.setOnVoiceAction(event -> {
                     if (voiceInputManager == null || !voiceInputManager.isActivated()) {
-                        // Keep the relay's availability bit truthful.  The
-                        // relay re-checks it after this callback and can
-                        // execute the visible Win+H fallback for this event.
+                        // Keep the relay's availability bit truthful.  An
+                        // unavailable local action is reported and performs
+                        // no unrelated shortcut fallback.
                         relay.setAhaKeyVoiceAvailable(false);
                         return;
                     }
@@ -433,7 +433,7 @@ public class App extends Application {
                 });
                 // Availability is promoted to true only by TopBar after the
                 // user explicitly activates VoiceInputManager.  Until then
-                // the AhaKey action uses the visible Windows fallback.
+                // the AhaKey action remains unavailable and fail-closed.
                 relay.setAhaKeyVoiceAvailable(false);
             }
             

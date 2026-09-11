@@ -900,8 +900,8 @@ public class StudioController {
         // semantics and never rewrite a per-mode firmware shortcut.
         switch (preset) {
             case WINDOWS_NATIVE -> studioState.setVoiceActions(
-                com.example.ahakey.platform.voice.VoiceAction.SYSTEM_VOICE,
-                com.example.ahakey.platform.voice.VoiceAction.SYSTEM_VOICE,
+                com.example.ahakey.platform.voice.VoiceAction.CUSTOM_SHORTCUT,
+                com.example.ahakey.platform.voice.VoiceAction.AHAKEY_VOICE,
                 studioState.getVoiceThresholdMs());
             case MACOS_NATIVE -> studioState.setVoiceActions(
                 com.example.ahakey.platform.voice.VoiceAction.CUSTOM_SHORTCUT,
@@ -938,7 +938,9 @@ public class StudioController {
         voiceRelay.configureVoiceActions(
             studioState.getVoiceShortAction(),
             studioState.getVoiceLongAction(),
-            studioState.getVoiceThresholdMs());
+            studioState.getVoiceThresholdMs(),
+            studioState.getVoiceShortCustomShortcutHid(),
+            studioState.getVoiceLongCustomShortcutHid());
     }
 
     private void applyBleStatus(DeviceStatus status) {

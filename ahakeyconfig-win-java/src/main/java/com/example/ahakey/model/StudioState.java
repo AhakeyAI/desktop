@@ -9,6 +9,7 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import com.example.ahakey.platform.voice.VoiceAction;
+import com.example.ahakey.platform.voice.VoiceActionRouter;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -37,9 +38,14 @@ public class StudioState {
     /** Desktop voice semantics; legacy HID fields above remain migration-only. */
     private final IntegerProperty voiceThresholdMs = new SimpleIntegerProperty(350);
     private final ObjectProperty<VoiceAction> voiceShortAction =
-        new SimpleObjectProperty<>(VoiceAction.SYSTEM_VOICE);
+        new SimpleObjectProperty<>(VoiceAction.CUSTOM_SHORTCUT);
     private final ObjectProperty<VoiceAction> voiceLongAction =
         new SimpleObjectProperty<>(VoiceAction.AHAKEY_VOICE);
+    /** Desktop-local shortcuts; never synchronized to firmware. */
+    private final IntegerProperty voiceShortCustomShortcutHid =
+        new SimpleIntegerProperty(VoiceActionRouter.defaultWindowsVoiceShortcut());
+    private final IntegerProperty voiceLongCustomShortcutHid =
+        new SimpleIntegerProperty(VoiceActionRouter.defaultWindowsVoiceShortcut());
 
     private final Map<ModeSlot, EnumMap<StudioPart, KeyConfig>> keyConfigs = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, StringProperty> oledSummaries = new EnumMap<>(ModeSlot.class);
@@ -272,19 +278,51 @@ public class StudioState {
     public ObjectProperty<VoiceAction> voiceShortActionProperty() { return voiceShortAction; }
     public VoiceAction getVoiceShortAction() { return voiceShortAction.get(); }
     public void setVoiceShortAction(VoiceAction value) {
-        voiceShortAction.set(value == null ? VoiceAction.NONE : value);
+        voiceShortAction.set(VoiceActionRouter.migrateShortAction(value));
         markDirty(StudioPart.KEY1);
     }
     public ObjectProperty<VoiceAction> voiceLongActionProperty() { return voiceLongAction; }
     public VoiceAction getVoiceLongAction() { return voiceLongAction.get(); }
     public void setVoiceLongAction(VoiceAction value) {
-        voiceLongAction.set(value == null ? VoiceAction.NONE : value);
+        voiceLongAction.set(VoiceActionRouter.migrateLongAction(value));
         markDirty(StudioPart.KEY1);
     }
     public void setVoiceActions(VoiceAction shortAction, VoiceAction longAction, int thresholdMs) {
-        voiceShortAction.set(shortAction == null ? VoiceAction.NONE : shortAction);
-        voiceLongAction.set(longAction == null ? VoiceAction.NONE : longAction);
+        voiceShortAction.set(VoiceActionRouter.migrateShortAction(shortAction));
+        voiceLongAction.set(VoiceActionRouter.migrateLongAction(longAction));
         voiceThresholdMs.set(Math.max(50, Math.min(5000, thresholdMs)));
+        markDirty(StudioPart.KEY1);
+    }
+
+    public IntegerProperty voiceShortCustomShortcutHidProperty() {
+        return voiceShortCustomShortcutHid;
+    }
+
+    public int getVoiceShortCustomShortcutHid() {
+        return voiceShortCustomShortcutHid.get();
+    }
+
+    public void setVoiceShortCustomShortcutHid(int value) {
+        if (!VoiceActionRouter.isValidCustomShortcut(value)) {
+            throw new IllegalArgumentException("F18 or invalid key cannot be a custom voice shortcut");
+        }
+        voiceShortCustomShortcutHid.set(value);
+        markDirty(StudioPart.KEY1);
+    }
+
+    public IntegerProperty voiceLongCustomShortcutHidProperty() {
+        return voiceLongCustomShortcutHid;
+    }
+
+    public int getVoiceLongCustomShortcutHid() {
+        return voiceLongCustomShortcutHid.get();
+    }
+
+    public void setVoiceLongCustomShortcutHid(int value) {
+        if (!VoiceActionRouter.isValidCustomShortcut(value)) {
+            throw new IllegalArgumentException("F18 or invalid key cannot be a custom voice shortcut");
+        }
+        voiceLongCustomShortcutHid.set(value);
         markDirty(StudioPart.KEY1);
     }
 
@@ -294,8 +332,10 @@ public class StudioState {
         voiceKeyLong.setHidCode(0x0A00);
         voiceKeyLong.setDescription("WeChat Voice");
         voiceThresholdMs.set(350);
-        voiceShortAction.set(VoiceAction.SYSTEM_VOICE);
+        voiceShortAction.set(VoiceAction.CUSTOM_SHORTCUT);
         voiceLongAction.set(VoiceAction.AHAKEY_VOICE);
+        voiceShortCustomShortcutHid.set(VoiceActionRouter.defaultWindowsVoiceShortcut());
+        voiceLongCustomShortcutHid.set(VoiceActionRouter.defaultWindowsVoiceShortcut());
         markDirty(StudioPart.KEY1);
     }
 
@@ -480,8 +520,24 @@ public class StudioState {
         voiceKeyLong.setHidCode(draft.voiceKeyLongHid == null ? 0x0A00 : draft.voiceKeyLongHid);
         voiceThresholdMs.set(draft.voiceThresholdMs == null
             ? 350 : Math.max(50, Math.min(5000, draft.voiceThresholdMs)));
-        voiceShortAction.set(parseVoiceAction(draft.voiceShortAction, VoiceAction.SYSTEM_VOICE));
-        voiceLongAction.set(parseVoiceAction(draft.voiceLongAction, VoiceAction.AHAKEY_VOICE));
+        VoiceAction savedShort = parseVoiceAction(draft.voiceShortAction, VoiceAction.CUSTOM_SHORTCUT);
+        VoiceAction savedLong = parseVoiceAction(draft.voiceLongAction, VoiceAction.AHAKEY_VOICE);
+        voiceShortAction.set(VoiceActionRouter.migrateShortAction(savedShort));
+        voiceLongAction.set(VoiceActionRouter.migrateLongAction(savedLong));
+        int defaultShortcut = VoiceActionRouter.defaultWindowsVoiceShortcut();
+        // Older drafts encoded the Windows voice action as SYSTEM_VOICE (or
+        // the unsupported short AHAKEY_VOICE action).  Migrate those legacy
+        // meanings to the explicit, local Win+H shortcut rather than
+        // retaining an unrelated or silently unavailable target.
+        boolean legacyShortAction = savedShort == VoiceAction.SYSTEM_VOICE
+            || savedShort == VoiceAction.AHAKEY_VOICE;
+        boolean legacyLongAction = savedLong == VoiceAction.SYSTEM_VOICE;
+        voiceShortCustomShortcutHid.set(legacyShortAction
+            ? defaultShortcut
+            : normalizeCustomShortcut(draft.voiceShortCustomShortcutHid, defaultShortcut));
+        voiceLongCustomShortcutHid.set(legacyLongAction
+            ? defaultShortcut
+            : normalizeCustomShortcut(draft.voiceLongCustomShortcutHid, defaultShortcut));
         for (int i = 0; i < ModeSlot.values().length; i++) {
             ModeSlot mode = ModeSlot.values()[i];
             PersistedDraft.ModeDraft md = draft.modes[i];
@@ -547,6 +603,8 @@ public class StudioState {
         d.voiceThresholdMs = voiceThresholdMs.get();
         d.voiceShortAction = voiceShortAction.get().name();
         d.voiceLongAction = voiceLongAction.get().name();
+        d.voiceShortCustomShortcutHid = voiceShortCustomShortcutHid.get();
+        d.voiceLongCustomShortcutHid = voiceLongCustomShortcutHid.get();
         d.revision = revision.get();
         d.lightBarPreviewId = lightBarPreview.get().getId();
         d.lightBrightness = lightBrightness.get();
@@ -595,8 +653,10 @@ public class StudioState {
         public Integer voiceKeyShortHid = 0x4000;
         public Integer voiceKeyLongHid = 0x0A00;
         public Integer voiceThresholdMs = 350;
-        public String voiceShortAction = VoiceAction.SYSTEM_VOICE.name();
+        public String voiceShortAction = VoiceAction.CUSTOM_SHORTCUT.name();
         public String voiceLongAction = VoiceAction.AHAKEY_VOICE.name();
+        public Integer voiceShortCustomShortcutHid = VoiceActionRouter.defaultWindowsVoiceShortcut();
+        public Integer voiceLongCustomShortcutHid = VoiceActionRouter.defaultWindowsVoiceShortcut();
         public ModeDraft[] modes = new ModeDraft[ModeSlot.values().length];
 
         public static PersistedDraft defaults() {
@@ -648,6 +708,10 @@ public class StudioState {
         if (value == null) return fallback;
         try { return VoiceAction.valueOf(value); }
         catch (IllegalArgumentException ignored) { return fallback; }
+    }
+
+    private static int normalizeCustomShortcut(Integer value, int fallback) {
+        return value != null && VoiceActionRouter.isValidCustomShortcut(value) ? value : fallback;
     }
 }
 

@@ -556,3 +556,36 @@ CUSTOM_SHORTCUT/AHAKEY_SHORT 的 UI 选项合同、`1.4.7` 禁用、`1.4.8` 启�
 和 `git diff --check` 均成功，发布内容检查为 `RELEASE_ARTIFACT_CONTENTS=OK`。
 自动测试是代码级证据；F18 HID 映射、Windows hook swallow、Win+H、麦克风、本地模型和
 旧/新固件仍需软件手工与真机验证。
+
+## 22. Configurable desktop Voice F18 actions (2026-09-12)
+
+本节 supersedes the action/default wording in section 21. 本轮没有修改 Firmware、BLE、
+协议或审批路径；只收口 Windows 桌面端 F18 动作配置。长按阈值不再是用户可配置项，
+运行时唯一事实源为 `VOICE_LONG_PRESS_THRESHOLD_MS=350`：物理按压 `<350ms` 产生
+`SHORT_PRESS`，`>=350ms` 产生 `LONG_PRESS_START`，随后在 UP 产生
+`LONG_PRESS_END`。UP 先于延迟 scheduler 到达时仍按真实单调时钟补发 START/END，
+重复 DOWN 不会重新开始计时。历史 `voiceThresholdMs` 仍可读取以兼容旧草稿，但不会
+改变运行时阈值。
+
+正式 Inspector 只提供短按 `CUSTOM_SHORTCUT/NONE` 和长按
+`AHAKEY_VOICE/CUSTOM_SHORTCUT/NONE`；`SYSTEM_VOICE` 不再作为 UI 选项。默认短按为
+`CUSTOM_SHORTCUT` + `Win+H`，默认长按为 `AHAKEY_VOICE`。自定义快捷键复用现有 HID
+映射和 Windows `SendInput`，短按只发一次 down/up，长按自定义动作只在 START 发一次，
+END 不重复注入；F18 被保留为物理语音键，所有带 F18 的自定义组合均拒绝。短、长快捷键
+分别保存在本地 `voiceShortCustomShortcutHid` / `voiceLongCustomShortcutHid`，不写入
+固件 `0x97`、per-mode K1 或 physical F18 binding。
+
+旧配置迁移保持安全：旧 `SYSTEM_VOICE`（以及不支持的短按 `AHAKEY_VOICE`）转换为本地
+`CUSTOM_SHORTCUT + Win+H`；旧长按 `AHAKEY_VOICE` 保持本地按住说话。AhaKey 模型未
+初始化或未激活时，长按本地语音显示不可用并执行 no-op，不回退成短按 Win+H。Firmware
+raw F18 gate 不变：`<=1.4.7` 禁用桌面路由，`>=1.4.8` 启用；1.4.7 的其他设备能力
+不受影响。
+
+本轮新增/补充自动测试覆盖：349/350ms 边界、370ms scheduler 迟到补偿、重复 DOWN、
+固定阈值忽略旧值 500、AhaKey PTT start/stop 各一次、短/长自定义快捷键一次性注入、
+NONE/no-op、模型不可用不回退、快捷键 parser/F18 拒绝、短长字段持久化隔离、旧
+`SYSTEM_VOICE`/短按 AHAKEY 迁移、Inspector action choices 与无阈值编辑器、1.4.7/1.4.8/
+1.4.9 gate、legacy per-mode K1 独立性及 store round-trip。当前实测
+`mvn clean test` 为 **279 tests, 0 failures, 0 errors, 0 skipped**；package、
+`git diff --check` 和发布内容检查以本轮命令结果为准。代码与自动测试完成不等于真机完成；
+F18 HID hook、Win+H、Ctrl/Alt 组合注入、麦克风模型和旧/新固件仍待软件手工及真机验证。

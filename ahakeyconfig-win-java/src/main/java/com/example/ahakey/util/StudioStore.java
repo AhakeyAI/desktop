@@ -129,6 +129,12 @@ public final class StudioStore {
             if (savedDraft.voiceLongAction != null) {
                 defaults.voiceLongAction = savedDraft.voiceLongAction;
             }
+            if (savedDraft.voiceShortCustomShortcutHid != null) {
+                defaults.voiceShortCustomShortcutHid = savedDraft.voiceShortCustomShortcutHid;
+            }
+            if (savedDraft.voiceLongCustomShortcutHid != null) {
+                defaults.voiceLongCustomShortcutHid = savedDraft.voiceLongCustomShortcutHid;
+            }
 
             return defaults;
         } catch (IOException e) {
