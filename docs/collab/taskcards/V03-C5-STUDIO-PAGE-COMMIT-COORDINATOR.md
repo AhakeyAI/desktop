@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR2`
+状态：`ready / C5GR3`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -144,3 +144,34 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 如实报告：结构化 trace、同步生命周期、取消策略与点击路径收口是 host 可判定的；R4 的真实停点仍须下一次 HIL 的 trace 判定。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/30-c5gr2-structured-trace-and-lifecycle.md`
 - 需要回复：是（@Codex 复核：点击路径无 observe 且无 status 写、trace 关联类型与完全枚举、start 不含 Task 且取消策略生效、checked increment、定向 214/214 与全量 1177/0）
+
+### [2026-09-11 11:31] Codex：C5GR2 pre-port cancel fence 与 trace 类型仍未闭，退 C5GR3
+
+- 固定范围 `91c7aa8...26e955b`。点击路径无 observe/status/Task、onAppear live identity、同步 began、post-await superseded、冻结 pageID、checked increment 主体成立。独立定向复跑 214/214，五范围 diff-check 通过。
+- **P1 start→Task scheduling window**：start 同步校验后创建内部 Task；Task 真运行时 `finish` 先递增 portCall、标 portInvoked 并调用 port，直到 port 返回才核 stale。start 后、Task 调度前 identity/revision 变化仍会进入真实 Facade，违反 pre-port stale 零写。
+- **P1 cancellation fence**：`cancelInFlight()` 仅 cancel Task 并立即清 attempt/slot，允许新 start；Swift cancellation 是协作式，旧 Task 若尚未调度仍会调用 port，若已进入 port且 port 忽略取消则旧副作用仍在运行。新 attempt 可与旧 port 并行，破坏 single-in-flight；旧 Task 还会写共享 `inFlightPortInvoked`，污染新 attempt 的 cancel trace。
+- **仅开放 C5GR3**：内部 Task 在任何 `portCallCount`、portInvoked trace 或 port 调用前，必须在 MainActor 同一 transition 核 `Task.isCancelled + exact in-flight attempt + observationRevision + currentIdentity`。失败只记 superseded/cancelled(portInvoked=false)，port count=0。
+- 把 in-flight 状态收成 per-attempt typed record（attempt/sequence/page/confirmed/revision/phase/cancelRequested），禁止用共享 page/confirmed/portInvoked booleans让旧 Task改写新 attempt。
+- cancel-before-port：同步取消后可安全释放 slot，Task 的 pre-port fence 保证永不调用 port。cancel-after-portInvoked：记录 cancel requested、解除 UI submitting可选，但**执行占用必须保留到 port 真返回/throw**；期间新 start 必须 rejected。port 返回后只做 cancelled/superseded cleanup，不消费 ledger、不投影旧 result，随后才释放 slot。不得以 `Task.cancel()` 本身作为 port 已终止证明。
+- coordinator-owned Task 不得与 coordinator 构成 hung retain cycle。Task 执行 port await 时不能强持有 self；把 port invocation 收成不捕获 coordinator 的静态/独立 async 段，返回后 weak self 收口。定义 deinit/close 行为并测试：释放 coordinator 会 cancel Task；忽略取消的 gated port 不应阻止 coordinator deinit。
+- **P2 trace 封闭**：`.returned` 不得接受完整 category enum；改为 return-only associated result（accepted/noOp/requires/missing/unsupported）或直接关联 typed commit result。`.returned(pending/failed/superseded/rejected/cancelled)` 必须在编译类型上不可构造，而非靠 14 行样本。测试覆盖每个 return result 与所有事件 case。
+- 必测：start A 后 identity B 再让内部 Task 调度，零 port、superseded(false)；began 后 cancel-before-schedule，零 port；portInvoked 后 cancel，第二 start rejected 直到旧 gated port 返回；旧返回不清/改新 pending/intent/outcome。weak coordinator 释放 + hung/ignore-cancel port 无 retain cycle。C5GR2 portInvoked HIL 判读与 valid 两击不得回退。
+- 完成提交 `26e955b...<new>`，复跑定向/全量/双 Release/identity/full diff-check，停手提审。15L 继续关闭。
+- 需要回复：是（@DSH ACK 后仅执行 C5GR3）
+
+### [2026-09-11 11:58] DSH：C5GR3 完成，停手提审
+
+- **Spec P1（scheduling window）闭环**：新增 `admitPortEntry(_:)`——内部 Task 在**任何** `portCallCount` / `portInvoked` trace / port 调用之前，于 MainActor 同一 transition 核 `Task.isCancelled` + exact in-flight execution + `observationRevision` + `currentIdentity`；失败只记 superseded/cancelled(`portInvoked=false`)、port 计数为 0。
+- **Standards P1（cancel fence）闭环**：取消后旧 Task 即使被调度，`admitPortEntry` 先判 `inFlight === execution`，已被释放即直接返回——零调用、零 trace；另有 `cancelRequested` 双重保险。
+- **Standards P1（slot 过早释放）闭环**：port 已进入时**保留** per-attempt 执行占用，直到旧 port 真正返回/抛错；期间新 `start` 一律 `.rejected(.ignoredInFlight)`。`Task.cancel()` 不再被当作副作用已停止的证明。**语义变更**：取消结算结果由 `.superseded` 改为 `.cancelled`（`.superseded` 保留给 live identity 变化路径）；UI `isSubmitting` 仍在取消时立即置 false（卡片允许「解除 UI submitting 可选」），但执行占用保留。
+- **卡片原文（per-attempt typed record）闭环**：新增 `AhaKeyStudioPageCommitExecution`，把 attempt/identity/revisionAtSubmit/sequence/pageID/confirmed/snapshot/retryResidual/port 与 `portInvoked`/`cancelRequested` 全部收成 per-attempt 状态；旧 Task 不可能改写新 attempt。
+- **Standards P2（保留环）闭环**：port 调用段不捕获 coordinator——仅在 `self?.admitPortEntry(...)`（同步）与 `self?.settle(...)`（await 之后）短暂强持有，await 期间只持有 execution 与 port。新增 `deinit { inFlightTask?.cancel() }`。新增 `testCoordinatorDeallocatesDespiteHungIgnoringCancelPort` 证明忽略取消的挂起 port 不阻止释放。
+- **Standards P2（returned 封闭）闭环**：新增 `AhaKeyStudioPageCommitReturnedResult`（仅 6 个返回结果）；`.returned` 只接受该类型，`returned(pending/failed/superseded/rejected/cancelled)` **编译期不可构造**；测试断言 6 个返回结果全部枚举。
+- **必测四项全部落地**：`testIdentityChangeBeforeInternalTaskSchedulingCallsNoPort`（零 port、superseded(false)）、`testCancelBeforePortInvokedCallsNoPort`（began 后取消、零调用）、`testCancelAfterPortInvokedKeepsSlotUntilPortReturns`（第二 start rejected 直到旧 gated port 返回）、`testCancelledLateResultDoesNotMutatePendingOrIntent`（旧返回不改 pending/intent/outcome）、`testCoordinatorDeallocatesDespiteHungIgnoringCancelPort`（无 retain cycle）。
+- **测试**：coordinator 专项 26 → **30**。
+- **门禁**：定向 **218/218**；coordinator **30/30**；全量 Swift 第 3 次 **1181 / 2 skipped / 0**；App+Agent Release rc=0；identity ok；本轮范围 `git diff --check` 通过。**如实记录**：全量前两次各有 flake（`AhaKeyAgentRuntimeEndpointTests.testConcurrentAppliesFromTwoClientsSerializeAndDrain` 第 1 次；`AhaKeyRuntimePersistentStoreTests.testRootDeleteRecreateDoesNotLockStaleInode` 第 1、2 次 TIMEOUT，即 Codex 在 C4R13/C4R14 已点名的既有问题），两者隔离复跑均通过、与本轮零文件交集。
+- View 本轮**零改动**：取消策略与 pre-port fence 全部收在 coordinator 内部。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
+- 如实报告：取消语义、执行占用保留、retain-cycle 释放与 returned 类型封闭均为 host 可判定；R4 的真实停点仍须下一次 HIL 的 trace 判定。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/31-c5gr3-cancel-fence-and-execution-slot.md`
+- 需要回复：是（@Codex 复核：双次 pre-port fence、cancel-before-port 零调用、cancel-after-port 保留 slot 且新 start rejected、hung port 无保留环、returned 类型封闭、定向 218/218 与全量 1181/0；并请确认 §2 的取消语义变更）

@@ -155,10 +155,10 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
                 .began(sequence: 1, pageID: screenPage, confirmed: false),
                 .portInvoked(sequence: 1, pageID: screenPage, confirmed: false),
                 .returned(sequence: 1, pageID: screenPage, confirmed: false,
-                          category: .requiresOverwriteConfirmation),
+                          result: .requiresOverwriteConfirmation),
                 .began(sequence: 2, pageID: screenPage, confirmed: true),
                 .portInvoked(sequence: 2, pageID: screenPage, confirmed: true),
-                .returned(sequence: 2, pageID: screenPage, confirmed: true, category: .accepted),
+                .returned(sequence: 2, pageID: screenPage, confirmed: true, result: .accepted),
             ]
         )
         // `began` 只证明 Button 同步进入；`portInvoked` 才证明内部 Task 真的调用了 port。
@@ -184,7 +184,6 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertEqual(submitted1.outcome, .requiresOverwriteConfirmation)
         let second = await runSubmit(coordinator, click, port: port)
         XCTAssertEqual(second.outcome, .noOp)
-        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.traceCategory(for: second.outcome), .noOp)
         XCTAssertEqual(coordinator.pendingPrompt, nil, "no-op 必须消费 pending")
         XCTAssertEqual(port.snapshots[1].overwriteConfirmed, true)
         XCTAssertEqual(coordinator.trace.last?.category, .noOp)
@@ -230,7 +229,6 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
             return XCTFail("第二次 throw 必须投影为 failed，实得 \(second)")
         }
         XCTAssertEqual(reason, "commit failed for test")
-        XCTAssertEqual(AhaKeyStudioPageCommitCoordinator.traceCategory(for: second.outcome), .failed)
         XCTAssertEqual(coordinator.trace.last?.phase, .failed)
         XCTAssertEqual(coordinator.trace.last?.category, .failed)
         XCTAssertEqual(coordinator.pendingPrompt, nil)
@@ -513,21 +511,21 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
              .began, false, .pending, false),
             (.portInvoked(sequence: 7, pageID: screenPage, confirmed: false),
              .portInvoked, true, .pending, false),
-            (.returned(sequence: 7, pageID: screenPage, confirmed: true, category: .accepted),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: true, result: .accepted),
              .returned, true, .accepted, true),
-            (.returned(sequence: 7, pageID: screenPage, confirmed: false, category: .noOp),
+            (.returned(sequence: 7, pageID: screenPage, confirmed: false, result: .noOp),
              .returned, true, .noOp, false),
             (.returned(sequence: 7, pageID: screenPage, confirmed: false,
-                       category: .requiresOverwriteConfirmation),
+                       result: .requiresOverwriteConfirmation),
              .returned, true, .requiresOverwriteConfirmation, false),
             (.returned(sequence: 7, pageID: screenPage, confirmed: false,
-                       category: .missingTrustedPageCache),
+                       result: .missingTrustedPageCache),
              .returned, true, .missingTrustedPageCache, false),
             (.returned(sequence: 7, pageID: screenPage, confirmed: false,
-                       category: .unsupportedProfile),
+                       result: .unsupportedProfile),
              .returned, true, .unsupportedProfile, false),
             (.returned(sequence: 7, pageID: screenPage, confirmed: false,
-                       category: .unsupportedPage),
+                       result: .unsupportedPage),
              .returned, true, .unsupportedPage, false),
             (.failed(sequence: 7, pageID: screenPage, confirmed: true),
              .failed, true, .failed, true),
@@ -551,6 +549,19 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
             "枚举必须覆盖全部 phase（即全部 case）"
         )
         XCTAssertEqual(table.count, 14, "每个 case 的确认/未确认与 port 前后分支都要覆盖")
+
+        // `.returned` 只接受 return-only 结果类型：这里证明 6 个返回结果全部被枚举，
+        // 而 pending/failed/superseded/rejected/cancelled 在编译类型上根本不可传入。
+        let returnedResults = Set(table.compactMap { row -> AhaKeyStudioPageCommitReturnedResult? in
+            if case .returned(_, _, _, let result) = row.event { return result }
+            return nil
+        })
+        XCTAssertEqual(
+            returnedResults,
+            [.accepted, .noOp, .requiresOverwriteConfirmation,
+             .missingTrustedPageCache, .unsupportedProfile, .unsupportedPage],
+            "returned 结果类型必须完全覆盖且不得含非返回类别"
+        )
 
         for row in table {
             XCTAssertEqual(row.event.phase, row.phase, "\(row.event)")
@@ -651,36 +662,148 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
 
     // MARK: - 5c. 取消策略
 
-    func testCancelInFlightClearsSubmittingAndLateResultIsNotConsumed() async {
+    /// C5GR3：port 已进入后取消**不得**立即释放执行占用——否则新旧写会并行。
+    func testCancelAfterPortInvokedKeepsSlotUntilPortReturns() async {
         let coordinator = AhaKeyStudioPageCommitCoordinator()
         let port = GatedCommitPort()
         let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        _ = coordinator.start(click, port: port)
+        while !port.hasReachedPort { await Task.yield() }
+        XCTAssertTrue(coordinator.isSubmitting)
+
+        coordinator.cancelInFlight()
+        // UI submitting 可解除（可选），但 slot 必须保留。
+        XCTAssertFalse(coordinator.isSubmitting)
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, true)
+        XCTAssertNotNil(coordinator.inFlight, "port 仍在飞行时必须保留执行占用")
+
+        // 旧 port 返回前，新的 start 必须被 rejected（不得与旧写并行）。
+        let blocked = coordinator.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
+        guard case .rejected(let blockedProjection) = blocked else {
+            return XCTFail("旧 port 未返回前新 start 必须被拒绝，实得 \(blocked)")
+        }
+        XCTAssertEqual(blockedProjection.outcome, .ignoredInFlight)
+
+        // 旧 port 返回：只做 cleanup，不消费 ledger、不投影旧 result。
+        port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
+        while coordinator.inFlight != nil { await Task.yield() }
+        XCTAssertEqual(coordinator.lastProjection?.outcome, .cancelled, "取消路径的旧结果不得被消费")
+        XCTAssertNil(coordinator.lastOutcome)
+        XCTAssertFalse(coordinator.isSubmitting)
+        XCTAssertNil(coordinator.inFlight, "port 返回后才释放 slot")
+        XCTAssertTrue(coordinator.trace.contains { $0.phase == .cancelled && $0.portInvoked })
+        XCTAssertEqual(coordinator.trace.last?.phase, .superseded)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, true)
+
+        // slot 释放后可以开始新的 attempt。
+        let next = coordinator.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
+        XCTAssertEqual(next, .started)
+    }
+
+    /// C5GR3：cancel-before-port 必须零 port 调用（旧 Task 即使被调度也不得触碰 Store）。
+    func testCancelBeforePortInvokedCallsNoPort() async {
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.observeIdentity(click.confirmationIdentity)
+
+        _ = runSubmitDetached(coordinator, click, port: port)
+        XCTAssertEqual(coordinator.trace.map(\.phase), [.began])
+
+        coordinator.cancelInFlight()
+        XCTAssertFalse(coordinator.isSubmitting)
+        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
+        XCTAssertNil(coordinator.inFlight, "port 未进入时可安全立即释放 slot")
+
+        // 让被取消的 Task 真正跑起来：pre-port fence 必须保证零调用、零计数。
+        for _ in 0..<8 { await Task.yield() }
+        XCTAssertEqual(port.snapshots.count, 0, "cancel-before-port 必须零 port 调用")
+        XCTAssertEqual(coordinator.portCallCount, 0)
+    }
+
+    /// C5GR3：start 与内部 Task 调度之间 identity 变化 → 第二次 pre-port fence 拦截，零写。
+    func testIdentityChangeBeforeInternalTaskSchedulingCallsNoPort() async {
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = GatedCommitPort()
+        let a = input(activeSet: 0)
+        let b = input(activeSet: 1)
+        coordinator.observeIdentity(a.confirmationIdentity)
+
+        _ = runSubmitDetached(coordinator, a, port: port)
+        // Task 尚未被调度（同一 MainActor transition 内），此时 live identity 改为 B。
+        coordinator.observeIdentity(b.confirmationIdentity)
+
+        for _ in 0..<8 { await Task.yield() }
+        XCTAssertEqual(port.snapshots.count, 0, "scheduling window 内的变化必须零 port 调用")
+        XCTAssertEqual(coordinator.portCallCount, 0)
+        XCTAssertEqual(coordinator.trace.last?.phase, .superseded)
+        XCTAssertEqual(coordinator.trace.last?.portInvoked, false)
+        XCTAssertNil(coordinator.inFlight)
+        XCTAssertFalse(coordinator.isSubmitting)
+    }
+
+    /// C5GR3：取消后的旧返回不得改动新的 pending / intent / outcome。
+    func testCancelledLateResultDoesNotMutatePendingOrIntent() async {
+        let coordinator = AhaKeyStudioPageCommitCoordinator()
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        coordinator.notePickerSelection(
+            activeSet: 0,
+            modeSlot: 0,
+            deviceID: deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            profile: profile
+        )
         coordinator.observeIdentity(click.confirmationIdentity)
 
         let task = Task { @MainActor in
             await runSubmit(coordinator, click, port: port)
         }
         while !port.hasReachedPort { await Task.yield() }
-        XCTAssertTrue(coordinator.isSubmitting)
-
         coordinator.cancelInFlight()
-        XCTAssertFalse(coordinator.isSubmitting, "取消后必须立即解除 submitting")
-        XCTAssertEqual(coordinator.trace.last?.phase, .cancelled)
-        XCTAssertEqual(coordinator.trace.last?.portInvoked, true)
 
-        // 迟到的 port 结果不得被消费或投影。
+        let pendingBefore = coordinator.pendingPrompt
+        let intentBefore = coordinator.matchingExplicitIntentFieldIDs(intentContext(activeSet: 0))
+        let outcomeBefore = coordinator.lastOutcome
+
         port.resume(with: .success(.accepted(AhaKeyRuntimeOperationID())))
-        let projection = await task.value
-        XCTAssertEqual(projection.outcome, .superseded)
-        XCTAssertNil(coordinator.lastOutcome)
-        XCTAssertFalse(coordinator.isSubmitting)
+        _ = await task.value
+
+        XCTAssertEqual(coordinator.pendingPrompt, pendingBefore)
         XCTAssertEqual(
-            coordinator.trace.map(\.phase).suffix(2),
-            [.cancelled, .superseded]
+            coordinator.matchingExplicitIntentFieldIDs(intentContext(activeSet: 0)),
+            intentBefore
         )
-        // 取消后可以立刻开始新的 attempt（in-flight 已释放）。
-        let next = coordinator.start(click, port: RecordingCommitPort(results: [.success(.noOp)]))
-        XCTAssertEqual(next, .started)
+        XCTAssertEqual(coordinator.lastOutcome, outcomeBefore)
+    }
+
+    /// C5GR3：忽略取消的挂起 port 不得阻止 coordinator 释放（无保留环）。
+    func testCoordinatorDeallocatesDespiteHungIgnoringCancelPort() async {
+        let port = GatedCommitPort()
+        let click = input(activeSet: 0)
+        weak var weakCoordinator: AhaKeyStudioPageCommitCoordinator?
+
+        do {
+            let coordinator = AhaKeyStudioPageCommitCoordinator()
+            weakCoordinator = coordinator
+            coordinator.observeIdentity(click.confirmationIdentity)
+            _ = runSubmitDetached(coordinator, click, port: port)
+            while !port.hasReachedPort { await Task.yield() }
+            XCTAssertNotNil(weakCoordinator)
+        }
+
+        // port 仍挂起且忽略取消；coordinator 必须已释放。
+        for _ in 0..<16 { await Task.yield() }
+        XCTAssertNil(weakCoordinator, "hung port 不得与 coordinator 构成保留环")
+
+        // 让 port 返回，避免留下悬挂的 continuation。
+        port.resume(with: .success(.noOp))
+        for _ in 0..<8 { await Task.yield() }
     }
 
     func testCancelBeforePortInvokedAlsoReleasesSubmitting() {

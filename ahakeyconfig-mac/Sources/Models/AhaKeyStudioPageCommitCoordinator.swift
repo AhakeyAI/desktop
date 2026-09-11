@@ -74,16 +74,52 @@ struct AhaKeyStudioRuntimeStoreCommitPort: AhaKeyStudioPageCommitPort {
 enum AhaKeyStudioPageCommitTracePhase: String, Equatable, Sendable {
     /// Button 同步进入 attempt；port 尚未调用。
     case began
-    /// 内部 Task 已实际进入 port 调用。
+    /// 内部 Task 通过 pre-port fence 并实际进入 port 调用。
     case portInvoked
     case returned
     case failed
-    /// 结果因 live context 变化而不被投影。
+    /// 结果因 live context 变化或取消而不被投影。
     case superseded
     /// 已有在途 attempt 或 frozen/live 不一致，未进入 attempt。
     case rejected
-    /// 页面关闭/对象释放，在途 attempt 被取消。
+    /// 收到取消请求（port 可能在飞行中）。
     case cancelled
+}
+
+/// `.returned` 专用结果类型：只允许真实 commit 返回值，`pending` / `failed` /
+/// `superseded` / `rejected` / `cancelled` 在**编译类型上不可构造**。
+enum AhaKeyStudioPageCommitReturnedResult: String, Equatable, Sendable {
+    case accepted
+    case noOp
+    case requiresOverwriteConfirmation
+    case missingTrustedPageCache
+    case unsupportedProfile
+    case unsupportedPage
+
+    init(_ outcome: AhaKeyStudioPageCommitOutcome) {
+        switch outcome {
+        case .accepted: self = .accepted
+        case .noOp: self = .noOp
+        case .requiresOverwriteConfirmation: self = .requiresOverwriteConfirmation
+        case .missingTrustedPageCache: self = .missingTrustedPageCache
+        case .unsupportedProfile: self = .unsupportedProfile
+        case .unsupportedPage: self = .unsupportedPage
+        case .failed, .superseded, .ignoredInFlight, .cancelled:
+            assertionFailure("非 commit 返回结果不得进入 returned trace：\(outcome)")
+            self = .noOp
+        }
+    }
+
+    var category: AhaKeyStudioPageCommitTraceCategory {
+        switch self {
+        case .accepted: return .accepted
+        case .noOp: return .noOp
+        case .requiresOverwriteConfirmation: return .requiresOverwriteConfirmation
+        case .missingTrustedPageCache: return .missingTrustedPageCache
+        case .unsupportedProfile: return .unsupportedProfile
+        case .unsupportedPage: return .unsupportedPage
+        }
+    }
 }
 
 enum AhaKeyStudioPageCommitTraceCategory: String, Equatable, Sendable {
@@ -96,14 +132,15 @@ enum AhaKeyStudioPageCommitTraceCategory: String, Equatable, Sendable {
     case unsupportedProfile
     case unsupportedPage
     case failed
-    /// live context 变化，旧结果不得投影。
+    /// live context 变化 / 取消结算，旧结果不得投影。
     case superseded
     /// 已有在途 attempt / frozen 与 live 不一致，未产生 port 调用。
     case inFlightRejected
+    /// 收到取消请求。
     case cancelled
 }
 
-/// 结构化 trace 事件：`phase` / `portInvoked` / `category` 全部由 case 派生，
+/// 结构化 trace 事件：`phase` / `portInvoked` / `category` / `confirmed` 全部由 case 派生，
 /// 矛盾的字段组合在产品类型层**不可构造**。
 enum AhaKeyStudioPageCommitTraceEvent: Equatable, Sendable {
     case began(sequence: UInt64, pageID: AhaKeyStudioPageID, confirmed: Bool)
@@ -112,7 +149,7 @@ enum AhaKeyStudioPageCommitTraceEvent: Equatable, Sendable {
         sequence: UInt64,
         pageID: AhaKeyStudioPageID,
         confirmed: Bool,
-        category: AhaKeyStudioPageCommitTraceCategory
+        result: AhaKeyStudioPageCommitReturnedResult
     )
     case failed(sequence: UInt64, pageID: AhaKeyStudioPageID, confirmed: Bool)
     case superseded(
@@ -180,7 +217,7 @@ enum AhaKeyStudioPageCommitTraceEvent: Equatable, Sendable {
     var category: AhaKeyStudioPageCommitTraceCategory {
         switch self {
         case .began, .portInvoked: return .pending
-        case .returned(_, _, _, let category): return category
+        case .returned(_, _, _, let result): return result.category
         case .failed: return .failed
         case .superseded: return .superseded
         case .rejected: return .inFlightRejected
@@ -226,7 +263,7 @@ enum AhaKeyStudioPageCommitOutcome: Equatable, Sendable {
     case superseded
     /// 单次 in-flight 保护或 frozen/live 不一致：本次点击未产生 port 调用。
     case ignoredInFlight
-    /// 页面关闭 / 对象释放：在途 attempt 被取消。
+    /// 页面关闭 / 对象释放 / 显式取消：在途 attempt 被取消。
     case cancelled
 
     init(_ result: AhaKeyStudioPageCommitResult) {
@@ -266,14 +303,57 @@ enum AhaKeyStudioPageCommitStartResult: Equatable {
     case rejected(AhaKeyStudioPageCommitProjection)
 }
 
+// MARK: - Per-attempt execution record
+
+/// 单个 attempt 的执行占用（slot）。所有可变状态都是 per-attempt 的，
+/// 旧 Task 不可能改写新 attempt 的状态。
+@MainActor
+final class AhaKeyStudioPageCommitExecution {
+    let attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken
+    let identity: AhaKeyStudioPageOverwriteConfirmationIdentity
+    let revisionAtSubmit: UInt64
+    let sequence: UInt64
+    let pageID: AhaKeyStudioPageID
+    let confirmed: Bool
+    let snapshot: AhaKeyStudioPageSnapshot
+    let retryResidual: Bool
+    let port: any AhaKeyStudioPageCommitPort
+
+    private(set) var portInvoked = false
+    private(set) var cancelRequested = false
+
+    init(
+        attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
+        identity: AhaKeyStudioPageOverwriteConfirmationIdentity,
+        revisionAtSubmit: UInt64,
+        sequence: UInt64,
+        pageID: AhaKeyStudioPageID,
+        confirmed: Bool,
+        snapshot: AhaKeyStudioPageSnapshot,
+        retryResidual: Bool,
+        port: any AhaKeyStudioPageCommitPort
+    ) {
+        self.attempt = attempt
+        self.identity = identity
+        self.revisionAtSubmit = revisionAtSubmit
+        self.sequence = sequence
+        self.pageID = pageID
+        self.confirmed = confirmed
+        self.snapshot = snapshot
+        self.retryResidual = retryResidual
+        self.port = port
+    }
+
+    func markPortInvoked() { portInvoked = true }
+    func requestCancel() { cancelRequested = true }
+}
+
 // MARK: - Coordinator
 
-/// 两击提交的唯一可观测编排（C5G / C5GR1 / C5GR2）。
+/// 两击提交的唯一可观测编排（C5G / C5GR1 / C5GR2 / C5GR3）。
 ///
-/// View 不再分别持有/分发 confirmation ledger 与 edit-intent ledger；按钮 action 只调用
-/// `start(_:port:)`。coordinator 内部拥有两个 ledger、exact current context、
-/// 单次 in-flight attempt 与其 `Task`、pending prompt 与 chrome 投影、一次性 fan-out，
-/// 以及非敏感结构化 trace。
+/// View 只调用同步 `start(_:port:)`；coordinator 自持 in-flight `Task` 与 per-attempt 执行记录，
+/// 终结结果经 `lastProjection` / `projectionRevision` 发布。
 @MainActor
 final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     /// 内存诊断环形缓冲上限。
@@ -282,15 +362,14 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     @Published private(set) var pendingPrompt: AhaKeyStudioPageOverwriteConfirmationIdentity?
     @Published private(set) var isSubmitting = false
     @Published private(set) var lastOutcome: AhaKeyStudioPageCommitOutcome?
-    /// 最近一次终结投影事件。View 经 `onChange(of: projectionRevision)` 消费，
-    /// 因此 coordinator 拥有异步生命周期，View 既不需要闭包也不需要建 Task。
+    /// 最近一次终结投影事件。View 经 `onChange(of: projectionRevision)` 消费。
     @Published private(set) var lastProjection: AhaKeyStudioPageCommitProjection?
     /// 每次发布终结投影时 checked 递增；单调值使重复同值投影也能被 View 观察到。
     @Published private(set) var projectionRevision: UInt64 = 0
 
     /// coordinator 跟踪的 exact current identity（**只**由 `observeIdentity` 推进）。
     private(set) var currentIdentity: AhaKeyStudioPageOverwriteConfirmationIdentity?
-    /// live identity 的观测版本。identity 真正变化时 checked 递增；用于判定 await 期间是否失效。
+    /// live identity 的观测版本。identity 真正变化时 checked 递增。
     private(set) var observationRevision: UInt64 = 0
     private(set) var attemptSequence: UInt64 = 0
     private(set) var clickCount: UInt64 = 0
@@ -299,17 +378,20 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     private(set) var supersededCount: UInt64 = 0
     private(set) var trace: [AhaKeyStudioPageCommitTraceEvent] = []
 
+    /// 当前执行占用。port 已在飞行且收到取消时**仍保留**，直到旧 port 真正返回/抛错。
+    private(set) var inFlight: AhaKeyStudioPageCommitExecution?
+    private var inFlightTask: Task<Void, Never>?
     private var confirmationLedger = AhaKeyStudioPageOverwriteConfirmationLedger()
     private var editIntentLedger = AhaKeyStudioPageEditIntentLedger()
-    private var inFlightAttempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken?
-    private var inFlightTask: Task<Void, Never>?
-    private var inFlightPageID: AhaKeyStudioPageID?
-    private var inFlightConfirmed = false
-    private var inFlightPortInvoked = false
     private var traceSink: ((AhaKeyStudioPageCommitTraceEvent) -> Void)?
 
     init(traceSink: ((AhaKeyStudioPageCommitTraceEvent) -> Void)? = nil) {
         self.traceSink = traceSink
+    }
+
+    deinit {
+        // 释放 coordinator 时必须取消在途 Task（Task 不持有 coordinator，因此这里能真正跑到）。
+        inFlightTask?.cancel()
     }
 
     /// 生产写入 Studio 现有 comm log；测试不设置 sink，只读 `trace`。
@@ -388,10 +470,10 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
 
     /// 唯一提交入口（同步）。
     ///
-    /// **必须在返回事件循环前**完成 clickCount / in-flight 判定 / sequence / `isSubmitting` /
-    /// `began` trace 的设置：只有这样，「trace 缺 `began`」才严格等价于「Button action 未触发」。
+    /// 同步阶段完成 clickCount / in-flight 判定 / sequence / `isSubmitting` / `began` trace；
+    /// port 调用前还有**第二次 pre-port fence**（在内部 Task 被调度的同一 MainActor transition 上）。
+    /// 因此「cancel-before-port 零调用」与「trace 缺 `began` = action 未触发」都成立。
     ///
-    /// 异步生命周期由 coordinator 自己持有（`inFlightTask`）；View 只提供完成回调，不得建 Task。
     /// live identity 只由 `observeIdentity` 维护，本方法**不覆盖**它。
     func start(
         _ input: AhaKeyStudioPageSubmissionInput,
@@ -399,7 +481,7 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
     ) -> AhaKeyStudioPageCommitStartResult {
         clickCount = Self.checkedIncrement(clickCount)
 
-        guard inFlightAttempt == nil else {
+        guard inFlight == nil else {
             record(.rejected(sequence: attemptSequence, pageID: input.pageID))
             let projection = AhaKeyStudioPageCommitProjection(
                 pageID: input.pageID,
@@ -411,8 +493,7 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
 
         let identity = input.confirmationIdentity
 
-        // 进入 port 前的一致性验证：冻结 input 必须等于 View 已观测的 live identity。
-        // 不匹配时不得 beginAttempt / 不得调用 port，也就不会用 frozen 覆盖 live。
+        // 第一次 pre-port 一致性验证：冻结 input 必须等于 View 已观测的 live identity。
         guard currentIdentity == identity else {
             supersededCount = Self.checkedIncrement(supersededCount)
             record(.superseded(
@@ -429,155 +510,189 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
             return .rejected(projection)
         }
 
-        let revisionAtSubmit = observationRevision
         let confirmed = confirmationLedger.shouldSubmitConfirmed(for: identity)
         let attempt = confirmationLedger.beginAttempt(for: identity)
         editIntentLedger.bindAttempt(attempt, fields: input.explicitIntentFieldIDs)
-        inFlightAttempt = attempt
 
         attemptSequence = Self.checkedIncrement(attemptSequence)
-        let sequence = attemptSequence
+        let execution = AhaKeyStudioPageCommitExecution(
+            attempt: attempt,
+            identity: identity,
+            revisionAtSubmit: observationRevision,
+            sequence: attemptSequence,
+            pageID: input.pageID,
+            confirmed: confirmed,
+            snapshot: input.frozenSnapshot(overwriteConfirmed: confirmed),
+            retryResidual: input.retryResidual,
+            port: port
+        )
+        inFlight = execution
         isSubmitting = true
-        inFlightPageID = input.pageID
-        inFlightConfirmed = confirmed
-        inFlightPortInvoked = false
-        record(.began(sequence: sequence, pageID: input.pageID, confirmed: confirmed))
+        record(.began(sequence: execution.sequence, pageID: execution.pageID, confirmed: confirmed))
 
+        // port 调用段**不捕获 coordinator**：await 期间不持有 self，因此 hung port 不构成保留环。
         let task = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let projection = await self.finish(
-                input,
-                identity: identity,
-                attempt: attempt,
-                confirmed: confirmed,
-                revisionAtSubmit: revisionAtSubmit,
-                sequence: sequence,
-                port: port
-            )
-            self.publish(projection)
+            guard let admitted = self?.admitPortEntry(execution), admitted else { return }
+            let portResult: Result<AhaKeyStudioPageCommitResult, Error>
+            do {
+                portResult = .success(try await execution.port.commitFrozenPage(
+                    execution.snapshot,
+                    retryResidual: execution.retryResidual
+                ))
+            } catch {
+                portResult = .failure(error)
+            }
+            self?.settle(execution, portResult: portResult)
         }
         inFlightTask = task
         return .started
     }
 
-    /// 页面关闭 / 对象释放：取消在途 attempt，确保 port 悬挂不会永久保留 submitting / in-flight。
-    /// 迟到的 port 结果不会再被消费或投影（`finish` 的 stale 判定包含 attempt 身份）。
-    func cancelInFlight() {
-        guard inFlightAttempt != nil else { return }
-        let pageID = inFlightPageID
-        let confirmed = inFlightConfirmed
-        let portInvoked = inFlightPortInvoked
-        inFlightTask?.cancel()
-        inFlightTask = nil
-        inFlightAttempt = nil
-        inFlightPageID = nil
-        inFlightConfirmed = false
-        inFlightPortInvoked = false
-        isSubmitting = false
-        supersededCount = Self.checkedIncrement(supersededCount)
-        if let pageID {
-            record(.cancelled(
-                sequence: attemptSequence,
-                pageID: pageID,
-                confirmed: confirmed,
-                portInvoked: portInvoked
-            ))
+    /// 第二次 pre-port fence：在 MainActor 同一 transition 上核 Task cancellation、
+    /// exact in-flight attempt、observationRevision 与 live identity。
+    /// 失败时零 port 调用、零 portCall 计数，只记 superseded/cancelled(portInvoked=false)。
+    private func admitPortEntry(_ execution: AhaKeyStudioPageCommitExecution) -> Bool {
+        // 已被 cancel-before-port 释放：零调用、零 trace（取消事件已在 cancelInFlight 记过）。
+        guard inFlight === execution else { return false }
+
+        guard !Task.isCancelled,
+              !execution.cancelRequested,
+              observationRevision == execution.revisionAtSubmit,
+              currentIdentity == execution.identity
+        else {
+            if execution.cancelRequested || Task.isCancelled {
+                settleSuperseded(execution, portInvoked: false, outcome: .cancelled)
+            } else {
+                settleSuperseded(execution, portInvoked: false)
+            }
+            return false
         }
+
+        execution.markPortInvoked()
+        portCallCount = Self.checkedIncrement(portCallCount)
+        record(.portInvoked(
+            sequence: execution.sequence,
+            pageID: execution.pageID,
+            confirmed: execution.confirmed
+        ))
+        return true
+    }
+
+    /// 页面关闭 / 对象释放 / 显式取消。
+    ///
+    /// - port 尚未进入：可安全立即释放 slot，pre-port fence 保证旧 Task 永不调用 port。
+    /// - port 已进入：`Task.cancel()` 只是协作式请求，**不能**作为副作用已停止的证明；
+    ///   保留执行占用直到旧 port 真正返回/抛错，期间新的 `start` 一律 rejected。
+    func cancelInFlight() {
+        guard let execution = inFlight else { return }
+        execution.requestCancel()
+        inFlightTask?.cancel()
+        supersededCount = Self.checkedIncrement(supersededCount)
+        record(.cancelled(
+            sequence: execution.sequence,
+            pageID: execution.pageID,
+            confirmed: execution.confirmed,
+            portInvoked: execution.portInvoked
+        ))
+
+        if execution.portInvoked {
+            // 保留 slot；UI submitting 解除（可选），但执行占用保留。
+            isSubmitting = false
+            return
+        }
+        releaseSlot(execution)
+        isSubmitting = false
+        publish(AhaKeyStudioPageCommitProjection(pageID: execution.pageID, outcome: .cancelled))
     }
 
     // MARK: - Completion
 
-    private func finish(
-        _ input: AhaKeyStudioPageSubmissionInput,
-        identity: AhaKeyStudioPageOverwriteConfirmationIdentity,
-        attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken,
-        confirmed: Bool,
-        revisionAtSubmit: UInt64,
-        sequence: UInt64,
-        port: any AhaKeyStudioPageCommitPort
-    ) async -> AhaKeyStudioPageCommitProjection {
-        portCallCount = Self.checkedIncrement(portCallCount)
-        inFlightPortInvoked = true
-        // `began` 只证明 Button 同步进入；`portInvoked` 证明内部 Task 已实际调用 port。
-        record(.portInvoked(sequence: sequence, pageID: input.pageID, confirmed: confirmed))
+    private func settle(
+        _ execution: AhaKeyStudioPageCommitExecution,
+        portResult: Result<AhaKeyStudioPageCommitResult, Error>
+    ) {
+        // 已被 cancel-before-port 释放：不得改写任何状态。
+        guard inFlight === execution else { return }
+
+        if execution.cancelRequested || Task.isCancelled {
+            // port 返回后只做 cleanup，不消费 ledger、不投影旧 result。
+            settleSuperseded(execution, portInvoked: execution.portInvoked, outcome: .cancelled)
+            return
+        }
+
+        if observationRevision != execution.revisionAtSubmit
+            || currentIdentity != execution.identity {
+            settleSuperseded(execution, portInvoked: execution.portInvoked)
+            return
+        }
 
         let projection: AhaKeyStudioPageCommitProjection
-        do {
-            let result = try await port.commitFrozenPage(
-                input.frozenSnapshot(overwriteConfirmed: confirmed),
-                retryResidual: input.retryResidual
+        switch portResult {
+        case .success(let result):
+            confirmationLedger.applyCommitResult(
+                result,
+                attempt: execution.attempt,
+                currentIdentity: execution.identity
             )
-            if isStale(since: revisionAtSubmit, identity: identity, attempt: attempt) {
-                projection = supersede(input: input, confirmed: confirmed, sequence: sequence, portInvoked: true)
-            } else {
-                confirmationLedger.applyCommitResult(result, attempt: attempt, currentIdentity: identity)
-                editIntentLedger.applyCommitResult(result, attempt: attempt, currentIdentity: identity)
-                let outcome = AhaKeyStudioPageCommitOutcome(result)
-                record(.returned(
-                    sequence: sequence,
-                    pageID: input.pageID,
-                    confirmed: confirmed,
-                    category: Self.traceCategory(for: outcome)
-                ))
-                projection = AhaKeyStudioPageCommitProjection(pageID: input.pageID, outcome: outcome)
-            }
-        } catch {
-            if isStale(since: revisionAtSubmit, identity: identity, attempt: attempt) {
-                projection = supersede(input: input, confirmed: confirmed, sequence: sequence, portInvoked: true)
-            } else {
-                confirmationLedger.noteAttemptFailed(attempt: attempt, currentIdentity: identity)
-                editIntentLedger.noteAttemptFailed(attempt: attempt, currentIdentity: identity)
-                let outcome = AhaKeyStudioPageCommitOutcome.failed(error.localizedDescription)
-                record(.failed(sequence: sequence, pageID: input.pageID, confirmed: confirmed))
-                projection = AhaKeyStudioPageCommitProjection(pageID: input.pageID, outcome: outcome)
-            }
+            editIntentLedger.applyCommitResult(
+                result,
+                attempt: execution.attempt,
+                currentIdentity: execution.identity
+            )
+            let outcome = AhaKeyStudioPageCommitOutcome(result)
+            record(.returned(
+                sequence: execution.sequence,
+                pageID: execution.pageID,
+                confirmed: execution.confirmed,
+                result: AhaKeyStudioPageCommitReturnedResult(outcome)
+            ))
+            projection = AhaKeyStudioPageCommitProjection(pageID: execution.pageID, outcome: outcome)
+        case .failure(let error):
+            confirmationLedger.noteAttemptFailed(attempt: execution.attempt, currentIdentity: execution.identity)
+            editIntentLedger.noteAttemptFailed(attempt: execution.attempt, currentIdentity: execution.identity)
+            let outcome = AhaKeyStudioPageCommitOutcome.failed(error.localizedDescription)
+            record(.failed(
+                sequence: execution.sequence,
+                pageID: execution.pageID,
+                confirmed: execution.confirmed
+            ))
+            projection = AhaKeyStudioPageCommitProjection(pageID: execution.pageID, outcome: outcome)
         }
 
-        // 只有仍属本次 attempt 时才收尾；已被取消的 attempt 不再改动 submitting/pending。
-        if inFlightAttempt == attempt {
-            inFlightAttempt = nil
-            inFlightTask = nil
-            inFlightPageID = nil
-            inFlightConfirmed = false
-            inFlightPortInvoked = false
-            isSubmitting = false
-            let pending = confirmationLedger.pending
-            if pendingPrompt != pending {
-                pendingPrompt = pending
-            }
-        }
-        // 失效结果不得进入 `lastOutcome`，因此也不会被任何投影面当作当前页结果。
+        releaseSlot(execution)
         if projection.outcome.isProjectable {
             lastOutcome = projection.outcome
         }
-        return projection
+        publish(projection)
     }
 
-    /// attempt 是否已失效：live context 变化，或已被取消。
-    private func isStale(
-        since revisionAtSubmit: UInt64,
-        identity: AhaKeyStudioPageOverwriteConfirmationIdentity,
-        attempt: AhaKeyStudioPageOverwriteConfirmationAttemptToken
-    ) -> Bool {
-        inFlightAttempt != attempt
-            || observationRevision != revisionAtSubmit
-            || currentIdentity != identity
-    }
-
-    private func supersede(
-        input: AhaKeyStudioPageSubmissionInput,
-        confirmed: Bool,
-        sequence: UInt64,
-        portInvoked: Bool
-    ) -> AhaKeyStudioPageCommitProjection {
+    private func settleSuperseded(
+        _ execution: AhaKeyStudioPageCommitExecution,
+        portInvoked: Bool,
+        outcome: AhaKeyStudioPageCommitOutcome = .superseded
+    ) {
+        guard inFlight === execution else { return }
         supersededCount = Self.checkedIncrement(supersededCount)
         record(.superseded(
-            sequence: sequence,
-            pageID: input.pageID,
-            confirmed: confirmed,
+            sequence: execution.sequence,
+            pageID: execution.pageID,
+            confirmed: execution.confirmed,
             portInvoked: portInvoked
         ))
-        return AhaKeyStudioPageCommitProjection(pageID: input.pageID, outcome: .superseded)
+        releaseSlot(execution)
+        publish(AhaKeyStudioPageCommitProjection(pageID: execution.pageID, outcome: outcome))
+    }
+
+    /// 释放在途执行占用。只释放占用的部分；投影/计数由调用方决定。
+    private func releaseSlot(_ execution: AhaKeyStudioPageCommitExecution) {
+        guard inFlight === execution else { return }
+        inFlight = nil
+        inFlightTask = nil
+        isSubmitting = false
+        let pending = confirmationLedger.pending
+        if pendingPrompt != pending {
+            pendingPrompt = pending
+        }
     }
 
     // MARK: - Projection publication
@@ -598,25 +713,7 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
         traceSink?(event)
     }
 
-    static func traceCategory(
-        for outcome: AhaKeyStudioPageCommitOutcome
-    ) -> AhaKeyStudioPageCommitTraceCategory {
-        switch outcome {
-        case .noOp: return .noOp
-        case .requiresOverwriteConfirmation: return .requiresOverwriteConfirmation
-        case .missingTrustedPageCache: return .missingTrustedPageCache
-        case .unsupportedProfile: return .unsupportedProfile
-        case .unsupportedPage: return .unsupportedPage
-        case .accepted: return .accepted
-        case .failed: return .failed
-        case .superseded: return .superseded
-        case .ignoredInFlight: return .inFlightRejected
-        case .cancelled: return .cancelled
-        }
-    }
-
     /// checked fail-closed increment：溢出是程序性错误，直接 trap，绝不回绕。
-    /// UInt64 以每秒一次计需约 5.8×10^11 年才可能触达，因此现实中不可达。
     static func checkedIncrement(_ value: UInt64) -> UInt64 {
         value + 1
     }
