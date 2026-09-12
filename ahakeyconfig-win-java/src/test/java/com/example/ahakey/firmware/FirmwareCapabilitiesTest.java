@@ -22,9 +22,9 @@ class FirmwareCapabilitiesTest {
             FirmwareCapabilities.MINIMUM_STABILIZED_VERSION);
         assertEquals(new SemanticVersion(1, 4, 8),
             FirmwareCapabilities.MINIMUM_RAW_F18_DESKTOP_VERSION);
-        assertEquals(new SemanticVersion(1, 4, 7),
+        assertEquals(new SemanticVersion(1, 4, 8),
             FirmwareCapabilities.BUNDLED_VERSION);
-        assertEquals("AhaKey-X1-firmware-1.4.7-ch582.hex",
+        assertEquals("AhaKey-X1-firmware-1.4.8-ch582.hex",
             FirmwareCapabilities.BUNDLED_FIRMWARE_NAME);
         assertTrue(FirmwareCapabilities.supportsGif(
             FirmwareCapabilities.BUNDLED_VERSION));

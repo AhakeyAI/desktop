@@ -19,7 +19,7 @@ class ReleaseFirmwareValidationTest {
 
     @Test
     void releaseRequiresExplicitFirmwareVersion() throws Exception {
-        Path hex = hex("AhaKey-X1-firmware-1.4.7-ch582.hex", "1.4.7");
+        Path hex = hex("AhaKey-X1-firmware-1.4.8-ch582.hex", "1.4.8");
         Result result = run("-FirmwareHex", hex.toString(), "-PrepareOnly");
         assertFalse(result.success());
         assertTrue(result.output().contains("FirmwareVersion"));
@@ -29,17 +29,17 @@ class ReleaseFirmwareValidationTest {
     void releaseRejectsVersionDifferentFromBundledVersion() throws Exception {
         Result result = run("-FirmwareVersion", "1.4.3", "-PrepareOnly");
         assertFalse(result.success());
-        assertTrue(result.output().contains("expectedBundledVersion 1.4.7"));
-        Result newer = run("-FirmwareVersion", "1.4.8", "-PrepareOnly");
+        assertTrue(result.output().contains("expectedBundledVersion 1.4.8"));
+        Result newer = run("-FirmwareVersion", "1.4.9", "-PrepareOnly");
         assertFalse(newer.success());
-        assertTrue(newer.output().contains("expectedBundledVersion 1.4.7"));
+        assertTrue(newer.output().contains("expectedBundledVersion 1.4.8"));
     }
 
     @Test
     void releaseRejectsFirmwareFilenameVersionMismatch() throws Exception {
-        Path hex = hex("AhaKey-X1-firmware-1.4.3-ch582.hex", "1.4.7");
+        Path hex = hex("AhaKey-X1-firmware-1.4.3-ch582.hex", "1.4.8");
         Result result = run(
-            "-FirmwareVersion", "1.4.7", "-FirmwareHex", hex.toString(),
+            "-FirmwareVersion", "1.4.8", "-FirmwareHex", hex.toString(),
             "-PrepareOnly");
         assertFalse(result.success());
         assertTrue(result.output().contains("must be named exactly"));
@@ -47,9 +47,9 @@ class ReleaseFirmwareValidationTest {
 
     @Test
     void validFirmwareInputReachesLaterReleasePrerequisite() throws Exception {
-        Path hex = hex("AhaKey-X1-firmware-1.4.7-ch582.hex", "1.4.7");
+        Path hex = hex("AhaKey-X1-firmware-1.4.8-ch582.hex", "1.4.8");
         Result result = run(
-            "-FirmwareVersion", "1.4.7", "-FirmwareHex", hex.toString(),
+            "-FirmwareVersion", "1.4.8", "-FirmwareHex", hex.toString(),
             "-BaselineInstallDir", temporary.resolve("missing-baseline").toString(),
             "-PrepareOnly");
         assertFalse(result.success());
@@ -59,7 +59,7 @@ class ReleaseFirmwareValidationTest {
 
     @Test
     void formalReleaseRejectsMissingHexBeforePackaging() throws Exception {
-        Result result = run("-FirmwareVersion", "1.4.7");
+        Result result = run("-FirmwareVersion", "1.4.8");
         assertFalse(result.success());
         assertTrue(result.output().contains("requires -FirmwareHex"));
     }
@@ -78,32 +78,32 @@ class ReleaseFirmwareValidationTest {
 
     @Test
     void releaseRejectsMissingOrMismatchedProvenance() throws Exception {
-        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.7-ch582.hex");
+        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.8-ch582.hex");
         Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n",
             StandardCharsets.US_ASCII);
-        Result missing = run("-FirmwareVersion", "1.4.7", "-FirmwareHex",
+        Result missing = run("-FirmwareVersion", "1.4.8", "-FirmwareHex",
             hex.toString(), "-PrepareOnly");
         assertFalse(missing.success());
         assertTrue(missing.output().contains("provenance is missing"), missing.output());
 
         Files.writeString(temporary.resolve(
-            "AhaKey-X1-firmware-1.4.7-ch582.provenance.json"),
+            "AhaKey-X1-firmware-1.4.8-ch582.provenance.json"),
             provenance("1.4.3"), StandardCharsets.UTF_8);
-        Result mismatch = run("-FirmwareVersion", "1.4.7", "-FirmwareHex",
+        Result mismatch = run("-FirmwareVersion", "1.4.8", "-FirmwareHex",
             hex.toString(), "-PrepareOnly");
         assertFalse(mismatch.success());
-        assertTrue(mismatch.output().contains("must exactly match 1.4.7"));
+        assertTrue(mismatch.output().contains("must exactly match 1.4.8"));
     }
 
     @Test
     void releaseRejectsInvalidIntelHexEvenWhenRenamedToBundledName() throws Exception {
-        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.7-ch582.hex");
+        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.8-ch582.hex");
         Files.writeString(hex, ":0400000001020304F3\n:00000001FF\n",
             StandardCharsets.US_ASCII);
         Files.writeString(temporary.resolve(
-            "AhaKey-X1-firmware-1.4.7-ch582.provenance.json"),
-            provenance("1.4.7"), StandardCharsets.UTF_8);
-        Result result = run("-FirmwareVersion", "1.4.7", "-FirmwareHex",
+            "AhaKey-X1-firmware-1.4.8-ch582.provenance.json"),
+            provenance("1.4.8"), StandardCharsets.UTF_8);
+        Result result = run("-FirmwareVersion", "1.4.8", "-FirmwareHex",
             hex.toString(), "-PrepareOnly");
         assertFalse(result.success());
         assertTrue(result.output().contains("checksum is invalid"));
@@ -111,14 +111,14 @@ class ReleaseFirmwareValidationTest {
 
     @Test
     void releaseRejectsIntelHexOutsideLinkerAddressContract() throws Exception {
-        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.7-ch582.hex");
+        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.8-ch582.hex");
         Files.writeString(hex,
             ":020000040007F3\n:01000000AA55\n:00000001FF\n",
             StandardCharsets.US_ASCII);
         Files.writeString(temporary.resolve(
-            "AhaKey-X1-firmware-1.4.7-ch582.provenance.json"),
-            provenance("1.4.7"), StandardCharsets.UTF_8);
-        Result result = run("-FirmwareVersion", "1.4.7", "-FirmwareHex",
+            "AhaKey-X1-firmware-1.4.8-ch582.provenance.json"),
+            provenance("1.4.8"), StandardCharsets.UTF_8);
+        Result result = run("-FirmwareVersion", "1.4.8", "-FirmwareHex",
             hex.toString(), "-PrepareOnly");
         assertFalse(result.success());
         assertTrue(result.output().contains("address exceeds"), result.output());
@@ -136,24 +136,24 @@ class ReleaseFirmwareValidationTest {
 
     @Test
     void releaseRequiresCompleteCrossEndProvenanceContract() throws Exception {
-        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.7-ch582.hex");
+        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.8-ch582.hex");
         Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n",
             StandardCharsets.US_ASCII);
         Path provenance = temporary.resolve(
-            "AhaKey-X1-firmware-1.4.7-ch582.provenance.json");
+            "AhaKey-X1-firmware-1.4.8-ch582.provenance.json");
         Files.writeString(provenance,
-            provenance("1.4.7").replace("\"protocolVersion\":\"3.2\"",
+            provenance("1.4.8").replace("\"protocolVersion\":\"3.2\"",
                 "\"protocolVersion\":\"3.1\""), StandardCharsets.UTF_8);
-        Result wrongProtocol = run("-FirmwareVersion", "1.4.7", "-FirmwareHex",
+        Result wrongProtocol = run("-FirmwareVersion", "1.4.8", "-FirmwareHex",
             hex.toString(), "-PrepareOnly");
         assertFalse(wrongProtocol.success());
         assertTrue(wrongProtocol.output().contains(
             "protocolVersion must exactly match 3.2"), wrongProtocol.output());
 
         Files.writeString(provenance,
-            provenance("1.4.7").replace("\"sourceCommit\":\"1234567\"",
+            provenance("1.4.8").replace("\"sourceCommit\":\"1234567\"",
                 "\"sourceCommit\":\"not-a-commit\""), StandardCharsets.UTF_8);
-        Result invalidSource = run("-FirmwareVersion", "1.4.7", "-FirmwareHex",
+        Result invalidSource = run("-FirmwareVersion", "1.4.8", "-FirmwareHex",
             hex.toString(), "-PrepareOnly");
         assertFalse(invalidSource.success());
         assertTrue(invalidSource.output().contains("sourceCommit"));
@@ -163,14 +163,14 @@ class ReleaseFirmwareValidationTest {
     void powershell7AcceptsCanonicalProvenanceAndRejectsFractionalTimestamp() throws Exception {
         Path pwsh = findPwsh();
         Assumptions.assumeTrue(pwsh != null, "pwsh 7 is not installed");
-        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.7-ch582.hex");
+        Path hex = temporary.resolve("AhaKey-X1-firmware-1.4.8-ch582.hex");
         Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n",
             StandardCharsets.US_ASCII);
         Path provenance = temporary.resolve(
-            "AhaKey-X1-firmware-1.4.7-ch582.provenance.json");
-        Files.writeString(provenance, provenance("1.4.7"), StandardCharsets.UTF_8);
+            "AhaKey-X1-firmware-1.4.8-ch582.provenance.json");
+        Files.writeString(provenance, provenance("1.4.8"), StandardCharsets.UTF_8);
         Result valid = runScript(pwsh, "build-release-installer.ps1",
-            "-AppVersion", "1.5.3", "-FirmwareVersion", "1.4.7",
+            "-AppVersion", "1.5.3", "-FirmwareVersion", "1.4.8",
             "-FirmwareHex", hex.toString(),
             "-BaselineInstallDir", temporary.resolve("missing-baseline").toString(),
             "-PrepareOnly");
@@ -178,10 +178,10 @@ class ReleaseFirmwareValidationTest {
         assertTrue(valid.output().contains("Release baseline icon is missing"), valid.output());
 
         Files.writeString(provenance,
-            provenance("1.4.7").replace("2026-08-26T00:00:00Z",
+            provenance("1.4.8").replace("2026-08-26T00:00:00Z",
                 "2026-08-26T00:00:00.123Z"), StandardCharsets.UTF_8);
         Result fractional = runScript(pwsh, "build-release-installer.ps1",
-            "-AppVersion", "1.5.3", "-FirmwareVersion", "1.4.7",
+            "-AppVersion", "1.5.3", "-FirmwareVersion", "1.4.8",
             "-FirmwareHex", hex.toString(), "-PrepareOnly");
         assertFalse(fractional.success());
         assertTrue(fractional.output().contains("builtAtUtc"));

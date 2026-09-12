@@ -530,7 +530,7 @@ public final class DeviceMaintenancePane {
             new VBox(8, sources, selected, allowUnknown, allowDowngrade), false);
         steps[2] = step(text("3. 进入 ISP 并检测", "3. Enter and Detect ISP"),
             new VBox(8, body(text(
-                "断开 USB，按住最左侧“语音输入键”，再插入 USB；随后点击检测。",
+                "断开 USB，将键盘关机，按住最左侧“语音输入键”，再插入 USB；随后点击检测。",
                 "Disconnect USB, hold the leftmost Voice Input key, reconnect USB, then run detection."
             )), new HBox(8, diagnose, exportDiagnostic), ispStatus), false);
         steps[3] = step(text("4. 烧录、校验并确认版本", "4. Flash, Verify, and Confirm"),
