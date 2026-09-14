@@ -794,7 +794,257 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertNotNil(pageOperation.fieldBaselines, "schema=3 必须走 field-baseline proof")
         XCTAssertTrue(pageOperation.resourceBindings.isEmpty, "activeSet-only 必须零 resource binding")
         XCTAssertTrue(package.resources.isEmpty, "activeSet-only 必须零 resource")
+
+        // ---- C5HR1：canonical wire —— actions 恰好一项 `.setActiveSet`/0x97/set0 ----
+        // 任务卡「action 仅 0x97 set0」必须被永久锁住，而不是只断言 schema/fieldMask。
+        let fingerprint = pageOperation.compatibilityFingerprint
+        XCTAssertEqual(fingerprint.actions.count, 1, "activeSet-only 必须恰好一个 emitted action")
+        let action = try XCTUnwrap(fingerprint.actions.first)
+        XCTAssertEqual(action.fieldID, activeSetField)
+        XCTAssertEqual(action.command, .setActiveSet)
+        XCTAssertEqual(action.opcode, 0x97)
+        XCTAssertEqual(action.opcode, AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet)
+        XCTAssertNil(action.subtype)
+        XCTAssertEqual(action.logicalSet, 0)
+        XCTAssertEqual(action.physicalSlot, 0)
+        XCTAssertNil(action.displayState)
+        XCTAssertEqual(action.activation, .setActiveSetOpcode)
+        XCTAssertEqual(action.binding, .none)
+        XCTAssertEqual(action.session, .none)
+        XCTAssertEqual(action.geometry, .none)
+        XCTAssertNil(action.resourceIdentity)
+        XCTAssertNil(action.encodedFrameCount)
+        // 显式排除 status/FPS/task-asset（picture）action。
+        XCTAssertFalse(fingerprint.actions.contains { action in
+            switch action.command {
+            case .screenStatus, .screenFramesPerSecond, .picture:
+                return true
+            default:
+                return false
+            }
+        })
+        XCTAssertTrue(fingerprint.lightMappingRows.isEmpty, "不得混入 0x84 light 行")
+        XCTAssertNil(fingerprint.prepareStrategy)
+        XCTAssertNil(fingerprint.defaultBindOpcode)
+        XCTAssertEqual(fingerprint.family, .rhinoDualSet(sessionUpload: false))
         await facade.stop()
+    }
+
+    /// C5HR1：非 whole-group 的 key/light schema=3 写路径必须走真实 Store→Facade，
+    /// 未确认时 authority requires 且零 apply；exact 确认后 accepted，wire 精确。
+    func testNonWholeGroupKeyAndLightSchema3RequiresThenAccepts() async throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let profile = AhaKeyOLEDCompatibilityProfile.rhinoDualSet(sessionUploadAdvertised: false)
+
+        struct Row {
+            let name: String
+            let pageID: AhaKeyStudioPageID
+            let mutate: (inout AhaKeyStudioDraft) -> Void
+            let expectedFieldID: AhaKeyStudioFieldID
+            let expectedCommand: AhaKeyRuntimeEmittedAction.Command
+            let expectedOpcode: UInt8
+            let expectedSubtype: UInt8?
+        }
+
+        let rows: [Row] = [
+            Row(
+                name: "key-description",
+                pageID: .key(modeSlot: 0, role: .voice),
+                mutate: { draft in
+                    var mode = draft.draft(for: .mode0)
+                    mode.updateKey(AhaKeyKeyDraft(
+                        role: .voice,
+                        shortcut: mode.key(for: .voice).shortcut,
+                        description: "new-desc",
+                        voicePreset: mode.key(for: .voice).voicePreset
+                    ))
+                    draft.updateMode(mode)
+                },
+                expectedFieldID: .keyDescription(modeSlot: 0, role: .voice),
+                expectedCommand: .keyDescription,
+                expectedOpcode: 0x73,
+                expectedSubtype: 0x75
+            ),
+            Row(
+                name: "light-brightness",
+                pageID: .lights(modeSlot: 0),
+                mutate: { draft in
+                    var mode = draft.draft(for: .mode0)
+                    mode.lightBar.brightness = 80
+                    draft.updateMode(mode)
+                },
+                expectedFieldID: .lightBrightness(modeSlot: 0),
+                expectedCommand: .lightBrightness,
+                expectedOpcode: 0x85,
+                expectedSubtype: nil
+            ),
+            Row(
+                name: "light-mapping",
+                pageID: .lights(modeSlot: 0),
+                mutate: { draft in
+                    var mode = draft.draft(for: .mode0)
+                    if let index = mode.lightBar.stateMappings.firstIndex(where: { $0.state.rawValue == 1 }) {
+                        mode.lightBar.stateMappings[index].effect =
+                            mode.lightBar.stateMappings[index].effect == .off ? .singleMove : .off
+                    }
+                    draft.updateMode(mode)
+                },
+                expectedFieldID: .lightMapping(modeSlot: 0, state: 1),
+                expectedCommand: .lightMapping,
+                expectedOpcode: 0x84,
+                expectedSubtype: nil
+            ),
+        ]
+
+        for row in rows {
+            var current = AhaKeyStudioDraft.default
+            let synced = current
+            row.mutate(&current)
+
+            // 该页全部字段都有 verified live baseline（非 whole-group、无 unknown sibling）。
+            let syncedSnapshot = synced.frozenPageSnapshot(
+                pageID: row.pageID,
+                lastSyncedDraft: synced,
+                profile: profile
+            )
+            var authorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [:]
+            var pageBaselines: [AhaKeyRuntimeFieldBaseline] = []
+            for field in syncedSnapshot.fields {
+                authorities[field.id] = AhaKeyStudioFieldAuthority(
+                    value: field.value,
+                    trust: .verified,
+                    provenance: .deviceReadback
+                )
+                if let baselineValue = runtimeBaselineValue(field.value) {
+                    pageBaselines.append(AhaKeyRuntimeFieldBaseline(
+                        deviceID: deviceID,
+                        pageID: row.pageID,
+                        fieldID: field.id,
+                        value: baselineValue,
+                        trust: .verified,
+                        provenance: .deviceReadback
+                    ))
+                }
+            }
+
+            let snapshotWithBaselines = makeSnapshot(
+                deviceID: deviceID,
+                pageBaselines: pageBaselines,
+                authoritativeObject: nil
+            )
+            let transport = FakeTransport(snapshot: snapshotWithBaselines)
+            let facade = AhaKeyStudioRuntimeFacade(
+                transport: transport,
+                clientBuildID: "test",
+                reconnectBackoffBase: 0,
+                idlePollInterval: 0
+            )
+            let store = AhaKeyStudioRuntimeClient(facade: facade)
+            await facade.installSnapshotForTesting(snapshotWithBaselines)
+            store.applyViewStateForTesting(onlineState(snapshot: snapshotWithBaselines))
+            let coordinator = AhaKeyStudioPageCommitCoordinator(registry: store.pageCommitExecutions)
+            coordinator.attach()
+            let port = RecordingStoreCommitPort(store: store)
+
+            func makeInput() -> AhaKeyStudioPageSubmissionInput {
+                AhaKeyStudioPageSubmissionInput(
+                    deviceID: deviceID,
+                    sessionGeneration: .init(0),
+                    transportGeneration: .init(0),
+                    snapshot: current.frozenPageSnapshot(
+                        pageID: row.pageID,
+                        lastSyncedDraft: synced,
+                        fieldAuthorities: authorities,
+                        profile: profile,
+                        overwriteConfirmed: false
+                    ),
+                    explicitIntentFieldIDs: [],
+                    retryResidual: false
+                )
+            }
+
+            // ---- 第一击：未确认 → Facade schema=3 authority requires，零 apply/ingest ----
+            let firstInput = makeInput()
+            coordinator.observeIdentity(firstInput.confirmationIdentity)
+            let first = await runCoordinatorSubmit(coordinator, firstInput, port: port)
+            XCTAssertEqual(
+                first.outcome,
+                .requiresOverwriteConfirmation,
+                "\(row.name) 未确认必须由 Facade schema=3 authority 要求确认"
+            )
+            XCTAssertEqual(port.snapshots.count, 1, "\(row.name)")
+            XCTAssertEqual(port.snapshots[0].overwriteConfirmed, false, "\(row.name)")
+            var counts = await facade.pageSubmitRecordingCountsForTesting()
+            XCTAssertEqual(counts.apply, 0, "\(row.name) 未确认不得 apply")
+            XCTAssertEqual(counts.ingest, 0, "\(row.name) 未确认不得 ingest")
+            XCTAssertNil(transport.appliedPackage, "\(row.name) 未确认不得产出 package")
+
+            // ---- 第二击：exact 同输入 → confirmed=true → accepted，wire 精确 ----
+            let secondInput = makeInput()
+            XCTAssertEqual(secondInput, firstInput, "\(row.name) 两击必须是同一份 exact 冻结输入")
+            let second = await runCoordinatorSubmit(coordinator, secondInput, port: port)
+            guard case .accepted = second.outcome else {
+                return XCTFail("\(row.name) 确认后必须 accepted，实得 \(second.outcome)")
+            }
+            XCTAssertEqual(port.snapshots.count, 2, "\(row.name)")
+            XCTAssertEqual(port.snapshots[1].overwriteConfirmed, true, "\(row.name)")
+
+            counts = await facade.pageSubmitRecordingCountsForTesting()
+            XCTAssertEqual(counts.apply, 1, "\(row.name) 确认后必须恰好 apply 一次")
+            XCTAssertEqual(counts.ingest, 0, "\(row.name) key/light 不得 ingest")
+
+            let package = try XCTUnwrap(transport.appliedPackage, "\(row.name)")
+            XCTAssertEqual(
+                package.schemaVersion,
+                AhaKeyConfigurationPackage.fieldBaselineSchemaVersion,
+                "\(row.name) 无 whole-object 必须走 schema=3"
+            )
+            let pageOperation = try XCTUnwrap(package.pageOperation, "\(row.name)")
+            XCTAssertEqual(pageOperation.fieldMask, [row.expectedFieldID], "\(row.name)")
+            XCTAssertNil(pageOperation.baseObjectFingerprint, "\(row.name) 不得伪造 whole-object")
+            XCTAssertNotNil(pageOperation.fieldBaselines, "\(row.name) schema=3 必须有 field-baseline proof")
+            XCTAssertTrue(pageOperation.resourceBindings.isEmpty, "\(row.name)")
+            XCTAssertTrue(package.resources.isEmpty, "\(row.name)")
+
+            let actions = pageOperation.compatibilityFingerprint.actions
+            XCTAssertEqual(actions.count, 1, "\(row.name) 必须恰好一个 emitted action")
+            let action = try XCTUnwrap(actions.first, "\(row.name)")
+            XCTAssertEqual(action.fieldID, row.expectedFieldID, "\(row.name)")
+            XCTAssertEqual(action.command, row.expectedCommand, "\(row.name)")
+            XCTAssertEqual(action.opcode, row.expectedOpcode, "\(row.name)")
+            XCTAssertEqual(action.subtype, row.expectedSubtype, "\(row.name)")
+            XCTAssertNil(action.logicalSet, "\(row.name)")
+            XCTAssertNil(action.physicalSlot, "\(row.name)")
+            XCTAssertNil(action.displayState, "\(row.name)")
+            XCTAssertEqual(action.activation, .none, "\(row.name)")
+            XCTAssertEqual(action.binding, .none, "\(row.name)")
+            XCTAssertEqual(action.session, .none, "\(row.name)")
+            XCTAssertEqual(action.geometry, .none, "\(row.name)")
+            XCTAssertNil(action.resourceIdentity, "\(row.name)")
+            XCTAssertNil(action.encodedFrameCount, "\(row.name)")
+            // 显式排除其它语义 action。
+            XCTAssertFalse(actions.contains { candidate in
+                switch candidate.command {
+                case .setActiveSet, .screenStatus, .screenFramesPerSecond, .picture:
+                    return true
+                default:
+                    return false
+                }
+            }, "\(row.name) 不得混入 activeSet/status/FPS/picture action")
+            if row.expectedCommand == .lightMapping {
+                XCTAssertEqual(
+                    pageOperation.compatibilityFingerprint.lightMappingRows.count,
+                    1,
+                    "\(row.name) 必须冻结一行 9-state 0x84 行"
+                )
+            } else {
+                XCTAssertTrue(
+                    pageOperation.compatibilityFingerprint.lightMappingRows.isEmpty,
+                    "\(row.name) 不得混入 0x84 light 行"
+                )
+            }
+            await facade.stop()
+        }
     }
 
     func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
@@ -903,6 +1153,22 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
                 connected: connected,
                 operations: operations
             )
+        }
+    }
+
+    /// C5HR1：用 studio 冻结值构造 durable live baseline 行（只覆盖 key/light 矩阵用到的标量类型）。
+    private func runtimeBaselineValue(_ value: AhaKeyStudioFieldValue) -> AhaKeyRuntimeBaselineValue? {
+        switch value {
+        case .text(let text):
+            return .text(text)
+        case .optionalText(let text):
+            return .optionalText(text)
+        case .integer(let number):
+            return .integer(number)
+        case .keyAction(let action):
+            return .keyAction(action)
+        case .taskAsset:
+            return nil
         }
     }
 

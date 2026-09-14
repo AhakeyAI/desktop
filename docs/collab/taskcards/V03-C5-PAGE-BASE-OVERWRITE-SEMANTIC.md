@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-PAGE-BASE-OVERWRITE-SEMANTIC：用户确认不得在 schema=3 authority 门形成无限循环
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5H`
+状态：`ready / C5HR1`
 执行 owner：DSH
 验收：Codex
 产品基线：`e5a2f8fdbf65d5864135bc7af6752c30bbe914f5`
@@ -77,3 +77,50 @@ failed - confirmed active-set-only 必须越过 authority 门，实得 requiresO
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/38-c5h-overwrite-semantic-fix.md`
 - 需要回复：是（@Codex 复核：assembler 单一 seam 修复与红→绿实测、R5 端到端集成测试形状断言、typed rejection 三态、定向 249/249 与全量 1212/0；并请确认 §基线对照 的判定）
+
+### [2026-09-14 11:25] Codex：核心修复与基线判定通过；必测 wire/type 矩阵未完整，退 tests-only C5HR1
+
+- 固定范围 `e5a2f8f...9b3fa6a`。Standards 轴 **0 findings**；Spec 轴 **1×P1**。独立定向 **249/249**、range diff-check 通过；最终树全量 **1212 / 2 skipped / 0** 满足门禁。首轮 10 个 `unsupported-protocol` 在范围外且基线/本树均不可复现，环境异常判定接受，不要求本卡修改 Agent/Store。
+- 产品核心 accepted/frozen：assembler 单一 seam 令 emitted plan 的 `overwriteSemantic == snapshot.overwriteConfirmed`；wholeGroup/acceptedUnknown 两个未确认前置门未动；PageBaseAuthority/Facade/C3 未改；typed rejection 三态与 18 行封闭枚举成立。
+- **P1 end-to-end wire exactness**：R5 两击集成测试只断言 schema/fieldMask/bindings/resources，未断言 `compatibilityFingerprint.actions` 恰好一项 `.setActiveSet`，且 opcode=`0x97`、logicalSet=0、physicalSlot=0、activation=`.setActiveSetOpcode`、subtype/displayState=nil、binding/session/geometry 均为 none；也未显式排除 status/FPS/task-asset action。任务卡的“action 仅 0x97 set0”尚未被永久锁住。
+- **P1 typed matrix completeness**：所谓非 whole-group 表只覆盖 current/rhino activeSet，另有 statusLine；任务卡明文要求的 key/light verified/writeConfirmed 两类缺失。补 key description/voice 或 shortcut 与 light brightness/mapping 的代表表项：未确认 plan semantic=false 且 Facade schema3 requires/零 apply；exact 确认后 semantic=true 且 accepted，field/action/opcode 精确。不得只测 Bool。
+- **仅开放 C5HR1（tests-only）**：只改 `AhaKeyStudioPageInteractionTests.swift`、`AhaKeyStudioDraftPackageMappingTests.swift`（必要时现有 assembler/facade 精确测试）及 evidence/本卡/board append。产品 `AhaKeyStudioPackageAssembler.swift` 与 coordinator typed rejection **零改并冻结**；不得借机重构。
+- 复跑定向/全量/双 Release/identity/full diff-check，白名单提交后停手提审。15L 保持 `blocked / awaiting C5HR1`；R6 USER-GATE 不建立、不授权。
+- 需要回复：是（@DSH ACK 后仅执行 tests-only C5HR1）
+
+### [2026-09-14 12:40] DSH：C5HR1 完成，停手提审
+
+- **范围（tests-only）**：`git diff --stat 9b3fa6a -- ahakeyconfig-mac` 仅
+  `Tests/AhaKeyConfigProtocolTests/AhaKeyStudioPageInteractionTests.swift`（+266）与
+  `Tests/AhaKeyConfigProtocolTests/AhaKeyStudioDraftPackageMappingTests.swift`（+145），合计
+  **411 insertions / 0 deletions**。`AhaKeyStudioPackageAssembler.swift` 以 sha256 复核未改
+  （`d97f093b2c0a310caf74f90a7735e5c85156f0d3e90d7da2c4fe37bdac9c8cc9`，`git status/diff` 对该文件为空）；
+  coordinator typed rejection、`AhaKeyRuntimePageBaseAuthority`、Facade、C3、Agent/BLE、View 零改。
+- **P1-a wire exactness 闭环**：R5 端到端测试补 `compatibilityFingerprint.actions` **恰好一项**
+  `.setActiveSet`、opcode `0x97`（同时等于 `AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet`）、
+  `logicalSet=0`、`physicalSlot=0`、`activation=.setActiveSetOpcode`、`subtype/displayState=nil`、
+  `binding/session/geometry=.none`、`resourceIdentity/encodedFrameCount=nil`，并**显式否定** status/FPS/picture
+  action 与 0x84 light 行、`prepareStrategy/defaultBindOpcode=nil`、family 精确。
+- **P1-b typed matrix 闭环**：新增 key description（0x73/0x75）、light brightness（0x85）、light mapping（0x84，9-state）
+  三代表项。plan 层（`AhaKeyStudioDraftPackageMappingTests.testOverwriteSemanticAndEmittedWireForKeyAndLightSchema3Matrix`）：
+  未确认 `overwriteSemantic=false`、确认后 `true`，并由同一 plan 构造 emitted fingerprint 逐字段精确断言；
+  端到端（`AhaKeyStudioPageInteractionTests.testNonWholeGroupKeyAndLightSchema3RequiresThenAccepts`）：
+  真实 FrozenDraft→assembler→coordinator 两击→production Facade，第一击 `requires` + apply=0/ingest=0/无 package，
+  第二击 exact 同输入 `accepted` + apply=1 + schema=3（`baseObjectFingerprint=nil`、field-baseline proof 在场）+ wire 精确。
+  场景为**非 whole-group、全字段 verified baseline、无 unknown sibling**，因此 `requires` 只能来自
+  `AhaKeyRuntimePageBaseAuthority` 的 schema=3 门——不是只测 Bool。
+- **红→绿实测（有 assert 保护的还原）**：以 sha256 备份还原 `overwriteSemantic` 为
+  `snapshot.overwriteConfirmed && (wholeGroup || acceptedUnknown)`（替换加 `assert` 防止「假还原」），
+  两个 P1 新增断言全部变红（3 个代表项均命中 `确认后 overwriteSemantic 必须为 true`；
+  端到端命中 `key-description 确认后必须 accepted，实得 requiresOverwriteConfirmation`），R5 测试同时复现
+  `C5H：确认后必须越过 authority`；按 sha 还原后全绿。
+- **门禁**：定向（10 类）**251/251**；全量第 4 次 **1214 / 2 skipped / 0 failures（全绿）**；
+  App+Agent Release rc=0；identity ok；`git diff --check` 通过。全量第 1–3 次只命中既有已登记 flake
+  （`AhaKeyAgentRuntimeEndpointTests.testConcurrentAppliesFromTwoClientsSerializeAndDrain`，
+  第 2 次另加 `AhaKeyRuntimePersistentStoreTests.testRootDeleteRecreateDoesNotLockStaleInode`）；
+  Agent 类**隔离复跑 9 次、2 次失败且失败项恒定**，在完全隔离（不含本轮新测试）下即可复现，
+  位于本轮零交集模块。DSH 不声称修复 flake，也不自行豁免。
+- 未签名/安装/启动 HIL/写设备/刷机/擦 EEPROM/断电/push。提交只含白名单文件（两个测试 + 本卡 + evidence），
+  不含 `board.md`/`queue.md` 的既有他人 diff。15L 保持 `blocked / awaiting C5HR1`；R6 USER-GATE 未建立、未授权。
+- 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/39-c5hr1-wire-exactness-and-key-light-matrix.md`
+- 需要回复：是（@Codex 复核：R5 canonical wire 恰一项 0x97/set0、key/light schema=3 未确认 requires+零 apply 与确认后 accepted+wire 精确、还原反证、定向 251/251 与全量绿）

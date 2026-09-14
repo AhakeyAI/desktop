@@ -325,6 +325,151 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         XCTAssertTrue(confirmed.overwriteSemantic)
     }
 
+    /// C5HR1：key/light（非 whole-group、已有 verified baseline）schema=3 表——
+    /// 未确认 plan `overwriteSemantic=false`；exact 确认后 `true`，且 emitted wire
+    /// 精确到 field/command/opcode/subtype，不含 resource/light 行串味。
+    func testOverwriteSemanticAndEmittedWireForKeyAndLightSchema3Matrix() throws {
+        let profile = AhaKeyOLEDCompatibilityProfile.rhinoDualSet(sessionUploadAdvertised: false)
+
+        struct Row {
+            let name: String
+            let pageID: AhaKeyStudioPageID
+            let mutate: (inout AhaKeyStudioDraft) -> Void
+            let expectedFieldID: AhaKeyStudioFieldID
+            let expectedCommand: AhaKeyRuntimeEmittedAction.Command
+            let expectedOpcode: UInt8
+            let expectedSubtype: UInt8?
+        }
+
+        let rows: [Row] = [
+            Row(
+                name: "key-description",
+                pageID: .key(modeSlot: 0, role: .voice),
+                mutate: { draft in
+                    var mode = draft.draft(for: .mode0)
+                    mode.updateKey(AhaKeyKeyDraft(
+                        role: .voice,
+                        shortcut: mode.key(for: .voice).shortcut,
+                        description: "new-desc",
+                        voicePreset: mode.key(for: .voice).voicePreset
+                    ))
+                    draft.updateMode(mode)
+                },
+                expectedFieldID: .keyDescription(modeSlot: 0, role: .voice),
+                expectedCommand: .keyDescription,
+                expectedOpcode: AhaKeyWireFrameBuilder.cmdUpdateCustomKey,
+                expectedSubtype: AhaKeyWireFrameBuilder.subDescription
+            ),
+            Row(
+                name: "light-brightness",
+                pageID: .lights(modeSlot: 0),
+                mutate: { draft in
+                    var mode = draft.draft(for: .mode0)
+                    mode.lightBar.brightness = 80
+                    draft.updateMode(mode)
+                },
+                expectedFieldID: .lightBrightness(modeSlot: 0),
+                expectedCommand: .lightBrightness,
+                expectedOpcode: AhaKeyWireFrameBuilder.cmdSetBrightness,
+                expectedSubtype: nil
+            ),
+            Row(
+                name: "light-mapping",
+                pageID: .lights(modeSlot: 0),
+                mutate: { draft in
+                    var mode = draft.draft(for: .mode0)
+                    if let index = mode.lightBar.stateMappings.firstIndex(where: { $0.state.rawValue == 1 }) {
+                        mode.lightBar.stateMappings[index].effect =
+                            mode.lightBar.stateMappings[index].effect == .off ? .singleMove : .off
+                    }
+                    draft.updateMode(mode)
+                },
+                expectedFieldID: .lightMapping(modeSlot: 0, state: 1),
+                expectedCommand: .lightMapping,
+                expectedOpcode: AhaKeyWireFrameBuilder.cmdSetLightMapping,
+                expectedSubtype: nil
+            ),
+        ]
+
+        for row in rows {
+            var current = AhaKeyStudioDraft.default
+            let synced = current
+            row.mutate(&current)
+
+            // 该页全部字段都有 verified live baseline：非 whole-group，且无 unknown sibling。
+            let syncedSnapshot = synced.frozenPageSnapshot(
+                pageID: row.pageID,
+                lastSyncedDraft: synced,
+                profile: profile
+            )
+            var authorities: [AhaKeyStudioFieldID: AhaKeyStudioFieldAuthority] = [:]
+            for field in syncedSnapshot.fields {
+                authorities[field.id] = AhaKeyStudioFieldAuthority(
+                    value: field.value,
+                    trust: .verified,
+                    provenance: .deviceReadback
+                )
+            }
+
+            func snapshot(confirmed: Bool) -> AhaKeyStudioPageSnapshot {
+                current.frozenPageSnapshot(
+                    pageID: row.pageID,
+                    lastSyncedDraft: synced,
+                    fieldAuthorities: authorities,
+                    profile: profile,
+                    overwriteConfirmed: confirmed
+                )
+            }
+
+            guard case .write(let unconfirmed) =
+                AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot(confirmed: false)) else {
+                return XCTFail("\(row.name) 未确认时 assembler 仍应产出 plan（requires 由 authority 决定）")
+            }
+            XCTAssertFalse(unconfirmed.overwriteSemantic, "\(row.name) 未确认不得携带 overwriteSemantic")
+            XCTAssertEqual(unconfirmed.fieldMask, [row.expectedFieldID], "\(row.name)")
+
+            guard case .write(let confirmed) =
+                AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot(confirmed: true)) else {
+                return XCTFail("\(row.name) 确认后应产出 plan")
+            }
+            XCTAssertTrue(confirmed.overwriteSemantic, "\(row.name) C5HR1：确认后 overwriteSemantic 必须为 true")
+            XCTAssertEqual(confirmed.fieldMask, [row.expectedFieldID], "\(row.name)")
+            XCTAssertEqual(Set(confirmed.values.keys), confirmed.fieldMask, "\(row.name)")
+            XCTAssertTrue(confirmed.resources.isEmpty, "\(row.name) key/light 不得带 resource")
+
+            let fingerprint = try AhaKeyRuntimeCompatibilityFingerprint.make(
+                plan: confirmed,
+                profile: profile
+            )
+            XCTAssertEqual(fingerprint.actions.count, 1, "\(row.name) 必须恰好一个 emitted action")
+            let action = try XCTUnwrap(fingerprint.actions.first, "\(row.name)")
+            XCTAssertEqual(action.fieldID, row.expectedFieldID, "\(row.name)")
+            XCTAssertEqual(action.command, row.expectedCommand, "\(row.name)")
+            XCTAssertEqual(action.opcode, row.expectedOpcode, "\(row.name)")
+            XCTAssertEqual(action.subtype, row.expectedSubtype, "\(row.name)")
+            XCTAssertNil(action.logicalSet, "\(row.name)")
+            XCTAssertNil(action.physicalSlot, "\(row.name)")
+            XCTAssertNil(action.displayState, "\(row.name)")
+            XCTAssertEqual(action.activation, .none, "\(row.name)")
+            XCTAssertEqual(action.binding, .none, "\(row.name)")
+            XCTAssertEqual(action.session, .none, "\(row.name)")
+            XCTAssertEqual(action.geometry, .none, "\(row.name)")
+            XCTAssertNil(action.resourceIdentity, "\(row.name)")
+            XCTAssertNil(action.encodedFrameCount, "\(row.name)")
+            XCTAssertNil(fingerprint.prepareStrategy, "\(row.name)")
+            XCTAssertNil(fingerprint.defaultBindOpcode, "\(row.name)")
+            if row.expectedCommand == .lightMapping {
+                XCTAssertEqual(fingerprint.lightMappingRows.count, 1, "\(row.name) 必须冻结一行 0x84")
+                XCTAssertTrue(
+                    fingerprint.lightMappingRows.allSatisfy { $0.effects.count == 9 },
+                    "\(row.name) 0x84 行必须是 9-state"
+                )
+            } else {
+                XCTAssertTrue(fingerprint.lightMappingRows.isEmpty, "\(row.name) 不得混入 0x84 light 行")
+            }
+        }
+    }
+
     /// whole-group 的既有确认规则不得回退：未确认仍必须由 assembler 先返回 requires。
     func testWholeGroupPictureStillRequiresConfirmationBeforeEmit() throws {
         let gif = try writeTestGIF()
