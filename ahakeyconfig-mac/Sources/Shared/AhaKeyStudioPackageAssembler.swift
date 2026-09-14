@@ -512,7 +512,12 @@ public enum AhaKeyStudioPackageAssembler {
                 pageID: snapshot.pageID,
                 fieldMask: fieldMask,
                 values: values,
-                overwriteSemantic: snapshot.overwriteConfirmed && (wholeGroup || acceptedUnknown),
+                // C5H：`overwriteSemantic` 表达「本次冻结提交携带 exact 用户覆盖确认」，
+                // 不是「是否 whole-group/unknown」。wholeGroup / acceptedUnknown 只决定
+                // 上面是否**先**返回 `.requiresOverwriteConfirmation`；一旦放行到 plan，
+                // 已确认事实不得再被抹掉，否则 schema=3 authority 会二次要求确认，
+                // 形成「确认 → requires → 确认」的无限循环。
+                overwriteSemantic: snapshot.overwriteConfirmed,
                 writeTaskSetA: action.writeSetA,
                 writeTaskSetB: action.writeSetB,
                 activateTaskSet: activation?.selectedSet,

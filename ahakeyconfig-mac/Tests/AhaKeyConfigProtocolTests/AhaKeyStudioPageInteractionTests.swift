@@ -671,6 +671,132 @@ final class AhaKeyStudioPageInteractionTests: XCTestCase {
         XCTAssertFalse(coordinator.isAttached)
     }
 
+    /// C5H：R5 场景永久集成红测。无 whole-object、activeSet live baseline=`writeConfirmed(1)`、
+    /// 显式 Picker A=0 —— 第一击必须只要求确认（apply=0），第二击确认后必须 accepted（apply=1），
+    /// 不得再次返回 `.requiresOverwriteConfirmation`（R5 的无限确认循环）。
+    func testConfirmedActiveSetOnlyWithWriteConfirmedBaselineDoesNotLoopConfirmation() async throws {
+        let deviceID = try AhaKeyRuntimeDeviceID("DEVICE-1")
+        let profile = AhaKeyOLEDCompatibilityProfile.rhinoDualSet(sessionUploadAdvertised: false)
+        let pageID = AhaKeyStudioPageID.screen(modeSlot: 0)
+        let activeSetField = AhaKeyStudioFieldID.screenActiveSet(modeSlot: 0)
+
+        // live baseline：activeSet=1 且 trust=writeConfirmed（R5 的真实设备事实）。
+        let baselines = [
+            AhaKeyRuntimeFieldBaseline(
+                deviceID: deviceID,
+                pageID: pageID,
+                fieldID: activeSetField,
+                value: .integer(1),
+                trust: .writeConfirmed,
+                provenance: .writeConfirmation
+            ),
+        ]
+        let snapshotWithBaseline = makeSnapshot(
+            deviceID: deviceID,
+            pageBaselines: baselines,
+            authoritativeObject: nil
+        )
+        let transport = FakeTransport(snapshot: snapshotWithBaseline)
+        let facade = AhaKeyStudioRuntimeFacade(
+            transport: transport,
+            clientBuildID: "test",
+            reconnectBackoffBase: 0,
+            idlePollInterval: 0
+        )
+        let store = AhaKeyStudioRuntimeClient(facade: facade)
+        await facade.installSnapshotForTesting(snapshotWithBaseline)
+        store.applyViewStateForTesting(onlineState(snapshot: snapshotWithBaseline))
+
+        let coordinator = AhaKeyStudioPageCommitCoordinator(registry: store.pageCommitExecutions)
+        coordinator.attach()
+        let port = RecordingStoreCommitPort(store: store)
+
+        let current = AhaKeyStudioDraft.default
+        let context = AhaKeyStudioPageEditIntentContext(
+            deviceID: deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            pageID: pageID,
+            profile: profile,
+            currentValues: [activeSetField: .integer(0)]
+        )
+        // 显式 Picker A=0（默认选中不会触发 setter）。
+        coordinator.notePickerSelection(
+            activeSet: 0,
+            modeSlot: 0,
+            deviceID: deviceID,
+            sessionGeneration: .init(0),
+            transportGeneration: .init(0),
+            profile: profile
+        )
+
+        func makeInput() -> AhaKeyStudioPageSubmissionInput {
+            let intentFieldIDs = coordinator.matchingExplicitIntentFieldIDs(context)
+            let snapshot = current.frozenPageSnapshot(
+                pageID: pageID,
+                lastSyncedDraft: current,
+                fieldAuthorities: [
+                    activeSetField: AhaKeyStudioFieldAuthority(
+                        value: .integer(1),
+                        trust: .writeConfirmed,
+                        // 注意：resolvedBaseline() 只在 provenance == .writeConfirmation 时
+                        // 才给出 writeConfirmed；配 .deviceReadback 会被降级成 .unknown，
+                        // 于是 acceptedUnknown=true，反而绕过 C5H 的判别。
+                        provenance: .writeConfirmation
+                    ),
+                ],
+                profile: profile,
+                selectedTaskSet: 0,
+                overwriteConfirmed: false,
+                explicitIntentFieldIDs: intentFieldIDs
+            )
+            return AhaKeyStudioPageSubmissionInput(
+                deviceID: deviceID,
+                sessionGeneration: .init(0),
+                transportGeneration: .init(0),
+                snapshot: snapshot,
+                explicitIntentFieldIDs: intentFieldIDs,
+                retryResidual: false
+            )
+        }
+
+        // ---- 第一击：未确认 → requires，零 apply/ingest ----
+        let firstInput = makeInput()
+        coordinator.observeIdentity(firstInput.confirmationIdentity)
+        let first = await runCoordinatorSubmit(coordinator, firstInput, port: port)
+        XCTAssertEqual(first.outcome, .requiresOverwriteConfirmation, "第一击必须只要求确认")
+        XCTAssertEqual(port.snapshots.count, 1)
+        XCTAssertEqual(port.snapshots[0].overwriteConfirmed, false)
+        var counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.apply, 0, "未确认不得 apply")
+        XCTAssertEqual(counts.ingest, 0, "未确认不得 ingest")
+
+        // ---- 第二击：exact 同输入 → confirmed=true → accepted ----
+        let secondInput = makeInput()
+        XCTAssertEqual(secondInput, firstInput, "两击必须是同一份 exact 冻结输入")
+        let second = await runCoordinatorSubmit(coordinator, secondInput, port: port)
+        guard case .accepted = second.outcome else {
+            return XCTFail("C5H：确认后必须越过 authority，实得 \(second.outcome)")
+        }
+        XCTAssertEqual(port.snapshots.count, 2)
+        XCTAssertEqual(port.snapshots[1].overwriteConfirmed, true, "第二击必须携带 confirmed=true")
+
+        counts = await facade.pageSubmitRecordingCountsForTesting()
+        XCTAssertEqual(counts.apply, 1)
+        XCTAssertEqual(counts.ingest, 0)
+
+        // ---- package 形状：schema=3、仅 activeSet、零 resource ----
+        let package = try XCTUnwrap(transport.appliedPackage)
+        XCTAssertEqual(package.schemaVersion, AhaKeyConfigurationPackage.fieldBaselineSchemaVersion)
+        let pageOperation = try XCTUnwrap(package.pageOperation)
+        XCTAssertEqual(pageOperation.fieldMask, [activeSetField], "fieldMask 必须只有 activeSet")
+        XCTAssertNil(pageOperation.baseObjectFingerprint, "该场景必须无 whole-object")
+        XCTAssertNotNil(pageOperation.fieldBaselines, "schema=3 必须走 field-baseline proof")
+        XCTAssertTrue(pageOperation.resourceBindings.isEmpty, "activeSet-only 必须零 resource binding")
+        XCTAssertTrue(package.resources.isEmpty, "activeSet-only 必须零 resource")
+        await facade.stop()
+    }
+
     func testTwoPagesCanQueueInDeviceFIFOFromSnapshot() async throws {
         let harness = try makeHarness()
         await harness.facade.installSnapshotForTesting(harness.snapshot(operations: []))
@@ -885,7 +1011,10 @@ private func makeSnapshot(
         sessionUploadAdvertised: false
     ),
     operations: [AhaKeyRuntimeOperationSummary] = [],
-    pageBaselines: [AhaKeyRuntimeFieldBaseline] = []
+    pageBaselines: [AhaKeyRuntimeFieldBaseline] = [],
+    /// C5H：schema=3（field-baseline）路径只在**无 whole-object** 时被选中；
+    /// 传 nil 才能复现 R5 的 `PageBaseAuthority` 二次确认门。
+    authoritativeObject: Data? = Data("base-object".utf8)
 ) -> AhaKeyRuntimeSnapshot {
     var devices = [
         AhaKeyRuntimeDeviceSnapshot(
@@ -896,7 +1025,7 @@ private func makeSnapshot(
             usbAttached: false,
             bluetoothConnected: connected,
             capabilities: [AhaKeyOLEDWritePreflight.routingCapability],
-            authoritativeObject: Data("base-object".utf8),
+            authoritativeObject: authoritativeObject,
             oledCompatibility: oledCompatibility
         ),
     ]

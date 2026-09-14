@@ -1002,6 +1002,55 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
         XCTAssertNil(registry.lease)
     }
 
+    // MARK: - 4g. C5H：早退必须带 typed rejection reason
+
+    /// 三种 rejected 必须各自可区分；「Button 未触发」仍严格等于「完全没有本次点击 trace」。
+    func testRejectedTraceDistinguishesClosedNotAttachedAndOccupied() async {
+        let click = input(activeSet: 0)
+        let noOpPort = { RecordingCommitPort(results: [.success(.noOp)]) }
+
+        // (1) owner 未 attach（never-appeared / 已 detach）
+        let r1 = AhaKeyStudioPageCommitExecutionRegistry()
+        let c1 = AhaKeyStudioPageCommitCoordinator(registry: r1)
+        _ = c1.start(click, port: noOpPort())
+        XCTAssertEqual(c1.trace.map(\.phase), [.rejected], "必须留一条 typed rejected trace")
+        XCTAssertEqual(c1.trace.last?.category, .ownerNotAttachedRejected)
+        XCTAssertEqual(c1.trace.last?.portInvoked, false)
+        XCTAssertEqual(c1.portCallCount, 0)
+
+        // (2) registry 已 closed
+        let r2 = AhaKeyStudioPageCommitExecutionRegistry()
+        let c2 = makeAttachedCoordinator(r2)
+        c2.observeIdentity(click.confirmationIdentity)
+        r2.shutdown()
+        _ = c2.start(click, port: noOpPort())
+        XCTAssertEqual(c2.trace.last?.phase, .rejected)
+        XCTAssertEqual(c2.trace.last?.category, .registryClosedRejected)
+        XCTAssertEqual(c2.trace.last?.portInvoked, false)
+        XCTAssertEqual(c2.portCallCount, 0)
+
+        // (3) 已有在途 execution
+        let r3 = AhaKeyStudioPageCommitExecutionRegistry()
+        let c3 = makeAttachedCoordinator(r3)
+        c3.observeIdentity(click.confirmationIdentity)
+        let gated = GatedCommitPort()
+        _ = c3.start(click, port: gated)
+        while !gated.hasReachedPort { await Task.yield() }
+        _ = c3.start(click, port: noOpPort())
+        XCTAssertEqual(c3.trace.last?.phase, .rejected)
+        XCTAssertEqual(c3.trace.last?.category, .inFlightRejected)
+        XCTAssertEqual(c3.trace.last?.portInvoked, false)
+        XCTAssertEqual(c3.portCallCount, 1, "第二次点击不得新增 port 调用")
+        gated.resume(with: .success(.noOp))
+        while r3.lease != nil { await Task.yield() }
+
+        // 三者互不混淆
+        XCTAssertNotEqual(
+            AhaKeyStudioPageCommitRejectionReason.registryClosed,
+            AhaKeyStudioPageCommitRejectionReason.ownerNotAttached
+        )
+    }
+
     // MARK: - 5. trace 类型完全枚举（结构性，不抽样）
 
     /// 穷举 `AhaKeyStudioPageCommitTraceEvent` 的**全部** case，逐一断言派生字段。
@@ -1039,8 +1088,12 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
              .superseded, false, .superseded, false),
             (.superseded(sequence: 7, pageID: screenPage, confirmed: true, portInvoked: true),
              .superseded, true, .superseded, true),
-            (.rejected(sequence: 7, pageID: screenPage),
+            (.rejected(sequence: 7, pageID: screenPage, reason: .executionOccupied),
              .rejected, false, .inFlightRejected, false),
+            (.rejected(sequence: 7, pageID: screenPage, reason: .registryClosed),
+             .rejected, false, .registryClosedRejected, false),
+            (.rejected(sequence: 7, pageID: screenPage, reason: .ownerNotAttached),
+             .rejected, false, .ownerNotAttachedRejected, false),
             (.cancelRequested(sequence: 7, pageID: screenPage, confirmed: false, portInvoked: false),
              .cancelRequested, false, .cancelRequested, false),
             (.cancelRequested(sequence: 7, pageID: screenPage, confirmed: true, portInvoked: true),
@@ -1059,7 +1112,7 @@ final class AhaKeyStudioPageCommitCoordinatorTests: XCTestCase {
              .cancelRequested, .cancelSettled],
             "枚举必须覆盖全部 phase（即全部 case）"
         )
-        XCTAssertEqual(table.count, 16, "每个 case 的确认/未确认与 port 前后分支都要覆盖")
+        XCTAssertEqual(table.count, 18, "每个 case 的确认/未确认与 port 前后分支都要覆盖")
 
         // `.returned` 只接受 return-only 结果类型：这里证明 6 个返回结果全部被枚举，
         // 而 pending/failed/superseded/rejected/cancelled 在编译类型上根本不可传入。

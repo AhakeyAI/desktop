@@ -239,6 +239,116 @@ final class AhaKeyStudioDraftPackageMappingTests: XCTestCase {
         XCTAssertTrue(plan.resources.isEmpty)
     }
 
+    // MARK: - C5H：overwriteSemantic 必须表达 exact 用户确认
+
+    /// `overwriteSemantic` = 「本次冻结提交携带 exact 用户覆盖确认」，
+    /// **不得**被 `(wholeGroup || acceptedUnknown)` 抹掉——否则 schema=3 authority
+    /// 会在用户确认后二次要求确认，形成无限确认循环（R5 实际症状）。
+    func testOverwriteSemanticReflectsExactUserConfirmationForNonWholeGroupWrites() {
+        // 非 whole-group、已有可信 baseline 的 activeSet-only：未确认不携带 semantic，确认后必须携带。
+        let profiles: [AhaKeyOLEDCompatibilityProfile] = [
+            .currentSessionCapable,
+            .rhinoDualSet(sessionUploadAdvertised: false),
+        ]
+        for profile in profiles {
+            var current = AhaKeyStudioDraft.default
+            let synced = current
+            var mode = current.draft(for: .mode0)
+            mode.oled.activeGIFSet = 1
+            current.updateMode(mode)
+
+            func snapshot(confirmed: Bool) -> AhaKeyStudioPageSnapshot {
+                current.frozenPageSnapshot(
+                    pageID: .screen(modeSlot: 0),
+                    lastSyncedDraft: synced,
+                    fieldAuthorities: [
+                        .screenActiveSet(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                            value: .integer(0),
+                            trust: .verified,
+                            provenance: .deviceReadback
+                        ),
+                    ],
+                    profile: profile,
+                    overwriteConfirmed: confirmed
+                )
+            }
+
+            guard case .write(let unconfirmed) =
+                AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot(confirmed: false)) else {
+                return XCTFail("\(profile) 未确认时 assembler 仍应产出 plan（是否要求确认由 authority 决定）")
+            }
+            XCTAssertFalse(unconfirmed.overwriteSemantic, "\(profile) 未确认不得携带 overwriteSemantic")
+
+            guard case .write(let confirmed) =
+                AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot(confirmed: true)) else {
+                return XCTFail("\(profile) 确认后应产出 plan")
+            }
+            XCTAssertTrue(confirmed.overwriteSemantic, "\(profile) C5H：确认后 overwriteSemantic 必须为 true")
+            XCTAssertEqual(confirmed.fieldMask, [.screenActiveSet(modeSlot: 0)])
+            XCTAssertEqual(Set(confirmed.values.keys), confirmed.fieldMask)
+        }
+    }
+
+    /// 非 activeSet 的非 whole-group 字段（writeConfirmed 基线的 statusLine）同样适用。
+    func testOverwriteSemanticReflectsExactUserConfirmationForStatusLineWrite() {
+        var current = AhaKeyStudioDraft.default
+        let synced = current
+        var mode = current.draft(for: .mode0)
+        mode.oled.statusLine = "new-line"
+        current.updateMode(mode)
+
+        func snapshot(confirmed: Bool) -> AhaKeyStudioPageSnapshot {
+            current.frozenPageSnapshot(
+                pageID: .screen(modeSlot: 0),
+                lastSyncedDraft: synced,
+                fieldAuthorities: [
+                    .screenStatusLine(modeSlot: 0): AhaKeyStudioFieldAuthority(
+                        value: .text("old-line"),
+                        trust: .writeConfirmed,
+                        provenance: .writeConfirmation
+                    ),
+                ],
+                profile: .rhinoDualSet(sessionUploadAdvertised: false),
+                overwriteConfirmed: confirmed
+            )
+        }
+
+        guard case .write(let unconfirmed) =
+            AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot(confirmed: false)) else {
+            return XCTFail("未确认时 assembler 仍应产出 plan")
+        }
+        XCTAssertFalse(unconfirmed.overwriteSemantic)
+        guard case .write(let confirmed) =
+            AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot(confirmed: true)) else {
+            return XCTFail("确认后应产出 plan")
+        }
+        XCTAssertTrue(confirmed.overwriteSemantic)
+    }
+
+    /// whole-group 的既有确认规则不得回退：未确认仍必须由 assembler 先返回 requires。
+    func testWholeGroupPictureStillRequiresConfirmationBeforeEmit() throws {
+        let gif = try writeTestGIF()
+        var current = AhaKeyStudioDraft.default
+        let synced = current
+        var mode = current.draft(for: .mode0)
+        var asset = mode.oled.taskAsset(set: 0, state: .idle)
+        asset.localAssetPath = gif.path
+        mode.oled.updateTaskAsset(set: 0, asset: asset)
+        current.updateMode(mode)
+
+        let snapshot = current.frozenPageSnapshot(
+            pageID: .screen(modeSlot: 0),
+            lastSyncedDraft: synced,
+            profile: .rhinoDualSet(sessionUploadAdvertised: false),
+            selectedTaskSet: 0
+        )
+        XCTAssertEqual(
+            AhaKeyStudioPackageAssembler.assembleScopedPage(snapshot),
+            .requiresOverwriteConfirmation,
+            "whole-group 图片未确认时 assembler 必须先要求确认（既有规则）"
+        )
+    }
+
     func testMappingStandardPictureAndActiveSetUsesImplicitActivation() throws {
         let gif = try writeTestGIF()
         var current = AhaKeyStudioDraft.default

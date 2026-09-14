@@ -130,6 +130,17 @@ enum AhaKeyStudioPageCommitReturnedResult: String, Equatable, Sendable {
     }
 }
 
+/// C5H：`start` 早退的 typed 原因。三者必须可区分——否则「Button 未触发」与
+/// 「action 已触发但被 registry/owner 拒绝」在 trace 上无法分辨。
+enum AhaKeyStudioPageCommitRejectionReason: String, Equatable, Sendable {
+    /// 已有在途 execution。
+    case executionOccupied
+    /// registry 已被 shutdown（终态 closed）。
+    case registryClosed
+    /// 该 capability 未 attach（迟到 / 已 detach / never-appeared）。
+    case ownerNotAttached
+}
+
 enum AhaKeyStudioPageCommitTraceCategory: String, Equatable, Sendable {
     /// attempt 已开始，尚无结果。
     case pending
@@ -144,6 +155,10 @@ enum AhaKeyStudioPageCommitTraceCategory: String, Equatable, Sendable {
     case superseded
     /// 已有在途租约 / frozen 与 live 不一致，未产生 port 调用。
     case inFlightRejected
+    /// C5H：registry 已 closed，未产生 port 调用。
+    case registryClosedRejected
+    /// C5H：owner 未 attach，未产生 port 调用。
+    case ownerNotAttachedRejected
     /// 用户取消请求。
     case cancelRequested
     /// 用户取消结算。
@@ -168,7 +183,11 @@ enum AhaKeyStudioPageCommitTraceEvent: Equatable, Sendable {
         confirmed: Bool,
         portInvoked: Bool
     )
-    case rejected(sequence: UInt64, pageID: AhaKeyStudioPageID)
+    case rejected(
+        sequence: UInt64,
+        pageID: AhaKeyStudioPageID,
+        reason: AhaKeyStudioPageCommitRejectionReason
+    )
     case cancelRequested(
         sequence: UInt64,
         pageID: AhaKeyStudioPageID,
@@ -190,7 +209,7 @@ enum AhaKeyStudioPageCommitTraceEvent: Equatable, Sendable {
              .returned(let sequence, _, _, _),
              .failed(let sequence, _, _),
              .superseded(let sequence, _, _, _),
-             .rejected(let sequence, _),
+             .rejected(let sequence, _, _),
              .cancelRequested(let sequence, _, _, _),
              .cancelSettled(let sequence, _, _, _):
             return sequence
@@ -204,7 +223,7 @@ enum AhaKeyStudioPageCommitTraceEvent: Equatable, Sendable {
              .returned(_, let pageID, _, _),
              .failed(_, let pageID, _),
              .superseded(_, let pageID, _, _),
-             .rejected(_, let pageID),
+             .rejected(_, let pageID, _),
              .cancelRequested(_, let pageID, _, _),
              .cancelSettled(_, let pageID, _, _):
             return pageID
@@ -241,7 +260,12 @@ enum AhaKeyStudioPageCommitTraceEvent: Equatable, Sendable {
         case .returned(_, _, _, let result): return result.category
         case .failed: return .failed
         case .superseded: return .superseded
-        case .rejected: return .inFlightRejected
+        case .rejected(_, _, let reason):
+            switch reason {
+            case .executionOccupied: return .inFlightRejected
+            case .registryClosed: return .registryClosedRejected
+            case .ownerNotAttached: return .ownerNotAttachedRejected
+            }
         case .cancelRequested: return .cancelRequested
         case .cancelSettled: return .cancelSettled
         }
@@ -935,6 +959,12 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
         registry.bumpClickCount()
 
         guard !registry.isClosed, registry.isAttached(capability) else {
+            // C5H：静默早退补 typed trace，port=0，无资源/路径/用户文本。
+            registry.record(.rejected(
+                sequence: registry.attemptSequence,
+                pageID: input.pageID,
+                reason: registry.isClosed ? .registryClosed : .ownerNotAttached
+            ))
             let projection = AhaKeyStudioPageCommitProjection(
                 pageID: input.pageID,
                 outcome: .ignoredInFlight
@@ -945,7 +975,11 @@ final class AhaKeyStudioPageCommitCoordinator: ObservableObject {
 
         // 任一 successor coordinator 都会看到旧 invoked 租约并在此拒绝。
         guard !registry.isOccupied else {
-            registry.record(.rejected(sequence: registry.attemptSequence, pageID: input.pageID))
+            registry.record(.rejected(
+                sequence: registry.attemptSequence,
+                pageID: input.pageID,
+                reason: .executionOccupied
+            ))
             let projection = AhaKeyStudioPageCommitProjection(
                 pageID: input.pageID,
                 outcome: .ignoredInFlight
