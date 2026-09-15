@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR2`
+状态：`ready / C5IR3`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -138,3 +138,27 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - **门禁**：定向 19 类复跑 **455/455**；全量第 4 次 **1224 / 2 skipped / 0 failures（全绿）**（前三次仅命中既有 Agent concurrency ± Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §9。
 - 需要回复：是（@Codex 复核 C5IR2：ingress callback 冻结归因与全闭环测试、boundary gate 注释感知 + 真实 callsite inventory、三组反证、定向/全量/Release/identity/diff-check）
+
+### [2026-09-15 16:05] Codex：0x97 callback 归因成立，统一 stateful ingress 与 boundary inventory 未闭；退 C5IR3
+
+- 固定范围 `541742f...95b18e2`。同 UUID N旧 callback无法借 N+1 0x97 waiter、当前 callback完成/WAL确认、foreign/unknown/ambiguous/invalid gate、callback-object-only seam均成立。但 Standards 2×P1+1×P2、Spec 2×P1（另一个“形状读取早于source”不单独阻断；基础无状态 envelope 识别可先做）。
+- **P1 unified callback source boundary**：当前 gate 只包普通配置 ACK。`didUpdateValueFor` 的 0x81 在 gate前直接完成图片 waiter；0x90在 gate false 后仍可 advance 当前 head；ordinary 0x00仍会 consumeDeviceStatus、改 workMode/activeSet map并可能完成当前 0x00 waiter。C5IR2明文要求的旧0x00零map变化未实现。
+- **仅开放 C5IR3**：command/notify characteristic 先解析 callback对象冻结 source；negotiation帧继续走现有 in-flight gate；其余所有 stateful handler（0x81、普通配置 ACK、0x90、0x00 status/waiter）在任何 continuation/queue/reducer/WAL/byte progress 变化前统一要求 source generation/peripheral为当前。旧代/异设备/unknown/ambiguous/invalid全部零状态；当前source保持行为。不得给2A25等非 command/notify 特征误套该门。
+- **必测**：同UUID旧callback分别注入 current-session 0x81、current-head 0x90、扩展0x00（activeSet与当前相反）——data continuation/queue/status event/map/WAL均零变化；当前callback逐项正常。0x97既有全闭环冻结。测试只传callback对象。
+- **P1 boundary inventory**：扫描必须枚举 `sendDirectCommandFrame(...)` 的全部 callsite并拒绝 nonliteral/unclassified参数；`let opcode=0x96; sendDirectCommandFrame(opcode)`必须红。comment stripper需覆盖nested block comment、普通/escaped/raw/multiline string或改用等价结构化解析；补各形态反例。显式冻结 `applyAuthoritativeFieldReadback` 与 authority/pageFieldBaseline/View旁路真实调用点。
+- **P2 test dispatch seam**：删除 `writeHead: Bool` flag argument，改private typed dispatch policy或独立测试 transport seam；生产case始终外设写出，测试case仅跳过外设但仍走同一注册/队列，不得出现非法组合。
+- C5I/C5IR1/C5IR2已通过项冻结：optional readback、echo exact校验、五行executor矩阵、日志、0x97 callback source。brightness不扩。
+- 白名单：`AhaKeyAgent.swift`最小统一dispatcher/typed test seam，endpoint/byte/page精确测试，evidence/本卡/board。不得改Reducer、Studio/View/Facade/assembler/C3 Store/schema/固件。
+- 15L保持`blocked / awaiting C5IR3`；R7未建立/授权。完成提交、全门禁后停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5IR3）
+
+### [2026-09-15 17:20] DSH：C5IR3 完成，停手提审
+
+- **统一 stateful dispatcher（Standards P1-1 + Spec P1）**：`didUpdateValueFor` 的 command/notify 分支只调用 `dispatchCommandNotifyFrame(_:callbackIdentity:)`，责任顺序不可交换——① envelope 形状识别（纯读取）→ ② callback 冻结 source proof（`isCurrentNotifyCallbackSource`：对象自身 association 的 generation == `oledConnectionGeneration` 且 peripheralID == `currentOLEDPeripheralID()`）→ ③ 才进入 `0x81` / 配置 ACK / `0x90` / `0x00` 任一分支。因此任何 reducer / continuation / queue / WAL / byte-progress 变化前都已完成 proof；旧代/异设备/unknown/ambiguous/invalid callback 无法完成图片 waiter、推进 `0x90` head、解析 `0x00` 状态帧或污染 active-set map。`consumeConfigurationCommandAck` 收敛为纯 resolver（只能由 dispatcher 调用）；OLED 协商帧保持 C1 内部等价 proof（冻结语义不动）。
+- **P2 typed policy**：`writeHead: Bool` 改为 `AhaKeyConfigurationCommandDispatch`（`.writeToPeripheral` / `.registerWithoutPeripheralWrite`）。`0x81` 提取 `awaitPictureWriteAck(sessionID:sendPackets:)`，生产写包与测试 seam（`awaitRealPictureWriteAckForTesting`）共用同一 waiter 注册。
+- **测试**：`testUnifiedDispatcherGatesPictureQueueAndStatusLegsByCallbackSource` 逐腿对照（0x00 → map；0x90 → head；0x81 → waiter），旧代零变化 + 当前代控制组全部通过；`testUnifiedDispatcherRejectsMalformedEnvelopeForCurrentCallback` 证明畸形 envelope 在当前 callback 上同样零消费零状态变化。测试只传 callback 对象。
+- **boundary gate 硬化（Standards P1-2）**：剥离器支持**嵌套**块注释与 raw（`#"…"#`/`##"…"##`）/multiline（`"""`）字符串；inventory 除冻结字面量清单 `["0x00","0x94"]` 外，**要求 `nonLiterals` 为空**——`sendDirectCommandFrame(opcode)` 这类变量参数会被具名拒绝。
+- **反证（最终树，sha256 复核 `91ea8b94…1ac1`）**：J 去掉 dispatcher 顶部 proof → 三条腿 3 failures；L1 真实 `let opcode = 0x96; sendDirectCommandFrame(opcode)` → gate 1 failure（`nonLiterals=["opcode"]`）；L2 嵌套块注释含 token → 0 failure；L3 raw + multiline 字符串含 token → 0 failure；G3 真实字面量 `0x96` → 1 failure（`["0x00","0x94","0x96"]`）。全部原子化 patch→run→restore+sha 复核。
+- **门禁**：定向 19 类 **457/457**；全量第 3 次 **1226 / 2 skipped / 0 failures（全绿）**（前两次仅命中既有 Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §10。
+- 需要回复：是（@Codex 复核 C5IR3：统一 dispatcher 的 proof 位置与三腿闭环、0x81 共用 waiter 注册、typed dispatch policy、boundary gate 嵌套注释/raw string/非字面量拒绝、五组反证、定向/全量/Release/identity/diff-check）

@@ -919,10 +919,16 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
 
         // (1) 出站「直接命令帧」callsite inventory：查询只允许既有 0x00（状态轮询）与 0x94（legacy 探测）。
         //     新增 `sendDirectCommandFrame(0x96)` 这类**真实 callsite**会立刻改变清单而失败。
+        let inventory = Self.directCommandCallsites(in: agent)
+        XCTAssertTrue(
+            inventory.nonLiterals.isEmpty,
+            "所有 sendDirectCommandFrame callsite 必须使用 hex 字面量；变量参数需显式登记或改为字面量，"
+                + "实得 \(inventory.nonLiterals)"
+        )
         XCTAssertEqual(
-            Self.directCommandOpcodes(in: agent), ["0x00", "0x94"],
+            inventory.literals, ["0x00", "0x94"],
             "出站直接命令帧 opcode 清单已冻结；新增查询（如 0x96）必须显式登记并重新审查，"
-                + "实得 \(Self.directCommandOpcodes(in: agent))"
+                + "实得 \(inventory.literals)"
         )
         // 旧的符号名检查保留为次要防线（已剥离注释，不会假红）。
         for source in [agent, reducer] {
@@ -950,84 +956,123 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertTrue(agent.contains("AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet"))
         XCTAssertTrue(agent.contains("AhaKeyActiveSetAckEcho.validate("))
         XCTAssertTrue(agent.contains("validatedActivePictureSet("))
-        XCTAssertTrue(agent.contains("private func isCurrentConfigurationAckSource("))
+        XCTAssertTrue(agent.contains("private func isCurrentNotifyCallbackSource("))
         XCTAssertTrue(
-            agent.contains("guard isCurrentConfigurationAckSource(callbackIdentity) else { return false }"),
-            "配置 ACK 必须在读取 head/rid 之前先核 callback 冻结身份"
+            agent.contains("guard isCurrentNotifyCallbackSource(callbackIdentity) else { return false }"),
+            "统一 dispatcher 必须在任何状态变化之前先核 callback 冻结 source"
         )
     }
 
-    /// 注释/字符串感知：单遍状态机剥离 `//`、`/* */` 与字符串字面量。
+    /// C5IR3：注释/字符串感知的源码剥离器。
+    ///
+    /// 支持 `//`、**可嵌套** `/* /* */ */`、普通字符串（含转义）、`"""` 多行字符串，
+    /// 以及 `#"…"#` / `##"…"##` 等 raw string；被剥离内容一律替换为单个空格。
     static func strippingCommentsAndStrings(_ source: String) -> String {
-        enum State { case code, lineComment, blockComment, string }
-        var state = State.code
-        var out = String()
-        out.reserveCapacity(source.count)
-        var i = source.startIndex
-        while i < source.endIndex {
-            let c = source[i]
-            let next = source.index(after: i)
-            switch state {
-            case .code:
-                if c == "/", next < source.endIndex, source[next] == "/" {
-                    state = .lineComment
-                    i = source.index(after: next)
-                    continue
-                }
-                if c == "/", next < source.endIndex, source[next] == "*" {
-                    state = .blockComment
-                    i = source.index(after: next)
-                    continue
-                }
-                if c == "\"" {
-                    state = .string
-                    out.append(" ")
-                    i = next
-                    continue
-                }
-                out.append(c)
-                i = next
-            case .lineComment:
-                if c == "\n" {
-                    state = .code
-                    out.append(c)
-                }
-                i = next
-            case .blockComment:
-                if c == "*", next < source.endIndex, source[next] == "/" {
-                    state = .code
-                    i = source.index(after: next)
-                    continue
-                }
-                i = next
-            case .string:
-                if c == "\\", next < source.endIndex {
-                    i = source.index(after: next)
-                    continue
-                }
-                if c == "\"" {
-                    state = .code
-                }
-                i = next
-            }
+        let chars = Array(source)
+        var out: [Character] = []
+        out.reserveCapacity(chars.count)
+        var i = 0
+        var blockDepth = 0
+
+        func matches(_ index: Int, _ term: [Character]) -> Bool {
+            guard index + term.count <= chars.count else { return false }
+            for offset in 0 ..< term.count where chars[index + offset] != term[offset] { return false }
+            return true
         }
-        return out
+        /// 从 `#` 起识别 raw string 起始（`#"`、`##"`…）：返回 hash 数与引号下标。
+        func rawStringStart(_ index: Int) -> (hashes: Int, quoteIndex: Int)? {
+            var j = index
+            var hashes = 0
+            while j < chars.count, chars[j] == "#" { hashes += 1; j += 1 }
+            guard j < chars.count, chars[j] == "\"" else { return nil }
+            return (hashes, j)
+        }
+
+        while i < chars.count {
+            let c = chars[i]
+            if blockDepth > 0 {
+                if c == "/", i + 1 < chars.count, chars[i + 1] == "*" { blockDepth += 1; i += 2; continue }
+                if c == "*", i + 1 < chars.count, chars[i + 1] == "/" { blockDepth -= 1; i += 2; continue }
+                i += 1
+                continue
+            }
+            if c == "/", i + 1 < chars.count, chars[i + 1] == "/" {
+                while i < chars.count, chars[i] != "\n" { i += 1 }
+                continue
+            }
+            if c == "/", i + 1 < chars.count, chars[i + 1] == "*" { blockDepth = 1; i += 2; continue }
+            if c == "#", let start = rawStringStart(i) {
+                let term = Array("\"" + String(repeating: "#", count: start.hashes))
+                var j = start.quoteIndex + 1
+                while j < chars.count {
+                    if matches(j, term) { j += term.count; break }
+                    j += 1
+                }
+                out.append(" ")
+                i = j
+                continue
+            }
+            if c == "\"" {
+                if i + 2 < chars.count, chars[i + 1] == "\"", chars[i + 2] == "\"" {
+                    var j = i + 3
+                    while j + 2 < chars.count {
+                        if chars[j] == "\"", chars[j + 1] == "\"", chars[j + 2] == "\"" { j += 3; break }
+                        j += 1
+                    }
+                    out.append(" ")
+                    i = j
+                    continue
+                }
+                var j = i + 1
+                while j < chars.count {
+                    if chars[j] == "\\" { j += 2; continue }
+                    if chars[j] == "\"" { j += 1; break }
+                    j += 1
+                }
+                out.append(" ")
+                i = j
+                continue
+            }
+            out.append(c)
+            i += 1
+        }
+        return String(out)
     }
 
-    /// 真实 callsite inventory：`sendDirectCommandFrame(<literal>)` 的 opcode 字面量，排序返回。
-    static func directCommandOpcodes(in code: String) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: "sendDirectCommandFrame\\(\\s*(0x[0-9A-Fa-f]+)") else {
-            return []
+    struct DirectCommandCallsiteInventory: Equatable {
+        let literals: [String]
+        let nonLiterals: [String]
+    }
+
+    /// C5IR3：出站直接命令帧 callsite 清单。
+    ///
+    /// 收集 `sendDirectCommandFrame(<first argument>)` 并分类：hex 字面量进 `literals`，
+    /// 其余（变量、表达式）进 `nonLiterals` 并要求为空——`sendDirectCommandFrame(opcode)`
+    /// 这类参数必须显式登记或改成字面量，不得静默绕过清单。
+    /// 前置 `(?<!func\s)` 排除函数声明本身。
+    static func directCommandCallsites(in code: String) -> DirectCommandCallsiteInventory {
+        let pattern = "(?<!func\\s)sendDirectCommandFrame\\s*\\(\\s*([^,)\\s]*)"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return DirectCommandCallsiteInventory(literals: [], nonLiterals: [])
         }
         let ns = code as NSString
-        return regex
-            .matches(in: code, range: NSRange(location: 0, length: ns.length))
-            .compactMap { match in
-                guard match.numberOfRanges > 1 else { return nil }
-                return ns.substring(with: match.range(at: 1)).lowercased()
+        var literals: [String] = []
+        var nonLiterals: [String] = []
+        for match in regex.matches(in: code, range: NSRange(location: 0, length: ns.length)) {
+            guard match.numberOfRanges > 1 else { continue }
+            let token = ns.substring(with: match.range(at: 1))
+            if token.range(of: "^0x[0-9A-Fa-f]+$", options: .regularExpression) != nil {
+                literals.append(token.lowercased())
+            } else {
+                nonLiterals.append(token)
             }
-            .sorted()
+        }
+        return DirectCommandCallsiteInventory(
+            literals: literals.sorted(), nonLiterals: nonLiterals.sorted()
+        )
     }
+
+
 
     /// C5IR2：配置 ACK ingress 只信 callback 对象自身冻结的 generation/peripheral。
     /// 旧代际（同 UUID）/ 异设备 / unknown / ambiguous／invalid 一律拒绝；当前 callback 才通过。
@@ -1078,11 +1123,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
 
         func gate(_ object: AnyObject) async -> Bool {
-            await MainActor.run { agent.isCurrentConfigurationAckSourceForTesting(object) }
+            await MainActor.run { agent.isCurrentNotifyCallbackSourceForTesting(object) }
         }
         func ingest(_ object: AnyObject) async -> Bool {
             await MainActor.run {
-                agent.consumeConfigurationCommandAckForTesting(ack, callbackIdentity: object)
+                agent.dispatchCommandNotifyFrameForTesting(ack, callbackIdentity: object)
             }
         }
 
@@ -1114,6 +1159,38 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+
+    /// C5IR3：envelope 形状不符的帧即使在当前 callback 上也不得产生任何状态变化。
+    func testUnifiedDispatcherRejectsMalformedEnvelopeForCurrentCallback() {
+        runEndpointTest { [self] in
+        let agent = makeAgent()
+        var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        hooks.stableDeviceID = "TEST-DEVICE"
+        agent.executionTestHooks = hooks
+        let client = EndpointClient(agent: agent)
+        try await client.handshake()
+        let callback = NSObject()
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(peripheralID: UUID(), callbackIdentity: callback)
+        }
+        let malformed = [
+            Data([0xAA, 0xBB, 0x00, 80, 0xCC]),
+            Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0x00]),
+            Data([0x00, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 0xCC, 0xDD]),
+        ]
+        for frame in malformed {
+            let handled = await MainActor.run {
+                agent.dispatchCommandNotifyFrameForTesting(frame, callbackIdentity: callback)
+            }
+            XCTAssertFalse(handled, "畸形 envelope 不得被消费：\(frame)")
+        }
+        let state = try await client.snapshot().devices.first?.state
+        XCTAssertTrue(
+            (state?.activeTaskPictureSets ?? [:]).isEmpty,
+            "畸形帧必须零状态变化（active-set map 仍为空）"
+        )
+        }
+    }
 
     func testIdenticalDeviceProjectionPublishesNoDuplicateEvent() {
         runEndpointTest { [self] in

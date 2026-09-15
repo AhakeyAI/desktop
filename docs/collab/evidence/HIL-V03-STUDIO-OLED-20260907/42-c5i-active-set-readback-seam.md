@@ -304,3 +304,68 @@ C5IR1 的 sequencer 用例把迟到 ACK 送给**已作废的旧 requestID**，�
 | `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
 | `zsh scripts/check-release-identity.sh` | `release identity ok` |
 | 增量 `541742f` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |
+
+## 10. C5IR3（source proof 上提到统一 stateful dispatcher + boundary gate 硬化）
+
+### 10.1 问题
+
+- **Standards P1-1**：C5IR2 的 source proof 只在配置 ACK 分支内。`0x81` 在它**之前**被直接消费；
+  `0x90` 与 ordinary `0x00` 在它返回 false 后**继续**处理。旧 callback 因此仍能完成图片 waiter、
+  推进 `0x90` head、或污染 active-set map / 状态 waiter。
+- **Standards P1-2**：callsite inventory 只认字面量参数，`sendDirectCommandFrame(opcode)` 可绕过；
+  且剥离器不支持 Swift 嵌套块注释与 raw/multiline string。
+- **Standards P2**：`writeHead: Bool` 把「生产写外设」与「测试不写」揉进一个 flag argument。
+- **Spec P1**：任务卡要求的「旧扩展 `0x00` 零 active-set map 变化」未实现；`0x81`/`0x90` 同源风险未闭合。
+
+### 10.2 修复：统一 stateful dispatcher
+
+`didUpdateValueFor` 的 command/notify 分支现在只调用
+`dispatchCommandNotifyFrame(_ data: Data, callbackIdentity: AnyObject) -> Bool`，责任顺序**不可交换**：
+
+1. **envelope 形状识别**（`AA BB … CC DD`，count ≥ 6）——纯读取，零副作用；
+2. **callback 冻结 source proof**（`isCurrentNotifyCallbackSource`：对象自身 association 的
+   generation == `oledConnectionGeneration` 且 peripheralID == `currentOLEDPeripheralID()`）；
+3. proof 通过后才进入 `0x81` / 配置 ACK / `0x90` / `0x00` 任意分支——即任何
+   reducer / continuation / queue / WAL / byte-progress 变化之前。
+
+- `consumeConfigurationCommandAck` 收敛为纯 resolver（不再自带 gate），并在文档中写明
+  「只能由 dispatcher 调用」。
+- OLED 协商帧仍在 dispatcher 之前走 `ingestOLEDNegotiationNotify`：C1 已在该 handler 内部
+  做等价的 generation/peripheral/in-flight proof（保持 C1 冻结语义不变）。
+- **P2**：`writeHead: Bool` 改为 typed `AhaKeyConfigurationCommandDispatch`
+  （`.writeToPeripheral` / `.registerWithoutPeripheralWrite`）。
+- `0x81` 也改为共用实现：提取 `awaitPictureWriteAck(sessionID:sendPackets:)`，
+  生产写包路径与 C5IR3 测试 seam（`awaitRealPictureWriteAckForTesting`）共用同一 waiter 注册。
+- 测试 seam（全部只吃 callback 对象）：`dispatchCommandNotifyFrameForTesting(_:callbackIdentity:)`、
+  `isCurrentNotifyCallbackSourceForTesting(_:)`、`inFlightCommandOpcodeForTesting()`、
+  `pictureWriteWaiterPendingForTesting()`、`activeUploadSessionIDForTesting()`。
+
+### 10.3 测试
+
+| 测试 | 内容 |
+|---|---|
+| `AhaKeyAgentByteProgressTests.testUnifiedDispatcherGatesPictureQueueAndStatusLegsByCallbackSource` | 三条腿逐条对照：**0x00** 旧 callback → dispatcher 丢弃且 `activeTaskPictureSets` 零变化、当前 callback → 正常投影；**0x90** 旧 callback → 丢弃且 `0x90` head 仍在飞、当前 callback → head 被推进；**0x81** 旧 callback → 丢弃且图片 waiter 仍待、当前 callback → waiter 完成。全部用真实 waiter/真实 head |
+| `AhaKeyAgentRuntimeEndpointTests.testUnifiedDispatcherRejectsMalformedEnvelopeForCurrentCallback` | 即使当前 callback，短帧 / trailer 错 / header 错一律不被消费，且 active-set map 仍为空 |
+| `AhaKeyAgentRuntimeEndpointTests.testC5IAgentBoundaryGateInventoryStaysFrozen`（硬化） | 嵌套块注释 + raw/multiline string 感知；**非字面量 callsite 必须为空**；字面量清单冻结 `["0x00","0x94"]` |
+
+### 10.4 反证（最终树，sha256 复核 `91ea8b94…1ac1`）
+
+| 补丁 | 结果 |
+|---|---|
+| J：去掉 dispatcher 顶部的 source proof | 三条腿全部 **3 failures**（0x00/0x90/0x81 旧 callback 全部被错误接受） |
+| L1：真实 `let opcode = 0x96; sendDirectCommandFrame(opcode)` | gate **1 failure**，实得 `nonLiterals=["opcode"]`（变量绕过被拒） |
+| L2：`/* outer /* inner */ sendDirectCommandFrame(0x96) AhaKeyRuntimePageBaseAuthority */` | gate **0 failure**（证明支持**嵌套**块注释，且注释不假红） |
+| L3：`#"sendDirectCommandFrame(0x96)"#` + `"""…"""` 多行字符串 | gate **0 failure**（raw/multiline string 被正确剥离） |
+| G3：真实 `sendDirectCommandFrame(0x96)` 字面量 | gate **1 failure**，实得 `["0x00","0x94","0x96"]` |
+
+每次补丁均原子化「patch → run → restore+sha 复核」，最终 restore 通过。
+
+### 10.5 C5IR3 门禁
+
+| 项 | 结果 |
+|---|---|
+| 定向（19 类：Agent 6 + DeviceStateReducer + DeviceCommandSequencer + DeviceTransportCore + Studio/Runtime 10） | **457 / 457，0 失败** |
+| 全量 Swift | 第 1–2 次仅命中既有 Store inode flake；**第 3 次 1226 / 2 skipped / 0 failures（全绿）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| 增量 `95b18e2` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |

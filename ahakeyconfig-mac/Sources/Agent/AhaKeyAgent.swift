@@ -10,6 +10,22 @@ private let log = Logger(subsystem: "lab.jawa.ahakeyconfig.agent", category: "BL
 /// 冻结在真实 callback 对象上的订阅身份；对象复用时只标 ambiguous，不得覆写为新代。
 private var oledNotifyCallbackBindingAssociationKey: UInt8 = 0
 
+/// C5IR3：配置命令的发送策略。用 typed enum 取代 `writeHead: Bool`——
+/// 「生产写 BLE 外设」与「测试只注册 waiter/入队」是两种不同语义，不得靠布尔 flag 混在一起。
+enum AhaKeyConfigurationCommandDispatch: Equatable {
+    /// 生产：head 立即写 BLE 外设。
+    case writeToPeripheral
+    /// 测试：只注册 waiter 并入队（不写外设），由真实 ACK ingress 驱动完成。
+    case registerWithoutPeripheralWrite
+
+    var writesHeadToPeripheral: Bool {
+        switch self {
+        case .writeToPeripheral: return true
+        case .registerWithoutPeripheralWrite: return false
+        }
+    }
+}
+
 /// 配置事务期间暂缓 0x90 的协调器。隔离由 `@MainActor` 表达；begin/end 必须配对。
 @MainActor
 final class AhaKeyConfigurationTransportWindow {
@@ -2367,18 +2383,39 @@ extension AhaKeyAgent {
               let data = characteristic.value else { return }
         if isOLEDNegotiationNotifyFrame(data) {
             // 只信本次 characteristic 上的冻结身份，不得用可复用 peripheral 的当前关联兜底。
+            // （C1 已在该 handler 内部做同等的 generation/peripheral/in-flight proof。）
             ingestOLEDNegotiationNotify(data, callbackIdentity: characteristic)
             return
         }
+        // C5IR3：命令/通知类帧走**统一 stateful dispatcher**；source proof 在其中、
+        // 且位于任何 reducer / continuation / queue / WAL / byte-progress 变化之前。
+        _ = dispatchCommandNotifyFrame(data, callbackIdentity: characteristic)
+    }
+
+    /// C5IR3：command/notify 的统一 stateful dispatcher。
+    ///
+    /// 责任顺序**不可交换**：
+    /// 1. envelope 形状识别（`AA BB … CC DD`）——纯读取，零副作用；
+    /// 2. callback 冻结 source proof（对象自身 association 的 generation + peripheral）；
+    /// 3. 只有 proof 通过后才允许任何 reducer / continuation / queue / WAL / byte-progress 变化。
+    ///
+    /// 返回 `false` = 本帧未被消费（形状不符或 source 非当前 callback），两种情况下都必须零状态变化。
+    /// 旧代际 / 异设备 / unknown / ambiguous / invalid callback 因此无法完成图片 waiter、
+    /// 推进 0x90 head、解析 0x00 状态帧或污染 active-set map。
+    @discardableResult
+    private func dispatchCommandNotifyFrame(_ data: Data, callbackIdentity: AnyObject) -> Bool {
+        guard data.count >= 6, data[0] == 0xAA, data[1] == 0xBB,
+              data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD else { return false }
+        guard isCurrentNotifyCallbackSource(callbackIdentity) else { return false }
+
         // 0x81 图片写入确认（数据通道收尾；session 必须匹配当前在途会话）
-        if data.count >= 6, data[0] == 0xAA, data[1] == 0xBB, data[2] == AhaKeyWireFrameBuilder.cmdWriteResult,
-           data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD {
+        if data[2] == AhaKeyWireFrameBuilder.cmdWriteResult {
             handlePictureWriteResult(status: data[3], payload: data[4 ..< data.count - 2])
-            return
+            return true
         }
         // 配置事务命令 ACK（sequencer head 五元匹配；0x00/0x90 走各自既有路径）
-        if consumeConfigurationCommandAck(data, callbackIdentity: characteristic) {
-            return
+        if consumeConfigurationCommandAck(data) {
+            return true
         }
         if let acknowledgement = StateCommandAcknowledgement.parse(data) {
             if acknowledgement.resultCode == 0 {
@@ -2390,9 +2427,9 @@ extension AhaKeyAgent {
             if transportCore.inFlightCommand?.opcode == 0x90 {
                 advanceQueue()
             }
-            return
+            return true
         }
-        guard let status = MainActor.assumeIsolated({ self.consumeDeviceStatus(data) }) else { return }
+        guard let status = MainActor.assumeIsolated({ self.consumeDeviceStatus(data) }) else { return false }
 
         // 0x00 应答路由到 head 命令的 waiter（五元绑定；代际不符=迟到回包，nil 收尾）
         if let head = transportCore.inFlightCommand, head.opcode == 0x00,
@@ -2405,6 +2442,7 @@ extension AhaKeyAgent {
         if transportCore.inFlightCommand?.opcode == 0x00 {
             advanceQueue()
         }
+        return true
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -2452,21 +2490,14 @@ extension AhaKeyAgent {
         )
     }
 
-    /// C5IR2：配置事务命令 ACK 的唯一 ingress。
+    /// 配置事务命令 ACK 的 resolver（**source proof 已由统一 dispatcher 完成**）。
     ///
-    /// 归因只信 **callback 对象自身冻结的 source**（C1 callback object association）：
-    /// 代际与 peripheral 必须同时等于当前代际与当前 peripheral，且在读取当前 head / rid、
-    /// 解析 payload、推进队列**之前**完成核验。否则同 UUID 的旧 characteristic callback
-    /// 只要携带与新请求相同的 `0x97` 字节，就会被当前 head/rid 反推并误完成新 waiter。
-    ///
-    /// unknown / ambiguous / invalid / 旧代际 / 异设备一律返回 false 且零状态变化。
+    /// 调用前提：`dispatchCommandNotifyFrame` 已确认本帧来自当前 callback 的冻结 source
+    /// （代际 + peripheral），且 envelope 形状合法。因此这里只做 head/rid 五元匹配与结算，
+    /// 不再重复 gate，也不得被其它入口直接调用。
     @discardableResult
-    private func consumeConfigurationCommandAck(_ data: Data, callbackIdentity: AnyObject) -> Bool {
-        guard data.count >= 6, data[0] == 0xAA, data[1] == 0xBB,
-              data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD,
-              data[2] != 0x00, data[2] != 0x90 else { return false }
-        // 顺序不可交换：先核回调冻结身份，再读当前 head/rid。
-        guard isCurrentConfigurationAckSource(callbackIdentity) else { return false }
+    private func consumeConfigurationCommandAck(_ data: Data) -> Bool {
+        guard data[2] != 0x00, data[2] != 0x90 else { return false }
         guard let head = transportCore.inFlightCommand, head.opcode == data[2],
               let rid = configOperationWaiters[head.operationID] else { return false }
         let outcome = transportCore.resolveWaiter(
@@ -2488,7 +2519,7 @@ extension AhaKeyAgent {
     /// C5IR2 gate 谓词：只信 callback 对象自身冻结的 `OLEDNotifySource`。
     /// 未绑定（unknown）/ ambiguous / invalid / 旧代际 / 异设备一律 false。
     /// 与 OLED 响应共用同一 association，不新增账本、不看当前 head/rid。
-    private func isCurrentConfigurationAckSource(_ callbackIdentity: AnyObject) -> Bool {
+    private func isCurrentNotifyCallbackSource(_ callbackIdentity: AnyObject) -> Bool {
         guard let source = resolveOLEDNotifySource(attachedTo: callbackIdentity) else { return false }
         guard source.generation == oledConnectionGeneration else { return false }
         guard let currentPeripheral = currentOLEDPeripheralID(),
@@ -3117,7 +3148,7 @@ extension AhaKeyAgent {
                 // C5IR2：只对 `0x97` 跳过 BLE 外设写出，其余命令仍走既有模拟路径；
                 // waiter 注册/入队/ACK 归因全走生产路径。
                 let response = try await awaitRegisteredConfigurationAck(
-                    frame: frame, ack: ack, writeHead: false
+                    frame: frame, ack: ack, dispatch: .registerWithoutPeripheralWrite
                 )
                 try finishConfigurationCommand(
                     ack: ack,
@@ -3145,7 +3176,9 @@ extension AhaKeyAgent {
         }
         // frame = AA BB [cmd] [payload…] CC DD
         guard frame.count >= 5, frame[2] == ack else { throw AhaKeyAgentCommandError.malformedFrame }
-        let response = try await awaitRegisteredConfigurationAck(frame: frame, ack: ack, writeHead: true)
+        let response = try await awaitRegisteredConfigurationAck(
+            frame: frame, ack: ack, dispatch: .writeToPeripheral
+        )
         try finishConfigurationCommand(
             ack: ack,
             request: Data(frame[3 ..< frame.count - 2]),
@@ -3157,7 +3190,11 @@ extension AhaKeyAgent {
     /// 注册配置命令 waiter 并把命令入队（生产路径与 C5IR2 测试 seam 共用同一实现）。
     /// `writeHead == false` 只跳过 BLE 外设写出，waiter/队列/代际语义逐字不变。
     @MainActor
-    private func enqueueConfigurationCommand(frame: Data, ack: UInt8, writeHead: Bool) -> UInt64? {
+    private func enqueueConfigurationCommand(
+        frame: Data,
+        ack: UInt8,
+        dispatch: AhaKeyConfigurationCommandDispatch
+    ) -> UInt64? {
         operationCounter &+= 1
         let op = operationCounter
         guard let rid = transportCore.registerWaiter(operationID: op, now: Date(), timeout: 3) else {
@@ -3172,7 +3209,7 @@ extension AhaKeyAgent {
         )
         // 先登记 operationID → requestID，再入队：ACK ingress 依赖这份映射。
         configOperationWaiters[op] = rid
-        if let head = transportCore.enqueue(cmd), writeHead {
+        if let head = transportCore.enqueue(cmd), dispatch.writesHeadToPeripheral {
             writeCommand(head)
         }
         return rid
@@ -3182,10 +3219,10 @@ extension AhaKeyAgent {
     private func awaitRegisteredConfigurationAck(
         frame: Data,
         ack: UInt8,
-        writeHead: Bool
+        dispatch: AhaKeyConfigurationCommandDispatch
     ) async throws -> (status: UInt8, payload: Data) {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(status: UInt8, payload: Data), Error>) in
-            guard let rid = enqueueConfigurationCommand(frame: frame, ack: ack, writeHead: writeHead) else {
+            guard let rid = enqueueConfigurationCommand(frame: frame, ack: ack, dispatch: dispatch) else {
                 continuation.resume(throwing: AhaKeyAgentCommandError.disconnected)
                 return
             }
@@ -3276,6 +3313,12 @@ extension AhaKeyAgent {
             throw executionTestHooks?.failConfigurationChunkWith ?? .disconnected
         }
         if skipBLE {
+            if executionTestHooks?.awaitRealPictureWriteAckForTesting == true {
+                // C5IR3：只注册真实 0x81 waiter，不写数据外设。
+                try await awaitPictureWriteAck(sessionID: sessionID, sendPackets: nil)
+                configurationChunkAckCount += 1
+                return
+            }
             try await completeConfigurationChunkAck(sessionID: sessionID)
             configurationChunkAckCount += 1
             return
@@ -3295,11 +3338,31 @@ extension AhaKeyAgent {
             sessionID: sessionID
         )
 
-        activeUploadSessionID = sessionID
+        try await awaitPictureWriteAck(sessionID: sessionID) { [weak self] in
+            // waiter 就位后再发数据包（12ms 间隔，与 Studio 生产路径一致）
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                for packet in packets {
+                    guard self.configurationWriteIsReady(), self.dataWriteContinuation != nil else { return }
+                    peripheral.writeValue(packet, for: dataChar, type: writeType)
+                    try? await Task.sleep(nanoseconds: 12_000_000)
+                }
+            }
+        }
+    }
 
-        // 0x81 waiter 必须在任何 packet 发出前建立（快速 ACK 不得丢失）；
-        // 失败/超时时 activeUploadSessionID 保留给 abortConfigurationSession 发 0x9A，
-        // 只有 0x81 成功（handlePictureWriteResult）或 0x9A 收尾后才清空。
+    /// 注册 0x81 数据写入 waiter 并等待确认（生产路径与 C5IR3 测试 seam 共用同一实现）。
+    ///
+    /// 0x81 waiter 必须在任何 packet 发出前建立（快速 ACK 不得丢失）；
+    /// 失败/超时时 `activeUploadSessionID` 保留给 `abortConfigurationSession` 发 0x9A，
+    /// 只有 0x81 成功（`handlePictureWriteResult`）或 0x9A 收尾后才清空。
+    /// `sendPackets == nil` 表示测试：只注册 waiter，不写外设。
+    @MainActor
+    private func awaitPictureWriteAck(
+        sessionID: UInt16?,
+        sendPackets: (() -> Void)?
+    ) async throws {
+        activeUploadSessionID = sessionID
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             dataWriteContinuation = continuation
             let timeout = DispatchWorkItem { [weak self] in
@@ -3310,16 +3373,7 @@ extension AhaKeyAgent {
             }
             dataWriteTimeoutItem = timeout
             DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
-
-            // waiter 就位后再发数据包（12ms 间隔，与 Studio 生产路径一致）
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                for packet in packets {
-                    guard self.configurationWriteIsReady(), self.dataWriteContinuation != nil else { return }
-                    peripheral.writeValue(packet, for: dataChar, type: writeType)
-                    try? await Task.sleep(nanoseconds: 12_000_000)
-                }
-            }
+            sendPackets?()
         }
     }
 
@@ -4587,18 +4641,37 @@ extension AhaKeyAgent {
     }
 
     /// C5IR2 测试 seam：配置 ACK ingress 只接受 **callback 对象**；
-    /// 代际/peripheral 由该对象自身冻结的 source 决定，测试不得直接注入 generation/requestID。
+    /// C5IR3 测试 seam：统一 command/notify stateful dispatcher 本身。
+    /// 测试只传 callback 对象；source proof 在 dispatcher 内、先于任何状态变化。
     @discardableResult
-    internal func consumeConfigurationCommandAckForTesting(
+    internal func dispatchCommandNotifyFrameForTesting(
         _ data: Data,
         callbackIdentity: AnyObject
     ) -> Bool {
-        consumeConfigurationCommandAck(data, callbackIdentity: callbackIdentity)
+        dispatchCommandNotifyFrame(data, callbackIdentity: callbackIdentity)
     }
 
-    /// C5IR2 测试 seam：生产 gate 的同一谓词（只吃 callback 对象，不看当前 head/rid）。
-    internal func isCurrentConfigurationAckSourceForTesting(_ callbackIdentity: AnyObject) -> Bool {
-        isCurrentConfigurationAckSource(callbackIdentity)
+    /// C5IR3 测试 seam：生产 source proof 的同一谓词（只吃 callback 对象，不看当前 head/rid）。
+    internal func isCurrentNotifyCallbackSourceForTesting(_ callbackIdentity: AnyObject) -> Bool {
+        isCurrentNotifyCallbackSource(callbackIdentity)
+    }
+
+    /// C5IR3 测试 seam：当前在飞命令的 opcode（证明旧 callback 不得推进 queue head）。
+    @MainActor
+    func inFlightCommandOpcodeForTesting() -> UInt8? {
+        transportCore.inFlightCommand?.opcode
+    }
+
+    /// C5IR3 测试 seam：0x81 数据写入 waiter 是否仍在飞（证明旧 callback 不得完成图片 waiter）。
+    @MainActor
+    func pictureWriteWaiterPendingForTesting() -> Bool {
+        dataWriteContinuation != nil
+    }
+
+    /// C5IR3 测试 seam：当前在途图片写入会话（构造匹配的 0x81 帧；不暴露 continuation）。
+    @MainActor
+    func activeUploadSessionIDForTesting() -> UInt16? {
+        activeUploadSessionID
     }
 
     @MainActor
@@ -5137,6 +5210,9 @@ struct AhaKeyAgentExecutionTestHooks {
     /// C5IR2：skipBLE 路径改为只跳过 BLE 外设写出，仍走生产 waiter 注册/入队，
     /// 由真实 ACK ingress（callback 归因）完成——用于验证旧 callback 无法借用新 waiter。
     var awaitRealConfigurationAckForTesting: Bool = false
+    /// C5IR3：chunk 路径只注册真实 0x81 waiter（不写数据外设），由真实 ACK ingress 驱动，
+    /// 用于验证旧 callback 无法完成图片 waiter。
+    var awaitRealPictureWriteAckForTesting: Bool = false
     /// 每个 chunk 在 ACK 前调用（已确认成功次数）。
     var beforeConfigurationChunkWrite: (@Sendable (Int) async -> Void)?
     /// 生产 executor 进入 WAL 步、切完 currentStepID 之后、执行程序之前。

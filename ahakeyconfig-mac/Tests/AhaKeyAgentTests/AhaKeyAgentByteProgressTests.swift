@@ -386,15 +386,13 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         try await waitUntil {
             await MainActor.run { agent.configurationWaiterCountForTesting() } > 0
         }
-        let diagStale = await MainActor.run { agent.isCurrentConfigurationAckSourceForTesting(staleCallback) }
-        let diagCurrent = await MainActor.run { agent.isCurrentConfigurationAckSourceForTesting(currentCallback) }
         let requestPayload = Data([0x00, 0x00])
         // 固件成功回包：AA BB 97 <status=0> <mode> <set> CC DD
         let ack = Data([0xAA, 0xBB, 0x97, 0x00] + requestPayload + [0xCC, 0xDD])
 
         // 旧 callback：gate 拒绝 → 零变化（waiter 仍在飞）。
         let staleAccepted = await MainActor.run {
-            agent.consumeConfigurationCommandAckForTesting(ack, callbackIdentity: staleCallback)
+            agent.dispatchCommandNotifyFrameForTesting(ack, callbackIdentity: staleCallback)
         }
         XCTAssertFalse(staleAccepted, "旧代际 callback 不得被 ingress 接受")
         let pendingAfterStale = await MainActor.run { agent.configurationWaiterCountForTesting() }
@@ -402,7 +400,7 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
 
         // 当前 callback：完成 waiter → 0x97 步确认 → operation completed。
         let currentAccepted = await MainActor.run {
-            agent.consumeConfigurationCommandAckForTesting(ack, callbackIdentity: currentCallback)
+            agent.dispatchCommandNotifyFrameForTesting(ack, callbackIdentity: currentCallback)
         }
         XCTAssertTrue(currentAccepted, "当前 callback 必须完成 waiter")
         try await waitUntil {
@@ -417,6 +415,97 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             confirmed.contains { $0.rawValue == "base:mode:0" },
             "当前 callback 完成后 base:mode:0 必须被确认，实得 \(confirmed.map(\.rawValue))"
         )
+    }
+
+    /// C5IR3：统一 stateful dispatcher —— 旧代 callback 的 `0x81` / `0x90` / `0x00`
+    /// 都必须零状态变化；当前代 callback 为控制组，必须照常生效。
+    func testUnifiedDispatcherGatesPictureQueueAndStatusLegsByCallbackSource() async throws {
+        let agent = makeAgent(skipBLE: true)
+        var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        hooks.stableDeviceID = "TEST-DEVICE"
+        agent.executionTestHooks = hooks
+        func deviceState() async throws -> AhaKeyRuntimeDeviceState? {
+            let response = try await agent.handleRuntimeXPCRequest(.snapshot)
+            guard case .snapshot(let snapshot) = response else { return nil }
+            return snapshot.devices.first?.state
+        }
+
+        let peripheralA = UUID()
+        let staleCallback = NSObject()
+        let currentCallback = NSObject()
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: staleCallback
+            )
+        }
+        await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: currentCallback
+            )
+        }
+
+        func dispatch(_ data: Data, _ object: AnyObject) async -> Bool {
+            await MainActor.run {
+                agent.dispatchCommandNotifyFrameForTesting(data, callbackIdentity: object)
+            }
+        }
+        func activeSet(_ mode: UInt8) async throws -> UInt8? {
+            try await deviceState()?.activeTaskPictureSets[AhaKeyRuntimeModeIndex(mode)]?.rawValue
+        }
+
+        // ---- leg A：0x00 扩展状态帧不得被旧 callback 用来污染 active-set map ----
+        let statusFrame = Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 0, 1, 0, 35, 1, 0xCC, 0xDD])
+        let staleStatus = await dispatch(statusFrame, staleCallback)
+        XCTAssertFalse(staleStatus, "旧 callback 的 0x00 必须被 dispatcher 丢弃")
+        let afterStaleStatus = try await activeSet(0)
+        XCTAssertNil(afterStaleStatus, "旧 callback 不得污染 active-set map（零变化）")
+        let currentStatus = await dispatch(statusFrame, currentCallback)
+        XCTAssertTrue(currentStatus, "当前 callback 的 0x00 必须被消费")
+        let afterCurrentStatus = try await activeSet(0)
+        XCTAssertEqual(afterCurrentStatus, 1, "当前 callback 必须正常投影 active set（控制组）")
+
+        // ---- leg B：0x90 ACK 不得被旧 callback 用来推进当前 head ----
+        var stateHooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        stateHooks.skipStateCommandBLEWriteGates = true
+        stateHooks.stableDeviceID = "TEST-DEVICE"
+        agent.executionTestHooks = stateHooks
+        await MainActor.run {
+            agent.primeTransportForCommandEnqueueForTesting()
+            agent.handleJsonCommandForTesting(cmd: "state", obj: ["value": 5])
+        }
+        let headOpcode = await MainActor.run { agent.inFlightCommandOpcodeForTesting() }
+        XCTAssertEqual(headOpcode, 0x90, "控制组前置：必须有一条 0x90 head 在飞")
+        let stateAck = Data([0xAA, 0xBB, 0x90, 0x00, 0xCC, 0xDD])
+        let staleState = await dispatch(stateAck, staleCallback)
+        XCTAssertFalse(staleState, "旧 callback 的 0x90 ACK 必须被 dispatcher 丢弃")
+        let headAfterStale = await MainActor.run { agent.inFlightCommandOpcodeForTesting() }
+        XCTAssertEqual(headAfterStale, 0x90, "旧 callback 不得推进 0x90 head")
+        let currentState = await dispatch(stateAck, currentCallback)
+        XCTAssertTrue(currentState, "当前 callback 的 0x90 ACK 必须被消费")
+        let headAfterCurrent = await MainActor.run { agent.inFlightCommandOpcodeForTesting() }
+        XCTAssertNil(headAfterCurrent, "当前 callback 必须推进 0x90 head（控制组）")
+
+        // ---- leg C：0x81 图片写入确认不得被旧 callback 用来完成当前 waiter ----
+        var pictureHooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        pictureHooks.awaitRealPictureWriteAckForTesting = true
+        agent.executionTestHooks = pictureHooks
+        let package = try await prepareResourcePackage(agent, fileCount: 1)
+        let applyTask = Task { try await applyPrepared(agent, package: package) }
+        try await waitUntil { await MainActor.run { agent.pictureWriteWaiterPendingForTesting() } }
+        let packetSession = await MainActor.run { agent.activeUploadSessionIDForTesting() }
+        let packetLo = UInt8((packetSession ?? 0) & 0xFF)
+        let packetHi = UInt8(((packetSession ?? 0) >> 8) & 0xFF)
+        let matchingAck = Data([0xAA, 0xBB, 0x81, 0x00, packetLo, packetHi, 0xCC, 0xDD])
+        let stalePicture = await dispatch(matchingAck, staleCallback)
+        XCTAssertFalse(stalePicture, "旧 callback 的 0x81 必须被 dispatcher 丢弃")
+        let pendingAfterStale = await MainActor.run { agent.pictureWriteWaiterPendingForTesting() }
+        XCTAssertTrue(pendingAfterStale, "旧 callback 不得完成图片 waiter")
+        let currentPicture = await dispatch(matchingAck, currentCallback)
+        XCTAssertTrue(currentPicture, "当前 callback 的 0x81 必须被消费")
+        let pendingAfterCurrent = await MainActor.run { agent.pictureWriteWaiterPendingForTesting() }
+        XCTAssertFalse(pendingAfterCurrent, "当前 callback 必须完成图片 waiter（控制组）")
+        try await applyTask.value
     }
 
     func testProductionPictureWriteRejectPersistsThroughHandlerWALAndFreshAgent() async throws {
