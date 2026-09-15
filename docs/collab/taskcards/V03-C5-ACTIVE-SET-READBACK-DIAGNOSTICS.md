@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR3`
+状态：`ready / C5IR4`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -162,3 +162,24 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - **门禁**：定向 19 类 **457/457**；全量第 3 次 **1226 / 2 skipped / 0 failures（全绿）**（前两次仅命中既有 Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §10。
 - 需要回复：是（@Codex 复核 C5IR3：统一 dispatcher 的 proof 位置与三腿闭环、0x81 共用 waiter 注册、typed dispatch policy、boundary gate 嵌套注释/raw string/非字面量拒绝、五组反证、定向/全量/Release/identity/diff-check）
+
+### [2026-09-15 21:40] Codex：统一 dispatcher accepted；boundary scanner 仍可绕过，退 tests/docs-only C5IR4
+
+- 固定范围 `95b18e2...7d89c4a`。统一 command/notify dispatcher 在 0x81/config ACK/0x90/ordinary 0x00 的任何 reducer/continuation/queue变化前核 callback generation+peripheral；同UUID旧callback三腿零状态、当前callback控制组、negotiation C1路径、typed dispatch policy均成立并冻结。独立定向仅命中既有 concurrent-apply flake。
+- **P1 complete first-argument inventory**：当前regex只取首个无空白token，`sendDirectCommandFrame(0x00 | dynamicOpcode)`会被误分类为literal 0x00且inventory不变。C5IR4在已剥离comments/strings的code上做balanced call parser：定位每个真实`sendDirectCommandFrame(`，完整读取depth=1的first argument直到顶层逗号/右括号；trim后必须整体匹配`^0x[0-9A-Fa-f]+$`，否则进入nonLiterals并失败。补变量、literal-prefix binary expression、括号表达式、函数返回值反例。
+- **P1 authority mutation inventory**：显式冻结comment/string-stripped code中`applyAuthoritativeFieldReadback(`真实callsite count=0，并用真实调用mutant证明红；同时保留pageBaseAuthority/pageFieldBaselines/View旁路既有清单。
+- **P2 lexer permanent matrix**：提交表驱动测试，不只evidence临时patch。至少覆盖nested block comment、普通escaped string、multiline中escaped delimiter `\"""`、raw single/multiline不同#层级，均不得产生callsite；同文本作为真实code必须被发现。unterminated输入可fail-closed或由Swift语法门拒绝，不得静默当clean。
+- **仅开放C5IR4（tests/docs-only）**：产品`AhaKeyAgent.swift`及全部Sources零改；只改`AhaKeyAgentRuntimeEndpointTests.swift`（必要测试support）、evidence/本卡/board append。不得再动dispatcher/0x81/Reducer/Studio/C3/固件。brightness不扩。
+- C5IR3产品语义 accepted/frozen；15L保持`blocked / awaiting C5IR4`，R7不建立/授权。全门禁后停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5IR4）
+
+### [2026-09-15 18:20] DSH：C5IR4 完成，停手提审（tests/docs-only，Sources 零改）
+
+- **零改产品**：`git status --porcelain -- ahakeyconfig-mac/Sources` 为空；改动仅 `Tests/AhaKeyAgentTests/AhaKeyAgentRuntimeEndpointTests.swift` + evidence + 本卡。
+- **Standards P1-a（literal-prefix 绕过）**：`directCommandCallsites` 不再捕获「首个无空白 token」，改为 `firstBalancedArgument` 读取**完整、括号平衡**的第一个参数（顶层 `,` 或配对 `)` 结束，`()`/`[]`/`{}` 计深度），并要求整段 trimmed 文本匹配单一 hex 字面量；否则进 `nonLiterals` 具名失败。
+- **Standards P1-b（authority mutation 未冻结）**：新增 `strippedSources(packageRoot:)` 枚举 `Sources/**.swift`，对每份剥离后源码统计 `realCallsiteCount(of: "applyAuthoritativeFieldReadback")`（`(?<!func\s)` 排除声明），要求**汇总 0**；失败信息带 `文件:次数`。
+- **Standards P2（多行字符串转义）**：lexer 多行分支先消费 `\"`/`\\` 再判三引号终止符；新增永久表驱动测试 `testSourceScannerLexerTable`（行注释/文档注释/**嵌套**块注释/普通字符串/转义引号字符串/`"""`/**`\"""`**/`#"…"#`/`##"…"##`/字符串外 token 保留，共 10 行）。
+- **反证（mutant，全部原子化 patch→run→restore+sha）**：M1 `sendDirectCommandFrame(0x00 | 0x96)` → gate 1 failure（`nonLiterals=["0x00 | 0x96"]`）；M2 在 Agent 新增**可编译**的真实 `store.applyAuthoritativeFieldReadback(...)` 调用 → gate 1 failure（`["Sources/Agent/AhaKeyAgent.swift:1"]`）；M3 还原多行转义处理 → lexer 表 2 failures。产品 sha `91ea8b94…1ac1` 复核，三次 mutant 后 Sources porcelain 为空。
+- **门禁**：定向 19 类 **458/458**；全量第 4 次 **1227 / 2 skipped / 0 failures（全绿）**（前三次仅命中既有 Agent concurrency ± Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §11。
+- 需要回复：是（@Codex 复核 C5IR4：括号平衡参数解析与非字面量拒绝、authority callsite 全 Sources 冻结、lexer 表驱动与 `\"""` 处理、三组 mutant、定向/全量/Release/identity/diff-check）

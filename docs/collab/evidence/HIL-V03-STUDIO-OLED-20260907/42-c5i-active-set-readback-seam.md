@@ -369,3 +369,53 @@ C5IR1 的 sequencer 用例把迟到 ACK 送给**已作废的旧 requestID**，�
 | `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
 | `zsh scripts/check-release-identity.sh` | `release identity ok` |
 | 增量 `95b18e2` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |
+
+## 11. C5IR4（tests/docs-only：callsite parser 收紧、authority callsite 冻结、lexer 表驱动）
+
+C5IR3 产品 dispatcher 已 accepted/frozen；本段为 `C5IR4`，**Sources 零改**（`git status --porcelain -- ahakeyconfig-mac/Sources` 为空）。
+
+### 11.1 P1：callsite parser 会接受 literal-prefix 表达式
+
+原实现用 `([^,)\s]*)` 只捕获首个无空白 token，因此
+`sendDirectCommandFrame(0x00 | 0x96)` 会被归为合法字面量 `0x00`。
+现改为**读取完整、括号平衡的第一个参数**（`firstBalancedArgument`：到顶层 `,` 或与调用括号配对的 `)`
+为止，`()`/`[]`/`{}` 均计深度），并要求**整段 trimmed 文本**匹配单一 hex 字面量；
+否则进 `nonLiterals` 并具名失败。传入文本已剥离注释/字符串，故无需再处理引号。
+
+### 11.2 P1：authority mutation API 未被显式冻结
+
+原 gate 只查类型名 / `writeConfirmed` / `pageFieldBaselines`，新增
+`store.applyAuthoritativeFieldReadback(` 这类**真实调用**不会触发任何断言。
+现在 gate 会枚举 `Sources/**.swift`（`strippedSources`），对每份剥离后的源码统计
+`realCallsiteCount(of: "applyAuthoritativeFieldReadback")`（`(?<!func\s)` 排除声明本身），
+要求**汇总为 0**；任何文件出现真实 callsite 都会带着 `文件:次数` 失败。
+
+### 11.3 P2：多行字符串转义三元引号
+
+原 lexer 在 `"""` 内不处理 `\` 转义，`\"""` 会被误判为结束符。
+现在多行分支先消费 `\"` / `\\` 转义再检查三引号终止符；
+并把 lexer 行为固化为**永久表驱动测试** `testSourceScannerLexerTable`：
+行注释 / 文档注释 / **嵌套**块注释 / 普通字符串 / 转义引号字符串 / `"""` / **`\"""`** /
+`#"…"#` / `##"…"##` / 字符串外 token 保留，共 10 行。
+
+### 11.4 反证（mutant，全部原子化 patch→run→restore+sha）
+
+| 补丁 | 结果 |
+|---|---|
+| M1：`sendDirectCommandFrame(0x00 \| 0x96)`（literal-prefix 表达式） | gate **1 failure**，实得 `nonLiterals=["0x00 \| 0x96"]` |
+| M2：在 Agent 新增**可编译**的真实 `store.applyAuthoritativeFieldReadback(...)` 调用 | gate **1 failure**，实得 `["Sources/Agent/AhaKeyAgent.swift:1"]` |
+| M3：还原多行字符串转义处理 | lexer 表测试 **2 failures**（`multiline-string-escaped-triple-quote` 行 token 未被剥离） |
+
+产品文件 sha256：`91ea8b94…1ac1`；测试文件 sha256：`c5ir4-tests` 备份复核通过；
+三次 mutant 后 `git status --porcelain -- ahakeyconfig-mac/Sources` 为空。
+
+### 11.5 C5IR4 门禁
+
+| 项 | 结果 |
+|---|---|
+| Sources 改动 | **零**（`git status --porcelain -- ahakeyconfig-mac/Sources` 为空） |
+| 定向（19 类） | **458 / 458，0 失败** |
+| 全量 Swift | 第 1–3 次仅命中两个已登记 flake（Agent concurrency ± Store inode）；**第 4 次 1227 / 2 skipped / 0 failures（全绿）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| 增量 `7d89c4a` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |

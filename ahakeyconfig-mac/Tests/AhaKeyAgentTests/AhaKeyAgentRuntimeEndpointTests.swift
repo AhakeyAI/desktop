@@ -945,6 +945,20 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             agent.components(separatedBy: "store.pageFieldBaselines(").count - 1, 2,
             "Agent 的 pageFieldBaselines 读取点必须冻结在既有两处（page preconditions + snapshot 投影）"
         )
+        // (2b) C5IR4：authority mutation API 的真实 callsite 必须为 0（覆盖整个 Sources）。
+        // 只查类型名/writeConfirmed/pageFieldBaselines 无法拦住新增的 `applyAuthoritativeFieldReadback(`。
+        let sources = try Self.strippedSources(packageRoot: packageRoot)
+        XCTAssertFalse(sources.isEmpty, "必须能枚举 Sources 源码")
+        var authorityCallsites: [String] = []
+        for (relative, text) in sources {
+            let count = Self.realCallsiteCount(of: "applyAuthoritativeFieldReadback", in: text)
+            if count != 0 { authorityCallsites.append("\(relative):\(count)") }
+        }
+        XCTAssertTrue(
+            authorityCallsites.isEmpty,
+            "产品代码不得出现 authority field readback 调用（含 Shared）：\(authorityCallsites)"
+        )
+
         // (3) 无 View/Studio/assembler 旁路。
         for forbidden in [
             "AhaKeyStudioView", "AhaKeyStudioPackageAssembler",
@@ -1015,12 +1029,15 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             if c == "\"" {
                 if i + 2 < chars.count, chars[i + 1] == "\"", chars[i + 2] == "\"" {
                     var j = i + 3
-                    while j + 2 < chars.count {
-                        if chars[j] == "\"", chars[j + 1] == "\"", chars[j + 2] == "\"" { j += 3; break }
+                    while j < chars.count {
+                        // C5IR4：多行字符串内的 `\"` / `\\` 是转义，不得把 `\"\"\"` 误判为结束符。
+                        if chars[j] == "\\" { j += 2; continue }
+                        if j + 2 < chars.count,
+                           chars[j] == "\"", chars[j + 1] == "\"", chars[j + 2] == "\"" { j += 3; break }
                         j += 1
                     }
                     out.append(" ")
-                    i = j
+                    i = min(j, chars.count)
                     continue
                 }
                 var j = i + 1
@@ -1051,20 +1068,26 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
     /// 这类参数必须显式登记或改成字面量，不得静默绕过清单。
     /// 前置 `(?<!func\s)` 排除函数声明本身。
     static func directCommandCallsites(in code: String) -> DirectCommandCallsiteInventory {
-        let pattern = "(?<!func\\s)sendDirectCommandFrame\\s*\\(\\s*([^,)\\s]*)"
+        let pattern = "(?<!func\\s)sendDirectCommandFrame\\s*\\("
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return DirectCommandCallsiteInventory(literals: [], nonLiterals: [])
         }
-        let ns = code as NSString
+        let chars = Array(code)
         var literals: [String] = []
         var nonLiterals: [String] = []
-        for match in regex.matches(in: code, range: NSRange(location: 0, length: ns.length)) {
-            guard match.numberOfRanges > 1 else { continue }
-            let token = ns.substring(with: match.range(at: 1))
-            if token.range(of: "^0x[0-9A-Fa-f]+$", options: .regularExpression) != nil {
-                literals.append(token.lowercased())
+        for match in regex.matches(in: code, range: NSRange(location: 0, length: (code as NSString).length)) {
+            guard let range = Range(match.range, in: code) else { continue }
+            let start = code.distance(from: code.startIndex, to: range.upperBound)
+            // 读取**完整、括号平衡**的第一个参数；只有整段 trimmed 文本是单一 hex 字面量才算 literal。
+            guard let argument = Self.firstBalancedArgument(after: start, in: chars) else {
+                nonLiterals.append("<unterminated>")
+                continue
+            }
+            let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.range(of: "^0x[0-9A-Fa-f]+$", options: .regularExpression) != nil {
+                literals.append(trimmed.lowercased())
             } else {
-                nonLiterals.append(token)
+                nonLiterals.append(trimmed)
             }
         }
         return DirectCommandCallsiteInventory(
@@ -1072,7 +1095,114 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
     }
 
+    /// 从 `(` 之后读取完整、括号平衡的第一个参数：遇到顶层 `,` 或与调用括号配对的 `)` 结束。
+    /// 传入代码必须已经剥离注释与字符串字面量，因此无需再处理引号。
+    static func firstBalancedArgument(after start: Int, in chars: [Character]) -> String? {
+        var depth = 0
+        var out: [Character] = []
+        var i = start
+        while i < chars.count {
+            let c = chars[i]
+            switch c {
+            case "(", "[", "{":
+                depth += 1
+            case ")", "]", "}":
+                if depth == 0 { return String(out) }
+                depth -= 1
+            case "," where depth == 0:
+                return String(out)
+            default:
+                break
+            }
+            out.append(c)
+            i += 1
+        }
+        return nil
+    }
 
+    /// 枚举 `Sources/**.swift`，返回「相对路径 → 剥离注释/字符串后的文本」。
+    static func strippedSources(packageRoot: URL) throws -> [(String, String)] {
+        let sources = packageRoot.appendingPathComponent("Sources", isDirectory: true)
+        guard let enumerator = FileManager.default.enumerator(
+            at: sources, includingPropertiesForKeys: nil
+        ) else { return [] }
+        var out: [(String, String)] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let relative = url.path.replacingOccurrences(of: packageRoot.path + "/", with: "")
+            out.append((relative, strippingCommentsAndStrings(text)))
+        }
+        return out.sorted { $0.0 < $1.0 }
+    }
+
+    /// 真实 callsite 计数（剥离注释/字符串后），排除函数声明本身。
+    static func realCallsiteCount(of name: String, in code: String) -> Int {
+        let escaped = NSRegularExpression.escapedPattern(for: name)
+        let pattern = "(?<!func\\s)" + escaped + "\\s*\\("
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return -1 }
+        return regex.numberOfMatches(in: code, range: NSRange(location: 0, length: (code as NSString).length))
+    }
+
+
+
+    /// C5IR4：源码 lexer 的**永久表驱动**测试——注释/字符串剥离必须逐类可验证。
+    /// 特别覆盖多行字符串里的转义三元引号 `\"""`，它不得被当成结束符。
+    func testSourceScannerLexerTable() {
+        struct Row {
+            let name: String
+            let source: String
+            let mustContain: [String]
+            let mustNotContain: [String]
+        }
+        let token = "SENTINEL_TOKEN"
+        let rows: [Row] = [
+            Row(name: "line-comment",
+                source: "let a = 1 // \(token)\nlet b = 2",
+                mustContain: ["let b = 2"], mustNotContain: [token]),
+            Row(name: "doc-comment",
+                source: "/// \(token)\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "nested-block-comment",
+                source: "/* outer /* inner */ \(token) */\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "plain-string",
+                source: "let s = \"\(token)\"\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "escaped-quote-string",
+                source: "let s = \"a\\\"\(token)\"\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "multiline-string",
+                source: "let s = \"\"\"\n\(token)\n\"\"\"\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "multiline-string-escaped-triple-quote",
+                source: "let s = \"\"\"\n\\\"\"\"\(token)\n\"\"\"\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "raw-string",
+                source: "let s = #\"\(token)\"#\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "raw-string-extra-hash",
+                source: "let s = ##\"\(token)\"##\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "code-outside-string-kept",
+                source: "let \(token) = 1",
+                mustContain: [token], mustNotContain: []),
+        ]
+        for row in rows {
+            let stripped = Self.strippingCommentsAndStrings(row.source)
+            for expected in row.mustContain {
+                XCTAssertTrue(
+                    stripped.contains(expected),
+                    "\(row.name) 必须保留 `\(expected)`，实得：\(stripped)"
+                )
+            }
+            for unexpected in row.mustNotContain {
+                XCTAssertFalse(
+                    stripped.contains(unexpected),
+                    "\(row.name) 必须剥离 `\(unexpected)`，实得：\(stripped)"
+                )
+            }
+        }
+    }
 
     /// C5IR2：配置 ACK ingress 只信 callback 对象自身冻结的 generation/peripheral。
     /// 旧代际（同 UUID）/ 异设备 / unknown / ambiguous／invalid 一律拒绝；当前 callback 才通过。
