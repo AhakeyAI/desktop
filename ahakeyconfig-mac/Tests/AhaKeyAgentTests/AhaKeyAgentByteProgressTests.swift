@@ -350,6 +350,75 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         )
     }
 
+    /// C5IR2 P1 闭环：**真实 waiter + 真实 ACK ingress**——
+    /// 旧代际（同 UUID）callback 携带与新请求逐字节相同的 `0x97` ACK 时，不得完成新 waiter；
+    /// 只有当前 callback 才能完成，operation 才 `.completed`。
+    /// 测试只传 callback 对象，从不注入 generation/requestID。
+    func testStaleCallbackCannotCompleteNewConfigurationWaiter() async throws {
+        let agent = makeAgent(skipBLE: true)
+        var hooks = agent.executionTestHooks
+        hooks?.awaitRealConfigurationAckForTesting = true
+        agent.executionTestHooks = hooks
+        // stableDeviceID + current-ready：waiter 注册的前提（生产由真实连接建立）。
+        await MainActor.run { agent.primeTransportForCommandEnqueueForTesting() }
+
+        let peripheralA = UUID()
+        let staleCallback = NSObject()
+        let currentCallback = NSObject()
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: staleCallback
+            )
+        }
+        let gAfterStale = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+        // 断连/重连推进代际：staleCallback 的冻结代际成为历史。
+        await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: currentCallback
+            )
+        }
+
+        let gAfterCurrent = await MainActor.run { agent.oledConnectionGenerationForTesting() }
+        let package = try await prepareResourcePackage(agent, fileCount: 3)
+        try await applyPrepared(agent, package: package)
+        // 等真实在飞 waiter（0x97 步）出现。
+        try await waitUntil {
+            await MainActor.run { agent.configurationWaiterCountForTesting() } > 0
+        }
+        let diagStale = await MainActor.run { agent.isCurrentConfigurationAckSourceForTesting(staleCallback) }
+        let diagCurrent = await MainActor.run { agent.isCurrentConfigurationAckSourceForTesting(currentCallback) }
+        let requestPayload = Data([0x00, 0x00])
+        // 固件成功回包：AA BB 97 <status=0> <mode> <set> CC DD
+        let ack = Data([0xAA, 0xBB, 0x97, 0x00] + requestPayload + [0xCC, 0xDD])
+
+        // 旧 callback：gate 拒绝 → 零变化（waiter 仍在飞）。
+        let staleAccepted = await MainActor.run {
+            agent.consumeConfigurationCommandAckForTesting(ack, callbackIdentity: staleCallback)
+        }
+        XCTAssertFalse(staleAccepted, "旧代际 callback 不得被 ingress 接受")
+        let pendingAfterStale = await MainActor.run { agent.configurationWaiterCountForTesting() }
+        XCTAssertEqual(pendingAfterStale, 1, "旧 callback 必须零变化：waiter 不得被完成")
+
+        // 当前 callback：完成 waiter → 0x97 步确认 → operation completed。
+        let currentAccepted = await MainActor.run {
+            agent.consumeConfigurationCommandAckForTesting(ack, callbackIdentity: currentCallback)
+        }
+        XCTAssertTrue(currentAccepted, "当前 callback 必须完成 waiter")
+        try await waitUntil {
+            (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
+        }
+        let snapshot = try await snapshotOperation(agent, id: package.operationID)
+        XCTAssertEqual(snapshot?.state, .completed, "当前 callback 完成后 operation 必须 completed")
+        let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        XCTAssertTrue(
+            confirmed.contains { $0.rawValue == "base:mode:0" },
+            "当前 callback 完成后 base:mode:0 必须被确认，实得 \(confirmed.map(\.rawValue))"
+        )
+    }
+
     func testProductionPictureWriteRejectPersistsThroughHandlerWALAndFreshAgent() async throws {
         let storeDir = testRoot.appendingPathComponent("store-c3r1-0x81", isDirectory: true)
         try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)

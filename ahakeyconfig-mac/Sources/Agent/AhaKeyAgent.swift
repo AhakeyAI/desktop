@@ -2377,25 +2377,7 @@ extension AhaKeyAgent {
             return
         }
         // 配置事务命令 ACK（sequencer head 五元匹配；0x00/0x90 走各自既有路径）
-        if data.count >= 6, data[0] == 0xAA, data[1] == 0xBB,
-           data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD,
-           data[2] != 0x00, data[2] != 0x90,
-           let head = transportCore.inFlightCommand, head.opcode == data[2],
-           let rid = configOperationWaiters[head.operationID] {
-            let outcome = transportCore.resolveWaiter(
-                requestID: rid, operationID: head.operationID,
-                payload: Data(data[3 ..< data.count - 2])
-            )
-            // 只有五元真正匹配才完成 waiter 并推进队列；迟到 ACK（outcome==nil）
-            // 既不续 continuation 也不 advanceQueue——head 推进的唯一时机是
-            // 「waiter 完成」或「head 自己的 waiter 超时」，两者互斥。
-            if outcome != nil {
-                configOperationWaiters.removeValue(forKey: head.operationID)
-                if let continuation = configWaiterContinuations.removeValue(forKey: rid) {
-                    continuation.resume(returning: (status: data[3], payload: Data(data[4 ..< data.count - 2])))
-                }
-                advanceQueue()
-            }
+        if consumeConfigurationCommandAck(data, callbackIdentity: characteristic) {
             return
         }
         if let acknowledgement = StateCommandAcknowledgement.parse(data) {
@@ -2468,6 +2450,50 @@ extension AhaKeyAgent {
             switchState: Int(payload[base + 6]),
             activePictureSet: activePictureSet
         )
+    }
+
+    /// C5IR2：配置事务命令 ACK 的唯一 ingress。
+    ///
+    /// 归因只信 **callback 对象自身冻结的 source**（C1 callback object association）：
+    /// 代际与 peripheral 必须同时等于当前代际与当前 peripheral，且在读取当前 head / rid、
+    /// 解析 payload、推进队列**之前**完成核验。否则同 UUID 的旧 characteristic callback
+    /// 只要携带与新请求相同的 `0x97` 字节，就会被当前 head/rid 反推并误完成新 waiter。
+    ///
+    /// unknown / ambiguous / invalid / 旧代际 / 异设备一律返回 false 且零状态变化。
+    @discardableResult
+    private func consumeConfigurationCommandAck(_ data: Data, callbackIdentity: AnyObject) -> Bool {
+        guard data.count >= 6, data[0] == 0xAA, data[1] == 0xBB,
+              data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD,
+              data[2] != 0x00, data[2] != 0x90 else { return false }
+        // 顺序不可交换：先核回调冻结身份，再读当前 head/rid。
+        guard isCurrentConfigurationAckSource(callbackIdentity) else { return false }
+        guard let head = transportCore.inFlightCommand, head.opcode == data[2],
+              let rid = configOperationWaiters[head.operationID] else { return false }
+        let outcome = transportCore.resolveWaiter(
+            requestID: rid, operationID: head.operationID,
+            payload: Data(data[3 ..< data.count - 2])
+        )
+        // 只有五元真正匹配才完成 waiter 并推进队列；迟到 ACK（outcome==nil）
+        // 既不续 continuation 也不 advanceQueue——head 推进的唯一时机是
+        // 「waiter 完成」或「head 自己的 waiter 超时」，两者互斥。
+        guard outcome != nil else { return false }
+        configOperationWaiters.removeValue(forKey: head.operationID)
+        if let continuation = configWaiterContinuations.removeValue(forKey: rid) {
+            continuation.resume(returning: (status: data[3], payload: Data(data[4 ..< data.count - 2])))
+        }
+        advanceQueue()
+        return true
+    }
+
+    /// C5IR2 gate 谓词：只信 callback 对象自身冻结的 `OLEDNotifySource`。
+    /// 未绑定（unknown）/ ambiguous / invalid / 旧代际 / 异设备一律 false。
+    /// 与 OLED 响应共用同一 association，不新增账本、不看当前 head/rid。
+    private func isCurrentConfigurationAckSource(_ callbackIdentity: AnyObject) -> Bool {
+        guard let source = resolveOLEDNotifySource(attachedTo: callbackIdentity) else { return false }
+        guard source.generation == oledConnectionGeneration else { return false }
+        guard let currentPeripheral = currentOLEDPeripheralID(),
+              currentPeripheral == source.peripheralID else { return false }
+        return true
     }
 
     /// 生产 0x00 回包与测试注入的唯一消费入口（parse → reducer → cache/log/publish）。
@@ -3086,8 +3112,27 @@ extension AhaKeyAgent {
                 status: simulatedConfigurationCommandStatus(for: ack)
             )
             // C5I：模拟路径只提供「设备回显字节」，校验仍走生产 seam（不在测试里自证）。
+            if executionTestHooks?.awaitRealConfigurationAckForTesting == true,
+               ack == AhaKeyActiveSetAckEcho.opcode {
+                // C5IR2：只对 `0x97` 跳过 BLE 外设写出，其余命令仍走既有模拟路径；
+                // waiter 注册/入队/ACK 归因全走生产路径。
+                let response = try await awaitRegisteredConfigurationAck(
+                    frame: frame, ack: ack, writeHead: false
+                )
+                try finishConfigurationCommand(
+                    ack: ack,
+                    request: Data(frame[3 ..< frame.count - 2]),
+                    status: response.status,
+                    response: response.payload
+                )
+                return
+            }
             let request = Data(frame[3 ..< frame.count - 2])
             let simulated = executionTestHooks?.simulatedActiveSetAckEcho ?? Array(request)
+            try throwIfConfigurationCommandRejected(
+                opcode: ack,
+                status: simulatedConfigurationCommandStatus(for: ack)
+            )
             try validateActiveSetAckEchoIfNeeded(
                 ack: ack,
                 request: request,
@@ -3100,36 +3145,67 @@ extension AhaKeyAgent {
         }
         // frame = AA BB [cmd] [payload…] CC DD
         guard frame.count >= 5, frame[2] == ack else { throw AhaKeyAgentCommandError.malformedFrame }
-        let response = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(status: UInt8, payload: Data), Error>) in
-            operationCounter &+= 1
-            let op = operationCounter
-            guard let rid = transportCore.registerWaiter(operationID: op, now: Date(), timeout: 3) else {
+        let response = try await awaitRegisteredConfigurationAck(frame: frame, ack: ack, writeHead: true)
+        try finishConfigurationCommand(
+            ack: ack,
+            request: Data(frame[3 ..< frame.count - 2]),
+            status: response.status,
+            response: response.payload
+        )
+    }
+
+    /// 注册配置命令 waiter 并把命令入队（生产路径与 C5IR2 测试 seam 共用同一实现）。
+    /// `writeHead == false` 只跳过 BLE 外设写出，waiter/队列/代际语义逐字不变。
+    @MainActor
+    private func enqueueConfigurationCommand(frame: Data, ack: UInt8, writeHead: Bool) -> UInt64? {
+        operationCounter &+= 1
+        let op = operationCounter
+        guard let rid = transportCore.registerWaiter(operationID: op, now: Date(), timeout: 3) else {
+            return nil
+        }
+        let cmd = DeviceCommand(
+            operationID: op,
+            deviceID: transportCore.stableDeviceID ?? "",
+            generations: transportCore.currentGenerations,
+            opcode: ack,
+            payload: Data(frame[3 ..< frame.count - 2])
+        )
+        // 先登记 operationID → requestID，再入队：ACK ingress 依赖这份映射。
+        configOperationWaiters[op] = rid
+        if let head = transportCore.enqueue(cmd), writeHead {
+            writeCommand(head)
+        }
+        return rid
+    }
+
+    @MainActor
+    private func awaitRegisteredConfigurationAck(
+        frame: Data,
+        ack: UInt8,
+        writeHead: Bool
+    ) async throws -> (status: UInt8, payload: Data) {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(status: UInt8, payload: Data), Error>) in
+            guard let rid = enqueueConfigurationCommand(frame: frame, ack: ack, writeHead: writeHead) else {
                 continuation.resume(throwing: AhaKeyAgentCommandError.disconnected)
                 return
             }
             configWaiterContinuations[rid] = continuation
-            configOperationWaiters[op] = rid
-            let cmd = DeviceCommand(
-                operationID: op,
-                deviceID: transportCore.stableDeviceID ?? "",
-                generations: transportCore.currentGenerations,
-                opcode: ack,
-                payload: Data(frame[3 ..< frame.count - 2])
-            )
-            if let head = transportCore.enqueue(cmd) {
-                writeCommand(head)
-            }
         }
-        guard response.status == 0 else {
-            try throwIfConfigurationCommandRejected(opcode: ack, status: response.status)
+    }
+
+    /// ACK 收尾（生产与测试 seam 共用）：status≠0 走设备拒绝点；status0 再核 0x97 echo。
+    private func finishConfigurationCommand(
+        ack: UInt8,
+        request: Data,
+        status: UInt8,
+        response: Data
+    ) throws {
+        guard status == 0 else {
+            try throwIfConfigurationCommandRejected(opcode: ack, status: status)
             return
         }
         // C5I：status0 之后仍要核对 0x97 的 payload 精确回显请求的 [mode,set]。
-        try validateActiveSetAckEchoIfNeeded(
-            ack: ack,
-            request: Data(frame[3 ..< frame.count - 2]),
-            response: response.payload
-        )
+        try validateActiveSetAckEchoIfNeeded(ack: ack, request: request, response: response)
     }
 
     /// C5I：只有 `0x97` 需要 echo 交叉校验；其它配置命令的既有 ACK 语义逐字不回退。
@@ -4510,6 +4586,21 @@ extension AhaKeyAgent {
         _ = consumeDeviceStatus(data)
     }
 
+    /// C5IR2 测试 seam：配置 ACK ingress 只接受 **callback 对象**；
+    /// 代际/peripheral 由该对象自身冻结的 source 决定，测试不得直接注入 generation/requestID。
+    @discardableResult
+    internal func consumeConfigurationCommandAckForTesting(
+        _ data: Data,
+        callbackIdentity: AnyObject
+    ) -> Bool {
+        consumeConfigurationCommandAck(data, callbackIdentity: callbackIdentity)
+    }
+
+    /// C5IR2 测试 seam：生产 gate 的同一谓词（只吃 callback 对象，不看当前 head/rid）。
+    internal func isCurrentConfigurationAckSourceForTesting(_ callbackIdentity: AnyObject) -> Bool {
+        isCurrentConfigurationAckSource(callbackIdentity)
+    }
+
     @MainActor
     func longPollLeakCountsForTesting() -> (sessions: Int, waiters: Int) {
         (longPollSessions.count, projectionEventWaiters.count)
@@ -4643,6 +4734,12 @@ extension AhaKeyAgent {
     @MainActor
     func configurationChunkAckCountForTesting() -> Int {
         configurationChunkAckCount
+    }
+
+    /// C5IR2 测试 seam：当前在飞配置命令 waiter 数（仅计数，不暴露 requestID/generation）。
+    @MainActor
+    func configurationWaiterCountForTesting() -> Int {
+        configOperationWaiters.count
     }
 
     /// 测试 seam：释放本实例持有的 WAL 连接，模拟进程退出后再由新 Agent 打开同一 root。
@@ -5037,6 +5134,9 @@ struct AhaKeyAgentExecutionTestHooks {
     var failConfigurationCommandOpcode: UInt8?
     /// C5I：skipBLE 路径模拟设备 `0x97` ACK 的 payload（状态字节之后）；nil = 精确回显请求。
     var simulatedActiveSetAckEcho: [UInt8]?
+    /// C5IR2：skipBLE 路径改为只跳过 BLE 外设写出，仍走生产 waiter 注册/入队，
+    /// 由真实 ACK ingress（callback 归因）完成——用于验证旧 callback 无法借用新 waiter。
+    var awaitRealConfigurationAckForTesting: Bool = false
     /// 每个 chunk 在 ACK 前调用（已确认成功次数）。
     var beforeConfigurationChunkWrite: (@Sendable (Int) async -> Void)?
     /// 生产 executor 进入 WAL 步、切完 currentStepID 之后、执行程序之前。

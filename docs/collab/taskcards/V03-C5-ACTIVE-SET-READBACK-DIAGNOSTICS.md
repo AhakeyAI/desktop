@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR1`
+状态：`ready / C5IR2`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -113,3 +113,28 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - **门禁**：见提审条目（定向、全量、双 Release、identity、diff-check）。未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/42-c5i-active-set-readback-seam.md` §8
 - 需要回复：是（@Codex 复核 C5IR1：五行矩阵三元闭环、boundary gate 与反向活性、P2 日志、numstat 更正；并裁定 stale-generation 分层闭合是否接受，或授权最小产品 seam 卡）
+
+### [2026-09-15 11:50] Codex：五行矩阵/log 通过；旧 callback 可借当前 waiter，boundary gate 失真，退 C5IR2
+
+- 固定范围 `fbc3b77...541742f`。Standards 轴 1×P1；Spec 轴 2×P1。五行 executor/WAL 失败矩阵、成功 baseline 控制、首帧唯一日志/重放零日志、tests/docs-only product-zero、numstat修正与最终全量 1223/0 均成立。
+- **P1 stale callback source identity**：现测试只在 `DeviceWaiterRegistry` 上解析已 invalid 的旧 requestID；生产 `didUpdateValueFor` 却从当前 `inFlightCommand` 与当前 `configOperationWaiters[rid]` 选 waiter，再由 DeviceTransportCore补当前 generation。N 的旧 characteristic callback 若与 N+1 当前请求同 opcode、同 `[mode,set]`，仍可能借用 N+1 waiter完成。C1 的 callback association 已冻结 generation/peripheral，但目前只用于 0x99/0x94 negotiation，业务 ACK 分支未核 source。
+- **仅开放 C5IR2 产品最小修复**：复用 callback 对象上已绑定的 source，抽一个不依赖 negotiation in-flight 的 current-source gate（source generation==当前、peripheralID==当前）；所有非 negotiation 的配置 ACK 在读取 current head/rid、解析状态、推进队列或恢复 continuation之前先过该门。unknown/ambiguous/invalid/旧代/异 peripheral callback 全部零 waiter/queue/WAL/baseline变化；当前 source exact ACK 正常完成。不得从 current head/global generation反推 callback source。
+- **必测生产形状**：同 UUID N旧 callback对象；N+1 新连接/新 callback进入相同 0x97 waiter且请求/ACK字节完全相同。注入 N ACK必须零完成、零 confirmed step、零 baseline；注入 N+1 ACK才完成。另覆盖异 peripheral、unknown/ambiguous/invalid，及旧 0x00 扩展状态不得改 active-set map。测试 seam须把 callback object交给与生产 `didUpdateValueFor` 相同的 dispatcher，不得直接传 generation/requestID。
+- **P1 boundary gate**：现 scanner会因注释假红，又漏过真实 `sendDirectCommandFrame(0x94/0x96)` literal。改为 comment-aware + 精确目标函数/callsite inventory：冻结既有 legacy probe 0x94 恰一处、0x96 零处，以及 authority/pageFieldBaseline/View旁路的真实调用点；不得以注释 mutant证明活性。
+- **C5IR1 已通过项冻结**：五行 echo/status executor矩阵与 baseline零推进、状态日志、C5I optional readback/ACK echo主语义。brightness保持原状，不另开卡。
+- C5IR2 白名单：`AhaKeyAgent.swift` 仅 callback source gate/test seam所需最小修改，endpoint/byte/page/sequencer精确测试、evidence/本卡/board。不得改 Reducer、Studio/View/Facade/assembler/C3 Store/schema或固件。
+- 15L 保持 `blocked / awaiting C5IR2`；R7 USER-GATE不建立、不授权。完成提交、全门禁后停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5IR2）
+
+### [2026-09-15 15:30] DSH：C5IR2 完成，停手提审
+
+- **产品最小改动（仅 `AhaKeyAgent.swift`）**：新增唯一配置 ACK ingress `consumeConfigurationCommandAck(_:callbackIdentity:)`——形状校验后**先核 callback 冻结身份**，再读当前 head/rid、resolve、续 continuation、advanceQueue（顺序不可交换，失败路径零状态变化）。gate 谓词 `isCurrentConfigurationAckSource` 复用 C1 既有 callback object association（`commandChar`/`notifyChar` 在 `didDiscoverCharacteristicsFor` 已分别绑定），要求 `generation == oledConnectionGeneration` 且 `peripheralID == currentOLEDPeripheralID()`；unknown/ambiguous/invalid 由既有状态机天然判 false。**无新增账本/状态/第二套 association**。
+- **单一实现**：提取 `enqueueConfigurationCommand` / `awaitRegisteredConfigurationAck` / `finishConfigurationCommand`，生产路径与测试 seam 共用同一注册与收尾逻辑（不复制粘贴）。测试 seam 只吃 callback 对象（`consumeConfigurationCommandAckForTesting`、`isCurrentConfigurationAckSourceForTesting`、`configurationWaiterCountForTesting` + hook `awaitRealConfigurationAckForTesting`，**仅对 0x97** 跳过外设写出），**从不注入 generation/requestID**。
+- **Spec P1 闭环（真实 waiter + 真实 ingress）**：`testStaleCallbackCannotCompleteNewConfigurationWaiter`——旧代际（同 UUID）callback 携带与请求**逐字节相同**的 `0x97` ACK 被拒绝且 waiter 仍为 1；当前 callback 完成 waiter → operation `.completed` 且 `base:mode:0` 进入 confirmed steps。另有 `testConfigurationAckIngressRejectsStaleOrForeignCallbacks` 覆盖旧代际/异设备/unknown/ambiguous/invalid 全 false、当前 true。C5IR1 那条模型错位的 sequencer 用例已删除并留指针注释（registry 自身代际匹配仍由既有用例锁定）。
+- **Standards P1 闭环（boundary gate 重做）**：注释/字符串感知（单遍状态机剥离，不再假红）+ **真实 callsite inventory**（`sendDirectCommandFrame(<literal>)` 冻结为 `["0x00", "0x94"]`；新增 `0x96` 真实 callsite 立即失败）；旧符号名检查降为次要防线。
+- **反证（最终树，sha256 复核 `ecadf7ce…fd31`）**：G2 真实新增 `sendDirectCommandFrame(0x96)` → gate 1 failure（inventory `["0x00","0x94","0x96"]`）；H2 **注释**含同样 token → gate **0 failure**（证明不再假红）；I2 gate 直接 `return true` → ingress 5 failures + 全闭环 2 failures。
+- **过程性发现（如实记录）**：调试期间曾把 `PATCH I` 留在产品文件导致一轮误诊；sha256 还原纪律有效（最终 restore 复核通过），教训是反证补丁必须原子化「patch → run → restore+sha 复核」，不得跨步骤携带。
+- **范围**：`0x00` 状态回包与 `0x90` 状态 ACK 的 head 路径**刻意未动**（前者由状态 parser 消费且被既有注入 seam 覆盖；后者不携 waiter/WAL/baseline），不属「配置 ACK → WAL」链路。
+- **门禁**：定向 19 类复跑 **455/455**；全量第 4 次 **1224 / 2 skipped / 0 failures（全绿）**（前三次仅命中既有 Agent concurrency ± Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §9。
+- 需要回复：是（@Codex 复核 C5IR2：ingress callback 冻结归因与全闭环测试、boundary gate 注释感知 + 真实 callsite inventory、三组反证、定向/全量/Release/identity/diff-check）

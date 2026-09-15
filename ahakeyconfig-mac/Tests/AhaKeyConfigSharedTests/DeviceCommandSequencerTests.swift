@@ -112,37 +112,11 @@ final class DeviceCommandSequencerTests: XCTestCase {
         XCTAssertLessThan(a, b)
     }
 
-    /// C5IR1：`0x97` (`setActiveTaskPictureSet`) 形状的 waiter——代际一变，
-    /// 即使回包字节与请求逐字节相同也**绝不**解析；只有当前代际的回包才完成。
-    func testResolve_staleGenerationNeverConfirmsZeroNineSevenAck() {
-        var r = DeviceWaiterRegistry()
-        let now = Date()
-        // 请求 AA BB 97 00 00 CC DD → payload `[mode,set]` = `[0x00, 0x00]`
-        let request = Data([0x00, 0x00])
-
-        // 控制：当前代际 + 精确回显 → 完成，并回传同一份字节供 echo 校验使用。
-        let current = r.register(operationID: 42, deviceID: "505C", generations: gen1, now: now, timeout: 50)
-        XCTAssertEqual(
-            r.resolve(requestID: current, fromOperation: 42, device: "505C", generations: gen1, payload: request),
-            .response(request),
-            "当前代际的精确 0x97 回显必须完成等待"
-        )
-        XCTAssertTrue(r.isEmpty)
-
-        // 断连/重连推进代际：在飞 waiter 被强败，迟到 ACK 不得复活任何 waiter。
-        let stale = r.register(operationID: 43, deviceID: "505C", generations: gen1, now: now, timeout: 50)
-        let bumped = DeviceGenerations(session: gen1.session, transport: gen1.transport + 1)
-        let invalidated = r.invalidateGenerations(notMatching: bumped)
-        XCTAssertEqual(invalidated.map(\.requestID), [stale], "0x97 在飞 waiter 必须被代际变化强败")
-        XCTAssertEqual(invalidated.first?.outcome, .generationInvalidated)
-        XCTAssertNil(
-            r.resolve(requestID: stale, fromOperation: 43, device: "505C", generations: bumped, payload: request),
-            "已作废的 0x97 waiter 不得被同字节 ACK 复活"
-        )
-        XCTAssertNil(
-            r.resolve(requestID: stale, fromOperation: 43, device: "505C", generations: gen1, payload: request),
-            "旧代际回包同样不得完成"
-        )
-        XCTAssertTrue(r.isEmpty, "作废后不得残留 waiter")
-    }
+    /// C5IR2 备注：这里**不再**放「迟到 ACK 送给旧 requestID」的 0x97 用例。
+    /// 生产 ingress 不是按旧 requestID 归因，而是从**当前** inFlightCommand/rid 反推 waiter；
+    /// 该威胁（旧 callback 的相同 0x97 字节借用新 waiter）必须由 callback 对象的冻结
+    /// generation/peripheral 在 ingress 处拦截，见
+    /// `AhaKeyAgentRuntimeEndpointTests.testConfigurationAckIngressRejectsStaleOrForeignCallbacks`。
+    /// 本文件原有的 `testResolve_staleTransportGeneration_doesNotComplete` 与
+    /// `testResolve_wrongDeviceOrSession_rejected` 继续锁定 registry 自身的代际/设备匹配。
 }

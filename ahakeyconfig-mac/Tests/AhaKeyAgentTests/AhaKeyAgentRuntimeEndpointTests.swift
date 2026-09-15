@@ -901,51 +901,219 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
-    /// P1 永久 production boundary gate：C5I 不得把 Agent 变成新的 authority/UI 旁路。
-    /// 只读扫描产品源码文本（lock「无新增 query、无 authority readback、无 View/Studio 旁路」）。
-    func testC5IAgentBoundaryGateStaysFreeOfQueryAuthorityAndStudioBypass() throws {
+    /// P1 永久 production boundary gate（C5IR2 重做）：
+    /// **注释/字符串感知**（不得因注释假红），且对**真实 callsite** 做 inventory（不得只查不存在的符号）。
+    func testC5IAgentBoundaryGateInventoryStaysFrozen() throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let agent = try String(
-            contentsOf: packageRoot.appendingPathComponent("Sources/Agent/AhaKeyAgent.swift"),
-            encoding: .utf8
-        )
-        let reducer = try String(
-            contentsOf: packageRoot.appendingPathComponent("Sources/Shared/DeviceStateReducer.swift"),
-            encoding: .utf8
-        )
+        func code(_ relative: String) throws -> String {
+            let text = try String(
+                contentsOf: packageRoot.appendingPathComponent(relative), encoding: .utf8
+            )
+            return Self.strippingCommentsAndStrings(text)
+        }
+        let agent = try code("Sources/Agent/AhaKeyAgent.swift")
+        let reducer = try code("Sources/Shared/DeviceStateReducer.swift")
 
-        // 无新增 query opcode：0x94 / 0x96 读命令在 Agent 中必须始终缺席。
-        for source in [agent, reducer] {
-            XCTAssertFalse(source.contains("cmdReadTaskPicState"), "不得引入 0x94 查询")
-            XCTAssertFalse(source.contains("cmdReadTaskPicSet"), "不得引入 0x96 查询")
-        }
-        // 无 authority baseline readback / 权威对象旁路。
-        for source in [agent, reducer] {
-            XCTAssertFalse(source.contains("AhaKeyRuntimePageBaseAuthority"), "不得引用 authority 类型")
-            XCTAssertFalse(source.contains("pageBaseAuthoritySnapshot("), "不得读 authority baseline 快照")
-            XCTAssertFalse(source.contains("writeConfirmed"), "不得把 writeConfirmed 语义引入该 seam")
-        }
-        // Agent 侧 page-field baseline 读取只允许既有两处（page preconditions + snapshot 投影）。
-        let readbackSites = agent.components(separatedBy: "store.pageFieldBaselines(").count - 1
+        // (1) 出站「直接命令帧」callsite inventory：查询只允许既有 0x00（状态轮询）与 0x94（legacy 探测）。
+        //     新增 `sendDirectCommandFrame(0x96)` 这类**真实 callsite**会立刻改变清单而失败。
         XCTAssertEqual(
-            readbackSites, 2,
-            "Agent 的 pageFieldBaselines 读取点必须冻结在既有两处，新增即视为 authority readback 回退"
+            Self.directCommandOpcodes(in: agent), ["0x00", "0x94"],
+            "出站直接命令帧 opcode 清单已冻结；新增查询（如 0x96）必须显式登记并重新审查，"
+                + "实得 \(Self.directCommandOpcodes(in: agent))"
         )
-        // 无 View/Studio/assembler 旁路。
+        // 旧的符号名检查保留为次要防线（已剥离注释，不会假红）。
+        for source in [agent, reducer] {
+            XCTAssertFalse(source.contains("cmdReadTaskPicState"))
+            XCTAssertFalse(source.contains("cmdReadTaskPicSet"))
+        }
+        // (2) 无 authority readback / 无关语义引入。
+        for source in [agent, reducer] {
+            XCTAssertFalse(source.contains("AhaKeyRuntimePageBaseAuthority"))
+            XCTAssertFalse(source.contains("pageBaseAuthoritySnapshot("))
+            XCTAssertFalse(source.contains("writeConfirmed"))
+        }
+        XCTAssertEqual(
+            agent.components(separatedBy: "store.pageFieldBaselines(").count - 1, 2,
+            "Agent 的 pageFieldBaselines 读取点必须冻结在既有两处（page preconditions + snapshot 投影）"
+        )
+        // (3) 无 View/Studio/assembler 旁路。
         for forbidden in [
             "AhaKeyStudioView", "AhaKeyStudioPackageAssembler",
             "AhaKeyStudioRuntimeFacade", "AhaKeyStudioPageCommitCoordinator",
         ] {
             XCTAssertFalse(agent.contains(forbidden), "Agent 不得消费 \(forbidden)")
         }
-        // 正向：唯一 0x97 写入 opcode 走共享构造器，echo 校验是唯一 seam。
-        XCTAssertTrue(agent.contains("AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet"), "0x97 必须走共享 opcode 常量")
-        XCTAssertTrue(agent.contains("AhaKeyActiveSetAckEcho.validate("), "0x97 ACK 必须走单一 typed echo seam")
-        XCTAssertTrue(agent.contains("validatedActivePictureSet("), "extended readback 必须走单一值域 seam")
+        // (4) 正向锚点：0x97 写入、echo 校验、值域 seam、配置 ACK 归因 seam。
+        XCTAssertTrue(agent.contains("AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet"))
+        XCTAssertTrue(agent.contains("AhaKeyActiveSetAckEcho.validate("))
+        XCTAssertTrue(agent.contains("validatedActivePictureSet("))
+        XCTAssertTrue(agent.contains("private func isCurrentConfigurationAckSource("))
+        XCTAssertTrue(
+            agent.contains("guard isCurrentConfigurationAckSource(callbackIdentity) else { return false }"),
+            "配置 ACK 必须在读取 head/rid 之前先核 callback 冻结身份"
+        )
     }
+
+    /// 注释/字符串感知：单遍状态机剥离 `//`、`/* */` 与字符串字面量。
+    static func strippingCommentsAndStrings(_ source: String) -> String {
+        enum State { case code, lineComment, blockComment, string }
+        var state = State.code
+        var out = String()
+        out.reserveCapacity(source.count)
+        var i = source.startIndex
+        while i < source.endIndex {
+            let c = source[i]
+            let next = source.index(after: i)
+            switch state {
+            case .code:
+                if c == "/", next < source.endIndex, source[next] == "/" {
+                    state = .lineComment
+                    i = source.index(after: next)
+                    continue
+                }
+                if c == "/", next < source.endIndex, source[next] == "*" {
+                    state = .blockComment
+                    i = source.index(after: next)
+                    continue
+                }
+                if c == "\"" {
+                    state = .string
+                    out.append(" ")
+                    i = next
+                    continue
+                }
+                out.append(c)
+                i = next
+            case .lineComment:
+                if c == "\n" {
+                    state = .code
+                    out.append(c)
+                }
+                i = next
+            case .blockComment:
+                if c == "*", next < source.endIndex, source[next] == "/" {
+                    state = .code
+                    i = source.index(after: next)
+                    continue
+                }
+                i = next
+            case .string:
+                if c == "\\", next < source.endIndex {
+                    i = source.index(after: next)
+                    continue
+                }
+                if c == "\"" {
+                    state = .code
+                }
+                i = next
+            }
+        }
+        return out
+    }
+
+    /// 真实 callsite inventory：`sendDirectCommandFrame(<literal>)` 的 opcode 字面量，排序返回。
+    static func directCommandOpcodes(in code: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "sendDirectCommandFrame\\(\\s*(0x[0-9A-Fa-f]+)") else {
+            return []
+        }
+        let ns = code as NSString
+        return regex
+            .matches(in: code, range: NSRange(location: 0, length: ns.length))
+            .compactMap { match in
+                guard match.numberOfRanges > 1 else { return nil }
+                return ns.substring(with: match.range(at: 1)).lowercased()
+            }
+            .sorted()
+    }
+
+    /// C5IR2：配置 ACK ingress 只信 callback 对象自身冻结的 generation/peripheral。
+    /// 旧代际（同 UUID）/ 异设备 / unknown / ambiguous／invalid 一律拒绝；当前 callback 才通过。
+    func testConfigurationAckIngressRejectsStaleOrForeignCallbacks() {
+        runEndpointTest { [self] in
+        let agent = makeAgent()
+        let peripheralA = UUID()
+        let peripheralB = UUID()
+        let staleCallback = NSObject()
+        let currentCallback = NSObject()
+        let foreignCallback = NSObject()
+        let unknownCallback = NSObject()
+        let ambiguousCallback = NSObject()
+        let ack = Data([0xAA, 0xBB, 0x97, 0x00, 0x00, 0x00, 0xCC, 0xDD])
+
+        // 代际 N：staleCallback 冻结到 peripheralA。
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: staleCallback
+            )
+        }
+        // 断连/重连 → 代际 N+1（旧 callback 的冻结代际成为历史）。
+        await MainActor.run { agent.simulateOLEDConnectionResetForTesting() }
+        // 当前代际：currentCallback→A；foreignCallback→B；ambiguousCallback 先 B 再 A。
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: currentCallback
+            )
+        }
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralB, callbackIdentity: foreignCallback
+            )
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralB, callbackIdentity: ambiguousCallback
+            )
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: ambiguousCallback
+            )
+        }
+        // invalid：显式作废一个已绑定对象。
+        let invalidCallback = NSObject()
+        await MainActor.run {
+            agent.armOLEDAwaitingCapabilityResponseForTesting(
+                peripheralID: peripheralA, callbackIdentity: invalidCallback
+            )
+            agent.invalidateOLEDNotifyCallbackIdentityForTesting(invalidCallback)
+        }
+
+        func gate(_ object: AnyObject) async -> Bool {
+            await MainActor.run { agent.isCurrentConfigurationAckSourceForTesting(object) }
+        }
+        func ingest(_ object: AnyObject) async -> Bool {
+            await MainActor.run {
+                agent.consumeConfigurationCommandAckForTesting(ack, callbackIdentity: object)
+            }
+        }
+
+        let staleGate = await gate(staleCallback)
+        let foreignGate = await gate(foreignCallback)
+        let unknownGate = await gate(unknownCallback)
+        let ambiguousGate = await gate(ambiguousCallback)
+        let invalidGate = await gate(invalidCallback)
+        let currentGate = await gate(currentCallback)
+        XCTAssertFalse(staleGate, "旧代际 callback 不得通过 gate")
+        XCTAssertFalse(foreignGate, "异设备 callback 不得通过 gate")
+        XCTAssertFalse(unknownGate, "未绑定 callback 不得通过 gate")
+        XCTAssertFalse(ambiguousGate, "ambiguous callback 不得通过 gate")
+        XCTAssertFalse(invalidGate, "invalid callback 不得通过 gate")
+        XCTAssertTrue(currentGate, "当前 callback 必须通过 gate")
+
+        // ingress 级：全部非当前对象必须零变化（不完成 waiter、不推进队列）。
+        let staleIngest = await ingest(staleCallback)
+        let foreignIngest = await ingest(foreignCallback)
+        let unknownIngest = await ingest(unknownCallback)
+        let ambiguousIngest = await ingest(ambiguousCallback)
+        let invalidIngest = await ingest(invalidCallback)
+        XCTAssertFalse(staleIngest)
+        XCTAssertFalse(foreignIngest)
+        XCTAssertFalse(unknownIngest)
+        XCTAssertFalse(ambiguousIngest)
+        XCTAssertFalse(invalidIngest)
+        _ = await ingest(currentCallback)
+        }
+    }
+
 
     func testIdenticalDeviceProjectionPublishesNoDuplicateEvent() {
         runEndpointTest { [self] in

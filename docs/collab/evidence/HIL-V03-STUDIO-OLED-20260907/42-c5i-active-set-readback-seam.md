@@ -233,3 +233,74 @@ C5I 产品主语义 accepted；本段记录 `C5IR1` 的测试/文档补强。**`
 | `zsh scripts/check-release-identity.sh` | `release identity ok` |
 | 增量 `git diff --check fbc3b77 -- ahakeyconfig-mac` | 通过 |
 | 全范围 `git diff --check 5d1fe1d` | 通过 |
+
+## 9. C5IR2（最小产品改动：配置 ACK ingress 的 callback 冻结归因 + boundary gate 重做）
+
+C5IR1 被退两条 P1；本段记录 `C5IR2`。产品改动仅 `Sources/Agent/AhaKeyAgent.swift`（最小）。
+
+### 9.1 问题（Codex Spec P1）
+
+生产 ingress 从**当前** `inFlightCommand`/current rid 反推 waiter 与代际；同 UUID 旧 characteristic
+callback（代际 N）只要携带与 N+1 请求**逐字节相同**的 `0x97` ACK，就会被当前 head/rid 认领并误完成新 waiter。
+C5IR1 的 sequencer 用例把迟到 ACK 送给**已作废的旧 requestID**，没有建模这条真实路径。
+
+### 9.2 修复
+
+- 新增唯一 ingress `consumeConfigurationCommandAck(_ data: Data, callbackIdentity: AnyObject) -> Bool`：
+  形状校验 → **先核 callback 冻结身份** → 再读当前 head/rid → resolve → 续 continuation → advanceQueue。
+  顺序不可交换；失败路径零状态变化。
+- gate 谓词 `isCurrentConfigurationAckSource(_:)`：复用 C1 既有 callback object association
+  （`resolveOLEDNotifySource(attachedTo:)`；`commandChar`/`notifyChar` 在 `didDiscoverCharacteristicsFor`
+  已分别 `bindOLEDNotifySource`），要求 `generation == oledConnectionGeneration` **且**
+  `peripheralID == currentOLEDPeripheralID()`。unknown / ambiguous / invalid 由既有状态机天然返回 nil。
+  **没有新增账本**、没有新状态、没有第二套 association。
+- 提取 `enqueueConfigurationCommand` / `awaitRegisteredConfigurationAck` / `finishConfigurationCommand`，
+  使生产路径与 C5IR2 测试 seam **共用同一注册与收尾实现**（不复制粘贴）。
+- 测试 seam（只吃 callback 对象，测试从不注入 generation/requestID）：
+  `consumeConfigurationCommandAckForTesting(_:callbackIdentity:)`、
+  `isCurrentConfigurationAckSourceForTesting(_:)`、`configurationWaiterCountForTesting()`，
+  以及 hook `awaitRealConfigurationAckForTesting`（**仅对 `0x97`** 跳过 BLE 外设写出，
+  其余命令仍走既有模拟路径，因此资源/绑定步不受影响）。
+- 明确不在本卡范围：`0x00` 状态回包与 `0x90` 状态 ACK 的 head 路径维持原状——
+  `0x00` 由状态 parser 消费且被既有注入 seam 覆盖，`0x90` 不携 waiter/WAL/baseline；
+  两者都不属于「配置 ACK → WAL」链路。
+
+### 9.3 测试重做
+
+| 测试 | 内容 |
+|---|---|
+| `AhaKeyAgentRuntimeEndpointTests.testConfigurationAckIngressRejectsStaleOrForeignCallbacks` | 真实 callback 对象 + 真实代际：旧代际（同 UUID）/ 异设备 / unknown / ambiguous / invalid → gate+ingress 全 false；当前 callback → gate true |
+| `AhaKeyAgentByteProgressTests.testStaleCallbackCannotCompleteNewConfigurationWaiter` | **全闭环**：真实在飞 `0x97` waiter + 真实 ingress。旧 callback 携带**相同** ACK → 拒绝且 waiter 仍为 1；当前 callback → 完成 waiter → operation `.completed` 且 `base:mode:0` 进入 confirmed steps |
+| `DeviceCommandSequencerTests` | 删除 C5IR1 那条「把迟到 ACK 送给旧 requestID」的用例（模型错位），保留指针注释指向上述 ingress 测试；registry 自身的代际/设备匹配仍由既有 `testResolve_staleTransportGeneration_doesNotComplete` 等锁定 |
+
+### 9.4 boundary gate 重做（Codex Standards P1）
+
+- **注释/字符串感知**：单遍状态机剥离 `//`、`/* */` 与字符串字面量后再匹配——注释不再假红。
+- **真实 callsite inventory**：正则收集 `sendDirectCommandFrame(<literal>)` 的 opcode 字面量并冻结为
+  `["0x00", "0x94"]`；新增 `sendDirectCommandFrame(0x96)` 这类**真实 callsite** 立刻失败。
+  旧 gate 只查不存在的符号名（`cmdReadTaskPicState/cmdReadTaskPicSet`），现已降为次要防线。
+
+### 9.5 反证（均在最终树上，sha256 还原复核 `ecadf7ce…fd31`）
+
+| 补丁 | 结果 |
+|---|---|
+| G2：真实新增 `sendDirectCommandFrame(0x96)` callsite | boundary gate **1 failure**，实得 inventory `["0x00", "0x94", "0x96"]` |
+| H2：**注释**里写 `sendDirectCommandFrame(0x96)` + `AhaKeyRuntimePageBaseAuthority` | gate **0 failure**（证明不再因注释假红） |
+| I2：`isCurrentConfigurationAckSource` 直接 `return true` | ingress 测试 **5 failures** + 全闭环测试 **2 failures**（旧代际被接受、waiter 被完成） |
+
+### 9.6 过程性发现（如实记录）
+
+调试全闭环测试时我一度把 `PATCH I`（gate 直接返回 true）留在产品文件里，导致「stale callback 被接受」
+的假象并浪费一轮诊断。**sha256 备份还原纪律本身是有效的**（最终 restore 校验通过），
+但教训是：**每个反证补丁必须在同一步内立即还原并复核**，不能跨步骤携带；
+后续所有补丁均按「patch → run → restore+sha 复核」原子化执行。
+
+### 9.7 C5IR2 门禁
+
+| 项 | 结果 |
+|---|---|
+| 定向（19 类：Agent 6 + DeviceStateReducer + DeviceCommandSequencer + DeviceTransportCore + Studio/Runtime 10） | 首跑命中既有 Agent concurrency flake；复跑 **455 / 455，0 失败** |
+| 全量 Swift | 第 1–3 次仅命中两个已登记 flake（Agent concurrency ± Store inode）；**第 4 次 1224 / 2 skipped / 0 failures（全绿）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| 增量 `541742f` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |
