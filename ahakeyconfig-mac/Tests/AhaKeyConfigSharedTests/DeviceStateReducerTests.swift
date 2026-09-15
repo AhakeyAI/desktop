@@ -354,4 +354,56 @@ final class DeviceStateReducerTests: XCTestCase {
         XCTAssertEqual(disconnected.core.firmwareMainVersion, 1)
         XCTAssertEqual(disconnected.core.workMode, 2)
     }
+
+    // MARK: - C5I：active set 只能是设备真实 readback
+
+    /// `activePictureSet == nil` 表示该帧未携带扩展字节（legacy/Standard 短帧）：
+    /// 首次出现不得凭空建条目，已有可信值时也不得覆盖。
+    func testFullStatusWithoutActivePictureSetNeverFabricatesOrOverwrites() {
+        let legacy = DeviceStateEvent.fullStatus(
+            battery: 87, firmwareMain: 1, firmwareSub: 2,
+            workMode: 0, lightMode: 1, switchState: 0,
+            brightness: 35, activePictureSet: nil
+        )
+        var snapshot = DeviceStateReducer.apply(
+            legacy, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot()
+        )
+        XCTAssertTrue(
+            snapshot.core.activeTaskPictureSets.isEmpty,
+            "未携带 active set 的帧不得创建 map 条目（尤其不得伪造成 set 0）"
+        )
+
+        // 先写入一条真实 readback，再用未携带帧：必须保留上次可信值。
+        let trusted = DeviceStateEvent.fullStatus(
+            battery: 87, firmwareMain: 1, firmwareSub: 2,
+            workMode: 0, lightMode: 1, switchState: 0,
+            brightness: 35, activePictureSet: 1
+        )
+        snapshot = DeviceStateReducer.apply(trusted, core: snapshot.core, diagnostics: snapshot.diagnostics)
+        XCTAssertEqual(snapshot.core.activeTaskPictureSets, [0: 1])
+
+        snapshot = DeviceStateReducer.apply(legacy, core: snapshot.core, diagnostics: snapshot.diagnostics)
+        XCTAssertEqual(snapshot.core.activeTaskPictureSets, [0: 1], "未携带帧不得覆盖上次可信 map")
+    }
+
+    /// 携带 active set 的帧只写它自己的 `workMode`，不镜像到其它 mode。
+    func testFullStatusWithActivePictureSetWritesOnlyItsOwnMode() {
+        var snapshot = DeviceStateReducer.apply(
+            .fullStatus(
+                battery: 87, firmwareMain: 1, firmwareSub: 2,
+                workMode: 0, lightMode: 1, switchState: 0,
+                brightness: 35, activePictureSet: 1
+            ),
+            core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot()
+        )
+        snapshot = DeviceStateReducer.apply(
+            .fullStatus(
+                battery: 87, firmwareMain: 1, firmwareSub: 2,
+                workMode: 2, lightMode: 1, switchState: 0,
+                brightness: 35, activePictureSet: 0
+            ),
+            core: snapshot.core, diagnostics: snapshot.diagnostics
+        )
+        XCTAssertEqual(snapshot.core.activeTaskPictureSets, [0: 1, 2: 0], "只更新各自 mode，不得镜像")
+    }
 }

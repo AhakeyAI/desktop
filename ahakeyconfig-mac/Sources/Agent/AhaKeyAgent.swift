@@ -64,9 +64,16 @@ final class AhaKeyConfigurationTransportWindow {
     }
 }
 
-/// 设备 8 字节状态解析结果。
+/// C5I：Gitee 扩展 `0x00` 回传的「当前 workMode 的 active task picture set」。
+/// 只有帧长度覆盖扩展字节、且 mode/set 都落在设备值域内时才构造；否则为 nil（禁止伪造）。
+struct AgentActivePictureSetReadback: Equatable {
+    let mode: Int
+    let set: Int
+}
+
+/// 设备状态解析结果（7 字节基础字段，Gitee 扩展帧另有 brightness/activeSet）。
 ///
-/// 与 Sources/BLE/AhaKeyProtocol.swift 的 `AhaKeyDeviceStatus` 保持同构；
+/// 与 Sources/BLE/AhaKeyProtocol.swift 的 `AhaKeyDeviceStatus` 保持同构。
 /// Agent 是独立 target，不共享源码，所以这里内联一份极简解析器。
 struct AgentDeviceStatus {
     let battery: Int
@@ -76,6 +83,44 @@ struct AgentDeviceStatus {
     let workMode: Int
     let lightMode: Int
     let switchState: Int
+    /// C5I：Gitee 扩展帧的 current active set；legacy/Standard 短帧或值域非法时为 nil。
+    let activePictureSet: AgentActivePictureSetReadback?
+
+    /// 固件 `USER_MODE_COUNT`（Gitee Rhino `53cd0a97` `APP/sub_main/main.h`）。
+    static let deviceWorkModeRange: Range<Int> = 0 ..< 4
+    /// 固件 `AI_OLED_SET_COUNT`（同上）。
+    static let deviceActivePictureSetRange: Range<Int> = 0 ..< 2
+
+    /// 单一值域 seam：workMode 或 active set 任一越界即拒绝该 readback（不得落入 map）。
+    static func validatedActivePictureSet(
+        workMode: Int,
+        activeSetByte: Int
+    ) -> AgentActivePictureSetReadback? {
+        guard deviceWorkModeRange.contains(workMode),
+              deviceActivePictureSetRange.contains(activeSetByte) else { return nil }
+        return AgentActivePictureSetReadback(mode: workMode, set: activeSetByte)
+    }
+}
+
+/// C5I：`0x97` (`setActiveTaskPictureSet`) ACK 的 typed echo 校验。
+///
+/// Gitee Rhino 固件成功路径回 `AA BB 97 00 <mode> <currentSet> CC DD`
+/// （`APP/sub_main/command_solve.c`：`ret[3]=0`、`ret[4]=d[1]`、`ret[5]=active_ai_pic_set[d[1]]%AI_OLED_SET_COUNT`）。
+/// 因此 ACK payload（状态字节之后）必须逐字节等于请求的 `[mode,set]`；缺失/截断/错 mode/错 set
+/// 一律 fail-closed：不确认 WAL / baseline，只留具名诊断。
+enum AhaKeyActiveSetAckEcho {
+    static let opcode = AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet
+
+    /// 请求与回显都必须是同一份 `[mode,set]` 字节；长度或内容任一不符即拒绝。
+    static func validate(request: Data, response: Data) throws {
+        guard response.count == request.count, response.elementsEqual(request) else {
+            throw AhaKeyAgentCommandError.ackEchoMismatch(
+                opcode: opcode,
+                expected: Array(request),
+                actual: Array(response)
+            )
+        }
+    }
 }
 
 /// 轻量 BLE 守护进程：维持连接 + 接收 Unix socket 命令 → 发送 LED 状态 / 回传拨杆状态
@@ -854,7 +899,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard let sw = cachedSwitchState else { return nil }
         return AgentDeviceStatus(
             battery: -1, signal: -1, firmwareMain: -1, firmwareSub: -1,
-            workMode: -1, lightMode: Int(cachedLightMode ?? 0), switchState: Int(sw)
+            workMode: -1, lightMode: Int(cachedLightMode ?? 0), switchState: Int(sw),
+            // C5I：socket status 回包不是设备 readback，不得伪造 active set。
+            activePictureSet: nil
         )
     }
 
@@ -2389,8 +2436,11 @@ extension AhaKeyAgent {
 
     // MARK: - 协议内联解析
 
-    /// 解析 AA BB 00 [battery][signal][fw_main][fw_sub][work][light][switch][reserve] CC DD
+    /// 解析 AA BB 00 [battery][signal][fw_main][fw_sub][work][light][switch][brightness?][activeSet?] CC DD
     /// 与 Sources/BLE/AhaKeyProtocol.swift:parseDeviceStatus 等价
+    ///
+    /// C5I：Gitee Rhino 扩展帧比 legacy/Standard 多一个 `activeSet` 字节（`base + 8`）。
+    /// 短帧保持兼容且**不得**伪造 active set；扩展字节值域非法同样返回 nil readback。
     private static func parseDeviceStatus(_ data: Data) -> AgentDeviceStatus? {
         guard data.count >= 12,
               data[0] == 0xAA, data[1] == 0xBB,
@@ -2400,14 +2450,23 @@ extension AhaKeyAgent {
         let payload = data[2 ..< data.count - 2]
         guard payload.count >= 8, payload[payload.startIndex] == 0x00 else { return nil }
         let base = payload.startIndex + 1 // 跳过 cmd echo
+        let workMode = Int(payload[base + 4])
+        // 扩展帧 = cmd echo + 9 data 字节：+7 是 brightness、+8 是 current active set。
+        let activePictureSet = payload.count >= 10
+            ? AgentDeviceStatus.validatedActivePictureSet(
+                workMode: workMode,
+                activeSetByte: Int(payload[base + 8])
+            )
+            : nil
         return AgentDeviceStatus(
             battery: Int(payload[base]),
             signal: Int(Int8(bitPattern: payload[base + 1])),
             firmwareMain: Int(payload[base + 2]),
             firmwareSub: Int(payload[base + 3]),
-            workMode: Int(payload[base + 4]),
+            workMode: workMode,
             lightMode: Int(payload[base + 5]),
-            switchState: Int(payload[base + 6])
+            switchState: Int(payload[base + 6]),
+            activePictureSet: activePictureSet
         )
     }
 
@@ -2421,7 +2480,9 @@ extension AhaKeyAgent {
             .fullStatus(battery: status.battery, firmwareMain: status.firmwareMain,
                         firmwareSub: status.firmwareSub, workMode: status.workMode,
                         lightMode: status.lightMode, switchState: status.switchState,
-                        brightness: -1, activePictureSet: -1),
+                        brightness: -1,
+                        // C5I：只有 Gitee 扩展帧真实携带且值域合法时才落 map；短帧传 nil。
+                        activePictureSet: status.activePictureSet?.set),
             core: coreSnapshot, diagnostics: diagnosticsSnapshot
         )
         coreSnapshot = reduced.core
@@ -2441,7 +2502,13 @@ extension AhaKeyAgent {
             KimiTUIAdapter.applyModeIfNeeded(for: Int(hardwareSwitchState))
         }
         if reduced.core != coreBefore {
-            emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+            // C5I：状态真实变化时记录非敏感 readback（workMode / activeSet），不记录资源内容。
+            var line = "← status battery=\(status.battery) light=\(status.lightMode) "
+                + "switch=\(status.switchState) workMode=\(status.workMode)"
+            if let readback = status.activePictureSet {
+                line += " activeSet=\(readback.set)"
+            }
+            emit(line)
         }
         let snapshot = LiveStateWriteCoalescer.Snapshot(
             lightMode: status.lightMode,
@@ -2949,6 +3016,13 @@ extension AhaKeyAgent {
                 messageCode: nil,
                 context: .init(failedStepID: step)
             ))
+        case .ackEchoMismatch(let opcode, _, _):
+            // C5I：设备回显与请求不一致 = 该 step 未获可信确认，永久失败且不推进 WAL/baseline。
+            return .failure(.init(
+                retryable: false,
+                messageCode: .configurationDeviceRejected,
+                context: .init(failedStepID: step, opcode: opcode, deviceStatus: nil)
+            ))
         }
     }
 
@@ -3011,6 +3085,14 @@ extension AhaKeyAgent {
                 opcode: ack,
                 status: simulatedConfigurationCommandStatus(for: ack)
             )
+            // C5I：模拟路径只提供「设备回显字节」，校验仍走生产 seam（不在测试里自证）。
+            let request = Data(frame[3 ..< frame.count - 2])
+            let simulated = executionTestHooks?.simulatedActiveSetAckEcho ?? Array(request)
+            try validateActiveSetAckEchoIfNeeded(
+                ack: ack,
+                request: request,
+                response: Data(simulated)
+            )
             return
         }
         guard configurationWriteIsReady(), commandChar != nil, peripheral != nil else {
@@ -3041,6 +3123,30 @@ extension AhaKeyAgent {
         guard response.status == 0 else {
             try throwIfConfigurationCommandRejected(opcode: ack, status: response.status)
             return
+        }
+        // C5I：status0 之后仍要核对 0x97 的 payload 精确回显请求的 [mode,set]。
+        try validateActiveSetAckEchoIfNeeded(
+            ack: ack,
+            request: Data(frame[3 ..< frame.count - 2]),
+            response: response.payload
+        )
+    }
+
+    /// C5I：只有 `0x97` 需要 echo 交叉校验；其它配置命令的既有 ACK 语义逐字不回退。
+    private func validateActiveSetAckEchoIfNeeded(
+        ack: UInt8,
+        request: Data,
+        response: Data
+    ) throws {
+        guard ack == AhaKeyActiveSetAckEcho.opcode else { return }
+        do {
+            try AhaKeyActiveSetAckEcho.validate(request: request, response: response)
+        } catch let error as AhaKeyAgentCommandError {
+            if case .ackEchoMismatch(let opcode, let expected, let actual) = error {
+                emit("配置命令 0x\(String(format: "%02X", opcode)) ACK echo 校验失败："
+                    + "expected=\(expected) actual=\(actual)")
+            }
+            throw error
         }
     }
 
@@ -4849,6 +4955,8 @@ enum AhaKeyAgentCommandError: Error, Equatable {
     case cancelled
     /// 已有配置事务在飞（恢复或受理单飞闸门）。
     case busy
+    /// C5I：`0x97` ACK payload 未精确回显请求的 `[mode,set]`（缺失/截断/错 mode/错 set）。
+    case ackEchoMismatch(opcode: UInt8, expected: [UInt8], actual: [UInt8])
 }
 
 /// 测试注入：把「Standard 已密封」与「peripheral/command/data 三特征就绪」分开。
@@ -4927,6 +5035,8 @@ struct AhaKeyAgentExecutionTestHooks {
     var failConfigurationCommandStatus: UInt8?
     /// 非 nil 时只拒绝该 opcode；nil 表示任意配置命令。
     var failConfigurationCommandOpcode: UInt8?
+    /// C5I：skipBLE 路径模拟设备 `0x97` ACK 的 payload（状态字节之后）；nil = 精确回显请求。
+    var simulatedActiveSetAckEcho: [UInt8]?
     /// 每个 chunk 在 ACK 前调用（已确认成功次数）。
     var beforeConfigurationChunkWrite: (@Sendable (Int) async -> Void)?
     /// 生产 executor 进入 WAL 步、切完 currentStepID 之后、执行程序之前。

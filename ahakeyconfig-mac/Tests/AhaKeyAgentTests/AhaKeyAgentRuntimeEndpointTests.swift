@@ -797,6 +797,97 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         }
     }
 
+    /// C5I：Gitee 扩展 `0x00` 的 current mode active set 必须进入 Runtime snapshot 的 typed map，
+    /// 与同一帧的 workMode 同源；legacy 短帧与越界字节不得创建/覆盖 map。
+    func testGiteeExtendedStatusProjectsCurrentActiveSetAndStaysFailClosed() {
+        runEndpointTest { [self] in
+        let agent = makeAgent()
+        var hooks = agent.executionTestHooks ?? AhaKeyAgentExecutionTestHooks()
+        hooks.stableDeviceID = "TEST-DEVICE"
+        agent.executionTestHooks = hooks
+        let client = EndpointClient(agent: agent)
+        try await client.handshake()
+
+        // Gitee 扩展帧：AA BB 00 battery signal fw_main fw_sub work light switch brightness activeSet CC DD
+        func extended(workMode: UInt8, lightMode: UInt8, activeSet: UInt8) -> Data {
+            Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, workMode, lightMode, 0, 35, activeSet, 0xCC, 0xDD])
+        }
+        // legacy/Standard 短帧：没有 brightness/activeSet 两个扩展字节。
+        func legacy(workMode: UInt8, lightMode: UInt8) -> Data {
+            Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, workMode, lightMode, 0, 0xCC, 0xDD])
+        }
+
+        func projectedState() async throws -> AhaKeyRuntimeDeviceState? {
+            try await client.snapshot().devices.first?.state
+        }
+        func activeSet(_ state: AhaKeyRuntimeDeviceState?, mode: UInt8) -> UInt8? {
+            state?.activeTaskPictureSets[AhaKeyRuntimeModeIndex(mode)]?.rawValue
+        }
+
+        // 1) workMode0 / activeSet0：workMode 与 map 同源出现。
+        await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 0, lightMode: 1, activeSet: 0)) }
+        var state = try await projectedState()
+        XCTAssertEqual(state?.workMode?.rawValue, 0)
+        XCTAssertEqual(activeSet(state, mode: 0), 0)
+
+        // 2) 同一 mode 的 active set 变化：覆盖为 1。
+        await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 0, lightMode: 2, activeSet: 1)) }
+        state = try await projectedState()
+        XCTAssertEqual(activeSet(state, mode: 0), 1)
+
+        // 3) workMode1：只更新 mode1，不镜像 mode0。
+        await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 1, lightMode: 3, activeSet: 1)) }
+        state = try await projectedState()
+        XCTAssertEqual(state?.workMode?.rawValue, 1)
+        XCTAssertEqual(activeSet(state, mode: 1), 1)
+        XCTAssertEqual(activeSet(state, mode: 0), 1, "mode0 的已确认值不得被 mode1 帧镜像/清除")
+
+        // 4) activeSet=0xff（查询哨兵/畸形）：fail-closed，不覆盖上次可信值。
+        await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 0, lightMode: 4, activeSet: 0xff)) }
+        state = try await projectedState()
+        XCTAssertEqual(activeSet(state, mode: 0), 1, "越界 activeSet 不得覆盖上次可信值")
+        XCTAssertNil(activeSet(state, mode: 0xff), "越界 activeSet 不得创建新条目")
+
+        // 5) activeSet=2（超出 AI_OLED_SET_COUNT）：同样 fail-closed。
+        await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 0, lightMode: 5, activeSet: 2)) }
+        state = try await projectedState()
+        XCTAssertEqual(activeSet(state, mode: 0), 1)
+
+        // 6) workMode 越界：拒绝 readback，不创建该 mode 条目。
+        await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 4, lightMode: 6, activeSet: 1)) }
+        state = try await projectedState()
+        XCTAssertNil(activeSet(state, mode: 4), "越界 workMode 不得创建 map 条目")
+
+        // 7) legacy 短帧：不得伪造 active set（mode2 保持缺失）。
+        await MainActor.run { agent.injectRawStatusPacketForTesting(legacy(workMode: 2, lightMode: 7)) }
+        state = try await projectedState()
+        XCTAssertEqual(state?.workMode?.rawValue, 2)
+        XCTAssertNil(activeSet(state, mode: 2), "legacy 短帧不得伪造 active set")
+
+        // 7b) 截断帧（缺 trailer）：parse 直接拒绝，map 与 status 均不动。
+        await MainActor.run {
+            agent.injectRawStatusPacketForTesting(Data([0xAA, 0xBB, 0x00, 80, 0, 1, 0, 2, 7, 0, 35, 1]))
+        }
+        state = try await projectedState()
+        XCTAssertEqual(state?.lightMode?.rawValue, 7, "截断帧不得被解析")
+        XCTAssertNil(activeSet(state, mode: 2))
+
+        // 8) 相同扩展帧：零重复事件。
+        let repeatPacket = extended(workMode: 3, lightMode: 8, activeSet: 1)
+        await MainActor.run { agent.injectRawStatusPacketForTesting(repeatPacket) }
+        let afterFirst = try await client.snapshot().latestEventSequence
+        await MainActor.run { agent.injectRawStatusPacketForTesting(repeatPacket) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let events = try await client.events(after: afterFirst)
+        guard case .events(let batch) = events else {
+            return XCTFail("相同扩展帧应返回 events（空批）")
+        }
+        XCTAssertEqual(batch.count, 0, "相同扩展帧必须零重复事件")
+        state = try await projectedState()
+        XCTAssertEqual(activeSet(state, mode: 3), 1)
+        }
+    }
+
     func testIdenticalDeviceProjectionPublishesNoDuplicateEvent() {
         runEndpointTest { [self] in
         let agent = makeAgent()

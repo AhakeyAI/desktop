@@ -52,7 +52,11 @@ public struct DeviceDiagnosticsSnapshot: Equatable {
 public enum DeviceStateEvent: Equatable {
     /// 完整设备状态响应：电量、固件、工作模式、灯效、拨杆、亮度、当前 mode 的任务图套图。
     /// 注：状态帧里还解析出 `signal`（RSSI），但现有代码从未采用它（RSSI 只走 readRSSI 回调），保持该行为。
-    case fullStatus(battery: Int, firmwareMain: Int, firmwareSub: Int, workMode: Int, lightMode: Int, switchState: Int, brightness: Int, activePictureSet: Int)
+    ///
+    /// C5I：`activePictureSet` 是 typed optional —— `nil` 表示该帧**未携带**扩展 active-set 字节
+    /// （legacy/Standard 短帧），此时既不得创建也不得覆盖 `activeTaskPictureSets[mode]`；
+    /// 只有设备真实回传且值域合法的帧才允许写入。禁止用默认值把「未携带」伪造成 set 0。
+    case fullStatus(battery: Int, firmwareMain: Int, firmwareSub: Int, workMode: Int, lightMode: Int, switchState: Int, brightness: Int, activePictureSet: Int?)
     /// Battery Service（0x2A19）notify/read 回包。
     case battery(Int)
     /// readRSSI 回调（只在设备信息窗口打开时轮询）。
@@ -131,7 +135,10 @@ public enum DeviceStateReducer {
                 core.switchState = switchState
             }
             core.brightness = brightness
-            core.activeTaskPictureSets[workMode] = activePictureSet
+            // C5I：只有帧真实携带 active set 才落 map；nil 保持上次可信值（不创建、不覆盖）。
+            if let activePictureSet {
+                core.activeTaskPictureSets[workMode] = activePictureSet
+            }
 
         case let .battery(level):
             core.batteryLevel = level

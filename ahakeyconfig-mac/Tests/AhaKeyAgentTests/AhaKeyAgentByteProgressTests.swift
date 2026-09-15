@@ -178,6 +178,94 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
         XCTAssertEqual(resnapshot, snapshot)
     }
 
+    // MARK: - C5I：0x97 ACK echo 校验
+
+    /// typed echo validator 表格：只有逐字节等于请求的 `[mode,set]` 才算确认。
+    func testActiveSetAckEchoValidatorRequiresExactEcho() throws {
+        let request = Data([0x00, 0x00])
+        XCTAssertNoThrow(try AhaKeyActiveSetAckEcho.validate(request: request, response: Data([0x00, 0x00])))
+        XCTAssertNoThrow(try AhaKeyActiveSetAckEcho.validate(request: Data([0x01, 0x01]), response: Data([0x01, 0x01])))
+
+        let rejected: [(String, Data)] = [
+            ("缺失（空 payload）", Data()),
+            ("截断（只有 mode）", Data([0x00])),
+            ("多余字节", Data([0x00, 0x00, 0x00])),
+            ("错 mode", Data([0x01, 0x00])),
+            ("错 set", Data([0x00, 0x01])),
+        ]
+        for (name, response) in rejected {
+            XCTAssertThrowsError(
+                try AhaKeyActiveSetAckEcho.validate(request: request, response: response),
+                name
+            ) { error in
+                guard case AhaKeyAgentCommandError.ackEchoMismatch(let opcode, let expected, let actual) = error else {
+                    return XCTFail("\(name) 必须抛 typed ackEchoMismatch，实得 \(error)")
+                }
+                XCTAssertEqual(opcode, 0x97, name)
+                XCTAssertEqual(expected, [0x00, 0x00], name)
+                XCTAssertEqual(actual, Array(response), name)
+            }
+        }
+    }
+
+    /// 控制组：设备精确回显时 0x97 步照常确认，operation 正常完成。
+    func testExactActiveSetAckEchoConfirmsOperation() async throws {
+        let agent = makeAgent(skipBLE: true)
+        let package = try await startResourceApply(agent)
+        try await waitUntil {
+            (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
+        }
+        let snapshot = try await snapshotOperation(agent, id: package.operationID)
+        XCTAssertEqual(snapshot?.state, .completed)
+        XCTAssertNil(snapshot?.messageCode)
+        // 精确回显时 0x97 所属 step 正常确认。
+        let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        XCTAssertTrue(
+            confirmed.contains { $0.rawValue == "base:mode:0" },
+            "精确回显必须确认 base:mode:0，实得 \(confirmed.map(\.rawValue))"
+        )
+    }
+
+    /// 反例：0x97 ACK status0 但回显的 set 与请求不一致 → step fail-closed，
+    /// WAL 不完成、0x97 步不进入 confirmed steps、具名诊断落盘。
+    func testActiveSetAckEchoMismatchFailsClosedWithoutConfirmingStep() async throws {
+        let agent = makeAgent(skipBLE: true)
+        var hooks = agent.executionTestHooks
+        // 请求是 [mode,set]（本包为 [0,0]）；回显错成 [0,1]。
+        hooks?.simulatedActiveSetAckEcho = [0x00, 0x01]
+        agent.executionTestHooks = hooks
+        let package = try await startResourceApply(agent)
+        try await waitUntil {
+            (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
+        }
+        let observed = try await snapshotOperation(agent, id: package.operationID)
+        let snapshot = try XCTUnwrap(observed)
+        XCTAssertNotEqual(snapshot.state, .completed, "echo 不一致不得完成 operation")
+        XCTAssertEqual(snapshot.messageCode, .configurationDeviceRejected)
+        XCTAssertEqual(snapshot.failureContext?.opcode, 0x97)
+        XCTAssertNil(snapshot.failureContext?.deviceStatus, "echo 不一致与设备 status≠0 是不同事实")
+        XCTAssertEqual(snapshot.failureContext?.failedStepID?.rawValue, "base:mode:0")
+
+        // 事件与 snapshot 同源，且 WAL 与失败上下文一致。
+        let events = try await operationSummaries(agent, operationID: package.operationID)
+        XCTAssertEqual(events.last, snapshot, "失败转移 event 必须与紧随 snapshot 同源")
+        let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory)
+        let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+        let record = try await store.transaction(package.operationID)
+        XCTAssertEqual(record?.state, snapshot.state)
+        XCTAssertEqual(record?.messageCode, snapshot.messageCode)
+        XCTAssertEqual(record?.failureContext, snapshot.failureContext)
+
+        // 「不确认 WAL/baseline」的直接证据：0x97 所属 step 不得进入 confirmed steps。
+        let confirmed = try await store.confirmedSteps(for: package.operationID)
+        XCTAssertFalse(
+            confirmed.contains { $0.rawValue == "base:mode:0" },
+            "echo 不一致时 base:mode:0 不得被确认，实得 \(confirmed.map(\.rawValue))"
+        )
+    }
+
     func testProductionPictureWriteRejectPersistsThroughHandlerWALAndFreshAgent() async throws {
         let storeDir = testRoot.appendingPathComponent("store-c3r1-0x81", isDirectory: true)
         try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
