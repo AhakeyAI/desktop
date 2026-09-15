@@ -128,6 +128,21 @@ enum AhaKeyActiveSetAckEcho {
 | 增量 `git diff --check 85e193e -- ahakeyconfig-mac` | 通过 |
 | 全范围 `git diff --check 5d1fe1d`（整仓 + `ahakeyconfig-mac`） | 通过 |
 
+### 逐文件 numstat（`fbc3b77` 提交原文，机械更正）
+
+```
+118   8   ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift
+  9   2   ahakeyconfig-mac/Sources/Shared/DeviceStateReducer.swift
+ 88   0   ahakeyconfig-mac/Tests/AhaKeyAgentTests/AhaKeyAgentByteProgressTests.swift
+ 91   0   ahakeyconfig-mac/Tests/AhaKeyAgentTests/AhaKeyAgentRuntimeEndpointTests.swift
+ 52   0   ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/DeviceStateReducerTests.swift
+141   0   docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/42-c5i-active-set-readback-seam.md
+ 90   0   docs/collab/taskcards/V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS.md
+```
+
+C5I 任务卡条目原写的 `+126/−8`、`+11/−1`、`+73/+83` 为估算值，已在 C5IR1 按上表原文更正
+（合计仍为 **+589/−10**）。
+
 首轮定向曾出现 1 处失败但当时用 `tail` 截断未保存日志、无法指名；随后连续两次 422/422 全绿。
 **过程性教训：门禁输出必须整份 tee 落盘，不得只 tail。**
 
@@ -139,3 +154,82 @@ enum AhaKeyActiveSetAckEcho {
 - 未新增主动 query、未调用 authority baseline readback、未升格 `writeConfirmed`、未新增文件 sink。
 - 未签名、未安装、未进 HIL、未写设备、未刷机、未擦 EEPROM、未断电、未 push。
 - 固件基线仅只读引用（firmware repo porcelain 空）；R6 保留的 `/tmp/ahakey-c5r6-*` 未复用、未删除。
+
+## 8. C5IR1（tests/docs-only 补强）
+
+C5I 产品主语义 accepted；本段记录 `C5IR1` 的测试/文档补强。**`AhaKeyAgent.swift` 与
+`DeviceStateReducer.swift` 产品代码零改**（`git status --porcelain -- ahakeyconfig-mac/Sources` 为空）。
+
+### 8.1 P1：ACK 失败矩阵逐行走真实 executor/WAL
+
+`AhaKeyAgentByteProgressTests.testActiveSetAckFailureMatrixFailsClosedThroughRealExecutor`
+表驱动 5 行（`missing` / `extra` / `wrong-mode` / `wrong-set` / `status-nonzero`），每行都用
+**fresh agent + 真实 runner/Store/executor**（`skipBLE` 仅跳过 BLE 外设写出，不跳过 ACK seam 与 WAL）：
+
+| 每行断言 | 说明 |
+|---|---|
+| operation 不 completed | `state != .completed`，`messageCode = configuration.device-rejected` |
+| 失败上下文 | `opcode = 0x97`、`failedStepID = base:mode:0`；echo 行 `deviceStatus = nil`、status 行 `= 3` |
+| 0x97 step 不 confirmed | `base:mode:0` 不在 `confirmedSteps` |
+| baseline 零推进 | `syncBaseline(for:) == nil` **且** `pageFieldBaselines` 为空 |
+| 具名诊断 | echo 行恰好一条 `ACK echo 校验失败：expected=[0, 0] actual=[…]`；status 行走既有「被设备拒绝 status=3」且不误报 echo |
+
+控制组 `testExactActiveSetAckEchoConfirmsOperation` 补 **`syncBaseline != nil`**，证明成功路径
+确实推进会话 baseline——使上表的「零推进」断言非空转（反证 D 实测：校验 no-op 时该行报
+`revision: 1 ... 904 bytes`，即 baseline 真的被推进）。
+
+### 8.2 P1：永久 production boundary gate
+
+`AhaKeyAgentRuntimeEndpointTests.testC5IAgentBoundaryGateStaysFreeOfQueryAuthorityAndStudioBypass`
+只读扫描 `Sources/Agent/AhaKeyAgent.swift` 与 `Sources/Shared/DeviceStateReducer.swift`：
+
+- 无新增 query：两份源码都不得出现 `cmdReadTaskPicState`(0x94) / `cmdReadTaskPicSet`(0x96)；
+- 无 authority readback：不得出现 `AhaKeyRuntimePageBaseAuthority` / `pageBaseAuthoritySnapshot(` / `writeConfirmed`；
+  Agent 的 `store.pageFieldBaselines(` 读取点**冻结在既有 2 处**（page preconditions + snapshot 投影），新增即失败；
+- 无 View/Studio 旁路：不得出现 `AhaKeyStudioView` / `AhaKeyStudioPackageAssembler` / `AhaKeyStudioRuntimeFacade` / `AhaKeyStudioPageCommitCoordinator`；
+- 正向：`AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet`（0x97 必须走共享 opcode 常量）、`AhaKeyActiveSetAckEcho.validate(`、`validatedActivePictureSet(` 必须在场。
+
+（门自身活性由反证 E 证明：注入一行 `AhaKeyRuntimePageBaseAuthority` 注释即 1 failure。）
+
+### 8.3 P2：状态日志
+
+- 首帧：恰好一条 `← status …`，且必须含 `workMode=0` 与 `activeSet=0`；
+- 相同扩展帧：除零 event 外，`← status` 日志必须为零。
+
+（活性由反证 F 证明：移除生产日志里的 `workMode=` 后该断言 1 failure。）
+
+### 8.4 stale-generation 的闭合位置（请 Codex 裁定）
+
+- **代际判定层（已永久化）**：`DeviceCommandSequencerTests.testResolve_staleGenerationNeverConfirmsZeroNineSevenAck`
+  用生产 `DeviceWaiterRegistry` + `0x97` 精确字节：当前代际精确回显 → `.response`；
+  代际推进 → 在飞 `0x97` waiter 被 `generationInvalidated` 强败，**同字节 ACK 也无法复活**，且无残留 waiter。
+- **executor 层（本卡不可达，如实说明）**：Agent 唯一 ACK ingress 是 CoreBluetooth delegate
+  `didUpdateValueFor`；现有测试 seam 只覆盖 OLED 协商帧（`ingestOLEDNegotiationNotifyForTesting` /
+  `handleOLEDNotifyFrameForTesting`），**没有**通用命令 ACK 注入 seam，且非 `skipBLE` 路径会因
+  `commandChar/peripheral == nil` 直接 `.disconnected`。因此「把 stale 0x97 ACK 灌进真实 executor」
+  需要一个**新的产品测试 seam**（改 `AhaKeyAgent.swift`），而 C5IR1 明确禁止产品改动。
+- 本卡采取的分层闭合：代际判定由生产 sequencer 永久锁定；「未解析 → step 不确认 → baseline 零推进」
+  由 §8.1 的同一条 runner/WAL 契约（非 `.success` 即不确认）与 §8.1 的 status-nonzero 行共同覆盖。
+  DSH 不声称已做到 executor 级 stale 注入；若 Codex 要求该粒度，请显式授权一个最小产品 seam 卡。
+
+### 8.5 C5IR1 反证（有 assert 保护的还原，产品文件 sha256 复核 `9ed68b63…f7a4`）
+
+| 补丁 | 结果 |
+|---|---|
+| D：`AhaKeyActiveSetAckEcho.validate` no-op | 矩阵 **8 failures**：operation 变 `completed`、`base:mode:0` 进入 confirmed steps、`syncBaseline` 变成 `revision:1 / 904 bytes`、具名诊断缺席 |
+| E：在 Agent 注入一行 `AhaKeyRuntimePageBaseAuthority` 注释 | boundary gate **1 failure**（门自身活性） |
+| F：生产 status 日志移除 `workMode=` | 首帧日志断言 **1 failure**（P2 断言活性） |
+
+每次补丁均以 sha256 备份还原并复核；`git status --porcelain -- ahakeyconfig-mac/Sources` 在全部反证后为空。
+
+### 8.6 C5IR1 门禁
+
+| 项 | 结果 |
+|---|---|
+| 定向（19 类：Agent 6 + DeviceStateReducer + DeviceCommandSequencer + DeviceTransportCore + Studio/Runtime 10） | **454 / 454，0 失败** |
+| 全量 Swift 第 1 次（最终树） | **1223 / 2 skipped / 0 failures（全绿）** |
+| `swift build -c release --product AhaKeyConfig` | rc=0 |
+| `swift build -c release --product ahakeyconfig-agent` | rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| 增量 `git diff --check fbc3b77 -- ahakeyconfig-mac` | 通过 |
+| 全范围 `git diff --check 5d1fe1d` | 通过 |

@@ -226,6 +226,90 @@ final class AhaKeyAgentByteProgressTests: XCTestCase {
             confirmed.contains { $0.rawValue == "base:mode:0" },
             "精确回显必须确认 base:mode:0，实得 \(confirmed.map(\.rawValue))"
         )
+        // 成功路径 baseline 确实推进：使失败行的「零推进」断言非空转。
+        let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+        let advanced = try await store.syncBaseline(for: deviceID)
+        XCTAssertNotNil(advanced, "completed operation 必须推进 sync baseline")
+    }
+
+    /// P1 闭环：ACK 失败矩阵**每一行**都走真实 executor/WAL（不是只跑 pure validator），
+    /// 逐行证明 operation 不 completed、0x97 所属 step 不 confirmed、baseline 零推进。
+    func testActiveSetAckFailureMatrixFailsClosedThroughRealExecutor() async throws {
+        struct Row {
+            let name: String
+            /// nil = 不注入 echo（status 行使用精确回显）。
+            let echo: [UInt8]?
+            let status: UInt8?
+            let expectedDeviceStatus: UInt8?
+        }
+        let rows: [Row] = [
+            .init(name: "missing", echo: [], status: nil, expectedDeviceStatus: nil),
+            .init(name: "extra", echo: [0x00, 0x00, 0x00], status: nil, expectedDeviceStatus: nil),
+            .init(name: "wrong-mode", echo: [0x01, 0x00], status: nil, expectedDeviceStatus: nil),
+            .init(name: "wrong-set", echo: [0x00, 0x01], status: nil, expectedDeviceStatus: nil),
+            .init(name: "status-nonzero", echo: nil, status: 3, expectedDeviceStatus: 3),
+        ]
+        let deviceID = try AhaKeyRuntimeDeviceID("TEST-DEVICE")
+
+        for row in rows {
+            let agent = makeAgent(skipBLE: true)
+            var hooks = agent.executionTestHooks
+            hooks?.failConfigurationCommandOpcode = AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet
+            hooks?.failConfigurationCommandStatus = row.status
+            hooks?.simulatedActiveSetAckEcho = row.echo
+            agent.executionTestHooks = hooks
+            var logs: [String] = []
+            agent.onLog = { logs.append($0) }
+
+            let package = try await startResourceApply(agent)
+            try await waitUntil {
+                (try await self.snapshotOperation(agent, id: package.operationID))?.state.isTerminal == true
+            }
+            let observed = try await snapshotOperation(agent, id: package.operationID)
+            let snapshot = try XCTUnwrap(observed, row.name)
+
+            // (1) operation 不 completed
+            XCTAssertNotEqual(snapshot.state, .completed, "\(row.name) 不得完成 operation")
+            XCTAssertEqual(snapshot.messageCode, .configurationDeviceRejected, row.name)
+            XCTAssertEqual(snapshot.failureContext?.opcode, 0x97, row.name)
+            XCTAssertEqual(
+                snapshot.failureContext?.deviceStatus, row.expectedDeviceStatus,
+                "\(row.name) echo 不一致与设备 status≠0 必须保持可区分"
+            )
+            XCTAssertEqual(snapshot.failureContext?.failedStepID?.rawValue, "base:mode:0", row.name)
+
+            let storeDir = try XCTUnwrap(agent.executionTestHooks?.storeDirectory, row.name)
+            let store = try AhaKeyRuntimePersistentStore(rootDirectory: storeDir)
+            // (2) 0x97 所属 step 不 confirmed
+            let confirmed = try await store.confirmedSteps(for: package.operationID)
+            XCTAssertFalse(
+                confirmed.contains { $0.rawValue == "base:mode:0" },
+                "\(row.name) 0x97 所属 step 不得确认，实得 \(confirmed.map(\.rawValue))"
+            )
+            // (3) baseline 零推进
+            let sync = try await store.syncBaseline(for: deviceID)
+            XCTAssertNil(sync, "\(row.name) sync baseline 不得推进")
+            let baselines = try await store.pageFieldBaselines(deviceID: deviceID)
+            XCTAssertTrue(baselines.isEmpty, "\(row.name) 不得写入 page-field baseline")
+
+            // 具名诊断：echo 行必须恰好一条并携带请求/实际字节；status 行走既有拒绝点。
+            if let echo = row.echo {
+                let diagnostic = logs.filter { $0.contains("ACK echo 校验失败") }
+                XCTAssertEqual(diagnostic.count, 1, "\(row.name) 必须恰好一条具名 echo 诊断，实得 \(logs)")
+                let line = diagnostic.first ?? ""
+                XCTAssertTrue(line.contains("expected=[0, 0]"), "\(row.name) 诊断必须携带请求字节：\(line)")
+                XCTAssertTrue(line.contains("actual=\(echo)"), "\(row.name) 诊断必须携带实际回显：\(line)")
+            } else {
+                XCTAssertTrue(
+                    logs.contains { $0.contains("被设备拒绝 status=3") },
+                    "\(row.name) 必须走既有设备拒绝点，实得 \(logs)"
+                )
+                XCTAssertFalse(
+                    logs.contains { $0.contains("ACK echo 校验失败") },
+                    "\(row.name) 不得误报 echo 失败"
+                )
+            }
+        }
     }
 
     /// 反例：0x97 ACK status0 但回显的 set 与请求不一致 → step fail-closed，

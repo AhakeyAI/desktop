@@ -824,11 +824,19 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             state?.activeTaskPictureSets[AhaKeyRuntimeModeIndex(mode)]?.rawValue
         }
 
-        // 1) workMode0 / activeSet0：workMode 与 map 同源出现。
+        // 1) workMode0 / activeSet0：workMode 与 map 同源出现；
+        //    首帧必须恰好一条 status 日志，且包含 workMode/activeSet readback。
+        var logLines: [String] = []
+        agent.onLog = { logLines.append($0) }
+        logLines.removeAll()
         await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 0, lightMode: 1, activeSet: 0)) }
         var state = try await projectedState()
         XCTAssertEqual(state?.workMode?.rawValue, 0)
         XCTAssertEqual(activeSet(state, mode: 0), 0)
+        let firstStatusLogs = logLines.filter { $0.contains("← status") }
+        XCTAssertEqual(firstStatusLogs.count, 1, "首帧必须恰好一条 status 日志，实得 \(firstStatusLogs)")
+        XCTAssertTrue(firstStatusLogs.first?.contains("workMode=0") == true, "首帧日志必须含 workMode：\(firstStatusLogs)")
+        XCTAssertTrue(firstStatusLogs.first?.contains("activeSet=0") == true, "首帧日志必须含 activeSet：\(firstStatusLogs)")
 
         // 2) 同一 mode 的 active set 变化：覆盖为 1。
         await MainActor.run { agent.injectRawStatusPacketForTesting(extended(workMode: 0, lightMode: 2, activeSet: 1)) }
@@ -872,10 +880,11 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         XCTAssertEqual(state?.lightMode?.rawValue, 7, "截断帧不得被解析")
         XCTAssertNil(activeSet(state, mode: 2))
 
-        // 8) 相同扩展帧：零重复事件。
+        // 8) 相同扩展帧：零重复事件 **且** 零重复 status 日志。
         let repeatPacket = extended(workMode: 3, lightMode: 8, activeSet: 1)
         await MainActor.run { agent.injectRawStatusPacketForTesting(repeatPacket) }
         let afterFirst = try await client.snapshot().latestEventSequence
+        logLines.removeAll()
         await MainActor.run { agent.injectRawStatusPacketForTesting(repeatPacket) }
         try await Task.sleep(nanoseconds: 50_000_000)
         let events = try await client.events(after: afterFirst)
@@ -883,9 +892,59 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             return XCTFail("相同扩展帧应返回 events（空批）")
         }
         XCTAssertEqual(batch.count, 0, "相同扩展帧必须零重复事件")
+        XCTAssertTrue(
+            logLines.filter { $0.contains("← status") }.isEmpty,
+            "相同扩展帧必须零重复 status 日志，实得 \(logLines)"
+        )
         state = try await projectedState()
         XCTAssertEqual(activeSet(state, mode: 3), 1)
         }
+    }
+
+    /// P1 永久 production boundary gate：C5I 不得把 Agent 变成新的 authority/UI 旁路。
+    /// 只读扫描产品源码文本（lock「无新增 query、无 authority readback、无 View/Studio 旁路」）。
+    func testC5IAgentBoundaryGateStaysFreeOfQueryAuthorityAndStudioBypass() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let agent = try String(
+            contentsOf: packageRoot.appendingPathComponent("Sources/Agent/AhaKeyAgent.swift"),
+            encoding: .utf8
+        )
+        let reducer = try String(
+            contentsOf: packageRoot.appendingPathComponent("Sources/Shared/DeviceStateReducer.swift"),
+            encoding: .utf8
+        )
+
+        // 无新增 query opcode：0x94 / 0x96 读命令在 Agent 中必须始终缺席。
+        for source in [agent, reducer] {
+            XCTAssertFalse(source.contains("cmdReadTaskPicState"), "不得引入 0x94 查询")
+            XCTAssertFalse(source.contains("cmdReadTaskPicSet"), "不得引入 0x96 查询")
+        }
+        // 无 authority baseline readback / 权威对象旁路。
+        for source in [agent, reducer] {
+            XCTAssertFalse(source.contains("AhaKeyRuntimePageBaseAuthority"), "不得引用 authority 类型")
+            XCTAssertFalse(source.contains("pageBaseAuthoritySnapshot("), "不得读 authority baseline 快照")
+            XCTAssertFalse(source.contains("writeConfirmed"), "不得把 writeConfirmed 语义引入该 seam")
+        }
+        // Agent 侧 page-field baseline 读取只允许既有两处（page preconditions + snapshot 投影）。
+        let readbackSites = agent.components(separatedBy: "store.pageFieldBaselines(").count - 1
+        XCTAssertEqual(
+            readbackSites, 2,
+            "Agent 的 pageFieldBaselines 读取点必须冻结在既有两处，新增即视为 authority readback 回退"
+        )
+        // 无 View/Studio/assembler 旁路。
+        for forbidden in [
+            "AhaKeyStudioView", "AhaKeyStudioPackageAssembler",
+            "AhaKeyStudioRuntimeFacade", "AhaKeyStudioPageCommitCoordinator",
+        ] {
+            XCTAssertFalse(agent.contains(forbidden), "Agent 不得消费 \(forbidden)")
+        }
+        // 正向：唯一 0x97 写入 opcode 走共享构造器，echo 校验是唯一 seam。
+        XCTAssertTrue(agent.contains("AhaKeyWireFrameBuilder.cmdSetActiveTaskPicSet"), "0x97 必须走共享 opcode 常量")
+        XCTAssertTrue(agent.contains("AhaKeyActiveSetAckEcho.validate("), "0x97 ACK 必须走单一 typed echo seam")
+        XCTAssertTrue(agent.contains("validatedActivePictureSet("), "extended readback 必须走单一值域 seam")
     }
 
     func testIdenticalDeviceProjectionPublishesNoDuplicateEvent() {
