@@ -324,11 +324,17 @@ final class SwiftSourceBoundaryAuditTests: XCTestCase {
         .init(id: "raw.hash2.lower-prefix-text",
               source: rawSrc(hashes: 2, markerHashes: 1, body: "sendDirectCommandFrame(0x96))"),
               expectation: .clean),
+        .init(id: "raw.hash2.higher-prefix-text",
+              source: rawSrc(hashes: 2, markerHashes: 3, body: "sendDirectCommandFrame(0x96))"),
+              expectation: .clean),
         .init(id: "raw.hash2.exact-prefix-visible",
               source: rawSrc(hashes: 2, markerHashes: 2, body: "sendDirectCommandFrame(0x96))"),
               expectation: .calls([0x96])),
         .init(id: "raw.hash3.lower-prefix-text",
               source: rawSrc(hashes: 3, markerHashes: 2, body: "sendDirectCommandFrame(0x96))"),
+              expectation: .clean),
+        .init(id: "raw.hash3.higher-prefix-text",
+              source: rawSrc(hashes: 3, markerHashes: 4, body: "sendDirectCommandFrame(0x96))"),
               expectation: .clean),
         .init(id: "raw.hash3.exact-prefix-visible",
               source: rawSrc(hashes: 3, markerHashes: 3, body: "sendDirectCommandFrame(0x96))"),
@@ -405,6 +411,9 @@ final class SwiftSourceBoundaryAuditTests: XCTestCase {
               expectation: .violations([.nonLiteral("<unterminated>")])),
         .init(id: "direct.unterminated-brace",
               source: "sendDirectCommandFrame({ 0x96)",
+              expectation: .violations([.nonLiteral("<unterminated>")])),
+        .init(id: "direct.mismatched-top-level-closer",
+              source: "sendDirectCommandFrame(0x00], 0x96)",
               expectation: .violations([.nonLiteral("<unterminated>")])),
         .init(id: "direct.reference-without-call",
               source: "let f = sendDirectCommandFrame",
@@ -582,6 +591,64 @@ final class SwiftSourceBoundaryAuditTests: XCTestCase {
         case eofInterpolationLineComment = "eof.interpolation-line-comment"
     }
 
+    /// 显式迁移账本：不从 `allCases` 自我派生，以便新增/删除 legacy ID 时必须同步裁决映射。
+    static let migratedLegacyIDs: [LegacyRegressionID] = [
+        .directLiteral,
+        .directLiteralNewline,
+        .directVariable,
+        .directBinary,
+        .directParenthesized,
+        .directFunctionResult,
+        .directArray,
+        .directDictionary,
+        .directClosure,
+        .directSubscript,
+        .directUnterminatedParen,
+        .directUnterminatedBracket,
+        .directUnterminatedBrace,
+        .directReferenceWithoutCall,
+        .directEmptyArgument,
+        .directWhitespaceArgument,
+        .directArgumentCommentLeading,
+        .directArgumentCommentTrailing,
+        .directArgumentCommentLine,
+        .directOpcodeOutOfRangeSmall,
+        .directOpcodeOutOfRangeHuge,
+        .declarationSingleSpace,
+        .declarationDoubleSpace,
+        .declarationTab,
+        .declarationNewline,
+        .declarationCommentTrivia,
+        .declarationDefaultArgs,
+        .authorityDirect,
+        .authorityAlias,
+        .authorityDeclarationExcluded,
+        .authoritySimilarName,
+        .authoritySuffixedName,
+        .lexicalStringOrdinary,
+        .lexicalStringMultiline,
+        .lexicalStringRaw,
+        .lexicalBlockClosed,
+        .lexicalBlockUnterminated1,
+        .lexicalBlockUnterminated2,
+        .lexicalBlockNestedCloseLeavesOuter,
+        .lexicalInterpolationDepth,
+        .lexicalInterpolationNestedString,
+        .lexicalInterpolationNestedArray,
+        .rawHash1MultilineInnerHashQuote,
+        .rawHash1MultilineFollowingCode,
+        .rawHash1LowerPrefixText,
+        .rawHash1HigherPrefixText,
+        .rawHash2LowerPrefixText,
+        .rawHash2ExactPrefixVisible,
+        .rawHash3LowerPrefixText,
+        .rawHash3ExactPrefixVisible,
+        .malformedInterpolation,
+        .malformedInvalidUTF8,
+        .eofRootLineComment,
+        .eofInterpolationLineComment,
+    ]
+
     /// 旧树被替换删除的永久 row 数（C5IR7/C5IR8 工作树实测：lexer 31 + parser/declaration 26 + authority 9 + cross 12）。
     static let legacyPermanentRowCount = 78
 
@@ -590,11 +657,16 @@ final class SwiftSourceBoundaryAuditTests: XCTestCase {
         let extraIDs: Set<String> = ["malformed.invalid-utf8", "malformed.interpolation"]
         let migrated = stateIDs.union(extraIDs)
 
-        // 机械门 1：账本每个 ID 都有真实存在的新用例。
-        let missing = LegacyRegressionID.allCases
+        // 机械门 1：显式迁移账本与冻结 enum 必须双向集合相等，且不得用重复项凑数。
+        let expectedLegacyIDs = Set(LegacyRegressionID.allCases)
+        let explicitMigratedIDs = Set(Self.migratedLegacyIDs)
+        XCTAssertEqual(Self.migratedLegacyIDs.count, explicitMigratedIDs.count, "迁移账本不得重复")
+        XCTAssertEqual(explicitMigratedIDs, expectedLegacyIDs, "显式迁移账本必须与 LegacyRegressionID 双向相等")
+
+        let missingImplementations = explicitMigratedIDs
             .map(\.rawValue)
             .filter { !migrated.contains($0) }
-        XCTAssertTrue(missing.isEmpty, "旧回归未迁移：\(missing)")
+        XCTAssertTrue(missingImplementations.isEmpty, "旧回归未迁入真实用例：\(missingImplementations)")
 
         // 机械门 2：新模块回归总数不小于被删旧永久 rows。
         let newRowCount = Self.protectedInterpolationRows.count

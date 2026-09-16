@@ -936,9 +936,17 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             complete.violations.isEmpty,
             "产品树不得出现任何 boundary violation，实得 \(complete.violations)"
         )
+        let callsiteInventory = complete.calls.map { call in
+            "\(call.location.path):\(call.location.line):\(call.location.column) "
+                + "\(call.spelling) (utf16=\(call.location.utf16Offset))"
+        }.joined(separator: "\n")
         XCTAssertEqual(
             complete.opcodeMultiset, [0x00, 0x94],
-            "直接命令帧 opcode 清单已改变：新增/删除 callsite 必须显式更新本门"
+            """
+            直接命令帧 opcode 清单已改变：新增/删除 callsite 必须显式更新本门。
+            当前 callsites：
+            \(callsiteInventory)
+            """
         )
         XCTAssertEqual(complete.calls.map(\.spelling), ["0x00", "0x94"])
         XCTAssertEqual(

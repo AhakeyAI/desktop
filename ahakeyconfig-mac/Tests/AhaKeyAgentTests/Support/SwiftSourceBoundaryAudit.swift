@@ -94,8 +94,8 @@ struct SwiftSourceBoundaryAudit {
         }
     }
 
-    static let directCommandSymbol = "sendDirectCommandFrame"
-    static let authorityReadbackSymbol = "applyAuthoritativeFieldReadback"
+    fileprivate static let directCommandSymbol = "sendDirectCommandFrame"
+    fileprivate static let authorityReadbackSymbol = "applyAuthoritativeFieldReadback"
 
     static func audit(_ sources: [SourceFile]) -> Report {
         var calls: [DirectCommandCall] = []
@@ -623,33 +623,50 @@ private struct Policy {
 
     /// 读取第一个参数：跳过注释（已无 token），到顶层 `,` 或与调用括号配对的 `)` 为止。
     private func firstArgument(after openParenIndex: Int) -> FirstArgument {
-        var depth = 0
+        var delimiters: [Character] = []
         var significant: [Token] = []
         var index = openParenIndex + 1
         while index < tokens.count {
             let token = tokens[index]
-            if token.kind.isPunctuation("(") || token.kind.isPunctuation("[") || token.kind.isPunctuation("{") {
-                depth += 1
-                significant.append(token)
-                index += 1
-                continue
-            }
-            if token.kind.isPunctuation(")") || token.kind.isPunctuation("]") || token.kind.isPunctuation("}") {
-                if depth == 0 {
-                    return .closed(significant)
+            if case let .punctuation(character) = token.kind {
+                switch character {
+                case "(", "[", "{":
+                    delimiters.append(character)
+                    significant.append(token)
+                    index += 1
+                    continue
+                case ")", "]", "}":
+                    if delimiters.isEmpty {
+                        // 只有与外层调用 `(` 配对的 `)` 能结束第一参数。
+                        return character == ")" ? .closed(significant) : .unterminated(significant)
+                    }
+                    guard Self.closingDelimiter(for: delimiters[delimiters.count - 1]) == character else {
+                        return .unterminated(significant)
+                    }
+                    delimiters.removeLast()
+                    significant.append(token)
+                    index += 1
+                    continue
+                default:
+                    break
                 }
-                depth -= 1
-                significant.append(token)
-                index += 1
-                continue
             }
-            if token.kind.isPunctuation(","), depth == 0 {
+            if token.kind.isPunctuation(","), delimiters.isEmpty {
                 return .closed(significant)
             }
             significant.append(token)
             index += 1
         }
         return .unterminated(significant)
+    }
+
+    private static func closingDelimiter(for opener: Character) -> Character? {
+        switch opener {
+        case "(": return ")"
+        case "[": return "]"
+        case "{": return "}"
+        default: return nil
+        }
     }
 
     /// `renderedArgument` 取**原始源码切片**（首个到末个 significant token），保留书写形态。
