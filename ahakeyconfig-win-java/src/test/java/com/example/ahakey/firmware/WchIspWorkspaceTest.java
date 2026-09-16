@@ -19,6 +19,9 @@ class WchIspWorkspaceTest {
         Files.createDirectories(runtimeRoot);
         Path exe = runtimeRoot.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME);
         Files.write(exe, new byte[]{1});
+        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
+            Files.copy(input, runtimeRoot.resolve("CONFIG_CH57X59X.WCH"));
+        }
         RuntimeBundle runtime = new RuntimeBundle(runtimeRoot, exe,
             runtimeRoot.resolve("CH343PT.DLL"), runtimeRoot.resolve("WCH55xISPDLL.dll"),
             runtimeRoot.resolve("CONFIG_CH57X59X.WCH"), null,
@@ -42,7 +45,7 @@ class WchIspWorkspaceTest {
     @Test
     void slotPatchPreservesLayoutAndRejectsOversizedPath() throws Exception {
         byte[] baseline;
-        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH")) {
+        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             baseline = input.readAllBytes();
         }
         byte[] patched = WchIspConfigLayout.patchSlot(baseline, 0, "C:\\firmware.hex");
@@ -59,7 +62,9 @@ class WchIspWorkspaceTest {
         Files.write(exe, new byte[]{1});
         Files.write(runtimeRoot.resolve("CH343PT.DLL"), new byte[]{2});
         Files.write(runtimeRoot.resolve("WCH55xISPDLL.dll"), new byte[]{3});
-        Files.write(runtimeRoot.resolve("CONFIG_CH57X59X.WCH"), new byte[]{9});
+        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
+            Files.copy(input, runtimeRoot.resolve("CONFIG_CH57X59X.WCH"));
+        }
         Files.write(runtimeRoot.resolve("CONFIG_CH57X59X.WCH.excluded"), new byte[]{9});
         Files.write(runtimeRoot.resolve("CONFIG_CH57X59X.WCH.bak"), new byte[]{9});
         Files.write(runtimeRoot.resolve("CONFIG_CH57X59X-old.WCH"), new byte[]{9});

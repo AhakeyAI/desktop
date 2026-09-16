@@ -29,6 +29,18 @@ class InstalledRuntimeLocatorTest {
     }
 
     @Test
+    void jpackageAppToolsRuntimeIsSelected() throws Exception {
+        Path applicationRoot = temporary.resolve("AhaKeyStudio");
+        Path installed = applicationRoot.resolve("app").resolve("tools").resolve("wchisp");
+        createBundle(installed, true);
+
+        RuntimeBundle result = locator(applicationRoot, temporary.resolve("empty"), Map.of()).resolve();
+
+        assertEquals(installed.toAbsolutePath().normalize(), result.root());
+        assertEquals("PRESENT", result.identity().expectedMetadata().get("METADATA_STATUS"));
+    }
+
+    @Test
     void explicitJvmPathIsUsedWhenInstalledRuntimeIsUnavailable() throws Exception {
         Path explicit = temporary.resolve("explicit-runtime");
         createBundle(explicit, false);
@@ -73,7 +85,7 @@ class InstalledRuntimeLocatorTest {
         Files.write(root.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME), new byte[]{1, 2, 3});
         Files.write(root.resolve("CH343PT.DLL"), new byte[]{4});
         Files.write(root.resolve("WCH55xISPDLL.dll"), new byte[]{5});
-        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH")) {
+        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             Files.copy(input, root.resolve("CONFIG_CH57X59X.WCH"));
         }
         if (metadata) {

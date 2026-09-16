@@ -88,15 +88,25 @@ function Assert-WchIspReleasePrivacy {
     if (Test-Path -LiteralPath (Join-Path $resolved "CONFIG_CH57X59X.WCH.excluded")) {
         throw "WCHISP release contains forbidden CONFIG_CH57X59X.WCH.excluded"
     }
+    [byte[]]$configBytes = [IO.File]::ReadAllBytes($config)
+    if ($configBytes.Length -ne 66841) {
+        throw "WCHISP CONFIG_CH57X59X.WCH has unsupported size: $($configBytes.Length)"
+    }
+    foreach ($offset in @(36486, 37006, 37526, 63172, 63692)) {
+        if ($offset -lt 0 -or $offset + 520 -gt $configBytes.Length) {
+            throw "WCHISP CONFIG path slot is outside the file: $offset"
+        }
+        for ($index = $offset; $index -lt $offset + 520; $index++) {
+            if ($configBytes[$index] -ne 0) {
+                throw "WCHISP CONFIG contains a persisted firmware path at slot $offset"
+            }
+        }
+    }
     $excludedFiles = @($files | Where-Object {
         $_.Name -ieq "CONFIG_CH57X59X.WCH.excluded"
     })
     if ($excludedFiles.Count -gt 0) {
         throw "WCHISP release contains forbidden excluded CONFIG files"
-    }
-    $configHash = (Get-FileHash -LiteralPath $config -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($configHash -ne "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8") {
-        throw "WCHISP release CONFIG_CH57X59X.WCH is not the repository baseline"
     }
     $metadataPath = Join-Path $resolved "wchisp-runtime.json"
     if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
@@ -107,14 +117,37 @@ function Assert-WchIspReleasePrivacy {
     } catch {
         throw "WCHISP runtime metadata is not valid JSON: $($_.Exception.Message)"
     }
-    foreach ($property in @("toolVersion", "ispDllVersion", "driverDllVersion", "configContractVersion")) {
-        if ([string]$metadata.$property -ne "3.6.1") {
-            throw "WCHISP runtime contract mismatch: $property=$($metadata.$property)"
+    foreach ($property in @(
+        "bundleId",
+        "toolVersion",
+        "ispDllVersion",
+        "driverDllVersion",
+        "configContractVersion",
+        "configLayoutFingerprint",
+        "source",
+        "provenance",
+        "exeSha256",
+        "ch343Sha256",
+        "ispDllSha256",
+        "configSha256"
+    )) {
+        if ([string]::IsNullOrWhiteSpace([string]$metadata.$property)) {
+            throw "WCHISP runtime metadata is missing: $property"
         }
     }
-    if ([string]$metadata.configLayoutFingerprint -ne
-        "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8") {
-        throw "WCHISP runtime config layout fingerprint mismatch"
+    $actualHashes = @{
+        exeSha256 = (Get-FileHash -LiteralPath (Join-Path $resolved "WCHISPTool_CH57x-59x.exe") -Algorithm SHA256).Hash
+        ch343Sha256 = (Get-FileHash -LiteralPath (Join-Path $resolved "CH343PT.DLL") -Algorithm SHA256).Hash
+        ispDllSha256 = (Get-FileHash -LiteralPath (Join-Path $resolved "WCH55xISPDLL.dll") -Algorithm SHA256).Hash
+        configSha256 = (Get-FileHash -LiteralPath $config -Algorithm SHA256).Hash
+    }
+    foreach ($property in $actualHashes.Keys) {
+        if ([string]$metadata.$property -ne [string]$actualHashes[$property]) {
+            throw "WCHISP runtime file hash mismatch: $property"
+        }
+    }
+    if ([string]$metadata.configLayoutFingerprint -ne [string]$metadata.configSha256) {
+        throw "WCHISP sanitized configuration fingerprint is inconsistent"
     }
     if ([string]$metadata.supportedModel -ne "CH582" -or
         [string]$metadata.supportedChipFamily -ne "CH57x/CH59x") {

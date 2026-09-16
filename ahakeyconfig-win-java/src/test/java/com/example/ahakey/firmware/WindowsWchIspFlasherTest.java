@@ -54,7 +54,7 @@ class WindowsWchIspFlasherTest {
         Files.write(temporaryDirectory.resolve("WCH55xISPDLL.dll"), new byte[]{1});
         copyResource("/wchisp/wchisp-runtime.json",
             temporaryDirectory.resolve("wchisp-runtime.json"));
-        copyResource("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH",
+        copyResource("/wchisp/CONFIG_CH57X59X-sanitized.WCH",
             temporaryDirectory.resolve("CONFIG_CH57X59X.WCH"));
         var report = new WindowsWchIspFlasher(tool).diagnoseEnvironment();
 
@@ -107,7 +107,7 @@ class WindowsWchIspFlasherTest {
     @Test
     void unknownLayoutFailsClosed() throws Exception {
         byte[] bytes = baseline();
-        bytes[123] ^= 0x01;
+        writeSlot(bytes, 1, "C:\\history\\not-a-path.txt");
         Path config = temporaryDirectory.resolve("unknown.WCH");
         Files.write(config, bytes);
         IOException failure = assertThrows(IOException.class, () ->
@@ -332,7 +332,7 @@ class WindowsWchIspFlasherTest {
         copyResource("/wchisp/wchisp-runtime.json",
             runtime.resolve("wchisp-runtime.json"));
         Path config = temporaryDirectory.resolve("CONFIG_CH57X59X.WCH");
-        copyResource("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH", config);
+        copyResource("/wchisp/CONFIG_CH57X59X-sanitized.WCH", config);
         Path destination = temporaryDirectory.resolve("wchisp-last-failure");
 
         String persisted = WindowsWchIspFlasher.persistDiagnosticsForTest(
@@ -345,8 +345,8 @@ class WindowsWchIspFlasherTest {
             assertTrue(Files.isRegularFile(destination.resolve(name)), name);
         }
         assertTrue(Files.readString(destination.resolve("result.txt")).contains("100"));
-        assertTrue(Files.readString(destination.resolve("runtime-version.txt")).contains("3.6.1"));
-        assertEquals(WchIspRuntimeContract.EXPECTED_CONFIG_FINGERPRINT,
+        assertTrue(Files.readString(destination.resolve("runtime-version.txt")).contains("3.9.0.0"));
+        assertEquals(WchIspConfigLayout.FINGERPRINT,
             Files.readString(destination.resolve("config-fingerprint.txt")).trim());
     }
 

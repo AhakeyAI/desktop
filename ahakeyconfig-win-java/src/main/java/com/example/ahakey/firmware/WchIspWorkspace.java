@@ -1,7 +1,6 @@
 package com.example.ahakey.firmware;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,7 +11,6 @@ import java.util.stream.Stream;
 
 /** Isolated, per-operation WCHISP workspace and effective CONFIG builder. */
 public final class WchIspWorkspace implements AutoCloseable {
-    private static final String SANITIZED_CONFIG = "/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH";
     private final Path root;
     private final Path toolDirectory;
     private final Path logsDirectory;
@@ -67,7 +65,7 @@ public final class WchIspWorkspace implements AutoCloseable {
         if (runtime == null || firmwareHex == null) throw new IOException("workspace inputs are missing");
         copyRuntime(runtime.root(), toolDirectory);
         Path effectiveConfig = toolDirectory.resolve("CONFIG_CH57X59X-" + profile + ".WCH");
-        copySanitizedConfig(effectiveConfig);
+        copyRuntimeConfig(runtime.binaryConfig(), effectiveConfig);
         byte[] bytes = Files.readAllBytes(effectiveConfig);
         String firmwarePath = firmwareHex.toAbsolutePath().normalize().toString();
         Files.write(effectiveConfig, WchIspConfigLayout.patchSlot(bytes,
@@ -107,15 +105,12 @@ public final class WchIspWorkspace implements AutoCloseable {
             || upper.startsWith("CONFIG_CH57X59X-") && upper.endsWith(".WCH");
     }
 
-    private static void copySanitizedConfig(Path destination) throws IOException {
-        try (InputStream input = WchIspWorkspace.class.getResourceAsStream(SANITIZED_CONFIG)) {
-            if (input == null) throw new IOException("sanitized WCH config resource is missing");
-            Files.copy(input, destination, StandardCopyOption.REPLACE_EXISTING);
+    private static void copyRuntimeConfig(Path source, Path destination) throws IOException {
+        if (source == null || !Files.isRegularFile(source)) {
+            throw new IOException("WCHISP runtime CONFIG_CH57X59X.WCH is missing");
         }
-        byte[] bytes = Files.readAllBytes(destination);
-        if (!WchIspConfigLayout.FINGERPRINT.equals(WchIspConfigLayout.fingerprint(bytes))) {
-            throw new IOException("sanitized WCH config fingerprint mismatch");
-        }
+        Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
+        WchIspConfigLayout.inspect(Files.readAllBytes(destination));
     }
 
     private void ensureOpen() throws IOException {

@@ -14,8 +14,13 @@ public final class WchIspConfigLayout {
     public static final int CH582_SLOT_INDEX = 0;
     public static final int[] SLOT_OFFSETS = {36486, 37006, 37526, 63172, 63692};
     public static final String ENCODING = "UTF-16BE";
+    /**
+     * Fingerprint of the currently supplied/sanitized CH57x-59x configuration.
+     * This is diagnostic metadata only; runtime acceptance is structural and
+     * must not pin the application to one vendor-tool build.
+     */
     public static final String FINGERPRINT =
-        "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8";
+        "f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a";
 
     private WchIspConfigLayout() {}
 
@@ -61,9 +66,6 @@ public final class WchIspConfigLayout {
 
     public static Layout inspect(byte[] bytes) throws IOException {
         validateLength(bytes);
-        if (!FINGERPRINT.equals(fingerprint(bytes))) {
-            throw new IOException("layout fingerprint mismatch");
-        }
         String[] values = new String[SLOT_COUNT];
         for (int slot = 0; slot < SLOT_COUNT; slot++) {
             int offset = SLOT_OFFSETS[slot];

@@ -39,19 +39,24 @@ class WchIspRuntimeProviderTest {
     @Test
     void matchingMetadataAndObservedVersionsAreKnown() throws Exception {
         Path bundle = createBundle();
-        var provider = new WchIspRuntimeProvider(path -> new WchIspRuntimeProvider.BinaryVersion(
-            Optional.of("3.6.1"), Optional.of("3.6.1")));
+        var provider = new WchIspRuntimeProvider(path -> {
+            String name = path.getFileName().toString();
+            String version = name.endsWith(".exe") ? "3.9.0.0"
+                : name.equals("CH343PT.DLL") ? "1.40" : "3.8.0.0";
+            return new WchIspRuntimeProvider.BinaryVersion(Optional.of(version),
+                Optional.of(version));
+        });
         RuntimeBundle result = provider.resolve(bundle);
         assertEquals(RuntimeIdentity.ValidationStatus.KNOWN, result.identity().validationStatus());
-        assertEquals("3.6.1", result.identity().expectedMetadata().get("toolVersion"));
+        assertEquals("3.9.0.0", result.identity().expectedMetadata().get("toolVersion"));
     }
 
     @Test
     void metadataVersionMismatchIsNotKnown() throws Exception {
         Path bundle = createBundle();
         var provider = new WchIspRuntimeProvider(path -> new WchIspRuntimeProvider.BinaryVersion(
-            Optional.of(path.getFileName().toString().endsWith(".exe") ? "3.9" : "3.6.1"),
-            Optional.of("3.9")));
+            Optional.of(path.getFileName().toString().endsWith(".exe") ? "3.9.0.0" : "3.8.0.1"),
+            Optional.of("3.8.0.1")));
         assertEquals(RuntimeIdentity.ValidationStatus.MISMATCH,
             provider.resolve(bundle).identity().validationStatus());
     }
@@ -114,7 +119,7 @@ class WchIspRuntimeProviderTest {
         Files.write(bundle.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME), new byte[]{1, 2, 3});
         Files.write(bundle.resolve("CH343PT.DLL"), new byte[]{4});
         Files.write(bundle.resolve("WCH55xISPDLL.dll"), new byte[]{5});
-        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH")) {
+        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             Files.copy(input, bundle.resolve("CONFIG_CH57X59X.WCH"));
         }
         try (var input = getClass().getResourceAsStream("/wchisp/wchisp-runtime.json")) {
@@ -129,7 +134,7 @@ class WchIspRuntimeProviderTest {
         Files.write(bundle.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME), new byte[]{1, 2, 3});
         Files.write(bundle.resolve("CH343PT.DLL"), new byte[]{4});
         Files.write(bundle.resolve("WCH55xISPDLL.dll"), new byte[]{5});
-        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH")) {
+        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             Files.copy(input, bundle.resolve("CONFIG_CH57X59X.WCH"));
         }
         return bundle;

@@ -589,3 +589,33 @@ NONE/no-op、模型不可用不回退、快捷键 parser/F18 拒绝、短长字�
 `mvn clean test` 为 **279 tests, 0 failures, 0 errors, 0 skipped**；package、
 `git diff --check` 和发布内容检查以本轮命令结果为准。代码与自动测试完成不等于真机完成；
 F18 HID hook、Win+H、Ctrl/Alt 组合注入、麦克风模型和旧/新固件仍待软件手工及真机验证。
+
+## 23. External-user Windows install audit (2026-09-14)
+
+本轮把 jpackage 生成的正式安装目录中的 WCHISP canonical path 固定为
+`<application-root>/app/tools/wchisp`，`InstalledRuntimeLocator` 同时保留旧版安装目录
+兼容解析，并移除了生产 Java 代码中的 `C:\app` WCHISP fallback。发布脚本现在使用同一次
+`mvn clean package` 生成的完整 JAR 和 `target\lib`，不再把当前源码叠加到旧基线 JAR；
+语音模型仍从经过检查的外部模型基线复制。
+
+本轮 clean firmware build 使用 `voice-f18-raw-hid` HEAD
+`55cd73c7cd36765f95b140cf1f735d170bc78f12`，但 fresh HEX 与候选
+`AhaKey-X1-firmware-1.4.8-ch582.hex` 不一致（差异来自固件源码中的 `__TIME__`），因此
+正式安装器和真实烧录保持阻断；不得用修改固件或替换候选文件绕过该门禁。当前源码自动测试
+为 280 tests、0 failures；BLE Release 驱动可在 `127.0.0.1:9000` 监听并可正常停止。
+
+## 24. WCHISP compatibility contract correction (2026-09-15)
+
+历史章节中的“全部组件必须为 3.6.1”是 2026-09-04/06 后加的发布假设，不是对一直
+使用的本机 runtime 的实测结论。2026-09-09 真机记录已经证明实际组合为 WCHISP
+`3.9.0.0` + ISP DLL `3.8.0.0` + CH343PT `1.40`，且可完成 0%–100% 下载、设备重连和
+0x9F post-verify。本节 supersedes 第 7、10、11、14、15 节中把 3.6.1 精确版本当成
+运行准入门槛的描述，不改写那些历史记录。
+
+`WchIspRuntimeContract` 现在校验必需 EXE/DLL/配置、metadata 结构、CH57x/CH59x 与
+CH582 范围；版本只记录诊断，不再要求全部等于 3.6.1。如 metadata 带有打包时生成的
+EXE/DLL/配置 SHA-256，仍校验文件未被替换；这是完整性证据，不是版本允许列表。
+发布脚本不再要求供应目录预置 3.6.1 metadata，而是从同一份用户提供且已授权的官方
+runtime 读取实际版本和哈希；它保留该 runtime 自己的配置，仅清空五个历史固件路径槽，
+避免把 3.6.1 配置与 3.9 二进制混搭。必需文件、隐私扫描、用户明确点击、命令参数、
+ISP presence、设备重连与 `FirmwarePostVerifier` 仍保留；不能只依赖 WCHISP exit code 0 判成功。

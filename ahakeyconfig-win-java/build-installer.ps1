@@ -5,7 +5,9 @@ param(
     [string]$FirmwareVersion = "",
     [string]$WchIspBundleDir = "",
     [string]$WixBin = "",
+    [Alias("IncludeWchIsp")]
     [switch]$IncludeLicensedWchIsp,
+    [switch]$InternalValidationOnly,
     [switch]$PrepareOnly
 )
 
@@ -13,7 +15,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 if ([string]::IsNullOrWhiteSpace($FirmwareVersion)) {
-    if (-not $PrepareOnly) {
+    if (-not $PrepareOnly -and -not $InternalValidationOnly) {
         throw "Formal installer builds require an explicit -FirmwareVersion."
     }
     $capabilitiesPath = Join-Path $PSScriptRoot `
@@ -35,5 +37,6 @@ if ([string]::IsNullOrWhiteSpace($FirmwareVersion)) {
     -WchIspBundleDir $WchIspBundleDir `
     -WixBin $WixBin `
     -IncludeLicensedWchIsp:$IncludeLicensedWchIsp `
+    -InternalValidationOnly:$InternalValidationOnly `
     -PrepareOnly:$PrepareOnly
 exit $LASTEXITCODE

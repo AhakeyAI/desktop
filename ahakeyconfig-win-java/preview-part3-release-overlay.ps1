@@ -962,7 +962,7 @@ try {
     }
 
     foreach ($wchispResourceName in @(
-        "CONFIG_CH57X59X-3.6.1-sanitized.WCH",
+        "CONFIG_CH57X59X-sanitized.WCH",
         "baseline.properties",
         "wchisp-runtime.json"
     )) {

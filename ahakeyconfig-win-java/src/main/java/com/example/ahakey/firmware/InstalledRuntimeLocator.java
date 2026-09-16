@@ -40,8 +40,7 @@ public final class InstalledRuntimeLocator implements RuntimeLocator {
     public RuntimeBundle resolve() throws IOException {
         List<String> attempts = new ArrayList<>();
 
-        Path installed = applicationRoot == null ? null : applicationRoot.resolve("wchisp");
-        if (installed != null) {
+        for (Path installed : installedCandidates()) {
             attempts.add("installed=" + installed);
             if (Files.isDirectory(installed)) {
                 try {
@@ -108,7 +107,7 @@ public final class InstalledRuntimeLocator implements RuntimeLocator {
                 && "app".equalsIgnoreCase(base.getFileName().toString())) {
                 base = base.getParent();
             }
-            if (base != null && Files.isDirectory(base.resolve("wchisp"))) return base;
+            if (base != null && hasInstalledRuntime(base)) return base;
         } catch (Exception ignored) {
             // Fall through to the process working directory.
         }
@@ -121,5 +120,26 @@ public final class InstalledRuntimeLocator implements RuntimeLocator {
 
     private static Path normalize(Path value) {
         return value == null ? null : value.toAbsolutePath().normalize();
+    }
+
+    /**
+     * Returns the layouts produced by the release scripts, followed by the
+     * legacy layouts kept for existing installations.  jpackage places
+     * staged input under {@code <install-root>/app}, so the canonical release
+     * location is {@code <install-root>/app/tools/wchisp}.
+     */
+    private List<Path> installedCandidates() {
+        if (applicationRoot == null) return List.of();
+        return List.of(
+            applicationRoot.resolve("app").resolve("tools").resolve("wchisp"),
+            applicationRoot.resolve("wchisp"),
+            applicationRoot.resolve("app").resolve("wchisp")
+        );
+    }
+
+    private static boolean hasInstalledRuntime(Path root) {
+        return Files.isDirectory(root.resolve("app").resolve("tools").resolve("wchisp"))
+            || Files.isDirectory(root.resolve("wchisp"))
+            || Files.isDirectory(root.resolve("app").resolve("wchisp"));
     }
 }

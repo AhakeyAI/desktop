@@ -388,6 +388,7 @@ class FirmwareUpdateServiceTest {
         Files.write(exe, new byte[]{1});
         Files.write(runtimeRoot.resolve("CH343PT.DLL"), new byte[]{2});
         Files.write(runtimeRoot.resolve("WCH55xISPDLL.dll"), new byte[]{3});
+        copyBundledConfig(runtimeRoot.resolve("CONFIG_CH57X59X.WCH"));
         return new RuntimeBundle(runtimeRoot, exe,
             runtimeRoot.resolve("CH343PT.DLL"), runtimeRoot.resolve("WCH55xISPDLL.dll"),
             runtimeRoot.resolve("CONFIG_CH57X59X.WCH"), null,
@@ -409,6 +410,7 @@ class FirmwareUpdateServiceTest {
         Files.write(exe, new byte[]{1});
         Files.write(runtimeRoot.resolve("CH343PT.DLL"), new byte[]{2});
         Files.write(runtimeRoot.resolve("WCH55xISPDLL.dll"), new byte[]{3});
+        copyBundledConfig(runtimeRoot.resolve("CONFIG_CH57X59X.WCH"));
         RuntimeBundle bundle = new RuntimeBundle(runtimeRoot, exe,
             runtimeRoot.resolve("CH343PT.DLL"), runtimeRoot.resolve("WCH55xISPDLL.dll"),
             runtimeRoot.resolve("CONFIG_CH57X59X.WCH"), null,
@@ -425,6 +427,13 @@ class FirmwareUpdateServiceTest {
         if (args == null) return List.of();
         if (args.size() != 6) return args;
         return List.of(args.get(0), "flash", args.get(2), args.get(3), args.get(4), "firmware");
+    }
+
+    private void copyBundledConfig(Path destination) throws Exception {
+        try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
+            assertNotNull(input);
+            Files.copy(input, destination);
+        }
     }
 
     private FirmwareUpdateRequest request() throws Exception {

@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 
 public final class WindowsWchIspFlasher implements FirmwareFlasher {
     static final String SANITIZED_CONFIG_RESOURCE =
-        "/wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH";
+        "/wchisp/CONFIG_CH57X59X-sanitized.WCH";
     /** @deprecated use {@link WchIspConfigLayout}; retained for test compatibility. */
     @Deprecated static final int WCH_CONFIG_LENGTH = WchIspConfigLayout.CONFIG_SIZE;
     @Deprecated static final int WCH_PATH_SLOT_BYTES = WchIspConfigLayout.SLOT_SIZE;
@@ -78,13 +78,13 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             "CH343PT.DLL", directory.resolve("CH343PT.DLL"));
         ready &= check(checks, Files.isRegularFile(directory.resolve("WCH55xISPDLL.dll")),
             "WCH55xISPDLL.dll", directory.resolve("WCH55xISPDLL.dll"));
-        ready &= check(checks, bundledSanitizedConfigAvailable(),
-            "受控脱敏 CH57x-59x 基础配置", Path.of(SANITIZED_CONFIG_RESOURCE.substring(1)));
+        Path bundledConfig = directory.resolve("CONFIG_CH57X59X.WCH");
+        ready &= check(checks, Files.isRegularFile(bundledConfig),
+            "WCHISP 运行时配置", bundledConfig);
         WchIspRuntimeContract.Validation contract =
             WchIspRuntimeContract.validate(directory);
         if (contract.supported()) {
-            checks.add("[通过] WCHISP 运行环境版本合同: "
-                + WchIspRuntimeContract.EXPECTED_VERSION);
+            checks.add("[通过] WCHISP 运行环境兼容性检查");
         } else {
             checks.add("[失败] " + contract.summary());
             ready = false;
@@ -1039,8 +1039,14 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         Path preparedExecutable = destination.resolve(executable.getFileName());
         Path defaultConfig = destination.resolve("CONFIG_CH57X59X.WCH");
         // The mutable machine CONFIG is deliberately excluded. Every invocation
-        // starts from the repository-controlled, fingerprinted sanitized baseline.
-        copyBundledSanitizedConfig(defaultConfig);
+        // starts from the CONFIG supplied with the same validated vendor bundle;
+        // no historical 3.6.1 resource may overwrite a newer runtime.
+        Path sourceConfig = sourceDirectory.resolve("CONFIG_CH57X59X.WCH");
+        if (!Files.isRegularFile(sourceConfig)) {
+            throw new IOException("WCHISP runtime CONFIG_CH57X59X.WCH is missing");
+        }
+        Files.copy(sourceConfig, defaultConfig, StandardCopyOption.REPLACE_EXISTING);
+        WchIspConfigLayout.inspect(Files.readAllBytes(defaultConfig));
         patchCh582FirmwarePath(defaultConfig, firmwareHex);
         if (!Files.isRegularFile(defaultConfig) || Files.size(defaultConfig) < 1024) {
             throw new IOException("WCHISP 临时基础配置生成失败或文件不完整");
@@ -1068,29 +1074,6 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         }
     }
 
-    private static boolean bundledSanitizedConfigAvailable() {
-        try (InputStream stream = WindowsWchIspFlasher.class
-            .getResourceAsStream(SANITIZED_CONFIG_RESOURCE)) {
-            return stream != null;
-        } catch (IOException exception) {
-            return false;
-        }
-    }
-
-    private static void copyBundledSanitizedConfig(Path destination) throws IOException {
-        try (InputStream stream = WindowsWchIspFlasher.class
-            .getResourceAsStream(SANITIZED_CONFIG_RESOURCE)) {
-            if (stream == null) {
-                throw new IOException("缺少受控脱敏 WCHISP 基础配置资源");
-            }
-            Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
-        }
-        byte[] bytes = Files.readAllBytes(destination);
-        if (!SANITIZED_LAYOUT_SHA256.equals(layoutFingerprint(bytes))) {
-            throw new IOException("受控脱敏 WCHISP 基础配置指纹不匹配");
-        }
-    }
-
     static void patchCh582FirmwarePath(Path config, Path firmwareHex)
         throws IOException {
         byte[] bytes = Files.readAllBytes(config);
@@ -1109,9 +1092,6 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     static WchConfigLayout inspectLayout(byte[] bytes) throws IOException {
         if (bytes == null || bytes.length != WCH_CONFIG_LENGTH) {
             throw unsupportedLayout("配置长度不匹配");
-        }
-        if (!SANITIZED_LAYOUT_SHA256.equals(layoutFingerprint(bytes))) {
-            throw unsupportedLayout("layout fingerprint 不匹配");
         }
         String[] slots = new String[WCH_PATH_SLOT_OFFSETS.length];
         for (int index = 0; index < WCH_PATH_SLOT_OFFSETS.length; index++) {
@@ -1209,15 +1189,13 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     .resolve("WCHISPTool_CH57x-59x.exe"));
             }
         }
-        candidates.add(Path.of("C:\\app\\WCHISPTool\\WCHISPTool_CH57x-59x",
-            "WCHISPTool_CH57x-59x.exe"));
-        candidates.add(Path.of("C:\\app\\WCHISPTool\\WchIspStudio.exe"));
         for (Path candidate : candidates) {
             if (Files.isRegularFile(candidate)) {
                 return candidate.toAbsolutePath().normalize();
             }
         }
-        return candidates.get(0).toAbsolutePath().normalize();
+        return Path.of(WchIspRuntimeProvider.EXECUTABLE_NAME)
+            .toAbsolutePath().normalize();
     }
 
     private static void deleteQuietly(Path root) {

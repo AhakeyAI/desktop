@@ -68,7 +68,7 @@ class ReleaseArtifactContentsTest {
         "com/example/ahakey/platform/voice/VoiceButtonEvent.class",
         "com/example/ahakey/platform/voice/VoiceButtonStateMachine.class",
         "firmware-capabilities.properties",
-        "wchisp/CONFIG_CH57X59X-3.6.1-sanitized.WCH",
+        "wchisp/CONFIG_CH57X59X-sanitized.WCH",
         "wchisp/baseline.properties",
         "wchisp/wchisp-runtime.json"
     );

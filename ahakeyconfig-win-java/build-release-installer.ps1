@@ -8,7 +8,9 @@ param(
     [string]$WixBin = "",
     [string]$UpdateManifestUrl = "",
     [string]$IconPath = "",
+    [Alias("IncludeWchIsp")]
     [switch]$IncludeLicensedWchIsp,
+    [switch]$InternalValidationOnly,
     [switch]$PrepareOnly
 )
 
@@ -57,7 +59,7 @@ $firmwareValidation = Assert-AhaKeyFirmwareReleaseInput `
     -ProjectDir $projectDir `
     -FirmwareVersion $FirmwareVersion `
     -FirmwareHex $FirmwareHex `
-    -RequireFirmware:(-not $PrepareOnly)
+    -RequireFirmware:(-not ($PrepareOnly -or $InternalValidationOnly))
 if (-not [string]::IsNullOrWhiteSpace($UpdateManifestUrl)) {
     $updateManifestUri = [Uri]$UpdateManifestUrl
     if (-not $updateManifestUri.IsAbsoluteUri -or
@@ -71,6 +73,8 @@ if ($AppVersion -ne $pomVersion) {
 
 $baselineAppDir = Join-Path $BaselineInstallDir "app"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
+$currentJar = Join-Path $projectDir "target\ahakey-studio-$AppVersion.jar"
+$currentLibDir = Join-Path $projectDir "target\lib"
 $baselineIcon = if ([string]::IsNullOrWhiteSpace($IconPath)) {
     Join-Path $BaselineInstallDir "AhaKeyStudio.ico"
 } else {
@@ -82,7 +86,6 @@ $inputDir = Join-Path $releaseRoot "input"
 # directory short because the bundled speech-model tree contains long names.
 $jpackageTemp = Join-Path $env:TEMP "ahakey-jpackage-$AppVersion"
 $installerDir = Join-Path $projectDir "installer"
-$overlayScript = Join-Path $projectDir "preview-part3-release-overlay.ps1"
 $windowsResourceDir = Join-Path $projectDir "packaging\windows"
 
 if (-not (Test-Path -LiteralPath $baselineIcon -PathType Leaf)) {
@@ -95,6 +98,12 @@ foreach ($resourceName in $requiredWindowsResources) {
         throw "Windows installer resource is missing: $resourcePath"
     }
 }
+foreach ($required in @($currentJar, $currentLibDir)) {
+    if (-not (Test-Path -LiteralPath $required)) {
+        throw "Current clean-build output is missing: $required. Run mvn clean package first."
+    }
+}
+& (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") -JarPath $currentJar
 
 # Destructive cleanup is restricted to this exact project-owned build folder.
 $resolvedProject = [IO.Path]::GetFullPath($projectDir)
@@ -122,27 +131,18 @@ New-Item -ItemType Directory -Force -Path `
     $inputDir, (Join-Path $inputDir "lib"), (Join-Path $inputDir "models") |
     Out-Null
 
-& $overlayScript -BaselineAppDir $baselineAppDir -OutputRoot (Join-Path $releaseRoot "overlay")
-$overlayJar = Get-ChildItem -LiteralPath (Join-Path $releaseRoot "overlay") `
-    -Recurse -Filter "ahakey-studio-1.0.0-part3-preview.jar" |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1 -ExpandProperty FullName
-if (-not $overlayJar) {
-    throw "Validated overlay JAR was not produced."
-}
-
 $releaseJar = Join-Path $inputDir "ahakey-studio-$AppVersion.jar"
-Copy-Item -LiteralPath $overlayJar -Destination $releaseJar
-Get-ChildItem -LiteralPath (Join-Path $baselineAppDir "lib") |
+Copy-Item -LiteralPath $currentJar -Destination $releaseJar
+Get-ChildItem -LiteralPath $currentLibDir |
     Copy-Item -Destination (Join-Path $inputDir "lib") -Recurse
 Get-ChildItem -LiteralPath (Join-Path $baselineAppDir "models") |
     Copy-Item -Destination (Join-Path $inputDir "models") -Recurse
 
 $bleDriver = @(
-    (Join-Path $baselineAppDir "ble-driver\BLE_tcp_driver.exe"),
-    (Join-Path $baselineAppDir "BLE_tcp_driver.exe"),
     (Join-Path $projectDir "BLE_tcp_driver.exe"),
-    (Join-Path $projectDir "..\BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe")
+    (Join-Path $projectDir "..\BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe"),
+    (Join-Path $baselineAppDir "ble-driver\BLE_tcp_driver.exe"),
+    (Join-Path $baselineAppDir "BLE_tcp_driver.exe")
 ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 if (-not $bleDriver) {
     Write-Output "BLE_DRIVER_BUILD=FAIL"
@@ -176,13 +176,13 @@ if (-not [string]::IsNullOrWhiteSpace($FirmwareHex)) {
 if ($IncludeLicensedWchIsp) {
     if ([string]::IsNullOrWhiteSpace($WchIspBundleDir) -or
         -not (Test-Path -LiteralPath $WchIspBundleDir -PathType Container)) {
-        throw "A licensed WCHISP CH57x-59x bundle directory is required."
+        throw "A supplied official WCHISP CH57x-59x bundle directory is required."
     }
     foreach ($runtimeFile in @(
         "WCHISPTool_CH57x-59x.exe",
         "CH343PT.DLL",
         "WCH55xISPDLL.dll",
-        "wchisp-runtime.json"
+        "CONFIG_CH57X59X.WCH"
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
             throw "WCHISP runtime bundle is missing: $runtimeFile"
@@ -192,34 +192,73 @@ if ($IncludeLicensedWchIsp) {
     New-Item -ItemType Directory -Force -Path $wchDir | Out-Null
     Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
         Where-Object {
-            $_.Name -notin @("CONFIG_CH57X59X.WCH", "CONFIG_CH57X59X.WCH.excluded")
+            $_.Name -notin @(
+                "CONFIG_CH57X59X.WCH",
+                "CONFIG_CH57X59X.WCH.excluded",
+                "wchisp-runtime.json"
+            )
         } |
         Copy-Item -Destination $wchDir -Recurse
-    $sanitizedConfig = Join-Path $projectDir "src\main\resources\wchisp\CONFIG_CH57X59X-3.6.1-sanitized.WCH"
-    $runtimeMetadata = Join-Path $projectDir "src\main\resources\wchisp\wchisp-runtime.json"
-    if (-not (Test-Path -LiteralPath $sanitizedConfig -PathType Leaf)) {
-        throw "Repository-controlled sanitized WCHISP configuration is missing."
+    # Keep the configuration from the same vendor bundle as the executable and
+    # DLLs. Clear only the five persisted firmware-path slots so developer and
+    # historical paths are not redistributed. Version strings are recorded as
+    # diagnostics, not treated as an artificial exact-version allowlist.
+    $sourceConfig = Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH"
+    $stagedConfig = Join-Path $wchDir "CONFIG_CH57X59X.WCH"
+    [byte[]]$configBytes = [IO.File]::ReadAllBytes($sourceConfig)
+    if ($configBytes.Length -ne 66841) {
+        throw "Unsupported WCHISP configuration size: $($configBytes.Length)"
     }
-    if (-not (Test-Path -LiteralPath $runtimeMetadata -PathType Leaf)) {
-        throw "Repository-controlled WCHISP runtime metadata is missing."
+    foreach ($offset in @(36486, 37006, 37526, 63172, 63692)) {
+        if ($offset -lt 0 -or $offset + 520 -gt $configBytes.Length) {
+            throw "WCHISP configuration path slot is outside the file: $offset"
+        }
+        [Array]::Clear($configBytes, $offset, 520)
     }
-    $expectedRuntime = Get-Content -LiteralPath $runtimeMetadata -Raw | ConvertFrom-Json
-    $sourceRuntime = Get-Content -LiteralPath (Join-Path $WchIspBundleDir "wchisp-runtime.json") -Raw | ConvertFrom-Json
-    foreach ($property in @("toolVersion", "ispDllVersion", "driverDllVersion", "configContractVersion", "configLayoutFingerprint", "supportedChipFamily", "supportedModel")) {
-        if ([string]$sourceRuntime.$property -ne [string]$expectedRuntime.$property) {
-            throw "Unsupported or mixed WCHISP runtime contract: $property=$($sourceRuntime.$property)"
+    [IO.File]::WriteAllBytes($stagedConfig, $configBytes)
+
+    $stagedExe = Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"
+    $stagedDriverDll = Join-Path $wchDir "CH343PT.DLL"
+    $stagedIspDll = Join-Path $wchDir "WCH55xISPDLL.dll"
+    $toolVersion = [string](Get-Item -LiteralPath $stagedExe).VersionInfo.FileVersion
+    $driverVersion = [string](Get-Item -LiteralPath $stagedDriverDll).VersionInfo.FileVersion
+    $ispVersion = [string](Get-Item -LiteralPath $stagedIspDll).VersionInfo.FileVersion
+    foreach ($versionEvidence in @($toolVersion, $driverVersion, $ispVersion)) {
+        if ([string]::IsNullOrWhiteSpace($versionEvidence)) {
+            throw "WCHISP runtime component lacks file-version evidence."
         }
     }
-    Copy-Item -LiteralPath $sanitizedConfig -Destination `
-        (Join-Path $wchDir "CONFIG_CH57X59X.WCH")
-    Copy-Item -LiteralPath $runtimeMetadata -Destination `
-        (Join-Path $wchDir "wchisp-runtime.json")
+    $exeHash = (Get-FileHash -LiteralPath $stagedExe -Algorithm SHA256).Hash.ToLowerInvariant()
+    $driverHash = (Get-FileHash -LiteralPath $stagedDriverDll -Algorithm SHA256).Hash.ToLowerInvariant()
+    $ispHash = (Get-FileHash -LiteralPath $stagedIspDll -Algorithm SHA256).Hash.ToLowerInvariant()
+    $configHash = (Get-FileHash -LiteralPath $stagedConfig -Algorithm SHA256).Hash.ToLowerInvariant()
+    $runtimeMetadata = [ordered]@{
+        bundleId = "wchisp-ch57x59x-packaged"
+        toolVersion = $toolVersion.Trim()
+        ispDllVersion = $ispVersion.Trim()
+        driverDllVersion = $driverVersion.Trim()
+        configContractVersion = "sanitized-five-path-slots-v1"
+        configLayoutFingerprint = $configHash
+        supportedChipFamily = "CH57x/CH59x"
+        supportedModel = "CH582"
+        source = "User-supplied official WCHISP bundle; redistribution authorization not verified"
+        provenance = "Versions and file hashes recorded during packaging; persisted firmware paths removed"
+        exeSha256 = $exeHash
+        ch343Sha256 = $driverHash
+        ispDllSha256 = $ispHash
+        configSha256 = $configHash
+    }
+    $metadataJson = $runtimeMetadata | ConvertTo-Json
+    [IO.File]::WriteAllText(
+        (Join-Path $wchDir "wchisp-runtime.json"),
+        $metadataJson,
+        (New-Object Text.UTF8Encoding($false))
+    )
     if (-not (Test-Path -LiteralPath `
         (Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"))) {
         throw "WCHISP bundle does not contain WCHISPTool_CH57x-59x.exe at its root."
     }
-    . (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1")
-    Assert-WchIspReleasePrivacy -RootPath $wchDir
+    & (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1") -RootPath $wchDir
 }
 
 $requiredModels = @(
@@ -238,10 +277,14 @@ if (Test-Path -LiteralPath (Join-Path $inputDir "models\model_q8.onnx")) {
 }
 
 Write-Output $(if ([string]::IsNullOrWhiteSpace($FirmwareHex)) {
-    "RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE"
+    if ($InternalValidationOnly) { "RELEASE_INPUT_VALIDATION=INTERNAL_WITHOUT_FORMAL_FIRMWARE" }
+    else { "RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE" }
 } else {
     "RELEASE_INPUT_VALIDATION=OK"
 })
+if ($InternalValidationOnly -and [string]::IsNullOrWhiteSpace($FirmwareHex)) {
+    Write-Output "FIRMWARE_BUNDLED=NO_UNVERIFIED"
+}
 Write-Output "Prepared input: $inputDir"
 if ($PrepareOnly) {
     exit 0
@@ -359,7 +402,7 @@ Write-Output "WINDOWS_INSTALLER_LAYOUT_VALIDATION=OK"
 
 $generated = Join-Path $installerDir "AhaKeyStudio-$AppVersion.exe"
 $final = Join-Path $installerDir `
-    "AhaKeyStudio-$AppVersion-windows-x64.exe"
+    "AhaKey-Studio-$AppVersion-Setup.exe"
 if (-not (Test-Path -LiteralPath $generated)) {
     throw "jpackage output was not found: $generated"
 }
@@ -368,8 +411,18 @@ if (Test-Path -LiteralPath $final -PathType Leaf) {
 }
 Move-Item -LiteralPath $generated -Destination $final
 $signature = Get-AuthenticodeSignature -LiteralPath $final
-if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
-    throw "Release candidate installer must have a Valid Authenticode signature; status=$($signature.Status)"
+if (-not $InternalValidationOnly -and
+    $signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+    throw "Formal release installer must have a Valid Authenticode signature; status=$($signature.Status)"
 }
-Write-Output "AUTHENTICODE_SIGNATURE=VALID"
+if ($signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid) {
+    Write-Output "AUTHENTICODE_SIGNATURE=VALID"
+    Write-Output "SIGNED=YES"
+} else {
+    Write-Output "AUTHENTICODE_SIGNATURE=$($signature.Status)"
+    Write-Output "SIGNED=NO"
+}
+if ($InternalValidationOnly) {
+    Write-Output "PACKAGE_MODE=INTERNAL_INSTALL_VALIDATION_ONLY"
+}
 Write-Output "INSTALLER=$final"

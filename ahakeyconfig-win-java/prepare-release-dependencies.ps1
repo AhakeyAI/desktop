@@ -10,8 +10,6 @@ Set-StrictMode -Version Latest
 $baselineApp = Join-Path $BaselineInstallDir "app"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
 $baselineJar = Join-Path $baselineApp "ahakey-studio-1.0.0.jar"
-$sanitizedConfig = Join-Path $PSScriptRoot "src\main\resources\wchisp\CONFIG_CH57X59X-3.6.1-sanitized.WCH"
-$runtimeMetadata = Join-Path $PSScriptRoot "src\main\resources\wchisp\wchisp-runtime.json"
 $required = @(
     $baselineJar,
     $baselineRuntime,
@@ -20,8 +18,9 @@ $required = @(
     (Join-Path $baselineApp "models\silero_vad.onnx"),
     (Join-Path $baselineApp "models\tokens.txt"),
     (Join-Path $WchIspBundleDir "WCHISPTool_CH57x-59x.exe"),
-    $sanitizedConfig,
-    $runtimeMetadata
+    (Join-Path $WchIspBundleDir "CH343PT.DLL"),
+    (Join-Path $WchIspBundleDir "WCH55xISPDLL.dll"),
+    (Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH")
 )
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path)) {
@@ -44,7 +43,6 @@ New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
 $baselineZip = Join-Path $resolvedOutput "AhaKeyStudio-voice-baseline.zip"
 $wchIspZip = Join-Path $resolvedOutput "WCHISPTool-CH57x-59x.zip"
 $wchIspStage = Join-Path $resolvedOutput "wchisp-sanitized"
-$sanitizedConfig = Join-Path $PSScriptRoot "src\main\resources\wchisp\CONFIG_CH57X59X-3.6.1-sanitized.WCH"
 foreach ($archive in @($baselineZip, $wchIspZip)) {
     if (Test-Path -LiteralPath $archive) {
         Remove-Item -LiteralPath $archive -Force
@@ -58,30 +56,73 @@ foreach ($runtimeFile in @(
     "WCHISPTool_CH57x-59x.exe",
     "CH343PT.DLL",
     "WCH55xISPDLL.dll",
-    "wchisp-runtime.json"
+    "CONFIG_CH57X59X.WCH"
 )) {
     if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
         throw "WCHISP runtime bundle is missing: $runtimeFile"
     }
 }
-$expectedRuntime = Get-Content -LiteralPath $runtimeMetadata -Raw | ConvertFrom-Json
-$sourceRuntime = Get-Content -LiteralPath (Join-Path $WchIspBundleDir "wchisp-runtime.json") -Raw | ConvertFrom-Json
-foreach ($property in @("toolVersion", "ispDllVersion", "driverDllVersion", "configContractVersion", "configLayoutFingerprint", "supportedChipFamily", "supportedModel")) {
-    if ([string]$sourceRuntime.$property -ne [string]$expectedRuntime.$property) {
-        throw "Unsupported or mixed WCHISP runtime contract: $property=$($sourceRuntime.$property)"
-    }
-}
 Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
     Where-Object {
-        $_.Name -notin @("CONFIG_CH57X59X.WCH", "CONFIG_CH57X59X.WCH.excluded")
+        $_.Name -notin @(
+            "CONFIG_CH57X59X.WCH",
+            "CONFIG_CH57X59X.WCH.excluded",
+            "wchisp-runtime.json"
+        )
     } |
     Copy-Item -Destination $wchIspStage -Recurse
-Copy-Item -LiteralPath $sanitizedConfig -Destination `
-    (Join-Path $wchIspStage "CONFIG_CH57X59X.WCH")
-Copy-Item -LiteralPath $runtimeMetadata -Destination `
-    (Join-Path $wchIspStage "wchisp-runtime.json")
-. (Join-Path $PSScriptRoot "Test-WchIspReleasePrivacy.ps1")
-Assert-WchIspReleasePrivacy -RootPath $wchIspStage
+[byte[]]$configBytes = [IO.File]::ReadAllBytes(
+    (Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH")
+)
+if ($configBytes.Length -ne 66841) {
+    throw "Unsupported WCHISP configuration size: $($configBytes.Length)"
+}
+foreach ($offset in @(36486, 37006, 37526, 63172, 63692)) {
+    if ($offset -lt 0 -or $offset + 520 -gt $configBytes.Length) {
+        throw "WCHISP configuration path slot is outside the file: $offset"
+    }
+    [Array]::Clear($configBytes, $offset, 520)
+}
+$stagedConfig = Join-Path $wchIspStage "CONFIG_CH57X59X.WCH"
+[IO.File]::WriteAllBytes($stagedConfig, $configBytes)
+
+$stagedExe = Join-Path $wchIspStage "WCHISPTool_CH57x-59x.exe"
+$stagedDriverDll = Join-Path $wchIspStage "CH343PT.DLL"
+$stagedIspDll = Join-Path $wchIspStage "WCH55xISPDLL.dll"
+$toolVersion = [string](Get-Item -LiteralPath $stagedExe).VersionInfo.FileVersion
+$driverVersion = [string](Get-Item -LiteralPath $stagedDriverDll).VersionInfo.FileVersion
+$ispVersion = [string](Get-Item -LiteralPath $stagedIspDll).VersionInfo.FileVersion
+foreach ($versionEvidence in @($toolVersion, $driverVersion, $ispVersion)) {
+    if ([string]::IsNullOrWhiteSpace($versionEvidence)) {
+        throw "WCHISP runtime component lacks file-version evidence."
+    }
+}
+$exeHash = (Get-FileHash -LiteralPath $stagedExe -Algorithm SHA256).Hash.ToLowerInvariant()
+$driverHash = (Get-FileHash -LiteralPath $stagedDriverDll -Algorithm SHA256).Hash.ToLowerInvariant()
+$ispHash = (Get-FileHash -LiteralPath $stagedIspDll -Algorithm SHA256).Hash.ToLowerInvariant()
+$configHash = (Get-FileHash -LiteralPath $stagedConfig -Algorithm SHA256).Hash.ToLowerInvariant()
+$runtimeMetadata = [ordered]@{
+    bundleId = "wchisp-ch57x59x-packaged"
+    toolVersion = $toolVersion.Trim()
+    ispDllVersion = $ispVersion.Trim()
+    driverDllVersion = $driverVersion.Trim()
+    configContractVersion = "sanitized-five-path-slots-v1"
+    configLayoutFingerprint = $configHash
+    supportedChipFamily = "CH57x/CH59x"
+    supportedModel = "CH582"
+    source = "User-supplied official WCHISP bundle; redistribution authorization not verified"
+    provenance = "Versions and file hashes recorded during packaging; persisted firmware paths removed"
+    exeSha256 = $exeHash
+    ch343Sha256 = $driverHash
+    ispDllSha256 = $ispHash
+    configSha256 = $configHash
+}
+[IO.File]::WriteAllText(
+    (Join-Path $wchIspStage "wchisp-runtime.json"),
+    ($runtimeMetadata | ConvertTo-Json),
+    [Text.UTF8Encoding]::new($false)
+)
+& (Join-Path $PSScriptRoot "Test-WchIspReleasePrivacy.ps1") -RootPath $wchIspStage
 
 Compress-Archive `
     -LiteralPath $BaselineInstallDir `

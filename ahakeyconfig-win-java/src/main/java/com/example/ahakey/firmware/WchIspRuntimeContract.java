@@ -11,12 +11,9 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Validates that the WCHISP executable, DLLs and config are one supported bundle. */
+/** Validates the files and device scope required to run a packaged WCHISP bundle. */
 public final class WchIspRuntimeContract {
     public static final String METADATA_FILE = "wchisp-runtime.json";
-    public static final String EXPECTED_VERSION = "3.6.1";
-    public static final String EXPECTED_CONFIG_FINGERPRINT =
-        "4dd3ac5911ff428b92200745a26c34c674235c04ac40a77f7cfb61d6fb6241e8";
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -27,6 +24,7 @@ public final class WchIspRuntimeContract {
         if (bundleDirectory == null || !Files.isDirectory(bundleDirectory)) {
             return new Validation(false, List.of("runtime bundle directory is missing"));
         }
+        requireFile(bundleDirectory, WchIspRuntimeProvider.EXECUTABLE_NAME, failures);
         requireFile(bundleDirectory, "CH343PT.DLL", failures);
         requireFile(bundleDirectory, "WCH55xISPDLL.dll", failures);
         Path config = bundleDirectory.resolve("CONFIG_CH57X59X.WCH");
@@ -39,49 +37,37 @@ public final class WchIspRuntimeContract {
             try {
                 JsonNode root = JSON.readTree(Files.readString(metadata, StandardCharsets.UTF_8));
                 require(root, "bundleId", failures);
-                String tool = text(root, "toolVersion", failures);
-                String ispDll = text(root, "ispDllVersion", failures);
-                String driverDll = text(root, "driverDllVersion", failures);
-                String configContract = text(root, "configContractVersion", failures);
-                String fingerprint = text(root, "configLayoutFingerprint", failures);
+                text(root, "toolVersion", failures);
+                text(root, "ispDllVersion", failures);
+                text(root, "driverDllVersion", failures);
+                text(root, "configContractVersion", failures);
+                text(root, "configLayoutFingerprint", failures);
                 String chipFamily = text(root, "supportedChipFamily", failures);
                 String model = text(root, "supportedModel", failures);
                 require(root, "source", failures);
                 require(root, "provenance", failures);
-                if (tool != null && !EXPECTED_VERSION.equals(tool)) {
-                    failures.add("unsupported WCHISP tool version: " + tool);
-                }
-                if (ispDll != null && !EXPECTED_VERSION.equals(ispDll)) {
-                    failures.add("unsupported WCH ISP DLL version: " + ispDll);
-                }
-                if (driverDll != null && !EXPECTED_VERSION.equals(driverDll)) {
-                    failures.add("unsupported WCH driver DLL version: " + driverDll);
-                }
-                if (configContract != null && !EXPECTED_VERSION.equals(configContract)) {
-                    failures.add("unsupported WCHISP config contract: " + configContract);
-                }
-                if (fingerprint != null && !EXPECTED_CONFIG_FINGERPRINT.equals(fingerprint)) {
-                    failures.add("unsupported WCHISP config layout fingerprint: " + fingerprint);
-                }
                 if (chipFamily != null && !"CH57x/CH59x".equals(chipFamily)) {
                     failures.add("unsupported WCHISP chip family: " + chipFamily);
                 }
                 if (model != null && !"CH582".equals(model)) {
                     failures.add("unsupported WCHISP model: " + model);
                 }
+                verifyHash(root, "exeSha256",
+                    bundleDirectory.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME), failures);
+                verifyHash(root, "ch343Sha256",
+                    bundleDirectory.resolve("CH343PT.DLL"), failures);
+                verifyHash(root, "ispDllSha256",
+                    bundleDirectory.resolve("WCH55xISPDLL.dll"), failures);
+                verifyHash(root, "configSha256", config, failures);
             } catch (Exception exception) {
                 failures.add("invalid " + METADATA_FILE + ": " + exception.getMessage());
             }
         }
         if (Files.isRegularFile(config)) {
             try {
-                String fingerprint = configFingerprint(Files.readAllBytes(config));
-                if (!EXPECTED_CONFIG_FINGERPRINT.equals(fingerprint)) {
-                    failures.add("CONFIG_CH57X59X.WCH layout fingerprint mismatch");
-                }
                 WchIspConfigLayout.inspect(Files.readAllBytes(config));
             } catch (IOException exception) {
-                failures.add("invalid WCHISP config layout: " + exception.getMessage());
+                failures.add("invalid WCHISP config format: " + exception.getMessage());
             }
         }
         return new Validation(failures.isEmpty(), List.copyOf(failures));
@@ -104,6 +90,19 @@ public final class WchIspRuntimeContract {
             ? root.get(name).asText() : null;
     }
 
+    private static void verifyHash(JsonNode root, String name, Path file,
+                                   List<String> failures) throws IOException {
+        if (root == null || !root.hasNonNull(name)) return;
+        if (!root.get(name).isTextual() || root.get(name).asText().isBlank()) {
+            failures.add(METADATA_FILE + " field " + name + " is invalid");
+            return;
+        }
+        String expected = root.get(name).asText().trim();
+        if (!expected.equalsIgnoreCase(WchIspRuntimeProvider.sha256(file))) {
+            failures.add("WCHISP runtime file hash mismatch: " + name);
+        }
+    }
+
     public static String configFingerprint(byte[] bytes) throws IOException {
         return WchIspConfigLayout.fingerprint(bytes);
     }
@@ -114,8 +113,8 @@ public final class WchIspRuntimeContract {
         }
 
         public String summary() {
-            return supported ? "WCHISP 运行环境版本合同：支持"
-                : "WCHISP 运行环境版本不受支持：" + String.join("; ", failures);
+            return supported ? "WCHISP 运行环境兼容性检查：通过"
+                : "WCHISP 运行环境兼容性检查失败：" + String.join("; ", failures);
         }
     }
 }
