@@ -358,20 +358,11 @@ public class TopBar extends VBox {
         mainRow.setPadding(new Insets(6, 16, 6, 16));
         mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
         mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons);
-        if (modelEnabled) {
-            // AhaType remains hidden until a real processor exists.
-            mainRow.getChildren().add(voiceControlBox);
-        } else {
-            // 隐藏语音相关控件
-            voiceRecordButton.setVisible(false);
-            voiceRecordButton.setManaged(false);
-            voiceStatusLamp.setVisible(false);
-            voiceStatusLamp.setManaged(false);
-            voiceStatusLabel.setVisible(false);
-            voiceStatusLabel.setManaged(false);
-            voiceResultPreview.setVisible(false);
-            voiceResultPreview.setManaged(false);
-        }
+        // Keep the main-branch AhaType and local voice controls visible.  The
+        // button still reports an unavailable service when model assets are
+        // absent; hiding the controls based solely on a legacy config flag
+        // made the restored feature impossible to discover or activate.
+        mainRow.getChildren().addAll(ahaTypeToggle, ahaTypeStatus, voiceControlBox);
         mainRow.getChildren().addAll(configStatus, configModeButton, menuBar);
 
         // 右侧弹性 spacer：把编辑配置/菜单推到最右
@@ -393,6 +384,7 @@ public class TopBar extends VBox {
         mainRow.setStyle("-fx-background-color: transparent;");
 
         getChildren().add(scrollWrapper);
+        updateVoiceButtonState();
     }
     
     /** BLE bridge process/window lifecycle is owned by BleBridgeProcessOwner. */
@@ -625,7 +617,7 @@ public class TopBar extends VBox {
         boolean activated = voiceInputManager.isActivated();
         controller.getVoiceRelay().setAhaKeyVoiceAvailable(activated);
         if (!activated) {
-            setVoiceStatus("error", "本地语音不可用，长按将回退到 Windows 语音（Win+H）。");
+            setVoiceStatus("error", "本地语音不可用；长按不会执行其他语音动作。");
         }
     }
     

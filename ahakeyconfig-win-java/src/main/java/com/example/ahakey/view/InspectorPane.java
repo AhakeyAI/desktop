@@ -149,6 +149,9 @@ public class InspectorPane extends ScrollPane {
             VBox shortShortcutBox = createVoiceShortcutEditor(true);
             shortShortcutBox.setManaged(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
             shortShortcutBox.setVisible(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
+            VBox shortEditorBlock = new VBox(6, new Label("短按快捷键"), shortShortcutBox);
+            shortEditorBlock.setManaged(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
+            shortEditorBlock.setVisible(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
             shortAction.valueProperty().addListener((obs, oldValue, value) -> {
                 if (value != null) {
                     studioState.setVoiceShortAction(value);
@@ -166,55 +169,50 @@ public class InspectorPane extends ScrollPane {
             VBox longShortcutBox = createVoiceShortcutEditor(false);
             longShortcutBox.setManaged(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
             longShortcutBox.setVisible(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
+            VBox longEditorBlock = new VBox(6, new Label("长按快捷键"), longShortcutBox);
+            longEditorBlock.setManaged(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
+            longEditorBlock.setVisible(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
             longAction.valueProperty().addListener((obs, oldValue, value) -> {
                 if (value != null) {
                     studioState.setVoiceLongAction(value);
                     rebuild();
                 }
             });
-            VBox longActionBox = new VBox(8, longAction, longShortcutBox);
+            VBox longActionBox = new VBox(8, longAction, longEditorBlock);
             if (!localModelConfigured) {
                 Label unavailable = new Label("AhaKey 本地语音（当前不可用）");
                 unavailable.getStyleClass().add("warning-note");
                 longActionBox.getChildren().add(0, unavailable);
             }
             box.getChildren().addAll(hint,
-                new Label("短按动作（一次触发）"), shortAction, shortShortcutBox,
+                new Label("短按动作（一次触发）"), shortAction, shortEditorBlock,
                 new Label("长按动作（按住说话）"), longActionBox);
             return box;
         });
     }
 
-    /**
-     * Edits one Desktop-local shortcut without touching firmware bindings.
-     * The text is translated through the same HID representation used by the
-     * existing keyboard editor and SendInput path.
-     */
+    /** Edits one Desktop-local shortcut without touching firmware bindings. */
     private VBox createVoiceShortcutEditor(boolean shortPress) {
+        // K1 uses the same KeyConfig and shortcut editor as K2/K3/K4.  The
+        // only extra policy is that physical F18 is reserved for the voice
+        // transport and therefore cannot be selected as a custom target.
         int current = shortPress
             ? studioState.getVoiceShortCustomShortcutHid()
             : studioState.getVoiceLongCustomShortcutHid();
-        TextField shortcut = new TextField(VoiceActionRouter.formatShortcut(current));
-        shortcut.setPromptText("例如 Win+H、Ctrl+Alt+A、F17");
-        Label error = new Label();
-        error.getStyleClass().add("warning-note");
-        Runnable commit = () -> {
-            int parsed = VoiceActionRouter.parseShortcut(shortcut.getText());
-            if (!VoiceActionRouter.isValidCustomShortcut(parsed)) {
-                error.setText("快捷键无效；F18 为 AhaKey 语音键保留，请选择其他快捷键。");
-                return;
-            }
-            if (shortPress) studioState.setVoiceShortCustomShortcutHid(parsed);
-            else studioState.setVoiceLongCustomShortcutHid(parsed);
-            error.setText("");
-        };
-        shortcut.setOnAction(event -> commit.run());
-        shortcut.focusedProperty().addListener((obs, wasFocused, focused) -> {
-            if (!focused) commit.run();
-        });
-        VBox box = new VBox(4, new Label("快捷键"), shortcut, error);
-        box.getStyleClass().add("voice-shortcut-editor");
-        return box;
+        KeyConfig shortcutModel = new KeyConfig(current, "");
+        VBox editor = createShortcutEditor(
+            shortcutModel,
+            null,
+            true,
+            () -> {
+                if (shortPress) {
+                    studioState.setVoiceShortCustomShortcutHid(shortcutModel.getHidCode());
+                } else {
+                    studioState.setVoiceLongCustomShortcutHid(shortcutModel.getHidCode());
+                }
+            });
+        editor.getStyleClass().add("voice-shortcut-editor");
+        return editor;
     }
 
     private ComboBox<VoiceAction> voiceActionCombo(
@@ -316,10 +314,17 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createShortcutEditor(StudioPart part) {
-        return createShortcutEditor(studioState.getKeyConfig(part), part);
+        return createShortcutEditor(studioState.getKeyConfig(part), part, false, () -> {});
     }
 
     private VBox createShortcutEditor(KeyConfig key, StudioPart dirtyPart) {
+        return createShortcutEditor(key, dirtyPart, false, () -> {});
+    }
+
+    /** Shared shortcut editor implementation used by every key, including K1 voice actions. */
+    private VBox createShortcutEditor(
+        KeyConfig key, StudioPart dirtyPart, boolean reservePhysicalF18, Runnable onChanged
+    ) {
         VBox box = new VBox(12);
 
         Label listLabel = new Label(languageManager.getString("inspector.key-code-list"));
@@ -482,6 +487,9 @@ public class InspectorPane extends ScrollPane {
         keySelector.getStyleClass().addAll("combo-box", "combo-box-small");
         keySelector.setValue("--- 修饰键 ---");
 
+        Label validation = new Label();
+        validation.getStyleClass().add("warning-note");
+
         Button addBtn = new Button(languageManager.getString("inspector.add"));
         addBtn.getStyleClass().add("btn-secondary");
         addBtn.setOnAction(e -> {
@@ -517,6 +525,11 @@ public class InspectorPane extends ScrollPane {
                     }
                 }
                 
+                if (reservePhysicalF18 && (codeToAdd & 0xFF) == com.example.ahakey.model.HIDUsage.F18) {
+                    validation.setText("F18 为 AhaKey 语音键保留，请选择其他快捷键。");
+                    return;
+                }
+
                 // 如果找到了有效的键码，进行累加
                 if (codeToAdd != 0) {
                     int currentCode = key.getHidCode();
@@ -540,7 +553,9 @@ public class InspectorPane extends ScrollPane {
                         // 处理普通键（设置为基础键位）
                         key.setHidCode(modifiers | codeToAdd);
                     }
-                    studioState.markDirty(dirtyPart);
+                    if (dirtyPart != null) studioState.markDirty(dirtyPart);
+                    onChanged.run();
+                    validation.setText("");
                 }
                 rebuild();
             }
@@ -598,7 +613,8 @@ public class InspectorPane extends ScrollPane {
                     key.setHidCode(modifiers);
                 }
                 
-                studioState.markDirty(dirtyPart);
+                if (dirtyPart != null) studioState.markDirty(dirtyPart);
+                onChanged.run();
                 rebuild();
             }
         });
@@ -609,7 +625,7 @@ public class InspectorPane extends ScrollPane {
 
         buttonRow.getChildren().addAll(keySelector, addBtn, deleteBtn);
 
-        box.getChildren().addAll(listLabel, keyListView, buttonRow);
+        box.getChildren().addAll(listLabel, keyListView, buttonRow, validation);
         return box;
     }
 

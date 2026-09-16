@@ -21,6 +21,20 @@ public class VoiceInputManager {
     private Consumer<String> partialCallback;
     private Consumer<String> statusCallback;  // 状态回调，通知UI当前状态
     private StringBuilder accumulatedResult = new StringBuilder();  // 累积的中间识别结果
+
+    /**
+     * Package-private seam for deterministic lifecycle tests.  Production
+     * construction still uses the no-arg constructor and initializes the
+     * real SenseVoice/keyboard components from the configured resources.
+     */
+    VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector) {
+        this.speechService = speechService;
+        this.keyboardInjector = keyboardInjector;
+        this.isEnabled = speechService != null;
+    }
+
+    public VoiceInputManager() {
+    }
     
     public interface Consumer<T> {
         void accept(T t);

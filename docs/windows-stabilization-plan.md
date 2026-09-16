@@ -619,3 +619,28 @@ EXE/DLL/配置 SHA-256，仍校验文件未被替换；这是完整性证据，�
 runtime 读取实际版本和哈希；它保留该 runtime 自己的配置，仅清空五个历史固件路径槽，
 避免把 3.6.1 配置与 3.9 二进制混搭。必需文件、隐私扫描、用户明确点击、命令参数、
 ISP presence、设备重连与 `FirmwarePostVerifier` 仍保留；不能只依赖 WCHISP exit code 0 判成功。
+
+## 25. Local Voice/K1 restoration on `eternal-dev` (2026-09-16)
+
+本轮从实际 `origin/eternal-dev` 基线恢复 Windows 桌面端 Voice/K1 的局部行为，未修改
+Firmware、BLE、Hook、Approval、WCHISP、Firmware Update、OLED、GIF 或灯效语义。K1
+Inspector 现在以“短按动作 + 短按快捷键”和“长按动作 + 长按快捷键”上下分块；两个
+自定义快捷键均复用 K2/K3/K4 的 `KeyConfig`、键码映射、modifier、添加/删除和显示
+编辑器，F18 继续保留为物理语音键。短按选项仅为 `CUSTOM_SHORTCUT/NONE`，默认
+`Win+H`；长按选项为 `AHAKEY_VOICE/CUSTOM_SHORTCUT/NONE`，默认本地 AhaKey PTT。
+运行时阈值仍固定 350ms，旧 `voiceThresholdMs` 仅作存储兼容；物理 F18 的版本 gate、
+重复按键抑制、迟到 scheduler 的 UP 补偿和“不写 0x97 / 不依赖 per-mode K1”均保持。
+
+Studio 主界面的 AhaType 开关、原始状态文案和“启动语音输入”/状态/结果区域恢复为可
+发现的 main 版呈现；本地实现仍沿用 `VoiceInputManager -> SpeechService/SenseVoice
+-> KeyboardInjector`，不新增云端后端。当前源码和 Maven JAR 不包含模型文件，Java
+运行时仍查找 `models/model_q8.onnx` 与 `models/tokens.txt`，而发布脚本要求经外部
+授权基线提供的 Sherpa 文件集合（`encoder.int8.onnx`、`decoder.int8.onnx`、
+`silero_vad.onnx`、`tokens.txt`）。因此本轮只能证明 UI、路由和生命周期代码，不能把本地
+模型标为已打包或已验证；缺少外部模型资产时按钮会明确显示不可用，长按不会静默改走
+其他语音动作。`AhaType` 的后端仍保持原有 TODO/pass-through 语义。
+
+本轮新增 VoiceInputManager 生命周期及 UI/状态回归测试；最终自动测试、打包、发布 JAR
+内容检查和 `git diff --check` 的数值以交付报告中的实际命令结果为准。F18 HID hook、
+Win+H、麦克风、ONNX 模型、旧/新固件及正式安装包仍未进行软件手工/真机验证；外层
+`C:\aha\ahakey-windows\windows-stabilization-plan.md` 在当前工作区不存在，不能伪造同步状态。

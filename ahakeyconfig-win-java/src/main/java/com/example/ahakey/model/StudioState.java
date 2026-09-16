@@ -28,8 +28,9 @@ public class StudioState {
     private final StringProperty syncStatus = new SimpleStringProperty("修改会先保存在本地，保存配置后写入键盘。");
     private final StringProperty lastSyncSummary = new SimpleStringProperty("尚未保存");
     private final BooleanProperty syncing = new SimpleBooleanProperty(false);
-    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(false);
-    private final StringProperty ahaTypeStatus = new SimpleStringProperty("AhaType 尚未实现");
+    /** Keep the original main-branch AhaType presentation and state. */
+    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(true);
+    private final StringProperty ahaTypeStatus = new SimpleStringProperty("云端整理已启用");
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
         new SimpleObjectProperty<>(LightBarPreviewState.AI_RUNNING);
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
@@ -448,9 +449,11 @@ public class StudioState {
     }
 
     public void toggleAhaType(boolean enabled) {
-        // WIN-019: do not expose a no-op feature as enabled.
-        ahaTypeEnabled.set(false);
-        ahaTypeStatus.set("AhaType 尚未实现；语音结果直接输入");
+        // This is the original main-branch presentation/state contract.  The
+        // local voice backend still returns the recognized text unchanged;
+        // restoring this state does not add a cloud backend.
+        ahaTypeEnabled.set(enabled);
+        ahaTypeStatus.set(enabled ? "云端整理已启用" : "语音结果直接粘贴");
     }
 
     public boolean isDirty(StudioPart part) {

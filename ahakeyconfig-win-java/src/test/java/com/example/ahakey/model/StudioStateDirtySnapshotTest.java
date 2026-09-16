@@ -76,6 +76,21 @@ class StudioStateDirtySnapshotTest {
     }
 
     @Test
+    void ahaTypeUsesMainBranchStateAndOriginalCopy() {
+        StudioState state = new StudioState();
+        assertTrue(state.ahaTypeEnabledProperty().get());
+        assertEquals("云端整理已启用", state.ahaTypeStatusProperty().get());
+
+        state.toggleAhaType(false);
+        assertFalse(state.ahaTypeEnabledProperty().get());
+        assertEquals("语音结果直接粘贴", state.ahaTypeStatusProperty().get());
+
+        state.toggleAhaType(true);
+        assertTrue(state.ahaTypeEnabledProperty().get());
+        assertEquals("云端整理已启用", state.ahaTypeStatusProperty().get());
+    }
+
+    @Test
     void oldSystemVoiceActionsMigrateToLocalCustomShortcut() {
         StudioState.PersistedDraft draft = StudioState.PersistedDraft.defaults();
         draft.voiceShortAction = VoiceAction.SYSTEM_VOICE.name();
