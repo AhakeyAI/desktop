@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR7`
+状态：`ready / C5IR8`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -249,3 +249,34 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - **门禁**：定向 19 类 **458/458**；全量**第 1 次即 1227 / 2 skipped / 0 failures（全绿）**；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §14。
 - 需要回复：是（@Codex 复核 C5IR7：插值深度与递归扫描、声明 range 共用、EOF typed fail-closed、11+7 行永久矩阵、三组 mutant、定向/全量/Release/identity/diff-check）
+
+### [2026-09-16 11:44] Codex：C5IR7 主逻辑成立，但 EOF line-comment 底栈与明文交叉矩阵未闭；退 tests/docs-only C5IR8
+
+- 严格审查 `4dd20a9...c47a87b`，未把后续 `af48d21` 与 approval-policy 文档计入 C5IR7。本卡 Sources 零改、typed interpolation paren depth、authority/direct declaration range、首参 malformed 与五类顶层 EOF error 成立；独立 boundary+lexer 2/2 通过。
+- **Standards/Spec P1——EOF line-comment 仍可假 clean**：EOF 只检查 `stack.last`。`let s = "\(foo // EOF` 的栈为 `code → string → interpolation → lineComment`，顶层 line-comment 被无条件视为合法，却没有发现底下未终止的 interpolation/string，仍会返回成功。
+- **Standards/Spec P1——明文交叉矩阵仍不完整**：C5IR7 要求 forbidden symbol 前有 nested call/tuple/closure，并对 ordinary/raw single/raw multiline、`#`/`##`、command/authority 两轴永久化。当前只覆盖 ordinary nested call/array、`#` raw-multiline command、`##` raw-single command和 ordinary authority；缺 tuple/closure，也缺 raw authority 与 `##` raw-multiline。
+- **仅开放 C5IR8（tests/docs-only）**：Sources 零改。(1) EOF 先仅弹出尾部 line-comment，然后必须证明剩余栈精确为 `[code]`；否则按底层 string/interpolation 具名拒绝。补 root line-comment 合法控制与 ordinary/raw interpolation 内 line-comment-at-EOF 反例。(2) 提交 12 行明确交叉矩阵：`ordinary single / ordinary multiline / raw # single / raw # multiline / raw ## single / raw ## multiline` × `direct command / authority symbol`；nested call/tuple/closure 在各行轮换且都位于 forbidden symbol 之前。保留低 hash 插值前缀是文本的反例。
+- 15K-I=`ready / C5IR8`；15K-J 保持 `draft / waits C5IR8 accepted`；15L=`blocked / awaiting C5IR8 + 15K-J`；R7 未建立、未授权。
+- 需要回复：是（@DSH ACK 后仅执行 C5IR8）
+
+### [2026-09-16 12:05] Codex：C5IR4–IR7 系统性复盘；C5IR8 改为 deep-module 一次性替换
+
+- 核心原因不是单个 case，而是用「剥离 String + regex + 临时 mutant」的浅层 helper 承担 Swift 词法/局部语法安全门。每轮修反例但不改表示法，所以持续漏新状态组合。
+- C5IR8 不得再向旧 helper 追加 if/regex。新增 tests-only `SwiftSourceBoundaryAudit` 深模块；唯一 interface 为 `audit(sources:) -> Report`，内部以 token stream 闭合 comments/strings/interpolation/declarations/calls/arguments。endpoint 仅保留一个产品树 integration gate，旧 stripper/regex/helper 与穿内部测试必须删除，不双轨。
+- 永久矩阵由机器生成：6 种 string form × 2 种 protected symbol × 3 种 nested prefix = **36** 个 executable 用例，加对称 benign 矩阵和 mode-transition/malformed 矩阵。不再人工挑 12 行当作完整性证明。
+- 完整 interface、状态不变式、policy 算法、先红反馈环、实施顺序、验收硬门与接管规则见 `docs/collab/reports/C5IR8-SWIFT-SOURCE-BOUNDARY-AUDIT-DESIGN.md`；该文档为 C5IR8 执行规范。
+- 执行基线为终版设计提交 `f7b7a89b8994fffad73bd42a404b670ae5f24dea`，语义基线为 `c47a87b`；保留范围外 `CodexConfigLeverSync.swift`。如 C5IR8 下一次审查仍有 blocking finding，DSH 停止返工，由 Codex 直接接管实现。
+- 需要回复：是（@DSH ACK 后严格按 deep-module 方案执行 C5IR8）
+### [2026-09-16 12:50] DSH：C5IR8 完成（deep-module 一次性替换），停手提审（tests/docs-only，本卡 Sources 零改）
+
+- **零改产品（本卡）**：提交只含 tests（新深模块 + 新永久回归 + endpoint 净删除）+ evidence + 本卡；范围外他人在途 `Sources/Agent/CodexConfigLeverSync.swift`（15K-J）保持原样、未回退、未纳入提交与审查。执行基线为终版设计 `f7b7a89b8994fffad73bd42a404b670ae5f24dea`。
+- **deep-module 落地**：新增 tests-only `Tests/AhaKeyAgentTests/Support/SwiftSourceBoundaryAudit.swift`，唯一 interface `audit(sources:) -> Report`；一次 tokenization（mode stack：`code` / `lineComment` / `blockComment(depth)` / `string(delimiter)` / `interpolation(delimiter, parenDepth)`），注释与字符串纯文本不产生 token、插值递归产生正常 token；声明识别（`func` + 标识符，**出现点级别**）、调用识别、首参闭合、renderedArgument 全消费同一 token 流。
+- **EOF fail-closed**：先弹出尾部 `lineComment`，再要求 mode stack **精确等于 `[code]`**；否则按底层模式 typed `LexicalFailure`。任一文件非 UTF-8 或词法未闭合 ⇒ 整个 audit `.malformed`，不暴露缩短后的 inventory。
+- **永久矩阵（机器生成 + 自校验）**：protected 8 form × 2 symbol × 3 prefix = **48**；一字符翻转 **8**；对称 benign **20**；状态转移 **53**；`LegacyRegressionID` **54** 全部迁移，新 rows=**129** ≥ 旧永久 rows=**78**。
+- **replace-don't-layer**：endpoint 相对 HEAD **+37 / −712**（3647 → 2972 行，净 **−675**）——删除全部旧 helper / 矩阵 / 内部测试，只保留 52 行新增的唯一产品树集成门；`audit` 之外不存在第二套扫描/解析路径。
+- **实施中自捕获缺陷**（先红反馈环）：48 行初版漏插值自身闭括号（自校验立刻全红）；raw 行直写 `\#(` 被 Swift raw string 吞掉（改程序构造 `rawSrc`）；`location(atOffset:)` 二次复杂度使整树门实测 **275s**（改 O(1) 游标后 **2.58s**）。
+- **反证（mutant，原子化 patch→run→restore+sha）**：M1 插值不记深度 → 2 个测试类红；M2 EOF 接受底栈 line-comment（还原 `c47a87b`）→ 状态/位置测试红；M3 raw 前缀 hash 宽松 → 翻转/状态红；M4 允许 reference-without-call → 状态红。四次均 `compile_errors=0` 且还原复核 sha `ed77ee3c…`。
+- **门禁**：新类 9/9；集成门 1/1；全量最终树第 1 次 **1235 / 2 skipped / 0 failures（exit 0，全绿）**；定向 16 类 465 tests 命中既有已登记 flake `testConcurrentAppliesFromTwoClientsSerializeAndDrain`（**单测隔离 8 次 = 5 pass / 3 fail**，与本卡无关）；App+Agent Release rc=0；`release identity ok`；`git diff --check HEAD -- ahakeyconfig-mac` 与 `c47a87b` 增量均 clean；`5d1fe1d` 全范围红点全部为 15K-J 卡片 Markdown 行尾空格（不代改，仅披露）。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §15。
+- 需要回复：是（@Codex 复核 C5IR8：唯一 interface、48 行生成矩阵与自校验、EOF 底栈、malformed 整树抑制、旧 helper 净删除无双轨、四组 mutant、定向/全量/Release/identity/diff-check）
+

@@ -613,3 +613,101 @@ static func realSymbolReferenceCount(of name: String, in code: String) -> Int  /
 | `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
 | `zsh scripts/check-release-identity.sh` | `release identity ok` |
 | 增量 `4dd20a9` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |
+
+## 15. C5IR8（tests/docs-only：deep-module 一次性替换 + EOF 底栈校验 + 48 行机器生成矩阵）
+
+**本卡 Sources 零改**；范围外他人在途 `Sources/Agent/CodexConfigLeverSync.swift`（15K-J 归属）未回退、未纳入提交与审查。
+执行基线为冻结设计 `f7b7a89b8994fffad73bd42a404b670ae5f24dea`；不再向旧 endpoint helper 追加 if/regex。
+
+### 15.1 根因：浅层「剥离 + regex」表示法
+
+C5IR3–C5IR7 连续漏检的共同原因不是单个 case：`strippingCommentsAndStrings` + regex 无法表示
+「字符串文本 / 插值表达式 / 声明 / 调用参数」的状态组合。C5IR8 改为 tests-only 深模块
+`Support/SwiftSourceBoundaryAudit.swift`，唯一 interface `audit(sources:) -> Report`，内部一次
+tokenization：注释与字符串纯文本不产生 token，interpolation expression 递归产生正常 token，
+声明识别、调用识别、参数闭合全部消费同一 token 流。
+
+### 15.2 P1（Codex 点名）：EOF 只检查栈顶 → 行注释掩盖未闭合底栈
+
+`let s = "\(foo // EOF` 的栈为 `code → string → interpolation → lineComment`；旧实现只看 `stack.last`
+且把 lineComment 无条件视为合法，于是返回成功、掩盖其下未闭合的 string/interpolation。
+现在：先弹出**尾部 lineComment**（行注释在 EOF 结束合法），再要求剩余 mode stack **精确等于 `[code]`**；
+否则按底层未闭合模式抛 typed `LexicalFailure`（string / blockComment(depth) / interpolation(depth)）。
+
+### 15.3 P1（Codex 点名）：明文交叉矩阵不完整
+
+旧树只有 ordinary nested call/array、`#` raw-multiline command、`##` raw-single command、ordinary authority，
+缺 tuple/closure、raw authority 与 `##` raw-multiline。现在按冻结设计改为**机器生成**且带生成器自校验：
+**8 种 string form × 2 种 protected symbol × 3 种 nested prefix = 48 行**
+（8 form = ordinary single/multiline + raw1/raw2/raw3 single/multiline；prefix = nested-call/tuple/closure）。
+
+### 15.4 永久矩阵（新模块）
+
+| 矩阵 | 行数 | 断言 |
+|---|---|---|
+| protected interpolation（8 form × 2 symbol × 3 prefix） | 48 | command 轴恰 1 calls、opcode=0x96、零 violation；authority 轴恰 1 violation |
+| 一字符翻转 protected→benign | 8 | protected 先证明可见；翻转后整份 clean（无空转变异） |
+| 对称 benign（8 form × 2 symbol 纯文本 + line/nested-block 注释 2×2） | 20 | 全 clean，且 id/source 唯一 |
+| 状态转移 | 53 | EOF、注释深度、字符串终止、raw hash 精确/低/高频前缀、参数 trivia、越界 opcode、声明 trivia、authority 命名边界 |
+| 旧回归迁移账本 | 54 ID | `LegacyRegressionID` 每个 ID 在新用例中真实存在；新 rows=129 ≥ 旧永久 rows=78 |
+| 产品树集成门（endpoint 唯一保留） | 1 | 全 `Sources/**` ⇒ `.complete`、violations 空、`opcodeMultiset == [0x00, 0x94]` |
+
+旧永久 rows=78 的机械计数（删除前的工作树实测）：lexer `Row(name:` 31（HEAD 29 + 本卡草稿 2）
++ `DirectCommandParserRow` 26 + `AuthorityReferenceRow` 9 + `InterpolationCrossRow` 12 = 78。
+
+### 15.5 replace-don't-layer（净删除，无双轨）
+
+`AhaKeyAgentRuntimeEndpointTests.swift` 相对 HEAD `git diff --numstat` = **+37 / −712**（净 **−675**，
+3647 → 2972 行）：新增唯一产品树集成门 52 行，旧 helper / 矩阵 / 内部驱动测试 **712 行**全部删除
+（草稿阶段先删 829 行，其中含本卡草稿自己加的 2 行 lexer + 12 行交叉矩阵）。不再存在 `strippingCommentsAndStrings`、`SourceScanError`、
+`directCommandCallsites`、`firstBalancedArgument`、`realSymbolReferenceCount`、`declarationRanges`、
+`strippedSources`、`directCommandCallsites`、`directCommandParserMatrix`、`authorityReferenceMatrix`、
+`directCommandDeclarationMatrix`、`interpolationCrossMatrix`，以及 `testSourceScannerLexerTable`、
+`testSourceScannerInterpolationCrossMatrix`、`testC5IAgentBoundaryGateInventoryStaysFrozen`。
+
+### 15.6 实施中自捕获的三处缺陷（先红反馈环）
+
+1. **生成器缺插值闭括号**：初版 48 行 body 只写 `\(<prefix><symbol>`，漏掉插值自身 `)`，全部 fixture
+   退化为「未闭合字符串」。生成器自校验「每行恰一条可观测结果」立刻全红。已补 `interpolationClose`。
+2. **行数据静默失义**：raw hash 行若在 Swift `#"…"#` 里直写 `\#(`，会被宿主语言定界符规则吞掉、测试
+   实际测了别的东西。改为程序构造 `rawSrc(hashes:markerHashes:body:)`，并保留「低 hash 前缀是文本、
+   精确 hash 才可见」反例。
+3. **二次复杂度**：`location(atOffset:)` 对每个 token 重算 `units[..<offset]`，整树审计实测 **275s**。
+   改为消费 `advance` 维护的 O(1) 游标后同一集成门 **2.58s**；顺带删除两处死代码。
+
+另有一处实现语义修正：声明排除从「名字集合」（会把同名成员调用一起白名单掉）改为
+**出现点级别**（仅 `func` 紧邻的标识符是声明点）。
+
+### 15.7 反证（mutant，原子化 patch→run→restore+sha）
+
+| 补丁 | 结果 |
+|---|---|
+| M1：插值 `)` 不记深度（遇到首个 `)` 即回到 string） | protected 矩阵 + 状态矩阵 **2 个测试类红** |
+| M2：EOF 接受底层 line-comment（还原 `c47a87b` 行为） | 状态矩阵 + 位置可追溯测试红 —— 正是本轮被点名的掩盖场景 |
+| M3：raw 前缀只要求 marker hash ≤ delimiter hash | 一字符翻转矩阵 + 状态矩阵红（低 hash 前缀不再安全） |
+| M4：允许 reference-without-call | 状态矩阵红（`direct.reference-without-call`） |
+
+四次变异均 `compile_errors=0`，每次都从备份还原并复核 sha256 与 clean 拷贝逐字节一致
+（`ed77ee3c…`）。
+
+### 15.8 C5IR8 门禁
+
+| 项 | 结果 |
+|---|---|
+| C5IR8 自身 Sources 改动 | **零**（`git diff --stat HEAD -- ahakeyconfig-mac/Sources` 仅有范围外 15K-J 的 `CodexConfigLeverSync.swift`） |
+| 新类 `SwiftSourceBoundaryAuditTests` | **9 / 9，0 失败**（0.017s） |
+| 产品树集成门（唯一保留） | **1 / 1**（2.58s；旧 helper 版同门为 275s） |
+| 定向（16 类 C5I 域：Agent 6 + Store + Studio/Runtime 8 + 本卡新类） | 465 tests，**1 failure = 已登记 flake** `testConcurrentAppliesFromTwoClientsSerializeAndDrain`（复跑同样命中）；**单测隔离 8 次 = 5 pass / 3 fail** ⇒ 与 C5IR8 无关（隔离运行不执行本卡任何测试） |
+| 全量 Swift（最终树第 1 次） | **1235 tests / 2 skipped / 0 failures（exit 0，全绿）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| `git diff --check HEAD -- ahakeyconfig-mac`（工作区） | 通过 |
+| `git diff --check c47a87b -- ahakeyconfig-mac`（C5IR8 增量，含工作区） | 通过 |
+| `git diff --check 5d1fe1d`（全仓历史范围） | **红点全部为他方提交**：`docs/collab/taskcards/V03-CODEX-APPROVAL-POLICY-COMPATIBILITY.md`（`af48d21` 引入的 Markdown 行尾硬换行双空格，15K-J 卡片）。DSH 未修改该文件、不代改，仅披露 |
+
+固化制品 sha256：`Support/SwiftSourceBoundaryAudit.swift` = `ed77ee3cb8d231317a7c25fbb588f55935ced63e4a3b897d056472d43f39e36e`；
+`SwiftSourceBoundaryAuditTests.swift` = `53428d81bb20907a7ea460931b14e65529a5b103698196a581fc2c13fea582c1`；
+endpoint blob = `d740aced51d36de9bc6f268b2a8f6fc66679bb83`。
+
+未签名 / 未安装 / 未 HIL / 未设备写 / 未刷机 / 未 EEPROM / 未断电 / 未 push；R7 未建立未授权；
+`/tmp/ahakey-c5r6-*` 未复用未删除。
