@@ -644,3 +644,36 @@ Studio 主界面的 AhaType 开关、原始状态文案和“启动语音输入�
 内容检查和 `git diff --check` 的数值以交付报告中的实际命令结果为准。F18 HID hook、
 Win+H、麦克风、ONNX 模型、旧/新固件及正式安装包仍未进行软件手工/真机验证；外层
 `C:\aha\ahakey-windows\windows-stabilization-plan.md` 在当前工作区不存在，不能伪造同步状态。
+
+## 26. Restore historical Sherpa local voice backend (2026-09-16)
+
+本节 supersedes 第 25 节中关于 `model_q8.onnx`、SenseVoice 和“模型未打包”的当前实现描述；
+第 25 节保留为历史记录。
+
+本轮恢复的是历史归档中已在 Windows 11/JDK 17 x64 验证过的 Sherpa-ONNX
+Paraformer 链路，不改变 K1/F18、`VoiceButtonStateMachine`、`VoiceActionRouter`、
+Shortcut Editor、Firmware/BLE/GATT、Approval、Hook 或 WCHISP。生产调用关系为
+`VoiceInputManager -> SpeechService -> OnlineRecognizer/OnlineStream ->
+KeyboardInjector`。`startRecording()` 开始 16 kHz/16-bit/mono 麦克风流，
+`stopRecording()` 停止采集并完成当前 Sherpa 流；VAD 默认关闭，第一版不做自动切段。
+
+`model_config.properties` 现在明确 `model.enabled=true`、`model.path=models`、
+`model.type=STREAMING_PARAFORMER` 和 `tokens.path=tokens.txt`。初始化严格要求
+`encoder.int8.onnx`、`decoder.int8.onnx`、`tokens.txt`，缺失或 JNI/ONNX 加载异常会
+保留完整根因并让本地语音保持不可用，不伪造 ready。`LibraryLoader` 支持显式
+`-Dsherpa_onnx.native.path`/`SHERPA_ONNX_NATIVE_PATH`，也会从安装布局
+`app/lib/sherpa-onnx/native/win-x64` 加载 `onnxruntime.dll`、可选 provider DLL 和
+`sherpa-onnx-jni.dll`；不会写死开发机路径。
+
+版本固定的 Java API `sherpa-onnx-java-api-1.13.3.jar` 位于 `third-party/`，Maven
+package 会复制到 `target/lib`。正式安装输入由 `build-release-installer.ps1` 从经授权
+的历史 voice baseline 提取四个模型文件及三份 Windows native DLL sidecar，随后再由
+jpackage 带入安装包；脚本会拒绝 `model_q8.onnx`。这使当前小型应用 JAR 与安装包的
+`app/models`、`app/lib/sherpa-onnx/native/win-x64` 路径一致。
+
+本轮自动验证：`SpeechServiceTest` 覆盖 Sherpa 配置和完整三文件模型目录准入，历史
+模型/native spike 已通过真实 `OnlineRecognizer` 创建；最终 `mvn clean test` 为
+**290 tests, 0 failures, 0 errors, 0 skipped**，`mvn clean package` 和发布 JAR 内容
+检查均成功。尚未完成的是正式 release-private 资产授权下的 jpackage/安装包构建、
+真实麦克风录音、F18 长按及 KeyboardInjector 端到端硬件验证；代码/自动测试完成不等于
+软件手工或真机完成。

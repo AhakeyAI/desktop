@@ -42,7 +42,8 @@ src/main/java/com/example/ahakey/
 
 - 应用配置：`src/main/resources/model_config.properties` — 语音模型路径、流式模式开关等
 - 日志配置：`src/main/resources/logback.xml` — Logback 日志配置
-- 模型文件：`src/main/resources/models/` — Sherpa-ONNX 语音识别模型
+- 模型文件：部署包的 `app/models/` — Sherpa-ONNX 语音识别模型（开发源码树不提交
+  大型模型二进制；发布脚本从经过授权的 baseline 资产 staging）
 
 ## 构建
 
@@ -168,7 +169,8 @@ UI 组件：
 
 ### 资源管理
 
-- 原生库（JNI）通过 `LibraryLoader.java` 加载
+- 原生库（JNI）通过 `LibraryLoader.java` 加载；安装包布局为
+  `app/lib/sherpa-onnx/native/win-x64/`
 - 语音模型文件在 `SpeechService.initialize()` 中初始化
 - 关闭应用时调用 `dispose()` 释放资源
 
@@ -191,6 +193,7 @@ UI 组件：
 使用 Sherpa-ONNX 离线模型进行语音识别：
 
 - 模型文件：`models/encoder.int8.onnx`, `models/decoder.int8.onnx`, `models/tokens.txt`
+  （由发布输入 staging 提供，不能用不存在的 `model_q8.onnx` 替代）
 - VAD 模型：`models/silero_vad.onnx`
 - 标点符号模型：`models/punct_model.onnx`（可选，需配置 `punct.enabled=true`）
 - 流式/非流式模式：通过 `model_config.properties` 中的 `model.type` 配置

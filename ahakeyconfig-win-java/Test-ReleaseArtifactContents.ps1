@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$JarPath
+    [string]$JarPath,
+    [string]$ReleaseInputDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,7 +67,10 @@ $requiredEntries = @(
     "com/example/ahakey/platform/voice/VoiceActionRouter.class",
     "com/example/ahakey/platform/voice/VoiceButtonEvent.class",
     "com/example/ahakey/platform/voice/VoiceButtonStateMachine.class",
+    "com/example/ahakey/service/SpeechService.class",
+    "com/example/ahakey/sherpa/LibraryLoader.class",
     "firmware-capabilities.properties",
+    "model_config.properties",
     "wchisp/CONFIG_CH57X59X-sanitized.WCH",
     "wchisp/baseline.properties",
     "wchisp/wchisp-runtime.json"
@@ -78,6 +82,15 @@ try {
     if ($missing.Count -gt 0) {
         throw "Release JAR is missing required P0 entries: $($missing -join ', ')"
     }
+    $modelConfigEntry = $archive.GetEntry("model_config.properties")
+    $modelConfigReader = New-Object System.IO.StreamReader($modelConfigEntry.Open())
+    try { $modelConfigText = $modelConfigReader.ReadToEnd() }
+    finally { $modelConfigReader.Dispose() }
+    if ($modelConfigText -notmatch '(?m)^model\.enabled=true\s*$' -or
+        $modelConfigText -notmatch '(?m)^model\.type=STREAMING_PARAFORMER\s*$' -or
+        $modelConfigText -notmatch '(?m)^model\.path=models\s*$') {
+        throw "Release JAR model_config.properties does not declare the Sherpa deployment contract."
+    }
 } finally {
     $archive.Dispose()
 }
@@ -85,3 +98,40 @@ try {
 Write-Output "RELEASE_ARTIFACT_CONTENTS=OK"
 Write-Output "JAR=$resolvedJar"
 $requiredEntries | ForEach-Object { Write-Output "  $_" }
+
+if (-not [string]::IsNullOrWhiteSpace($ReleaseInputDir)) {
+    $resolvedInput = [IO.Path]::GetFullPath($ReleaseInputDir)
+    if (-not (Test-Path -LiteralPath $resolvedInput -PathType Container)) {
+        throw "Release input directory does not exist: $resolvedInput"
+    }
+    foreach ($modelName in @(
+        "encoder.int8.onnx",
+        "decoder.int8.onnx",
+        "silero_vad.onnx",
+        "tokens.txt"
+    )) {
+        $modelPath = Join-Path $resolvedInput "models\$modelName"
+        if (-not (Test-Path -LiteralPath $modelPath -PathType Leaf) -or
+            (Get-Item -LiteralPath $modelPath).Length -eq 0) {
+            throw "Release input is missing Sherpa model resource: $modelPath"
+        }
+    }
+    $nativeDir = Join-Path $resolvedInput "lib\sherpa-onnx\native\win-x64"
+    foreach ($nativeName in @(
+        "onnxruntime.dll",
+        "onnxruntime_providers_shared.dll",
+        "sherpa-onnx-jni.dll"
+    )) {
+        $nativePath = Join-Path $nativeDir $nativeName
+        if (-not (Test-Path -LiteralPath $nativePath -PathType Leaf) -or
+            (Get-Item -LiteralPath $nativePath).Length -eq 0) {
+            throw "Release input is missing Sherpa native resource: $nativePath"
+        }
+    }
+    $apiJar = Join-Path $resolvedInput "lib\sherpa-onnx-java-api-1.13.3.jar"
+    if (-not (Test-Path -LiteralPath $apiJar -PathType Leaf) -or
+        (Get-Item -LiteralPath $apiJar).Length -eq 0) {
+        throw "Release input is missing Sherpa Java API: $apiJar"
+    }
+    Write-Output "SHERPA_RELEASE_INPUT=OK"
+}

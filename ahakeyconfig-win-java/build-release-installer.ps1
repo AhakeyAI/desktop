@@ -72,6 +72,7 @@ if ($AppVersion -ne $pomVersion) {
 }
 
 $baselineAppDir = Join-Path $BaselineInstallDir "app"
+$baselineJar = Join-Path $baselineAppDir "ahakey-studio-1.0.0.jar"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
 $currentJar = Join-Path $projectDir "target\ahakey-studio-$AppVersion.jar"
 $currentLibDir = Join-Path $projectDir "target\lib"
@@ -102,6 +103,9 @@ foreach ($required in @($currentJar, $currentLibDir)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "Current clean-build output is missing: $required. Run mvn clean package first."
     }
+}
+if (-not (Test-Path -LiteralPath $baselineJar -PathType Leaf)) {
+    throw "Voice release baseline JAR is missing: $baselineJar"
 }
 & (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") -JarPath $currentJar
 
@@ -137,6 +141,51 @@ Get-ChildItem -LiteralPath $currentLibDir |
     Copy-Item -Destination (Join-Path $inputDir "lib") -Recurse
 Get-ChildItem -LiteralPath (Join-Path $baselineAppDir "models") |
     Copy-Item -Destination (Join-Path $inputDir "models") -Recurse
+
+# The historical Sherpa JAR carries the Windows native runtime as embedded
+# resources.  The current application JAR is intentionally kept small, so
+# extract those exact, version-pinned resources into the sidecar layout that
+# LibraryLoader resolves from an installed app's app/lib directory.
+$sherpaNativeStage = Join-Path $inputDir "lib\sherpa-onnx\native\win-x64"
+New-Item -ItemType Directory -Force -Path $sherpaNativeStage | Out-Null
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$baselineArchive = [IO.Compression.ZipFile]::OpenRead($baselineJar)
+try {
+    foreach ($nativeName in @(
+        "onnxruntime.dll",
+        "onnxruntime_providers_shared.dll",
+        "sherpa-onnx-jni.dll"
+    )) {
+        $entryName = "sherpa-onnx/native/win-x64/$nativeName"
+        $entry = $baselineArchive.GetEntry($entryName)
+        if ($null -eq $entry) {
+            throw "Sherpa native resource is missing from release baseline JAR: $entryName"
+        }
+        $destination = Join-Path $sherpaNativeStage $nativeName
+        $entryStream = $entry.Open()
+        $outputStream = [IO.File]::Create($destination)
+        try { $entryStream.CopyTo($outputStream) }
+        finally {
+            $outputStream.Dispose()
+            $entryStream.Dispose()
+        }
+    }
+} finally {
+    $baselineArchive.Dispose()
+}
+foreach ($nativeName in @(
+    "onnxruntime.dll",
+    "onnxruntime_providers_shared.dll",
+    "sherpa-onnx-jni.dll"
+)) {
+    $nativePath = Join-Path $sherpaNativeStage $nativeName
+    if (-not (Test-Path -LiteralPath $nativePath -PathType Leaf) -or
+        (Get-Item -LiteralPath $nativePath).Length -eq 0) {
+        throw "Sherpa native sidecar was not staged: $nativePath"
+    }
+}
+Write-Output "SHERPA_NATIVE_PACKAGED=PASS"
 
 $bleDriver = @(
     (Join-Path $projectDir "BLE_tcp_driver.exe"),
@@ -275,6 +324,8 @@ foreach ($name in $requiredModels) {
 if (Test-Path -LiteralPath (Join-Path $inputDir "models\model_q8.onnx")) {
     throw "Unsafe model_q8.onnx was introduced into the release input."
 }
+& (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") `
+    -JarPath $releaseJar -ReleaseInputDir $inputDir
 
 Write-Output $(if ([string]::IsNullOrWhiteSpace($FirmwareHex)) {
     if ($InternalValidationOnly) { "RELEASE_INPUT_VALIDATION=INTERNAL_WITHOUT_FORMAL_FIRMWARE" }

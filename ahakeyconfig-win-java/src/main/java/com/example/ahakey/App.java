@@ -393,7 +393,7 @@ public class App extends Application {
      * 初始化语音输入管理器
      */
     private void initVoiceInputManager() {
-        logger.info("初始化语音输入管理器 (SenseVoice-Small)...");
+        logger.info("初始化语音输入管理器 (Sherpa-ONNX Paraformer)...");
         try {
             voiceInputManager = new VoiceInputManager();
             voiceInputManager.initialize();
@@ -409,7 +409,7 @@ public class App extends Application {
                         relay.setAhaKeyVoiceAvailable(false);
                         return;
                     }
-                    // Existing SenseVoice integration is a press-to-start /
+                    // Sherpa Paraformer integration is a press-to-start /
                     // release-to-stop stream (model C).  The desktop state
                     // machine starts it at LONG_PRESS_START and stops it at
                     // LONG_PRESS_END; no synthetic Fn key is emitted.
@@ -439,7 +439,9 @@ public class App extends Application {
             
             logger.info("语音输入管理器初始化成功");
         } catch (Exception e) {
-            logger.error("语音输入管理器初始化失败: {}", e.getMessage());
+            // Keep the complete cause (including UnsatisfiedLinkError/model
+            // paths) in the production log; the UI may still fail closed.
+            logger.error("语音输入管理器初始化失败", e);
             // 语音输入功能不可用，但不影响主应用运行
             voiceInputManager = null;
             if (WindowsVoiceTyping.isWindows()) {

@@ -67,7 +67,10 @@ class ReleaseArtifactContentsTest {
         "com/example/ahakey/platform/voice/VoiceActionRouter.class",
         "com/example/ahakey/platform/voice/VoiceButtonEvent.class",
         "com/example/ahakey/platform/voice/VoiceButtonStateMachine.class",
+        "com/example/ahakey/service/SpeechService.class",
+        "com/example/ahakey/sherpa/LibraryLoader.class",
         "firmware-capabilities.properties",
+        "model_config.properties",
         "wchisp/CONFIG_CH57X59X-sanitized.WCH",
         "wchisp/baseline.properties",
         "wchisp/wchisp-runtime.json"
@@ -95,7 +98,10 @@ class ReleaseArtifactContentsTest {
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
             for (String nameInJar : entries) {
                 output.putNextEntry(new JarEntry(nameInJar));
-                output.write("test".getBytes(StandardCharsets.US_ASCII));
+                String content = nameInJar.equals("model_config.properties")
+                    ? "model.enabled=true\nmodel.path=models\nmodel.type=STREAMING_PARAFORMER\n"
+                    : "test";
+                output.write(content.getBytes(StandardCharsets.US_ASCII));
                 output.closeEntry();
             }
         }

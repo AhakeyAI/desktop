@@ -25,7 +25,7 @@ public class VoiceInputManager {
     /**
      * Package-private seam for deterministic lifecycle tests.  Production
      * construction still uses the no-arg constructor and initializes the
-     * real SenseVoice/keyboard components from the configured resources.
+     * real Sherpa/keyboard components from the configured resources.
      */
     VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector) {
         this.speechService = speechService;
@@ -68,19 +68,9 @@ public class VoiceInputManager {
      */
     public void initialize() {
         try {
-            // 初始化语音识别服务
+            // 初始化历史已验证的 Sherpa-ONNX Paraformer 服务
             speechService = new SpeechService();
-            
-            // 获取资源文件路径（支持从 JAR 包内或外部目录加载）
-            // 优先在 models/ 目录下查找
-            String modelPath = findModelFile("models/model_q8.onnx");
-            String tokensPath = findModelFile("models/tokens.txt");
-            
-            logger.info("模型文件路径: {}", modelPath);
-            logger.info("词汇表路径: {}", tokensPath);
-            
-            // 初始化语音识别
-            speechService.initialize(modelPath, tokensPath);
+            speechService.initialize();
             
             // 初始化键盘注入器
             keyboardInjector = new KeyboardInjector();
@@ -90,63 +80,16 @@ public class VoiceInputManager {
         } catch (Exception e) {
             logger.error("VoiceInputManager 初始化失败: {}", e.getMessage(), e);
             isEnabled = false;
+            // Propagate the complete failure to App so initialization is not
+            // reported as successful when a model, token file, or JNI
+            // dependency is missing.  The UI still fails closed.
+            throw new IllegalStateException("VoiceInputManager 初始化失败", e);
         }
     }
     
-    /**
-     * 查找模型文件路径
-     */
-    private String findModelFile(String fileName) throws Exception {
-        // 首先尝试从类路径加载（完整路径，例如 models/model_q8.onnx）
-        var resource = getClass().getResource("/" + fileName);
-        if (resource != null) {
-            logger.debug("从类路径加载模型文件: {}", resource.getPath());
-            return resource.getPath();
-        }
-        
-        // 获取 JAR 文件所在目录（处理可能的 null 情况）
-        String baseDir = null;
-        try {
-            var codeSource = getClass().getProtectionDomain().getCodeSource();
-            if (codeSource != null && codeSource.getLocation() != null) {
-                String jarPath = codeSource.getLocation().getPath();
-                java.io.File jarFile = new java.io.File(jarPath);
-                baseDir = jarFile.getParentFile().getAbsolutePath();
-                logger.debug("JAR 所在目录: {}", baseDir);
-            }
-        } catch (Exception e) {
-            logger.debug("获取 JAR 路径失败: {}", e.getMessage());
-        }
-        
-        // 尝试从 app 目录下直接加载（jpackage 打包后的标准位置，fileName 已包含 models/）
-        if (baseDir != null) {
-            String appPath = new java.io.File(baseDir, fileName).getAbsolutePath();
-            if (new java.io.File(appPath).exists()) {
-                logger.debug("从 app 目录加载: {}", appPath);
-                return appPath;
-            }
-        }
-        
-        // 尝试从当前工作目录加载
-        if (new java.io.File(fileName).exists()) {
-            String absPath = new java.io.File(fileName).getAbsolutePath();
-            logger.debug("从当前目录加载: {}", absPath);
-            return absPath;
-        }
-        
-        // 尝试从 EXE 所在目录查找（jpackage 打包后，app 目录的父目录）
-        if (baseDir != null) {
-            java.io.File exeDir = new java.io.File(baseDir).getParentFile();
-            if (exeDir != null) {
-                String exePath = new java.io.File(exeDir, fileName).getAbsolutePath();
-                if (new java.io.File(exePath).exists()) {
-                    logger.debug("从 EXE 目录加载: {}", exePath);
-                    return exePath;
-                }
-            }
-        }
-        
-        throw new Exception("无法找到文件: " + fileName + "。请确保模型文件位于以下位置之一：\n- JAR 包内的 " + fileName + "\n- app 目录下的 " + fileName + "\n- 当前工作目录下的 " + fileName + "\n- EXE 所在目录下的 " + fileName);
+    /** Package-private seam used by resource-resolution tests. */
+    static java.nio.file.Path resolveModelDirectory(String configuredPath) throws Exception {
+        return SpeechService.resolveModelDirectory(configuredPath);
     }
     
     /**
