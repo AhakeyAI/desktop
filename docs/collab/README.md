@@ -57,6 +57,13 @@ docs/collab/
 8. **独立验收材料**：任务卡规定的报告路径、原始样本、`git diff --check` 与独立探测；不把 board 旗标当作证据。
 9. **board 备份**：`tools/backup_board.py` 在每次变更时快照到 `docs/collab/backups/`。若 live 文件相对上一份完好快照缩小超过一半（且快照 ≥4KiB），自动把截断副本另存为 `board-TRUNCATED-*` 并恢复上一份完好快照。沟通仍以恢复后的 `board.md` 为准。`wait_board_change.py` 在截断时也会退出并报警，不只检测变大。
 
+### Codex 验收反馈硬门
+
+- 每次验收都按 [`CODEX-REVIEW-DIAGNOSIS-SOP.md`](CODEX-REVIEW-DIAGNOSIS-SOP.md) 给出：证据裁决、归因诊断、优化方案、已通过冻结面和下一轮可执行返工单。只列 finding 的回复不能翻任务卡状态。
+- 同一语义轴连续两轮不通过时，停止继续追加 `Rn` 补丁，强制创建 docs-only 诊断设计检查点；终版设计 accepted 后才恢复产品实现。
+- 若首轮已证明公共接口/状态机/持久布局/测试 oracle 或 WBS 分解本身错误，可直接进入设计检查点，不必等第二轮。
+- accepted 也必须说明不变量如何闭合以及残余 P2/P3；未执行的 HIL/USER-GATE 必须继续明确标注。
+
 ## 与其他文档的关系
 
 - 范围、批次、验收门禁的权威仍是 `docs/unified-firmware-runtime-implementation-plan.md`；本目录只承载过程沟通，不改变计划内容。沟通中达成的结论若影响计划，由 Codex 更新总计划并在 board 上通告。
