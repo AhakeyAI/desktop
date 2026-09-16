@@ -711,3 +711,50 @@ endpoint blob = `d740aced51d36de9bc6f268b2a8f6fc66679bb83`。
 
 未签名 / 未安装 / 未 HIL / 未设备写 / 未刷机 / 未 EEPROM / 未断电 / 未 push；R7 未建立未授权；
 `/tmp/ahakey-c5r6-*` 未复用未删除。
+
+## 16. Codex 接管收口（C5IR8R1）
+
+Codex 按冻结设计 §7 接管最后一轮，固定审查 `f7b7a89...5ad2fdc`。双轴发现：
+
+1. **P1 typed delimiter 漏口**：`firstArgument` 用单一 depth，depth=0 的 `]`/`}` 也被当作调用结束；`sendDirectCommandFrame(0x00], 0x96)` 被错误接纳为合法 `0x00`。
+2. **P1 hash 高位反例缺失**：hash2/hash3 只有 lower/exact，缺 higher-prefix-is-text。
+3. **P2 迁移账本单向**：只断言 missing 为空，未执行设计要求的显式账本↔`allCases` 双向集合等式。
+4. **P2 产品门诊断**：opcode 不等时未在同一 failure 中打印 path/line/column/spelling。
+5. **格式门**：任务卡 EOF 多一空行，`git diff --check f7b7a89...5ad2fdc` 为红。
+
+### 16.1 红→绿
+
+先只加 `direct.mismatched-top-level-closer`，在 `5ad2fdc` 实现上运行：
+
+```text
+swift test --filter SwiftSourceBoundaryAuditTests.testStateTransitionMatrix
+Executed 1 test, with 2 failures
+direct.mismatched-top-level-closer：期望零 calls，实得 opcode=0
+direct.mismatched-top-level-closer：期望 <unterminated>，实得 []
+```
+
+修复后同命令 **1/1, 0 failures**。实现改为 typed delimiter stack：仅空栈上的 `)` 可结束外层调用；嵌套 `()[]{}` 必须同类闭合，stray/mismatched closer 统一 fail-closed 为 `<unterminated>`。
+
+### 16.2 其余收口
+
+- 新增 `raw.hash2.higher-prefix-text` / `raw.hash3.higher-prefix-text`；state rows **56**，新 rows **132** ≥ 旧 78。
+- 新增显式 `migratedLegacyIDs: [LegacyRegressionID]`：先断言无重复，再断言与 `allCases` 双向集合相等，最后断言每个 raw ID 都存在真实 state case。
+- `directCommandSymbol` / `authorityReadbackSymbol` 收为 `fileprivate`，唯一外部 interface 仍为 `audit(sources:) -> Report`。
+- 产品 integration gate 在 opcode 不等的同一 failure 中打印每个 callsite 的 path/line/column/spelling/offset。
+- 任务卡 EOF 空行已删除。
+
+Codex 修复提交：`3bedd05e39cffa3d04ac9b48fd2961517ef8b328`。
+
+### 16.3 门禁
+
+| 项 | 结果 |
+|---|---|
+| `SwiftSourceBoundaryAuditTests` | **9 / 9, 0 failures** |
+| 产品树 integration gate | **1 / 1, 0 failures**（2.48s） |
+| 全量 Swift | **1235 / 2 skipped / 0 failures**（exit 0） |
+| App / Agent Release | rc=0 / rc=0 |
+| release identity | `release identity ok` |
+| C5IR8R1 test diff-check | 通过 |
+| Sources | 本轮零改；范围外 `CodexConfigLeverSync.swift` 未纳入 |
+
+未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。

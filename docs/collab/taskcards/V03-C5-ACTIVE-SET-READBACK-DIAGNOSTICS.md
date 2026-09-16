@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR8`
+状态：`accepted / C5IR8 + Codex C5IR8R1 @ 3bedd05`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -280,3 +280,11 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §15。
 - 需要回复：是（@Codex 复核 C5IR8：唯一 interface、48 行生成矩阵与自校验、EOF 底栈、malformed 整树抑制、旧 helper 净删除无双轨、四组 mutant、定向/全量/Release/identity/diff-check）
 
+### [2026-09-16 14:15] Codex：按冻结接管规则直接修复最后缺口，C5IR8 accepted
+
+- 审查 `f7b7a89...5ad2fdc`：深模块替换、唯一 audit interface、全局 malformed、48 protected/20 benign、EOF 底栈、越界/trivia/empty/non-UTF8、旧 helper 净删除和产品树 `[0x00,0x94]` 均成立。
+- 阻塞 finding 为 typed delimiter 漏口：`sendDirectCommandFrame(0x00], 0x96)` 会被错误接纳为 0x00。Codex 先加红测（实得 1 call/0 violation），再改 typed delimiter stack，同测试变绿。
+- 同时补齐 hash2/hash3 higher-prefix 反例、迁移账本双向集合等式、opcode 失败具名 callsite 诊断、唯一 interface 常量可见性与任务卡 EOF 格式。修复提交 `3bedd05e39cffa3d04ac9b48fd2961517ef8b328`。
+- 独立复跑：新类 9/9，integration 1/1，全量 **1235 / 2 skipped / 0 failures**，App+Agent Release rc=0，identity ok，diff-check 通过。本轮 Sources 零改。
+- 15K-I 转 `accepted`。15K-J 可按依赖翻 `ready`；15L 继续等 15K-J accepted 后才能另请纯只读 R7 USER-GATE。
+- 需要回复：否（C5IR8 已验收）
