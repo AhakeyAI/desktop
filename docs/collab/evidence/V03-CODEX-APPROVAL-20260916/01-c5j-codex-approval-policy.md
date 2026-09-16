@@ -198,3 +198,94 @@ D/E 的两个字面量由单元测试断言等于 `ApprovalPolicy.onRequest.conf
 `CodexConfigLeverSyncTests.swift` = `aca6d5e973a83e43e4d40b915bec4e485b39a7ac474c9ed53cd690c9340317ed`。
 
 未安装/重签/重启 Runtime/push；未动已安装 app、现场备份与真实配置；15L/R7 未触碰。
+
+---
+
+# C5JR2-D（第二轮同轴返工）：typed locator 四态 + namespace inventory + Hook 事件行为门
+
+- 返工基线：`6c37250`（C5JR1 提交）；产品增量范围 `6c37250...<本轮提交>`（3 文件：locator / hook handler / tests）
+- 累计范围（含中间流程提交）：`d9d117c...<本轮提交>` = `80fa4be`（Codex 流程文档，不由本卡改动）+ `6c37250` + 本轮
+- 白名单：`Sources/Agent/CodexConfigLeverSync.swift`、必要的 `Sources/Agent/CodexHookHandler.swift`（仅依赖注入）、`Tests/AhaKeyAgentTests/CodexConfigLeverSyncTests.swift`、本 evidence、本卡
+
+## R1. 逐条闭合
+
+| 退审 finding | 处置 |
+|---|---|
+| **P1 table header 配对**：`[[products]` 被当作已闭合 | `parseTableHeader` 先冻结 header kind（普通 table / array-of-tables），再要求**精确** delimiter：普通恰好 `]`，array-table 恰好 `]]`。`[[x]`、`[x]]`、`[]`、`[[]]`、`[[x]]]` 全部 `.unsupportedSyntax`、零写 |
+| **P1 namespace 冲突**：`approval_policy.foo`、`[approval_policy]`、`[approval_policy.granular]` 被当作缺键并插入竞争 scalar | 顶层 key path / table path 的**首段**为 `approval_policy` 时：唯一允许形态是顶层单行 scalar key 本身；dotted key 与任何 table header 一律 `.unsupportedSyntax`、零写。控制组 `a.approval_policy`、`[a.approval_policy]` 仍是普通输入，可正常插入 |
+| **P1 Unicode escape 游标**：`\u`/`\U` 未越过 marker | 进入分支后先 `index += 1` 消费 `u`/`U`，再读 4/8 位 hex 并验证 Unicode scalar；`"ne\u0076er"`/`"ne\U00000076er"` 正确解码为 `never`（同值幂等零写、切换只换 value），非法 scalar / 截断 / 非法 hex 仍零写拒绝 |
+| **P2 两个 Hook 调用点保证消失** | `CodexHookHandler` 新增最小 `Dependencies` 注入（readStdin / parseContext / sendRequest / appendHookLog / emitPermissionStderr / appendDiagnostic / writeStdout / policySink），两个事件都经**同一个** `syncPolicy(switchState:)` → `policySink`。测试用 recording sink 真实驱动 `handleState(4)`（CodexSessionStart）与 `handlePermissionRequest()`（CodexPermissionRequest），断言 `[true, false]` 且参数由观测到的拨杆状态推导；未观测到状态时不调用。未新增任何浅层扫描器，也未扩展 audit 模块 |
+| **P3 遗留 helper** | 删除 `CodexConfigLeverSyncTests.packageRoot` |
+| **提审范围申报** | 本轮起产品增量与累计范围分别报告，且显式列出中间的 `80fa4be`（Codex 流程文档，不归本卡） |
+
+## R2. locator 结果（单一事实，调用方只做一次写）
+
+`TomlPolicyLocator.locate(bytes) -> Location`：
+
+- `.existingScalar(range, decoded)` —— 顶层单行 scalar value token + 解码值；
+- `.absent(insertionOffset, before, after)` —— 首个真 table header 行首（或 EOF，含换行风格）；
+- `.duplicate` —— 顶层重复 scalar；
+- `.unsupported(reason)` —— 其余一切（畸形容错之外）**零写**。
+
+`apply` 只按四态分支一次 `replaceSubrange` / `insert`，不再自行推断 TOML。
+
+## R3. 永久矩阵增量（累计 64 行 + 14 个测试）
+
+新增 19 行：
+
+- header 配对：`[[products]`、`[x]]`、`[]`、`[[]]`、`[[x]]]` 全部 fail-closed 零写；`[projects."/x"]` 正例仍可插入；
+- namespace：`approval_policy.foo`、`"approval_policy".foo`、`[approval_policy]`、`[approval_policy.granular]`、`[[approval_policy]]`、dotted+scalar 同文件 全部 fail-closed 零写；控制组 `a.approval_policy`（既有行）与 `[a.approval_policy]` 正例插入；
+- Unicode：`\u0076` / `\U00000076` 同值零写与切换只换 value；非法 scalar（`\uD800`）、截断（`\u00`）、非法 hex（`\uZZZZ`）零写拒绝；
+- Hook 事件（新增 6 个行为测试）：SessionStart 正例 / SessionStart 非 4 值否定 / PermissionRequest 正例 / 两事件同 seam `[true, false]` / 未观测状态零调用。
+
+## R4. 反证（mutant，原子化 patch→run→restore+sha）
+
+| 补丁 | 结果 |
+|---|---|
+| M1 header 第二个 `]` 改回可选（`[[x]` 被接受） | `testPermanentFixtureRows` 红 |
+| M2a dotted-key 首段检查改回精确匹配 | 红 |
+| M2b table header namespace 检查删除 | 红 |
+| M3 `\u`/`\U` 不越过 marker | 红 |
+| M4a `CodexPermissionRequest` 忽略观测状态（硬编码 0） | 3 个 Hook 测试红 |
+| M4b `CodexSessionStart` 丢弃观测状态（传 nil） | 2 个 Hook 测试红 |
+
+六个 mutant 全部编译通过、各自点名永久测试变红；每次从备份还原并复核 sha256
+（locator `e52dd4d121e2aff89d2da5bc588fb199d08ab56b4b92294de00a2cf07026bbd7`、
+handler `9ef9369f086e657b00849a5791b5a8958d15156698401c706158d737ee84fe44`）。
+
+## R5. 真实 codex 0.154 隔离 smoke
+
+| # | 隔离 fixture | 实测 |
+|---|---|---|
+| A | 真实结构 config + `approval_policy = "on-request"` | `Not logged in`，无 config 错误 |
+| B | `approval_policy = "untrusted"`（负对照） | `Error loading configuration: … no longer supported` |
+| C | 无 policy 的真实结构 config（插入位形态） | `Not logged in` |
+
+真实 `~/.codex/config.toml` sha256 前后一致（`f1b3d0fc…`）。
+
+## R6. 门禁
+
+| 项 | 结果 |
+|---|---|
+| `CodexConfigLeverSyncTests` | **14 / 14，0 失败**（含 64 行永久 fixture） |
+| Agent/Hook 定向 9 类（Hook handler 改动后） | **181 / 181，0 失败** |
+| 全量 `swift test` | 第 5 次 **1249 tests / 2 skipped / 0 failures（rc=0）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| `git diff --check HEAD -- ahakeyconfig-mac`（工作区） | clean |
+| `git diff --check 5d1fe1d`（全仓历史范围） | clean |
+
+### flake 归属（诚实披露）
+
+- 全量前 4 次命中已登记 flake：`testConcurrentAppliesFromTwoClientsSerializeAndDrain`、
+  `testRootDeleteRecreateDoesNotLockStaleInode`；第 4 次另现一次**未登记**的
+  `testV4MigrationAndConcurrentOutcomeShareOneWriteTransaction`（caught persistence error）。
+- 该未登记项**单测隔离 8 次 = 8/8 通过**；它属 `AhaKeyRuntimePersistentStore`，与本卡模块无调用关系，
+  形态与已登记的 store inode 负载敏感族一致。
+- **基线对照**：冻结基线 `6c37250` 独立 worktree 全量 2 次 = 2/2 失败，命中同样两项已登记 flake
+  （`1244` vs 本树 `1249`，差即本卡新增 5 个测试）。worktree 已清理。
+
+制品 sha256：`CodexConfigLeverSync.swift` = `e52dd4d1…`、`CodexHookHandler.swift` = `9ef9369f…`、
+`CodexConfigLeverSyncTests.swift` = `d6cb1145…`。
+
+未安装/重签/重启 Runtime/push；未动已安装 app、现场备份与真实配置；15L/R7 未触碰。

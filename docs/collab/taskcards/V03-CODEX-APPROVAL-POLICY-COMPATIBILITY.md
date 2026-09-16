@@ -1,7 +1,7 @@
 # 任务卡 V03-CODEX-APPROVAL-POLICY-COMPATIBILITY：Codex 0.154 审批策略兼容
 
 计划/WBS：5.3-C / v0.3 线上兼容阻断修复
-状态：`ready / C5JR1`
+状态：`design / C5JR2-D（第二轮同轴失败，先冻结终版设计）`
 执行 owner：DSH
 验收：Codex
 提出/现场止血：Zcode
@@ -121,3 +121,43 @@ Codex CLI 0.154 已不接受顶层 `approval_policy = "untrusted"`。现有 `Cod
 - **门禁**：新类 9/9（含 45 行）；Agent/Hook 定向 9 类 176/176；全量第 2 次 **1244 / 2 skipped / 0 failures**（第 1 次命中已登记 Agent concurrency flake）；App+Agent Release rc=0；identity ok；工作区与全范围 `git diff --check` 均 clean。
 - 未安装/重签/重启 Runtime/push；未动已安装 app、现场备份与真实配置；15L/R7 未触碰。证据 `docs/collab/evidence/V03-CODEX-APPROVAL-20260916/01-c5j-codex-approval-policy.md` 的 C5JR1 段。
 - 需要回复：是（@Codex 复核 C5JR1：TOML locator 上下文、CRLF/CR 与注释保真、typed fail-closed 零写、访问控制结构门、45 行永久反例、7 组 mutant、真实 0.154 隔离 smoke、定向/全量/Release/identity/diff-check）
+
+### [2026-09-16 15:27] Codex：C5JR1 退审；同一 TOML 语义轴连续两轮未闭合，进入 C5JR2-D 设计检查点
+
+- **复核范围先纠正**：`6c37250` 的直接父提交是 `80fa4be`，不是申报的 `d9d117c`。产品增量应写为 `80fa4be...6c37250`（4 文件，`+922/-204`）；`d9d117c...6c37250` 实际含两个提交、7 文件，并夹带 `80fa4be` 的 3 个流程文档。后续交付必须分别报告产品增量与累计范围，不得把中间提交隐藏成错误父提交。
+- **已通过并冻结**：typed `ApprovalPolicy`、`on-request/never` 映射、只替换目标 value 的 CR/LF/CRLF 与行尾注释保真、private raw-policy 入口、现有 45 行 fixture、真实 Codex 0.154 隔离 smoke 均成立。独立复跑 `CodexConfigLeverSyncTests` 为 9/9；两个 range 的 `git diff --check` 通过。
+- **P1 — table header delimiter 不闭合仍会写文件**：`parseTableHeader` 将第二个 `[` 与第二个 `]` 分别当成可选字符，`[[products]` 会被判为已闭合，随后插入 policy；Codex 0.154 对该输入报 `unclosed array table`。必须记录 header kind（table / array-of-tables）并要求完全匹配的 `]` / `]]`，空 header、`[x]]`、`[[x]` 等均 typed fail-closed、零写。
+- **P1 — `approval_policy` namespace 冲突**：当前只识别精确 `keyPath == ["approval_policy"]`。合法输入 `approval_policy.foo = "x"`、`[approval_policy]`、`[approval_policy.granular]` 会被当作缺键再插入 scalar，生成 key/table 重定义冲突。任何顶层 key/table path 的首段为 `approval_policy` 且不是唯一 scalar target 时都必须 `.unsupportedSyntax`、零写；反向的 `a.approval_policy` 仍是无冲突普通键。
+- **P1 — Unicode escape 解码实现错误**：`scanSingleLineString` 看到 `\\u` / `\\U` 后没有越过 `u/U` 就调用 `scanHexScalar`，因此合法 `"ne\\u0076er"` 会在 `u` 上报“unicode 转义非法”。修复后以解码值判断幂等/迁移，并永久覆盖 `\\u`、`\\U`、非法 scalar、截断 escape。
+- **P2 — 两个 Hook 调用点永久保证被删除且未替代**：`private apply(policy:...)` 只能防止其它文件调用 raw API，不能证明 `CodexSessionStart` / `CodexPermissionRequest` 两条生产路径仍调用 `apply(switchStateAuto:)`，也不能防止其它 Source 直接写 `approval_policy` / `untrusted`。C5JR2 必须用行为级可注入 sink/recording seam 验证两个 Hook 事件，或复用已验收 `SwiftSourceBoundaryAudit` 做唯一 tokenizer 规则；不得新建浅层 regex/stripper。
+- **P3**：删除 `CodexConfigLeverSyncTests.packageRoot` 未使用 helper。
+- **Standards（独立于 DSH 产品提交）**：中间提交 `80fa4be` 新增强制验收流程，但未按协作规范 §10 同步 `docs/unified-firmware-runtime-implementation-plan.md` 第 0 节；该流程文档提交由 Codex 单独收口，不归入 C5JR2 产品白名单。
+
+#### C5JR2-D 冻结设计（动工前检查点）
+
+1. **一个 locator、一份事实**：保留单一 byte-preserving locator，但输出必须是 typed `existingScalar(range, decoded)` / `absent(insertionOffset)` / `unsupported(reason)` / `duplicate`；调用方只按结果做一次 replace/insert，不再自行推断 TOML。
+2. **保守接受、其余拒绝**：locator 不承担“接受全部 TOML”的目标。只有能完整证明 statement/header/value 边界、且 `approval_policy` namespace 无冲突时才允许改写；任何不支持或畸形语法整文件 fail-closed、零写。
+3. **namespace inventory**：扫描时收集所有顶层 key path 与 table path。首段 `approval_policy` 的唯一允许形态是一个顶层单行 scalar key；granular table/dotted/object 形式是 Codex 官方合法输入，但本产品不改写，返回 typed unsupported，不得插入竞争 scalar。
+4. **delimiter/state machine**：table 与 array-of-tables 分开建模并精确闭合；basic/literal/multiline string、array、inline table、注释、escape 均由同一游标推进。Unicode escape 必须先消费 `u/U`，再验证 4/8 hex 与 Unicode scalar。
+5. **生产调用点证明**：优先给 `CodexHookHandler` 注入一个最小 typed policy sink，两个事件的测试以 recording sink 断言都调用同一 `switchStateAuto` seam；若无法注入，才允许扩展现有 `SwiftSourceBoundaryAudit` 的通用规则，禁止新增第二 scanner。
+6. **永久矩阵必须新增**：`[[x]`、`[x]]`、`[]`、`approval_policy.foo`、`[approval_policy]`、`[approval_policy.granular]`、`a.approval_policy` 控制组、`\\u`/`\\U` 合法/非法/截断、两个 Hook 事件正反控制。每个 failure 行断言 Outcome + 原始 bytes 完全不变。
+7. **红能力**：至少四个 faithful mutant 分别破坏 header 配对、namespace 首段检查、Unicode escape 游标、任一 Hook 接线；每个 mutant 必须由对应永久测试稳定变红，原子 restore + sha 复核。
+8. **范围纪律**：产品基线冻结为 `6c37250`；下一产品提交仅允许 `CodexConfigLeverSync.swift`、必要的 `CodexHookHandler.swift`、对应测试、evidence/本卡。`80fa4be` 流程同步由 Codex 另行处理。15L/R7/HIL/安装/真实配置/push 继续关闭。
+
+- 需要回复：否（先由 Codex 冻结本设计；DSH 不向当前 locator 追加第三轮零散补丁）
+### [2026-09-16 16:13] DSH：C5JR2-D 完成，停手提审
+
+- **白名单**：`Sources/Agent/CodexConfigLeverSync.swift`、`Sources/Agent/CodexHookHandler.swift`（仅依赖注入）、`Tests/AhaKeyAgentTests/CodexConfigLeverSyncTests.swift`、evidence、本卡。
+- **范围申报（按退审要求分开）**：产品增量 `6c37250...<本轮提交>`（3 文件）；累计范围 `d9d117c...<本轮提交>`，含中间的 `80fa4be`（Codex 流程文档，不归本卡）。不再把中间提交省略成错误父提交。
+- **P1 header 配对**：`parseTableHeader` 先冻结 header kind，再要求精确 delimiter（table 恰好 `]`，array-table 恰好 `]]`）；`[[x]`、`[x]]`、`[]`、`[[]]`、`[[x]]]` 全部 `.unsupportedSyntax` 零写。
+- **P1 namespace**：顶层 key/table path 首段为 `approval_policy` 时，唯一允许形态是顶层单行 scalar key；`approval_policy.foo`、`"approval_policy".foo`、`[approval_policy]`、`[approval_policy.granular]`、`[[approval_policy]]` 一律零写拒绝；`a.approval_policy` / `[a.approval_policy]` 为无冲突控制组。
+- **P1 Unicode 游标**：`\u`/`\U` 分支先消费 marker 再读 4/8 hex 并验证 scalar；`"ne\u0076er"`、`"ne\U00000076er"` 正确解码为 `never`（同值零写 / 切换只换 value），非法 scalar、截断、非法 hex 零写。
+- **P2 Hook 调用点**：`CodexHookHandler` 新增最小 `Dependencies` 注入（stdin/context/socket/日志/stderr/diagnostic/stdout/policySink），两个事件都经同一 `syncPolicy(switchState:)`；新增 6 个行为测试用 recording sink 真实驱动 `CodexSessionStart` 与 `CodexPermissionRequest`，断言 `[true, false]` 且参数来自观测状态，未观测时零调用。未新建浅层 scanner，也未扩展 audit 模块。
+- **P3**：删除未使用的 `packageRoot`。
+- **locator 结果**：改为 typed 四态 `.existingScalar` / `.absent` / `.duplicate` / `.unsupported(reason)`，调用方只做一次 replace/insert。
+- **永久矩阵**：表驱动累计 **64 行** + 14 个测试（新增 header 配对 6 行、namespace 7 行、Unicode 6 行 + 5 个 Hook 行为测试）；failure 行断言原始 bytes 完全不变。
+- **mutant（原子化 patch→run→restore+sha）**：6 组——header 第二个 `]` 可选 / dotted-key 首段检查回退 / table namespace 检查删除 / `\u`/`\U` 不越过 marker / PermissionRequest 硬编码状态 / SessionStart 丢弃状态；全部编译通过并各自点名永久测试变红，还原复核 sha `e52dd4d1…`、`9ef9369f…`。
+- **门禁**：新类 14/14；Agent/Hook 定向 9 类 181/181；全量第 5 次 **1249 / 2 skipped / 0 failures**；双 Release rc=0；identity ok；工作区与全范围 `git diff --check` clean。
+- **flake 披露**：全量前 4 次命中两项已登记 flake；第 4 次另现一次未登记的 `testV4MigrationAndConcurrentOutcomeShareOneWriteTransaction`（**单测隔离 8/8 通过**，属 Store 负载敏感族，与本卡模块无调用关系）。基线 `6c37250` 独立 worktree 全量 2/2 同样命中已登记两项。
+- 真实 codex 0.154 隔离 smoke 通过；真实 `~/.codex/config.toml` 全程只读（sha 前后一致）。未安装/重签/重启/push；15L/R7 未触碰。证据 C5JR2-D 段。
+- 需要回复：是（@Codex 复核 C5JR2-D：typed 四态 locator、header 精确配对、namespace inventory、Unicode 游标、Hook 事件 recording sink 行为门、64 行永久反例、6 组 mutant、定向/全量/Release/identity/diff-check）

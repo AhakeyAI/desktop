@@ -57,13 +57,6 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         CodexConfigLeverSync.apply(switchStateAuto: auto, configURL: url)
     }
 
-    private var packageRoot: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // AhaKeyAgentTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // ahakeyconfig-mac
-    }
-
     // MARK: - 冻结语义与 typed allowlist
 
     func testPolicyAllowlistIsExactlyOnRequestAndNever() {
@@ -300,6 +293,88 @@ final class CodexConfigLeverSyncTests: XCTestCase {
             auto: true,
             expectation: .result(.inserted, "a.approval_policy = \"x\"\napproval_policy = \"never\"\n")),
 
+        // ---- table header 精确配对 ----
+        Row(id: "header.array-table.unclosed.auto",
+            input: "[[products]\nname = \"x\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "header.table.extra-closing.auto",
+            input: "[x]]\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "header.empty.auto",
+            input: "[]\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "header.array-table.empty.auto",
+            input: "[[]]\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "header.array-table.extra-closing.auto",
+            input: "[[x]]]\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "header.table.valid-before-policy.manual",
+            input: "[projects.\"/x\"]\ntrust_level = \"trusted\"\n",
+            auto: false,
+            expectation: .result(.inserted, "approval_policy = \"on-request\"\n[projects.\"/x\"]\ntrust_level = \"trusted\"\n")),
+
+        // ---- approval_policy namespace 冲突 ----
+        Row(id: "namespace.dotted-key.auto",
+            input: "approval_policy.foo = \"x\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "namespace.quoted-dotted-key.auto",
+            input: "\"approval_policy\".foo = \"x\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "namespace.table.auto",
+            input: "[approval_policy]\nfoo = 1\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "namespace.granular-table.manual",
+            input: "[approval_policy.granular]\nfoo = 1\n",
+            auto: false,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "namespace.array-table.auto",
+            input: "[[approval_policy]]\nfoo = 1\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "namespace.dotted-key-plus-scalar.auto",
+            input: "approval_policy.foo = \"x\"\napproval_policy = \"never\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "namespace.control.other-table-with-approval-child.auto",
+            input: "[a.approval_policy]\nfoo = 1\n",
+            auto: true,
+            expectation: .result(.inserted, "approval_policy = \"never\"\n[a.approval_policy]\nfoo = 1\n")),
+
+        // ---- Unicode escape 游标 ----
+        Row(id: "unicode.u.same-value.auto",
+            input: "approval_policy = \"ne\\u0076er\"\n",
+            auto: true,
+            expectation: .unchanged(.alreadyDesired)),
+        Row(id: "unicode.u.switch.manual",
+            input: "approval_policy = \"ne\\u0076er\"\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy = \"on-request\"\n")),
+        Row(id: "unicode.U.same-value.auto",
+            input: "approval_policy = \"ne\\U00000076er\"\n",
+            auto: true,
+            expectation: .unchanged(.alreadyDesired)),
+        Row(id: "unicode.invalid-scalar.auto",
+            input: "approval_policy = \"x\\uD800y\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "unicode.truncated.auto",
+            input: "approval_policy = \"x\\u00\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "unicode.bad-hex.auto",
+            input: "approval_policy = \"x\\uZZZZ\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+
         // ---- 歧义 / 重复 key ----
         Row(id: "duplicate-key.auto",
             input: "approval_policy = \"never\"\napproval_policy = \"on-request\"\n",
@@ -414,6 +489,82 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         }
         XCTAssertEqual(apply(auto: false, to: url), .writeFailed)
         XCTAssertEqual(try text(of: url), "approval_policy = \"never\"\nmodel = \"gpt-5\"\n")
+    }
+
+    // MARK: - 两个 Hook 事件的生产接线（行为级 recording sink）
+
+    /// 记录 policy seam 的调用参数（拨杆是否自动档）。
+    private final class PolicyRecorder {
+        var values: [Bool] = []
+    }
+
+    /// 替换 `CodexHookHandler` 的全部 IO 依赖：不读 stdin、不连 socket、不写诊断日志、
+    /// 不打印，只把 policy seam 接到 recording sink 上。
+    private func installFakeHookDependencies(
+        recorder: PolicyRecorder,
+        reply: @escaping ([String: Any]) -> Int?
+    ) -> CodexHookHandler.Dependencies {
+        CodexHookHandler.Dependencies(
+            readStdin: { Data() },
+            parseContext: { _, _ in [:] },
+            sendRequest: { request, _ in reply(request).map { ["switchState": $0] } },
+            appendHookLog: { _, _, _, _, _, _, _ in },
+            emitPermissionStderr: { _, _, _, _ in },
+            appendDiagnostic: { _, _, _, _, _, _, _, _, _, _, _ in },
+            writeStdout: { _ in },
+            policySink: { recorder.values.append($0) }
+        )
+    }
+
+    private func withFakeHookDependencies(
+        reply: @escaping ([String: Any]) -> Int?,
+        _ body: (PolicyRecorder) -> Void
+    ) {
+        let recorder = PolicyRecorder()
+        let original = CodexHookHandler.dependencies
+        CodexHookHandler.dependencies = installFakeHookDependencies(recorder: recorder, reply: reply)
+        defer { CodexHookHandler.dependencies = original }
+        body(recorder)
+    }
+
+    func testCodexSessionStartRoutesLeverThroughSharedPolicySeam() {
+        withFakeHookDependencies(reply: { _ in 0 }) { recorder in
+            CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart
+            XCTAssertEqual(recorder.values, [true], "SessionStart 必须经 seam 写入自动档")
+        }
+    }
+
+    func testCodexSessionStartDoesNotSyncForOtherStateValues() {
+        withFakeHookDependencies(reply: { _ in 0 }) { recorder in
+            CodexHookHandler.handleState(stateValue: 2)   // CodexPostToolUse
+            XCTAssertTrue(recorder.values.isEmpty, "非 SessionStart 事件不得触碰 policy seam")
+        }
+    }
+
+    func testCodexPermissionRequestRoutesLeverThroughSharedPolicySeam() {
+        withFakeHookDependencies(reply: { _ in 1 }) { recorder in
+            CodexHookHandler.handlePermissionRequest()
+            XCTAssertEqual(recorder.values, [false], "PermissionRequest 必须经 seam 写入手动档")
+        }
+    }
+
+    func testBothHookEventsUseTheSameSeamWithLeverDerivedValues() {
+        // state/status 查询给自动档(0)，permission 查询给手动档(1)。
+        withFakeHookDependencies(reply: { request in
+            (request["cmd"] as? String) == "status" ? 0 : 1
+        }) { recorder in
+            CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart → 0 → true
+            CodexHookHandler.handlePermissionRequest()    // CodexPermissionRequest → 1 → false
+            XCTAssertEqual(recorder.values, [true, false], "两条生产路径必须都经同一 switchStateAuto seam")
+        }
+    }
+
+    func testHookEventsDoNotSyncWhenSwitchStateIsUnobserved() {
+        withFakeHookDependencies(reply: { _ in nil }) { recorder in
+            CodexHookHandler.handleState(stateValue: 4)
+            CodexHookHandler.handlePermissionRequest()
+            XCTAssertTrue(recorder.values.isEmpty, "未观测到拨杆状态时不得触碰 config")
+        }
     }
 
     // MARK: - 生产路径不得被测试触碰
