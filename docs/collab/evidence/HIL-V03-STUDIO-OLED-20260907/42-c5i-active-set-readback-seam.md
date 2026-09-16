@@ -488,3 +488,62 @@ declaration-excluded / mixed-callsites。矩阵在生产源码形态之外独立
 | `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
 | `zsh scripts/check-release-identity.sh` | `release identity ok` |
 | 增量 `4093ae1` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |
+
+## 13. C5IR6（tests/docs-only：插值表达式可见、声明排除 range-aware、矩阵补齐）
+
+**Sources 零改**；`C5IR3` unified dispatcher / `C5IR5` raw multiline 主修继续 accepted/frozen。
+
+### 13.1 P1：字符串插值里的真实调用被整段剥离
+
+`"\(sendDirectCommandFrame(0x96))"` 与 raw `#"\#(…)"#` 中的 interpolation expression 是**可执行代码**，
+但原实现把整个字符串体一起删除，调用对 inventory 不可见。
+现在 lexer 改为 **stack-based 模式栈**（`code` / `interpolation` / `lineComment` /
+`blockComment(depth)` / `string(kind)`）：
+
+- 字符串**文本片段**照旧剥离；
+- 命中插值前缀（普通/多行 `\(`；raw 为 `\` + hashes + `(`）时压入 `interpolation` 模式，
+  表达式内容按 **code** 继续扫描（其内部字符串/注释/再嵌套插值同样按各自规则处理），
+  遇到配对的 `)` 回到 string 模式；
+- raw string 里 `\(` 仍是普通文本（只有 `\#(` 才是插值），因此 raw 反例不会被误收。
+
+### 13.2 P1：声明排除改为 range-aware
+
+`(?<!func\s)` 只能处理「恰好一个空白」，`func  name` / `func\n name` / `func\tname` 都会被误计为引用；
+同时它没有 token 边界，`applyAuthoritativeFieldReadbackExtra` 也会被误计。
+现在：
+
+1. 用 `\bfunc\s+<name>\b` 匹配声明（`\s+` 天然跨多空格/换行/制表符），记录声明 range；
+2. 统计 `\b<name>\b` 的**完整 token** 引用；
+3. 落在任一声明 range 内的引用被排除；别名/方法引用（无调用括号）照常计入。
+
+### 13.3 P1：永久矩阵补齐
+
+- **parser 矩阵**新增 8 行，把 delimiter 真正放进**第一参数**：
+  `[0x96]`、`[0x01, 0x02]`、`[0x01: 0x96]`、`{ 0x96 }()`、`opcodes[0]`，
+  以及三条不匹配 delimiter 的 fail-closed 行 `[0x96)` / `{ 0x96)` / `make(0x96)` → `<unterminated>`。
+- **声明格式矩阵** `authorityReferenceMatrix`（9 行）：单/双空格、换行、制表符声明均为 0；
+  直接调用与别名引用为 1；`Extra` / `V2` 后缀名不再误计。
+- **lexer 表**新增 5 行插值用例：普通插值可见、文本片段剥离、raw 插值可见、多行插值可见、
+  插值内嵌套字符串被剥离。
+
+### 13.4 反证（mutant，原子化 patch→run→restore+sha）
+
+| 补丁 | 结果 |
+|---|---|
+| O1：产品里写 `_ = "\(sendDirectCommandFrame(0x96))"` | gate **1 failure**，inventory 实得 `["0x00","0x94","0x96"]` → 插值内调用**被看见** |
+| O2'：把计数器还原为 `(?<!func\s)` | 声明矩阵 **4 failures**（双空格、换行、`Extra`、`V2` 全部误判） |
+| O3：lexer 还原为「整段字符串连插值一起剥离」+ O1 的产品 mutant | gate **0 failure**（**漏检**）→ 证明 O1 的检出确实来自新的插值感知 lexer |
+
+产品 sha256 `91ea8b94…1ac1`；测试文件 sha 备份复核；三次 mutant 后 Sources porcelain 为空。
+
+### 13.5 C5IR6 门禁
+
+| 项 | 结果 |
+|---|---|
+| C5IR6 自身 Sources 改动 | **零**（本卡提交只含测试 + evidence + 本卡；`AhaKeyAgent.swift` 与 HEAD 逐字节相同） |
+| 工作区他人在途修改 | `Sources/Agent/CodexConfigLeverSync.swift`（他人改动 Codex `approval_policy` 取值，与本卡无关）——**未纳入本卡提交**，如同 `board.md`/`queue.md` 既有 diff 的处置 |
+| 定向（19 类） | **458 / 458，0 失败** |
+| 全量 Swift | 第 1–2 次仅命中两个已登记 flake（Agent concurrency ± Store inode）；**第 3 次 1227 / 2 skipped / 0 failures（全绿）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| 增量 `4de527e` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |

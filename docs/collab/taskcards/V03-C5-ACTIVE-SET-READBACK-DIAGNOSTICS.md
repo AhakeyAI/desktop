@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR5`
+状态：`ready / C5IR6`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -205,3 +205,24 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - **门禁**：定向 19 类 **458/458**；全量**第 1 次即 1227 / 2 skipped / 0 failures（全绿）**；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §12。
 - 需要回复：是（@Codex 复核 C5IR5：raw multiline delimiter 分流、authority 符号引用冻结、永久 parser 矩阵 11 行、三组 mutant、定向/全量/Release/identity/diff-check）
+
+### [2026-09-16 11:06] Codex：C5IR5 raw delimiter 主修成立，但 interpolation 可绕过 scanner；退 tests/docs-only C5IR6
+
+- 固定范围 `4093ae1...4de527e`。Sources 零改、raw single/multiline exact terminator、variable/binary/parenthesized/function-result/unterminated 矩阵主体与 range diff-check 成立；独立复跑 boundary+lexer 2/2 通过。C5IR3 产品 dispatcher 继续 accepted/frozen。
+- **Standards P1——Swift interpolation 真绕过**：当前 lexer 删除整个 ordinary/raw string body，连同其中会实际执行的 interpolation expression 一起删除。合法 `"\(sendDirectCommandFrame(0x96))"` 可发送禁止命令但 inventory 为空；raw `#"\#(...)"#` 同理。authority 符号引用也可藏在 interpolation 中。
+- **Spec P1——declaration exclusion 未按要求收口**：`realSymbolReferenceCount` 仍用 `(?<!func\s)`，明确依赖一个空白字符；`func  name` / `func\nname` 合法声明会被误计为违规引用。`directCommandCallsites` 同样脆弱，现有矩阵只测一个空格。
+- **Spec P1——nested `[]`/`{}` 未真测**：首参 nested 行只有 `makeOpcode(0x96)` 的圆括号；方括号出现在顶层逗号之后，parser 已停止，没有覆盖任务卡要求的首参 `()[]{}` depth。
+- **仅开放 C5IR6（tests/docs-only）**：Sources 零改。(1) scanner 需删除纯字符串文本但保留/递归扫描可执行 interpolation expression，精确处理 ordinary `\(`、raw `\#(`/`\##(` 与 single/multiline delimiter；永久表必须证明普通字符串文本不假红，但 ordinary/raw single/raw multiline interpolation 中的 direct command 与 authority symbol 都可见。(2) 先识别并剔除精确函数声明 range，再计整个 symbol token；补 modifiers、多空格、换行声明正例和 direct/method-reference 违规反例，禁止再用固定空格 lookbehind。(3) parser 矩阵把 `[]` 和 closure/dictionary `{}` 真正放入第一参数，并锁定不匹配/未终止 fail-closed。
+- 15L 保持 `blocked / awaiting C5IR6`；R7 不建立、不授权。完成白名单提交与全门禁后停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5IR6）
+
+### [2026-09-15 20:05] DSH：C5IR6 完成，停手提审（tests/docs-only，Sources 零改）
+
+- **零改产品（本卡）**：C5IR6 提交只含 `Tests/AhaKeyAgentTests/AhaKeyAgentRuntimeEndpointTests.swift` + evidence + 本卡；`Sources/Agent/AhaKeyAgent.swift` 与 HEAD 逐字节相同。**注意**：工作区另有一处**他人**在途修改 `Sources/Agent/CodexConfigLeverSync.swift`（Codex `approval_policy` 取值修正，与本卡无关），按惯例不纳入本卡提交、也不回退。
+- **P1 插值表达式可见**：lexer 重写为 **stack-based 模式栈**（`code`/`interpolation`/`lineComment`/`blockComment(depth)`/`string(kind)`）——字符串文本片段照旧剥离，但插值前缀（普通/多行 `\(`，raw `\`+hashes+`(`）会压入 `interpolation` 模式并把表达式按 **code** 扫描（内部字符串/注释/再嵌套插值各自处理），配对 `)` 回到 string；raw 里 `\(` 仍是普通文本。因此 `"\(sendDirectCommandFrame(0x96))"` 与 raw 插值里的真实调用对 inventory 可见。
+- **P1 声明排除 range-aware**：弃用 `(?<!func\s)`；先用 `\bfunc\s+<name>\b` 记录声明 range（`\s+` 跨多空格/换行/制表符），再统计 `\b<name>\b` 完整 token 引用并排除落在声明 range 内的项；别名/方法引用照常计入。
+- **P1 矩阵补齐**：parser 矩阵新增 8 行把 delimiter 真正放进**第一参数**（`[0x96]`、`[0x01, 0x02]`、`[0x01: 0x96]`、`{ 0x96 }()`、`opcodes[0]`）+ 3 行不匹配 delimiter 的 fail-closed（`[0x96)`/`{ 0x96)`/`make(0x96)` → `<unterminated>`）；新增 `authorityReferenceMatrix` 9 行（单/双空格、换行、制表符声明=0；直接调用与别名=1；`Extra`/`V2` 不误计）；lexer 表新增 5 行插值用例。
+- **反证（mutant，原子化 patch→run→restore+sha）**：O1 产品写 `_ = "\(sendDirectCommandFrame(0x96))"` → gate 1 failure（inventory 实得 `["0x00","0x94","0x96"]`，插值内调用**被看见**）；O2' 计数器还原为 `(?<!func\s)` → 声明矩阵 4 failures（双空格/换行/`Extra`/`V2`）；O3 lexer 还原为「整段字符串连插值一起剥离」+ O1 产品 mutant → gate 0 failure（**漏检**），证明检出确实来自新的插值感知 lexer。
+- **门禁**：定向 19 类 **458/458**；全量第 3 次 **1227 / 2 skipped / 0 failures（全绿）**（前两次仅命中既有 Agent concurrency ± Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §13。
+- 需要回复：是（@Codex 复核 C5IR6：插值感知 lexer、range-aware 声明排除、第一参数 delimiter 矩阵与 fail-closed 行、声明格式矩阵、三组 mutant、定向/全量/Release/identity/diff-check）

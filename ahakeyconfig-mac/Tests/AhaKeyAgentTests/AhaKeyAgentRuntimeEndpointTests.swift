@@ -960,6 +960,16 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             "产品代码不得引用 authority field readback（含方法引用/别名，Shared 同样适用）：\(authorityReferences)"
         )
 
+        // (2b2) C5IR6：声明格式矩阵——排除声明必须对多空格/换行/制表符同样生效。
+        for row in Self.authorityReferenceMatrix {
+            XCTAssertEqual(
+                Self.realSymbolReferenceCount(of: "applyAuthoritativeFieldReadback", in: row.source),
+                row.expectedCount,
+                "\(row.name) 符号引用计数不符，实得 "
+                    + "\(Self.realSymbolReferenceCount(of: "applyAuthoritativeFieldReadback", in: row.source))"
+            )
+        }
+
         // (2c) C5IR5：解析器自身的永久回归矩阵（不依赖生产源码当前形态）。
         for row in Self.directCommandParserMatrix {
             let inventory = Self.directCommandCallsites(in: row.source)
@@ -991,23 +1001,40 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
     }
 
-    /// C5IR3：注释/字符串感知的源码剥离器。
+    /// C5IR6：注释/字符串感知的源码剥离器（stack-based，**保留插值表达式**）。
     ///
-    /// 支持 `//`、**可嵌套** `/* /* */ */`、普通字符串（含转义）、`"""` 多行字符串，
-    /// 以及 `#"…"#` / `##"…"##` 等 raw string；被剥离内容一律替换为单个空格。
+    /// 支持的词法单元：`//`、可嵌套 `/* /* */ */`、普通字符串（含转义）、`"""` 多行字符串、
+    /// `#"…"#` / `##"…"##` raw single-line、`#"""…"""#` raw multiline。
+    ///
+    /// 关键语义：字符串的**文本片段**被剥离，但其中的 **interpolation expression 是真实可执行代码**，
+    /// 必须按代码继续扫描（其内部的字符串/注释同样按各自规则处理），否则
+    /// `"\(sendDirectCommandFrame(0x96))"` 这类调用会对 callsite inventory 不可见。
+    /// 插值前缀：普通/多行字符串为 `\(`，raw 字符串为 `\` + hashes + `(`。
     static func strippingCommentsAndStrings(_ source: String) -> String {
+        enum StringKind {
+            case ordinary
+            case multiline
+            case raw(hashes: Int, multiline: Bool)
+        }
+        enum Mode {
+            case code
+            case interpolation
+            case lineComment
+            case blockComment(depth: Int)
+            case string(StringKind)
+        }
+
         let chars = Array(source)
         var out: [Character] = []
         out.reserveCapacity(chars.count)
+        var stack: [Mode] = [.code]
         var i = 0
-        var blockDepth = 0
 
         func matches(_ index: Int, _ term: [Character]) -> Bool {
-            guard index + term.count <= chars.count else { return false }
+            guard index >= 0, index + term.count <= chars.count else { return false }
             for offset in 0 ..< term.count where chars[index + offset] != term[offset] { return false }
             return true
         }
-        /// 从 `#` 起识别 raw string 起始（`#"`、`##"`…）：返回 hash 数与引号下标。
         func rawStringStart(_ index: Int) -> (hashes: Int, quoteIndex: Int)? {
             var j = index
             var hashes = 0
@@ -1015,65 +1042,106 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             guard j < chars.count, chars[j] == "\"" else { return nil }
             return (hashes, j)
         }
+        func isMultilineQuote(at quoteIndex: Int) -> Bool {
+            quoteIndex + 2 < chars.count
+                && chars[quoteIndex + 1] == "\""
+                && chars[quoteIndex + 2] == "\""
+        }
+        func terminator(for kind: StringKind) -> [Character] {
+            switch kind {
+            case .ordinary:
+                return ["\""]
+            case .multiline:
+                return ["\"", "\"", "\""]
+            case let .raw(hashes, multiline):
+                return Array((multiline ? "\"\"\"" : "\"") + String(repeating: "#", count: hashes))
+            }
+        }
+        /// 插值前缀（含前缀本身长度）；普通/多行 `\(`，raw `\` + hashes + `(`。
+        func interpolationPrefix(for kind: StringKind) -> [Character] {
+            switch kind {
+            case .ordinary, .multiline:
+                return ["\\", "("]
+            case let .raw(hashes, _):
+                return Array("\\" + String(repeating: "#", count: hashes) + "(")
+            }
+        }
 
         while i < chars.count {
-            let c = chars[i]
-            if blockDepth > 0 {
-                if c == "/", i + 1 < chars.count, chars[i + 1] == "*" { blockDepth += 1; i += 2; continue }
-                if c == "*", i + 1 < chars.count, chars[i + 1] == "/" { blockDepth -= 1; i += 2; continue }
-                i += 1
-                continue
-            }
-            if c == "/", i + 1 < chars.count, chars[i + 1] == "/" {
-                while i < chars.count, chars[i] != "\n" { i += 1 }
-                continue
-            }
-            if c == "/", i + 1 < chars.count, chars[i + 1] == "*" { blockDepth = 1; i += 2; continue }
-            if c == "#", let start = rawStringStart(i) {
-                // C5IR5：raw string 必须按**实际 delimiter** 分流——
-                // raw multiline `#"""…"""#` 的终止符是 `"""` + hashes，
-                // 不能当成 raw single-line 的 `"` + hashes，否则体内合法的 `"#` 会提前结束剥离。
-                // raw string 不处理反斜杠转义，终止只看精确 delimiter。
-                let hashSuffix = String(repeating: "#", count: start.hashes)
-                let isMultiline = start.quoteIndex + 2 < chars.count
-                    && chars[start.quoteIndex + 1] == "\""
-                    && chars[start.quoteIndex + 2] == "\""
-                let term = Array((isMultiline ? "\"\"\"" : "\"") + hashSuffix)
-                var j = start.quoteIndex + (isMultiline ? 3 : 1)
-                while j < chars.count {
-                    if matches(j, term) { j += term.count; break }
-                    j += 1
-                }
-                out.append(" ")
-                i = j
-                continue
-            }
-            if c == "\"" {
-                if i + 2 < chars.count, chars[i + 1] == "\"", chars[i + 2] == "\"" {
-                    var j = i + 3
-                    while j < chars.count {
-                        // C5IR4：多行字符串内的 `\"` / `\\` 是转义，不得把 `\"\"\"` 误判为结束符。
-                        if chars[j] == "\\" { j += 2; continue }
-                        if j + 2 < chars.count,
-                           chars[j] == "\"", chars[j + 1] == "\"", chars[j + 2] == "\"" { j += 3; break }
-                        j += 1
-                    }
-                    out.append(" ")
-                    i = min(j, chars.count)
+            switch stack[stack.count - 1] {
+            case .code, .interpolation:
+                if chars[i] == "/", i + 1 < chars.count, chars[i + 1] == "/" {
+                    stack.append(.lineComment)
+                    i += 2
                     continue
                 }
-                var j = i + 1
-                while j < chars.count {
-                    if chars[j] == "\\" { j += 2; continue }
-                    if chars[j] == "\"" { j += 1; break }
-                    j += 1
+                if chars[i] == "/", i + 1 < chars.count, chars[i + 1] == "*" {
+                    stack.append(.blockComment(depth: 1))
+                    i += 2
+                    continue
                 }
-                out.append(" ")
-                i = j
-                continue
+                if chars[i] == "#", let start = rawStringStart(i) {
+                    let kind = StringKind.raw(
+                        hashes: start.hashes, multiline: isMultilineQuote(at: start.quoteIndex)
+                    )
+                    stack.append(.string(kind))
+                    i = start.quoteIndex + (isMultilineQuote(at: start.quoteIndex) ? 3 : 1)
+                    continue
+                }
+                if chars[i] == "\"" {
+                    let multiline = isMultilineQuote(at: i)
+                    stack.append(.string(multiline ? .multiline : .ordinary))
+                    i += multiline ? 3 : 1
+                    continue
+                }
+                if case .interpolation = stack[stack.count - 1], chars[i] == ")" {
+                    stack.removeLast()
+                    out.append(chars[i])
+                    i += 1
+                    continue
+                }
+                out.append(chars[i])
+                i += 1
+
+            case .lineComment:
+                if chars[i] == "\n" {
+                    stack.removeLast()
+                    out.append("\n")
+                }
+                i += 1
+
+            case let .blockComment(depth):
+                if chars[i] == "/", i + 1 < chars.count, chars[i + 1] == "*" {
+                    stack[stack.count - 1] = .blockComment(depth: depth + 1)
+                    i += 2
+                    continue
+                }
+                if chars[i] == "*", i + 1 < chars.count, chars[i + 1] == "/" {
+                    if depth == 1 { stack.removeLast() } else { stack[stack.count - 1] = .blockComment(depth: depth - 1) }
+                    i += 2
+                    continue
+                }
+                i += 1
+
+            case let .string(kind):
+                let prefix = interpolationPrefix(for: kind)
+                if matches(i, prefix) {
+                    // 插值表达式是代码：进入 code 语义并把前缀替换为一个空格，表达式内容保留。
+                    out.append(" ")
+                    stack.append(.interpolation)
+                    i += prefix.count
+                    continue
+                }
+                let term = terminator(for: kind)
+                if matches(i, term) {
+                    stack.removeLast()
+                    i += term.count
+                    continue
+                }
+                if case .ordinary = kind, chars[i] == "\\" { i += 2; continue }
+                if case .multiline = kind, chars[i] == "\\" { i += 2; continue }
+                i += 1
             }
-            out.append(c)
-            i += 1
         }
         return String(out)
     }
@@ -1157,6 +1225,54 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         return out.sorted { $0.0 < $1.0 }
     }
 
+    /// C5IR6：`realSymbolReferenceCount` 的**永久声明格式矩阵**——
+    /// 声明排除必须对所有合法空白形式生效，别名/方法引用必须计入。
+    struct AuthorityReferenceRow {
+        let name: String
+        let source: String
+        let expectedCount: Int
+    }
+
+    static let authorityReferenceMatrix: [AuthorityReferenceRow] = [
+        AuthorityReferenceRow(
+            name: "declaration-single-space",
+            source: "public func applyAuthoritativeFieldReadback(", expectedCount: 0
+        ),
+        AuthorityReferenceRow(
+            name: "declaration-double-space",
+            source: "public func  applyAuthoritativeFieldReadback(", expectedCount: 0
+        ),
+        AuthorityReferenceRow(
+            name: "declaration-newline",
+            source: "public func\n    applyAuthoritativeFieldReadback(", expectedCount: 0
+        ),
+        AuthorityReferenceRow(
+            name: "declaration-tab",
+            source: "public func\tapplyAuthoritativeFieldReadback(", expectedCount: 0
+        ),
+        AuthorityReferenceRow(
+            name: "direct-call",
+            source: "try store.applyAuthoritativeFieldReadback(deviceID: id)", expectedCount: 1
+        ),
+        AuthorityReferenceRow(
+            name: "alias-method-reference",
+            source: "let f = store.applyAuthoritativeFieldReadback", expectedCount: 1
+        ),
+        AuthorityReferenceRow(
+            name: "declaration-plus-call",
+            source: "func applyAuthoritativeFieldReadback(a: Int) {}\nstore.applyAuthoritativeFieldReadback(a: 1)",
+            expectedCount: 1
+        ),
+        AuthorityReferenceRow(
+            name: "similar-name-not-counted",
+            source: "store.applyAuthoritativeFieldReadbackExtra(a: 1)", expectedCount: 0
+        ),
+        AuthorityReferenceRow(
+            name: "suffixed-name-not-counted",
+            source: "let applyAuthoritativeFieldReadbackV2 = 1", expectedCount: 0
+        ),
+    ]
+
     /// C5IR5：`directCommandCallsites` 的**永久表驱动回归矩阵**。
     /// 覆盖任务卡点名的 variable / 二元表达式 / 括号表达式 / 函数返回值 / 嵌套 delimiter / unterminated。
     struct DirectCommandParserRow {
@@ -1218,21 +1334,71 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             literals: [], nonLiterals: []
         ),
         DirectCommandParserRow(
+            name: "first-argument-array-literal",
+            source: "sendDirectCommandFrame([0x96])",
+            literals: [], nonLiterals: ["[0x96]"]
+        ),
+        DirectCommandParserRow(
+            name: "first-argument-array-with-comma",
+            source: "sendDirectCommandFrame([0x01, 0x02])",
+            literals: [], nonLiterals: ["[0x01, 0x02]"]
+        ),
+        DirectCommandParserRow(
+            name: "first-argument-dictionary-literal",
+            source: "sendDirectCommandFrame([0x01: 0x96])",
+            literals: [], nonLiterals: ["[0x01: 0x96]"]
+        ),
+        DirectCommandParserRow(
+            name: "first-argument-closure-immediate-call",
+            source: "sendDirectCommandFrame({ 0x96 }())",
+            literals: [], nonLiterals: ["{ 0x96 }()"]
+        ),
+        DirectCommandParserRow(
+            name: "first-argument-subscript",
+            source: "sendDirectCommandFrame(opcodes[0])",
+            literals: [], nonLiterals: ["opcodes[0]"]
+        ),
+        DirectCommandParserRow(
+            name: "unmatched-open-bracket",
+            source: "sendDirectCommandFrame([0x96)",
+            literals: [], nonLiterals: ["<unterminated>"]
+        ),
+        DirectCommandParserRow(
+            name: "unmatched-open-brace",
+            source: "sendDirectCommandFrame({ 0x96)",
+            literals: [], nonLiterals: ["<unterminated>"]
+        ),
+        DirectCommandParserRow(
+            name: "unmatched-open-paren",
+            source: "sendDirectCommandFrame(make(0x96)",
+            literals: [], nonLiterals: ["<unterminated>"]
+        ),
+        DirectCommandParserRow(
             name: "mixed-callsites",
             source: "sendDirectCommandFrame(0x00)\nsendDirectCommandFrame(opcode)",
             literals: ["0x00"], nonLiterals: ["opcode"]
         ),
     ]
 
-    /// C5IR5：**符号引用**计数（剥离注释/字符串后），排除唯一的 `func <name>` 声明本身。
+    /// C5IR6：**符号引用**计数（剥离注释/字符串后），结构化排除声明 range。
     ///
-    /// 不再要求引用后面紧跟 `(`：`let f = store.applyAuthoritativeFieldReadback; try await f(...)`
-    /// 这类方法引用/别名调用会执行同一 mutation，必须同样计入并 fail-closed。
+    /// 声明识别不再依赖 `(?<!func\s)` 的固定单空格：先用 `\bfunc\s+<name>\b` 匹配声明
+    /// （`\s+` 天然跨多空格与换行），记录其 range；再统计 `\b<name>\b` 的**完整 token** 引用，
+    /// 落在任一声明 range 内的引用被排除。方法引用/别名（无调用括号）同样计入。
     static func realSymbolReferenceCount(of name: String, in code: String) -> Int {
         let escaped = NSRegularExpression.escapedPattern(for: name)
-        let pattern = "(?<!func\\s)" + escaped
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return -1 }
-        return regex.numberOfMatches(in: code, range: NSRange(location: 0, length: (code as NSString).length))
+        let whole = NSRange(location: 0, length: (code as NSString).length)
+        guard let referenceRegex = try? NSRegularExpression(pattern: "\\b" + escaped + "\\b"),
+              let declarationRegex = try? NSRegularExpression(pattern: "\\bfunc\\s+" + escaped + "\\b") else {
+            return -1
+        }
+        let declarationRanges = declarationRegex.matches(in: code, range: whole).map(\.range)
+        var count = 0
+        for match in referenceRegex.matches(in: code, range: whole) {
+            if declarationRanges.contains(where: { NSLocationInRange(match.range.location, $0) }) { continue }
+            count += 1
+        }
+        return count
     }
 
 
@@ -1284,6 +1450,21 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             Row(name: "raw-multiline-does-not-hide-following-code",
                 source: "let s = #\"\"\"\n\"#\n\"\"\"#\nsendDirectCommandFrame(0x96)",
                 mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: []),
+            Row(name: "interpolation-call-is-visible",
+                source: "let s = \"\\(sendDirectCommandFrame(0x96))\"",
+                mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: []),
+            Row(name: "interpolation-text-segments-stripped",
+                source: "let s = \"abc\\(x)def\"",
+                mustContain: ["x"], mustNotContain: ["abc", "def"]),
+            Row(name: "raw-interpolation-call-is-visible",
+                source: "let s = #\"\\(0x00) \\#(sendDirectCommandFrame(0x96))\"#",
+                mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: ["0x00"]),
+            Row(name: "multiline-interpolation-call-is-visible",
+                source: "let s = \"\"\"\n\\(sendDirectCommandFrame(0x96))\n\"\"\"",
+                mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: []),
+            Row(name: "nested-string-inside-interpolation-stripped",
+                source: "let s = \"\\(call(\"inner\"))\"",
+                mustContain: ["call("], mustNotContain: ["inner"]),
             Row(name: "code-outside-string-kept",
                 source: "let \(token) = 1",
                 mustContain: [token], mustNotContain: []),
