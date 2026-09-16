@@ -1,7 +1,7 @@
 # 任务卡 HIL-V03-STUDIO-OLED-COMPATIBILITY：正式 Studio × 旧固件图片写入矩阵
 
 计划/WBS：v0.3 客户端 OLED HIL
-状态：`ready / C5 preflight @ 30cfeb8`
+状态：`blocked / R6 physical mismatch; R7 USER-GATE not opened`
 执行 owner：Cursor
 只读验证：Zcode；Codex 验收
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` accepted

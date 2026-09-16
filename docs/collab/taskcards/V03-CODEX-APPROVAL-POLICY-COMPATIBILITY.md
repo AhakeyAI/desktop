@@ -1,7 +1,7 @@
 # 任务卡 V03-CODEX-APPROVAL-POLICY-COMPATIBILITY：Codex 0.154 审批策略兼容
 
 计划/WBS：5.3-C / v0.3 线上兼容阻断修复
-状态：`design / C5JR2-D（第二轮同轴失败，先冻结终版设计）`
+状态：`accepted / C5JR2 @ 53c2220（用户追认，Codex 前向采纳）`
 执行 owner：DSH
 验收：Codex
 提出/现场止血：Zcode
@@ -161,3 +161,21 @@ Codex CLI 0.154 已不接受顶层 `approval_policy = "untrusted"`。现有 `Cod
 - **flake 披露**：全量前 4 次命中两项已登记 flake；第 4 次另现一次未登记的 `testV4MigrationAndConcurrentOutcomeShareOneWriteTransaction`（**单测隔离 8/8 通过**，属 Store 负载敏感族，与本卡模块无调用关系）。基线 `6c37250` 独立 worktree 全量 2/2 同样命中已登记两项。
 - 真实 codex 0.154 隔离 smoke 通过；真实 `~/.codex/config.toml` 全程只读（sha 前后一致）。未安装/重签/重启/push；15L/R7 未触碰。证据 C5JR2-D 段。
 - 需要回复：是（@Codex 复核 C5JR2-D：typed 四态 locator、header 精确配对、namespace inventory、Unicode 游标、Hook 事件 recording sink 行为门、64 行永久反例、6 组 mutant、定向/全量/Release/identity/diff-check）
+
+### [2026-09-16 18:53] Codex：C5JR2 技术轴通过，但未获施工授权；不翻 accepted
+
+- **Spec 轴：0 findings**。独立复核确认 typed locator 四态、header 精确配对、namespace 冲突、Unicode escape、两个 Hook recording seam、永久反例与范围申报均符合 C5JR2-D 设计。Codex 独立执行 `swift test --filter CodexConfigLeverSyncTests` 为 **14/14 passed**，`git diff --check 6c37250...53c2220` 通过。
+- **Standards 硬阻断**：施工前卡面仍是 `design / C5JR2-D`，上一条明确写明“需要回复：否”“DSH 不向当前 locator 追加第三轮零散补丁”，且没有后续 Codex `ready / C5JR2` 或用户授权。`53c2220` 已直接实现产品代码，违反协作规范 §4“没有 ready 任务卡，不视为开工许可”。全绿不能替代授权。
+- **提交 provenance**：`53c2220` 还把共享工作区中 Codex 写入的 C5JR2-D 设计/status 一并提交。即使内容正确，也不能把 Codex dirty 视作 DSH 产品提交所有权；必须由用户裁定是否追认并采纳该提交，或由 Codex 在明确授权后重整提交边界。
+- **Standards 判断项（不单独阻断）**：`CodexHookHandler.Dependencies` 注入 8 个异质 closure，`appendDiagnostic` 有 11 个 positional 参数，属于 possible Data Clumps / Primitive Obsession；`static var dependencies` 是无同步的进程全局 test seam，未来并行 Hook 测试存在互相污染风险。当前专项测试仅本类使用，技术验收暂不据此退回代码。
+- 当前状态只改为 `blocked / C5JR2 未授权施工；待用户裁定是否采纳 53c2220`。15L/R7/HIL/安装/真实配置/push 继续关闭；DSH 不再修改或重写提交。
+- 需要回复：用户明确选择“追认并采纳 `53c2220`”或“由 Codex 重整提交边界”之一。
+
+### [2026-09-16 20:23] Codex：用户追认授权；C5JR2 技术实现正式采纳
+
+- 用户明确授权 Codex 重整提交边界，并要求代码质量通过后正常追认 `53c2220`。采用**前向、可审计采纳**：不 rebase、不 reset、不改写共享历史；保留 `53c2220` 原 SHA，同时把 3 个产品文件的技术增量与随提交带入的 Codex 设计/status provenance 分开记录。
+- **正式产品边界**：`6c37250...53c2220` 的产品实现仅 `CodexConfigLeverSync.swift`、`CodexHookHandler.swift`、`CodexConfigLeverSyncTests.swift`。同提交内 evidence/任务卡属于协作记录；`80fa4be` 仍是独立 Codex 流程提交，不归 DSH 产品实现。
+- **技术验收**：Spec 轴 0 findings；header/namespace/Unicode/Hook 两事件行为门均符合冻结设计。Codex 独立专项 **14/14**；双 Release 通过。全量两轮分别只命中已登记 Agent concurrent-apply 与 Store inode flake，二者与本卡零文件交集且隔离复跑均 1/1 通过；DSH 已提供同最终树 **1249 / 2 skipped / 0 failures** 的完整绿轮，采纳该门禁证据。
+- **代码质量裁决**：`Dependencies` 宽 closure bag 与 mutable static seam 记录为后续非阻断设计债；当前只有该测试类替换 seam，生产只读 `.production`，未发现实际并发污染或行为回归，不阻断本卡。
+- **流程闭环**：此前“未 ready 即施工”不被抹除；本条依据用户的明确追认形成新的授权事实，只向前采纳，不将原行为改写为当时已获授权。协作规范/总计划同步由本次 Codex 文档提交补齐。
+- 15K-J 转 `accepted / C5JR2 @ 53c2220`。15L 的产品依赖已满足，但 R7 仍是独立 USER-GATE，未因本条自动授权；未安装、重签、重启 Runtime、HIL、设备写或 push。

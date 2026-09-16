@@ -15,6 +15,7 @@
 | [`runtime-v0.2-collaboration-brief.md`](runtime-v0.2-collaboration-brief.md) | Runtime 改动与 v0.2 协作者导读 | 便于交接，不替代本文、架构规格或任务卡 |
 | [`ahakey-runtime-architecture.md`](ahakey-runtime-architecture.md) | Runtime 深模块、设备所有权、事务与安全规格 | 对 Runtime 内部设计具有约束力 |
 | [`research/openmicrokbd-session-activation.md`](research/openmicrokbd-session-activation.md) | OpenMicro/OpenMicroKBD 研究证据 | 只提供设计输入，不直接驱动实现 |
+| [`codex-kimi-cursor-collaboration.md`](codex-kimi-cursor-collaboration.md) | 多 agent owner、状态、验收与设计检查点流程 | 约束施工授权和协作生命周期；不替代本文的产品依赖与发布顺序 |
 
 从 2026-08-22 起执行单一写入规则：
 
@@ -22,6 +23,7 @@
 - “对比 Rhino 与主线固件进度”任务保持 idle，只提供基线、差异和历史决定，不再改文件。
 - “调研 openmicrokhd 会话唤起机制”任务保持 idle，只保留研究结论，不再实现 `SessionRouting`、`TargetLease` 或 Hook。
 - 后续若需要专题复核，由主任务下发只读问题；任何实现必须回到本任务按一个批次、一个 owner、一个验收门禁执行。
+- 验收采用“证据裁决 → 直接触发点 → 系统根因 → 漏检门禁 → 影响面 → 冻结通过面 → 可执行返工单”的诊断闭环；同一语义轴连续两轮未通过时先进入 docs-only 设计检查点，只有任务卡明确为 `ready` 或用户给出精确授权后才能施工。
 
 当前工作区进度：
 
