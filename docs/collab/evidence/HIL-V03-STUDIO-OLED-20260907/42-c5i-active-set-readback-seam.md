@@ -419,3 +419,72 @@ C5IR3 产品 dispatcher 已 accepted/frozen；本段为 `C5IR4`，**Sources 零�
 | `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
 | `zsh scripts/check-release-identity.sh` | `release identity ok` |
 | 增量 `7d89c4a` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |
+
+## 12. C5IR5（tests/docs-only：raw multiline 分流、authority 符号引用冻结、永久 parser 矩阵）
+
+`C5IR3` 的 unified dispatcher / callback source proof 继续 accepted/frozen；本段为 `C5IR5`，
+**Sources 零改**。
+
+### 12.1 P1：raw multiline 终止符解析
+
+原实现对**所有** raw string 都用单引号终止符 `"` + hashes，把 `#""" … """#`（raw multiline）
+当成 raw single-line，于是体内合法的 `"#` 会提前结束剥离，随后的 `"""` 又会开启一段吞掉真实代码的
+字符串——被吞掉的 callsite 对 gate 不可见。
+
+现在按 **raw single / raw multiline 的实际 delimiter 分流**：
+
+```swift
+let isMultiline = start.quoteIndex + 2 < chars.count
+    && chars[start.quoteIndex + 1] == "\"" && chars[start.quoteIndex + 2] == "\""
+let term = Array((isMultiline ? "\"\"\"" : "\"") + String(repeating: "#", count: start.hashes))
+var j = start.quoteIndex + (isMultiline ? 3 : 1)
+```
+
+raw string 不处理反斜杠转义，终止只看精确 delimiter。
+
+### 12.2 P1：authority 别名/方法引用可绕过
+
+原 gate 只统计「紧跟 `(` 的直接调用」，`let f = store.applyAuthoritativeFieldReadback` 这类
+方法引用/别名会执行同一 mutation 却计数为 0。现改为 **符号引用计数**
+`realSymbolReferenceCount(of:in:)`（pattern `(?<!func\s)<name>`，**不再要求 `(`**），
+对 `Sources/**.swift` 每份剥离后的源码汇总，除唯一 `func` 声明外必须为 0。
+
+### 12.3 P1：永久 parser 回归矩阵
+
+新增 `directCommandParserMatrix`（11 行）并**永久驱动** `directCommandCallsites`：
+literal / literal-with-newline / variable / binary-expression `0x00 | 0x96` /
+parenthesized-expression `(0x00)` / function-result `Self.opcode()` /
+nested-delimiters-in-later-argument / nested-delimiters-in-first-argument / unterminated /
+declaration-excluded / mixed-callsites。矩阵在生产源码形态之外独立锁定 parser 行为，
+不再只依赖临时 mutant。
+
+同时给 lexer 表补三行 raw multiline：`raw-multiline-with-inner-hash-quote`、
+`raw-multiline-extra-hash`、`raw-multiline-does-not-hide-following-code`
+（后者正是「提前终止导致吞掉真实 callsite」的反例）。
+
+### 12.4 反证（mutant，全部原子化 patch→run→restore+sha）
+
+| 补丁 | 结果 |
+|---|---|
+| N1：还原 raw string 单/多行分流 | lexer 表 **3 failures**，含 `raw-multiline-does-not-hide-following-code`（真实 callsite 被吞） |
+| N2：新增 `let alias = store.applyAuthoritativeFieldReadback`（**无**调用括号） | authority gate **1 failure**（`["Sources/Agent/AhaKeyAgent.swift:1"]`）——旧的 call-only 门会漏检 |
+| N3：把 parser 还原为「首个无空白 token」 | 永久矩阵 **5+ rows 失败**（binary / parenthesized / function-result / nested-first-arg 全部误判） |
+
+**说明（诚实记录）**：Swift 禁止对 actor-isolated 方法做 partial application
+（`store.applyAuthoritativeFieldReadback` 直接赋值会编译失败：*can not be partially applied*），
+因此 N2 的 alias 反证放在**未激活编译区** `#if C5IR5_ALIAS_MUTANT`：符号引用真实存在于源码文本中
+且不带调用括号——gate 是源码文本门，其行为与是否参与编译无关。
+
+产品 sha256 `91ea8b94…1ac1`；测试文件 sha256 备份复核；三次 mutant 后
+`git status --porcelain -- ahakeyconfig-mac/Sources` 为空。
+
+### 12.5 C5IR5 门禁
+
+| 项 | 结果 |
+|---|---|
+| Sources 改动 | **零**（`git status --porcelain -- ahakeyconfig-mac/Sources` 为空） |
+| 定向（19 类） | **458 / 458，0 失败** |
+| 全量 Swift | **第 1 次即 1227 / 2 skipped / 0 failures（全绿）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| 增量 `4093ae1` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |

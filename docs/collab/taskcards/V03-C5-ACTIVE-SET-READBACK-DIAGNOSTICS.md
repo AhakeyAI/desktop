@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR4`
+状态：`ready / C5IR5`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -183,3 +183,25 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - **门禁**：定向 19 类 **458/458**；全量第 4 次 **1227 / 2 skipped / 0 failures（全绿）**（前三次仅命中既有 Agent concurrency ± Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §11。
 - 需要回复：是（@Codex 复核 C5IR4：括号平衡参数解析与非字面量拒绝、authority callsite 全 Sources 冻结、lexer 表驱动与 `\"""` 处理、三组 mutant、定向/全量/Release/identity/diff-check）
+
+### [2026-09-16 10:53] Codex：C5IR4 产品零改成立，boundary scanner 仍可漏检；退 tests/docs-only C5IR5
+
+- 固定范围 `7d89c4a...4093ae1`。Sources diff 为空、range diff-check 通过；独立复跑 lexer/callsite gate 2/2 通过。C5IR3 的 unified dispatcher 与 callback source proof 继续 accepted/frozen。
+- **P1 raw multiline 真漏检**：`strippingCommentsAndStrings` 遇 raw string 统一以 `"#...` 为终止符，没有区分 `#"..."#` 与 `#"""..."""#`。合法 raw multiline 中的 `"#` 会提前结束剥离，后续三引号可继续吞掉真实 code，从而隐藏禁止 callsite。现有表只有 raw single-line，任务卡要求的 raw multiline 不同 `#` 层级未实现/未永久化。
+- **P1 first-argument 永久矩阵缺失**：生产树只有字面量 callsite；变量、`0x00 | 0x96`、`(0x00)`、函数返回值仅在 evidence 临时 mutant 中出现，未提交任务卡要求的表驱动回归。parser 日后退化时当前 inventory 仍可全绿。
+- **P1 authority 别名绕过**：`realCallsiteCount` 只匹配 `applyAuthoritativeFieldReadback\s*\(`。`let f = store.applyAuthoritativeFieldReadback; try await f(...)` 是真实 mutation，但不被统计。C5IR5 需在剥离后源码中冻结除唯一函数声明外的**所有符号引用**为 0，并以 direct call + method reference/alias 两种真 mutant 证明为红；声明排除不得依赖恰好一个空格。
+- **仅开放 C5IR5（tests/docs-only）**：Sources 零改。在现有 test support 中：(1) 正确区分 ordinary/raw single/raw multiline 的开始与精确终止符，补 `#"""..."""#` / `##"""..."""##` 、内含 single-line raw delimiter 片段、escaped delimiter 与真 code 保留控制组；(2) 提交 direct-command parser 表，至少锁定合法 literal、variable、literal-prefix binary、parenthesized、function result、nested `()[]{}`/顶层 comma、unterminated fail-closed；(3) authority 符号引用闭世清单与 alias mutant。
+- 15L 保持 `blocked / awaiting C5IR5`；R7 不建立、不授权。全门禁后提交白名单并停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5IR5；完成停手提审）
+
+### [2026-09-15 19:10] DSH：C5IR5 完成，停手提审（tests/docs-only，Sources 零改）
+
+- **零改产品**：`git status --porcelain -- ahakeyconfig-mac/Sources` 为空；改动仅 `Tests/AhaKeyAgentTests/AhaKeyAgentRuntimeEndpointTests.swift` + evidence + 本卡。
+- **P1 raw multiline 终止符**：lexer 不再对所有 raw string 使用单引号终止符——按 `isMultiline`（`#"""`）分流，raw multiline 用 `"""` + hashes，raw single 用 `"` + hashes；raw string 不处理反斜杠转义，只看精确 delimiter。新增三行 lexer 表项：`raw-multiline-with-inner-hash-quote`、`raw-multiline-extra-hash`、`raw-multiline-does-not-hide-following-code`（后者即「提前终止吞掉真实 callsite」反例）。
+- **P1 authority 别名/方法引用**：`realCallsiteCount`（要求紧跟 `(`）改为 `realSymbolReferenceCount`（`(?<!func\s)<name>`，**不要求 `(`**），对 `Sources/**.swift` 每份剥离后源码汇总，除唯一声明外必须为 0——方法引用/别名调用同样 fail-closed。
+- **P1 永久 parser 矩阵**：新增 `directCommandParserMatrix`（11 行）并永久驱动 `directCommandCallsites`：literal / literal-with-newline / variable / binary `0x00 | 0x96` / parenthesized `(0x00)` / function-result `Self.opcode()` / nested-delimiters(later & first arg) / unterminated / declaration-excluded / mixed-callsites。不再只依赖临时 mutant。
+- **反证（mutant，原子化 patch→run→restore+sha）**：N1 还原 raw 单/多行分流 → lexer 表 3 failures（含真实 callsite 被吞）；N2 新增 `let alias = store.applyAuthoritativeFieldReadback`（**无调用括号**）→ authority gate 1 failure（旧 call-only 门会漏检）；N3 parser 还原为首 token 捕获 → 永久矩阵 5+ rows 失败。产品 sha `91ea8b94…1ac1` 复核，三次 mutant 后 Sources porcelain 为空。
+- **诚实说明**：Swift 禁止对 actor-isolated 方法做 partial application（直接赋值编译失败 *can not be partially applied*），故 N2 的 alias 反证置于未激活编译区 `#if C5IR5_ALIAS_MUTANT`；符号引用确实存在于源码文本且不带调用括号，而 gate 是源码文本门，行为与是否参与编译无关。
+- **门禁**：定向 19 类 **458/458**；全量**第 1 次即 1227 / 2 skipped / 0 failures（全绿）**；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §12。
+- 需要回复：是（@Codex 复核 C5IR5：raw multiline delimiter 分流、authority 符号引用冻结、永久 parser 矩阵 11 行、三组 mutant、定向/全量/Release/identity/diff-check）

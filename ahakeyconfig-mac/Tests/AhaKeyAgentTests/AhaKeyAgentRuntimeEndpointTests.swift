@@ -949,15 +949,29 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         // 只查类型名/writeConfirmed/pageFieldBaselines 无法拦住新增的 `applyAuthoritativeFieldReadback(`。
         let sources = try Self.strippedSources(packageRoot: packageRoot)
         XCTAssertFalse(sources.isEmpty, "必须能枚举 Sources 源码")
-        var authorityCallsites: [String] = []
+        var authorityReferences: [String] = []
         for (relative, text) in sources {
-            let count = Self.realCallsiteCount(of: "applyAuthoritativeFieldReadback", in: text)
-            if count != 0 { authorityCallsites.append("\(relative):\(count)") }
+            // 符号引用（含方法引用/别名）计数，除唯一声明外必须为 0。
+            let count = Self.realSymbolReferenceCount(of: "applyAuthoritativeFieldReadback", in: text)
+            if count != 0 { authorityReferences.append("\(relative):\(count)") }
         }
         XCTAssertTrue(
-            authorityCallsites.isEmpty,
-            "产品代码不得出现 authority field readback 调用（含 Shared）：\(authorityCallsites)"
+            authorityReferences.isEmpty,
+            "产品代码不得引用 authority field readback（含方法引用/别名，Shared 同样适用）：\(authorityReferences)"
         )
+
+        // (2c) C5IR5：解析器自身的永久回归矩阵（不依赖生产源码当前形态）。
+        for row in Self.directCommandParserMatrix {
+            let inventory = Self.directCommandCallsites(in: row.source)
+            XCTAssertEqual(
+                inventory.literals, row.literals,
+                "\(row.name) literals 不符，实得 \(inventory.literals)"
+            )
+            XCTAssertEqual(
+                inventory.nonLiterals, row.nonLiterals,
+                "\(row.name) nonLiterals 不符，实得 \(inventory.nonLiterals)"
+            )
+        }
 
         // (3) 无 View/Studio/assembler 旁路。
         for forbidden in [
@@ -1016,8 +1030,16 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             }
             if c == "/", i + 1 < chars.count, chars[i + 1] == "*" { blockDepth = 1; i += 2; continue }
             if c == "#", let start = rawStringStart(i) {
-                let term = Array("\"" + String(repeating: "#", count: start.hashes))
-                var j = start.quoteIndex + 1
+                // C5IR5：raw string 必须按**实际 delimiter** 分流——
+                // raw multiline `#"""…"""#` 的终止符是 `"""` + hashes，
+                // 不能当成 raw single-line 的 `"` + hashes，否则体内合法的 `"#` 会提前结束剥离。
+                // raw string 不处理反斜杠转义，终止只看精确 delimiter。
+                let hashSuffix = String(repeating: "#", count: start.hashes)
+                let isMultiline = start.quoteIndex + 2 < chars.count
+                    && chars[start.quoteIndex + 1] == "\""
+                    && chars[start.quoteIndex + 2] == "\""
+                let term = Array((isMultiline ? "\"\"\"" : "\"") + hashSuffix)
+                var j = start.quoteIndex + (isMultiline ? 3 : 1)
                 while j < chars.count {
                     if matches(j, term) { j += term.count; break }
                     j += 1
@@ -1135,10 +1157,80 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         return out.sorted { $0.0 < $1.0 }
     }
 
-    /// 真实 callsite 计数（剥离注释/字符串后），排除函数声明本身。
-    static func realCallsiteCount(of name: String, in code: String) -> Int {
+    /// C5IR5：`directCommandCallsites` 的**永久表驱动回归矩阵**。
+    /// 覆盖任务卡点名的 variable / 二元表达式 / 括号表达式 / 函数返回值 / 嵌套 delimiter / unterminated。
+    struct DirectCommandParserRow {
+        let name: String
+        let source: String
+        let literals: [String]
+        let nonLiterals: [String]
+    }
+
+    static let directCommandParserMatrix: [DirectCommandParserRow] = [
+        DirectCommandParserRow(
+            name: "literal",
+            source: "sendDirectCommandFrame(0x94, payload: [0x01])",
+            literals: ["0x94"], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "literal-with-newline",
+            source: "sendDirectCommandFrame(\n    0x97\n)",
+            literals: ["0x97"], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "variable",
+            source: "let opcode: UInt8 = 0x96\nsendDirectCommandFrame(opcode)",
+            literals: [], nonLiterals: ["opcode"]
+        ),
+        DirectCommandParserRow(
+            name: "binary-expression",
+            source: "sendDirectCommandFrame(0x00 | 0x96)",
+            literals: [], nonLiterals: ["0x00 | 0x96"]
+        ),
+        DirectCommandParserRow(
+            name: "parenthesized-expression",
+            source: "sendDirectCommandFrame((0x00))",
+            literals: [], nonLiterals: ["(0x00)"]
+        ),
+        DirectCommandParserRow(
+            name: "function-result",
+            source: "sendDirectCommandFrame(Self.opcode())",
+            literals: [], nonLiterals: ["Self.opcode()"]
+        ),
+        DirectCommandParserRow(
+            name: "nested-delimiters-in-later-argument",
+            source: "sendDirectCommandFrame(0x00, payload: [UInt8([0x01, 0x02])])",
+            literals: ["0x00"], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "nested-delimiters-in-first-argument",
+            source: "sendDirectCommandFrame(makeOpcode(0x96), payload: [])",
+            literals: [], nonLiterals: ["makeOpcode(0x96)"]
+        ),
+        DirectCommandParserRow(
+            name: "unterminated",
+            source: "sendDirectCommandFrame(",
+            literals: [], nonLiterals: ["<unterminated>"]
+        ),
+        DirectCommandParserRow(
+            name: "declaration-excluded",
+            source: "func sendDirectCommandFrame(_ opcode: UInt8, payload: [UInt8] = []) {",
+            literals: [], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "mixed-callsites",
+            source: "sendDirectCommandFrame(0x00)\nsendDirectCommandFrame(opcode)",
+            literals: ["0x00"], nonLiterals: ["opcode"]
+        ),
+    ]
+
+    /// C5IR5：**符号引用**计数（剥离注释/字符串后），排除唯一的 `func <name>` 声明本身。
+    ///
+    /// 不再要求引用后面紧跟 `(`：`let f = store.applyAuthoritativeFieldReadback; try await f(...)`
+    /// 这类方法引用/别名调用会执行同一 mutation，必须同样计入并 fail-closed。
+    static func realSymbolReferenceCount(of name: String, in code: String) -> Int {
         let escaped = NSRegularExpression.escapedPattern(for: name)
-        let pattern = "(?<!func\\s)" + escaped + "\\s*\\("
+        let pattern = "(?<!func\\s)" + escaped
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return -1 }
         return regex.numberOfMatches(in: code, range: NSRange(location: 0, length: (code as NSString).length))
     }
@@ -1183,6 +1275,15 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             Row(name: "raw-string-extra-hash",
                 source: "let s = ##\"\(token)\"##\nlet a = 1",
                 mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "raw-multiline-with-inner-hash-quote",
+                source: "let s = #\"\"\"\n\"#\(token)\n\"\"\"#\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "raw-multiline-extra-hash",
+                source: "let s = ##\"\"\"\n\"#\(token)\n\"\"\"##\nlet a = 1",
+                mustContain: ["let a = 1"], mustNotContain: [token]),
+            Row(name: "raw-multiline-does-not-hide-following-code",
+                source: "let s = #\"\"\"\n\"#\n\"\"\"#\nsendDirectCommandFrame(0x96)",
+                mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: []),
             Row(name: "code-outside-string-kept",
                 source: "let \(token) = 1",
                 mustContain: [token], mustNotContain: []),
