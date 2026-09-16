@@ -881,7 +881,7 @@ AhaType
 | 5.0 | **已完成**：冻结 RuntimePolicy、Snapshot、Event、ConfigurationPackage 与 revision 语义 | R0 interface v1.1 | 无 |
 | 5.1 | **已完成**：SQLite WAL journal、内容寻址资源仓库、配额与崩溃恢复 | 持久事务内核 | 5.0 |
 | 5.2 | **已验收 @ `1ac1524`**：受限 Hook socket、libxpc XPC、签名 peer policy、握手/重放与双签名 smoke | 生产 seam | 5.0-5.1 |
-| 5.3 | **已验收 @ `b49e83e`**：RuntimeOrchestrator 接入 AhaType、AI Hook/批准、灯效与防休眠 | 单一后台进程 | 5.2 |
+| 5.3 | **主线已验收 @ `b49e83e`；v0.3 兼容修复待办**：Codex CLI 0.154 已移除 `approval_policy=untrusted`，正式产品须经 `V03-CODEX-APPROVAL-POLICY-COMPATIBILITY` 将手动档收敛为 `on-request`、自动档保持 `never`，并以隔离 config fixture 锁定合法值集合 | 单一后台进程 | 5.2 |
 | 5.4 | **已验收 @ `762863d`**：策略化生命周期、Studio 退出保活与后台模块启停 | 生命周期测试 | 5.3 |
 | 5.5 | **已验收 @ `ea770d6`**：BLE/USB、协商、身份、命令队列、waiter 与断线恢复迁入 Runtime | 唯一设备 owner | 5.1-5.3 |
 | 5.6 | **静态实现已验收 @ `19eb4dc`，待 HIL-CONFIG USER-GATE**：声明式配置规划、图片/基础配置事务、取消与恢复 | 可恢复配置事务 | 5.5、4.1 |
