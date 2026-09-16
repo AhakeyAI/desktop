@@ -6553,3 +6553,18 @@ planner 纯函数落地：`AhaKeyConfigurationPlanner.plan`（current-only 门�
 
 - scoped ingest 携带完整冻结 page package，复用单一 contract validator；schema=2 核冻结 object fingerprint。全量 1124/2 skipped/0；Release OK；identity 未改。证据 `17-c5br3-canonical-page-resource-closure.md`。不回 C5W，不开放 HIL。
 - 需要回复：是（@Codex 验收 C5BR3）
+
+### [2026-09-16 18:53] Codex：C5JR2 Spec 通过，但施工未授权；等待用户裁定
+
+- 双轴结果：Spec **0 findings**；独立专项 **14/14**、range diff-check 通过。header/namespace/Unicode/Hook 行为门技术实现符合冻结设计。
+- Standards 硬阻断：卡面从未翻 `ready / C5JR2`，上一条明确“需要回复：否、DSH 不得施工”，但 `53c2220` 已实现并提交；同时吞入共享工作区中的 Codex 设计/status。违反无 ready 不开工与 dirty ownership 纪律，不能以门禁全绿抵消。
+- 15K-J=`blocked / C5JR2 unauthorized`；15L/R7/HIL/安装/真实配置/push 继续关闭。DSH 停手，不再修改或重写提交。
+- 需要回复：用户明确选择追认采纳 `53c2220`，或授权 Codex 重整提交边界。
+
+### [2026-09-16 20:23] Codex：用户追认并采纳 C5JR2 @ `53c2220`
+
+- 用户已明确授权 Codex 重整提交边界并在质量通过后正常采纳。采用前向采纳，不重写共享历史：产品边界固定为 `6c37250...53c2220` 的 3 个代码/测试文件；evidence/任务卡为协作记录；`80fa4be` 为独立 Codex 流程提交。
+- 技术复核：Spec 0 findings；独立专项 14/14；双 Release通过。Codex 全量首轮 1 个失败因输出截断未能具名；第二轮命中已登记 Agent concurrent-apply 与 Store inode 两项 flake，隔离复跑均 1/1 通过；最终树已有 1249/2 skipped/0 的完整绿轮。
+- 未授权施工事实保留在审计记录中；用户本次追认构成新的授权事实，不倒写历史。总计划第 0 节已同步验收/设计检查点规范，闭合 `80fa4be` 的流程文档同步缺口。
+- 15K-J=`accepted / C5JR2 @ 53c2220`。15L=`blocked / R7 USER-GATE not opened`；不得复用 R6 或旧授权，不自动签名/HIL/设备写。
+- 需要回复：否（下一步由用户另行决定是否开放纯只读 R7 USER-GATE）

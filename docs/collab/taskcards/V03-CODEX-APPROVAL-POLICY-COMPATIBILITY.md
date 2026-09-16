@@ -175,7 +175,7 @@ Codex CLI 0.154 已不接受顶层 `approval_policy = "untrusted"`。现有 `Cod
 
 - 用户明确授权 Codex 重整提交边界，并要求代码质量通过后正常追认 `53c2220`。采用**前向、可审计采纳**：不 rebase、不 reset、不改写共享历史；保留 `53c2220` 原 SHA，同时把 3 个产品文件的技术增量与随提交带入的 Codex 设计/status provenance 分开记录。
 - **正式产品边界**：`6c37250...53c2220` 的产品实现仅 `CodexConfigLeverSync.swift`、`CodexHookHandler.swift`、`CodexConfigLeverSyncTests.swift`。同提交内 evidence/任务卡属于协作记录；`80fa4be` 仍是独立 Codex 流程提交，不归 DSH 产品实现。
-- **技术验收**：Spec 轴 0 findings；header/namespace/Unicode/Hook 两事件行为门均符合冻结设计。Codex 独立专项 **14/14**；双 Release 通过。全量两轮分别只命中已登记 Agent concurrent-apply 与 Store inode flake，二者与本卡零文件交集且隔离复跑均 1/1 通过；DSH 已提供同最终树 **1249 / 2 skipped / 0 failures** 的完整绿轮，采纳该门禁证据。
+- **技术验收**：Spec 轴 0 findings；header/namespace/Unicode/Hook 两事件行为门均符合冻结设计。Codex 独立专项 **14/14**；双 Release 通过。Codex 全量首轮为 **1249 / 2 skipped / 1 failure**，因输出截断未能具名；第二轮明确命中已登记 Agent concurrent-apply 与 Store inode 两项 flake，二者与本卡零文件交集且隔离复跑均 1/1 通过；DSH 已提供同最终树 **1249 / 2 skipped / 0 failures** 的完整绿轮，采纳该门禁证据。
 - **代码质量裁决**：`Dependencies` 宽 closure bag 与 mutable static seam 记录为后续非阻断设计债；当前只有该测试类替换 seam，生产只读 `.production`，未发现实际并发污染或行为回归，不阻断本卡。
 - **流程闭环**：此前“未 ready 即施工”不被抹除；本条依据用户的明确追认形成新的授权事实，只向前采纳，不将原行为改写为当时已获授权。协作规范/总计划同步由本次 Codex 文档提交补齐。
 - 15K-J 转 `accepted / C5JR2 @ 53c2220`。15L 的产品依赖已满足，但 R7 仍是独立 USER-GATE，未因本条自动授权；未安装、重签、重启 Runtime、HIL、设备写或 push。

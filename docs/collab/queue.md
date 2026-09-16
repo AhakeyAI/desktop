@@ -46,8 +46,9 @@
 | 15I-R1 | `V021-BLE-WAKE-RECOVERY` | Cursor；Codex 验收 | v0.2.1 BLE lifecycle | accepted / R1 product | `88e02aa`；P2 残留不阻断；HIL 归新候选 |
 | 15I-R2 | `V021-RUNTIME-SIGPIPE-SURVIVAL` | Cursor；Codex 验收 | v0.2.1 Runtime 稳定性 | accepted / R3 | `1ed560b`；独立 Survival 10×13/13、Hook 4/4、XPC 22/22、BLE 26/26、全量 750/0、双 Release |
 | 15J | `RELEASE-DMG-VERIFIER-CLEANUP` | Cursor；Codex 验收 | release tooling hygiene | accepted / product | `0b4b5e1`；失败路径 detach 收口；不再阻断重冻结 |
-| 15K | `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` | Cursor；Codex 验收 | v0.3 客户端 OLED | ready / C1R1 | `4fda27b` 未通过；密封协商事实贯穿 Runtime、单一 profile、set 几何和 ingest/apply fail-closed |
-| 15L | `HIL-V03-STUDIO-OLED-COMPATIBILITY` | Cursor；Zcode 只读验证；Codex 验收 | v0.3 OLED HIL | draft / USER-GATE | 15K accepted；正式 Studio UI 三类旧固件矩阵，不得以专用 HIL 驱动替代 |
+| 15K | `V03-STUDIO-OLED-LEGACY-COMPATIBILITY` | Cursor；Codex 验收 | v0.3 客户端 OLED C1-C4 | accepted / C4 @ `30cfeb8` | C1–C4 已验收；C5 后续切片由独立子卡记录 |
+| 15K-J | `V03-CODEX-APPROVAL-POLICY-COMPATIBILITY` | DSH；Codex 验收 | 5.3-C / v0.3 线上兼容 | accepted / C5JR2 @ `53c2220` | 用户追认；typed locator、namespace/Unicode、两 Hook 行为门与独立验证通过 |
+| 15L | `HIL-V03-STUDIO-OLED-COMPATIBILITY` | DSH；Zcode 只读验证；Codex 验收 | v0.3 OLED C5 HIL | blocked / R7 USER-GATE not opened | 15K-J 已 accepted；下一步仅可另请纯只读 R7 gate，旧授权不可复用 |
 | 16 | `WBS-5.8-PURE-HARDWARE` | Cursor | 5.8 / v0.4 | draft | WBS 2 + 4.3 accepted；不阻塞 v0.2/v0.3 |
 | 17 | `WBS-5.10-WINDOWS-SEAM` | Cursor | 5.10 + 4.7 / v1.0 | draft | v0.5、5.9A accepted；先冻结 Windows seam |
 | 18 | `WBS-5.9-INSTALL-MIGRATION` | Cursor | 5.9B / v1.0 | draft / USER-GATE | 5.8、4.8、5.9A、5.10 accepted；完整权限迁移窗口 |
