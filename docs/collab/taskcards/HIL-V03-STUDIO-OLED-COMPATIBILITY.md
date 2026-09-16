@@ -2,7 +2,7 @@
 
 计划/WBS：v0.3 客户端 OLED HIL
 状态：`blocked / R6 physical mismatch; R7 USER-GATE not opened`
-执行 owner：Cursor
+执行 owner：DSH
 只读验证：Zcode；Codex 验收
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` accepted
 基线：从该卡 accepted 产品提交冻结签名 HIL 候选；不得使用专用 desired-config 驱动替代正式 UI
