@@ -113,3 +113,88 @@ fail-safe 语义由 typed `Outcome` 显式表达（不再只有 `try?` 静默）
   与「config 是否能被 0.154 解析」是两个问题；本卡只冻结可写取值集合与解析通过性。
 - 未安装 / 未重签 / 未重启 Runtime / 未 push / 未动已安装 app 与现场备份；
   真实 `~/.codex/config.toml` 全程只读（sha256 前后一致）。
+
+---
+
+# C5JR1（返工）：byte-preserving TOML locator + 访问控制结构门
+
+- 返工基线：`d9d117c5990428a9db68d31ded6d8a010847be3d`（C5J 首次提交）
+- 退审范围：`5963fcd...d9d117c`；Standards 1 项 + Spec 4 项 blocking，全部在本轮闭合
+- 白名单：仅 `Sources/Agent/CodexConfigLeverSync.swift`、`Tests/AhaKeyAgentTests/CodexConfigLeverSyncTests.swift`、本 evidence、本卡
+
+## R1. 逐条闭合
+
+| 退审 finding | 处置 |
+|---|---|
+| **Spec P1**：逐行 `hasPrefix("[")` 误判 section，多行字符串/跨行 array 内的 `[` 会把 policy 插进 value 内部 | 改为**单次 byte-preserving TOML locator**（`TomlPolicyLocator`）：只有「语句起始且不在任何 value 内部」的 `[` 才是 table header；多行 basic/literal string、跨行 array、inline table、注释全部被正确消费跳过 |
+| **Spec P2**：`.newlines` 拆分 + `
+` 拼回破坏 CRLF/CR | 不再拆分/重排：只对目标 value token 做 `replaceSubrange`，或在精确 byte offset `insert`；LF/CRLF/CR 与尾换行原样保留；插入时按文件检测到的换行风格 |
+| **Spec P2**：同值幂等与行尾注释不成立 | 幂等改为**按 TOML 值**判定（解析 value token 的解码值）；切换时只替换字符串 value token，key 周边空白、`=` 两侧空格、引号风格以外的注释与其它字节不动 |
+| **Spec P2**：调用点结构门可假绿（换行 callsite 绕过单行计数） | **删除该源码文本门**：raw-policy 写入口改为 `private static func apply(policy:configURL:)`，其它 Source 文件编译期不可调用；对外 seam 仅 `apply(switchStateAuto:)` 与 `apply(switchStateAuto:configURL:)`。不新增任何第二套扫描器 |
+| **Standards**：测试又写了一套朴素 `strippingComments`，重开浅层扫描路径 | 已删除（连同产品树 `untrusted` 文本扫描、callsite 行计数测试）。测试只经 `switchStateAuto + fixture URL` seam 验证行为 |
+| **文档口径**：不得声称 Codex 全局仅剩两个合法值 | 注释改为「**本产品只写** `on-request` / `never` 两个 scalar 值；官方 `approval_policy` 还支持 granular 形式与其它取值，本卡不写、也不代表全局合法集合」 |
+
+## R2. 定位器语义（单一解析路径）
+
+`TomlPolicyLocator.locate(bytes) -> Result<Selection, Failure>`：
+
+- `Selection.existing(valueRange:value:)` —— 顶层 `approval_policy` 的单行 scalar string value token 字节范围 + 解码值；
+- `Selection.absent(offset:prefix:suffix:)` —— 首个**真** table header 行首（无 table 则 EOF，按是否已有尾换行决定是否需要前导换行）；
+- `Failure.duplicateKey` / `Failure.unsupported(reason:)` —— **零写 fail-closed**。
+
+支持的语法：bare/quoted/dotted key、basic/literal 单行字符串（含 `\u`/`\U` 转义解码）、多行 basic/literal 字符串、跨行 array（含注释与尾逗号）、inline table、注释、LF/CRLF/CR。
+不支持的输入（未闭合字符串/array/inline table/table header、非 scalar value、值后尾随内容、重复顶层 key）一律 typed fail-closed 且字节零变化。
+
+## R3. 永久反例（表驱动，45 行 + 9 个测试）
+
+`testPermanentFixtureRows` 每行断言 Outcome + **精确字节**（成功行）或**零字节变化**（fail-closed 行）：
+
+- 换行保真：CRLF / CR / 无尾换行；CRLF 同值幂等；
+- 幂等与形态：`approval_policy="never"` 无空格同值（`alreadyDesired`，零字节）、无空格切换、`'never'` literal 同值与切换、quoted key + tab + 混合空格；
+- 行尾注释：同值零写、切换只换 value、CRLF 注释；
+- 多行字符串：basic / literal 内含假 `[section]` 与假 `approval_policy`（真 key 只替换一次；只有假 key 时插入到真 table 前）；
+- 跨行 array / inline table：内含 `[fake]`；inline table 内的 `approval_policy` 不算顶层 key；
+- 缺键插入：首个真 table 前（LF/CRLF/CR）、`[[array of tables]]` 前、无 section 追加、无尾换行、空文件、纯注释、dotted key 不误判；
+- 歧义/失败：重复顶层 key → `.duplicateKey`；table 内同名 key 不算重复；未闭合 basic/multiline/array/inline table/table header、非 scalar number/multiline/array、value 后尾随内容 → `.unsupportedSyntax` 且零写。
+
+## R4. 反证（mutant，原子化 patch→run→restore+sha）
+
+| 补丁 | 结果 |
+|---|---|
+| M1 写回前按 `.newlines` 拆分再用 `\n` 拼回 | `testPermanentFixtureRows` 红（CRLF/CR 行） |
+| M2 整行替换 value（丢注释、破坏非规范空格） | `testPermanentFixtureRows` + 幂等测试红 |
+| M3 多行 basic string 只吃开头三引号（body 泄漏为代码） | 红（多行字符串假 `[section]` 行） |
+| M4 取消重复 key 检测 | 红（重复 key 行） |
+| M5 array 只吃开括号（元素泄漏为语句） | 红（跨行 array 行） |
+| M6 缺键总是追加到 EOF（忽略首个真 table） | 红（插入位置行 + 幂等测试） |
+| M7 单行字符串遇换行不判未闭合 | 红（未闭合值行） |
+
+七个 mutant 全部编译通过且各自点名永久行变红；每次均从备份还原并复核 sha256 `201af18f3ca73b8d10bf86eaa330b1a2b211846916fb934525ad5709ca5bb6cd`（与 clean 拷贝逐字节一致）。
+
+## R5. 真实 codex 0.154 隔离 smoke（`CODEX_HOME` 指向临时目录）
+
+| # | 隔离 fixture | 实测输出 |
+|---|---|---|
+| D | 真实结构 config + `approval_policy = "on-request"` | `Not logged in`（无 config 错误），rc=1 |
+| E | 真实结构 config + `approval_policy = "never"` | `Not logged in`，rc=1 |
+| B | `approval_policy = "untrusted"`（负对照） | `Error loading configuration: approval_policy = "untrusted" is no longer supported; remove this setting` |
+
+D/E 的两个字面量由单元测试断言等于 `ApprovalPolicy.onRequest.configLine` / `.never.configLine`。
+真实 `~/.codex/config.toml` 全程只读：smoke 前后 sha256 均为 `f1b3d0fc1bfba73d61b004b89b8fdeaf45e4921b5567043204e857df50081fd6`。
+
+## R6. C5JR1 门禁
+
+| 项 | 结果 |
+|---|---|
+| 专用测试 `CodexConfigLeverSyncTests` | **9 / 9，0 失败**（含 45 行永久反例） |
+| Agent/Hook 定向 9 类 | **176 / 176，0 失败** |
+| 全量 `swift test` | 第 2 次 **1244 tests / 2 skipped / 0 failures（rc=0）**；第 1 次命中已登记 flake `testConcurrentAppliesFromTwoClientsSerializeAndDrain` |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| `git diff --check HEAD -- ahakeyconfig-mac`（工作区） | clean |
+| `git diff --check 5d1fe1d`（全仓历史范围） | clean |
+
+制品 sha256：`CodexConfigLeverSync.swift` = `201af18f3ca73b8d10bf86eaa330b1a2b211846916fb934525ad5709ca5bb6cd`；
+`CodexConfigLeverSyncTests.swift` = `aca6d5e973a83e43e4d40b915bec4e485b39a7ac474c9ed53cd690c9340317ed`。
+
+未安装/重签/重启 Runtime/push；未动已安装 app、现场备份与真实配置；15L/R7 未触碰。

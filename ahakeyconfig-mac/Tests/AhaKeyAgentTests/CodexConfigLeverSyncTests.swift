@@ -1,18 +1,22 @@
 import XCTest
 @testable import AhaKeyConfigAgent
 
-/// 15K-J：Codex 审批策略兼容（`approval_policy` 只允许 `on-request` / `never`）。
+/// C5JR1：Codex 审批策略兼容（字节保真 TOML 定位 + typed fail-closed）。
 ///
-/// 深模块 seam：`CodexConfigLeverSync.ApprovalPolicy`（typed allowlist）+
-/// `apply(policy:configURL:)`（可注入 fixture URL）。所有测试都在临时目录运行，
+/// 所有测试只经 `CodexConfigLeverSync.apply(switchStateAuto:configURL:)` 这一条 seam
+/// （raw-policy 写入口在产品里是 `private`，编译期不可达），并在临时目录 fixture 上运行，
 /// **绝不触碰**用户真实 `~/.codex/config.toml`。
+///
+/// 永久反例是表驱动的：每行断言 Outcome + 精确字节（成功行）或零字节变化（fail-closed 行），
+/// 覆盖 CRLF/CR、非规范空格、行尾注释、多行 basic/literal string、跨行 array / inline table、
+/// 空文件、重复 key 与未闭合输入。
 final class CodexConfigLeverSyncTests: XCTestCase {
     private var root: URL!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
         root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("c5j-codex-lever-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("c5jr1-codex-lever-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
@@ -27,6 +31,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
     // MARK: - fixture 帮助
 
     private typealias Policy = CodexConfigLeverSync.ApprovalPolicy
+    private typealias Outcome = CodexConfigLeverSync.Outcome
 
     private func writeFixture(_ text: String, name: String = "config.toml") throws -> URL {
         let url = root.appendingPathComponent(name)
@@ -48,6 +53,10 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         try Data(contentsOf: url)
     }
 
+    private func apply(auto: Bool, to url: URL) -> Outcome {
+        CodexConfigLeverSync.apply(switchStateAuto: auto, configURL: url)
+    }
+
     private var packageRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // AhaKeyAgentTests
@@ -55,7 +64,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
             .deletingLastPathComponent()   // ahakeyconfig-mac
     }
 
-    // MARK: - 1. 冻结语义与 typed allowlist
+    // MARK: - 冻结语义与 typed allowlist
 
     func testPolicyAllowlistIsExactlyOnRequestAndNever() {
         XCTAssertEqual(Policy.allCases.map(\.rawValue).sorted(), ["never", "on-request"])
@@ -88,110 +97,311 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         switchStateAuto ? "never" : "untrusted"
     }
 
-    // MARK: - 2. untrusted 迁移（红→绿核心）
+    // MARK: - 永久表驱动反例
 
-    func testExistingUntrustedIsRewrittenForManualLever() throws {
-        let url = try writeFixture(
-            "approval_policy = \"untrusted\"\nmodel = \"gpt-5\"\n\n[projects.\"/x\"]\ntrust_level = \"trusted\"\n"
-        )
-        let outcome = CodexConfigLeverSync.apply(policy: .forLever(switchStateAuto: false), configURL: url)
-        XCTAssertEqual(outcome, .replaced)
-        let result = try text(of: url)
-        XCTAssertEqual(
-            result,
-            "approval_policy = \"on-request\"\nmodel = \"gpt-5\"\n\n[projects.\"/x\"]\ntrust_level = \"trusted\"\n"
-        )
-        XCTAssertFalse(result.contains("untrusted"))
+    private enum FailureKind {
+        case duplicate
+        case unsupported
     }
 
-    func testExistingUntrustedIsRewrittenForAutoLever() throws {
-        let url = try writeFixture("approval_policy = \"untrusted\"\n\n[hooks]\n")
-        let outcome = CodexConfigLeverSync.apply(policy: .forLever(switchStateAuto: true), configURL: url)
-        XCTAssertEqual(outcome, .replaced)
-        XCTAssertEqual(try text(of: url), "approval_policy = \"never\"\n\n[hooks]\n")
+    private enum Expectation {
+        /// Outcome 精确等于给定值，且文件字节**零变化**。
+        case unchanged(Outcome)
+        /// 必须 typed fail-closed（重复 key / unsupported），且文件字节**零变化**。
+        case failClosed(FailureKind)
+        /// Outcome 精确等于给定值，且文件字节精确等于给定文本。
+        case result(Outcome, String)
     }
 
-    // MARK: - 3. 合法值精确切换 + 幂等零字节变化
-
-    func testLegalValueIsIdempotentWithoutByteChanges() throws {
-        let manual = try writeFixture("approval_policy = \"on-request\"\nmodel = \"gpt-5\"\n")
-        let before = try bytes(of: manual)
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .onRequest, configURL: manual), .alreadyDesired)
-        XCTAssertEqual(try bytes(of: manual), before, "目标相同必须零字节变化")
-
-        let auto = try writeFixture("approval_policy = \"never\"\nmodel = \"gpt-5\"\n")
-        let autoBefore = try bytes(of: auto)
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .never, configURL: auto), .alreadyDesired)
-        XCTAssertEqual(try bytes(of: auto), autoBefore)
+    private struct Row {
+        let id: String
+        let input: String
+        let auto: Bool
+        let expectation: Expectation
     }
 
-    func testLegalValueSwitchesExactlyBetweenTheTwoStates() throws {
-        let url = try writeFixture("approval_policy = \"never\"\nmodel = \"gpt-5\"\n")
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .onRequest, configURL: url), .replaced)
-        XCTAssertEqual(try text(of: url), "approval_policy = \"on-request\"\nmodel = \"gpt-5\"\n")
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .never, configURL: url), .replaced)
-        XCTAssertEqual(try text(of: url), "approval_policy = \"never\"\nmodel = \"gpt-5\"\n")
+    private static let rows: [Row] = [
+        // ---- 基本迁移 ----
+        Row(id: "lf.untrusted.manual",
+            input: "approval_policy = \"untrusted\"\nmodel = \"gpt-5\"\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy = \"on-request\"\nmodel = \"gpt-5\"\n")),
+        Row(id: "lf.untrusted.auto",
+            input: "approval_policy = \"untrusted\"\nmodel = \"gpt-5\"\n",
+            auto: true,
+            expectation: .result(.replaced, "approval_policy = \"never\"\nmodel = \"gpt-5\"\n")),
+        Row(id: "lf.legal.toggle.manual",
+            input: "approval_policy = \"never\"\nmodel = \"gpt-5\"\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy = \"on-request\"\nmodel = \"gpt-5\"\n")),
+        Row(id: "lf.no-trailing-newline.manual",
+            input: "approval_policy = \"untrusted\"",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy = \"on-request\"")),
+
+        // ---- 换行保真：CRLF / CR ----
+        Row(id: "crlf.untrusted.manual",
+            input: "# c\r\napproval_policy = \"untrusted\"\r\nmodel = \"gpt-5\"\r\n",
+            auto: false,
+            expectation: .result(.replaced, "# c\r\napproval_policy = \"on-request\"\r\nmodel = \"gpt-5\"\r\n")),
+        Row(id: "cr.untrusted.auto",
+            input: "approval_policy = \"untrusted\"\rmodel = \"gpt-5\"\r",
+            auto: true,
+            expectation: .result(.replaced, "approval_policy = \"never\"\rmodel = \"gpt-5\"\r")),
+        Row(id: "crlf.same-value.auto",
+            input: "approval_policy = \"never\"\r\nmodel = \"x\"\r\n",
+            auto: true,
+            expectation: .unchanged(.alreadyDesired)),
+
+        // ---- 幂等：非规范空格 / 引号风格 ----
+        Row(id: "nospace.same-value.auto",
+            input: "approval_policy=\"never\"\n",
+            auto: true,
+            expectation: .unchanged(.alreadyDesired)),
+        Row(id: "nospace.same-value.manual",
+            input: "approval_policy=\"never\"\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy=\"on-request\"\n")),
+        Row(id: "nospace.untrusted.manual",
+            input: "approval_policy=\"untrusted\"\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy=\"on-request\"\n")),
+        Row(id: "literal-quote.same-value.auto",
+            input: "approval_policy = 'never'\n",
+            auto: true,
+            expectation: .unchanged(.alreadyDesired)),
+        Row(id: "literal-quote.switch.manual",
+            input: "approval_policy = 'never'\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy = \"on-request\"\n")),
+        Row(id: "quoted-key.mixed-spacing.manual",
+            input: "\"approval_policy\"  =  \"untrusted\"\t# c\n",
+            auto: false,
+            expectation: .result(.replaced, "\"approval_policy\"  =  \"on-request\"\t# c\n")),
+
+        // ---- 行尾注释 ----
+        Row(id: "comment.same-value.auto",
+            input: "approval_policy = \"never\" # local\n",
+            auto: true,
+            expectation: .unchanged(.alreadyDesired)),
+        Row(id: "comment.switch.manual",
+            input: "approval_policy = \"never\" # local\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy = \"on-request\" # local\n")),
+        Row(id: "comment.untrusted.manual",
+            input: "approval_policy = \"untrusted\" # keep me\r\n",
+            auto: false,
+            expectation: .result(.replaced, "approval_policy = \"on-request\" # keep me\r\n")),
+
+        // ---- 多行字符串里的假 [section] / 假 approval_policy ----
+        Row(id: "multiline-basic-string.fake.manual",
+            input: "banner = \"\"\"\n[fake]\napproval_policy = \"untrusted\"\n\"\"\"\napproval_policy = \"untrusted\"\n[real]\n",
+            auto: false,
+            expectation: .result(
+                .replaced,
+                "banner = \"\"\"\n[fake]\napproval_policy = \"untrusted\"\n\"\"\"\napproval_policy = \"on-request\"\n[real]\n"
+            )),
+        Row(id: "multiline-literal-string.fake.auto",
+            input: "banner = '''\n[fake]\napproval_policy = 'untrusted'\n'''\napproval_policy = \"untrusted\"\n[real]\n",
+            auto: true,
+            expectation: .result(
+                .replaced,
+                "banner = '''\n[fake]\napproval_policy = 'untrusted'\n'''\napproval_policy = \"never\"\n[real]\n"
+            )),
+        Row(id: "multiline-string.only-fake-key.manual",
+            input: "note = \"\"\"\napproval_policy = \"untrusted\"\n\"\"\"\n[real]\n",
+            auto: false,
+            expectation: .result(
+                .inserted,
+                "note = \"\"\"\napproval_policy = \"untrusted\"\n\"\"\"\napproval_policy = \"on-request\"\n[real]\n"
+            )),
+
+        // ---- 跨行 array / inline table ----
+        Row(id: "multiline-array.fake-section.manual",
+            input: "items = [\n  \"[fake]\",\n  \"x\",\n]\n[real]\n",
+            auto: false,
+            expectation: .result(
+                .inserted,
+                "items = [\n  \"[fake]\",\n  \"x\",\n]\napproval_policy = \"on-request\"\n[real]\n"
+            )),
+        Row(id: "multiline-array.real-key.manual",
+            input: "items = [\n  \"a\",\n]\napproval_policy = \"untrusted\"\n[real]\n",
+            auto: false,
+            expectation: .result(
+                .replaced,
+                "items = [\n  \"a\",\n]\napproval_policy = \"on-request\"\n[real]\n"
+            )),
+        Row(id: "crossline-inline-table.fake-section.manual",
+            input: "t = {\n  a = \"[fake]\",\n}\n[real]\n",
+            auto: false,
+            expectation: .result(
+                .inserted,
+                "t = {\n  a = \"[fake]\",\n}\napproval_policy = \"on-request\"\n[real]\n"
+            )),
+        Row(id: "inline-table.inner-key-is-not-top-level.manual",
+            input: "t = { approval_policy = \"untrusted\" }\napproval_policy = \"untrusted\"\n",
+            auto: false,
+            expectation: .result(
+                .replaced,
+                "t = { approval_policy = \"untrusted\" }\napproval_policy = \"on-request\"\n"
+            )),
+
+        // ---- 注释里的假内容 ----
+        Row(id: "comment.fake-section.manual",
+            input: "# [fake]\napproval_policy = \"untrusted\"\n",
+            auto: false,
+            expectation: .result(.replaced, "# [fake]\napproval_policy = \"on-request\"\n")),
+        Row(id: "comment.fake-key.auto",
+            input: "# approval_policy = \"untrusted\"\nmodel = \"x\"\n",
+            auto: true,
+            expectation: .result(.inserted, "# approval_policy = \"untrusted\"\nmodel = \"x\"\napproval_policy = \"never\"\n")),
+
+        // ---- 缺键插入 ----
+        Row(id: "missing.before-first-table.manual",
+            input: "model = \"gpt-5\"\n\n[projects.\"/x\"]\ntrust_level = \"trusted\"\n",
+            auto: false,
+            expectation: .result(
+                .inserted,
+                "model = \"gpt-5\"\n\napproval_policy = \"on-request\"\n[projects.\"/x\"]\ntrust_level = \"trusted\"\n"
+            )),
+        Row(id: "missing.crlf.before-first-table.auto",
+            input: "model = \"gpt-5\"\r\n\r\n[projects.\"/x\"]\r\n",
+            auto: true,
+            expectation: .result(
+                .inserted,
+                "model = \"gpt-5\"\r\n\r\napproval_policy = \"never\"\r\n[projects.\"/x\"]\r\n"
+            )),
+        Row(id: "missing.cr.before-first-table.manual",
+            input: "model = \"x\"\r[real]\r",
+            auto: false,
+            expectation: .result(.inserted, "model = \"x\"\rapproval_policy = \"on-request\"\r[real]\r")),
+        Row(id: "missing.array-of-tables.auto",
+            input: "[[products]]\nname = \"x\"\n",
+            auto: true,
+            expectation: .result(.inserted, "approval_policy = \"never\"\n[[products]]\nname = \"x\"\n")),
+        Row(id: "missing.no-section.auto",
+            input: "model = \"gpt-5\"\n",
+            auto: true,
+            expectation: .result(.inserted, "model = \"gpt-5\"\napproval_policy = \"never\"\n")),
+        Row(id: "missing.no-trailing-newline.manual",
+            input: "model = \"gpt-5\"",
+            auto: false,
+            expectation: .result(.inserted, "model = \"gpt-5\"\napproval_policy = \"on-request\"")),
+        Row(id: "empty-file.manual",
+            input: "",
+            auto: false,
+            expectation: .result(.inserted, "approval_policy = \"on-request\"\n")),
+        Row(id: "comments-only.auto",
+            input: "# nothing here\n",
+            auto: true,
+            expectation: .result(.inserted, "# nothing here\napproval_policy = \"never\"\n")),
+        Row(id: "dotted-key-is-not-top-level.auto",
+            input: "a.approval_policy = \"x\"\n",
+            auto: true,
+            expectation: .result(.inserted, "a.approval_policy = \"x\"\napproval_policy = \"never\"\n")),
+
+        // ---- 歧义 / 重复 key ----
+        Row(id: "duplicate-key.auto",
+            input: "approval_policy = \"never\"\napproval_policy = \"on-request\"\n",
+            auto: true,
+            expectation: .unchanged(.duplicateKey)),
+        Row(id: "in-table-key-is-not-duplicate.auto",
+            input: "approval_policy = \"never\"\n[t]\napproval_policy = \"on-request\"\n",
+            auto: true,
+            expectation: .unchanged(.alreadyDesired)),
+
+        // ---- 未闭合 / 非 scalar：零写 fail-closed ----
+        Row(id: "unclosed.basic-string.auto",
+            input: "approval_policy = \"never\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "unclosed.multiline-string.auto",
+            input: "note = \"\"\"abc\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "unclosed.array.auto",
+            input: "items = [1, 2\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "unclosed.inline-table.auto",
+            input: "t = { a = 1\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "unclosed.table-header.auto",
+            input: "[projects\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "nonscalar.number.auto",
+            input: "approval_policy = 42\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "nonscalar.multiline-value.auto",
+            input: "approval_policy = \"\"\"never\"\"\"\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "nonscalar.array-value.auto",
+            input: "approval_policy = [\"never\"]\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+        Row(id: "trailing-junk.after-value.auto",
+            input: "approval_policy = \"never\" junk\n",
+            auto: true,
+            expectation: .failClosed(.unsupported)),
+    ]
+
+    func testPermanentFixtureRows() throws {
+        XCTAssertEqual(Self.rows.count, Set(Self.rows.map(\.id)).count, "row id 必须唯一")
+        for row in Self.rows {
+            let url = try writeFixture(row.input)
+            let before = try bytes(of: url)
+            let outcome = apply(auto: row.auto, to: url)
+
+            switch row.expectation {
+            case let .unchanged(expected):
+                XCTAssertEqual(outcome, expected, "\(row.id)：Outcome 不符")
+                XCTAssertEqual(try bytes(of: url), before, "\(row.id)：必须零字节变化")
+            case let .failClosed(kind):
+                switch (kind, outcome) {
+                case (.duplicate, .duplicateKey), (.unsupported, .unsupportedSyntax):
+                    break
+                default:
+                    XCTFail("\(row.id)：期望 fail-closed \(kind)，实得 \(outcome)")
+                }
+                XCTAssertEqual(try bytes(of: url), before, "\(row.id)：fail-closed 必须零字节变化")
+            case let .result(expected, expectedText):
+                XCTAssertEqual(outcome, expected, "\(row.id)：Outcome 不符")
+                XCTAssertEqual(try text(of: url), expectedText, "\(row.id)：字节不符")
+            }
+        }
     }
 
-    // MARK: - 4. 缺键插入位置
+    // MARK: - 二次应用幂等
 
-    func testMissingKeyIsInsertedBeforeFirstSection() throws {
-        let url = try writeFixture("model = \"gpt-5\"\n\n[projects.\"/x\"]\ntrust_level = \"trusted\"\n")
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .onRequest, configURL: url), .inserted)
-        XCTAssertEqual(
-            try text(of: url),
-            "model = \"gpt-5\"\n\napproval_policy = \"on-request\"\n[projects.\"/x\"]\ntrust_level = \"trusted\"\n"
-        )
-    }
-
-    func testMissingKeyWithoutAnySectionIsAppended() throws {
-        let url = try writeFixture("model = \"gpt-5\"")
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .never, configURL: url), .inserted)
-        XCTAssertEqual(try text(of: url), "model = \"gpt-5\"\napproval_policy = \"never\"")
-    }
-
-    // MARK: - 5. 保留其它内容（注释 / 空行 / 键序 / sections / 尾换行）
-
-    func testPreservesCommentsBlankLinesAndSectionOrdering() throws {
-        let fixture = """
-        # Codex config (kept)
-        model = "gpt-5"
-
-        # 审批策略：拨杆写入
-        approval_policy = "never"
-
-        [projects."/a"]
-        trust_level = "trusted"
-
-        [hooks]
-        # keep me
-
-        """
-        let url = try writeFixture(fixture)
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .onRequest, configURL: url), .replaced)
-        let expected = fixture.replacingOccurrences(
-            of: "approval_policy = \"never\"",
-            with: "approval_policy = \"on-request\""
-        )
-        XCTAssertEqual(try text(of: url), expected)
-        // 再次应用必须幂等。
+    func testSecondApplyIsIdempotentAndByteStable() throws {
+        let url = try writeFixture("model = \"gpt-5\"\r\n[real]\r\n")
+        XCTAssertEqual(apply(auto: false, to: url), .inserted)
         let after = try bytes(of: url)
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .onRequest, configURL: url), .alreadyDesired)
-        XCTAssertEqual(try bytes(of: url), after)
+        XCTAssertEqual(apply(auto: false, to: url), .alreadyDesired)
+        XCTAssertEqual(try bytes(of: url), after, "第二次应用不得产生任何字节变化")
+
+        XCTAssertEqual(apply(auto: true, to: url), .replaced)
+        let afterSwitch = try bytes(of: url)
+        XCTAssertEqual(apply(auto: true, to: url), .alreadyDesired)
+        XCTAssertEqual(try bytes(of: url), afterSwitch)
     }
 
-    // MARK: - 6. fail-safe 边界
+    // MARK: - fail-safe 边界
 
     func testMissingConfigIsReportedAndNotCreated() {
         let url = root.appendingPathComponent("absent.toml")
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .onRequest, configURL: url), .missingConfig)
+        XCTAssertEqual(apply(auto: false, to: url), .missingConfig)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "缺文件不得被创建")
     }
 
     func testNonUTF8ConfigIsLeftUntouched() throws {
         let url = try writeFixture(bytes: [0x61, 0x70, 0x70, 0xFF, 0xFE, 0x0A])
         let before = try bytes(of: url)
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .never, configURL: url), .unreadableConfig)
+        XCTAssertEqual(apply(auto: true, to: url), .unreadableConfig)
         XCTAssertEqual(try bytes(of: url), before, "非 UTF-8 必须原样保留")
     }
 
@@ -202,83 +412,15 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
         }
-        XCTAssertEqual(CodexConfigLeverSync.apply(policy: .onRequest, configURL: url), .writeFailed)
+        XCTAssertEqual(apply(auto: false, to: url), .writeFailed)
         XCTAssertEqual(try text(of: url), "approval_policy = \"never\"\nmodel = \"gpt-5\"\n")
     }
 
-    // MARK: - 7. 生产路径不得被测试触碰
+    // MARK: - 生产路径不得被测试触碰
 
     func testProductionConfigURLPointsAtRealHomeCodexConfig() {
         let url = CodexConfigLeverSync.productionConfigURL
         XCTAssertTrue(url.path.hasSuffix("/.codex/config.toml"))
         XCTAssertFalse(url.path.hasPrefix(root.path), "生产路径不得落在测试临时目录")
-    }
-
-    // MARK: - 8. 两个生产调用点必须走同一 typed seam
-
-    func testBothProductionCallsitesRouteThroughTypedSeam() throws {
-        let source = try String(
-            contentsOf: packageRoot.appendingPathComponent("Sources/Agent/CodexHookHandler.swift"),
-            encoding: .utf8
-        )
-        let callsites = source
-            .components(separatedBy: .newlines)
-            .filter { $0.contains("CodexConfigLeverSync.apply(") }
-        XCTAssertEqual(callsites.count, 2, "CodexSessionStart / CodexPermissionRequest 各一个调用点")
-        for line in callsites {
-            XCTAssertTrue(
-                line.contains("switchStateAuto:"),
-                "调用点必须经 apply(switchStateAuto:) seam，实得：\(line)"
-            )
-        }
-        XCTAssertFalse(Self.strippingComments(source).contains("untrusted"))
-    }
-
-    // MARK: - 9. 产品可执行代码不得存在 untrusted / 越界 approval_policy 写入路径
-
-    func testProductSourcesHaveNoUntrustedApprovalPolicyWritePath() throws {
-        let sourcesRoot = packageRoot.appendingPathComponent("Sources")
-        let enumerator = try XCTUnwrap(
-            FileManager.default.enumerator(at: sourcesRoot, includingPropertiesForKeys: nil)
-        )
-        var scanned = 0
-        for case let url as URL in enumerator where url.pathExtension == "swift" {
-            scanned += 1
-            let relative = String(url.path.dropFirst(packageRoot.path.count + 1))
-            let code = Self.strippingComments(try String(contentsOf: url, encoding: .utf8))
-            XCTAssertFalse(
-                code.contains("\"untrusted\""),
-                "\(relative)：可执行代码不得包含 untrusted 字面量"
-            )
-            XCTAssertFalse(
-                code.contains("untrusted"),
-                "\(relative)：可执行代码不得出现 untrusted"
-            )
-            if !relative.hasSuffix("Sources/Agent/CodexConfigLeverSync.swift") {
-                XCTAssertFalse(
-                    code.contains("approval_policy"),
-                    "\(relative)：approval_policy 只能由 CodexConfigLeverSync 写入"
-                )
-            }
-        }
-        XCTAssertGreaterThan(scanned, 10, "Sources 扫描面异常：仅 \(scanned) 个 .swift")
-    }
-
-    /// 朴素注释剥离：去掉整行注释与行尾 `//` 注释（足以覆盖本仓 Sources 的写法）。
-    private static func strippingComments(_ source: String) -> String {
-        source
-            .components(separatedBy: .newlines)
-            .map { line -> String in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("//") || trimmed.hasPrefix("/*")
-                    || trimmed.hasPrefix("*") || trimmed.hasPrefix("*/") {
-                    return ""
-                }
-                if let range = line.range(of: "//") {
-                    return String(line[line.startIndex..<range.lowerBound])
-                }
-                return line
-            }
-            .joined(separator: "\n")
     }
 }

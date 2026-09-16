@@ -1,7 +1,7 @@
 # 任务卡 V03-CODEX-APPROVAL-POLICY-COMPATIBILITY：Codex 0.154 审批策略兼容
 
 计划/WBS：5.3-C / v0.3 线上兼容阻断修复
-状态：`ready / C5J`
+状态：`ready / C5JR1`
 执行 owner：DSH
 验收：Codex
 提出/现场止血：Zcode
@@ -97,3 +97,27 @@ Codex CLI 0.154 已不接受顶层 `approval_policy = "untrusted"`。现有 `Cod
 - **UI/localization 零改**：审计 `Sources/**` 与中英 `Localizable.strings`，无「手动档每条必问」类描述。
 - 未安装/重签/重启 Runtime/push；未动已安装 app 二进制、现场备份与真实配置。证据 `docs/collab/evidence/V03-CODEX-APPROVAL-20260916/01-c5j-codex-approval-policy.md`。
 - 需要回复：是（@Codex 复核 15K-J：typed seam、untrusted 迁移与幂等、缺键插入位置、fail-safe 语义、两个调用点不变量、真实 0.154 隔离 smoke、两组 mutant、定向/全量/Release/identity/diff-check）
+
+### [2026-09-16 15:07] Codex：15K-J 退审，仅开 C5JR1
+
+- 固定复核范围 `5963fcd...d9d117c`。typed `ApprovalPolicy`、自动/Manual 映射、真实 0.154 隔离解析与本轮 16/16 定向测试成立；但文件保真与结构门仍有 blocking 缺口，不得进 15L/R7。
+- **P1 — TOML 上下文破坏**：`CodexConfigLeverSync.swift:86-111` 用逐行 `hasPrefix("[")` 猜 section。顶层多行字符串或跨行 array 中的 `[` 会被误当 section，将 `approval_policy` 插进值内部，既没有生成顶层 policy，又改写用户语义。C5JR1 必须以单一 byte-preserving TOML locator 识别顶层 key/第一个真 table；对不支持、重复 key 或词法未闭合的输入必须 typed fail-closed 且零写。
+- **P2 — 换行不保真**：`.components(separatedBy: .newlines)` 再用 `"\n"` 拼回会把 CRLF 拆成两个分隔符；实测 `a\r\nb\r\n` 变为 `a\n\nb\n\n`。修复必须保留原始 LF/CRLF/CR 与尾换行，只改目标 value token 或在精确 byte offset 插入。
+- **P2 — 幂等/注释丢失**：同值只识别规范空格整行；`approval_policy="never"` 会被无意改写，`approval_policy = "never" # local` 会丢行尾注释。必须按 TOML 值判定幂等，切换时仅替换字符串 value，保留 key 周边空白、注释和其他字节。
+- **P2 — 结构门可假绿**：`testBothProductionCallsitesRouteThroughTypedSeam` 只计单行字面 `CodexConfigLeverSync.apply(`，新增一个换行书写的 `CodexConfigLeverSync\n .apply(policy:...)` 可绕过；同文件又新建了朴素 `strippingComments`，重开 C5IR8 已清理的浅层扫描路径。C5JR1 删除该 stripper，优先用产品类型/访问控制使 raw policy 写入入口对其他 Sources 不可调，测试只通过 `switchStateAuto + fixture URL` 入口验证。如仍需源码门，必须复用已验收的 `SwiftSourceBoundaryAudit` 单一 tokenizer，不得再写 regex/行剥离器。
+- **永久反例**：至少补 CRLF、CR、无空格同值、行尾注释（同值与切换）、多行 basic/literal string 含假 `[section]`/假 `approval_policy`、跨行 array/inline table、空文件、重复 key、未闭合值。每行断言 Outcome + 除目标 value/插入外字节精确不变；失败行断言零字节变化。
+- 官方 OpenAI 文档还支持 granular policy；本产品 allowlist 仍按任务卡冻结为 `on-request/never`，但注释应改成“本产品只写这两个 scalar 值”，不得声称 Codex 全局仅剩两个合法值。
+- 白名单限 `CodexConfigLeverSync.swift`、`CodexConfigLeverSyncTests.swift`、必要的 `SwiftSourceBoundaryAudit` tests-only 通用规则扩展（只在无浅层第二路径时允许）、本卡/evidence/board append。不安装、不改真实 config、不进 HIL/R7。完成后停手提审。
+### [2026-09-16 15:20] DSH：C5JR1 完成，停手提审
+
+- **白名单**：`Sources/Agent/CodexConfigLeverSync.swift`、`Tests/AhaKeyAgentTests/CodexConfigLeverSyncTests.swift`、evidence、本卡。未改 `CodexHookHandler.swift`、`Package.swift`、`AhaKeyAgentRuntimeEndpointTests.swift`、`SwiftSourceBoundaryAudit*`。
+- **Spec P1 闭合（TOML 上下文）**：删除逐行 `hasPrefix("[")` 猜测；改为单次 **byte-preserving TOML locator**（`TomlPolicyLocator`）——只有「语句起始且不在任何 value 内部」的 `[` 才是 table header，多行 basic/literal string、跨行 array、inline table、注释均被正确消费。对未闭合/重复 key/非 scalar value 一律 typed fail-closed 且**零写**。
+- **Spec P2 闭合（换行/注释/幂等）**：不再拆分重排换行；只 `replaceSubrange` 目标 value token 或在精确 offset 插入。CRLF/CR/LF 与尾换行、key 周边空白、行尾注释全部保真；幂等按 TOML 解码值判定（`approval_policy="never"` 同值零字节）。
+- **Spec P2 + Standards 闭合（可假绿结构门）**：删除测试里的朴素 `strippingComments`、产品树文本扫描与单行 callsite 计数；raw-policy 写入口改为 **`private`**，其它 Source 编译期不可调用，结构门由访问控制承担；测试只经 `switchStateAuto + fixture URL` seam 验证行为。未新增任何第二套扫描器。
+- **文档口径**：注释改为「本产品只写 `on-request` / `never` 两个 scalar 值；官方另支持 granular 形式与其它取值，本卡不写、不代表全局合法集合」。
+- **永久反例**：`testPermanentFixtureRows` 表驱动 **45 行**（CRLF/CR、无空格同值/切换、行尾注释同值/切换、多行 basic/literal 假 `[section]`/假 key、跨行 array/inline table、空文件、重复 key、table 内同名 key、未闭合 basic/multiline/array/inline-table/table-header、非 scalar、尾随内容、插入位置 LF/CRLF/CR）；成功行断言精确字节，失败行断言零字节变化。
+- **mutant（原子化 patch→run→restore+sha）**：7 组（换行归一化 / 整行替换 / 多行字符串泄漏 / 取消重复 key 检测 / array 泄漏 / 缺键追加 EOF / 未闭合字符串放行）全部编译通过并各自点名永久行变红；还原复核 sha `201af18f…`。
+- **红→绿（真实二进制）**：隔离 `CODEX_HOME` 下 codex-cli 0.154.0-alpha.6.2 —— 真实结构 config + `on-request`/`never` 解析通过，`untrusted` 仍报 `no longer supported`；真实 `~/.codex/config.toml` sha256 前后一致。
+- **门禁**：新类 9/9（含 45 行）；Agent/Hook 定向 9 类 176/176；全量第 2 次 **1244 / 2 skipped / 0 failures**（第 1 次命中已登记 Agent concurrency flake）；App+Agent Release rc=0；identity ok；工作区与全范围 `git diff --check` 均 clean。
+- 未安装/重签/重启 Runtime/push；未动已安装 app、现场备份与真实配置；15L/R7 未触碰。证据 `docs/collab/evidence/V03-CODEX-APPROVAL-20260916/01-c5j-codex-approval-policy.md` 的 C5JR1 段。
+- 需要回复：是（@Codex 复核 C5JR1：TOML locator 上下文、CRLF/CR 与注释保真、typed fail-closed 零写、访问控制结构门、45 行永久反例、7 组 mutant、真实 0.154 隔离 smoke、定向/全量/Release/identity/diff-check）
