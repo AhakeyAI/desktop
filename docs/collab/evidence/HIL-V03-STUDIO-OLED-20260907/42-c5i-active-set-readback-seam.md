@@ -547,3 +547,69 @@ declaration-excluded / mixed-callsites。矩阵在生产源码形态之外独立
 | `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
 | `zsh scripts/check-release-identity.sh` | `release identity ok` |
 | 增量 `4de527e` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |
+
+## 14. C5IR7（tests/docs-only：插值深度、声明 range 共用、EOF fail-closed）
+
+**本卡 Sources 零改**；范围外他人在途 `Sources/Agent/CodexConfigLeverSync.swift` 未回退、未纳入审查。
+
+### 14.1 P1：nested interpolation 提前退出
+
+`.interpolation` 原来遇任意 `)` 立即回到 string，没有括号深度。
+`"\(helper() + sendDirectCommandFrame(0x96))"` 中 `helper()` 的 `)` 会提前结束插值，
+其后的真实调用被当作文本删除。现在 `.interpolation(depth:)` **携带 paren depth**：
+
+- 插值内 `(` → depth + 1；
+- `)` → depth − 1，**只有 depth 归零**才回到 string；
+- 表达式内的字符串/注释/再嵌套插值继续按各自模式入栈，因此是**完整递归扫描**。
+
+### 14.2 P1：direct-command 声明排除仍固定空格
+
+`directCommandCallsites` 原来用 `(?<!func\s)`。现在与 authority 计数器**共用**同一套机制：
+
+```swift
+static func declarationRanges(of name: String, in code: String) -> [NSRange]   // \bfunc\s+<name>\b
+static func realSymbolReferenceCount(of name: String, in code: String) -> Int  // \b<name>\b 去掉声明 range
+```
+
+`directCommandCallsites` 改为 `\bsendDirectCommandFrame\b` + 声明 range 结构化排除；
+若引用后（跳过空白）不是 `(`，也记 `<reference-without-call>` 并 fail-closed。
+
+### 14.3 P2：lexer EOF fail-closed
+
+新增 `SourceScanError`（`unterminatedString(kind:)` / `unterminatedBlockComment(depth:)` /
+`unterminatedInterpolation(depth:)`），`strippingCommentsAndStrings` 改为 `throws`：
+扫描到 EOF 时 mode stack 必须回到 `code`，否则**显式抛错**。`strippedSources` 与 gate 因此
+在遇到未终止字符串/块注释/插值时直接失败，而不是返回被截断的假 clean。
+（行注释在 EOF 结束合法。）
+
+### 14.4 永久矩阵补齐
+
+- lexer 表新增 11 行：`nested-paren-interpolation-keeps-later-call`、
+  `nested-array-interpolation-keeps-call`、raw multiline 插值、`##` raw 插值、
+  `##` 下 `\(`/`\#(` 视为文本、authority 符号插值可见，以及
+  **5 行未终止反例**（ordinary/multiline/raw 字符串、块注释、插值）各自断言 typed error。
+- 新增 `directCommandDeclarationMatrix`（7 行）：单/双空格、换行、tab、带默认参数声明 = 空清单；
+  别名引用 → `<reference-without-call>`；声明 + 调用只计调用。
+
+### 14.5 反证（mutant，原子化 patch→run→restore+sha）
+
+| 补丁 | 结果 |
+|---|---|
+| Q1：`.interpolation` 忽略深度、遇首个 `)` 退出 | lexer 表 **3 failures**（nested-paren / nested-array / unterminated 深度），实得 `let s =  helper()` —— 正是 Codex 指出的隐藏场景 |
+| Q2'：direct-command 还原为 `(?<!func\s)` **且**去掉声明 range 排除 | gate **2 failures**（`decl-double-space` / `decl-newline` 被误读为 `["_ opcode: UInt8"]`） |
+| Q3：去掉 EOF fail-closed 检查 | lexer 表 **5 failures**（五类未终止输入均不再抛错） |
+
+产品 sha256 `91ea8b94…1ac1`（`AhaKeyAgent.swift` 与 HEAD 逐字节相同）；测试文件 sha 复核；
+三次 mutant 后 Sources 仅剩范围外的他人在途文件。
+
+### 14.6 C5IR7 门禁
+
+| 项 | 结果 |
+|---|---|
+| C5IR7 自身 Sources 改动 | **零**（提交只含测试 + evidence + 本卡；`AhaKeyAgent.swift` 与 HEAD 逐字节相同） |
+| 工作区他人在途修改 | `Sources/Agent/CodexConfigLeverSync.swift`（与本卡无关）——未回退、未纳入提交与审查 |
+| 定向（19 类） | **458 / 458，0 失败** |
+| 全量 Swift | **第 1 次即 1227 / 2 skipped / 0 failures（全绿）** |
+| `swift build -c release --product AhaKeyConfig` / `ahakeyconfig-agent` | rc=0 / rc=0 |
+| `zsh scripts/check-release-identity.sh` | `release identity ok` |
+| 增量 `4dd20a9` 与全范围 `5d1fe1d` `git diff --check` | 均通过 |

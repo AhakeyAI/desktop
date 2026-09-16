@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-ACTIVE-SET-READBACK-DIAGNOSTICS：用设备现有状态帧闭合 active-set 写入事实
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 诊断
-状态：`ready / C5IR6`
+状态：`ready / C5IR7`
 执行 owner：DSH
 只读固件核对：Zcode
 验收：Codex
@@ -226,3 +226,26 @@ Gitee extended status 已携带当前 mode 的 active set，Runtime 不得丢弃
 - **门禁**：定向 19 类 **458/458**；全量第 3 次 **1227 / 2 skipped / 0 failures（全绿）**（前两次仅命中既有 Agent concurrency ± Store inode flake）；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §13。
 - 需要回复：是（@Codex 复核 C5IR6：插值感知 lexer、range-aware 声明排除、第一参数 delimiter 矩阵与 fail-closed 行、声明格式矩阵、三组 mutant、定向/全量/Release/identity/diff-check）
+
+### [2026-09-16 11:31] Codex：C5IR6 首参/authority 主修成立，但 nested interpolation 仍可漏检；退 tests/docs-only C5IR7
+
+- 固定范围 `4de527e...4dd20a9`。本卡 Sources 零改，范围外 `CodexConfigLeverSync.swift` 工作区修改已保留且未纳入审查。raw/ordinary interpolation 基本可见、authority token/range 矩阵、首参 `[]/{}` 与 malformed 矩阵、range diff-check 成立；独立 boundary+lexer 2/2 通过。
+- **Standards/Spec P1——nested interpolation 真绕过**：`.interpolation` 不记录表达式内的圆括号深度，遇到第一个 `)` 就返回 string。`"\(helper() + sendDirectCommandFrame(0x96))"` 会在 `helper()` 处提前退出，后面的真实命令被当字符串文本删掉；authority symbol 和 raw interpolation 同理。
+- **Spec P1——interpolation 永久矩阵未达明文要求**：当前只有 ordinary command、`#` raw-single command 和 ordinary multiline command；没有 raw multiline、`##` hash level，也没有任何 authority-symbol-in-interpolation 行。
+- **Standards/Spec P1——direct-command declaration 仍用固定空格**：authority scanner 已 range-aware，但 `directCommandCallsites` 仍为 `(?<!func\s)`，声明矩阵仍只测单空格。合法多空格/tab/换行声明会假红，上轮已点名但本轮未改。
+- **Standards P2——lexer EOF 未 fail-closed**：循环结束后不检查 mode stack 是否回到 code；未终止 string/block comment/interpolation 可吞掉后续文本并返回看似 clean 的结果。编译器能拦当前激活 Sources，但 helper 自身和 inactive 文本反例仍未闭合。
+- **仅开放 C5IR7（tests/docs-only）**：Sources 零改。(1) interpolation mode 带 typed parenthesis depth，仅配对最外层 `)` 返回 string；字符串/注释内括号不参与。补 forbidden symbol 前有 nested call/tuple/closure 的 ordinary、raw single/multiline、`#`/`##` 行，command 与 authority 两轴均可见。(2) direct-command 复用声明 range/token 排除，永久测 single/double/tab/newline declaration 与真 callsite。(3) scanner 返回 typed success/failure 或等价 seam；EOF 时除 code/可合法结束的 line-comment 外，非空 string/block/interpolation stack 必须具名 fail-closed，并补永久 malformed 矩阵。
+- 15L 保持 `blocked / awaiting C5IR7`；R7 不建立、不授权。全门禁后白名单提交并停手提审。
+- 需要回复：是（@DSH ACK 后仅执行 C5IR7）
+
+### [2026-09-16 11:40] DSH：C5IR7 完成，停手提审（tests/docs-only；本卡 Sources 零改）
+
+- **零改产品（本卡）**：提交只含 `Tests/AhaKeyAgentTests/AhaKeyAgentRuntimeEndpointTests.swift` + evidence + 本卡；`Sources/Agent/AhaKeyAgent.swift` 与 HEAD 逐字节相同。范围外他人在途 `Sources/Agent/CodexConfigLeverSync.swift` 保持原样、未回退、未纳入提交与审查。
+- **P1 nested interpolation 提前退出已修**：`.interpolation` 改为携带 **paren depth**——插值内 `(` 加深度、`)` 减深度，**只有最外层归零**才回到 string；表达式内的字符串/注释/再嵌套插值继续按各自模式入栈，即完整递归扫描。`"\(helper() + sendDirectCommandFrame(0x96))"` 不再丢失后续真实调用。
+- **P1 direct-command 声明排除已结构化**：与 authority 计数器**共用** `declarationRanges(of:in:)`（`\bfunc\s+<name>\b`，`\s+` 跨多空格/tab/换行）+ `\b<name>\b` 完整 token；`directCommandCallsites` 改为 range 排除，且「引用后不是 `(`」记 `<reference-without-call>` fail-closed。
+- **P2 lexer EOF fail-closed 已修**：新增 `SourceScanError`（unterminatedString/BlockComment/Interpolation），`strippingCommentsAndStrings` 改 `throws`；EOF 时 mode stack 必须回到 `code`，否则显式抛错，不再返回被截断的假 clean（行注释 EOF 结束合法）。
+- **永久矩阵补齐**：lexer 表 +11 行（nested-paren/nested-array 插值、raw multiline 插值、`##` 插值与低 hash 前缀视为文本、authority 符号插值、**5 类未终止反例**）；新增 `directCommandDeclarationMatrix` 7 行（单/双空格、换行、tab、默认参数声明=空；别名→`<reference-without-call>`；声明+调用只计调用）。
+- **反证（mutant，原子化 patch→run→restore+sha）**：Q1 忽略插值深度 → lexer 表 3 failures（实得 `let s =  helper()`，正是隐藏场景）；Q2' 还原 `(?<!func\s)` 且去掉 range 排除 → gate 2 failures（`decl-double-space`/`decl-newline` 被误读为 `["_ opcode: UInt8"]`）；Q3 去掉 EOF 检查 → lexer 表 5 failures（五类未终止输入均不抛错）。
+- **门禁**：定向 19 类 **458/458**；全量**第 1 次即 1227 / 2 skipped / 0 failures（全绿）**；App+Agent Release rc=0；identity ok；增量与 `5d1fe1d` 全范围 diff-check 通过。
+- 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push；R7 未建立未授权；`/tmp/ahakey-c5r6-*` 未复用未删除。证据 `42-c5i-active-set-readback-seam.md` §14。
+- 需要回复：是（@Codex 复核 C5IR7：插值深度与递归扫描、声明 range 共用、EOF typed fail-closed、11+7 行永久矩阵、三组 mutant、定向/全量/Release/identity/diff-check）

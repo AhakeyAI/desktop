@@ -912,7 +912,7 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             let text = try String(
                 contentsOf: packageRoot.appendingPathComponent(relative), encoding: .utf8
             )
-            return Self.strippingCommentsAndStrings(text)
+            return try Self.strippingCommentsAndStrings(text)
         }
         let agent = try code("Sources/Agent/AhaKeyAgent.swift")
         let reducer = try code("Sources/Shared/DeviceStateReducer.swift")
@@ -970,6 +970,16 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             )
         }
 
+        // (2c2) C5IR7：direct-command 声明格式矩阵（多空格 / tab / 换行 / 别名）。
+        for row in Self.directCommandDeclarationMatrix {
+            let inventory = Self.directCommandCallsites(in: row.source)
+            XCTAssertEqual(inventory.literals, row.literals, "\(row.name) literals 不符，实得 \(inventory.literals)")
+            XCTAssertEqual(
+                inventory.nonLiterals, row.nonLiterals,
+                "\(row.name) nonLiterals 不符，实得 \(inventory.nonLiterals)"
+            )
+        }
+
         // (2c) C5IR5：解析器自身的永久回归矩阵（不依赖生产源码当前形态）。
         for row in Self.directCommandParserMatrix {
             let inventory = Self.directCommandCallsites(in: row.source)
@@ -1001,24 +1011,44 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         )
     }
 
-    /// C5IR6：注释/字符串感知的源码剥离器（stack-based，**保留插值表达式**）。
+    /// C5IR7：源码词法扫描失败的 typed 结果。
+    ///
+    /// 扫描到 EOF 时 mode stack 必须回到 `code`；任何未终止的字符串 / 块注释 / 插值表达式
+    /// 都可能吞掉后续真实代码并产生**假 clean**，因此一律显式失败（fail-closed），
+    /// 绝不返回被截断的“干净”文本。
+    enum SourceScanError: Error, Equatable {
+        case unterminatedString(kind: String)
+        case unterminatedBlockComment(depth: Int)
+        case unterminatedInterpolation(depth: Int)
+    }
+
+    /// C5IR7：注释/字符串感知的源码剥离器（stack-based，**保留并递归扫描插值表达式**）。
     ///
     /// 支持的词法单元：`//`、可嵌套 `/* /* */ */`、普通字符串（含转义）、`"""` 多行字符串、
     /// `#"…"#` / `##"…"##` raw single-line、`#"""…"""#` raw multiline。
     ///
-    /// 关键语义：字符串的**文本片段**被剥离，但其中的 **interpolation expression 是真实可执行代码**，
-    /// 必须按代码继续扫描（其内部的字符串/注释同样按各自规则处理），否则
-    /// `"\(sendDirectCommandFrame(0x96))"` 这类调用会对 callsite inventory 不可见。
+    /// 字符串**文本片段**被剥离；interpolation expression 是真实可执行代码，必须按 code 继续扫描
+    /// （其内部字符串/注释/再嵌套插值各自处理）。`interpolation` 携带 **paren depth**：
+    /// 只有最外层配对 `)` 使 depth 归零时才回到 string，故
+    /// `"\(helper() + sendDirectCommandFrame(0x96))"` 里的调用不会被提前当作文本丢弃。
     /// 插值前缀：普通/多行字符串为 `\(`，raw 字符串为 `\` + hashes + `(`。
-    static func strippingCommentsAndStrings(_ source: String) -> String {
+    static func strippingCommentsAndStrings(_ source: String) throws -> String {
         enum StringKind {
             case ordinary
             case multiline
             case raw(hashes: Int, multiline: Bool)
+
+            var label: String {
+                switch self {
+                case .ordinary: return "ordinary"
+                case .multiline: return "multiline"
+                case let .raw(hashes, multiline): return "raw(hashes: \(hashes), multiline: \(multiline))"
+                }
+            }
         }
         enum Mode {
             case code
-            case interpolation
+            case interpolation(depth: Int)
             case lineComment
             case blockComment(depth: Int)
             case string(StringKind)
@@ -1057,7 +1087,6 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                 return Array((multiline ? "\"\"\"" : "\"") + String(repeating: "#", count: hashes))
             }
         }
-        /// 插值前缀（含前缀本身长度）；普通/多行 `\(`，raw `\` + hashes + `(`。
         func interpolationPrefix(for kind: StringKind) -> [Character] {
             switch kind {
             case .ordinary, .multiline:
@@ -1081,11 +1110,9 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                     continue
                 }
                 if chars[i] == "#", let start = rawStringStart(i) {
-                    let kind = StringKind.raw(
-                        hashes: start.hashes, multiline: isMultilineQuote(at: start.quoteIndex)
-                    )
-                    stack.append(.string(kind))
-                    i = start.quoteIndex + (isMultilineQuote(at: start.quoteIndex) ? 3 : 1)
+                    let multiline = isMultilineQuote(at: start.quoteIndex)
+                    stack.append(.string(.raw(hashes: start.hashes, multiline: multiline)))
+                    i = start.quoteIndex + (multiline ? 3 : 1)
                     continue
                 }
                 if chars[i] == "\"" {
@@ -1094,11 +1121,14 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                     i += multiline ? 3 : 1
                     continue
                 }
-                if case .interpolation = stack[stack.count - 1], chars[i] == ")" {
-                    stack.removeLast()
-                    out.append(chars[i])
-                    i += 1
-                    continue
+                if case let .interpolation(depth) = stack[stack.count - 1] {
+                    if chars[i] == "(" {
+                        stack[stack.count - 1] = .interpolation(depth: depth + 1)
+                    } else if chars[i] == ")" {
+                        // 只有最外层配对括号归零才退出插值；nested `)` 只减深度。
+                        stack[stack.count - 1] = depth == 1 ? .code : .interpolation(depth: depth - 1)
+                        if depth == 1 { stack.removeLast() }
+                    }
                 }
                 out.append(chars[i])
                 i += 1
@@ -1126,9 +1156,9 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             case let .string(kind):
                 let prefix = interpolationPrefix(for: kind)
                 if matches(i, prefix) {
-                    // 插值表达式是代码：进入 code 语义并把前缀替换为一个空格，表达式内容保留。
+                    // 插值表达式按 code 递归扫描：前缀替换为空格，表达式内容保留。
                     out.append(" ")
-                    stack.append(.interpolation)
+                    stack.append(.interpolation(depth: 1))
                     i += prefix.count
                     continue
                 }
@@ -1143,46 +1173,27 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
                 i += 1
             }
         }
+
+        // C5IR7：EOF 必须回到 code，否则显式 fail-closed（假 clean 会隐藏后续 callsite）。
+        switch stack[stack.count - 1] {
+        case .code:
+            break
+        case let .string(kind):
+            throw SourceScanError.unterminatedString(kind: kind.label)
+        case let .blockComment(depth):
+            throw SourceScanError.unterminatedBlockComment(depth: depth)
+        case let .interpolation(depth):
+            throw SourceScanError.unterminatedInterpolation(depth: depth)
+        case .lineComment:
+            // 行注释在 EOF 结束是合法的（文件末尾没有换行）。
+            break
+        }
         return String(out)
     }
 
     struct DirectCommandCallsiteInventory: Equatable {
         let literals: [String]
         let nonLiterals: [String]
-    }
-
-    /// C5IR3：出站直接命令帧 callsite 清单。
-    ///
-    /// 收集 `sendDirectCommandFrame(<first argument>)` 并分类：hex 字面量进 `literals`，
-    /// 其余（变量、表达式）进 `nonLiterals` 并要求为空——`sendDirectCommandFrame(opcode)`
-    /// 这类参数必须显式登记或改成字面量，不得静默绕过清单。
-    /// 前置 `(?<!func\s)` 排除函数声明本身。
-    static func directCommandCallsites(in code: String) -> DirectCommandCallsiteInventory {
-        let pattern = "(?<!func\\s)sendDirectCommandFrame\\s*\\("
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return DirectCommandCallsiteInventory(literals: [], nonLiterals: [])
-        }
-        let chars = Array(code)
-        var literals: [String] = []
-        var nonLiterals: [String] = []
-        for match in regex.matches(in: code, range: NSRange(location: 0, length: (code as NSString).length)) {
-            guard let range = Range(match.range, in: code) else { continue }
-            let start = code.distance(from: code.startIndex, to: range.upperBound)
-            // 读取**完整、括号平衡**的第一个参数；只有整段 trimmed 文本是单一 hex 字面量才算 literal。
-            guard let argument = Self.firstBalancedArgument(after: start, in: chars) else {
-                nonLiterals.append("<unterminated>")
-                continue
-            }
-            let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.range(of: "^0x[0-9A-Fa-f]+$", options: .regularExpression) != nil {
-                literals.append(trimmed.lowercased())
-            } else {
-                nonLiterals.append(trimmed)
-            }
-        }
-        return DirectCommandCallsiteInventory(
-            literals: literals.sorted(), nonLiterals: nonLiterals.sorted()
-        )
     }
 
     /// 从 `(` 之后读取完整、括号平衡的第一个参数：遇到顶层 `,` 或与调用括号配对的 `)` 结束。
@@ -1220,10 +1231,47 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         for case let url as URL in enumerator where url.pathExtension == "swift" {
             let text = try String(contentsOf: url, encoding: .utf8)
             let relative = url.path.replacingOccurrences(of: packageRoot.path + "/", with: "")
-            out.append((relative, strippingCommentsAndStrings(text)))
+            out.append((relative, try strippingCommentsAndStrings(text)))
         }
         return out.sorted { $0.0 < $1.0 }
     }
+
+    /// C5IR7：`directCommandCallsites` 的**声明格式矩阵**——与 authority 计数器共用同一套
+    /// declaration-range/token 机制，多空格 / tab / 换行声明不得被误判为 callsite；
+    /// 无调用括号的别名/方法引用必须 fail-closed。
+    static let directCommandDeclarationMatrix: [DirectCommandParserRow] = [
+        DirectCommandParserRow(
+            name: "decl-single-space",
+            source: "func sendDirectCommandFrame(_ opcode: UInt8) {", literals: [], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "decl-double-space",
+            source: "func  sendDirectCommandFrame(_ opcode: UInt8) {", literals: [], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "decl-newline",
+            source: "func\n    sendDirectCommandFrame(_ opcode: UInt8) {", literals: [], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "decl-tab",
+            source: "func\tsendDirectCommandFrame(_ opcode: UInt8) {", literals: [], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "decl-with-default-args",
+            source: "func sendDirectCommandFrame(_ opcode: UInt8, payload: [UInt8] = []) {",
+            literals: [], nonLiterals: []
+        ),
+        DirectCommandParserRow(
+            name: "alias-reference-without-call",
+            source: "let f = sendDirectCommandFrame",
+            literals: [], nonLiterals: ["<reference-without-call>"]
+        ),
+        DirectCommandParserRow(
+            name: "decl-plus-call",
+            source: "func sendDirectCommandFrame(_ o: UInt8) {}\nsendDirectCommandFrame(0x00)",
+            literals: ["0x00"], nonLiterals: []
+        ),
+    ]
 
     /// C5IR6：`realSymbolReferenceCount` 的**永久声明格式矩阵**——
     /// 声明排除必须对所有合法空白形式生效，别名/方法引用必须计入。
@@ -1380,37 +1428,86 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
         ),
     ]
 
-    /// C5IR6：**符号引用**计数（剥离注释/字符串后），结构化排除声明 range。
+    /// C5IR7：声明 range 与完整 token 引用的**共用**机制。
     ///
-    /// 声明识别不再依赖 `(?<!func\s)` 的固定单空格：先用 `\bfunc\s+<name>\b` 匹配声明
-    /// （`\s+` 天然跨多空格与换行），记录其 range；再统计 `\b<name>\b` 的**完整 token** 引用，
-    /// 落在任一声明 range 内的引用被排除。方法引用/别名（无调用括号）同样计入。
+    /// 声明 = `\bfunc\s+<name>\b`（`\s+` 天然跨多空格 / tab / 换行），逐条记录 range；
+    /// 引用 = `\b<name>\b` 的完整 token。落在任一声明 range 内的引用被排除。
+    /// direct-command inventory 与 authority 符号计数共用这一套，不再依赖 `(?<!func\s)`。
+    static func declarationRanges(of name: String, in code: String) -> [NSRange] {
+        let escaped = NSRegularExpression.escapedPattern(for: name)
+        let whole = NSRange(location: 0, length: (code as NSString).length)
+        guard let declarationRegex = try? NSRegularExpression(pattern: "\\bfunc\\s+" + escaped + "\\b") else {
+            return []
+        }
+        return declarationRegex.matches(in: code, range: whole).map(\.range)
+    }
+
+    /// 完整 token 引用（含无括号的方法引用/别名），排除声明 range。
     static func realSymbolReferenceCount(of name: String, in code: String) -> Int {
         let escaped = NSRegularExpression.escapedPattern(for: name)
         let whole = NSRange(location: 0, length: (code as NSString).length)
-        guard let referenceRegex = try? NSRegularExpression(pattern: "\\b" + escaped + "\\b"),
-              let declarationRegex = try? NSRegularExpression(pattern: "\\bfunc\\s+" + escaped + "\\b") else {
+        guard let referenceRegex = try? NSRegularExpression(pattern: "\\b" + escaped + "\\b") else {
             return -1
         }
-        let declarationRanges = declarationRegex.matches(in: code, range: whole).map(\.range)
+        let declarations = declarationRanges(of: name, in: code)
         var count = 0
         for match in referenceRegex.matches(in: code, range: whole) {
-            if declarationRanges.contains(where: { NSLocationInRange(match.range.location, $0) }) { continue }
+            if declarations.contains(where: { NSLocationInRange(match.range.location, $0) }) { continue }
             count += 1
         }
         return count
+    }
+
+    static func directCommandCallsites(in code: String) -> DirectCommandCallsiteInventory {
+        let name = "sendDirectCommandFrame"
+        let whole = NSRange(location: 0, length: (code as NSString).length)
+        guard let referenceRegex = try? NSRegularExpression(pattern: "\\b" + name + "\\b") else {
+            return DirectCommandCallsiteInventory(literals: [], nonLiterals: [])
+        }
+        let chars = Array(code)
+        let declarations = declarationRanges(of: name, in: code)
+        var literals: [String] = []
+        var nonLiterals: [String] = []
+        for match in referenceRegex.matches(in: code, range: whole) {
+            // 声明 range 结构化排除：多空格 / tab / 换行声明不再被误判为 callsite。
+            if declarations.contains(where: { NSLocationInRange(match.range.location, $0) }) { continue }
+            guard let range = Range(match.range, in: code) else { continue }
+            var cursor = code.distance(from: code.startIndex, to: range.upperBound)
+            while cursor < chars.count, chars[cursor] == " " || chars[cursor] == "\t" || chars[cursor] == "\n" {
+                cursor += 1
+            }
+            guard cursor < chars.count, chars[cursor] == "(" else {
+                // 无调用括号的引用（别名/方法引用）同样 fail-closed。
+                nonLiterals.append("<reference-without-call>")
+                continue
+            }
+            guard let argument = Self.firstBalancedArgument(after: cursor + 1, in: chars) else {
+                nonLiterals.append("<unterminated>")
+                continue
+            }
+            let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.range(of: "^0x[0-9A-Fa-f]+$", options: .regularExpression) != nil {
+                literals.append(trimmed.lowercased())
+            } else {
+                nonLiterals.append(trimmed)
+            }
+        }
+        return DirectCommandCallsiteInventory(
+            literals: literals.sorted(), nonLiterals: nonLiterals.sorted()
+        )
     }
 
 
 
     /// C5IR4：源码 lexer 的**永久表驱动**测试——注释/字符串剥离必须逐类可验证。
     /// 特别覆盖多行字符串里的转义三元引号 `\"""`，它不得被当成结束符。
-    func testSourceScannerLexerTable() {
+    func testSourceScannerLexerTable() throws {
         struct Row {
             let name: String
             let source: String
             let mustContain: [String]
             let mustNotContain: [String]
+            var expectedError: SourceScanError? = nil
         }
         let token = "SENTINEL_TOKEN"
         let rows: [Row] = [
@@ -1465,12 +1562,57 @@ final class AhaKeyAgentRuntimeEndpointTests: XCTestCase {
             Row(name: "nested-string-inside-interpolation-stripped",
                 source: "let s = \"\\(call(\"inner\"))\"",
                 mustContain: ["call("], mustNotContain: ["inner"]),
+            Row(name: "nested-paren-interpolation-keeps-later-call",
+                source: "let s = \"\\(helper() + sendDirectCommandFrame(0x96))\"",
+                mustContain: ["helper() + sendDirectCommandFrame(0x96)"], mustNotContain: []),
+            Row(name: "nested-array-interpolation-keeps-call",
+                source: "let s = \"\\([helper()].count + sendDirectCommandFrame(0x96))\"",
+                mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: []),
+            Row(name: "raw-multiline-interpolation-call-is-visible",
+                source: "let s = #\"\"\"\n\\#(sendDirectCommandFrame(0x96))\n\"\"\"#",
+                mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: []),
+            Row(name: "raw-double-hash-interpolation-call-is-visible",
+                source: "let s = ##\"\\##(sendDirectCommandFrame(0x96))\"##",
+                mustContain: ["sendDirectCommandFrame(0x96)"], mustNotContain: []),
+            Row(name: "raw-double-hash-lower-hash-prefix-is-text",
+                source: "let s = ##\" \\(0x00) \\#(0x01) \"##",
+                mustContain: [], mustNotContain: ["0x00", "0x01"]),
+            Row(name: "authority-symbol-inside-interpolation-is-visible",
+                source: "let s = \"\\(store.applyAuthoritativeFieldReadback(a: 1))\"",
+                mustContain: ["store.applyAuthoritativeFieldReadback"], mustNotContain: []),
+            Row(name: "unterminated-ordinary-string",
+                source: "let s = \"abc",
+                mustContain: [], mustNotContain: [], expectedError: .unterminatedString(kind: "ordinary")),
+            Row(name: "unterminated-multiline-string",
+                source: "let s = \"\"\"\nabc",
+                mustContain: [], mustNotContain: [],
+                expectedError: .unterminatedString(kind: "multiline")),
+            Row(name: "unterminated-raw-string",
+                source: "let s = #\"abc",
+                mustContain: [], mustNotContain: [],
+                expectedError: .unterminatedString(kind: "raw(hashes: 1, multiline: false)")),
+            Row(name: "unterminated-block-comment",
+                source: "let a = 1 /* x",
+                mustContain: [], mustNotContain: [],
+                expectedError: .unterminatedBlockComment(depth: 1)),
+            Row(name: "unterminated-interpolation",
+                source: "let s = \"\\(foo(",
+                mustContain: [], mustNotContain: [],
+                expectedError: .unterminatedInterpolation(depth: 2)),
             Row(name: "code-outside-string-kept",
                 source: "let \(token) = 1",
                 mustContain: [token], mustNotContain: []),
         ]
         for row in rows {
-            let stripped = Self.strippingCommentsAndStrings(row.source)
+            if let expected = row.expectedError {
+                XCTAssertThrowsError(
+                    try Self.strippingCommentsAndStrings(row.source), row.name
+                ) { error in
+                    XCTAssertEqual(error as? SourceScanError, expected, row.name)
+                }
+                continue
+            }
+            let stripped = try Self.strippingCommentsAndStrings(row.source)
             for expected in row.mustContain {
                 XCTAssertTrue(
                     stripped.contains(expected),
