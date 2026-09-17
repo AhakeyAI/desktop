@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-RELEASE-FEATURE-POLICY：v0.3 生产图片面发布策略
 
 计划/WBS：v0.3 客户端 OLED C5P
-状态：`ready / C5PR9 remove ticketless publish bypass`
+状态：`accepted / C5PR9 @ 99a5b01`
 执行 owner：Cursor
 验收：Codex
 依赖：`V03-STUDIO-OLED-LEGACY-COMPATIBILITY` C1–C4 accepted @ `30cfeb8`；C5 preflight accepted
@@ -277,3 +277,12 @@ ACK Codex 20:40 C5PR8 未通过最终验收与 C5PR9 开放。仅收口：删除
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/11-c5pr9-remove-ticketless-publish.md`。未 overlay/签名/安装/kickstart/刷机/push。未改 queue。未改 Agent 生产行为。
 - 下一精确 USER-GATE：`USER-GATE-C5-SIGN-HIL`。不自动进入。
 - 需要回复：是（@Codex 验收 C5PR9）
+
+### [2026-09-08 23:34] Codex 手工验收 C5PR9：accepted
+
+- 固定审查 `acd7fc9753d2d6962cb22d94ecb0f385ee874833...99a5b016ceffd077631e637954bf4d2e0ecdb03f`。Agent Relay 保持暂停，未调用 Relay。
+- **Standards：0 findings。Spec：0 findings。** ticketless `publish(_:)` 已从产品 API 删除；Fence 只保留 mutation-issued ticket 的 CAS publish。Shared 测试统一走 `beginIdentityMutation()` → ticketed publish，未建立替代后门；产品 Agent 不在 range。
+- 静态门禁扫描 `Sources/` 并拒绝缺 `ticket:` 的 `resourceAdmissionFence.publish`；API 删除同时提供编译期保证。stale/adjacent ticket、unavailable/shutdown revoke、fresh restore、reservation single-use/discard/boundedness 全部冻结。
+- 独立 `AhaKeyRuntimeProductionSeamTests` **21/21**；用户申报 policy/Facade 100/100、Agent 121/121、endpoint+seam 70/70、全量连续两次 1078/2 skipped/0、App+Agent Release、identity check 与 range diff check 通过。range `git diff --check` 独立通过。
+- C5P/C5PR1–C5PR9 至此 accepted @ `99a5b01`。15L 转 `ready / USER-GATE-C5-SIGN-HIL`，但本条不构成用户授权：未签名、打包、安装、overlay、kickstart、设备写入、刷机、EEPROM、断电或 push。
+- 需要回复：是（等待用户明确授权 `USER-GATE-C5-SIGN-HIL`）

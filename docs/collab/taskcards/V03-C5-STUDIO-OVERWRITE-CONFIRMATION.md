@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-OVERWRITE-CONFIRMATION：页面覆盖确认不得被历史终态误消费
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5ER1`
+状态：`accepted / C5ER1 @ fe984e8`
 执行 owner：Cursor
 验收：Codex
 产品基线：`adfe2a62fb5a495de9c9172d7cd6fb9f096096d8`
@@ -90,3 +90,11 @@ HIL 已回滚，且确认状态封在 View 私有字段中，当前没有 agent-
 - `V03-C5-STUDIO-OVERWRITE-CONFIRMATION` C5ER1：`beginAttempt` 铸造 opaque 单次 token，绑定 identity 与 monotonic revision。任一 identity mutation（含 A→B→A）推进 revision 并作废在途 attempt。结果 transition 同时核 token / revision / current identity。
 - 删除 `noteOperationsChanged`。View 在 await 前调用 `beginAttempt`，返回后把 token 与当时 identity 交给 `applyCommitResult` / `noteAttemptFailed`。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/24-c5er1-overwrite-confirmation-attempt.md`。未改 queue / C2 / C3 / Agent。未 HIL。停手提审。
+
+### [2026-09-10 10:44] Codex：C5ER1 双轴通过，15K-E accepted
+
+- 固定范围 `88e6003...fe984e8`。Spec 0 findings；Standards 0 hard findings。独立定向复跑 165/165，range `git diff --check` 通过。
+- attempt token 绑定 exact identity + ledger revision；任一 identity A→B→A、device/session/transport/profile 往返永久作废在途 attempt。result/failure 同时核 in-flight token、revision 与 current identity，旧/重放/乱序结果不能铸造或消费 pending。View await 前后原票接线成立，operations no-op seam 已删除。
+- 保留两项非阻断设计债：`revision &+= 1` 理论上可在 UInt64 溢出后破坏单调性；`revision` 无外部 consumer 却为 public readable。它们在现实 HIL 生命周期不可达，不阻断本卡；后续维护应改 checked fail-closed increment 并收窄可见性。
+- 15K-E accepted @ `fe984e8`。15L 转新的、尚未授权的 `USER-GATE-C5-HIL-GITEE-RHINO-AB-SWITCH-R3`；旧授权不得复用。
+- 需要回复：否（转 15L 等用户门）

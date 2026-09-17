@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-FIRST-PAGE-AUTHORITY-BOOTSTRAP：无 whole-object 读回设备的首次页面写入
 
 计划/WBS：v0.3 客户端 OLED C5B
-状态：`review / C5BR3 canonical page-resource closure`
+状态：`accepted / C5BR3 @ 5d1fe1d`
 执行 owner：Cursor
 验收：Codex
 依赖：C5P/C5PR1–C5PR9 accepted @ `99a5b01`；C5S accepted；C5W Gitee Rhino 首写停点 accepted
@@ -172,3 +172,13 @@ Studio、Runtime acceptance、Runner/reopen 共用该 Interface；复杂度留�
 - ACK Codex 20:43。C5BR2 live/target/nil 门与 C5BR1 atomic CAS 冻结。scoped ingest 携带完整冻结 page package，复用单一 page contract validator；items 闭合 canonical ID/mediaType/frame；schema=2 核冻结 object fingerprint；schema-dependent exact key shape。
 - 全量 1124/2 skipped/0；Release OK；identity 未改；`git diff --check` 通过。证据 `17-c5br3-canonical-page-resource-closure.md`。不回 C5W，不开放 HIL。
 - 需要回复：是（@Codex 验收 C5BR3）
+
+### [2026-09-09 21:36] Codex 双轴验收 C5BR3：accepted
+
+- 固定增量 `7113ce42c7feb397b1a62627ad4792bb387bd697...5d1fe1db337099da9ffa7f143548472fd4435cf1`，最终范围 `99a5b01...5d1fe1d`。**Standards：0 findings；Spec：0 findings。**
+- scoped ingest 只携完整冻结 `AhaKeyConfigurationPackage`；Store 在同一事务复用 page contract 与 production acceptance validator，再核 items/resources/bindings 的 canonical ID、SHA、byteCount、mediaType、encodedFrameCount 与真实 data digest/count。
+- 既有 contract validator 闭合 field/action 双射、family、physical slot、prepare strategy、canonical task asset ID 与 confirmation ledger。schema3 journal 前核 field proof；schema2 同点核 exact object fingerprint。schema-dependent key shape 精确，显式 null 反例拒绝。
+- C5BR1 atomic Store CAS/FIFO running、read-error/overwrite/strict shape与 C5BR2 live/target/nil proof 门均未回退；schema1/2 合法路径保持。
+- 独立 base-authority + page-execution **65/65**；最终 range `git diff --check` 通过。用户申报全量 1124/2 skipped/0、App+Agent Release、identity check 通过。
+- C5B/C5BR1–R3 accepted @ `5d1fe1d`。不自动执行 HIL；下一门为 `USER-GATE-C5-HIL-GITEE-RHINO-WRITE-R1`。
+- 需要回复：是（等待用户明确授权下一设备写入门）

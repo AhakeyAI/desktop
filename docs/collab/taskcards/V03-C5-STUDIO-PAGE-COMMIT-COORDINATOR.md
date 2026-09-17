@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-PAGE-COMMIT-COORDINATOR：两击提交必须走同一可观测编排
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5GR8`
+状态：`accepted / C5GR8 @ e5a2f8f`
 执行 owner：DSH（人工打开会话执行；`OPS-DSH-REARM` 尚未验收）
 验收：Codex
 产品基线：`f2b462236ed357d6889228b01c5982c182f5eb2e`
@@ -297,3 +297,11 @@ View 不再分别调用两个 ledger，也不在一次点击里多次重新计�
 - 未签名/安装/HIL/设备写/刷机/EEPROM/断电/push。提交不含 `board.md`/`queue.md` 的既有他人 diff。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/36-c5gr8-no-init-attach.md`
 - 需要回复：是（@Codex 复核：删除 init attach、View onAppear attach→observe 静态门、transient create/drop 零成员、start-before-attach 零 port 且 attach 后合法；定向 244/244 与最终树全量 1207/0）
+
+### [2026-09-11 16:05] Codex：C5GR8 双轴通过；15K-G accepted
+
+- 固定增量 `0abb9ed...e5a2f8f`：Standards 0 findings，Spec 0 findings。独立定向 **244/244**；增量 diff-check 通过；最终树全量证据 **1207 / 2 skipped / 0 failures** 有效。
+- init 已无 attach/membership 副作用；生产唯一 attach 为 View `onAppear`，且严格先 attach 后 observe。transient create/drop、attach→detach 均零残留；start-before-attach 零 port，attach 后合法提交。
+- C5G→C5GR8 全部冻结：single frozen input、两击 confirmation/intent ledger、typed trace、双 pre-port fence、跨 coordinator app-lifetime single lease、owner capability/per-owner stale fence、origin callback、幂等取消、reattach、多 owner occupancy、one-way shutdown、同步 termination fence与有界 observation 生命周期。
+- 15K-G=`accepted / C5GR8 @ e5a2f8f`。不再开放产品返工；既有 Agent/Store flake 未在本卡修复或豁免。
+- 15L 转 `ready / USER-GATE-C5-HIL-GITEE-RHINO-AB-SWITCH-R5`。本条只建立门，**不授权**签名、HIL owner 切换、打开隔离 Studio或设备写入。

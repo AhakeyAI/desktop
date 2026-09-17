@@ -8,7 +8,8 @@
 
 | 来源 | 分支 | 冻结 SHA | 远端复核 | 用途 |
 |---|---|---|---|---|
-| GitHub `AhakeyAI/AhaKey-X1-hardware-source` | `dev` | `3e7f900ae6f5fe71d57a03da973d79356afea1b6` | `git ls-remote` 已确认 | 统一固件主线 |
+| GitHub `AhakeyAI/AhaKey-X1-hardware-source` | `master` | `71b11676c4ebc8ff5b4885a24b601cb9cc04aa67` | 2026-08-26 `ls-remote`：公开 HEAD | 对外产品源；**tree ≡ `dev@3e7f900`** |
+| GitHub `AhakeyAI/AhaKey-X1-hardware-source` | `dev` | `3e7f900ae6f5fe71d57a03da973d79356afea1b6` | `git ls-remote` 已确认 | 统一固件 `git archive` 冻结点（与 master 同树） |
 | Gitee `anpx/ahakeyconfig` | `rhino` | `53cd0a97e95e3b8b35cd56ed2284970d5a79d1be` | `git ls-remote` 已确认 | Rhino 资源/可靠性来源 |
 | 本地桌面仓库 | `rhino` | `00eb7efc235770d0a40e23a8c6e7449b2c010765` | 本地 worktree 已确认 | Gitee Rhino 之后的硬件修复来源 |
 | GitHub `AhakeyAI/desktop` | `main-anpx` | `0da59ce3a058fc19c8abe1de4fa019bae6d1f2b4` | `git ls-remote` 已确认 | current-only USB 客户端参考 |
@@ -18,7 +19,8 @@ Gitee 的完整 `git fetch --all` 本次等待超时后被中止，但单独的 
 
 ## 2. 分支关系结论
 
-- GitHub hardware `dev` 与 Gitee Rhino 不是可安全直接合并的同一仓库历史。
+- GitHub hardware **`master@71b11676` 与 `dev@3e7f900` 源码树相同**（2026-08-26 复核）。统一主线继续 archive `3e7f900`；不要改用 `eternal-dev`。
+- GitHub hardware `dev`/`master` 与 Gitee Rhino 不是可安全直接合并的同一仓库历史。
 - `gitee/rhino` 与当前桌面主线也没有共同 merge-base；禁止目录级合并。
 - 本地 `rhino` 在 Gitee 冻结点后包含五个明确相关提交：Agent task lease/设备身份、macOS USB 枚举、VBUS 传输切换、客户端身份兼容、固件 v11 启动采样。
 - `origin/main-anpx` 相对共同基线包含 18 个提交；只有 `0da59ce` 的 current USB 行为进入本次移植候选，其他 UI、插件、Windows Rust 和文件删除不得捎带合并。
@@ -34,7 +36,7 @@ Gitee 的完整 `git fetch --all` 本次等待超时后被中止，但单独的 
 | SDK bridge | `APP/sdk_bridge` 完整存在，默认关闭 | 不存在 | 保留 GitHub 实现及关闭默认值 |
 | 自动关机/AI 状态 | 存在，含可配置分钟与 SDK AI 回调 | 存在较早实现 | 以 GitHub 行为为主，移植 Rhino 稳定性时不得回退 |
 | 四状态、双套任务图 | 基础 AI 状态 | `0x95-0x98`、双套 binding 完整 | 逐命令移植到统一协议模块 |
-| 能力协商 | GitHub 有 `0x99` 入口 | Rhino 返回 factory 状态、用户槽边界等扩展 | 冻结为 protocol v4 capability TLV，禁止继续扩展固定位置包 |
+| 能力协商 | GitHub `dev@3e7f900` 无 `0x99` 实现（`master` 同树） | Rhino 返回 factory 状态、用户槽边界等扩展 | 从 Rhino 移植并冻结为 protocol v4 capability TLV，禁止继续扩展固定位置包；勿采用 `eternal-dev` 的 `0x99` 任务槽语义 |
 | 事务化出厂资源 | 无 | `factory_assets.c/.h`、trigger、manifest、journal | 作为独立 FactoryAssetModule 移植 |
 | 图片槽位保护/恢复 | 基础写入 | 用户区边界、override journal、写入超时和恢复 | 移植并补断电 HIL |
 | SDK/工厂命令空间 | SDK 声明 `0xF0-0xFF` 保留 | Rhino 使用 `0x95-0x99` | v4 冻结前做 opcode 冲突检查 |

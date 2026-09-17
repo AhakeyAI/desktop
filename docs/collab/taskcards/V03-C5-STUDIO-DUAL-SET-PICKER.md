@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-DUAL-SET-PICKER：密封 Rhino 双套必须露出套图 A/B 分段
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 后续
-状态：`in-review / awaiting Codex`
+状态：`accepted / C5DR1 @ adfe2a6`
 执行 owner：Cursor
 验收：Codex
 产品基线：`5d1fe1db337099da9ffa7f143548472fd4435cf1`
@@ -98,3 +98,11 @@ Agent/BLE 协商、C2 assembler 规则、C3 schema/WAL/CAS/executor、发布 ide
 - 门禁：定向 96/0；全量 1134/2 skipped/0；App+Agent Release；identity `v0.2`/`0.2.1`；range `git diff --check` 绿。证据 `21-c5dr1-selection-transition.md`。
 - 未改 queue、未 HIL、未设备写、未签名/安装/push。15L 仍 `blocked / awaiting C5DR1`。
 - 需要回复：是（@Codex 验收 `6f47bd8..HEAD` 增量与 `5d1fe1d..HEAD` 全 range；通过后才可另开 HIL B-write USER-GATE）
+
+### [2026-09-10 00:18] Codex：C5DR1 双轴通过，15K-D accepted
+
+- 固定增量 `6f47bd8...adfe2a6`、全范围 `5d1fe1d...adfe2a6`。Spec 0 findings；Standards 0 hard findings。独立定向复跑 96/96，增量与全范围 `git diff --check` 通过。
+- 原 P1 已闭合：无 plan 保留 draft；nil→Rhino 从 draft 恢复 B；等价 Rhino 保留当前合法选择；Rhino→Standard 才收敛 A；View 监听完整 plan 并调用统一 transition。原 sealed-fact/picker/B-only closure 未回退。
+- builder 已私有化并共用 plan constructors，dead Studio active-set 投影已删。保留两项非阻断设计债：空 supported-set 时 `desiredActiveSet` 可返回未证明值；View 保存完整 previous plan 但 transition 只消费 nil/non-nil。二者不打开 picker、不创建 operation/WAL，也不阻断本次 Gitee Rhino HIL，后续重构时应收窄。
+- 15K-D accepted @ `adfe2a6`。15L 转到新的、尚未授权的 `USER-GATE-C5-HIL-GITEE-RHINO-B-WRITE-R2`；旧授权不得复用。
+- 需要回复：否（转 15L 等用户门）

@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-PAGE-BASE-OVERWRITE-SEMANTIC：用户确认不得在 schema=3 authority 门形成无限循环
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5HR1`
+状态：`accepted / C5HR1 @ 85e193e`
 执行 owner：DSH
 验收：Codex
 产品基线：`e5a2f8fdbf65d5864135bc7af6752c30bbe914f5`
@@ -124,3 +124,11 @@ failed - confirmed active-set-only 必须越过 authority 门，实得 requiresO
   不含 `board.md`/`queue.md` 的既有他人 diff。15L 保持 `blocked / awaiting C5HR1`；R6 USER-GATE 未建立、未授权。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/39-c5hr1-wire-exactness-and-key-light-matrix.md`
 - 需要回复：是（@Codex 复核：R5 canonical wire 恰一项 0x97/set0、key/light schema=3 未确认 requires+零 apply 与确认后 accepted+wire 精确、还原反证、定向 251/251 与全量绿）
+
+### [2026-09-14 16:45] Codex：C5HR1 双轴通过；15K-H accepted
+
+- 固定范围 `9b3fa6a...85e193e`：Standards 0 blocking findings，Spec 0 findings。独立定向 **251/251**；Sources diff 为空、range diff-check 通过；最终树全量 **1214 / 2 skipped / 0** 有效。
+- R5 canonical package 已精确锁定唯一 `.setActiveSet` / opcode `0x97` / logical+physical set0 / activation，排除 status/FPS/picture/resource/0x84/prepare/default-bind。key description、light brightness、light mapping 三类 schema3 两击与 wire 矩阵完整。
+- tests 两层存在非阻断重复，但一层锚生产常量、一层锚 wire literal，保留独立 oracle，不要求抽取。
+- 15K-H=`accepted / C5HR1 @ 85e193e`。C5H 产品语义、typed rejection 与 tests-only closure 全部冻结；既有 Agent/Store flake 未在本卡修复。
+- 15L 转 `ready / USER-GATE-C5-HIL-GITEE-RHINO-AB-SWITCH-R6`。本条只建立门，**不授权**签名/HIL owner 切换、打开隔离 Studio或设备写入。

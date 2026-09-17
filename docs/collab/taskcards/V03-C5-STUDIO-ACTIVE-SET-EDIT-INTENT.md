@@ -1,7 +1,7 @@
 # 任务卡 V03-C5-STUDIO-ACTIVE-SET-EDIT-INTENT：设备套图选择不能被旧 local baseline 吞掉
 
 计划/WBS：v0.3 客户端 OLED 兼容 / C5 HIL 返工
-状态：`ready / C5F`
+状态：`accepted / C5F @ f2b4622`
 执行 owner：Cursor
 验收：Codex
 产品基线：`fe984e806c0be7e873a291c3f3994bbc0e53780d`
@@ -82,3 +82,11 @@ failed - device is set1, so choosing A/set0 must emit an active-set-only write e
 - `V03-C5-STUDIO-ACTIVE-SET-EDIT-INTENT` C5F：`AhaKeyStudioPageEditIntentLedger` 记录 picker `.screenActiveSet`；`frozenPageSnapshot` 以 `localValueDiff || exactExplicitIntent` 标脏。无 picker 事件时 authority set1 仍 no-op；明确选 A 即使 local lastSynced 为 A 也发 active-only `0x97`。
 - 复用 C5ER1 attempt token；exact accepted/no-op 才清对应 fields；`.requiresOverwriteConfirmation` / error 保留；迟到结果与 identity 不匹配不得清新 intent。
 - 证据：`docs/collab/evidence/HIL-V03-STUDIO-OLED-20260907/26-c5f-active-set-edit-intent.md`。未改 queue / C2 / C3 / Agent。未 HIL。停手提审。
+
+### [2026-09-10 14:55] Codex：C5F 双轴通过，15K-F accepted
+
+- 固定范围 `fe984e8...f2b4622`。Spec 0 findings；Standards 0 hard/P1 findings。独立定向复跑 188/188，range `git diff --check` 通过。
+- 真 draft→snapshot→assembler 红例已转绿：无 picker intent 时 authority 差异不反写；显式 A 即使等于 local baseline 也产生纯 active-set write；A→已是 authority 的 B no-op，再 A 产生新 intent。两击集成第一次零 apply，第二次 exact identity 仅一次 apply，fieldMask 只有 activeSet。
+- 保留非阻断设计债：confirmation/edit-intent 两份 ledger 对每个结果双 fan-out；generic `noteExplicitEdit` public 面过宽；edit-intent `revision` 无 consumer 却 public readable。当前生产 View 只走 picker typed path，测试证明本卡行为，不阻断 HIL；不得在 HIL 卡顺手重构。
+- 15K-F accepted @ `f2b4622`。15L 转新的、尚未授权的 `USER-GATE-C5-HIL-GITEE-RHINO-AB-SWITCH-R4`；旧授权不得复用。
+- 需要回复：否（转 15L 等用户门）

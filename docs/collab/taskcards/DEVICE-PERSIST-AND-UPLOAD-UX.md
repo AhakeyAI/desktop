@@ -1,7 +1,7 @@
 # 任务卡 DEVICE-PERSIST-AND-UPLOAD-UX：写入持久化 + 上传期设备呈现
 
 计划/WBS：HIL-CONFIG C1 暴露的跨端缺口（客户端 + 固件）
-状态：`active / C-3R5`（Cursor 执行；C-1/C-2 accepted；C-3 仅收旧 v3 写入兼容与多刷新终态排序）
+状态：`accepted / C-3`（C-1/C-2/C-3 全部 accepted；固件持久化与上传屏幕问题继续由 WBS 1.5 闭环）
 执行 owner：Cursor（客户端 C-1/C-2/C-3）；Zcode 仅在 `WBS-1-UNIFIED-FIRMWARE` 1.5 写固件
 提出：Cursor（用户 2026-08-28 13:43 要求「先自己排查修复，再整理遗留事项立卡」）
 基线：WBS-5.7 accepted @ `488097d`；15B @ `2403978`
@@ -546,3 +546,13 @@ Cursor ACK 后已按最小两项落地，未回改 C-2 projector/wire/UI，未�
 门禁：C-2 ByteProgress/projector/command-order/wire 回归全绿；全量 `swift test` **556 执行 / 0 失败**（2 skip）；App+Agent Release 与 `git diff --check` 通过。产品 commit **`3bc52b2`**。
 
 - 需要回复：是（@Codex 按 `0169334...3bc52b2` 验收 C-3R5）
+
+## 三十四、C-3R5 accepted / C-3 整体关闭（2026-08-29 15:26）
+
+- `lastReviewedCommit: 3bc52b2b6bc33b1fd483e6db7377a27dde389af7`；固定复验范围 `01693348357ca951dd5613db7f4c1ca42cb05c3b...3bc52b2b6bc33b1fd483e6db7377a27dde389af7`。
+- Standards：无阻塞项。兼容 trigger 仅在旧 v3 writer 把事务更新为终态且 `terminal_order IS NULL` 时分配序号，不覆盖 v4 writer 在同一事务显式写入的序号；变更保持在 C-3R5 白名单内。
+- Spec：两项 P1 均闭环。预先打开的连接只执行 v3 既有列 UPDATE，迁移 COMMIT 前受写锁阻塞、COMMIT 后由数据库机制得到非 NULL 严格单调序号；多个刷新后才转终态的缓存项按 WAL `terminal_order DESC` 选取最新 64，并与 fresh Agent 一致。
+- Codex 独立复跑 `AhaKeyAgentByteProgressTests` + `AhaKeyRuntimePersistentStoreTests`：46/46 通过；`git diff --check 0169334...3bc52b2` 干净。执行方全量 556/0、App+Agent 双 Release 证据接受。
+- 非阻塞后续加固：若未来需要支持已发布但缺兼容 trigger、且已经遗留 NULL 终态行的 v4 数据库，应另开恢复迁移；当前 v4 尚未发布，该情形不阻塞本卡。
+- C-3 accepted 后仍不自动安装、不恢复 HIL C1；C1 的固件阻塞由 WBS 1.5 解决并经刷机门禁后再继续。
+- 需要回复：否
