@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSMicrophoneUsageDescription</key><string>AhaKey records speech only when you start voice input.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>AhaKey connects to your keyboard to read battery status and configure keys and lights.</string>
+</dict></plist>
