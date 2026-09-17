@@ -701,3 +701,38 @@ elevated worker 路径会在 WCHISP 正常退出时及时写出终态，避免�
 PowerShell 5.1 语法解析也为 0 errors，app-image native
 启动验证通过。仍未执行真实 WCHISP、真实烧录、麦克风/F18 硬件测试；代码和自动测试
 完成不等于真机或正式安装包验证完成。
+
+## 28. Windows installer packaging validation (2026-09-17)
+
+本轮只修改发布脚本和文档，没有修改 F18/K1、VoiceButtonStateMachine、
+VoiceActionRouter、SpeechService、VoiceInputManager、BLE/GATT、Firmware、WCHISP
+调用逻辑或 FirmwareUpdateService。`build-release-installer.ps1` 在保留版本化产物
+`AhaKey-Studio-1.5.3-Setup.exe` 的同时生成稳定交付名
+`AhaKey-Studio-Setup.exe`；两个文件由同一次 jpackage/WiX 构建产生且字节一致。
+
+授权的 Sherpa 与 WCHISP 发布输入通过 staging 校验。`target/release-1.5.3/input`
+包含 `ahakey-studio-1.5.3.jar`、随包 Java runtime、
+`models/{encoder.int8.onnx,decoder.int8.onnx,tokens.txt,silero_vad.onnx}`、
+`lib/sherpa-onnx/native/win-x64/{sherpa-onnx-jni.dll,onnxruntime.dll,onnxruntime_providers_shared.dll}`、
+`tools/wchisp` 的 EXE/DLL/`CONFIG_CH57X59X.WCH`/runtime metadata、
+`firmware/AhaKey-X1-firmware-1.4.8-ch582.hex` 及 provenance、
+`ble-driver/BLE_tcp_driver.exe`。app-image 资源检查、绝对开发机路径扫描、
+`Test-ReleaseArtifactContents.ps1` 和 WiX 布局检查均为 OK；app-image 直接启动日志
+确认 Sherpa native、模型、OnlineRecognizer 与 VoiceInputManager 初始化成功。
+
+本轮实际命令及结果：
+
+* `mvn clean test`：294 tests, 0 failures, 0 errors, 0 skipped。
+* `mvn clean package`：`BUILD SUCCESS`，`RELEASE_ARTIFACT_CONTENTS=OK`。
+* `build-release-installer.ps1 ... -IncludeLicensedWchIsp -InternalValidationOnly`：
+  `WINDOWS_INSTALLER_LAYOUT_VALIDATION=OK`，Stable installer 已生成。
+  `prepare-release-dependencies.ps1` 现在要求显式传入授权的 WCHISP 输入目录，
+  不再包含开发机 `C:\app` 默认回退。
+* PowerShell 7 与 Windows PowerShell 5.1 对发布脚本语法解析均为 0 errors；
+  `git diff --check` 通过。
+
+该构建使用内部安装验证模式，产物当前 `Authenticode=NotSigned`，不能作为已签名的
+正式发布包；签名证书和发布机签名步骤仍是外部依赖。当前机器已有历史安装，且没有
+干净 Windows VM，因此没有执行安装覆盖或“全新电脑”测试，也没有执行真实 WCHISP、
+烧录、USB/BLE、麦克风/F18 端到端验证。状态区分如下：代码/脚本完成、自动测试完成、
+app-image 启动验证完成；正式签名、干净安装和真机验证待发布环境完成。

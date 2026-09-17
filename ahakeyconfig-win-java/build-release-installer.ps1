@@ -481,3 +481,6 @@ if ($InternalValidationOnly) {
     Write-Output "PACKAGE_MODE=INTERNAL_INSTALL_VALIDATION_ONLY"
 }
 Write-Output "INSTALLER=$final"
+$stableFinal = Join-Path $installerDir "AhaKey-Studio-Setup.exe"
+Copy-Item -LiteralPath $final -Destination $stableFinal -Force
+Write-Output "INSTALLER_STABLE=$stableFinal"

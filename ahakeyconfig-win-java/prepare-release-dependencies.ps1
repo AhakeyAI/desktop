@@ -1,11 +1,16 @@
 param(
     [string]$BaselineInstallDir = (Join-Path $env:ProgramFiles "AhaKeyStudio"),
-    [string]$WchIspBundleDir = "C:\app\WCHISPTool\WCHISPTool_CH57x-59x",
+    [string]$WchIspBundleDir = "",
     [string]$OutputDir = (Join-Path $PSScriptRoot "release-private")
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($WchIspBundleDir)) {
+    throw "WchIspBundleDir must be supplied explicitly; no developer-machine fallback is allowed."
+}
+$WchIspBundleDir = [IO.Path]::GetFullPath($WchIspBundleDir)
 
 $baselineApp = Join-Path $BaselineInstallDir "app"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
