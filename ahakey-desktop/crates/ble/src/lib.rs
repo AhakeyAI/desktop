@@ -625,7 +625,9 @@ impl BleClient {
         let mut replies = s.replies.subscribe();
         for frame in frames {
             let Some(&cmd) = frame.get(2) else {
-                return Err(BleError::Invalid("config frame missing command byte".into()));
+                return Err(BleError::Invalid(
+                    "config frame missing command byte".into(),
+                ));
             };
             operation(
                 &s.cancel,
@@ -871,7 +873,8 @@ impl BleClient {
             .await
     }
     pub async fn save_keys(&self, mode: u8, keys: &[KeyConfig; 4]) -> Result<()> {
-        self.write_confirmed(protocol::key_frames(mode, keys)?).await
+        self.write_confirmed(protocol::key_frames(mode, keys)?)
+            .await
     }
     pub async fn set_light_effect(&self, effect: u8) -> Result<()> {
         self.write_confirmed(vec![protocol::frame(0x91, &[effect])])

@@ -185,8 +185,14 @@ mod tests {
     }
     #[test]
     fn ack_frames_parse_and_rejections_surface() {
-        assert_eq!(parse_ack(&[0xaa, 0xbb, 0x73, 0, 0xcc, 0xdd]), Some((0x73, 0)));
-        assert_eq!(parse_ack(&[0xaa, 0xbb, 0x92, 3, 0xcc, 0xdd]), Some((0x92, 3)));
+        assert_eq!(
+            parse_ack(&[0xaa, 0xbb, 0x73, 0, 0xcc, 0xdd]),
+            Some((0x73, 0))
+        );
+        assert_eq!(
+            parse_ack(&[0xaa, 0xbb, 0x92, 3, 0xcc, 0xdd]),
+            Some((0x92, 3))
+        );
         // A status-query response is data, not an ACK.
         let status = [0xaa, 0xbb, 0, 46, 50, 1, 0, 1, 0, 1, 35, 0xcc, 0xdd];
         assert!(parse_ack(&status).is_none());
