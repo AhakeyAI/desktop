@@ -8,6 +8,14 @@ pub struct KeyTest {
 }
 
 impl KeyTest {
+    /// Sync the logical latch when the voice session ends without a key
+    /// end-edge (error, UI stop, 120s watchdog, startup failure). Clears only
+    /// the session latch and preserves the physical press edge, so the next
+    /// press is a fresh start and a still-held key cannot restart a session.
+    pub fn release_session(&mut self) {
+        self.active = false;
+    }
+
     pub fn stop(&mut self) -> Option<bool> {
         let changed = self.active;
         *self = Self::default();
@@ -65,6 +73,25 @@ mod tests {
         assert_eq!(input.update(true, TriggerMode::Hold), None);
         assert_eq!(input.update(false, TriggerMode::Hold), Some(false));
         assert_eq!(input.update(false, TriggerMode::Hold), None);
+    }
+    #[test]
+    fn toggle_error_end_does_not_swallow_next_press() {
+        let mut input = KeyTest::default();
+        assert_eq!(input.update(true, TriggerMode::Toggle), Some(true));
+        assert_eq!(input.update(false, TriggerMode::Toggle), None);
+        input.release_session();
+        assert_eq!(input.update(true, TriggerMode::Toggle), Some(true));
+        assert_eq!(input.update(false, TriggerMode::Toggle), None);
+        assert_eq!(input.update(true, TriggerMode::Toggle), Some(false));
+    }
+    #[test]
+    fn hold_error_while_held_cannot_restart_until_next_press() {
+        let mut input = KeyTest::default();
+        assert_eq!(input.update(true, TriggerMode::Hold), Some(true));
+        input.release_session();
+        assert_eq!(input.update(true, TriggerMode::Hold), None);
+        assert_eq!(input.update(false, TriggerMode::Hold), None);
+        assert_eq!(input.update(true, TriggerMode::Hold), Some(true));
     }
     #[test]
     fn toggle_ends_on_next_down_and_disable_cancels_active_session() {

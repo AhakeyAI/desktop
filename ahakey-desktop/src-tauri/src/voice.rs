@@ -78,6 +78,7 @@ fn cancel_locked(app: &tauri::AppHandle) {
     let state = app.state::<Runtime>();
     state.generation.fetch_add(1, Ordering::SeqCst);
     state.recording.store(false, Ordering::SeqCst);
+    state.key_state.lock().unwrap().release_session();
     let active = state.voice.lock().unwrap().take();
     if let Some(mut active) = active {
         active.cancel();
@@ -137,6 +138,9 @@ pub async fn start(
         }
         let wechat = settings.provider == Provider::Wechat;
         let result = crate::platform::external_toggle(wechat);
+        if result.is_err() {
+            state.key_state.lock().unwrap().release_session();
+        }
         if result.is_ok() {
             *state.voice.lock().unwrap() = Some(Active::External { wechat });
             state.recording.store(true, Ordering::SeqCst);
@@ -184,6 +188,7 @@ pub async fn start(
                 }
                 Update::Final(text) => {
                     state.recording.store(false, Ordering::SeqCst);
+                    state.key_state.lock().unwrap().release_session();
                     let mut message = "识别完成".to_string();
                     if insert
                         && !text.trim().is_empty()
@@ -204,6 +209,8 @@ pub async fn start(
                 }
                 Update::Error(error) => {
                     state.recording.store(false, Ordering::SeqCst);
+                    // An abnormal end must not swallow the next press retry.
+                    state.key_state.lock().unwrap().release_session();
                     *state.speech.lock().unwrap() = SpeechStatus {
                         phase: "error".into(),
                         message: error.clone(),
@@ -330,6 +337,7 @@ pub async fn start(
         }
         Err(error) => {
             state.recording.store(false, Ordering::SeqCst);
+            state.key_state.lock().unwrap().release_session();
             post(&tx, Update::Error(error.clone()));
             return Err(error);
         }
@@ -357,6 +365,8 @@ async fn finish_generation(app: tauri::AppHandle, expected: Option<u64>) -> Resu
     if !state.recording.swap(false, Ordering::SeqCst) {
         return Ok(());
     }
+    // UI stop and the 120s watchdog end the session without a key end-edge.
+    state.key_state.lock().unwrap().release_session();
     // Consume ownership BEFORE sending the stop toggle. If SendInput fails or
     // only partly succeeds, generic cleanup must never send a second toggle.
     let external = take_external(&mut state.voice.lock().unwrap());
