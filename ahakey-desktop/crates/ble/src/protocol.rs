@@ -35,6 +35,21 @@ pub fn parse_status(bytes: &[u8]) -> Option<DeviceStatus> {
     })
 }
 
+/// Firmware ACK frame on 0x7344: AA BB <cmd echo> <status> CC DD.
+/// Per docs/ble-protocol.md section 9, status 0 is success and any other value
+/// is a rejection. Status-query data frames (13 bytes, cmd echo 0x00) are not
+/// ACKs and stay handled by parse_status.
+pub fn parse_ack(bytes: &[u8]) -> Option<(u8, u8)> {
+    let len = bytes.len();
+    if len < 6 || bytes[..2] != [0xaa, 0xbb] || bytes[len - 2..] != [0xcc, 0xdd] {
+        return None;
+    }
+    if parse_status(bytes).is_some() {
+        return None;
+    }
+    Some((bytes[2], bytes[3]))
+}
+
 pub fn frame(command: u8, payload: &[u8]) -> Vec<u8> {
     let mut out = vec![0xaa, 0xbb, command];
     out.extend_from_slice(payload);
@@ -167,6 +182,16 @@ mod tests {
         assert_eq!(f[36], vec![0xaa, 0xbb, 0x85, 70, 0xcc, 0xdd]);
         assert_eq!(f[37], vec![0xaa, 0xbb, 0x92, 2, 0xcc, 0xdd]);
         assert_eq!(f[38], vec![0xaa, 0xbb, 4, 0xcc, 0xdd]);
+    }
+    #[test]
+    fn ack_frames_parse_and_rejections_surface() {
+        assert_eq!(parse_ack(&[0xaa, 0xbb, 0x73, 0, 0xcc, 0xdd]), Some((0x73, 0)));
+        assert_eq!(parse_ack(&[0xaa, 0xbb, 0x92, 3, 0xcc, 0xdd]), Some((0x92, 3)));
+        // A status-query response is data, not an ACK.
+        let status = [0xaa, 0xbb, 0, 46, 50, 1, 0, 1, 0, 1, 35, 0xcc, 0xdd];
+        assert!(parse_ack(&status).is_none());
+        assert!(parse_ack(&[0xaa, 0xbb, 0x92, 0]).is_none());
+        assert!(parse_ack(&[1, 2, 3, 4, 5, 6]).is_none());
     }
     #[test]
     fn validate_entire_batch() {

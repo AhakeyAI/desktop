@@ -51,6 +51,8 @@ pub enum BleError {
     NotConnected,
     #[error("{0}")]
     Invalid(String),
+    #[error("Firmware rejected command {0:#04x} with status {1}")]
+    Rejected(u8, u8),
 }
 impl From<btleplug::Error> for BleError {
     fn from(e: btleplug::Error) -> Self {
@@ -143,6 +145,8 @@ impl Drop for BleClient {
 }
 
 const OP_TIMEOUT: Duration = Duration::from_secs(10);
+/// Firmware ACK/readback on 0x7344 for config writes should answer fast.
+const ACK_TIMEOUT: Duration = Duration::from_secs(2);
 async fn operation<T>(
     cancel: &CancellationToken,
     label: &'static str,
@@ -607,6 +611,93 @@ impl BleClient {
         }
         Ok(())
     }
+    /// Write config frames and wait for each matching firmware ACK on 0x7344.
+    /// GATT write success alone proves nothing: per docs/ble-protocol.md the
+    /// firmware answers with a non-zero status when it rejects a command, and
+    /// silently ignoring that let the UI claim a rejected save succeeded.
+    async fn write_confirmed(&self, frames: Vec<Vec<u8>>) -> Result<()> {
+        let session = self.session.lock().await;
+        let s = session.as_ref().ok_or(BleError::NotConnected)?;
+        if self.status().phase != ConnectionPhase::Ready {
+            return Err(BleError::NotConnected);
+        }
+        let _write_guard = s.writes.lock().await;
+        let mut replies = s.replies.subscribe();
+        for frame in frames {
+            let Some(&cmd) = frame.get(2) else {
+                return Err(BleError::Invalid("config frame missing command byte".into()));
+            };
+            operation(
+                &s.cancel,
+                "write command",
+                s.peripheral
+                    .write(&s.command, &frame, WriteType::WithResponse),
+            )
+            .await?;
+            let ack = async {
+                loop {
+                    let bytes = replies
+                        .recv()
+                        .await
+                        .map_err(|e| BleError::Native(e.to_string()))?;
+                    if let Some((echo, status)) = protocol::parse_ack(&bytes) {
+                        if echo == cmd {
+                            return Ok::<u8, BleError>(status);
+                        }
+                    }
+                }
+            };
+            let status = tokio::select! { biased;
+                _=s.cancel.cancelled()=>return Err(BleError::Cancelled),
+                r=timeout(ACK_TIMEOUT, ack)=>r.map_err(|_|BleError::Timeout("firmware ACK"))?,
+            }?;
+            if status != 0 {
+                return Err(BleError::Rejected(cmd, status));
+            }
+            // Rejected config on an inactive host must not tear down its link.
+            tokio::select! {biased;_=s.cancel.cancelled()=>return Err(BleError::Cancelled),_=sleep(Duration::from_millis(50))=>{}}
+        }
+        Ok(())
+    }
+    /// Re-read device status after a confirmed write and require the expected
+    /// value, so mode/brightness only report success when the device shows them.
+    async fn confirm_status(
+        &self,
+        expect: impl Fn(&DeviceStatus) -> bool,
+        what: &'static str,
+    ) -> Result<()> {
+        let session = self.session.lock().await;
+        let s = session.as_ref().ok_or(BleError::NotConnected)?;
+        if self.status().phase != ConnectionPhase::Ready {
+            return Err(BleError::NotConnected);
+        }
+        let _write_guard = s.writes.lock().await;
+        let mut replies = s.replies.subscribe();
+        operation(
+            &s.cancel,
+            "query status",
+            s.peripheral
+                .write(&s.command, &protocol::QUERY_STATUS, WriteType::WithResponse),
+        )
+        .await?;
+        let readback = async {
+            loop {
+                let bytes = replies
+                    .recv()
+                    .await
+                    .map_err(|e| BleError::Native(e.to_string()))?;
+                if let Some(status) = protocol::parse_status(&bytes) {
+                    if expect(&status) {
+                        return Ok(());
+                    }
+                }
+            }
+        };
+        tokio::select! { biased;
+            _=s.cancel.cancelled()=>Err(BleError::Cancelled),
+            r=timeout(ACK_TIMEOUT, readback)=>r.map_err(|_|BleError::Timeout(what))?,
+        }
+    }
     pub async fn query_status(&self) -> Result<()> {
         self.write_batch(vec![protocol::QUERY_STATUS.to_vec()])
             .await
@@ -776,14 +867,14 @@ impl BleClient {
         active_mode: u8,
         brightness: u8,
     ) -> Result<()> {
-        self.write_batch(protocol::profile_frames(profiles, active_mode, brightness)?)
+        self.write_confirmed(protocol::profile_frames(profiles, active_mode, brightness)?)
             .await
     }
     pub async fn save_keys(&self, mode: u8, keys: &[KeyConfig; 4]) -> Result<()> {
-        self.write_batch(protocol::key_frames(mode, keys)?).await
+        self.write_confirmed(protocol::key_frames(mode, keys)?).await
     }
     pub async fn set_light_effect(&self, effect: u8) -> Result<()> {
-        self.write_batch(vec![protocol::frame(0x91, &[effect])])
+        self.write_confirmed(vec![protocol::frame(0x91, &[effect])])
             .await
     }
     pub async fn set_ide_state(&self, state: u8) -> Result<()> {
@@ -797,13 +888,18 @@ impl BleClient {
         if mode > 3 {
             return Err(BleError::Invalid("mode must be 0..3".into()));
         }
-        self.write_batch(vec![protocol::frame(0x92, &[mode])]).await
+        self.write_confirmed(vec![protocol::frame(0x92, &[mode])])
+            .await?;
+        self.confirm_status(|s| s.work_mode == mode, "work mode readback")
+            .await
     }
     pub async fn set_light_brightness(&self, brightness: u8) -> Result<()> {
         if !(1..=100).contains(&brightness) {
             return Err(BleError::Invalid("brightness must be 1..100".into()));
         }
-        self.write_batch(vec![protocol::frame(0x85, &[brightness])])
+        self.write_confirmed(vec![protocol::frame(0x85, &[brightness])])
+            .await?;
+        self.confirm_status(|s| s.light_brightness == brightness, "brightness readback")
             .await
     }
 }
