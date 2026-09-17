@@ -222,6 +222,77 @@ class FirmwareUpdateServiceTest {
     }
 
     @Test
+    void explicitVendorSuccessWithNonZeroProcessExitReachesPostVerify() throws Exception {
+        AtomicReference<List<FirmwareUpdateState>> states = new AtomicReference<>(
+            new java.util.ArrayList<>());
+        WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
+            String output = command.arguments().contains("download")
+                ? "{\"Device\":\"CH582\",\"Status\":\"Finished\","
+                    + "\"Code\":0,\"Message\":\"Succeed\"}"
+                : "";
+            int exitCode = command.arguments().contains("download") ? 100 : 1;
+            return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 12,
+                exitCode, false, false, output, "", output, Duration.ofMillis(9), false,
+                Map.of(), "PROCESS_EXIT");
+        });
+        RuntimeBundle runtime = runtimeBundle("explicit-terminal-runtime");
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, runner);
+        FirmwarePostVerifier verifier = new FirmwarePostVerifier(
+            () -> new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0,
+                FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 7, 1),
+            () -> true, millis -> { });
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+            verifier, new FirmwareUpdateDiagnostics(temporary.resolve("explicit-terminal-diagnostics")),
+            temporary);
+        service.addListener(status -> states.get().add(status.state()));
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+
+            assertTrue(result.success(), result.detail());
+            assertTrue(states.get().contains(FirmwareUpdateState.WAITING_RECONNECT));
+            assertTrue(states.get().contains(FirmwareUpdateState.VERIFYING));
+            assertTrue(Files.readString(result.diagnosticDirectory().resolve("flash-result.json"))
+                .contains("\"terminalResult\": \"SUCCESS\""));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void flashSuccessWithPostVerifyTimeoutIsReportedSeparately() throws Exception {
+        RuntimeBundle runtime = runtimeBundle("post-verify-failure-runtime");
+        WchIspRunner runner = new WchIspRunner((command, cancellation) ->
+            new WchIspRunner.WchIspProcessResult(command.operationId(), true, 31, 100,
+                false, false,
+                "{\"Device\":\"CH582\",\"Status\":\"Finished\","
+                    + "\"Code\":0,\"Message\":\"Succeed\"}",
+                "", "", Duration.ofMillis(8), false, Map.of(), "PROCESS_EXIT"));
+        AhaKeyResponseParser.DeviceCapabilities incomplete =
+            new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0, 0, 7, 1);
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, runner);
+        FirmwarePostVerifier verifier = new FirmwarePostVerifier(
+            () -> incomplete, () -> true, millis -> { });
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+            verifier, new FirmwareUpdateDiagnostics(temporary.resolve("post-verify-failure")),
+            temporary);
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+
+            assertFalse(result.success());
+            assertEquals(FirmwareUpdateError.POST_FLASH_CAPABILITIES_MISMATCH, result.error());
+            assertTrue(result.detail().contains("FLASH_SUCCESS_VERIFY_FAILED=YES"));
+            assertTrue(result.detail().contains("固件已烧录，但设备版本确认失败"));
+            assertFalse(result.detail().contains("FLASH_FAILED=YES"));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
     void runtimeFailureBlocksBeforeIspOrFlash() throws Exception {
         AtomicInteger runnerCalls = new AtomicInteger();
         FirmwareUpdateService service = new FirmwareUpdateService(

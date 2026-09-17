@@ -59,11 +59,17 @@ public final class WchIspResultParser {
         boolean explicitFailure = EXPLICIT_FAILURE.matcher(output).find();
         boolean terminalSuccess = FINISHED.matcher(output).find()
             || TEXT_FINISHED.matcher(output).find();
+        // WCHISP's terminal payload is the authoritative flash result.  Some
+        // vendor builds return a non-zero process code after printing the
+        // complete Finished/Code=0/Message=Succeed record.  Do not let that
+        // transport-level code override an explicit successful device result.
+        if (terminalSuccess && !explicitFailure) {
+            return new FlashExecutionResult(true, null, "烧录完成（WCHISP 明确终态）", 0);
+        }
         boolean cleanProcessExit = result.exitCode() == 0
             && normalProcessExit(result)
             && !explicitFailure;
-        if (result.exitCode() == 0 && !explicitFailure
-            && (terminalSuccess || cleanProcessExit)) {
+        if (cleanProcessExit) {
             return new FlashExecutionResult(true, null, "烧录完成", 0);
         }
         int vendorCode = code(output, result.exitCode());

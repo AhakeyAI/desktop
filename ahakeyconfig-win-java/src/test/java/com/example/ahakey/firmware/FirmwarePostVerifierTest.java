@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 class FirmwarePostVerifierTest {
     private static final AhaKeyResponseParser.DeviceCapabilities GOOD =
@@ -59,5 +61,41 @@ class FirmwarePostVerifierTest {
             () -> true, millis -> { });
         assertThrows(InterruptedException.class, () -> verifier.verify(
             SemanticVersion.parse("1.4.7"), java.time.Duration.ofSeconds(1), cancelled::get));
+    }
+
+    @Test
+    void reconnectWaitRejectsStaleStatusUntilNewFrameArrives() throws Exception {
+        AtomicLong statusSequence = new AtomicLong(1);
+        AtomicInteger sleeps = new AtomicInteger();
+        var verifier = new FirmwarePostVerifier(() -> GOOD, () -> true, millis -> {
+            sleeps.incrementAndGet();
+            statusSequence.incrementAndGet();
+        }, statusSequence::get);
+
+        assertTrue(verifier.awaitReconnect(java.time.Duration.ofSeconds(1), () -> false));
+        assertEquals(1, sleeps.get(), "a stale pre-reconnect status must not satisfy the wait");
+    }
+
+    @Test
+    void reconnectWaitDoesNotAcceptStaleStatusWhenTimeoutExpires() throws Exception {
+        AtomicLong statusSequence = new AtomicLong(1);
+        var verifier = new FirmwarePostVerifier(() -> GOOD, () -> true, millis -> { },
+            statusSequence::get);
+
+        assertFalse(verifier.awaitReconnect(java.time.Duration.ZERO, () -> false));
+    }
+
+    @Test
+    void capabilityVerificationRetriesAfterTransientNineFFailure() throws Exception {
+        AtomicInteger reads = new AtomicInteger();
+        var verifier = new FirmwarePostVerifier(() -> {
+            if (reads.incrementAndGet() == 1) throw new java.io.IOException("0x9F timeout");
+            return GOOD;
+        }, () -> true, millis -> { });
+
+        var result = verifier.verify(SemanticVersion.parse("1.4.7"),
+            java.time.Duration.ofSeconds(1));
+        assertTrue(result.success(), result.detail());
+        assertEquals(2, reads.get());
     }
 }

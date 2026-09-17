@@ -521,7 +521,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 saveProcess(diagnosticDirectory, "flash", flashCommand, flashRaw);
                 WchIspResultParser.FlashExecutionResult flash = WchIspResultParser.parseFlash(flashRaw);
                 if (!flash.success()) {
-                    finish(handle, FirmwareUpdateState.FAILED, flash.error(), flash.detail(), diagnosticDirectory);
+                    finish(handle, FirmwareUpdateState.FAILED, flash.error(),
+                        flashFailureDetail(flash.detail()), diagnosticDirectory);
                     return;
                 }
             }
@@ -530,12 +531,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
             checkCancelled(cancellation);
             if (postVerifier == null) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    "未配置设备回读校验器", diagnosticDirectory);
+                    postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
                 return;
             }
             if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    "设备未在时限内正常重连", diagnosticDirectory);
+                    postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
                 return;
             }
             transition(handle, FirmwareUpdateState.VERIFYING,
@@ -543,11 +544,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
             FirmwarePostVerifier.Verification verification = postVerifier.verify(
                 request.targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
             if (!verification.success()) {
-                finish(handle, FirmwareUpdateState.FAILED, verification.error(), verification.detail(), diagnosticDirectory);
+                finish(handle, FirmwareUpdateState.FAILED, verification.error(),
+                    postVerifyFailureDetail(verification.detail()), diagnosticDirectory);
                 return;
             }
             checkCancelled(cancellation);
-            String completionDetail = verification.detail();
+            String completionDetail = updateSuccessDetail(verification.detail());
             Path uidWarningFile = diagnosticDirectory == null ? null : diagnosticDirectory.resolve("uid-warning.txt");
             if (uidWarningFile != null && Files.isRegularFile(uidWarningFile)) {
                 try {
@@ -619,7 +621,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
             saveAdapterProcess(diagnosticDirectory, flash);
             if (!flash.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, flashFailureError(flash),
-                    flash.detail(), diagnosticDirectory);
+                    flashFailureDetail(flash.detail()), diagnosticDirectory);
                 return;
             }
 
@@ -628,12 +630,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
             checkCancelled(cancellation);
             if (postVerifier == null) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    "未配置设备回读校验器", diagnosticDirectory);
+                    postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
                 return;
             }
             if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    "设备未在时限内正常重连", diagnosticDirectory);
+                    postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
                 return;
             }
             transition(handle, FirmwareUpdateState.VERIFYING,
@@ -641,11 +643,13 @@ public final class FirmwareUpdateService implements AutoCloseable {
             FirmwarePostVerifier.Verification verification = postVerifier.verify(
                 request.targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
             if (!verification.success()) {
-                finish(handle, FirmwareUpdateState.FAILED, verification.error(), verification.detail(), diagnosticDirectory);
+                finish(handle, FirmwareUpdateState.FAILED, verification.error(),
+                    postVerifyFailureDetail(verification.detail()), diagnosticDirectory);
                 return;
             }
             checkCancelled(cancellation);
-            finish(handle, FirmwareUpdateState.SUCCESS, null, verification.detail(), diagnosticDirectory);
+            finish(handle, FirmwareUpdateState.SUCCESS, null,
+                updateSuccessDetail(verification.detail()), diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
                 "固件操作已取消", diagnosticDirectory);
@@ -690,7 +694,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 prepared.session().launchContext(), actualProcessStartTime, flash);
             if (!flash.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, flashFailureError(flash),
-                    flash.detail(), diagnosticDirectory);
+                    flashFailureDetail(flash.detail()), diagnosticDirectory);
                 return;
             }
 
@@ -700,13 +704,13 @@ public final class FirmwareUpdateService implements AutoCloseable {
             if (postVerifier == null) {
                 finish(handle, FirmwareUpdateState.FAILED,
                     FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    "未配置设备回读校验器", diagnosticDirectory);
+                    postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
                 return;
             }
             if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
                 finish(handle, FirmwareUpdateState.FAILED,
                     FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    "设备未在时限内正常重连", diagnosticDirectory);
+                    postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
                 return;
             }
             transition(handle, FirmwareUpdateState.VERIFYING,
@@ -715,11 +719,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 prepared.request().targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
             if (!verification.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, verification.error(),
-                    verification.detail(), diagnosticDirectory);
+                    postVerifyFailureDetail(verification.detail()), diagnosticDirectory);
                 return;
             }
             checkCancelled(cancellation);
-            finish(handle, FirmwareUpdateState.SUCCESS, null, verification.detail(), diagnosticDirectory);
+            finish(handle, FirmwareUpdateState.SUCCESS, null,
+                updateSuccessDetail(verification.detail()), diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
                 "固件操作已取消", diagnosticDirectory);
@@ -1066,6 +1071,20 @@ public final class FirmwareUpdateService implements AutoCloseable {
             if (message.contains("isp")) return FirmwareUpdateError.ISP_NOT_PRESENT;
         }
         return FirmwareUpdateError.INTERNAL_ERROR;
+    }
+
+    private static String flashFailureDetail(String detail) {
+        return "FLASH_FAILED=YES\n" + (detail == null ? "" : detail);
+    }
+
+    private static String postVerifyFailureDetail(String detail) {
+        return "FLASH_SUCCESS_VERIFY_FAILED=YES\n"
+            + "固件已烧录，但设备版本确认失败\n"
+            + (detail == null ? "" : detail);
+    }
+
+    private static String updateSuccessDetail(String detail) {
+        return "UPDATE_SUCCESS=YES\n" + (detail == null ? "" : detail);
     }
 
     static FirmwareUpdateError flashFailureError(OfficialWchIspAdapter.FlashResult flash) {

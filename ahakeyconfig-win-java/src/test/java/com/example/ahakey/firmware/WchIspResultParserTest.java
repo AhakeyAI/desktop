@@ -54,6 +54,19 @@ class WchIspResultParserTest {
     }
 
     @Test
+    void explicitFinishedCodeZeroSucceedOverridesNonZeroProcessExit() {
+        var result = WchIspResultParser.parseFlash(raw(100, false,
+            "{\"Device\":\"CH582\",\"Status\":\"Finished\","
+                + "\"Code\":0,\"Message\":\"Succeed\"}", "", false,
+            "PROCESS_EXIT"));
+
+        assertTrue(result.success());
+        assertNull(result.error());
+        assertEquals(0, result.vendorCode());
+        assertTrue(result.detail().contains("明确终态"));
+    }
+
+    @Test
     void cleanNormalExitWithoutOutputIsAccepted() {
         var result = WchIspResultParser.parseFlash(raw(0, false,
             "", "", false, "PROCESS_EXIT"));

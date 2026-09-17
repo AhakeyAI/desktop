@@ -6,16 +6,20 @@ import com.example.ahakey.update.SemanticVersion;
 
 import java.time.Duration;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 
 /** Verifies a normally reconnected device against the 0x9F contract. */
 public final class FirmwarePostVerifier {
     private final CapabilityReader reader;
     private final BooleanSupplier connected;
     private final Sleeper sleeper;
+    /** Optional production signal proving a status frame arrived after the
+     * post-flash reconnect wait began. Test-only callers may omit it. */
+    private final LongSupplier statusUpdateSequence;
 
     public FirmwarePostVerifier(BleManager manager) {
-        this(manager::queryDeviceCapabilities, manager::isTransportSessionActive,
-            millis -> Thread.sleep(millis));
+        this(manager::queryDeviceCapabilities, manager::isReadyForPostFlashVerification,
+            millis -> Thread.sleep(millis), manager::getStatusUpdateSequence);
     }
 
     public FirmwarePostVerifier(CapabilityReader reader, BooleanSupplier connected) {
@@ -24,9 +28,15 @@ public final class FirmwarePostVerifier {
 
     public FirmwarePostVerifier(CapabilityReader reader, BooleanSupplier connected,
                                 Sleeper sleeper) {
+        this(reader, connected, sleeper, null);
+    }
+
+    FirmwarePostVerifier(CapabilityReader reader, BooleanSupplier connected,
+                         Sleeper sleeper, LongSupplier statusUpdateSequence) {
         this.reader = reader;
         this.connected = connected == null ? () -> true : connected;
         this.sleeper = sleeper == null ? millis -> Thread.sleep(millis) : sleeper;
+        this.statusUpdateSequence = statusUpdateSequence;
     }
 
     public Verification verify(SemanticVersion expectedVersion, Duration timeout)
@@ -39,13 +49,21 @@ public final class FirmwarePostVerifier {
         Duration effective = timeout == null || timeout.isNegative() ? Duration.ZERO : timeout;
         BooleanSupplier stop = cancellation == null ? () -> false : cancellation;
         long deadline = System.nanoTime() + effective.toNanos();
+        long waitStartedAtSequence = statusUpdateSequence == null
+            ? 0 : statusUpdateSequence.getAsLong();
         while (System.nanoTime() < deadline) {
             if (stop.getAsBoolean()) throw new InterruptedException("reconnect wait cancelled");
-            if (connected.getAsBoolean()) return true;
+            if (isReadyAfter(waitStartedAtSequence)) return true;
             sleep(50);
         }
         if (stop.getAsBoolean()) throw new InterruptedException("reconnect wait cancelled");
-        return connected.getAsBoolean();
+        return isReadyAfter(waitStartedAtSequence);
+    }
+
+    private boolean isReadyAfter(long waitStartedAtSequence) {
+        if (!connected.getAsBoolean()) return false;
+        return statusUpdateSequence == null
+            || statusUpdateSequence.getAsLong() > waitStartedAtSequence;
     }
 
     public Verification verify(SemanticVersion expectedVersion, Duration timeout,

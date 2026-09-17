@@ -736,3 +736,46 @@ VoiceActionRouter、SpeechService、VoiceInputManager、BLE/GATT、Firmware、WC
 干净 Windows VM，因此没有执行安装覆盖或“全新电脑”测试，也没有执行真实 WCHISP、
 烧录、USB/BLE、麦克风/F18 端到端验证。状态区分如下：代码/脚本完成、自动测试完成、
 app-image 启动验证完成；正式签名、干净安装和真机验证待发布环境完成。
+
+## 29. WCHISP terminal success precedence (2026-09-17)
+
+修复 Windows 烧录结果判定：`WchIspResultParser.parseFlash()` 现在优先使用官方
+WCHISP 输出中的完整终态 `Finished + Code=0 + Message=Succeed`。部分运行时会在输出
+已明确成功后返回非零进程码（现场证据为 100）；该进程码不再覆盖设备终态，
+`FirmwareUpdateService` 会继续进入 `WAITING_RECONNECT` 和 `VERIFYING`，最终仍必须由
+`FirmwarePostVerifier` 通过后才能报告 `SUCCESS`。
+
+安全边界未放宽：取消、UAC 取消、进程启动失败、超时、进程归属不完整以及输出中明确
+的 `Error`/`Failed`/非零 vendor `Code` 继续 fail closed；没有完整 WCHISP 终态且只有
+普通 0 退出也只在正常进程退出证据成立时接受。命令参数、固件内容、WCHISP 调用方式和
+post verify 合同均未改变。
+
+新增回归覆盖非零进程码但明确成功的 JSON 终态，并通过服务路径验证仍能到达重连和
+post verify。定向测试为 **28 tests, 0 failures, 0 errors, 0 skipped**；完整测试与
+打包结果以本轮交付记录为准。尚未执行真实 WCHISP 或硬件烧录。
+
+## 30. Flash result and post-flash verification separation (2026-09-17)
+
+本轮把烧录终态与设备重连/`0x9F` 回读明确分层。`WchIspResultParser` 对
+`Finished + Code=0 + Message=Succeed` 使用 WCHISP 设备终态作为烧录成功证据，即使
+厂商进程随后返回非零 transport exit code；原始 exit code、stdout/stderr/console
+仍由诊断保留。取消、超时、启动失败、进程归属不完整，以及明确的失败状态或非零
+vendor `Code` 仍然 fail closed。
+
+烧录成功后，`FirmwareUpdateService` 先进入 `WAITING_RECONNECT`，再进入
+`VERIFYING`。生产 `FirmwarePostVerifier(BleManager)` 不再把“句柄/套接字已打开”当作
+重连完成，而要求当前 transport 有效、缓存状态 connected，并且 session-local 状态帧
+序列号严格高于本次重连等待开始时的基线；使用序列号避免同一毫秒内的时间戳碰撞。随后
+仍通过真实 `queryDeviceCapabilities()`（`0x9F`）读取并校验
+Firmware、Protocol 3.2、Model 1 和能力掩码 `0x7FF`。回读最终失败时结果保持
+`FAILED`，但详情包含 `FLASH_SUCCESS_VERIFY_FAILED=YES` 和“固件已烧录，但设备版本
+确认失败”，不会再将其混同为 `FLASH_FAILED`；只有 post verify 通过才会标记
+`UPDATE_SUCCESS=YES` / `SUCCESS`。
+
+新增测试覆盖：明确成功终态覆盖非零进程码并继续官方适配器重连/回读；旧状态序列号
+不能满足新的重连等待；状态序列更新后才允许继续；瞬时 `0x9F` 读取失败会在有界
+窗口内重试；烧录成功但能力回读失败会输出分层失败详情。测试使用 fake runner、
+可控时钟/睡眠和真实服务调用链，不运行 WCHISP，不执行真实烧录。自动测试与打包的
+定向回归为 **37 tests, 0 failures, 0 errors, 0 skipped**；完整回归为 **300 tests,
+0 failures, 0 errors, 0 skipped**，并且 `mvn clean package` 报告
+`RELEASE_ARTIFACT_CONTENTS=OK`。USB/BLE 枚举、真实设备重连延迟和真机烧录仍待硬件验证。

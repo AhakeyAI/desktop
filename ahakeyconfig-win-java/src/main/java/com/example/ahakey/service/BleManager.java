@@ -66,6 +66,8 @@ public class BleManager {
     private volatile String bridgeDeviceName = "";
     private DeviceStatus cachedStatus = new DeviceStatus();
     private volatile long lastStatusUpdateTime = 0;  // 最后一次状态更新时间
+    /** Monotonic generation of accepted physical status frames. */
+    private final AtomicLong statusUpdateSequence = new AtomicLong();
     private final PhysicalStatusFreshness physicalStatusFreshness =
         new PhysicalStatusFreshness();
     private volatile DeviceStatus acceptedPhysicalStatus;
@@ -856,6 +858,17 @@ public class BleManager {
             || isBleBridgeSessionActive();
     }
 
+    /**
+     * Post-flash readiness requires a status frame from the currently active
+     * transport, not merely an open USB handle or TCP bridge socket. The
+     * status timestamp is reset whenever a transport session changes.
+     */
+    public boolean isReadyForPostFlashVerification() {
+        return isTransportSessionActive()
+            && lastStatusUpdateTime > 0
+            && cachedStatus.isConnected();
+    }
+
     public String selectPreferredTransport() throws IOException {
         if (ensureUsbConnected()) {
             return "USB";
@@ -868,6 +881,15 @@ public class BleManager {
 
     public long getLastStatusUpdateTime() {
         return lastStatusUpdateTime;
+    }
+
+    /**
+     * Returns a session-local sequence for accepted physical status frames.
+     * Unlike wall-clock milliseconds this cannot collapse two updates that
+     * happen in the same millisecond.
+     */
+    public long getStatusUpdateSequence() {
+        return statusUpdateSequence.get();
     }
 
     DeviceStatus getApprovalQueryStatus() {
@@ -964,6 +986,7 @@ public class BleManager {
         acceptedPhysicalStatus = null;
         approvalQueryStatus.remove();
         lastStatusUpdateTime = 0;
+        statusUpdateSequence.set(0);
         cachedStatus.setSwitchState(-1);
     }
 
@@ -1593,6 +1616,7 @@ public class BleManager {
                 && (usbTransport.isOpen() || bridgeBleConnected));
             cachedStatus = status;
             lastStatusUpdateTime = System.currentTimeMillis();
+            statusUpdateSequence.incrementAndGet();
             physicalStatusFreshness.recordPhysicalStatus(
                 receivedAtNanos,
                 frameSession,
