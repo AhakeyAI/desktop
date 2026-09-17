@@ -66,7 +66,7 @@ class OfficialWchIspAdapterTest {
     }
 
     @Test
-    void exitZeroWithoutVendorTerminalSuccessFailsClosed() throws Exception {
+    void exitZeroWithoutVendorTerminalSuccessIsAcceptedForNormalExit() throws Exception {
         RuntimeBundle runtime = runtime();
         Path hex = temporary.resolve("exit-zero-only.hex");
         Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
@@ -77,7 +77,7 @@ class OfficialWchIspAdapterTest {
                     false, false, "", "", "", Duration.ofMillis(1), false,
                     Map.of(), "PROCESS_EXIT", List.of(42L))));
 
-        assertFalse(adapter.flashFirmware(hex).success());
+        assertTrue(adapter.flashFirmware(hex).success());
     }
 
     @Test

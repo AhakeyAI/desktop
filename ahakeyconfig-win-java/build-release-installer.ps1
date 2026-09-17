@@ -396,6 +396,10 @@ $jpackageArgs = @(
     "--java-options", "--add-opens=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.fxml/com.sun.javafx.fxml=ALL-UNNAMED",
     "--java-options", "-Dprism.allowhidpi=true",
+    # The Sherpa API performs its own native lookup when OnlineRecognizer is
+    # constructed.  Keep that lookup on the same app-relative sidecar tree
+    # staged above instead of relying on the launcher process' java.library.path.
+    "--java-options", '-Dsherpa_onnx.native.path=$APPDIR\lib\sherpa-onnx\native\win-x64',
     "--java-options", "-Dapp.version=$AppVersion"
 )
 if (-not [string]::IsNullOrWhiteSpace($UpdateManifestUrl)) {

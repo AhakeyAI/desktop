@@ -39,6 +39,16 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     private static final Pattern SUCCESS_MESSAGE_PATTERN = Pattern.compile(
         "\"Message\"\\s*:\\s*\"Succeed\""
     );
+    /** Some WCHISP builds print terminal fields without JSON punctuation. */
+    private static final Pattern TEXT_FINISHED_PATTERN = Pattern.compile(
+        "(?is)\\bFinished\\b.*?\\bCode\\s*[:=]?\\s*0\\b.*?"
+            + "\\bMessage\\s*[:=]?\\s*Succeed\\b"
+    );
+    private static final Pattern EXPLICIT_FAILURE_PATTERN = Pattern.compile(
+        "(?is)(?:\\b(?:Error|Failed|Failure|Exception)\\b"
+            + "|\\bStatus\\s*[:=]\\s*(?:Fail|Failed|Error)\\b"
+            + "|\\bCode\\s*[:=]?\\s*[1-9]\\d*\\b)"
+    );
     private static final Pattern PROGRESS_PATTERN = Pattern.compile(
         "\"Status\"\\s*:\\s*\"Programming\"\\s*,\\s*\"Progress\"\\s*:\\s*(\\d+)%"
     );
@@ -286,14 +296,25 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     terminalCode == 0 ? "COMPLETED" : "PROCESS_EXIT",
                     List.of(process.pid()), actualStart);
             }
-            if (!process.isAlive() && process.exitValue() != 0) {
+            if (!process.isAlive()) {
+                int exitCode = process.exitValue();
+                if (exitCode == 0) {
+                    // A normal WCHISP CLI process can finish without emitting
+                    // anything on redirected streams.  Return that evidence
+                    // immediately; the parser still rejects non-normal,
+                    // timed-out, cancelled, or explicitly failed results.
+                    reader.join(1_000);
+                    String text = output.toString(Charset.defaultCharset());
+                    return new CommandResult(0, text, process.pid(), false,
+                        Duration.ofNanos(System.nanoTime() - startedAt),
+                        "PROCESS_EXIT", List.of(process.pid()), actualStart);
+                }
                 if (nonZeroExitAt == 0) {
                     nonZeroExitAt = System.nanoTime();
                 } else if (System.nanoTime() - nonZeroExitAt
                     >= Duration.ofSeconds(2).toNanos()) {
                     reader.join(1_000);
                     String text = output.toString(Charset.defaultCharset());
-                    int exitCode = process.exitValue();
                     return new CommandResult(exitCode, appendDiagnostics(text,
                         persistDiagnostics(commandExecutable, arguments, text, exitCode)),
                         process.pid(), false,
@@ -621,19 +642,20 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                     $consoleText = Get-ConsoleTail
                     $consoleText | Out-File -LiteralPath $ConsoleCapture -Encoding utf8
                     $text = $fileText + "`n" + $errorText + "`n" + $consoleText
-                    if ($text -match '"Status"\\s*:\\s*"Fail"') {
+                    if ($text -match '(?is)\\b(?:Error|Fail|Failed|Failure|Exception)\\b' -or
+                        $text -match '(?is)\\bCode\\s*[:=]?\\s*[1-9]\\d*\\b') {
                         if (-not $toolProcess.HasExited) {
                             Stop-Process -Id $toolProcess.Id -Force -ErrorAction SilentlyContinue
                         }
                         $failureCode = 1
-                        if ($text -match '"Code"\\s*:\\s*(\\d+)') {
+                        if ($text -match '(?is)\\bCode\\s*[:=]?\\s*(\\d+)\\b') {
                             $failureCode = [Math]::Min([int]$Matches[1], 255)
                         }
                         Complete-WorkerResult "FAIL:$failureCode" $failureCode $consoleText
                     }
-                    if ($text -match '"Status"\\s*:\\s*"Finished"' -and
-                        $text -match '"Code"\\s*:\\s*0' -and
-                        $text -match '"Message"\\s*:\\s*"Succeed"') {
+                    if ($text -match '(?is)\\bFinished\\b' -and
+                        $text -match '(?is)\\bCode\\s*[:=]?\\s*0\\b' -and
+                        $text -match '(?is)\\bMessage\\s*[:=]?\\s*Succeed\\b') {
                         if (-not $toolProcess.HasExited) {
                             Stop-Process -Id $toolProcess.Id -Force -ErrorAction SilentlyContinue
                         }
@@ -646,7 +668,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                         }
                         Complete-WorkerResult 'DEVICE_UID' 0 $consoleText
                     }
-                    if ($toolProcess.HasExited -and $toolProcess.ExitCode -ne 0) {
+                    if ($toolProcess.HasExited) {
                         Complete-WorkerResult "PROCESS_EXIT:$($toolProcess.ExitCode)" `
                             $toolProcess.ExitCode $consoleText
                     }
@@ -922,6 +944,18 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         }
         if (output == null || output.isBlank()) {
             return null;
+        }
+        if (TEXT_FINISHED_PATTERN.matcher(output).find()) {
+            return 0;
+        }
+        if (EXPLICIT_FAILURE_PATTERN.matcher(output).find()) {
+            Matcher failureCode = Pattern.compile(
+                "(?i)\\bCode\\s*[:=]?\\s*(\\d+)\\b").matcher(output);
+            if (failureCode.find()) {
+                int parsed = Integer.parseInt(failureCode.group(1));
+                return parsed == 0 ? 100 : parsed;
+            }
+            return 100;
         }
         Matcher status = STATUS_PATTERN.matcher(output);
         if (!status.find()) {

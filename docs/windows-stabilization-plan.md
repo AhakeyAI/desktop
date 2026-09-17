@@ -677,3 +677,27 @@ jpackage 带入安装包；脚本会拒绝 `model_q8.onnx`。这使当前小型�
 检查均成功。尚未完成的是正式 release-private 资产授权下的 jpackage/安装包构建、
 真实麦克风录音、F18 长按及 KeyboardInjector 端到端硬件验证；代码/自动测试完成不等于
 软件手工或真机完成。
+
+## 27. Installer Sherpa native path and WCHISP terminal normalization (2026-09-17)
+
+本轮修复两个发布闭环问题。jpackage 的 Java options 现在显式设置
+`-Dsherpa_onnx.native.path=$APPDIR\\lib\\sherpa-onnx\\native\\win-x64`，与发布脚本
+复制的 Sherpa sidecar 目录一致；没有引入 `C:\\aha`、`C:\\app` 或其他机器固定路径，
+也没有修改 `VoiceInputManager`、`SpeechService`、`LibraryLoader` 或 UI 初始化顺序。
+通过 `build-release-installer.ps1 -PrepareOnly` 的输入校验和独立 app-image 启动验证，
+实际日志确认 `app\\models`、native DLL 均可定位，`OnlineRecognizer` 与
+`VoiceInputManager` 初始化成功。正式签名/安装器仍需发布环境验证。
+
+WCHISP 结果判定仍集中在 `WchIspResultParser`：接受官方 JSON 终态、含
+`Finished`/`Code 0`/`Message Succeed` 的普通文本，以及已启动、未取消、未超时、
+终止原因为正常进程退出且 exit code 为 0 的空输出；明确 `Error`/`Failed`/非零 Code、
+UAC 取消、超时和未知生命周期证据继续 fail closed。`WindowsWchIspFlasher` 的直接和
+elevated worker 路径会在 WCHISP 正常退出时及时写出终态，避免无输出成功被五分钟终端
+超时掩盖；命令、`-c/-o/-f` 参数和 `FirmwarePostVerifier` 未改变。
+
+本轮自动回归为 `mvn clean test` **294 tests, 0 failures, 0 errors, 0 skipped**，
+`mvn clean package` 成功且 `RELEASE_ARTIFACT_CONTENTS=OK`；15 个 PowerShell 脚本
+在 PowerShell 7 语法解析为 0 errors，`build-release-installer.ps1` 在 Windows
+PowerShell 5.1 语法解析也为 0 errors，app-image native
+启动验证通过。仍未执行真实 WCHISP、真实烧录、麦克风/F18 硬件测试；代码和自动测试
+完成不等于真机或正式安装包验证完成。

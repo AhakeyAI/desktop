@@ -45,6 +45,41 @@ class WchIspResultParserTest {
     }
 
     @Test
+    void plainTextFinishedCodeZeroSucceedIsAccepted() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "Finished\nCode 0\nMessage Succeed", ""));
+
+        assertTrue(result.success());
+        assertEquals(0, result.vendorCode());
+    }
+
+    @Test
+    void cleanNormalExitWithoutOutputIsAccepted() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "", "", false, "PROCESS_EXIT"));
+
+        assertTrue(result.success());
+    }
+
+    @Test
+    void zeroExitWithUnknownLifecycleEvidenceFailsClosed() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "", "", false, "UNKNOWN"));
+
+        assertFalse(result.success());
+        assertEquals(FirmwareUpdateError.FLASH_FAILED, result.error());
+    }
+
+    @Test
+    void explicitFailureCannotBeOverriddenByZeroExit() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "Error: device rejected request", "", false, "PROCESS_EXIT"));
+
+        assertFalse(result.success());
+        assertEquals(FirmwareUpdateError.FLASH_FAILED, result.error());
+    }
+
+    @Test
     void timeoutAndCancellationAreStructured() {
         var timeout = WchIspResultParser.parseFlash(raw(124, true, "", ""));
         assertEquals(FirmwareUpdateError.FLASH_TERMINAL_RESULT_TIMEOUT, timeout.error());

@@ -14,8 +14,16 @@ public final class WchIspResultParser {
         "(?is)[\\\"']?Status[\\\"']?\\s*[:=]\\s*[\\\"']Finished[\\\"'].*?"
             + "[\\\"']?Code[\\\"']?\\s*[:=]\\s*0.*?"
             + "[\\\"']?Message[\\\"']?\\s*[:=]\\s*[\\\"']Succeed[\\\"']");
+    /** WCHISP may print the terminal fields as plain console text. */
+    private static final Pattern TEXT_FINISHED = Pattern.compile(
+        "(?is)\\bFinished\\b.*?\\bCode\\s*[:=]?\\s*0\\b.*?"
+            + "\\bMessage\\s*[:=]?\\s*Succeed\\b");
     private static final Pattern FAIL = Pattern.compile(
         "(?is)[\\\"']?Status[\\\"']?\\s*[:=]\\s*[\\\"']Fail[\\\"']");
+    private static final Pattern EXPLICIT_FAILURE = Pattern.compile(
+        "(?is)(?:[\\\"']?Status[\\\"']?\\s*[:=]\\s*[\\\"']?(?:Fail|Failed|Error)[\\\"']?"
+            + "|\\b(?:Error|Fail|Failed|Failure|Exception)\\b"
+            + "|\\bCode\\s*[:=]?\\s*[1-9]\\d*\\b)");
 
     private WchIspResultParser() {}
 
@@ -48,7 +56,14 @@ public final class WchIspResultParser {
             FirmwareUpdateError.FLASH_TERMINAL_RESULT_TIMEOUT,
             "WCHISP 未在时限内返回 Finished/Code 0/Succeed 终态");
         if (!result.processStarted()) return FlashExecutionResult.failure(FirmwareUpdateError.PROCESS_START_FAILED, result.stderr());
-        if (FINISHED.matcher(output).find() && result.exitCode() == 0) {
+        boolean explicitFailure = EXPLICIT_FAILURE.matcher(output).find();
+        boolean terminalSuccess = FINISHED.matcher(output).find()
+            || TEXT_FINISHED.matcher(output).find();
+        boolean cleanProcessExit = result.exitCode() == 0
+            && normalProcessExit(result)
+            && !explicitFailure;
+        if (result.exitCode() == 0 && !explicitFailure
+            && (terminalSuccess || cleanProcessExit)) {
             return new FlashExecutionResult(true, null, "烧录完成", 0);
         }
         int vendorCode = code(output, result.exitCode());
@@ -81,6 +96,18 @@ public final class WchIspResultParser {
     private static boolean ownershipIncomplete(WchIspRunner.WchIspProcessResult result) {
         return result != null && result.terminationReason().toUpperCase(Locale.ROOT)
             .contains("PROCESS_OWNERSHIP_INCOMPLETE");
+    }
+
+    private static boolean normalProcessExit(WchIspRunner.WchIspProcessResult result) {
+        if (result == null || !result.processStarted() || result.cancelled() || result.timedOut()) {
+            return false;
+        }
+        String reason = result.terminationReason() == null
+            ? "" : result.terminationReason().trim().toUpperCase(Locale.ROOT);
+        return "PROCESS_EXIT".equals(reason)
+            || "COMPLETED".equals(reason)
+            || "NORMAL_EXIT".equals(reason)
+            || "PROCESS_EXIT:0".equals(reason);
     }
 
     public record UidQueryResult(boolean success, FirmwareUpdateError error,
