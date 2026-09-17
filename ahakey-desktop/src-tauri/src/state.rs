@@ -40,6 +40,9 @@ pub struct Runtime {
     pub settings_path: PathBuf,
     pub settings_error: Option<String>,
     pub data_dir: PathBuf,
+    /// Application identity (tauri `config().identifier`); scopes the native
+    /// credential namespace so preview and release never share tokens.
+    pub identifier: String,
     pub caption: Mutex<Caption>,
     pub caption_target: Mutex<Option<usize>>,
     pub caption_placement: Mutex<Option<crate::caption::Placement>>,
@@ -112,6 +115,7 @@ impl Runtime {
         path: PathBuf,
         error: Option<String>,
         data_dir: PathBuf,
+        identifier: String,
     ) -> Self {
         let recovery = crate::recovery::Recovery::new(settings.saved_device.clone());
         Self {
@@ -124,6 +128,7 @@ impl Runtime {
             settings_path: path,
             settings_error: error,
             data_dir,
+            identifier,
             caption: Mutex::new(Caption::idle()),
             caption_target: Mutex::new(None),
             caption_placement: Mutex::new(None),
@@ -170,6 +175,6 @@ impl Runtime {
         ahakey_speech::ModelStore::new(self.data_dir.join("models/sensevoice-int8-2024-07-17"))
     }
     pub fn credentials(&self) -> ahakey_cloud::CredentialStore {
-        ahakey_cloud::CredentialStore::new(self.data_dir.join("credentials"))
+        ahakey_cloud::CredentialStore::new(self.data_dir.join("credentials"), &self.identifier)
     }
 }

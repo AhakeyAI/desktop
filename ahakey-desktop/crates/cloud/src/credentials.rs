@@ -28,11 +28,18 @@ impl SecretToken {
 #[derive(Clone)]
 pub struct CredentialStore {
     directory: PathBuf,
+    namespace: String,
 }
 impl CredentialStore {
-    pub fn new(directory: impl AsRef<Path>) -> Self {
+    /// `identifier` is the application identity (tauri `config().identifier`).
+    /// It scopes the native credential namespace so preview and release builds
+    /// cannot read, overwrite, or delete each other's token (same isolation as
+    /// the quota module's `{identifier}.quota`). Windows stores per-directory
+    /// and ignores the namespace.
+    pub fn new(directory: impl AsRef<Path>, identifier: &str) -> Self {
         Self {
             directory: directory.as_ref().to_owned(),
+            namespace: format!("{identifier}.doubao"),
         }
     }
     pub fn has_token(&self) -> Result<bool, CloudError> {
@@ -44,13 +51,13 @@ impl CredentialStore {
     }
     pub fn save(&self, token: &str) -> Result<(), CloudError> {
         let token = SecretToken::new(token.to_owned())?;
-        platform::save(&self.directory, token.expose())
+        platform::save(&self.directory, &self.namespace, token.expose())
     }
     pub fn load(&self) -> Result<SecretToken, CloudError> {
-        platform::load(&self.directory)
+        platform::load(&self.directory, &self.namespace)
     }
     pub fn clear(&self) -> Result<(), CloudError> {
-        platform::clear(&self.directory)
+        platform::clear(&self.directory, &self.namespace)
     }
 }
 
@@ -114,7 +121,7 @@ mod platform {
         };
         Ok(result)
     }
-    pub fn save(directory: &Path, token: &str) -> Result<(), CloudError> {
+    pub fn save(directory: &Path, _: &str, token: &str) -> Result<(), CloudError> {
         let encrypted = crypt(token.as_bytes(), true)?;
         fs::create_dir_all(directory).map_err(|_| CloudError::CredentialStore)?;
         let temporary = directory.join(format!("doubao-token-{}.tmp", uuid::Uuid::new_v4()));
@@ -135,7 +142,7 @@ mod platform {
         }
         result
     }
-    pub fn load(directory: &Path) -> Result<SecretToken, CloudError> {
+    pub fn load(directory: &Path, _: &str) -> Result<SecretToken, CloudError> {
         let f = fs::File::open(directory.join(FILE)).map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
                 CloudError::MissingCredential
@@ -154,7 +161,7 @@ mod platform {
         let text = std::str::from_utf8(&plaintext).map_err(|_| CloudError::CredentialStore)?;
         SecretToken::new(text.to_owned()).map_err(|_| CloudError::CredentialStore)
     }
-    pub fn clear(directory: &Path) -> Result<(), CloudError> {
+    pub fn clear(directory: &Path, _: &str) -> Result<(), CloudError> {
         match fs::remove_file(directory.join(FILE)) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -166,24 +173,24 @@ mod platform {
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod platform {
     use super::*;
-    fn entry() -> Result<keyring::Entry, CloudError> {
-        keyring::Entry::new("AhaKey Studio", "doubao-access-token")
+    fn entry(namespace: &str) -> Result<keyring::Entry, CloudError> {
+        keyring::Entry::new(namespace, "doubao-access-token")
             .map_err(|_| CloudError::CredentialStore)
     }
-    pub fn save(_: &Path, token: &str) -> Result<(), CloudError> {
-        entry()?
+    pub fn save(_: &Path, namespace: &str, token: &str) -> Result<(), CloudError> {
+        entry(namespace)?
             .set_password(token)
             .map_err(|_| CloudError::CredentialStore)
     }
-    pub fn load(_: &Path) -> Result<SecretToken, CloudError> {
-        let value = entry()?.get_password().map_err(|e| match e {
+    pub fn load(_: &Path, namespace: &str) -> Result<SecretToken, CloudError> {
+        let value = entry(namespace)?.get_password().map_err(|e| match e {
             keyring::Error::NoEntry => CloudError::MissingCredential,
             _ => CloudError::CredentialStore,
         })?;
         SecretToken::new(value).map_err(|_| CloudError::CredentialStore)
     }
-    pub fn clear(_: &Path) -> Result<(), CloudError> {
-        match entry()?.delete_credential() {
+    pub fn clear(_: &Path, namespace: &str) -> Result<(), CloudError> {
+        match entry(namespace)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(_) => Err(CloudError::CredentialStore),
         }
@@ -192,13 +199,13 @@ mod platform {
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 mod platform {
     use super::*;
-    pub fn save(_: &Path, _: &str) -> Result<(), CloudError> {
+    pub fn save(_: &Path, _: &str, _: &str) -> Result<(), CloudError> {
         Err(CloudError::CredentialStore)
     }
-    pub fn load(_: &Path) -> Result<SecretToken, CloudError> {
+    pub fn load(_: &Path, _: &str) -> Result<SecretToken, CloudError> {
         Err(CloudError::CredentialStore)
     }
-    pub fn clear(_: &Path) -> Result<(), CloudError> {
+    pub fn clear(_: &Path, _: &str) -> Result<(), CloudError> {
         Err(CloudError::CredentialStore)
     }
 }
@@ -214,11 +221,18 @@ mod tests {
         );
         assert!(SecretToken::new("token\r\nX-Evil: x").is_err());
     }
+    #[test]
+    fn namespace_is_scoped_by_application_identity() {
+        let release = CredentialStore::new("/tmp/ahakey-test", "ai.ahakey.studio");
+        let preview = CredentialStore::new("/tmp/ahakey-test", "ai.ahakey.studio.preview");
+        assert_ne!(release.namespace, preview.namespace);
+        assert!(preview.namespace.ends_with(".preview.doubao"));
+    }
     #[cfg(windows)]
     #[test]
     fn real_dpapi_roundtrip_replacement_and_clear() {
         let dir = tempfile::tempdir().unwrap();
-        let store = CredentialStore::new(dir.path());
+        let store = CredentialStore::new(dir.path(), "ai.ahakey.studio.test");
         assert!(!store.has_token().unwrap());
         store.save("fake-isolated-test-token").unwrap();
         assert!(store.has_token().unwrap());
@@ -238,7 +252,7 @@ mod tests {
     #[test]
     fn corrupt_blob_does_not_fall_back_to_plaintext() {
         let dir = tempfile::tempdir().unwrap();
-        let store = CredentialStore::new(dir.path());
+        let store = CredentialStore::new(dir.path(), "ai.ahakey.studio.test");
         std::fs::write(
             dir.path().join("doubao-token.dpapi"),
             b"fake-plaintext-token",

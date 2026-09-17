@@ -52,6 +52,7 @@ fn main() {
                 path,
                 error,
                 app.path().app_data_dir()?,
+                app.config().identifier.clone(),
             ));
             initialize_keys(app.handle());
             app.state::<state::Runtime>()
