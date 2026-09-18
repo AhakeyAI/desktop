@@ -247,7 +247,10 @@ class WindowsWchIspFlasherTest {
             "String wrapperScript = \"\"\"\\R(?<script>[\\s\\S]*?)\\R\\s*\"\"\";"
         ).matcher(javaSource);
         assertTrue(matcher.find());
-        assertPowerShellSyntax(matcher.group("script").replace("\\\\", "\\"));
+        String wrapper = matcher.group("script").replace("\\\\", "\\");
+        assertPowerShellSyntax(wrapper);
+        assertTrue(wrapper.contains("1223"));
+        assertTrue(wrapper.contains("cancel|取消"));
     }
 
     private void assertPowerShellSyntax(String workerScript) throws Exception {
@@ -282,16 +285,76 @@ class WindowsWchIspFlasherTest {
     }
 
     @Test
-    void adminAndNonAdminStartWithTheSameNormalCaptureWorker() {
+    void captureLaunchModeMatchesStudioElevation() {
         assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.DIRECT_WORKER,
             WindowsWchIspFlasher.captureLaunchMode(true));
-        assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.DIRECT_WORKER,
+        assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.RUNAS_WORKER,
             WindowsWchIspFlasher.captureLaunchMode(false));
+    }
+
+    @Test
+    void captureWorkerRetainsOperationScopedOutputAndDoesNotLaunchRunAsItself() {
         String worker = WindowsWchIspFlasher.captureWorkerScript();
         assertTrue(worker.contains("GetBufferContents"));
         assertTrue(worker.contains("ReadAllText($Stdout)"));
         assertTrue(worker.contains("ReadAllText($Stderr)"));
         assertFalse(worker.contains("-Verb RunAs"));
+    }
+
+    @Test
+    void officialLaunchSelectsOneWorkerModeWithout740Retry() throws Exception {
+        String source = readFlasherSource();
+        int start = source.indexOf(
+            "WchIspRunner.WchIspProcessResult runOfficialCommand("
+        );
+        int end = source.indexOf("static CaptureLaunchMode captureLaunchMode", start);
+        assertTrue(start >= 0 && end > start);
+        String method = source.substring(start, end);
+
+        assertTrue(method.contains(
+            "CaptureLaunchMode launchMode = captureLaunchMode(isCurrentProcessElevated())"
+        ));
+        assertTrue(method.contains(
+            "launchMode == CaptureLaunchMode.RUNAS_WORKER"
+        ));
+        assertEquals(1, occurrences(method, "runCaptureWorker("));
+        assertFalse(method.contains("nativeErrorCode() == 740"));
+        assertTrue(source.contains("pid, useRunAs, duration"));
+    }
+
+    @Test
+    void detectionIsDirectOnlyAndExplicitFlashUsesTheSelectedMode() throws Exception {
+        String source = readFlasherSource();
+        int detectStart = source.indexOf("public DeviceInfo detect()");
+        int flashStart = source.indexOf("public FlashResult flashAndVerify", detectStart);
+        assertTrue(detectStart >= 0 && flashStart > detectStart);
+
+        String detect = source.substring(detectStart, flashStart);
+        assertTrue(detect.contains("\"-u\", \"get\""));
+        assertTrue(detect.contains("null,\n                false"));
+        assertFalse(detect.contains("RUNAS_WORKER"));
+
+        int flashEnd = source.indexOf("private FlashResult failed", flashStart);
+        assertTrue(flashEnd > flashStart);
+        String flash = source.substring(flashStart, flashEnd);
+        assertTrue(flash.contains("listener,\n                true"));
+    }
+
+    private String readFlasherSource() throws IOException {
+        return Files.readString(Path.of(
+            "src", "main", "java", "com", "example", "ahakey", "firmware",
+            "WindowsWchIspFlasher.java"
+        ), StandardCharsets.UTF_8);
+    }
+
+    private int occurrences(String text, String needle) {
+        int count = 0;
+        int offset = 0;
+        while ((offset = text.indexOf(needle, offset)) >= 0) {
+            count++;
+            offset += needle.length();
+        }
+        return count;
     }
 
     private int indexOf(byte[] haystack, byte[] needle) {
