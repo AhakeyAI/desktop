@@ -77,8 +77,14 @@ powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 `
 
 **构建脚本：**
 - `build-exe.bat` — Windows 批处理构建脚本
-- `build-exe.ps1` — PowerShell 构建脚本
+- `build-exe.ps1` — legacy/non-release 提示入口；不会生成旧 class overlay
 - `build-installer.ps1` — 生成 Windows 安装包（.exe）
+- `build-release-installer.ps1` — 正式完整 Maven JAR 发布入口
+
+当前发布规则：先由 `mvn clean package` 生成完整 Maven JAR，正式安装器只使用该 JAR
+作为 Java 生产代码来源。授权安装基线只能提供 runtime、模型、图标、WCHISP 和其他
+非 Java 二进制资产。`preview-part3-release-overlay.ps1` 仅保留用于历史排查，属于
+legacy/non-release/unsupported 路径，不是当前构建或发布成功条件。
 
 ## 技术栈要点
 

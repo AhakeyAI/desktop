@@ -72,7 +72,10 @@ if ($AppVersion -ne $pomVersion) {
 }
 
 $baselineAppDir = Join-Path $BaselineInstallDir "app"
-$baselineJar = Join-Path $baselineAppDir "ahakey-studio-1.0.0.jar"
+# The historical JAR is used only as an authorized source for bundled Sherpa
+# native DLLs. It is never copied, placed on the Java class path, or used to
+# overlay/validate production classes.
+$baselineResourceJar = Join-Path $baselineAppDir "ahakey-studio-1.0.0.jar"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
 $currentJar = Join-Path $projectDir "target\ahakey-studio-$AppVersion.jar"
 $currentLibDir = Join-Path $projectDir "target\lib"
@@ -88,6 +91,8 @@ $inputDir = Join-Path $releaseRoot "input"
 $jpackageTemp = Join-Path $env:TEMP "ahakey-jpackage-$AppVersion"
 $installerDir = Join-Path $projectDir "installer"
 $windowsResourceDir = Join-Path $projectDir "packaging\windows"
+$productUpgradeCode = "8842dbef-62f7-49ac-af0f-9447198265f3"
+$legacyUpgradeCode = "03E5A934-FFCA-3815-B455-7D49BF1CA1DC"
 
 if (-not (Test-Path -LiteralPath $baselineIcon -PathType Leaf)) {
     throw "Release baseline icon is missing: $baselineIcon"
@@ -104,8 +109,8 @@ foreach ($required in @($currentJar, $currentLibDir)) {
         throw "Current clean-build output is missing: $required. Run mvn clean package first."
     }
 }
-if (-not (Test-Path -LiteralPath $baselineJar -PathType Leaf)) {
-    throw "Voice release baseline JAR is missing: $baselineJar"
+if (-not (Test-Path -LiteralPath $baselineResourceJar -PathType Leaf)) {
+    throw "Authorized non-Java release resource source is missing: $baselineResourceJar"
 }
 & (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") -JarPath $currentJar
 
@@ -137,6 +142,12 @@ New-Item -ItemType Directory -Force -Path `
 
 $releaseJar = Join-Path $inputDir "ahakey-studio-$AppVersion.jar"
 Copy-Item -LiteralPath $currentJar -Destination $releaseJar
+$currentJarHash = (Get-FileHash -LiteralPath $currentJar -Algorithm SHA256).Hash
+$releaseJarHash = (Get-FileHash -LiteralPath $releaseJar -Algorithm SHA256).Hash
+if ($currentJarHash -cne $releaseJarHash) {
+    throw "Staged Java JAR differs from the verified Maven JAR."
+}
+Write-Output "FULL_MAVEN_JAR_STAGED=OK"
 Get-ChildItem -LiteralPath $currentLibDir |
     Copy-Item -Destination (Join-Path $inputDir "lib") -Recurse
 Get-ChildItem -LiteralPath (Join-Path $baselineAppDir "models") |
@@ -150,7 +161,7 @@ $sherpaNativeStage = Join-Path $inputDir "lib\sherpa-onnx\native\win-x64"
 New-Item -ItemType Directory -Force -Path $sherpaNativeStage | Out-Null
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$baselineArchive = [IO.Compression.ZipFile]::OpenRead($baselineJar)
+$baselineArchive = [IO.Compression.ZipFile]::OpenRead($baselineResourceJar)
 try {
     foreach ($nativeName in @(
         "onnxruntime.dll",
@@ -160,7 +171,7 @@ try {
         $entryName = "sherpa-onnx/native/win-x64/$nativeName"
         $entry = $baselineArchive.GetEntry($entryName)
         if ($null -eq $entry) {
-            throw "Sherpa native resource is missing from release baseline JAR: $entryName"
+            throw "Sherpa native resource is missing from authorized non-Java source: $entryName"
         }
         $destination = Join-Path $sherpaNativeStage $nativeName
         $entryStream = $entry.Open()
@@ -391,7 +402,7 @@ $jpackageArgs = @(
     # Keep the safe upgrade line introduced in 1.2.5. The custom WiX UI lets
     # the user choose a parent directory while INSTALLDIR always remains the
     # AhaKeyStudio child directory, so uninstall cannot own the broad parent.
-    "--win-upgrade-uuid", "8842dbef-62f7-49ac-af0f-9447198265f3",
+    "--win-upgrade-uuid", $productUpgradeCode,
     "--java-options", "--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.fxml/com.sun.javafx.fxml=ALL-UNNAMED",
@@ -453,6 +464,16 @@ if ($generatedMain -notmatch 'AHAKEY_PREVIOUS_INSTALLDIR' -or
     $generatedMain -notmatch 'AhaKeyRememberInstallDir') {
     throw "Installer upgrade-path persistence was not included."
 }
+if ($generatedMain -notmatch [regex]::Escape($legacyUpgradeCode) -or
+    $generatedMain -notmatch 'AHAKEY_LEGACY_UPGRADE_FOUND' -or
+    $generatedMain -notmatch 'RemoveExistingProducts') {
+    throw "Legacy 1.0.0 upgrade detection/removal was not included."
+}
+if ((Get-Content -LiteralPath (Join-Path $windowsResourceDir "main.wxs") -Raw) -notmatch
+    [regex]::Escape($legacyUpgradeCode)) {
+    throw "Legacy UpgradeCode is missing from the controlled WiX source."
+}
+Write-Output "WINDOWS_UPGRADE_PATH_VALIDATION=OK"
 Write-Output "WINDOWS_INSTALLER_LAYOUT_VALIDATION=OK"
 
 $generated = Join-Path $installerDir "AhaKeyStudio-$AppVersion.exe"

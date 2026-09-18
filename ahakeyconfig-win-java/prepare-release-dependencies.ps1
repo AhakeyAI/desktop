@@ -14,14 +14,16 @@ $WchIspBundleDir = [IO.Path]::GetFullPath($WchIspBundleDir)
 
 $baselineApp = Join-Path $BaselineInstallDir "app"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
-$baselineJar = Join-Path $baselineApp "ahakey-studio-1.0.0.jar"
+$baselineResourceJar = Join-Path $baselineApp "ahakey-studio-1.0.0.jar"
+$baselineIcon = Join-Path $BaselineInstallDir "AhaKeyStudio.ico"
+$baselineModels = Join-Path $baselineApp "models"
 $required = @(
-    $baselineJar,
     $baselineRuntime,
-    (Join-Path $baselineApp "models\encoder.int8.onnx"),
-    (Join-Path $baselineApp "models\decoder.int8.onnx"),
-    (Join-Path $baselineApp "models\silero_vad.onnx"),
-    (Join-Path $baselineApp "models\tokens.txt"),
+    $baselineIcon,
+    (Join-Path $baselineModels "encoder.int8.onnx"),
+    (Join-Path $baselineModels "decoder.int8.onnx"),
+    (Join-Path $baselineModels "silero_vad.onnx"),
+    (Join-Path $baselineModels "tokens.txt"),
     (Join-Path $WchIspBundleDir "WCHISPTool_CH57x-59x.exe"),
     (Join-Path $WchIspBundleDir "CH343PT.DLL"),
     (Join-Path $WchIspBundleDir "WCH55xISPDLL.dll"),
@@ -47,6 +49,7 @@ New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
 
 $baselineZip = Join-Path $resolvedOutput "AhaKeyStudio-voice-baseline.zip"
 $wchIspZip = Join-Path $resolvedOutput "WCHISPTool-CH57x-59x.zip"
+$voiceStage = Join-Path $resolvedOutput "voice-baseline-stage"
 $wchIspStage = Join-Path $resolvedOutput "wchisp-sanitized"
 foreach ($archive in @($baselineZip, $wchIspZip)) {
     if (Test-Path -LiteralPath $archive) {
@@ -56,6 +59,10 @@ foreach ($archive in @($baselineZip, $wchIspZip)) {
 if (Test-Path -LiteralPath $wchIspStage) {
     Remove-Item -LiteralPath $wchIspStage -Recurse -Force
 }
+if (Test-Path -LiteralPath $voiceStage) {
+    Remove-Item -LiteralPath $voiceStage -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $voiceStage | Out-Null
 New-Item -ItemType Directory -Force -Path $wchIspStage | Out-Null
 foreach ($runtimeFile in @(
     "WCHISPTool_CH57x-59x.exe",
@@ -129,8 +136,41 @@ $runtimeMetadata = [ordered]@{
 )
 & (Join-Path $PSScriptRoot "Test-WchIspReleasePrivacy.ps1") -RootPath $wchIspStage
 
+# The private voice archive contains only non-Java release assets. In
+# particular, the historical Java baseline JAR is never copied into staging.
+Copy-Item -LiteralPath $baselineRuntime -Destination (Join-Path $voiceStage "runtime") -Recurse
+New-Item -ItemType Directory -Force -Path (Join-Path $voiceStage "app\models") | Out-Null
+Get-ChildItem -LiteralPath $baselineModels -Force |
+    Copy-Item -Destination (Join-Path $voiceStage "app\models") -Recurse
+Copy-Item -LiteralPath $baselineIcon -Destination (Join-Path $voiceStage "AhaKeyStudio.ico")
+
+$nativeSource = Join-Path $baselineApp "lib\sherpa-onnx\native\win-x64"
+$nativeStage = Join-Path $voiceStage "app\lib\sherpa-onnx\native\win-x64"
+New-Item -ItemType Directory -Force -Path $nativeStage | Out-Null
+if (Test-Path -LiteralPath $nativeSource -PathType Container) {
+    foreach ($nativeName in @("onnxruntime.dll", "onnxruntime_providers_shared.dll", "sherpa-onnx-jni.dll")) {
+        Copy-Item -LiteralPath (Join-Path $nativeSource $nativeName) -Destination $nativeStage
+    }
+} elseif (Test-Path -LiteralPath $baselineResourceJar -PathType Leaf) {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($baselineResourceJar)
+    try {
+        foreach ($nativeName in @("onnxruntime.dll", "onnxruntime_providers_shared.dll", "sherpa-onnx-jni.dll")) {
+            $entry = $archive.GetEntry("sherpa-onnx/native/win-x64/$nativeName")
+            if ($null -eq $entry) { throw "Sherpa native resource is missing: $nativeName" }
+            $outputPath = Join-Path $nativeStage $nativeName
+            $input = $entry.Open()
+            $output = [IO.File]::Create($outputPath)
+            try { $input.CopyTo($output) } finally { $output.Dispose(); $input.Dispose() }
+        }
+    } finally { $archive.Dispose() }
+} else {
+    throw "Authorized Sherpa native sidecar is missing and no resource-only extraction source is available."
+}
+
 Compress-Archive `
-    -LiteralPath $BaselineInstallDir `
+    -Path (Join-Path $voiceStage "*") `
     -DestinationPath $baselineZip `
     -CompressionLevel Optimal
 Compress-Archive `
@@ -138,6 +178,7 @@ Compress-Archive `
     -DestinationPath $wchIspZip `
     -CompressionLevel Optimal
 Remove-Item -LiteralPath $wchIspStage -Recurse -Force
+Remove-Item -LiteralPath $voiceStage -Recurse -Force
 
 foreach ($archive in @($baselineZip, $wchIspZip)) {
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).
