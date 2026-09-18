@@ -10,6 +10,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.platform.voice.VoiceActionRouter;
+import com.example.ahakey.service.AhaTypeService;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -17,6 +18,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 public class StudioState {
     private static final DateTimeFormatter SYNC_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
@@ -28,9 +30,10 @@ public class StudioState {
     private final StringProperty syncStatus = new SimpleStringProperty("修改会先保存在本地，保存配置后写入键盘。");
     private final StringProperty lastSyncSummary = new SimpleStringProperty("尚未保存");
     private final BooleanProperty syncing = new SimpleBooleanProperty(false);
-    /** Keep the original main-branch AhaType presentation and state. */
-    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(true);
-    private final StringProperty ahaTypeStatus = new SimpleStringProperty("云端整理已启用");
+    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(false);
+    private final StringProperty ahaTypeStatus = new SimpleStringProperty("AhaType 未启用");
+    private final AhaTypeService ahaTypeService;
+    private BooleanSupplier localSpeechAvailable = () -> true;
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
         new SimpleObjectProperty<>(LightBarPreviewState.AI_RUNNING);
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
@@ -69,6 +72,12 @@ public class StudioState {
     }
 
     public StudioState() {
+        this(AhaTypeService.getInstance());
+    }
+
+    public StudioState(AhaTypeService ahaTypeService) {
+        this.ahaTypeService = ahaTypeService;
+        refreshAhaTypeState();
         seedDefaults();
     }
 
@@ -211,6 +220,24 @@ public class StudioState {
 
     public StringProperty ahaTypeStatusProperty() {
         return ahaTypeStatus;
+    }
+
+    public void setLocalSpeechAvailable(BooleanSupplier localSpeechAvailable) {
+        this.localSpeechAvailable = localSpeechAvailable == null ? () -> true : localSpeechAvailable;
+        refreshAhaTypeState();
+    }
+
+    public void refreshAhaTypeState() {
+        ahaTypeService.refreshFromDisk();
+        boolean effective = ahaTypeService.isEnabled()
+            && ahaTypeService.hasValidToken()
+            && localSpeechAvailable.getAsBoolean();
+        ahaTypeEnabled.set(effective);
+        if (effective) {
+            ahaTypeStatus.set(ahaTypeService.getQuotaSummary());
+        } else {
+            ahaTypeStatus.set(ahaTypeService.getStatusMessage());
+        }
     }
 
     public ObjectProperty<LightBarPreviewState> lightBarPreviewProperty() {
@@ -449,11 +476,25 @@ public class StudioState {
     }
 
     public void toggleAhaType(boolean enabled) {
-        // This is the original main-branch presentation/state contract.  The
-        // local voice backend still returns the recognized text unchanged;
-        // restoring this state does not add a cloud backend.
-        ahaTypeEnabled.set(enabled);
-        ahaTypeStatus.set(enabled ? "云端整理已启用" : "语音结果直接粘贴");
+        if (!enabled) {
+            ahaTypeService.setEnabled(false);
+            refreshAhaTypeState();
+            return;
+        }
+        if (!localSpeechAvailable.getAsBoolean()) {
+            ahaTypeService.setEnabled(false);
+            ahaTypeEnabled.set(false);
+            ahaTypeStatus.set("本地语音未就绪");
+            return;
+        }
+        if (!ahaTypeService.hasValidToken()) {
+            ahaTypeService.setEnabled(false);
+            ahaTypeEnabled.set(false);
+            ahaTypeStatus.set("请先登录 AhaType");
+            return;
+        }
+        ahaTypeService.setEnabled(true);
+        refreshAhaTypeState();
     }
 
     public boolean isDirty(StudioPart part) {

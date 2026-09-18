@@ -110,6 +110,8 @@ public class App extends Application {
         } else {
             logger.info("本地模型已禁用 (model.enabled=false)，跳过语音输入初始化");
         }
+        controller.getStudioState().setLocalSpeechAvailable(
+            () -> voiceInputManager != null && voiceInputManager.isEnabled());
         
         // 3. 初始化系统托盘
         initSystemTray();

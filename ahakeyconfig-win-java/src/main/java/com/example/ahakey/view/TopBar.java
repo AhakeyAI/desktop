@@ -214,8 +214,13 @@ public class TopBar extends VBox {
             () -> studioState.ahaTypeEnabledProperty().get() ? "AhaType" : "AhaType",
             studioState.ahaTypeEnabledProperty()
         ));
-        ahaTypeToggle.selectedProperty().bindBidirectional(studioState.ahaTypeEnabledProperty());
-        ahaTypeToggle.selectedProperty().addListener((obs, oldValue, newValue) -> studioState.toggleAhaType(newValue));
+        ahaTypeToggle.setSelected(studioState.ahaTypeEnabledProperty().get());
+        studioState.ahaTypeEnabledProperty().addListener((obs, oldValue, newValue) -> {
+            if (ahaTypeToggle.isSelected() != newValue) {
+                ahaTypeToggle.setSelected(newValue);
+            }
+        });
+        ahaTypeToggle.setOnAction(event -> studioState.toggleAhaType(ahaTypeToggle.isSelected()));
 
         // 语音启动按钮
         voiceRecordButton = new Button(languageManager.getString("button.start-voice"));
@@ -305,9 +310,7 @@ public class TopBar extends VBox {
         exitApp.setOnAction(event -> exitApplication());
         
         MenuItem cloudAccount = new MenuItem(languageManager.getString("menu.cloud-account"));
-        SeparatorMenuItem divider2 = new SeparatorMenuItem();
-        MenuItem refresh = new MenuItem(languageManager.getString("menu.refresh-ahatype"));
-        refresh.setOnAction(event -> studioState.toggleAhaType(studioState.ahaTypeEnabledProperty().get()));
+        cloudAccount.setOnAction(event -> showCloudAccountDialog());
 
         // 条件添加 AhaType 相关菜单项
         if (modelEnabled) {
@@ -333,7 +336,8 @@ public class TopBar extends VBox {
                 deviceInfo,
                 versionInfo,
                 languageMenuItem,
-                exitApp
+                exitApp,
+                cloudAccount
             );
         }
 
@@ -935,6 +939,12 @@ public class TopBar extends VBox {
         hookRuntimeRefresh.setCycleCount(Timeline.INDEFINITE);
         hookRuntimeRefresh.play();
         dialog.setOnHidden(event -> hookRuntimeRefresh.stop());
+    }
+
+    private void showCloudAccountDialog() {
+        Stage owner = getScene() != null && getScene().getWindow() instanceof Stage stage ? stage : null;
+        new CloudAccountDialog(owner, com.example.ahakey.service.CloudAccountManager.getInstance(),
+            studioState::refreshAhaTypeState).show();
     }
 
     private record HookCardControls(

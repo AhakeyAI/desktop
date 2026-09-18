@@ -881,3 +881,20 @@ fallback。兼容 Prepared API 仍保留给既有测试/兼容调用者，但不
 以上是代码级和自动化证据；本轮没有执行普通用户 UAC 交互、真实 WCHISP、USB/BLE
 枚举与压力、真实烧录、post-verify 真机回读、正式签名安装包或麦克风/F18 硬件验证，
 这些项目仍为 pending。
+
+## 32. Restore AhaType Java client (2026-09-18)
+
+阶段一已独立提交为 `4225f131c5c5d943985e9c0ffdea6fc98da88e5b`；阶段二只恢复
+AhaType/云端账号和最终语音输出链，不修改烧录、BLE、F18/PTT、Hook 或固件边界。当前
+Java 客户端使用 `%USERPROFILE%\.ahakey\typeless_config.json`，按
+`VIBE_TYPELESS_API_BASE`、`VIBE_API_BASE`、默认 `https://956798.xyz/prod-api` 的顺序
+选择 API base；AhaType 请求严格要求 HTTP 200、成功 code（数值/字符串 0 或 200）、对象
+data 以及非空 text/result，任何失败均回退原文。登录、注册、`users/me`、token、snake/camel
+profile、额度、记住密码和登出清理均由 Java 侧统一管理。
+
+最终输出链为 `SpeechService -> VoiceInputManager(单线程 AhaType worker) ->
+KeyboardInjector`；识别线程不等待云端请求，单段只处理/回调/注入一次，应用关闭后 worker
+不会再注入。账号菜单为真实可用动作，AhaType 开关只有在本地语音可用且 token 未过期时才
+能开启。自动测试仅使用临时配置和本地 mock server；真实账号、真实 token、真实语音内容
+和正式网络请求均未用于测试。普通用户登录、网络异常回退、麦克风输出和 Windows 真机仍
+待手工验证。
