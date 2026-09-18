@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,8 +51,11 @@ public final class AhaTypeConfig {
     }
 
     public Map<String, Object> load() throws IOException {
-        if (!Files.isRegularFile(path)) {
+        if (!Files.exists(path)) {
             return defaults();
+        }
+        if (!Files.isRegularFile(path)) {
+            throw new IOException("AhaType configuration path is not a regular file: " + path);
         }
         Map<String, Object> loaded = mapper.readValue(
             Files.readString(path), new TypeReference<Map<String, Object>>() { });
@@ -74,7 +78,12 @@ public final class AhaTypeConfig {
         Path temporary = Files.createTempFile(parent, "typeless_config", ".tmp");
         try {
             Files.writeString(temporary, mapper.writerWithDefaultPrettyPrinter().writeValueAsString(copy));
-            Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING);
+            }
         } finally {
             Files.deleteIfExists(temporary);
         }

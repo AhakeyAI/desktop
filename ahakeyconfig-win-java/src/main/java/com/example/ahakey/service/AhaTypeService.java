@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,6 +31,7 @@ public class AhaTypeService {
     private final HttpClient httpClient;
     private final URI apiBase;
     private final Clock clock;
+    private volatile Map<String, Object> lastPersistedValues = AhaTypeConfig.defaults();
     private volatile boolean enabled;
     private volatile String statusMessage = "AhaType 未启用";
 
@@ -85,75 +87,75 @@ public class AhaTypeService {
     }
 
     /** Persist an enabled request only when a current cloud token exists. */
-    public void setEnabled(boolean requested) {
-        Map<String, Object> values = readConfig();
-        boolean effective = requested && hasValidToken(values);
-        values.put(AhaTypeConfig.ENABLED, effective);
-        writeConfig(values);
-        enabled = effective;
-        if (requested && !effective) {
-            statusMessage = "AhaType 未登录或登录已过期";
-        } else {
-            updateStatus(values);
+    public boolean setEnabled(boolean requested) {
+        try {
+            Map<String, Object> values = config.load();
+            boolean effective = requested && hasValidToken(values);
+            values.put(AhaTypeConfig.ENABLED, effective);
+            boolean saved = saveMutation(values, "AhaType 开关");
+            if (saved && requested && !effective) {
+                statusMessage = "AhaType 未登录或登录已过期";
+            }
+            return saved;
+        } catch (Exception exception) {
+            return saveFailure("AhaType 开关", exception);
         }
     }
 
-    public void patchCloudToken(String token) {
-        Map<String, Object> values = readConfig();
-        values.put(AhaTypeConfig.ACCESS_TOKEN, token == null ? "" : token.trim());
-        writeConfig(values);
-        refreshFromDisk();
+    public boolean patchCloudToken(String token) {
+        try {
+            Map<String, Object> values = config.load();
+            values.put(AhaTypeConfig.ACCESS_TOKEN, token == null ? "" : token.trim());
+            return saveMutation(values, "AhaType 登录状态");
+        } catch (Exception exception) {
+            return saveFailure("AhaType 登录状态", exception);
+        }
     }
 
-    public void setTokenValidUntil(Object validUntil) {
-        Map<String, Object> values = readConfig();
-        values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
-        writeConfig(values);
-        refreshFromDisk();
+    public boolean setTokenValidUntil(Object validUntil) {
+        try {
+            Map<String, Object> values = config.load();
+            values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
+            return saveMutation(values, "AhaType 登录状态");
+        } catch (Exception exception) {
+            return saveFailure("AhaType 登录状态", exception);
+        }
     }
 
-    public void setUserProfile(Map<String, Object> profile) {
-        Map<String, Object> values = readConfig();
+    public boolean setUserProfile(Map<String, Object> profile) {
         Map<String, Object> stored = new LinkedHashMap<>();
         if (profile != null) {
             stored.putAll(profile);
         }
-        String userId = firstString(stored, "user_id", "userId", "id");
-        if (!userId.isEmpty()) {
-            stored.put("user_id", userId);
-        }
-        values.put(AhaTypeConfig.USER, stored);
         Object validUntil = firstValue(stored, "token_valid_until", "tokenValidUntil",
             "expires_at", "expiresAt");
-        if (validUntil != null) {
-            values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
-        }
+        Map<String, Object> quota = new LinkedHashMap<>();
         for (String field : AhaTypeConfig.quotaFields()) {
-            Object quota = firstValue(stored, field);
-            if (quota == null && stored.get("quota") instanceof Map<?, ?> nestedQuota) {
-                quota = nestedQuota.get(field);
+            Object value = firstValue(stored, field);
+            if (value == null && stored.get("quota") instanceof Map<?, ?> nestedQuota) {
+                value = nestedQuota.get(field);
             }
-            if (quota != null) {
-                values.put(field, quota);
-            }
+            if (value != null) quota.put(field, value);
         }
-        writeConfig(values);
-        refreshFromDisk();
+        return persistCloudState(stored, quota, validUntil);
     }
 
     /** Clear session/quota while retaining the toggle and remembered credentials. */
-    public void clearSessionKeepToggle() {
-        Map<String, Object> values = readConfig();
-        Object toggle = values.get(AhaTypeConfig.ENABLED);
-        values.put(AhaTypeConfig.ACCESS_TOKEN, "");
-        values.put(AhaTypeConfig.USER, null);
-        values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, null);
-        for (String field : AhaTypeConfig.quotaFields()) {
-            values.put(field, 0);
+    public boolean clearSessionKeepToggle() {
+        try {
+            Map<String, Object> values = config.load();
+            Object toggle = values.get(AhaTypeConfig.ENABLED);
+            values.put(AhaTypeConfig.ACCESS_TOKEN, "");
+            values.put(AhaTypeConfig.USER, null);
+            values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, null);
+            for (String field : AhaTypeConfig.quotaFields()) {
+                values.put(field, 0);
+            }
+            values.put(AhaTypeConfig.ENABLED, boolValue(toggle));
+            return saveMutation(values, "退出登录");
+        } catch (Exception exception) {
+            return saveFailure("退出登录", exception);
         }
-        values.put(AhaTypeConfig.ENABLED, boolValue(toggle));
-        writeConfig(values);
-        refreshFromDisk();
     }
 
     public boolean isRememberPassword() {
@@ -168,12 +170,50 @@ public class AhaTypeService {
         return stringValue(readConfig().get(AhaTypeConfig.REMEMBERED_PASSWORD));
     }
 
-    public void saveRememberedCredentials(String phone, String password, boolean remember) {
-        Map<String, Object> values = readConfig();
-        values.put(AhaTypeConfig.REMEMBER_PASSWORD, remember);
-        values.put(AhaTypeConfig.REMEMBERED_PHONE, remember ? stringValue(phone) : "");
-        values.put(AhaTypeConfig.REMEMBERED_PASSWORD, remember ? stringValue(password) : "");
-        writeConfig(values);
+    public boolean saveRememberedCredentials(String phone, String password, boolean remember) {
+        try {
+            Map<String, Object> values = config.load();
+            values.put(AhaTypeConfig.REMEMBER_PASSWORD, remember);
+            values.put(AhaTypeConfig.REMEMBERED_PHONE, stringValue(phone).trim());
+            values.put(AhaTypeConfig.REMEMBERED_PASSWORD, remember ? stringValue(password) : "");
+            return saveMutation(values, "账号凭据");
+        } catch (Exception exception) {
+            return saveFailure("账号凭据", exception);
+        }
+    }
+
+    /** Atomically persists login/session, profile, quota, and remembered credentials. */
+    public boolean persistSession(String token, Object validUntil, Map<String, Object> profile,
+                                  Map<String, Object> quota, String phone, String password,
+                                  boolean rememberPassword) {
+        try {
+            Map<String, Object> values = config.load();
+            values.put(AhaTypeConfig.ACCESS_TOKEN, stringValue(token).trim());
+            values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
+            values.put(AhaTypeConfig.USER, normalizedProfile(profile));
+            mergeQuotaMap(values, quota);
+            values.put(AhaTypeConfig.REMEMBER_PASSWORD, rememberPassword);
+            values.put(AhaTypeConfig.REMEMBERED_PHONE, stringValue(phone).trim());
+            values.put(AhaTypeConfig.REMEMBERED_PASSWORD,
+                rememberPassword ? stringValue(password) : "");
+            return saveMutation(values, "账号登录");
+        } catch (Exception exception) {
+            return saveFailure("账号登录", exception);
+        }
+    }
+
+    /** Persists profile/quota fields without clearing fields omitted by the server. */
+    public boolean persistCloudState(Map<String, Object> profile, Map<String, Object> quota,
+                                    Object validUntil) {
+        try {
+            Map<String, Object> values = config.load();
+            if (profile != null) values.put(AhaTypeConfig.USER, normalizedProfile(profile));
+            if (validUntil != null) values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
+            mergeQuotaMap(values, quota);
+            return saveMutation(values, "AhaType 账号状态");
+        } catch (Exception exception) {
+            return saveFailure("AhaType 账号状态", exception);
+        }
     }
 
     public String getQuotaSummary() {
@@ -205,8 +245,8 @@ public class AhaTypeService {
             HttpRequest request = HttpRequest.newBuilder(endpoint)
                 .timeout(REQUEST_TIMEOUT)
                 .header("Authorization", "Bearer " + token)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .header("Content-Type", "application/json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             JsonNode root = requireSuccess(response);
@@ -219,8 +259,12 @@ public class AhaTypeService {
                 throw new IOException("AhaType result is empty");
             }
             mergeQuota(root, values);
-            writeConfig(values);
-            statusMessage = "AhaType 处理完成";
+            if (saveMutation(values, "额度")) {
+                statusMessage = "AhaType 处理完成";
+            } else {
+                statusMessage = "AhaType 处理完成，但额度保存失败";
+                logger.warn("AhaType quota was received but could not be persisted");
+            }
             return result;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -270,6 +314,20 @@ public class AhaTypeService {
                 values.put(field, value.isNumber() ? value.numberValue() : value.asText());
             }
         }
+        JsonNode validUntil = firstNode(data, "token_valid_until");
+        if (validUntil == null) validUntil = firstNode(data, "tokenValidUntil");
+        if (validUntil == null) validUntil = firstNode(data, "expires_at");
+        if (validUntil == null) validUntil = firstNode(data, "expiresAt");
+        if (validUntil == null) validUntil = firstNode(data.get("quota"), "token_valid_until");
+        if (validUntil == null) validUntil = firstNode(data.get("quota"), "tokenValidUntil");
+        if (validUntil == null) validUntil = firstNode(data.get("quota"), "expires_at");
+        if (validUntil == null) validUntil = firstNode(data.get("quota"), "expiresAt");
+        if (validUntil == null) validUntil = firstNode(root, "token_valid_until");
+        if (validUntil == null) validUntil = firstNode(root, "tokenValidUntil");
+        if (validUntil != null && validUntil.isValueNode()) {
+            values.put(AhaTypeConfig.TOKEN_VALID_UNTIL,
+                validUntil.isNumber() ? validUntil.numberValue() : validUntil.asText());
+        }
     }
 
     private void updateStatus(Map<String, Object> values) {
@@ -284,18 +342,48 @@ public class AhaTypeService {
 
     private Map<String, Object> readConfig() {
         try {
-            return config.load();
+            Map<String, Object> loaded = config.load();
+            lastPersistedValues = new LinkedHashMap<>(loaded);
+            return loaded;
         } catch (Exception exception) {
             logger.warn("AhaType configuration could not be read ({})", exception.getClass().getSimpleName());
-            return AhaTypeConfig.defaults();
+            return new LinkedHashMap<>(lastPersistedValues);
         }
     }
 
-    private void writeConfig(Map<String, Object> values) {
+    private boolean saveMutation(Map<String, Object> values, String operation) {
         try {
             config.save(values);
+            lastPersistedValues = new LinkedHashMap<>(values);
+            enabled = boolValue(values.get(AhaTypeConfig.ENABLED));
+            updateStatus(values);
+            return true;
         } catch (Exception exception) {
-            logger.warn("AhaType configuration could not be saved ({})", exception.getClass().getSimpleName());
+            return saveFailure(operation, exception);
+        }
+    }
+
+    private boolean saveFailure(String operation, Exception exception) {
+        statusMessage = operation + "保存失败";
+        logger.warn("AhaType configuration could not be saved ({})",
+            exception.getClass().getSimpleName());
+        return false;
+    }
+
+    private Map<String, Object> normalizedProfile(Map<String, Object> profile) {
+        Map<String, Object> stored = new LinkedHashMap<>();
+        if (profile != null) stored.putAll(profile);
+        String userId = firstString(stored, "user_id", "userId", "id");
+        if (!userId.isEmpty()) stored.put("user_id", userId);
+        return stored;
+    }
+
+    private void mergeQuotaMap(Map<String, Object> values, Map<String, Object> quota) {
+        if (quota == null) return;
+        for (String field : AhaTypeConfig.quotaFields()) {
+            if (quota.containsKey(field) && quota.get(field) != null) {
+                values.put(field, quota.get(field));
+            }
         }
     }
 

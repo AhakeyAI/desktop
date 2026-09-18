@@ -475,26 +475,29 @@ public class StudioState {
         markDirty(StudioPart.OLED);
     }
 
-    public void toggleAhaType(boolean enabled) {
+    public boolean toggleAhaType(boolean enabled) {
         if (!enabled) {
-            ahaTypeService.setEnabled(false);
+            if (!ahaTypeService.setEnabled(false)) {
+                ahaTypeStatus.set(ahaTypeService.getStatusMessage());
+                return false;
+            }
             refreshAhaTypeState();
-            return;
+            return true;
         }
         if (!localSpeechAvailable.getAsBoolean()) {
-            ahaTypeService.setEnabled(false);
-            ahaTypeEnabled.set(false);
             ahaTypeStatus.set("本地语音未就绪");
-            return;
+            return false;
         }
         if (!ahaTypeService.hasValidToken()) {
-            ahaTypeService.setEnabled(false);
-            ahaTypeEnabled.set(false);
             ahaTypeStatus.set("请先登录 AhaType");
-            return;
+            return false;
         }
-        ahaTypeService.setEnabled(true);
+        if (!ahaTypeService.setEnabled(true)) {
+            ahaTypeStatus.set(ahaTypeService.getStatusMessage());
+            return false;
+        }
         refreshAhaTypeState();
+        return true;
     }
 
     public boolean isDirty(StudioPart part) {

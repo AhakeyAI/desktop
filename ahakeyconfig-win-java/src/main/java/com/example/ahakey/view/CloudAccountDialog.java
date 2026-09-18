@@ -100,9 +100,13 @@ public class CloudAccountDialog {
         refresh.setOnAction(event -> runAsync(account::refreshProfile));
         Button logout = new Button("退出登录");
         logout.setOnAction(event -> {
-            account.logout();
-            stateChanged.run();
-            render();
+            String error = account.logout();
+            if (error == null) {
+                stateChanged.run();
+                render();
+            } else {
+                setStatus(error);
+            }
         });
         section.getChildren().addAll(accountLabel, quotaLabel, new HBox(8, refresh, logout));
         return section;

@@ -220,7 +220,11 @@ public class TopBar extends VBox {
                 ahaTypeToggle.setSelected(newValue);
             }
         });
-        ahaTypeToggle.setOnAction(event -> studioState.toggleAhaType(ahaTypeToggle.isSelected()));
+        ahaTypeToggle.setOnAction(event -> {
+            if (!studioState.toggleAhaType(ahaTypeToggle.isSelected())) {
+                ahaTypeToggle.setSelected(studioState.ahaTypeEnabledProperty().get());
+            }
+        });
 
         // 语音启动按钮
         voiceRecordButton = new Button(languageManager.getString("button.start-voice"));

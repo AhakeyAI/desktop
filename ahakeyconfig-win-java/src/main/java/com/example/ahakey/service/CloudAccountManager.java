@@ -9,6 +9,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -92,11 +93,15 @@ public class CloudAccountManager {
         return authenticate("/api/v1/auth/register", phone, password, rememberPassword, false);
     }
 
-    public void logout() {
-        ahaType.clearSessionKeepToggle();
+    public String logout() {
+        if (!ahaType.clearSessionKeepToggle()) {
+            statusMessage = "退出登录保存失败";
+            return statusMessage;
+        }
         profile = Map.of();
         loggedIn = false;
         statusMessage = "已退出登录";
+        return null;
     }
 
     /** Refresh the snake_case/camelCase profile and quota fields from the server. */
@@ -109,7 +114,14 @@ public class CloudAccountManager {
         try {
             JsonNode root = request("/api/v1/users/me", "GET", null, true);
             JsonNode data = dataObject(root);
-            applyProfile(data);
+            Map<String, Object> refreshedProfile = profileMap(profileNode(data));
+            Map<String, Object> quota = quotaMap(data);
+            Object validUntil = tokenValidUntil(data, ahaType.getAccessToken());
+            if (!ahaType.persistCloudState(refreshedProfile, quota, validUntil)) {
+                statusMessage = "账号刷新成功，但本地保存失败";
+                return statusMessage;
+            }
+            profile = Collections.unmodifiableMap(new LinkedHashMap<>(refreshedProfile));
             loggedIn = true;
             statusMessage = "已登录";
             return null;
@@ -138,15 +150,14 @@ public class CloudAccountManager {
             if (requireToken && token.isEmpty()) {
                 throw new IllegalStateException("账号响应缺少 token");
             }
-            if (!token.isEmpty()) {
-                ahaType.patchCloudToken(token);
-                Object validUntil = tokenValidUntil(data, token);
-                if (validUntil != null) ahaType.setTokenValidUntil(validUntil);
-            }
             Map<String, Object> localProfile = profileMap(profileNode(data));
             localProfile.putIfAbsent("phone", normalizedPhone);
-            ahaType.setUserProfile(localProfile);
-            ahaType.saveRememberedCredentials(normalizedPhone, password, rememberPassword);
+            Object validUntil = tokenValidUntil(data, token);
+            if (!ahaType.persistSession(token, validUntil, localProfile, quotaMap(data),
+                normalizedPhone, password, rememberPassword)) {
+                statusMessage = requireToken ? "登录成功，但本地保存失败" : "注册成功，但本地保存失败";
+                return statusMessage;
+            }
             profile = Collections.unmodifiableMap(new LinkedHashMap<>(localProfile));
             loggedIn = !token.isEmpty() && ahaType.hasValidToken();
             statusMessage = loggedIn ? "已登录" : "注册成功，请登录";
@@ -169,7 +180,7 @@ public class CloudAccountManager {
             throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint(path))
             .timeout(Duration.ofSeconds(20))
-            .header("Content-Type", "application/json");
+            .header("Content-Type", "application/json; charset=utf-8");
         if (authenticated) {
             String token = ahaType.getAccessToken();
             if (token.isBlank()) throw new IllegalStateException("missing token");
@@ -179,7 +190,7 @@ public class CloudAccountManager {
             builder.GET();
         } else {
             String body = mapper.writeValueAsString(payload == null ? Map.of() : payload);
-            builder.method(method, HttpRequest.BodyPublishers.ofString(body));
+            builder.method(method, HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
         }
         HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) throw new IllegalStateException("unexpected HTTP status");
@@ -188,12 +199,6 @@ public class CloudAccountManager {
             throw new IllegalStateException("unsuccessful response envelope");
         }
         return root;
-    }
-
-    private void applyProfile(JsonNode node) {
-        Map<String, Object> values = profileMap(node);
-        profile = Collections.unmodifiableMap(new LinkedHashMap<>(values));
-        ahaType.setUserProfile(values);
     }
 
     private void refreshLocalState() {
@@ -228,7 +233,15 @@ public class CloudAccountManager {
     }
 
     private Object tokenValidUntil(JsonNode data, String token) {
+        JsonNode user = data == null ? null : data.get("user");
+        JsonNode quota = data == null ? null : data.get("quota");
         String value = firstText(data, "token_valid_until", "tokenValidUntil", "expires_at", "expiresAt");
+        if (value.isEmpty()) {
+            value = firstText(user, "token_valid_until", "tokenValidUntil", "expires_at", "expiresAt");
+        }
+        if (value.isEmpty()) {
+            value = firstText(quota, "token_valid_until", "tokenValidUntil", "expires_at", "expiresAt");
+        }
         if (!value.isEmpty()) return value;
         JsonNode expiresIn = AhaTypeService.firstNode(data, "expires_in");
         if (expiresIn != null && expiresIn.canConvertToLong()) {
@@ -246,6 +259,19 @@ public class CloudAccountManager {
             }
         }
         return null;
+    }
+
+    private Map<String, Object> quotaMap(JsonNode data) {
+        Map<String, Object> quota = new LinkedHashMap<>();
+        JsonNode nested = data == null ? null : data.get("quota");
+        for (String field : AhaTypeConfig.quotaFields()) {
+            JsonNode value = AhaTypeService.firstNode(data, field);
+            if (value == null) value = AhaTypeService.firstNode(nested, field);
+            if (value != null && value.isValueNode()) {
+                quota.put(field, mapper.convertValue(value, Object.class));
+            }
+        }
+        return quota;
     }
 
     private static String firstText(JsonNode node, String... names) {
