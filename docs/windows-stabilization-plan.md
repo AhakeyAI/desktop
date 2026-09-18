@@ -11,9 +11,9 @@
 
 ## 0. 当前基线与解释边界（2026-09-18）
 
-当前 Windows 工作树为 `desktop`，检出分支 `voice-k1-local-input-restore`。本轮收口前的
-可审查功能基线为 `82d486a`（完整提交 hash 以 Git history 为准）；本轮文档提交之后仍应
-以新的 `git status`、HEAD 和远端引用为准。GitHub 默认分支仍是 `main`，其 HEAD
+当前 Windows 工作树为 `desktop`，检出分支 `voice-k1-local-input-restore`。本轮 AhaType
+修复代码已提交为 `10171efaffe02863939cdff17873a7ac3dc78659`；本文档随后作为独立文档
+提交，最终树的 HEAD 仍以 Git history 为准。GitHub 默认分支仍是 `main`，其 HEAD
 `931ebefd4b6fec4ee6578dfd7ebc0fcc93951c73`、应用版本 `1.0.0`，与 Windows 开发线明显
 分叉；Windows 稳定化、验收和修复不得误用 `main` 作为比较基线。当前 Windows 应用版本为
 `1.5.3`。
@@ -59,13 +59,17 @@ freshness、immutable USB Session、GifUploadRules 时间轴采样、OLED transa
 多任务协议/灯珠映射、Voice worker queue、ApplicationLifecycle、StudioStore 原子写、
 WCHISP 严格终态解析均不得借机重构。
 
-Firmware 当前只读工作树 `voice-f18-raw-hid` 的 HEAD 为
-`c59cd19df5e105b1454d54cd886c4b671b0eb593`，源码版本合同为 1.4.8；但现有未跟踪
-`AhaKey-X1-firmware-1.4.8-ch582.hex` 及 provenance 仍记录 source commit
-`55cd73c7cd36765f95b140cf1f735d170bc78f12`，早于 shutdown LED 修复。该资产可以用于历史
-诊断，不能证明包含 `c59cd19`，也不能作为最终可追溯发布资产；发布前必须由固件会话从最终
-源码重新构建并生成匹配 provenance。Windows 软件修复任务不得因此修改固件源码或伪造
-provenance。
+Firmware 当前只读工作树为 `C:\aha\ahakey-windows\voice-f18-raw-hid`，分支
+`fix/1.4.8-shutdown-led`，HEAD 为
+`cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`。当前 1.4.8 provenance 的真实字段为
+`firmwareVersion=1.4.8`、`deviceModel=AhaKey-X1`、`protocolVersion=3.2`、
+`capabilityMask=0x7FF`、`sourceCommit=cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`，
+且 `sourceTreeClean=true`。对应 HEX
+`artifacts/AhaKey-X1-firmware-1.4.8-ch582.hex` 和同名 provenance JSON 均存在，但
+两者均未被 Git track；固件工作树还存在未跟踪的构建/审计材料。因此源码 HEAD 与
+provenance `sourceCommit` 一致，只证明 provenance 记录与该源码快照一致，不等于 HEX/
+provenance 已提交、正式发布或已完成真机验证。Windows 软件修复任务不得修改固件源码、
+HEX 或 provenance。
 
 ## 1. 生产路径与安全不变式
 
@@ -113,9 +117,11 @@ canonical `capabilityMask="0x7FF"`、`builtAtUtc=yyyy-MM-ddTHH:mm:ssZ`（不接�
 版本/model/protocol/sourceCommit/buildCommand 字段；不计算或要求 SHA-256。HEX 校验
 包括记录校验和、EOF 后无数据、type 02/type 04 扩展地址、type 03/type 05 起始地址、
 绝对范围和重叠数据拒绝。
-当前软件合同要求 firmware 1.4.8 的真实 HEX 和同名 provenance。现有候选资产可追溯到
-`55cd73c`，但当前固件源码 HEAD 已是 `c59cd19`，所以尚不能声明最终源码、HEX 和 provenance
-一致；这不影响软件端版本规则，但继续阻断最终发布资产验收。WCHISP 和真机验证仍为 pending。
+当前软件合同要求 firmware 1.4.8 的真实 HEX 和同名 provenance。执行时读取到的固件
+源码 HEAD 为 `cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`，provenance `sourceCommit` 与
+之相同；但 HEX 和 provenance 文件仍未被 Git track。因此自动验证可以确认版本、协议、
+capabilityMask、HEX/provenance 字段和源码提交引用的内部一致性，不能据此声明已提交发布
+资产、正式发布或真机通过。WCHISP、真机和正式发布验证仍为 pending。
 
 ## 3. 物理接收与 freshness
 
@@ -211,9 +217,9 @@ Windows 安装器继续使用稳定 UpgradeCode `8842DBEF-62F7-49AC-AF0F-9447198
 | WIN-026 cancellation boundary | **代码完成**：WCHISP 进入 `FLASHING` 后取消被拒绝且 UI 明确不可取消；超时/终止后的 owned process 退出确认后才释放操作所有权 | `FirmwareUpdateServiceTest`、WCHISP runner/adapter 定向回归通过 | 真实厂商进程、UAC、损坏风险和真机待验证 |
 | WIN-027 灯效运行时写入错误 | 代码完成 | 亮度/灯效失败不覆盖成功状态的测试通过 | 灯效硬件故障注入待验证 |
 | WIN-028 普通请求/save/GIF 事务、session/dirty 隔离 | **代码完成**：普通写入与 session/dirty 安全边界保持；USB ready、close/reopen 和跨 transport 失效路径复用既有门禁；0x9D 配置读回仍无生产调用者 | USB close/reopen、事务门禁、跨 session 及完整 Maven 回归通过 | USB↔BLE 压力、Flash 真机待验证 |
-| WIN-029 Intel HEX/固件合同 | **部分满足**：软件端 1.4.8 文件名、版本和 HEX 校验已统一；现有 1.4.8 HEX/provenance 仍指向早于当前固件 HEAD 的 `55cd73c` | 软件端 provenance/HEX/边界测试通过 | 最终固件重新构建、provenance、WCHISP、签名资产和真机待验证 |
+| WIN-029 Intel HEX/固件合同 | **部分满足**：软件端 1.4.8 文件名、版本和 HEX 校验已统一；当前固件 HEAD 与 provenance `sourceCommit` 均为 `cf4b7d20`，但 HEX/provenance 均未被 Git track | 软件端 provenance/HEX/边界测试通过 | 提交发布资产、WCHISP、签名资产和真机待验证 |
 | WIN-030 legacy cleanup | **部分满足**：生产路径已明确，仍保留 HookClient、SocketServer、KimiConfigLeverSync 和 AgentManager.installHooks 占位/兼容入口，尚未完成最终删除或兼容边界收口 | 相关单测已有 | 生态兼容性与旧脚本手工确认待验证 |
-| AhaType account/quota | **代码完成**：凭据、user/quota/token_valid_until、UTF-8 请求头、配置失败反馈和原文回退已收口；不记录 token、密码或完整语音文本 | AhaType/账号/Studio 状态定向测试及完整 Maven 回归通过 | 真实账号、API、麦克风和最终键盘注入待验证 |
+| AhaType account/quota | **代码完成**：凭据、user/quota/token_valid_until、UTF-8 请求头、配置失败反馈、原文回退和迟到响应 token 归属校验已收口；不记录 token、密码或完整语音文本 | AhaType/账号/Studio 状态定向测试及完整 Maven 回归通过；覆盖退出、换账号、部分额度和单次交付 | 真实账号、API、麦克风和最终键盘注入待验证 |
 | Windows release JAR/installer | **代码完成**：完整 Maven JAR 是唯一 Java 生产来源；artifact gate 覆盖 AhaType 类；overlay 仅 legacy；WiX 保留当前 UpgradeCode 并检测旧 1.0.0 线 | 发布配置、JAR 缺类门禁、PowerShell 语法检查通过；内部安装包/VM 尚未完成 | 干净 VM 升级、用户数据保留、签名和卸载待验证 |
 
 “代码完成”不等于“真机完成”。当前不要求也不执行 `OVERLAY_VALIDATION=OK`；overlay
@@ -230,8 +236,9 @@ Windows 安装器继续使用稳定 UpgradeCode `8842DBEF-62F7-49AC-AF0F-9447198
    自动测试不能替代普通用户 UAC、USB/BLE、post-verify 和真实烧录验证。
 3. AhaType 的真实账号网络、配置目录权限、麦克风/键盘端到端，以及完整 Maven JAR
    进入签名安装包后的启动验证仍需 Windows 环境执行；本地 mock/自动测试不等于真机通过。
-4. Firmware 1.4.8 最终 HEX/provenance 必须由固件任务基于 `c59cd19` 或其后明确的最终
-   commit 重新生成；这是跨端发布阻断项，不得由 Windows 软件任务修改或伪造。
+4. 当前固件只读仓库为 `voice-f18-raw-hid` 的 `fix/1.4.8-shutdown-led` 分支，
+   HEAD/sourceCommit 为 `cf4b7d20`；1.4.8 HEX 与 provenance 存在但均未 track，不能把
+   源码/provenance 一致写成真机或正式发布完成。
 5. WIN-025：把 expected publisher 绑定到正式 release/jpackage 配置，并将 signer
    subject 升级为 canonical exact identity；补齐完整签名流水线。
 6. BLE bridge 生命周期的精确路径 owner 已在本轮收口；仍需 Windows 手工验证启动、置前、
@@ -932,3 +939,41 @@ KeyboardInjector`；识别线程不等待云端请求，单段只处理/回调/�
 进程所有权回归，完整 Maven/JAR artifact 检查，WiX/发布配置静态检查，以及 PowerShell
 脚本语法检查。代码和自动化完成不等于干净 VM 安装升级、签名、USB/BLE、真实 WCHISP、
 Firmware 1.4.8、麦克风或真实键盘注入已通过；这些仍标记为手工验证 pending。
+
+## 34. Current AhaType stale-response and firmware fact closeout (2026-09-18)
+
+本轮确认的剩余软件问题是 `AhaTypeService.processIfEnabled()` 在网络请求前读取整份
+配置、响应后又整体保存，可能让迟到响应恢复旧 token、账号或其他新状态。本轮代码提交为
+`10171efaffe02863939cdff17873a7ac3dc78659`。`processIfEnabled()` 只在请求前记录本次
+token；HTTP 请求和等待响应不持有配置写锁。成功响应准备写入额度时重新读取当前配置，
+仅当当前 token 与请求 token 完全一致才合并实际返回的 quota/token_valid_until 字段，
+并用轻量互斥保护读取、修改和原子保存。token 清空或变化时丢弃额度和状态更新，不覆盖
+新的账号、手机号、密码记忆设置、开关或登录/退出状态；已取得的整理文本仍返回给单次
+语音交付。请求失败、JSON/业务失败、空文本和配置保存失败继续原文回退或保留已取得文本，
+且不记录 token、密码或完整语音文本。相关配置 mutator 也复用同一短锁，未将 HTTP 放入锁内。
+
+新增定向回归覆盖 token A 请求期间退出登录、登录 token B、手机号/密码记忆/开关不被覆盖、
+token 未变化时额度更新、部分 quota 只更新实际字段、保存失败仍返回整理文本，以及云端
+请求和键盘交付各只执行一次。WCHISP 仅做代码审查，未修改生产代码：现有
+`awaitOwnedProcessExit()` 仍在 `finish()` 之前持续等待所有 owned PID 退出，查询异常按仍
+存活处理；`active`/single-flight 只在真实退出后的原流程释放，没有新增 watchdog、强杀、
+PID 猜测、虚假取消或重入入口。现有普通非管理员启动、740 才 RunAs、FLASHING 不可取消、
+post-flash reconnect 和真实终态路径保持不变。
+
+本轮执行时读取到的固件事实为：只读仓库 `C:\aha\ahakey-windows\voice-f18-raw-hid`，
+分支 `fix/1.4.8-shutdown-led`，源码 HEAD 与 1.4.8 provenance `sourceCommit` 均为
+`cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`；provenance 版本 `1.4.8`、model
+`AhaKey-X1`、protocol `3.2`、capabilityMask `0x7FF`，并记录 `sourceTreeClean=true`。
+HEX 和 provenance 均存在于固件工作树 `artifacts/` 下但未被 Git track；这不是已提交的
+正式发布资产，也不代表真机或正式发布验证完成。固件仓库没有修改。
+
+自动验证结果：定向 AhaType/账号/Voice 测试 22/22 通过；`mvn clean test` 为 317 tests、
+0 failures、0 errors、0 skipped；`mvn clean package` 成功，317 tests 通过且
+`RELEASE_ARTIFACT_CONTENTS=OK`；`Test-WindowsReleaseConfiguration.ps1` 返回 OK；当前
+JAR 与 `target/release-1.5.3/input` 中的完整 Maven JAR 均返回 `RELEASE_ARTIFACT_CONTENTS=OK`，
+准备流程返回 `FULL_MAVEN_JAR_STAGED=OK` 和 `RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE`；
+PowerShell 7 与 Windows PowerShell 5.1 均对 12 个发布脚本解析为 0 errors；`git diff --check`
+通过。未生成正式 MSI：当前环境没有可用 WiX `candle.exe`/`light.exe`。
+
+以上自动证据仍不等于真实账号、麦克风、键盘注入、USB/BLE、WCHISP、UAC、post-flash
+reconnect、1.4.8 真机回读、干净 VM 安装升级、签名或正式发布验证；这些继续保持 pending。
