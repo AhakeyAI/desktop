@@ -28,6 +28,12 @@ public class AhaTypeService {
     private static final AhaTypeService INSTANCE = new AhaTypeService();
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
 
+    public enum CloudStatePersistenceResult {
+        PERSISTED,
+        STALE_TOKEN,
+        FAILED
+    }
+
     private final AhaTypeConfig config;
     private final ObjectMapper mapper;
     private final HttpClient httpClient;
@@ -75,9 +81,14 @@ public class AhaTypeService {
     }
 
     public boolean hasValidToken() {
+        return !getValidAccessToken().isEmpty();
+    }
+
+    /** Returns one consistent token snapshot only when it is present and unexpired. */
+    public String getValidAccessToken() {
         Map<String, Object> values = readConfig();
         String token = stringValue(values.get(AhaTypeConfig.ACCESS_TOKEN)).trim();
-        return !token.isEmpty() && tokenIsStillValid(values.get(AhaTypeConfig.TOKEN_VALID_UNTIL));
+        return hasValidToken(values) ? token : "";
     }
 
     public Map<String, Object> getUserProfile() {
@@ -200,6 +211,34 @@ public class AhaTypeService {
             if (validUntil != null) values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
             mergeQuotaMap(values, quota);
         });
+    }
+
+    /**
+     * Persists refresh data only while the request token still owns the current session.
+     * The token check and atomic save share the same short configuration lock.
+     */
+    public CloudStatePersistenceResult persistCloudStateIfTokenCurrent(
+            String requestToken, Map<String, Object> profile, Map<String, Object> quota,
+            Object validUntil) {
+        String expectedToken = stringValue(requestToken).trim();
+        synchronized (configMutationLock) {
+            try {
+                Map<String, Object> values = config.load();
+                String currentToken = stringValue(values.get(AhaTypeConfig.ACCESS_TOKEN)).trim();
+                if (!Objects.equals(currentToken, expectedToken)) {
+                    return CloudStatePersistenceResult.STALE_TOKEN;
+                }
+                if (profile != null) values.put(AhaTypeConfig.USER, normalizedProfile(profile));
+                if (validUntil != null) values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
+                mergeQuotaMap(values, quota);
+                return saveMutation(values, "AhaType 账号状态")
+                    ? CloudStatePersistenceResult.PERSISTED
+                    : CloudStatePersistenceResult.FAILED;
+            } catch (Exception exception) {
+                saveFailure("AhaType 账号状态", exception);
+                return CloudStatePersistenceResult.FAILED;
+            }
+        }
     }
 
     public String getQuotaSummary() {

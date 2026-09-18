@@ -29,6 +29,7 @@ public class CloudAccountManager {
     private final ObjectMapper mapper;
     private final URI apiBase;
     private final Clock clock;
+    private final Object stateMutationLock = new Object();
     private volatile boolean loggedIn;
     private volatile String statusMessage = "未登录";
     private volatile Map<String, Object> profile = Map.of();
@@ -94,45 +95,64 @@ public class CloudAccountManager {
     }
 
     public String logout() {
-        if (!ahaType.clearSessionKeepToggle()) {
-            statusMessage = "退出登录保存失败";
-            return statusMessage;
+        synchronized (stateMutationLock) {
+            if (!ahaType.clearSessionKeepToggle()) {
+                statusMessage = "退出登录保存失败";
+                return statusMessage;
+            }
+            profile = Map.of();
+            loggedIn = false;
+            statusMessage = "已退出登录";
+            return null;
         }
-        profile = Map.of();
-        loggedIn = false;
-        statusMessage = "已退出登录";
-        return null;
     }
 
     /** Refresh the snake_case/camelCase profile and quota fields from the server. */
     public String refreshProfile() {
-        if (!ahaType.hasValidToken()) {
-            loggedIn = false;
-            statusMessage = "未登录或登录已过期";
-            return statusMessage;
+        String requestToken = ahaType.getValidAccessToken();
+        if (requestToken.isEmpty()) {
+            synchronized (stateMutationLock) {
+                if (!ahaType.getValidAccessToken().isEmpty()) return null;
+                loggedIn = false;
+                statusMessage = "未登录或登录已过期";
+                return statusMessage;
+            }
         }
         try {
-            JsonNode root = request("/api/v1/users/me", "GET", null, true);
+            JsonNode root = request("/api/v1/users/me", "GET", null, requestToken);
             JsonNode data = dataObject(root);
             Map<String, Object> refreshedProfile = profileMap(profileNode(data));
             Map<String, Object> quota = quotaMap(data);
-            Object validUntil = tokenValidUntil(data, ahaType.getAccessToken());
-            if (!ahaType.persistCloudState(refreshedProfile, quota, validUntil)) {
-                statusMessage = "账号刷新成功，但本地保存失败";
-                return statusMessage;
+            Object validUntil = tokenValidUntil(data, requestToken);
+            synchronized (stateMutationLock) {
+                AhaTypeService.CloudStatePersistenceResult persistence =
+                    ahaType.persistCloudStateIfTokenCurrent(requestToken, refreshedProfile, quota, validUntil);
+                if (persistence == AhaTypeService.CloudStatePersistenceResult.STALE_TOKEN) {
+                    return null;
+                }
+                if (persistence == AhaTypeService.CloudStatePersistenceResult.FAILED) {
+                    statusMessage = "账号刷新成功，但本地保存失败";
+                    return statusMessage;
+                }
+                profile = Collections.unmodifiableMap(new LinkedHashMap<>(refreshedProfile));
+                loggedIn = true;
+                statusMessage = "已登录";
+                return null;
             }
-            profile = Collections.unmodifiableMap(new LinkedHashMap<>(refreshedProfile));
-            loggedIn = true;
-            statusMessage = "已登录";
-            return null;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            statusMessage = "刷新账号已中断";
-            return statusMessage;
+            synchronized (stateMutationLock) {
+                if (!requestToken.equals(ahaType.getAccessToken())) return null;
+                statusMessage = "刷新账号已中断";
+                return statusMessage;
+            }
         } catch (Exception exception) {
-            statusMessage = "刷新账号失败";
-            logger.warn("Cloud profile refresh failed ({})", exception.getClass().getSimpleName());
-            return statusMessage;
+            synchronized (stateMutationLock) {
+                if (!requestToken.equals(ahaType.getAccessToken())) return null;
+                statusMessage = "刷新账号失败";
+                logger.warn("Cloud profile refresh failed ({})", exception.getClass().getSimpleName());
+                return statusMessage;
+            }
         }
     }
 
@@ -143,7 +163,7 @@ public class CloudAccountManager {
             return "请输入手机号和密码";
         }
         try {
-            JsonNode root = request(path, "POST", Map.of("phone", normalizedPhone, "password", password), false);
+            JsonNode root = request(path, "POST", Map.of("phone", normalizedPhone, "password", password), null);
             JsonNode data = dataObject(root);
             String token = firstText(data, "access_token", "token");
             if (token.isEmpty()) token = firstText(root, "access_token", "token");
@@ -153,15 +173,19 @@ public class CloudAccountManager {
             Map<String, Object> localProfile = profileMap(profileNode(data));
             localProfile.putIfAbsent("phone", normalizedPhone);
             Object validUntil = tokenValidUntil(data, token);
-            if (!ahaType.persistSession(token, validUntil, localProfile, quotaMap(data),
-                normalizedPhone, password, rememberPassword)) {
-                statusMessage = requireToken ? "登录成功，但本地保存失败" : "注册成功，但本地保存失败";
-                return statusMessage;
+            boolean refreshAfterLogin;
+            synchronized (stateMutationLock) {
+                if (!ahaType.persistSession(token, validUntil, localProfile, quotaMap(data),
+                    normalizedPhone, password, rememberPassword)) {
+                    statusMessage = requireToken ? "登录成功，但本地保存失败" : "注册成功，但本地保存失败";
+                    return statusMessage;
+                }
+                profile = Collections.unmodifiableMap(new LinkedHashMap<>(localProfile));
+                loggedIn = !token.isEmpty() && ahaType.hasValidToken();
+                statusMessage = loggedIn ? "已登录" : "注册成功，请登录";
+                refreshAfterLogin = loggedIn && localProfile.size() <= 1;
             }
-            profile = Collections.unmodifiableMap(new LinkedHashMap<>(localProfile));
-            loggedIn = !token.isEmpty() && ahaType.hasValidToken();
-            statusMessage = loggedIn ? "已登录" : "注册成功，请登录";
-            if (loggedIn && localProfile.size() <= 1) {
+            if (refreshAfterLogin) {
                 refreshProfile();
             }
             return null;
@@ -176,15 +200,14 @@ public class CloudAccountManager {
         }
     }
 
-    private JsonNode request(String path, String method, Map<String, Object> payload, boolean authenticated)
+    private JsonNode request(String path, String method, Map<String, Object> payload, String authenticatedToken)
             throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint(path))
             .timeout(Duration.ofSeconds(20))
             .header("Content-Type", "application/json; charset=utf-8");
-        if (authenticated) {
-            String token = ahaType.getAccessToken();
-            if (token.isBlank()) throw new IllegalStateException("missing token");
-            builder.header("Authorization", "Bearer " + token);
+        if (authenticatedToken != null) {
+            if (authenticatedToken.isBlank()) throw new IllegalStateException("missing token");
+            builder.header("Authorization", "Bearer " + authenticatedToken);
         }
         if ("GET".equals(method)) {
             builder.GET();
