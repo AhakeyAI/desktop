@@ -11,17 +11,16 @@
 
 ## 0. 当前基线与解释边界（2026-09-18）
 
-当前 Windows 工作树为 `desktop`，检出分支 `voice-k1-local-input-restore`，HEAD
-`659fbd0034d2d53ccda14f84e45feb4b58cdeabc`，与刷新后的
-`origin/eternal-dev` 完全一致（ahead/behind 为 0/0）。GitHub 默认分支仍是 `main`，其
-HEAD `931ebefd4b6fec4ee6578dfd7ebc0fcc93951c73`、应用版本 `1.0.0`，与 Windows
-`eternal-dev` 开发线明显分叉；Windows 稳定化、验收和修复不得误用 `main` 作为比较基线。
-当前 Windows 应用版本为 `1.5.3`。
+当前 Windows 工作树为 `desktop`，检出分支 `voice-k1-local-input-restore`。本轮收口前的
+可审查功能基线为 `82d486a`（完整提交 hash 以 Git history 为准）；本轮文档提交之后仍应
+以新的 `git status`、HEAD 和远端引用为准。GitHub 默认分支仍是 `main`，其 HEAD
+`931ebefd4b6fec4ee6578dfd7ebc0fcc93951c73`、应用版本 `1.0.0`，与 Windows 开发线明显
+分叉；Windows 稳定化、验收和修复不得误用 `main` 作为比较基线。当前 Windows 应用版本为
+`1.5.3`。
 
-本次复核起点时受 Git 管理的生产源码、资源、测试和脚本没有未提交修改；工作树中的未跟踪
-review、patch、report 和 artifacts 是审计/交付材料，不等于生产代码差异。本轮按本节边界
-完成最小 Windows 软件修复后，阶段一已形成独立 commit；未跟踪审计/交付材料仍不属于该
-提交。后续仍应以新的 `git status`、HEAD 和远端引用为准。
+受 Git 管理的生产源码、资源、测试和脚本的修改均通过独立提交保留历史；工作树中的未跟踪
+review、patch、report 和 artifacts 是审计/交付材料，不等于生产代码差异，本轮仍不纳入
+提交。既有 `4225f13` 烧录/BLE 稳定性提交和 `6a04439` AhaType 恢复提交均未 squash。
 
 当前跨端版本合同为：bundled firmware `1.4.8`、最低 GIF `1.4.3`、稳定化最低版本
 `1.4.7`、桌面 raw F18 最低版本 `1.4.8`、protocol `3.2`、model `1`、capability mask
@@ -45,6 +44,14 @@ review、patch、report 和 artifacts 是审计/交付材料，不等于生产�
    才更新 connected/UI”，失败会关闭未就绪 session 并保留 BLE fallback。
 6. `FirmwarePostVerifier` 相关 fixture 已同步当前 1.4.8 / protocol 3.2 / model 1 /
    capabilities 0x7FF 合同，并补充跨 session、顺序和烧录完成时间边界测试。
+7. AhaType Java 客户端已完成最小收口：手机号始终 trim/保存，记住密码只控制密码；登录
+   的 user/quota/token_valid_until 原子持久化、process quota 增量同步、UTF-8 Content-Type
+   和配置失败状态反馈均已覆盖，最终链路仍是
+   `SpeechService -> VoiceInputManager -> AhaType worker -> KeyboardInjector`。
+8. 正式发布只使用当前 `mvn clean package` 生成的完整 Maven JAR；旧安装基线仅提供 runtime、
+   模型、图标、WCHISP 和其他非 Java 资产。preview overlay 保留为历史排查脚本，不是发布路径。
+9. WCHISP 进入真实 `FLASHING` 后不可取消；UI、状态机和操作所有权均等待厂商进程退出，超时
+   不会提前释放 single-flight。
 
 上述修改必须复用既有事务门禁、session/generation、recovery 和状态事实源，避免增加平行
 状态机。已经正确的 ApprovalService `fresh + connected + AUTO`、WRITING/WAITING
@@ -171,9 +178,15 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 只能记为部分满足。
 
 `build-installer.ps1 -PrepareOnly` 允许缺少 `-FirmwareHex`，但输出
-`RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE`，不能生成发布安装包。正式 overlay
-脚本的 sources/allowlist 和 artifact test 必须包含所有新增生产类及
-`firmware-capabilities.properties`。
+`RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE`，不能生成发布安装包。正式入口先验证
+当前完整 Maven JAR，再将同一 JAR 复制到 release staging 和 jpackage input；artifact gate
+覆盖 AhaType、CloudAccountDialog、VoiceInputManager 及既有生产类。旧
+`preview-part3-release-overlay.ps1` 明确标记为 legacy/non-release/unsupported，不得作为
+当前构建成功条件；`build-exe.ps1/.bat` 只显示 legacy 提示并指向正式入口。
+
+Windows 安装器继续使用稳定 UpgradeCode `8842DBEF-62F7-49AC-AF0F-9447198265F3`，WiX
+同时受控检测并移除旧 1.0.0 UpgradeCode `03E5A934-FFCA-3815-B455-7D49BF1CA1DC`；安装
+目录仍为安全的 `AhaKeyStudio` 子目录，用户配置目录不属于卸载清理范围。
 
 ## 6. 当前状态登记
 
@@ -195,14 +208,17 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 | WIN-021~024 生命周期/持久化/Hook | 代码完成 | 原子保存、实例唤醒、bridge owner 测试已有 | Windows 安装/托盘/已安装 Hook 手工待验证 |
 | WIN-025 updater | **部分满足**：HTTPS manifest/asset、MZ、Authenticode Valid 和 publisher policy fail-closed 已实现；仍缺正式配置注入、canonical signer identity 和完整签名流水线 | manifest、下载和签名替身测试通过 | 正式签名/jpackage/release 基线待验证 |
 | WIN-026 firmware flasher | **代码完成**：生产 UI 走 `start(request)`；官方适配器单次启动，只有结构化 error 740 才对同一命令执行一次 RunAs 重试；WCHISP 完整成功终态优先 | parser、adapter、生产入口、740 行为、provenance、PS5/PS7、HEX 测试及完整 Maven 回归通过 | WCHISP、普通用户/UAC、真实 HEX 烧录和真机待验证 |
+| WIN-026 cancellation boundary | **代码完成**：WCHISP 进入 `FLASHING` 后取消被拒绝且 UI 明确不可取消；超时/终止后的 owned process 退出确认后才释放操作所有权 | `FirmwareUpdateServiceTest`、WCHISP runner/adapter 定向回归通过 | 真实厂商进程、UAC、损坏风险和真机待验证 |
 | WIN-027 灯效运行时写入错误 | 代码完成 | 亮度/灯效失败不覆盖成功状态的测试通过 | 灯效硬件故障注入待验证 |
 | WIN-028 普通请求/save/GIF 事务、session/dirty 隔离 | **代码完成**：普通写入与 session/dirty 安全边界保持；USB ready、close/reopen 和跨 transport 失效路径复用既有门禁；0x9D 配置读回仍无生产调用者 | USB close/reopen、事务门禁、跨 session 及完整 Maven 回归通过 | USB↔BLE 压力、Flash 真机待验证 |
 | WIN-029 Intel HEX/固件合同 | **部分满足**：软件端 1.4.8 文件名、版本和 HEX 校验已统一；现有 1.4.8 HEX/provenance 仍指向早于当前固件 HEAD 的 `55cd73c` | 软件端 provenance/HEX/边界测试通过 | 最终固件重新构建、provenance、WCHISP、签名资产和真机待验证 |
 | WIN-030 legacy cleanup | **部分满足**：生产路径已明确，仍保留 HookClient、SocketServer、KimiConfigLeverSync 和 AgentManager.installHooks 占位/兼容入口，尚未完成最终删除或兼容边界收口 | 相关单测已有 | 生态兼容性与旧脚本手工确认待验证 |
+| AhaType account/quota | **代码完成**：凭据、user/quota/token_valid_until、UTF-8 请求头、配置失败反馈和原文回退已收口；不记录 token、密码或完整语音文本 | AhaType/账号/Studio 状态定向测试及完整 Maven 回归通过 | 真实账号、API、麦克风和最终键盘注入待验证 |
+| Windows release JAR/installer | **代码完成**：完整 Maven JAR 是唯一 Java 生产来源；artifact gate 覆盖 AhaType 类；overlay 仅 legacy；WiX 保留当前 UpgradeCode 并检测旧 1.0.0 线 | 发布配置、JAR 缺类门禁、PowerShell 语法检查通过；内部安装包/VM 尚未完成 | 干净 VM 升级、用户数据保留、签名和卸载待验证 |
 
-“代码完成”不等于“真机完成”。当前没有可用于本地正式 overlay 的
-`C:\Program Files\AhaKeyStudio` 安装基线时，overlay 只能报告阻断；不得伪造
-`OVERLAY_VALIDATION=OK`。
+“代码完成”不等于“真机完成”。当前不要求也不执行 `OVERLAY_VALIDATION=OK`；overlay
+仅作为历史排查材料。正式发布以完整 Maven JAR、release artifact gate 和安装器结构
+检查为准。
 
 ## 6.1 当前待办（不在本轮交付中冒险扩大范围）
 
@@ -212,16 +228,18 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 2. 本轮已同步 `FirmwarePostVerifier` 1.4.8 fixture，并运行定向测试、`mvn test`、
    `mvn clean test`、`mvn clean package`、PowerShell 5.1/7 语法检查和 `git diff --check`；
    自动测试不能替代普通用户 UAC、USB/BLE、post-verify 和真实烧录验证。
-3. Firmware 1.4.8 最终 HEX/provenance 必须由固件任务基于 `c59cd19` 或其后明确的最终
+3. AhaType 的真实账号网络、配置目录权限、麦克风/键盘端到端，以及完整 Maven JAR
+   进入签名安装包后的启动验证仍需 Windows 环境执行；本地 mock/自动测试不等于真机通过。
+4. Firmware 1.4.8 最终 HEX/provenance 必须由固件任务基于 `c59cd19` 或其后明确的最终
    commit 重新生成；这是跨端发布阻断项，不得由 Windows 软件任务修改或伪造。
-4. WIN-025：把 expected publisher 绑定到正式 release/jpackage 配置，并将 signer
+5. WIN-025：把 expected publisher 绑定到正式 release/jpackage 配置，并将 signer
    subject 升级为 canonical exact identity；补齐完整签名流水线。
-5. BLE bridge 生命周期的精确路径 owner 已在本轮收口；仍需 Windows 手工验证启动、置前、
+6. BLE bridge 生命周期的精确路径 owner 已在本轮收口；仍需 Windows 手工验证启动、置前、
    Studio 退出和手动断开不重连边界。
-6. 固件 EEPROM journal 的连续保存风险属于固件端跨项目待办，本轮不修改固件。
-7. GIF 优化原因 UI 仍可能泛化显示尺寸/分辨率/帧数，而不是实际触发项；需补 P1 UX
+7. 固件 EEPROM journal 的连续保存风险属于固件端跨项目待办，本轮不修改固件。
+8. GIF 优化原因 UI 仍可能泛化显示尺寸/分辨率/帧数，而不是实际触发项；需补 P1 UX
    细化。默认 GIF 的视觉和体积也需产品验收。
-8. 若任务文本要求离线持久化，需另行确认当前实现是内存态还是持久化态，避免误报。
+9. 若任务文本要求离线持久化，需另行确认当前实现是内存态还是持久化态，避免误报。
 
 ## 7. 本轮交付登记（2026-09-04）
 
@@ -898,3 +916,19 @@ KeyboardInjector`；识别线程不等待云端请求，单段只处理/回调/�
 能开启。自动测试仅使用临时配置和本地 mock server；真实账号、真实 token、真实语音内容
 和正式网络请求均未用于测试。普通用户登录、网络异常回退、麦克风输出和 Windows 真机仍
 待手工验证。
+
+## 33. Minimal software closeout repair (2026-09-18)
+
+本轮在既有阶段历史之上保持独立提交：AhaType 持久化与 quota 收口为
+`0ce5c5cdfcccc26abd155141229ba8ac2003fe44`；完整 Maven JAR 发布、AhaType artifact
+门禁、legacy overlay 标记和 WiX legacy upgrade 结构收口为
+`6da1f9761301ae15f50e9f50e85fc40ba6546524`；WCHISP 取消边界和进程所有权收口为
+`82d486acb87f0e5ba81e5fecea7a1876a12ded96`。既有烧录/BLE 稳定性
+`4225f131c5c5d943985e9c0ffdea6fc98da88e5b` 与 AhaType 恢复
+`6a04439caee3b0071b012e784c679436f9229589` 保持未 squash。
+
+自动验证包括 AhaType credentials/quota/token-validity/Content-Type/配置写入失败/原文
+回退/单次处理，WCHISP pre-flash cancel、flashing 阶段不可虚假取消、single-flight 和
+进程所有权回归，完整 Maven/JAR artifact 检查，WiX/发布配置静态检查，以及 PowerShell
+脚本语法检查。代码和自动化完成不等于干净 VM 安装升级、签名、USB/BLE、真实 WCHISP、
+Firmware 1.4.8、麦克风或真实键盘注入已通过；这些仍标记为手工验证 pending。
