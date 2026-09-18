@@ -219,7 +219,7 @@ Windows 安装器继续使用稳定 UpgradeCode `8842DBEF-62F7-49AC-AF0F-9447198
 | WIN-028 普通请求/save/GIF 事务、session/dirty 隔离 | **代码完成**：普通写入与 session/dirty 安全边界保持；USB ready、close/reopen 和跨 transport 失效路径复用既有门禁；0x9D 配置读回仍无生产调用者 | USB close/reopen、事务门禁、跨 session 及完整 Maven 回归通过 | USB↔BLE 压力、Flash 真机待验证 |
 | WIN-029 Intel HEX/固件合同 | **部分满足**：软件端 1.4.8 文件名、版本和 HEX 校验已统一；当前固件 HEAD 与 provenance `sourceCommit` 均为 `cf4b7d20`，但 HEX/provenance 均未被 Git track | 软件端 provenance/HEX/边界测试通过 | 提交发布资产、WCHISP、签名资产和真机待验证 |
 | WIN-030 legacy cleanup | **部分满足**：生产路径已明确，仍保留 HookClient、SocketServer、KimiConfigLeverSync 和 AgentManager.installHooks 占位/兼容入口，尚未完成最终删除或兼容边界收口 | 相关单测已有 | 生态兼容性与旧脚本手工确认待验证 |
-| AhaType account/quota | **代码完成**：凭据、user/quota/token_valid_until、UTF-8 请求头、配置失败反馈、原文回退和迟到响应 token 归属校验已收口；不记录 token、密码或完整语音文本 | AhaType/账号/Studio 状态定向测试及完整 Maven 回归通过；覆盖退出、换账号、部分额度和单次交付 | 真实账号、API、麦克风和最终键盘注入待验证 |
+| AhaType account/quota | **代码完成**：凭据、user/quota/token_valid_until、UTF-8 请求头、配置失败反馈、原文回退、processIfEnabled 和账号刷新迟到响应 token 归属校验已收口；不记录 token、密码或完整语音文本 | AhaType/账号/Studio 状态定向测试及完整 Maven 回归通过；覆盖退出、换账号、部分额度和单次交付 | 真实账号、API、麦克风和最终键盘注入待验证 |
 | Windows release JAR/installer | **代码完成**：完整 Maven JAR 是唯一 Java 生产来源；artifact gate 覆盖 AhaType 类；overlay 仅 legacy；WiX 保留当前 UpgradeCode 并检测旧 1.0.0 线 | 发布配置、JAR 缺类门禁、PowerShell 语法检查通过；内部安装包/VM 尚未完成 | 干净 VM 升级、用户数据保留、签名和卸载待验证 |
 
 “代码完成”不等于“真机完成”。当前不要求也不执行 `OVERLAY_VALIDATION=OK`；overlay
@@ -977,3 +977,22 @@ PowerShell 7 与 Windows PowerShell 5.1 均对 12 个发布脚本解析为 0 err
 
 以上自动证据仍不等于真实账号、麦克风、键盘注入、USB/BLE、WCHISP、UAC、post-flash
 reconnect、1.4.8 真机回读、干净 VM 安装升级、签名或正式发布验证；这些继续保持 pending。
+
+## 35. AhaType account refresh ownership closeout (2026-09-18)
+
+本轮代码提交为 `94fd23984b88df0db98ce8fd245c060406d0a152`，只收口
+`CloudAccountManager.refreshProfile()` 的账号刷新响应归属，不修改已经完成的
+`AhaTypeService.processIfEnabled()` 迟到响应保护。刷新请求开始时取得一次有效
+`requestToken`，Authorization 使用同一个 token；响应写入配置前由
+`AhaTypeService.persistCloudStateIfTokenCurrent()` 在现有 `configMutationLock` 内重新读取
+当前 token，并将 token 检查、profile/quota/token_valid_until 合并和原子保存作为一个短临界区。
+HTTP 请求和等待响应不持有该锁。返回 `PERSISTED` 才更新 CloudAccountManager 的 profile、
+`loggedIn` 和成功状态；`STALE_TOKEN` 安静丢弃，不覆盖退出或新账号状态；`FAILED` 保留
+“账号刷新成功，但本地保存失败”的安全反馈。账号状态的内存更新与登录/退出的持久化收口
+使用 manager 内部轻量锁协调，但没有把网络请求放入锁中，也没有重构账号系统。
+
+新增 CloudAccountManager 定向测试覆盖：刷新期间退出登录、刷新期间切换 token B、正常刷新
+与 Authorization token、配置保存失败；既有 AhaType/Voice 单次处理和 processIfEnabled
+迟到响应测试继续保留。定向测试共 25 项通过；`mvn clean test` 和 `mvn clean package`
+均为 320 tests、0 failures、0 errors、0 skipped。真实账号、真实网络、麦克风、键盘注入、
+USB/BLE、WCHISP、固件真机和正式发布验证仍为 pending。
