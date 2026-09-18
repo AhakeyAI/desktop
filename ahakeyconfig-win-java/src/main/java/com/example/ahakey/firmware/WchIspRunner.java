@@ -204,6 +204,7 @@ public class WchIspRunner {
             }
             Instant actualProcessStartTime = Instant.now();
             long pid = process.pid();
+            List<Long> ownedProcessIds = ownedProcessIds(process.toHandle());
             ByteArrayOutputStream stdout = new ByteArrayOutputStream();
             ByteArrayOutputStream stderr = new ByteArrayOutputStream();
             Thread outReader = reader(process.getInputStream(), stdout, "wchisp-stdout");
@@ -239,7 +240,7 @@ public class WchIspRunner {
             return new WchIspProcessResult(command.operationId(), true, pid, exit,
                 timedOut, cancelled, out, err, out + System.lineSeparator() + err,
                 Duration.ofNanos(System.nanoTime() - startedAt), false, Map.of(), reason,
-                List.of(pid), actualProcessStartTime);
+                ownedProcessIds, actualProcessStartTime);
         }
 
         private static Thread reader(InputStream input, ByteArrayOutputStream output, String name) {
@@ -265,6 +266,13 @@ public class WchIspRunner {
                 });
                 try { handle.destroyForcibly(); } catch (RuntimeException ignored) { }
             }
+        }
+
+        private static List<Long> ownedProcessIds(ProcessHandle root) {
+            List<Long> result = new ArrayList<>();
+            result.add(root.pid());
+            root.descendants().forEach(child -> result.add(child.pid()));
+            return result.stream().distinct().toList();
         }
     }
 

@@ -97,11 +97,14 @@ public final class PreparedFlashSession {
 
     /** Prevents a not-yet-launched session from ever running a write command. */
     public boolean cancel() {
-        if (launchContext != null) launchContext.cancel();
         while (true) {
             State current = state.get();
-            if (current == State.CANCELLED || current == State.COMPLETED) return false;
-            if (state.compareAndSet(current, State.CANCELLED)) return true;
+            if (current == State.CANCELLED || current == State.COMPLETED
+                || current == State.LAUNCHING) return false;
+            if (state.compareAndSet(current, State.CANCELLED)) {
+                if (launchContext != null) launchContext.cancel();
+                return true;
+            }
         }
     }
 

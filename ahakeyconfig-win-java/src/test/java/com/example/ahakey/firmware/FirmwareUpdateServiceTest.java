@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -48,6 +49,40 @@ class FirmwareUpdateServiceTest {
                 first.handle().completion().get(2, TimeUnit.SECONDS).state());
             assertTrue(probes.get() >= 0);
         } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void flashingStageRejectsCancellationAndRetainsSingleFlightOwnership() throws Exception {
+        CountDownLatch flashing = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicReference<Boolean> runnerSawCancellation = new AtomicReference<>(false);
+        FirmwareUpdateService service = service(() -> true, (command, cancellation) -> {
+            if (!command.arguments().contains("download")) {
+                return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 41, 0,
+                    false, false, "", "", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+            }
+            flashing.countDown();
+            release.await(5, TimeUnit.SECONDS);
+            runnerSawCancellation.set(cancellation.cancelled());
+            return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 42, 0,
+                false, false, "", "", "{\"Status\":\"Finished\",\"Code\":0,"
+                    + "\"Message\":\"Succeed\"}", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+        });
+        try {
+            FirmwareUpdateService.OperationStart start = service.start(request());
+            assertTrue(start.accepted());
+            assertTrue(flashing.await(5, TimeUnit.SECONDS));
+            assertEquals(FirmwareUpdateState.FLASHING, start.handle().state());
+            assertFalse(start.handle().cancel());
+            assertFalse(start.handle().isCancelled());
+            assertFalse(service.start(request()).accepted());
+            release.countDown();
+            assertTrue(start.handle().completion().get(5, TimeUnit.SECONDS).success());
+            assertFalse(runnerSawCancellation.get());
+        } finally {
+            release.countDown();
             service.shutdown();
         }
     }

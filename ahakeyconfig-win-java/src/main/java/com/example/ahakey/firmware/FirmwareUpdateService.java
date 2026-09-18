@@ -521,6 +521,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     List.of("-c", flashWorkspace.configIni().toString(), "-o", "download", "-f",
                         flashWorkspace.firmwareInput().toString()), FLASH_TIMEOUT, handle.operationId());
                 WchIspRunner.WchIspProcessResult flashRaw = runner.run(flashCommand, cancellation::get);
+                awaitOwnedProcessExit(flashRaw);
                 saveProcess(diagnosticDirectory, "flash", flashCommand, flashRaw);
                 WchIspResultParser.FlashExecutionResult flash = WchIspResultParser.parseFlash(flashRaw);
                 if (!flash.success()) {
@@ -625,6 +626,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 "正在调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
             OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashFirmware(
                 request.firmwareHex(), cancellation::get);
+            awaitOwnedProcessExit(flash == null ? null : flash.processResult());
             saveAdapterProcess(diagnosticDirectory, flash);
             if (!flash.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, flashFailureError(flash),
@@ -694,6 +696,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 "正在立即调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
             OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashPrepared(
                 prepared.session(), cancellation::get);
+            awaitOwnedProcessExit(flash == null ? null : flash.processResult());
             saveAdapterProcess(diagnosticDirectory, flash);
             Instant actualProcessStartTime = flash == null || flash.processResult() == null
                 ? prepared.session().launchContext() == null
@@ -1113,6 +1116,23 @@ public final class FirmwareUpdateService implements AutoCloseable {
         if (cancelled.get()) throw new CancelledException();
     }
 
+    /** Never release the single-flight owner while a timed-out vendor child remains alive. */
+    private static void awaitOwnedProcessExit(WchIspRunner.WchIspProcessResult result)
+        throws InterruptedException {
+        if (result == null) return;
+        while (result.ownedProcessIds().stream().anyMatch(FirmwareUpdateService::isAlive)) {
+            Thread.sleep(50);
+        }
+    }
+
+    private static boolean isAlive(long pid) {
+        try {
+            return ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false);
+        } catch (RuntimeException ignored) {
+            return true;
+        }
+    }
+
     private static String escape(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
@@ -1129,8 +1149,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 || to == FirmwareUpdateState.CANCELLED;
             case READY -> to == FirmwareUpdateState.FLASHING || to == FirmwareUpdateState.FAILED
                 || to == FirmwareUpdateState.CANCELLED;
-            case FLASHING -> to == FirmwareUpdateState.WAITING_RECONNECT || to == FirmwareUpdateState.FAILED
-                || to == FirmwareUpdateState.CANCELLED;
+            case FLASHING -> to == FirmwareUpdateState.WAITING_RECONNECT || to == FirmwareUpdateState.FAILED;
             case WAITING_RECONNECT -> to == FirmwareUpdateState.VERIFYING || to == FirmwareUpdateState.FAILED
                 || to == FirmwareUpdateState.CANCELLED;
             case VERIFYING -> to == FirmwareUpdateState.SUCCESS || to == FirmwareUpdateState.FAILED

@@ -30,7 +30,10 @@ public final class FirmwareOperationHandle {
     }
 
     public boolean cancel() {
-        if (state.get().terminal()) {
+        FirmwareUpdateState currentState = state.get();
+        if (currentState.terminal() || currentState == FirmwareUpdateState.FLASHING) {
+            // Once the vendor process is writing Flash, cancellation is not a
+            // safe operation. The UI must keep ownership until WCHISP exits.
             return false;
         }
         boolean changed = cancelled.compareAndSet(false, true);

@@ -363,7 +363,12 @@ public final class DeviceMaintenancePane {
             java.util.function.Consumer<com.example.ahakey.firmware.FirmwareUpdateStatus> listener = update -> {
                 Platform.runLater(() -> {
                     progress.setProgress(update.progress());
-                    status.setText(update.detail());
+                    boolean flashing = update.state() == FirmwareUpdateState.FLASHING;
+                    cancelFlash.setDisable(flashing || update.state().terminal());
+                    status.setText(flashing
+                        ? text("烧录进行中，请勿断开设备，本阶段不可取消",
+                            "Flashing is in progress; do not disconnect. Cancellation is unavailable.")
+                        : update.detail());
                 });
             };
             firmwareUpdateService.addListener(listener);
