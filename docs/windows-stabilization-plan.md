@@ -996,3 +996,35 @@ HTTP 请求和等待响应不持有该锁。返回 `PERSISTED` 才更新 CloudAc
 迟到响应测试继续保留。定向测试共 25 项通过；`mvn clean test` 和 `mvn clean package`
 均为 320 tests、0 failures、0 errors、0 skipped。真实账号、真实网络、麦克风、键盘注入、
 USB/BLE、WCHISP、固件真机和正式发布验证仍为 pending。
+
+## 36. WCHISP launch permission regression correction (2026-09-19)
+
+本轮针对 `commit 4225f13` 引入的 Windows WCHISP 启动权限回归做最小修复，代码提交为
+`4f8e88f3e6bccd3c6e15170560a5f7f696f61670`。此前生产调用链在非管理员 Studio 中先用
+普通 worker 启动带 `requireAdministrator` 的 WCHISP，遇到 Windows 740 后才尝试 RunAs；
+PowerShell 外层的 `InvalidOperationException` 使这条路径无法可靠识别 740，导致没有 UAC、
+没有真正启动 WCHISP。当前 `runOfficialCommand()` 在启动前只根据 Studio 权限选择一次
+`DIRECT_WORKER` 或 `RUNAS_WORKER`，随后只调用一次 operation-scoped capture worker：管理员
+直接启动，非管理员在明确开始烧录时使用同一 WCHISP、CONFIG、HEX 和参数通过 RunAs 弹出一次
+UAC。旧的 direct-first/740 重试不再是生产策略；既有 stdout/stderr/console 捕获、终态、
+取消、超时和进程所有权路径保留，检测路径仍不请求 UAC。
+
+RunAs 包装器将 Windows 1223 映射为 `UAC_CANCELLED`，结果解析继续给出“用户取消管理员授权”
+的提示且不自动重试；`elevationUsed` 现在按实际 worker 模式记录，直接 worker 为 NO，RunAs
+worker 为 YES。未修改固件、WCHISP CONFIG/命令参数、FirmwareUpdateService、BLE/USB、烧录后
+reconnect 或 `0x9F` 回读路径。
+
+本轮自动验证（使用工作区 `.tools` 中的 JDK 17 和 Maven 3.9.16）：
+
+* WCHISP 定向测试：66 tests, 0 failures, 0 errors, 0 skipped；其中
+  `WindowsWchIspFlasherTest` 21 项、`WchIspResultParserTest` 13 项、`WchIspRunnerTest`
+  7 项、`OfficialWchIspAdapterTest` 8 项和 `FirmwareUpdateServiceTest` 17 项通过。
+* `mvn clean test`：323 tests, 0 failures, 0 errors, 0 skipped。
+* `mvn clean package`：`BUILD SUCCESS`，323 tests 通过，`RELEASE_ARTIFACT_CONTENTS=OK`。
+* Windows PowerShell 5.1 与 PowerShell 7：本项目 12 个嵌入式 `.ps1` 文件均解析为 0 errors。
+* `git diff --check`：通过。
+
+以上是代码、脚本和自动化证据；本轮未执行真实 UAC 接受/取消交互、真实 WCHISP、USB ISP、
+烧录、post-flash reconnect、`0x9F` 真机回读、签名安装包或干净 VM 验证。普通用户一次 UAC
+烧录、管理员 Studio 免 UAC 烧录和取消后的真实 UI 终态仍需真机验证；旧章节中关于 740 后
+重试的描述保留为历史记录，以本节当前启动策略为准。
