@@ -113,6 +113,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
         String detail = "OFFICIAL_WCHISP_COMMAND=" + command.executable() + " "
             + String.join(" ", command.arguments()) + "\n"
             + "PROCESS_STARTED=" + (process != null && process.processStarted() ? "YES" : "NO") + "\n"
+            + "LAUNCH_MODE=" + launchMode(process) + "\n"
             + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
             + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
             + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
@@ -143,6 +144,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
         String detail = "OFFICIAL_WCHISP_COMMAND=" + command.executable() + " "
             + String.join(" ", command.arguments()) + "\n"
             + "PROCESS_STARTED=" + (process != null && process.processStarted() ? "YES" : "NO") + "\n"
+            + "LAUNCH_MODE=" + launchMode(process) + "\n"
             + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
             + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
             + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
@@ -164,5 +166,10 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
         // an already elevated Studio does not request RunAs a second time.
         return new WindowsWchIspFlasher(command.executable())
             .runOfficialCommand(command, token);
+    }
+
+    private static String launchMode(WchIspRunner.WchIspProcessResult process) {
+        if (process == null) return "UNKNOWN";
+        return process.elevationUsed() ? "RUNAS_WORKER" : "DIRECT_WORKER";
     }
 }

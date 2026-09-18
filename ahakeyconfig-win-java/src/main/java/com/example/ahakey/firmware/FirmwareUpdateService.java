@@ -256,6 +256,14 @@ public final class FirmwareUpdateService implements AutoCloseable {
         }
     }
 
+    /** Invalidates one prepared operation and releases its short-lived session. */
+    public void discardPrepared(PreparedFirmwareOperation prepared) {
+        if (prepared == null || prepared.session() == null) return;
+        if (preparedSessions.remove(prepared.session().operationId(), prepared.session())) {
+            prepared.cancel();
+        }
+    }
+
     /**
      * Starts an already prepared operation.  The click path only arms the
      * session and launches the prepared command; it does not repeat preflight,
@@ -266,13 +274,17 @@ public final class FirmwareUpdateService implements AutoCloseable {
             return OperationStart.rejected(FirmwareUpdateError.INTERNAL_ERROR, "预备烧录会话缺失");
         }
         PreparedFlashSession session = prepared.session();
-        if (session.state() != PreparedFlashSession.State.ARMED) {
-            return OperationStart.rejected(FirmwareUpdateError.ISP_NOT_PRESENT,
-                "请先检测到当前 ISP 设备后再开始烧录");
-        }
         synchronized (admissionMonitor) {
             if (shuttingDown.get()) {
                 return OperationStart.rejected(FirmwareUpdateError.CANCELLED, "应用正在退出");
+            }
+            if (preparedSessions.get(session.operationId()) != session) {
+                return OperationStart.rejected(FirmwareUpdateError.ISP_NOT_PRESENT,
+                    "预备烧录会话已失效，请重新准备并检测 ISP");
+            }
+            if (session.state() != PreparedFlashSession.State.ARMED) {
+                return OperationStart.rejected(FirmwareUpdateError.ISP_NOT_PRESENT,
+                    "请先检测到当前 ISP 设备后再开始烧录");
             }
             if (diagnosticActive.get()) return OperationStart.busy();
             AtomicBoolean cancelled = new AtomicBoolean();
@@ -402,10 +414,13 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 : officialAdapter.detectDevice(prepared.session());
             runtime = detection.runtime();
             if (runtime != null) writeRuntimeEvidence(diagnosticDirectory, runtime);
-            if (prepared != null && detection.ispPresent()) prepared.session().markDeviceDetected();
+            boolean armed = prepared == null || !detection.ispPresent()
+                ? false : prepared.session().markDeviceDetected();
+            boolean officialReady = detection.ispPresent() && (prepared == null || armed);
             String detail = "RUNTIME_READY=" + (runtime == null ? "NO" : "YES") + "\n"
                 + "ISP_PRESENT=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
-                + "OFFICIAL_ADAPTER_READY=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
+                + "OFFICIAL_ADAPTER_READY=" + (officialReady ? "YES" : "NO") + "\n"
+                + (prepared == null ? "" : "PREPARED_SESSION_ARMED=" + (armed ? "YES" : "NO") + "\n")
                 + "UID_CONFIRMED=" + (detection.uid().isPresent() ? "YES" : "NO") + "\n"
                 + "UID_SOURCE=OPTIONAL_VENDOR_CONTROL_PROCESS\n"
                 + "OPERATION_ID=" + operationId + "\n"
@@ -416,8 +431,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 detection.ispPresent() ? null : FirmwareUpdateError.ISP_NOT_PRESENT);
             return new DiagnosticResult(runtime != null, detection.ispPresent(),
                 detection.uid().isPresent(), runtime, detail,
-                detection.ispPresent() ? null : FirmwareUpdateError.ISP_NOT_PRESENT,
-                operationId, diagnosticDirectory, null, null, false, detection.ispPresent());
+                officialReady ? null : FirmwareUpdateError.ISP_NOT_PRESENT,
+                operationId, diagnosticDirectory, null, null, false, officialReady);
         } catch (Exception failure) {
             String detail = "OFFICIAL_ADAPTER_READY=NO\n"
                 + "UID_CONFIRMED=NO\n"
@@ -681,6 +696,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                               AtomicBoolean cancellation,
                                               Instant flashClickTime) {
         Path diagnosticDirectory = prepared.diagnosticDirectory();
+        BleManager.TransportStatusSnapshot transportBaseline = postVerifier == null
+            ? null : postVerifier.captureTransportStatusSnapshot();
+        long flashCompletionNanos = 0;
         try {
             checkCancelled(cancellation);
             // Preparation and the ISP probe happened before the explicit click;
@@ -694,6 +712,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
             transition(handle, FirmwareUpdateState.FLASHING,
                 "正在立即调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
+            Instant launchRequestTime = Instant.now();
             OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashPrepared(
                 prepared.session(), cancellation::get);
             awaitOwnedProcessExit(flash == null ? null : flash.processResult());
@@ -703,12 +722,13 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     ? null : prepared.session().launchContext().actualProcessStartTime()
                 : flash.processResult().actualProcessStartTime();
             writeFlashTiming(diagnosticDirectory, flashClickTime,
-                prepared.session().launchContext(), actualProcessStartTime, flash);
+                launchRequestTime, prepared.session(), actualProcessStartTime, flash);
             if (!flash.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, flashFailureError(flash),
                     flashFailureDetail(flash.detail()), diagnosticDirectory);
                 return;
             }
+            flashCompletionNanos = System.nanoTime();
 
             transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
                 "官方 WCHISP 下载完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
@@ -719,12 +739,15 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
                 return;
             }
-            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
+            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get,
+                transportBaseline, flashCompletionNanos)) {
                 finish(handle, FirmwareUpdateState.FAILED,
                     FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
                     postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
                 return;
             }
+            writeTransportEvidence(diagnosticDirectory, transportBaseline,
+                postVerifier.verificationSession());
             transition(handle, FirmwareUpdateState.VERIFYING,
                 "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
             FirmwarePostVerifier.Verification verification = postVerifier.verify(
@@ -936,6 +959,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "  \"SELECTED_HEX_PATH\": " + json(session.hexPath().toString()) + ",\n"
             + "  \"FLASH_COMMAND_HEX_PATH\": " + json(flashHexPath(command)) + ",\n"
             + "  \"createdAt\": " + json(session.createdAt().toString()) + ",\n"
+            + "  \"PREPARATION_COMPLETED_AT\": " + json(session.createdAt().toString()) + ",\n"
+            + "  \"ISP_DETECTED_AT\": " + json(session.deviceDetectedAt() == null
+                ? "" : session.deviceDetectedAt().toString()) + ",\n"
             + "  \"state\": " + json(session.state().name()) + ",\n"
             + "  \"workerOwner\": " + json(session.workerOwner()) + ",\n"
             + "  \"launchContextReady\": " + (launch != null && launch.ready()) + ",\n"
@@ -948,10 +974,12 @@ public final class FirmwareUpdateService implements AutoCloseable {
     }
 
     private void writeFlashTiming(Path directory, Instant clickTime,
-                                  PreparedLaunchContext launchContext,
+                                  Instant launchRequestTime,
+                                  PreparedFlashSession session,
                                   Instant actualProcessStartTime,
                                   OfficialWchIspAdapter.FlashResult flash) {
         if (directory == null) return;
+        PreparedLaunchContext launchContext = session == null ? null : session.launchContext();
         Instant goSignalTime = launchContext == null ? null : launchContext.goSignalTime();
         long clickToGo = clickTime == null || goSignalTime == null ? -1
             : Math.max(0, java.time.Duration.between(clickTime, goSignalTime).toMillis());
@@ -962,7 +990,15 @@ public final class FirmwareUpdateService implements AutoCloseable {
         long duration = flash == null || flash.processResult() == null
             ? -1 : flash.processResult().duration().toMillis();
         diagnostics.write(directory, "flash-timing.json", "{\n"
+            + "  \"PREPARATION_COMPLETED_AT\": "
+            + json(session == null ? "" : session.createdAt().toString()) + ",\n"
+            + "  \"ISP_DETECTED_AT\": "
+            + json(session == null || session.deviceDetectedAt() == null
+                ? "" : session.deviceDetectedAt().toString()) + ",\n"
+            + "  \"FLASH_CLICK_AT\": " + json(clickTime == null ? "" : clickTime.toString()) + ",\n"
             + "  \"FLASH_CLICK_TIME\": " + json(clickTime == null ? "" : clickTime.toString()) + ",\n"
+            + "  \"LAUNCH_REQUEST_AT\": "
+            + json(launchRequestTime == null ? "" : launchRequestTime.toString()) + ",\n"
             + "  \"GO_SIGNAL_TIME\": " + json(goSignalTime == null ? "" : goSignalTime.toString()) + ",\n"
             + "  \"ACTUAL_WCHISP_PROCESS_START_TIME\": "
             + json(actualProcessStartTime == null ? "" : actualProcessStartTime.toString()) + ",\n"
@@ -971,6 +1007,31 @@ public final class FirmwareUpdateService implements AutoCloseable {
             + "  \"CLICK_TO_WCHISP_START_MS\": " + clickToStart + ",\n"
             + "  \"DOWNLOAD_PROCESS_DURATION_MS\": " + duration + "\n"
             + "}\n");
+    }
+
+    private void writeTransportEvidence(Path directory,
+                                        BleManager.TransportStatusSnapshot baseline,
+                                        BleManager.TransportStatusSnapshot verified) {
+        if (directory == null) return;
+        diagnostics.write(directory, "post-flash-transport.txt",
+            "BASELINE_SESSION_EPOCH=" + snapshotValue(baseline, true) + "\n"
+                + "BASELINE_RECEIVER_IDENTITY=" + snapshotValue(baseline, false) + "\n"
+                + "BASELINE_STATUS_SEQUENCE=" + (baseline == null ? "" : baseline.statusSequence()) + "\n"
+                + "BASELINE_LAST_STATUS_AT_NANOS=" + (baseline == null ? "" : baseline.lastStatusAtNanos()) + "\n"
+                + "VERIFIED_SESSION_EPOCH=" + snapshotValue(verified, true) + "\n"
+                + "VERIFIED_RECEIVER_IDENTITY=" + snapshotValue(verified, false) + "\n"
+                + "VERIFIED_STATUS_SEQUENCE=" + (verified == null ? "" : verified.statusSequence()) + "\n"
+                + "VERIFIED_LAST_STATUS_AT_NANOS=" + (verified == null ? "" : verified.lastStatusAtNanos()) + "\n"
+                + "NEW_SESSION=" + (baseline != null && verified != null
+                    && (baseline.sessionEpoch() != verified.sessionEpoch()
+                        || baseline.receiverIdentity() != verified.receiverIdentity())
+                    ? "YES" : "NO") + "\n");
+    }
+
+    private static String snapshotValue(BleManager.TransportStatusSnapshot snapshot,
+                                        boolean epoch) {
+        if (snapshot == null) return "";
+        return Long.toString(epoch ? snapshot.sessionEpoch() : snapshot.receiverIdentity());
     }
 
     private static String diagnosticDetail(UUID operationId, Path directory,

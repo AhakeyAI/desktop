@@ -111,6 +111,7 @@ class OfficialWchIspAdapterTest {
         assertFalse(session.elevatedWorkerPrepared(),
             "READY marker/GO worker is not part of the production path");
         assertTrue(session.markDeviceDetected());
+        assertTrue(session.markDeviceDetected(), "repeated ISP detection keeps the session armed");
         adapter.flashPrepared(session, WchIspRunner.CancellationToken.NONE);
         assertTrue(runnerCalled.get());
         assertEquals(PreparedFlashSession.State.COMPLETED, session.state());

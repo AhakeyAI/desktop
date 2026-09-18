@@ -56,6 +56,11 @@ public final class FirmwarePostVerifier {
         return transportSnapshot == null ? null : transportSnapshot.get();
     }
 
+    /** Returns the session that satisfied the most recent reconnect wait. */
+    public BleManager.TransportStatusSnapshot verificationSession() {
+        return verificationSession;
+    }
+
     public Verification verify(SemanticVersion expectedVersion, Duration timeout)
         throws Exception {
         return verify(expectedVersion, timeout, () -> false);

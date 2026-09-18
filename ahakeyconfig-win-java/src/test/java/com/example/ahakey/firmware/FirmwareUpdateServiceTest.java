@@ -423,7 +423,11 @@ class FirmwareUpdateServiceTest {
         });
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
-        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+        AtomicInteger runtimeResolutions = new AtomicInteger();
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> {
+            runtimeResolutions.incrementAndGet();
+            return runtime;
+        },
             verifier(), new FirmwareUpdateDiagnostics(temporary.resolve("prepared-diagnostics")), temporary);
         try {
             FirmwareUpdateService.PreparationResult preparation = service.prepareFlash(
@@ -448,6 +452,8 @@ class FirmwareUpdateServiceTest {
             assertTrue(result.success(), result.detail());
             assertEquals(1, runnerCalls.get());
             assertEquals(prepared.session().command().arguments(), flashArguments.get());
+            assertEquals(1, runtimeResolutions.get(),
+                "prepared click must not repeat runtime preflight");
         } finally {
             service.shutdown();
         }

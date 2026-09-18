@@ -6,6 +6,7 @@ import com.example.ahakey.firmware.FirmwareOperationHandle;
 import com.example.ahakey.firmware.FirmwareUpdateRequest;
 import com.example.ahakey.firmware.FirmwareUpdateService;
 import com.example.ahakey.firmware.FirmwareUpdateState;
+import com.example.ahakey.firmware.PreparationGeneration;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
@@ -97,7 +98,9 @@ public final class DeviceMaintenancePane {
             controller.getPendingFirmwareVersion()
         };
         final boolean[] unknownVersion = {false};
-        final boolean[] environmentReady = {false};
+        final FirmwareUpdateService.PreparedFirmwareOperation[] preparedOperation = {null};
+        final PreparationGeneration preparationGeneration = new PreparationGeneration();
+        final boolean[] preparing = {false};
         final TitledPane[] steps = new TitledPane[4];
         final String[] diagnosticReport = {""};
         final FirmwareOperationHandle[] activeOperation = {null};
@@ -126,6 +129,12 @@ public final class DeviceMaintenancePane {
         flash.getStyleClass().add("button-prominent");
         flash.setDisable(true);
         Label flashRequirement = body("");
+        Label ispStatus = body("");
+        Button diagnose = new Button(text(
+            "检测烧录环境和 ISP", "Check Environment and ISP"));
+        Button exportDiagnostic = new Button(text("导出诊断报告", "Export Diagnostic Report"));
+        diagnose.setDisable(true);
+        exportDiagnostic.setDisable(true);
 
         Runnable updateFlashState = () -> {
             String block = flashBlockReason(
@@ -136,7 +145,9 @@ public final class DeviceMaintenancePane {
                 allowUnknown.isSelected(),
                 allowDowngrade.isSelected()
             );
-            flash.setDisable(!canStartFlash(block, environmentReady[0]));
+            boolean preparedArmed = preparedOperation[0] != null
+                && preparedOperation[0].armed();
+            flash.setDisable(!canStartFlash(block, preparedArmed));
             flashRequirement.setText(switch (block) {
                 case "FIRMWARE_REQUIRED" -> text(
                     "请先在第 2 步选择固件。",
@@ -150,21 +161,88 @@ public final class DeviceMaintenancePane {
                 case "DOWNGRADE_CONFIRMATION_REQUIRED" -> text(
                     "检测到固件降级，默认禁止。",
                     "Firmware downgrade detected and blocked by default.");
-                default -> environmentReady[0] ? text(
+                default -> preparedArmed ? text(
                     "条件已满足，可以开始烧录。",
-                    "All prerequisites are satisfied; flashing is ready.") : text(
-                    "请先完成第 3 步烧录环境检查。",
-                    "Complete the flash environment check in step 3.");
+                    "All prerequisites are satisfied; flashing is ready.") : (preparing[0] ? text(
+                        "正在准备烧录环境。",
+                        "Preparing the flash environment.") : text(
+                        "请先完成第 3 步烧录环境检查。",
+                        "Complete the flash environment check in step 3."));
             });
-            if (block.isEmpty() && environmentReady[0]) {
+            if (block.isEmpty() && preparedArmed) {
                 expandStep(steps, 3);
             }
         };
-        allowUnknown.selectedProperty().addListener((o, a, b) -> {
+        Runnable invalidatePrepared = () -> {
+            preparationGeneration.invalidate();
+            FirmwareUpdateService.PreparedFirmwareOperation old = preparedOperation[0];
+            preparedOperation[0] = null;
+            preparing[0] = false;
+            diagnose.setDisable(true);
+            exportDiagnostic.setDisable(true);
+            if (old != null) firmwareUpdateService.discardPrepared(old);
+        };
+        Runnable[] beginPreparation = {null};
+        beginPreparation[0] = () -> {
+            invalidatePrepared.run();
+            String block = flashBlockReason(
+                firmware[0] != null,
+                targetVersion[0],
+                currentVersion[0],
+                unknownVersion[0],
+                allowUnknown.isSelected(),
+                allowDowngrade.isSelected()
+            );
             updateFlashState.run();
+            if (!block.isEmpty()) {
+                ispStatus.setText(text(
+                    "请先满足固件版本和风险确认条件，再准备烧录环境。",
+                    "Complete firmware version and risk prerequisites before preparing."));
+                return;
+            }
+            FirmwareUpdateRequest request = new FirmwareUpdateRequest(
+                firmware[0], targetVersion[0], currentVersion[0],
+                allowUnknown.isSelected(), allowDowngrade.isSelected(), firmwareSource[0]);
+            long generation = preparationGeneration.begin();
+            preparing[0] = true;
+            diagnose.setDisable(true);
+            ispStatus.setText(text(
+                "正在准备烧录环境（不会启动 WCHISP）…",
+                "Preparing the flash environment (WCHISP will not start)…"));
+            updateFlashState.run();
+            daemon("firmware-preparation", () -> {
+                FirmwareUpdateService.PreparationResult result =
+                    firmwareUpdateService.prepareFlash(request);
+                Platform.runLater(() -> {
+                    if (!preparationGeneration.isCurrent(generation)) {
+                        if (result.operation() != null) {
+                            firmwareUpdateService.discardPrepared(result.operation());
+                        }
+                        return;
+                    }
+                    preparing[0] = false;
+                    if (result.prepared()) {
+                        preparedOperation[0] = result.operation();
+                        diagnose.setDisable(false);
+                        ispStatus.setText(text(
+                            "烧录环境已准备完成。请进入 ISP 后执行第 3 步检测。",
+                            "Flash environment prepared. Enter ISP, then run step 3 detection."));
+                    } else {
+                        preparedOperation[0] = null;
+                        diagnose.setDisable(true);
+                        ispStatus.setText(text(
+                            "烧录环境准备失败：", "Flash environment preparation failed: ")
+                            + result.detail());
+                    }
+                    updateFlashState.run();
+                });
+            });
+        };
+        allowUnknown.selectedProperty().addListener((o, a, b) -> {
+            beginPreparation[0].run();
         });
         allowDowngrade.selectedProperty().addListener((o, a, b) -> {
-            updateFlashState.run();
+            beginPreparation[0].run();
         });
 
         readDeviceVersion.setOnAction(event -> {
@@ -204,6 +282,9 @@ public final class DeviceMaintenancePane {
                         + String.format("%08X", caps.capabilityBits());
                     Platform.runLater(() -> {
                         detectedVersion.setText(value);
+                        if (firmware[0] != null) {
+                            beginPreparation[0].run();
+                        }
                         updateFlashState.run();
                         expandStep(steps, 1);
                         SemanticVersion expected = controller.getPendingFirmwareVersion();
@@ -268,7 +349,7 @@ public final class DeviceMaintenancePane {
             allowUnknown.setManaged(false);
             selected.setText(path.getFileName().toString());
             expandStep(steps, 2);
-            updateFlashState.run();
+            beginPreparation[0].run();
         });
 
         local.setOnAction(event -> {
@@ -291,7 +372,7 @@ public final class DeviceMaintenancePane {
             allowUnknown.setManaged(unknownVersion[0]);
             selected.setText(chosen.getName());
             expandStep(steps, 2);
-            updateFlashState.run();
+            beginPreparation[0].run();
         });
 
         latest.setOnAction(event -> {
@@ -329,7 +410,7 @@ public final class DeviceMaintenancePane {
                             "下载完成并通过固件格式检查。",
                             "Downloaded and firmware format validated."));
                         setBusy(false, progress, bundled, latest, local, flash);
-                        updateFlashState.run();
+                        beginPreparation[0].run();
                     });
                 } catch (Exception exception) {
                     Platform.runLater(() -> {
@@ -342,24 +423,16 @@ public final class DeviceMaintenancePane {
         });
 
         flash.setOnAction(event -> {
-            if (!environmentReady[0]) {
+            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
+            if (prepared == null || !prepared.armed()) {
                 expandStep(steps, 2);
                 updateFlashState.run();
                 return;
             }
-            if (!isVersionAllowed(
-                owner, targetVersion[0], currentVersion[0],
-                allowDowngrade.isSelected()
-            )) {
-                return;
-            }
             expandStep(steps, 3);
             setBusy(true, progress, bundled, latest, local, flash);
+            diagnose.setDisable(true);
             status.setText(text("正在调用 WCHISP…", "Starting WCHISP…"));
-            Path selectedFirmware = firmware[0];
-            FirmwareUpdateRequest request = new FirmwareUpdateRequest(
-                selectedFirmware, targetVersion[0], currentVersion[0],
-                allowUnknown.isSelected(), allowDowngrade.isSelected(), firmwareSource[0]);
             java.util.function.Consumer<com.example.ahakey.firmware.FirmwareUpdateStatus> listener = update -> {
                 Platform.runLater(() -> {
                     progress.setProgress(update.progress());
@@ -372,7 +445,8 @@ public final class DeviceMaintenancePane {
                 });
             };
             firmwareUpdateService.addListener(listener);
-            FirmwareUpdateService.OperationStart admission = firmwareUpdateService.start(request);
+            FirmwareUpdateService.OperationStart admission =
+                firmwareUpdateService.startPrepared(prepared);
             if (!admission.accepted()) {
                 firmwareUpdateService.removeListener(listener);
                 setBusy(false, progress, bundled, latest, local, flash);
@@ -388,7 +462,10 @@ public final class DeviceMaintenancePane {
                 firmwareUpdateService.removeListener(listener);
                 activeOperation[0] = null;
                 cancelFlash.setDisable(true);
-                environmentReady[0] = false;
+                preparedOperation[0] = null;
+                preparationGeneration.invalidate();
+                preparing[0] = false;
+                diagnose.setDisable(true);
                 setBusy(false, progress, bundled, latest, local, flash);
                 updateFlashState.run();
                 if (failure != null) {
@@ -420,22 +497,24 @@ public final class DeviceMaintenancePane {
         owner.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> {
             FirmwareOperationHandle operation = activeOperation[0];
             if (operation != null) operation.cancel();
+            invalidatePrepared.run();
         });
 
-        Label ispStatus = body("");
-        Button diagnose = new Button(text(
-            "检测烧录环境和 ISP", "Check Environment and ISP"));
-        Button exportDiagnostic = new Button(text("导出诊断报告", "Export Diagnostic Report"));
         exportDiagnostic.setDisable(true);
         diagnose.setOnAction(event -> {
-            environmentReady[0] = false;
+            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
+            if (prepared == null) {
+                updateFlashState.run();
+                return;
+            }
             updateFlashState.run();
             diagnose.setDisable(true);
             ispStatus.setText(text("正在检查 WCHISP 工具、配置和 CH582 ISP 设备…",
                 "Checking WCHISP tools, configuration, and the CH582 ISP device…"));
             daemon("wchisp-diagnostics", () -> {
                 StringBuilder report = new StringBuilder("AhaKey WCHISP diagnostics\n");
-                FirmwareUpdateService.DiagnosticResult result = firmwareUpdateService.diagnose();
+                FirmwareUpdateService.DiagnosticResult result =
+                    firmwareUpdateService.diagnose(prepared);
                 report.append(result.ready() ? "ENVIRONMENT=READY\n" : "ENVIRONMENT=NOT_READY\n");
                 report.append("RUNTIME_READY=").append(result.runtimeReady() ? "YES" : "NO").append('\n');
                 report.append("ISP_PRESENT=").append(result.ispPresent() ? "YES" : "NO").append('\n');
@@ -446,12 +525,13 @@ public final class DeviceMaintenancePane {
                 report.append("UID_CONFIRMED=").append(result.uidConfirmed() ? "YES" : "NO").append('\n');
                 report.append(result.detail()).append('\n');
                 diagnosticReport[0] = report.toString();
-                boolean readyResult = result.ready();
                 Platform.runLater(() -> {
-                    diagnose.setDisable(false);
+                    if (preparedOperation[0] != prepared) {
+                        return;
+                    }
+                    diagnose.setDisable(!(result.officialAdapterReady() && prepared.armed()));
                     exportDiagnostic.setDisable(false);
                     ispStatus.setText(diagnosticReport[0]);
-                    environmentReady[0] = readyResult;
                     updateFlashState.run();
                 });
             });
