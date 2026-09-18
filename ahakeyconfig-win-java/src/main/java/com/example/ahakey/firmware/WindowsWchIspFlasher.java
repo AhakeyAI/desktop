@@ -492,12 +492,16 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             String marker = readQuietly(resultMarker).trim();
             boolean allowDeviceUid = arguments.contains("get");
             Integer markerCode = elevatedResultCode(marker, allowDeviceUid);
+            int nativeErrorCode = nativeErrorCode(marker);
             Integer terminalCode = terminalExitCode(
                 joinOutput(stdoutText, stderrText, consoleText), allowDeviceUid);
-            int finalCode = markerCode != null ? markerCode
+            int finalCode = nativeErrorCode == 740 ? 740 : markerCode != null ? markerCode
                 : terminalCode != null ? terminalCode
                 : wrapperCode == 0 ? 100 : wrapperCode;
             String terminalResult = terminalResult(marker, finalCode);
+            if (nativeErrorCode == 740 && !useRunAs) {
+                terminalResult = "ELEVATION_REQUIRED";
+            }
             if (wrapperCode == 124 && "MISSING".equals(terminalResult)) {
                 terminalResult = "TIMEOUT";
             }
@@ -505,6 +509,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 case "SUCCESS", "DEVICE_UID" -> "COMPLETED";
                 case "TIMEOUT" -> "FLASH_TERMINAL_RESULT_TIMEOUT";
                 case "CANCELLED" -> "UAC_CANCELLED";
+                case "ELEVATION_REQUIRED" -> "ERROR_ELEVATION_REQUIRED";
                 case "MISSING" -> "TERMINAL_RESULT_MISSING";
                 default -> "PROCESS_EXIT";
             };
@@ -528,7 +533,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             }
             return new CommandResult(finalCode, combined, pid, true, duration, reason,
                 pid > 0 ? List.of(pid) : List.of(), actualStart, actualEnd,
-                stdoutText, stderrText, consoleText, terminalResult);
+                stdoutText, stderrText, consoleText, terminalResult, nativeErrorCode);
         } finally {
             if (wrapper != null) Files.deleteIfExists(wrapper);
             Files.deleteIfExists(worker);
@@ -680,6 +685,12 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 Complete-WorkerResult 'TIMEOUT' 124 (Get-ConsoleTail)
             } catch {
                 ($_ | Out-String) | Out-File -LiteralPath $Stderr -Encoding utf8
+                $nativeErrorCode = 0
+                try { $nativeErrorCode = [int]$_.Exception.NativeErrorCode } catch { }
+                if ($nativeErrorCode -eq 740 -or
+                    $_.Exception.Message -match '(?i)(?:error|win32)[ =:]?740') {
+                    Complete-WorkerResult 'ELEVATION_REQUIRED:740' 740 (Get-ConsoleTail)
+                }
                 Complete-WorkerResult 'ERROR' 1 (Get-ConsoleTail)
             }
             """;
@@ -693,6 +704,18 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         if (value.startsWith("FAIL:")) return "FAIL";
         if (value.startsWith("PROCESS_EXIT:")) return "PROCESS_EXIT";
         return code == 0 ? "SUCCESS" : "MISSING";
+    }
+
+    private static int nativeErrorCode(String marker) {
+        if (marker == null) return 0;
+        Matcher matcher = Pattern.compile("(?i)ELEVATION_REQUIRED\\s*:\\s*(\\d+)")
+            .matcher(marker.trim());
+        if (!matcher.find()) return 0;
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private static long readLongQuietly(Path path) {
@@ -733,7 +756,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         return persistDiagnosticsAt(destination, commandExecutable, arguments, output, resultCode);
     }
 
-    /** Runs a prepared command through the shared one-shot console-capture worker. */
+    /** Runs one operation-scoped command, retrying with RunAs only after structured 740. */
     WchIspRunner.WchIspProcessResult runOfficialCommand(
         WchIspRunner.WchIspCommand command,
         WchIspRunner.CancellationToken cancellation
@@ -748,11 +771,20 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 "CANCELLED", java.util.List.of()
             );
         }
-        CaptureLaunchMode launchMode = captureLaunchMode(isCurrentProcessElevated());
+        // The first attempt is always a normal, operation-scoped capture worker.
+        // A non-admin Studio must not preselect or prestart an elevated worker.
         CommandResult result = runCaptureWorker(
             command.executable(), command.workingDirectory(), command.arguments(),
-            command.timeout(), null, launchMode == CaptureLaunchMode.RUNAS_WORKER
+            command.timeout(), null, false
         );
+        if (result.nativeErrorCode() == 740) {
+            // The command, CONFIG and operation id are unchanged. This is the
+            // only condition that authorizes one and only one UAC retry.
+            result = runCaptureWorker(
+                command.executable(), command.workingDirectory(), command.arguments(),
+                command.timeout(), null, true
+            );
+        }
         String reason = result.exitCode() == 0 ? "COMPLETED" : "PROCESS_EXIT";
         boolean timedOut = "FLASH_TERMINAL_RESULT_TIMEOUT".equals(result.terminationReason());
         boolean cancelled = "UAC_CANCELLED".equals(result.terminationReason());
@@ -766,7 +798,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     }
 
     static CaptureLaunchMode captureLaunchMode(boolean studioElevated) {
-        return studioElevated ? CaptureLaunchMode.DIRECT_WORKER : CaptureLaunchMode.RUNAS_WORKER;
+        return CaptureLaunchMode.DIRECT_WORKER;
     }
 
     private static boolean isCurrentProcessElevated() {
@@ -1267,7 +1299,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         String stdout,
         String stderr,
         String console,
-        String terminalResult
+        String terminalResult,
+        int nativeErrorCode
     ) {
         private CommandResult(int exitCode, String output, long pid,
                               boolean elevationUsed, Duration duration,
@@ -1276,7 +1309,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             this(exitCode, output, pid, elevationUsed, duration, terminationReason,
                 ownedProcessIds, actualProcessStartTime,
                 actualProcessStartTime == null ? null : actualProcessStartTime.plus(duration),
-                output, "", output, exitCode == 0 ? "SUCCESS" : "PROCESS_EXIT");
+                output, "", output, exitCode == 0 ? "SUCCESS" : "PROCESS_EXIT", 0);
         }
 
         private CommandResult(int exitCode, String output) {

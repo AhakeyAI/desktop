@@ -25,7 +25,7 @@ public class WchIspRunner {
     private final boolean prestartElevation;
 
     public WchIspRunner() {
-        this(new ProcessBuilderBackend(), new WindowsRunAsBackend(), true);
+        this(new ProcessBuilderBackend(), new WindowsRunAsBackend(), false);
     }
 
     public WchIspRunner(Backend backend) {

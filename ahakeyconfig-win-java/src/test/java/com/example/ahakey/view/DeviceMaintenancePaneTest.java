@@ -33,7 +33,7 @@ class DeviceMaintenancePaneTest {
 
     @Test
     void stableBaseline79IsNotMisreadAsPublicFirmwareVersion() {
-        assertEquals("AhaKey-X1-firmware.hex", DeviceMaintenancePane.BUNDLED_FIRMWARE_NAME);
+        assertEquals("AhaKey-X1-firmware-1.4.8-ch582.hex", DeviceMaintenancePane.BUNDLED_FIRMWARE_NAME);
         assertTrue(DeviceMaintenancePane.versionFromFilename(
             "AhaKey-X1-firmware-stable-baseline-79.hex").isEmpty());
     }

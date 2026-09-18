@@ -282,10 +282,10 @@ class WindowsWchIspFlasherTest {
     }
 
     @Test
-    void adminAndNonAdminSelectTheSameCaptureWorkerWithoutWorkerRunAs() {
+    void adminAndNonAdminStartWithTheSameNormalCaptureWorker() {
         assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.DIRECT_WORKER,
             WindowsWchIspFlasher.captureLaunchMode(true));
-        assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.RUNAS_WORKER,
+        assertEquals(WindowsWchIspFlasher.CaptureLaunchMode.DIRECT_WORKER,
             WindowsWchIspFlasher.captureLaunchMode(false));
         String worker = WindowsWchIspFlasher.captureWorkerScript();
         assertTrue(worker.contains("GetBufferContents"));

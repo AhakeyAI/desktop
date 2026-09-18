@@ -195,7 +195,7 @@ class OfficialWchIspAdapterTest {
         };
         FirmwarePostVerifier verifier = new FirmwarePostVerifier(
             () -> new com.example.ahakey.protocol.AhaKeyResponseParser.DeviceCapabilities(
-                3, 2, 1, 4, 0, FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 7, 1),
+                3, 2, 1, 4, 0, FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 8, 1),
             () -> true, millis -> { });
         FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
             verifier, new FirmwareUpdateDiagnostics(temporary.resolve("service-diagnostics")), temporary);

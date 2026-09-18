@@ -445,6 +445,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
             return;
         }
         Path diagnosticDirectory = null;
+        BleManager.TransportStatusSnapshot transportBaseline = postVerifier == null
+            ? null : postVerifier.captureTransportStatusSnapshot();
+        long flashCompletionNanos = 0;
         try {
             diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
             transition(handle, FirmwareUpdateState.PREFLIGHT, "正在检查固件和 WCHISP 运行环境", 0.02, null);
@@ -525,6 +528,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                         flashFailureDetail(flash.detail()), diagnosticDirectory);
                     return;
                 }
+                flashCompletionNanos = System.nanoTime();
             }
             transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
                 "烧录完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
@@ -534,7 +538,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
                 return;
             }
-            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
+            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get,
+                transportBaseline, flashCompletionNanos)) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
                     postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
                 return;
@@ -582,6 +587,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                       FirmwareUpdateRequest request,
                                       AtomicBoolean cancellation) {
         Path diagnosticDirectory = null;
+        BleManager.TransportStatusSnapshot transportBaseline = postVerifier == null
+            ? null : postVerifier.captureTransportStatusSnapshot();
         try {
             diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
             transition(handle, FirmwareUpdateState.PREFLIGHT,
@@ -624,6 +631,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     flashFailureDetail(flash.detail()), diagnosticDirectory);
                 return;
             }
+            long flashCompletionNanos = System.nanoTime();
 
             transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
                 "官方 WCHISP 下载完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
@@ -633,7 +641,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
                 return;
             }
-            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get)) {
+            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get,
+                transportBaseline, flashCompletionNanos)) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
                     postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
                 return;

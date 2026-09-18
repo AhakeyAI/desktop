@@ -6,7 +6,6 @@ import com.example.ahakey.firmware.FirmwareOperationHandle;
 import com.example.ahakey.firmware.FirmwareUpdateRequest;
 import com.example.ahakey.firmware.FirmwareUpdateService;
 import com.example.ahakey.firmware.FirmwareUpdateState;
-import com.example.ahakey.firmware.PreparationGeneration;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
@@ -99,8 +98,6 @@ public final class DeviceMaintenancePane {
         };
         final boolean[] unknownVersion = {false};
         final boolean[] environmentReady = {false};
-        final FirmwareUpdateService.PreparedFirmwareOperation[] preparedOperation = {null};
-        final PreparationGeneration preparationGeneration = new PreparationGeneration();
         final TitledPane[] steps = new TitledPane[4];
         final String[] diagnosticReport = {""};
         final FirmwareOperationHandle[] activeOperation = {null};
@@ -163,46 +160,11 @@ public final class DeviceMaintenancePane {
                 expandStep(steps, 3);
             }
         };
-        java.util.function.Consumer<String> prepareSelectedFirmware = ignored -> {
-            long generation = preparationGeneration.begin();
-            FirmwareUpdateService.PreparedFirmwareOperation previous = preparedOperation[0];
-            if (previous != null) previous.cancel();
-            preparedOperation[0] = null;
-            environmentReady[0] = false;
-            updateFlashState.run();
-            if (firmware[0] == null) return;
-            FirmwareUpdateRequest preparationRequest = new FirmwareUpdateRequest(
-                firmware[0], targetVersion[0], currentVersion[0],
-                allowUnknown.isSelected(), allowDowngrade.isSelected(), firmwareSource[0]);
-            status.setText(text("正在准备 WCHISP 烧录会话…", "Preparing WCHISP flash session…"));
-            daemon("prepare-flash-session", () -> {
-                FirmwareUpdateService.PreparationResult result =
-                    firmwareUpdateService.prepareFlash(preparationRequest);
-                Platform.runLater(() -> {
-                    if (!preparationGeneration.isCurrent(generation)
-                        || !preparationRequest.firmwareHex().equals(firmware[0])) {
-                        if (result.operation() != null) result.operation().cancel();
-                        return;
-                    }
-                    if (result.prepared()) {
-                        preparedOperation[0] = result.operation();
-                        status.setText(text("烧录会话已准备，请进入 ISP 后检测设备。",
-                            "Flash session prepared; enter ISP and detect the device."));
-                    } else {
-                        status.setText(text("烧录准备失败：", "Flash preparation failed: ")
-                            + result.detail());
-                    }
-                    updateFlashState.run();
-                });
-            });
-        };
         allowUnknown.selectedProperty().addListener((o, a, b) -> {
             updateFlashState.run();
-            if (firmware[0] != null) prepareSelectedFirmware.accept("unknown-version-change");
         });
         allowDowngrade.selectedProperty().addListener((o, a, b) -> {
             updateFlashState.run();
-            if (firmware[0] != null) prepareSelectedFirmware.accept("downgrade-change");
         });
 
         readDeviceVersion.setOnAction(event -> {
@@ -307,7 +269,6 @@ public final class DeviceMaintenancePane {
             selected.setText(path.getFileName().toString());
             expandStep(steps, 2);
             updateFlashState.run();
-            prepareSelectedFirmware.accept("bundled-firmware-selected");
         });
 
         local.setOnAction(event -> {
@@ -331,7 +292,6 @@ public final class DeviceMaintenancePane {
             selected.setText(chosen.getName());
             expandStep(steps, 2);
             updateFlashState.run();
-            prepareSelectedFirmware.accept("local-firmware-selected");
         });
 
         latest.setOnAction(event -> {
@@ -370,7 +330,6 @@ public final class DeviceMaintenancePane {
                             "Downloaded and firmware format validated."));
                         setBusy(false, progress, bundled, latest, local, flash);
                         updateFlashState.run();
-                        prepareSelectedFirmware.accept("latest-firmware-downloaded");
                     });
                 } catch (Exception exception) {
                     Platform.runLater(() -> {
@@ -408,17 +367,7 @@ public final class DeviceMaintenancePane {
                 });
             };
             firmwareUpdateService.addListener(listener);
-            FirmwareUpdateService.OperationStart admission;
-            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
-            if (prepared != null && prepared.armed()) {
-                admission = firmwareUpdateService.startPrepared(prepared);
-            } else {
-                status.setText(text("烧录会话尚未完成准备或设备尚未检测。",
-                    "The flash session is not prepared or the ISP device is not detected."));
-                firmwareUpdateService.removeListener(listener);
-                setBusy(false, progress, bundled, latest, local, flash);
-                return;
-            }
+            FirmwareUpdateService.OperationStart admission = firmwareUpdateService.start(request);
             if (!admission.accepted()) {
                 firmwareUpdateService.removeListener(listener);
                 setBusy(false, progress, bundled, latest, local, flash);
@@ -433,7 +382,6 @@ public final class DeviceMaintenancePane {
             operation.completion().whenComplete((result, failure) -> Platform.runLater(() -> {
                 firmwareUpdateService.removeListener(listener);
                 activeOperation[0] = null;
-                preparedOperation[0] = null;
                 cancelFlash.setDisable(true);
                 environmentReady[0] = false;
                 setBusy(false, progress, bundled, latest, local, flash);
@@ -465,9 +413,6 @@ public final class DeviceMaintenancePane {
         });
 
         owner.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> {
-            preparationGeneration.invalidate();
-            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
-            if (prepared != null) prepared.cancel();
             FirmwareOperationHandle operation = activeOperation[0];
             if (operation != null) operation.cancel();
         });
@@ -485,8 +430,7 @@ public final class DeviceMaintenancePane {
                 "Checking WCHISP tools, configuration, and the CH582 ISP device…"));
             daemon("wchisp-diagnostics", () -> {
                 StringBuilder report = new StringBuilder("AhaKey WCHISP diagnostics\n");
-                FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
-                FirmwareUpdateService.DiagnosticResult result = firmwareUpdateService.diagnose(prepared);
+                FirmwareUpdateService.DiagnosticResult result = firmwareUpdateService.diagnose();
                 report.append(result.ready() ? "ENVIRONMENT=READY\n" : "ENVIRONMENT=NOT_READY\n");
                 report.append("RUNTIME_READY=").append(result.runtimeReady() ? "YES" : "NO").append('\n');
                 report.append("ISP_PRESENT=").append(result.ispPresent() ? "YES" : "NO").append('\n');
@@ -502,7 +446,7 @@ public final class DeviceMaintenancePane {
                     diagnose.setDisable(false);
                     exportDiagnostic.setDisable(false);
                     ispStatus.setText(diagnosticReport[0]);
-                    environmentReady[0] = readyResult && prepared != null && prepared.armed();
+                    environmentReady[0] = readyResult;
                     updateFlashState.run();
                 });
             });

@@ -92,12 +92,32 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
     @Override
     public FlashResult flashFirmware(Path hex, WchIspRunner.CancellationToken cancellation)
         throws Exception {
+        if (hex == null || !Files.isRegularFile(hex)) {
+            throw new IOException("固件 HEX 文件不存在: " + hex);
+        }
+        IntelHexValidator.validate(hex);
         UUID operationId = UUID.randomUUID();
         Path directory = Files.createTempDirectory("ahakey-wchisp-flash-" + operationId + "-");
         RuntimeBundle runtime = runtimeLocator.resolve();
-        PreparedFlashSession session = prepareFlash(hex, operationId, directory, runtime);
-        session.markDeviceDetected();
-        return flashPrepared(session, cancellation);
+        Files.createDirectories(directory);
+        Path normalizedHex = hex.toAbsolutePath().normalize();
+        Path config = directory.resolve("flash-config.ini");
+        Files.writeString(config, WchIspConfig.forCh582(normalizedHex), StandardCharsets.UTF_8);
+        WchIspRunner.WchIspCommand command = new WchIspRunner.WchIspCommand(
+            runtime.executable(), runtime.root(),
+            List.of("-c", config.toString(), "-o", "download", "-f", normalizedHex.toString()),
+            FLASH_TIMEOUT, operationId);
+        WchIspRunner.WchIspProcessResult process = launch(command, cancellation);
+        WchIspResultParser.FlashExecutionResult parsed = WchIspResultParser.parseFlash(process);
+        boolean success = parsed.success();
+        String detail = "OFFICIAL_WCHISP_COMMAND=" + command.executable() + " "
+            + String.join(" ", command.arguments()) + "\n"
+            + "PROCESS_STARTED=" + (process != null && process.processStarted() ? "YES" : "NO") + "\n"
+            + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
+            + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
+            + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
+            + "POST_VERIFY_REQUIRED=YES";
+        return new FlashResult(success, detail, process, runtime);
     }
 
     @Override
