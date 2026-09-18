@@ -30,7 +30,9 @@ class VoiceInputManagerAhaTypeTest {
     void cloudProcessingRunsOffTheSpeechCallbackAndInjectsOnce() throws Exception {
         CountDownLatch injected = new CountDownLatch(1);
         AtomicReference<String> injectedText = new AtomicReference<>();
+        AtomicInteger requests = new AtomicInteger();
         HttpServer server = server(exchange -> {
+            requests.incrementAndGet();
             try {
                 Thread.sleep(250);
             } catch (InterruptedException exception) {
@@ -55,6 +57,7 @@ class VoiceInputManagerAhaTypeTest {
             assertTrue(result.await(3, TimeUnit.SECONDS));
             assertTrue(injected.await(3, TimeUnit.SECONDS));
             assertEquals("整理文本", injectedText.get());
+            assertEquals(1, requests.get());
             manager.shutdown();
         } finally {
             server.stop(0);
