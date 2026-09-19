@@ -620,6 +620,31 @@ runtime 读取实际版本和哈希；它保留该 runtime 自己的配置，仅
 避免把 3.6.1 配置与 3.9 二进制混搭。必需文件、隐私扫描、用户明确点击、命令参数、
 ISP presence、设备重连与 `FirmwarePostVerifier` 仍保留；不能只依赖 WCHISP exit code 0 判成功。
 
+### WCHISP 4.0 required configuration key (2026-09-19)
+
+WCHISP 4.0 rejects the generated CH57x/CH58x INI with vendor Code 2
+(`Fail to get parameters from cfg file`) when `Quick Verification Mode` is
+absent. Its configuration reader requires this literal key even when quick
+verification is disabled. `WchIspConfig` now emits `Quick Verification Mode=0`
+in `[CH57x-58xUICfg]`; a regression assertion covers it. DataFlash preservation,
+reset, protection, ordinary verification and terminal-result policies remain.
+
+Read-only comparison: the original INI returned Code 2; adding only this key
+reached device discovery (Code 5 when no ISP device was present). A subsequent,
+explicitly authorized official AhaKey-X1 v1.1.0 update completed download and
+independent verification at 100%, both with vendor `Finished / Code=0 /
+Message=Succeed`. This is hardware evidence for the configuration fix, not
+proof of compatibility with the development client's capability contract.
+The device still reported legacy version bytes 1.0 after the official update;
+`0x98` returned an empty ACK and `0x9F` did not respond within three seconds.
+No firmware image, proprietary flasher, device identifiers or runtime logs
+are included in this change.
+
+Targeted verification (JDK 17, from `ahakeyconfig-win-java`):
+`mvn -Dtest=WchIspConfigTest,OfficialWchIspAdapterTest,FirmwareUpdateServiceTest,WchIspResultParserTest package`.
+Independent PR checkout: 39 tests passed, no failures/errors/skips,
+`BUILD SUCCESS` and `RELEASE_ARTIFACT_CONTENTS=OK`.
+
 ## 25. Local Voice/K1 restoration on `eternal-dev` (2026-09-16)
 
 本轮从实际 `origin/eternal-dev` 基线恢复 Windows 桌面端 Voice/K1 的局部行为，未修改

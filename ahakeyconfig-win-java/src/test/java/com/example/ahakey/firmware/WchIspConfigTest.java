@@ -30,6 +30,8 @@ class WchIspConfigTest {
         assertTrue(config.contains("IndependentWDGEn=0"));
         assertTrue(config.contains("IsSerialNoBtnDwnld=0"));
         assertTrue(config.contains("bVerifyType=0"));
+        // Required even when quick verification is disabled (WCHISP 4.0).
+        assertTrue(config.contains("Quick Verification Mode=0"));
     }
 
     @Test
