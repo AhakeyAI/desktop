@@ -1,0 +1,156 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="connect" xml:space="preserve">
+    <value>连接</value>
+  </data>
+  <data name="connectedDevice" xml:space="preserve">
+    <value>当前连接设备: {0}</value>
+  </data>
+  <data name="none" xml:space="preserve">
+    <value>无</value>
+  </data>
+  <data name="unknown" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="server" xml:space="preserve">
+    <value>TCP服务: {0}:{1} (客户端: {2})</value>
+  </data>
+  <data name="startMinimized" xml:space="preserve">
+    <value>下次最小化启动</value>
+  </data>
+  <data name="startWithWindows" xml:space="preserve">
+    <value>跟随系统启动</value>
+  </data>
+  <data name="tray" xml:space="preserve">
+    <value>AhaKey BLE 桥接</value>
+  </data>
+  <data name="exit" xml:space="preserve">
+    <value>退出程序</value>
+  </data>
+  <data name="scan" xml:space="preserve">
+    <value>自动扫描蓝牙设备中...</value>
+  </data>
+  <data name="rescan" xml:space="preserve">
+    <value>重新扫描蓝牙设备...</value>
+  </data>
+  <data name="target" xml:space="preserve">
+    <value>目标设备: {0} [{1}]</value>
+  </data>
+  <data name="targetConnecting" xml:space="preserve">
+    <value>发现目标设备, 自动连接...</value>
+  </data>
+  <data name="connected" xml:space="preserve">
+    <value>已连接: {0}</value>
+  </data>
+  <data name="disconnected" xml:space="preserve">
+    <value>已断开: {0}</value>
+  </data>
+  <data name="retry" xml:space="preserve">
+    <value>将在数秒后尝试重连...</value>
+  </data>
+  <data name="characteristic" xml:space="preserve">
+    <value>特征 0x{0:X}: {1}</value>
+  </data>
+  <data name="missingCharacteristics" xml:space="preserve">
+    <value>设备 [{0}] 未找齐目标UUID, 断开连接</value>
+  </data>
+  <data name="continueSearch" xml:space="preserve">
+    <value>将继续尝试查找目标设备...</value>
+  </data>
+  <data name="ready" xml:space="preserve">
+    <value>目标设备已确认, 所有特征就绪</value>
+  </data>
+  <data name="saved" xml:space="preserve">
+    <value>已保存设备: {0} [{1}]</value>
+  </data>
+  <data name="status" xml:space="preserve">
+    <value>设备状态: 电量={0}, 信号={1}, 固件={2}.{3}, 模式={4}, 灯光={5}, 开关={6}</value>
+  </data>
+  <data name="write" xml:space="preserve">
+    <value>0x{0:X} 写入: {1}</value>
+  </data>
+  <data name="receive" xml:space="preserve">
+    <value>0x{0:X} 收到: {1}</value>
+  </data>
+  <data name="cut" xml:space="preserve">
+    <value>剪切</value>
+  </data>
+  <data name="copy" xml:space="preserve">
+    <value>复制</value>
+  </data>
+  <data name="paste" xml:space="preserve">
+    <value>粘贴</value>
+  </data>
+  <data name="error" xml:space="preserve">
+    <value>错误</value>
+  </data>
+  <data name="autoStartError" xml:space="preserve">
+    <value>设置开机自启动失败: {0}</value>
+  </data>
+  <data name="tcpStarted" xml:space="preserve">
+    <value>TCP服务器已启动, 监听端口: {0}</value>
+  </data>
+  <data name="tcpStopped" xml:space="preserve">
+    <value>TCP服务器已停止</value>
+  </data>
+  <data name="clientConnected" xml:space="preserve">
+    <value>TCP客户端已连接: {0}</value>
+  </data>
+  <data name="acceptError" xml:space="preserve">
+    <value>接受连接异常: {0}</value>
+  </data>
+  <data name="clientError" xml:space="preserve">
+    <value>客户端处理异常: {0}</value>
+  </data>
+  <data name="bleData" xml:space="preserve">
+    <value>BLE数据(0x7341): {0}字节</value>
+  </data>
+  <data name="bleDataNotReady" xml:space="preserve">
+    <value>BLE数据特征(0x7341)未就绪</value>
+  </data>
+  <data name="bleCommand" xml:space="preserve">
+    <value>BLE命令(0x7343): {0}字节</value>
+  </data>
+  <data name="bleCommandNotReady" xml:space="preserve">
+    <value>BLE命令特征(0x7343)未就绪</value>
+  </data>
+  <data name="statusQuery" xml:space="preserve">
+    <value>响应BLE状态查询</value>
+  </data>
+  <data name="infoQuery" xml:space="preserve">
+    <value>响应设备信息查询</value>
+  </data>
+  <data name="unknownPacket" xml:space="preserve">
+    <value>未知包类型: 0x{0:X2}</value>
+  </data>
+  <data name="clientDisconnected" xml:space="preserve">
+    <value>TCP客户端已断开: {0}</value>
+  </data>
+  <data name="configReadError" xml:space="preserve">
+    <value>配置文件读取失败: {0}</value>
+  </data>
+  <data name="configWriteError" xml:space="preserve">
+    <value>配置文件保存失败: {0}</value>
+  </data>
+  <data name="discoverySummary" xml:space="preserve">
+    <value>目标服务和特征:</value>
+  </data>
+  <data name="yes" xml:space="preserve">
+    <value>是</value>
+  </data>
+  <data name="no" xml:space="preserve">
+    <value>否</value>
+  </data>
+</root>

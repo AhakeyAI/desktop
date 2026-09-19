@@ -1,5 +1,7 @@
 package com.example.ahakey.model;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.property.IntegerProperty;
@@ -9,8 +11,8 @@ import javafx.beans.property.SimpleIntegerProperty;
 public class OledModeDraft {
     private final StringProperty localAssetPath = new SimpleStringProperty(null);
     private final IntegerProperty frameCount = new SimpleIntegerProperty(0);
-    private final StringProperty statusLine = new SimpleStringProperty("未上传");
-    private final StringProperty captionLine = new SimpleStringProperty("等待 GIF");
+    private final StringProperty statusLine = new SimpleStringProperty(localize("未上传"));
+    private final StringProperty captionLine = new SimpleStringProperty(localize("等待 GIF"));
 
     public StringProperty localAssetPathProperty() {
         return localAssetPath;

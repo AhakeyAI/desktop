@@ -1,5 +1,7 @@
 package com.example.ahakey.update;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.control.Alert;
@@ -35,8 +37,8 @@ public final class AppUpdateCoordinator {
         if (installed.equals(CURRENT.toString())) {
             PREFS.remove(INSTALLED_NOTICE);
             Alert done = alert(owner, Alert.AlertType.INFORMATION,
-                text("更新完成", "Update Complete"),
-                text("AhaKeyStudio 已更新到 ", "AhaKeyStudio was updated to ") + installed);
+                text(localize("更新完成"), "Update Complete"),
+                text(localize("AhaKeyStudio 已更新到 "), "AhaKeyStudio was updated to ") + installed);
             done.show();
         }
         long now = Instant.now().toEpochMilli();
@@ -49,12 +51,12 @@ public final class AppUpdateCoordinator {
 
     public static void showAboutAndCheck(Stage owner) {
         Alert about = alert(owner, Alert.AlertType.INFORMATION,
-            text("关于与软件更新", "About & Software Update"),
+            text(localize("关于与软件更新"), "About & Software Update"),
             "AhaKeyStudio " + CURRENT + "\nWindows 10/11 x64\n\n"
-                + text("将通过 ahakey.com 检查稳定版本。",
+                + text(localize("将通过 ahakey.com 检查稳定版本。"),
                     "Checks the stable release through ahakey.com."));
         ButtonType check = new ButtonType(
-            text("检查更新", "Check for Updates"), ButtonBar.ButtonData.OK_DONE);
+            text(localize("检查更新"), "Check for Updates"), ButtonBar.ButtonData.OK_DONE);
         about.getButtonTypes().setAll(check, ButtonType.CLOSE);
         if (about.showAndWait().filter(check::equals).isPresent()) {
             check(owner, true);
@@ -74,8 +76,8 @@ public final class AppUpdateCoordinator {
                     || !optional.get().appVersion().isNewerThan(CURRENT)) {
                     if (manual) {
                         Platform.runLater(() -> alert(owner, Alert.AlertType.INFORMATION,
-                            text("已是最新版本", "Up to Date"),
-                            text("当前已安装最新稳定版。", "The latest stable version is installed."))
+                            text(localize("已是最新版本"), "Up to Date"),
+                            text(localize("当前已安装最新稳定版。"), "The latest stable version is installed."))
                             .showAndWait());
                     }
                     return;
@@ -85,7 +87,7 @@ public final class AppUpdateCoordinator {
             } catch (Exception exception) {
                 if (manual) {
                     Platform.runLater(() -> alert(owner, Alert.AlertType.WARNING,
-                        text("检查更新失败", "Update Check Failed"),
+                        text(localize("检查更新失败"), "Update Check Failed"),
                         exception.getMessage()).showAndWait());
                 }
             } finally {
@@ -96,12 +98,12 @@ public final class AppUpdateCoordinator {
 
     private static void prompt(Stage owner, StableRelease release) {
         Alert prompt = alert(owner, Alert.AlertType.INFORMATION,
-            text("发现新版本 ", "New Version ") + release.appVersion(),
+            text(localize("发现新版本 "), "New Version ") + release.appVersion(),
             release.appName() + "\n\n" + release.appNotes());
         ButtonType install = new ButtonType(
-            text("下载并安装", "Download & Install"), ButtonBar.ButtonData.OK_DONE);
+            text(localize("下载并安装"), "Download & Install"), ButtonBar.ButtonData.OK_DONE);
         ButtonType later = new ButtonType(
-            text("稍后提醒", "Remind Me Later"), ButtonBar.ButtonData.CANCEL_CLOSE);
+            text(localize("稍后提醒"), "Remind Me Later"), ButtonBar.ButtonData.CANCEL_CLOSE);
         prompt.getButtonTypes().setAll(install, later);
         prompt.showAndWait().ifPresent(choice -> {
             if (choice == install) {
@@ -119,8 +121,8 @@ public final class AppUpdateCoordinator {
     ) {
         Stage progressStage = new Stage();
         progressStage.initOwner(owner);
-        progressStage.setTitle(text("下载更新", "Downloading Update"));
-        Label detail = new Label(text("正在下载安装包…", "Downloading installer…"));
+        progressStage.setTitle(text(localize("下载更新"), "Downloading Update"));
+        Label detail = new Label(text(localize("正在下载安装包…"), "Downloading installer…"));
         ProgressBar progress = new ProgressBar(-1);
         progress.setPrefWidth(380);
         VBox root = new VBox(12, detail, progress);
@@ -138,7 +140,7 @@ public final class AppUpdateCoordinator {
                     asset, destination,
                     (done, total) -> Platform.runLater(() -> {
                         progress.setProgress(total > 0 ? (double) done / total : -1);
-                        detail.setText(text("已下载 ", "Downloaded ") + done
+                        detail.setText(text(localize("已下载 "), "Downloaded ") + done
                             + (total > 0 ? " / " + total : "") + " bytes");
                     })
                 );
@@ -146,12 +148,12 @@ public final class AppUpdateCoordinator {
                 Platform.runLater(() -> {
                     progressStage.close();
                     Alert confirm = alert(owner, Alert.AlertType.CONFIRMATION,
-                        text("准备安装", "Ready to Install"),
+                        text(localize("准备安装"), "Ready to Install"),
                         text(
-                            "安装包已下载并通过 MZ 与 Authenticode 发布者校验。\n",
+                            localize("安装包已下载并通过 MZ 与 Authenticode 发布者校验。\n"),
                             "The installer passed MZ and Authenticode publisher validation.\n"
                         ) + text(
-                            "确认后将退出 AhaKeyStudio 并启动安装程序。",
+                            localize("确认后将退出 AhaKeyStudio 并启动安装程序。"),
                             "AhaKeyStudio will quit and start the installer."
                         ));
                     if (confirm.showAndWait().filter(
@@ -162,7 +164,7 @@ public final class AppUpdateCoordinator {
                             com.example.ahakey.app.ApplicationLifecycle.requestExit();
                         } catch (Exception exception) {
                             alert(owner, Alert.AlertType.ERROR,
-                                text("无法启动安装程序", "Cannot Start Installer"),
+                                text(localize("无法启动安装程序"), "Cannot Start Installer"),
                                 exception.getMessage()).showAndWait();
                         }
                     }
@@ -171,7 +173,7 @@ public final class AppUpdateCoordinator {
                 Platform.runLater(() -> {
                     progressStage.close();
                     alert(owner, Alert.AlertType.ERROR,
-                        text("更新下载失败", "Update Download Failed"),
+                        text(localize("更新下载失败"), "Update Download Failed"),
                         exception.getMessage()).showAndWait();
                 });
             }
@@ -209,6 +211,7 @@ public final class AppUpdateCoordinator {
     }
 
     private static String text(String zh, String en) {
-        return Locale.getDefault().getLanguage().equalsIgnoreCase("zh") ? zh : en;
+        return com.example.ahakey.util.LanguageManager.getInstance().isChinese()
+            || com.example.ahakey.util.LanguageManager.getInstance().isRussian() ? zh : en;
     }
 }

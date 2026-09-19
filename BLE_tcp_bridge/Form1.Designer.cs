@@ -59,13 +59,13 @@
             this.BtnConnect.Name = "BtnConnect";
             this.BtnConnect.Size = new System.Drawing.Size(75, 23);
             this.BtnConnect.TabIndex = 5;
-            this.BtnConnect.Text = "连接";
+            this.BtnConnect.Text = BridgeText.T("connect");
             this.BtnConnect.UseVisualStyleBackColor = true;
             this.BtnConnect.Click += new System.EventHandler(this.BtnConnect_Click);
             // 
             // rtbMsg
             // 
-            this.rtbMsg.Font = new System.Drawing.Font("微软雅黑", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
+            this.rtbMsg.Font = new System.Drawing.Font("Consolas", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
             this.rtbMsg.Location = new System.Drawing.Point(0, 116);
             this.rtbMsg.Name = "rtbMsg";
             this.rtbMsg.ReadOnly = true;
@@ -83,7 +83,7 @@
             this.label_connected_devices.Name = "label_connected_devices";
             this.label_connected_devices.Size = new System.Drawing.Size(95, 12);
             this.label_connected_devices.TabIndex = 7;
-            this.label_connected_devices.Text = "当前连接设备:无";
+            this.label_connected_devices.Text = BridgeText.T("connectedDevice", BridgeText.T("none"));
             // 
             // label_ip_port
             // 
@@ -92,7 +92,7 @@
             this.label_ip_port.Name = "label_ip_port";
             this.label_ip_port.Size = new System.Drawing.Size(131, 12);
             this.label_ip_port.TabIndex = 8;
-            this.label_ip_port.Text = "当前服务器地址及端口:";
+            this.label_ip_port.Text = BridgeText.T("server", "—", 0, 0);
             // 
             // checkBox_start_mode
             // 
@@ -101,14 +101,14 @@
             this.checkBox_start_mode.Name = "checkBox_start_mode";
             this.checkBox_start_mode.Size = new System.Drawing.Size(108, 16);
             this.checkBox_start_mode.TabIndex = 9;
-            this.checkBox_start_mode.Text = "下次最小化启动";
+            this.checkBox_start_mode.Text = BridgeText.T("startMinimized");
             this.checkBox_start_mode.UseVisualStyleBackColor = true;
             // 
             // notifyIcon1
             // 
             this.notifyIcon1.ContextMenuStrip = this.trayContextMenu;
             this.notifyIcon1.Icon = ((System.Drawing.Icon)(resources.GetObject("notifyIcon1.Icon")));
-            this.notifyIcon1.Text = "BLE TCP Bridge";
+            this.notifyIcon1.Text = BridgeText.T("tray");
             this.notifyIcon1.Visible = true;
             this.notifyIcon1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.notifyIcon1_MouseClick);
             // 
@@ -123,7 +123,7 @@
             // 
             this.tsmiExit.Name = "tsmiExit";
             this.tsmiExit.Size = new System.Drawing.Size(124, 22);
-            this.tsmiExit.Text = "退出程序";
+            this.tsmiExit.Text = BridgeText.T("exit");
             this.tsmiExit.Click += new System.EventHandler(this.tsmiExit_Click);
             // 
             // button1
@@ -132,7 +132,7 @@
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(75, 23);
             this.button1.TabIndex = 10;
-            this.button1.Text = "退出程序";
+            this.button1.Text = BridgeText.T("exit");
             this.button1.UseVisualStyleBackColor = true;
             this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
@@ -143,7 +143,7 @@
             this.checkBox_follow_system.Name = "checkBox_follow_system";
             this.checkBox_follow_system.Size = new System.Drawing.Size(96, 16);
             this.checkBox_follow_system.TabIndex = 11;
-            this.checkBox_follow_system.Text = "跟随系统启动";
+            this.checkBox_follow_system.Text = BridgeText.T("startWithWindows");
             this.checkBox_follow_system.UseVisualStyleBackColor = true;
             this.checkBox_follow_system.CheckedChanged += new System.EventHandler(this.checkBox_follow_system_CheckedChanged);
             // 

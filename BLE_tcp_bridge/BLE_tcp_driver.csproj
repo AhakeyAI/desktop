@@ -68,12 +68,22 @@
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
     <Compile Include="AppConfig.cs" />
+    <Compile Include="BridgeText.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Protocol.cs" />
     <Compile Include="TcpServer.cs" />
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Localization\Messages_en.resx">
+      <LogicalName>BLE_tcp_driver.Messages.en.resources</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Localization\Messages_ru.resx">
+      <LogicalName>BLE_tcp_driver.Messages.ru.resources</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Localization\Messages_zh.resx">
+      <LogicalName>BLE_tcp_driver.Messages.zh.resources</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>

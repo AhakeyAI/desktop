@@ -148,7 +148,12 @@ class HookDispatchServerTest {
             @Override public void onDisconnected() {}
             @Override public void onStatusReceived(DeviceStatus status) {}
             @Override public void onError(String message) {}
-        });
+        }) {
+            @Override public void sendCommand(byte[] command) throws java.io.IOException {
+                // A disconnected test double must never auto-open a real USB keyboard.
+                throw new java.io.IOException("Test transport disconnected");
+            }
+        };
     }
 
     private String send(HookDispatchServer server, String event) throws Exception {

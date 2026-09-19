@@ -1,5 +1,7 @@
 package com.example.ahakey.platform.voice;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import com.example.ahakey.model.HIDUsage;
 
 import java.util.EnumMap;
@@ -74,19 +76,28 @@ public final class VoiceActionRouter {
 
     /** Formats the shared HID representation for display in the editor. */
     public static String formatShortcut(int hidCode) {
-        if (hidCode == 0) return "未设置";
+        if (hidCode == 0) return text("common.unset");
         int base = hidCode & 0xFF;
-        if (base == 0) return "未设置";
+        if (base == 0) return text("common.unset");
         java.util.List<String> parts = new java.util.ArrayList<>();
         if ((hidCode & 0x800) != 0) parts.add("Win");
         if ((hidCode & 0x200) != 0) parts.add("Ctrl");
         if ((hidCode & 0x400) != 0) parts.add("Alt");
         if ((hidCode & 0x100) != 0) parts.add("Shift");
+        if ((hidCode & 0x8000) != 0) parts.add("RWin");
+        if ((hidCode & 0x2000) != 0) parts.add("RCtrl");
+        if ((hidCode & 0x4000) != 0) parts.add("RAlt");
+        if ((hidCode & 0x1000) != 0) parts.add("RShift");
         parts.add(HIDUsage.getName(base));
         return String.join("+", parts);
     }
 
-    /** Custom shortcuts must have one known base key and cannot target F18. */
+    /** Editing may temporarily leave only modifiers, or no keys at all. */
+    public static boolean isValidShortcutDraft(int hidCode) {
+        return (hidCode & ~0xFF00) == 0 || isValidCustomShortcut(hidCode);
+    }
+
+    /** Executable shortcuts must have one known base key and cannot target F18. */
     public static boolean isValidCustomShortcut(int hidCode) {
         int allowedModifiers = 0xFF00;
         int base = hidCode & 0xFF;

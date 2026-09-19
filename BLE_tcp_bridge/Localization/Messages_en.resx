@@ -1,0 +1,156 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="connectedDevice" xml:space="preserve">
+    <value>Connected device: {0}</value>
+  </data>
+  <data name="none" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="server" xml:space="preserve">
+    <value>TCP server: {0}:{1} (clients: {2})</value>
+  </data>
+  <data name="startMinimized" xml:space="preserve">
+    <value>Start minimized next time</value>
+  </data>
+  <data name="startWithWindows" xml:space="preserve">
+    <value>Start with Windows</value>
+  </data>
+  <data name="tray" xml:space="preserve">
+    <value>AhaKey BLE bridge</value>
+  </data>
+  <data name="exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="scan" xml:space="preserve">
+    <value>Scanning for Bluetooth devices...</value>
+  </data>
+  <data name="rescan" xml:space="preserve">
+    <value>Scanning for Bluetooth devices again...</value>
+  </data>
+  <data name="target" xml:space="preserve">
+    <value>Target device: {0} [{1}]</value>
+  </data>
+  <data name="targetConnecting" xml:space="preserve">
+    <value>Target found; connecting automatically...</value>
+  </data>
+  <data name="connected" xml:space="preserve">
+    <value>Connected: {0}</value>
+  </data>
+  <data name="disconnected" xml:space="preserve">
+    <value>Disconnected: {0}</value>
+  </data>
+  <data name="retry" xml:space="preserve">
+    <value>Will retry the connection in a few seconds...</value>
+  </data>
+  <data name="characteristic" xml:space="preserve">
+    <value>Characteristic 0x{0:X}: {1}</value>
+  </data>
+  <data name="missingCharacteristics" xml:space="preserve">
+    <value>Device [{0}] lacks required characteristics; disconnecting</value>
+  </data>
+  <data name="continueSearch" xml:space="preserve">
+    <value>Continuing to search for the target device...</value>
+  </data>
+  <data name="ready" xml:space="preserve">
+    <value>Target confirmed; all characteristics are ready</value>
+  </data>
+  <data name="saved" xml:space="preserve">
+    <value>Device saved: {0} [{1}]</value>
+  </data>
+  <data name="status" xml:space="preserve">
+    <value>Device status: battery={0}, signal={1}, firmware={2}.{3}, mode={4}, light={5}, switch={6}</value>
+  </data>
+  <data name="write" xml:space="preserve">
+    <value>0x{0:X} write: {1}</value>
+  </data>
+  <data name="receive" xml:space="preserve">
+    <value>0x{0:X} received: {1}</value>
+  </data>
+  <data name="cut" xml:space="preserve">
+    <value>Cut</value>
+  </data>
+  <data name="copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="paste" xml:space="preserve">
+    <value>Paste</value>
+  </data>
+  <data name="error" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="autoStartError" xml:space="preserve">
+    <value>Could not change Windows startup settings: {0}</value>
+  </data>
+  <data name="tcpStarted" xml:space="preserve">
+    <value>TCP server started on port {0}</value>
+  </data>
+  <data name="tcpStopped" xml:space="preserve">
+    <value>TCP server stopped</value>
+  </data>
+  <data name="clientConnected" xml:space="preserve">
+    <value>TCP client connected: {0}</value>
+  </data>
+  <data name="acceptError" xml:space="preserve">
+    <value>Connection accept error: {0}</value>
+  </data>
+  <data name="clientError" xml:space="preserve">
+    <value>Client processing error: {0}</value>
+  </data>
+  <data name="bleData" xml:space="preserve">
+    <value>BLE data (0x7341): {0} bytes</value>
+  </data>
+  <data name="bleDataNotReady" xml:space="preserve">
+    <value>BLE data characteristic (0x7341) is not ready</value>
+  </data>
+  <data name="bleCommand" xml:space="preserve">
+    <value>BLE command (0x7343): {0} bytes</value>
+  </data>
+  <data name="bleCommandNotReady" xml:space="preserve">
+    <value>BLE command characteristic (0x7343) is not ready</value>
+  </data>
+  <data name="statusQuery" xml:space="preserve">
+    <value>Responding to BLE connection status query</value>
+  </data>
+  <data name="infoQuery" xml:space="preserve">
+    <value>Responding to cached device information query</value>
+  </data>
+  <data name="unknownPacket" xml:space="preserve">
+    <value>Unknown packet type: 0x{0:X2}</value>
+  </data>
+  <data name="clientDisconnected" xml:space="preserve">
+    <value>TCP client disconnected: {0}</value>
+  </data>
+  <data name="configReadError" xml:space="preserve">
+    <value>Could not read configuration: {0}</value>
+  </data>
+  <data name="configWriteError" xml:space="preserve">
+    <value>Could not save configuration: {0}</value>
+  </data>
+  <data name="discoverySummary" xml:space="preserve">
+    <value>Target service and characteristics:</value>
+  </data>
+  <data name="yes" xml:space="preserve">
+    <value>YES</value>
+  </data>
+  <data name="no" xml:space="preserve">
+    <value>NO</value>
+  </data>
+</root>

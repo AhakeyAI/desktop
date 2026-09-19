@@ -1,5 +1,7 @@
 package com.example.ahakey;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.app.StudioController;
 import com.example.ahakey.app.ApplicationLifecycle;
 import com.example.ahakey.service.BleBridgeProcessOwner;
@@ -292,7 +294,7 @@ public class App extends Application {
             PopupMenu popupMenu = new PopupMenu();
             
             // 退出菜单项（使用英文避免中文乱码）
-            MenuItem exitItem = new MenuItem("Exit");
+            MenuItem exitItem = new MenuItem(LanguageManager.getInstance().getString("menu.exit"));
             exitItem.addActionListener(e -> shutdownApplication());
             popupMenu.add(exitItem);
             
@@ -337,7 +339,7 @@ public class App extends Application {
             primaryStage.setIconified(false);
             primaryStage.hide();
             if (trayIcon != null) {
-                trayIcon.displayMessage("AhaKey Studio", "应用已最小化到托盘", TrayIcon.MessageType.INFO);
+                trayIcon.displayMessage("AhaKey Studio", localize("应用已最小化到托盘"), TrayIcon.MessageType.INFO);
             }
         });
     }

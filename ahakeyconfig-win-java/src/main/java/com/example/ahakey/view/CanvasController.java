@@ -1,5 +1,7 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.IDEState;
 import com.example.ahakey.model.LightEffectStyle;
@@ -143,7 +145,7 @@ public class CanvasController {
             var task = taskActivityService.getVisibleTasks().stream().filter(t -> t.slot() == slot).findFirst();
             if (task.isEmpty()) {
                 setLightSegment(seg, COLOR_DIM, 0.35);
-                Tooltip.install(seg, new Tooltip("任务槽 " + (i + 1) + "：空闲"));
+                Tooltip.install(seg, new Tooltip(localize("任务槽 ") + (i + 1) + localize("：空闲")));
             } else {
                 var t = task.get();
                 String color = t.state() == 2 || t.state() == 4 ? COLOR_RED : COLOR_GREEN;
@@ -154,7 +156,7 @@ public class CanvasController {
     }
 
     private String taskStateText(int state) {
-        return switch (state) { case 1 -> "运行中"; case 2 -> "等待审批"; case 3 -> "已完成"; case 4 -> "错误"; default -> "空闲"; };
+        return switch (state) { case 1 -> localize("运行中"); case 2 -> localize("等待审批"); case 3 -> localize("已完成"); case 4 -> localize("错误"); default -> localize("空闲"); };
     }
     
     private void bindDeviceStatus() {
