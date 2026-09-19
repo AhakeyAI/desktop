@@ -14,6 +14,8 @@ import java.util.List;
 /** Validates the files and device scope required to run a packaged WCHISP bundle. */
 public final class WchIspRuntimeContract {
     public static final String METADATA_FILE = "wchisp-runtime.json";
+    public static final String CHIP_DATABASE_RELATIVE_PATH =
+        "ChipType\\chiplist_CH57x_CH59x.wcfg";
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -27,6 +29,11 @@ public final class WchIspRuntimeContract {
         requireFile(bundleDirectory, WchIspRuntimeProvider.EXECUTABLE_NAME, failures);
         requireFile(bundleDirectory, "CH343PT.DLL", failures);
         requireFile(bundleDirectory, "WCH55xISPDLL.dll", failures);
+        Path chipDatabase = bundleDirectory.resolve("ChipType")
+            .resolve("chiplist_CH57x_CH59x.wcfg");
+        if (!Files.isRegularFile(chipDatabase)) {
+            failures.add(CHIP_DATABASE_RELATIVE_PATH + " is missing");
+        }
         Path config = bundleDirectory.resolve("CONFIG_CH57X59X.WCH");
         if (!Files.isRegularFile(config)) failures.add("CONFIG_CH57X59X.WCH is missing");
 

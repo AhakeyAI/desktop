@@ -27,7 +27,8 @@ $required = @(
     (Join-Path $WchIspBundleDir "WCHISPTool_CH57x-59x.exe"),
     (Join-Path $WchIspBundleDir "CH343PT.DLL"),
     (Join-Path $WchIspBundleDir "WCH55xISPDLL.dll"),
-    (Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH")
+    (Join-Path $WchIspBundleDir "ChipType\chiplist_CH57x_CH59x.wcfg"),
+    (Join-Path $PSScriptRoot "src\main\resources\wchisp\CONFIG_CH57X59X-sanitized.WCH")
 )
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path)) {
@@ -67,36 +68,30 @@ New-Item -ItemType Directory -Force -Path $wchIspStage | Out-Null
 foreach ($runtimeFile in @(
     "WCHISPTool_CH57x-59x.exe",
     "CH343PT.DLL",
-    "WCH55xISPDLL.dll",
-    "CONFIG_CH57X59X.WCH"
+    "WCH55xISPDLL.dll"
 )) {
     if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
         throw "WCHISP runtime bundle is missing: $runtimeFile"
     }
 }
-Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
-    Where-Object {
-        $_.Name -notin @(
-            "CONFIG_CH57X59X.WCH",
-            "CONFIG_CH57X59X.WCH.excluded",
-            "wchisp-runtime.json"
-        )
-    } |
-    Copy-Item -Destination $wchIspStage -Recurse
-[byte[]]$configBytes = [IO.File]::ReadAllBytes(
-    (Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH")
-)
-if ($configBytes.Length -ne 66841) {
-    throw "Unsupported WCHISP configuration size: $($configBytes.Length)"
+foreach ($runtimeFile in @(
+    "WCHISPTool_CH57x-59x.exe",
+    "CH343PT.DLL",
+    "WCH55xISPDLL.dll"
+)) {
+    Copy-Item -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) `
+        -Destination (Join-Path $wchIspStage $runtimeFile)
 }
-foreach ($offset in @(36486, 37006, 37526, 63172, 63692)) {
-    if ($offset -lt 0 -or $offset + 520 -gt $configBytes.Length) {
-        throw "WCHISP configuration path slot is outside the file: $offset"
-    }
-    [Array]::Clear($configBytes, $offset, 520)
-}
+$chipDatabaseRelativePath = "ChipType\chiplist_CH57x_CH59x.wcfg"
+$stagedChipDatabase = Join-Path $wchIspStage $chipDatabaseRelativePath
+New-Item -ItemType Directory -Force -Path `
+    (Split-Path -Parent $stagedChipDatabase) | Out-Null
+Copy-Item -LiteralPath (Join-Path $WchIspBundleDir $chipDatabaseRelativePath) `
+    -Destination $stagedChipDatabase
+$sourceConfig = Join-Path $PSScriptRoot `
+    "src\main\resources\wchisp\CONFIG_CH57X59X-sanitized.WCH"
 $stagedConfig = Join-Path $wchIspStage "CONFIG_CH57X59X.WCH"
-[IO.File]::WriteAllBytes($stagedConfig, $configBytes)
+Copy-Item -LiteralPath $sourceConfig -Destination $stagedConfig
 
 $stagedExe = Join-Path $wchIspStage "WCHISPTool_CH57x-59x.exe"
 $stagedDriverDll = Join-Path $wchIspStage "CH343PT.DLL"
@@ -122,8 +117,8 @@ $runtimeMetadata = [ordered]@{
     configLayoutFingerprint = $configHash
     supportedChipFamily = "CH57x/CH59x"
     supportedModel = "CH582"
-    source = "User-supplied official WCHISP bundle; redistribution authorization not verified"
-    provenance = "Versions and file hashes recorded during packaging; persisted firmware paths removed"
+    source = "Official WCHISP binaries and chip database supplied at release time; verified sanitized CONFIG from repository"
+    provenance = "Binary versions and hashes recorded during packaging; chip database copied from official bundle; CONFIG copied byte-for-byte from repository baseline"
     exeSha256 = $exeHash
     ch343Sha256 = $driverHash
     ispDllSha256 = $ispHash
@@ -134,7 +129,8 @@ $runtimeMetadata = [ordered]@{
     ($runtimeMetadata | ConvertTo-Json),
     [Text.UTF8Encoding]::new($false)
 )
-& (Join-Path $PSScriptRoot "Test-WchIspReleasePrivacy.ps1") -RootPath $wchIspStage
+& (Join-Path $PSScriptRoot "Test-WchIspReleasePrivacy.ps1") `
+    -RootPath $wchIspStage -WchIspBundleDir $WchIspBundleDir
 
 # The private voice archive contains only non-Java release assets. In
 # particular, the historical Java baseline JAR is never copied into staging.

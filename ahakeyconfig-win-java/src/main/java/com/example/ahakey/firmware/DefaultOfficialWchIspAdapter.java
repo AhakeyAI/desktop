@@ -10,9 +10,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Production adapter for the vendor WCHISP runtime.  No generated workspace,
- * patched CONFIG, or UID CLI query is used here: the official executable is
- * invoked directly and post-verification remains the source of truth.
+ * Production adapter for the vendor WCHISP runtime.  The command-line download
+ * interface uses a generated UTF-8 INI; the runtime binary CONFIG remains
+ * untouched.  No UID CLI query is used here: the official executable is invoked
+ * directly and its complete terminal result is the flash-completion boundary.
  */
 public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter {
     private static final Duration FLASH_TIMEOUT = Duration.ofMinutes(5);
@@ -117,7 +118,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
             + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
             + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
-            + "POST_VERIFY_REQUIRED=YES";
+            + "POST_VERIFY_REQUIRED=NO";
         return new FlashResult(success, detail, process, runtime);
     }
 
@@ -148,7 +149,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
             + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
             + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
             + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
-            + "POST_VERIFY_REQUIRED=YES";
+            + "POST_VERIFY_REQUIRED=NO";
         return new FlashResult(success, detail, process, session.runtime());
     }
 

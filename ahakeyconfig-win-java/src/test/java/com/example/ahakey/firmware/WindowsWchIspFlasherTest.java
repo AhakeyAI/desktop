@@ -52,6 +52,8 @@ class WindowsWchIspFlasherTest {
         Files.write(tool, new byte[]{1});
         Files.write(temporaryDirectory.resolve("CH343PT.DLL"), new byte[]{1});
         Files.write(temporaryDirectory.resolve("WCH55xISPDLL.dll"), new byte[]{1});
+        Path chipType = Files.createDirectories(temporaryDirectory.resolve("ChipType"));
+        Files.write(chipType.resolve("chiplist_CH57x_CH59x.wcfg"), new byte[]{1});
         copyResource("/wchisp/wchisp-runtime.json",
             temporaryDirectory.resolve("wchisp-runtime.json"));
         copyResource("/wchisp/CONFIG_CH57X59X-sanitized.WCH",

@@ -40,6 +40,15 @@ public final class DeviceMaintenancePane {
         FirmwareCapabilities.BUNDLED_VERSION.toString();
     static final String BUNDLED_FIRMWARE_NAME =
         FirmwareCapabilities.INSTALLED_BUNDLED_FIRMWARE_NAME;
+    static final String FLASH_COMPLETION_MESSAGE_ZH =
+        "固件烧录完成，请退出 ISP 并以普通模式重新连接设备。";
+    static final String FLASH_COMPLETION_MESSAGE_EN =
+        "Firmware flashing completed. Exit ISP mode and reconnect the device normally.";
+    static final String FLASH_COMPLETION_STATUS_ZH =
+        "WCHISP 已完成固件写入。请退出 ISP 并以普通模式重新连接设备；本次流程未自动读取设备版本。";
+    static final String FLASH_COMPLETION_STATUS_EN =
+        "WCHISP completed firmware writing. Exit ISP mode and reconnect the device normally; "
+            + "this operation did not automatically read back the device version.";
     private final StudioController controller;
     private final BleManager bleManager;
     private final DeviceStatus deviceStatus;
@@ -475,10 +484,10 @@ public final class DeviceMaintenancePane {
                 } else if (result.success()) {
                     pendingFlashVersion[0] = targetVersion[0];
                     controller.setPendingFirmwareVersion(targetVersion[0]);
-                    status.setText(text("固件已烧录并通过设备回读校验。",
-                        "Firmware flashed and verified by the reconnected device."));
+                    status.setText(text(FLASH_COMPLETION_STATUS_ZH, FLASH_COMPLETION_STATUS_EN));
                     show(owner, Alert.AlertType.INFORMATION,
-                        text("固件升级成功", "Firmware Update Succeeded"), result.detail());
+                        text("固件烧录完成", "Firmware Flashing Completed"),
+                        text(FLASH_COMPLETION_MESSAGE_ZH, FLASH_COMPLETION_MESSAGE_EN));
                 } else {
                     expandStep(steps, 2);
                     show(owner, Alert.AlertType.ERROR,
@@ -496,7 +505,9 @@ public final class DeviceMaintenancePane {
 
         owner.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> {
             FirmwareOperationHandle operation = activeOperation[0];
-            if (operation != null) operation.cancel();
+            if (operation != null && shouldCancelWhenWindowHidden(operation.state())) {
+                operation.cancel();
+            }
             invalidatePrepared.run();
         });
 
@@ -804,6 +815,10 @@ public final class DeviceMaintenancePane {
         } catch (IllegalArgumentException ignored) {
             return Optional.empty();
         }
+    }
+
+    static boolean shouldCancelWhenWindowHidden(FirmwareUpdateState state) {
+        return state != null && !state.terminal();
     }
 
     private VBox card() {

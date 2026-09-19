@@ -3,6 +3,7 @@ package com.example.ahakey.firmware;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -58,15 +59,17 @@ class OfficialWchIspAdapterTest {
 
         assertTrue(result.success());
         assertEquals("-c", arguments.get().get(0));
-        assertTrue(arguments.get().get(1).endsWith("flash-config.ini"));
+        Path generatedConfig = Path.of(arguments.get().get(1));
+        assertTextCliConfig(generatedConfig, hex);
         assertEquals(List.of("-o", "download", "-f", hex.toAbsolutePath().normalize().toString()),
             arguments.get().subList(2, arguments.get().size()));
         assertFalse(arguments.get().contains("-u"));
         assertEquals(42, result.processResult().pid());
+        assertTrue(result.detail().contains("POST_VERIFY_REQUIRED=NO"));
     }
 
     @Test
-    void exitZeroWithoutVendorTerminalSuccessIsAcceptedForNormalExit() throws Exception {
+    void exitZeroWithoutVendorTerminalSuccessFailsClosed() throws Exception {
         RuntimeBundle runtime = runtime();
         Path hex = temporary.resolve("exit-zero-only.hex");
         Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
@@ -77,7 +80,7 @@ class OfficialWchIspAdapterTest {
                     false, false, "", "", "", Duration.ofMillis(1), false,
                     Map.of(), "PROCESS_EXIT", List.of(42L))));
 
-        assertTrue(adapter.flashFirmware(hex).success());
+        assertFalse(adapter.flashFirmware(hex).success());
     }
 
     @Test
@@ -104,7 +107,7 @@ class OfficialWchIspAdapterTest {
         assertTrue(Files.isRegularFile(session.configPath()));
         assertEquals(List.of("-c", session.configPath().toString(), "-o", "download", "-f",
             hex.toAbsolutePath().normalize().toString()), session.command().arguments());
-        assertTrue(Files.readString(session.configPath()).contains("MCUName=CH582"));
+        assertTextCliConfig(session.configPath(), hex);
         assertFalse(runnerCalled.get(), "preparation must not launch WCHISP");
         assertNull(session.launchContext(),
             "production preparation must not create a resident elevated worker");
@@ -212,6 +215,23 @@ class OfficialWchIspAdapterTest {
         } finally {
             service.shutdown();
         }
+    }
+
+    private void assertTextCliConfig(Path generated, Path hex) throws Exception {
+        Path normalizedHex = hex.toAbsolutePath().normalize();
+        String expected = WchIspConfig.forCh582(normalizedHex);
+        byte[] bytes = Files.readAllBytes(generated);
+        String actual = new String(bytes, StandardCharsets.UTF_8);
+
+        assertEquals("flash-config.ini", generated.getFileName().toString());
+        assertFalse(generated.getFileName().toString().endsWith(".WCH"));
+        assertArrayEquals(expected.getBytes(StandardCharsets.UTF_8), bytes,
+            "CLI config must be the exact UTF-8 WchIspConfig output");
+        assertEquals(expected, actual);
+        assertTrue(actual.contains("MCUName=CH582"));
+        assertTrue(actual.contains("swzUserFile1=" + normalizedHex));
+        assertTrue(actual.contains("IsUserFile1Sel=1"));
+        assertTrue(actual.contains("IsClearDataFlash=0"));
     }
 
     private RuntimeBundle runtime() {

@@ -241,41 +241,40 @@ if ($IncludeLicensedWchIsp) {
     foreach ($runtimeFile in @(
         "WCHISPTool_CH57x-59x.exe",
         "CH343PT.DLL",
-        "WCH55xISPDLL.dll",
-        "CONFIG_CH57X59X.WCH"
+        "WCH55xISPDLL.dll"
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
             throw "WCHISP runtime bundle is missing: $runtimeFile"
         }
     }
+    $chipDatabaseRelativePath = "ChipType\chiplist_CH57x_CH59x.wcfg"
+    $sourceChipDatabase = Join-Path $WchIspBundleDir $chipDatabaseRelativePath
+    if (-not (Test-Path -LiteralPath $sourceChipDatabase -PathType Leaf)) {
+        throw "WCHISP runtime bundle is missing: $chipDatabaseRelativePath"
+    }
     $wchDir = Join-Path $inputDir "tools\wchisp"
     New-Item -ItemType Directory -Force -Path $wchDir | Out-Null
-    Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
-        Where-Object {
-            $_.Name -notin @(
-                "CONFIG_CH57X59X.WCH",
-                "CONFIG_CH57X59X.WCH.excluded",
-                "wchisp-runtime.json"
-            )
-        } |
-        Copy-Item -Destination $wchDir -Recurse
-    # Keep the configuration from the same vendor bundle as the executable and
-    # DLLs. Clear only the five persisted firmware-path slots so developer and
-    # historical paths are not redistributed. Version strings are recorded as
-    # diagnostics, not treated as an artificial exact-version allowlist.
-    $sourceConfig = Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH"
+    foreach ($runtimeFile in @(
+        "WCHISPTool_CH57x-59x.exe",
+        "CH343PT.DLL",
+        "WCH55xISPDLL.dll"
+    )) {
+        Copy-Item -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) `
+            -Destination (Join-Path $wchDir $runtimeFile)
+    }
+    $stagedChipDatabase = Join-Path $wchDir $chipDatabaseRelativePath
+    New-Item -ItemType Directory -Force -Path `
+        (Split-Path -Parent $stagedChipDatabase) | Out-Null
+    Copy-Item -LiteralPath $sourceChipDatabase -Destination $stagedChipDatabase
+    # The external bundle supplies only the official binaries. Keep every
+    # unknown byte of the hardware-verified repository CONFIG unchanged.
+    $sourceConfig = Join-Path $projectDir `
+        "src\main\resources\wchisp\CONFIG_CH57X59X-sanitized.WCH"
+    if (-not (Test-Path -LiteralPath $sourceConfig -PathType Leaf)) {
+        throw "Verified repository WCHISP configuration is missing: $sourceConfig"
+    }
     $stagedConfig = Join-Path $wchDir "CONFIG_CH57X59X.WCH"
-    [byte[]]$configBytes = [IO.File]::ReadAllBytes($sourceConfig)
-    if ($configBytes.Length -ne 66841) {
-        throw "Unsupported WCHISP configuration size: $($configBytes.Length)"
-    }
-    foreach ($offset in @(36486, 37006, 37526, 63172, 63692)) {
-        if ($offset -lt 0 -or $offset + 520 -gt $configBytes.Length) {
-            throw "WCHISP configuration path slot is outside the file: $offset"
-        }
-        [Array]::Clear($configBytes, $offset, 520)
-    }
-    [IO.File]::WriteAllBytes($stagedConfig, $configBytes)
+    Copy-Item -LiteralPath $sourceConfig -Destination $stagedConfig
 
     $stagedExe = Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"
     $stagedDriverDll = Join-Path $wchDir "CH343PT.DLL"
@@ -301,8 +300,8 @@ if ($IncludeLicensedWchIsp) {
         configLayoutFingerprint = $configHash
         supportedChipFamily = "CH57x/CH59x"
         supportedModel = "CH582"
-        source = "User-supplied official WCHISP bundle; redistribution authorization not verified"
-        provenance = "Versions and file hashes recorded during packaging; persisted firmware paths removed"
+        source = "Official WCHISP binaries and chip database supplied at release time; verified sanitized CONFIG from repository"
+        provenance = "Binary versions and hashes recorded during packaging; chip database copied from official bundle; CONFIG copied byte-for-byte from repository baseline"
         exeSha256 = $exeHash
         ch343Sha256 = $driverHash
         ispDllSha256 = $ispHash
@@ -318,7 +317,8 @@ if ($IncludeLicensedWchIsp) {
         (Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"))) {
         throw "WCHISP bundle does not contain WCHISPTool_CH57x-59x.exe at its root."
     }
-    & (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1") -RootPath $wchDir
+    & (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1") `
+        -RootPath $wchDir -WchIspBundleDir $WchIspBundleDir
 }
 
 $requiredModels = @(

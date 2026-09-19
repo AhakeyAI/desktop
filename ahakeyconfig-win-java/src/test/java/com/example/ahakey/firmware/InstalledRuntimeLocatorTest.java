@@ -85,6 +85,8 @@ class InstalledRuntimeLocatorTest {
         Files.write(root.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME), new byte[]{1, 2, 3});
         Files.write(root.resolve("CH343PT.DLL"), new byte[]{4});
         Files.write(root.resolve("WCH55xISPDLL.dll"), new byte[]{5});
+        Path chipType = Files.createDirectories(root.resolve("ChipType"));
+        Files.write(chipType.resolve("chiplist_CH57x_CH59x.wcfg"), new byte[]{6});
         try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             Files.copy(input, root.resolve("CONFIG_CH57X59X.WCH"));
         }

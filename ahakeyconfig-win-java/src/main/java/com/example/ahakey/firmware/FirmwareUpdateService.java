@@ -27,7 +27,6 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private static final Duration ISP_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration UID_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration FLASH_TIMEOUT = Duration.ofMinutes(5);
-    private static final Duration RECONNECT_TIMEOUT = Duration.ofSeconds(30);
     /** Explicit development-only escape hatch for hardware without a chip identity API. */
     public static final String DEV_ALLOW_UNKNOWN_CHIP_PROPERTY =
         "ahakey.dev.allow-isp-flash-with-unknown-chip";
@@ -460,9 +459,6 @@ public final class FirmwareUpdateService implements AutoCloseable {
             return;
         }
         Path diagnosticDirectory = null;
-        BleManager.TransportStatusSnapshot transportBaseline = postVerifier == null
-            ? null : postVerifier.captureTransportStatusSnapshot();
-        long flashCompletionNanos = 0;
         try {
             diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
             transition(handle, FirmwareUpdateState.PREFLIGHT, "正在检查固件和 WCHISP 运行环境", 0.02, null);
@@ -544,33 +540,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                         flashFailureDetail(flash.detail()), diagnosticDirectory);
                     return;
                 }
-                flashCompletionNanos = System.nanoTime();
             }
-            transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
-                "烧录完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
-            checkCancelled(cancellation);
-            if (postVerifier == null) {
-                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
-                return;
-            }
-            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get,
-                transportBaseline, flashCompletionNanos)) {
-                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
-                return;
-            }
-            transition(handle, FirmwareUpdateState.VERIFYING,
-                "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
-            FirmwarePostVerifier.Verification verification = postVerifier.verify(
-                request.targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
-            if (!verification.success()) {
-                finish(handle, FirmwareUpdateState.FAILED, verification.error(),
-                    postVerifyFailureDetail(verification.detail()), diagnosticDirectory);
-                return;
-            }
-            checkCancelled(cancellation);
-            String completionDetail = updateSuccessDetail(verification.detail());
+            String completionDetail = flashSuccessDetail();
             Path uidWarningFile = diagnosticDirectory == null ? null : diagnosticDirectory.resolve("uid-warning.txt");
             if (uidWarningFile != null && Files.isRegularFile(uidWarningFile)) {
                 try {
@@ -603,8 +574,6 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                       FirmwareUpdateRequest request,
                                       AtomicBoolean cancellation) {
         Path diagnosticDirectory = null;
-        BleManager.TransportStatusSnapshot transportBaseline = postVerifier == null
-            ? null : postVerifier.captureTransportStatusSnapshot();
         try {
             diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
             transition(handle, FirmwareUpdateState.PREFLIGHT,
@@ -648,34 +617,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     flashFailureDetail(flash.detail()), diagnosticDirectory);
                 return;
             }
-            long flashCompletionNanos = System.nanoTime();
-
-            transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
-                "官方 WCHISP 下载完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
-            checkCancelled(cancellation);
-            if (postVerifier == null) {
-                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
-                return;
-            }
-            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get,
-                transportBaseline, flashCompletionNanos)) {
-                finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
-                return;
-            }
-            transition(handle, FirmwareUpdateState.VERIFYING,
-                "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
-            FirmwarePostVerifier.Verification verification = postVerifier.verify(
-                request.targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
-            if (!verification.success()) {
-                finish(handle, FirmwareUpdateState.FAILED, verification.error(),
-                    postVerifyFailureDetail(verification.detail()), diagnosticDirectory);
-                return;
-            }
-            checkCancelled(cancellation);
             finish(handle, FirmwareUpdateState.SUCCESS, null,
-                updateSuccessDetail(verification.detail()), diagnosticDirectory);
+                flashSuccessDetail(), diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
                 "固件操作已取消", diagnosticDirectory);
@@ -696,9 +639,6 @@ public final class FirmwareUpdateService implements AutoCloseable {
                                               AtomicBoolean cancellation,
                                               Instant flashClickTime) {
         Path diagnosticDirectory = prepared.diagnosticDirectory();
-        BleManager.TransportStatusSnapshot transportBaseline = postVerifier == null
-            ? null : postVerifier.captureTransportStatusSnapshot();
-        long flashCompletionNanos = 0;
         try {
             checkCancelled(cancellation);
             // Preparation and the ISP probe happened before the explicit click;
@@ -728,38 +668,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     flashFailureDetail(flash.detail()), diagnosticDirectory);
                 return;
             }
-            flashCompletionNanos = System.nanoTime();
-
-            transition(handle, FirmwareUpdateState.WAITING_RECONNECT,
-                "官方 WCHISP 下载完成，请退出 ISP 并正常重新连接设备", 0.92, diagnosticDirectory);
-            checkCancelled(cancellation);
-            if (postVerifier == null) {
-                finish(handle, FirmwareUpdateState.FAILED,
-                    FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    postVerifyFailureDetail("未配置设备回读校验器"), diagnosticDirectory);
-                return;
-            }
-            if (!postVerifier.awaitReconnect(RECONNECT_TIMEOUT, cancellation::get,
-                transportBaseline, flashCompletionNanos)) {
-                finish(handle, FirmwareUpdateState.FAILED,
-                    FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    postVerifyFailureDetail("设备未在时限内正常重连"), diagnosticDirectory);
-                return;
-            }
-            writeTransportEvidence(diagnosticDirectory, transportBaseline,
-                postVerifier.verificationSession());
-            transition(handle, FirmwareUpdateState.VERIFYING,
-                "正在读取设备版本并校验协议能力", 0.95, diagnosticDirectory);
-            FirmwarePostVerifier.Verification verification = postVerifier.verify(
-                prepared.request().targetVersion(), RECONNECT_TIMEOUT, cancellation::get);
-            if (!verification.success()) {
-                finish(handle, FirmwareUpdateState.FAILED, verification.error(),
-                    postVerifyFailureDetail(verification.detail()), diagnosticDirectory);
-                return;
-            }
-            checkCancelled(cancellation);
             finish(handle, FirmwareUpdateState.SUCCESS, null,
-                updateSuccessDetail(verification.detail()), diagnosticDirectory);
+                flashSuccessDetail(), diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
                 "固件操作已取消", diagnosticDirectory);
@@ -1150,14 +1060,10 @@ public final class FirmwareUpdateService implements AutoCloseable {
         return "FLASH_FAILED=YES\n" + (detail == null ? "" : detail);
     }
 
-    private static String postVerifyFailureDetail(String detail) {
-        return "FLASH_SUCCESS_VERIFY_FAILED=YES\n"
-            + "固件已烧录，但设备版本确认失败\n"
-            + (detail == null ? "" : detail);
-    }
-
-    private static String updateSuccessDetail(String detail) {
-        return "UPDATE_SUCCESS=YES\n" + (detail == null ? "" : detail);
+    private static String flashSuccessDetail() {
+        return "WCHISP_FLASH_SUCCESS=YES\n"
+            + "POST_FLASH_READBACK_PERFORMED=NO\n"
+            + "WCHISP 已完成固件写入；请退出 ISP 并以普通模式重新连接设备。";
     }
 
     static FirmwareUpdateError flashFailureError(OfficialWchIspAdapter.FlashResult flash) {
@@ -1210,7 +1116,8 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 || to == FirmwareUpdateState.CANCELLED;
             case READY -> to == FirmwareUpdateState.FLASHING || to == FirmwareUpdateState.FAILED
                 || to == FirmwareUpdateState.CANCELLED;
-            case FLASHING -> to == FirmwareUpdateState.WAITING_RECONNECT || to == FirmwareUpdateState.FAILED;
+            case FLASHING -> to == FirmwareUpdateState.SUCCESS
+                || to == FirmwareUpdateState.WAITING_RECONNECT || to == FirmwareUpdateState.FAILED;
             case WAITING_RECONNECT -> to == FirmwareUpdateState.VERIFYING || to == FirmwareUpdateState.FAILED
                 || to == FirmwareUpdateState.CANCELLED;
             case VERIFYING -> to == FirmwareUpdateState.SUCCESS || to == FirmwareUpdateState.FAILED

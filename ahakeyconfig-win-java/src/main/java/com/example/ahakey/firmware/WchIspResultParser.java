@@ -66,12 +66,6 @@ public final class WchIspResultParser {
         if (terminalSuccess && !explicitFailure) {
             return new FlashExecutionResult(true, null, "烧录完成（WCHISP 明确终态）", 0);
         }
-        boolean cleanProcessExit = result.exitCode() == 0
-            && normalProcessExit(result)
-            && !explicitFailure;
-        if (cleanProcessExit) {
-            return new FlashExecutionResult(true, null, "烧录完成", 0);
-        }
         int vendorCode = code(output, result.exitCode());
         FirmwareUpdateError error = FAIL.matcher(output).find()
             ? FirmwareUpdateError.FLASH_FAILED : FirmwareUpdateError.FLASH_FAILED;
@@ -102,18 +96,6 @@ public final class WchIspResultParser {
     private static boolean ownershipIncomplete(WchIspRunner.WchIspProcessResult result) {
         return result != null && result.terminationReason().toUpperCase(Locale.ROOT)
             .contains("PROCESS_OWNERSHIP_INCOMPLETE");
-    }
-
-    private static boolean normalProcessExit(WchIspRunner.WchIspProcessResult result) {
-        if (result == null || !result.processStarted() || result.cancelled() || result.timedOut()) {
-            return false;
-        }
-        String reason = result.terminationReason() == null
-            ? "" : result.terminationReason().trim().toUpperCase(Locale.ROOT);
-        return "PROCESS_EXIT".equals(reason)
-            || "COMPLETED".equals(reason)
-            || "NORMAL_EXIT".equals(reason)
-            || "PROCESS_EXIT:0".equals(reason);
     }
 
     public record UidQueryResult(boolean success, FirmwareUpdateError error,

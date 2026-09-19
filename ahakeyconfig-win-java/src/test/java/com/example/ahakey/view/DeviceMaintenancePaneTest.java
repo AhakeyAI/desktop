@@ -60,4 +60,26 @@ class DeviceMaintenancePaneTest {
         assertFalse(DeviceMaintenancePane.canStartFlash("", false));
         assertTrue(DeviceMaintenancePane.canStartFlash("", true));
     }
+
+    @Test
+    void flashCompletionCopyRequiresManualReconnectAndDoesNotClaimReadback() {
+        assertEquals("固件烧录完成，请退出 ISP 并以普通模式重新连接设备。",
+            DeviceMaintenancePane.FLASH_COMPLETION_MESSAGE_ZH);
+        assertEquals("Firmware flashing completed. Exit ISP mode and reconnect the device normally.",
+            DeviceMaintenancePane.FLASH_COMPLETION_MESSAGE_EN);
+        assertTrue(DeviceMaintenancePane.FLASH_COMPLETION_STATUS_ZH.contains("WCHISP 已完成固件写入"));
+        assertTrue(DeviceMaintenancePane.FLASH_COMPLETION_STATUS_ZH.contains("未自动读取设备版本"));
+        assertTrue(DeviceMaintenancePane.FLASH_COMPLETION_STATUS_EN.contains(
+            "did not automatically read back the device version"));
+        assertFalse(DeviceMaintenancePane.FLASH_COMPLETION_STATUS_ZH.contains("通过设备回读校验"));
+        assertFalse(DeviceMaintenancePane.FLASH_COMPLETION_STATUS_EN.contains("verified"));
+    }
+
+    @Test
+    void hidingWindowAfterSuccessDoesNotRequestCancellation() {
+        assertFalse(DeviceMaintenancePane.shouldCancelWhenWindowHidden(
+            com.example.ahakey.firmware.FirmwareUpdateState.SUCCESS));
+        assertTrue(DeviceMaintenancePane.shouldCancelWhenWindowHidden(
+            com.example.ahakey.firmware.FirmwareUpdateState.READY));
+    }
 }
