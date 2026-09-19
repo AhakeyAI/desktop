@@ -1211,3 +1211,45 @@ WCHISP `-c/-o/-f` 参数、UTF-8 `flash-config.ini`、owned-process 等待或 FL
 0 errors、0 skipped；`mvn clean package` 为 327 tests，0 failures、0 errors、0 skipped，
 并返回 `RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。上述结果不包含真机烧录、
 用户重连或设备版本手工检查。
+
+## 41. Verified USB preference and complete AhaType account flow (2026-09-20)
+
+本节记录 Windows Java 客户端在既有 transport session、审批 freshness、语音 worker 和
+生命周期边界上的两项最小收口；不修改固件、协议、WCHISP、审批服务、Hook、GIF/OLED、
+灯效或任务协议。
+
+USB 继续是首选 transport。初次连接仍先尝试 USB；已经通过 BLE 连接时，状态轮询也会探测
+后来插入的 USB。USB 只作为 candidate 打开，验证期间保留当前 BLE socket、reader 和 session，
+且不发布断开 UI。只有 candidate 收到其自身 receiver 的新鲜、有效设备状态后，才创建新的
+active transport session 并切到 USB；验证超时或失败只关闭 candidate，原 BLE 状态和审批
+会话不受影响。USB 拔出时，客户端为保留的 BLE receiver 创建新的 active session，重新查询
+当前 BLE 状态后恢复使用；旧 BLE/USB callback、延迟命令响应和旧审批状态均不能跨 session
+满足新请求。主动断开和应用退出继续抑制自动迁移。immutable USB session、普通
+`waitForResponse` token、状态接收单调时间和审批 freshness 门禁均保留。
+
+AhaType 顶部开关在本地语音已就绪但账号未登录或 token 过期时保持关闭，并由 TopBar 直接
+打开既有“云端账号 · AhaType”窗口；本地模型未就绪时只显示本地语音问题。“更多”中的账号
+入口继续保留。登录、注册和 `/api/v1/users/me` 分别保存 `user`、`quota`、`policy` 与
+`token_valid_until`，兼容 snake_case/camelCase；手机号始终保存，密码仍仅在勾选记住密码
+时保存，注册响应含 token 时自动登录，迟到响应继续按 token ownership 丢弃。
+
+账号窗口按 policy 显示启用的日/周/月额度与使用量，并提供刷新、微信充值、兑换码和退出。
+充值套餐只取自 `policy.recharge_prices_fen`；客户端调用
+`POST /api/v1/payment/wechat/native` 创建订单，以轻量 ZXing 编码器本地显示服务端
+`code_url`/`h5_url` 二维码，再轮询 `GET /api/v1/payment/wechat/order-status`。支付成功后
+停止当前订单轮询、刷新 `/api/v1/users/me` 并更新额度；失败和超时给出明确提示，关闭窗口
+或发起新订单会递增订单 generation，旧结果不能关闭或更新新窗口。兑换码严格调用
+`POST /api/v1/coupon/redeem`，body 为 `{"code":"..."}`，成功后刷新账号。
+
+云端文本处理继续在独立 worker 中执行并只交付一次最终文本。登录失效、额度不足、网络/服务
+异常和未知 JSON 分别给出可操作状态，但所有失败都返回原识别文本；不增加成功弹窗，也不在
+日志中记录 token、密码、手机号、完整识别文本或二维码内容。顶部不恢复“日 0/0 · 周 0/0”。
+
+本轮定向回归覆盖 BLE→USB 成功迁移、candidate 失败保留 BLE、USB 拔出回退、跨 session
+响应隔离、主动断开/退出抑制迁移，以及 AhaType 登录/注册/过期、完整资料解析、支付订单成功/
+失败/超时/关闭、兑换码、分类失败回退原文和最终文本单次注入，均通过；BLE 迁移用例另连续运行
+3 次以验证异步边界。`mvn clean test` 与 `mvn clean package` 均为 340 tests、0 failures、
+0 errors、0 skipped，package 返回 `RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。
+
+上述自动结果不代替真实环境验证。USB/BLE 热插拔、真实审批状态、真实账号、微信沙箱/实付、
+兑换码、麦克风和最终键盘注入仍需 Windows 真机/真实服务人工验证，当前均保持 **pending**。

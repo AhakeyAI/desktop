@@ -16,6 +16,8 @@ public final class AhaTypeConfig {
     public static final String ENABLED = "typeless_enabled";
     public static final String ACCESS_TOKEN = "access_token";
     public static final String USER = "user";
+    public static final String QUOTA = "quota";
+    public static final String POLICY = "policy";
     public static final String TOKEN_VALID_UNTIL = "token_valid_until";
     public static final String REMEMBER_PASSWORD = "remember_password";
     public static final String REMEMBERED_PHONE = "remembered_phone";
@@ -94,6 +96,8 @@ public final class AhaTypeConfig {
         defaults.put(ENABLED, false);
         defaults.put(ACCESS_TOKEN, "");
         defaults.put(USER, null);
+        defaults.put(QUOTA, new LinkedHashMap<>());
+        defaults.put(POLICY, new LinkedHashMap<>());
         defaults.put(TOKEN_VALID_UNTIL, null);
         defaults.put(REMEMBER_PASSWORD, false);
         defaults.put(REMEMBERED_PHONE, "");

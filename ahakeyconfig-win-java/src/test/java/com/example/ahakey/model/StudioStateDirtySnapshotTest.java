@@ -111,6 +111,26 @@ class StudioStateDirtySnapshotTest {
     }
 
     @Test
+    void missingLoginRequestsAccountUiButMissingLocalModelDoesNot() throws Exception {
+        AhaTypeConfig config = new AhaTypeConfig(tempDir.resolve("missing-login.json"));
+        config.save(AhaTypeConfig.defaults());
+        AhaTypeService service = new AhaTypeService(config, HttpClient.newHttpClient(),
+            URI.create("http://127.0.0.1/"),
+            Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+        StudioState state = new StudioState(service);
+
+        state.setLocalSpeechAvailable(() -> true);
+        assertFalse(state.toggleAhaType(true));
+        assertTrue(state.shouldOpenAhaTypeAccountForEnable());
+        assertFalse(state.ahaTypeEnabledProperty().get());
+
+        state.setLocalSpeechAvailable(() -> false);
+        assertFalse(state.toggleAhaType(true));
+        assertFalse(state.shouldOpenAhaTypeAccountForEnable());
+        assertTrue(state.ahaTypeStatusProperty().get().contains("本地语音"));
+    }
+
+    @Test
     void oldSystemVoiceActionsMigrateToLocalCustomShortcut() {
         StudioState.PersistedDraft draft = StudioState.PersistedDraft.defaults();
         draft.voiceShortAction = VoiceAction.SYSTEM_VOICE.name();

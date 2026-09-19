@@ -7,14 +7,24 @@ import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.image.ImageView;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.qrcode.QRCodeWriter;
+
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Small, real account action surface used by the TopBar cloud-account menu. */
 public class CloudAccountDialog {
@@ -27,6 +37,8 @@ public class CloudAccountDialog {
     private TextField phoneField;
     private PasswordField passwordField;
     private CheckBox rememberCheckBox;
+    private final AtomicLong paymentGeneration = new AtomicLong();
+    private Stage paymentStage;
 
     public CloudAccountDialog(Stage owner) {
         this(owner, CloudAccountManager.getInstance(), AhaTypeService.getInstance(), () -> { });
@@ -48,6 +60,14 @@ public class CloudAccountDialog {
         this.stage.setTitle("云端账号 · AhaType");
         this.stage.setMinWidth(420);
         this.stage.setMinHeight(300);
+        this.stage.setOnHidden(event -> {
+            paymentGeneration.incrementAndGet();
+            account.cancelPaymentPolling();
+            if (paymentStage != null) {
+                paymentStage.close();
+                paymentStage = null;
+            }
+        });
     }
 
     public void show() {
@@ -93,11 +113,28 @@ public class CloudAccountDialog {
     private VBox profileSection() {
         VBox section = new VBox(8);
         Map<String, Object> profile = account.getProfile();
-        String phone = String.valueOf(profile.getOrDefault("phone", "已登录账号"));
-        Label accountLabel = new Label(phone);
-        Label quotaLabel = new Label("额度：" + ahaType.getQuotaSummary());
+        String phone = String.valueOf(profile.getOrDefault("phone", account.rememberedPhone()));
+        Label accountLabel = new Label("手机号：" + (phone.isBlank() ? "未提供" : phone));
+        String validUntil = account.getTokenValidUntil();
+        Label validUntilLabel = new Label("有效期：" + (validUntil.isBlank() ? "无" : validUntil));
+        VBox quotaBox = new VBox(4);
+        for (CloudAccountManager.QuotaLine line : account.getVisibleQuotaLines()) {
+            String title = switch (line.period()) {
+                case "daily" -> "每日额度";
+                case "weekly" -> "每周额度";
+                default -> "每月额度";
+            };
+            String value = line.limit() <= 0
+                ? "已用 " + line.used() + " · 无上限"
+                : line.used() + " / " + line.limit();
+            quotaBox.getChildren().add(new Label(title + "：" + value));
+        }
         Button refresh = new Button("刷新账号");
         refresh.setOnAction(event -> runAsync(account::refreshProfile));
+        Button recharge = new Button("微信充值");
+        recharge.setOnAction(event -> chooseRechargePlan());
+        Button coupon = new Button("兑换码");
+        coupon.setOnAction(event -> redeemCoupon());
         Button logout = new Button("退出登录");
         logout.setOnAction(event -> {
             String error = account.logout();
@@ -108,8 +145,117 @@ public class CloudAccountDialog {
                 setStatus(error);
             }
         });
-        section.getChildren().addAll(accountLabel, quotaLabel, new HBox(8, refresh, logout));
+        section.getChildren().addAll(accountLabel, validUntilLabel, quotaBox,
+            new HBox(8, refresh, recharge, coupon, logout));
         return section;
+    }
+
+    private void chooseRechargePlan() {
+        List<CloudAccountManager.RechargePlan> plans = account.getRechargePlans();
+        if (plans.isEmpty()) {
+            setStatus("服务端未下发可用的充值套餐");
+            return;
+        }
+        ChoiceDialog<CloudAccountManager.RechargePlan> dialog =
+            new ChoiceDialog<>(plans.get(0), plans);
+        dialog.initOwner(stage);
+        dialog.setTitle("微信充值");
+        dialog.setHeaderText("请选择充值套餐");
+        dialog.setContentText("套餐：");
+        dialog.showAndWait().ifPresent(this::createPaymentOrder);
+    }
+
+    private void createPaymentOrder(CloudAccountManager.RechargePlan plan) {
+        long generation = paymentGeneration.incrementAndGet();
+        account.cancelPaymentPolling();
+        if (paymentStage != null) {
+            paymentStage.close();
+            paymentStage = null;
+        }
+        setStatus("正在创建微信支付订单…");
+        Thread request = new Thread(() -> {
+            try {
+                CloudAccountManager.PaymentOrder order = account.createWechatOrder(plan.id());
+                Platform.runLater(() -> {
+                    if (paymentGeneration.get() == generation) {
+                        showPaymentOrder(order, generation);
+                    }
+                });
+            } catch (CloudAccountManager.CloudAccountException exception) {
+                Platform.runLater(() -> {
+                    if (paymentGeneration.get() == generation) {
+                        setStatus(exception.getMessage());
+                    }
+                });
+            }
+        }, "ahatype-payment-create");
+        request.setDaemon(true);
+        request.start();
+    }
+
+    private void showPaymentOrder(CloudAccountManager.PaymentOrder order, long generation) {
+        paymentStage = new Stage();
+        paymentStage.initOwner(stage);
+        paymentStage.setTitle("微信扫码支付");
+        Label tip = new Label(String.format(java.util.Locale.ROOT,
+            "请使用微信扫码支付 %.2f 元", order.amountFen() / 100.0));
+        ImageView qr = new ImageView(createQrImage(order.paymentUrl(), 260));
+        Button close = new Button("关闭");
+        close.setOnAction(event -> paymentStage.close());
+        VBox box = new VBox(12, tip, qr, close);
+        box.setPadding(new Insets(18));
+        paymentStage.setScene(new Scene(box));
+        paymentStage.setOnHidden(event -> {
+            if (paymentGeneration.compareAndSet(generation, generation + 1)) {
+                account.cancelPaymentPolling();
+            }
+            paymentStage = null;
+        });
+        paymentStage.show();
+        account.startPaymentPolling(order, result -> Platform.runLater(() -> {
+            if (paymentGeneration.get() != generation
+                || !result.outTradeNo().equals(order.outTradeNo())) return;
+            paymentGeneration.incrementAndGet();
+            paymentStage.close();
+            String message = switch (result.outcome()) {
+                case PAID -> "充值成功，账号额度已刷新。";
+                case FAILED -> "订单支付失败，请重新发起充值。";
+                case TIMED_OUT -> "等待支付超时，请检查微信支付状态后重试。";
+            };
+            Alert.AlertType type = result.outcome() == CloudAccountManager.PaymentPollOutcome.PAID
+                ? Alert.AlertType.INFORMATION : Alert.AlertType.WARNING;
+            Alert alert = new Alert(type, message);
+            alert.initOwner(stage);
+            alert.setHeaderText(null);
+            alert.showAndWait();
+            stateChanged.run();
+            render();
+        }));
+    }
+
+    private void redeemCoupon() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.initOwner(stage);
+        dialog.setTitle("兑换码");
+        dialog.setHeaderText("输入兑换码");
+        dialog.setContentText("兑换码：");
+        dialog.showAndWait().ifPresent(code -> runAsync(() -> account.redeemCoupon(code)));
+    }
+
+    static WritableImage createQrImage(String value, int size) {
+        try {
+            var matrix = new QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, size, size);
+            WritableImage image = new WritableImage(size, size);
+            var writer = image.getPixelWriter();
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    writer.setArgb(x, y, matrix.get(x, y) ? 0xFF000000 : 0xFFFFFFFF);
+                }
+            }
+            return image;
+        } catch (Exception exception) {
+            throw new IllegalStateException("无法生成支付二维码", exception);
+        }
     }
 
     private void submit(boolean register) {

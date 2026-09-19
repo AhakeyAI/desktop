@@ -234,7 +234,10 @@ public class StudioState {
             && localSpeechAvailable.getAsBoolean();
         ahaTypeEnabled.set(effective);
         if (effective) {
-            ahaTypeStatus.set(ahaTypeService.getQuotaSummary());
+            ahaTypeStatus.set(ahaTypeService.getLastProcessIssue()
+                == AhaTypeService.ProcessIssue.NONE
+                    ? "AhaType 已启用"
+                    : ahaTypeService.getStatusMessage());
         } else {
             ahaTypeStatus.set(ahaTypeService.getStatusMessage());
         }
@@ -498,6 +501,11 @@ public class StudioState {
         }
         refreshAhaTypeState();
         return true;
+    }
+
+    /** UI hint only; the state model remains independent of JavaFX windows. */
+    public boolean shouldOpenAhaTypeAccountForEnable() {
+        return localSpeechAvailable.getAsBoolean() && !ahaTypeService.hasValidToken();
     }
 
     public boolean isDirty(StudioPart part) {

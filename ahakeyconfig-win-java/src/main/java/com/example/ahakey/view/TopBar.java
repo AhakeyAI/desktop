@@ -221,8 +221,15 @@ public class TopBar extends VBox {
             }
         });
         ahaTypeToggle.setOnAction(event -> {
-            if (!studioState.toggleAhaType(ahaTypeToggle.isSelected())) {
+            boolean requestedEnable = ahaTypeToggle.isSelected();
+            boolean changed = studioState.toggleAhaType(requestedEnable);
+            if (!changed) {
                 ahaTypeToggle.setSelected(studioState.ahaTypeEnabledProperty().get());
+            }
+            if (shouldOpenCloudAccountOnAhaTypeToggle(
+                requestedEnable, changed,
+                studioState.shouldOpenAhaTypeAccountForEnable())) {
+                showCloudAccountDialog();
             }
         });
 
@@ -606,6 +613,9 @@ public class TopBar extends VBox {
             Platform.runLater(() -> {
                 // 更新 TopBar 状态
                 setVoiceStatus(code, message);
+                if ("stopped".equalsIgnoreCase(code)) {
+                    studioState.refreshAhaTypeState();
+                }
                 
                 // 更新浮动通知
                 if (floatingNotification != null) {
@@ -957,6 +967,11 @@ public class TopBar extends VBox {
         Stage owner = getScene() != null && getScene().getWindow() instanceof Stage stage ? stage : null;
         new CloudAccountDialog(owner, com.example.ahakey.service.CloudAccountManager.getInstance(),
             studioState::refreshAhaTypeState).show();
+    }
+
+    static boolean shouldOpenCloudAccountOnAhaTypeToggle(
+            boolean requestedEnable, boolean changed, boolean loginRequired) {
+        return requestedEnable && !changed && loginRequired;
     }
 
     private record HookCardControls(

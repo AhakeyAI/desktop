@@ -13,9 +13,17 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /** Login/profile state for the AhaType cloud account menu. */
 public class CloudAccountManager {
@@ -29,10 +37,40 @@ public class CloudAccountManager {
     private final ObjectMapper mapper;
     private final URI apiBase;
     private final Clock clock;
+    private final Duration paymentPollInterval;
+    private final Duration paymentPollTimeout;
+    private final ExecutorService paymentPollExecutor;
+    private final AtomicLong paymentPollGeneration = new AtomicLong();
     private final Object stateMutationLock = new Object();
     private volatile boolean loggedIn;
     private volatile String statusMessage = "未登录";
     private volatile Map<String, Object> profile = Map.of();
+
+    public record RechargePlan(String id, int amountFen) {
+        public String displayText() {
+            String title = switch (id) {
+                case "monthly" -> "包月";
+                case "quarterly" -> "包季";
+                case "yearly" -> "包年";
+                default -> id;
+            };
+            return String.format(Locale.ROOT, "%s  %.2f 元", title, amountFen / 100.0);
+        }
+
+        @Override
+        public String toString() {
+            return displayText();
+        }
+    }
+
+    public record PaymentOrder(String outTradeNo, String paymentUrl,
+                               int amountFen, String plan) {}
+
+    public enum PaymentState { PENDING, PAID, FAILED }
+    public enum PaymentPollOutcome { PAID, FAILED, TIMED_OUT }
+    public record PaymentPollResult(String outTradeNo, PaymentPollOutcome outcome) {}
+
+    public record QuotaLine(String period, int used, int limit) {}
 
     public CloudAccountManager() {
         this(AhaTypeService.getInstance(),
@@ -42,11 +80,25 @@ public class CloudAccountManager {
 
     public CloudAccountManager(AhaTypeService ahaType, HttpClient httpClient,
                                ObjectMapper mapper, URI apiBase, Clock clock) {
+        this(ahaType, httpClient, mapper, apiBase, clock,
+            Duration.ofSeconds(2), Duration.ofMinutes(3));
+    }
+
+    CloudAccountManager(AhaTypeService ahaType, HttpClient httpClient,
+                        ObjectMapper mapper, URI apiBase, Clock clock,
+                        Duration paymentPollInterval, Duration paymentPollTimeout) {
         this.ahaType = ahaType;
         this.httpClient = httpClient;
         this.mapper = mapper;
         this.apiBase = normalizeApiBase(apiBase);
         this.clock = clock;
+        this.paymentPollInterval = paymentPollInterval;
+        this.paymentPollTimeout = paymentPollTimeout;
+        this.paymentPollExecutor = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "ahatype-payment-poll");
+            thread.setDaemon(true);
+            return thread;
+        });
         refreshLocalState();
     }
 
@@ -64,6 +116,39 @@ public class CloudAccountManager {
 
     public Map<String, Object> getProfile() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(profile));
+    }
+
+    public Map<String, Object> getQuota() {
+        return Collections.unmodifiableMap(ahaType.getQuota());
+    }
+
+    public Map<String, Object> getPolicy() {
+        return Collections.unmodifiableMap(ahaType.getPolicy());
+    }
+
+    public String getTokenValidUntil() {
+        return AhaTypeService.stringValue(ahaType.getTokenValidUntil());
+    }
+
+    public List<QuotaLine> getVisibleQuotaLines() {
+        Map<String, Object> quota = ahaType.getQuota();
+        Map<String, Object> policy = ahaType.getPolicy();
+        boolean hasVisibility = policy.containsKey("enable_daily")
+            || policy.containsKey("enable_weekly") || policy.containsKey("enable_monthly");
+        List<QuotaLine> lines = new ArrayList<>();
+        addQuotaLine(lines, "daily", quota, policy, hasVisibility);
+        addQuotaLine(lines, "weekly", quota, policy, hasVisibility);
+        addQuotaLine(lines, "monthly", quota, policy, hasVisibility);
+        return List.copyOf(lines);
+    }
+
+    public List<RechargePlan> getRechargePlans() {
+        Map<String, Object> prices = mapValue(ahaType.getPolicy().get("recharge_prices_fen"));
+        List<RechargePlan> plans = new ArrayList<>();
+        addRechargePlan(plans, prices, "monthly");
+        addRechargePlan(plans, prices, "quarterly");
+        addRechargePlan(plans, prices, "yearly");
+        return List.copyOf(plans);
     }
 
     public String rememberedPhone() {
@@ -121,12 +206,11 @@ public class CloudAccountManager {
         try {
             JsonNode root = request("/api/v1/users/me", "GET", null, requestToken);
             JsonNode data = dataObject(root);
-            Map<String, Object> refreshedProfile = profileMap(profileNode(data));
-            Map<String, Object> quota = quotaMap(data);
-            Object validUntil = tokenValidUntil(data, requestToken);
+            AccountPayload payload = accountPayload(data, requestToken);
             synchronized (stateMutationLock) {
                 AhaTypeService.CloudStatePersistenceResult persistence =
-                    ahaType.persistCloudStateIfTokenCurrent(requestToken, refreshedProfile, quota, validUntil);
+                    ahaType.persistCloudStateIfTokenCurrent(requestToken, payload.user(),
+                        payload.quota(), payload.policy(), payload.validUntil());
                 if (persistence == AhaTypeService.CloudStatePersistenceResult.STALE_TOKEN) {
                     return null;
                 }
@@ -134,7 +218,7 @@ public class CloudAccountManager {
                     statusMessage = "账号刷新成功，但本地保存失败";
                     return statusMessage;
                 }
-                profile = Collections.unmodifiableMap(new LinkedHashMap<>(refreshedProfile));
+                profile = Collections.unmodifiableMap(new LinkedHashMap<>(payload.user()));
                 loggedIn = true;
                 statusMessage = "已登录";
                 return null;
@@ -146,6 +230,19 @@ public class CloudAccountManager {
                 statusMessage = "刷新账号已中断";
                 return statusMessage;
             }
+        } catch (CloudAccountException exception) {
+            synchronized (stateMutationLock) {
+                if (!requestToken.equals(ahaType.getAccessToken())) return null;
+                if (exception.statusCode() == 401 || exception.statusCode() == 403) {
+                    ahaType.clearSessionKeepToggle();
+                    profile = Map.of();
+                    loggedIn = false;
+                    statusMessage = "登录已过期，请重新登录";
+                } else {
+                    statusMessage = exception.getMessage();
+                }
+                return statusMessage;
+            }
         } catch (Exception exception) {
             synchronized (stateMutationLock) {
                 if (!requestToken.equals(ahaType.getAccessToken())) return null;
@@ -153,6 +250,126 @@ public class CloudAccountManager {
                 logger.warn("Cloud profile refresh failed ({})", exception.getClass().getSimpleName());
                 return statusMessage;
             }
+        }
+    }
+
+    public String redeemCoupon(String code) {
+        String normalized = code == null ? "" : code.trim();
+        if (normalized.isEmpty()) return "请输入兑换码";
+        String token = ahaType.getValidAccessToken();
+        if (token.isEmpty()) return "请重新登录后再兑换";
+        try {
+            request("/api/v1/coupon/redeem", "POST", Map.of("code", normalized), token);
+            String refreshError = refreshProfile();
+            if (refreshError != null) return "兑换成功，但账号信息刷新失败";
+            statusMessage = "兑换成功";
+            return null;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return "兑换已中断";
+        } catch (CloudAccountException exception) {
+            return exception.getMessage();
+        } catch (Exception exception) {
+            logger.warn("Coupon redemption failed ({})", exception.getClass().getSimpleName());
+            return "兑换失败，请稍后重试";
+        }
+    }
+
+    public PaymentOrder createWechatOrder(String planId) throws CloudAccountException {
+        String token = ahaType.getValidAccessToken();
+        if (token.isEmpty()) throw new CloudAccountException(401, "请重新登录后再充值");
+        RechargePlan selected = getRechargePlans().stream()
+            .filter(plan -> plan.id().equals(planId)).findFirst()
+            .orElseThrow(() -> new CloudAccountException(0, "请选择有效的充值套餐"));
+        try {
+            JsonNode data = dataObject(request("/api/v1/payment/wechat/native", "POST",
+                Map.of("plan", selected.id()), token));
+            String codeUrl = firstText(data, "code_url", "codeUrl");
+            String h5Url = firstText(data, "h5_url", "h5Url", "mweb_url", "mwebUrl");
+            String orderNo = firstText(data, "out_trade_no", "outTradeNo");
+            if (orderNo.isEmpty()) throw new CloudAccountException(0, "云端未返回订单号");
+            String paymentUrl = codeUrl.isEmpty() ? h5Url : codeUrl;
+            if (paymentUrl.isEmpty()) throw new CloudAccountException(0, "云端未返回可支付链接");
+            JsonNode amountNode = AhaTypeService.firstNode(data, "amount_fen");
+            if (amountNode == null) amountNode = AhaTypeService.firstNode(data, "amountFen");
+            int amount = amountNode == null ? selected.amountFen() : amountNode.asInt(selected.amountFen());
+            return new PaymentOrder(orderNo, paymentUrl, amount, selected.id());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new CloudAccountException(0, "创建支付订单已中断");
+        } catch (CloudAccountException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            logger.warn("Payment order creation failed ({})", exception.getClass().getSimpleName());
+            throw new CloudAccountException(0, "创建支付订单失败，请稍后重试");
+        }
+    }
+
+    public PaymentState fetchPaymentState(String outTradeNo) throws CloudAccountException {
+        String token = ahaType.getValidAccessToken();
+        if (token.isEmpty()) throw new CloudAccountException(401, "登录已过期，请重新登录");
+        try {
+            String encoded = java.net.URLEncoder.encode(outTradeNo, StandardCharsets.UTF_8);
+            JsonNode data = dataObject(request(
+                "/api/v1/payment/wechat/order-status?outTradeNo=" + encoded,
+                "GET", null, token));
+            String status = firstText(data, "status", "tradeState", "trade_state",
+                "payStatus", "pay_status", "orderStatus", "order_status")
+                .toLowerCase(Locale.ROOT).replace('-', '_');
+            if (isPaidStatus(status)) return PaymentState.PAID;
+            if (isFailedStatus(status)) return PaymentState.FAILED;
+            return PaymentState.PENDING;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new CloudAccountException(0, "订单状态查询已中断");
+        } catch (CloudAccountException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            logger.warn("Payment status request failed ({})", exception.getClass().getSimpleName());
+            throw new CloudAccountException(0, "订单状态查询失败");
+        }
+    }
+
+    public void startPaymentPolling(PaymentOrder order, Consumer<PaymentPollResult> completion) {
+        long generation = paymentPollGeneration.incrementAndGet();
+        paymentPollExecutor.execute(() -> {
+            long deadline = System.nanoTime() + paymentPollTimeout.toNanos();
+            while (generation == paymentPollGeneration.get() && System.nanoTime() < deadline) {
+                try {
+                    TimeUnit.NANOSECONDS.sleep(paymentPollInterval.toNanos());
+                    if (generation != paymentPollGeneration.get()) return;
+                    PaymentState state = fetchPaymentState(order.outTradeNo());
+                    if (state == PaymentState.PAID) {
+                        refreshProfile();
+                        completePaymentPoll(generation, completion,
+                            new PaymentPollResult(order.outTradeNo(), PaymentPollOutcome.PAID));
+                        return;
+                    }
+                    if (state == PaymentState.FAILED) {
+                        completePaymentPoll(generation, completion,
+                            new PaymentPollResult(order.outTradeNo(), PaymentPollOutcome.FAILED));
+                        return;
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception ignored) {
+                    // A transient poll failure does not cancel a still-payable order.
+                }
+            }
+            completePaymentPoll(generation, completion,
+                new PaymentPollResult(order.outTradeNo(), PaymentPollOutcome.TIMED_OUT));
+        });
+    }
+
+    public void cancelPaymentPolling() {
+        paymentPollGeneration.incrementAndGet();
+    }
+
+    private void completePaymentPoll(long generation, Consumer<PaymentPollResult> completion,
+                                     PaymentPollResult result) {
+        if (generation == paymentPollGeneration.get() && completion != null) {
+            completion.accept(result);
         }
     }
 
@@ -170,13 +387,14 @@ public class CloudAccountManager {
             if (requireToken && token.isEmpty()) {
                 throw new IllegalStateException("账号响应缺少 token");
             }
-            Map<String, Object> localProfile = profileMap(profileNode(data));
+            AccountPayload payload = accountPayload(data, token);
+            Map<String, Object> localProfile = new LinkedHashMap<>(payload.user());
             localProfile.putIfAbsent("phone", normalizedPhone);
-            Object validUntil = tokenValidUntil(data, token);
             boolean refreshAfterLogin;
             synchronized (stateMutationLock) {
-                if (!ahaType.persistSession(token, validUntil, localProfile, quotaMap(data),
-                    normalizedPhone, password, rememberPassword)) {
+                if (!ahaType.persistSession(token, payload.validUntil(), localProfile,
+                    payload.quota(), payload.policy(), normalizedPhone, password,
+                    rememberPassword)) {
                     statusMessage = requireToken ? "登录成功，但本地保存失败" : "注册成功，但本地保存失败";
                     return statusMessage;
                 }
@@ -216,10 +434,17 @@ public class CloudAccountManager {
             builder.method(method, HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
         }
         HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) throw new IllegalStateException("unexpected HTTP status");
-        JsonNode root = mapper.readTree(response.body());
-        if (root == null || !root.isObject() || !AhaTypeService.isSuccessCode(root.get("code"))) {
-            throw new IllegalStateException("unsuccessful response envelope");
+        JsonNode root;
+        try {
+            root = mapper.readTree(response.body());
+        } catch (Exception exception) {
+            throw new CloudAccountException(response.statusCode(), "服务器返回异常");
+        }
+        if (response.statusCode() != 200 || root == null || !root.isObject()
+            || !AhaTypeService.isSuccessCode(root.get("code"))) {
+            throw new CloudAccountException(response.statusCode(), safeResponseMessage(root,
+                response.statusCode() == 401 || response.statusCode() == 403
+                    ? "登录已过期，请重新登录" : "请求失败"));
         }
         return root;
     }
@@ -241,6 +466,15 @@ public class CloudAccountManager {
         if (nested != null && nested.isObject()) return nested;
         nested = data.get("profile");
         return nested != null && nested.isObject() ? nested : data;
+    }
+
+    private AccountPayload accountPayload(JsonNode data, String token) {
+        return new AccountPayload(
+            profileMap(profileNode(data)),
+            quotaMap(data),
+            policyMap(data),
+            tokenValidUntil(data, token)
+        );
     }
 
     private Map<String, Object> profileMap(JsonNode node) {
@@ -288,13 +522,116 @@ public class CloudAccountManager {
         Map<String, Object> quota = new LinkedHashMap<>();
         JsonNode nested = data == null ? null : data.get("quota");
         for (String field : AhaTypeConfig.quotaFields()) {
+            String camel = toCamelCase(field);
             JsonNode value = AhaTypeService.firstNode(data, field);
+            if (value == null) value = AhaTypeService.firstNode(data, camel);
             if (value == null) value = AhaTypeService.firstNode(nested, field);
+            if (value == null) value = AhaTypeService.firstNode(nested, camel);
             if (value != null && value.isValueNode()) {
                 quota.put(field, mapper.convertValue(value, Object.class));
             }
         }
         return quota;
+    }
+
+    private Map<String, Object> policyMap(JsonNode data) {
+        JsonNode node = data == null ? null : data.get("policy");
+        if ((node == null || !node.isObject()) && profileNode(data) != null) {
+            node = profileNode(data).get("policy");
+        }
+        Map<String, Object> policy = new LinkedHashMap<>();
+        if (node != null && node.isObject()) {
+            node.fields().forEachRemaining(entry ->
+                policy.put(entry.getKey(), mapper.convertValue(entry.getValue(), Object.class)));
+        }
+        copyAlias(policy, "recharge_prices_fen", "rechargePricesFen");
+        copyAlias(policy, "default_limit_daily", "defaultLimitDaily");
+        copyAlias(policy, "default_limit_weekly", "defaultLimitWeekly");
+        copyAlias(policy, "default_limit_monthly", "defaultLimitMonthly");
+        copyAlias(policy, "enable_daily", "enableDaily");
+        copyAlias(policy, "enable_weekly", "enableWeekly");
+        copyAlias(policy, "enable_monthly", "enableMonthly");
+        return policy;
+    }
+
+    private void addQuotaLine(List<QuotaLine> lines, String period,
+                              Map<String, Object> quota, Map<String, Object> policy,
+                              boolean hasVisibility) {
+        if (hasVisibility && !AhaTypeService.boolValue(policy.get("enable_" + period))) return;
+        lines.add(new QuotaLine(period,
+            AhaTypeService.intValue(quota.get("used_" + period)),
+            AhaTypeService.intValue(quota.get("limit_" + period))));
+    }
+
+    private static void addRechargePlan(List<RechargePlan> plans,
+                                        Map<String, Object> prices, String id) {
+        int amount = AhaTypeService.intValue(prices.get(id));
+        if (amount > 0) plans.add(new RechargePlan(id, amount));
+    }
+
+    private static boolean isPaidStatus(String value) {
+        return List.of("paid", "success", "succeeded", "complete", "completed",
+            "pay_success", "trade_success", "wechat_success", "finished", "done", "1")
+            .contains(value);
+    }
+
+    private static boolean isFailedStatus(String value) {
+        return List.of("failed", "failure", "fail", "closed", "cancelled", "canceled",
+            "expired", "timeout", "trade_closed", "pay_error", "2").contains(value);
+    }
+
+    private static String safeResponseMessage(JsonNode root, String fallback) {
+        String message = firstText(root, "errorMsg", "msg", "message", "error")
+            .replaceAll("[\\r\\n\\t]", " ").trim();
+        if (message.isEmpty() || message.length() > 160
+            || message.toLowerCase(Locale.ROOT).contains("token")
+            || message.toLowerCase(Locale.ROOT).contains("password")) {
+            return fallback;
+        }
+        return message;
+    }
+
+    private static Map<String, Object> mapValue(Object value) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (value instanceof Map<?, ?> map) {
+            map.forEach((key, item) -> result.put(String.valueOf(key), item));
+        }
+        return result;
+    }
+
+    private static void copyAlias(Map<String, Object> values, String snake, String camel) {
+        if (!values.containsKey(snake) && values.containsKey(camel)) {
+            values.put(snake, values.get(camel));
+        }
+    }
+
+    private static String toCamelCase(String snake) {
+        StringBuilder result = new StringBuilder();
+        boolean upper = false;
+        for (char character : snake.toCharArray()) {
+            if (character == '_') upper = true;
+            else {
+                result.append(upper ? Character.toUpperCase(character) : character);
+                upper = false;
+            }
+        }
+        return result.toString();
+    }
+
+    private record AccountPayload(Map<String, Object> user, Map<String, Object> quota,
+                                  Map<String, Object> policy, Object validUntil) {}
+
+    public static final class CloudAccountException extends Exception {
+        private final int statusCode;
+
+        CloudAccountException(int statusCode, String message) {
+            super(message);
+            this.statusCode = statusCode;
+        }
+
+        public int statusCode() {
+            return statusCode;
+        }
     }
 
     private static String firstText(JsonNode node, String... names) {

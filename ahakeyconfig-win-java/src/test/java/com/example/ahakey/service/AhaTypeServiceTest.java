@@ -255,6 +255,38 @@ class AhaTypeServiceTest {
         }
     }
 
+    @Test
+    void classifiesLoginQuotaNetworkAndMalformedFailuresWhileReturningOriginalText() throws Exception {
+        try (MockServer server = new MockServer(exchange -> respond(exchange, 401,
+            "{\"code\":401,\"message\":\"token expired\"}"))) {
+            AhaTypeService service = configuredService(server, true, "2030-01-01T00:00:00Z");
+            assertEquals("原文", service.processIfEnabled("原文"));
+            assertEquals(AhaTypeService.ProcessIssue.LOGIN_REQUIRED, service.getLastProcessIssue());
+            assertTrue(service.getStatusMessage().contains("重新登录"));
+            assertEquals("", service.getAccessToken());
+        }
+        try (MockServer server = new MockServer(exchange -> respond(exchange, 429,
+            "{\"code\":429,\"message\":\"quota exceeded\"}"))) {
+            AhaTypeService service = configuredService(server, true, "2030-01-01T00:00:00Z");
+            assertEquals("原文", service.processIfEnabled("原文"));
+            assertEquals(AhaTypeService.ProcessIssue.QUOTA_REQUIRED, service.getLastProcessIssue());
+            assertTrue(service.getStatusMessage().contains("充值或兑换"));
+        }
+        try (MockServer server = new MockServer(exchange -> respond(exchange, 503,
+            "{\"code\":503}"))) {
+            AhaTypeService service = configuredService(server, true, "2030-01-01T00:00:00Z");
+            assertEquals("原文", service.processIfEnabled("原文"));
+            assertEquals(AhaTypeService.ProcessIssue.NETWORK, service.getLastProcessIssue());
+            assertTrue(service.getStatusMessage().contains("暂时不可用"));
+        }
+        try (MockServer server = new MockServer(exchange -> respond(exchange, 200,
+            "not-json"))) {
+            AhaTypeService service = configuredService(server, true, "2030-01-01T00:00:00Z");
+            assertEquals("原文", service.processIfEnabled("原文"));
+            assertEquals(AhaTypeService.ProcessIssue.UNKNOWN, service.getLastProcessIssue());
+        }
+    }
+
     private AhaTypeService configuredService(MockServer server, boolean enabled, String validUntil) throws Exception {
         AhaTypeConfig config = new AhaTypeConfig(tempDir.resolve("typeless-" + System.nanoTime() + ".json"));
         Map<String, Object> values = AhaTypeConfig.defaults();

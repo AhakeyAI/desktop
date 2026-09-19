@@ -42,6 +42,13 @@
             <version>2.16.0</version>
         </dependency>
 
+        <!-- Lightweight QR encoder for WeChat Native payment orders. -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+
         <!-- Windows: Win+H 语音 + 低级别键盘钩子 -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>
@@ -184,7 +191,7 @@
                         </manifest>
                         <manifestEntries>
                             <Implementation-Version>${project.version}</Implementation-Version>
-                            <Class-Path>lib/javafx-controls-17.0.10.jar lib/javafx-controls-17.0.10-win.jar lib/javafx-fxml-17.0.10.jar lib/javafx-fxml-17.0.10-win.jar lib/javafx-graphics-17.0.10.jar lib/javafx-graphics-17.0.10-win.jar lib/javafx-base-17.0.10.jar lib/javafx-base-17.0.10-win.jar lib/jackson-databind-2.16.0.jar lib/jackson-annotations-2.16.0.jar lib/jackson-core-2.16.0.jar lib/jna-5.14.0.jar lib/jna-platform-5.14.0.jar lib/slf4j-api-2.0.9.jar lib/logback-classic-1.4.11.jar lib/logback-core-1.4.11.jar lib/sherpa-onnx-java-api-1.13.3.jar</Class-Path>
+                            <Class-Path>lib/javafx-controls-17.0.10.jar lib/javafx-controls-17.0.10-win.jar lib/javafx-fxml-17.0.10.jar lib/javafx-fxml-17.0.10-win.jar lib/javafx-graphics-17.0.10.jar lib/javafx-graphics-17.0.10-win.jar lib/javafx-base-17.0.10.jar lib/javafx-base-17.0.10-win.jar lib/jackson-databind-2.16.0.jar lib/jackson-annotations-2.16.0.jar lib/jackson-core-2.16.0.jar lib/core-3.5.3.jar lib/jna-5.14.0.jar lib/jna-platform-5.14.0.jar lib/slf4j-api-2.0.9.jar lib/logback-classic-1.4.11.jar lib/logback-core-1.4.11.jar lib/sherpa-onnx-java-api-1.13.3.jar</Class-Path>
                         </manifestEntries>
                     </archive>
                 </configuration>
