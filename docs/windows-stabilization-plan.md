@@ -40,8 +40,9 @@ review、patch、report 和 artifacts 是审计/交付材料，不等于生产�
    `RUNAS_WORKER`；管理员直接启动，非管理员通过 RunAs 弹出一次 UAC，不采用 direct-first
    或 740 后重试。完整终态 `Finished + Code=0 + Message=Succeed`（包括进程 exit code
    100）仍是正确且必须保留的业务成功判定。
-3. 普通请求和 post-flash reconnect 已使用 transport session/receiver、状态序列和单调
-   到达时间的组合快照；`0x9F` 回读也检查 verification session，拒绝旧 session 状态。
+3. `FirmwarePostVerifier`、transport session/receiver freshness 与 `0x9F` 回读能力继续保留，
+   但不再由 WCHISP 烧录成功路径自动调用，也不再阻塞或推翻已经确认的烧录成功；用户在
+   烧录完成后自行退出 ISP、正常重连并检查设备版本。
 4. BLE bridge reader 的意外 EOF/IOException 已进入既有恢复调度器的内部 transport-loss
    路径，不再冒充用户 `disconnect()`；旧 reader 事件会被 receiver/thread 身份门禁丢弃。
 5. USB HID 已改为“打开句柄后先查询同一 session 的设备状态，只有有界 ready 证明成功后
@@ -56,6 +57,11 @@ review、patch、report 和 artifacts 是审计/交付材料，不等于生产�
    模型、图标、WCHISP 和其他非 Java 资产。preview overlay 保留为历史排查脚本，不是发布路径。
 9. WCHISP 进入真实 `FLASHING` 后不可取消；UI、状态机和操作所有权均等待厂商进程退出，超时
    不会提前释放 single-flight。
+10. 真实 WCHISP 3.9 运行证据确认命令行下载接口的 `-c` 权威输入是 UTF-8 文本
+    `flash-config.ini`。prepared 与兼容单次入口均使用
+    `WchIspConfig.forCh582(normalizedHex)` 生成该文件；66841 字节二进制
+    `CONFIG_CH57X59X.WCH` 只属于 runtime/GUI 配置，不能替代 CLI `-c` 输入。该修正不改变
+    RunAs、ISP 检测、prepared session 或严格终态语义。烧录完成边界以第 40 节为准。
 
 上述修改必须复用既有事务门禁、session/generation、recovery 和状态事实源，避免增加平行
 状态机。已经正确的 ApprovalService `fresh + connected + AUTO`、WRITING/WAITING
@@ -217,7 +223,7 @@ Windows 安装器继续使用稳定 UpgradeCode `8842DBEF-62F7-49AC-AF0F-9447198
 | WIN-017~020 语音 | 代码完成 | Hook/pressed-state/tensor 释放测试已有 | 键盘/麦克风/模型实机待验证 |
 | WIN-021~024 生命周期/持久化/Hook | 代码完成 | 原子保存、实例唤醒、bridge owner 测试已有 | Windows 安装/托盘/已安装 Hook 手工待验证 |
 | WIN-025 updater | **部分满足**：HTTPS manifest/asset、MZ、Authenticode Valid 和 publisher policy fail-closed 已实现；仍缺正式配置注入、canonical signer identity 和完整签名流水线 | manifest、下载和签名替身测试通过 | 正式签名/jpackage/release 基线待验证 |
-| WIN-026 firmware flasher | **代码完成**：生产 UI 复用同一 prepared session；准备、单次 ISP 检测和显式点击分阶段，点击只走 `startPrepared()` / `flashPrepared()`；WCHISP 按 Studio 权限一次选择 direct 或 RunAs，完整成功终态优先 | prepared session/adapter/service、permission、post-flash session 基线、provenance、PS5/PS7、HEX 测试及完整 Maven 回归通过 | WCHISP、普通用户/UAC、真实 HEX 烧录和真机待验证 |
+| WIN-026 firmware flasher | **代码完成**：生产 UI 复用同一 prepared session；准备、单次 ISP 检测和显式点击分阶段，点击只走 `startPrepared()` / `flashPrepared()`；WCHISP 按 Studio 权限一次选择 direct 或 RunAs；CLI `-c` 使用 UTF-8 文本 `flash-config.ini`；只有完整 `Finished + Code=0 + Message=Succeed` 才在 owned process 退出后直接结束为 `SUCCESS`，不自动等待重连或 `0x9F` 回读 | prepared session/adapter/service、文本 INI 内容/编码、permission、严格终态、无自动 post-verify、provenance、PS5/PS7、HEX 测试及完整 Maven 回归通过 | 修复后的真实 WCHISP 重新烧录、普通用户/UAC、真实 HEX 烧录，以及用户自行重连和版本检查待验证 |
 | WIN-026 cancellation boundary | **代码完成**：WCHISP 进入 `FLASHING` 后取消被拒绝且 UI 明确不可取消；超时/终止后的 owned process 退出确认后才释放操作所有权 | `FirmwareUpdateServiceTest`、WCHISP runner/adapter 定向回归通过 | 真实厂商进程、UAC、损坏风险和真机待验证 |
 | WIN-027 灯效运行时写入错误 | 代码完成 | 亮度/灯效失败不覆盖成功状态的测试通过 | 灯效硬件故障注入待验证 |
 | WIN-028 普通请求/save/GIF 事务、session/dirty 隔离 | **代码完成**：普通写入与 session/dirty 安全边界保持；USB ready、close/reopen 和跨 transport 失效路径复用既有门禁；0x9D 配置读回仍无生产调用者 | USB close/reopen、事务门禁、跨 session 及完整 Maven 回归通过 | USB↔BLE 压力、Flash 真机待验证 |
@@ -1096,3 +1102,112 @@ Git track。源码与 provenance 一致只表示来源记录匹配，不表示 H
 Java 类来自本轮完整 Maven JAR，没有旧 Java class overlay；WCHISP 可执行文件/DLL 及
 其他非 Java 运行资产仅作为本机已有的非 Java 发布输入复用。后续真机测试继续使用该
 运行目录。
+
+## 38. WCHISP binary CONFIG production correction (2026-09-19)
+
+> **历史结论，已被第 39 节更正并 supersede。** 本节保留当时从单次 `Code=3` 失败推导
+> 二进制 CONFIG 的排查过程，不再代表当前 CLI 合同；不得据此把二进制 `.WCH` 传给 `-c`。
+
+真实硬件测试证明第 37 节的 prepared 时序与 RunAs 已经到达厂商进程并识别 CH582 UID，
+但生产 `DefaultOfficialWchIspAdapter` 仍用 `WchIspConfig.forCh582()` 写出 592 字节 UTF-8
+`flash-config.ini`。WCHISP 的“配置文件不存在”是对不可接受配置的通用提示；现场文件实际
+存在，控制台明确返回 `Code=3 / The configuration file failed`，因此失败点不是 UAC、
+ISP presence、HEX 路径或进程启动，而是 `-c` 输入格式。原 adapter 测试只断言文本中有
+`MCUName=CH582`，错误地把非厂商二进制格式固化成了通过条件。
+
+本轮最小修复只改 production adapter 的配置准备：prepared 入口和兼容单次入口从同一
+`RuntimeBundle.binaryConfig()` 读取已经过 runtime contract 验证的 66841 字节
+`CONFIG_CH57X59X.WCH`，先检查布局，复制到操作目录后只用 `WchIspConfigLayout` 修改
+CH582 slot 0，再次解析并核对实际 HEX 绝对路径。runtime 原配置和其他四个路径槽以及槽外
+全部字节保持不变；WCHISP 命令改为 `-c <operation>/CONFIG_CH57X59X.WCH -o download -f
+<hex>`。没有修改 RunAs 选择、prepared session、ISP 检测、一次点击、取消边界、终态捕获、
+reconnect、`0x9F` post-verify、固件、协议或产品 SHA-256 约束。
+
+自动验证：WCHISP/prepared 定向测试 46 项通过；`mvn clean test` 和 `mvn clean package`
+均为 323 tests、0 failures、0 errors、0 skipped，package 返回
+`RELEASE_ARTIFACT_CONTENTS=OK`。正式 release staging 同时通过完整 Maven JAR、Sherpa native、
+模型、BLE driver、WCHISP privacy、1.4.8 HEX/provenance 输入门禁。重新生成的完整 app-image
+中 Maven JAR 与运行 JAR 的 SHA-256 均为
+`ECFAA5501C5889BA94BB775474605C85C6C566CB8F051292F29FA7FA226A8B6C`；可见客户端窗口已经
+启动并加载 `sherpa-onnx-jni.dll`、`onnxruntime.dll` 和
+`onnxruntime_providers_shared.dll`。自动测试和启动验证仍不能替代真实 WCHISP 0%～100%、
+设备重连和 1.4.8 `0x9F` 回读；这些项目继续标记 pending。
+
+## 39. WCHISP CLI text CONFIG correction (2026-09-19)
+
+本节 **supersedes 第 38 节的二进制 CLI CONFIG 结论**。真实 WCHISP 3.9 命令行下载接口
+的 `-c` 参数需要 UTF-8 文本 `flash-config.ini`；66841 字节
+`CONFIG_CH57X59X.WCH` 是 runtime/GUI 基础配置，不是该 CLI 参数的替代品。
+
+失败 operation `7ce38138-273d-46e9-9560-038c72040bbe` 已证明 UAC 成功，且
+`PROCESS_STARTED=YES`、`LAUNCH_MODE=RUNAS_WORKER`，WCHISP 子进程实际启动约 77ms 后
+返回 `Code=2 / Fail to get parameters from cfg file`；没有读取到 Device UID，也没有进入
+Programming。该次命令的 `-c` 指向操作目录中的二进制 `CONFIG_CH57X59X.WCH`，因此直接
+证据否定了第 38 节将二进制 `.WCH` 用作 CLI `-c` 输入的结论。
+
+真实成功记录 `1e7ba4af-f857-4584-86a6-7743397502a9`、
+`a23c0fbf-61c0-4419-8e25-9ec779498950`、
+`86a7bebb-08e0-4768-bd73-2cb3928118df` 和
+`b7913b0f-c7dd-4438-a463-db4b85cec8f7` 均使用
+`-c <operation>/flash-config.ini -o download -f <selected hex>`，且以与此前 592 字节
+`flash-config.ini` 相同的内容完成 `Device UID -> Ready programming -> Programming
+0%~100% -> Finished / Code=0 / Message=Succeed`。因此此前的 `Code=3` 不能归因于文本
+INI 格式。
+
+当前 production adapter 的 prepared 与兼容单次入口均在 operation 目录以 UTF-8 写入
+`WchIspConfig.forCh582(normalizedHex)`，并保持下载命令为
+`-c <flash-config.ini> -o download -f <selected hex>`。runtime 内的二进制
+`CONFIG_CH57X59X.WCH`、`WchIspConfigLayout` 及相关 runtime/发布/legacy 校验代码继续保留，
+但 production adapter 不再为 CLI `-c` 复制、patch 或传入二进制 `.WCH`。RunAs/UAC、
+prepared session、ISP 检测、显式开始、console 捕获、终态、取消/进程所有权、重连与
+`0x9F` post-verify 均未改变。
+
+本轮实际自动验证使用工作区 JDK 17 与 Maven 3.9.16：WCHISP 定向回归为 66 tests、
+0 failures、0 errors、0 skipped；`mvn clean test` 和 `mvn clean package` 均为
+323 tests、0 failures、0 errors、0 skipped，package 返回
+`RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。重新生成的完整 app-image 位于
+`target/complete-run-1.5.3/AhaKeyStudio`，包含四个语音模型、三份 Sherpa/ONNX native DLL、
+WCHISP runtime、BLE driver 以及 Firmware 1.4.8 HEX/provenance。当前 Maven JAR 与
+app-image JAR 的 SHA-256 均为
+`6850ABD319C597D12EA0D37F9D4D9B788218B57CB13D5BA67AAEFA42C75FAD3A`。客户端窗口已从该
+app-image 启动，未自动执行烧录。
+
+以上仅为代码、自动测试、发布输入、app-image 和启动证据；修复后的客户端仍需重新执行
+真实 WCHISP 烧录、Programming 0%~100%、设备重连和 Firmware 1.4.8 `0x9F` 回读，状态
+保持 **pending**。本轮不填写 commit hash，也不把既有成功记录冒充为本次修复后的真机成功。
+
+## 40. WCHISP flash completion boundary product decision (2026-09-19)
+
+本节 **supersedes 第 29、30、37 节以及其他历史章节中“只有 post-flash reconnect / `0x9F`
+回读通过后才能进入 `SUCCESS`”的当前结论**。历史实现和验证过程继续保留用于追溯，但不再
+代表当前产品语义。
+
+当前“固件烧录完成”的唯一完成边界是 WCHISP 返回完整且严格的
+`Finished + Code=0 + Message=Succeed`，并且本操作拥有的厂商进程已经退出。确认该终态后，
+`FirmwareUpdateService` 立即以 `FirmwareUpdateState.SUCCESS`、`error=null` 完成本次操作并
+释放 single-flight。厂商进程 exit code 100 不能覆盖该完整成功终态；相反，进度 100%、单独
+的进程 exit code 0、模糊文本或不完整输出均不能构成成功。取消、超时、UAC 取消、进程启动
+失败、进程归属不完整、明确失败状态和非零 vendor `Code` 继续 fail closed。
+
+烧录成功路径不再进入 `WAITING_RECONNECT` / `VERIFYING`，也不自动调用
+`FirmwarePostVerifier.awaitReconnect()` 或 `FirmwarePostVerifier.verify()`。未重连、未读取到
+`0x9F`、后续手工回读版本不同，或用户在成功后关闭/隐藏固件管理窗口，都不会把已经记录的
+WCHISP 成功结果改写为 `FAILED` 或 `CANCELLED`。`FirmwarePostVerifier`、`0x9F` 能力查询、
+transport session/freshness 及其测试基础设施继续保留，可供其他功能或未来的手工验证流程
+复用，但不再阻塞或推翻本次烧录成功。
+
+维护页在成功后明确提示“固件烧录完成，请退出 ISP 并以普通模式重新连接设备。”；用户随后
+自行退出 ISP、正常重新连接并检查固件版本。本次流程不自动读取设备版本，因此成功状态和
+提示不得声称已经通过设备回读校验，也不得声称已经确认设备实际运行的版本。现有真实成功
+记录中完整的 WCHISP 终态是本次产品决策依据；它们不等于本轮修改后已经完成真机复测。
+
+本轮没有修改固件源码、HEX、协议、BLE/USB、RunAs/UAC、prepared session、ISP 检测、
+WCHISP `-c/-o/-f` 参数、UTF-8 `flash-config.ini`、owned-process 等待或 FLASHING 不可取消
+边界。修复后仍需真机重新执行 WCHISP 烧录，并由用户退出 ISP、正常重连和手工检查 Firmware
+1.4.8；这些项目保持 **pending**。本轮不填写 commit hash。
+
+本轮实际自动验证：FirmwareUpdateService、WCHISP parser/adapter 与维护页定向测试共
+46 tests，0 failures、0 errors、0 skipped；`mvn clean test` 为 327 tests，0 failures、
+0 errors、0 skipped；`mvn clean package` 为 327 tests，0 failures、0 errors、0 skipped，
+并返回 `RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。上述结果不包含真机烧录、
+用户重连或设备版本手工检查。
