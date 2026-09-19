@@ -35,6 +35,8 @@ class CloudAccountManagerTest {
     @Test
     void loginRefreshAndLogoutUseThePersistedSessionContract() throws Exception {
         AtomicReference<String> profileAuth = new AtomicReference<>();
+        AtomicReference<String> profilePath = new AtomicReference<>();
+        AtomicReference<String> profileMethod = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
             server.createContext("/prod-api/api/v1/auth/login", exchange -> {
@@ -45,13 +47,21 @@ class CloudAccountManagerTest {
                         + "\"user\":{\"user_id\":\"u1\",\"phone\":\"13800000000\"},"
                         + "\"quota\":{\"limit_daily\":12,\"used_daily\":1}}}");
             });
-            server.createContext("/prod-api/api/v1/users/me", exchange -> {
+            server.createContext("/prod-api/api/v1/auth/users/me", exchange -> {
                 profileAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
+                profilePath.set(exchange.getRequestURI().getPath());
+                profileMethod.set(exchange.getRequestMethod());
                 respond(exchange, 200,
                     "{\"code\":\"200\",\"data\":{\"user\":{\"userId\":\"u2\","
                         + "\"phone\":\"13800000000\",\"plan\":\"pro\"},"
-                        + "\"quota\":{\"limit_daily\":20,\"used_daily\":3,"
-                        + "\"token_valid_until\":\"2031-01-01T00:00:00Z\"}}}");
+                        + "\"quota\":{\"limitDaily\":20,\"usedDaily\":3,"
+                        + "\"limitWeekly\":70,\"usedWeekly\":4,"
+                        + "\"limitMonthly\":300,\"usedMonthly\":8},"
+                        + "\"policy\":{\"enableDaily\":true,\"enableWeekly\":true,"
+                        + "\"enableMonthly\":true,\"rechargePricesFen\":{"
+                        + "\"monthly\":990,\"quarterly\":2490,\"yearly\":8990}},"
+                        + "\"tokenValidUntil\":\"2031-01-01T00:00:00Z\"}}"
+                );
             });
             server.start();
 
@@ -72,8 +82,17 @@ class CloudAccountManagerTest {
 
             assertEquals(null, manager.refreshProfile());
             assertEquals("Bearer login-token", profileAuth.get());
+            assertEquals("/prod-api/api/v1/auth/users/me", profilePath.get());
+            assertEquals("GET", profileMethod.get());
             assertEquals("u2", manager.getProfile().get("user_id"));
             assertEquals(20, ((Number) ahaType.config().load().get("limit_daily")).intValue());
+            assertEquals(70, ((Number) manager.getQuota().get("limit_weekly")).intValue());
+            assertEquals(8, ((Number) manager.getQuota().get("used_monthly")).intValue());
+            assertEquals(true, manager.getPolicy().get("enable_daily"));
+            assertEquals(3, manager.getRechargePlans().size());
+            assertEquals("monthly", manager.getRechargePlans().get(0).id());
+            assertEquals("quarterly", manager.getRechargePlans().get(1).id());
+            assertEquals("yearly", manager.getRechargePlans().get(2).id());
             assertEquals("2031-01-01T00:00:00Z",
                 ahaType.config().load().get(AhaTypeConfig.TOKEN_VALID_UNTIL));
 
@@ -97,7 +116,7 @@ class CloudAccountManagerTest {
         AtomicReference<String> refreshAuth = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         ExecutorService serverExecutor = Executors.newCachedThreadPool();
-        server.createContext("/prod-api/api/v1/users/me", exchange -> {
+        server.createContext("/prod-api/api/v1/auth/users/me", exchange -> {
             refreshAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
             requestStarted.countDown();
             await(releaseResponse);
@@ -161,7 +180,7 @@ class CloudAccountManagerTest {
         AtomicReference<String> refreshAuth = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         ExecutorService serverExecutor = Executors.newCachedThreadPool();
-        server.createContext("/prod-api/api/v1/users/me", exchange -> {
+        server.createContext("/prod-api/api/v1/auth/users/me", exchange -> {
             refreshAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
             requestStarted.countDown();
             await(releaseResponse);
@@ -276,7 +295,7 @@ class CloudAccountManagerTest {
             URI.create("http://127.0.0.1/prod-api"), fixedClock());
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
-            server.createContext("/prod-api/api/v1/users/me", exchange -> respond(exchange, 200,
+            server.createContext("/prod-api/api/v1/auth/users/me", exchange -> respond(exchange, 200,
                 "{\"code\":0,\"data\":{\"user\":{\"user_id\":\"user-B\"},"
                     + "\"quota\":{\"limit_daily\":20},"
                     + "\"token_valid_until\":\"2032-01-01T00:00:00Z\"}}"));

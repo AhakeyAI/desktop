@@ -1229,15 +1229,16 @@ active transport session 并切到 USB；验证超时或失败只关闭 candidat
 
 AhaType 顶部开关在本地语音已就绪但账号未登录或 token 过期时保持关闭，并由 TopBar 直接
 打开既有“云端账号 · AhaType”窗口；本地模型未就绪时只显示本地语音问题。“更多”中的账号
-入口继续保留。登录、注册和 `/api/v1/users/me` 分别保存 `user`、`quota`、`policy` 与
+入口继续保留。登录、注册和 `/api/v1/auth/users/me` 分别保存 `user`、`quota`、`policy` 与
 `token_valid_until`，兼容 snake_case/camelCase；手机号始终保存，密码仍仅在勾选记住密码
 时保存，注册响应含 token 时自动登录，迟到响应继续按 token ownership 丢弃。
 
-账号窗口按 policy 显示启用的日/周/月额度与使用量，并提供刷新、微信充值、兑换码和退出。
+账号窗口首次以 520×400 打开，重渲染不会缩小用户已经调整过的窗口；它按 policy 显示启用的
+日/周/月额度与使用量，并提供刷新、微信充值、兑换码和退出。
 充值套餐只取自 `policy.recharge_prices_fen`；客户端调用
 `POST /api/v1/payment/wechat/native` 创建订单，以轻量 ZXing 编码器本地显示服务端
 `code_url`/`h5_url` 二维码，再轮询 `GET /api/v1/payment/wechat/order-status`。支付成功后
-停止当前订单轮询、刷新 `/api/v1/users/me` 并更新额度；失败和超时给出明确提示，关闭窗口
+停止当前订单轮询、刷新 `/api/v1/auth/users/me` 并更新额度；失败和超时给出明确提示，关闭窗口
 或发起新订单会递增订单 generation，旧结果不能关闭或更新新窗口。兑换码严格调用
 `POST /api/v1/coupon/redeem`，body 为 `{"code":"..."}`，成功后刷新账号。
 
@@ -1248,7 +1249,8 @@ AhaType 顶部开关在本地语音已就绪但账号未登录或 token 过期�
 本轮定向回归覆盖 BLE→USB 成功迁移、candidate 失败保留 BLE、USB 拔出回退、跨 session
 响应隔离、主动断开/退出抑制迁移，以及 AhaType 登录/注册/过期、完整资料解析、支付订单成功/
 失败/超时/关闭、兑换码、分类失败回退原文和最终文本单次注入，均通过；BLE 迁移用例另连续运行
-3 次以验证异步边界。`mvn clean test` 与 `mvn clean package` 均为 340 tests、0 failures、
+3 次以验证异步边界。本次资料路径与窗口尺寸定向回归为 12 tests、0 failures、0 errors、
+0 skipped；`mvn clean test` 与 `mvn clean package` 均为 342 tests、0 failures、
 0 errors、0 skipped，package 返回 `RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。
 
 上述自动结果不代替真实环境验证。USB/BLE 热插拔、真实审批状态、真实账号、微信沙箱/实付、

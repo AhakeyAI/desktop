@@ -28,6 +28,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Small, real account action surface used by the TopBar cloud-account menu. */
 public class CloudAccountDialog {
+    static final double INITIAL_WIDTH = 520;
+    static final double INITIAL_HEIGHT = 400;
+    static final double MIN_WIDTH = 500;
+    static final double MIN_HEIGHT = 360;
+    static final double ACCOUNT_ACTION_MIN_WIDTH = 90;
+
     private final Stage stage;
     private final CloudAccountManager account;
     private final AhaTypeService ahaType;
@@ -58,8 +64,10 @@ public class CloudAccountDialog {
         this.ahaType = ahaType;
         this.stateChanged = stateChanged == null ? () -> { } : stateChanged;
         this.stage.setTitle("云端账号 · AhaType");
-        this.stage.setMinWidth(420);
-        this.stage.setMinHeight(300);
+        this.stage.setMinWidth(MIN_WIDTH);
+        this.stage.setMinHeight(MIN_HEIGHT);
+        this.stage.setWidth(INITIAL_WIDTH);
+        this.stage.setHeight(INITIAL_HEIGHT);
         this.stage.setOnHidden(event -> {
             paymentGeneration.incrementAndGet();
             account.cancelPaymentPolling();
@@ -77,6 +85,9 @@ public class CloudAccountDialog {
     }
 
     private void render() {
+        boolean preserveSize = stage.isShowing();
+        double renderedWidth = renderDimension(stage.getWidth(), preserveSize, INITIAL_WIDTH);
+        double renderedHeight = renderDimension(stage.getHeight(), preserveSize, INITIAL_HEIGHT);
         content.getChildren().clear();
         content.setPadding(new Insets(18));
         Label title = new Label("AhaType 云端账号");
@@ -89,7 +100,16 @@ public class CloudAccountDialog {
         }
         statusLabel.setText(account.getStatusMessage());
         content.getChildren().add(statusLabel);
-        stage.setScene(new Scene(content));
+        if (stage.getScene() == null) {
+            stage.setScene(new Scene(content));
+        }
+        stage.setWidth(renderedWidth);
+        stage.setHeight(renderedHeight);
+    }
+
+    static double renderDimension(double current, boolean preserveSize, double initial) {
+        return preserveSize && Double.isFinite(current) && current > 0
+            ? current : initial;
     }
 
     private VBox loginSection() {
@@ -130,12 +150,16 @@ public class CloudAccountDialog {
             quotaBox.getChildren().add(new Label(title + "：" + value));
         }
         Button refresh = new Button("刷新账号");
+        refresh.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         refresh.setOnAction(event -> runAsync(account::refreshProfile));
         Button recharge = new Button("微信充值");
+        recharge.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         recharge.setOnAction(event -> chooseRechargePlan());
         Button coupon = new Button("兑换码");
+        coupon.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         coupon.setOnAction(event -> redeemCoupon());
         Button logout = new Button("退出登录");
+        logout.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         logout.setOnAction(event -> {
             String error = account.logout();
             if (error == null) {

@@ -204,7 +204,7 @@ public class CloudAccountManager {
             }
         }
         try {
-            JsonNode root = request("/api/v1/users/me", "GET", null, requestToken);
+            JsonNode root = request("/api/v1/auth/users/me", "GET", null, requestToken);
             JsonNode data = dataObject(root);
             AccountPayload payload = accountPayload(data, requestToken);
             synchronized (stateMutationLock) {

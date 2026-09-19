@@ -73,7 +73,7 @@ class CloudAccountFlowTest {
                 "{\"code\":0,\"data\":{\"token\":\"registered-token\"," +
                     "\"token_valid_until\":\"2031-01-01T00:00:00Z\"," +
                     "\"user\":{\"user_id\":\"new-user\"}}}"));
-            server.createContext("/prod-api/api/v1/users/me", exchange -> {
+            server.createContext("/prod-api/api/v1/auth/users/me", exchange -> {
                 profileCalls.incrementAndGet();
                 respond(exchange, 401, "{\"code\":401,\"message\":\"expired\"}");
             });
@@ -110,7 +110,7 @@ class CloudAccountFlowTest {
                     : query.contains("failed-order") ? "CLOSED" : "NOTPAY";
                 respond(exchange, 200, "{\"code\":0,\"data\":{\"status\":\"" + status + "\"}}" );
             });
-            server.createContext("/prod-api/api/v1/users/me", exchange -> {
+            server.createContext("/prod-api/api/v1/auth/users/me", exchange -> {
                 paidRefreshes.incrementAndGet();
                 respond(exchange, 200, profileResponse(7));
             });
@@ -175,7 +175,7 @@ class CloudAccountFlowTest {
                 couponBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 respond(exchange, 200, "{\"code\":0,\"data\":{}}" );
             });
-            server.createContext("/prod-api/api/v1/users/me",
+            server.createContext("/prod-api/api/v1/auth/users/me",
                 exchange -> respond(exchange, 200, profileResponse(11)));
             server.start();
             CloudAccountManager manager = loggedInManager(server, "coupon.json",
