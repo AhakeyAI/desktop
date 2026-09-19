@@ -289,7 +289,7 @@ public final class WindowsVoiceRelayService {
 
     private static int normalizeCustomShortcut(int hidCode) {
         return VoiceActionRouter.isValidCustomShortcut(hidCode)
-            ? hidCode : VoiceActionRouter.defaultWindowsVoiceShortcut();
+            ? hidCode : 0;
     }
 
     /** Package-private emitter seam for non-Windows action tests. */

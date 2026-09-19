@@ -18,6 +18,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeviceSyncServiceTest {
     @Test
+    void capabilityPreflightRunsOffCallerThreadAndFailureSendsNoWrites() throws Exception {
+        AckingBleManager ble = new AckingBleManager();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch failed = new CountDownLatch(1);
+        CountDownLatch completed = new CountDownLatch(1);
+        Thread caller = Thread.currentThread();
+        var handle = DeviceSyncService.writeSequentially(ble,
+            List.of(new DeviceSyncService.LabeledCommand(AhaKeyProtocol.saveConfig(), "save")),
+            () -> {
+                assertFalse(Thread.currentThread() == caller);
+                entered.countDown();
+                release.await(3, TimeUnit.SECONDS);
+                throw new java.io.IOException("Unsupported firmware contract");
+            }, completed::countDown, failed::countDown, message -> { });
+        try {
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            assertTrue(handle.isRunning());
+            assertTrue(ble.events.isEmpty());
+        } finally {
+            release.countDown();
+        }
+        assertTrue(failed.await(2, TimeUnit.SECONDS));
+        assertEquals(1, completed.getCount());
+        assertTrue(ble.events.isEmpty());
+    }
+
+    @Test
+    void successfulPreflightPrecedesEveryWrite() throws Exception {
+        AckingBleManager ble = new AckingBleManager();
+        CountDownLatch completed = new CountDownLatch(1);
+        CountDownLatch failed = new CountDownLatch(1);
+        var command = AhaKeyProtocol.saveConfig();
+        DeviceSyncService.writeSequentially(ble,
+            List.of(new DeviceSyncService.LabeledCommand(command, "save")),
+            () -> { ble.events.add(-2); return null; },
+            completed::countDown, failed::countDown, message -> { });
+        assertTrue(completed.await(2, TimeUnit.SECONDS));
+        assertEquals(1, failed.getCount());
+        assertEquals(List.of(-2, command[2] & 0xFF), ble.events);
+    }
+
+    @Test
     void productionPlanDoesNotWriteLegacyGlobalVoiceConfig() {
         StudioState state = new StudioState();
         var commands = DeviceSyncService.commandsForModes(state, ModeSlot.values());

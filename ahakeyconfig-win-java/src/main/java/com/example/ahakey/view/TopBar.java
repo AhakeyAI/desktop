@@ -352,50 +352,22 @@ public class TopBar extends VBox {
         actionButtons.setAlignment(Pos.CENTER_LEFT);
         actionButtons.getChildren().addAll(connectButton, bleButton);
 
-        // 状态信息与操作按钮之间的固定间距
+        // Primary actions stay visible; secondary groups wrap at narrow widths.
         Region spacer = new Region();
-        spacer.setMinWidth(12);
-        spacer.setPrefWidth(16);
-        spacer.setMaxWidth(40);
-
-        // 主行 HBox：所有控件在一行，不会换行
-        HBox mainRow = new HBox(10);
-        mainRow.setAlignment(Pos.CENTER_LEFT);
-        mainRow.setPadding(new Insets(6, 16, 6, 16));
-        mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
-        mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons);
-        // Keep the main-branch AhaType and local voice controls visible.  The
-        // button still reports an unavailable service when model assets are
-        // absent; hiding the controls based solely on a legacy config flag
-        // made the restored feature impossible to discover or activate.
-        mainRow.getChildren().addAll(ahaTypeToggle, ahaTypeStatus, voiceControlBox);
-        mainRow.getChildren().add(configStatus);
-
-        // 右侧弹性 spacer：把编辑配置/菜单推到最右
-        Region rightSpacer = new Region();
-        HBox.setHgrow(rightSpacer, Priority.ALWAYS);
-        mainRow.getChildren().add(
-            mainRow.getChildren().size() - 1, rightSpacer
-        );
-
-        // 包裹在水平 ScrollPane 中：宽屏时不显示滚动条，分屏窄时可水平滚动
-        ScrollPane scrollWrapper = new ScrollPane(mainRow);
-        scrollWrapper.setFitToWidth(true);
-        scrollWrapper.setFitToHeight(true);
-        scrollWrapper.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollWrapper.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollWrapper.setPannable(false);
-        scrollWrapper.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        // 让 ScrollPane 内容背景透明
-        mainRow.setStyle("-fx-background-color: transparent;");
-
-        // Keep settings and language selection visible with longer translations.
-        scrollWrapper.setMinWidth(0);
-        HBox.setHgrow(scrollWrapper, Priority.ALWAYS);
-        HBox toolbar = new HBox(8, scrollWrapper, configModeButton, menuBar);
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox toolbar = new HBox(8, titleBox, spacer, actionButtons, configModeButton, menuBar);
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setPadding(new Insets(0, 12, 0, 0));
-        getChildren().add(toolbar);
+        toolbar.setPadding(new Insets(8, 16, 6, 16));
+        titleBox.setMinWidth(Region.USE_PREF_SIZE);
+        actionButtons.setMinWidth(Region.USE_PREF_SIZE);
+
+        HBox ahaTypeControls = new HBox(8, ahaTypeToggle, ahaTypeStatus);
+        ahaTypeControls.setAlignment(Pos.CENTER_LEFT);
+        FlowPane statusRow = new FlowPane(16, 8, infoPills, ahaTypeControls, voiceControlBox, configStatus);
+        statusRow.setPadding(new Insets(0, 16, 8, 16));
+        statusRow.setMinWidth(0);
+        voiceResultPreview.setMaxWidth(260);
+        getChildren().addAll(toolbar, statusRow);
         updateVoiceButtonState();
     }
     

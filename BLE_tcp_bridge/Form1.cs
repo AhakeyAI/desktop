@@ -95,7 +95,7 @@ namespace BLE_tcp_driver
             if (_loaded) return;
             _loaded = true;
 
-            this.Opacity = 0.8;
+            this.Opacity = 1.0;
 
             // 同步checkbox
             checkBox_start_mode.Checked = config.StartMinimized;

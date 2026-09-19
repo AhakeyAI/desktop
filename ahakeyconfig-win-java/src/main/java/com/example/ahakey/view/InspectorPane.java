@@ -343,14 +343,14 @@ public class InspectorPane extends ScrollPane {
         
         if (hidCode != 0) {
             // 修饰键：区分 Left/Right（新编码 0xNN00 + 旧编码 0x0N00 兼容）
-            if (((hidCode & 0x100) != 0) && ((hidCode & 0x1000) == 0)) keyCodes.add("Left Shift (0xE1)");
-            else if ((hidCode & 0x1000) != 0) keyCodes.add("Right Shift (0xE5)");
-            if (((hidCode & 0x200) != 0) && ((hidCode & 0x2000) == 0)) keyCodes.add("Left Ctrl (0xE0)");
-            else if ((hidCode & 0x2000) != 0) keyCodes.add("Right Ctrl (0xE4)");
-            if (((hidCode & 0x400) != 0) && ((hidCode & 0x4000) == 0)) keyCodes.add("Left Alt (0xE2)");
-            else if ((hidCode & 0x4000) != 0) keyCodes.add("Right Alt (0xE6)");
-            if (((hidCode & 0x800) != 0) && ((hidCode & 0x8000) == 0)) keyCodes.add("Left Win (0xE3)");
-            else if ((hidCode & 0x8000) != 0) keyCodes.add("Right Win (0xE7)");
+            if ((hidCode & 0x100) != 0) keyCodes.add("Left Shift (0xE1)");
+            if ((hidCode & 0x1000) != 0) keyCodes.add("Right Shift (0xE5)");
+            if ((hidCode & 0x200) != 0) keyCodes.add("Left Ctrl (0xE0)");
+            if ((hidCode & 0x2000) != 0) keyCodes.add("Right Ctrl (0xE4)");
+            if ((hidCode & 0x400) != 0) keyCodes.add("Left Alt (0xE2)");
+            if ((hidCode & 0x4000) != 0) keyCodes.add("Right Alt (0xE6)");
+            if ((hidCode & 0x800) != 0) keyCodes.add("Left Win (0xE3)");
+            if ((hidCode & 0x8000) != 0) keyCodes.add("Right Win (0xE7)");
             
             int baseCode = hidCode & 0xFF;
             if (baseCode != 0) {
@@ -361,7 +361,7 @@ public class InspectorPane extends ScrollPane {
         
         keyListView.getItems().addAll(keyCodes);
 
-        HBox buttonRow = new HBox(8);
+        FlowPane buttonRow = new FlowPane(8, 8);
 
         ComboBox<String> keySelector = new ComboBox<>();
         java.util.List<String> keyItems = new java.util.ArrayList<>();
@@ -627,9 +627,21 @@ public class InspectorPane extends ScrollPane {
             deleteBtn.setDisable(newVal.intValue() < 0);
         });
 
-        buttonRow.getChildren().addAll(keySelector, addBtn, deleteBtn);
+        Button clearBtn = new Button(languageManager.getString("inspector.clear"));
+        clearBtn.getStyleClass().add("btn-secondary");
+        clearBtn.setDisable(key.getHidCode() == 0);
+        clearBtn.setOnAction(event -> {
+            key.setHidCode(0);
+            if (dirtyPart != null) studioState.markDirty(dirtyPart);
+            onChanged.run();
+            rebuild();
+        });
+        Label hint = new Label(text("inspector.shortcut-hint"));
+        hint.setWrapText(true);
+        hint.getStyleClass().add("field-label");
+        buttonRow.getChildren().addAll(keySelector, addBtn, deleteBtn, clearBtn);
 
-        box.getChildren().addAll(listLabel, keyListView, buttonRow, validation);
+        box.getChildren().addAll(listLabel, keyListView, hint, buttonRow, validation);
         return box;
     }
 

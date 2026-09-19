@@ -144,10 +144,24 @@ public final class DeviceSyncService {
         Runnable onError,
         Consumer<String> onProgress
     ) {
+        return writeSequentially(ble, commands, () -> null, onComplete, onError, onProgress);
+    }
+
+    public static SyncHandle writeSequentially(
+        BleManager ble,
+        List<LabeledCommand> commands,
+        BleManager.DeviceTransaction<Void> beforeWrite,
+        Runnable onComplete,
+        Runnable onError,
+        Consumer<String> onProgress
+    ) {
         ExpectedVoiceConfig expectedVoice = findExpectedVoiceConfig(commands);
         Thread worker = new Thread(() -> {
             try {
                 ble.executeDeviceTransaction(() -> {
+                    // Capability probes can time out. Keep them off the FX thread
+                    // and within the same transaction as the following writes.
+                    beforeWrite.execute();
                     int i = 0;
                     for (LabeledCommand cmd : commands) {
                         i++;

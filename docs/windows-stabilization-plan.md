@@ -7,6 +7,16 @@
 
 ## 1. 生产路径与安全不变式
 
+2026-09-19 Windows editor follow-up: [shortcut/save regression report](windows-shortcut-save-fix.md).
+Shortcut drafts now permit empty/modifier-only editing states without restoring
+Win+H. Executable shortcuts and save validation remain strict. K1-only edits save
+locally; device configuration capability probes now run inside the background
+save transaction. Firmware requirements and physical-status freshness are unchanged.
+BLE UI is opaque and the Studio toolbar wraps secondary groups without horizontal
+scrolling. Combined validation: 314 Java tests, JavaFX editor/save smoke test,
+MSBuild Release, both bridge regressions and EXE packaging passed. Physical shortcut
+execution on legacy firmware is not claimed; no firmware was flashed.
+
 生产客户端是 `ahakeyconfig-win-java`：
 
 ```text

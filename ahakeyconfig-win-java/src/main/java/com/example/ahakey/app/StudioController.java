@@ -395,11 +395,24 @@ public class StudioController {
     }
 
     public void finishEditingConfiguration() {
+        if (studioState.syncingProperty().get()) return;
+        if (studioState.hasIncompleteVoiceShortcut()) {
+            studioState.syncStatusProperty().set(LanguageManager.text("sync.incomplete-shortcut"));
+            return;
+        }
         if (!hasUnsyncedChanges()) {
             returnToKeyboardControl();
             return;
         }
-        if (deviceStatus.isConnected() || simulateBle) {
+        if (!studioState.hasDeviceConfigurationChanges()) {
+            // K1 is a desktop action, not a firmware configuration command.
+            // Persist successfully before acknowledging the local save.
+            if (!persistDraft()) return;
+            studioState.clearDirtyAfterSync(studioState.captureDirtySnapshot());
+            lastSyncedRevision = studioState.getRevision();
+            returnToKeyboardControl();
+            studioState.syncStatusProperty().set(LanguageManager.text("sync.local-saved"));
+        } else if (deviceStatus.isConnected() || simulateBle) {
             syncAllModes(true);
         } else {
             studioState.syncStatusProperty().set(
@@ -417,6 +430,7 @@ public class StudioController {
     }
 
     public void syncAllModes(boolean returnToAgentWhenDone) {
+        if (studioState.syncingProperty().get()) return;
         if (!deviceStatus.isConnected() && !simulateBle) {
             studioState.syncStatusProperty().set(localize("设备未连接，当前只保存本地草稿。"));
             return;
@@ -436,46 +450,40 @@ public class StudioController {
             return;
         }
 
-        String transport;
-        try {
-            transport = bleManager.selectPreferredTransport();
-        } catch (Exception e) {
-            studioState.syncStatusProperty().set(localize("连接不可用，请重新连接键盘后再保存。"));
-            return;
-        }
-
-        try {
-            bleManager.requireStabilizedDeviceContract();
-        } catch (Exception exception) {
-            logger.warn("设备未满足稳定版能力合同，已阻止配置写入: {}",
-                exception.getMessage());
-            studioState.syncStatusProperty().set(
-                localize("设备能力合同不兼容，无法安全保存配置：") + exception.getMessage());
-            return;
-        }
+        if (!persistDraft()) return;
         int syncRevision = studioState.getRevision();
         StudioState.DirtySnapshot dirtySnapshot = studioState.captureDirtySnapshot();
         var commands = List.copyOf(DeviceSyncService.commandsForModes(
             studioState, false, ModeSlot.values()));
         studioState.syncingProperty().set(true);
-        studioState.syncStatusProperty().set(localize("正在通过 ") + transport + localize(" 写入设备配置..."));
-        studioState.syncStatusProperty().set(localize("正在写入设备配置..."));
-        studioState.syncStatusProperty().set("Saving via " + transport + "...");
+        studioState.syncStatusProperty().set(LanguageManager.text("sync.checking-device"));
         DeviceSyncService.SyncHandle syncHandle = DeviceSyncService.writeSequentially(
             bleManager,
             commands,
+            () -> {
+                bleManager.selectPreferredTransport();
+                try {
+                    bleManager.requireStabilizedDeviceContract();
+                } catch (Exception exception) {
+                    logger.warn("Device configuration preflight failed; no writes sent: {}",
+                        exception.getMessage());
+                    throw new java.io.IOException(
+                        LanguageManager.text("sync.incompatible-device"), exception);
+                }
+                return null;
+            },
             () -> Platform.runLater(() -> {
                 studioState.clearDirtyAfterSync(dirtySnapshot);
                 lastSyncedRevision = syncRevision;
                 studioState.syncingProperty().set(false);
+                if (returnToAgentWhenDone && studioState.getRevision() == syncRevision) {
+                    returnToKeyboardControl();
+                }
                 studioState.syncStatusProperty().set(
                     studioState.getRevision() == syncRevision
                         ? localize("已保存配置。")
                         : localize("设备已保存先前快照，后续修改仍待保存。"));
                 statusRefreshScheduler.submit(bleManager::queryStatus);
-                if (returnToAgentWhenDone) {
-                    returnToKeyboardControl();
-                }
             }),
             () -> Platform.runLater(() -> studioState.syncingProperty().set(false)),
             msg -> Platform.runLater(() -> studioState.syncStatusProperty().set(msg))
@@ -976,10 +984,12 @@ public class StudioController {
         }
     }
 
-    private void persistDraft() {
+    private boolean persistDraft() {
         if (!StudioStore.save(studioState.toPersisted())) {
             studioState.syncStatusProperty().set(localize("本地配置保存失败；设备配置未受影响，请检查磁盘权限。"));
+            return false;
         }
+        return true;
     }
 }
 

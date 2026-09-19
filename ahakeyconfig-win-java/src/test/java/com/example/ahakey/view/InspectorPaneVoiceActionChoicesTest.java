@@ -55,7 +55,7 @@ class InspectorPaneVoiceActionChoicesTest {
     void mainAhaTypeAndVoiceControlsRemainDiscoverableWithoutModelFlag() throws IOException {
         String source = Files.readString(Path.of(
             "src/main/java/com/example/ahakey/view/TopBar.java"));
-        assertTrue(source.contains("mainRow.getChildren().addAll(ahaTypeToggle, ahaTypeStatus, voiceControlBox)"));
+        assertTrue(source.contains("new FlowPane(16, 8, infoPills, ahaTypeControls, voiceControlBox, configStatus)"));
         assertTrue(source.contains("button.start-voice"));
     }
 }

@@ -306,7 +306,7 @@ public class StudioState {
     }
 
     public void setVoiceShortCustomShortcutHid(int value) {
-        if (!VoiceActionRouter.isValidCustomShortcut(value)) {
+        if (!VoiceActionRouter.isValidShortcutDraft(value)) {
             throw new IllegalArgumentException("F18 or invalid key cannot be a custom voice shortcut");
         }
         voiceShortCustomShortcutHid.set(value);
@@ -322,7 +322,7 @@ public class StudioState {
     }
 
     public void setVoiceLongCustomShortcutHid(int value) {
-        if (!VoiceActionRouter.isValidCustomShortcut(value)) {
+        if (!VoiceActionRouter.isValidShortcutDraft(value)) {
             throw new IllegalArgumentException("F18 or invalid key cannot be a custom voice shortcut");
         }
         voiceLongCustomShortcutHid.set(value);
@@ -501,6 +501,18 @@ public class StudioState {
 
     public DirtySnapshot captureDirtySnapshot() {
         return new DirtySnapshot(dirtyRevisions);
+    }
+
+    /** K1 actions are stored on the desktop; other edits require device ACKs. */
+    public boolean hasDeviceConfigurationChanges() {
+        return dirtyParts.stream().anyMatch(part -> part != StudioPart.KEY1);
+    }
+
+    public boolean hasIncompleteVoiceShortcut() {
+        return (getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT
+                && !VoiceActionRouter.isValidCustomShortcut(getVoiceShortCustomShortcutHid()))
+            || (getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT
+                && !VoiceActionRouter.isValidCustomShortcut(getVoiceLongCustomShortcutHid()));
     }
 
     public void clearDirtyAfterSync(DirtySnapshot snapshot) {
@@ -716,7 +728,7 @@ public class StudioState {
     }
 
     private static int normalizeCustomShortcut(Integer value, int fallback) {
-        return value != null && VoiceActionRouter.isValidCustomShortcut(value) ? value : fallback;
+        return value != null && VoiceActionRouter.isValidShortcutDraft(value) ? value : fallback;
     }
 }
 

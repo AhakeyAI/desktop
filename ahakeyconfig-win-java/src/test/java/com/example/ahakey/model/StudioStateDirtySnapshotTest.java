@@ -10,6 +10,49 @@ import com.example.ahakey.platform.voice.VoiceAction;
 
 class StudioStateDirtySnapshotTest {
     @Test
+    void deletingDefaultShortcutThenAddingModifiersBeforeDDoesNotRestoreH() {
+        StudioState state = new StudioState();
+        for (int draft : new int[]{0x800, 0, 0x100, 0x300, 0x307}) {
+            state.setVoiceShortCustomShortcutHid(draft);
+            assertEquals(draft, state.getVoiceShortCustomShortcutHid());
+            StudioState restored = new StudioState();
+            restored.loadFromPersisted(state.toPersisted());
+            assertEquals(draft, restored.getVoiceShortCustomShortcutHid());
+            assertEquals((draft & 0xFF) == 0, restored.hasIncompleteVoiceShortcut());
+            assertFalse(com.example.ahakey.platform.voice.VoiceActionRouter
+                .isValidCustomShortcut(draft & 0xFF00));
+        }
+        assertTrue(state.isDirty(StudioPart.KEY1));
+        assertFalse(state.hasDeviceConfigurationChanges());
+        assertEquals("Ctrl+Shift+D", com.example.ahakey.platform.voice.VoiceActionRouter
+            .formatShortcut(state.getVoiceShortCustomShortcutHid()));
+    }
+
+    @Test
+    void incompleteInactiveShortcutDoesNotBlockSavingOtherActions() {
+        StudioState state = new StudioState();
+        state.setVoiceLongCustomShortcutHid(0);
+        assertFalse(state.hasIncompleteVoiceShortcut());
+        state.setVoiceActions(VoiceAction.NONE, VoiceAction.CUSTOM_SHORTCUT, 350);
+        assertTrue(state.hasIncompleteVoiceShortcut());
+        state.setVoiceLongCustomShortcutHid(0x3307);
+        assertFalse(state.hasIncompleteVoiceShortcut());
+        assertEquals("Ctrl+Shift+RCtrl+RShift+D",
+            com.example.ahakey.platform.voice.VoiceActionRouter.formatShortcut(0x3307));
+    }
+
+    @Test
+    void mixedDeviceAndDesktopEditsStillRequireDeviceSave() {
+        StudioState state = new StudioState();
+        state.setVoiceShortCustomShortcutHid(0x307);
+        assertFalse(state.hasDeviceConfigurationChanges());
+        state.markDirty(StudioPart.KEY2);
+        assertTrue(state.hasDeviceConfigurationChanges());
+        assertThrows(IllegalArgumentException.class,
+            () -> state.setVoiceShortCustomShortcutHid(0x10000));
+    }
+
+    @Test
     void editingSameItemDuringSaveRemainsDirty() {
         StudioState state = new StudioState();
         state.markDirty(StudioPart.KEY1);
