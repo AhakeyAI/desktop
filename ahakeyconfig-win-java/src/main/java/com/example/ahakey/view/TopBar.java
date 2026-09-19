@@ -1,5 +1,7 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import static com.example.ahakey.util.LanguageManager.localize;
 
 import com.example.ahakey.app.StudioController;
@@ -512,7 +514,8 @@ public class TopBar extends VBox {
 
     private void launchBleDriver(Path executable) {
         try {
-            ProcessBuilder builder = new ProcessBuilder(executable.toString(), "--show");
+            ProcessBuilder builder = new ProcessBuilder(executable.toString(), "--show",
+                "--language=" + languageManager.getCurrentLanguage());
             builder.directory(executable.getParent().toFile());
             builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
             builder.redirectError(ProcessBuilder.Redirect.INHERIT);
@@ -811,12 +814,12 @@ public class TopBar extends VBox {
         logArea.setEditable(false);
         logArea.setPrefHeight(150);
         logArea.setWrapText(true);
-        logArea.setText("[System] Hook installation tool started\n");
+        logArea.setText(text("hooks.log.started"));
         
         String homeDir = System.getProperty("user.home");
-        addLog("[System] User Directory: " + homeDir);
-        addLog("[System] OS: " + System.getProperty("os.name"));
-        addLog("[System] Java Version: " + System.getProperty("java.version"));
+        addLog(text("hooks.log.home") + homeDir);
+        addLog(text("hooks.log.os") + System.getProperty("os.name"));
+        addLog(text("hooks.log.java") + System.getProperty("java.version"));
         addLog("");
 
         // Hook 安装卡片：配置、分发服务和最近活动是相互独立的状态。
@@ -847,7 +850,7 @@ public class TopBar extends VBox {
         disconnectBtn.setOnAction(event -> controller.userDisconnect());
 
         Button clearLogBtn = new Button(languageManager.getString("dialog.clear-log"));
-        clearLogBtn.setOnAction(event -> logArea.setText("[System] Log cleared\n"));
+        clearLogBtn.setOnAction(event -> logArea.setText(text("hooks.log.cleared")));
 
         Button closeBtn = new Button(languageManager.getString("dialog.close"));
         closeBtn.setOnAction(event -> dialog.close());

@@ -789,6 +789,26 @@ including invocation from Windows PowerShell 5.1. The packaging script uses
 UTF-8 BOM for its translated literals and resolves its default output directory
 after parameter binding for compatibility with that shell.
 
+Follow-up: the BLE bridge now embeds en/ru/zh RESX catalogs in its main EXE.
+Language selection priority is `--language=CODE`, the shared read-only Studio
+preference, then the Windows UI language; unsupported locales fall back to
+English. Studio passes its selected language when launching the bridge.
+An already running bridge adopts the language on its next restart. The stable
+window title used for process adoption and raw GATT diagnostic identifiers stay
+unchanged. Flow layout accommodates longer labels. Display messages for
+connection/TCP status, device readings, context menus and startup errors are
+localized; wire data and vendor exception details are not translated.
+
+Another 65 Java resource keys cover voice-relay status, F18 action summaries,
+Hook notices, synchronization progress/errors and milliseconds. These use
+stable keys in all three messages catalogs. Existing legacy catalogs remain;
+low-level vendor/tool logs and the remaining firmware exception text require
+a separate pass rather than changing firmware error handling here.
+Tests verify bridge catalog coverage/placeholders and language precedence,
+and Java tests verify extracted key coverage and formatted Russian status.
+`BLE_tcp_bridge/tests/Test-Localization.ps1` tests the compiled Release EXE;
+optional `-PreviewPath` renders the form without BLE/TCP startup side effects.
+
 ## 29. WCHISP terminal success precedence (2026-09-17)
 
 修复 Windows 烧录结果判定：`WchIspResultParser.parseFlash()` 现在优先使用官方

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -26,6 +26,7 @@ namespace BLE_tcp_driver
         public Form1()
         {
             InitializeComponent();
+            ConfigureLocalizedLayout();
             // Stable title used by Studio to restore/adopt this exact bridge window.
             Text = "AhaKey BLE TCP Driver";
             config = AppConfig.Load();
@@ -48,6 +49,32 @@ namespace BLE_tcp_driver
                 return;
             }
             base.SetVisibleCore(value);
+        }
+
+        private void ConfigureLocalizedLayout()
+        {
+            // Flow layout accommodates translated text and Windows font scaling.
+            Font = new Font("Segoe UI", 9F);
+            MinimumSize = new Size(680, 420);
+            var header = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1,
+                Padding = new Padding(12)
+            };
+            var connection = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            DeviceSelect.Width = 240;
+            BtnConnect.AutoSize = true;
+            button1.AutoSize = true;
+            connection.Controls.AddRange(new Control[] { DeviceSelect, BtnConnect, button1 });
+            var options = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            options.Controls.AddRange(new Control[] { checkBox_start_mode, checkBox_follow_system });
+            header.Controls.Add(connection);
+            header.Controls.Add(label_connected_devices);
+            header.Controls.Add(label_ip_port);
+            header.Controls.Add(options);
+            rtbMsg.Dock = DockStyle.Fill;
+            rtbMsg.Font = new Font("Consolas", 10F);
+            Controls.Add(header);
         }
 
         private void log(Color c, string message)
@@ -97,11 +124,11 @@ namespace BLE_tcp_driver
             {
                 BeginInvoke(new Action(() =>
                 {
-                    label_ip_port.Text = $"TCP服务: {TcpServer.GetLocalIPAddress()}:{config.ServerPort} (客户端:{count})";
+                    label_ip_port.Text = BridgeText.T("server", TcpServer.GetLocalIPAddress(), config.ServerPort, count);
                 }));
             };
             tcpServer.Start();
-            label_ip_port.Text = $"TCP服务: {TcpServer.GetLocalIPAddress()}:{config.ServerPort} (客户端:0)";
+            label_ip_port.Text = BridgeText.T("server", TcpServer.GetLocalIPAddress(), config.ServerPort, 0);
 
             // 重试定时器 (UI线程Timer)
             retryTimer = new Timer();
@@ -111,11 +138,11 @@ namespace BLE_tcp_driver
             // 自动开始扫描
             devicesList = new List<DeviceInformation>();
             bleCore.StartBleDeviceWatcher();
-            log(Color.Blue, "自动扫描蓝牙设备中...");
+            log(Color.Blue, BridgeText.T("scan"));
 
             if (config.HasSavedDevice)
             {
-                log(Color.Blue, $"目标设备: {config.BleName} [{config.BleMac}]");
+                log(Color.Blue, BridgeText.T("target", config.BleName, config.BleMac));
                 retryTimer.Start();
             }
         }
@@ -133,13 +160,13 @@ namespace BLE_tcp_driver
 
             try { bleCore.StopBleDeviceWatcher(); } catch { }
             bleCore.StartBleDeviceWatcher();
-            log(Color.Gray, "重新扫描蓝牙设备...");
+            log(Color.Gray, BridgeText.T("rescan"));
         }
 
         private void WriteDataSuccess(GattCharacteristic sender, byte[] data)
         {
             UTF8Encoding utf8 = new UTF8Encoding();
-            log(Color.FromArgb(0x00ff00FF), Utilities.ConvertUuidToShortId(sender.Uuid).ToString() + "write :" + utf8.GetString(data));
+            log(Color.FromArgb(0x00ff00FF), BridgeText.T("write", Utilities.ConvertUuidToShortId(sender.Uuid), utf8.GetString(data)));
         }
 
         private void ReceiveNotifyData(GattCharacteristic sender, byte[] data)
@@ -147,14 +174,11 @@ namespace BLE_tcp_driver
             if (ProtocolHelper.IsDeviceStatusNotification(data))
             {
                 var info = ProtocolHelper.ParseDeviceStatusFromNotification(data);
-                log(Color.DarkGreen, $"设备状态: 电量={info.BatteryLevel} 信号={info.SignalStrength} " +
-                    $"固件={info.FirmwareVersionMain}.{info.FirmwareVersionSub} " +
-                    $"模式={info.WorkMode} 灯光={info.LightMode} 开关={info.SwitchState}");
+                log(Color.DarkGreen, BridgeText.T("status", info.BatteryLevel, info.SignalStrength, info.FirmwareVersionMain, info.FirmwareVersionSub, info.WorkMode, info.LightMode, info.SwitchState));
             }
             else
             {
-                log(Color.FromArgb(0x00ff0000), Utilities.ConvertUuidToShortId(sender.Uuid).ToString() +
-                    "receive :" + BitConverter.ToString(data));
+                log(Color.FromArgb(0x00ff0000), BridgeText.T("receive", Utilities.ConvertUuidToShortId(sender.Uuid), BitConverter.ToString(data)));
             }
         }
 
@@ -177,7 +201,7 @@ namespace BLE_tcp_driver
                         string.Equals(mac, config.BleMac, StringComparison.OrdinalIgnoreCase))
                     {
                         autoConnecting = true;
-                        log(Color.Blue, "发现目标设备, 自动连接...");
+                        log(Color.Blue, BridgeText.T("targetConnecting"));
                         try { bleCore.StopBleDeviceWatcher(); } catch { }
                         bleCore.ConnectDeviceByInfo(deviceInformation);
                     }
@@ -189,8 +213,8 @@ namespace BLE_tcp_driver
         {
             BeginInvoke(new Action(() =>
             {
-                log(Color.FromArgb(0x00ff00FF), "Connected:" + bluetoothLEDevice.Name);
-                label_connected_devices.Text = "当前连接设备:" + bluetoothLEDevice.Name;
+                log(Color.FromArgb(0x00ff00FF), BridgeText.T("connected", bluetoothLEDevice.Name));
+                label_connected_devices.Text = BridgeText.T("connectedDevice", bluetoothLEDevice.Name);
                 retryTimer.Stop();
                 autoConnecting = false;
                 targetConfirmed = false;
@@ -201,13 +225,13 @@ namespace BLE_tcp_driver
         {
             BeginInvoke(new Action(() =>
             {
-                log(Color.Red, "Disconnected:" + (bluetoothLEDevice?.Name ?? ""));
-                label_connected_devices.Text = "当前连接设备:无";
+                log(Color.Red, BridgeText.T("disconnected", bluetoothLEDevice?.Name ?? ""));
+                label_connected_devices.Text = BridgeText.T("connectedDevice", BridgeText.T("none"));
                 autoConnecting = false;
 
                 if (config.HasSavedDevice)
                 {
-                    log(Color.Gray, "将在数秒后尝试重连...");
+                    log(Color.Gray, BridgeText.T("retry"));
                     retryTimer.Start();
                 }
             }));
@@ -218,8 +242,7 @@ namespace BLE_tcp_driver
             BeginInvoke(new Action(() =>
             {
                 ushort shortId = Utilities.ConvertUuidToShortId(gattCharacteristic.Uuid);
-                log(Color.Black, "Chara:0x" + shortId.ToString("X") +
-                    ", des:" + gattCharacteristic.UserDescription);
+                log(Color.Black, BridgeText.T("characteristic", shortId, gattCharacteristic.UserDescription));
             }));
         }
 
@@ -238,21 +261,21 @@ namespace BLE_tcp_driver
 
                 if (!allFound)
                 {
-                    string devName = bleCore.CurrentDevice?.Name ?? "未知";
-                    log(Color.OrangeRed, $"设备 [{devName}] 未找齐目标UUID, 断开连接");
+                    string devName = bleCore.CurrentDevice?.Name ?? BridgeText.T("unknown");
+                    log(Color.OrangeRed, BridgeText.T("missingCharacteristics", devName));
                     bleCore.Dispose();
-                    label_connected_devices.Text = "当前连接设备:无";
+                    label_connected_devices.Text = BridgeText.T("connectedDevice", BridgeText.T("none"));
 
                     if (config.HasSavedDevice)
                     {
-                        log(Color.Gray, "将继续尝试查找目标设备...");
+                        log(Color.Gray, BridgeText.T("continueSearch"));
                         retryTimer.Start();
                     }
                 }
                 else
                 {
                     targetConfirmed = true;
-                    log(Color.Blue, "目标设备已确认, 所有特征就绪");
+                    log(Color.Blue, BridgeText.T("ready"));
                     SaveCurrentDeviceToConfig();
                 }
             }));
@@ -272,7 +295,7 @@ namespace BLE_tcp_driver
             config.BleName = bleCore.CurrentDevice.Name;
             config.BleMac = mac;
             config.Save();
-            log(Color.Blue, $"已保存设备: {config.BleName} [{config.BleMac}]");
+            log(Color.Blue, BridgeText.T("saved", config.BleName, config.BleMac));
         }
 
         private void BtnConnect_Click(object sender, EventArgs e)
@@ -315,13 +338,13 @@ namespace BLE_tcp_driver
         {
             ContextMenu contextMenu = new ContextMenu();
 
-            System.Windows.Forms.MenuItem cutItem = new System.Windows.Forms.MenuItem("剪切");
+            System.Windows.Forms.MenuItem cutItem = new System.Windows.Forms.MenuItem(BridgeText.T("cut"));
             cutItem.Click += (sender, eventArgs) => textBox.Cut();
 
-            System.Windows.Forms.MenuItem copyItem = new System.Windows.Forms.MenuItem("复制");
+            System.Windows.Forms.MenuItem copyItem = new System.Windows.Forms.MenuItem(BridgeText.T("copy"));
             copyItem.Click += (sender, eventArgs) => textBox.Copy();
 
-            System.Windows.Forms.MenuItem pasteItem = new System.Windows.Forms.MenuItem("粘贴");
+            System.Windows.Forms.MenuItem pasteItem = new System.Windows.Forms.MenuItem(BridgeText.T("paste"));
             pasteItem.Click += (sender, eventArgs) => textBox.Paste();
 
             contextMenu.MenuItems.Add(cutItem);
@@ -396,7 +419,7 @@ namespace BLE_tcp_driver
             }
             catch (Exception ex)
             {
-                MessageBox.Show("设置开机自启动失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(BridgeText.T("autoStartError", ex.Message), BridgeText.T("error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 // 还原 checkbox 状态
                 checkBox_follow_system.CheckedChanged -= checkBox_follow_system_CheckedChanged;
                 checkBox_follow_system.Checked = !checkBox_follow_system.Checked;

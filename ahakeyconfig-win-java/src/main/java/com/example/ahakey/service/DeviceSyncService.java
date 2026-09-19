@@ -1,5 +1,7 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
@@ -71,7 +73,7 @@ public final class DeviceSyncService {
                     
                     out.add(new LabeledCommand(
                         AhaKeyProtocol.setKeyMacro(modeIndex, keyIndex, macroData),
-                        mode.getTitle() + " " + part.getTitle() + " 宏"
+                        mode.getTitle() + " " + part.getTitle() + text("sync.macro")
                     ));
                 } else {
                     // 处理快捷键：包含修饰键和基础键
@@ -105,33 +107,33 @@ public final class DeviceSyncService {
                     
                     out.add(new LabeledCommand(
                         AhaKeyProtocol.setKeyMapping(modeIndex, keyIndex, hid),
-                        mode.getTitle() + " " + part.getTitle() + " 键码"
+                        mode.getTitle() + " " + part.getTitle() + text("sync.keycode")
                     ));
                 }
                 
                 out.add(new LabeledCommand(
                     AhaKeyProtocol.setKeyDescription(modeIndex, keyIndex, key.getDescription()),
-                    mode.getTitle() + " " + part.getTitle() + " 描述"
+                    mode.getTitle() + " " + part.getTitle() + text("sync.description")
                 ));
             }
 
             out.add(new LabeledCommand(
                 AhaKeyProtocol.setAiLightConfig(modeIndex, state.getAiLightEffectBytes(mode)),
-                mode.getTitle() + " AI 状态灯效"
+                mode.getTitle() + text("sync.ai-light")
             ));
         }
 
-        out.add(new LabeledCommand(AhaKeyProtocol.setLightBrightness(state.getLightBrightness()), "灯光亮度"));
+        out.add(new LabeledCommand(AhaKeyProtocol.setLightBrightness(state.getLightBrightness()), text("sync.brightness")));
         if (includeVoiceKey) {
             out.add(new LabeledCommand(
                 AhaKeyProtocol.setVoiceKeyConfig(
                     state.getVoiceKeyShort().getHidCode(),
                     state.getVoiceKeyLong().getHidCode()
                 ),
-                "语音键短按/长按快捷键"
+                text("sync.voice-shortcuts")
             ));
         }
-        out.add(new LabeledCommand(AhaKeyProtocol.saveConfig(), "保存全部配置到设备"));
+        out.add(new LabeledCommand(AhaKeyProtocol.saveConfig(), text("sync.save-all")));
         return out;
     }
 
@@ -150,11 +152,11 @@ public final class DeviceSyncService {
                     for (LabeledCommand cmd : commands) {
                         i++;
                         if (onProgress != null) {
-                            onProgress.accept("保存中 (" + i + "/" + commands.size() + ") " + cmd.label());
+                            onProgress.accept(text("sync.progress") + i + "/" + commands.size() + ") " + cmd.label());
                         }
                         byte[] frame = cmd.data();
                         if (frame.length < 5) {
-                            throw new java.io.IOException("配置命令格式无效: " + cmd.label());
+                            throw new java.io.IOException(text("sync.invalid-command") + cmd.label());
                         }
                         // Nested command transactions are reentrant. The outer
                         // lifecycle transaction prevents status recovery from
@@ -169,7 +171,7 @@ public final class DeviceSyncService {
                             || !java.util.Arrays.equals(verified.shortCodes(), expectedVoice.shortCodes())
                             || !java.util.Arrays.equals(verified.longCodes(), expectedVoice.longCodes())
                             || verified.longPressMs() != AhaKeyProtocol.VOICE_KEY_LONG_PRESS_MS) {
-                            throw new java.io.IOException("语音键配置回读校验失败，请确认固件支持短按/长按功能");
+                            throw new java.io.IOException(text("sync.voice-readback-error"));
                         }
                     }
                     return null;
@@ -179,7 +181,7 @@ public final class DeviceSyncService {
                 }
             } catch (Exception e) {
                 if (onProgress != null) {
-                    onProgress.accept("保存失败：" + e.getMessage());
+                    onProgress.accept(text("sync.failed") + e.getMessage());
                 }
                 if (onError != null) {
                     onError.run();

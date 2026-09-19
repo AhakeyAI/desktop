@@ -1,5 +1,7 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import com.example.ahakey.model.IDEState;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyListProperty;
@@ -63,7 +65,7 @@ public final class TaskActivityService implements AutoCloseable {
         worker.execute(() -> {
             if (!ble.getCachedStatus().isConnected()) {
                 notifyDisplayMode(DisplayModeStatus.OFFLINE_PENDING,
-                    "任务显示模式已保存为本地选择，设备重连后同步。");
+                    text("task.mode.saved-local"));
                 publish();
                 return;
             }
@@ -74,12 +76,12 @@ public final class TaskActivityService implements AutoCloseable {
                 if (enabled) resendSnapshot();
                 lastConnected = true;
                 notifyDisplayMode(DisplayModeStatus.CONFIRMED,
-                    "任务显示模式已由设备确认。");
+                    text("task.mode.confirmed"));
             } catch (Exception failure) {
                 desiredMultiMode = confirmedMultiMode;
-                reportSyncFailure("切换任务显示模式", failure);
+                reportSyncFailure(text("task.mode.change"), failure);
                 notifyDisplayMode(DisplayModeStatus.FAILED,
-                    "任务显示模式同步失败，已回滚到设备确认值："
+                    text("task.mode.rollback")
                         + failure.getMessage());
             }
             publish();
@@ -163,12 +165,12 @@ public final class TaskActivityService implements AutoCloseable {
         if (task.slot < 0) return;
         int old = task.slot; task.slot = -1;
         try { if (ble.getCachedStatus().isConnected()) ble.updateTaskSlot(old, task.profile, 0, false); }
-        catch (Exception failure) { reportSyncFailure("清除任务灯效槽", failure); }
+        catch (Exception failure) { reportSyncFailure(text("task.slot.clear"), failure); }
     }
     private void send(MutableTask task) {
         if (!confirmedMultiMode || task.slot < 0 || !ble.getCachedStatus().isConnected()) return;
         try { ble.updateTaskSlot(task.slot, task.profile, task.state, task.foreground); }
-        catch (Exception failure) { reportSyncFailure("同步任务灯效", failure); }
+        catch (Exception failure) { reportSyncFailure(text("task.light.sync"), failure); }
     }
     private void heartbeatAndReconcile() {
         heartbeatAndReconcile(System.currentTimeMillis());
@@ -192,7 +194,7 @@ public final class TaskActivityService implements AutoCloseable {
             try {
                 int deviceMode = ble.queryTaskDisplayMode();
                 if (deviceMode != 0 && deviceMode != 1) {
-                    throw new IllegalStateException("设备返回了无效任务显示模式");
+                    throw new IllegalStateException(text("task.mode.invalid"));
                 }
                 confirmedMultiMode = deviceMode == 1;
                 if (desiredMultiMode != confirmedMultiMode) {
@@ -202,24 +204,24 @@ public final class TaskActivityService implements AutoCloseable {
                 clearHardwareSlots();
                 if (confirmedMultiMode) resendSnapshot();
                 notifyDisplayMode(DisplayModeStatus.CONFIRMED,
-                    "重连后已通过 0x98 确认任务显示模式。");
+                    text("task.mode.reconnected"));
                 lastConnected = true;
             } catch (Exception failure) {
-                reportSyncFailure("重连后确认任务灯效", failure);
+                reportSyncFailure(text("task.light.confirm"), failure);
                 notifyDisplayMode(DisplayModeStatus.FAILED,
-                    "重连后任务显示模式尚未确认：" + failure.getMessage());
+                    text("task.mode.unconfirmed") + failure.getMessage());
                 return;
             }
         }
         if (confirmedMultiMode) {
             try { ble.sendTaskHeartbeat(); }
-            catch (Exception failure) { reportSyncFailure("任务灯效心跳", failure); }
+            catch (Exception failure) { reportSyncFailure(text("task.light.heartbeat"), failure); }
         }
     }
     private void clearHardwareSlots() {
         for (int slot = 0; slot < 4; slot++) {
             try { ble.updateTaskSlot(slot, 0, 0, false); }
-            catch (Exception failure) { reportSyncFailure("清空任务灯效槽 " + slot, failure); }
+            catch (Exception failure) { reportSyncFailure(text("task.slot.clear-prefix") + slot, failure); }
         }
     }
     private void resendSnapshot() {
@@ -228,7 +230,7 @@ public final class TaskActivityService implements AutoCloseable {
     private void reportSyncFailure(String operation, Exception failure) {
         logger.warn("{}失败，设备灯效可能与 IDE 状态不同步: {}", operation,
             failure.getMessage());
-        ble.reportDeviceError(operation + "失败；灯效/OLED 状态可能不同步："
+        ble.reportDeviceError(operation + text("task.sync.failed")
             + failure.getMessage());
     }
     private void notifyDisplayMode(DisplayModeStatus status, String message) {

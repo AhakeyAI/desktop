@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -247,11 +247,11 @@ namespace BLE_tcp_driver
 
             if (!shouldNotify) return;
 
-            LogDiscovery("TARGET SUMMARY:");
-            LogDiscovery("7340 service = " + (serviceFound ? "YES" : "NO"));
-            LogDiscovery("7341 = " + (dataFound ? "YES" : "NO"));
-            LogDiscovery("7343 = " + (writeFound ? "YES" : "NO"));
-            LogDiscovery("7344 = " + (notifyFound ? "YES" : "NO"));
+            LogDiscovery(BridgeText.T("discoverySummary"));
+            LogDiscovery("7340 service = " + BridgeText.T(serviceFound ? "yes" : "no"));
+            LogDiscovery("7341 = " + BridgeText.T(dataFound ? "yes" : "no"));
+            LogDiscovery("7343 = " + BridgeText.T(writeFound ? "yes" : "no"));
+            LogDiscovery("7344 = " + BridgeText.T(notifyFound ? "yes" : "no"));
             // 额外输出机器可读的诊断结果，便于从 UI 日志直接复制给 HV-005 调查。
             LogDiscovery("SERVICE_7340_FOUND=" + (serviceFound ? "YES" : "NO"));
             LogDiscovery("CHAR_7341_FOUND=" + (dataFound ? "YES" : "NO"));
@@ -993,6 +993,10 @@ namespace BLE_tcp_driver
         [STAThread]
         static void Main()
         {
+            BridgeText.Initialize(Environment.GetCommandLineArgs(),
+                System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".ahakey", "preferences.properties"),
+                System.Globalization.CultureInfo.CurrentUICulture.Name);
             bool created;
             singleInstanceMutex = new Mutex(true, "Global\\AhaKey.BLETcpDriver", out created);
             if (!created)

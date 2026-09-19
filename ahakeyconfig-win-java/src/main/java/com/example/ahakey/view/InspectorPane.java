@@ -1,5 +1,7 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import static com.example.ahakey.util.LanguageManager.localize;
 
 import com.example.ahakey.app.StudioController;
@@ -744,7 +746,7 @@ public class InspectorPane extends ScrollPane {
                 key.updateMacroStep(index, "DELAY", newValue);
                 studioState.markDirty(part);
             });
-            Label msLabel = new Label("ms");
+            Label msLabel = new Label(text("unit.milliseconds"));
 
             row.getChildren().addAll(indexLabel, actionCombo, delaySpinner, msLabel);
         } else {

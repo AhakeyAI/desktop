@@ -80,4 +80,29 @@ class LanguageManagerTest {
         assertEquals("en", LanguageManager.normalizeLanguage("de"));
         assertEquals("en", LanguageManager.normalizeLanguage(null));
     }
+
+    @Test void backgroundStatusUsesRussianResourcesWithoutChangingTechnicalDetails() {
+        var ru = new LanguageManager("ru");
+        assertEquals("Сохранение (", ru.getString("sync.progress"));
+        assertEquals("мс", ru.getString("unit.milliseconds"));
+        assertEquals("F18: короткое нажатие=Windows, долгое нажатие=AhaKey, порог=500 мс",
+            ru.getString("voice.route.summary", "Windows", "AhaKey", 500));
+        assertTrue(ru.getString("voice.firmware.suffix").contains("1.4.8"));
+    }
+
+    @Test void extractedStatusKeysExistInEveryCatalog() throws Exception {
+        String[] files = {"platform/windows/WindowsVoiceRelayService.java",
+            "platform/voice/VoiceActionRouter.java", "service/AgentManager.java",
+            "service/DeviceSyncService.java", "service/TaskActivityService.java",
+            "view/TopBar.java", "view/InspectorPane.java"};
+        var keyPattern = Pattern.compile("\\btext\\(\"([a-z][a-z0-9.-]+)\"\\s*[,)]");
+        for (String language : List.of("en", "ru", "zh")) {
+            var catalog = resource("messages_" + language + ".properties");
+            for (String file : files) {
+                var keys = keyPattern.matcher(Files.readString(
+                    Path.of("src/main/java/com/example/ahakey", file)));
+                while (keys.find()) assertNotNull(catalog.getProperty(keys.group(1)), language + ": " + keys.group(1));
+            }
+        }
+    }
 }

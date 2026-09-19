@@ -1,5 +1,7 @@
 package com.example.ahakey.platform.voice;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import com.example.ahakey.model.HIDUsage;
 
 import java.util.EnumMap;
@@ -74,9 +76,9 @@ public final class VoiceActionRouter {
 
     /** Formats the shared HID representation for display in the editor. */
     public static String formatShortcut(int hidCode) {
-        if (hidCode == 0) return "未设置";
+        if (hidCode == 0) return text("common.unset");
         int base = hidCode & 0xFF;
-        if (base == 0) return "未设置";
+        if (base == 0) return text("common.unset");
         java.util.List<String> parts = new java.util.ArrayList<>();
         if ((hidCode & 0x800) != 0) parts.add("Win");
         if ((hidCode & 0x200) != 0) parts.add("Ctrl");

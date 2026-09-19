@@ -94,6 +94,11 @@ public class LanguageManager {
         return getInstance().localizeText(source);
     }
 
+    /** Stable resource keys for new UI text, including background-service status. */
+    public static String text(String key, Object... arguments) {
+        return getInstance().getString(key, arguments);
+    }
+
     String localizeText(String source) {
         return isRussian() ? legacyRussian.getProperty(source, source) : source;
     }

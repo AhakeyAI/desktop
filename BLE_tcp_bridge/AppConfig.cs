@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -39,7 +39,7 @@ namespace BLE_tcp_driver
             }
             catch (Exception ex)
             {
-                Console.WriteLine("配置文件读取失败: " + ex.Message);
+                Console.WriteLine(BridgeText.T("configReadError", ex.Message));
                 return CreateDefault();
             }
         }
@@ -60,7 +60,7 @@ namespace BLE_tcp_driver
             }
             catch (Exception ex)
             {
-                Console.WriteLine("配置文件保存失败: " + ex.Message);
+                Console.WriteLine(BridgeText.T("configWriteError", ex.Message));
             }
         }
 
