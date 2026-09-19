@@ -7,6 +7,15 @@
 
 ## 1. 生产路径与安全不变式
 
+2026-09-19 installer correction: rebuilding local MSI/EXE version 1.5.3 reused
+the installed ProductCode and Windows Installer returned 1638 before showing UI.
+`build-local-windows.ps1 -PackageVersion 1.5.4` separates package/app-display
+version from the source JAR version. A read-only MSI upgrade check verifies the
+version increase, changed ProductCode and stable upgrade family. The new EXE
+successfully upgraded the installed 1.5.3 to 1.5.4 with exit 0; user draft and
+language preference hashes remained unchanged and installed JAR/bridge hashes
+matched the tested inputs. No firmware or Java behavior changes in this correction.
+
 2026-09-19 Windows editor follow-up: [shortcut/save regression report](windows-shortcut-save-fix.md).
 Shortcut drafts now permit empty/modifier-only editing states without restoring
 Win+H. Executable shortcuts and save validation remain strict. K1-only edits save

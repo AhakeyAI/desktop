@@ -65,5 +65,18 @@ Remove-Item Env:AHAKEY_STUDIO_SIMULATE_BLE
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./ahakeyconfig-win-java/build-local-windows.ps1 -RuntimeImage 'C:\Program Files\AhaKeyStudio\runtime' -IconPath 'C:\Program Files\AhaKeyStudio\AhaKeyStudio.ico' -JdkHome 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot' -WixBin 'D:\dev\ahakey\desktop\.toolchain\wix314' -OutputRoot 'D:\dev\ahakey\builds\shortcut-ui-fix'
 ```
 
-The local package retains the existing version 1.5.3 and packaging limitations:
-unsigned, without speech-model/native speech assets, firmware, or vendor flasher.
+Installer correction: the initial package reused 1.5.3 and Windows Installer
+returned 1638 when replacing the previously installed 1.5.3 package. Append
+`-PackageVersion 1.5.4` to the build command above. This sets the package and
+display version while retaining the source JAR filename. Future replacement
+builds need a newer three-component package version; MSI ignores a fourth field.
+
+Read-only regression: `Test-LocalInstallerUpgrade.ps1 -PreviousMsi <old.msi>
+-NewMsi <new.msi>` checks actual MSI version/ProductCode/UpgradeCode and the upgrade
+table. The 1.5.3 -> 1.5.4 packages pass; checking the old package against itself
+is rejected. The rebuilt EXE was installed over 1.5.3 with exit code 0, registry
+version 1.5.4, matching installed JAR/bridge hashes, and unchanged user draft and
+language preferences. No manual uninstall was needed.
+
+The local package remains unsigned, without speech-model/native speech assets,
+firmware, or vendor flasher.

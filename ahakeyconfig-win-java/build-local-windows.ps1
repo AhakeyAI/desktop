@@ -3,7 +3,8 @@
     [Parameter(Mandatory = $true)][string]$IconPath,
     [string]$JdkHome = $env:JAVA_HOME,
     [string]$WixBin = "",
-    [string]$OutputRoot = ""
+    [string]$OutputRoot = "",
+    [string]$PackageVersion = ""
 )
 
 # Local desktop build: no firmware, speech-model assets or vendor flasher are
@@ -14,8 +15,16 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $PSScriptRoot "target\windows-ru"
 }
 [xml]$pom = Get-Content (Join-Path $PSScriptRoot "pom.xml") -Raw
-$version = [string]$pom.project.version
-$jarName = "ahakey-studio-$version.jar"
+$sourceVersion = [string]$pom.project.version
+# Rebuilt packages must use a newer MSI version when upgrading an installation.
+# A fourth component is intentionally rejected: MSI ignores it for upgrades.
+$version = if ([string]::IsNullOrWhiteSpace($PackageVersion)) { $sourceVersion } else { $PackageVersion }
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "PackageVersion must have exactly three numeric components." }
+$parsedVersion = [version]$version
+if ($parsedVersion.Major -gt 255 -or $parsedVersion.Minor -gt 255 -or $parsedVersion.Build -gt 65535) {
+    throw "PackageVersion exceeds Windows Installer limits (255.255.65535)."
+}
+$jarName = "ahakey-studio-$sourceVersion.jar"
 $jar = Join-Path $PSScriptRoot "target\$jarName"
 $lib = Join-Path $PSScriptRoot "target\lib"
 $bridge = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe"))
