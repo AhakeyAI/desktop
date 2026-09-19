@@ -254,7 +254,13 @@ public class TopBar extends VBox {
                 () -> studioState.ahaTypeEnabledProperty().get() ? languageManager.getString("aha-type.enabled") : languageManager.getString("aha-type.disabled"),
                 studioState.ahaTypeEnabledProperty()
             ),
-            studioState.ahaTypeStatusProperty()
+            Bindings.createStringBinding(
+                () -> studioState.ahaTypeEnabledProperty().get()
+                    ? ""
+                    : studioState.ahaTypeStatusProperty().get(),
+                studioState.ahaTypeEnabledProperty(),
+                studioState.ahaTypeStatusProperty()
+            )
         );
 
         // 检查本地模型是否启用
@@ -733,6 +739,8 @@ public class TopBar extends VBox {
         Label detailLabel = new Label();
         detailLabel.textProperty().bind(detail);
         detailLabel.getStyleClass().add("status-detail");
+        detailLabel.visibleProperty().bind(detailLabel.textProperty().isNotEmpty());
+        detailLabel.managedProperty().bind(detailLabel.visibleProperty());
 
         text.getChildren().addAll(titleLabel, detailLabel);
         row.getChildren().addAll(dot, text);
