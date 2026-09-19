@@ -808,6 +808,12 @@ Tests verify bridge catalog coverage/placeholders and language precedence,
 and Java tests verify extracted key coverage and formatted Russian status.
 `BLE_tcp_bridge/tests/Test-Localization.ps1` tests the compiled Release EXE;
 optional `-PreviewPath` renders the form without BLE/TCP startup side effects.
+Follow-up verification: independent Java package passed 306 tests; bridge
+Release build and localization tests passed. A local integration with the
+separate physical-status and WCHISP fixes passed 308 Java tests, both bridge
+test programs, and portable/installer packaging. Integrating the physical
+status fix requires retaining the localized cache log while deleting its
+early return, so the same physical frame continues to the TCP broadcast.
 
 ## 29. WCHISP terminal success precedence (2026-09-17)
 
