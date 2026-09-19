@@ -737,6 +737,58 @@ VoiceActionRouter、SpeechService、VoiceInputManager、BLE/GATT、Firmware、WC
 烧录、USB/BLE、麦克风/F18 端到端验证。状态区分如下：代码/脚本完成、自动测试完成、
 app-image 启动验证完成；正式签名、干净安装和真机验证待发布环境完成。
 
+### Russian interface and local Windows packaging (2026-09-19)
+
+LanguageManager supports ru/ru-RU/ru_RU, UTF-8 catalogs, a persisted
+Russian/English/Chinese choice and the optional `ahakey.defaultLanguage`
+distribution default. Existing saved preferences take precedence. The Russian
+catalogs cover 242 resource keys and 368 legacy display literals across the
+main UI, settings, OLED/lighting, maintenance/update dialogs and tray.
+Protocol identifiers and the keyboard's stored display text are unchanged.
+Language changes request a restart. TopBar keeps Configure and the language
+menu visible outside the horizontal scroller for longer translated labels.
+
+`build-local-windows.ps1` validates the JAR/BLE driver and packages a supplied
+JavaFX runtime into a portable app, ZIP and optional WiX EXE installer. Each
+run uses a new timestamped output directory. The local distribution defaults
+to Russian and retains installer directory ownership/upgrade safeguards.
+Russian WixUI dialogs use code page 1251; JDK 17 auxiliary installer messages
+retain English fallback. The formal release pipeline is unchanged: this
+unsigned local target does not include speech models/native speech assets,
+firmware or WCHISP, and does not bypass the formal release asset gates.
+
+Build from the repository root with JDK 17, Maven, MSBuild and WiX 3 on PATH:
+
+```powershell
+mvn -f .\ahakeyconfig-win-java\pom.xml package
+MSBuild .\BLE_tcp_bridge\BLE_tcp_driver.csproj /restore /p:Configuration=Release
+.\ahakeyconfig-win-java\build-local-windows.ps1 `
+  -RuntimeImage 'C:\Program Files\AhaKeyStudio\runtime' `
+  -IconPath 'C:\Program Files\AhaKeyStudio\AhaKeyStudio.ico' `
+  -JdkHome $env:JAVA_HOME -WixBin 'C:\tools\wix314'
+```
+
+RuntimeImage must contain JavaFX; paths above are examples, not downloaded
+assets. Omit WixBin to build only the portable app and ZIP. Save the entire
+portable folder, including its app/runtime subdirectories.
+
+Tests cover Russian key coverage, format placeholders, locale normalization,
+preference persistence and packaged resource inclusion. Existing source-text
+assertions normalize Windows CRLF, and the disconnected Hook test double
+refuses commands rather than opening real USB hardware. Seven JavaFX UI
+snapshots rendered; key, lighting and OLED screens were visually inspected.
+Local jpackage builds produced both EXE variants and the packaged launcher
+initialized language `ru`. Missing speech models correctly left local speech
+unavailable. This validation does not certify firmware compatibility or an
+end-to-end installer upgrade/uninstall cycle.
+
+Independent PR validation on the upstream base: Maven package passed all
+304 tests with zero failures/errors/skips and `RELEASE_ARTIFACT_CONTENTS=OK`.
+MSBuild restore/Release and both jpackage outputs also passed in that checkout,
+including invocation from Windows PowerShell 5.1. The packaging script uses
+UTF-8 BOM for its translated literals and resolves its default output directory
+after parameter binding for compatibility with that shell.
+
 ## 29. WCHISP terminal success precedence (2026-09-17)
 
 修复 Windows 烧录结果判定：`WchIspResultParser.parseFlash()` 现在优先使用官方

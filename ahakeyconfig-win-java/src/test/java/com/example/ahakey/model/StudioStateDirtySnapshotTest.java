@@ -79,15 +79,15 @@ class StudioStateDirtySnapshotTest {
     void ahaTypeUsesMainBranchStateAndOriginalCopy() {
         StudioState state = new StudioState();
         assertTrue(state.ahaTypeEnabledProperty().get());
-        assertEquals("云端整理已启用", state.ahaTypeStatusProperty().get());
+        assertEquals(com.example.ahakey.util.LanguageManager.localize("云端整理已启用"), state.ahaTypeStatusProperty().get());
 
         state.toggleAhaType(false);
         assertFalse(state.ahaTypeEnabledProperty().get());
-        assertEquals("语音结果直接粘贴", state.ahaTypeStatusProperty().get());
+        assertEquals(com.example.ahakey.util.LanguageManager.localize("语音结果直接粘贴"), state.ahaTypeStatusProperty().get());
 
         state.toggleAhaType(true);
         assertTrue(state.ahaTypeEnabledProperty().get());
-        assertEquals("云端整理已启用", state.ahaTypeStatusProperty().get());
+        assertEquals(com.example.ahakey.util.LanguageManager.localize("云端整理已启用"), state.ahaTypeStatusProperty().get());
     }
 
     @Test

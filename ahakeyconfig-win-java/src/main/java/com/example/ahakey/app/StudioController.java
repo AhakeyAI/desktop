@@ -1,5 +1,7 @@
 package com.example.ahakey.app;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.config.ModelConfig;
 import com.example.ahakey.model.*;
 import com.example.ahakey.platform.VoiceRelayPlatform;
@@ -258,8 +260,8 @@ public class StudioController {
     public void setMultiTaskDisplay(boolean enabled) {
         taskActivityService.setMultiMode(enabled);
         studioState.syncStatusProperty().set(deviceStatus.isConnected()
-            ? "正在等待设备确认任务显示模式…"
-            : "任务显示模式仅在本地修改，待设备重连后同步。");
+            ? localize("正在等待设备确认任务显示模式…")
+            : localize("任务显示模式仅在本地修改，待设备重连后同步。"));
     }
 
     public boolean isEffectivelyConnected() {
@@ -323,7 +325,7 @@ public class StudioController {
             return;
         }
         if (connectionError.equals(studioState.syncStatusProperty().get())) {
-            studioState.syncStatusProperty().set("设备已通过 BLE 连接。");
+            studioState.syncStatusProperty().set(localize("设备已通过 BLE 连接。"));
         }
         lastConnectionError = null;
     }
@@ -332,7 +334,7 @@ public class StudioController {
         if (message == null) {
             return false;
         }
-        return message.contains("BLE bridge") || message.contains("BLE 桥");
+        return message.contains("BLE bridge") || message.contains(localize("BLE 桥"));
     }
 
     public void userConnect() {
@@ -343,7 +345,7 @@ public class StudioController {
             deviceStatus.setConnected(true);
             deviceStatus.setScanning(false);
             deviceStatus.setBatteryLevel(84);
-            deviceStatus.setDeviceName("AhaKey Keyboard (模拟)");
+            deviceStatus.setDeviceName(localize("AhaKey Keyboard (模拟)"));
             return;
         }
         logger.info("使用真实BLE连接");
@@ -372,23 +374,23 @@ public class StudioController {
         );
         switch (result) {
             case OFFLINE_UI_ONLY -> studioState.syncStatusProperty().set(
-                "已选择 " + mode.getTitle() + "（仅本地编辑，尚未同步到设备）。");
+                localize("已选择 ") + mode.getTitle() + localize("（仅本地编辑，尚未同步到设备）。"));
             case SENT_PENDING -> studioState.syncStatusProperty().set(
-                "模式命令已发送，等待设备确认。");
+                localize("模式命令已发送，等待设备确认。"));
             case SEND_FAILED -> studioState.syncStatusProperty().set(
-                "模式发送失败，已回滚到设备上次确认的模式。");
+                localize("模式发送失败，已回滚到设备上次确认的模式。"));
         }
     }
 
     public void enterEditingConfiguration() {
         agentManager.setBluetoothOwner(AgentManager.BluetoothOwner.AHAKEY_STUDIO);
-        studioState.syncStatusProperty().set("已进入编辑配置模式。");
+        studioState.syncStatusProperty().set(localize("已进入编辑配置模式。"));
         refreshVoiceRoutes();
         if (!deviceStatus.isConnected() && !simulateBle && !manuallyDisconnected) {
             userConnect();
         } else if (!deviceStatus.isConnected() && manuallyDisconnected) {
             studioState.syncStatusProperty().set(
-                "已手动断开设备；编辑内容仅保存在本地，点击“连接设备”后才能写入键盘。");
+                localize("已手动断开设备；编辑内容仅保存在本地，点击“连接设备”后才能写入键盘。"));
         }
     }
 
@@ -401,7 +403,7 @@ public class StudioController {
             syncAllModes(true);
         } else {
             studioState.syncStatusProperty().set(
-                "设备已断开；配置仍保存在本地，请连接设备后再写入键盘。");
+                localize("设备已断开；配置仍保存在本地，请连接设备后再写入键盘。"));
             if (!manuallyDisconnected) {
                 userConnect();
             }
@@ -410,13 +412,13 @@ public class StudioController {
 
     public void returnToKeyboardControl() {
         agentManager.setBluetoothOwner(AgentManager.BluetoothOwner.KEYBOARD_DEVICE);
-        studioState.syncStatusProperty().set("已交还控制权给键盘设备，连接保持。");
+        studioState.syncStatusProperty().set(localize("已交还控制权给键盘设备，连接保持。"));
         // 保持 BLE 连接不断开，避免用户需要重新连接
     }
 
     public void syncAllModes(boolean returnToAgentWhenDone) {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("设备未连接，当前只保存本地草稿。");
+            studioState.syncStatusProperty().set(localize("设备未连接，当前只保存本地草稿。"));
             return;
         }
         if (simulateBle) {
@@ -426,8 +428,8 @@ public class StudioController {
             studioState.clearDirtyAfterSync(dirtySnapshot);
             lastSyncedRevision = syncRevision;
             studioState.syncStatusProperty().set(studioState.getRevision() == syncRevision
-                ? "模拟模式：已标记为保存。"
-                : "模拟模式：已保存先前快照，后续修改仍待保存。");
+                ? localize("模拟模式：已标记为保存。")
+                : localize("模拟模式：已保存先前快照，后续修改仍待保存。"));
             if (returnToAgentWhenDone) {
                 returnToKeyboardControl();
             }
@@ -438,7 +440,7 @@ public class StudioController {
         try {
             transport = bleManager.selectPreferredTransport();
         } catch (Exception e) {
-            studioState.syncStatusProperty().set("连接不可用，请重新连接键盘后再保存。");
+            studioState.syncStatusProperty().set(localize("连接不可用，请重新连接键盘后再保存。"));
             return;
         }
 
@@ -448,7 +450,7 @@ public class StudioController {
             logger.warn("设备未满足稳定版能力合同，已阻止配置写入: {}",
                 exception.getMessage());
             studioState.syncStatusProperty().set(
-                "设备能力合同不兼容，无法安全保存配置：" + exception.getMessage());
+                localize("设备能力合同不兼容，无法安全保存配置：") + exception.getMessage());
             return;
         }
         int syncRevision = studioState.getRevision();
@@ -456,8 +458,8 @@ public class StudioController {
         var commands = List.copyOf(DeviceSyncService.commandsForModes(
             studioState, false, ModeSlot.values()));
         studioState.syncingProperty().set(true);
-        studioState.syncStatusProperty().set("正在通过 " + transport + " 写入设备配置...");
-        studioState.syncStatusProperty().set("正在写入设备配置...");
+        studioState.syncStatusProperty().set(localize("正在通过 ") + transport + localize(" 写入设备配置..."));
+        studioState.syncStatusProperty().set(localize("正在写入设备配置..."));
         studioState.syncStatusProperty().set("Saving via " + transport + "...");
         DeviceSyncService.SyncHandle syncHandle = DeviceSyncService.writeSequentially(
             bleManager,
@@ -468,8 +470,8 @@ public class StudioController {
                 studioState.syncingProperty().set(false);
                 studioState.syncStatusProperty().set(
                     studioState.getRevision() == syncRevision
-                        ? "已保存配置。"
-                        : "设备已保存先前快照，后续修改仍待保存。");
+                        ? localize("已保存配置。")
+                        : localize("设备已保存先前快照，后续修改仍待保存。"));
                 statusRefreshScheduler.submit(bleManager::queryStatus);
                 if (returnToAgentWhenDone) {
                     returnToKeyboardControl();
@@ -488,7 +490,7 @@ public class StudioController {
             if (syncHandle.isRunning() && studioState.syncingProperty().get()) {
                 syncHandle.cancel();
                 Platform.runLater(() -> studioState.syncStatusProperty().set(
-                    "保存超时，已请求取消；在后台事务实际退出前将阻止冲突写入。"));
+                    localize("保存超时，已请求取消；在后台事务实际退出前将阻止冲突写入。")));
             }
         }, "device-sync-watchdog");
         watchdog.setDaemon(true);
@@ -497,12 +499,12 @@ public class StudioController {
     public void previewLightOnDevice() {
         LightBarPreviewState preview = studioState.getLightBarPreview();
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接设备再预览灯效。");
+            studioState.syncStatusProperty().set(localize("请先连接设备再预览灯效。"));
             return;
         }
         // 使用 IDE 状态码发送（适配当前固件，固件根据 claude_state 映射灯效）
         IDEState ideState = preview.getIdeState();
-        String success = "已发送灯效预览：" + preview.getTitle() + " → "
+        String success = localize("已发送灯效预览：") + preview.getTitle() + " → "
             + ideState.getFullLabel();
         if (simulateBle) {
             studioState.syncStatusProperty().set(success);
@@ -510,7 +512,7 @@ public class StudioController {
         }
         runLightOperation("light-preview", () -> LightOperationCoordinator.execute(
             success,
-            LightOperationCoordinator.step("灯效预览写入",
+            LightOperationCoordinator.step(localize("灯效预览写入"),
                 () -> bleManager.updateStateOrThrow((byte) ideState.getCode()))));
     }
 
@@ -519,55 +521,55 @@ public class StudioController {
             return;
         }
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接键盘，再测试灯效。");
+            studioState.syncStatusProperty().set(localize("请先连接键盘，再测试灯效。"));
             return;
         }
-        String success = "已发送灯效测试：" + effect.getTitle();
+        String success = localize("已发送灯效测试：") + effect.getTitle();
         if (simulateBle) {
             studioState.syncStatusProperty().set(success);
             return;
         }
         runLightOperation("light-effect-preview", () -> LightOperationCoordinator.execute(
             success,
-            LightOperationCoordinator.step("灯效写入",
+            LightOperationCoordinator.step(localize("灯效写入"),
                 () -> bleManager.setLightEffect(effect.getCode()))));
     }
 
     public void sendLightBrightnessToDevice() {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接键盘，再测试灯光亮度。");
+            studioState.syncStatusProperty().set(localize("请先连接键盘，再测试灯光亮度。"));
             return;
         }
         int brightness = studioState.getLightBrightness();
-        studioState.syncStatusProperty().set("正在测试灯光亮度：" + brightness);
+        studioState.syncStatusProperty().set(localize("正在测试灯光亮度：") + brightness);
         if (simulateBle) {
-            studioState.syncStatusProperty().set("已发送灯光亮度：" + brightness);
+            studioState.syncStatusProperty().set(localize("已发送灯光亮度：") + brightness);
             return;
         }
         runLightOperation("brightness-test", () -> LightOperationCoordinator.execute(
-                "已发送灯光亮度：" + brightness,
-                LightOperationCoordinator.step("亮度写入",
+                localize("已发送灯光亮度：") + brightness,
+                LightOperationCoordinator.step(localize("亮度写入"),
                     () -> bleManager.setLightBrightness(brightness)),
-                LightOperationCoordinator.step("灯效写入",
+                LightOperationCoordinator.step(localize("灯效写入"),
                     () -> bleManager.setLightEffect(LightEffectStyle.RAINBOW_MOVE.getCode()))));
     }
     public void syncCurrentModeLightConfig() {
         ModeSlot mode = studioState.getSelectedMode();
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接键盘，再保存当前模式灯效。");
+            studioState.syncStatusProperty().set(localize("请先连接键盘，再保存当前模式灯效。"));
             return;
         }
-        String success = "已保存 " + mode.getTitle() + " 的 AI 状态灯效和亮度。";
+        String success = localize("已保存 ") + mode.getTitle() + localize(" 的 AI 状态灯效和亮度。");
         if (simulateBle) {
             studioState.syncStatusProperty().set(success);
             return;
         }
         runLightOperation("light-mode-sync", () -> LightOperationCoordinator.execute(
             success,
-            LightOperationCoordinator.step("AI 状态灯效配置写入",
+            LightOperationCoordinator.step(localize("AI 状态灯效配置写入"),
                 () -> bleManager.setAiLightConfig(
                     mode.getIndex(), studioState.getAiLightEffectBytes(mode))),
-            LightOperationCoordinator.step("亮度写入",
+            LightOperationCoordinator.step(localize("亮度写入"),
                 () -> bleManager.setLightBrightness(studioState.getLightBrightness()))));
     }
 
@@ -585,7 +587,7 @@ public class StudioController {
 
     public void updateSwitchState(int state) {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接设备再修改拨杆状态。");
+            studioState.syncStatusProperty().set(localize("请先连接设备再修改拨杆状态。"));
             return;
         }
         // 先更新本地状态
@@ -595,7 +597,7 @@ public class StudioController {
             bleManager.updateState((byte) state);
         }
         studioState.syncStatusProperty().set(
-            "拨杆状态已更新为: " + deviceStatus.getSwitchTitle()
+            localize("拨杆状态已更新为: ") + deviceStatus.getSwitchTitle()
         );
     }
 
@@ -734,14 +736,14 @@ public class StudioController {
             String fileName = file.getName().toLowerCase();
             boolean isStaticImage = isStaticOledImage(fileName);
             if (!isStaticImage && !isGifImage(fileName)) {
-                throw new IllegalStateException("只支持 GIF、PNG、JPG、JPEG 文件。");
+                throw new IllegalStateException(localize("只支持 GIF、PNG、JPG、JPEG 文件。"));
             }
             if (!isStaticImage) {
                 GifUploadRules.Preflight preflight = OLEDFrameEncoder.preflight(path, 0);
                 if (preflight.needsOptimization()) {
                     javafx.scene.control.Alert confirmation = new javafx.scene.control.Alert(
                         javafx.scene.control.Alert.AlertType.CONFIRMATION,
-                        String.format("GIF 将自动优化为 %d×%d、最多 %d 帧，并尽量保持原始总时长。是否继续？",
+                        String.format(localize("GIF 将自动优化为 %d×%d、最多 %d 帧，并尽量保持原始总时长。是否继续？"),
                             GifUploadRules.WIDTH, GifUploadRules.HEIGHT,
                             preflight.targetFrameLimit()),
                         javafx.scene.control.ButtonType.OK,
@@ -755,30 +757,30 @@ public class StudioController {
             studioState.applyOledGifSelection(path.toString(), count);
             studioState.syncStatusProperty().set(
                 isStaticImage
-                    ? "已选择 " + studioState.getSelectedMode().getTitle() + " 的图片，连接键盘后可上传。"
-                    : "已选择 " + studioState.getSelectedMode().getTitle() + " 的 GIF（" + count + " 帧），连接键盘后可上传。"
+                    ? localize("已选择 ") + studioState.getSelectedMode().getTitle() + localize(" 的图片，连接键盘后可上传。")
+                    : localize("已选择 ") + studioState.getSelectedMode().getTitle() + localize(" 的 GIF（") + count + localize(" 帧），连接键盘后可上传。")
             );
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            studioState.syncStatusProperty().set("GIF / 图片导入失败：" + message);
-            showOledWarning("GIF / 图片不适合上传", message);
+            studioState.syncStatusProperty().set(localize("GIF / 图片导入失败：") + message);
+            showOledWarning(localize("GIF / 图片不适合上传"), message);
         }
     }
 
     public void uploadCurrentOledToDevice() {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("设备未连接，请先连接键盘。");
+            studioState.syncStatusProperty().set(localize("设备未连接，请先连接键盘。"));
             userConnect();
             return;
         }
         OledModeDraft draft = studioState.getOledDraft();
         String path = draft.getLocalAssetPath();
         if (path == null || path.isBlank()) {
-            studioState.syncStatusProperty().set("请先选择 GIF 或图片。");
+            studioState.syncStatusProperty().set(localize("请先选择 GIF 或图片。"));
             return;
         }
         if (simulateBle) {
-            studioState.syncStatusProperty().set("（模拟）OLED 上传已跳过。");
+            studioState.syncStatusProperty().set(localize("（模拟）OLED 上传已跳过。"));
             return;
         }
 
@@ -787,9 +789,9 @@ public class StudioController {
         String lowerPath = path.toLowerCase();
         boolean isStaticImage = isStaticOledImage(lowerPath);
         if (!isStaticImage && !isGifImage(lowerPath)) {
-            String message = "只支持 GIF、PNG、JPG、JPEG 文件。";
+            String message = localize("只支持 GIF、PNG、JPG、JPEG 文件。");
             studioState.syncStatusProperty().set(message);
-            showOledWarning("无法上传 OLED GIF / 图片", message);
+            showOledWarning(localize("无法上传 OLED GIF / 图片"), message);
             return;
         }
         try {
@@ -799,31 +801,31 @@ public class StudioController {
             }
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            studioState.syncStatusProperty().set("OLED 上传已取消：" + message);
-            showOledWarning("无法上传 OLED GIF / 图片", message);
+            studioState.syncStatusProperty().set(localize("OLED 上传已取消：") + message);
+            showOledWarning(localize("无法上传 OLED GIF / 图片"), message);
             return;
         }
 
         logger.info("[OLED上传] 当前选择模式: {} (索引: {}){}", mode.getShortName(), mode.getIndex(),
-            isStaticImage ? ", 类型: 静态图片" : ", 类型: GIF动图");
+            isStaticImage ? localize(", 类型: 静态图片") : localize(", 类型: GIF动图"));
 
         javafx.stage.Stage progressStage = new javafx.stage.Stage();
         progressStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
-        progressStage.setTitle(isStaticImage ? "上传 OLED 图片" : "上传 OLED GIF");
+        progressStage.setTitle(isStaticImage ? localize("上传 OLED 图片") : localize("上传 OLED GIF"));
         progressStage.setResizable(false);
 
         javafx.scene.layout.VBox dialogContent = new javafx.scene.layout.VBox(12);
         dialogContent.setPadding(new javafx.geometry.Insets(16));
 
         javafx.scene.control.Label titleLabel = new javafx.scene.control.Label(
-            isStaticImage ? "正在上传 OLED 图片..." : "正在上传 OLED GIF..."
+            isStaticImage ? localize("正在上传 OLED 图片...") : localize("正在上传 OLED GIF...")
         );
         titleLabel.getStyleClass().add("dialog-title");
 
         javafx.scene.control.ProgressBar progressBar = new javafx.scene.control.ProgressBar(0);
         progressBar.setPrefWidth(300);
 
-        javafx.scene.control.Label detailLabel = new javafx.scene.control.Label("准备数据...");
+        javafx.scene.control.Label detailLabel = new javafx.scene.control.Label(localize("准备数据..."));
         detailLabel.getStyleClass().add("dialog-detail");
 
         dialogContent.getChildren().addAll(titleLabel, progressBar, detailLabel);
@@ -853,16 +855,16 @@ public class StudioController {
                 }),
                 msg -> Platform.runLater(() -> {
                     clearUploading.run();
-                    draft.setStatusLine("上传完成");
-                    draft.setCaptionLine(mode.getTitle() + " - 静态图片");
-                    studioState.setOledSummary("上传完成");
-                    studioState.setOledCaption(mode.getTitle() + " - 静态图片");
+                    draft.setStatusLine(localize("上传完成"));
+                    draft.setCaptionLine(mode.getTitle() + localize(" - 静态图片"));
+                    studioState.setOledSummary(localize("上传完成"));
+                    studioState.setOledCaption(mode.getTitle() + localize(" - 静态图片"));
                     studioState.syncStatusProperty().set(msg);
                 }),
                 err -> Platform.runLater(() -> {
                     clearUploading.run();
-                    studioState.syncStatusProperty().set(mode.getTitle() + " OLED 上传失败：" + err);
-                    showOledWarning("OLED 上传失败", err);
+                    studioState.syncStatusProperty().set(mode.getTitle() + localize(" OLED 上传失败：") + err);
+                    showOledWarning(localize("OLED 上传失败"), err);
                 })
             );
         } else {
@@ -879,16 +881,16 @@ public class StudioController {
                 }),
                 msg -> Platform.runLater(() -> {
                     clearUploading.run();
-                    draft.setStatusLine("上传完成");
-                    draft.setCaptionLine(mode.getTitle() + " - " + draft.getFrameCount() + " 帧");
-                    studioState.setOledSummary("上传完成");
-                    studioState.setOledCaption(mode.getTitle() + " - " + draft.getFrameCount() + " 帧");
+                    draft.setStatusLine(localize("上传完成"));
+                    draft.setCaptionLine(mode.getTitle() + " - " + draft.getFrameCount() + localize(" 帧"));
+                    studioState.setOledSummary(localize("上传完成"));
+                    studioState.setOledCaption(mode.getTitle() + " - " + draft.getFrameCount() + localize(" 帧"));
                     studioState.syncStatusProperty().set(msg);
                 }),
                 err -> Platform.runLater(() -> {
                     clearUploading.run();
-                    studioState.syncStatusProperty().set(mode.getTitle() + " OLED 上传失败：" + err);
-                    showOledWarning("OLED 上传失败", err);
+                    studioState.syncStatusProperty().set(mode.getTitle() + localize(" OLED 上传失败：") + err);
+                    showOledWarning(localize("OLED 上传失败"), err);
                 })
             );
         }
@@ -976,7 +978,7 @@ public class StudioController {
 
     private void persistDraft() {
         if (!StudioStore.save(studioState.toPersisted())) {
-            studioState.syncStatusProperty().set("本地配置保存失败；设备配置未受影响，请检查磁盘权限。");
+            studioState.syncStatusProperty().set(localize("本地配置保存失败；设备配置未受影响，请检查磁盘权限。"));
         }
     }
 }

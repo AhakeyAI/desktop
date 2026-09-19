@@ -1,5 +1,7 @@
 package com.example.ahakey.update;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.service.BleManager;
 import javafx.application.Platform;
@@ -67,11 +69,11 @@ public final class FirmwareUpdateNotifier {
                 Platform.runLater(() -> {
                     Alert alert = new Alert(Alert.AlertType.INFORMATION);
                     if (owner != null) alert.initOwner(owner);
-                    alert.setTitle(text("发现新固件", "New Firmware Available"));
+                    alert.setTitle(text(localize("发现新固件"), "New Firmware Available"));
                     alert.setHeaderText(null);
                     alert.setContentText(text(
-                        "当前固件 " + current + "，可更新到 " + firmware.version()
-                            + "。请在“设备信息 → 固件管理”中手动开始；不会自动烧录。",
+                        localize("当前固件 ") + current + localize("，可更新到 ") + firmware.version()
+                            + localize("。请在“设备信息 → 固件管理”中手动开始；不会自动烧录。"),
                         "Firmware " + firmware.version() + " is available (current "
                             + current + "). Open Device Info → Firmware Management. Flashing never starts automatically."
                     ));
@@ -86,6 +88,7 @@ public final class FirmwareUpdateNotifier {
     }
 
     private static String text(String zh, String en) {
-        return Locale.getDefault().getLanguage().equalsIgnoreCase("zh") ? zh : en;
+        return com.example.ahakey.util.LanguageManager.getInstance().isChinese()
+            || com.example.ahakey.util.LanguageManager.getInstance().isRussian() ? zh : en;
     }
 }

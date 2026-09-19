@@ -13,11 +13,22 @@ public class LanguageManager {
     
     private Properties currentProperties;
     private String currentLanguage;
+    private final Properties legacyRussian = readProperties("/legacy_ru.properties");
     private static final String PREFERENCE_KEY = "AhaKeySelectedLanguage";
     
     private LanguageManager() {
-        currentLanguage = loadUserPreference();
+        currentLanguage = normalizeLanguage(loadUserPreference());
         loadResources(currentLanguage);
+    }
+
+    LanguageManager(String language) {
+        currentLanguage = normalizeLanguage(language);
+        loadResources(currentLanguage);
+    }
+
+    static String normalizeLanguage(String language) {
+        String code = language == null ? "en" : language.toLowerCase(Locale.ROOT).split("[-_]", 2)[0];
+        return switch (code) { case "zh", "ru" -> code; default -> "en"; };
     }
     
     public static synchronized LanguageManager getInstance() {
@@ -56,30 +67,35 @@ public class LanguageManager {
             // ignore
         }
         
-        return detectSystemLanguage();
+        return System.getProperty("ahakey.defaultLanguage", detectSystemLanguage());
     }
     
     private String detectSystemLanguage() {
-        Locale locale = Locale.getDefault();
-        String language = locale.getLanguage();
-        if (language.equalsIgnoreCase("zh") || language.equalsIgnoreCase("zh_CN")) {
-            return "zh";
-        }
-        return "en";
+        return normalizeLanguage(Locale.getDefault().getLanguage());
     }
     
     private void loadResources(String language) {
-        currentProperties = new Properties();
-        String resourceName = "/messages_" + language + ".properties";
-        try (InputStream is = getClass().getResourceAsStream(resourceName)) {
-            if (is != null) {
-                currentProperties.load(new InputStreamReader(is, StandardCharsets.UTF_8));
-            } else {
-                loadResources("en");
-            }
-        } catch (Exception e) {
-            loadResources("en");
+        currentProperties = readProperties("/messages_en.properties");
+        currentProperties.putAll(readProperties("/messages_" + language + ".properties"));
+    }
+
+    private static Properties readProperties(String resourceName) {
+        Properties properties = new Properties();
+        try (InputStream is = LanguageManager.class.getResourceAsStream(resourceName)) {
+            if (is != null) properties.load(new InputStreamReader(is, StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Cannot read language resource: " + resourceName, e);
         }
+        return properties;
+    }
+
+    /** Localizes legacy display literals without changing protocol or stored identifiers. */
+    public static String localize(String source) {
+        return getInstance().localizeText(source);
+    }
+
+    String localizeText(String source) {
+        return isRussian() ? legacyRussian.getProperty(source, source) : source;
     }
     
     public String getString(String key) {
@@ -103,6 +119,7 @@ public class LanguageManager {
     }
     
     public void switchLanguage(String language) {
+        language = normalizeLanguage(language);
         if (!language.equalsIgnoreCase(currentLanguage)) {
             currentLanguage = language;
             saveUserPreference(language);
@@ -146,6 +163,10 @@ public class LanguageManager {
     
     public boolean isChinese() {
         return "zh".equalsIgnoreCase(currentLanguage);
+    }
+
+    public boolean isRussian() {
+        return "ru".equals(currentLanguage);
     }
     
     public String getLanguageToggleText() {

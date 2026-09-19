@@ -71,6 +71,8 @@ $requiredEntries = @(
     "com/example/ahakey/sherpa/LibraryLoader.class",
     "firmware-capabilities.properties",
     "model_config.properties",
+    "messages_ru.properties",
+    "legacy_ru.properties",
     "wchisp/CONFIG_CH57X59X-sanitized.WCH",
     "wchisp/baseline.properties",
     "wchisp/wchisp-runtime.json"
