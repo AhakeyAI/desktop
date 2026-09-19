@@ -25,6 +25,13 @@ namespace Windows.Devices.Bluetooth.GenericAttributeProfile
 }
 namespace BLE_tcp_driver
 {
+    // Presentation-only stand-in: permits compiling the production TCP path
+    // when the separate UI-localization change is also applied.
+    static class BridgeText
+    {
+        internal static string T(string key, params object[] arguments) { return key; }
+    }
+
     class BleCore
     {
         public Windows.Devices.Bluetooth.BluetoothLEDevice CurrentDevice =
