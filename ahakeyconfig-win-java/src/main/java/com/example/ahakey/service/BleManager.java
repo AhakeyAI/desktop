@@ -999,6 +999,10 @@ public class BleManager {
             return;
         }
         recoveryPending.set(true);
+        logger.warn("Scheduling transport recovery: unresolved physical status query; "
+                + "session={}, receiver={}, bridgeConnected={}, lastStatusUpdateTime={}, freshness={}",
+            activeSession, activeReceiver, bridgeBleConnected, lastStatusUpdateTime,
+            physicalStatusFreshness.diagnostics());
         invalidateReceivers();
         invalidateApprovalState();
         recoveringTransport = true;
@@ -1436,7 +1440,14 @@ public class BleManager {
             logger.debug("Ignoring frame from stale transport receiver {}", receiver);
             return;
         }
-        logger.debug("收到 TCP 包: type=0x{}, len={}", Integer.toHexString(type & 0xFF), data == null ? 0 : data.length);
+        if (logger.isDebugEnabled()) {
+            byte[] packet = BleTcpPacket.encode(type, data);
+            logger.debug("Received {} packet: type=0x{}, length={}, raw={}, payload={}, "
+                    + "receivedAtNanos={}, session={}, receiver={}",
+                transportKind, Integer.toHexString(type & 0xFF), data == null ? 0 : data.length,
+                bytesToHex(packet, packet.length), data == null ? "" : bytesToHex(data, data.length),
+                receivedAtNanos, frameSession, receiver);
+        }
         switch (type) {
             case BleTcpPacket.BLE_NOTIFY ->
                 onBleNotify(data, receivedAtNanos, frameSession, receiver,
@@ -1616,7 +1627,14 @@ public class BleManager {
                 && (usbTransport.isOpen() || bridgeBleConnected));
             cachedStatus = status;
             lastStatusUpdateTime = System.currentTimeMillis();
-            statusUpdateSequence.incrementAndGet();
+            long sequence = statusUpdateSequence.incrementAndGet();
+            logger.debug("Physical status parsed: battery={}, signal={}, firmware={}.{}, "
+                    + "mode={}, light={}, switch={}, connected={}, lastStatusUpdateTime={}, "
+                    + "sequence={}, receivedAtNanos={}, session={}",
+                status.getBatteryLevel(), status.getSignal(), status.getFirmwareMain(),
+                status.getFirmwareSub(), status.getWorkMode(), status.getLightMode(),
+                status.getSwitchState(), status.isConnected(), lastStatusUpdateTime,
+                sequence, receivedAtNanos, frameSession);
             physicalStatusFreshness.recordPhysicalStatus(
                 receivedAtNanos,
                 frameSession,
