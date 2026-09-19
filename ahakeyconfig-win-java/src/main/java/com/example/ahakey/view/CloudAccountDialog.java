@@ -169,8 +169,9 @@ public class CloudAccountDialog {
                 setStatus(error);
             }
         });
+        Label refreshHint = new Label("点击“刷新账号”，确认额度和套餐加载。");
         section.getChildren().addAll(accountLabel, validUntilLabel, quotaBox,
-            new HBox(8, refresh, recharge, coupon, logout));
+            new HBox(8, refresh, recharge, coupon, logout), refreshHint);
         return section;
     }
 
