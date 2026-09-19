@@ -16,7 +16,7 @@
 提交，最终树的 HEAD 仍以 Git history 为准。GitHub 默认分支仍是 `main`，其 HEAD
 `931ebefd4b6fec4ee6578dfd7ebc0fcc93951c73`、应用版本 `1.0.0`，与 Windows 开发线明显
 分叉；Windows 稳定化、验收和修复不得误用 `main` 作为比较基线。当前 Windows 应用版本为
-`1.5.3`。
+`1.5.4`。
 
 受 Git 管理的生产源码、资源、测试和脚本的修改均通过独立提交保留历史；工作树中的未跟踪
 review、patch、report 和 artifacts 是审计/交付材料，不等于生产代码差异，本轮仍不纳入

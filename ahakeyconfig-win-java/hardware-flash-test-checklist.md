@@ -9,7 +9,7 @@
    ```powershell
    git branch --show-current
    git rev-parse HEAD
-   Test-Path .\target\ahakey-studio-1.5.3.jar
+   Test-Path .\target\ahakey-studio-1.5.4.jar
    ```
 
 2. 确认显式 WCHISP runtime 目录包含 `WCHISPTool_CH57x-59x.exe`、`CH343PT.DLL`、`WCH55xISPDLL.dll` 和 `CONFIG_CH57X59X.WCH`。正式 packaged runtime 仍必须满足 metadata/release contract。
@@ -42,7 +42,7 @@
 & "$env:JAVA_HOME\bin\java.exe" `
   "-Dahakey.wchisp.path=C:\app\WCHISPTool\WCHISPTool_CH57x-59x" `
   "-Dahakey.dev.allow-isp-flash-with-unknown-chip=true" `
-  -jar ".\target\ahakey-studio-1.5.3.jar"
+  -jar ".\target\ahakey-studio-1.5.4.jar"
 ```
 
 不要启动旧安装版 Studio；确认窗口来自当前 JAR。保留本次测试拥有的 Studio 进程 PID，不使用全局 `taskkill`。
