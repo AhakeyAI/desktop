@@ -1,5 +1,8 @@
 package com.example.ahakey.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -12,6 +15,7 @@ import java.util.function.LongConsumer;
  * the transport receive entry point and is never regenerated here.
  */
 final class PhysicalStatusFreshness {
+    private static final Logger logger = LoggerFactory.getLogger(PhysicalStatusFreshness.class);
     @FunctionalInterface
     interface QuerySender {
         /**
@@ -70,6 +74,8 @@ final class PhysicalStatusFreshness {
                             && session == querySession) {
                             writeBoundaryNanos = writeCompletedAtNanos;
                             state = State.WAITING;
+                            logger.debug("Physical status query written: session={}, writeCompletedAtNanos={}",
+                                querySession, writeBoundaryNanos);
                         }
                     });
                 } catch (RuntimeException exception) {
@@ -87,6 +93,7 @@ final class PhysicalStatusFreshness {
                 while (state == State.WAITING && session == querySession) {
                     if (remaining <= 0) {
                         state = State.TIMED_OUT_UNRESOLVED;
+                        logger.warn("Physical status timeout: timeoutMs={}, {}", timeoutMillis, diagnostics());
                         return false;
                     }
                     try {
@@ -94,6 +101,7 @@ final class PhysicalStatusFreshness {
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
                         state = State.TIMED_OUT_UNRESOLVED;
+                        logger.warn("Physical status wait interrupted: {}", diagnostics());
                         return false;
                     }
                 }
@@ -125,11 +133,15 @@ final class PhysicalStatusFreshness {
             if (frameSession != session || frameSession != querySession
                 // Equality cannot prove that the response followed the write.
                 || receivedAtNanos <= writeBoundaryNanos || !connected) {
+                logger.debug("Physical status rejected: frameSession={}, receivedAtNanos={}, "
+                        + "connected={}, {}", frameSession, receivedAtNanos, connected, diagnostics());
                 return;
             }
             if (state == State.WAITING) {
                 captureStatus.run();
                 state = State.COMPLETED;
+                logger.debug("Physical status freshness accepted: session={}, receivedAtNanos={}, "
+                    + "writeCompletedAtNanos={}", session, receivedAtNanos, writeBoundaryNanos);
                 changed.signalAll();
             } else if (state == State.TIMED_OUT_UNRESOLVED) {
                 // A late frame may resolve only the old transaction. It can
@@ -137,6 +149,9 @@ final class PhysicalStatusFreshness {
                 state = State.IDLE;
                 writeBoundaryNanos = 0;
                 changed.signalAll();
+            } else {
+                logger.debug("Physical status did not complete a query: receivedAtNanos={}, {}",
+                    receivedAtNanos, diagnostics());
             }
         } finally {
             stateLock.unlock();
@@ -147,6 +162,16 @@ final class PhysicalStatusFreshness {
         stateLock.lock();
         try {
             return state == State.TIMED_OUT_UNRESOLVED;
+        } finally {
+            stateLock.unlock();
+        }
+    }
+
+    String diagnostics() {
+        stateLock.lock();
+        try {
+            return "state=" + state + ", session=" + session + ", querySession=" + querySession
+                + ", writeCompletedAtNanos=" + writeBoundaryNanos;
         } finally {
             stateLock.unlock();
         }

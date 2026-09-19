@@ -19,6 +19,66 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BleManagerApprovalPathTest {
     @Test
+    void legacyBridgePhysicalStatusCompletesRepeatedQueriesWithoutRecovery() throws Exception {
+        QueryHarness harness = new QueryHarness();
+        BleManager manager = harness.manager();
+        makeBleLinkAvailable(manager);
+
+        // Exact firmware 1.0 fields from the reported device. Unlike 0x82/0x83,
+        // the bridge must send the original 13-byte frame inside TCP type 0x81.
+        for (int switchState = 0; switchState <= 1; switchState++) {
+            QueryResult query = startApproval(manager, 1000);
+            assertTrue(harness.awaitSends(switchState + 1));
+            byte[] wire = new byte[]{(byte) 0x81, 13, 0,
+                (byte) 0xAA, (byte) 0xBB, 0, 98, 50, 1, 0, 2, 0,
+                (byte) switchState, 0, (byte) 0xCC, (byte) 0xDD};
+            var packet = BleTcpPacket.decode(java.util.Arrays.copyOf(wire, 3),
+                java.util.Arrays.copyOfRange(wire, 3, wire.length));
+            manager.handlePacket(packet.type(), packet.data());
+            query.join();
+
+            assertTrue(query.fresh.get());
+            assertEquals(switchState, query.switchState.get());
+            DeviceStatus status = manager.getCachedStatus();
+            assertEquals(98, status.getBatteryLevel());
+            assertEquals(50, status.getSignal());
+            assertEquals(1, status.getFirmwareMain());
+            assertEquals(0, status.getFirmwareSub());
+            assertEquals(2, status.getWorkMode());
+            assertEquals(0, status.getLightMode());
+            assertFalse(status.isConnectionReadinessKnown());
+            assertTrue(status.isConnected());
+            assertEquals("BLE", status.getTransport());
+            assertEquals(switchState + 1, manager.getStatusUpdateSequence());
+            assertFalse(manager.isRecoveryPending());
+            assertFalse(manager.isRecoveryInFlight());
+        }
+        assertEquals(0, harness.recoveries.get());
+    }
+
+    @Test
+    void commandAckAndMalformedStatusCannotCompletePhysicalQuery() throws Exception {
+        QueryHarness harness = new QueryHarness();
+        BleManager manager = harness.manager();
+        makeBleLinkAvailable(manager);
+        QueryResult query = startApproval(manager, 1000);
+        assertTrue(harness.awaitSends(1));
+        manager.handlePacket(BleTcpPacket.BLE_NOTIFY,
+            new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0x98, 0, 1, (byte) 0xCC, (byte) 0xDD});
+        manager.handlePacket(BleTcpPacket.BLE_NOTIFY,
+            new byte[]{(byte) 0xAA, (byte) 0xBB, 0, 98, 50, (byte) 0xCC, (byte) 0xDD});
+        byte[] malformed = statusFrame(0);
+        malformed[malformed.length - 1] = 0;
+        manager.handlePacket(BleTcpPacket.BLE_NOTIFY, malformed);
+        assertEquals(0, manager.getStatusUpdateSequence());
+        assertTrue(query.thread.isAlive());
+        manager.handlePacket(BleTcpPacket.BLE_NOTIFY, statusFrame(1));
+        query.join();
+        assertTrue(query.fresh.get());
+        assertEquals(1, query.switchState.get());
+    }
+
+    @Test
     void oldFrameEnteredBeforeWriteButParsedAfterWriteIsRejected() throws Exception {
         QueryHarness harness = new QueryHarness();
         BleManager manager = harness.manager();
