@@ -57,6 +57,45 @@ pub fn frame(command: u8, payload: &[u8]) -> Vec<u8> {
     out
 }
 
+pub(crate) fn needs_lighting_support(frames: &[Vec<u8>]) -> bool {
+    frames
+        .iter()
+        .any(|frame| matches!(frame.get(2), Some(0x84 | 0x85 | 0x91)))
+}
+
+pub(crate) fn require_lighting_support(status: &DeviceStatus) -> Result<()> {
+    // Legacy firmware reserves this byte as zero and ACKs unknown lighting
+    // commands with success. Firmware version 1.0 alone cannot distinguish it
+    // from compatible community firmware, which reports brightness in 1..=100.
+    if !(1..=100).contains(&status.light_brightness) {
+        return Err(BleError::Invalid(
+            "固件未报告可配置灯效能力；未写入配置，请升级兼容固件或仅写入四键".into(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn confirm_config_status(frames: &[Vec<u8>], status: &DeviceStatus) -> Result<()> {
+    for (command, actual, name) in [
+        (0x85, status.light_brightness, "亮度"),
+        (0x92, status.work_mode, "工作模式"),
+    ] {
+        if let Some(expected) = frames
+            .iter()
+            .rev()
+            .find(|frame| frame.get(2) == Some(&command))
+            .and_then(|frame| frame.get(3))
+        {
+            if actual != *expected {
+                return Err(BleError::Invalid(format!(
+                    "{name}回读不一致（期望 {expected}，实际 {actual}）；未确认保存"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Raw HID usage list (modifiers are usages E0..E7, not a modifier bitmap).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -205,5 +244,42 @@ mod tests {
         p[3].keys[3].hid_codes = vec![1; 10];
         assert!(profile_frames(&p, 0, 50).is_err());
         assert!(profile_frames(&profiles(), 4, 50).is_err());
+    }
+
+    #[test]
+    fn legacy_success_ack_does_not_authorize_lighting_writes() {
+        let legacy = parse_status(&[0xaa, 0xbb, 0, 65, 50, 1, 0, 0, 0, 0, 0, 0xcc, 0xdd]).unwrap();
+        assert_eq!(parse_ack(&frame(0x91, &[0])), Some((0x91, 0)));
+        assert!(require_lighting_support(&legacy).is_err());
+        assert!(needs_lighting_support(
+            &profile_frames(&profiles(), 0, 35).unwrap()
+        ));
+        assert!(needs_lighting_support(&[frame(0x91, &[2])]));
+        assert!(needs_lighting_support(&[frame(0x85, &[35])]));
+        assert!(!needs_lighting_support(
+            &key_frames(0, &profiles()[0].keys).unwrap()
+        ));
+        let mut compatible = legacy;
+        compatible.light_brightness = 35;
+        assert!(require_lighting_support(&compatible).is_ok());
+        compatible.light_brightness = 255;
+        assert!(require_lighting_support(&compatible).is_err());
+    }
+
+    #[test]
+    fn profile_readback_requires_both_mode_and_brightness() {
+        let frames = profile_frames(&profiles(), 2, 70).unwrap();
+        let mut status =
+            parse_status(&[0xaa, 0xbb, 0, 65, 50, 1, 0, 2, 0, 0, 70, 0xcc, 0xdd]).unwrap();
+        assert!(confirm_config_status(&frames, &status).is_ok());
+        status.light_brightness = 35;
+        assert!(confirm_config_status(&frames, &status).is_err());
+        status.light_brightness = 70;
+        status.work_mode = 0;
+        assert!(confirm_config_status(&frames, &status).is_err());
+        // Key-only writes do not claim to change mode or brightness.
+        assert!(
+            confirm_config_status(&key_frames(0, &profiles()[0].keys).unwrap(), &status).is_ok()
+        );
     }
 }

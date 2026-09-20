@@ -622,8 +622,13 @@ impl BleClient {
             return Err(BleError::NotConnected);
         }
         let _write_guard = s.writes.lock().await;
+        // Probe on the same locked session as the writes: neither a stale
+        // snapshot nor a success ACK proves legacy firmware supports lighting.
+        if protocol::needs_lighting_support(&frames) {
+            protocol::require_lighting_support(&Self::read_status(s).await?)?;
+        }
         let mut replies = s.replies.subscribe();
-        for frame in frames {
+        for frame in &frames {
             let Some(&cmd) = frame.get(2) else {
                 return Err(BleError::Invalid(
                     "config frame missing command byte".into(),
@@ -633,7 +638,7 @@ impl BleClient {
                 &s.cancel,
                 "write command",
                 s.peripheral
-                    .write(&s.command, &frame, WriteType::WithResponse),
+                    .write(&s.command, frame, WriteType::WithResponse),
             )
             .await?;
             let ack = async {
@@ -659,21 +664,16 @@ impl BleClient {
             // Rejected config on an inactive host must not tear down its link.
             tokio::select! {biased;_=s.cancel.cancelled()=>return Err(BleError::Cancelled),_=sleep(Duration::from_millis(50))=>{}}
         }
+        if frames
+            .iter()
+            .any(|frame| matches!(frame.get(2), Some(0x85 | 0x92)))
+        {
+            protocol::confirm_config_status(&frames, &Self::read_status(s).await?)?;
+        }
         Ok(())
     }
-    /// Re-read device status after a confirmed write and require the expected
-    /// value, so mode/brightness only report success when the device shows them.
-    async fn confirm_status(
-        &self,
-        expect: impl Fn(&DeviceStatus) -> bool,
-        what: &'static str,
-    ) -> Result<()> {
-        let session = self.session.lock().await;
-        let s = session.as_ref().ok_or(BleError::NotConnected)?;
-        if self.status().phase != ConnectionPhase::Ready {
-            return Err(BleError::NotConnected);
-        }
-        let _write_guard = s.writes.lock().await;
+    /// Caller holds both session and write locks through probe, write and readback.
+    async fn read_status(s: &Session) -> Result<DeviceStatus> {
         let mut replies = s.replies.subscribe();
         operation(
             &s.cancel,
@@ -689,15 +689,13 @@ impl BleClient {
                     .await
                     .map_err(|e| BleError::Native(e.to_string()))?;
                 if let Some(status) = protocol::parse_status(&bytes) {
-                    if expect(&status) {
-                        return Ok(());
-                    }
+                    return Ok(status);
                 }
             }
         };
         tokio::select! { biased;
             _=s.cancel.cancelled()=>Err(BleError::Cancelled),
-            r=timeout(ACK_TIMEOUT, readback)=>r.map_err(|_|BleError::Timeout(what))?,
+            r=timeout(ACK_TIMEOUT, readback)=>r.map_err(|_|BleError::Timeout("device status readback"))?,
         }
     }
     pub async fn query_status(&self) -> Result<()> {
@@ -862,7 +860,8 @@ impl BleClient {
         self.routing_request(None, generation).await?;
         self.routing_request(Some(config), generation).await
     }
-    /// Completion means acknowledged GATT writes, not proof of persistent flash readback.
+    /// Requires lighting capability, firmware ACKs and mode/brightness readback.
+    /// The protocol does not provide persistent flash readback for the key mappings.
     pub async fn save_profiles(
         &self,
         profiles: &[ProfileConfig; 4],
@@ -892,8 +891,6 @@ impl BleClient {
             return Err(BleError::Invalid("mode must be 0..3".into()));
         }
         self.write_confirmed(vec![protocol::frame(0x92, &[mode])])
-            .await?;
-        self.confirm_status(|s| s.work_mode == mode, "work mode readback")
             .await
     }
     pub async fn set_light_brightness(&self, brightness: u8) -> Result<()> {
@@ -901,8 +898,6 @@ impl BleClient {
             return Err(BleError::Invalid("brightness must be 1..100".into()));
         }
         self.write_confirmed(vec![protocol::frame(0x85, &[brightness])])
-            .await?;
-        self.confirm_status(|s| s.light_brightness == brightness, "brightness readback")
             .await
     }
 }
