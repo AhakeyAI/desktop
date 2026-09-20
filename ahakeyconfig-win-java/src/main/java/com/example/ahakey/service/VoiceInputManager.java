@@ -3,6 +3,10 @@ package com.example.ahakey.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+
 /**
  * 语音输入管理器
  * 统一管理语音识别、AhaType服务和键盘注入
@@ -17,6 +21,11 @@ public class VoiceInputManager {
     private volatile boolean isActivated = false;  // 服务是否已激活
     private volatile boolean isRecording = false;  // 是否正在录音
     private volatile boolean keyDownTriggered = false;  // 按键按下防抖标志
+    private volatile boolean closed;
+    private final AhaTypeService ahaTypeService;
+    private final ExecutorService ahaTypeWorker;
+    private final Consumer<String> injectionOverride;
+    private final Object deliveryLock = new Object();
     private Consumer<String> resultCallback;
     private Consumer<String> partialCallback;
     private Consumer<String> statusCallback;  // 状态回调，通知UI当前状态
@@ -28,12 +37,30 @@ public class VoiceInputManager {
      * real Sherpa/keyboard components from the configured resources.
      */
     VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector) {
+        this(speechService, keyboardInjector, AhaTypeService.getInstance());
+    }
+
+    VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector,
+                      AhaTypeService ahaTypeService) {
+        this(speechService, keyboardInjector, ahaTypeService, null);
+    }
+
+    VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector,
+                      AhaTypeService ahaTypeService, Consumer<String> injectionOverride) {
         this.speechService = speechService;
         this.keyboardInjector = keyboardInjector;
+        this.ahaTypeService = ahaTypeService;
+        this.injectionOverride = injectionOverride;
+        this.ahaTypeWorker = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "ahatype-processing");
+            thread.setDaemon(true);
+            return thread;
+        });
         this.isEnabled = speechService != null;
     }
 
     public VoiceInputManager() {
+        this(null, null, AhaTypeService.getInstance());
     }
     
     public interface Consumer<T> {
@@ -68,6 +95,7 @@ public class VoiceInputManager {
      */
     public void initialize() {
         try {
+            closed = false;
             // 初始化历史已验证的 Sherpa-ONNX Paraformer 服务
             speechService = new SpeechService();
             speechService.initialize();
@@ -223,7 +251,7 @@ public class VoiceInputManager {
      * 处理中间识别结果（Partial）
      */
     private void onPartialResult(String text) {
-        logger.info("[语音识别中] {}", text);
+        logger.info("[语音识别中] textLength={}", text == null ? 0 : text.length());
         
         // 通知UI识别中状态
         notifyStatus(VoiceStatus.RECOGNIZING);
@@ -231,7 +259,7 @@ public class VoiceInputManager {
         // 累积中间结果
         if (text != null && !text.isEmpty()) {
             accumulatedResult.append(text);
-            logger.debug("累积结果更新: \"{}\"", accumulatedResult.toString());
+            logger.debug("累积结果更新: textLength={}", accumulatedResult.length());
         }
         
         // 通知UI更新中间结果
@@ -248,15 +276,15 @@ public class VoiceInputManager {
      * 处理最终识别结果（Final）
      */
     private void onFinalResult(String text) {
-        logger.info("[语音识别完成] {}", text);
+        logger.info("[语音识别完成] textLength={}", text == null ? 0 : text.length());
         
         // 通知UI处理中状态
         notifyStatus(VoiceStatus.PROCESSING);
         
         // 调试：显示累积结果状态
         String accumulatedStr = accumulatedResult.toString();
-        logger.debug("onFinalResult - 累积结果: \"{}\", 长度: {}", accumulatedStr, accumulatedStr.length());
-        logger.debug("onFinalResult - 最后结果: \"{}\"", text != null ? text : "null");
+        logger.debug("onFinalResult - accumulatedLength={}, finalLength={}",
+            accumulatedStr.length(), text == null ? 0 : text.length());
         
         // 使用累积的中间结果 + 最后一块的识别结果
         StringBuilder finalResultBuilder = new StringBuilder(accumulatedResult);
@@ -270,30 +298,19 @@ public class VoiceInputManager {
         }
         
         String finalResult = finalResultBuilder.toString().trim();
-        logger.debug("onFinalResult - 最终合并结果: \"{}\"", finalResult);
+        logger.debug("onFinalResult - mergedLength={}", finalResult.length());
         
         if (!finalResult.isEmpty()) {
-            // 使用 AhaType 整理文本（如果启用）
-            String processedText = processWithAhaType(finalResult);
-            logger.debug("准备注入文本: {}", processedText);
-            
-            // 通知UI显示最终结果
-            if (resultCallback != null) {
-                try {
-                    resultCallback.accept(processedText);
-                } catch (Exception e) {
-                    logger.error("最终结果回调失败: {}", e.getMessage());
-                }
+            Consumer<String> callbackForSegment = resultCallback;
+            try {
+                ahaTypeWorker.execute(() -> processAndDeliver(finalResult, callbackForSegment));
+            } catch (RejectedExecutionException exception) {
+                logger.debug("AhaType worker is already closed");
             }
-            
-            // 注入到当前光标位置
-            injectText(processedText);
         } else {
             logger.debug("识别结果为空或null");
+            notifyStatus(VoiceStatus.STOPPED);
         }
-        
-        // 通知UI已停止状态
-        notifyStatus(VoiceStatus.STOPPED);
         
         // 重置回调和累积结果
         this.resultCallback = null;
@@ -305,15 +322,38 @@ public class VoiceInputManager {
      * 使用 AhaType 整理文本
      */
     private String processWithAhaType(String text) {
-        // TODO: 实现 AhaType 文本整理逻辑
-        // 目前直接返回原始文本
-        return text;
+        return ahaTypeService.processIfEnabled(text);
+    }
+
+    private void processAndDeliver(String originalText, Consumer<String> callback) {
+        String processedText = processWithAhaType(originalText);
+        synchronized (deliveryLock) {
+            if (closed) {
+                return;
+            }
+            logger.debug("准备注入文本长度: {}", processedText == null ? 0 : processedText.length());
+            if (callback != null) {
+                try {
+                    callback.accept(processedText);
+                } catch (Exception e) {
+                    logger.error("最终结果回调失败: {}", e.getClass().getSimpleName());
+                }
+            }
+            injectText(processedText);
+            notifyStatus(VoiceStatus.STOPPED);
+        }
     }
     
     /**
      * 将文本注入到当前光标位置
      */
     private void injectText(String text) {
+        if (injectionOverride != null) {
+            if (text != null && !text.isEmpty()) {
+                injectionOverride.accept(text);
+            }
+            return;
+        }
         if (keyboardInjector != null && text != null && !text.isEmpty()) {
             try {
                 logger.debug("VoiceInputManager - 准备调用键盘注入器，文本长度: {}", text.length());
@@ -360,7 +400,11 @@ public class VoiceInputManager {
      * 关闭并释放资源
      */
     public void shutdown() {
+        synchronized (deliveryLock) {
+            closed = true;
+        }
         stopVoiceInput();
+        ahaTypeWorker.shutdownNow();
         if (speechService != null) {
             speechService.release();
         }

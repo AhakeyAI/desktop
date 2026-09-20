@@ -1,6 +1,17 @@
 package com.example.ahakey.model;
 
+import com.example.ahakey.service.AhaTypeConfig;
+import com.example.ahakey.service.AhaTypeService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.example.ahakey.platform.voice.VoiceAction;
 
 class StudioStateDirtySnapshotTest {
+    @TempDir
+    Path tempDir;
     @Test
     void editingSameItemDuringSaveRemainsDirty() {
         StudioState state = new StudioState();
@@ -76,18 +89,45 @@ class StudioStateDirtySnapshotTest {
     }
 
     @Test
-    void ahaTypeUsesMainBranchStateAndOriginalCopy() {
-        StudioState state = new StudioState();
+    void ahaTypeStateRequiresAValidSessionAndCanToggleOff() throws Exception {
+        AhaTypeConfig config = new AhaTypeConfig(tempDir.resolve("typeless_config.json"));
+        Map<String, Object> values = AhaTypeConfig.defaults();
+        values.put(AhaTypeConfig.ENABLED, true);
+        values.put(AhaTypeConfig.ACCESS_TOKEN, "test-token");
+        values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, "2030-01-01T00:00:00Z");
+        config.save(values);
+        AhaTypeService service = new AhaTypeService(config, HttpClient.newHttpClient(),
+            URI.create("http://127.0.0.1/"),
+            Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+        StudioState state = new StudioState(service);
         assertTrue(state.ahaTypeEnabledProperty().get());
-        assertEquals("云端整理已启用", state.ahaTypeStatusProperty().get());
 
         state.toggleAhaType(false);
         assertFalse(state.ahaTypeEnabledProperty().get());
-        assertEquals("语音结果直接粘贴", state.ahaTypeStatusProperty().get());
+        assertTrue(state.ahaTypeStatusProperty().get().contains("未启用"));
 
         state.toggleAhaType(true);
         assertTrue(state.ahaTypeEnabledProperty().get());
-        assertEquals("云端整理已启用", state.ahaTypeStatusProperty().get());
+    }
+
+    @Test
+    void missingLoginRequestsAccountUiButMissingLocalModelDoesNot() throws Exception {
+        AhaTypeConfig config = new AhaTypeConfig(tempDir.resolve("missing-login.json"));
+        config.save(AhaTypeConfig.defaults());
+        AhaTypeService service = new AhaTypeService(config, HttpClient.newHttpClient(),
+            URI.create("http://127.0.0.1/"),
+            Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+        StudioState state = new StudioState(service);
+
+        state.setLocalSpeechAvailable(() -> true);
+        assertFalse(state.toggleAhaType(true));
+        assertTrue(state.shouldOpenAhaTypeAccountForEnable());
+        assertFalse(state.ahaTypeEnabledProperty().get());
+
+        state.setLocalSpeechAvailable(() -> false);
+        assertFalse(state.toggleAhaType(true));
+        assertFalse(state.shouldOpenAhaTypeAccountForEnable());
+        assertTrue(state.ahaTypeStatusProperty().get().contains("本地语音"));
     }
 
     @Test

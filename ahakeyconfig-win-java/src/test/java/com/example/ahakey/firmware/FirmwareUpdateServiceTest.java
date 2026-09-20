@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -26,7 +27,7 @@ class FirmwareUpdateServiceTest {
             FirmwareUpdateState.IDLE, FirmwareUpdateState.PREFLIGHT));
         assertFalse(FirmwareUpdateService.isLegalTransition(
             FirmwareUpdateState.IDLE, FirmwareUpdateState.SUCCESS));
-        assertFalse(FirmwareUpdateService.isLegalTransition(
+        assertTrue(FirmwareUpdateService.isLegalTransition(
             FirmwareUpdateState.FLASHING, FirmwareUpdateState.SUCCESS));
         assertTrue(FirmwareUpdateService.isLegalTransition(
             FirmwareUpdateState.VERIFYING, FirmwareUpdateState.SUCCESS));
@@ -53,7 +54,43 @@ class FirmwareUpdateServiceTest {
     }
 
     @Test
-    void endToEndUsesUidAndFlashRunnerThenPostVerifier() throws Exception {
+    void flashingStageRejectsCancellationAndRetainsSingleFlightOwnership() throws Exception {
+        CountDownLatch flashing = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicReference<Boolean> runnerSawCancellation = new AtomicReference<>(false);
+        FirmwareUpdateService service = service(() -> true, (command, cancellation) -> {
+            if (!command.arguments().contains("download")) {
+                return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 41, 0,
+                    false, false, "", "", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+            }
+            flashing.countDown();
+            release.await(5, TimeUnit.SECONDS);
+            runnerSawCancellation.set(cancellation.cancelled());
+            return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 42, 0,
+                false, false, "", "", "{\"Status\":\"Finished\",\"Code\":0,"
+                    + "\"Message\":\"Succeed\"}", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+        });
+        try {
+            FirmwareUpdateService.OperationStart start = service.start(request());
+            assertTrue(start.accepted());
+            assertTrue(flashing.await(5, TimeUnit.SECONDS));
+            assertEquals(FirmwareUpdateState.FLASHING, start.handle().state());
+            assertFalse(start.handle().cancel());
+            assertFalse(start.handle().isCancelled());
+            assertFalse(service.start(request()).accepted());
+            release.countDown();
+            assertTrue(start.handle().completion().get(5, TimeUnit.SECONDS).success());
+            assertFalse(runnerSawCancellation.get());
+            assertFalse(start.handle().cancel(), "closing after success must not cancel the operation");
+            assertEquals(FirmwareUpdateState.SUCCESS, start.handle().state());
+        } finally {
+            release.countDown();
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void legacyCompatibilityPathCompletesAtStrictWchIspSuccess() throws Exception {
         AtomicReference<String> commandSeen = new AtomicReference<>();
         AtomicInteger awaitCalls = new AtomicInteger();
         WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
@@ -82,6 +119,8 @@ class FirmwareUpdateServiceTest {
             assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve("command.txt")));
             assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve("runtime.json")));
             assertEquals(1, awaitCalls.get());
+            assertTrue(result.detail().contains("WCHISP_FLASH_SUCCESS=YES"));
+            assertTrue(result.detail().contains("POST_FLASH_READBACK_PERFORMED=NO"));
         } finally {
             service.shutdown();
         }
@@ -169,8 +208,8 @@ class FirmwareUpdateServiceTest {
                 .get(5, TimeUnit.SECONDS);
             assertTrue(result.success(), result.detail());
             assertTrue(states.get().contains(FirmwareUpdateState.READY));
-            assertTrue(states.get().contains(FirmwareUpdateState.WAITING_RECONNECT));
-            assertTrue(states.get().contains(FirmwareUpdateState.VERIFYING));
+            assertFalse(states.get().contains(FirmwareUpdateState.WAITING_RECONNECT));
+            assertFalse(states.get().contains(FirmwareUpdateState.VERIFYING));
             assertEquals(List.of("-c", "flash", "-o", "download", "-f", "firmware"),
                 normalizeFlashArgs(flashArgs.get()));
         } finally {
@@ -222,7 +261,7 @@ class FirmwareUpdateServiceTest {
     }
 
     @Test
-    void explicitVendorSuccessWithNonZeroProcessExitReachesPostVerify() throws Exception {
+    void explicitVendorSuccessWithNonZeroProcessExitCompletesWithoutPostVerify() throws Exception {
         AtomicReference<List<FirmwareUpdateState>> states = new AtomicReference<>(
             new java.util.ArrayList<>());
         WchIspRunner runner = new WchIspRunner((command, cancellation) -> {
@@ -238,10 +277,8 @@ class FirmwareUpdateServiceTest {
         RuntimeBundle runtime = runtimeBundle("explicit-terminal-runtime");
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
-        FirmwarePostVerifier verifier = new FirmwarePostVerifier(
-            () -> new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0,
-                FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 7, 1),
-            () -> true, millis -> { });
+        AtomicInteger postVerifierCalls = new AtomicInteger();
+        FirmwarePostVerifier verifier = failIfPostVerifierUsed(postVerifierCalls);
         FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
             verifier, new FirmwareUpdateDiagnostics(temporary.resolve("explicit-terminal-diagnostics")),
             temporary);
@@ -251,8 +288,10 @@ class FirmwareUpdateServiceTest {
                 .get(5, TimeUnit.SECONDS);
 
             assertTrue(result.success(), result.detail());
-            assertTrue(states.get().contains(FirmwareUpdateState.WAITING_RECONNECT));
-            assertTrue(states.get().contains(FirmwareUpdateState.VERIFYING));
+            assertNull(result.error());
+            assertFalse(states.get().contains(FirmwareUpdateState.WAITING_RECONNECT));
+            assertFalse(states.get().contains(FirmwareUpdateState.VERIFYING));
+            assertEquals(0, postVerifierCalls.get());
             assertTrue(Files.readString(result.diagnosticDirectory().resolve("flash-result.json"))
                 .contains("\"terminalResult\": \"SUCCESS\""));
         } finally {
@@ -261,7 +300,7 @@ class FirmwareUpdateServiceTest {
     }
 
     @Test
-    void flashSuccessWithPostVerifyTimeoutIsReportedSeparately() throws Exception {
+    void unavailableReconnectAndVersionReadbackCannotOverrideWchIspSuccess() throws Exception {
         RuntimeBundle runtime = runtimeBundle("post-verify-failure-runtime");
         WchIspRunner runner = new WchIspRunner((command, cancellation) ->
             new WchIspRunner.WchIspProcessResult(command.operationId(), true, 31, 100,
@@ -269,12 +308,10 @@ class FirmwareUpdateServiceTest {
                 "{\"Device\":\"CH582\",\"Status\":\"Finished\","
                     + "\"Code\":0,\"Message\":\"Succeed\"}",
                 "", "", Duration.ofMillis(8), false, Map.of(), "PROCESS_EXIT"));
-        AhaKeyResponseParser.DeviceCapabilities incomplete =
-            new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0, 0, 7, 1);
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
-        FirmwarePostVerifier verifier = new FirmwarePostVerifier(
-            () -> incomplete, () -> true, millis -> { });
+        AtomicInteger postVerifierCalls = new AtomicInteger();
+        FirmwarePostVerifier verifier = failIfPostVerifierUsed(postVerifierCalls);
         FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
             verifier, new FirmwareUpdateDiagnostics(temporary.resolve("post-verify-failure")),
             temporary);
@@ -282,11 +319,56 @@ class FirmwareUpdateServiceTest {
             FirmwareUpdateResult result = service.start(request()).handle().completion()
                 .get(5, TimeUnit.SECONDS);
 
-            assertFalse(result.success());
-            assertEquals(FirmwareUpdateError.POST_FLASH_CAPABILITIES_MISMATCH, result.error());
-            assertTrue(result.detail().contains("FLASH_SUCCESS_VERIFY_FAILED=YES"));
-            assertTrue(result.detail().contains("固件已烧录，但设备版本确认失败"));
-            assertFalse(result.detail().contains("FLASH_FAILED=YES"));
+            assertTrue(result.success(), result.detail());
+            assertNull(result.error());
+            assertEquals(0, postVerifierCalls.get());
+            assertTrue(result.detail().contains("POST_FLASH_READBACK_PERFORMED=NO"));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void nullPostVerifierDoesNotBlockOfficialWchIspSuccess() throws Exception {
+        RuntimeBundle runtime = runtimeBundle("null-post-verifier-runtime");
+        WchIspRunner runner = new WchIspRunner((command, cancellation) ->
+            new WchIspRunner.WchIspProcessResult(command.operationId(), true, 32, 0,
+                false, false, "", "",
+                "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
+                Duration.ofMillis(3), false, Map.of(), "PROCESS_EXIT"));
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, runner);
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+            null, new FirmwareUpdateDiagnostics(temporary.resolve("null-post-verifier")), temporary);
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+
+            assertTrue(result.success(), result.detail());
+            assertNull(result.error());
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    @Test
+    void explicitWchIspFailureRemainsFailed() throws Exception {
+        RuntimeBundle runtime = runtimeBundle("explicit-failure-runtime");
+        WchIspRunner runner = new WchIspRunner((command, cancellation) ->
+            new WchIspRunner.WchIspProcessResult(command.operationId(), true, 33, 2,
+                false, false, "", "",
+                "{\"Status\":\"Fail\",\"Code\":2,\"Message\":\"Failed\"}",
+                Duration.ofMillis(3), false, Map.of(), "PROCESS_EXIT"));
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, runner);
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+            null, new FirmwareUpdateDiagnostics(temporary.resolve("explicit-failure")), temporary);
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+
+            assertEquals(FirmwareUpdateState.FAILED, result.state());
+            assertEquals(FirmwareUpdateError.FLASH_FAILED, result.error());
         } finally {
             service.shutdown();
         }
@@ -388,8 +470,14 @@ class FirmwareUpdateServiceTest {
         });
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
-        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
-            verifier(), new FirmwareUpdateDiagnostics(temporary.resolve("prepared-diagnostics")), temporary);
+        AtomicInteger runtimeResolutions = new AtomicInteger();
+        AtomicInteger postVerifierCalls = new AtomicInteger();
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> {
+            runtimeResolutions.incrementAndGet();
+            return runtime;
+        },
+            failIfPostVerifierUsed(postVerifierCalls),
+            new FirmwareUpdateDiagnostics(temporary.resolve("prepared-diagnostics")), temporary);
         try {
             FirmwareUpdateService.PreparationResult preparation = service.prepareFlash(
                 new FirmwareUpdateRequest(hex, null, null, true, false));
@@ -413,6 +501,9 @@ class FirmwareUpdateServiceTest {
             assertTrue(result.success(), result.detail());
             assertEquals(1, runnerCalls.get());
             assertEquals(prepared.session().command().arguments(), flashArguments.get());
+            assertEquals(1, runtimeResolutions.get(),
+                "prepared click must not repeat runtime preflight");
+            assertEquals(0, postVerifierCalls.get());
         } finally {
             service.shutdown();
         }
@@ -450,6 +541,18 @@ class FirmwareUpdateServiceTest {
             () -> new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0,
                 FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 7, 1),
             () -> true, millis -> { });
+    }
+
+    private FirmwarePostVerifier failIfPostVerifierUsed(AtomicInteger calls) {
+        return new FirmwarePostVerifier(
+            () -> {
+                calls.incrementAndGet();
+                throw new AssertionError("0x9F verify must not run after WCHISP success");
+            },
+            () -> {
+                calls.incrementAndGet();
+                throw new AssertionError("awaitReconnect must not run after WCHISP success");
+            }, millis -> { });
     }
 
     private RuntimeBundle runtimeBundle(String name) throws Exception {

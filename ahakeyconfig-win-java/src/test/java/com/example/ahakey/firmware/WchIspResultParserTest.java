@@ -67,11 +67,12 @@ class WchIspResultParserTest {
     }
 
     @Test
-    void cleanNormalExitWithoutOutputIsAccepted() {
+    void cleanNormalExitWithoutCompleteTerminalResultFailsClosed() {
         var result = WchIspResultParser.parseFlash(raw(0, false,
             "", "", false, "PROCESS_EXIT"));
 
-        assertTrue(result.success());
+        assertFalse(result.success());
+        assertEquals(FirmwareUpdateError.FLASH_FAILED, result.error());
     }
 
     @Test

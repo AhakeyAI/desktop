@@ -68,6 +68,11 @@ $requiredEntries = @(
     "com/example/ahakey/platform/voice/VoiceButtonEvent.class",
     "com/example/ahakey/platform/voice/VoiceButtonStateMachine.class",
     "com/example/ahakey/service/SpeechService.class",
+    "com/example/ahakey/service/AhaTypeConfig.class",
+    "com/example/ahakey/service/AhaTypeService.class",
+    "com/example/ahakey/service/CloudAccountManager.class",
+    "com/example/ahakey/view/CloudAccountDialog.class",
+    "com/example/ahakey/service/VoiceInputManager.class",
     "com/example/ahakey/sherpa/LibraryLoader.class",
     "firmware-capabilities.properties",
     "model_config.properties",
@@ -133,5 +138,12 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseInputDir)) {
         (Get-Item -LiteralPath $apiJar).Length -eq 0) {
         throw "Release input is missing Sherpa Java API: $apiJar"
     }
+    $chipDatabase = Join-Path $resolvedInput `
+        "tools\wchisp\ChipType\chiplist_CH57x_CH59x.wcfg"
+    if (-not (Test-Path -LiteralPath $chipDatabase -PathType Leaf) -or
+        (Get-Item -LiteralPath $chipDatabase).Length -eq 0) {
+        throw "Release input is missing WCHISP chip database: $chipDatabase"
+    }
     Write-Output "SHERPA_RELEASE_INPUT=OK"
+    Write-Output "WCHISP_CHIP_DATABASE_RELEASE_INPUT=OK"
 }

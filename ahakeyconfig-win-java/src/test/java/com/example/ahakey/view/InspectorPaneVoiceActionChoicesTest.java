@@ -43,7 +43,7 @@ class InspectorPaneVoiceActionChoicesTest {
         throws IOException {
         String source = Files.readString(Path.of(
             "src/main/java/com/example/ahakey/view/InspectorPane.java"));
-        assertTrue(source.contains("createShortcutEditor(\n            shortcutModel"));
+        assertTrue(source.replace("\r\n", "\n").contains("createShortcutEditor(\n            shortcutModel"));
         assertTrue(source.contains("new Label(\"短按动作（一次触发）\")"));
         assertTrue(source.contains("new Label(\"长按动作（按住说话）\")"));
         assertTrue(source.contains("reservePhysicalF18"));
