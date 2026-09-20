@@ -76,9 +76,15 @@ pub async fn cancel(app: &tauri::AppHandle) {
 }
 fn cancel_locked(app: &tauri::AppHandle) {
     let state = app.state::<Runtime>();
+    state.key_state.lock().unwrap().release_session();
+    clear_session(&state);
+    let _ = crate::backend::display_caption(app, "idle", "", false);
+}
+// Starting a new recording also clears an old session, but must preserve the
+// key latch already set by the press that requested this recording.
+fn clear_session(state: &Runtime) {
     state.generation.fetch_add(1, Ordering::SeqCst);
     state.recording.store(false, Ordering::SeqCst);
-    state.key_state.lock().unwrap().release_session();
     let active = state.voice.lock().unwrap().take();
     if let Some(mut active) = active {
         active.cancel();
@@ -88,7 +94,6 @@ fn cancel_locked(app: &tauri::AppHandle) {
         message: "语音已取消".into(),
         recording: false,
     };
-    let _ = crate::backend::display_caption(app, "idle", "", false);
 }
 pub async fn start(
     app: tauri::AppHandle,
@@ -98,6 +103,20 @@ pub async fn start(
 ) -> Result<(), String> {
     let state = app.state::<Runtime>();
     let _gate = state.voice_gate.lock().await;
+    let result = start_locked(app.clone(), target, key_epoch, press_sequence).await;
+    if result.is_err() {
+        // Includes early failures (missing model, target or caption window).
+        state.key_state.lock().unwrap().release_session();
+    }
+    result
+}
+async fn start_locked(
+    app: tauri::AppHandle,
+    target: Option<usize>,
+    key_epoch: Option<u64>,
+    press_sequence: Option<u64>,
+) -> Result<(), String> {
+    let state = app.state::<Runtime>();
     if state.closing.load(Ordering::SeqCst)
         || key_epoch.is_some_and(|e| {
             e != state.key_epoch.load(Ordering::SeqCst) || !state.key_enabled.load(Ordering::SeqCst)
@@ -112,7 +131,8 @@ pub async fn start(
     if state.speech.lock().unwrap().phase == "transcribing" {
         return Err("上一句仍在识别，请稍候".into());
     }
-    cancel_locked(&app);
+    clear_session(&state);
+    let _ = crate::backend::display_caption(&app, "idle", "", false);
     let settings = state.settings.lock().unwrap().clone();
     if settings.provider == Provider::Local && !state.model_store().is_installed() {
         return Err("请先在设置中下载或导入 SenseVoice 模型".into());
@@ -231,18 +251,14 @@ pub async fn start(
     });
     // Caption placement uses the same captured target as text insertion.
     // Manual UI recording has no insertion target, so preview on the main window.
+    #[cfg(windows)]
     let caption_target = target.or_else(|| {
-        #[cfg(windows)]
-        {
-            app.get_webview_window("main")
-                .and_then(|w| w.hwnd().ok())
-                .map(|h| h.0 as usize)
-        }
-        #[cfg(not(windows))]
-        {
-            None
-        }
+        app.get_webview_window("main")
+            .and_then(|w| w.hwnd().ok())
+            .map(|h| h.0 as usize)
     });
+    #[cfg(not(windows))]
+    let caption_target = target;
     *state.caption_target.lock().unwrap() = caption_target;
     crate::backend::position_caption(&app, settings.caption_bottom_offset)?;
     state.recording.store(true, Ordering::SeqCst);
@@ -453,6 +469,79 @@ async fn finish_generation(app: tauri::AppHandle, expected: Option<u64>) -> Resu
 #[cfg(test)]
 mod external_tests {
     use super::*;
+    use crate::settings::{Settings, TriggerMode};
+
+    fn runtime() -> Runtime {
+        Runtime::new(
+            Settings::default(),
+            Default::default(),
+            None,
+            Default::default(),
+            "ai.ahakey.voice-test".into(),
+        )
+    }
+
+    #[test]
+    fn startup_cleanup_preserves_hold_release_and_toggle_stop() {
+        for mode in [TriggerMode::Hold, TriggerMode::Toggle] {
+            let state = runtime();
+            // Same order as backend::key_event_target -> voice::start_locked.
+            assert_eq!(
+                state.key_state.lock().unwrap().update(true, mode.clone()),
+                Some(true)
+            );
+            clear_session(&state);
+            state.recording.store(true, Ordering::SeqCst);
+            let mut keys = state.key_state.lock().unwrap();
+            assert_eq!(keys.update(true, mode.clone()), None);
+            if mode == TriggerMode::Hold {
+                assert_eq!(keys.update(false, mode), Some(false));
+            } else {
+                assert_eq!(keys.update(false, mode.clone()), None);
+                assert_eq!(keys.update(true, mode), Some(false));
+            }
+        }
+    }
+
+    #[test]
+    fn startup_cleanup_does_not_reactivate_an_already_released_key() {
+        let state = runtime();
+        assert_eq!(
+            state
+                .key_state
+                .lock()
+                .unwrap()
+                .update(true, TriggerMode::Hold),
+            Some(true)
+        );
+        // A quick release may already have queued finish before start runs.
+        assert_eq!(
+            state
+                .key_state
+                .lock()
+                .unwrap()
+                .update(false, TriggerMode::Hold),
+            Some(false)
+        );
+        clear_session(&state);
+        assert_eq!(
+            state
+                .key_state
+                .lock()
+                .unwrap()
+                .update(false, TriggerMode::Hold),
+            None
+        );
+        assert_eq!(
+            state
+                .key_state
+                .lock()
+                .unwrap()
+                .update(true, TriggerMode::Hold),
+            Some(true)
+        );
+    }
+
     #[test]
     fn failed_stop_cannot_leave_an_external_session_for_cleanup_to_toggle_again() {
         let mut slot = Some(Active::External { wechat: true });
