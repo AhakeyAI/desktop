@@ -7,6 +7,7 @@ use serde::Serialize;
 use tauri::Manager;
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[cfg_attr(not(windows), derive(Default))]
 #[serde(rename_all = "camelCase")]
 pub struct UsbSnapshot {
     pub supported: bool,
@@ -14,10 +15,11 @@ pub struct UsbSnapshot {
     pub status: Option<DeviceStatus>,
     pub error: Option<String>,
 }
+#[cfg(windows)]
 impl Default for UsbSnapshot {
     fn default() -> Self {
         Self {
-            supported: cfg!(windows),
+            supported: true,
             present: None,
             status: None,
             error: None,

@@ -56,6 +56,18 @@ Controlled firmware source and schematics are not part of this project.
 - Tray provider/profile/caption actions; an optional loopback Hook-event
   receiver. Hooks never auto-approve requests or edit external harness settings.
 
+Full profile and lighting writes first read the connected device's brightness
+capability. Legacy firmware that leaves this field at zero is rejected before
+configuration writes, even if it would acknowledge unsupported commands as
+successful. Key-only writes remain available. Mode and brightness changes also
+require matching status readback on the same connection.
+
+When enabling Hooks after using the Java client, an exact match of its generated
+`~/.ahakey/hooks/ahakey-hook.ps1` is backed up as `ahakey-hook.legacy.ps1` and
+replaced with the dispatcher that reads `active-endpoint.json`. Modified or
+unrecognized scripts and conflicting backups are preserved; enabling Hooks
+reports an error with the path to resolve instead of claiming success.
+
 USB input needs no BLE pairing or companion app, but the keyboard must select
 USB as its input target. Voice recognition still needs the receiving computer's
 listener/input method. Full profile/light writes currently use BLE; USB supports
