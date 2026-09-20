@@ -1,14 +1,14 @@
-name: Rust client
+name: AhaKey Studio Tauri
 
 on:
   pull_request:
     paths:
-      - "ahakey-desktop/**"
-      - ".github/workflows/rust-client.yml"
+      - "ahakey-studio-tauri/**"
+      - ".github/workflows/ahakey-studio-tauri.yml"
   push:
     paths:
-      - "ahakey-desktop/**"
-      - ".github/workflows/rust-client.yml"
+      - "ahakey-studio-tauri/**"
+      - ".github/workflows/ahakey-studio-tauri.yml"
   workflow_dispatch:
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: ahakey-desktop
+        working-directory: ahakey-studio-tauri
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
         with:
           node-version: "22"
           cache: pnpm
-          cache-dependency-path: ahakey-desktop/pnpm-lock.yaml
+          cache-dependency-path: ahakey-studio-tauri/pnpm-lock.yaml
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy

@@ -1,7 +1,8 @@
 # AhaKey Studio: Rust client
 
-Rust + Tauri 2 + React client, version 1.1.5. The client is a separate subproject;
-it does not replace the Java, Swift or bridge source trees.
+Rust + Tauri 2 + React client, version 1.1.5. The client lives in the independent
+`ahakey-studio-tauri/` subdirectory at the repository root; it does not replace
+the Java, Swift or bridge source trees.
 Windows x64 is the tested distribution target. macOS/Linux adapters exist but
 their native packaging, permissions and hardware behavior still need validation.
 This is a community client for hardware by [AhaKey](https://github.com/AhakeyAI),
