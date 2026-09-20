@@ -89,7 +89,7 @@ fn ensure_dispatcher(path: &Path) -> Result<(), String> {
     if normalized.as_deref() == Some(DISPATCHER) {
         return Ok(());
     }
-    if normalized.as_deref() != Some(LEGACY_DISPATCHER) {
+    if normalized.as_deref() != Some(normalize_script(LEGACY_DISPATCHER).as_str()) {
         return Err(format!(
             "现有 Hook 脚本不是兼容的分发脚本，已保留；请备份并移走 {} 后重新启用 Hook",
             path.display()
@@ -222,7 +222,10 @@ mod tests {
     fn java_dispatcher_is_backed_up_and_events_reach_the_published_listener() {
         let directory = tempfile::tempdir().unwrap();
         let script = directory.path().join("ahakey-hook.ps1");
-        let legacy = format!("\u{feff}{}", LEGACY_DISPATCHER.replace('\n', "\r\n"));
+        let legacy = format!(
+            "\u{feff}{}",
+            normalize_script(LEGACY_DISPATCHER).replace('\n', "\r\n")
+        );
         std::fs::write(&script, &legacy).unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
         let server = start(directory.path().to_owned(), move |name, state| {
