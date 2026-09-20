@@ -36,7 +36,7 @@ public class KeyboardInjector {
             return;
         }
         
-        logger.debug("KeyboardInjector - 开始注入文本: \"{}\"", text);
+        logger.debug("KeyboardInjector - 开始注入文本，长度: {}", text.length());
         
         try {
             // 等待目标窗口获得焦点（增加延迟时间，确保窗口切换完成）

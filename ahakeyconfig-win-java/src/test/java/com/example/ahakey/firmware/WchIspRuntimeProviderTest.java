@@ -119,6 +119,8 @@ class WchIspRuntimeProviderTest {
         Files.write(bundle.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME), new byte[]{1, 2, 3});
         Files.write(bundle.resolve("CH343PT.DLL"), new byte[]{4});
         Files.write(bundle.resolve("WCH55xISPDLL.dll"), new byte[]{5});
+        Path chipType = Files.createDirectories(bundle.resolve("ChipType"));
+        Files.write(chipType.resolve("chiplist_CH57x_CH59x.wcfg"), new byte[]{6});
         try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             Files.copy(input, bundle.resolve("CONFIG_CH57X59X.WCH"));
         }
@@ -134,6 +136,8 @@ class WchIspRuntimeProviderTest {
         Files.write(bundle.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME), new byte[]{1, 2, 3});
         Files.write(bundle.resolve("CH343PT.DLL"), new byte[]{4});
         Files.write(bundle.resolve("WCH55xISPDLL.dll"), new byte[]{5});
+        Path chipType = Files.createDirectories(bundle.resolve("ChipType"));
+        Files.write(chipType.resolve("chiplist_CH57x_CH59x.wcfg"), new byte[]{6});
         try (var input = getClass().getResourceAsStream("/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             Files.copy(input, bundle.resolve("CONFIG_CH57X59X.WCH"));
         }
@@ -146,6 +150,9 @@ class WchIspRuntimeProviderTest {
             "CH343PT.DLL", "WCH55xISPDLL.dll", "CONFIG_CH57X59X.WCH"}) {
             Files.copy(source.resolve(name), target.resolve(name));
         }
+        Path chipType = Files.createDirectories(target.resolve("ChipType"));
+        Files.copy(source.resolve("ChipType").resolve("chiplist_CH57x_CH59x.wcfg"),
+            chipType.resolve("chiplist_CH57x_CH59x.wcfg"));
     }
 
     private static void restoreProperty(String name, String value) {

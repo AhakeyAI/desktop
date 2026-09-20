@@ -3,7 +3,83 @@
 > 唯一权威事实源：`desktop/docs/windows-stabilization-plan.md`。适用范围是
 > `desktop/ahakeyconfig-win-java` 及其 Windows 发布脚本；固件仓库只读，不在本轮修改。
 >
-> 最后更新：2026-08-29。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
+> 最后更新：2026-09-19。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
+>
+> 解释顺序：第 0～6 节记录当前工程事实和仍需修复的边界；第 7 节之后是按时间追加的
+> 交付与决策历史。历史章节保留用于追溯，但如果与第 0～6 节或更晚的明确 supersedes
+> 记录冲突，不得把历史描述当作当前已实现事实。
+
+## 0. 当前基线与解释边界（2026-09-18）
+
+当前 Windows 工作树为 `desktop`，检出分支 `voice-k1-local-input-restore`。本轮 AhaType
+修复代码已提交为 `10171efaffe02863939cdff17873a7ac3dc78659`；本文档随后作为独立文档
+提交，最终树的 HEAD 仍以 Git history 为准。GitHub 默认分支仍是 `main`，其 HEAD
+`931ebefd4b6fec4ee6578dfd7ebc0fcc93951c73`、应用版本 `1.0.0`，与 Windows 开发线明显
+分叉；Windows 稳定化、验收和修复不得误用 `main` 作为比较基线。当前 Windows 应用版本为
+`1.5.4`。
+
+受 Git 管理的生产源码、资源、测试和脚本的修改均通过独立提交保留历史；工作树中的未跟踪
+review、patch、report 和 artifacts 是审计/交付材料，不等于生产代码差异，本轮仍不纳入
+提交。既有 `4225f13` 烧录/BLE 稳定性提交和 `6a04439` AhaType 恢复提交均未 squash。
+
+当前跨端版本合同为：bundled firmware `1.4.8`、最低 GIF `1.4.3`、稳定化最低版本
+`1.4.7`、桌面 raw F18 最低版本 `1.4.8`、protocol `3.2`、model `1`、capability mask
+`0x000007FF`。应用运行时、发布脚本和文件名必须统一使用
+`AhaKey-X1-firmware-1.4.8-ch582.hex`；不得回退到 1.4.3/1.4.7，也不得通过重命名旧 HEX
+伪造 1.4.8。产品运行时不引入 SHA-256 门禁；WCHISP runtime metadata 中已有的内部发布
+完整性哈希可以保留，但不能成为设备功能或普通用户运行时依赖。
+
+本轮开始前已确认的软件缺口及本轮收口结果如下；当前代码/测试状态以第 6 节为准：
+
+1. 生产维护页使用同一个 `PreparedFlashSession` 完成“准备—ISP 检测—显式点击—烧录”：
+   `prepareFlash()` 在进入 ISP 前异步完成一次 HEX/runtime/CONFIG 准备，不启动 WCHISP、
+   不申请 UAC、也不依赖设备；第 3 步用同一会话做一次快速 ISP 检测并置为 `ARMED`，
+   第 4 步只调用 `startPrepared()` / `flashPrepared()`，不重新走 `start(request)`、
+   preflight、runtime/config、HEX 或设备检测。
+2. WCHISP 启动在显式烧录点击时按 Studio 权限一次选择 `DIRECT_WORKER` 或
+   `RUNAS_WORKER`；管理员直接启动，非管理员通过 RunAs 弹出一次 UAC，不采用 direct-first
+   或 740 后重试。完整终态 `Finished + Code=0 + Message=Succeed`（包括进程 exit code
+   100）仍是正确且必须保留的业务成功判定。
+3. `FirmwarePostVerifier`、transport session/receiver freshness 与 `0x9F` 回读能力继续保留，
+   但不再由 WCHISP 烧录成功路径自动调用，也不再阻塞或推翻已经确认的烧录成功；用户在
+   烧录完成后自行退出 ISP、正常重连并检查设备版本。
+4. BLE bridge reader 的意外 EOF/IOException 已进入既有恢复调度器的内部 transport-loss
+   路径，不再冒充用户 `disconnect()`；旧 reader 事件会被 receiver/thread 身份门禁丢弃。
+5. USB HID 已改为“打开句柄后先查询同一 session 的设备状态，只有有界 ready 证明成功后
+   才更新 connected/UI”，失败会关闭未就绪 session 并保留 BLE fallback。
+6. `FirmwarePostVerifier` 相关 fixture 已同步当前 1.4.8 / protocol 3.2 / model 1 /
+   capabilities 0x7FF 合同，并补充跨 session、顺序和烧录完成时间边界测试。
+7. AhaType Java 客户端已完成最小收口：手机号始终 trim/保存，记住密码只控制密码；登录
+   的 user/quota/token_valid_until 原子持久化、process quota 增量同步、UTF-8 Content-Type
+   和配置失败状态反馈均已覆盖，最终链路仍是
+   `SpeechService -> VoiceInputManager -> AhaType worker -> KeyboardInjector`。
+8. 正式发布只使用当前 `mvn clean package` 生成的完整 Maven JAR；旧安装基线仅提供 runtime、
+   模型、图标、WCHISP 和其他非 Java 资产。preview overlay 保留为历史排查脚本，不是发布路径。
+9. WCHISP 进入真实 `FLASHING` 后不可取消；UI、状态机和操作所有权均等待厂商进程退出，超时
+   不会提前释放 single-flight。
+10. 真实 WCHISP 3.9 运行证据确认命令行下载接口的 `-c` 权威输入是 UTF-8 文本
+    `flash-config.ini`。prepared 与兼容单次入口均使用
+    `WchIspConfig.forCh582(normalizedHex)` 生成该文件；66841 字节二进制
+    `CONFIG_CH57X59X.WCH` 只属于 runtime/GUI 配置，不能替代 CLI `-c` 输入。该修正不改变
+    RunAs、ISP 检测、prepared session 或严格终态语义。烧录完成边界以第 40 节为准。
+
+上述修改必须复用既有事务门禁、session/generation、recovery 和状态事实源，避免增加平行
+状态机。已经正确的 ApprovalService `fresh + connected + AUTO`、WRITING/WAITING
+freshness、immutable USB Session、GifUploadRules 时间轴采样、OLED transaction gate、
+多任务协议/灯珠映射、Voice worker queue、ApplicationLifecycle、StudioStore 原子写、
+WCHISP 严格终态解析均不得借机重构。
+
+Firmware 当前只读工作树为 `C:\aha\ahakey-windows\voice-f18-raw-hid`，分支
+`fix/1.4.8-shutdown-led`，HEAD 为
+`cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`。当前 1.4.8 provenance 的真实字段为
+`firmwareVersion=1.4.8`、`deviceModel=AhaKey-X1`、`protocolVersion=3.2`、
+`capabilityMask=0x7FF`、`sourceCommit=cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`，
+且 `sourceTreeClean=true`。对应 HEX
+`artifacts/AhaKey-X1-firmware-1.4.8-ch582.hex` 和同名 provenance JSON 均存在，但
+两者均未被 Git track；固件工作树还存在未跟踪的构建/审计材料。因此源码 HEAD 与
+provenance `sourceCommit` 一致，只证明 provenance 记录与该源码快照一致，不等于 HEX/
+provenance 已提交、正式发布或已完成真机验证。Windows 软件修复任务不得修改固件源码、
+HEX 或 provenance。
 
 ## 1. 生产路径与安全不变式
 
@@ -45,7 +121,7 @@ fail closed。`DEVICE_INFO_RESP` 和 `BLE_STATUS_RESP` 只能更新连接/UI 诊
 ## 2. 固件/协议合同
 
 `src/main/resources/firmware-capabilities.properties` 是 Java 与发布脚本共享的
-合同事实源：bundled firmware `1.4.7`、最低 GIF `1.4.3`、稳定化最低 `1.4.7`、
+合同事实源：bundled firmware `1.4.8`、最低 GIF `1.4.3`、稳定化最低 `1.4.7`、
 protocol `3.2`、model `AhaKey-X1 (1)`、capability mask `0x7FF`、最大绝对固件地址
 `0x0006FFFF`。
 
@@ -70,8 +146,11 @@ canonical `capabilityMask="0x7FF"`、`builtAtUtc=yyyy-MM-ddTHH:mm:ssZ`（不接�
 版本/model/protocol/sourceCommit/buildCommand 字段；不计算或要求 SHA-256。HEX 校验
 包括记录校验和、EOF 后无数据、type 02/type 04 扩展地址、type 03/type 05 起始地址、
 绝对范围和重叠数据拒绝。
-当前 firmware 1.4.7 开发基线已提供真实 HEX、同名 provenance，且记录了
-byte-for-byte reproducibility；这表示软件输入可复现，不表示 WCHISP 或真机已验证。
+当前软件合同要求 firmware 1.4.8 的真实 HEX 和同名 provenance。执行时读取到的固件
+源码 HEAD 为 `cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`，provenance `sourceCommit` 与
+之相同；但 HEX 和 provenance 文件仍未被 Git track。因此自动验证可以确认版本、协议、
+capabilityMask、HEX/provenance 字段和源码提交引用的内部一致性，不能据此声明已提交发布
+资产、正式发布或真机通过。WCHISP、真机和正式发布验证仍为 pending。
 
 ## 3. 物理接收与 freshness
 
@@ -134,15 +213,21 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 只能记为部分满足。
 
 `build-installer.ps1 -PrepareOnly` 允许缺少 `-FirmwareHex`，但输出
-`RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE`，不能生成发布安装包。正式 overlay
-脚本的 sources/allowlist 和 artifact test 必须包含所有新增生产类及
-`firmware-capabilities.properties`。
+`RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE`，不能生成发布安装包。正式入口先验证
+当前完整 Maven JAR，再将同一 JAR 复制到 release staging 和 jpackage input；artifact gate
+覆盖 AhaType、CloudAccountDialog、VoiceInputManager 及既有生产类。旧
+`preview-part3-release-overlay.ps1` 明确标记为 legacy/non-release/unsupported，不得作为
+当前构建成功条件；`build-exe.ps1/.bat` 只显示 legacy 提示并指向正式入口。
+
+Windows 安装器继续使用稳定 UpgradeCode `8842DBEF-62F7-49AC-AF0F-9447198265F3`，WiX
+同时受控检测并移除旧 1.0.0 UpgradeCode `03E5A934-FFCA-3815-B455-7D49BF1CA1DC`；安装
+目录仍为安全的 `AhaKeyStudio` 子目录，用户配置目录不属于卸载清理范围。
 
 ## 6. 当前状态登记
 
 | 范围 | 代码状态 | 自动测试状态 | 软件手工/真机状态 |
 |---|---|---|---|
-| WIN-001/WIN-003 freshness、session 恢复 | 代码完成 | 已覆盖生产 BLE 入口、USB extractor、延迟/超时/恢复并发 | USB/BLE 真机待验证 |
+| WIN-001/WIN-003 freshness、session 恢复 | **代码完成**：普通等待与 post-flash 绑定 transport session/receiver、状态序列和到达时间；BLE 意外断开复用既有恢复；USB ready 由同一 session 的有界状态查询证明 | `FirmwarePostVerifierTest`、BLE manager 回归、USB session 回归及完整 Maven 回归通过 | 仍需 USB/BLE/烧录和 post-verify 真机验证 |
 | WIN-004 模式同步 | 代码完成 | 已覆盖离线选择、发送失败、快切、延迟和 session 失效 | 真机待验证 |
 | WIN-007 自动 GIF 优化 | 代码完成 | GifUploadRules 规则与降采样测试通过 | GIF 真机待验证 |
 | WIN-008 最近 GIF 记忆 | 代码完成 | 持久化/选择器测试通过 | UI 手工待验证 |
@@ -157,26 +242,41 @@ PowerShell `Get-AuthenticodeSignature`，必须是 Valid 且 signer subject 满�
 | WIN-017~020 语音 | 代码完成 | Hook/pressed-state/tensor 释放测试已有 | 键盘/麦克风/模型实机待验证 |
 | WIN-021~024 生命周期/持久化/Hook | 代码完成 | 原子保存、实例唤醒、bridge owner 测试已有 | Windows 安装/托盘/已安装 Hook 手工待验证 |
 | WIN-025 updater | **部分满足**：HTTPS manifest/asset、MZ、Authenticode Valid 和 publisher policy fail-closed 已实现；仍缺正式配置注入、canonical signer identity 和完整签名流水线 | manifest、下载和签名替身测试通过 | 正式签名/jpackage/release 基线待验证 |
-| WIN-026 firmware flasher | 代码完成发布输入校验；WCHISP/安装包集成尚未验收 | provenance、PS5/PS7、HEX 测试通过 | WCHISP、真实 HEX 烧录和真机待验证 |
+| WIN-026 firmware flasher | **代码完成**：生产 UI 复用同一 prepared session；准备、单次 ISP 检测和显式点击分阶段，点击只走 `startPrepared()` / `flashPrepared()`；WCHISP 按 Studio 权限一次选择 direct 或 RunAs；CLI `-c` 使用 UTF-8 文本 `flash-config.ini`；只有完整 `Finished + Code=0 + Message=Succeed` 才在 owned process 退出后直接结束为 `SUCCESS`，不自动等待重连或 `0x9F` 回读 | prepared session/adapter/service、文本 INI 内容/编码、permission、严格终态、无自动 post-verify、provenance、PS5/PS7、HEX 测试及完整 Maven 回归通过 | 修复后的真实 WCHISP 重新烧录、普通用户/UAC、真实 HEX 烧录，以及用户自行重连和版本检查待验证 |
+| WIN-026 cancellation boundary | **代码完成**：WCHISP 进入 `FLASHING` 后取消被拒绝且 UI 明确不可取消；超时/终止后的 owned process 退出确认后才释放操作所有权 | `FirmwareUpdateServiceTest`、WCHISP runner/adapter 定向回归通过 | 真实厂商进程、UAC、损坏风险和真机待验证 |
 | WIN-027 灯效运行时写入错误 | 代码完成 | 亮度/灯效失败不覆盖成功状态的测试通过 | 灯效硬件故障注入待验证 |
-| WIN-028 普通请求/save/GIF 事务、session/dirty 隔离 | **部分满足**：普通写入与 session/dirty 安全边界已实现；0x9D 配置读回尚无生产调用者 | USB close/reopen、事务门禁和跨 session 测试已有 | USB↔BLE 压力、Flash 真机待验证 |
-| WIN-029 Intel HEX/固件合同 | 代码完成；1.4.7 HEX/provenance 在开发基线可复现 | provenance/HEX/边界测试通过 | WCHISP、签名固件和真机待验证 |
+| WIN-028 普通请求/save/GIF 事务、session/dirty 隔离 | **代码完成**：普通写入与 session/dirty 安全边界保持；USB ready、close/reopen 和跨 transport 失效路径复用既有门禁；0x9D 配置读回仍无生产调用者 | USB close/reopen、事务门禁、跨 session 及完整 Maven 回归通过 | USB↔BLE 压力、Flash 真机待验证 |
+| WIN-029 Intel HEX/固件合同 | **部分满足**：软件端 1.4.8 文件名、版本和 HEX 校验已统一；当前固件 HEAD 与 provenance `sourceCommit` 均为 `cf4b7d20`，但 HEX/provenance 均未被 Git track | 软件端 provenance/HEX/边界测试通过 | 提交发布资产、WCHISP、签名资产和真机待验证 |
 | WIN-030 legacy cleanup | **部分满足**：生产路径已明确，仍保留 HookClient、SocketServer、KimiConfigLeverSync 和 AgentManager.installHooks 占位/兼容入口，尚未完成最终删除或兼容边界收口 | 相关单测已有 | 生态兼容性与旧脚本手工确认待验证 |
+| AhaType account/quota | **代码完成**：凭据、user/quota/token_valid_until、UTF-8 请求头、配置失败反馈、原文回退、processIfEnabled 和账号刷新迟到响应 token 归属校验已收口；不记录 token、密码或完整语音文本 | AhaType/账号/Studio 状态定向测试及完整 Maven 回归通过；覆盖退出、换账号、部分额度和单次交付 | 真实账号、API、麦克风和最终键盘注入待验证 |
+| Windows release JAR/installer | **代码完成**：完整 Maven JAR 是唯一 Java 生产来源；artifact gate 覆盖 AhaType 类；overlay 仅 legacy；WiX 保留当前 UpgradeCode 并检测旧 1.0.0 线 | 发布配置、JAR 缺类门禁、PowerShell 语法检查通过；内部安装包/VM 尚未完成 | 干净 VM 升级、用户数据保留、签名和卸载待验证 |
 
-“代码完成”不等于“真机完成”。当前没有可用于本地正式 overlay 的
-`C:\Program Files\AhaKeyStudio` 安装基线时，overlay 只能报告阻断；不得伪造
-`OVERLAY_VALIDATION=OK`。
+“代码完成”不等于“真机完成”。当前不要求也不执行 `OVERLAY_VALIDATION=OK`；overlay
+仅作为历史排查材料。正式发布以完整 Maven JAR、release artifact gate 和安装器结构
+检查为准。
 
 ## 6.1 当前待办（不在本轮交付中冒险扩大范围）
 
-1. WIN-025：把 expected publisher 绑定到正式 release/jpackage 配置，并将 signer
+1. 当前生产 WCHISP 入口已按第 0 节边界复用 prepared session；权限选择、FLASHING 取消
+   边界、owned-process 等待、post-flash session 绑定、BLE reader 恢复和 USB ready 验证
+   均复用既有门禁与 recovery，不增加驻留 worker 或平行状态机。
+2. 本轮运行了 WCHISP/prepared-session 定向测试、`mvn clean test`、`mvn clean package`、
+   PowerShell 5.1/7 全部嵌入式脚本语法检查、`Test-WindowsReleaseConfiguration.ps1`
+   和 `git diff --check`；自动测试不能替代普通用户 UAC、USB/BLE、post-verify 和真实
+   烧录验证。
+3. AhaType 的真实账号网络、配置目录权限、麦克风/键盘端到端，以及完整 Maven JAR
+   进入签名安装包后的启动验证仍需 Windows 环境执行；本地 mock/自动测试不等于真机通过。
+4. 当前固件只读仓库为 `voice-f18-raw-hid` 的 `fix/1.4.8-shutdown-led` 分支，
+   HEAD/sourceCommit 为 `cf4b7d20`；1.4.8 HEX 与 provenance 存在但均未 track，不能把
+   源码/provenance 一致写成真机或正式发布完成。
+5. WIN-025：把 expected publisher 绑定到正式 release/jpackage 配置，并将 signer
    subject 升级为 canonical exact identity；补齐完整签名流水线。
-2. BLE bridge 生命周期的精确路径 owner 已在本轮收口；仍需 Windows 手工验证启动、置前、
+6. BLE bridge 生命周期的精确路径 owner 已在本轮收口；仍需 Windows 手工验证启动、置前、
    Studio 退出和手动断开不重连边界。
-3. 固件 EEPROM journal 的连续保存风险属于固件端跨项目待办，本轮不修改固件。
-4. GIF 优化原因 UI 仍可能泛化显示尺寸/分辨率/帧数，而不是实际触发项；需补 P1 UX
+7. 固件 EEPROM journal 的连续保存风险属于固件端跨项目待办，本轮不修改固件。
+8. GIF 优化原因 UI 仍可能泛化显示尺寸/分辨率/帧数，而不是实际触发项；需补 P1 UX
    细化。默认 GIF 的视觉和体积也需产品验收。
-5. 若任务文本要求离线持久化，需另行确认当前实现是内存态还是持久化态，避免误报。
+9. 若任务文本要求离线持久化，需另行确认当前实现是内存态还是持久化态，避免误报。
 
 ## 7. 本轮交付登记（2026-09-04）
 
@@ -476,6 +576,11 @@ worker 只等待信号，检测阶段不执行 download；没有 GO 时不会启
 
 ## 18. Restore proven WCHISP launch path (2026-09-09)
 
+> 2026-09-18 当前状态更正：本节记录的“恢复目标”没有在整条生产调用链完全落地。
+> `DeviceMaintenancePane` 仍调用 `prepareFlash()` / `startPrepared()`，默认 adapter 的
+> `flashFirmware()` 仍内部构造 PreparedFlashSession；因此不得据此宣称 Prepared 只剩测试
+> 兼容。修复应恢复单次正式入口，但保留终态捕获、诊断和 post verify，不做无关重写。
+
 针对短 ISP 窗口，本轮将生产 flash launch 从 PreparedLaunchContext 的长驻 worker
 路径收回到历史已验证的单次启动路径。`DefaultOfficialWchIspAdapter` 的默认构造不再调用
 `WchIspRunner.prepareElevatedLaunch()`；用户点击烧录后，已准备好的命令交给
@@ -493,6 +598,10 @@ READY marker 和 GO signal 仅保留为兼容源码与测试数据载体，默�
 完成。真实 UAC、短 ISP、设备重连、PostVerify 及正式发布环境仍需单独验证。
 
 ## 19. One-shot WCHISP console terminal capture (2026-09-09)
+
+> 2026-09-18 当前状态更正：当前 `captureLaunchMode(false)` 会直接选择 RUNAS_WORKER，
+> 所以普通非管理员 Studio 仍是预先提权，而不是第 18 节所述的“普通启动遇到结构化 740
+> 后只重试一次 RunAs”。本节的终态捕获和成功优先级仍正确，应与提权策略分开处理。
 
 真实管理员 Studio 测试确认 WCHISP 已完成 0%–100%，Windows 控制台显示
 `Status=Finished / Code=0 / Message=Succeed`，但 direct `ProcessBuilder` 的 stdout/stderr
@@ -853,6 +962,11 @@ post verify。定向测试为 **28 tests, 0 failures, 0 errors, 0 skipped**；�
 
 ## 30. Flash result and post-flash verification separation (2026-09-17)
 
+> 2026-09-18 当前状态更正：烧录结果与验证结果分层已经实现，但 reconnect 只比较
+> `statusUpdateSequence`，尚未同时绑定 transport session/receiver，且 session 失效时
+> sequence 会归零。因此本节关于“旧状态不能满足新重连”的结论只得到部分实现；严格的新
+> session 证明仍是待修项。
+
 本轮把烧录终态与设备重连/`0x9F` 回读明确分层。`WchIspResultParser` 对
 `Finished + Code=0 + Message=Succeed` 使用 WCHISP 设备终态作为烧录成功证据，即使
 厂商进程随后返回非零 transport exit code；原始 exit code、stdout/stderr/console
@@ -876,3 +990,377 @@ Firmware、Protocol 3.2、Model 1 和能力掩码 `0x7FF`。回读最终失败�
 定向回归为 **37 tests, 0 failures, 0 errors, 0 skipped**；完整回归为 **300 tests,
 0 failures, 0 errors, 0 skipped**，并且 `mvn clean package` 报告
 `RELEASE_ARTIFACT_CONTENTS=OK`。USB/BLE 枚举、真实设备重连延迟和真机烧录仍待硬件验证。
+
+## 31. Minimal Windows stabilization repair (2026-09-18)
+
+本轮只修改 Windows Java 软件、相关回归测试和本计划当前状态；未修改固件源码、固件
+HEX 或 provenance；阶段一已形成独立 commit，具体 hash 以 Git 历史为准，本文不自引用。
+生产维护页已收口为 `start(request)`；官方 WCHISP
+适配器走普通单次 worker，只有结构化 error 740 才对同一命令执行一次 RunAs 重试；烧录
+成功终态与 post-flash reconnect/`0x9F` 版本确认继续分层。普通 transport 等待绑定
+session/receiver、状态序列和单调到达时间；BLE 意外 reader 退出复用既有 recovery；USB
+打开后先用同一 session 的有界状态查询证明 ready，失败不伪造 connected 并保留 BLE
+fallback。兼容 Prepared API 仍保留给既有测试/兼容调用者，但不再是生产 UI 入口。
+
+本轮实际验证（使用工作区 `.tools` 中的 JDK 17 和 Maven 3.9.16）：
+
+* `mvn test`：303 tests, 0 failures, 0 errors, 0 skipped。
+* `mvn clean test`：303 tests, 0 failures, 0 errors, 0 skipped。
+* `mvn clean package`：`BUILD SUCCESS`，303 tests 通过，`RELEASE_ARTIFACT_CONTENTS=OK`。
+* Windows PowerShell 5.1：15 个 `.ps1` 文件语法解析，0 errors。
+* PowerShell 7：15 个 `.ps1` 文件语法解析，0 errors。
+* `git diff --check`：通过（仅保留既有 CRLF 提示，无 whitespace error）。
+
+以上是代码级和自动化证据；本轮没有执行普通用户 UAC 交互、真实 WCHISP、USB/BLE
+枚举与压力、真实烧录、post-verify 真机回读、正式签名安装包或麦克风/F18 硬件验证，
+这些项目仍为 pending。
+
+## 32. Restore AhaType Java client (2026-09-18)
+
+阶段一已独立提交为 `4225f131c5c5d943985e9c0ffdea6fc98da88e5b`；阶段二只恢复
+AhaType/云端账号和最终语音输出链，不修改烧录、BLE、F18/PTT、Hook 或固件边界。当前
+Java 客户端使用 `%USERPROFILE%\.ahakey\typeless_config.json`，按
+`VIBE_TYPELESS_API_BASE`、`VIBE_API_BASE`、默认 `https://956798.xyz/prod-api` 的顺序
+选择 API base；AhaType 请求严格要求 HTTP 200、成功 code（数值/字符串 0 或 200）、对象
+data 以及非空 text/result，任何失败均回退原文。登录、注册、`users/me`、token、snake/camel
+profile、额度、记住密码和登出清理均由 Java 侧统一管理。
+
+最终输出链为 `SpeechService -> VoiceInputManager(单线程 AhaType worker) ->
+KeyboardInjector`；识别线程不等待云端请求，单段只处理/回调/注入一次，应用关闭后 worker
+不会再注入。账号菜单为真实可用动作，AhaType 开关只有在本地语音可用且 token 未过期时才
+能开启。自动测试仅使用临时配置和本地 mock server；真实账号、真实 token、真实语音内容
+和正式网络请求均未用于测试。普通用户登录、网络异常回退、麦克风输出和 Windows 真机仍
+待手工验证。
+
+## 33. Minimal software closeout repair (2026-09-18)
+
+本轮在既有阶段历史之上保持独立提交：AhaType 持久化与 quota 收口为
+`0ce5c5cdfcccc26abd155141229ba8ac2003fe44`；完整 Maven JAR 发布、AhaType artifact
+门禁、legacy overlay 标记和 WiX legacy upgrade 结构收口为
+`6da1f9761301ae15f50e9f50e85fc40ba6546524`；WCHISP 取消边界和进程所有权收口为
+`82d486acb87f0e5ba81e5fecea7a1876a12ded96`。既有烧录/BLE 稳定性
+`4225f131c5c5d943985e9c0ffdea6fc98da88e5b` 与 AhaType 恢复
+`6a04439caee3b0071b012e784c679436f9229589` 保持未 squash。
+
+自动验证包括 AhaType credentials/quota/token-validity/Content-Type/配置写入失败/原文
+回退/单次处理，WCHISP pre-flash cancel、flashing 阶段不可虚假取消、single-flight 和
+进程所有权回归，完整 Maven/JAR artifact 检查，WiX/发布配置静态检查，以及 PowerShell
+脚本语法检查。代码和自动化完成不等于干净 VM 安装升级、签名、USB/BLE、真实 WCHISP、
+Firmware 1.4.8、麦克风或真实键盘注入已通过；这些仍标记为手工验证 pending。
+
+## 34. Current AhaType stale-response and firmware fact closeout (2026-09-18)
+
+本轮确认的剩余软件问题是 `AhaTypeService.processIfEnabled()` 在网络请求前读取整份
+配置、响应后又整体保存，可能让迟到响应恢复旧 token、账号或其他新状态。本轮代码提交为
+`10171efaffe02863939cdff17873a7ac3dc78659`。`processIfEnabled()` 只在请求前记录本次
+token；HTTP 请求和等待响应不持有配置写锁。成功响应准备写入额度时重新读取当前配置，
+仅当当前 token 与请求 token 完全一致才合并实际返回的 quota/token_valid_until 字段，
+并用轻量互斥保护读取、修改和原子保存。token 清空或变化时丢弃额度和状态更新，不覆盖
+新的账号、手机号、密码记忆设置、开关或登录/退出状态；已取得的整理文本仍返回给单次
+语音交付。请求失败、JSON/业务失败、空文本和配置保存失败继续原文回退或保留已取得文本，
+且不记录 token、密码或完整语音文本。相关配置 mutator 也复用同一短锁，未将 HTTP 放入锁内。
+
+新增定向回归覆盖 token A 请求期间退出登录、登录 token B、手机号/密码记忆/开关不被覆盖、
+token 未变化时额度更新、部分 quota 只更新实际字段、保存失败仍返回整理文本，以及云端
+请求和键盘交付各只执行一次。WCHISP 仅做代码审查，未修改生产代码：现有
+`awaitOwnedProcessExit()` 仍在 `finish()` 之前持续等待所有 owned PID 退出，查询异常按仍
+存活处理；`active`/single-flight 只在真实退出后的原流程释放，没有新增 watchdog、强杀、
+PID 猜测、虚假取消或重入入口。现有普通非管理员启动、740 才 RunAs、FLASHING 不可取消、
+post-flash reconnect 和真实终态路径保持不变。
+
+本轮执行时读取到的固件事实为：只读仓库 `C:\aha\ahakey-windows\voice-f18-raw-hid`，
+分支 `fix/1.4.8-shutdown-led`，源码 HEAD 与 1.4.8 provenance `sourceCommit` 均为
+`cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`；provenance 版本 `1.4.8`、model
+`AhaKey-X1`、protocol `3.2`、capabilityMask `0x7FF`，并记录 `sourceTreeClean=true`。
+HEX 和 provenance 均存在于固件工作树 `artifacts/` 下但未被 Git track；这不是已提交的
+正式发布资产，也不代表真机或正式发布验证完成。固件仓库没有修改。
+
+自动验证结果：定向 AhaType/账号/Voice 测试 22/22 通过；`mvn clean test` 为 317 tests、
+0 failures、0 errors、0 skipped；`mvn clean package` 成功，317 tests 通过且
+`RELEASE_ARTIFACT_CONTENTS=OK`；`Test-WindowsReleaseConfiguration.ps1` 返回 OK；当前
+JAR 与 `target/release-1.5.3/input` 中的完整 Maven JAR 均返回 `RELEASE_ARTIFACT_CONTENTS=OK`，
+准备流程返回 `FULL_MAVEN_JAR_STAGED=OK` 和 `RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE`；
+PowerShell 7 与 Windows PowerShell 5.1 均对 12 个发布脚本解析为 0 errors；`git diff --check`
+通过。未生成正式 MSI：当前环境没有可用 WiX `candle.exe`/`light.exe`。
+
+以上自动证据仍不等于真实账号、麦克风、键盘注入、USB/BLE、WCHISP、UAC、post-flash
+reconnect、1.4.8 真机回读、干净 VM 安装升级、签名或正式发布验证；这些继续保持 pending。
+
+## 35. AhaType account refresh ownership closeout (2026-09-18)
+
+本轮代码提交为 `94fd23984b88df0db98ce8fd245c060406d0a152`，只收口
+`CloudAccountManager.refreshProfile()` 的账号刷新响应归属，不修改已经完成的
+`AhaTypeService.processIfEnabled()` 迟到响应保护。刷新请求开始时取得一次有效
+`requestToken`，Authorization 使用同一个 token；响应写入配置前由
+`AhaTypeService.persistCloudStateIfTokenCurrent()` 在现有 `configMutationLock` 内重新读取
+当前 token，并将 token 检查、profile/quota/token_valid_until 合并和原子保存作为一个短临界区。
+HTTP 请求和等待响应不持有该锁。返回 `PERSISTED` 才更新 CloudAccountManager 的 profile、
+`loggedIn` 和成功状态；`STALE_TOKEN` 安静丢弃，不覆盖退出或新账号状态；`FAILED` 保留
+“账号刷新成功，但本地保存失败”的安全反馈。账号状态的内存更新与登录/退出的持久化收口
+使用 manager 内部轻量锁协调，但没有把网络请求放入锁中，也没有重构账号系统。
+
+新增 CloudAccountManager 定向测试覆盖：刷新期间退出登录、刷新期间切换 token B、正常刷新
+与 Authorization token、配置保存失败；既有 AhaType/Voice 单次处理和 processIfEnabled
+迟到响应测试继续保留。定向测试共 25 项通过；`mvn clean test` 和 `mvn clean package`
+均为 320 tests、0 failures、0 errors、0 skipped。真实账号、真实网络、麦克风、键盘注入、
+USB/BLE、WCHISP、固件真机和正式发布验证仍为 pending。
+
+## 36. WCHISP launch permission regression correction (2026-09-19)
+
+本轮针对 `commit 4225f13` 引入的 Windows WCHISP 启动权限回归做最小修复，代码提交为
+`4f8e88f3e6bccd3c6e15170560a5f7f696f61670`。此前生产调用链在非管理员 Studio 中先用
+普通 worker 启动带 `requireAdministrator` 的 WCHISP，遇到 Windows 740 后才尝试 RunAs；
+PowerShell 外层的 `InvalidOperationException` 使这条路径无法可靠识别 740，导致没有 UAC、
+没有真正启动 WCHISP。当前 `runOfficialCommand()` 在启动前只根据 Studio 权限选择一次
+`DIRECT_WORKER` 或 `RUNAS_WORKER`，随后只调用一次 operation-scoped capture worker：管理员
+直接启动，非管理员在明确开始烧录时使用同一 WCHISP、CONFIG、HEX 和参数通过 RunAs 弹出一次
+UAC。旧的 direct-first/740 重试不再是生产策略；既有 stdout/stderr/console 捕获、终态、
+取消、超时和进程所有权路径保留，检测路径仍不请求 UAC。
+
+RunAs 包装器将 Windows 1223 映射为 `UAC_CANCELLED`，结果解析继续给出“用户取消管理员授权”
+的提示且不自动重试；`elevationUsed` 现在按实际 worker 模式记录，直接 worker 为 NO，RunAs
+worker 为 YES。未修改固件、WCHISP CONFIG/命令参数、FirmwareUpdateService、BLE/USB、烧录后
+reconnect 或 `0x9F` 回读路径。
+
+本轮自动验证（使用工作区 `.tools` 中的 JDK 17 和 Maven 3.9.16）：
+
+* WCHISP 定向测试：66 tests, 0 failures, 0 errors, 0 skipped；其中
+  `WindowsWchIspFlasherTest` 21 项、`WchIspResultParserTest` 13 项、`WchIspRunnerTest`
+  7 项、`OfficialWchIspAdapterTest` 8 项和 `FirmwareUpdateServiceTest` 17 项通过。
+* `mvn clean test`：323 tests, 0 failures, 0 errors, 0 skipped。
+* `mvn clean package`：`BUILD SUCCESS`，323 tests 通过，`RELEASE_ARTIFACT_CONTENTS=OK`。
+* Windows PowerShell 5.1 与 PowerShell 7：本项目 12 个嵌入式 `.ps1` 文件均解析为 0 errors。
+* `git diff --check`：通过。
+
+以上是代码、脚本和自动化证据；本轮未执行真实 UAC 接受/取消交互、真实 WCHISP、USB ISP、
+烧录、post-flash reconnect、`0x9F` 真机回读、签名安装包或干净 VM 验证。普通用户一次 UAC
+烧录、管理员 Studio 免 UAC 烧录和取消后的真实 UI 终态仍需真机验证；旧章节中关于 740 后
+重试的描述保留为历史记录，以本节当前启动策略为准。
+
+## 37. Prepared WCHISP flash sequencing closeout (2026-09-19)
+
+本轮代码提交为 `ad3d74e`。根因是第 3 步 ISP 检测与第 4 步显式烧录没有共享准备会话：
+检测成功后，维护页又构造新的 `FirmwareUpdateRequest` 调用 `start(request)`，从而重复
+preflight、HEX/runtime/CONFIG 准备和设备检测。设备在重复检测窗口离开 ISP 后，第二条路径
+得到 `ISP_PRESENT=NO`，因此没有进入真正的 WCHISP 下载。
+
+当前生产调用链为：
+
+```text
+正常模式读取 0x9F/选择 HEX
+  -> prepareFlash(request)（异步；只做一次校验、runtime、CONFIG 和 command 准备）
+  -> 进入 ISP
+  -> diagnose(prepared)（同一会话的一次快速检测，成功后 ARMED）
+  -> 用户点击开始烧录
+  -> startPrepared(prepared)
+  -> runPreparedOfficialOperation
+  -> flashPrepared(session)
+  -> 一个 operation-scoped WCHISP capture worker
+  -> owned process 退出确认
+  -> 以烧录前 transport baseline 和 flash completion time 等待新 session
+  -> 0x9F 版本/协议/能力回读
+```
+
+`DeviceMaintenancePane` 不再在第 4 步调用普通 `start(request)`；准备会话在重新选择
+固件、版本刷新、风险选项变化、窗口关闭和终态时失效并释放。准备和 ISP 检测不启动
+WCHISP、不申请 UAC、不启动驻留或预热 worker。既有启动权限策略没有改变：管理员 Studio
+使用 `DIRECT_WORKER` 且 `ELEVATION_USED=NO`，普通 Studio 在明确点击后使用一次
+`RUNAS_WORKER` 且 `ELEVATION_USED=YES`；1223 仍映射为用户取消管理员授权，不自动重试。
+
+本轮涉及的生产类和测试类为 `DeviceMaintenancePane`、`FirmwareUpdateService`、
+`PreparedFlashSession`、`DefaultOfficialWchIspAdapter`、`FirmwarePostVerifier`、
+`FirmwareUpdateServiceTest` 和 `OfficialWchIspAdapterTest`。prepared 诊断/烧录证据补充
+`PREPARATION_COMPLETED_AT`、`ISP_DETECTED_AT`、`FLASH_CLICK_AT`、`LAUNCH_REQUEST_AT`、
+`LAUNCH_MODE`、process start/exit，以及 post-flash baseline/verified transport session。
+WCHISP 真正退出后才按原流程释放操作并进入实际终态；没有新增强杀、PID 猜测或全局扫描。
+
+自动验证结果（均使用工作区 `.tools` 的 JDK 17 和 Maven 3.9.16）：
+
+* prepared/WCHISP/post-flash 定向测试：40 tests, 0 failures, 0 errors, 0 skipped；
+* `mvn clean test`：323 tests, 0 failures, 0 errors, 0 skipped；
+* `mvn clean package`：`BUILD SUCCESS`，323 tests 通过，`RELEASE_ARTIFACT_CONTENTS=OK`；
+* PowerShell 7 和 Windows PowerShell 5.1：全部 16 个仓库 `.ps1` 文件解析通过；
+* `Test-WindowsReleaseConfiguration.ps1`：PowerShell 7/5.1 均返回 `OK`；
+* `git diff --check`：通过。
+
+固件仍为只读事实：仓库 `fix/1.4.8-shutdown-led` 的源码 HEAD 和 1.4.8 provenance
+`sourceCommit` 都是 `cf4b7d20d2d68014161375a6dd9a9d5aa83a06d8`；provenance 的真实字段
+为 `1.4.8`、`AhaKey-X1`、protocol `3.2`、capabilityMask `0x7FF`、`sourceTreeClean=true`。
+`artifacts/AhaKey-X1-firmware-1.4.8-ch582.hex` 与同名 provenance 均存在，但两者都未被
+Git track。源码与 provenance 一致只表示来源记录匹配，不表示 HEX/provenance 已提交、已
+正式发布、已执行 WCHISP 或已完成真机验证。本轮未修改固件源码、HEX、provenance 或协议。
+
+本轮未执行普通用户 UAC 接受/取消、管理员 Studio 实机、USB ISP、真实 HEX 烧录、烧录后
+设备退出 ISP、重连、0x9F 回读、签名安装包或干净 VM 验证；代码和自动测试完成仍不等于
+真机烧录完成。完整 Maven JAR 已由本轮 `clean package` 生成并通过 artifact gate；
+`target/complete-run-1.5.3/app` 已重新生成并校验与该 JAR 的 SHA-256 一致
+（`C8E69DC6F3862A16A41A35325E0EE18EACFD05E3DC2AF355E8E693327F60E063`），随后使用该
+运行目录的当前 JDK 和显式 JavaFX module-path 启动 Studio，未自动执行烧录。运行目录中的
+Java 类来自本轮完整 Maven JAR，没有旧 Java class overlay；WCHISP 可执行文件/DLL 及
+其他非 Java 运行资产仅作为本机已有的非 Java 发布输入复用。后续真机测试继续使用该
+运行目录。
+
+## 38. WCHISP binary CONFIG production correction (2026-09-19)
+
+> **历史结论，已被第 39 节更正并 supersede。** 本节保留当时从单次 `Code=3` 失败推导
+> 二进制 CONFIG 的排查过程，不再代表当前 CLI 合同；不得据此把二进制 `.WCH` 传给 `-c`。
+
+真实硬件测试证明第 37 节的 prepared 时序与 RunAs 已经到达厂商进程并识别 CH582 UID，
+但生产 `DefaultOfficialWchIspAdapter` 仍用 `WchIspConfig.forCh582()` 写出 592 字节 UTF-8
+`flash-config.ini`。WCHISP 的“配置文件不存在”是对不可接受配置的通用提示；现场文件实际
+存在，控制台明确返回 `Code=3 / The configuration file failed`，因此失败点不是 UAC、
+ISP presence、HEX 路径或进程启动，而是 `-c` 输入格式。原 adapter 测试只断言文本中有
+`MCUName=CH582`，错误地把非厂商二进制格式固化成了通过条件。
+
+本轮最小修复只改 production adapter 的配置准备：prepared 入口和兼容单次入口从同一
+`RuntimeBundle.binaryConfig()` 读取已经过 runtime contract 验证的 66841 字节
+`CONFIG_CH57X59X.WCH`，先检查布局，复制到操作目录后只用 `WchIspConfigLayout` 修改
+CH582 slot 0，再次解析并核对实际 HEX 绝对路径。runtime 原配置和其他四个路径槽以及槽外
+全部字节保持不变；WCHISP 命令改为 `-c <operation>/CONFIG_CH57X59X.WCH -o download -f
+<hex>`。没有修改 RunAs 选择、prepared session、ISP 检测、一次点击、取消边界、终态捕获、
+reconnect、`0x9F` post-verify、固件、协议或产品 SHA-256 约束。
+
+自动验证：WCHISP/prepared 定向测试 46 项通过；`mvn clean test` 和 `mvn clean package`
+均为 323 tests、0 failures、0 errors、0 skipped，package 返回
+`RELEASE_ARTIFACT_CONTENTS=OK`。正式 release staging 同时通过完整 Maven JAR、Sherpa native、
+模型、BLE driver、WCHISP privacy、1.4.8 HEX/provenance 输入门禁。重新生成的完整 app-image
+中 Maven JAR 与运行 JAR 的 SHA-256 均为
+`ECFAA5501C5889BA94BB775474605C85C6C566CB8F051292F29FA7FA226A8B6C`；可见客户端窗口已经
+启动并加载 `sherpa-onnx-jni.dll`、`onnxruntime.dll` 和
+`onnxruntime_providers_shared.dll`。自动测试和启动验证仍不能替代真实 WCHISP 0%～100%、
+设备重连和 1.4.8 `0x9F` 回读；这些项目继续标记 pending。
+
+## 39. WCHISP CLI text CONFIG correction (2026-09-19)
+
+本节 **supersedes 第 38 节的二进制 CLI CONFIG 结论**。真实 WCHISP 3.9 命令行下载接口
+的 `-c` 参数需要 UTF-8 文本 `flash-config.ini`；66841 字节
+`CONFIG_CH57X59X.WCH` 是 runtime/GUI 基础配置，不是该 CLI 参数的替代品。
+
+失败 operation `7ce38138-273d-46e9-9560-038c72040bbe` 已证明 UAC 成功，且
+`PROCESS_STARTED=YES`、`LAUNCH_MODE=RUNAS_WORKER`，WCHISP 子进程实际启动约 77ms 后
+返回 `Code=2 / Fail to get parameters from cfg file`；没有读取到 Device UID，也没有进入
+Programming。该次命令的 `-c` 指向操作目录中的二进制 `CONFIG_CH57X59X.WCH`，因此直接
+证据否定了第 38 节将二进制 `.WCH` 用作 CLI `-c` 输入的结论。
+
+真实成功记录 `1e7ba4af-f857-4584-86a6-7743397502a9`、
+`a23c0fbf-61c0-4419-8e25-9ec779498950`、
+`86a7bebb-08e0-4768-bd73-2cb3928118df` 和
+`b7913b0f-c7dd-4438-a463-db4b85cec8f7` 均使用
+`-c <operation>/flash-config.ini -o download -f <selected hex>`，且以与此前 592 字节
+`flash-config.ini` 相同的内容完成 `Device UID -> Ready programming -> Programming
+0%~100% -> Finished / Code=0 / Message=Succeed`。因此此前的 `Code=3` 不能归因于文本
+INI 格式。
+
+当前 production adapter 的 prepared 与兼容单次入口均在 operation 目录以 UTF-8 写入
+`WchIspConfig.forCh582(normalizedHex)`，并保持下载命令为
+`-c <flash-config.ini> -o download -f <selected hex>`。runtime 内的二进制
+`CONFIG_CH57X59X.WCH`、`WchIspConfigLayout` 及相关 runtime/发布/legacy 校验代码继续保留，
+但 production adapter 不再为 CLI `-c` 复制、patch 或传入二进制 `.WCH`。RunAs/UAC、
+prepared session、ISP 检测、显式开始、console 捕获、终态、取消/进程所有权、重连与
+`0x9F` post-verify 均未改变。
+
+本轮实际自动验证使用工作区 JDK 17 与 Maven 3.9.16：WCHISP 定向回归为 66 tests、
+0 failures、0 errors、0 skipped；`mvn clean test` 和 `mvn clean package` 均为
+323 tests、0 failures、0 errors、0 skipped，package 返回
+`RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。重新生成的完整 app-image 位于
+`target/complete-run-1.5.3/AhaKeyStudio`，包含四个语音模型、三份 Sherpa/ONNX native DLL、
+WCHISP runtime、BLE driver 以及 Firmware 1.4.8 HEX/provenance。当前 Maven JAR 与
+app-image JAR 的 SHA-256 均为
+`6850ABD319C597D12EA0D37F9D4D9B788218B57CB13D5BA67AAEFA42C75FAD3A`。客户端窗口已从该
+app-image 启动，未自动执行烧录。
+
+以上仅为代码、自动测试、发布输入、app-image 和启动证据；修复后的客户端仍需重新执行
+真实 WCHISP 烧录、Programming 0%~100%、设备重连和 Firmware 1.4.8 `0x9F` 回读，状态
+保持 **pending**。本轮不填写 commit hash，也不把既有成功记录冒充为本次修复后的真机成功。
+
+## 40. WCHISP flash completion boundary product decision (2026-09-19)
+
+本节 **supersedes 第 29、30、37 节以及其他历史章节中“只有 post-flash reconnect / `0x9F`
+回读通过后才能进入 `SUCCESS`”的当前结论**。历史实现和验证过程继续保留用于追溯，但不再
+代表当前产品语义。
+
+当前“固件烧录完成”的唯一完成边界是 WCHISP 返回完整且严格的
+`Finished + Code=0 + Message=Succeed`，并且本操作拥有的厂商进程已经退出。确认该终态后，
+`FirmwareUpdateService` 立即以 `FirmwareUpdateState.SUCCESS`、`error=null` 完成本次操作并
+释放 single-flight。厂商进程 exit code 100 不能覆盖该完整成功终态；相反，进度 100%、单独
+的进程 exit code 0、模糊文本或不完整输出均不能构成成功。取消、超时、UAC 取消、进程启动
+失败、进程归属不完整、明确失败状态和非零 vendor `Code` 继续 fail closed。
+
+烧录成功路径不再进入 `WAITING_RECONNECT` / `VERIFYING`，也不自动调用
+`FirmwarePostVerifier.awaitReconnect()` 或 `FirmwarePostVerifier.verify()`。未重连、未读取到
+`0x9F`、后续手工回读版本不同，或用户在成功后关闭/隐藏固件管理窗口，都不会把已经记录的
+WCHISP 成功结果改写为 `FAILED` 或 `CANCELLED`。`FirmwarePostVerifier`、`0x9F` 能力查询、
+transport session/freshness 及其测试基础设施继续保留，可供其他功能或未来的手工验证流程
+复用，但不再阻塞或推翻本次烧录成功。
+
+维护页在成功后明确提示“固件烧录完成，请退出 ISP 并以普通模式重新连接设备。”；用户随后
+自行退出 ISP、正常重新连接并检查固件版本。本次流程不自动读取设备版本，因此成功状态和
+提示不得声称已经通过设备回读校验，也不得声称已经确认设备实际运行的版本。现有真实成功
+记录中完整的 WCHISP 终态是本次产品决策依据；它们不等于本轮修改后已经完成真机复测。
+
+本轮没有修改固件源码、HEX、协议、BLE/USB、RunAs/UAC、prepared session、ISP 检测、
+WCHISP `-c/-o/-f` 参数、UTF-8 `flash-config.ini`、owned-process 等待或 FLASHING 不可取消
+边界。修复后仍需真机重新执行 WCHISP 烧录，并由用户退出 ISP、正常重连和手工检查 Firmware
+1.4.8；这些项目保持 **pending**。本轮不填写 commit hash。
+
+本轮实际自动验证：FirmwareUpdateService、WCHISP parser/adapter 与维护页定向测试共
+46 tests，0 failures、0 errors、0 skipped；`mvn clean test` 为 327 tests，0 failures、
+0 errors、0 skipped；`mvn clean package` 为 327 tests，0 failures、0 errors、0 skipped，
+并返回 `RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。上述结果不包含真机烧录、
+用户重连或设备版本手工检查。
+
+## 41. Verified USB preference and complete AhaType account flow (2026-09-20)
+
+本节记录 Windows Java 客户端在既有 transport session、审批 freshness、语音 worker 和
+生命周期边界上的两项最小收口；不修改固件、协议、WCHISP、审批服务、Hook、GIF/OLED、
+灯效或任务协议。
+
+USB 继续是首选 transport。初次连接仍先尝试 USB；已经通过 BLE 连接时，状态轮询也会探测
+后来插入的 USB。USB 只作为 candidate 打开，验证期间保留当前 BLE socket、reader 和 session，
+且不发布断开 UI。只有 candidate 收到其自身 receiver 的新鲜、有效设备状态后，才创建新的
+active transport session 并切到 USB；验证超时或失败只关闭 candidate，原 BLE 状态和审批
+会话不受影响。USB 拔出时，客户端为保留的 BLE receiver 创建新的 active session，重新查询
+当前 BLE 状态后恢复使用；旧 BLE/USB callback、延迟命令响应和旧审批状态均不能跨 session
+满足新请求。主动断开和应用退出继续抑制自动迁移。immutable USB session、普通
+`waitForResponse` token、状态接收单调时间和审批 freshness 门禁均保留。
+
+AhaType 顶部开关在本地语音已就绪但账号未登录或 token 过期时保持关闭，并由 TopBar 直接
+打开既有“云端账号 · AhaType”窗口；本地模型未就绪时只显示本地语音问题。“更多”中的账号
+入口继续保留。登录、注册和 `/api/v1/auth/users/me` 分别保存 `user`、`quota`、`policy` 与
+`token_valid_until`，兼容 snake_case/camelCase；手机号始终保存，密码仍仅在勾选记住密码
+时保存，注册响应含 token 时自动登录，迟到响应继续按 token ownership 丢弃。
+
+账号窗口首次以 520×400 打开，重渲染不会缩小用户已经调整过的窗口；它按 policy 显示启用的
+日/周/月额度与使用量，并提供刷新、微信充值、兑换码和退出。
+充值套餐只取自 `policy.recharge_prices_fen`；客户端调用
+`POST /api/v1/payment/wechat/native` 创建订单，以轻量 ZXing 编码器本地显示服务端
+`code_url`/`h5_url` 二维码，再轮询 `GET /api/v1/payment/wechat/order-status`。支付成功后
+停止当前订单轮询、刷新 `/api/v1/auth/users/me` 并更新额度；失败和超时给出明确提示，关闭窗口
+或发起新订单会递增订单 generation，旧结果不能关闭或更新新窗口。兑换码严格调用
+`POST /api/v1/coupon/redeem`，body 为 `{"code":"..."}`，成功后刷新账号。
+
+云端文本处理继续在独立 worker 中执行并只交付一次最终文本。登录失效、额度不足、网络/服务
+异常和未知 JSON 分别给出可操作状态，但所有失败都返回原识别文本；不增加成功弹窗，也不在
+日志中记录 token、密码、手机号、完整识别文本或二维码内容。顶部不恢复“日 0/0 · 周 0/0”。
+
+本轮定向回归覆盖 BLE→USB 成功迁移、candidate 失败保留 BLE、USB 拔出回退、跨 session
+响应隔离、主动断开/退出抑制迁移，以及 AhaType 登录/注册/过期、完整资料解析、支付订单成功/
+失败/超时/关闭、兑换码、分类失败回退原文和最终文本单次注入，均通过；BLE 迁移用例另连续运行
+3 次以验证异步边界。本次资料路径与窗口尺寸定向回归为 12 tests、0 failures、0 errors、
+0 skipped；`mvn clean test` 与 `mvn clean package` 均为 342 tests、0 failures、
+0 errors、0 skipped，package 返回 `RELEASE_ARTIFACT_CONTENTS=OK`；`git diff --check` 通过。
+
+上述自动结果不代替真实环境验证。USB/BLE 热插拔、真实审批状态、真实账号、微信沙箱/实付、
+兑换码、麦克风和最终键盘注入仍需 Windows 真机/真实服务人工验证，当前均保持 **pending**。
+
+## PR conflict resolution against eternal-dev (2026-09-20)
+
+Merged upstream `a878f63` without replacing the primary workspace.
+Retained upstream verified-USB preference, real AhaType/account behavior and
+prepared WCHISP session/completion rules, together with Russian UI and local
+shortcut/save fixes. Updated maintenance messages do not claim device readback.
+Maven package: 354 tests, zero failures/errors/skips, release contents OK.
+MSBuild Release and BLE localization regression passed.
+Source-inspection tests normalize CRLF before multiline matching; test runs use
+separate temporary directories to avoid shared GIF extraction conflicts.
+No application installation, firmware flashing, or physical-device test was performed.

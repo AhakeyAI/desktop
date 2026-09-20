@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$RootPath
+    [string]$RootPath,
+    [string]$WchIspBundleDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,7 +24,8 @@ function Get-ScanText {
 function Assert-WchIspReleasePrivacy {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$RootPath
+        [string]$RootPath,
+        [string]$WchIspBundleDir = ""
     )
     $resolved = [IO.Path]::GetFullPath($RootPath)
     if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
@@ -38,9 +40,29 @@ function Assert-WchIspReleasePrivacy {
             throw "WCHISP release is missing runtime component: $runtimeFile"
         }
     }
+    $chipDatabaseRelativePath = "ChipType\chiplist_CH57x_CH59x.wcfg"
+    $chipDatabase = Join-Path $resolved $chipDatabaseRelativePath
+    if (-not (Test-Path -LiteralPath $chipDatabase -PathType Leaf) -or
+        (Get-Item -LiteralPath $chipDatabase).Length -eq 0) {
+        throw "WCHISP release is missing chip database: $chipDatabaseRelativePath"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($WchIspBundleDir)) {
+        $sourceChipDatabase = Join-Path `
+            ([IO.Path]::GetFullPath($WchIspBundleDir)) $chipDatabaseRelativePath
+        if (-not (Test-Path -LiteralPath $sourceChipDatabase -PathType Leaf) -or
+            (Get-Item -LiteralPath $sourceChipDatabase).Length -eq 0) {
+            throw "Official WCHISP bundle is missing chip database: $chipDatabaseRelativePath"
+        }
+        [byte[]]$sourceChipDatabaseBytes = [IO.File]::ReadAllBytes($sourceChipDatabase)
+        [byte[]]$stagedChipDatabaseBytes = [IO.File]::ReadAllBytes($chipDatabase)
+        if ([Convert]::ToBase64String($sourceChipDatabaseBytes) -cne
+            [Convert]::ToBase64String($stagedChipDatabaseBytes)) {
+            throw "Staged WCHISP chip database differs from the official bundle source"
+        }
+    }
     $files = @(Get-ChildItem -LiteralPath $resolved -Recurse -File)
     $scanExtensions = @(
-        ".wch", ".excluded", ".ini", ".txt", ".log", ".json", ".xml", ".zip"
+        ".wch", ".wcfg", ".excluded", ".ini", ".txt", ".log", ".json", ".xml", ".zip"
     )
     $violations = [System.Collections.Generic.List[string]]::new()
     foreach ($file in $files) {
@@ -91,6 +113,16 @@ function Assert-WchIspReleasePrivacy {
     [byte[]]$configBytes = [IO.File]::ReadAllBytes($config)
     if ($configBytes.Length -ne 66841) {
         throw "WCHISP CONFIG_CH57X59X.WCH has unsupported size: $($configBytes.Length)"
+    }
+    $repositoryConfig = Join-Path $PSScriptRoot `
+        "src\main\resources\wchisp\CONFIG_CH57X59X-sanitized.WCH"
+    if (-not (Test-Path -LiteralPath $repositoryConfig -PathType Leaf)) {
+        throw "Verified repository WCHISP configuration is missing: $repositoryConfig"
+    }
+    [byte[]]$repositoryConfigBytes = [IO.File]::ReadAllBytes($repositoryConfig)
+    if ([Convert]::ToBase64String($configBytes) -cne
+        [Convert]::ToBase64String($repositoryConfigBytes)) {
+        throw "Staged WCHISP CONFIG differs from the verified repository configuration"
     }
     foreach ($offset in @(36486, 37006, 37526, 63172, 63692)) {
         if ($offset -lt 0 -or $offset + 520 -gt $configBytes.Length) {
@@ -161,5 +193,6 @@ function Assert-WchIspReleasePrivacy {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
-    Assert-WchIspReleasePrivacy -RootPath $RootPath
+    Assert-WchIspReleasePrivacy `
+        -RootPath $RootPath -WchIspBundleDir $WchIspBundleDir
 }

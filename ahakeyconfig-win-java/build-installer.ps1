@@ -25,10 +25,9 @@ if ([string]::IsNullOrWhiteSpace($FirmwareVersion)) {
     $FirmwareVersion = [string]$capabilities.expectedBundledVersion
 }
 
-# Compatibility entry point. All installer builds use the protected release
-# baseline so VoiceInputManager, ModelConfig and deployed ONNX resources cannot
-# be replaced by development classes. SpeechService is intentionally overlaid
-# for deterministic tensor cleanup.
+# Compatibility entry point. All installer builds use the complete current
+# Maven JAR. The authorized baseline supplies only runtime/model/icon and other
+# non-Java release assets; no legacy Java classes are copied or overlaid.
 & (Join-Path $PSScriptRoot "build-release-installer.ps1") `
     -BaselineInstallDir $BaselineInstallDir `
     -FirmwareHex $FirmwareHex `

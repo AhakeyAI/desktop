@@ -1,3 +1,8 @@
+# LEGACY / NON-RELEASE / UNSUPPORTED FOR CURRENT PRODUCTION BUILDS.
+# This script is retained only for historical diagnosis. It intentionally
+# creates a class overlay from an installed baseline and must never be used as
+# a release success condition or current installer input.
+
 param(
     [string]$BaselineAppDir = (Join-Path $env:ProgramFiles "AhaKeyStudio\app"),
     [string]$OutputRoot = "",

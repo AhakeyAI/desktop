@@ -10,9 +10,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Production adapter for the vendor WCHISP runtime.  No generated workspace,
- * patched CONFIG, or UID CLI query is used here: the official executable is
- * invoked directly and post-verification remains the source of truth.
+ * Production adapter for the vendor WCHISP runtime.  The command-line download
+ * interface uses a generated UTF-8 INI; the runtime binary CONFIG remains
+ * untouched.  No UID CLI query is used here: the official executable is invoked
+ * directly and its complete terminal result is the flash-completion boundary.
  */
 public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter {
     private static final Duration FLASH_TIMEOUT = Duration.ofMinutes(5);
@@ -92,12 +93,33 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
     @Override
     public FlashResult flashFirmware(Path hex, WchIspRunner.CancellationToken cancellation)
         throws Exception {
+        if (hex == null || !Files.isRegularFile(hex)) {
+            throw new IOException("固件 HEX 文件不存在: " + hex);
+        }
+        IntelHexValidator.validate(hex);
         UUID operationId = UUID.randomUUID();
         Path directory = Files.createTempDirectory("ahakey-wchisp-flash-" + operationId + "-");
         RuntimeBundle runtime = runtimeLocator.resolve();
-        PreparedFlashSession session = prepareFlash(hex, operationId, directory, runtime);
-        session.markDeviceDetected();
-        return flashPrepared(session, cancellation);
+        Files.createDirectories(directory);
+        Path normalizedHex = hex.toAbsolutePath().normalize();
+        Path config = directory.resolve("flash-config.ini");
+        Files.writeString(config, WchIspConfig.forCh582(normalizedHex), StandardCharsets.UTF_8);
+        WchIspRunner.WchIspCommand command = new WchIspRunner.WchIspCommand(
+            runtime.executable(), runtime.root(),
+            List.of("-c", config.toString(), "-o", "download", "-f", normalizedHex.toString()),
+            FLASH_TIMEOUT, operationId);
+        WchIspRunner.WchIspProcessResult process = launch(command, cancellation);
+        WchIspResultParser.FlashExecutionResult parsed = WchIspResultParser.parseFlash(process);
+        boolean success = parsed.success();
+        String detail = "OFFICIAL_WCHISP_COMMAND=" + command.executable() + " "
+            + String.join(" ", command.arguments()) + "\n"
+            + "PROCESS_STARTED=" + (process != null && process.processStarted() ? "YES" : "NO") + "\n"
+            + "LAUNCH_MODE=" + launchMode(process) + "\n"
+            + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
+            + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
+            + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
+            + "POST_VERIFY_REQUIRED=NO";
+        return new FlashResult(success, detail, process, runtime);
     }
 
     @Override
@@ -123,10 +145,11 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
         String detail = "OFFICIAL_WCHISP_COMMAND=" + command.executable() + " "
             + String.join(" ", command.arguments()) + "\n"
             + "PROCESS_STARTED=" + (process != null && process.processStarted() ? "YES" : "NO") + "\n"
+            + "LAUNCH_MODE=" + launchMode(process) + "\n"
             + "EXIT_CODE=" + (process == null ? "NONE" : process.exitCode()) + "\n"
             + "TERMINAL_RESULT=" + (success ? "SUCCESS" : "FAILURE") + "\n"
             + "TERMINAL_DETAIL=" + parsed.detail() + "\n"
-            + "POST_VERIFY_REQUIRED=YES";
+            + "POST_VERIFY_REQUIRED=NO";
         return new FlashResult(success, detail, process, session.runtime());
     }
 
@@ -144,5 +167,10 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
         // an already elevated Studio does not request RunAs a second time.
         return new WindowsWchIspFlasher(command.executable())
             .runOfficialCommand(command, token);
+    }
+
+    private static String launchMode(WchIspRunner.WchIspProcessResult process) {
+        if (process == null) return "UNKNOWN";
+        return process.elevationUsed() ? "RUNAS_WORKER" : "DIRECT_WORKER";
     }
 }

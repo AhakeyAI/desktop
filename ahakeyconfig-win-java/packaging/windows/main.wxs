@@ -25,6 +25,7 @@
     <?define JpUpgradeVersionOnlyDetectDowngrade="yes"?>
   <?endif?>
 
+  <!-- Current release line: 8842DBEF-62F7-49AC-AF0F-9447198265F3. Keep it stable. -->
   <Product
     Id="$(var.JpProductCode)"
     Name="$(var.JpAppName)"
@@ -56,6 +57,17 @@
         Minimum="$(var.JpAppVersion)"
         MigrateFeatures="yes"
         IncludeMinimum="$(var.JpUpgradeVersionOnlyDetectDowngrade)" />
+    </Upgrade>
+
+    <!-- Controlled migration from the confirmed legacy 1.0.0 product line. -->
+    <Upgrade Id="03E5A934-FFCA-3815-B455-7D49BF1CA1DC">
+      <UpgradeVersion
+        Minimum="0.0.0"
+        Maximum="$(var.JpAppVersion)"
+        IncludeMaximum="yes"
+        OnlyDetect="no"
+        Property="AHAKEY_LEGACY_UPGRADE_FOUND"
+        MigrateFeatures="yes" />
     </Upgrade>
 
     <?ifndef JpAllowUpgrades ?>

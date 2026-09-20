@@ -146,7 +146,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 preparedExecutable,
                 List.of("-c", config.toString(), "-u", "get"),
                 Duration.ofSeconds(20),
-                null
+                null,
+                false
             );
             return new DeviceInfo(
                 result.exitCode() == 0,
@@ -188,7 +189,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 preparedExecutable,
                 List.of("-c", config.toString(), "-o", "download", "-f", normalized.toString()),
                 COMMAND_TIMEOUT,
-                listener
+                listener,
+                true
             );
             if (download.exitCode() != 0) {
                 return failed("download", download);
@@ -245,110 +247,14 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         Path commandExecutable,
         List<String> arguments,
         Duration timeout,
-        ProgressListener listener
+        ProgressListener listener,
+        boolean allowElevation
     ) throws Exception {
-        long startedAt = System.nanoTime();
-        java.time.Instant actualStart = java.time.Instant.now();
-        List<String> command = new ArrayList<>();
-        command.add(commandExecutable.toString());
-        command.addAll(arguments);
-        Process process;
-        try {
-            process = new ProcessBuilder(command)
-                .directory(commandExecutable.getParent().toFile())
-                .redirectErrorStream(true)
-                .start();
-        } catch (IOException exception) {
-            if (exception.getMessage() == null
-                || !exception.getMessage().contains("CreateProcess error=740")) {
-                throw exception;
-            }
-            return runElevated(commandExecutable, arguments, timeout, listener);
-        }
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        Thread reader = new Thread(() -> copy(process.getInputStream(), output), "wchisp-output");
-        reader.setDaemon(true);
-        reader.start();
-
-        boolean allowDeviceUid = arguments.contains("get");
-        long deadline = System.nanoTime() + timeout.toNanos();
-        long nonZeroExitAt = 0;
-        int lastProgress = -1;
-        while (System.nanoTime() < deadline) {
-            String currentOutput = output.toString(Charset.defaultCharset());
-            lastProgress = reportProgress(currentOutput, lastProgress, listener);
-            Integer terminalCode = terminalExitCode(currentOutput, allowDeviceUid);
-            if (terminalCode != null) {
-                if (process.isAlive()) {
-                    process.destroy();
-                    if (!process.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)) {
-                        process.destroyForcibly();
-                    }
-                }
-                reader.join(1_000);
-                String text = output.toString(Charset.defaultCharset());
-                if (terminalCode != 0) {
-                    text = appendDiagnostics(text, persistDiagnostics(
-                        commandExecutable, arguments, text, terminalCode));
-                }
-                return new CommandResult(terminalCode, text, process.pid(), false,
-                    Duration.ofNanos(System.nanoTime() - startedAt),
-                    terminalCode == 0 ? "COMPLETED" : "PROCESS_EXIT",
-                    List.of(process.pid()), actualStart);
-            }
-            if (!process.isAlive()) {
-                int exitCode = process.exitValue();
-                if (exitCode == 0) {
-                    // A normal WCHISP CLI process can finish without emitting
-                    // anything on redirected streams.  Return that evidence
-                    // immediately; the parser still rejects non-normal,
-                    // timed-out, cancelled, or explicitly failed results.
-                    reader.join(1_000);
-                    String text = output.toString(Charset.defaultCharset());
-                    return new CommandResult(0, text, process.pid(), false,
-                        Duration.ofNanos(System.nanoTime() - startedAt),
-                        "PROCESS_EXIT", List.of(process.pid()), actualStart);
-                }
-                if (nonZeroExitAt == 0) {
-                    nonZeroExitAt = System.nanoTime();
-                } else if (System.nanoTime() - nonZeroExitAt
-                    >= Duration.ofSeconds(2).toNanos()) {
-                    reader.join(1_000);
-                    String text = output.toString(Charset.defaultCharset());
-                    return new CommandResult(exitCode, appendDiagnostics(text,
-                        persistDiagnostics(commandExecutable, arguments, text, exitCode)),
-                        process.pid(), false,
-                        Duration.ofNanos(System.nanoTime() - startedAt),
-                        "PROCESS_EXIT", List.of(process.pid()), actualStart);
-                }
-            }
-            Thread.sleep(100);
-        }
-        if (process.isAlive()) {
-            process.destroyForcibly();
-        }
-        String text = output.toString(Charset.defaultCharset());
-        String diagnostics = persistDiagnostics(commandExecutable, arguments, text, 124);
-        throw new IOException(
-            "WCHISP 操作超时：未收到 Finished/Code 0/Succeed 最终结果"
-                + (diagnostics.isBlank() ? "" : "\n诊断日志: " + diagnostics)
-        );
-    }
-
-    /**
-     * WCHISPStudio carries a requireAdministrator manifest. If Windows rejects
-     * direct creation with error 740, use the standard UAC "runas" flow and
-     * propagate the official WCHISP exit code.
-     */
-    private CommandResult runElevated(
-        Path commandExecutable,
-        List<String> arguments,
-        Duration timeout,
-        ProgressListener listener
-    )
-        throws Exception {
+        CaptureLaunchMode launchMode = allowElevation
+            ? captureLaunchMode(isCurrentProcessElevated())
+            : CaptureLaunchMode.DIRECT_WORKER;
         return runCaptureWorker(commandExecutable, commandExecutable.getParent(), arguments,
-            timeout, listener, true);
+            timeout, listener, launchMode == CaptureLaunchMode.RUNAS_WORKER);
     }
 
     /**
@@ -492,12 +398,16 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             String marker = readQuietly(resultMarker).trim();
             boolean allowDeviceUid = arguments.contains("get");
             Integer markerCode = elevatedResultCode(marker, allowDeviceUid);
+            int nativeErrorCode = nativeErrorCode(marker);
             Integer terminalCode = terminalExitCode(
                 joinOutput(stdoutText, stderrText, consoleText), allowDeviceUid);
-            int finalCode = markerCode != null ? markerCode
+            int finalCode = nativeErrorCode == 740 ? 740 : markerCode != null ? markerCode
                 : terminalCode != null ? terminalCode
                 : wrapperCode == 0 ? 100 : wrapperCode;
             String terminalResult = terminalResult(marker, finalCode);
+            if (nativeErrorCode == 740 && !useRunAs) {
+                terminalResult = "ELEVATION_REQUIRED";
+            }
             if (wrapperCode == 124 && "MISSING".equals(terminalResult)) {
                 terminalResult = "TIMEOUT";
             }
@@ -505,6 +415,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 case "SUCCESS", "DEVICE_UID" -> "COMPLETED";
                 case "TIMEOUT" -> "FLASH_TERMINAL_RESULT_TIMEOUT";
                 case "CANCELLED" -> "UAC_CANCELLED";
+                case "ELEVATION_REQUIRED" -> "ERROR_ELEVATION_REQUIRED";
                 case "MISSING" -> "TERMINAL_RESULT_MISSING";
                 default -> "PROCESS_EXIT";
             };
@@ -526,9 +437,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 combined = appendDiagnostics(combined, persistDiagnostics(
                     commandExecutable, arguments, combined, finalCode));
             }
-            return new CommandResult(finalCode, combined, pid, true, duration, reason,
+            return new CommandResult(finalCode, combined, pid, useRunAs, duration, reason,
                 pid > 0 ? List.of(pid) : List.of(), actualStart, actualEnd,
-                stdoutText, stderrText, consoleText, terminalResult);
+                stdoutText, stderrText, consoleText, terminalResult, nativeErrorCode);
         } finally {
             if (wrapper != null) Files.deleteIfExists(wrapper);
             Files.deleteIfExists(worker);
@@ -680,6 +591,12 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 Complete-WorkerResult 'TIMEOUT' 124 (Get-ConsoleTail)
             } catch {
                 ($_ | Out-String) | Out-File -LiteralPath $Stderr -Encoding utf8
+                $nativeErrorCode = 0
+                try { $nativeErrorCode = [int]$_.Exception.NativeErrorCode } catch { }
+                if ($nativeErrorCode -eq 740 -or
+                    $_.Exception.Message -match '(?i)(?:error|win32)[ =:]?740') {
+                    Complete-WorkerResult 'ELEVATION_REQUIRED:740' 740 (Get-ConsoleTail)
+                }
                 Complete-WorkerResult 'ERROR' 1 (Get-ConsoleTail)
             }
             """;
@@ -693,6 +610,18 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         if (value.startsWith("FAIL:")) return "FAIL";
         if (value.startsWith("PROCESS_EXIT:")) return "PROCESS_EXIT";
         return code == 0 ? "SUCCESS" : "MISSING";
+    }
+
+    private static int nativeErrorCode(String marker) {
+        if (marker == null) return 0;
+        Matcher matcher = Pattern.compile("(?i)ELEVATION_REQUIRED\\s*:\\s*(\\d+)")
+            .matcher(marker.trim());
+        if (!matcher.find()) return 0;
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private static long readLongQuietly(Path path) {
@@ -733,7 +662,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         return persistDiagnosticsAt(destination, commandExecutable, arguments, output, resultCode);
     }
 
-    /** Runs a prepared command through the shared one-shot console-capture worker. */
+    /** Runs one operation-scoped command with one elevation choice for this operation. */
     WchIspRunner.WchIspProcessResult runOfficialCommand(
         WchIspRunner.WchIspCommand command,
         WchIspRunner.CancellationToken cancellation
@@ -766,7 +695,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     }
 
     static CaptureLaunchMode captureLaunchMode(boolean studioElevated) {
-        return studioElevated ? CaptureLaunchMode.DIRECT_WORKER : CaptureLaunchMode.RUNAS_WORKER;
+        return studioElevated
+            ? CaptureLaunchMode.DIRECT_WORKER
+            : CaptureLaunchMode.RUNAS_WORKER;
     }
 
     private static boolean isCurrentProcessElevated() {
@@ -1267,7 +1198,8 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         String stdout,
         String stderr,
         String console,
-        String terminalResult
+        String terminalResult,
+        int nativeErrorCode
     ) {
         private CommandResult(int exitCode, String output, long pid,
                               boolean elevationUsed, Duration duration,
@@ -1276,7 +1208,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             this(exitCode, output, pid, elevationUsed, duration, terminationReason,
                 ownedProcessIds, actualProcessStartTime,
                 actualProcessStartTime == null ? null : actualProcessStartTime.plus(duration),
-                output, "", output, exitCode == 0 ? "SUCCESS" : "PROCESS_EXIT");
+                output, "", output, exitCode == 0 ? "SUCCESS" : "PROCESS_EXIT", 0);
         }
 
         private CommandResult(int exitCode, String output) {

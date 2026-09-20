@@ -10,11 +10,11 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Immutable launch data prepared before a device is asked to enter ISP.
  *
- * <p>On Windows the session owns an already elevated worker, but that worker
- * only waits for an operation-local GO signal. It is deliberately armed only
- * after the short-lived ISP presence probe succeeds, and it can be consumed at
- * most once. This keeps the explicit user click as the only transition that
- * can launch the vendor download command.</p>
+ * <p>The session owns only immutable runtime/configuration/command data.
+ * It is deliberately armed only after the short-lived ISP presence probe
+ * succeeds, and it can be consumed at most once. This keeps the explicit
+ * user click as the only transition that can launch the vendor download
+ * command.</p>
  */
 public final class PreparedFlashSession {
     public enum State { PREPARED, ARMED, LAUNCHING, COMPLETED, CANCELLED }
@@ -30,6 +30,7 @@ public final class PreparedFlashSession {
     private final AtomicReference<State> state = new AtomicReference<>(State.PREPARED);
     private final AtomicReference<List<Long>> ownedProcessIds =
         new AtomicReference<>(List.of());
+    private volatile Instant deviceDetectedAt;
 
     public PreparedFlashSession(UUID operationId,
                                 RuntimeBundle runtime,
@@ -91,17 +92,25 @@ public final class PreparedFlashSession {
 
     /** Arms this session after the operation-local ISP probe reports present. */
     public boolean markDeviceDetected() {
-        return (launchContext == null || launchContext.ready())
-            && state.compareAndSet(State.PREPARED, State.ARMED);
+        if (launchContext != null && !launchContext.ready()) return false;
+        if (state.get() == State.ARMED) return true;
+        boolean armed = state.compareAndSet(State.PREPARED, State.ARMED);
+        if (armed) deviceDetectedAt = Instant.now();
+        return armed;
     }
+
+    public Instant deviceDetectedAt() { return deviceDetectedAt; }
 
     /** Prevents a not-yet-launched session from ever running a write command. */
     public boolean cancel() {
-        if (launchContext != null) launchContext.cancel();
         while (true) {
             State current = state.get();
-            if (current == State.CANCELLED || current == State.COMPLETED) return false;
-            if (state.compareAndSet(current, State.CANCELLED)) return true;
+            if (current == State.CANCELLED || current == State.COMPLETED
+                || current == State.LAUNCHING) return false;
+            if (state.compareAndSet(current, State.CANCELLED)) {
+                if (launchContext != null) launchContext.cancel();
+                return true;
+            }
         }
     }
 

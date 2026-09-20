@@ -35,7 +35,7 @@ src/main/java/com/example/ahakey/
 
 **应用启动方式：**
 - IDE 运行：`mvn javafx:run`
-- 打包后运行：`java -jar target/ahakey-studio-1.5.3.jar`
+- 打包后运行：`java -jar target/ahakey-studio-1.5.4.jar`
 - 安装包运行：`AhaKeyStudio-xxx.exe`（通过 jpackage 生成）
 
 ## 配置
@@ -59,14 +59,14 @@ mvn clean package
 
 # 仅准备发布输入；允许暂缺真实固件，不能视为正式发布产物
 powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 `
-  -AppVersion 1.5.3 `
+  -AppVersion 1.5.4 `
   -FirmwareVersion 1.4.8 `
   -BaselineInstallDir 'C:\Program Files\AhaKeyStudio' `
   -PrepareOnly
 
 # 正式 Windows 安装包（需真实 CH582 HEX、jpackage、WiX 和发布基线）
 powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 `
-  -AppVersion 1.5.3 `
+  -AppVersion 1.5.4 `
   -FirmwareVersion 1.4.8 `
   -FirmwareHex 'C:\release\AhaKey-X1-firmware-1.4.8-ch582.hex' `
   -BaselineInstallDir 'C:\Program Files\AhaKeyStudio' `
@@ -77,8 +77,14 @@ powershell -ExecutionPolicy Bypass -File .\build-installer.ps1 `
 
 **构建脚本：**
 - `build-exe.bat` — Windows 批处理构建脚本
-- `build-exe.ps1` — PowerShell 构建脚本
+- `build-exe.ps1` — legacy/non-release 提示入口；不会生成旧 class overlay
 - `build-installer.ps1` — 生成 Windows 安装包（.exe）
+- `build-release-installer.ps1` — 正式完整 Maven JAR 发布入口
+
+当前发布规则：先由 `mvn clean package` 生成完整 Maven JAR，正式安装器只使用该 JAR
+作为 Java 生产代码来源。授权安装基线只能提供 runtime、模型、图标、WCHISP 和其他
+非 Java 二进制资产。`preview-part3-release-overlay.ps1` 仅保留用于历史排查，属于
+legacy/non-release/unsupported 路径，不是当前构建或发布成功条件。
 
 ## 技术栈要点
 
@@ -228,7 +234,7 @@ target/
 ├── classes/          # 编译后的 class 文件
 ├── lib/              # 依赖 JAR（jackson, jna, logback, javafx 等）
 ├── jpackage-resources/ # jpackage 资源
-├── ahakey-studio-1.5.3.jar # 可执行 JAR
+├── ahakey-studio-1.5.4.jar # 可执行 JAR
 └── installer/        # Windows 安装包（.exe, .zip）
 ```
 

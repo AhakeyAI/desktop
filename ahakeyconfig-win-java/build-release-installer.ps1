@@ -72,7 +72,10 @@ if ($AppVersion -ne $pomVersion) {
 }
 
 $baselineAppDir = Join-Path $BaselineInstallDir "app"
-$baselineJar = Join-Path $baselineAppDir "ahakey-studio-1.0.0.jar"
+# The historical JAR is used only as an authorized source for bundled Sherpa
+# native DLLs. It is never copied, placed on the Java class path, or used to
+# overlay/validate production classes.
+$baselineResourceJar = Join-Path $baselineAppDir "ahakey-studio-1.0.0.jar"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
 $currentJar = Join-Path $projectDir "target\ahakey-studio-$AppVersion.jar"
 $currentLibDir = Join-Path $projectDir "target\lib"
@@ -88,6 +91,8 @@ $inputDir = Join-Path $releaseRoot "input"
 $jpackageTemp = Join-Path $env:TEMP "ahakey-jpackage-$AppVersion"
 $installerDir = Join-Path $projectDir "installer"
 $windowsResourceDir = Join-Path $projectDir "packaging\windows"
+$productUpgradeCode = "8842dbef-62f7-49ac-af0f-9447198265f3"
+$legacyUpgradeCode = "03E5A934-FFCA-3815-B455-7D49BF1CA1DC"
 
 if (-not (Test-Path -LiteralPath $baselineIcon -PathType Leaf)) {
     throw "Release baseline icon is missing: $baselineIcon"
@@ -104,8 +109,8 @@ foreach ($required in @($currentJar, $currentLibDir)) {
         throw "Current clean-build output is missing: $required. Run mvn clean package first."
     }
 }
-if (-not (Test-Path -LiteralPath $baselineJar -PathType Leaf)) {
-    throw "Voice release baseline JAR is missing: $baselineJar"
+if (-not (Test-Path -LiteralPath $baselineResourceJar -PathType Leaf)) {
+    throw "Authorized non-Java release resource source is missing: $baselineResourceJar"
 }
 & (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") -JarPath $currentJar
 
@@ -137,6 +142,12 @@ New-Item -ItemType Directory -Force -Path `
 
 $releaseJar = Join-Path $inputDir "ahakey-studio-$AppVersion.jar"
 Copy-Item -LiteralPath $currentJar -Destination $releaseJar
+$currentJarHash = (Get-FileHash -LiteralPath $currentJar -Algorithm SHA256).Hash
+$releaseJarHash = (Get-FileHash -LiteralPath $releaseJar -Algorithm SHA256).Hash
+if ($currentJarHash -cne $releaseJarHash) {
+    throw "Staged Java JAR differs from the verified Maven JAR."
+}
+Write-Output "FULL_MAVEN_JAR_STAGED=OK"
 Get-ChildItem -LiteralPath $currentLibDir |
     Copy-Item -Destination (Join-Path $inputDir "lib") -Recurse
 Get-ChildItem -LiteralPath (Join-Path $baselineAppDir "models") |
@@ -150,7 +161,7 @@ $sherpaNativeStage = Join-Path $inputDir "lib\sherpa-onnx\native\win-x64"
 New-Item -ItemType Directory -Force -Path $sherpaNativeStage | Out-Null
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$baselineArchive = [IO.Compression.ZipFile]::OpenRead($baselineJar)
+$baselineArchive = [IO.Compression.ZipFile]::OpenRead($baselineResourceJar)
 try {
     foreach ($nativeName in @(
         "onnxruntime.dll",
@@ -160,7 +171,7 @@ try {
         $entryName = "sherpa-onnx/native/win-x64/$nativeName"
         $entry = $baselineArchive.GetEntry($entryName)
         if ($null -eq $entry) {
-            throw "Sherpa native resource is missing from release baseline JAR: $entryName"
+            throw "Sherpa native resource is missing from authorized non-Java source: $entryName"
         }
         $destination = Join-Path $sherpaNativeStage $nativeName
         $entryStream = $entry.Open()
@@ -230,41 +241,40 @@ if ($IncludeLicensedWchIsp) {
     foreach ($runtimeFile in @(
         "WCHISPTool_CH57x-59x.exe",
         "CH343PT.DLL",
-        "WCH55xISPDLL.dll",
-        "CONFIG_CH57X59X.WCH"
+        "WCH55xISPDLL.dll"
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
             throw "WCHISP runtime bundle is missing: $runtimeFile"
         }
     }
+    $chipDatabaseRelativePath = "ChipType\chiplist_CH57x_CH59x.wcfg"
+    $sourceChipDatabase = Join-Path $WchIspBundleDir $chipDatabaseRelativePath
+    if (-not (Test-Path -LiteralPath $sourceChipDatabase -PathType Leaf)) {
+        throw "WCHISP runtime bundle is missing: $chipDatabaseRelativePath"
+    }
     $wchDir = Join-Path $inputDir "tools\wchisp"
     New-Item -ItemType Directory -Force -Path $wchDir | Out-Null
-    Get-ChildItem -LiteralPath $WchIspBundleDir -Force |
-        Where-Object {
-            $_.Name -notin @(
-                "CONFIG_CH57X59X.WCH",
-                "CONFIG_CH57X59X.WCH.excluded",
-                "wchisp-runtime.json"
-            )
-        } |
-        Copy-Item -Destination $wchDir -Recurse
-    # Keep the configuration from the same vendor bundle as the executable and
-    # DLLs. Clear only the five persisted firmware-path slots so developer and
-    # historical paths are not redistributed. Version strings are recorded as
-    # diagnostics, not treated as an artificial exact-version allowlist.
-    $sourceConfig = Join-Path $WchIspBundleDir "CONFIG_CH57X59X.WCH"
+    foreach ($runtimeFile in @(
+        "WCHISPTool_CH57x-59x.exe",
+        "CH343PT.DLL",
+        "WCH55xISPDLL.dll"
+    )) {
+        Copy-Item -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) `
+            -Destination (Join-Path $wchDir $runtimeFile)
+    }
+    $stagedChipDatabase = Join-Path $wchDir $chipDatabaseRelativePath
+    New-Item -ItemType Directory -Force -Path `
+        (Split-Path -Parent $stagedChipDatabase) | Out-Null
+    Copy-Item -LiteralPath $sourceChipDatabase -Destination $stagedChipDatabase
+    # The external bundle supplies only the official binaries. Keep every
+    # unknown byte of the hardware-verified repository CONFIG unchanged.
+    $sourceConfig = Join-Path $projectDir `
+        "src\main\resources\wchisp\CONFIG_CH57X59X-sanitized.WCH"
+    if (-not (Test-Path -LiteralPath $sourceConfig -PathType Leaf)) {
+        throw "Verified repository WCHISP configuration is missing: $sourceConfig"
+    }
     $stagedConfig = Join-Path $wchDir "CONFIG_CH57X59X.WCH"
-    [byte[]]$configBytes = [IO.File]::ReadAllBytes($sourceConfig)
-    if ($configBytes.Length -ne 66841) {
-        throw "Unsupported WCHISP configuration size: $($configBytes.Length)"
-    }
-    foreach ($offset in @(36486, 37006, 37526, 63172, 63692)) {
-        if ($offset -lt 0 -or $offset + 520 -gt $configBytes.Length) {
-            throw "WCHISP configuration path slot is outside the file: $offset"
-        }
-        [Array]::Clear($configBytes, $offset, 520)
-    }
-    [IO.File]::WriteAllBytes($stagedConfig, $configBytes)
+    Copy-Item -LiteralPath $sourceConfig -Destination $stagedConfig
 
     $stagedExe = Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"
     $stagedDriverDll = Join-Path $wchDir "CH343PT.DLL"
@@ -290,8 +300,8 @@ if ($IncludeLicensedWchIsp) {
         configLayoutFingerprint = $configHash
         supportedChipFamily = "CH57x/CH59x"
         supportedModel = "CH582"
-        source = "User-supplied official WCHISP bundle; redistribution authorization not verified"
-        provenance = "Versions and file hashes recorded during packaging; persisted firmware paths removed"
+        source = "Official WCHISP binaries and chip database supplied at release time; verified sanitized CONFIG from repository"
+        provenance = "Binary versions and hashes recorded during packaging; chip database copied from official bundle; CONFIG copied byte-for-byte from repository baseline"
         exeSha256 = $exeHash
         ch343Sha256 = $driverHash
         ispDllSha256 = $ispHash
@@ -307,7 +317,8 @@ if ($IncludeLicensedWchIsp) {
         (Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"))) {
         throw "WCHISP bundle does not contain WCHISPTool_CH57x-59x.exe at its root."
     }
-    & (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1") -RootPath $wchDir
+    & (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1") `
+        -RootPath $wchDir -WchIspBundleDir $WchIspBundleDir
 }
 
 $requiredModels = @(
@@ -391,7 +402,7 @@ $jpackageArgs = @(
     # Keep the safe upgrade line introduced in 1.2.5. The custom WiX UI lets
     # the user choose a parent directory while INSTALLDIR always remains the
     # AhaKeyStudio child directory, so uninstall cannot own the broad parent.
-    "--win-upgrade-uuid", "8842dbef-62f7-49ac-af0f-9447198265f3",
+    "--win-upgrade-uuid", $productUpgradeCode,
     "--java-options", "--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.fxml/com.sun.javafx.fxml=ALL-UNNAMED",
@@ -453,6 +464,16 @@ if ($generatedMain -notmatch 'AHAKEY_PREVIOUS_INSTALLDIR' -or
     $generatedMain -notmatch 'AhaKeyRememberInstallDir') {
     throw "Installer upgrade-path persistence was not included."
 }
+if ($generatedMain -notmatch [regex]::Escape($legacyUpgradeCode) -or
+    $generatedMain -notmatch 'AHAKEY_LEGACY_UPGRADE_FOUND' -or
+    $generatedMain -notmatch 'RemoveExistingProducts') {
+    throw "Legacy 1.0.0 upgrade detection/removal was not included."
+}
+if ((Get-Content -LiteralPath (Join-Path $windowsResourceDir "main.wxs") -Raw) -notmatch
+    [regex]::Escape($legacyUpgradeCode)) {
+    throw "Legacy UpgradeCode is missing from the controlled WiX source."
+}
+Write-Output "WINDOWS_UPGRADE_PATH_VALIDATION=OK"
 Write-Output "WINDOWS_INSTALLER_LAYOUT_VALIDATION=OK"
 
 $generated = Join-Path $installerDir "AhaKeyStudio-$AppVersion.exe"

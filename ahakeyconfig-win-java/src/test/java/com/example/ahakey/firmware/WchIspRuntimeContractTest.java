@@ -23,6 +23,18 @@ class WchIspRuntimeContractTest {
     }
 
     @Test
+    void missingChipDatabaseFailsWithItsRelativePath() throws Exception {
+        createBundle("/wchisp/wchisp-runtime.json");
+        Files.delete(temporary.resolve("ChipType").resolve("chiplist_CH57x_CH59x.wcfg"));
+
+        var validation = WchIspRuntimeContract.validate(temporary);
+
+        assertFalse(validation.supported());
+        assertTrue(validation.summary().contains(
+            WchIspRuntimeContract.CHIP_DATABASE_RELATIVE_PATH));
+    }
+
+    @Test
     void mixedRuntimeVersionsAreRecordedButDoNotBlockCompatibleBundle() throws Exception {
         createBundle("/wchisp/wchisp-runtime.json");
         Path metadata = temporary.resolve(WchIspRuntimeContract.METADATA_FILE);
@@ -62,6 +74,8 @@ class WchIspRuntimeContractTest {
         Files.write(temporary.resolve("WCHISPTool_CH57x-59x.exe"), new byte[]{1});
         Files.write(temporary.resolve("CH343PT.DLL"), new byte[]{1});
         Files.write(temporary.resolve("WCH55xISPDLL.dll"), new byte[]{1});
+        Path chipType = Files.createDirectories(temporary.resolve("ChipType"));
+        Files.write(chipType.resolve("chiplist_CH57x_CH59x.wcfg"), new byte[]{1});
         try (var config = getClass().getResourceAsStream(
             "/wchisp/CONFIG_CH57X59X-sanitized.WCH")) {
             Files.copy(config, temporary.resolve("CONFIG_CH57X59X.WCH"));

@@ -67,7 +67,7 @@ class ReleaseFirmwareValidationTest {
     @Test
     void compatibilityInstallerAllowsPrepareOnlyWithoutFirmwareArguments() throws Exception {
         Result result = runScript("build-installer.ps1",
-            "-AppVersion", "1.5.3",
+            "-AppVersion", "1.5.4",
             "-BaselineInstallDir", temporary.resolve("missing-baseline").toString(),
             "-PrepareOnly");
         assertFalse(result.success());
@@ -170,7 +170,7 @@ class ReleaseFirmwareValidationTest {
             "AhaKey-X1-firmware-1.4.8-ch582.provenance.json");
         Files.writeString(provenance, provenance("1.4.8"), StandardCharsets.UTF_8);
         Result valid = runScript(pwsh, "build-release-installer.ps1",
-            "-AppVersion", "1.5.3", "-FirmwareVersion", "1.4.8",
+            "-AppVersion", "1.5.4", "-FirmwareVersion", "1.4.8",
             "-FirmwareHex", hex.toString(),
             "-BaselineInstallDir", temporary.resolve("missing-baseline").toString(),
             "-PrepareOnly");
@@ -181,7 +181,7 @@ class ReleaseFirmwareValidationTest {
             provenance("1.4.8").replace("2026-08-26T00:00:00Z",
                 "2026-08-26T00:00:00.123Z"), StandardCharsets.UTF_8);
         Result fractional = runScript(pwsh, "build-release-installer.ps1",
-            "-AppVersion", "1.5.3", "-FirmwareVersion", "1.4.8",
+            "-AppVersion", "1.5.4", "-FirmwareVersion", "1.4.8",
             "-FirmwareHex", hex.toString(), "-PrepareOnly");
         assertFalse(fractional.success());
         assertTrue(fractional.output().contains("builtAtUtc"));
@@ -200,7 +200,7 @@ class ReleaseFirmwareValidationTest {
     private Result run(String... arguments) throws Exception {
         List<String> allArguments = new ArrayList<>();
         allArguments.add("-AppVersion");
-        allArguments.add("1.5.3");
+        allArguments.add("1.5.4");
         allArguments.addAll(List.of(arguments));
         return runScript("build-release-installer.ps1",
             allArguments.toArray(String[]::new));

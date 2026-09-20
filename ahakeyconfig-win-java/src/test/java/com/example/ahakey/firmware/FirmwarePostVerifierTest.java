@@ -8,18 +8,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 class FirmwarePostVerifierTest {
     private static final AhaKeyResponseParser.DeviceCapabilities GOOD =
         new AhaKeyResponseParser.DeviceCapabilities(3, 2, 1, 4, 0,
-            FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 7, 1);
+            FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 8, 1);
 
     @Test
     void officialBundleRequiresAllContractFields() throws Exception {
         var verifier = new FirmwarePostVerifier(() -> GOOD, () -> true, millis -> { });
-        var result = verifier.verify(SemanticVersion.parse("1.4.7"), java.time.Duration.ofSeconds(1));
+        var result = verifier.verify(SemanticVersion.parse("1.4.8"), java.time.Duration.ofSeconds(1));
         assertTrue(result.success(), result.detail());
-        assertTrue(result.detail().contains("Firmware=1.4.7"));
+        assertTrue(result.detail().contains("Firmware=1.4.8"));
         assertTrue(result.detail().contains("Protocol=3.2"));
         assertTrue(result.detail().contains("Model=1"));
         assertTrue(result.detail().contains("Capabilities=0x7FF"));
@@ -60,7 +61,7 @@ class FirmwarePostVerifierTest {
         var verifier = new FirmwarePostVerifier(() -> { cancelled.set(true); return GOOD; },
             () -> true, millis -> { });
         assertThrows(InterruptedException.class, () -> verifier.verify(
-            SemanticVersion.parse("1.4.7"), java.time.Duration.ofSeconds(1), cancelled::get));
+            SemanticVersion.parse("1.4.8"), java.time.Duration.ofSeconds(1), cancelled::get));
     }
 
     @Test
@@ -86,6 +87,45 @@ class FirmwarePostVerifierTest {
     }
 
     @Test
+    void reconnectUsesNewSessionAndAcceptsFreshStatusSeenBeforeAwaitCall() throws Exception {
+        AtomicReference<com.example.ahakey.service.BleManager.TransportStatusSnapshot> snapshot =
+            new AtomicReference<>(new com.example.ahakey.service.BleManager.TransportStatusSnapshot(
+                2, 4, 1, 2_001, true));
+        var verifier = new FirmwarePostVerifier(() -> GOOD, () -> true, millis -> { },
+            snapshot::get, () -> snapshot.get().statusSequence());
+
+        assertTrue(verifier.awaitReconnect(java.time.Duration.ZERO, () -> false,
+            new com.example.ahakey.service.BleManager.TransportStatusSnapshot(
+                1, 3, 9, 1_000, true), 2_000));
+    }
+
+    @Test
+    void reconnectRejectsSameSessionEvenWhenSequenceIncreases() throws Exception {
+        AtomicReference<com.example.ahakey.service.BleManager.TransportStatusSnapshot> snapshot =
+            new AtomicReference<>(new com.example.ahakey.service.BleManager.TransportStatusSnapshot(
+                1, 3, 10, 2_001, true));
+        var verifier = new FirmwarePostVerifier(() -> GOOD, () -> true, millis -> { },
+            snapshot::get, () -> snapshot.get().statusSequence());
+
+        assertFalse(verifier.awaitReconnect(java.time.Duration.ZERO, () -> false,
+            new com.example.ahakey.service.BleManager.TransportStatusSnapshot(
+                1, 3, 1, 1_000, true), 2_000));
+    }
+
+    @Test
+    void reconnectRejectsStatusThatPredatesFlashCompletion() throws Exception {
+        AtomicReference<com.example.ahakey.service.BleManager.TransportStatusSnapshot> snapshot =
+            new AtomicReference<>(new com.example.ahakey.service.BleManager.TransportStatusSnapshot(
+                2, 4, 1, 1_999, true));
+        var verifier = new FirmwarePostVerifier(() -> GOOD, () -> true, millis -> { },
+            snapshot::get, () -> snapshot.get().statusSequence());
+
+        assertFalse(verifier.awaitReconnect(java.time.Duration.ZERO, () -> false,
+            new com.example.ahakey.service.BleManager.TransportStatusSnapshot(
+                1, 3, 1, 1_000, true), 2_000));
+    }
+
+    @Test
     void capabilityVerificationRetriesAfterTransientNineFFailure() throws Exception {
         AtomicInteger reads = new AtomicInteger();
         var verifier = new FirmwarePostVerifier(() -> {
@@ -93,7 +133,7 @@ class FirmwarePostVerifierTest {
             return GOOD;
         }, () -> true, millis -> { });
 
-        var result = verifier.verify(SemanticVersion.parse("1.4.7"),
+        var result = verifier.verify(SemanticVersion.parse("1.4.8"),
             java.time.Duration.ofSeconds(1));
         assertTrue(result.success(), result.detail());
         assertEquals(2, reads.get());
