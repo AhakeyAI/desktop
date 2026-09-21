@@ -1,5 +1,7 @@
 package com.example.ahakey.model;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
@@ -27,11 +29,11 @@ public class StudioState {
     private final ObjectProperty<StudioPart> selectedPart = new SimpleObjectProperty<>(StudioPart.KEY1);
     private final IntegerProperty dirtyCount = new SimpleIntegerProperty(0);
     private final IntegerProperty revision = new SimpleIntegerProperty(0);
-    private final StringProperty syncStatus = new SimpleStringProperty("修改会先保存在本地，保存配置后写入键盘。");
-    private final StringProperty lastSyncSummary = new SimpleStringProperty("尚未保存");
+    private final StringProperty syncStatus = new SimpleStringProperty(localize("修改会先保存在本地，保存配置后写入键盘。"));
+    private final StringProperty lastSyncSummary = new SimpleStringProperty(localize("尚未保存"));
     private final BooleanProperty syncing = new SimpleBooleanProperty(false);
     private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(false);
-    private final StringProperty ahaTypeStatus = new SimpleStringProperty("AhaType 未启用");
+    private final StringProperty ahaTypeStatus = new SimpleStringProperty(localize("AhaType 未启用"));
     private final AhaTypeService ahaTypeService;
     private BooleanSupplier localSpeechAvailable = () -> true;
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
@@ -129,7 +131,7 @@ public class StudioState {
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Claude"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 1"));
-            lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
+            lightBarSummaries.put(mode, new SimpleStringProperty(localize("AI 状态灯效")));
         } else if (mode == ModeSlot.MODE1) {
             map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
             map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Accept"));
@@ -137,7 +139,7 @@ public class StudioState {
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Cursor"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 2"));
-            lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
+            lightBarSummaries.put(mode, new SimpleStringProperty(localize("AI 状态灯效")));
         } else if (mode == ModeSlot.MODE2) {
             map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
             map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Accept"));
@@ -145,7 +147,7 @@ public class StudioState {
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Codex"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 3"));
-            lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
+            lightBarSummaries.put(mode, new SimpleStringProperty(localize("AI 状态灯效")));
         } else {
             map.put(StudioPart.KEY1, createKey(0, "N/A"));
             map.put(StudioPart.KEY2, createKey(0, "N/A"));
@@ -153,7 +155,7 @@ public class StudioState {
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("N/A"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 4"));
-            lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
+            lightBarSummaries.put(mode, new SimpleStringProperty(localize("AI 状态灯效")));
         }
         resetAiLightDefaults(mode);
     }
@@ -236,10 +238,10 @@ public class StudioState {
         if (effective) {
             ahaTypeStatus.set(ahaTypeService.getLastProcessIssue()
                 == AhaTypeService.ProcessIssue.NONE
-                    ? "AhaType 已启用"
+                    ? localize("AhaType 已启用")
                     : ahaTypeService.getStatusMessage());
         } else {
-            ahaTypeStatus.set(ahaTypeService.getStatusMessage());
+            ahaTypeStatus.set(localize(ahaTypeService.getStatusMessage()));
         }
     }
 
@@ -273,7 +275,7 @@ public class StudioState {
 
     public void setAiLightEffect(ModeSlot mode, IDEState state, LightEffectStyle effect) {
         aiLightConfigs.get(mode).put(state, effect);
-        lightBarSummaries.get(mode).set("已自定义 AI 状态灯效");
+        lightBarSummaries.get(mode).set(localize("已自定义 AI 状态灯效"));
         markDirty(StudioPart.LIGHT_BAR);
     }
 
@@ -334,7 +336,7 @@ public class StudioState {
     }
 
     public void setVoiceShortCustomShortcutHid(int value) {
-        if (!VoiceActionRouter.isValidCustomShortcut(value)) {
+        if (!VoiceActionRouter.isValidShortcutDraft(value)) {
             throw new IllegalArgumentException("F18 or invalid key cannot be a custom voice shortcut");
         }
         voiceShortCustomShortcutHid.set(value);
@@ -350,7 +352,7 @@ public class StudioState {
     }
 
     public void setVoiceLongCustomShortcutHid(int value) {
-        if (!VoiceActionRouter.isValidCustomShortcut(value)) {
+        if (!VoiceActionRouter.isValidShortcutDraft(value)) {
             throw new IllegalArgumentException("F18 or invalid key cannot be a custom voice shortcut");
         }
         voiceLongCustomShortcutHid.set(value);
@@ -440,8 +442,8 @@ public class StudioState {
         OledModeDraft draft = getOledDraft();
         draft.setLocalAssetPath(path);
         draft.setFrameCount(frameCount);
-        draft.setStatusLine("已选择 GIF / 图片");
-        draft.setCaptionLine(frameCount + " 帧 · " + java.nio.file.Path.of(path).getFileName());
+        draft.setStatusLine(localize("已选择 GIF / 图片"));
+        draft.setCaptionLine(frameCount + localize(" 帧 · ") + java.nio.file.Path.of(path).getFileName());
         oledSummaries.get(getSelectedMode()).set(draft.getStatusLine());
         oledCaptions.get(getSelectedMode()).set(draft.getCaptionLine());
         markDirty(StudioPart.OLED);
@@ -481,22 +483,22 @@ public class StudioState {
     public boolean toggleAhaType(boolean enabled) {
         if (!enabled) {
             if (!ahaTypeService.setEnabled(false)) {
-                ahaTypeStatus.set(ahaTypeService.getStatusMessage());
+                ahaTypeStatus.set(localize(ahaTypeService.getStatusMessage()));
                 return false;
             }
             refreshAhaTypeState();
             return true;
         }
         if (!localSpeechAvailable.getAsBoolean()) {
-            ahaTypeStatus.set("本地语音未就绪");
+            ahaTypeStatus.set(localize("本地语音未就绪"));
             return false;
         }
         if (!ahaTypeService.hasValidToken()) {
-            ahaTypeStatus.set("请先登录 AhaType");
+            ahaTypeStatus.set(localize("请先登录 AhaType"));
             return false;
         }
         if (!ahaTypeService.setEnabled(true)) {
-            ahaTypeStatus.set(ahaTypeService.getStatusMessage());
+            ahaTypeStatus.set(localize(ahaTypeService.getStatusMessage()));
             return false;
         }
         refreshAhaTypeState();
@@ -518,7 +520,7 @@ public class StudioState {
         dirtyRevisions.put(part, nextRevision);
         dirtyCount.set(dirtyParts.size());
         revision.set(nextRevision);
-        syncStatus.set("有 " + dirtyParts.size() + " 处改动待保存。");
+        syncStatus.set(localize("有 ") + dirtyParts.size() + localize(" 处改动待保存。"));
     }
 
     public void restoreCurrentModeDefaults() {
@@ -531,17 +533,17 @@ public class StudioState {
         }
         dirtyCount.set(dirtyParts.size());
         revision.set(nextRevision);
-        syncStatus.set("已恢复 " + getSelectedMode().getTitle() + " 默认值，等待保存。");
+        syncStatus.set(localize("已恢复 ") + getSelectedMode().getTitle() + localize(" 默认值，等待保存。"));
     }
 
     public void clearOledPreview() {
         OledModeDraft draft = getOledDraft();
         draft.setLocalAssetPath(null);
         draft.setFrameCount(0);
-        draft.setStatusLine("未选择");
-        draft.setCaptionLine("等待选择 GIF / 图片");
-        oledSummaries.get(getSelectedMode()).set("未选择");
-        oledCaptions.get(getSelectedMode()).set("等待选择 GIF / 图片");
+        draft.setStatusLine(localize("未选择"));
+        draft.setCaptionLine(localize("等待选择 GIF / 图片"));
+        oledSummaries.get(getSelectedMode()).set(localize("未选择"));
+        oledCaptions.get(getSelectedMode()).set(localize("等待选择 GIF / 图片"));
         markDirty(StudioPart.OLED);
     }
 
@@ -551,6 +553,18 @@ public class StudioState {
 
     public DirtySnapshot captureDirtySnapshot() {
         return new DirtySnapshot(dirtyRevisions);
+    }
+
+    /** K1 actions are stored on the desktop; other edits require device ACKs. */
+    public boolean hasDeviceConfigurationChanges() {
+        return dirtyParts.stream().anyMatch(part -> part != StudioPart.KEY1);
+    }
+
+    public boolean hasIncompleteVoiceShortcut() {
+        return (getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT
+                && !VoiceActionRouter.isValidCustomShortcut(getVoiceShortCustomShortcutHid()))
+            || (getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT
+                && !VoiceActionRouter.isValidCustomShortcut(getVoiceLongCustomShortcutHid()));
     }
 
     public void clearDirtyAfterSync(DirtySnapshot snapshot) {
@@ -563,7 +577,7 @@ public class StudioState {
             }
         }
         dirtyCount.set(dirtyParts.size());
-        lastSyncSummary.set("最近保存 " + LocalDateTime.now().format(SYNC_TIME_FORMAT));
+        lastSyncSummary.set(localize("最近保存 ") + LocalDateTime.now().format(SYNC_TIME_FORMAT));
     }
 
     public int getRevision() {
@@ -766,7 +780,7 @@ public class StudioState {
     }
 
     private static int normalizeCustomShortcut(Integer value, int fallback) {
-        return value != null && VoiceActionRouter.isValidCustomShortcut(value) ? value : fallback;
+        return value != null && VoiceActionRouter.isValidShortcutDraft(value) ? value : fallback;
     }
 }
 

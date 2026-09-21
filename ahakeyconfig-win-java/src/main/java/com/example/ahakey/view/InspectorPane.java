@@ -1,5 +1,9 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.app.StudioController;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.KeyConfig;
@@ -133,11 +137,11 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createDualVoiceKeyGroup() {
-        return createGroupBox("语音键：短按 / 长按", () -> {
+        return createGroupBox(localize("语音键：短按 / 长按"), () -> {
             VBox box = new VBox(16);
             Label hint = new Label(
-                "物理语音键由 Desktop 自动区分短按与长按；"
-                    + "动作不会写入固件，也不会模拟 Typeless/微信 Fn。"
+                localize("物理语音键由 Desktop 自动区分短按与长按；")
+                    + localize("动作不会写入固件，也不会模拟 Typeless/微信 Fn。")
             );
             hint.setWrapText(true);
             hint.getStyleClass().add("warning-note");
@@ -149,7 +153,7 @@ public class InspectorPane extends ScrollPane {
             VBox shortShortcutBox = createVoiceShortcutEditor(true);
             shortShortcutBox.setManaged(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
             shortShortcutBox.setVisible(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
-            VBox shortEditorBlock = new VBox(6, new Label("短按快捷键"), shortShortcutBox);
+            VBox shortEditorBlock = new VBox(6, new Label(localize("短按快捷键")), shortShortcutBox);
             shortEditorBlock.setManaged(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
             shortEditorBlock.setVisible(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
             shortAction.valueProperty().addListener((obs, oldValue, value) -> {
@@ -169,7 +173,7 @@ public class InspectorPane extends ScrollPane {
             VBox longShortcutBox = createVoiceShortcutEditor(false);
             longShortcutBox.setManaged(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
             longShortcutBox.setVisible(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
-            VBox longEditorBlock = new VBox(6, new Label("长按快捷键"), longShortcutBox);
+            VBox longEditorBlock = new VBox(6, new Label(localize("长按快捷键")), longShortcutBox);
             longEditorBlock.setManaged(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
             longEditorBlock.setVisible(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
             longAction.valueProperty().addListener((obs, oldValue, value) -> {
@@ -180,13 +184,13 @@ public class InspectorPane extends ScrollPane {
             });
             VBox longActionBox = new VBox(8, longAction, longEditorBlock);
             if (!localModelConfigured) {
-                Label unavailable = new Label("AhaKey 本地语音（当前不可用）");
+                Label unavailable = new Label(localize("AhaKey 本地语音（当前不可用）"));
                 unavailable.getStyleClass().add("warning-note");
                 longActionBox.getChildren().add(0, unavailable);
             }
             box.getChildren().addAll(hint,
-                new Label("短按动作（一次触发）"), shortAction, shortEditorBlock,
-                new Label("长按动作（按住说话）"), longActionBox);
+                new Label(localize("短按动作（一次触发）")), shortAction, shortEditorBlock,
+                new Label(localize("长按动作（按住说话）")), longActionBox);
             return box;
         });
     }
@@ -234,10 +238,10 @@ public class InspectorPane extends ScrollPane {
 
     private String voiceActionLabel(VoiceAction action) {
         return switch (action) {
-            case SYSTEM_VOICE -> "系统语音（Win+H）";
-            case AHAKEY_VOICE -> "AhaKey 本地语音（按住说话）";
-            case NONE -> "禁用";
-            case CUSTOM_SHORTCUT -> "自定义快捷键";
+            case SYSTEM_VOICE -> localize("系统语音（Win+H）");
+            case AHAKEY_VOICE -> localize("AhaKey 本地语音（按住说话）");
+            case NONE -> localize("禁用");
+            case CUSTOM_SHORTCUT -> localize("自定义快捷键");
         };
     }
 
@@ -247,7 +251,7 @@ public class InspectorPane extends ScrollPane {
             KeyConfig key = studioState.getKeyConfig(part);
             var voice = controller.getVoiceRelay();
 
-            Button simulate = new Button("模拟按键");
+            Button simulate = new Button(localize("模拟按键"));
             simulate.getStyleClass().add("button-prominent");
             simulate.setOnAction(e -> {
                 if (!key.usesMacro()) voice.simulateKeyByHid(key.getHidCode());
@@ -257,7 +261,7 @@ public class InspectorPane extends ScrollPane {
             Label hint = new Label();
             hint.getStyleClass().add("warning-note");
             if (key.usesMacro()) {
-                hint.setText("复杂宏序列暂不执行模拟；切换为单个快捷键后可在此测试。");
+                hint.setText(localize("复杂宏序列暂不执行模拟；切换为单个快捷键后可在此测试。"));
             } else {
                 hint.textProperty().bind(voice.lastSimulateHintProperty());
             }
@@ -339,14 +343,14 @@ public class InspectorPane extends ScrollPane {
         
         if (hidCode != 0) {
             // 修饰键：区分 Left/Right（新编码 0xNN00 + 旧编码 0x0N00 兼容）
-            if (((hidCode & 0x100) != 0) && ((hidCode & 0x1000) == 0)) keyCodes.add("Left Shift (0xE1)");
-            else if ((hidCode & 0x1000) != 0) keyCodes.add("Right Shift (0xE5)");
-            if (((hidCode & 0x200) != 0) && ((hidCode & 0x2000) == 0)) keyCodes.add("Left Ctrl (0xE0)");
-            else if ((hidCode & 0x2000) != 0) keyCodes.add("Right Ctrl (0xE4)");
-            if (((hidCode & 0x400) != 0) && ((hidCode & 0x4000) == 0)) keyCodes.add("Left Alt (0xE2)");
-            else if ((hidCode & 0x4000) != 0) keyCodes.add("Right Alt (0xE6)");
-            if (((hidCode & 0x800) != 0) && ((hidCode & 0x8000) == 0)) keyCodes.add("Left Win (0xE3)");
-            else if ((hidCode & 0x8000) != 0) keyCodes.add("Right Win (0xE7)");
+            if ((hidCode & 0x100) != 0) keyCodes.add("Left Shift (0xE1)");
+            if ((hidCode & 0x1000) != 0) keyCodes.add("Right Shift (0xE5)");
+            if ((hidCode & 0x200) != 0) keyCodes.add("Left Ctrl (0xE0)");
+            if ((hidCode & 0x2000) != 0) keyCodes.add("Right Ctrl (0xE4)");
+            if ((hidCode & 0x400) != 0) keyCodes.add("Left Alt (0xE2)");
+            if ((hidCode & 0x4000) != 0) keyCodes.add("Right Alt (0xE6)");
+            if ((hidCode & 0x800) != 0) keyCodes.add("Left Win (0xE3)");
+            if ((hidCode & 0x8000) != 0) keyCodes.add("Right Win (0xE7)");
             
             int baseCode = hidCode & 0xFF;
             if (baseCode != 0) {
@@ -357,13 +361,13 @@ public class InspectorPane extends ScrollPane {
         
         keyListView.getItems().addAll(keyCodes);
 
-        HBox buttonRow = new HBox(8);
+        FlowPane buttonRow = new FlowPane(8, 8);
 
         ComboBox<String> keySelector = new ComboBox<>();
         java.util.List<String> keyItems = new java.util.ArrayList<>();
         
         // 修饰键 (modifier)
-        keyItems.add("--- 修饰键 ---");
+        keyItems.add(localize("--- 修饰键 ---"));
         keyItems.add("Left Ctrl (0xE0)");
         keyItems.add("Left Shift (0xE1)");
         keyItems.add("Left Alt (0xE2)");
@@ -374,7 +378,7 @@ public class InspectorPane extends ScrollPane {
         keyItems.add("Right Win (0xE7)");
         
         // 字母键 (alpha)
-        keyItems.add("--- 字母 ---");
+        keyItems.add(localize("--- 字母 ---"));
         String[] letters = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
                            "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
         int[] letterCodes = {0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 
@@ -385,7 +389,7 @@ public class InspectorPane extends ScrollPane {
         }
         
         // 数字键 (number)
-        keyItems.add("--- 数字 ---");
+        keyItems.add(localize("--- 数字 ---"));
         keyItems.add("1 (0x1E)");
         keyItems.add("2 (0x1F)");
         keyItems.add("3 (0x20)");
@@ -398,7 +402,7 @@ public class InspectorPane extends ScrollPane {
         keyItems.add("0 (0x27)");
         
         // 基础键 (basic)
-        keyItems.add("--- 基础键 ---");
+        keyItems.add(localize("--- 基础键 ---"));
         keyItems.add("Enter (0x28)");
         keyItems.add("Escape (0x29)");
         keyItems.add("Backspace (0x2A)");
@@ -418,7 +422,7 @@ public class InspectorPane extends ScrollPane {
         keyItems.add("Caps Lock (0x39)");
         
         // 功能键 (function)
-        keyItems.add("--- 功能键 ---");
+        keyItems.add(localize("--- 功能键 ---"));
         keyItems.add("F1 (0x3A)");
         keyItems.add("F2 (0x3B)");
         keyItems.add("F3 (0x3C)");
@@ -445,7 +449,7 @@ public class InspectorPane extends ScrollPane {
         keyItems.add("F24 (0x73)");
         
         // 控制键 (control)
-        keyItems.add("--- 控制键 ---");
+        keyItems.add(localize("--- 控制键 ---"));
         keyItems.add("Print Screen (0x46)");
         keyItems.add("Scroll Lock (0x47)");
         keyItems.add("Pause (0x48)");
@@ -457,14 +461,14 @@ public class InspectorPane extends ScrollPane {
         keyItems.add("Page Down (0x4E)");
         
         // 方向键 (arrow)
-        keyItems.add("--- 方向键 ---");
+        keyItems.add(localize("--- 方向键 ---"));
         keyItems.add("Right (0x4F)");
         keyItems.add("Left (0x50)");
         keyItems.add("Down (0x51)");
         keyItems.add("Up (0x52)");
         
         // 小键盘 (numpad)
-        keyItems.add("--- 小键盘 ---");
+        keyItems.add(localize("--- 小键盘 ---"));
         keyItems.add("Num Lock (0x53)");
         keyItems.add("KP / (0x54)");
         keyItems.add("KP * (0x55)");
@@ -485,7 +489,7 @@ public class InspectorPane extends ScrollPane {
         
         keySelector.getItems().addAll(keyItems);
         keySelector.getStyleClass().addAll("combo-box", "combo-box-small");
-        keySelector.setValue("--- 修饰键 ---");
+        keySelector.setValue(localize("--- 修饰键 ---"));
 
         Label validation = new Label();
         validation.getStyleClass().add("warning-note");
@@ -526,7 +530,7 @@ public class InspectorPane extends ScrollPane {
                 }
                 
                 if (reservePhysicalF18 && (codeToAdd & 0xFF) == com.example.ahakey.model.HIDUsage.F18) {
-                    validation.setText("F18 为 AhaKey 语音键保留，请选择其他快捷键。");
+                    validation.setText(localize("F18 为 AhaKey 语音键保留，请选择其他快捷键。"));
                     return;
                 }
 
@@ -623,9 +627,21 @@ public class InspectorPane extends ScrollPane {
             deleteBtn.setDisable(newVal.intValue() < 0);
         });
 
-        buttonRow.getChildren().addAll(keySelector, addBtn, deleteBtn);
+        Button clearBtn = new Button(languageManager.getString("inspector.clear"));
+        clearBtn.getStyleClass().add("btn-secondary");
+        clearBtn.setDisable(key.getHidCode() == 0);
+        clearBtn.setOnAction(event -> {
+            key.setHidCode(0);
+            if (dirtyPart != null) studioState.markDirty(dirtyPart);
+            onChanged.run();
+            rebuild();
+        });
+        Label hint = new Label(text("inspector.shortcut-hint"));
+        hint.setWrapText(true);
+        hint.getStyleClass().add("field-label");
+        buttonRow.getChildren().addAll(keySelector, addBtn, deleteBtn, clearBtn);
 
-        box.getChildren().addAll(listLabel, keyListView, buttonRow, validation);
+        box.getChildren().addAll(listLabel, keyListView, hint, buttonRow, validation);
         return box;
     }
 
@@ -742,18 +758,18 @@ public class InspectorPane extends ScrollPane {
                 key.updateMacroStep(index, "DELAY", newValue);
                 studioState.markDirty(part);
             });
-            Label msLabel = new Label("ms");
+            Label msLabel = new Label(text("unit.milliseconds"));
 
             row.getChildren().addAll(indexLabel, actionCombo, delaySpinner, msLabel);
         } else {
             ComboBox<String> keyCombo = new ComboBox<>();
             java.util.List<String> keyItems = new java.util.ArrayList<>();
-            keyItems.add("--- 修饰键 ---");
+            keyItems.add(localize("--- 修饰键 ---"));
             keyItems.add("Shift");
             keyItems.add("Ctrl");
             keyItems.add("Alt");
             keyItems.add("Win");
-            keyItems.add("--- 功能键 ---");
+            keyItems.add(localize("--- 功能键 ---"));
             keyItems.add("F1");
             keyItems.add("F2");
             keyItems.add("F3");
@@ -772,18 +788,18 @@ public class InspectorPane extends ScrollPane {
             keyItems.add("F16");
             keyItems.add("F17");
             keyItems.add("F18");
-            keyItems.add("--- 字母键 ---");
+            keyItems.add(localize("--- 字母键 ---"));
             String[] letters = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
                                "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
             for (String letter : letters) {
                 keyItems.add(letter);
             }
-            keyItems.add("--- 数字键 ---");
+            keyItems.add(localize("--- 数字键 ---"));
             for (int i = 1; i <= 9; i++) {
                 keyItems.add(String.valueOf(i));
             }
             keyItems.add("0");
-            keyItems.add("--- 其他键 ---");
+            keyItems.add(localize("--- 其他键 ---"));
             keyItems.add("Enter");
             keyItems.add("Escape");
             keyItems.add("Backspace");
@@ -871,11 +887,11 @@ public class InspectorPane extends ScrollPane {
         VBox root = new VBox(16);
         ModeSlot mode = studioState.getSelectedMode();
 
-        VBox taskModeBox = createGroupBox("任务灯效模式", () -> {
+        VBox taskModeBox = createGroupBox(localize("任务灯效模式"), () -> {
             VBox box = new VBox(8);
             ToggleGroup group = new ToggleGroup();
-            ToggleButton single = new ToggleButton("单任务");
-            ToggleButton multi = new ToggleButton("多任务");
+            ToggleButton single = new ToggleButton(localize("单任务"));
+            ToggleButton multi = new ToggleButton(localize("多任务"));
             single.setToggleGroup(group);
             multi.setToggleGroup(group);
             single.getStyleClass().add("mode-toggle");
@@ -889,7 +905,7 @@ public class InspectorPane extends ScrollPane {
             multi.setOnAction(event -> controller.setMultiTaskDisplay(true));
             taskModeRefresh = refresh;
             refresh.run();
-            Label note = new Label("先发送并获得设备确认，再提交 Preferences；失败会回滚。");
+            Label note = new Label(localize("先发送并获得设备确认，再提交 Preferences；失败会回滚。"));
             note.getStyleClass().add("group-note");
             note.setWrapText(true);
             HBox controls = new HBox(8, single, multi);
@@ -972,7 +988,7 @@ public class InspectorPane extends ScrollPane {
             sync.getStyleClass().add("button-prominent");
             sync.setDisable(!deviceStatus.isConnected());
             sync.setOnAction(e -> controller.syncCurrentModeLightConfig());
-            Button animations = new Button("屏幕动画设置");
+            Button animations = new Button(localize("屏幕动画设置"));
             animations.setOnAction(e -> ScreenAnimationDialog.show(
                 getScene() == null ? null : getScene().getWindow(), controller, mode));
             actions.getChildren().addAll(sync, animations);
@@ -1028,7 +1044,7 @@ public class InspectorPane extends ScrollPane {
             asset.setWrapText(true);
 
             HBox actions = new HBox(8);
-            Button configure = new Button("配置屏幕动画");
+            Button configure = new Button(localize("配置屏幕动画"));
             configure.getStyleClass().add("button-prominent");
             configure.setOnAction(e -> {
                 Window w = getScene() != null ? getScene().getWindow() : null;

@@ -1,12 +1,14 @@
 package com.example.ahakey.model;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Legacy display/migration preset; Desktop voice actions are the runtime source of truth. */
 public enum VoicePreset {
-    CUSTOM("自定义快捷键", false),
-    WINDOWS_NATIVE("Windows 语音 (Win+H)", true),
-    MACOS_NATIVE("macOS 原生语音", true),
+    CUSTOM(localize("自定义快捷键"), false),
+    WINDOWS_NATIVE(localize("Windows 语音 (Win+H)"), true),
+    MACOS_NATIVE(localize("macOS 原生语音"), true),
     TYPELESS("Typeless / Fn", true),
-    WECHAT("微信语音", true);
+    WECHAT(localize("微信语音"), true);
 
     private final String displayName;
     private final boolean locksShortcut;
@@ -27,12 +29,12 @@ public enum VoicePreset {
     public String getDetail() {
         return switch (this) {
             case WINDOWS_NATIVE ->
-                "AhaKey Studio 在后台拦截物理 F18；短按或显式配置的长按系统动作会发送 Win+H 打开 Windows 语音输入。请在「设置 → 时间和语言 → 语音」中启用语音输入。";
+                localize("AhaKey Studio 在后台拦截物理 F18；短按或显式配置的长按系统动作会发送 Win+H 打开 Windows 语音输入。请在「设置 → 时间和语言 → 语音」中启用语音输入。");
             case MACOS_NATIVE ->
-                "仅 macOS 完整支持；Windows 请改用「Windows 语音 (Win+H)」。";
+                localize("仅 macOS 完整支持；Windows 请改用「Windows 语音 (Win+H)」。");
             case TYPELESS, WECHAT ->
-                "Windows 版暂未实现 Fn 注入；请使用 Windows 语音 (Win+H) 或自定义快捷键。";
-            case CUSTOM -> "自行绑定 HID 单键或组合键。";
+                localize("Windows 版暂未实现 Fn 注入；请使用 Windows 语音 (Win+H) 或自定义快捷键。");
+            case CUSTOM -> localize("自行绑定 HID 单键或组合键。");
         };
     }
 }

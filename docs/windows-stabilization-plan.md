@@ -83,6 +83,25 @@ HEX 或 provenance。
 
 ## 1. 生产路径与安全不变式
 
+2026-09-19 installer correction: rebuilding local MSI/EXE version 1.5.3 reused
+the installed ProductCode and Windows Installer returned 1638 before showing UI.
+`build-local-windows.ps1 -PackageVersion 1.5.4` separates package/app-display
+version from the source JAR version. A read-only MSI upgrade check verifies the
+version increase, changed ProductCode and stable upgrade family. The new EXE
+successfully upgraded the installed 1.5.3 to 1.5.4 with exit 0; user draft and
+language preference hashes remained unchanged and installed JAR/bridge hashes
+matched the tested inputs. No firmware or Java behavior changes in this correction.
+
+2026-09-19 Windows editor follow-up: [shortcut/save regression report](windows-shortcut-save-fix.md).
+Shortcut drafts now permit empty/modifier-only editing states without restoring
+Win+H. Executable shortcuts and save validation remain strict. K1-only edits save
+locally; device configuration capability probes now run inside the background
+save transaction. Firmware requirements and physical-status freshness are unchanged.
+BLE UI is opaque and the Studio toolbar wraps secondary groups without horizontal
+scrolling. Combined validation: 314 Java tests, JavaFX editor/save smoke test,
+MSBuild Release, both bridge regressions and EXE packaging passed. Physical shortcut
+execution on legacy firmware is not claimed; no firmware was flashed.
+
 生产客户端是 `ahakeyconfig-win-java`：
 
 ```text
@@ -846,6 +865,84 @@ VoiceActionRouter、SpeechService、VoiceInputManager、BLE/GATT、Firmware、WC
 烧录、USB/BLE、麦克风/F18 端到端验证。状态区分如下：代码/脚本完成、自动测试完成、
 app-image 启动验证完成；正式签名、干净安装和真机验证待发布环境完成。
 
+### Russian interface and local Windows packaging (2026-09-19)
+
+LanguageManager supports ru/ru-RU/ru_RU, UTF-8 catalogs, a persisted
+Russian/English/Chinese choice and the optional `ahakey.defaultLanguage`
+distribution default. Existing saved preferences take precedence. The Russian
+catalogs cover 242 resource keys and 368 legacy display literals across the
+main UI, settings, OLED/lighting, maintenance/update dialogs and tray.
+Protocol identifiers and the keyboard's stored display text are unchanged.
+Language changes request a restart. TopBar keeps Configure and the language
+menu visible outside the horizontal scroller for longer translated labels.
+
+`build-local-windows.ps1` validates the JAR/BLE driver and packages a supplied
+JavaFX runtime into a portable app, ZIP and optional WiX EXE installer. Each
+run uses a new timestamped output directory. The local distribution defaults
+to Russian and retains installer directory ownership/upgrade safeguards.
+Russian WixUI dialogs use code page 1251; JDK 17 auxiliary installer messages
+retain English fallback. The formal release pipeline is unchanged: this
+unsigned local target does not include speech models/native speech assets,
+firmware or WCHISP, and does not bypass the formal release asset gates.
+
+Build from the repository root with JDK 17, Maven, MSBuild and WiX 3 on PATH:
+
+```powershell
+mvn -f .\ahakeyconfig-win-java\pom.xml package
+MSBuild .\BLE_tcp_bridge\BLE_tcp_driver.csproj /restore /p:Configuration=Release
+.\ahakeyconfig-win-java\build-local-windows.ps1 `
+  -RuntimeImage 'C:\Program Files\AhaKeyStudio\runtime' `
+  -IconPath 'C:\Program Files\AhaKeyStudio\AhaKeyStudio.ico' `
+  -JdkHome $env:JAVA_HOME -WixBin 'C:\tools\wix314'
+```
+
+RuntimeImage must contain JavaFX; paths above are examples, not downloaded
+assets. Omit WixBin to build only the portable app and ZIP. Save the entire
+portable folder, including its app/runtime subdirectories.
+
+Tests cover Russian key coverage, format placeholders, locale normalization,
+preference persistence and packaged resource inclusion. Existing source-text
+assertions normalize Windows CRLF, and the disconnected Hook test double
+refuses commands rather than opening real USB hardware. Seven JavaFX UI
+snapshots rendered; key, lighting and OLED screens were visually inspected.
+Local jpackage builds produced both EXE variants and the packaged launcher
+initialized language `ru`. Missing speech models correctly left local speech
+unavailable. This validation does not certify firmware compatibility or an
+end-to-end installer upgrade/uninstall cycle.
+
+Independent PR validation on the upstream base: Maven package passed all
+304 tests with zero failures/errors/skips and `RELEASE_ARTIFACT_CONTENTS=OK`.
+MSBuild restore/Release and both jpackage outputs also passed in that checkout,
+including invocation from Windows PowerShell 5.1. The packaging script uses
+UTF-8 BOM for its translated literals and resolves its default output directory
+after parameter binding for compatibility with that shell.
+
+Follow-up: the BLE bridge now embeds en/ru/zh RESX catalogs in its main EXE.
+Language selection priority is `--language=CODE`, the shared read-only Studio
+preference, then the Windows UI language; unsupported locales fall back to
+English. Studio passes its selected language when launching the bridge.
+An already running bridge adopts the language on its next restart. The stable
+window title used for process adoption and raw GATT diagnostic identifiers stay
+unchanged. Flow layout accommodates longer labels. Display messages for
+connection/TCP status, device readings, context menus and startup errors are
+localized; wire data and vendor exception details are not translated.
+
+Another 65 Java resource keys cover voice-relay status, F18 action summaries,
+Hook notices, synchronization progress/errors and milliseconds. These use
+stable keys in all three messages catalogs. Existing legacy catalogs remain;
+low-level vendor/tool logs and the remaining firmware exception text require
+a separate pass rather than changing firmware error handling here.
+Tests verify bridge catalog coverage/placeholders and language precedence,
+and Java tests verify extracted key coverage and formatted Russian status.
+`BLE_tcp_bridge/tests/Test-Localization.ps1` tests the compiled Release EXE;
+optional `-PreviewPath` renders the form without BLE/TCP startup side effects.
+Follow-up verification: independent Java package passed 306 tests; bridge
+Release build and localization tests passed. A local integration with the
+separate physical-status and WCHISP fixes passed 308 Java tests, both bridge
+test programs, and portable/installer packaging. Integrating the physical
+status fix requires retaining the localized cache log while deleting its
+early return, so the same physical frame continues to the TCP broadcast.
+
 ## 29. WCHISP terminal success precedence (2026-09-17)
 
 修复 Windows 烧录结果判定：`WchIspResultParser.parseFlash()` 现在优先使用官方
@@ -1256,6 +1353,15 @@ AhaType 顶部开关在本地语音已就绪但账号未登录或 token 过期�
 上述自动结果不代替真实环境验证。USB/BLE 热插拔、真实审批状态、真实账号、微信沙箱/实付、
 兑换码、麦克风和最终键盘注入仍需 Windows 真机/真实服务人工验证，当前均保持 **pending**。
 
+## PR #68 conflict resolution against eternal-dev (2026-09-20)
+
+Merged upstream `a878f63` without replacing the primary workspace.
+Retained upstream verified-USB preference, real AhaType/account behavior and
+prepared WCHISP session/completion rules, together with Russian UI and local
+shortcut/save fixes. Updated maintenance messages do not claim device readback.
+Maven package: 354 tests, zero failures/errors/skips, release contents OK.
+MSBuild Release and BLE localization regression passed.
+
 ## BLE legacy physical-status forwarding (2026-09-19)
 
 `TcpServer.OnBleNotify` cached the legacy 13-byte `AA BB 00 ... CC DD`
@@ -1314,7 +1420,7 @@ The C# loopback regression passed and MSBuild `/restore /p:Configuration=Release
 rebuilt the normal Release bridge successfully. No hardware interaction was
 needed for these PR preparation checks.
 
-## PR conflict resolution against eternal-dev (2026-09-20)
+## PR #66 conflict resolution against eternal-dev (2026-09-20)
 
 Merged upstream `a878f63` without replacing the primary workspace.
 The physical-status log now shares upstream acceptedSequence and retains
@@ -1324,3 +1430,30 @@ MSBuild Release and the bridge physical-status loopback regression passed.
 Source-inspection tests normalize CRLF before multiline matching; test runs use
 separate temporary directories to avoid shared GIF extraction conflicts.
 No application installation, firmware flashing, or physical-device test was performed.
+
+## PR #68 combined validation after PR #66 merge (2026-09-21)
+
+Merged upstream `eternal-dev` at `9b1fb291f82533df61c93e9f0d39a7e815b0ccca`
+into `feat/windows-russian-ui` in its dedicated checkout. Resolved all three
+conflicts: keep localized bridge status logging while forwarding the original
+physical response (no early return), retain localized inspector assertions and
+CRLF normalization, and preserve both branches' stabilization evidence.
+
+Combined validation on the merged tree:
+
+- Maven `clean package`, using a checkout-specific `java.io.tmpdir`: **356 tests,
+  0 failures, 0 errors, 0 skipped**, `RELEASE_ARTIFACT_CONTENTS=OK`.
+- MSBuild `/restore /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU`: PASS.
+- `BLE_tcp_bridge/tests/Test-PhysicalStatus.ps1`: PASS (query routing, legacy
+  and extended forwarding, cached metadata, command responses).
+- `BLE_tcp_bridge/tests/Test-Localization.ps1`: PASS (catalogs, placeholders,
+  language preference priority, fallback).
+- JavaFX `ShortcutEditorUiSmoke`, with `AHAKEY_STUDIO_SIMULATE_BLE=1` and an
+  isolated draft: PASS (delete, clear, modifier order, local save, incomplete
+  shortcut validation, toolbar at 1024/1280). The hook listener logged that
+  port 8765 was already occupied; this UI smoke does not validate hook serving.
+  The existing listener was left untouched.
+- `git diff --check`: PASS.
+
+The primary checkout and running applications were preserved. No installation,
+firmware flashing, or physical-device testing was performed for this merge.

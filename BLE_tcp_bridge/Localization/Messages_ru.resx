@@ -1,0 +1,156 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="connect" xml:space="preserve">
+    <value>Подключить</value>
+  </data>
+  <data name="connectedDevice" xml:space="preserve">
+    <value>Подключённое устройство: {0}</value>
+  </data>
+  <data name="none" xml:space="preserve">
+    <value>Нет</value>
+  </data>
+  <data name="unknown" xml:space="preserve">
+    <value>Неизвестно</value>
+  </data>
+  <data name="server" xml:space="preserve">
+    <value>TCP-сервер: {0}:{1} (клиентов: {2})</value>
+  </data>
+  <data name="startMinimized" xml:space="preserve">
+    <value>Запускать свёрнутым</value>
+  </data>
+  <data name="startWithWindows" xml:space="preserve">
+    <value>Запускать вместе с Windows</value>
+  </data>
+  <data name="tray" xml:space="preserve">
+    <value>BLE-мост AhaKey</value>
+  </data>
+  <data name="exit" xml:space="preserve">
+    <value>Выход</value>
+  </data>
+  <data name="scan" xml:space="preserve">
+    <value>Поиск устройств Bluetooth…</value>
+  </data>
+  <data name="rescan" xml:space="preserve">
+    <value>Повторный поиск устройств Bluetooth…</value>
+  </data>
+  <data name="target" xml:space="preserve">
+    <value>Целевое устройство: {0} [{1}]</value>
+  </data>
+  <data name="targetConnecting" xml:space="preserve">
+    <value>Устройство найдено; автоматическое подключение…</value>
+  </data>
+  <data name="connected" xml:space="preserve">
+    <value>Подключено: {0}</value>
+  </data>
+  <data name="disconnected" xml:space="preserve">
+    <value>Отключено: {0}</value>
+  </data>
+  <data name="retry" xml:space="preserve">
+    <value>Повторное подключение через несколько секунд…</value>
+  </data>
+  <data name="characteristic" xml:space="preserve">
+    <value>Характеристика 0x{0:X}: {1}</value>
+  </data>
+  <data name="missingCharacteristics" xml:space="preserve">
+    <value>У устройства [{0}] не найдены нужные характеристики; отключение</value>
+  </data>
+  <data name="continueSearch" xml:space="preserve">
+    <value>Поиск целевого устройства продолжается…</value>
+  </data>
+  <data name="ready" xml:space="preserve">
+    <value>Устройство подтверждено; все характеристики готовы</value>
+  </data>
+  <data name="saved" xml:space="preserve">
+    <value>Устройство сохранено: {0} [{1}]</value>
+  </data>
+  <data name="status" xml:space="preserve">
+    <value>Состояние: заряд={0}, сигнал={1}, прошивка={2}.{3}, режим={4}, подсветка={5}, переключатель={6}</value>
+  </data>
+  <data name="write" xml:space="preserve">
+    <value>0x{0:X} отправлено: {1}</value>
+  </data>
+  <data name="receive" xml:space="preserve">
+    <value>0x{0:X} получено: {1}</value>
+  </data>
+  <data name="cut" xml:space="preserve">
+    <value>Вырезать</value>
+  </data>
+  <data name="copy" xml:space="preserve">
+    <value>Копировать</value>
+  </data>
+  <data name="paste" xml:space="preserve">
+    <value>Вставить</value>
+  </data>
+  <data name="error" xml:space="preserve">
+    <value>Ошибка</value>
+  </data>
+  <data name="autoStartError" xml:space="preserve">
+    <value>Не удалось изменить автозапуск: {0}</value>
+  </data>
+  <data name="tcpStarted" xml:space="preserve">
+    <value>TCP-сервер запущен на порту {0}</value>
+  </data>
+  <data name="tcpStopped" xml:space="preserve">
+    <value>TCP-сервер остановлен</value>
+  </data>
+  <data name="clientConnected" xml:space="preserve">
+    <value>TCP-клиент подключён: {0}</value>
+  </data>
+  <data name="acceptError" xml:space="preserve">
+    <value>Ошибка приёма соединения: {0}</value>
+  </data>
+  <data name="clientError" xml:space="preserve">
+    <value>Ошибка обработки клиента: {0}</value>
+  </data>
+  <data name="bleData" xml:space="preserve">
+    <value>Данные BLE (0x7341): {0} байт</value>
+  </data>
+  <data name="bleDataNotReady" xml:space="preserve">
+    <value>Характеристика данных BLE (0x7341) не готова</value>
+  </data>
+  <data name="bleCommand" xml:space="preserve">
+    <value>Команда BLE (0x7343): {0} байт</value>
+  </data>
+  <data name="bleCommandNotReady" xml:space="preserve">
+    <value>Характеристика команд BLE (0x7343) не готова</value>
+  </data>
+  <data name="statusQuery" xml:space="preserve">
+    <value>Ответ на запрос состояния соединения BLE</value>
+  </data>
+  <data name="infoQuery" xml:space="preserve">
+    <value>Ответ на запрос сохранённых сведений об устройстве</value>
+  </data>
+  <data name="unknownPacket" xml:space="preserve">
+    <value>Неизвестный тип пакета: 0x{0:X2}</value>
+  </data>
+  <data name="clientDisconnected" xml:space="preserve">
+    <value>TCP-клиент отключён: {0}</value>
+  </data>
+  <data name="configReadError" xml:space="preserve">
+    <value>Не удалось прочитать настройки: {0}</value>
+  </data>
+  <data name="configWriteError" xml:space="preserve">
+    <value>Не удалось сохранить настройки: {0}</value>
+  </data>
+  <data name="discoverySummary" xml:space="preserve">
+    <value>Целевой сервис и характеристики:</value>
+  </data>
+  <data name="yes" xml:space="preserve">
+    <value>ДА</value>
+  </data>
+  <data name="no" xml:space="preserve">
+    <value>НЕТ</value>
+  </data>
+</root>

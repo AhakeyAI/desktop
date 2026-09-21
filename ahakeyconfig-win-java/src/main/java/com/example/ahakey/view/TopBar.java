@@ -1,5 +1,9 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.app.StudioController;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.StudioState;
@@ -111,16 +115,16 @@ public class TopBar extends VBox {
             return;
         }
 
-        ButtonType openManager = new ButtonType("打开 Hook 管理");
-        ButtonType later = new ButtonType("稍后设置");
+        ButtonType openManager = new ButtonType(localize("打开 Hook 管理"));
+        ButtonType later = new ButtonType(localize("稍后设置"));
         Alert alert = new Alert(Alert.AlertType.INFORMATION,
-            "AhaKey Studio 尚未安装 AI 软件的 Hook 组件。未安装 Hook 时，键盘配置和语音功能仍可使用，"
-                + "但 Claude、Cursor、Codex、Kimi 等 AI 联动状态与审批功能不可用。\n\n"
-                + "安装 Hook 后，请在对应 AI 软件中同意 Hook/钩子权限，并完全退出后重新启动该 Agent。",
+            localize("AhaKey Studio 尚未安装 AI 软件的 Hook 组件。未安装 Hook 时，键盘配置和语音功能仍可使用，")
+                + localize("但 Claude、Cursor、Codex、Kimi 等 AI 联动状态与审批功能不可用。\n\n")
+                + localize("安装 Hook 后，请在对应 AI 软件中同意 Hook/钩子权限，并完全退出后重新启动该 Agent。"),
             openManager, later);
         if (owner != null) alert.initOwner(owner);
-        alert.setTitle("首次使用：安装 AI Hook 组件");
-        alert.setHeaderText("需要 AI 联动功能时，请先安装对应 Hook");
+        alert.setTitle(localize("首次使用：安装 AI Hook 组件"));
+        alert.setHeaderText(localize("需要 AI 联动功能时，请先安装对应 Hook"));
         Optional<ButtonType> selected = alert.showAndWait();
         FirstRunState.markHookOnboardingShown();
         if (selected.filter(openManager::equals).isPresent()) {
@@ -312,7 +316,7 @@ public class TopBar extends VBox {
         });
         MenuItem clearOled = new MenuItem(languageManager.getString("menu.clear-oled"));
         clearOled.setOnAction(event -> studioState.clearOledPreview());
-        MenuItem screenAnimations = new MenuItem("屏幕动画");
+        MenuItem screenAnimations = new MenuItem(localize("屏幕动画"));
         screenAnimations.setOnAction(event -> ScreenAnimationDialog.show(getScene() == null ? null : getScene().getWindow(), controller));
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
         MenuItem deviceInfo = new MenuItem(languageManager.getString("menu.device-info"));
@@ -359,6 +363,8 @@ public class TopBar extends VBox {
         }
 
         MenuBar menuBar = new MenuBar(moreMenu);
+        menuBar.setMinWidth(Region.USE_PREF_SIZE);
+        configModeButton.setMinWidth(Region.USE_PREF_SIZE);
         menuBar.setUseSystemMenuBar(false);
         menuBar.getStyleClass().add("toolbar-menu");
 
@@ -367,44 +373,22 @@ public class TopBar extends VBox {
         actionButtons.setAlignment(Pos.CENTER_LEFT);
         actionButtons.getChildren().addAll(connectButton, bleButton);
 
-        // 状态信息与操作按钮之间的固定间距
+        // Primary actions stay visible; secondary groups wrap at narrow widths.
         Region spacer = new Region();
-        spacer.setMinWidth(12);
-        spacer.setPrefWidth(16);
-        spacer.setMaxWidth(40);
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox toolbar = new HBox(8, titleBox, spacer, actionButtons, configModeButton, menuBar);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.setPadding(new Insets(8, 16, 6, 16));
+        titleBox.setMinWidth(Region.USE_PREF_SIZE);
+        actionButtons.setMinWidth(Region.USE_PREF_SIZE);
 
-        // 主行 HBox：所有控件在一行，不会换行
-        HBox mainRow = new HBox(10);
-        mainRow.setAlignment(Pos.CENTER_LEFT);
-        mainRow.setPadding(new Insets(6, 16, 6, 16));
-        mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
-        mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons);
-        // Keep the main-branch AhaType and local voice controls visible.  The
-        // button still reports an unavailable service when model assets are
-        // absent; hiding the controls based solely on a legacy config flag
-        // made the restored feature impossible to discover or activate.
-        mainRow.getChildren().addAll(ahaTypeToggle, ahaTypeStatus, voiceControlBox);
-        mainRow.getChildren().addAll(configStatus, configModeButton, menuBar);
-
-        // 右侧弹性 spacer：把编辑配置/菜单推到最右
-        Region rightSpacer = new Region();
-        HBox.setHgrow(rightSpacer, Priority.ALWAYS);
-        mainRow.getChildren().add(
-            mainRow.getChildren().size() - 3, rightSpacer  // 插到 configStatus 前面
-        );
-
-        // 包裹在水平 ScrollPane 中：宽屏时不显示滚动条，分屏窄时可水平滚动
-        ScrollPane scrollWrapper = new ScrollPane(mainRow);
-        scrollWrapper.setFitToWidth(true);
-        scrollWrapper.setFitToHeight(true);
-        scrollWrapper.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollWrapper.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollWrapper.setPannable(false);
-        scrollWrapper.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        // 让 ScrollPane 内容背景透明
-        mainRow.setStyle("-fx-background-color: transparent;");
-
-        getChildren().add(scrollWrapper);
+        HBox ahaTypeControls = new HBox(8, ahaTypeToggle, ahaTypeStatus);
+        ahaTypeControls.setAlignment(Pos.CENTER_LEFT);
+        FlowPane statusRow = new FlowPane(16, 8, infoPills, ahaTypeControls, voiceControlBox, configStatus);
+        statusRow.setPadding(new Insets(0, 16, 8, 16));
+        statusRow.setMinWidth(0);
+        voiceResultPreview.setMaxWidth(260);
+        getChildren().addAll(toolbar, statusRow);
         updateVoiceButtonState();
     }
     
@@ -523,7 +507,8 @@ public class TopBar extends VBox {
 
     private void launchBleDriver(Path executable) {
         try {
-            ProcessBuilder builder = new ProcessBuilder(executable.toString(), "--show");
+            ProcessBuilder builder = new ProcessBuilder(executable.toString(), "--show",
+                "--language=" + languageManager.getCurrentLanguage());
             builder.directory(executable.getParent().toFile());
             builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
             builder.redirectError(ProcessBuilder.Redirect.INHERIT);
@@ -538,7 +523,7 @@ public class TopBar extends VBox {
                         Platform.runLater(() -> showAlert(
                             languageManager.getString("dialog.ble-driver-title"),
                             String.format(languageManager.getString("dialog.ble-start-fail"),
-                                executable + " (TCP 9000 未在 5 秒内就绪)")));
+                                executable + localize(" (TCP 9000 未在 5 秒内就绪)"))));
                         return;
                     }
                     // Bounded foreground retry; the bridge owns BLE discovery.
@@ -641,7 +626,7 @@ public class TopBar extends VBox {
         boolean activated = voiceInputManager.isActivated();
         controller.getVoiceRelay().setAhaKeyVoiceAvailable(activated);
         if (!activated) {
-            setVoiceStatus("error", "本地语音不可用；长按不会执行其他语音动作。");
+            setVoiceStatus("error", localize("本地语音不可用；长按不会执行其他语音动作。"));
         }
     }
     
@@ -827,12 +812,12 @@ public class TopBar extends VBox {
         logArea.setEditable(false);
         logArea.setPrefHeight(150);
         logArea.setWrapText(true);
-        logArea.setText("[System] Hook installation tool started\n");
+        logArea.setText(text("hooks.log.started"));
         
         String homeDir = System.getProperty("user.home");
-        addLog("[System] User Directory: " + homeDir);
-        addLog("[System] OS: " + System.getProperty("os.name"));
-        addLog("[System] Java Version: " + System.getProperty("java.version"));
+        addLog(text("hooks.log.home") + homeDir);
+        addLog(text("hooks.log.os") + System.getProperty("os.name"));
+        addLog(text("hooks.log.java") + System.getProperty("java.version"));
         addLog("");
 
         // Hook 安装卡片：配置、分发服务和最近活动是相互独立的状态。
@@ -863,7 +848,7 @@ public class TopBar extends VBox {
         disconnectBtn.setOnAction(event -> controller.userDisconnect());
 
         Button clearLogBtn = new Button(languageManager.getString("dialog.clear-log"));
-        clearLogBtn.setOnAction(event -> logArea.setText("[System] Log cleared\n"));
+        clearLogBtn.setOnAction(event -> logArea.setText(text("hooks.log.cleared")));
 
         Button closeBtn = new Button(languageManager.getString("dialog.close"));
         closeBtn.setOnAction(event -> dialog.close());
@@ -1091,28 +1076,28 @@ public class TopBar extends VBox {
         if (getScene() != null && getScene().getWindow() != null) {
             result.initOwner(getScene().getWindow());
         }
-        result.setTitle(installed ? "Hook 安装完成" : "Hook 安装失败");
+        result.setTitle(installed ? localize("Hook 安装完成") : localize("Hook 安装失败"));
         result.setHeaderText(null);
         result.setContentText(installed
-            ? hookName + " Hook 已安装。请在 " + hookName
-                + " 中同意 Hook/钩子权限，然后完全退出并重新启动该 Agent。"
-            : hookName + " Hook 未能完成安装，请查看本窗口底部日志后重试。");
+            ? hookName + localize(" Hook 已安装。请在 ") + hookName
+                + localize(" 中同意 Hook/钩子权限，然后完全退出并重新启动该 Agent。")
+            : hookName + localize(" Hook 未能完成安装，请查看本窗口底部日志后重试。"));
         result.showAndWait();
         return installed;
     }
 
     private boolean uninstallHook(String hookName) {
-        addLog("[卸载] 开始卸载 " + hookName + " Hook...");
+        addLog(localize("[卸载] 开始卸载 ") + hookName + " Hook...");
         boolean removed = hookInstaller.uninstall(hookName);
         if (!removed) {
             Alert result = new Alert(Alert.AlertType.ERROR);
             if (getScene() != null && getScene().getWindow() != null) {
                 result.initOwner(getScene().getWindow());
             }
-            result.setTitle("Hook 卸载失败");
+            result.setTitle(localize("Hook 卸载失败"));
             result.setHeaderText(null);
             result.setContentText(
-                hookName + " Hook 卸载后仍可检测到，请查看本窗口底部日志。");
+                hookName + localize(" Hook 卸载后仍可检测到，请查看本窗口底部日志。"));
             result.showAndWait();
         }
         return removed;
@@ -1141,15 +1126,35 @@ public class TopBar extends VBox {
     }
     
     private void toggleLanguage() {
-        String newLang = languageManager.isChinese() ? "en" : "zh";
+        var choices = java.util.List.of("Русский", "English", "中文");
+        String selected = switch (languageManager.getCurrentLanguage()) {
+            case "ru" -> "Русский";
+            case "zh" -> "中文";
+            default -> "English";
+        };
+        var chooser = new javafx.scene.control.ChoiceDialog<String>(selected, choices);
+        chooser.initOwner(getScene().getWindow());
+        chooser.setTitle(languageManager.getString("language.select"));
+        chooser.setHeaderText(languageManager.getString("language.restart"));
+        chooser.setContentText("Language / Язык / 语言:");
+        var choice = chooser.showAndWait();
+        if (choice.isEmpty()) return;
+        String newLang = switch (choice.get()) {
+            case "Русский" -> "ru";
+            case "中文" -> "zh";
+            default -> "en";
+        };
+        if (newLang.equals(languageManager.getCurrentLanguage())) return;
         languageManager.switchLanguage(newLang);
         
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle(languageManager.getString("language-change-title"));
         alert.setHeaderText(null);
-        alert.setContentText(languageManager.isChinese() 
-            ? languageManager.getString("language-change-chinese") 
-            : languageManager.getString("language-change-english"));
+        alert.setContentText(languageManager.getString(switch (newLang) {
+            case "ru" -> "language-change-russian";
+            case "zh" -> "language-change-chinese";
+            default -> "language-change-english";
+        }));
         
         ButtonType exitBtn = new ButtonType(languageManager.getString("dialog.exit-now"));
         ButtonType laterBtn = new ButtonType(languageManager.getString("dialog.exit-later"));
@@ -1181,10 +1186,10 @@ public class TopBar extends VBox {
             return "—";
         }
         if ("USB".equals(status.getTransport())) {
-            return "USB 供电";
+            return localize("USB 供电");
         }
         int level = status.getBatteryLevel();
-        return level >= 0 && level <= 100 ? level + "%" : "读取中";
+        return level >= 0 && level <= 100 ? level + "%" : localize("读取中");
     }
     
     /**

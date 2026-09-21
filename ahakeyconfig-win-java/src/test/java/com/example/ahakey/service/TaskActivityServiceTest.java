@@ -45,7 +45,9 @@ class TaskActivityServiceTest {
             service.awaitIdleForTest();
 
             assertEquals(
-                "同步任务灯效失败；灯效/OLED 状态可能不同步：slot transport failed",
+                com.example.ahakey.util.LanguageManager.text("task.light.sync")
+                    + com.example.ahakey.util.LanguageManager.text("task.sync.failed")
+                    + "slot transport failed",
                 ble.reported.get());
         }
     }

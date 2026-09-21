@@ -119,6 +119,26 @@ class WindowsVoiceRelayServiceTest {
     }
 
     @Test
+    void clearingOrPartiallyEditingShortcutNeverRestoresWinHAtRuntime() {
+        List<Integer> emitted = new java.util.ArrayList<>();
+        relay.setCustomShortcutEmitterForTest(emitted::add);
+        for (int draft : new int[]{0, 0x100, 0x300, HIDUsage.F18}) {
+            relay.configureVoiceActions(VoiceAction.CUSTOM_SHORTCUT,
+                VoiceAction.CUSTOM_SHORTCUT, 350, draft, draft);
+            relay.dispatchVoiceEventForTest(
+                new VoiceButtonEvent(VoiceButtonEvent.Type.SHORT_PRESS, 1));
+            relay.dispatchVoiceEventForTest(
+                new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_START, 2));
+        }
+        assertTrue(emitted.isEmpty());
+        relay.configureVoiceActions(VoiceAction.CUSTOM_SHORTCUT,
+            VoiceAction.NONE, 350, 0x307, 0);
+        relay.dispatchVoiceEventForTest(
+            new VoiceButtonEvent(VoiceButtonEvent.Type.SHORT_PRESS, 3));
+        assertEquals(List.of(0x307), emitted);
+    }
+
+    @Test
     void unavailableAhaKeyVoiceDoesNotFallbackToWindowsVoice() {
         List<Integer> emitted = new java.util.ArrayList<>();
         relay.setCustomShortcutEmitterForTest(emitted::add);

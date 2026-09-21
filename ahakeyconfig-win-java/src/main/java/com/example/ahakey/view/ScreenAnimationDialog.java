@@ -1,5 +1,7 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.app.StudioController;
 import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.model.ModeSlot;
@@ -35,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 /** USB-only editor for the firmware fixed 4x4 GIF layout. */
 public final class ScreenAnimationDialog {
-    private static final String[] ASSETS = {"默认", "运行中", "等待/错误", "已完成"};
+    private static final String[] ASSETS = {localize("默认"), localize("运行中"), localize("等待/错误"), localize("已完成")};
     private static final long JOB_TIMEOUT_MINUTES = 5;
     private static final ScreenAnimationAssetStore ASSET_STORE = new ScreenAnimationAssetStore();
 
@@ -75,10 +77,10 @@ public final class ScreenAnimationDialog {
         Stage stage = new Stage();
         if (owner != null) stage.initOwner(owner);
         stage.initModality(Modality.NONE);
-        stage.setTitle("屏幕动画");
+        stage.setTitle(localize("屏幕动画"));
 
         DialogState dialogState = new DialogState();
-        Label flashInfo = new Label("正在读取设备 Flash 与动画配置…");
+        Label flashInfo = new Label(localize("正在读取设备 Flash 与动画配置…"));
         flashInfo.setWrapText(true);
         TabPane profiles = new TabPane();
         for (ModeSlot mode : ModeSlot.values())
@@ -87,16 +89,16 @@ public final class ScreenAnimationDialog {
             profiles.getSelectionModel().select(initialMode.ordinal());
         }
 
-        Button restoreAll = new Button("恢复全部内置动画");
+        Button restoreAll = new Button(localize("恢复全部内置动画"));
         dialogState.register(restoreAll);
         restoreAll.setOnAction(event -> {
-            if (!confirm("将依次覆盖四个模式的全部 16 个动画分区，是否继续？")) return;
-            runJobs(controller, dialogState, new ArrayList<>(dialogState.allJobs), "全部内置动画恢复完成。");
+            if (!confirm(localize("将依次覆盖四个模式的全部 16 个动画分区，是否继续？"))) return;
+            runJobs(controller, dialogState, new ArrayList<>(dialogState.allJobs), localize("全部内置动画恢复完成。"));
         });
 
         Label guidance = new Label(
-            "每个模式包含 4 个固定分区；仅支持 USB 写入。软件会先读取真实 Flash 容量，"
-                + "所有写入严格串行执行。GIF 建议 160×80；默认动画最多 8 帧，其他状态最多 12 帧。"
+            localize("每个模式包含 4 个固定分区；仅支持 USB 写入。软件会先读取真实 Flash 容量，")
+                + localize("所有写入严格串行执行。GIF 建议 160×80；默认动画最多 8 帧，其他状态最多 12 帧。")
         );
         guidance.setWrapText(true);
         VBox root = new VBox(10, guidance, flashInfo, restoreAll, profiles);
@@ -120,8 +122,8 @@ public final class ScreenAnimationDialog {
             cards.getChildren().add(card);
         }
 
-        Button uploadAllSelected = new Button("写入本模式全部已修改动画");
-        Button restoreMode = new Button("恢复本模式内置动画");
+        Button uploadAllSelected = new Button(localize("写入本模式全部已修改动画"));
+        Button restoreMode = new Button(localize("恢复本模式内置动画"));
         dialogState.register(uploadAllSelected);
         dialogState.register(restoreMode);
         uploadAllSelected.setOnAction(event -> {
@@ -134,14 +136,14 @@ public final class ScreenAnimationDialog {
                 }
             }
             if (jobs.isEmpty()) {
-                new Alert(Alert.AlertType.WARNING, "本模式没有可写入的动画。").showAndWait();
+                new Alert(Alert.AlertType.WARNING, localize("本模式没有可写入的动画。")).showAndWait();
                 return;
             }
-            runJobs(controller, dialogState, jobs, "本模式全部已修改动画写入完成。");
+            runJobs(controller, dialogState, jobs, localize("本模式全部已修改动画写入完成。"));
         });
         restoreMode.setOnAction(event -> {
-            if (confirm("将覆盖 " + mode.getShortName() + " 的四个动画分区，是否继续？"))
-                runJobs(controller, dialogState, new ArrayList<>(modeDefaults), "本模式内置动画恢复完成。");
+            if (confirm(localize("将覆盖 ") + mode.getShortName() + localize(" 的四个动画分区，是否继续？")))
+                runJobs(controller, dialogState, new ArrayList<>(modeDefaults), localize("本模式内置动画恢复完成。"));
         });
 
         ScrollPane scroll = new ScrollPane(cards);
@@ -162,9 +164,9 @@ public final class ScreenAnimationDialog {
         preview.setFitWidth(160);
         preview.setFitHeight(80);
         preview.setPreserveRatio(true);
-        Label fileName = new Label("内置动画");
+        Label fileName = new Label(localize("内置动画"));
         fileName.setMaxWidth(190);
-        Label status = new Label("正在读取设备配置…");
+        Label status = new Label(localize("正在读取设备配置…"));
         status.setWrapText(true);
         statuses[asset] = status;
 
@@ -175,7 +177,7 @@ public final class ScreenAnimationDialog {
                 preview.setImage(new Image(BundledGifLibrary.resource(mode, asset).toExternalForm(),
                     160, 80, true, true));
         } catch (Exception e) {
-            status.setText("内置动画不可用：" + e.getMessage());
+            status.setText(localize("内置动画不可用：") + e.getMessage());
         }
 
         StudioState.PersistedDraft.ScreenAssetMetadata current =
@@ -185,13 +187,13 @@ public final class ScreenAnimationDialog {
                 preview.setImage(new Image(Path.of(current.managedCachePath).toUri().toString(),
                     160, 80, true, true));
                 fileName.setText(current.originalFileName == null
-                    ? "当前本地资源" : current.originalFileName);
-                status.setText("当前本地资源（设备状态仅用于校验，不作为预览来源）");
+                    ? localize("当前本地资源") : current.originalFileName);
+                status.setText(localize("当前本地资源（设备状态仅用于校验，不作为预览来源）"));
             } catch (RuntimeException ignored) {
-                status.setText("当前本地资源不可读，将显示内置动画");
+                status.setText(localize("当前本地资源不可读，将显示内置动画"));
             }
         } else {
-            status.setText("尚未记录当前本地资源，显示内置动画");
+            status.setText(localize("尚未记录当前本地资源，显示内置动画"));
         }
 
         Job defaultJob = bundled == null ? null : new Job(mode, asset, bundled, status, () -> {});
@@ -200,10 +202,10 @@ public final class ScreenAnimationDialog {
             dialogState.allJobs.add(defaultJob);
         }
 
-        Button choose = new Button("选择 GIF");
-        Button upload = new Button("写入当前动画");
-        Button restore = new Button("写入内置动画");
-        Button clear = new Button("清空状态");
+        Button choose = new Button(localize("选择 GIF"));
+        Button upload = new Button(localize("写入当前动画"));
+        Button restore = new Button(localize("写入内置动画"));
+        Button clear = new Button(localize("清空状态"));
         dialogState.register(choose);
         dialogState.register(upload);
         dialogState.register(restore);
@@ -213,8 +215,8 @@ public final class ScreenAnimationDialog {
 
         choose.setOnAction(event -> {
             FileChooser picker = new FileChooser();
-            picker.setTitle("选择 160×80 GIF");
-            picker.getExtensionFilters().add(new FileChooser.ExtensionFilter("GIF 动画", "*.gif"));
+            picker.setTitle(localize("选择 160×80 GIF"));
+            picker.getExtensionFilters().add(new FileChooser.ExtensionFilter(localize("GIF 动画"), "*.gif"));
             File last = lastSelectedGif();
             if (last != null) {
                 File directory = last.isDirectory() ? last : last.getParentFile();
@@ -228,9 +230,9 @@ public final class ScreenAnimationDialog {
                 GifUploadRules.Preflight preflight =
                     OLEDFrameEncoder.preflight(file.toPath(), asset);
                 if (preflight.needsOptimization() && !confirm(String.format(
-                    "所选 GIF 不完全符合设备限制：%n文件 %.1f MB（建议不超过 2 MB）%n"
-                        + "尺寸 %d×%d（设备 %d×%d）%n帧数 %d（该状态上限 %d）%n%n"
-                        + "是否自动缩放、按时间轴抽帧并尽量保持原始总时长？",
+                    localize("所选 GIF 不完全符合设备限制：%n文件 %.1f MB（建议不超过 2 MB）%n")
+                        + localize("尺寸 %d×%d（设备 %d×%d）%n帧数 %d（该状态上限 %d）%n%n")
+                        + localize("是否自动缩放、按时间轴抽帧并尽量保持原始总时长？"),
                     preflight.fileBytes() / 1048576.0, preflight.width(), preflight.height(),
                     GifUploadRules.WIDTH, GifUploadRules.HEIGHT, preflight.sourceFrames(),
                     preflight.targetFrameLimit()))) {
@@ -238,7 +240,7 @@ public final class ScreenAnimationDialog {
                 }
             } catch (Exception failure) {
                 new Alert(Alert.AlertType.ERROR,
-                    "GIF 预检失败：" + errorMessage(failure)).showAndWait();
+                    localize("GIF 预检失败：") + errorMessage(failure)).showAndWait();
                 return;
             }
             selected[asset] = file;
@@ -246,34 +248,34 @@ public final class ScreenAnimationDialog {
             GifSelectionHistory.remember(file.toPath());
             fileName.setText(file.getName());
             preview.setImage(new Image(file.toURI().toString(), 160, 80, true, true));
-            status.setText("已选择本地 GIF，等待写入；设备原配置尚未改变。");
+            status.setText(localize("已选择本地 GIF，等待写入；设备原配置尚未改变。"));
             upload.setDisable(false);
         });
         upload.setOnAction(event -> {
             if (selected[asset] == null || !dirty[asset]) {
-                status.setText("请先选择需要写入的自定义 GIF。");
+                status.setText(localize("请先选择需要写入的自定义 GIF。"));
                 return;
             }
             runJobs(controller, dialogState,
                 List.of(new Job(mode, asset, selected[asset].toPath(), status,
-                    () -> dirty[asset] = false)), "动画写入完成。");
+                    () -> dirty[asset] = false)), localize("动画写入完成。"));
         });
         restore.setOnAction(event -> {
             if (defaultJob != null)
-                runJobs(controller, dialogState, List.of(defaultJob), "内置动画恢复完成。");
+                runJobs(controller, dialogState, List.of(defaultJob), localize("内置动画恢复完成。"));
         });
         clear.setOnAction(event -> {
             if (!dialogState.begin()) {
-                status.setText("已有动画操作正在进行，请等待完成。");
+                status.setText(localize("已有动画操作正在进行，请等待完成。"));
                 return;
             }
             OledUploadService.clearAsset(controller.getBleManager(), mode, asset,
                 result -> Platform.runLater(() -> {
-                    status.setText(result + "；设备当前 0 帧");
+                    status.setText(result + localize("；设备当前 0 帧"));
                     dialogState.finish();
                 }),
                 error -> Platform.runLater(() -> {
-                    status.setText("清空失败：" + error);
+                    status.setText(localize("清空失败：") + error);
                     dialogState.finish();
                 }));
         });
@@ -291,7 +293,7 @@ public final class ScreenAnimationDialog {
     private static void runJobs(StudioController controller, DialogState dialogState,
                                 List<Job> jobs, String successMessage) {
         if (!dialogState.begin()) {
-            new Alert(Alert.AlertType.WARNING, "已有动画操作正在进行，请等待完成。").showAndWait();
+            new Alert(Alert.AlertType.WARNING, localize("已有动画操作正在进行，请等待完成。")).showAndWait();
             return;
         }
         Thread worker = new Thread(() -> {
@@ -309,20 +311,20 @@ public final class ScreenAnimationDialog {
                     },
                     message -> {
                         error.set(message);
-                        Platform.runLater(() -> job.status().setText("写入失败：" + message));
+                        Platform.runLater(() -> job.status().setText(localize("写入失败：") + message));
                         done.countDown();
                     });
                 try {
                     if (!done.await(JOB_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
                         handle.cancel();
-                        failure = "写入超过 " + JOB_TIMEOUT_MINUTES
-                            + " 分钟，已请求取消；设备事务锁会保持到后台操作实际退出。";
+                        failure = localize("写入超过 ") + JOB_TIMEOUT_MINUTES
+                            + localize(" 分钟，已请求取消；设备事务锁会保持到后台操作实际退出。");
                         break;
                     }
                 } catch (InterruptedException e) {
                     handle.cancel();
                     Thread.currentThread().interrupt();
-                    failure = "操作已中断";
+                    failure = localize("操作已中断");
                     break;
                 }
                 if (error.get() != null) {
@@ -332,7 +334,7 @@ public final class ScreenAnimationDialog {
                 try {
                     persistSuccessfulAsset(controller, job);
                 } catch (Exception persistFailure) {
-                    failure = "设备已确认写入，但本地资源缓存保存失败："
+                    failure = localize("设备已确认写入，但本地资源缓存保存失败：")
                         + errorMessage(persistFailure);
                     break;
                 }
@@ -344,7 +346,7 @@ public final class ScreenAnimationDialog {
                 if (finalFailure == null)
                     new Alert(Alert.AlertType.INFORMATION, successMessage).showAndWait();
                 else
-                    new Alert(Alert.AlertType.ERROR, "写入未完成：" + finalFailure).showAndWait();
+                    new Alert(Alert.AlertType.ERROR, localize("写入未完成：") + finalFailure).showAndWait();
             });
         }, "oled-dialog-sequence");
         worker.setDaemon(true);
@@ -356,16 +358,16 @@ public final class ScreenAnimationDialog {
             String text;
             try {
                 var layout = controller.getBleManager().queryGifLayout();
-                if (layout == null) text = "设备未返回 Flash 布局。";
+                if (layout == null) text = localize("设备未返回 Flash 布局。");
                 else if (!layout.hasPhysicalFlashDiagnostics())
-                    text = "固件仅返回旧版布局，写入前请升级到固件 "
+                    text = localize("固件仅返回旧版布局，写入前请升级到固件 ")
                         + FirmwareCapabilities.MINIMUM_GIF_VERSION + "。";
                 else text = String.format(
-                    "Flash ID 0x%04X；实际容量 %.1f MiB；可用帧槽 %d；规划分区共 %d 个帧槽。",
+                    localize("Flash ID 0x%04X；实际容量 %.1f MiB；可用帧槽 %d；规划分区共 %d 个帧槽。"),
                     layout.flashId(), layout.flashBytes() / 1048576.0, layout.frameSlots(),
                     AhaKeyProtocol.GIF_TOTAL_PLANNED_FRAMES);
             } catch (Exception e) {
-                text = "读取 Flash 布局失败：" + errorMessage(e);
+                text = localize("读取 Flash 布局失败：") + errorMessage(e);
             }
             String result = text;
             Platform.runLater(() -> label.setText(result));
@@ -380,19 +382,19 @@ public final class ScreenAnimationDialog {
             String text;
             try {
                 var state = OledUploadService.readAssetState(controller.getBleManager(), mode, asset);
-                text = "设备当前参数：" + state.frameCount() + " 帧，起始帧 " + state.startIndex()
-                    + (state.frameCount() > 0 ? "，帧间隔 " + state.frameInterval() + " ms" : "");
+                text = localize("设备当前参数：") + state.frameCount() + localize(" 帧，起始帧 ") + state.startIndex()
+                    + (state.frameCount() > 0 ? localize("，帧间隔 ") + state.frameInterval() + " ms" : "");
                 StudioState.PersistedDraft.ScreenAssetMetadata metadata =
                     controller.getStudioState().getScreenAssetMetadata(mode, asset);
                 if (ScreenAnimationAssetStore.isUsable(metadata)) {
-                    text = "当前本地资源："
-                        + (metadata.originalFileName == null ? "已管理文件" : metadata.originalFileName)
+                    text = localize("当前本地资源：")
+                        + (metadata.originalFileName == null ? localize("已管理文件") : metadata.originalFileName)
                         + "；" + text;
                 } else {
-                    text = "尚未记录当前本地资源；" + text;
+                    text = localize("尚未记录当前本地资源；") + text;
                 }
             } catch (Exception e) {
-                text = "设备配置读取失败：" + errorMessage(e);
+                text = localize("设备配置读取失败：") + errorMessage(e);
             }
             String result = text;
             Platform.runLater(() -> status.setText(result));
@@ -415,7 +417,7 @@ public final class ScreenAnimationDialog {
         controller.getStudioState().setScreenAssetMetadata(
             job.mode(), job.asset(), stored.metadata());
         if (!StudioStore.save(controller.getStudioState().toPersisted())) {
-            throw new java.io.IOException("本地配置保存失败");
+            throw new java.io.IOException(localize("本地配置保存失败"));
         }
     }
 
