@@ -1,0 +1,8 @@
+AhaKey Studio 2.0.0-alpha.9 — owner acceptance build
+
+Install: per-user Windows x64 installer; self-contained .NET. No external runtime or BLE bridge required.
+BLE: Windows 1.4.8 / protocol 3.2 lightweight keys, partial readback, lighting, brightness and profile routes. Physical Phase 9 acceptance is tracked separately.
+Tray: closing hides Studio; integrations and Bluetooth continue. Exit is explicit. Windows login startup is opt-in.
+Firmware update: verified package, official WCH component detection, hidden vendor backend, durable journal, and 00/9F verification. Same-version reinstall is under Advanced; never automatic.
+Known limits: clean Windows VM and physical firmware acceptance pending. External Display/GIF upload uses USB. No full pixel/configuration backup. WCH components are installed from the official vendor, not redistributed. The local firmware package is for owner acceptance only, not a public firmware release.
+User projects/settings remain in %LOCALAPPDATA%\AhaKey\Studio2 and are kept by default on uninstall.
