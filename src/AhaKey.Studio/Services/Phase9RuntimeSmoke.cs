@@ -40,6 +40,7 @@ public static class Phase9RuntimeSmoke
         var store=services.GetRequiredService<SettingsStore>();
         var journalPath=Path.Combine(store.Root,"Firmware","update.json");Directory.CreateDirectory(Path.GetDirectoryName(journalPath)!);
         File.WriteAllText(journalPath,System.Text.Json.JsonSerializer.Serialize(new AhaKey.Firmware.FirmwareUpdateJournal(Guid.NewGuid(),"1.4.8",FirmwareViewModel.KnownPackage().Sha256,AhaKey.Firmware.FirmwareUpdateState.Programming,DateTimeOffset.UtcNow,"OFFLINE FIXTURE")));
+        await services.GetRequiredService<FirmwareRuntime>().InspectAsync();
         await shell.Firmware.VerifyCommand.ExecuteAsync(null);
         if(!shell.Firmware.NeedsRecovery)throw new InvalidOperationException("Interrupted update forgotten.");
         shell.Settings.Language=shell.Settings.Languages.Single(x=>x.Value==LanguageChoice.Russian);
