@@ -129,6 +129,9 @@ namespace BLE_tcp_driver
                         if (n < dataLen) break;
                     }
 
+                    Log($"TCP RX type=0x{(byte)type:X2} length={dataLen} " +
+                        $"raw={BitConverter.ToString(ProtocolHelper.BuildPacket(type, data))} " +
+                        $"payload={BitConverter.ToString(data ?? new byte[0])}");
                     HandlePacket(client, type, data);
                 }
             }
@@ -234,20 +237,22 @@ namespace BLE_tcp_driver
         }
 
         /// <summary>
-        /// BLE通知回调 → 过滤设备状态通知, 其余广播给所有TCP客户端
+        /// BLE notifications -> cache legacy status and forward every original frame.
         /// </summary>
         private void OnBleNotify(GattCharacteristic sender, byte[] data)
         {
-            // 设备状态通知: 解析并更新内存, 不广播给客户端
+            // Cache metadata for 0x04/0x83, but also forward the original live
+            // 0x00 response as 0x81 so clients can complete physical queries.
             if (ProtocolHelper.IsDeviceStatusNotification(data))
             {
                 var newStatus = ProtocolHelper.ParseDeviceStatusFromNotification(data);
                 lock (_statusLock) _deviceStatus = newStatus;
                 Log(BridgeText.T("status", newStatus.BatteryLevel, newStatus.SignalStrength, newStatus.FirmwareVersionMain, newStatus.FirmwareVersionSub, newStatus.WorkMode, newStatus.LightMode, newStatus.SwitchState));
-                return;
             }
 
             byte[] packet = ProtocolHelper.BuildPacket(PacketType.BleNotify, data);
+            Log($"BLE notify -> TCP type=0x81 length={data?.Length ?? 0} " +
+                $"payload={BitConverter.ToString(data ?? new byte[0])}");
             BroadcastToAll(packet);
         }
 
