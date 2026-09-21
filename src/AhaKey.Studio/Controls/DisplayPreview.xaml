@@ -1,0 +1,15 @@
+<UserControl x:Class="AhaKey.Studio.Controls.DisplayPreview" x:Name="Root" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:AhaKey.Studio.Controls">
+ <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="10" Padding="16">
+  <StackPanel>
+   <TextBlock Text="{Binding StateTitle, ElementName=Root}" Style="{StaticResource CardTitle}" Margin="0,0,0,12"/>
+   <Viewbox Stretch="Uniform" MaxWidth="288" HorizontalAlignment="Left">
+    <Grid x:Name="DisplayArea" Width="160" Height="80" Background="{DynamicResource Screen}" AutomationProperties.Name="{Binding L[DisplayResolution]}">
+     <Image Source="{Binding PreviewSource, ElementName=Root}" Stretch="Uniform"/>
+     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding PreviewSource, ElementName=Root}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><local:NavigationIcon Kind="Display" Width="20" Height="20" Stroke="{DynamicResource ScreenText}" HorizontalAlignment="Center"/><TextBlock Text="{Binding L[DisplayResolution]}" Style="{StaticResource Caption}" Foreground="{DynamicResource ScreenText}" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
+    </Grid>
+   </Viewbox>
+   <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding L[FrameCount]}" Style="{StaticResource Caption}"/><TextBlock Grid.Column="1" Style="{StaticResource Caption}"><TextBlock.Text><MultiBinding StringFormat="{}{0} / {1}"><Binding Path="CurrentFrames" ElementName="Root"/><Binding Path="MaximumFrames" ElementName="Root"/></MultiBinding></TextBlock.Text></TextBlock></Grid>
+   <TextBlock Text="{Binding SourceName, ElementName=Root}" Style="{StaticResource Caption}" Margin="0,4,0,0"/>
+  </StackPanel>
+ </Border>
+</UserControl>
