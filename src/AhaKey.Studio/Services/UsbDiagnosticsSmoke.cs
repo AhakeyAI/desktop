@@ -110,14 +110,14 @@ public static class UsbDiagnosticsSmoke
         var capability=new ControlAcceptance(PhysicalControlRuntime.DeviceHash(real)!,real.Identity.Firmware,true,[0,1],"OFFLINE PHASE 5 REPLAY"){StaticDisplay=proof};
         File.WriteAllText(acceptancePath,System.Text.Json.JsonSerializer.Serialize(capability));
         var fixtures=Path.Combine(AppContext.BaseDirectory,"DisplayFixtures");
-        vm.DisplayPlanner.LoadFixture(Path.Combine(fixtures,"timing.gif"));Check(!vm.DisplayPlanner.CanUpload,"GIF cannot enter physical static writer");
-        vm.DisplayPlanner.LoadFixture(Path.Combine(fixtures,"native-canvas.png"));Check(vm.DisplayPlanner.CanUpload,"Accepted USB static profile 2 / Default enables confirmation entry");
+        vm.DisplayPlanner.LoadFixture(Path.Combine(fixtures,"timing.gif"));await vm.DisplayPlanner.Preparation;Check(!vm.DisplayPlanner.CanUpload,"GIF cannot enter physical static writer");
+        vm.DisplayPlanner.LoadFixture(Path.Combine(fixtures,"native-canvas.png"));await vm.DisplayPlanner.Preparation;Check(vm.DisplayPlanner.CanUpload,"Accepted USB static profile 2 / Default enables confirmation entry");
         File.WriteAllText(acceptancePath,System.Text.Json.JsonSerializer.Serialize(capability with{StaticDisplay=proof with{VisuallyObserved=false}}));
         Check(!vm.DisplayPlanner.CanUpload,"Metadata-only acceptance cannot enable physical upload");
         File.WriteAllText(acceptancePath,System.Text.Json.JsonSerializer.Serialize(capability));
         vm.Profiles.Selected=vm.Profiles.Cards[1];Check(!vm.DisplayPlanner.CanUpload,"Another profile cannot enter static writer");vm.Profiles.Selected=vm.Profiles.Cards[2];
         vm.DisplayPlanner.Asset=vm.DisplayPlanner.Assets.Single(x=>x.Value==DisplayState.Working);Check(!vm.DisplayPlanner.CanUpload,"Another display state cannot enter static writer");
-        vm.DisplayPlanner.Asset=vm.DisplayPlanner.Assets.Single(x=>x.Value==DisplayState.Default);
+        vm.DisplayPlanner.Asset=vm.DisplayPlanner.Assets.Single(x=>x.Value==DisplayState.Default);await vm.DisplayPlanner.Preparation;
         vm.Keymap.SelectedKey=vm.Keymap.Keys[0];Check(!vm.Keymap.Editable && !vm.Keymap.CanWritePhysical,"K1 remains locked after unobserved F19");
         foreach(var language in new[]{LanguageChoice.English,LanguageChoice.Russian,LanguageChoice.Chinese})
         foreach(var theme in new[]{ThemeChoice.Light,ThemeChoice.Dark})
@@ -146,7 +146,7 @@ public static class UsbDiagnosticsSmoke
         var reviewScroll=StudioSmokeTest.Descendants(window).OfType<System.Windows.Controls.ScrollViewer>().First(x=>x.Content is System.Windows.Controls.Grid);reviewScroll.ScrollToBottom();
         await StudioSmokeTest.Capture(window,output,"phase4b-feedback-failure-after-preview-offline");
         await vm.Ble.ReconnectCommand.ExecuteAsync(null);Check(usb.OutputCount==6,"Failure fixture reconnect uses only 00/9F; no control retry");
-        vm.Controls.FeedbackEnabled=true;Check(vm.Controls.FeedbackEnabled && vm.Controls.Message is null,"Explicit re-enable clears stale failure and preview status");
+        vm.Controls.FeedbackEnabled=false;vm.Controls.FeedbackEnabled=true;Check(vm.Controls.FeedbackEnabled && vm.Controls.Message is null,"Explicit off/on clears stale failure and preview status");
         await StudioSmokeTest.Capture(window,output,"phase4b-feedback-reenabled-offline");vm.Controls.FeedbackEnabled=false;
         vm.NavigationSelection=vm.Navigation.Single(x=>x.Value==PageId.Device);reviewScroll.ScrollToTop();await StudioSmokeTest.Capture(window,output,"phase4b-device-qualified-write-scope-offline");
         reviewScroll.ScrollToBottom();await StudioSmokeTest.Capture(window,output,"phase4b-device-qualified-guidance-offline");
