@@ -22,6 +22,11 @@ namespace BLE_tcp_driver
         private DeviceStatusInfo _deviceStatus;
         private readonly object _statusLock = new object();
 
+        // 状态缓存文件: 驱动重启后先回放上次真实状态,
+        // 避免在键盘首次推送前合成帧/缓存查询返回全0(全0会被客户端当成"自动批准")
+        private static readonly string StatusCachePath = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "device_status.cache");
+
         /// <summary>
         /// 日志事件 (从后台线程触发, UI层需BeginInvoke)
         /// </summary>
@@ -39,6 +44,45 @@ namespace BLE_tcp_driver
         {
             _bleCore = bleCore;
             _port = port;
+            _deviceStatus = LoadStatusCache();
+        }
+
+        private static DeviceStatusInfo LoadStatusCache()
+        {
+            var info = new DeviceStatusInfo();
+            try
+            {
+                if (File.Exists(StatusCachePath))
+                {
+                    var parts = File.ReadAllText(StatusCachePath).Trim().Split(',');
+                    if (parts.Length == 8)
+                    {
+                        info.BatteryLevel = byte.Parse(parts[0]);
+                        info.SignalStrength = byte.Parse(parts[1]);
+                        info.FirmwareVersionMain = byte.Parse(parts[2]);
+                        info.FirmwareVersionSub = byte.Parse(parts[3]);
+                        info.WorkMode = byte.Parse(parts[4]);
+                        info.LightMode = byte.Parse(parts[5]);
+                        info.SwitchState = byte.Parse(parts[6]);
+                        info.Reserve = byte.Parse(parts[7]);
+                    }
+                }
+            }
+            catch { }
+            return info;
+        }
+
+        private static void SaveStatusCache(DeviceStatusInfo info)
+        {
+            try
+            {
+                File.WriteAllText(StatusCachePath, string.Join(",",
+                    info.BatteryLevel, info.SignalStrength,
+                    info.FirmwareVersionMain, info.FirmwareVersionSub,
+                    info.WorkMode, info.LightMode,
+                    info.SwitchState, info.Reserve));
+            }
+            catch { }
         }
 
         public void Start()
@@ -180,6 +224,25 @@ namespace BLE_tcp_driver
                     }
                     else
                         Log("BLE命令特征(0x7343)未就绪");
+
+                    // 状态查询(AA BB 00 CC DD)在BLE下无回包: 固件只在状态变化时主动推送。
+                    // 用缓存合成一帧状态广播, 供 1.5.3+ 客户端的实时状态轮询链路使用。
+                    if (data != null && data.Length == 5 &&
+                        data[0] == 0xAA && data[1] == 0xBB && data[2] == 0x00 && data[3] == 0xCC && data[4] == 0xDD)
+                    {
+                        DeviceStatusInfo snap;
+                        lock (_statusLock) snap = _deviceStatus;
+                        byte[] frame =
+                        {
+                            0xAA, 0xBB, 0x00,
+                            (byte)snap.BatteryLevel, (byte)snap.SignalStrength,
+                            (byte)snap.FirmwareVersionMain, (byte)snap.FirmwareVersionSub,
+                            (byte)snap.WorkMode, (byte)snap.LightMode,
+                            (byte)snap.SwitchState, (byte)snap.Reserve,
+                            0xCC, 0xDD
+                        };
+                        BroadcastToAll(ProtocolHelper.BuildPacket(PacketType.BleNotify, frame));
+                    }
                     break;
 
                 case PacketType.QueryBleStatus:
@@ -234,19 +297,20 @@ namespace BLE_tcp_driver
         }
 
         /// <summary>
-        /// BLE通知回调 → 过滤设备状态通知, 其余广播给所有TCP客户端
+        /// BLE通知回调 → 所有通知(含设备状态通知)广播给所有TCP客户端
         /// </summary>
         private void OnBleNotify(GattCharacteristic sender, byte[] data)
         {
-            // 设备状态通知: 解析并更新内存, 不广播给客户端
+            // 设备状态通知: 解析并更新内存, 并随其它通知一起广播
+            // (1.5.3+ 客户端不信任缓存的 DEVICE_INFO 应答, 只接受实时广播)
             if (ProtocolHelper.IsDeviceStatusNotification(data))
             {
                 var newStatus = ProtocolHelper.ParseDeviceStatusFromNotification(data);
                 lock (_statusLock) _deviceStatus = newStatus;
+                SaveStatusCache(newStatus);
                 Log($"设备状态更新: 电量={newStatus.BatteryLevel} 信号={newStatus.SignalStrength} " +
                     $"固件={newStatus.FirmwareVersionMain}.{newStatus.FirmwareVersionSub} " +
                     $"工作模式={newStatus.WorkMode} 灯光={newStatus.LightMode} 开关={newStatus.SwitchState}");
-                return;
             }
 
             byte[] packet = ProtocolHelper.BuildPacket(PacketType.BleNotify, data);
