@@ -39,7 +39,7 @@ public static class Phase8Repro
         var seen=new HashSet<int>();for(int sample=0;sample<15;sample++){seen.Add(vm.DisplayPlanner.SelectedFrame);await Task.Delay(97);}if(vm.DisplayPlanner.Frames.Count>1&&seen.Count<2)throw new InvalidOperationException("Preview did not advance");
         checks.Add("PASS animated RGB565 preview advances");
         if(vm.Firmware.HasPackage){await vm.Firmware.VerifyCommand.ExecuteAsync(null);if(vm.Firmware.Result?.Contains(vm.L["FirmwarePackageVerified"])!=true)throw new InvalidOperationException("Known package failed validation");checks.Add("PASS known local HEX hash and provenance verified");}
-        else {if(vm.Firmware.VerifyCommand.CanExecute(null)||!vm.Firmware.Package.Contains(vm.L["FirmwarePackageNotIncluded"]))throw new InvalidOperationException("Missing package offered as available");checks.Add("PASS public distribution honestly reports missing firmware and disables package verification");}
+        else {if(vm.Firmware.VerifyCommand.CanExecute(null)||!vm.Firmware.Package.Contains(vm.L["FirmwarePackageNotBundled"]))throw new InvalidOperationException("Missing package offered as available");checks.Add("PASS public distribution honestly reports missing firmware and disables package verification");}
         if(vm.Ble.DiagnosticExport.Length>14000||vm.Ble.DiagnosticExport.Contains(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)))throw new InvalidOperationException("Diagnostics size/privacy");checks.Add("PASS compact diagnostics exclude user path");
         File.WriteAllLines(Path.Combine(Output!,"checks.txt"),checks);
 

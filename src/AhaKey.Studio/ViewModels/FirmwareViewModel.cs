@@ -17,7 +17,7 @@ public sealed class FirmwareViewModel:ObservableObject
     private string? details;
     public LocalizationService L {get;}
     public string Current=>$"{L["FirmwareInstalled"]}: AhaKey X1  /  {manager.RealDevice?.FirmwareIdentity.ReportedVersion??L["BleUnknown"]}  /  {L["FirmwareProtocol"]} {manager.RealDevice?.FirmwareIdentity.ReportedProtocol??L["BleUnknown"]}";
-    private static bool HasPackage=>File.Exists(KnownPackage().ImagePath) && File.Exists(KnownPackage().ProvenancePath);
+    public bool HasPackage=>File.Exists(KnownPackage().ImagePath) && File.Exists(KnownPackage().ProvenancePath);
     public string Package=>HasPackage?L["FirmwareAvailable"]+": 1.4.8  /  CH582M  /  Windows 3.2":L["FirmwarePackageNotBundled"];
     public string? Result=>result is null?null:L[result];
     public string? Details=>details;
@@ -42,7 +42,7 @@ public sealed class FirmwareViewModel:ObservableObject
     public AsyncRelayCommand ChooseCommand {get;}
     public FirmwareViewModel(DeviceManager manager,LocalizationService l,Services.FirmwareRuntime runtime)
     {
-        this.manager=manager;this.runtime=runtime;L=l;VerifyCommand=new(VerifyAsync,()=>!runtime.Busy);ChooseCommand=new(ChooseAsync,()=>!runtime.Busy);
+        this.manager=manager;this.runtime=runtime;L=l;VerifyCommand=new(VerifyAsync,()=>HasPackage && !runtime.Busy);ChooseCommand=new(ChooseAsync,()=>!runtime.Busy);
         ReinstallCommand=new(ReinstallAsync,()=>CanReinstall);CancelCommand=new(()=>cancellation?.Cancel(),()=>CanCancel);
         RetryCommand=new(()=>ReinstallAsync(true),()=>CanRetry);
         SetupCommand=new(async()=>{try{await runtime.InstallDriverAsync();}catch(Exception ex)when(ex is not OutOfMemoryException){result="FirmwareSetupFailed";Refresh();}},()=>!runtime.Busy);
