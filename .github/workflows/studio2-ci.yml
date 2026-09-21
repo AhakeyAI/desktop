@@ -50,7 +50,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Studio smoke test failed" }
       - name: Publish self-contained alpha
         shell: pwsh
-        run: ./Publish-Studio.ps1
+        run: ./Publish-Studio.ps1 -PublicRelease
       - name: USB and BLE ownership replay (no hardware)
         shell: pwsh
         run: |
@@ -65,15 +65,15 @@ jobs:
       - name: Package public Windows alpha
         shell: pwsh
         run: |
-          if (Test-Path artifacts/AhaKeyStudio-win-x64/FirmwarePackages) { throw "Restricted firmware must not be published" }
-          Compress-Archive -LiteralPath artifacts/AhaKeyStudio-win-x64 -DestinationPath artifacts/AhaKeyStudio-2.0.0-alpha.8-win-x64-public.zip
-          $hash = Get-FileHash artifacts/AhaKeyStudio-2.0.0-alpha.8-win-x64-public.zip -Algorithm SHA256
-          "$($hash.Hash)  AhaKeyStudio-2.0.0-alpha.8-win-x64-public.zip" | Set-Content artifacts/SHA256SUMS.txt
+          if (Test-Path artifacts/public-runtime/FirmwarePackages) { throw "Restricted firmware must not be published" }
+          Compress-Archive -LiteralPath artifacts/public-runtime -DestinationPath artifacts/AhaKeyStudio-2.0.0-alpha.9-win-x64-public.zip
+          $hash = Get-FileHash artifacts/AhaKeyStudio-2.0.0-alpha.9-win-x64-public.zip -Algorithm SHA256
+          "$($hash.Hash)  AhaKeyStudio-2.0.0-alpha.9-win-x64-public.zip" | Set-Content artifacts/SHA256SUMS.txt
       - name: Upload public preview
         uses: actions/upload-artifact@v4
         with:
-          name: AhaKeyStudio-2.0.0-alpha.8-win-x64-public
+          name: AhaKeyStudio-2.0.0-alpha.9-win-x64-public
           if-no-files-found: error
           path: |
-            artifacts/AhaKeyStudio-2.0.0-alpha.8-win-x64-public.zip
+            artifacts/AhaKeyStudio-2.0.0-alpha.9-win-x64-public.zip
             artifacts/SHA256SUMS.txt
