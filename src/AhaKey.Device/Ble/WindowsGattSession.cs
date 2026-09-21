@@ -151,14 +151,29 @@ public sealed class WindowsGattSession(Guid id,LegacyCharacterizationPermit? cha
         if(!Active || linked.IsCancellationRequested) throw new OperationCanceledException(linked.Token);
         return Result(result.Status,result.ProtocolError);
     }
+    public async Task<GattResult> WriteConfigAsync(Guid service,Guid characteristic,Usb.ApprovedConfigRead query,CancellationToken ct)
+    {
+        if(service!=GattContract.WindowsObserved.Service || characteristic!=GattContract.WindowsObserved.Command)throw new InvalidOperationException("Unvalidated GATT endpoint.");
+        ct.ThrowIfCancellationRequested();query.Consume(Id);
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,lifetime.Token);
+        var result=await characteristics[(service,characteristic)].WriteValueWithResultAsync(CryptographicBuffer.CreateFromByteArray(query.Frame.ToArray()),GattWriteOption.WriteWithResponse).AsTask(linked.Token);
+        if(!Active || linked.IsCancellationRequested)throw new OperationCanceledException(linked.Token);
+        return Result(result.Status,result.ProtocolError);
+    }
     public async Task<GattResult> WriteControlAsync(Guid service,Guid characteristic,ApprovedControl control,CancellationToken ct)
     {
         if(service!=GattContract.WindowsObserved.Service || characteristic!=GattContract.WindowsObserved.Command)throw new InvalidOperationException("Unvalidated GATT endpoint.");
         ct.ThrowIfCancellationRequested();control.Consume(Id,control.Command.Frame.AsSpan());
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,lifetime.Token);
-        var result=await characteristics[(service,characteristic)].WriteValueWithResultAsync(CryptographicBuffer.CreateFromByteArray(control.Command.Frame.ToArray()),GattWriteOption.WriteWithResponse).AsTask(linked.Token);
-        if(!Active || linked.IsCancellationRequested)throw new OperationCanceledException(linked.Token);
-        return Result(result.Status,result.ProtocolError);
+        // Source receive_bytes accumulates the command frame across 20-byte writes.
+        // Await every chunk; never restart or retry a partially transmitted command.
+        foreach(var chunk in control.Command.Frame.Chunk(20))
+        {
+            var result=await characteristics[(service,characteristic)].WriteValueWithResultAsync(CryptographicBuffer.CreateFromByteArray(chunk),GattWriteOption.WriteWithResponse).AsTask(linked.Token);
+            if(!Active || linked.IsCancellationRequested)throw new OperationCanceledException(linked.Token);
+            var status=Result(result.Status,result.ProtocolError);if(!status.Success)return status;
+        }
+        return new(GattResultStatus.Success);
     }
     private static GattResult Result(GattCommunicationStatus status,byte? error)=>new(status switch
     {GattCommunicationStatus.Success=>GattResultStatus.Success,GattCommunicationStatus.Unreachable=>GattResultStatus.Unreachable,GattCommunicationStatus.ProtocolError=>GattResultStatus.ProtocolError,GattCommunicationStatus.AccessDenied=>GattResultStatus.AccessDenied,_=>GattResultStatus.Unknown},error);

@@ -167,6 +167,16 @@ Sliders have a 4 DIP track and 20 DIP circular thumb. The vertical scrollbar is 
 
 ## Components
 
+### Phase 9 bounded native extension
+
+This 2026-09-21 merge records Settings, tray lifetime and Device & Firmware in native Operate mode. It preserves the incumbent blue/Segoe UI WPF world, theme tokens, controls, sidebar, persistent header and scrolling. Earlier phase entries remain historical; their firmware prohibition is superseded only by this separately gated Phase 9 interface, not by a hardware-acceptance claim.
+
+- **Settings:** the existing language/theme card adds Windows startup and unexpected-disconnect notification CheckBoxes, followed by collapsed Advanced. Startup copy explicitly says the application starts in the system tray without opening the main window. The page retains its 800-DIP maximum width; the card retains Surface/Border resources, 10-DIP corners and 24-DIP padding. Local-project and voice controls remain below it in the same scrolling page.
+- **Tray lifetime:** preserve the native notification-area icon and localized menu. Open, device/physical-profile/feedback summaries, pause/resume integration service, Settings and Exit remain distinct. First close explains background operation with a remember choice and explicit exit alternative, then hides the shell; double-click/Open restores it. Explanation and busy-exit dialogs retain native themed text, wrapping and buttons. Busy exit offers Wait and cancellation only when cancellation is available.
+- **Firmware:** transport selection and connection evidence remain first. A Border divider introduces installed identity, available package, component availability, written operation state and readiness check. Setup/cancellation appear only when relevant; update appears for a verified newer package. RecoveryRequired exposes retry and recovery instructions in the normal view, with retry disabled when recovery eligibility is absent. Advanced holds technical details, package verification, local HEX inspection, reinstall and recovery help. State and result use polite live-region bindings; unavailable/recovery states never depend on color alone.
+- **Evidence boundary:** the finish reviewer closed 5/5 findings with SHIP at finding scope. This does not accept the whole product or firmware compatibility/migration. A real firmware flash and clean-VM installation remain pending. See [Phase 9 UI documentation](../../docs/studio2-phase9/ui-documentation.md).
+
+
 - **Buttons:** default minimum height is 36 DIP; the primary write action has a 40 DIP minimum. Hover changes the border to `Accent`; keyboard focus uses a 2 DIP `Focus` border. Disabled buttons use `Disabled` text on `SurfaceRaised` and follow command/state availability.
 - **Inputs:** text boxes use 12 × 8 DIP padding, a 36 DIP minimum height, and a themed focus border. The custom-profile name field allows 48 characters. Diagnostic views use selectable, read-only, wrapping TechnicalText. The real transport catalog follows the page's vertical scrolling; history has a 320 DIP maximum height and its own vertical scrollbar.
 - **Selectors:** combo boxes have a 36 DIP minimum height and 2 DIP focus outline. Menu items have a 36 DIP minimum height and selection fill; popup height is capped at 360 DIP with scrolling. Disabled selectors reduce opacity.

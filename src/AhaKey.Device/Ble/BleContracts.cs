@@ -25,6 +25,7 @@ public interface IWindowsGattSession : IAsyncDisposable
     Task AcquireAsync(string deviceId,CancellationToken ct);
     Task<ImmutableArray<GattServiceInfo>> DiscoverGattAsync(CancellationToken ct);
     Task<GattResult> SubscribeAsync(Guid service,Guid characteristic,Action<BleNotification> receiver,CancellationToken ct);
+    Task<GattResult> WriteConfigAsync(Guid service,Guid characteristic,Usb.ApprovedConfigRead query,CancellationToken ct)=>throw new NotSupportedException();
     Task<GattResult> WriteControlAsync(Guid service,Guid characteristic,ApprovedControl control,CancellationToken ct) => throw new NotSupportedException("Physical controls unavailable in this session.");
     Task<GattResult> WriteCommandAsync(Guid service,Guid characteristic,ImmutableArray<byte> frame,CancellationToken ct);
 }

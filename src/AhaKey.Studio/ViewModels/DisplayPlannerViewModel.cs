@@ -106,6 +106,18 @@ public sealed class DisplayPlannerViewModel:ObservableObject
         SaveProjectCommand=new(SaveProjectAsync,()=>prepared is not null&&!IsPreparing);DuplicateProjectCommand=new(()=>EditProjectAsync(true),()=>selectedProject is not null);RenameProjectCommand=new(()=>EditProjectAsync(false),()=>selectedProject is not null);OpenProjectCommand=new(()=>{if(selectedProject is {} p)StartPreparation(p);},()=>selectedProject is not null);DeleteProjectCommand=new(()=>{if(selectedProject is {} selected)projects.Update(p=>p with{DisplayProjects=p.DisplayProjects.Remove(selected)});selectedProject=null;Refresh();});
         FrameEarlierCommand=new(()=>MoveFrame(-1));FrameLaterCommand=new(()=>MoveFrame(1));library=(projects.Current?.DisplayProjects??[]).ToArray();projects.Changed+=ReloadLibrary;animation.Interval=TimeSpan.FromMilliseconds(100);animation.Tick+=(_,_)=>{if(previews.Length>1)SelectedFrame=(selectedFrame+1)%frameOrder.Length;};
         this.dialogs=dialogs;this.preferences=preferences;this.settings=settings;this.history=history;this.profiles=profiles;this.physical=physical;this.manager=manager;L=l;UploadCommand=new(UploadAsync,()=>!IsPreparing&&(Modern?ModernPlan is not null:StaticPlan is not null));FitModes=Enum.GetValues<DisplayFitMode>().Select(x=>new ChoiceOption<DisplayFitMode>(x,"Display"+x,l)).ToArray();fit=FitModes[0];Assets=Enum.GetValues<DisplayState>().Select(x=>new ChoiceOption<DisplayState>(x,x.ToString(),l)).ToArray();asset=Assets[0];ImportCommand=new(Import,()=>profiles.HasSelection);ConvertCommand=new(Rebuild,()=>path is not null && profiles.HasSelection);ExportCommand=new(Export,()=>Plan is not null);profiles.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(ProfilesViewModel.Selected)&&!selectingProject){selectedProject=null;RestoreSource();}};l.PropertyChanged+=(_,_)=>Refresh();manager.Changed+=DeviceChanged;physical.Changed+=Refresh;RestoreSource();}
+    private bool previewVisible = true;
+    private bool sourceDeferred = true;
+    public void SetPreviewVisible(bool visible)
+    {
+        previewVisible = visible;
+        animation.Stop();
+        if (!visible) { previews = []; OnPropertyChanged(nameof(Preview)); return; }
+        if(sourceDeferred){sourceDeferred=false;RestoreSource();return;}
+        if (prepared is not null) previews = prepared.Frames.Select(DisplayImagePreparation.PreviewFrame).ToArray();
+        if (previews.Length > 1) animation.Start();
+        OnPropertyChanged(nameof(Preview));
+    }
     private void DeviceChanged()
     {
         if(Application.Current is {} app&&!app.Dispatcher.CheckAccess()){app.Dispatcher.BeginInvoke(DeviceChanged);return;}
@@ -147,6 +159,7 @@ public sealed class DisplayPlannerViewModel:ObservableObject
     }
     private void RestoreSource()
     {
+        if(sourceDeferred)return;
         var saved=Target is {} key?preferences.Settings.DisplaySources.GetValueOrDefault(key):null;
         path=saved?.CachedPath;sourceName=saved?.Name;fit=FitModes.Single(x=>x.Value.ToString()==(saved?.Fit??"Fit"));Rebuild();
     }
@@ -172,7 +185,7 @@ public sealed class DisplayPlannerViewModel:ObservableObject
             var nextPreviews=await Task.Run(()=>image.Frames.Select(DisplayImagePreparation.PreviewFrame).ToArray(),ct);
             ct.ThrowIfCancellationRequested();path=file;prepared=image;previews=nextPreviews;
             if(project is null)interval=Math.Clamp(image.Timing.IntervalMs,33,1000);
-            await BuildPlanAsync();ct.ThrowIfCancellationRequested();animation.Interval=TimeSpan.FromMilliseconds(interval);if(previews.Length>1)animation.Start();
+            await BuildPlanAsync();ct.ThrowIfCancellationRequested();animation.Interval=TimeSpan.FromMilliseconds(interval);if(previewVisible && previews.Length>1)animation.Start();if(!previewVisible)previews=[];
         }
         catch(OperationCanceledException)when(ct.IsCancellationRequested){}
         catch(Exception ex)when(ex is IOException or ArgumentException or FormatException or NotSupportedException or InvalidOperationException or System.Runtime.InteropServices.COMException)

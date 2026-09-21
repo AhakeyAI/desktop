@@ -4,13 +4,20 @@ using AhaKey.Core;
 namespace AhaKey.Firmware;
 
 public sealed record FirmwarePackage(string Product,string Target,string Version,string Protocol,string ImagePath,
-    string Sha256,string SourceCommit,string ProvenancePath,string HardwareCompatibility);
+    string Sha256,string SourceCommit,string ProvenancePath,string HardwareCompatibility)
+{
+    public string MinimumStudioVersion {get;init;}="2.0.0-alpha.9";
+    public string HardwareFamily {get;init;}="AhaKey X1 / CH582M";
+    public uint ExpectedCapabilities {get;init;}=0x7FF;
+    public string MigrationNotes {get;init;}="MCU code flash only; preserve DataFlash and external Display flash. Existing configuration is not a verified backup.";
+}
 public sealed record PackageValidation(string Sha256,int DataBytes,uint FirstAddress,uint EndExclusive,bool ProvenanceVerified);
 public static class FirmwarePackageValidator
 {
     public static async Task<PackageValidation> ValidateAsync(FirmwarePackage package,CancellationToken ct=default)
     {
         if(package.Product!="AhaKey-X1"||package.Target!="CH582"||package.Protocol!="3.2"||package.Version!="1.4.8")throw new ArgumentException("Unapproved package identity.");
+        if(package.MinimumStudioVersion!="2.0.0-alpha.9"||package.HardwareFamily!="AhaKey X1 / CH582M"||package.ExpectedCapabilities!=0x7FF||string.IsNullOrWhiteSpace(package.MigrationNotes))throw new ArgumentException("Unsupported package requirements or hardware contract.");
         if(!System.Text.RegularExpressions.Regex.IsMatch(package.Sha256,"^[0-9A-Fa-f]{64}$")||!System.Text.RegularExpressions.Regex.IsMatch(package.SourceCommit,"^[0-9a-f]{40}$"))throw new ArgumentException("Missing package provenance.");
         if(new FileInfo(package.ImagePath).Length>2*1024*1024)throw new FormatException("HEX exceeds package limit.");
         byte[] bytes=await File.ReadAllBytesAsync(package.ImagePath,ct).ConfigureAwait(false);
@@ -52,32 +59,11 @@ public interface IFlashTransport
     Task ProgramAndVerifyAsync(FirmwarePackage package,PackageValidation validation,IProgress<string> progress,CancellationToken ct);
     Task<FirmwareIdentity> RebootAndReadIdentityAsync(CancellationToken ct);
 }
-// This sprint prepares the coordinator; no write-capable transport is registered or bundled.
+// Unavailable until the exact vendor runtime and driver pass feature-specific preflight.
 public sealed class PreparedWchIspTransport:IFlashTransport
 {
     public string AvailabilityReason=>"FirmwareTransportPrepared";
     public Task EnterUpdateModeAsync(CancellationToken ct)=>Task.FromException(new NotSupportedException(AvailabilityReason));
     public Task ProgramAndVerifyAsync(FirmwarePackage p,PackageValidation v,IProgress<string> progress,CancellationToken ct)=>Task.FromException(new NotSupportedException(AvailabilityReason));
     public Task<FirmwareIdentity> RebootAndReadIdentityAsync(CancellationToken ct)=>Task.FromException<FirmwareIdentity>(new NotSupportedException(AvailabilityReason));
-}
-public sealed class FirmwareUpdateCoordinator(IFlashTransport transport)
-{
-    private readonly SemaphoreSlim gate=new(1);
-    public string AvailabilityReason=>transport.AvailabilityReason;
-    public Task<PackageValidation> VerifyAsync(FirmwarePackage package,CancellationToken ct=default)=>FirmwarePackageValidator.ValidateAsync(package,ct);
-    public async Task<FirmwareIdentity> UpdateAsync(FirmwarePackage package,bool explicitFlashAuthorization,IProgress<string> progress,CancellationToken ct=default)
-    {
-        if(!explicitFlashAuthorization)throw new InvalidOperationException("Explicit firmware authorization is required.");
-        if(!string.IsNullOrEmpty(AvailabilityReason))throw new NotSupportedException(AvailabilityReason);
-        await gate.WaitAsync(ct);try
-        {
-            var validation=await VerifyAsync(package,ct);progress.Report("Validated");
-            await transport.EnterUpdateModeAsync(ct);progress.Report("Update mode");
-            await transport.ProgramAndVerifyAsync(package,validation,progress,ct);
-            var identity=await transport.RebootAndReadIdentityAsync(ct);
-            if(identity.ReportedVersion!=package.Version||identity.ReportedProtocol!=package.Protocol||identity.ReportedModel!=1)throw new InvalidOperationException("Post-flash identity mismatch.");
-            progress.Report("Identity verified");return identity;
-        }
-        finally{gate.Release();}
-    }
 }

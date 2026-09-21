@@ -1,5 +1,6 @@
 namespace AhaKey.Device;
 
+public enum OperationRequirement { Status, Capabilities, ReadConfig, WriteShortcut, RuntimeLighting, LightingConfiguration, Brightness, SwitchProfile, UploadDisplayBulk, FirmwareFlash }
 public enum OperationOutcome { Running, Completed, Failed, OutcomeUncertain, Interrupted }
 public sealed record DeviceOperationRecord(Guid Id,long Generation,Guid? Session,PhysicalTransportKind? Transport,
     string Operation,bool Persistent,DateTimeOffset StartedAt,DateTimeOffset? EndedAt,
@@ -8,6 +9,17 @@ public sealed record DeviceOperationRecord(Guid Id,long Generation,Guid? Session
 // The manager's single ownership gate covers both transports, reads, reconnect and writes.
 public sealed class DeviceOperationCoordinator
 {
+    public bool ShutdownRequested {get;set;}
+    public void RequireRoute(OperationRequirement requirement,PhysicalTransportKind active)
+    {
+        if(SelectTransport(requirement,active,true)!=active)throw new InvalidOperationException("This operation requires a USB connection.");
+    }
+    public PhysicalTransportKind SelectTransport(OperationRequirement requirement,PhysicalTransportKind? active,bool activeSupported)
+    {
+        if(requirement is OperationRequirement.UploadDisplayBulk or OperationRequirement.FirmwareFlash)return PhysicalTransportKind.Usb;
+        // Retain a supported live route; prefer BLE for a new daily-operation session.
+        return activeSupported && active is {} route ? route : PhysicalTransportKind.Bluetooth;
+    }
     private readonly SemaphoreSlim gate=new(1,1);
     private readonly List<DeviceOperationRecord> journal=[];
     private readonly object sync=new();
@@ -22,7 +34,7 @@ public sealed class DeviceOperationCoordinator
         return true;
     }
     public void Describe(string operation,Guid? session,PhysicalTransportKind? transport,bool persistent)
-    {lock(sync){Current=Current! with{Operation=operation,Session=session,Transport=transport,Persistent=persistent};Persist?.Invoke(Current);}}
+    {lock(sync){if(persistent && ShutdownRequested)throw new InvalidOperationException("Application is exiting.");Current=Current! with{Operation=operation,Session=session,Transport=transport,Persistent=persistent};Persist?.Invoke(Current);}}
     public void Confirm(string step,bool binding=false,bool save=false)
     {lock(sync){Current=Current! with{ConfirmedSteps=Current.ConfirmedSteps+1,LastConfirmedStep=step,LastConfirmedFlashBlock=step.StartsWith("81 sector",StringComparison.Ordinal)?step:Current.LastConfirmedFlashBlock,BindingChanged=Current.BindingChanged||binding,SaveConfirmed=Current.SaveConfirmed||save};Persist?.Invoke(Current);}}
     public void Fail(bool mayHaveWritten)

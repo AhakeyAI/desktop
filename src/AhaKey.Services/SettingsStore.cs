@@ -9,6 +9,9 @@ public sealed record StudioSettings(int SchemaVersion = 1, LanguageChoice Langua
     ThemeChoice Theme = ThemeChoice.System, BackendChoice Backend = BackendChoice.Real,
     HardwareProfileId? SelectedProfile = null, string? CustomProfileName = null)
 {
+    public bool StartWithWindows {get;init;}
+    public bool TrayExplanationSeen {get;init;}
+    public bool NotifyDeviceDisconnect {get;init;}
     public bool DeveloperMode {get;init;}
     public bool IntegrationAutoStart {get;init;}
     public bool ActivateHardwareProfile {get;init;}

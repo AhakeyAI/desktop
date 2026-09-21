@@ -12,10 +12,10 @@ public sealed class Phase8FeatureTests
         for(byte effect=0;effect<=16;effect++)Assert.True(catalog.CanUseRuntimeLighting(effect).Available);
         Assert.False(catalog.CanUseRuntimeLighting(17).Available);Assert.False(catalog.FullReadback.Available);
     }
-    [Fact] public void MissingBitsAndWrongTransportDoNotPromoteDisplayOrConfigReads()
+    [Fact] public void MissingBitsBlockReadbackAndDisplayWhileBleSupportsDailyCommands()
     {
         var absent=new DeviceFeatureCatalog(Modern with{ReportedCapabilities=0},FeatureTransport.Usb,new());
         Assert.False(absent.CanReadConfigResource(0).Available);Assert.False(absent.CanUploadDisplay(HardwareProfileId.Codex,DisplayState.Default,8).Available);
-        var ble=new DeviceFeatureCatalog(Modern,FeatureTransport.Bluetooth,new());Assert.False(ble.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).Available);Assert.True(ble.CanUseRuntimeLighting(16).Available);
+        var ble=new DeviceFeatureCatalog(Modern,FeatureTransport.Bluetooth,new());Assert.True(ble.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).Available);Assert.True(ble.CanUseRuntimeLighting(16).Available);
     }
 }

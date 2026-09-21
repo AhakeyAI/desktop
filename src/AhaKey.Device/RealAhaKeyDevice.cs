@@ -89,7 +89,7 @@ public sealed class RealAhaKeyDevice : IAhaKeyDevice, IAsyncDisposable
     public async Task<System.Collections.Immutable.ImmutableArray<byte>> ReadConfigAsync(byte resource,byte index,Action<PhysicalCommandEvidence> record,CancellationToken ct)
     {
         if(!await gate.WaitAsync(0,ct))throw new InvalidOperationException("Device busy.");
-        try{if(ActiveTransport!=PhysicalTransportKind.Usb||Usb is null)throw new InvalidOperationException("USB read required.");return await Usb.ReadConfigAsync(resource,index,record,ct);}
+        try{return ActiveTransport==PhysicalTransportKind.Usb?await Usb!.ReadConfigAsync(resource,index,record,ct):await transport.ReadConfigAsync(resource,index,record,ct);}
         finally{gate.Release();}
     }
     public async Task UploadDisplayAsync(ApprovedDisplayUpload approval,Action<DisplayTransferEvidence> record,Action<DisplayResponseEvidence> responseRecord,CancellationToken ct)

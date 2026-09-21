@@ -88,7 +88,18 @@ public sealed class PhysicalControlRuntime(DeviceManager manager,SettingsStore s
     public string FeedbackStateKey(HardwareProfileId profile,string integration)=>!FeedbackEnabled(profile,integration)?"ProductOff":FeedbackAvailable?"ProductOn":"ProductConnectUsb";
     // Unique source-known HID interface is handshaken before feature gating; legacy still needs its receipt.
     // The callback is invoked after the normal 00/9F handshake validates firmware, never from discovery alone.
-    public async Task WithKeyUsbAsync(Func<Task> write)=>await WithUsbAsync(write,true,true);
+    public async Task WithKeyRouteAsync(Func<Task> write)
+    {
+        var requirement=manager.Operations.SelectTransport(OperationRequirement.WriteShortcut,manager.RealDevice?.ActiveTransport,KeyAvailable);
+        if(requirement==manager.RealDevice?.ActiveTransport && KeyAvailable){await write();return;}
+        if(requirement==PhysicalTransportKind.Bluetooth && connections is not null && manager.RealDevice?.Selected is not null)
+        {
+            if(manager.RealDevice.ActiveTransport!=requirement)await connections.SelectTransportAsync(requirement);
+            if(!manager.RealDevice.Observation.IsLive)await connections.ConnectAsync();
+            if(KeyAvailable){await write();return;}
+        }
+        await WithUsbAsync(write,true,true);
+    }
     public Task ConnectFeedbackUsbAsync()=>WithUsbAsync(()=>Task.CompletedTask,false,false);
     private async Task WithUsbAsync(Func<Task> action,bool restoreBle,bool key)
     {

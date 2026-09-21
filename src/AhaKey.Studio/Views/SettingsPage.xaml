@@ -3,6 +3,9 @@
   <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="10" Padding="24"><StackPanel>
    <TextBlock Text="{Binding L[Language]}" FontWeight="SemiBold" Margin="0,0,0,8"/><ComboBox ItemsSource="{Binding Settings.Languages}" SelectedItem="{Binding Settings.Language}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[Language]}" Margin="0,0,0,24"/>
    <TextBlock Text="{Binding L[Theme]}" FontWeight="SemiBold" Margin="0,0,0,8"/><ComboBox ItemsSource="{Binding Settings.Themes}" SelectedItem="{Binding Settings.Theme}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[Theme]}" Margin="0,0,0,24"/>
+   <CheckBox Content="{Binding L[StartupWithWindows]}" IsChecked="{Binding Settings.StartWithWindows}" Margin="0,0,0,8"/>
+   <TextBlock Text="{Binding L[StartupTrayHint]}" Style="{StaticResource SecondaryText}" Margin="0,0,0,20"/>
+   <CheckBox Content="{Binding L[TrayDisconnectNotifications]}" IsChecked="{Binding Settings.NotifyDeviceDisconnect}" Margin="0,0,0,24"/>
    <Expander Header="{Binding L[Advanced]}"><StackPanel Margin="0,16,0,0"><CheckBox Content="{Binding L[AlphaDeveloper]}" IsChecked="{Binding Settings.DeveloperMode}" IsEnabled="{Binding CanConfigure}"/><StackPanel Visibility="{Binding Settings.DeveloperMode, Converter={StaticResource BoolVisibility}}" Margin="0,16,0,0"><TextBlock Text="{Binding L[Backend]}" FontWeight="SemiBold" Margin="0,0,0,8"/><ComboBox ItemsSource="{Binding Settings.Backends}" SelectedItem="{Binding Settings.Backend}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[Backend]}" IsEnabled="{Binding CanConfigure}"/><TextBlock Text="{Binding L[SimulationNotice]}" Style="{StaticResource SecondaryText}" Margin="0,12,0,0"/></StackPanel></StackPanel></Expander>
   </StackPanel></Border>
   <TextBlock Text="{Binding L[BleStartupPolicy]}" Style="{StaticResource SecondaryText}" Margin="0,24,0,24"/>

@@ -16,6 +16,7 @@ public sealed class RealDeviceRuntime : IDisposable
     public bool ExplicitlyDisconnected => stopped;
     public RealDeviceRuntime(DeviceManager manager)
     {this.manager=manager;if(manager.RealDevice is {} real)real.Changed+=OnChanged;}
+    public void SuspendRecovery() { lock(sync){stopped=true;} }
     public Task StartAsync()=>manager.RealBackendSelected && manager.RealDevice is {ActiveTransport:PhysicalTransportKind.Bluetooth,Selected:not null} ? ConnectAsync(true) : Task.CompletedTask;
     public Task ConnectAsync(bool reconnect=false)
     {

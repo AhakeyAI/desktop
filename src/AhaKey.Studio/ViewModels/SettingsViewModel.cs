@@ -19,6 +19,17 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private ChoiceOption<BackendChoice> backend;
     [ObservableProperty] private string? errorKey;
     [ObservableProperty] private bool developerMode;
+    public bool StartWithWindows
+    {
+        get => WindowsStartup.Enabled;
+        set
+        {
+            try { WindowsStartup.SetEnabled(value); Save(s => s with { StartWithWindows = value }); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { ErrorKey = "SettingsSaveError"; }
+            OnPropertyChanged();
+        }
+    }
+    public bool NotifyDeviceDisconnect { get => preferences.Settings.NotifyDeviceDisconnect; set { Save(s => s with { NotifyDeviceDisconnect = value }); OnPropertyChanged(); } }
     public Task BackendChange { get; private set; } = Task.CompletedTask;
     public SettingsViewModel(ProfileSelectionService preferences, LocalizationService l, ThemeService themes, DeviceManager manager,RealDeviceRuntime runtime)
     {

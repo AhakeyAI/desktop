@@ -6,7 +6,7 @@ public sealed class ProfileActivationRuntime(DeviceManager manager,PhysicalContr
 {
     public bool Busy {get;private set;}
     public string? ErrorKey {get;private set;}
-    public bool Available=>!controls.UsbOperationBusy && manager.RealBackendSelected && manager.RealDevice?.ActiveTransport==PhysicalTransportKind.Usb && (controls.Acceptance?.ProfileSwitch?.Accepted==true || manager.RealDevice.FirmwareIdentity is {Dialect:FirmwareDialect.WindowsContract32,ReportedVersion:"1.4.8",ReportedProtocol:"3.2",ReportedModel:1});
+    public bool Available=>!controls.UsbOperationBusy && manager.RealBackendSelected && manager.RealDevice?.Observation.IsLive==true && (controls.Acceptance?.ProfileSwitch?.Accepted==true || manager.RealDevice.FirmwareIdentity is {Dialect:FirmwareDialect.WindowsContract32,ReportedVersion:"1.4.8",ReportedProtocol:"3.2",ReportedModel:1});
     public bool Enabled=>preferences.Settings.ActivateHardwareProfile;
     public event Action? Changed;
     public void Enable(bool value){preferences.Update(s=>s with{ActivateHardwareProfile=value});if(!value)ErrorKey=null;Changed?.Invoke();}

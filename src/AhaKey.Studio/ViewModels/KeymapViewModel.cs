@@ -188,7 +188,7 @@ public sealed class KeymapViewModel : ObservableObject
         if(!PhysicalEligibility || Session.Action is not KeyboardShortcutAction action || !ShortcutGesture.TryParse(action.Shortcut,out var gesture))return;
         var profile=Session.Profile;var key=Session.Key;var label=Session.DeviceLabel;var profileName=ProfileName;
         feedbackKey=null;
-        try {await physical.WithKeyUsbAsync(()=>WriteConnectedAsync(profile,key,new(gesture!,label),profileName));}
+        try {await physical.WithKeyRouteAsync(()=>WriteConnectedAsync(profile,key,new(gesture!,label),profileName));}
         catch(ProductRouteException ex){feedbackKey=ex.Key;}
         catch(Exception ex)when(ex is not OutOfMemoryException){feedbackKey="ProductUsbConnectFailed";}
         finally{Refresh();}

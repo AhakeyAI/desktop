@@ -938,5 +938,58 @@
 <data name="Firmware" xml:space="preserve"><value>固件</value></data>
   <data name="KeyReadObservation" xml:space="preserve"><value>设备读取记录</value></data>
   <data name="DisplayTimingSummary" xml:space="preserve"><value>源帧数 {0} · {1} 毫秒 → 每帧 {2} 毫秒 · 输出时长 {3} 毫秒</value></data>
-  <data name="FirmwarePackageNotIncluded" xml:space="preserve"><value>此发行包不包含固件镜像</value></data>
+<data name="StartupWithWindows" xml:space="preserve"><value>登录 Windows 时启动 AhaKey Studio</value></data>
+<data name="StartupTrayHint" xml:space="preserve"><value>启动到系统托盘，不打开主窗口。</value></data>
+<data name="TrayDisconnectNotifications" xml:space="preserve"><value>设备意外断开时通知我</value></data>
+<data name="TrayOpen" xml:space="preserve"><value>打开 AhaKey Studio</value></data>
+<data name="TrayExit" xml:space="preserve"><value>退出</value></data>
+<data name="TrayPause" xml:space="preserve"><value>暂停集成</value></data>
+<data name="TrayResume" xml:space="preserve"><value>恢复集成</value></data>
+<data name="TrayFirstClose" xml:space="preserve"><value>AhaKey Studio 将继续在系统托盘中运行，让集成、蓝牙和设备反馈保持工作。</value></data>
+<data name="TrayGotIt" xml:space="preserve"><value>知道了</value></data>
+<data name="TrayExitInstead" xml:space="preserve"><value>直接退出</value></data>
+<data name="TrayDontShow" xml:space="preserve"><value>不再显示</value></data>
+<data name="TrayBusy" xml:space="preserve"><value>设备操作正在进行。请等待完成后退出。</value></data>
+<data name="TrayWait" xml:space="preserve"><value>等待</value></data>
+<data name="TrayDevice" xml:space="preserve"><value>设备</value></data>
+<data name="TrayFeedback" xml:space="preserve"><value>设备反馈</value></data>
+<data name="TrayDisconnected" xml:space="preserve"><value>设备意外断开</value></data>
+<data name="FirmwareCheckingComponents" xml:space="preserve"><value>检查固件包和 USB 更新组件。</value></data>
+<data name="FirmwareComponentMissing" xml:space="preserve"><value>固件更新组件缺失或与已验证版本不同。请安装官方 WCH 软件包。正常蓝牙和 USB 功能不受影响。</value></data>
+<data name="FirmwareDriverMissing" xml:space="preserve"><value>固件更新需要 AhaKey USB 更新驱动程序。</value></data>
+<data name="FirmwareComponentsReady" xml:space="preserve"><value>已找到经过验证的 WCH 更新组件及驱动注册。编程前将检测 ISP 设备。</value></data>
+<data name="FirmwarePreflight" xml:space="preserve"><value>检查更新准备情况</value></data>
+<data name="FirmwareSetup" xml:space="preserve"><value>安装更新组件</value></data>
+<data name="FirmwareCancel" xml:space="preserve"><value>编程前取消</value></data>
+<data name="FirmwareUpdate" xml:space="preserve"><value>更新固件</value></data>
+<data name="FirmwareRecovery" xml:space="preserve"><value>恢复说明</value></data>
+<data name="FirmwareRunning" xml:space="preserve"><value>正在编程和校验。请保持 USB 供电。</value></data>
+<data name="FirmwareWorkerStillRunning" xml:space="preserve"><value>编程器仍在运行。Studio 将继续等待；请勿断开电源或终止进程。</value></data>
+<data name="FirmwareSetupFailed" xml:space="preserve"><value>更新组件安装未完成。正常设备功能仍可使用。</value></data>
+<data name="FirmwareCompleted" xml:space="preserve"><value>已验证固件和设备身份。</value></data>
+<data name="FirmwareStopped" xml:space="preserve"><value>更新停止，完成状态未确认。请查看更新日志。</value></data>
+<data name="FirmwareRecoveryRequired" xml:space="preserve"><value>需要恢复。编程或应用验证尚未确认。请勿重置显示资源。</value></data>
+<data name="FirmwareFlashConfirmation" xml:space="preserve"><value>重新安装已验证的 1.4.8 固件包？MCU 代码闪存将被替换。本计划不会擦除 DataFlash 或外部显示闪存。配置迁移不等于备份。请保持 USB 供电。Studio 等待引导程序时，按本设备已确认的步骤进入 ISP 模式。编程后按需重新连接到正常模式。</value></data>
+<data name="FirmwareRecoveryInstructions" xml:space="preserve"><value>MCU 固件恢复与显示资源恢复独立。使用适用于本电路板的已确认启动步骤，只连接一个 ISP 设备，选择已验证的 1.4.8 软件包并明确重试。不执行自动恢复出厂设置。如果应用固件未返回，请保留日志，不要认定更新成功。</value></data>
+<data name="FirmwareStateIdle" xml:space="preserve"><value>未运行更新</value></data>
+<data name="FirmwareStatePreflight" xml:space="preserve"><value>检查更新</value></data>
+<data name="FirmwareStateWaitingForDevice" xml:space="preserve"><value>等待 USB 设备</value></data>
+<data name="FirmwareStateEnteringBootloader" xml:space="preserve"><value>等待 ISP 引导程序</value></data>
+<data name="FirmwareStateBootloaderDetected" xml:space="preserve"><value>已检测到 ISP</value></data>
+<data name="FirmwareStateErasing" xml:space="preserve"><value>擦除中</value></data>
+<data name="FirmwareStateProgramming" xml:space="preserve"><value>编程中</value></data>
+<data name="FirmwareStateVerifying" xml:space="preserve"><value>校验中</value></data>
+<data name="FirmwareStateRebooting" xml:space="preserve"><value>返回应用</value></data>
+<data name="FirmwareStateWaitingForApplication" xml:space="preserve"><value>等待应用固件</value></data>
+<data name="FirmwareStateValidatingFirmware" xml:space="preserve"><value>检查 00 / 9F 身份</value></data>
+<data name="FirmwareStateCompleted" xml:space="preserve"><value>已完成</value></data>
+<data name="FirmwareStateFailed" xml:space="preserve"><value>已停止</value></data>
+<data name="FirmwareStateRecoveryRequired" xml:space="preserve"><value>需要恢复</value></data>
+<data name="InstallerCloseStudio" xml:space="preserve"><value>请从托盘菜单退出 AhaKey Studio，再运行卸载。不会中断正在进行的设备写入。</value></data>
+<data name="InstallerRemoveData" xml:space="preserve"><value>是否同时永久删除本地 AhaKey 项目、资源、设置和日志？选择“否”保留数据（推荐）。</value></data>
+<data name="FirmwareBootInstructions" xml:space="preserve"><value>Studio 等待 ISP 时：断开 USB 并关闭 AD1E。按住 Record，连接 USB 电源，几秒后松开。仅连接此设备。写入过程中切勿断开 USB。</value></data>
+<data name="FirmwareReconnectInstructions" xml:space="preserve"><value>写入已完成。如果 AD1E 未自动返回，请重新连接 USB，不要按住 Record。Studio 将验证固件和设备功能。</value></data>
+<data name="FirmwareRetry" xml:space="preserve"><value>重试固件写入</value></data>
+<data name="FirmwareInstalled" xml:space="preserve"><value>已安装</value></data>
+<data name="FirmwareAvailable" xml:space="preserve"><value>可用固件包</value></data>
 </root>

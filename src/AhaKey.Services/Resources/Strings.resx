@@ -938,5 +938,58 @@
 <data name="Firmware" xml:space="preserve"><value>Firmware</value></data>
   <data name="KeyReadObservation" xml:space="preserve"><value>Read from device at</value></data>
   <data name="DisplayTimingSummary" xml:space="preserve"><value>{0} source frames · {1} ms → {2} ms/frame · output duration {3} ms</value></data>
-  <data name="FirmwarePackageNotIncluded" xml:space="preserve"><value>Firmware image not included in this distribution</value></data>
+<data name="StartupWithWindows" xml:space="preserve"><value>Start AhaKey Studio with Windows</value></data>
+<data name="StartupTrayHint" xml:space="preserve"><value>Starts in the system tray. Your main window stays closed.</value></data>
+<data name="TrayDisconnectNotifications" xml:space="preserve"><value>Notify me when the device disconnects unexpectedly</value></data>
+<data name="TrayOpen" xml:space="preserve"><value>Open AhaKey Studio</value></data>
+<data name="TrayExit" xml:space="preserve"><value>Exit</value></data>
+<data name="TrayPause" xml:space="preserve"><value>Pause integrations</value></data>
+<data name="TrayResume" xml:space="preserve"><value>Resume integrations</value></data>
+<data name="TrayFirstClose" xml:space="preserve"><value>AhaKey Studio will keep running in the system tray so integrations, Bluetooth and device feedback continue to work.</value></data>
+<data name="TrayGotIt" xml:space="preserve"><value>Got it</value></data>
+<data name="TrayExitInstead" xml:space="preserve"><value>Exit instead</value></data>
+<data name="TrayDontShow" xml:space="preserve"><value>Don’t show again</value></data>
+<data name="TrayBusy" xml:space="preserve"><value>Device operation is in progress. Wait for it to finish before exiting.</value></data>
+<data name="TrayWait" xml:space="preserve"><value>Wait</value></data>
+<data name="TrayDevice" xml:space="preserve"><value>Device</value></data>
+<data name="TrayFeedback" xml:space="preserve"><value>Physical feedback</value></data>
+<data name="TrayDisconnected" xml:space="preserve"><value>Device disconnected unexpectedly</value></data>
+<data name="FirmwareCheckingComponents" xml:space="preserve"><value>Check the firmware package and USB update components.</value></data>
+<data name="FirmwareComponentMissing" xml:space="preserve"><value>Firmware update component is missing or differs from the verified version. Install the official WCH package. Normal BLE and USB use remains available.</value></data>
+<data name="FirmwareDriverMissing" xml:space="preserve"><value>Firmware updates require the AhaKey USB update driver.</value></data>
+<data name="FirmwareComponentsReady" xml:space="preserve"><value>Verified WCH update component and driver registration found. ISP device detection is checked before programming.</value></data>
+<data name="FirmwarePreflight" xml:space="preserve"><value>Check update readiness</value></data>
+<data name="FirmwareSetup" xml:space="preserve"><value>Install update component</value></data>
+<data name="FirmwareCancel" xml:space="preserve"><value>Cancel before programming</value></data>
+<data name="FirmwareUpdate" xml:space="preserve"><value>Update firmware</value></data>
+<data name="FirmwareRecovery" xml:space="preserve"><value>Recovery instructions</value></data>
+<data name="FirmwareRunning" xml:space="preserve"><value>Programming and verifying. Keep USB power connected.</value></data>
+<data name="FirmwareWorkerStillRunning" xml:space="preserve"><value>The programmer is still running. Studio will wait; do not disconnect power or terminate the process.</value></data>
+<data name="FirmwareSetupFailed" xml:space="preserve"><value>Update component setup did not complete. Normal device use is still available.</value></data>
+<data name="FirmwareCompleted" xml:space="preserve"><value>Firmware and device identity verified.</value></data>
+<data name="FirmwareStopped" xml:space="preserve"><value>Update stopped before confirmed completion. Review the update journal.</value></data>
+<data name="FirmwareRecoveryRequired" xml:space="preserve"><value>Recovery required. Programming or application verification was not confirmed. Do not reset Display assets.</value></data>
+<data name="FirmwareFlashConfirmation" xml:space="preserve"><value>Reinstall the verified 1.4.8 package? MCU code flash will be replaced. DataFlash and external Display flash are not erased by this plan. Configuration migration is not a backup. Keep USB power connected. Put this unit into ISP mode using its confirmed hardware procedure when Studio waits for the bootloader. Reconnect normally after programming if required.</value></data>
+<data name="FirmwareRecoveryInstructions" xml:space="preserve"><value>Keep MCU firmware recovery separate from Display assets. Use the confirmed boot procedure for your board, connect only one ISP device, choose the verified 1.4.8 package and explicitly retry. No automatic factory reset is performed. If application firmware does not return, retain the update journal and do not claim success.</value></data>
+<data name="FirmwareStateIdle" xml:space="preserve"><value>No update running</value></data>
+<data name="FirmwareStatePreflight" xml:space="preserve"><value>Checking update</value></data>
+<data name="FirmwareStateWaitingForDevice" xml:space="preserve"><value>Waiting for USB device</value></data>
+<data name="FirmwareStateEnteringBootloader" xml:space="preserve"><value>Waiting for ISP bootloader</value></data>
+<data name="FirmwareStateBootloaderDetected" xml:space="preserve"><value>ISP detected</value></data>
+<data name="FirmwareStateErasing" xml:space="preserve"><value>Erasing</value></data>
+<data name="FirmwareStateProgramming" xml:space="preserve"><value>Programming</value></data>
+<data name="FirmwareStateVerifying" xml:space="preserve"><value>Verifying</value></data>
+<data name="FirmwareStateRebooting" xml:space="preserve"><value>Returning to application</value></data>
+<data name="FirmwareStateWaitingForApplication" xml:space="preserve"><value>Waiting for application firmware</value></data>
+<data name="FirmwareStateValidatingFirmware" xml:space="preserve"><value>Checking 00 / 9F identity</value></data>
+<data name="FirmwareStateCompleted" xml:space="preserve"><value>Completed</value></data>
+<data name="FirmwareStateFailed" xml:space="preserve"><value>Stopped</value></data>
+<data name="FirmwareStateRecoveryRequired" xml:space="preserve"><value>Recovery required</value></data>
+<data name="InstallerCloseStudio" xml:space="preserve"><value>Exit AhaKey Studio from its tray menu, then run uninstall again. An active device write will not be interrupted.</value></data>
+<data name="InstallerRemoveData" xml:space="preserve"><value>Also permanently remove your local AhaKey projects, assets, settings and journals? Choose No to keep them (recommended).</value></data>
+<data name="FirmwareBootInstructions" xml:space="preserve"><value>When Studio is waiting for ISP: disconnect USB and switch AD1E off. Hold Record, connect USB power while holding it, then release after a few seconds. Connect only this device. Never disconnect during programming.</value></data>
+<data name="FirmwareReconnectInstructions" xml:space="preserve"><value>Programming has finished. If AD1E has not returned automatically, reconnect USB without holding Record. Studio will verify its firmware and capabilities.</value></data>
+<data name="FirmwareRetry" xml:space="preserve"><value>Retry programming</value></data>
+<data name="FirmwareInstalled" xml:space="preserve"><value>Installed</value></data>
+<data name="FirmwareAvailable" xml:space="preserve"><value>Available package</value></data>
 </root>

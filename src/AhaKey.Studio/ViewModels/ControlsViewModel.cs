@@ -40,7 +40,7 @@ public sealed class ControlsViewModel:ObservableObject
     private int brightnessValue=35;private bool brightnessDirty;private DateTimeOffset? brightnessStatusAt;
     public int BrightnessValue {get=>brightnessValue;set{int next=Math.Clamp(value,1,100);if(next==brightnessValue)return;brightnessValue=next;brightnessDirty=true;OnPropertyChanged();OnPropertyChanged(nameof(BrightnessDirty));ApplyBrightnessCommand.NotifyCanExecuteChanged();}}
     public bool BrightnessDirty=>brightnessDirty;
-    public bool CanConfigureLighting=>manager.RealDevice?.Observation.IsLive==true&&manager.RealDevice.ActiveTransport==PhysicalTransportKind.Usb&&runtime.Features.CanSetBrightness().Available&&!busy;
+    public bool CanConfigureLighting=>manager.RealDevice?.Observation.IsLive==true&&runtime.Features.CanSetBrightness().Available&&!busy;
     public AsyncRelayCommand ApplyBrightnessCommand {get;}
     public AsyncRelayCommand ApplyMappingCommand {get;}
     public AsyncRelayCommand StopPreviewCommand {get;}

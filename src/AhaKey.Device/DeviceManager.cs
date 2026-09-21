@@ -61,6 +61,7 @@ public sealed class DeviceManager(IAhaKeyDevice device, ConfigurationChangeTrack
     }
     public async Task UploadDisplayAsync(ApprovedDisplayUpload approval,Action<DisplayTransferEvidence> record,Action<DisplayResponseEvidence> responseRecord,CancellationToken ct=default)
     {
+        if(realDevice is not null)gate.RequireRoute(OperationRequirement.UploadDisplayBulk,realDevice.ActiveTransport);
         if(!RealBackendSelected || realDevice is null || !await gate.WaitAsync(0,ct))throw new InvalidOperationException("Real idle device required.");
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,lifetime.Token);
         linked.CancelAfter(TimeSpan.FromMinutes(5));

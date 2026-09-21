@@ -24,9 +24,18 @@
    <TextBlock Text="{Binding Current}" Style="{StaticResource Body}" Margin="0,12,0,8"/>
    <TextBlock Text="{Binding Package}" Style="{StaticResource Secondary}"/>
    <TextBlock Text="{Binding Availability}" Style="{StaticResource Secondary}" Margin="0,8,0,12"/>
+   <TextBlock Text="{Binding State}" Style="{StaticResource Body}" Margin="0,0,0,12" AutomationProperties.LiveSetting="Polite"/>
+   <WrapPanel><Button Content="{Binding L[FirmwarePreflight]}" Command="{Binding VerifyCommand}" Margin="0,0,12,12"/><Button Content="{Binding L[FirmwareSetup]}" Command="{Binding SetupCommand}" Visibility="{Binding NeedsSetup,Converter={StaticResource BoolVisibility}}" Margin="0,0,12,12"/><Button Content="{Binding L[FirmwareCancel]}" Command="{Binding CancelCommand}" Visibility="{Binding CanCancel,Converter={StaticResource BoolVisibility}}"/></WrapPanel>
+   <TextBlock Text="{Binding BootInstructions}" Visibility="{Binding ShowBootInstructions,Converter={StaticResource BoolVisibility}}" Style="{StaticResource Body}" Margin="0,0,0,12"/>
+   <Button Content="{Binding L[FirmwareUpdate]}" Command="{Binding ReinstallCommand}" Visibility="{Binding HasNewerPackage,Converter={StaticResource BoolVisibility}}" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+   <TextBlock Text="{Binding Result}" Style="{StaticResource Secondary}" Margin="0,0,0,12" AutomationProperties.LiveSetting="Polite"/>
+    <Button Content="{Binding L[FirmwareRetry]}" Command="{Binding RetryCommand}" Visibility="{Binding NeedsRecovery,Converter={StaticResource BoolVisibility}}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+   <Button Content="{Binding L[FirmwareRecovery]}" Command="{Binding RecoveryCommand}" Visibility="{Binding NeedsRecovery,Converter={StaticResource BoolVisibility}}" HorizontalAlignment="Left" Margin="0,8,0,12"/>
    <Expander Header="{Binding L[Advanced]}" Foreground="{DynamicResource TextPrimary}"><StackPanel>
-    <WrapPanel Margin="0,12,0,0"><Button Content="{Binding L[FirmwareVerifyPackage]}" Command="{Binding VerifyCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[FirmwareChooseFile]}" Command="{Binding ChooseCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[FirmwareReinstall]}" IsEnabled="False" ToolTip="{Binding Availability}" Margin="0,0,0,8"/></WrapPanel>
-    <TextBlock Text="{Binding Result}" Style="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/>
+    <TextBlock Text="{Binding Details}" Style="{StaticResource Secondary}" Margin="0,12,0,8"/>
+    <WrapPanel Margin="0,12,0,0"><Button Content="{Binding L[FirmwareVerifyPackage]}" Command="{Binding VerifyCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[FirmwareChooseFile]}" Command="{Binding ChooseCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[FirmwareReinstall]}" Command="{Binding ReinstallCommand}" Margin="0,0,0,8"/></WrapPanel>
+
+    <Button Content="{Binding L[FirmwareRecovery]}" Command="{Binding RecoveryCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
    </StackPanel></Expander>
   </StackPanel></Border>
  </StackPanel>

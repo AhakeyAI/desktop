@@ -16,6 +16,7 @@ public partial class App : Application
     private IHost? host;
     private SingleInstanceOwner? instance;
     private ILogger? logger;
+    private TrayLifetime? tray;
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -24,6 +25,32 @@ public partial class App : Application
         DispatcherUnhandledException+=(_,args)=>CrashEvidence.Record(args.Exception,"Dispatcher");
         try
         {
+            if(e.Args.Length==2 && e.Args[0]=="--phase9-key-observation")
+            {
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                try{await Phase9BleAcceptance.ObserveKeysAsync(e.Args[1]);Shutdown(0);}
+                catch(Exception ex){File.WriteAllText(Path.Combine(e.Args[1],"observation-error.txt"),ex.ToString());Shutdown(2);}return;
+            }
+            if(e.Args.Length==2 && e.Args[0]=="--phase9-display-acceptance")
+            {
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                try{await Phase9DisplayAcceptance.RunAsync(e.Args[1]);Shutdown(0);}
+                catch(Exception ex){File.WriteAllText(Path.Combine(e.Args[1],"error.txt"),ex.ToString());Shutdown(2);}return;
+            }
+            if(e.Args.Length==2 && e.Args[0]=="--phase9-ble-acceptance")
+            {
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                try{await Phase9BleAcceptance.RunAsync(e.Args[1]);Shutdown(0);}
+                catch(Exception ex){Directory.CreateDirectory(e.Args[1]);File.WriteAllText(Path.Combine(e.Args[1],"error.txt"),ex.ToString());Shutdown(2);}return;
+            }
+            if(e.Args.Length==2 && e.Args[0]=="--installer-cleanup")
+            {ShutdownMode=ShutdownMode.OnExplicitShutdown;Shutdown(InstallerCleanup.Run(int.TryParse(e.Args[1],out var uiLevel)&&uiLevel>=3));return;}
+            if(e.Args.Length==2 && e.Args[0]=="--firmware-worker")
+            {
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                try{Shutdown(await WchProcessRunner.RunWorkerAsync(e.Args[1]));}
+                catch(Exception ex){CrashEvidence.Record(ex,"Firmware worker stopped");Shutdown(2);}return;
+            }
             if(e.Args.Length==3 && e.Args[0] is "--phase61-ble-rgb-trial" or "--phase61-promote-ble")
             {
                 ShutdownMode=ShutdownMode.OnExplicitShutdown;
@@ -99,7 +126,8 @@ public partial class App : Application
             var integrationsSmoke=e.Args.Length==2 && e.Args[0]=="--integrations-smoke";
             var hardware=e.Args.Length==3 && e.Args[0]=="--ble-acceptance";
             var legacySmoke=e.Args.Length==2 && e.Args[0]=="--legacy-diagnostics-smoke";
-            var productSmoke=Phase8Repro.Output is not null || e.Args.Length==2 && e.Args[0]=="--product-smoke";
+            var phase9Smoke=e.Args.Length==2 && e.Args[0]=="--phase9-runtime-smoke";
+            var productSmoke=phase9Smoke || Phase8Repro.Output is not null || e.Args.Length==2 && e.Args[0]=="--product-smoke";
             var usbSmoke=productSmoke || e.Args.Length==2 && e.Args[0]=="--usb-diagnostics-smoke";
             var smoke = e.Args.Length == 2 && e.Args[0] == "--smoke-test";
             var root = smoke || hardware || legacySmoke || usbSmoke || integrationsSmoke || integrationAcceptance ? Path.Combine(Path.GetFullPath(e.Args[1]), "isolated-settings", Guid.NewGuid().ToString("N")) : null;
@@ -110,7 +138,7 @@ public partial class App : Application
                 instance=new(settingsStore.Root);
                 if(!instance.IsPrimary){await instance.ActivateAsync();Shutdown(0);return;}
                 instance.ActivationRequested+=()=>Dispatcher.BeginInvoke(()=>
-                {if(MainWindow is {} window){if(window.WindowState==WindowState.Minimized)window.WindowState=WindowState.Normal;window.Show();window.Activate();}});
+                {if(tray is not null)tray.Show();else if(MainWindow is {} window){if(window.WindowState==WindowState.Minimized)window.WindowState=WindowState.Normal;window.Show();window.Activate();}});
             }
             var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
             builder.Services.AddSingleton(settingsStore);
@@ -133,6 +161,7 @@ public partial class App : Application
                 builder.Services.AddSingleton<UsbTransport>();
                 builder.Services.AddSingleton<RealAhaKeyDevice>();
             }
+            builder.Services.AddSingleton<FirmwareRuntime>();builder.Services.AddSingleton<FirmwareViewModel>();
             builder.Services.AddSingleton<PhysicalControlRuntime>();builder.Services.AddSingleton<ControlsViewModel>();builder.Services.AddSingleton<DisplayPlannerViewModel>();
             builder.Services.AddSingleton<IntegrationRuntime>();builder.Services.AddSingleton<IntegrationsViewModel>();
             builder.Services.AddSingleton<BleViewModel>();builder.Services.AddSingleton<DeviceManager>();builder.Services.AddSingleton<RealDeviceRuntime>(); builder.Services.AddSingleton<ProfilesViewModel>();
@@ -144,6 +173,7 @@ public partial class App : Application
             host.Services.GetRequiredService<LocalizationService>().Apply(settings.Language);
             host.Services.GetRequiredService<ThemeService>().Apply(settings.Theme);
             var manager = host.Services.GetRequiredService<DeviceManager>();
+            SessionEnding+=(_,args)=>{if(manager.Operations.Current is {Persistent:true})args.Cancel=true;};
             await manager.SelectBackendAsync(!smoke && settings.EffectiveBackend == BackendChoice.Real);
             logger.LogInformation("Backend {Backend}",manager.RealBackendSelected?"Real BLE":"Mock Simulation");
             var drafts=host.Services.GetRequiredService<LocalDraftStore>();
@@ -165,22 +195,31 @@ public partial class App : Application
                 approvalWindow?.Close();approvalWindow=null;
                 if(request is not null && !request.Decision.IsCompleted){approvalWindow=new(request,host.Services.GetRequiredService<LocalizationService>()){Owner=MainWindow};approvalWindow.Show();}
             });
-            bool closing=false;
-            MainWindow.Closing+=async (_,args)=>
+            var normalRun=!smoke&&!productSmoke&&!usbSmoke&&!legacySmoke&&!integrationsSmoke&&!hardware&&!integrationAcceptance;
+            if(normalRun)
             {
-                if(closing)return;args.Cancel=true;closing=true;MainWindow.IsEnabled=false;
-                try {await integrations.DisposeAsync();await runtime.DisconnectAsync();if(manager.RealDevice is {} real)await real.DisposeAsync();}
-                catch(Exception ex){logger.LogError(ex,"Closing BLE session");}
-                finally{logger.LogInformation("Exit: session released");_ = Dispatcher.BeginInvoke(()=>MainWindow.Close());}
-            };
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                tray=new TrayLifetime(MainWindow,host.Services.GetRequiredService<ShellViewModel>(),host.Services.GetRequiredService<ProfileSelectionService>(),integrations,runtime,async()=>
+                {
+                    await integrations.DisposeAsync();await runtime.DisconnectAsync();
+                    if(manager.RealDevice is {} real)await real.DisposeAsync();
+                    logger.LogInformation("Exit: sessions released");
+                });
+            }
             if(Phase8Repro.Output is not null && Phase8Repro.Scenario!="manual")
             {MainWindow.ShowActivated=false;MainWindow.ShowInTaskbar=false;MainWindow.WindowStartupLocation=WindowStartupLocation.Manual;MainWindow.Left=-10000;MainWindow.Top=-10000;}
-            MainWindow.Show();
+            if(normalRun && e.Args.Contains("--tray"))
+            {
+                MainWindow.ShowActivated=false;MainWindow.ShowInTaskbar=false;
+                new System.Windows.Interop.WindowInteropHelper(MainWindow).EnsureHandle();
+                host.Services.GetRequiredService<ShellViewModel>().DisplayPlanner.SetPreviewVisible(false);
+            }
+            else {MainWindow.Show();host.Services.GetRequiredService<ShellViewModel>().DisplayPlanner.SetPreviewVisible(true);}
             if(!smoke&&!productSmoke&&!usbSmoke&&!legacySmoke&&!integrationsSmoke&&!hardware&&!integrationAcceptance)host.Services.GetRequiredService<VoiceRoutingRuntime>().Attach(MainWindow);
             if(integrationAcceptance){await CodexAcceptance.RunUiAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
             if(integrationsSmoke){await IntegrationsSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
             if(legacySmoke){await LegacyDiagnosticsSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
-            if(usbSmoke){if(Phase8Repro.Output is not null)await Phase8Repro.RunAsync(MainWindow,host.Services);else if(productSmoke)await ProductSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));else await UsbDiagnosticsSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
+            if(usbSmoke){if(phase9Smoke)await Phase9RuntimeSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));else if(Phase8Repro.Output is not null)await Phase8Repro.RunAsync(MainWindow,host.Services);else if(productSmoke)await ProductSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));else await UsbDiagnosticsSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
             if(!smoke && !hardware && !legacySmoke && !usbSmoke && !integrationsSmoke && !integrationAcceptance){await runtime.StartAsync();await host.Services.GetRequiredService<IntegrationRuntime>().InitializeAsync();}
             if(hardware){await BleHardwareAcceptance.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]),e.Args[2]);Shutdown(0);}
             if (smoke)
@@ -205,6 +244,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         if (host is not null) { host.StopAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult(); if(host is IAsyncDisposable asyncHost)asyncHost.DisposeAsync().AsTask().GetAwaiter().GetResult();else host.Dispose(); }
+        tray?.Dispose();
         instance?.Dispose();
         base.OnExit(e);
     }

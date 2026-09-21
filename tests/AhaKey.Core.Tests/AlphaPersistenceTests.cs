@@ -40,7 +40,7 @@ public sealed class AlphaPersistenceTests : IDisposable
         var dir=new DirectoryInfo(AppContext.BaseDirectory);while(dir is not null && !File.Exists(Path.Combine(dir.FullName,"AhaKeyStudio.sln")))dir=dir.Parent;Assert.NotNull(dir);
         var project=System.Xml.Linq.XDocument.Load(Path.Combine(dir.FullName,"src/AhaKey.Studio/AhaKey.Studio.csproj"));
         var profile=System.Xml.Linq.XDocument.Load(Path.Combine(dir.FullName,"src/AhaKey.Studio/Properties/PublishProfiles/WinX64Alpha.pubxml"));
-        Assert.Equal("WinExe",project.Descendants("OutputType").Single().Value);Assert.Equal("AhaKey Studio",project.Descendants("AssemblyName").Single().Value);Assert.Contains("alpha",project.Descendants("Version").Single().Value);Assert.Equal("win-x64",profile.Descendants("RuntimeIdentifier").Single().Value);Assert.Equal("true",profile.Descendants("SelfContained").Single().Value);
+        Assert.Equal("WinExe",project.Descendants("OutputType").Single().Value);Assert.Equal("AhaKey Studio",project.Descendants("AssemblyName").Single().Value);Assert.Contains("alpha",System.Xml.Linq.XDocument.Load(Path.Combine(dir.FullName,"Directory.Build.props")).Descendants("Version").Single().Value);Assert.Equal("win-x64",profile.Descendants("RuntimeIdentifier").Single().Value);Assert.Equal("true",profile.Descendants("SelfContained").Single().Value);
     }
     public void Dispose(){if(Directory.Exists(root))Directory.Delete(root,true);}
 }

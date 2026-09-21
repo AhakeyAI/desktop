@@ -43,11 +43,11 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty] private int simulatedBattery = 91;
     [ObservableProperty] private string? noticeKey;
     public ShellViewModel(DeviceManager manager, MockAhaKeyDevice mock, LocalizationService l, ProfilesViewModel profiles,
-        SettingsViewModel settings, SessionLogProvider logs, SettingsStore store, KeymapViewModel keymap, BleViewModel ble,LocalDraftStore drafts,IntegrationsViewModel integrations,ControlsViewModel controls,DisplayPlannerViewModel displayPlanner,ProfileSelectionService preferences,Services.ProfileActivationRuntime activation,ProjectViewModel project)
+        SettingsViewModel settings, SessionLogProvider logs, SettingsStore store, KeymapViewModel keymap, BleViewModel ble,LocalDraftStore drafts,IntegrationsViewModel integrations,ControlsViewModel controls,DisplayPlannerViewModel displayPlanner,ProfileSelectionService preferences,Services.ProfileActivationRuntime activation,ProjectViewModel project,FirmwareViewModel firmware)
     {
         this.preferences=preferences;Activation=activation;activation.Changed+=Refresh;preferences.Changed+=Refresh;integrations.Manager.Changed+=Refresh;controls.PropertyChanged+=(_,_)=>Refresh();displayPlanner.PropertyChanged+=(_,_)=>Refresh();displayPlanner.ConnectionRequested+=()=>OpenDevice();
         Controls=controls;DisplayPlanner=displayPlanner;Integrations=integrations;this.drafts=drafts;Ble=ble;Ble.PropertyChanged+=(_,_)=>Refresh();Keymap=keymap; Keymap.PropertyChanged+=(_,_)=>Refresh();
-        Firmware=new(manager,l);Project=project;Manager = manager; this.mock = mock; L = l; Profiles = profiles; Settings = settings; this.logs = logs; this.store = store;
+        Firmware=firmware;Project=project;Manager = manager; this.mock = mock; L = l; Profiles = profiles; Settings = settings; this.logs = logs; this.store = store;
         controls.SetupRequested+=()=>OpenProductPage("Integrations");
         keymap.VoiceRequested+=()=>{if(Project.VoiceConfigured)Project.TestVoiceAction();else OpenSettings();};
         keymap.KeyTestActive+=Project.SuspendVoice;

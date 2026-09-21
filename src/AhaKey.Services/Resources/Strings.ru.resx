@@ -938,5 +938,58 @@
 <data name="Firmware" xml:space="preserve"><value>Прошивка</value></data>
   <data name="KeyReadObservation" xml:space="preserve"><value>Прочитано с устройства</value></data>
   <data name="DisplayTimingSummary" xml:space="preserve"><value>{0} кадров в источнике · {1} мс → {2} мс/кадр · итоговая длительность {3} мс</value></data>
-  <data name="FirmwarePackageNotIncluded" xml:space="preserve"><value>Образ прошивки не включён в эту сборку</value></data>
+<data name="StartupWithWindows" xml:space="preserve"><value>Запускать AhaKey Studio вместе с Windows</value></data>
+<data name="StartupTrayHint" xml:space="preserve"><value>Запуск в системном трее, без открытия главного окна.</value></data>
+<data name="TrayDisconnectNotifications" xml:space="preserve"><value>Уведомлять о неожиданном отключении устройства</value></data>
+<data name="TrayOpen" xml:space="preserve"><value>Открыть AhaKey Studio</value></data>
+<data name="TrayExit" xml:space="preserve"><value>Выйти</value></data>
+<data name="TrayPause" xml:space="preserve"><value>Приостановить интеграции</value></data>
+<data name="TrayResume" xml:space="preserve"><value>Возобновить интеграции</value></data>
+<data name="TrayFirstClose" xml:space="preserve"><value>AhaKey Studio продолжит работу в системном трее: интеграции, Bluetooth и отклик устройства останутся активны.</value></data>
+<data name="TrayGotIt" xml:space="preserve"><value>Понятно</value></data>
+<data name="TrayExitInstead" xml:space="preserve"><value>Выйти из приложения</value></data>
+<data name="TrayDontShow" xml:space="preserve"><value>Больше не показывать</value></data>
+<data name="TrayBusy" xml:space="preserve"><value>Выполняется операция с устройством. Дождитесь её завершения перед выходом.</value></data>
+<data name="TrayWait" xml:space="preserve"><value>Подождать</value></data>
+<data name="TrayDevice" xml:space="preserve"><value>Устройство</value></data>
+<data name="TrayFeedback" xml:space="preserve"><value>Отклик устройства</value></data>
+<data name="TrayDisconnected" xml:space="preserve"><value>Устройство неожиданно отключилось</value></data>
+<data name="FirmwareCheckingComponents" xml:space="preserve"><value>Проверьте пакет прошивки и компоненты USB-обновления.</value></data>
+<data name="FirmwareComponentMissing" xml:space="preserve"><value>Компонент прошивки отсутствует или отличается от проверенной версии. Установите официальный пакет WCH. Обычная работа по BLE и USB доступна.</value></data>
+<data name="FirmwareDriverMissing" xml:space="preserve"><value>Для обновления прошивки нужен USB-драйвер обновления AhaKey.</value></data>
+<data name="FirmwareComponentsReady" xml:space="preserve"><value>Проверенный компонент WCH и регистрация драйвера найдены. Устройство ISP проверяется перед записью.</value></data>
+<data name="FirmwarePreflight" xml:space="preserve"><value>Проверить готовность к обновлению</value></data>
+<data name="FirmwareSetup" xml:space="preserve"><value>Установить компонент обновления</value></data>
+<data name="FirmwareCancel" xml:space="preserve"><value>Отменить до начала записи</value></data>
+<data name="FirmwareUpdate" xml:space="preserve"><value>Обновить прошивку</value></data>
+<data name="FirmwareRecovery" xml:space="preserve"><value>Инструкция восстановления</value></data>
+<data name="FirmwareRunning" xml:space="preserve"><value>Запись и проверка. Не отключайте USB-питание.</value></data>
+<data name="FirmwareWorkerStillRunning" xml:space="preserve"><value>Программатор ещё работает. Studio ждёт завершения; не отключайте питание и не завершайте процесс.</value></data>
+<data name="FirmwareSetupFailed" xml:space="preserve"><value>Установка компонента не завершена. Обычная работа устройства доступна.</value></data>
+<data name="FirmwareCompleted" xml:space="preserve"><value>Прошивка и идентификация устройства проверены.</value></data>
+<data name="FirmwareStopped" xml:space="preserve"><value>Обновление остановлено без подтверждения завершения. Проверьте журнал.</value></data>
+<data name="FirmwareRecoveryRequired" xml:space="preserve"><value>Нужно восстановление. Запись или проверка приложения не подтверждена. Не сбрасывайте ресурсы Display.</value></data>
+<data name="FirmwareFlashConfirmation" xml:space="preserve"><value>Переустановить проверенный пакет 1.4.8? Код MCU будет заменён. Этот план не стирает DataFlash и внешнюю память Display. Миграция настроек не заменяет резервную копию. Не отключайте USB-питание. Когда Studio ожидает загрузчик, переведите устройство в ISP подтверждённым для него способом. После записи при необходимости подключите его в обычном режиме.</value></data>
+<data name="FirmwareRecoveryInstructions" xml:space="preserve"><value>Восстановление прошивки MCU не требует сброса Display. Используйте подтверждённый способ входа в загрузчик для своей платы, подключите только одно устройство ISP, выберите проверенный пакет 1.4.8 и явно повторите запись. Автоматического заводского сброса нет. Если приложение не вернулось, сохраните журнал — успех не подтверждён.</value></data>
+<data name="FirmwareStateIdle" xml:space="preserve"><value>Обновление не запущено</value></data>
+<data name="FirmwareStatePreflight" xml:space="preserve"><value>Проверка обновления</value></data>
+<data name="FirmwareStateWaitingForDevice" xml:space="preserve"><value>Ожидание USB-устройства</value></data>
+<data name="FirmwareStateEnteringBootloader" xml:space="preserve"><value>Ожидание загрузчика ISP</value></data>
+<data name="FirmwareStateBootloaderDetected" xml:space="preserve"><value>ISP обнаружен</value></data>
+<data name="FirmwareStateErasing" xml:space="preserve"><value>Стирание</value></data>
+<data name="FirmwareStateProgramming" xml:space="preserve"><value>Запись</value></data>
+<data name="FirmwareStateVerifying" xml:space="preserve"><value>Проверка</value></data>
+<data name="FirmwareStateRebooting" xml:space="preserve"><value>Возврат к приложению</value></data>
+<data name="FirmwareStateWaitingForApplication" xml:space="preserve"><value>Ожидание прошивки приложения</value></data>
+<data name="FirmwareStateValidatingFirmware" xml:space="preserve"><value>Проверка идентификации 00 / 9F</value></data>
+<data name="FirmwareStateCompleted" xml:space="preserve"><value>Завершено</value></data>
+<data name="FirmwareStateFailed" xml:space="preserve"><value>Остановлено</value></data>
+<data name="FirmwareStateRecoveryRequired" xml:space="preserve"><value>Нужно восстановление</value></data>
+<data name="InstallerCloseStudio" xml:space="preserve"><value>Выйдите из AhaKey Studio через меню в трее и повторите удаление. Выполняющаяся запись на устройство не будет прервана.</value></data>
+<data name="InstallerRemoveData" xml:space="preserve"><value>Удалить также локальные проекты AhaKey, изображения, настройки и журналы без возможности восстановления? Выберите «Нет», чтобы сохранить их (рекомендуется).</value></data>
+<data name="FirmwareBootInstructions" xml:space="preserve"><value>Когда Studio ожидает ISP: отключите USB и выключите AD1E. Удерживая Record, подключите USB-питание; через несколько секунд отпустите кнопку. Подключите только этот экземпляр. Во время записи USB не отключайте.</value></data>
+<data name="FirmwareReconnectInstructions" xml:space="preserve"><value>Запись завершена. Если AD1E не вернулся автоматически, переподключите USB, не удерживая Record. Studio проверит прошивку и возможности устройства.</value></data>
+<data name="FirmwareRetry" xml:space="preserve"><value>Повторить запись прошивки</value></data>
+<data name="FirmwareInstalled" xml:space="preserve"><value>Установлено</value></data>
+<data name="FirmwareAvailable" xml:space="preserve"><value>Доступный пакет</value></data>
 </root>

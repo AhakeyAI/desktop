@@ -34,7 +34,7 @@ public sealed class DeviceFeatureCatalog(FirmwareIdentity identity, FeatureTrans
             evidence.Keys && Enum.IsDefined(profile) && Enum.IsDefined(key) && key!=PhysicalKey.K1 && transport==FeatureTransport.Usb,
             $"Profile {(int)profile} / {key}","Global save; prior physical value may be unknown",
             key==PhysicalKey.K1?"FeatureManagedVoice":!Enum.IsDefined(profile)||!Enum.IsDefined(key)?"FeatureTargetUnverified":
-            transport!=FeatureTransport.Usb?"ProductRequiresUsb":!Modern&&!evidence.Keys?"FeatureTargetUnverified":null);
+            !Modern&&transport!=FeatureTransport.Usb?"ProductRequiresUsb":!Modern&&!evidence.Keys?"FeatureTargetUnverified":null);
     public DeviceFeatureSupport CanUploadDisplay(HardwareProfileId profile,DisplayState state,int frameCount,int slot=9)
     {
         if(Modern)
@@ -54,11 +54,11 @@ public sealed class DeviceFeatureCatalog(FirmwareIdentity identity, FeatureTrans
         Result(DeviceFeature.RuntimeLighting,Modern&&effect<=16,effect==0?evidence.Neutral00:effect==1&&evidence.Effect01,
             $"Effect {effect:X2}","Runtime only; no save",
             Modern&&effect<=16||effect==0&&evidence.Neutral00||effect==1&&evidence.Effect01?null:"FeatureEffectUnverified");
-    public DeviceFeatureSupport CanSetBrightness() => Result(DeviceFeature.BrightnessWrite,Modern,false,"Global 1..100", "Dirties shared config; 04 persists globally", !Modern?"FeatureBrightnessUnverified":transport!=FeatureTransport.Usb?"ProductRequiresUsb":null);
+    public DeviceFeatureSupport CanSetBrightness() => Result(DeviceFeature.BrightnessWrite,Modern,false,"Global 1..100", "Dirties shared config; 04 persists globally", !Modern?"FeatureBrightnessUnverified":null);
     public DeviceFeatureSupport CanReadConfigResource(byte resource)
     {
         bool declared=Modern&&resource<=2&&(identity.ReportedCapabilities.GetValueOrDefault()&0x400)!=0;
-        return Result(DeviceFeature.ConfigResourceRead,declared,false,$"Resource {resource}","Partial live RAM read; no labels/pixels or atomic backup",!declared?"FeatureReadbackUnverified":transport!=FeatureTransport.Usb?"ProductRequiresUsb":null) with{SourceKnown=identity.Dialect==FirmwareDialect.WindowsContract32&&resource<=2};
+        return Result(DeviceFeature.ConfigResourceRead,declared,false,$"Resource {resource}","Partial live RAM read; no labels/pixels or atomic backup",!declared?"FeatureReadbackUnverified":null) with{SourceKnown=identity.Dialect==FirmwareDialect.WindowsContract32&&resource<=2};
     }
     public DeviceFeatureSupport FullReadback => Result(DeviceFeature.FullConfigurationReadback,false,false,"All", "No full backup command", "FeatureFullReadbackUnavailable") with{SourceKnown=false};
 }

@@ -135,3 +135,7 @@ rustup-init.exe
 /.toolchain/
 /tests/**/TestResults/
 /src/AhaKey.Studio/FirmwarePackages/
+
+!/installer/
+!/installer/Studio.wxs
+!/installer/license.rtf
