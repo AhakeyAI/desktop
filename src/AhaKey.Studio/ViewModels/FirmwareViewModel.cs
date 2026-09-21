@@ -17,7 +17,8 @@ public sealed class FirmwareViewModel:ObservableObject
     private string? details;
     public LocalizationService L {get;}
     public string Current=>$"{L["FirmwareInstalled"]}: AhaKey X1  /  {manager.RealDevice?.FirmwareIdentity.ReportedVersion??L["BleUnknown"]}  /  {L["FirmwareProtocol"]} {manager.RealDevice?.FirmwareIdentity.ReportedProtocol??L["BleUnknown"]}";
-    public string Package=>L["FirmwareAvailable"]+": 1.4.8  /  CH582M  /  Windows 3.2";
+    private static bool HasPackage=>File.Exists(KnownPackage().ImagePath) && File.Exists(KnownPackage().ProvenancePath);
+    public string Package=>HasPackage?L["FirmwareAvailable"]+": 1.4.8  /  CH582M  /  Windows 3.2":L["FirmwarePackageNotBundled"];
     public string? Result=>result is null?null:L[result];
     public string? Details=>details;
     public string Availability=>L[runtime.ComponentStatus];
@@ -53,6 +54,7 @@ public sealed class FirmwareViewModel:ObservableObject
         "2A09C21EEBE764390DD2CBC55C5BF7411C2A641DB6F120125D21B66D9C93DD0C","f1903791f2119d02f71eb92afe9efbb360edb06a",Path.Combine(AppContext.BaseDirectory,"FirmwarePackages","AhaKey-X1-firmware-1.4.8-ch582.provenance.json"),"AhaKey X1 / CH582M / physical PY25Q64HA; partition migration not attested");
     private async Task VerifyAsync()
     {
+        if(!HasPackage){packageVerified=false;result="FirmwarePackageNotBundled";Refresh();return;}
         try{await runtime.InspectAsync();var validation=await Task.Run(()=>coordinator.VerifyAsync(KnownPackage()));packageVerified=true;result="FirmwarePackageVerified";details=$"SHA-256 {validation.Sha256}  /  {validation.DataBytes:N0} bytes";}
         catch(Exception ex)when(ex is IOException or FormatException or ArgumentException or System.Text.Json.JsonException){packageVerified=false;result="FirmwarePackageInvalid";Services.CrashEvidence.Record(ex,"Verify package");}Refresh();
     }

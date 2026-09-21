@@ -992,4 +992,5 @@
 <data name="FirmwareRetry" xml:space="preserve"><value>重试固件写入</value></data>
 <data name="FirmwareInstalled" xml:space="preserve"><value>已安装</value></data>
 <data name="FirmwareAvailable" xml:space="preserve"><value>可用固件包</value></data>
+<data name="FirmwarePackageNotBundled" xml:space="preserve"><value>此发行包不包含固件，无法重装固件。</value></data>
 </root>

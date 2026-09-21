@@ -992,4 +992,5 @@
 <data name="FirmwareRetry" xml:space="preserve"><value>Повторить запись прошивки</value></data>
 <data name="FirmwareInstalled" xml:space="preserve"><value>Установлено</value></data>
 <data name="FirmwareAvailable" xml:space="preserve"><value>Доступный пакет</value></data>
+<data name="FirmwarePackageNotBundled" xml:space="preserve"><value>Прошивка не включена в эту сборку. Переустановка недоступна.</value></data>
 </root>

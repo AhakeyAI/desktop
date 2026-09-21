@@ -992,4 +992,5 @@
 <data name="FirmwareRetry" xml:space="preserve"><value>Retry programming</value></data>
 <data name="FirmwareInstalled" xml:space="preserve"><value>Installed</value></data>
 <data name="FirmwareAvailable" xml:space="preserve"><value>Available package</value></data>
+<data name="FirmwarePackageNotBundled" xml:space="preserve"><value>Firmware is not included in this distribution. Reinstall is unavailable.</value></data>
 </root>

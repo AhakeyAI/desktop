@@ -7,6 +7,6 @@
  </PropertyGroup>
  <ItemGroup><ProjectReference Include="../AhaKey.Core/AhaKey.Core.csproj"/><ProjectReference Include="../AhaKey.Protocol/AhaKey.Protocol.csproj"/><ProjectReference Include="../AhaKey.Device/AhaKey.Device.csproj"/><ProjectReference Include="../AhaKey.Integrations/AhaKey.Integrations.csproj"/><ProjectReference Include="../AhaKey.Firmware/AhaKey.Firmware.csproj"/><ProjectReference Include="../AhaKey.Services/AhaKey.Services.csproj"/><PackageReference Include="CommunityToolkit.Mvvm"/><PackageReference Include="Microsoft.Extensions.Hosting"/><PackageReference Include="Microsoft.Extensions.DependencyInjection"/><PackageReference Include="Microsoft.Extensions.Logging"/></ItemGroup><ItemGroup><Resource Include="Assets/*.png"/><Resource Include="Assets/*.ico"/></ItemGroup>
  <ItemGroup><Content Include="../../tests/AhaKey.Protocol.Tests/Fixtures/display/*" Link="DisplayFixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never"/></ItemGroup>
- <ItemGroup><Content Include="FirmwarePackages/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
+ <ItemGroup Condition="'$(PublicRelease)' != 'true'"><Content Include="FirmwarePackages/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
  <ItemGroup><Using Remove="System.Windows.Forms"/><Using Remove="System.Drawing"/></ItemGroup>
 </Project>

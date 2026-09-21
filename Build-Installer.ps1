@@ -1,20 +1,21 @@
-param([string]$WixBin, [string]$Dotnet='dotnet', [switch]$SkipPublish)
+param([string]$WixBin, [string]$Dotnet='dotnet', [switch]$SkipPublish, [switch]$PublicRelease)
 $ErrorActionPreference='Stop'
 Push-Location $PSScriptRoot
 try {
- if(-not $SkipPublish){& ./Publish-Studio.ps1 -Dotnet $Dotnet}
+ if(-not $SkipPublish){& ./Publish-Studio.ps1 -Dotnet $Dotnet -PublicRelease:$PublicRelease}
  if(-not (Test-Path -LiteralPath "$WixBin/candle.exe")){throw 'Supply WiX 3.14 bin directory.'}
  [xml]$props=Get-Content Directory.Build.props
  $version=[string]$props.Project.PropertyGroup.Version
  $fileVersion=[version]([string]$props.Project.PropertyGroup.FileVersion)
  $msiVersion="$($fileVersion.Major).$($fileVersion.Minor).$($fileVersion.Revision)"
- $runtime=(Resolve-Path artifacts/runtime).Path
- $output=Join-Path $PSScriptRoot 'artifacts/installer'
- $build=Join-Path $PSScriptRoot 'artifacts/installer-build'
+ $runtime=(Resolve-Path $(if($PublicRelease){'artifacts/public-runtime'}else{'artifacts/runtime'})).Path
+ $output=Join-Path $PSScriptRoot $(if($PublicRelease){'artifacts/public-installer'}else{'artifacts/installer'})
+ $build=Join-Path $PSScriptRoot $(if($PublicRelease){'artifacts/public-installer-build'}else{'artifacts/installer-build'})
  New-Item -ItemType Directory -Force -Path $build | Out-Null
  New-Item -ItemType Directory -Force -Path $output | Out-Null
  $forbidden=Get-ChildItem $runtime -File -Recurse | Where-Object { $_.Extension -in '.pdb','.log','.jsonl','.ps1','.py','.java' -or $_.Name -match 'BLE_tcp|Tests|Smoke|Fixture' }
  if($forbidden){throw ('Forbidden runtime files: '+($forbidden.Name -join ', '))}
+ if($PublicRelease -and (Get-ChildItem $runtime -Recurse -File | Where-Object { $_.Extension -eq '.hex' -or $_.FullName -match 'FirmwarePackages' })){throw 'Restricted firmware in public runtime.'}
  foreach($required in 'AhaKey Studio.exe','hostfxr.dll','coreclr.dll','AhaKey Studio.runtimeconfig.json'){if(-not(Test-Path -LiteralPath (Join-Path $runtime $required))){throw "Missing self-contained runtime file: $required"}}
  $builder=[Text.StringBuilder]::new()
  [void]$builder.AppendLine('<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"><Fragment><DirectoryRef Id="INSTALLFOLDER">')
