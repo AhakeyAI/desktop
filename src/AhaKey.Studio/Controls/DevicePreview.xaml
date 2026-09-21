@@ -1,0 +1,27 @@
+<UserControl x:Class="AhaKey.Studio.Controls.DevicePreview" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:AhaKey.Studio.Controls" Focusable="False">
+ <StackPanel>
+  <Border Background="{DynamicResource HardwareCanvas}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="10" Padding="12">
+   <Viewbox Stretch="Uniform" MaxHeight="320">
+    <Canvas Width="920" Height="520" AutomationProperties.Name="{Binding L[CurrentHardware]}">
+     <Image Source="{x:Static local:DevicePreview.HardwareImage}" Width="920" Height="520" RenderOptions.BitmapScalingMode="HighQuality"/>
+     <ListBox x:Name="RegionList" Width="920" Height="520" Background="Transparent" BorderThickness="0" Padding="0" ItemsSource="{Binding KeyRegions, RelativeSource={RelativeSource AncestorType=local:DevicePreview}}" SelectedItem="{Binding SelectedRegion, RelativeSource={RelativeSource AncestorType=local:DevicePreview}, Mode=TwoWay}" Visibility="{Binding Interactive, RelativeSource={RelativeSource AncestorType=local:DevicePreview}, Converter={StaticResource BoolVisibility}}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" KeyboardNavigation.DirectionalNavigation="Cycle" KeyboardNavigation.TabNavigation="Continue" AutomationProperties.Name="{Binding L[SelectPhysicalKey]}">
+      <ListBox.ItemsPanel><ItemsPanelTemplate><Canvas Width="920" Height="520"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+      <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem">
+       <Setter Property="Canvas.Left" Value="{Binding X}"/><Setter Property="Canvas.Top" Value="{Binding Y}"/><Setter Property="Width" Value="{Binding Width}"/><Setter Property="Height" Value="{Binding Height}"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0"/>
+       <Setter Property="ToolTip" Value="{Binding Description}"/><Setter Property="AutomationProperties.Name" Value="{Binding Description}"/><Setter Property="AutomationProperties.AutomationId" Value="{Binding Name}"/>
+       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="Overlay" Background="Transparent" BorderBrush="Transparent" BorderThickness="5" CornerRadius="12"><Border x:Name="FocusRing" BorderThickness="3" BorderBrush="Transparent" CornerRadius="8" Margin="5"/></Border><ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Overlay" Property="Background" Value="{DynamicResource KeyHover}"/><Setter TargetName="Overlay" Property="BorderBrush" Value="{DynamicResource Focus}"/></Trigger>
+        <Trigger Property="IsSelected" Value="True"><Setter TargetName="Overlay" Property="Background" Value="{DynamicResource KeySelection}"/><Setter TargetName="Overlay" Property="BorderBrush" Value="{DynamicResource Accent}"/></Trigger>
+        <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FocusRing" Property="BorderBrush" Value="{DynamicResource OnAccent}"/><Setter TargetName="Overlay" Property="BorderBrush" Value="{DynamicResource Focus}"/></Trigger>
+       </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+      </Style></ListBox.ItemContainerStyle>
+     </ListBox>
+     <Border x:Name="DisplayRegion" Canvas.Left="610" Canvas.Top="88" Width="238" Height="128" AutomationProperties.AutomationId="Display" AutomationProperties.Name="{Binding L[DisplayRegion]}"/>
+     <Border x:Name="RgbRegion" Canvas.Left="123" Canvas.Top="109" Width="452" Height="88" AutomationProperties.AutomationId="RGB" AutomationProperties.Name="{Binding L[RgbRegion]}"/>
+     <Border x:Name="ConfirmationRegion" Canvas.Left="793" Canvas.Top="300" Width="83" Height="115" AutomationProperties.AutomationId="ConfirmationSwitch" AutomationProperties.Name="{Binding L[SwitchRegion]}"/>
+    </Canvas>
+   </Viewbox>
+  </Border>
+  <TextBlock Text="{Binding L[PreviewOnly]}" Margin="0,8,0,0"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Caption}"><Style.Triggers><DataTrigger Binding="{Binding Interactive, RelativeSource={RelativeSource AncestorType=local:DevicePreview}}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+ </StackPanel>
+</UserControl>
