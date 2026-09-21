@@ -1255,3 +1255,72 @@ AhaType 顶部开关在本地语音已就绪但账号未登录或 token 过期�
 
 上述自动结果不代替真实环境验证。USB/BLE 热插拔、真实审批状态、真实账号、微信沙箱/实付、
 兑换码、麦克风和最终键盘注入仍需 Windows 真机/真实服务人工验证，当前均保持 **pending**。
+
+## BLE legacy physical-status forwarding (2026-09-19)
+
+`TcpServer.OnBleNotify` cached the legacy 13-byte `AA BB 00 ... CC DD`
+response and returned before broadcasting it. Java therefore saw `0x82`
+link metadata but never the `0x81` physical response, eventually entering
+`TIMED_OUT_UNRESOLVED` and rebuilding the transport. The bridge now keeps
+its cache update and forwards the original frame through the existing
+`0x81` path. Legacy firmware status already parses correctly in Java;
+`0x98`/`0x9F` support is independent and is not inferred from version 1.0.
+`0x82`/cached `0x83` still cannot establish physical approval freshness.
+Recovery, timing/session gates and USB semantics have not been weakened.
+
+Added raw TCP/payload, parsed physical status, write/arrival timestamp,
+freshness decision and recovery-reason diagnostics. Bridge regression
+compiles production TCP/protocol code with hardware doubles and uses a
+real loopback socket: the old implementation times out on legacy status;
+the fixed implementation passes legacy/extended status, query routing,
+cached metadata and command-response checks. Two Java regressions cover
+firmware 1.0 status across separate AUTO/MANUAL queries and invalid/ACK
+frames not satisfying freshness. Full protocol trace, formats and exact
+build commands: [windows-ble-physical-status.md](windows-ble-physical-status.md).
+
+Validation: Maven full suite **302 tests, 1 failure, 0 errors, 0 skipped**.
+The unrelated, unchanged `InspectorPaneVoiceActionChoicesTest:46` searches
+source text for LF while the checkout uses CRLF (confirmed read-only).
+Focused protocol/BLE/freshness/task/USB package run **47/0/0/0**, with
+`BUILD SUCCESS` and `RELEASE_ARTIFACT_CONTENTS=OK`. Bridge regression PASS;
+MSBuild Release rebuild succeeded to `bin/Release-physical-status/` because
+the running original EXE locks `bin/Release/`. Initial Maven dependency
+download hit a transient TLS failure; `clean` hit a locked runtime library,
+so successful packaging used `package`. `git diff --check` passed.
+No firmware flashing, localization or voice changes. Running applications
+were not restarted/replaced; USB/BLE hardware regression remains pending.
+
+2026-09-19 live follow-up supersedes that last pending status for this BLE
+physical-status fix: after the user stopped applications, the normal Release
+bridge was rebuilt and launched; Java package and the 47 focused tests passed
+again. After the user unplugged USB, the ordinary visible Java client connected
+over BLE. During 11:11:42–11:15:32 Asia/Shanghai it maintained one TCP connection,
+accepted five fresh physical status responses and recorded zero physical
+timeouts/recovery/rebuild events. A separate read-only probe received 20/20
+physical replies in 17–131 ms. Actual status was firmware 1.0, battery 100,
+signal 50, mode 2, switch 0. The original reconnect loop is hardware-verified
+fixed; switch transitions and broader USB regression were not exercised.
+
+Remaining legacy compatibility issue: real `0x98` and `0x9F` replies are empty
+success ACKs (`AA BB 98/9F 00 CC DD`), not the task-mode/capability payloads
+expected by Java. Repeated 15-second task-mode waits delay physical polling
+through the shared transaction lock; they did not trigger transport recovery.
+This separate retry/capability behavior is documented but unchanged. No
+firmware was flashed. The GUI client and rebuilt bridge were left running.
+
+Independent PR checkout verification: the documented focused Java package
+run passed 47 tests with no failures/errors/skips and release contents OK.
+The C# loopback regression passed and MSBuild `/restore /p:Configuration=Release`
+rebuilt the normal Release bridge successfully. No hardware interaction was
+needed for these PR preparation checks.
+
+## PR conflict resolution against eternal-dev (2026-09-20)
+
+Merged upstream `a878f63` without replacing the primary workspace.
+The physical-status log now shares upstream acceptedSequence and retains
+lastStatusUpdateNanos plus the receiver/session-bound transport snapshot.
+Maven package: 344 tests, zero failures/errors/skips, release contents OK.
+MSBuild Release and the bridge physical-status loopback regression passed.
+Source-inspection tests normalize CRLF before multiline matching; test runs use
+separate temporary directories to avoid shared GIF extraction conflicts.
+No application installation, firmware flashing, or physical-device test was performed.

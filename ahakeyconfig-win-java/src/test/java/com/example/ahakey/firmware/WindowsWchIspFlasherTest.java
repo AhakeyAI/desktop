@@ -346,7 +346,7 @@ class WindowsWchIspFlasherTest {
         return Files.readString(Path.of(
             "src", "main", "java", "com", "example", "ahakey", "firmware",
             "WindowsWchIspFlasher.java"
-        ), StandardCharsets.UTF_8);
+        ), StandardCharsets.UTF_8).replace("\r\n", "\n");
     }
 
     private int occurrences(String text, String needle) {
