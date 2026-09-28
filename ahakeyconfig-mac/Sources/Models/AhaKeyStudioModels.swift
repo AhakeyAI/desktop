@@ -1,1 +1,1 @@
-$ref:/workspace/agent-tools/push-src/AhaKeyStudioModels.swift
+$file:/tmp/desktop-anpx/ahakeyconfig-mac/Sources/Models/AhaKeyStudioModels.swift
