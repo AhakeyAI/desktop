@@ -18,7 +18,7 @@ jobs:
           set -euo pipefail
           test -f .restore-chunks/READY
           python3 <<'PY2'
-          import base64, pathlib
+          import base64, pathlib, zlib
           root = pathlib.Path('.restore-chunks')
           for name, dest in [
             ('models', 'ahakeyconfig-mac/Sources/Models/AhaKeyStudioModels.swift'),
@@ -29,8 +29,7 @@ jobs:
               continue
             parts = sorted(d.glob('*.b64'))
             b64 = ''.join(p.read_text().strip() for p in parts)
-            data = base64.b64decode(b64)
-            text = data.decode('utf-8')
+            text = zlib.decompress(base64.b64decode(b64)).decode('utf-8')
             assert 'preferredFPS' in text, dest
             assert '$file:' not in text, dest
             assert 'PLACEHOLDER' not in text, dest
