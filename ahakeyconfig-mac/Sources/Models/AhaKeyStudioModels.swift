@@ -1,1 +1,1 @@
-PLACEHOLDER_LOAD_FROM_DISK
+$file:/tmp/desktop-anpx/ahakeyconfig-mac/Sources/Models/AhaKeyStudioModels.swift
