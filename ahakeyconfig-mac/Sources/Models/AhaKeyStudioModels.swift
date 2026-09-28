@@ -1,1 +1,1 @@
-$file:/tmp/desktop-anpx/ahakeyconfig-mac/Sources/Models/AhaKeyStudioModels.swift
+PLACEHOLDER_WILL_FAIL
