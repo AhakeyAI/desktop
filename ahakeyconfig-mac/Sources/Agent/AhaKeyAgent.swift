@@ -55,6 +55,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
     /// 工具完成 / 用户提交等短暂态的自动回落。
+    private var statusPollTimer: DispatchSourceTimer?
     private var pendingStateReset: DispatchWorkItem?
 
     // MARK: 看门狗（Claude Code 手动停止任务时 Stop hook 不触发，超时后自动归位）
@@ -174,6 +175,31 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 liveStateCoalescer = LiveStateWriteCoalescer()
             }
         }
+    }
+
+    private func requestDeviceStatus() {
+        guard let commandChar, let peripheral else { return }
+        let query = Data(header + [0x00] + trailer)
+        let wt: CBCharacteristicWriteType =
+            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(query, for: commandChar, type: wt)
+    }
+
+    private func startStatusPolling() {
+        statusPollTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 1.0, repeating: 1.5)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.statusWaiters.isEmpty else { return }
+            self.requestDeviceStatus()
+        }
+        statusPollTimer = timer
+        timer.resume()
+    }
+
+    private func stopStatusPolling() {
+        statusPollTimer?.cancel()
+        statusPollTimer = nil
     }
 
     /// 主动查询一次设备状态，等待下一个 notify 回包 (timeout 秒内)。
@@ -565,6 +591,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        stopStatusPolling()
+        Self.liveStateCoalescer = LiveStateWriteCoalescer()
         commandChar = nil
         notifyChar = nil
         self.peripheral = nil
@@ -600,12 +628,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 emit("通知通道已订阅")
             }
         }
-        // 两个特征都就绪后发一次初始状态查询
+        // Polling keeps GPIO state fresh even on firmware that omits unsolicited updates.
         if commandChar != nil, notifyChar != nil {
-            let query = Data(header + [0x00] + trailer)
-            let wt: CBCharacteristicWriteType =
-                commandChar!.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-            peripheral.writeValue(query, for: commandChar!, type: wt)
+            requestDeviceStatus()
+            startStatusPolling()
         }
     }
 
