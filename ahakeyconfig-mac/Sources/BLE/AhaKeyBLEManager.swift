@@ -217,7 +217,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     /// Dependencies and service startup are explicit so tests never access user files or Bluetooth.
-    init(startServices: Bool, logStore: BLELogStore, connectionLock: BLEConnectionLock) {
+    init(startServices: Bool, logStore: BLELogStore, connectionLock: BLEConnectionLock,
+         ideStateDirectoryURL: URL? = nil) {
+        self.ideStateDirectoryURL = ideStateDirectoryURL ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
         self.logStore = logStore
         self.connectionLock = connectionLock
         super.init()
@@ -298,13 +301,30 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func setSuppressedForAgentOwningKeyboard(_ suppress: Bool) {
         suppressAutomaticConnection = suppress
         if suppress {
-            // 切给 Agent：释放跨进程连接锁，Agent 方可获取
-            connectionLock.release()
+            // Stop scanning before yielding ownership. Retain the lock until CoreBluetooth
+            // confirms cancellation of an active/pending connection.
+            central?.stopScan()
+            isScanning = false
+            pendingConnect = false
+            autoReconnectTimer?.invalidate()
+            autoReconnectTimer = nil
+            stopRSSIPolling()
+            stopStatusPolling()
+            if let peripheral, peripheral.state != .disconnected {
+                central?.cancelPeripheralConnection(peripheral)
+            } else {
+                self.peripheral = nil
+                connectionLock.release()
+            }
             didLogConnectionLockBusy = false
         } else {
             // 切回本 App（用户显式操作）：退避重置回 4s，尽快重连
             reconnectBackoff.reset()
         }
+    }
+
+    var acceptsConnectionCallbacks: Bool {
+        !suppressAutomaticConnection && connectionLock.holdsLock
     }
 
     /// 设备信息窗口可见性钩子（由 DeviceInfoView 生命周期调用）。
@@ -849,10 +869,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         statusPollTimer = nil
     }
 
-    private var ideStateDirectoryURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
-    }
+    private let ideStateDirectoryURL: URL
 
     private var ideStateFileURL: URL {
         ideStateDirectoryURL.appendingPathComponent("current-ide-state.json")
@@ -860,7 +877,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// Agent 通常以临时文件 + rename 的方式更新状态，因此监听目录而不是单个文件。
     /// 仅在真实文件变化时解析 JSON；一次性 timer 在 30s/120s 的准确过期点刷新状态。
-    private func startIDEStateMonitoring() {
+    func startIDEStateMonitoring() {
         stopIDEStateMonitoring()
         pollIDEStateFile()
 
@@ -882,12 +899,34 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
-            eventMask: [.write, .extend, .attrib, .rename, .delete],
+            eventMask: [.write, .extend, .attrib, .rename, .delete, .revoke],
             queue: ideStateMonitorQueue
         )
-        source.setEventHandler { [weak self] in
+        source.setEventHandler { [weak self, weak source] in
+            let flags = source?.data ?? []
             Task { @MainActor in
-                self?.scheduleIDEStateRefresh()
+                guard let self, let source, self.ideStateDirectoryMonitor === source else { return }
+                if !flags.intersection([.rename, .delete, .revoke]).isEmpty {
+                    self.startIDEStateMonitoring()
+                } else {
+                    self.scheduleIDEStateRefresh()
+                }
+            }
+        }
+        source.setRegistrationHandler { [weak self, weak source] in
+            Task { @MainActor in
+                guard let self, let source, self.ideStateDirectoryMonitor === source else { return }
+                // A directory swap or atomic file write can happen between open() and
+                // dispatch registration. Validate the inode and read once after binding.
+                let currentFD = open(self.ideStateDirectoryURL.path, O_EVTONLY)
+                var watched = stat()
+                var current = stat()
+                let matches = currentFD >= 0 && fstat(descriptor, &watched) == 0
+                    && fstat(currentFD, &current) == 0
+                    && watched.st_dev == current.st_dev && watched.st_ino == current.st_ino
+                if currentFD >= 0 { close(currentFD) }
+                if matches { self.scheduleIDEStateRefresh() }
+                else { self.startIDEStateMonitoring() }
             }
         }
         source.setCancelHandler {
@@ -897,7 +936,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         source.resume()
     }
 
-    private func stopIDEStateMonitoring() {
+    func stopIDEStateMonitoring() {
         ideStateRefreshTask?.cancel()
         ideStateRefreshTask = nil
         ideStateExpiryTimer?.invalidate()
@@ -1366,6 +1405,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         guard Self.matchesDeviceName(name) else { return }
 
         Task { @MainActor in
+            guard self.acceptsConnectionCallbacks else { return }
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
             // 扫到目标设备广播：退避重置回 4s 并立即连接
             self.reconnectBackoff.reset()
@@ -1380,6 +1420,10 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
+            guard self.acceptsConnectionCallbacks else {
+                central.cancelPeripheralConnection(peripheral)
+                return
+            }
             self.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString))
             self.lastPeripheralUUID = peripheral.identifier
             self.bleConnectionStatus = NSLocalizedString("已连接", comment: "")
@@ -1404,6 +1448,12 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
+            if self.peripheral === peripheral { self.peripheral = nil }
+            if self.suppressAutomaticConnection {
+                self.peripheral = nil
+                self.connectionLock.release()
+                return
+            }
             self.bleConnectionStatus = "连接失败"
             self.appendLog("连接失败: \(error?.localizedDescription ?? "未知")", isError: true)
             self.startAutoReconnectPolling()
@@ -1439,7 +1489,8 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.keyboardPictureStates.removeAll()
             self.stopRSSIPolling()
             self.stopStatusPolling()
-            self.startAutoReconnectPolling()
+            if self.suppressAutomaticConnection { self.connectionLock.release() }
+            else { self.startAutoReconnectPolling() }
             self.appendLog("已断开: \(error?.localizedDescription ?? "正常")", category: .lifecycle)
 
         }
@@ -1451,6 +1502,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 extension AhaKeyBLEManager: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         Task { @MainActor in
+            guard self.acceptsConnectionCallbacks else { return }
             guard let services = peripheral.services else { return }
             for service in services {
                 self.appendLog("发现服务: \(service.uuid)")
@@ -1476,6 +1528,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         Task { @MainActor in
+            guard self.acceptsConnectionCallbacks else { return }
             for char in service.characteristics ?? [] {
                 switch char.uuid {
                 // AhaKey 主服务特征
@@ -1526,18 +1579,21 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
         Task { @MainActor in
+            guard self.acceptsConnectionCallbacks else { return }
             self.handleNotification(from: characteristic.uuid, data: data)
         }
     }
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         Task { @MainActor in
+            guard self.acceptsConnectionCallbacks else { return }
             self.apply(.rssi(RSSI.intValue))
         }
     }
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         Task { @MainActor in
+            guard self.acceptsConnectionCallbacks else { return }
             if let error {
                 self.appendLog("写入特征 \(characteristic.uuid) 失败: \(error.localizedDescription)", isError: true)
             } else {

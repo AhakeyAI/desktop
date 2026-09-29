@@ -3825,15 +3825,17 @@ private final class AnimatedGIFLayerView: NSView {
             for name in [NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification,
                          NSWindow.didChangeOcclusionStateNotification, NSWindow.willCloseNotification] {
                 observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] note in
-                    guard let self else { return }
-                    if note.name == NSWindow.willCloseNotification { self.stopPlayback() }
-                    else { self.refreshPlayback() }
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        if note.name == NSWindow.willCloseNotification { self.stopPlayback() }
+                        else { self.refreshPlayback() }
+                    }
                 })
             }
             for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
                          NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
                 observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                    self?.refreshPlayback()
+                    MainActor.assumeIsolated { self?.refreshPlayback() }
                 })
             }
         }

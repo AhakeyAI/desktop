@@ -101,13 +101,13 @@ final class BLELogStore: ObservableObject {
     /// 详细级抓包写文件（后台串行队列，不进内存）。仅会话开启时由 manager 调用。
     func writePersistentLine(_ line: String) {
         verboseQueue.async { [persistentLogWriter] in
-            try? persistentLogWriter.append(line)
+            _ = try? persistentLogWriter.append(line)
         }
     }
 
     func writeVerboseLine(_ line: String) {
         verboseQueue.async { [verboseLogWriter] in
-            try? verboseLogWriter.append(line)
+            _ = try? verboseLogWriter.append(line)
         }
     }
 }
