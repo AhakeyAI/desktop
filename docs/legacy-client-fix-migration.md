@@ -30,4 +30,4 @@ Real keyboard CPU/RSS, lever latency, disconnect/reconnect, and foreground/hidde
 
 ## Review closure
 
-Standards review found no blocking violation. Spec review identified scan-handoff races, retained disconnected peripherals that could leak ownership, and watches bound to replaced directories. These were corrected and independently re-reviewed. Production regression tests include lock handoff and directory replacement followed by two atomic writes. The final full suite passed 96 tests with zero failures.
+Standards review found no blocking violation. Spec review identified scan-handoff races, retained disconnected peripherals that could leak ownership, and watches bound to replaced directories. These were corrected and independently re-reviewed. Production regression tests include lock handoff and directory replacement followed by two atomic writes. The full macOS suite passed 98 tests with zero failures after installing and correcting automatic LaunchAgent argument migration. Agent polling from the historical baseline was also restored so coalescing receives periodic GPIO confirmations.

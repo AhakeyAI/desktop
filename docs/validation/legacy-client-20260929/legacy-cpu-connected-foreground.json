@@ -1,0 +1,16 @@
+{
+  "phase": "connected-foreground",
+  "duration_s": 60.55,
+  "method": "proc_pid_rusage CPU time deltas, percentage of one CPU core",
+  "processes": [
+    {
+      "name": "AhaKeyConfig",
+      "samples": 60,
+      "mean_cpu_percent": 0.23,
+      "max_cpu_percent": 0.818,
+      "rss_mb_start": 96.73,
+      "rss_mb_end": 89.39
+    }
+  ],
+  "ble_log_bytes_added": 326
+}

@@ -1,0 +1,25 @@
+{
+  "cli_version": "codex-cli 0.153.4",
+  "cases": [
+    {
+      "policy": "untrusted",
+      "initialize_succeeded": false,
+      "legacy_rejected": true
+    },
+    {
+      "policy": "on-request",
+      "initialize_succeeded": true,
+      "legacy_rejected": false
+    },
+    {
+      "policy": "never",
+      "initialize_succeeded": true,
+      "legacy_rejected": false
+    }
+  ],
+  "migration": {
+    "outcome": "replaced",
+    "repaired_to_on_request": true,
+    "comment_preserved": true
+  }
+}

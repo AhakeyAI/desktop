@@ -1,0 +1,23 @@
+{
+  "phase": "automatic",
+  "agent_switch": 0,
+  "outputs": {
+    "CodexSessionStart": {
+      "exit_code": 0,
+      "json": {}
+    },
+    "CodexPermissionRequest": {
+      "exit_code": 0,
+      "json": {
+        "hookSpecificOutput": {
+          "decision": {
+            "behavior": "allow"
+          },
+          "hookEventName": "PermissionRequest"
+        }
+      }
+    }
+  },
+  "policy": "\"never\"",
+  "config_restored_byte_for_byte": true
+}
