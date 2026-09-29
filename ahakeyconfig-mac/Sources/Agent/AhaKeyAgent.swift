@@ -1,3 +1,4 @@
+import AhaKeyConfigShared
 import CoreBluetooth
 import Foundation
 import os.log
@@ -8,7 +9,7 @@ private let log = Logger(subsystem: "lab.jawa.ahakeyconfig.agent", category: "BL
 ///
 /// 与 Sources/BLE/AhaKeyProtocol.swift 的 `AhaKeyDeviceStatus` 保持同构；
 /// Agent 是独立 target，不共享源码，所以这里内联一份极简解析器。
-struct AgentDeviceStatus {
+struct AgentDeviceStatus: Equatable {
     let battery: Int
     let signal: Int
     let firmwareMain: Int
@@ -61,6 +62,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lastHookStateAt: Date?
     /// 最近一次我们主动发给键盘的 LED 状态
     private var lastSentState: UInt8 = 0
+    private let processDetector = ProcessDetector(pollInterval: 15)
+    private var didLogWatchdogHold = false
     private var watchdogTimer: DispatchSourceTimer?
 
     /// 各活跃态超时时长（秒）：
@@ -72,6 +75,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         default:   return 60   // PreToolUse / PostToolUse / SessionStart / TaskCompleted
         }
     }
+
+    private static var liveStateCoalescer = LiveStateWriteCoalescer()
+    private var lastLoggedStatus: AgentDeviceStatus?
 
     var onLog: ((String) -> Void)?
 
@@ -158,7 +164,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         obj["ts"] = now
         if let data = try? JSONSerialization.data(withJSONObject: obj) {
-            try? data.write(to: url, options: .atomic)
+            do {
+                try data.write(to: url, options: .atomic)
+                liveStateCoalescer.noteEventWrite(.init(
+                    lightMode: lightMode.map(Int.init), switchState: switchState.map(Int.init),
+                    workMode: workMode.map(Int.init)
+                ), at: now)
+            } catch {
+                liveStateCoalescer = LiveStateWriteCoalescer()
+            }
         }
     }
 
@@ -221,7 +235,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         let bindResult = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+                Darwin.bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
         guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return false }
@@ -242,6 +256,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - 看门狗
 
     private func startWatchdog() {
+        processDetector.start()
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 30, repeating: 10)
         timer.setEventHandler { [weak self] in
@@ -253,14 +268,30 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     private func checkWatchdog() {
         guard let lastAt = lastHookStateAt else { return }
-        let activeStates: [UInt8] = [1, 2, 3, 4, 6, 7]
-        guard activeStates.contains(lastSentState) else { return }
         let elapsed = Date().timeIntervalSince(lastAt)
         let threshold = watchdogTimeout(for: lastSentState)
-        guard elapsed >= threshold else { return }
-        emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），自动发 Stop(5)")
-        sendState(5)
-        lastHookStateAt = nil  // 重置，避免重复触发
+        // 归位门控：只有目标 CLI 进程全部退出（崩溃/退出导致 end 类 hook 永远丢失）
+        // 才允许归位；进程仍存活 = 长思考/长执行中无新 hook，必须保持灯效。
+        switch HookStateWatchdog.decide(HookStateWatchdog.Input(
+            lastSentState: lastSentState,
+            elapsedSinceLastHook: elapsed,
+            timeout: threshold,
+            isTargetProcessRunning: processDetector.isAnyTargetRunning
+        )) {
+        case .notActiveState, .withinTimeout:
+            return
+        case .heldProcessAlive:
+            if !didLogWatchdogHold {
+                didLogWatchdogHold = true
+                emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），但目标进程仍在运行，保持灯效")
+            }
+            return
+        case .resetToIdle:
+            emit("⏰ 看门狗：\(Int(elapsed))s 无 hook 活动且目标进程已退出（上次 LED=\(lastSentState)，阈值 \(Int(threshold))s），自动发 Stop(5)")
+            didLogWatchdogHold = false
+            sendState(5)
+            lastHookStateAt = nil  // 重置，避免重复触发
+        }
     }
 
     // MARK: - Socket handling
@@ -322,6 +353,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case "state":
             if let v = obj["value"] as? Int {
                 lastHookStateAt = Date()
+            didLogWatchdogHold = false
                 sendState(UInt8(clamping: v))
             }
             Self.replyAndClose(clientFd, ["ok": true])
@@ -342,6 +374,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             // 发 PermissionRequest 对应的 state（默认 1），同时主动查询拨杆
             let stateValue = obj["value"] as? Int ?? 1
             lastHookStateAt = Date()
+            didLogWatchdogHold = false
             sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
                 let body = Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
@@ -433,7 +466,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     // MARK: - Connection
 
+    /// 跨进程 BLE 连接锁（阶段 3，flock）：发起连接前必须持有；抢不到绝对不 attach（含系统已连接外设）
+    private let connectionLock = BLEConnectionLock()
+    /// 锁被 GUI 占用的提示是否已记录（只记一次状态转换，重试不刷日志）
+    private var didLogLockBusy = false
+    /// 抢锁失败后的 15s 重试项
+    private var lockRetryItem: DispatchWorkItem?
+
     private func connectAutomatically() {
+        guard acquireConnectionLock() else { return }
         // 1. 用已知 UUID
         if let uuid = lastUUID {
             let known = central.retrievePeripherals(withIdentifiers: [uuid])
@@ -459,6 +500,37 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 3. 扫描
         emit("开始扫描…")
         central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+    }
+
+    /// 发起连接前必须持有跨进程连接锁；被 GUI 持有时不 attach，15s 后重试（不刷日志）。
+    private func acquireConnectionLock() -> Bool {
+        guard !connectionLock.holdsLock else { return true }
+        if connectionLock.acquire() {
+            if didLogLockBusy {
+                emit(NSLocalizedString("GUI 已释放蓝牙，恢复连接", comment: ""))
+                didLogLockBusy = false
+            }
+            return true
+        }
+        if !didLogLockBusy {
+            emit(NSLocalizedString("蓝牙被 GUI 占用，等待释放后重试", comment: ""))
+            didLogLockBusy = true
+        }
+        scheduleLockRetry()
+        return false
+    }
+
+    /// 抢锁失败后的 15s 低频重试；抢到锁后继续走正常连接流程。
+    private func scheduleLockRetry() {
+        guard lockRetryItem == nil else { return }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.lockRetryItem = nil
+            guard !self.connectionLock.holdsLock, self.peripheral == nil else { return }
+            self.connectAutomatically()
+        }
+        lockRetryItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: item)
     }
 
     private func emit(_ msg: String) {
@@ -544,14 +616,32 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         cachedSwitchState = UInt8(clamping: status.switchState)
         cachedLightMode = UInt8(clamping: status.lightMode)
-        emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
-        // 写共享文件时优先使用用户覆盖值，否则用键盘真实上报。这样主 App 画布上的拨杆位置始终与
-        // hook 实际使用的批准逻辑一致（避免画布显示一档、hook 按另一档运行的割裂）。
-        Self.writeLiveState(
-            lightMode: UInt8(clamping: status.lightMode),
-            switchState: effectiveSwitchState,
-            workMode: UInt8(clamping: max(0, status.workMode))
+        if lastLoggedStatus != status {
+            lastLoggedStatus = status
+            emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
+        }
+        // Keep main's virtual lever semantics while avoiding identical file rewrites.
+        let snapshot = LiveStateWriteCoalescer.Snapshot(
+            lightMode: status.lightMode, switchState: effectiveSwitchState.map(Int.init),
+            workMode: max(0, status.workMode)
         )
+        switch Self.liveStateCoalescer.decision(for: snapshot, at: Date().timeIntervalSince1970) {
+        case .write:
+            Self.writeLiveState(
+                lightMode: UInt8(clamping: status.lightMode), switchState: effectiveSwitchState,
+                workMode: UInt8(clamping: max(0, status.workMode))
+            )
+        case .touchOnly:
+            let url = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Application Support/AhaKeyConfig/current-ide-state.json")
+            do {
+                try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+            } catch {
+                Self.liveStateCoalescer = LiveStateWriteCoalescer()
+            }
+        case .skip:
+            break
+        }
 
         guard !statusWaiters.isEmpty else { return }
         let waiters = statusWaiters

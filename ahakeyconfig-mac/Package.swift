@@ -35,10 +35,11 @@ let package = Package(
             name: "AhaKeyConfig",
             dependencies: [
                 "AhaKeyPluginKit",
+                "AhaKeyConfigShared",
                 .product(name: "VibeBar", package: "VibeBar"),
             ],
             path: "Sources",
-            exclude: ["Agent", "AhaKeyPlugin", "AhaKeyPluginKit", "AhaKeyPluginShowcase"],
+            exclude: ["Shared", "Agent", "AhaKeyPlugin", "AhaKeyPluginKit", "AhaKeyPluginShowcase"],
             // 与 scripts/build.sh 中 Info.plist 一致。嵌入 __info_plist 段后 TCC 可识别。
             // Debug 使用单独 plist：系统在「隐私与安全性」列表中显示为「AhaKey Studio（调试）」，与正式包区分。
             linkerSettings: [
@@ -58,8 +59,12 @@ let package = Package(
         ),
         .executableTarget(
             name: "AhaKeyConfigAgent",
+            dependencies: ["AhaKeyConfigShared"],
             path: "Sources/Agent"
         ),
+        .target(name: "AhaKeyConfigShared", path: "Sources/Shared"),
+        .testTarget(name: "AhaKeyConfigSharedTests", dependencies: ["AhaKeyConfigShared"], path: "Tests/AhaKeyConfigSharedTests"),
+        .testTarget(name: "AhaKeyAgentTests", dependencies: ["AhaKeyConfigAgent", "AhaKeyConfigShared"], path: "Tests/AhaKeyAgentTests"),
         .testTarget(
             name: "AhaKeyConfigTests",
             dependencies: ["AhaKeyConfig"],

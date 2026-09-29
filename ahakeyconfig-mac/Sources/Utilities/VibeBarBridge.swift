@@ -31,25 +31,25 @@ final class VibeBarBridge {
         state.onOpenMainWindow = onOpenMainWindow
 
         // BLE
-        bleManager.$isConnected
+        bleManager.$coreSnapshot.map(\.isConnected).removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.state.keyboardConnected = $0 }
             .store(in: &cancellables)
 
-        bleManager.$batteryLevel
+        bleManager.$coreSnapshot.map(\.batteryLevel).removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.state.batteryLevel = $0 }
             .store(in: &cancellables)
 
-        bleManager.$deviceName
+        bleManager.$coreSnapshot.map(\.deviceName).removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.state.deviceName = $0 }
             .store(in: &cancellables)
 
         // Lever: switchState == 0 即 auto；优先采用 agent 缓存（agent 占用 BLE 时主 app 自己未连接）
         Publishers.CombineLatest3(
-            bleManager.$isConnected,
-            bleManager.$switchState,
+            bleManager.$coreSnapshot.map(\.isConnected).removeDuplicates(),
+            bleManager.$coreSnapshot.map(\.switchState).removeDuplicates(),
             bleManager.$agentSwitchState
         )
         .receive(on: RunLoop.main)

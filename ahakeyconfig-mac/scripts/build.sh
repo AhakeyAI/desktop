@@ -96,9 +96,10 @@ if [[ -d "$APP_ROOT/Resources/FirmwareFlasher" ]]; then
   chmod +x "$FLASHER_RESOURCES/tools/arm64/wchisp" "$FLASHER_RESOURCES/tools/x86_64/wchisp"
 fi
 
-BUILD_NUMBER="$(git -C "$APP_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
-# 版本号：缺省 0.1.0（本地开发），release.yml 打 tag(vX.Y.Z) 时经 APP_VERSION 注入真实版本，
-# 否则所有 Release 都会是同一个写死的版本号，用户无法区分是否已更新。
+REPO_ROOT="$(git -C "$APP_ROOT" rev-parse --show-toplevel 2>/dev/null || echo "$APP_ROOT")"
+BUILD_NUMBER="$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+# Release workflows inject APP_VERSION; preserve main's version metadata.
 APP_VERSION_STRING="${APP_VERSION:-0.1.0}"
 
 cat > "$INFO_PLIST" <<PLIST
@@ -126,6 +127,8 @@ cat > "$INFO_PLIST" <<PLIST
   <string>${APP_VERSION_STRING}</string>
   <key>CFBundleVersion</key>
   <string>${BUILD_NUMBER}</string>
+  <key>AhaKeyGitCommit</key>
+  <string>${GIT_COMMIT}</string>
   <key>LSMinimumSystemVersion</key>
   <string>${MACOS_DEPLOYMENT_TARGET}</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
