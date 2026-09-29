@@ -318,6 +318,12 @@ final class AgentManager: ObservableObject {
             }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 500 : 550) * 1_000_000)
+                guard self.bluetoothConnectionOwner == .agentDaemon else { return }
+                guard self.prepareLaunchAgentForStart() else {
+                    bleManager.setSuppressedForAgentOwningKeyboard(false)
+                    bleManager.connectAutomatically()
+                    return
+                }
                 _ = runLaunchctlQuiet(["load", plistPath])
                 _ = runLaunchctlQuiet(["start", label])
                 self.refresh()
@@ -496,13 +502,14 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    private func launchAgentNeedsRewrite() -> Bool {
-        // 必须比较完整 ProgramArguments：旧版本 plist 的 --socket 参数指向 /tmp/ahakey.sock，
-        // 只比二进制路径会在同路径覆盖安装后保留旧 socket 路径，导致 Agent 在 /tmp 绑定而 GUI 在
-        // Application Support 等待，表现为"已 load/start 但未检测到 Agent 在运行"。
-        guard let plist = NSDictionary(contentsOfFile: plistPath),
-              let args = plist["ProgramArguments"] as? [String] else { return true }
-        return args != [agentBinaryPath, "--socket", socketPath]
+    private func prepareLaunchAgentForStart() -> Bool {
+        let expected = [agentBinaryPath, "--socket", socketPath]
+        guard LaunchAgentConfiguration.needsRewrite(
+            plistURL: URL(fileURLWithPath: plistPath), expectedArguments: expected
+        ) else { return true }
+        // An already-loaded job keeps its previous arguments until it is unloaded.
+        unloadAgentLaunchJobRemovingSocket()
+        return writeLaunchAgentPlist()
     }
 
     func install() {
@@ -588,10 +595,7 @@ final class AgentManager: ObservableObject {
             agentUserAlert = "尚未安装 LaunchAgent。请先点「安装并启用」。"
             return
         }
-        if launchAgentNeedsRewrite() {
-            unloadAgentLaunchJobRemovingSocket()
-            guard writeLaunchAgentPlist() else { return }
-        }
+        guard prepareLaunchAgentForStart() else { return }
         isAgentOperationInProgress = true
         let loadRes = runLaunchctlDetailed(["load", plistPath])
         let startRes = runLaunchctlDetailed(["start", label])
