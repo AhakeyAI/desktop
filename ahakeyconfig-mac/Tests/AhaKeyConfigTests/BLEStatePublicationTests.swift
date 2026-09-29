@@ -68,6 +68,21 @@ final class BLEStatePublicationTests: XCTestCase {
         }
     }
 
+    func testReturningOwnershipToStudioRestoresRetryAfterSuppression() async throws {
+        try await MainActor.run {
+            let fixture = try makeManager()
+            defer {
+                fixture.manager.setSuppressedForAgentOwningKeyboard(true)
+                try? FileManager.default.removeItem(at: fixture.directory)
+            }
+            fixture.manager.setSuppressedForAgentOwningKeyboard(true)
+            XCTAssertFalse(fixture.manager.isAutoReconnectScheduled)
+            fixture.manager.setSuppressedForAgentOwningKeyboard(false)
+            XCTAssertTrue(fixture.manager.isAutoReconnectScheduled,
+                "A failed first scan or busy ownership lock must still be retried")
+        }
+    }
+
     func testDirectoryReplacementReattachesMonitorAndReceivesLaterAtomicWrites() async throws {
         let fixture = try await MainActor.run { try makeManager() }
         let stateDirectory = fixture.directory.appendingPathComponent("state")

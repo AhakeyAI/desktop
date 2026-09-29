@@ -601,6 +601,40 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         }
     }
 
+    func testPermissionHookUpdatesFixturePolicyAndOnlyAllowsAutomaticLever() throws {
+        let original = CodexHookHandler.dependencies
+        defer { CodexHookHandler.dependencies = original }
+        for state: Int? in [0, 1, nil] {
+            let url = try writeFixture("approval_policy = \"on-request\" # keep\n")
+            var output = ""
+            var dependencies = installFakeHookDependencies(recorder: PolicyRecorder(), reply: { _ in state })
+            dependencies.policySink = { _ = CodexConfigLeverSync.apply(switchStateAuto: $0, configURL: url) }
+            dependencies.writeStdout = { output = $0 }
+            CodexHookHandler.dependencies = dependencies
+            CodexHookHandler.handlePermissionRequest()
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+            let hook = try XCTUnwrap(json["hookSpecificOutput"] as? [String: Any])
+            let decision = hook["decision"] as? [String: String]
+            XCTAssertEqual(decision?["behavior"], state == 0 ? "allow" : nil)
+            let policy = state == 0 ? "never" : "on-request"
+            XCTAssertEqual(try text(of: url), "approval_policy = \"\(policy)\" # keep\n")
+        }
+    }
+
+    func testSessionStartWritesLeverPolicyThroughProductionWriter() throws {
+        let original = CodexHookHandler.dependencies
+        defer { CodexHookHandler.dependencies = original }
+        for state in [0, 1] {
+            let url = try writeFixture("approval_policy = \"untrusted\" # keep\n")
+            var dependencies = installFakeHookDependencies(recorder: PolicyRecorder(), reply: { _ in state })
+            dependencies.policySink = { _ = CodexConfigLeverSync.apply(switchStateAuto: $0, configURL: url) }
+            CodexHookHandler.dependencies = dependencies
+            CodexHookHandler.handleState(stateValue: 4)
+            let policy = state == 0 ? "never" : "on-request"
+            XCTAssertEqual(try text(of: url), "approval_policy = \"\(policy)\" # keep\n")
+        }
+    }
+
     // MARK: - 生产路径不得被测试触碰
 
     func testProductionConfigURLPointsAtRealHomeCodexConfig() {

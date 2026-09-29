@@ -13,7 +13,7 @@ public final class VibeBarController {
     private var pointerUpdatePending = false
     private var isExpanded = false
     private weak var state: VibeBarState?
-    private var presentationScreen: NSScreen?
+    private(set) var presentationScreen: NSScreen?
     private var leadingFrame: CGRect?
     private var trailingFrame: CGRect?
     private var compactScreen: NSScreen?
@@ -27,7 +27,7 @@ public final class VibeBarController {
         case expanded
     }
 
-    private init() {}
+    init() {}
 
     /// 在主 app 启动后调用一次。多次调用是空操作。
     public func start(state: VibeBarState) {
@@ -42,7 +42,8 @@ public final class VibeBarController {
                 state: state,
                 onAppear: { self?.expandedMenuAppeared() },
                 onHoverChanged: { self?.expandedHoverChanged($0) },
-                onFrameChanged: { frame, _ in
+                onFrameChanged: { frame, screen in
+                    self?.presentationScreen = screen
                     self?.expandedContentFrame = frame
                     self?.schedulePointerUpdate()
                 },
@@ -215,7 +216,11 @@ public final class VibeBarController {
         return screens[index]
     }
 
-    private func compactFrameChanged(_ frame: CGRect, screen: NSScreen, leading: Bool) {
+    func compactFrameChanged(_ frame: CGRect, screen: NSScreen, leading: Bool) {
+        // DynamicNotchKit can rebuild its window on another screen independently
+        // of our presentation requests (display detach / primary-display change).
+        if presentationScreen?.frame != screen.frame { expandedContentFrame = nil }
+        presentationScreen = screen
         if compactScreen?.frame != screen.frame {
             leadingFrame = nil
             trailingFrame = nil

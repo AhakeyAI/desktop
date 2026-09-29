@@ -981,17 +981,8 @@ final class AgentManager: ObservableObject {
         "stop",
     ]
 
-    private let codexHookBlockStart = "# BEGIN AhaKey Codex Hooks"
-    private let codexHookBlockEnd = "# END AhaKey Codex Hooks"
-    private let codexHookEvents: [(event: String, agentEvent: String, timeout: Int)] = [
-        ("SessionStart", "CodexSessionStart", 10),
-        ("PostToolUse", "CodexPostToolUse", 10),
-        ("PreToolUse", "CodexPreToolUse", 20),
-        ("PermissionRequest", "CodexPermissionRequest", 20),
-        ("UserPromptSubmit", "CodexUserPromptSubmit", 10),
-        ("Stop", "CodexStop", 10),
-    ]
-
+    private let codexHookBlockStart = CodexHookTrust.blockStart
+    private let codexHookBlockEnd = CodexHookTrust.blockEnd
     private let kimiHookBlockStart = "# BEGIN AhaKey Kimi Hooks"
     private let kimiHookBlockEnd = "# END AhaKey Kimi Hooks"
     private let kimiHookEntries: [(event: String, agentEvent: String, timeout: Int)] = [
@@ -1127,19 +1118,14 @@ final class AgentManager: ObservableObject {
         }
 
         var config = (try? String(contentsOfFile: codexConfigPath, encoding: .utf8)) ?? ""
-        config = removeCodexHookBlock(from: config)
         config = ensureCodexHooksFeatureEnabled(in: config)
-        config = config.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !config.isEmpty { config += "\n\n" }
-        config += buildCodexHookBlock()
-        config += "\n"
-        // Codex 新版本要求 hooks 内容哈希已记录信任（[hooks.state] trusted_hash）才会执行；
-        // 每次重装都会改动内容使旧信任失效，必须与 hook 块一起重写信任条目。
-        config = CodexHookTrust.upsertTrustEntries(
-            in: config,
-            configPath: codexConfigPath,
-            entries: codexHookTrustEntries()
-        )
+        do {
+            config = try CodexHookTrust.installAgentHooks(
+                in: config, configPath: codexConfigPath, agentBinaryPath: agentBinaryPath
+            )
+        } catch {
+            return "Codex Hooks：无法安全更新现有配置，未写入：\(error)"
+        }
 
         do {
             try config.write(toFile: codexConfigPath, atomically: true, encoding: .utf8)
@@ -1228,7 +1214,12 @@ final class AgentManager: ObservableObject {
             return "无法读取 \(path)，请检查权限。"
         }
         // 连同 AhaKey 管理的 [hooks.state] 信任条目一起移除，避免卸载后残留失效哈希。
-        let next = CodexHookTrust.removeTrustEntries(in: removeCodexHookBlock(from: config), configPath: path)
+        let next: String
+        do {
+            next = try CodexHookTrust.removingManagedHooks(in: config, configPath: path)
+        } catch {
+            return "Codex Hooks：无法安全移除，未写入：\(error)"
+        }
         guard next != config else {
             return "在 \(path) 中未发现 AhaKey Codex hook 标记块。"
         }
@@ -1239,51 +1230,6 @@ final class AgentManager: ObservableObject {
         } catch {
             return "已生成移除后的内容，但无法写回 \(path)：\(error.localizedDescription)"
         }
-    }
-
-    private func buildCodexHookBlock() -> String {
-        let binQuoted = shellQuote(agentBinaryPath)
-        var lines: [String] = [
-            codexHookBlockStart,
-            "# Managed by AhaKey Studio. Codex 0.125 uses inline TOML hooks; each command hook needs type = \"command\".",
-        ]
-        for item in codexHookEvents {
-            lines.append("")
-            lines.append("[[hooks.\(item.event)]]")
-            lines.append("matcher = \"\"")
-            lines.append("")
-            lines.append("[[hooks.\(item.event).hooks]]")
-            lines.append("type = \"command\"")
-            lines.append("command = \"\(escapeTomlBasicString("/bin/zsh -lc \(shellQuote("\(binQuoted) hook \(item.agentEvent)"))"))\"")
-            lines.append("timeout = \(item.timeout)")
-        }
-        lines.append("")
-        lines.append(codexHookBlockEnd)
-        return lines.joined(separator: "\n")
-    }
-
-    /// 与 buildCodexHookBlock 写入内容一一对应的 [hooks.state] 信任条目。
-    /// command 取 TOML 反转义后的原始值（与 codex 解析后参与哈希的值一致）。
-    private func codexHookTrustEntries() -> [(key: String, hash: String)] {
-        let binQuoted = shellQuote(agentBinaryPath)
-        return codexHookEvents.compactMap { item in
-            let command = "/bin/zsh -lc \(shellQuote("\(binQuoted) hook \(item.agentEvent)"))"
-            guard let key = CodexHookTrust.stateKey(configPath: codexConfigPath, event: item.event),
-                  let hash = CodexHookTrust.trustedHash(event: item.event, matcher: "", command: command, timeout: item.timeout)
-            else { return nil }
-            return (key, hash)
-        }
-    }
-
-    private func removeCodexHookBlock(from config: String) -> String {
-        var lines = config.components(separatedBy: .newlines)
-        while let start = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == codexHookBlockStart }),
-              let end = lines[start...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == codexHookBlockEnd }) {
-            lines.removeSubrange(start...end)
-        }
-        return lines.joined(separator: "\n")
-            .replacingOccurrences(of: "\n\n\n", with: "\n\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
     }
 
     private func ensureCodexHooksFeatureEnabled(in config: String) -> String {

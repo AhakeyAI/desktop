@@ -11,6 +11,14 @@ final class CodexHookTrustTests: XCTestCase {
         XCTAssertEqual(hash, "sha256:f2e49c181cca8d8ffd944c181e7be66aead8c4b2f654c4cba522e673d42e1dd4")
     }
 
+    // Codex hooks/list normalizes matcher to nil for these events, even if configured.
+    func testEventsWithoutMatcherExcludeItFromTrustIdentity() {
+        XCTAssertEqual(CodexHookTrust.trustedHash(event: "UserPromptSubmit", matcher: "ignored", command: "true", timeout: 10),
+                       "sha256:8d92cb18f47b2766730ec51ce987dd790a3e6ee9b3237b1aba8b3e00c9885990")
+        XCTAssertEqual(CodexHookTrust.trustedHash(event: "Stop", matcher: "ignored", command: "true", timeout: 10),
+                       "sha256:8ba29ded04038c52832548d01a197dd3c24aac6e21d816f388f046ab09768060")
+    }
+
     func testStateKeyUsesSnakeCaseEventLabel() {
         let key = CodexHookTrust.stateKey(configPath: "/Users/x/.codex/config.toml", event: "UserPromptSubmit")
         XCTAssertEqual(key, "/Users/x/.codex/config.toml:user_prompt_submit:0:0")
@@ -21,21 +29,21 @@ final class CodexHookTrustTests: XCTestCase {
         XCTAssertNil(CodexHookTrust.stateKey(configPath: "/tmp/c.toml", event: "Bogus"))
     }
 
-    func testUpsertAppendsAndIsIdempotent() {
+    func testUpsertAppendsAndIsIdempotent() throws {
         let entries: [(key: String, hash: String)] = [
             ("/Users/x/.codex/config.toml:session_start:0:0", "sha256:aaa"),
             ("/Users/x/.codex/config.toml:stop:0:0", "sha256:bbb"),
         ]
         var config = "model = \"gpt\"\n\n[[hooks.SessionStart]]\nmatcher = \"\"\n"
-        let once = CodexHookTrust.upsertTrustEntries(in: config, configPath: "/Users/x/.codex/config.toml", entries: entries)
+        let once = try CodexHookTrust.upsertTrustEntries(in: config, configPath: "/Users/x/.codex/config.toml", entries: entries)
         XCTAssertTrue(once.contains("[hooks.state.\"/Users/x/.codex/config.toml:session_start:0:0\"]\ntrusted_hash = \"sha256:aaa\""))
         XCTAssertTrue(once.contains("[[hooks.SessionStart]]"))
         // 重复安装先删后写，不产生重复表
-        let twice = CodexHookTrust.upsertTrustEntries(in: once, configPath: "/Users/x/.codex/config.toml", entries: entries)
+        let twice = try CodexHookTrust.upsertTrustEntries(in: once, configPath: "/Users/x/.codex/config.toml", entries: entries)
         XCTAssertEqual(twice.components(separatedBy: "hooks.state.").count - 1, 2)
     }
 
-    func testUpsertPreservesForeignTrustEntries() {
+    func testUpsertPreservesForeignTrustEntries() throws {
         var config = """
         [hooks.state."/proj/.codex/hooks.json:pre_tool_use:0:0"]
         trusted_hash = "sha256:keep"
@@ -44,7 +52,7 @@ final class CodexHookTrustTests: XCTestCase {
         enabled = false
         trusted_hash = "sha256:stale"
         """
-        let result = CodexHookTrust.upsertTrustEntries(
+        let result = try CodexHookTrust.upsertTrustEntries(
             in: config,
             configPath: "/Users/x/.codex/config.toml",
             entries: [("/Users/x/.codex/config.toml:stop:0:0", "sha256:fresh")]
@@ -54,7 +62,21 @@ final class CodexHookTrustTests: XCTestCase {
         XCTAssertTrue(result.contains("sha256:fresh"))
     }
 
-    func testRemoveTrustEntries() {
+    func testUpsertPreservesOtherGroupsInTheSameConfig() throws {
+        let path = "/tmp/config.toml"
+        let config = """
+        [hooks.state."/tmp/config.toml:session_start:0:0"]
+        enabled = false
+        trusted_hash = "sha256:user"
+        """
+        let result = try CodexHookTrust.upsertTrustEntries(in: config, configPath: path,
+            entries: [("/tmp/config.toml:session_start:1:0", "sha256:ahakey")])
+        XCTAssertTrue(result.contains("sha256:user"))
+        XCTAssertTrue(result.contains("enabled = false"))
+        XCTAssertTrue(result.contains("sha256:ahakey"))
+    }
+
+    func testRemoveTrustEntries() throws {
         let config = """
         model = "gpt"
         [hooks.state."/Users/x/.codex/config.toml:stop:0:0"]
@@ -62,7 +84,7 @@ final class CodexHookTrustTests: XCTestCase {
         [other]
         key = 1
         """
-        let result = CodexHookTrust.removeTrustEntries(in: config, configPath: "/Users/x/.codex/config.toml")
+        let result = try CodexHookTrust.removeTrustEntries(in: config, keys: ["/Users/x/.codex/config.toml:stop:0:0"])
         XCTAssertFalse(result.contains("hooks.state"))
         XCTAssertTrue(result.contains("[other]"))
         XCTAssertTrue(result.contains("model = \"gpt\""))

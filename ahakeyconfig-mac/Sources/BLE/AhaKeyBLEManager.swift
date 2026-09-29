@@ -171,6 +171,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var pendingConnect = false
     private var rssiTimer: Timer?
     private var autoReconnectTimer: Timer?
+    var isAutoReconnectScheduled: Bool { autoReconnectTimer?.isValid == true }
     private var statusPollTimer: Timer?
     private var ideStateDirectoryMonitor: DispatchSourceFileSystemObject?
     private var ideStateExpiryTimer: Timer?
@@ -292,8 +293,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
     func userInitiatedConnect() {
         ensureCentralManager()
-        suppressAutomaticConnection = false
-        reconnectBackoff.reset()
+        setSuppressedForAgentOwningKeyboard(false)
         connectAutomatically()
     }
 
@@ -318,8 +318,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             }
             didLogConnectionLockBusy = false
         } else {
-            // 切回本 App（用户显式操作）：退避重置回 4s，尽快重连
+            // Restore retries even when the first attempt cannot acquire the lock or find a device.
             reconnectBackoff.reset()
+            if !isConnected { startAutoReconnectPolling() }
         }
     }
 
@@ -817,6 +818,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 退避式自动重连轮询（阶段 3）：按 `reconnectBackoff` 的间隔逐级拉长（4s → 8s → 15s → 30s 封顶）。
     private func startAutoReconnectPolling() {
+        guard !suppressAutomaticConnection else { return }
         scheduleAutoReconnectAttempt(after: reconnectBackoff.next())
     }
 
@@ -830,6 +832,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func performAutoReconnectAttempt() {
+        guard !suppressAutomaticConnection else { return }
         // 条件不满足（扫描中/连接中/蓝牙未开）：不消耗退避步进，按当前间隔再试
         guard central?.state == .poweredOn,
               !isConnected, !isScanning,

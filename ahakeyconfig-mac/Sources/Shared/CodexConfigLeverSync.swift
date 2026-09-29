@@ -148,7 +148,25 @@ public enum CodexConfigLeverSync {
 /// 多行 basic/literal string、跨行 array / inline table、注释里的 `[` 一律被正确跳过。
 /// 任何无法安全判定的输入（词法未闭合、重复 key、非 scalar value）都返回 typed failure，
 /// 调用方零写。
-private enum TomlPolicyLocator {
+enum TomlPolicyLocator {
+    /// Shared lexical scan: headers inside strings/comments never become TOML statements.
+    struct Statement {
+        enum Kind {
+            case comment
+            case table(path: [String], isArray: Bool)
+            case assignment(path: [String])
+        }
+        let range: Range<Int>
+        let kind: Kind
+    }
+
+    static func statements(in text: String) throws -> [Statement] {
+        var scanner = Scanner(bytes: Array(text.utf8))
+        scanner.locatePolicy = false
+        try scanner.scan()
+        return scanner.statements
+    }
+
     /// 唯一的 typed 定位事实：调用方只按这四态做一次 replace / insert，不再自行推断 TOML。
     enum Location {
         /// 顶层 `approval_policy` 的单行 scalar value token 范围 + 解码值。
@@ -221,6 +239,8 @@ private enum TomlPolicyLocator {
         let bytes: [UInt8]
         var index = 0
         var inTable = false
+        var locatePolicy = true
+        var statements: [Statement] = []
         var firstTableLineStart: Int?
         var policy: (range: Range<Int>, value: String)?
         var newlineStyle: [UInt8] = [Scanner.lf]
@@ -255,7 +275,9 @@ private enum TomlPolicyLocator {
                     continue
                 }
                 if byte == Scanner.hash {
+                    let start = index
                     skipToLineEnd()
+                    statements.append(Statement(range: start..<index, kind: .comment))
                     continue
                 }
                 if byte == Scanner.lbracket {
@@ -273,6 +295,7 @@ private enum TomlPolicyLocator {
         // MARK: statements
 
         private mutating func parseTableHeader() throws {
+            let start = index
             // 先冻结 header kind，再要求精确 delimiter：普通 table 恰好 `]`，
             // array-of-tables 恰好 `]]`；`[[x]` / `[x]]` / `[]` / `[[x]]]` 全部零写拒绝。
             let isArrayOfTables: Bool
@@ -302,12 +325,14 @@ private enum TomlPolicyLocator {
                 throw Failure.unsupported("table header 后有额外内容")
             }
             // namespace：table path 首段是 approval_policy ⇒ 与目标 scalar 定义冲突。
-            if path.first == Scanner.policyKey {
+            statements.append(Statement(range: start..<index, kind: .table(path: path, isArray: isArrayOfTables)))
+            if locatePolicy, path.first == Scanner.policyKey {
                 throw Failure.unsupported("approval_policy 命名空间冲突（table header）")
             }
         }
 
         private mutating func parseKeyValue() throws {
+            let start = index
             let keyPath = try parseKeyPath()
             skipHorizontalWhitespace()
             guard index < bytes.count, bytes[index] == Scanner.equals else {
@@ -323,7 +348,8 @@ private enum TomlPolicyLocator {
                 throw Failure.unsupported("value 后有额外内容")
             }
 
-            guard !inTable, keyPath.first == Scanner.policyKey else { return }
+            statements.append(Statement(range: start..<index, kind: .assignment(path: keyPath)))
+            guard locatePolicy, !inTable, keyPath.first == Scanner.policyKey else { return }
             // 首段是 approval_policy：唯一允许形态是顶层单行 scalar key 本身；
             // `approval_policy.foo` / `"approval_policy".x` 等 dotted 形态与目标 scalar 冲突。
             guard keyPath == [Scanner.policyKey] else {
