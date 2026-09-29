@@ -28,8 +28,8 @@ enum VibeBarHoverGeometry {
         guard frame.width > 0, frame.height > 0, frame.contains(point) else { return false }
         // AppKit uses a bottom-left origin; this is the same concave-top / rounded-bottom
         // outline as the SwiftUI mask, expressed in global screen coordinates.
-        let t = min(topRadius, frame.height / 2)
-        let b = min(bottomRadius, frame.height / 2)
+        let t = topRadius
+        let b = bottomRadius
         let x = frame.minX, y = frame.minY, right = frame.maxX, top = frame.maxY
         let path = CGMutablePath()
         path.move(to: CGPoint(x: x, y: top))

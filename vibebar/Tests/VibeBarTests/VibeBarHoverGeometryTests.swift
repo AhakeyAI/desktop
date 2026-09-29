@@ -30,6 +30,13 @@ final class VibeBarHoverGeometryTests: XCTestCase {
             XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: screen.midX, y: screen.maxY - 16), compactFrame: frame(in: screen), pressedMouseButtons: buttons))
         }
     }
+    func testShortMenuBarKeepsTheVisibleFourteenPointBottomCurve() {
+        let frame = CGRect(x: 0, y: 0, width: 200, height: 22)
+        XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(
+            at: CGPoint(x: 12, y: 1), compactFrame: frame, pressedMouseButtons: 0))
+        XCTAssertTrue(VibeBarHoverGeometry.shouldExpand(
+            at: CGPoint(x: 100, y: 10), compactFrame: frame, pressedMouseButtons: 0))
+    }
     func testUnmeasuredOrOtherScreenGeometryFailsClosed() {
         XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: 756, y: 970), compactFrame: nil, pressedMouseButtons: 0))
         XCTAssertNil(VibeBarHoverGeometry.compactFrame(leading: CGRect(x: -500, y: 960, width: 50, height: 20), trailing: CGRect(x: 800, y: 960, width: 70, height: 20), screen: screen, height: 32))
