@@ -11,9 +11,12 @@ import com.example.ahakey.util.Icons;
 import com.example.ahakey.util.LanguageManager;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
@@ -992,7 +995,9 @@ public class TopBar extends VBox {
         ));
         deviceRow2.getChildren().addAll(deviceName, switchState);
 
-        deviceCard.getChildren().addAll(deviceTitle, deviceRow1, deviceRow2);
+        VBox sleepWaitTimeControl = createSleepWaitTimeControl();
+
+        deviceCard.getChildren().addAll(deviceTitle, deviceRow1, deviceRow2, sleepWaitTimeControl);
 
         // 日志区域（提前创建以记录检测过程）
         logArea = new TextArea();
@@ -1107,6 +1112,133 @@ public class TopBar extends VBox {
                 Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
             }
         }, "hook-detection").start();
+    }
+
+    private VBox createSleepWaitTimeControl() {
+        VBox box = new VBox(6);
+
+        Label title = new Label(languageManager.getString("sleep-wait-time.title"));
+        title.getStyleClass().add("dialog-text");
+
+        ComboBox<SleepWaitTimeOption> options = new ComboBox<>();
+        options.getItems().addAll(
+            new SleepWaitTimeOption(0, languageManager.getString("sleep-wait-time.never")),
+            new SleepWaitTimeOption(30, languageManager.getString("sleep-wait-time.30")),
+            new SleepWaitTimeOption(60, languageManager.getString("sleep-wait-time.60")),
+            new SleepWaitTimeOption(120, languageManager.getString("sleep-wait-time.120"))
+        );
+        options.setPrefWidth(140);
+
+        Label status = new Label();
+        status.getStyleClass().add("dialog-text");
+        status.setWrapText(true);
+
+        Label description = new Label(languageManager.getString("sleep-wait-time.description"));
+        description.getStyleClass().add("dialog-text");
+        description.setWrapText(true);
+
+        Button saveButton = new Button(languageManager.getString("sleep-wait-time.save"));
+        BooleanProperty busy = new SimpleBooleanProperty(false);
+        options.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> !controller.isEffectivelyConnected() || busy.get(),
+            this.deviceStatus.isConnectedProperty(),
+            busy
+        ));
+        saveButton.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> !controller.isEffectivelyConnected() || busy.get() || options.getSelectionModel().getSelectedItem() == null,
+            this.deviceStatus.isConnectedProperty(),
+            busy,
+            options.getSelectionModel().selectedItemProperty()
+        ));
+
+        HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getChildren().addAll(title, options, saveButton);
+
+        saveButton.setOnAction(event -> saveSleepWaitTime(options, status, busy));
+        loadSleepWaitTime(options, status, busy);
+
+        box.getChildren().addAll(row, description, status);
+        return box;
+    }
+
+    private void loadSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy) {
+        if (!controller.isEffectivelyConnected()) {
+            status.setText(languageManager.getString("sleep-wait-time.not-connected"));
+            return;
+        }
+        busy.set(true);
+        status.setText(languageManager.getString("sleep-wait-time.reading"));
+        Thread thread = new Thread(() -> {
+            try {
+                int minutes = controller.getBleManager().readSleepWaitTimeMinutes();
+                Platform.runLater(() -> {
+                    SleepWaitTimeOption option = findSleepWaitTimeOption(options, minutes);
+                    if (option == null) {
+                        options.getSelectionModel().clearSelection();
+                        status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
+                    } else {
+                        options.getSelectionModel().select(option);
+                        status.setText(String.format(languageManager.getString("sleep-wait-time.current"), option.label()));
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> status.setText(languageManager.getString("sleep-wait-time.read-failed") + e.getMessage()));
+            } finally {
+                Platform.runLater(() -> busy.set(false));
+            }
+        }, "sleep-wait-time-read");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void saveSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy) {
+        SleepWaitTimeOption selected = options.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            return;
+        }
+        if (!controller.isEffectivelyConnected()) {
+            status.setText(languageManager.getString("sleep-wait-time.not-connected"));
+            return;
+        }
+        busy.set(true);
+        status.setText(languageManager.getString("sleep-wait-time.saving"));
+        Thread thread = new Thread(() -> {
+            try {
+                int readback = controller.getBleManager().setSleepWaitTimeMinutesAndVerify(selected.minutes());
+                Platform.runLater(() -> {
+                    SleepWaitTimeOption option = findSleepWaitTimeOption(options, readback);
+                    if (option != null) {
+                        options.getSelectionModel().select(option);
+                        status.setText(String.format(languageManager.getString("sleep-wait-time.saved"), option.label()));
+                    } else {
+                        status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> status.setText(languageManager.getString("sleep-wait-time.save-failed") + e.getMessage()));
+            } finally {
+                Platform.runLater(() -> busy.set(false));
+            }
+        }, "sleep-wait-time-save");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private SleepWaitTimeOption findSleepWaitTimeOption(ComboBox<SleepWaitTimeOption> options, int minutes) {
+        for (SleepWaitTimeOption option : options.getItems()) {
+            if (option.minutes() == minutes) {
+                return option;
+            }
+        }
+        return null;
+    }
+
+    private record SleepWaitTimeOption(int minutes, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
     }
     
     private void updateHookCardStatus(VBox card, String hookName, boolean isInstalled) {

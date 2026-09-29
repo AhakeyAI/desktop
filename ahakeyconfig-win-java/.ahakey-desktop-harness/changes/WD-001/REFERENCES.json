@@ -1,0 +1,59 @@
+{
+  "sources": [
+    {
+      "id": "FW-CP3A-OWNER-PROTOCOL",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/owner-decisions/X1-CONNECTIVITY-POWER-CP3A-HOST-CONFIGURABLE-SLEEP-TIMEOUT-PROTOCOL-20260928.md",
+      "revision_or_commit": "a9db65e2e73bc56b669c312e9fc42f3ee02c3d49",
+      "sha256": "4d48a0d62424a45793d7a2959609c727ddf6b02796e7f93e0fc9c5873632de19",
+      "section": "0x95 self-persisting sleep wait time; Desktop does not send 0x04",
+      "kind": "decision",
+      "maturity": "agreed",
+      "observed_at": "2026-09-28T09:11:40+00:00"
+    },
+    {
+      "id": "FW-CP3A-COMMAND-095",
+      "workspace": "firmware",
+      "path": "APP/sub_main/command_solve.c",
+      "revision_or_commit": "a9db65e2e73bc56b669c312e9fc42f3ee02c3d49",
+      "sha256": "df09df547c58064c45725e7175dcf909b233cb4ce2a5382c59f19b3fbfc2025e",
+      "section": "0x95 query/set branch; persist_standby_minutes verifies EEPROM field before OK",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-09-28T09:11:54+00:00"
+    },
+    {
+      "id": "FW-CP3A-STANDBY-CONFIG",
+      "workspace": "firmware",
+      "path": "APP/services/standby_config.h",
+      "revision_or_commit": "a9db65e2e73bc56b669c312e9fc42f3ee02c3d49",
+      "sha256": "784aeb8f284c5a287ac69673bdd8675e7553b83b908580795c64e53ec5b92e62",
+      "section": "supported values 0/30/60/120 and status codes OK/out-of-range/save-failed/invalid-payload",
+      "kind": "protocol",
+      "maturity": "implemented",
+      "observed_at": "2026-09-28T09:12:11+00:00"
+    },
+    {
+      "id": "FW-CP3A-PROTOCOL-INDEX",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/contracts/x1/protocol-commands.yaml",
+      "revision_or_commit": "a9db65e2e73bc56b669c312e9fc42f3ee02c3d49",
+      "sha256": "5d53570d86770779e751d96e0c5ed79ab13d652cbe9468fda79b8a42f19bd667",
+      "section": "0x95 sleep_wait_time_official_self_persisting; 0x04 remains general save_config",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-09-28T09:12:28+00:00"
+    },
+    {
+      "id": "FW-CP3A-READINESS",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-CONNECTIVITY-POWER/CP3A/candidate-readiness/20260928T164508/candidate-readiness.md",
+      "revision_or_commit": "a9db65e2e73bc56b669c312e9fc42f3ee02c3d49",
+      "sha256": "a2cc3dff65d85683409f4796626625201ab2ad58c0d6b77770e41b03ef3da713",
+      "section": "READY_FOR_REGATE metadata; no contract/scope/regression-binding gaps recorded",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-09-28T09:12:48+00:00"
+    }
+  ]
+}

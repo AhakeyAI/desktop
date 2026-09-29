@@ -21,6 +21,7 @@ public class AhaKeyProtocol {
     public static final byte CMD_UPDATE_STATE = (byte) 0x90;
     public static final byte CMD_SET_LIGHT_EFFECT = (byte) 0x91;
     public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
+    public static final byte CMD_SLEEP_WAIT_TIME = (byte) 0x95;
     
     // 按键子类型
     public static final byte SUB_SHORTCUT = 0x73;
@@ -75,6 +76,24 @@ public class AhaKeyProtocol {
 
     public static byte[] setWorkMode(int mode) {
         return buildFrame(CMD_SET_WORK_MODE, new byte[]{(byte) Math.max(0, Math.min(3, mode))});
+    }
+
+    public static byte[] querySleepWaitTime() {
+        return buildFrame(CMD_SLEEP_WAIT_TIME, new byte[0]);
+    }
+
+    public static byte[] setSleepWaitTime(int minutes) {
+        if (!isSupportedSleepWaitTime(minutes)) {
+            throw new IllegalArgumentException("Unsupported sleep wait time: " + minutes);
+        }
+        byte[] payload = new byte[2];
+        payload[0] = (byte) (minutes & 0xFF);
+        payload[1] = (byte) ((minutes >> 8) & 0xFF);
+        return buildFrame(CMD_SLEEP_WAIT_TIME, payload);
+    }
+
+    public static boolean isSupportedSleepWaitTime(int minutes) {
+        return minutes == 0 || minutes == 30 || minutes == 60 || minutes == 120;
     }
 
     public static byte[] setAiLightConfig(int mode, byte[] effectCodes) {

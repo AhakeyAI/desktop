@@ -13,6 +13,9 @@ public final class AhaKeyResponseParser {
     ) {
     }
 
+    public record SleepWaitTimeResponse(byte status, Integer minutes) {
+    }
+
     private AhaKeyResponseParser() {
     }
 
@@ -44,5 +47,18 @@ public final class AhaKeyResponseParser {
         int frameInterval = (payload[offset + 5] & 0xFF) | ((payload[offset + 6] & 0xFF) << 8);
         int allModeMaxPic = (payload[offset + 7] & 0xFF) | ((payload[offset + 8] & 0xFF) << 8);
         return new PictureState(mode, startIndex, picLength, frameInterval, allModeMaxPic);
+    }
+
+    public static SleepWaitTimeResponse parseSleepWaitTime(byte[] frame) {
+        CommandResponse response = parseCommandResponse(frame);
+        if (response == null || response.cmd() != AhaKeyProtocol.CMD_SLEEP_WAIT_TIME) {
+            return null;
+        }
+        Integer minutes = null;
+        byte[] payload = response.payload();
+        if (response.status() == 0 && payload.length >= 2) {
+            minutes = (payload[0] & 0xFF) | ((payload[1] & 0xFF) << 8);
+        }
+        return new SleepWaitTimeResponse(response.status(), minutes);
     }
 }

@@ -254,6 +254,52 @@ public class BleManager {
         }
     }
 
+    public int readSleepWaitTimeMinutes() throws Exception {
+        commandLock.lock();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.querySleepWaitTime());
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
+            AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(frame);
+            if (parsed == null || parsed.minutes() == null) {
+                throw new IOException("无法解析睡眠等待时间响应");
+            }
+            return parsed.minutes();
+        } finally {
+            commandLock.unlock();
+        }
+    }
+
+    public int setSleepWaitTimeMinutesAndVerify(int minutes) throws Exception {
+        commandLock.lock();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.setSleepWaitTime(minutes));
+            byte[] setFrame = waitForResponseFrame(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME, false);
+            AhaKeyResponseParser.CommandResponse setResponse = AhaKeyResponseParser.parseCommandResponse(setFrame);
+            if (setResponse == null) {
+                throw new IOException("无法解析睡眠等待时间保存响应");
+            }
+            if (setResponse.status() != 0) {
+                throw new IOException("睡眠等待时间保存失败: " + sleepWaitTimeStatusMessage(setResponse.status()));
+            }
+
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.querySleepWaitTime());
+            byte[] queryFrame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
+            AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(queryFrame);
+            if (parsed == null || parsed.minutes() == null) {
+                throw new IOException("无法解析睡眠等待时间回读响应");
+            }
+            if (parsed.minutes() != minutes) {
+                throw new IOException("睡眠等待时间回读不匹配: 期望 " + minutes + "，实际 " + parsed.minutes());
+            }
+            return parsed.minutes();
+        } finally {
+            commandLock.unlock();
+        }
+    }
+
     public void writeData(byte[] chunk) throws IOException {
         logger.debug("发送数据块: {} 字节", chunk.length);
         if (ensureUsbConnected()) {
@@ -496,6 +542,10 @@ public class BleManager {
     private static final long RECONNECT_WAIT_MS = 30000;  // 重连等待时间30秒
 
     private byte[] waitForResponse(byte expectedCmd) throws Exception {
+        return waitForResponseFrame(expectedCmd, true);
+    }
+
+    private byte[] waitForResponseFrame(byte expectedCmd, boolean throwOnDeviceError) throws Exception {
         logger.debug("开始等待响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
         
@@ -531,7 +581,7 @@ public class BleManager {
                 }
                 if (parsed.cmd() == expectedCmd) {
                     logger.debug("收到期望的响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
-                    if (parsed.status() != 0) {
+                    if (throwOnDeviceError && parsed.status() != 0) {
                         throw new IOException("设备返回错误码 " + parsed.status());
                     }
                     return frame;
@@ -542,6 +592,15 @@ public class BleManager {
             }
             responseReady.awaitNanos(remaining);
         }
+    }
+
+    private String sleepWaitTimeStatusMessage(byte status) {
+        return switch (status) {
+            case 1 -> "非法值";
+            case 2 -> "固化失败";
+            case 3 -> "数据长度错误";
+            default -> "设备返回错误码 " + status;
+        };
     }
 
     private void startReader() {

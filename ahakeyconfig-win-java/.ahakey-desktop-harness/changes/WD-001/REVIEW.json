@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "id": "WD-001",
+  "pack_sha256": "1458d3ff2e629de324d49ba0a9afee8569d2dbfc5687f5cef13bb6264fe0439f",
+  "reviewer_role": "DLA",
+  "review_session": "codex-dla-windows-review-20260929T0152Z",
+  "builder_session": "dib-builder-submission-20260928T094013Z",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "Actual review pack d4ee7a27 covers exactly the six WD-001 allowed production/resource paths and no extra production path. AGENTS, harness upgrade files, build receipts and Owner test artifacts are outside this production diff and remain separate delivery evidence. The six changed files implement only CP3A sleep wait time UI/protocol integration inside the approved More dialog device info card.",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "Declare command 0x95 and construct query/set frames for the approved sleep wait time values.",
+      "reviewed_hunks": "Reviewed addition of CMD_SLEEP_WAIT_TIME at line 24, querySleepWaitTime at lines 81-83, setSleepWaitTime at lines 85-93, and isSupportedSleepWaitTime at lines 95-97. Query builds AA BB 95 CC DD through buildFrame with empty payload. Set rejects unsupported values before building a uint16 little-endian payload. Existing saveConfig and other command builders remain unchanged.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "Parse 0x95 command responses into status plus optional minutes payload.",
+      "reviewed_hunks": "Reviewed SleepWaitTimeResponse record at lines 16-17 and parseSleepWaitTime at lines 52-63. It reuses parseCommandResponse, rejects non-0x95 frames, returns minutes only for status 0 with at least two payload bytes, and leaves nonzero status available for caller handling. Existing PictureState parsing remains unchanged.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "Expose read and set-then-query-verify operations over the existing BLE/USB command path.",
+      "reviewed_hunks": "Reviewed readSleepWaitTimeMinutes at lines 257-270, setSleepWaitTimeMinutesAndVerify at lines 273-302, waitForResponseFrame split at lines 543-594, and sleepWaitTimeStatusMessage at lines 597-603. The save path sends 0x95 set, waits for the 0x95 set response without prethrowing so firmware status codes can be mapped, sends 0x95 query, and verifies readback equals the requested minutes. It does not call saveConfig or send 0x04. Existing sendCommandExpecting and other waitForResponse callers still use throwOnDeviceError=true, preserving old device-error behavior.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "purpose": "Add the minimal sleep wait time control inside the existing device info card in the More dialog.",
+      "reviewed_hunks": "Reviewed imports for JavaFX BooleanProperty and ComboBox, insertion of createSleepWaitTimeControl into deviceCard at lines 998-1000, control construction at lines 1117-1161, initial read at lines 1165-1192, save handling at lines 1195-1225, and option lookup/record at lines 1227-1238. The control offers only 0/30/60/120, disables while busy or disconnected, reads on dialog creation when connected, reports unsupported current values, and surfaces read/save exceptions without claiming success. No new card or page is added.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "Add English strings for the sleep wait time control and its status messages.",
+      "reviewed_hunks": "Reviewed lines 52-66. The labels, description, four options, busy messages, read/save success and failure messages match the approved minimal UI semantics. The apparent trailing plus in the review diff was checked against the full file and is only a no-newline diff artifact; the property value is not polluted.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "Add Chinese strings for the sleep wait time control and its status messages.",
+      "reviewed_hunks": "Reviewed lines 52-66. The Chinese title, description, options and error feedback match the Contract wording. The apparent trailing plus in the review diff was checked against the full file and is only a no-newline diff artifact; the property value is not polluted.",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "User opens More -> Device Info / Hooks dialog -> first device info card now contains the sleep wait time row. TopBar creates the ComboBox and Save button, performs an initial read if controller.isEffectivelyConnected, and calls controller.getBleManager(). BleManager serializes through commandLock, sends AhaKeyProtocol.querySleepWaitTime or setSleepWaitTime, receives BLE/USB notify frames through existing onBleNotify -> pendingNotifyFrame -> waitForResponseFrame, parses with AhaKeyResponseParser, and updates the UI status on the JavaFX thread. The write journey is 0x95 set -> 0x95 OK/status -> 0x95 query -> readback equality; no 0x04 save_config is sent for this feature.",
+  "preserved_behavior_assessment": "Existing More menu entry, device card fields, Hook cards, log area, connect/disconnect buttons, BLE driver controls, DeviceSyncService save_config use, USB/BLE transport selection, status polling and unrelated protocol commands are preserved. waitForResponse still throws on nonzero status for old callers; only the new sleep wait time set path opts out so it can translate 0x95 status codes. DIB compile and static checks passed, but no runnable package, app launch, device operation or Owner UAT has been completed in this review.",
+  "baseline_assessment": "review-pack recovered original bytes for all six changed paths, with missing_start_bytes empty. last_verified_baseline is null, so this review verifies the WD-001 cumulative diff against the recorded task start, not a fully validated product baseline. Default Maven still reports Java 8 when not given a temporary JDK 17 environment; DIB compile evidence used D:\\jdk-17.0.19.10-hotspot and passed.",
+  "protocol_assessment": "Contract and Firmware references agree that 0x95 is the official self-persisting sleep wait time command for CP3A, with supported minutes 0/30/60/120, query response AA BB 95 00 lo hi CC DD, set OK AA BB 95 00 CC DD, and status codes 1 OUT_OF_RANGE, 2 SAVE_FAILED, 3 INVALID_PAYLOAD. command_solve.c at firmware commit a9db65e2 shows len==1 query returns lo/hi, len==3 set validates minutes, calls persist_standby_minutes, and only returns OK after EEPROM readback matches. protocol-commands.yaml keeps 0x04 as general save_config and maps 0x95 to sleep_wait_time_official_self_persisting. Windows implementation follows that current contract and does not add 0x86, 0x9F, or a broad old-firmware compatibility promise.",
+  "risk_level": "normal",
+  "fresh_review_required": false,
+  "risk_rationale": "The change is device-related but narrow: six approved files, no new dependency, no shared state ownership change, no broad protocol redesign, and no change to Firmware/eternal/Harness. It reuses the existing command lock and parser pattern while introducing one approved 0x95 command path. The remaining risks are delivery and UAT risks: no runnable build receipt, no Git candidate, no structured firmware identity packet, and no real-device/Owner UAT yet.",
+  "findings": [],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null
+}
