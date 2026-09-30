@@ -118,6 +118,29 @@ final class BLEStatePublicationTests: XCTestCase {
         try FileManager.default.removeItem(at: fixture.directory)
     }
 
+    func testAgentBatteryStateUpdatesStudioWithoutDirectBLEConnection() async throws {
+        let fixture = try await MainActor.run { try makeManager() }
+        let stateFile = fixture.directory.appendingPathComponent("state/current-ide-state.json")
+        let received = expectation(description: "Agent battery reaches Studio")
+        received.assertForOverFulfill = false
+        let subscription = await MainActor.run {
+            fixture.manager.startIDEStateMonitoring()
+            XCTAssertNil(fixture.manager.batteryLevelForDisplay)
+            return fixture.manager.$agentBatteryLevel.sink { value in
+                if value == 61 { received.fulfill() }
+            }
+        }
+        try Data("{\"battery\":61,\"switchState\":0,\"lightMode\":1,\"workMode\":0}".utf8)
+            .write(to: stateFile, options: .atomic)
+        await fulfillment(of: [received], timeout: 2)
+        await MainActor.run {
+            XCTAssertEqual(fixture.manager.batteryLevelForDisplay, 61)
+            fixture.manager.stopIDEStateMonitoring()
+            subscription.cancel()
+        }
+        try FileManager.default.removeItem(at: fixture.directory)
+    }
+
     @MainActor
     private func makeManager() throws -> (manager: AhaKeyBLEManager, directory: URL, lock: BLEConnectionLock) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

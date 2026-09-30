@@ -99,10 +99,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isUploadingOLED = false
     /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），用于画布 LED 颜色实时还原
     @Published private(set) var liveIDEStateValue: Int? = nil
-    /// Agent 端 BLE 通知缓存的 lightMode/switchState/workMode（agent 占用蓝牙时主 App 自己 BLE 未连，靠这些读到键盘实时状态）
+    /// Agent 端 BLE 通知缓存（agent 占用蓝牙时主 App 自己 BLE 未连，靠这些读到键盘实时状态）。
+    @Published private(set) var agentBatteryLevel: Int? = nil
     @Published private(set) var agentLightMode: Int? = nil
     @Published private(set) var agentSwitchState: Int? = nil
     @Published private(set) var agentWorkMode: Int? = nil
+    var batteryLevelForDisplay: Int? {
+        isConnected ? batteryLevel : agentBatteryLevel
+    }
     /// 各 mode flash 里的真实图片元信息。
     /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
     /// 键盘显示固件出厂动图（与 bundle/DefaultOLED 同源）。
@@ -969,6 +973,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             scheduleIDEStateExpiry(at: nil)
             if liveIDEStateValue != nil { liveIDEStateValue = nil }
+            if agentBatteryLevel != nil { agentBatteryLevel = nil }
             if agentLightMode != nil { agentLightMode = nil }
             if agentSwitchState != nil { agentSwitchState = nil }
             if agentWorkMode != nil { agentWorkMode = nil }
@@ -1004,13 +1009,17 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             agentStateFresh = false
         }
         if agentStateFresh {
+            let battery = obj["battery"] as? Int
             let lm = obj["lightMode"] as? Int
             let sw = obj["switchState"] as? Int
             let wm = obj["workMode"] as? Int
+            let validBattery = battery.flatMap { (0...100).contains($0) ? $0 : nil }
+            if agentBatteryLevel != validBattery { agentBatteryLevel = validBattery }
             if agentLightMode != lm { agentLightMode = lm }
             if agentSwitchState != sw { agentSwitchState = sw }
             if agentWorkMode != wm { agentWorkMode = wm }
         } else {
+            if agentBatteryLevel != nil { agentBatteryLevel = nil }
             if agentLightMode != nil { agentLightMode = nil }
             if agentSwitchState != nil { agentSwitchState = nil }
             if agentWorkMode != nil { agentWorkMode = nil }
