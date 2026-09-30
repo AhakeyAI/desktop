@@ -403,7 +403,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             didLogWatchdogHold = false
             sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
-                let body = Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode)
+                let body = Self.statusReply(status, overrideSwitch: self.userSwitchOverride,
+                                            cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
                     self.emit("（拨杆非 0：PermissionRequest 将交回终端手动确认）")
@@ -423,14 +424,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 ])
             } else {
                 querySwitchState(timeout: 1.5) { status in
-                    Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
+                    Self.replyAndClose(clientFd, Self.statusReply(status, overrideSwitch: self.userSwitchOverride,
+                                                                 cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode))
                 }
             }
 
         case "approval_status":
             // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
             querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.effectiveSwitchState, cachedLight: self.cachedLightMode))
+                Self.replyAndClose(clientFd, Self.statusReply(status, overrideSwitch: self.userSwitchOverride,
+                                                             cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode))
             }
 
         case "set_switch_override":
@@ -453,14 +456,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    private static func statusReply(_ status: AgentDeviceStatus?,
-                                    cachedSwitch: UInt8?,
-                                    cachedLight: UInt8?) -> [String: Any] {
+    static func statusReply(_ status: AgentDeviceStatus?,
+                            overrideSwitch: UInt8?,
+                            cachedSwitch: UInt8?,
+                            cachedLight: UInt8?) -> [String: Any] {
         if let s = status {
-            return ["switchState": s.switchState, "lightMode": s.lightMode]
+            return ["switchState": overrideSwitch.map(Int.init) ?? s.switchState, "lightMode": s.lightMode]
         }
         return [
-            "switchState": cachedSwitch.map { Int($0) } ?? NSNull(),
+            "switchState": (overrideSwitch ?? cachedSwitch).map { Int($0) } ?? NSNull(),
             "lightMode": cachedLight.map { Int($0) } ?? NSNull(),
         ]
     }
