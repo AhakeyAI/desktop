@@ -102,10 +102,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         Self.writeLiveState(stateValue: state)
     }
 
-    /// 把 agent 当前对键盘的认知（最近一次 hook 发送的 stateValue + BLE 上报的 lightMode/switchState/workMode）
+    /// 把 agent 当前对键盘的认知（最近一次 hook 发送的 stateValue + BLE 上报的电量/灯效/拨杆/模式）
     /// merge-write 到共享文件，供主 App 在 agent 拥有 BLE 时读取实时状态。
     /// 任意调用方只传自己负责更新的字段；未传的字段保留文件中的旧值。
     static func writeLiveState(stateValue: UInt8? = nil,
+                               battery: UInt8? = nil,
                                lightMode: UInt8? = nil,
                                switchState: UInt8? = nil,
                                workMode: UInt8? = nil) {
@@ -123,6 +124,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             obj["stateValue"] = Int(s)
             obj["stateTs"] = now
         }
+        if let battery { obj["battery"] = Int(battery) }
         if let lm = lightMode {
             obj["lightMode"] = Int(lm)
             obj["lightModeTs"] = now
@@ -138,7 +140,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             do {
                 try data.write(to: url, options: .atomic)
                 liveStateCoalescer.noteEventWrite(.init(
-                    lightMode: lightMode.map(Int.init), switchState: switchState.map(Int.init),
+                    battery: battery.map(Int.init), lightMode: lightMode.map(Int.init),
+                    switchState: switchState.map(Int.init),
                     workMode: workMode.map(Int.init)
                 ), at: now)
             } catch {
@@ -605,12 +608,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         // 只发布实体拨杆状态，并避免相同状态重复写文件。
         let snapshot = LiveStateWriteCoalescer.Snapshot(
-            lightMode: status.lightMode, switchState: status.switchState,
+            battery: status.battery, lightMode: status.lightMode, switchState: status.switchState,
             workMode: max(0, status.workMode)
         )
         switch Self.liveStateCoalescer.decision(for: snapshot, at: Date().timeIntervalSince1970) {
         case .write:
             Self.writeLiveState(
+                battery: UInt8(clamping: status.battery),
                 lightMode: UInt8(clamping: status.lightMode), switchState: cachedSwitchState,
                 workMode: UInt8(clamping: max(0, status.workMode))
             )
