@@ -77,11 +77,6 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             coreSnapshot = result.core
         }
         if result.diagnostics != diagnosticsSnapshot { diagnosticsStore.snapshot = result.diagnostics }
-        // pending 被确认/超时清除后，取消尚未触发的超时任务
-        if coreSnapshot.pendingSwitchOverride == nil, switchOverrideTimeoutTask != nil {
-            switchOverrideTimeoutTask?.cancel()
-            switchOverrideTimeoutTask = nil
-        }
         switch result.effect {
         case .none:
             break
@@ -90,12 +85,6 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 name: .ahaKeyKeyboardWorkModeChanged,
                 object: nil,
                 userInfo: ["workMode": mode]
-            )
-        case .switchOverrideTimedOut:
-            appendLog(
-                NSLocalizedString("虚拟拨杆切换未在 3s 内收到设备确认，已回退到最后确认值", comment: ""),
-                isError: true,
-                category: .error
             )
         }
     }
@@ -650,12 +639,6 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(cmd)
     }
 
-    /// 最新固件中 0x91 已改为灯效预览；虚拟拨杆只保留软件覆盖，不再向键盘发送旧 0x91。
-    /// value: 0=auto/up, 1=manual/down, 2=mid
-    func setSwitchStateViaBLE(_ value: UInt8) {
-        appendLog("虚拟拨杆 sw_state=\(value) 仅作为软件覆盖；最新固件 0x91 用于灯效预览。")
-    }
-
     func setLightMapping(mode: UInt8, stateEffects: [UInt8]) {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.setLightMapping(mode: mode, stateEffects: stateEffects))
@@ -981,36 +964,6 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
-    /// 主动触发一次共享文件读取（用户点击虚拟拨杆后立即调用，避免等下一次定时 poll）
-    func refreshAgentStateFromFileNow() {
-        pollIDEStateFile()
-    }
-
-    /// 点击虚拟拨杆瞬间的乐观更新值。已迁入 `CoreDeviceSnapshot.pendingSwitchOverride`（阶段 5），
-    /// 旧属性名保留为只读计算属性，UI 消费点零改动。
-    var optimisticSwitchOverride: Int? { coreSnapshot.pendingSwitchOverride }
-
-    /// pending 确认超时任务（3s ≈ 两个轮询周期）。确认到达即取消；超时派发 reducer 事件回退。
-    private var switchOverrideTimeoutTask: Task<Void, Never>?
-
-    func applyOptimisticSwitchOverride(_ value: UInt8) {
-        apply(.userSetSwitch(Int(value)))
-        switchOverrideTimeoutTask?.cancel()
-        switchOverrideTimeoutTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled, let self else { return }
-            self.apply(.switchOverrideTimeout)
-        }
-    }
-
-    private func clearOptimisticSwitchOverrideIfMatched() {
-        guard let opt = coreSnapshot.pendingSwitchOverride else { return }
-        // Agent 共享文件轮询确认：值对齐才清除；BLE 轮询回包的一致性确认在 reducer fullStatus 分支内完成。
-        if agentSwitchState == opt {
-            apply(.switchOverrideConfirmed(opt))
-        }
-    }
-
     private func pollIDEStateFile() {
         guard let data = try? Data(contentsOf: ideStateFileURL),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
@@ -1063,7 +1016,6 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if agentWorkMode != nil { agentWorkMode = nil }
         }
         scheduleIDEStateExpiry(at: expiryDeadlines.min())
-        clearOptimisticSwitchOverrideIfMatched()
     }
 
     /// 所有 AhaKey 主服务特征就绪后触发（仅一次）

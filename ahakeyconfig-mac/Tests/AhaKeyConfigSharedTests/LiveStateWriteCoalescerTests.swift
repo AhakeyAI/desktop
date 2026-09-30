@@ -57,20 +57,15 @@ final class LiveStateWriteCoalescerTests: XCTestCase {
         XCTAssertEqual(coalescer.decision(for: snapshot, at: 1055), .touchOnly)
     }
 
-    /// 事件性写入（虚拟拨杆覆盖，改 switchState）后基准同步：
-    /// 随后携带同一 switchState 的轮询快照不误判为变化；
-    /// 而真实硬件回包（拨杆值不同）仍会被正确判为变化。
-    func testOverrideEventWriteUpdatesBaseline() {
+    /// Hook 事件性写入后，后续相同硬件快照仍去重，实体拨杆变化仍会发布。
+    func testHookEventWriteKeepsPhysicalStateBaseline() {
         var coalescer = LiveStateWriteCoalescer()
         let hardware = Snapshot(lightMode: 1, switchState: 0, workMode: 0)
         XCTAssertEqual(coalescer.decision(for: hardware, at: 1000), .write)
-        // 用户点击画布虚拟拨杆：事件性写入 switchState=2
-        coalescer.noteEventWrite(Snapshot(switchState: 2), at: 1001)
-        // 下一次轮询（override 仍生效，Agent 发布的是 effective=2 的快照）→ 不误判
-        let overridden = Snapshot(lightMode: 1, switchState: 2, workMode: 0)
-        XCTAssertEqual(coalescer.decision(for: overridden, at: 1002), .skip)
-        // 真实硬件回包到达（switchState=0），override 清除 → 真实变化，必须写
-        XCTAssertEqual(coalescer.decision(for: hardware, at: 1003), .write)
+        coalescer.noteEventWrite(Snapshot(), at: 1001)
+        XCTAssertEqual(coalescer.decision(for: hardware, at: 1002), .skip)
+        let manual = Snapshot(lightMode: 1, switchState: 1, workMode: 0)
+        XCTAssertEqual(coalescer.decision(for: manual, at: 1003), .write)
     }
 
     /// 首次发布（基准为空）必写，即使快照与文件既有内容碰巧一致也无妨——同时建立基准。

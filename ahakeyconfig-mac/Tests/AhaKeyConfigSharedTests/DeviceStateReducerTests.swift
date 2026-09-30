@@ -139,94 +139,17 @@ final class DeviceStateReducerTests: XCTestCase {
         XCTAssertEqual(result.effect, .none)
     }
 
-    // MARK: - pending 乐观拨杆（阶段 5）
-
-    /// userSetSwitch：快照携带 pending，发布一次，无副作用。
-    func testUserSetSwitchSetsPending() {
+    func testPhysicalSwitchStateTracksSuccessiveStatusFrames() {
         let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
-
-        let result = DeviceStateReducer.apply(.userSetSwitch(1), core: base.core, diagnostics: base.diagnostics)
-        XCTAssertNotEqual(result.core, base.core)
-        XCTAssertEqual(result.core.pendingSwitchOverride, 1)
-        XCTAssertEqual(result.core.switchState, 0) // 确认值不动
-        XCTAssertEqual(result.effect, .none)
-    }
-
-    /// 匹配回包：pending 清除、确认值入库，且恰好一次快照变化（重复同帧零变化）。
-    func testMatchingReplyConfirmsAndClearsPending() {
-        let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
-        let pending = DeviceStateReducer.apply(.userSetSwitch(1), core: base.core, diagnostics: base.diagnostics)
-
-        let matching = DeviceStateEvent.fullStatus(
+        let manual = DeviceStateEvent.fullStatus(
             battery: 87, firmwareMain: 1, firmwareSub: 2,
             workMode: 2, lightMode: 1, switchState: 1,
             brightness: 35, activePictureSet: 0
         )
-        let confirmed = DeviceStateReducer.apply(matching, core: pending.core, diagnostics: pending.diagnostics)
-        XCTAssertNotEqual(confirmed.core, pending.core)
-        XCTAssertNil(confirmed.core.pendingSwitchOverride)
-        XCTAssertEqual(confirmed.core.switchState, 1)
-        XCTAssertEqual(confirmed.effect, .none)
-
-        // 确认后同一帧再来：零变化零发布
-        let again = DeviceStateReducer.apply(matching, core: confirmed.core, diagnostics: confirmed.diagnostics)
-        XCTAssertEqual(again.core, confirmed.core)
-        XCTAssertEqual(again.effect, .none)
-    }
-
-    /// 不匹配回包：视为在途旧帧——pending 与拨杆字段不动，其他字段正常更新。
-    func testMismatchingReplyKeepsPendingAndSwitchUntouched() {
-        let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
-        let pending = DeviceStateReducer.apply(.userSetSwitch(1), core: base.core, diagnostics: base.diagnostics)
-
-        let stale = DeviceStateEvent.fullStatus(
-            battery: 60, firmwareMain: 1, firmwareSub: 2,
-            workMode: 2, lightMode: 1, switchState: 0,
-            brightness: 50, activePictureSet: 0
-        )
-        let result = DeviceStateReducer.apply(stale, core: pending.core, diagnostics: pending.diagnostics)
-        XCTAssertEqual(result.core.pendingSwitchOverride, 1)
-        XCTAssertEqual(result.core.switchState, 0)
-        // 其他字段照常更新
-        XCTAssertEqual(result.core.batteryLevel, 60)
-        XCTAssertEqual(result.core.brightness, 50)
-        XCTAssertEqual(result.effect, .none)
-    }
-
-    /// 超时：清除 pending、回退到最后确认值，并产出"命令失败"副作用。
-    func testTimeoutRevertsToLastConfirmedValueWithEffect() {
-        let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
-        let pending = DeviceStateReducer.apply(.userSetSwitch(1), core: base.core, diagnostics: base.diagnostics)
-
-        let timedOut = DeviceStateReducer.apply(.switchOverrideTimeout, core: pending.core, diagnostics: pending.diagnostics)
-        XCTAssertNil(timedOut.core.pendingSwitchOverride)
-        XCTAssertEqual(timedOut.core.switchState, 0) // 最后确认值
-        XCTAssertEqual(timedOut.effect, .switchOverrideTimedOut)
-    }
-
-    /// pending 已确认后超时事件晚到（正常竞争）：零变化零副作用。
-    func testLateTimeoutAfterConfirmationIsNoOp() {
-        let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
-
-        let result = DeviceStateReducer.apply(.switchOverrideTimeout, core: base.core, diagnostics: base.diagnostics)
-        XCTAssertEqual(result.core, base.core)
-        XCTAssertEqual(result.effect, .none)
-    }
-
-    /// 外部确认（Agent 共享文件轮询）：值一致清除 pending 并入库；不一致忽略。
-    func testSwitchOverrideConfirmedSemantics() {
-        let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
-        let pending = DeviceStateReducer.apply(.userSetSwitch(1), core: base.core, diagnostics: base.diagnostics)
-
-        // 不一致：忽略（在途旧帧）
-        let mismatched = DeviceStateReducer.apply(.switchOverrideConfirmed(0), core: pending.core, diagnostics: pending.diagnostics)
-        XCTAssertEqual(mismatched.core, pending.core)
-        XCTAssertEqual(mismatched.effect, .none)
-
-        // 一致：清除 pending、确认值入库
-        let confirmed = DeviceStateReducer.apply(.switchOverrideConfirmed(1), core: pending.core, diagnostics: pending.diagnostics)
-        XCTAssertNil(confirmed.core.pendingSwitchOverride)
-        XCTAssertEqual(confirmed.core.switchState, 1)
-        XCTAssertEqual(confirmed.effect, .none)
+        let changed = DeviceStateReducer.apply(manual, core: base.core, diagnostics: base.diagnostics)
+        XCTAssertEqual(changed.core.switchState, 1)
+        XCTAssertEqual(changed.effect, .none)
+        let repeated = DeviceStateReducer.apply(manual, core: changed.core, diagnostics: changed.diagnostics)
+        XCTAssertEqual(repeated.core, changed.core)
     }
 }

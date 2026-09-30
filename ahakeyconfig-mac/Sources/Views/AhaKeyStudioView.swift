@@ -376,7 +376,6 @@ struct AhaKeyStudioView: View {
                     dirtyParts: dirtyPartsForCurrentMode(),
                     onSelect: { selectedPart = $0 },
                     onModeSwitch: { cycleModeForward() },
-                    onSwitchToggle: { toggleVirtualSwitch() },
                     liveLightMode: liveCanvasLightMode,
                     liveIDEStateValue: liveCanvasIDEStateValue,
                     switchState: liveCanvasSwitchState,
@@ -385,7 +384,7 @@ struct AhaKeyStudioView: View {
                 .aspectRatio(109.0 / 54.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)
 
-                Text("点按灯条、屏幕、四个按键或拨杆即可进入对应配置。")
+                Text("点按拨杆查看实体档位；其他部件可进入对应配置。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 20)
@@ -1533,7 +1532,7 @@ struct AhaKeyStudioView: View {
 
             switchEffectivenessBox
 
-            if bleManager.switchState == 0 {
+            if liveKeyboardSwitchState == 0 {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
@@ -1697,10 +1696,11 @@ struct AhaKeyStudioView: View {
     }
 
     private var currentSwitchTitle: String {
-        // 用统一的 liveKeyboardSwitchState：主 App 自占 BLE 时是 bleManager.switchState，
-        // 否则取 agent 共享文件里的值（含用户拨杆覆盖）。否则点了画布拨杆，
-        // 因为 bleManager.switchState 一直是初始 0，画布会一直停留在「自动批准」。
-        liveKeyboardSwitchState == 0 ? "自动批准" : "手动批准"
+        switch liveKeyboardSwitchState {
+        case 0: "自动批准"
+        case 1: "手动批准"
+        default: "档位未知"
+        }
     }
 
     /// 取键盘当前实时状态 (lightMode/switchState/workMode)：
@@ -1711,11 +1711,9 @@ struct AhaKeyStudioView: View {
         if bleManager.isConnected { return bleManager.lightMode }
         return bleManager.agentLightMode
     }
-    private var liveKeyboardSwitchState: Int {
-        // 用户刚点完虚拟拨杆但 agent / BLE 还没回报新值时，优先用乐观值，按下立刻可见
-        if let opt = bleManager.optimisticSwitchOverride { return opt }
+    private var liveKeyboardSwitchState: Int? {
         if bleManager.isConnected { return bleManager.switchState }
-        return bleManager.agentSwitchState ?? 1
+        return bleManager.agentSwitchState
     }
     private var liveKeyboardWorkMode: Int? {
         if bleManager.isConnected { return bleManager.workMode }
@@ -1729,34 +1727,12 @@ struct AhaKeyStudioView: View {
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
         return bleManager.liveIDEStateValue
     }
-    private var liveCanvasSwitchState: Int { liveKeyboardSwitchState }
+    private var liveCanvasSwitchState: Int { liveKeyboardSwitchState ?? 1 }
 
     private func cycleModeForward() {
         let all = AhaKeyModeSlot.allCases
         let next = all[(all.firstIndex(of: selectedMode)! + 1) % all.count]
         selectedMode = next
-    }
-
-    /// 用户点击虚拟拨杆：在当前 effective switchState 基础上 0↔1 翻转，
-    /// 只设置软件覆盖；最新固件中 0x91 是灯效预览，不再用于 sw_state。
-    private func toggleVirtualSwitch() {
-        let current = liveKeyboardSwitchState
-        let next: UInt8 = current == 0 ? 1 : 0
-        // 1) 立刻设乐观值 → 画布按钮即时翻转
-        bleManager.applyOptimisticSwitchOverride(next)
-        // 2) 保留调用入口，但 BLEManager 不会再发送旧 0x91，只写诊断日志
-        if bleManager.isConnected {
-            bleManager.setSwitchStateViaBLE(next)
-        }
-        // 3) 让 agent 设置软覆盖
-        AgentManager.shared.sendSwitchOverride(next)
-        // 4) 短延迟后强制重读共享文件，确认真实值已对齐（agent 写文件通常 < 100ms）
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak bleManager] in
-            bleManager?.refreshAgentStateFromFileNow()
-        }
-        syncStatusMessage = next == 0
-            ? "虚拟拨杆 → 自动批准（hook 自动放行；灯效若不变需先刷支持 0x91 的固件）"
-            : "虚拟拨杆 → 手动批准（hook 交回终端确认）"
     }
 
     private var currentOLEDAssetURL: URL? {
@@ -3147,7 +3123,6 @@ private struct AhaKeyKeyboardCanvasView: View {
     let dirtyParts: Set<AhaKeyStudioPart>
     let onSelect: (AhaKeyStudioPart) -> Void
     let onModeSwitch: () -> Void
-    var onSwitchToggle: (() -> Void)? = nil
     var liveLightMode: Int? = nil
     var liveIDEStateValue: Int? = nil
     var switchState: Int = 1   // 0=auto, 1=manual; firmware uses for color/effect overrides
@@ -3155,7 +3130,6 @@ private struct AhaKeyKeyboardCanvasView: View {
     var keyboardPictureFrameCount: Int? = nil
 
     @State private var modeSwitchPressed = false
-    @State private var leverPressed = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.controlActiveState) private var controlActiveState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -3523,9 +3497,6 @@ private struct AhaKeyKeyboardCanvasView: View {
         let rect = frame(87.8, 35.6, 6.8, 10.6, width: width, height: height)
         return Button {
             onSelect(part)
-            // 物理拨杆损坏的用户靠这个：点击即翻转 auto/manual。
-            // 最新固件 0x91 用于灯效预览，因此这里只改 hook 软件覆盖。
-            onSwitchToggle?()
         } label: {
             VStack(spacing: 6) {
                 ZStack(alignment: .top) {
@@ -3553,6 +3524,7 @@ private struct AhaKeyKeyboardCanvasView: View {
         }
         .buttonStyle(CanvasKeyButtonStyle())
         .position(x: rect.midX, y: rect.midY)
+        .help("仅查看实体拨杆状态；请在键盘上切换档位")
     }
 
     private func frame(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
@@ -4577,7 +4549,7 @@ private enum HelpTopic: String, CaseIterable, Identifiable {
     case overview = "总览"
     case modes = "四个 Mode"
     case canvas = "画布与按键"
-    case toggleSwitch = "虚拟拨杆"
+    case toggleSwitch = "实体拨杆"
     case oled = "LCD 屏幕"
     case lightBar = "灯条颜色"
     case voice = "语音输入"
@@ -4680,7 +4652,7 @@ private struct HelpCenterSheet: View {
         case .overview:      OverviewTopicView()
         case .modes:         ModesTopicView(selectedMode: selectedMode)
         case .canvas:        CanvasTopicView()
-        case .toggleSwitch:  ToggleSwitchTopicView(bleManager: bleManager)
+        case .toggleSwitch:  PhysicalSwitchTopicView(bleManager: bleManager)
         case .oled:          OLEDTopicView(studioDraft: studioDraft, bleManager: bleManager)
         case .lightBar:      LightBarTopicView()
         case .voice:         VoiceTopicView()
@@ -4910,7 +4882,7 @@ private struct CanvasTopicView: View {
                 hotspotRow("checkmark.circle", "Key 2 / 通过键", "依 Mode 默认：Y / ↵ / ↵。可改成宏序列。")
                 hotspotRow("xmark.circle", "Key 3 / 拒绝键", "依 Mode 默认：N / ⌫ / Esc。可改成宏序列。")
                 hotspotRow("delete.left", "Key 4 / 删除键", "默认 Backspace，可改任意短按 / 长按。")
-                hotspotRow("switch.2", "拨杆", "auto 批准 vs manual 批准；详见「虚拟拨杆」章节。")
+                hotspotRow("switch.2", "拨杆", "实体档位决定 auto / manual 批准；客户端仅显示状态。")
             }
 
             HelpNote("hand.point.up.left", tint: .accentColor, body: """
@@ -4936,15 +4908,15 @@ private struct CanvasTopicView: View {
     }
 }
 
-private struct ToggleSwitchTopicView: View {
+private struct PhysicalSwitchTopicView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "switch.2",
-                title: "虚拟拨杆",
-                subtitle: "物理拨杆坏了？或想软件控制？看这里"
+                title: "实体拨杆",
+                subtitle: "这里仅显示键盘上报的档位"
             )
 
             HelpSection(title: "两档分别管什么", body: """
@@ -4952,62 +4924,14 @@ private struct ToggleSwitchTopicView: View {
                 • 手动批准（switchState=1）：Hook 把决定交回终端，由你手动按 Key2/Key3 通过或拒绝
                 """)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("点画布拨杆触发三件事（不是所有都生效）：").font(.subheadline.weight(.medium))
-                triggerRow(
-                    num: "1",
-                    title: "乐观更新画布",
-                    desc: "立即翻转画布拨杆位置 + 顶部状态栏；视觉零延迟",
-                    works: true
-                )
-                triggerRow(
-                    num: "2",
-                    title: "通知 Agent 设置 userSwitchOverride",
-                    desc: "Hook 的 auto-approve 立即切换到你选的档位。持久化到 UserDefaults，agent 重启仍生效",
-                    works: true
-                )
-                triggerRow(
-                    num: "3",
-                    title: "软件覆盖拨杆",
-                    desc: "最新固件 0x91 已用于灯效预览；虚拟拨杆只影响 Hook auto-approve，不再写键盘 sw_state。",
-                    works: false,
-                    requiresPatch: false
-                )
-            }
-
-            HelpNote("exclamationmark.triangle.fill", tint: .orange, body: "虚拟拨杆不再占用 0x91，避免与最新固件的灯效预览命令冲突。")
+            HelpNote("info.circle", tint: .blue, body: "请使用键盘上的实体拨杆切换档位。点画布中的拨杆只打开说明，不会改变批准行为。")
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("现状一览").font(.subheadline.weight(.medium))
-                stateRow("当前生效值", "\(bleManager.agentSwitchState ?? bleManager.switchState)")
-                stateRow("Agent 端覆盖", bleManager.agentSwitchState != nil ? "\(bleManager.agentSwitchState!)（覆盖中）" : "未设置（用键盘真实值）")
-                stateRow("乐观显示中", bleManager.optimisticSwitchOverride != nil ? "是（等待对齐）" : "否")
+                stateRow("键盘上报档位", (bleManager.isConnected ? bleManager.switchState : bleManager.agentSwitchState).map(String.init) ?? "未知")
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor)))
-        }
-    }
-
-    private func triggerRow(num: String, title: String, desc: String, works: Bool, requiresPatch: Bool = false) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(num)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(works ? Color.green : Color.orange))
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(title).font(.callout.weight(.medium))
-                    if requiresPatch {
-                        Text("需固件支持").font(.caption2)
-                            .padding(.horizontal, 6).padding(.vertical, 1)
-                            .background(Color.orange.opacity(0.18), in: Capsule())
-                    }
-                }
-                Text(desc).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
         }
     }
 
@@ -5226,7 +5150,7 @@ private struct FAQTopicView: View {
             faq(
                 q: "拨杆我点了，但键盘灯效没切",
                 a: """
-                最新固件中 0x91 已用于灯效预览。虚拟拨杆只作为 Hook 软件覆盖，不再写入键盘 sw_state。
+                最新固件中 0x91 已用于灯效预览。批准档位只由实体拨杆决定，客户端不会写入键盘 sw_state。
                 """
             )
 

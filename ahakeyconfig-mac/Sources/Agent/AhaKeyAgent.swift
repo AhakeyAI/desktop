@@ -46,12 +46,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private(set) var cachedSwitchState: UInt8?
     /// 最新 lightMode
     private(set) var cachedLightMode: UInt8?
-    /// 用户在画布点击虚拟拨杆设置的覆盖值；非 nil 时优先于 cachedSwitchState 用于 hook auto-approve 判断。
-    /// 持久化到 UserDefaults 以便 agent 重启后保留。物理拨杆损坏的用户靠这个让 hook 自动批准生效。
-    private(set) var userSwitchOverride: UInt8?
-
-    private static let switchOverrideDefaultsKey = "lab.jawa.ahakeyconfig.agent.userSwitchOverride"
-
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
     /// 工具完成 / 用户提交等短暂态的自动回落。
@@ -84,34 +78,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     init(socketPath: String = "/tmp/ahakey.sock") {
         self.socketPath = socketPath
-        if let raw = UserDefaults.standard.object(forKey: Self.switchOverrideDefaultsKey) as? Int {
-            userSwitchOverride = UInt8(clamping: raw)
-        }
+        // 旧版虚拟拨杆的持久化值不得再影响实体拨杆的批准行为。
+        UserDefaults.standard.removeObject(forKey: "lab.jawa.ahakeyconfig.agent.userSwitchOverride")
         super.init()
         central = CBCentralManager(delegate: self, queue: nil)
-        // 启动时如果有持久化的 override，立刻把它落进共享文件，让主 App UI 一上来就能看到
-        Self.writeLiveState(switchState: userSwitchOverride)
-    }
-
-    /// 实际给 hook 用的拨杆值：用户覆盖优先，没有就回落到 BLE 缓存
-    var effectiveSwitchState: UInt8? {
-        userSwitchOverride ?? cachedSwitchState
-    }
-
-    func setSwitchOverride(_ value: UInt8?) {
-        userSwitchOverride = value
-        if let v = value {
-            UserDefaults.standard.set(Int(v), forKey: Self.switchOverrideDefaultsKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: Self.switchOverrideDefaultsKey)
-        }
-        // 最新固件中 0x91 已用于灯效预览；拨杆只保留 hook 软件覆盖，不再向键盘发送旧 0x91。
-        if let v = value {
-            emit("拨杆 \(v) 仅记录为软件覆盖；不发送旧 0x91。")
-        }
-        // 把覆盖值写进共享文件，主 App 立刻看到画布拨杆位置更新
-        Self.writeLiveState(switchState: effectiveSwitchState)
-        emit("拨杆覆盖 = \(value.map { String($0) } ?? "清除")（effective=\(effectiveSwitchState.map { String($0) } ?? "未知")）")
     }
 
     // MARK: - Public
@@ -403,8 +373,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             didLogWatchdogHold = false
             sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
-                let body = Self.statusReply(status, overrideSwitch: self.userSwitchOverride,
-                                            cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode)
+                let body = Self.statusReply(status, cachedSwitch: self.cachedSwitchState,
+                                            cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
                     self.emit("（拨杆非 0：PermissionRequest 将交回终端手动确认）")
@@ -415,41 +385,25 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
 
         case "status":
-            // 判断 BLE 是否真实连上键盘：只有当 cachedSwitchState 不为 nil 时（键盘通过 notify 上报过）才算连上。
-            // effectiveSwitchState 在用户设置了 userSwitchOverride 时即使未连上 BLE 也有值，不能作为连上键盘的依据。
+            // 只有实体键盘通过 BLE 上报过拨杆状态，才视为已连接。
             if cachedSwitchState != nil {
                 Self.replyAndClose(clientFd, [
-                    "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
+                    "switchState": cachedSwitchState.map { Int($0) } ?? NSNull(),
                     "lightMode": cachedLightMode.map { Int($0) } ?? NSNull(),
                 ])
             } else {
                 querySwitchState(timeout: 1.5) { status in
-                    Self.replyAndClose(clientFd, Self.statusReply(status, overrideSwitch: self.userSwitchOverride,
-                                                                 cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode))
+                    Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.cachedSwitchState,
+                                                                 cachedLight: self.cachedLightMode))
                 }
             }
 
         case "approval_status":
             // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
             querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, overrideSwitch: self.userSwitchOverride,
-                                                             cachedSwitch: self.cachedSwitchState, cachedLight: self.cachedLightMode))
+                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.cachedSwitchState,
+                                                             cachedLight: self.cachedLightMode))
             }
-
-        case "set_switch_override":
-            // 主 App 画布虚拟拨杆点击 → 设置 / 清除覆盖
-            // value=null / 缺省 → 清除（恢复用真实 BLE 上报）
-            // value=0/1/2 → 设置覆盖值；不再发送旧 0x91
-            if obj["value"] is NSNull || obj["value"] == nil {
-                setSwitchOverride(nil)
-            } else if let v = obj["value"] as? Int {
-                setSwitchOverride(UInt8(clamping: v))
-            }
-            Self.replyAndClose(clientFd, [
-                "ok": true,
-                "switchState": effectiveSwitchState.map { Int($0) } ?? NSNull(),
-                "override": userSwitchOverride.map { Int($0) } ?? NSNull(),
-            ])
 
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
@@ -457,14 +411,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     static func statusReply(_ status: AgentDeviceStatus?,
-                            overrideSwitch: UInt8?,
                             cachedSwitch: UInt8?,
                             cachedLight: UInt8?) -> [String: Any] {
         if let s = status {
-            return ["switchState": overrideSwitch.map(Int.init) ?? s.switchState, "lightMode": s.lightMode]
+            return ["switchState": s.switchState, "lightMode": s.lightMode]
         }
         return [
-            "switchState": (overrideSwitch ?? cachedSwitch).map { Int($0) } ?? NSNull(),
+            "switchState": cachedSwitch.map { Int($0) } ?? NSNull(),
             "lightMode": cachedLight.map { Int($0) } ?? NSNull(),
         ]
     }
@@ -650,15 +603,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             lastLoggedStatus = status
             emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
         }
-        // Keep main's virtual lever semantics while avoiding identical file rewrites.
+        // 只发布实体拨杆状态，并避免相同状态重复写文件。
         let snapshot = LiveStateWriteCoalescer.Snapshot(
-            lightMode: status.lightMode, switchState: effectiveSwitchState.map(Int.init),
+            lightMode: status.lightMode, switchState: status.switchState,
             workMode: max(0, status.workMode)
         )
         switch Self.liveStateCoalescer.decision(for: snapshot, at: Date().timeIntervalSince1970) {
         case .write:
             Self.writeLiveState(
-                lightMode: UInt8(clamping: status.lightMode), switchState: effectiveSwitchState,
+                lightMode: UInt8(clamping: status.lightMode), switchState: cachedSwitchState,
                 workMode: UInt8(clamping: max(0, status.workMode))
             )
         case .touchOnly:

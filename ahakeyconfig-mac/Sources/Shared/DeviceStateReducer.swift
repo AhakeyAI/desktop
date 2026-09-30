@@ -19,9 +19,6 @@ public struct CoreDeviceSnapshot: Equatable {
     public var workMode: Int = 0
     public var lightMode: Int = 0
     public var switchState: Int = 0
-    /// 用户点虚拟拨杆后的乐观值。设置后轮询回包与之一致才确认入库（并清除）；
-    /// 不一致视为在途旧帧不动拨杆字段；3s 超时未确认则回退到最后确认值。
-    public var pendingSwitchOverride: Int? = nil
     public var brightness: Int = 35
     /// 各 mode 当前激活的任务图套图索引（0x97 或设备状态上报）。
     public var activeTaskPictureSets: [Int: Int] = [:]
@@ -56,14 +53,6 @@ public enum DeviceStateEvent: Equatable {
     /// 断开：连接状态置为断开、诊断值复位、任务图套图清空（与现有 didDisconnect 行为一致）；
     /// 电量/模式/亮度/固件版本与设备身份保留（现有代码断开时从不清这些）。
     case disconnected
-    /// 用户点击虚拟拨杆：设置乐观 pending 值（发布一次），等待轮询回包确认。
-    case userSetSwitch(Int)
-    /// BLE 之外的来源（Agent 共享文件轮询）确认拨杆已到达该值：清除 pending、确认值入库。
-    /// 与 pending 不一致时忽略（在途旧帧）。BLE 轮询回包的一致性确认在 fullStatus 分支内完成。
-    case switchOverrideConfirmed(Int)
-    /// pending 超过约两个轮询周期（3s）未获确认：清除 pending、回退到最后确认值，
-    /// 并产出 `.switchOverrideTimedOut` 副作用让 manager 记命令失败级日志。
-    case switchOverrideTimeout
 }
 
 /// apply 的副作用说明，由 BLE manager 负责落地（发通知等）。
@@ -71,8 +60,6 @@ public enum DeviceStateEffect: Equatable {
     case none
     /// workMode 真实变化（携带新值），manager 据此发一次 `ahaKeyKeyboardWorkModeChanged`。
     case workModeChanged(Int)
-    /// 虚拟拨杆 pending 超时未确认（已回退到最后确认值），manager 据此记一条 .error 级日志。
-    case switchOverrideTimedOut
 }
 
 /// apply 结果：两份新快照 + 副作用。调用方用 Equatable 对比决定是否需要发布。
@@ -104,16 +91,7 @@ public enum DeviceStateReducer {
                 effect = .workModeChanged(workMode)
             }
             core.lightMode = lightMode
-            if let pending = core.pendingSwitchOverride {
-                if switchState == pending {
-                    // 回包与 pending 一致：确认值入库、清除 pending（发布一次）
-                    core.pendingSwitchOverride = nil
-                    core.switchState = switchState
-                }
-                // 回包与 pending 不一致：视为在途旧帧——其他字段照常更新，拨杆字段与 pending 不动
-            } else {
-                core.switchState = switchState
-            }
+            core.switchState = switchState
             core.brightness = brightness
             core.activeTaskPictureSets[workMode] = activePictureSet
 
@@ -140,21 +118,6 @@ public enum DeviceStateReducer {
             core.activeTaskPictureSets.removeAll()
             diagnostics.signalStrength = 0
 
-        case let .userSetSwitch(value):
-            core.pendingSwitchOverride = value
-
-        case let .switchOverrideConfirmed(value):
-            if core.pendingSwitchOverride == value {
-                core.pendingSwitchOverride = nil
-                core.switchState = value
-            }
-
-        case .switchOverrideTimeout:
-            // 已确认（pending 为空）时超时任务晚到属于正常竞争，零发布零副作用。
-            if core.pendingSwitchOverride != nil {
-                core.pendingSwitchOverride = nil
-                effect = .switchOverrideTimedOut
-            }
         }
 
         return DeviceStateResult(core: core, diagnostics: diagnostics, effect: effect)

@@ -10,7 +10,7 @@ import Foundation
 ///   （GUI 侧把 mtime 当作「状态最后确认时间」；事件性写入也会刷新 mtime，见 `noteEventWrite`）；
 /// - `.skip`：内容没变且 mtime 仍新鲜，什么都不做。
 ///
-/// 事件性写入（hook stateValue / 虚拟拨杆覆盖）不走去重、每次必写，但写完后必须调
+/// 事件性写入（hook stateValue）不走去重、每次必写，但写完后必须调
 /// `noteEventWrite` 同步基准：既合并事件改动的字段，又重置 touch 计时（文件 mtime 已被刷新），
 /// 避免下一次轮询回包因基准过期而误判变化。
 /// 纯值类型，时钟以时间戳注入，便于单测。
