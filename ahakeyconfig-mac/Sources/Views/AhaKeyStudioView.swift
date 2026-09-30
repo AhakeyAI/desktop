@@ -199,7 +199,9 @@ struct AhaKeyStudioView: View {
                 .help(isEffectivelyConnected ? "" : bleManager.linkDiagnostic.detail)
                 infoPill(
                     title: "电量",
-                    subtitle: isEffectivelyConnected ? "\(bleManager.batteryLevel)%" : "—",
+                    subtitle: isEffectivelyConnected
+                        ? bleManager.batteryLevelForDisplay.map { "\($0)%" } ?? "—"
+                        : "—",
                     accent: .blue
                 )
                 infoPill(

@@ -29,6 +29,16 @@ final class LiveStateWriteCoalescerTests: XCTestCase {
         XCTAssertEqual(coalescer.decision(for: before, at: 1004), .write)
     }
 
+    func testBatteryChangePublishesOnceWithoutPollingLogChurn() {
+        var coalescer = LiveStateWriteCoalescer()
+        let charged = Snapshot(battery: 61, lightMode: 1, switchState: 0, workMode: 0)
+        let drained = Snapshot(battery: 60, lightMode: 1, switchState: 0, workMode: 0)
+        XCTAssertEqual(coalescer.decision(for: charged, at: 1000), .write)
+        XCTAssertEqual(coalescer.decision(for: charged, at: 1001), .skip)
+        XCTAssertEqual(coalescer.decision(for: drained, at: 1002), .write)
+        XCTAssertEqual(coalescer.decision(for: drained, at: 1003), .skip)
+    }
+
     /// 无变化到达 30 秒边界：输出 .touchOnly；touch 之后计时重置，再次 .skip。
     func testTouchOnlyAtBoundaryThenTimerResets() {
         var coalescer = LiveStateWriteCoalescer()

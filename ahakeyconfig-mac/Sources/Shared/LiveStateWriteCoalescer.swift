@@ -25,11 +25,14 @@ public struct LiveStateWriteCoalescer: Equatable, Sendable {
     /// 参与去重比较的字段集合（即 GUI 从共享文件消费的 agent* 字段）。
     /// 事件性写入只知道自己改动的字段；`noteEventWrite` 合并时未提供的字段保留旧值。
     public struct Snapshot: Equatable, Sendable {
+        public var battery: Int?
         public var lightMode: Int?
         public var switchState: Int?
         public var workMode: Int?
 
-        public init(lightMode: Int? = nil, switchState: Int? = nil, workMode: Int? = nil) {
+        public init(battery: Int? = nil, lightMode: Int? = nil,
+                    switchState: Int? = nil, workMode: Int? = nil) {
+            self.battery = battery
             self.lightMode = lightMode
             self.switchState = switchState
             self.workMode = workMode
@@ -64,6 +67,7 @@ public struct LiveStateWriteCoalescer: Equatable, Sendable {
     /// 事件性写入已完成（文件已重写，mtime 已刷新）：合并非 nil 字段到基准，并重置 touch 计时。
     public mutating func noteEventWrite(_ partial: Snapshot, at now: TimeInterval) {
         var merged = lastPublished ?? Snapshot()
+        if let v = partial.battery { merged.battery = v }
         if let v = partial.lightMode { merged.lightMode = v }
         if let v = partial.switchState { merged.switchState = v }
         if let v = partial.workMode { merged.workMode = v }
