@@ -1,0 +1,26 @@
+{
+  "phase": "hover-final-idle",
+  "duration_s": 30.8,
+  "method": "proc_pid_rusage CPU time deltas, percentage of one CPU core",
+  "processes": [
+    {
+      "name": "AhaKeyConfig",
+      "samples": 30,
+      "mean_cpu_percent": 0.034,
+      "max_cpu_percent": 0.454,
+      "rss_mb_start": 78.2,
+      "rss_mb_end": 96.58
+    },
+    {
+      "name": "ahakeyconfig-agent",
+      "samples": 30,
+      "mean_cpu_percent": 0.005,
+      "max_cpu_percent": 0.076,
+      "rss_mb_start": 12.58,
+      "rss_mb_end": 12.33
+    }
+  ],
+  "ble_log_bytes_added": 0,
+  "state_json_content_unchanged": true,
+  "state_file_mtime_advanced": false
+}

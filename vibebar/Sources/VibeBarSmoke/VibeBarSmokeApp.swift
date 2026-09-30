@@ -32,6 +32,8 @@ final class SmokeDelegate: NSObject, NSApplicationDelegate {
 
         VibeBarController.shared.start(state: state)
 
+        guard !CommandLine.arguments.contains("--static-state") else { return }
+
         // 周期性翻转一些状态，方便肉眼验证 UI 真的在跟着 state 变
         demoTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             Task { @MainActor in

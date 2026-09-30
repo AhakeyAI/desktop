@@ -1,0 +1,20 @@
+{
+  "initial": {
+    "hooks": 7,
+    "trusted": 7
+  },
+  "reinstall": {
+    "hooks": 7,
+    "trusted": 7
+  },
+  "remove": {
+    "hooks": 1,
+    "trusted": 1
+  },
+  "executed": [
+    "CodexSessionStart",
+    "CodexUserPromptSubmit",
+    "user"
+  ],
+  "codex": "codex-cli 0.155.0-alpha.16.4"
+}

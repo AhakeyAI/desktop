@@ -8,11 +8,17 @@ public final class VibeBarController {
 
     private var notch: (any DynamicNotchControllable)?
     private var pendingCompactTask: Task<Void, Never>?
-    private var pointerTimer: Timer?
-    private var isHoveringExpanded = false
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
+    private var pointerUpdatePending = false
     private var isExpanded = false
     private weak var state: VibeBarState?
-    private var presentationScreen: NSScreen?
+    private(set) var presentationScreen: NSScreen?
+    private var leadingFrame: CGRect?
+    private var trailingFrame: CGRect?
+    private var compactScreen: NSScreen?
+    private var expandedContentFrame: CGRect?
+    private var windowProvider: () -> NSWindow? = { nil }
     private var desiredPresentation: Presentation = .compact
     private var presentationTask: Task<Void, Never>?
 
@@ -21,7 +27,7 @@ public final class VibeBarController {
         case expanded
     }
 
-    private init() {}
+    init() {}
 
     /// 在主 app 启动后调用一次。多次调用是空操作。
     public func start(state: VibeBarState) {
@@ -29,26 +35,30 @@ public final class VibeBarController {
         self.state = state
 
         let notch = DynamicNotch(
-            hoverBehavior: [.increaseShadow],
+            hoverBehavior: [],
             style: .notch
         ) { [weak self] in
             VibeBarExpandedMenu(
                 state: state,
                 onAppear: { self?.expandedMenuAppeared() },
                 onHoverChanged: { self?.expandedHoverChanged($0) },
+                onFrameChanged: { frame, screen in
+                    self?.presentationScreen = screen
+                    self?.expandedContentFrame = frame
+                    self?.schedulePointerUpdate()
+                },
                 onCompact: { self?.compactNow() },
                 onOpenMain: { state.onOpenMainWindow?() }
             )
         } compactLeading: { [weak self] in
-            VibeBarCompactKeyboardItem(state: state) { hovering in
-                self?.compactHoverChanged(hovering)
-            }
+            VibeBarCompactKeyboardItem(state: state,
+                onFrameChanged: { self?.compactFrameChanged($0, screen: $1, leading: true) })
         } compactTrailing: { [weak self] in
-            VibeBarCompactLeverItem(state: state) { hovering in
-                self?.compactHoverChanged(hovering)
-            }
+            VibeBarCompactLeverItem(state: state,
+                onFrameChanged: { self?.compactFrameChanged($0, screen: $1, leading: false) })
         }
 
+        self.windowProvider = { [weak notch] in notch?.windowController?.window }
         self.notch = notch
         presentationScreen = screenContainingPointer() ?? NSScreen.main ?? NSScreen.screens.first
         compactNow()
@@ -56,8 +66,10 @@ public final class VibeBarController {
     }
 
     public func stop() {
-        pointerTimer?.invalidate()
-        pointerTimer = nil
+        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+        globalMouseMonitor = nil
+        localMouseMonitor = nil
         pendingCompactTask?.cancel()
         pendingCompactTask = nil
         presentationTask?.cancel()
@@ -65,14 +77,20 @@ public final class VibeBarController {
         notch = nil
         state = nil
         presentationScreen = nil
+        leadingFrame = nil
+        trailingFrame = nil
+        compactScreen = nil
+        expandedContentFrame = nil
+        windowProvider = { nil }
     }
 
     // MARK: - Notch state machine
 
     private func compactNow() {
         cancelPendingCompact()
+        if isExpanded { leadingFrame = nil; trailingFrame = nil }
         isExpanded = false
-        isHoveringExpanded = false
+        setMousePassthrough(true)
         requestPresentation(.compact, on: presentationScreen ?? preferredScreen)
     }
 
@@ -82,18 +100,13 @@ public final class VibeBarController {
         requestPresentation(.expanded, on: screen ?? screenContainingPointer() ?? preferredScreen)
     }
 
-    private func compactHoverChanged(_ hovering: Bool) {
-        if hovering { expandNow(on: screenContainingPointer()) }
-    }
-
     private func expandedMenuAppeared() {
         cancelPendingCompact()
         isExpanded = true
     }
 
     private func expandedHoverChanged(_ hovering: Bool) {
-        isHoveringExpanded = hovering
-        if hovering {
+        if hovering, pointerIsInExpandedInteractionZone {
             cancelPendingCompact()
         } else {
             scheduleCompactIfIdle()
@@ -111,7 +124,7 @@ public final class VibeBarController {
     }
 
     private func compactIfIdle() {
-        guard isExpanded, !isHoveringExpanded, !pointerIsInExpandedInteractionZone else { return }
+        guard isExpanded, !pointerIsInExpandedInteractionZone else { return }
         compactNow()
     }
 
@@ -121,20 +134,44 @@ public final class VibeBarController {
     }
 
     private func startPointerTracking() {
-        pointerTimer?.invalidate()
-        pointerTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.expandIfPointerIsInTopHotZone() }
+        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged,
+            .otherMouseDragged, .leftMouseUp, .rightMouseUp, .otherMouseUp]
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
+            Task { @MainActor in self?.schedulePointerUpdate() }
         }
-        RunLoop.main.add(pointerTimer!, forMode: .common)
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
+            Task { @MainActor in self?.schedulePointerUpdate() }
+            return event
+        }
+        schedulePointerUpdate()
     }
 
-    private func expandIfPointerIsInTopHotZone() {
+    private func schedulePointerUpdate() {
+        guard !pointerUpdatePending else { return }
+        pointerUpdatePending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pointerUpdatePending = false
+            self.updatePointerPresentation()
+        }
+    }
+
+    private func setMousePassthrough(_ passthrough: Bool) {
+        guard let window = windowProvider(), window.ignoresMouseEvents != passthrough else { return }
+        window.ignoresMouseEvents = passthrough
+    }
+
+    private func updatePointerPresentation() {
         if !isExpanded {
-            guard let screen = screenWhoseTopHotZoneContainsPointer() else { return }
-            expandNow(on: screen)
+            // Compact panels never receive raw hover events from the library.
+            setMousePassthrough(true)
+            guard pointerCanExpand else { return }
+            expandNow(on: compactScreen)
         } else if pointerIsInExpandedInteractionZone {
+            setMousePassthrough(false)
             cancelPendingCompact()
-        } else if !isHoveringExpanded {
+        } else {
+            setMousePassthrough(true)
             scheduleCompactIfIdle()
         }
     }
@@ -179,20 +216,38 @@ public final class VibeBarController {
         return screens[index]
     }
 
-    private func screenWhoseTopHotZoneContainsPointer() -> NSScreen? {
-        let screens = NSScreen.screens
-        guard let index = VibeBarHoverGeometry.screenIndex(
-            withTopHotZoneContaining: NSEvent.mouseLocation,
-            screenFrames: screens.map(\.frame)
-        ) else { return nil }
-        return screens[index]
+    func compactFrameChanged(_ frame: CGRect, screen: NSScreen, leading: Bool) {
+        // DynamicNotchKit can rebuild its window on another screen independently
+        // of our presentation requests (display detach / primary-display change).
+        if presentationScreen?.frame != screen.frame { expandedContentFrame = nil }
+        presentationScreen = screen
+        if compactScreen?.frame != screen.frame {
+            leadingFrame = nil
+            trailingFrame = nil
+            compactScreen = screen
+        }
+        if leading { leadingFrame = frame } else { trailingFrame = frame }
+        schedulePointerUpdate()
+    }
+
+    private var pointerCanExpand: Bool {
+        guard let screen = compactScreen, windowProvider()?.isVisible == true,
+              presentationScreen?.frame == screen.frame else { return false }
+        let hasNotch = screen.auxiliaryTopLeftArea != nil && screen.auxiliaryTopRightArea != nil
+        let height = hasNotch ? screen.safeAreaInsets.top : screen.frame.maxY - screen.visibleFrame.maxY
+        let frame = VibeBarHoverGeometry.compactFrame(
+            leading: leadingFrame, trailing: trailingFrame, screen: screen.frame, height: height)
+        let hit = VibeBarHoverGeometry.shouldExpand(
+            at: NSEvent.mouseLocation, compactFrame: frame, pressedMouseButtons: NSEvent.pressedMouseButtons)
+        return hit
     }
 
     private var pointerIsInExpandedInteractionZone: Bool {
-        VibeBarHoverGeometry.screenIndex(
-            withExpandedInteractionZoneContaining: NSEvent.mouseLocation,
-            screenFrames: NSScreen.screens.map(\.frame)
-        ) != nil
+        guard let content = expandedContentFrame, let screen = presentationScreen,
+              windowProvider()?.isVisible == true else { return false }
+        return VibeBarHoverGeometry.contains(NSEvent.mouseLocation,
+            frame: VibeBarHoverGeometry.expandedFrame(content: content, screen: screen.frame),
+            topRadius: 15, bottomRadius: 20)
     }
 
     private var preferredScreen: NSScreen {

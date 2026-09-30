@@ -2,6 +2,15 @@ import SwiftUI
 
 struct DeviceInfoView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject private var diagnosticsStore: BLEDeviceDiagnosticsStore
+    @ObservedObject private var logStore: BLELogStore
+
+    init(bleManager: AhaKeyBLEManager) {
+        self.bleManager = bleManager
+        self.logStore = bleManager.logStore
+        self.diagnosticsStore = bleManager.diagnosticsStore
+    }
+
     @StateObject private var agentManager = AgentManager.shared
     @State private var isEditingName = false
     @State private var editableName = ""
@@ -28,7 +37,7 @@ struct DeviceInfoView: View {
                     Divider()
                     infoCell("灯光", value: lightModeName(bleManager.lightMode))
                     Divider()
-                    infoCell("信号", value: "\(bleManager.signalStrength) dBm")
+                    infoCell("信号", value: "\(diagnosticsStore.snapshot.signalStrength) dBm")
                 }
                 .frame(height: 50)
             } header: {
@@ -392,10 +401,14 @@ struct DeviceInfoView: View {
             // MARK: - 通信日志
             Section {
                 VStack(alignment: .leading, spacing: 0) {
+                    Toggle("详细通信日志（15 分钟后自动关闭）", isOn: Binding(
+                        get: { logStore.isVerboseLoggingEnabled },
+                        set: { logStore.setVerboseLoggingEnabled($0) }
+                    ))
                     ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 2) {
-                                ForEach(bleManager.commLog) { entry in
+                                ForEach(logStore.entries) { entry in
                                     HStack(alignment: .top, spacing: 8) {
                                         Text(entry.formattedTime)
                                             .font(.system(.caption2, design: .monospaced))
@@ -414,8 +427,8 @@ struct DeviceInfoView: View {
                         .frame(height: 150)
                         .background(Color.primary.opacity(0.03))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .onChange(of: bleManager.commLog.count) { _ in
-                            if let last = bleManager.commLog.last {
+                        .onChange(of: logStore.entries.count) { _ in
+                            if let last = logStore.entries.last {
                                 proxy.scrollTo(last.id, anchor: .bottom)
                             }
                         }
@@ -424,7 +437,7 @@ struct DeviceInfoView: View {
                     HStack {
                         Spacer()
                         Button("复制全部") {
-                            let text = bleManager.commLog.map { "[\($0.formattedTime)] \($0.message)" }.joined(separator: "\n")
+                            let text = logStore.entries.map { "[\($0.formattedTime)] \($0.message)" }.joined(separator: "\n")
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(text, forType: .string)
                         }
@@ -442,6 +455,8 @@ struct DeviceInfoView: View {
                 Text("通信日志")
             }
         }
+        .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
+        .onDisappear { bleManager.setDiagnosticsWindowVisible(false) }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
         .alert("Agent", isPresented: Binding(
             get: { agentManager.agentUserAlert != nil },

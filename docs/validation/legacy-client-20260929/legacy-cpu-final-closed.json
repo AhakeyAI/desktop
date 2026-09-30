@@ -1,0 +1,26 @@
+{
+  "phase": "final-closed",
+  "duration_s": 60.89,
+  "method": "proc_pid_rusage CPU time deltas, percentage of one CPU core",
+  "processes": [
+    {
+      "name": "AhaKeyConfig",
+      "samples": 60,
+      "mean_cpu_percent": 0.019,
+      "max_cpu_percent": 0.257,
+      "rss_mb_start": 66.56,
+      "rss_mb_end": 43.0
+    },
+    {
+      "name": "ahakeyconfig-agent",
+      "samples": 60,
+      "mean_cpu_percent": 0.008,
+      "max_cpu_percent": 0.101,
+      "rss_mb_start": 11.84,
+      "rss_mb_end": 11.64
+    }
+  ],
+  "ble_log_bytes_added": 0,
+  "state_json_content_unchanged": false,
+  "state_file_mtime_advanced": true
+}

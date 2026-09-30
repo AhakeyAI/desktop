@@ -1,0 +1,11 @@
+{
+  "phase": "manual",
+  "agent_switch_before_hook": 1,
+  "exit_code": 0,
+  "hook_output": {
+    "hookSpecificOutput": {
+      "hookEventName": "PermissionRequest"
+    }
+  },
+  "current_policy": "\"on-request\""
+}

@@ -1,3 +1,4 @@
+import AhaKeyConfigShared
 import Foundation
 import os.log
 
@@ -156,6 +157,8 @@ final class AgentManager: ObservableObject {
     }
 
     init() {
+        // A rejected legacy policy can prevent Codex reaching SessionStart at all.
+        CodexConfigLeverSync.migrateLegacyPolicy()
         if let raw = UserDefaults.standard.string(forKey: Self.bluetoothOwnerKey),
            let stored = BluetoothConnectionOwner(rawValue: raw) {
             bluetoothConnectionOwner = stored
@@ -184,44 +187,6 @@ final class AgentManager: ObservableObject {
             }
         } else {
             isAgentBLEConnected = false
-        }
-    }
-
-    /// 通知 agent 设置/清除虚拟拨杆覆盖。fire-and-forget；agent 会:
-    /// 1) 落进 UserDefaults 持久化
-    /// 2) 写入共享文件让主 App 立即看到
-    /// 3) 不再发送旧 0x91；最新固件 0x91 用于灯效预览
-    /// value=nil 表示清除覆盖（回到读真实 GPIO 值）。
-    func sendSwitchOverride(_ value: UInt8?) {
-        DispatchQueue.global(qos: .userInitiated).async { [socketPath] in
-            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-            guard fd >= 0 else { return }
-            defer { close(fd) }
-            var tv = timeval(tv_sec: 2, tv_usec: 0)
-            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-            var addr = sockaddr_un()
-            addr.sun_family = sa_family_t(AF_UNIX)
-            socketPath.withCString { src in
-                withUnsafeMutablePointer(to: &addr.sun_path) { dst in
-                    _ = strcpy(UnsafeMutableRawPointer(dst).assumingMemoryBound(to: CChar.self), src)
-                }
-            }
-            let ok = withUnsafePointer(to: &addr) { ptr in
-                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-                }
-            }
-            guard ok == 0 else { return }
-            let valuePart: String = value.map { "\($0)" } ?? "null"
-            let payload = "{\"cmd\":\"set_switch_override\",\"value\":\(valuePart)}\n"
-            guard let data = payload.data(using: .utf8) else { return }
-            _ = data.withUnsafeBytes { ptr -> Int in
-                guard let base = ptr.baseAddress else { return -1 }
-                return write(fd, base, ptr.count)
-            }
-            var buf = [UInt8](repeating: 0, count: 256)
-            _ = read(fd, &buf, buf.count) // 等回包再关 fd，避免 agent 还没处理就被 reset
         }
     }
 
@@ -285,6 +250,8 @@ final class AgentManager: ObservableObject {
     }
 
     private func applyBluetoothOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager, isLaunch: Bool) {
+        // 阶段 4：把 Agent 活性通道注入 BLEManager——共享文件 agent* 状态的过期判断以 socket status 心跳为准
+        bleManager.agentBLEConnectedProvider = { [weak self] in self?.isAgentBLEConnected ?? false }
         switch owner {
         case .ahaKeyStudio:
             bleManager.setSuppressedForAgentOwningKeyboard(false)
@@ -313,6 +280,12 @@ final class AgentManager: ObservableObject {
             }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 500 : 550) * 1_000_000)
+                guard self.bluetoothConnectionOwner == .agentDaemon else { return }
+                guard self.prepareLaunchAgentForStart() else {
+                    bleManager.setSuppressedForAgentOwningKeyboard(false)
+                    bleManager.connectAutomatically()
+                    return
+                }
                 _ = runLaunchctlQuiet(["load", plistPath])
                 _ = runLaunchctlQuiet(["start", label])
                 self.refresh()
@@ -491,15 +464,14 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    private func installedAgentBinaryPath() -> String? {
-        guard let plist = NSDictionary(contentsOfFile: plistPath),
-              let args = plist["ProgramArguments"] as? [String],
-              let first = args.first else { return nil }
-        return first
-    }
-
-    private func launchAgentNeedsRewrite() -> Bool {
-        installedAgentBinaryPath() != agentBinaryPath
+    private func prepareLaunchAgentForStart() -> Bool {
+        let expected = [agentBinaryPath, "--socket", socketPath]
+        guard LaunchAgentConfiguration.needsRewrite(
+            plistURL: URL(fileURLWithPath: plistPath), expectedArguments: expected
+        ) else { return true }
+        // An already-loaded job keeps its previous arguments until it is unloaded.
+        unloadAgentLaunchJobRemovingSocket()
+        return writeLaunchAgentPlist()
     }
 
     func install() {
@@ -585,10 +557,7 @@ final class AgentManager: ObservableObject {
             agentUserAlert = "尚未安装 LaunchAgent。请先点「安装并启用」。"
             return
         }
-        if launchAgentNeedsRewrite() {
-            unloadAgentLaunchJobRemovingSocket()
-            guard writeLaunchAgentPlist() else { return }
-        }
+        guard prepareLaunchAgentForStart() else { return }
         isAgentOperationInProgress = true
         let loadRes = runLaunchctlDetailed(["load", plistPath])
         let startRes = runLaunchctlDetailed(["start", label])
@@ -974,17 +943,8 @@ final class AgentManager: ObservableObject {
         "stop",
     ]
 
-    private let codexHookBlockStart = "# BEGIN AhaKey Codex Hooks"
-    private let codexHookBlockEnd = "# END AhaKey Codex Hooks"
-    private let codexHookEvents: [(event: String, agentEvent: String, timeout: Int)] = [
-        ("SessionStart", "CodexSessionStart", 10),
-        ("PostToolUse", "CodexPostToolUse", 10),
-        ("PreToolUse", "CodexPreToolUse", 20),
-        ("PermissionRequest", "CodexPermissionRequest", 20),
-        ("UserPromptSubmit", "CodexUserPromptSubmit", 10),
-        ("Stop", "CodexStop", 10),
-    ]
-
+    private let codexHookBlockStart = CodexHookTrust.blockStart
+    private let codexHookBlockEnd = CodexHookTrust.blockEnd
     private let kimiHookBlockStart = "# BEGIN AhaKey Kimi Hooks"
     private let kimiHookBlockEnd = "# END AhaKey Kimi Hooks"
     private let kimiHookEntries: [(event: String, agentEvent: String, timeout: Int)] = [
@@ -1120,12 +1080,14 @@ final class AgentManager: ObservableObject {
         }
 
         var config = (try? String(contentsOfFile: codexConfigPath, encoding: .utf8)) ?? ""
-        config = removeCodexHookBlock(from: config)
         config = ensureCodexHooksFeatureEnabled(in: config)
-        config = config.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !config.isEmpty { config += "\n\n" }
-        config += buildCodexHookBlock()
-        config += "\n"
+        do {
+            config = try CodexHookTrust.installAgentHooks(
+                in: config, configPath: codexConfigPath, agentBinaryPath: agentBinaryPath
+            )
+        } catch {
+            return "Codex Hooks：无法安全更新现有配置，未写入：\(error)"
+        }
 
         do {
             try config.write(toFile: codexConfigPath, atomically: true, encoding: .utf8)
@@ -1213,7 +1175,13 @@ final class AgentManager: ObservableObject {
         guard let config = try? String(contentsOfFile: path, encoding: .utf8) else {
             return "无法读取 \(path)，请检查权限。"
         }
-        let next = removeCodexHookBlock(from: config)
+        // 连同 AhaKey 管理的 [hooks.state] 信任条目一起移除，避免卸载后残留失效哈希。
+        let next: String
+        do {
+            next = try CodexHookTrust.removingManagedHooks(in: config, configPath: path)
+        } catch {
+            return "Codex Hooks：无法安全移除，未写入：\(error)"
+        }
         guard next != config else {
             return "在 \(path) 中未发现 AhaKey Codex hook 标记块。"
         }
@@ -1224,38 +1192,6 @@ final class AgentManager: ObservableObject {
         } catch {
             return "已生成移除后的内容，但无法写回 \(path)：\(error.localizedDescription)"
         }
-    }
-
-    private func buildCodexHookBlock() -> String {
-        let binQuoted = shellQuote(agentBinaryPath)
-        var lines: [String] = [
-            codexHookBlockStart,
-            "# Managed by AhaKey Studio. Codex 0.125 uses inline TOML hooks; each command hook needs type = \"command\".",
-        ]
-        for item in codexHookEvents {
-            lines.append("")
-            lines.append("[[hooks.\(item.event)]]")
-            lines.append("matcher = \"\"")
-            lines.append("")
-            lines.append("[[hooks.\(item.event).hooks]]")
-            lines.append("type = \"command\"")
-            lines.append("command = \"\(escapeTomlBasicString("/bin/zsh -lc \(shellQuote("\(binQuoted) hook \(item.agentEvent)"))"))\"")
-            lines.append("timeout = \(item.timeout)")
-        }
-        lines.append("")
-        lines.append(codexHookBlockEnd)
-        return lines.joined(separator: "\n")
-    }
-
-    private func removeCodexHookBlock(from config: String) -> String {
-        var lines = config.components(separatedBy: .newlines)
-        while let start = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == codexHookBlockStart }),
-              let end = lines[start...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == codexHookBlockEnd }) {
-            lines.removeSubrange(start...end)
-        }
-        return lines.joined(separator: "\n")
-            .replacingOccurrences(of: "\n\n\n", with: "\n\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
     }
 
     private func ensureCodexHooksFeatureEnabled(in config: String) -> String {

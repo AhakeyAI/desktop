@@ -3,53 +3,48 @@ import XCTest
 @testable import VibeBar
 
 final class VibeBarHoverGeometryTests: XCTestCase {
-    func testTopHotZoneUsesEachScreensGlobalCoordinates() {
-        let primary = CGRect(x: 0, y: 0, width: 1_512, height: 982)
-        let secondary = CGRect(x: -1_920, y: 0, width: 1_920, height: 1_080)
-
-        XCTAssertEqual(
-            VibeBarHoverGeometry.topHotZone(in: primary),
-            CGRect(x: 536, y: 924, width: 440, height: 58)
-        )
-        XCTAssertEqual(
-            VibeBarHoverGeometry.screenIndex(
-                withTopHotZoneContaining: CGPoint(x: -960, y: 1_070),
-                screenFrames: [primary, secondary]
-            ),
-            1
-        )
-        XCTAssertEqual(
-            VibeBarHoverGeometry.screenIndex(
-                withExpandedInteractionZoneContaining: CGPoint(x: -960, y: 900),
-                screenFrames: [primary, secondary]
-            ),
-            1
-        )
+    private let screen = CGRect(x: 0, y: 0, width: 1_512, height: 982)
+    private func frame(in screen: CGRect) -> CGRect? {
+        VibeBarHoverGeometry.compactFrame(
+            leading: CGRect(x: screen.midX - 120, y: screen.maxY - 26, width: 50, height: 20),
+            trailing: CGRect(x: screen.midX + 50, y: screen.maxY - 26, width: 70, height: 20),
+            screen: screen, height: 32)
     }
-
-    func testScreenContainingPointerSupportsNegativeOrigins() {
-        let primary = CGRect(x: 0, y: 0, width: 1_512, height: 982)
-        let secondary = CGRect(x: -1_920, y: -200, width: 1_920, height: 1_080)
-        let frames = [primary, secondary]
-
-        XCTAssertEqual(
-            VibeBarHoverGeometry.screenIndex(
-                containing: CGPoint(x: -100, y: 400),
-                screenFrames: frames
-            ),
-            1
-        )
-        XCTAssertNil(
-            VibeBarHoverGeometry.screenIndex(
-                withTopHotZoneContaining: CGPoint(x: 200, y: 200),
-                screenFrames: frames
-            )
-        )
-        XCTAssertNil(
-            VibeBarHoverGeometry.screenIndex(
-                withExpandedInteractionZoneContaining: CGPoint(x: 200, y: 200),
-                screenFrames: frames
-            )
-        )
+    func testWindowDragMarginOutsideCollapsedIslandDoesNotTriggerExpansion() {
+        XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: screen.midX + 219, y: screen.maxY - 57), compactFrame: frame(in: screen), pressedMouseButtons: 0))
+    }
+    func testMeasuredWidthAndScreenTopDefineCompactFrame() {
+        XCTAssertEqual(frame(in: screen), CGRect(x: 622.5, y: 950, width: 267, height: 32))
+        XCTAssertTrue(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: screen.midX, y: screen.maxY - 16), compactFrame: frame(in: screen), pressedMouseButtons: 0))
+    }
+    func testCornersAndAllExteriorSidesDoNotTrigger() throws {
+        let f = try XCTUnwrap(frame(in: screen))
+        for p in [CGPoint(x: f.minX - 1, y: f.midY), CGPoint(x: f.maxX + 1, y: f.midY),
+                  CGPoint(x: f.midX, y: f.minY - 1), CGPoint(x: f.midX, y: f.maxY + 1),
+                  CGPoint(x: f.minX + 1, y: f.minY + 1), CGPoint(x: f.maxX - 1, y: f.minY + 1)] {
+            XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(at: p, compactFrame: f, pressedMouseButtons: 0))
+        }
+    }
+    func testWindowDraggingEvenInsideIslandDoesNotExpand() {
+        for buttons in [1, 2, 4] {
+            XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: screen.midX, y: screen.maxY - 16), compactFrame: frame(in: screen), pressedMouseButtons: buttons))
+        }
+    }
+    func testShortMenuBarKeepsTheVisibleFourteenPointBottomCurve() {
+        let frame = CGRect(x: 0, y: 0, width: 200, height: 22)
+        XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(
+            at: CGPoint(x: 12, y: 1), compactFrame: frame, pressedMouseButtons: 0))
+        XCTAssertTrue(VibeBarHoverGeometry.shouldExpand(
+            at: CGPoint(x: 100, y: 10), compactFrame: frame, pressedMouseButtons: 0))
+    }
+    func testUnmeasuredOrOtherScreenGeometryFailsClosed() {
+        XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: 756, y: 970), compactFrame: nil, pressedMouseButtons: 0))
+        XCTAssertNil(VibeBarHoverGeometry.compactFrame(leading: CGRect(x: -500, y: 960, width: 50, height: 20), trailing: CGRect(x: 800, y: 960, width: 70, height: 20), screen: screen, height: 32))
+    }
+    func testNegativeOriginsAndOtherScreens() {
+        let other = CGRect(x: -1_920, y: -200, width: 1_920, height: 1_080)
+        XCTAssertTrue(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: other.midX, y: other.maxY - 16), compactFrame: frame(in: other), pressedMouseButtons: 0))
+        XCTAssertFalse(VibeBarHoverGeometry.shouldExpand(at: CGPoint(x: screen.midX, y: screen.maxY - 16), compactFrame: frame(in: other), pressedMouseButtons: 0))
+        XCTAssertEqual(VibeBarHoverGeometry.screenIndex(containing: CGPoint(x: -100, y: 400), screenFrames: [screen, other]), 1)
     }
 }

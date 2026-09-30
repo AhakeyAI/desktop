@@ -1,8 +1,9 @@
+import AppKit
 import SwiftUI
 
 struct VibeBarCompactKeyboardItem: View {
     @ObservedObject var state: VibeBarState
-    let onHoverChanged: (Bool) -> Void
+    let onFrameChanged: (CGRect, NSScreen) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -15,8 +16,10 @@ struct VibeBarCompactKeyboardItem: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
+        .background(GeometryReader { geometry in
+            VibeBarFrameReporter(contentFrame: geometry.frame(in: .global), report: onFrameChanged)
+        })
         .contentShape(Rectangle())
-        .onHover(perform: onHoverChanged)
     }
 
     private var label: String {
@@ -27,7 +30,7 @@ struct VibeBarCompactKeyboardItem: View {
 
 struct VibeBarCompactLeverItem: View {
     @ObservedObject var state: VibeBarState
-    let onHoverChanged: (Bool) -> Void
+    let onFrameChanged: (CGRect, NSScreen) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -40,8 +43,10 @@ struct VibeBarCompactLeverItem: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
+        .background(GeometryReader { geometry in
+            VibeBarFrameReporter(contentFrame: geometry.frame(in: .global), report: onFrameChanged)
+        })
         .contentShape(Rectangle())
-        .onHover(perform: onHoverChanged)
     }
 
     private var icon: String {
@@ -64,6 +69,7 @@ struct VibeBarExpandedMenu: View {
     @ObservedObject var state: VibeBarState
     let onAppear: () -> Void
     let onHoverChanged: (Bool) -> Void
+    let onFrameChanged: (CGRect, NSScreen) -> Void
     let onCompact: () -> Void
     let onOpenMain: () -> Void
 
@@ -124,6 +130,9 @@ struct VibeBarExpandedMenu: View {
         }
         .frame(width: 420)
         .foregroundStyle(.white)
+        .background(GeometryReader { geometry in
+            VibeBarFrameReporter(contentFrame: geometry.frame(in: .global), report: onFrameChanged)
+        })
         .contentShape(Rectangle())
         .onAppear(perform: onAppear)
         .onHover(perform: onHoverChanged)
