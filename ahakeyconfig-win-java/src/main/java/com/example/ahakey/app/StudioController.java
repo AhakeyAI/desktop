@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 应用总线：连接 Swift 中 `AhaKeyStudioView` + `BLE` + `AgentManager` 的编排逻辑。
@@ -43,6 +44,9 @@ public class StudioController {
     // 定时轮询设备状态（由于BLE通知不可靠，需要主动查询）
     private ScheduledExecutorService statusPoller;
     private ScheduledFuture<?> pollFuture;
+    private volatile boolean firmwareCatalogKeyRequested = false;
+    private volatile boolean enterEditingAfterConnect = false;
+    private final AtomicBoolean modeSwitchInProgress = new AtomicBoolean(false);
 
     public StudioController() {
         String sim = System.getenv("AHAKEY_STUDIO_SIMULATE_BLE");
@@ -57,6 +61,10 @@ public class StudioController {
                 Platform.runLater(() -> {
                     DeviceStatus status = bleManager.getCachedStatus();
                     applyBleStatus(status);
+                    if (enterEditingAfterConnect) {
+                        enterEditingAfterConnect = false;
+                        activateConfigurationEditing();
+                    }
                 });
                 // 有线（USB HID）连接时启动 Kimi AhaKey 桥接（无线模式下 9000 端口已由 BLE-TCP bridge 占用）
                 if (bleManager.isUsbConnected()) {
@@ -68,7 +76,16 @@ public class StudioController {
 
             @Override
             public void onDisconnected() {
-                Platform.runLater(() -> deviceStatus.setConnected(false));
+                firmwareCatalogKeyRequested = false;
+                enterEditingAfterConnect = false;
+                Platform.runLater(() -> {
+                    deviceStatus.setConnected(false);
+                    deviceStatus.clearFirmwareIdentity();
+                    if (modeSwitchInProgress.getAndSet(false)) {
+                        studioState.modeSwitchingProperty().set(false);
+                        studioState.syncStatusProperty().set("连接中断，键盘模式未确认");
+                    }
+                });
                 // 停止定时轮询
                 stopStatusPolling();
             }
@@ -83,6 +100,7 @@ public class StudioController {
 
             @Override
             public void onError(String message) {
+                enterEditingAfterConnect = false;
                 Platform.runLater(() -> studioState.syncStatusProperty().set(message));
             }
         });
@@ -133,6 +151,10 @@ public class StudioController {
 
     public boolean isEffectivelyConnected() {
         return deviceStatus.isConnected();
+    }
+
+    public boolean canWriteToDevice() {
+        return simulateBle || deviceStatus.isConnected();
     }
 
     public boolean hasUnsyncedChanges() {
@@ -189,6 +211,9 @@ public class StudioController {
 
     public void userConnect() {
         logger.info("用户请求连接 - simulateBle: {}", simulateBle);
+        firmwareCatalogKeyRequested = false;
+        deviceStatus.clearFirmwareIdentity();
+        bleManager.clearCachedFirmwareIdentity();
         if (simulateBle) {
             logger.info("使用模拟模式，直接设置为已连接");
             deviceStatus.setConnected(true);
@@ -203,23 +228,118 @@ public class StudioController {
     }
 
     public void userDisconnect() {
+        enterEditingAfterConnect = false;
         bleManager.disconnect();
     }
 
-    public void selectKeyboardMode(ModeSlot mode) {
-        studioState.setSelectedMode(mode);
+    public void refreshDeviceInfoDetails() {
+        clearDeviceInfoDetailsForRefresh();
+        readFirmwareCatalogKeyForDeviceInfo();
+        refreshDeviceStatusSnapshot();
+    }
+
+    public void clearDeviceInfoDetailsForRefresh() {
+        firmwareCatalogKeyRequested = false;
+        deviceStatus.clearFirmwareIdentity();
+        bleManager.clearCachedFirmwareIdentity();
+    }
+
+    public void readFirmwareCatalogKeyForDeviceInfo() {
         if (!simulateBle && deviceStatus.isConnected()) {
-            bleManager.setWorkMode(mode.getIndex());
+            firmwareCatalogKeyRequested = true;
+            try {
+                bleManager.readFirmwareCatalogKey();
+            } catch (Exception e) {
+                logger.info("Firmware catalog key read skipped/fallback: {}", e.getMessage());
+            }
         }
     }
 
+    public void refreshDeviceStatusSnapshot() {
+        if (!simulateBle && deviceStatus.isConnected()) {
+            bleManager.queryStatusAndWait(1000);
+        }
+    }
+
+    public void selectKeyboardMode(ModeSlot mode) {
+        if (mode == null) {
+            return;
+        }
+        if (studioState.modeSwitchingProperty().get()) {
+            studioState.syncStatusProperty().set("正在确认键盘模式，请稍候。");
+            return;
+        }
+        if (simulateBle) {
+            studioState.setSelectedMode(mode);
+            studioState.syncStatusProperty().set("模拟模式：已切换到 " + mode.getTitle() + "。");
+            return;
+        }
+        if (!deviceStatus.isConnected()) {
+            studioState.setSelectedMode(mode);
+            studioState.syncStatusProperty().set("离线浏览 " + mode.getTitle() + "，本地草稿已保留；连接键盘后可切换/保存。");
+            return;
+        }
+        ModeSlot previousMode = studioState.getSelectedMode();
+        if (previousMode == mode) {
+            studioState.syncStatusProperty().set("键盘已在 " + mode.getTitle() + "。");
+            return;
+        }
+        if (!modeSwitchInProgress.compareAndSet(false, true)) {
+            studioState.syncStatusProperty().set("正在确认键盘模式，请稍候。");
+            return;
+        }
+        studioState.modeSwitchingProperty().set(true);
+        studioState.setSelectedMode(mode);
+        studioState.syncStatusProperty().set("正在切换到 " + mode.getTitle() + "...");
+        Thread thread = new Thread(() -> {
+            try {
+                int confirmedIndex = bleManager.setWorkModeAndVerify(mode.getIndex());
+                ModeSlot confirmedMode = ModeSlot.fromIndex(confirmedIndex);
+                Platform.runLater(() -> {
+                    deviceStatus.setWorkMode(confirmedIndex);
+                    studioState.setSelectedMode(confirmedMode);
+                    studioState.syncStatusProperty().set("已切换到 " + confirmedMode.getTitle() + "。");
+                    studioState.modeSwitchingProperty().set(false);
+                    modeSwitchInProgress.set(false);
+                });
+            } catch (Exception e) {
+                logger.warn("Mode switch failed: target={}, previous={}, reason={}", mode, previousMode, e.getMessage());
+                Platform.runLater(() -> {
+                    ModeSlot authoritative = ModeSlot.fromIndex(deviceStatus.getWorkMode());
+                    DeviceStatus cached = bleManager.getCachedStatus();
+                    if (cached != null && cached.isConnected()) {
+                        authoritative = ModeSlot.fromIndex(cached.getWorkMode());
+                        deviceStatus.setWorkMode(cached.getWorkMode());
+                    }
+                    studioState.setSelectedMode(authoritative);
+                    if (!deviceStatus.isConnected() || !bleManager.isConnected()) {
+                        studioState.syncStatusProperty().set("连接中断，键盘模式未确认");
+                    } else {
+                        studioState.syncStatusProperty().set("未切换到 " + mode.getTitle() + "，键盘仍在 " + authoritative.getTitle() + "，请重试");
+                    }
+                    studioState.modeSwitchingProperty().set(false);
+                    modeSwitchInProgress.set(false);
+                });
+            }
+        }, "mode-switch-confirm");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
     public void enterEditingConfiguration() {
+        if (!deviceStatus.isConnected() && !simulateBle) {
+            enterEditingAfterConnect = true;
+            studioState.syncStatusProperty().set("正在连接键盘以进入编辑配置...");
+            userConnect();
+            return;
+        }
+        activateConfigurationEditing();
+    }
+
+    private void activateConfigurationEditing() {
         agentManager.setBluetoothOwner(AgentManager.BluetoothOwner.AHAKEY_STUDIO);
         studioState.syncStatusProperty().set("已进入编辑配置模式。");
         refreshVoiceRoutes();
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            userConnect();
-        }
     }
 
     public void finishEditingConfiguration() {
@@ -230,8 +350,7 @@ public class StudioController {
         if (deviceStatus.isConnected() || simulateBle) {
             syncAllModes(true);
         } else {
-            studioState.syncStatusProperty().set("设备未连接，请先连接键盘。");
-            userConnect();
+            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
         }
     }
 
@@ -243,7 +362,7 @@ public class StudioController {
 
     public void syncAllModes(boolean returnToAgentWhenDone) {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("设备未连接，当前只保存本地草稿。");
+            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
             return;
         }
         if (simulateBle) {
@@ -303,7 +422,7 @@ public class StudioController {
     public void previewLightOnDevice() {
         LightBarPreviewState preview = studioState.getLightBarPreview();
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接设备再预览灯效。");
+            studioState.syncStatusProperty().set("连接键盘后可测试/保存");
             return;
         }
         // 使用 IDE 状态码发送（适配当前固件，固件根据 claude_state 映射灯效）
@@ -321,7 +440,7 @@ public class StudioController {
             return;
         }
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接键盘，再测试灯效。");
+            studioState.syncStatusProperty().set("连接键盘后可测试/保存");
             return;
         }
         if (!simulateBle) {
@@ -332,7 +451,7 @@ public class StudioController {
 
     public void sendLightBrightnessToDevice() {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接键盘，再测试灯光亮度。");
+            studioState.syncStatusProperty().set("连接键盘后可测试/保存");
             return;
         }
         int brightness = studioState.getLightBrightness();
@@ -350,7 +469,7 @@ public class StudioController {
     public void syncCurrentModeLightConfig() {
         ModeSlot mode = studioState.getSelectedMode();
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("请先连接键盘，再保存当前模式灯效。");
+            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
             return;
         }
         if (!simulateBle) {
@@ -482,8 +601,7 @@ public class StudioController {
 
     public void previewOledOnDevice() {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("设备未连接，请先连接键盘。");
-            userConnect();
+            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
             return;
         }
         OledModeDraft draft = studioState.getOledDraft();
@@ -510,8 +628,7 @@ public class StudioController {
 
     public void uploadCurrentOledToDevice() {
         if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("设备未连接，请先连接键盘。");
-            userConnect();
+            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
             return;
         }
         OledModeDraft draft = studioState.getOledDraft();
@@ -684,12 +801,36 @@ public class StudioController {
         deviceStatus.setScanning(false);
         deviceStatus.setBatteryLevel(status.getBatteryLevel());
         deviceStatus.setDeviceName(status.getDeviceName());
+        deviceStatus.setFirmwareMain(status.getFirmwareMain());
+        deviceStatus.setFirmwareSub(status.getFirmwareSub());
+        deviceStatus.setFirmwareCatalogKey(status.getFirmwareCatalogKey());
         deviceStatus.setWorkMode(status.getWorkMode());
         deviceStatus.setSwitchState(status.getSwitchState());
+        requestFirmwareCatalogKeyAfterConnect();
         ModeSlot deviceMode = ModeSlot.fromIndex(status.getWorkMode());
-        if (deviceMode != studioState.getSelectedMode()) {
+        ModeSlot previousMode = studioState.getSelectedMode();
+        if (status.isConnected() && deviceMode != previousMode && !modeSwitchInProgress.get()) {
             studioState.setSelectedMode(deviceMode);
+            if (studioState.hasUnsavedDraft(previousMode)) {
+                studioState.syncStatusProperty().set("键盘已切到 " + deviceMode.getTitle() + "，" + previousMode.getTitle() + " 的未保存草稿已保留");
+            } else {
+                studioState.syncStatusProperty().set("键盘已切到 " + deviceMode.getTitle() + "。");
+            }
         }
+    }
+
+    private void requestFirmwareCatalogKeyAfterConnect() {
+        if (!deviceStatus.isConnected() || firmwareCatalogKeyRequested || !deviceStatus.getFirmwareCatalogKey().isBlank()) {
+            return;
+        }
+        firmwareCatalogKeyRequested = true;
+        new Thread(() -> {
+            try {
+                bleManager.readFirmwareCatalogKey();
+            } catch (Exception e) {
+                logger.info("Firmware catalog key read skipped/fallback: {}", e.getMessage());
+            }
+        }, "firmware-catalog-key-connect-read").start();
     }
 
     private void persistDraft() {

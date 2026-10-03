@@ -742,7 +742,7 @@ public class InspectorPane extends ScrollPane {
             });
 
             Button test = new Button(languageManager.getString("inspector.test-brightness"));
-            test.setDisable(!deviceStatus.isConnected());
+            test.disableProperty().bind(deviceStatus.isConnectedProperty().not());
             test.setOnAction(e -> controller.sendLightBrightnessToDevice());
 
             row.getChildren().addAll(new Label(languageManager.getString("inspector.brightness")), spinner, test);
@@ -783,7 +783,7 @@ public class InspectorPane extends ScrollPane {
                 });
 
                 Button test = new Button(languageManager.getString("inspector.test"));
-                test.setDisable(!deviceStatus.isConnected());
+                test.disableProperty().bind(deviceStatus.isConnectedProperty().not());
                 test.setOnAction(e -> controller.previewLightEffectOnDevice(combo.getValue()));
 
                 top.getChildren().addAll(title, help, spacer, combo, test);
@@ -799,7 +799,7 @@ public class InspectorPane extends ScrollPane {
             actions.setAlignment(Pos.CENTER_LEFT);
             Button sync = new Button(languageManager.getString("inspector.save-light-config"));
             sync.getStyleClass().add("button-prominent");
-            sync.setDisable(!deviceStatus.isConnected());
+            sync.disableProperty().bind(deviceStatus.isConnectedProperty().not());
             sync.setOnAction(e -> controller.syncCurrentModeLightConfig());
             actions.getChildren().add(sync);
 

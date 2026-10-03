@@ -12,6 +12,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -34,7 +41,11 @@ public class BleManager {
 
     private final ReentrantLock commandLock = new ReentrantLock();
     private final Condition responseReady = commandLock.newCondition();
-    private volatile byte[] pendingNotifyFrame;
+    private final Object commandTransactionLock = new Object();
+    private final Map<Byte, Deque<byte[]>> pendingNotifyFramesByCommand = new HashMap<>();
+    private static final int NOTIFY_REASSEMBLY_MAX_BYTES = 512;
+    private final byte[] notifyReassemblyBuffer = new byte[NOTIFY_REASSEMBLY_MAX_BYTES];
+    private int notifyReassemblyLength = 0;
 
     private volatile boolean isConnected;
     private volatile boolean isScanning;
@@ -107,6 +118,7 @@ public class BleManager {
                 
                 isConnected = true;
                 isScanning = false;
+                cachedStatus.clearFirmwareIdentity();
                 cachedStatus.setConnected(false);
                 cachedStatus.setDeviceName("Waiting for device");
                 if (cachedStatus.getBatteryLevel() < 0) {
@@ -146,6 +158,7 @@ public class BleManager {
         long phaseStart = System.currentTimeMillis();
         isConnected = false;
         cachedStatus.setConnected(false);
+        cachedStatus.clearFirmwareIdentity();
         logger.info("[BLE] 步骤1: 设置断开状态，耗时={}ms", System.currentTimeMillis() - phaseStart);
         
         // 第二步：唤醒等待响应的线程
@@ -235,6 +248,10 @@ public class BleManager {
     }
 
     public void sendCommand(byte[] command) throws IOException {
+        if (commandLock.isLocked() && !commandLock.isHeldByCurrentThread()) {
+            logger.debug("Skip async command while waiting for a command response: {}", bytesToHex(command, Math.min(20, command.length)));
+            return;
+        }
         logger.debug("发送命令: {}", bytesToHex(command, Math.min(20, command.length)));
         if (ensureUsbConnected()) {
             usbTransport.sendCommand(command);
@@ -243,10 +260,14 @@ public class BleManager {
         }
     }
 
+    public boolean isUsbTransportOpen() {
+        return usbTransport.isOpen();
+    }
+
     public void sendCommandExpecting(byte[] command, byte expectedCmd) throws Exception {
         commandLock.lock();
         try {
-            pendingNotifyFrame = null;
+            pendingNotifyFramesByCommand.clear();
             sendCommand(command);
             waitForResponse(expectedCmd);
         } finally {
@@ -255,48 +276,75 @@ public class BleManager {
     }
 
     public int readSleepWaitTimeMinutes() throws Exception {
-        commandLock.lock();
-        try {
-            pendingNotifyFrame = null;
-            sendCommand(AhaKeyProtocol.querySleepWaitTime());
-            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
-            AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(frame);
-            if (parsed == null || parsed.minutes() == null) {
-                throw new IOException("无法解析睡眠等待时间响应");
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                sendCommand(AhaKeyProtocol.querySleepWaitTime());
+                byte[] frame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
+                AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(frame);
+                if (parsed == null || parsed.minutes() == null) {
+                    throw new IOException("无法解析睡眠等待时间响应");
+                }
+                logger.info("Sleep wait time read: {} minutes", parsed.minutes());
+                return parsed.minutes();
+            } finally {
+                commandLock.unlock();
             }
-            return parsed.minutes();
-        } finally {
-            commandLock.unlock();
+        }
+    }
+
+    public String readFirmwareCatalogKey() throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                logger.info("Reading firmware catalog key with command 0x9F");
+                sendCommand(AhaKeyProtocol.queryFirmwareCatalogKey());
+                byte[] frame = waitForResponseFrame(AhaKeyProtocol.CMD_FIRMWARE_CATALOG_KEY, false);
+                String catalogKey = AhaKeyResponseParser.parseFirmwareCatalogKey(frame);
+                if (catalogKey == null || catalogKey.isBlank()) {
+                    throw new IOException("无法解析键盘固件版本");
+                }
+                logger.info("Firmware catalog key: {}", catalogKey);
+                cachedStatus.setFirmwareCatalogKey(catalogKey);
+                callback.onStatusReceived(cachedStatus);
+                return catalogKey;
+            } finally {
+                commandLock.unlock();
+            }
         }
     }
 
     public int setSleepWaitTimeMinutesAndVerify(int minutes) throws Exception {
-        commandLock.lock();
-        try {
-            pendingNotifyFrame = null;
-            sendCommand(AhaKeyProtocol.setSleepWaitTime(minutes));
-            byte[] setFrame = waitForResponseFrame(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME, false);
-            AhaKeyResponseParser.CommandResponse setResponse = AhaKeyResponseParser.parseCommandResponse(setFrame);
-            if (setResponse == null) {
-                throw new IOException("无法解析睡眠等待时间保存响应");
-            }
-            if (setResponse.status() != 0) {
-                throw new IOException("睡眠等待时间保存失败: " + sleepWaitTimeStatusMessage(setResponse.status()));
-            }
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                sendCommand(AhaKeyProtocol.setSleepWaitTime(minutes));
+                byte[] setFrame = waitForResponseFrame(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME, false);
+                AhaKeyResponseParser.CommandResponse setResponse = AhaKeyResponseParser.parseCommandResponse(setFrame);
+                if (setResponse == null) {
+                    throw new IOException("无法解析睡眠等待时间保存响应");
+                }
+                if (setResponse.status() != 0) {
+                    throw new IOException("睡眠等待时间保存失败: " + sleepWaitTimeStatusMessage(setResponse.status()));
+                }
 
-            pendingNotifyFrame = null;
-            sendCommand(AhaKeyProtocol.querySleepWaitTime());
-            byte[] queryFrame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
-            AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(queryFrame);
-            if (parsed == null || parsed.minutes() == null) {
-                throw new IOException("无法解析睡眠等待时间回读响应");
+                pendingNotifyFramesByCommand.clear();
+                sendCommand(AhaKeyProtocol.querySleepWaitTime());
+                byte[] queryFrame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
+                AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(queryFrame);
+                if (parsed == null || parsed.minutes() == null) {
+                    throw new IOException("无法解析睡眠等待时间回读响应");
+                }
+                if (parsed.minutes() != minutes) {
+                    throw new IOException("睡眠等待时间回读不匹配: 期望 " + minutes + "，实际 " + parsed.minutes());
+                }
+                return parsed.minutes();
+            } finally {
+                commandLock.unlock();
             }
-            if (parsed.minutes() != minutes) {
-                throw new IOException("睡眠等待时间回读不匹配: 期望 " + minutes + "，实际 " + parsed.minutes());
-            }
-            return parsed.minutes();
-        } finally {
-            commandLock.unlock();
         }
     }
 
@@ -326,11 +374,11 @@ public class BleManager {
 
                 logger.debug("写入分块 {}/{}: 地址={}, 长度={}", (offset / AhaKeyProtocol.OLED_CHUNK_SIZE) + 1, totalChunks, chunkAddr, chunkLen);
 
-                pendingNotifyFrame = null;
+                pendingNotifyFramesByCommand.clear();
                 sendCommand(AhaKeyProtocol.prepareWrite(chunkLen, chunkAddr));
                 waitForResponse(AhaKeyProtocol.CMD_PREPARE_WRITE);
 
-                pendingNotifyFrame = null;
+                pendingNotifyFramesByCommand.clear();
                 writeData(chunk);
                 waitForResponse(AhaKeyProtocol.CMD_WRITE_RESULT);
 
@@ -345,7 +393,7 @@ public class BleManager {
     public AhaKeyResponseParser.PictureState readPictureState(int mode) throws Exception {
         commandLock.lock();
         try {
-            pendingNotifyFrame = null;
+            pendingNotifyFramesByCommand.clear();
             sendCommand(AhaKeyProtocol.readPicState(mode));
             byte[] frame = waitForResponse(AhaKeyProtocol.CMD_READ_PIC_STATE);
             AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
@@ -441,6 +489,34 @@ public class BleManager {
         }
     }
 
+    public int setWorkModeAndVerify(int mode) throws Exception {
+        int targetMode = Math.max(0, Math.min(3, mode));
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                sendCommand(AhaKeyProtocol.setWorkMode(targetMode));
+                byte[] setFrame = waitForResponseFrame(AhaKeyProtocol.CMD_SET_WORK_MODE, false, false);
+                AhaKeyResponseParser.CommandResponse response = AhaKeyResponseParser.parseCommandResponse(setFrame);
+                if (response == null) {
+                    throw new IOException("无法解析模式切换响应");
+                }
+                if (response.status() != 0) {
+                    throw new IOException("模式切换失败，设备返回错误码 " + (response.status() & 0xFF));
+                }
+            } finally {
+                commandLock.unlock();
+            }
+
+            DeviceStatus readback = queryDeviceStatusSnapshot(2000, true);
+            int confirmedMode = readback.getWorkMode();
+            if (confirmedMode != targetMode) {
+                throw new IOException("模式回读不匹配: 期望 Mode " + (targetMode + 1) + "，实际 Mode " + (confirmedMode + 1));
+            }
+            return confirmedMode;
+        }
+    }
+
     public boolean isConnected() {
         return isConnected;
     }
@@ -451,6 +527,10 @@ public class BleManager {
 
     public DeviceStatus getCachedStatus() {
         return cachedStatus;
+    }
+
+    public void clearCachedFirmwareIdentity() {
+        cachedStatus.clearFirmwareIdentity();
     }
 
     public boolean isUsbConnected() {
@@ -491,6 +571,7 @@ public class BleManager {
             usbTransport.open(this::onBleNotify);
             isConnected = true;
             isScanning = false;
+            cachedStatus.clearFirmwareIdentity();
             cachedStatus.setConnected(true);
             cachedStatus.setDeviceName("AhaKey USB");
             cachedStatus.setBatteryLevel(100);
@@ -546,12 +627,23 @@ public class BleManager {
     }
 
     private byte[] waitForResponseFrame(byte expectedCmd, boolean throwOnDeviceError) throws Exception {
+        return waitForResponseFrame(expectedCmd, throwOnDeviceError, true);
+    }
+
+    private byte[] waitForResponseFrame(byte expectedCmd, boolean throwOnDeviceError, boolean waitForReconnect) throws Exception {
+        return waitForResponseFrame(expectedCmd, throwOnDeviceError, waitForReconnect, RESPONSE_TIMEOUT_MS);
+    }
+
+    private byte[] waitForResponseFrame(byte expectedCmd, boolean throwOnDeviceError, boolean waitForReconnect, long timeoutMs) throws Exception {
         logger.debug("开始等待响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         
         while (true) {
             // 检查连接状态，如果断开则等待重连
             if (!isConnected) {
+                if (!waitForReconnect) {
+                    throw new IOException("设备连接中断");
+                }
                 logger.info("BLE连接断开，等待重连...");
                 long reconnectDeadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RECONNECT_WAIT_MS);
                 
@@ -565,32 +657,64 @@ public class BleManager {
                 
                 logger.info("BLE重连成功，继续等待响应");
                 // 重连后重置响应超时时间
-                deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+                deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
             }
             
             long remaining = deadline - System.nanoTime();
             if (remaining <= 0) {
                 throw new IOException("等待设备响应 0x" + Integer.toHexString(expectedCmd & 0xFF) + " 超时");
             }
-            if (pendingNotifyFrame != null) {
-                byte[] frame = pendingNotifyFrame;
-                pendingNotifyFrame = null;
+            Deque<byte[]> frames = pendingNotifyFramesByCommand.get(expectedCmd);
+            if (frames != null && !frames.isEmpty()) {
+                byte[] frame = frames.removeFirst();
+                if (expectedCmd == AhaKeyProtocol.CMD_QUERY_STATUS) {
+                    if (AhaKeyProtocol.parseDeviceStatus(frame) == null) {
+                        throw new IOException("无法解析设备状态响应帧");
+                    }
+                    logger.debug("收到期望的状态响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
+                    return frame;
+                }
                 AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
                 if (parsed == null) {
                     throw new IOException("无法解析设备响应帧");
                 }
-                if (parsed.cmd() == expectedCmd) {
-                    logger.debug("收到期望的响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
-                    if (throwOnDeviceError && parsed.status() != 0) {
-                        throw new IOException("设备返回错误码 " + parsed.status());
-                    }
-                    return frame;
+                logger.debug("收到期望的响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
+                if (throwOnDeviceError && parsed.status() != 0) {
+                    throw new IOException("设备返回错误码 " + parsed.status());
                 }
-                logger.debug("收到不匹配的响应 0x{}，期望 0x{}，继续等待", 
-                    Integer.toHexString(parsed.cmd() & 0xFF),
-                    Integer.toHexString(expectedCmd & 0xFF));
+                return frame;
             }
             responseReady.awaitNanos(remaining);
+        }
+    }
+
+    public DeviceStatus queryDeviceStatusSnapshot(long timeoutMs, boolean failOnDisconnect) throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                if (ensureUsbConnected()) {
+                    usbTransport.sendCommand(AhaKeyProtocol.queryDeviceStatus());
+                } else {
+                    writePacket(BleTcpPacket.WRITE_COMMAND, AhaKeyProtocol.queryDeviceStatus());
+                }
+                byte[] frame = waitForResponseFrame(AhaKeyProtocol.CMD_QUERY_STATUS, true, !failOnDisconnect, timeoutMs);
+                DeviceStatus status = AhaKeyProtocol.parseDeviceStatus(frame);
+                if (status == null) {
+                    throw new IOException("无法解析设备状态回读");
+                }
+                status.setConnected(true);
+                if (cachedStatus.getDeviceName() != null && !cachedStatus.getDeviceName().isBlank()) {
+                    status.setDeviceName(cachedStatus.getDeviceName());
+                }
+                status.setFirmwareCatalogKey(cachedStatus.getFirmwareCatalogKey());
+                cachedStatus = status;
+                lastStatusUpdateTime = System.currentTimeMillis();
+                callback.onStatusReceived(status);
+                return status;
+            } finally {
+                commandLock.unlock();
+            }
         }
     }
 
@@ -648,6 +772,8 @@ public class BleManager {
             case BleTcpPacket.DEVICE_INFO_RESP -> {
                 if (data != null && data.length >= 8) {
                     int battery = data[0] & 0xFF;
+                    int firmwareMain = data[2] & 0xFF;
+                    int firmwareSub = data[3] & 0xFF;
                     int workMode = data[4] & 0xFF;
                     int switchState = data[6] & 0xFF;
                     
@@ -663,6 +789,8 @@ public class BleManager {
                     
                     // 更新缓存状态
                     cachedStatus.setBatteryLevel(battery);
+                    cachedStatus.setFirmwareMain(firmwareMain);
+                    cachedStatus.setFirmwareSub(firmwareSub);
                     cachedStatus.setWorkMode(workMode);
                     cachedStatus.setSwitchState(switchState);
                     
@@ -731,7 +859,96 @@ public class BleManager {
             hex.append(String.format("%02X ", data[i]));
         }
         logger.debug("数据内容(前16字节): {}", hex);
-        
+
+        List<byte[]> frames = reassembleNotifyFrames(data);
+        if (frames.isEmpty()) {
+            logger.debug("BLE notify 分片已缓存，等待完整帧");
+            return;
+        }
+        for (byte[] frame : frames) {
+            processNotifyFrame(frame);
+        }
+    }
+
+    private List<byte[]> reassembleNotifyFrames(byte[] data) {
+        List<byte[]> frames = new ArrayList<>();
+        if (data == null || data.length == 0) {
+            return frames;
+        }
+
+        synchronized (notifyReassemblyBuffer) {
+            if (notifyReassemblyLength > 0 && startsWithFrameHeader(data) && findFrameEnd(notifyReassemblyBuffer, notifyReassemblyLength) < 0) {
+                logger.warn("Discarding incomplete BLE notify frame before a new frame header");
+                notifyReassemblyLength = 0;
+            }
+
+            if (data.length > notifyReassemblyBuffer.length - notifyReassemblyLength) {
+                logger.warn("BLE notify 重组缓冲区溢出，丢弃未完成分片");
+                notifyReassemblyLength = 0;
+            }
+            if (data.length > notifyReassemblyBuffer.length) {
+                logger.warn("BLE notify 单片过长，无法重组: {} bytes", data.length);
+                return frames;
+            }
+
+            System.arraycopy(data, 0, notifyReassemblyBuffer, notifyReassemblyLength, data.length);
+            notifyReassemblyLength += data.length;
+
+            while (true) {
+                int start = findFrameStart(notifyReassemblyBuffer, notifyReassemblyLength);
+                if (start < 0) {
+                    notifyReassemblyLength = 0;
+                    return frames;
+                }
+                if (start > 0) {
+                    shiftNotifyBuffer(start);
+                }
+
+                int end = findFrameEnd(notifyReassemblyBuffer, notifyReassemblyLength);
+                if (end < 0) {
+                    return frames;
+                }
+
+                byte[] frame = Arrays.copyOfRange(notifyReassemblyBuffer, 0, end + 2);
+                frames.add(frame);
+                shiftNotifyBuffer(end + 2);
+            }
+        }
+    }
+
+    private boolean startsWithFrameHeader(byte[] data) {
+        return data.length >= 2 && data[0] == (byte) 0xAA && data[1] == (byte) 0xBB;
+    }
+
+    private int findFrameStart(byte[] buffer, int len) {
+        for (int i = 0; i + 1 < len; i++) {
+            if (buffer[i] == (byte) 0xAA && buffer[i + 1] == (byte) 0xBB) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int findFrameEnd(byte[] buffer, int len) {
+        for (int i = 3; i + 1 < len; i++) {
+            if (buffer[i] == (byte) 0xCC && buffer[i + 1] == (byte) 0xDD) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void shiftNotifyBuffer(int consumed) {
+        if (consumed >= notifyReassemblyLength) {
+            notifyReassemblyLength = 0;
+            return;
+        }
+        int remaining = notifyReassemblyLength - consumed;
+        System.arraycopy(notifyReassemblyBuffer, consumed, notifyReassemblyBuffer, 0, remaining);
+        notifyReassemblyLength = remaining;
+    }
+
+    private void processNotifyFrame(byte[] data) {
         if (!AhaKeyProtocol.isValidFrame(data)) {
             logger.warn("无效的帧格式 - isValidFrame 返回 false");
             // 检查帧头帧尾
@@ -753,18 +970,28 @@ public class BleManager {
             } else if (cachedStatus.getDeviceName() != null && !cachedStatus.getDeviceName().isBlank()) {
                 status.setDeviceName(cachedStatus.getDeviceName());
             }
+            status.setFirmwareCatalogKey(cachedStatus.getFirmwareCatalogKey());
             status.setConnected(true);
             cachedStatus = status;
+            enqueueNotifyFrame(data);
             callback.onStatusReceived(status);
             return;
         }
         logger.debug("parseDeviceStatus 返回 null");
 
+        enqueueNotifyFrame(data);
+    }
+
+    private void enqueueNotifyFrame(byte[] data) {
         commandLock.lock();
         try {
-            pendingNotifyFrame = data;
-            responseReady.signalAll();
             byte receivedCmd = data[2];
+            Deque<byte[]> frames = pendingNotifyFramesByCommand.computeIfAbsent(receivedCmd, ignored -> new ArrayDeque<>());
+            frames.addLast(data);
+            while (frames.size() > 16) {
+                frames.removeFirst();
+            }
+            responseReady.signalAll();
             logger.debug("收到响应 0x{}，唤醒等待线程", Integer.toHexString(receivedCmd & 0xFF));
         } finally {
             commandLock.unlock();

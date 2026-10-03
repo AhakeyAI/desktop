@@ -1,0 +1,14 @@
+{
+  "sources": [
+    {
+      "id": "FW-CP4A-GATE-PROTOCOL",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json",
+      "revision_or_commit": "bd1ea87e10939fd6f738b599a4c66ba3264acf70",
+      "sha256": "71e61a42b8771a7318467b98bfbb36804ef0b2f3f5c18875c2d9110f7e89b0ab",
+      "section": "CP4A formal gate: 0x00 status readback and 0x92 mode set confirmation policy",
+      "kind": "protocol",
+      "maturity": "verified"
+    }
+  ]
+}

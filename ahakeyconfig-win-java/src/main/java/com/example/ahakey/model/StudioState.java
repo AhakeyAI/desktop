@@ -26,6 +26,7 @@ public class StudioState {
     private final StringProperty syncStatus = new SimpleStringProperty("修改会先保存在本地，保存配置后写入键盘。");
     private final StringProperty lastSyncSummary = new SimpleStringProperty("尚未保存");
     private final BooleanProperty syncing = new SimpleBooleanProperty(false);
+    private final BooleanProperty modeSwitching = new SimpleBooleanProperty(false);
     private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(true);
     private final StringProperty ahaTypeStatus = new SimpleStringProperty("云端整理已启用");
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
@@ -41,6 +42,7 @@ public class StudioState {
     private final Map<ModeSlot, StringProperty> lightBarSummaries = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, EnumMap<IDEState, LightEffectStyle>> aiLightConfigs = new EnumMap<>(ModeSlot.class);
     private final EnumSet<StudioPart> dirtyParts = EnumSet.noneOf(StudioPart.class);
+    private final EnumSet<ModeSlot> dirtyModes = EnumSet.noneOf(ModeSlot.class);
 
     public StudioState() {
         seedDefaults();
@@ -176,6 +178,10 @@ public class StudioState {
 
     public BooleanProperty syncingProperty() {
         return syncing;
+    }
+
+    public BooleanProperty modeSwitchingProperty() {
+        return modeSwitching;
     }
 
     public BooleanProperty ahaTypeEnabledProperty() {
@@ -333,8 +339,13 @@ public class StudioState {
         return dirtyParts.contains(part);
     }
 
+    public boolean hasUnsavedDraft(ModeSlot mode) {
+        return dirtyModes.contains(mode);
+    }
+
     public void markDirty(StudioPart part) {
         dirtyParts.add(part);
+        dirtyModes.add(getSelectedMode());
         dirtyCount.set(dirtyParts.size());
         revision.set(revision.get() + 1);
         syncStatus.set("有 " + dirtyParts.size() + " 处改动待保存。");
@@ -348,6 +359,7 @@ public class StudioState {
         dirtyParts.add(StudioPart.KEY4);
         dirtyParts.add(StudioPart.OLED);
         dirtyParts.add(StudioPart.LIGHT_BAR);
+        dirtyModes.add(getSelectedMode());
         dirtyCount.set(dirtyParts.size());
         revision.set(revision.get() + 1);
         syncStatus.set("已恢复 " + getSelectedMode().getTitle() + " 默认值，等待保存。");
@@ -366,6 +378,7 @@ public class StudioState {
 
     public void clearDirtyAfterSync() {
         dirtyParts.clear();
+        dirtyModes.clear();
         dirtyCount.set(0);
         revision.set(revision.get() + 1);
         lastSyncSummary.set("最近保存 " + LocalDateTime.now().format(SYNC_TIME_FORMAT));
@@ -424,6 +437,7 @@ public class StudioState {
         }
         revision.set(draft.revision);
         dirtyParts.clear();
+        dirtyModes.clear();
         dirtyCount.set(0);
     }
 

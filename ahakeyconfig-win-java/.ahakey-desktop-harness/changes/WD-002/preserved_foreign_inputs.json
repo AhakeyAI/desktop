@@ -1,0 +1,18 @@
+{
+  "schema": "candidate-preserved-foreign-v1",
+  "id": "WD-002",
+  "at": "2026-10-03T11:21:21+00:00",
+  "owner_record": {
+    "path": ".ahakey-desktop-harness/evidence/owner-preserve-foreign-WD-002-pom-20261003.md",
+    "sha256": "8bc23716174b8971ad09dd3cd8f7fb30568666317e740f4e11b76ace7f979773"
+  },
+  "meaning": "Owner accepted these tracked in-repo dirty paths as pre-existing foreign inputs; candidate-plan excludes them and candidate-check verifies they remain uncommitted and hash-stable.",
+  "paths": [
+    {
+      "path": "pom.xml",
+      "sha256": "a163f73c11f38e4a2cd395a3f6a9322e6446e741732fe4abf34cc5bab889f734",
+      "head_blob": "a1dfd3321aa80b4613703f1972fb1f4d38bf845d",
+      "head_mode": "100644"
+    }
+  ]
+}

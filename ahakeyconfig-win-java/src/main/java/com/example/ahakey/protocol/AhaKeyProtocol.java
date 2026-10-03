@@ -22,6 +22,7 @@ public class AhaKeyProtocol {
     public static final byte CMD_SET_LIGHT_EFFECT = (byte) 0x91;
     public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
     public static final byte CMD_SLEEP_WAIT_TIME = (byte) 0x95;
+    public static final byte CMD_FIRMWARE_CATALOG_KEY = (byte) 0x9F;
     
     // 按键子类型
     public static final byte SUB_SHORTCUT = 0x73;
@@ -80,6 +81,10 @@ public class AhaKeyProtocol {
 
     public static byte[] querySleepWaitTime() {
         return buildFrame(CMD_SLEEP_WAIT_TIME, new byte[0]);
+    }
+
+    public static byte[] queryFirmwareCatalogKey() {
+        return buildFrame(CMD_FIRMWARE_CATALOG_KEY, new byte[0]);
     }
 
     public static byte[] setSleepWaitTime(int minutes) {

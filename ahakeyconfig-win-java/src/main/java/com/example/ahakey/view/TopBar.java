@@ -24,6 +24,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -42,11 +43,15 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.File;
+import java.util.concurrent.atomic.AtomicInteger;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.animation.AnimationTimer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TopBar extends VBox {
+    private static final Logger logger = LoggerFactory.getLogger(TopBar.class);
     private final StudioController controller;
     private final DeviceStatus deviceStatus;
     private final StudioState studioState;
@@ -228,10 +233,15 @@ public class TopBar extends VBox {
             studioState.syncingProperty(),
             agentManager.bluetoothOwnerProperty()));
         configModeButton.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> studioState.syncingProperty().get() || agentManager.operationInProgressProperty().get(),
+            () -> studioState.syncingProperty().get()
+                || agentManager.operationInProgressProperty().get()
+                || (agentManager.isEditingConfiguration() && !controller.canWriteToDevice()),
             studioState.syncingProperty(),
-            agentManager.operationInProgressProperty()
+            agentManager.operationInProgressProperty(),
+            agentManager.bluetoothOwnerProperty(),
+            deviceStatus.isConnectedProperty()
         ));
+        configModeButton.setTooltip(new Tooltip("连接键盘后可保存/应用"));
         configModeButton.setOnAction(event -> controller.handleConfigurationModeButton());
 
         Menu moreMenu = new Menu(languageManager.getString("menu.more"));
@@ -995,9 +1005,55 @@ public class TopBar extends VBox {
         ));
         deviceRow2.getChildren().addAll(deviceName, switchState);
 
-        VBox sleepWaitTimeControl = createSleepWaitTimeControl();
+        HBox versionRow = new HBox(16);
+        Label appVersion = new Label("上位机版本: " + getVersion());
+        appVersion.getStyleClass().add("dialog-text");
+        Label keyboardFirmware = new Label();
+        keyboardFirmware.getStyleClass().add("dialog-text");
+        keyboardFirmware.textProperty().bind(Bindings.createStringBinding(() ->
+            "键盘固件版本: " + this.deviceStatus.getDisplayFirmwareVersion(),
+            this.deviceStatus.firmwareCatalogKeyProperty(),
+            this.deviceStatus.firmwareMainProperty(),
+            this.deviceStatus.firmwareSubProperty()
+        ));
+        versionRow.getChildren().addAll(appVersion, keyboardFirmware);
 
-        deviceCard.getChildren().addAll(deviceTitle, deviceRow1, deviceRow2, sleepWaitTimeControl);
+        SleepWaitTimeControl sleepWaitTimeControl = createSleepWaitTimeControl();
+        Button refreshDeviceInfoButton = new Button(languageManager.getString("dialog.refresh-device-info"));
+        BooleanProperty deviceInfoRefreshBusy = new SimpleBooleanProperty(false);
+        refreshDeviceInfoButton.setGraphic(Icons.refresh("14"));
+        refreshDeviceInfoButton.setTooltip(new Tooltip(languageManager.getString("dialog.refresh-device-info")));
+        refreshDeviceInfoButton.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> !controller.isEffectivelyConnected() || deviceInfoRefreshBusy.get(),
+            this.deviceStatus.isConnectedProperty(),
+            deviceInfoRefreshBusy
+        ));
+        refreshDeviceInfoButton.setOnAction(event -> {
+            if (deviceInfoRefreshBusy.get()) {
+                return;
+            }
+            deviceInfoRefreshBusy.set(true);
+            controller.clearDeviceInfoDetailsForRefresh();
+            Thread thread = new Thread(() -> {
+                try {
+                    controller.readFirmwareCatalogKeyForDeviceInfo();
+                    controller.refreshDeviceStatusSnapshot();
+                    Platform.runLater(sleepWaitTimeControl::refresh);
+                } finally {
+                    Platform.runLater(() -> deviceInfoRefreshBusy.set(false));
+                }
+            }, "device-info-manual-refresh");
+            thread.setDaemon(true);
+            thread.start();
+        });
+
+        HBox deviceHeader = new HBox(10);
+        deviceHeader.setAlignment(Pos.CENTER_LEFT);
+        Region deviceHeaderSpacer = new Region();
+        HBox.setHgrow(deviceHeaderSpacer, Priority.ALWAYS);
+        deviceHeader.getChildren().addAll(deviceTitle, deviceHeaderSpacer, refreshDeviceInfoButton);
+
+        deviceCard.getChildren().addAll(deviceHeader, deviceRow1, deviceRow2, versionRow, sleepWaitTimeControl.node());
 
         // 日志区域（提前创建以记录检测过程）
         logArea = new TextArea();
@@ -1114,7 +1170,7 @@ public class TopBar extends VBox {
         }, "hook-detection").start();
     }
 
-    private VBox createSleepWaitTimeControl() {
+    private SleepWaitTimeControl createSleepWaitTimeControl() {
         VBox box = new VBox(6);
 
         Label title = new Label(languageManager.getString("sleep-wait-time.title"));
@@ -1132,6 +1188,7 @@ public class TopBar extends VBox {
         Label status = new Label();
         status.getStyleClass().add("dialog-text");
         status.setWrapText(true);
+        AtomicInteger readSerial = new AtomicInteger();
 
         Label description = new Label(languageManager.getString("sleep-wait-time.description"));
         description.getStyleClass().add("dialog-text");
@@ -1156,36 +1213,74 @@ public class TopBar extends VBox {
         row.getChildren().addAll(title, options, saveButton);
 
         saveButton.setOnAction(event -> saveSleepWaitTime(options, status, busy));
-        loadSleepWaitTime(options, status, busy);
+        loadSleepWaitTime(options, status, busy, readSerial);
 
         box.getChildren().addAll(row, description, status);
-        return box;
+        return new SleepWaitTimeControl(box, () -> loadSleepWaitTime(options, status, busy, readSerial));
     }
 
-    private void loadSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy) {
+    private void loadSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy, AtomicInteger readSerialSource) {
         if (!controller.isEffectivelyConnected()) {
             status.setText(languageManager.getString("sleep-wait-time.not-connected"));
             return;
         }
+        int readSerial = readSerialSource.incrementAndGet();
+        logger.info("Sleep wait time UI read started: serial={}", readSerial);
         busy.set(true);
         status.setText(languageManager.getString("sleep-wait-time.reading"));
+        Thread timeoutThread = new Thread(() -> {
+            try {
+                Thread.sleep(10_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            Platform.runLater(() -> {
+                if (readSerialSource.get() == readSerial && busy.get()) {
+                    readSerialSource.incrementAndGet();
+                    logger.warn("Sleep wait time UI read timed out: serial={}", readSerial);
+                    options.getSelectionModel().clearSelection();
+                    status.setText(languageManager.getString("sleep-wait-time.read-timeout"));
+                    busy.set(false);
+                }
+            });
+        }, "sleep-wait-time-read-timeout");
+        timeoutThread.setDaemon(true);
+        timeoutThread.start();
+
         Thread thread = new Thread(() -> {
             try {
                 int minutes = controller.getBleManager().readSleepWaitTimeMinutes();
                 Platform.runLater(() -> {
-                    SleepWaitTimeOption option = findSleepWaitTimeOption(options, minutes);
-                    if (option == null) {
-                        options.getSelectionModel().clearSelection();
-                        status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
-                    } else {
-                        options.getSelectionModel().select(option);
-                        status.setText(String.format(languageManager.getString("sleep-wait-time.current"), option.label()));
+                    if (readSerialSource.get() != readSerial) {
+                        logger.info("Sleep wait time UI update ignored for stale read: serial={}, current={}", readSerial, readSerialSource.get());
+                        return;
+                    }
+                    try {
+                        SleepWaitTimeOption option = findSleepWaitTimeOption(options, minutes);
+                        if (option == null) {
+                            options.getSelectionModel().clearSelection();
+                            status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
+                            logger.warn("Sleep wait time UI read returned unsupported value: serial={}, minutes={}", readSerial, minutes);
+                        } else {
+                            options.getSelectionModel().select(option);
+                            status.setText(formatSleepWaitTimeStatus("sleep-wait-time.current", option.label()));
+                            logger.info("Sleep wait time UI updated: serial={}, minutes={}, label={}", readSerial, minutes, option.label());
+                        }
+                    } finally {
+                        busy.set(false);
                     }
                 });
             } catch (Exception e) {
-                Platform.runLater(() -> status.setText(languageManager.getString("sleep-wait-time.read-failed") + e.getMessage()));
-            } finally {
-                Platform.runLater(() -> busy.set(false));
+                Platform.runLater(() -> {
+                    if (readSerialSource.get() != readSerial) {
+                        logger.info("Sleep wait time UI failure ignored for stale read: serial={}, current={}", readSerial, readSerialSource.get());
+                        return;
+                    }
+                    status.setText(languageManager.getString("sleep-wait-time.read-failed") + e.getMessage());
+                    logger.warn("Sleep wait time UI read failed: serial={}", readSerial, e);
+                    busy.set(false);
+                });
             }
         }, "sleep-wait-time-read");
         thread.setDaemon(true);
@@ -1210,7 +1305,7 @@ public class TopBar extends VBox {
                     SleepWaitTimeOption option = findSleepWaitTimeOption(options, readback);
                     if (option != null) {
                         options.getSelectionModel().select(option);
-                        status.setText(String.format(languageManager.getString("sleep-wait-time.saved"), option.label()));
+                        status.setText(formatSleepWaitTimeStatus("sleep-wait-time.saved", option.label()));
                     } else {
                         status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
                     }
@@ -1234,10 +1329,27 @@ public class TopBar extends VBox {
         return null;
     }
 
+    private String formatSleepWaitTimeStatus(String key, String label) {
+        String pattern = languageManager.getString(key);
+        if (pattern == null || pattern.isBlank()) {
+            return label;
+        }
+        if (pattern.contains("%s")) {
+            return String.format(pattern, label);
+        }
+        return pattern + label;
+    }
+
     private record SleepWaitTimeOption(int minutes, String label) {
         @Override
         public String toString() {
             return label;
+        }
+    }
+
+    private record SleepWaitTimeControl(VBox node, Runnable refreshAction) {
+        void refresh() {
+            refreshAction.run();
         }
     }
     
@@ -1347,7 +1459,11 @@ public class TopBar extends VBox {
     private String getVersion() {
         String version = System.getProperty("app.version");
         if (version == null || version.isEmpty()) {
-            version = "unknown";
+            Package pkg = TopBar.class.getPackage();
+            version = pkg != null ? pkg.getImplementationVersion() : null;
+        }
+        if (version == null || version.isEmpty()) {
+            version = "1.0.0";
         }
         return version;
     }

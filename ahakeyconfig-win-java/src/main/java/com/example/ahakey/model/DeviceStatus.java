@@ -19,6 +19,7 @@ public class DeviceStatus {
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
     private final IntegerProperty switchState = new SimpleIntegerProperty(-1);
     private final StringProperty deviceName = new SimpleStringProperty("");
+    private final StringProperty firmwareCatalogKey = new SimpleStringProperty("");
     
     // Getters
     public boolean isConnected() { return isConnected.get(); }
@@ -32,17 +33,21 @@ public class DeviceStatus {
     public int getLightBrightness() { return lightBrightness.get(); }
     public int getSwitchState() { return switchState.get(); }
     public String getDeviceName() { return deviceName.get(); }
+    public String getFirmwareCatalogKey() { return firmwareCatalogKey.get(); }
     
     // Property getters
     public BooleanProperty isConnectedProperty() { return isConnected; }
     public BooleanProperty isScanningProperty() { return isScanning; }
     public IntegerProperty batteryLevelProperty() { return batteryLevel; }
     public IntegerProperty signalProperty() { return signal; }
+    public IntegerProperty firmwareMainProperty() { return firmwareMain; }
+    public IntegerProperty firmwareSubProperty() { return firmwareSub; }
     public IntegerProperty workModeProperty() { return workMode; }
     public IntegerProperty lightModeProperty() { return lightMode; }
     public IntegerProperty lightBrightnessProperty() { return lightBrightness; }
     public IntegerProperty switchStateProperty() { return switchState; }
     public StringProperty deviceNameProperty() { return deviceName; }
+    public StringProperty firmwareCatalogKeyProperty() { return firmwareCatalogKey; }
     
     // Setters
     public void setConnected(boolean value) { isConnected.set(value); }
@@ -59,6 +64,12 @@ public class DeviceStatus {
         switchState.set(value); 
     }
     public void setDeviceName(String value) { deviceName.set(value); }
+    public void setFirmwareCatalogKey(String value) { firmwareCatalogKey.set(value == null ? "" : value); }
+    public void clearFirmwareIdentity() {
+        firmwareMain.set(-1);
+        firmwareSub.set(-1);
+        firmwareCatalogKey.set("");
+    }
     
     // Convenience methods
     public boolean isAutoApproval() {
@@ -79,5 +90,18 @@ public class DeviceStatus {
             return LanguageManager.getInstance().getString("status.waiting-device");
         }
         return name;
+    }
+
+    public String getDisplayFirmwareVersion() {
+        String catalogKey = firmwareCatalogKey.get();
+        if (catalogKey != null && !catalogKey.isBlank()) {
+            return catalogKey;
+        }
+        int main = firmwareMain.get();
+        int sub = firmwareSub.get();
+        if (main >= 0 && sub >= 0) {
+            return "V" + main + "." + sub;
+        }
+        return "-";
     }
 }
