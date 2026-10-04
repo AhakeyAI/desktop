@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "authority": "firmware_repository_versioned_contract",
+  "sources": [],
+  "unresolved": [
+    "尚未在当前机器绑定并核验固件正式协议路径；旧包快照不是双端正式约定。"
+  ],
+  "source_fields": [
+    "id",
+    "relative_path",
+    "revision_or_commit",
+    "sha256",
+    "section",
+    "device_models",
+    "firmware_versions",
+    "maturity",
+    "observed_at",
+    "evidence_ref"
+  ]
+}

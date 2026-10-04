@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-20261004T035500727825Z-83f2e1",
+  "at": "2026-10-04T04:19:35+00:00",
+  "status": "pass",
+  "owner_record": ".ahakey-desktop-harness\\evidence\\owner-preview-feedback-WD-002-ui-bounce-pass-20261004.md",
+  "owner_sha256": "253eadaf1a363d49af63f6912c7446c66cf9d6571fd817c687bae92d98d1e030",
+  "preview_receipt_sha256": "a9e684d650345579805dd09f040519e00aa72b0cb8ef864a467de8150b94af6e",
+  "snapshot_fingerprint": "d294d7c5be941a01293ddc9fede3a9b6b319accfb19a06e941d09c465293449f",
+  "scope": "OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT"
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "harness_version": "1.3.0",
+  "runtime": "full",
+  "installed_at": "20261004T025316Z",
+  "source": "AhaKey-Windows-Desktop-Harness-v1.3.0-full",
+  "firmware_driven_intake": true,
+  "owner_preview_build": true,
+  "preview_iteration_loop": true,
+  "phase_scoped_evidence": true,
+  "preserved_foreign_inputs": true,
+  "governance_snapshot_consistency": true,
+  "historical_v1_observations_preserved": true
+}

@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前任务已经从审阅阶段退回实现修复阶段，下一角色是构建实现对话。",
+    "conclusion": "DLA 实际差异审阅未通过，已发现一个阻塞问题：模式切换后的状态回读会被状态处理逻辑先消费，导致等待确认的逻辑收不到有效回读。已经记录审阅失败并向构建实现对话发出修复请求。"
+  },
+  "completed": [
+    "读取并核对当前状态、任务合同、提交记录、执行报告和验证记录。",
+    "运行交付状态检查，确认 immutable origin、scope、governance 与 builder submission 已通过，DLA review、Git 候选、构建收据和测试包仍未完成。",
+    "生成审阅包并读取实际差异；审阅包路径为 .ahakey-desktop-harness/changes/WD-002/reviews/20261003T094929009439Z-19428b/PACK.json。",
+    "实际审阅当前实现中离线只浏览、编辑配置先连接、连接失败不进入编辑态、断开写路径禁用和模式切换确认链路。",
+    "发现阻塞问题并写入 .ahakey-desktop-harness/changes/WD-002/REVIEW.md。",
+    "记录 review fail，并执行 request-fix；当前状态已变为 IMPLEMENT / FIX，下一角色为 DIB。"
+  ],
+  "remaining": [
+    "DIB 需要修复 0x00 状态回读被消费的问题，并重新提交新一轮机器检查。",
+    "当前没有 Git candidate，没有 BUILD_RECEIPT，没有 test_packet，也没有 Owner 真机测试或 UAT 通过。",
+    "审阅包提示 StudioController.java 与 CanvasPane.java 缺少原始起点字节，因此本轮审阅没有宣称这两个文件具备完整历史字节基线。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品决策；这是原合同范围内的实现缺陷修复。"
+    },
+    "operation": {
+      "required": true,
+      "action": "把下方完整 Prompt 复制到固定构建实现对话，让 DIB 按 review fail 修复。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在没有 Owner 真实测试项；当前代码未通过 DLA review，不能交测。"
+    }
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "DIB 对话",
+    "mode": "FIX",
+    "task": "WD-002 — WS2 CP4A Mode Sync + Display Status",
+    "action": "构建实现对话读取 DLA REVIEW.md，修复状态回读等待链路，然后重新运行适用机器检查并 submit。",
+    "authorization": "DLA 已在原合同范围内 request-fix；允许 DIB 只修复 review 指出的实现缺陷，不允许扩大合同、修改固件或执行发布动作。",
+    "goal": "让 0x92 模式切换后的 0x00 状态回读既能更新 UI 缓存，也能被确认逻辑可靠观察到，从而满足 CP4A 的 0x92 OK 加 0x00 回读确认规则。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前状态已经退回实现修复：STATE phase=IMPLEMENT，mode=FIX，next_actor=DIB。",
+      "DLA 审阅失败记录已经保存：.ahakey-desktop-harness/changes/WD-002/REVIEW.md。",
+      "审阅失败已写入 verification.json：review status=fail。",
+      "修复请求已写入 change.json：build_round=3，fix_request 指向 REVIEW.md。",
+      "阻塞点在 BleManager：queryDeviceStatusSnapshot 等待 CMD_QUERY_STATUS，但 processNotifyFrame 会先解析 0x00 状态帧并 return，未放入 pendingNotifyFramesByCommand。",
+      "当前没有 Git candidate、构建收据、测试包或 Owner UAT。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\REVIEW.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\verification.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\reviews\\20261003T094929009439Z-19428b\\PACK.json"
+    ],
+    "allowed": [
+      "在 WD-002 allowed_paths 内修复 review 指出的状态回读确认问题。",
+      "重新运行 preflight、机器检查和回归检查。",
+      "修复后重新 submit 给 DLA review。"
+    ],
+    "forbidden": [
+      "不要修改 Firmware 或 eternal 参考仓。",
+      "不要创建 Release Batch、安装包、烧录或设备写入。",
+      "不要执行 Git add、commit、push、reset、clean、stash 或 checkout。",
+      "不要把修复提交说成 DLA review pass、Git candidate、构建产物或 Owner UAT 通过。",
+      "不要扩大 CP4A 合同范围；若需要范围或协议语义变化，暂停并交回 DLA。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-002/REVIEW.md",
+    ".ahakey-desktop-harness/changes/WD-002/verification.json",
+    ".ahakey-desktop-harness/changes/WD-002/change.json",
+    ".ahakey-desktop-harness/changes/WD-002/reviews/20261003T094929009439Z-19428b/PACK.json"
+  ]
+}

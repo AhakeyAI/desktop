@@ -1,0 +1,115 @@
+{
+  "schema_version": 3,
+  "id": "WD-002",
+  "title": "WS2 CP4A Mode Sync + Display Status",
+  "revision": 2,
+  "phase": "VERIFY",
+  "status": "ACTIVE",
+  "build_round": 3,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-confirmation-WD-002-contract-20261003.md",
+    "record_sha256": "87a32261bdd96cc2bfdb273e43648f57fc410ec048e2e048d59d1323da7e2237",
+    "at": "2026-10-03T08:28:28+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": true,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/model/ModeSlot.java",
+    "src/main/java/com/example/ahakey/model/KeyConfig.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/protocol/BleTcpPacket.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/java/com/example/ahakey/view/StatusBar.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/resources/fxml/CanvasLayout.fxml",
+    "src/main/resources/messages_en.properties",
+    "src/main/resources/messages_zh.properties"
+  ],
+  "preserved_behaviors": [
+    "WD-001 T07 remains not_executed and old PASS remains bound to the old candidate/JAR",
+    "0x95 sleep timeout behavior is not regressed",
+    "0x9F firmware catalog key behavior is not regressed",
+    "Mode1/2/3 visuals remain intact; Mode4 remains placeholder unless separately authorized",
+    "Firmware and eternal workspaces remain read-only"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json"
+  ],
+  "ui_mode": "minimal",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [],
+  "ui_preview_refs": [],
+  "mock_plan": "Focused offline tests/mocks for 0x00 parsing, 0x92 sequence, USB/BLE parity, stale responses, disconnect/reconnect and offline draft boundary.",
+  "checkpoints": [],
+  "approval": {
+    "at": "2026-10-03T09:09:31+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+    "owner_record_sha256": "6def2d38fc8a1b2fee1f62f24e3aa99f5075873b5661cd8d2e05cf897c71d3d2",
+    "inputs": {
+      "meta_sha256": "b8157a58c663f4591dfe2d0701e5682271810ffc5d58d6f5fb7f4dd22d75a55c",
+      "assets": {
+        "CONTRACT.md": "727bbbf6f2b5507614e8af9823f22c2559dfa210da8f80280dded0e7459d6cd0",
+        "REFERENCES.json": "39fed7696d02afa3c19e808f16c375dff267ad6a409fd7e39f574a6ac244b2fe"
+      },
+      "reference_sha256": "1c1482c74929c8e6bbde94245c8fef9b9a1a3034bc51aef50beb2d72f10b37ce"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "change_classification": [
+    "architecture_change",
+    "protocol_change",
+    "scope_expansion"
+  ],
+  "journey_ids": [
+    "J002"
+  ],
+  "review_policy": "high_impact",
+  "firmware_binding": {
+    "root": "C:\\Users\\20825\\Desktop\\vibe-code",
+    "gate": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json",
+    "gate_sha256": "71e61a42b8771a7318467b98bfbb36804ef0b2f3f5c18875c2d9110f7e89b0ab",
+    "candidate_commit": "bd1ea87e10939fd6f738b599a4c66ba3264acf70",
+    "hex_path": ".ahakey-harness/evidence/builds/ws2-cp4a-mode-sync-display-status/HID_Keyboard_582m_vibe_coding.hex",
+    "hex_sha256": "8e11f2b526e9239a67c5199aff88ebbed875bdc9cb3df0eb5592979e5f021867",
+    "feature": "Mode sync and display status foundation"
+  },
+  "route_repair": {
+    "at": "2026-10-03T08:28:28+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-confirmation-WD-002-contract-20261003.md",
+    "owner_record_sha256": "87a32261bdd96cc2bfdb273e43648f57fc410ec048e2e048d59d1323da7e2237",
+    "meaning": "Owner-approved v1.0.1 route repair only; no Java/Firmware/build/Git/Release Batch action."
+  },
+  "contract_revision": {
+    "at": "2026-10-03T09:09:31+00:00",
+    "reason_record": ".ahakey-desktop-harness/evidence/owner-approval-WD-002-q7-route-repair-20261003.md",
+    "reason_sha256": "45ddc24424debea5615d79a297735126c53422f50b735c4c86128a11c9c5c938",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+    "owner_sha256": "6def2d38fc8a1b2fee1f62f24e3aa99f5075873b5661cd8d2e05cf897c71d3d2",
+    "previous_revision": 1
+  },
+  "fix_request": {
+    "at": "2026-10-03T09:54:48+00:00",
+    "record": ".ahakey-desktop-harness/changes/WD-002/REVIEW.md",
+    "sha256": "5213278e0d1fda78905d6304f41cc8d2af2f8aafe2a84a33e205c3c4d4ca61ec"
+  },
+  "preview_fix_round": 3,
+  "preview_fix_request": {
+    "path": ".ahakey-desktop-harness/previews/WD-002/fixes/preview-fix-20261004T035221230624Z-6ec59b/REQUEST.json",
+    "sha256": "73871f14727973743d69d2fff14b07c64036d3c38c40dde4d5573c8bebcfc11b"
+  }
+}

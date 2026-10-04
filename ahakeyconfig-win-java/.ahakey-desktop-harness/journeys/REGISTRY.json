@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "harness_version": "1.2.0",
+  "journeys": [
+    {
+      "id": "J001",
+      "name": "CP3A 睡眠等待时间 Windows 联调",
+      "trigger": "More > device info > sleep wait time",
+      "state_owner": "Legacy WD-001 evidence only; re-confirm for new implementation",
+      "protocol": "0x95 sleep wait time; 0x9F not inherited",
+      "failure_modes": [
+        "disconnect",
+        "timeout",
+        "stale UI update"
+      ],
+      "regression": [
+        "USB",
+        "BLE",
+        "device switch"
+      ],
+      "status": "historical_reference"
+    },
+    {
+      "id": "J002",
+      "name": "CP4A mode sync and display status",
+      "trigger": "Keyboard mode selection from Windows UI and keyboard Power key",
+      "state_owner": "Keyboard is authoritative for current mode; Windows owns PC-initiated mode-set attempts while connected and must confirm with readback.",
+      "protocol": "Existing 0x00 status readback and existing 0x92 mode set; no new firmware opcode.",
+      "failure_modes": [
+        "disconnect",
+        "timeout",
+        "stale status frame",
+        "readback mismatch"
+      ],
+      "regression": [
+        "USB/BLE parity",
+        "offline browse-only boundary",
+        "WD-001 nearby protocol surfaces"
+      ],
+      "status": "active"
+    }
+  ]
+}

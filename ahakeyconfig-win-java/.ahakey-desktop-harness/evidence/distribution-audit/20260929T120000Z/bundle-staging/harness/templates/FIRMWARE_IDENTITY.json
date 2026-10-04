@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "hardware_model": "TODO",
+  "firmware_version": "TODO",
+  "candidate_id": "TODO",
+  "connection": "TODO",
+  "installed_device_confirmation": "TODO",
+  "eligible_for_owner_test": false,
+  "artifact": {
+    "path": "TODO",
+    "sha256": "TODO"
+  },
+  "gate_evidence": {
+    "path": "TODO",
+    "sha256": "TODO"
+  },
+  "protocol_decision": {
+    "path": "TODO",
+    "sha256": "TODO"
+  }
+}

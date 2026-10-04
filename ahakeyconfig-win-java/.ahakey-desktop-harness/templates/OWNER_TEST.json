@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "WD-001",
+  "launch_command": "TODO",
+  "working_directory": "TODO",
+  "connection": "TODO",
+  "preconditions": "TODO",
+  "recovery": "TODO",
+  "deliberately_unchanged": "TODO",
+  "result_return": "TODO",
+  "device_writes": true,
+  "steps": [
+    {
+      "action": "TODO",
+      "expected": "TODO"
+    }
+  ]
+}

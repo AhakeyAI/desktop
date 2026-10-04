@@ -1,0 +1,75 @@
+{
+  "schema_version": 4,
+  "harness_version": "0.4.0-guarded-delivery",
+  "baseline": {
+    "product_approved": false,
+    "approval": null
+  },
+  "phase": "BUILD_VERIFY",
+  "mode": "OWNER_TEST",
+  "status": "awaiting_owner_test",
+  "active_change": "WD-001",
+  "next_actor": "Owner",
+  "next_mode": "REAL_TEST",
+  "owner_action": {
+    "required": true,
+    "action": "按 .ahakey-desktop-harness/changes/WD-001/OWNER_TEST.md 测试并返回实际结果；不自动烧录。"
+  },
+  "test_action": {
+    "required": true,
+    "brief": ".ahakey-desktop-harness/changes/WD-001/OWNER_TEST.md",
+    "packet": ".ahakey-desktop-harness/changes/WD-001/test_packet.json"
+  },
+  "revision": 14,
+  "upgrade_history": [
+    {
+      "from": "0.2.0-pilot",
+      "to": "0.3.0-owner-driven",
+      "at": "2026-09-27T07:04:02.416193+00:00",
+      "previous_routing": {
+        "phase": "BASELINE_ADOPT",
+        "mode": "OWNER_GRILL",
+        "status": "journey_a_selected_startup_brief_prepared",
+        "next_actor": "Owner",
+        "next_mode": "UI_CAPTURE",
+        "owner_action": {
+          "required": true,
+          "action": "按本轮给出的 PowerShell 步骤启动当前真实软件，先不要点击连接、编辑、保存、BLE 驱动或 Hook 安装；回传主窗口截图或启动错误输出。"
+        },
+        "test_action": {
+          "required": true,
+          "reason": "mvn -q -DskipTests compile 已在临时 JDK 17 环境通过；默认 Maven runtime 仍指向 Java 8。现在需要 Owner 获取真实 UI 截图；尚无真机验证。"
+        },
+        "current_investigation": null
+      },
+      "meaning": "Owner changed dispatch policy; preserved baseline approvals/evidence, no feature authorization."
+    },
+    {
+      "from": "0.3.0-owner-driven",
+      "to": "0.4.0-guarded-delivery",
+      "at": "2026-09-29T01:45:30.469258+00:00",
+      "previous_routing": {
+        "phase": "BUILD_VERIFY",
+        "mode": "IMPLEMENT",
+        "status": "active",
+        "active_change": "WD-001",
+        "current_assignment": "WD-001",
+        "next_actor": "DIB",
+        "next_mode": "IMPLEMENT",
+        "owner_action": {
+          "required": false,
+          "action": "DIB 连续完成已批准增量；仅边界变化/阻塞才交回。"
+        },
+        "test_action": {
+          "required": false,
+          "reason": "DIB 先完成机器检查，DLA 随后给 Owner 测试包。"
+        }
+      },
+      "meaning": "In-flight implementation and approvals preserved; guards apply prospectively before formal delivery. No automatic PASS."
+    }
+  ],
+  "workflow": "OWNER_DISPATCHED_INTEGRATION",
+  "current_assignment": "WD-001",
+  "current_investigation": null,
+  "updated_at": "2026-09-29T03:36:06+00:00"
+}

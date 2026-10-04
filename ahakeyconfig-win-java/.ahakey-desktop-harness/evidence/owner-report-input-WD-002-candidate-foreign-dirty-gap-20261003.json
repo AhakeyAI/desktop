@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-002 仍在 VERIFY / CANDIDATE_PREP；review 和 fresh review 已 PASS，但 Git candidate 尚未形成。",
+    "conclusion": "现有 v1.1 Harness 没有可用于 `pom.xml` 这种仓内 tracked pre-existing dirty 的合法候选排除路径。`reconcile-foreign` 只覆盖 sibling workspace；candidate-plan 仍会因 `pom.xml` 在 allowed_paths 外而停止。已记录 Harness 缺口 `CANDIDATE_FOREIGN_DIRTY_GAP`。"
+  },
+  "completed": [
+    "确认不需要重新 Product Grill、review、DIB 或 contract-reconcile；WD-002 review/fresh review 保持 PASS。",
+    "核对 helper 逻辑：`reconcile-foreign` 写入的是 sibling workspace 的 `foreign_snapshot()`，不覆盖当前 Windows 仓内部 tracked 文件。",
+    "核对 `candidate-plan` 阻塞点：`git_plan()` 会把所有 product-path dirty 与 allowed_paths 比较，任何外范围 dirty 都直接停止；没有 preserved-foreign 排除表。",
+    "再次运行 candidate-plan，仍被 `pom.xml` 阻止：`Uncommitted input outside this task scope; classify/preserve separately, no auto include: pom.xml`。",
+    "已在 `.ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md` 记录 `CANDIDATE_FOREIGN_DIRTY_GAP`，并明确只需修 candidate 机制。"
+  ],
+  "remaining": [
+    "需要一个窄范围 Harness 升级/修复：支持仓内 tracked pre-existing foreign dirty 的 Owner-bound preserved-foreign-input 记录。",
+    "修复后 candidate-plan 应排除被 Owner 绑定的 preserved foreign 路径，只暂存 WD-002 task-owned diff 和必要 Harness evidence。",
+    "修复后 candidate-check 还应确认 preserved foreign 路径没有进入 WD-002 candidate commit，并且工作区该路径仍匹配已接受 hash。",
+    "在这个机制存在前，不能合法进入 WD-002 candidate → build → Owner test。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品/范围决策；问题是 Harness candidate 机制缺口。"
+    },
+    "operation": {
+      "required": true,
+      "action": "请把下面提示词交给 Harness 维护/升级对话，只修 candidate preserved-foreign 机制；不要回到 WD-002 产品、DIB 或 review。"
+    },
+    "test": {
+      "required": false,
+      "action": "当前没有合法 Git candidate 和构建产物，不需要真机测试。",
+      "prerequisites": [],
+      "steps": [],
+      "stop_recovery": "如果升级过程想改 Java、pom.xml 或重跑 WD-002 实现，应停止；本次只修 Harness candidate 机制。",
+      "feedback": "Harness 修复后回到原 DLA 对话继续 WD-002 candidate-plan。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "HARNESS_FIX_REQUIRED / CANDIDATE_FOREIGN_DIRTY_GAP",
+    "task": "WD-002 — WS2 CP4A Mode Sync + Display Status",
+    "action": "等待窄范围 Harness 修复后，使用 preserved-foreign 机制标记 `pom.xml`，再继续 candidate-plan、candidate-check、build、Owner test。",
+    "authorization": "Owner 已明确 `pom.xml` 是 WD-002 开始前已存在的外部/历史 dirty，要求 Preserve First：保留当前内容，不 restore、不 commit、不 stash、不加入 WD-002 candidate。当前授权只允许记录 Harness 缺口并指明机制修复点。",
+    "goal": "修复 v1.1 candidate 机制，使 WD-002 可以排除已绑定的 pre-existing foreign dirty `pom.xml`，合法进入 candidate → build → Owner test。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "WD-002 review=pass，fresh review=pass；不重新 review、不回 DIB。",
+      "`pom.xml` 当前 dirty 内容必须保留，不 restore、不 commit、不 stash，也不加入 WD-002 candidate。",
+      "现有 `reconcile-foreign` 只记录 sibling workspace 的 `foreign_snapshot()`；不能覆盖当前 Windows 仓内部 tracked `pom.xml`。",
+      "`candidate-plan` 当前仍失败：`HARNESS STOP: Uncommitted input outside this task scope; classify/preserve separately, no auto include: pom.xml`。",
+      "缺口已记录为 `.ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md` 中的 `CANDIDATE_FOREIGN_DIRTY_GAP`。",
+      "要修的是 candidate preserved-foreign 机制，不是 Product Grill、WD-002 Contract、DIB 实现、DLA review 或 Firmware。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\HARNESS_FEEDBACK.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\scripts\\guardrails.py",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\scripts\\desktop.py"
+    ],
+    "allowed": [
+      "设计并实现一个窄范围 Harness candidate preserved-foreign 机制，用于仓内 tracked pre-existing foreign dirty。",
+      "该机制必须绑定 Owner record、路径和当前 hash，并让 candidate-plan 排除这些路径。",
+      "candidate-check 必须确认 preserved foreign 路径未进入 WD candidate commit，且工作区该路径仍匹配 accepted hash。",
+      "修复 Harness 后，回到 WD-002 CANDIDATE_PREP 继续 candidate-plan。"
+    ],
+    "forbidden": [
+      "不得修改 Java、Firmware、eternal 或 `pom.xml` 内容。",
+      "不得自动执行 Git add、commit、push、reset、clean、stash、checkout、restore。",
+      "不得重新 Product Grill、reopen WD-002 Contract、重做 review、交 DIB 或修改 WD-002 实现。",
+      "不得把 review pass 冒充 Git candidate、构建产物、Owner 测试包、real_device PASS 或 owner_uat PASS。"
+    ]
+  },
+  "evidence": [
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\HARNESS_FEEDBACK.md",
+    "guardrails.py: git_plan() lines 405-417 blocks inherited dirty outside allowed_paths before plan generation",
+    "guardrails.py: reconcile-foreign lines 635-643 records sibling work via foreign_snapshot(), not in-repo tracked foreign dirty"
+  ]
+}

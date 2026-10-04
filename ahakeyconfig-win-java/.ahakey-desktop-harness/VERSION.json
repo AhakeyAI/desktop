@@ -1,0 +1,25 @@
+{
+  "harness_version": "1.3.0",
+  "schema_version": 5,
+  "workflow": "V1_CHANGE_IMPLEMENT_VERIFY_RELEASE",
+  "package": "AhaKey-Windows-Desktop-Harness-v1.3.0-full",
+  "features": [
+    "owner_communication_cn",
+    "change_classification",
+    "journey_registry",
+    "guarded_delivery",
+    "release_batches",
+    "firmware_driven_intake",
+    "contract_revision_reconcile",
+    "transactional_governance_write",
+    "single_source_version_display",
+    "owner_preview_build",
+    "phase_scoped_evidence",
+    "preserved_foreign_inputs",
+    "meaningful_progress_only",
+    "preview_iteration_loop",
+    "preview_fix_fast_lane",
+    "governance_snapshot_consistency",
+    "formalize_after_preview"
+  ]
+}

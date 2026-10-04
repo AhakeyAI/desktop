@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class StudioController {
     private static final Logger logger = LoggerFactory.getLogger(StudioController.class);
+    private static final long MODE_SWITCH_STATUS_SETTLE_MS = 1500;
     private final LanguageManager languageManager = LanguageManager.getInstance();
     private final DeviceStatus deviceStatus = new DeviceStatus();
     private final StudioState studioState = new StudioState();
@@ -46,6 +47,8 @@ public class StudioController {
     private ScheduledFuture<?> pollFuture;
     private volatile boolean firmwareCatalogKeyRequested = false;
     private volatile boolean enterEditingAfterConnect = false;
+    private volatile ModeSlot pendingModeSwitchTarget = null;
+    private volatile long suppressModeStatusUntilMillis = 0;
     private final AtomicBoolean modeSwitchInProgress = new AtomicBoolean(false);
 
     public StudioController() {
@@ -85,6 +88,7 @@ public class StudioController {
                         studioState.modeSwitchingProperty().set(false);
                         studioState.syncStatusProperty().set("连接中断，键盘模式未确认");
                     }
+                    clearModeSwitchStatusGuard();
                 });
                 // 停止定时轮询
                 stopStatusPolling();
@@ -289,6 +293,8 @@ public class StudioController {
             return;
         }
         studioState.modeSwitchingProperty().set(true);
+        pendingModeSwitchTarget = mode;
+        suppressModeStatusUntilMillis = 0;
         studioState.setSelectedMode(mode);
         studioState.syncStatusProperty().set("正在切换到 " + mode.getTitle() + "...");
         Thread thread = new Thread(() -> {
@@ -299,6 +305,8 @@ public class StudioController {
                     deviceStatus.setWorkMode(confirmedIndex);
                     studioState.setSelectedMode(confirmedMode);
                     studioState.syncStatusProperty().set("已切换到 " + confirmedMode.getTitle() + "。");
+                    pendingModeSwitchTarget = confirmedMode;
+                    suppressModeStatusUntilMillis = System.currentTimeMillis() + MODE_SWITCH_STATUS_SETTLE_MS;
                     studioState.modeSwitchingProperty().set(false);
                     modeSwitchInProgress.set(false);
                 });
@@ -317,6 +325,7 @@ public class StudioController {
                     } else {
                         studioState.syncStatusProperty().set("未切换到 " + mode.getTitle() + "，键盘仍在 " + authoritative.getTitle() + "，请重试");
                     }
+                    clearModeSwitchStatusGuard();
                     studioState.modeSwitchingProperty().set(false);
                     modeSwitchInProgress.set(false);
                 });
@@ -804,19 +813,43 @@ public class StudioController {
         deviceStatus.setFirmwareMain(status.getFirmwareMain());
         deviceStatus.setFirmwareSub(status.getFirmwareSub());
         deviceStatus.setFirmwareCatalogKey(status.getFirmwareCatalogKey());
-        deviceStatus.setWorkMode(status.getWorkMode());
         deviceStatus.setSwitchState(status.getSwitchState());
         requestFirmwareCatalogKeyAfterConnect();
         ModeSlot deviceMode = ModeSlot.fromIndex(status.getWorkMode());
         ModeSlot previousMode = studioState.getSelectedMode();
-        if (status.isConnected() && deviceMode != previousMode && !modeSwitchInProgress.get()) {
+        boolean suppressModeStatus = status.isConnected() && shouldSuppressModeStatus(deviceMode);
+        if (!suppressModeStatus) {
+            deviceStatus.setWorkMode(status.getWorkMode());
+        }
+        if (status.isConnected() && deviceMode != previousMode && !suppressModeStatus) {
             studioState.setSelectedMode(deviceMode);
+            clearModeSwitchStatusGuard();
             if (studioState.hasUnsavedDraft(previousMode)) {
                 studioState.syncStatusProperty().set("键盘已切到 " + deviceMode.getTitle() + "，" + previousMode.getTitle() + " 的未保存草稿已保留");
             } else {
                 studioState.syncStatusProperty().set("键盘已切到 " + deviceMode.getTitle() + "。");
             }
         }
+    }
+
+    private boolean shouldSuppressModeStatus(ModeSlot deviceMode) {
+        ModeSlot target = pendingModeSwitchTarget;
+        if (target == null) {
+            return false;
+        }
+        if (deviceMode == target) {
+            if (!modeSwitchInProgress.get() && System.currentTimeMillis() >= suppressModeStatusUntilMillis) {
+                clearModeSwitchStatusGuard();
+            }
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        return modeSwitchInProgress.get() || now < suppressModeStatusUntilMillis;
+    }
+
+    private void clearModeSwitchStatusGuard() {
+        pendingModeSwitchTarget = null;
+        suppressModeStatusUntilMillis = 0;
     }
 
     private void requestFirmwareCatalogKeyAfterConnect() {

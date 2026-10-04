@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "harness_version": "1.0.0",
+  "created_at": "2026-10-02T19:12:37+08:00",
+  "reconciled_at": "2026-10-02T20:06:00+08:00",
+  "role": "DLA",
+  "record_kind": "planned_change_intake",
+  "id": "WD-002",
+  "status": "PLANNED",
+  "phase": "CHANGE",
+  "helper_new_record_created": false,
+  "helper_new_record_reason": "desktop.py new/intake refuses to create a new current assignment while WD-001 remains active/current; this preserves single active implementation.",
+  "active_implementation_remains": "WD-001 Recovery",
+  "title": "WD-002 - WS2 CP4A Mode Sync + Display Status",
+  "feature_known": true,
+  "do_not_guess_function": true,
+  "firmware_discovery": {
+    "repo_root": "C:\\Users\\20825\\Desktop\\vibe-code",
+    "discovery_basis": [
+      "formal Firmware Harness state",
+      "workstream and module registry",
+      "formal gate receipt",
+      "candidate readiness record",
+      "stage B integrated design revision",
+      "stage C design review pass",
+      "Owner UAT brief"
+    ],
+    "multiple_equal_candidates": false,
+    "selected_candidate": {
+      "workstream": "WS2 / X1-INPUT-CONTROL",
+      "checkpoint": "CP4A",
+      "title": "Mode sync and display status foundation",
+      "firmware_state": "OWNER_UAT / candidate_ready",
+      "gate_result": "PASS",
+      "candidate_commit": "bd1ea87e10939fd6f738b599a4c66ba3264acf70",
+      "hex_path": ".ahakey-harness/evidence/builds/ws2-cp4a-mode-sync-display-status/HID_Keyboard_582m_vibe_coding.hex",
+      "hex_sha256": "8E11F2B526E9239A67C5199AFF88EBBED875BDC9CB3DF0EB5592979E5F021867"
+    }
+  },
+  "firmware_evidence_binding": [
+    ".ahakey-harness/project-state.yaml",
+    ".ahakey-harness/workstreams/X1-INPUT-CONTROL/STATE.yaml",
+    ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json",
+    ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/candidate-readiness/20261002T083947/candidate-readiness.md",
+    ".ahakey-harness/evidence/stage-b/X1-INPUT-CONTROL-CP4A-20261002-integrated-design-revision.md",
+    ".ahakey-harness/evidence/design-reviews/X1-INPUT-CONTROL-CP4A-20261002-stage-c-design-review-pass.md",
+    ".ahakey-harness/evidence/owner-uat/X1-INPUT-CONTROL/CP4A/CP4A-OWNER-UAT-BRIEF.md"
+  ],
+  "user_purpose": "Windows Desktop follows keyboard-authoritative current mode, supports Desktop-initiated mode switch only after firmware confirmation, preserves local drafts while disconnected, and shows a readable status summary.",
+  "user_journey": {
+    "status": "BOUND",
+    "summary": "Connect over USB/BLE, read keyboard mode, follow keyboard-originated changes, set mode from Desktop only after 0x92 OK plus 0x00 readback match, preserve local drafts offline, read keyboard truth first on reconnect.",
+    "module_refs": [
+      "MOD-003",
+      "MOD-004",
+      "MOD-006",
+      "MOD-013",
+      "MOD-014"
+    ]
+  },
+  "protocol_summary": {
+    "new_firmware_opcode": false,
+    "commands": [
+      {
+        "command": "0x00",
+        "purpose": "status readback for keyboard-authoritative current mode and status fields"
+      },
+      {
+        "command": "0x92",
+        "purpose": "Desktop-to-keyboard mode set with one valid target mode byte"
+      }
+    ],
+    "success_rule": "Desktop mode set succeeds only after 0x92 OK and follow-up 0x00 readback equals requested mode.",
+    "failure_rule": "Non-OK response, timeout, disconnect or readback mismatch returns visible state to keyboard-authoritative mode.",
+    "transport_policy": "USB and BLE must expose equivalent behavior; active Desktop control channel owns mode-set attempts while connected."
+  },
+  "windows_expected_behavior": [
+    "Read current mode from device status readback.",
+    "Keep visible mode aligned with keyboard-originated mode changes.",
+    "Allow Desktop-originated mode switch only while connected.",
+    "Send 0x92, then require 0x00 readback match before success UI/state.",
+    "On failure, timeout, disconnect or mismatch, return to keyboard truth and show a recoverable failure state.",
+    "While disconnected, allow local browsing/editing but disable Save/Apply and any 0x92 apply path.",
+    "On reconnect, read keyboard truth first and do not replay stale local draft state.",
+    "Preserve unapplied local drafts as drafts.",
+    "Show mode summary with primary key labels, battery percent, charging state and readable connection/status labels.",
+    "Preserve existing Mode1/2/3 visuals; Mode4 remains empty/placeholder until a later authorized scope.",
+    "Preserve WD-001 recovery expectations for 0x95 sleep timeout and 0x9F firmware catalog key."
+  ],
+  "change_classification": {
+    "bug_fix": false,
+    "scope_expansion": true,
+    "architecture_change": true,
+    "protocol_change": true,
+    "protocol_change_note": "Windows behavior and verification policy over existing 0x00 / 0x92; no new Firmware opcode."
+  },
+  "review_policy": "high_impact",
+  "high_impact": true,
+  "high_impact_reasons": [
+    "protocol command sequencing and readback confirmation affect device state",
+    "USB/BLE parity and active control-channel ownership affect session behavior",
+    "offline draft behavior prevents accidental writes or stale replay",
+    "WD-001 recovery items share nearby protocol/session surfaces and must not be regressed"
+  ],
+  "allowed_scope_status": "NOT_APPROVED",
+  "initial_allowed_scope": [
+    "Windows protocol/status parsing for existing 0x00 current-mode/status fields",
+    "Windows command wrapper for existing 0x92 mode set",
+    "service-level sequence: set mode, wait for OK, query 0x00, accept only on matching readback",
+    "device/session ownership logic for connected, disconnected, timeout and reconnect cases",
+    "UI state for current mode, mode-set failure, disconnected draft-only state and display status summary",
+    "focused offline tests for parser, service sequencing, transport parity, stale response isolation, offline draft boundary and WD-001 regression surfaces",
+    "later Owner UAT packet binding exact Windows artifact and exact CP4A Firmware HEX identity"
+  ],
+  "explicitly_not_modified": [
+    "WD-001 old Contract/Review/Owner Results/build/candidate/evidence",
+    "WD-001 Recovery active implementation",
+    "Firmware and eternal workspaces",
+    "Harness rules, Skill files, helper behavior, STATE or v1 indexes",
+    "build scripts, installers and Release Batch records",
+    "voice onboarding",
+    "side-switch customization",
+    "restore factory settings",
+    "flashing/recovery/release catalog behavior",
+    "default image/GIF resources",
+    "new Firmware command numbers",
+    "0x95 sleep timeout or 0x9F firmware catalog behavior except regression preservation"
+  ],
+  "offline_test_outline": [
+    "parse 0x00 status/current-mode payloads, including invalid/short payloads",
+    "build and parse 0x92 mode-set success and non-OK responses",
+    "service success path: 0x92 OK plus matching 0x00 readback",
+    "service failure paths: non-OK, timeout, disconnect and readback mismatch",
+    "USB and BLE mock parity for the same state transitions",
+    "offline browsing/editing without Save/Apply or protocol writes",
+    "reconnect reads keyboard truth first and does not replay stale drafts",
+    "display status summary mapping",
+    "regression guards for 0x95 sleep timeout and 0x9F firmware catalog key"
+  ],
+  "owner_real_device_outline": [
+    "flash CP4A Firmware candidate",
+    "connect Windows Desktop over USB and confirm Desktop reads current keyboard mode through status readback",
+    "switch mode from keyboard Power key and confirm Desktop follows after polling/query",
+    "switch mode from Desktop and confirm keyboard changes mode only after 0x92 OK plus 0x00 readback match",
+    "repeat read/switch over BLE",
+    "disconnect keyboard; Desktop can browse/edit local mode pages but cannot Save/Apply or apply 0x92",
+    "reconnect; Desktop returns to keyboard real mode and preserves unapplied drafts",
+    "confirm mode summary shows primary key labels, battery percent, charging state and readable connection/status label",
+    "confirm Mode1/2/3 visuals return unchanged after summary; Mode4 remains empty/placeholder",
+    "smoke check ordinary four keys, Power mode switching, 0x95 sleep timeout and 0x9F firmware catalog key still work"
+  ],
+  "activation_rule": "WD-002 cannot enter IMPLEMENT while WD-001 Recovery is active. Owner must explicitly pause or switch active implementation before WD-002 can be formalized for implementation."
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "record_type": "contract_confirmation_draft",
+  "id": "WD-002",
+  "status": "OWNER_CONFIRMED_FOR_IMPLEMENT_HANDOFF",
+  "created_at": "2026-10-03T00:00:00+08:00",
+  "role": "DLA",
+  "title": "WS2 CP4A Mode Sync + Display Status",
+  "firmware_binding": {
+    "root": "C:\\Users\\20825\\Desktop\\vibe-code",
+    "gate": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json",
+    "gate_sha256": "71e61a42b8771a7318467b98bfbb36804ef0b2f3f5c18875c2d9110f7e89b0ab",
+    "candidate_commit": "bd1ea87e10939fd6f738b599a4c66ba3264acf70",
+    "hex_path": ".ahakey-harness/evidence/builds/ws2-cp4a-mode-sync-display-status/HID_Keyboard_582m_vibe_coding.hex",
+    "hex_sha256": "8e11f2b526e9239a67c5199aff88ebbed875bdc9cb3df0eb5592979e5f021867",
+    "feature": "Mode sync and display status foundation"
+  },
+  "journey": {
+    "name": "CP4A mode sync and display status",
+    "summary": "Windows follows keyboard-authoritative mode, confirms Desktop mode-set through 0x92 OK plus 0x00 readback, preserves local drafts offline, and reads keyboard truth first on reconnect.",
+    "modules": ["MOD-003", "MOD-004", "MOD-006", "MOD-013", "MOD-014"]
+  },
+  "protocol": {
+    "new_firmware_opcode": false,
+    "commands": ["0x00", "0x92"],
+    "success_rule": "0x92 OK plus matching follow-up 0x00 readback",
+    "failure_rule": "non-OK, timeout, disconnect or mismatch returns visible state to keyboard-authoritative mode"
+  },
+  "classification": ["scope_expansion", "architecture_change", "protocol_change"],
+  "review_policy": "high_impact",
+  "requires_owner_confirmation_before_implement": false,
+  "owner_confirmation": {
+    "path": ".ahakey-desktop-harness/evidence/owner-confirmation-WD-002-contract-20261003.md",
+    "confirmation": "确认 WD-002 Contract：按 CP4A Mode Sync + Display Status 范围进入 IMPLEMENT / DIB；不继续 WD-001 recovery，不执行 WD-R001，不改 Firmware，不创建 Release Batch。"
+  },
+  "copyable_confirmation": "确认 WD-002 Contract：按 CP4A Mode Sync + Display Status 范围进入 IMPLEMENT / DIB；不继续 WD-001 recovery，不执行 WD-R001，不改 Firmware，不创建 Release Batch。"
+}

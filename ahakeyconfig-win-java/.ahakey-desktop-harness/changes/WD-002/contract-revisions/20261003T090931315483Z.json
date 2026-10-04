@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "at": "2026-10-03T09:09:31+00:00",
+  "from_revision": 1,
+  "to_revision": 2,
+  "reason": {
+    "path": ".ahakey-desktop-harness/evidence/owner-approval-WD-002-q7-route-repair-20261003.md",
+    "sha256": "45ddc24424debea5615d79a297735126c53422f50b735c4c86128a11c9c5c938"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+    "sha256": "6def2d38fc8a1b2fee1f62f24e3aa99f5075873b5661cd8d2e05cf897c71d3d2"
+  },
+  "previous_approval": {
+    "at": "2026-10-03T08:28:28+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-confirmation-WD-002-contract-20261003.md",
+    "owner_record_sha256": "87a32261bdd96cc2bfdb273e43648f57fc410ec048e2e048d59d1323da7e2237",
+    "inputs": {
+      "meta_sha256": "26eb04b5ddc6d44236a7886b7b11d994016abcb37a94df7215eea8f3e537ffe9",
+      "assets": {
+        "CONTRACT.md": "bb89b3a89d4e1f1a23280e8671ad260fef6688f5d96d7320c9df307d5ed37934",
+        "REFERENCES.json": "39fed7696d02afa3c19e808f16c375dff267ad6a409fd7e39f574a6ac244b2fe"
+      },
+      "reference_sha256": "1c1482c74929c8e6bbde94245c8fef9b9a1a3034bc51aef50beb2d72f10b37ce"
+    }
+  },
+  "new_approval": {
+    "at": "2026-10-03T09:09:31+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+    "owner_record_sha256": "6def2d38fc8a1b2fee1f62f24e3aa99f5075873b5661cd8d2e05cf897c71d3d2",
+    "inputs": {
+      "meta_sha256": "b8157a58c663f4591dfe2d0701e5682271810ffc5d58d6f5fb7f4dd22d75a55c",
+      "assets": {
+        "CONTRACT.md": "727bbbf6f2b5507614e8af9823f22c2559dfa210da8f80280dded0e7459d6cd0",
+        "REFERENCES.json": "39fed7696d02afa3c19e808f16c375dff267ad6a409fd7e39f574a6ac244b2fe"
+      },
+      "reference_sha256": "1c1482c74929c8e6bbde94245c8fef9b9a1a3034bc51aef50beb2d72f10b37ce"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": {
+    "at": "2026-10-03T09:09:31+00:00",
+    "old_expected_start_sha256": "b72b4c3f5a1623b785f0f1de9ad0fbb55f846f1a3475050a55af30d9b27072bd",
+    "observed_start_sha256": "c8302ff71ea5b5cc1894c2e6121df7f14f76d21075b733c983e40455942c1e10",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+    "owner_sha256": "6def2d38fc8a1b2fee1f62f24e3aa99f5075873b5661cd8d2e05cf897c71d3d2",
+    "reason_record": ".ahakey-desktop-harness/evidence/owner-approval-WD-002-q7-route-repair-20261003.md",
+    "reason_sha256": "45ddc24424debea5615d79a297735126c53422f50b735c4c86128a11c9c5c938",
+    "meaning": "Owner-authorized adoption of the existing start-fingerprint file after legacy helper inconsistency; product files/start file bytes were not changed."
+  },
+  "changed_paths_since_start": [],
+  "scope_outside_contract": []
+}

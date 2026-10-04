@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "WD-001",
+  "observed_at": "2026-09-29T07:59:35+00:00",
+  "firmware_identity": {
+    "path": ".ahakey-desktop-harness/changes/WD-001/FIRMWARE_IDENTITY.json",
+    "sha256": "0c5ea20b0573a25a130224785d9685a865213c56fda67835cc2b482d4526bd8b"
+  },
+  "formal_gate": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-CONNECTIVITY-POWER/CP3A/20260928T164837/gate-receipt.json",
+    "sha256": "381b7a44fbe236b9c0e1a0dab3c26a51db9b5504d0e2c6b669ff8d005aca8ba1"
+  },
+  "adapter": "firmware_gate_schema6",
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/ws1-cp3a-host-configurable-quiet-sleep-timeout/HID_Keyboard_582m_vibe_coding.hex",
+    "sha256": "9aabce5f015fd44d980ff6818d825b6bab34f6e4b4f7ac277e942272d700444c"
+  },
+  "candidate_commit": "a9db65e2e73bc56b669c312e9fc42f3ee02c3d49",
+  "checkpoint": "CP3A",
+  "producer": "Firmware Harness; Windows read-only reference",
+  "installed_device_status": "requires_owner_confirmation",
+  "limits": "Formal eligibility/file identity only; does not prove physical device flashed or UAT passed."
+}

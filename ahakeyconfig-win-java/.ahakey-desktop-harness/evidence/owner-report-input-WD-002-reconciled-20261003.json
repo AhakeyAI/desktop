@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前任务已经回到实现阶段，下一角色是构建实现对话；合同修订已经完成，开工前检查已经恢复。",
+    "conclusion": "最新离线编辑边界已经成为有效合同；旧版辅助工具半写造成的起点指纹引用不一致，已通过正式修订命令和显式修复路径处理。当前没有新的产品问题需要再问 Owner，可以直接交构建实现对话继续。"
+  },
+  "completed": [
+    "读取并核对版本、状态、规则、Owner 交互模板、当前合同与引用、离线编辑边界对齐证据、反馈记录、Java 当前差异摘要和固件正式关口证据。",
+    "确认固件正式关口、候选提交和 HEX 身份已经由本地只读固件仓证据绑定；没有要求 Owner 重复提供固件资料。",
+    "确认最新产品语义已有 Owner 对齐：离线只能浏览；点击编辑配置时先尝试连接；连接失败不得进入键盘配置编辑态。无需重复追问。",
+    "用正式合同修订命令形成第二版合同：旧批准追加保存，新有效批准绑定离线编辑边界证据；显式修复路径保存旧 hash 与当前 hash，未修改起点指纹或产品文件。",
+    "补齐用户旅程登记中缺失的当前任务旅程，并把辅助工具对旅程登记和已放弃恢复任务的兼容问题记录到反馈文件。",
+    "按 Owner 处置记录，把已放弃的恢复任务身份记录保留为归档文件，使辅助工具不再把它当作可实施变更扫描；没有执行该恢复任务。",
+    "核验构建实现对话的开工前检查已经通过，并成功生成接力提示词。"
+  ],
+  "remaining": [
+    "当前仍处实现阶段；构建实现提交、DLA 审阅、Git 候选、构建收据、测试包和 Owner 真实测试都还没有发生，状态检查中的这些等待项是正常后续缺口。",
+    "本轮没有修改 Java、固件、参考仓、构建产物、Git 提交、安装包或设备状态。",
+    "当前 Java 差异仍是构建实现对话的未提交工作；下一步需要按最新有效合同调整并重新提交机器检查。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品决策；离线编辑边界已确认，且没有发现新的必须追问的产品问题。"
+    },
+    "operation": {
+      "required": true,
+      "action": "把下方完整 Prompt 复制到固定构建实现对话，让它继续当前任务实现。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在没有 Owner 真实测试项；等实现提交、审阅、候选、构建和测试包完成后再测试。"
+    }
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "DIB 对话",
+    "mode": "IMPLEMENT",
+    "task": "WD-002 — WS2 CP4A Mode Sync + Display Status",
+    "action": "构建实现对话先运行开工前检查，读取第二版有效合同与离线编辑边界修正，按最新语义继续或修正当前实现，然后做范围内机器检查并提交。",
+    "authorization": "Owner 已确认当前任务合同；DLA 已完成正式合同修订和显式起点引用修复；允许构建实现对话在已批准文件范围内实现或修复，不允许扩大范围。",
+    "goal": "让当前未提交 Java 实现符合最新离线编辑边界：离线只能浏览；编辑配置先连接；连接失败不得进入编辑态；保持现有模式切换确认规则和旧任务回归边界。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前状态已经路由到实现对话：Harness version: 1.1.0；STATE: IMPLEMENT / IMPLEMENT；active_change: WD-002；next_actor: DIB。",
+      "合同修订命令已经成功执行：contract-reconcile --id WD-002 --owner-record owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md --reason-record owner-approval-WD-002-q7-route-repair-20261003.md --repair-origin --role DLA。",
+      "当前任务记录已经升到第二版：WD-002 change.json revision=2，approval.owner_record 指向 .ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md。",
+      "合同修订记录已经生成：.ahakey-desktop-harness/changes/WD-002/contract-revisions/20261003T090931315483Z.json。",
+      "开工前检查已由 DLA 核验通过：DIB preflight PASS；构建实现对话仍需在自己的窗口重新运行 preflight。",
+      "固件证据已经绑定，且参考仓保持只读：Firmware CP4A gate/candidate/HEX 已记录；Firmware 与 eternal 只读。",
+      "当前 Java 差异只是未提交实现工作：不是候选、不是 review pass、不是测试 pass。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\RULES.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\GUARDED_DELIVERY.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\DISTRIBUTION_DELIVERY.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\REFERENCES.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\contract-revisions\\20261003T090931315483Z.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\owner-alignment-WD-002-mode-sync-ui-20261003.md"
+    ],
+    "allowed": [
+      "在当前任务批准文件范围内继续或修正 Java 实现。",
+      "运行开工前检查、范围内机器检查，并按 Harness 记录真实结果。",
+      "完成后提交给 DLA 做实际差异审阅。"
+    ],
+    "forbidden": [
+      "不要重新做旧恢复任务，也不要执行已放弃的恢复任务。",
+      "不要修改 Firmware 或 eternal 参考仓。",
+      "不要创建发布批次、安装包、烧录或设备写入。",
+      "不要执行 Git add、commit、push、reset、clean、stash 或 checkout。",
+      "不要自审通过，也不要声明 Owner 真实测试通过。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-002/contract-revisions/20261003T090931315483Z.json",
+    ".ahakey-desktop-harness/changes/WD-002/change.json",
+    ".ahakey-desktop-harness/changes/WD-002/guard-origin.json",
+    ".ahakey-desktop-harness/journeys/REGISTRY.json",
+    ".ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md"
+  ]
+}

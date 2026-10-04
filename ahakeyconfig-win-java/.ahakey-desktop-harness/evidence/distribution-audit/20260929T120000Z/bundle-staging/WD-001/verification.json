@@ -1,0 +1,69 @@
+{
+  "change_id": "WD-001",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness\\evidence\\WD-001-machine-compile.md": "91ece008f0515dce099dce100ae74028dc1a81576abc694bc660489409540bc4"
+      },
+      "role": "DIB",
+      "at": "2026-09-28T09:36:55+00:00",
+      "code_fingerprint": "9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+      "build_round": 1,
+      "approval_sha256": "e3e98aaa2d079f24e24d34b4db5936ad9391500eebd4b20a888d4b3cf6d9909c"
+    },
+    "core_regression": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness\\evidence\\WD-001-static-regression.md": "9c348ab6234d2b023a2ff2fb2dbace979603dae1eb90df44462c7e283977fdb5"
+      },
+      "role": "DIB",
+      "at": "2026-09-28T09:38:51+00:00",
+      "code_fingerprint": "9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+      "build_round": 1,
+      "approval_sha256": "e3e98aaa2d079f24e24d34b4db5936ad9391500eebd4b20a888d4b3cf6d9909c"
+    },
+    "special_regression": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness\\evidence\\WD-001-static-regression.md": "9c348ab6234d2b023a2ff2fb2dbace979603dae1eb90df44462c7e283977fdb5"
+      },
+      "role": "DIB",
+      "at": "2026-09-28T09:39:06+00:00",
+      "code_fingerprint": "9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+      "build_round": 1,
+      "approval_sha256": "e3e98aaa2d079f24e24d34b4db5936ad9391500eebd4b20a888d4b3cf6d9909c"
+    },
+    "mock": {
+      "status": "not_applicable",
+      "reason": "No mock was used; protocol behavior is implemented from approved CP3A firmware contract and real-device verification remains pending.",
+      "evidence": {},
+      "role": "DIB",
+      "at": "2026-09-28T09:39:22+00:00",
+      "code_fingerprint": "9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+      "build_round": 1,
+      "approval_sha256": "e3e98aaa2d079f24e24d34b4db5936ad9391500eebd4b20a888d4b3cf6d9909c"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness\\changes\\WD-001\\REVIEW.json": "f92f3906978d4f3c58f8e9d81a336e386d69f9a0df61fda5fb8b46bcb7594ade"
+      },
+      "role": "DLA",
+      "at": "2026-09-29T01:57:48+00:00",
+      "code_fingerprint": "9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+      "build_round": 1,
+      "approval_sha256": "e3e98aaa2d079f24e24d34b4db5936ad9391500eebd4b20a888d4b3cf6d9909c"
+    }
+  }
+}

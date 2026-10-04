@@ -1,0 +1,18 @@
+{
+  "hotfix_id": "v0.4.0-hf01",
+  "base_version": "0.4.0-guarded-delivery",
+  "status": "applied",
+  "applied_at": "2026-09-29T02:47:47.385175+00:00",
+  "expected_active": "WD-001",
+  "backup_id": "hotfix-v040-hf01-20260929T024747-1809aef5",
+  "old_guard_sha256": "06766b82b41fc2e69f47bc3d2a0f80ee26dea61304b1807286906e0b68b0fdfb",
+  "new_guard_sha256": "ea386b94128f76e69d000d2ed295a5fabe7cea939780c9f379f7f254389c6010",
+  "old_seal_sha256": "a792c9c64da1a7fbcfad57d3c30b14563c01ffddcf7a1a456642e7ea943edd6a",
+  "new_seal_sha256": "5dd90b7227fe824e193afc17cfe7cf27fca7952d13b77feaadd2f2b67cc126bf",
+  "git_head_unchanged": "666494c358fd5373b27b6213e9f4a35a424dd2c6",
+  "protected_snapshot_sha256": "d38247f6e7076802bb3d825cd50cb4c10eadc441e6eb51f1b5a57e8d1b140010",
+  "changed_policy_entries": [
+    ".agents/skills/ahakey-desktop-harness/scripts/guardrails.py"
+  ],
+  "meaning": "Reviewed path normalization only; state/schema/task/review remain byte-identical. Not candidate PASS, identity authentication, or UAT."
+}

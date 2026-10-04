@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "harness_version": "1.0.0",
+  "created_at": "2026-10-02T20:06:00+08:00",
+  "role": "DLA",
+  "record_kind": "firmware_discovery_for_planned_windows_change",
+  "windows_change_id": "WD-002",
+  "status": "DISCOVERY_COMPLETE",
+  "phase": "PLANNED_CHANGE_ONLY",
+  "read_only_source": {
+    "firmware_repo_root": "C:\\Users\\20825\\Desktop\\vibe-code",
+    "firmware_git_head": "bd1ea87e10939fd6f738b599a4c66ba3264acf70"
+  },
+  "discovery_basis": [
+    "AGENTS.md",
+    ".agents/skills/ahakey-firmware-harness/SKILL.md",
+    ".agents/skills/ahakey-module-lead/SKILL.md",
+    ".ahakey-harness/project-state.yaml",
+    ".ahakey-harness/workstream-registry.yaml",
+    ".ahakey-harness/module-registry.yaml",
+    ".ahakey-harness/workstreams/X1-INPUT-CONTROL/STATE.yaml",
+    ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json",
+    ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/candidate-readiness/20261002T083947/candidate-readiness.md",
+    ".ahakey-harness/evidence/stage-b/X1-INPUT-CONTROL-CP4A-20261002-integrated-design-revision.md",
+    ".ahakey-harness/evidence/design-reviews/X1-INPUT-CONTROL-CP4A-20261002-stage-c-design-review-pass.md",
+    ".ahakey-harness/evidence/owner-uat/X1-INPUT-CONTROL/CP4A/CP4A-OWNER-UAT-BRIEF.md"
+  ],
+  "candidate_selection": {
+    "multiple_equal_candidates": false,
+    "selected_candidate": {
+      "workstream": "WS2 / X1-INPUT-CONTROL",
+      "checkpoint": "CP4A",
+      "title": "Mode sync and display status foundation",
+      "firmware_state": "OWNER_UAT / candidate_ready",
+      "gate_result": "PASS",
+      "candidate_commit": "bd1ea87e10939fd6f738b599a4c66ba3264acf70",
+      "hex_path": ".ahakey-harness/evidence/builds/ws2-cp4a-mode-sync-display-status/HID_Keyboard_582m_vibe_coding.hex",
+      "hex_sha256": "8E11F2B526E9239A67C5199AFF88EBBED875BDC9CB3DF0EB5592979E5F021867"
+    }
+  },
+  "protocol_summary": {
+    "uses_existing_commands": [
+      "0x00",
+      "0x92"
+    ],
+    "new_firmware_opcode": false,
+    "success_rule": "Desktop mode set requires 0x92 OK and follow-up 0x00 readback matching requested mode.",
+    "failure_rule": "Non-OK response, timeout, disconnect or readback mismatch returns Windows visible state to keyboard-authoritative mode.",
+    "transport_requirement": "USB and BLE parity."
+  },
+  "intake_outcome": "WD-002 prepared as PLANNED / CHANGE for CP4A Mode Sync + Display Status. WD-001 Recovery remains the only active implementation."
+}

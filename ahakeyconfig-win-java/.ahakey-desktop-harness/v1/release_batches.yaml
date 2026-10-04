@@ -1,0 +1,62 @@
+{
+  "batches_created": false,
+  "build_started": false,
+  "enforcement_installed": false,
+  "external_receipt": "C:\\Users\\20825\\Desktop\\AhaKey-Harness-Safety-Backups\\index-20261002T041603Z-8c6dce02\\RECEIPT.json",
+  "index_kind": "HISTORICAL_AND_CURRENT_OBSERVATIONS_ONLY",
+  "not_a_harness_runtime_upgrade": true,
+  "not_test_authorization": true,
+  "policy_notes": {
+    "batch_requires_owner_assignment": true,
+    "five_small_changes_is_a_reminder_not_auto_packaging": true,
+    "forms_separate": [
+      "JAR",
+      "app-image",
+      "installer"
+    ],
+    "installation_relation": "one installed choice, switching intended",
+    "variants": [
+      "no-local-model",
+      "local-model"
+    ]
+  },
+  "release_batches": [],
+  "schema_version": 1,
+  "source_plan_sha256": "f97277c0b836df5826eca08a9e7e711b8305745df80c3cc3af5efcc34f073cfc",
+  "source_records": {
+    "ACCEPTANCE_COVERAGE.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/ACCEPTANCE_COVERAGE.json",
+      "sha256": "9a37eace522129ad2aa1e44a4c38ac5a96b65bb9b04c621b15a0cc862cef084c"
+    },
+    "BUILD_RECEIPT.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/BUILD_RECEIPT.json",
+      "sha256": "4bff770d9efae5a87326513aa6596871796c2e1e5487b5f897591b2c82c394ea"
+    },
+    "CONTRACT.md": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/CONTRACT.md",
+      "sha256": "287e8c22b79282130cc7595c96da050f506d9bd3f68f040496941458af038738"
+    },
+    "DELIVERY_PROFILE.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/DELIVERY_PROFILE.json",
+      "sha256": "4a58b1fc6fbdf8173f16946267ff87feb869fdca37457062a9a1a1b0df6cdd7a"
+    },
+    "OWNER_RESULTS.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/OWNER_RESULTS.json",
+      "sha256": "9876932e3b626862f6a67dd0af0cc1f47e6559ca5cd11188ab8997fc51949afa"
+    },
+    "REVIEW.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/REVIEW.json",
+      "sha256": "f92f3906978d4f3c58f8e9d81a336e386d69f9a0df61fda5fb8b46bcb7594ade"
+    },
+    "candidate.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/candidate.json",
+      "sha256": "012abe0cbcebe929b20500d30e0d76766f7abc7b5990418942099305cda957f6"
+    },
+    "change.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/change.json",
+      "sha256": "54fc7ac7aaa87412b52e9d36c840cad37c58a74afcfe7373fcb55a3ffd1975f4"
+    }
+  },
+  "task_id": "WD-001",
+  "tool_version": "1.0.0"
+}

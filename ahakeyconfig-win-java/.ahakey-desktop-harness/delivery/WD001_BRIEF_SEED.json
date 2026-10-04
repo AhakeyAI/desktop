@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "contract_sha256": "287e8c22b79282130cc7595c96da050f506d9bd3f68f040496941458af038738",
+  "meaning": "Exact-contract-matched editable proposal, not approval/test result; DLA must review.",
+  "brief": {
+    "schema_version": 1,
+    "id": "WD-001",
+    "reviewed_by_dla": false,
+    "review_note": "",
+    "test_goal": "WD-001：CP3A睡眠等待时间的读取、设置、确认、回读、持久化及合同内回归；当前仅JAR联调。",
+    "ui_entry": "More → Hawk 安装分发工具 → 第一个“设备信息”卡片 → 睡眠等待时间",
+    "java_executable": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "connection": "使用现有正常测试连接，Owner记录实际USB或BLE；本包不安装或启动驱动。",
+    "preconditions": "核对JAR与运行依赖未变；先确认目标X1已刷本次固件。未确认设备身份不得写设置。当前未执行应用/UI/设备测试。",
+    "recovery": "先记录原值，测试结束按需恢复。启动或设备步骤失败，停止对应子项并保留PowerShell输出、截图和logs/ahakey-studio.log，不自动reset/clean/烧录。",
+    "result_return": "用自然语言、截图/日志回传每个T编号及其子项通过/失败/未执行；注明实际连接和设备固件确认。DLA负责结构化，不能代填。",
+    "deliberately_unchanged": "不代表轻量EXE/带模型EXE、安装切换、语音质量、全设备兼容或官网发布通过。不修改原键位/OLED/其它保存语义。",
+    "steps": [
+      {
+        "id": "T01",
+        "group": "启动与身份",
+        "action": "在当前目录用指定JDK17启动这份JAR，保留target/lib，先不操作键盘。",
+        "expected": "窗口正常打开；如报JavaFX、依赖或入口错误，停止并回传完整终端输出。仅打开不等于已验证设备。",
+        "device_step": false
+      },
+      {
+        "id": "T02",
+        "group": "设备前置确认",
+        "action": "确认手中是目标X1，且已刷入本简报所列CP3A HEX；使用已配置的USB或BLE连接方式，并记录实际方式。不确定已刷版本时先停止设备写入。",
+        "expected": "设备身份由Owner确认，不由HEX文件存在推断；连接状态正确。无需为了确认而自动重复烧录。",
+        "device_step": true
+      },
+      {
+        "id": "T03",
+        "group": "读取现有值",
+        "action": "More → Hawk 安装分发工具 → 第一个设备信息卡片，查看“睡眠等待时间”并记录原始值。",
+        "expected": "显示永不/30/60/120中的当前值；异常或读取失败明确显示，不假成功；未新增卡片。",
+        "device_step": true
+      },
+      {
+        "id": "T04",
+        "group": "设置与立即回读",
+        "action": "选择30分钟并点击本项保存，观察保存中/结果提示，再读取当前设置。",
+        "expected": "只有0x95 set→OK→query回读30匹配才显示成功；本项不追加0x04。界面变化本身不证明设备应用，需对应实际回读。",
+        "device_step": true
+      },
+      {
+        "id": "T05",
+        "group": "持久化",
+        "action": "按固件认可的真正重启/断电方法重启键盘，重新连接查询；不要用关闭软件代替断电。",
+        "expected": "仍为30；记录操作方法。USB仍供电的假关机不能自动算掉电持久化。",
+        "device_step": true
+      },
+      {
+        "id": "T06",
+        "group": "其余合法值",
+        "action": "依次设置永不(0)、60、120，每个值按本项合同做设置/立即回读/真正重启后回读，记录结果。",
+        "expected": "每值正确，重启后保留；0代表不自动Quiet/Sleep。每个值未测的部分如实写未执行。",
+        "device_step": true
+      },
+      {
+        "id": "T07",
+        "group": "非法值",
+        "action": "只在已有受控协议/固件测试工具且具体用法明确时测试非法0x95值；普通UI不新增非法输入。缺工具时写未执行并报告，不临时猜字节或下载工具。",
+        "expected": "返回失败，查询原值未改变。此项来自合同，不因UI仅有合法值而自动免测；可以引用经核对适用证据或Owner明确后置决定。",
+        "device_step": true
+      },
+      {
+        "id": "T08",
+        "group": "真实睡眠与唤醒",
+        "action": "按选定的真实等待时间和固件的空闲条件观察Quiet/Sleep，再唤醒；保持本项条件，不为加速擅自改固件。记录实际等待、屏幕/状态/按键/连接。",
+        "expected": "按配置进入睡眠，唤醒恢复正确，无自动反复醒来、黑屏或display loop。即时保存成功不能覆盖此项，未等待则写未执行。",
+        "device_step": true
+      },
+      {
+        "id": "T09",
+        "group": "相关生命周期回归",
+        "action": "按固件已有安全UAT说明检查合同列出的Power短/长按、Forget guard、USB fake-off、true-off USB插入、single-host reconnect、USB/Mac wired lifecycle。仅有合适硬件/环境时执行，缺项明确记录或引用适用证据。",
+        "expected": "各子项符合既定行为，未引入回归；不存在或不适用的环境不伪造PASS，也不因此改Windows/Firmware代码。",
+        "device_step": true
+      },
+      {
+        "id": "T10",
+        "group": "保留界面和断连",
+        "action": "查看同卡片连接、电量/设备名/拨杆以及原More行为；断连后查看本项控制。不要点击安装Hook/驱动来代替观察。",
+        "expected": "已有显示和入口保持；断连时本项禁用或提示先连接，不能显示设备保存成功。",
+        "device_step": true
+      },
+      {
+        "id": "T11",
+        "group": "停止与恢复",
+        "action": "记录测试结果，按需要把睡眠等待时间恢复到T03原值；若已发生失败，先保留现场与日志，停止受影响子项。",
+        "expected": "恢复结果可确认；测试记录区分通过/失败/未执行，没有把恢复动作当成所有验收通过。",
+        "device_step": true
+      }
+    ]
+  },
+  "mapping": {
+    "A004": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T02"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A005": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T03"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A006": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T04"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A007": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T05"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A008": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T06"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A009": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T07"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A010": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T04"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A011": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T08"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    },
+    "A012": {
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T09"
+      ],
+      "reason": "按已批准合同保留对应验证；仅计划，未执行。"
+    }
+  }
+}

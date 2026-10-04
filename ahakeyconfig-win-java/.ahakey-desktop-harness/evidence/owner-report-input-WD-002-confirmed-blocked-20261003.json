@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-002 Contract 已由 Owner 确认；预期下一步是 IMPLEMENT / DIB，但 helper 路由仍停在 VERIFY / RECOVERY_RECONCILE / active WD-001。",
+    "conclusion": "Owner 的 WD-002 确认已经记录，WD-R001 保持停止，WD-001 recovery 不再作为产品推进阻塞。当前不能合法交 DIB 改 Java，因为 v1.0.1 helper 仍被旧 active WD-001、旧 drift 和 WD-002 ID 校验卡住；我没有手改 STATE、没有修 Harness、没有改 Java。"
+  },
+  "completed": [
+    "归档 Owner 对 WD-002 Contract 的确认：按 CP4A Mode Sync + Display Status 范围进入 IMPLEMENT / DIB；不继续 WD-001 recovery，不执行 WD-R001，不改 Firmware，不创建 Release Batch。",
+    "把 WD-002 Contract confirmation record 更新为 OWNER_CONFIRMED_FOR_IMPLEMENT_HANDOFF。",
+    "尝试 helper new / firmware-intake / prompt DIB；new 和 prompt 均因 WD-002 ID 校验失败，firmware-intake 之前已记录且本轮遇到 writer-lock 提示。",
+    "追加 HARNESS_FEEDBACK，记录 Owner 已确认但 helper 无法合法释放 WD-001 或创建 WD-002 handoff 的问题。",
+    "未修改 Java、Firmware、eternal、Release Batch、Git，也未运行构建或测试。"
+  ],
+  "remaining": [
+    "当前 helper STATE 仍显示 WD-001 active；DIB 不能在这个状态下合法开工 WD-002。",
+    "需要一个 Owner 批准的 Harness 路由修复或等价正式 helper 能力，才能把 WD-002 变成 helper-created/approved/active task 并生成 DIB handoff。",
+    "WD-002 Firmware evidence 和 Contract 已经准备好；阻塞点不是产品范围，而是 Harness 路由能力。"
+  ],
+  "owner": {
+    "decision": {
+      "required": true,
+      "action": "请决定是否允许开启一个独立 Harness 路由修复任务，只修复 v1.0.1 helper 对 Owner disposition close/supersede 和 WD-002 ID / handoff 的支持；不改 Java、不改 Firmware。"
+    },
+    "operation": {
+      "required": false,
+      "action": "现在不要复制给 DIB；当前 helper 不能生成合法 WD-002 DIB handoff。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在没有 Owner 实测项；还没有 WD-002 Windows 构建或测试包。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "当前对话",
+    "mode": "HARNESS_ROUTE_FIX_DECISION",
+    "task": "WD-002 handoff blocked by Harness routing",
+    "action": "等待 Owner 是否批准独立 Harness 路由修复；批准前不交 DIB、不改 Java。",
+    "authorization": "Owner 已确认 WD-002 Contract，但明确禁止设计 Harness v1.0.2；因此任何 Harness 修复都必须由 Owner 单独授权，且只限现有 v1.0.1 路由阻塞问题。",
+    "goal": "取得 Owner 对 Harness 路由修复的明确授权，或由 Owner选择暂停在 WD-002 确认点。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "WD-002 Contract 已确认并记录在 owner-confirmation-WD-002-contract-20261003.md。",
+      "WD-R001 已标记 ABANDONED_BY_OWNER / NO_IMPLEMENTATION_REQUIRED。",
+      "helper new/prompt 不接受 WD-002，报错 ID must be WD-001。",
+      "close/park 不能合法释放 WD-001 active route；DLA 未手改 STATE。",
+      "HARNESS_FEEDBACK 已记录这个 helper 路由阻塞。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\owner-confirmation-WD-002-contract-20261003.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\HARNESS_FEEDBACK.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json"
+    ],
+    "allowed": [
+      "只在 Owner 明确批准后处理 Harness 路由修复。",
+      "继续保留 WD-002 Contract/Firmware evidence，不改产品代码。",
+      "如 Owner 不批准修复，则停在 WD-002 confirmed-but-not-handoff 状态。"
+    ],
+    "forbidden": [
+      "不要把 WD-002 交给 DIB 开工，直到 helper 路由合法。",
+      "不要手改 STATE 绕过 helper。",
+      "不要继续 WD-001 recovery 或执行 WD-R001。",
+      "不要修改 Firmware、Java、Release Batch、Git 或测试事实。",
+      "不要把旧 PASS 或 Firmware PASS 当成 WD-002 Windows PASS。"
+    ]
+  },
+  "evidence": [
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\owner-confirmation-WD-002-contract-20261003.md",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\v1\\planned-changes\\WD-002-contract-confirmation-20261003.md",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\HARNESS_FEEDBACK.md"
+  ]
+}

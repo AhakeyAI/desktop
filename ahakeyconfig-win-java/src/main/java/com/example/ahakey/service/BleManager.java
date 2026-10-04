@@ -28,6 +28,8 @@ public class BleManager {
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 9000;
     private static final long RESPONSE_TIMEOUT_MS = 15000;
+    private static final long MODE_READBACK_TIMEOUT_MS = 5000;
+    private static final long MODE_READBACK_REQUEST_INTERVAL_MS = 250;
 
     private final String host;
     private final int port;
@@ -49,7 +51,7 @@ public class BleManager {
 
     private volatile boolean isConnected;
     private volatile boolean isScanning;
-    private DeviceStatus cachedStatus = new DeviceStatus();
+    private volatile DeviceStatus cachedStatus = new DeviceStatus();
     private volatile long lastStatusUpdateTime = 0;  // 最后一次状态更新时间
 
     public interface BleCallback {
@@ -492,6 +494,7 @@ public class BleManager {
     public int setWorkModeAndVerify(int mode) throws Exception {
         int targetMode = Math.max(0, Math.min(3, mode));
         synchronized (commandTransactionLock) {
+            long statusVersionBeforeSet = lastStatusUpdateTime;
             commandLock.lock();
             try {
                 pendingNotifyFramesByCommand.clear();
@@ -508,13 +511,67 @@ public class BleManager {
                 commandLock.unlock();
             }
 
-            DeviceStatus readback = queryDeviceStatusSnapshot(2000, true);
+            DeviceStatus readback = waitForWorkModeReadback(targetMode, statusVersionBeforeSet, MODE_READBACK_TIMEOUT_MS);
             int confirmedMode = readback.getWorkMode();
             if (confirmedMode != targetMode) {
                 throw new IOException("模式回读不匹配: 期望 Mode " + (targetMode + 1) + "，实际 Mode " + (confirmedMode + 1));
             }
             return confirmedMode;
         }
+    }
+
+    private DeviceStatus waitForWorkModeReadback(int targetMode, long statusVersionBeforeSet, long timeoutMs) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        long nextRequestAt = 0;
+        IOException lastRequestFailure = null;
+
+        while (System.currentTimeMillis() < deadline) {
+            DeviceStatus status = cachedStatus;
+            if (lastStatusUpdateTime > statusVersionBeforeSet && status != null && status.isConnected()
+                    && status.getWorkMode() == targetMode) {
+                logger.info("Mode switch readback confirmed from refreshed status: Mode {}", targetMode + 1);
+                return status;
+            }
+
+            long now = System.currentTimeMillis();
+            if (now >= nextRequestAt) {
+                try {
+                    requestModeReadbackStatus();
+                    lastRequestFailure = null;
+                } catch (IOException e) {
+                    lastRequestFailure = e;
+                    logger.debug("Mode switch readback status request failed: {}", e.getMessage());
+                }
+                nextRequestAt = now + MODE_READBACK_REQUEST_INTERVAL_MS;
+            }
+
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("等待模式回读被中断", e);
+            }
+        }
+
+        DeviceStatus status = cachedStatus;
+        if (lastRequestFailure != null && (!isConnected || status == null || !status.isConnected())) {
+            throw lastRequestFailure;
+        }
+        if (status != null && status.isConnected()) {
+            throw new IOException("Mode readback mismatch: expected Mode " + (targetMode + 1)
+                    + ", actual Mode " + (status.getWorkMode() + 1));
+        }
+        throw new IOException("Mode readback timed out for Mode " + (targetMode + 1));
+    }
+
+    private void requestModeReadbackStatus() throws IOException {
+        if (ensureUsbConnected()) {
+            usbTransport.sendCommand(AhaKeyProtocol.queryDeviceStatus());
+            return;
+        }
+        writePacket(BleTcpPacket.QUERY_BLE_STATUS, null);
+        writePacket(BleTcpPacket.QUERY_DEVICE_INFO, null);
+        writePacket(BleTcpPacket.WRITE_COMMAND, AhaKeyProtocol.queryDeviceStatus());
     }
 
     public boolean isConnected() {

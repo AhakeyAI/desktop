@@ -1,0 +1,5 @@
+{
+  "source_root": null,
+  "firmware_root": null,
+  "note": "local.json is preserved; upgrader fills only missing paths from Owner-provided values. References are read-only policy, not OS isolation."
+}

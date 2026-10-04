@@ -28,7 +28,7 @@ src/main/java/com/example/ahakey/
 
 **应用启动方式：**
 - IDE 运行：`mvn javafx:run`
-- 打包后运行：`java -jar ahakey-studio-1.0.0.jar`
+- 打包后运行：`java -jar ahakey-studio-1.2.0.jar`
 - 安装包运行：`AhaKeyStudio-xxx.exe`（通过 jpackage 生成）
 
 ## 配置
@@ -200,7 +200,7 @@ target/
 ├── classes/          # 编译后的 class 文件
 ├── lib/              # 依赖 JAR（jackson, jna, logback, javafx 等）
 ├── jpackage-resources/ # jpackage 资源
-├── ahakey-studio-1.0.0.jar # 可执行 JAR
+├── ahakey-studio-1.2.0.jar # 可执行 JAR
 └── installer/        # Windows 安装包（.exe, .zip）
 ```
 
@@ -226,3 +226,20 @@ target/
 2. 检查设备是否在蓝牙范围内
 3. 检查 `BLE_tcp_driver.exe` 是否正常运行（BLE 桥接工具）
 4. 如果 BLE 进程卡死，长按 BLE 驱动按钮5秒强制杀死
+
+<!-- AHAKEY-DESKTOP-HARNESS:BEGIN -->
+## AhaKey Windows Harness 1.3.0
+正式项目入口：根 AGENTS + `.agents/skills/ahakey-desktop-{lead,builder,harness}`。历史 backups/bundle-staging 不作为入口。
+主流程：Owner Task → DLA CHANGE → DIB IMPLEMENT → DLA VERIFY → 可选 Release Batch。Owner 排期；官网接收，eternal/Firmware只读。
+CHANGE 未批准不得实现；新任务必须绑定 Journey Registry 与 change classification。scope expansion / architecture / protocol 变化回 CHANGE；architecture/protocol 强制高影响独立审阅。
+DIB 仅在 IMPLEMENT/FIX/BUILD_ONLY 合法模式开工；submit 后进入 VERIFY/DLA_REVIEW。失败证据允许保存，但不自动使漂移代码合格。
+每轮正式交测绑定 Git candidate、Artifact identity、Firmware identity和实际测试包。JAR 通过不代表 EXE/安装包通过。
+Release Batch 只由 Owner 显式启动；累计约5个已关闭JAR增量时可提醒，不能自动创建。启动时必须询问 Lite / Local Model / Both；两版是同一应用二选一可切换。
+每轮按 OWNER_COMMUNICATION 面向Owner汇报：上一步做什么、Owner决策/操作/测试、当前状态、下一动作，并在当前聊天正文完整显示可复制 Prompt。
+不自动Git写、构建、下载模型、kill进程、安装、设备写入、烧录、发布。Harness问题不能由实现Agent自行降低规则。
+<!-- AHAKEY-DESKTOP-HARNESS:END -->
+
+
+### Firmware-driven Windows intake
+Firmware 只读来源已绑定时，Windows DLA 应主动从 Firmware Harness 的正式 state、Journey/Module、Gate、artifact、协议、实现与测试证据发现下一联调阶段。不得要求 Owner 手工提供仓库内已存在的 HEX 路径、SHA256、commit、command/request/response 或测试证据。
+用 Windows 侧 `firmware-sync.json` 记录 last-consumed cursor；多个同等有效 gate 才请求 Owner 选优先级。发现/绑定不等于批准、实现或测试，不自动切换当前 Active Implementation。

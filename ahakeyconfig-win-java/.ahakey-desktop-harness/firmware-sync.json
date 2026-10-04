@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "status": "initialized",
+  "firmware_root": "C:\\Users\\20825\\Desktop\\vibe-code",
+  "last_consumed": {
+    "at": "2026-10-02T11:52:23+00:00",
+    "kind": "historical_reconcile",
+    "windows_change": "WD-001",
+    "gate": {
+      "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP3/20261001T170015/gate-receipt.json",
+      "sha256": "63a61c537f9ad398f3a984f376847824db974c94c8fbb78c2ae8d12810cd6744",
+      "sort_time": "20261001T125121",
+      "formal_hint": true,
+      "status_fields": [
+        {
+          "field": "result",
+          "value": "PASS"
+        }
+      ],
+      "identity_fields": [
+        {
+          "field": "checkpoint",
+          "value": "CP3"
+        },
+        {
+          "field": "checkpoint_start_commit",
+          "value": "0d5b5ec82a50ff68f4e9f192190c866eebcb38b3"
+        },
+        {
+          "field": "contract_lock.checkpoint",
+          "value": "CP3"
+        }
+      ],
+      "commit_fields": [
+        {
+          "field": "checkpoint_start_commit",
+          "value": "0d5b5ec82a50ff68f4e9f192190c866eebcb38b3"
+        },
+        {
+          "field": "candidate_commit",
+          "value": "3286f3b7f46531e769c729e59667e9936b87d06a"
+        },
+        {
+          "field": "contract_lock.start_commit",
+          "value": "0d5b5ec82a50ff68f4e9f192190c866eebcb38b3"
+        }
+      ],
+      "sha_fields": [
+        {
+          "field": "contract_lock.prd_sha256",
+          "value": "a79f4ad9ebdcfea2e254edecd032f6efcbf1a968bc8638d640b3062c3fdbc2b4"
+        },
+        {
+          "field": "contract_lock.architecture_sha256",
+          "value": "e2a9faae70f0f777132d2022c2e2e81650b9a3229a545a576fb8892a656c36ea"
+        },
+        {
+          "field": "contract_lock.execution_sha256",
+          "value": "690d2af389142b1745fa4b453f18213ef6b9c9f6424e182b88c66d5e4887198e"
+        },
+        {
+          "field": "current_contract_hashes.prd_sha256",
+          "value": "a79f4ad9ebdcfea2e254edecd032f6efcbf1a968bc8638d640b3062c3fdbc2b4"
+        },
+        {
+          "field": "current_contract_hashes.architecture_sha256",
+          "value": "e2a9faae70f0f777132d2022c2e2e81650b9a3229a545a576fb8892a656c36ea"
+        },
+        {
+          "field": "current_contract_hashes.execution_sha256",
+          "value": "690d2af389142b1745fa4b453f18213ef6b9c9f6424e182b88c66d5e4887198e"
+        },
+        {
+          "field": "artifact.sha256",
+          "value": "8649870919d6c5c2236ca41de786ef9e230c4504ee8e34347d24fcbe416c74ab"
+        }
+      ],
+      "hex_artifacts": [
+        {
+          "path": ".ahakey-harness/evidence/builds/ws2-cp3-firmware-catalog-key/HID_Keyboard_582m_vibe_coding.hex",
+          "sha256": "8649870919d6c5c2236ca41de786ef9e230c4504ee8e34347d24fcbe416c74ab"
+        }
+      ]
+    },
+    "evidence_record": {
+      "path": ".ahakey-desktop-harness/v1/stage-closures/WD-001-device-info-firmware-identity-integration-20261002.json",
+      "sha256": "3303c6199eb0209eec914e6bd9e3d88644b55a990e0e8fe0a181998e31efbb88"
+    }
+  },
+  "history": [
+    {
+      "at": "2026-10-02T11:52:23+00:00",
+      "kind": "historical_reconcile",
+      "windows_change": "WD-001",
+      "gate": {
+        "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP3/20261001T170015/gate-receipt.json",
+        "sha256": "63a61c537f9ad398f3a984f376847824db974c94c8fbb78c2ae8d12810cd6744",
+        "sort_time": "20261001T125121",
+        "formal_hint": true,
+        "status_fields": [
+          {
+            "field": "result",
+            "value": "PASS"
+          }
+        ],
+        "identity_fields": [
+          {
+            "field": "checkpoint",
+            "value": "CP3"
+          },
+          {
+            "field": "checkpoint_start_commit",
+            "value": "0d5b5ec82a50ff68f4e9f192190c866eebcb38b3"
+          },
+          {
+            "field": "contract_lock.checkpoint",
+            "value": "CP3"
+          }
+        ],
+        "commit_fields": [
+          {
+            "field": "checkpoint_start_commit",
+            "value": "0d5b5ec82a50ff68f4e9f192190c866eebcb38b3"
+          },
+          {
+            "field": "candidate_commit",
+            "value": "3286f3b7f46531e769c729e59667e9936b87d06a"
+          },
+          {
+            "field": "contract_lock.start_commit",
+            "value": "0d5b5ec82a50ff68f4e9f192190c866eebcb38b3"
+          }
+        ],
+        "sha_fields": [
+          {
+            "field": "contract_lock.prd_sha256",
+            "value": "a79f4ad9ebdcfea2e254edecd032f6efcbf1a968bc8638d640b3062c3fdbc2b4"
+          },
+          {
+            "field": "contract_lock.architecture_sha256",
+            "value": "e2a9faae70f0f777132d2022c2e2e81650b9a3229a545a576fb8892a656c36ea"
+          },
+          {
+            "field": "contract_lock.execution_sha256",
+            "value": "690d2af389142b1745fa4b453f18213ef6b9c9f6424e182b88c66d5e4887198e"
+          },
+          {
+            "field": "current_contract_hashes.prd_sha256",
+            "value": "a79f4ad9ebdcfea2e254edecd032f6efcbf1a968bc8638d640b3062c3fdbc2b4"
+          },
+          {
+            "field": "current_contract_hashes.architecture_sha256",
+            "value": "e2a9faae70f0f777132d2022c2e2e81650b9a3229a545a576fb8892a656c36ea"
+          },
+          {
+            "field": "current_contract_hashes.execution_sha256",
+            "value": "690d2af389142b1745fa4b453f18213ef6b9c9f6424e182b88c66d5e4887198e"
+          },
+          {
+            "field": "artifact.sha256",
+            "value": "8649870919d6c5c2236ca41de786ef9e230c4504ee8e34347d24fcbe416c74ab"
+          }
+        ],
+        "hex_artifacts": [
+          {
+            "path": ".ahakey-harness/evidence/builds/ws2-cp3-firmware-catalog-key/HID_Keyboard_582m_vibe_coding.hex",
+            "sha256": "8649870919d6c5c2236ca41de786ef9e230c4504ee8e34347d24fcbe416c74ab"
+          }
+        ]
+      },
+      "evidence_record": {
+        "path": ".ahakey-desktop-harness/v1/stage-closures/WD-001-device-info-firmware-identity-integration-20261002.json",
+        "sha256": "3303c6199eb0209eec914e6bd9e3d88644b55a990e0e8fe0a181998e31efbb88"
+      }
+    }
+  ],
+  "meaning": "Windows-side Firmware consumption cursor. DLA reconciles from existing evidence; Owner does not manually transcribe local Firmware facts."
+}

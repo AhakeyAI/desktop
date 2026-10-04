@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-002 当前处于 Preview Fix fast lane：Owner Preview FAIL 已按原 Contract 内实现 Bug 分类；DIB Preview Fix 已提交；DLA 轻量 actual diff review 已 PASS；新的 Preview JAR 已生成并绑定。",
+    "conclusion": "本批只修了软件发起模式切换时 Windows UI 短暂弹回旧模式的问题。键盘主动切模式后 Windows 跟随慢的问题已按 Owner 指示后置，本批未改。Owner 现在可以直接测试新的 Preview JAR；这不是 Formal Candidate、Release Batch 或正式 UAT PASS。"
+  },
+  "completed": [
+    "读取并遵守本地 v1.3 harness / lead skill、RULES、OPERATING_MODE、GUARDED_DELIVERY、DISTRIBUTION_DELIVERY、STATE/local、OWNER_COMMUNICATION 与 WD-002 记录。",
+    "读取最新 Owner Preview feedback：.ahakey-desktop-harness/evidence/owner-preview-feedback-WD-002-usb-ble-mode-sync-20261004.md。",
+    "将本轮问题分类为原 WD-002 Contract 内实现 Bug：PC 发起模式切换确认窗口内旧 0x00 状态帧可能覆盖 optimistic UI；未把键盘主动切换跟随慢纳入本批。",
+    "按 v1.3 Preview Fix fast lane 路由 preview-request-fix；补齐 J002 Journey Registry 记录并记录 helper 门禁缺口；未重做 Product Grill、Contract、Fresh Review、Formal Candidate 或 Release Batch。",
+    "在 src/main/java/com/example/ahakey/app/StudioController.java 中增加 PC 发起模式切换目标保护：确认中和确认成功后的短稳定窗口内，旧模式状态帧不会覆盖 selectedMode 或本地 deviceStatus.workMode；失败、断开和不匹配仍回到键盘权威状态。",
+    "执行机器检查：git diff --check 退出码 0（仅 CRLF 提示）；mvn -q -DskipTests compile 退出码 0；mvn -q test 退出码 0（仓库仍无 dedicated src/test 行为测试）。",
+    "提交 Preview Fix 记录：.ahakey-desktop-harness/changes/WD-002/PREVIEW_FIX_REPORT_20261004_UI_BOUNCE.md。",
+    "完成 DLA 轻量 review 并登记 PASS：.ahakey-desktop-harness/changes/WD-002/PREVIEW_FIX_REVIEW_20261004_UI_BOUNCE.md。",
+    "创建新的 Preview snapshot 并构建 runtime：.ahakey-desktop-harness/previews/WD-002/preview-20261004T031045322075Z-f81ce2/runtime。",
+    "完成 preview-finish，生成 Preview receipt：.ahakey-desktop-harness/previews/WD-002/preview-20261004T031045322075Z-f81ce2/PREVIEW_RECEIPT.json。"
+  ],
+  "remaining": [
+    "Owner 尚未测试本轮新 Preview JAR；不能声明 Owner Preview PASS 或正式 UAT PASS。",
+    "Formal fresh review / Git candidate / Formal build / Release Batch 均未执行，按 Owner 指示本轮不做。",
+    "键盘主动切模式后 Windows 跟随慢仍是已观察到但本批后置的问题；本轮没有降低 status.poll.period.seconds，也没有新增键盘主动切换快速响应路径。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品/范围决策；本轮严格按你指定的 Preview Fix fast lane 执行。"
+    },
+    "operation": {
+      "required": true,
+      "action": "从仓库根目录启动新的 Preview runtime，确保 BLE_tcp_driver.exe 仍在仓库根目录可被应用找到。JAR 绝对路径：C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T031045322075Z-f81ce2\\runtime\\ahakey-studio-1.0.0.jar。启动方式：在 runtime 目录运行 java -cp \"ahakey-studio-1.0.0.jar;lib/*\" com.example.ahakey.Main，或从仓库根目录用同等 classpath 指向该 runtime。"
+    },
+    "test": {
+      "required": true,
+      "action": "请重点测试：BLE 连接后，从 Windows UI 连续切不同模式时，Windows UI 是否还会短暂弹回旧模式再回新模式。USB 可做快速回归。键盘主动切换后 Windows 跟随慢本批不用判失败，除非出现新的更严重回归。",
+      "prerequisites": [
+        "从仓库根目录或能看到 BLE_tcp_driver.exe 的环境启动本次 Preview runtime；不要用旧 Preview JAR。",
+        "使用当前 WD-002 对应的 CP4A 固件设备环境；本轮不要求刷写或改固件。",
+        "测试前可关闭旧的 AhaKeyStudio 窗口，避免同时运行多个实例造成设备占用。"
+      ],
+      "steps": [
+        {
+          "action": "启动本次 Preview JAR 并连接 BLE；从 Windows UI 连续点击不同模式，尤其是快速从旧模式切到新模式。",
+          "expected": "键盘跟随切到新模式；Windows UI 保持显示新模式，不再短暂弹回旧模式再回新模式。"
+        },
+        {
+          "action": "做一次 USB 快速回归：连接 USB 后从 Windows UI 切换模式。",
+          "expected": "USB 下仍可完成 PC 发起模式切换，且 Windows UI 不出现旧模式回弹。"
+        },
+        {
+          "action": "可顺手观察键盘按键主动切换后的 Windows 跟随延迟，但本批不要把 2-4 秒延迟作为本轮失败项。",
+          "expected": "该延迟问题保持为后置事项；只有出现比本轮修复前更严重的新回归时才反馈为本轮风险。"
+        }
+      ],
+      "stop_recovery": "如果新 JAR 启动失败或 BLE 驱动找不到，请先确认是否从仓库根目录启动、runtime/lib 是否完整；不要自行替换旧 JAR 继续测，直接把错误文本或截图发回。",
+      "feedback": "请直接回复：BLE PC 发起切换 UI 弹回是否已消失；USB 快速回归是否正常；如果失败，请说明模式切换路径、旧模式/新模式、是否 BLE 或 USB、是否仍是小于约 1 秒的回弹。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "当前对话",
+    "mode": "OWNER_PREVIEW_RESULT",
+    "task": "WD-002 — Preview Fix retest for Windows UI mode bounce",
+    "action": "接收 Owner 对新 Preview JAR 的真实测试反馈；如果 UI 弹回问题通过，记录 Preview PASS 并等待 Owner 是否要继续正式 candidate 收口；如果仍失败，只按该 Preview defect 继续 fast lane，不重做 Product Grill / Contract / Fresh Review / Formal Candidate / Release Batch。",
+    "authorization": "Owner 已授权 v1.3 Preview Fix fast lane；本轮只处理软件发起模式切换时 UI 短暂弹回旧模式，不处理键盘主动切换跟随慢。",
+    "goal": "判断新 JAR 是否解决 Windows UI 在 PC 发起模式切换时短暂弹回旧模式的问题，并保持后置事项不混入本批。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "Harness 版本：1.3.0。",
+      "当前任务：WD-002。",
+      "本轮预览令牌：preview-20261004T031045322075Z-f81ce2。",
+      "本轮预览运行目录：C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T031045322075Z-f81ce2\\runtime。",
+      "本轮预览 JAR 文件：C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T031045322075Z-f81ce2\\runtime\\ahakey-studio-1.0.0.jar。",
+      "本轮预览 JAR 哈希 SHA256：2D98B07A08E0C1EAABB9CA427097A507E90984BFC02FA7A88946495FA2B26601。",
+      "runtime 依赖 JAR 数量：17。",
+      "启动入口命令：java -cp \"ahakey-studio-1.0.0.jar;lib/*\" com.example.ahakey.Main。",
+      "构建日志：.ahakey-desktop-harness/previews/WD-002/preview-20261004T031045322075Z-f81ce2/mvn-package.log。",
+      "DIB 修复报告：.ahakey-desktop-harness/changes/WD-002/PREVIEW_FIX_REPORT_20261004_UI_BOUNCE.md。",
+      "DLA 轻量审阅：.ahakey-desktop-harness/changes/WD-002/PREVIEW_FIX_REVIEW_20261004_UI_BOUNCE.md。",
+      "本轮只是预览测试包：不是 Formal Candidate，不是 Release Batch，也不是正式 Owner UAT PASS。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\PREVIEW_ITERATION.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\OWNER_PREVIEW.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\PREVIEW_FIX_REPORT_20261004_UI_BOUNCE.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\PREVIEW_FIX_REVIEW_20261004_UI_BOUNCE.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T031045322075Z-f81ce2\\PREVIEW_RECEIPT.json"
+    ],
+    "allowed": [
+      "记录 Owner 对新 Preview JAR 的真实反馈。",
+      "如果 Owner 明确反馈该 UI 弹回问题仍失败，继续同一 Preview Fix fast lane。",
+      "如果 Owner 明确反馈通过，记录 Preview PASS；正式 candidate/build/UAT 是否继续由 Owner 后续指示。"
+    ],
+    "forbidden": [
+      "不要把 Preview PASS 冒充 formal owner_uat PASS。",
+      "不要处理键盘主动切换后 Windows 跟随慢，除非 Owner 新指派。",
+      "不要重做 Product Grill、Contract、Fresh Review、Formal Candidate 或 Release Batch。",
+      "不要修改 Firmware 或 eternal 参考仓。",
+      "不要执行 Git add、commit、push、reset、clean、stash 或 checkout。",
+      "不要自动 kill 进程、安装驱动、烧录设备或发布。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/evidence/owner-preview-feedback-WD-002-usb-ble-mode-sync-20261004.md",
+    ".ahakey-desktop-harness/changes/WD-002/PREVIEW_FIX_REPORT_20261004_UI_BOUNCE.md",
+    ".ahakey-desktop-harness/changes/WD-002/PREVIEW_FIX_REVIEW_20261004_UI_BOUNCE.md",
+    ".ahakey-desktop-harness/previews/WD-002/preview-20261004T031045322075Z-f81ce2/PREVIEW_RECEIPT.json",
+    ".ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md"
+  ]
+}
