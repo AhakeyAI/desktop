@@ -1,6 +1,10 @@
 import Foundation
 
 enum CursorHookHandler {
+    static func standardOutput(for switchState: Int?) -> String? {
+        switchState == 0 ? #"{"permission":"allow"}"# : nil
+    }
+
     static func handleToolPermission(hookEvent: String) {
         let stdinData = HookSupport.readAllStdinSilently()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Cursor")
@@ -9,33 +13,10 @@ enum CursorHookHandler {
         let switchState = HookSupport.intValue(reply?["switchState"])
         let isAuto = switchState == 0
 
-        if isAuto {
-            // 自动模式：返回 allow，让操作直接执行
-            let out: [String: Any] = ["permission": "allow"]
-            if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
-               let str = String(data: data, encoding: .utf8) {
-                print(str)
-            }
-        } else {
-            // 手动模式：返回 deny，阻止操作（Cursor 不支持询问模式）
-            let out: [String: Any] = ["permission": "deny"]
-            if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
-               let str = String(data: data, encoding: .utf8) {
-                print(str)
-            }
-            HookSupport.emitPermissionStderr(
-                ide: "Cursor",
-                hookName: hookEvent,
-                reply: reply,
-                switchState: switchState
-            )
+        if let output = standardOutput(for: switchState) {
+            print(output)
         }
-
-        if let s = switchState {
-            let auto = s == 0
-            CursorCliLeverSync.apply(switchStateAuto: auto)
-            CursorPermissionsJsonLeverSync.apply(switchStateAuto: auto)
-        }
+        // 手动/离线/超时均不覆盖 Cursor 的原生批准流程；Hook 也不再改写全局权限文件。
 
         let cursorDebug = HookSupport.buildCursorHookDebug(
             stdinData: stdinData,
@@ -49,7 +30,7 @@ enum CursorHookHandler {
             switchState: switchState,
             isAuto: isAuto,
             claudeBehavior: nil,
-            cursorPermission: isAuto ? "allow" : "deny",
+            cursorPermission: isAuto ? "allow" : "defer_to_native",
             cursorDebug: cursorDebug,
             kimiPreToolDecision: nil
         )
