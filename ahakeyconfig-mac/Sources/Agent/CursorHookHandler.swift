@@ -7,6 +7,7 @@ enum CursorHookHandler {
 
     static func handleToolPermission(hookEvent: String) {
         let stdinData = HookSupport.readAllStdinSilently()
+        _ = CursorPermissionsJsonLeverSync.removeLegacyGeneratedPermissionsIfSafe()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Cursor")
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)

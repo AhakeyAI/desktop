@@ -23,6 +23,35 @@ enum CursorPermissionsJsonLeverSync {
         "make", "cargo", "go", "python3", "python", "ruby", "bash", "zsh", "sh", "curl", "ls",
     ]
 
+    /// 旧版自动档可能创建了原本不存在的 permissions.json。仅当标记和内容都与
+    /// AhaKey 生成的文件完全一致时归档它，避免离线后仍沿用宽松的终端白名单。
+    static func removeLegacyGeneratedPermissionsIfSafe() -> Bool {
+        removeLegacyGeneratedPermissionsIfSafe(
+            in: permURL.deletingLastPathComponent(), managedPrefixes: relaxedTerminalPrefixes
+        )
+    }
+
+    static func removeLegacyGeneratedPermissionsIfSafe(
+        in directory: URL, managedPrefixes: [String]
+    ) -> Bool {
+        let fm = FileManager.default
+        let marker = directory.appendingPathComponent(".ahakey_had_no_permissions_json")
+        let permissions = directory.appendingPathComponent("permissions.json")
+        let archive = directory.appendingPathComponent("permissions.json.ahakey.legacy-allowlist.bak")
+        guard fm.fileExists(atPath: marker.path),
+              !fm.fileExists(atPath: archive.path),
+              let root = readJson(permissions), root.count == 1,
+              let allowlist = root["terminalAllowlist"] as? [String],
+              allowlist == managedPrefixes else { return false }
+        do {
+            try fm.moveItem(at: permissions, to: archive)
+            try fm.removeItem(at: marker)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     static func apply(switchStateAuto: Bool) {
         if switchStateAuto {
             applyRelaxed()
