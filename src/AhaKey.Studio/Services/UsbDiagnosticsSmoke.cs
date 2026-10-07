@@ -137,7 +137,7 @@ public static class UsbDiagnosticsSmoke
         File.WriteAllText(acceptancePath,System.Text.Json.JsonSerializer.Serialize(capability));
         var fixtures=Path.Combine(AppContext.BaseDirectory,"DisplayFixtures");
         vm.DisplayPlanner.LoadFixture(Path.Combine(fixtures,"timing.gif"));await vm.DisplayPlanner.Preparation;Check(!vm.DisplayPlanner.CanUpload,"GIF cannot enter physical static writer");
-        vm.DisplayPlanner.LoadFixture(Path.Combine(fixtures,"native-canvas.png"));await vm.DisplayPlanner.Preparation;Check(vm.DisplayPlanner.CanUpload,"Accepted USB static profile 2 / Default enables confirmation entry");
+        vm.DisplayPlanner.LoadFixture(Path.Combine(fixtures,"native-canvas.png"));await vm.DisplayPlanner.Preparation;Check(!vm.DisplayPlanner.CanUpload,"Historical firmware acceptance cannot enable display writes outside X1 firmware 1.4.8");
         File.WriteAllText(acceptancePath,System.Text.Json.JsonSerializer.Serialize(capability with{StaticDisplay=proof with{VisuallyObserved=false}}));
         Check(!vm.DisplayPlanner.CanUpload,"Metadata-only acceptance cannot enable physical upload");
         File.WriteAllText(acceptancePath,System.Text.Json.JsonSerializer.Serialize(capability));
@@ -159,10 +159,12 @@ public static class UsbDiagnosticsSmoke
             var review=new Views.DisplayOverwriteWindow(vm.DisplayPlanner.StaticPlan!,vm.L){Owner=window};review.Show();await StudioSmokeTest.Capture(review,output,$"phase5-overwrite-{language}-{theme}-offline");review.Close();
         }
         Check(usb.OutputCount==before,"Inspecting accepted controls and closing overwrite confirmation sends zero commands");
+        await vm.Ble.DisconnectCommand.ExecuteAsync(null);usb.Contract32=true;await vm.Ble.ConnectCommand.ExecuteAsync(null);
+        Check(real.Identity.Firmware.ToString()=="1.4.8","Product feedback replay uses target firmware identity" );
         vm.Controls.FeedbackEnabled=true;
 
         await vm.Ble.DisconnectCommand.ExecuteAsync(null);Check(!vm.Ble.Fresh && !real.Usb!.Diagnostics.ReaderRunning,"Disconnect stops reader and marks USB observations stale");
-        await vm.Ble.ReconnectCommand.ExecuteAsync(null);Check(vm.Controls.FeedbackEnabled,"Reconnect preserves explicit product feedback preference");Check(usb.OutputCount==4,"Explicit USB reconnect performs exactly one query pair");
+        await vm.Ble.ReconnectCommand.ExecuteAsync(null);Check(vm.Controls.FeedbackEnabled,"Reconnect preserves explicit product feedback preference");Check(usb.OutputCount==6,"Explicit USB reconnect performs exactly one query pair");
         var controls=services.GetRequiredService<PhysicalControlRuntime>();
         vm.Settings.Language=vm.Settings.Languages.Single(x=>x.Value==LanguageChoice.English);vm.Settings.Theme=vm.Settings.Themes.Single(x=>x.Value==ThemeChoice.Light);
         vm.Controls.FeedbackEnabled=true;vm.Controls.PreviewAccepted();
@@ -171,7 +173,7 @@ public static class UsbDiagnosticsSmoke
         vm.NavigationSelection=vm.Navigation.Single(x=>x.Value==PageId.Lighting);
         var reviewScroll=StudioSmokeTest.Descendants(window).OfType<System.Windows.Controls.ScrollViewer>().First(x=>x.Content is System.Windows.Controls.Grid);reviewScroll.ScrollToBottom();
         await StudioSmokeTest.Capture(window,output,"phase4b-feedback-failure-after-preview-offline");
-        await vm.Ble.ReconnectCommand.ExecuteAsync(null);Check(usb.OutputCount==6,"Failure fixture reconnect uses only 00/9F; no control retry");
+        await vm.Ble.ReconnectCommand.ExecuteAsync(null);Check(usb.OutputCount==8,"Failure fixture reconnect uses only 00/9F; no control retry");
         vm.Controls.FeedbackEnabled=false;vm.Controls.FeedbackEnabled=true;Check(vm.Controls.FeedbackEnabled && vm.Controls.Message is null,"Explicit off/on clears stale failure and preview status");
         await StudioSmokeTest.Capture(window,output,"phase4b-feedback-reenabled-offline");vm.Controls.FeedbackEnabled=false;
         vm.NavigationSelection=vm.Navigation.Single(x=>x.Value==PageId.Device);reviewScroll.ScrollToTop();await StudioSmokeTest.Capture(window,output,"phase4b-device-qualified-write-scope-offline");
