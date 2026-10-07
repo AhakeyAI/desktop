@@ -82,8 +82,8 @@ jobs:
       - name: Packaged self-contained runtime smoke (no hardware)
         shell: pwsh
         run: |
-          & 'artifacts/public-runtime/AhaKey Studio.exe' --phase9-runtime-smoke artifacts/packaged-runtime
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged runtime smoke failed' }
+          $process = Start-Process -FilePath 'artifacts/public-runtime/AhaKey Studio.exe' -ArgumentList '--phase9-runtime-smoke','artifacts/packaged-runtime' -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw 'Packaged runtime smoke failed' }
       - name: Upload release candidates and validation
         uses: actions/upload-artifact@v4
         with:
