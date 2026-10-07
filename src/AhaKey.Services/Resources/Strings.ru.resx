@@ -761,7 +761,7 @@
   <data name="IntegrationOpenLocation" xml:space="preserve"><value>Открыть папку конфигурации</value></data>
   <data name="RuntimePreview" xml:space="preserve"><value>Предпросмотр на устройстве</value></data>
   <data name="RuntimeEffect" xml:space="preserve"><value>Эффект</value></data>
-  <data name="RuntimePreviewHint" xml:space="preserve"><value>Предпросмотр длится 2 секунды, затем отправляется «Выключено» (00). Привязка в устройство не сохраняется.</value></data>
+  <data name="RuntimePreviewHint" xml:space="preserve"><value>Предпросмотр длится 2 секунды. Отображение задач временно приостанавливается и затем восстанавливается; задачи сохраняются. Команда сохранения настроек не отправляется.</value></data>
   <data name="TargetProfile" xml:space="preserve"><value>Целевой профиль · выбор в верхней панели</value></data>
   <data name="TargetState" xml:space="preserve"><value>Целевое состояние</value></data>
   <data name="DisplayFitMode" xml:space="preserve"><value>Режим вписывания / обрезки</value></data>

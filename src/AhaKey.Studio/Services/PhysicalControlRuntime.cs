@@ -184,8 +184,8 @@ public sealed class PhysicalControlRuntime(DeviceManager manager,SettingsStore s
     {
         if(!Effects.Contains(code)||!Effects.Contains(0)||manager.RealDevice?.Observation.SessionId is not {} session)throw new InvalidOperationException("Effect has not passed physical acceptance for this device.");
         Intent(new{Category="Runtime preview",Session=session,Effect=code,Neutral=0,Approval=approval,At=DateTimeOffset.UtcNow});
-        try{await manager.ExecuteControlsAsync(ApprovedControlPlan.RuntimeEffect(session,approval,code),Record);await Task.Delay(2000);}
-        finally{if(code!=0 && manager.RealDevice?.Observation is {IsLive:true} o && o.SessionId==session)await manager.ExecuteControlsAsync(ApprovedControlPlan.RuntimeEffect(session,approval+"; neutral off",0),Record);}
+        await manager.PreviewLightingAsync(session,code,approval,Record);
+        lastFeedback=null; // Aggregator must reapply current feedback after the manual preview.
     }
     public async Task HandleAsync(HardwareProfileId profile,string integration,IdeEventState ev,string nativeEvent)
     {

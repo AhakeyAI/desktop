@@ -12,4 +12,6 @@ Integrations offers an explicit per-connection multiple-task mode, with four own
 
 Voice routing retains the simple F18 action and adds optional short/long actions using native Windows down/up. Actions run on release; repeat is suppressed. Disable, project/context change and Windows session change cancel pending input. Voice actions execute only after explicit enable and key press; no microphone starts on enable. K1 is never remapped through 73/97.
 
-Packages: per-user self-contained MSI and portable ZIP. MSI uses internal version 2.0.100 to upgrade alpha.9's 2.0.90; Studio product version is 2.0.0. Packages are unsigned unless a separately authorized signing run is recorded. Stable publication awaits the owner's decision and the acceptance matrix.
+Manual lighting preview temporarily suspends multi-task display under the exclusive operation gate, shows the chosen effect for two seconds and restores the prior mode. Task slots remain intact; no shared save is sent. Assistant feedback cannot overwrite the preview. Internal MSI revision 2.0.101 upgrades the initial 2.0.100 candidate.
+
+Packages: per-user self-contained MSI and portable ZIP. MSI uses internal version 2.0.101 to upgrade alpha.9's 2.0.90; Studio product version is 2.0.0. Packages are unsigned unless a separately authorized signing run is recorded. Stable publication awaits the owner's decision and the acceptance matrix.

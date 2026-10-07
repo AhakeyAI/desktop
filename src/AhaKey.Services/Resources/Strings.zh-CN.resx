@@ -761,7 +761,7 @@
   <data name="IntegrationOpenLocation" xml:space="preserve"><value>打开配置位置</value></data>
   <data name="RuntimePreview" xml:space="preserve"><value>设备即时预览</value></data>
   <data name="RuntimeEffect" xml:space="preserve"><value>效果</value></data>
-  <data name="RuntimePreviewHint" xml:space="preserve"><value>预览持续 2 秒，然后发送关闭 (00)。不会保存设备映射。</value></data>
+  <data name="RuntimePreviewHint" xml:space="preserve"><value>预览持续 2 秒。任务显示暂时暂停后恢复，任务槽保持不变。不发送配置保存命令。</value></data>
   <data name="TargetProfile" xml:space="preserve"><value>目标配置 · 在顶部选择</value></data>
   <data name="TargetState" xml:space="preserve"><value>目标状态</value></data>
   <data name="DisplayFitMode" xml:space="preserve"><value>适应 / 裁剪方式</value></data>

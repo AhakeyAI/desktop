@@ -72,6 +72,45 @@ public sealed class DeviceManager(IAhaKeyDevice device, ConfigurationChangeTrack
         catch{gate.Fail(writeStarted);throw;}
         finally{gate.Release();Changed?.Invoke();}
     }
+    public async Task PreviewLightingAsync(Guid session,byte effect,string approval,Action<PhysicalCommandEvidence> record,CancellationToken ct=default)
+    {
+        if(!RealBackendSelected || realDevice is null)throw new InvalidOperationException("Physical preview requires real backend.");
+        if(!await gate.WaitAsync(0,ct))throw new InvalidOperationException("Device busy.");
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,lifetime.Token);
+        linked.CancelAfter(TimeSpan.FromSeconds(20));
+        bool restoreMulti=false,effectAccepted=false;
+        async Task Send(ApprovedControlPlan plan)=>await realDevice.ExecuteControlsAsync(plan,e=>{record(e);if(e.Error is null&&e.ResponseAt is not null)gate.Confirm(e.Operation);},linked.Token);
+        try
+        {
+            gate.Describe("Lighting preview",session,realDevice.ActiveTransport,false);
+            AhaKey.Protocol.FirmwareTaskStatus? tasks=null;
+            await realDevice.ExecuteControlsAsync(ApprovedControlPlan.TaskStatus(session,approval+"; inspect display mode"),e=>{record(e);if(e.Rx is {} rx)tasks=AhaKey.Protocol.TaskProtocol.ParseStatus(Convert.FromHexString(rx));},linked.Token);
+            if(tasks is null)throw new InvalidOperationException("Task display status not confirmed.");
+            if(tasks.Mode==1)
+            {
+                await Send(ApprovedControlPlan.TaskMode(session,approval+"; temporarily show manual effect",false));
+                restoreMulti=true;
+            }
+            await Send(ApprovedControlPlan.RuntimeEffect(session,approval,effect));effectAccepted=true;
+            if(effect!=0)await Task.Delay(2000,linked.Token);
+        }
+        catch{gate.Fail(restoreMulti);throw;}
+        finally
+        {
+            try
+            {
+                // Restore only the same live session. A failed native write closes the
+                // transport; never reconnect/retry a preview or touch any task slot.
+                if(realDevice.Observation is {IsLive:true,SessionId:{} current} && current==session)
+                {
+                    try{if(effectAccepted&&effect!=0)await Send(ApprovedControlPlan.RuntimeEffect(session,approval+"; neutral off",0));}
+                    finally{if(restoreMulti && realDevice.Observation.IsLive)await Send(ApprovedControlPlan.TaskMode(session,approval+"; restore task display mode",true));}
+                }
+            }
+            catch{gate.Fail(restoreMulti);throw;}
+            finally{gate.Release();Changed?.Invoke();}
+        }
+    }
     public async Task ExecuteControlsAsync(ApprovedControlPlan plan,Action<PhysicalCommandEvidence> record,CancellationToken ct=default)
     {
         if(!RealBackendSelected || realDevice is null)throw new InvalidOperationException("Physical controls require the real backend.");

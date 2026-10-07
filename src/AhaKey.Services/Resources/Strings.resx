@@ -761,7 +761,7 @@
   <data name="IntegrationOpenLocation" xml:space="preserve"><value>Open configuration location</value></data>
   <data name="RuntimePreview" xml:space="preserve"><value>Runtime preview</value></data>
   <data name="RuntimeEffect" xml:space="preserve"><value>Effect</value></data>
-  <data name="RuntimePreviewHint" xml:space="preserve"><value>Preview lasts 2 seconds, then sends Off (00). It does not save a device mapping.</value></data>
+  <data name="RuntimePreviewHint" xml:space="preserve"><value>Preview lasts 2 seconds. Task display pauses temporarily and then resumes; task slots are preserved. No configuration save is sent.</value></data>
   <data name="TargetProfile" xml:space="preserve"><value>Target profile · choose in the top bar</value></data>
   <data name="TargetState" xml:space="preserve"><value>Target state</value></data>
   <data name="DisplayFitMode" xml:space="preserve"><value>Fit / crop mode</value></data>

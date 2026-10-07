@@ -68,6 +68,17 @@ public static class Phase9RuntimeSmoke
         await shell.Settings.ReadSleepCommand.ExecuteAsync(null);Check(shell.Settings.SleepMinutes==5,"Sleep read uses 95");
         shell.Settings.SleepMinutes=10;await shell.Settings.ApplySleepCommand.ExecuteAsync(null);
         Check(usb.Controls.Contains("AABB950A00CCDD")&&usb.Controls.Contains("AABB04CCDD")&&shell.Settings.SleepStatusKey=="SleepConfirmed","Sleep setter is little endian, saves 04 and reads confirmation");
+        usb.TaskMode=1;usb.TaskSlots[1]=1;
+        var preservedSlots=usb.TaskSlots.ToArray();int previewStart=usb.Controls.Count;
+        controls.EnableFeedback(HardwareProfileId.Codex,"Codex",true);
+        var preview=controls.PreviewAsync(12,"Offline manual lighting preview");
+        await Task.Delay(150);
+        Check(shell.Manager.Operations.Current?.Operation=="Lighting preview","Manual preview retains exclusive gate during visible effect");
+        await controls.ApplyAggregateAsync(HardwareProfileId.Codex,"Codex",true);
+        await preview;
+        Check(usb.Controls.Skip(previewStart).SequenceEqual(new[]{"AABB9A01CCDD","AABB9800CCDD","AABB910CCCDD","AABB9100CCDD","AABB9801CCDD"}),"Preview reads mode, shows selected effect and restores multi mode without save or feedback overwrite");
+        Check(usb.TaskMode==1 && usb.TaskSlots.SequenceEqual(preservedSlots),"Manual lighting preview preserves all task slots");
+        usb.TaskMode=0;Array.Clear(usb.TaskSlots);
         Check(integrations.Manager.Server.Start(0),"Isolated integration listener uses an ephemeral local port");
         controls.EnableFeedback(HardwareProfileId.Codex,"Codex",true);
         await Task.Delay(1200); // Initialize the runtime's current-session generation before task ingress.
