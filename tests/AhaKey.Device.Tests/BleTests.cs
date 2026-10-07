@@ -64,7 +64,7 @@ public class BleTests
     [Theory] [InlineData(GattResultStatus.AccessDenied)] [InlineData(GattResultStatus.ProtocolError)] [InlineData(GattResultStatus.Unreachable)]
     public async Task WriteFailureCannotPublishEvenIfNotificationArrived(GattResultStatus status)
     {
-        var f=new FakeGattFactory{Configure=s=>s.WriteResult=new(status,5)};await using var t=Transport(f);await t.OpenAsync(Selected);
+        var f=new FakeGattFactory{Configure=s=>s.WriteResult=new(status,5)};await using var t=new BleTransport(f,GattContract.WindowsObserved){QueryTimeout=TimeSpan.FromSeconds(2),RetryDelay=TimeSpan.Zero};await t.OpenAsync(Selected);
         await Assert.ThrowsAsync<BleException>(()=>t.QueryAsync(ReadOnlyQuery.PhysicalStatus));Assert.False(t.Diagnostics.IsLive);Assert.Equal(status,t.Diagnostics.LastGattResult!.Status);Assert.True(f.Sessions[0].Disposed);
     }
     [Fact] public async Task SubscriptionRetriesAreBoundedAndAwaited()
