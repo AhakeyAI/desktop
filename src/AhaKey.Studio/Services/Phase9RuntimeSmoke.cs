@@ -96,6 +96,7 @@ public static class Phase9RuntimeSmoke
             var scroll=StudioSmokeTest.Descendants(window).OfType<System.Windows.Controls.ScrollViewer>().First(x=>x.Content is System.Windows.Controls.Grid);
             scroll.ScrollToBottom();await StudioSmokeTest.Capture(window,output,"release-voice-"+language);scroll.ScrollToTop();
             Check(!StudioSmokeTest.Descendants(window).OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text.StartsWith("[",StringComparison.Ordinal)),language+" new settings have resolved resources");
+            Check(StudioSmokeTest.Descendants(window).OfType<System.Windows.Controls.TextBlock>().Any(t=>t.Text==shell.Settings.SleepStatus),language+" sleep confirmation refreshes on language change");
         }
         checks.Add("OFFLINE REPLAY: no physical HID, BLE, key press, microphone, Windows login or MSI installation was exercised");
     }

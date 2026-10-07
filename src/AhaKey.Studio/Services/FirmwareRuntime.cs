@@ -38,9 +38,9 @@ public sealed class FirmwareRuntime
         using var service=Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\CH375_A64");
         ComponentsReady=runtime is not null && service is not null;
         ComponentStatus=runtime is null?"FirmwareComponentMissing":service is null?"FirmwareDriverMissing":"FirmwareComponentsReady";
-        if(runtime is not null && !Busy)
+        if(!Busy)
         {
-            Coordinator=new(new WchFlashTransport(runtime,new WchProcessRunner(),Path.Combine(settings.Root,"Firmware","operations"),WaitForBootloaderAsync,WaitForApplicationAsync),Path.Combine(settings.Root,"Firmware","update.json"));
+            Coordinator=new(runtime is null ? new PreparedWchIspTransport() : new WchFlashTransport(runtime,new WchProcessRunner(),Path.Combine(settings.Root,"Firmware","operations"),WaitForBootloaderAsync,WaitForApplicationAsync),Path.Combine(settings.Root,"Firmware","update.json"));
             Coordinator.Changed+=()=>Changed?.Invoke();
         }
         Changed?.Invoke();

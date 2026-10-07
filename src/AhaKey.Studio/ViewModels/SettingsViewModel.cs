@@ -66,7 +66,7 @@ public partial class SettingsViewModel : ObservableObject
         backend = Backends.Single(x => x.Value == preferences.Settings.EffectiveBackend);
     }
     partial void OnLanguageChanged(ChoiceOption<LanguageChoice> value)
-    { if (Save(s => s with { Language = value.Value })) L.Apply(value.Value); }
+    { if (Save(s => s with { Language = value.Value })) { L.Apply(value.Value); OnPropertyChanged(nameof(SleepStatus)); } }
     partial void OnThemeChanged(ChoiceOption<ThemeChoice> value)
     { if (Save(s => s with { Theme = value.Value })) themes.Apply(value.Value); }
     partial void OnBackendChanged(ChoiceOption<BackendChoice> value)
