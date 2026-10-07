@@ -37,7 +37,7 @@ public sealed class UsbFrameAccumulator(bool includeDisplayReads = false, bool i
             if (bytes[0] != 0xAA || bytes[1] != 0xBB) { bytes.RemoveAt(0); continue; }
             if (bytes.Count < 3) break;
             if(bytes[2]==0x9D&&includeConfigReads&&(bytes.Count<4||bytes[3]==0&&bytes.Count<9))break;
-            int[] lengths = bytes[2] switch { 0 => [13, 14, 12, 6], 0x9F => [17, 16, 15, 6],
+            int[] lengths = bytes[2] switch { 0 => [13, 14, 12, 6], 0x9F => [17, 16, 15, 6], 0x9B => [9,6], 0x95 => [8,6], 0x98 or 0x99 when includeControlAcks => [6], 0x9A when includeControlAcks => [20,7,6],
                 0x73 or 0x04 or 0x91 or 0x92 or 0x85 or 0x84 or 0x90 when includeControlAcks => [6],
                 0x80 or 0x81 or 0x82 or 0x93 when includeDisplayWrites => [6],
                 0x9D when includeConfigReads=> bytes.Count>=9&&bytes[3]==0&&bytes[8] is >=1 and <=8?[11+bytes[8]]:[6],

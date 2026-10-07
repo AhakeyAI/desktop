@@ -43,7 +43,7 @@ public sealed class LocalDeviceProjectStore(SettingsStore settings)
         var project=Current??throw new InvalidOperationException();
         // Portable exports carry authoring data, never device paths/IDs, acceptance receipts or physical claims.
         var desired=project.Desired with{Profiles=project.Desired.Profiles.ToImmutableDictionary(x=>x.Key,x=>x.Value with{Display=x.Value.Display.ToImmutableDictionary(d=>d.Key,d=>d.Value with{SourceFile=null})})};
-        var portable=project with{Desired=desired,LastSuccessfullySent=ImmutableDictionary<string,LocalSentState>.Empty,KeyWriteAttempts=ImmutableDictionary<string,LocalSentState>.Empty,PhysicalReadObservations=[],BehaviorVerifications=[],DisplayAllocations=[],Voice=project.Voice with{Enabled=false,ApplicationPath=null}};
+        var portable=project with{Desired=desired,LastSuccessfullySent=ImmutableDictionary<string,LocalSentState>.Empty,KeyWriteAttempts=ImmutableDictionary<string,LocalSentState>.Empty,PhysicalReadObservations=[],BehaviorVerifications=[],DisplayAllocations=[],Voice=project.Voice with{Enabled=false,ApplicationPath=null,LongApplicationPath=null}};
         File.WriteAllText(path,JsonSerializer.Serialize(portable,new JsonSerializerOptions{WriteIndented=true}));
     }
     public LocalDeviceProject PreviewImport(string path)=>Read(path) with{Id=Guid.NewGuid(),LastSuccessfullySent=ImmutableDictionary<string,LocalSentState>.Empty,KeyWriteAttempts=ImmutableDictionary<string,LocalSentState>.Empty,PhysicalReadObservations=[],BehaviorVerifications=[],DisplayAllocations=[]};
@@ -78,6 +78,8 @@ public sealed class LocalDeviceProjectStore(SettingsStore settings)
         long total=0;foreach(var pair in validateAssets?p.EmbeddedAssets:System.Collections.Immutable.ImmutableDictionary<string,string>.Empty){var bytes=Convert.FromBase64String(pair.Value);total+=bytes.Length;if(bytes.Length>20*1024*1024||total>64*1024*1024||pair.Key!=Convert.ToHexString(SHA256.HashData(bytes)))throw new ArgumentException("Invalid asset hash/size.");}
         foreach(var d in p.DisplayProjects)if(d is null||string.IsNullOrWhiteSpace(d.Name)||d.Name.Length>128||d.Background is null||!System.Text.RegularExpressions.Regex.IsMatch(d.Background,"^#[0-9a-fA-F]{6}$")||d.FrameOrder.IsDefault||d.Id==Guid.Empty||!Enum.IsDefined(d.Profile)||!Enum.IsDefined(d.State)||d.Fit is not ("Fit" or "Crop")||d.UniformIntervalMs is <33 or >1000||(d.FrameCount<1||d.FrameCount>DisplayLimits.MaximumFrames(d.State))||!p.EmbeddedAssets.ContainsKey(d.AssetId)||d.FrameOrder.Length!=d.FrameCount||d.FrameOrder.Any(x=>x<0||x>=d.FrameCount)||d.FrameOrder.Distinct().Count()!=d.FrameCount)throw new ArgumentException("Invalid display project.");
         if(!Enum.IsDefined(p.Voice.Action)||p.Voice.Shortcut is {} shortcut&&(!ShortcutGesture.TryParse(shortcut,out var gesture)||gesture!.Key=="F18"))throw new ArgumentException("Invalid voice action.");
+        if(!Enum.IsDefined(p.Voice.LongAction)||p.Voice.LongPressMilliseconds is <200 or >3000)throw new ArgumentException("Invalid voice hold settings.");
+        if(p.Voice.LongShortcut is {} longShortcut){if(!ShortcutGesture.TryParse(longShortcut,out var longGesture)||longGesture!.Key=="F18")throw new ArgumentException("Invalid long shortcut.");HostShortcutPlan.Create(longShortcut);}
         if(p.Voice.Shortcut is {} hostShortcut)HostShortcutPlan.Create(hostShortcut);
     }
 }

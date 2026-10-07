@@ -62,3 +62,12 @@ public sealed class DisplayCharacterizationGuard(bool defaultBindings=false)
     public void Consume(ReadOnlySpan<byte> report)
     {lock(sync){if(next>=QueryCount || !report.SequenceEqual(Report(next).AsSpan()))throw new InvalidOperationException("Exact one-shot display read sequence rejected.");next++;}}
 }
+
+public static class DisplayGeometryContract
+{
+    public static bool Matches(DisplayLayout layout)=>layout.Profiles==4&&layout.AssetsPerProfile==4&&layout.MaxFrames==12&&
+        layout.Width==160&&layout.Height==80&&layout.BytesPerFrame==25600&&layout.SectorsPerFrame==7&&
+        layout.PhysicalFlashBytes==AhaKey.Core.Windows32DisplayGeometry.FlashBytes&&
+        layout.PhysicalFrameSlots==AhaKey.Core.Windows32DisplayGeometry.FlashBytes/AhaKey.Core.Windows32DisplayGeometry.Stride&&
+        layout.AssetCapacities is {} capacities&&capacities.AsSpan().SequenceEqual(new byte[]{8,12,12,12});
+}

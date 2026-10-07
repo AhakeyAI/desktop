@@ -32,6 +32,6 @@ public sealed class Windows32DisplayUploadPlan
         bool defaults=Transfer.Asset==DisplayState.Default;int length=defaults?15:16,offset=defaults?5:6;
         if(f.Length!=length||f[0]!=0xAA||f[1]!=0xBB||f[2]!=Verify[2]||f[3]!=0||f[4]!=(byte)Transfer.Profile||!defaults&&f[5]!=(byte)Transfer.Asset||f[^2]!=0xCC||f[^1]!=0xDD)return false;
         ushort start=BinaryPrimitives.ReadUInt16LittleEndian(f[offset..]),count=BinaryPrimitives.ReadUInt16LittleEndian(f[(offset+2)..]),interval=BinaryPrimitives.ReadUInt16LittleEndian(f[(offset+4)..]),slots=BinaryPrimitives.ReadUInt16LittleEndian(f[(offset+6)..]);
-        return slots>=Allocation.StartSlot+Allocation.Capacity && (long)start+count<=slots && (!exact||start==Allocation.StartSlot&&count==Transfer.FrameCount&&interval==Transfer.IntervalMs);
+        return slots==Windows32DisplayGeometry.FlashBytes/Windows32DisplayGeometry.Stride && slots>=Allocation.StartSlot+Allocation.Capacity && (long)start+count<=slots && (!exact||start==Allocation.StartSlot&&count==Transfer.FrameCount&&interval==Transfer.IntervalMs);
     }
 }

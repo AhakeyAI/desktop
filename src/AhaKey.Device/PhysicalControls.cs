@@ -42,6 +42,11 @@ public sealed class ApprovedControlPlan
     public static ApprovedControlPlan Brightness(Guid session,string approval,byte value)=>new(session,approval,[LegacyControlCommand.Brightness(value),LegacyControlCommand.SaveKeys()]);
     public static ApprovedControlPlan LightingMap(Guid session,string approval,AhaKey.Core.HardwareProfileId profile,IReadOnlyList<byte> values)=>new(session,approval,[LegacyControlCommand.LightingMap(profile,values),LegacyControlCommand.SaveKeys()]);
     public static ApprovedControlPlan AssistantState(Guid session,string approval,byte state)=>new(session,approval,[LegacyControlCommand.AssistantState(state)]);
+    public static ApprovedControlPlan Standby(Guid session,string approval,ushort minutes)=>new(session,approval,[LegacyControlCommand.Standby(minutes),LegacyControlCommand.SaveKeys()]);
+    public static ApprovedControlPlan TaskMode(Guid session,string approval,bool enabled)=>new(session,approval,[LegacyControlCommand.TaskMode(enabled)]);
+    public static ApprovedControlPlan TaskSlot(Guid session,string approval,byte slot,AhaKey.Core.HardwareProfileId profile,byte state,byte flags)=>new(session,approval,[LegacyControlCommand.TaskSlot(slot,profile,state,flags)]);
+    public static ApprovedControlPlan TaskHeartbeat(Guid session,string approval)=>new(session,approval,[LegacyControlCommand.TaskHeartbeat()]);
+    public static ApprovedControlPlan TaskStatus(Guid session,string approval)=>new(session,approval,[LegacyControlCommand.TaskStatus()]);
     internal static ApprovedControlPlan K1Experiment(Guid session,string approval,bool restore) =>
         new(session,approval,[LegacyControlCommand.K1Experiment(restore),LegacyControlCommand.SaveKeys()]);
     public ImmutableArray<ApprovedControl> Begin(Guid currentSession)

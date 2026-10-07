@@ -1,21 +1,21 @@
 using System.Collections.Immutable;
 using AhaKey.Core;
 namespace AhaKey.Protocol;
-public enum ReadOnlyQuery : byte { PhysicalStatus=0x00, Capabilities=0x9F }
+public enum ReadOnlyQuery : byte { PhysicalStatus=0x00, Capabilities=0x9F, ModeSync=0x9B, DisplayLayout=0x9C, Standby=0x95 }
 public sealed record PhysicalStatus(int? Battery, int FirmwareSignal, byte FirmwareMajor, byte FirmwareMinor,
     byte WorkMode, byte LightMode, ConfirmationSwitch? Confirmation, byte? Brightness, byte? ReadinessFlags);
 public sealed record PhysicalCapabilities(byte? ProtocolMajor,byte? ProtocolMinor,byte? FirmwareMajor,byte? FirmwareMinor,
     byte? HardwareRevision,uint? Bits,byte? FirmwarePatch,byte? Model)
 {
     public bool SupportedContract => ProtocolMajor==3 && ProtocolMinor==2 && Model==1 && (Bits & 0x7FF)==0x7FF &&
-        FirmwareMajor is {} major && FirmwareMinor is {} minor && FirmwarePatch is {} patch && new Version(major,minor,patch)>=new Version(1,4,7);
+        FirmwareMajor is {} major && FirmwareMinor is {} minor && FirmwarePatch is {} patch && new Version(major,minor,patch)==new Version(1,4,8);
 }
-// Pure Windows dialect facade. Only these two request frames are authorized in Phase 3.
+// Closed Windows query facade. Feature reads are gated by the owning real-device session.
 public static class AhaKeyProtocol
 {
     public static ImmutableArray<byte> Query(ReadOnlyQuery command) => command switch
-    { ReadOnlyQuery.PhysicalStatus=>[0xAA,0xBB,0x00,0xCC,0xDD],ReadOnlyQuery.Capabilities=>[0xAA,0xBB,0x9F,0xCC,0xDD],_=>throw new ArgumentOutOfRangeException(nameof(command)) };
-    public static bool IsAllowedQuery(ReadOnlySpan<byte> frame) => frame.Length==5 && frame[0]==0xAA && frame[1]==0xBB && (frame[2]==0 || frame[2]==0x9F) && frame[3]==0xCC && frame[4]==0xDD;
+    { ReadOnlyQuery.PhysicalStatus=>[0xAA,0xBB,0x00,0xCC,0xDD],ReadOnlyQuery.Capabilities=>[0xAA,0xBB,0x9F,0xCC,0xDD],ReadOnlyQuery.ModeSync or ReadOnlyQuery.DisplayLayout or ReadOnlyQuery.Standby=>[0xAA,0xBB,(byte)command,0xCC,0xDD],_=>throw new ArgumentOutOfRangeException(nameof(command)) };
+    public static bool IsAllowedQuery(ReadOnlySpan<byte> frame) => frame.Length==5 && frame[0]==0xAA && frame[1]==0xBB && (frame[2] is 0 or 0x9F or 0x9B or 0x9C or 0x95) && frame[3]==0xCC && frame[4]==0xDD;
     public static bool IsFrame(ReadOnlySpan<byte> frame,ReadOnlyQuery command) => frame.Length>=5 && frame[0]==0xAA && frame[1]==0xBB && frame[2]==(byte)command && frame[^2]==0xCC && frame[^1]==0xDD;
     public static PhysicalStatus DecodeStatus(ReadOnlySpan<byte> frame)
     {

@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -506,8 +507,8 @@
   <data name="BleModel" xml:space="preserve"><value>硬件型号</value></data>
   <data name="BleHardware" xml:space="preserve"><value>硬件版本</value></data>
   <data name="BleContract" xml:space="preserve"><value>协议契约</value></data>
-  <data name="BleSupported" xml:space="preserve"><value>已识别 · 只读</value></data>
-  <data name="BleUnsupported" xml:space="preserve"><value>协议契约未经验证</value></data>
+  <data name="BleSupported" xml:space="preserve"><value>X1 固件 1.4.8 / 协议 3.2；支持的功能允许写入</value></data>
+  <data name="BleUnsupported" xml:space="preserve"><value>设备不兼容：禁止写入。需要 X1 固件 1.4.8 / 协议 3.2。</value></data>
   <data name="BlePhysicalProfile" xml:space="preserve"><value>硬件模式字节（00）</value></data>
   <data name="BleDiagnostics" xml:space="preserve"><value>连接诊断</value></data>
   <data name="BleDiagnosticsHint" xml:space="preserve"><value>所选传输方式的只读连接记录。复制诊断时会隐藏设备标识。</value></data>
@@ -572,7 +573,7 @@
 <data name="BleIdentityHidden" xml:space="preserve"><value>分享时隐藏</value></data>
 <data name="BleCaptureHint" xml:space="preserve"><value>录制仅在此窗口获得焦点时生效。Escape 可以录制；请用取消录制按钮停止。Windows 可能截获系统组合。</value></data>
 <data name="BleUnsetDraft" xml:space="preserve"><value>本地草稿中未设置快捷键</value></data>
-  <data name="BleLegacyIncomplete" xml:space="preserve"><value>旧版 / 不完整</value></data>
+  <data name="BleLegacyIncomplete" xml:space="preserve"><value>身份未确认：禁止写入。需要 X1 固件 1.4.8 / 协议 3.2。</value></data>
   <data name="BleCapabilities" xml:space="preserve"><value>功能支持</value></data>
   <data name="BleNotReported" xml:space="preserve"><value>未报告</value></data>
   <data name="AlphaConnected" xml:space="preserve"><value>已通过蓝牙连接</value></data>
@@ -851,7 +852,7 @@
   <data name="ProjectLoadFailed" xml:space="preserve"><value>无法读取现有项目，原文件已保留。</value></data>
   <data name="ProjectSaveFailed" xml:space="preserve"><value>无法保存本地项目，请检查存储权限。</value></data>
   <data name="VoiceRouting" xml:space="preserve"><value>语音键 · F18</value></data>
-  <data name="VoiceRoutingHint" xml:space="preserve"><value>F18 触发所选电脑操作。键盘没有麦克风，也未启用按住说话。电脑键盘上的 F18 同样会触发此操作。</value></data>
+  <data name="VoiceRoutingHint" xml:space="preserve"><value>明确启用并按键后，F18 动作在电脑上执行。不修改 K1 映射。</value></data>
   <data name="VoiceEnable" xml:space="preserve"><value>启用 F18 电脑操作</value></data>
   <data name="VoiceActionNone" xml:space="preserve"><value>不执行操作</value></data>
   <data name="VoiceActionWindowsVoiceTyping" xml:space="preserve"><value>Windows 语音输入</value></data>
@@ -993,4 +994,23 @@
 <data name="FirmwareInstalled" xml:space="preserve"><value>已安装</value></data>
 <data name="FirmwareAvailable" xml:space="preserve"><value>可用固件包</value></data>
 <data name="FirmwarePackageNotBundled" xml:space="preserve"><value>此发行包不包含固件，无法重装固件。</value></data>
+<data name="SleepTitle" xml:space="preserve"><value>自动睡眠</value></data>
+<data name="SleepHint" xml:space="preserve"><value>分钟：0 表示从不。应用会保存所有共享设备设置。</value></data>
+<data name="SleepReadHint" xml:space="preserve"><value>更改前请读取设备值。</value></data>
+<data name="SleepLoading" xml:space="preserve"><value>正在读取睡眠设置…</value></data>
+<data name="SleepApplying" xml:space="preserve"><value>正在应用并确认…</value></data>
+<data name="SleepConfirmed" xml:space="preserve"><value>设备值已确认。</value></data>
+<data name="SleepFailed" xml:space="preserve"><value>未确认。请连接 1.4.8 X1；结果不确定时请手动重连。</value></data>
+<data name="TasksEnable" xml:space="preserve"><value>在设备上显示多个任务（本次连接）</value></data>
+<data name="TasksOff" xml:space="preserve"><value>多任务已关闭。</value></data>
+<data name="TasksOn" xml:space="preserve"><value>最多显示四个已启用集成任务；每 10 秒发送心跳。</value></data>
+<data name="TasksOverflow" xml:space="preserve"><value>已显示四个任务。错误和待处理请求优先；其余任务保留在电脑上。</value></data>
+<data name="TasksFailed" xml:space="preserve"><value>任务已停止。请检查连接或已占用槽位，然后手动启用。不自动重试。</value></data>
+<data name="TasksReconnect" xml:space="preserve"><value>连接或所有权已失效。请手动重新启用任务。</value></data>
+<data name="TasksCleanupPending" xml:space="preserve"><value>清理未确认。心跳已停止；固件会在 30 秒内清除过期槽位。</value></data>
+<data name="VoiceShortLong" xml:space="preserve"><value>分别设置 F18 短按与长按动作</value></data>
+<data name="VoiceHoldHint" xml:space="preserve"><value>上方为短按，下方为长按。松开时执行动作。切换前台应用、锁定 Windows 或禁用会取消按键。</value></data>
+<data name="VoiceThreshold" xml:space="preserve"><value>长按阈值（200–3000 毫秒）</value></data>
+<data name="VoiceLongAction" xml:space="preserve"><value>长按动作</value></data>
+<data name="ProtocolVersion" xml:space="preserve"><value>协议版本</value></data>
 </root>

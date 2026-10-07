@@ -12,6 +12,8 @@ public sealed partial class BleTransport(IWindowsGattSessionFactory factory,Gatt
     public void AcceptCapabilities(PhysicalQueryEvidence query,PhysicalCapabilities caps)
     {if(Diagnostics.LastQuery is {} q && q.SessionId==query.SessionId && q.ResponseAt==query.ResponseAt)PublishCapabilities(q,caps);}
     private readonly object sync=new();
+    private readonly ModeSyncTracker modeSync=new();
+    private DateTimeOffset modeAt;
     private readonly SemaphoreSlim operations=new(1,1);
     private IWindowsGattSession? session;
     private CancellationTokenSource? sessionCancellation;
@@ -71,7 +73,7 @@ public sealed partial class BleTransport(IWindowsGattSessionFactory factory,Gatt
             await CloseCore();
             var owner=CancellationTokenSource.CreateLinkedTokenSource(ct);owner.CancelAfter(NativeTimeout);
             var active=factory.Create(Guid.NewGuid());long ticket;
-            lock(sync){session=active;sessionCancellation=owner;ticket=++generation;}
+            lock(sync){session=active;sessionCancellation=owner;modeSync.Reset(active.Id);modeAt=default;ticket=++generation;}
             active.ConnectionChanged+=OnNativeConnection;
             Update(d=>d with{Device=selected,SessionId=active.Id,Stage=BleStage.AcquiringLink,Subscribed=false,IsLive=false,NativeConnected=null,Catalog=[],PhysicalStatus=null,Capabilities=null,LastDataAt=null,LastStatusQuery=null,LastQuery=null,LastTx=[],LastRx=[],Error=null,ErrorKey=null},"AcquiringLink");
             try
@@ -120,6 +122,8 @@ public sealed partial class BleTransport(IWindowsGattSessionFactory factory,Gatt
         {
             if(disposed || session?.Id!=notification.SessionId || sessionCancellation?.IsCancellationRequested==true)return;
             diagnostics=diagnostics with{LastRx=notification.Bytes};
+            if(modeSync.Accept(notification.SessionId,notification.Bytes.AsSpan(),out var mode) && diagnostics.PhysicalStatus is {} status)
+                {modeAt=notification.ArrivedAt;diagnostics=diagnostics with{PhysicalStatus=status with{WorkMode=mode.Mode},LastDataAt=notification.ArrivedAt};}
             // Firmware has no request IDs. Buffer a current-session response after TX starts; publish only after successful awaited TX.
             if(pending is {} request && request.Id==notification.SessionId && notification.ArrivedAt>=request.StartedAt && AhaKeyProtocol.IsFrame(notification.Bytes.AsSpan(),request.Command))
                 request.Response.TrySetResult(notification);
@@ -158,7 +162,7 @@ public sealed partial class BleTransport(IWindowsGattSessionFactory factory,Gatt
         finally {operations.Release();}
     }
     public void PublishStatus(QueryEvidence query,PhysicalStatus status)
-    {lock(sync){if(session?.Id!=query.SessionId || sessionCancellation?.IsCancellationRequested==true)return;Update(d=>d with{PhysicalStatus=status,LastDataAt=query.ResponseAt,LastStatusQuery=query});}}
+    {lock(sync){if(session?.Id!=query.SessionId || sessionCancellation?.IsCancellationRequested==true)return;Update(d=>d with{PhysicalStatus=modeAt>=query.WriteStartedAt&&d.PhysicalStatus is {} newer?status with{WorkMode=newer.WorkMode}:status,LastDataAt=query.ResponseAt,LastStatusQuery=query});}}
     public void PublishCapabilities(QueryEvidence query,PhysicalCapabilities caps)
     {lock(sync){if(session?.Id!=query.SessionId || sessionCancellation?.IsCancellationRequested==true)return;Update(d=>d with{Capabilities=caps,LastDataAt=query.ResponseAt,Stage=BleStage.Ready,IsLive=true,NativeConnected=session!.NativeConnected},"Ready");}}
     public void Reconnecting(int attempt)=>Update(d=>d with{Stage=BleStage.Reconnecting,ReconnectAttempt=attempt,IsLive=false},"Reconnect",attempt.ToString());

@@ -59,14 +59,17 @@ public sealed class DeviceManager(IAhaKeyDevice device, ConfigurationChangeTrack
         catch{gate.Fail(false);throw;}
         finally{gate.Release();Changed?.Invoke();}
     }
+    public async Task<ushort> ReadStandbyAsync(CancellationToken ct=default)
+    {if(!RealBackendSelected||realDevice is null||!await gate.WaitAsync(0,ct))throw new InvalidOperationException("Real idle device required.");try{gate.Describe("Read sleep",realDevice.Observation.SessionId,realDevice.ActiveTransport,false);return await realDevice.ReadStandbyAsync(ct);}finally{gate.Release();Changed?.Invoke();}}
     public async Task UploadDisplayAsync(ApprovedDisplayUpload approval,Action<DisplayTransferEvidence> record,Action<DisplayResponseEvidence> responseRecord,CancellationToken ct=default)
     {
         if(realDevice is not null)gate.RequireRoute(OperationRequirement.UploadDisplayBulk,realDevice.ActiveTransport);
         if(!RealBackendSelected || realDevice is null || !await gate.WaitAsync(0,ct))throw new InvalidOperationException("Real idle device required.");
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,lifetime.Token);
         linked.CancelAfter(TimeSpan.FromMinutes(5));
-        try{gate.Describe("Display upload",realDevice.Observation.SessionId,realDevice.ActiveTransport,true);await realDevice.UploadDisplayAsync(approval,record,e=>{responseRecord(e);if(!e.Stage.StartsWith("REJECTED",StringComparison.Ordinal))gate.Confirm(e.Stage,e.Stage is "82 binding" or "93 binding",e.Stage.Contains("save",StringComparison.OrdinalIgnoreCase));},linked.Token);}
-        catch{gate.Fail(true);throw;}
+        bool writeStarted=false;
+        try{gate.Describe("Display upload",realDevice.Observation.SessionId,realDevice.ActiveTransport,true);await realDevice.UploadDisplayAsync(approval,e=>{if(e.Stage.StartsWith("80 sector",StringComparison.Ordinal)||e.Stage.StartsWith("A2 sector",StringComparison.Ordinal)||e.Stage is "82 binding" or "93 binding" or "04 global save")writeStarted=true;record(e);},e=>{responseRecord(e);if(!e.Stage.StartsWith("REJECTED",StringComparison.Ordinal))gate.Confirm(e.Stage,e.Stage is "82 binding" or "93 binding",e.Stage.Contains("save",StringComparison.OrdinalIgnoreCase));},linked.Token);}
+        catch{gate.Fail(writeStarted);throw;}
         finally{gate.Release();Changed?.Invoke();}
     }
     public async Task ExecuteControlsAsync(ApprovedControlPlan plan,Action<PhysicalCommandEvidence> record,CancellationToken ct=default)
@@ -75,8 +78,8 @@ public sealed class DeviceManager(IAhaKeyDevice device, ConfigurationChangeTrack
         if(!await gate.WaitAsync(0,ct))throw new InvalidOperationException("Device busy.");
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,lifetime.Token);
         linked.CancelAfter(TimeSpan.FromSeconds(30));
-        try{gate.Describe("Controls",plan.Session,realDevice.ActiveTransport,plan.Commands.Any(x=>x.Opcode is 0x73 or 0x84 or 0x85 or 4));await realDevice.ExecuteControlsAsync(plan,e=>{record(e);if(e.Error is null && e.ResponseAt is not null)gate.Confirm(e.Operation,save:e.Tx=="AABB04CCDD");},linked.Token);}
-        catch{gate.Fail(plan.Commands.Any(x=>x.Opcode is 0x73 or 0x84 or 0x85 or 4));throw;}
+        try{gate.Describe("Controls",plan.Session,realDevice.ActiveTransport,plan.Commands.Any(x=>x.Opcode is 0x73 or 0x84 or 0x85 or 0x95 or 0x98 or 4),allowShutdownCleanup:plan.Commands.All(x=>x.Opcode==0x98&&x.Frame[3]==0));await realDevice.ExecuteControlsAsync(plan,e=>{record(e);if(e.Error is null && e.ResponseAt is not null)gate.Confirm(e.Operation,save:e.Tx=="AABB04CCDD");},linked.Token);}
+        catch{gate.Fail(plan.Commands.Any(x=>x.Opcode is 0x73 or 0x84 or 0x85 or 0x95 or 0x98 or 4));throw;}
         finally{gate.Release();Changed?.Invoke();}
     }
     public async Task<bool> ExecuteFeedbackAsync(ApprovedControlPlan plan,HardwareProfileId profile,Func<bool> enabled,

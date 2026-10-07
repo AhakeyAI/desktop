@@ -7,6 +7,8 @@ public sealed partial class UsbTransport(IWindowsHidSessionFactory factory) : IR
 {
     private readonly SemaphoreSlim operations=new(1,1);
     private readonly object sync=new();
+    private readonly ModeSyncTracker modeSync=new();
+    private DateTimeOffset modeAt;
     private IWindowsHidSession? session;
     private CancellationTokenSource? lifetime;
     private UsbDiagnostics diagnostics=new();
@@ -51,7 +53,7 @@ public sealed partial class UsbTransport(IWindowsHidSessionFactory factory) : IR
             var selection=await DiscoverAsync(ct);
             var selected=selection.Candidate??throw new UsbException(selection.ErrorKey!,"No unique verified HID collection.");
             var active=factory.Create(Guid.NewGuid());var owner=CancellationTokenSource.CreateLinkedTokenSource(ct);
-            lock(sync){session=active;lifetime=owner;accumulator.Clear();}
+            lock(sync){session=active;lifetime=owner;modeSync.Reset(active.Id);modeAt=default;accumulator.Clear();}
             Update(d=>new UsbDiagnostics {SessionId=active.Id,Selected=selected,Candidates=d.Candidates,Stage="Opening",History=d.History},"Opening");
             try
             {
@@ -85,6 +87,8 @@ public sealed partial class UsbTransport(IWindowsHidSessionFactory factory) : IR
                 if(pending is {} p && input.At>=p.Start && p.Reports.Count<64)p.Reports.Add(input.Report);
                 foreach(var frame in accumulator.FeedReport(input.Report.AsSpan()))
                 {
+                    if(modeSync.Accept(input.SessionId,frame.AsSpan(),out var mode) && diagnostics.Status is {} status)
+                        {modeAt=input.At;Update(d=>d with{Status=status with{WorkMode=mode.Mode},StatusAt=input.At},"HardwareProfile");}
                     if(pending is {} request && request.Id==input.SessionId && input.At>=request.Start && AhaKeyProtocol.IsFrame(frame.AsSpan(),request.Command))
                         request.Response.TrySetResult((input.At,frame));
                 }
@@ -125,7 +129,7 @@ public sealed partial class UsbTransport(IWindowsHidSessionFactory factory) : IR
         finally{operations.Release();}
     }
     public void AcceptStatus(PhysicalQueryEvidence query,PhysicalStatus status)
-    {lock(sync){if(session?.Id==query.SessionId && lifetime?.IsCancellationRequested==false)Update(d=>d with {Status=status,StatusAt=query.ResponseAt,LastStatusQuery=d.LastQuery});}}
+    {lock(sync){if(session?.Id==query.SessionId && lifetime?.IsCancellationRequested==false)Update(d=>d with {Status=modeAt>=query.StartedAt&&d.Status is {} newer?status with{WorkMode=newer.WorkMode}:status,StatusAt=query.ResponseAt,LastStatusQuery=d.LastQuery});}}
     public void AcceptCapabilities(PhysicalQueryEvidence query,PhysicalCapabilities caps)
     {lock(sync){if(session?.Id==query.SessionId && lifetime?.IsCancellationRequested==false)Update(d=>d with {Capabilities=caps,IsLive=true,Stage="Ready"},"Ready");}}
     public void RecordError(Exception ex)=>Update(d=>d with {IsLive=false,Stage="Error",ErrorKey=ex is UsbException u?u.Key:ex is OperationCanceledException?"ErrorCancelled":"UsbReadFailed",Error=ex is UsbException?ex.Message:ex.GetType().Name},"Error",ex is UsbException u?u.Key:ex.GetType().Name);

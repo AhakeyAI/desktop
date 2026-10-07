@@ -5,20 +5,20 @@ public sealed class Phase7ProductTests:IDisposable
 {
     private readonly string root=Path.Combine(Path.GetTempPath(),"ahakey-phase7",Guid.NewGuid().ToString("N"));
     private static FirmwareIdentity Legacy=>new(1,0,null,null,null,null,"observed",null,IdentitySource.PhysicalTelemetry,FirmwareDialect.LegacyWindows);
-    [Fact] public void LegacyWorksWithoutFullCapabilityContract()
+    [Fact] public void LegacyReceiptsCannotAuthorizeRelease200Writes()
     {
         var catalog=new DeviceFeatureCatalog(Legacy,FeatureTransport.Usb,new(true,true,true,true));
-        Assert.True(catalog.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).Available);
+        Assert.False(catalog.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).Available);
         Assert.False(catalog.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K1).Available);
-        Assert.True(catalog.CanUploadDisplay(HardwareProfileId.Codex,DisplayState.Default,1).Available);
+        Assert.False(catalog.CanUploadDisplay(HardwareProfileId.Codex,DisplayState.Default,1).Available);
         Assert.False(catalog.CanUploadDisplay(HardwareProfileId.Cursor,DisplayState.Default,1).Available);
         Assert.False(catalog.CanUploadDisplay(HardwareProfileId.Codex,DisplayState.Default,2).Available);
-        Assert.True(catalog.CanUseRuntimeLighting(1).Available);Assert.True(catalog.CanUseRuntimeLighting(0).Available);Assert.False(catalog.CanUseRuntimeLighting(2).Available);
-        Assert.True(catalog.CanSetBrightness().SourceKnown);Assert.False(catalog.CanSetBrightness().Available);Assert.False(catalog.FullReadback.Available);
+        Assert.False(catalog.CanUseRuntimeLighting(1).Available);Assert.False(catalog.CanUseRuntimeLighting(0).Available);Assert.False(catalog.CanUseRuntimeLighting(2).Available);
+        Assert.False(catalog.CanSetBrightness().SourceKnown);Assert.False(catalog.CanSetBrightness().Available);Assert.False(catalog.FullReadback.Available);
     }
     [Fact] public void EvidenceIsTransportAndDialectScoped()
     {
-        var ble=new DeviceFeatureCatalog(Legacy,FeatureTransport.Bluetooth,new(true,true,true,true));Assert.False(ble.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).Available);Assert.True(ble.CanUseRuntimeLighting(1).Available);
+        var ble=new DeviceFeatureCatalog(Legacy,FeatureTransport.Bluetooth,new(true,true,true,true));Assert.False(ble.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).Available);Assert.False(ble.CanUseRuntimeLighting(1).Available);
         var unknown=new DeviceFeatureCatalog(FirmwareIdentity.Unknown,FeatureTransport.Usb,new(true,true,true,true));Assert.False(unknown.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).Available);
         Assert.NotNull(unknown.CanWriteShortcut(HardwareProfileId.Codex,PhysicalKey.K2).UnavailableReason);
     }
@@ -28,7 +28,7 @@ public sealed class Phase7ProductTests:IDisposable
         var p=store.LoadOrMigrate(DeviceConfiguration.Default,new(){BleDeviceId="PRIVATE-ID",PhysicalFeedback=["2:Codex"],IntegrationAutoStart=true});
         store.Update(x=>x with{LastSuccessfullySent=x.LastSuccessfullySent.Add("Key:2:1",new("Key:2:1","hash",DateTimeOffset.UtcNow,KeyWriteProvenance.SentToDevice)),Voice=new(true,VoiceHostAction.ActivateApplication,"C:\\private.exe")});
         var path=Path.Combine(root,"export.json");store.Export(path);var text=File.ReadAllText(path);
-        Assert.DoesNotContain("PRIVATE-ID",text);Assert.DoesNotContain("private.exe",text);
+        Assert.DoesNotContain("PRIVATE-ID",text);Assert.DoesNotContain("private.exe",text);Assert.DoesNotContain("private-long.exe",text);
         var imported=store.PreviewImport(path);Assert.Empty(imported.LastSuccessfullySent);Assert.False(imported.Voice.Enabled);Assert.False(imported.IsDeviceBackup);
         Assert.True(imported.IntegrationPreferences.ServiceAutoStart);Assert.Contains("2:Codex",imported.IntegrationPreferences.PhysicalFeedback);
         var restarted=new LocalDeviceProjectStore(settings).LoadOrMigrate(DeviceConfiguration.Default,new());Assert.Single(restarted.LastSuccessfullySent);Assert.Equal(p.Id,restarted.Id);

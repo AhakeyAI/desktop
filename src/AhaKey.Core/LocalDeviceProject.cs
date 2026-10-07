@@ -20,7 +20,14 @@ public sealed record DisplayAllocationManifest(FirmwareDialect FirmwareDialect,H
     public static string UnmanagedOwnership=>"Unknown ownership";
 }
 public enum VoiceHostAction { None, WindowsVoiceTyping, ActivateApplication, LocalShortcut }
-public sealed record VoiceRoutingSettings(bool Enabled=false,VoiceHostAction Action=VoiceHostAction.None,string? ApplicationPath=null,string? Shortcut=null);
+public sealed record VoiceRoutingSettings(bool Enabled=false,VoiceHostAction Action=VoiceHostAction.None,string? ApplicationPath=null,string? Shortcut=null)
+{
+    public bool ShortLongEnabled {get;init;}
+    public int LongPressMilliseconds {get;init;}=600;
+    public VoiceHostAction LongAction {get;init;}=VoiceHostAction.None;
+    public string? LongShortcut {get;init;}
+    public string? LongApplicationPath {get;init;}
+}
 public sealed record ProjectIntegrationPreferences(bool ServiceAutoStart,ImmutableHashSet<string> PhysicalFeedback,bool ActivateProfile,bool AdvancedLightingMapping);
 public sealed record LocalDeviceProject(int SchemaVersion,Guid Id,string Name,DeviceConfiguration Desired)
 {

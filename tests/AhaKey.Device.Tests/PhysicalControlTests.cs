@@ -20,7 +20,7 @@ public sealed class PhysicalControlTests
         public TaskCompletionSource? QueryEntered,QueryRelease;
         public Task OpenAsync(HidCandidate c,Action<HidInput> input,Action<Guid,Exception> failed,CancellationToken ct){receive=input;ReaderRunning=true;return Task.CompletedTask;}
         private void Emit(string hex){var report=new byte[65];Convert.FromHexString(hex).CopyTo(report,1);receive!(new(Id,DateTimeOffset.UtcNow,[..report]));}
-        public async Task<HidWriteResult> WriteAsync(ImmutableArray<byte> r,CancellationToken ct){Assert.True(UsbReportCodec.IsAllowedReport(r.AsSpan()));if(QueryRelease is {} release){QueryEntered!.TrySetResult();await release.Task.WaitAsync(ct);}Emit(r[5]==0?"AABB004B32010002000023CCDD":"AABB9F00CCDD");return new HidWriteResult(true,65,0);}
+        public async Task<HidWriteResult> WriteAsync(ImmutableArray<byte> r,CancellationToken ct){Assert.True(UsbReportCodec.IsAllowedReport(r.AsSpan()));if(QueryRelease is {} release){QueryEntered!.TrySetResult();await release.Task.WaitAsync(ct);}Emit(r[5]==0?"AABB004B3201040200002304CCDD":"AABB9F000302010401FF0700000801CCDD");return new HidWriteResult(true,65,0);}
         public Task<HidWriteResult> WriteControlAsync(ApprovedControl control,CancellationToken ct)
         {control.Consume(Id,control.Command.Frame.AsSpan());Controls.Add(control.Command.Frame);Emit($"AABB{control.Command.Opcode:X2}{(Controls.Count==failAt?1:0):X2}CCDD");return Task.FromResult(new HidWriteResult(true,65,0));}
         public void Cancel(){} public ValueTask DisposeAsync(){ReaderRunning=false;return ValueTask.CompletedTask;}

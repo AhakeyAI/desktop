@@ -3,6 +3,8 @@
   <TextBlock Text="{Binding L[Integrations]}" Style="{StaticResource PageTitle}"/>
   <TextBlock Text="{Binding L[IntegrationIntro]}" Style="{StaticResource SecondaryText}" Margin="0,8,0,20"/>
   <CheckBox Content="{Binding L[ProductServiceAutoStart]}" IsChecked="{Binding AutoStart}" Margin="0,0,0,16"/>
+  <CheckBox Content="{Binding L[TasksEnable]}" IsChecked="{Binding TasksEnabled}" Margin="0,0,0,8"/>
+  <TextBlock Text="{Binding TasksStatus}" Style="{StaticResource SecondaryText}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,16"/>
   <WrapPanel Margin="0,0,0,12">
    <Button Content="{Binding L[IntegrationRefresh]}" Command="{Binding RefreshCommand}" Margin="0,0,12,8"/>
    <TextBlock Text="{Binding ServiceText}" Style="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,0,8"/>

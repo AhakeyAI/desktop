@@ -22,18 +22,19 @@ public class StaticDisplayUploadTests
     }
     private sealed class Factory : IWindowsHidSessionFactory
     {
-        public Session? Current;public bool FailFirstData,WrongBinding;public Windows32DisplayUploadPlan? Modern;
+        public Session? Current;public bool FailFirstData,WrongBinding,BadGeometry;public Action? OnFirstData;public Windows32DisplayUploadPlan? Modern;
         public Task<IReadOnlyList<HidCandidate>> EnumerateAsync(CancellationToken ct)=>Task.FromResult<IReadOnlyList<HidCandidate>>([FakeHidFactory.Valid]);
-        public IWindowsHidSession Create(Guid id)=>Current=new(id,FailFirstData,WrongBinding,Modern);
+        public IWindowsHidSession Create(Guid id)=>Current=new(id,FailFirstData,WrongBinding,Modern){BadGeometry=BadGeometry,OnFirstData=OnFirstData};
     }
     private sealed class Session(Guid id,bool failData,bool wrongBinding,Windows32DisplayUploadPlan? modern):IWindowsHidSession
     {
         public Guid Id=>id;public bool ReaderRunning{get;private set;}private Action<HidInput>? input;private int remaining;
+        public bool BadGeometry;public Action? OnFirstData;
         public List<ImmutableArray<byte>> Sent=[];
         public Task OpenAsync(HidCandidate candidate,Action<HidInput> input,Action<Guid,Exception> failed,CancellationToken ct){this.input=input;ReaderRunning=true;return Task.CompletedTask;}
         void Emit(string hex){var r=new byte[65];Convert.FromHexString(hex).CopyTo(r,1);input!(new(Id,DateTimeOffset.UtcNow,[..r]));}
         public Task<HidWriteResult> WriteAsync(ImmutableArray<byte> r,CancellationToken ct)
-        {Assert.True(UsbReportCodec.IsAllowedReport(r.AsSpan()));Emit(modern is null?(r[5]==0?"AABB004B32010002000023CCDD":"AABB9F00CCDD"):(r[5]==0?"AABB004B3201040200002304CCDD":"AABB9F000302010401FF0700000801CCDD"));return Task.FromResult(new HidWriteResult(true,65,0));}
+        {Assert.True(UsbReportCodec.IsAllowedReport(r.AsSpan()));if(r[5]==0x9C){Emit(BadGeometry?"AABB9C0004040C006406A0501685000080002401080C0C0CCCDD":"AABB9C0004040C006407A0501685000080002401080C0C0CCCDD");return Task.FromResult(new HidWriteResult(true,65,0));}Emit(modern is null?(r[5]==0?"AABB004B32010002000023CCDD":"AABB9F00CCDD"):(r[5]==0?"AABB004B3201040200002304CCDD":"AABB9F000302010401FF0700000801CCDD"));return Task.FromResult(new HidWriteResult(true,65,0));}
         public Task<HidWriteResult> WriteDisplayAsync(ApprovedDisplayReport permit,CancellationToken ct)
         {
             permit.Consume(Id);var r=permit.Report;Sent.Add(r);
@@ -42,12 +43,13 @@ public class StaticDisplayUploadTests
                 byte opcode=r[5];if(opcode==0x80)remaining=r[7]|r[8]<<8;
                 if(modern is not null && opcode is 0x83 or 0x94)
                 {
+                    if(wrongBinding){Emit("AABB8300010800010064002401CCDD");return Task.FromResult(new HidWriteResult(true,65,0));}
                     var binding=modern.Transfer.Binding;
                     Emit($"AABB{opcode:X2}00"+Convert.ToHexString(binding.AsSpan(3,binding.Length-5))+"2401CCDD");
                 }
                 else Emit(opcode==0x83?(wrongBinding?"AABB8300020800010064002401CCDD":"AABB8300020900010064002401CCDD"):$"AABB{opcode:X2}00CCDD");
             }
-            else {if(failData)return Task.FromResult(new HidWriteResult(false,0,5));remaining-=r[2];Assert.True(remaining>=0);if(remaining==0)Emit("AABB8100CCDD");}
+            else {var callback=OnFirstData;OnFirstData=null;callback?.Invoke();ct.ThrowIfCancellationRequested();if(failData)return Task.FromResult(new HidWriteResult(false,0,5));remaining-=r[2];Assert.True(remaining>=0);if(remaining==0)Emit("AABB8100CCDD");}
             return Task.FromResult(new HidWriteResult(true,65,0));
         }
         public void Cancel(){}public ValueTask DisposeAsync(){ReaderRunning=false;return ValueTask.CompletedTask;}
@@ -64,18 +66,19 @@ public class StaticDisplayUploadTests
     [Theory][InlineData(false,false,436)][InlineData(true,false,3)][InlineData(false,true,1)]
     public async Task TransactionRequiresPreflightAndBlockAcksBeforeBindingAndSave(bool failData,bool wrongBinding,int expected)
     {
-        var factory=new Factory{FailFirstData=failData,WrongBinding=wrongBinding};await using var real=new RealAhaKeyDevice(new(new FakeGattFactory(),GattContract.WindowsObserved),new(factory));
+        var modern=Windows32DisplayUploadPlan.Create(AhaKey.Core.HardwareProfileId.Codex,AhaKey.Core.DisplayState.Default,[new byte[25600]],100);
+        var factory=new Factory{FailFirstData=failData,WrongBinding=wrongBinding,Modern=modern};await using var real=new RealAhaKeyDevice(new(new FakeGattFactory(),GattContract.WindowsObserved),new(factory));
         using var manager=new DeviceManager(new MockAhaKeyDevice(),new(),NullLogger<DeviceManager>.Instance,real);
         await manager.SelectBackendAsync(true);await manager.SelectTransportAsync(PhysicalTransportKind.Usb);await manager.ConnectAsync();
-        var plan=StaticDisplayPlan.Create(StaticDisplayPlan.ExpectedBinding,[new byte[25600]]);var permit=new ApprovedDisplayUpload(real.Observation.SessionId!.Value,"offline only",plan.Sha256,plan);
+        var plan=modern;var permit=new ApprovedDisplayUpload(real.Observation.SessionId!.Value,"offline only",plan.Sha256,plan);
         var log=new List<DisplayTransferEvidence>();var responses=new List<DisplayResponseEvidence>();
         if(failData||wrongBinding){await Assert.ThrowsAnyAsync<Exception>(()=>manager.UploadDisplayAsync(permit,log.Add,responses.Add));Assert.False(real.Observation.IsLive);}
-        else {await manager.UploadDisplayAsync(permit,log.Add,responses.Add);Assert.Equal(18,responses.Count);Assert.Equal(425,factory.Current!.Sent.Count(r=>r[1]==0xA2));}
+        else {await manager.UploadDisplayAsync(permit,log.Add,responses.Add);Assert.Equal(19,responses.Count);Assert.Equal(425,factory.Current!.Sent.Count(r=>r[1]==0xA2));}
         var operation=manager.Operations.Journal.Last(x=>x.Operation=="Display upload");
-        Assert.Equal(failData||wrongBinding?OperationOutcome.OutcomeUncertain:OperationOutcome.Completed,operation.Outcome);
+        Assert.Equal(failData?OperationOutcome.OutcomeUncertain:wrongBinding?OperationOutcome.Failed:OperationOutcome.Completed,operation.Outcome);
         Assert.Equal(!(failData||wrongBinding),operation.SaveConfirmed);Assert.Equal(!(failData||wrongBinding),operation.BindingChanged);
-        if(wrongBinding){Assert.Equal(0,operation.ConfirmedSteps);Assert.Single(responses);Assert.StartsWith("REJECTED",responses[0].Stage);}
-        if(!failData&&!wrongBinding)Assert.Contains("0x045000",operation.LastConfirmedFlashBlock);
+        if(wrongBinding){Assert.Equal(1,operation.ConfirmedSteps);Assert.Equal(2,responses.Count);Assert.StartsWith("REJECTED",responses[1].Stage);}
+        if(!failData&&!wrongBinding)Assert.NotNull(operation.LastConfirmedFlashBlock);
         Assert.Equal(expected,factory.Current!.Sent.Count);
         if(failData||wrongBinding)Assert.DoesNotContain(factory.Current.Sent,r=>r[1]==0xA1 && r[5] is 0x82 or 4);
         Assert.Null(manager.Tracker.LastDeviceRead);
@@ -83,6 +86,8 @@ public class StaticDisplayUploadTests
     [Theory]
     [InlineData(AhaKey.Core.DisplayState.Default)]
     [InlineData(AhaKey.Core.DisplayState.Working)]
+    [InlineData(AhaKey.Core.DisplayState.WaitingError)]
+    [InlineData(AhaKey.Core.DisplayState.Completed)]
     public async Task ModernAnimationTransfersTwoFramesAndVerifiesCorrectMetadata(AhaKey.Core.DisplayState state)
     {
         var plan=Windows32DisplayUploadPlan.Create(AhaKey.Core.HardwareProfileId.Codex,state,[new byte[25600],Enumerable.Repeat((byte)0xA5,25600).ToArray()],569);
@@ -96,5 +101,27 @@ public class StaticDisplayUploadTests
         Assert.True(plan.MatchesBinding(Convert.FromHexString(responses[^1].Frame),true));
         var operation=manager.Operations.Journal.Last(x=>x.Operation=="Display upload");
         Assert.True(operation.SaveConfirmed);Assert.True(operation.BindingChanged);Assert.Equal(OperationOutcome.Completed,operation.Outcome);
+    }
+    [Fact]public async Task MismatchedLiveGeometryFailsBeforeAnyEraseOrPixelAndLeavesKnownFailedJournal()
+    {
+        var plan=Windows32DisplayUploadPlan.Create(AhaKey.Core.HardwareProfileId.Codex,AhaKey.Core.DisplayState.Default,[new byte[25600]],100);
+        var factory=new Factory{Modern=plan,BadGeometry=true};await using var real=new RealAhaKeyDevice(new(new FakeGattFactory(),GattContract.WindowsObserved),new(factory));
+        using var manager=new DeviceManager(new MockAhaKeyDevice(),new(),NullLogger<DeviceManager>.Instance,real);
+        await manager.SelectBackendAsync(true);await manager.SelectTransportAsync(PhysicalTransportKind.Usb);await manager.ConnectAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>manager.UploadDisplayAsync(new(real.Observation.SessionId!.Value,"fixture",plan.Sha256,plan),_=>{},_=>{}));
+        Assert.Empty(factory.Current!.Sent);Assert.Equal(OperationOutcome.Failed,manager.Operations.Journal.Last().Outcome);
+    }
+    [Fact]public async Task CancelledPixelTransferStopsWithoutBindingSaveOrReplayAfterReconnect()
+    {
+        var plan=Windows32DisplayUploadPlan.Create(AhaKey.Core.HardwareProfileId.Codex,AhaKey.Core.DisplayState.Default,[new byte[25600]],100);
+        using var cancel=new CancellationTokenSource();var factory=new Factory{Modern=plan,OnFirstData=()=>cancel.Cancel()};
+        await using var real=new RealAhaKeyDevice(new(new FakeGattFactory(),GattContract.WindowsObserved),new(factory));using var manager=new DeviceManager(new MockAhaKeyDevice(),new(),NullLogger<DeviceManager>.Instance,real);
+        await manager.SelectBackendAsync(true);await manager.SelectTransportAsync(PhysicalTransportKind.Usb);await manager.ConnectAsync();
+        var permit=new ApprovedDisplayUpload(real.Observation.SessionId!.Value,"fixture",plan.Sha256,plan);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>manager.UploadDisplayAsync(permit,_=>{},_=>{},cancel.Token));
+        Assert.False(real.Observation.IsLive);Assert.DoesNotContain(factory.Current!.Sent,r=>r[1]==0xA1&&r[5] is 0x82 or 4);
+        Assert.Equal(OperationOutcome.OutcomeUncertain,manager.Operations.Journal.Last().Outcome);
+        factory.OnFirstData=null;await manager.ReconnectAsync();Assert.True(real.Observation.IsLive);Assert.Empty(factory.Current!.Sent);
+        await Assert.ThrowsAnyAsync<Exception>(()=>manager.UploadDisplayAsync(permit,_=>{},_=>{}));Assert.Empty(factory.Current!.Sent);
     }
 }

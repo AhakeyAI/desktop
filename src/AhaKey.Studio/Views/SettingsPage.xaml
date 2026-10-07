@@ -13,12 +13,27 @@
   <TextBlock Text="{Binding L[ProjectNotBackup]}" Style="{StaticResource Secondary}" Margin="0,0,0,12"/>
   <WrapPanel><Button Content="{Binding L[ProjectExport]}" Command="{Binding Project.ExportCommand}" Margin="0,0,12,12"/><Button Content="{Binding L[ProjectImport]}" Command="{Binding Project.ImportCommand}" Margin="0,0,0,12"/></WrapPanel>
   <TextBlock Text="{Binding Project.Notice}" Style="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/>
+  <TextBlock Text="{Binding L[SleepTitle]}" Style="{StaticResource SectionTitle}" Margin="0,24,0,12"/>
+  <TextBlock Text="{Binding L[SleepHint]}" Style="{StaticResource Secondary}" Margin="0,0,0,12"/>
+  <ComboBox ItemsSource="{Binding Settings.SleepOptions}" SelectedItem="{Binding Settings.SleepMinutes}" AutomationProperties.Name="{Binding L[SleepTitle]}"/>
+  <WrapPanel Margin="0,12,0,0"><Button Content="{Binding L[ReadFromDevice]}" Command="{Binding Settings.ReadSleepCommand}" Margin="0,0,12,0"/><Button Content="{Binding L[ProductApply]}" Command="{Binding Settings.ApplySleepCommand}"/></WrapPanel>
+  <TextBlock Text="{Binding Settings.SleepStatus}" Style="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/>
   <TextBlock Text="{Binding L[VoiceRouting]}" Style="{StaticResource SectionTitle}" Margin="0,24,0,12"/>
   <TextBlock Text="{Binding L[VoiceRoutingHint]}" Style="{StaticResource Secondary}" Margin="0,0,0,12"/>
   <CheckBox Content="{Binding L[VoiceEnable]}" IsChecked="{Binding Project.VoiceEnabled}" Margin="0,0,0,12"/>
   <ComboBox ItemsSource="{Binding Project.VoiceActions}" SelectedItem="{Binding Project.VoiceAction}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[VoiceRouting]}"/>
   <WrapPanel Visibility="{Binding Project.VoiceNeedsApplication,Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0"><Button Content="{Binding L[VoiceChooseApplication]}" Command="{Binding Project.ChooseVoiceApplicationCommand}" Margin="0,0,12,8"/><TextBlock Text="{Binding Project.VoiceApplication}" Style="{StaticResource Secondary}" MaxWidth="450" TextWrapping="Wrap"/></WrapPanel>
   <StackPanel Visibility="{Binding Project.VoiceNeedsShortcut,Converter={StaticResource BoolVisibility}}"><TextBlock Text="{Binding L[VoiceShortcut]}" Margin="0,12,0,8"/><TextBox Text="{Binding Project.VoiceShortcut,UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="{Binding L[VoiceShortcut]}"/><TextBlock Text="{Binding Project.VoiceValidation}" Style="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/></StackPanel>
+  <CheckBox Content="{Binding L[VoiceShortLong]}" IsChecked="{Binding Project.VoiceShortLong}" Margin="0,16,0,8"/>
+  <StackPanel Visibility="{Binding Project.VoiceShortLong,Converter={StaticResource BoolVisibility}}">
+   <TextBlock Text="{Binding L[VoiceHoldHint]}" Style="{StaticResource Secondary}"/>
+   <TextBlock Text="{Binding L[VoiceThreshold]}" Margin="0,12,0,0"/>
+   <TextBox Text="{Binding Project.VoiceHoldMilliseconds}" AutomationProperties.Name="{Binding L[VoiceThreshold]}" Margin="0,8,0,8"/>
+   <TextBlock Text="{Binding L[VoiceLongAction]}"/>
+   <ComboBox ItemsSource="{Binding Project.VoiceActions}" SelectedItem="{Binding Project.VoiceLongAction}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[VoiceLongAction]}"/>
+   <StackPanel Visibility="{Binding Project.VoiceLongNeedsShortcut,Converter={StaticResource BoolVisibility}}"><TextBlock Text="{Binding L[VoiceShortcut]}" Margin="0,12,0,8"/><TextBox Text="{Binding Project.VoiceLongShortcut}" AutomationProperties.Name="{Binding L[VoiceShortcut]}"/></StackPanel>
+   <StackPanel Visibility="{Binding Project.VoiceLongNeedsApplication,Converter={StaticResource BoolVisibility}}"><TextBlock Text="{Binding L[VoiceChooseApplication]}" Margin="0,12,0,8"/><TextBox Text="{Binding Project.VoiceLongApplication}" AutomationProperties.Name="{Binding L[VoiceChooseApplication]}"/></StackPanel>
+  </StackPanel>
   <TextBlock Text="{Binding Project.VoiceStatus}" Style="{StaticResource Secondary}" Margin="0,12,0,24" AutomationProperties.LiveSetting="Polite"/>
   <Button Content="{Binding L[About]}" Click="ShowAbout" HorizontalAlignment="Left"/>
  </StackPanel>

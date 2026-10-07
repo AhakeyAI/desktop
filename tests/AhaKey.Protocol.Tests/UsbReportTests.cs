@@ -9,7 +9,7 @@ public sealed class UsbReportTests
     public void QueriesUseOnlyA1AndZeroReportId(ReadOnlyQuery command,int code)
     {var report=UsbReportCodec.EncodeQuery(command);Assert.Equal(65,report.Length);Assert.Equal(new byte[]{0,0xA1,5,0xAA,0xBB,(byte)code,0xCC,0xDD},report.Take(8));Assert.All(report.Skip(8),b=>Assert.Equal(0,b));Assert.True(UsbReportCodec.IsAllowedReport(report.AsSpan()));}
     [Fact]public void EveryOtherCommandAndA2AreRejected()
-    {for(int i=0;i<256;i++){if(i is 0 or 159)continue;Assert.Throws<ArgumentOutOfRangeException>(()=>UsbReportCodec.EncodeQuery((ReadOnlyQuery)i));}var bytes=UsbReportCodec.EncodeQuery(0).ToArray();bytes[1]=0xA2;Assert.False(UsbReportCodec.IsAllowedReport(bytes));}
+    {for(int i=0;i<256;i++){if(i is 0 or 159 or 155 or 156 or 149)continue;Assert.Throws<ArgumentOutOfRangeException>(()=>UsbReportCodec.EncodeQuery((ReadOnlyQuery)i));}var bytes=UsbReportCodec.EncodeQuery(0).ToArray();bytes[1]=0xA2;Assert.False(UsbReportCodec.IsAllowedReport(bytes));}
     [Fact]public void WrongNativeLengthOrReportIdOrPaddingIsRejected()
     {var r=UsbReportCodec.EncodeQuery(0).ToArray();Assert.False(UsbReportCodec.IsAllowedReport(r[1..]));r[0]=1;Assert.False(UsbReportCodec.IsAllowedReport(r));r[0]=0;r[64]=1;Assert.False(UsbReportCodec.IsAllowedReport(r));}
     [Fact]public void CompletePaddedReportPreserves13ByteStatus()

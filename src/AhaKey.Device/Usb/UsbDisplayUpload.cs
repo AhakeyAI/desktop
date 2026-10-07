@@ -6,6 +6,14 @@ public sealed partial class UsbTransport
     public async Task UploadDisplayAsync(ApprovedDisplayUpload approval,Action<DisplayTransferEvidence> record,
         Action<DisplayResponseEvidence> responseRecord,CancellationToken ct)
     {
+        if(approval.Modern is not null)
+        {
+            var query=await QueryFrameAsync(ReadOnlyQuery.DisplayLayout,ct);
+            var response=DisplayReadProtocol.Parse(0x9C,query.Rx.AsSpan());
+            responseRecord(new(query.SessionId,"preflight geometry",query.ResponseAt,Convert.ToHexString(query.Rx.AsSpan()),[]));
+            if(query.SessionId!=approval.Session || response.Layout is not {} layout || !DisplayGeometryContract.Matches(layout))
+                throw new InvalidOperationException("Live display geometry differs from X1 firmware 1.4.8; no erase or pixels sent.");
+        }
         await operations.WaitAsync(ct);
         try
         {

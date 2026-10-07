@@ -125,7 +125,7 @@ public class BleTests
         await m.WriteAsync();Assert.Equal("BleReadOnly",m.ErrorKey);Assert.Null(mock.Status.SessionId);Assert.Equal(new byte[]{0,0x9F},f.Sessions[0].Commands);
     }
     [Fact] public async Task EveryOtherCommandIsBlockedBeforeNativeIo()
-    {var f=new FakeGattFactory();await using var t=Transport(f);await t.OpenAsync(Selected);for(int c=0;c<256;c++)if(c!=0 && c!=0x9F)await Assert.ThrowsAsync<ArgumentOutOfRangeException>(()=>t.QueryAsync((ReadOnlyQuery)c));Assert.Empty(f.Sessions[0].Commands);}
+    {var f=new FakeGattFactory();await using var t=Transport(f);await t.OpenAsync(Selected);for(int c=0;c<256;c++)if(c is not (0 or 0x9F or 0x9B or 0x9C or 0x95))await Assert.ThrowsAsync<ArgumentOutOfRangeException>(()=>t.QueryAsync((ReadOnlyQuery)c));Assert.Empty(f.Sessions[0].Commands);}
     [Fact] public async Task ObservedEmptyCapabilitiesStillAllowsReadOnlyTelemetry()
     {
         var f=new FakeGattFactory{Configure=s=>s.CapabilityResponse=[0xAA,0xBB,0x9F,0,0xCC,0xDD]};await using var d=new RealAhaKeyDevice(Transport(f)){Selected=Selected};

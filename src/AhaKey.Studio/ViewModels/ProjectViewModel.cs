@@ -23,6 +23,13 @@ public sealed class ProjectViewModel:ObservableObject
     public string Name=>store.Current?.Name??"";
     public IReadOnlyList<ChoiceOption<VoiceHostAction>> VoiceActions {get;}
     public ChoiceOption<VoiceHostAction> VoiceAction {get=>VoiceActions.Single(x=>x.Value==(store.Current?.Voice.Action??VoiceHostAction.None));set{if(value is not null&&value.Value!=VoiceAction.Value)UpdateVoice(v=>v with{Action=value.Value});}}
+    public bool VoiceLongNeedsShortcut=>store.Current?.Voice.LongAction==VoiceHostAction.LocalShortcut;
+    public bool VoiceLongNeedsApplication=>store.Current?.Voice.LongAction==VoiceHostAction.ActivateApplication;
+    public bool VoiceShortLong {get=>store.Current?.Voice.ShortLongEnabled??false;set=>UpdateVoice(v=>v with{ShortLongEnabled=value});}
+    public ChoiceOption<VoiceHostAction> VoiceLongAction {get=>VoiceActions.Single(x=>x.Value==(store.Current?.Voice.LongAction??VoiceHostAction.None));set{if(value is not null)UpdateVoice(v=>v with{LongAction=value.Value});}}
+    public int VoiceHoldMilliseconds {get=>store.Current?.Voice.LongPressMilliseconds??600;set{if(value is >=200 and <=3000)UpdateVoice(v=>v with{LongPressMilliseconds=value});}}
+    public string VoiceLongShortcut {get=>store.Current?.Voice.LongShortcut??"";set{if(value.Length==0||ShortcutGesture.TryParse(value,out var g)&&g!.Key!="F18")UpdateVoice(v=>v with{LongShortcut=value.Length==0?null:value});}}
+    public string VoiceLongApplication {get=>store.Current?.Voice.LongApplicationPath??"";set{if(value.Length==0||System.IO.File.Exists(value)&&value.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))UpdateVoice(v=>v with{LongApplicationPath=value.Length==0?null:value});}}
     public bool VoiceEnabled {get=>store.Current?.Voice.Enabled??false;set=>UpdateVoice(v=>v with{Enabled=value});}
     public string VoiceShortcut {get=>store.Current?.Voice.Shortcut??"";set{if(value.Length==0||ShortcutGesture.TryParse(value,out var g)&&g!.Key!="F18")UpdateVoice(v=>v with{Shortcut=value.Length==0?null:value});else{voiceNotice="InvalidShortcut";Refresh();}}}
     public string VoiceApplication=>store.Current?.Voice.ApplicationPath??L["VoiceNoApplication"];

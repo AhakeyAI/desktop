@@ -45,5 +45,7 @@ try {
  if($LASTEXITCODE -ne 0){throw 'WiX linking failed'}
  $files | ForEach-Object {[pscustomobject]@{Path=[IO.Path]::GetRelativePath($runtime,$_.FullName);Bytes=$_.Length;SHA256=(Get-FileHash -LiteralPath $_.FullName).Hash}} | ConvertTo-Json | Set-Content "$output/runtime-manifest.json" -Encoding utf8
  Compress-Archive -Path "$runtime/*" -DestinationPath "$output/AhaKeyStudio-$version-win-x64.zip" -Force
- Get-FileHash "$output/AhaKeyStudio-$version-win-x64.msi","$output/AhaKeyStudio-$version-win-x64.zip"
+ $packages=@("$output/AhaKeyStudio-$version-win-x64.msi","$output/AhaKeyStudio-$version-win-x64.zip")
+ $packages | ForEach-Object { $hash=Get-FileHash -LiteralPath $_ -Algorithm SHA256; "$($hash.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_))" } | Set-Content -LiteralPath "$output/SHA256SUMS.txt" -Encoding ascii
+ Get-FileHash -LiteralPath $packages -Algorithm SHA256
 } finally {Pop-Location}

@@ -12,6 +12,7 @@ public sealed class RealAhaKeyDevice : IAhaKeyDevice, IAsyncDisposable
     public PhysicalTransportKind ActiveTransport {get;private set;}
     private IReadOnlyQueryTransport QueryTransport=>ActiveTransport==PhysicalTransportKind.Usb?Usb!:transport;
     public PhysicalObservation Observation=>QueryTransport.Observation;
+    public bool WritesSupported=>Observation.Capabilities is {SupportedContract:true} c && Observation.Status is {} s && s.FirmwareMajor==c.FirmwareMajor && s.FirmwareMinor==c.FirmwareMinor;
     public FirmwareIdentity FirmwareIdentity=>FirmwareProtocols.Identify(Observation.Status,Observation.Capabilities);
     public IFirmwareProtocolAdapter ProtocolAdapter=>FirmwareProtocols.For(FirmwareIdentity.Dialect);
     public DeviceReadiness Readiness=>DeviceReadiness.From(Observation,Diagnostics.NativeConnected==true,Diagnostics.Subscribed,DateTimeOffset.UtcNow);
@@ -95,7 +96,7 @@ public sealed class RealAhaKeyDevice : IAhaKeyDevice, IAsyncDisposable
     public async Task UploadDisplayAsync(ApprovedDisplayUpload approval,Action<DisplayTransferEvidence> record,Action<DisplayResponseEvidence> responseRecord,CancellationToken ct)
     {
         if(!await gate.WaitAsync(0,ct))throw new InvalidOperationException("Device busy.");
-        try{if((approval.Modern is null?FirmwareIdentity.Dialect!=FirmwareDialect.LegacyWindows:!new DeviceFeatureCatalog(FirmwareIdentity,FeatureTransport.Usb,new()).CanUploadDisplay(approval.Modern.Transfer.Profile,approval.Modern.Transfer.Asset,approval.Modern.Transfer.FrameCount).Available) || ActiveTransport!=PhysicalTransportKind.Usb || Usb is null)throw new InvalidOperationException("Shipping Display requires the attested legacy USB route.");await Usb.UploadDisplayAsync(approval,record,responseRecord,ct);}
+        try{if(!WritesSupported||approval.Modern is null)throw new InvalidOperationException("Upload requires X1 firmware 1.4.8 / protocol 3.2.");if((approval.Modern is null?FirmwareIdentity.Dialect!=FirmwareDialect.LegacyWindows:!new DeviceFeatureCatalog(FirmwareIdentity,FeatureTransport.Usb,new()).CanUploadDisplay(approval.Modern.Transfer.Profile,approval.Modern.Transfer.Asset,approval.Modern.Transfer.FrameCount).Available) || ActiveTransport!=PhysicalTransportKind.Usb || Usb is null)throw new InvalidOperationException("Shipping Display requires the attested legacy USB route.");await Usb.UploadDisplayAsync(approval,record,responseRecord,ct);}
         finally{gate.Release();}
     }
     public async Task ExecuteControlsAsync(ApprovedControlPlan plan,Action<PhysicalCommandEvidence> record,CancellationToken ct)
@@ -104,8 +105,14 @@ public sealed class RealAhaKeyDevice : IAhaKeyDevice, IAsyncDisposable
         try
         {
             if(Observation is not {IsLive:true,SessionId:{} session})throw new InvalidOperationException("No live physical session.");
+            if(!WritesSupported)throw new InvalidOperationException("Writes require X1 firmware 1.4.8 / protocol 3.2.");
             var commands=plan.Begin(session);
-            foreach(var command in commands)ProtocolAdapter.ValidateControl(command.Command);
+            foreach(var command in commands)
+            {
+                ProtocolAdapter.ValidateControl(command.Command);
+                uint required=command.Command.Opcode switch{0x95=>9u,0x98 or 0x99 or 0x9A=>0x30u,_=>0u};
+                if((Observation.Capabilities!.Bits.GetValueOrDefault()&required)!=required)throw new InvalidOperationException("Missing firmware capability.");
+            }
             var target=QueryTransport as IPhysicalControlTransport??throw new NotSupportedException();
             foreach(var command in commands)
             {
@@ -119,6 +126,8 @@ public sealed class RealAhaKeyDevice : IAhaKeyDevice, IAsyncDisposable
         }
         finally{gate.Release();}
     }
+    public async Task<ushort> ReadStandbyAsync(CancellationToken ct)
+    {await gate.WaitAsync(ct);try{if(!WritesSupported)throw new InvalidOperationException("X1 1.4.8 required.");var query=await QueryTransport.QueryFrameAsync(ReadOnlyQuery.Standby,ct);return TaskProtocol.ParseStandby(query.Rx.AsSpan());}finally{gate.Release();}}
     public async Task ReconnectAsync(CancellationToken ct=default)
     {
         CancelCurrent();await gate.WaitAsync(ct);

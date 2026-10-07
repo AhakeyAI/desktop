@@ -33,8 +33,8 @@ public sealed class DeviceOperationCoordinator
         lock(sync)Current=new(Guid.NewGuid(),++generation,null,null,"Device operation",false,DateTimeOffset.UtcNow,null,OperationOutcome.Running,0,null,false,false);
         return true;
     }
-    public void Describe(string operation,Guid? session,PhysicalTransportKind? transport,bool persistent)
-    {lock(sync){if(persistent && ShutdownRequested)throw new InvalidOperationException("Application is exiting.");Current=Current! with{Operation=operation,Session=session,Transport=transport,Persistent=persistent};Persist?.Invoke(Current);}}
+    public void Describe(string operation,Guid? session,PhysicalTransportKind? transport,bool persistent,bool allowShutdownCleanup=false)
+    {lock(sync){if(persistent && ShutdownRequested && !allowShutdownCleanup)throw new InvalidOperationException("Application is exiting.");Current=Current! with{Operation=operation,Session=session,Transport=transport,Persistent=persistent};Persist?.Invoke(Current);}}
     public void Confirm(string step,bool binding=false,bool save=false)
     {lock(sync){Current=Current! with{ConfirmedSteps=Current.ConfirmedSteps+1,LastConfirmedStep=step,LastConfirmedFlashBlock=step.StartsWith("81 sector",StringComparison.Ordinal)?step:Current.LastConfirmedFlashBlock,BindingChanged=Current.BindingChanged||binding,SaveConfirmed=Current.SaveConfirmed||save};Persist?.Invoke(Current);}}
     public void Fail(bool mayHaveWritten)

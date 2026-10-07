@@ -139,3 +139,6 @@ rustup-init.exe
 !/installer/
 !/installer/Studio.wxs
 !/installer/license.rtf
+
+/tools/release/
+/artifacts-test.log

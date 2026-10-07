@@ -2,7 +2,7 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
  <Product Id="*" Name="AhaKey Studio" Language="1033" Version="$(var.MsiVersion)" Manufacturer="AhaKey" UpgradeCode="8152B52E-85D1-4A22-90B5-44218436E377">
   <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64"/>
-  <MajorUpgrade DowngradeErrorMessage="A newer AhaKey Studio is already installed." Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes"/>
+  <MajorUpgrade DowngradeErrorMessage="A newer AhaKey Studio is already installed." Schedule="afterInstallInitialize"/>
   <Property Id="WCH_DRIVER_PRESENT"><RegistrySearch Id="WchDriverSearch" Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\CH375_A64" Name="ImagePath" Type="raw" Win64="yes"/></Property>
   <Condition Message="Install AhaKey Studio for the current user; per-machine installation is not supported.">NOT ALLUSERS</Condition>
   <MediaTemplate EmbedCab="yes" CompressionLevel="high"/>

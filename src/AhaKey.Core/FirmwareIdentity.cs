@@ -25,7 +25,7 @@ public sealed record FeatureEvidence(bool Keys = false, bool StaticDisplay = fal
 public sealed class DeviceFeatureCatalog(FirmwareIdentity identity, FeatureTransport transport, FeatureEvidence evidence)
 {
     private bool Modern => identity.Dialect==FirmwareDialect.WindowsContract32 && identity.ReportedProtocol=="3.2" && identity.ReportedModel==1 && identity.ReportedVersion=="1.4.8";
-    private bool Known => identity.Dialect is FirmwareDialect.LegacyWindows or FirmwareDialect.WindowsContract32;
+    private bool Known => Modern;
     private DeviceFeatureSupport Result(DeviceFeature feature,bool declared,bool physical,string scope,string limitation,string? reason) =>
         new(feature,Known,declared,physical&&Known,transport,identity.Dialect,scope,limitation,
             !Known ? "FeatureUnknownDialect" : reason);

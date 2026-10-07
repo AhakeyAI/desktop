@@ -15,7 +15,6 @@ public sealed class ProfileActivationRuntime(DeviceManager manager,PhysicalContr
         if(!Enabled)return;
         if(Busy){ErrorKey="ProductProfileBusy";Changed?.Invoke();return;}
         if(!Available || manager.RealDevice?.Observation is not {IsLive:true,SessionId:{} session}){ErrorKey="ProductProfileUnavailable";Changed?.Invoke();return;}
-        if(manager.RealDevice.Observation.Status?.WorkMode==(int)profile){ErrorKey=null;Changed?.Invoke();return;}
         Busy=true;ErrorKey=null;Changed?.Invoke();
         try
         {

@@ -3,7 +3,7 @@ using System.Text;
 using AhaKey.Core;
 namespace AhaKey.Protocol;
 
-public enum ControlCategory { KeyConfiguration, LightingRuntime, Brightness, ProfileRuntime, LightingConfiguration, ConfigurationRead }
+public enum ControlCategory { KeyConfiguration, LightingRuntime, Brightness, ProfileRuntime, LightingConfiguration, ConfigurationRead, StandbyConfiguration, TaskRuntime }
 // Closed constructors: no arbitrary frame, macro, map, display or firmware command can enter this path.
 public sealed class LegacyControlCommand
 {
@@ -39,7 +39,14 @@ public sealed class LegacyControlCommand
     {if(!Enum.IsDefined(profile)||values.Count!=9||values.Any(x=>x>16))throw new ArgumentException("Invalid Windows 3.2 lighting map.");return new(ControlCategory.LightingConfiguration,"LightingMap",0x84,[(byte)profile,..values]);}
     public static LegacyControlCommand AssistantState(byte state)
     {if(state>8)throw new ArgumentOutOfRangeException(nameof(state));return new(ControlCategory.LightingRuntime,"AssistantState",0x90,state);}
-    public bool AcceptsResponse(ReadOnlySpan<byte> response) => response.Length==6 && response[0]==0xAA && response[1]==0xBB && response[2]==Opcode && response[3]==0 && response[4]==0xCC && response[5]==0xDD;
+    public static LegacyControlCommand Standby(ushort minutes)
+    {if(minutes is not (0 or 5 or 10 or 15 or 30))throw new ArgumentOutOfRangeException(nameof(minutes));return new(ControlCategory.StandbyConfiguration,"AutoSleep",0x95,(byte)minutes,(byte)(minutes>>8));}
+    public static LegacyControlCommand TaskMode(bool enabled)=>new(ControlCategory.TaskRuntime,"TaskMode",0x98,enabled?(byte)1:(byte)0);
+    public static LegacyControlCommand TaskSlot(byte slot,HardwareProfileId profile,byte state,byte flags)
+    {if(slot>3||!Enum.IsDefined(profile)||state>4||flags>1)throw new ArgumentOutOfRangeException();return new(ControlCategory.TaskRuntime,"TaskSlot",0x99,slot,(byte)profile,state,flags);}
+    public static LegacyControlCommand TaskHeartbeat()=>new(ControlCategory.TaskRuntime,"TaskHeartbeat",0x9A,0);
+    public static LegacyControlCommand TaskStatus()=>new(ControlCategory.TaskRuntime,"TaskStatus",0x9A,1);
+    public bool AcceptsResponse(ReadOnlySpan<byte> response) => response.Length==(Opcode==0x9A?(Frame[3]==0?7:20):6) && response[0]==0xAA && response[1]==0xBB && response[2]==Opcode && response[3]==0 && response[^2]==0xCC && response[^1]==0xDD && (Opcode!=0x9A || (Frame[3]==0 ? response[4]<=15 : TaskProtocol.IsStatus(response)));
     public ImmutableArray<byte> UsbReport()
     {var report=new byte[65];report[1]=0xA1;report[2]=(byte)Frame.Length;Frame.CopyTo(report,3);return [..report];}
 }

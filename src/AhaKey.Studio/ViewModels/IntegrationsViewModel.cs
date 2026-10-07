@@ -41,6 +41,9 @@ public sealed class IntegrationRow(IntegrationStatus status, IntegrationManager 
 
 public sealed partial class IntegrationsViewModel : ObservableObject, IDisposable
 {
+    private readonly IntegrationRuntime runtime;
+    public bool TasksEnabled {get=>runtime.TasksEnabled;set{if(value!=runtime.TasksEnabled)_=runtime.SetTasksEnabledAsync(value);}}
+    public string TasksStatus=>L[runtime.TasksStatusKey];
     public IntegrationManager Manager { get; private set; }
     public LocalizationService L { get; }
     public ObservableCollection<IntegrationRow> Rows { get; } = [];
@@ -56,7 +59,7 @@ public sealed partial class IntegrationsViewModel : ObservableObject, IDisposabl
     public bool AutoStart {get=>preferences.Settings.IntegrationAutoStart;set{try{preferences.Update(s=>s with{IntegrationAutoStart=value});}catch(Exception ex)when(ex is not OutOfMemoryException){ErrorKey="SettingsSaveError";}OnPropertyChanged();}}
     public IntegrationsViewModel(IntegrationRuntime runtime, LocalizationService l,ProfileSelectionService preferences,PhysicalControlRuntime controls)
     {
-        this.preferences=preferences;this.controls=controls;controls.Changed+=Update;preferences.Changed+=Update;
+        this.runtime=runtime;runtime.TasksChanged+=()=>{OnPropertyChanged(nameof(TasksEnabled));OnPropertyChanged(nameof(TasksStatus));};this.preferences=preferences;this.controls=controls;controls.Changed+=Update;preferences.Changed+=Update;
         Manager = runtime.Manager; L = l; Manager.Changed += Update; L.PropertyChanged += (_, _) => Update();
         timer = new() { Interval = TimeSpan.FromSeconds(5) }; timer.Tick += (_, _) => Update(); timer.Start();
     }

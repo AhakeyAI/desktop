@@ -17,6 +17,12 @@ public sealed class UsbReplayFactory : IWindowsHidSessionFactory
     public bool FailNextControl {get;set;}
     public bool Contract32 {get;set;}
     public List<string> Controls {get;}=[];
+    private byte modeSequence;
+    public byte HardwareMode {get;set;}=2;
+    public ushort SleepMinutes {get;set;}=5;
+    public byte TaskMode {get;set;}
+    public byte[] TaskSlots {get;}=new byte[12];
+    public Action<byte>? ModeEvent {get;private set;}
     public int DisplayReports {get;set;}
     public int OutputCount {get;private set;}
     public Task<IReadOnlyList<HidCandidate>> EnumerateAsync(CancellationToken ct)=>Task.FromResult(Candidates);
@@ -26,11 +32,17 @@ public sealed class UsbReplayFactory : IWindowsHidSessionFactory
         public Guid Id=>id;
         public bool ReaderRunning {get;private set;}
         private Action<HidInput>? receive;
-        public Task OpenAsync(HidCandidate candidate,Action<HidInput> input,Action<Guid,Exception> failed,CancellationToken ct){ReaderRunning=true;receive=input;return Task.CompletedTask;}
+        public Task OpenAsync(HidCandidate candidate,Action<HidInput> input,Action<Guid,Exception> failed,CancellationToken ct){ReaderRunning=true;receive=input;owner.ModeEvent=mode=>{owner.HardwareMode=mode;Emit($"AABB9B00{mode:X2}01{++owner.modeSequence:X2}CCDD");};return Task.CompletedTask;}
         public Task<HidWriteResult> WriteAsync(ImmutableArray<byte> report,CancellationToken ct)
         {
             if(!AhaKey.Protocol.UsbReportCodec.IsAllowedReport(report.AsSpan()))throw new InvalidOperationException("Replay allowlist.");
-            owner.OutputCount++;var bytes=new byte[65];Convert.FromHexString(owner.Contract32?(report[5]==0?"AABB004B3201040200002304CCDD":"AABB9F000302010401FF0700000801CCDD"):(report[5]==0?"AABB004B32010002000023CCDD":"AABB9F00CCDD")).CopyTo(bytes,1);
+            owner.OutputCount++;
+            if(owner.Contract32&&report[5] is 0x95 or 0x9B or 0x9C)
+            {
+                Emit(report[5] switch{0x95=>$"AABB9500{owner.SleepMinutes&255:X2}{owner.SleepMinutes>>8:X2}CCDD",0x9B=>$"AABB9B00{owner.HardwareMode:X2}0001CCDD",_=>"AABB9C0004040C006407A0501685000080002401080C0C0CCCDD"});
+                return Task.FromResult(new HidWriteResult(true,65,0));
+            }
+            var bytes=new byte[65];Convert.FromHexString(owner.Contract32?(report[5]==0?$"AABB004B320104{owner.HardwareMode:X2}00002304CCDD":"AABB9F000302010401FF0700000801CCDD"):(report[5]==0?"AABB004B32010002000023CCDD":"AABB9F00CCDD")).CopyTo(bytes,1);
             receive?.Invoke(new(Id,DateTimeOffset.UtcNow,bytes.ToImmutableArray()));return Task.FromResult(new HidWriteResult(true,65,0));
         }
         private int remaining;
@@ -40,7 +52,21 @@ public sealed class UsbReplayFactory : IWindowsHidSessionFactory
             if(!owner.ProductControls)throw new NotSupportedException();
             control.Consume(Id,control.Command.Frame.AsSpan());owner.Controls.Add(Convert.ToHexString(control.Command.Frame.AsSpan()));
             var status=owner.FailNextControl?1:0;owner.FailNextControl=false;
-            Emit($"AABB{control.Command.Frame[2]:X2}{status:X2}CCDD");return Task.FromResult(new HidWriteResult(true,65,0));
+            var frame=control.Command.Frame;
+            if(owner.Contract32&&status==0)
+            {
+                if(frame[2]==0x92)owner.HardwareMode=frame[3];
+                if(frame[2]==0x95)owner.SleepMinutes=(ushort)(frame[3]|frame[4]<<8);
+                if(frame[2]==0x98)owner.TaskMode=frame[3];
+                if(frame[2]==0x99)for(int i=0;i<3;i++)owner.TaskSlots[frame[3]*3+i]=frame[4+i];
+                if(frame[2]==0x9A)
+                {
+                    int mask=Enumerable.Range(0,4).Where(i=>owner.TaskSlots[i*3+1]!=0).Sum(i=>1<<i);
+                    Emit(frame[3]==0?$"AABB9A00{mask:X2}CCDD":$"AABB9A00{owner.TaskMode:X2}1E"+Convert.ToHexString(owner.TaskSlots)+"CCDD");
+                    return Task.FromResult(new HidWriteResult(true,65,0));
+                }
+            }
+            Emit($"AABB{frame[2]:X2}{status:X2}CCDD");return Task.FromResult(new HidWriteResult(true,65,0));
         }
         public Task<HidWriteResult> WriteDisplayAsync(ApprovedDisplayReport permit,CancellationToken ct)
         {

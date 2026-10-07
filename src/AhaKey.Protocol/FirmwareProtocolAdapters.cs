@@ -59,7 +59,7 @@ public sealed class WindowsContract32ProtocolAdapter : LegacyWindowsProtocolAdap
     public override FirmwareProtocolSemantics Semantics=>new("Shared save; first-boot migration may seed assets", "9D partial live RAM; no atomic/persisted backup",
         "4 profiles x (8+12+12+12); RGB565 160x80; stride28672", "Raw F18 overrides generic K1/voice mapping");
     public override void ValidateControl(LegacyControlCommand command)
-    {if(command.Opcode is 0x84 or 0x85 or 0x90)return;base.ValidateControl(command);}
+    {if(command.Opcode is 0x84 or 0x85 or 0x90 or 0x95 or 0x98 or 0x99 or 0x9A)return;base.ValidateControl(command);}
     public static int ResourceLength(byte resource,byte index)=>resource switch
     {0 when index<16=>100,1 when index<4=>9,2 when index==0=>2,_=>throw new ArgumentOutOfRangeException(nameof(resource))};
     public override ImmutableArray<byte> QueryConfig(byte resource,byte index,byte offset)

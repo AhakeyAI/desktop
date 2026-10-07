@@ -93,6 +93,7 @@ public sealed partial class BleViewModel : ObservableObject
             var d=Observation;var c=d.Capabilities;var s=d.Status;
             return [new(L["AlphaDeviceName"],DeviceName),new(L["AlphaTransport"],TransportName),new(L["BleConnection"],Stage),new(L["Battery"],s?.Battery is {} b?$"{b}%{(Fresh?"":" · "+L["BleStale"])}":L["BleUnknown"]),
                 new(L["BleFirmware"],manager.RealDevice?.FirmwareIdentity.ReportedVersion??L["BleUnknown"]),
+                new(L["ProtocolVersion"],manager.RealDevice?.FirmwareIdentity.ReportedProtocol??L["BleUnknown"]),
                 new(L["FirmwareFamily"],L["Family"+(manager.RealDevice?.FirmwareIdentity.Dialect??FirmwareDialect.Unknown)]),
                 new(L["FirmwareExactBuild"],manager.RealDevice?.FirmwareIdentity.KnownBuildHash??L["BleUnknown"]),
                 new(L["BleContract"],L[c is null?"BleUnknown":c.SupportedContract?"BleSupported":c.ProtocolMajor is null?"BleLegacyIncomplete":"BleUnsupported"]),
@@ -100,7 +101,7 @@ public sealed partial class BleViewModel : ObservableObject
                 new(L["AlphaConfirmation"],Fresh && s?.Confirmation is {} confirmation?L[confirmation.ToString()]:L["BleUnknown"]),new(L["AlphaConfiguration"],L[controls.Features.CanReadConfigResource(0).Available?"PartialKeyRead":"AlphaNoReadback"]),new(L["AlphaFirmwareUpdate"],L[manager.RealDevice?.FirmwareIdentity.Dialect==FirmwareDialect.WindowsContract32?"FirmwareTransportPrepared":"AlphaNoUpdate"]),new(L["AlphaLastTelemetry"],Freshness)];
         }
     }
-    public IReadOnlyList<BleRow> ProductSummary=>Summary.Where(x=>x.Label!=L["BleContract"] && x.Label!=L["BleCapabilities"]).ToArray();
+    public IReadOnlyList<BleRow> ProductSummary=>Summary.Where(x=>x.Label!=L["BleCapabilities"]).ToArray();
     public IReadOnlyList<BleRow> DiagnosticSummary=>Summary.Where(x=>new[]{L["AlphaDeviceName"],L["Battery"],L["BleFirmware"],L["FirmwareFamily"],L["FirmwareExactBuild"],L["BleCapabilities"]}.Contains(x.Label)).Concat(new BleRow[]{
         new("Dialect",Value(manager.RealDevice?.FirmwareIdentity.Dialect)),new("Identity evidence",Value(manager.RealDevice?.FirmwareIdentity.IdentitySource)),
         new("Behavior fingerprint",Value(manager.RealDevice?.FirmwareIdentity.ObservedBehaviorFingerprint)),
