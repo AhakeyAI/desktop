@@ -1,0 +1,20 @@
+{
+  "Unit": "AD1E",
+  "Transport": "USB",
+  "Frames": 8,
+  "IntervalMs": 569,
+  "Slots": "88-95",
+  "MetadataConfirmed": true,
+  "UserVisualConfirmation": "да, все ок",
+  "Disconnected": true,
+  "PhysicalWriteAttempts": 1,
+  "InitialPreflight": "No unique USB target; no connection or write",
+  "FirmwareFlashed": false,
+  "TestResults": {
+    "Integrations": 41,
+    "Protocol": 92,
+    "Core": 118,
+    "Device": 142
+  },
+  "UiReviewedFindingsClosed": 5
+}

@@ -1,0 +1,22 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<SolidColorBrush x:Key="AppBackground" Color="#F6F7F9"/>
+<SolidColorBrush x:Key="Surface" Color="#FFFFFF"/>
+<SolidColorBrush x:Key="SurfaceRaised" Color="#EEF2F7"/>
+<SolidColorBrush x:Key="Border" Color="#E5E7EB"/>
+<SolidColorBrush x:Key="TextPrimary" Color="#111827"/>
+<SolidColorBrush x:Key="TextSecondary" Color="#536174"/>
+<SolidColorBrush x:Key="Accent" Color="#2563EB"/>
+<SolidColorBrush x:Key="Success" Color="#15803D"/>
+<SolidColorBrush x:Key="Warning" Color="#A85B00"/>
+<SolidColorBrush x:Key="Danger" Color="#C81E1E"/>
+<SolidColorBrush x:Key="Disabled" Color="#687589"/>
+<SolidColorBrush x:Key="Selection" Color="#E8F0FF"/>
+<SolidColorBrush x:Key="Focus" Color="#2563EB"/>
+<SolidColorBrush x:Key="OnAccent" Color="#FFFFFF"/>
+ <SolidColorBrush x:Key="ProfileSelection" Color="#F0F5FF"/>
+ <SolidColorBrush x:Key="IconSurface" Color="#EEF2F7"/>
+ <SolidColorBrush x:Key="HardwareCanvas" Color="#EDF1F5"/>
+ <SolidColorBrush x:Key="Screen" Color="#111820"/>
+ <SolidColorBrush x:Key="ScreenText" Color="#D7EAF2"/>
+ <SolidColorBrush x:Key="KeySelection" Color="#552563EB"/><SolidColorBrush x:Key="KeyHover" Color="#2274ABFF"/>
+</ResourceDictionary>

@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup></PropertyGroup><ItemGroup><ProjectReference Include="../AhaKey.Core/AhaKey.Core.csproj"/></ItemGroup></Project>

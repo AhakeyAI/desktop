@@ -1,0 +1,9 @@
+AhaKey Studio owner acceptance build
+
+.NET 10 / Windows Desktop runtime: Microsoft / .NET Foundation, MIT and third-party notices shipped with the self-contained runtime. https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+CommunityToolkit.Mvvm: .NET Foundation, MIT. https://github.com/CommunityToolkit/dotnet/blob/main/License.md
+Microsoft.Extensions libraries: Microsoft / .NET Foundation, MIT.
+WiX Toolset 3.14 build tools: Microsoft Reciprocal License. Build-time tools are not runtime dependencies. https://github.com/wixtoolset/wix3/blob/develop/LICENSE.TXT
+
+WCHISPStudio 4.0 / WCH55xISPDLL / CH343PT / CH375DLL / CH375WDM belong to WCH. Redistribution authorization has not been established. They are NOT bundled. Use the official vendor package: https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html
+Firmware HEX/provenance, if included in this local owner build: AhakeyAI/AhaKey-X1-hardware-source, commit f1903791f2119d02f71eb92afe9efbb360edb06a. Source README restricts redistribution; this build is not a public firmware release. Do not publish this package without permission.

@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework/><TargetFrameworks>net10.0;net10.0-windows10.0.19041.0</TargetFrameworks></PropertyGroup><ItemGroup><ProjectReference Include="../AhaKey.Core/AhaKey.Core.csproj"/><ProjectReference Include="../AhaKey.Protocol/AhaKey.Protocol.csproj"/><PackageReference Include="Microsoft.Extensions.Logging"/></ItemGroup></Project>

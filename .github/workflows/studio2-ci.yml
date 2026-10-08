@@ -1,0 +1,100 @@
+name: AhaKey Studio Windows release
+on:
+  push:
+    paths:
+      - 'src/AhaKey.*/**'
+      - 'tests/AhaKey.*/**'
+      - 'AhaKeyStudio.sln'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - '.github/workflows/studio2-ci.yml'
+      - 'Publish-Studio.ps1'
+      - 'Build-Installer.ps1'
+      - 'Validate-ReleasePackages.ps1'
+      - 'installer/**'
+      - 'docs/studio2-release-200/**'
+      - 'docs/studio2/**'
+  pull_request:
+    paths:
+      - 'src/AhaKey.*/**'
+      - 'tests/AhaKey.*/**'
+      - 'AhaKeyStudio.sln'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - '.github/workflows/studio2-ci.yml'
+      - 'Publish-Studio.ps1'
+      - 'Build-Installer.ps1'
+      - 'Validate-ReleasePackages.ps1'
+      - 'installer/**'
+      - 'docs/studio2-release-200/**'
+      - 'docs/studio2/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore AhaKeyStudio.sln
+      - name: Build
+        run: dotnet build AhaKeyStudio.sln --configuration Release --no-restore
+      - name: Test software only
+        run: dotnet test AhaKeyStudio.sln --configuration Release --no-build --logger "trx;LogFilePrefix=studio2"
+      - name: WPF mock regression (no hardware)
+        shell: pwsh
+        run: |
+          dotnet "src/AhaKey.Studio/bin/Release/net10.0-windows10.0.19041.0/AhaKey Studio.dll" --smoke-test artifacts/studio2-mock
+          if ($LASTEXITCODE -ne 0) { throw "Studio smoke test failed" }
+      - name: Publish self-contained Windows runtime
+        shell: pwsh
+        run: ./Publish-Studio.ps1 -PublicRelease
+      - name: USB and BLE ownership replay (no hardware)
+        shell: pwsh
+        run: |
+          dotnet "src/AhaKey.Studio/bin/Release/net10.0-windows10.0.19041.0/AhaKey Studio.dll" --usb-diagnostics-smoke artifacts/studio2-usb-replay
+          if ($LASTEXITCODE -ne 0) { throw "USB replay failed" }
+
+      - name: Library and profile regression (no hardware)
+        shell: pwsh
+        run: |
+          dotnet "src/AhaKey.Studio/bin/Release/net10.0-windows10.0.19041.0/AhaKey Studio.dll" --phase8-repro artifacts/studio2-library asset
+          if ($LASTEXITCODE -ne 0 -or (Get-Content artifacts/studio2-library/result.txt) -ne 'completed') { throw "Library regression failed" }
+      - name: Public MSI and portable ZIP (WiX 3.14.1)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/wix | Out-Null
+          Invoke-WebRequest 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' -OutFile artifacts/wix.zip
+          if ((Get-FileHash artifacts/wix.zip -Algorithm SHA256).Hash -ne '6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31') { throw 'WiX checksum mismatch' }
+          Expand-Archive artifacts/wix.zip artifacts/wix
+          ./Build-Installer.ps1 -PublicRelease -SkipPublish -WixBin artifacts/wix
+          ./Validate-ReleasePackages.ps1 -WixBin artifacts/wix
+      - name: Packaged self-contained runtime smoke (no hardware)
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath 'artifacts/public-runtime/AhaKey Studio.exe' -ArgumentList '--phase9-runtime-smoke','artifacts/packaged-runtime' -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -ne 0) { Get-Content 'artifacts/packaged-runtime/smoke-error.txt' -ErrorAction SilentlyContinue; throw 'Packaged runtime smoke failed' }
+      - name: Upload release candidates and validation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AhaKeyStudio-2.0.0-win-x64-candidate
+          if-no-files-found: error
+          path: |
+            artifacts/public-installer/*.msi
+            artifacts/public-installer/*.zip
+            artifacts/public-installer/SHA256SUMS.txt
+            artifacts/public-installer/runtime-manifest.json
+            artifacts/public-installer/package-validation.json
+            artifacts/packaged-runtime/**
+            tests/**/TestResults/*.trx
