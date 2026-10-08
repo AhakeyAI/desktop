@@ -1013,4 +1013,9 @@
 <data name="VoiceThreshold" xml:space="preserve"><value>Порог долгого нажатия (200–3000 мс)</value></data>
 <data name="VoiceLongAction" xml:space="preserve"><value>Действие долгого нажатия</value></data>
 <data name="ProtocolVersion" xml:space="preserve"><value>Версия протокола</value></data>
-</root>
+<data name="FirmwarePrepare" xml:space="preserve"><value>Проверить загрузчик</value></data>
+<data name="FirmwareStopPreparing" xml:space="preserve"><value>Остановить ожидание</value></data>
+<data name="FirmwarePrepareHint" xml:space="preserve"><value>Только обнаружение загрузчика, без стирания и записи. Это не удерживает устройство в ISP.</value></data>
+<data name="FirmwareIspWaiting" xml:space="preserve"><value>Ожидаем WCH-загрузчик до 5 минут. Запись не выполняется.</value></data>
+<data name="FirmwareIspDetected" xml:space="preserve"><value>WCH-загрузчик обнаружен. Запись не выполняется.</value></data>
+<data name="FirmwareArm" xml:space="preserve"><value>Подготовить и прошить</value></data></root>

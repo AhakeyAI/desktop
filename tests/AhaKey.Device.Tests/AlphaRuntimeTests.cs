@@ -5,6 +5,36 @@ namespace AhaKey.Device.Tests;
 
 public sealed class AlphaRuntimeTests
 {
+    [Fact] public async Task OfflineSelectedDeviceRecoversWithoutReapplyingConfiguration()
+    {
+        var offline=true;
+        var f=new FakeGattFactory{Configure=s=>s.Acquiring=_=>offline?Task.FromException(new BleException("BleAcquireFailure","Offline")):Task.CompletedTask};
+        await using var real=Device(f);real.Selected=new("known","AhaKey",null);
+        using var m=Manager(real);using var runtime=new RealDeviceRuntime(m,TimeSpan.Zero);
+        await m.SelectBackendAsync(true);await runtime.StartAsync();Assert.False(real.Observation.IsLive);
+        offline=false;await runtime.RetryDisconnectedAsync();Assert.True(real.Observation.IsLive);
+        Assert.Equal(new byte[]{0,0x9F},f.Sessions.Last().Commands);
+        await runtime.DisconnectAsync();var count=f.Sessions.Count;
+        await runtime.RetryDisconnectedAsync();Assert.Equal(count,f.Sessions.Count);Assert.False(real.Observation.IsLive);
+    }
+    [Fact] public async Task OfflineRecoveryHonorsCooldown()
+    {
+        var f=new FakeGattFactory{Configure=s=>s.Acquiring=_=>Task.FromException(new BleException("BleAcquireFailure","Offline"))};
+        await using var real=Device(f);real.Selected=new("known","AhaKey",null);
+        using var m=Manager(real);using var runtime=new RealDeviceRuntime(m);
+        await m.SelectBackendAsync(true);await runtime.StartAsync();var count=f.Sessions.Count;
+        await runtime.RetryDisconnectedAsync();Assert.Equal(count,f.Sessions.Count);
+    }
+    [Fact] public async Task FirmwareSuspensionBlocksRecoveryUntilExplicitResume()
+    {
+        var offline=true;
+        var f=new FakeGattFactory{Configure=s=>s.Acquiring=_=>offline?Task.FromException(new BleException("BleAcquireFailure","Offline")):Task.CompletedTask};
+        await using var real=Device(f);real.Selected=new("known","AhaKey",null);
+        using var m=Manager(real);using var runtime=new RealDeviceRuntime(m,TimeSpan.Zero);
+        await m.SelectBackendAsync(true);await runtime.StartAsync();runtime.SuspendRecovery();var count=f.Sessions.Count;
+        offline=false;await runtime.RetryDisconnectedAsync();Assert.Equal(count,f.Sessions.Count);
+        runtime.ResumeRecovery();await runtime.RetryDisconnectedAsync();Assert.True(real.Observation.IsLive);
+    }
     [Fact] public void QueryLatencyStartsAtTxEvenWhenNotificationPrecedesGattCompletion()
     {
         var start=DateTimeOffset.UtcNow;

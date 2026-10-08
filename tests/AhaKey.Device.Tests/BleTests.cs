@@ -29,6 +29,7 @@ public sealed class FakeGatt(Guid id) : IWindowsGattSession
     public int SubscribeCount;
     public GattResult WriteResult=new(GattResultStatus.Success);
     public bool Respond=true;
+    public Action? BeforeWrite;
     public ImmutableArray<byte> CapabilityResponse=CapsFrame;
     public Func<CancellationToken,Task>? Acquiring;
     public Func<CancellationToken,Task>? Discovering;
@@ -40,6 +41,7 @@ public sealed class FakeGatt(Guid id) : IWindowsGattSession
     public async Task<GattResult> WriteCommandAsync(Guid service,Guid characteristic,ImmutableArray<byte> frame,CancellationToken ct)
     {
         Assert.True(AhaKeyProtocol.IsAllowedQuery(frame.AsSpan()));Commands.Add(frame[2]);
+        BeforeWrite?.Invoke();
         await Task.Delay(2,ct);
         // BLE notification may arrive before the managed awaited write continuation.
         if(Respond)Emit(frame[2]==0?StatusFrame:CapabilityResponse);
@@ -51,6 +53,13 @@ public sealed class FakeGatt(Guid id) : IWindowsGattSession
 }
 public class BleTests
 {
+    [Fact] public async Task NativeLossBeforeWriteCompletesCancelsQueryAndDisposesSession()
+    {
+        var f=new FakeGattFactory{Configure=s=>s.BeforeWrite=s.LoseLink};
+        await using var transport=Transport(f);await transport.OpenAsync(Selected);
+        await Assert.ThrowsAsync<BleException>(()=>transport.QueryAsync(ReadOnlyQuery.PhysicalStatus));
+        Assert.True(f.Sessions.Single().Disposed);Assert.False(transport.Diagnostics.IsLive);
+    }
     private static BleTransport Transport(FakeGattFactory f)=>new(f,GattContract.WindowsObserved){QueryTimeout=TimeSpan.FromMilliseconds(100),RetryDelay=TimeSpan.Zero};
     private static BleDeviceInfo Selected=>new("fake","Fake",null);
     [Fact] public async Task ReadyRequiresBothQueriesAndNeverReadsConfiguration()

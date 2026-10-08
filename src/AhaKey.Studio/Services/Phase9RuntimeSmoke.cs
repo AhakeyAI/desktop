@@ -26,7 +26,17 @@ public static class Phase9RuntimeSmoke
         checks.Add("Tray reopens shell");
         await shell.Firmware.VerifyCommand.ExecuteAsync(null);
         if(shell.Firmware.CanReinstall)throw new InvalidOperationException("Firmware enabled without a connected device.");
+        if(shell.Firmware.ArmCommand.CanExecute(null))throw new InvalidOperationException("Firmware arming enabled without live USB identity.");
         checks.Add("Firmware is blocked without live compatible USB identity");
+        var firmware=services.GetRequiredService<FirmwareRuntime>();
+        if(firmware.ComponentsReady) {
+            var waiting=shell.Firmware.PrepareCommand.ExecuteAsync(null);
+            await Task.Delay(300);
+            if(!firmware.Preparing||shell.Firmware.CanReinstall)throw new InvalidOperationException("ISP detection does not isolate normal connection.");
+            shell.Firmware.StopPreparingCommand.Execute(null);await waiting;
+            if(firmware.Preparing||firmware.BootloaderPresent)throw new InvalidOperationException("ISP detector did not stop.");
+            checks.Add("ISP detection can be started and stopped without flashing; reinstall remains gated");
+        }
         foreach(var language in new[]{LanguageChoice.English,LanguageChoice.Russian,LanguageChoice.Chinese})
         {
             shell.Settings.Language=shell.Settings.Languages.Single(x=>x.Value==language);

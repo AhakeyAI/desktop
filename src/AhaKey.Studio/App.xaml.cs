@@ -17,6 +17,7 @@ public partial class App : Application
     private SingleInstanceOwner? instance;
     private ILogger? logger;
     private TrayLifetime? tray;
+    private UsbAutoConnect? usbAutoConnect;
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -129,11 +130,14 @@ public partial class App : Application
             var phase9Smoke=e.Args.Length==2 && e.Args[0]=="--phase9-runtime-smoke";
             var productSmoke=phase9Smoke || Phase8Repro.Output is not null || e.Args.Length==2 && e.Args[0]=="--product-smoke";
             var usbSmoke=productSmoke || e.Args.Length==2 && e.Args[0]=="--usb-diagnostics-smoke";
+            var usbReplugSmoke=e.Args.Length==2 && e.Args[0]=="--usb-auto-replug-smoke";
+            var usbAutoSmoke=usbReplugSmoke || e.Args.Length==2 && e.Args[0]=="--usb-auto-connect-smoke";
             var smoke = e.Args.Length == 2 && e.Args[0] == "--smoke-test";
-            var root = smoke || hardware || legacySmoke || usbSmoke || integrationsSmoke || integrationAcceptance ? Path.Combine(Path.GetFullPath(e.Args[1]), "isolated-settings", Guid.NewGuid().ToString("N")) : null;
+            var root = usbAutoSmoke || smoke || hardware || legacySmoke || usbSmoke || integrationsSmoke || integrationAcceptance ? Path.Combine(Path.GetFullPath(e.Args[1]), "isolated-settings", Guid.NewGuid().ToString("N")) : null;
             var settingsStore=new SettingsStore(root);CrashEvidence.Configure(settingsStore.Root);
+            if(usbAutoSmoke)settingsStore.Save(new(Backend:BackendChoice.Real));
             if(smoke || integrationsSmoke || integrationAcceptance)settingsStore.Save(new(Backend:BackendChoice.Mock){DeveloperMode=true});
-            if(!smoke && !hardware && !legacySmoke && !usbSmoke && !integrationsSmoke && !integrationAcceptance)
+            if(!usbAutoSmoke && !smoke && !hardware && !legacySmoke && !usbSmoke && !integrationsSmoke && !integrationAcceptance)
             {
                 instance=new(settingsStore.Root);
                 if(!instance.IsPrimary){await instance.ActivateAsync();Shutdown(0);return;}
@@ -176,6 +180,32 @@ public partial class App : Application
             SessionEnding+=(_,args)=>{if(manager.Operations.Current is {Persistent:true})args.Cancel=true;};
             await manager.SelectBackendAsync(!smoke && settings.EffectiveBackend == BackendChoice.Real);
             logger.LogInformation("Backend {Backend}",manager.RealBackendSelected?"Real BLE":"Mock Simulation");
+            if(usbAutoSmoke)
+            {
+                ShutdownMode=ShutdownMode.OnExplicitShutdown;
+                using var auto=new UsbAutoConnect(manager,host.Services.GetRequiredService<RealDeviceRuntime>(),host.Services.GetRequiredService<FirmwareRuntime>(),host.Services.GetRequiredService<PhysicalControlRuntime>());
+                await auto.StartAsync();
+                var real=manager.RealDevice!;
+                var passed=real.ActiveTransport==PhysicalTransportKind.Usb&&real.Observation.IsLive&&real.FirmwareIdentity.ReportedModel==1;
+                Directory.CreateDirectory(e.Args[1]);
+                var disconnected=false;var reconnected=false;
+                if(usbReplugSmoke && passed)
+                {
+                    File.WriteAllText(Path.Combine(e.Args[1],"stage.txt"),"CONNECTED; unplug USB, wait two seconds, reconnect");
+                    var deadline=DateTimeOffset.UtcNow+TimeSpan.FromSeconds(120);
+                    while(DateTimeOffset.UtcNow<deadline && real.Observation.IsLive)await Task.Delay(200);
+                    disconnected=!real.Observation.IsLive;
+                    if(disconnected)
+                    {
+                        File.WriteAllText(Path.Combine(e.Args[1],"stage.txt"),"DISCONNECTED; waiting for automatic USB reconnect");
+                        while(DateTimeOffset.UtcNow<deadline && !real.Observation.IsLive)await Task.Delay(200);
+                        reconnected=real.ActiveTransport==PhysicalTransportKind.Usb&&real.Observation.IsLive;
+                    }
+                    passed=disconnected&&reconnected;
+                }
+                File.WriteAllText(Path.Combine(e.Args[1],"usb-auto-connect.json"),System.Text.Json.JsonSerializer.Serialize(new{Passed=passed,ReplugTest=usbReplugSmoke,Disconnected=disconnected,Reconnected=reconnected,Transport=real.ActiveTransport.ToString(),Live=real.Observation.IsLive,Firmware=real.FirmwareIdentity.ReportedVersion,Model=real.FirmwareIdentity.ReportedModel,Setters=0,Flashing=false}));
+                auto.Dispose();await manager.DisconnectAsync();Shutdown(passed?0:2);return;
+            }
             var drafts=host.Services.GetRequiredService<LocalDraftStore>();
             if(drafts.Load() is {} draft)manager.Edit(draft);
             host.Services.GetRequiredService<LocalProjectRuntime>().Initialize();
@@ -201,7 +231,7 @@ public partial class App : Application
                 ShutdownMode=ShutdownMode.OnExplicitShutdown;
                 tray=new TrayLifetime(MainWindow,host.Services.GetRequiredService<ShellViewModel>(),host.Services.GetRequiredService<ProfileSelectionService>(),integrations,runtime,async()=>
                 {
-                    await integrations.DisposeAsync();await runtime.DisconnectAsync();
+                    usbAutoConnect?.Dispose();await integrations.DisposeAsync();await runtime.DisconnectAsync();
                     if(manager.RealDevice is {} real)await real.DisposeAsync();
                     logger.LogInformation("Exit: sessions released");
                 });
@@ -220,7 +250,7 @@ public partial class App : Application
             if(integrationsSmoke){await IntegrationsSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
             if(legacySmoke){await LegacyDiagnosticsSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
             if(usbSmoke){if(phase9Smoke)await Phase9RuntimeSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));else if(Phase8Repro.Output is not null)await Phase8Repro.RunAsync(MainWindow,host.Services);else if(productSmoke)await ProductSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));else await UsbDiagnosticsSmoke.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]));Shutdown(0);}
-            if(!smoke && !hardware && !legacySmoke && !usbSmoke && !integrationsSmoke && !integrationAcceptance){await runtime.StartAsync();await host.Services.GetRequiredService<IntegrationRuntime>().InitializeAsync();}
+            if(!smoke && !hardware && !legacySmoke && !usbSmoke && !integrationsSmoke && !integrationAcceptance){usbAutoConnect=new(manager,runtime,host.Services.GetRequiredService<FirmwareRuntime>(),host.Services.GetRequiredService<PhysicalControlRuntime>());await usbAutoConnect.StartAsync();await runtime.StartAsync();await host.Services.GetRequiredService<IntegrationRuntime>().InitializeAsync();}
             if(hardware){await BleHardwareAcceptance.RunAsync(MainWindow,host.Services,Path.GetFullPath(e.Args[1]),e.Args[2]);Shutdown(0);}
             if (smoke)
             {
@@ -243,6 +273,7 @@ public partial class App : Application
     }
     protected override void OnExit(ExitEventArgs e)
     {
+        usbAutoConnect?.Dispose();
         if (host is not null) { host.StopAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult(); if(host is IAsyncDisposable asyncHost)asyncHost.DisposeAsync().AsTask().GetAwaiter().GetResult();else host.Dispose(); }
         tray?.Dispose();
         instance?.Dispose();

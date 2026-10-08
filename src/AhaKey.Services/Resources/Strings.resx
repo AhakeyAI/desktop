@@ -1013,4 +1013,9 @@
 <data name="VoiceThreshold" xml:space="preserve"><value>Long press threshold (200–3000 ms)</value></data>
 <data name="VoiceLongAction" xml:space="preserve"><value>Long press action</value></data>
 <data name="ProtocolVersion" xml:space="preserve"><value>Protocol version</value></data>
-</root>
+<data name="FirmwarePrepare" xml:space="preserve"><value>Check bootloader</value></data>
+<data name="FirmwareStopPreparing" xml:space="preserve"><value>Stop waiting</value></data>
+<data name="FirmwarePrepareHint" xml:space="preserve"><value>Bootloader detection only; no erase or write. This does not hold the device in ISP.</value></data>
+<data name="FirmwareIspWaiting" xml:space="preserve"><value>Waiting for WCH bootloader (5 minutes); no writes.</value></data>
+<data name="FirmwareIspDetected" xml:space="preserve"><value>WCH bootloader detected; no writes.</value></data>
+<data name="FirmwareArm" xml:space="preserve"><value>Prepare and flash</value></data></root>

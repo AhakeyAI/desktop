@@ -22,6 +22,29 @@ public sealed class FirmwareRuntime
     public bool CanRecover=>Coordinator.Journal?.State==FirmwareUpdateState.RecoveryRequired && File.Exists(RecoveryPath);
     private bool wasServing;
     public bool Busy {get;private set;}
+    public bool Preparing {get;private set;}
+    public bool BootloaderPresent {get;private set;}
+    private CancellationTokenSource? preparation;
+    public async Task PrepareAsync()
+    {
+        if(Busy||Preparing||connections.Busy||manager.Operations.Current is not null)return;
+        var resumeRecovery=!connections.ExplicitlyDisconnected;
+        connections.SuspendRecovery();
+        preparation=new();var owner=preparation;Preparing=true;Changed?.Invoke();
+        try {
+            var until=DateTimeOffset.UtcNow+TimeSpan.FromMinutes(5);
+            while(DateTimeOffset.UtcNow<until) {
+                var devices=await DeviceInformation.FindAllAsync("System.Devices.Present:=System.StructuredQueryType.Boolean#True",null,DeviceInformationKind.Device).AsTask(owner.Token);
+                var count=devices.Count(d=>d.Id.Contains("VID_4348&PID_55E0",StringComparison.OrdinalIgnoreCase));
+                if(count>1)throw new InvalidOperationException("Multiple ISP devices.");
+                BootloaderPresent=count==1;Changed?.Invoke();
+                await Task.Delay(100,owner.Token);
+            }
+        }
+        catch(OperationCanceledException)when(owner.IsCancellationRequested){}
+        finally{Preparing=false;BootloaderPresent=false;preparation=null;owner.Dispose();if(resumeRecovery)connections.ResumeRecovery();Changed?.Invoke();}
+    }
+    public void StopPreparing()=>preparation?.Cancel();
     public FirmwareUpdateCoordinator Coordinator {get;private set;}
     public event Action? Changed;
     public string ComponentStatus {get;private set;}="FirmwareCheckingComponents";
@@ -58,6 +81,7 @@ public sealed class FirmwareRuntime
     }
     public async Task UpdateAsync(FirmwarePackage package,IProgress<string> progress,CancellationToken ct,bool recovery=false)
     {
+        if(Preparing)throw new InvalidOperationException("Stop preparation before starting a flash.");
         if(Busy || !ComponentsReady || manager.RealDevice is not {} device)
             throw new InvalidOperationException("Known connected USB device and update components required.");
         await FirmwarePackageValidator.ValidateAsync(package,ct);
@@ -98,6 +122,7 @@ public sealed class FirmwareRuntime
         finally
         {
             Busy=false;Changed?.Invoke();
+            if(Coordinator.Journal?.State==FirmwareUpdateState.Completed)connections.ResumeRecovery();
             // A failed update stays paused; no feedback writes into an uncertain recovered device.
             if(wasServing && Coordinator.Journal?.State==FirmwareUpdateState.Completed)integrations.Manager.Server.Start();
         }
@@ -112,14 +137,14 @@ public sealed class FirmwareRuntime
             var matches=devices.Where(d=>d.Id.Contains("VID_4348&PID_55E0",StringComparison.OrdinalIgnoreCase)).ToArray();
             if(matches.Length>1)throw new InvalidOperationException("Multiple ISP devices; unplug other programmers.");
             if(matches.Length==1)return;
-            await Task.Delay(750,ct);
+            await Task.Delay(100,ct);
         }
         throw new TimeoutException("ISP not detected; no programming started.");
     }
     private async Task<FirmwareIdentity> WaitForApplicationAsync(CancellationToken ct)
     {
         var device=manager.RealDevice!;
-        var until=DateTimeOffset.UtcNow+TimeSpan.FromSeconds(90);
+        var until=DateTimeOffset.UtcNow+TimeSpan.FromMinutes(3);
         while(DateTimeOffset.UtcNow<until)
         {
             var found=await device.Usb!.DiscoverAsync(ct);

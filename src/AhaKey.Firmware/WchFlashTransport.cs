@@ -49,8 +49,8 @@ public sealed class WchFlashTransport(WchRuntime runtime,IWchProcessRunner runne
         if(!TerminalSuccess(result))throw new InvalidOperationException("Vendor verification was not confirmed.");
     }
     public static bool TerminalSuccess(FlashProcessResult result)=>result.Exited && result.ExitCode is 0 or 100 &&
-        Regex.IsMatch(result.Output,@"(?is)\bFinished\b.*?\bCode\s*[:=]?\s*0\b.*?\bMessage\s*[:=]?\s*Succeed\b") &&
-        !Regex.IsMatch(result.Output,@"(?i)\b(?:Failed|Failure|Exception)\b|\bCode\s*[:=]?\s*[1-9]\d*\b");
+        Regex.IsMatch(Regex.Replace(result.Output, "[\"{},]", " "),@"(?is)\bFinished\b.*?\bCode\s*[:=]?\s*0\b.*?\bMessage\s*[:=]?\s*Succeed\b") &&
+        !Regex.IsMatch(Regex.Replace(result.Output, "[\"{},]", " "),@"(?i)\b(?:Failed|Failure|Exception)\b|\bCode\s*[:=]?\s*[1-9]\d*\b");
     public static string Configuration(string image)=>$"""
         [Public]
         MCUName=CH582
@@ -84,5 +84,6 @@ public sealed class WchFlashTransport(WchRuntime runtime,IWchProcessRunner runne
         IsEraseAllCFlash=1
         IsAfterDownRest=0
         bVerifyType=0
+        Quick Verification Mode=0
         """;
 }

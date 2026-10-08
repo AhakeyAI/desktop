@@ -23,7 +23,7 @@ public sealed class FirmwareViewModel:ObservableObject
     public string? Details=>details;
     public string Availability=>L[runtime.ComponentStatus];
     public string State=>L["FirmwareState"+ (coordinator.Journal?.State.ToString()??"Idle")];
-    public bool CanReinstall=>packageVerified && runtime.ComponentsReady && !runtime.Busy && manager.Operations.Current is null && manager.RealDevice is {ActiveTransport:PhysicalTransportKind.Usb,Observation.IsLive:true,FirmwareIdentity.ReportedModel:1};
+    public bool CanReinstall=>!runtime.Preparing && packageVerified && runtime.ComponentsReady && !runtime.Busy && manager.Operations.Current is null && manager.RealDevice is {ActiveTransport:PhysicalTransportKind.Usb,Observation.IsLive:true,FirmwareIdentity.ReportedModel:1};
     public bool IsCurrent=>manager.RealDevice?.FirmwareIdentity.ReportedVersion=="1.4.8";
     public bool HasNewerPackage=>packageVerified && System.Version.TryParse(manager.RealDevice?.FirmwareIdentity.ReportedVersion,out var current) && current<new System.Version(1,4,8);
     public bool CanCancel=>runtime.Busy && !coordinator.Critical;
@@ -32,6 +32,10 @@ public sealed class FirmwareViewModel:ObservableObject
     public bool NeedsSetup=>!runtime.ComponentsReady;
     public bool ShowBootInstructions=>runtime.Busy && coordinator.Journal?.State is FirmwareUpdateState.EnteringBootloader or FirmwareUpdateState.WaitingForApplication;
     public string BootInstructions=>L[coordinator.Journal?.State==FirmwareUpdateState.WaitingForApplication?"FirmwareReconnectInstructions":"FirmwareBootInstructions"];
+    public AsyncRelayCommand PrepareCommand {get;}
+    public AsyncRelayCommand ArmCommand {get;}
+    public RelayCommand StopPreparingCommand {get;}
+    public string PreparationStatus=>L[runtime.Preparing?(runtime.BootloaderPresent?"FirmwareIspDetected":"FirmwareIspWaiting"):"FirmwarePrepareHint"];
     public AsyncRelayCommand RetryCommand {get;}
     public AsyncRelayCommand ReinstallCommand {get;}
     public AsyncRelayCommand SetupCommand {get;}
@@ -42,7 +46,11 @@ public sealed class FirmwareViewModel:ObservableObject
     public AsyncRelayCommand ChooseCommand {get;}
     public FirmwareViewModel(DeviceManager manager,LocalizationService l,Services.FirmwareRuntime runtime)
     {
-        this.manager=manager;this.runtime=runtime;L=l;VerifyCommand=new(VerifyAsync,()=>HasPackage && !runtime.Busy);ChooseCommand=new(ChooseAsync,()=>!runtime.Busy);
+        this.manager=manager;this.runtime=runtime;L=l;
+        ArmCommand=new(async()=>{await VerifyAsync();await ReinstallAsync();},()=>HasPackage&&!runtime.Busy&&!runtime.Preparing&&manager.Operations.Current is null&&manager.RealDevice is {ActiveTransport:PhysicalTransportKind.Usb,Observation.IsLive:true,FirmwareIdentity.ReportedModel:1});
+        PrepareCommand=new(async()=>{try{await runtime.InspectAsync();if(runtime.ComponentsReady)await runtime.PrepareAsync();}catch(Exception ex)when(ex is not OutOfMemoryException){result="FirmwareStopped";Services.CrashEvidence.Record(ex,"ISP preparation");}Refresh();},()=>!runtime.Busy&&!runtime.Preparing);
+        StopPreparingCommand=new(()=>runtime.StopPreparing(),()=>runtime.Preparing);
+VerifyCommand=new(VerifyAsync,()=>HasPackage && !runtime.Busy);ChooseCommand=new(ChooseAsync,()=>!runtime.Busy);
         ReinstallCommand=new(ReinstallAsync,()=>CanReinstall);CancelCommand=new(()=>cancellation?.Cancel(),()=>CanCancel);
         RetryCommand=new(()=>ReinstallAsync(true),()=>CanRetry);
         SetupCommand=new(async()=>{try{await runtime.InstallDriverAsync();}catch(Exception ex)when(ex is not OutOfMemoryException){result="FirmwareSetupFailed";Refresh();}},()=>!runtime.Busy);
@@ -52,6 +60,7 @@ public sealed class FirmwareViewModel:ObservableObject
     }
     public static FirmwarePackage KnownPackage()=>new("AhaKey-X1","CH582","1.4.8","3.2",Path.Combine(AppContext.BaseDirectory,"FirmwarePackages","AhaKey-X1-firmware-1.4.8-ch582.hex"),
         "2A09C21EEBE764390DD2CBC55C5BF7411C2A641DB6F120125D21B66D9C93DD0C","f1903791f2119d02f71eb92afe9efbb360edb06a",Path.Combine(AppContext.BaseDirectory,"FirmwarePackages","AhaKey-X1-firmware-1.4.8-ch582.provenance.json"),"AhaKey X1 / CH582M / physical PY25Q64HA; partition migration not attested");
+
     private async Task VerifyAsync()
     {
         if(!HasPackage){packageVerified=false;result="FirmwarePackageNotBundled";Refresh();return;}
@@ -75,5 +84,5 @@ public sealed class FirmwareViewModel:ObservableObject
         try{var validation=await Task.Run(()=>{if(new FileInfo(dialog.FileName).Length>2*1024*1024)throw new FormatException();var bytes=File.ReadAllBytes(dialog.FileName);var parsed=FirmwarePackageValidator.ValidateHex(System.Text.Encoding.ASCII.GetString(bytes));return parsed with{Sha256=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))};});result="FirmwareHexValidUntrusted";details=$"SHA-256 {validation.Sha256} / {validation.DataBytes:N0} bytes";}
         catch(Exception ex)when(ex is IOException or FormatException or UnauthorizedAccessException){result="FirmwarePackageInvalid";}Refresh();
     }
-    private void Refresh(){if(System.Windows.Application.Current is {} app&&!app.Dispatcher.CheckAccess()){app.Dispatcher.BeginInvoke(Refresh);return;}OnPropertyChanged(string.Empty);ReinstallCommand.NotifyCanExecuteChanged();RetryCommand.NotifyCanExecuteChanged();VerifyCommand.NotifyCanExecuteChanged();ChooseCommand.NotifyCanExecuteChanged();SetupCommand.NotifyCanExecuteChanged();CancelCommand.NotifyCanExecuteChanged();}
+    private void Refresh(){if(System.Windows.Application.Current is {} app&&!app.Dispatcher.CheckAccess()){app.Dispatcher.BeginInvoke(Refresh);return;}OnPropertyChanged(string.Empty);ArmCommand.NotifyCanExecuteChanged();PrepareCommand.NotifyCanExecuteChanged();StopPreparingCommand.NotifyCanExecuteChanged();ReinstallCommand.NotifyCanExecuteChanged();RetryCommand.NotifyCanExecuteChanged();VerifyCommand.NotifyCanExecuteChanged();ChooseCommand.NotifyCanExecuteChanged();SetupCommand.NotifyCanExecuteChanged();CancelCommand.NotifyCanExecuteChanged();}
 }

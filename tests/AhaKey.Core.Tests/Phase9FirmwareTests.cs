@@ -46,7 +46,13 @@ public sealed class Phase9FirmwareTests : IDisposable
     [Theory][InlineData(0,"",false)][InlineData(0,"Finished Code=0 Message=Succeed",true)][InlineData(100,"Finished Code: 0 Message: Succeed",true)][InlineData(1,"Finished Code=0 Message=Succeed",false)][InlineData(0,"Finished Code=14 Message=Failed",false)]
     public void TerminalRecordAndExitedProcessBothRequired(int code,string output,bool expected)
     {Assert.Equal(expected,WchFlashTransport.TerminalSuccess(new(code,output,true)));Assert.False(WchFlashTransport.TerminalSuccess(new(code,output,false)));}
+    [Theory]
+    [InlineData("{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",true)]
+    [InlineData("{\"Status\":\"Fail\",\"Code\":2,\"Message\":\"Fail to get parameters from cfg file\"}",false)]
+    [InlineData("{\"Status\":\"Finished\",\"Code\":14,\"Message\":\"Failed\"}",false)]
+    public void VendorJsonTerminalIsValidated(string output,bool expected)
+    {Assert.Equal(expected,WchFlashTransport.TerminalSuccess(new(0,output,true)));}
     [Fact] public void OrdinaryFirmwarePlanPreservesDataAndTargetsCh582()
-    {var config=WchFlashTransport.Configuration(Path.Combine(root,"image.hex"));Assert.Contains("MCUName=CH582",config);Assert.Contains("DataFlashFileSel=0",config);Assert.Contains("IsClearDataFlash=0",config);Assert.DoesNotContain("factory",config,StringComparison.OrdinalIgnoreCase);}
+    {var config=WchFlashTransport.Configuration(Path.Combine(root,"image.hex"));Assert.Contains("Quick Verification Mode=0",config);Assert.Contains("MCUName=CH582",config);Assert.Contains("DataFlashFileSel=0",config);Assert.Contains("IsClearDataFlash=0",config);Assert.DoesNotContain("factory",config,StringComparison.OrdinalIgnoreCase);}
     public void Dispose(){if(Directory.Exists(root))Directory.Delete(root,true);}
 }

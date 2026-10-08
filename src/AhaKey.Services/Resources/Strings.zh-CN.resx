@@ -1013,4 +1013,9 @@
 <data name="VoiceThreshold" xml:space="preserve"><value>长按阈值（200–3000 毫秒）</value></data>
 <data name="VoiceLongAction" xml:space="preserve"><value>长按动作</value></data>
 <data name="ProtocolVersion" xml:space="preserve"><value>协议版本</value></data>
-</root>
+<data name="FirmwarePrepare" xml:space="preserve"><value>检查引导程序</value></data>
+<data name="FirmwareStopPreparing" xml:space="preserve"><value>停止等待</value></data>
+<data name="FirmwarePrepareHint" xml:space="preserve"><value>仅检测引导程序，不擦除或写入。此功能不能保持 ISP 模式。</value></data>
+<data name="FirmwareIspWaiting" xml:space="preserve"><value>等待 WCH 引导程序（最多 5 分钟），不写入。</value></data>
+<data name="FirmwareIspDetected" xml:space="preserve"><value>已检测到 WCH 引导程序，不写入。</value></data>
+<data name="FirmwareArm" xml:space="preserve"><value>准备并刷写</value></data></root>

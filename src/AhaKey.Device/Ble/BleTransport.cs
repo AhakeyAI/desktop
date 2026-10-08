@@ -105,7 +105,7 @@ public sealed partial class BleTransport(IWindowsGattSessionFactory factory,Gatt
             if(disposed || session?.Id!=id || sessionCancellation?.IsCancellationRequested==true)return;
             diagnostics=diagnostics with{NativeConnected=connected,Adapter=session.Adapter};
             if(!connected && diagnostics.Stage is BleStage.Ready or BleStage.ReadingStatus or BleStage.ReadingCapabilities)
-            {sessionCancellation?.Cancel();pending?.Response.TrySetException(new BleException("BleLinkLost","Native BLE link was lost."));diagnostics=diagnostics with{Stage=BleStage.Error,IsLive=false,Subscribed=false,ErrorKey="BleLinkLost",Error="Native BLE link lost; explicit reconnect required."};}
+            {sessionCancellation?.Cancel();pending?.Response.TrySetCanceled();diagnostics=diagnostics with{Stage=BleStage.Error,IsLive=false,Subscribed=false,ErrorKey="BleLinkLost",Error="Native BLE link lost; reconnect pending."};}
         }
         Changed?.Invoke();
         if(!connected) _=CloseLostSessionAsync(id);

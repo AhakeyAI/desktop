@@ -1,7 +1,8 @@
 using AhaKey.Device.Ble;
 namespace AhaKey.Device;
 
-// One bounded reconnect burst per lost session. No discovery, polling, setters or mock fallback.
+// Bounded reconnect bursts for a selected device. The attachment supervisor
+// schedules further attempts after cooldown; no setters or mock fallback.
 public sealed class RealDeviceRuntime : IDisposable
 {
     private readonly DeviceManager manager;
@@ -10,13 +11,29 @@ public sealed class RealDeviceRuntime : IDisposable
     private Task active=Task.CompletedTask;
     private bool stopped=true, disposed;
     private Guid? handledLoss;
+    private DateTimeOffset retryAfter;
+    private readonly TimeSpan recoveryInterval;
     public event Action? Changed;
     public bool Busy {get;private set;}
     public bool Reconnecting {get;private set;}
     public bool ExplicitlyDisconnected => stopped;
-    public RealDeviceRuntime(DeviceManager manager)
-    {this.manager=manager;if(manager.RealDevice is {} real)real.Changed+=OnChanged;}
+    public RealDeviceRuntime(DeviceManager manager,TimeSpan? recoveryInterval=null)
+    {this.manager=manager;this.recoveryInterval=recoveryInterval??TimeSpan.FromSeconds(30);if(manager.RealDevice is {} real)real.Changed+=OnChanged;}
+    // Retry only the selected device after transport loss; never infer a live
+    // session from Windows pairing, or restart after an explicit disconnect.
+    public Task RetryDisconnectedAsync()
+    {
+        lock(sync)
+        {
+            if(stopped||disposed||Busy||manager.Operations.Current is not null||manager.Operations.ShutdownRequested||DateTimeOffset.UtcNow<retryAfter||
+               manager.RealDevice is not {ActiveTransport:PhysicalTransportKind.Bluetooth,Selected:not null,Observation.IsLive:false} real||
+               real.Diagnostics.ErrorKey is not ("BleLinkLost" or "BleNativeFailure" or "BleQueryTimeout" or "BleAcquireTimeout" or "BleAcquireFailure" or "BleAdapterUnavailable" or "BleNotReady"))return Task.CompletedTask;
+            retryAfter=DateTimeOffset.UtcNow+recoveryInterval;
+            return ConnectAsync(true);
+        }
+    }
     public void SuspendRecovery() { lock(sync){stopped=true;} }
+    public void ResumeRecovery() { lock(sync){if(!disposed)stopped=false;} }
     public Task StartAsync()=>manager.RealBackendSelected && manager.RealDevice is {ActiveTransport:PhysicalTransportKind.Bluetooth,Selected:not null} ? ConnectAsync(true) : Task.CompletedTask;
     public Task ConnectAsync(bool reconnect=false)
     {
@@ -35,7 +52,7 @@ public sealed class RealDeviceRuntime : IDisposable
         catch(Exception ex) {manager.RealDevice?.RecordError(ex);}
         finally
         {
-            lock(sync){if(ReferenceEquals(operation,owner)){operation=null;Busy=false;Reconnecting=false;}}
+            lock(sync){if(ReferenceEquals(operation,owner)){operation=null;Busy=false;Reconnecting=false;retryAfter=DateTimeOffset.UtcNow+recoveryInterval;}}
             owner.Dispose();Changed?.Invoke();
         }
     }
